@@ -216,7 +216,11 @@ func IssueEnrollment(
 			}
 			params.TemplateAttributes = raw
 		}
-		if tpl.ExpectedUpstreamIDPSlug != nil {
+		// An empty slug is "no provider required", the same reading the caller
+		// applies before it validates the slug exists: storing it as a binding
+		// would persist a provider requirement that was never checked and that
+		// no provider can satisfy.
+		if tpl.ExpectedUpstreamIDPSlug != nil && *tpl.ExpectedUpstreamIDPSlug != "" {
 			params.ExpectedUpstreamIdpSlug = pgtype.Text{String: *tpl.ExpectedUpstreamIDPSlug, Valid: true}
 		}
 	}

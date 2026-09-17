@@ -86,6 +86,25 @@ func (s *ProviderStore) ByBinding(ctx context.Context, id int64, slug, protocol 
 	return provider, nil
 }
 
+// boundInviteSlug returns the provider slug an invite is bound to, or "" when
+// the invite is unbound and the invitee picks the provider.
+//
+// An empty stored value is a binding to nothing rather than a binding to the
+// provider whose slug is "": the invitation API takes an empty
+// expectedUpstreamIdpSlug as "no provider required" and skips its slug-exists
+// validation for it, and the enrollment preview, the register/begin gate and
+// the admin invitation list all read it back that way. Both redemption gates
+// read the binding through here so they cannot disagree about which provider an
+// invite may be redeemed through: while they did, an unbound invite passed
+// start-federation and was then refused at the callback as a slug mismatch,
+// after the invitee had already authenticated upstream.
+func boundInviteSlug(enrollment db.Enrollment) string {
+	if !enrollment.ExpectedUpstreamIdpSlug.Valid {
+		return ""
+	}
+	return enrollment.ExpectedUpstreamIdpSlug.String
+}
+
 // InviteProvider resolves the provider an invite will be redeemed through.
 // The invitee's selected slug (the provider query parameter on
 // start-federation) is judged against the invite's binding per the api
@@ -113,10 +132,7 @@ func (s *ProviderStore) InviteProvider(ctx context.Context, token, selectedSlug 
 		return Provider{}, NewFailure(FailureInviteExpired, nil)
 	}
 
-	bound := ""
-	if enrollment.ExpectedUpstreamIdpSlug.Valid {
-		bound = enrollment.ExpectedUpstreamIdpSlug.String
-	}
+	bound := boundInviteSlug(enrollment)
 	effective := bound
 	if bound == "" {
 		effective = selectedSlug

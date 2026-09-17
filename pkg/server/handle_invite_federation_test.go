@@ -442,6 +442,112 @@ func seedUnboundInvite(t *testing.T, h *fedTestHarness, token string) {
 	h.q.seedEnrollment(enr)
 }
 
+// seedProviderWithMode registers a second slug for the harness IdP under the
+// given mode. The row keeps the harness IdP's id — and with it the sealed
+// secret and the mock OP's issuer — so the full upstream round-trip works
+// against a provider whose only difference is its provisioning mode.
+func seedProviderWithMode(t *testing.T, h *fedTestHarness, slug, mode string) string {
+	t.Helper()
+	provider := h.idp
+	provider.Slug = slug
+	provider.Mode = mode
+	h.q.idpBySlug[slug] = provider
+	return slug
+}
+
+// redeemInvite drives the invitee's whole redemption: start-federation (with
+// the selected provider, when given) → upstream /authorize → /callback, and
+// returns the callback response.
+func (h *fedTestHarness) redeemInvite(t *testing.T, token, callbackSlug string, selectedSlug ...string) *http.Response {
+	t.Helper()
+	loc, resp := h.driveStartFederation(t, token, "/me", selectedSlug...)
+	if resp.StatusCode != http.StatusFound {
+		t.Fatalf("start-federation: status %d, want 302", resp.StatusCode)
+	}
+	if strings.HasPrefix(loc, "/error") {
+		t.Fatalf("start-federation refused the invite: %s", loc)
+	}
+	code, state, iss := driveAuthorize(t, loc)
+	return h.hitCallback(t, callbackSlug, url.Values{"code": {code}, "state": {state}, "iss": {iss}})
+}
+
+// assertInviteProvisioned asserts the redemption created the account and
+// consumed the invite. The identity stays unconfirmed, so the invitee lands on
+// /welcome rather than getting a session.
+func assertInviteProvisioned(t *testing.T, h *fedTestHarness, resp *http.Response, token string) {
+	t.Helper()
+	if got := resp.Header.Get("Location"); got != "/welcome" {
+		t.Fatalf("callback Location = %q, want /welcome", got)
+	}
+	enr, err := h.q.GetEnrollmentByToken(context.Background(), token)
+	if err != nil {
+		t.Fatalf("post-flow GetEnrollmentByToken: %v", err)
+	}
+	if !enr.ConsumedAt.Valid {
+		t.Error("enrollment ConsumedAt: want set, got NULL")
+	}
+	if len(h.q.insertedAccounts) != 1 {
+		t.Fatalf("accounts inserted: want 1, got %d", len(h.q.insertedAccounts))
+	}
+	if len(h.q.insertIdentitys) != 1 {
+		t.Fatalf("identities inserted: want 1, got %d", len(h.q.insertIdentitys))
+	}
+}
+
+func TestEnrollmentStartFederation_UnboundInviteRedeemsThroughInviteOnlyProvider(t *testing.T) {
+	// An invite that names no provider, redeemed through the invite_only
+	// provider the invitee picked. invite_only only refuses to create accounts
+	// for a sign-in that carries no invite; this one carries one, so the
+	// account is created exactly as on any other provisioning provider.
+	h := newInviteTestServer(t)
+	slug := seedProviderWithMode(t, h, "invite-only-idp", fedoidc.ModeInviteOnly)
+	seedUnboundInvite(t, h, "tok-unbound-invite-only")
+
+	resp := h.redeemInvite(t, "tok-unbound-invite-only", slug, slug)
+	assertInviteProvisioned(t, h, resp, "tok-unbound-invite-only")
+}
+
+func TestEnrollmentStartFederation_EmptyBindingInviteRedeemsThroughSelectedProvider(t *testing.T) {
+	// expected_upstream_idp_slug = '' is "no provider required", the same as
+	// NULL: it is what the invitation API stored when the caller spelled the
+	// absent binding as an empty string. start-federation has always read it
+	// that way, so the callback must too — reading it as a binding refused the
+	// invitee with invite_required after they had authenticated upstream.
+	h := newInviteTestServer(t)
+	slug := seedProviderWithMode(t, h, "invite-only-idp", fedoidc.ModeInviteOnly)
+	enr := validInvite("tok-empty-binding", "")
+	enr.ExpectedUpstreamIdpSlug = pgtype.Text{String: "", Valid: true}
+	h.q.seedEnrollment(enr)
+
+	resp := h.redeemInvite(t, "tok-empty-binding", slug, slug)
+	assertInviteProvisioned(t, h, resp, "tok-empty-binding")
+}
+
+func TestEnrollmentStartFederation_UnboundInviteRedeemsThroughAutoProvisionProvider(t *testing.T) {
+	// The neighbouring branch of the same choice: the invitee picked the
+	// auto_provision provider instead. Same outcome, and the invite's template
+	// role still applies.
+	h := newInviteTestServer(t)
+	seedUnboundInvite(t, h, "tok-unbound-auto")
+
+	resp := h.redeemInvite(t, "tok-unbound-auto", h.idp.Slug, h.idp.Slug)
+	assertInviteProvisioned(t, h, resp, "tok-unbound-auto")
+	if role := h.q.insertedAccounts[0].Role; role != "user" {
+		t.Errorf("account Role = %q, want user (from the invite template)", role)
+	}
+}
+
+func TestEnrollmentStartFederation_BoundInviteRedeemsThroughInviteOnlyProvider(t *testing.T) {
+	// The other neighbouring branch: the binding names the invite_only
+	// provider, so the invitee passes no provider parameter at all.
+	h := newInviteTestServer(t)
+	slug := seedProviderWithMode(t, h, "invite-only-idp", fedoidc.ModeInviteOnly)
+	h.q.seedEnrollment(validInvite("tok-bound-invite-only", slug))
+
+	resp := h.redeemInvite(t, "tok-bound-invite-only", slug)
+	assertInviteProvisioned(t, h, resp, "tok-bound-invite-only")
+}
+
 func TestEnrollmentStartFederation_UnboundInviteWithProviderStarts(t *testing.T) {
 	h := newInviteTestServer(t)
 	seedUnboundInvite(t, h, "tok-pick")

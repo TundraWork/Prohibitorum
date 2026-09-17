@@ -787,6 +787,30 @@ func TestApplyInviteOnly_ConsumedOrExpired(t *testing.T) {
 	}
 }
 
+func TestApplyInviteOnly_EmptySlugBindingIsUnbound(t *testing.T) {
+	// An empty expected_upstream_idp_slug names no provider, so it is not a
+	// mismatch with the provider the invitee selected: start-federation already
+	// let this invite through as unbound, and refusing it here would strand the
+	// invitee on invite_required after they had authenticated upstream.
+	q := newFakeModesQueries()
+	q.consumeEnrollmentResult = makeInviteEnrollment("", "user", nil)
+	a := &recordingAudit{}
+	idp := newIDP(federationoidc.ModeInviteOnly)
+
+	out, err := federationoidc.ApplyInviteProvisionForTest(
+		context.Background(), q, a, idp, goodTokens(), "invite-token-xyz", nil,
+	)
+	if err != nil {
+		t.Fatalf("applyInviteProvision: %v", err)
+	}
+	if !out.IsNew {
+		t.Error("want a freshly provisioned account (isNew=true)")
+	}
+	if a.hasFail("invite_slug_mismatch") {
+		t.Errorf("empty binding must not audit as a slug mismatch; got %+v", a.snapshot())
+	}
+}
+
 func TestApplyInviteOnly_SlugMismatch(t *testing.T) {
 	q := newFakeModesQueries()
 	// Enrollment was minted for "other-idp"; we're driving against idp.Slug="test-idp".

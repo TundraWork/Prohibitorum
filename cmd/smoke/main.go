@@ -63,7 +63,7 @@ import (
 // later arc is added, unlike a single global counter.
 const (
 	nCore       = 51
-	nFederation = 33
+	nFederation = 34
 	nOIDC       = 18
 	nSAML       = 14
 	nHardening  = 13
@@ -1226,7 +1226,68 @@ func main() {
 	}
 	log.Printf("  unbound invite redeemed through the selected provider ✓")
 
-	step(fmt.Sprintf("federation %d/%d — username_collision: claim taken → error, invite stays redeemable", 32, nFederation))
+	step(fmt.Sprintf("federation %d/%d — unbound invite minted through the admin API redeems on the invite_only provider", 32, nFederation))
+	// The steps above seed their enrollment rows with SQL. This one mints the
+	// invite the way an administrator does, and spells "no provider required"
+	// as an empty expectedUpstreamIdpSlug — the spelling the API accepts
+	// without validating a slug, and which must therefore leave the invite
+	// unbound all the way through redemption.
+	const apiInviteSub = "invite-redeemer-sub-api"
+	const apiInviteUsername = "invite-redeemer-4"
+	if err := sudoWebAuthn(c, auth, *baseURL); err != nil {
+		log.Fatalf("admin sudo webauthn pre-invitation: %v", err)
+	}
+	var apiInvitation struct {
+		URL string `json:"url"`
+	}
+	if err := c.postJSON("/api/prohibitorum/invitations", map[string]any{
+		"role":                    "user",
+		"expectedUpstreamIdpSlug": "",
+	}, &apiInvitation); err != nil {
+		log.Fatalf("create unbound invitation: %v", err)
+	}
+	apiInviteURL, err := url.Parse(apiInvitation.URL)
+	if err != nil {
+		log.Fatalf("parse invitation URL: %v", err)
+	}
+	apiInviteToken := path.Base(strings.TrimSuffix(apiInviteURL.Path, "/"))
+	if apiInviteToken == "" || apiInviteToken == "." || apiInviteToken == "/" {
+		log.Fatalf("invitation URL has no token: %q", apiInvitation.URL)
+	}
+	if bound, err := enrollmentExpectedSlug(apiInviteToken); err != nil {
+		log.Fatalf("read invitation binding: %v", err)
+	} else if bound != "" {
+		log.Fatalf("invitation expected_upstream_idp_slug: want unbound, got %q", bound)
+	}
+	opSrv.SetClaims(apiInviteSub, "invite-redeemer-4@example.com", true, apiInviteUsername, "Fourth Redeemer")
+	apiInviteClient, err := newFederationClient(*baseURL)
+	if err != nil {
+		log.Fatalf("api invite client: %v", err)
+	}
+	apiInviteAuthorize, err := apiInviteClient.getRedirect(fmt.Sprintf("/api/prohibitorum/enrollments/%s/start-federation?provider=mockop-invite&return_to=/me", apiInviteToken))
+	if err != nil {
+		log.Fatalf("api invite start-federation: %v", err)
+	}
+	apiInviteCallback, err := followMockOPAuthorize(apiInviteAuthorize)
+	if err != nil {
+		log.Fatalf("api invite authorize: %v", err)
+	}
+	if loc, err := apiInviteClient.getRedirectAbs(apiInviteCallback); err != nil {
+		log.Fatalf("api invite callback: %v", err)
+	} else if loc != "/welcome" {
+		log.Fatalf("api invite callback: want /welcome, got %q", loc)
+	}
+	if offerLocalSignin, _, err := apiInviteClient.confirmPostFull(); err != nil {
+		log.Fatalf("api invite confirm: %v", err)
+	} else if !offerLocalSignin {
+		log.Fatalf("api invite confirm: want offerLocalSignin=true for an invite+provider account")
+	}
+	if consumed, err := enrollmentConsumed(apiInviteToken); err != nil || !consumed {
+		log.Fatalf("api invite consumed_at: consumed=%v err=%v", consumed, err)
+	}
+	log.Printf("  API-minted unbound invite redeemed through the invite_only provider ✓")
+
+	step(fmt.Sprintf("federation %d/%d — username_collision: claim taken → error, invite stays redeemable", 33, nFederation))
 	const collToken = "invite-token-smoke-collision-001"
 	if err := seedInviteEnrollment(collToken, "user", "mockop-invite", "1 hour"); err != nil {
 		log.Fatalf("seed collision invite: %v", err)
@@ -1256,7 +1317,7 @@ func main() {
 	}
 	log.Printf("  username_collision surfaced; invite left redeemable ✓")
 
-	step(fmt.Sprintf("federation %d/%d — DB assert: credential_event covers federation lifecycle", 33, nFederation))
+	step(fmt.Sprintf("federation %d/%d — DB assert: credential_event covers federation lifecycle", 34, nFederation))
 	if err := verifyFederationAuditEvents(); err != nil {
 		log.Fatalf("federation audit DB assert: %v", err)
 	}
@@ -7776,6 +7837,22 @@ func enrollmentConsumed(token string) (bool, error) {
 		return false, fmt.Errorf("enrollment[%s]: want 1 row, got %v", token, rows)
 	}
 	return rows[0] == "true", nil
+}
+
+// enrollmentExpectedSlug reads back the provider an invitation is bound to.
+// NULL and the empty string are both "unbound" and both read back as "": the
+// stored row must not carry a binding the API never validated.
+func enrollmentExpectedSlug(token string) (string, error) {
+	dburl := os.Getenv("PROHIBITORUM_DATABASE_URL")
+	rows, err := dbScalar(dburl, fmt.Sprintf(
+		"SELECT COALESCE(expected_upstream_idp_slug, '') FROM enrollment WHERE token='%s'", token))
+	if err != nil {
+		return "", err
+	}
+	if len(rows) != 1 {
+		return "", fmt.Errorf("enrollment[%s]: want 1 row, got %v", token, rows)
+	}
+	return rows[0], nil
 }
 
 // =========================================================================

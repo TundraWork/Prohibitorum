@@ -540,13 +540,13 @@ func applyInviteProvision(
 
 		// Defense in depth: a BINDING-carrying invite must have been minted
 		// for THIS IdP — it catches admin slug edits mid-flight, malformed flow
-		// state, etc. An UNBOUND invite (no expected slug) is redeemable
+		// state, etc. An UNBOUND invite (boundInviteSlug "") is redeemable
 		// through any provisioning-capable provider the invitee selected; the
 		// begin-time gate (ProviderStore.InviteProvider) already rejected
-		// link_only/disabled choices.
-		if enr.ExpectedUpstreamIdpSlug.Valid && enr.ExpectedUpstreamIdpSlug.String != idp.Slug {
+		// link_only/disabled choices, and reads the binding the same way.
+		if bound := boundInviteSlug(enr); bound != "" && bound != idp.Slug {
 			emitFail(ctx, w, idp, identity, "invite_slug_mismatch", map[string]any{
-				"enrollment_expected_slug": enr.ExpectedUpstreamIdpSlug.String,
+				"enrollment_expected_slug": bound,
 			})
 			return ResolveOutcome{}, authn.ErrInviteRequired()
 		}

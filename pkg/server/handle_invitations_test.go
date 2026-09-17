@@ -174,6 +174,33 @@ func TestCreateInvitation_NoSlug(t *testing.T) {
 	}
 }
 
+// TestCreateInvitation_EmptySlugStoresNoBinding checks the other spelling of
+// "no provider required": an empty expectedUpstreamIdpSlug must store NULL,
+// not an empty binding. The handler skips its slug-exists validation for it,
+// so storing it as a binding would persist an unvalidated provider requirement
+// — and the redemption callback would then refuse the invite.
+func TestCreateInvitation_EmptySlugStoresNoBinding(t *testing.T) {
+	t.Parallel()
+
+	empty := ""
+	q := &fakeInvitationQ{}
+	s := minimalServerForInvitations(q)
+
+	in := &createInvitationIn{}
+	in.Body.Role = "user"
+	in.Body.ExpectedUpstreamIdpSlug = &empty
+
+	if _, err := s.handleCreateInvitation(context.Background(), in); err != nil {
+		t.Fatalf("handleCreateInvitation: %v", err)
+	}
+	if len(q.inserted) != 1 {
+		t.Fatalf("InsertEnrollment call count: want 1, got %d", len(q.inserted))
+	}
+	if got := q.inserted[0].ExpectedUpstreamIdpSlug; got.Valid {
+		t.Errorf("ExpectedUpstreamIdpSlug: want NULL for an empty slug, got %+v", got)
+	}
+}
+
 // TestCreateInvitation_UnknownSlugRejected guards T3.4: a federated invite
 // bound to a non-existent or disabled IdP slug is rejected at create time
 // (rather than minting a permanently un-redeemable invite).
