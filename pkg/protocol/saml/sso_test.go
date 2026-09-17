@@ -895,9 +895,9 @@ func TestSAMLManualAllowProjectsRuleGroups(t *testing.T) {
 	sp.AttributeMap = []byte(`[{"name":"groups","name_format":"urn:oasis:names:tc:SAML:2.0:attrname-format:basic","source":"groups","multi":true}]`)
 	h := newSSOHarness(t, sp)
 	decision := appaccess.Decision{
-		Allowed:     true,
-		Source:      appaccess.SourceManualAllow,
-		ManualGroup: &appaccess.GroupMatch{ID: 10, Slug: "manual", Exposed: true, Matched: true},
+		Allowed:      true,
+		Source:       appaccess.SourceManualAllow,
+		ManualGroups: []appaccess.GroupMatch{{ID: 10, Slug: "manual", Exposed: true, Matched: true}},
 		MatchingRuleGroups: []appaccess.GroupMatch{
 			{ID: 11, Slug: "passkeys", Exposed: true, Matched: true},
 		},

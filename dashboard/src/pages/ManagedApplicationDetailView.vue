@@ -1,25 +1,32 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
-import type { AppKind } from '@/lib/appAccess'
-import AppPolicyWorkspace from '@/components/custom/AppPolicyWorkspace.vue'
-import BackLink from '@/components/custom/BackLink.vue'
+import { useQueryClient } from '@tanstack/vue-query'
+import { keys, type SessionView } from '@/queries/resources'
+import AdminOidcClientDetailView from './admin/AdminOidcClientDetailView.vue'
+import AdminForwardAuthAppDetailView from './admin/AdminForwardAuthAppDetailView.vue'
+import AdminSamlProviderDetailView from './admin/AdminSamlProviderDetailView.vue'
 
 const route = useRoute()
-const { t } = useI18n()
-const kind = computed(() => String(route.params.kind) as AppKind)
-const appId = computed(() => String(route.params.id))
+const queryClient = useQueryClient()
+const currentAccountId = computed(() => queryClient.getQueryData<SessionView>(keys.me)?.id)
+const detail = computed(() => {
+  switch (String(route.params.kind)) {
+    case 'oidc': return AdminOidcClientDetailView
+    case 'forward_auth': return AdminForwardAuthAppDetailView
+    case 'saml': return AdminSamlProviderDetailView
+    default: return null
+  }
+})
 </script>
 
 <template>
-  <div class="flex max-w-4xl flex-col gap-6">
-    <BackLink to="/manage/applications" :label="t('manage.applications.back')" />
-    <AppPolicyWorkspace
-      :kind="kind"
-      :app-id="appId"
-      :display-name="appId"
+  <div data-test="managed-application-detail">
+    <component
+      :is="detail"
+      v-if="detail"
       mode="manager"
+      :current-account-id="currentAccountId"
     />
   </div>
 </template>

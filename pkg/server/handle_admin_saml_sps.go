@@ -163,6 +163,9 @@ type getSAMLApplicationOut struct {
 }
 
 func (s *Server) handleGetSAMLApplication(ctx context.Context, in *getSAMLApplicationIn) (*getSAMLApplicationOut, error) {
+	if err := s.authorizeApplicationManager(ctx, samlApplicationRef(in.ID)); err != nil {
+		return nil, authErrToHuma(err)
+	}
 	sp, err := s.queries.GetSAMLSPByID(ctx, in.ID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -349,7 +352,6 @@ func (s *Server) handleUpdateSAMLApplicationHTTP(w http.ResponseWriter, r *http.
 		writeAuthErr(w, authn.ErrBadRequest())
 		return
 	}
-
 	var body updateSAMLApplicationBody
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeAuthErr(w, authn.ErrBadRequest())
@@ -357,6 +359,10 @@ func (s *Server) handleUpdateSAMLApplicationHTTP(w http.ResponseWriter, r *http.
 	}
 	if body.DisplayName == "" {
 		writeAuthErr(w, authn.ErrBadRequest())
+		return
+	}
+	if err := s.authorizeApplicationManager(r.Context(), samlApplicationRef(id)); err != nil {
+		writeAuthErr(w, err)
 		return
 	}
 
@@ -430,6 +436,10 @@ func (s *Server) handleReingestSAMLApplicationHTTP(w http.ResponseWriter, r *htt
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
 		writeAuthErr(w, authn.ErrBadRequest())
+		return
+	}
+	if err := s.authorizeApplicationManager(r.Context(), samlApplicationRef(id)); err != nil {
+		writeAuthErr(w, err)
 		return
 	}
 
@@ -550,6 +560,10 @@ func (s *Server) handleDeleteSAMLApplicationHTTP(w http.ResponseWriter, r *http.
 		writeAuthErr(w, authn.ErrBadRequest())
 		return
 	}
+	if err := s.authorizeApplicationManager(r.Context(), samlApplicationRef(body.ID)); err != nil {
+		writeAuthErr(w, err)
+		return
+	}
 
 	// Look up the entity_id first so we can include it in the audit record.
 	sp, err := s.queries.GetSAMLSPByID(r.Context(), body.ID)
@@ -614,6 +628,10 @@ func (s *Server) handleSetSAMLApplicationDisabledHTTP(w http.ResponseWriter, r *
 	}
 	if body.ID <= 0 {
 		writeAuthErr(w, authn.ErrBadRequest())
+		return
+	}
+	if err := s.authorizeApplicationManager(r.Context(), samlApplicationRef(body.ID)); err != nil {
+		writeAuthErr(w, err)
 		return
 	}
 

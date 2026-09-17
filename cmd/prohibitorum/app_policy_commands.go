@@ -260,14 +260,28 @@ func addAppRestrictionCommands(parent *cobra.Command, cfg appPolicyCLI) {
 	parent.AddCommand(accessCmd)
 }
 
+func replacePolicyGroups(ctx context.Context, q *db.Queries, ref appaccess.AppRef, groupIDs []int32) ([]db.UserGroup, error) {
+	if ref.Kind == appaccess.KindSAML {
+		return q.ReplaceSAMLAppGroups(ctx, db.ReplaceSAMLAppGroupsParams{SamlSpID: ref.SAMLSPID, GroupIds: groupIDs})
+	}
+	return q.ReplaceOIDCAppGroups(ctx, db.ReplaceOIDCAppGroupsParams{OidcClientID: ref.OIDCClientID, GroupIds: groupIDs})
+}
+
+func findBoundPolicyGroup(ctx context.Context, q *db.Queries, ref appaccess.AppRef, groupID int32) (db.UserGroup, error) {
+	if ref.Kind == appaccess.KindSAML {
+		return q.GetSAMLAppGroup(ctx, db.GetSAMLAppGroupParams{GroupID: groupID, SamlSpID: ref.SAMLSPID})
+	}
+	return q.GetOIDCAppGroup(ctx, db.GetOIDCAppGroupParams{GroupID: groupID, OidcClientID: ref.OIDCClientID})
+}
+
 func addAppGroupCommands(parent *cobra.Command, cfg appPolicyCLI) {
 	var target string
-	groupCmd := &cobra.Command{Use: "group", Short: "Manage app-bound access groups"}
+	groupCmd := &cobra.Command{Use: "group", Short: "Select global groups for the application"}
 	cfg.bindTargetFlag(groupCmd, &target)
 
 	groupCmd.AddCommand(&cobra.Command{
 		Use:   "list",
-		Short: "List groups bound to the application",
+		Short: "List global groups selected by the application",
 		Run: func(_ *cobra.Command, _ []string) {
 			ctx := context.Background()
 			q, conn := mustOpenDB(ctx)
@@ -283,188 +297,47 @@ func addAppGroupCommands(parent *cobra.Command, cfg appPolicyCLI) {
 			}
 		},
 	})
-	groupCmd.AddCommand(newCreateAppGroupCommand(cfg, &target, "manual"))
-	groupCmd.AddCommand(newCreateAppGroupCommand(cfg, &target, "rule"))
-	groupCmd.AddCommand(newUpdateAppGroupCommand(cfg, &target))
-	groupCmd.AddCommand(newDeleteAppGroupCommand(cfg, &target))
-	groupCmd.AddCommand(newPreviewAppGroupCommand(cfg, &target))
-	parent.AddCommand(groupCmd)
-}
 
-func newCreateAppGroupCommand(cfg appPolicyCLI, target *string, kind string) *cobra.Command {
-	var slug, displayName, description, ruleFile string
-	var exposed bool
-	use := "create-" + kind
-	cmd := &cobra.Command{
-		Use:   use,
-		Short: "Create an app-bound " + kind + " group",
+	var groupIDs []int32
+	selectCmd := &cobra.Command{
+		Use:   "select",
+		Short: "Replace the complete global-group selection",
 		Run: func(_ *cobra.Command, _ []string) {
-			if slug == "" || displayName == "" {
-				log.Fatalf("--slug and --display-name are required")
-			}
-			if kind == "rule" && ruleFile == "" {
-				log.Fatalf("--rule-file is required")
+			seen := make(map[int32]struct{}, len(groupIDs))
+			for _, id := range groupIDs {
+				if id <= 0 {
+					log.Fatalf("group select: every --group-id must be positive")
+				}
+				if _, duplicate := seen[id]; duplicate {
+					log.Fatalf("group select: duplicate group id %d", id)
+				}
+				seen[id] = struct{}{}
 			}
 			ctx := context.Background()
 			q, conn := mustOpenDB(ctx)
 			defer conn.Close()
-			ref := cfg.mustResolve(ctx, q, *target, use)
-			var rule []byte
-			var err error
-			if kind == "rule" {
-				rule, err = canonicalRuleFile(ctx, q, ruleFile)
-				if err != nil {
-					log.Fatalf("%s: %v", use, err)
-				}
-			}
-			desc := nullableText(description)
-			var group db.UserGroup
-			if ref.Kind == appaccess.KindSAML {
-				group, err = q.CreateSAMLAppGroup(ctx, db.CreateSAMLAppGroupParams{Kind: kind, Slug: slug, DisplayName: displayName, Description: desc, ExposedToDownstream: exposed, Rule: rule, SamlSpID: ref.SAMLSPID})
-			} else {
-				group, err = q.CreateOIDCAppGroup(ctx, db.CreateOIDCAppGroupParams{Kind: kind, Slug: slug, DisplayName: displayName, Description: desc, ExposedToDownstream: exposed, Rule: rule, OidcClientID: ref.OIDCClientID})
-			}
+			ref := cfg.mustResolve(ctx, q, target, "group select")
+			groups, err := replacePolicyGroups(ctx, q, ref, groupIDs)
 			if err != nil {
-				log.Fatalf("%s: %v", use, err)
+				log.Fatalf("group select: %v", err)
 			}
-			fmt.Printf("Created %s group %q (id=%d)\n", kind, group.Slug, group.ID)
+			if len(groups) != len(groupIDs) {
+				log.Fatalf("group select: one or more global groups do not exist")
+			}
+			fmt.Printf("Selected %d global group(s)\n", len(groups))
 		},
 	}
-	cmd.Flags().StringVar(&slug, "slug", "", "Stable group slug (required).")
-	cmd.Flags().StringVar(&displayName, "display-name", "", "Human-readable group name (required).")
-	cmd.Flags().StringVar(&description, "description", "", "Optional group description.")
-	cmd.Flags().BoolVar(&exposed, "exposed", true, "Expose matching membership downstream.")
-	if kind == "rule" {
-		cmd.Flags().StringVar(&ruleFile, "rule-file", "", "Path to a bounded rule JSON file (required).")
-	}
-	return cmd
-}
+	selectCmd.Flags().Int32SliceVar(&groupIDs, "group-id", nil, "Global group ID to select; repeat for multiple groups. Omit to clear all groups.")
+	groupCmd.AddCommand(selectCmd)
 
-func newUpdateAppGroupCommand(cfg appPolicyCLI, target *string) *cobra.Command {
-	var slug, newSlug, displayName, description, exposedValue, ruleFile string
-	cmd := &cobra.Command{
-		Use:   "update",
-		Short: "Update an app-bound group without changing its app binding or kind",
-		Run: func(cmd *cobra.Command, _ []string) {
-			if slug == "" {
-				log.Fatalf("--slug is required")
-			}
-			ctx := context.Background()
-			q, conn := mustOpenDB(ctx)
-			defer conn.Close()
-			ref := cfg.mustResolve(ctx, q, *target, "group update")
-			current, err := findPolicyGroup(ctx, q, ref, slug)
-			if errors.Is(err, pgx.ErrNoRows) {
-				log.Fatalf("group update: group %q not found", slug)
-			}
-			if err != nil {
-				log.Fatalf("group update: lookup: %v", err)
-			}
-			nextSlug := current.Slug
-			if cmd.Flags().Changed("new-slug") {
-				nextSlug = newSlug
-			}
-			nextDisplayName := current.DisplayName
-			if cmd.Flags().Changed("display-name") {
-				nextDisplayName = displayName
-			}
-			nextDescription := current.Description
-			if cmd.Flags().Changed("description") {
-				nextDescription = nullableText(description)
-			}
-			nextExposed := current.ExposedToDownstream
-			if cmd.Flags().Changed("exposed") {
-				switch exposedValue {
-				case "true":
-					nextExposed = true
-				case "false":
-					nextExposed = false
-				default:
-					log.Fatalf("--exposed must be true or false")
-				}
-			}
-			nextRule := current.Rule
-			if cmd.Flags().Changed("rule-file") {
-				if current.Kind != "rule" {
-					log.Fatalf("group update: --rule-file is only valid for rule groups")
-				}
-				nextRule, err = canonicalRuleFile(ctx, q, ruleFile)
-				if err != nil {
-					log.Fatalf("group update: %v", err)
-				}
-			}
-			arg := db.UpdateAppGroupParams{Slug: nextSlug, DisplayName: nextDisplayName, Description: nextDescription, ExposedToDownstream: nextExposed, Rule: nextRule, GroupID: current.ID}
-			if ref.Kind == appaccess.KindSAML {
-				arg.SamlSpID = pgtype.Int8{Int64: ref.SAMLSPID, Valid: true}
-			} else {
-				arg.OidcClientID = pgtype.Text{String: ref.OIDCClientID, Valid: true}
-			}
-			updated, err := q.UpdateAppGroup(ctx, arg)
-			if err != nil {
-				log.Fatalf("group update: %v", err)
-			}
-			fmt.Printf("Updated %s group %q (id=%d)\n", updated.Kind, updated.Slug, updated.ID)
-		},
-	}
-	cmd.Flags().StringVar(&slug, "slug", "", "Current group slug (required).")
-	cmd.Flags().StringVar(&newSlug, "new-slug", "", "New group slug.")
-	cmd.Flags().StringVar(&displayName, "display-name", "", "New display name.")
-	cmd.Flags().StringVar(&description, "description", "", "New description; empty clears it.")
-	cmd.Flags().StringVar(&exposedValue, "exposed", "", "Expose downstream: true or false.")
-	cmd.Flags().StringVar(&ruleFile, "rule-file", "", "Replacement bounded rule JSON file.")
-	return cmd
-}
-
-func newDeleteAppGroupCommand(cfg appPolicyCLI, target *string) *cobra.Command {
-	var slug string
-	var yes bool
-	cmd := &cobra.Command{
-		Use:   "delete",
-		Short: "Delete an app-bound group",
-		Run: func(_ *cobra.Command, _ []string) {
-			if slug == "" || !yes {
-				log.Fatalf("--slug and --yes are required")
-			}
-			ctx := context.Background()
-			q, conn := mustOpenDB(ctx)
-			defer conn.Close()
-			ref := cfg.mustResolve(ctx, q, *target, "group delete")
-			group, err := findPolicyGroup(ctx, q, ref, slug)
-			if errors.Is(err, pgx.ErrNoRows) {
-				log.Fatalf("group delete: group %q not found", slug)
-			}
-			if err != nil {
-				log.Fatalf("group delete: lookup: %v", err)
-			}
-			var rows int64
-			if ref.Kind == appaccess.KindSAML {
-				rows, err = q.DeleteSAMLAppGroup(ctx, db.DeleteSAMLAppGroupParams{GroupID: group.ID, SamlSpID: ref.SAMLSPID})
-			} else {
-				rows, err = q.DeleteOIDCAppGroup(ctx, db.DeleteOIDCAppGroupParams{GroupID: group.ID, OidcClientID: ref.OIDCClientID})
-			}
-			if err != nil {
-				log.Fatalf("group delete: %v", err)
-			}
-			if rows == 0 {
-				log.Fatalf("group delete: group %q not found", slug)
-			}
-			fmt.Printf("Deleted group %q\n", slug)
-		},
-	}
-	cmd.Flags().StringVar(&slug, "slug", "", "Group slug (required).")
-	cmd.Flags().BoolVar(&yes, "yes", false, "Confirm group deletion.")
-	return cmd
-}
-
-func newPreviewAppGroupCommand(cfg appPolicyCLI, target *string) *cobra.Command {
-	var slug string
+	var previewGroupID int32
 	var limit int32
-	cmd := &cobra.Command{
+	previewCmd := &cobra.Command{
 		Use:   "preview",
-		Short: "Preview a rule group against active accounts",
+		Short: "Preview one selected rule group against active accounts",
 		Run: func(_ *cobra.Command, _ []string) {
-			if slug == "" {
-				log.Fatalf("--slug is required")
+			if previewGroupID <= 0 {
+				log.Fatalf("--group-id must be positive")
 			}
 			if limit < 1 || limit > 500 {
 				log.Fatalf("--limit must be between 1 and 500")
@@ -472,16 +345,16 @@ func newPreviewAppGroupCommand(cfg appPolicyCLI, target *string) *cobra.Command 
 			ctx := context.Background()
 			q, conn := mustOpenDB(ctx)
 			defer conn.Close()
-			ref := cfg.mustResolve(ctx, q, *target, "group preview")
-			group, err := findPolicyGroup(ctx, q, ref, slug)
+			ref := cfg.mustResolve(ctx, q, target, "group preview")
+			group, err := findBoundPolicyGroup(ctx, q, ref, previewGroupID)
 			if errors.Is(err, pgx.ErrNoRows) {
-				log.Fatalf("group preview: group %q not found", slug)
+				log.Fatalf("group preview: selected group %d not found", previewGroupID)
 			}
 			if err != nil {
 				log.Fatalf("group preview: lookup: %v", err)
 			}
 			if group.Kind != "rule" {
-				log.Fatalf("group preview: group %q is not rule-based", slug)
+				log.Fatalf("group preview: group %d is not rule-based", previewGroupID)
 			}
 			previews, err := appaccess.NewService(q).PreviewGroup(ctx, ref, group.ID, db.ListActiveAccountAccessFactsPageParams{RowLimit: limit})
 			if err != nil {
@@ -493,31 +366,45 @@ func newPreviewAppGroupCommand(cfg appPolicyCLI, target *string) *cobra.Command 
 			}
 		},
 	}
-	cmd.Flags().StringVar(&slug, "slug", "", "Rule group slug (required).")
-	cmd.Flags().Int32Var(&limit, "limit", 100, "Maximum active accounts to preview (1-500).")
-	return cmd
+	previewCmd.Flags().Int32Var(&previewGroupID, "group-id", 0, "Selected rule group ID (required).")
+	previewCmd.Flags().Int32Var(&limit, "limit", 100, "Maximum active accounts to preview (1-500).")
+	groupCmd.AddCommand(previewCmd)
+	parent.AddCommand(groupCmd)
 }
 
 func addAppDecisionCommands(parent *cobra.Command, cfg appPolicyCLI) {
 	var target string
-	decisionCmd := &cobra.Command{Use: "decision", Short: "Manage manual per-account access decisions"}
+	var groupID int32
+	decisionCmd := &cobra.Command{Use: "decision", Short: "Manage decisions on a selected global manual group"}
 	cfg.bindTargetFlag(decisionCmd, &target)
+	decisionCmd.PersistentFlags().Int32Var(&groupID, "group-id", 0, "Selected global manual group ID (required).")
+
+	resolveManual := func(ctx context.Context, q *db.Queries, ref appaccess.AppRef, operation string) db.UserGroup {
+		if groupID <= 0 {
+			log.Fatalf("%s: --group-id must be positive", operation)
+		}
+		group, err := findBoundPolicyGroup(ctx, q, ref, groupID)
+		if errors.Is(err, pgx.ErrNoRows) {
+			log.Fatalf("%s: selected group %d not found", operation, groupID)
+		}
+		if err != nil {
+			log.Fatalf("%s: group lookup: %v", operation, err)
+		}
+		if group.Kind != "manual" {
+			log.Fatalf("%s: group %d is not manual", operation, groupID)
+		}
+		return group
+	}
 
 	decisionCmd.AddCommand(&cobra.Command{
 		Use:   "list",
-		Short: "List manual access decisions",
+		Short: "List decisions for the selected manual group",
 		Run: func(_ *cobra.Command, _ []string) {
 			ctx := context.Background()
 			q, conn := mustOpenDB(ctx)
 			defer conn.Close()
 			ref := cfg.mustResolve(ctx, q, target, "decision list")
-			group, err := findManualPolicyGroup(ctx, q, ref)
-			if errors.Is(err, pgx.ErrNoRows) {
-				log.Fatalf("decision list: application has no manual group")
-			}
-			if err != nil {
-				log.Fatalf("decision list: %v", err)
-			}
+			group := resolveManual(ctx, q, ref, "decision list")
 			rows, err := q.ListManualDecisionsPage(ctx, db.ListManualDecisionsPageParams{GroupID: group.ID, RowLimit: 10000})
 			if err != nil {
 				log.Fatalf("decision list: %v", err)
@@ -532,7 +419,7 @@ func addAppDecisionCommands(parent *cobra.Command, cfg appPolicyCLI) {
 	var username, effect string
 	setCmd := &cobra.Command{
 		Use:   "set",
-		Short: "Set or clear a manual access decision",
+		Short: "Set or clear a decision on the selected manual group",
 		Run: func(_ *cobra.Command, _ []string) {
 			if username == "" {
 				log.Fatalf("--username is required")
@@ -544,13 +431,7 @@ func addAppDecisionCommands(parent *cobra.Command, cfg appPolicyCLI) {
 			q, conn := mustOpenDB(ctx)
 			defer conn.Close()
 			ref := cfg.mustResolve(ctx, q, target, "decision set")
-			group, err := findManualPolicyGroup(ctx, q, ref)
-			if errors.Is(err, pgx.ErrNoRows) {
-				log.Fatalf("decision set: application has no manual group")
-			}
-			if err != nil {
-				log.Fatalf("decision set: manual group: %v", err)
-			}
+			group := resolveManual(ctx, q, ref, "decision set")
 			account, err := q.GetAccountByUsername(ctx, username)
 			if errors.Is(err, pgx.ErrNoRows) {
 				log.Fatalf("decision set: account %q not found", username)

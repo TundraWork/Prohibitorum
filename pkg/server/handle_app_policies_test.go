@@ -2,8 +2,10 @@ package server
 
 import (
 	"encoding/json"
+	"maps"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"testing"
 
 	"prohibitorum/pkg/audit"
@@ -11,136 +13,25 @@ import (
 	"prohibitorum/pkg/db"
 )
 
-func TestCreateSecondManualGroupConflicts(t *testing.T) {
-	s, _, _ := newPolicyTestServer()
-	rr := managedRequest(t, s, http.MethodPost, managedURL("oidc", "wiki", "/groups"),
-		`{"kind":"manual","slug":"another-exception","displayName":"Another exception"}`, managedAppSession(7, "app_manager", false))
-	assertManagedAPIError(t, rr, http.StatusConflict, "manual_group_exists")
-}
-
-func TestAppGroupSlugUniquenessIsScopedToBoundApplication(t *testing.T) {
+func TestManagedApplicationGroupSelectionIsAtomic(t *testing.T) {
 	s, queries, _ := newPolicyTestServer()
-
-	duplicate := managedRequest(t, s, http.MethodPost, managedURL("oidc", "wiki", "/groups"),
-		`{"kind":"rule","slug":"passkeys","displayName":"Duplicate","rule":{"version":1,"condition":{"fact":"login_method","method":"passkey"}}}`, managedAppSession(7, "app_manager", false))
-	assertManagedAPIError(t, duplicate, http.StatusConflict, "group_slug_conflict")
-
-	reused := managedRequest(t, s, http.MethodPost, managedURL("saml", "7", "/groups"),
-		`{"kind":"rule","slug":"passkeys","displayName":"SAML passkeys","rule":{"version":1,"condition":{"fact":"login_method","method":"passkey"}}}`, managedAppSession(99, "admin", false))
-	if reused.Code != http.StatusCreated {
-		t.Fatalf("reuse slug status = %d, want 201; body: %s", reused.Code, reused.Body.String())
+	selected := managedRequest(t, s, http.MethodPut, managedURL("oidc", "wiki", "/groups"), `{"groupIds":[2,3]}`, managedAppSession(7, "app_manager", false))
+	if selected.Code != http.StatusOK {
+		t.Fatalf("select status = %d; body: %s", selected.Code, selected.Body.String())
 	}
-	var group contract.AppGroupView
-	if err := json.Unmarshal(reused.Body.Bytes(), &group); err != nil {
-		t.Fatalf("decode created SAML group: %v", err)
-	}
-	stored := queries.groups[group.ID]
-	if !stored.SamlSpID.Valid || stored.SamlSpID.Int64 != 7 || stored.OidcClientID.Valid {
-		t.Fatalf("SAML group binding = %#v, want only saml_sp_id=7", stored)
-	}
-}
-
-func TestAppGroupUpdateCannotChangeAppBinding(t *testing.T) {
-	s, queries, _ := newPolicyTestServer()
-	before := queries.groups[1]
-
-	rr := managedRequest(t, s, http.MethodPut, managedURL("oidc", "other", "/groups/1"),
-		`{"slug":"moved","displayName":"Moved"}`, managedAppSession(99, "admin", false))
-	assertManagedAPIError(t, rr, http.StatusNotFound, "group_not_found")
-
-	after := queries.groups[1]
-	if after.OidcClientID != before.OidcClientID || after.SamlSpID != before.SamlSpID || after.Slug != before.Slug {
-		t.Fatalf("cross-app update mutated bound group: before=%#v after=%#v", before, after)
-	}
-}
-
-func TestManualDecisionUpsertClearAndRuleRejection(t *testing.T) {
-	s, _, auditCapture := newPolicyTestServer()
-
-	allow := managedRequest(t, s, http.MethodPost, managedURL("oidc", "wiki", "/groups/1/decisions"),
-		`{"accountId":42,"effect":"allow"}`, managedAppSession(7, "app_manager", false))
-	if allow.Code != http.StatusOK {
-		t.Fatalf("allow status = %d, want 200; body: %s", allow.Code, allow.Body.String())
-	}
-	var decision contract.ManualDecisionView
-	if err := json.Unmarshal(allow.Body.Bytes(), &decision); err != nil {
-		t.Fatalf("decode allow decision: %v", err)
-	}
-	if decision.Effect != "allow" || decision.Account.ID != 42 || decision.Account.Username != "alice" {
-		t.Fatalf("allow decision = %#v", decision)
+	if queries.oidcGroups["wiki"][1] || !queries.oidcGroups["wiki"][2] || !queries.oidcGroups["wiki"][3] {
+		t.Fatalf("links = %#v", queries.oidcGroups["wiki"])
 	}
 
-	deny := managedRequest(t, s, http.MethodPost, managedURL("oidc", "wiki", "/groups/1/decisions"),
-		`{"accountId":42,"effect":"deny"}`, managedAppSession(7, "app_manager", false))
-	if deny.Code != http.StatusOK {
-		t.Fatalf("deny status = %d, want 200; body: %s", deny.Code, deny.Body.String())
+	before := maps.Clone(queries.oidcGroups["wiki"])
+	unknown := managedRequest(t, s, http.MethodPut, managedURL("oidc", "wiki", "/groups"), `{"groupIds":[2,999]}`, managedAppSession(7, "app_manager", false))
+	assertManagedAPIError(t, unknown, http.StatusNotFound, "group_not_found")
+	if !reflect.DeepEqual(queries.oidcGroups["wiki"], before) {
+		t.Fatalf("failed replacement mutated links: %#v", queries.oidcGroups["wiki"])
 	}
 
-	list := managedRequest(t, s, http.MethodGet, managedURL("oidc", "wiki", "/groups/1/decisions"), "", managedAppSession(7, "app_manager", false))
-	if list.Code != http.StatusOK {
-		t.Fatalf("decision list status = %d, want 200; body: %s", list.Code, list.Body.String())
-	}
-	var page contract.Page[contract.ManualDecisionView]
-	if err := json.Unmarshal(list.Body.Bytes(), &page); err != nil {
-		t.Fatalf("decode decision page: %v", err)
-	}
-	if len(page.Items) != 1 || page.Items[0].Effect != "deny" {
-		t.Fatalf("decision page = %#v", page)
-	}
-
-	clear := managedRequest(t, s, http.MethodPost, managedURL("oidc", "wiki", "/groups/1/decisions/clear"),
-		`{"accountId":42}`, managedAppSession(7, "app_manager", false))
-	if clear.Code != http.StatusNoContent {
-		t.Fatalf("clear status = %d, want 204; body: %s", clear.Code, clear.Body.String())
-	}
-
-	ruleDecision := managedRequest(t, s, http.MethodPost, managedURL("oidc", "wiki", "/groups/2/decisions"),
-		`{"accountId":42,"effect":"allow"}`, managedAppSession(7, "app_manager", false))
-	assertManagedAPIError(t, ruleDecision, http.StatusBadRequest, "bad_request")
-
-	if len(auditCapture.records) != 3 {
-		t.Fatalf("manual-decision audit record count = %d, want 3", len(auditCapture.records))
-	}
-	for _, record := range auditCapture.records {
-		if record.Factor != audit.FactorAppPolicy {
-			t.Fatalf("manual-decision audit factor = %q, want %q", record.Factor, audit.FactorAppPolicy)
-		}
-	}
-}
-
-func TestRuleValidationReturnsSafePathAndReason(t *testing.T) {
-	s, _, _ := newPolicyTestServer()
-	rr := managedRequest(t, s, http.MethodPost, managedURL("oidc", "wiki", "/groups"),
-		`{"kind":"rule","slug":"unknown-provider","displayName":"Unknown provider","rule":{"version":1,"condition":{"fact":"connection.provider","provider":"unknown"}}}`, managedAppSession(7, "app_manager", false))
-	if rr.Code != http.StatusBadRequest {
-		t.Fatalf("status = %d, want 400; body: %s", rr.Code, rr.Body.String())
-	}
-	var public struct {
-		Code    string         `json:"code"`
-		Details map[string]any `json:"details"`
-	}
-	if err := json.Unmarshal(rr.Body.Bytes(), &public); err != nil {
-		t.Fatalf("decode invalid-rule response: %v", err)
-	}
-	if public.Code != "invalid_group_rule" {
-		t.Fatalf("code = %q, want invalid_group_rule", public.Code)
-	}
-	if public.Details["path"] != "$.condition" || public.Details["reason"] != "provider_not_found" {
-		t.Fatalf("safe validation details = %#v", public.Details)
-	}
-}
-
-func TestRuleValidationRejectsNonFactNotChild(t *testing.T) {
-	s, _, _ := newPolicyTestServer()
-	invalid := managedRequest(t, s, http.MethodPost, managedURL("oidc", "wiki", "/groups"),
-		`{"kind":"rule","slug":"not-all","displayName":"Not all","rule":{"version":1,"condition":{"op":"not","child":{"op":"all","children":[{"fact":"avatar","source":"any"}]}}}}`, managedAppSession(7, "app_manager", false))
-	assertRuleValidationError(t, invalid, "$.condition.child", "not_requires_fact")
-
-	valid := managedRequest(t, s, http.MethodPost, managedURL("oidc", "wiki", "/groups"),
-		`{"kind":"rule","slug":"not-avatar","displayName":"Not avatar","rule":{"version":1,"condition":{"op":"not","child":{"fact":"avatar","source":"user_uploaded"}}}}`, managedAppSession(7, "app_manager", false))
-	if valid.Code != http.StatusCreated {
-		t.Fatalf("leaf-NOT create status = %d, want 201; body: %s", valid.Code, valid.Body.String())
-	}
+	duplicate := managedRequest(t, s, http.MethodPut, managedURL("oidc", "wiki", "/groups"), `{"groupIds":[2,2]}`, managedAppSession(7, "app_manager", false))
+	assertManagedAPIError(t, duplicate, http.StatusBadRequest, "bad_request")
 }
 
 func assertRuleValidationError(t *testing.T, rr *httptest.ResponseRecorder, wantPath, wantReason string) {
@@ -153,13 +44,10 @@ func assertRuleValidationError(t *testing.T, rr *httptest.ResponseRecorder, want
 		Details map[string]any `json:"details"`
 	}
 	if err := json.Unmarshal(rr.Body.Bytes(), &public); err != nil {
-		t.Fatalf("decode invalid-rule response: %v", err)
+		t.Fatal(err)
 	}
-	if public.Code != "invalid_group_rule" {
-		t.Fatalf("code = %q, want invalid_group_rule", public.Code)
-	}
-	if public.Details["path"] != wantPath || public.Details["reason"] != wantReason {
-		t.Fatalf("safe validation details = %#v", public.Details)
+	if public.Code != "invalid_group_rule" || public.Details["path"] != wantPath || public.Details["reason"] != wantReason {
+		t.Fatalf("validation error = %#v, want path=%s reason=%s", public, wantPath, wantReason)
 	}
 }
 

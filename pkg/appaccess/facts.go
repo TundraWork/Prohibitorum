@@ -25,6 +25,10 @@ func factsFromRow(row db.GetAccountAccessFactsRow) (Facts, error) {
 	)
 }
 
+// FactsFromRow converts the generated live account projection for callers
+// that must use the exact authorization fact semantics.
+func FactsFromRow(row db.GetAccountAccessFactsRow) (Facts, error) { return factsFromRow(row) }
+
 func factsFromPageRow(row db.ListActiveAccountAccessFactsPageRow) (Facts, error) {
 	return factsFromValues(
 		row.ID,
@@ -39,6 +43,11 @@ func factsFromPageRow(row db.ListActiveAccountAccessFactsPageRow) (Facts, error)
 	)
 }
 
+// FactsFromPageRow converts a paged active-account projection for previews.
+func FactsFromPageRow(row db.ListActiveAccountAccessFactsPageRow) (Facts, error) {
+	return factsFromPageRow(row)
+}
+
 func factsFromActiveRow(row db.ListActiveAccountAccessFactsRow) (Facts, error) {
 	return factsFromValues(
 		row.ID,
@@ -51,6 +60,11 @@ func factsFromActiveRow(row db.ListActiveAccountAccessFactsRow) (Facts, error) {
 		row.HasAnyAvatar,
 		row.HasUserAvatar,
 	)
+}
+
+// FactsFromActiveRow converts the unpaged active-account projection for previews.
+func FactsFromActiveRow(row db.ListActiveAccountAccessFactsRow) (Facts, error) {
+	return factsFromActiveRow(row)
 }
 
 func factsFromValues(

@@ -1269,8 +1269,8 @@ This command:
      and a redirect URI of https://<host>/.prohibitorum-forward-auth/callback.
   2. Marks it as a forward-auth application via SetForwardAuthConfig.
 
-After creation, configure app-scoped access policy with:
-  prohibitorum forward-auth-app group create-manual --client-id <id> ...
+After creation, select global access groups with:
+  prohibitorum forward-auth-app group select --client-id <id> --group-id <id> ...
 
 Then configure Traefik ForwardAuth per docs/forward-auth.md.`,
 		Run: func(_ *cobra.Command, _ []string) {
@@ -1295,7 +1295,7 @@ Then configure Traefik ForwardAuth per docs/forward-auth.md.`,
 			fmt.Printf("  Redirect URI:  %s\n", redirectURI)
 			fmt.Printf("  Host:          %s\n", faHost)
 			fmt.Printf("\nNext steps:\n")
-			fmt.Printf("  1. Configure access: prohibitorum forward-auth-app group create-manual --client-id %s ...\n", faClientID)
+			fmt.Printf("  1. Configure access: prohibitorum forward-auth-app group select --client-id %s --group-id <id> ...\n", faClientID)
 			fmt.Printf("  2. Configure Traefik ForwardAuth per docs/forward-auth.md\n")
 		},
 	}

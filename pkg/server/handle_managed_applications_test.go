@@ -41,21 +41,23 @@ func (c *policyAuditCapture) Record(_ context.Context, record audit.Record) erro
 // models application bindings so tests cannot accidentally permit a global
 // group operation.
 type policyTestQueries struct {
-	oidc         map[string]db.OidcClient
-	saml         map[int64]db.SamlSp
-	oidcManagers map[string]map[int32]bool
-	samlManagers map[int64]map[int32]bool
-	groups       map[int32]db.UserGroup
-	decisions    map[int32]map[int32]db.GroupManualDecision
-	accounts     map[int32]db.GetAccountAccessFactsRow
-	providers    []string
+	oidc                map[string]db.OidcClient
+	saml                map[int64]db.SamlSp
+	oidcManagers        map[string]map[int32]bool
+	samlManagers        map[int64]map[int32]bool
+	groups              map[int32]db.UserGroup
+	oidcGroups          map[string]map[int32]bool
+	samlGroups          map[int64]map[int32]bool
+	decisions           map[int32]map[int32]db.GroupManualDecision
+	accounts            map[int32]db.GetAccountAccessFactsRow
+	providers           []string
 	providerDescriptors []db.ListKnownUpstreamIDPDescriptorsRow
-	nextGroupID  int32
+	nextGroupID         int32
 
-	appLookupCalls    int
-	groupLookupCalls  int
-	mutationCalls     int
-	activeFactsCalls  int
+	appLookupCalls   int
+	groupLookupCalls int
+	mutationCalls    int
+	activeFactsCalls int
 }
 
 func newPolicyTestQueries() *policyTestQueries {
@@ -65,6 +67,8 @@ func newPolicyTestQueries() *policyTestQueries {
 		oidcManagers: make(map[string]map[int32]bool),
 		samlManagers: make(map[int64]map[int32]bool),
 		groups:       make(map[int32]db.UserGroup),
+		oidcGroups:   make(map[string]map[int32]bool),
+		samlGroups:   make(map[int64]map[int32]bool),
 		decisions:    make(map[int32]map[int32]db.GroupManualDecision),
 		accounts:     make(map[int32]db.GetAccountAccessFactsRow),
 		providers:    []string{"github"},
@@ -107,34 +111,36 @@ func (q *policyTestQueries) GetAccountAccessFacts(_ context.Context, id int32) (
 	return account, nil
 }
 
-func (q *policyTestQueries) GetManualDecisionForOIDCApp(_ context.Context, arg db.GetManualDecisionForOIDCAppParams) (db.GroupManualDecision, error) {
+func (q *policyTestQueries) ListManualDecisionsForOIDCApp(_ context.Context, arg db.ListManualDecisionsForOIDCAppParams) ([]db.GroupManualDecision, error) {
+	var out []db.GroupManualDecision
 	for groupID, group := range q.groups {
-		if group.Kind != "manual" || !group.OidcClientID.Valid || group.OidcClientID.String != arg.OidcClientID {
+		if group.Kind != "manual" || !q.oidcGroups[arg.OidcClientID][groupID] {
 			continue
 		}
 		if decision, ok := q.decisions[groupID][arg.AccountID]; ok {
-			return decision, nil
+			out = append(out, decision)
 		}
 	}
-	return db.GroupManualDecision{}, pgx.ErrNoRows
+	return out, nil
 }
 
-func (q *policyTestQueries) GetManualDecisionForSAMLApp(_ context.Context, arg db.GetManualDecisionForSAMLAppParams) (db.GroupManualDecision, error) {
+func (q *policyTestQueries) ListManualDecisionsForSAMLApp(_ context.Context, arg db.ListManualDecisionsForSAMLAppParams) ([]db.GroupManualDecision, error) {
+	var out []db.GroupManualDecision
 	for groupID, group := range q.groups {
-		if group.Kind != "manual" || !group.SamlSpID.Valid || group.SamlSpID.Int64 != arg.SamlSpID {
+		if group.Kind != "manual" || !q.samlGroups[arg.SamlSpID][groupID] {
 			continue
 		}
 		if decision, ok := q.decisions[groupID][arg.AccountID]; ok {
-			return decision, nil
+			out = append(out, decision)
 		}
 	}
-	return db.GroupManualDecision{}, pgx.ErrNoRows
+	return out, nil
 }
 
 func (q *policyTestQueries) GetOIDCAppGroup(_ context.Context, arg db.GetOIDCAppGroupParams) (db.UserGroup, error) {
 	q.groupLookupCalls++
 	group, ok := q.groups[arg.GroupID]
-	if !ok || !group.OidcClientID.Valid || group.OidcClientID.String != arg.OidcClientID {
+	if !ok || !q.oidcGroups[arg.OidcClientID][arg.GroupID] {
 		return db.UserGroup{}, pgx.ErrNoRows
 	}
 	return group, nil
@@ -143,7 +149,7 @@ func (q *policyTestQueries) GetOIDCAppGroup(_ context.Context, arg db.GetOIDCApp
 func (q *policyTestQueries) GetSAMLAppGroup(_ context.Context, arg db.GetSAMLAppGroupParams) (db.UserGroup, error) {
 	q.groupLookupCalls++
 	group, ok := q.groups[arg.GroupID]
-	if !ok || !group.SamlSpID.Valid || group.SamlSpID.Int64 != arg.SamlSpID {
+	if !ok || !q.samlGroups[arg.SamlSpID][arg.GroupID] {
 		return db.UserGroup{}, pgx.ErrNoRows
 	}
 	return group, nil
@@ -151,13 +157,13 @@ func (q *policyTestQueries) GetSAMLAppGroup(_ context.Context, arg db.GetSAMLApp
 
 func (q *policyTestQueries) ListOIDCAppRuleGroups(_ context.Context, clientID string) ([]db.UserGroup, error) {
 	return q.listGroups(func(group db.UserGroup) bool {
-		return group.Kind == "rule" && group.OidcClientID.Valid && group.OidcClientID.String == clientID
+		return group.Kind == "rule" && q.oidcGroups[clientID][group.ID]
 	}), nil
 }
 
 func (q *policyTestQueries) ListSAMLAppRuleGroups(_ context.Context, spID int64) ([]db.UserGroup, error) {
 	return q.listGroups(func(group db.UserGroup) bool {
-		return group.Kind == "rule" && group.SamlSpID.Valid && group.SamlSpID.Int64 == spID
+		return group.Kind == "rule" && q.samlGroups[spID][group.ID]
 	}), nil
 }
 
@@ -325,20 +331,93 @@ func (q *policyTestQueries) listGroups(include func(db.UserGroup) bool) []db.Use
 
 func (q *policyTestQueries) ListOIDCAppGroups(_ context.Context, clientID string) ([]db.UserGroup, error) {
 	return q.listGroups(func(group db.UserGroup) bool {
-		return group.OidcClientID.Valid && group.OidcClientID.String == clientID
+		return q.oidcGroups[clientID][group.ID]
 	}), nil
 }
 
 func (q *policyTestQueries) ListSAMLAppGroups(_ context.Context, spID int64) ([]db.UserGroup, error) {
 	return q.listGroups(func(group db.UserGroup) bool {
-		return group.SamlSpID.Valid && group.SamlSpID.Int64 == spID
+		return q.samlGroups[spID][group.ID]
 	}), nil
+}
+
+func (q *policyTestQueries) ListGlobalGroups(context.Context) ([]db.UserGroup, error) {
+	return q.listGroups(func(db.UserGroup) bool { return true }), nil
+}
+
+func (q *policyTestQueries) GetGlobalGroup(_ context.Context, id int32) (db.UserGroup, error) {
+	group, ok := q.groups[id]
+	if !ok {
+		return db.UserGroup{}, pgx.ErrNoRows
+	}
+	return group, nil
+}
+
+func (q *policyTestQueries) CreateGlobalGroup(_ context.Context, arg db.CreateGlobalGroupParams) (db.UserGroup, error) {
+	group := db.UserGroup{ID: q.nextGroupID, Kind: arg.Kind, Slug: arg.Slug, DisplayName: arg.DisplayName, Description: arg.Description, ExposedToDownstream: arg.ExposedToDownstream, Rule: arg.Rule}
+	q.nextGroupID++
+	q.groups[group.ID] = group
+	return group, nil
+}
+
+func (q *policyTestQueries) UpdateGlobalGroup(_ context.Context, arg db.UpdateGlobalGroupParams) (db.UserGroup, error) {
+	group, ok := q.groups[arg.GroupID]
+	if !ok {
+		return db.UserGroup{}, pgx.ErrNoRows
+	}
+	group.Slug, group.DisplayName, group.Description = arg.Slug, arg.DisplayName, arg.Description
+	group.ExposedToDownstream, group.Rule = arg.ExposedToDownstream, arg.Rule
+	q.groups[group.ID] = group
+	return group, nil
+}
+
+func (q *policyTestQueries) DeleteGlobalGroup(_ context.Context, id int32) (int64, error) {
+	if _, ok := q.groups[id]; !ok {
+		return 0, nil
+	}
+	for _, links := range q.oidcGroups {
+		if links[id] {
+			return 0, &pgconn.PgError{Code: "23001"}
+		}
+	}
+	for _, links := range q.samlGroups {
+		if links[id] {
+			return 0, &pgconn.PgError{Code: "23001"}
+		}
+	}
+	delete(q.groups, id)
+	delete(q.decisions, id)
+	return 1, nil
+}
+
+func (q *policyTestQueries) ReplaceOIDCAppGroups(_ context.Context, arg db.ReplaceOIDCAppGroupsParams) ([]db.UserGroup, error) {
+	links := make(map[int32]bool, len(arg.GroupIds))
+	for _, id := range arg.GroupIds {
+		if _, ok := q.groups[id]; !ok {
+			return nil, &pgconn.PgError{Code: "23503"}
+		}
+		links[id] = true
+	}
+	q.oidcGroups[arg.OidcClientID] = links
+	return q.ListOIDCAppGroups(context.Background(), arg.OidcClientID)
+}
+
+func (q *policyTestQueries) ReplaceSAMLAppGroups(_ context.Context, arg db.ReplaceSAMLAppGroupsParams) ([]db.UserGroup, error) {
+	links := make(map[int32]bool, len(arg.GroupIds))
+	for _, id := range arg.GroupIds {
+		if _, ok := q.groups[id]; !ok {
+			return nil, &pgconn.PgError{Code: "23503"}
+		}
+		links[id] = true
+	}
+	q.samlGroups[arg.SamlSpID] = links
+	return q.ListSAMLAppGroups(context.Background(), arg.SamlSpID)
 }
 
 func (q *policyTestQueries) CreateOIDCAppGroup(_ context.Context, arg db.CreateOIDCAppGroupParams) (db.UserGroup, error) {
 	q.mutationCalls++
 	for _, group := range q.groups {
-		if !group.OidcClientID.Valid || group.OidcClientID.String != arg.OidcClientID {
+		if !q.oidcGroups[arg.OidcClientID][group.ID] {
 			continue
 		}
 		if group.Kind == "manual" && arg.Kind == "manual" {
@@ -348,16 +427,20 @@ func (q *policyTestQueries) CreateOIDCAppGroup(_ context.Context, arg db.CreateO
 			return db.UserGroup{}, &pgconn.PgError{Code: "23505", ConstraintName: "user_group_oidc_slug_uq"}
 		}
 	}
-	group := db.UserGroup{ID: q.nextGroupID, Kind: arg.Kind, Slug: arg.Slug, DisplayName: arg.DisplayName, Description: arg.Description, ExposedToDownstream: arg.ExposedToDownstream, Rule: arg.Rule, OidcClientID: pgtype.Text{String: arg.OidcClientID, Valid: true}}
+	group := db.UserGroup{ID: q.nextGroupID, Kind: arg.Kind, Slug: arg.Slug, DisplayName: arg.DisplayName, Description: arg.Description, ExposedToDownstream: arg.ExposedToDownstream, Rule: arg.Rule}
 	q.nextGroupID++
 	q.groups[group.ID] = group
+	if q.oidcGroups[arg.OidcClientID] == nil {
+		q.oidcGroups[arg.OidcClientID] = make(map[int32]bool)
+	}
+	q.oidcGroups[arg.OidcClientID][group.ID] = true
 	return group, nil
 }
 
 func (q *policyTestQueries) CreateSAMLAppGroup(_ context.Context, arg db.CreateSAMLAppGroupParams) (db.UserGroup, error) {
 	q.mutationCalls++
 	for _, group := range q.groups {
-		if !group.SamlSpID.Valid || group.SamlSpID.Int64 != arg.SamlSpID {
+		if !q.samlGroups[arg.SamlSpID][group.ID] {
 			continue
 		}
 		if group.Kind == "manual" && arg.Kind == "manual" {
@@ -367,25 +450,21 @@ func (q *policyTestQueries) CreateSAMLAppGroup(_ context.Context, arg db.CreateS
 			return db.UserGroup{}, &pgconn.PgError{Code: "23505", ConstraintName: "user_group_saml_slug_uq"}
 		}
 	}
-	group := db.UserGroup{ID: q.nextGroupID, Kind: arg.Kind, Slug: arg.Slug, DisplayName: arg.DisplayName, Description: arg.Description, ExposedToDownstream: arg.ExposedToDownstream, Rule: arg.Rule, SamlSpID: pgtype.Int8{Int64: arg.SamlSpID, Valid: true}}
+	group := db.UserGroup{ID: q.nextGroupID, Kind: arg.Kind, Slug: arg.Slug, DisplayName: arg.DisplayName, Description: arg.Description, ExposedToDownstream: arg.ExposedToDownstream, Rule: arg.Rule}
 	q.nextGroupID++
 	q.groups[group.ID] = group
+	if q.samlGroups[arg.SamlSpID] == nil {
+		q.samlGroups[arg.SamlSpID] = make(map[int32]bool)
+	}
+	q.samlGroups[arg.SamlSpID][group.ID] = true
 	return group, nil
 }
 
 func (q *policyTestQueries) UpdateAppGroup(_ context.Context, arg db.UpdateAppGroupParams) (db.UserGroup, error) {
 	q.mutationCalls++
 	group, ok := q.groups[arg.GroupID]
-	if !ok || (arg.OidcClientID.Valid && (!group.OidcClientID.Valid || group.OidcClientID.String != arg.OidcClientID.String)) || (arg.SamlSpID.Valid && (!group.SamlSpID.Valid || group.SamlSpID.Int64 != arg.SamlSpID.Int64)) {
+	if !ok || (arg.OidcClientID.Valid && !q.oidcGroups[arg.OidcClientID.String][arg.GroupID]) || (arg.SamlSpID.Valid && !q.samlGroups[arg.SamlSpID.Int64][arg.GroupID]) {
 		return db.UserGroup{}, pgx.ErrNoRows
-	}
-	for id, candidate := range q.groups {
-		if id == group.ID || candidate.Slug != arg.Slug {
-			continue
-		}
-		if group.OidcClientID.Valid && candidate.OidcClientID.Valid && candidate.OidcClientID.String == group.OidcClientID.String || group.SamlSpID.Valid && candidate.SamlSpID.Valid && candidate.SamlSpID.Int64 == group.SamlSpID.Int64 {
-			return db.UserGroup{}, &pgconn.PgError{Code: "23505", ConstraintName: "user_group_oidc_slug_uq"}
-		}
 	}
 	group.Slug = arg.Slug
 	group.DisplayName = arg.DisplayName
@@ -398,23 +477,21 @@ func (q *policyTestQueries) UpdateAppGroup(_ context.Context, arg db.UpdateAppGr
 
 func (q *policyTestQueries) DeleteOIDCAppGroup(_ context.Context, arg db.DeleteOIDCAppGroupParams) (int64, error) {
 	q.mutationCalls++
-	group, ok := q.groups[arg.GroupID]
-	if !ok || !group.OidcClientID.Valid || group.OidcClientID.String != arg.OidcClientID {
+	_, ok := q.groups[arg.GroupID]
+	if !ok || !q.oidcGroups[arg.OidcClientID][arg.GroupID] {
 		return 0, nil
 	}
-	delete(q.groups, arg.GroupID)
-	delete(q.decisions, arg.GroupID)
+	delete(q.oidcGroups[arg.OidcClientID], arg.GroupID)
 	return 1, nil
 }
 
 func (q *policyTestQueries) DeleteSAMLAppGroup(_ context.Context, arg db.DeleteSAMLAppGroupParams) (int64, error) {
 	q.mutationCalls++
-	group, ok := q.groups[arg.GroupID]
-	if !ok || !group.SamlSpID.Valid || group.SamlSpID.Int64 != arg.SamlSpID {
+	_, ok := q.groups[arg.GroupID]
+	if !ok || !q.samlGroups[arg.SamlSpID][arg.GroupID] {
 		return 0, nil
 	}
-	delete(q.groups, arg.GroupID)
-	delete(q.decisions, arg.GroupID)
+	delete(q.samlGroups[arg.SamlSpID], arg.GroupID)
 	return 1, nil
 }
 
@@ -492,6 +569,7 @@ func newPolicyTestServer() (*Server, *policyTestQueries, *policyAuditCapture) {
 		Audit:                    auditCapture,
 	}
 	s.registerManagedApplicationRoutes(router)
+	s.registerGlobalGroupRoutes(router)
 	seedPolicyFixtures(queries)
 	return s, queries, auditCapture
 }
@@ -512,9 +590,11 @@ func seedPolicyFixtures(q *policyTestQueries) {
 	q.samlManagers[8] = map[int32]bool{7: true}
 	q.accounts[42] = db.GetAccountAccessFactsRow{ID: 42, Username: "alice", DisplayName: "Alice", HasPasskey: true, ConfirmedProviderSlugs: []string{"github"}}
 	q.accounts[43] = db.GetAccountAccessFactsRow{ID: 43, Username: "bob", DisplayName: "Bob", HasFederation: true, ConfirmedProviderSlugs: []string{"github"}}
-	q.groups[1] = db.UserGroup{ID: 1, Kind: "manual", Slug: "exceptions", DisplayName: "Exceptions", OidcClientID: pgtype.Text{String: "wiki", Valid: true}}
-	q.groups[2] = db.UserGroup{ID: 2, Kind: "rule", Slug: "passkeys", DisplayName: "Passkeys", Rule: []byte(`{"version":1,"condition":{"fact":"login_method","method":"passkey"}}`), OidcClientID: pgtype.Text{String: "wiki", Valid: true}}
-	q.groups[3] = db.UserGroup{ID: 3, Kind: "manual", Slug: "other-manual", DisplayName: "Other Manual", OidcClientID: pgtype.Text{String: "other", Valid: true}}
+	q.groups[1] = db.UserGroup{ID: 1, Kind: "manual", Slug: "exceptions", DisplayName: "Exceptions"}
+	q.groups[2] = db.UserGroup{ID: 2, Kind: "rule", Slug: "passkeys", DisplayName: "Passkeys", Rule: []byte(`{"version":1,"condition":{"fact":"login_method","method":"passkey"}}`)}
+	q.groups[3] = db.UserGroup{ID: 3, Kind: "manual", Slug: "other-manual", DisplayName: "Other Manual"}
+	q.oidcGroups["wiki"] = map[int32]bool{1: true, 2: true}
+	q.oidcGroups["other"] = map[int32]bool{3: true}
 	q.nextGroupID = 10
 }
 
@@ -570,13 +650,8 @@ func TestManagedApplicationRoutesEnforceScopeBeforeNestedLookup(t *testing.T) {
 		{"workspace", http.MethodGet, "/access", ""},
 		{"restrict", http.MethodPost, "/access/set-restricted", `{"restricted":true}`},
 		{"groups", http.MethodGet, "/groups", ""},
-		{"create", http.MethodPost, "/groups", `{"kind":"rule","slug":"new-rule","displayName":"New rule","rule":{"version":1,"condition":{"fact":"login_method","method":"passkey"}}}`},
+		{"replace", http.MethodPut, "/groups", `{"groupIds":[1,2]}`},
 		{"group", http.MethodGet, "/groups/1", ""},
-		{"update", http.MethodPut, "/groups/1", `{"slug":"exceptions","displayName":"Exceptions"}`},
-		{"delete", http.MethodPost, "/groups/1/delete", ""},
-		{"decisions", http.MethodGet, "/groups/1/decisions", ""},
-		{"upsert", http.MethodPost, "/groups/1/decisions", `{"accountId":42,"effect":"allow"}`},
-		{"clear", http.MethodPost, "/groups/1/decisions/clear", `{"accountId":42}`},
 		{"preview", http.MethodGet, "/groups/2/preview", ""},
 		{"explain", http.MethodGet, "/groups/2/explain/42", ""},
 		{"accounts", http.MethodGet, "/accounts", ""},
@@ -641,13 +716,8 @@ func TestManagedApplicationRoutesAllowAssignedManagerAndAdmin(t *testing.T) {
 		{"workspace", http.MethodGet, "/access", "", http.StatusOK},
 		{"restrict", http.MethodPost, "/access/set-restricted", `{"restricted":true}`, http.StatusOK},
 		{"groups", http.MethodGet, "/groups", "", http.StatusOK},
-		{"create", http.MethodPost, "/groups", `{"kind":"rule","slug":"new-rule","displayName":"New rule","rule":{"version":1,"condition":{"fact":"login_method","method":"passkey"}}}`, http.StatusCreated},
+		{"replace", http.MethodPut, "/groups", `{"groupIds":[1,2]}`, http.StatusOK},
 		{"group", http.MethodGet, "/groups/1", "", http.StatusOK},
-		{"update", http.MethodPut, "/groups/1", `{"slug":"exceptions","displayName":"Exceptions"}`, http.StatusOK},
-		{"delete", http.MethodPost, "/groups/1/delete", "", http.StatusNoContent},
-		{"decisions", http.MethodGet, "/groups/1/decisions", "", http.StatusOK},
-		{"upsert", http.MethodPost, "/groups/1/decisions", `{"accountId":42,"effect":"allow"}`, http.StatusOK},
-		{"clear", http.MethodPost, "/groups/1/decisions/clear", `{"accountId":42}`, http.StatusNoContent},
 		{"preview", http.MethodGet, "/groups/2/preview", "", http.StatusOK},
 		{"explain", http.MethodGet, "/groups/2/explain/42", "", http.StatusOK},
 		{"accounts", http.MethodGet, "/accounts", "", http.StatusOK},
@@ -854,7 +924,7 @@ func TestManagedRulePreviewUsesExistingLimitBounds(t *testing.T) {
 		want int
 	}{
 		"default": {body: base + `}`, want: 50},
-		"clamped":  {body: base + `,"limit":1000}`, want: 100},
+		"clamped": {body: base + `,"limit":1000}`, want: 100},
 	} {
 		t.Run(name, func(t *testing.T) {
 			rr := managedRequest(t, s, http.MethodPost, managedURL("oidc", "wiki", "/rule-preview"), body.body, managedAppSession(7, "app_manager", false))

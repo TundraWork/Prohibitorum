@@ -30,3 +30,20 @@ export async function removeDetail(client: QueryClient, resource: Collection, id
   for (const query of client.getQueryCache().findAll({ queryKey })) query.reset()
   client.removeQueries({ queryKey })
 }
+
+/** Remove every cached view of an application after delegated access is revoked. */
+export async function removeManagedApplication(
+  client: QueryClient,
+  resource: Extract<Collection, 'oidc-applications' | 'saml-applications' | 'forward-auth-apps'>,
+  id: string | number,
+  kind: 'oidc' | 'saml' | 'forward_auth',
+  appId: string,
+): Promise<void> {
+  const queryKeys: QueryKey[] = [
+    keys.detail(resource, id),
+    ['session', 'access', kind, appId],
+    ['session', 'managed-applications'],
+  ]
+  await Promise.all(queryKeys.map(queryKey => client.cancelQueries({ queryKey })))
+  for (const queryKey of queryKeys) client.removeQueries({ queryKey })
+}

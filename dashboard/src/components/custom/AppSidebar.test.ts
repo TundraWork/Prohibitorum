@@ -79,7 +79,7 @@ describe('AppSidebar', () => {
     expect(activeEls.length).toBe(1)
   })
 
-  it('renders strict-admin navigation without obsolete global group links', async () => {
+  it('renders strict-admin navigation including global user groups', async () => {
 
     testQueryClient.setQueryData<SessionView>(keys.me, { id: 1, username: 'alex', displayName: 'Alex Smith', role: 'admin' })
     const router = makeRouter(); router.push('/'); await router.isReady()
@@ -87,7 +87,7 @@ describe('AppSidebar', () => {
     const links = wrapper.findAll('a').map((a) => a.attributes('href'))
     expect(links).toContain('/admin/accounts')
     expect(links).toContain('/admin/invitations')
-    expect(links).not.toContain('/admin/groups')
+    expect(links).toContain('/admin/groups')
     expect(links).toContain('/admin/oidc-applications')
     expect(links).toContain('/manage/applications')
     expect(links).toContain('/admin/saml-applications')

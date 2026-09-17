@@ -3,9 +3,11 @@ import { computed, onBeforeUnmount, ref, useId, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useResource } from '@/composables/useResource'
 import { managerQuery } from '@/queries/access'
-import { collectionQuery } from '@/queries/resources'
+import { invalidateResource } from '@/queries/invalidation'
+import type { Page } from '@/lib/pagination'
 import { api } from '@/lib/api'
 import { useApi } from '@/composables/useApi'
+import { useQueryClient } from '@tanstack/vue-query'
 import { withSudo } from '@/lib/sudo'
 import { formatDateTime } from '@/lib/time'
 import { Button } from '@/components/ui/button'
@@ -32,15 +34,15 @@ interface AccountView {
   id: number
   username: string
   displayName: string
-  role: string
-  disabled: boolean
-  avatarUrl?: string | null
 }
 
 const props = defineProps<{
   kind: AppKind
   appId: string
+  mode?: 'admin' | 'manager'
+  currentAccountId?: number
 }>()
+const emit = defineEmits<{ (event: 'self-removed'): void }>()
 
 const MANAGER_COLLECTIONS: Record<AppKind, string> = {
   oidc: 'oidc-applications',
@@ -49,10 +51,15 @@ const MANAGER_COLLECTIONS: Record<AppKind, string> = {
 }
 
 const { locale, t } = useI18n()
+const queryClient = useQueryClient()
 const managersApi = useResource(computed(() => managerQuery<AppManagerView[]>(props.kind, props.appId)))
 const submittedSearch = ref('')
-const accountsApi = useResource(computed(() => ({ ...collectionQuery<AccountView>('accounts', { q: submittedSearch.value }), enabled: submittedSearch.value !== '' })))
-const mutationApi = useApi('access')
+const accountsApi = useResource(computed(() => ({
+  queryKey: ['session', 'managed-applications', 'manager-candidates', submittedSearch.value],
+  enabled: submittedSearch.value !== '',
+  queryFn: ({ signal }: { signal: AbortSignal }) => api.get<Page<AccountView>>(`/api/prohibitorum/managed-applications/manager-candidates?q=${encodeURIComponent(submittedSearch.value)}`, { signal }),
+})))
+const mutationApi = useApi()
 
 const managers = computed(() => managersApi.data.value ?? [])
 const accountResults = computed(() => accountsApi.data.value?.items ?? [])
@@ -66,9 +73,7 @@ const managerEndpoint = computed(() =>
 
 const assignedManagerIds = computed(() => new Set(managers.value.map((manager) => manager.id)))
 const availableAccounts = computed(() =>
-  accountResults.value.filter(
-    (account) => account.role === 'app_manager' && !assignedManagerIds.value.has(account.id),
-  ),
+  accountResults.value.filter(account => !assignedManagerIds.value.has(account.id)),
 )
 const displayedManagerError = computed(() => mutationApi.error.value ?? managersApi.error.value)
 const initialManagersLoading = computed(() => managersApi.busy.value && managers.value.length === 0)
@@ -84,7 +89,7 @@ async function searchAccounts(): Promise<void> {
   hasSearched.value = submittedSearch.value !== ''
 }
 
-async function mutateManager(path: string, accountId: number): Promise<void> {
+async function mutateManager(path: string, accountId: number, selfRemoval = false): Promise<void> {
   if (mutationApi.busy.value) return
 
   const identity = identityVersion
@@ -108,16 +113,21 @@ async function mutateManager(path: string, accountId: number): Promise<void> {
   }
   if (mutationApi.error.value !== null) return
 
-
+  if (selfRemoval) {
+    emit('self-removed')
+    return
+  }
+  await invalidateResource(queryClient, 'access')
 }
 
 function assignManager(account: AccountView): Promise<void> | undefined {
-  if (account.disabled || assignedManagerIds.value.has(account.id)) return
+  if (assignedManagerIds.value.has(account.id)) return
   return mutateManager(managerEndpoint.value, account.id)
 }
 
 function removeManager(manager: AppManagerView): Promise<void> {
-  return mutateManager(`${managerEndpoint.value}/remove`, manager.id)
+  const selfRemoval = props.mode === 'manager' && manager.id === props.currentAccountId
+  return mutateManager(`${managerEndpoint.value}/remove`, manager.id, selfRemoval)
 }
 
 function clearManagerError(): void {
@@ -278,14 +288,10 @@ onBeforeUnmount(() => { active = false; identityVersion++ })
               <UserAvatar
                 :display-name="account.displayName"
                 :username="account.username"
-                :src="account.avatarUrl"
               />
               <div class="min-w-0">
                 <div class="flex flex-wrap items-center gap-2">
                   <span class="truncate font-medium text-ink">{{ identityName(account) }}</span>
-                  <StatusBadge v-if="account.disabled" variant="danger">
-                    {{ t('admin.account.disabledLabel') }}
-                  </StatusBadge>
                 </div>
                 <p class="truncate font-mono text-xs text-muted">{{ account.username }}</p>
               </div>
@@ -295,7 +301,7 @@ onBeforeUnmount(() => { active = false; identityVersion++ })
               type="button"
               size="sm"
               class="w-full sm:w-auto"
-              :disabled="account.disabled || mutationApi.busy.value || managersApi.busy.value"
+              :disabled="mutationApi.busy.value || managersApi.busy.value"
               :aria-label="t('admin.appManagers.assignAccount', { name: identityName(account) })"
               :data-test="`manager-assign-${account.id}`"
               @click="assignManager(account)"

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { removeDetail } from '@/queries/invalidation'
+import { removeDetail, removeManagedApplication } from '@/queries/invalidation'
 import { usePrivateState } from '@/composables/usePrivateState'
 /**
  * AdminOidcClientDetailView (/admin/oidc-applications/:clientId) — per-client admin actions.
@@ -55,13 +55,16 @@ interface OidcApplication {
 }
 
 const { t } = useI18n()
+const props = withDefaults(defineProps<{ mode?: 'admin' | 'manager'; currentAccountId?: number }>(), { mode: 'admin' })
 const route = useRoute()
 const router = useRouter()
 
 const oidcScopesDescribed = computed(() => OIDC_SCOPES.map((s) => ({ value: s.value, description: t(s.descKey), required: s.required })))
 const { busy: mutationBusy, error: mutationError, run, clear: clearMutation } = useApi('oidc-applications')
 
-const clientId = String(route.params.clientId)
+const clientId = String(route.params.clientId ?? route.params.id)
+const delegated = computed(() => props.mode === 'manager')
+const backPath = computed(() => delegated.value ? '/manage/applications' : '/admin/oidc-applications')
 const queryClient = useQueryClient()
 const options = detailQuery<OidcApplication>('oidc-applications', clientId)
 const query = useResource(options)
@@ -150,16 +153,21 @@ async function destroy(): Promise<void> {
     return true as const
   }, t('sudo.reason.deleteApp')))
   confirmDelete.value = false
-  if (ok) router.push('/admin/oidc-applications')
+  if (ok) router.push(backPath.value)
+}
+
+async function handleSelfRemoval(): Promise<void> {
+  await removeManagedApplication(queryClient, 'oidc-applications', clientId, 'oidc', clientId)
+  await router.push(backPath.value)
 }
 
 usePrivateState(() => { rotatedSecret.value = '' })
 </script>
 <template>
   <div class="flex max-w-4xl flex-col gap-6">
-    <BackLink to="/admin/oidc-applications" :label="t('admin.oidc.back')" />
-    <ErrorPanel v-if="error && !notFound" :error="error" @dismiss="clear" :is-admin="true" />
-    <p v-if="notFound" class="text-sm text-muted" role="status">{{ t('admin.oidc.notFound') }}</p>
+    <BackLink :to="backPath" :label="delegated ? t('manage.applications.back') : t('admin.oidc.back')" />
+    <ErrorPanel v-if="error && !notFound" :error="error" @dismiss="clear" :is-admin="props.mode === 'admin'" />
+    <p v-if="notFound" class="text-sm text-muted" role="status">{{ delegated ? t('manage.applications.notFound') : t('admin.oidc.notFound') }}</p>
 
     <CardSkeleton v-else-if="busy && !client" />
 
@@ -218,8 +226,14 @@ usePrivateState(() => { rotatedSecret.value = '' })
         :icon-url="client?.iconUrl"
       />
 
-      <AppManagerCard kind="oidc" :app-id="clientId" />
-      <AppPolicyWorkspace kind="oidc" :app-id="clientId" :display-name="client.displayName" mode="admin" />
+      <AppManagerCard
+        kind="oidc"
+        :app-id="clientId"
+        :mode="props.mode"
+        :current-account-id="props.currentAccountId"
+        @self-removed="handleSelfRemoval"
+      />
+      <AppPolicyWorkspace kind="oidc" :app-id="clientId" :display-name="client.displayName" :mode="props.mode" />
 
       <!-- Danger zone (kept LAST — destructive actions belong at the bottom). -->
       <Card class="border-destructive/30 bg-destructive/[0.02]">

@@ -331,7 +331,7 @@ func TestForwardAuthVerify_ValidCookie_200WithHeaders(t *testing.T) {
 		"svc": {
 			Allowed:            true,
 			Source:             appaccess.SourceManualAllow,
-			ManualGroup:        &appaccess.GroupMatch{Slug: "manual", Exposed: true},
+			ManualGroups:       []appaccess.GroupMatch{{Slug: "manual", Exposed: true}},
 			MatchingRuleGroups: []appaccess.GroupMatch{{Slug: "admins", Exposed: true, Matched: true}},
 		},
 	}}

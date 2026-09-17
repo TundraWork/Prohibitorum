@@ -145,6 +145,9 @@ type forwardAuthAppOut struct {
 }
 
 func (s *Server) handleGetForwardAuthApp(ctx context.Context, in *getForwardAuthAppIn) (*forwardAuthAppOut, error) {
+	if err := s.authorizeApplicationManager(ctx, oidcApplicationRef(in.ClientID, true)); err != nil {
+		return nil, authErrToHuma(err)
+	}
 	r, err := s.queries.GetForwardAuthAppByID(ctx, in.ClientID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -267,6 +270,10 @@ func (s *Server) handleUpdateForwardAuthAppHTTP(w http.ResponseWriter, r *http.R
 		writeAuthErr(w, authn.ErrBadRequest())
 		return
 	}
+	if err := s.authorizeApplicationManager(r.Context(), oidcApplicationRef(clientID, true)); err != nil {
+		writeAuthErr(w, err)
+		return
+	}
 	scopesJSON, _ := json.Marshal(validated)
 
 	row, err := s.queries.UpdateForwardAuthApp(r.Context(), db.UpdateForwardAuthAppParams{
@@ -316,6 +323,10 @@ func (s *Server) handleSetForwardAuthAppDisabledHTTP(w http.ResponseWriter, r *h
 	}
 	if body.ClientID == "" {
 		writeAuthErr(w, authn.ErrBadRequest())
+		return
+	}
+	if err := s.authorizeApplicationManager(r.Context(), oidcApplicationRef(body.ClientID, true)); err != nil {
+		writeAuthErr(w, err)
 		return
 	}
 	// Guard: only operate on a forward-auth app.
@@ -368,6 +379,10 @@ func (s *Server) handleDeleteForwardAuthAppHTTP(w http.ResponseWriter, r *http.R
 	}
 	if body.ClientID == "" {
 		writeAuthErr(w, authn.ErrBadRequest())
+		return
+	}
+	if err := s.authorizeApplicationManager(r.Context(), oidcApplicationRef(body.ClientID, true)); err != nil {
+		writeAuthErr(w, err)
 		return
 	}
 	// Guard: ensure it's a forward-auth app before dropping the backing client.

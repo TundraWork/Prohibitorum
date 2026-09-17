@@ -49,6 +49,7 @@ type Querier interface {
 	// VRChat is link-only. ListAccountIdentitiesByAccount intentionally returns
 	// all links, including disabled and VRChat providers, for display/unlink.
 	CountUsableSignInFederation(ctx context.Context, accountID int32) (int64, error)
+	CreateGlobalGroup(ctx context.Context, arg CreateGlobalGroupParams) (UserGroup, error)
 	CreateOIDCAppGroup(ctx context.Context, arg CreateOIDCAppGroupParams) (UserGroup, error)
 	CreateSAMLAppGroup(ctx context.Context, arg CreateSAMLAppGroupParams) (UserGroup, error)
 	DeleteAccountByID(ctx context.Context, id int32) error
@@ -66,6 +67,7 @@ type Querier interface {
 	DeleteEntityIcon(ctx context.Context, arg DeleteEntityIconParams) error
 	DeleteExpiredDiagnosticEvents(ctx context.Context) (int64, error)
 	DeleteExpiredSAMLSessions(ctx context.Context) (int64, error)
+	DeleteGlobalGroup(ctx context.Context, groupID int32) (int64, error)
 	DeleteManagerAssignmentsForAccount(ctx context.Context, accountID int32) error
 	DeleteOIDCAppGroup(ctx context.Context, arg DeleteOIDCAppGroupParams) (int64, error)
 	DeleteOIDCClient(ctx context.Context, clientID string) (int64, error)
@@ -101,8 +103,7 @@ type Querier interface {
 	GetEntityIconMeta(ctx context.Context, arg GetEntityIconMetaParams) (GetEntityIconMetaRow, error)
 	GetForwardAuthAppByID(ctx context.Context, clientID string) (GetForwardAuthAppByIDRow, error)
 	GetForwardAuthClientByHost(ctx context.Context, forwardAuthHost pgtype.Text) (GetForwardAuthClientByHostRow, error)
-	GetManualDecisionForOIDCApp(ctx context.Context, arg GetManualDecisionForOIDCAppParams) (GroupManualDecision, error)
-	GetManualDecisionForSAMLApp(ctx context.Context, arg GetManualDecisionForSAMLAppParams) (GroupManualDecision, error)
+	GetGlobalGroup(ctx context.Context, groupID int32) (UserGroup, error)
 	GetOIDCAppGroup(ctx context.Context, arg GetOIDCAppGroupParams) (UserGroup, error)
 	GetOIDCClient(ctx context.Context, clientID string) (OidcClient, error)
 	GetOIDCClientAny(ctx context.Context, clientID string) (OidcClient, error)
@@ -151,6 +152,7 @@ type Querier interface {
 	ListAccounts(ctx context.Context, arg ListAccountsParams) ([]ListAccountsRow, error)
 	ListActiveAccountAccessFacts(ctx context.Context) ([]ListActiveAccountAccessFactsRow, error)
 	ListActiveAccountAccessFactsPage(ctx context.Context, arg ListActiveAccountAccessFactsPageParams) ([]ListActiveAccountAccessFactsPageRow, error)
+	ListActiveAppManagerCandidates(ctx context.Context, query string) ([]ListActiveAppManagerCandidatesRow, error)
 	ListAllSigningKeys(ctx context.Context, arg ListAllSigningKeysParams) ([]SigningKey, error)
 	ListAllUpstreamIDPs(ctx context.Context, arg ListAllUpstreamIDPsParams) ([]UpstreamIdp, error)
 	// LEFT JOIN so the 'user' row (NULL idp_id) is kept with an empty label; the
@@ -171,8 +173,12 @@ type Querier interface {
 	ListForwardAuthAccessCandidates(ctx context.Context) ([]ListForwardAuthAccessCandidatesRow, error)
 	ListForwardAuthClients(ctx context.Context, arg ListForwardAuthClientsParams) ([]ListForwardAuthClientsRow, error)
 	ListForwardAuthManagementCandidates(ctx context.Context) ([]ListForwardAuthManagementCandidatesRow, error)
+	ListGlobalGroupApplications(ctx context.Context, groupID int32) ([]ListGlobalGroupApplicationsRow, error)
+	ListGlobalGroups(ctx context.Context) ([]UserGroup, error)
 	ListKnownUpstreamIDPDescriptors(ctx context.Context) ([]ListKnownUpstreamIDPDescriptorsRow, error)
 	ListKnownUpstreamIDPSlugs(ctx context.Context) ([]string, error)
+	ListManualDecisionsForOIDCApp(ctx context.Context, arg ListManualDecisionsForOIDCAppParams) ([]GroupManualDecision, error)
+	ListManualDecisionsForSAMLApp(ctx context.Context, arg ListManualDecisionsForSAMLAppParams) ([]GroupManualDecision, error)
 	ListManualDecisionsPage(ctx context.Context, arg ListManualDecisionsPageParams) ([]ListManualDecisionsPageRow, error)
 	ListNonForwardAuthOIDCClients(ctx context.Context, arg ListNonForwardAuthOIDCClientsParams) ([]ListNonForwardAuthOIDCClientsRow, error)
 	ListOIDCAccessCandidates(ctx context.Context) ([]ListOIDCAccessCandidatesRow, error)
@@ -210,6 +216,8 @@ type Querier interface {
 	RefreshVRChatOperatorSecret(ctx context.Context, arg RefreshVRChatOperatorSecretParams) (UpstreamIdp, error)
 	RemoveOIDCClientManager(ctx context.Context, arg RemoveOIDCClientManagerParams) (int64, error)
 	RemoveSAMLSPManager(ctx context.Context, arg RemoveSAMLSPManagerParams) (int64, error)
+	ReplaceOIDCAppGroups(ctx context.Context, arg ReplaceOIDCAppGroupsParams) ([]UserGroup, error)
+	ReplaceSAMLAppGroups(ctx context.Context, arg ReplaceSAMLAppGroupsParams) ([]UserGroup, error)
 	ResetAuthThrottle(ctx context.Context, arg ResetAuthThrottleParams) error
 	RetireSigningKey(ctx context.Context, arg RetireSigningKeyParams) (SigningKey, error)
 	RevokeAllSessionsByAccount(ctx context.Context, accountID int32) error
@@ -246,6 +254,7 @@ type Querier interface {
 	UpdateAppGroup(ctx context.Context, arg UpdateAppGroupParams) (UserGroup, error)
 	UpdateCredentialUsage(ctx context.Context, arg UpdateCredentialUsageParams) error
 	UpdateForwardAuthApp(ctx context.Context, arg UpdateForwardAuthAppParams) (UpdateForwardAuthAppRow, error)
+	UpdateGlobalGroup(ctx context.Context, arg UpdateGlobalGroupParams) (UserGroup, error)
 	// Owner-scoped update: only the account's own credential row is updated.
 	// Zero rows affected means the id doesn't match an owned credential; the
 	// handler then surfaces credential_not_found.

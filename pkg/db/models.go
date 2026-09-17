@@ -160,6 +160,12 @@ type OidcClient struct {
 	LaunchUrl                   pgtype.Text        `json:"launchUrl"`
 }
 
+type OidcClientGroup struct {
+	ClientID  string             `json:"clientId"`
+	GroupID   int32              `json:"groupId"`
+	CreatedAt pgtype.Timestamptz `json:"createdAt"`
+}
+
 type OidcClientManager struct {
 	ClientID  string             `json:"clientId"`
 	AccountID int32              `json:"accountId"`
@@ -257,6 +263,12 @@ type SamlSpAc struct {
 	IsDefault bool   `json:"isDefault"`
 }
 
+type SamlSpGroup struct {
+	SamlSpID  int64              `json:"samlSpId"`
+	GroupID   int32              `json:"groupId"`
+	CreatedAt pgtype.Timestamptz `json:"createdAt"`
+}
+
 type SamlSpKey struct {
 	ID       int64              `json:"id"`
 	SpID     int64              `json:"spId"`
@@ -345,8 +357,6 @@ type UserGroup struct {
 	Description         pgtype.Text        `json:"description"`
 	ExposedToDownstream bool               `json:"exposedToDownstream"`
 	Rule                []byte             `json:"rule"`
-	OidcClientID        pgtype.Text        `json:"oidcClientId"`
-	SamlSpID            pgtype.Int8        `json:"samlSpId"`
 	CreatedAt           pgtype.Timestamptz `json:"createdAt"`
 	UpdatedAt           pgtype.Timestamptz `json:"updatedAt"`
 }

@@ -7,15 +7,17 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgtype"
 	"io"
 	"net/http"
 	"sort"
 	"strconv"
-	"github.com/go-chi/chi/v5"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgtype"
 
 	"prohibitorum/pkg/appaccess"
+	"prohibitorum/pkg/audit"
 	"prohibitorum/pkg/authn"
 	"prohibitorum/pkg/contract"
 	"prohibitorum/pkg/db"
@@ -31,8 +33,8 @@ type appPolicyQueries interface {
 	GetOIDCClientAny(context.Context, string) (db.OidcClient, error)
 	GetSAMLSPByID(context.Context, int64) (db.SamlSp, error)
 	GetAccountAccessFacts(context.Context, int32) (db.GetAccountAccessFactsRow, error)
-	GetManualDecisionForOIDCApp(context.Context, db.GetManualDecisionForOIDCAppParams) (db.GroupManualDecision, error)
-	GetManualDecisionForSAMLApp(context.Context, db.GetManualDecisionForSAMLAppParams) (db.GroupManualDecision, error)
+	ListManualDecisionsForOIDCApp(context.Context, db.ListManualDecisionsForOIDCAppParams) ([]db.GroupManualDecision, error)
+	ListManualDecisionsForSAMLApp(context.Context, db.ListManualDecisionsForSAMLAppParams) ([]db.GroupManualDecision, error)
 	GetOIDCAppGroup(context.Context, db.GetOIDCAppGroupParams) (db.UserGroup, error)
 	GetSAMLAppGroup(context.Context, db.GetSAMLAppGroupParams) (db.UserGroup, error)
 	ListOIDCAppGroups(context.Context, string) ([]db.UserGroup, error)
@@ -51,6 +53,13 @@ type appPolicyQueries interface {
 	ListActiveAccountAccessFactsPage(context.Context, db.ListActiveAccountAccessFactsPageParams) ([]db.ListActiveAccountAccessFactsPageRow, error)
 	ListActiveAccountAccessFacts(context.Context) ([]db.ListActiveAccountAccessFactsRow, error)
 	ListKnownUpstreamIDPDescriptors(context.Context) ([]db.ListKnownUpstreamIDPDescriptorsRow, error)
+	CreateGlobalGroup(context.Context, db.CreateGlobalGroupParams) (db.UserGroup, error)
+	GetGlobalGroup(context.Context, int32) (db.UserGroup, error)
+	ListGlobalGroups(context.Context) ([]db.UserGroup, error)
+	UpdateGlobalGroup(context.Context, db.UpdateGlobalGroupParams) (db.UserGroup, error)
+	DeleteGlobalGroup(context.Context, int32) (int64, error)
+	ReplaceOIDCAppGroups(context.Context, db.ReplaceOIDCAppGroupsParams) ([]db.UserGroup, error)
+	ReplaceSAMLAppGroups(context.Context, db.ReplaceSAMLAppGroupsParams) ([]db.UserGroup, error)
 	CreateOIDCAppGroup(context.Context, db.CreateOIDCAppGroupParams) (db.UserGroup, error)
 	CreateSAMLAppGroup(context.Context, db.CreateSAMLAppGroupParams) (db.UserGroup, error)
 	UpdateAppGroup(context.Context, db.UpdateAppGroupParams) (db.UserGroup, error)
@@ -85,6 +94,30 @@ func (s *Server) appPolicyEvaluator() appPolicyService {
 	return appaccess.NewService(s.appPolicyQ())
 }
 
+// authorizeApplicationManager applies object-level authorization for existing
+// application management endpoints after the role gate has admitted an admin
+// or app manager. Admins are accepted by the shared evaluator; app managers
+// must hold the exact kind/id assignment.
+func (s *Server) authorizeApplicationManager(ctx context.Context, ref appaccess.AppRef) error {
+	sess := authn.SessionFromContext(ctx)
+	if sess == nil || sess.Account == nil {
+		return authn.ErrNoSession()
+	}
+	return s.appPolicyEvaluator().AuthorizeManager(ctx, sess.Account.ID, sess.Account.Role, ref)
+}
+
+func oidcApplicationRef(clientID string, forwardAuth bool) appaccess.AppRef {
+	kind := appaccess.KindOIDC
+	if forwardAuth {
+		kind = appaccess.KindForwardAuth
+	}
+	return appaccess.AppRef{Kind: kind, OIDCClientID: clientID}
+}
+
+func samlApplicationRef(id int64) appaccess.AppRef {
+	return appaccess.AppRef{Kind: appaccess.KindSAML, SAMLSPID: id}
+}
+
 // registerManagedApplicationRoutes is kept separate from registerOperations so
 // focused route tests exercise the exact production registration table.
 func (s *Server) registerManagedApplicationRoutes(router chiRouter) {
@@ -92,20 +125,75 @@ func (s *Server) registerManagedApplicationRoutes(router chiRouter) {
 	req := contract.AuthRequirement{Kind: contract.AuthAppManager}
 
 	registerOpHTTP(router, http.MethodGet, base, req, s.handleListManagedApplicationsHTTP)
+	registerOpHTTP(router, http.MethodGet, base+"/manager-candidates", req, s.handleListAppManagerCandidatesHTTP)
 	registerOpHTTP(router, http.MethodGet, base+"/{kind}/{appId}/access", req, s.handleManagedApplicationAccessWorkspaceHTTP)
 	s.registerAdminBodyOpHTTP(router, http.MethodPost, base+"/{kind}/{appId}/rule-preview", req, s.handlePreviewManagedRuleHTTP)
 	s.registerAdminBodyOpHTTP(router, http.MethodPost, base+"/{kind}/{appId}/access/set-restricted", req, s.handleSetManagedApplicationRestrictedHTTP)
 	registerOpHTTP(router, http.MethodGet, base+"/{kind}/{appId}/groups", req, s.handleListManagedApplicationGroupsHTTP)
-	s.registerAdminBodyOpHTTP(router, http.MethodPost, base+"/{kind}/{appId}/groups", req, s.handleCreateManagedApplicationGroupHTTP)
+	s.registerAdminBodyOpHTTP(router, http.MethodPut, base+"/{kind}/{appId}/groups", req, s.handleReplaceManagedApplicationGroupsHTTP)
 	registerOpHTTP(router, http.MethodGet, base+"/{kind}/{appId}/groups/{groupId}", req, s.handleGetManagedApplicationGroupHTTP)
-	s.registerAdminBodyOpHTTP(router, http.MethodPut, base+"/{kind}/{appId}/groups/{groupId}", req, s.handleUpdateManagedApplicationGroupHTTP)
-	s.registerAdminBodyOpHTTP(router, http.MethodPost, base+"/{kind}/{appId}/groups/{groupId}/delete", req, s.handleDeleteManagedApplicationGroupHTTP)
-	registerOpHTTP(router, http.MethodGet, base+"/{kind}/{appId}/groups/{groupId}/decisions", req, s.handleListManagedGroupDecisionsHTTP)
-	s.registerAdminBodyOpHTTP(router, http.MethodPost, base+"/{kind}/{appId}/groups/{groupId}/decisions", req, s.handleUpsertManagedGroupDecisionHTTP)
-	s.registerAdminBodyOpHTTP(router, http.MethodPost, base+"/{kind}/{appId}/groups/{groupId}/decisions/clear", req, s.handleClearManagedGroupDecisionHTTP)
 	registerOpHTTP(router, http.MethodGet, base+"/{kind}/{appId}/groups/{groupId}/preview", req, s.handlePreviewManagedGroupHTTP)
 	registerOpHTTP(router, http.MethodGet, base+"/{kind}/{appId}/groups/{groupId}/explain/{accountId}", req, s.handleExplainManagedGroupHTTP)
 	registerOpHTTP(router, http.MethodGet, base+"/{kind}/{appId}/accounts", req, s.handleListManagedApplicationAccountsHTTP)
+}
+
+type replaceManagedApplicationGroupsBody struct {
+	GroupIDs []int32 `json:"groupIds"`
+}
+
+func (s *Server) handleReplaceManagedApplicationGroupsHTTP(w http.ResponseWriter, r *http.Request) {
+	app, err := s.managedApplicationFromRequest(r)
+	if err != nil {
+		writeAuthErr(w, err)
+		return
+	}
+	var body replaceManagedApplicationGroupsBody
+	if err := decodeAppPolicyBody(r, &body); err != nil {
+		writeAuthErr(w, err)
+		return
+	}
+	seen := make(map[int32]struct{}, len(body.GroupIDs))
+	for _, id := range body.GroupIDs {
+		if id <= 0 {
+			writeAuthErr(w, authn.ErrBadRequest())
+			return
+		}
+		if _, duplicate := seen[id]; duplicate {
+			writeAuthErr(w, authn.ErrBadRequest())
+			return
+		}
+		seen[id] = struct{}{}
+	}
+
+	var groups []db.UserGroup
+	switch app.ref.Kind {
+	case appaccess.KindOIDC, appaccess.KindForwardAuth:
+		groups, err = s.appPolicyQ().ReplaceOIDCAppGroups(r.Context(), db.ReplaceOIDCAppGroupsParams{
+			OidcClientID: app.ref.OIDCClientID, GroupIds: body.GroupIDs,
+		})
+	case appaccess.KindSAML:
+		groups, err = s.appPolicyQ().ReplaceSAMLAppGroups(r.Context(), db.ReplaceSAMLAppGroupsParams{
+			SamlSpID: app.ref.SAMLSPID, GroupIds: body.GroupIDs,
+		})
+	default:
+		err = pgx.ErrNoRows
+	}
+	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23503" {
+			writeAuthErr(w, authn.ErrGroupNotFound())
+			return
+		}
+		writeAuthErr(w, fmt.Errorf("replace managed application groups: %w", err))
+		return
+	}
+	views, err := s.appGroupViews(r.Context(), groups)
+	if err != nil {
+		writeAuthErr(w, err)
+		return
+	}
+	s.recordAppPolicy(r.Context(), app.ref, audit.EventUpdate, map[string]any{"group_ids": body.GroupIDs})
+	writeJSON(w, views)
 }
 
 type managedApplication struct {
@@ -339,15 +427,7 @@ func (s *Server) handleManagedApplicationAccessWorkspaceHTTP(w http.ResponseWrit
 	for i, descriptor := range descriptors {
 		providers[i] = contract.ProviderDescriptorView{Slug: descriptor.Slug, DisplayName: descriptor.DisplayName}
 	}
-	workspace := contract.AppAccessWorkspace{App: app.summary, AccessRestricted: app.summary.AccessRestricted, Providers: providers, RuleGroups: make([]contract.AppGroupView, 0, len(views))}
-	for i := range views {
-		switch views[i].Kind {
-		case "manual":
-			workspace.ManualGroup = &views[i]
-		case "rule":
-			workspace.RuleGroups = append(workspace.RuleGroups, views[i])
-		}
-	}
+	workspace := contract.AppAccessWorkspace{App: app.summary, AccessRestricted: app.summary.AccessRestricted, Providers: providers, Groups: views}
 	writeJSON(w, workspace)
 }
 

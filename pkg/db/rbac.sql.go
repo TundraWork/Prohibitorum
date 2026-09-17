@@ -64,15 +64,57 @@ func (q *Queries) ClearManualDecision(ctx context.Context, arg ClearManualDecisi
 	return result.RowsAffected(), nil
 }
 
+const createGlobalGroup = `-- name: CreateGlobalGroup :one
+INSERT INTO user_group (kind, slug, display_name, description, exposed_to_downstream, rule)
+VALUES ($1, $2, $3, $4,
+        $5, $6)
+RETURNING id, kind, slug, display_name, description, exposed_to_downstream, rule, created_at, updated_at
+`
+
+type CreateGlobalGroupParams struct {
+	Kind                string      `json:"kind"`
+	Slug                string      `json:"slug"`
+	DisplayName         string      `json:"displayName"`
+	Description         pgtype.Text `json:"description"`
+	ExposedToDownstream bool        `json:"exposedToDownstream"`
+	Rule                []byte      `json:"rule"`
+}
+
+func (q *Queries) CreateGlobalGroup(ctx context.Context, arg CreateGlobalGroupParams) (UserGroup, error) {
+	row := q.db.QueryRow(ctx, createGlobalGroup,
+		arg.Kind,
+		arg.Slug,
+		arg.DisplayName,
+		arg.Description,
+		arg.ExposedToDownstream,
+		arg.Rule,
+	)
+	var i UserGroup
+	err := row.Scan(
+		&i.ID,
+		&i.Kind,
+		&i.Slug,
+		&i.DisplayName,
+		&i.Description,
+		&i.ExposedToDownstream,
+		&i.Rule,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const createOIDCAppGroup = `-- name: CreateOIDCAppGroup :one
-INSERT INTO user_group (
-  kind, slug, display_name, description, exposed_to_downstream, rule, oidc_client_id
+WITH created AS (
+  INSERT INTO user_group (kind, slug, display_name, description, exposed_to_downstream, rule)
+  VALUES ($1, $2, $3, $4,
+          $5, $6)
+  RETURNING id, kind, slug, display_name, description, exposed_to_downstream, rule, created_at, updated_at
+), linked AS (
+  INSERT INTO oidc_client_group (client_id, group_id)
+  SELECT $7::text, id FROM created
 )
-VALUES (
-  $1, $2, $3, $4,
-  $5, $6, $7::text
-)
-RETURNING id, kind, slug, display_name, description, exposed_to_downstream, rule, oidc_client_id, saml_sp_id, created_at, updated_at
+SELECT g.id, g.kind, g.slug, g.display_name, g.description, g.exposed_to_downstream, g.rule, g.created_at, g.updated_at FROM user_group g JOIN created c ON c.id = g.id
 `
 
 type CreateOIDCAppGroupParams struct {
@@ -104,8 +146,6 @@ func (q *Queries) CreateOIDCAppGroup(ctx context.Context, arg CreateOIDCAppGroup
 		&i.Description,
 		&i.ExposedToDownstream,
 		&i.Rule,
-		&i.OidcClientID,
-		&i.SamlSpID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -113,14 +153,16 @@ func (q *Queries) CreateOIDCAppGroup(ctx context.Context, arg CreateOIDCAppGroup
 }
 
 const createSAMLAppGroup = `-- name: CreateSAMLAppGroup :one
-INSERT INTO user_group (
-  kind, slug, display_name, description, exposed_to_downstream, rule, saml_sp_id
+WITH created AS (
+  INSERT INTO user_group (kind, slug, display_name, description, exposed_to_downstream, rule)
+  VALUES ($1, $2, $3, $4,
+          $5, $6)
+  RETURNING id, kind, slug, display_name, description, exposed_to_downstream, rule, created_at, updated_at
+), linked AS (
+  INSERT INTO saml_sp_group (saml_sp_id, group_id)
+  SELECT $7::bigint, id FROM created
 )
-VALUES (
-  $1, $2, $3, $4,
-  $5, $6, $7::bigint
-)
-RETURNING id, kind, slug, display_name, description, exposed_to_downstream, rule, oidc_client_id, saml_sp_id, created_at, updated_at
+SELECT g.id, g.kind, g.slug, g.display_name, g.description, g.exposed_to_downstream, g.rule, g.created_at, g.updated_at FROM user_group g JOIN created c ON c.id = g.id
 `
 
 type CreateSAMLAppGroupParams struct {
@@ -152,12 +194,22 @@ func (q *Queries) CreateSAMLAppGroup(ctx context.Context, arg CreateSAMLAppGroup
 		&i.Description,
 		&i.ExposedToDownstream,
 		&i.Rule,
-		&i.OidcClientID,
-		&i.SamlSpID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const deleteGlobalGroup = `-- name: DeleteGlobalGroup :execrows
+DELETE FROM user_group WHERE id = $1
+`
+
+func (q *Queries) DeleteGlobalGroup(ctx context.Context, groupID int32) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteGlobalGroup, groupID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const deleteManagerAssignmentsForAccount = `-- name: DeleteManagerAssignmentsForAccount :exec
@@ -176,9 +228,8 @@ func (q *Queries) DeleteManagerAssignmentsForAccount(ctx context.Context, accoun
 }
 
 const deleteOIDCAppGroup = `-- name: DeleteOIDCAppGroup :execrows
-DELETE FROM user_group
-WHERE id = $1
-  AND oidc_client_id = $2::text
+DELETE FROM oidc_client_group
+WHERE group_id = $1 AND client_id = $2::text
 `
 
 type DeleteOIDCAppGroupParams struct {
@@ -195,9 +246,8 @@ func (q *Queries) DeleteOIDCAppGroup(ctx context.Context, arg DeleteOIDCAppGroup
 }
 
 const deleteSAMLAppGroup = `-- name: DeleteSAMLAppGroup :execrows
-DELETE FROM user_group
-WHERE id = $1
-  AND saml_sp_id = $2::bigint
+DELETE FROM saml_sp_group
+WHERE group_id = $1 AND saml_sp_id = $2::bigint
 `
 
 type DeleteSAMLAppGroupParams struct {
@@ -302,69 +352,33 @@ func (q *Queries) GetAccountAccessFacts(ctx context.Context, accountID int32) (G
 	return i, err
 }
 
-const getManualDecisionForOIDCApp = `-- name: GetManualDecisionForOIDCApp :one
-SELECT d.group_id, d.group_kind, d.account_id, d.effect, d.created_at, d.updated_at, d.created_by
-FROM group_manual_decision d
-JOIN user_group g ON g.id = d.group_id AND g.kind = d.group_kind
-WHERE g.oidc_client_id = $1::text
-  AND g.kind = 'manual'
-  AND d.account_id = $2
+const getGlobalGroup = `-- name: GetGlobalGroup :one
+SELECT id, kind, slug, display_name, description, exposed_to_downstream, rule, created_at, updated_at FROM user_group WHERE id = $1
 `
 
-type GetManualDecisionForOIDCAppParams struct {
-	OidcClientID string `json:"oidcClientId"`
-	AccountID    int32  `json:"accountId"`
-}
-
-func (q *Queries) GetManualDecisionForOIDCApp(ctx context.Context, arg GetManualDecisionForOIDCAppParams) (GroupManualDecision, error) {
-	row := q.db.QueryRow(ctx, getManualDecisionForOIDCApp, arg.OidcClientID, arg.AccountID)
-	var i GroupManualDecision
+func (q *Queries) GetGlobalGroup(ctx context.Context, groupID int32) (UserGroup, error) {
+	row := q.db.QueryRow(ctx, getGlobalGroup, groupID)
+	var i UserGroup
 	err := row.Scan(
-		&i.GroupID,
-		&i.GroupKind,
-		&i.AccountID,
-		&i.Effect,
+		&i.ID,
+		&i.Kind,
+		&i.Slug,
+		&i.DisplayName,
+		&i.Description,
+		&i.ExposedToDownstream,
+		&i.Rule,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.CreatedBy,
-	)
-	return i, err
-}
-
-const getManualDecisionForSAMLApp = `-- name: GetManualDecisionForSAMLApp :one
-SELECT d.group_id, d.group_kind, d.account_id, d.effect, d.created_at, d.updated_at, d.created_by
-FROM group_manual_decision d
-JOIN user_group g ON g.id = d.group_id AND g.kind = d.group_kind
-WHERE g.saml_sp_id = $1::bigint
-  AND g.kind = 'manual'
-  AND d.account_id = $2
-`
-
-type GetManualDecisionForSAMLAppParams struct {
-	SamlSpID  int64 `json:"samlSpId"`
-	AccountID int32 `json:"accountId"`
-}
-
-func (q *Queries) GetManualDecisionForSAMLApp(ctx context.Context, arg GetManualDecisionForSAMLAppParams) (GroupManualDecision, error) {
-	row := q.db.QueryRow(ctx, getManualDecisionForSAMLApp, arg.SamlSpID, arg.AccountID)
-	var i GroupManualDecision
-	err := row.Scan(
-		&i.GroupID,
-		&i.GroupKind,
-		&i.AccountID,
-		&i.Effect,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.CreatedBy,
 	)
 	return i, err
 }
 
 const getOIDCAppGroup = `-- name: GetOIDCAppGroup :one
-SELECT id, kind, slug, display_name, description, exposed_to_downstream, rule, oidc_client_id, saml_sp_id, created_at, updated_at
-FROM user_group
-WHERE id = $1
-  AND oidc_client_id = $2::text
+SELECT g.id, g.kind, g.slug, g.display_name, g.description, g.exposed_to_downstream, g.rule, g.created_at, g.updated_at
+FROM user_group g
+WHERE g.id = $1
+  AND EXISTS (SELECT 1 FROM oidc_client_group og
+              WHERE og.group_id = g.id AND og.client_id = $2::text)
 `
 
 type GetOIDCAppGroupParams struct {
@@ -383,8 +397,6 @@ func (q *Queries) GetOIDCAppGroup(ctx context.Context, arg GetOIDCAppGroupParams
 		&i.Description,
 		&i.ExposedToDownstream,
 		&i.Rule,
-		&i.OidcClientID,
-		&i.SamlSpID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -392,10 +404,11 @@ func (q *Queries) GetOIDCAppGroup(ctx context.Context, arg GetOIDCAppGroupParams
 }
 
 const getSAMLAppGroup = `-- name: GetSAMLAppGroup :one
-SELECT id, kind, slug, display_name, description, exposed_to_downstream, rule, oidc_client_id, saml_sp_id, created_at, updated_at
-FROM user_group
-WHERE id = $1
-  AND saml_sp_id = $2::bigint
+SELECT g.id, g.kind, g.slug, g.display_name, g.description, g.exposed_to_downstream, g.rule, g.created_at, g.updated_at
+FROM user_group g
+WHERE g.id = $1
+  AND EXISTS (SELECT 1 FROM saml_sp_group sg
+              WHERE sg.group_id = g.id AND sg.saml_sp_id = $2::bigint)
 `
 
 type GetSAMLAppGroupParams struct {
@@ -414,8 +427,6 @@ func (q *Queries) GetSAMLAppGroup(ctx context.Context, arg GetSAMLAppGroupParams
 		&i.Description,
 		&i.ExposedToDownstream,
 		&i.Rule,
-		&i.OidcClientID,
-		&i.SamlSpID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -775,6 +786,174 @@ func (q *Queries) ListForwardAuthManagementCandidates(ctx context.Context) ([]Li
 	return items, nil
 }
 
+const listGlobalGroupApplications = `-- name: ListGlobalGroupApplications :many
+SELECT kind, app_id, display_name
+FROM (
+  SELECT
+    CASE WHEN c.forward_auth_enabled THEN 'forward_auth' ELSE 'oidc' END::text AS kind,
+    c.client_id::text AS app_id,
+    c.display_name
+  FROM oidc_client_group link
+  JOIN oidc_client c ON c.client_id = link.client_id
+  WHERE link.group_id = $1
+
+  UNION ALL
+
+  SELECT 'saml'::text AS kind, sp.id::text AS app_id, sp.display_name
+  FROM saml_sp_group link
+  JOIN saml_sp sp ON sp.id = link.saml_sp_id
+  WHERE link.group_id = $1
+) applications
+ORDER BY kind ASC, display_name ASC, app_id ASC
+`
+
+type ListGlobalGroupApplicationsRow struct {
+	Kind        string `json:"kind"`
+	AppID       string `json:"appId"`
+	DisplayName string `json:"displayName"`
+}
+
+func (q *Queries) ListGlobalGroupApplications(ctx context.Context, groupID int32) ([]ListGlobalGroupApplicationsRow, error) {
+	rows, err := q.db.Query(ctx, listGlobalGroupApplications, groupID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListGlobalGroupApplicationsRow
+	for rows.Next() {
+		var i ListGlobalGroupApplicationsRow
+		if err := rows.Scan(&i.Kind, &i.AppID, &i.DisplayName); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listGlobalGroups = `-- name: ListGlobalGroups :many
+SELECT id, kind, slug, display_name, description, exposed_to_downstream, rule, created_at, updated_at FROM user_group
+ORDER BY display_name ASC, id ASC
+`
+
+func (q *Queries) ListGlobalGroups(ctx context.Context) ([]UserGroup, error) {
+	rows, err := q.db.Query(ctx, listGlobalGroups)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []UserGroup
+	for rows.Next() {
+		var i UserGroup
+		if err := rows.Scan(
+			&i.ID,
+			&i.Kind,
+			&i.Slug,
+			&i.DisplayName,
+			&i.Description,
+			&i.ExposedToDownstream,
+			&i.Rule,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listManualDecisionsForOIDCApp = `-- name: ListManualDecisionsForOIDCApp :many
+SELECT d.group_id, d.group_kind, d.account_id, d.effect, d.created_at, d.updated_at, d.created_by
+FROM group_manual_decision d
+JOIN user_group g ON g.id = d.group_id AND g.kind = d.group_kind
+JOIN oidc_client_group og ON og.group_id = g.id
+WHERE og.client_id = $1::text
+  AND g.kind = 'manual'
+  AND d.account_id = $2
+`
+
+type ListManualDecisionsForOIDCAppParams struct {
+	OidcClientID string `json:"oidcClientId"`
+	AccountID    int32  `json:"accountId"`
+}
+
+func (q *Queries) ListManualDecisionsForOIDCApp(ctx context.Context, arg ListManualDecisionsForOIDCAppParams) ([]GroupManualDecision, error) {
+	rows, err := q.db.Query(ctx, listManualDecisionsForOIDCApp, arg.OidcClientID, arg.AccountID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GroupManualDecision
+	for rows.Next() {
+		var i GroupManualDecision
+		if err := rows.Scan(
+			&i.GroupID,
+			&i.GroupKind,
+			&i.AccountID,
+			&i.Effect,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.CreatedBy,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listManualDecisionsForSAMLApp = `-- name: ListManualDecisionsForSAMLApp :many
+SELECT d.group_id, d.group_kind, d.account_id, d.effect, d.created_at, d.updated_at, d.created_by
+FROM group_manual_decision d
+JOIN user_group g ON g.id = d.group_id AND g.kind = d.group_kind
+JOIN saml_sp_group sg ON sg.group_id = g.id
+WHERE sg.saml_sp_id = $1::bigint
+  AND g.kind = 'manual'
+  AND d.account_id = $2
+`
+
+type ListManualDecisionsForSAMLAppParams struct {
+	SamlSpID  int64 `json:"samlSpId"`
+	AccountID int32 `json:"accountId"`
+}
+
+func (q *Queries) ListManualDecisionsForSAMLApp(ctx context.Context, arg ListManualDecisionsForSAMLAppParams) ([]GroupManualDecision, error) {
+	rows, err := q.db.Query(ctx, listManualDecisionsForSAMLApp, arg.SamlSpID, arg.AccountID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GroupManualDecision
+	for rows.Next() {
+		var i GroupManualDecision
+		if err := rows.Scan(
+			&i.GroupID,
+			&i.GroupKind,
+			&i.AccountID,
+			&i.Effect,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.CreatedBy,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listManualDecisionsPage = `-- name: ListManualDecisionsPage :many
 SELECT
   d.group_id,
@@ -902,10 +1081,11 @@ func (q *Queries) ListOIDCAccessCandidates(ctx context.Context) ([]ListOIDCAcces
 }
 
 const listOIDCAppGroups = `-- name: ListOIDCAppGroups :many
-SELECT id, kind, slug, display_name, description, exposed_to_downstream, rule, oidc_client_id, saml_sp_id, created_at, updated_at
-FROM user_group
-WHERE oidc_client_id = $1::text
-ORDER BY display_name ASC, id ASC
+SELECT g.id, g.kind, g.slug, g.display_name, g.description, g.exposed_to_downstream, g.rule, g.created_at, g.updated_at
+FROM user_group g
+JOIN oidc_client_group og ON og.group_id = g.id
+WHERE og.client_id = $1::text
+ORDER BY g.display_name ASC, g.id ASC
 `
 
 func (q *Queries) ListOIDCAppGroups(ctx context.Context, oidcClientID string) ([]UserGroup, error) {
@@ -925,8 +1105,6 @@ func (q *Queries) ListOIDCAppGroups(ctx context.Context, oidcClientID string) ([
 			&i.Description,
 			&i.ExposedToDownstream,
 			&i.Rule,
-			&i.OidcClientID,
-			&i.SamlSpID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -941,11 +1119,12 @@ func (q *Queries) ListOIDCAppGroups(ctx context.Context, oidcClientID string) ([
 }
 
 const listOIDCAppRuleGroups = `-- name: ListOIDCAppRuleGroups :many
-SELECT id, kind, slug, display_name, description, exposed_to_downstream, rule, oidc_client_id, saml_sp_id, created_at, updated_at
-FROM user_group
-WHERE oidc_client_id = $1::text
-  AND kind = 'rule'
-ORDER BY id ASC
+SELECT g.id, g.kind, g.slug, g.display_name, g.description, g.exposed_to_downstream, g.rule, g.created_at, g.updated_at
+FROM user_group g
+JOIN oidc_client_group og ON og.group_id = g.id
+WHERE og.client_id = $1::text
+  AND g.kind = 'rule'
+ORDER BY g.id ASC
 `
 
 func (q *Queries) ListOIDCAppRuleGroups(ctx context.Context, oidcClientID string) ([]UserGroup, error) {
@@ -965,8 +1144,6 @@ func (q *Queries) ListOIDCAppRuleGroups(ctx context.Context, oidcClientID string
 			&i.Description,
 			&i.ExposedToDownstream,
 			&i.Rule,
-			&i.OidcClientID,
-			&i.SamlSpID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -1130,10 +1307,11 @@ func (q *Queries) ListSAMLAccessCandidates(ctx context.Context) ([]ListSAMLAcces
 }
 
 const listSAMLAppGroups = `-- name: ListSAMLAppGroups :many
-SELECT id, kind, slug, display_name, description, exposed_to_downstream, rule, oidc_client_id, saml_sp_id, created_at, updated_at
-FROM user_group
-WHERE saml_sp_id = $1::bigint
-ORDER BY display_name ASC, id ASC
+SELECT g.id, g.kind, g.slug, g.display_name, g.description, g.exposed_to_downstream, g.rule, g.created_at, g.updated_at
+FROM user_group g
+JOIN saml_sp_group sg ON sg.group_id = g.id
+WHERE sg.saml_sp_id = $1::bigint
+ORDER BY g.display_name ASC, g.id ASC
 `
 
 func (q *Queries) ListSAMLAppGroups(ctx context.Context, samlSpID int64) ([]UserGroup, error) {
@@ -1153,8 +1331,6 @@ func (q *Queries) ListSAMLAppGroups(ctx context.Context, samlSpID int64) ([]User
 			&i.Description,
 			&i.ExposedToDownstream,
 			&i.Rule,
-			&i.OidcClientID,
-			&i.SamlSpID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -1169,11 +1345,12 @@ func (q *Queries) ListSAMLAppGroups(ctx context.Context, samlSpID int64) ([]User
 }
 
 const listSAMLAppRuleGroups = `-- name: ListSAMLAppRuleGroups :many
-SELECT id, kind, slug, display_name, description, exposed_to_downstream, rule, oidc_client_id, saml_sp_id, created_at, updated_at
-FROM user_group
-WHERE saml_sp_id = $1::bigint
-  AND kind = 'rule'
-ORDER BY id ASC
+SELECT g.id, g.kind, g.slug, g.display_name, g.description, g.exposed_to_downstream, g.rule, g.created_at, g.updated_at
+FROM user_group g
+JOIN saml_sp_group sg ON sg.group_id = g.id
+WHERE sg.saml_sp_id = $1::bigint
+  AND g.kind = 'rule'
+ORDER BY g.id ASC
 `
 
 func (q *Queries) ListSAMLAppRuleGroups(ctx context.Context, samlSpID int64) ([]UserGroup, error) {
@@ -1193,8 +1370,6 @@ func (q *Queries) ListSAMLAppRuleGroups(ctx context.Context, samlSpID int64) ([]
 			&i.Description,
 			&i.ExposedToDownstream,
 			&i.Rule,
-			&i.OidcClientID,
-			&i.SamlSpID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -1344,6 +1519,124 @@ func (q *Queries) RemoveSAMLSPManager(ctx context.Context, arg RemoveSAMLSPManag
 	return result.RowsAffected(), nil
 }
 
+const replaceOIDCAppGroups = `-- name: ReplaceOIDCAppGroups :many
+WITH locked AS (
+  SELECT client_id FROM oidc_client
+  WHERE client_id = $2::text
+  FOR UPDATE
+), deleted AS (
+  DELETE FROM oidc_client_group og
+  USING locked l
+  WHERE og.client_id = l.client_id
+    AND NOT (og.group_id = ANY($1::int[]))
+  RETURNING og.group_id
+), inserted AS (
+  INSERT INTO oidc_client_group (client_id, group_id)
+  SELECT l.client_id, requested.group_id
+  FROM locked l
+  CROSS JOIN unnest($1::int[]) AS requested(group_id)
+  ON CONFLICT (client_id, group_id) DO NOTHING
+  RETURNING group_id
+)
+SELECT g.id, g.kind, g.slug, g.display_name, g.description, g.exposed_to_downstream, g.rule, g.created_at, g.updated_at FROM user_group g, locked l
+WHERE g.id = ANY($1::int[])
+ORDER BY g.display_name ASC, g.id ASC
+`
+
+type ReplaceOIDCAppGroupsParams struct {
+	GroupIds     []int32 `json:"groupIds"`
+	OidcClientID string  `json:"oidcClientId"`
+}
+
+func (q *Queries) ReplaceOIDCAppGroups(ctx context.Context, arg ReplaceOIDCAppGroupsParams) ([]UserGroup, error) {
+	rows, err := q.db.Query(ctx, replaceOIDCAppGroups, arg.GroupIds, arg.OidcClientID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []UserGroup
+	for rows.Next() {
+		var i UserGroup
+		if err := rows.Scan(
+			&i.ID,
+			&i.Kind,
+			&i.Slug,
+			&i.DisplayName,
+			&i.Description,
+			&i.ExposedToDownstream,
+			&i.Rule,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const replaceSAMLAppGroups = `-- name: ReplaceSAMLAppGroups :many
+WITH locked AS (
+  SELECT id FROM saml_sp
+  WHERE id = $2::bigint
+  FOR UPDATE
+), deleted AS (
+  DELETE FROM saml_sp_group sg
+  USING locked l
+  WHERE sg.saml_sp_id = l.id
+    AND NOT (sg.group_id = ANY($1::int[]))
+  RETURNING sg.group_id
+), inserted AS (
+  INSERT INTO saml_sp_group (saml_sp_id, group_id)
+  SELECT l.id, requested.group_id
+  FROM locked l
+  CROSS JOIN unnest($1::int[]) AS requested(group_id)
+  ON CONFLICT (saml_sp_id, group_id) DO NOTHING
+  RETURNING group_id
+)
+SELECT g.id, g.kind, g.slug, g.display_name, g.description, g.exposed_to_downstream, g.rule, g.created_at, g.updated_at FROM user_group g, locked l
+WHERE g.id = ANY($1::int[])
+ORDER BY g.display_name ASC, g.id ASC
+`
+
+type ReplaceSAMLAppGroupsParams struct {
+	GroupIds []int32 `json:"groupIds"`
+	SamlSpID int64   `json:"samlSpId"`
+}
+
+func (q *Queries) ReplaceSAMLAppGroups(ctx context.Context, arg ReplaceSAMLAppGroupsParams) ([]UserGroup, error) {
+	rows, err := q.db.Query(ctx, replaceSAMLAppGroups, arg.GroupIds, arg.SamlSpID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []UserGroup
+	for rows.Next() {
+		var i UserGroup
+		if err := rows.Scan(
+			&i.ID,
+			&i.Kind,
+			&i.Slug,
+			&i.DisplayName,
+			&i.Description,
+			&i.ExposedToDownstream,
+			&i.Rule,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const setOIDCClientAccessRestricted = `-- name: SetOIDCClientAccessRestricted :one
 UPDATE oidc_client
 SET access_restricted = $1
@@ -1430,15 +1723,15 @@ SET slug = $1,
     rule = $5,
     updated_at = now()
 WHERE id = $6
-  AND num_nonnulls(
-    $7::text,
-    $8::bigint
-  ) = 1
-  AND (
-    user_group.oidc_client_id = $7::text
-    OR user_group.saml_sp_id = $8::bigint
-  )
-RETURNING id, kind, slug, display_name, description, exposed_to_downstream, rule, oidc_client_id, saml_sp_id, created_at, updated_at
+  AND ($7::text IS NULL OR EXISTS (
+    SELECT 1 FROM oidc_client_group og WHERE og.group_id = user_group.id
+      AND og.client_id = $7::text
+  ))
+  AND ($8::bigint IS NULL OR EXISTS (
+    SELECT 1 FROM saml_sp_group sg WHERE sg.group_id = user_group.id
+      AND sg.saml_sp_id = $8::bigint
+  ))
+RETURNING id, kind, slug, display_name, description, exposed_to_downstream, rule, created_at, updated_at
 `
 
 type UpdateAppGroupParams struct {
@@ -1472,8 +1765,48 @@ func (q *Queries) UpdateAppGroup(ctx context.Context, arg UpdateAppGroupParams) 
 		&i.Description,
 		&i.ExposedToDownstream,
 		&i.Rule,
-		&i.OidcClientID,
-		&i.SamlSpID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const updateGlobalGroup = `-- name: UpdateGlobalGroup :one
+UPDATE user_group
+SET slug = $1, display_name = $2,
+    description = $3, exposed_to_downstream = $4,
+    rule = $5, updated_at = now()
+WHERE id = $6
+RETURNING id, kind, slug, display_name, description, exposed_to_downstream, rule, created_at, updated_at
+`
+
+type UpdateGlobalGroupParams struct {
+	Slug                string      `json:"slug"`
+	DisplayName         string      `json:"displayName"`
+	Description         pgtype.Text `json:"description"`
+	ExposedToDownstream bool        `json:"exposedToDownstream"`
+	Rule                []byte      `json:"rule"`
+	GroupID             int32       `json:"groupId"`
+}
+
+func (q *Queries) UpdateGlobalGroup(ctx context.Context, arg UpdateGlobalGroupParams) (UserGroup, error) {
+	row := q.db.QueryRow(ctx, updateGlobalGroup,
+		arg.Slug,
+		arg.DisplayName,
+		arg.Description,
+		arg.ExposedToDownstream,
+		arg.Rule,
+		arg.GroupID,
+	)
+	var i UserGroup
+	err := row.Scan(
+		&i.ID,
+		&i.Kind,
+		&i.Slug,
+		&i.DisplayName,
+		&i.Description,
+		&i.ExposedToDownstream,
+		&i.Rule,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)

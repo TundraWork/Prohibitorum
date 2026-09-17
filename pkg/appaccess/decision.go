@@ -53,7 +53,7 @@ type GroupMatch struct {
 type Decision struct {
 	Allowed            bool
 	Source             DecisionSource
-	ManualGroup        *GroupMatch
+	ManualGroups       []GroupMatch
 	MatchingRuleGroups []GroupMatch
 }
 
@@ -182,6 +182,40 @@ func Decide(restricted bool, manual ManualEffect, matches []GroupMatch) Decision
 	}
 }
 
+// DecideGroups applies the same precedence to every selected manual group. A
+// deny in any group wins; otherwise every allow is retained for downstream
+// claims and rule matches remain available for both manual and rule decisions.
+func DecideGroups(restricted bool, manualGroups, ruleMatches []GroupMatch) Decision {
+	decision := Decision{
+		ManualGroups:       matchingGroups(manualGroups),
+		MatchingRuleGroups: matchingGroups(ruleMatches),
+	}
+	if !restricted {
+		decision.Allowed = true
+		decision.Source = SourceOpen
+		return decision
+	}
+	for _, group := range manualGroups {
+		if !group.Matched {
+			decision.Source = SourceManualDeny
+			decision.Allowed = false
+			return decision
+		}
+	}
+	if len(decision.ManualGroups) > 0 {
+		decision.Allowed = true
+		decision.Source = SourceManualAllow
+		return decision
+	}
+	if len(decision.MatchingRuleGroups) > 0 {
+		decision.Allowed = true
+		decision.Source = SourceRule
+		return decision
+	}
+	decision.Source = SourceNoMatch
+	return decision
+}
+
 func matchingGroups(matches []GroupMatch) []GroupMatch {
 	var matching []GroupMatch
 	for _, group := range matches {
@@ -195,8 +229,12 @@ func matchingGroups(matches []GroupMatch) []GroupMatch {
 // ExposedGroupSlugs returns sorted, deduplicated exposed groups for claims.
 func (d Decision) ExposedGroupSlugs() []string {
 	seen := map[string]struct{}{}
-	if d.Source == SourceManualAllow && d.ManualGroup != nil && d.ManualGroup.Exposed {
-		seen[d.ManualGroup.Slug] = struct{}{}
+	if d.Source == SourceManualAllow {
+		for _, group := range d.ManualGroups {
+			if group.Exposed {
+				seen[group.Slug] = struct{}{}
+			}
+		}
 	}
 	for _, group := range d.MatchingRuleGroups {
 		if group.Exposed {

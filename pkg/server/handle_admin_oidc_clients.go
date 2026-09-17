@@ -154,6 +154,9 @@ type oidcApplicationOut struct {
 }
 
 func (s *Server) handleGetOIDCApplication(ctx context.Context, in *getOIDCApplicationIn) (*oidcApplicationOut, error) {
+	if err := s.authorizeApplicationManager(ctx, oidcApplicationRef(in.ClientID, false)); err != nil {
+		return nil, authErrToHuma(err)
+	}
 	// Use GetOIDCClientAny so disabled clients are visible to admins.
 	c, err := s.queries.GetOIDCClientAny(ctx, in.ClientID)
 	if err != nil {
@@ -268,6 +271,10 @@ func (s *Server) handleUpdateOIDCApplicationHTTP(w http.ResponseWriter, r *http.
 	clientID := chi.URLParam(r, "clientId")
 	if clientID == "" {
 		writeAuthErr(w, authn.ErrBadRequest())
+		return
+	}
+	if err := s.authorizeApplicationManager(r.Context(), oidcApplicationRef(clientID, false)); err != nil {
+		writeAuthErr(w, err)
 		return
 	}
 	existing, err := s.queries.GetOIDCClientAny(r.Context(), clientID)
@@ -394,6 +401,10 @@ func (s *Server) handleSetOIDCApplicationDisabledHTTP(w http.ResponseWriter, r *
 		writeAuthErr(w, authn.ErrBadRequest())
 		return
 	}
+	if err := s.authorizeApplicationManager(r.Context(), oidcApplicationRef(body.ClientID, false)); err != nil {
+		writeAuthErr(w, err)
+		return
+	}
 
 	c, err := s.queries.SetOIDCClientDisabled(r.Context(), db.SetOIDCClientDisabledParams{
 		ClientID: body.ClientID,
@@ -444,6 +455,10 @@ func (s *Server) handleRotateOIDCApplicationSecretHTTP(w http.ResponseWriter, r 
 	}
 	if body.ClientID == "" {
 		writeAuthErr(w, authn.ErrBadRequest())
+		return
+	}
+	if err := s.authorizeApplicationManager(r.Context(), oidcApplicationRef(body.ClientID, false)); err != nil {
+		writeAuthErr(w, err)
 		return
 	}
 
@@ -500,6 +515,10 @@ func (s *Server) handleDeleteOIDCApplicationHTTP(w http.ResponseWriter, r *http.
 	}
 	if body.ClientID == "" {
 		writeAuthErr(w, authn.ErrBadRequest())
+		return
+	}
+	if err := s.authorizeApplicationManager(r.Context(), oidcApplicationRef(body.ClientID, false)); err != nil {
+		writeAuthErr(w, err)
 		return
 	}
 

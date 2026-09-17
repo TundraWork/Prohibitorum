@@ -1,17 +1,18 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { mount, flushPromises } from '@vue/test-utils'
-import { createI18n } from 'vue-i18n'
+import { describe, expect, it } from 'vitest'
+import { mount } from '@vue/test-utils'
 import { createRouter, createMemoryHistory } from 'vue-router'
-import en from '@/locales/en'
-
-vi.mock('@/lib/api', () => ({ api: { get: vi.fn() } }))
-import { api } from '@/lib/api'
+import { testQueryClient } from '@/testSetup'
+import { keys, type SessionView } from '@/queries/resources'
 import ManagedApplicationDetailView from './ManagedApplicationDetailView.vue'
 
-const get = vi.mocked(api.get)
 const stub = { template: '<div />' }
+const protocolStubs = {
+  AdminOidcClientDetailView: { props: ['mode', 'currentAccountId'], template: '<section data-test="oidc-detail" :data-mode="mode" :data-account-id="currentAccountId" />' },
+  AdminForwardAuthAppDetailView: { props: ['mode', 'currentAccountId'], template: '<section data-test="forward-auth-detail" :data-mode="mode" :data-account-id="currentAccountId" />' },
+  AdminSamlProviderDetailView: { props: ['mode', 'currentAccountId'], template: '<section data-test="saml-detail" :data-mode="mode" :data-account-id="currentAccountId" />' },
+}
 
-async function mountView(path = '/manage/applications/oidc/client%2Fid') {
+async function mountView(path: string) {
   const router = createRouter({
     history: createMemoryHistory(),
     routes: [
@@ -21,44 +22,28 @@ async function mountView(path = '/manage/applications/oidc/client%2Fid') {
   })
   await router.push(path); await router.isReady()
   return mount(ManagedApplicationDetailView, {
-    global: {
-      plugins: [router, createI18n({ legacy: false, locale: 'en', fallbackLocale: 'en', messages: { en } })],
-    },
+    global: { plugins: [router], stubs: protocolStubs },
   })
 }
 
 describe('ManagedApplicationDetailView', () => {
-  beforeEach(() => { get.mockReset() })
+  it.each([
+    ['oidc', 'client%2Fid', 'oidc-detail'],
+    ['forward_auth', 'edge', 'forward-auth-detail'],
+    ['saml', '44', 'saml-detail'],
+  ])('dispatches %s applications to the full protocol editor in manager mode', async (kind, id, testId) => {
+    testQueryClient.setQueryData<SessionView>(keys.me, { id: 17, username: 'manager', displayName: 'Manager', role: 'app_manager' })
+    const wrapper = await mountView(`/manage/applications/${kind}/${id}`)
 
-  it('renders the reusable policy workspace without protocol configuration', async () => {
-    const workspace = {
-      app: { kind: 'oidc', appId: 'client/id', displayName: 'Grafana', accessRestricted: true },
-      accessRestricted: true,
-      providers: [{ slug: 'corporate' }],
-      manualGroup: { id: 1, kind: 'manual', slug: 'grafana-access', displayName: 'Grafana access', exposedToDownstream: false },
-      ruleGroups: [
-        { id: 2, kind: 'rule', slug: 'grafana-corporate', displayName: 'Corporate users', exposedToDownstream: false, rule: { version: 1, condition: { fact: 'connection.provider', provider: 'corporate' } } },
-      ],
-    }
-    get.mockImplementation(async (path: string) =>
-      path.endsWith('/access') ? workspace : { items: [], nextCursor: '' },
-    )
-    const wrapper = await mountView(); await flushPromises()
-    expect(get).toHaveBeenCalledWith('/api/prohibitorum/managed-applications/oidc/client%2Fid/access', expect.objectContaining({ signal: expect.any(AbortSignal) }))
-    expect(wrapper.find('[data-test="managed-application-detail"]').exists()).toBe(true)
-    expect(wrapper.find('[data-test="app-policy-workspace"]').exists()).toBe(true)
-    expect(wrapper.text()).toContain('Grafana')
-    expect(wrapper.text()).toContain('Restricted access')
-    expect(wrapper.text()).toContain('Manual group: Grafana access')
-    expect(wrapper.text()).toContain('1 rule group')
-    expect(wrapper.text()).not.toContain('Redirect URI')
-    expect(get.mock.calls.filter(([path]) => path.endsWith('/access'))).toHaveLength(1)
+    const detail = wrapper.get(`[data-test="${testId}"]`)
+    expect(detail.attributes('data-mode')).toBe('manager')
+    expect(detail.attributes('data-account-id')).toBe('17')
+    expect(wrapper.findAll('[data-mode="manager"]')).toHaveLength(1)
   })
 
-  it('uses the generic unavailable state for an unknown or unassigned application', async () => {
-    get.mockRejectedValue({ code: 'client_not_found' })
-    const wrapper = await mountView('/manage/applications/saml/44'); await flushPromises()
-    expect(wrapper.text()).toContain('That application is unavailable or is not assigned to you.')
-    expect(wrapper.find('[data-test="managed-application-detail"]').exists()).toBe(false)
+  it('does not render a protocol editor for an unsupported application kind', async () => {
+    const wrapper = await mountView('/manage/applications/unknown/value')
+
+    expect(wrapper.get('[data-test="managed-application-detail"]').element.children).toHaveLength(0)
   })
 })

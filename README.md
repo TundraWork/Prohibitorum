@@ -112,17 +112,17 @@ role names — `oidc-applications`, `saml-applications`,
 
 Access-policy commands are scoped beneath the owning app command:
 `manager list|assign|remove`, `access set-restricted`,
-`group list|create-manual|create-rule|update|delete|preview`, and
-`decision list|set`. Use `--client-id` for `oidc-client` and
-`forward-auth-app`, or `--entity-id` for `saml-sp`; app binding is never a
-mutable policy flag.
+`group list|select|preview`, and `decision list|set`. Use `--client-id` for
+`oidc-client` and `forward-auth-app`, or `--entity-id` for `saml-sp`.
+Global group definitions are managed in the admin dashboard. Application
+commands identify them by ID because slugs may be shared.
 
 ```bash
 # The account already has the app_manager role; assignment manages policy, not use.
 ./prohibitorum oidc-client manager assign --client-id docs --username policy-manager
-./prohibitorum oidc-client group create-manual --client-id docs --slug reviewed --display-name "Reviewed"
-./prohibitorum oidc-client decision set --client-id docs --username alice --effect=allow
-./prohibitorum oidc-client group create-rule --client-id docs --slug passkey --display-name "Passkey users" --rule-file passkey.json
+./prohibitorum oidc-client group select --client-id docs --group-id 12 --group-id 18
+./prohibitorum oidc-client decision set --client-id docs --group-id 12 --username alice --effect=allow
+./prohibitorum oidc-client group preview --client-id docs --group-id 18
 ./prohibitorum oidc-client access set-restricted --client-id docs --restricted=true
 ```
 

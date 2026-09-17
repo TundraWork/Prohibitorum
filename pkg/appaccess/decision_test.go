@@ -170,8 +170,8 @@ func TestDecideManualAllowKeepsRuleMatchesWithoutInferringManualGroup(t *testing
 	if !got.Allowed || got.Source != SourceManualAllow {
 		t.Fatalf("Decide() = %#v, want manual allow", got)
 	}
-	if got.ManualGroup != nil {
-		t.Fatalf("ManualGroup = %#v, want nil because an enum effect has no group identity", got.ManualGroup)
+	if len(got.ManualGroups) != 0 {
+		t.Fatalf("ManualGroups = %#v, want empty because an enum effect has no group identity", got.ManualGroups)
 	}
 	if want := []GroupMatch{matches[0], matches[1], matches[2]}; !reflect.DeepEqual(got.MatchingRuleGroups, want) {
 		t.Fatalf("MatchingRuleGroups = %#v, want %#v", got.MatchingRuleGroups, want)
@@ -187,7 +187,7 @@ func TestDecisionProjectsManualGroupOnlyForManualAllow(t *testing.T) {
 
 	allow := Decision{
 		Source:             SourceManualAllow,
-		ManualGroup:        &manualGroup,
+		ManualGroups:       []GroupMatch{manualGroup},
 		MatchingRuleGroups: []GroupMatch{ruleGroup},
 	}
 	if want := []string{"manual", "zeta"}; !reflect.DeepEqual(allow.ExposedGroupSlugs(), want) {
@@ -196,10 +196,40 @@ func TestDecisionProjectsManualGroupOnlyForManualAllow(t *testing.T) {
 
 	deny := Decision{
 		Source:             SourceManualDeny,
-		ManualGroup:        &manualGroup,
+		ManualGroups:       []GroupMatch{manualGroup},
 		MatchingRuleGroups: []GroupMatch{ruleGroup},
 	}
 	if want := []string{"zeta"}; !reflect.DeepEqual(deny.ExposedGroupSlugs(), want) {
 		t.Fatalf("manual deny ExposedGroupSlugs() = %#v, want %#v", deny.ExposedGroupSlugs(), want)
+	}
+}
+
+func TestDecideGroupsDenyWinsAcrossManualGroups(t *testing.T) {
+	manual := []GroupMatch{
+		{ID: 1, Slug: "allowed", Exposed: true, Matched: true},
+		{ID: 2, Slug: "denied", Exposed: true, Matched: false},
+	}
+	rules := []GroupMatch{{ID: 3, Slug: "rule", Exposed: true, Matched: true}}
+	got := DecideGroups(true, manual, rules)
+	if got.Allowed || got.Source != SourceManualDeny {
+		t.Fatalf("DecideGroups() = %#v, want manual deny", got)
+	}
+	if want := []string{"rule"}; !reflect.DeepEqual(got.ExposedGroupSlugs(), want) {
+		t.Fatalf("ExposedGroupSlugs() = %#v, want %#v", got.ExposedGroupSlugs(), want)
+	}
+}
+
+func TestDecideGroupsKeepsAllManualAllows(t *testing.T) {
+	manual := []GroupMatch{
+		{ID: 1, Slug: "zeta", Exposed: true, Matched: true},
+		{ID: 2, Slug: "alpha", Exposed: true, Matched: true},
+		{ID: 3, Slug: "hidden", Exposed: false, Matched: true},
+	}
+	got := DecideGroups(true, manual, nil)
+	if !got.Allowed || got.Source != SourceManualAllow {
+		t.Fatalf("DecideGroups() = %#v, want manual allow", got)
+	}
+	if want := []string{"alpha", "zeta"}; !reflect.DeepEqual(got.ExposedGroupSlugs(), want) {
+		t.Fatalf("ExposedGroupSlugs() = %#v, want %#v", got.ExposedGroupSlugs(), want)
 	}
 }

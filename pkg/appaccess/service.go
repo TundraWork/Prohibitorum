@@ -87,8 +87,8 @@ type queries interface {
 	GetOIDCClientAny(context.Context, string) (db.OidcClient, error)
 	GetSAMLSPByID(context.Context, int64) (db.SamlSp, error)
 	GetAccountAccessFacts(context.Context, int32) (db.GetAccountAccessFactsRow, error)
-	GetManualDecisionForOIDCApp(context.Context, db.GetManualDecisionForOIDCAppParams) (db.GroupManualDecision, error)
-	GetManualDecisionForSAMLApp(context.Context, db.GetManualDecisionForSAMLAppParams) (db.GroupManualDecision, error)
+	ListManualDecisionsForOIDCApp(context.Context, db.ListManualDecisionsForOIDCAppParams) ([]db.GroupManualDecision, error)
+	ListManualDecisionsForSAMLApp(context.Context, db.ListManualDecisionsForSAMLAppParams) ([]db.GroupManualDecision, error)
 	GetOIDCAppGroup(context.Context, db.GetOIDCAppGroupParams) (db.UserGroup, error)
 	GetSAMLAppGroup(context.Context, db.GetSAMLAppGroupParams) (db.UserGroup, error)
 	ListOIDCAppRuleGroups(context.Context, string) ([]db.UserGroup, error)
@@ -371,7 +371,7 @@ func (s *Service) ExplainGroup(ctx context.Context, ref AppRef, groupID, account
 }
 
 func (s *Service) evaluateOIDCWithFacts(ctx context.Context, accountID int32, clientID string, restricted bool, facts Facts, providers map[string]struct{}) (Decision, error) {
-	manual, manualGroup, err := s.loadOIDCManual(ctx, accountID, clientID)
+	manualGroups, err := s.loadOIDCManual(ctx, accountID, clientID)
 	if err != nil {
 		return Decision{}, err
 	}
@@ -379,11 +379,11 @@ func (s *Service) evaluateOIDCWithFacts(ctx context.Context, accountID int32, cl
 	if err != nil {
 		return Decision{}, err
 	}
-	return decidePersistedPolicy(restricted, manual, manualGroup, groups, facts, providers)
+	return decidePersistedPolicy(restricted, manualGroups, groups, facts, providers)
 }
 
 func (s *Service) evaluateSAMLWithFacts(ctx context.Context, accountID int32, spID int64, restricted bool, facts Facts, providers map[string]struct{}) (Decision, error) {
-	manual, manualGroup, err := s.loadSAMLManual(ctx, accountID, spID)
+	manualGroups, err := s.loadSAMLManual(ctx, accountID, spID)
 	if err != nil {
 		return Decision{}, err
 	}
@@ -391,71 +391,67 @@ func (s *Service) evaluateSAMLWithFacts(ctx context.Context, accountID int32, sp
 	if err != nil {
 		return Decision{}, err
 	}
-	return decidePersistedPolicy(restricted, manual, manualGroup, groups, facts, providers)
+	return decidePersistedPolicy(restricted, manualGroups, groups, facts, providers)
 }
 
-func (s *Service) loadOIDCManual(ctx context.Context, accountID int32, clientID string) (ManualEffect, *GroupMatch, error) {
-	row, err := s.q.GetManualDecisionForOIDCApp(ctx, db.GetManualDecisionForOIDCAppParams{
+func (s *Service) loadOIDCManual(ctx context.Context, accountID int32, clientID string) ([]GroupMatch, error) {
+	rows, err := s.q.ListManualDecisionsForOIDCApp(ctx, db.ListManualDecisionsForOIDCAppParams{
 		OidcClientID: clientID,
 		AccountID:    accountID,
 	})
-	if errors.Is(err, pgx.ErrNoRows) {
-		return ManualNeutral, nil, nil
-	}
 	if err != nil {
-		return ManualNeutral, nil, err
+		return nil, err
 	}
-	effect, err := manualEffect(row)
-	if err != nil {
-		return ManualNeutral, nil, err
+	matches := make([]GroupMatch, 0, len(rows))
+	for _, row := range rows {
+		effect, err := manualEffect(row)
+		if err != nil {
+			return nil, err
+		}
+		group, err := s.q.GetOIDCAppGroup(ctx, db.GetOIDCAppGroupParams{GroupID: row.GroupID, OidcClientID: clientID})
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, invalidPolicy("manual group %d is missing", row.GroupID)
+		}
+		if err != nil {
+			return nil, err
+		}
+		match, err := manualGroupMatch(group, effect)
+		if err != nil {
+			return nil, err
+		}
+		matches = append(matches, match)
 	}
-	group, err := s.q.GetOIDCAppGroup(ctx, db.GetOIDCAppGroupParams{
-		GroupID:      row.GroupID,
-		OidcClientID: clientID,
-	})
-	if errors.Is(err, pgx.ErrNoRows) {
-		return ManualNeutral, nil, invalidPolicy("manual group %d is missing", row.GroupID)
-	}
-	if err != nil {
-		return ManualNeutral, nil, err
-	}
-	match, err := manualGroupMatch(group, effect)
-	if err != nil {
-		return ManualNeutral, nil, err
-	}
-	return effect, &match, nil
+	return matches, nil
 }
 
-func (s *Service) loadSAMLManual(ctx context.Context, accountID int32, spID int64) (ManualEffect, *GroupMatch, error) {
-	row, err := s.q.GetManualDecisionForSAMLApp(ctx, db.GetManualDecisionForSAMLAppParams{
+func (s *Service) loadSAMLManual(ctx context.Context, accountID int32, spID int64) ([]GroupMatch, error) {
+	rows, err := s.q.ListManualDecisionsForSAMLApp(ctx, db.ListManualDecisionsForSAMLAppParams{
 		SamlSpID:  spID,
 		AccountID: accountID,
 	})
-	if errors.Is(err, pgx.ErrNoRows) {
-		return ManualNeutral, nil, nil
-	}
 	if err != nil {
-		return ManualNeutral, nil, err
+		return nil, err
 	}
-	effect, err := manualEffect(row)
-	if err != nil {
-		return ManualNeutral, nil, err
+	matches := make([]GroupMatch, 0, len(rows))
+	for _, row := range rows {
+		effect, err := manualEffect(row)
+		if err != nil {
+			return nil, err
+		}
+		group, err := s.q.GetSAMLAppGroup(ctx, db.GetSAMLAppGroupParams{GroupID: row.GroupID, SamlSpID: spID})
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, invalidPolicy("manual group %d is missing", row.GroupID)
+		}
+		if err != nil {
+			return nil, err
+		}
+		match, err := manualGroupMatch(group, effect)
+		if err != nil {
+			return nil, err
+		}
+		matches = append(matches, match)
 	}
-	group, err := s.q.GetSAMLAppGroup(ctx, db.GetSAMLAppGroupParams{
-		GroupID:  row.GroupID,
-		SamlSpID: spID,
-	})
-	if errors.Is(err, pgx.ErrNoRows) {
-		return ManualNeutral, nil, invalidPolicy("manual group %d is missing", row.GroupID)
-	}
-	if err != nil {
-		return ManualNeutral, nil, err
-	}
-	match, err := manualGroupMatch(group, effect)
-	if err != nil {
-		return ManualNeutral, nil, err
-	}
-	return effect, &match, nil
+	return matches, nil
 }
 
 func (s *Service) loadFacts(ctx context.Context, accountID int32) (Facts, error) {
@@ -541,16 +537,12 @@ func (s *Service) validateAppRef(ctx context.Context, ref AppRef) error {
 	}
 }
 
-func decidePersistedPolicy(restricted bool, manual ManualEffect, manualGroup *GroupMatch, groups []db.UserGroup, facts Facts, providers map[string]struct{}) (Decision, error) {
+func decidePersistedPolicy(restricted bool, manualGroups []GroupMatch, groups []db.UserGroup, facts Facts, providers map[string]struct{}) (Decision, error) {
 	matches, err := matchRuleGroups(groups, facts, providers)
 	if err != nil {
 		return Decision{}, err
 	}
-	decision := Decide(restricted, manual, matches)
-	if manualGroup != nil {
-		decision.ManualGroup = manualGroup
-	}
-	return decision, nil
+	return DecideGroups(restricted, manualGroups, matches), nil
 }
 
 func matchRuleGroups(groups []db.UserGroup, facts Facts, providers map[string]struct{}) ([]GroupMatch, error) {

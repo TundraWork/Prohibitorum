@@ -104,12 +104,17 @@ func (s *Server) auditEntityIcon(r *http.Request, factor audit.Factor, kind, id,
 // Registered via plain registerOpHTTP(admin) — fresh-sudo enforced in-handler.
 func (s *Server) handlePutOIDCAppIconHTTP(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "clientId")
-	if _, err := s.queries.GetOIDCClientAny(r.Context(), id); err != nil {
+	client, err := s.queries.GetOIDCClientAny(r.Context(), id)
+	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			writeAuthErr(w, authn.ErrClientNotFound())
 			return
 		}
 		writeAuthErr(w, fmt.Errorf("handlePutOIDCAppIcon: lookup: %w", err))
+		return
+	}
+	if err := s.authorizeApplicationManager(r.Context(), oidcApplicationRef(id, client.ForwardAuthEnabled)); err != nil {
+		writeAuthErr(w, err)
 		return
 	}
 	s.putEntityIcon(w, r, "oidc_client", id, audit.FactorOIDCClient)
@@ -118,7 +123,21 @@ func (s *Server) handlePutOIDCAppIconHTTP(w http.ResponseWriter, r *http.Request
 // DELETE /api/prohibitorum/oidc-applications/{clientId}/icon
 // Registered via registerSudoOpHTTP — admin + fresh sudo via wrapper.
 func (s *Server) handleDeleteOIDCAppIconHTTP(w http.ResponseWriter, r *http.Request) {
-	s.deleteEntityIcon(w, r, "oidc_client", chi.URLParam(r, "clientId"), audit.FactorOIDCClient)
+	id := chi.URLParam(r, "clientId")
+	client, err := s.queries.GetOIDCClientAny(r.Context(), id)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			writeAuthErr(w, authn.ErrClientNotFound())
+		} else {
+			writeAuthErr(w, err)
+		}
+		return
+	}
+	if err := s.authorizeApplicationManager(r.Context(), oidcApplicationRef(id, client.ForwardAuthEnabled)); err != nil {
+		writeAuthErr(w, err)
+		return
+	}
+	s.deleteEntityIcon(w, r, "oidc_client", id, audit.FactorOIDCClient)
 }
 
 // ----- SAML application icon -----------------------------------------------
@@ -140,13 +159,27 @@ func (s *Server) handlePutSAMLAppIconHTTP(w http.ResponseWriter, r *http.Request
 		writeAuthErr(w, fmt.Errorf("handlePutSAMLAppIcon: lookup: %w", err))
 		return
 	}
+	if err := s.authorizeApplicationManager(r.Context(), samlApplicationRef(id)); err != nil {
+		writeAuthErr(w, err)
+		return
+	}
 	s.putEntityIcon(w, r, "saml_sp", idStr, audit.FactorSAMLSP)
 }
 
 // DELETE /api/prohibitorum/saml-applications/{id}/icon
 // Registered via registerSudoOpHTTP — admin + fresh sudo via wrapper.
 func (s *Server) handleDeleteSAMLAppIconHTTP(w http.ResponseWriter, r *http.Request) {
-	s.deleteEntityIcon(w, r, "saml_sp", chi.URLParam(r, "id"), audit.FactorSAMLSP)
+	idStr := chi.URLParam(r, "id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		writeAuthErr(w, authn.ErrBadRequest())
+		return
+	}
+	if err := s.authorizeApplicationManager(r.Context(), samlApplicationRef(id)); err != nil {
+		writeAuthErr(w, err)
+		return
+	}
+	s.deleteEntityIcon(w, r, "saml_sp", idStr, audit.FactorSAMLSP)
 }
 
 // ----- Upstream IdP icon ---------------------------------------------------

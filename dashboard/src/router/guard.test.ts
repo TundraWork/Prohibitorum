@@ -141,14 +141,14 @@ describe('router guard (maintenance mode)', () => {
 
 import realRouter from './index'
 
-describe('obsolete global group routes', () => {
+describe('global group routes', () => {
   it.each([
     ['/admin/groups', 'admin-groups'],
     ['/admin/groups/10', 'admin-group-detail'],
-  ] as const)('%s does not resolve to a named global group route or redirect', (path, groupRouteName) => {
+  ] as const)('%s resolves to the admin-only global group route', (path, groupRouteName) => {
     const resolved = realRouter.resolve(path)
-    expect(resolved.name).not.toBe(groupRouteName)
-    expect(resolved.matched.some((route) => route.path.startsWith('/admin/groups'))).toBe(false)
+    expect(resolved.name).toBe(groupRouteName)
+    expect(resolved.meta.requiresAdmin).toBe(true)
   })
 })
 

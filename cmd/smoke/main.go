@@ -4477,7 +4477,7 @@ func main() {
 		if err := sudoWebAuthn(c, auth, *baseURL); err != nil {
 			log.Fatalf("delegated: sudo before manager invitation: %v", err)
 		}
-		managerClient, _, managerMe, err := invitedPasskeyAccount(c, *baseURL, "smoke-manager", "Smoke Manager")
+		managerClient, managerAuth, managerMe, err := invitedPasskeyAccount(c, *baseURL, "smoke-manager", "Smoke Manager")
 		if err != nil {
 			log.Fatalf("delegated: create manager account: %v", err)
 		}
@@ -4524,25 +4524,49 @@ func main() {
 		}
 		log.Printf("  role=app_manager; assigned app list is exactly oidc/%s ✓", policyClientID)
 
-		step(fmt.Sprintf("delegated %d/%d — manager cannot enumerate another app or edit protocol configuration", 3, nDelegated))
+		step(fmt.Sprintf("delegated %d/%d — manager controls the assigned protocol object but cannot enumerate another app", 3, nDelegated))
 		expectStatus(managerClient, http.MethodGet,
 			"/api/prohibitorum/managed-applications/oidc/"+url.PathEscape(rpClientID)+"/access",
 			nil, http.StatusNotFound, "delegated cross-app read")
-		expectStatus(managerClient, http.MethodGet,
-			"/api/prohibitorum/oidc-applications/"+url.PathEscape(policyClientID),
-			nil, http.StatusForbidden, "delegated protocol configuration read")
-		log.Printf("  unassigned managed app → 404; assigned app protocol configuration → 403 ✓")
+		var managedOIDC struct {
+			DisplayName            string   `json:"displayName"`
+			RedirectURIs           []string `json:"redirectUris"`
+			PostLogoutRedirectURIs []string `json:"postLogoutRedirectUris"`
+			AllowedScopes          []string `json:"allowedScopes"`
+			RequirePkce            bool     `json:"requirePkce"`
+			RequireConsent         bool     `json:"requireConsent"`
+			Disabled               bool     `json:"disabled"`
+		}
+		managedOIDCPath := "/api/prohibitorum/oidc-applications/" + url.PathEscape(policyClientID)
+		if err := managerClient.get(managedOIDCPath, &managedOIDC); err != nil {
+			log.Fatalf("delegated: assigned protocol configuration read: %v", err)
+		}
+		if err := sudoWebAuthn(managerClient, managerAuth, *baseURL); err != nil {
+			log.Fatalf("delegated: manager sudo before configuration update: %v", err)
+		}
+		managedOIDC.DisplayName = "Smoke managed RP updated"
+		if err := managerClient.putJSON(managedOIDCPath, map[string]any{
+			"displayName": managedOIDC.DisplayName, "redirectUris": managedOIDC.RedirectURIs,
+			"postLogoutRedirectUris": managedOIDC.PostLogoutRedirectURIs, "allowedScopes": managedOIDC.AllowedScopes,
+			"requirePkce": managedOIDC.RequirePkce, "requireConsent": managedOIDC.RequireConsent, "disabled": managedOIDC.Disabled,
+		}, &managedOIDC); err != nil {
+			log.Fatalf("delegated: assigned protocol configuration update: %v", err)
+		}
+		log.Printf("  unassigned app → 404; assigned OIDC detail + sudo-gated update succeeded ✓")
 
-		step(fmt.Sprintf("delegated %d/%d — manager creates one manual group and two exposed avatar rule groups", 4, nDelegated))
+		step(fmt.Sprintf("delegated %d/%d — admin creates global groups and manager selects them without definition access", 4, nDelegated))
 		type appGroup struct {
 			ID                  int32  `json:"id"`
 			Kind                string `json:"kind"`
 			Slug                string `json:"slug"`
 			ExposedToDownstream bool   `json:"exposedToDownstream"`
 		}
+		if err := sudoWebAuthn(c, auth, *baseURL); err != nil {
+			log.Fatalf("delegated: admin sudo before global groups: %v", err)
+		}
 		createGroup := func(body map[string]any) appGroup {
 			var group appGroup
-			if err := managerClient.postJSON(policyBase+"/groups", body, &group); err != nil {
+			if err := c.postJSON("/api/prohibitorum/groups", body, &group); err != nil {
 				log.Fatalf("delegated: create group %v: %v", body["slug"], err)
 			}
 			if group.ID <= 0 || group.Slug != body["slug"] {
@@ -4566,19 +4590,27 @@ func main() {
 			"kind": "rule", "slug": avatarRule2Slug, "displayName": "Smoke avatar rule two",
 			"description": "Second matching exposed rule", "exposedToDownstream": true, "rule": avatarRule,
 		})
-		expectStatus(managerClient, http.MethodPut, fmt.Sprintf("%s/groups/%d", policyBase, manualGroup.ID),
-			map[string]any{"kind": "rule", "slug": manualSlug, "displayName": "Mutated kind"},
-			http.StatusBadRequest, "delegated immutable group kind")
+		expectStatus(managerClient, http.MethodPost, "/api/prohibitorum/groups",
+			map[string]any{"kind": "manual", "slug": "forbidden", "displayName": "Forbidden"},
+			http.StatusForbidden, "delegated global group definition write")
+		if err := managerClient.putJSON(policyBase+"/groups", map[string]any{
+			"groupIds": []int32{manualGroup.ID, ruleGroup1.ID, ruleGroup2.ID},
+		}, nil); err != nil {
+			log.Fatalf("delegated: select global groups: %v", err)
+		}
 		expectStatus(managerClient, http.MethodGet,
 			fmt.Sprintf("/api/prohibitorum/managed-applications/oidc/%s/groups/%d", url.PathEscape(rpClientID), manualGroup.ID),
 			nil, http.StatusNotFound, "delegated immutable app binding")
 		if manualGroup.Kind != "manual" || ruleGroup1.Kind != "rule" || ruleGroup2.Kind != "rule" {
 			log.Fatalf("delegated: unexpected group kinds: %+v %+v %+v", manualGroup, ruleGroup1, ruleGroup2)
 		}
-		log.Printf("  manual id=%d + rule ids=%d,%d; kind/app binding mutation rejected ✓", manualGroup.ID, ruleGroup1.ID, ruleGroup2.ID)
+		log.Printf("  global manual id=%d + rule ids=%d,%d selected; manager definition write denied ✓", manualGroup.ID, ruleGroup1.ID, ruleGroup2.ID)
 
-		decisionPath := fmt.Sprintf("%s/groups/%d/decisions", policyBase, manualGroup.ID)
+		decisionPath := fmt.Sprintf("/api/prohibitorum/groups/%d/decisions", manualGroup.ID)
 		clearDecisionPath := decisionPath + "/clear"
+		expectStatus(managerClient, http.MethodPost, decisionPath,
+			map[string]any{"accountId": memberMe.ID, "effect": "allow"},
+			http.StatusForbidden, "delegated global decision write")
 
 		step(fmt.Sprintf("delegated %d/%d — manager restricts access; neutral member with no avatar is denied", 5, nDelegated))
 		if err := managerClient.postJSON(policyBase+"/access/set-restricted", map[string]any{"restricted": true}, nil); err != nil {
@@ -4588,7 +4620,7 @@ func main() {
 		log.Printf("  restricted=true; neutral decision + two non-matching rules → deny ✓")
 
 		step(fmt.Sprintf("delegated %d/%d — manual allow overrides non-matching rules", 6, nDelegated))
-		if err := managerClient.postJSON(decisionPath,
+		if err := c.postJSON(decisionPath,
 			map[string]any{"accountId": memberMe.ID, "effect": "allow"}, nil); err != nil {
 			log.Fatalf("delegated: manual allow: %v", err)
 		}
@@ -4596,12 +4628,12 @@ func main() {
 		log.Printf("  manual allow > rule miss → authorization code issued ✓")
 
 		step(fmt.Sprintf("delegated %d/%d — manual deny overrides allow/rules; clearing returns to neutral deny", 7, nDelegated))
-		if err := managerClient.postJSON(decisionPath,
+		if err := c.postJSON(decisionPath,
 			map[string]any{"accountId": memberMe.ID, "effect": "deny"}, nil); err != nil {
 			log.Fatalf("delegated: manual deny: %v", err)
 		}
 		expectAccessDenied(memberClient, "delegated manual deny")
-		if err := managerClient.postJSON(clearDecisionPath, map[string]any{"accountId": memberMe.ID}, nil); err != nil {
+		if err := c.postJSON(clearDecisionPath, map[string]any{"accountId": memberMe.ID}, nil); err != nil {
 			log.Fatalf("delegated: clear manual deny: %v", err)
 		}
 		expectAccessDenied(memberClient, "delegated neutral deny after clear")
@@ -4627,7 +4659,7 @@ func main() {
 		log.Printf("  avatar:any fact changed live; neutral OR(two matching rules) → allow ✓")
 
 		step(fmt.Sprintf("delegated %d/%d — ID token and userinfo project manual plus both matching exposed slugs", 9, nDelegated))
-		if err := managerClient.postJSON(decisionPath,
+		if err := c.postJSON(decisionPath,
 			map[string]any{"accountId": memberMe.ID, "effect": "allow"}, nil); err != nil {
 			log.Fatalf("delegated: restore manual allow for claims: %v", err)
 		}
@@ -4685,7 +4717,7 @@ func main() {
 		log.Printf("  groups claim contains %s, %s, %s; eligible refresh rotates ✓", manualSlug, avatarRuleSlug, avatarRule2Slug)
 
 		step(fmt.Sprintf("delegated %d/%d — removing live eligibility makes refresh invalid_grant and revokes its family", 10, nDelegated))
-		if err := managerClient.postJSON(clearDecisionPath, map[string]any{"accountId": memberMe.ID}, nil); err != nil {
+		if err := c.postJSON(clearDecisionPath, map[string]any{"accountId": memberMe.ID}, nil); err != nil {
 			log.Fatalf("delegated: clear manual allow before eligibility cut: %v", err)
 		}
 		expectStatus(memberClient, http.MethodDelete, "/api/prohibitorum/me/avatar", nil,
@@ -4755,7 +4787,7 @@ func main() {
 				policyEventSet[event.Event] = true
 			}
 		}
-		for _, want := range []string{"register", "access_restricted_set", "access_granted", "access_denied", "access_revoked"} {
+		for _, want := range []string{"update", "access_restricted_set"} {
 			if !policyEventSet[want] {
 				log.Fatalf("delegated: missing app_policy audit event %q (got %v)", want, policyEventSet)
 			}

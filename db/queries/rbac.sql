@@ -1,46 +1,133 @@
 -- name: CreateOIDCAppGroup :one
-INSERT INTO user_group (
-  kind, slug, display_name, description, exposed_to_downstream, rule, oidc_client_id
+WITH created AS (
+  INSERT INTO user_group (kind, slug, display_name, description, exposed_to_downstream, rule)
+  VALUES (sqlc.arg(kind), sqlc.arg(slug), sqlc.arg(display_name), sqlc.narg(description),
+          sqlc.arg(exposed_to_downstream), sqlc.narg(rule))
+  RETURNING *
+), linked AS (
+  INSERT INTO oidc_client_group (client_id, group_id)
+  SELECT sqlc.arg(oidc_client_id)::text, id FROM created
 )
-VALUES (
-  sqlc.arg(kind), sqlc.arg(slug), sqlc.arg(display_name), sqlc.narg(description),
-  sqlc.arg(exposed_to_downstream), sqlc.narg(rule), sqlc.arg(oidc_client_id)::text
-)
-RETURNING *;
+SELECT g.* FROM user_group g JOIN created c ON c.id = g.id;
 
 -- name: CreateSAMLAppGroup :one
-INSERT INTO user_group (
-  kind, slug, display_name, description, exposed_to_downstream, rule, saml_sp_id
+WITH created AS (
+  INSERT INTO user_group (kind, slug, display_name, description, exposed_to_downstream, rule)
+  VALUES (sqlc.arg(kind), sqlc.arg(slug), sqlc.arg(display_name), sqlc.narg(description),
+          sqlc.arg(exposed_to_downstream), sqlc.narg(rule))
+  RETURNING *
+), linked AS (
+  INSERT INTO saml_sp_group (saml_sp_id, group_id)
+  SELECT sqlc.arg(saml_sp_id)::bigint, id FROM created
 )
-VALUES (
-  sqlc.arg(kind), sqlc.arg(slug), sqlc.arg(display_name), sqlc.narg(description),
-  sqlc.arg(exposed_to_downstream), sqlc.narg(rule), sqlc.arg(saml_sp_id)::bigint
-)
+SELECT g.* FROM user_group g JOIN created c ON c.id = g.id;
+
+-- name: CreateGlobalGroup :one
+INSERT INTO user_group (kind, slug, display_name, description, exposed_to_downstream, rule)
+VALUES (sqlc.arg(kind), sqlc.arg(slug), sqlc.arg(display_name), sqlc.narg(description),
+        sqlc.arg(exposed_to_downstream), sqlc.narg(rule))
 RETURNING *;
 
--- name: GetOIDCAppGroup :one
+-- name: GetGlobalGroup :one
+SELECT * FROM user_group WHERE id = sqlc.arg(group_id);
+
+-- name: ListGlobalGroups :many
+SELECT * FROM user_group
+ORDER BY display_name ASC, id ASC;
+
+-- name: ListGlobalGroupApplications :many
 SELECT *
-FROM user_group
-WHERE id = sqlc.arg(group_id)
-  AND oidc_client_id = sqlc.arg(oidc_client_id)::text;
+FROM (
+  SELECT
+    CASE WHEN c.forward_auth_enabled THEN 'forward_auth' ELSE 'oidc' END::text AS kind,
+    c.client_id::text AS app_id,
+    c.display_name
+  FROM oidc_client_group link
+  JOIN oidc_client c ON c.client_id = link.client_id
+  WHERE link.group_id = sqlc.arg(group_id)
+
+  UNION ALL
+
+  SELECT 'saml'::text AS kind, sp.id::text AS app_id, sp.display_name
+  FROM saml_sp_group link
+  JOIN saml_sp sp ON sp.id = link.saml_sp_id
+  WHERE link.group_id = sqlc.arg(group_id)
+) applications
+ORDER BY kind ASC, display_name ASC, app_id ASC;
+
+-- name: GetOIDCAppGroup :one
+SELECT g.*
+FROM user_group g
+WHERE g.id = sqlc.arg(group_id)
+  AND EXISTS (SELECT 1 FROM oidc_client_group og
+              WHERE og.group_id = g.id AND og.client_id = sqlc.arg(oidc_client_id)::text);
 
 -- name: GetSAMLAppGroup :one
-SELECT *
-FROM user_group
-WHERE id = sqlc.arg(group_id)
-  AND saml_sp_id = sqlc.arg(saml_sp_id)::bigint;
+SELECT g.*
+FROM user_group g
+WHERE g.id = sqlc.arg(group_id)
+  AND EXISTS (SELECT 1 FROM saml_sp_group sg
+              WHERE sg.group_id = g.id AND sg.saml_sp_id = sqlc.arg(saml_sp_id)::bigint);
 
 -- name: ListOIDCAppGroups :many
-SELECT *
-FROM user_group
-WHERE oidc_client_id = sqlc.arg(oidc_client_id)::text
-ORDER BY display_name ASC, id ASC;
+SELECT g.*
+FROM user_group g
+JOIN oidc_client_group og ON og.group_id = g.id
+WHERE og.client_id = sqlc.arg(oidc_client_id)::text
+ORDER BY g.display_name ASC, g.id ASC;
 
 -- name: ListSAMLAppGroups :many
-SELECT *
-FROM user_group
-WHERE saml_sp_id = sqlc.arg(saml_sp_id)::bigint
-ORDER BY display_name ASC, id ASC;
+SELECT g.*
+FROM user_group g
+JOIN saml_sp_group sg ON sg.group_id = g.id
+WHERE sg.saml_sp_id = sqlc.arg(saml_sp_id)::bigint
+ORDER BY g.display_name ASC, g.id ASC;
+
+-- name: ReplaceOIDCAppGroups :many
+WITH locked AS (
+  SELECT client_id FROM oidc_client
+  WHERE client_id = sqlc.arg(oidc_client_id)::text
+  FOR UPDATE
+), deleted AS (
+  DELETE FROM oidc_client_group og
+  USING locked l
+  WHERE og.client_id = l.client_id
+    AND NOT (og.group_id = ANY(sqlc.arg(group_ids)::int[]))
+  RETURNING og.group_id
+), inserted AS (
+  INSERT INTO oidc_client_group (client_id, group_id)
+  SELECT l.client_id, requested.group_id
+  FROM locked l
+  CROSS JOIN unnest(sqlc.arg(group_ids)::int[]) AS requested(group_id)
+  ON CONFLICT (client_id, group_id) DO NOTHING
+  RETURNING group_id
+)
+SELECT g.* FROM user_group g, locked l
+WHERE g.id = ANY(sqlc.arg(group_ids)::int[])
+ORDER BY g.display_name ASC, g.id ASC;
+
+-- name: ReplaceSAMLAppGroups :many
+WITH locked AS (
+  SELECT id FROM saml_sp
+  WHERE id = sqlc.arg(saml_sp_id)::bigint
+  FOR UPDATE
+), deleted AS (
+  DELETE FROM saml_sp_group sg
+  USING locked l
+  WHERE sg.saml_sp_id = l.id
+    AND NOT (sg.group_id = ANY(sqlc.arg(group_ids)::int[]))
+  RETURNING sg.group_id
+), inserted AS (
+  INSERT INTO saml_sp_group (saml_sp_id, group_id)
+  SELECT l.id, requested.group_id
+  FROM locked l
+  CROSS JOIN unnest(sqlc.arg(group_ids)::int[]) AS requested(group_id)
+  ON CONFLICT (saml_sp_id, group_id) DO NOTHING
+  RETURNING group_id
+)
+SELECT g.* FROM user_group g, locked l
+WHERE g.id = ANY(sqlc.arg(group_ids)::int[])
+ORDER BY g.display_name ASC, g.id ASC;
 
 -- name: UpdateAppGroup :one
 UPDATE user_group
@@ -51,39 +138,50 @@ SET slug = sqlc.arg(slug),
     rule = sqlc.narg(rule),
     updated_at = now()
 WHERE id = sqlc.arg(group_id)
-  AND num_nonnulls(
-    sqlc.narg(oidc_client_id)::text,
-    sqlc.narg(saml_sp_id)::bigint
-  ) = 1
-  AND (
-    user_group.oidc_client_id = sqlc.narg(oidc_client_id)::text
-    OR user_group.saml_sp_id = sqlc.narg(saml_sp_id)::bigint
-  )
+  AND (sqlc.narg(oidc_client_id)::text IS NULL OR EXISTS (
+    SELECT 1 FROM oidc_client_group og WHERE og.group_id = user_group.id
+      AND og.client_id = sqlc.narg(oidc_client_id)::text
+  ))
+  AND (sqlc.narg(saml_sp_id)::bigint IS NULL OR EXISTS (
+    SELECT 1 FROM saml_sp_group sg WHERE sg.group_id = user_group.id
+      AND sg.saml_sp_id = sqlc.narg(saml_sp_id)::bigint
+  ))
 RETURNING *;
 
--- name: DeleteOIDCAppGroup :execrows
-DELETE FROM user_group
+-- name: UpdateGlobalGroup :one
+UPDATE user_group
+SET slug = sqlc.arg(slug), display_name = sqlc.arg(display_name),
+    description = sqlc.narg(description), exposed_to_downstream = sqlc.arg(exposed_to_downstream),
+    rule = sqlc.narg(rule), updated_at = now()
 WHERE id = sqlc.arg(group_id)
-  AND oidc_client_id = sqlc.arg(oidc_client_id)::text;
+RETURNING *;
+
+-- name: DeleteGlobalGroup :execrows
+DELETE FROM user_group WHERE id = sqlc.arg(group_id);
+
+-- name: DeleteOIDCAppGroup :execrows
+DELETE FROM oidc_client_group
+WHERE group_id = sqlc.arg(group_id) AND client_id = sqlc.arg(oidc_client_id)::text;
 
 -- name: DeleteSAMLAppGroup :execrows
-DELETE FROM user_group
-WHERE id = sqlc.arg(group_id)
-  AND saml_sp_id = sqlc.arg(saml_sp_id)::bigint;
+DELETE FROM saml_sp_group
+WHERE group_id = sqlc.arg(group_id) AND saml_sp_id = sqlc.arg(saml_sp_id)::bigint;
 
--- name: GetManualDecisionForOIDCApp :one
+-- name: ListManualDecisionsForOIDCApp :many
 SELECT d.*
 FROM group_manual_decision d
 JOIN user_group g ON g.id = d.group_id AND g.kind = d.group_kind
-WHERE g.oidc_client_id = sqlc.arg(oidc_client_id)::text
+JOIN oidc_client_group og ON og.group_id = g.id
+WHERE og.client_id = sqlc.arg(oidc_client_id)::text
   AND g.kind = 'manual'
   AND d.account_id = sqlc.arg(account_id);
 
--- name: GetManualDecisionForSAMLApp :one
+-- name: ListManualDecisionsForSAMLApp :many
 SELECT d.*
 FROM group_manual_decision d
 JOIN user_group g ON g.id = d.group_id AND g.kind = d.group_kind
-WHERE g.saml_sp_id = sqlc.arg(saml_sp_id)::bigint
+JOIN saml_sp_group sg ON sg.group_id = g.id
+WHERE sg.saml_sp_id = sqlc.arg(saml_sp_id)::bigint
   AND g.kind = 'manual'
   AND d.account_id = sqlc.arg(account_id);
 
@@ -371,18 +469,20 @@ ORDER BY a.username ASC, a.id ASC
 LIMIT sqlc.arg(row_limit);
 
 -- name: ListOIDCAppRuleGroups :many
-SELECT *
-FROM user_group
-WHERE oidc_client_id = sqlc.arg(oidc_client_id)::text
-  AND kind = 'rule'
-ORDER BY id ASC;
+SELECT g.*
+FROM user_group g
+JOIN oidc_client_group og ON og.group_id = g.id
+WHERE og.client_id = sqlc.arg(oidc_client_id)::text
+  AND g.kind = 'rule'
+ORDER BY g.id ASC;
 
 -- name: ListSAMLAppRuleGroups :many
-SELECT *
-FROM user_group
-WHERE saml_sp_id = sqlc.arg(saml_sp_id)::bigint
-  AND kind = 'rule'
-ORDER BY id ASC;
+SELECT g.*
+FROM user_group g
+JOIN saml_sp_group sg ON sg.group_id = g.id
+WHERE sg.saml_sp_id = sqlc.arg(saml_sp_id)::bigint
+  AND g.kind = 'rule'
+ORDER BY g.id ASC;
 
 -- name: ListOIDCAccessCandidates :many
 SELECT

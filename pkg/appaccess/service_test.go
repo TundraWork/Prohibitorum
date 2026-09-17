@@ -48,8 +48,8 @@ func TestServiceEvaluateOIDCManualDenyPreservesRuleMatches(t *testing.T) {
 	if got.Allowed || got.Source != SourceManualDeny {
 		t.Fatalf("EvaluateOIDC() = %#v, want manual deny", got)
 	}
-	if got.ManualGroup == nil || got.ManualGroup.Slug != "reviewed" {
-		t.Fatalf("ManualGroup = %#v, want decorated manual group", got.ManualGroup)
+	if len(got.ManualGroups) != 0 {
+		t.Fatalf("ManualGroups = %#v, want no claimable groups after deny", got.ManualGroups)
 	}
 	assertSlugs(t, got.MatchingRuleGroups, "passkeys")
 }
@@ -69,8 +69,8 @@ func TestServiceEvaluateOIDCManualAllowStillProjectsRuleMatches(t *testing.T) {
 		t.Fatalf("EvaluateOIDC() = %#v, %v", got, err)
 	}
 	assertSlugs(t, got.MatchingRuleGroups, "passkeys")
-	if got.ManualGroup == nil || got.ManualGroup.Slug != "reviewed" {
-		t.Fatalf("ManualGroup = %#v, want decorated manual group", got.ManualGroup)
+	if len(got.ManualGroups) != 1 || got.ManualGroups[0].Slug != "reviewed" {
+		t.Fatalf("ManualGroups = %#v, want decorated manual group", got.ManualGroups)
 	}
 	if got, want := got.ExposedGroupSlugs(), []string{"passkeys", "reviewed"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("ExposedGroupSlugs() = %#v, want %#v", got, want)
@@ -186,10 +186,10 @@ func TestServiceEvaluateSAML(t *testing.T) {
 
 func TestServiceAuthorizeManagerChecksRoleAssignmentAndKind(t *testing.T) {
 	q := &fakeQueries{
-		oidcApp:      restrictedOIDC("wiki"),
-		oidcManaged:  true,
-		samlManaged:  true,
-		samlApp:      db.SamlSp{ID: 9},
+		oidcApp:     restrictedOIDC("wiki"),
+		oidcManaged: true,
+		samlManaged: true,
+		samlApp:     db.SamlSp{ID: 9},
 	}
 	svc := NewService(q)
 	ctx := context.Background()
@@ -405,40 +405,40 @@ func ruleGroup(id int32, slug, rule string, exposed bool) db.UserGroup {
 }
 
 type fakeQueries struct {
-	oidcApp              db.OidcClient
-	oidcApps             map[string]db.OidcClient
-	oidcErr              error
-	samlApp              db.SamlSp
-	samlApps             map[int64]db.SamlSp
-	samlErr              error
-	facts                db.GetAccountAccessFactsRow
-	factsErr             error
-	factsCalls           int
-	manual               db.GroupManualDecision
-	manualSet            bool
-	manualErr            error
-	manualGroup          db.UserGroup
-	oidcGroups           []db.UserGroup
-	oidcGroupsByClient   map[string][]db.UserGroup
-	samlGroups           []db.UserGroup
-	samlGroupsByID       map[int64][]db.UserGroup
-	oidcAppGroupsByID    map[string]map[int32]db.UserGroup
-	samlAppGroupsByID    map[int64]map[int32]db.UserGroup
-	knownProviderSlugs  []string
-	knownProviderCalls  int
-	groupCalls          int
-	oidcManaged          bool
-	oidcManagedErr       error
-	samlManaged          bool
-	samlManagedErr       error
-	oidcCandidates       []db.ListOIDCAccessCandidatesRow
-	forwardCandidates    []db.ListForwardAuthAccessCandidatesRow
-	samlCandidates       []db.ListSAMLAccessCandidatesRow
-	pageFacts            []db.ListActiveAccountAccessFactsPageRow
-	activeFacts         []db.ListActiveAccountAccessFactsRow
-	activeFactsCalls    int
-	pageErr              error
-	pageCalls            int
+	oidcApp            db.OidcClient
+	oidcApps           map[string]db.OidcClient
+	oidcErr            error
+	samlApp            db.SamlSp
+	samlApps           map[int64]db.SamlSp
+	samlErr            error
+	facts              db.GetAccountAccessFactsRow
+	factsErr           error
+	factsCalls         int
+	manual             db.GroupManualDecision
+	manualSet          bool
+	manualErr          error
+	manualGroup        db.UserGroup
+	oidcGroups         []db.UserGroup
+	oidcGroupsByClient map[string][]db.UserGroup
+	samlGroups         []db.UserGroup
+	samlGroupsByID     map[int64][]db.UserGroup
+	oidcAppGroupsByID  map[string]map[int32]db.UserGroup
+	samlAppGroupsByID  map[int64]map[int32]db.UserGroup
+	knownProviderSlugs []string
+	knownProviderCalls int
+	groupCalls         int
+	oidcManaged        bool
+	oidcManagedErr     error
+	samlManaged        bool
+	samlManagedErr     error
+	oidcCandidates     []db.ListOIDCAccessCandidatesRow
+	forwardCandidates  []db.ListForwardAuthAccessCandidatesRow
+	samlCandidates     []db.ListSAMLAccessCandidatesRow
+	pageFacts          []db.ListActiveAccountAccessFactsPageRow
+	activeFacts        []db.ListActiveAccountAccessFactsRow
+	activeFactsCalls   int
+	pageErr            error
+	pageCalls          int
 }
 
 func (f *fakeQueries) GetOIDCClient(_ context.Context, clientID string) (db.OidcClient, error) {
@@ -491,22 +491,22 @@ func (f *fakeQueries) GetAccountAccessFacts(_ context.Context, _ int32) (db.GetA
 	return f.facts, nil
 }
 
-func (f *fakeQueries) GetManualDecisionForOIDCApp(_ context.Context, _ db.GetManualDecisionForOIDCAppParams) (db.GroupManualDecision, error) {
-	return f.manualDecision()
+func (f *fakeQueries) ListManualDecisionsForOIDCApp(_ context.Context, _ db.ListManualDecisionsForOIDCAppParams) ([]db.GroupManualDecision, error) {
+	return f.manualDecisions()
 }
 
-func (f *fakeQueries) GetManualDecisionForSAMLApp(_ context.Context, _ db.GetManualDecisionForSAMLAppParams) (db.GroupManualDecision, error) {
-	return f.manualDecision()
+func (f *fakeQueries) ListManualDecisionsForSAMLApp(_ context.Context, _ db.ListManualDecisionsForSAMLAppParams) ([]db.GroupManualDecision, error) {
+	return f.manualDecisions()
 }
 
-func (f *fakeQueries) manualDecision() (db.GroupManualDecision, error) {
+func (f *fakeQueries) manualDecisions() ([]db.GroupManualDecision, error) {
 	if f.manualErr != nil {
-		return db.GroupManualDecision{}, f.manualErr
+		return nil, f.manualErr
 	}
 	if !f.manualSet {
-		return db.GroupManualDecision{}, pgx.ErrNoRows
+		return nil, nil
 	}
-	return f.manual, nil
+	return []db.GroupManualDecision{f.manual}, nil
 }
 
 func (f *fakeQueries) GetOIDCAppGroup(_ context.Context, arg db.GetOIDCAppGroupParams) (db.UserGroup, error) {
@@ -554,7 +554,6 @@ func (f *fakeQueries) ListSAMLAppRuleGroups(_ context.Context, id int64) ([]db.U
 	}
 	return f.samlGroups, nil
 }
-
 
 func (f *fakeQueries) ListKnownUpstreamIDPSlugs(_ context.Context) ([]string, error) {
 	f.knownProviderCalls++

@@ -378,9 +378,9 @@ func TestUserinfoProjectsCurrentClientDecisionGroups(t *testing.T) {
 	h := newEndpointHarness(t)
 	h.p.access = &fakeOIDCAuthorizer{byClient: map[string]appaccess.Decision{
 		testClientID: {
-			Allowed:     true,
-			Source:      appaccess.SourceManualAllow,
-			ManualGroup: &appaccess.GroupMatch{Slug: "manual", Exposed: true},
+			Allowed:      true,
+			Source:       appaccess.SourceManualAllow,
+			ManualGroups: []appaccess.GroupMatch{{Slug: "manual", Exposed: true}},
 			MatchingRuleGroups: []appaccess.GroupMatch{
 				{Slug: "zeta", Exposed: true, Matched: true},
 				{Slug: "hidden", Matched: true},

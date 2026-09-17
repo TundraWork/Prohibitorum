@@ -92,6 +92,7 @@ func init() {
 		{Code: "upstream_idp_already_exists", Status: http.StatusConflict, LocaleKey: "errors.upstream_idp_already_exists", DiagnosticKind: "validation"},
 		{Code: "saml_application_already_exists", Status: http.StatusConflict, LocaleKey: "errors.saml_application_already_exists", DiagnosticKind: "validation"},
 		{Code: "group_not_found", Status: http.StatusNotFound, LocaleKey: "errors.group_not_found", DiagnosticKind: "resource"},
+		{Code: "group_in_use", Status: http.StatusConflict, LocaleKey: "errors.group_in_use", DiagnosticKind: "policy"},
 		{Code: "group_slug_conflict", Status: http.StatusConflict, LocaleKey: "errors.group_slug_conflict", DiagnosticKind: "validation"},
 		{Code: "manual_group_exists", Status: http.StatusConflict, LocaleKey: "errors.manual_group_exists", DiagnosticKind: "policy"},
 		{Code: "invalid_group_rule", Status: http.StatusBadRequest, LocaleKey: "errors.invalid_group_rule", DiagnosticKind: "validation", DetailKeys: map[string]struct{}{"path": {}, "reason": {}}},
@@ -628,6 +629,11 @@ func ErrSAMLApplicationAlreadyExists() *AuthError {
 // Status 404.
 func ErrGroupNotFound() *AuthError {
 	return newErr(http.StatusNotFound, "group_not_found", "Group not found.")
+}
+
+// ErrGroupInUse prevents deleting a global group while applications select it.
+func ErrGroupInUse() *AuthError {
+	return newErr(http.StatusConflict, "group_in_use", "Remove this group from every application before deleting it.")
 }
 
 // ErrGroupSlugConflict is returned when a group insert or update violates the

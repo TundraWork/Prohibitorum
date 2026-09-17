@@ -6,7 +6,6 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"image/png"
 	"net/url"
 	"os"
@@ -291,16 +290,20 @@ func TestSeedAppPolicyDemoCreatesCompleteShowcase(t *testing.T) {
 		t.Fatalf("manual group = %+v, want %q kind manual", manual, appPolicyDemoManualSlug)
 	}
 	for username, wantEffect := range map[string]string{"bob": "allow", "carol": "deny"} {
-		decision, err := q.GetManualDecisionForOIDCApp(ctx, db.GetManualDecisionForOIDCAppParams{OidcClientID: appPolicyDemoClientID, AccountID: accounts[username].ID})
+		decisions, err := q.ListManualDecisionsForOIDCApp(ctx, db.ListManualDecisionsForOIDCAppParams{OidcClientID: appPolicyDemoClientID, AccountID: accounts[username].ID})
 		if err != nil {
 			t.Fatalf("get manual decision for %s: %v", username, err)
 		}
+		if len(decisions) != 1 {
+			t.Fatalf("manual decisions for %s = %+v, want one", username, decisions)
+		}
+		decision := decisions[0]
 		if decision.Effect != wantEffect || decision.GroupID != manual.ID {
 			t.Fatalf("manual decision for %s = %+v, want %s on group %d", username, decision, wantEffect, manual.ID)
 		}
 	}
-	if _, err := q.GetManualDecisionForOIDCApp(ctx, db.GetManualDecisionForOIDCAppParams{OidcClientID: appPolicyDemoClientID, AccountID: accounts["alice"].ID}); !errors.Is(err, pgx.ErrNoRows) {
-		t.Fatalf("alice manual decision error = %v, want pgx.ErrNoRows", err)
+	if decisions, err := q.ListManualDecisionsForOIDCApp(ctx, db.ListManualDecisionsForOIDCAppParams{OidcClientID: appPolicyDemoClientID, AccountID: accounts["alice"].ID}); err != nil || len(decisions) != 0 {
+		t.Fatalf("alice manual decisions = %+v, error = %v; want empty", decisions, err)
 	}
 
 	expectedExposure := map[string]bool{
@@ -573,9 +576,9 @@ func appPolicyDemoFixtureCounts(t *testing.T, pool *pgxpool.Pool) appPolicyDemoC
 		{"passwords", &counts.passwords, `SELECT count(*) FROM password_credential p JOIN account a ON a.id = p.account_id WHERE a.username = 'bob'`},
 		{"totps", &counts.totps, `SELECT count(*) FROM totp_credential t JOIN account a ON a.id = t.account_id WHERE a.username = 'bob'`},
 		{"identities", &counts.identities, `SELECT count(*) FROM account_identity ai JOIN account a ON a.id = ai.account_id JOIN upstream_idp i ON i.id = ai.upstream_idp_id WHERE a.username = 'alice' AND i.slug = 'downstream-policy-demo'`},
-		{"groups", &counts.groups, `SELECT count(*) FROM user_group WHERE oidc_client_id = $1 AND slug LIKE 'demo-%'`},
+		{"groups", &counts.groups, `SELECT count(*) FROM user_group g JOIN oidc_client_group l ON l.group_id = g.id WHERE l.client_id = $1 AND g.slug LIKE 'demo-%'`},
 		{"managers", &counts.managers, `SELECT count(*) FROM oidc_client_manager WHERE client_id = $1`},
-		{"decisions", &counts.decisions, `SELECT count(*) FROM group_manual_decision d JOIN user_group g ON g.id = d.group_id WHERE g.oidc_client_id = $1 AND g.slug = $2`},
+		{"decisions", &counts.decisions, `SELECT count(*) FROM group_manual_decision d JOIN user_group g ON g.id = d.group_id JOIN oidc_client_group l ON l.group_id = g.id WHERE l.client_id = $1 AND g.slug = $2`},
 	} {
 		args := []any{}
 		if strings.Contains(query.SQL, "$1") {

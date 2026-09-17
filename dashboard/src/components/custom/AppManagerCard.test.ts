@@ -30,16 +30,6 @@ interface AccountView {
   id: number
   username: string
   displayName: string
-  email: string | null
-  emailVerified: boolean
-  role: string
-  attributes: Record<string, unknown>
-  disabled: boolean
-  createdAt: string
-  updatedAt: string
-  lastSignInAt: string | null
-  avatarUrl: string | null
-  matchingIdentities: unknown[]
 }
 
 interface AccountPage {
@@ -68,45 +58,22 @@ const DISABLED_MANAGER: AppManagerView = {
 
 const MANAGERS = [ACTIVE_MANAGER, DISABLED_MANAGER]
 
-function account(
-  id: number,
-  username: string,
-  displayName: string,
-  role: string,
-  disabled = false,
-): AccountView {
-  return {
-    id,
-    username,
-    displayName,
-    email: `${username}@example.test`,
-    emailVerified: true,
-    role,
-    attributes: {},
-    disabled,
-    createdAt: '2026-07-01T10:00:00Z',
-    updatedAt: '2026-07-01T10:00:00Z',
-    lastSignInAt: null,
-    avatarUrl: null,
-    matchingIdentities: [],
-  }
-}
-
-const ACTIVE_CANDIDATE = account(8, 'hedy', 'Hedy Lamarr', 'app_manager')
-const DISABLED_CANDIDATE = account(9, 'ada', 'Ada Lovelace', 'app_manager', true)
-const USER_CANDIDATE = account(10, 'margaret', 'Margaret Hamilton', 'user')
-const ADMIN_CANDIDATE = account(11, 'katherine', 'Katherine Johnson', 'admin')
+const ACTIVE_CANDIDATE: AccountView = { id: 8, username: 'hedy', displayName: 'Hedy Lamarr' }
 
 const CANDIDATE_PAGE: AccountPage = {
-  items: [ACTIVE_CANDIDATE, DISABLED_CANDIDATE, USER_CANDIDATE, ADMIN_CANDIDATE],
+  items: [ACTIVE_CANDIDATE],
   nextCursor: '',
 }
 
 type ManagerResult = AppManagerView[] | (() => AppManagerView[])
 
-function mountCard(kind: AppKind = 'oidc', appId = APP_ID) {
+function mountCard(
+  kind: AppKind = 'oidc',
+  appId = APP_ID,
+  props: { mode?: 'admin' | 'manager'; currentAccountId?: number } = {},
+) {
   return mount(AppManagerCard, {
-    props: { kind, appId },
+    props: { kind, appId, ...props },
     global: {
       plugins: [createI18n({
         legacy: false,
@@ -127,7 +94,7 @@ function mockGets(
     if (path.endsWith('/managers')) {
       return typeof managers === 'function' ? managers() : managers
     }
-    if (path.startsWith('/api/prohibitorum/accounts')) return accounts
+    if (path.startsWith('/api/prohibitorum/managed-applications/manager-candidates')) return accounts
     throw new Error(`Unexpected GET ${path}`)
   })
 }
@@ -217,8 +184,8 @@ describe('AppManagerCard', () => {
     expect(
       get.mock.calls
         .map(([path]) => String(path))
-        .filter((path) => path.startsWith('/api/prohibitorum/accounts')),
-    ).toEqual(['/api/prohibitorum/accounts?q=Ada+Lovelace'])
+        .filter((path) => path.startsWith('/api/prohibitorum/managed-applications/manager-candidates')),
+    ).toEqual(['/api/prohibitorum/managed-applications/manager-candidates?q=Ada%20Lovelace'])
     expect(withSudo).not.toHaveBeenCalled()
   })
 
@@ -229,7 +196,7 @@ describe('AppManagerCard', () => {
     })
     get.mockImplementation(async (path: string) => {
       if (path.endsWith('/managers')) return []
-      if (path.startsWith('/api/prohibitorum/accounts')) return accountsResponse
+      if (path.startsWith('/api/prohibitorum/managed-applications/manager-candidates')) return accountsResponse
       throw new Error(`Unexpected GET ${path}`)
     })
 
@@ -247,7 +214,7 @@ describe('AppManagerCard', () => {
     expect(wrapper.text()).not.toContain('Hedy Lamarr')
   })
 
-  it('shows only app-manager candidates and keeps disabled candidates visible but unassignable', async () => {
+  it('renders the safe active-manager candidates returned by the scoped endpoint', async () => {
     mockGets()
     const wrapper = mountCard()
     await flushPromises()
@@ -255,14 +222,6 @@ describe('AppManagerCard', () => {
     await searchCandidates(wrapper, 'manager')
 
     expect(wrapper.find('[data-test="manager-account-result-8"]').exists()).toBe(true)
-    expect(wrapper.find('[data-test="manager-account-result-9"]').exists()).toBe(true)
-    expect(wrapper.find('[data-test="manager-account-result-10"]').exists()).toBe(false)
-    expect(wrapper.find('[data-test="manager-account-result-11"]').exists()).toBe(false)
-
-    const disabledResult = wrapper.get('[data-test="manager-account-result-9"]')
-    expect(disabledResult.text()).toContain('Ada Lovelace')
-    expect(disabledResult.text()).toContain(en.admin.account.disabledLabel)
-    expect(wrapper.get<HTMLButtonElement>('[data-test="manager-assign-9"]').element.disabled).toBe(true)
     expect(wrapper.get<HTMLButtonElement>('[data-test="manager-assign-8"]').element.disabled).toBe(false)
   })
 
@@ -309,6 +268,20 @@ describe('AppManagerCard', () => {
     expect(post).toHaveBeenCalledWith(`${MANAGERS_ENDPOINT}/remove`, { accountId: 7 })
     expect(managerGetCalls()).toEqual([MANAGERS_ENDPOINT, MANAGERS_ENDPOINT])
     expect(wrapper.find('[data-test="manager-row-7"]').exists()).toBe(false)
+  })
+
+  it('emits self-removed without refetching inaccessible data in manager mode', async () => {
+    mockGets()
+    post.mockResolvedValue({})
+    const wrapper = mountCard('oidc', APP_ID, { mode: 'manager', currentAccountId: ACTIVE_MANAGER.id })
+    await flushPromises()
+
+    await wrapper.get('[data-test="manager-remove-7"]').trigger('click')
+    await flushPromises()
+
+    expect(post).toHaveBeenCalledWith(`${MANAGERS_ENDPOINT}/remove`, { accountId: ACTIVE_MANAGER.id })
+    expect(wrapper.emitted('self-removed')).toEqual([[]])
+    expect(managerGetCalls()).toEqual([MANAGERS_ENDPOINT])
   })
 
   it('does not invoke the assignment mutation when sudo is cancelled', async () => {

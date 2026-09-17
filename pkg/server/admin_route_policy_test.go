@@ -47,6 +47,11 @@ type sudoRoute struct {
 // missing entry it doesn't know about. Cross-check against server.go
 // registerOperations() when adding routes.
 var sudoGatedRoutes = []sudoRoute{
+	{method: "POST", path: "/api/prohibitorum/groups", body: `{}`},
+	{method: "PUT", path: "/api/prohibitorum/groups/1", body: `{}`},
+	{method: "POST", path: "/api/prohibitorum/groups/1/delete", body: `{}`},
+	{method: "POST", path: "/api/prohibitorum/groups/1/decisions", body: `{}`},
+	{method: "POST", path: "/api/prohibitorum/groups/1/decisions/clear", body: `{}`},
 	// Signing-key lifecycle
 	{method: "POST", path: "/api/prohibitorum/signing-keys/generate", body: `{}`},
 	{method: "POST", path: "/api/prohibitorum/signing-keys/abc/activate", body: `{}`},

@@ -370,6 +370,17 @@ func seedAppPolicyDemoApp(ctx context.Context, q *db.Queries, alice, bob, carol 
 			return fmt.Errorf("app-policy demo upsert %s manual decision: %w", decision.account.Username, err)
 		}
 	}
+	groupIDs := make([]int32, 0, len(bySlug))
+	for _, group := range bySlug {
+		groupIDs = append(groupIDs, group.ID)
+	}
+	selected, err := q.ReplaceOIDCAppGroups(ctx, db.ReplaceOIDCAppGroupsParams{OidcClientID: appPolicyDemoClientID, GroupIds: groupIDs})
+	if err != nil {
+		return fmt.Errorf("app-policy demo select global groups: %w", err)
+	}
+	if len(selected) != len(groupIDs) {
+		return fmt.Errorf("app-policy demo select global groups: one or more groups no longer exist")
+	}
 	return nil
 }
 
@@ -378,34 +389,34 @@ func upsertAppPolicyDemoGroup(ctx context.Context, q *db.Queries, existing map[s
 	if found && group.Kind != kind {
 		return db.UserGroup{}, fmt.Errorf("app-policy demo group %q has wrong kind %q, want %q", slug, group.Kind, kind)
 	}
-	params := db.UpdateAppGroupParams{
+	params := db.UpdateGlobalGroupParams{
 		Slug:                slug,
 		DisplayName:         displayName,
 		Description:         pgtype.Text{String: description, Valid: true},
 		ExposedToDownstream: exposed,
 		Rule:                rule,
-		OidcClientID:        pgtype.Text{String: appPolicyDemoClientID, Valid: true},
 	}
 	if found {
 		params.GroupID = group.ID
-		updated, err := q.UpdateAppGroup(ctx, params)
+		updated, err := q.UpdateGlobalGroup(ctx, params)
 		if err != nil {
 			return db.UserGroup{}, fmt.Errorf("app-policy demo update %s group %q: %w", kind, slug, err)
 		}
+		existing[slug] = updated
 		return updated, nil
 	}
-	created, err := q.CreateOIDCAppGroup(ctx, db.CreateOIDCAppGroupParams{
+	created, err := q.CreateGlobalGroup(ctx, db.CreateGlobalGroupParams{
 		Kind:                kind,
 		Slug:                slug,
 		DisplayName:         displayName,
 		Description:         params.Description,
 		ExposedToDownstream: exposed,
 		Rule:                rule,
-		OidcClientID:        appPolicyDemoClientID,
 	})
 	if err != nil {
 		return db.UserGroup{}, fmt.Errorf("app-policy demo create %s group %q: %w", kind, slug, err)
 	}
+	existing[slug] = created
 	return created, nil
 }
 

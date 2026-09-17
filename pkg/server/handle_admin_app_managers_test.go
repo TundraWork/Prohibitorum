@@ -30,11 +30,13 @@ func (c *managerAuditCapture) Record(_ context.Context, record audit.Record) err
 }
 
 type fakeManagerAssignmentQueries struct {
-	oidcClients  map[string]db.OidcClient
-	samlSPs      map[int64]db.SamlSp
-	accounts     map[int32]db.Account
-	oidcManagers map[string]map[int32]time.Time
-	samlManagers map[int64]map[int32]time.Time
+	oidcClients    map[string]db.OidcClient
+	samlSPs        map[int64]db.SamlSp
+	accounts       map[int32]db.Account
+	oidcManagers   map[string]map[int32]time.Time
+	samlManagers   map[int64]map[int32]time.Time
+	candidates     []db.ListActiveAppManagerCandidatesRow
+	candidateQuery string
 
 	assignOIDCCalls  int
 	assignSAMLCalls  int
@@ -46,6 +48,11 @@ type fakeManagerAssignmentQueries struct {
 	rollbackCalls    int
 	callOrder        []string
 	assignOIDCErr    error
+}
+
+func (q *fakeManagerAssignmentQueries) ListActiveAppManagerCandidates(_ context.Context, query string) ([]db.ListActiveAppManagerCandidatesRow, error) {
+	q.candidateQuery = query
+	return q.candidates, nil
 }
 
 func newFakeManagerAssignmentQueries() *fakeManagerAssignmentQueries {
@@ -101,7 +108,7 @@ func (q *fakeManagerAssignmentQueries) ListOIDCClientManagers(_ context.Context,
 		rows = append(rows, db.ListOIDCClientManagersRow{
 			ClientID: clientID, AccountID: accountID,
 			CreatedAt: pgtype.Timestamptz{Time: assignments[accountID], Valid: true},
-			Username: account.Username, DisplayName: account.DisplayName,
+			Username:  account.Username, DisplayName: account.DisplayName,
 			Role: account.Role, Disabled: account.Disabled,
 		})
 	}
@@ -116,7 +123,7 @@ func (q *fakeManagerAssignmentQueries) ListSAMLSPManagers(_ context.Context, sam
 		rows = append(rows, db.ListSAMLSPManagersRow{
 			SamlSpID: samlSPID, AccountID: accountID,
 			CreatedAt: pgtype.Timestamptz{Time: assignments[accountID], Valid: true},
-			Username: account.Username, DisplayName: account.DisplayName,
+			Username:  account.Username, DisplayName: account.DisplayName,
 			Role: account.Role, Disabled: account.Disabled,
 		})
 	}
@@ -202,12 +209,14 @@ func newManagerAssignmentTestServer() (*Server, *fakeManagerAssignmentQueries, *
 	auditCapture := &managerAuditCapture{}
 	router := chi.NewRouter()
 	s := &Server{
-		router:                             router,
-		managerAssignmentQueriesOverride:   queries,
+		router:                            router,
+		managerAssignmentQueriesOverride:  queries,
 		managerAssignmentTxRunnerOverride: managerAssignmentTestRunner{queries: queries},
-		Audit:                              auditCapture,
+		Audit:                             auditCapture,
 	}
 	admin := contract.AuthRequirement{Kind: contract.AuthAdmin}
+	appManager := contract.AuthRequirement{Kind: contract.AuthAppManager}
+	registerOpHTTP(router, http.MethodGet, "/api/prohibitorum/managed-applications/manager-candidates", appManager, s.handleListAppManagerCandidatesHTTP)
 	registerOpHTTP(router, http.MethodGet, "/api/prohibitorum/oidc-applications/{clientId}/managers", admin, s.handleListOIDCApplicationManagersHTTP)
 	s.registerSudoOpHTTP(router, http.MethodPost, "/api/prohibitorum/oidc-applications/{clientId}/managers", admin, s.handleAssignOIDCApplicationManagerHTTP)
 	s.registerSudoOpHTTP(router, http.MethodPost, "/api/prohibitorum/oidc-applications/{clientId}/managers/remove", admin, s.handleRemoveOIDCApplicationManagerHTTP)
@@ -218,6 +227,36 @@ func newManagerAssignmentTestServer() (*Server, *fakeManagerAssignmentQueries, *
 	s.registerSudoOpHTTP(router, http.MethodPost, "/api/prohibitorum/saml-applications/{id}/managers", admin, s.handleAssignSAMLApplicationManagerHTTP)
 	s.registerSudoOpHTTP(router, http.MethodPost, "/api/prohibitorum/saml-applications/{id}/managers/remove", admin, s.handleRemoveSAMLApplicationManagerHTTP)
 	return s, queries, auditCapture
+}
+
+func TestListAppManagerCandidatesReturnsSafeSummariesToAppManagers(t *testing.T) {
+	s, queries, _ := newManagerAssignmentTestServer()
+	queries.candidates = []db.ListActiveAppManagerCandidatesRow{{ID: 7, Username: "grace", DisplayName: "Grace Hopper"}}
+	sess := &authn.Session{Account: &db.Account{ID: 9, Role: "app_manager"}, Data: &authn.SessionData{}}
+	recorder := httptest.NewRecorder()
+	s.router.ServeHTTP(recorder, reqWithSession(http.MethodGet, "/api/prohibitorum/managed-applications/manager-candidates?q=%20Grace%20", "", "", sess))
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body: %s", recorder.Code, recorder.Body.String())
+	}
+	if queries.candidateQuery != "Grace" {
+		t.Fatalf("candidate query = %q, want Grace", queries.candidateQuery)
+	}
+	var page contract.Page[contract.AccountSummaryView]
+	if err := json.Unmarshal(recorder.Body.Bytes(), &page); err != nil {
+		t.Fatalf("decode candidates: %v", err)
+	}
+	if len(page.Items) != 1 || page.Items[0].ID != 7 || page.Items[0].Username != "grace" || page.NextCursor != "" {
+		t.Fatalf("candidate page = %#v", page)
+	}
+}
+
+func TestListAppManagerCandidatesRejectsEmptySearch(t *testing.T) {
+	s, queries, _ := newManagerAssignmentTestServer()
+	recorder := runManagerRequest(t, s, http.MethodGet, "/api/prohibitorum/managed-applications/manager-candidates", "", time.Time{})
+	assertManagerAPIError(t, recorder, http.StatusBadRequest, "bad_request")
+	if queries.candidateQuery != "" {
+		t.Fatalf("candidate query ran with %q", queries.candidateQuery)
+	}
 }
 
 func assertManagerCallOrder(t *testing.T, got, want []string) {

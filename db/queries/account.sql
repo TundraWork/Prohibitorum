@@ -19,6 +19,15 @@ RETURNING *;
 -- name: HasAnyActiveAdmin :one
 SELECT EXISTS(SELECT 1 FROM account WHERE role = 'admin' AND NOT disabled) AS has_admin;
 
+-- name: ListActiveAppManagerCandidates :many
+SELECT id, username, display_name
+FROM account
+WHERE role = 'app_manager'
+  AND NOT disabled
+  AND (username || E'\n' || display_name) ILIKE '%' || sqlc.arg('query')::text || '%'
+ORDER BY username ASC, id ASC
+LIMIT 20;
+
 -- name: ListAccounts :many
 SELECT
   a.*,

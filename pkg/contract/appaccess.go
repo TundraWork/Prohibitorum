@@ -42,14 +42,12 @@ type ProviderDescriptorView struct {
 	DisplayName string `json:"displayName"`
 }
 
-// AppAccessWorkspace combines the application summary with its app-bound
-// policy groups. A database constraint permits at most one manual group.
+// AppAccessWorkspace combines the application summary with selected global groups.
 type AppAccessWorkspace struct {
 	App              AppSummaryView           `json:"app"`
 	AccessRestricted bool                     `json:"accessRestricted"`
 	Providers        []ProviderDescriptorView `json:"providers"`
-	ManualGroup      *AppGroupView            `json:"manualGroup,omitempty"`
-	RuleGroups       []AppGroupView           `json:"ruleGroups"`
+	Groups           []AppGroupView           `json:"groups"`
 }
 
 // AppAccessRule is the public mirror of the closed appaccess rule document.
@@ -72,7 +70,7 @@ type AppAccessCondition struct {
 	Source   string               `json:"source,omitempty"`
 }
 
-// AppGroupView is one immutable-app-bound policy group.
+// AppGroupView is one reusable global policy group.
 type AppGroupView struct {
 	ID                  int32          `json:"id"`
 	Kind                string         `json:"kind"`
@@ -81,6 +79,14 @@ type AppGroupView struct {
 	Description         string         `json:"description,omitempty"`
 	ExposedToDownstream bool           `json:"exposedToDownstream"`
 	Rule                *AppAccessRule `json:"rule,omitempty"`
+}
+
+// GroupApplicationView identifies an application that currently selects a
+// reusable group. It contains only fields needed to assess shared impact.
+type GroupApplicationView struct {
+	Kind        string `json:"kind"`
+	AppID       string `json:"appId"`
+	DisplayName string `json:"displayName"`
 }
 
 // AccountSummaryView contains only fields safe to expose in policy management

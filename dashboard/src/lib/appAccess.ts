@@ -67,8 +67,7 @@ export interface AppAccessWorkspace {
   app: ManagedApplication
   accessRestricted: boolean
   providers: ProviderDescriptor[]
-  manualGroup?: AppGroup
-  ruleGroups: AppGroup[]
+  groups: AppGroup[]
 }
 
 
