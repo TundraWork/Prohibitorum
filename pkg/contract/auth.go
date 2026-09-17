@@ -583,11 +583,13 @@ type OIDCApplicationView struct {
 	// RequirePkce is always true for public clients: PKCE is their only
 	// protection of the authorization code. Confidential clients default to
 	// true; an operator may relax it per client.
-	RequirePkce      bool      `json:"requirePkce"`
-	RequireConsent   bool      `json:"requireConsent"`
-	Disabled         bool      `json:"disabled"`
-	AccessRestricted bool      `json:"accessRestricted"`
-	CreatedAt        time.Time `json:"createdAt"`
+	RequirePkce      bool              `json:"requirePkce"`
+	RequireConsent   bool              `json:"requireConsent"`
+	Disabled         bool              `json:"disabled"`
+	AccessRestricted bool              `json:"accessRestricted"`
+	SubjectSource    string            `json:"subjectSource"`
+	ClaimAliases     map[string]string `json:"claimAliases"`
+	CreatedAt        time.Time         `json:"createdAt"`
 }
 
 var OperationListOIDCApplications = huma.Operation{
@@ -616,6 +618,7 @@ type ForwardAuthAppView struct {
 	Scopes           []ForwardAuthScope `json:"scopes"`
 	AccessRestricted bool               `json:"accessRestricted"`
 	Disabled         bool               `json:"disabled"`
+	RemoteUserSource string             `json:"remoteUserSource"`
 	CreatedAt        time.Time          `json:"createdAt"`
 }
 

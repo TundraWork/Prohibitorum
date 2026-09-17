@@ -189,6 +189,8 @@ func RegisterForwardAuthApp(ctx context.Context, q db.Querier, clientID, host, d
 	}); err != nil {
 		return db.OidcClient{}, err
 	}
+	// SetForwardAuthConfig persists the forward-auth compatibility default.
+	c.PrincipalSource = PrincipalSourceUsername
 	return c, nil
 }
 
@@ -278,6 +280,16 @@ func (p *Provider) HandleForwardAuthVerify(w http.ResponseWriter, r *http.Reques
 						http.Error(w, "service under maintenance", http.StatusServiceUnavailable)
 						return
 					}
+					remoteUser, principalErr := resolvePrincipal(ctx, p.queries, acct, forwardAuthPrincipalSource(client.PrincipalSource))
+					if principalErr != nil {
+						acctID := acct.ID
+						audit.RecordOrLog(ctx, p.audit, audit.Record{
+							AccountID: &acctID, Factor: audit.FactorOIDCClient, Event: audit.EventAccessDenied,
+							Detail: map[string]any{"reason": "principal_unavailable", "client_id": client.ClientID, "principal_kind": "session", "principal_source": forwardAuthPrincipalSource(client.PrincipalSource)},
+						})
+						http.Error(w, "forbidden", http.StatusForbidden)
+						return
+					}
 					renewed, err := renewFASession(ctx, p.kv, c.Value, sess, p.cfg.ForwardAuth.SessionTTL)
 					if err != nil {
 						// No successful authorization response or cookie if renewal
@@ -288,7 +300,7 @@ func (p *Provider) HandleForwardAuthVerify(w http.ResponseWriter, r *http.Reques
 					if renewed {
 						http.SetCookie(w, faCookie(secure, c.Value))
 					}
-					writeIdentityHeaders(w, acct.Username, acct.DisplayName, accountEmail(acct), decision.ExposedGroupSlugs(), nil)
+					writeIdentityHeaders(w, remoteUser, acct.DisplayName, accountEmail(acct), decision.ExposedGroupSlugs(), nil)
 					w.WriteHeader(http.StatusOK)
 					return
 				}
@@ -558,7 +570,17 @@ func (p *Provider) verifyForwardAuthPAT(w http.ResponseWriter, r *http.Request, 
 		http.Error(w, "forbidden", http.StatusForbidden)
 		return
 	}
-	writeIdentityHeaders(w, acct.Username, acct.DisplayName, accountEmail(acct), decision.ExposedGroupSlugs(), scopes)
+	remoteUser, principalErr := resolvePrincipal(ctx, p.queries, acct, forwardAuthPrincipalSource(client.PrincipalSource))
+	if principalErr != nil {
+		acctID := acct.ID
+		audit.RecordOrLog(ctx, p.audit, audit.Record{
+			AccountID: &acctID, Factor: audit.FactorOIDCClient, Event: audit.EventAccessDenied,
+			Detail: map[string]any{"reason": "principal_unavailable", "client_id": client.ClientID, "principal_kind": "pat", "principal_source": forwardAuthPrincipalSource(client.PrincipalSource)},
+		})
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
+	writeIdentityHeaders(w, remoteUser, acct.DisplayName, accountEmail(acct), decision.ExposedGroupSlugs(), scopes)
 	_ = p.queries.TouchPATLastUsed(ctx, row.ID)
 	w.WriteHeader(http.StatusOK)
 }

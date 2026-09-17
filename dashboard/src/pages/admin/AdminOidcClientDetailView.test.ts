@@ -5,7 +5,8 @@ import en from '@/locales/en'
 import { testQueryClient } from '@/testSetup'
 vi.mock('@/lib/api', () => ({ api: { get: vi.fn(), post: vi.fn(), put: vi.fn() } }))
 import { api } from '@/lib/api'
-vi.mock('@/lib/sudo', () => ({ withSudo: (fn: () => Promise<unknown>) => fn() }))
+const { withSudo } = vi.hoisted(() => ({ withSudo: vi.fn((fn: () => Promise<unknown>) => fn()) }))
+vi.mock('@/lib/sudo', () => ({ withSudo }))
 const get = vi.mocked(api.get); const post = vi.mocked(api.post); const put = vi.mocked(api.put)
 const { push } = vi.hoisted(() => ({ push: vi.fn() }))
 vi.mock('vue-router', () => ({ useRouter: () => ({ push }), useRoute: () => ({ params: { clientId: 'web' } }) }))
@@ -25,12 +26,12 @@ const integrationStubs = {
   },
 }
 const mountView = (props: { mode?: 'admin' | 'manager'; currentAccountId?: number } = {}) => mount(AdminOidcClientDetailView, { props, global: { plugins: [i18n()], stubs: integrationStubs }, attachTo: document.body })
-const CLIENT = { clientId: 'web', displayName: 'Web App', redirectUris: ['https://w/cb'], postLogoutRedirectUris: [], allowedScopes: ['openid', 'profile'], clientAuthMethod: 'client_secret', requirePkce: true, requireConsent: true, disabled: false, createdAt: '2026-01-01T00:00:00Z' }
+const CLIENT = { clientId: 'web', displayName: 'Web App', redirectUris: ['https://w/cb'], postLogoutRedirectUris: [], allowedScopes: ['openid', 'profile'], clientAuthMethod: 'client_secret', requirePkce: true, requireConsent: true, disabled: false, subjectSource: 'sub' as const, claimAliases: { handle: 'preferred_username' }, createdAt: '2026-01-01T00:00:00Z' }
 function clickConfirm(label: string) {
   const b = Array.from(document.body.querySelectorAll('button')).filter((x) => x.getAttribute('data-variant') === 'destructive' && x.textContent?.includes(label))
   b[b.length - 1]!.click()
 }
-beforeEach(() => { get.mockReset(); post.mockReset(); put.mockReset(); push.mockReset() })
+beforeEach(() => { get.mockReset(); post.mockReset(); put.mockReset(); push.mockReset(); withSudo.mockClear() })
 
 describe('AdminOidcClientDetailView', () => {
   it('loads the client and saves config via PUT (allowedScopes)', async () => {
@@ -52,6 +53,27 @@ describe('AdminOidcClientDetailView', () => {
     expect(idEl.text()).toBe('web')
     // No input has name="clientId" (client_id cannot be changed)
     expect(w.find('input[name="clientId"]').exists()).toBe(false)
+  })
+  it('saves identity projection without fresh sudo and supports clearing aliases', async () => {
+    get.mockResolvedValue(CLIENT)
+    put.mockResolvedValue({ ...CLIENT, claimAliases: {} })
+    const w = mountView(); await flushPromises()
+
+    expect(w.get('[data-test="subject-source"]').text()).toContain(en.admin.oidc.principalSub)
+    await w.get('[data-test="claim-aliases"]').setValue('{}')
+    await w.get('[data-test="save-identity-projection"]').trigger('click'); await flushPromises()
+
+    expect(put).toHaveBeenCalledWith('/api/prohibitorum/oidc-applications/web/identity-projection', { subjectSource: 'sub', claimAliases: {} })
+    expect(withSudo).not.toHaveBeenCalled()
+    expect(w.text()).toContain(en.admin.oidc.identityProjectionSaved)
+  })
+  it('keeps invalid claim aliases local and does not send them', async () => {
+    get.mockResolvedValue(CLIENT)
+    const w = mountView(); await flushPromises()
+    await w.get('[data-test="claim-aliases"]').setValue('{"sub":"name"}')
+    await w.get('[data-test="save-identity-projection"]').trigger('click'); await flushPromises()
+    expect(put).not.toHaveBeenCalled()
+    expect(w.get('[role="alert"]').text()).toBe(en.admin.oidc.claimAliasesInvalid)
   })
   it('groups the disable button, rotate-secret and delete in the Danger zone card', async () => {
     get.mockResolvedValue(CLIENT)

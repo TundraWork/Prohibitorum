@@ -56,6 +56,24 @@ func (f *fakeEndpointQueries) GetOIDCClient(_ context.Context, clientID string) 
 	return c, nil
 }
 
+func (f *fakeEndpointQueries) GetOIDCClientAny(_ context.Context, clientID string) (db.OidcClient, error) {
+	c, ok := f.clients[clientID]
+	if !ok {
+		return db.OidcClient{}, pgx.ErrNoRows
+	}
+	return c, nil
+}
+
+func (f *fakeEndpointQueries) CountVerifiedAccountsByEmail(_ context.Context, email string) (int64, error) {
+	var count int64
+	for _, account := range f.byID {
+		if account.EmailVerified && account.Email.Valid && strings.EqualFold(account.Email.String, email) {
+			count++
+		}
+	}
+	return count, nil
+}
+
 func (f *fakeEndpointQueries) GetAccountByID(_ context.Context, id int32) (db.Account, error) {
 	a, ok := f.byID[id]
 	if !ok {
@@ -153,6 +171,25 @@ func (h *endpointHarness) mintAccessToken(t *testing.T, sub, clientID, scope, jt
 	return tok
 }
 
+func (h *endpointHarness) mintCurrentAccessToken(t *testing.T, sub, clientID, scope, jti string, exp time.Time) string {
+	t.Helper()
+	tok, err := h.p.signJWT(context.Background(), map[string]any{
+		"iss":                  testIssuer,
+		"sub":                  sub,
+		"aud":                  testIssuer,
+		"client_id":            clientID,
+		internalAccountIDClaim: 7,
+		"exp":                  exp.Unix(),
+		"iat":                  time.Now().Unix(),
+		"jti":                  jti,
+		"scope":                scope,
+	}, "at+jwt")
+	if err != nil {
+		t.Fatalf("mint current access token: %v", err)
+	}
+	return tok
+}
+
 // mintIDToken signs a token with the ID-token typ (JWT) — used to prove the
 // access-token endpoints reject a non-access typ.
 func (h *endpointHarness) mintIDToken(t *testing.T, sub string) string {
@@ -197,6 +234,31 @@ func TestUserinfoValid(t *testing.T) {
 	}
 	if body["username"] != "alice" {
 		t.Fatalf("expected profile claims (username), got %v", body["username"])
+	}
+}
+
+func TestUserinfoUsesCurrentProjectionWithoutExposingInternalAccountID(t *testing.T) {
+	h := newEndpointHarness(t)
+	client := h.q.clients[testClientID]
+	client.PrincipalSource = PrincipalSourceUsername
+	client.ClaimAliases = []byte(`{"login":"preferred_username"}`)
+	h.q.clients[testClientID] = client
+	at := h.mintCurrentAccessToken(t, testSubject, testClientID, "openid profile", "jti-current-projection", time.Now().Add(time.Hour))
+
+	rec := httptest.NewRecorder()
+	h.p.HandleUserinfo(rec, userinfoReq(at))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200: %s", rec.Code, rec.Body.String())
+	}
+	var body map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body["sub"] != "alice" || body["login"] != "alice" {
+		t.Fatalf("current projection = %#v", body)
+	}
+	if _, exposed := body[internalAccountIDClaim]; exposed {
+		t.Fatalf("private account claim exposed by userinfo: %#v", body)
 	}
 }
 

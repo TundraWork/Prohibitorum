@@ -690,7 +690,7 @@ func (p *Provider) grantRefreshToken(w http.ResponseWriter, r *http.Request, cli
 	}
 
 	now := time.Now()
-	accessToken, idToken, err := p.mintAccessAndIDTokens(ctx, acct, client.ClientID, "" /*nonce*/, fam.SessionID, fam.ACR, fam.AMR, fam.Scope, decision.ExposedGroupSlugs(), fam.AuthTime, now)
+	accessToken, idToken, err := p.mintAccessAndIDTokens(ctx, acct, client, "" /*nonce*/, fam.SessionID, fam.ACR, fam.AMR, fam.Scope, decision.ExposedGroupSlugs(), fam.AuthTime, now)
 	if err != nil {
 		// The family is live (from this or a prior rotation). Returning no token
 		// would leave it in a live-but-unusable state the client is locked out of.

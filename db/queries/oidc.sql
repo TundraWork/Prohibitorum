@@ -14,6 +14,18 @@ RETURNING *;
 -- name: UpdateOIDCClientSecret :exec
 UPDATE oidc_client SET client_secret_hash = $2 WHERE client_id = $1;
 
+-- name: UpdateOIDCIdentityProjection :one
+UPDATE oidc_client
+SET principal_source = $2, claim_aliases = $3
+WHERE client_id = $1 AND forward_auth_enabled = false
+RETURNING *;
+
+-- name: UpdateForwardAuthIdentityProjection :one
+UPDATE oidc_client
+SET principal_source = $2
+WHERE client_id = $1 AND forward_auth_enabled = true
+RETURNING *;
+
 -- name: SetOIDCClientDisabled :one
 UPDATE oidc_client SET disabled = $2 WHERE client_id = $1 RETURNING *;
 
@@ -94,17 +106,19 @@ SELECT EXISTS (SELECT 1 FROM revoked_jti WHERE jti = $1);
 DELETE FROM revoked_jti WHERE expires_at < now();
 
 -- name: GetForwardAuthClientByHost :one
-SELECT client_id, display_name, access_restricted, disabled
+SELECT client_id, display_name, access_restricted, disabled, principal_source
 FROM oidc_client
 WHERE forward_auth_enabled = true AND forward_auth_host = $1;
 
 -- name: SetForwardAuthConfig :exec
 UPDATE oidc_client
-SET forward_auth_enabled = $2, forward_auth_host = $3
+SET forward_auth_enabled = $2,
+    forward_auth_host = $3,
+    principal_source = CASE WHEN $2 THEN 'username' ELSE principal_source END
 WHERE client_id = $1;
 
 -- name: ListForwardAuthClients :many
-SELECT client_id, display_name, forward_auth_host, forward_auth_scopes, access_restricted, disabled, created_at
+SELECT client_id, display_name, forward_auth_host, forward_auth_scopes, access_restricted, disabled, created_at, principal_source
 FROM oidc_client
 WHERE forward_auth_enabled = true
   AND (sqlc.narg('after_created_at')::timestamptz IS NULL OR (created_at, client_id) < (sqlc.narg('after_created_at'), sqlc.narg('after_client_id')::text))
@@ -112,7 +126,7 @@ ORDER BY created_at DESC, client_id DESC
 LIMIT sqlc.arg('limit');
 
 -- name: GetForwardAuthAppByID :one
-SELECT client_id, display_name, forward_auth_host, forward_auth_scopes, access_restricted, disabled, created_at
+SELECT client_id, display_name, forward_auth_host, forward_auth_scopes, access_restricted, disabled, created_at, principal_source
 FROM oidc_client
 WHERE client_id = $1 AND forward_auth_enabled = true;
 
@@ -128,7 +142,7 @@ WHERE client_id = $1 AND forward_auth_enabled = true;
 
 -- name: ListNonForwardAuthOIDCClients :many
 SELECT client_id, display_name, redirect_uris, allowed_scopes,
-       client_auth_method, disabled, access_restricted, created_at
+       client_auth_method, disabled, access_restricted, created_at, principal_source, claim_aliases
 FROM oidc_client
 WHERE forward_auth_enabled = false
   AND (sqlc.narg('after_created_at')::timestamptz IS NULL OR (created_at, client_id) < (sqlc.narg('after_created_at'), sqlc.narg('after_client_id')::text))

@@ -236,6 +236,10 @@ var adminBodyControlRoutes = []sudoRoute{
 	{method: "POST", path: "/api/prohibitorum/saml-applications/1/reingest-metadata", body: `{}`},
 	{method: "POST", path: "/api/prohibitorum/saml-applications/set-disabled", body: `{}`},
 	{method: "POST", path: "/api/prohibitorum/saml-applications/delete", body: `{}`},
+	// Identity compatibility settings use app-manager authorization and do not
+	// require fresh sudo.
+	{method: "PUT", path: "/api/prohibitorum/oidc-applications/x/identity-projection", body: `{}`},
+	{method: "PUT", path: "/api/prohibitorum/forward-auth-apps/x/identity-projection", body: `{}`},
 	// Delegated policy mutations are reversible and intentionally do not require
 	// fresh sudo; they retain the shared JSON content-type and size controls.
 	{method: "POST", path: "/api/prohibitorum/managed-applications/oidc/x/access/set-restricted", body: `{}`},

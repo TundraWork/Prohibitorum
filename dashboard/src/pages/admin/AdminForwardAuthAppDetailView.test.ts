@@ -5,7 +5,8 @@ import en from '@/locales/en'
 
 vi.mock('@/lib/api', () => ({ api: { get: vi.fn(), post: vi.fn(), put: vi.fn() } }))
 import { api } from '@/lib/api'
-vi.mock('@/lib/sudo', () => ({ withSudo: (fn: () => Promise<unknown>) => fn() }))
+const { withSudo } = vi.hoisted(() => ({ withSudo: vi.fn((fn: () => Promise<unknown>) => fn()) }))
+vi.mock('@/lib/sudo', () => ({ withSudo }))
 
 const get = vi.mocked(api.get)
 const post = vi.mocked(api.post)
@@ -44,6 +45,7 @@ const APP = {
   disabled: false,
   createdAt: '2026-01-01T00:00:00Z',
   scopes: [{ name: 'team', description: 'Allowed team claim' }],
+  remoteUserSource: 'username' as const,
 }
 
 beforeEach(() => {
@@ -51,6 +53,7 @@ beforeEach(() => {
   post.mockReset()
   put.mockReset()
   push.mockReset()
+  withSudo.mockClear()
 })
 
 describe('AdminForwardAuthAppDetailView', () => {
@@ -81,6 +84,17 @@ describe('AdminForwardAuthAppDetailView', () => {
     await w.find('[data-test="disable-toggle"]').trigger('click'); await flushPromises()
     expect(post).toHaveBeenCalledWith('/api/prohibitorum/forward-auth-apps/set-disabled', { clientId: 'edge', disabled: true })
     expect(w.find('[data-test="status-badge"]').text()).toBe(en.admin.forwardAuth.disabled)
+  })
+
+  it('saves the Remote-User source without fresh sudo', async () => {
+    get.mockResolvedValue(APP)
+    put.mockResolvedValue(APP)
+    const w = mountView(); await flushPromises()
+    expect(w.get('[data-test="remote-user-source"]').text()).toContain(en.admin.forwardAuth.principalUsername)
+    await w.get('[data-test="save-identity-projection"]').trigger('click'); await flushPromises()
+    expect(put).toHaveBeenCalledWith('/api/prohibitorum/forward-auth-apps/edge/identity-projection', { remoteUserSource: 'username' })
+    expect(withSudo).not.toHaveBeenCalled()
+    expect(w.text()).toContain(en.admin.forwardAuth.identityProjectionSaved)
   })
 
   it('deletes the app and returns to the forward-auth application list', async () => {

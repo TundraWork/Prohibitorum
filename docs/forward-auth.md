@@ -161,11 +161,13 @@ The gateway emits five headers on every allowed request, **all unconditionally**
 
 | Header | Content |
 |--------|---------|
-| `Remote-User` | Subject identifier of the authenticated user. |
+| `Remote-User` | Configured account identifier. Each forward-auth app can use the stable account `sub`, username, or unique verified email; username is the default. |
 | `Remote-Name` | Display name. |
 | `Remote-Email` | Primary email address. |
 | `Remote-Groups` | Comma-joined group slugs exposed to downstreams. |
 | `Remote-Scopes` | Comma-joined scopes the PAT granted to **this specific app** (per-app isolation); **empty string for cookie/browser sessions and for `allApps` PATs**. The gateway does not interpret these labels — the upstream service enforces them. |
+
+The application setting applies to browser sessions and PAT requests on the next verification. Choosing verified email requires the current account email to be verified and unique across accounts. If the selected value is missing or ambiguous, verification returns `403` without identity headers instead of falling back to another identifier. Changing the source can make the protected application treat an existing person as a different account.
 
 The operator **must** list all five in `authResponseHeaders` (or use `authResponseHeadersRegex: "Remote-.*"`) so Prohibitorum's authoritative values always overwrite any client-supplied copies. Update the Traefik middleware from the example in section 2:
 

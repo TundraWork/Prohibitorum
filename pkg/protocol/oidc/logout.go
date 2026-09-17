@@ -6,8 +6,6 @@ import (
 	"net/url"
 	"slices"
 
-	"github.com/jackc/pgx/v5/pgtype"
-
 	"prohibitorum/pkg/audit"
 )
 
@@ -58,18 +56,14 @@ func (p *Provider) HandleLogout(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		sub, _ := claims["sub"].(string)
 		sid, _ := claims["sid"].(string)
 		// Task 4 encodes a single audience as a bare string.
 		clientID, _ = claims["aud"].(string)
 
-		if sub != "" && sid != "" {
-			var u pgtype.UUID
-			if err := u.Scan(sub); err == nil {
-				if acct, err := p.queries.GetAccountByOIDCSubject(ctx, u); err == nil {
-					if _, err := p.sessions.RevokeBySessionID(ctx, acct.ID, sid); err == nil {
-						p.auditLogout(ctx, r, acct.ID, clientID)
-					}
+		if sid != "" {
+			if acct, err := accountFromTokenClaims(ctx, p.queries, claims); err == nil {
+				if _, err := p.sessions.RevokeBySessionID(ctx, acct.ID, sid); err == nil {
+					p.auditLogout(ctx, r, acct.ID, clientID)
 				}
 			}
 		}

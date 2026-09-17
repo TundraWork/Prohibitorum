@@ -161,6 +161,8 @@ type OidcClient struct {
 	ForwardAuthHost             pgtype.Text        `json:"forwardAuthHost"`
 	ForwardAuthScopes           []byte             `json:"forwardAuthScopes"`
 	LaunchUrl                   pgtype.Text        `json:"launchUrl"`
+	PrincipalSource             string             `json:"principalSource"`
+	ClaimAliases                []byte             `json:"claimAliases"`
 }
 
 type OidcClientGroup struct {

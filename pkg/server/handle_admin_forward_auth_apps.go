@@ -63,7 +63,11 @@ func validateFAScopes(in []contract.ForwardAuthScope) ([]contract.ForwardAuthSco
 
 // forwardAuthAppView projects the common FA columns into the wire view. Shared
 // by every FA row shape (list/get/update) since they select the same columns.
-func forwardAuthAppView(clientID, displayName string, host pgtype.Text, scopesJSON []byte, accessRestricted, disabled bool, createdAt pgtype.Timestamptz) contract.ForwardAuthAppView {
+func forwardAuthAppView(clientID, displayName string, host pgtype.Text, scopesJSON []byte, accessRestricted, disabled bool, createdAt pgtype.Timestamptz, principalSource ...string) contract.ForwardAuthAppView {
+	source := oidc.PrincipalSourceUsername
+	if len(principalSource) > 0 && principalSource[0] != "" {
+		source = principalSource[0]
+	}
 	v := contract.ForwardAuthAppView{
 		ClientID:         clientID,
 		DisplayName:      displayName,
@@ -71,6 +75,7 @@ func forwardAuthAppView(clientID, displayName string, host pgtype.Text, scopesJS
 		Scopes:           parseFAScopes(scopesJSON),
 		AccessRestricted: accessRestricted,
 		Disabled:         disabled,
+		RemoteUserSource: source,
 	}
 	if createdAt.Valid {
 		v.CreatedAt = createdAt.Time
@@ -121,7 +126,7 @@ func (s *Server) handleListForwardAuthApps(ctx context.Context, in *listForwardA
 	}
 	views := make([]contract.ForwardAuthAppView, 0, len(rows))
 	for _, r := range rows {
-		views = append(views, forwardAuthAppView(r.ClientID, r.DisplayName, r.ForwardAuthHost, r.ForwardAuthScopes, r.AccessRestricted, r.Disabled, r.CreatedAt))
+		views = append(views, forwardAuthAppView(r.ClientID, r.DisplayName, r.ForwardAuthHost, r.ForwardAuthScopes, r.AccessRestricted, r.Disabled, r.CreatedAt, r.PrincipalSource))
 	}
 	var nextCursor string
 	if more && len(rows) > 0 {
@@ -155,7 +160,7 @@ func (s *Server) handleGetForwardAuthApp(ctx context.Context, in *getForwardAuth
 		}
 		return nil, fmt.Errorf("handleGetForwardAuthApp: %w", err)
 	}
-	view := forwardAuthAppView(r.ClientID, r.DisplayName, r.ForwardAuthHost, r.ForwardAuthScopes, r.AccessRestricted, r.Disabled, r.CreatedAt)
+	view := forwardAuthAppView(r.ClientID, r.DisplayName, r.ForwardAuthHost, r.ForwardAuthScopes, r.AccessRestricted, r.Disabled, r.CreatedAt, r.PrincipalSource)
 	view.IconURL = s.enrichIconURL(ctx, "oidc_client", r.ClientID)
 	return &forwardAuthAppOut{Body: view}, nil
 }
@@ -235,7 +240,7 @@ func (s *Server) handleCreateForwardAuthAppHTTP(w http.ResponseWriter, r *http.R
 	// c is the full OidcClient returned by InsertOIDCClient (before the FA
 	// flag/host update is applied by RegisterForwardAuthApp's SetForwardAuthConfig
 	// call). Build the view from the committed create-time values.
-	view := forwardAuthAppView(c.ClientID, c.DisplayName, pgtype.Text{String: body.Host, Valid: true}, scopesJSON, body.AccessRestricted, c.Disabled, c.CreatedAt)
+	view := forwardAuthAppView(c.ClientID, c.DisplayName, pgtype.Text{String: body.Host, Valid: true}, scopesJSON, body.AccessRestricted, c.Disabled, c.CreatedAt, oidc.PrincipalSourceUsername)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	_ = json.NewEncoder(w).Encode(view)

@@ -62,6 +62,12 @@ func validateOIDCScopes(scopes []string) error {
 // view. ClientSecretHash is explicitly excluded — this function is the single
 // chokepoint that prevents accidental leakage of secret material.
 func oidcApplicationView(c db.OidcClient) contract.OIDCApplicationView {
+	aliases := map[string]string{}
+	_ = json.Unmarshal(c.ClaimAliases, &aliases)
+	source := c.PrincipalSource
+	if source == "" {
+		source = oidc.PrincipalSourceSub
+	}
 	v := contract.OIDCApplicationView{
 		ClientID:               c.ClientID,
 		DisplayName:            c.DisplayName,
@@ -73,6 +79,8 @@ func oidcApplicationView(c db.OidcClient) contract.OIDCApplicationView {
 		RequireConsent:         c.RequireConsent,
 		Disabled:               c.Disabled,
 		AccessRestricted:       c.AccessRestricted,
+		SubjectSource:          source,
+		ClaimAliases:           aliases,
 	}
 	if c.CreatedAt.Valid {
 		v.CreatedAt = c.CreatedAt.Time
@@ -119,6 +127,12 @@ func (s *Server) handleListOIDCApplications(ctx context.Context, in *listOIDCApp
 	}
 	views := make([]contract.OIDCApplicationView, 0, len(rows))
 	for _, r := range rows {
+		aliases := map[string]string{}
+		_ = json.Unmarshal(r.ClaimAliases, &aliases)
+		source := r.PrincipalSource
+		if source == "" {
+			source = oidc.PrincipalSourceSub
+		}
 		v := contract.OIDCApplicationView{
 			ClientID:         r.ClientID,
 			DisplayName:      r.DisplayName,
@@ -126,6 +140,9 @@ func (s *Server) handleListOIDCApplications(ctx context.Context, in *listOIDCApp
 			AllowedScopes:    r.AllowedScopes,
 			ClientAuthMethod: r.ClientAuthMethod,
 			Disabled:         r.Disabled,
+			AccessRestricted: r.AccessRestricted,
+			SubjectSource:    source,
+			ClaimAliases:     aliases,
 		}
 		if r.CreatedAt.Valid {
 			v.CreatedAt = r.CreatedAt.Time

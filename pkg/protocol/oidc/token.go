@@ -274,7 +274,7 @@ func (p *Provider) grantAuthorizationCode(w http.ResponseWriter, r *http.Request
 
 	now := time.Now()
 
-	accessToken, idToken, err := p.mintAccessAndIDTokens(ctx, acct, client.ClientID, ac.Nonce, ac.SessionID, ac.ACR, ac.AMR, ac.Scope, decision.ExposedGroupSlugs(), ac.AuthTime, now)
+	accessToken, idToken, err := p.mintAccessAndIDTokens(ctx, acct, client, ac.Nonce, ac.SessionID, ac.ACR, ac.AMR, ac.Scope, decision.ExposedGroupSlugs(), ac.AuthTime, now)
 	if err != nil {
 		writeOIDCError(w, r, http.StatusInternalServerError, errCodeServerError, "could not mint tokens")
 		return
@@ -328,22 +328,31 @@ func (p *Provider) grantAuthorizationCode(w http.ResponseWriter, r *http.Request
 // the re-issued ID token correctly omits the nonce claim). The access token's
 // aud is the issuer itself: the OP is its own resource server (notably for
 // /userinfo). Returns (accessToken, idToken, err).
-func (p *Provider) mintAccessAndIDTokens(ctx context.Context, acct db.Account, clientID, nonce, sid, acr string, amr, scope, groups []string, authTime, now time.Time) (string, string, error) {
+func (p *Provider) mintAccessAndIDTokens(ctx context.Context, acct db.Account, client db.OidcClient, nonce, sid, acr string, amr, scope, groups []string, authTime, now time.Time) (string, string, error) {
 	issuer := p.cfg.OIDC.Issuer
+	subject, err := resolvePrincipal(ctx, p.queries, acct, oidcPrincipalSource(client.PrincipalSource))
+	if err != nil {
+		return "", "", err
+	}
+	aliases, err := decodeClaimAliases(client.ClaimAliases)
+	if err != nil {
+		return "", "", err
+	}
 
 	jti, err := randJTI()
 	if err != nil {
 		return "", "", err
 	}
 	atClaims := map[string]any{
-		"iss":       issuer,
-		"sub":       subjectOf(acct),
-		"aud":       issuer,
-		"client_id": clientID,
-		"exp":       now.Add(p.accessTokenTTL()).Unix(),
-		"iat":       now.Unix(),
-		"jti":       jti,
-		"scope":     strings.Join(scope, " "),
+		"iss":                  issuer,
+		"sub":                  subject,
+		"aud":                  issuer,
+		"client_id":            client.ClientID,
+		internalAccountIDClaim: acct.ID,
+		"exp":                  now.Add(p.accessTokenTTL()).Unix(),
+		"iat":                  now.Unix(),
+		"jti":                  jti,
+		"scope":                strings.Join(scope, " "),
 	}
 	accessToken, err := p.signJWT(ctx, atClaims, "at+jwt")
 	if err != nil {
@@ -357,7 +366,10 @@ func (p *Provider) mintAccessAndIDTokens(ctx context.Context, acct db.Account, c
 	idClaims := idTokenClaims(acct, idTokenInput{
 		Issuer:       issuer,
 		AvatarOrigin: avatarOrigin,
-		Audience:     clientID,
+		Audience:     client.ClientID,
+		Subject:      subject,
+		AccountID:    acct.ID,
+		ClaimAliases: aliases,
 		Nonce:        nonce,
 		ACR:          acr,
 		SID:          sid,

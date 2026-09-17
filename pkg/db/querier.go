@@ -50,6 +50,7 @@ type Querier interface {
 	// VRChat is link-only. ListAccountIdentitiesByAccount intentionally returns
 	// all links, including disabled and VRChat providers, for display/unlink.
 	CountUsableSignInFederation(ctx context.Context, accountID int32) (int64, error)
+	CountVerifiedAccountsByEmail(ctx context.Context, lower string) (int64, error)
 	CreateGlobalGroup(ctx context.Context, arg CreateGlobalGroupParams) (UserGroup, error)
 	CreateOIDCAppGroup(ctx context.Context, arg CreateOIDCAppGroupParams) (UserGroup, error)
 	CreateSAMLAppGroup(ctx context.Context, arg CreateSAMLAppGroupParams) (UserGroup, error)
@@ -256,6 +257,7 @@ type Querier interface {
 	UpdateAppGroup(ctx context.Context, arg UpdateAppGroupParams) (UserGroup, error)
 	UpdateCredentialUsage(ctx context.Context, arg UpdateCredentialUsageParams) error
 	UpdateForwardAuthApp(ctx context.Context, arg UpdateForwardAuthAppParams) (UpdateForwardAuthAppRow, error)
+	UpdateForwardAuthIdentityProjection(ctx context.Context, arg UpdateForwardAuthIdentityProjectionParams) (OidcClient, error)
 	UpdateGlobalGroup(ctx context.Context, arg UpdateGlobalGroupParams) (UserGroup, error)
 	// Owner-scoped update: only the account's own credential row is updated.
 	// Zero rows affected means the id doesn't match an owned credential; the
@@ -263,6 +265,7 @@ type Querier interface {
 	UpdateMyCredentialNickname(ctx context.Context, arg UpdateMyCredentialNicknameParams) (int64, error)
 	UpdateOIDCClient(ctx context.Context, arg UpdateOIDCClientParams) (OidcClient, error)
 	UpdateOIDCClientSecret(ctx context.Context, arg UpdateOIDCClientSecretParams) error
+	UpdateOIDCIdentityProjection(ctx context.Context, arg UpdateOIDCIdentityProjectionParams) (OidcClient, error)
 	// Replace the stored hash WITHOUT touching password_changed_at — used by the
 	// transparent argon2id param-upgrade rehash on a successful Verify (T4.3a). The
 	// secret has not changed, so password_changed_at (which feeds password-age /

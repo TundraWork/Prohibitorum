@@ -85,6 +85,8 @@ func TestAdminOIDCClients_ViewProjection_FieldMapping(t *testing.T) {
 		ClientAuthMethod:       "client_secret",
 		RequireConsent:         true,
 		Disabled:               false,
+		PrincipalSource:        "username",
+		ClaimAliases:           []byte(`{"handle":"preferred_username"}`),
 		CreatedAt:              pgtype.Timestamptz{Time: createdAt, Valid: true},
 	}
 
@@ -114,6 +116,9 @@ func TestAdminOIDCClients_ViewProjection_FieldMapping(t *testing.T) {
 	if view.Disabled {
 		t.Error("Disabled: got true, want false")
 	}
+	if view.SubjectSource != "username" || view.ClaimAliases["handle"] != "preferred_username" {
+		t.Errorf("identity projection: source=%q aliases=%v", view.SubjectSource, view.ClaimAliases)
+	}
 	if !view.CreatedAt.Equal(createdAt) {
 		t.Errorf("CreatedAt: got %v, want %v", view.CreatedAt, createdAt)
 	}
@@ -135,6 +140,9 @@ func TestAdminOIDCClients_ViewProjection_InvalidTimestamp(t *testing.T) {
 
 	if !view.CreatedAt.IsZero() {
 		t.Errorf("CreatedAt: got %v, want zero time for invalid column", view.CreatedAt)
+	}
+	if view.SubjectSource != "sub" || len(view.ClaimAliases) != 0 {
+		t.Errorf("identity projection defaults: source=%q aliases=%v", view.SubjectSource, view.ClaimAliases)
 	}
 }
 

@@ -7,6 +7,10 @@ SELECT * FROM account WHERE id = $1 FOR UPDATE;
 -- name: GetAccountByUsername :one
 SELECT * FROM account WHERE username = $1;
 
+-- name: CountVerifiedAccountsByEmail :one
+SELECT count(*) FROM account
+WHERE email_verified = true AND email IS NOT NULL AND lower(email) = lower($1);
+
 -- name: GetAccountByWebauthnUserHandle :one
 SELECT * FROM account WHERE webauthn_user_handle = $1;
 

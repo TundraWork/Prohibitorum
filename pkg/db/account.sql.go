@@ -37,6 +37,18 @@ func (q *Queries) CountActiveAdminsForUpdate(ctx context.Context) (int64, error)
 	return count, err
 }
 
+const countVerifiedAccountsByEmail = `-- name: CountVerifiedAccountsByEmail :one
+SELECT count(*) FROM account
+WHERE email_verified = true AND email IS NOT NULL AND lower(email) = lower($1)
+`
+
+func (q *Queries) CountVerifiedAccountsByEmail(ctx context.Context, lower string) (int64, error) {
+	row := q.db.QueryRow(ctx, countVerifiedAccountsByEmail, lower)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const deleteAccountByID = `-- name: DeleteAccountByID :exec
 DELETE FROM account WHERE id = $1
 `

@@ -10,8 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgtype"
-
 	"prohibitorum/pkg/audit"
 	"prohibitorum/pkg/weberr"
 )
@@ -119,7 +117,8 @@ func (p *Provider) HandleUserinfo(w http.ResponseWriter, r *http.Request) {
 	}
 
 	sub, _ := claims["sub"].(string)
-	if sub == "" {
+	_, hasAccountID := internalAccountID(claims)
+	if !hasAccountID && sub == "" {
 		writeBearerError(w, r, http.StatusUnauthorized, "invalid access token")
 		return
 	}
@@ -133,12 +132,7 @@ func (p *Provider) HandleUserinfo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var u pgtype.UUID
-	if err := u.Scan(sub); err != nil {
-		writeBearerError(w, r, http.StatusUnauthorized, "invalid access token")
-		return
-	}
-	acct, err := p.queries.GetAccountByOIDCSubject(ctx, u)
+	acct, err := accountFromTokenClaims(ctx, p.queries, claims)
 	if err != nil {
 		writeBearerError(w, r, http.StatusUnauthorized, "invalid access token")
 		return
@@ -150,6 +144,11 @@ func (p *Provider) HandleUserinfo(w http.ResponseWriter, r *http.Request) {
 
 	clientID, _ := claims["client_id"].(string)
 	if clientID == "" {
+		writeBearerError(w, r, http.StatusUnauthorized, "invalid access token")
+		return
+	}
+	client, err := p.queries.GetOIDCClientAny(ctx, clientID)
+	if err != nil || client.ForwardAuthEnabled {
 		writeBearerError(w, r, http.StatusUnauthorized, "invalid access token")
 		return
 	}
@@ -192,5 +191,15 @@ func (p *Provider) HandleUserinfo(w http.ResponseWriter, r *http.Request) {
 	if len(p.cfg.PublicOrigins) > 0 {
 		avatarOrigin = p.cfg.PublicOrigins[0]
 	}
-	_ = json.NewEncoder(w).Encode(userinfoClaims(acct, scope, avatarOrigin, groups))
+	currentSubject, err := resolvePrincipal(ctx, p.queries, acct, oidcPrincipalSource(client.PrincipalSource))
+	if err != nil {
+		writeBearerError(w, r, http.StatusUnauthorized, "invalid access token")
+		return
+	}
+	aliases, err := decodeClaimAliases(client.ClaimAliases)
+	if err != nil {
+		writeOIDCError(w, r, http.StatusInternalServerError, errCodeServerError, "internal error")
+		return
+	}
+	_ = json.NewEncoder(w).Encode(projectedUserinfoClaims(acct, currentSubject, scope, avatarOrigin, groups, aliases))
 }

@@ -54,13 +54,21 @@ func (p *Provider) HandleIntrospect(w http.ResponseWriter, r *http.Request) {
 		// Ownership: a client may only introspect its own tokens. A mismatch is
 		// reported as inactive rather than as an error.
 		if cid, _ := claims["client_id"].(string); cid == client.ClientID {
+			acct, accountErr := accountFromTokenClaims(ctx, p.queries, claims)
+			if accountErr != nil || acct.Disabled {
+				writeIntrospectionInactive(w)
+				return
+			}
+			subject, subjectErr := resolvePrincipal(ctx, p.queries, acct, oidcPrincipalSource(client.PrincipalSource))
+			if subjectErr != nil {
+				writeIntrospectionInactive(w)
+				return
+			}
 			resp := map[string]any{
 				"active":     true,
 				"token_type": "access_token",
 				"client_id":  claims["client_id"],
-			}
-			if v, ok := claims["sub"]; ok {
-				resp["sub"] = v
+				"sub":        subject,
 			}
 			if v, ok := claims["scope"]; ok {
 				resp["scope"] = v
@@ -94,8 +102,16 @@ func (p *Provider) HandleIntrospect(w http.ResponseWriter, r *http.Request) {
 		}
 		// sub is optional for refresh tokens; include it when the account
 		// resolves cheaply.
-		if acct, err := p.queries.GetAccountByID(ctx, fam.AccountID); err == nil {
-			resp["sub"] = subjectOf(acct)
+		if acct, err := p.queries.GetAccountByID(ctx, fam.AccountID); err == nil && !acct.Disabled {
+			if subject, subjectErr := resolvePrincipal(ctx, p.queries, acct, oidcPrincipalSource(client.PrincipalSource)); subjectErr == nil {
+				resp["sub"] = subject
+			} else {
+				writeIntrospectionInactive(w)
+				return
+			}
+		} else {
+			writeIntrospectionInactive(w)
+			return
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Cache-Control", "no-store")

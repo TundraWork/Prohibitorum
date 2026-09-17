@@ -25,6 +25,7 @@ All management and delegated routes use the `/api/prohibitorum` prefix. Administ
 | GET | `/api/prohibitorum/oidc-applications/{clientId}` | 🔓 | Get one client. Same no-secret guarantee. |
 | POST | `/api/prohibitorum/oidc-applications` | 🔐 | Create a client. Confidential clients (`public: false`): generates a 32-byte `crypto/rand` secret, returns it in `secret` **once only** — only the argon2id hash is persisted. Public clients return no secret. |
 | PUT | `/api/prohibitorum/oidc-applications/{clientId}` | 🔐 | Full replacement of mutable config fields (display name, redirect URIs, scopes, etc). Does not touch the client secret. |
+| PUT | `/api/prohibitorum/oidc-applications/{clientId}/identity-projection` | manager | Replace the current subject source and claim aliases without sudo. Body: `{"subjectSource":"sub|username|verified_email","claimAliases":{"output":"name|preferred_username|email|picture"}}`. Use an empty object to clear aliases. |
 | POST | `/api/prohibitorum/oidc-applications/rotate-secret` | 🔐 | Body: `{"clientId": "..."}`. Generates and stores a new secret; returns new cleartext in `secret` **once only**. Guaranteed ≠ previous secret. |
 | POST | `/api/prohibitorum/oidc-applications/delete` | 🔐 | Body: `{"clientId": "..."}`. Hard-deletes the client row. |
 | POST | `/api/prohibitorum/oidc-applications/set-disabled` | 🔓 | Body: `{"clientId":"...","disabled":<boolean>}`. Reversibly disables or enables an OIDC application. |
@@ -42,6 +43,7 @@ Forward-auth applications are distinct from normal OIDC application administrati
 | GET | `/api/prohibitorum/forward-auth-apps/{clientId}` | 🔓 | Get one app. |
 | POST | `/api/prohibitorum/forward-auth-apps` | 🔐 | Create an app and its fixed OIDC-client configuration. |
 | PUT | `/api/prohibitorum/forward-auth-apps/{clientId}` | 🔐 | Replace mutable forward-auth configuration and scope vocabulary. |
+| PUT | `/api/prohibitorum/forward-auth-apps/{clientId}/identity-projection` | manager | Replace the current `Remote-User` source without sudo. Body: `{"remoteUserSource":"sub|username|verified_email"}`. |
 | POST | `/api/prohibitorum/forward-auth-apps/set-disabled` | 🔓 | Body: `{"clientId":"...","disabled":<boolean>}`. |
 | POST | `/api/prohibitorum/forward-auth-apps/delete` | 🔐 | Body: `{"clientId":"..."}`. Hard-delete the app. |
 | GET | `/api/prohibitorum/forward-auth-apps/{clientId}/managers` | 🔓 | List manager assignments. |

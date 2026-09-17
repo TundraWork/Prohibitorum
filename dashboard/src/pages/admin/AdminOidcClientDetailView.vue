@@ -22,6 +22,8 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
+import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import ScopeSelector from '@/components/custom/ScopeSelector.vue'
 import { OIDC_SCOPES } from '@/lib/scopes'
@@ -52,6 +54,8 @@ interface OidcApplication {
   createdAt: string
   iconUrl?: string | null
   launchUrl?: string | null
+  subjectSource: 'sub' | 'username' | 'verified_email'
+  claimAliases: Record<string, string>
 }
 
 const { t } = useI18n()
@@ -82,7 +86,11 @@ const scopes = ref<string[]>(['openid'])
 const requireConsent = ref(false)
 const requirePkce = ref(true)
 const disabled = ref(false)
+const subjectSource = ref<OidcApplication['subjectSource']>('sub')
+const claimAliasesText = ref('{}')
+const claimAliasesError = ref('')
 const { flag: saved, trigger: triggerSaved } = useTransientFlag()
+const { flag: projectionSaved, trigger: triggerProjectionSaved } = useTransientFlag()
 
 const confirmRotate = ref(false)
 const rotatedSecret = ref('')
@@ -111,6 +119,13 @@ function seedForm(c: OidcApplication): void {
 }
 const draft = useDraftSync(client, () => [displayName.value, launchUrl.value, redirectUris.value, postLogoutUris.value, scopes.value, requireConsent.value, requirePkce.value, disabled.value], seedForm)
 
+function seedProjection(c: OidcApplication): void {
+  subjectSource.value = c.subjectSource || 'sub'
+  claimAliasesText.value = JSON.stringify(c.claimAliases ?? {}, null, 2)
+  claimAliasesError.value = ''
+}
+const projectionDraft = useDraftSync(client, () => [subjectSource.value, claimAliasesText.value], seedProjection)
+
 async function save(): Promise<void> {
   rotatedSecret.value = ''
   const updated = await run(() => withSudo(() => api.put<OidcApplication>(`/api/prohibitorum/oidc-applications/${clientId}`, {
@@ -124,6 +139,32 @@ async function save(): Promise<void> {
     disabled: disabled.value,
   }), t('sudo.reason.saveChanges')))
   if (updated) { client.value = updated; draft.accept(updated); triggerSaved() }
+}
+
+function parseClaimAliases(): Record<string, string> | null {
+  try {
+    const parsed: unknown = JSON.parse(claimAliasesText.value)
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error()
+    const aliases = parsed as Record<string, unknown>
+    const sources = new Set(['name', 'preferred_username', 'email', 'picture'])
+    const reserved = new Set(['iss', 'sub', 'aud', 'exp', 'iat', 'auth_time', 'sid', 'amr', 'nonce', 'acr', 'at_hash', 'azp', 'urn:prohibitorum:account_id'])
+    if (Object.entries(aliases).some(([name, source]) => !/^[A-Za-z_][A-Za-z0-9_]{0,63}$/.test(name) || reserved.has(name) || typeof source !== 'string' || !sources.has(source))) throw new Error()
+    claimAliasesError.value = ''
+    return aliases as Record<string, string>
+  } catch {
+    claimAliasesError.value = t('admin.oidc.claimAliasesInvalid')
+    return null
+  }
+}
+
+async function saveProjection(): Promise<void> {
+  const aliases = parseClaimAliases()
+  if (!aliases) return
+  const updated = await run(() => api.put<OidcApplication>(`/api/prohibitorum/oidc-applications/${clientId}/identity-projection`, {
+    subjectSource: subjectSource.value,
+    claimAliases: aliases,
+  }))
+  if (updated) { client.value = updated; projectionDraft.accept(updated); triggerProjectionSaved() }
 }
 
 async function rotateSecret(): Promise<void> {
@@ -216,6 +257,38 @@ usePrivateState(() => { rotatedSecret.value = '' })
           <div class="flex items-center gap-3">
             <Button type="button" :disabled="busy" data-test="save" @click="save">{{ t('admin.oidc.save') }}</Button>
             <StatusMessage :show="saved">{{ t('admin.oidc.saved') }}</StatusMessage>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader><CardTitle>{{ t('admin.oidc.identityProjectionTitle') }}</CardTitle></CardHeader>
+        <CardContent class="flex flex-col gap-4">
+          <p class="max-w-2xl text-sm text-muted">{{ t('admin.oidc.identityProjectionDesc') }}</p>
+          <div class="flex max-w-md flex-col gap-1.5">
+            <Label for="subject-source">{{ t('admin.oidc.subjectSource') }}</Label>
+            <Select :model-value="subjectSource" @update:model-value="(value) => (subjectSource = value as OidcApplication['subjectSource'])">
+              <SelectTrigger id="subject-source" data-test="subject-source">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="sub">{{ t('admin.oidc.principalSub') }}</SelectItem>
+                <SelectItem value="username">{{ t('admin.oidc.principalUsername') }}</SelectItem>
+                <SelectItem value="verified_email">{{ t('admin.oidc.principalVerifiedEmail') }}</SelectItem>
+              </SelectContent>
+            </Select>
+            <p class="text-xs text-muted">{{ t('admin.oidc.subjectSourceDesc') }}</p>
+          </div>
+          <div class="flex flex-col gap-1.5">
+            <Label for="claim-aliases">{{ t('admin.oidc.claimAliases') }}</Label>
+            <Textarea id="claim-aliases" v-model="claimAliasesText" class="min-h-32 font-mono" data-test="claim-aliases" :aria-invalid="claimAliasesError ? 'true' : undefined" aria-describedby="claim-aliases-help claim-aliases-error" :spellcheck="false" />
+            <p id="claim-aliases-help" class="text-xs text-muted">{{ t('admin.oidc.claimAliasesDesc') }}</p>
+            <p v-if="claimAliasesError" id="claim-aliases-error" class="text-sm text-destructive" role="alert">{{ claimAliasesError }}</p>
+          </div>
+          <p class="text-sm text-amber-700">{{ t('admin.oidc.identityProjectionWarning') }}</p>
+          <div class="flex flex-wrap items-center gap-3">
+            <Button type="button" :disabled="busy" data-test="save-identity-projection" @click="saveProjection">{{ t('admin.oidc.saveIdentityProjection') }}</Button>
+            <StatusMessage :show="projectionSaved">{{ t('admin.oidc.identityProjectionSaved') }}</StatusMessage>
           </div>
         </CardContent>
       </Card>

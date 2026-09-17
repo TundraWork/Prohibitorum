@@ -122,6 +122,8 @@ type fakeFAQueries struct {
 	pat        db.PersonalAccessToken
 	patErr     error
 	patLookups int
+	patTouches int
+	emailCount *int64
 	// Captured params for RegisterForwardAuthApp tests.
 	insertParams   *db.InsertOIDCClientParams
 	faConfigParams *db.SetForwardAuthConfigParams
@@ -144,6 +146,16 @@ func (f *fakeFAQueries) GetAccountByID(_ context.Context, _ int32) (db.Account, 
 	return f.acct, nil
 }
 
+func (f *fakeFAQueries) CountVerifiedAccountsByEmail(_ context.Context, email string) (int64, error) {
+	if f.emailCount != nil {
+		return *f.emailCount, nil
+	}
+	if f.acct.EmailVerified && f.acct.Email.Valid && strings.EqualFold(f.acct.Email.String, email) {
+		return 1, nil
+	}
+	return 0, nil
+}
+
 func (f *fakeFAQueries) GetPATByTokenHash(_ context.Context, _ []byte) (db.PersonalAccessToken, error) {
 	f.patLookups++
 	if f.patErr != nil {
@@ -152,7 +164,10 @@ func (f *fakeFAQueries) GetPATByTokenHash(_ context.Context, _ []byte) (db.Perso
 	return f.pat, nil
 }
 
-func (f *fakeFAQueries) TouchPATLastUsed(_ context.Context, _ int32) error { return nil }
+func (f *fakeFAQueries) TouchPATLastUsed(_ context.Context, _ int32) error {
+	f.patTouches++
+	return nil
+}
 
 // Capture fields for RegisterForwardAuthApp tests.
 func (f *fakeFAQueries) InsertOIDCClient(_ context.Context, p db.InsertOIDCClientParams) (db.OidcClient, error) {
@@ -355,6 +370,25 @@ func TestForwardAuthVerify_ValidCookie_200WithHeaders(t *testing.T) {
 	}
 	if h.Get("Remote-Groups") != "admins,manual" {
 		t.Errorf("Remote-Groups: want admins,manual, got %q", h.Get("Remote-Groups"))
+	}
+}
+
+func TestForwardAuthVerify_SessionUsesConfiguredRemoteUser(t *testing.T) {
+	ctx := context.Background()
+	q := &fakeFAQueries{
+		faClient:   db.GetForwardAuthClientByHostRow{ClientID: "svc", PrincipalSource: PrincipalSourceVerifiedEmail},
+		authorized: true,
+		acct:       db.Account{ID: 42, Username: "alice", Email: pgtype.Text{String: "alice@example.test", Valid: true}, EmailVerified: true},
+	}
+	p, store := newFAProvider(q)
+	token, err := mintFASession(ctx, store, faSession{AccountID: 42, ClientID: "svc"}, time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec := httptest.NewRecorder()
+	p.HandleForwardAuthVerify(rec, faRequest("https", "app.acme.io", "/dashboard", faCookie(true, token)))
+	if rec.Code != http.StatusOK || rec.Header().Get("Remote-User") != "alice@example.test" {
+		t.Fatalf("status=%d Remote-User=%q", rec.Code, rec.Header().Get("Remote-User"))
 	}
 }
 
@@ -730,7 +764,7 @@ func TestForwardAuthCallback_MissingState_Rejected(t *testing.T) {
 
 func TestRegisterForwardAuthApp_BuildsPublicPKCEClient(t *testing.T) {
 	f := &fakeFAQueries{}
-	_, err := RegisterForwardAuthApp(context.Background(), f, "fa-client", "app.example.test", "App")
+	client, err := RegisterForwardAuthApp(context.Background(), f, "fa-client", "app.example.test", "App")
 	if err != nil {
 		t.Fatalf("RegisterForwardAuthApp: %v", err)
 	}
@@ -752,6 +786,9 @@ func TestRegisterForwardAuthApp_BuildsPublicPKCEClient(t *testing.T) {
 	}
 	if f.faConfigParams.ForwardAuthHost.String != "app.example.test" {
 		t.Errorf("forward_auth_host = %q", f.faConfigParams.ForwardAuthHost.String)
+	}
+	if client.PrincipalSource != PrincipalSourceUsername {
+		t.Errorf("principal_source = %q, want username", client.PrincipalSource)
 	}
 	wantScopes := []string{"openid", "email", "groups"}
 	if !slices.Equal(f.insertParams.AllowedScopes, wantScopes) {
@@ -861,6 +898,31 @@ func TestForwardAuthVerify_PAT_GrantedApp_200WithScopes(t *testing.T) {
 	p.HandleForwardAuthVerify(rec, faPATRequest("app.acme.io", "prohibitorum_pat_x", nil))
 	if rec.Code != http.StatusOK || rec.Header().Get("Remote-Scopes") != "repo:read" {
 		t.Fatalf("code=%d scopes=%q", rec.Code, rec.Header().Get("Remote-Scopes"))
+	}
+}
+
+func TestForwardAuthVerify_PATUnavailablePrincipalFailsWithoutIdentityHeadersOrTouch(t *testing.T) {
+	count := int64(2)
+	q := &fakeFAQueries{
+		faClient:   db.GetForwardAuthClientByHostRow{ClientID: "svc", PrincipalSource: PrincipalSourceVerifiedEmail},
+		authorized: true,
+		acct:       db.Account{ID: 42, Username: "alice", Email: pgtype.Text{String: "shared@example.test", Valid: true}, EmailVerified: true},
+		pat:        db.PersonalAccessToken{ID: 7, AccountID: 42, AllApps: true},
+		emailCount: &count,
+	}
+	p, _ := newFAProvider(q)
+	rec := httptest.NewRecorder()
+	p.HandleForwardAuthVerify(rec, faPATRequest("app.acme.io", "prohibitorum_pat_x", nil))
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want 403", rec.Code)
+	}
+	for _, name := range []string{"Remote-User", "Remote-Name", "Remote-Email", "Remote-Groups", "Remote-Scopes"} {
+		if _, present := rec.Header()[name]; present {
+			t.Errorf("%s was emitted on failed projection", name)
+		}
+	}
+	if q.patTouches != 0 {
+		t.Fatalf("PAT last-used touched before principal resolution: %d", q.patTouches)
 	}
 }
 

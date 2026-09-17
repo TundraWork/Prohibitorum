@@ -22,6 +22,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '@/components/ui/select'
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert'
 import { Separator } from '@/components/ui/separator'
 import ConfirmDialog from '@/components/custom/ConfirmDialog.vue'
@@ -47,6 +48,7 @@ interface ForwardAuthApp {
   createdAt: string
   iconUrl?: string | null
   scopes: ScopeEntry[]
+  remoteUserSource: 'sub' | 'username' | 'verified_email'
 }
 
 const { t } = useI18n()
@@ -71,7 +73,9 @@ const displayName = ref('')
 const host = ref('')
 const disabled = ref(false)
 const scopes = ref<ScopeEntry[]>([])
+const remoteUserSource = ref<ForwardAuthApp['remoteUserSource']>('username')
 const { flag: saved, trigger: triggerSaved } = useTransientFlag()
+const { flag: projectionSaved, trigger: triggerProjectionSaved } = useTransientFlag()
 const confirmDelete = ref(false)
 
 const traefikSnippet = computed(() => {
@@ -115,6 +119,11 @@ function seedForm(c: ForwardAuthApp): void {
 }
 const draft = useDraftSync(app, () => [displayName.value, host.value, disabled.value, scopes.value], seedForm)
 
+function seedProjection(value: ForwardAuthApp): void {
+  remoteUserSource.value = value.remoteUserSource || 'username'
+}
+const projectionDraft = useDraftSync(app, () => [remoteUserSource.value], seedProjection)
+
 async function save(): Promise<void> {
   const updated = await run(() => withSudo(() => api.put<ForwardAuthApp>(`/api/prohibitorum/forward-auth-apps/${clientId}`, {
     displayName: displayName.value,
@@ -122,6 +131,13 @@ async function save(): Promise<void> {
     scopes: scopes.value,
   }), t('sudo.reason.saveChanges')))
   if (updated) { app.value = updated; draft.accept(updated); triggerSaved() }
+}
+
+async function saveProjection(): Promise<void> {
+  const updated = await run(() => api.put<ForwardAuthApp>(`/api/prohibitorum/forward-auth-apps/${clientId}/identity-projection`, {
+    remoteUserSource: remoteUserSource.value,
+  }))
+  if (updated) { app.value = updated; projectionDraft.accept(updated); triggerProjectionSaved() }
 }
 
 async function toggleDisabled(): Promise<void> {
@@ -184,6 +200,32 @@ async function handleSelfRemoval(): Promise<void> {
           <div class="flex items-center gap-3">
             <Button type="button" :disabled="busy" data-test="save" @click="save">{{ t('admin.forwardAuth.saveAll') }}</Button>
             <StatusMessage :show="saved">{{ t('admin.forwardAuth.saved') }}</StatusMessage>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader><CardTitle>{{ t('admin.forwardAuth.identityProjectionTitle') }}</CardTitle></CardHeader>
+        <CardContent class="flex flex-col gap-4">
+          <p class="max-w-2xl text-sm text-muted">{{ t('admin.forwardAuth.identityProjectionDesc') }}</p>
+          <div class="flex max-w-md flex-col gap-1.5">
+            <Label for="remote-user-source">{{ t('admin.forwardAuth.remoteUserSource') }}</Label>
+            <Select :model-value="remoteUserSource" @update:model-value="(value) => (remoteUserSource = value as ForwardAuthApp['remoteUserSource'])">
+              <SelectTrigger id="remote-user-source" data-test="remote-user-source">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="sub">{{ t('admin.forwardAuth.principalSub') }}</SelectItem>
+                <SelectItem value="username">{{ t('admin.forwardAuth.principalUsername') }}</SelectItem>
+                <SelectItem value="verified_email">{{ t('admin.forwardAuth.principalVerifiedEmail') }}</SelectItem>
+              </SelectContent>
+            </Select>
+            <p class="text-xs text-muted">{{ t('admin.forwardAuth.remoteUserSourceDesc') }}</p>
+          </div>
+          <p class="text-sm text-amber-700">{{ t('admin.forwardAuth.identityProjectionWarning') }}</p>
+          <div class="flex flex-wrap items-center gap-3">
+            <Button type="button" :disabled="busy" data-test="save-identity-projection" @click="saveProjection">{{ t('admin.forwardAuth.saveIdentityProjection') }}</Button>
+            <StatusMessage :show="projectionSaved">{{ t('admin.forwardAuth.identityProjectionSaved') }}</StatusMessage>
           </div>
         </CardContent>
       </Card>

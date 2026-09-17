@@ -1641,7 +1641,7 @@ const setOIDCClientAccessRestricted = `-- name: SetOIDCClientAccessRestricted :o
 UPDATE oidc_client
 SET access_restricted = $1
 WHERE client_id = $2
-RETURNING client_id, display_name, client_secret_hash, redirect_uris, post_logout_redirect_uris, allowed_scopes, require_pkce, allowed_code_challenge_methods, client_auth_method, subject_type, logo_uri, tos_uri, policy_uri, disabled, require_consent, created_at, access_restricted, forward_auth_enabled, forward_auth_host, forward_auth_scopes, launch_url
+RETURNING client_id, display_name, client_secret_hash, redirect_uris, post_logout_redirect_uris, allowed_scopes, require_pkce, allowed_code_challenge_methods, client_auth_method, subject_type, logo_uri, tos_uri, policy_uri, disabled, require_consent, created_at, access_restricted, forward_auth_enabled, forward_auth_host, forward_auth_scopes, launch_url, principal_source, claim_aliases
 `
 
 type SetOIDCClientAccessRestrictedParams struct {
@@ -1674,6 +1674,8 @@ func (q *Queries) SetOIDCClientAccessRestricted(ctx context.Context, arg SetOIDC
 		&i.ForwardAuthHost,
 		&i.ForwardAuthScopes,
 		&i.LaunchUrl,
+		&i.PrincipalSource,
+		&i.ClaimAliases,
 	)
 	return i, err
 }

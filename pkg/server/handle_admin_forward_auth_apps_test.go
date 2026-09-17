@@ -28,7 +28,7 @@ func TestForwardAuthAppView_MapsAllFields(t *testing.T) {
 		pgtype.Text{String: "app.example.test", Valid: true},
 		scopes,
 		true, false,
-		pgtype.Timestamptz{Time: now, Valid: true})
+		pgtype.Timestamptz{Time: now, Valid: true}, "verified_email")
 	if v.ClientID != "fa-client" || v.DisplayName != "My App" {
 		t.Errorf("id/name mismatch: %+v", v)
 	}
@@ -37,6 +37,9 @@ func TestForwardAuthAppView_MapsAllFields(t *testing.T) {
 	}
 	if !v.AccessRestricted || v.Disabled {
 		t.Errorf("flags mismatch: restricted=%v disabled=%v", v.AccessRestricted, v.Disabled)
+	}
+	if v.RemoteUserSource != "verified_email" {
+		t.Errorf("RemoteUserSource = %q", v.RemoteUserSource)
 	}
 	if !v.CreatedAt.Equal(now) {
 		t.Errorf("createdAt = %v, want %v", v.CreatedAt, now)
@@ -66,6 +69,9 @@ func TestForwardAuthAppView_EmptyHostAndTime(t *testing.T) {
 	}
 	if len(v.Scopes) != 0 {
 		t.Errorf("Scopes should be empty for nil scopesJSON, got %v", v.Scopes)
+	}
+	if v.RemoteUserSource != "username" {
+		t.Errorf("default RemoteUserSource = %q", v.RemoteUserSource)
 	}
 }
 

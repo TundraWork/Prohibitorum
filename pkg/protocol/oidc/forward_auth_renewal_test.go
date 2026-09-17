@@ -128,7 +128,7 @@ func TestForwardAuthVerify_RenewalCannotResurrectSession(t *testing.T) {
 	for _, scenario := range []string{"sign-out", "changed", "store-error"} {
 		t.Run(scenario, func(t *testing.T) {
 			ctx := context.Background()
-			q := &fakeFAQueries{faClient: db.GetForwardAuthClientByHostRow{ClientID: "svc"}, authorized: true, acct: db.Account{ID: 42}}
+			q := &fakeFAQueries{faClient: db.GetForwardAuthClientByHostRow{ClientID: "svc"}, authorized: true, acct: db.Account{ID: 42, Username: "alice"}}
 			p, store := newFAProvider(q)
 			token, err := mintFASession(ctx, store, faSession{AccountID: 42, ClientID: "svc"}, time.Minute)
 			if err != nil {
@@ -201,7 +201,7 @@ func TestForwardAuth_RedisRenewalIntegration(t *testing.T) {
 	}
 	defer store.Close()
 	ctx := context.Background()
-	q := &fakeFAQueries{faClient: db.GetForwardAuthClientByHostRow{ClientID: "svc"}, authorized: true, acct: db.Account{ID: 42}}
+	q := &fakeFAQueries{faClient: db.GetForwardAuthClientByHostRow{ClientID: "svc"}, authorized: true, acct: db.Account{ID: 42, Username: "alice"}}
 	p, _ := newFAProvider(q)
 	p.kv = store
 	p.cfg.ForwardAuth.SessionTTL = 8 * time.Second
