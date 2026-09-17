@@ -29,9 +29,19 @@ export interface PageFilters {
 const prefix = '/api/prohibitorum/'
 export const sessionQuery = () => queryOptions({
   queryKey: keys.me, staleTime: 0,
+  // A transient /me failure (server restart mid-request, blip) must not strand
+  // skeleton-only consumers like NavUser: retry once, then keep retrying at a
+  // slow interval while a consumer is mounted, so the menu re-appears by itself
+  // the way the pre-query store's ensureLoaded/poll cycle did. no_session is a
+  // RESOLVED null (logged out), so it never enters this error path.
+  retry: 1,
+  refetchInterval: (query: { state: { error: unknown } }) => query.state.error ? 4000 : false,
   queryFn: async ({ signal }): Promise<SessionView | null> => {
     try { return await api.get<SessionView>(prefix + 'me', { signal }) }
-    catch (error) { if ((error as { code?: string }).code === 'no_session') return null; throw error }
+    catch (error) {
+      if (typeof error === 'object' && error !== null && 'code' in error && error.code === 'no_session') return null
+      throw error
+    }
   },
 })
 export const configQuery = () => queryOptions({ queryKey: keys.config, queryFn: ({ signal }) => api.get<PublicConfig>(prefix + 'config', { signal }) })

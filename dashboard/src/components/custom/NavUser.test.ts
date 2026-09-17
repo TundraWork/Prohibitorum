@@ -45,6 +45,50 @@ describe('NavUser', () => {
     expect(w.find('[data-test="account-trigger"]').exists()).toBe(false)
   })
 
+  it('renders the trigger on the settings shell once the session arrives late', async () => {
+    // Regression (PHB-48): the dashboard opened with `auth.me` still null (skeleton);
+    // the menu must appear as soon as the shared session query settles, without a remount.
+    const w = await mountHost(makeRouter()) // skeleton — no session yet
+    expect(w.find('[data-test="account-trigger"]').exists()).toBe(false)
+
+    testQueryClient.setQueryData<SessionView>(keys.me, { id: 1, username: 'alex', displayName: 'Alex Smith', role: 'user' })
+    await flushPromises()
+    expect(w.find('[data-test="account-trigger"]').exists()).toBe(true)
+    expect(w.text()).toContain('Alex Smith')
+  })
+
+  it('recovers to the trigger after a failed session read that arrives late', async () => {
+    // A transient /me failure must not leave the skeleton up forever: once a later
+    // read succeeds (refetch on remount/focus), the menu renders again.
+    vi.mocked(api.get).mockRejectedValueOnce({ code: 'network_error' })
+    const w = await mountHost(makeRouter())
+    expect(w.find('[data-test="account-trigger"]').exists()).toBe(false)
+
+    testQueryClient.setQueryData<SessionView>(keys.me, { id: 1, username: 'alex', displayName: 'Alex Smith', role: 'user' })
+    await flushPromises()
+    expect(w.find('[data-test="account-trigger"]').exists()).toBe(true)
+  })
+
+  it('self-heals: a failing session read retries in place and the menu returns when it succeeds', async () => {
+    // PHB-48: a transient /me failure left the skeleton up forever (retry: false,
+    // no error refetch). The shared session query now retries while mounted, so
+    // the account menu must re-appear without any user interaction.
+    vi.useFakeTimers()
+    try {
+      vi.mocked(api.get).mockRejectedValue({ code: 'network_error' })
+      const w = await mountHost(makeRouter())
+      expect(w.find('[data-test="account-trigger"]').exists()).toBe(false)
+
+      vi.mocked(api.get).mockImplementation(async () => ({ id: 1, username: 'alex', displayName: 'Alex Smith', role: 'user' }))
+      await vi.advanceTimersByTimeAsync(4000 + 1000) // error refetch interval + request settling
+      await flushPromises()
+      expect(w.find('[data-test="account-trigger"]').exists()).toBe(true)
+      expect(w.text()).toContain('Alex Smith')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('renders displayName, role, and initials in the trigger when loaded', async () => {
 
     testQueryClient.setQueryData<SessionView>(keys.me, { id: 1, username: 'alex', displayName: 'Alex Smith', role: 'user' })
