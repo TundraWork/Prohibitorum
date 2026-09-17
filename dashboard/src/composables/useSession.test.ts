@@ -47,6 +47,7 @@ describe('shared session', () => {
     expect(polls).toBe(3)
   })
   it('stops polling on error without pretending the server finished, and stops on unmount', async () => {
+    testQueryClient.setQueryDefaults(keys.member('avatar/status'), { retry: false })
     get.mockImplementation(async (url) => {
       if (url.endsWith('/avatar/status')) throw { code: 'network_error' }
       return { ...user, avatarPending: true }
