@@ -256,17 +256,17 @@ func (i *IdP) issueAssertion(w http.ResponseWriter, r *http.Request, account db.
 	ctx := r.Context()
 	nameID, err := i.subjectID(ctx, account.ID, sp.ID, sp.NameIDFormat)
 	if err != nil {
-		i.errorPage(w, r, "server_error")
+		i.errorPage(w, r, "server_error", "subject_id", err)
 		return
 	}
 	attrs, err := projectAttributes(account, sp.AttributeMap, i.baseURL(), groupSlugs)
 	if err != nil {
-		i.errorPage(w, r, "server_error")
+		i.errorPage(w, r, "server_error", "project_attributes", err)
 		return
 	}
 	respXML, err := i.buildResponse(ctx, sp, acsURL, inResponseTo, nameID, attrs, authTime, sessionID)
 	if err != nil {
-		i.errorPage(w, r, "server_error")
+		i.errorPage(w, r, "server_error", "build_response", err)
 		return
 	}
 	sessionExpiry := sessionNotOnOrAfter(sp, authTime, i.samlSessionLifetime())
@@ -277,7 +277,7 @@ func (i *IdP) issueAssertion(w http.ResponseWriter, r *http.Request, account db.
 		SessionIndex: sessionID,
 		NotOnOrAfter: pgtype.Timestamptz{Time: sessionExpiry, Valid: true},
 	}); err != nil {
-		i.errorPage(w, r, "server_error")
+		i.errorPage(w, r, "server_error", "persist_saml_session", err)
 		return
 	}
 	accountID := account.ID

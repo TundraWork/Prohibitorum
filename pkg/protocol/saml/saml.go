@@ -97,11 +97,90 @@ func (i *IdP) InvalidateKeyCache() {
 // (malformed request, unknown/untrusted/disabled SP, replay, internal error).
 // SP-binding responses (auto-POST success, passive/denied <StatusCode>, SLO
 // responses) and the app-access-denied /error redirect must NOT route here.
-// Logs code/ref/path only — never query values, NameID, tokens, or assertions.
-func (i *IdP) errorPage(w http.ResponseWriter, r *http.Request, code string) {
+//
+// reason is the internal fine-grained code (samlFailureReason lookup or the
+// caller's failure-step name); "" is allowed when nothing more specific is
+// known. cause is the underlying error (nil for pure condition checks): its
+// text is logged server-side ONLY, never sent to the browser and never
+// recorded to audit.
+//
+// Log boundary: the failure line carries protocol fields the SP itself put on
+// the wire (Issuer, ACS URL/index, Destination, SigAlg, certificate
+// fingerprints and validity windows — inside cause.Error()), plus the
+// correlation ids and the failure-step reason. It never carries SAMLRequest
+// contents (deflated or inflated), RelayState values, Signature values,
+// NameID, assertions, sessions, or tokens. These are operator logs only: no
+// database write, no response body, no audit Detail — the same channel split
+// as PHB-3's upstream_error.
+func (i *IdP) errorPage(w http.ResponseWriter, r *http.Request, code, reason string, cause error) {
 	ref := weberr.NewRef()
-	slog.Warn("saml browser-facing flow error", "code", code, "ref", ref, "path", r.URL.Path)
+	args := []any{"code", code, "ref", ref, "path", r.URL.Path}
+	if reason != "" {
+		args = append(args, "event", "saml_flow_failure", "reason", reason)
+	}
+	if reqID := weberr.RequestIDFromContext(r.Context()); reqID != "" {
+		args = append(args, "request_id", reqID)
+	}
+	if cause != nil {
+		args = append(args, "saml_error", cause.Error())
+	}
+	slog.Warn("saml browser-facing flow error", args...)
 	weberr.RedirectToError(w, r, code, ref)
+}
+
+// samlFailureReason maps a wrapped sentinel error to its stable, greppable
+// internal reason code — the many-to-one partner of the public error codes
+// ssoParseError/sloParseError choose. Returns "" for non-sentinel failures:
+// those name the failed STEP at the callsite instead (session_load,
+// replay_consume, build_response, …) because their text is a driver error
+// that says nothing about which step failed.
+func samlFailureReason(err error) string {
+	switch {
+	case errors.Is(err, ErrUnknownSP):
+		return "sp_unknown"
+	case errors.Is(err, ErrInvalidACS):
+		return "acs_not_registered"
+	case errors.Is(err, ErrBadDestination):
+		return "destination_mismatch"
+	case errors.Is(err, ErrMalformedRequest):
+		return "request_malformed"
+	case errors.Is(err, ErrOversizeRequest):
+		return "request_oversize"
+	case errors.Is(err, ErrMissingSAMLRequest):
+		return "saml_request_missing"
+	case errors.Is(err, ErrMissingSignature):
+		return "signature_missing"
+	case errors.Is(err, ErrBadSignature):
+		return "signature_mismatch"
+	case errors.Is(err, errNoSignature):
+		return "signature_absent"
+	case errors.Is(err, errWeakSigAlg):
+		return "sigalg_weak"
+	case errors.Is(err, errBadSigAlg):
+		return "sigalg_bad"
+	case errors.Is(err, errSigRefMismatch):
+		return "signature_ref_mismatch"
+	case errors.Is(err, errXMLDTD):
+		return "xml_dtd_rejected"
+	case errors.Is(err, errDuplicateID):
+		return "xml_duplicate_id"
+	case errors.Is(err, ErrStaleRequest):
+		return "request_stale"
+	case errors.Is(err, ErrReplayedRequest):
+		return "request_replayed"
+	case errors.Is(err, ErrSLOBadDestination):
+		return "slo_destination_mismatch"
+	case errors.Is(err, ErrSLOExpired):
+		return "slo_expired"
+	case errors.Is(err, ErrSLOMissingID):
+		return "slo_missing_id"
+	case errors.Is(err, ErrSLOStaleIssueInstant):
+		return "slo_stale_issue_instant"
+	case errors.Is(err, ErrSLOReplayedRequest):
+		return "slo_replayed"
+	default:
+		return ""
+	}
 }
 
 // entityID is the IdP's SAML EntityID — the stable identifier SPs key trust on.

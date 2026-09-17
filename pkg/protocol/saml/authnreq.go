@@ -12,6 +12,7 @@ import (
 	"encoding/pem"
 	"encoding/xml"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"strconv"
@@ -147,24 +148,24 @@ func (i *IdP) parseAuthnRequest(ctx context.Context, r *http.Request) (*authnReq
 		}
 		reqEl = el
 	default:
-		return nil, ErrMissingSAMLRequest
+		return nil, fmt.Errorf("%w: method %s carries no SAMLRequest", ErrMissingSAMLRequest, r.Method)
 	}
 
 	if req.Issuer == nil || req.Issuer.Value == "" {
-		return nil, ErrUnknownSP
+		return nil, fmt.Errorf("%w: AuthnRequest carries no Issuer", ErrUnknownSP)
 	}
 
 	// --- 2. SP lookup -----------------------------------------------------
 	sp, err := i.queries.GetSAMLSPByEntityID(ctx, req.Issuer.Value)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, ErrUnknownSP
+			return nil, fmt.Errorf("%w: no SP registered for issuer %q", ErrUnknownSP, req.Issuer.Value)
 		}
 		return nil, err
 	}
 	// A disabled SP is treated as if it were unregistered — the flow is denied.
 	if sp.Disabled {
-		return nil, ErrUnknownSP
+		return nil, fmt.Errorf("%w: SP %q is registered but disabled", ErrUnknownSP, req.Issuer.Value)
 	}
 
 	// --- 3. SP signature verification (when required) ---------------------
@@ -189,7 +190,7 @@ func (i *IdP) parseAuthnRequest(ctx context.Context, r *http.Request) (*authnReq
 	// Destination is optional on the wire, but if present it MUST name this
 	// IdP's SSO endpoint (anti-misrouting / anti-replay-against-other-IdP).
 	if req.Destination != "" && req.Destination != i.ssoURL() {
-		return nil, ErrBadDestination
+		return nil, fmt.Errorf("%w: request Destination %q, IdP SSO endpoint is %q", ErrBadDestination, req.Destination, i.ssoURL())
 	}
 
 	// --- 5. ACS resolution (open-redirect guard) --------------------------
@@ -219,7 +220,7 @@ func (i *IdP) parseAuthnRequest(ctx context.Context, r *http.Request) (*authnReq
 	}
 	// Spec §3.4.3: RelayState MUST NOT exceed 80 bytes (audit follow-up N7).
 	if len(relayState) > maxRelayStateBytes {
-		return nil, ErrMalformedRequest
+		return nil, fmt.Errorf("%w: RelayState is %d bytes, limit is %d (value not logged)", ErrMalformedRequest, len(relayState), maxRelayStateBytes)
 	}
 
 	return &authnReq{
@@ -251,11 +252,11 @@ func decodeRedirectAuthnRequest(r *http.Request, out *crewjam.AuthnRequest) (*et
 	}
 	samlRequest := r.URL.Query().Get("SAMLRequest")
 	if samlRequest == "" {
-		return nil, ErrMissingSAMLRequest
+		return nil, fmt.Errorf("%w: SAMLRequest query parameter absent", ErrMissingSAMLRequest)
 	}
 	deflated, err := base64.StdEncoding.DecodeString(samlRequest)
 	if err != nil {
-		return nil, ErrMissingSAMLRequest
+		return nil, fmt.Errorf("%w: SAMLRequest is not valid base64", ErrMissingSAMLRequest)
 	}
 	// HTTP-Redirect uses raw DEFLATE (RFC 1951), NOT zlib — flate.NewReader.
 	// Bound the inflate: this is an unauthenticated public route, so an attacker
@@ -267,10 +268,10 @@ func decodeRedirectAuthnRequest(r *http.Request, out *crewjam.AuthnRequest) (*et
 	raw, err := io.ReadAll(io.LimitReader(fr, maxInflatedAuthnRequest+1))
 	_ = fr.Close()
 	if err != nil {
-		return nil, ErrMissingSAMLRequest
+		return nil, fmt.Errorf("%w: SAMLRequest raw-DEFLATE stream does not decompress", ErrMissingSAMLRequest)
 	}
 	if len(raw) > maxInflatedAuthnRequest {
-		return nil, ErrOversizeRequest
+		return nil, fmt.Errorf("%w: inflated %d bytes, cap is %d", ErrOversizeRequest, len(raw), maxInflatedAuthnRequest)
 	}
 	return parseAuthnRequestXML(raw, out)
 }
@@ -283,16 +284,16 @@ func decodeRedirectAuthnRequest(r *http.Request, out *crewjam.AuthnRequest) (*et
 func decodePostAuthnRequest(r *http.Request, out *crewjam.AuthnRequest) (*etree.Element, error) {
 	samlRequest := r.FormValue("SAMLRequest")
 	if samlRequest == "" {
-		return nil, ErrMissingSAMLRequest
+		return nil, fmt.Errorf("%w: SAMLRequest form value absent", ErrMissingSAMLRequest)
 	}
 	raw, err := base64.StdEncoding.DecodeString(samlRequest)
 	if err != nil {
-		return nil, ErrMissingSAMLRequest
+		return nil, fmt.Errorf("%w: SAMLRequest is not valid base64", ErrMissingSAMLRequest)
 	}
 	// POST has no DEFLATE layer, but cap the decoded size sanely all the same
 	// (same bound as the inflate path in slo.go's decodePostLogoutRequest).
 	if len(raw) > maxInflatedAuthnRequest {
-		return nil, ErrOversizeRequest
+		return nil, fmt.Errorf("%w: decoded %d bytes, cap is %d", ErrOversizeRequest, len(raw), maxInflatedAuthnRequest)
 	}
 	return parseAuthnRequestXML(raw, out)
 }
@@ -315,11 +316,11 @@ func parseAuthnRequestXML(raw []byte, out *crewjam.AuthnRequest) (*etree.Element
 	// requests for that SP into one slot) and leave InResponseTo empty
 	// downstream — reject it as malformed.
 	if out.ID == "" {
-		return nil, ErrMalformedRequest
+		return nil, fmt.Errorf("%w: AuthnRequest has no @ID", ErrMalformedRequest)
 	}
 	// SAML Core §3.2.1: every request MUST carry Version="2.0".
 	if out.Version != "2.0" {
-		return nil, ErrMalformedRequest
+		return nil, fmt.Errorf("%w: Version is %q, want 2.0", ErrMalformedRequest, out.Version)
 	}
 	// Bound the request's age. A signed AuthnRequest carries IssueInstant;
 	// without this check the only limit on re-presenting an old (signed) request
@@ -330,7 +331,7 @@ func parseAuthnRequestXML(raw []byte, out *crewjam.AuthnRequest) (*etree.Element
 	// a trustworthy one, and the replay key still bounds the rest.
 	if !out.IssueInstant.IsZero() {
 		if d := time.Since(out.IssueInstant); d > AuthnRequestTTL || d < -AuthnRequestTTL {
-			return nil, ErrStaleRequest
+			return nil, fmt.Errorf("%w: IssueInstant %s is %s off now, accept window is ±%s", ErrStaleRequest, out.IssueInstant.UTC().Format(time.RFC3339), d.Truncate(time.Second), AuthnRequestTTL)
 		}
 	}
 	return doc.Root(), nil
@@ -350,22 +351,34 @@ func (i *IdP) verifyPostAuthnSignature(ctx context.Context, el *etree.Element, s
 		return err
 	}
 	if len(keys) == 0 {
-		return ErrBadSignature
+		return fmt.Errorf("%w: SP has no registered signing certs", ErrBadSignature)
 	}
+	// Same scan bookkeeping as verifyRedirectSignature (design §6): counts and
+	// per-cert outcomes go into the final error text; security semantics are
+	// unchanged (any cert verifying passes).
+	var (
+		total   int
+		badPEM  int
+		details []string
+	)
 	var lastErr error = ErrBadSignature
 	for _, k := range keys {
+		total++
 		cert, perr := parseCertPEM(k.CertPem)
 		if perr != nil {
+			badPEM++
 			lastErr = perr
+			details = append(details, fmt.Sprintf("cert %d: PEM did not parse", total))
 			continue
 		}
 		if verr := verifyElementSignature(el, cert); verr != nil {
 			lastErr = verr
+			details = append(details, fmt.Sprintf("cert %s: %v", certFingerprint(cert), verr))
 			continue
 		}
 		return nil
 	}
-	return lastErr
+	return fmt.Errorf("%w: %d cert(s) scanned, %d with unparseable PEM: %s", lastErr, total, badPEM, strings.Join(details, "; "))
 }
 
 // consumeAuthnRequestID enforces single-use replay protection for an
@@ -436,7 +449,11 @@ func (i *IdP) resolveACS(ctx context.Context, spID int64, requestedURL, requeste
 				return e.Location, nil
 			}
 		}
-		return "", ErrInvalidACS
+		var locs []string
+		for _, e := range endpoints {
+			locs = append(locs, e.Location)
+		}
+		return "", fmt.Errorf("%w: requested ACS URL %q is not registered; SP endpoints: %v", ErrInvalidACS, requestedURL, locs)
 	}
 
 	// 2. ACS-by-index: match the registered endpoint whose Idx equals the
@@ -444,14 +461,18 @@ func (i *IdP) resolveACS(ctx context.Context, spID int64, requestedURL, requeste
 	if requestedIndex != "" {
 		idx, perr := strconv.Atoi(requestedIndex)
 		if perr != nil {
-			return "", ErrInvalidACS
+			return "", fmt.Errorf("%w: requested ACS index %q is not an integer", ErrInvalidACS, requestedIndex)
 		}
 		for _, e := range endpoints {
 			if int(e.Idx) == idx {
 				return e.Location, nil
 			}
 		}
-		return "", ErrInvalidACS
+		var locs []string
+		for _, e := range endpoints {
+			locs = append(locs, fmt.Sprintf("[%d] %s", e.Idx, e.Location))
+		}
+		return "", fmt.Errorf("%w: requested ACS index %q matches no registered endpoint; SP endpoints: %v", ErrInvalidACS, requestedIndex, locs)
 	}
 
 	// 3. Neither supplied: the explicit IsDefault endpoint wins; otherwise the
@@ -473,7 +494,7 @@ func (i *IdP) resolveACS(ctx context.Context, spID int64, requestedURL, requeste
 	if haveAny {
 		return lowest.Location, nil
 	}
-	return "", ErrInvalidACS
+	return "", fmt.Errorf("%w: SP has no registered ACS endpoints", ErrInvalidACS)
 }
 
 // verifyRedirectSignature verifies the SAML 2.0 HTTP-Redirect binding's
@@ -498,25 +519,25 @@ func (i *IdP) verifyRedirectSignature(ctx context.Context, r *http.Request, sp d
 	// part of the signed string.
 	sigB64 := r.URL.Query().Get("Signature")
 	if sigB64 == "" {
-		return ErrMissingSignature
+		return fmt.Errorf("%w: Signature parameter absent (SigAlg present: %t)", ErrMissingSignature, hasSigAlg)
 	}
 	if !hasSigAlg {
-		return ErrMissingSignature
+		return fmt.Errorf("%w: SigAlg parameter absent (Signature present: true)", ErrMissingSignature)
 	}
 
 	// Only RSA-SHA256 is accepted. SigAlg arrives percent-encoded in the raw
 	// query; decode it for comparison.
 	sigAlg := r.URL.Query().Get("SigAlg")
 	if isSHA1Algorithm(sigAlg) {
-		return errWeakSigAlg
+		return fmt.Errorf("%w: SigAlg %q is SHA-1", errWeakSigAlg, sigAlg)
 	}
 	if sigAlg != rsaSHA256SigAlg {
-		return errWeakSigAlg
+		return fmt.Errorf("%w: SigAlg %q, want %q", errWeakSigAlg, sigAlg, rsaSHA256SigAlg)
 	}
 
 	sigBytes, err := base64.StdEncoding.DecodeString(sigB64)
 	if err != nil {
-		return ErrBadSignature
+		return fmt.Errorf("%w: Signature parameter is not valid base64", ErrBadSignature)
 	}
 
 	// Reconstruct the signed octet string from the RAW (still-encoded) values.
@@ -539,27 +560,46 @@ func (i *IdP) verifyRedirectSignature(ctx context.Context, r *http.Request, sp d
 		return err
 	}
 	now := time.Now()
+	// Scan bookkeeping for the final ErrBadSignature text (design §6): total
+	// certs, why each was skipped, and what was tried. Verification logic and
+	// security semantics are UNCHANGED — any live cert verifying still passes.
+	var (
+		total       int
+		badPEM      int
+		outOfWindow int
+		notRSA      int
+		details     []string
+	)
 	for _, k := range keys {
+		total++
 		cert, perr := parseCertPEM(k.CertPem)
 		if perr != nil {
+			badPEM++
+			details = append(details, fmt.Sprintf("cert %d: PEM did not parse", total))
 			continue
 		}
+		fpr := certFingerprint(cert)
 		// Crypto consistency with the POST binding (goxmldsig rejects expired
 		// certs): skip a cert whose validity window does not include now, but
 		// keep scanning so a rotation set with at least one live cert still
 		// verifies. If none is valid, the loop falls through to ErrBadSignature.
 		if now.Before(cert.NotBefore) || now.After(cert.NotAfter) {
+			outOfWindow++
+			details = append(details, fmt.Sprintf("cert %s: validity %s..%s does not cover now", fpr, cert.NotBefore.UTC().Format(time.RFC3339), cert.NotAfter.UTC().Format(time.RFC3339)))
 			continue
 		}
 		pub, ok := cert.PublicKey.(*rsa.PublicKey)
 		if !ok {
+			notRSA++
+			details = append(details, fmt.Sprintf("cert %s: key is not RSA", fpr))
 			continue
 		}
 		if rsa.VerifyPKCS1v15(pub, crypto.SHA256, h[:], sigBytes) == nil {
 			return nil
 		}
+		details = append(details, fmt.Sprintf("cert %s: signature did not verify", fpr))
 	}
-	return ErrBadSignature
+	return fmt.Errorf("%w: %d cert(s) scanned, %d skipped (PEM %d, validity %d, non-RSA %d): %s", ErrBadSignature, total, badPEM+outOfWindow+notRSA, badPEM, outOfWindow, notRSA, strings.Join(details, "; "))
 }
 
 // splitRedirectQuery parses a raw URL query string (NOT percent-decoded) and
@@ -616,6 +656,13 @@ func parseCertPEM(pemStr string) (*x509.Certificate, error) {
 		return nil, errors.New("saml: SP cert PEM did not decode")
 	}
 	return x509.ParseCertificate(block.Bytes)
+}
+
+// certFingerprint is the short SHA-256 fingerprint (first 16 hex chars) used
+// in signature-failure diagnostics so an operator can match a logged cert
+// against the SP's registered key material without handling the cert itself.
+func certFingerprint(cert *x509.Certificate) string {
+	return fmt.Sprintf("%x", sha256.Sum256(cert.Raw))[:16]
 }
 
 // derefBool safely dereferences an optional XML boolean attribute (nil → false).

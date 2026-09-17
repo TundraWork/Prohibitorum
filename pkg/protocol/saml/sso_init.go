@@ -2,6 +2,7 @@ package saml
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -54,7 +55,7 @@ func (i *IdP) HandleIdPInitiated(w http.ResponseWriter, r *http.Request) {
 	// Spec §3.4.3: RelayState MUST NOT exceed 80 bytes (N7). It is echoed
 	// verbatim (HTML-escaped) into the auto-POST form, so bound it up front.
 	if len(r.URL.Query().Get("RelayState")) > maxRelayStateBytes {
-		i.errorPage(w, r, "saml_request_invalid")
+		i.errorPage(w, r, "saml_request_invalid", "relay_state_oversize", nil)
 		return
 	}
 
@@ -63,28 +64,28 @@ func (i *IdP) HandleIdPInitiated(w http.ResponseWriter, r *http.Request) {
 	// at the IdP's OWN SPA /error page and is NEVER redirected to an SP URL.
 	spParam := r.URL.Query().Get("sp")
 	if spParam == "" {
-		i.errorPage(w, r, "saml_request_invalid")
+		i.errorPage(w, r, "saml_request_invalid", "sp_parameter_missing", nil)
 		return
 	}
 	sp, err := i.queries.GetSAMLSPByEntityID(ctx, spParam)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			i.errorPage(w, r, "saml_sp_unknown")
+			i.errorPage(w, r, "saml_sp_unknown", "sp_unknown", fmt.Errorf("%w: no SP registered for sp param %q", ErrUnknownSP, spParam))
 			return
 		}
-		i.errorPage(w, r, "server_error")
+		i.errorPage(w, r, "server_error", "sp_lookup", err)
 		return
 	}
 	// A disabled SP is treated as if it were unregistered — the flow is denied.
 	if sp.Disabled {
-		i.errorPage(w, r, "saml_sp_unknown")
+		i.errorPage(w, r, "saml_sp_unknown", "sp_unknown", fmt.Errorf("%w: SP %q is registered but disabled", ErrUnknownSP, spParam))
 		return
 	}
 
 	// Per-SP opt-in guard. Emitting an unsolicited assertion to an SP that did
 	// not ask for IdP-initiated SSO is refused outright (GHES posture).
 	if !sp.AllowIdpInitiated {
-		i.errorPage(w, r, "saml_idp_init_disabled")
+		i.errorPage(w, r, "saml_idp_init_disabled", "idp_init_disabled", nil)
 		return
 	}
 
@@ -94,7 +95,7 @@ func (i *IdP) HandleIdPInitiated(w http.ResponseWriter, r *http.Request) {
 	// ErrInvalidACS → 500 (a registration error, not a client error).
 	acsURL, err := i.resolveACS(ctx, sp.ID, "", "")
 	if err != nil {
-		i.errorPage(w, r, "server_error")
+		i.errorPage(w, r, "server_error", "acs_resolve", err)
 		return
 	}
 
@@ -108,7 +109,7 @@ func (i *IdP) HandleIdPInitiated(w http.ResponseWriter, r *http.Request) {
 	// Response. Evaluation errors fail closed before rate-limit / build / persist.
 	decision, accessErr := i.evaluateSAMLAccess(ctx, account.ID, sp.ID)
 	if accessErr != nil {
-		i.errorPage(w, r, "server_error")
+		i.errorPage(w, r, "server_error", "access_evaluate", accessErr)
 		return
 	}
 	if !decision.Allowed {
@@ -133,7 +134,7 @@ func (i *IdP) HandleIdPInitiated(w http.ResponseWriter, r *http.Request) {
 	// IsPassive), so always honor it. Placed after app policy and before the rate
 	// limit / build / persist so nothing is issued for an un-acknowledged SP.
 	if redirected, cerr := i.maybeDemandSAMLConsent(w, r, account, sp, acsURL, "", r.URL.Query().Get("RelayState")); cerr != nil {
-		i.errorPage(w, r, "server_error")
+		i.errorPage(w, r, "server_error", "consent_stash", cerr)
 		return
 	} else if redirected {
 		return
@@ -154,7 +155,7 @@ func (i *IdP) HandleIdPInitiated(w http.ResponseWriter, r *http.Request) {
 			if ra := i.rl.RetryAfter(key); ra > 0 {
 				w.Header().Set("Retry-After", strconv.Itoa(int(ra.Seconds())+1))
 			}
-			i.errorPage(w, r, "rate_limited")
+			i.errorPage(w, r, "rate_limited", "rate_limited", nil)
 			return
 		}
 	}
@@ -163,7 +164,7 @@ func (i *IdP) HandleIdPInitiated(w http.ResponseWriter, r *http.Request) {
 	// session-expiry horizon (same source HandleSSO uses).
 	row, err := i.queries.GetSession(ctx, sess.Data.SessionID)
 	if err != nil {
-		i.errorPage(w, r, "server_error")
+		i.errorPage(w, r, "server_error", "session_load", err)
 		return
 	}
 	authTime := row.AuthTime.Time

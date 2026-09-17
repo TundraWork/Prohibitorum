@@ -3,6 +3,7 @@ package saml
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
 
@@ -88,30 +89,30 @@ func (i *IdP) HandleConsentResume(w http.ResponseWriter, r *http.Request) {
 	}
 	ticket, ok, err := authn.ConsumeSAMLConsent(ctx, i.kv, r.URL.Query().Get("ticket"), sess.Data.AccountID)
 	if err != nil {
-		i.errorPage(w, r, "server_error")
+		i.errorPage(w, r, "server_error", "consent_consume", err)
 		return
 	}
 	if !ok {
-		i.errorPage(w, r, "saml_request_invalid")
+		i.errorPage(w, r, "saml_request_invalid", "consent_ticket_invalid", nil)
 		return
 	}
 	sp, err := i.queries.GetSAMLSPByID(ctx, ticket.SPID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			i.errorPage(w, r, "saml_sp_unknown")
+			i.errorPage(w, r, "saml_sp_unknown", "sp_unknown", fmt.Errorf("%w: no SP registered for ticket SPID %d", ErrUnknownSP, ticket.SPID))
 		} else {
-			i.errorPage(w, r, "server_error")
+			i.errorPage(w, r, "server_error", "sp_lookup", err)
 		}
 		return
 	}
 	if sp.Disabled {
-		i.errorPage(w, r, "saml_sp_unknown")
+		i.errorPage(w, r, "saml_sp_unknown", "sp_unknown", fmt.Errorf("%w: SP %q is registered but disabled", ErrUnknownSP, sp.EntityID))
 		return
 	}
 	// Re-check per-app access — it may have changed since the gate. Fail closed.
 	decision, accessErr := i.evaluateSAMLAccess(ctx, sess.Data.AccountID, sp.ID)
 	if accessErr != nil {
-		i.errorPage(w, r, "server_error")
+		i.errorPage(w, r, "server_error", "access_evaluate", accessErr)
 		return
 	}
 	if !decision.Allowed {
@@ -126,12 +127,12 @@ func (i *IdP) HandleConsentResume(w http.ResponseWriter, r *http.Request) {
 	}
 	// Record the advisory acknowledgement, then issue.
 	if uerr := i.queries.UpsertSAMLConsent(ctx, db.UpsertSAMLConsentParams{AccountID: sess.Data.AccountID, SpID: sp.ID}); uerr != nil {
-		i.errorPage(w, r, "server_error")
+		i.errorPage(w, r, "server_error", "consent_record", uerr)
 		return
 	}
 	row, err := i.queries.GetSession(ctx, sess.Data.SessionID)
 	if err != nil {
-		i.errorPage(w, r, "server_error")
+		i.errorPage(w, r, "server_error", "session_load", err)
 		return
 	}
 	i.issueAssertion(w, r, *sess.Account, sp, ticket.ACSURL, ticket.InResponseTo, ticket.RelayState, row.AuthTime.Time, sess.Data.SessionID, "sso_consent", decision.ExposedGroupSlugs())

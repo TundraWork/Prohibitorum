@@ -11,6 +11,7 @@ import (
 	"encoding/base64"
 	"encoding/xml"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -99,12 +100,12 @@ func (i *IdP) HandleSLO(w http.ResponseWriter, r *http.Request) {
 		}
 		reqEl = el
 	default:
-		i.errorPage(w, r, "saml_request_invalid")
+		i.errorPage(w, r, "saml_request_invalid", "method_not_supported", nil)
 		return
 	}
 
 	if req.Issuer == nil || req.Issuer.Value == "" {
-		i.errorPage(w, r, "saml_request_invalid")
+		i.errorPage(w, r, "saml_request_invalid", "sp_unknown", fmt.Errorf("%w: LogoutRequest carries no Issuer", ErrUnknownSP))
 		return
 	}
 
@@ -113,15 +114,15 @@ func (i *IdP) HandleSLO(w http.ResponseWriter, r *http.Request) {
 	sp, err := i.queries.GetSAMLSPByEntityID(ctx, req.Issuer.Value)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			i.sloParseError(w, r, ErrUnknownSP)
+			i.sloParseError(w, r, fmt.Errorf("%w: no SP registered for issuer %q", ErrUnknownSP, req.Issuer.Value))
 			return
 		}
-		i.errorPage(w, r, "server_error")
+		i.errorPage(w, r, "server_error", "sp_lookup", err)
 		return
 	}
 	// A disabled SP is treated as if it were unregistered — the flow is denied.
 	if sp.Disabled {
-		i.sloParseError(w, r, ErrUnknownSP)
+		i.sloParseError(w, r, fmt.Errorf("%w: SP %q is registered but disabled", ErrUnknownSP, req.Issuer.Value))
 		return
 	}
 
@@ -148,12 +149,12 @@ func (i *IdP) HandleSLO(w http.ResponseWriter, r *http.Request) {
 
 	// (5) Destination (if present) must name this IdP's SLO endpoint.
 	if req.Destination != "" && req.Destination != i.sloURL() {
-		i.sloParseError(w, r, ErrSLOBadDestination)
+		i.sloParseError(w, r, fmt.Errorf("%w: request Destination %q, IdP SLO endpoint is %q", ErrSLOBadDestination, req.Destination, i.sloURL()))
 		return
 	}
 	// NotOnOrAfter (if present) must be in the future.
 	if req.NotOnOrAfter != nil && !req.NotOnOrAfter.After(time.Now()) {
-		i.sloParseError(w, r, ErrSLOExpired)
+		i.sloParseError(w, r, fmt.Errorf("%w: NotOnOrAfter %s already passed", ErrSLOExpired, req.NotOnOrAfter.UTC().Format(time.RFC3339)))
 		return
 	}
 
@@ -166,7 +167,7 @@ func (i *IdP) HandleSLO(w http.ResponseWriter, r *http.Request) {
 	// replay-key suffix and the LogoutResponse InResponseTo; an empty or invalid
 	// ID would collapse the replay namespace (mirroring the AuthnRequest gate).
 	if !isValidSAMLID(req.ID) {
-		i.sloParseError(w, r, ErrSLOMissingID)
+		i.sloParseError(w, r, fmt.Errorf("%w: @ID is %q", ErrSLOMissingID, req.ID))
 		return
 	}
 	// IssueInstant: a signed request always carries one. Require it and bound
@@ -174,11 +175,11 @@ func (i *IdP) HandleSLO(w http.ResponseWriter, r *http.Request) {
 	// so a signed request cannot be re-presented indefinitely once the replay
 	// key expires.
 	if req.IssueInstant.IsZero() {
-		i.sloParseError(w, r, ErrSLOStaleIssueInstant)
+		i.sloParseError(w, r, fmt.Errorf("%w: IssueInstant missing on signed request", ErrSLOStaleIssueInstant))
 		return
 	}
 	if d := time.Since(req.IssueInstant); d > AuthnRequestTTL || d < -AuthnRequestTTL {
-		i.sloParseError(w, r, ErrSLOStaleIssueInstant)
+		i.sloParseError(w, r, fmt.Errorf("%w: IssueInstant %s is %s off now, accept window is ±%s", ErrSLOStaleIssueInstant, req.IssueInstant.UTC().Format(time.RFC3339), d.Truncate(time.Second), AuthnRequestTTL))
 		return
 	}
 	// Reserve the single-use replay key, scoped by SP entity ID. SetNX is
@@ -189,7 +190,7 @@ func (i *IdP) HandleSLO(w http.ResponseWriter, r *http.Request) {
 	replayKey := "saml:slo_request_replay:" + sp.EntityID + ":" + req.ID
 	ok, kverr := i.kv.SetNX(ctx, replayKey, "1", AuthnRequestTTL)
 	if kverr != nil {
-		i.sloParseError(w, r, kverr) // fail closed → server_error
+		i.errorPage(w, r, "server_error", "slo_replay_consume", kverr) // fail closed → server_error
 		return
 	}
 	if !ok {
@@ -198,7 +199,7 @@ func (i *IdP) HandleSLO(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if req.NameID == nil {
-		i.errorPage(w, r, "saml_request_invalid")
+		i.errorPage(w, r, "saml_request_invalid", "nameid_missing", nil)
 		return
 	}
 	// Spec §3.4.3: RelayState MUST NOT exceed 80 bytes — reject before any
@@ -208,7 +209,7 @@ func (i *IdP) HandleSLO(w http.ResponseWriter, r *http.Request) {
 		relayStateLen = len(r.FormValue("RelayState"))
 	}
 	if relayStateLen > maxRelayStateBytes {
-		i.sloParseError(w, r, ErrMalformedRequest)
+		i.sloParseError(w, r, fmt.Errorf("%w: RelayState is %d bytes, limit is %d (value not logged)", ErrMalformedRequest, relayStateLen, maxRelayStateBytes))
 		return
 	}
 
@@ -220,7 +221,7 @@ func (i *IdP) HandleSLO(w http.ResponseWriter, r *http.Request) {
 		NameID: req.NameID.Value,
 	})
 	if err != nil {
-		i.errorPage(w, r, "server_error")
+		i.errorPage(w, r, "server_error", "session_resolve", err)
 		return
 	}
 	if req.SessionIndex != nil && req.SessionIndex.Value != "" {
@@ -312,7 +313,7 @@ func (i *IdP) HandleSLO(w http.ResponseWriter, r *http.Request) {
 	respLocation, haveLocation := i.parseSPSLOResponseTarget(sp, binding)
 	respXML, err := i.buildLogoutResponse(ctx, req.ID, respLocation)
 	if err != nil {
-		i.errorPage(w, r, "server_error")
+		i.errorPage(w, r, "server_error", "build_logout_response", err)
 		return
 	}
 
@@ -337,7 +338,7 @@ func (i *IdP) HandleSLO(w http.ResponseWriter, r *http.Request) {
 		// response delivery is impossible. This is a browser-navigated dead-end
 		// (we cannot return a SAML response to the SP), so send the user to the
 		// SPA /error page rather than dumping raw XML at them.
-		i.errorPage(w, r, "server_error")
+		i.errorPage(w, r, "server_error", "slo_location_unknown", nil)
 		return
 	}
 
@@ -362,20 +363,20 @@ func decodeRedirectLogoutRequest(r *http.Request, out *crewjam.LogoutRequest) (*
 	}
 	samlRequest := r.URL.Query().Get("SAMLRequest")
 	if samlRequest == "" {
-		return nil, ErrMissingSAMLRequest
+		return nil, fmt.Errorf("%w: SAMLRequest query parameter absent", ErrMissingSAMLRequest)
 	}
 	deflated, err := base64.StdEncoding.DecodeString(samlRequest)
 	if err != nil {
-		return nil, ErrMissingSAMLRequest
+		return nil, fmt.Errorf("%w: SAMLRequest is not valid base64", ErrMissingSAMLRequest)
 	}
 	fr := flate.NewReader(bytes.NewReader(deflated))
 	raw, err := io.ReadAll(io.LimitReader(fr, maxInflatedAuthnRequest+1))
 	_ = fr.Close()
 	if err != nil {
-		return nil, ErrMissingSAMLRequest
+		return nil, fmt.Errorf("%w: SAMLRequest raw-DEFLATE stream does not decompress", ErrMissingSAMLRequest)
 	}
 	if len(raw) > maxInflatedAuthnRequest {
-		return nil, ErrOversizeRequest
+		return nil, fmt.Errorf("%w: inflated %d bytes, cap is %d", ErrOversizeRequest, len(raw), maxInflatedAuthnRequest)
 	}
 	return parseLogoutRequestXML(raw, out)
 }
@@ -387,14 +388,14 @@ func decodeRedirectLogoutRequest(r *http.Request, out *crewjam.LogoutRequest) (*
 func decodePostLogoutRequest(r *http.Request, out *crewjam.LogoutRequest) (*etree.Element, error) {
 	samlRequest := r.FormValue("SAMLRequest")
 	if samlRequest == "" {
-		return nil, ErrMissingSAMLRequest
+		return nil, fmt.Errorf("%w: SAMLRequest form value absent", ErrMissingSAMLRequest)
 	}
 	raw, err := base64.StdEncoding.DecodeString(samlRequest)
 	if err != nil {
-		return nil, ErrMissingSAMLRequest
+		return nil, fmt.Errorf("%w: SAMLRequest is not valid base64", ErrMissingSAMLRequest)
 	}
 	if len(raw) > maxInflatedAuthnRequest {
-		return nil, ErrOversizeRequest
+		return nil, fmt.Errorf("%w: decoded %d bytes, cap is %d", ErrOversizeRequest, len(raw), maxInflatedAuthnRequest)
 	}
 	return parseLogoutRequestXML(raw, out)
 }
@@ -411,11 +412,11 @@ func parseLogoutRequestXML(raw []byte, out *crewjam.LogoutRequest) (*etree.Eleme
 		return nil, uerr
 	}
 	if out.ID == "" {
-		return nil, ErrMalformedRequest
+		return nil, fmt.Errorf("%w: LogoutRequest has no @ID", ErrMalformedRequest)
 	}
 	// SAML Core §3.2.1: every request MUST carry Version="2.0".
 	if out.Version != "2.0" {
-		return nil, ErrMalformedRequest
+		return nil, fmt.Errorf("%w: Version is %q, want 2.0", ErrMalformedRequest, out.Version)
 	}
 	return doc.Root(), nil
 }
@@ -601,16 +602,16 @@ func (i *IdP) writeRedirectLogoutResponse(w http.ResponseWriter, r *http.Request
 	var deflated bytes.Buffer
 	fw, err := flate.NewWriter(&deflated, flate.DefaultCompression)
 	if err != nil {
-		i.errorPage(w, r, "server_error")
+		i.errorPage(w, r, "server_error", "response_encode", err)
 		return
 	}
 	if _, err := fw.Write(respXML); err != nil {
 		_ = fw.Close()
-		i.errorPage(w, r, "server_error")
+		i.errorPage(w, r, "server_error", "response_encode", err)
 		return
 	}
 	if err := fw.Close(); err != nil {
-		i.errorPage(w, r, "server_error")
+		i.errorPage(w, r, "server_error", "response_encode", err)
 		return
 	}
 	encoded := base64.StdEncoding.EncodeToString(deflated.Bytes())
@@ -619,12 +620,12 @@ func (i *IdP) writeRedirectLogoutResponse(w http.ResponseWriter, r *http.Request
 	// verifiable after DEFLATE+base64, so a strict SP relies on this).
 	priv, _, _, ok := i.keys.signingKey(r.Context())
 	if !ok {
-		i.errorPage(w, r, "server_error")
+		i.errorPage(w, r, "server_error", "signing_key", nil)
 		return
 	}
 	signedQuery, err := signedRedirectQuery(encoded, relayState, priv)
 	if err != nil {
-		i.errorPage(w, r, "server_error")
+		i.errorPage(w, r, "server_error", "response_sign", err)
 		return
 	}
 
@@ -701,9 +702,9 @@ func (i *IdP) sloEmitReplayFail(ctx context.Context, r *http.Request, spEntityID
 func (i *IdP) sloParseError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
 	case errors.Is(err, ErrUnknownSP):
-		i.errorPage(w, r, "saml_sp_unknown")
+		i.errorPage(w, r, "saml_sp_unknown", samlFailureReason(err), err)
 	case errors.Is(err, ErrSLOReplayedRequest):
-		i.errorPage(w, r, "saml_replayed")
+		i.errorPage(w, r, "saml_replayed", samlFailureReason(err), err)
 	case errors.Is(err, ErrMalformedRequest),
 		errors.Is(err, ErrOversizeRequest),
 		errors.Is(err, ErrMissingSAMLRequest),
@@ -719,8 +720,8 @@ func (i *IdP) sloParseError(w http.ResponseWriter, r *http.Request, err error) {
 		errors.Is(err, ErrSLOExpired),
 		errors.Is(err, ErrSLOMissingID),
 		errors.Is(err, ErrSLOStaleIssueInstant):
-		i.errorPage(w, r, "saml_request_invalid")
+		i.errorPage(w, r, "saml_request_invalid", samlFailureReason(err), err)
 	default:
-		i.errorPage(w, r, "server_error")
+		i.errorPage(w, r, "server_error", samlFailureReason(err), err)
 	}
 }

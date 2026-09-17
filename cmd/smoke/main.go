@@ -4795,6 +4795,30 @@ func main() {
 			log.Fatalf("error-redirect 2: Location want prefix /error?error=saml_request_invalid, got %q", loc)
 		}
 		log.Printf("  SAML malformed SAMLRequest → 302 %s ✓", loc)
+
+		// The diagnostics line must have landed in the server log: the failure
+		// carries event=saml_flow_failure, the fine-grained reason for an
+		// undecodable SAMLRequest (base64 decode fails → saml_request_missing),
+		// and the wrapped error text. This proves the discriminating fields are
+		// observable where operators read them, not just that the redirect fired.
+		if *serverLog != "" {
+			logData, rerr := os.ReadFile(*serverLog)
+			if rerr != nil {
+				log.Fatalf("error-redirect 2: read --server-log: %v", rerr)
+			}
+			for _, want := range []string{
+				"event=saml_flow_failure",
+				"reason=saml_request_missing",
+				`code=saml_request_invalid`,
+				"saml_error=",
+				"ref=",
+			} {
+				if !bytes.Contains(logData, []byte(want)) {
+					log.Fatalf("error-redirect 2: server log missing %q — diagnostics line absent", want)
+				}
+			}
+			log.Printf("  server log carries event=saml_flow_failure reason=saml_request_missing ✓")
+		}
 	}
 
 	// =====================================================================

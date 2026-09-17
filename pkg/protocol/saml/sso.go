@@ -119,15 +119,15 @@ func (i *IdP) HandleSSO(w http.ResponseWriter, r *http.Request) {
 			// too — a NoPassive answer counts as the single use of this ID.
 			if cerr := i.consumeAuthnRequestID(ctx, sp.EntityID, req.RequestID); cerr != nil {
 				if errors.Is(cerr, ErrReplayedRequest) {
-					i.errorPage(w, r, "saml_replayed")
+					i.errorPage(w, r, "saml_replayed", "request_replayed", cerr)
 				} else {
-					i.errorPage(w, r, "server_error")
+					i.errorPage(w, r, "server_error", "replay_consume", cerr)
 				}
 				return
 			}
 			respXML, berr := i.buildStatusResponse(ctx, req.ACSURL, req.RequestID, statusResponder, statusNoPassive)
 			if berr != nil {
-				i.errorPage(w, r, "server_error")
+				i.errorPage(w, r, "server_error", "build_status_response", berr)
 				return
 			}
 			i.writeAutoPost(w, req.ACSURL, respXML, req.RelayState)
@@ -149,7 +149,7 @@ func (i *IdP) HandleSSO(w http.ResponseWriter, r *http.Request) {
 	// nor consumes the single-use AuthnRequest ID. Evaluation errors fail closed.
 	decision, accessErr := i.evaluateSAMLAccess(ctx, sess.Data.AccountID, sp.ID)
 	if accessErr != nil {
-		i.errorPage(w, r, "server_error")
+		i.errorPage(w, r, "server_error", "access_evaluate", accessErr)
 		return
 	}
 	if !decision.Allowed {
@@ -171,15 +171,15 @@ func (i *IdP) HandleSSO(w http.ResponseWriter, r *http.Request) {
 			// path), then auto-POST a terminal Responder/RequestDenied Response.
 			if cerr := i.consumeAuthnRequestID(ctx, sp.EntityID, req.RequestID); cerr != nil {
 				if errors.Is(cerr, ErrReplayedRequest) {
-					i.errorPage(w, r, "saml_replayed")
+					i.errorPage(w, r, "saml_replayed", "request_replayed", cerr)
 				} else {
-					i.errorPage(w, r, "server_error")
+					i.errorPage(w, r, "server_error", "replay_consume", cerr)
 				}
 				return
 			}
 			respXML, buildErr := i.buildStatusResponse(ctx, req.ACSURL, req.RequestID, statusResponder, statusRequestDenied)
 			if buildErr != nil {
-				i.errorPage(w, r, "server_error")
+				i.errorPage(w, r, "server_error", "build_status_response", buildErr)
 				return
 			}
 			i.writeAutoPost(w, req.ACSURL, respXML, req.RelayState)
@@ -200,7 +200,7 @@ func (i *IdP) HandleSSO(w http.ResponseWriter, r *http.Request) {
 			if ra := i.rl.RetryAfter(key); ra > 0 {
 				w.Header().Set("Retry-After", strconv.Itoa(int(ra.Seconds())+1))
 			}
-			i.errorPage(w, r, "rate_limited")
+			i.errorPage(w, r, "rate_limited", "rate_limited", nil)
 			return
 		}
 	}
@@ -216,7 +216,7 @@ func (i *IdP) HandleSSO(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		// Uniform body (mirrors the OIDC authorize handler) so the HTTP response
 		// never leaks which backend step failed; the specific cause stays in err.
-		i.errorPage(w, r, "server_error")
+		i.errorPage(w, r, "server_error", "session_load", err)
 		return
 	}
 	authTime := row.AuthTime.Time
@@ -235,15 +235,15 @@ func (i *IdP) HandleSSO(w http.ResponseWriter, r *http.Request) {
 			// here is also a single use, so consume it now.
 			if cerr := i.consumeAuthnRequestID(ctx, sp.EntityID, req.RequestID); cerr != nil {
 				if errors.Is(cerr, ErrReplayedRequest) {
-					i.errorPage(w, r, "saml_replayed")
+					i.errorPage(w, r, "saml_replayed", "request_replayed", cerr)
 				} else {
-					i.errorPage(w, r, "server_error")
+					i.errorPage(w, r, "server_error", "replay_consume", cerr)
 				}
 				return
 			}
 			respXML, berr := i.buildStatusResponse(ctx, req.ACSURL, req.RequestID, statusResponder, statusNoPassive)
 			if berr != nil {
-				i.errorPage(w, r, "server_error")
+				i.errorPage(w, r, "server_error", "build_status_response", berr)
 				return
 			}
 			i.writeAutoPost(w, req.ACSURL, respXML, req.RelayState)
@@ -254,7 +254,7 @@ func (i *IdP) HandleSSO(w http.ResponseWriter, r *http.Request) {
 		if reauthNonce != "" {
 			ok, cerr := authn.ConsumeReauth(ctx, i.kv, "saml:reauth:", reauthNonce, sess.Data.AccountID, authTime)
 			if cerr != nil {
-				i.errorPage(w, r, "server_error")
+				i.errorPage(w, r, "server_error", "reauth_consume", cerr)
 				return
 			}
 			satisfied = ok
@@ -262,7 +262,7 @@ func (i *IdP) HandleSSO(w http.ResponseWriter, r *http.Request) {
 		if !satisfied {
 			nonce, derr := authn.DemandReauth(ctx, i.kv, "saml:reauth:", sess.Data.AccountID)
 			if derr != nil {
-				i.errorPage(w, r, "server_error")
+				i.errorPage(w, r, "server_error", "reauth_demand", derr)
 				return
 			}
 			// Preserve the SP-signed raw query EXACTLY (the redirect-binding
@@ -313,9 +313,9 @@ func (i *IdP) HandleSSO(w http.ResponseWriter, r *http.Request) {
 					"sp":     sp.EntityID,
 				},
 			})
-			i.errorPage(w, r, "saml_replayed")
+			i.errorPage(w, r, "saml_replayed", "request_replayed", cerr)
 		} else {
-			i.errorPage(w, r, "server_error")
+			i.errorPage(w, r, "server_error", "replay_consume", cerr)
 		}
 		return
 	}
@@ -334,7 +334,7 @@ func (i *IdP) HandleSSO(w http.ResponseWriter, r *http.Request) {
 	if f := req.NameIDFormat; f != "" && f != nameIDUnspecified && f != sp.NameIDFormat {
 		respXML, berr := i.buildStatusResponse(ctx, req.ACSURL, req.RequestID, statusRequester, statusInvalidNameIDPolicy)
 		if berr != nil {
-			i.errorPage(w, r, "server_error")
+			i.errorPage(w, r, "server_error", "build_status_response", berr)
 			return
 		}
 		i.writeAutoPost(w, req.ACSURL, respXML, req.RelayState)
@@ -350,7 +350,7 @@ func (i *IdP) HandleSSO(w http.ResponseWriter, r *http.Request) {
 	// POST-binding SP-initiated SSO whose request body the browser cannot replay.
 	if !req.IsPassive {
 		if redirected, cerr := i.maybeDemandSAMLConsent(w, r, *sess.Account, sp, req.ACSURL, req.RequestID, req.RelayState); cerr != nil {
-			i.errorPage(w, r, "server_error")
+			i.errorPage(w, r, "server_error", "consent_stash", cerr)
 			return
 		} else if redirected {
 			return
@@ -382,12 +382,13 @@ func (i *IdP) ssoParseError(w http.ResponseWriter, r *http.Request, err error) {
 		errors.Is(err, errBadSigAlg),
 		errors.Is(err, errSigRefMismatch),
 		errors.Is(err, errXMLDTD),
-		errors.Is(err, errDuplicateID):
-		i.errorPage(w, r, "saml_request_invalid")
+		errors.Is(err, errDuplicateID),
+		errors.Is(err, ErrStaleRequest):
+		i.errorPage(w, r, "saml_request_invalid", samlFailureReason(err), err)
 	default:
 		// Unexpected (e.g. DB unavailable, decompression-internal, XML library
 		// error). Fail closed with a server error.
-		i.errorPage(w, r, "server_error")
+		i.errorPage(w, r, "server_error", samlFailureReason(err), err)
 	}
 }
 
