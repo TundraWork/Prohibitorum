@@ -1120,31 +1120,75 @@ func main() {
 		log.Printf("  confirmed; /me id=%d username=%s ✓", me.ID, me.Username)
 	}
 
-	// The fresh session rides the recent-auth window (SudoTTL), so password
-	// and TOTP can be set without a step-up — the exact flow the SPA's
-	// /setup-signin step drives.
+	// The fresh session rides the recent-auth window (SudoTTL), so the
+	// password + TOTP pair can be set without a step-up — the exact flow the
+	// SPA's /setup-signin step drives. Both factors land in one transaction:
+	// abandoning the ceremony cannot leave a password-only account, which
+	// /auth/password/begin would accept while the login page asked for a code
+	// the account has no way to produce.
 	const invitePassword = "correct horse battery staple"
-	if err := inviteClient.postJSON("/api/prohibitorum/me/password/set",
-		map[string]string{"password": invitePassword}, nil); err != nil {
-		log.Fatalf("invite password/set: %v", err)
-	}
-	var inviteTotpBegin struct {
+	var invitePwdBegin struct {
 		SecretBase32 string `json:"secret_base32"`
 		OtpauthURI   string `json:"otpauth_uri"`
 	}
-	if err := inviteClient.postJSON("/api/prohibitorum/me/totp/begin", map[string]any{}, &inviteTotpBegin); err != nil {
-		log.Fatalf("invite totp/begin: %v", err)
+	if err := inviteClient.postJSON("/api/prohibitorum/me/password-totp/begin",
+		map[string]string{"password": invitePassword}, &invitePwdBegin); err != nil {
+		log.Fatalf("invite password-totp/begin: %v", err)
 	}
 	inviteSecret, err := base32.StdEncoding.WithPadding(base32.NoPadding).
-		DecodeString(strings.TrimRight(inviteTotpBegin.SecretBase32, "="))
+		DecodeString(strings.TrimRight(invitePwdBegin.SecretBase32, "="))
 	if err != nil {
 		log.Fatalf("decode totp secret: %v", err)
 	}
-	if err := inviteClient.postJSON("/api/prohibitorum/me/totp/verify",
-		map[string]string{"code": totppkg.ComputeCodeForTesting(inviteSecret, time.Now().Unix(), 6)}, nil); err != nil {
-		log.Fatalf("invite totp/verify: %v", err)
+	// Mid-ceremony: begin stashed the password hash + secret in KV and wrote
+	// nothing, so neither factor is visible yet.
+	var inviteFactors struct {
+		PasswordSet  bool `json:"passwordSet"`
+		TOTPEnrolled bool `json:"totpEnrolled"`
 	}
-	log.Printf("  password + TOTP set via fresh session (recent-auth window) ✓")
+	if err := inviteClient.get("/api/prohibitorum/me/factors", &inviteFactors); err != nil {
+		log.Fatalf("invite /me/factors after begin: %v", err)
+	}
+	if inviteFactors.PasswordSet || inviteFactors.TOTPEnrolled {
+		log.Fatalf("mid-ceremony /me/factors: passwordSet=%v totpEnrolled=%v, want both false",
+			inviteFactors.PasswordSet, inviteFactors.TOTPEnrolled)
+	}
+	log.Printf("  after begin: passwordSet=false totpEnrolled=false (nothing committed) ✓")
+
+	inviteTOTPStep := time.Now().Unix() / 30
+	var invitePwdVerify struct {
+		RecoveryCodes []string `json:"recovery_codes"`
+	}
+	if err := inviteClient.postJSON("/api/prohibitorum/me/password-totp/verify",
+		map[string]string{"code": totppkg.ComputeCodeForTesting(inviteSecret, time.Now().Unix(), 6)},
+		&invitePwdVerify); err != nil {
+		log.Fatalf("invite password-totp/verify: %v", err)
+	}
+	if len(invitePwdVerify.RecoveryCodes) != 10 {
+		log.Fatalf("invite password-totp/verify: recovery_codes=%d, want 10", len(invitePwdVerify.RecoveryCodes))
+	}
+	log.Printf("  password + TOTP committed together; %d recovery codes ✓", len(invitePwdVerify.RecoveryCodes))
+
+	// The point of the pair: the account can now really sign in with
+	// username + password + the current code.
+	if err := inviteClient.logout(); err != nil {
+		log.Fatalf("invite logout pre-password-login: %v", err)
+	}
+	invitePartial, err := inviteClient.passwordBegin(inviteUsername, invitePassword)
+	if err != nil {
+		log.Fatalf("invite password/begin after setup: %v", err)
+	}
+	// RFC 6238 §5.2: the enrollment verify already consumed this step, so wait
+	// for the next one before the login verify.
+	inviteTOTPStep = waitForNextTOTPStep(inviteTOTPStep)
+	if err := inviteClient.totpStepTwoVerify(invitePartial,
+		totppkg.ComputeCodeForTesting(inviteSecret, time.Now().Unix(), 6)); err != nil {
+		log.Fatalf("invite auth/totp/verify after setup: %v", err)
+	}
+	if me, err := inviteClient.getMe(); err != nil || me.Username != inviteUsername {
+		log.Fatalf("invite /me after password+TOTP login: err=%v me=%+v, want %s", err, me, inviteUsername)
+	}
+	log.Printf("  logout → password+TOTP login → /me is %s ✓", inviteUsername)
 
 	step(fmt.Sprintf("federation %d/%d — logout → provider re-login succeeds (core new semantics)", 28, nFederation))
 	if err := inviteClient.logout(); err != nil {
