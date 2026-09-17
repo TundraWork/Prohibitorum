@@ -255,7 +255,7 @@ func (a *Adapter) Advance(ctx context.Context, provider federationcore.Provider,
 		avatarURL := ClaimString(claims, pictureClaim)
 		identity := &federationcore.VerifiedIdentity{
 			Issuer: state.ExpectedIss, Subject: subject, Email: email,
-			EmailVerified: false, EmailVerificationSupported: true,
+			EmailVerified: ClaimBool(claims, "email_verified"), EmailVerificationSupported: true,
 			Username: ClaimString(claims, usernameClaim), DisplayName: ClaimString(claims, displayClaim),
 			AvatarURL: avatarURL,
 		}

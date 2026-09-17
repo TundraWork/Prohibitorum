@@ -16,6 +16,11 @@ import (
 	federationoidc "prohibitorum/pkg/federation/providers/oidc"
 )
 
+// TestOIDCSubjectClaimMigrationPostgres mirrors the ordering of
+// upstream_oidc_endpoints_test.go: migrations 032 build a trigram index whose
+// operator class only resolves once the search_path includes extension
+// schemas, and the legacy-format row must be inserted before migration 039 so
+// the UPDATE actually rewrites it.
 func TestOIDCSubjectClaimMigrationPostgres(t *testing.T) {
 	baseURL := os.Getenv("PROHIBITORUM_TEST_DATABASE_URL")
 	if baseURL == "" {
@@ -54,13 +59,16 @@ func TestOIDCSubjectClaimMigrationPostgres(t *testing.T) {
 	if err := goose.SetDialect("postgres"); err != nil {
 		t.Fatal(err)
 	}
-	if err := goose.UpTo(conn, ".", 38); err != nil {
+	if err := goose.UpTo(conn, ".", 31); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := conn.ExecContext(ctx, "SET search_path TO "+quoted+", public"); err != nil {
 		t.Fatal(err)
 	}
-	old := `{"issuerUrl":"https://issuer.example","clientId":"client","scopes":["openid"],"allowedDomains":[],"usernameClaim":"preferred_username","displayNameClaim":"name","emailClaim":"email","pictureClaim":"picture","requireVerifiedEmail":true,"allowPrivateNetwork":false}`
+	if err := goose.UpTo(conn, ".", 37); err != nil {
+		t.Fatal(err)
+	}
+	old := `{"issuerUrl":"https://issuer.example","clientId":"client","scopes":["openid"],"allowedDomains":[],"usernameClaim":"preferred_username","displayNameClaim":"name","emailClaim":"email","pictureClaim":"picture","requireVerifiedEmail":true,"allowPrivateNetwork":false,"configurationMode":"discovery","tokenAuthMethod":"discovery","pkceMethod":"S256","endpoints":{"authorization":null,"token":null,"userinfo":null,"jwks":null}}`
 	for protocol, config := range map[string]string{"oidc": old, "steam": "{}", "vrchat": "{}"} {
 		if _, err := conn.ExecContext(ctx, `INSERT INTO upstream_idp (slug,display_name,protocol,mode,provider_config,key_version) VALUES ($1,$1,$1,'link_only',$2::jsonb,NULL)`, protocol, config); err != nil {
 			t.Fatal(err)
@@ -99,5 +107,8 @@ func TestOIDCSubjectClaimMigrationPostgres(t *testing.T) {
 	}
 	if down["issuerUrl"] == "" {
 		t.Fatalf("unrelated config lost after Down: %s", restored)
+	}
+	if down["configurationMode"] != "discovery" {
+		t.Fatalf("configurationMode = %v, want discovery retained after Down", down["configurationMode"])
 	}
 }

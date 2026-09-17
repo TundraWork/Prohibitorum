@@ -407,6 +407,9 @@ type fallbackOP struct {
 	tokenBody       string
 	tokenType       string
 	userinfoBody    string
+	// userinfoRedirect, when set, returns each userinfo response's Location
+	// (empty = no redirect) — used to pin the redirect-policy carryover.
+	userinfoRedirect func(base string) string
 
 	mu               sync.Mutex
 	tokenAccept      string
@@ -455,7 +458,15 @@ func (op *fallbackOP) serve(w http.ResponseWriter, r *http.Request) {
 		op.mu.Lock()
 		op.userinfoRequests++
 		op.userinfoAuth = r.Header.Get("Authorization")
+		location := ""
+		if op.userinfoRedirect != nil {
+			location = op.userinfoRedirect(op.base)
+		}
 		op.mu.Unlock()
+		if location != "" {
+			http.Redirect(w, r, location, http.StatusFound)
+			return
+		}
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(op.userinfoBody))
 	case "/jwks":
@@ -536,6 +547,32 @@ func TestClient_ExchangeJSONWithoutIDTokenReturnsFallback(t *testing.T) {
 	accept, _ := op.tokenStats()
 	if accept != "application/json" {
 		t.Errorf("token request Accept = %q, want application/json", accept)
+	}
+}
+
+// TestClient_UserInfoRawPreservesRedirectPolicy pins the outbound-policy
+// carryover: the hardened client's CheckRedirect (max 5 hops, https-only
+// redirect targets) must survive the accept-header re-wrap, so a userinfo
+// handler that chains 8 redirects fails fast instead of loading forever.
+func TestClient_UserInfoRawPreservesRedirectPolicy(t *testing.T) {
+	ts, op := newFallbackOP(t)
+	op.userinfoBody = ""
+	c := newFallbackClient(t, ts)
+	hops := 0
+	op.userinfoRedirect = func(base string) string {
+		hops++
+		if hops > 8 {
+			return base
+		}
+		return base + "/userinfo"
+	}
+
+	_, err := c.UserInfoRaw(context.Background(), "at_fallback", "Bearer")
+	if err == nil {
+		t.Fatal("UserInfoRaw succeeded; want too-many-redirects failure")
+	}
+	if !strings.Contains(err.Error(), "too many redirects (>5)") {
+		t.Fatalf("err = %v, want redirect-policy failure", err)
 	}
 }
 
@@ -636,5 +673,33 @@ func TestClaimIdentifier(t *testing.T) {
 
 	if got := federationoidc.ClaimIdentifier(map[string]any{"claim": "x"}, ""); got != "" {
 		t.Errorf("empty name = %q, want empty", got)
+	}
+}
+
+// TestClaimBool pins the boolean reader: only true/false pass; strings,
+// json.Number and absence all read as false — which is what keeps a missing
+// email_verified treated as unverified rather than an error.
+func TestClaimBool(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		value any
+		want  bool
+	}{
+		{"true", true, true},
+		{"false", false, false},
+		{"string truthy", "true", false},
+		{"number one", json.Number("1"), false},
+		{"nil", nil, false},
+		{"missing", nil, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			raw := map[string]any{}
+			if tc.name != "missing" {
+				raw["claim"] = tc.value
+			}
+			if got := federationoidc.ClaimBool(raw, "claim"); got != tc.want {
+				t.Errorf("ClaimBool = %v, want %v", got, tc.want)
+			}
+		})
 	}
 }
