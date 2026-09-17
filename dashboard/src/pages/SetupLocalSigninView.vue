@@ -145,7 +145,19 @@ async function verifyTotp(): Promise<void> {
   const r = await run(() =>
     api.post<{ recovery_codes?: string[] }>('/api/prohibitorum/me/password-totp/verify', { code: totpCode.value }),
   )
-  if (!r) return
+  if (!r) {
+    // The KV stash lives 10 minutes, and this screen has no back button by
+    // design — so once it lapsed the page was a dead end with refresh as the
+    // only way out. Send the user back to the password step (the error banner
+    // above stays visible), which is where a fresh stash comes from.
+    if (netError.value?.code === 'ceremony_expired') {
+      secret.value = ''
+      otpauthUri.value = ''
+      totpCode.value = ''
+      phase.value = 'password'
+    }
+    return
+  }
   recoveryCodes.value = r.recovery_codes ?? []
   phase.value = 'done'
 }

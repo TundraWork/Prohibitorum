@@ -132,6 +132,34 @@ describe('SetupLocalSigninView', () => {
     expect(hardRedirect).toHaveBeenCalledWith('/consent')
   })
 
+  it('returns to the password step when the ceremony stash has expired', async () => {
+    post.mockImplementation(async (path: string) => {
+      if (path.endsWith('/password-totp/begin')) return { secret_base32: 'JBSWY3DP', otpauth_uri: 'otpauth://totp/x' }
+      if (path.endsWith('/password-totp/verify')) throw { code: 'ceremony_expired' }
+      throw new Error(`unexpected POST ${path}`)
+    })
+    const wrapper = await mountView({ redirect: '/consent' })
+
+    await wrapper.get('[data-test="choose-password-totp"]').trigger('click')
+    await wrapper.get('#setup-pw-new').setValue('correct horse battery staple')
+    await wrapper.get('#setup-pw-confirm').setValue('correct horse battery staple')
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+    expect(wrapper.find('#setup-totp-code').exists()).toBe(true)
+
+    await wrapper.get('#setup-totp-code').setValue('123456')
+    await wrapper.get('[data-test="verify-totp"]').trigger('click')
+    await flushPromises()
+
+    // The code screen has no back button, so an expired stash must land the
+    // user back on a step that can start a fresh ceremony — with the reason
+    // still on screen.
+    expect(wrapper.find('#setup-pw-new').exists()).toBe(true)
+    expect(wrapper.find('[data-test="verify-totp"]').exists()).toBe(false)
+    expect(wrapper.get('[data-test="error-summary"]').text()).toBe(en.errors.codes.ceremony_expired)
+    expect(hardRedirect).not.toHaveBeenCalled()
+  })
+
   it('does not send a short password, and stays on the password step when begin fails', async () => {
     const wrapper = await mountView()
 
