@@ -167,4 +167,16 @@ describe('SetupLocalSigninView', () => {
     await flushPromises()
     expect(hardRedirect).toHaveBeenCalledWith('/')
   })
+
+  it('rejects an off-origin redirect value', async () => {
+    // redirectTarget feeds window.location.assign, so a protocol-relative or
+    // backslash-normalised value must never reach hardRedirect.
+    for (const evil of ['//evil.com', '/\\evil.com', 'https://evil.com/']) {
+      hardRedirect.mockReset()
+      const wrapper = await mountView({ redirect: evil })
+      await wrapper.get('[data-test="skip"]').trigger('click')
+      await flushPromises()
+      expect(hardRedirect).toHaveBeenCalledWith('/')
+    }
+  })
 })

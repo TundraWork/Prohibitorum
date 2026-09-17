@@ -1194,7 +1194,6 @@ export default {
     totpHint: '使用身份验证器应用扫描二维码（或输入设置密钥），然后输入应用显示的 6 位验证码。',
     totpCodeLabel: '身份验证器验证码',
     verify: '验证',
-    finish: '完成',
   },
 
   recoveryCodes: {

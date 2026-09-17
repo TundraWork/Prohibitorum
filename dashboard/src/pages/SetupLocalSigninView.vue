@@ -16,7 +16,7 @@ import { usePrivateState } from '@/composables/usePrivateState'
  * redirecting to /login?return_to=<current path>.
  *
  * On skip or completion, hard-redirect to the `redirect` query parameter
- * (validated server-side upstream when the confirm response produced it);
+ * through safeReturnTo (same-origin only — it feeds window.location.assign);
  * default '/'. A hard navigation is required — the target may be a server
  * route or an OIDC continuation, not a Vue route.
  */
@@ -29,6 +29,7 @@ import { useApi } from '@/composables/useApi'
 import { useWebauthn } from '@/composables/useWebauthn'
 import { withSudo } from '@/lib/sudo'
 import { hardRedirect } from '@/lib/navigate'
+import { safeReturnTo } from '@/lib/returnTo'
 import CenteredLayout from '@/pages/CenteredLayout.vue'
 import SudoModal from '@/components/custom/SudoModal.vue'
 import { Button } from '@/components/ui/button'
@@ -61,10 +62,12 @@ const otpauthUri = ref('')
 const totpCode = ref('')
 const recoveryCodes = ref<string[]>([])
 
+// Untrusted query input that now feeds window.location.assign: safeReturnTo
+// rejects //evil.com, the /\evil.com path trick, and cross-origin absolute URLs.
 const redirectTarget = computed(() => {
   const raw = route.query.redirect
   const value = Array.isArray(raw) ? raw[0] : raw
-  return typeof value === 'string' && value.startsWith('/') ? value : '/'
+  return safeReturnTo(typeof value === 'string' ? value : undefined)
 })
 
 function clearError(): void {

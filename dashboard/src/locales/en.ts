@@ -1198,7 +1198,6 @@ export default {
     totpHint: 'Scan the QR code with an authenticator app — or enter the setup key — then enter the 6-digit code it shows.',
     totpCodeLabel: 'Authenticator code',
     verify: 'Verify',
-    finish: 'Done',
   },
 
   recoveryCodes: {
