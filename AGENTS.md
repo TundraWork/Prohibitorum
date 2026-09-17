@@ -39,15 +39,13 @@
   [the UI component rules](dashboard/src/components/ui/README.md).
   `dashboard/src/components/ui` is vendored: do not hand-edit it. Put
   application-specific components in `dashboard/src/components/custom`.
-- After changing dashboard source, run `mise run build:web` and commit
-  `pkg/webui/dist` in a separate `build: refresh embedded dashboard bundle`
-  commit. `ci:frontend` checks the generated bundle against the committed one.
-- During integration, resolve source changes first. Do not manually reconcile
-  minified, content-hashed assets in `pkg/webui/dist`. Use a complete side as
-  a temporary conflict resolution, then force a rebuild with
-  `mise run --force build:web` from the merged source and commit the freshly
-  generated bundle. Check for stale assets and run `mise run ci:frontend`.
-  No custom merge driver is assumed.
+- The embedded bundle is generated, not committed. `pkg/webui/dist` is ignored
+  apart from the tracked `.gitkeep` that keeps `go:embed all:dist` compiling on
+  a clean checkout. After changing dashboard source run `mise run ci:frontend`;
+  do not add anything under `pkg/webui/dist` to a commit.
+- During integration, resolve source changes. Generated assets cannot conflict
+  because they are not in the repository; when you need the merged source in a
+  binary, force a rebuild with `mise run --force build:web`.
 
 ## User-facing language
 

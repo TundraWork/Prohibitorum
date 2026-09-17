@@ -95,15 +95,15 @@ cosign verify ghcr.io/tundrawork/prohibitorum:<tag> \
 
 [`jdx/mise-action@v3`](https://github.com/jdx/mise-action) (or the [step-security hardened fork](https://github.com/step-security/mise-action)) runs the same tasks humans run. With `mise.lock` present the action auto-applies `--locked`. `.github/workflows/ci.yml` has two jobs:
 
-- **gate** runs `mise run ci` = `mise run ci:go` (`go vet ./...` → `go build -tags nodynamic ./...` → `go test ./...`) + `mise run ci:frontend` (`npm ci` → `npm test` → `npm run build` → **dist-freshness guard**: fails if `pkg/webui/dist` drifts from the committed bundle).
+- **gate** runs `mise run ci` = `mise run ci:go` (`go vet ./...` → `go build -tags nodynamic ./...` → `go test ./...`) + `mise run ci:frontend` (`npm ci` → `npm test` → `npm run build`).
 - **smoke** runs `mise run ci:smoke` (`scripts/db.sh start` → throwaway `prohibitorum_smoke` DB → server → `cmd/smoke`). Pins `PROHIBITORUM_COMPOSE=docker compose` for determinism on the runner.
 - **release-check** runs `mise run ci:release-check` (`goreleaser check`) + `mise run ci:lint-actions` (`actionlint` schema/shellcheck + `zizmor` supply-chain audit over `.github/workflows`) on every PR. A broken release config or workflow fails here, not on the first tag push.
 
 `.github/workflows/release-dryrun.yml` runs `mise run ci:release-snapshot` (full multi-arch GoReleaser+ko build, no publish, `--skip=sign`) — path-filtered to changes that affect the release (`.goreleaser.yaml`, `mise.toml`, `mise.lock`, `go.*`, `cmd/**`, `pkg/**`, `dashboard/**`, the release workflow itself) plus `workflow_dispatch`. This catches build breakage without needing a real tag.
 
-## Embedded `dist` drift
+## Embedded `dist`
 
-`pkg/webui/dist` stays committed (so `go run` / `mise run dev:server` work without Node when `dashboard/**` is unchanged). CI's dist-freshness guard prevents it going stale. Locally, mise task `sources`/`outputs` skip unnecessary SPA rebuilds.
+`pkg/webui/dist` is generated, never committed: only a `.gitkeep` placeholder is tracked, so `go:embed all:dist` still compiles on a clean checkout. Every path that produces a binary builds the SPA first — `ci:go`, `ci:smoke` and `prod:build` through `build:web`, and the image workflows and the GoReleaser before-hook through `mise run --force build:web`. Locally, `build:web`'s `sources`/`outputs` skip the rebuild while `dashboard/**` is unchanged.
 
 ## Task namespaces
 

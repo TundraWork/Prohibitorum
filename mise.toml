@@ -126,7 +126,7 @@ go test ./...
 
 [tasks."ci:frontend"]
 hide = true
-description = "CI (internal): dashboard install + unit tests + typecheck (via build), then assert the committed pkg/webui/dist matches a fresh build (no stale-dist drift)."
+description = "CI (internal): dashboard install + unit tests + typecheck (via build). The bundle is generated, not committed, so there is nothing to compare it against."
 run = """
 set -e
 cd dashboard
