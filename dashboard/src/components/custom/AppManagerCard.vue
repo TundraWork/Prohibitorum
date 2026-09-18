@@ -34,15 +34,13 @@ interface AccountView {
   id: number
   username: string
   displayName: string
+  disabled: boolean
 }
 
 const props = defineProps<{
   kind: AppKind
   appId: string
-  mode?: 'admin' | 'manager'
-  currentAccountId?: number
 }>()
-const emit = defineEmits<{ (event: 'self-removed'): void }>()
 
 const MANAGER_COLLECTIONS: Record<AppKind, string> = {
   oidc: 'oidc-applications',
@@ -55,9 +53,9 @@ const queryClient = useQueryClient()
 const managersApi = useResource(computed(() => managerQuery<AppManagerView[]>(props.kind, props.appId)))
 const submittedSearch = ref('')
 const accountsApi = useResource(computed(() => ({
-  queryKey: ['session', 'managed-applications', 'manager-candidates', submittedSearch.value],
+  queryKey: ['session', 'accounts', 'manager-candidates', submittedSearch.value],
   enabled: submittedSearch.value !== '',
-  queryFn: ({ signal }: { signal: AbortSignal }) => api.get<Page<AccountView>>(`/api/prohibitorum/managed-applications/manager-candidates?q=${encodeURIComponent(submittedSearch.value)}`, { signal }),
+  queryFn: ({ signal }: { signal: AbortSignal }) => api.get<Page<AccountView>>(`/api/prohibitorum/accounts?q=${encodeURIComponent(submittedSearch.value)}&limit=100`, { signal }),
 })))
 const mutationApi = useApi()
 
@@ -73,7 +71,7 @@ const managerEndpoint = computed(() =>
 
 const assignedManagerIds = computed(() => new Set(managers.value.map((manager) => manager.id)))
 const availableAccounts = computed(() =>
-  accountResults.value.filter(account => !assignedManagerIds.value.has(account.id)),
+  accountResults.value.filter(account => !account.disabled && !assignedManagerIds.value.has(account.id)),
 )
 const displayedManagerError = computed(() => mutationApi.error.value ?? managersApi.error.value)
 const initialManagersLoading = computed(() => managersApi.busy.value && managers.value.length === 0)
@@ -89,7 +87,7 @@ async function searchAccounts(): Promise<void> {
   hasSearched.value = submittedSearch.value !== ''
 }
 
-async function mutateManager(path: string, accountId: number, selfRemoval = false): Promise<void> {
+async function mutateManager(path: string, accountId: number): Promise<void> {
   if (mutationApi.busy.value) return
 
   const identity = identityVersion
@@ -113,10 +111,6 @@ async function mutateManager(path: string, accountId: number, selfRemoval = fals
   }
   if (mutationApi.error.value !== null) return
 
-  if (selfRemoval) {
-    emit('self-removed')
-    return
-  }
   await invalidateResource(queryClient, 'access')
 }
 
@@ -126,8 +120,7 @@ function assignManager(account: AccountView): Promise<void> | undefined {
 }
 
 function removeManager(manager: AppManagerView): Promise<void> {
-  const selfRemoval = props.mode === 'manager' && manager.id === props.currentAccountId
-  return mutateManager(`${managerEndpoint.value}/remove`, manager.id, selfRemoval)
+  return mutateManager(`${managerEndpoint.value}/remove`, manager.id)
 }
 
 function clearManagerError(): void {

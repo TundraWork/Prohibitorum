@@ -58,7 +58,7 @@ const DISABLED_MANAGER: AppManagerView = {
 
 const MANAGERS = [ACTIVE_MANAGER, DISABLED_MANAGER]
 
-const ACTIVE_CANDIDATE: AccountView = { id: 8, username: 'hedy', displayName: 'Hedy Lamarr' }
+const ACTIVE_CANDIDATE: AccountView = { id: 8, username: 'hedy', displayName: 'Hedy Lamarr', disabled: false }
 
 const CANDIDATE_PAGE: AccountPage = {
   items: [ACTIVE_CANDIDATE],
@@ -70,10 +70,9 @@ type ManagerResult = AppManagerView[] | (() => AppManagerView[])
 function mountCard(
   kind: AppKind = 'oidc',
   appId = APP_ID,
-  props: { mode?: 'admin' | 'manager'; currentAccountId?: number } = {},
 ) {
   return mount(AppManagerCard, {
-    props: { kind, appId, ...props },
+    props: { kind, appId },
     global: {
       plugins: [createI18n({
         legacy: false,
@@ -94,7 +93,7 @@ function mockGets(
     if (path.endsWith('/managers')) {
       return typeof managers === 'function' ? managers() : managers
     }
-    if (path.startsWith('/api/prohibitorum/managed-applications/manager-candidates')) return accounts
+    if (path.startsWith('/api/prohibitorum/accounts?')) return accounts
     throw new Error(`Unexpected GET ${path}`)
   })
 }
@@ -184,8 +183,8 @@ describe('AppManagerCard', () => {
     expect(
       get.mock.calls
         .map(([path]) => String(path))
-        .filter((path) => path.startsWith('/api/prohibitorum/managed-applications/manager-candidates')),
-    ).toEqual(['/api/prohibitorum/managed-applications/manager-candidates?q=Ada%20Lovelace'])
+        .filter((path) => path.startsWith('/api/prohibitorum/accounts?')),
+    ).toEqual(['/api/prohibitorum/accounts?q=Ada%20Lovelace&limit=100'])
     expect(withSudo).not.toHaveBeenCalled()
   })
 
@@ -196,7 +195,7 @@ describe('AppManagerCard', () => {
     })
     get.mockImplementation(async (path: string) => {
       if (path.endsWith('/managers')) return []
-      if (path.startsWith('/api/prohibitorum/managed-applications/manager-candidates')) return accountsResponse
+      if (path.startsWith('/api/prohibitorum/accounts?')) return accountsResponse
       throw new Error(`Unexpected GET ${path}`)
     })
 
@@ -268,20 +267,6 @@ describe('AppManagerCard', () => {
     expect(post).toHaveBeenCalledWith(`${MANAGERS_ENDPOINT}/remove`, { accountId: 7 })
     expect(managerGetCalls()).toEqual([MANAGERS_ENDPOINT, MANAGERS_ENDPOINT])
     expect(wrapper.find('[data-test="manager-row-7"]').exists()).toBe(false)
-  })
-
-  it('emits self-removed without refetching inaccessible data in manager mode', async () => {
-    mockGets()
-    post.mockResolvedValue({})
-    const wrapper = mountCard('oidc', APP_ID, { mode: 'manager', currentAccountId: ACTIVE_MANAGER.id })
-    await flushPromises()
-
-    await wrapper.get('[data-test="manager-remove-7"]').trigger('click')
-    await flushPromises()
-
-    expect(post).toHaveBeenCalledWith(`${MANAGERS_ENDPOINT}/remove`, { accountId: ACTIVE_MANAGER.id })
-    expect(wrapper.emitted('self-removed')).toEqual([[]])
-    expect(managerGetCalls()).toEqual([MANAGERS_ENDPOINT])
   })
 
   it('does not invoke the assignment mutation when sudo is cancelled', async () => {

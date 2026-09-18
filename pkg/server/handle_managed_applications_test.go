@@ -291,47 +291,6 @@ func (q *policyTestQueries) ListSAMLAccessCandidates(context.Context) ([]db.List
 	return rows, nil
 }
 
-func (q *policyTestQueries) ListOIDCManagementCandidates(context.Context) ([]db.ListOIDCManagementCandidatesRow, error) {
-	rows := make([]db.ListOIDCManagementCandidatesRow, 0, len(q.oidc))
-	for _, client := range q.oidc {
-		if client.ForwardAuthEnabled {
-			continue
-		}
-		rows = append(rows, db.ListOIDCManagementCandidatesRow{
-			ClientID: client.ClientID, DisplayName: client.DisplayName, LaunchUrl: client.LaunchUrl,
-			RedirectUris: client.RedirectUris, AccessRestricted: client.AccessRestricted,
-		})
-	}
-	sort.Slice(rows, func(i, j int) bool { return rows[i].ClientID < rows[j].ClientID })
-	return rows, nil
-}
-
-func (q *policyTestQueries) ListForwardAuthManagementCandidates(context.Context) ([]db.ListForwardAuthManagementCandidatesRow, error) {
-	rows := make([]db.ListForwardAuthManagementCandidatesRow, 0, len(q.oidc))
-	for _, client := range q.oidc {
-		if !client.ForwardAuthEnabled {
-			continue
-		}
-		rows = append(rows, db.ListForwardAuthManagementCandidatesRow{
-			ClientID: client.ClientID, DisplayName: client.DisplayName, ForwardAuthHost: client.ForwardAuthHost,
-			ForwardAuthScopes: client.ForwardAuthScopes, AccessRestricted: client.AccessRestricted,
-		})
-	}
-	sort.Slice(rows, func(i, j int) bool { return rows[i].ClientID < rows[j].ClientID })
-	return rows, nil
-}
-
-func (q *policyTestQueries) ListSAMLManagementCandidates(context.Context) ([]db.ListSAMLManagementCandidatesRow, error) {
-	rows := make([]db.ListSAMLManagementCandidatesRow, 0, len(q.saml))
-	for _, sp := range q.saml {
-		rows = append(rows, db.ListSAMLManagementCandidatesRow{
-			ID: sp.ID, EntityID: sp.EntityID, DisplayName: sp.DisplayName, AccessRestricted: sp.AccessRestricted,
-		})
-	}
-	sort.Slice(rows, func(i, j int) bool { return rows[i].ID < rows[j].ID })
-	return rows, nil
-}
-
 func (q *policyTestQueries) ListActiveAccountAccessFactsPage(_ context.Context, arg db.ListActiveAccountAccessFactsPageParams) ([]db.ListActiveAccountAccessFactsPageRow, error) {
 	rows := make([]db.ListActiveAccountAccessFactsPageRow, 0, len(q.accounts))
 	for _, account := range q.accounts {
@@ -935,69 +894,6 @@ func TestManagedApplicationRoutesAllowAssignedManagerAndAdmin(t *testing.T) {
 			})
 		}
 	}
-}
-
-func TestListManagedApplicationsIncludesAssignedNonLaunchableApps(t *testing.T) {
-	tests := []struct {
-		name    string
-		session *authn.Session
-		want    map[string]bool
-	}{
-		{
-			name:    "assigned-user",
-			session: managedAppSession(7, "user", false),
-			want: map[string]bool{
-				"oidc/wiki":                     true,
-				"forward_auth/forward":          true,
-				"oidc/disabled-oidc":            true,
-				"forward_auth/disabled-forward": true,
-				"saml/7":                        true,
-				"saml/8":                        true,
-			},
-		},
-		{name: "unassigned-user", session: managedAppSession(8, "user", false), want: map[string]bool{}},
-		{
-			name:    "global-admin",
-			session: managedAppSession(99, "admin", false),
-			want: map[string]bool{
-				"oidc/wiki":                     true,
-				"forward_auth/forward":          true,
-				"oidc/other":                    true,
-				"oidc/disabled-oidc":            true,
-				"forward_auth/disabled-forward": true,
-				"saml/7":                        true,
-				"saml/8":                        true,
-			},
-		},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			s, _, _ := newPolicyTestServer()
-			rr := managedRequest(t, s, http.MethodGet, "/api/prohibitorum/managed-applications", "", test.session)
-			if rr.Code != http.StatusOK {
-				t.Fatalf("status = %d, want 200; body: %s", rr.Code, rr.Body.String())
-			}
-			var apps []contract.AppSummaryView
-			if err := json.Unmarshal(rr.Body.Bytes(), &apps); err != nil {
-				t.Fatalf("decode managed applications: %v; body: %s", err, rr.Body.String())
-			}
-			got := make(map[string]bool, len(apps))
-			for _, app := range apps {
-				got[app.Kind+"/"+app.AppID] = true
-			}
-			if len(got) != len(test.want) {
-				t.Fatalf("managed applications = %#v, want %#v", got, test.want)
-			}
-			for app := range test.want {
-				if !got[app] {
-					t.Fatalf("managed applications = %#v, missing %q", got, app)
-				}
-			}
-		})
-	}
-
-	s, _, _ := newPolicyTestServer()
-	assertManagedAPIError(t, managedRequest(t, s, http.MethodGet, "/api/prohibitorum/managed-applications", "", managedAppSession(7, "user", true)), http.StatusForbidden, "account_disabled")
 }
 
 func TestManagedApplicationAccountsProjectPageRows(t *testing.T) {

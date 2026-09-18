@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { removeDetail, removeManagedApplication } from '@/queries/invalidation'
+import { removeDetail } from '@/queries/invalidation'
 /**
  * AdminSamlProviderDetailView (/admin/saml-applications/:id) — per-SP admin actions.
  * Edit flags (PUT); re-ingest metadata; view ACS endpoints and signing certificates
@@ -38,6 +38,7 @@ import AppManagerCard from '@/components/custom/AppManagerCard.vue'
 import AppPolicyWorkspace from '@/components/custom/AppPolicyWorkspace.vue'
 import EntityIconUpload from '@/components/custom/EntityIconUpload.vue'
 import ErrorPanel from '@/components/custom/ErrorPanel.vue'
+import { useSession } from '@/composables/useSession'
 
 interface AcsEndpoint {
   binding: string
@@ -68,14 +69,13 @@ interface SamlApplication {
 }
 
 const { t } = useI18n()
-const props = withDefaults(defineProps<{ mode?: 'admin' | 'manager'; currentAccountId?: number }>(), { mode: 'admin' })
 const route = useRoute()
 const router = useRouter()
+const auth = useSession()
 const { busy: mutationBusy, error: mutationError, run, clear: clearMutation } = useApi('saml-applications')
 
 const id = Number(route.params.id)
-const delegated = computed(() => props.mode === 'manager')
-const backPath = computed(() => delegated.value ? '/manage/applications' : '/admin/saml-applications')
+const backPath = '/admin/saml-applications'
 const queryClient = useQueryClient()
 const options = detailQuery<SamlApplication>('saml-applications', id)
 const query = useResource(options)
@@ -158,12 +158,7 @@ async function destroy(): Promise<void> {
     return true as const
   }, t('sudo.reason.deleteApp')))
   confirmDelete.value = false
-  if (ok) router.push(backPath.value)
-}
-
-async function handleSelfRemoval(): Promise<void> {
-  await removeManagedApplication(queryClient, 'saml-applications', id, 'saml', String(id))
-  await router.push(backPath.value)
+  if (ok) router.push(backPath)
 }
 
 function bindingLabel(b: string): string {
@@ -175,10 +170,10 @@ function bindingLabel(b: string): string {
 </script>
 <template>
   <div class="flex max-w-4xl flex-col gap-6">
-    <BackLink :to="backPath" :label="delegated ? t('manage.applications.back') : t('admin.saml.back')" />
-    <ErrorPanel v-if="error && !notFound" :error="error" @dismiss="clear" :is-admin="props.mode === 'admin'" />
+    <BackLink :to="backPath" :label="t('admin.saml.back')" />
+    <ErrorPanel v-if="error && !notFound" :error="error" @dismiss="clear" :is-admin="auth.isAdmin" />
     <Alert v-if="localError" variant="destructive" role="alert" aria-live="polite"><AlertDescription>{{ localError }}</AlertDescription></Alert>
-    <p v-if="notFound" class="text-sm text-muted" role="status">{{ delegated ? t('manage.applications.notFound') : t('admin.saml.notFound') }}</p>
+    <p v-if="notFound" class="text-sm text-muted" role="status">{{ t('admin.saml.notFound') }}</p>
 
     <CardSkeleton v-else-if="busy && !sp" />
 
@@ -272,13 +267,11 @@ function bindingLabel(b: string): string {
       />
 
       <AppManagerCard
+        v-if="auth.isAdmin"
         kind="saml"
         :app-id="String(id)"
-        :mode="props.mode"
-        :current-account-id="props.currentAccountId"
-        @self-removed="handleSelfRemoval"
       />
-      <AppPolicyWorkspace kind="saml" :app-id="String(id)" :display-name="sp.displayName" :mode="props.mode" />
+      <AppPolicyWorkspace kind="saml" :app-id="String(id)" :display-name="sp.displayName" :is-admin="auth.isAdmin" />
 
       <!-- Danger zone card (kept LAST — destructive actions belong at the bottom). -->
       <Card class="border-destructive/30 bg-destructive/[0.02]">

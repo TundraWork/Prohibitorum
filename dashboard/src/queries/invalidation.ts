@@ -12,12 +12,12 @@ const projections: Partial<Record<MutationResource, QueryKey[]>> = {
   settings: [keys.config, ['session', 'settings']],
   'identity-providers': [keys.federation, keys.member('identities')],
   accounts: [keys.me, ['session', 'access'], ['session', 'me', 'credentials'], ['session', 'me', 'sessions'], ['session', 'me', 'tokens']],
-  access: [['session', 'access'], ['session', 'accounts'], ['session', 'managed-applications'], keys.member('apps'), keys.member('consent'), keys.member('forward-auth-apps')],
+  access: [['session', 'access'], ['session', 'accounts'], keys.member('apps'), keys.member('consent'), keys.member('forward-auth-apps')],
 }
 export async function invalidateResource(client: QueryClient, resource: MutationResource): Promise<void> {
   const affected: QueryKey[] = [['session', resource], ...(projections[resource] ?? [])]
   if (['oidc-applications', 'saml-applications', 'forward-auth-apps'].includes(resource)) {
-    affected.push(keys.member('apps'), keys.member('consent'), keys.member('forward-auth-apps'), ['session', 'managed-applications'])
+    affected.push(keys.member('apps'), keys.member('consent'), keys.member('forward-auth-apps'))
   }
   const unique = affected.filter((key, index) => affected.findIndex(other => JSON.stringify(other) === JSON.stringify(key)) === index)
   await Promise.all(unique.map(queryKey => client.invalidateQueries({ queryKey })))
@@ -29,21 +29,4 @@ export async function removeDetail(client: QueryClient, resource: Collection, id
   await client.cancelQueries({ queryKey })
   for (const query of client.getQueryCache().findAll({ queryKey })) query.reset()
   client.removeQueries({ queryKey })
-}
-
-/** Remove every cached view of an application after delegated access is revoked. */
-export async function removeManagedApplication(
-  client: QueryClient,
-  resource: Extract<Collection, 'oidc-applications' | 'saml-applications' | 'forward-auth-apps'>,
-  id: string | number,
-  kind: 'oidc' | 'saml' | 'forward_auth',
-  appId: string,
-): Promise<void> {
-  const queryKeys: QueryKey[] = [
-    keys.detail(resource, id),
-    ['session', 'access', kind, appId],
-    ['session', 'managed-applications'],
-  ]
-  await Promise.all(queryKeys.map(queryKey => client.cancelQueries({ queryKey })))
-  for (const queryKey of queryKeys) client.removeQueries({ queryKey })
 }

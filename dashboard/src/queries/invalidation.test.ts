@@ -3,7 +3,7 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { defineComponent } from 'vue'
 import { useResource } from '@/composables/useResource'
 import { memberQuery, keys } from './resources'
-import { invalidateResource, removeDetail, removeManagedApplication } from './invalidation'
+import { invalidateResource, removeDetail } from './invalidation'
 import { testQueryClient } from '@/testSetup'
 import { api } from '@/lib/api'
 vi.mock('@/lib/api', () => ({ api: { get: vi.fn() } }))
@@ -30,22 +30,5 @@ describe('resource dependencies', () => {
     finish(['old']); await pending
     expect(testQueryClient.getQueryData(queryKey)).toBeUndefined()
     expect(testQueryClient.getQueryData(keys.detail('accounts', 8))).toEqual({ id: 8 })
-  })
-  it('removes every cached view of an application after delegated access is revoked', async () => {
-    const detail = keys.detail('oidc-applications', 'wiki')
-    const access = ['session', 'access', 'oidc', 'wiki'] as const
-    const otherAccess = ['session', 'access', 'oidc', 'other'] as const
-    const managed = ['session', 'managed-applications'] as const
-    testQueryClient.setQueryData(detail, { clientId: 'wiki' })
-    testQueryClient.setQueryData([...access, 'groups'], [{ id: 1 }])
-    testQueryClient.setQueryData(otherAccess, { keep: true })
-    testQueryClient.setQueryData(managed, [{ id: 'wiki' }])
-
-    await removeManagedApplication(testQueryClient, 'oidc-applications', 'wiki', 'oidc', 'wiki')
-
-    expect(testQueryClient.getQueryData(detail)).toBeUndefined()
-    expect(testQueryClient.getQueryData([...access, 'groups'])).toBeUndefined()
-    expect(testQueryClient.getQueryData(managed)).toBeUndefined()
-    expect(testQueryClient.getQueryData(otherAccess)).toEqual({ keep: true })
   })
 })

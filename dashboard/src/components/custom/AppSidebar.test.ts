@@ -29,7 +29,6 @@ function makeRouter() {
       { path: '/app-access', component: stub },
       { path: '/tokens', component: stub },
       { path: '/logout', component: stub },
-      { path: '/manage/applications', component: stub },
       { path: '/admin/accounts', component: stub },
       { path: '/admin/invitations', component: stub },
       { path: '/admin/groups', component: stub },
@@ -63,6 +62,9 @@ describe('AppSidebar', () => {
     expect(links).toContain('/sessions')
     expect(links).toContain('/connected')
     expect(links).toContain('/devices')
+    expect(links).toContain('/admin/oidc-applications')
+    expect(links).toContain('/admin/saml-applications')
+    expect(links).toContain('/admin/forward-auth-apps')
     // The launcher home is reachable from the sidebar via the "Apps" return item.
     expect(wrapper.find('[data-test="nav-apps"]').attributes('href')).toBe('/')
     expect(links).not.toContain('/logout')  // sign-out is now inside the account menu
@@ -89,28 +91,24 @@ describe('AppSidebar', () => {
     expect(links).toContain('/admin/invitations')
     expect(links).toContain('/admin/groups')
     expect(links).toContain('/admin/oidc-applications')
-    expect(links).toContain('/manage/applications')
+    expect(links).not.toContain('/manage/applications')
     expect(links).toContain('/admin/saml-applications')
     expect(links).toContain('/admin/identity-providers')
   })
 
-  it('hides the admin group for non-admins', async () => {
+  it('hides global administration but keeps application navigation for non-admins', async () => {
 
     testQueryClient.setQueryData<SessionView>(keys.me, { id: 2, username: 'bob', displayName: 'Bob Lee', role: 'user' })
     const router = makeRouter(); router.push('/'); await router.isReady()
     const wrapper = mount(Host, { global: { plugins: [router, makeI18n()], components: { AppSidebar } } })
     const links = wrapper.findAll('a').map((a) => a.attributes('href'))
     expect(links).not.toContain('/admin/accounts')
-  })
-
-  it('shows only managed-application management navigation to app managers', async () => {
-
-    testQueryClient.setQueryData<SessionView>(keys.me, { id: 3, username: 'manager', displayName: 'App Manager', role: 'app_manager' })
-    const router = makeRouter(); router.push('/manage/applications'); await router.isReady()
-    const wrapper = mount(Host, { global: { plugins: [router, makeI18n()], components: { AppSidebar } } })
-    const links = wrapper.findAll('a').map((a) => a.attributes('href'))
-    const managementLinks = links.filter((href) => href?.startsWith('/manage/') || href?.startsWith('/admin/'))
-    expect(managementLinks).toEqual(['/manage/applications'])
+    expect(links).not.toContain('/admin/invitations')
+    expect(links).not.toContain('/admin/groups')
+    expect(links).not.toContain('/admin/identity-providers')
+    expect(links).toContain('/admin/oidc-applications')
+    expect(links).toContain('/admin/saml-applications')
+    expect(links).toContain('/admin/forward-auth-apps')
   })
 
   it('renders the language switcher and theme toggle as standalone footer controls', async () => {

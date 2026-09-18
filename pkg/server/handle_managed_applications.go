@@ -13,7 +13,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"io"
 	"net/http"
-	"sort"
 	"strconv"
 
 	"prohibitorum/pkg/appaccess"
@@ -49,9 +48,6 @@ type appPolicyQueries interface {
 	ListOIDCAccessCandidates(context.Context) ([]db.ListOIDCAccessCandidatesRow, error)
 	ListForwardAuthAccessCandidates(context.Context) ([]db.ListForwardAuthAccessCandidatesRow, error)
 	ListSAMLAccessCandidates(context.Context) ([]db.ListSAMLAccessCandidatesRow, error)
-	ListOIDCManagementCandidates(context.Context) ([]db.ListOIDCManagementCandidatesRow, error)
-	ListForwardAuthManagementCandidates(context.Context) ([]db.ListForwardAuthManagementCandidatesRow, error)
-	ListSAMLManagementCandidates(context.Context) ([]db.ListSAMLManagementCandidatesRow, error)
 	ListActiveAccountAccessFactsPage(context.Context, db.ListActiveAccountAccessFactsPageParams) ([]db.ListActiveAccountAccessFactsPageRow, error)
 	ListActiveAccountAccessFacts(context.Context) ([]db.ListActiveAccountAccessFactsRow, error)
 	ListKnownUpstreamIDPDescriptors(context.Context) ([]db.ListKnownUpstreamIDPDescriptorsRow, error)
@@ -164,7 +160,6 @@ func (s *Server) registerManagedApplicationRoutes(router chiRouter) {
 	const base = "/api/prohibitorum/managed-applications"
 	req := contract.AuthRequirement{Kind: contract.AuthSession}
 
-	registerOpHTTP(router, http.MethodGet, base, req, s.handleListManagedApplicationsHTTP)
 	registerOpHTTP(router, http.MethodGet, base+"/{kind}/{appId}/access", req, s.handleManagedApplicationAccessWorkspaceHTTP)
 	s.registerAdminBodyOpHTTP(router, http.MethodPost, base+"/{kind}/{appId}/rule-preview", req, s.handlePreviewManagedRuleHTTP)
 	s.registerAdminBodyOpHTTP(router, http.MethodPost, base+"/{kind}/{appId}/access/set-restricted", req, s.handleSetManagedApplicationRestrictedHTTP)
@@ -428,93 +423,6 @@ func managedOIDCSummary(kind appaccess.AppKind, client db.OidcClient) (contract.
 	}
 	view.RedirectURIs = append([]string(nil), client.RedirectUris...)
 	return view, nil
-}
-
-func (s *Server) handleListManagedApplicationsHTTP(w http.ResponseWriter, r *http.Request) {
-	sess := authn.SessionFromContext(r.Context())
-	if sess == nil || sess.Account == nil {
-		writeAuthErr(w, authn.ErrNoSession())
-		return
-	}
-	apps, err := s.listManagedApplications(r.Context(), sess.Account.ID, sess.Account.Role)
-	if err != nil {
-		writeAuthErr(w, err)
-		return
-	}
-	writeJSON(w, apps)
-}
-
-func (s *Server) listManagedApplications(ctx context.Context, accountID int32, role string) ([]contract.AppSummaryView, error) {
-	q := s.appPolicyQ()
-	oidc, err := q.ListOIDCManagementCandidates(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("list managed OIDC applications: %w", err)
-	}
-	forward, err := q.ListForwardAuthManagementCandidates(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("list managed forward-auth applications: %w", err)
-	}
-	saml, err := q.ListSAMLManagementCandidates(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("list managed SAML applications: %w", err)
-	}
-
-	apps := make([]contract.AppSummaryView, 0, len(oidc)+len(forward)+len(saml))
-	appendIfAuthorized := func(ref appaccess.AppRef, summary contract.AppSummaryView) error {
-		if role != "admin" {
-			err := s.appPolicyEvaluator().AuthorizeManager(ctx, accountID, role, ref)
-			if errors.Is(err, appaccess.ErrAppNotFound) {
-				return nil
-			}
-			if err != nil {
-				return fmt.Errorf("authorize managed application list item: %w", err)
-			}
-		}
-		apps = append(apps, summary)
-		return nil
-	}
-	for _, row := range oidc {
-		ref := appaccess.AppRef{Kind: appaccess.KindOIDC, OIDCClientID: row.ClientID}
-		summary := contract.AppSummaryView{Kind: string(ref.Kind), AppID: row.ClientID, DisplayName: row.DisplayName, AccessRestricted: row.AccessRestricted, RedirectURIs: append([]string(nil), row.RedirectUris...)}
-		if row.LaunchUrl.Valid {
-			summary.LaunchURL = row.LaunchUrl.String
-		}
-		if err := appendIfAuthorized(ref, summary); err != nil {
-			return nil, err
-		}
-	}
-	for _, row := range forward {
-		ref := appaccess.AppRef{Kind: appaccess.KindForwardAuth, OIDCClientID: row.ClientID}
-		summary := contract.AppSummaryView{Kind: string(ref.Kind), AppID: row.ClientID, DisplayName: row.DisplayName, AccessRestricted: row.AccessRestricted}
-		if row.ForwardAuthHost.Valid {
-			summary.ForwardAuthHost = row.ForwardAuthHost.String
-		}
-		if len(row.ForwardAuthScopes) > 0 {
-			if err := json.Unmarshal(row.ForwardAuthScopes, &summary.ForwardAuthScopes); err != nil {
-				return nil, fmt.Errorf("decode forward-auth scopes for %q: %w", row.ClientID, err)
-			}
-		}
-		if err := appendIfAuthorized(ref, summary); err != nil {
-			return nil, err
-		}
-	}
-	for _, row := range saml {
-		ref := appaccess.AppRef{Kind: appaccess.KindSAML, SAMLSPID: row.ID}
-		summary := contract.AppSummaryView{Kind: string(ref.Kind), AppID: strconv.FormatInt(row.ID, 10), DisplayName: row.DisplayName, EntityID: row.EntityID, AccessRestricted: row.AccessRestricted}
-		if err := appendIfAuthorized(ref, summary); err != nil {
-			return nil, err
-		}
-	}
-	sort.Slice(apps, func(i, j int) bool {
-		if apps[i].DisplayName == apps[j].DisplayName {
-			if apps[i].Kind == apps[j].Kind {
-				return apps[i].AppID < apps[j].AppID
-			}
-			return apps[i].Kind < apps[j].Kind
-		}
-		return apps[i].DisplayName < apps[j].DisplayName
-	})
-	return apps, nil
 }
 
 func (s *Server) handleManagedApplicationAccessWorkspaceHTTP(w http.ResponseWriter, r *http.Request) {

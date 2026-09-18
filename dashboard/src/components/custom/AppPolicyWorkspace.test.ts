@@ -23,10 +23,10 @@ const workspace: AppAccessWorkspace = {
 }
 const mounted: VueWrapper[] = []
 
-function mountWorkspace(mode: 'manager' | 'admin' = 'manager') {
+function mountWorkspace(isAdmin = false) {
   const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/', component: { template: '<div />' } }, { path: '/admin/groups/:id', component: { template: '<div />' } }] })
   const wrapper = mount(AppPolicyWorkspace, {
-    props: { kind: 'oidc', appId: 'client/alpha', displayName: 'Atlas', mode },
+    props: { kind: 'oidc', appId: 'client/alpha', displayName: 'Atlas', isAdmin },
     global: { plugins: [router, createI18n({ legacy: false, locale: 'en', messages: { en } })] },
   })
   mounted.push(wrapper)
@@ -91,9 +91,9 @@ describe('AppPolicyWorkspace', () => {
   })
 
   it('shows shared group edit links only to administrators', async () => {
-    const manager = mountWorkspace('manager'); await flushPromises()
+    const manager = mountWorkspace(false); await flushPromises()
     expect(manager.find('a[href="/admin/groups/21"]').exists()).toBe(false)
-    const admin = mountWorkspace('admin'); await flushPromises()
+    const admin = mountWorkspace(true); await flushPromises()
     expect(admin.find('a[href="/admin/groups/21"]').exists()).toBe(true)
   })
 

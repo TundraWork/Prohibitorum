@@ -4609,17 +4609,29 @@ func main() {
 		if err := c.postJSON(managerPath, map[string]any{"accountId": managerMe.ID}, nil); err != nil {
 			log.Fatalf("delegated: assign manager: %v", err)
 		}
-		var managedApps []struct {
-			Kind  string `json:"kind"`
-			AppID string `json:"appId"`
+		var assignedOIDC page[struct {
+			ClientID string `json:"clientId"`
+		}]
+		if err := managerClient.get("/api/prohibitorum/oidc-applications", &assignedOIDC); err != nil {
+			log.Fatalf("delegated: OIDC assignment list: %v", err)
 		}
-		if err := managerClient.get("/api/prohibitorum/managed-applications", &managedApps); err != nil {
-			log.Fatalf("delegated: manager list: %v", err)
+		var assignedForward page[struct {
+			ClientID string `json:"clientId"`
+		}]
+		if err := managerClient.get("/api/prohibitorum/forward-auth-apps", &assignedForward); err != nil {
+			log.Fatalf("delegated: forward-auth assignment list: %v", err)
 		}
-		if len(managedApps) != 1 || managedApps[0].Kind != "oidc" || managedApps[0].AppID != policyClientID {
-			log.Fatalf("delegated: manager app list=%+v, want exactly oidc/%s", managedApps, policyClientID)
+		var assignedSAML page[struct {
+			ID int64 `json:"id"`
+		}]
+		if err := managerClient.get("/api/prohibitorum/saml-applications", &assignedSAML); err != nil {
+			log.Fatalf("delegated: SAML assignment list: %v", err)
 		}
-		log.Printf("  user assignment list is exactly oidc/%s ✓", policyClientID)
+		if len(assignedOIDC.Items) != 1 || assignedOIDC.Items[0].ClientID != policyClientID ||
+			len(assignedForward.Items) != 0 || len(assignedSAML.Items) != 0 {
+			log.Fatalf("delegated: protocol lists OIDC=%+v forward=%+v SAML=%+v, want only OIDC %s", assignedOIDC.Items, assignedForward.Items, assignedSAML.Items, policyClientID)
+		}
+		log.Printf("  user protocol lists contain only assigned OIDC app %s ✓", policyClientID)
 
 		step(fmt.Sprintf("delegated %d/%d — manager controls the assigned protocol object but cannot enumerate another app", 3, nDelegated))
 		expectStatus(managerClient, http.MethodGet,
@@ -4651,7 +4663,7 @@ func main() {
 		}
 		log.Printf("  unassigned app → 404; assigned OIDC detail + sudo-gated update succeeded ✓")
 
-		step(fmt.Sprintf("delegated %d/%d — admin creates global groups and manager selects them without definition access", 4, nDelegated))
+		step(fmt.Sprintf("delegated %d/%d — admin prepares manager-owned and existing app groups; manager selects their union", 4, nDelegated))
 		type appGroup struct {
 			ID                  int32  `json:"id"`
 			Kind                string `json:"kind"`
@@ -4687,6 +4699,19 @@ func main() {
 			"kind": "rule", "slug": avatarRule2Slug, "displayName": "Smoke avatar rule two",
 			"description": "Second matching exposed rule", "exposedToDownstream": true, "rule": avatarRule,
 		})
+		decisionPath := fmt.Sprintf("/api/prohibitorum/groups/%d/decisions", manualGroup.ID)
+		clearDecisionPath := decisionPath + "/clear"
+		if err := c.postJSON(decisionPath, map[string]any{
+			"accountId": managerMe.ID,
+			"effect":    "allow",
+		}, nil); err != nil {
+			log.Fatalf("delegated: add manager to selectable manual group: %v", err)
+		}
+		if err := c.putJSON(policyBase+"/groups", map[string]any{
+			"groupIds": []int32{ruleGroup1.ID, ruleGroup2.ID},
+		}, nil); err != nil {
+			log.Fatalf("delegated: prelink application rule groups: %v", err)
+		}
 		expectStatus(managerClient, http.MethodPost, "/api/prohibitorum/groups",
 			map[string]any{"kind": "manual", "slug": "forbidden", "displayName": "Forbidden"},
 			http.StatusForbidden, "delegated global group definition write")
@@ -4701,10 +4726,8 @@ func main() {
 		if manualGroup.Kind != "manual" || ruleGroup1.Kind != "rule" || ruleGroup2.Kind != "rule" {
 			log.Fatalf("delegated: unexpected group kinds: %+v %+v %+v", manualGroup, ruleGroup1, ruleGroup2)
 		}
-		log.Printf("  global manual id=%d + rule ids=%d,%d selected; manager definition write denied ✓", manualGroup.ID, ruleGroup1.ID, ruleGroup2.ID)
+		log.Printf("  manager-owned manual id=%d + existing rule ids=%d,%d selected; manager definition write denied ✓", manualGroup.ID, ruleGroup1.ID, ruleGroup2.ID)
 
-		decisionPath := fmt.Sprintf("/api/prohibitorum/groups/%d/decisions", manualGroup.ID)
-		clearDecisionPath := decisionPath + "/clear"
 		expectStatus(managerClient, http.MethodPost, decisionPath,
 			map[string]any{"accountId": memberMe.ID, "effect": "allow"},
 			http.StatusForbidden, "delegated global decision write")
@@ -5055,16 +5078,15 @@ func main() {
 		registerForwardAuthApp(c, faClient2, faHost2, "Smoke FA 2")
 		checkForwardAuthLoginContext(*baseURL, faHost1, "Smoke FA")
 		log.Printf("  forward-auth apps registered: %s (host=%s), %s (host=%s) ✓", faClient, faHost1, faClient2, faHost2)
-		// Regression (PHB-4): upload an icon for faClient (FA apps are
-		// oidc_client icon owners), then require the FA PUT response itself to
+		// Regression (PHB-4): upload an icon for faClient, then require the FA PUT response itself to
 		// carry iconUrl (pre-fix it is absent). The icon PUT enforces fresh sudo
 		// in-handler; this block's elevation covers it.
 		faIconBuf := bytes.Buffer{}
 		if err := png.Encode(&faIconBuf, image.NewRGBA(image.Rect(0, 0, 12, 8))); err != nil {
 			log.Fatalf("pat: encode FA icon PNG: %v", err)
 		}
-		if err := c.putEntityIconPNG("/api/prohibitorum/oidc-applications/"+faClient+"/icon", faIconBuf.Bytes()); err != nil {
-			log.Fatalf("pat: PUT oidc-applications/%s/icon: %v", faClient, err)
+		if err := c.putEntityIconPNG("/api/prohibitorum/forward-auth-apps/"+faClient+"/icon", faIconBuf.Bytes()); err != nil {
+			log.Fatalf("pat: PUT forward-auth-apps/%s/icon: %v", faClient, err)
 		}
 		// Set faClient's admin-defined scope vocabulary via the FA-app PUT.
 		// The PUT requires displayName + host (else it would blank them), so
@@ -6583,7 +6605,8 @@ func (c *client) putJSONRaw(path string, body any) (*http.Response, error) {
 }
 
 // putEntityIconPNG PUTs a raw PNG body to an entity-icon endpoint
-// (/oidc-applications/{id}/icon, /saml-applications/{id}/icon). The icon PUTs
+// (/oidc-applications/{id}/icon, /forward-auth-apps/{id}/icon, or
+// /saml-applications/{id}/icon). The icon PUTs
 // are registered via registerOpHTTP with fresh-sudo enforced in-handler (the
 // sudo wrapper rejects non-JSON bodies), so they need the raw request shape —
 // image/png content type with session cookies — instead of putJSON.

@@ -27,6 +27,7 @@ import FormSection from '@/components/custom/FormSection.vue'
 import EmptyState from '@/components/custom/EmptyState.vue'
 import ErrorPanel from '@/components/custom/ErrorPanel.vue'
 import PaginationControls from '@/components/custom/PaginationControls.vue'
+import { useSession } from '@/composables/useSession'
 import { Building2 } from 'lucide-vue-next'
 
 const POST_URN = 'urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST'
@@ -54,6 +55,7 @@ interface AcsRow {
 
 const { t } = useI18n()
 const router = useRouter()
+const auth = useSession()
 const { busy, run, error, clear } = useApi('saml-applications')
 
 const page = useCursorPage<SamlApplication>('saml-applications')
@@ -161,12 +163,12 @@ async function create(): Promise<void> {
   <div class="flex max-w-4xl flex-col gap-6">
     <div class="flex items-center justify-between gap-4">
       <h1 class="text-2xl font-semibold tracking-tight text-ink">{{ t('admin.saml.title') }}</h1>
-      <Button type="button" data-test="create" @click="openCreate">{{ t('admin.saml.create') }}</Button>
+      <Button v-if="auth.isAdmin" type="button" data-test="create" @click="openCreate">{{ t('admin.saml.create') }}</Button>
     </div>
-    <ErrorPanel :error="displayError" @dismiss="clearError" :is-admin="true" />
+    <ErrorPanel :error="displayError" @dismiss="clearError" :is-admin="auth.isAdmin" />
     <StatusMessage :show="created">{{ t('admin.saml.created') }}</StatusMessage>
 
-    <Card v-if="createOpen">
+    <Card v-if="auth.isAdmin && createOpen">
       <CardHeader><CardTitle>{{ t('admin.saml.createTitle') }}</CardTitle></CardHeader>
       <CardContent class="flex flex-col gap-4 py-4">
         <!-- Mode toggle (segmented control) -->

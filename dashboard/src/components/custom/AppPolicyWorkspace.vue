@@ -14,7 +14,7 @@ import ErrorPanel from '@/components/custom/ErrorPanel.vue'
 import ProtocolBadge from '@/components/custom/ProtocolBadge.vue'
 import StatusBadge from '@/components/custom/StatusBadge.vue'
 
-const props = defineProps<{ kind: AppKind; appId: string; displayName: string; mode: 'manager' | 'admin' }>()
+const props = defineProps<{ kind: AppKind; appId: string; displayName: string; isAdmin: boolean }>()
 const { t } = useI18n()
 const mutation = useApi('access')
 const search = ref('')
@@ -30,7 +30,7 @@ const catalog = computed(() => {
   for (const group of workspace.value?.groups ?? []) byId.set(group.id, group)
   return [...byId.values()].sort((a, b) => a.displayName.localeCompare(b.displayName) || a.id - b.id)
 })
-const notFound = computed(() => props.mode === 'manager' && workspaceQuery.error.value?.code === 'client_not_found')
+const notFound = computed(() => workspaceQuery.error.value?.code === 'client_not_found')
 const filtered = computed(() => {
   const query = search.value.trim().toLocaleLowerCase()
   if (!query) return catalog.value
@@ -62,13 +62,13 @@ async function setRestricted(restricted: boolean): Promise<void> {
     <div v-if="workspace" class="flex flex-wrap items-start justify-between gap-3">
       <div><div class="mb-2 flex items-center gap-2"><ProtocolBadge :kind="kind" /><StatusBadge :variant="workspace.accessRestricted ? 'caution' : 'success'">{{ workspace.accessRestricted ? t('manage.applications.restricted') : t('manage.applications.open') }}</StatusBadge></div><h1 class="text-2xl font-semibold tracking-tight text-ink">{{ workspace.app.displayName || displayName }}</h1><p class="mt-1 text-sm text-muted">{{ t('manage.applications.detailSubtitle') }}</p></div>
     </div>
-    <ErrorPanel v-if="!notFound" :error="workspaceQuery.error.value ?? catalogQuery.error.value ?? mutation.error.value" :is-admin="mode === 'admin'" @dismiss="workspaceQuery.clear(); catalogQuery.clear(); mutation.clear()" />
+    <ErrorPanel v-if="!notFound" :error="workspaceQuery.error.value ?? catalogQuery.error.value ?? mutation.error.value" :is-admin="isAdmin" @dismiss="workspaceQuery.clear(); catalogQuery.clear(); mutation.clear()" />
     <Card v-if="notFound"><CardContent class="py-6 text-sm text-muted">{{ t('manage.applications.notFound') }}</CardContent></Card>
     <template v-else-if="workspace">
       <Card><CardHeader><CardTitle>{{ t('manage.applications.accessTitle') }}</CardTitle><CardDescription>{{ workspace.accessRestricted ? t('manage.applications.restrictedDescription') : t('manage.applications.openDescription') }}</CardDescription></CardHeader><CardContent class="flex items-center justify-between gap-4 py-4"><span class="text-sm font-medium">{{ t('manage.applications.restricted') }}</span><Switch :model-value="workspace.accessRestricted" :disabled="mutation.busy.value" @update:model-value="setRestricted" /></CardContent></Card>
       <Card><CardHeader><CardTitle>{{ t('manage.applications.globalGroups') }}</CardTitle><CardDescription>{{ t('manage.applications.globalGroupsDescription') }}</CardDescription></CardHeader><CardContent class="flex flex-col gap-4 py-4">
         <Input v-model="search" type="search" :placeholder="t('manage.applications.searchGroups')" />
-        <div v-if="filtered.length" class="grid gap-2" data-test="group-selector"><label v-for="group in filtered" :key="group.id" class="flex cursor-pointer items-start gap-3 rounded-md border border-border p-3 hover:bg-subtle"><input class="mt-1 size-4" type="checkbox" :checked="selectedSet.has(group.id)" @change="toggleGroup(group.id, ($event.target as HTMLInputElement).checked)" /><span class="min-w-0 flex-1"><span class="flex flex-wrap items-center gap-2"><strong class="text-sm text-ink">{{ group.displayName }}</strong><StatusBadge variant="neutral">{{ group.kind }}</StatusBadge></span><span class="block text-xs text-muted">{{ group.slug }} · #{{ group.id }}</span><span v-if="group.description" class="mt-1 block text-sm text-muted">{{ group.description }}</span></span><RouterLink v-if="mode === 'admin'" :to="`/admin/groups/${group.id}`" class="text-sm text-ember hover:underline" @click.stop>{{ t('common.edit') }}</RouterLink></label></div>
+        <div v-if="filtered.length" class="grid gap-2" data-test="group-selector"><label v-for="group in filtered" :key="group.id" class="flex cursor-pointer items-start gap-3 rounded-md border border-border p-3 hover:bg-subtle"><input class="mt-1 size-4" type="checkbox" :checked="selectedSet.has(group.id)" @change="toggleGroup(group.id, ($event.target as HTMLInputElement).checked)" /><span class="min-w-0 flex-1"><span class="flex flex-wrap items-center gap-2"><strong class="text-sm text-ink">{{ group.displayName }}</strong><StatusBadge variant="neutral">{{ group.kind }}</StatusBadge></span><span class="block text-xs text-muted">{{ group.slug }} · #{{ group.id }}</span><span v-if="group.description" class="mt-1 block text-sm text-muted">{{ group.description }}</span></span><RouterLink v-if="isAdmin" :to="`/admin/groups/${group.id}`" class="text-sm text-ember hover:underline" @click.stop>{{ t('common.edit') }}</RouterLink></label></div>
         <p v-else class="text-sm text-muted">{{ t('manage.applications.noGlobalGroups') }}</p><div class="flex justify-end"><Button type="button" data-test="save-groups" :disabled="!dirty || mutation.busy.value" @click="saveGroups">{{ t('manage.applications.saveGroups') }}</Button></div>
       </CardContent></Card>
     </template>

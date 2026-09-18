@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
 import en from '@/locales/en'
+const { session } = vi.hoisted(() => ({ session: { isAdmin: true } }))
+vi.mock('@/composables/useSession', () => ({ useSession: () => session }))
 vi.mock('@/lib/api', () => ({ api: { get: vi.fn(), post: vi.fn(), put: vi.fn() } }))
 import { api } from '@/lib/api'
 vi.mock('@/lib/sudo', () => ({ withSudo: (fn: () => Promise<unknown>) => fn() }))
@@ -11,14 +13,21 @@ vi.mock('vue-router', () => ({ useRouter: () => ({ push }) }))
 import AdminOidcClientsView from './AdminOidcClientsView.vue'
 
 const i18n = () => createI18n({ legacy: false, locale: 'en', fallbackLocale: 'en', messages: { en } })
-const mountView = () => mount(AdminOidcClientsView, { global: { plugins: [i18n()] }, attachTo: document.body })
+const mountView = (isAdmin = true) => { session.isAdmin = isAdmin; return mount(AdminOidcClientsView, { global: { plugins: [i18n()] }, attachTo: document.body }) }
 const CLIENTS = [
   { clientId: 'web', displayName: 'Web App', redirectUris: ['https://w/cb'], postLogoutRedirectUris: [], allowedScopes: ['openid'], clientAuthMethod: 'client_secret', requirePkce: true, requireConsent: true, disabled: false, createdAt: '2026-01-01T00:00:00Z' },
   { clientId: 'spa', displayName: 'SPA', redirectUris: ['https://s/cb'], postLogoutRedirectUris: [], allowedScopes: ['openid'], clientAuthMethod: 'none', requirePkce: true, requireConsent: false, disabled: false, createdAt: '2026-01-02T00:00:00Z' },
 ]
-beforeEach(() => { get.mockReset(); post.mockReset(); push.mockReset() })
+beforeEach(() => { session.isAdmin = true; get.mockReset(); post.mockReset(); push.mockReset() })
 
 describe('AdminOidcClientsView', () => {
+  it('hides creation from non-admin users while keeping the assigned list available', async () => {
+    get.mockResolvedValue({ items: [], nextCursor: '' })
+    const w = mountView(false); await flushPromises()
+    expect(w.find('[data-test="create"]').exists()).toBe(false)
+    expect(w.text()).toContain(en.admin.oidc.empty)
+  })
+
   it('submits restricted access and resets it when reopening creation', async () => {
     vi.mocked(api.get).mockResolvedValue({ items: [], nextCursor: '' })
     vi.mocked(api.post).mockResolvedValue({ clientId: 'new', id: 2 })

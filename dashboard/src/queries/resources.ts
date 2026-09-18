@@ -49,8 +49,6 @@ export const memberQuery = <T>(resource: MemberResource) => queryOptions({
 })
 export const federationQuery = <T>() => queryOptions({ queryKey: keys.federation, queryFn: ({ signal }) => api.get<T>(prefix + 'auth/federation', { signal }) })
 
-export const managedApplicationsQuery = <T>() => queryOptions({ queryKey: ['session', 'managed-applications'], staleTime: 0, queryFn: ({ signal }) => api.get<T>(prefix + 'managed-applications', { signal }) })
-
 export const accountSectionQuery = <T>(id: number, section: 'credentials' | 'sessions' | 'tokens' | 'identities') => queryOptions({ queryKey: ['session', 'accounts', 'detail', id, section], staleTime: 0, queryFn: ({ signal }) => api.get<T>(buildPagePath(prefix + 'accounts/' + id + '/' + section, section === 'identities' ? {} : { limit: 100 }), { signal }) })
 
 export const settingsQuery = <T>(section: 'client-ip') => queryOptions({ queryKey: ['session', 'settings', section], queryFn: ({ signal }) => api.get<T>(prefix + 'admin/settings/' + section, { signal }) })

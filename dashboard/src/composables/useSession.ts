@@ -16,7 +16,6 @@ export function useSession() {
   return reactive({
     me: computed(() => session.data.value ?? null),
     isAdmin: computed(() => session.data.value?.role === 'admin'),
-    isAppManager: computed(() => ['admin', 'app_manager'].includes(session.data.value?.role ?? '')),
     avatarBusy: computed(() => session.data.value?.avatarPending === true && !avatar.error.value),
     error: computed(() => session.error.value ?? avatar.error.value),
     retry: () => session.refetch(),

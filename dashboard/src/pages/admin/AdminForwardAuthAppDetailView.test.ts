@@ -3,6 +3,8 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
 import en from '@/locales/en'
 
+const { session } = vi.hoisted(() => ({ session: { isAdmin: true } }))
+vi.mock('@/composables/useSession', () => ({ useSession: () => session }))
 vi.mock('@/lib/api', () => ({ api: { get: vi.fn(), post: vi.fn(), put: vi.fn() } }))
 import { api } from '@/lib/api'
 const { withSudo } = vi.hoisted(() => ({ withSudo: vi.fn((fn: () => Promise<unknown>) => fn()) }))
@@ -22,8 +24,8 @@ import AdminForwardAuthAppDetailView from './AdminForwardAuthAppDetailView.vue'
 const integrationStubs = {
   RouterLink: { props: ['to'], template: '<a :href="to"><slot/></a>' },
   AppPolicyWorkspace: {
-    props: ['kind', 'appId', 'mode'],
-    template: '<section data-test="app-policy-workspace" :data-kind="kind" :data-app-id="appId" :data-mode="mode"></section>',
+    props: ['kind', 'appId', 'isAdmin'],
+    template: '<section data-test="app-policy-workspace" :data-kind="kind" :data-app-id="appId" :data-is-admin="isAdmin"></section>',
   },
   AppManagerCard: {
     props: ['kind', 'appId'],
@@ -34,13 +36,16 @@ const integrationStubs = {
     template: '<section data-test="entity-icon-upload" :data-base-path="basePath"></section>',
   },
 }
-const mountView = () => mount(AdminForwardAuthAppDetailView, {
+const mountView = (isAdmin = true) => {
+  session.isAdmin = isAdmin
+  return mount(AdminForwardAuthAppDetailView, {
   global: {
     plugins: [createI18n({ legacy: false, locale: 'en', fallbackLocale: 'en', messages: { en } })],
     stubs: integrationStubs,
   },
   attachTo: document.body,
-})
+  })
+}
 const APP = {
   clientId: 'edge',
   displayName: 'Edge Proxy',
@@ -53,6 +58,7 @@ const APP = {
 }
 
 beforeEach(() => {
+  session.isAdmin = true
   get.mockReset()
   post.mockReset()
   put.mockReset()
@@ -127,7 +133,7 @@ describe('AdminForwardAuthAppDetailView', () => {
     const workspace = w.get('[data-test="app-policy-workspace"]')
     expect(workspace.attributes('data-kind')).toBe('forward_auth')
     expect(workspace.attributes('data-app-id')).toBe('edge')
-    expect(workspace.attributes('data-mode')).toBe('admin')
+    expect(workspace.attributes('data-is-admin')).toBe('true')
 
     const managerCard = w.get('[data-test="app-manager-card"]')
     expect(managerCard.attributes('data-kind')).toBe('forward_auth')
@@ -137,5 +143,14 @@ describe('AdminForwardAuthAppDetailView', () => {
     const configCard = w.findAll('[data-slot="card"]').find((card) => card.find('[data-test="save"]').exists())
     expect(configCard).toBeTruthy()
     expect(configCard!.find('[data-test="app-manager-card"]').exists()).toBe(false)
+  })
+
+  it('keeps configuration and policy controls but hides manager assignment for an assigned non-admin', async () => {
+    get.mockResolvedValue(APP)
+    const w = mountView(false); await flushPromises()
+    expect(w.find('input[name="host"]').exists()).toBe(true)
+    expect(w.find('[data-test="save"]').exists()).toBe(true)
+    expect(w.get('[data-test="app-policy-workspace"]').attributes('data-is-admin')).toBe('false')
+    expect(w.find('[data-test="app-manager-card"]').exists()).toBe(false)
   })
 })

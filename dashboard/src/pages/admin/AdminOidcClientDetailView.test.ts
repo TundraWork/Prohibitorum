@@ -2,7 +2,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
 import en from '@/locales/en'
-import { testQueryClient } from '@/testSetup'
+const { session } = vi.hoisted(() => ({ session: { isAdmin: true } }))
+vi.mock('@/composables/useSession', () => ({ useSession: () => session }))
 vi.mock('@/lib/api', () => ({ api: { get: vi.fn(), post: vi.fn(), put: vi.fn() } }))
 import { api } from '@/lib/api'
 const { withSudo } = vi.hoisted(() => ({ withSudo: vi.fn((fn: () => Promise<unknown>) => fn()) }))
@@ -16,22 +17,21 @@ const i18n = () => createI18n({ legacy: false, locale: 'en', fallbackLocale: 'en
 const integrationStubs = {
   RouterLink: { props: ['to'], template: '<a :href="to"><slot/></a>' },
   AppPolicyWorkspace: {
-    props: ['kind', 'appId', 'mode'],
-    template: '<section data-test="app-policy-workspace" :data-kind="kind" :data-app-id="appId" :data-mode="mode"></section>',
+    props: ['kind', 'appId', 'isAdmin'],
+    template: '<section data-test="app-policy-workspace" :data-kind="kind" :data-app-id="appId" :data-is-admin="isAdmin"></section>',
   },
   AppManagerCard: {
-    props: ['kind', 'appId', 'mode', 'currentAccountId'],
-    emits: ['self-removed'],
-    template: '<section data-test="app-manager-card" :data-kind="kind" :data-app-id="appId" :data-mode="mode" :data-account-id="currentAccountId"><button data-test="self-remove" @click="$emit(\'self-removed\')" /></section>',
+    props: ['kind', 'appId'],
+    template: '<section data-test="app-manager-card" :data-kind="kind" :data-app-id="appId"></section>',
   },
 }
-const mountView = (props: { mode?: 'admin' | 'manager'; currentAccountId?: number } = {}) => mount(AdminOidcClientDetailView, { props, global: { plugins: [i18n()], stubs: integrationStubs }, attachTo: document.body })
+const mountView = (isAdmin = true) => { session.isAdmin = isAdmin; return mount(AdminOidcClientDetailView, { global: { plugins: [i18n()], stubs: integrationStubs }, attachTo: document.body }) }
 const CLIENT = { clientId: 'web', displayName: 'Web App', redirectUris: ['https://w/cb'], postLogoutRedirectUris: [], allowedScopes: ['openid', 'profile'], clientAuthMethod: 'client_secret', requirePkce: true, requireConsent: true, disabled: false, subjectSource: 'sub' as const, claimAliases: { handle: 'preferred_username' }, createdAt: '2026-01-01T00:00:00Z' }
 function clickConfirm(label: string) {
   const b = Array.from(document.body.querySelectorAll('button')).filter((x) => x.getAttribute('data-variant') === 'destructive' && x.textContent?.includes(label))
   b[b.length - 1]!.click()
 }
-beforeEach(() => { get.mockReset(); post.mockReset(); put.mockReset(); push.mockReset(); withSudo.mockClear() })
+beforeEach(() => { session.isAdmin = true; get.mockReset(); post.mockReset(); put.mockReset(); push.mockReset(); withSudo.mockClear() })
 
 describe('AdminOidcClientDetailView', () => {
   it('loads the client and saves config via PUT (allowedScopes)', async () => {
@@ -152,7 +152,7 @@ describe('AdminOidcClientDetailView', () => {
     const workspace = w.get('[data-test="app-policy-workspace"]')
     expect(workspace.attributes('data-kind')).toBe('oidc')
     expect(workspace.attributes('data-app-id')).toBe('web')
-    expect(workspace.attributes('data-mode')).toBe('admin')
+    expect(workspace.attributes('data-is-admin')).toBe('true')
 
     const managerCard = w.get('[data-test="app-manager-card"]')
     expect(managerCard.attributes('data-kind')).toBe('oidc')
@@ -163,20 +163,13 @@ describe('AdminOidcClientDetailView', () => {
     expect(configCard!.find('[data-test="app-manager-card"]').exists()).toBe(false)
   })
 
-  it('clears delegated application data and returns to the list after self-removal', async () => {
+  it('keeps configuration and policy controls but hides manager assignment for an assigned non-admin', async () => {
     get.mockResolvedValue(CLIENT)
-    const accessKey = ['session', 'access', 'oidc', 'web', 'groups'] as const
-    const managedKey = ['session', 'managed-applications'] as const
-    testQueryClient.setQueryData(accessKey, [{ id: 4 }])
-    testQueryClient.setQueryData(managedKey, [{ appId: 'web' }])
-    const w = mountView({ mode: 'manager', currentAccountId: 7 }); await flushPromises()
-
-    await w.get('[data-test="self-remove"]').trigger('click'); await flushPromises()
-
-    expect(push).toHaveBeenCalledWith('/manage/applications')
-    expect(testQueryClient.getQueryData(['session', 'oidc-applications', 'detail', 'web'])).toBeUndefined()
-    expect(testQueryClient.getQueryData(accessKey)).toBeUndefined()
-    expect(testQueryClient.getQueryData(managedKey)).toBeUndefined()
+    const w = mountView(false); await flushPromises()
+    expect(w.find('input[name="displayName"]').exists()).toBe(true)
+    expect(w.find('[data-test="save"]').exists()).toBe(true)
+    expect(w.get('[data-test="app-policy-workspace"]').attributes('data-is-admin')).toBe('false')
+    expect(w.find('[data-test="app-manager-card"]').exists()).toBe(false)
   })
 
   it('requirePkce loads from the client and ships in the PUT body', async () => {

@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
 import en from '@/locales/en'
+const { session } = vi.hoisted(() => ({ session: { isAdmin: true } }))
+vi.mock('@/composables/useSession', () => ({ useSession: () => session }))
 vi.mock('@/lib/api', () => ({ api: { get: vi.fn(), post: vi.fn(), put: vi.fn() } }))
 import { api } from '@/lib/api'
 vi.mock('@/lib/sudo', () => ({ withSudo: (fn: () => Promise<unknown>) => fn() }))
@@ -15,18 +17,18 @@ const i18n = () => createI18n({ legacy: false, locale: 'en', fallbackLocale: 'en
 const integrationStubs = {
   RouterLink: { props: ['to'], template: '<a :href="to"><slot/></a>' },
   AppPolicyWorkspace: {
-    props: ['kind', 'appId', 'mode'],
-    template: '<section data-test="app-policy-workspace" :data-kind="kind" :data-app-id="appId" :data-mode="mode"></section>',
+    props: ['kind', 'appId', 'isAdmin'],
+    template: '<section data-test="app-policy-workspace" :data-kind="kind" :data-app-id="appId" :data-is-admin="isAdmin"></section>',
   },
   AppManagerCard: {
     props: ['kind', 'appId'],
     template: '<section data-test="app-manager-card" :data-kind="kind" :data-app-id="appId"></section>',
   },
 }
-const mountView = () => mount(AdminSamlProviderDetailView, { global: { plugins: [i18n()], stubs: integrationStubs }, attachTo: document.body })
+const mountView = (isAdmin = true) => { session.isAdmin = isAdmin; return mount(AdminSamlProviderDetailView, { global: { plugins: [i18n()], stubs: integrationStubs }, attachTo: document.body }) }
 const SP = { id: 5, entityId: 'https://sp/meta', displayName: 'GHES', nameIdFormat: 'persistent', attributeMap: [{ name: 'USERNAME', name_format: 'urn:oasis:names:tc:SAML:2.0:attrname-format:basic', source: 'username', multi: false }], requireSignedAuthnRequest: false, allowIdpInitiated: true, disabled: false, sessionLifetimeSecs: 3600, acs: [{ binding: 'urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST', location: 'https://sp/acs', index: 0, isDefault: true }], keys: [{ use: 'signing', notAfter: '2027-01-01T00:00:00Z' }], createdAt: '2026-01-01T00:00:00Z' }
 function clickConfirm(label: string) { const b = Array.from(document.body.querySelectorAll('button')).filter((x) => x.getAttribute('data-variant') === 'destructive' && x.textContent?.includes(label)); b[b.length - 1]!.click() }
-beforeEach(() => { get.mockReset(); post.mockReset(); put.mockReset(); push.mockReset() })
+beforeEach(() => { session.isAdmin = true; get.mockReset(); post.mockReset(); put.mockReset(); push.mockReset() })
 
 describe('AdminSamlProviderDetailView', () => {
   it('loads the SP, shows ACS, saves flags via PUT', async () => {
@@ -117,7 +119,7 @@ describe('AdminSamlProviderDetailView', () => {
     const workspace = w.get('[data-test="app-policy-workspace"]')
     expect(workspace.attributes('data-kind')).toBe('saml')
     expect(workspace.attributes('data-app-id')).toBe('5')
-    expect(workspace.attributes('data-mode')).toBe('admin')
+    expect(workspace.attributes('data-is-admin')).toBe('true')
 
     const managerCard = w.get('[data-test="app-manager-card"]')
     expect(managerCard.attributes('data-kind')).toBe('saml')
@@ -126,5 +128,14 @@ describe('AdminSamlProviderDetailView', () => {
     const configCard = w.findAll('[data-slot="card"]').find((card) => card.find('[data-test="save"]').exists())
     expect(configCard).toBeTruthy()
     expect(configCard!.find('[data-test="app-manager-card"]').exists()).toBe(false)
+  })
+
+  it('keeps configuration and policy controls but hides manager assignment for an assigned non-admin', async () => {
+    get.mockResolvedValue(SP)
+    const w = mountView(false); await flushPromises()
+    expect(w.find('input[name="displayName"]').exists()).toBe(true)
+    expect(w.find('[data-test="save"]').exists()).toBe(true)
+    expect(w.get('[data-test="app-policy-workspace"]').attributes('data-is-admin')).toBe('false')
+    expect(w.find('[data-test="app-manager-card"]').exists()).toBe(false)
   })
 })

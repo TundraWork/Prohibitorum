@@ -3,6 +3,8 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
 import en from '@/locales/en'
 
+const { session } = vi.hoisted(() => ({ session: { isAdmin: true } }))
+vi.mock('@/composables/useSession', () => ({ useSession: () => session }))
 vi.mock('@/lib/api', () => ({ api: { get: vi.fn(), post: vi.fn() } }))
 vi.mock('@/lib/sudo', () => ({ withSudo: (fn: () => unknown) => fn() }))
 const { push } = vi.hoisted(() => ({ push: vi.fn() }))
@@ -12,9 +14,16 @@ import { api } from '@/lib/api'
 import AdminForwardAuthAppsView from './AdminForwardAuthAppsView.vue'
 
 const i18n = () => createI18n({ legacy: false, locale: 'en', fallbackLocale: 'en', messages: { en } })
-const mountView = () => mount(AdminForwardAuthAppsView, { global: { plugins: [i18n()], stubs: { RouterLink: true } } })
+const mountView = (isAdmin = true) => { session.isAdmin = isAdmin; return mount(AdminForwardAuthAppsView, { global: { plugins: [i18n()], stubs: { RouterLink: true } } }) }
 
 describe('AdminForwardAuthAppsView', () => {
+  it('hides creation from non-admin users while keeping the assigned list available', async () => {
+    vi.mocked(api.get).mockResolvedValue({ items: [], nextCursor: '' })
+    const w = mountView(false); await flushPromises()
+    expect(w.find('[data-test="create"]').exists()).toBe(false)
+    expect(w.text()).toContain(en.admin.forwardAuth.empty)
+  })
+
   it('submits restricted access and resets it when reopening creation', async () => {
     vi.mocked(api.get).mockResolvedValue({ items: [], nextCursor: '' })
     vi.mocked(api.post).mockResolvedValue({ clientId: 'new', id: 2 })
@@ -32,7 +41,7 @@ describe('AdminForwardAuthAppsView', () => {
     w.unmount()
   })
 
-  beforeEach(() => { vi.clearAllMocks(); push.mockReset() })
+  beforeEach(() => { session.isAdmin = true; vi.clearAllMocks(); push.mockReset() })
 
   it('lists forward-auth services', async () => {
     ;(api.get as ReturnType<typeof vi.fn>).mockResolvedValue({ items: [

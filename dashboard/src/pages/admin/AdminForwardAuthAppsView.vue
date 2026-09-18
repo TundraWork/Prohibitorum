@@ -23,6 +23,7 @@ import EmptyState from '@/components/custom/EmptyState.vue'
 import ScopeVocabularyEditor, { type ScopeEntry } from '@/components/custom/ScopeVocabularyEditor.vue'
 import ErrorPanel from '@/components/custom/ErrorPanel.vue'
 import PaginationControls from '@/components/custom/PaginationControls.vue'
+import { useSession } from '@/composables/useSession'
 
 interface ForwardAuthApp {
   clientId: string
@@ -35,6 +36,7 @@ interface ForwardAuthApp {
 
 const { t } = useI18n()
 const router = useRouter()
+const auth = useSession()
 const { busy, run, error, clear } = useApi('forward-auth-apps')
 
 const page = useCursorPage<ForwardAuthApp>('forward-auth-apps')
@@ -84,12 +86,12 @@ async function create(): Promise<void> {
   <div class="flex max-w-4xl flex-col gap-6">
     <div class="flex items-center justify-between gap-4">
       <h1 class="text-2xl font-semibold tracking-tight text-ink">{{ t('admin.forwardAuth.title') }}</h1>
-      <Button type="button" data-test="create" @click="openCreate">{{ t('admin.forwardAuth.create') }}</Button>
+      <Button v-if="auth.isAdmin" type="button" data-test="create" @click="openCreate">{{ t('admin.forwardAuth.create') }}</Button>
     </div>
-    <ErrorPanel :error="displayError" @dismiss="clearError" :is-admin="true" />
+    <ErrorPanel :error="displayError" @dismiss="clearError" :is-admin="auth.isAdmin" />
     <StatusMessage :show="created">{{ t('admin.forwardAuth.created') }}</StatusMessage>
 
-    <Card v-if="createOpen">
+    <Card v-if="auth.isAdmin && createOpen">
       <CardHeader><CardTitle>{{ t('admin.forwardAuth.createTitle') }}</CardTitle></CardHeader>
       <CardContent class="flex flex-col gap-4 py-4">
         <FormSection :title="t('admin.forwardAuth.configTitle')">

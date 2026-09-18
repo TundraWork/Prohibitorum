@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { removeDetail, removeManagedApplication } from '@/queries/invalidation'
+import { removeDetail } from '@/queries/invalidation'
 /**
  * AdminForwardAuthAppDetailView (/admin/forward-auth-apps/:clientId) —
  * edit display-name + host, show the host-substituted Traefik snippet, assign
@@ -38,6 +38,7 @@ import AppPolicyWorkspace from '@/components/custom/AppPolicyWorkspace.vue'
 import EntityIconUpload from '@/components/custom/EntityIconUpload.vue'
 import ScopeVocabularyEditor, { type ScopeEntry } from '@/components/custom/ScopeVocabularyEditor.vue'
 import ErrorPanel from '@/components/custom/ErrorPanel.vue'
+import { useSession } from '@/composables/useSession'
 
 interface ForwardAuthApp {
   clientId: string
@@ -52,14 +53,13 @@ interface ForwardAuthApp {
 }
 
 const { t } = useI18n()
-const props = withDefaults(defineProps<{ mode?: 'admin' | 'manager'; currentAccountId?: number }>(), { mode: 'admin' })
 const route = useRoute()
 const router = useRouter()
+const auth = useSession()
 const { busy: mutationBusy, error: mutationError, run, clear: clearMutation } = useApi('forward-auth-apps')
 
 const clientId = String(route.params.clientId ?? route.params.id)
-const delegated = computed(() => props.mode === 'manager')
-const backPath = computed(() => delegated.value ? '/manage/applications' : '/admin/forward-auth-apps')
+const backPath = '/admin/forward-auth-apps'
 const queryClient = useQueryClient()
 const options = detailQuery<ForwardAuthApp>('forward-auth-apps', clientId)
 const query = useResource(options)
@@ -155,20 +155,15 @@ async function destroy(): Promise<void> {
     return true as const
   }, t('sudo.reason.deleteApp')))
   confirmDelete.value = false
-  if (ok) router.push(backPath.value)
-}
-
-async function handleSelfRemoval(): Promise<void> {
-  await removeManagedApplication(queryClient, 'forward-auth-apps', clientId, 'forward_auth', clientId)
-  await router.push(backPath.value)
+  if (ok) router.push(backPath)
 }
 
 </script>
 <template>
   <div class="flex max-w-4xl flex-col gap-6">
-    <BackLink :to="backPath" :label="delegated ? t('manage.applications.back') : t('admin.forwardAuth.back')" />
-    <ErrorPanel v-if="error && !notFound" :error="error" @dismiss="clear" :is-admin="props.mode === 'admin'" />
-    <p v-if="notFound" class="text-sm text-muted" role="status">{{ delegated ? t('manage.applications.notFound') : t('admin.forwardAuth.notFound') }}</p>
+    <BackLink :to="backPath" :label="t('admin.forwardAuth.back')" />
+    <ErrorPanel v-if="error && !notFound" :error="error" @dismiss="clear" :is-admin="auth.isAdmin" />
+    <p v-if="notFound" class="text-sm text-muted" role="status">{{ t('admin.forwardAuth.notFound') }}</p>
 
     <CardSkeleton v-else-if="busy && !app" />
 
@@ -256,13 +251,11 @@ async function handleSelfRemoval(): Promise<void> {
       />
 
       <AppManagerCard
+        v-if="auth.isAdmin"
         kind="forward_auth"
         :app-id="clientId"
-        :mode="props.mode"
-        :current-account-id="props.currentAccountId"
-        @self-removed="handleSelfRemoval"
       />
-      <AppPolicyWorkspace kind="forward_auth" :app-id="clientId" :display-name="app.displayName" :mode="props.mode" />
+      <AppPolicyWorkspace kind="forward_auth" :app-id="clientId" :display-name="app.displayName" :is-admin="auth.isAdmin" />
 
       <!-- Danger zone (kept LAST). No rotate-secret — FA clients are public. -->
       <Card class="border-destructive/30 bg-destructive/[0.02]">

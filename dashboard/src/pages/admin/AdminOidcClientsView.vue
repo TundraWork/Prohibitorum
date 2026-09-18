@@ -27,6 +27,7 @@ import EmptyState from '@/components/custom/EmptyState.vue'
 import ErrorPanel from '@/components/custom/ErrorPanel.vue'
 import PaginationControls from '@/components/custom/PaginationControls.vue'
 import { AppWindow } from 'lucide-vue-next'
+import { useSession } from '@/composables/useSession'
 
 interface OidcApplication {
   clientId: string
@@ -43,6 +44,7 @@ interface OidcApplication {
 
 const { t } = useI18n()
 const router = useRouter()
+const auth = useSession()
 
 const oidcScopesDescribed = computed(() => OIDC_SCOPES.map((s) => ({ value: s.value, description: t(s.descKey), required: s.required })))
 const { busy, run, error, clear } = useApi('oidc-applications')
@@ -123,9 +125,9 @@ usePrivateState(() => { revealedSecret.value = '' })
   <div class="flex max-w-4xl flex-col gap-6">
     <div class="flex items-center justify-between gap-4">
       <h1 class="text-2xl font-semibold tracking-tight text-ink">{{ t('admin.oidc.title') }}</h1>
-      <Button type="button" data-test="create" @click="openCreate">{{ t('admin.oidc.create') }}</Button>
+      <Button v-if="auth.isAdmin" type="button" data-test="create" @click="openCreate">{{ t('admin.oidc.create') }}</Button>
     </div>
-    <ErrorPanel :error="displayError" @dismiss="clearError" :is-admin="true" />
+    <ErrorPanel :error="displayError" @dismiss="clearError" :is-admin="auth.isAdmin" />
     <StatusMessage :show="created && !revealedSecret">{{ t('admin.oidc.created') }}</StatusMessage>
 
     <template v-if="created && revealedSecret">
@@ -133,7 +135,7 @@ usePrivateState(() => { revealedSecret.value = '' })
       <CodeField :value="revealedSecret" />
     </template>
 
-    <Card v-if="createOpen">
+    <Card v-if="auth.isAdmin && createOpen">
       <CardHeader><CardTitle>{{ t('admin.oidc.createTitle') }}</CardTitle></CardHeader>
       <CardContent class="flex flex-col gap-4 py-4">
         <FormSection :title="t('admin.oidc.sectionBasics')">

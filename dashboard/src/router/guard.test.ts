@@ -15,7 +15,7 @@ function makeRouter() {
       { path: '/login', name: 'login', component: stub, meta: { public: true } },
       { path: '/error', name: 'error', component: stub, meta: { public: true } },
       { path: '/admin', name: 'test-admin', component: stub, meta: { requiresAuth: true, requiresAdmin: true } },
-      { path: '/manage/applications', name: 'managed-applications', component: stub, meta: { requiresAuth: true, requiresAppManager: true } },
+      { path: '/applications', name: 'applications', component: stub, meta: { requiresAuth: true } },
     ],
   })
   installGuard(r)
@@ -39,29 +39,19 @@ describe('router guard (requiresAdmin)', () => {
   })
 })
 
-describe('router guard (requiresAppManager)', () => {
-  it('allows an application manager into managed routes but not admin routes', async () => {
-    get.mockResolvedValue({ id: 1, username: 'm', displayName: 'Manager', role: 'app_manager' })
-    const r = makeRouter()
-    await r.push('/manage/applications'); await r.isReady()
-    expect(r.currentRoute.value.name).toBe('managed-applications')
-    await r.push('/admin')
-    expect(r.currentRoute.value.name).toBe('error')
-  })
-
-  it('rejects a regular user from managed routes', async () => {
+describe('router guard (requiresAuth)', () => {
+  it('allows a regular user into authenticated application routes', async () => {
     get.mockResolvedValue({ id: 1, username: 'u', displayName: 'User', role: 'user' })
     const r = makeRouter()
-    await r.push('/manage/applications'); await r.isReady()
-    expect(r.currentRoute.value.name).toBe('error')
-    expect(r.currentRoute.value.query.error).toBe('forbidden')
+    await r.push('/applications'); await r.isReady()
+    expect(r.currentRoute.value.name).toBe('applications')
   })
 
-  it('allows an admin into managed routes', async () => {
-    get.mockResolvedValue({ id: 1, username: 'a', displayName: 'Admin', role: 'admin' })
+  it('redirects an anonymous visitor to login', async () => {
+    get.mockRejectedValue({ code: 'no_session' })
     const r = makeRouter()
-    await r.push('/manage/applications'); await r.isReady()
-    expect(r.currentRoute.value.name).toBe('managed-applications')
+    await r.push('/applications'); await r.isReady()
+    expect(r.currentRoute.value.name).toBe('login')
   })
 })
 
@@ -157,22 +147,31 @@ describe('3c admin routes require admin', () => {
     '/admin/identity-providers',
     '/admin/signing-keys',
     '/admin/audit',
-    '/admin/forward-auth-apps',
-    '/admin/forward-auth-apps/some-client',
   ])('%s is marked requiresAdmin', (path) => {
     const resolved = realRouter.resolve(path)
     expect(resolved.meta.requiresAdmin).toBe(true)
   })
 })
 
-describe('managed application routes', () => {
+describe('application management routes', () => {
   it.each([
-    ['/manage/applications', 'managed-applications'],
-    ['/manage/applications/oidc/client%2Fid', 'managed-application-detail'],
-  ])('%s requires an application manager', (path, name) => {
+    ['/admin/oidc-applications', 'admin-oidc-applications'],
+    ['/admin/oidc-applications/client-id', 'admin-oidc-application-detail'],
+    ['/admin/forward-auth-apps', 'admin-forward-auth-apps'],
+    ['/admin/forward-auth-apps/client-id', 'admin-forward-auth-app-detail'],
+    ['/admin/saml-applications', 'admin-saml-applications'],
+    ['/admin/saml-applications/7', 'admin-saml-application-detail'],
+  ])('%s is available to authenticated accounts', (path, name) => {
     const resolved = realRouter.resolve(path)
     expect(resolved.name).toBe(name)
-    expect(resolved.meta.requiresAppManager).toBe(true)
+    expect(resolved.meta.requiresAuth).toBe(true)
+    expect(resolved.meta.requiresAdmin).not.toBe(true)
+  })
+
+  it.each(['/manage/applications', '/manage/applications/oidc/client-id'])('%s uses the catch-all redirect', (path) => {
+    const resolved = realRouter.resolve(path)
+    expect(resolved.redirectedFrom).toBeUndefined()
+    expect(resolved.matched.at(-1)?.redirect).toBe('/error')
   })
 })
 

@@ -2,10 +2,10 @@
  * Router — threshold page routes + guard scaffold.
  *
  * Routes: public authentication thresholds plus authenticated account,
- * delegated-management, and administration surfaces.
+ * application-management, and administration surfaces.
  * Existing threshold pages are lazy-imported into route chunks.
  *
- * `installGuard` applies requiresAuth, requiresAppManager, and requiresAdmin.
+ * `installGuard` applies requiresAuth and requiresAdmin.
  * Public routes bypass those checks.
  */
 
@@ -14,8 +14,6 @@ import { buildTitle } from '@/lib/pageTitle'
 import { isCancelledError } from '@tanstack/vue-query'
 import { queryClient } from '@/queries/client'
 import { configQuery, sessionQuery } from '@/queries/resources'
-import ManagedApplicationsView from '../pages/ManagedApplicationsView.vue'
-import ManagedApplicationDetailView from '../pages/ManagedApplicationDetailView.vue'
 
 // ---------------------------------------------------------------------------
 // Extend vue-router's RouteMeta with our custom guard meta fields.
@@ -29,8 +27,6 @@ declare module 'vue-router' {
     public?: boolean
     /** Requires an authenticated session (Spec 2/3 dashboard routes). */
     requiresAuth?: boolean
-    /** Requires app_manager or admin role. */
-    requiresAppManager?: boolean
     /** Requires strict admin role. */
     requiresAdmin?: boolean
     /** i18n key for the page title (title.*). Absent on the root redirect. */
@@ -135,19 +131,17 @@ const routes: RouteRecordRaw[] = [
       { path: '/connected', name: 'connected', component: () => import('../pages/ConnectedAccountsView.vue'), meta: { titleKey: 'title.connected' } },
       { path: '/devices', name: 'devices', component: () => import('../pages/DevicesView.vue'), meta: { titleKey: 'title.devices' } },
       { path: '/app-access', name: 'app-access', component: () => import('../pages/AppAccessView.vue'), meta: { titleKey: 'title.appAccess' } },
-      { path: '/manage/applications', name: 'managed-applications', component: ManagedApplicationsView, meta: { requiresAppManager: true, titleKey: 'title.managedApplications' } },
-      { path: '/manage/applications/:kind/:id', name: 'managed-application-detail', component: ManagedApplicationDetailView, meta: { requiresAppManager: true, titleKey: 'title.managedApplicationDetail' } },
       { path: '/admin/accounts', name: 'admin-accounts', component: () => import('../pages/admin/AdminAccountsView.vue'), meta: { requiresAdmin: true, titleKey: 'title.adminAccounts' } },
       { path: '/admin/accounts/:id', name: 'admin-account-detail', component: () => import('../pages/admin/AdminAccountDetailView.vue'), meta: { requiresAdmin: true, titleKey: 'title.adminAccountDetail' } },
       { path: '/admin/invitations', name: 'admin-invitations', component: () => import('../pages/admin/AdminInvitationsView.vue'), meta: { requiresAdmin: true, titleKey: 'title.adminInvitations' } },
       { path: '/admin/groups', name: 'admin-groups', component: () => import('../pages/admin/AdminGroupsView.vue'), meta: { requiresAdmin: true, titleKey: 'title.adminGroups' } },
       { path: '/admin/groups/:id', name: 'admin-group-detail', component: () => import('../pages/admin/AdminGroupDetailView.vue'), meta: { requiresAdmin: true, titleKey: 'title.adminGroupDetail' } },
-      { path: '/admin/oidc-applications', name: 'admin-oidc-applications', component: () => import('../pages/admin/AdminOidcClientsView.vue'), meta: { requiresAdmin: true, titleKey: 'title.adminOidcApplications' } },
-      { path: '/admin/oidc-applications/:clientId', name: 'admin-oidc-application-detail', component: () => import('../pages/admin/AdminOidcClientDetailView.vue'), meta: { requiresAdmin: true, titleKey: 'title.adminOidcApplicationDetail' } },
-      { path: '/admin/forward-auth-apps', name: 'admin-forward-auth-apps', component: () => import('../pages/admin/AdminForwardAuthAppsView.vue'), meta: { requiresAdmin: true, titleKey: 'title.adminForwardAuthApps' } },
-      { path: '/admin/forward-auth-apps/:clientId', name: 'admin-forward-auth-app-detail', component: () => import('../pages/admin/AdminForwardAuthAppDetailView.vue'), meta: { requiresAdmin: true, titleKey: 'title.adminForwardAuthAppDetail' } },
-      { path: '/admin/saml-applications', name: 'admin-saml-applications', component: () => import('../pages/admin/AdminSamlProvidersView.vue'), meta: { requiresAdmin: true, titleKey: 'title.adminSamlApplications' } },
-      { path: '/admin/saml-applications/:id', name: 'admin-saml-application-detail', component: () => import('../pages/admin/AdminSamlProviderDetailView.vue'), meta: { requiresAdmin: true, titleKey: 'title.adminSamlApplicationDetail' } },
+      { path: '/admin/oidc-applications', name: 'admin-oidc-applications', component: () => import('../pages/admin/AdminOidcClientsView.vue'), meta: { titleKey: 'title.adminOidcApplications' } },
+      { path: '/admin/oidc-applications/:clientId', name: 'admin-oidc-application-detail', component: () => import('../pages/admin/AdminOidcClientDetailView.vue'), meta: { titleKey: 'title.adminOidcApplicationDetail' } },
+      { path: '/admin/forward-auth-apps', name: 'admin-forward-auth-apps', component: () => import('../pages/admin/AdminForwardAuthAppsView.vue'), meta: { titleKey: 'title.adminForwardAuthApps' } },
+      { path: '/admin/forward-auth-apps/:clientId', name: 'admin-forward-auth-app-detail', component: () => import('../pages/admin/AdminForwardAuthAppDetailView.vue'), meta: { titleKey: 'title.adminForwardAuthAppDetail' } },
+      { path: '/admin/saml-applications', name: 'admin-saml-applications', component: () => import('../pages/admin/AdminSamlProvidersView.vue'), meta: { titleKey: 'title.adminSamlApplications' } },
+      { path: '/admin/saml-applications/:id', name: 'admin-saml-application-detail', component: () => import('../pages/admin/AdminSamlProviderDetailView.vue'), meta: { titleKey: 'title.adminSamlApplicationDetail' } },
       { path: '/admin/identity-providers', name: 'admin-identity-providers', component: () => import('../pages/admin/AdminUpstreamIdpsView.vue'), meta: { requiresAdmin: true, titleKey: 'title.adminIdentityProviders' } },
       { path: '/admin/identity-providers/:slug', name: 'admin-identity-provider-detail', component: () => import('../pages/admin/AdminUpstreamIdpDetailView.vue'), meta: { requiresAdmin: true, titleKey: 'title.adminIdentityProviderDetail' } },
       { path: '/admin/signing-keys', name: 'admin-signing-keys', component: () => import('../pages/admin/AdminSigningKeysView.vue'), meta: { requiresAdmin: true, titleKey: 'title.adminSigningKeys' } },
@@ -191,7 +185,6 @@ export function installGuard(router: Router): void {
     if (to.meta.public) return true
     if (to.meta.requiresAuth && !me) return { name: 'login', query: { return_to: to.fullPath } }
     if (to.meta.requiresAdmin && me?.role !== 'admin') return { name: 'error', query: { error: 'forbidden' } }
-    if (to.meta.requiresAppManager && !['admin', 'app_manager'].includes(me?.role ?? '')) return { name: 'error', query: { error: 'forbidden' } }
     return true
   })
 }
