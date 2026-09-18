@@ -165,10 +165,6 @@ func samlManagerViews(rows []db.ListSAMLSPManagersRow) []contract.AppManagerView
 
 func (s *Server) handleListOIDCApplicationManagersHTTP(w http.ResponseWriter, r *http.Request) {
 	clientID := chi.URLParam(r, "clientId")
-	if err := s.authorizeApplicationManager(r.Context(), oidcApplicationRef(clientID, false)); err != nil {
-		writeAuthErr(w, err)
-		return
-	}
 	if err := s.validateOIDCManagerApp(r.Context(), clientID, appaccess.KindOIDC); err != nil {
 		writeAuthErr(w, err)
 		return
@@ -183,10 +179,6 @@ func (s *Server) handleListOIDCApplicationManagersHTTP(w http.ResponseWriter, r 
 
 func (s *Server) handleListForwardAuthAppManagersHTTP(w http.ResponseWriter, r *http.Request) {
 	clientID := chi.URLParam(r, "clientId")
-	if err := s.authorizeApplicationManager(r.Context(), oidcApplicationRef(clientID, true)); err != nil {
-		writeAuthErr(w, err)
-		return
-	}
 	if err := s.validateOIDCManagerApp(r.Context(), clientID, appaccess.KindForwardAuth); err != nil {
 		writeAuthErr(w, err)
 		return
@@ -202,10 +194,6 @@ func (s *Server) handleListForwardAuthAppManagersHTTP(w http.ResponseWriter, r *
 func (s *Server) handleListSAMLApplicationManagersHTTP(w http.ResponseWriter, r *http.Request) {
 	id, err := s.validateSAMLManagerApp(r.Context(), chi.URLParam(r, "id"))
 	if err != nil {
-		writeAuthErr(w, err)
-		return
-	}
-	if err := s.authorizeApplicationManager(r.Context(), samlApplicationRef(id)); err != nil {
 		writeAuthErr(w, err)
 		return
 	}
@@ -335,10 +323,6 @@ func (s *Server) recordManagerAssignmentAudit(ctx context.Context, app managerAp
 
 func (s *Server) handleAssignOIDCApplicationManagerHTTP(w http.ResponseWriter, r *http.Request) {
 	clientID := chi.URLParam(r, "clientId")
-	if err := s.authorizeApplicationManager(r.Context(), oidcApplicationRef(clientID, false)); err != nil {
-		writeAuthErr(w, err)
-		return
-	}
 	if err := s.validateOIDCManagerApp(r.Context(), clientID, appaccess.KindOIDC); err != nil {
 		writeAuthErr(w, err)
 		return
@@ -348,10 +332,6 @@ func (s *Server) handleAssignOIDCApplicationManagerHTTP(w http.ResponseWriter, r
 
 func (s *Server) handleAssignForwardAuthAppManagerHTTP(w http.ResponseWriter, r *http.Request) {
 	clientID := chi.URLParam(r, "clientId")
-	if err := s.authorizeApplicationManager(r.Context(), oidcApplicationRef(clientID, true)); err != nil {
-		writeAuthErr(w, err)
-		return
-	}
 	if err := s.validateOIDCManagerApp(r.Context(), clientID, appaccess.KindForwardAuth); err != nil {
 		writeAuthErr(w, err)
 		return
@@ -365,19 +345,11 @@ func (s *Server) handleAssignSAMLApplicationManagerHTTP(w http.ResponseWriter, r
 		writeAuthErr(w, err)
 		return
 	}
-	if err := s.authorizeApplicationManager(r.Context(), samlApplicationRef(id)); err != nil {
-		writeAuthErr(w, err)
-		return
-	}
 	s.assignManager(w, r, managerAppRef{kind: appaccess.KindSAML, samlSPID: id})
 }
 
 func (s *Server) handleRemoveOIDCApplicationManagerHTTP(w http.ResponseWriter, r *http.Request) {
 	clientID := chi.URLParam(r, "clientId")
-	if err := s.authorizeApplicationManager(r.Context(), oidcApplicationRef(clientID, false)); err != nil {
-		writeAuthErr(w, err)
-		return
-	}
 	if err := s.validateOIDCManagerApp(r.Context(), clientID, appaccess.KindOIDC); err != nil {
 		writeAuthErr(w, err)
 		return
@@ -387,10 +359,6 @@ func (s *Server) handleRemoveOIDCApplicationManagerHTTP(w http.ResponseWriter, r
 
 func (s *Server) handleRemoveForwardAuthAppManagerHTTP(w http.ResponseWriter, r *http.Request) {
 	clientID := chi.URLParam(r, "clientId")
-	if err := s.authorizeApplicationManager(r.Context(), oidcApplicationRef(clientID, true)); err != nil {
-		writeAuthErr(w, err)
-		return
-	}
 	if err := s.validateOIDCManagerApp(r.Context(), clientID, appaccess.KindForwardAuth); err != nil {
 		writeAuthErr(w, err)
 		return
@@ -401,10 +369,6 @@ func (s *Server) handleRemoveForwardAuthAppManagerHTTP(w http.ResponseWriter, r 
 func (s *Server) handleRemoveSAMLApplicationManagerHTTP(w http.ResponseWriter, r *http.Request) {
 	id, err := s.validateSAMLManagerApp(r.Context(), chi.URLParam(r, "id"))
 	if err != nil {
-		writeAuthErr(w, err)
-		return
-	}
-	if err := s.authorizeApplicationManager(r.Context(), samlApplicationRef(id)); err != nil {
 		writeAuthErr(w, err)
 		return
 	}

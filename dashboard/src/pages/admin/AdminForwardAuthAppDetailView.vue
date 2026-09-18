@@ -250,7 +250,7 @@ async function handleSelfRemoval(): Promise<void> {
       </Card>
 
       <EntityIconUpload
-        :base-path="`/api/prohibitorum/oidc-applications/${clientId}`"
+        :base-path="`/api/prohibitorum/forward-auth-apps/${clientId}`"
         :name="app?.displayName ?? clientId"
         :icon-url="app?.iconUrl"
       />

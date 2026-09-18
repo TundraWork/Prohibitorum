@@ -760,6 +760,8 @@ func (s *Server) registerOperations() {
 	// DELETE is sudo-gated via the wrapper. Mirrors the instance-icon pattern.
 	registerOpHTTP(s.router, "PUT", "/api/prohibitorum/oidc-applications/{clientId}/icon", sessionReq, s.handlePutOIDCAppIconHTTP)
 	s.registerSudoOpHTTP(s.router, "DELETE", "/api/prohibitorum/oidc-applications/{clientId}/icon", sessionReq, s.handleDeleteOIDCAppIconHTTP)
+	registerOpHTTP(s.router, "PUT", "/api/prohibitorum/forward-auth-apps/{clientId}/icon", sessionReq, s.handlePutForwardAuthAppIconHTTP)
+	s.registerSudoOpHTTP(s.router, "DELETE", "/api/prohibitorum/forward-auth-apps/{clientId}/icon", sessionReq, s.handleDeleteForwardAuthAppIconHTTP)
 	registerOpHTTP(s.router, "PUT", "/api/prohibitorum/saml-applications/{id}/icon", sessionReq, s.handlePutSAMLAppIconHTTP)
 	s.registerSudoOpHTTP(s.router, "DELETE", "/api/prohibitorum/saml-applications/{id}/icon", sessionReq, s.handleDeleteSAMLAppIconHTTP)
 	registerOpHTTP(s.router, "PUT", "/api/prohibitorum/identity-providers/{slug}/icon", admin, s.handlePutIdentityProviderIconHTTP)

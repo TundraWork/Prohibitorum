@@ -129,14 +129,21 @@ func (s *Server) appPolicyEvaluator() appPolicyService {
 }
 
 // authorizeApplicationManager applies object-level authorization for existing
-// application management endpoints. Admins are accepted by the shared evaluator;
-// other accounts must hold the exact kind/id assignment.
+// application management endpoints. The evaluator validates the exact kind/id
+// for every caller before accepting admins or checking a delegated assignment.
+// Invalid refs and absent assignments share the public not-found response.
 func (s *Server) authorizeApplicationManager(ctx context.Context, ref appaccess.AppRef) error {
 	sess := authn.SessionFromContext(ctx)
 	if sess == nil || sess.Account == nil {
 		return authn.ErrNoSession()
 	}
-	return s.appPolicyEvaluator().AuthorizeManager(ctx, sess.Account.ID, sess.Account.Role, ref)
+	if err := s.appPolicyEvaluator().AuthorizeManager(ctx, sess.Account.ID, sess.Account.Role, ref); err != nil {
+		if errors.Is(err, appaccess.ErrAppNotFound) {
+			return authn.ErrClientNotFound()
+		}
+		return err
+	}
+	return nil
 }
 
 func oidcApplicationRef(clientID string, forwardAuth bool) appaccess.AppRef {

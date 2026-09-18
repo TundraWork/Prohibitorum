@@ -106,6 +106,7 @@ var sudoGatedRoutes = []sudoRoute{
 
 	// Entity icon removal (app & provider icons)
 	{method: "DELETE", path: "/api/prohibitorum/oidc-applications/test-client/icon", body: `{}`},
+	{method: "DELETE", path: "/api/prohibitorum/forward-auth-apps/test-client/icon", body: `{}`},
 	{method: "DELETE", path: "/api/prohibitorum/saml-applications/1/icon", body: `{}`},
 	{method: "DELETE", path: "/api/prohibitorum/identity-providers/test-idp/icon", body: `{}`},
 

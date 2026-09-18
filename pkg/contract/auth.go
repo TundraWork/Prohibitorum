@@ -595,14 +595,14 @@ var OperationListOIDCApplications = huma.Operation{
 	OperationID: "listOIDCApplications",
 	Method:      http.MethodGet,
 	Path:        "/oidc-applications",
-	Summary:     "List all OIDC applications (admin only). Secret material is never returned.",
+	Summary:     "List OIDC applications visible to the current account. Secret material is never returned.",
 }
 
 var OperationGetOIDCApplication = huma.Operation{
 	OperationID: "getOIDCApplication",
 	Method:      http.MethodGet,
 	Path:        "/oidc-applications/{clientId}",
-	Summary:     "Get one OIDC application by client_id (admin only). Secret material is never returned.",
+	Summary:     "Get one OIDC application managed by the current account. Secret material is never returned.",
 }
 
 // ForwardAuthAppView is the admin-facing projection of a forward-auth
@@ -625,14 +625,14 @@ var OperationListForwardAuthApps = huma.Operation{
 	OperationID: "listForwardAuthApps",
 	Method:      http.MethodGet,
 	Path:        "/forward-auth-apps",
-	Summary:     "List all forward-auth applications (admin only).",
+	Summary:     "List forward-auth applications visible to the current account.",
 }
 
 var OperationGetForwardAuthApp = huma.Operation{
 	OperationID: "getForwardAuthApp",
 	Method:      http.MethodGet,
 	Path:        "/forward-auth-apps/{clientId}",
-	Summary:     "Get one forward-auth application by client_id (admin only).",
+	Summary:     "Get one forward-auth application managed by the current account.",
 }
 
 // SAMLACSView is the wire representation of a single AssertionConsumerService
@@ -715,14 +715,14 @@ var OperationListSAMLApplications = huma.Operation{
 	OperationID: "listSAMLApplications",
 	Method:      http.MethodGet,
 	Path:        "/saml-applications",
-	Summary:     "List all SAML applications (admin only). Certificate PEM is never returned.",
+	Summary:     "List SAML applications visible to the current account. Certificate PEM is never returned.",
 }
 
 var OperationGetSAMLApplication = huma.Operation{
 	OperationID: "getSAMLApplication",
 	Method:      http.MethodGet,
 	Path:        "/saml-applications/{id}",
-	Summary:     "Get one SAML application by id (admin only).",
+	Summary:     "Get one SAML application managed by the current account.",
 }
 
 // AuditEventView is the admin-facing projection of a credential_event row.

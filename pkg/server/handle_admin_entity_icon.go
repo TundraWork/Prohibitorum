@@ -100,44 +100,38 @@ func (s *Server) auditEntityIcon(r *http.Request, factor audit.Factor, kind, id,
 
 // ----- OIDC application icon -----------------------------------------------
 
-// PUT /api/prohibitorum/oidc-applications/{clientId}/icon
-// Registered via plain registerOpHTTP(admin) — fresh-sudo enforced in-handler.
-func (s *Server) handlePutOIDCAppIconHTTP(w http.ResponseWriter, r *http.Request) {
+func (s *Server) putOIDCAppIcon(w http.ResponseWriter, r *http.Request, forwardAuth bool) {
 	id := chi.URLParam(r, "clientId")
-	client, err := s.queries.GetOIDCClientAny(r.Context(), id)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			writeAuthErr(w, authn.ErrClientNotFound())
-			return
-		}
-		writeAuthErr(w, fmt.Errorf("handlePutOIDCAppIcon: lookup: %w", err))
-		return
-	}
-	if err := s.authorizeApplicationManager(r.Context(), oidcApplicationRef(id, client.ForwardAuthEnabled)); err != nil {
+	if err := s.authorizeApplicationManager(r.Context(), oidcApplicationRef(id, forwardAuth)); err != nil {
 		writeAuthErr(w, err)
 		return
 	}
 	s.putEntityIcon(w, r, "oidc_client", id, audit.FactorOIDCClient)
 }
 
-// DELETE /api/prohibitorum/oidc-applications/{clientId}/icon
-// Registered via registerSudoOpHTTP — admin + fresh sudo via wrapper.
-func (s *Server) handleDeleteOIDCAppIconHTTP(w http.ResponseWriter, r *http.Request) {
+func (s *Server) deleteOIDCAppIcon(w http.ResponseWriter, r *http.Request, forwardAuth bool) {
 	id := chi.URLParam(r, "clientId")
-	client, err := s.queries.GetOIDCClientAny(r.Context(), id)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			writeAuthErr(w, authn.ErrClientNotFound())
-		} else {
-			writeAuthErr(w, err)
-		}
-		return
-	}
-	if err := s.authorizeApplicationManager(r.Context(), oidcApplicationRef(id, client.ForwardAuthEnabled)); err != nil {
+	if err := s.authorizeApplicationManager(r.Context(), oidcApplicationRef(id, forwardAuth)); err != nil {
 		writeAuthErr(w, err)
 		return
 	}
 	s.deleteEntityIcon(w, r, "oidc_client", id, audit.FactorOIDCClient)
+}
+
+func (s *Server) handlePutOIDCAppIconHTTP(w http.ResponseWriter, r *http.Request) {
+	s.putOIDCAppIcon(w, r, false)
+}
+
+func (s *Server) handleDeleteOIDCAppIconHTTP(w http.ResponseWriter, r *http.Request) {
+	s.deleteOIDCAppIcon(w, r, false)
+}
+
+func (s *Server) handlePutForwardAuthAppIconHTTP(w http.ResponseWriter, r *http.Request) {
+	s.putOIDCAppIcon(w, r, true)
+}
+
+func (s *Server) handleDeleteForwardAuthAppIconHTTP(w http.ResponseWriter, r *http.Request) {
+	s.deleteOIDCAppIcon(w, r, true)
 }
 
 // ----- SAML application icon -----------------------------------------------
@@ -149,14 +143,6 @@ func (s *Server) handlePutSAMLAppIconHTTP(w http.ResponseWriter, r *http.Request
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
 		writeAuthErr(w, authn.ErrBadRequest())
-		return
-	}
-	if _, err := s.queries.GetSAMLSPByID(r.Context(), id); err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			writeAuthErr(w, samlSPNotFound())
-			return
-		}
-		writeAuthErr(w, fmt.Errorf("handlePutSAMLAppIcon: lookup: %w", err))
 		return
 	}
 	if err := s.authorizeApplicationManager(r.Context(), samlApplicationRef(id)); err != nil {

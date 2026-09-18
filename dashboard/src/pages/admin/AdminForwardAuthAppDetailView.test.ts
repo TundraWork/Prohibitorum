@@ -29,6 +29,10 @@ const integrationStubs = {
     props: ['kind', 'appId'],
     template: '<section data-test="app-manager-card" :data-kind="kind" :data-app-id="appId"></section>',
   },
+  EntityIconUpload: {
+    props: ['basePath'],
+    template: '<section data-test="entity-icon-upload" :data-base-path="basePath"></section>',
+  },
 }
 const mountView = () => mount(AdminForwardAuthAppDetailView, {
   global: {
@@ -128,6 +132,7 @@ describe('AdminForwardAuthAppDetailView', () => {
     const managerCard = w.get('[data-test="app-manager-card"]')
     expect(managerCard.attributes('data-kind')).toBe('forward_auth')
     expect(managerCard.attributes('data-app-id')).toBe('edge')
+    expect(w.get('[data-test="entity-icon-upload"]').attributes('data-base-path')).toBe('/api/prohibitorum/forward-auth-apps/edge')
 
     const configCard = w.findAll('[data-slot="card"]').find((card) => card.find('[data-test="save"]').exists())
     expect(configCard).toBeTruthy()

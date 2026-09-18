@@ -778,6 +778,62 @@ func TestManagedAppUnassignedAndMissingAreIndistinguishable(t *testing.T) {
 	}
 }
 
+func TestAuthorizeApplicationManagerMapsScopeFailuresToNotFound(t *testing.T) {
+	s, _, _ := newPolicyTestServer()
+	tests := []struct {
+		name    string
+		session *authn.Session
+		ref     appaccess.AppRef
+		wantErr bool
+	}{
+		{name: "assigned user", session: managedAppSession(7, "user", false), ref: oidcApplicationRef("wiki", false)},
+		{name: "admin existing app", session: managedAppSession(99, "admin", false), ref: oidcApplicationRef("wiki", false)},
+		{name: "unassigned user", session: managedAppSession(7, "user", false), ref: oidcApplicationRef("other", false), wantErr: true},
+		{name: "admin wrong kind", session: managedAppSession(99, "admin", false), ref: oidcApplicationRef("forward", false), wantErr: true},
+		{name: "admin missing app", session: managedAppSession(99, "admin", false), ref: oidcApplicationRef("missing", false), wantErr: true},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			ctx := authn.WithSession(context.Background(), test.session)
+			err := s.authorizeApplicationManager(ctx, test.ref)
+			if !test.wantErr {
+				if err != nil {
+					t.Fatalf("authorizeApplicationManager() error = %v", err)
+				}
+				return
+			}
+			authErr := authn.AsAuthError(err)
+			if authErr == nil || authErr.Status != http.StatusNotFound || authErr.Code != "client_not_found" {
+				t.Fatalf("authorizeApplicationManager() error = %#v, want client_not_found", err)
+			}
+		})
+	}
+}
+
+func TestOIDCIconSurfacesEnforceApplicationKind(t *testing.T) {
+	tests := []struct {
+		name string
+		path string
+	}{
+		{name: "OIDC surface rejects forward auth app", path: "/api/prohibitorum/oidc-applications/forward/icon"},
+		{name: "forward auth surface rejects OIDC app", path: "/api/prohibitorum/forward-auth-apps/wiki/icon"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			s, queries, _ := newPolicyTestServer()
+			router := chi.NewRouter()
+			registerOpHTTP(router, http.MethodPut, "/api/prohibitorum/oidc-applications/{clientId}/icon", contract.AuthRequirement{Kind: contract.AuthSession}, s.handlePutOIDCAppIconHTTP)
+			registerOpHTTP(router, http.MethodPut, "/api/prohibitorum/forward-auth-apps/{clientId}/icon", contract.AuthRequirement{Kind: contract.AuthSession}, s.handlePutForwardAuthAppIconHTTP)
+			recorder := httptest.NewRecorder()
+			router.ServeHTTP(recorder, reqWithSession(http.MethodPut, test.path, "image", "image/png", managedAppSession(99, "admin", false)))
+			assertManagedAPIError(t, recorder, http.StatusNotFound, "client_not_found")
+			if queries.mutationCalls != 0 {
+				t.Fatalf("wrong-kind icon request made %d mutations", queries.mutationCalls)
+			}
+		})
+	}
+}
+
 func TestManagedApplicationRoutesEnforceScopeBeforeNestedLookup(t *testing.T) {
 	routes := []struct {
 		name   string

@@ -322,8 +322,17 @@ func TestServiceAuthorizeManagerChecksRoleAssignmentAndKind(t *testing.T) {
 	svc := NewService(q)
 	ctx := context.Background()
 
-	if err := svc.AuthorizeManager(ctx, 7, "admin", AppRef{Kind: "unknown"}); err != nil {
-		t.Fatalf("admin AuthorizeManager() error = %v", err)
+	if err := svc.AuthorizeManager(ctx, 7, "admin", AppRef{Kind: "unknown"}); !errors.Is(err, ErrAppNotFound) {
+		t.Fatalf("admin invalid ref error = %v, want ErrAppNotFound", err)
+	}
+	if err := svc.AuthorizeManager(ctx, 7, "admin", AppRef{Kind: KindForwardAuth, OIDCClientID: "wiki"}); !errors.Is(err, ErrAppNotFound) {
+		t.Fatalf("admin wrong OIDC kind error = %v, want ErrAppNotFound", err)
+	}
+	if err := svc.AuthorizeManager(ctx, 7, "admin", AppRef{Kind: KindOIDC, OIDCClientID: "missing"}); !errors.Is(err, ErrAppNotFound) {
+		t.Fatalf("admin missing app error = %v, want ErrAppNotFound", err)
+	}
+	if err := svc.AuthorizeManager(ctx, 7, "admin", AppRef{Kind: KindOIDC, OIDCClientID: "wiki"}); err != nil {
+		t.Fatalf("admin valid app error = %v", err)
 	}
 	if err := svc.AuthorizeManager(ctx, 7, "user", AppRef{Kind: KindOIDC, OIDCClientID: "wiki"}); err != nil {
 		t.Fatalf("assigned OIDC manager error = %v", err)
