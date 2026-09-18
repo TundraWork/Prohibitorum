@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"sort"
@@ -59,6 +60,60 @@ type policyTestQueries struct {
 	groupLookupCalls int
 	mutationCalls    int
 	activeFactsCalls int
+	providerCalls    int
+}
+
+type policyTestTx struct {
+	queries      *policyTestQueries
+	oidcSnapshot map[string]map[int32]bool
+	samlSnapshot map[int64]map[int32]bool
+	committed    bool
+	rolledBack   bool
+}
+
+func (tx *policyTestTx) Queries() appPolicyQueries { return tx.queries }
+func (tx *policyTestTx) Commit(context.Context) error {
+	tx.committed = true
+	return nil
+}
+func (tx *policyTestTx) Rollback(context.Context) error {
+	if !tx.committed {
+		tx.queries.oidcGroups = cloneOIDCGroupLinks(tx.oidcSnapshot)
+		tx.queries.samlGroups = cloneSAMLGroupLinks(tx.samlSnapshot)
+		tx.rolledBack = true
+	}
+	return nil
+}
+
+type policyTestTxRunner struct {
+	queries *policyTestQueries
+	txs     []*policyTestTx
+}
+
+func (r *policyTestTxRunner) BeginAppPolicyTx(context.Context) (appPolicyTx, error) {
+	tx := &policyTestTx{
+		queries:      r.queries,
+		oidcSnapshot: cloneOIDCGroupLinks(r.queries.oidcGroups),
+		samlSnapshot: cloneSAMLGroupLinks(r.queries.samlGroups),
+	}
+	r.txs = append(r.txs, tx)
+	return tx, nil
+}
+
+func cloneOIDCGroupLinks(src map[string]map[int32]bool) map[string]map[int32]bool {
+	out := make(map[string]map[int32]bool, len(src))
+	for appID, links := range src {
+		out[appID] = maps.Clone(links)
+	}
+	return out
+}
+
+func cloneSAMLGroupLinks(src map[int64]map[int32]bool) map[int64]map[int32]bool {
+	out := make(map[int64]map[int32]bool, len(src))
+	for appID, links := range src {
+		out[appID] = maps.Clone(links)
+	}
+	return out
 }
 
 func newPolicyTestQueries() *policyTestQueries {
@@ -169,6 +224,7 @@ func (q *policyTestQueries) ListSAMLAppRuleGroups(_ context.Context, spID int64)
 }
 
 func (q *policyTestQueries) ListKnownUpstreamIDPSlugs(context.Context) ([]string, error) {
+	q.providerCalls++
 	return append([]string(nil), q.providers...), nil
 }
 
@@ -336,6 +392,14 @@ func (q *policyTestQueries) ListOIDCAppGroups(_ context.Context, clientID string
 	}), nil
 }
 
+func (q *policyTestQueries) GetOIDCClientAnyForUpdate(ctx context.Context, clientID string) (db.OidcClient, error) {
+	return q.GetOIDCClientAny(ctx, clientID)
+}
+
+func (q *policyTestQueries) GetSAMLSPByIDForUpdate(ctx context.Context, id int64) (db.SamlSp, error) {
+	return q.GetSAMLSPByID(ctx, id)
+}
+
 func (q *policyTestQueries) ListSAMLAppGroups(_ context.Context, spID int64) ([]db.UserGroup, error) {
 	return q.listGroups(func(group db.UserGroup) bool {
 		return q.samlGroups[spID][group.ID]
@@ -413,6 +477,7 @@ func (q *policyTestQueries) ReplaceOIDCAppGroups(_ context.Context, arg db.Repla
 		}
 		links[id] = true
 	}
+	q.mutationCalls++
 	q.oidcGroups[arg.OidcClientID] = links
 	return q.ListOIDCAppGroups(context.Background(), arg.OidcClientID)
 }
@@ -425,6 +490,7 @@ func (q *policyTestQueries) ReplaceSAMLAppGroups(_ context.Context, arg db.Repla
 		}
 		links[id] = true
 	}
+	q.mutationCalls++
 	q.samlGroups[arg.SamlSpID] = links
 	return q.ListSAMLAppGroups(context.Background(), arg.SamlSpID)
 }
@@ -583,6 +649,7 @@ func newPolicyTestServer() (*Server, *policyTestQueries, *policyAuditCapture) {
 		cursorCodec:              testCodec(),
 		Audit:                    auditCapture,
 	}
+	s.appPolicyTxRunnerOverride = &policyTestTxRunner{queries: queries}
 	s.registerManagedApplicationRoutes(router)
 	s.registerGlobalGroupRoutes(router)
 	seedPolicyFixtures(queries)

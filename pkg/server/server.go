@@ -181,8 +181,9 @@ type Server struct {
 	// appPolicyQueriesOverride and appPolicyService isolate delegated app-policy
 	// handlers in focused tests. Production uses the generated query surface and
 	// one shared Task 3 evaluator.
-	appPolicyQueriesOverride appPolicyQueries
-	appPolicyService         appPolicyService
+	appPolicyQueriesOverride  appPolicyQueries
+	appPolicyService          appPolicyService
+	appPolicyTxRunnerOverride appPolicyTxRunner
 }
 
 // accountLookupQueries is the narrow query surface the step-2 handlers

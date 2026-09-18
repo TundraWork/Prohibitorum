@@ -216,6 +216,41 @@ func (q *Queries) GetOIDCClientAny(ctx context.Context, clientID string) (OidcCl
 	return i, err
 }
 
+const getOIDCClientAnyForUpdate = `-- name: GetOIDCClientAnyForUpdate :one
+SELECT client_id, display_name, client_secret_hash, redirect_uris, post_logout_redirect_uris, allowed_scopes, require_pkce, allowed_code_challenge_methods, client_auth_method, subject_type, logo_uri, tos_uri, policy_uri, disabled, require_consent, created_at, access_restricted, forward_auth_enabled, forward_auth_host, forward_auth_scopes, launch_url, principal_source, claim_aliases FROM oidc_client WHERE client_id = $1 FOR UPDATE
+`
+
+func (q *Queries) GetOIDCClientAnyForUpdate(ctx context.Context, clientID string) (OidcClient, error) {
+	row := q.db.QueryRow(ctx, getOIDCClientAnyForUpdate, clientID)
+	var i OidcClient
+	err := row.Scan(
+		&i.ClientID,
+		&i.DisplayName,
+		&i.ClientSecretHash,
+		&i.RedirectUris,
+		&i.PostLogoutRedirectUris,
+		&i.AllowedScopes,
+		&i.RequirePkce,
+		&i.AllowedCodeChallengeMethods,
+		&i.ClientAuthMethod,
+		&i.SubjectType,
+		&i.LogoUri,
+		&i.TosUri,
+		&i.PolicyUri,
+		&i.Disabled,
+		&i.RequireConsent,
+		&i.CreatedAt,
+		&i.AccessRestricted,
+		&i.ForwardAuthEnabled,
+		&i.ForwardAuthHost,
+		&i.ForwardAuthScopes,
+		&i.LaunchUrl,
+		&i.PrincipalSource,
+		&i.ClaimAliases,
+	)
+	return i, err
+}
+
 const getSigningKeyByKID = `-- name: GetSigningKeyByKID :one
 SELECT kid, algorithm, use, public_jwk, x509_cert_pem, private_pem_enc, private_pem_nonce, key_version, status, activated_at, decommissioned_at, retire_after, created_at FROM signing_key WHERE kid = $1
 `

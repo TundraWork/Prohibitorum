@@ -208,6 +208,67 @@ func TestServiceListAccountGroupsRejectsInvalidPersistedRule(t *testing.T) {
 	}
 }
 
+func TestServiceValidateGroupReplacementScopesDelegatedManagers(t *testing.T) {
+	groups := []db.UserGroup{
+		{ID: 1, Kind: "manual", Slug: "linked", DisplayName: "Linked"},
+		{ID: 2, Kind: "manual", Slug: "member", DisplayName: "Member"},
+		{ID: 3, Kind: "manual", Slug: "hidden", DisplayName: "Hidden"},
+	}
+	newQueries := func() *fakeQueries {
+		return &fakeQueries{
+			facts:              accessFacts(42, false),
+			globalGroups:       groups,
+			globalDecisions:    []db.GroupManualDecision{{GroupID: 2, GroupKind: "manual", AccountID: 42, Effect: "allow"}},
+			oidcGroupsByClient: map[string][]db.UserGroup{"wiki": {groups[0]}},
+		}
+	}
+	ref := AppRef{Kind: KindOIDC, OIDCClientID: "wiki"}
+
+	t.Run("linked group does not require current membership", func(t *testing.T) {
+		q := newQueries()
+		if err := NewService(q).ValidateGroupReplacement(context.Background(), 42, "user", ref, []int32{1}); err != nil {
+			t.Fatalf("ValidateGroupReplacement() error = %v", err)
+		}
+		if q.factsCalls != 0 {
+			t.Fatalf("GetAccountAccessFacts calls = %d, want 0", q.factsCalls)
+		}
+	})
+
+	t.Run("current membership can be newly linked", func(t *testing.T) {
+		q := newQueries()
+		if err := NewService(q).ValidateGroupReplacement(context.Background(), 42, "user", ref, []int32{1, 2}); err != nil {
+			t.Fatalf("ValidateGroupReplacement() error = %v", err)
+		}
+	})
+
+	t.Run("existing but hidden group is rejected", func(t *testing.T) {
+		q := newQueries()
+		if err := NewService(q).ValidateGroupReplacement(context.Background(), 42, "user", ref, []int32{1, 3}); !errors.Is(err, ErrGroupOutOfScope) {
+			t.Fatalf("ValidateGroupReplacement() error = %v, want ErrGroupOutOfScope", err)
+		}
+	})
+
+	t.Run("unknown group is distinct from hidden group", func(t *testing.T) {
+		q := newQueries()
+		if err := NewService(q).ValidateGroupReplacement(context.Background(), 42, "user", ref, []int32{999}); !errors.Is(err, ErrGroupNotFound) {
+			t.Fatalf("ValidateGroupReplacement() error = %v, want ErrGroupNotFound", err)
+		}
+		if q.factsCalls != 0 {
+			t.Fatalf("unknown group loaded account facts %d times", q.factsCalls)
+		}
+	})
+
+	t.Run("admin may select any existing group", func(t *testing.T) {
+		q := newQueries()
+		if err := NewService(q).ValidateGroupReplacement(context.Background(), 42, "admin", ref, []int32{3}); err != nil {
+			t.Fatalf("ValidateGroupReplacement() error = %v", err)
+		}
+		if q.factsCalls != 0 {
+			t.Fatalf("admin loaded account facts %d times", q.factsCalls)
+		}
+	})
+}
+
 func TestServiceEvaluateOIDCUsesOnlyRequestedAppsRuleGroups(t *testing.T) {
 	q := &fakeQueries{
 		oidcApps: map[string]db.OidcClient{
@@ -609,6 +670,20 @@ func (f *fakeQueries) GetSAMLAppGroup(_ context.Context, arg db.GetSAMLAppGroupP
 		return f.manualGroup, nil
 	}
 	return db.UserGroup{}, pgx.ErrNoRows
+}
+
+func (f *fakeQueries) ListOIDCAppGroups(_ context.Context, clientID string) ([]db.UserGroup, error) {
+	if f.oidcGroupsByClient != nil {
+		return append([]db.UserGroup(nil), f.oidcGroupsByClient[clientID]...), nil
+	}
+	return append([]db.UserGroup(nil), f.oidcGroups...), nil
+}
+
+func (f *fakeQueries) ListSAMLAppGroups(_ context.Context, id int64) ([]db.UserGroup, error) {
+	if f.samlGroupsByID != nil {
+		return append([]db.UserGroup(nil), f.samlGroupsByID[id]...), nil
+	}
+	return append([]db.UserGroup(nil), f.samlGroups...), nil
 }
 
 func (f *fakeQueries) ListOIDCAppRuleGroups(_ context.Context, clientID string) ([]db.UserGroup, error) {

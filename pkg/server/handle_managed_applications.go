@@ -31,7 +31,9 @@ type appPolicyQueries interface {
 	GetEntityIconEtag(context.Context, db.GetEntityIconEtagParams) (string, error)
 	GetOIDCClient(context.Context, string) (db.OidcClient, error)
 	GetOIDCClientAny(context.Context, string) (db.OidcClient, error)
+	GetOIDCClientAnyForUpdate(context.Context, string) (db.OidcClient, error)
 	GetSAMLSPByID(context.Context, int64) (db.SamlSp, error)
+	GetSAMLSPByIDForUpdate(context.Context, int64) (db.SamlSp, error)
 	GetAccountAccessFacts(context.Context, int32) (db.GetAccountAccessFactsRow, error)
 	ListManualDecisionsForOIDCApp(context.Context, db.ListManualDecisionsForOIDCAppParams) ([]db.GroupManualDecision, error)
 	ListManualDecisionsForSAMLApp(context.Context, db.ListManualDecisionsForSAMLAppParams) ([]db.GroupManualDecision, error)
@@ -80,6 +82,36 @@ type appPolicyService interface {
 	PreviewGroup(context.Context, appaccess.AppRef, int32, db.ListActiveAccountAccessFactsPageParams) ([]appaccess.GroupPreview, error)
 	PreviewRule(context.Context, appaccess.AppRef, appaccess.Rule) ([]appaccess.GroupPreview, error)
 	ExplainGroup(context.Context, appaccess.AppRef, int32, int32) (appaccess.Explanation, error)
+}
+
+type appPolicyTx interface {
+	Queries() appPolicyQueries
+	Commit(context.Context) error
+	Rollback(context.Context) error
+}
+
+type appPolicyTxRunner interface {
+	BeginAppPolicyTx(context.Context) (appPolicyTx, error)
+}
+
+type pgAppPolicyTx struct {
+	tx      pgx.Tx
+	queries appPolicyQueries
+}
+
+func (tx *pgAppPolicyTx) Queries() appPolicyQueries          { return tx.queries }
+func (tx *pgAppPolicyTx) Commit(ctx context.Context) error   { return tx.tx.Commit(ctx) }
+func (tx *pgAppPolicyTx) Rollback(ctx context.Context) error { return tx.tx.Rollback(ctx) }
+
+func (s *Server) beginAppPolicyTx(ctx context.Context) (appPolicyTx, error) {
+	if s.appPolicyTxRunnerOverride != nil {
+		return s.appPolicyTxRunnerOverride.BeginAppPolicyTx(ctx)
+	}
+	tx, err := s.dbPool.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return &pgAppPolicyTx{tx: tx, queries: s.queries.WithTx(tx)}, nil
 }
 
 func (s *Server) appPolicyQ() appPolicyQueries {
@@ -164,15 +196,51 @@ func (s *Server) handleReplaceManagedApplicationGroupsHTTP(w http.ResponseWriter
 		}
 		seen[id] = struct{}{}
 	}
+	sess := authn.SessionFromContext(r.Context())
+	if sess == nil || sess.Account == nil {
+		writeAuthErr(w, authn.ErrNoSession())
+		return
+	}
+	tx, err := s.beginAppPolicyTx(r.Context())
+	if err != nil {
+		writeAuthErr(w, fmt.Errorf("replace managed application groups: begin tx: %w", err))
+		return
+	}
+	defer tx.Rollback(r.Context()) //nolint:errcheck
+	q := tx.Queries()
+	if err := lockApplicationForGroupReplacement(r.Context(), q, app.ref); err != nil {
+		writeAuthErr(w, err)
+		return
+	}
+	evaluator := appaccess.NewService(q)
+	if err := evaluator.AuthorizeManager(r.Context(), sess.Account.ID, sess.Account.Role, app.ref); err != nil {
+		if errors.Is(err, appaccess.ErrAppNotFound) {
+			writeAuthErr(w, authn.ErrClientNotFound())
+		} else {
+			writeAuthErr(w, fmt.Errorf("reauthorize managed application: %w", err))
+		}
+		return
+	}
+	if err := evaluator.ValidateGroupReplacement(r.Context(), sess.Account.ID, sess.Account.Role, app.ref, body.GroupIDs); err != nil {
+		switch {
+		case errors.Is(err, appaccess.ErrGroupNotFound):
+			writeAuthErr(w, authn.ErrGroupNotFound())
+		case errors.Is(err, appaccess.ErrGroupOutOfScope):
+			writeAuthErr(w, authn.ErrPermissionDenied())
+		default:
+			writeAuthErr(w, fmt.Errorf("validate managed application groups: %w", err))
+		}
+		return
+	}
 
 	var groups []db.UserGroup
 	switch app.ref.Kind {
 	case appaccess.KindOIDC, appaccess.KindForwardAuth:
-		groups, err = s.appPolicyQ().ReplaceOIDCAppGroups(r.Context(), db.ReplaceOIDCAppGroupsParams{
+		groups, err = q.ReplaceOIDCAppGroups(r.Context(), db.ReplaceOIDCAppGroupsParams{
 			OidcClientID: app.ref.OIDCClientID, GroupIds: body.GroupIDs,
 		})
 	case appaccess.KindSAML:
-		groups, err = s.appPolicyQ().ReplaceSAMLAppGroups(r.Context(), db.ReplaceSAMLAppGroupsParams{
+		groups, err = q.ReplaceSAMLAppGroups(r.Context(), db.ReplaceSAMLAppGroupsParams{
 			SamlSpID: app.ref.SAMLSPID, GroupIds: body.GroupIDs,
 		})
 	default:
@@ -187,13 +255,58 @@ func (s *Server) handleReplaceManagedApplicationGroupsHTTP(w http.ResponseWriter
 		writeAuthErr(w, fmt.Errorf("replace managed application groups: %w", err))
 		return
 	}
-	views, err := s.appGroupViews(r.Context(), groups)
+	providers := make(map[string]struct{})
+	for _, group := range groups {
+		if group.Kind != "rule" {
+			continue
+		}
+		providerSlugs, err := q.ListKnownUpstreamIDPSlugs(r.Context())
+		if err != nil {
+			writeAuthErr(w, fmt.Errorf("list known providers for managed application groups: %w", err))
+			return
+		}
+		providers = providerSet(providerSlugs)
+		break
+	}
+	views, err := s.appGroupViewsWithProviders(r.Context(), groups, providers)
 	if err != nil {
 		writeAuthErr(w, err)
 		return
 	}
+	if err := tx.Commit(r.Context()); err != nil {
+		writeAuthErr(w, fmt.Errorf("replace managed application groups: commit: %w", err))
+		return
+	}
 	s.recordAppPolicy(r.Context(), app.ref, audit.EventUpdate, map[string]any{"group_ids": body.GroupIDs})
 	writeJSON(w, views)
+}
+
+func lockApplicationForGroupReplacement(ctx context.Context, q appPolicyQueries, ref appaccess.AppRef) error {
+	switch ref.Kind {
+	case appaccess.KindOIDC, appaccess.KindForwardAuth:
+		client, err := q.GetOIDCClientAnyForUpdate(ctx, ref.OIDCClientID)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return authn.ErrClientNotFound()
+		}
+		if err != nil {
+			return fmt.Errorf("lock managed OIDC application: %w", err)
+		}
+		if (ref.Kind == appaccess.KindOIDC && client.ForwardAuthEnabled) || (ref.Kind == appaccess.KindForwardAuth && !client.ForwardAuthEnabled) {
+			return authn.ErrClientNotFound()
+		}
+		return nil
+	case appaccess.KindSAML:
+		_, err := q.GetSAMLSPByIDForUpdate(ctx, ref.SAMLSPID)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return authn.ErrClientNotFound()
+		}
+		if err != nil {
+			return fmt.Errorf("lock managed SAML application: %w", err)
+		}
+		return nil
+	default:
+		return authn.ErrClientNotFound()
+	}
 }
 
 type managedApplication struct {

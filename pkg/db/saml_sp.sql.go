@@ -118,6 +118,34 @@ func (q *Queries) GetSAMLSPByID(ctx context.Context, id int64) (SamlSp, error) {
 	return i, err
 }
 
+const getSAMLSPByIDForUpdate = `-- name: GetSAMLSPByIDForUpdate :one
+SELECT id, entity_id, display_name, sp_kind, name_id_format, attribute_map, require_signed_authn_request, allow_idp_initiated, session_lifetime, metadata_xml, metadata_valid_until, metadata_cache_duration, metadata_fetched_at, created_at, disabled, access_restricted FROM saml_sp WHERE id = $1 FOR UPDATE
+`
+
+func (q *Queries) GetSAMLSPByIDForUpdate(ctx context.Context, id int64) (SamlSp, error) {
+	row := q.db.QueryRow(ctx, getSAMLSPByIDForUpdate, id)
+	var i SamlSp
+	err := row.Scan(
+		&i.ID,
+		&i.EntityID,
+		&i.DisplayName,
+		&i.SpKind,
+		&i.NameIDFormat,
+		&i.AttributeMap,
+		&i.RequireSignedAuthnRequest,
+		&i.AllowIdpInitiated,
+		&i.SessionLifetime,
+		&i.MetadataXml,
+		&i.MetadataValidUntil,
+		&i.MetadataCacheDuration,
+		&i.MetadataFetchedAt,
+		&i.CreatedAt,
+		&i.Disabled,
+		&i.AccessRestricted,
+	)
+	return i, err
+}
+
 const getSAMLSubjectID = `-- name: GetSAMLSubjectID :one
 SELECT account_id, sp_id, name_id, name_id_format, created_at FROM saml_subject_id WHERE account_id = $1 AND sp_id = $2
 `

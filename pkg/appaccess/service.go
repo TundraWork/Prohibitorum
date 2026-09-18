@@ -83,6 +83,10 @@ type GroupLister interface {
 var (
 	// ErrAppNotFound is deliberately shared by unauthorized managers and invalid app refs.
 	ErrAppNotFound = errors.New("appaccess: app not found")
+	// ErrGroupNotFound reports a requested group ID that does not exist.
+	ErrGroupNotFound = errors.New("appaccess: group not found")
+	// ErrGroupOutOfScope reports a requested group that a delegated manager cannot select.
+	ErrGroupOutOfScope = errors.New("appaccess: group outside manager scope")
 	// ErrInvalidPolicy means persisted app access data cannot be safely evaluated.
 	ErrInvalidPolicy = errors.New("appaccess: invalid persisted policy")
 )
@@ -97,6 +101,8 @@ type queries interface {
 	ListManualDecisionsForSAMLApp(context.Context, db.ListManualDecisionsForSAMLAppParams) ([]db.GroupManualDecision, error)
 	GetOIDCAppGroup(context.Context, db.GetOIDCAppGroupParams) (db.UserGroup, error)
 	GetSAMLAppGroup(context.Context, db.GetSAMLAppGroupParams) (db.UserGroup, error)
+	ListOIDCAppGroups(context.Context, string) ([]db.UserGroup, error)
+	ListSAMLAppGroups(context.Context, int64) ([]db.UserGroup, error)
 	ListOIDCAppRuleGroups(context.Context, string) ([]db.UserGroup, error)
 	ListSAMLAppRuleGroups(context.Context, int64) ([]db.UserGroup, error)
 	ListKnownUpstreamIDPSlugs(context.Context) ([]string, error)
@@ -343,6 +349,74 @@ func (s *Service) ListAccountGroups(ctx context.Context, accountID int32) ([]db.
 		return out[i].DisplayName < out[j].DisplayName
 	})
 	return out, nil
+}
+
+// ValidateGroupReplacement checks the complete requested selection before the
+// caller invokes an atomic replacement query. Admins may select any existing
+// group. Other managers may select only their current groups or groups already
+// linked to the application.
+func (s *Service) ValidateGroupReplacement(ctx context.Context, accountID int32, role string, ref AppRef, groupIDs []int32) error {
+	if len(groupIDs) == 0 {
+		return nil
+	}
+	groups, err := s.q.ListGlobalGroups(ctx)
+	if err != nil {
+		return err
+	}
+	existing := make(map[int32]struct{}, len(groups))
+	for _, group := range groups {
+		existing[group.ID] = struct{}{}
+	}
+	for _, groupID := range groupIDs {
+		if _, ok := existing[groupID]; !ok {
+			return ErrGroupNotFound
+		}
+	}
+	if role == "admin" {
+		return nil
+	}
+
+	var (
+		linkedGroups []db.UserGroup
+	)
+	switch ref.Kind {
+	case KindOIDC, KindForwardAuth:
+		linkedGroups, err = s.q.ListOIDCAppGroups(ctx, ref.OIDCClientID)
+	case KindSAML:
+		linkedGroups, err = s.q.ListSAMLAppGroups(ctx, ref.SAMLSPID)
+	default:
+		return ErrAppNotFound
+	}
+	if err != nil {
+		return err
+	}
+	allowed := make(map[int32]struct{}, len(linkedGroups))
+	for _, group := range linkedGroups {
+		allowed[group.ID] = struct{}{}
+	}
+	needsMembership := false
+	for _, groupID := range groupIDs {
+		if _, ok := allowed[groupID]; !ok {
+			needsMembership = true
+			break
+		}
+	}
+	if !needsMembership {
+		return nil
+	}
+	accountGroups, err := s.ListAccountGroups(ctx, accountID)
+	if err != nil {
+		return err
+	}
+	for _, group := range accountGroups {
+		allowed[group.ID] = struct{}{}
+	}
+	for _, groupID := range groupIDs {
+		if _, ok := allowed[groupID]; !ok {
+			return ErrGroupOutOfScope
+		}
+	}
+	return nil
 }
 
 // PreviewGroup returns only safe account summaries and their match result for one scoped rule group.

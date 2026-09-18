@@ -4,6 +4,9 @@ SELECT * FROM oidc_client WHERE client_id = $1 AND disabled = false;
 -- name: GetOIDCClientAny :one
 SELECT * FROM oidc_client WHERE client_id = $1;
 
+-- name: GetOIDCClientAnyForUpdate :one
+SELECT * FROM oidc_client WHERE client_id = $1 FOR UPDATE;
+
 -- name: UpdateOIDCClient :one
 UPDATE oidc_client SET
   display_name = $2, redirect_uris = $3, post_logout_redirect_uris = $4,

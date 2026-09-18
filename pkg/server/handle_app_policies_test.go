@@ -14,24 +14,121 @@ import (
 )
 
 func TestManagedApplicationGroupSelectionIsAtomic(t *testing.T) {
-	s, queries, _ := newPolicyTestServer()
-	selected := managedRequest(t, s, http.MethodPut, managedURL("oidc", "wiki", "/groups"), `{"groupIds":[2,3]}`, managedAppSession(7, "user", false))
-	if selected.Code != http.StatusOK {
-		t.Fatalf("select status = %d; body: %s", selected.Code, selected.Body.String())
-	}
-	if queries.oidcGroups["wiki"][1] || !queries.oidcGroups["wiki"][2] || !queries.oidcGroups["wiki"][3] {
-		t.Fatalf("links = %#v", queries.oidcGroups["wiki"])
-	}
+	t.Run("manager selects current and previously linked groups", func(t *testing.T) {
+		s, queries, _ := newPolicyTestServer()
+		runner := s.appPolicyTxRunnerOverride.(*policyTestTxRunner)
+		queries.accounts[7] = db.GetAccountAccessFactsRow{ID: 7, Username: "manager"}
+		queries.decisions[3] = map[int32]db.GroupManualDecision{
+			7: {GroupID: 3, GroupKind: "manual", AccountID: 7, Effect: "allow"},
+		}
+		selected := managedRequest(t, s, http.MethodPut, managedURL("oidc", "wiki", "/groups"), `{"groupIds":[2,3]}`, managedAppSession(7, "user", false))
+		if selected.Code != http.StatusOK {
+			t.Fatalf("select status = %d; body: %s", selected.Code, selected.Body.String())
+		}
+		if queries.oidcGroups["wiki"][1] || !queries.oidcGroups["wiki"][2] || !queries.oidcGroups["wiki"][3] {
+			t.Fatalf("links = %#v", queries.oidcGroups["wiki"])
+		}
+		if queries.mutationCalls != 1 {
+			t.Fatalf("replacement calls = %d, want 1", queries.mutationCalls)
+		}
+		if queries.providerCalls != 2 {
+			t.Fatalf("known-provider calls = %d, want membership and selected-rule validation", queries.providerCalls)
+		}
+		if len(runner.txs) != 1 || !runner.txs[0].committed || runner.txs[0].rolledBack {
+			t.Fatalf("transaction state = %#v, want committed", runner.txs)
+		}
+	})
 
-	before := maps.Clone(queries.oidcGroups["wiki"])
-	unknown := managedRequest(t, s, http.MethodPut, managedURL("oidc", "wiki", "/groups"), `{"groupIds":[2,999]}`, managedAppSession(7, "user", false))
-	assertManagedAPIError(t, unknown, http.StatusNotFound, "group_not_found")
-	if !reflect.DeepEqual(queries.oidcGroups["wiki"], before) {
-		t.Fatalf("failed replacement mutated links: %#v", queries.oidcGroups["wiki"])
-	}
+	t.Run("manager can preserve linked group without membership", func(t *testing.T) {
+		s, queries, _ := newPolicyTestServer()
+		selected := managedRequest(t, s, http.MethodPut, managedURL("oidc", "wiki", "/groups"), `{"groupIds":[1,2]}`, managedAppSession(7, "user", false))
+		if selected.Code != http.StatusOK {
+			t.Fatalf("select status = %d; body: %s", selected.Code, selected.Body.String())
+		}
+		if queries.mutationCalls != 1 {
+			t.Fatalf("replacement calls = %d, want 1", queries.mutationCalls)
+		}
+	})
 
-	duplicate := managedRequest(t, s, http.MethodPut, managedURL("oidc", "wiki", "/groups"), `{"groupIds":[2,2]}`, managedAppSession(7, "user", false))
-	assertManagedAPIError(t, duplicate, http.StatusBadRequest, "bad_request")
+	t.Run("out of scope request is rejected before replacement", func(t *testing.T) {
+		s, queries, _ := newPolicyTestServer()
+		runner := s.appPolicyTxRunnerOverride.(*policyTestTxRunner)
+		queries.accounts[7] = db.GetAccountAccessFactsRow{ID: 7, Username: "manager"}
+		before := maps.Clone(queries.oidcGroups["wiki"])
+		denied := managedRequest(t, s, http.MethodPut, managedURL("oidc", "wiki", "/groups"), `{"groupIds":[2,3]}`, managedAppSession(7, "user", false))
+		assertManagedAPIError(t, denied, http.StatusForbidden, "permission_denied")
+		if queries.mutationCalls != 0 || !reflect.DeepEqual(queries.oidcGroups["wiki"], before) {
+			t.Fatalf("denied replacement mutated links: calls=%d links=%#v", queries.mutationCalls, queries.oidcGroups["wiki"])
+		}
+		if len(runner.txs) != 1 || runner.txs[0].committed || !runner.txs[0].rolledBack {
+			t.Fatalf("transaction state = %#v, want rolled back", runner.txs)
+		}
+	})
+
+	t.Run("unknown group is rejected before replacement", func(t *testing.T) {
+		s, queries, _ := newPolicyTestServer()
+		runner := s.appPolicyTxRunnerOverride.(*policyTestTxRunner)
+		before := maps.Clone(queries.oidcGroups["wiki"])
+		unknown := managedRequest(t, s, http.MethodPut, managedURL("oidc", "wiki", "/groups"), `{"groupIds":[2,999]}`, managedAppSession(7, "user", false))
+		assertManagedAPIError(t, unknown, http.StatusNotFound, "group_not_found")
+		if queries.mutationCalls != 0 || !reflect.DeepEqual(queries.oidcGroups["wiki"], before) {
+			t.Fatalf("failed replacement mutated links: calls=%d links=%#v", queries.mutationCalls, queries.oidcGroups["wiki"])
+		}
+		if len(runner.txs) != 1 || runner.txs[0].committed || !runner.txs[0].rolledBack {
+			t.Fatalf("transaction state = %#v, want rolled back", runner.txs)
+		}
+	})
+
+	t.Run("admin can select any existing group", func(t *testing.T) {
+		s, queries, _ := newPolicyTestServer()
+		selected := managedRequest(t, s, http.MethodPut, managedURL("oidc", "wiki", "/groups"), `{"groupIds":[3]}`, managedAppSession(99, "admin", false))
+		if selected.Code != http.StatusOK || !queries.oidcGroups["wiki"][3] {
+			t.Fatalf("admin select status = %d, links=%#v; body: %s", selected.Code, queries.oidcGroups["wiki"], selected.Body.String())
+		}
+		if queries.providerCalls != 0 {
+			t.Fatalf("manual-only replacement loaded providers %d times", queries.providerCalls)
+		}
+	})
+
+	t.Run("SAML manager uses the same scope rules", func(t *testing.T) {
+		s, queries, _ := newPolicyTestServer()
+		queries.accounts[7] = db.GetAccountAccessFactsRow{ID: 7, Username: "manager"}
+		queries.samlGroups[7] = map[int32]bool{1: true}
+		queries.decisions[3] = map[int32]db.GroupManualDecision{
+			7: {GroupID: 3, GroupKind: "manual", AccountID: 7, Effect: "allow"},
+		}
+		selected := managedRequest(t, s, http.MethodPut, managedURL("saml", "7", "/groups"), `{"groupIds":[1,3]}`, managedAppSession(7, "user", false))
+		if selected.Code != http.StatusOK || !queries.samlGroups[7][1] || !queries.samlGroups[7][3] {
+			t.Fatalf("SAML select status = %d, links=%#v; body: %s", selected.Code, queries.samlGroups[7], selected.Body.String())
+		}
+	})
+
+	t.Run("response validation failure rolls replacement back", func(t *testing.T) {
+		s, queries, auditCapture := newPolicyTestServer()
+		runner := s.appPolicyTxRunnerOverride.(*policyTestTxRunner)
+		queries.groups[3] = db.UserGroup{ID: 3, Kind: "rule", Slug: "broken", DisplayName: "Broken", Rule: []byte(`{"version":1,"condition":`)}
+		before := maps.Clone(queries.oidcGroups["wiki"])
+		failed := managedRequest(t, s, http.MethodPut, managedURL("oidc", "wiki", "/groups"), `{"groupIds":[3]}`, managedAppSession(99, "admin", false))
+		assertManagedAPIError(t, failed, http.StatusBadRequest, "invalid_group_rule")
+		if queries.mutationCalls != 1 || !reflect.DeepEqual(queries.oidcGroups["wiki"], before) {
+			t.Fatalf("failed response validation was not rolled back: calls=%d links=%#v", queries.mutationCalls, queries.oidcGroups["wiki"])
+		}
+		if len(auditCapture.records) != 0 {
+			t.Fatalf("failed replacement wrote audit records: %#v", auditCapture.records)
+		}
+		if len(runner.txs) != 1 || runner.txs[0].committed || !runner.txs[0].rolledBack {
+			t.Fatalf("transaction state = %#v, want rolled back", runner.txs)
+		}
+	})
+
+	t.Run("duplicate request is rejected before transaction", func(t *testing.T) {
+		s, queries, _ := newPolicyTestServer()
+		duplicate := managedRequest(t, s, http.MethodPut, managedURL("oidc", "wiki", "/groups"), `{"groupIds":[2,2]}`, managedAppSession(7, "user", false))
+		assertManagedAPIError(t, duplicate, http.StatusBadRequest, "bad_request")
+		if queries.mutationCalls != 0 {
+			t.Fatalf("duplicate request replacement calls = %d", queries.mutationCalls)
+		}
+	})
 }
 
 func assertRuleValidationError(t *testing.T, rr *httptest.ResponseRecorder, wantPath, wantReason string) {
