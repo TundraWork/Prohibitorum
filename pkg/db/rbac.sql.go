@@ -853,6 +853,43 @@ func (q *Queries) ListGlobalGroups(ctx context.Context) ([]UserGroup, error) {
 	return items, nil
 }
 
+const listGlobalManualDecisionsForAccount = `-- name: ListGlobalManualDecisionsForAccount :many
+SELECT d.group_id, d.group_kind, d.account_id, d.effect, d.created_at, d.updated_at, d.created_by
+FROM group_manual_decision d
+JOIN user_group g ON g.id = d.group_id AND g.kind = d.group_kind
+WHERE d.account_id = $1
+  AND g.kind = 'manual'
+ORDER BY d.group_id ASC
+`
+
+func (q *Queries) ListGlobalManualDecisionsForAccount(ctx context.Context, accountID int32) ([]GroupManualDecision, error) {
+	rows, err := q.db.Query(ctx, listGlobalManualDecisionsForAccount, accountID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GroupManualDecision
+	for rows.Next() {
+		var i GroupManualDecision
+		if err := rows.Scan(
+			&i.GroupID,
+			&i.GroupKind,
+			&i.AccountID,
+			&i.Effect,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.CreatedBy,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listManualDecisionsForOIDCApp = `-- name: ListManualDecisionsForOIDCApp :many
 SELECT d.group_id, d.group_kind, d.account_id, d.effect, d.created_at, d.updated_at, d.created_by
 FROM group_manual_decision d

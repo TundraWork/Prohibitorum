@@ -4,7 +4,6 @@ import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { api } from '@/lib/api'
 import type { AppGroup, ProviderDescriptor, Rule } from '@/lib/appAccess'
-import type { Page } from '@/lib/pagination'
 import { useApi } from '@/composables/useApi'
 import { useResource } from '@/composables/useResource'
 import { withSudo } from '@/lib/sudo'
@@ -29,17 +28,20 @@ const manualDraft = ref({ slug: '', displayName: '', description: '', exposedToD
 const defaultRule: Rule = { version: 1, condition: { op: 'all', children: [{}] } }
 
 const groupsQuery = useResource(computed(() => ({
-  queryKey: ['admin', 'groups', search.value, kind.value],
+  queryKey: ['admin', 'groups'],
   staleTime: 0,
-  queryFn: ({ signal }: { signal: AbortSignal }) => {
-    const params = new URLSearchParams({ limit: '100' })
-    if (search.value.trim()) params.set('q', search.value.trim())
-    if (kind.value !== 'all') params.set('kind', kind.value)
-    return api.get<Page<AppGroup>>(`/api/prohibitorum/groups?${params}`, { signal })
-  },
+  queryFn: ({ signal }: { signal: AbortSignal }) => api.get<AppGroup[]>('/api/prohibitorum/groups', { signal }),
 })))
 const providersQuery = useResource(computed(() => ({ queryKey: ['admin', 'groups', 'providers'], staleTime: 60_000, queryFn: ({ signal }: { signal: AbortSignal }) => api.get<ProviderDescriptor[]>('/api/prohibitorum/groups/providers', { signal }) })))
-const groups = computed(() => groupsQuery.data.value?.items ?? [])
+const groups = computed(() => {
+  const query = search.value.trim().toLocaleLowerCase()
+  return (groupsQuery.data.value ?? []).filter(group => {
+    if (kind.value !== 'all' && group.kind !== kind.value) return false
+    if (!query) return true
+    return [group.displayName, group.slug, group.kind, String(group.id)]
+      .some(value => value.toLocaleLowerCase().includes(query))
+  })
+})
 
 function resetCreate(): void {
   createKind.value = null

@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"sort"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -345,6 +346,20 @@ func (q *policyTestQueries) ListGlobalGroups(context.Context) ([]db.UserGroup, e
 	return q.listGroups(func(db.UserGroup) bool { return true }), nil
 }
 
+func (q *policyTestQueries) ListGlobalManualDecisionsForAccount(_ context.Context, accountID int32) ([]db.GroupManualDecision, error) {
+	var out []db.GroupManualDecision
+	for groupID, decisions := range q.decisions {
+		if q.groups[groupID].Kind != "manual" {
+			continue
+		}
+		if decision, ok := decisions[accountID]; ok {
+			out = append(out, decision)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].GroupID < out[j].GroupID })
+	return out, nil
+}
+
 func (q *policyTestQueries) GetGlobalGroup(_ context.Context, id int32) (db.UserGroup, error) {
 	group, ok := q.groups[id]
 	if !ok {
@@ -596,6 +611,62 @@ func seedPolicyFixtures(q *policyTestQueries) {
 	q.oidcGroups["wiki"] = map[int32]bool{1: true, 2: true}
 	q.oidcGroups["other"] = map[int32]bool{3: true}
 	q.nextGroupID = 10
+}
+
+func TestListGlobalGroupsReturnsCompleteRoleScopedArray(t *testing.T) {
+	t.Run("admin gets every group with rule definitions", func(t *testing.T) {
+		s, _, _ := newPolicyTestServer()
+		rr := managedRequest(t, s, http.MethodGet, "/api/prohibitorum/groups?limit=1&q=missing&kind=manual&cursor=ignored", "", managedAppSession(99, "admin", false))
+		if rr.Code != http.StatusOK {
+			t.Fatalf("status = %d, want 200; body: %s", rr.Code, rr.Body.String())
+		}
+		var groups []contract.AppGroupView
+		if err := json.Unmarshal(rr.Body.Bytes(), &groups); err != nil {
+			t.Fatalf("decode groups: %v; body: %s", err, rr.Body.String())
+		}
+		if len(groups) != 3 {
+			t.Fatalf("groups = %#v, want all three groups", groups)
+		}
+		rules := 0
+		for _, group := range groups {
+			if group.Rule != nil {
+				rules++
+			}
+		}
+		if rules != 1 {
+			t.Fatalf("rule definitions = %d, want 1", rules)
+		}
+	})
+
+	t.Run("user gets only current memberships without rules", func(t *testing.T) {
+		s, queries, _ := newPolicyTestServer()
+		queries.accounts[7] = db.GetAccountAccessFactsRow{ID: 7, Username: "manager", DisplayName: "Manager", HasPasskey: true}
+		queries.decisions[1] = map[int32]db.GroupManualDecision{
+			7: {GroupID: 1, GroupKind: "manual", AccountID: 7, Effect: "allow"},
+		}
+		queries.decisions[3] = map[int32]db.GroupManualDecision{
+			7: {GroupID: 3, GroupKind: "manual", AccountID: 7, Effect: "deny"},
+		}
+		rr := managedRequest(t, s, http.MethodGet, "/api/prohibitorum/groups", "", managedAppSession(7, "user", false))
+		if rr.Code != http.StatusOK {
+			t.Fatalf("status = %d, want 200; body: %s", rr.Code, rr.Body.String())
+		}
+		var groups []contract.AppGroupView
+		if err := json.Unmarshal(rr.Body.Bytes(), &groups); err != nil {
+			t.Fatalf("decode groups: %v; body: %s", err, rr.Body.String())
+		}
+		if len(groups) != 2 || groups[0].ID != 1 || groups[1].ID != 2 {
+			t.Fatalf("groups = %#v, want manual allow 1 and matching rule 2", groups)
+		}
+		for _, group := range groups {
+			if group.Rule != nil {
+				t.Fatalf("user response exposed rule: %#v", group)
+			}
+		}
+		if strings.Contains(rr.Body.String(), "condition") {
+			t.Fatalf("user response exposed rule JSON: %s", rr.Body.String())
+		}
+	})
 }
 
 func managedAppSession(id int32, role string, disabled bool) *authn.Session {

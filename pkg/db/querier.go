@@ -175,6 +175,7 @@ type Querier interface {
 	ListForwardAuthManagementCandidates(ctx context.Context) ([]ListForwardAuthManagementCandidatesRow, error)
 	ListGlobalGroupApplications(ctx context.Context, groupID int32) ([]ListGlobalGroupApplicationsRow, error)
 	ListGlobalGroups(ctx context.Context) ([]UserGroup, error)
+	ListGlobalManualDecisionsForAccount(ctx context.Context, accountID int32) ([]GroupManualDecision, error)
 	ListInvitationGroups(ctx context.Context, groupIds []int32) ([]ListInvitationGroupsRow, error)
 	ListKnownUpstreamIDPDescriptors(ctx context.Context) ([]ListKnownUpstreamIDPDescriptorsRow, error)
 	ListKnownUpstreamIDPSlugs(ctx context.Context) ([]string, error)

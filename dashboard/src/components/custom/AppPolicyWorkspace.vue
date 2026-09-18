@@ -6,7 +6,6 @@ import { useApi } from '@/composables/useApi'
 import { accessQuery } from '@/queries/access'
 import { api } from '@/lib/api'
 import type { AppAccessWorkspace, AppGroup, AppKind } from '@/lib/appAccess'
-import type { Page } from '@/lib/pagination'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -23,9 +22,14 @@ const selected = ref<number[]>([])
 const initializedKey = ref('')
 const basePath = computed(() => `/api/prohibitorum/managed-applications/${encodeURIComponent(props.kind)}/${encodeURIComponent(props.appId)}`)
 const workspaceQuery = useResource(computed(() => accessQuery<AppAccessWorkspace>(props.kind, props.appId, 'access')))
-const catalogQuery = useResource(computed(() => ({ queryKey: ['session', 'access', 'global-groups'], staleTime: 0, queryFn: ({ signal }: { signal: AbortSignal }) => api.get<Page<AppGroup>>('/api/prohibitorum/groups?limit=100', { signal }) })))
+const catalogQuery = useResource(computed(() => ({ queryKey: ['session', 'access', 'global-groups'], staleTime: 0, queryFn: ({ signal }: { signal: AbortSignal }) => api.get<AppGroup[]>('/api/prohibitorum/groups', { signal }) })))
 const workspace = computed(() => workspaceQuery.data.value ?? null)
-const catalog = computed(() => catalogQuery.data.value?.items ?? [])
+const catalog = computed(() => {
+  const byId = new Map<number, AppGroup>()
+  for (const group of catalogQuery.data.value ?? []) byId.set(group.id, group)
+  for (const group of workspace.value?.groups ?? []) byId.set(group.id, group)
+  return [...byId.values()].sort((a, b) => a.displayName.localeCompare(b.displayName) || a.id - b.id)
+})
 const notFound = computed(() => props.mode === 'manager' && workspaceQuery.error.value?.code === 'client_not_found')
 const filtered = computed(() => {
   const query = search.value.trim().toLocaleLowerCase()

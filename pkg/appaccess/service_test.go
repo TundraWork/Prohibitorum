@@ -141,6 +141,73 @@ func TestServiceEvaluateOIDCMalformedPersistedRuleFailsClosed(t *testing.T) {
 	}
 }
 
+func TestServiceListAccountGroupsProjectsCurrentMembership(t *testing.T) {
+	q := &fakeQueries{
+		facts: accessFacts(42, true),
+		globalGroups: []db.UserGroup{
+			{ID: 9, Kind: "manual", Slug: "allowed", DisplayName: "Zulu"},
+			{ID: 2, Kind: "manual", Slug: "denied", DisplayName: "Denied"},
+			{ID: 3, Kind: "manual", Slug: "neutral", DisplayName: "Neutral"},
+			{ID: 7, Kind: "rule", Slug: "passkeys-b", DisplayName: "Alpha", Rule: []byte(passkeyRuleJSON)},
+			{ID: 6, Kind: "rule", Slug: "passkeys-a", DisplayName: "Alpha", Rule: []byte(passkeyRuleJSON)},
+			{ID: 4, Kind: "rule", Slug: "federated", DisplayName: "Federated", Rule: []byte(federationRuleJSON)},
+		},
+		globalDecisions: []db.GroupManualDecision{
+			{GroupID: 9, GroupKind: "manual", AccountID: 42, Effect: "allow"},
+			{GroupID: 2, GroupKind: "manual", AccountID: 42, Effect: "deny"},
+		},
+	}
+
+	groups, err := NewService(q).ListAccountGroups(context.Background(), 42)
+	if err != nil {
+		t.Fatalf("ListAccountGroups() error = %v", err)
+	}
+	got := make([]int32, len(groups))
+	for i, group := range groups {
+		got[i] = group.ID
+	}
+	if want := []int32{6, 7, 9}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("ListAccountGroups() IDs = %v, want %v", got, want)
+	}
+	if q.factsCalls != 1 {
+		t.Fatalf("GetAccountAccessFacts calls = %d, want 1", q.factsCalls)
+	}
+	if q.knownProviderCalls != 1 {
+		t.Fatalf("ListKnownUpstreamIDPSlugs calls = %d, want 1", q.knownProviderCalls)
+	}
+}
+
+func TestServiceListAccountGroupsDoesNotLoadProvidersForManualGroups(t *testing.T) {
+	q := &fakeQueries{
+		facts:           accessFacts(42, true),
+		globalGroups:    []db.UserGroup{{ID: 1, Kind: "manual", Slug: "members", DisplayName: "Members"}},
+		globalDecisions: []db.GroupManualDecision{{GroupID: 1, GroupKind: "manual", AccountID: 42, Effect: "allow"}},
+	}
+
+	groups, err := NewService(q).ListAccountGroups(context.Background(), 42)
+	if err != nil || len(groups) != 1 || groups[0].ID != 1 {
+		t.Fatalf("ListAccountGroups() = %#v, %v", groups, err)
+	}
+	if q.knownProviderCalls != 0 {
+		t.Fatalf("ListKnownUpstreamIDPSlugs calls = %d, want 0", q.knownProviderCalls)
+	}
+}
+
+func TestServiceListAccountGroupsRejectsInvalidPersistedRule(t *testing.T) {
+	q := &fakeQueries{
+		facts:        accessFacts(42, true),
+		globalGroups: []db.UserGroup{{ID: 2, Kind: "rule", Slug: "broken", Rule: []byte(`{"version":1,"condition":`)}},
+	}
+
+	groups, err := NewService(q).ListAccountGroups(context.Background(), 42)
+	if !errors.Is(err, ErrInvalidPolicy) {
+		t.Fatalf("ListAccountGroups() error = %v, want ErrInvalidPolicy", err)
+	}
+	if groups != nil {
+		t.Fatalf("ListAccountGroups() = %#v, want nil on invalid policy", groups)
+	}
+}
+
 func TestServiceEvaluateOIDCUsesOnlyRequestedAppsRuleGroups(t *testing.T) {
 	q := &fakeQueries{
 		oidcApps: map[string]db.OidcClient{
@@ -427,6 +494,8 @@ type fakeQueries struct {
 	samlAppGroupsByID  map[int64]map[int32]db.UserGroup
 	knownProviderSlugs []string
 	knownProviderCalls int
+	globalGroups       []db.UserGroup
+	globalDecisions    []db.GroupManualDecision
 	groupCalls         int
 	oidcManaged        bool
 	oidcManagedErr     error
@@ -559,6 +628,14 @@ func (f *fakeQueries) ListSAMLAppRuleGroups(_ context.Context, id int64) ([]db.U
 func (f *fakeQueries) ListKnownUpstreamIDPSlugs(_ context.Context) ([]string, error) {
 	f.knownProviderCalls++
 	return f.knownProviderSlugs, nil
+}
+
+func (f *fakeQueries) ListGlobalGroups(context.Context) ([]db.UserGroup, error) {
+	return append([]db.UserGroup(nil), f.globalGroups...), nil
+}
+
+func (f *fakeQueries) ListGlobalManualDecisionsForAccount(context.Context, int32) ([]db.GroupManualDecision, error) {
+	return append([]db.GroupManualDecision(nil), f.globalDecisions...), nil
 }
 
 func (f *fakeQueries) IsOIDCClientManager(_ context.Context, _ db.IsOIDCClientManagerParams) (bool, error) {

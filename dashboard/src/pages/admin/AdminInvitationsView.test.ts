@@ -36,7 +36,7 @@ describe('AdminInvitationsView', () => {
     expect(w.text()).toContain(en.admin.invitations.empty)
   })
   it('creates an invitation then refreshes', async () => {
-    get.mockImplementation(async (p: string) => p.includes('/identity-providers') ? { items: IDPS, nextCursor: '' } : { items: [], nextCursor: '' })
+    get.mockImplementation(async (p: string) => p === '/api/prohibitorum/groups' ? [] : p.includes('/identity-providers') ? { items: IDPS, nextCursor: '' } : { items: [], nextCursor: '' })
     post.mockResolvedValue({ url: 'https://x/enroll/new', expiresAt: '2026-06-10T00:00:00Z' })
     const w = mountView(); await flushPromises()
     await w.find('[data-test="create"]').trigger('click'); await flushPromises()
@@ -46,17 +46,16 @@ describe('AdminInvitationsView', () => {
     expect(w.text()).toContain(en.admin.invitations.created)
     expect(get).toHaveBeenCalledTimes(4) // initial resources + group picker + invitation reload
   })
-  it('offers app manager invitations', async () => {
-    get.mockImplementation(async (p: string) => p.includes('/identity-providers') ? { items: IDPS, nextCursor: '' } : { items: [], nextCursor: '' })
-    post.mockResolvedValue({ url: 'https://x/enroll/manager', expiresAt: '2026-06-10T00:00:00Z' })
+  it('offers only user and admin invitation roles', async () => {
+    get.mockImplementation(async (p: string) => p === '/api/prohibitorum/groups' ? [] : p.includes('/identity-providers') ? { items: IDPS, nextCursor: '' } : { items: [], nextCursor: '' })
     const w = mountView(); await flushPromises()
     await w.find('[data-test="create"]').trigger('click'); await flushPromises()
-    await w.find('[data-test="segment-app_manager"]').trigger('click'); await flushPromises()
-    await w.find('[data-test="create-confirm"]').trigger('click'); await flushPromises()
-    expect(post).toHaveBeenCalledWith('/api/prohibitorum/invitations', { role: 'app_manager' })
+    expect(w.find('[data-test="segment-user"]').exists()).toBe(true)
+    expect(w.find('[data-test="segment-admin"]').exists()).toBe(true)
+    expect(w.find('[data-test="segment-app_manager"]').exists()).toBe(false)
   })
   it('keeps the create form open when create fails', async () => {
-    get.mockImplementation(async (p: string) => p.includes('/identity-providers') ? { items: IDPS, nextCursor: '' } : { items: [], nextCursor: '' })
+    get.mockImplementation(async (p: string) => p === '/api/prohibitorum/groups' ? [] : p.includes('/identity-providers') ? { items: IDPS, nextCursor: '' } : { items: [], nextCursor: '' })
     post.mockRejectedValue({ code: 'invalid_role', message: 'zh' })
     const w = mountView(); await flushPromises()
     await w.find('[data-test="create"]').trigger('click')
@@ -74,7 +73,7 @@ describe('AdminInvitationsView', () => {
     expect(get).toHaveBeenCalledTimes(3) // initial (invitations + upstream-idps) + refresh (invitations only)
   })
   it('creates a federation-bound invitation when an IdP is chosen', async () => {
-    get.mockImplementation(async (p: string) => p.includes('/identity-providers') ? { items: [{ slug: 'okta', displayName: 'Okta', disabled: false, mode: 'invite_only' }], nextCursor: '' } : { items: [], nextCursor: '' })
+    get.mockImplementation(async (p: string) => p === '/api/prohibitorum/groups' ? [] : p.includes('/identity-providers') ? { items: [{ slug: 'okta', displayName: 'Okta', disabled: false, mode: 'invite_only' }], nextCursor: '' } : { items: [], nextCursor: '' })
     post.mockResolvedValue({ url: 'https://x/enroll/n', expiresAt: '2026-06-10T00:00:00Z' })
     const w = mountView(); await flushPromises()
     await w.find('[data-test="create"]').trigger('click'); await flushPromises()
@@ -84,10 +83,13 @@ describe('AdminInvitationsView', () => {
     expect(post).toHaveBeenCalledWith('/api/prohibitorum/invitations', { role: 'user', expectedUpstreamIdpSlug: 'okta' })
   })
   it('creates an invitation with a trimmed username and selected manual groups', async () => {
-    const groups = [{ id: 12, slug: 'engineering', displayName: 'Engineering' }]
+    const groups = [
+      { id: 12, kind: 'manual', slug: 'engineering', displayName: 'Engineering' },
+      { id: 13, kind: 'rule', slug: 'staff', displayName: 'Staff' },
+    ]
     get.mockImplementation(async (p: string) => {
       if (p.includes('/identity-providers')) return { items: IDPS, nextCursor: '' }
-      if (p.includes('/groups?')) return { items: groups, nextCursor: '' }
+      if (p === '/api/prohibitorum/groups') return groups
       return { items: [], nextCursor: '' }
     })
     post.mockResolvedValue({ url: 'https://x/enroll/n', expiresAt: '2026-06-10T00:00:00Z' })
@@ -101,6 +103,7 @@ describe('AdminInvitationsView', () => {
     expect(post).toHaveBeenCalledWith('/api/prohibitorum/invitations', {
       role: 'user', username: 'alice', groupIds: [12],
     })
+    expect(w.text()).not.toContain('Staff')
   })
   it('shows fixed usernames, resolved groups, and unavailable saved IDs', async () => {
     const invitation = [{

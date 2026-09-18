@@ -33,11 +33,17 @@ function mountWorkspace(mode: 'manager' | 'admin' = 'manager') {
   return wrapper
 }
 
+function groupCheckbox(wrapper: VueWrapper, label: string) {
+  const row = wrapper.findAll('label').find(candidate => candidate.text().includes(label))
+  if (!row) throw new Error(`Missing group row ${label}`)
+  return row.get('input[type=checkbox]')
+}
+
 beforeEach(() => {
   get.mockReset(); post.mockReset(); put.mockReset()
   get.mockImplementation(async (path: string) => {
     if (path === `${base}/access`) return workspace
-    if (path === '/api/prohibitorum/groups?limit=100') return { items: groups, nextCursor: '' }
+    if (path === '/api/prohibitorum/groups') return groups
     throw new Error(`Unexpected GET ${path}`)
   })
 })
@@ -48,17 +54,31 @@ describe('AppPolicyWorkspace', () => {
     const wrapper = mountWorkspace(); await flushPromises()
     const boxes = wrapper.findAll('input[type=checkbox]')
     expect(boxes).toHaveLength(2)
-    expect((boxes[1]!.element as HTMLInputElement).checked).toBe(true)
+    expect((groupCheckbox(wrapper, 'Corporate staff').element as HTMLInputElement).checked).toBe(true)
     await wrapper.get('input[type=search]').setValue('exceptions')
     expect(wrapper.text()).toContain('Exceptions')
     expect(wrapper.text()).not.toContain('Corporate staff')
   })
 
+  it('keeps linked groups visible when they are outside the user catalog', async () => {
+    get.mockImplementation(async (path: string) => {
+      if (path === `${base}/access`) return workspace
+      if (path === '/api/prohibitorum/groups') return [groups[0]!]
+      throw new Error(`Unexpected GET ${path}`)
+    })
+    const wrapper = mountWorkspace(); await flushPromises()
+    expect(wrapper.text()).toContain('Exceptions')
+    expect(wrapper.text()).toContain('Corporate staff')
+    const boxes = wrapper.findAll('input[type=checkbox]')
+    expect(boxes).toHaveLength(2)
+    expect((groupCheckbox(wrapper, 'Corporate staff').element as HTMLInputElement).checked).toBe(true)
+  })
+
   it('replaces the complete selection atomically', async () => {
     put.mockResolvedValue([groups[0]!])
     const wrapper = mountWorkspace(); await flushPromises()
-    await wrapper.findAll('input[type=checkbox]')[0]!.setValue(true)
-    await wrapper.findAll('input[type=checkbox]')[1]!.setValue(false)
+    await groupCheckbox(wrapper, 'Exceptions').setValue(true)
+    await groupCheckbox(wrapper, 'Corporate staff').setValue(false)
     await wrapper.get('[data-test=save-groups]').trigger('click'); await flushPromises()
     expect(put).toHaveBeenCalledWith(`${base}/groups`, { groupIds: [10] })
   })

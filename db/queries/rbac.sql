@@ -35,6 +35,14 @@ SELECT * FROM user_group WHERE id = sqlc.arg(group_id);
 SELECT * FROM user_group
 ORDER BY display_name ASC, id ASC;
 
+-- name: ListGlobalManualDecisionsForAccount :many
+SELECT d.*
+FROM group_manual_decision d
+JOIN user_group g ON g.id = d.group_id AND g.kind = d.group_kind
+WHERE d.account_id = sqlc.arg(account_id)
+  AND g.kind = 'manual'
+ORDER BY d.group_id ASC;
+
 -- name: ListGlobalGroupApplications :many
 SELECT *
 FROM (

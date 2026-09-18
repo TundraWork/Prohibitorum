@@ -6,9 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"sort"
 	"strconv"
-	"strings"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -25,7 +23,8 @@ import (
 func (s *Server) registerGlobalGroupRoutes(router chiRouter) {
 	const base = "/api/prohibitorum/groups"
 	admin := contract.AuthRequirement{Kind: contract.AuthAdmin}
-	registerOpHTTP(router, http.MethodGet, base, admin, s.handleListGlobalGroupsHTTP)
+	sessionReq := contract.AuthRequirement{Kind: contract.AuthSession}
+	registerOpHTTP(router, http.MethodGet, base, sessionReq, s.handleListGlobalGroupsHTTP)
 	s.registerSudoOpHTTP(router, http.MethodPost, base, admin, s.handleCreateGlobalGroupHTTP)
 	registerOpHTTP(router, http.MethodGet, base+"/providers", admin, s.handleListGlobalGroupProvidersHTTP)
 	s.registerAdminBodyOpHTTP(router, http.MethodPost, base+"/rule-preview", admin, s.handlePreviewGlobalRuleHTTP)
@@ -312,63 +311,27 @@ func (s *Server) handleExplainGlobalGroupHTTP(w http.ResponseWriter, r *http.Req
 }
 
 func (s *Server) handleListGlobalGroupsHTTP(w http.ResponseWriter, r *http.Request) {
-	groups, err := s.appPolicyQ().ListGlobalGroups(r.Context())
-	if err != nil {
-		writeAuthErr(w, fmt.Errorf("list global groups: %w", err))
-		return
-	}
-	query := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("q")))
-	kind := strings.TrimSpace(r.URL.Query().Get("kind"))
-	if kind != "" && kind != "manual" && kind != "rule" {
-		writeAuthErr(w, authn.ErrBadRequest())
-		return
-	}
-	filtered := groups[:0]
-	for _, group := range groups {
-		if kind != "" && group.Kind != kind {
-			continue
-		}
-		haystack := strings.ToLower(group.DisplayName + "\n" + group.Slug + "\n" + group.Kind + "\n" + strconv.FormatInt(int64(group.ID), 10))
-		if query != "" && !strings.Contains(haystack, query) {
-			continue
-		}
-		filtered = append(filtered, group)
-	}
-	sort.Slice(filtered, func(i, j int) bool {
-		if filtered[i].DisplayName == filtered[j].DisplayName {
-			return filtered[i].ID < filtered[j].ID
-		}
-		return filtered[i].DisplayName < filtered[j].DisplayName
-	})
-	limit, err := appPolicyLimit(r)
-	if err != nil {
-		writeAuthErr(w, err)
-		return
-	}
-	filters := map[string]string{"q": query, "kind": kind}
-	payload, err := s.decodeCursor(r.URL.Query().Get("cursor"), "global_groups", "display_name", filters)
-	if err != nil {
-		writeCursorInvalidErr(w, err)
-		return
-	}
-	afterName, afterID := decodeASCTextIntKey(payload.Keys)
-	start := 0
-	for start < len(filtered) && (filtered[start].DisplayName < afterName || (filtered[start].DisplayName == afterName && filtered[start].ID <= afterID)) {
-		start++
-	}
-	end := start + limit
-	more := end < len(filtered)
-	if end > len(filtered) {
-		end = len(filtered)
-	}
-	page := filtered[start:end]
 	sess := authn.SessionFromContext(r.Context())
-	var views []contract.AppGroupView
-	if sess != nil && sess.Account != nil && sess.Account.Role == "admin" {
-		views, err = s.appGroupViews(r.Context(), page)
+	if sess == nil || sess.Account == nil {
+		writeAuthErr(w, authn.ErrNoSession())
+		return
+	}
+	var (
+		groups []db.UserGroup
+		views  []contract.AppGroupView
+		err    error
+	)
+	if sess.Account.Role == "admin" {
+		groups, err = s.appPolicyQ().ListGlobalGroups(r.Context())
+		if err == nil {
+			views, err = s.appGroupViews(r.Context(), groups)
+		}
 	} else {
-		views = make([]contract.AppGroupView, 0, len(page))
-		for _, group := range page {
+		groups, err = s.appPolicyEvaluator().ListAccountGroups(r.Context(), sess.Account.ID)
+		if err == nil {
+			views = make([]contract.AppGroupView, 0, len(groups))
+		}
+		for _, group := range groups {
 			view := contract.AppGroupView{ID: group.ID, Kind: group.Kind, Slug: group.Slug, DisplayName: group.DisplayName, ExposedToDownstream: group.ExposedToDownstream}
 			if group.Description.Valid {
 				view.Description = group.Description.String
@@ -377,15 +340,10 @@ func (s *Server) handleListGlobalGroupsHTTP(w http.ResponseWriter, r *http.Reque
 		}
 	}
 	if err != nil {
-		writeAuthErr(w, err)
+		writeAuthErr(w, appRuleValidationErr(err))
 		return
 	}
-	next := ""
-	if more && len(page) > 0 {
-		last := page[len(page)-1]
-		next = s.encodeNextCursor("global_groups", "display_name", filters, encodeASCTextIntKey(last.DisplayName, last.ID))
-	}
-	writeJSON(w, buildPage(views, next))
+	writeJSON(w, views)
 }
 
 type globalGroupReferenceQueries interface {

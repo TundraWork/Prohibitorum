@@ -56,6 +56,7 @@ type appPolicyQueries interface {
 	CreateGlobalGroup(context.Context, db.CreateGlobalGroupParams) (db.UserGroup, error)
 	GetGlobalGroup(context.Context, int32) (db.UserGroup, error)
 	ListGlobalGroups(context.Context) ([]db.UserGroup, error)
+	ListGlobalManualDecisionsForAccount(context.Context, int32) ([]db.GroupManualDecision, error)
 	UpdateGlobalGroup(context.Context, db.UpdateGlobalGroupParams) (db.UserGroup, error)
 	DeleteGlobalGroup(context.Context, int32) (int64, error)
 	ReplaceOIDCAppGroups(context.Context, db.ReplaceOIDCAppGroupsParams) ([]db.UserGroup, error)
@@ -75,6 +76,7 @@ type appPolicyQueries interface {
 // appPolicyService is the Task 3 evaluator surface used by this HTTP layer.
 type appPolicyService interface {
 	AuthorizeManager(context.Context, int32, string, appaccess.AppRef) error
+	ListAccountGroups(context.Context, int32) ([]db.UserGroup, error)
 	PreviewGroup(context.Context, appaccess.AppRef, int32, db.ListActiveAccountAccessFactsPageParams) ([]appaccess.GroupPreview, error)
 	PreviewRule(context.Context, appaccess.AppRef, appaccess.Rule) ([]appaccess.GroupPreview, error)
 	ExplainGroup(context.Context, appaccess.AppRef, int32, int32) (appaccess.Explanation, error)

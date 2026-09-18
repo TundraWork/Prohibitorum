@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 
 	"github.com/jackc/pgx/v5"
 
@@ -74,6 +75,11 @@ type AppLister interface {
 	ListAllowedApps(context.Context, int32) ([]AppSummary, error)
 }
 
+// GroupLister returns the global groups an account currently belongs to.
+type GroupLister interface {
+	ListAccountGroups(context.Context, int32) ([]db.UserGroup, error)
+}
+
 var (
 	// ErrAppNotFound is deliberately shared by unauthorized managers and invalid app refs.
 	ErrAppNotFound = errors.New("appaccess: app not found")
@@ -94,6 +100,8 @@ type queries interface {
 	ListOIDCAppRuleGroups(context.Context, string) ([]db.UserGroup, error)
 	ListSAMLAppRuleGroups(context.Context, int64) ([]db.UserGroup, error)
 	ListKnownUpstreamIDPSlugs(context.Context) ([]string, error)
+	ListGlobalGroups(context.Context) ([]db.UserGroup, error)
+	ListGlobalManualDecisionsForAccount(context.Context, int32) ([]db.GroupManualDecision, error)
 	IsOIDCClientManager(context.Context, db.IsOIDCClientManagerParams) (bool, error)
 	IsSAMLSPManager(context.Context, db.IsSAMLSPManagerParams) (bool, error)
 	ListOIDCAccessCandidates(context.Context) ([]db.ListOIDCAccessCandidatesRow, error)
@@ -112,6 +120,7 @@ var (
 	_ OIDCAuthorizer = (*Service)(nil)
 	_ SAMLAuthorizer = (*Service)(nil)
 	_ AppLister      = (*Service)(nil)
+	_ GroupLister    = (*Service)(nil)
 )
 
 func NewService(q queries) *Service {
@@ -270,6 +279,69 @@ func (s *Service) ListAllowedApps(ctx context.Context, accountID int32) ([]AppSu
 			AccessRestricted: app.AccessRestricted,
 		})
 	}
+	return out, nil
+}
+
+// ListAccountGroups evaluates one current account-fact snapshot against every
+// global group. Manual membership requires an explicit allow decision; deny and
+// missing decisions do not establish membership.
+func (s *Service) ListAccountGroups(ctx context.Context, accountID int32) ([]db.UserGroup, error) {
+	facts, err := s.loadFacts(ctx, accountID)
+	if err != nil {
+		return nil, err
+	}
+	groups, err := s.q.ListGlobalGroups(ctx)
+	if err != nil {
+		return nil, err
+	}
+	decisions, err := s.q.ListGlobalManualDecisionsForAccount(ctx, accountID)
+	if err != nil {
+		return nil, err
+	}
+	manualAllows := make(map[int32]bool, len(decisions))
+	for _, decision := range decisions {
+		effect, err := manualEffect(decision)
+		if err != nil {
+			return nil, err
+		}
+		manualAllows[decision.GroupID] = effect == ManualAllow
+	}
+
+	var providers map[string]struct{}
+	out := make([]db.UserGroup, 0, len(groups))
+	for _, group := range groups {
+		switch group.Kind {
+		case "manual":
+			if len(group.Rule) != 0 {
+				return nil, invalidPolicy("manual group %d has a rule", group.ID)
+			}
+			if manualAllows[group.ID] {
+				out = append(out, group)
+			}
+		case "rule":
+			if providers == nil {
+				providers, err = s.loadKnownProviders(ctx)
+				if err != nil {
+					return nil, err
+				}
+			}
+			rule, err := parsePersistedRule(group, providers)
+			if err != nil {
+				return nil, err
+			}
+			if EvaluateCondition(rule.Condition, facts).Result {
+				out = append(out, group)
+			}
+		default:
+			return nil, invalidPolicy("group %d has kind %q", group.ID, group.Kind)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].DisplayName == out[j].DisplayName {
+			return out[i].ID < out[j].ID
+		}
+		return out[i].DisplayName < out[j].DisplayName
+	})
 	return out, nil
 }
 

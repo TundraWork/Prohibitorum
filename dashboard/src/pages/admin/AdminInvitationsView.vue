@@ -33,9 +33,9 @@ import PaginationControls from '@/components/custom/PaginationControls.vue'
 import { Mail, X } from 'lucide-vue-next'
 
 interface InvitationGroup { id: number; slug: string; displayName: string }
+interface InvitationGroupCatalogItem extends InvitationGroup { kind: 'manual' | 'rule' }
 interface Invitation { token: string; url: string; role: string; attributes?: Record<string, unknown>; createdAt: string; expiresAt: string; expectedUpstreamIdpSlug?: string; username?: string; groupIds: number[]; groups: InvitationGroup[] }
 interface Idp { slug: string; displayName: string; disabled: boolean; mode: string }
-interface GroupPage { items: InvitationGroup[]; nextCursor: string }
 const { t } = useI18n()
 const { busy, run, error, clear } = useApi('invitations')
 const IDP_NONE = '__none__'
@@ -44,22 +44,26 @@ const rows = page.items
 const providersQuery = useResource(collectionQuery<Idp>('identity-providers', { limit: 100 }))
 const idps = computed(() => (providersQuery.data.value?.items ?? []).filter(i => !i.disabled && (i.mode === 'auto_provision' || i.mode === 'invite_only')))
 const createOpen = ref(false)
-const newRole = ref<'admin' | 'app_manager' | 'user'>('user')
+const newRole = ref<'admin' | 'user'>('user')
 const newIdp = ref(IDP_NONE)
 const newUsername = ref('')
 const groupSearch = ref('')
-const selectedGroups = ref<InvitationGroup[]>([])
+const selectedGroups = ref<InvitationGroupCatalogItem[]>([])
 const groupsQuery = useResource(computed(() => ({
-  queryKey: ['admin', 'invitation-groups', groupSearch.value.trim()],
+  queryKey: ['admin', 'invitation-groups'],
   staleTime: 0,
   enabled: createOpen.value,
-  queryFn: ({ signal }: { signal: AbortSignal }) => {
-    const params = new URLSearchParams({ kind: 'manual', limit: '100' })
-    if (groupSearch.value.trim()) params.set('q', groupSearch.value.trim())
-    return api.get<GroupPage>(`/api/prohibitorum/groups?${params}`, { signal })
-  },
+  queryFn: ({ signal }: { signal: AbortSignal }) => api.get<InvitationGroupCatalogItem[]>('/api/prohibitorum/groups', { signal }),
 })))
-const availableGroups = computed(() => groupsQuery.data.value?.items ?? [])
+const availableGroups = computed(() => {
+  const query = groupSearch.value.trim().toLocaleLowerCase()
+  return (groupsQuery.data.value ?? []).filter(group => {
+    if (group.kind !== 'manual') return false
+    if (!query) return true
+    return [group.displayName, group.slug, String(group.id)]
+      .some(value => value.toLocaleLowerCase().includes(query))
+  })
+})
 const { flag: created, trigger: triggerCreated } = useTransientFlag()
 const revokeToken = ref<string | null>(null)
 const displayError = computed(() => page.error.value ?? error.value ?? providersQuery.error.value ?? groupsQuery.error.value)
@@ -91,7 +95,7 @@ function resetCreate(): void {
 function isGroupSelected(id: number): boolean {
   return selectedGroups.value.some(group => group.id === id)
 }
-function setGroupSelected(group: InvitationGroup, checked: boolean | 'indeterminate'): void {
+function setGroupSelected(group: InvitationGroupCatalogItem, checked: boolean | 'indeterminate'): void {
   if (checked === true && !isGroupSelected(group.id)) selectedGroups.value = [...selectedGroups.value, group]
   if (checked === false) selectedGroups.value = selectedGroups.value.filter(selected => selected.id !== group.id)
 }
@@ -127,7 +131,6 @@ async function revoke(): Promise<void> {
           <SegmentedControl v-model="newRole" :aria-label="t('admin.invitations.role')"
             :options="[
               {value:'user',label:t('admin.invitations.roleUser')},
-              {value:'app_manager',label:t('admin.invitations.roleAppManager')},
               {value:'admin',label:t('admin.invitations.roleAdmin')},
             ]" />
           <p class="text-xs text-muted">{{ t('admin.invitations.roleDesc') }}</p>
@@ -190,8 +193,8 @@ async function revoke(): Promise<void> {
       <TableBody>
         <TableRow v-for="inv in rows" :key="inv.token">
           <TableCell>
-            <StatusBadge :variant="inv.role === 'admin' ? 'caution' : inv.role === 'app_manager' ? 'info' : 'neutral'">
-              {{ inv.role === 'admin' ? t('admin.invitations.roleAdmin') : inv.role === 'app_manager' ? t('admin.invitations.roleAppManager') : t('admin.invitations.roleUser') }}
+            <StatusBadge :variant="inv.role === 'admin' ? 'caution' : 'neutral'">
+              {{ inv.role === 'admin' ? t('admin.invitations.roleAdmin') : t('admin.invitations.roleUser') }}
             </StatusBadge>
           </TableCell>
           <TableCell class="max-w-[12rem] truncate text-muted">{{ idpDisplayName(inv.expectedUpstreamIdpSlug) }}</TableCell>
