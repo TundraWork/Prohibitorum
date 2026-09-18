@@ -28,6 +28,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"prohibitorum/pkg/authn"
 	"prohibitorum/pkg/configx"
 	"prohibitorum/pkg/contract"
 	"prohibitorum/pkg/db"
@@ -64,12 +65,14 @@ type fakeListQ struct {
 	invitationCall db.ListPendingInvitationsParams
 
 	// oidc
-	oidcRows []db.ListNonForwardAuthOIDCClientsRow
-	oidcCall db.ListNonForwardAuthOIDCClientsParams
+	oidcRows  []db.ListNonForwardAuthOIDCClientsRow
+	oidcCall  db.ListNonForwardAuthOIDCClientsParams
+	oidcCalls int
 
 	// saml
-	samlRows []db.SamlSp
-	samlCall db.ListSAMLSPsParams
+	samlRows  []db.SamlSp
+	samlCall  db.ListSAMLSPsParams
+	samlCalls int
 
 	// upstream idps
 	idpRows []db.UpstreamIdp
@@ -80,8 +83,9 @@ type fakeListQ struct {
 	signKeyCall db.ListAllSigningKeysParams
 
 	// forward-auth
-	faRows []db.ListForwardAuthClientsRow
-	faCall db.ListForwardAuthClientsParams
+	faRows  []db.ListForwardAuthClientsRow
+	faCall  db.ListForwardAuthClientsParams
+	faCalls int
 
 	// audit
 	auditRows []db.CredentialEvent
@@ -110,11 +114,13 @@ func (f *fakeListQ) ListPendingInvitations(_ context.Context, p db.ListPendingIn
 
 func (f *fakeListQ) ListNonForwardAuthOIDCClients(_ context.Context, p db.ListNonForwardAuthOIDCClientsParams) ([]db.ListNonForwardAuthOIDCClientsRow, error) {
 	f.oidcCall = p
+	f.oidcCalls++
 	return f.oidcRows, nil
 }
 
 func (f *fakeListQ) ListSAMLSPs(_ context.Context, p db.ListSAMLSPsParams) ([]db.SamlSp, error) {
 	f.samlCall = p
+	f.samlCalls++
 	return f.samlRows, nil
 }
 
@@ -130,6 +136,7 @@ func (f *fakeListQ) ListAllSigningKeys(_ context.Context, p db.ListAllSigningKey
 
 func (f *fakeListQ) ListForwardAuthClients(_ context.Context, p db.ListForwardAuthClientsParams) ([]db.ListForwardAuthClientsRow, error) {
 	f.faCall = p
+	f.faCalls++
 	return f.faRows, nil
 }
 
@@ -166,6 +173,20 @@ func newPaginationTestServer(q *fakeListQ) *Server {
 			PublicOrigins: []string{"https://test.example.com"},
 		},
 	}
+}
+
+func applicationListContext(accountID int32, role string) context.Context {
+	return authn.WithSession(context.Background(), &authn.Session{
+		Account: &db.Account{ID: accountID, Role: role},
+	})
+}
+
+func adminListContext() context.Context {
+	return applicationListContext(1, "admin")
+}
+
+func userListContext(accountID int32) context.Context {
+	return applicationListContext(accountID, "user")
 }
 
 // --- helpers for row construction --------------------------------------------
@@ -767,12 +788,15 @@ func TestListOIDCApplications_ReturnsPage(t *testing.T) {
 		{ClientID: "c1", DisplayName: "App 1", CreatedAt: pgTS("2026-07-01T00:00:00Z")},
 	}
 	s := newPaginationTestServer(q)
-	out, err := s.handleListOIDCApplications(context.Background(), &listOIDCApplicationsIn{pageInput: pageInput{Limit: 10}})
+	out, err := s.handleListOIDCApplications(adminListContext(), &listOIDCApplicationsIn{pageInput: pageInput{Limit: 10}})
 	if err != nil {
 		t.Fatalf("handleListOIDCApplications: %v", err)
 	}
 	if len(out.Body.Items) != 1 {
 		t.Fatalf("items = %d, want 1", len(out.Body.Items))
+	}
+	if !q.oidcCall.IncludeAll || q.oidcCall.AccountID != 0 {
+		t.Fatalf("query scope = (includeAll=%v, accountID=%d), want (true, 0)", q.oidcCall.IncludeAll, q.oidcCall.AccountID)
 	}
 }
 
@@ -782,12 +806,15 @@ func TestListSAMLApplications_ReturnsPage(t *testing.T) {
 		{ID: 1, EntityID: "sp1", DisplayName: "SP 1", CreatedAt: pgTS("2026-07-01T00:00:00Z")},
 	}
 	s := newPaginationTestServer(q)
-	out, err := s.handleListSAMLApplications(context.Background(), &listSAMLApplicationsIn{pageInput: pageInput{Limit: 10}})
+	out, err := s.handleListSAMLApplications(adminListContext(), &listSAMLApplicationsIn{pageInput: pageInput{Limit: 10}})
 	if err != nil {
 		t.Fatalf("handleListSAMLApplications: %v", err)
 	}
 	if len(out.Body.Items) != 1 {
 		t.Fatalf("items = %d, want 1", len(out.Body.Items))
+	}
+	if !q.samlCall.IncludeAll || q.samlCall.AccountID != 0 {
+		t.Fatalf("query scope = (includeAll=%v, accountID=%d), want (true, 0)", q.samlCall.IncludeAll, q.samlCall.AccountID)
 	}
 }
 
@@ -812,12 +839,119 @@ func TestListForwardAuthApps_ReturnsPage(t *testing.T) {
 		{ClientID: "fa1", DisplayName: "FA 1", CreatedAt: pgTS("2026-07-01T00:00:00Z")},
 	}
 	s := newPaginationTestServer(q)
-	out, err := s.handleListForwardAuthApps(context.Background(), &listForwardAuthAppsIn{pageInput: pageInput{Limit: 10}})
+	out, err := s.handleListForwardAuthApps(adminListContext(), &listForwardAuthAppsIn{pageInput: pageInput{Limit: 10}})
 	if err != nil {
 		t.Fatalf("handleListForwardAuthApps: %v", err)
 	}
 	if len(out.Body.Items) != 1 {
 		t.Fatalf("items = %d, want 1", len(out.Body.Items))
+	}
+	if !q.faCall.IncludeAll || q.faCall.AccountID != 0 {
+		t.Fatalf("query scope = (includeAll=%v, accountID=%d), want (true, 0)", q.faCall.IncludeAll, q.faCall.AccountID)
+	}
+}
+
+func TestApplicationListsUseAssignedAccountScope(t *testing.T) {
+	tests := []struct {
+		name   string
+		invoke func(*Server) error
+		scope  func(*fakeListQ) (bool, int32)
+	}{
+		{
+			name: "OIDC",
+			invoke: func(s *Server) error {
+				_, err := s.handleListOIDCApplications(userListContext(7), &listOIDCApplicationsIn{})
+				return err
+			},
+			scope: func(q *fakeListQ) (bool, int32) { return q.oidcCall.IncludeAll, q.oidcCall.AccountID },
+		},
+		{
+			name: "forward auth",
+			invoke: func(s *Server) error {
+				_, err := s.handleListForwardAuthApps(userListContext(7), &listForwardAuthAppsIn{})
+				return err
+			},
+			scope: func(q *fakeListQ) (bool, int32) { return q.faCall.IncludeAll, q.faCall.AccountID },
+		},
+		{
+			name: "SAML",
+			invoke: func(s *Server) error {
+				_, err := s.handleListSAMLApplications(userListContext(7), &listSAMLApplicationsIn{})
+				return err
+			},
+			scope: func(q *fakeListQ) (bool, int32) { return q.samlCall.IncludeAll, q.samlCall.AccountID },
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			q := &fakeListQ{}
+			if err := tc.invoke(newPaginationTestServer(q)); err != nil {
+				t.Fatal(err)
+			}
+			includeAll, accountID := tc.scope(q)
+			if includeAll || accountID != 7 {
+				t.Fatalf("query scope = (includeAll=%v, accountID=%d), want (false, 7)", includeAll, accountID)
+			}
+		})
+	}
+}
+
+func TestApplicationListCursorsAreBoundToAuthorizationScope(t *testing.T) {
+	tests := []struct {
+		name       string
+		collection string
+		keys       []string
+		invoke     func(*Server, context.Context, string) error
+		calls      func(*fakeListQ) int
+	}{
+		{
+			name: "OIDC", collection: "oidc_applications", keys: []string{"2026-07-01T00:00:00Z", "oidc-1"},
+			invoke: func(s *Server, ctx context.Context, cursor string) error {
+				_, err := s.handleListOIDCApplications(ctx, &listOIDCApplicationsIn{pageInput: pageInput{Cursor: cursor}})
+				return err
+			},
+			calls: func(q *fakeListQ) int { return q.oidcCalls },
+		},
+		{
+			name: "forward auth", collection: "forward_auth_apps", keys: []string{"2026-07-01T00:00:00Z", "fa-1"},
+			invoke: func(s *Server, ctx context.Context, cursor string) error {
+				_, err := s.handleListForwardAuthApps(ctx, &listForwardAuthAppsIn{pageInput: pageInput{Cursor: cursor}})
+				return err
+			},
+			calls: func(q *fakeListQ) int { return q.faCalls },
+		},
+		{
+			name: "SAML", collection: "saml_applications", keys: []string{"2026-07-01T00:00:00Z", "1"},
+			invoke: func(s *Server, ctx context.Context, cursor string) error {
+				_, err := s.handleListSAMLApplications(ctx, &listSAMLApplicationsIn{pageInput: pageInput{Cursor: cursor}})
+				return err
+			},
+			calls: func(q *fakeListQ) int { return q.samlCalls },
+		},
+	}
+	for _, tc := range tests {
+		for _, scopeCase := range []struct {
+			name          string
+			sourceFilters map[string]string
+			targetContext context.Context
+		}{
+			{name: "different account", sourceFilters: map[string]string{"scope": "assigned", "account_id": "7"}, targetContext: userListContext(8)},
+			{name: "admin to user", sourceFilters: map[string]string{"scope": "all"}, targetContext: userListContext(7)},
+		} {
+			t.Run(tc.name+"/"+scopeCase.name, func(t *testing.T) {
+				q := &fakeListQ{}
+				s := newPaginationTestServer(q)
+				cursor := s.encodeNextCursor(tc.collection, "created_at", scopeCase.sourceFilters, tc.keys)
+				if err := tc.invoke(s, scopeCase.targetContext, cursor); err == nil {
+					t.Fatal("expected cursor scope mismatch")
+				} else if publicErr := weberr.AsPublic(err); publicErr == nil || publicErr.Code != contract.CodeCursorInvalid {
+					t.Fatalf("error = %v, want %s", err, contract.CodeCursorInvalid)
+				}
+				if got := tc.calls(q); got != 0 {
+					t.Fatalf("query calls = %d, want 0", got)
+				}
+			})
+		}
 	}
 }
 

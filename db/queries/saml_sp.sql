@@ -3,7 +3,15 @@ SELECT * FROM saml_sp WHERE entity_id = $1;
 
 -- name: ListSAMLSPs :many
 SELECT * FROM saml_sp
-WHERE (sqlc.narg('after_created_at')::timestamptz IS NULL OR (created_at, id) < (sqlc.narg('after_created_at'), sqlc.narg('after_id')::int8))
+WHERE (
+    sqlc.arg('include_all')::boolean
+    OR EXISTS (
+      SELECT 1 FROM saml_sp_manager m
+      WHERE m.saml_sp_id = saml_sp.id
+        AND m.account_id = sqlc.arg('account_id')::int4
+    )
+  )
+  AND (sqlc.narg('after_created_at')::timestamptz IS NULL OR (created_at, id) < (sqlc.narg('after_created_at'), sqlc.narg('after_id')::int8))
 ORDER BY created_at DESC, id DESC
 LIMIT sqlc.arg('limit');
 

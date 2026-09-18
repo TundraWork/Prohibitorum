@@ -698,7 +698,7 @@ func (s *Server) registerOperations() {
 	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/signing-keys/{kid}/retire", admin, s.handleRetireSigningKeyHTTP)
 
 	// Admin: OIDC application management
-	registerOp(mgmt, contract.OperationListOIDCApplications, s.handleListOIDCApplications, admin)
+	registerOp(mgmt, contract.OperationListOIDCApplications, s.handleListOIDCApplications, sessionReq)
 	registerOp(mgmt, contract.OperationGetOIDCApplication, s.handleGetOIDCApplication, sessionReq)
 	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/oidc-applications", admin, s.handleCreateOIDCApplicationHTTP)
 	s.registerSudoOpHTTP(s.router, "PUT", "/api/prohibitorum/oidc-applications/{clientId}", sessionReq, s.handleUpdateOIDCApplicationHTTP)
@@ -715,7 +715,7 @@ func (s *Server) registerOperations() {
 	// oidc_client with forward_auth_enabled=true, presented as its own section
 	// and excluded from the OIDC-applications list. Policy lives solely in the
 	// managed-application workspace.
-	registerOp(mgmt, contract.OperationListForwardAuthApps, s.handleListForwardAuthApps, admin)
+	registerOp(mgmt, contract.OperationListForwardAuthApps, s.handleListForwardAuthApps, sessionReq)
 	registerOp(mgmt, contract.OperationGetForwardAuthApp, s.handleGetForwardAuthApp, sessionReq)
 	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/forward-auth-apps", admin, s.handleCreateForwardAuthAppHTTP)
 	s.registerSudoOpHTTP(s.router, "PUT", "/api/prohibitorum/forward-auth-apps/{clientId}", sessionReq, s.handleUpdateForwardAuthAppHTTP)
@@ -743,7 +743,7 @@ func (s *Server) registerOperations() {
 	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/identity-providers/{slug}/operator-session/validate", admin, s.handleVRChatOperatorValidateHTTP)
 
 	// Admin: SAML application management
-	registerOp(mgmt, contract.OperationListSAMLApplications, s.handleListSAMLApplications, admin)
+	registerOp(mgmt, contract.OperationListSAMLApplications, s.handleListSAMLApplications, sessionReq)
 	registerOp(mgmt, contract.OperationGetSAMLApplication, s.handleGetSAMLApplication, sessionReq)
 	s.registerAdminBodyOpHTTP(s.router, "POST", "/api/prohibitorum/saml-applications", admin, s.handleCreateSAMLApplicationHTTP)
 	s.registerAdminBodyOpHTTP(s.router, "PUT", "/api/prohibitorum/saml-applications/{id}", sessionReq, s.handleUpdateSAMLApplicationHTTP)

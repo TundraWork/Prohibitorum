@@ -14,14 +14,39 @@ package server
 import (
 	"context"
 	"errors"
+	"strconv"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"prohibitorum/pkg/authn"
 	"prohibitorum/pkg/contract"
 	"prohibitorum/pkg/db"
 	"prohibitorum/pkg/pagination"
 )
+
+type applicationListScope struct {
+	includeAll bool
+	accountID  int32
+	filters    map[string]string
+}
+
+func applicationListScopeFromContext(ctx context.Context) (applicationListScope, error) {
+	sess := authn.SessionFromContext(ctx)
+	if sess == nil || sess.Account == nil {
+		return applicationListScope{}, authn.ErrNoSession()
+	}
+	if sess.Account.Role == "admin" {
+		return applicationListScope{includeAll: true, filters: map[string]string{"scope": "all"}}, nil
+	}
+	return applicationListScope{
+		accountID: sess.Account.ID,
+		filters: map[string]string{
+			"scope":      "assigned",
+			"account_id": strconv.FormatInt(int64(sess.Account.ID), 10),
+		},
+	}, nil
+}
 
 // topLevelQueries is the narrow query surface the top-level paginated list
 // handlers need. Declared as an interface so tests can inject a fake without

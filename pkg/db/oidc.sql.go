@@ -434,12 +434,22 @@ const listForwardAuthClients = `-- name: ListForwardAuthClients :many
 SELECT client_id, display_name, forward_auth_host, forward_auth_scopes, access_restricted, disabled, created_at, principal_source
 FROM oidc_client
 WHERE forward_auth_enabled = true
-  AND ($1::timestamptz IS NULL OR (created_at, client_id) < ($1, $2::text))
+  AND (
+    $1::boolean
+    OR EXISTS (
+      SELECT 1 FROM oidc_client_manager m
+      WHERE m.client_id = oidc_client.client_id
+        AND m.account_id = $2::int4
+    )
+  )
+  AND ($3::timestamptz IS NULL OR (created_at, client_id) < ($3, $4::text))
 ORDER BY created_at DESC, client_id DESC
-LIMIT $3
+LIMIT $5
 `
 
 type ListForwardAuthClientsParams struct {
+	IncludeAll     bool               `json:"includeAll"`
+	AccountID      int32              `json:"accountId"`
 	AfterCreatedAt pgtype.Timestamptz `json:"afterCreatedAt"`
 	AfterClientID  pgtype.Text        `json:"afterClientId"`
 	Limit          int32              `json:"limit"`
@@ -457,7 +467,13 @@ type ListForwardAuthClientsRow struct {
 }
 
 func (q *Queries) ListForwardAuthClients(ctx context.Context, arg ListForwardAuthClientsParams) ([]ListForwardAuthClientsRow, error) {
-	rows, err := q.db.Query(ctx, listForwardAuthClients, arg.AfterCreatedAt, arg.AfterClientID, arg.Limit)
+	rows, err := q.db.Query(ctx, listForwardAuthClients,
+		arg.IncludeAll,
+		arg.AccountID,
+		arg.AfterCreatedAt,
+		arg.AfterClientID,
+		arg.Limit,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -490,12 +506,22 @@ SELECT client_id, display_name, redirect_uris, allowed_scopes,
        client_auth_method, disabled, access_restricted, created_at, principal_source, claim_aliases
 FROM oidc_client
 WHERE forward_auth_enabled = false
-  AND ($1::timestamptz IS NULL OR (created_at, client_id) < ($1, $2::text))
+  AND (
+    $1::boolean
+    OR EXISTS (
+      SELECT 1 FROM oidc_client_manager m
+      WHERE m.client_id = oidc_client.client_id
+        AND m.account_id = $2::int4
+    )
+  )
+  AND ($3::timestamptz IS NULL OR (created_at, client_id) < ($3, $4::text))
 ORDER BY created_at DESC, client_id DESC
-LIMIT $3
+LIMIT $5
 `
 
 type ListNonForwardAuthOIDCClientsParams struct {
+	IncludeAll     bool               `json:"includeAll"`
+	AccountID      int32              `json:"accountId"`
 	AfterCreatedAt pgtype.Timestamptz `json:"afterCreatedAt"`
 	AfterClientID  pgtype.Text        `json:"afterClientId"`
 	Limit          int32              `json:"limit"`
@@ -515,7 +541,13 @@ type ListNonForwardAuthOIDCClientsRow struct {
 }
 
 func (q *Queries) ListNonForwardAuthOIDCClients(ctx context.Context, arg ListNonForwardAuthOIDCClientsParams) ([]ListNonForwardAuthOIDCClientsRow, error) {
-	rows, err := q.db.Query(ctx, listNonForwardAuthOIDCClients, arg.AfterCreatedAt, arg.AfterClientID, arg.Limit)
+	rows, err := q.db.Query(ctx, listNonForwardAuthOIDCClients,
+		arg.IncludeAll,
+		arg.AccountID,
+		arg.AfterCreatedAt,
+		arg.AfterClientID,
+		arg.Limit,
+	)
 	if err != nil {
 		return nil, err
 	}

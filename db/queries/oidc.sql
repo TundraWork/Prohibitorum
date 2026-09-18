@@ -121,6 +121,14 @@ WHERE client_id = $1;
 SELECT client_id, display_name, forward_auth_host, forward_auth_scopes, access_restricted, disabled, created_at, principal_source
 FROM oidc_client
 WHERE forward_auth_enabled = true
+  AND (
+    sqlc.arg('include_all')::boolean
+    OR EXISTS (
+      SELECT 1 FROM oidc_client_manager m
+      WHERE m.client_id = oidc_client.client_id
+        AND m.account_id = sqlc.arg('account_id')::int4
+    )
+  )
   AND (sqlc.narg('after_created_at')::timestamptz IS NULL OR (created_at, client_id) < (sqlc.narg('after_created_at'), sqlc.narg('after_client_id')::text))
 ORDER BY created_at DESC, client_id DESC
 LIMIT sqlc.arg('limit');
@@ -145,6 +153,14 @@ SELECT client_id, display_name, redirect_uris, allowed_scopes,
        client_auth_method, disabled, access_restricted, created_at, principal_source, claim_aliases
 FROM oidc_client
 WHERE forward_auth_enabled = false
+  AND (
+    sqlc.arg('include_all')::boolean
+    OR EXISTS (
+      SELECT 1 FROM oidc_client_manager m
+      WHERE m.client_id = oidc_client.client_id
+        AND m.account_id = sqlc.arg('account_id')::int4
+    )
+  )
   AND (sqlc.narg('after_created_at')::timestamptz IS NULL OR (created_at, client_id) < (sqlc.narg('after_created_at'), sqlc.narg('after_client_id')::text))
 ORDER BY created_at DESC, client_id DESC
 LIMIT sqlc.arg('limit');

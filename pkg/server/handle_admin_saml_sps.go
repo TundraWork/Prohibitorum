@@ -114,12 +114,16 @@ func (s *Server) handleListSAMLApplications(ctx context.Context, in *listSAMLApp
 	lim := pagination.Limit(in.Limit)
 	const collection = "saml_applications"
 	const sort = "created_at"
-	filters := map[string]string{}
+	scope, err := applicationListScopeFromContext(ctx)
+	if err != nil {
+		return nil, authErrToHuma(err)
+	}
+	filters := scope.filters
 	payload, err := s.decodeCursor(in.Cursor, collection, sort, filters)
 	if err != nil {
 		return nil, cursorInvalidErr(err)
 	}
-	params := db.ListSAMLSPsParams{Limit: int32(lim + 1)}
+	params := db.ListSAMLSPsParams{IncludeAll: scope.includeAll, AccountID: scope.accountID, Limit: int32(lim + 1)}
 	if len(payload.Keys) == 2 {
 		if t, perr := time.Parse(time.RFC3339Nano, payload.Keys[0]); perr == nil {
 			params.AfterCreatedAt = tsToPgType(t)
