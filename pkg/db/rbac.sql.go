@@ -725,6 +725,42 @@ func (q *Queries) ListForwardAuthAccessCandidates(ctx context.Context) ([]ListFo
 	return items, nil
 }
 
+const listGlobalGroupApplicationCounts = `-- name: ListGlobalGroupApplicationCounts :many
+SELECT
+  g.id AS group_id,
+  (
+    (SELECT count(*) FROM oidc_client_group og WHERE og.group_id = g.id)
+    + (SELECT count(*) FROM saml_sp_group sg WHERE sg.group_id = g.id)
+  )::bigint AS application_count
+FROM user_group g
+ORDER BY g.id ASC
+`
+
+type ListGlobalGroupApplicationCountsRow struct {
+	GroupID          int32 `json:"groupId"`
+	ApplicationCount int64 `json:"applicationCount"`
+}
+
+func (q *Queries) ListGlobalGroupApplicationCounts(ctx context.Context) ([]ListGlobalGroupApplicationCountsRow, error) {
+	rows, err := q.db.Query(ctx, listGlobalGroupApplicationCounts)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListGlobalGroupApplicationCountsRow
+	for rows.Next() {
+		var i ListGlobalGroupApplicationCountsRow
+		if err := rows.Scan(&i.GroupID, &i.ApplicationCount); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listGlobalGroupApplications = `-- name: ListGlobalGroupApplications :many
 SELECT kind, app_id, display_name
 FROM (

@@ -174,6 +174,7 @@ type Querier interface {
 	ListEntityIconEtags(ctx context.Context, ownerKind string) ([]ListEntityIconEtagsRow, error)
 	ListForwardAuthAccessCandidates(ctx context.Context) ([]ListForwardAuthAccessCandidatesRow, error)
 	ListForwardAuthClients(ctx context.Context, arg ListForwardAuthClientsParams) ([]ListForwardAuthClientsRow, error)
+	ListGlobalGroupApplicationCounts(ctx context.Context) ([]ListGlobalGroupApplicationCountsRow, error)
 	ListGlobalGroupApplications(ctx context.Context, groupID int32) ([]ListGlobalGroupApplicationsRow, error)
 	ListGlobalGroups(ctx context.Context) ([]UserGroup, error)
 	ListGlobalManualDecisionsForAccount(ctx context.Context, accountID int32) ([]GroupManualDecision, error)

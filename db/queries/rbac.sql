@@ -35,6 +35,16 @@ SELECT * FROM user_group WHERE id = sqlc.arg(group_id);
 SELECT * FROM user_group
 ORDER BY display_name ASC, id ASC;
 
+-- name: ListGlobalGroupApplicationCounts :many
+SELECT
+  g.id AS group_id,
+  (
+    (SELECT count(*) FROM oidc_client_group og WHERE og.group_id = g.id)
+    + (SELECT count(*) FROM saml_sp_group sg WHERE sg.group_id = g.id)
+  )::bigint AS application_count
+FROM user_group g
+ORDER BY g.id ASC;
+
 -- name: ListGlobalManualDecisionsForAccount :many
 SELECT d.*
 FROM group_manual_decision d

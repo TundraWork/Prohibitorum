@@ -29,8 +29,12 @@ type policyAuditCapture struct {
 	records []audit.Record
 }
 
-func (*policyTestQueries) GetEntityIconEtag(context.Context, db.GetEntityIconEtagParams) (string, error) {
-	return "", pgx.ErrNoRows
+func (q *policyTestQueries) GetEntityIconEtag(_ context.Context, arg db.GetEntityIconEtagParams) (string, error) {
+	etag, ok := q.iconEtags[arg.OwnerKind+":"+arg.OwnerID]
+	if !ok {
+		return "", pgx.ErrNoRows
+	}
+	return etag, nil
 }
 
 func (c *policyAuditCapture) Record(_ context.Context, record audit.Record) error {
@@ -54,6 +58,7 @@ type policyTestQueries struct {
 	accounts            map[int32]db.GetAccountAccessFactsRow
 	providers           []string
 	providerDescriptors []db.ListKnownUpstreamIDPDescriptorsRow
+	iconEtags           map[string]string
 	nextGroupID         int32
 
 	appLookupCalls   int
@@ -128,6 +133,7 @@ func newPolicyTestQueries() *policyTestQueries {
 		decisions:    make(map[int32]map[int32]db.GroupManualDecision),
 		accounts:     make(map[int32]db.GetAccountAccessFactsRow),
 		providers:    []string{"github"},
+		iconEtags:    make(map[string]string),
 		nextGroupID:  10,
 	}
 }
@@ -367,6 +373,57 @@ func (q *policyTestQueries) ListSAMLAppGroups(_ context.Context, spID int64) ([]
 
 func (q *policyTestQueries) ListGlobalGroups(context.Context) ([]db.UserGroup, error) {
 	return q.listGroups(func(db.UserGroup) bool { return true }), nil
+}
+
+func (q *policyTestQueries) ListGlobalGroupApplicationCounts(context.Context) ([]db.ListGlobalGroupApplicationCountsRow, error) {
+	rows := make([]db.ListGlobalGroupApplicationCountsRow, 0, len(q.groups))
+	for groupID := range q.groups {
+		var count int64
+		for _, links := range q.oidcGroups {
+			if links[groupID] {
+				count++
+			}
+		}
+		for _, links := range q.samlGroups {
+			if links[groupID] {
+				count++
+			}
+		}
+		rows = append(rows, db.ListGlobalGroupApplicationCountsRow{GroupID: groupID, ApplicationCount: count})
+	}
+	return rows, nil
+}
+
+func (q *policyTestQueries) ListGlobalGroupApplications(_ context.Context, groupID int32) ([]db.ListGlobalGroupApplicationsRow, error) {
+	var rows []db.ListGlobalGroupApplicationsRow
+	for appID, links := range q.oidcGroups {
+		if !links[groupID] {
+			continue
+		}
+		app := q.oidc[appID]
+		kind := "oidc"
+		if app.ForwardAuthEnabled {
+			kind = "forward_auth"
+		}
+		rows = append(rows, db.ListGlobalGroupApplicationsRow{Kind: kind, AppID: appID, DisplayName: app.DisplayName})
+	}
+	for appID, links := range q.samlGroups {
+		if !links[groupID] {
+			continue
+		}
+		app := q.saml[appID]
+		rows = append(rows, db.ListGlobalGroupApplicationsRow{Kind: "saml", AppID: strconv.FormatInt(appID, 10), DisplayName: app.DisplayName})
+	}
+	sort.Slice(rows, func(i, j int) bool {
+		if rows[i].Kind != rows[j].Kind {
+			return rows[i].Kind < rows[j].Kind
+		}
+		if rows[i].DisplayName != rows[j].DisplayName {
+			return rows[i].DisplayName < rows[j].DisplayName
+		}
+		return rows[i].AppID < rows[j].AppID
+	})
+	return rows, nil
 }
 
 func (q *policyTestQueries) ListGlobalManualDecisionsForAccount(_ context.Context, accountID int32) ([]db.GroupManualDecision, error) {
@@ -658,6 +715,9 @@ func TestListGlobalGroupsReturnsCompleteRoleScopedArray(t *testing.T) {
 			if group.Rule != nil {
 				rules++
 			}
+			if group.ApplicationCount == nil || *group.ApplicationCount != 1 {
+				t.Fatalf("group %d applicationCount = %v, want 1", group.ID, group.ApplicationCount)
+			}
 		}
 		if rules != 1 {
 			t.Fatalf("rule definitions = %d, want 1", rules)
@@ -692,7 +752,28 @@ func TestListGlobalGroupsReturnsCompleteRoleScopedArray(t *testing.T) {
 		if strings.Contains(rr.Body.String(), "condition") {
 			t.Fatalf("user response exposed rule JSON: %s", rr.Body.String())
 		}
+		if strings.Contains(rr.Body.String(), "applicationCount") {
+			t.Fatalf("user response exposed application counts: %s", rr.Body.String())
+		}
 	})
+}
+
+func TestListGlobalGroupApplicationsIncludesCacheBustedIcons(t *testing.T) {
+	s, queries, _ := newPolicyTestServer()
+	queries.iconEtags["oidc_client:wiki"] = "abcdef0123456789"
+	rr := managedRequest(t, s, http.MethodGet, "/api/prohibitorum/groups/1/applications", "", managedAppSession(99, "admin", false))
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body: %s", rr.Code, rr.Body.String())
+	}
+	var page struct {
+		Items []contract.GroupApplicationView `json:"items"`
+	}
+	if err := json.Unmarshal(rr.Body.Bytes(), &page); err != nil {
+		t.Fatalf("decode applications: %v; body: %s", err, rr.Body.String())
+	}
+	if len(page.Items) != 1 || page.Items[0].IconURL == nil || *page.Items[0].IconURL != "/icon/oidc_client/wiki?v=abcdef01" {
+		t.Fatalf("applications = %#v, want cache-busted Wiki icon", page.Items)
+	}
 }
 
 func managedAppSession(id int32, role string, disabled bool) *authn.Session {

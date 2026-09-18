@@ -11,12 +11,14 @@ import RuleEditor, { type RuleEditorDraft } from '@/components/custom/RuleEditor
 import ErrorPanel from '@/components/custom/ErrorPanel.vue'
 import EmptyState from '@/components/custom/EmptyState.vue'
 import StatusBadge from '@/components/custom/StatusBadge.vue'
+import TableSkeleton from '@/components/custom/TableSkeleton.vue'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
 const { t } = useI18n()
 const router = useRouter()
@@ -59,6 +61,10 @@ async function createRule(draft: RuleEditorDraft): Promise<void> {
   resetCreate()
   await router.push(`/admin/groups/${result.id}`)
 }
+
+function openGroup(id: number): void {
+  router.push(`/admin/groups/${id}`)
+}
 </script>
 
 <template>
@@ -82,12 +88,38 @@ async function createRule(draft: RuleEditorDraft): Promise<void> {
     <RuleEditor v-else-if="createKind === 'rule'" :initial-draft="{ slug: '', displayName: '', description: '', exposedToDownstream: true, rule: defaultRule }" :providers="providersQuery.data.value ?? []" preview-endpoint="/api/prohibitorum/groups/rule-preview" :busy="mutation.busy.value" :server-error="mutation.error.value ?? undefined" mode="create" @save="createRule" @cancel="resetCreate" />
 
     <div class="grid gap-3 sm:grid-cols-[1fr_auto]"><Input v-model="search" type="search" :placeholder="t('admin.groups.search')" /><select v-model="kind" class="h-9 rounded-md border border-input bg-surface px-3 text-sm"><option value="all">{{ t('admin.groups.allKinds') }}</option><option value="manual">{{ t('admin.groups.manual') }}</option><option value="rule">{{ t('admin.groups.rule') }}</option></select></div>
-    <EmptyState v-if="!groupsQuery.busy.value && groups.length === 0" :title="t('admin.groups.empty')" :description="t('admin.groups.emptyDescription')" />
-    <div v-else class="grid gap-3 sm:grid-cols-2">
-      <RouterLink v-for="group in groups" :key="group.id" :to="`/admin/groups/${group.id}`" class="rounded-lg border border-border bg-surface p-4 transition-colors hover:bg-subtle">
-        <div class="flex items-start justify-between gap-3"><div class="min-w-0"><h2 class="truncate font-semibold text-ink">{{ group.displayName }}</h2><p class="font-mono text-xs text-muted">{{ group.slug }} · #{{ group.id }}</p></div><StatusBadge variant="neutral">{{ t(`admin.groups.${group.kind}`) }}</StatusBadge></div>
-        <p v-if="group.description" class="mt-3 text-sm text-muted">{{ group.description }}</p>
-      </RouterLink>
-    </div>
+    <TableSkeleton v-if="groupsQuery.busy.value && !groups.length" :rows="5" :cols="4" />
+    <EmptyState v-else-if="groups.length === 0" :title="t('admin.groups.empty')" :description="t('admin.groups.emptyDescription')" />
+    <Table v-else class="min-w-[46rem]" data-test="groups-table">
+      <TableHeader>
+        <TableRow>
+          <TableHead>{{ t('admin.groups.colName') }}</TableHead>
+          <TableHead>{{ t('admin.groups.colType') }}</TableHead>
+          <TableHead>{{ t('admin.groups.colDescription') }}</TableHead>
+          <TableHead class="text-right">{{ t('admin.groups.colApplications') }}</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        <TableRow
+          v-for="group in groups"
+          :key="group.id"
+          tabindex="0"
+          class="cursor-pointer"
+          :aria-label="t('admin.groups.openGroup', { name: group.displayName })"
+          :data-test="`group-row-${group.id}`"
+          @click="openGroup(group.id)"
+          @keydown.enter="openGroup(group.id)"
+          @keydown.space.prevent="openGroup(group.id)"
+        >
+          <TableCell>
+            <span class="block max-w-72 truncate font-medium text-ink">{{ group.displayName }}</span>
+            <span class="font-mono text-xs text-muted">{{ group.slug }} · #{{ group.id }}</span>
+          </TableCell>
+          <TableCell><StatusBadge variant="neutral">{{ t(`admin.groups.${group.kind}`) }}</StatusBadge></TableCell>
+          <TableCell class="max-w-96 text-sm text-muted">{{ group.description || t('admin.groups.noDescription') }}</TableCell>
+          <TableCell class="text-right tabular-nums text-muted">{{ group.applicationCount ?? 0 }}</TableCell>
+        </TableRow>
+      </TableBody>
+    </Table>
   </div>
 </template>

@@ -49,6 +49,14 @@ export interface AppGroup {
   description?: string
   exposedToDownstream: boolean
   rule?: Rule
+  applicationCount?: number
+}
+
+export interface GroupApplication {
+  iconUrl?: string
+  kind: AppKind
+  appId: string
+  displayName: string
 }
 
 export interface AccountSummary {

@@ -79,14 +79,16 @@ type AppGroupView struct {
 	Description         string         `json:"description,omitempty"`
 	ExposedToDownstream bool           `json:"exposedToDownstream"`
 	Rule                *AppAccessRule `json:"rule,omitempty"`
+	ApplicationCount    *int64         `json:"applicationCount,omitempty"`
 }
 
 // GroupApplicationView identifies an application that currently selects a
 // reusable group. It contains only fields needed to assess shared impact.
 type GroupApplicationView struct {
-	Kind        string `json:"kind"`
-	AppID       string `json:"appId"`
-	DisplayName string `json:"displayName"`
+	IconURL     *string `json:"iconUrl,omitempty"`
+	Kind        string  `json:"kind"`
+	AppID       string  `json:"appId"`
+	DisplayName string  `json:"displayName"`
 }
 
 // AccountSummaryView contains only fields safe to expose in policy management

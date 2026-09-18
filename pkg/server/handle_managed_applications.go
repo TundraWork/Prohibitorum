@@ -54,6 +54,7 @@ type appPolicyQueries interface {
 	CreateGlobalGroup(context.Context, db.CreateGlobalGroupParams) (db.UserGroup, error)
 	GetGlobalGroup(context.Context, int32) (db.UserGroup, error)
 	ListGlobalGroups(context.Context) ([]db.UserGroup, error)
+	ListGlobalGroupApplicationCounts(context.Context) ([]db.ListGlobalGroupApplicationCountsRow, error)
 	ListGlobalManualDecisionsForAccount(context.Context, int32) ([]db.GroupManualDecision, error)
 	UpdateGlobalGroup(context.Context, db.UpdateGlobalGroupParams) (db.UserGroup, error)
 	DeleteGlobalGroup(context.Context, int32) (int64, error)

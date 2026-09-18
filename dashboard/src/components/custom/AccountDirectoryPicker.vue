@@ -32,10 +32,12 @@ const props = withDefaults(defineProps<{
   searchPrompt: string
   selectLabel: string
   selectAriaLabel: (account: AccountDirectoryEntry) => string
+  primarySelect?: boolean
   testPrefix?: string
 }>(), {
   excludedAccountIds: () => [],
   busy: false,
+  primarySelect: false,
   testPrefix: 'account-directory',
 })
 
@@ -68,6 +70,7 @@ function identityName(account: Pick<AccountDirectoryEntry, 'displayName' | 'user
 }
 
 async function searchAccounts(): Promise<void> {
+  if (props.busy || accountsApi.busy.value) return
   submittedSearch.value = searchQuery.value.trim()
   hasSearched.value = submittedSearch.value !== ''
   cursors.value = ['']
@@ -76,14 +79,14 @@ async function searchAccounts(): Promise<void> {
 }
 
 async function nextPage(): Promise<void> {
-  if (accountsApi.busy.value || !nextCursor.value) return
+  if (props.busy || accountsApi.busy.value || !nextCursor.value) return
   cursors.value = [...cursors.value.slice(0, pageIndex.value + 1), nextCursor.value]
   pageIndex.value++
   await nextTick()
 }
 
 async function previousPage(): Promise<void> {
-  if (accountsApi.busy.value || pageIndex.value === 0) return
+  if (props.busy || accountsApi.busy.value || pageIndex.value === 0) return
   pageIndex.value--
   await nextTick()
 }
@@ -120,9 +123,10 @@ watch(searchQuery, query => {
           :data-test="`${testPrefix}-search`"
           :aria-label="searchLabel"
           :placeholder="searchPlaceholder"
+          :disabled="busy"
           @keydown.enter.prevent="searchAccounts"
         />
-        <Button type="submit" class="w-full sm:w-auto" :disabled="accountsApi.busy.value">
+        <Button type="submit" class="w-full sm:w-auto" :disabled="busy || accountsApi.busy.value">
           {{ searchAction }}
         </Button>
       </div>
@@ -148,7 +152,7 @@ watch(searchQuery, query => {
         </div>
         <Button
           type="button"
-          variant="outline"
+          :variant="primarySelect ? 'default' : 'outline'"
           size="sm"
           class="w-full sm:w-auto"
           :disabled="busy || accountsApi.busy.value"
@@ -171,7 +175,7 @@ watch(searchQuery, query => {
       v-if="hasSearched"
       :page-index="pageIndex"
       :has-more="!!nextCursor"
-      :busy="accountsApi.busy.value"
+      :busy="busy || accountsApi.busy.value"
       :has-items="availableAccounts.length > 0"
       @next="nextPage"
       @previous="previousPage"

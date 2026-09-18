@@ -326,6 +326,20 @@ func (s *Server) handleListGlobalGroupsHTTP(w http.ResponseWriter, r *http.Reque
 		if err == nil {
 			views, err = s.appGroupViews(r.Context(), groups)
 		}
+		if err == nil {
+			var counts []db.ListGlobalGroupApplicationCountsRow
+			counts, err = s.appPolicyQ().ListGlobalGroupApplicationCounts(r.Context())
+			if err == nil {
+				byGroup := make(map[int32]int64, len(counts))
+				for _, count := range counts {
+					byGroup[count.GroupID] = count.ApplicationCount
+				}
+				for i := range views {
+					count := byGroup[views[i].ID]
+					views[i].ApplicationCount = &count
+				}
+			}
+		}
 	} else {
 		groups, err = s.appPolicyEvaluator().ListAccountGroups(r.Context(), sess.Account.ID)
 		if err == nil {
@@ -375,7 +389,16 @@ func (s *Server) handleListGlobalGroupApplicationsHTTP(w http.ResponseWriter, r 
 	}
 	items := make([]contract.GroupApplicationView, 0, len(rows))
 	for _, row := range rows {
-		items = append(items, contract.GroupApplicationView{Kind: row.Kind, AppID: row.AppID, DisplayName: row.DisplayName})
+		iconKind := "oidc_client"
+		if row.Kind == "saml" {
+			iconKind = "saml_sp"
+		}
+		etag, iconErr := s.appPolicyQ().GetEntityIconEtag(r.Context(), db.GetEntityIconEtagParams{OwnerKind: iconKind, OwnerID: row.AppID})
+		if iconErr != nil && !errors.Is(iconErr, pgx.ErrNoRows) {
+			writeAuthErr(w, fmt.Errorf("load global group application icon: %w", iconErr))
+			return
+		}
+		items = append(items, contract.GroupApplicationView{IconURL: entityIconURLPtr(iconKind, row.AppID, etag), Kind: row.Kind, AppID: row.AppID, DisplayName: row.DisplayName})
 	}
 	writeJSON(w, buildPage(items, ""))
 }
