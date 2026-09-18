@@ -197,18 +197,19 @@ func TestServiceAuthorizeManagerChecksRoleAssignmentAndKind(t *testing.T) {
 	if err := svc.AuthorizeManager(ctx, 7, "admin", AppRef{Kind: "unknown"}); err != nil {
 		t.Fatalf("admin AuthorizeManager() error = %v", err)
 	}
-	if err := svc.AuthorizeManager(ctx, 7, "app_manager", AppRef{Kind: KindOIDC, OIDCClientID: "wiki"}); err != nil {
+	if err := svc.AuthorizeManager(ctx, 7, "user", AppRef{Kind: KindOIDC, OIDCClientID: "wiki"}); err != nil {
 		t.Fatalf("assigned OIDC manager error = %v", err)
 	}
-	if err := svc.AuthorizeManager(ctx, 7, "app_manager", AppRef{Kind: KindForwardAuth, OIDCClientID: "wiki"}); !errors.Is(err, ErrAppNotFound) {
+	if err := svc.AuthorizeManager(ctx, 7, "user", AppRef{Kind: KindForwardAuth, OIDCClientID: "wiki"}); !errors.Is(err, ErrAppNotFound) {
 		t.Fatalf("wrong OIDC kind error = %v, want ErrAppNotFound", err)
 	}
 	q.oidcManaged = false
-	if err := svc.AuthorizeManager(ctx, 7, "app_manager", AppRef{Kind: KindOIDC, OIDCClientID: "wiki"}); !errors.Is(err, ErrAppNotFound) {
+	if err := svc.AuthorizeManager(ctx, 7, "user", AppRef{Kind: KindOIDC, OIDCClientID: "wiki"}); !errors.Is(err, ErrAppNotFound) {
 		t.Fatalf("unassigned manager error = %v, want ErrAppNotFound", err)
 	}
-	if err := svc.AuthorizeManager(ctx, 7, "user", AppRef{Kind: KindSAML, SAMLSPID: 9}); !errors.Is(err, ErrAppNotFound) {
-		t.Fatalf("non-manager error = %v, want ErrAppNotFound", err)
+	q.oidcManaged = true
+	if err := svc.AuthorizeManager(ctx, 7, "user", AppRef{Kind: KindSAML, SAMLSPID: 9}); err != nil {
+		t.Fatalf("assigned SAML user error = %v", err)
 	}
 }
 

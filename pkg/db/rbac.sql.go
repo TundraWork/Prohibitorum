@@ -212,21 +212,6 @@ func (q *Queries) DeleteGlobalGroup(ctx context.Context, groupID int32) (int64, 
 	return result.RowsAffected(), nil
 }
 
-const deleteManagerAssignmentsForAccount = `-- name: DeleteManagerAssignmentsForAccount :exec
-WITH deleted_oidc AS (
-  DELETE FROM oidc_client_manager
-  WHERE oidc_client_manager.account_id = $1
-  RETURNING account_id
-)
-DELETE FROM saml_sp_manager
-WHERE saml_sp_manager.account_id = $1
-`
-
-func (q *Queries) DeleteManagerAssignmentsForAccount(ctx context.Context, accountID int32) error {
-	_, err := q.db.Exec(ctx, deleteManagerAssignmentsForAccount, accountID)
-	return err
-}
-
 const deleteOIDCAppGroup = `-- name: DeleteOIDCAppGroup :execrows
 DELETE FROM oidc_client_group
 WHERE group_id = $1 AND client_id = $2::text

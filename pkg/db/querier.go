@@ -70,7 +70,6 @@ type Querier interface {
 	DeleteExpiredDiagnosticEvents(ctx context.Context) (int64, error)
 	DeleteExpiredSAMLSessions(ctx context.Context) (int64, error)
 	DeleteGlobalGroup(ctx context.Context, groupID int32) (int64, error)
-	DeleteManagerAssignmentsForAccount(ctx context.Context, accountID int32) error
 	DeleteOIDCAppGroup(ctx context.Context, arg DeleteOIDCAppGroupParams) (int64, error)
 	DeleteOIDCClient(ctx context.Context, clientID string) (int64, error)
 	DeletePasswordCredential(ctx context.Context, accountID int32) error
@@ -154,7 +153,6 @@ type Querier interface {
 	ListAccounts(ctx context.Context, arg ListAccountsParams) ([]ListAccountsRow, error)
 	ListActiveAccountAccessFacts(ctx context.Context) ([]ListActiveAccountAccessFactsRow, error)
 	ListActiveAccountAccessFactsPage(ctx context.Context, arg ListActiveAccountAccessFactsPageParams) ([]ListActiveAccountAccessFactsPageRow, error)
-	ListActiveAppManagerCandidates(ctx context.Context, query string) ([]ListActiveAppManagerCandidatesRow, error)
 	ListAllSigningKeys(ctx context.Context, arg ListAllSigningKeysParams) ([]SigningKey, error)
 	ListAllUpstreamIDPs(ctx context.Context, arg ListAllUpstreamIDPsParams) ([]UpstreamIdp, error)
 	// LEFT JOIN so the 'user' row (NULL idp_id) is kept with an empty label; the

@@ -287,15 +287,6 @@ SELECT EXISTS (
     AND account_id = sqlc.arg(account_id)
 );
 
--- name: DeleteManagerAssignmentsForAccount :exec
-WITH deleted_oidc AS (
-  DELETE FROM oidc_client_manager
-  WHERE oidc_client_manager.account_id = sqlc.arg(account_id)
-  RETURNING account_id
-)
-DELETE FROM saml_sp_manager
-WHERE saml_sp_manager.account_id = sqlc.arg(account_id);
-
 -- name: GetAccountAccessFacts :one
 SELECT
   a.id,

@@ -4599,19 +4599,7 @@ func main() {
 		}
 		log.Printf("  manager account id=%d and member account id=%d enrolled through invitation API ✓", managerMe.ID, memberMe.ID)
 
-		step(fmt.Sprintf("delegated %d/%d — admin promotes manager, creates one OIDC app, and assigns exactly that app", 2, nDelegated))
-		var promoted meResponse
-		if err := c.putJSON(fmt.Sprintf("/api/prohibitorum/accounts/%d", managerMe.ID), map[string]any{
-			"displayName": managerMe.DisplayName,
-			"role":        "app_manager",
-			"attributes":  map[string]any{},
-			"disabled":    false,
-		}, &promoted); err != nil {
-			log.Fatalf("delegated: promote manager: %v", err)
-		}
-		if promoted.Role != "app_manager" {
-			log.Fatalf("delegated: promoted role=%q, want app_manager", promoted.Role)
-		}
+		step(fmt.Sprintf("delegated %d/%d — admin creates one OIDC app and assigns exactly that app", 2, nDelegated))
 		policySecret, err := createOIDCClient(*baseURL, policyClientID, policyRedirectURI, policyRedirectURI,
 			[]string{"openid", "profile", "groups", "offline_access"})
 		if err != nil {
@@ -4631,7 +4619,7 @@ func main() {
 		if len(managedApps) != 1 || managedApps[0].Kind != "oidc" || managedApps[0].AppID != policyClientID {
 			log.Fatalf("delegated: manager app list=%+v, want exactly oidc/%s", managedApps, policyClientID)
 		}
-		log.Printf("  role=app_manager; assigned app list is exactly oidc/%s ✓", policyClientID)
+		log.Printf("  user assignment list is exactly oidc/%s ✓", policyClientID)
 
 		step(fmt.Sprintf("delegated %d/%d — manager controls the assigned protocol object but cannot enumerate another app", 3, nDelegated))
 		expectStatus(managerClient, http.MethodGet,

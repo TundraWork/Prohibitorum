@@ -155,13 +155,10 @@ func (s *Service) EvaluateSAML(ctx context.Context, accountID int32, spID int64)
 	return s.evaluateSAMLWithFacts(ctx, accountID, app.ID, app.AccessRestricted, facts, providers)
 }
 
-// AuthorizeManager permits global admins, or assigned app managers for the exact app kind.
+// AuthorizeManager permits global admins, or any account assigned to the exact app kind.
 func (s *Service) AuthorizeManager(ctx context.Context, accountID int32, role string, ref AppRef) error {
 	if role == "admin" {
 		return nil
-	}
-	if role != "app_manager" {
-		return ErrAppNotFound
 	}
 	if err := s.validateAppRef(ctx, ref); err != nil {
 		return err

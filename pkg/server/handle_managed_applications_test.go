@@ -634,7 +634,7 @@ func TestManagedAppUnassignedAndMissingAreIndistinguishable(t *testing.T) {
 		managedURL("oidc", "missing", "/access"),
 	} {
 		t.Run(path, func(t *testing.T) {
-			rr := managedRequest(t, s, http.MethodGet, path, "", managedAppSession(7, "app_manager", false))
+			rr := managedRequest(t, s, http.MethodGet, path, "", managedAppSession(7, "user", false))
 			assertManagedAPIError(t, rr, http.StatusNotFound, "client_not_found")
 		})
 	}
@@ -661,17 +661,16 @@ func TestManagedApplicationRoutesEnforceScopeBeforeNestedLookup(t *testing.T) {
 	for _, route := range routes {
 		route := route
 		t.Run(route.name, func(t *testing.T) {
-			t.Run("user", func(t *testing.T) {
-				s, queries, _ := newPolicyTestServer()
+			t.Run("assigned-user", func(t *testing.T) {
+				s, _, _ := newPolicyTestServer()
 				rr := managedRequest(t, s, route.method, managedURL("oidc", "wiki", route.suffix), route.body, managedAppSession(7, "user", false))
-				assertManagedAPIError(t, rr, http.StatusForbidden, "not_app_manager")
-				if queries.appLookupCalls != 0 || queries.groupLookupCalls != 0 || queries.mutationCalls != 0 {
-					t.Fatalf("unauthorized user touched policy data: app=%d group=%d mutation=%d", queries.appLookupCalls, queries.groupLookupCalls, queries.mutationCalls)
+				if rr.Code != http.StatusOK {
+					t.Fatalf("status = %d, want 200; body: %s", rr.Code, rr.Body.String())
 				}
 			})
 			t.Run("disabled-manager", func(t *testing.T) {
 				s, queries, _ := newPolicyTestServer()
-				rr := managedRequest(t, s, route.method, managedURL("oidc", "wiki", route.suffix), route.body, managedAppSession(7, "app_manager", true))
+				rr := managedRequest(t, s, route.method, managedURL("oidc", "wiki", route.suffix), route.body, managedAppSession(7, "user", true))
 				assertManagedAPIError(t, rr, http.StatusForbidden, "account_disabled")
 				if queries.appLookupCalls != 0 || queries.groupLookupCalls != 0 || queries.mutationCalls != 0 {
 					t.Fatalf("disabled manager touched policy data: app=%d group=%d mutation=%d", queries.appLookupCalls, queries.groupLookupCalls, queries.mutationCalls)
@@ -679,7 +678,7 @@ func TestManagedApplicationRoutesEnforceScopeBeforeNestedLookup(t *testing.T) {
 			})
 			t.Run("unassigned", func(t *testing.T) {
 				s, queries, _ := newPolicyTestServer()
-				rr := managedRequest(t, s, route.method, managedURL("oidc", "other", route.suffix), route.body, managedAppSession(7, "app_manager", false))
+				rr := managedRequest(t, s, route.method, managedURL("oidc", "other", route.suffix), route.body, managedAppSession(7, "user", false))
 				assertManagedAPIError(t, rr, http.StatusNotFound, "client_not_found")
 				if queries.groupLookupCalls != 0 || queries.mutationCalls != 0 {
 					t.Fatalf("unassigned manager touched nested policy data: group=%d mutation=%d", queries.groupLookupCalls, queries.mutationCalls)
@@ -687,7 +686,7 @@ func TestManagedApplicationRoutesEnforceScopeBeforeNestedLookup(t *testing.T) {
 			})
 			t.Run("wrong-kind", func(t *testing.T) {
 				s, queries, _ := newPolicyTestServer()
-				rr := managedRequest(t, s, route.method, managedURL("forward_auth", "wiki", route.suffix), route.body, managedAppSession(7, "app_manager", false))
+				rr := managedRequest(t, s, route.method, managedURL("forward_auth", "wiki", route.suffix), route.body, managedAppSession(7, "user", false))
 				assertManagedAPIError(t, rr, http.StatusNotFound, "client_not_found")
 				if queries.groupLookupCalls != 0 || queries.mutationCalls != 0 {
 					t.Fatalf("wrong-kind manager touched nested policy data: group=%d mutation=%d", queries.groupLookupCalls, queries.mutationCalls)
@@ -695,7 +694,7 @@ func TestManagedApplicationRoutesEnforceScopeBeforeNestedLookup(t *testing.T) {
 			})
 			t.Run("missing", func(t *testing.T) {
 				s, queries, _ := newPolicyTestServer()
-				rr := managedRequest(t, s, route.method, managedURL("oidc", "missing", route.suffix), route.body, managedAppSession(7, "app_manager", false))
+				rr := managedRequest(t, s, route.method, managedURL("oidc", "missing", route.suffix), route.body, managedAppSession(7, "user", false))
 				assertManagedAPIError(t, rr, http.StatusNotFound, "client_not_found")
 				if queries.groupLookupCalls != 0 || queries.mutationCalls != 0 {
 					t.Fatalf("missing app touched nested policy data: group=%d mutation=%d", queries.groupLookupCalls, queries.mutationCalls)
@@ -729,7 +728,7 @@ func TestManagedApplicationRoutesAllowAssignedManagerAndAdmin(t *testing.T) {
 			name    string
 			session *authn.Session
 		}{
-			{"assigned-manager", managedAppSession(7, "app_manager", false)},
+			{"assigned-user", managedAppSession(7, "user", false)},
 			{"global-admin", managedAppSession(99, "admin", false)},
 		} {
 			actor := actor
@@ -751,8 +750,8 @@ func TestListManagedApplicationsIncludesAssignedNonLaunchableApps(t *testing.T) 
 		want    map[string]bool
 	}{
 		{
-			name:    "assigned-manager",
-			session: managedAppSession(7, "app_manager", false),
+			name:    "assigned-user",
+			session: managedAppSession(7, "user", false),
 			want: map[string]bool{
 				"oidc/wiki":                     true,
 				"forward_auth/forward":          true,
@@ -762,7 +761,7 @@ func TestListManagedApplicationsIncludesAssignedNonLaunchableApps(t *testing.T) 
 				"saml/8":                        true,
 			},
 		},
-		{name: "unassigned-manager", session: managedAppSession(8, "app_manager", false), want: map[string]bool{}},
+		{name: "unassigned-user", session: managedAppSession(8, "user", false), want: map[string]bool{}},
 		{
 			name:    "global-admin",
 			session: managedAppSession(99, "admin", false),
@@ -804,13 +803,12 @@ func TestListManagedApplicationsIncludesAssignedNonLaunchableApps(t *testing.T) 
 	}
 
 	s, _, _ := newPolicyTestServer()
-	assertManagedAPIError(t, managedRequest(t, s, http.MethodGet, "/api/prohibitorum/managed-applications", "", managedAppSession(7, "user", false)), http.StatusForbidden, "not_app_manager")
-	assertManagedAPIError(t, managedRequest(t, s, http.MethodGet, "/api/prohibitorum/managed-applications", "", managedAppSession(7, "app_manager", true)), http.StatusForbidden, "account_disabled")
+	assertManagedAPIError(t, managedRequest(t, s, http.MethodGet, "/api/prohibitorum/managed-applications", "", managedAppSession(7, "user", true)), http.StatusForbidden, "account_disabled")
 }
 
 func TestManagedApplicationAccountsProjectPageRows(t *testing.T) {
 	s, _, _ := newPolicyTestServer()
-	rr := managedRequest(t, s, http.MethodGet, managedURL("oidc", "wiki", "/accounts?limit=1"), "", managedAppSession(7, "app_manager", false))
+	rr := managedRequest(t, s, http.MethodGet, managedURL("oidc", "wiki", "/accounts?limit=1"), "", managedAppSession(7, "user", false))
 	if rr.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200; body: %s", rr.Code, rr.Body.String())
 	}
@@ -837,7 +835,7 @@ func TestManagedApplicationWorkspaceProjectsProviderDescriptors(t *testing.T) {
 		{Slug: "github", DisplayName: "GitHub"},
 	}
 
-	rr := managedRequest(t, s, http.MethodGet, managedURL("oidc", "wiki", "/access"), "", managedAppSession(7, "app_manager", false))
+	rr := managedRequest(t, s, http.MethodGet, managedURL("oidc", "wiki", "/access"), "", managedAppSession(7, "user", false))
 	if rr.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200; body: %s", rr.Code, rr.Body.String())
 	}
@@ -856,7 +854,7 @@ func TestManagedRulePreviewReturnsExactCountPagesAndBoundCursorWithoutWrites(t *
 	queries.accounts[45] = db.GetAccountAccessFactsRow{ID: 45, Username: "disabled", DisplayName: "Disabled", Disabled: true, HasPasskey: true}
 	body := `{"version":1,"condition":{"fact":"login_method","method":"passkey"},"limit":1}`
 
-	first := managedRequest(t, s, http.MethodPost, managedURL("oidc", "wiki", "/rule-preview"), body, managedAppSession(7, "app_manager", false))
+	first := managedRequest(t, s, http.MethodPost, managedURL("oidc", "wiki", "/rule-preview"), body, managedAppSession(7, "user", false))
 	if first.Code != http.StatusOK {
 		t.Fatalf("first preview status = %d, want 200; body: %s", first.Code, first.Body.String())
 	}
@@ -872,7 +870,7 @@ func TestManagedRulePreviewReturnsExactCountPagesAndBoundCursorWithoutWrites(t *
 	}
 
 	secondBody := `{"version":1,"condition":{"fact":"login_method","method":"passkey"},"limit":1,"cursor":"` + firstPage.NextCursor + `"}`
-	second := managedRequest(t, s, http.MethodPost, managedURL("oidc", "wiki", "/rule-preview"), secondBody, managedAppSession(7, "app_manager", false))
+	second := managedRequest(t, s, http.MethodPost, managedURL("oidc", "wiki", "/rule-preview"), secondBody, managedAppSession(7, "user", false))
 	if second.Code != http.StatusOK {
 		t.Fatalf("second preview status = %d, want 200; body: %s", second.Code, second.Body.String())
 	}
@@ -885,8 +883,8 @@ func TestManagedRulePreviewReturnsExactCountPagesAndBoundCursorWithoutWrites(t *
 	}
 
 	changedRule := `{"version":1,"condition":{"fact":"login_method","method":"federation"},"limit":1,"cursor":"` + firstPage.NextCursor + `"}`
-	assertManagedAPIError(t, managedRequest(t, s, http.MethodPost, managedURL("oidc", "wiki", "/rule-preview"), changedRule, managedAppSession(7, "app_manager", false)), http.StatusBadRequest, "pagination_cursor_invalid")
-	assertManagedAPIError(t, managedRequest(t, s, http.MethodPost, managedURL("forward_auth", "forward", "/rule-preview"), secondBody, managedAppSession(7, "app_manager", false)), http.StatusBadRequest, "pagination_cursor_invalid")
+	assertManagedAPIError(t, managedRequest(t, s, http.MethodPost, managedURL("oidc", "wiki", "/rule-preview"), changedRule, managedAppSession(7, "user", false)), http.StatusBadRequest, "pagination_cursor_invalid")
+	assertManagedAPIError(t, managedRequest(t, s, http.MethodPost, managedURL("forward_auth", "forward", "/rule-preview"), secondBody, managedAppSession(7, "user", false)), http.StatusBadRequest, "pagination_cursor_invalid")
 	if queries.mutationCalls != 0 || len(auditCapture.records) != 0 {
 		t.Fatalf("preview pagination wrote policy data: mutations:%d audit:%d", queries.mutationCalls, len(auditCapture.records))
 	}
@@ -894,7 +892,7 @@ func TestManagedRulePreviewReturnsExactCountPagesAndBoundCursorWithoutWrites(t *
 
 func TestManagedRulePreviewValidatesStrictRequestAndClosedRule(t *testing.T) {
 	s, _, _ := newPolicyTestServer()
-	session := managedAppSession(7, "app_manager", false)
+	session := managedAppSession(7, "user", false)
 
 	for name, body := range map[string]string{
 		"unknown request field": `{"version":1,"condition":{"fact":"login_method","method":"passkey"},"unexpected":true}`,
@@ -927,7 +925,7 @@ func TestManagedRulePreviewUsesExistingLimitBounds(t *testing.T) {
 		"clamped": {body: base + `,"limit":1000}`, want: 100},
 	} {
 		t.Run(name, func(t *testing.T) {
-			rr := managedRequest(t, s, http.MethodPost, managedURL("oidc", "wiki", "/rule-preview"), body.body, managedAppSession(7, "app_manager", false))
+			rr := managedRequest(t, s, http.MethodPost, managedURL("oidc", "wiki", "/rule-preview"), body.body, managedAppSession(7, "user", false))
 			if rr.Code != http.StatusOK {
 				t.Fatalf("preview status = %d, want 200; body: %s", rr.Code, rr.Body.String())
 			}
@@ -944,7 +942,7 @@ func TestManagedRulePreviewUsesExistingLimitBounds(t *testing.T) {
 
 func TestManagedRulePreviewUsesSharedJSONBodyControls(t *testing.T) {
 	s, _, _ := newPolicyTestServer()
-	session := managedAppSession(7, "app_manager", false)
+	session := managedAppSession(7, "user", false)
 
 	badType := httptest.NewRecorder()
 	s.router.ServeHTTP(badType, reqWithSession(http.MethodPost, managedURL("oidc", "wiki", "/rule-preview"), `{"version":1,"condition":{"fact":"login_method","method":"passkey"}}`, "text/plain", session))
@@ -959,7 +957,7 @@ func TestManagedRouteInputIdentifiersRemainOpaque(t *testing.T) {
 	for _, badID := range []string{"", "0", "-1", "not-a-number"} {
 		t.Run(strconv.Quote(badID), func(t *testing.T) {
 			s, _, _ := newPolicyTestServer()
-			rr := managedRequest(t, s, http.MethodGet, managedURL("saml", badID, "/access"), "", managedAppSession(7, "app_manager", false))
+			rr := managedRequest(t, s, http.MethodGet, managedURL("saml", badID, "/access"), "", managedAppSession(7, "user", false))
 			if badID == "" {
 				if rr.Code == http.StatusOK {
 					t.Fatalf("empty identifier unexpectedly succeeded")

@@ -25,7 +25,7 @@ import (
 func (s *Server) registerGlobalGroupRoutes(router chiRouter) {
 	const base = "/api/prohibitorum/groups"
 	admin := contract.AuthRequirement{Kind: contract.AuthAdmin}
-	registerOpHTTP(router, http.MethodGet, base, contract.AuthRequirement{Kind: contract.AuthAppManager}, s.handleListGlobalGroupsHTTP)
+	registerOpHTTP(router, http.MethodGet, base, admin, s.handleListGlobalGroupsHTTP)
 	s.registerSudoOpHTTP(router, http.MethodPost, base, admin, s.handleCreateGlobalGroupHTTP)
 	registerOpHTTP(router, http.MethodGet, base+"/providers", admin, s.handleListGlobalGroupProvidersHTTP)
 	s.registerAdminBodyOpHTTP(router, http.MethodPost, base+"/rule-preview", admin, s.handlePreviewGlobalRuleHTTP)

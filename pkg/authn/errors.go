@@ -18,7 +18,6 @@ func init() {
 	defs := []weberr.Definition{
 		{Code: "no_session", Status: http.StatusUnauthorized, LocaleKey: "errors.no_session", DiagnosticKind: "auth", Recovery: "reauth"},
 		{Code: "not_admin", Status: http.StatusForbidden, LocaleKey: "errors.not_admin", DiagnosticKind: "auth"},
-		{Code: "not_app_manager", Status: http.StatusForbidden, LocaleKey: "errors.not_app_manager", DiagnosticKind: "auth"},
 		{Code: "permission_denied", Status: http.StatusForbidden, LocaleKey: "errors.permission_denied", DiagnosticKind: "auth"},
 		{Code: "account_disabled", Status: http.StatusForbidden, LocaleKey: "errors.account_disabled", DiagnosticKind: "auth"},
 		{Code: "last_admin", Status: http.StatusConflict, LocaleKey: "errors.last_admin", DiagnosticKind: "policy"},
@@ -153,10 +152,6 @@ func ErrNotAdmin() *AuthError {
 	return newErr(http.StatusForbidden, "not_admin", "需要管理员权限")
 }
 
-func ErrNotAppManager() *AuthError {
-	return newErr(http.StatusForbidden, "not_app_manager", "需要应用管理员权限")
-}
-
 func ErrPermissionDenied() *AuthError {
 	return newErr(http.StatusForbidden, "permission_denied", "权限不足")
 }
@@ -247,7 +242,7 @@ func ErrInvalidConsentTicket() *AuthError {
 
 // AllowedRoles is the complete account-role vocabulary accepted by admin
 // account updates and enrollment invitations.
-var AllowedRoles = []string{"user", "app_manager", "admin"}
+var AllowedRoles = []string{"user", "admin"}
 
 // IsValidRole reports whether role belongs to the supported account-role
 // vocabulary.
@@ -270,7 +265,7 @@ func ErrInvalidRole() *AuthError {
 }
 
 func ErrInvalidManagerRole() *AuthError {
-	return newErr(http.StatusBadRequest, "invalid_manager_role", "目标账户不是启用的应用管理员")
+	return newErr(http.StatusBadRequest, "invalid_manager_role", "目标账户已禁用")
 }
 
 func ErrInvalidUsername() *AuthError {

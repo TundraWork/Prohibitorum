@@ -95,9 +95,8 @@ func (s *Server) appPolicyEvaluator() appPolicyService {
 }
 
 // authorizeApplicationManager applies object-level authorization for existing
-// application management endpoints after the role gate has admitted an admin
-// or app manager. Admins are accepted by the shared evaluator; app managers
-// must hold the exact kind/id assignment.
+// application management endpoints. Admins are accepted by the shared evaluator;
+// other accounts must hold the exact kind/id assignment.
 func (s *Server) authorizeApplicationManager(ctx context.Context, ref appaccess.AppRef) error {
 	sess := authn.SessionFromContext(ctx)
 	if sess == nil || sess.Account == nil {
@@ -122,10 +121,9 @@ func samlApplicationRef(id int64) appaccess.AppRef {
 // focused route tests exercise the exact production registration table.
 func (s *Server) registerManagedApplicationRoutes(router chiRouter) {
 	const base = "/api/prohibitorum/managed-applications"
-	req := contract.AuthRequirement{Kind: contract.AuthAppManager}
+	req := contract.AuthRequirement{Kind: contract.AuthSession}
 
 	registerOpHTTP(router, http.MethodGet, base, req, s.handleListManagedApplicationsHTTP)
-	registerOpHTTP(router, http.MethodGet, base+"/manager-candidates", req, s.handleListAppManagerCandidatesHTTP)
 	registerOpHTTP(router, http.MethodGet, base+"/{kind}/{appId}/access", req, s.handleManagedApplicationAccessWorkspaceHTTP)
 	s.registerAdminBodyOpHTTP(router, http.MethodPost, base+"/{kind}/{appId}/rule-preview", req, s.handlePreviewManagedRuleHTTP)
 	s.registerAdminBodyOpHTTP(router, http.MethodPost, base+"/{kind}/{appId}/access/set-restricted", req, s.handleSetManagedApplicationRestrictedHTTP)

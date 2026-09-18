@@ -28,6 +28,7 @@ import (
 	"prohibitorum/pkg/contract"
 	"prohibitorum/pkg/credential/enrollment"
 	"prohibitorum/pkg/db"
+	"prohibitorum/pkg/weberr"
 )
 
 // --- minimal fake querier ---------------------------------------------------
@@ -144,20 +145,18 @@ func TestCreateInvitation_SlugBound(t *testing.T) {
 	}
 }
 
-func TestCreateInvitation_AcceptsAppManagerRole(t *testing.T) {
+func TestCreateInvitationRejectsRemovedAppManagerRole(t *testing.T) {
 	q := &fakeInvitationQ{}
 	s := minimalServerForInvitations(q)
 	in := &createInvitationIn{}
 	in.Body.Role = "app_manager"
 
-	if _, err := s.handleCreateInvitation(context.Background(), in); err != nil {
-		t.Fatalf("handleCreateInvitation: %v", err)
+	_, err := s.handleCreateInvitation(context.Background(), in)
+	if publicErr := weberr.AsPublic(err); publicErr == nil || publicErr.Code != "invalid_role" {
+		t.Fatalf("handleCreateInvitation error = %v, want invalid_role", err)
 	}
-	if len(q.inserted) != 1 {
-		t.Fatalf("InsertEnrollment call count = %d, want 1", len(q.inserted))
-	}
-	if got := q.inserted[0].TemplateRole.String; got != "app_manager" {
-		t.Fatalf("TemplateRole = %q, want app_manager", got)
+	if len(q.inserted) != 0 {
+		t.Fatalf("InsertEnrollment call count = %d, want 0", len(q.inserted))
 	}
 }
 

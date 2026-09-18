@@ -15,7 +15,7 @@ import (
 
 func TestManagedApplicationGroupSelectionIsAtomic(t *testing.T) {
 	s, queries, _ := newPolicyTestServer()
-	selected := managedRequest(t, s, http.MethodPut, managedURL("oidc", "wiki", "/groups"), `{"groupIds":[2,3]}`, managedAppSession(7, "app_manager", false))
+	selected := managedRequest(t, s, http.MethodPut, managedURL("oidc", "wiki", "/groups"), `{"groupIds":[2,3]}`, managedAppSession(7, "user", false))
 	if selected.Code != http.StatusOK {
 		t.Fatalf("select status = %d; body: %s", selected.Code, selected.Body.String())
 	}
@@ -24,13 +24,13 @@ func TestManagedApplicationGroupSelectionIsAtomic(t *testing.T) {
 	}
 
 	before := maps.Clone(queries.oidcGroups["wiki"])
-	unknown := managedRequest(t, s, http.MethodPut, managedURL("oidc", "wiki", "/groups"), `{"groupIds":[2,999]}`, managedAppSession(7, "app_manager", false))
+	unknown := managedRequest(t, s, http.MethodPut, managedURL("oidc", "wiki", "/groups"), `{"groupIds":[2,999]}`, managedAppSession(7, "user", false))
 	assertManagedAPIError(t, unknown, http.StatusNotFound, "group_not_found")
 	if !reflect.DeepEqual(queries.oidcGroups["wiki"], before) {
 		t.Fatalf("failed replacement mutated links: %#v", queries.oidcGroups["wiki"])
 	}
 
-	duplicate := managedRequest(t, s, http.MethodPut, managedURL("oidc", "wiki", "/groups"), `{"groupIds":[2,2]}`, managedAppSession(7, "app_manager", false))
+	duplicate := managedRequest(t, s, http.MethodPut, managedURL("oidc", "wiki", "/groups"), `{"groupIds":[2,2]}`, managedAppSession(7, "user", false))
 	assertManagedAPIError(t, duplicate, http.StatusBadRequest, "bad_request")
 }
 
@@ -53,7 +53,7 @@ func assertRuleValidationError(t *testing.T, rr *httptest.ResponseRecorder, want
 
 func TestRulePreviewPaginatesSafeAccountProjection(t *testing.T) {
 	s, _, _ := newPolicyTestServer()
-	rr := managedRequest(t, s, http.MethodGet, managedURL("oidc", "wiki", "/groups/2/preview?limit=1"), "", managedAppSession(7, "app_manager", false))
+	rr := managedRequest(t, s, http.MethodGet, managedURL("oidc", "wiki", "/groups/2/preview?limit=1"), "", managedAppSession(7, "user", false))
 	if rr.Code != http.StatusOK {
 		t.Fatalf("preview status = %d, want 200; body: %s", rr.Code, rr.Body.String())
 	}
@@ -68,7 +68,7 @@ func TestRulePreviewPaginatesSafeAccountProjection(t *testing.T) {
 		t.Fatalf("preview exposed evaluator facts: %s", got)
 	}
 
-	next := managedRequest(t, s, http.MethodGet, managedURL("oidc", "wiki", "/groups/2/preview?limit=1&cursor="+page.NextCursor), "", managedAppSession(7, "app_manager", false))
+	next := managedRequest(t, s, http.MethodGet, managedURL("oidc", "wiki", "/groups/2/preview?limit=1&cursor="+page.NextCursor), "", managedAppSession(7, "user", false))
 	if next.Code != http.StatusOK {
 		t.Fatalf("second preview status = %d, want 200; body: %s", next.Code, next.Body.String())
 	}
@@ -83,7 +83,7 @@ func TestRulePreviewPaginatesSafeAccountProjection(t *testing.T) {
 
 func TestRuleExplanationIsBoundedAndSafe(t *testing.T) {
 	s, _, _ := newPolicyTestServer()
-	rr := managedRequest(t, s, http.MethodGet, managedURL("oidc", "wiki", "/groups/2/explain/42"), "", managedAppSession(7, "app_manager", false))
+	rr := managedRequest(t, s, http.MethodGet, managedURL("oidc", "wiki", "/groups/2/explain/42"), "", managedAppSession(7, "user", false))
 	if rr.Code != http.StatusOK {
 		t.Fatalf("explain status = %d, want 200; body: %s", rr.Code, rr.Body.String())
 	}
@@ -106,14 +106,14 @@ func TestRuleExplanationForDisabledAccountIsNotFound(t *testing.T) {
 	s, queries, _ := newPolicyTestServer()
 	queries.accounts[44] = db.GetAccountAccessFactsRow{ID: 44, Username: "disabled", DisplayName: "Disabled", Disabled: true}
 
-	rr := managedRequest(t, s, http.MethodGet, managedURL("oidc", "wiki", "/groups/2/explain/44"), "", managedAppSession(7, "app_manager", false))
+	rr := managedRequest(t, s, http.MethodGet, managedURL("oidc", "wiki", "/groups/2/explain/44"), "", managedAppSession(7, "user", false))
 	assertManagedAPIError(t, rr, http.StatusNotFound, "account_not_found")
 }
 
 func TestAccessRestrictionToggleIsAuditedWithoutSudo(t *testing.T) {
 	s, queries, auditCapture := newPolicyTestServer()
 	rr := managedRequest(t, s, http.MethodPost, managedURL("oidc", "wiki", "/access/set-restricted"),
-		`{"restricted":true}`, managedAppSession(7, "app_manager", false))
+		`{"restricted":true}`, managedAppSession(7, "user", false))
 	if rr.Code != http.StatusOK {
 		t.Fatalf("set restricted status = %d, want 200; body: %s", rr.Code, rr.Body.String())
 	}
@@ -131,7 +131,7 @@ func TestAccessRestrictionToggleIsAuditedWithoutSudo(t *testing.T) {
 
 func TestManagedPolicyMutationsUseSharedJSONControlsWithoutSudo(t *testing.T) {
 	s, _, _ := newPolicyTestServer()
-	badType := reqWithSession(http.MethodPost, managedURL("oidc", "wiki", "/access/set-restricted"), `{"restricted":true}`, "text/plain", managedAppSession(7, "app_manager", false))
+	badType := reqWithSession(http.MethodPost, managedURL("oidc", "wiki", "/access/set-restricted"), `{"restricted":true}`, "text/plain", managedAppSession(7, "user", false))
 	rr := httptest.NewRecorder()
 	s.router.ServeHTTP(rr, badType)
 	assertManagedAPIError(t, rr, http.StatusBadRequest, "bad_request")

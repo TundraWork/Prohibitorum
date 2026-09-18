@@ -142,7 +142,7 @@ func addAppManagerCommands(parent *cobra.Command, cfg appPolicyCLI) {
 	var assignUsername string
 	assignCmd := &cobra.Command{
 		Use:   "assign",
-		Short: "Assign an app_manager account",
+		Short: "Assign an application manager",
 		Run: func(_ *cobra.Command, _ []string) {
 			if assignUsername == "" {
 				log.Fatalf("--username is required")
@@ -168,8 +168,8 @@ func addAppManagerCommands(parent *cobra.Command, cfg appPolicyCLI) {
 			if err != nil {
 				log.Fatalf("manager assign: lock account: %v", err)
 			}
-			if account.Role != "app_manager" || account.Disabled {
-				log.Fatalf("manager assign: account %q must be an enabled app_manager", assignUsername)
+			if account.Disabled {
+				log.Fatalf("manager assign: account %q must be enabled", assignUsername)
 			}
 			if ref.Kind == appaccess.KindSAML {
 				err = q.AssignSAMLSPManager(ctx, db.AssignSAMLSPManagerParams{SamlSpID: ref.SAMLSPID, AccountID: account.ID})
@@ -185,7 +185,7 @@ func addAppManagerCommands(parent *cobra.Command, cfg appPolicyCLI) {
 			fmt.Printf("Assigned %q as manager\n", assignUsername)
 		},
 	}
-	assignCmd.Flags().StringVar(&assignUsername, "username", "", "app_manager username (required).")
+	assignCmd.Flags().StringVar(&assignUsername, "username", "", "Account username (required).")
 	managerCmd.AddCommand(assignCmd)
 
 	var removeUsername string

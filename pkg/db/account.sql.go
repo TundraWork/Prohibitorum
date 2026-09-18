@@ -513,42 +513,6 @@ func (q *Queries) ListAccounts(ctx context.Context, arg ListAccountsParams) ([]L
 	return items, nil
 }
 
-const listActiveAppManagerCandidates = `-- name: ListActiveAppManagerCandidates :many
-SELECT id, username, display_name
-FROM account
-WHERE role = 'app_manager'
-  AND NOT disabled
-  AND (username || E'\n' || display_name) ILIKE '%' || $1::text || '%'
-ORDER BY username ASC, id ASC
-LIMIT 20
-`
-
-type ListActiveAppManagerCandidatesRow struct {
-	ID          int32  `json:"id"`
-	Username    string `json:"username"`
-	DisplayName string `json:"displayName"`
-}
-
-func (q *Queries) ListActiveAppManagerCandidates(ctx context.Context, query string) ([]ListActiveAppManagerCandidatesRow, error) {
-	rows, err := q.db.Query(ctx, listActiveAppManagerCandidates, query)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []ListActiveAppManagerCandidatesRow
-	for rows.Next() {
-		var i ListActiveAppManagerCandidatesRow
-		if err := rows.Scan(&i.ID, &i.Username, &i.DisplayName); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const listAvatarSourcesByAccount = `-- name: ListAvatarSourcesByAccount :many
 SELECT av.source, av.etag, COALESCE(i.display_name, '') AS idp_display_name
 FROM account_avatar av

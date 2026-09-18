@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
-	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5"
@@ -27,7 +26,6 @@ type managerAssignmentQueries interface {
 	GetOIDCClientAny(context.Context, string) (db.OidcClient, error)
 	GetSAMLSPByID(context.Context, int64) (db.SamlSp, error)
 	GetAccountByIDForUpdate(context.Context, int32) (db.Account, error)
-	ListActiveAppManagerCandidates(context.Context, string) ([]db.ListActiveAppManagerCandidatesRow, error)
 	ListOIDCClientManagers(context.Context, string) ([]db.ListOIDCClientManagersRow, error)
 	ListSAMLSPManagers(context.Context, int64) ([]db.ListSAMLSPManagersRow, error)
 	AssignOIDCClientManager(context.Context, db.AssignOIDCClientManagerParams) error
@@ -36,27 +34,9 @@ type managerAssignmentQueries interface {
 	RemoveSAMLSPManager(context.Context, db.RemoveSAMLSPManagerParams) (int64, error)
 }
 
-func (s *Server) handleListAppManagerCandidatesHTTP(w http.ResponseWriter, r *http.Request) {
-	query := strings.TrimSpace(r.URL.Query().Get("q"))
-	if query == "" {
-		writeAuthErr(w, authn.ErrBadRequest())
-		return
-	}
-	rows, err := s.managerAssignmentQ().ListActiveAppManagerCandidates(r.Context(), query)
-	if err != nil {
-		writeAuthErr(w, fmt.Errorf("list application manager candidates: %w", err))
-		return
-	}
-	items := make([]contract.AccountSummaryView, 0, len(rows))
-	for _, row := range rows {
-		items = append(items, contract.AccountSummaryView{ID: row.ID, Username: row.Username, DisplayName: row.DisplayName})
-	}
-	writeJSON(w, buildPage(items, ""))
-}
-
 // managerAssignmentTx keeps validation and an assignment insert in the same
-// transaction. Its target-account lock serializes assignment against account
-// demotion, which deletes that account's manager rows in its own transaction.
+// transaction. The target-account lock serializes assignment against account
+// disabling or deletion.
 type managerAssignmentTx interface {
 	Queries() managerAssignmentQueries
 	Commit(context.Context) error
@@ -149,7 +129,7 @@ func validateManagerAssignmentTarget(ctx context.Context, q managerAssignmentQue
 		}
 		return fmt.Errorf("validate manager assignment target: %w", err)
 	}
-	if account.Role != "app_manager" || account.Disabled {
+	if account.Disabled {
 		return authn.ErrInvalidManagerRole()
 	}
 	return nil

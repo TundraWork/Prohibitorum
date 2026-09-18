@@ -266,8 +266,8 @@ func TestSeedAppPolicyDemoCreatesCompleteShowcase(t *testing.T) {
 	}
 	accounts := appPolicyDemoAccounts(t, q)
 
-	if got := accounts["alice"].Role; got != "app_manager" {
-		t.Fatalf("alice role = %q, want app_manager", got)
+	if got := accounts["alice"].Role; got != "user" {
+		t.Fatalf("alice role = %q, want user", got)
 	}
 	client, err := q.GetOIDCClient(ctx, appPolicyDemoClientID)
 	if err != nil {

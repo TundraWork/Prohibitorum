@@ -331,7 +331,6 @@ type accountUpdateQueries interface {
 	GetAccountByIDForUpdate(context.Context, int32) (db.Account, error)
 	CountActiveAdminsForUpdate(context.Context) (int64, error)
 	UpdateAccount(context.Context, db.UpdateAccountParams) (db.Account, error)
-	DeleteManagerAssignmentsForAccount(context.Context, int32) error
 }
 
 type accountUpdateTx interface {
@@ -411,12 +410,6 @@ func (s *Server) handleUpdateAccount(ctx context.Context, in *updateAccountIn) (
 		}
 		if n <= 1 {
 			return nil, authErrToHuma(authn.ErrLastAdmin())
-		}
-	}
-
-	if current.Role == "app_manager" && in.Body.Role != "app_manager" {
-		if err := q.DeleteManagerAssignmentsForAccount(ctx, current.ID); err != nil {
-			return nil, fmt.Errorf("handleUpdateAccount: delete manager assignments: %w", err)
 		}
 	}
 

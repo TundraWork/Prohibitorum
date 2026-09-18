@@ -147,18 +147,6 @@ func appPolicyDemoPrerequisiteError(identifier string, err error) error {
 }
 
 func seedAppPolicyDemoAlice(ctx context.Context, q *db.Queries, alice db.Account, provider db.UpstreamIdp) error {
-	if _, err := q.UpdateAccount(ctx, db.UpdateAccountParams{
-		ID:            alice.ID,
-		DisplayName:   alice.DisplayName,
-		Role:          "app_manager",
-		Attributes:    alice.Attributes,
-		Disabled:      alice.Disabled,
-		Email:         alice.Email,
-		EmailVerified: alice.EmailVerified,
-	}); err != nil {
-		return fmt.Errorf("app-policy demo update alice role: %w", err)
-	}
-
 	credentials, err := q.ListCredentialsByAccount(ctx, alice.ID)
 	if err != nil {
 		return fmt.Errorf("app-policy demo list alice credentials: %w", err)

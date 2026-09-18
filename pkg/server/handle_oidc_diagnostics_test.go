@@ -21,7 +21,7 @@ import (
 
 func TestOIDCDiagnosticRoutesRejectNonAdmins(t *testing.T) {
 	for _, path := range []struct{ method, path string }{{"GET", "/api/prohibitorum/identity-providers/corp/effective-config"}, {"POST", "/api/prohibitorum/identity-providers/corp/tests"}, {"GET", "/api/prohibitorum/identity-providers/corp/tests/id"}, {"POST", "/api/prohibitorum/identity-providers/corp/tests/id/complete"}} {
-		for _, role := range []string{"", "user", "app_manager"} {
+		for _, role := range []string{"", "user"} {
 			t.Run(path.path+role, func(t *testing.T) {
 				router := chi.NewRouter()
 				s := &Server{router: router}

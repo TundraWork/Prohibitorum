@@ -46,19 +46,6 @@ func TestCheck_Admin(t *testing.T) {
 	}
 }
 
-func TestCheckAppManager(t *testing.T) {
-	req := contract.AuthRequirement{Kind: contract.AuthAppManager}
-	for _, role := range []string{"app_manager", "admin"} {
-		if err := Check(&Session{Account: &db.Account{Role: role}}, req); err != nil {
-			t.Fatalf("%s: %v", role, err)
-		}
-	}
-	if ae := AsAuthError(Check(&Session{Account: &db.Account{Role: "user"}}, req)); ae == nil || ae.Code != "not_app_manager" {
-		t.Fatalf("unexpected error: %#v", ae)
-	}
-}
-
-
 func TestCheck_DisabledAccount_Public(t *testing.T) {
 	// A disabled-session sentinel must NOT block public routes — the request
 	// continues unauthenticated and the route's logic runs as normal.
@@ -85,7 +72,6 @@ func TestCheck_DisabledAccount_Admin(t *testing.T) {
 		t.Errorf("want account_disabled (not not_admin), got %v", err)
 	}
 }
-
 
 func TestSessionContext_Roundtrip(t *testing.T) {
 	want := &Session{Account: &db.Account{ID: 7}}

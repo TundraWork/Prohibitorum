@@ -15,7 +15,6 @@ const (
 	AuthPublic AuthKind = iota
 	AuthSession
 	AuthAdmin
-	AuthAppManager
 )
 
 // AuthRequirement declares what authentication / authorization a Huma operation

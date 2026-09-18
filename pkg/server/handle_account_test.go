@@ -7,18 +7,18 @@ import (
 	"prohibitorum/pkg/authn"
 	"prohibitorum/pkg/configx"
 	"prohibitorum/pkg/db"
+	"prohibitorum/pkg/weberr"
 )
 
 // accountUpdateTestTx records the small query surface used by handleUpdateAccount.
-// It deliberately models a single transaction so tests can prove cleanup occurs
-// before the account update commits.
+// It deliberately models a single transaction so tests can prove the account
+// update and last-admin guard remain atomic.
 type accountUpdateTestTx struct {
-	current       db.Account
-	updateCalls   []db.UpdateAccountParams
-	deleteAccount []int32
-	order         []string
-	committed     bool
-	rolledBack    bool
+	current     db.Account
+	updateCalls []db.UpdateAccountParams
+	order       []string
+	committed   bool
+	rolledBack  bool
 }
 
 func (q *accountUpdateTestTx) Queries() accountUpdateQueries { return q }
@@ -47,12 +47,6 @@ func (q *accountUpdateTestTx) CountActiveAdminsForUpdate(context.Context) (int64
 	return 2, nil
 }
 
-func (q *accountUpdateTestTx) DeleteManagerAssignmentsForAccount(_ context.Context, accountID int32) error {
-	q.order = append(q.order, "delete_manager_assignments")
-	q.deleteAccount = append(q.deleteAccount, accountID)
-	return nil
-}
-
 func (q *accountUpdateTestTx) UpdateAccount(_ context.Context, arg db.UpdateAccountParams) (db.Account, error) {
 	q.order = append(q.order, "update")
 	q.updateCalls = append(q.updateCalls, arg)
@@ -76,7 +70,7 @@ func (r accountUpdateTestRunner) BeginAccountUpdateTx(context.Context) (accountU
 
 func newAccountUpdateTestServer(tx *accountUpdateTestTx) *Server {
 	return &Server{
-		config:                       &configx.Config{PublicOrigins: []string{"https://id.example.test"}},
+		config:                        &configx.Config{PublicOrigins: []string{"https://id.example.test"}},
 		accountUpdateTxRunnerOverride: accountUpdateTestRunner{tx: tx},
 	}
 }
@@ -92,36 +86,27 @@ func accountUpdateContext() context.Context {
 	return authn.WithSession(context.Background(), &authn.Session{Account: &db.Account{ID: 1, Role: "admin"}})
 }
 
-func TestHandleUpdateAccount_AcceptsAppManagerRole(t *testing.T) {
+func TestHandleUpdateAccountRejectsRemovedAppManagerRole(t *testing.T) {
 	tx := &accountUpdateTestTx{current: db.Account{ID: 7, Role: "user"}}
 	s := newAccountUpdateTestServer(tx)
 
-	out, err := s.handleUpdateAccount(accountUpdateContext(), updateAccountInput("app_manager"))
-	if err != nil {
-		t.Fatalf("handleUpdateAccount: %v", err)
+	_, err := s.handleUpdateAccount(accountUpdateContext(), updateAccountInput("app_manager"))
+	if publicErr := weberr.AsPublic(err); publicErr == nil || publicErr.Code != "invalid_role" {
+		t.Fatalf("handleUpdateAccount error = %v, want invalid_role", err)
 	}
-	if out.Body.Role != "app_manager" {
-		t.Fatalf("updated role = %q, want app_manager", out.Body.Role)
-	}
-	if len(tx.updateCalls) != 1 || tx.updateCalls[0].Role != "app_manager" {
-		t.Fatalf("update calls = %#v, want one app_manager update", tx.updateCalls)
-	}
-	if len(tx.deleteAccount) != 0 {
-		t.Fatalf("manager cleanup called for promotion: %#v", tx.deleteAccount)
+	if len(tx.updateCalls) != 0 || len(tx.order) != 0 {
+		t.Fatalf("invalid role reached transaction: calls=%#v order=%#v", tx.updateCalls, tx.order)
 	}
 }
 
-func TestHandleUpdateAccount_DemotionDeletesManagerAssignmentsInTransaction(t *testing.T) {
-	tx := &accountUpdateTestTx{current: db.Account{ID: 7, Role: "app_manager"}}
+func TestHandleUpdateAccountPreservesAssignmentsAcrossRoleChanges(t *testing.T) {
+	tx := &accountUpdateTestTx{current: db.Account{ID: 7, Role: "admin"}}
 	s := newAccountUpdateTestServer(tx)
 
 	if _, err := s.handleUpdateAccount(accountUpdateContext(), updateAccountInput("user")); err != nil {
 		t.Fatalf("handleUpdateAccount: %v", err)
 	}
-	if len(tx.deleteAccount) != 1 || tx.deleteAccount[0] != 7 {
-		t.Fatalf("manager cleanup accounts = %#v, want [7]", tx.deleteAccount)
-	}
-	wantOrder := []string{"begin", "lock", "delete_manager_assignments", "update", "commit"}
+	wantOrder := []string{"begin", "lock", "count_active_admins", "update", "commit"}
 	if len(tx.order) != len(wantOrder) {
 		t.Fatalf("transaction order = %#v, want %#v", tx.order, wantOrder)
 	}

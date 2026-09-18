@@ -533,7 +533,6 @@ func (s *Server) registerOperations() {
 	}
 	mgmt := huma.NewGroup(s.api, "/api/prohibitorum")
 	admin := contract.AuthRequirement{Kind: contract.AuthAdmin}
-	appManager := contract.AuthRequirement{Kind: contract.AuthAppManager}
 	sessionReq := contract.AuthRequirement{Kind: contract.AuthSession}
 	publicReq := contract.AuthRequirement{Kind: contract.AuthPublic}
 
@@ -700,32 +699,32 @@ func (s *Server) registerOperations() {
 
 	// Admin: OIDC application management
 	registerOp(mgmt, contract.OperationListOIDCApplications, s.handleListOIDCApplications, admin)
-	registerOp(mgmt, contract.OperationGetOIDCApplication, s.handleGetOIDCApplication, appManager)
+	registerOp(mgmt, contract.OperationGetOIDCApplication, s.handleGetOIDCApplication, sessionReq)
 	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/oidc-applications", admin, s.handleCreateOIDCApplicationHTTP)
-	s.registerSudoOpHTTP(s.router, "PUT", "/api/prohibitorum/oidc-applications/{clientId}", appManager, s.handleUpdateOIDCApplicationHTTP)
-	s.registerAdminBodyOpHTTP(s.router, "PUT", "/api/prohibitorum/oidc-applications/{clientId}/identity-projection", appManager, s.handleUpdateOIDCIdentityProjectionHTTP)
-	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/oidc-applications/rotate-secret", appManager, s.handleRotateOIDCApplicationSecretHTTP)
-	s.registerAdminBodyOpHTTP(s.router, "POST", "/api/prohibitorum/oidc-applications/set-disabled", appManager, s.handleSetOIDCApplicationDisabledHTTP)
-	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/oidc-applications/delete", appManager, s.handleDeleteOIDCApplicationHTTP)
+	s.registerSudoOpHTTP(s.router, "PUT", "/api/prohibitorum/oidc-applications/{clientId}", sessionReq, s.handleUpdateOIDCApplicationHTTP)
+	s.registerAdminBodyOpHTTP(s.router, "PUT", "/api/prohibitorum/oidc-applications/{clientId}/identity-projection", sessionReq, s.handleUpdateOIDCIdentityProjectionHTTP)
+	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/oidc-applications/rotate-secret", sessionReq, s.handleRotateOIDCApplicationSecretHTTP)
+	s.registerAdminBodyOpHTTP(s.router, "POST", "/api/prohibitorum/oidc-applications/set-disabled", sessionReq, s.handleSetOIDCApplicationDisabledHTTP)
+	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/oidc-applications/delete", sessionReq, s.handleDeleteOIDCApplicationHTTP)
 	// Scoped managers are admin-visible; every mutation requires a fresh sudo.
-	registerOpHTTP(s.router, "GET", "/api/prohibitorum/oidc-applications/{clientId}/managers", appManager, s.handleListOIDCApplicationManagersHTTP)
-	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/oidc-applications/{clientId}/managers", appManager, s.handleAssignOIDCApplicationManagerHTTP)
-	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/oidc-applications/{clientId}/managers/remove", appManager, s.handleRemoveOIDCApplicationManagerHTTP)
+	registerOpHTTP(s.router, "GET", "/api/prohibitorum/oidc-applications/{clientId}/managers", admin, s.handleListOIDCApplicationManagersHTTP)
+	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/oidc-applications/{clientId}/managers", admin, s.handleAssignOIDCApplicationManagerHTTP)
+	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/oidc-applications/{clientId}/managers/remove", admin, s.handleRemoveOIDCApplicationManagerHTTP)
 
 	// Admin: forward-auth application management. A forward-auth app is an
 	// oidc_client with forward_auth_enabled=true, presented as its own section
 	// and excluded from the OIDC-applications list. Policy lives solely in the
 	// managed-application workspace.
 	registerOp(mgmt, contract.OperationListForwardAuthApps, s.handleListForwardAuthApps, admin)
-	registerOp(mgmt, contract.OperationGetForwardAuthApp, s.handleGetForwardAuthApp, appManager)
+	registerOp(mgmt, contract.OperationGetForwardAuthApp, s.handleGetForwardAuthApp, sessionReq)
 	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/forward-auth-apps", admin, s.handleCreateForwardAuthAppHTTP)
-	s.registerSudoOpHTTP(s.router, "PUT", "/api/prohibitorum/forward-auth-apps/{clientId}", appManager, s.handleUpdateForwardAuthAppHTTP)
-	s.registerAdminBodyOpHTTP(s.router, "PUT", "/api/prohibitorum/forward-auth-apps/{clientId}/identity-projection", appManager, s.handleUpdateForwardAuthIdentityProjectionHTTP)
-	s.registerAdminBodyOpHTTP(s.router, "POST", "/api/prohibitorum/forward-auth-apps/set-disabled", appManager, s.handleSetForwardAuthAppDisabledHTTP)
-	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/forward-auth-apps/delete", appManager, s.handleDeleteForwardAuthAppHTTP)
-	registerOpHTTP(s.router, "GET", "/api/prohibitorum/forward-auth-apps/{clientId}/managers", appManager, s.handleListForwardAuthAppManagersHTTP)
-	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/forward-auth-apps/{clientId}/managers", appManager, s.handleAssignForwardAuthAppManagerHTTP)
-	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/forward-auth-apps/{clientId}/managers/remove", appManager, s.handleRemoveForwardAuthAppManagerHTTP)
+	s.registerSudoOpHTTP(s.router, "PUT", "/api/prohibitorum/forward-auth-apps/{clientId}", sessionReq, s.handleUpdateForwardAuthAppHTTP)
+	s.registerAdminBodyOpHTTP(s.router, "PUT", "/api/prohibitorum/forward-auth-apps/{clientId}/identity-projection", sessionReq, s.handleUpdateForwardAuthIdentityProjectionHTTP)
+	s.registerAdminBodyOpHTTP(s.router, "POST", "/api/prohibitorum/forward-auth-apps/set-disabled", sessionReq, s.handleSetForwardAuthAppDisabledHTTP)
+	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/forward-auth-apps/delete", sessionReq, s.handleDeleteForwardAuthAppHTTP)
+	registerOpHTTP(s.router, "GET", "/api/prohibitorum/forward-auth-apps/{clientId}/managers", admin, s.handleListForwardAuthAppManagersHTTP)
+	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/forward-auth-apps/{clientId}/managers", admin, s.handleAssignForwardAuthAppManagerHTTP)
+	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/forward-auth-apps/{clientId}/managers/remove", admin, s.handleRemoveForwardAuthAppManagerHTTP)
 
 	// Admin: identity provider management
 	registerOp(mgmt, contract.OperationListIdentityProviders, s.handleListIdentityProviders, admin)
@@ -745,23 +744,23 @@ func (s *Server) registerOperations() {
 
 	// Admin: SAML application management
 	registerOp(mgmt, contract.OperationListSAMLApplications, s.handleListSAMLApplications, admin)
-	registerOp(mgmt, contract.OperationGetSAMLApplication, s.handleGetSAMLApplication, appManager)
+	registerOp(mgmt, contract.OperationGetSAMLApplication, s.handleGetSAMLApplication, sessionReq)
 	s.registerAdminBodyOpHTTP(s.router, "POST", "/api/prohibitorum/saml-applications", admin, s.handleCreateSAMLApplicationHTTP)
-	s.registerAdminBodyOpHTTP(s.router, "PUT", "/api/prohibitorum/saml-applications/{id}", appManager, s.handleUpdateSAMLApplicationHTTP)
-	s.registerAdminBodyOpHTTP(s.router, "POST", "/api/prohibitorum/saml-applications/{id}/reingest-metadata", appManager, s.handleReingestSAMLApplicationHTTP)
-	s.registerAdminBodyOpHTTP(s.router, "POST", "/api/prohibitorum/saml-applications/set-disabled", appManager, s.handleSetSAMLApplicationDisabledHTTP)
-	s.registerAdminBodyOpHTTP(s.router, "POST", "/api/prohibitorum/saml-applications/delete", appManager, s.handleDeleteSAMLApplicationHTTP)
-	registerOpHTTP(s.router, "GET", "/api/prohibitorum/saml-applications/{id}/managers", appManager, s.handleListSAMLApplicationManagersHTTP)
-	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/saml-applications/{id}/managers", appManager, s.handleAssignSAMLApplicationManagerHTTP)
-	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/saml-applications/{id}/managers/remove", appManager, s.handleRemoveSAMLApplicationManagerHTTP)
+	s.registerAdminBodyOpHTTP(s.router, "PUT", "/api/prohibitorum/saml-applications/{id}", sessionReq, s.handleUpdateSAMLApplicationHTTP)
+	s.registerAdminBodyOpHTTP(s.router, "POST", "/api/prohibitorum/saml-applications/{id}/reingest-metadata", sessionReq, s.handleReingestSAMLApplicationHTTP)
+	s.registerAdminBodyOpHTTP(s.router, "POST", "/api/prohibitorum/saml-applications/set-disabled", sessionReq, s.handleSetSAMLApplicationDisabledHTTP)
+	s.registerAdminBodyOpHTTP(s.router, "POST", "/api/prohibitorum/saml-applications/delete", sessionReq, s.handleDeleteSAMLApplicationHTTP)
+	registerOpHTTP(s.router, "GET", "/api/prohibitorum/saml-applications/{id}/managers", admin, s.handleListSAMLApplicationManagersHTTP)
+	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/saml-applications/{id}/managers", admin, s.handleAssignSAMLApplicationManagerHTTP)
+	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/saml-applications/{id}/managers/remove", admin, s.handleRemoveSAMLApplicationManagerHTTP)
 
 	// Admin: per-entity icon upload/remove (app & provider icons). PUT is raw
 	// image + in-handler fresh sudo (the sudo wrapper rejects non-JSON bodies);
 	// DELETE is sudo-gated via the wrapper. Mirrors the instance-icon pattern.
-	registerOpHTTP(s.router, "PUT", "/api/prohibitorum/oidc-applications/{clientId}/icon", appManager, s.handlePutOIDCAppIconHTTP)
-	s.registerSudoOpHTTP(s.router, "DELETE", "/api/prohibitorum/oidc-applications/{clientId}/icon", appManager, s.handleDeleteOIDCAppIconHTTP)
-	registerOpHTTP(s.router, "PUT", "/api/prohibitorum/saml-applications/{id}/icon", appManager, s.handlePutSAMLAppIconHTTP)
-	s.registerSudoOpHTTP(s.router, "DELETE", "/api/prohibitorum/saml-applications/{id}/icon", appManager, s.handleDeleteSAMLAppIconHTTP)
+	registerOpHTTP(s.router, "PUT", "/api/prohibitorum/oidc-applications/{clientId}/icon", sessionReq, s.handlePutOIDCAppIconHTTP)
+	s.registerSudoOpHTTP(s.router, "DELETE", "/api/prohibitorum/oidc-applications/{clientId}/icon", sessionReq, s.handleDeleteOIDCAppIconHTTP)
+	registerOpHTTP(s.router, "PUT", "/api/prohibitorum/saml-applications/{id}/icon", sessionReq, s.handlePutSAMLAppIconHTTP)
+	s.registerSudoOpHTTP(s.router, "DELETE", "/api/prohibitorum/saml-applications/{id}/icon", sessionReq, s.handleDeleteSAMLAppIconHTTP)
 	registerOpHTTP(s.router, "PUT", "/api/prohibitorum/identity-providers/{slug}/icon", admin, s.handlePutIdentityProviderIconHTTP)
 	s.registerSudoOpHTTP(s.router, "DELETE", "/api/prohibitorum/identity-providers/{slug}/icon", admin, s.handleDeleteIdentityProviderIconHTTP)
 
