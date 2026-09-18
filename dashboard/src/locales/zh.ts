@@ -1426,7 +1426,7 @@ export default {
       enrollment_method_not_allowed:
         '此注册流程只能使用通行密钥完成。',
       invitation_groups_unavailable: '此邀请中的部分用户组已不可用，请联系管理员重新创建邀请。',
-      invite_required: '在此创建账户需要邀请。',
+      invite_required: '注册需要邀请，请通过邀请链接重新进入。',
       link_required: '此身份源尚未关联任何账户。请先以其他方式登录，然后在 设置 → 关联账户 中绑定。',
       username_taken: '该用户名已被占用，请换一个。',
       username_collision: '该用户名已被占用，请换一个。',
@@ -1508,7 +1508,10 @@ export default {
       vrchat_proof_missing: '请将签发的验证链接添加到 VRChat 个人简介链接，然后重试。',
       local_username_required: '请选择本地用户名以完成登录。',
       federation_action_invalid: '验证步骤已更改。请重新加载流程并从当前步骤继续。',
-      federation_identity_conflict: '该身份无法关联到此账户。',
+      federation_identity_conflict: '此帐号已被其他人占用。',
+      federation_identity_conflict_named: '你登录的 {federationName} 帐号已被其他人占用。',
+      federation_invite_provider_mismatch: '你的邀请不可以使用此身份提供商注册，请重试。',
+      federation_invite_provider_mismatch_named: '你的邀请不可以使用 {federationName} 帐号注册，请重试。',
 
       // 系统
       maintenance_mode: '我们正在进行维护，请稍后再试。',
@@ -1524,6 +1527,7 @@ export default {
       location: '位置',
       reason: '原因',
       groupIds: '不可用的用户组 ID',
+      federationName: '身份提供商',
     },
     reasons: {
       reason: {

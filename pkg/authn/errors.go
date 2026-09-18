@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"prohibitorum/pkg/weberr"
@@ -87,7 +88,8 @@ func init() {
 		{Code: "vrchat_proof_missing", Status: http.StatusConflict, LocaleKey: "errors.vrchat_proof_missing", DiagnosticKind: "federation", Retryable: true, Recovery: "retry"},
 		{Code: "local_username_required", Status: http.StatusConflict, LocaleKey: "errors.local_username_required", DiagnosticKind: "federation", Retryable: true, Recovery: "fix_input"},
 		{Code: "federation_action_invalid", Status: http.StatusConflict, LocaleKey: "errors.federation_action_invalid", DiagnosticKind: "federation", Retryable: true, Recovery: "retry"},
-		{Code: "federation_identity_conflict", Status: http.StatusConflict, LocaleKey: "errors.federation_identity_conflict", DiagnosticKind: "federation"},
+		{Code: "federation_identity_conflict", Status: http.StatusConflict, LocaleKey: "errors.federation_identity_conflict", DiagnosticKind: "federation", DetailKeys: map[string]struct{}{"federationName": {}}},
+		{Code: "federation_invite_provider_mismatch", Status: http.StatusConflict, LocaleKey: "errors.federation_invite_provider_mismatch", DiagnosticKind: "federation", DetailKeys: map[string]struct{}{"federationName": {}}},
 		{Code: "oidc_client_already_exists", Status: http.StatusConflict, LocaleKey: "errors.oidc_client_already_exists", DiagnosticKind: "validation"},
 		{Code: "upstream_idp_already_exists", Status: http.StatusConflict, LocaleKey: "errors.upstream_idp_already_exists", DiagnosticKind: "validation"},
 		{Code: "saml_application_already_exists", Status: http.StatusConflict, LocaleKey: "errors.saml_application_already_exists", DiagnosticKind: "validation"},
@@ -610,8 +612,20 @@ func ErrFederationActionInvalid() *AuthError {
 	return newErr(http.StatusConflict, "federation_action_invalid", "The federation action is no longer current.")
 }
 
-func ErrFederationIdentityConflict() *AuthError {
-	return newErr(http.StatusConflict, "federation_identity_conflict", "The upstream identity is already linked.")
+func ErrFederationIdentityConflict(federationName string) *AuthError {
+	err := newErr(http.StatusConflict, "federation_identity_conflict", "The upstream identity is already linked.")
+	if name := strings.TrimSpace(federationName); name != "" {
+		err.Details = map[string]any{"federationName": name}
+	}
+	return err
+}
+
+func ErrFederationInviteProviderMismatch(federationName string) *AuthError {
+	err := newErr(http.StatusConflict, "federation_invite_provider_mismatch", "The invitation cannot be used with this identity provider.")
+	if name := strings.TrimSpace(federationName); name != "" {
+		err.Details = map[string]any{"federationName": name}
+	}
+	return err
 }
 
 // ErrClientAlreadyExists is returned when an OIDC client insert violates the

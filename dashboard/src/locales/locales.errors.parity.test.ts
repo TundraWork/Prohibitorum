@@ -99,8 +99,12 @@ describe('federation flow errors have English and Chinese public copy', () => {
       zh: '验证步骤已更改。请重新加载流程并从当前步骤继续。',
     },
     federation_identity_conflict: {
-      en: 'That identity cannot be linked to this account.',
-      zh: '该身份无法关联到此账户。',
+      en: 'This account is already in use by someone else.',
+      zh: '此帐号已被其他人占用。',
+    },
+    federation_invite_provider_mismatch: {
+      en: 'Your invitation cannot be used to register with this identity provider. Please try again.',
+      zh: '你的邀请不可以使用此身份提供商注册，请重试。',
     },
   } as const
 

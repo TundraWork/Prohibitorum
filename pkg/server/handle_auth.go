@@ -243,9 +243,17 @@ func redirectAuthErrToError(w http.ResponseWriter, r *http.Request, err error) s
 // omit it.
 func redirectAuthErrToErrorReturn(w http.ResponseWriter, r *http.Request, err error, returnTo string) string {
 	code := "server_error"
+	federationName := ""
 	ae := authn.AsAuthError(err)
 	if ae != nil {
 		code = ae.Code
+		if code == "federation_identity_conflict" || code == "federation_invite_provider_mismatch" {
+			_, canonicalCode, details := weberr.Canonicalize(ae.Code, ae.Details)
+			code = canonicalCode
+			if name, ok := details["federationName"].(string); ok {
+				federationName = name
+			}
+		}
 	}
 	ref := weberr.NewRef()
 	// Correlate the user-facing ref with the cause. A non-AuthError is a real
@@ -269,7 +277,7 @@ func redirectAuthErrToErrorReturn(w http.ResponseWriter, r *http.Request, err er
 	} else {
 		entry.Debug("auth error redirect")
 	}
-	weberr.RedirectToErrorWithReturn(w, r, code, ref, returnTo)
+	weberr.RedirectToErrorWithReturnAndDetail(w, r, code, ref, returnTo, "federationName", federationName)
 	return ref
 }
 

@@ -1433,7 +1433,7 @@ export default {
         "This enrollment can only be completed with a passkey.",
       invitation_groups_unavailable:
         "Some groups in this invitation are no longer available. Please ask an administrator for a new invitation.",
-      invite_required: "You'll need an invitation to create an account here.",
+      invite_required: 'An invitation is required to register. Open your invitation link to continue.',
       link_required:
         "This provider isn't linked to any account yet. Please sign in another way first, then connect it under Settings → Connected accounts.",
       username_taken: "That username is already taken — please choose another.",
@@ -1516,7 +1516,10 @@ export default {
       vrchat_proof_missing: 'Add the issued verification link to your VRChat bio links, then try again.',
       local_username_required: 'Choose a local username to finish signing in.',
       federation_action_invalid: 'This verification step changed. Reload the flow and continue from the current step.',
-      federation_identity_conflict: 'That identity cannot be linked to this account.',
+      federation_identity_conflict: 'This account is already in use by someone else.',
+      federation_identity_conflict_named: 'The {federationName} account you signed in with is already in use by someone else.',
+      federation_invite_provider_mismatch: 'Your invitation cannot be used to register with this identity provider. Please try again.',
+      federation_invite_provider_mismatch_named: 'Your invitation cannot be used to register with a {federationName} account. Please try again.',
 
       // System
       maintenance_mode: "We're doing some maintenance right now. Please try again a little later.",
@@ -1532,6 +1535,7 @@ export default {
       location: 'Location',
       reason: 'Reason',
       groupIds: 'Unavailable group IDs',
+      federationName: 'Identity provider',
     },
     reasons: {
       reason: {

@@ -401,7 +401,7 @@ func (s *Server) handleEnrollmentPasswordTOTPVerifyHTTP(w http.ResponseWriter, r
 				Event:  audit.EventFail,
 				Detail: map[string]any{"reason": "identity_conflict"},
 			})
-			writeAuthErr(w, authn.ErrFederationIdentityConflict())
+			writeAuthErr(w, authn.ErrFederationIdentityConflict(""))
 			return
 		} else if !errors.Is(ierr, pgx.ErrNoRows) {
 			writeAuthErr(w, fmt.Errorf("enrollment/password-totp/verify federated: check identity: %w", ierr))
@@ -421,7 +421,7 @@ func (s *Server) handleEnrollmentPasswordTOTPVerifyHTTP(w http.ResponseWriter, r
 					Event:  audit.EventFail,
 					Detail: map[string]any{"reason": "identity_conflict"},
 				})
-				writeAuthErr(w, authn.ErrFederationIdentityConflict())
+				writeAuthErr(w, authn.ErrFederationIdentityConflict(""))
 				return
 			}
 			writeAuthErr(w, fmt.Errorf("enrollment/password-totp/verify federated: insert identity: %w", ierr))

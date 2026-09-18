@@ -684,7 +684,7 @@ func (s *Service) restoreAfterFailure(ctx context.Context, request AdvanceReques
 			// Preserve the typed flow failure: it unwraps to both the stable
 			// public AuthError and the resolver sentinel used by retry logic.
 		case FailureLinkConflict:
-			publicErr = authn.ErrFederationIdentityConflict()
+			publicErr = authn.ErrFederationIdentityConflict("")
 		default:
 			publicErr = projected
 		}

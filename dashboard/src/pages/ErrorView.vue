@@ -44,9 +44,21 @@ const app = computed(() => {
   return typeof a === 'string' ? a : ''
 })
 const appAccessDenied = computed(() => reason.value === 'app_access_denied')
+const federationName = computed(() => {
+  const name = route.query.federationName
+  return typeof name === 'string' ? name.trim() : ''
+})
+const namedFederationErrors = new Set([
+  'federation_identity_conflict',
+  'federation_invite_provider_mismatch',
+])
 
 const message = computed(() => {
   if (appAccessDenied.value) return t('error.appAccessDenied', { app: app.value })
+  if (namedFederationErrors.has(code.value) && federationName.value) {
+    const namedKey = `errors.codes.${code.value}_named`
+    if (te(namedKey)) return t(namedKey, { federationName: federationName.value })
+  }
   const key = `errors.codes.${code.value}`
   if (code.value && te(key)) return t(key)
   if (description.value) return description.value

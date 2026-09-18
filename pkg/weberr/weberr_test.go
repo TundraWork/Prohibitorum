@@ -53,3 +53,24 @@ func TestRedirectToErrorWithReturn_EmptyOmitsParam(t *testing.T) {
 		t.Fatalf("Location = %q, want %q (return_to must be omitted when empty)", got, want)
 	}
 }
+
+func TestRedirectToErrorWithReturnAndDetail_EncodesCanonicalValue(t *testing.T) {
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/x", nil)
+	RedirectToErrorWithReturnAndDetail(rec, req, "federation_identity_conflict", "deadbeef", "", "federationName", "A&B + <身份>")
+
+	got := rec.Header().Get("Location")
+	want := "/error?error=federation_identity_conflict&ref=deadbeef&federationName=A%26B+%2B+%3C%E8%BA%AB%E4%BB%BD%3E"
+	if got != want {
+		t.Fatalf("Location = %q, want %q", got, want)
+	}
+}
+
+func TestRedirectToErrorWithReturnAndDetail_OmitsEmptyDetail(t *testing.T) {
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/x", nil)
+	RedirectToErrorWithReturnAndDetail(rec, req, "server_error", "deadbeef", "", "federationName", "")
+	if got, want := rec.Header().Get("Location"), "/error?error=server_error&ref=deadbeef"; got != want {
+		t.Fatalf("Location = %q, want %q", got, want)
+	}
+}

@@ -270,11 +270,12 @@ func (r *recordingAudit) hasFail(reason string) bool {
 
 func newIDP(mode string) *federationoidc.Provider {
 	return &federationoidc.Provider{
-		ID:       42,
-		Slug:     "test-idp",
-		Protocol: "oidc",
-		Mode:     mode,
-		Config:   idpConfig(nil, "", "", ""),
+		ID:          42,
+		Slug:        "test-idp",
+		DisplayName: "Test Identity",
+		Protocol:    "oidc",
+		Mode:        mode,
+		Config:      idpConfig(nil, "", "", ""),
 	}
 }
 
@@ -621,9 +622,9 @@ func TestApplyInviteOnly_UsernameRaceMapsToCollisionError(t *testing.T) {
 	}
 }
 
-// TestApplyInviteOnly_IdentityConflictRaceMapsToInviteRequired mirrors
+// TestApplyInviteOnly_IdentityConflictRaceMapsToDedicatedError mirrors
 // the auto_provision identity-conflict race for the invite path.
-func TestApplyInviteOnly_IdentityConflictRaceMapsToInviteRequired(t *testing.T) {
+func TestApplyInviteOnly_IdentityConflictRaceMapsToDedicatedError(t *testing.T) {
 	q := newFakeModesQueries()
 	q.consumeEnrollmentResult = makeInviteEnrollment("test-idp", "user", nil)
 	q.insertIdentityErr = pgUniqueViolation("account_identity_upstream_iss_sub_key")
@@ -631,8 +632,8 @@ func TestApplyInviteOnly_IdentityConflictRaceMapsToInviteRequired(t *testing.T) 
 	idp := newIDP(federationoidc.ModeInviteOnly)
 
 	_, err := federationoidc.ApplyInviteProvisionForTest(context.Background(), q, a, idp, goodTokens(), "invite-token-xyz", nil)
-	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "invite_required" {
-		t.Fatalf("want invite_required AuthError, got %v", err)
+	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "federation_identity_conflict" || ae.Details["federationName"] != "Test Identity" {
+		t.Fatalf("want named federation_identity_conflict AuthError, got %v", err)
 	}
 	if !a.hasFail("identity_conflict") {
 		t.Errorf("want audit fail reason=identity_conflict; got %+v", a.records)
@@ -807,8 +808,8 @@ func TestApplyInviteOnly_IdentityAlreadyBoundRejects(t *testing.T) {
 	_, err := federationoidc.ApplyInviteProvisionForTest(
 		context.Background(), q, a, idp, goodTokens(), "invite-token-xyz", nil,
 	)
-	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "invite_required" {
-		t.Fatalf("want invite_required, got %v", err)
+	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "federation_identity_conflict" || ae.Details["federationName"] != "Test Identity" {
+		t.Fatalf("want named federation_identity_conflict, got %v", err)
 	}
 	if !a.hasFail("identity_conflict") {
 		t.Errorf("want audit fail reason=identity_conflict; got %+v", a.snapshot())
@@ -939,8 +940,8 @@ func TestApplyInviteOnly_SlugMismatch(t *testing.T) {
 	_, err := federationoidc.ApplyInviteProvisionForTest(
 		context.Background(), q, a, idp, tok, "invite-token-xyz", nil,
 	)
-	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "invite_required" {
-		t.Fatalf("want invite_required, got %v", err)
+	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "federation_invite_provider_mismatch" || ae.Details["federationName"] != "Test Identity" {
+		t.Fatalf("want named federation_invite_provider_mismatch, got %v", err)
 	}
 	recs := a.snapshot()
 	if r := recs[0].Detail["reason"]; r != "invite_slug_mismatch" {

@@ -43,7 +43,7 @@ const (
 )
 
 type failurePolicy struct {
-	public     func() error
+	public     func(map[string]any) error
 	detailKeys map[string]struct{}
 }
 
@@ -51,8 +51,8 @@ var failurePolicies = map[FailureReason]failurePolicy{
 	FailureStateInvalid:           {public: stateInvalid},
 	FailureBrowserBindingMismatch: {public: stateInvalid},
 	FailureProviderUnavailable:    {public: stateInvalid},
-	FailureActionInvalid:          {public: func() error { return authn.ErrFederationActionInvalid() }},
-	FailureLocalUsernameRequired:  {public: func() error { return authn.ErrLocalUsernameRequired() }},
+	FailureActionInvalid:          {public: staticPublic(authn.ErrFederationActionInvalid)},
+	FailureLocalUsernameRequired:  {public: staticPublic(authn.ErrLocalUsernameRequired)},
 	FailureIssuerMismatch: {
 		public:     stateInvalid,
 		detailKeys: keys("expected_iss", "got_iss"),
@@ -68,10 +68,10 @@ var failurePolicies = map[FailureReason]failurePolicy{
 		detailKeys: keys("state_account_id"),
 	},
 	FailureEmailNotVerified: {
-		public:     func() error { return authn.ErrEmailNotVerified() },
+		public:     staticPublic(authn.ErrEmailNotVerified),
 		detailKeys: keys("upstream_iss"),
 	},
-	FailureDomainNotAllowed: {public: func() error { return authn.ErrInviteRequired() }},
+	FailureDomainNotAllowed: {public: staticPublic(authn.ErrInviteRequired)},
 	FailureLinkConflict: {
 		public:     stateInvalid,
 		detailKeys: keys("iss", "sub"),
@@ -80,28 +80,35 @@ var failurePolicies = map[FailureReason]failurePolicy{
 		public:     stateInvalid,
 		detailKeys: keys("iss", "sub"),
 	},
-	FailureInviteLookup:       {public: func() error { return authn.ErrInviteRequired() }},
-	FailureInviteWrongIntent:  {public: func() error { return authn.ErrInviteRequired() }, detailKeys: keys("intent")},
-	FailureInviteConsumed:     {public: func() error { return authn.ErrInviteRequired() }},
-	FailureInviteExpired:      {public: func() error { return authn.ErrInviteRequired() }},
-	FailureInviteNotFederated: {public: func() error { return authn.ErrInviteRequired() }},
+	FailureInviteLookup:       {public: staticPublic(authn.ErrInviteRequired)},
+	FailureInviteWrongIntent:  {public: staticPublic(authn.ErrInviteRequired), detailKeys: keys("intent")},
+	FailureInviteConsumed:     {public: staticPublic(authn.ErrInviteRequired)},
+	FailureInviteExpired:      {public: staticPublic(authn.ErrInviteRequired)},
+	FailureInviteNotFederated: {public: staticPublic(authn.ErrInviteRequired)},
 	FailureInviteSlugMismatch: {
-		public:     func() error { return authn.ErrInviteRequired() },
+		public: func(detail map[string]any) error {
+			name, _ := detail["federationName"].(string)
+			return authn.ErrFederationInviteProviderMismatch(name)
+		},
 		detailKeys: keys("enrollment_expected_slug"),
 	},
 	FailureLinkOnlyProvisionDenied: {
-		public:     func() error { return authn.ErrInviteRequired() },
+		public:     staticPublic(authn.ErrInviteRequired),
 		detailKeys: keys("idp_slug"),
 	},
-	FailureVRChatIdentityInvalid:  {public: func() error { return authn.ErrVRChatIdentityInvalid() }},
-	FailureVRChatProofMissing:     {public: func() error { return authn.ErrVRChatProofMissing() }},
-	FailureVRChatProviderNotReady: {public: func() error { return authn.ErrProviderNotReady() }},
-	FailureUpstreamRateLimited:    {public: func() error { return authn.ErrUpstreamRateLimited(0) }},
-	FailureUpstreamUnavailable:    {public: func() error { return authn.ErrUpstreamTemporarilyUnavailable() }},
+	FailureVRChatIdentityInvalid:  {public: staticPublic(authn.ErrVRChatIdentityInvalid)},
+	FailureVRChatProofMissing:     {public: staticPublic(authn.ErrVRChatProofMissing)},
+	FailureVRChatProviderNotReady: {public: staticPublic(authn.ErrProviderNotReady)},
+	FailureUpstreamRateLimited:    {public: func(map[string]any) error { return authn.ErrUpstreamRateLimited(0) }},
+	FailureUpstreamUnavailable:    {public: staticPublic(authn.ErrUpstreamTemporarilyUnavailable)},
 	FailureUpstreamNoIdentity:     {public: stateInvalid},
 }
 
-func stateInvalid() error { return authn.ErrFederationStateInvalid() }
+func stateInvalid(_ map[string]any) error { return authn.ErrFederationStateInvalid() }
+
+func staticPublic(factory func() *authn.AuthError) func(map[string]any) error {
+	return func(map[string]any) error { return factory() }
+}
 
 func keys(values ...string) map[string]struct{} {
 	out := make(map[string]struct{}, len(values))
@@ -140,7 +147,7 @@ func NewFailure(reason FailureReason, detail map[string]any) error {
 			filtered[key] = value
 		}
 	}
-	failure := &flowFailure{reason: reason, detail: filtered, public: policy.public()}
+	failure := &flowFailure{reason: reason, detail: filtered, public: policy.public(detail)}
 	if reason == FailureLocalUsernameRequired {
 		failure.cause = ErrLocalUsernameRequired
 	}

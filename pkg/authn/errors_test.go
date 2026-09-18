@@ -25,7 +25,6 @@ func TestFederationFlowErrorDefinitions(t *testing.T) {
 		{ErrUpstreamRateLimited(5 * time.Second), http.StatusTooManyRequests, true, "retry"},
 		{ErrUpstreamTemporarilyUnavailable(), http.StatusServiceUnavailable, true, "retry"},
 		{ErrFederationActionInvalid(), http.StatusConflict, true, "retry"},
-		{ErrFederationIdentityConflict(), http.StatusConflict, false, ""},
 	}
 	for _, test := range tests {
 		t.Run(test.err.Code, func(t *testing.T) {
@@ -40,6 +39,22 @@ func TestFederationFlowErrorDefinitions(t *testing.T) {
 				t.Fatalf("public details allowed for %s", test.err.Code)
 			}
 		})
+	}
+
+	for _, err := range []*AuthError{ErrFederationIdentityConflict(""), ErrFederationInviteProviderMismatch("")} {
+		definition, ok := weberr.DefinitionFor(err.Code)
+		if !ok || definition.Status != http.StatusConflict {
+			t.Fatalf("definition for %s = %#v", err.Code, definition)
+		}
+		if _, ok := definition.DetailKeys["federationName"]; !ok || err.Details != nil {
+			t.Fatalf("%s must allow federationName and omit empty details", err.Code)
+		}
+	}
+
+	for _, err := range []*AuthError{ErrFederationIdentityConflict("  Corporate & + 中文  "), ErrFederationInviteProviderMismatch("  Corporate & + 中文  ")} {
+		if got := err.Details["federationName"]; got != "Corporate & + 中文" {
+			t.Fatalf("%s federationName = %#v", err.Code, got)
+		}
 	}
 
 	rateLimited := ErrUpstreamRateLimited(5 * time.Second)

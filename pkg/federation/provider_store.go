@@ -137,9 +137,16 @@ func (s *ProviderStore) InviteProvider(ctx context.Context, token, selectedSlug 
 	if bound == "" {
 		effective = selectedSlug
 	} else if selectedSlug != "" && selectedSlug != bound {
-		return Provider{}, NewFailure(FailureInviteSlugMismatch, map[string]any{
+		detail := map[string]any{
 			"enrollment_expected_slug": bound,
-		})
+		}
+		// The selected provider name is safe to show after the invitation has
+		// passed its validity and intent gates. A failed lookup must not mask
+		// the already established mismatch.
+		if selected, err := s.BySlug(ctx, selectedSlug); err == nil {
+			detail["federationName"] = selected.DisplayName
+		}
+		return Provider{}, NewFailure(FailureInviteSlugMismatch, detail)
 	}
 	if effective == "" {
 		return Provider{}, NewFailure(FailureInviteNotFederated, nil)

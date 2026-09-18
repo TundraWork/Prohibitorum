@@ -64,6 +64,7 @@ const (
 type resolverProvider struct {
 	ID                   int64
 	Slug                 string
+	DisplayName          string
 	Mode                 string
 	AllowedDomains       []string
 	UsernameClaim        string
@@ -85,6 +86,7 @@ func resolverProviderFromProvider(provider Provider) (resolverProvider, error) {
 	return resolverProvider{
 		ID:                   provider.ID,
 		Slug:                 provider.Slug,
+		DisplayName:          provider.DisplayName,
 		Mode:                 provider.Mode,
 		AllowedDomains:       append([]string(nil), config.AllowedDomains...),
 		UsernameClaim:        config.UsernameClaim,
@@ -506,7 +508,7 @@ func applyInviteProvision(
 			emitFail(ctx, w, idp, identity, "identity_conflict", map[string]any{
 				"bound_account_id": existing.AccountID,
 			})
-			return ResolveOutcome{}, authn.ErrInviteRequired()
+			return ResolveOutcome{}, authn.ErrFederationIdentityConflict(idp.DisplayName)
 		case !errors.Is(err, pgx.ErrNoRows):
 			return ResolveOutcome{}, fmt.Errorf("federation: authoritative identity lookup: %w", err)
 		}
@@ -538,7 +540,7 @@ func applyInviteProvision(
 			emitFail(ctx, w, idp, identity, "invite_slug_mismatch", map[string]any{
 				"enrollment_expected_slug": bound,
 			})
-			return ResolveOutcome{}, authn.ErrInviteRequired()
+			return ResolveOutcome{}, authn.ErrFederationInviteProviderMismatch(idp.DisplayName)
 		}
 
 		username := identity.Username
@@ -637,7 +639,7 @@ func applyInviteProvision(
 				// the authoritative lookup and this insert. Same collapse
 				// onto invite_required; the rollback re-opens the invite.
 				emitFail(ctx, w, idp, identity, "identity_conflict", nil)
-				return ResolveOutcome{}, authn.ErrInviteRequired()
+				return ResolveOutcome{}, authn.ErrFederationIdentityConflict(idp.DisplayName)
 			}
 			return ResolveOutcome{}, fmt.Errorf("federation/oidc: insert account_identity: %w", err)
 		}

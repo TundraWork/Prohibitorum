@@ -671,7 +671,7 @@ func (s *Server) handleEnrollmentCompleteHTTP(w http.ResponseWriter, r *http.Req
 				Event:  audit.EventFail,
 				Detail: map[string]any{"reason": "identity_conflict"},
 			})
-			writeAuthErr(w, authn.ErrFederationIdentityConflict())
+			writeAuthErr(w, authn.ErrFederationIdentityConflict(""))
 			return
 		}
 		if !errors.Is(err, pgx.ErrNoRows) {
@@ -692,7 +692,7 @@ func (s *Server) handleEnrollmentCompleteHTTP(w http.ResponseWriter, r *http.Req
 					Event:  audit.EventFail,
 					Detail: map[string]any{"reason": "identity_conflict"},
 				})
-				writeAuthErr(w, authn.ErrFederationIdentityConflict())
+				writeAuthErr(w, authn.ErrFederationIdentityConflict(""))
 				return
 			}
 			writeAuthErr(w, fmt.Errorf("enrollment/complete federated: insert identity: %w", err))

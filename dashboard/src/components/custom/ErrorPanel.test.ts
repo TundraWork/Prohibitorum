@@ -50,6 +50,23 @@ describe('ErrorPanel — rendering', () => {
     expect(w.text()).toContain(en.errors.codes.account_disabled)
   })
 
+  it('interpolates a curated provider name and renders it as text', () => {
+    const w = mount(ErrorPanel, {
+      props: { error: { code: 'federation_identity_conflict', details: { federationName: 'Corporate & <Identity>' } } },
+      global: { plugins: [makeI18n()] },
+    })
+    expect(w.text()).toContain('The Corporate & <Identity> account you signed in with is already in use by someone else.')
+    expect(w.html()).toContain('&lt;Identity&gt;')
+  })
+
+  it('uses provider-neutral copy when federationName is absent', () => {
+    const w = mount(ErrorPanel, {
+      props: { error: { code: 'federation_invite_provider_mismatch' } },
+      global: { plugins: [makeI18n()] },
+    })
+    expect(w.text()).toContain(en.errors.codes.federation_invite_provider_mismatch)
+  })
+
   it('renders the unknown fallback for an unregistered code', () => {
     const w = mount(ErrorPanel, {
       props: { error: UNKNOWN_ERROR },

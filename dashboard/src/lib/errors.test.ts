@@ -238,7 +238,8 @@ describe('error code manifest integrity', () => {
   it('includes Task 8 federation flow recovery metadata in lookup and manifest', () => {
     const expected = [
       { code: 'federation_action_invalid', details: [], recovery: 'retry' },
-      { code: 'federation_identity_conflict', details: [], recovery: '' },
+      { code: 'federation_identity_conflict', details: ['federationName'], recovery: '' },
+      { code: 'federation_invite_provider_mismatch', details: ['federationName'], recovery: '' },
       { code: 'local_username_required', details: [], recovery: 'fix_input' },
       { code: 'vrchat_identity_invalid', details: [], recovery: 'fix_input' },
       { code: 'vrchat_proof_missing', details: [], recovery: 'retry' },

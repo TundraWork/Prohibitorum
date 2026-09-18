@@ -18,9 +18,9 @@ import (
 
 	"prohibitorum/pkg/authn"
 	"prohibitorum/pkg/configx"
+	webauthnauth "prohibitorum/pkg/credential/webauthn"
 	"prohibitorum/pkg/db"
 	"prohibitorum/pkg/kv"
-	webauthnauth "prohibitorum/pkg/credential/webauthn"
 	"prohibitorum/pkg/weberr"
 )
 
@@ -416,6 +416,7 @@ func TestWriteHumaPublicErr_RoutesThroughRegistry(t *testing.T) {
 		t.Errorf("sudo_required status = %d, want 401", def.Status)
 	}
 }
+
 // TestLogInternalError_LogsSelectedCodeAndRequestID proves logInternalError
 // logs the selected registered operation-specific code (not a hardcoded
 // "server_error") and the request ID, so operators can correlate the public
@@ -766,5 +767,32 @@ func TestRedirectAuthErrToErrorReturn_AuthErrorStaysDebug(t *testing.T) {
 	}
 	if strings.Contains(buf.String(), "level=warn") && strings.Contains(buf.String(), "msg=\"auth error redirect\"") {
 		t.Fatalf("AuthError branch logged a warn entry:\n%s", buf.String())
+	}
+}
+
+func TestRedirectAuthErrToErrorReturn_ProjectsOnlyNamedFederationDetail(t *testing.T) {
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/federation/callback", nil)
+	err := authn.ErrFederationIdentityConflict("A&B + <身份>")
+	err.Details["accountID"] = int32(42)
+	redirectAuthErrToErrorReturn(rec, req, err, "/connected")
+
+	location := rec.Header().Get("Location")
+	if !strings.Contains(location, "federationName=A%26B+%2B+%3C%E8%BA%AB%E4%BB%BD%3E") || !strings.Contains(location, "return_to=%2Fconnected") {
+		t.Fatalf("Location = %q, want encoded federation name and return target", location)
+	}
+	if strings.Contains(location, "accountID") || strings.Contains(location, "42") {
+		t.Fatalf("Location leaked non-public details: %q", location)
+	}
+}
+
+func TestRedirectAuthErrToErrorReturn_OmitsFederationNameForOtherCodes(t *testing.T) {
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/federation/callback", nil)
+	err := authn.ErrInviteRequired()
+	err.Details = map[string]any{"federationName": "must not appear"}
+	redirectAuthErrToErrorReturn(rec, req, err, "")
+	if strings.Contains(rec.Header().Get("Location"), "federationName") {
+		t.Fatalf("Location leaked detail for invite_required: %q", rec.Header().Get("Location"))
 	}
 }

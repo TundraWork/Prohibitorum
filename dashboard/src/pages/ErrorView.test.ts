@@ -7,7 +7,7 @@ vi.mock('@/lib/api', () => ({ api: { get: vi.fn(async () => null) } }))
 import ErrorView from './ErrorView.vue'
 
 // vue-router — expose a mutable query so tests can inject route params.
-let _routeQuery: Record<string, string> = {}
+let _routeQuery: Record<string, string | string[]> = {}
 vi.mock('vue-router', () => ({
   useRoute: () => ({ query: _routeQuery }),
 }))
@@ -42,6 +42,22 @@ describe('ErrorView', () => {
     const wrapper = mountView()
     await flushPromises()
     expect(wrapper.text()).toContain(en.errors.codes.upstream_error)
+  })
+
+  it('interpolates a trusted provider name for invitation identity conflicts', async () => {
+    _routeQuery = { error: 'federation_identity_conflict', federationName: 'Corporate & <Identity>' }
+    const wrapper = mountView()
+    await flushPromises()
+    expect(wrapper.text()).toContain('The Corporate & <Identity> account you signed in with is already in use by someone else.')
+    expect(wrapper.html()).toContain('&lt;Identity&gt;')
+  })
+
+  it('uses the provider-neutral mismatch copy for empty or duplicate query values', async () => {
+    _routeQuery = { error: 'federation_invite_provider_mismatch', federationName: ['First', 'Second'] }
+    const wrapper = mountView()
+    await flushPromises()
+    expect(wrapper.text()).toContain(en.errors.codes.federation_invite_provider_mismatch)
+    expect(wrapper.text()).not.toContain('First')
   })
 
   it('renders the reference line when ref is present', async () => {

@@ -74,11 +74,21 @@ const diagState = computed(() => !diagnosticId.value ? 'idle' : diagnostic.isFet
 watch(() => props.error, () => { diagnosticId.value = '' })
 
 const hasError = computed(() => props.error !== null)
+const namedFederationErrors = new Set([
+  'federation_identity_conflict',
+  'federation_invite_provider_mismatch',
+])
 
 const message = computed(() => {
   const e = props.error
   if (!e) return ''
   if (GLOBAL_ERROR_CODES.has(e.code)) return t('errors.unknown')
+  const rawName = e.details?.federationName
+  const federationName = typeof rawName === 'string' ? rawName.trim() : ''
+  if (namedFederationErrors.has(e.code) && federationName) {
+    const namedKey = `${errorTranslationKey(e.code)}_named`
+    if (te(namedKey)) return t(namedKey, { federationName })
+  }
   const key = errorTranslationKey(e.code)
   if (te(key)) return t(key)
   return t('errors.unknown')

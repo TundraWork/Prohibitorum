@@ -42,10 +42,20 @@ func RedirectToError(w http.ResponseWriter, r *http.Request, code, ref string) {
 // re-guards it through safeReturnTo); pass "" when there is no safe origin. An
 // empty returnTo omits the param entirely, matching RedirectToError.
 func RedirectToErrorWithReturn(w http.ResponseWriter, r *http.Request, code, ref, returnTo string) {
+	RedirectToErrorWithReturnAndDetail(w, r, code, ref, returnTo, "", "")
+}
+
+// RedirectToErrorWithReturnAndDetail adds one caller-selected public string
+// detail to the redirect. Callers must pass a registry-allowlisted key and a
+// canonical server value; empty keys or values are omitted.
+func RedirectToErrorWithReturnAndDetail(w http.ResponseWriter, r *http.Request, code, ref, returnTo, detailKey, detailValue string) {
 	w.Header().Set("Cache-Control", "no-store")
 	u := "/error?error=" + url.QueryEscape(code) + "&ref=" + url.QueryEscape(ref)
 	if returnTo != "" {
 		u += "&return_to=" + url.QueryEscape(returnTo)
+	}
+	if detailKey != "" && detailValue != "" {
+		u += "&" + url.QueryEscape(detailKey) + "=" + url.QueryEscape(detailValue)
 	}
 	http.Redirect(w, r, u, http.StatusFound)
 }

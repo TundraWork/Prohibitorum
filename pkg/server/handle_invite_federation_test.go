@@ -585,11 +585,30 @@ func TestEnrollmentStartFederation_UnboundInviteWithoutProviderRejected(t *testi
 func TestEnrollmentStartFederation_BoundInviteWithDifferingProviderRejected(t *testing.T) {
 	h := newInviteTestServer(t)
 	h.q.seedEnrollment(validInvite("tok-mismatch", h.idp.Slug))
+	seedProviderWithMode(t, h, "some-other-idp", fedoidc.ModeInviteOnly)
 
 	_, resp := h.driveStartFederation(t, "tok-mismatch", "/me", "some-other-idp")
 	loc := resp.Header.Get("Location")
-	if !strings.HasPrefix(loc, "/error?error=invite_required&ref=") {
-		t.Errorf("Location: want /error?error=invite_required&ref=…, got %q", loc)
+	if !strings.HasPrefix(loc, "/error?error=federation_invite_provider_mismatch&ref=") {
+		t.Errorf("Location: want provider-mismatch error, got %q", loc)
+	}
+	if !strings.Contains(loc, "federationName=Mock+OP") {
+		t.Errorf("Location must include the selected provider display name, got %q", loc)
+	}
+	assertAuditReason(t, h.q, "invite_slug_mismatch")
+}
+
+func TestEnrollmentStartFederation_MismatchSurvivesSelectedProviderLookupFailure(t *testing.T) {
+	h := newInviteTestServer(t)
+	h.q.seedEnrollment(validInvite("tok-mismatch-unknown", h.idp.Slug))
+
+	_, resp := h.driveStartFederation(t, "tok-mismatch-unknown", "/me", "missing-idp")
+	loc := resp.Header.Get("Location")
+	if !strings.HasPrefix(loc, "/error?error=federation_invite_provider_mismatch&ref=") {
+		t.Errorf("Location: want provider-mismatch error, got %q", loc)
+	}
+	if strings.Contains(loc, "federationName=") {
+		t.Errorf("Location must omit an unavailable provider name, got %q", loc)
 	}
 	assertAuditReason(t, h.q, "invite_slug_mismatch")
 }
