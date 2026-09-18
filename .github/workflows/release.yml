@@ -37,7 +37,7 @@ jobs:
         with:
           fetch-depth: 0 # GoReleaser needs full history + tags
       - name: Install toolchain (mise)
-        uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db # v3.6.3 — go/node/goreleaser/cosign/syft from mise.lock
+        uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db # v3.6.3 — go/node/pnpm/goreleaser/cosign/syft from mise.lock
         with:
           # zizmor cache-poisoning: this workflow publishes, so don't restore a
           # cached toolchain (mise.lock is already checksum-pinned, so no speed loss that matters).

@@ -2,6 +2,16 @@
 /dashboard/node_modules
 /dashboard/dist
 /dashboard/.vite
+/dashboard/.pnpm-store
+/dashboard/coverage
+/dashboard/*.tsbuildinfo
+/dashboard/src/locales/**/*.mjs
+/dashboard-old/node_modules
+/dashboard-old/dist
+/dashboard-old/.vite
+/dashboard-old/.pnpm-store
+/dashboard-old/coverage
+/dashboard-old/*.tsbuildinfo
 /.vite
 /node_modules
 /.data
@@ -26,5 +36,5 @@
 
 # Editor-local config (may contain absolute $HOME paths — keep out of history)
 /.vscode/
-/pkg/webui/dist
+/pkg/webui/dist/*
 !pkg/webui/dist/.gitkeep

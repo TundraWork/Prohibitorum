@@ -2,6 +2,10 @@
 
 How a relying party (RP) — backend service, SPA, or legacy SaaS — authenticates its users against Prohibitorum.
 
+During the M1 frontend rewrite, browser login, enrollment and management pages
+are temporarily unavailable. The protocol and management APIs documented here
+remain available; integrations requiring a new interactive sign-in cannot complete through the M1 UI.
+
 ## Pick a pattern
 
 | Pattern | When | Trust assumption |
@@ -20,7 +24,7 @@ The full OP surface is mounted at the **issuer root**, NOT under `/api/prohibito
 
 ### One-time setup
 
-Register a client with `prohibitorum oidc-client create` (it generates + argon2id-hashes the secret, printing it once — see "OIDC OP"). The admin dashboard also manages OIDC clients. Raw SQL remains possible for advanced cases:
+Register a client with `prohibitorum oidc-client create` (it generates + argon2id-hashes the secret, printing it once — see "OIDC OP"). Raw SQL remains possible for advanced cases:
 
 ```sql
 INSERT INTO oidc_client
@@ -564,7 +568,7 @@ Federate sign-in to an upstream OIDC provider (Google Workspace, Okta, Keycloak,
 
 ### One-time setup (admin)
 
-Register an upstream IdP via the admin dashboard (Identity Providers) or raw SQL. The client secret must be sealed with the helper in `pkg/federation/oidc/secret.go` — do not paste plaintext into the DB.
+Register an upstream IdP with `prohibitorum upstream-idp` or the admin API. For raw SQL, the client secret must be sealed with the helper in `pkg/federation/oidc/secret.go` — do not paste plaintext into the DB.
 
 > **At the upstream**, register both Prohibitorum redirect_uris in the upstream's OAuth client:
 > - `…/api/prohibitorum/auth/federation/{slug}/callback`    (sign-in)
@@ -667,8 +671,8 @@ curl -i 'http://localhost:8080/api/prohibitorum/auth/federation/google/login?ret
 An admin mints a per-user invite, optionally bound to a specific IdP, and the invitee redeems it via a dedicated public endpoint that stashes the invite token in federation state so the callback provisions the account atomically. The username and display name come from the upstream claims (same as `auto_provision`); the invite template only carries role + attributes.
 
 ```bash
-# 1. Admin creates an invite-intent enrollment for the user (via the admin
-#    dashboard's Invitations screen or the /admin/enrollments/* API).
+# 1. Admin creates an invite-intent enrollment for the user through the
+#    /admin/enrollments/* API.
 #    Fields:
 #      intent='invite'
 #      template_role='user'

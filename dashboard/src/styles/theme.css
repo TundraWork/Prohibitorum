@@ -1,0 +1,67 @@
+:root {
+  --brand-chroma: 0.1;
+  --brand-hue: 204;
+  --brand-lightness: 0.52;
+  --neutral-chroma: 0.003;
+  --accent: oklch(var(--brand-lightness) var(--brand-chroma) var(--brand-hue));
+  --accent-foreground: oklch(1 0 0);
+  /* HeroUI extra-small ordinary corners: 4px; small form corners: 8px. */
+  --radius: 0.25rem;
+  --field-radius: 0.5rem;
+  --field-border-width: 1px;
+  --field-shadow: none;
+  --surface-shadow: none;
+  --font-sans:
+    "Hanken Grotesk Variable", "PingFang SC", "Microsoft YaHei", ui-sans-serif,
+    system-ui, sans-serif;
+}
+
+:root,
+:root[data-theme="light"] {
+  color-scheme: light;
+  --background: oklch(0.985 var(--neutral-chroma) var(--brand-hue));
+  --foreground: oklch(0.24 var(--neutral-chroma) var(--brand-hue));
+  --surface: oklch(1 0 0);
+  --surface-foreground: var(--foreground);
+  --surface-secondary: oklch(0.965 var(--neutral-chroma) var(--brand-hue));
+  --surface-tertiary: oklch(0.94 var(--neutral-chroma) var(--brand-hue));
+  --surface-secondary-foreground: var(--foreground);
+  --surface-tertiary-foreground: var(--foreground);
+  --overlay: var(--surface);
+  --overlay-foreground: var(--foreground);
+  --muted: oklch(0.46 var(--neutral-chroma) var(--brand-hue));
+  --border: oklch(0.88 var(--neutral-chroma) var(--brand-hue));
+  --separator: var(--border);
+  --default: var(--surface-secondary);
+  --default-foreground: var(--foreground);
+  --field-background: var(--background);
+  --field-foreground: var(--foreground);
+  --field-placeholder: var(--muted);
+  --field-border: var(--border);
+  --focus: var(--accent);
+  --link: var(--accent);
+  --segment: var(--surface);
+  --segment-foreground: var(--foreground);
+  --preview-soft: oklch(0.95 0.02 var(--brand-hue));
+  --danger: oklch(0.5 0.17 25);
+  --danger-foreground: oklch(1 0 0);
+  --preview-error: oklch(0.97 0.015 25);
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --background: oklch(0.17 var(--neutral-chroma) var(--brand-hue));
+  --foreground: oklch(0.95 var(--neutral-chroma) var(--brand-hue));
+  --surface: oklch(0.22 var(--neutral-chroma) var(--brand-hue));
+  --surface-secondary: oklch(0.25 var(--neutral-chroma) var(--brand-hue));
+  --surface-tertiary: oklch(0.28 var(--neutral-chroma) var(--brand-hue));
+  --overlay: var(--surface);
+  --muted: oklch(0.76 var(--neutral-chroma) var(--brand-hue));
+  --border: oklch(0.36 var(--neutral-chroma) var(--brand-hue));
+  --field-background: var(--background);
+  --preview-soft: oklch(0.29 0.025 var(--brand-hue));
+  --danger: oklch(0.8 0.1 25);
+  --danger-foreground: oklch(0.17 var(--neutral-chroma) 25);
+  --preview-error: oklch(0.26 0.025 25);
+  --overlay-shadow: 0 8px 32px oklch(0 0 0 / 0.4);
+}

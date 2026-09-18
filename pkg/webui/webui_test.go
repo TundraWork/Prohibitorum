@@ -1,6 +1,8 @@
 package webui
 
 import (
+	"crypto/sha256"
+	"encoding/base64"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -27,34 +29,25 @@ func TestHandler_EscapesTitle(t *testing.T) {
 
 func TestSecurityHeaders_StyleSrcElem(t *testing.T) {
 	rec := httptest.NewRecorder()
-	setSecurityHeaders(rec)
+	Handler("Prohibitorum").ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
 	csp := rec.Header().Get("Content-Security-Policy")
 
-	// The production browser inserts exactly one inline <style> element from
-	// Reka UI's Select viewport (scrollbar-hiding rule). Its browser-confirmed
-	// hash is sha256-60LHlRjW/B3CtzIoE/Lf1/NEDvko9efWMFaGVhHu/cs=, and CSP must
-	// allow that hash — and only that hash — within style-src-elem, rather than
-	// weakening the element channel with 'unsafe-inline'.
-	const wantHash = `'sha256-60LHlRjW/B3CtzIoE/Lf1/NEDvko9efWMFaGVhHu/cs='`
-
-	var styleSrcElem string
+	directives := make(map[string][]string)
 	for _, part := range strings.Split(csp, ";") {
-		part = strings.TrimSpace(part)
-		if strings.HasPrefix(part, "style-src-elem ") {
-			styleSrcElem = part
-			break
+		fields := strings.Fields(part)
+		if len(fields) > 0 {
+			directives[fields[0]] = fields[1:]
 		}
 	}
-	if styleSrcElem == "" {
-		t.Fatalf("style-src-elem directive missing from CSP: %s", csp)
+	scripts := directives["script-src"]
+	if len(scripts) != 1 || scripts[0] != "'self'" {
+		t.Errorf("scripts must allow only same-origin resources: %s", csp)
 	}
-	if !strings.Contains(styleSrcElem, "'self'") {
-		t.Errorf("style-src-elem must contain 'self': %s", styleSrcElem)
-	}
-	if !strings.Contains(styleSrcElem, wantHash) {
-		t.Errorf("style-src-elem must contain %s: %s", wantHash, styleSrcElem)
-	}
-	if strings.Contains(styleSrcElem, "unsafe-inline") {
-		t.Errorf("style-src-elem must not contain unsafe-inline: %s", styleSrcElem)
+	pressableStyle := "@layer {\n  [data-react-aria-pressable] {\n    touch-action: pan-x pan-y pinch-zoom;\n  }\n}"
+	hash := sha256.Sum256([]byte(pressableStyle))
+	allowedHash := "'sha256-" + base64.StdEncoding.EncodeToString(hash[:]) + "'"
+	styles := directives["style-src-elem"]
+	if len(styles) != 2 || styles[0] != "'self'" || styles[1] != allowedHash {
+		t.Errorf("styles must allow same-origin resources and the React Aria pressable rule only: %s", csp)
 	}
 }

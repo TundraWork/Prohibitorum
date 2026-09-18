@@ -380,10 +380,10 @@ for `PROHIBITORUM_AUTH_SUDO_TTL` (default `30m`; explicit deployment settings
 remain authoritative). Reading the status does not extend that window.
 
 `GET /api/prohibitorum/me/sudo/methods` requires a session and returns
-`{methods: [...], fresh: boolean}` with `Cache-Control: no-store`. The dashboard
-uses `fresh` before redirecting to identity linking, so it skips the modal while
-a grant is still valid. Every protected endpoint continues to check the grant
-server-side; the status response is not a credential and is not cached as one.
+`{methods: [...], fresh: boolean}` with `Cache-Control: no-store`. Clients can use
+`fresh` to avoid requesting another step-up while a grant is still valid.
+Every protected endpoint continues to check the grant server-side; the status
+response is not a credential and is not cached as one.
 
 ### Upstream OIDC endpoint configuration
 

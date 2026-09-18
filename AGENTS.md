@@ -20,7 +20,8 @@
 ## Build and verification
 
 - [TOOLING.md](TOOLING.md) is the build and dependency source of truth. Use
-  `mise run <task>` and the pinned tools. Frontend dependencies use `npm ci`.
+  `mise run <task>` and the pinned tools. In `dashboard`, install with
+  `pnpm install --frozen-lockfile`.
 - Edit database queries in `db/queries` and regenerate `pkg/db` with
   `mise exec -- sqlc generate`; do not hand-edit generated query code.
 - Run the relevant gates: `mise run ci:go` for Go changes,
@@ -35,10 +36,13 @@
 
 ## Dashboard and generated assets
 
-- Follow [DESIGN.md](DESIGN.md) and
-  [the UI component rules](dashboard/src/components/ui/README.md).
-  `dashboard/src/components/ui` is vendored: do not hand-edit it. Put
-  application-specific components in `dashboard/src/components/custom`.
+- Follow [DESIGN.md](DESIGN.md). Use HeroUI React components and centralized
+  theme tokens in `dashboard/src/styles`; application-specific components belong
+  in `dashboard/src/components/custom`.
+- `dashboard-old` is a reference-only archive. Keep it outside imports, builds,
+  tests and lint scopes; do not restore its routes or vendored UI into the app.
+- M1 serves a bilingual foundation preview. Login, enrollment, self-service and
+  admin pages are temporarily unavailable; backend APIs remain unchanged.
 - The embedded bundle is generated, not committed. `pkg/webui/dist` is ignored
   apart from the tracked `.gitkeep` that keeps `go:embed all:dist` compiling on
   a clean checkout. After changing dashboard source run `mise run ci:frontend`;

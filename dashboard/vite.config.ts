@@ -1,28 +1,40 @@
-import { defineConfig } from 'vite'
-import vue from '@vitejs/plugin-vue'
-import tailwindcss from '@tailwindcss/vite'
-import { fileURLToPath, URL } from 'node:url'
+import { fileURLToPath, URL } from "node:url";
+import { lingui, linguiTransformerBabelPreset } from "@lingui/vite-plugin";
+import babel from "@rolldown/plugin-babel";
+import tailwindcss from "@tailwindcss/vite";
+import react from "@vitejs/plugin-react";
+import { defineConfig } from "vitest/config";
 
 export default defineConfig({
-  plugins: [vue(), tailwindcss()],
-  resolve: { alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) } },
+  plugins: [
+    react(),
+    lingui({ failOnMissing: true, failOnCompileError: true }),
+    babel({ presets: [linguiTransformerBabelPreset()] }),
+    tailwindcss(),
+  ],
+  resolve: {
+    alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) },
+  },
   server: {
     proxy: {
-      '/api': 'http://localhost:8080',
-      '/oauth': 'http://localhost:8080',
-      '/saml': 'http://localhost:8080',
-      '/oidc': 'http://localhost:8080',
-      '/.well-known': 'http://localhost:8080',
+      "/api": "http://localhost:8080",
+      "/oauth": "http://localhost:8080",
+      "/saml": "http://localhost:8080",
+      "/oidc": "http://localhost:8080",
+      "/.well-known": "http://localhost:8080",
     },
   },
   build: {
-    outDir: '../pkg/webui/dist',
+    outDir: "../pkg/webui/dist",
     emptyOutDir: true,
-    // Never inline fonts as data: URIs — they must be served same-origin from
-    // /assets so the strict `font-src 'self'` CSP (pkg/webui/webui.go) allows
-    // them. (Vite's default 4 KB threshold inlines small woff2 subsets, which
-    // the CSP then blocks.)
-    assetsInlineLimit: (filePath: string) =>
+    // Fonts must remain same-origin files under the production CSP.
+    assetsInlineLimit: (filePath) =>
       /\.(woff2?|ttf|otf|eot)$/i.test(filePath) ? false : undefined,
   },
-})
+  test: {
+    environment: "jsdom",
+    setupFiles: ["./src/test/setup.ts"],
+    include: ["src/**/*.test.{ts,tsx}"],
+    environmentOptions: { jsdom: { url: "http://localhost/" } },
+  },
+});

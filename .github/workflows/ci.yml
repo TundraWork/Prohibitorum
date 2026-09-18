@@ -17,8 +17,8 @@ env:
   MISE_EXPERIMENTAL: true
 
 jobs:
-  # The same gate developers run locally: `mise run ci` (Go vet/build/test +
-  # frontend install/test/typecheck + embedded-dist freshness guard).
+  # The same gate developers run locally: Go vet/build/test plus frozen pnpm
+  # install, Biome, translations, behavior tests, typecheck and the SPA build.
   gate:
     name: Gate (Go + frontend)
     runs-on: ubuntu-latest

@@ -4,8 +4,17 @@ Prohibitorum is a standalone identity provider with WebAuthn,
 password+TOTP/recovery codes, upstream OIDC and Steam sign-in, and VRChat
 proof-backed local registration/recovery. It provides OIDC OP, SAML 2.0 IdP,
 and forward-auth downstream access, plus app-bound policy, delegated
-application management, and a self-service + admin dashboard. This file is
-the changelog of capabilities each version delivers, followed by the roadmap.
+application management. This file records capabilities by version and the roadmap.
+
+## Unreleased — PHB-64 frontend foundation
+
+The embedded dashboard now uses React, HeroUI, Tailwind v4, Lingui and Jotai,
+built with pnpm/Vite and checked with Biome. M1 provides a bilingual component
+preview with persisted language selection; the former app is archived in `dashboard-old`.
+
+Login, enrollment, self-service, application management and admin pages are
+temporarily unavailable during the approved rewrite. Backend APIs are unchanged.
+The version history below describes previously shipped capabilities.
 
 ## v0.1 — rescope + decoupling
 

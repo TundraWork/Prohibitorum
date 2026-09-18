@@ -1,0 +1,138 @@
+msgid ""
+msgstr ""
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: zh\n"
+"Project-Id-Version: \n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: \n"
+"PO-Revision-Date: \n"
+"Last-Translator: \n"
+"Language-Team: \n"
+"Plural-Forms: \n"
+
+#. js-lingui-explicit-id
+#: src/components/custom/LanguageSelect.tsx
+msgid "language.chinese"
+msgstr "中文"
+
+#. js-lingui-explicit-id
+#: src/App.tsx
+msgid "notification.close"
+msgstr "关闭通知"
+
+#. js-lingui-explicit-id
+#: src/App.tsx
+msgid "components.title"
+msgstr "基础组件"
+
+#. js-lingui-explicit-id
+#: src/App.tsx
+msgid "button.disabled"
+msgstr "禁用按钮"
+
+#. js-lingui-explicit-id
+#: src/App.tsx
+msgid "name.label"
+msgstr "显示名称"
+
+#. js-lingui-explicit-id
+#: src/components/custom/LanguageSelect.tsx
+msgid "language.english"
+msgstr "英语"
+
+#. js-lingui-explicit-id
+#: src/App.tsx
+msgid "feedback.tab"
+msgstr "状态反馈"
+
+#. js-lingui-explicit-id
+#: src/App.tsx
+msgid "preview.title"
+msgstr "界面预览"
+
+#. js-lingui-explicit-id
+#: src/components/custom/LanguageSelect.tsx
+msgid "language.label"
+msgstr "语言"
+
+#. js-lingui-explicit-id
+#: src/App.tsx
+msgid "feedback.skeleton"
+msgstr "加载骨架样例"
+
+#. js-lingui-explicit-id
+#: src/App.tsx
+msgid "preview.footer"
+msgstr "本地预览 · HeroUI 组件"
+
+#. js-lingui-explicit-id
+#: src/App.tsx
+msgid "notification.region"
+msgstr "通知"
+
+#. js-lingui-explicit-id
+#: src/App.tsx
+msgid "preview.eyebrow"
+msgstr "PHB-64 / M1 · 基础界面预览"
+
+#. js-lingui-explicit-id
+#: src/App.tsx
+msgid "preview.tabs"
+msgstr "预览"
+
+#. js-lingui-explicit-id
+#: src/App.tsx
+msgid "notification.message"
+msgstr "这是预览通知，没有提交任何数据。"
+
+#. js-lingui-explicit-id
+#: src/App.tsx
+msgid "preview.description"
+msgstr "检查语言、颜色与组件状态。"
+
+#. js-lingui-explicit-id
+#: src/App.tsx
+msgid "notification.show"
+msgstr "显示通知"
+
+#. js-lingui-explicit-id
+#: src/App.tsx
+msgid "feedback.title"
+msgstr "状态样例"
+
+#. js-lingui-explicit-id
+#: src/App.tsx
+msgid "feedback.submitting"
+msgstr "提交中（样例）"
+
+#. js-lingui-explicit-id
+#: src/App.tsx
+msgid "preview.notice"
+msgstr "前端重写中，登录与业务功能暂不可用。"
+
+#. js-lingui-explicit-id
+#: src/App.tsx
+msgid "theme.swatches"
+msgstr "主题颜色样例"
+
+#. js-lingui-explicit-id
+#: src/App.tsx
+msgid "feedback.description"
+msgstr "以下为视觉样例，不会发送请求。"
+
+#. js-lingui-explicit-id
+#: src/App.tsx
+msgid "name.description"
+msgstr "这是本地预览；输入内容不会提交。"
+
+#. js-lingui-explicit-id
+#: src/App.tsx
+msgid "theme.toggle"
+msgstr "切换深浅色"
+
+#. js-lingui-explicit-id
+#: src/App.tsx
+msgid "feedback.error"
+msgstr "无法保存，请检查输入后重试。（样例）"

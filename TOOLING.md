@@ -9,7 +9,8 @@
 | Tool | Pin | Backend | Notes |
 |------|-----|---------|-------|
 | Go | `go = "1.26.5"` | core | Pinned patch within the 1.26 line (GO-2026-5856). `GOTOOLCHAIN=local` forbids auto-download |
-| Node | `node = "24"` | core | Provides **npm** (no Corepack — removed in Node 25+) |
+| Node | `node = "24"` | core | Frontend runtime |
+| pnpm | `pnpm = "12.4.2"` | registry | Frontend package manager, installed directly by mise |
 | sqlc | `sqlc = "1.30.0"` | registry | `sqlc generate` → `pkg/db` (config `sqlc.yaml`) |
 | goose | `aqua:pressly/goose = "3.27.0"` | aqua | DB migrations (`db/migrations`) |
 | GoReleaser | `aqua:goreleaser/goreleaser = "2.16.0"` | aqua | Release builds + ko multi-arch OCI images + SBOMs + checksums |
@@ -28,14 +29,17 @@
 
 ## Frontend
 
-The dashboard is a **single package** — npm is the right fit; `pnpm`'s advantages are monorepo-shaped.
+The React/TypeScript dashboard is a single Vite package in `dashboard`, using HeroUI, Tailwind v4, Lingui, Jotai and Biome.
 
-- `package.json` declares `"packageManager": "npm@11.13.0"` and `"engines"` (`node >=24`, `npm >=11`).
-- `npm ci` (frozen lockfile) everywhere; `package-lock.json` is the lockfile. mise's node provides npm — no Corepack.
+- `package.json` declares `"packageManager": "pnpm@12.4.2"`; `dashboard/pnpm-lock.yaml` is the active frontend lockfile.
+- Dev, CI and production tasks run `pnpm install --frozen-lockfile`. Every triggered build installs, so lockfile changes are applied even when `node_modules` exists.
+- English and Chinese PO catalogs live in `src/locales`; Lingui checks reject missing translations and compilation errors. Biome and Vitest run only against the new application.
+- `dashboard-old` is a reference-only archive, excluded from imports, build inputs and frontend checks. Its npm lockfile belongs only to the archive.
+- M1 displays a bilingual component preview. Login, enrollment, self-service, application management and admin pages are temporarily unavailable; backend APIs remain unchanged.
 
 ## Dev
 
-- One-stop: `mise install` provisions every pinned tool (Go, Node/npm, sqlc, goose, GoReleaser, cosign).
+- One-stop: `mise install` provisions every pinned tool (Go, Node, pnpm, sqlc, goose, GoReleaser, cosign).
 - Dev DB: **`mise run db start`** — a Postgres container from `compose.yaml`, via `scripts/db.sh`, which auto-detects `podman compose` or `docker compose` (override with `PROHIBITORUM_COMPOSE`). The dev tasks (`dev:server`, `dev:seed`, `dev:enroll-admin`, the harnesses) call `scripts/db.sh ensure` to start it automatically when down.
 - Env: `scripts/dev-env.sh` exports the dev `PROHIBITORUM_*` vars + a stable `.dev/encryption-key`, sourced internally by the dev tasks.
 
@@ -44,7 +48,7 @@ The dashboard is a **single package** — npm is the right fit; `pnpm`'s advanta
 The server is a single Go binary with the SPA embedded via `go:embed` (`pkg/webui/dist`), so the runtime image is **just the binary**. **GoReleaser + [ko](https://goreleaser.com/customization/ko/)** produces multi-arch images, SBOMs, checksums, and signed artifacts from one config.
 
 `.goreleaser.yaml` shape:
-- `before.hooks`: build the SPA (`mise run build:web` → `pkg/webui/dist`) so ko's Go build embeds a fresh bundle.
+- `before.hooks`: build the SPA (`mise run --force build:web` → `pkg/webui/dist`) so ko's Go build embeds a fresh bundle.
 - `builds`: `env: [CGO_ENABLED=0]`, `flags: [-trimpath, -tags=nodynamic]`, `ldflags: [-s -w]`, `mod_timestamp: {{.CommitTimestamp}}`, `goos: [linux]`, `goarch: [amd64, arm64]`.
 - `kos`: `repositories: [ghcr.io/tundrawork/prohibitorum]`, `bare: true`, `platforms: [linux/amd64, linux/arm64]`, `sbom: spdx`, `base_image: cgr.dev/chainguard/static:latest` (distroless, nonroot, CVE-minimal).
 - Image signing + checksums via cosign (keyless, CI OIDC). goreleaser 2.16.0 + cosign 3.1.1 pinned in mise.
@@ -93,9 +97,9 @@ cosign verify ghcr.io/tundrawork/prohibitorum:<tag> \
 
 ## CI — GitHub Actions running `mise run ci`
 
-[`jdx/mise-action@v3`](https://github.com/jdx/mise-action) (or the [step-security hardened fork](https://github.com/step-security/mise-action)) runs the same tasks humans run. With `mise.lock` present the action auto-applies `--locked`. `.github/workflows/ci.yml` has two jobs:
+[`jdx/mise-action@v3`](https://github.com/jdx/mise-action) (or the [step-security hardened fork](https://github.com/step-security/mise-action)) runs the same tasks humans run. With `mise.lock` present the action auto-applies `--locked`. `.github/workflows/ci.yml` runs:
 
-- **gate** runs `mise run ci` = `mise run ci:go` (`go vet ./...` → `go build -tags nodynamic ./...` → `go test ./...`) + `mise run ci:frontend` (`npm ci` → `npm test` → `npm run build`).
+- **gate** runs `mise run ci` = `mise run ci:go` (`go vet ./...` → `go build -tags nodynamic ./...` → `go test ./...`) + `mise run ci:frontend` (`pnpm install --frozen-lockfile` → `pnpm run check` → `pnpm run i18n:check` → `pnpm run test` → `pnpm run build`). The build script typechecks before Vite.
 - **smoke** runs `mise run ci:smoke` (`scripts/db.sh start` → throwaway `prohibitorum_smoke` DB → server → `cmd/smoke`). Pins `PROHIBITORUM_COMPOSE=docker compose` for determinism on the runner.
 - **release-check** runs `mise run ci:release-check` (`goreleaser check`) + `mise run ci:lint-actions` (`actionlint` schema/shellcheck + `zizmor` supply-chain audit over `.github/workflows`) on every PR. A broken release config or workflow fails here, not on the first tag push.
 
@@ -105,11 +109,13 @@ cosign verify ghcr.io/tundrawork/prohibitorum:<tag> \
 
 `pkg/webui/dist` is generated, never committed: only a `.gitkeep` placeholder is tracked, so `go:embed all:dist` still compiles on a clean checkout. Every path that produces a binary builds the SPA first — `ci:go`, `ci:smoke` and `prod:build` through `build:web`, and the image workflows and the GoReleaser before-hook through `mise run --force build:web`. Locally, `build:web`'s `sources`/`outputs` skip the rebuild while `dashboard/**` is unchanged.
 
+The incremental inputs include source and PO catalogs, public assets, scripts, the pnpm lockfile, and Lingui/Biome/Vite/Vitest/TypeScript configuration. Both frontend build tasks restore `.gitkeep` after Vite empties the output directory. Archive changes do not trigger `build:web` or the release snapshot path filter.
+
 ## Task namespaces
 
 | Namespace | Context | Commands |
 |-----------|---------|----------|
-| `dev:*` | local development | `dev:server`, `dev:dashboard`, `dev:demo`, `dev:enroll-admin`, `dev:seed`, `dev:federation`, `dev:forward-auth`, `dev:openapi` |
+| `dev:*` | local development | `dev:server`, `dev:dashboard`, `dev:enroll-admin`, `dev:seed`, `dev:federation`, `dev:forward-auth`, `dev:openapi` |
 | `db` | local Postgres lifecycle (dev + smoke) | `mise run db start\|stop\|reset\|migrate\|status` |
 | `ci:*` | the checks CI runs | `ci`, `ci:smoke`, `ci:release-check`, `ci:lint-actions`, `ci:release-snapshot` (internal: `ci:go`, `ci:frontend`) |
 | `prod:*` | **production** build + release | `prod:build`, `prod:release` |
@@ -131,9 +137,10 @@ The SPA bundle build is the hidden, `sources`/`outputs`-gated `build:web` task, 
 ## Quick reference
 
 ```bash
-mise install                       # provision the locked toolchain (Go, Node/npm, sqlc, goose, …)
+mise install                       # provision the locked toolchain (Go, Node, pnpm, sqlc, goose, …)
 mise run db start                  # start the dev Postgres (compose; podman or docker)
 mise run dev:server                # start DB if needed + build SPA if changed + run server on :8080
+mise run dev:dashboard             # frozen pnpm install + Vite hot reload on :5173
 mise run dev:enroll-admin -- --new # bootstrap an admin
 mise run ci                        # the full fast gate (what CI runs)
 mise run ci:smoke                  # end-to-end smoke against a real server + DB
@@ -147,6 +154,8 @@ mise lock                          # refresh mise.lock after changing [tools]
 
 Brings up two local instances: an **upstream** OP (`https://idp-a.example.test`) and a **downstream** RP (`https://idp-b.example.test`) that federates to it. Distinct hostnames give each its own cookie jar; nginx terminates TLS and proxies each to a loopback http backend (`127.0.0.1:18080` / `:18081`); the two databases (`prohibitorum_upstream` / `prohibitorum_downstream`) are separate from `prohibitorum_dev`.
 
+Browser enrollment and the manual UI paths below are temporarily unavailable in M1. The harness still provisions backend instances and API data; use `mise run ci:smoke` for automated backend protocol verification.
+
 **Local config (never committed).** Real hostnames + cert paths live in the gitignored `.dev/dev-federation.env`. First run writes a commented template (`example.test` placeholders) and exits — fill in your real values (DNS names pinned to `127.0.0.1`, plus the wildcard cert nginx serves) and re-run.
 
 **Setup:**
@@ -154,9 +163,9 @@ Brings up two local instances: an **upstream** OP (`https://idp-a.example.test`)
 1. (optional) `mise run db start` — the harness auto-starts it otherwise.
 2. `mise run dev:federation` — first run writes `.dev/dev-federation.env`; edit it.
 3. `mise run dev:federation` again — seeds, wires, generates `.dev/nginx/prohibitorum-federation.conf`, and prints a one-time `sudo cp … && sudo nginx -t && sudo systemctl reload nginx` command. Run it.
-4. Open the printed admin-enrollment URLs to register a passkey on each.
+4. The harness prints admin-enrollment URLs; their browser UI becomes available with the later authentication milestone.
 
-**Manual-test paths:**
+**Manual-test paths (require the restored authentication UI):**
 
 - Federated login (auto_provision): open the downstream → **Upstream** → consent on the upstream → `/welcome` confirm → session.
 - Invite-gated (invite_only): open the federation-bound invite URL the harness prints → **Upstream (invite)** → invite redeemed + identity linked.

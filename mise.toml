@@ -14,6 +14,7 @@ sqlc = "1.30.0"
 "aqua:rhysd/actionlint" = "1.7.12"
 "aqua:zizmorcore/zizmor" = "1.26.1"
 "aqua:ko-build/ko" = "0.19.1" # standalone ko for the develop-image workflow (release ko stays embedded in goreleaser)
+pnpm = "12.4.2"
 
 [settings]
 # Pin exact tool versions + checksums + provenance in mise.lock (committed), so
@@ -29,8 +30,8 @@ GOTOOLCHAIN = "local"
 
 # =============================================================================
 # Tasks — namespaced by CONTEXT so dev, CI, and prod can't be mixed up.
-# Run with `mise run <task>`, e.g. `mise run dev:server`. (`mise tasks` lists
-# the 13 visible tasks grouped by namespace.) See TOOLING.md for the full picture.
+# Run with `mise run <task>`, e.g. `mise run dev:server`.
+# `mise tasks` lists visible tasks by namespace. See TOOLING.md.
 #
 #   dev:*  local development — run the app, hot reload, seed, enroll, harnesses
 #   db     local Postgres lifecycle (dev + the smoke) — `mise run db <subcommand>`
@@ -54,21 +55,12 @@ exec go run ./cmd/prohibitorum
 """
 
 [tasks."dev:dashboard"]
-description = "DEV: dashboard dev server with hot reload (Vite) against a running backend (`mise run dev:server`). Installs npm deps on first run."
+description = "DEV: React dashboard with Vite hot reload against a running backend (`mise run dev:server`). Installs dependencies from the frozen pnpm lockfile."
 run = """
 set -e
 cd dashboard
-[ -d node_modules ] || npm ci
-exec npm run dev
-"""
-
-[tasks."dev:demo"]
-description = "DEV: preview the end-user launcher (LauncherLayout + MyAppsView) with NO backend — the dashboard dev server runs against in-memory fixtures from dashboard/vite.demo.config.ts. No DB, no Go server; open http://localhost:5173/. Installs npm deps on first run."
-run = """
-set -e
-cd dashboard
-[ -d node_modules ] || npm ci
-exec npm run dev -- --config vite.demo.config.ts
+pnpm install --frozen-lockfile
+exec pnpm run dev
 """
 
 [tasks."dev:enroll-admin"]
@@ -126,17 +118,17 @@ go test ./...
 
 [tasks."ci:frontend"]
 hide = true
-description = "CI (internal): dashboard install + unit tests + typecheck (via build). The bundle is generated, not committed, so there is nothing to compare it against."
+description = "CI (internal): frozen dashboard install, Biome, translation checks, behavior tests, typecheck and production build."
 run = """
 set -e
 cd dashboard
-npm ci
-npm test
-npm run build
+pnpm install --frozen-lockfile
+pnpm run check
+pnpm run i18n:check
+pnpm run test
+pnpm run build
 cd ..
-# Same reason as build:web: emptyOutDir (dashboard/vite.config.ts) wipes the
-# tracked dist placeholder, so recreate it here as well or git status shows a
-# pending deletion.
+# Vite empties dist, including the tracked go:embed placeholder.
 touch pkg/webui/dist/.gitkeep
 """
 
@@ -253,24 +245,23 @@ sources = [
   "dashboard/public/**/*",
   "dashboard/index.html",
   "dashboard/package.json",
-  "dashboard/package-lock.json",
+  "dashboard/pnpm-lock.yaml",
+  "dashboard/pnpm-workspace.yaml",
+  "dashboard/scripts/**/*",
+  "dashboard/biome.json",
+  "dashboard/lingui.config.ts",
   "dashboard/vite.config.ts",
-  "dashboard/vite.demo.config.ts",
-  "dashboard/tsconfig.json",
-  "dashboard/tsconfig.app.json",
-  "dashboard/tsconfig.node.json",
-  "dashboard/components.json",
+  "dashboard/vitest.config.ts",
+  "dashboard/tsconfig*.json",
 ]
 outputs = ["pkg/webui/dist/index.html", "pkg/webui/dist/assets/**/*"]
 run = """
 set -e
 cd dashboard
-[ -d node_modules ] || npm ci
-npm run build
+pnpm install --frozen-lockfile
+pnpm run build
 cd ..
-# emptyOutDir (dashboard/vite.config.ts) wipes the whole dist directory,
-# including the tracked placeholder that keeps `go:embed all:dist` matchable
-# on clean checkouts — recreate it or git status shows a pending deletion.
+# Vite empties dist, including the tracked go:embed placeholder.
 touch pkg/webui/dist/.gitkeep
 """
 

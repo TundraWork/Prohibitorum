@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -778,11 +779,20 @@ func TestRedirectAuthErrToErrorReturn_ProjectsOnlyNamedFederationDetail(t *testi
 	redirectAuthErrToErrorReturn(rec, req, err, "/connected")
 
 	location := rec.Header().Get("Location")
-	if !strings.Contains(location, "federationName=A%26B+%2B+%3C%E8%BA%AB%E4%BB%BD%3E") || !strings.Contains(location, "return_to=%2Fconnected") {
+	target, parseErr := url.Parse(location)
+	if parseErr != nil {
+		t.Fatal(parseErr)
+	}
+	query := target.Query()
+	if query.Get("federationName") != "A&B + <身份>" || query.Get("return_to") != "/connected" {
 		t.Fatalf("Location = %q, want encoded federation name and return target", location)
 	}
-	if strings.Contains(location, "accountID") || strings.Contains(location, "42") {
-		t.Fatalf("Location leaked non-public details: %q", location)
+	for key := range query {
+		switch key {
+		case "error", "ref", "return_to", "federationName":
+		default:
+			t.Fatalf("Location leaked non-public detail %q: %q", key, location)
+		}
 	}
 }
 
