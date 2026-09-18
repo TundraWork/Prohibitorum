@@ -8,24 +8,26 @@ import { usePrivateState } from '@/composables/usePrivateState'
  * /auth/password/begin. So the two are set up through one server transaction
  * and shown as one card, driven by /me/factors' passwordSet + totpEnrolled:
  *
- * - neither / half: one entry runs /me/password-totp/begin + /verify and ends
+ * - neither / half: one entry generates a candidate in the browser, submits
+ *   it through /me/password-totp/verify and ends
  *   on the recovery codes. For a half-configured account this is a full
  *   rewrite — password, authenticator and recovery codes all change.
  * - both: two independent operations. Changing the password must not
  *   invalidate the authenticator, and resetting the authenticator must not
  *   require a new password, so each keeps its own endpoint.
  *
- * Sudo placement mirrors the pre-merge PasswordCard/TotpCard: password writes
- * and TOTP `begin` are sudo-gated; TOTP `verify` is not, so the modal cannot
- * interrupt a one-time code entry.
+ * Fresh sudo is established before a candidate secret is shown, so a step-up
+ * modal cannot interrupt one-time code entry.
  */
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import StatusMessage from '@/components/custom/StatusMessage.vue'
 import { api } from '@/lib/api'
 import { useApi } from '@/composables/useApi'
+import { useSession } from '@/composables/useSession'
 import { useTransientFlag } from '@/composables/useTransientFlag'
-import { withSudo } from '@/lib/sudo'
+import { ensureSudo, withSudo } from '@/lib/sudo'
+import { generateTotpEnrollment } from '@/lib/totpEnrollment'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -42,6 +44,7 @@ const emit = defineEmits<{ (e: 'changed'): void }>()
 
 const { t } = useI18n()
 const { busy, error, run, clear } = useApi('credentials')
+const session = useSession()
 
 type Shape = 'none' | 'both' | 'half'
 type Flow = 'setup' | 'change-password' | 'reset-totp'
@@ -127,45 +130,41 @@ async function submitPassword(): Promise<void> {
     emit('changed')
     return
   }
-  // Setup: the server writes the password and a confirmed authenticator in one
-  // transaction, so abandoning the code step leaves the account untouched.
-  const r = await run(() => withSudo(
-    () => api.post<{ secret_base32: string; otpauth_uri: string }>(
-      '/api/prohibitorum/me/password-totp/begin',
-      { password: pw.value },
-    ),
-    t('sudo.reason.setPasswordTotp'),
-  ))
-  if (!r) return
-  secret.value = r.secret_base32
-  otpauth.value = r.otpauth_uri
+  const enrollment = await run(async () => {
+    if (!await ensureSudo(t('sudo.reason.setPasswordTotp'))) return null
+    const username = session.me?.username
+    if (!username) throw new Error('session username is unavailable')
+    return generateTotpEnrollment(username)
+  })
+  if (!enrollment) return
+  secret.value = enrollment.secretBase32
+  otpauth.value = enrollment.otpauthUri
 }
 
 async function beginResetTotp(): Promise<void> {
   resetForms()
   clear()
-  const r = await run(() => withSudo(
-    () => api.post<{ secret_base32: string; otpauth_uri: string }>('/api/prohibitorum/me/totp/begin'),
-    t('sudo.reason.setupTotp'),
-  ))
-  if (!r) return
+  const enrollment = await run(async () => {
+    if (!await ensureSudo(t('sudo.reason.setupTotp'))) return null
+    const username = session.me?.username
+    if (!username) throw new Error('session username is unavailable')
+    return generateTotpEnrollment(username)
+  })
+  if (!enrollment) return
   flow.value = 'reset-totp'
-  secret.value = r.secret_base32
-  otpauth.value = r.otpauth_uri
+  secret.value = enrollment.secretBase32
+  otpauth.value = enrollment.otpauthUri
 }
 
 async function verifyTotp(): Promise<void> {
   const path = flow.value === 'setup'
     ? '/api/prohibitorum/me/password-totp/verify'
     : '/api/prohibitorum/me/totp/verify'
-  const r = await run(() => api.post<{ recovery_codes?: string[] } | undefined>(path, { code: code.value }))
-  if (error.value) {
-    if (error.value.code === 'ceremony_expired') {
-      resetForms()
-      flow.value = null
-    }
-    return
-  }
+  const body = flow.value === 'setup'
+    ? { password: pw.value, secret_base32: secret.value, code: code.value }
+    : { secret_base32: secret.value, code: code.value }
+  const r = await run(() => api.post<{ recovery_codes?: string[] } | undefined>(path, body))
+  if (!r) return
   secret.value = ''
   otpauth.value = ''
   code.value = ''

@@ -91,6 +91,10 @@ func (f *fakeSudoQueries) GetPasswordCredential(_ context.Context, accountID int
 	return *f.passwordRow, nil
 }
 
+func (f *fakeSudoQueries) GetAccountByIDForUpdate(_ context.Context, accountID int32) (db.Account, error) {
+	return db.Account{ID: accountID, Username: "alice"}, nil
+}
+
 func (f *fakeSudoQueries) UpsertPasswordCredential(_ context.Context, arg db.UpsertPasswordCredentialParams) error {
 	row := db.PasswordCredential{AccountID: arg.AccountID, Hash: arg.Hash}
 	f.passwordRow = &row
@@ -371,14 +375,15 @@ func sudoReq(t *testing.T, sess *authn.Session, method, path, body string) *http
 func seedConfirmedTOTPSudo(t *testing.T, s *Server, f *fakeSudoQueries, dek []byte, accountID int32) []string {
 	t.Helper()
 	ctx := context.Background()
-	if _, err := s.totpStore.Begin(ctx, accountID, "alice"); err != nil {
-		t.Fatalf("totpStore.Begin: %v", err)
+	secret := browserTOTPSecret(t)
+	code := codeForSecret(t, secret)
+	step, ok := s.totpStore.VerifyCandidateSecret(secret, code)
+	if !ok {
+		t.Fatal("candidate TOTP rejected")
 	}
-	row := *f.totpRow
-	code := totp.ComputeCodeForTesting(decryptTOTPSecret(t, dek, row, accountID), time.Now().Unix(), int(row.Digits))
-	codes, err := s.totpStore.Verify(ctx, accountID, code)
+	codes, err := s.totpStore.EnrollConfirmedForTx(ctx, f, accountID, secret, step)
 	if err != nil {
-		t.Fatalf("totpStore.Verify (confirm): %v", err)
+		t.Fatalf("seed confirmed TOTP: %v", err)
 	}
 	if len(codes) != 10 {
 		t.Fatalf("recovery codes: want 10, got %d", len(codes))

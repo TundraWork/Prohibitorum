@@ -1,40 +1,16 @@
 // Package server — handle_enrollment_password_totp.go
 //
-// The password+TOTP enrollment ceremony: the non-passkey way to redeem an
-// enrollment token. Every intent EXCEPT bootstrap (the first-admin CLI) may
-// use it — invite (user or admin role), federated_register (VRChat), and reset
-// (incl. VRChat provider-recovery). The passkey ceremony
-// (handle_enrollment.go) stays available for all intents; this file adds a
-// parallel path, it does not replace anything.
-//
-// Because a password is only a usable login factor when paired with a
-// confirmed TOTP (authn.AvailableMethods), this path always creates
-// password + confirmed TOTP + 10 recovery codes together and issues a session
-// with amr=["pwd","otp","mfa"].
-//
-// Shape mirrors the login-time recovery ceremony (handle_auth_recovery.go):
-//
-//	POST /enrollments/{token}/password-totp/begin  {username, displayName, password}
-//	  → 200 {secret_base32, otpauth_uri}
-//	  Hashes the password, generates a TOTP secret (NO DB write — the account
-//	  may not exist yet), and stashes both in KV keyed by the token.
-//
-//	POST /enrollments/{token}/password-totp/verify {code}
-//	  → 200 {session, recoveryCodes:[...]} + session cookie
-//	  Verifies the code against the stashed secret, then in ONE tx: creates
-//	  (or resets) the account, inserts password + confirmed TOTP + recovery
-//	  codes, consumes the enrollment. Audit + session issue happen post-commit.
+// Password and TOTP enrollment in one request. The browser generates the TOTP
+// secret and submits it with the password and current code. Invitation,
+// federated registration, and reset writes remain atomic with token consumption.
 
 package server
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5"
@@ -55,14 +31,6 @@ const (
 	enrollMethodPasswordTOTP = "password_totp"
 )
 
-// enrollPwdTOTPCeremonyTTL bounds the scan-QR-then-type-code window. Longer
-// than the passkey enroll stash (5m) since typing a TOTP code from an
-// authenticator app is slower; shorter would be user-hostile.
-const enrollPwdTOTPCeremonyTTL = 10 * time.Minute
-
-// enrollmentAllowedMethods derives the method policy from the intent alone:
-// only the first-admin bootstrap is passkey-only; every other intent offers
-// passkey OR password+TOTP. No role lookup or schema column is needed.
 func enrollmentAllowedMethods(intent string) []string {
 	if intent == enrollment.IntentBootstrap {
 		return []string{enrollMethodPasskey}
@@ -70,32 +38,8 @@ func enrollmentAllowedMethods(intent string) []string {
 	return []string{enrollMethodPasskey, enrollMethodPasswordTOTP}
 }
 
-// enrollPwdTOTPCeremonyKey derives the KV key from a SHA-256 of the token so the
-// bearer secret never lands in the keyspace (matches enrollCeremonyKey). The
-// distinct prefix lets a user hold a passkey ceremony and a password+TOTP
-// ceremony for the same token without collision.
-func enrollPwdTOTPCeremonyKey(token string) string {
-	sum := sha256.Sum256([]byte(token))
-	return "enroll_pwdtotp:" + hex.EncodeToString(sum[:])
-}
-
-// enrollPwdTOTPStash is the KV payload between begin and verify. For creation
-// intents it carries the pending account identity; for reset only PasswordPHC +
-// TOTPSecretBase32 matter (the target is loaded fresh in the tx). The password
-// is an argon2id PHC (never plaintext); the raw base32 TOTP secret was already
-// returned to the client for the QR, and is encrypted only once account_id
-// exists at verify.
-type enrollPwdTOTPStash struct {
-	Username           string `json:"username,omitempty"`
-	DisplayName        string `json:"displayName,omitempty"`
-	WebauthnUserHandle []byte `json:"webauthn_user_handle,omitempty"`
-	PasswordPHC        string `json:"password_phc"`
-	TOTPSecretBase32   string `json:"totp_secret_base32"`
-}
-
-// ----- begin ---------------------------------------------------------------
-
-func (s *Server) handleEnrollmentPasswordTOTPBeginHTTP(w http.ResponseWriter, r *http.Request) {
+// POST /api/prohibitorum/enrollments/{token}/password-totp/verify
+func (s *Server) handleEnrollmentPasswordTOTPVerifyHTTP(w http.ResponseWriter, r *http.Request) {
 	token := chi.URLParam(r, "token")
 	q := s.enrollmentQ()
 	e, err := enrollment.LoadEnrollment(r.Context(), q, token)
@@ -103,40 +47,40 @@ func (s *Server) handleEnrollmentPasswordTOTPBeginHTTP(w http.ResponseWriter, r 
 		writeAuthErr(w, err)
 		return
 	}
-	// Policy: bootstrap is passkey-only.
 	if e.Intent == enrollment.IntentBootstrap {
 		writeAuthErr(w, authn.ErrEnrollmentMethodNotAllowed())
 		return
 	}
 
 	var body struct {
-		Username    string `json:"username,omitempty"`
-		DisplayName string `json:"displayName,omitempty"`
-		Password    string `json:"password"`
+		Username     string `json:"username,omitempty"`
+		DisplayName  string `json:"displayName,omitempty"`
+		Password     string `json:"password"`
+		SecretBase32 string `json:"secret_base32"`
+		Code         string `json:"code"`
 	}
-	if r.ContentLength > 0 {
-		_ = json.NewDecoder(r.Body).Decode(&body)
-	}
-	// OWASP 2026 §5.1.1.2 bounds — mirror handleMePasswordSetHTTP.
-	if len(body.Password) < 8 || len(body.Password) > 1024 {
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil ||
+		len(body.Password) < 8 || len(body.Password) > 1024 ||
+		body.SecretBase32 == "" || body.Code == "" {
 		writeAuthErr(w, authn.ErrBadRequest())
 		return
 	}
+	matchedStep, ok := s.totpStore.VerifyCandidateSecret(body.SecretBase32, body.Code)
+	if !ok {
+		writeAuthErr(w, authn.ErrBadCredentials())
+		return
+	}
+	passwordPHC, err := s.passwordStore.Hash(body.Password)
+	if err != nil {
+		writeAuthErr(w, fmt.Errorf("enrollment/password-totp/verify: hash: %w", err))
+		return
+	}
 
-	var (
-		stash     enrollPwdTOTPStash
-		totpLabel string
-	)
+	var proposal *newAccountCeremony
 	switch e.Intent {
 	case enrollment.IntentInvite:
-		// Federation-bound invites MUST redeem via start-federation, not a
-		// local credential (mirror the passkey begin gate).
 		if e.ExpectedUpstreamIdpSlug.Valid && e.ExpectedUpstreamIdpSlug.String != "" {
-			audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
-				Factor: audit.FactorEnrollment,
-				Event:  audit.EventFail,
-				Detail: map[string]any{"reason": "federation_required"},
-			})
+			audit.RecordOrLog(r.Context(), s.Audit, audit.Record{Factor: audit.FactorEnrollment, Event: audit.EventFail, Detail: map[string]any{"reason": "federation_required"}})
 			writeAuthErr(w, authn.ErrEnrollmentFederationRequired())
 			return
 		}
@@ -145,141 +89,54 @@ func (s *Server) handleEnrollmentPasswordTOTPBeginHTTP(w http.ResponseWriter, r 
 			role = e.TemplateRole.String
 		}
 		inviteBody := enrollBeginBody{Username: body.Username, DisplayName: body.DisplayName}
-		if perr := applyFixedInvitationUsername(&inviteBody, e); perr != nil {
-			writeAuthErr(w, perr)
+		if err := applyFixedInvitationUsername(&inviteBody, e); err != nil {
+			writeAuthErr(w, err)
 			return
 		}
-		_, proposal, perr := prepareNewEnrollmentAccount(r.Context(), q, inviteBody, role, "enrollment/password-totp/begin invite")
-		if perr != nil {
-			writeAuthErr(w, perr)
+		_, proposal, err = prepareNewEnrollmentAccount(r.Context(), q, inviteBody, role, "enrollment/password-totp/verify invite")
+		if err != nil {
+			writeAuthErr(w, err)
 			return
 		}
-		stash.Username, stash.DisplayName, stash.WebauthnUserHandle = proposal.Username, proposal.DisplayName, proposal.WebauthnUserHandle
-		totpLabel = proposal.Username
 
 	case enrollment.IntentFederatedRegister:
 		if !e.FederatedUpstreamIdpID.Valid {
 			writeAuthErr(w, authn.ErrProviderNotReady())
 			return
 		}
-		if _, perr := s.recheckVRChatEnrollmentProvider(r.Context(), q, e.FederatedUpstreamIdpID.Int64); perr != nil {
-			writeAuthErr(w, perr)
+		if _, err := s.recheckVRChatEnrollmentProvider(r.Context(), q, e.FederatedUpstreamIdpID.Int64); err != nil {
+			writeAuthErr(w, err)
 			return
 		}
-		_, proposal, perr := prepareNewEnrollmentAccount(r.Context(), q, enrollBeginBody{Username: body.Username, DisplayName: body.DisplayName}, "user", "enrollment/password-totp/begin federated")
-		if perr != nil {
-			writeAuthErr(w, perr)
+		_, proposal, err = prepareNewEnrollmentAccount(r.Context(), q, enrollBeginBody{Username: body.Username, DisplayName: body.DisplayName}, "user", "enrollment/password-totp/verify federated")
+		if err != nil {
+			writeAuthErr(w, err)
 			return
 		}
-		stash.Username, stash.DisplayName, stash.WebauthnUserHandle = proposal.Username, proposal.DisplayName, proposal.WebauthnUserHandle
-		totpLabel = proposal.Username
 
 	case enrollment.IntentReset:
+		if body.Username != "" || body.DisplayName != "" {
+			writeAuthErr(w, authn.ErrBadRequest())
+			return
+		}
 		if !e.TargetAccountID.Valid {
 			writeAuthErr(w, authn.ErrEnrollmentConsumed())
 			return
 		}
-		providerRecovery := e.RecoverySourceUpstreamIdpID.Valid
-		if providerRecovery {
-			if _, perr := s.recheckVRChatEnrollmentProvider(r.Context(), q, e.RecoverySourceUpstreamIdpID.Int64); perr != nil {
-				writeAuthErr(w, perr)
+		if e.RecoverySourceUpstreamIdpID.Valid {
+			if _, err := s.recheckVRChatEnrollmentProvider(r.Context(), q, e.RecoverySourceUpstreamIdpID.Int64); err != nil {
+				writeAuthErr(w, err)
 				return
 			}
 		}
-		a, gerr := q.GetAccountByID(r.Context(), e.TargetAccountID.Int32)
-		if gerr != nil {
+		a, err := q.GetAccountByID(r.Context(), e.TargetAccountID.Int32)
+		if err != nil || a.Disabled {
 			writeAuthErr(w, authn.ErrEnrollmentConsumed())
 			return
-		}
-		if a.Disabled {
-			audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
-				AccountID: &a.ID,
-				Factor:    audit.FactorEnrollment,
-				Event:     audit.EventFail,
-				Detail:    map[string]any{"reason": "account_disabled"},
-			})
-			writeAuthErr(w, authn.ErrEnrollmentConsumed())
-			return
-		}
-		// Provider recovery keeps the otpauth label neutral (mirrors the
-		// passkey path's neutral WebAuthn labels for public recovery).
-		if providerRecovery {
-			totpLabel = "account"
-		} else {
-			totpLabel = a.Username
 		}
 
 	default:
 		writeAuthErr(w, authn.ErrEnrollmentConsumed())
-		return
-	}
-
-	// Hash the password now — the KV stash holds only the PHC, never plaintext.
-	phc, herr := s.passwordStore.Hash(body.Password)
-	if herr != nil {
-		writeAuthErr(w, fmt.Errorf("enrollment/password-totp/begin: hash: %w", herr))
-		return
-	}
-	stash.PasswordPHC = phc
-
-	// Generate the TOTP secret now — no DB write (account may not exist yet).
-	enr, gerr := s.totpStore.GenerateEnrollment(totpLabel)
-	if gerr != nil {
-		writeAuthErr(w, fmt.Errorf("enrollment/password-totp/begin: totp: %w", gerr))
-		return
-	}
-	stash.TOTPSecretBase32 = enr.SecretBase32
-
-	raw, merr := json.Marshal(stash)
-	if merr != nil {
-		writeAuthErr(w, fmt.Errorf("enrollment/password-totp/begin: marshal: %w", merr))
-		return
-	}
-	if serr := s.kvStore.SetEx(r.Context(), enrollPwdTOTPCeremonyKey(token), string(raw), enrollPwdTOTPCeremonyTTL); serr != nil {
-		writeAuthErr(w, fmt.Errorf("enrollment/password-totp/begin: setex: %w", serr))
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]string{
-		"secret_base32": enr.SecretBase32,
-		"otpauth_uri":   enr.ProvisioningURI,
-	})
-}
-
-// ----- verify --------------------------------------------------------------
-
-func (s *Server) handleEnrollmentPasswordTOTPVerifyHTTP(w http.ResponseWriter, r *http.Request) {
-	token := chi.URLParam(r, "token")
-	q := s.enrollmentQ()
-	if _, err := enrollment.LoadEnrollment(r.Context(), q, token); err != nil {
-		writeAuthErr(w, err)
-		return
-	}
-
-	// Non-destructive Get: a wrong code is retryable (the enrollment token, not
-	// the stash, is the single-use anchor — it's only consumed on success).
-	raw, err := s.kvStore.Get(r.Context(), enrollPwdTOTPCeremonyKey(token))
-	if err != nil {
-		writeAuthErr(w, authn.ErrCeremonyExpired())
-		return
-	}
-	var stash enrollPwdTOTPStash
-	if err := json.Unmarshal([]byte(raw), &stash); err != nil {
-		writeAuthErr(w, authn.ErrCeremonyState())
-		return
-	}
-
-	var body struct {
-		Code string `json:"code"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Code == "" {
-		writeAuthErr(w, authn.ErrBadCredentials())
-		return
-	}
-	matchedStep, ok := s.totpStore.VerifyCandidateSecret(stash.TOTPSecretBase32, body.Code)
-	if !ok {
-		writeAuthErr(w, authn.ErrBadCredentials())
 		return
 	}
 
@@ -320,12 +177,12 @@ func (s *Server) handleEnrollmentPasswordTOTPVerifyHTTP(w http.ResponseWriter, r
 			writeAuthErr(w, authn.ErrEnrollmentFederationRequired())
 			return
 		}
-		if stash.Username == "" {
+		if proposal.Username == "" {
 			writeAuthErr(w, authn.ErrCeremonyState())
 			return
 		}
 		if consumed.TemplateUsername.Valid {
-			stash.Username = consumed.TemplateUsername.String
+			proposal.Username = consumed.TemplateUsername.String
 		}
 		role := "user"
 		if consumed.TemplateRole.Valid {
@@ -333,9 +190,9 @@ func (s *Server) handleEnrollmentPasswordTOTPVerifyHTTP(w http.ResponseWriter, r
 		}
 		attrs := enrollment.DecodeTemplateAttributes(consumed.TemplateAttributes)
 		a, aerr := qtx.InsertAccount(r.Context(), db.InsertAccountParams{
-			Username:           stash.Username,
-			DisplayName:        stash.DisplayName,
-			WebauthnUserHandle: stash.WebauthnUserHandle,
+			Username:           proposal.Username,
+			DisplayName:        proposal.DisplayName,
+			WebauthnUserHandle: proposal.WebauthnUserHandle,
 			Role:               role,
 			Attributes:         encodeAttributes(attrs),
 			Disabled:           false,
@@ -351,7 +208,7 @@ func (s *Server) handleEnrollmentPasswordTOTPVerifyHTTP(w http.ResponseWriter, r
 		acct = a
 
 	case enrollment.IntentFederatedRegister:
-		if stash.Username == "" {
+		if proposal.Username == "" {
 			writeAuthErr(w, authn.ErrCeremonyState())
 			return
 		}
@@ -371,9 +228,9 @@ func (s *Server) handleEnrollmentPasswordTOTPVerifyHTTP(w http.ResponseWriter, r
 			return
 		}
 		a, aerr := qtx.InsertAccount(r.Context(), db.InsertAccountParams{
-			Username:           stash.Username,
-			DisplayName:        stash.DisplayName,
-			WebauthnUserHandle: stash.WebauthnUserHandle,
+			Username:           proposal.Username,
+			DisplayName:        proposal.DisplayName,
+			WebauthnUserHandle: proposal.WebauthnUserHandle,
 			Role:               "user",
 			Attributes:         []byte("{}"),
 			Disabled:           false,
@@ -490,12 +347,12 @@ func (s *Server) handleEnrollmentPasswordTOTPVerifyHTTP(w http.ResponseWriter, r
 	// to a freshly-inserted account resolves on all connections.
 	if perr := qtx.UpsertPasswordCredential(r.Context(), db.UpsertPasswordCredentialParams{
 		AccountID: acct.ID,
-		Hash:      stash.PasswordPHC,
+		Hash:      passwordPHC,
 	}); perr != nil {
 		writeAuthErr(w, fmt.Errorf("enrollment/password-totp/verify: set password: %w", perr))
 		return
 	}
-	recoveryCodes, terr := s.totpStore.EnrollConfirmedForTx(r.Context(), qtx, acct.ID, stash.TOTPSecretBase32, matchedStep)
+	recoveryCodes, terr := s.totpStore.EnrollConfirmedForTx(r.Context(), qtx, acct.ID, body.SecretBase32, matchedStep)
 	if terr != nil {
 		writeAuthErr(w, fmt.Errorf("enrollment/password-totp/verify: enroll totp: %w", terr))
 		return
@@ -546,8 +403,6 @@ func (s *Server) handleEnrollmentPasswordTOTPVerifyHTTP(w http.ResponseWriter, r
 		Detail:    auditDetail,
 	})
 
-	// Best-effort stash cleanup.
-	_ = s.kvStore.Del(r.Context(), enrollPwdTOTPCeremonyKey(token))
 	if consumed.Intent == enrollment.IntentReset {
 		_, revokeErr := s.sessionStore.RevokeAllForAccount(r.Context(), acct.ID)
 		if revokeErr != nil && consumed.RecoverySourceUpstreamIdpID.Valid {

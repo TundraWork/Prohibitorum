@@ -1090,13 +1090,14 @@ export default {
     codeLabel: 'Recovery code',
     codeHint: 'Enter one of the backup codes you saved when you set up your authenticator.',
     codeWarning: 'Each recovery code works only once. If the code is incorrect, this sign-in attempt ends immediately and you will be sent back to the start — enter it carefully.',
-    reenrollHeadsUp: 'Using a recovery code sets up a brand-new authenticator and issues a new set of recovery codes. Your old codes stop working.',
+    resetAuthenticator: 'Reset my authenticator and replace my recovery codes',
     verify: 'Verify code',
     reenrollTitle: 'Set up a new authenticator',
     reenrollHint: 'Scan this with your authenticator app (or enter the key), then enter the 6-digit code.',
     secretLabel: 'Setup key',
     codeInputLabel: 'Authenticator code',
     confirm: 'Confirm',
+    confirmReset: 'Verify and reset authenticator',
   },
 
   samlConsent: {

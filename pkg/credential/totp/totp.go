@@ -14,12 +14,9 @@ package totp
 
 import (
 	"context"
-	"crypto/rand"
 	"encoding/base32"
 	"errors"
 	"fmt"
-	"net/url"
-	"strconv"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -46,12 +43,6 @@ var (
 	// is returned.
 	ErrTOTPCorrupt = errors.New("totp: stored secret is corrupt or DEK rotated improperly")
 )
-
-type Enrollment struct {
-	SecretBase32    string
-	ProvisioningURI string
-	RecoveryCodes   []string
-}
 
 // TOTPQueries is the narrow subset of db.Querier the store touches directly.
 // Throttle and audit queries are consumed through the *authn.Throttle and
@@ -137,136 +128,12 @@ func NewStore(q TOTPQueries, tx TxRunner, deks map[int][]byte, cfg configx.TOTPC
 	}
 }
 
-// Begin starts the legacy destructive TOTP enrollment flow. It wipes any prior
-// TOTP credential row and all recovery codes, then inserts an unconfirmed row.
-// Session-facing enrollment uses GenerateEnrollment plus a transactional
-// EnrollConfirmedForTx commit so an abandoned ceremony cannot remove active
-// credentials.
-//
-// Use BeginPreservingRecovery for the recovery-ceremony path
-// (/auth/recovery/totp/begin), which must keep the remaining recovery codes
-// live until the new TOTP is successfully confirmed at /verify — so the
-// user can retry recovery with a different code if they abandon mid-ceremony.
-func (s *Store) Begin(ctx context.Context, accountID int32, username string) (*Enrollment, error) {
-	return s.begin(ctx, accountID, username, true /* wipeRecovery */, "reenroll")
-}
-
-// BeginPreservingRecovery is the recovery-ceremony variant of Begin: wipes the
-// old TOTP credential row but leaves recovery codes untouched. The remaining
-// recovery codes are wiped on a successful VerifyAndCommitRecovery (atomic
-// with the new-batch mint).
-//
-// Rationale: if the user starts /auth/recovery/totp/begin but never completes
-// /auth/recovery/totp/verify (e.g., walks away), they must still be able to
-// retry recovery with another recovery code. Wiping at /begin would brick the
-// account.
-func (s *Store) BeginPreservingRecovery(ctx context.Context, accountID int32, username string) (*Enrollment, error) {
-	return s.begin(ctx, accountID, username, false /* wipeRecovery */, "recovery")
-}
-
-// begin is the shared implementation of Begin / BeginPreservingRecovery. The
-// wipeRecovery flag controls whether the recovery-code rows are wiped along
-// with the TOTP credential row. revokeReason flows into the audit detail
-// so investigators can distinguish a normal re-enrollment from a recovery
-// ceremony.
-func (s *Store) begin(ctx context.Context, accountID int32, username string, wipeRecovery bool, revokeReason string) (*Enrollment, error) {
-	// RFC 6238 §4: secret SHOULD be at least as long as the HMAC digest
-	// output. SHA-1 → 20 bytes / 160 bits.
-	secret := make([]byte, 20)
-	if _, err := rand.Read(secret); err != nil {
-		return nil, fmt.Errorf("totp.Begin: rand: %w", err)
-	}
-	dek, ok := s.deks[int(s.currentKeyVer)]
-	if !ok {
-		return nil, fmt.Errorf("totp.Begin: no DEK for version %d", s.currentKeyVer)
-	}
-	ct, nonce, err := encryptSecret(dek, secret, aadFor(accountID, s.currentKeyVer))
-	if err != nil {
-		return nil, fmt.Errorf("totp.Begin: encrypt: %w", err)
-	}
-
-	// Wipe any prior TOTP row (confirmed or unconfirmed) before inserting
-	// the new enrollment. Caller is responsible for sudo gating; this
-	// Store reset is unconditional once begin is reached.
-	//
-	// Audit-revoke pre-existing material BEFORE delete (audit Medium #3).
-	// Without this, the credential_event log shows registers without matching
-	// revokes — investigators can't see when a batch was wiped. Best-effort
-	// emit: a record failure does not block re-enrollment.
-	if oldRow, gerr := s.q.GetTOTPCredential(ctx, accountID); gerr == nil && oldRow.ConfirmedAt.Valid {
-		audit.RecordOrLog(ctx, s.audit, audit.Record{
-			AccountID: &accountID,
-			Factor:    audit.FactorTOTP,
-			Event:     audit.EventRevoke,
-			Detail:    map[string]any{"reason": revokeReason},
-		})
-	}
-	if wipeRecovery {
-		if existing, lerr := s.q.ListRecoveryCodesByAccount(ctx, accountID); lerr == nil {
-			for range existing {
-				audit.RecordOrLog(ctx, s.audit, audit.Record{
-					AccountID: &accountID,
-					Factor:    audit.FactorRecoveryCode,
-					Event:     audit.EventRevoke,
-					Detail:    map[string]any{"reason": revokeReason},
-				})
-			}
-		}
-	}
-	_ = s.q.DeleteTOTPCredential(ctx, accountID)
-	if wipeRecovery {
-		_ = s.q.DeleteAllRecoveryCodesByAccount(ctx, accountID)
-	}
-
-	if _, err := s.q.InsertTOTPCredential(ctx, db.InsertTOTPCredentialParams{
-		AccountID:   accountID,
-		SecretEnc:   ct,
-		SecretNonce: nonce,
-		KeyVersion:  s.currentKeyVer,
-		Period:      int32(s.cfg.DefaultPeriod),
-		Digits:      int32(s.cfg.DefaultDigits),
-		Algorithm:   s.cfg.DefaultAlgorithm,
-	}); err != nil {
-		return nil, fmt.Errorf("totp.Begin: insert: %w", err)
-	}
-
-	secretB32 := base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(secret)
-	return &Enrollment{
-		SecretBase32:    secretB32,
-		ProvisioningURI: provisioningURI(s.cfg.Issuer, username, secretB32, s.cfg.DefaultAlgorithm, s.cfg.DefaultDigits, s.cfg.DefaultPeriod),
-	}, nil
-}
-
 // Verify checks a 6-digit code against the stored secret. On the FIRST
 // successful verify it also confirms the enrollment and mints 10 recovery
 // codes, returning their plaintext. On subsequent successful verifies it
 // returns (nil, nil). On failure (invalid code, replay, or missing row) it
 // returns the appropriate sentinel and bumps the throttle.
 func (s *Store) Verify(ctx context.Context, accountID int32, code string) ([]string, error) {
-	return s.verify(ctx, accountID, code, false /* purgePriorRecoveryOnFirstConfirm */)
-}
-
-// VerifyAndCommitRecovery is the recovery-ceremony variant of Verify. Same
-// drift / replay / throttle semantics, but on the first-confirm transaction
-// it ALSO deletes any remaining recovery codes (the ones that survived
-// /auth/recovery/totp/begin) inside the same transaction as the mint of the
-// fresh batch. Emits one recovery_code/revoke audit event per wiped code
-// with detail.reason="recovery_complete" so the trail shows a clean
-// before/after for the ceremony.
-//
-// On TOTP failure: the recovery-session-token caller is expected to have
-// already consumed (Pop'd) the token at the HTTP layer, so the user must
-// restart recovery from /auth/recovery-code/verify. This is intentional:
-// keeping the token live for retry creates atomicity hazards we'd rather
-// not chase.
-func (s *Store) VerifyAndCommitRecovery(ctx context.Context, accountID int32, code string) ([]string, error) {
-	return s.verify(ctx, accountID, code, true /* purgePriorRecoveryOnFirstConfirm */)
-}
-
-// verify is the shared implementation. purgePriorRecoveryOnFirstConfirm
-// controls whether the first-confirm transaction also wipes the existing
-// recovery codes (recovery ceremony) before minting the fresh batch.
-func (s *Store) verify(ctx context.Context, accountID int32, code string, purgePriorRecoveryOnFirstConfirm bool) ([]string, error) {
 	if _, err := s.throttle.CheckLocked(ctx, accountID, "totp"); err != nil {
 		return nil, err
 	}
@@ -366,27 +233,8 @@ func (s *Store) verify(ctx context.Context, accountID int32, code string, purgeP
 		// rejected — and the next code at the next step boundary will see
 		// row.ConfirmedAt.Valid == false and re-enter this branch.
 		//
-		// purgePriorRecoveryOnFirstConfirm (recovery-ceremony path):
-		// snapshot existing codes (for post-commit revoke audits), wipe
-		// them inside the same tx, then mint the fresh batch. The wipe
-		// must be inside the tx so a mid-mint failure rolls back the
-		// delete — otherwise the user loses every recovery code with
-		// no replacement on the failure path.
-		var (
-			codes      []string
-			wipedCount int
-		)
+		var codes []string
 		txErr := s.tx.InTx(ctx, func(q TOTPQueries) error {
-			if purgePriorRecoveryOnFirstConfirm {
-				existing, err := q.ListRecoveryCodesByAccount(ctx, accountID)
-				if err != nil {
-					return fmt.Errorf("list prior recovery: %w", err)
-				}
-				wipedCount = len(existing)
-				if err := q.DeleteAllRecoveryCodesByAccount(ctx, accountID); err != nil {
-					return fmt.Errorf("delete prior recovery: %w", err)
-				}
-			}
 			if err := q.ConfirmTOTPCredential(ctx, accountID); err != nil {
 				return fmt.Errorf("confirm: %w", err)
 			}
@@ -403,20 +251,6 @@ func (s *Store) verify(ctx context.Context, accountID int32, code string, purgeP
 		// Emit audit events AFTER commit so the trail reflects what actually
 		// persisted (a commit failure that leaves audit registers behind is
 		// worse for forensics than the symmetric pre-commit alternative).
-		if purgePriorRecoveryOnFirstConfirm {
-			// Symmetric per-row revokes for the wiped recovery codes,
-			// matching RegenerateRecoveryCodes' pattern. Investigators
-			// see one revoke per code with reason=recovery_complete,
-			// followed by the totp/register + 10 fresh registers.
-			for i := 0; i < wipedCount; i++ {
-				audit.RecordOrLog(ctx, s.audit, audit.Record{
-					AccountID: &accountID,
-					Factor:    audit.FactorRecoveryCode,
-					Event:     audit.EventRevoke,
-					Detail:    map[string]any{"reason": "recovery_complete"},
-				})
-			}
-		}
 		audit.RecordOrLog(ctx, s.audit, audit.Record{
 			AccountID: &accountID,
 			Factor:    audit.FactorTOTP,
@@ -435,43 +269,79 @@ func (s *Store) verify(ctx context.Context, accountID int32, code string, purgeP
 }
 
 func (s *Store) VerifyRecoveryCode(ctx context.Context, accountID int32, code, sessionID, ip string) error {
-	if _, err := s.throttle.CheckLocked(ctx, accountID, "recovery_code"); err != nil {
+	row, err := s.MatchRecoveryCode(ctx, accountID, code)
+	if err != nil {
 		return err
+	}
+	if err := s.ConsumeRecoveryCodeForTx(ctx, s.q, row.ID, sessionID, ip); err != nil {
+		if errors.Is(err, ErrRecoveryCodeInvalid) {
+			s.RecordRecoveryCodeFailure(ctx, accountID)
+		}
+		return err
+	}
+	s.RecordRecoveryCodeUse(ctx, accountID)
+	return nil
+}
+
+// MatchRecoveryCode verifies a recovery code without consuming it. Callers
+// that need to combine consumption with other credential writes use the
+// returned row as input to ConsumeRecoveryCodeForTx inside their transaction.
+// Invalid input preserves the existing throttle and failure-audit semantics.
+func (s *Store) MatchRecoveryCode(ctx context.Context, accountID int32, code string) (db.RecoveryCode, error) {
+	if _, err := s.throttle.CheckLocked(ctx, accountID, "recovery_code"); err != nil {
+		return db.RecoveryCode{}, err
 	}
 	normalized := normalizeRecoveryCode(code)
 	if len(normalized) != recoveryCodeLen {
-		_, _ = s.throttle.RegisterFailure(ctx, accountID, "recovery_code")
-		audit.RecordOrLog(ctx, s.audit, audit.Record{AccountID: &accountID, Factor: audit.FactorRecoveryCode, Event: audit.EventFail})
-		return ErrRecoveryCodeInvalid
+		s.RecordRecoveryCodeFailure(ctx, accountID)
+		return db.RecoveryCode{}, ErrRecoveryCodeInvalid
 	}
 
 	rows, err := s.q.ListRecoveryCodesByAccount(ctx, accountID)
 	if err != nil {
-		return fmt.Errorf("totp.VerifyRecoveryCode: list: %w", err)
+		return db.RecoveryCode{}, fmt.Errorf("totp.MatchRecoveryCode: list: %w", err)
 	}
-
-	sessParam := pgtype.Text{String: sessionID, Valid: sessionID != ""}
-	ipParam := audit.ParseIPOrNil(ip)
 
 	for _, row := range rows {
-		if !verifyRecoveryCode(normalized, row.Hash) {
-			continue
+		if verifyRecoveryCode(normalized, row.Hash) {
+			return row, nil
 		}
-		if _, err := s.q.ConsumeRecoveryCode(ctx, db.ConsumeRecoveryCodeParams{
-			ID:            row.ID,
-			UsedSessionID: sessParam,
-			UsedIp:        ipParam,
-		}); err != nil {
-			return fmt.Errorf("totp.VerifyRecoveryCode: consume: %w", err)
-		}
-		_ = s.throttle.Reset(ctx, accountID, "recovery_code")
-		audit.RecordOrLog(ctx, s.audit, audit.Record{AccountID: &accountID, Factor: audit.FactorRecoveryCode, Event: audit.EventUse})
-		return nil
 	}
 
+	s.RecordRecoveryCodeFailure(ctx, accountID)
+	return db.RecoveryCode{}, ErrRecoveryCodeInvalid
+}
+
+// ConsumeRecoveryCodeForTx conditionally consumes a previously matched code
+// through q. q may be bound to a larger transaction. The WHERE used_at IS NULL
+// guard is the concurrent-winner gate; a lost race is reported as invalid.
+func (s *Store) ConsumeRecoveryCodeForTx(ctx context.Context, q TOTPQueries, id int32, sessionID, ip string) error {
+	_, err := q.ConsumeRecoveryCode(ctx, db.ConsumeRecoveryCodeParams{
+		ID:            id,
+		UsedSessionID: pgtype.Text{String: sessionID, Valid: sessionID != ""},
+		UsedIp:        audit.ParseIPOrNil(ip),
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ErrRecoveryCodeInvalid
+	}
+	if err != nil {
+		return fmt.Errorf("totp.ConsumeRecoveryCodeForTx: %w", err)
+	}
+	return nil
+}
+
+// RecordRecoveryCodeUse runs after the transaction that consumed the code has
+// committed, keeping throttle and audit state aligned with persisted data.
+func (s *Store) RecordRecoveryCodeUse(ctx context.Context, accountID int32) {
+	_ = s.throttle.Reset(ctx, accountID, "recovery_code")
+	audit.RecordOrLog(ctx, s.audit, audit.Record{AccountID: &accountID, Factor: audit.FactorRecoveryCode, Event: audit.EventUse})
+}
+
+// RecordRecoveryCodeFailure preserves the legacy invalid-code accounting for
+// malformed, unmatched, or concurrently consumed recovery codes.
+func (s *Store) RecordRecoveryCodeFailure(ctx context.Context, accountID int32) {
 	_, _ = s.throttle.RegisterFailure(ctx, accountID, "recovery_code")
 	audit.RecordOrLog(ctx, s.audit, audit.Record{AccountID: &accountID, Factor: audit.FactorRecoveryCode, Event: audit.EventFail})
-	return ErrRecoveryCodeInvalid
 }
 
 func (s *Store) RegenerateRecoveryCodes(ctx context.Context, accountID int32) ([]string, error) {
@@ -569,26 +439,6 @@ func (s *Store) mintRecoveryCodesNoAudit(ctx context.Context, q TOTPQueries, acc
 	return codes, nil
 }
 
-// GenerateEnrollment produces a fresh TOTP secret + provisioning URI WITHOUT
-// any database write or at-rest encryption. The password-totp enrollment
-// ceremony (/enrollments/{token}/password-totp/begin) calls this for accounts
-// that may not exist yet: the base32 secret is stashed in KV + returned to the
-// client for the QR, and only persisted — encrypted, bound to the new
-// account_id via the AAD — once the account row exists at "verify" (see
-// EnrollConfirmedForTx). Contrast Begin, which writes an unconfirmed row and so
-// requires an existing account_id.
-func (s *Store) GenerateEnrollment(username string) (*Enrollment, error) {
-	secret := make([]byte, 20)
-	if _, err := rand.Read(secret); err != nil {
-		return nil, fmt.Errorf("totp.GenerateEnrollment: rand: %w", err)
-	}
-	secretB32 := base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(secret)
-	return &Enrollment{
-		SecretBase32:    secretB32,
-		ProvisioningURI: provisioningURI(s.cfg.Issuer, username, secretB32, s.cfg.DefaultAlgorithm, s.cfg.DefaultDigits, s.cfg.DefaultPeriod),
-	}, nil
-}
-
 // VerifyCandidateSecret checks a code against a base32 secret that has NOT been
 // persisted yet (the password-totp enrollment "verify" step). It runs the same
 // ±DriftSteps window as Verify but touches no DB row, no throttle, and no
@@ -668,15 +518,4 @@ func (s *Store) EnrollConfirmedForTx(ctx context.Context, q TOTPQueries, account
 		}
 	}
 	return s.mintRecoveryCodesNoAudit(ctx, q, accountID)
-}
-
-func provisioningURI(issuer, username, secretB32, algorithm string, digits, period int) string {
-	label := url.PathEscape(issuer + ":" + username)
-	q := url.Values{}
-	q.Set("secret", secretB32)
-	q.Set("issuer", issuer)
-	q.Set("algorithm", algorithm)
-	q.Set("digits", strconv.Itoa(digits))
-	q.Set("period", strconv.Itoa(period))
-	return "otpauth://totp/" + label + "?" + q.Encode()
 }

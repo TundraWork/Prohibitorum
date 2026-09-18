@@ -1,16 +1,9 @@
-// Package server — handle_me_password_totp_test.go
-//
-// Unit tests for POST /me/password-totp/{begin,verify}. Reuses the sudo test
-// scaffolding (newSudoTestServer / issueSudoTestSession / sudoReq /
-// seedConfirmedTOTPSudo / seedPassword) plus a trivial enrollmentTx runner
-// that hands the handler the same fake db.Querier, so the transaction body can
-// be exercised without a pgx pool.
-
 package server
 
 import (
 	"context"
 	"encoding/base32"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -24,9 +17,8 @@ import (
 	"prohibitorum/pkg/db"
 )
 
-// fakePwdTOTPTxRunner is the enrollmentTx seam over fakeSudoQueries. It keeps
-// a snapshot so handler tests can assert that failed transactions restore the
-// existing credentials.
+// fakePwdTOTPTxRunner snapshots the in-memory query fake so handler tests can
+// assert transaction rollback. Other TOTP handler tests share this seam.
 type fakePwdTOTPTxRunner struct {
 	q         *fakeSudoQueries
 	commitErr error
@@ -87,39 +79,8 @@ func newPwdTOTPTestServer(t *testing.T) (*Server, *fakeSudoQueries, []byte) {
 	return s, f, dek
 }
 
-// backdateSession pushes the session outside the recent-auth window so
-// hasFreshSudo fails without a stamped SudoUntil.
 func backdateSession(s *Server, sess *authn.Session) {
 	sess.Data.IssuedAt = time.Now().Add(-(s.config.Auth.SudoTTL + time.Minute))
-}
-
-func pwdTOTPBegin(t *testing.T, s *Server, sess *authn.Session, password string) string {
-	t.Helper()
-	body := fmt.Sprintf(`{"password":%q}`, password)
-	r := sudoReq(t, sess, http.MethodPost, "/api/prohibitorum/me/password-totp/begin", body)
-	w := httptest.NewRecorder()
-	s.handleMePasswordTOTPBeginHTTP(w, r)
-	if w.Code != http.StatusOK {
-		t.Fatalf("begin status: want 200, got %d (body=%s)", w.Code, w.Body.String())
-	}
-	decoded := decodeJSON(t, w.Body.Bytes())
-	secret, _ := decoded["secret_base32"].(string)
-	if secret == "" {
-		t.Fatalf("begin response missing secret_base32: %v", decoded)
-	}
-	if uri, _ := decoded["otpauth_uri"].(string); uri == "" {
-		t.Errorf("begin response missing otpauth_uri")
-	}
-	return secret
-}
-
-func pwdTOTPVerify(t *testing.T, s *Server, sess *authn.Session, code string) *httptest.ResponseRecorder {
-	t.Helper()
-	body := fmt.Sprintf(`{"code":%q}`, code)
-	r := sudoReq(t, sess, http.MethodPost, "/api/prohibitorum/me/password-totp/verify", body)
-	w := httptest.NewRecorder()
-	s.handleMePasswordTOTPVerifyHTTP(w, r)
-	return w
 }
 
 func codeForSecret(t *testing.T, secretB32 string) string {
@@ -131,198 +92,164 @@ func codeForSecret(t *testing.T, secretB32 string) string {
 	return totp.ComputeCodeForTesting(secret, time.Now().Unix(), 6)
 }
 
-func TestMePasswordTOTP_RequiresFreshSudo(t *testing.T) {
-	s, _, _ := newPwdTOTPTestServer(t)
-	const accountID int32 = 42
-	_, sess := issueSudoTestSession(t, s, accountID)
-	backdateSession(s, sess)
+func passwordTOTPCandidate(t *testing.T, s *Server) (string, string) {
+	t.Helper()
+	secret := browserTOTPSecret(t)
+	return secret, codeForSecret(t, secret)
+}
 
-	for _, tc := range []struct {
-		name   string
-		handle func(*httptest.ResponseRecorder)
-	}{
-		{"begin", func(w *httptest.ResponseRecorder) {
-			r := sudoReq(t, sess, http.MethodPost, "/api/prohibitorum/me/password-totp/begin", `{"password":"correct horse"}`)
-			s.handleMePasswordTOTPBeginHTTP(w, r)
-		}},
-		{"verify", func(w *httptest.ResponseRecorder) {
-			r := sudoReq(t, sess, http.MethodPost, "/api/prohibitorum/me/password-totp/verify", `{"code":"123456"}`)
-			s.handleMePasswordTOTPVerifyHTTP(w, r)
-		}},
-	} {
-		w := httptest.NewRecorder()
-		tc.handle(w)
-		if w.Code != http.StatusUnauthorized {
-			t.Errorf("%s: status want 401, got %d (body=%s)", tc.name, w.Code, w.Body.String())
-			continue
-		}
-		if got := decodeJSON(t, w.Body.Bytes())["code"]; got != "sudo_required" {
-			t.Errorf("%s: code want sudo_required, got %v", tc.name, got)
-		}
+func passwordTOTPVerify(t *testing.T, s *Server, sess *authn.Session, password, secret, code string) *httptest.ResponseRecorder {
+	t.Helper()
+	body := fmt.Sprintf(`{"password":%q,"secret_base32":%q,"code":%q}`, password, secret, code)
+	r := sudoReq(t, sess, http.MethodPost, "/api/prohibitorum/me/password-totp/verify", body)
+	w := httptest.NewRecorder()
+	s.handleMePasswordTOTPVerifyHTTP(w, r)
+	return w
+}
+
+func TestMePasswordTOTPVerify_RequiresFreshSudo(t *testing.T) {
+	s, _, _ := newPwdTOTPTestServer(t)
+	_, sess := issueSudoTestSession(t, s, 42)
+	backdateSession(s, sess)
+	secret, code := passwordTOTPCandidate(t, s)
+
+	w := passwordTOTPVerify(t, s, sess, "correct horse battery staple", secret, code)
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want 401: %s", w.Code, w.Body.String())
+	}
+	if got := decodeJSON(t, w.Body.Bytes())["code"]; got != "sudo_required" {
+		t.Fatalf("code = %v, want sudo_required", got)
 	}
 }
 
-func TestMePasswordTOTPBegin_PasswordBounds(t *testing.T) {
+func TestMePasswordTOTPVerify_RequiresCompleteValidBody(t *testing.T) {
 	s, _, _ := newPwdTOTPTestServer(t)
-	const accountID int32 = 42
-	_, sess := issueSudoTestSession(t, s, accountID)
+	token, sess := issueSudoTestSession(t, s, 42)
+	grantFreshSudo(t, s, 42, token)
+	sess.Data.SudoUntil = time.Now().Add(5 * time.Minute)
+	secret, code := passwordTOTPCandidate(t, s)
 
 	for _, tc := range []struct {
 		name string
-		pw   string
+		body string
 	}{
-		{"too short", "short"},
-		{"too long", string(make([]byte, 1025))},
+		{"missing password", fmt.Sprintf(`{"secret_base32":%q,"code":%q}`, secret, code)},
+		{"short password", fmt.Sprintf(`{"password":"short","secret_base32":%q,"code":%q}`, secret, code)},
+		{"long password", fmt.Sprintf(`{"password":%q,"secret_base32":%q,"code":%q}`, strings.Repeat("x", 1025), secret, code)},
+		{"missing secret", `{"password":"correct horse","code":"123456"}`},
+		{"missing code", fmt.Sprintf(`{"password":"correct horse","secret_base32":%q}`, secret)},
 	} {
-		r := sudoReq(t, sess, http.MethodPost, "/api/prohibitorum/me/password-totp/begin",
-			fmt.Sprintf(`{"password":%q}`, tc.pw))
-		w := httptest.NewRecorder()
-		s.handleMePasswordTOTPBeginHTTP(w, r)
-		if w.Code != http.StatusBadRequest {
-			t.Errorf("%s: status want 400, got %d (body=%s)", tc.name, w.Code, w.Body.String())
-		}
+		t.Run(tc.name, func(t *testing.T) {
+			r := sudoReq(t, sess, http.MethodPost, "/api/prohibitorum/me/password-totp/verify", tc.body)
+			w := httptest.NewRecorder()
+			s.handleMePasswordTOTPVerifyHTTP(w, r)
+			if w.Code != http.StatusBadRequest {
+				t.Fatalf("status = %d, want 400: %s", w.Code, w.Body.String())
+			}
+		})
 	}
 }
 
-func TestMePasswordTOTPBegin_WritesOnlyKVStash(t *testing.T) {
-	s, f, _ := newPwdTOTPTestServer(t)
-	const accountID int32 = 42
-	_, sess := issueSudoTestSession(t, s, accountID)
+func TestMePasswordTOTPVerify_InvalidCandidateLeavesFactorsUnchanged(t *testing.T) {
+	s, f, dek := newPwdTOTPTestServer(t)
+	_ = seedConfirmedTOTPSudo(t, s, f, dek, 42)
+	seedPassword(t, s, 42, "old-password-value")
+	oldPassword := *f.passwordRow
+	oldTOTP := *f.totpRow
+	oldCodes := append([]db.RecoveryCode(nil), f.recoveryRows...)
+	token, sess := issueSudoTestSession(t, s, 42)
+	grantFreshSudo(t, s, 42, token)
+	sess.Data.SudoUntil = time.Now().Add(5 * time.Minute)
+	secret, _ := passwordTOTPCandidate(t, s)
 
-	secret := pwdTOTPBegin(t, s, sess, "correct horse battery staple")
-
-	if f.passwordRow != nil {
-		t.Errorf("begin must not write a password row, got %+v", f.passwordRow)
-	}
-	if f.totpRow != nil {
-		t.Errorf("begin must not write a totp row, got %+v", f.totpRow)
-	}
-	raw, err := s.kvStore.Get(context.Background(), mePwdTOTPCeremonyKey(sess))
-	if err != nil {
-		t.Fatalf("ceremony stash missing after begin: %v", err)
-	}
-	if want := fmt.Sprintf(`"totp_secret_base32":%q`, secret); !strings.Contains(raw, want) {
-		t.Errorf("stash does not carry the returned secret; raw=%s", raw)
-	}
-}
-
-func TestMePasswordTOTPVerify_WrongCodeRetriesThenSucceeds(t *testing.T) {
-	s, f, _ := newPwdTOTPTestServer(t)
-	const accountID int32 = 42
-	_, sess := issueSudoTestSession(t, s, accountID)
-	secret := pwdTOTPBegin(t, s, sess, "correct horse battery staple")
-
-	w := pwdTOTPVerify(t, s, sess, "000000")
+	w := passwordTOTPVerify(t, s, sess, "correct horse battery staple", secret, "000000")
 	if w.Code != http.StatusUnauthorized {
-		t.Fatalf("wrong code: status want 401, got %d (body=%s)", w.Code, w.Body.String())
+		t.Fatalf("status = %d, want 401: %s", w.Code, w.Body.String())
 	}
-	if got := decodeJSON(t, w.Body.Bytes())["code"]; got != "bad_credentials" {
-		t.Errorf("wrong code: code want bad_credentials, got %v", got)
-	}
-	if f.passwordRow != nil || f.totpRow != nil {
-		t.Error("a rejected code must leave the account untouched")
-	}
-	if _, err := s.kvStore.Get(context.Background(), mePwdTOTPCeremonyKey(sess)); err != nil {
-		t.Fatalf("stash must survive a wrong code: %v", err)
-	}
-
-	w = pwdTOTPVerify(t, s, sess, codeForSecret(t, secret))
-	if w.Code != http.StatusOK {
-		t.Fatalf("correct code: status want 200, got %d (body=%s)", w.Code, w.Body.String())
+	if f.passwordRow.Hash != oldPassword.Hash || !slices.Equal(f.totpRow.SecretEnc, oldTOTP.SecretEnc) || !slices.Equal(f.recoveryRows, oldCodes) {
+		t.Fatal("invalid candidate changed existing factors")
 	}
 }
 
 func TestMePasswordTOTPVerify_EnrollsPasswordAndTOTPTogether(t *testing.T) {
 	s, f, _ := newPwdTOTPTestServer(t)
-	const accountID int32 = 42
-	_, sess := issueSudoTestSession(t, s, accountID)
-	const pw = "correct horse battery staple"
-	secret := pwdTOTPBegin(t, s, sess, pw)
+	token, sess := issueSudoTestSession(t, s, 42)
+	grantFreshSudo(t, s, 42, token)
+	sess.Data.SudoUntil = time.Now().Add(5 * time.Minute)
+	const password = "correct horse battery staple"
+	secret, code := passwordTOTPCandidate(t, s)
 
-	w := pwdTOTPVerify(t, s, sess, codeForSecret(t, secret))
+	w := passwordTOTPVerify(t, s, sess, password, secret, code)
 	if w.Code != http.StatusOK {
-		t.Fatalf("status: want 200, got %d (body=%s)", w.Code, w.Body.String())
+		t.Fatalf("status = %d, want 200: %s", w.Code, w.Body.String())
 	}
 	codes, ok := decodeJSON(t, w.Body.Bytes())["recovery_codes"].([]any)
 	if !ok || len(codes) != 10 {
-		t.Fatalf("recovery_codes: want 10 entries, got %v", codes)
+		t.Fatalf("recovery_codes = %v, want 10", codes)
 	}
-
-	if err := s.passwordStore.Verify(context.Background(), accountID, pw); err != nil {
-		t.Errorf("password not usable after verify: %v", err)
+	if err := s.passwordStore.Verify(context.Background(), 42, password); err != nil {
+		t.Fatalf("password not usable: %v", err)
 	}
-	if f.totpRow == nil || !f.totpRow.ConfirmedAt.Valid {
-		t.Fatalf("totp credential not confirmed: %+v", f.totpRow)
+	if f.totpRow == nil || !f.totpRow.ConfirmedAt.Valid || f.totpRow.LastStep <= 0 {
+		t.Fatalf("confirmed TOTP with seeded last_step not stored: %+v", f.totpRow)
 	}
-	if len(f.recoveryRows) != 10 {
-		t.Errorf("recovery rows: want 10, got %d", len(f.recoveryRows))
-	}
-	methods, err := authn.AvailableMethods(context.Background(), f, accountID)
-	if err != nil {
-		t.Fatalf("AvailableMethods: %v", err)
-	}
-	if !slices.Contains(methods, authn.MethodPasswordTOTP) {
-		t.Errorf("AvailableMethods = %v, want password_totp", methods)
-	}
-	if _, err := s.kvStore.Get(context.Background(), mePwdTOTPCeremonyKey(sess)); err == nil {
-		t.Error("ceremony stash should be deleted after a successful verify")
-	}
-}
-
-func TestMePasswordTOTPVerify_MissingStash(t *testing.T) {
-	s, _, _ := newPwdTOTPTestServer(t)
-	const accountID int32 = 42
-	_, sess := issueSudoTestSession(t, s, accountID)
-
-	w := pwdTOTPVerify(t, s, sess, "123456")
-	// ceremony_expired is the shared ceremony AuthError (400), same as the
-	// enrollment-stash miss on /enrollments/{token}/password-totp/verify.
-	if w.Code != http.StatusBadRequest {
-		t.Fatalf("status: want 400, got %d (body=%s)", w.Code, w.Body.String())
-	}
-	if got := decodeJSON(t, w.Body.Bytes())["code"]; got != "ceremony_expired" {
-		t.Errorf("code want ceremony_expired, got %v", got)
+	methods, err := authn.AvailableMethods(context.Background(), f, 42)
+	if err != nil || !slices.Contains(methods, authn.MethodPasswordTOTP) {
+		t.Fatalf("AvailableMethods = %v, err = %v", methods, err)
 	}
 }
 
 func TestMePasswordTOTPVerify_ReplacesExistingFactors(t *testing.T) {
 	s, f, dek := newPwdTOTPTestServer(t)
-	const accountID int32 = 42
-	_ = seedConfirmedTOTPSudo(t, s, f, dek, accountID)
-	seedPassword(t, s, accountID, "old-password-value")
-	oldSecret := append([]byte(nil), decryptTOTPSecret(t, dek, *f.totpRow, accountID)...)
-	oldCodes := make([]string, len(f.recoveryRows))
-	for i, r := range f.recoveryRows {
-		oldCodes[i] = r.Hash
-	}
+	_ = seedConfirmedTOTPSudo(t, s, f, dek, 42)
+	seedPassword(t, s, 42, "old-password-value")
+	oldSecret := append([]byte(nil), decryptTOTPSecret(t, dek, *f.totpRow, 42)...)
+	oldCodes := append([]db.RecoveryCode(nil), f.recoveryRows...)
+	token, sess := issueSudoTestSession(t, s, 42)
+	grantFreshSudo(t, s, 42, token)
+	sess.Data.SudoUntil = time.Now().Add(5 * time.Minute)
+	secret, code := passwordTOTPCandidate(t, s)
 
-	_, sess := issueSudoTestSession(t, s, accountID)
-	const pw = "correct horse battery staple"
-	secret := pwdTOTPBegin(t, s, sess, pw)
-	w := pwdTOTPVerify(t, s, sess, codeForSecret(t, secret))
+	w := passwordTOTPVerify(t, s, sess, "correct horse battery staple", secret, code)
 	if w.Code != http.StatusOK {
-		t.Fatalf("status: want 200, got %d (body=%s)", w.Code, w.Body.String())
+		t.Fatalf("status = %d, want 200: %s", w.Code, w.Body.String())
 	}
+	if err := s.passwordStore.Verify(context.Background(), 42, "correct horse battery staple"); err != nil {
+		t.Fatalf("new password not usable: %v", err)
+	}
+	if err := s.passwordStore.Verify(context.Background(), 42, "old-password-value"); err == nil {
+		t.Fatal("old password remains usable")
+	}
+	if slices.Equal(decryptTOTPSecret(t, dek, *f.totpRow, 42), oldSecret) || slices.Equal(f.recoveryRows, oldCodes) {
+		t.Fatal("TOTP or recovery codes were not replaced")
+	}
+}
 
-	if err := s.passwordStore.Verify(context.Background(), accountID, pw); err != nil {
-		t.Errorf("new password not usable: %v", err)
+func TestMePasswordTOTPVerify_CommitFailureRollsBackAllFactors(t *testing.T) {
+	s, f, dek := newPwdTOTPTestServer(t)
+	_ = seedConfirmedTOTPSudo(t, s, f, dek, 42)
+	seedPassword(t, s, 42, "old-password-value")
+	oldPassword := *f.passwordRow
+	oldTOTP := *f.totpRow
+	oldTOTP.SecretEnc = append([]byte(nil), oldTOTP.SecretEnc...)
+	oldTOTP.SecretNonce = append([]byte(nil), oldTOTP.SecretNonce...)
+	oldCodes := append([]db.RecoveryCode(nil), f.recoveryRows...)
+	oldEvents := len(f.events)
+	token, sess := issueSudoTestSession(t, s, 42)
+	grantFreshSudo(t, s, 42, token)
+	sess.Data.SudoUntil = time.Now().Add(5 * time.Minute)
+	secret, code := passwordTOTPCandidate(t, s)
+	s.enrollmentTxRunnerOverride.(*fakePwdTOTPTxRunner).commitErr = errors.New("commit failed")
+
+	w := passwordTOTPVerify(t, s, sess, "correct horse battery staple", secret, code)
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500: %s", w.Code, w.Body.String())
 	}
-	if err := s.passwordStore.Verify(context.Background(), accountID, "old-password-value"); err == nil {
-		t.Error("old password still usable after verify")
+	if f.passwordRow.Hash != oldPassword.Hash || !slices.Equal(f.totpRow.SecretEnc, oldTOTP.SecretEnc) ||
+		!slices.Equal(f.totpRow.SecretNonce, oldTOTP.SecretNonce) || !slices.Equal(f.recoveryRows, oldCodes) {
+		t.Fatal("commit failure did not restore all factors")
 	}
-	if newSecret := decryptTOTPSecret(t, dek, *f.totpRow, accountID); slices.Equal(newSecret, oldSecret) {
-		t.Error("totp secret not replaced")
-	}
-	if len(f.recoveryRows) != 10 {
-		t.Errorf("recovery rows: want 10, got %d", len(f.recoveryRows))
-	}
-	rotated := 0
-	for _, r := range f.recoveryRows {
-		if !slices.Contains(oldCodes, r.Hash) {
-			rotated++
-		}
-	}
-	if rotated != 10 {
-		t.Errorf("recovery codes not fully rotated: %d of 10 new", rotated)
+	if len(f.events) != oldEvents {
+		t.Fatal("commit failure emitted audit events")
 	}
 }

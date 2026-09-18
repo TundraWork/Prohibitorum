@@ -8,7 +8,12 @@ import RecoveryCodesCard from './security/RecoveryCodesCard.vue'
 
 vi.mock('@/lib/api', () => ({ api: { get: vi.fn(async () => null), post: vi.fn(), put: vi.fn() } }))
 import { api } from '@/lib/api'
-vi.mock('@/lib/sudo', () => ({ withSudo: (fn: () => unknown) => fn(), ensureSudo: vi.fn(), sudoState: { value: { open: false, resolve: null } }, _resolveSudo: vi.fn() }))
+const { generateTotpEnrollment } = vi.hoisted(() => ({
+  generateTotpEnrollment: vi.fn(async () => ({ secretBase32: 'S', otpauthUri: 'otpauth://totp/x' })),
+}))
+vi.mock('@/lib/sudo', () => ({ withSudo: (fn: () => unknown) => fn(), ensureSudo: vi.fn(async () => true), sudoState: { value: { open: false, resolve: null } }, _resolveSudo: vi.fn() }))
+vi.mock('@/lib/totpEnrollment', () => ({ generateTotpEnrollment }))
+vi.mock('@/composables/useSession', () => ({ useSession: () => ({ me: { username: 'alex' } }) }))
 vi.mock('qrcode', () => ({ default: { toDataURL: vi.fn(async () => 'data:image/png;base64,AAAA') } }))
 const get = vi.mocked(api.get)
 const post = vi.mocked(api.post)
@@ -121,9 +126,7 @@ describe('SecurityView', () => {
     const factorsCallsBefore = get.mock.calls.filter((args) => args[0] === '/api/prohibitorum/me/factors').length
     expect(factorsCallsBefore).toBe(1)
 
-    post.mockImplementation(async (path: string) =>
-      path.endsWith('/password-totp/begin') ? { secret_base32: 'S', otpauth_uri: 'otpauth://totp/x' }
-      : path.endsWith('/password-totp/verify') ? { recovery_codes: ['c1'] } : undefined)
+    post.mockResolvedValue({ recovery_codes: ['c1'] })
     // After the successful setup the refetch reports both factors set.
     get.mockResolvedValue(FACTORS_SET)
 

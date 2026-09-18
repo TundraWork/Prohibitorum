@@ -41,7 +41,8 @@ sensitive `/me` operations behind a fresh credential proof.
 - TOTP: RFC 6238 (SHA-1 / 6-digit / 30s, ±1-step drift); `last_step` defeats same-step replay. Secrets AES-256-GCM with a versioned DEK, AAD bound to `'totp:'||account_id||':'||key_version`. Recovery codes (10/account, 80-bit, `XXXX-XXXX-XXXX-XXXX`, argon2id-hashed) minted at confirmation, regenerable.
 - Throttling: exponential backoff per `(account_id, factor)`; a locked row returns `429` + `Retry-After` without running the crypto check, and resets on success.
 - Two-step login: `POST /auth/password/begin` returns a single-use 5-min partial-session token; `POST /auth/totp/verify` consumes it and issues a session with `amr=["pwd","otp","mfa"]`. Disabled accounts are rejected after a dummy verify (no timing oracle).
-- Recovery ceremony: `/auth/recovery-code/verify` returns a narrow `recovery_session_token` (10-min, separate KV namespace) rather than a session; it is redeemed at `/auth/recovery/totp/{begin,verify}`, which re-enrolls TOTP, wipes the old credential and recovery codes, mints 10 fresh, and issues a session. (NIST SP 800-63B-4 §5.2: knowledge factors are not used for reauth.)
+- Client-generated setup: the browser creates the TOTP secret from public issuer/algorithm/digits/period settings. First setup submits password, secret, and code together; `/me/totp/verify` is reset-only.
+- Recovery: `/auth/recovery-code/verify` either issues a session directly or atomically replaces TOTP and recovery codes when the request includes a browser-generated secret and code.
 - Sudo step-up: per-account sudo factors enumerated in priority order (`webauthn` → `password_totp`); `recovery_code` is deliberately not a sudo method. `/me/sudo/{begin,complete}` take a `method` discriminator.
 - WebAuthn-preferred factor policy: `POST /me/auth/revoke-password-totp` transactionally deletes the caller's password + TOTP + recovery codes (sudo-gated).
 - Audit: `credential_event` records `register`/`use`/`fail`/`revoke` across password/TOTP/recovery_code, plus `session:sudo_granted` per sudo completion.
@@ -52,12 +53,10 @@ sensitive `/me` operations behind a fresh credential proof.
 |---|---|---|
 | POST | `/api/prohibitorum/auth/password/begin` | step 1 of two-step login |
 | POST | `/api/prohibitorum/auth/totp/verify` | step 2: TOTP |
-| POST | `/api/prohibitorum/auth/recovery-code/verify` | step 2 of recovery: returns `recovery_session_token` (no session) |
-| POST | `/api/prohibitorum/auth/recovery/totp/begin` | recovery: re-enroll TOTP (recovery codes preserved) |
-| POST | `/api/prohibitorum/auth/recovery/totp/verify` | recovery: confirm + mint 10 fresh + issue session |
+| POST | `/api/prohibitorum/auth/recovery-code/verify` | step 2: issue a session; optionally replace TOTP and recovery codes atomically |
 | POST | `/api/prohibitorum/me/password/set` | sudo-gated |
-| POST | `/api/prohibitorum/me/totp/begin` | sudo-gated iff confirmed TOTP exists |
-| POST | `/api/prohibitorum/me/totp/verify` | confirms enrollment, returns recovery codes |
+| POST | `/api/prohibitorum/me/password-totp/verify` | fresh-sudo setup of password + TOTP in one request |
+| POST | `/api/prohibitorum/me/totp/verify` | fresh-sudo reset of an existing confirmed TOTP |
 | POST | `/api/prohibitorum/me/recovery-codes/regenerate` | sudo-gated |
 | POST | `/api/prohibitorum/me/auth/revoke-password-totp` | sudo-gated, destructive |
 | GET  | `/api/prohibitorum/me/sudo/methods` | enumerate available sudo methods |

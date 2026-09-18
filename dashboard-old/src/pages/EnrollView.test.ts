@@ -18,6 +18,10 @@ import { passkeyRegister } from '@/lib/webauthn'
 
 const { hardRedirect } = vi.hoisted(() => ({ hardRedirect: vi.fn() }))
 vi.mock('@/lib/navigate', () => ({ hardRedirect }))
+const { generateTotpEnrollment } = vi.hoisted(() => ({
+  generateTotpEnrollment: vi.fn(async () => ({ secretBase32: 'ABCDEF', otpauthUri: 'otpauth://totp/x?secret=ABCDEF' })),
+}))
+vi.mock('@/lib/totpEnrollment', () => ({ generateTotpEnrollment }))
 
 const get = vi.mocked(api.get)
 const post = vi.mocked(api.post)
@@ -382,19 +386,13 @@ describe('EnrollView', () => {
     expect(wrapper.get('button[type="submit"]').text()).toBe(en.enroll.registerButton)
   })
 
-  it('runs the password+TOTP ceremony: begin→verify→recovery codes→app root', async () => {
+  it('runs the password+TOTP ceremony with one atomic verify request', async () => {
     get.mockResolvedValue({
       intent: 'invite',
       expiresAt: '2099-01-01T00:00:00Z',
       allowedMethods: ['passkey', 'password_totp'],
     })
-    post.mockImplementation(async (path: string) => {
-      if (path.endsWith('/password-totp/begin')) {
-        return { secret_base32: 'ABCDEF', otpauth_uri: 'otpauth://totp/x?secret=ABCDEF' }
-      }
-      if (path.endsWith('/password-totp/verify')) return { session: { id: 1 }, recoveryCodes: Array(10).fill('code') }
-      throw new Error(`unexpected POST ${path}`)
-    })
+    post.mockResolvedValue({ session: { id: 1 }, recoveryCodes: Array(10).fill('code') })
     const wrapper = await mountView(await makeRouter())
 
     await wrapper.get('input[name=username]').setValue('alex')
@@ -407,10 +405,8 @@ describe('EnrollView', () => {
     await wrapper.get('[data-test="pwtotp-continue"]').trigger('click')
     await flushPromises()
 
-    expect(post).toHaveBeenCalledWith(
-      `/api/prohibitorum/enrollments/${TOKEN}/password-totp/begin`,
-      { password: 'supersecret', username: 'alex', displayName: 'Alex Smith' },
-    )
+    expect(generateTotpEnrollment).toHaveBeenCalledWith('alex')
+    expect(post).not.toHaveBeenCalled()
 
     await wrapper.get('#enroll-totp-code').setValue('123456')
     await wrapper.get('[data-test="pwtotp-verify"]').trigger('click')
@@ -418,7 +414,7 @@ describe('EnrollView', () => {
 
     expect(post).toHaveBeenCalledWith(
       `/api/prohibitorum/enrollments/${TOKEN}/password-totp/verify`,
-      { code: '123456' },
+      { password: 'supersecret', username: 'alex', displayName: 'Alex Smith', secret_base32: 'ABCDEF', code: '123456' },
     )
     // The recovery codes are shown (RecoveryCodesDisplay renders its saved-gate).
     expect(wrapper.find('[data-test="done"]').exists()).toBe(true)

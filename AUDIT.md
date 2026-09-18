@@ -62,9 +62,9 @@ Known operational caveats:
 
 | Item | Status | Notes / source |
 |---|---|---|
-| Secret entropy ≥ 160 bits | ✅ | `pkg/credential/totp` generates a 160-bit secret, base32-encoded in `/me/totp/begin` |
+| Secret entropy ≥ 160 bits | ✅ | dashboard generates 20 random bytes and encodes them as 32-character unpadded RFC 4648 Base32 |
 | AES-256-GCM at rest | ✅ | credentials/C3+C4; `secret_enc` + `secret_nonce` on enrollment; decrypts on verify. Decrypt failure collapses to `ErrTOTPCorrupt` so `/me/totp/verify` doesn't leak GCM auth-failure detail; server-side `credential_event` keeps `event=fail, detail.reason=decrypt_failed` |
-| Versioned DEK (`key_version` per row) | ✅ | credentials/C3; `totp_credential.key_version`=1 set by `/me/totp/begin`; ciphertext readable on subsequent verifies |
+| Versioned DEK (`key_version` per row) | ✅ | candidate secrets are encrypted when the combined verify transaction persists them |
 | AAD bound to row identity (`'totp:'||account_id||':'||key_version`) | ✅ | credentials/C4; verify fails GCM auth if AAD differs between encrypt/decrypt |
 | Per-row nonce (12 bytes from `crypto/rand`) | ✅ | `totp_credential.secret_nonce`; written on enrollment, consumed on verify |
 | 30-second period, 6 digits | ✅ | RFC 6238 verify |
@@ -74,7 +74,7 @@ Known operational caveats:
 | `confirmed_at` gates the credential until first verify | ✅ | `confirmed_at IS NOT NULL` after `/me/totp/verify` |
 | Persistent throttle (RFC 4226 §7.3) | ✅ | credentials/R4; wrong codes drive `auth_throttle.failed_attempts` to lockout (`locked_until>now`) → 429 |
 | Exponential backoff schedule `[0,0,1s,2s,...,15m]` | ✅ | `pkg/authn/throttle`; schedule unit-tested |
-| TOTP issuer / label format in QR codes | ✅ | `pkg/credential/totp` emits `otpauth://totp/{Issuer}:{username}?secret=…&issuer=…` |
+| TOTP issuer / label format in QR codes | ✅ | dashboard builds `otpauth://totp/{Issuer}:{username}?secret=…&issuer=…` from public config |
 | Single TOTP credential per account | ✅ | exactly 1 row in `totp_credential` |
 
 ## Recovery codes
@@ -83,27 +83,24 @@ Known operational caveats:
 |---|---|---|
 | argon2id PHC at rest, per-row salt | ✅ | credentials/C2; `recovery_code.hash` populated by `/me/totp/verify` and `/me/recovery-codes/regenerate` |
 | Single-use (`used_at` enforced) | ✅ | enforced on `/auth/recovery-code/verify`; recovery_code is no longer a sudo method |
-| Shown exactly once at enrollment | ✅ | `/me/totp/verify`, `/me/recovery-codes/regenerate`, and the recovery ceremony's `/auth/recovery/totp/verify` all return cleartext once; server never persists |
+| Shown exactly once at enrollment | ✅ | combined setup/reset responses and `/me/recovery-codes/regenerate` return cleartext once; server never persists it |
 | Redemption context captured (session id, IP) | ✅ | credentials/R7; `used_session_id` + `used_ip` written by the consume query |
 | Mint count: 10 per account | ✅ | 10 at enrollment, 10 fresh post-ceremony, 10 on regenerate |
-| Recovery code as one-shot recovery bootstrap (not continuous sudo factor) | ✅ | the only redeem path is `/auth/recovery-code/verify` → `recovery_session_token` → forced TOTP re-enrollment at `/auth/recovery/totp/{begin,verify}`; sudo-via-recovery-code dropped (NIST §5.2 — no knowledge-factor reauthentication); recovery_code not surfaced/accepted at `/me/sudo/*` |
-| Recovery codes redeemable independently of TOTP | ✅ | `/auth/recovery-code/verify` consumed after `/auth/password/begin` (no TOTP). User re-enrolls TOTP via ceremony; `/begin` preserves unredeemed codes so a mid-ceremony abandon doesn't brick the account |
+| Recovery code is not a sudo factor | ✅ | `/auth/recovery-code/verify` handles login recovery; recovery_code is not surfaced or accepted at `/me/sudo/*` |
+| Recovery codes redeemable independently of TOTP | ✅ | after `/auth/password/begin`, recovery verification can issue a session without replacing the authenticator |
 | Code redemption logic | ✅ | `pkg/credential/totp.VerifyRecoveryCode` |
 | 80-bit entropy, formatted `XXXX-XXXX-XXXX-XXXX` | ✅ | `pkg/credential/totp.GenerateRecoveryCodes` |
-| Regeneration invalidates the prior set | ✅ | regenerate returns 10 fresh codes; the ceremony wipes the surviving 9 atomically before minting 10 (audit: 9× `recovery_code:revoke` reason=`recovery_complete`) |
+| Regeneration invalidates the prior set | ✅ | regeneration and optional recovery reset replace the prior set atomically |
 
-## Recovery ceremony
+## Recovery flow
 
 | Item | Status | Notes / source |
 |---|---|---|
-| `/auth/recovery-code/verify` returns `recovery_session_token`, NOT a session | ✅ | `pkg/server/handle_auth_password.go`; no session cookie + non-empty token |
-| `recovery_session_token` is a narrow bearer scoped to two endpoints | ✅ | KV namespace `recovery_session:<tok>`, 10-min TTL, not accepted by `/me/*` or `/auth/totp/verify`; `pkg/server/handle_auth_recovery.go` |
-| `/auth/recovery/totp/begin` wipes old TOTP but preserves recovery codes | ✅ | unconfirmed TOTP + 9 codes intact. Lets a user who abandons mid-ceremony retry with another code. `totp.Store.BeginPreservingRecovery` |
-| `/auth/recovery/totp/verify` atomically consumes the token (kv.Pop) | ✅ | `TestRecoveryTOTPVerify_ParallelAtomic` (8-way race; at most one consumer); `handle_auth_recovery.go:popRecoverySession` |
-| `/auth/recovery/totp/verify` first-confirm wipes prior recovery codes + mints fresh batch in one tx | ✅ | exactly 10 codes after verify; `totp.Store.VerifyAndCommitRecovery` shares its body with `Verify` via a private `verify(…, purgePriorRecoveryOnFirstConfirm)` helper |
-| Disabled-account re-check on both ceremony endpoints | ✅ | `TestRecoveryTOTPBegin_AccountDisabledMidFlow` / `...Verify...`; mid-ceremony disable collapses to `recovery_session_invalid` |
-| Failed `/verify` consumes the token (single-use, restart-on-failure) | ✅ | `TestRecoveryTOTPVerify_WrongCodeConsumesToken`; deliberate UX caveat (avoids the re-stash race) documented in `handle_auth_recovery.go` |
-| Audit trail (begin: `totp:revoke reason=recovery`; verify: 9× `recovery_code:revoke reason=recovery_complete`, `totp:register`, 10× `recovery_code:register`) | ✅ | `credential_event` counts: `totp:revoke>=2`, `recovery_code:revoke>=9`, `recovery_code:register>=10` |
+| Direct recovery issues a session | ✅ | valid password partial token + recovery code produces a session with recovery-code AMR |
+| Optional authenticator reset is atomic | ✅ | recovery-code consumption, TOTP replacement, and recovery-code replacement share one transaction |
+| Failed replacement preserves credentials | ✅ | invalid TOTP candidates and transaction failures leave the current TOTP and recovery-code batch unchanged |
+| Concurrent code consumption has one winner | ✅ | conditional `ConsumeRecoveryCode` reports a lost race as invalid credentials |
+| Infrastructure failures are not credential failures | ✅ | consume database errors return 500 without increasing the recovery-code throttle or emitting a failure event |
 | recovery_code NOT a sudo factor | ✅ | both surfaces reject it (methods list + dispatch); `handle_sudo.go` package doc captures the NIST §5.2 rationale |
 
 ## Upstream OIDC federation (OIDC Core / RFC 9700)
@@ -315,7 +312,7 @@ IP-keyed rate limits were removed from all auth/federation/enrollment/pairing HT
 - **Account/session-keyed rate limits** — preserved: `pair_lookup:acct:`, `pair_approve:acct:` (handle_pairing.go), and `sudo:acct:` (handle_sudo.go, 2 spots). Keyed on `sess.Account.ID` or `sess.Data.SessionID`; immune to IP rotation.
 - **`auth_throttle` table** — preserved: per-(account, factor) DB-backed lockout state machine for password / TOTP / recovery-code attempts. Protects against password-spray once the attacker has a target username.
 
-Public surfaces without account context (`/auth/password/begin`, `/auth/login/{begin,complete}`, `/auth/federation/<slug>/login`, `/auth/federation/<slug>/callback`, `/auth/enrollment/<token>/begin`, `/auth/devices/pair/begin`, `/auth/recovery/totp/{begin,verify}`) rely on PKCE + state-token single-use + KV TTL for replay protection, and on `auth_throttle` once a credential failure occurs against a known account. No DoS protection at the HTTP edge — that belongs to the deployment's reverse proxy or WAF.
+Public surfaces without account context (`/auth/password/begin`, `/auth/login/{begin,complete}`, `/auth/federation/<slug>/login`, `/auth/federation/<slug>/callback`, `/auth/enrollment/<token>/begin`, `/auth/devices/pair/begin`) rely on PKCE + state-token single-use + KV TTL for replay protection, and on `auth_throttle` once a credential failure occurs against a known account. No DoS protection at the HTTP edge — that belongs to the deployment's reverse proxy or WAF.
 
 ## Web (frontend)
 

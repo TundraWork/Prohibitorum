@@ -1,16 +1,18 @@
 <script setup lang="ts">
 import { usePrivateState } from '@/composables/usePrivateState'
 /**
- * AccountRecovery — inline recovery for password+TOTP accounts that lost their
- * authenticator. Driven from PasswordTotpForm's TOTP step with the
- * partial_session_token in hand. code → re-enroll TOTP → new recovery codes → success.
- * A failed recovery code spends the partial token, so failure emits 'restart'.
+ * AccountRecovery consumes a recovery code once. The user can complete login
+ * with the existing authenticator or generate and submit a replacement in the
+ * same request. Any failed submission spends the partial token, so the parent
+ * restarts password authentication.
  */
 import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { api } from '@/lib/api'
 import { useApi } from '@/composables/useApi'
+import { generateTotpEnrollment } from '@/lib/totpEnrollment'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -19,80 +21,129 @@ import CodeField from '@/components/custom/CodeField.vue'
 import RecoveryCodesDisplay from '@/components/custom/RecoveryCodesDisplay.vue'
 import ErrorPanel from '@/components/custom/ErrorPanel.vue'
 
-const props = defineProps<{ partialToken: string }>()
-const emit = defineEmits<{ success: []; restart: [] }>()
+const props = defineProps<{ partialToken: string; username: string; returnTo?: string }>()
+const emit = defineEmits<{ success: [redirect?: string]; restart: [] }>()
 
 const { t } = useI18n()
 const { busy, run, error, clear } = useApi()
 
-const phase = ref<'code' | 'reenroll' | 'done'>('code')
 const recoveryCode = ref('')
-const recoveryToken = ref('')
+const resetAuthenticator = ref(false)
 const otpauthUri = ref('')
 const secret = ref('')
 const totpCode = ref('')
 const newCodes = ref<string[]>([])
+const successRedirect = ref('/')
+
+async function setResetAuthenticator(value: boolean | 'indeterminate'): Promise<void> {
+  resetAuthenticator.value = value === true
+  clear()
+  secret.value = ''
+  otpauthUri.value = ''
+  totpCode.value = ''
+  if (!resetAuthenticator.value) return
+
+  const enrollment = await run(() => generateTotpEnrollment(props.username))
+  if (!enrollment) {
+    resetAuthenticator.value = false
+    return
+  }
+  secret.value = enrollment.secretBase32
+  otpauthUri.value = enrollment.otpauthUri
+}
 
 async function verifyCode(): Promise<void> {
-  const res = await run(() => api.post<{ recovery_session_token: string }>(
-    '/api/prohibitorum/auth/recovery-code/verify',
-    { partial_session_token: props.partialToken, code: recoveryCode.value }))
-  if (!res) { emit('restart'); return } // partial token is spent on any failure → restart
-  recoveryToken.value = res.recovery_session_token
-  phase.value = 'reenroll'
-  await beginReenroll()
+  if (busy.value || !recoveryCode.value ||
+      (resetAuthenticator.value && (!secret.value || !totpCode.value))) return
+  const body: Record<string, string | boolean> = {
+    partial_session_token: props.partialToken,
+    code: recoveryCode.value,
+    reset_authenticator: resetAuthenticator.value,
+  }
+  if (resetAuthenticator.value) {
+    body.totp_secret_base32 = secret.value
+    body.totp_code = totpCode.value
+  }
+  const path = '/api/prohibitorum/auth/recovery-code/verify?return_to=' + encodeURIComponent(props.returnTo ?? '')
+  const res = await run(() => api.post<{ redirect: string; recovery_codes?: string[] }>(path, body))
+  if (!res) {
+    emit('restart')
+    return
+  }
+  if (resetAuthenticator.value) {
+    successRedirect.value = res.redirect ?? '/'
+    newCodes.value = res.recovery_codes ?? []
+    return
+  }
+  emit('success', res.redirect ?? '/')
 }
-async function beginReenroll(): Promise<void> {
-  const res = await run(() => api.post<{ secret_base32: string; otpauth_uri: string }>(
-    '/api/prohibitorum/auth/recovery/totp/begin',
-    { recovery_session_token: recoveryToken.value }))
-  if (res) { secret.value = res.secret_base32; otpauthUri.value = res.otpauth_uri }
-}
-async function verifyReenroll(): Promise<void> {
-  const res = await run(() => api.post<{ recovery_codes: string[] }>(
-    '/api/prohibitorum/auth/recovery/totp/verify',
-    { recovery_session_token: recoveryToken.value, code: totpCode.value }))
-  if (res) { newCodes.value = res.recovery_codes; phase.value = 'done' }
-}
-usePrivateState(() => { recoveryCode.value = ''; recoveryToken.value = ''; otpauthUri.value = ''; secret.value = ''; totpCode.value = ''; newCodes.value = [] })
+
+usePrivateState(() => {
+  recoveryCode.value = ''
+  resetAuthenticator.value = false
+  otpauthUri.value = ''
+  secret.value = ''
+  totpCode.value = ''
+  newCodes.value = []
+  successRedirect.value = '/'
+})
 </script>
+
 <template>
   <div class="flex flex-col gap-4">
     <ErrorPanel :error="error" @dismiss="clear" />
 
-    <template v-if="phase === 'code'">
+    <template v-if="!newCodes.length">
       <h2 class="text-base font-semibold text-ink">{{ t('recovery.title') }}</h2>
       <div class="flex flex-col gap-1.5">
         <Label for="recovery-code">{{ t('recovery.codeLabel') }}</Label>
-        <Input id="recovery-code" name="recovery-code" v-model="recoveryCode" autocomplete="one-time-code" @keydown.enter.prevent="verifyCode" />
+        <Input id="recovery-code" v-model="recoveryCode" name="recovery-code" autocomplete="one-time-code" @keydown.enter.prevent="verifyCode" />
         <p class="text-sm text-muted">{{ t('recovery.codeHint') }}</p>
       </div>
       <Alert role="status">
-        <AlertDescription class="flex flex-col gap-1.5">
-          <p class="text-xs">{{ t('recovery.codeWarning') }}</p>
-          <p class="text-xs">{{ t('recovery.reenrollHeadsUp') }}</p>
-        </AlertDescription>
+        <AlertDescription class="text-xs">{{ t('recovery.codeWarning') }}</AlertDescription>
       </Alert>
-      <Button type="button" class="w-full" :disabled="busy || !recoveryCode" :aria-busy="busy" data-test="verify-code" @click="verifyCode">{{ t('recovery.verify') }}</Button>
-    </template>
+      <label class="flex cursor-pointer items-start gap-2 text-sm text-ink">
+        <Checkbox
+          :model-value="resetAuthenticator"
+          data-test="reset-authenticator"
+          @update:model-value="setResetAuthenticator"
+        />
+        <span class="pt-0.5">{{ t('recovery.resetAuthenticator') }}</span>
+      </label>
 
-    <template v-else-if="phase === 'reenroll'">
-      <h2 class="text-base font-semibold text-ink">{{ t('recovery.reenrollTitle') }}</h2>
-      <p class="text-sm text-muted">{{ t('recovery.reenrollHint') }}</p>
-      <TotpQr v-if="otpauthUri" :uri="otpauthUri" :alt="t('recovery.reenrollTitle')" />
-      <CodeField v-if="secret" :value="secret" :label="t('recovery.secretLabel')" />
-      <Button v-if="!otpauthUri && !busy" type="button" variant="outline" class="w-full" data-test="reenroll-retry" @click="beginReenroll">
-        {{ t('common.tryAgain') }}
-      </Button>
-      <div class="flex flex-col gap-1.5">
-        <Label for="reenroll-code">{{ t('recovery.codeInputLabel') }}</Label>
-        <Input id="reenroll-code" name="reenroll-code" v-model="totpCode" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]*" maxlength="8" @keydown.enter.prevent="verifyReenroll" />
+      <div v-if="resetAuthenticator && secret" class="flex flex-col gap-4" data-test="replacement-authenticator">
+        <h3 class="text-base font-semibold text-ink">{{ t('recovery.reenrollTitle') }}</h3>
+        <p class="text-sm text-muted">{{ t('recovery.reenrollHint') }}</p>
+        <TotpQr :uri="otpauthUri" :alt="t('recovery.reenrollTitle')" />
+        <CodeField :value="secret" :label="t('recovery.secretLabel')" />
+        <div class="flex flex-col gap-1.5">
+          <Label for="reenroll-code">{{ t('recovery.codeInputLabel') }}</Label>
+          <Input
+            id="reenroll-code"
+            v-model="totpCode"
+            name="reenroll-code"
+            inputmode="numeric"
+            autocomplete="one-time-code"
+            pattern="[0-9]*"
+            maxlength="8"
+            @keydown.enter.prevent="verifyCode"
+          />
+        </div>
       </div>
-      <Button type="button" class="w-full" :disabled="busy || !totpCode" :aria-busy="busy" data-test="confirm-reenroll" @click="verifyReenroll">{{ t('recovery.confirm') }}</Button>
+
+      <Button
+        type="button"
+        class="w-full"
+        :disabled="busy || !recoveryCode || (resetAuthenticator && (!secret || !totpCode))"
+        :aria-busy="busy"
+        data-test="verify-code"
+        @click="verifyCode"
+      >
+        {{ resetAuthenticator ? t('recovery.confirmReset') : t('recovery.verify') }}
+      </Button>
     </template>
 
-    <template v-else>
-      <RecoveryCodesDisplay :codes="newCodes" regenerated @confirmed="emit('success')" />
-    </template>
+    <RecoveryCodesDisplay v-else :codes="newCodes" regenerated @confirmed="emit('success', successRedirect)" />
   </div>
 </template>

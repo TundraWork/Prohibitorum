@@ -110,6 +110,11 @@ const providers = computed(() => preview.value?.providers ?? [])
 // password+TOTP. `method` toggles the identity form between the chooser and the
 // inline password+TOTP ceremony.
 const allowsPasswordTotp = computed(() => preview.value?.allowedMethods?.includes('password_totp') ?? false)
+const passwordTotpAccountLabel = computed(() => {
+  if (collectsIdentity.value) return username.value
+  if (preview.value?.target) return preview.value.target.username
+  return 'account'
+})
 const method = ref<'choose' | 'password_totp'>('choose')
 const formRef = ref<HTMLFormElement | null>(null)
 
@@ -266,6 +271,7 @@ async function enroll(): Promise<void> {
         v-if="method === 'password_totp'"
         :token="token"
         :identity="collectsIdentity ? { username, displayName } : null"
+        :account-label="passwordTotpAccountLabel"
         @back="method = 'choose'"
       />
 

@@ -37,6 +37,7 @@ import (
 	"prohibitorum/pkg/authn"
 	"prohibitorum/pkg/contract"
 	"prohibitorum/pkg/credential/password"
+	"prohibitorum/pkg/credential/totp"
 	sessstore "prohibitorum/pkg/session"
 )
 
@@ -192,55 +193,45 @@ func (s *Server) handleTOTPVerifyHTTP(w http.ResponseWriter, r *http.Request) {
 
 // POST /api/prohibitorum/auth/recovery-code/verify
 //
-// Repurposed (2026-05-28 recovery-ceremony hardening): this endpoint no
-// longer issues a session. It consumes a recovery code AND the partial
-// session token, then mints a narrow-scope recovery_session_token that
-// the client must present to the recovery ceremony endpoints
-// (/auth/recovery/totp/{begin,verify}) to actually regain account access.
-//
-// Why: NIST SP 800-63B-4 §5.2 cautions against using a knowledge factor
-// for reauthentication, and continuing to accept the recovery code as a
-// one-shot login lets a stolen session + leaked recovery code escalate
-// to a full takeover via sudo. The recovery code stays single-use; what
-// changes is that completing it forces a fresh TOTP enrollment before
-// any session lands. See pkg/server/handle_auth_recovery.go for the
-// next two ceremony steps.
-//
-// Response shape (200): {"recovery_session_token": "<base64url>"}.
-// No session cookie is set.
+// A recovery code can either complete login directly or atomically replace the
+// authenticator and recovery-code batch. The partial session is consumed before
+// credential validation in both modes, so every attempt is single-use.
 func (s *Server) handleRecoveryCodeVerifyHTTP(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		PartialSessionToken string `json:"partial_session_token"`
 		Code                string `json:"code"`
+		ResetAuthenticator  bool   `json:"reset_authenticator"`
+		TOTPSecretBase32    string `json:"totp_secret_base32,omitempty"`
+		TOTPCode            string `json:"totp_code,omitempty"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.PartialSessionToken == "" || body.Code == "" {
-		writeAuthErr(w, authn.ErrPartialSessionInvalid())
+		writeAuthErr(w, authn.ErrBadRequest())
 		return
 	}
+	hasSecret := body.TOTPSecretBase32 != ""
+	hasCode := body.TOTPCode != ""
+	if (body.ResetAuthenticator && (!hasSecret || !hasCode)) || (!body.ResetAuthenticator && (hasSecret || hasCode)) {
+		writeAuthErr(w, authn.ErrBadRequest())
+		return
+	}
+
 	partial, err := s.consumePartialSession(r.Context(), body.PartialSessionToken)
+	if err != nil || partial.FactorCompleted != "password" {
+		writeAuthErr(w, authn.ErrPartialSessionInvalid())
+		return
+	}
+	acct, err := s.accountLookupQ().GetAccountByID(r.Context(), partial.AccountID)
+	if err != nil || acct.Disabled {
+		writeAuthErr(w, authn.ErrPartialSessionInvalid())
+		return
+	}
+	if me := s.maintenanceLockout(r.Context(), acct.ID); me != nil {
+		writeAuthErr(w, me)
+		return
+	}
+
+	matchedRecovery, err := s.totpStore.MatchRecoveryCode(r.Context(), acct.ID, body.Code)
 	if err != nil {
-		writeAuthErr(w, authn.ErrPartialSessionInvalid())
-		return
-	}
-	// Bind the token to its recorded first factor: step-2 proceeds only for a
-	// partial session that completed the password factor, so a future writer
-	// minting a token for a weaker/different first factor cannot complete MFA
-	// here. Today password/begin is the sole writer (always sets "password"), so
-	// this is a self-validating invariant rather than a live exploit fix (audit
-	// WACER-2).
-	if partial.FactorCompleted != "password" {
-		writeAuthErr(w, authn.ErrPartialSessionInvalid())
-		return
-	}
-	// Re-check account state after consuming the partial-session token —
-	// see comment in handleTOTPVerifyHTTP. Disabled-mid-flow must NOT
-	// receive a recovery session either.
-	if acct, err := s.accountLookupQ().GetAccountByID(r.Context(), partial.AccountID); err != nil || acct.Disabled {
-		writeAuthErr(w, authn.ErrPartialSessionInvalid())
-		return
-	}
-	ip := s.clientIP.IP(r)
-	if err := s.totpStore.VerifyRecoveryCode(r.Context(), partial.AccountID, body.Code, "", ip); err != nil {
 		if ae := authn.AsAuthError(err); ae != nil {
 			writeAuthErr(w, ae)
 			return
@@ -248,26 +239,87 @@ func (s *Server) handleRecoveryCodeVerifyHTTP(w http.ResponseWriter, r *http.Req
 		writeAuthErr(w, authn.ErrBadCredentials())
 		return
 	}
+	var matchedStep int64
+	if body.ResetAuthenticator {
+		var ok bool
+		matchedStep, ok = s.totpStore.VerifyCandidateSecret(body.TOTPSecretBase32, body.TOTPCode)
+		if !ok {
+			writeAuthErr(w, authn.ErrBadCredentials())
+			return
+		}
+	}
 
-	// Mint the recovery-session bearer that the ceremony endpoints accept.
-	// Separate KV namespace + a fresh random token so it can never be
-	// confused with (or substituted for) a real session cookie or a
-	// partial-session login token.
-	token, err := newCeremonyToken()
+	tx, err := s.beginEnrollmentTx(r.Context())
 	if err != nil {
 		writeAuthErr(w, err)
 		return
 	}
-	payload, _ := json.Marshal(recoverySession{
-		AccountID: partial.AccountID,
-		IssuedAt:  time.Now().UTC(),
-	})
-	if err := s.kvStore.SetEx(r.Context(), recoverySessionKey(token), string(payload), recoverySessionTTL); err != nil {
+	defer tx.Rollback(r.Context()) //nolint:errcheck
+	qtx := tx.Queries()
+	lockedAccount, err := qtx.GetAccountByIDForUpdate(r.Context(), acct.ID)
+	if err != nil || lockedAccount.Disabled {
+		writeAuthErr(w, authn.ErrPartialSessionInvalid())
+		return
+	}
+	oldRecovery, err := qtx.ListRecoveryCodesByAccount(r.Context(), acct.ID)
+	if err != nil {
 		writeAuthErr(w, err)
 		return
 	}
+	if err := s.totpStore.ConsumeRecoveryCodeForTx(r.Context(), qtx, matchedRecovery.ID, "", s.clientIP.IP(r)); err != nil {
+		if errors.Is(err, totp.ErrRecoveryCodeInvalid) {
+			s.totpStore.RecordRecoveryCodeFailure(r.Context(), acct.ID)
+			writeAuthErr(w, authn.ErrBadCredentials())
+			return
+		}
+		writeAuthErr(w, err)
+		return
+	}
+
+	var recoveryCodes []string
+	if body.ResetAuthenticator {
+		recoveryCodes, err = s.totpStore.EnrollConfirmedForTx(r.Context(), qtx, acct.ID, body.TOTPSecretBase32, matchedStep)
+		if err != nil {
+			writeAuthErr(w, err)
+			return
+		}
+	}
+	if err := tx.Commit(r.Context()); err != nil {
+		writeAuthErr(w, err)
+		return
+	}
+
+	s.totpStore.RecordRecoveryCodeUse(r.Context(), acct.ID)
+	if body.ResetAuthenticator {
+		audit.RecordOrLog(r.Context(), s.Audit, audit.Record{AccountID: &acct.ID, Factor: audit.FactorTOTP, Event: audit.EventRevoke, Detail: map[string]any{"reason": "recovery"}})
+		for range oldRecovery {
+			audit.RecordOrLog(r.Context(), s.Audit, audit.Record{AccountID: &acct.ID, Factor: audit.FactorRecoveryCode, Event: audit.EventRevoke, Detail: map[string]any{"reason": "recovery"}})
+		}
+		audit.RecordOrLog(r.Context(), s.Audit, audit.Record{AccountID: &acct.ID, Factor: audit.FactorTOTP, Event: audit.EventRegister})
+		for range recoveryCodes {
+			audit.RecordOrLog(r.Context(), s.Audit, audit.Record{AccountID: &acct.ID, Factor: audit.FactorRecoveryCode, Event: audit.EventRegister})
+		}
+	}
+
+	amr := []string{"pwd", "recovery_code", "mfa"}
+	if body.ResetAuthenticator {
+		amr = []string{"pwd", "otp", "mfa"}
+	}
+	ip := s.clientIP.IP(r)
+	token, _, err := s.sessionStore.Issue(r.Context(), acct.ID, ip, r.UserAgent(), amr, nil)
+	if err != nil {
+		writeAuthErr(w, err)
+		return
+	}
+	http.SetCookie(w, sessstore.FreshSessionCookie(s.config, r, acct.ID, token, s.config.SessionTTL))
+	audit.RecordOrLog(r.Context(), s.Audit, audit.Record{AccountID: &acct.ID, Factor: audit.FactorSession, Event: audit.EventSessionStart, Detail: map[string]any{"via": "recovery"}})
+	redirect := validateReturnTo(r.URL.Query().Get("return_to"), s.config)
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]string{"recovery_session_token": token})
+	if body.ResetAuthenticator {
+		_ = json.NewEncoder(w).Encode(map[string]any{"redirect": redirect, "recovery_codes": recoveryCodes})
+		return
+	}
+	_ = json.NewEncoder(w).Encode(contract.LoginResult{Redirect: redirect})
 }
 
 // consumePartialSession atomically retrieves and removes the KV entry via

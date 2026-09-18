@@ -31,10 +31,15 @@ vi.mock('@/lib/navigate', () => ({ hardRedirect }))
 
 vi.mock('@/lib/sudo', () => ({
   withSudo: (fn: () => unknown) => fn(),
-  ensureSudo: vi.fn(),
+  ensureSudo: vi.fn(async () => true),
   sudoState: { value: { open: false, resolve: null } },
   _resolveSudo: vi.fn(),
 }))
+const { generateTotpEnrollment } = vi.hoisted(() => ({
+  generateTotpEnrollment: vi.fn(async () => ({ secretBase32: 'JBSWY3DP', otpauthUri: 'otpauth://totp/x' })),
+}))
+vi.mock('@/lib/totpEnrollment', () => ({ generateTotpEnrollment }))
+vi.mock('@/composables/useSession', () => ({ useSession: () => ({ me: { username: 'alex' } }) }))
 
 const post = vi.mocked(api.post)
 const registerPasskey = vi.mocked(passkeyRegister)
@@ -100,7 +105,6 @@ describe('SetupLocalSigninView', () => {
 
   it('sets password + authenticator, shows recovery codes, and only redirects once confirmed', async () => {
     post.mockImplementation(async (path: string) => {
-      if (path.endsWith('/password-totp/begin')) return { secret_base32: 'JBSWY3DP', otpauth_uri: 'otpauth://totp/x' }
       if (path.endsWith('/password-totp/verify')) return { recovery_codes: ['1111-2222', '3333-4444'] }
       throw new Error(`unexpected POST ${path}`)
     })
@@ -112,15 +116,16 @@ describe('SetupLocalSigninView', () => {
     await wrapper.get('form').trigger('submit')
     await flushPromises()
 
-    expect(post).toHaveBeenCalledWith('/api/prohibitorum/me/password-totp/begin', {
-      password: 'correct horse battery staple',
-    })
+    expect(generateTotpEnrollment).toHaveBeenCalledWith('alex')
+    expect(post).not.toHaveBeenCalled()
 
     await wrapper.get('#setup-totp-code').setValue('123456')
     await wrapper.get('[data-test="verify-totp"]').trigger('click')
     await flushPromises()
 
-    expect(post).toHaveBeenCalledWith('/api/prohibitorum/me/password-totp/verify', { code: '123456' })
+    expect(post).toHaveBeenCalledWith('/api/prohibitorum/me/password-totp/verify', {
+      password: 'correct horse battery staple', secret_base32: 'JBSWY3DP', code: '123456',
+    })
     expect(wrapper.text()).toContain('1111-2222')
     // Recovery codes are not yet acknowledged — stay on the page.
     expect(hardRedirect).not.toHaveBeenCalled()
@@ -132,10 +137,9 @@ describe('SetupLocalSigninView', () => {
     expect(hardRedirect).toHaveBeenCalledWith('/consent')
   })
 
-  it('returns to the password step when the ceremony stash has expired', async () => {
+  it('keeps the generated candidate visible when verification fails', async () => {
     post.mockImplementation(async (path: string) => {
-      if (path.endsWith('/password-totp/begin')) return { secret_base32: 'JBSWY3DP', otpauth_uri: 'otpauth://totp/x' }
-      if (path.endsWith('/password-totp/verify')) throw { code: 'ceremony_expired' }
+      if (path.endsWith('/password-totp/verify')) throw { code: 'bad_credentials' }
       throw new Error(`unexpected POST ${path}`)
     })
     const wrapper = await mountView({ redirect: '/consent' })
@@ -151,16 +155,13 @@ describe('SetupLocalSigninView', () => {
     await wrapper.get('[data-test="verify-totp"]').trigger('click')
     await flushPromises()
 
-    // The code screen has no back button, so an expired stash must land the
-    // user back on a step that can start a fresh ceremony — with the reason
-    // still on screen.
-    expect(wrapper.find('#setup-pw-new').exists()).toBe(true)
-    expect(wrapper.find('[data-test="verify-totp"]').exists()).toBe(false)
-    expect(wrapper.get('[data-test="error-summary"]').text()).toBe(en.errors.codes.ceremony_expired)
+    expect(wrapper.find('#setup-pw-new').exists()).toBe(false)
+    expect(wrapper.find('[data-test="verify-totp"]').exists()).toBe(true)
+    expect(wrapper.get('[data-test="error-summary"]').text()).toBe(en.errors.codes.bad_credentials)
     expect(hardRedirect).not.toHaveBeenCalled()
   })
 
-  it('does not send a short password, and stays on the password step when begin fails', async () => {
+  it('does not generate for a short password, and stays on the password step when generation fails', async () => {
     const wrapper = await mountView()
 
     await wrapper.get('[data-test="choose-password-totp"]').trigger('click')
@@ -173,7 +174,7 @@ describe('SetupLocalSigninView', () => {
 
     await wrapper.get('#setup-pw-new').setValue('long enough password')
     await wrapper.get('#setup-pw-confirm').setValue('long enough password')
-    post.mockRejectedValueOnce({ code: 'server_error', message: 'boom' })
+    generateTotpEnrollment.mockRejectedValueOnce({ code: 'server_error', message: 'boom' })
     await wrapper.get('form').trigger('submit')
     await flushPromises()
 

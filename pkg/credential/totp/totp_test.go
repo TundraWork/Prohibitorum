@@ -3,10 +3,9 @@ package totp
 import (
 	"context"
 	"crypto/rand"
-	"encoding/json"
+	"encoding/base32"
 	"errors"
 	"fmt"
-	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -76,9 +75,10 @@ func (r *fakeTxRunner) InTx(ctx context.Context, fn func(q TOTPQueries) error) e
 type fakeQueries struct {
 	db.Querier
 
-	totpRow      *db.TotpCredential
-	recoveryRows []db.RecoveryCode
-	nextRecID    int32
+	totpRow            *db.TotpCredential
+	recoveryRows       []db.RecoveryCode
+	nextRecID          int32
+	consumeRecoveryErr error
 
 	throttle map[string]db.AuthThrottle
 	events   []db.InsertCredentialEventParams
@@ -183,6 +183,9 @@ func (f *fakeQueries) InsertRecoveryCode(_ context.Context, arg db.InsertRecover
 }
 
 func (f *fakeQueries) ConsumeRecoveryCode(_ context.Context, arg db.ConsumeRecoveryCodeParams) (db.RecoveryCode, error) {
+	if f.consumeRecoveryErr != nil {
+		return db.RecoveryCode{}, f.consumeRecoveryErr
+	}
 	for i := range f.recoveryRows {
 		if f.recoveryRows[i].ID == arg.ID && !f.recoveryRows[i].UsedAt.Valid {
 			f.recoveryRows[i].UsedAt = pgtype.Timestamptz{Time: time.Now(), Valid: true}
@@ -321,47 +324,45 @@ func codeAt(t *testing.T, dek []byte, row db.TotpCredential, accountID int32, at
 	return computeCode(secret, step+delta, int(row.Digits))
 }
 
+func beginTestEnrollment(s *Store, ctx context.Context, accountID int32, _ string) (string, error) {
+	secret := make([]byte, 20)
+	if _, err := rand.Read(secret); err != nil {
+		return "", err
+	}
+	dek, ok := s.deks[int(s.currentKeyVer)]
+	if !ok {
+		return "", fmt.Errorf("missing test DEK")
+	}
+	ciphertext, nonce, err := encryptSecret(dek, secret, aadFor(accountID, s.currentKeyVer))
+	if err != nil {
+		return "", err
+	}
+	_ = s.q.DeleteTOTPCredential(ctx, accountID)
+	_ = s.q.DeleteAllRecoveryCodesByAccount(ctx, accountID)
+	if _, err := s.q.InsertTOTPCredential(ctx, db.InsertTOTPCredentialParams{
+		AccountID: accountID, SecretEnc: ciphertext, SecretNonce: nonce,
+		KeyVersion: s.currentKeyVer, Period: int32(s.cfg.DefaultPeriod),
+		Digits: int32(s.cfg.DefaultDigits), Algorithm: s.cfg.DefaultAlgorithm,
+	}); err != nil {
+		return "", err
+	}
+	secretB32 := base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(secret)
+	return secretB32, nil
+}
+
 // --- Store tests ---
 
-func TestStore_BeginAndConfirm(t *testing.T) {
+func TestStore_VerifyFirstConfirmation(t *testing.T) {
 	at := time.Unix(1_700_000_000, 0)
 	s, f, dek := newTestStoreAt(t, at)
 	ctx := context.Background()
 
-	enr, err := s.Begin(ctx, 1, "alice")
+	secretB32, err := beginTestEnrollment(s, ctx, 1, "alice")
 	if err != nil {
-		t.Fatalf("Begin: %v", err)
+		t.Fatalf("fixture enrollment: %v", err)
 	}
-	if enr.SecretBase32 == "" {
-		t.Error("empty secret")
-	}
-	if !strings.HasPrefix(enr.ProvisioningURI, "otpauth://totp/") {
-		t.Errorf("uri prefix: %s", enr.ProvisioningURI)
-	}
-	u, err := url.Parse(enr.ProvisioningURI)
-	if err != nil {
-		t.Fatalf("parse uri: %v", err)
-	}
-	if got := u.Query().Get("secret"); got != enr.SecretBase32 {
-		t.Errorf("uri secret = %s, want %s", got, enr.SecretBase32)
-	}
-	if got := u.Query().Get("issuer"); got != "Prohibitorum" {
-		t.Errorf("uri issuer = %s, want Prohibitorum", got)
-	}
-	if got := u.Query().Get("algorithm"); got != "SHA1" {
-		t.Errorf("uri algorithm = %s, want SHA1", got)
-	}
-	if got := u.Query().Get("digits"); got != "6" {
-		t.Errorf("uri digits = %s, want 6", got)
-	}
-	if got := u.Query().Get("period"); got != "30" {
-		t.Errorf("uri period = %s, want 30", got)
-	}
-	// Label encodes "Prohibitorum:alice" with PathEscape, so reading the
-	// path back via Path (not RawPath) yields the unescaped form.
-	wantLabel := "Prohibitorum:alice"
-	if !strings.Contains(u.Path, wantLabel) && !strings.Contains(strings.ReplaceAll(enr.ProvisioningURI, "%3A", ":"), wantLabel) {
-		t.Errorf("uri label missing %q in %q", wantLabel, enr.ProvisioningURI)
+	if secretB32 == "" {
+		t.Fatal("empty fixture secret")
 	}
 
 	row := *f.totpRow
@@ -402,7 +403,7 @@ func TestStore_VerifyDriftAccepted(t *testing.T) {
 	at := time.Unix(1_700_000_000, 0)
 	s, f, dek := newTestStoreAt(t, at)
 	ctx := context.Background()
-	if _, err := s.Begin(ctx, 1, "alice"); err != nil {
+	if _, err := beginTestEnrollment(s, ctx, 1, "alice"); err != nil {
 		t.Fatal(err)
 	}
 	// Code from step+1 (future drift).
@@ -417,7 +418,7 @@ func TestStore_VerifyDriftRejected(t *testing.T) {
 	at := time.Unix(1_700_000_000, 0)
 	s, f, dek := newTestStoreAt(t, at)
 	ctx := context.Background()
-	if _, err := s.Begin(ctx, 1, "alice"); err != nil {
+	if _, err := beginTestEnrollment(s, ctx, 1, "alice"); err != nil {
 		t.Fatal(err)
 	}
 	// Code from step-2 (outside ±1 window).
@@ -449,7 +450,7 @@ func TestStore_VerifyReplayRaceRejected(t *testing.T) {
 	at := time.Unix(1_700_000_000, 0)
 	s, f, dek := newTestStoreAt(t, at)
 	ctx := context.Background()
-	if _, err := s.Begin(ctx, 1, "alice"); err != nil {
+	if _, err := beginTestEnrollment(s, ctx, 1, "alice"); err != nil {
 		t.Fatal(err)
 	}
 	row := *f.totpRow
@@ -502,7 +503,7 @@ func TestStore_VerifyConcurrentLastStepRaceLoserGetsReplay(t *testing.T) {
 	at := time.Unix(1_700_000_000, 0)
 	s, f, dek := newTestStoreAt(t, at)
 	ctx := context.Background()
-	if _, err := s.Begin(ctx, 1, "alice"); err != nil {
+	if _, err := beginTestEnrollment(s, ctx, 1, "alice"); err != nil {
 		t.Fatal(err)
 	}
 	row := *f.totpRow
@@ -555,7 +556,7 @@ func TestStore_VerifyReplayRejected(t *testing.T) {
 	at := time.Unix(1_700_000_000, 0)
 	s, f, dek := newTestStoreAt(t, at)
 	ctx := context.Background()
-	if _, err := s.Begin(ctx, 1, "alice"); err != nil {
+	if _, err := beginTestEnrollment(s, ctx, 1, "alice"); err != nil {
 		t.Fatal(err)
 	}
 	row := *f.totpRow
@@ -611,7 +612,7 @@ func TestStore_VerifyEmitsAuditEvents(t *testing.T) {
 	at := time.Unix(1_700_000_000, 0)
 	s, f, dek := newTestStoreAt(t, at)
 	ctx := context.Background()
-	if _, err := s.Begin(ctx, 1, "alice"); err != nil {
+	if _, err := beginTestEnrollment(s, ctx, 1, "alice"); err != nil {
 		t.Fatal(err)
 	}
 	row := *f.totpRow
@@ -660,7 +661,7 @@ func TestStore_VerifyCorruptCiphertextReturnsSentinel(t *testing.T) {
 	at := time.Unix(1_700_000_000, 0)
 	s, f, dek := newTestStoreAt(t, at)
 	ctx := context.Background()
-	if _, err := s.Begin(ctx, 1, "alice"); err != nil {
+	if _, err := beginTestEnrollment(s, ctx, 1, "alice"); err != nil {
 		t.Fatal(err)
 	}
 	// Confirm so the row is normal-state.
@@ -706,7 +707,7 @@ func TestStore_RecoveryCodeVerifyAndConsume(t *testing.T) {
 	at := time.Unix(1_700_000_000, 0)
 	s, f, dek := newTestStoreAt(t, at)
 	ctx := context.Background()
-	if _, err := s.Begin(ctx, 1, "alice"); err != nil {
+	if _, err := beginTestEnrollment(s, ctx, 1, "alice"); err != nil {
 		t.Fatal(err)
 	}
 	codes, err := s.Verify(ctx, 1, codeAt(t, dek, *f.totpRow, 1, at, 0))
@@ -754,7 +755,7 @@ func TestStore_RecoveryCodeNormalizationOnVerify(t *testing.T) {
 	at := time.Unix(1_700_000_000, 0)
 	s, f, dek := newTestStoreAt(t, at)
 	ctx := context.Background()
-	if _, err := s.Begin(ctx, 1, "alice"); err != nil {
+	if _, err := beginTestEnrollment(s, ctx, 1, "alice"); err != nil {
 		t.Fatal(err)
 	}
 	codes, err := s.Verify(ctx, 1, codeAt(t, dek, *f.totpRow, 1, at, 0))
@@ -806,7 +807,7 @@ func TestStore_RegenerateRecoveryCodes(t *testing.T) {
 	at := time.Unix(1_700_000_000, 0)
 	s, f, dek := newTestStoreAt(t, at)
 	ctx := context.Background()
-	if _, err := s.Begin(ctx, 1, "alice"); err != nil {
+	if _, err := beginTestEnrollment(s, ctx, 1, "alice"); err != nil {
 		t.Fatal(err)
 	}
 	codes1, err := s.Verify(ctx, 1, codeAt(t, dek, *f.totpRow, 1, at, 0))
@@ -841,7 +842,7 @@ func TestStore_Delete(t *testing.T) {
 	at := time.Unix(1_700_000_000, 0)
 	s, f, _ := newTestStoreAt(t, at)
 	ctx := context.Background()
-	if _, err := s.Begin(ctx, 1, "alice"); err != nil {
+	if _, err := beginTestEnrollment(s, ctx, 1, "alice"); err != nil {
 		t.Fatal(err)
 	}
 	if err := s.Delete(ctx, 1); err != nil {
@@ -861,37 +862,11 @@ func TestStore_Delete(t *testing.T) {
 	}
 }
 
-func TestStore_BeginOverwritesUnconfirmed(t *testing.T) {
-	at := time.Unix(1_700_000_000, 0)
-	s, f, _ := newTestStoreAt(t, at)
-	ctx := context.Background()
-
-	enr1, err := s.Begin(ctx, 1, "alice")
-	if err != nil {
-		t.Fatal(err)
-	}
-	enr2, err := s.Begin(ctx, 1, "alice")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if enr1.SecretBase32 == enr2.SecretBase32 {
-		t.Error("second Begin should produce a different secret")
-	}
-	// Exactly one row should remain (the second).
-	if f.totpRow == nil {
-		t.Fatal("totpRow nil after second Begin")
-	}
-	// f.deleteCalls should be ≥2 (once per Begin).
-	if f.deleteCalls < 2 {
-		t.Errorf("delete calls: %d, want ≥2", f.deleteCalls)
-	}
-}
-
 func TestStore_VerifyFailureBumpsThrottle(t *testing.T) {
 	at := time.Unix(1_700_000_000, 0)
 	s, f, _ := newTestStoreAt(t, at)
 	ctx := context.Background()
-	if _, err := s.Begin(ctx, 1, "alice"); err != nil {
+	if _, err := beginTestEnrollment(s, ctx, 1, "alice"); err != nil {
 		t.Fatal(err)
 	}
 	for i := 0; i < 3; i++ {
@@ -912,7 +887,7 @@ func TestStore_VerifySuccessResetsThrottle(t *testing.T) {
 	at := time.Unix(1_700_000_000, 0)
 	s, f, dek := newTestStoreAt(t, at)
 	ctx := context.Background()
-	if _, err := s.Begin(ctx, 1, "alice"); err != nil {
+	if _, err := beginTestEnrollment(s, ctx, 1, "alice"); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := s.Verify(ctx, 1, "000000"); !errors.Is(err, ErrTOTPInvalidCode) {
@@ -940,7 +915,7 @@ func TestStore_VerifyFirstConfirmRollsBackOnMintFailure(t *testing.T) {
 	at := time.Unix(1_700_000_000, 0)
 	s, f, _, dek := newTestStoreAtWithTx(t, at)
 	ctx := context.Background()
-	if _, err := s.Begin(ctx, 1, "alice"); err != nil {
+	if _, err := beginTestEnrollment(s, ctx, 1, "alice"); err != nil {
 		t.Fatal(err)
 	}
 	row := *f.totpRow
@@ -1012,7 +987,7 @@ func TestStore_RegenerateRecoveryCodesRollsBackOnMintFailure(t *testing.T) {
 	at := time.Unix(1_700_000_000, 0)
 	s, f, _, dek := newTestStoreAtWithTx(t, at)
 	ctx := context.Background()
-	if _, err := s.Begin(ctx, 1, "alice"); err != nil {
+	if _, err := beginTestEnrollment(s, ctx, 1, "alice"); err != nil {
 		t.Fatal(err)
 	}
 	codes1, err := s.Verify(ctx, 1, codeAt(t, dek, *f.totpRow, 1, at, 0))
@@ -1056,7 +1031,7 @@ func TestStore_RegenerateRecoveryCodesAuditsRevoke(t *testing.T) {
 	at := time.Unix(1_700_000_000, 0)
 	s, f, _, dek := newTestStoreAtWithTx(t, at)
 	ctx := context.Background()
-	if _, err := s.Begin(ctx, 1, "alice"); err != nil {
+	if _, err := beginTestEnrollment(s, ctx, 1, "alice"); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := s.Verify(ctx, 1, codeAt(t, dek, *f.totpRow, 1, at, 0)); err != nil {
@@ -1110,287 +1085,9 @@ func TestStore_RegenerateRecoveryCodesAuditsRevoke(t *testing.T) {
 // #3 fix for the Begin re-enrollment path. When Begin wipes a confirmed TOTP
 // row and its recovery codes, it must emit one totp/revoke audit event for
 // the confirmed row plus one recovery_code/revoke per existing code.
-func TestStore_BeginAuditsRevokeOfPriorMaterial(t *testing.T) {
-	at := time.Unix(1_700_000_000, 0)
-	s, f, dek := newTestStoreAt(t, at)
-	ctx := context.Background()
-	// First enrollment: Begin + Verify mints the row + 10 codes.
-	if _, err := s.Begin(ctx, 1, "alice"); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := s.Verify(ctx, 1, codeAt(t, dek, *f.totpRow, 1, at, 0)); err != nil {
-		t.Fatal(err)
-	}
-
-	preBeginEventCount := len(f.events)
-
-	// Re-enrollment: Begin should audit-revoke the confirmed TOTP row and the
-	// 10 recovery codes.
-	if _, err := s.Begin(ctx, 1, "alice"); err != nil {
-		t.Fatal(err)
-	}
-
-	var totpRevokes, recoveryRevokes int
-	for i := preBeginEventCount; i < len(f.events); i++ {
-		e := f.events[i]
-		if e.Event != "revoke" {
-			continue
-		}
-		switch e.Factor {
-		case "totp":
-			totpRevokes++
-		case "recovery_code":
-			recoveryRevokes++
-		}
-	}
-	if totpRevokes != 1 {
-		t.Errorf("expected 1 totp/revoke audit event from Begin re-enrollment, got %d", totpRevokes)
-	}
-	if recoveryRevokes != 10 {
-		t.Errorf("expected 10 recovery_code/revoke audit events from Begin re-enrollment, got %d", recoveryRevokes)
-	}
-}
-
 // TestStore_BeginNoAuditWhenNoPriorMaterial verifies the inverse: a clean
 // first-time Begin must NOT emit revoke audit events (nothing to revoke).
-func TestStore_BeginNoAuditWhenNoPriorMaterial(t *testing.T) {
-	at := time.Unix(1_700_000_000, 0)
-	s, f, _ := newTestStoreAt(t, at)
-	ctx := context.Background()
-
-	if _, err := s.Begin(ctx, 1, "alice"); err != nil {
-		t.Fatal(err)
-	}
-	for _, e := range f.events {
-		if e.Event == "revoke" {
-			t.Errorf("first-time Begin should not emit revoke audit, got %+v", e)
-		}
-	}
-}
-
 // TestStore_BeginAuditsNoTOTPRevokeForUnconfirmedRow exercises the partial
 // case: an unconfirmed prior row is wiped without a totp/revoke event (only
 // confirmed enrollments are "live" credentials worth revoking).
-func TestStore_BeginAuditsNoTOTPRevokeForUnconfirmedRow(t *testing.T) {
-	at := time.Unix(1_700_000_000, 0)
-	s, f, _ := newTestStoreAt(t, at)
-	ctx := context.Background()
-
-	// First Begin: row created but never confirmed (no Verify call).
-	if _, err := s.Begin(ctx, 1, "alice"); err != nil {
-		t.Fatal(err)
-	}
-	preBeginEventCount := len(f.events)
-
-	// Second Begin should wipe the unconfirmed row without emitting totp/revoke.
-	if _, err := s.Begin(ctx, 1, "alice"); err != nil {
-		t.Fatal(err)
-	}
-	for i := preBeginEventCount; i < len(f.events); i++ {
-		e := f.events[i]
-		if e.Factor == "totp" && e.Event == "revoke" {
-			t.Errorf("Begin overwriting UNconfirmed row should not emit totp/revoke, got %+v", e)
-		}
-	}
-}
-
 // --- Recovery ceremony tests -----------------------------------------------
-
-// TestStore_BeginPreservingRecovery_KeepsRecoveryCodes is the core invariant:
-// BeginPreservingRecovery wipes the old confirmed TOTP row but leaves the
-// recovery codes intact (they survive until VerifyAndCommitRecovery succeeds).
-func TestStore_BeginPreservingRecovery_KeepsRecoveryCodes(t *testing.T) {
-	at := time.Unix(1_700_000_000, 0)
-	s, f, dek := newTestStoreAt(t, at)
-	ctx := context.Background()
-	// Bootstrap: a confirmed TOTP + 10 recovery codes.
-	if _, err := s.Begin(ctx, 1, "alice"); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := s.Verify(ctx, 1, codeAt(t, dek, *f.totpRow, 1, at, 0)); err != nil {
-		t.Fatal(err)
-	}
-	if len(f.recoveryRows) != 10 {
-		t.Fatalf("setup: want 10 recovery codes, got %d", len(f.recoveryRows))
-	}
-
-	// Snapshot the audit events so we can isolate the BeginPreservingRecovery
-	// emissions from the bootstrap noise.
-	preBeginEventCount := len(f.events)
-
-	// Drive the recovery-ceremony enrollment.
-	if _, err := s.BeginPreservingRecovery(ctx, 1, "alice"); err != nil {
-		t.Fatalf("BeginPreservingRecovery: %v", err)
-	}
-
-	// Recovery codes still present.
-	if len(f.recoveryRows) != 10 {
-		t.Errorf("BeginPreservingRecovery wiped recovery codes: want 10 remaining, got %d", len(f.recoveryRows))
-	}
-	// TOTP row exists but is unconfirmed (fresh enrollment).
-	if f.totpRow == nil {
-		t.Fatal("totpRow nil after BeginPreservingRecovery")
-	}
-	if f.totpRow.ConfirmedAt.Valid {
-		t.Error("totpRow should be unconfirmed after BeginPreservingRecovery")
-	}
-
-	// Audit: one totp/revoke (old confirmed row); ZERO recovery_code/revoke.
-	var totpRevokes, recoveryRevokes int
-	var totpRevokeReason string
-	for i := preBeginEventCount; i < len(f.events); i++ {
-		e := f.events[i]
-		if e.Event != "revoke" {
-			continue
-		}
-		switch e.Factor {
-		case "totp":
-			totpRevokes++
-			var d map[string]any
-			_ = json.Unmarshal(e.Detail, &d)
-			if v, ok := d["reason"].(string); ok {
-				totpRevokeReason = v
-			}
-		case "recovery_code":
-			recoveryRevokes++
-		}
-	}
-	if totpRevokes != 1 {
-		t.Errorf("want 1 totp/revoke from BeginPreservingRecovery, got %d", totpRevokes)
-	}
-	if totpRevokeReason != "recovery" {
-		t.Errorf("totp/revoke reason: want recovery, got %q", totpRevokeReason)
-	}
-	if recoveryRevokes != 0 {
-		t.Errorf("BeginPreservingRecovery must NOT emit recovery_code/revoke; got %d", recoveryRevokes)
-	}
-}
-
-// TestStore_VerifyAndCommitRecovery_HappyPath drives the full recovery
-// ceremony at the Store level: bootstrap → BeginPreservingRecovery →
-// VerifyAndCommitRecovery. Asserts that the old recovery codes are wiped
-// in the same tx that mints the fresh batch, and that the audit trail
-// matches the design invariants.
-func TestStore_VerifyAndCommitRecovery_HappyPath(t *testing.T) {
-	at := time.Unix(1_700_000_000, 0)
-	s, f, dek := newTestStoreAt(t, at)
-	ctx := context.Background()
-	// Bootstrap.
-	if _, err := s.Begin(ctx, 1, "alice"); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := s.Verify(ctx, 1, codeAt(t, dek, *f.totpRow, 1, at, 0)); err != nil {
-		t.Fatal(err)
-	}
-	if len(f.recoveryRows) != 10 {
-		t.Fatalf("setup: want 10 recovery codes, got %d", len(f.recoveryRows))
-	}
-	// Simulate /auth/recovery-code/verify burning one code so 9 remain.
-	f.recoveryRows = f.recoveryRows[:9]
-
-	// Step forward (after a TOTP code was consumed by Verify above) and re-enroll.
-	laterStep1 := at.Add(31 * time.Second)
-	s.now = func() time.Time { return laterStep1 }
-	if _, err := s.BeginPreservingRecovery(ctx, 1, "alice"); err != nil {
-		t.Fatalf("BeginPreservingRecovery: %v", err)
-	}
-	if len(f.recoveryRows) != 9 {
-		t.Fatalf("post-begin: want 9 recovery codes preserved, got %d", len(f.recoveryRows))
-	}
-
-	preVerifyEventCount := len(f.events)
-
-	// Compute a code against the new secret, step further forward to
-	// avoid colliding with whatever last_step the freshly-inserted row
-	// has (Begin resets last_step to 0; we're well past it).
-	laterStep2 := at.Add(120 * time.Second)
-	s.now = func() time.Time { return laterStep2 }
-	code := codeAt(t, dek, *f.totpRow, 1, laterStep2, 0)
-
-	codes, err := s.VerifyAndCommitRecovery(ctx, 1, code)
-	if err != nil {
-		t.Fatalf("VerifyAndCommitRecovery: %v", err)
-	}
-	if len(codes) != 10 {
-		t.Errorf("want 10 fresh recovery codes, got %d", len(codes))
-	}
-	// Old 9 wiped, new 10 inserted.
-	if len(f.recoveryRows) != 10 {
-		t.Errorf("post-verify: want exactly 10 recovery rows (old wiped, new minted), got %d", len(f.recoveryRows))
-	}
-	if !f.totpRow.ConfirmedAt.Valid {
-		t.Error("totpRow should be confirmed after VerifyAndCommitRecovery")
-	}
-
-	// Audit: 9 recovery_code/revoke (reason=recovery_complete), 1 totp/register,
-	// 10 recovery_code/register.
-	var revokes, totpRegisters, recoveryRegisters int
-	revokeReasons := map[string]int{}
-	for i := preVerifyEventCount; i < len(f.events); i++ {
-		e := f.events[i]
-		switch {
-		case e.Factor == "recovery_code" && e.Event == "revoke":
-			revokes++
-			var d map[string]any
-			_ = json.Unmarshal(e.Detail, &d)
-			if v, ok := d["reason"].(string); ok {
-				revokeReasons[v]++
-			}
-		case e.Factor == "totp" && e.Event == "register":
-			totpRegisters++
-		case e.Factor == "recovery_code" && e.Event == "register":
-			recoveryRegisters++
-		}
-	}
-	if revokes != 9 {
-		t.Errorf("want 9 recovery_code/revoke, got %d", revokes)
-	}
-	if revokeReasons["recovery_complete"] != 9 {
-		t.Errorf("want 9 revokes with reason=recovery_complete, got %d (reasons=%v)", revokeReasons["recovery_complete"], revokeReasons)
-	}
-	if totpRegisters != 1 {
-		t.Errorf("want 1 totp/register, got %d", totpRegisters)
-	}
-	if recoveryRegisters != 10 {
-		t.Errorf("want 10 recovery_code/register, got %d", recoveryRegisters)
-	}
-}
-
-// TestStore_VerifyAndCommitRecovery_BadCodeNoWipe verifies that a failed
-// TOTP code does NOT wipe the preserved recovery codes — the user can
-// restart the ceremony from /auth/recovery-code/verify with another code.
-func TestStore_VerifyAndCommitRecovery_BadCodeNoWipe(t *testing.T) {
-	at := time.Unix(1_700_000_000, 0)
-	s, f, dek := newTestStoreAt(t, at)
-	ctx := context.Background()
-
-	// Bootstrap a confirmed TOTP + 10 recovery codes, then burn one (simulate
-	// /auth/recovery-code/verify) → 9 left.
-	if _, err := s.Begin(ctx, 1, "alice"); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := s.Verify(ctx, 1, codeAt(t, dek, *f.totpRow, 1, at, 0)); err != nil {
-		t.Fatal(err)
-	}
-	f.recoveryRows = f.recoveryRows[:9]
-
-	later := at.Add(31 * time.Second)
-	s.now = func() time.Time { return later }
-	if _, err := s.BeginPreservingRecovery(ctx, 1, "alice"); err != nil {
-		t.Fatal(err)
-	}
-	if len(f.recoveryRows) != 9 {
-		t.Fatalf("setup: 9 recovery codes, got %d", len(f.recoveryRows))
-	}
-
-	if _, err := s.VerifyAndCommitRecovery(ctx, 1, "000000"); err == nil {
-		t.Fatal("expected error for wrong code")
-	}
-	// Recovery codes still 9 (not wiped).
-	if len(f.recoveryRows) != 9 {
-		t.Errorf("want 9 recovery codes preserved after bad-code attempt, got %d", len(f.recoveryRows))
-	}
-	if f.totpRow.ConfirmedAt.Valid {
-		t.Error("totpRow should still be unconfirmed after bad code")
-	}
-}

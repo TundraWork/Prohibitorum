@@ -1,8 +1,6 @@
 package server
 
 import (
-	"crypto/sha256"
-	"fmt"
 	"strings"
 	"testing"
 
@@ -27,27 +25,5 @@ func TestEnrollmentAllowedMethods(t *testing.T) {
 		if strings.Join(got, ",") != strings.Join(tc.want, ",") {
 			t.Errorf("intent %q → %v, want %v", tc.intent, got, tc.want)
 		}
-	}
-}
-
-// TestEnrollPwdTOTPCeremonyKey mirrors the passkey ceremony's WACER-3 hardening:
-// the KV key hashes the token (bearer secret never in the keyspace) and uses a
-// prefix distinct from the passkey ceremony so both can coexist for one token.
-func TestEnrollPwdTOTPCeremonyKey(t *testing.T) {
-	token := "super-secret-enrollment-token"
-
-	key := enrollPwdTOTPCeremonyKey(token)
-	if strings.Contains(key, token) {
-		t.Fatalf("ceremony key %q contains the raw token", key)
-	}
-	want := "enroll_pwdtotp:" + fmt.Sprintf("%x", sha256.Sum256([]byte(token)))
-	if key != want {
-		t.Fatalf("key = %q, want %q", key, want)
-	}
-	if enrollPwdTOTPCeremonyKey(token) != key {
-		t.Fatal("enrollPwdTOTPCeremonyKey is not deterministic")
-	}
-	if key == enrollCeremonyKey(token) {
-		t.Fatal("password-totp ceremony key collides with the passkey ceremony key")
 	}
 }

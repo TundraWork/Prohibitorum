@@ -148,7 +148,7 @@ func main() {
 	log.Printf("  username=%s displayName=%s role=%s", me1.Username, me1.DisplayName, me1.Role)
 
 	// --- SPA shell routes: the new dashboard paths must serve index.html
-	// (id="app") via the NotFound fallback, not be shadowed by a backend route. ---
+	// (id="root") via the NotFound fallback, not be shadowed by a backend route. ---
 	step(fmt.Sprintf("core %d/%d — SPA shell served for dashboard routes", 6, nCore))
 	for _, p := range []string{"/", "/sessions", "/credentials", "/admin/accounts", "/enroll/" + token} {
 		resp, err := http.Get(*baseURL + p)
@@ -160,8 +160,8 @@ func main() {
 		if resp.StatusCode != http.StatusOK {
 			log.Fatalf("SPA shell GET %s: status %d (want 200)", p, resp.StatusCode)
 		}
-		if !strings.Contains(string(body), `id="app"`) {
-			log.Fatalf("SPA shell GET %s: body missing id=\"app\" (got %d bytes)", p, len(body))
+		if !strings.Contains(string(body), `id="root"`) {
+			log.Fatalf("SPA shell GET %s: body missing id=\"root\" (got %d bytes)", p, len(body))
 		}
 	}
 	log.Printf("  /, /sessions, /credentials, /admin/accounts, /enroll/<token> all serve the SPA shell ✓")
@@ -318,121 +318,100 @@ func main() {
 
 	const password = "smoke-pw-correct-horse-battery-staple"
 
-	step(fmt.Sprintf("core %d/%d — sudo via webauthn (prime SudoUntil for /me/password/set)", 19, nCore))
+	step(fmt.Sprintf("core %d/%d — sudo via webauthn before local password + TOTP setup", 19, nCore))
 	if err := sudoWebAuthn(c, auth, *baseURL); err != nil {
-		log.Fatalf("sudo webauthn (pre password/set): %v", err)
+		log.Fatalf("sudo webauthn (pre password-totp setup): %v", err)
 	}
 	log.Printf("  sudo grant acquired (webauthn)")
 
-	step(fmt.Sprintf("core %d/%d — POST /me/password/set", 20, nCore))
-	if err := c.postJSON("/api/prohibitorum/me/password/set",
-		map[string]string{"password": password}, nil); err != nil {
-		log.Fatalf("password/set: %v", err)
+	step(fmt.Sprintf("core %d/%d — POST /me/password-totp/verify with a client-generated secret", 20, nCore))
+	secret, secretBase32, err := newTOTPSecret()
+	if err != nil {
+		log.Fatalf("generate initial TOTP secret: %v", err)
 	}
-	log.Printf("  password set (204)")
+	totpStep := time.Now().Unix() / 30
+	var setupVerify struct {
+		RecoveryCodes []string `json:"recovery_codes"`
+	}
+	if err := c.postJSON("/api/prohibitorum/me/password-totp/verify", map[string]string{
+		"password":      password,
+		"secret_base32": secretBase32,
+		"code":          totppkg.ComputeCodeForTesting(secret, time.Now().Unix(), 6),
+	}, &setupVerify); err != nil {
+		log.Fatalf("password-totp/verify: %v", err)
+	}
+	if len(setupVerify.RecoveryCodes) != 10 {
+		log.Fatalf("password-totp setup: expected 10 recovery codes, got %d", len(setupVerify.RecoveryCodes))
+	}
+	recoveryCodes := setupVerify.RecoveryCodes
+	log.Printf("  password, confirmed TOTP and %d recovery codes committed atomically", len(recoveryCodes))
 
-	step(fmt.Sprintf("core %d/%d — DB assert: password_credential row exists w/ argon2id hash", 21, nCore))
+	step(fmt.Sprintf("core %d/%d — DB assert: password, confirmed TOTP and recovery codes exist", 21, nCore))
 	if err := verifyPasswordCredential(me2.ID); err != nil {
 		log.Fatalf("password DB assert: %v", err)
 	}
-
-	step(fmt.Sprintf("core %d/%d — POST /me/totp/begin (first enrollment; no sudo required)", 22, nCore))
-	var totpBegin struct {
-		SecretBase32 string `json:"secret_base32"`
-		OtpauthURI   string `json:"otpauth_uri"`
-	}
-	if err := c.postJSON("/api/prohibitorum/me/totp/begin",
-		map[string]any{}, &totpBegin); err != nil {
-		log.Fatalf("totp/begin: %v", err)
-	}
-	secret, err := base32.StdEncoding.WithPadding(base32.NoPadding).
-		DecodeString(strings.TrimRight(totpBegin.SecretBase32, "="))
-	if err != nil {
-		log.Fatalf("decode totp secret_base32 %q: %v", totpBegin.SecretBase32, err)
-	}
-	log.Printf("  secret len=%d otpauth=%.40s…", len(secret), totpBegin.OtpauthURI)
-
-	step(fmt.Sprintf("core %d/%d — POST /me/totp/verify {current code}", 23, nCore))
-	totpStep := time.Now().Unix() / 30
-	code := totppkg.ComputeCodeForTesting(secret, time.Now().Unix(), 6)
-	var totpVerify struct {
-		RecoveryCodes []string `json:"recovery_codes"`
-	}
-	if err := c.postJSON("/api/prohibitorum/me/totp/verify",
-		map[string]string{"code": code}, &totpVerify); err != nil {
-		log.Fatalf("totp/verify: %v", err)
-	}
-	if len(totpVerify.RecoveryCodes) != 10 {
-		log.Fatalf("expected 10 recovery codes, got %d", len(totpVerify.RecoveryCodes))
-	}
-	recoveryCodes := totpVerify.RecoveryCodes
-	log.Printf("  totp confirmed; %d recovery codes minted (step=%d)", len(recoveryCodes), totpStep)
-
-	step(fmt.Sprintf("core %d/%d — DB assert: totp_credential.confirmed_at IS NOT NULL + 10 recovery rows", 24, nCore))
 	if err := verifyTOTPConfirmed(me2.ID); err != nil {
 		log.Fatalf("totp DB assert: %v", err)
 	}
 
-	// PHB-58: beginning a reset must not change the active TOTP or recovery
-	// codes. Prove the old TOTP still completes a real password login before
-	// replacing it in a second ceremony.
+	step(fmt.Sprintf("core %d/%d — invalid /me/totp/verify preserves the active factors", 22, nCore))
 	oldSecret := append([]byte(nil), secret...)
 	oldRecoveryCodes := append([]string(nil), recoveryCodes...)
-	var abandonedReset struct {
-		SecretBase32 string `json:"secret_base32"`
+	_, rejectedSecretBase32, err := newTOTPSecret()
+	if err != nil {
+		log.Fatalf("generate rejected TOTP secret: %v", err)
 	}
-	if err := c.postJSON("/api/prohibitorum/me/totp/begin", map[string]any{}, &abandonedReset); err != nil {
-		log.Fatalf("totp reset begin (abandoned): %v", err)
+	resp, err := c.postJSONRaw("/api/prohibitorum/me/totp/verify", map[string]string{
+		"secret_base32": rejectedSecretBase32,
+		"code":          "000000",
+	})
+	if err != nil {
+		log.Fatalf("invalid totp reset request: %v", err)
+	}
+	rejectedBody, _ := io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusUnauthorized {
+		log.Fatalf("invalid totp reset: want 401, got %d — %s", resp.StatusCode, firstN(string(rejectedBody), 300))
 	}
 	if err := verifyTOTPConfirmed(me2.ID); err != nil {
-		log.Fatalf("abandoned totp reset changed credentials: %v", err)
+		log.Fatalf("invalid totp reset changed credentials: %v", err)
 	}
-	abandonClient, err := newClient(*baseURL)
+	preservedClient, err := newClient(*baseURL)
 	if err != nil {
-		log.Fatalf("abandoned-reset login client: %v", err)
+		log.Fatalf("preserved-TOTP login client: %v", err)
 	}
-	abandonPartial, err := abandonClient.passwordBegin(*username, password)
+	preservedPartial, err := preservedClient.passwordBegin(*username, password)
 	if err != nil {
-		log.Fatalf("password/begin after abandoned reset: %v", err)
+		log.Fatalf("password/begin after invalid reset: %v", err)
 	}
 	totpStep = waitForNextTOTPStep(totpStep)
-	if err := abandonClient.totpStepTwoVerify(
-		abandonPartial, totppkg.ComputeCodeForTesting(oldSecret, time.Now().Unix(), 6),
+	if err := preservedClient.totpStepTwoVerify(
+		preservedPartial, totppkg.ComputeCodeForTesting(oldSecret, time.Now().Unix(), 6),
 	); err != nil {
-		log.Fatalf("old TOTP failed after abandoned reset: %v", err)
+		log.Fatalf("old TOTP failed after invalid reset: %v", err)
 	}
-	log.Printf("  abandoned reset preserved the confirmed TOTP and recovery-code set ✓")
+	log.Printf("  invalid candidate changed neither the active TOTP nor recovery codes ✓")
 
-	// Refresh sudo because waiting for the next TOTP period may exhaust the
-	// earlier grant, then complete a new reset and carry its material forward.
+	step(fmt.Sprintf("core %d/%d — successful /me/totp/verify atomically replaces TOTP and recovery codes", 23, nCore))
 	if err := sudoWebAuthn(c, auth, *baseURL); err != nil {
 		log.Fatalf("sudo webauthn (pre totp reset): %v", err)
 	}
-	var resetBegin struct {
-		SecretBase32 string `json:"secret_base32"`
-		OtpauthURI   string `json:"otpauth_uri"`
-	}
-	if err := c.postJSON("/api/prohibitorum/me/totp/begin", map[string]any{}, &resetBegin); err != nil {
-		log.Fatalf("totp reset begin: %v", err)
-	}
-	resetSecret, err := base32.StdEncoding.WithPadding(base32.NoPadding).
-		DecodeString(strings.TrimRight(resetBegin.SecretBase32, "="))
+	resetSecret, resetSecretBase32, err := newTOTPSecret()
 	if err != nil {
-		log.Fatalf("decode reset totp secret: %v", err)
+		log.Fatalf("generate reset TOTP secret: %v", err)
 	}
 	resetCode := totppkg.ComputeCodeForTesting(resetSecret, time.Now().Unix(), 6)
 	var resetVerify struct {
 		RecoveryCodes []string `json:"recovery_codes"`
 	}
-	if err := c.postJSON("/api/prohibitorum/me/totp/verify",
-		map[string]string{"code": resetCode}, &resetVerify); err != nil {
+	if err := c.postJSON("/api/prohibitorum/me/totp/verify", map[string]string{
+		"secret_base32": resetSecretBase32,
+		"code":          resetCode,
+	}, &resetVerify); err != nil {
 		log.Fatalf("totp reset verify: %v", err)
 	}
 	if len(resetVerify.RecoveryCodes) != 10 {
 		log.Fatalf("totp reset: expected 10 recovery codes, got %d", len(resetVerify.RecoveryCodes))
-	}
-	if err := verifyTOTPConfirmed(me2.ID); err != nil {
-		log.Fatalf("completed totp reset DB assert: %v", err)
 	}
 
 	oldTOTPClient, err := newClient(*baseURL)
@@ -448,7 +427,7 @@ func main() {
 		totpStep = waitForNextTOTPStep(time.Now().Unix() / 30)
 		oldCode = totppkg.ComputeCodeForTesting(oldSecret, time.Now().Unix(), 6)
 	}
-	resp, err := oldTOTPClient.postJSONRaw("/api/prohibitorum/auth/totp/verify",
+	resp, err = oldTOTPClient.postJSONRaw("/api/prohibitorum/auth/totp/verify",
 		map[string]string{"partial_session_token": oldTOTPPartial, "code": oldCode})
 	if err != nil {
 		log.Fatalf("old-totp rejection request: %v", err)
@@ -481,6 +460,11 @@ func main() {
 	recoveryCodes = resetVerify.RecoveryCodes
 	totpStep = time.Now().Unix() / 30
 	log.Printf("  completed reset activated the new TOTP and recovery codes; old material is rejected ✓")
+
+	step(fmt.Sprintf("core %d/%d — DB assert: reset left one confirmed TOTP and 10 recovery codes", 24, nCore))
+	if err := verifyTOTPConfirmed(me2.ID); err != nil {
+		log.Fatalf("completed totp reset DB assert: %v", err)
+	}
 
 	step(fmt.Sprintf("core %d/%d — POST /auth/logout (drop A's webauthn session)", 25, nCore))
 	if err := c.logout(); err != nil {
@@ -520,84 +504,138 @@ func main() {
 		log.Fatalf("logout pre-recovery-ceremony: %v", err)
 	}
 
-	// --- Recovery ceremony (2026-05-28 hardening) -----------------------------
-	// /auth/recovery-code/verify no longer issues a session. It hands back a
-	// recovery_session_token that the user must redeem at
-	// /auth/recovery/totp/{begin,verify} to enroll a fresh TOTP and regain
-	// account access. recovery_code is no longer a sudo method (former
-	// these steps were dropped); the user re-proves possession of TOTP every time.
+	// Recovery codes can complete login directly or atomically replace the
+	// authenticator. Every HTTP attempt consumes its partial-session token.
 
-	step(fmt.Sprintf("core %d/%d — POST /auth/password/begin (fresh partial token for recovery ceremony)", 30, nCore))
-	partialToken2, err := c.passwordBegin(*username, password)
+	step(fmt.Sprintf("core %d/%d — recovery code login without resetting the authenticator", 30, nCore))
+	directPartial, err := c.passwordBegin(*username, password)
 	if err != nil {
-		log.Fatalf("password/begin 2: %v", err)
+		log.Fatalf("password/begin for direct recovery: %v", err)
 	}
-	log.Printf("  partial_session_token len=%d", len(partialToken2))
+	var directRecovery struct {
+		Redirect string `json:"redirect"`
+	}
+	if err := c.postJSON("/api/prohibitorum/auth/recovery-code/verify", map[string]any{
+		"partial_session_token": directPartial,
+		"code":                  recoveryCodes[0],
+		"reset_authenticator":   false,
+	}, &directRecovery); err != nil {
+		log.Fatalf("direct recovery-code verify: %v", err)
+	}
+	log.Printf("  recovery code issued a session without replacement (redirect=%q)", directRecovery.Redirect)
 
-	step(fmt.Sprintf("core %d/%d — POST /auth/recovery-code/verify {recovery_codes[0]} → recovery_session_token", 31, nCore))
-	recoveryToken, err := c.recoveryCodeVerify(partialToken2, recoveryCodes[0])
-	if err != nil {
-		log.Fatalf("auth/recovery-code/verify: %v", err)
-	}
-	if recoveryToken == "" {
-		log.Fatalf("auth/recovery-code/verify returned empty recovery_session_token")
-	}
-	log.Printf("  recovery_session_token len=%d (no session cookie yet)", len(recoveryToken))
-
-	step(fmt.Sprintf("core %d/%d — DB assert: recovery_codes[0].used_at IS NOT NULL (consumed by redeem)", 32, nCore))
+	step(fmt.Sprintf("core %d/%d — DB assert: direct recovery consumed one code and preserved TOTP", 31, nCore))
 	if err := verifyRecoveryCodeUsed(me2.ID, 1, 0); err != nil {
-		log.Fatalf("recovery code used_at DB assert: %v", err)
+		log.Fatalf("direct recovery code DB assert: %v", err)
+	}
+	if err := verifyTOTPConfirmed(me2.ID); err != nil {
+		log.Fatalf("direct recovery changed TOTP: %v", err)
 	}
 
-	step(fmt.Sprintf("core %d/%d — POST /auth/recovery/totp/begin {recovery_session_token}", 33, nCore))
-	var recoveryBegin struct {
-		SecretBase32 string `json:"secret_base32"`
-		OtpauthURI   string `json:"otpauth_uri"`
+	step(fmt.Sprintf("core %d/%d — invalid atomic recovery reset returns 401", 32, nCore))
+	if err := c.logout(); err != nil {
+		log.Fatalf("logout after direct recovery: %v", err)
 	}
-	if err := c.postJSON("/api/prohibitorum/auth/recovery/totp/begin",
-		map[string]string{"recovery_session_token": recoveryToken}, &recoveryBegin); err != nil {
-		log.Fatalf("auth/recovery/totp/begin: %v", err)
-	}
-	newSecret, err := base32.StdEncoding.WithPadding(base32.NoPadding).
-		DecodeString(strings.TrimRight(recoveryBegin.SecretBase32, "="))
+	failedResetPartial, err := c.passwordBegin(*username, password)
 	if err != nil {
-		log.Fatalf("decode new totp secret_base32 %q: %v", recoveryBegin.SecretBase32, err)
+		log.Fatalf("password/begin for failed recovery reset: %v", err)
 	}
-	log.Printf("  new TOTP secret minted (len=%d); old TOTP wiped, recovery codes preserved", len(newSecret))
-
-	step(fmt.Sprintf("core %d/%d — DB assert: TOTP unconfirmed; 9 recovery codes still present", 34, nCore))
-	if err := verifyTOTPUnconfirmedAndRecoveryCount(me2.ID, 9); err != nil {
-		log.Fatalf("post-recovery-begin DB assert: %v", err)
+	_, failedResetSecretBase32, err := newTOTPSecret()
+	if err != nil {
+		log.Fatalf("generate failed recovery reset secret: %v", err)
+	}
+	resp, err = c.postJSONRaw("/api/prohibitorum/auth/recovery-code/verify", map[string]any{
+		"partial_session_token": failedResetPartial,
+		"code":                  recoveryCodes[1],
+		"reset_authenticator":   true,
+		"totp_secret_base32":    failedResetSecretBase32,
+		"totp_code":             "000000",
+	})
+	if err != nil {
+		log.Fatalf("failed recovery reset request: %v", err)
+	}
+	failedResetBody, _ := io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusUnauthorized {
+		log.Fatalf("failed recovery reset: want 401, got %d — %s", resp.StatusCode, firstN(string(failedResetBody), 300))
 	}
 
-	step(fmt.Sprintf("core %d/%d — wait next TOTP step + POST /auth/recovery/totp/verify {token, code}", 35, nCore))
+	step(fmt.Sprintf("core %d/%d — failed recovery reset preserves the active TOTP", 33, nCore))
+	preservedRecoveryClient, err := newClient(*baseURL)
+	if err != nil {
+		log.Fatalf("preserved recovery client: %v", err)
+	}
+	preservedRecoveryPartial, err := preservedRecoveryClient.passwordBegin(*username, password)
+	if err != nil {
+		log.Fatalf("password/begin after failed recovery reset: %v", err)
+	}
 	totpStep = waitForNextTOTPStep(totpStep)
-	newCode := totppkg.ComputeCodeForTesting(newSecret, time.Now().Unix(), 6)
+	if err := preservedRecoveryClient.totpStepTwoVerify(
+		preservedRecoveryPartial, totppkg.ComputeCodeForTesting(secret, time.Now().Unix(), 6),
+	); err != nil {
+		log.Fatalf("active TOTP failed after rejected recovery reset: %v", err)
+	}
+	log.Printf("  rejected replacement left the current authenticator usable ✓")
+
+	step(fmt.Sprintf("core %d/%d — successful recovery reset submits code, secret and TOTP together", 34, nCore))
+	resetPartial, err := c.passwordBegin(*username, password)
+	if err != nil {
+		log.Fatalf("password/begin for recovery reset: %v", err)
+	}
+	recoverySecret, recoverySecretBase32, err := newTOTPSecret()
+	if err != nil {
+		log.Fatalf("generate recovery replacement secret: %v", err)
+	}
 	var recoveryVerify struct {
+		Redirect      string   `json:"redirect"`
 		RecoveryCodes []string `json:"recovery_codes"`
 	}
-	if err := c.postJSON("/api/prohibitorum/auth/recovery/totp/verify",
-		map[string]string{
-			"recovery_session_token": recoveryToken,
-			"code":                   newCode,
-		}, &recoveryVerify); err != nil {
-		log.Fatalf("auth/recovery/totp/verify: %v", err)
+	if err := c.postJSON("/api/prohibitorum/auth/recovery-code/verify", map[string]any{
+		"partial_session_token": resetPartial,
+		"code":                  recoveryCodes[1],
+		"reset_authenticator":   true,
+		"totp_secret_base32":    recoverySecretBase32,
+		"totp_code":             totppkg.ComputeCodeForTesting(recoverySecret, time.Now().Unix(), 6),
+	}, &recoveryVerify); err != nil {
+		log.Fatalf("recovery reset verify: %v", err)
 	}
 	if len(recoveryVerify.RecoveryCodes) != 10 {
-		log.Fatalf("recovery ceremony: want 10 new recovery codes, got %d", len(recoveryVerify.RecoveryCodes))
+		log.Fatalf("recovery reset: want 10 new recovery codes, got %d", len(recoveryVerify.RecoveryCodes))
 	}
-	// Swap in the post-recovery secret + recovery codes for the remaining
-	// steps (sudo password_totp later will use the new secret).
-	secret = newSecret
+	secret = recoverySecret
 	recoveryCodes = recoveryVerify.RecoveryCodes
-	log.Printf("  session cookie issued; 10 fresh recovery codes minted (old 9 wiped)")
+	totpStep = time.Now().Unix() / 30
+	log.Printf("  authenticator and recovery codes replaced atomically; session issued ✓")
 
-	step(fmt.Sprintf("core %d/%d — DB assert: new TOTP confirmed; exactly 10 recovery codes", 36, nCore))
+	step(fmt.Sprintf("core %d/%d — DB assert: recovery reset left one confirmed TOTP and 10 codes", 35, nCore))
 	if err := verifyTOTPConfirmed(me2.ID); err != nil {
-		log.Fatalf("post-recovery-verify DB assert: %v", err)
+		log.Fatalf("post-recovery-reset DB assert: %v", err)
 	}
 
-	step(fmt.Sprintf("core %d/%d — GET /me round-trips post-recovery-ceremony", 37, nCore))
+	step(fmt.Sprintf("core %d/%d — old recovery code replay is rejected", 36, nCore))
+	replayClient, err := newClient(*baseURL)
+	if err != nil {
+		log.Fatalf("recovery replay client: %v", err)
+	}
+	replayPartial, err := replayClient.passwordBegin(*username, password)
+	if err != nil {
+		log.Fatalf("password/begin for recovery replay: %v", err)
+	}
+	resp, err = replayClient.postJSONRaw("/api/prohibitorum/auth/recovery-code/verify", map[string]any{
+		"partial_session_token": replayPartial,
+		"code":                  oldRecoveryCodes[1],
+		"reset_authenticator":   false,
+	})
+	if err != nil {
+		log.Fatalf("recovery replay request: %v", err)
+	}
+	replayBody, _ := io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusUnauthorized {
+		log.Fatalf("old recovery replay: want 401, got %d — %s", resp.StatusCode, firstN(string(replayBody), 300))
+	}
+
+	step(fmt.Sprintf("core %d/%d — GET /me round-trips post-recovery-reset", 37, nCore))
 	mePT2, err := c.getMe()
 	if err != nil {
 		log.Fatalf("GET /me post-recovery: %v", err)
@@ -607,7 +645,7 @@ func main() {
 	}
 	log.Printf("  /me id=%d (account intact post-recovery)", mePT2.ID)
 
-	step(fmt.Sprintf("core %d/%d — POST /auth/logout (drop recovery-ceremony session)", 38, nCore))
+	step(fmt.Sprintf("core %d/%d — POST /auth/logout (drop recovery session)", 38, nCore))
 	if err := c.logout(); err != nil {
 		log.Fatalf("logout post-recovery: %v", err)
 	}
@@ -1229,48 +1267,37 @@ func main() {
 		log.Printf("  confirmed; /me id=%d username=%s ✓", me.ID, me.Username)
 	}
 
-	// The fresh session rides the recent-auth window (SudoTTL), so the
-	// password + TOTP pair can be set without a step-up — the exact flow the
-	// SPA's /setup-signin step drives. Both factors land in one transaction:
-	// abandoning the ceremony cannot leave a password-only account, which
-	// /auth/password/begin would accept while the login page asked for a code
-	// the account has no way to produce.
+	// The fresh session rides the recent-auth window (SudoTTL), so the SPA can
+	// generate a secret and submit both factors in one transaction.
 	const invitePassword = "correct horse battery staple"
-	var invitePwdBegin struct {
-		SecretBase32 string `json:"secret_base32"`
-		OtpauthURI   string `json:"otpauth_uri"`
-	}
-	if err := inviteClient.postJSON("/api/prohibitorum/me/password-totp/begin",
-		map[string]string{"password": invitePassword}, &invitePwdBegin); err != nil {
-		log.Fatalf("invite password-totp/begin: %v", err)
-	}
-	inviteSecret, err := base32.StdEncoding.WithPadding(base32.NoPadding).
-		DecodeString(strings.TrimRight(invitePwdBegin.SecretBase32, "="))
+	inviteSecret, inviteSecretBase32, err := newTOTPSecret()
 	if err != nil {
-		log.Fatalf("decode totp secret: %v", err)
+		log.Fatalf("generate invite TOTP secret: %v", err)
 	}
-	// Mid-ceremony: begin stashed the password hash + secret in KV and wrote
-	// nothing, so neither factor is visible yet.
+	// Local generation changes no server state before the final verify.
 	var inviteFactors struct {
 		PasswordSet  bool `json:"passwordSet"`
 		TOTPEnrolled bool `json:"totpEnrolled"`
 	}
 	if err := inviteClient.get("/api/prohibitorum/me/factors", &inviteFactors); err != nil {
-		log.Fatalf("invite /me/factors after begin: %v", err)
+		log.Fatalf("invite /me/factors before verify: %v", err)
 	}
 	if inviteFactors.PasswordSet || inviteFactors.TOTPEnrolled {
-		log.Fatalf("mid-ceremony /me/factors: passwordSet=%v totpEnrolled=%v, want both false",
+		log.Fatalf("pre-verify /me/factors: passwordSet=%v totpEnrolled=%v, want both false",
 			inviteFactors.PasswordSet, inviteFactors.TOTPEnrolled)
 	}
-	log.Printf("  after begin: passwordSet=false totpEnrolled=false (nothing committed) ✓")
+	log.Printf("  local generation left passwordSet=false and totpEnrolled=false ✓")
 
 	inviteTOTPStep := time.Now().Unix() / 30
 	var invitePwdVerify struct {
 		RecoveryCodes []string `json:"recovery_codes"`
 	}
 	if err := inviteClient.postJSON("/api/prohibitorum/me/password-totp/verify",
-		map[string]string{"code": totppkg.ComputeCodeForTesting(inviteSecret, time.Now().Unix(), 6)},
-		&invitePwdVerify); err != nil {
+		map[string]string{
+			"password":      invitePassword,
+			"secret_base32": inviteSecretBase32,
+			"code":          totppkg.ComputeCodeForTesting(inviteSecret, time.Now().Unix(), 6),
+		}, &invitePwdVerify); err != nil {
 		log.Fatalf("invite password-totp/verify: %v", err)
 	}
 	if len(invitePwdVerify.RecoveryCodes) != 10 {
@@ -6652,18 +6679,14 @@ func (c *client) totpStepTwoVerify(partialToken, code string) error {
 		map[string]string{"partial_session_token": partialToken, "code": code}, nil)
 }
 
-// recoveryCodeVerify drives /auth/recovery-code/verify. Post 2026-05-28
-// hardening this returns a recovery_session_token (no session cookie). The
-// caller must redeem the token at /auth/recovery/totp/{begin,verify}.
-func (c *client) recoveryCodeVerify(partialToken, code string) (string, error) {
-	var out struct {
-		RecoverySessionToken string `json:"recovery_session_token"`
+// newTOTPSecret mirrors the browser enrollment contract: 20 random bytes,
+// RFC 4648 uppercase base32, and no padding.
+func newTOTPSecret() ([]byte, string, error) {
+	secret := make([]byte, 20)
+	if _, err := rand.Read(secret); err != nil {
+		return nil, "", err
 	}
-	if err := c.postJSON("/api/prohibitorum/auth/recovery-code/verify",
-		map[string]string{"partial_session_token": partialToken, "code": code}, &out); err != nil {
-		return "", err
-	}
-	return out.RecoverySessionToken, nil
+	return secret, base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(secret), nil
 }
 
 // sudoWebAuthn runs /me/sudo/begin {method:webauthn} → assertion → /me/sudo/complete.
@@ -6907,37 +6930,6 @@ func verifyTOTPConfirmed(accountID int32) error {
 		return fmt.Errorf("expected 10 recovery_code rows, got %v", codes)
 	}
 	log.Printf("  totp_credential.confirmed_at IS NOT NULL ✓, recovery_code count=10 ✓")
-	return nil
-}
-
-// verifyTOTPUnconfirmedAndRecoveryCount asserts the post /auth/recovery/totp/begin
-// invariant: an unconfirmed totp_credential row exists, and exactly
-// wantRecovery rows remain in recovery_code (the wipe is deferred until
-// /verify success). Catches the most common regression — wiping recovery
-// codes too eagerly at /begin and bricking the user's retry path.
-func verifyTOTPUnconfirmedAndRecoveryCount(accountID int32, wantRecovery int) error {
-	dburl := os.Getenv("PROHIBITORUM_DATABASE_URL")
-	confirmed, err := dbScalar(dburl, fmt.Sprintf(
-		"SELECT (confirmed_at IS NOT NULL)::text FROM totp_credential WHERE account_id=%d",
-		accountID))
-	if err != nil {
-		return err
-	}
-	if len(confirmed) != 1 {
-		return fmt.Errorf("expected 1 totp_credential row, got %d", len(confirmed))
-	}
-	if confirmed[0] == "t" || confirmed[0] == "true" {
-		return fmt.Errorf("totp_credential.confirmed_at should be NULL after /recovery/totp/begin; got %q", confirmed[0])
-	}
-	codes, err := dbScalar(dburl, fmt.Sprintf(
-		"SELECT count(*)::text FROM recovery_code WHERE account_id=%d AND used_at IS NULL", accountID))
-	if err != nil {
-		return err
-	}
-	if len(codes) != 1 || codes[0] != fmt.Sprintf("%d", wantRecovery) {
-		return fmt.Errorf("expected %d unused recovery_code rows, got %v", wantRecovery, codes)
-	}
-	log.Printf("  totp_credential.confirmed_at IS NULL ✓, unused recovery_code count=%d ✓", wantRecovery)
 	return nil
 }
 
@@ -7741,42 +7733,32 @@ func runPasswordTOTPEnrollmentSmoke(baseURL string) error {
 		return err
 	}
 
-	step("pwd-totp-enroll 2/6 — POST /enrollments/{token}/password-totp/begin {username,displayName,password}")
-	var begin struct {
-		SecretBase32 string `json:"secret_base32"`
-		OtpauthURI   string `json:"otpauth_uri"`
-	}
-	if err := ec.postEnrollmentJSON(token, "password-totp/begin", map[string]string{
-		"username":    username,
-		"displayName": display,
-		"password":    password,
-	}, &begin); err != nil {
-		return fmt.Errorf("password-totp/begin: %w", err)
-	}
-	if begin.SecretBase32 == "" || !strings.HasPrefix(begin.OtpauthURI, "otpauth://totp/") {
-		return fmt.Errorf("begin returned secret=%q uri=%q", begin.SecretBase32, begin.OtpauthURI)
-	}
-	secret, err := base32.StdEncoding.WithPadding(base32.NoPadding).DecodeString(begin.SecretBase32)
+	step("pwd-totp-enroll 2/6 — generate a browser-equivalent 20-byte TOTP secret locally")
+	secret, secretBase32, err := newTOTPSecret()
 	if err != nil {
-		return fmt.Errorf("decode secret: %w", err)
+		return fmt.Errorf("generate TOTP secret: %w", err)
 	}
-	log.Printf("  begin → secret_base32 + otpauth_uri ✓ (no DB row yet)")
+	log.Printf("  generated uppercase unpadded base32 secret len=%d ✓", len(secretBase32))
 
-	step("pwd-totp-enroll 3/6 — POST /enrollments/{token}/password-totp/verify {code} → session + 10 recovery codes")
+	step("pwd-totp-enroll 3/6 — POST /enrollments/{token}/password-totp/verify with identity, password, secret and code")
 	var verify struct {
 		RecoveryCodes []string `json:"recoveryCodes"`
 	}
 	if err := ec.postEnrollmentJSON(token, "password-totp/verify", map[string]string{
-		"code": totppkg.ComputeCodeForTesting(secret, time.Now().Unix(), 6),
+		"username":      username,
+		"displayName":   display,
+		"password":      password,
+		"secret_base32": secretBase32,
+		"code":          totppkg.ComputeCodeForTesting(secret, time.Now().Unix(), 6),
 	}, &verify); err != nil {
 		return fmt.Errorf("password-totp/verify: %w", err)
 	}
 	if len(verify.RecoveryCodes) != 10 {
 		return fmt.Errorf("recovery codes = %d, want 10", len(verify.RecoveryCodes))
 	}
-	log.Printf("  verify → %d recovery codes ✓", len(verify.RecoveryCodes))
+	log.Printf("  verify → session + %d recovery codes ✓", len(verify.RecoveryCodes))
 
-	step("pwd-totp-enroll 4/6 — GET /me on the enrolled session → username/role (session cookie set by verify)")
+	step("pwd-totp-enroll 4/6 — GET /me on the enrolled session → username/role")
 	me, err := ec.getMe()
 	if err != nil {
 		return fmt.Errorf("getMe: %w", err)
@@ -7786,7 +7768,7 @@ func runPasswordTOTPEnrollmentSmoke(baseURL string) error {
 	}
 	log.Printf("  /me username=%s role=%s ✓ (enrollment issued a session)", me.Username, me.Role)
 
-	step("pwd-totp-enroll 5/6 — password→TOTP LOGIN works for the enrolled account")
+	step("pwd-totp-enroll 5/6 — password→TOTP login works for the enrolled account")
 	lc, err := newClient(baseURL)
 	if err != nil {
 		return err
@@ -7795,10 +7777,7 @@ func runPasswordTOTPEnrollmentSmoke(baseURL string) error {
 	if err != nil {
 		return fmt.Errorf("passwordBegin: %w", err)
 	}
-	// Use the NEXT TOTP step's code: enrollment seeded last_step to the
-	// confirming code's step, so the same-window code is (correctly) rejected as
-	// a replay — a real authenticator rolls to the next code after ~30s. Adding
-	// one period advances exactly one step, still within the server's ±1 drift.
+	// Enrollment seeded last_step, so use the next step within the accepted drift window.
 	if err := lc.totpStepTwoVerify(partial, totppkg.ComputeCodeForTesting(secret, time.Now().Unix()+30, 6)); err != nil {
 		return fmt.Errorf("totpStepTwoVerify: %w", err)
 	}
@@ -7813,7 +7792,7 @@ func runPasswordTOTPEnrollmentSmoke(baseURL string) error {
 	}
 	log.Printf("  password→TOTP login → session ✓")
 
-	step("pwd-totp-enroll 6/6 — negative: bootstrap enrollment rejects password+TOTP (passkey-only)")
+	step("pwd-totp-enroll 6/6 — negative: bootstrap enrollment rejects password+TOTP verify")
 	const bootToken = "smoke-pwdtotp-bootstrap-token"
 	if err := seedBootstrapEnrollment(bootToken, "1 hour"); err != nil {
 		return fmt.Errorf("seed bootstrap: %w", err)
@@ -7822,15 +7801,25 @@ func runPasswordTOTPEnrollmentSmoke(baseURL string) error {
 	if err != nil {
 		return err
 	}
-	resp, err := bc.postJSONRaw("/api/prohibitorum/enrollments/"+url.PathEscape(bootToken)+"/password-totp/begin",
-		map[string]string{"username": "smoke-boot", "displayName": "Smoke Boot", "password": password})
+	_, bootSecretBase32, err := newTOTPSecret()
 	if err != nil {
-		return fmt.Errorf("bootstrap begin transport: %w", err)
+		return fmt.Errorf("generate bootstrap TOTP candidate: %w", err)
+	}
+	resp, err := bc.postJSONRaw("/api/prohibitorum/enrollments/"+url.PathEscape(bootToken)+"/password-totp/verify",
+		map[string]string{
+			"username":      "smoke-boot",
+			"displayName":   "Smoke Boot",
+			"password":      password,
+			"secret_base32": bootSecretBase32,
+			"code":          "000000",
+		})
+	if err != nil {
+		return fmt.Errorf("bootstrap verify transport: %w", err)
 	}
 	defer resp.Body.Close()
 	body, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode != http.StatusBadRequest {
-		return fmt.Errorf("bootstrap password-totp/begin status = %d, want 400 (body=%s)", resp.StatusCode, body)
+		return fmt.Errorf("bootstrap password-totp/verify status = %d, want 400 (body=%s)", resp.StatusCode, body)
 	}
 	var env struct {
 		Code string `json:"code"`
@@ -7839,7 +7828,7 @@ func runPasswordTOTPEnrollmentSmoke(baseURL string) error {
 	if env.Code != "enrollment_method_not_allowed" {
 		return fmt.Errorf("bootstrap rejection code = %q, want enrollment_method_not_allowed (body=%s)", env.Code, body)
 	}
-	log.Printf("  bootstrap password-totp/begin → 400 enrollment_method_not_allowed ✓")
+	log.Printf("  bootstrap password-totp/verify → 400 enrollment_method_not_allowed ✓")
 
 	return nil
 }
