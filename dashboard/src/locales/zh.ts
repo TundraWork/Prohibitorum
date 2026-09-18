@@ -1086,13 +1086,14 @@ export default {
     codeLabel: '恢复码',
     codeHint: '输入你在设置身份验证器时保存的备用恢复码之一。',
     codeWarning: '每个恢复码只能使用一次。若输入有误，本次登录将立即终止并跳回起始页——请仔细核对后再输入。',
-    reenrollHeadsUp: '使用恢复码后，将重新设置一个全新的身份验证器并生成一组新的恢复码，旧的恢复码将全部失效。',
+    resetAuthenticator: '重新设置身份验证器并更换恢复码',
     verify: '验证',
     reenrollTitle: '设置新的身份验证器',
     reenrollHint: '用身份验证器应用扫描二维码（或手动输入密钥），然后输入 6 位验证码。',
     secretLabel: '设置密钥',
     codeInputLabel: '身份验证器验证码',
     confirm: '确认',
+    confirmReset: '验证并重新设置身份验证器',
   },
 
   samlConsent: {

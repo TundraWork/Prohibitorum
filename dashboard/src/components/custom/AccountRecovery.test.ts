@@ -1,78 +1,93 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { mount, flushPromises } from '@vue/test-utils'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { flushPromises, mount } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
 import en from '@/locales/en'
-vi.mock('@/lib/api', () => ({ api: { get: vi.fn(), post: vi.fn(), put: vi.fn() } }))
-import { api } from '@/lib/api'
-vi.mock('qrcode', () => ({ default: { toDataURL: vi.fn(async () => 'data:image/png;base64,AAAA') } }))
-const post = vi.mocked(api.post)
 import AccountRecovery from './AccountRecovery.vue'
 
+vi.mock('@/lib/api', () => ({ api: { get: vi.fn(), post: vi.fn(), put: vi.fn() } }))
+import { api } from '@/lib/api'
+
+const { generateTotpEnrollment } = vi.hoisted(() => ({
+  generateTotpEnrollment: vi.fn(async () => ({ secretBase32: 'ABCD', otpauthUri: 'otpauth://totp/x' })),
+}))
+vi.mock('@/lib/totpEnrollment', () => ({ generateTotpEnrollment }))
+vi.mock('qrcode', () => ({ default: { toDataURL: vi.fn(async () => 'data:image/png;base64,AAAA') } }))
+
+const post = vi.mocked(api.post)
 const i18n = () => createI18n({ legacy: false, locale: 'en', fallbackLocale: 'en', messages: { en } })
-const mountC = () => mount(AccountRecovery, { props: { partialToken: 'pt_1' }, global: { plugins: [i18n()] }, attachTo: document.body })
-beforeEach(() => { post.mockReset() })
+const mountC = () => mount(AccountRecovery, {
+  props: { partialToken: 'pt_1', username: 'alex', returnTo: '/me' },
+  global: { plugins: [i18n()] },
+  attachTo: document.body,
+})
+
+beforeEach(() => {
+  post.mockReset()
+  generateTotpEnrollment.mockClear()
+  Object.assign(navigator, { clipboard: { writeText: vi.fn(async () => {}) } })
+})
 
 describe('AccountRecovery', () => {
-  it('verifies a recovery code, re-enrolls TOTP, shows new codes, emits success', async () => {
-    post.mockImplementation(async (p: string) => {
-      if (p.endsWith('/recovery-code/verify')) return { recovery_session_token: 'rs_1' }
-      if (p.endsWith('/recovery/totp/begin')) return { secret_base32: 'ABCD', otpauth_uri: 'otpauth://x' }
-      if (p.endsWith('/recovery/totp/verify')) return { recovery_codes: ['c1', 'c2'] }
-      return undefined
-    })
+  it('uses a recovery code without replacing the authenticator', async () => {
+    post.mockResolvedValue({ redirect: '/me' })
     const w = mountC()
     await w.find('input[name="recovery-code"]').setValue('backup-1')
-    await w.find('[data-test="verify-code"]').trigger('click'); await flushPromises()
-    expect(post).toHaveBeenCalledWith('/api/prohibitorum/auth/recovery-code/verify', { partial_session_token: 'pt_1', code: 'backup-1' })
-    expect(post).toHaveBeenCalledWith('/api/prohibitorum/auth/recovery/totp/begin', { recovery_session_token: 'rs_1' })
-    expect(w.text()).toContain('ABCD') // secret shown
-    await w.find('input[name="reenroll-code"]').setValue('123456')
-    await w.find('[data-test="confirm-reenroll"]').trigger('click'); await flushPromises()
-    expect(post).toHaveBeenCalledWith('/api/prohibitorum/auth/recovery/totp/verify', { recovery_session_token: 'rs_1', code: '123456' })
-    expect(w.text()).toContain(en.recoveryCodes.heading) // RecoveryCodesDisplay heading
-    await w.find('[data-test="saved"]').trigger('click')
-    await w.find('[data-test="done"]').trigger('click'); await flushPromises()
-    expect(w.emitted('success')).toBeTruthy()
+    await w.find('[data-test="verify-code"]').trigger('click')
+    await flushPromises()
+
+    expect(generateTotpEnrollment).not.toHaveBeenCalled()
+    expect(post).toHaveBeenCalledWith('/api/prohibitorum/auth/recovery-code/verify?return_to=%2Fme', {
+      partial_session_token: 'pt_1', code: 'backup-1', reset_authenticator: false,
+    })
+    expect(w.emitted('success')).toEqual([['/me']])
   })
-  it('shows codeWarning and reenrollHeadsUp notes in the code phase', () => {
+
+  it('optionally submits the recovery code and replacement authenticator together', async () => {
+    post.mockResolvedValue({ redirect: '/me', recovery_codes: ['c1', 'c2'] })
+    const w = mountC()
+    await w.find('input[name="recovery-code"]').setValue('backup-1')
+    await w.find('[data-test="reset-authenticator"]').trigger('click')
+    await flushPromises()
+
+    expect(generateTotpEnrollment).toHaveBeenCalledWith('alex')
+    expect(w.text()).toContain('ABCD')
+    expect(post).not.toHaveBeenCalled()
+
+    await w.find('input[name="reenroll-code"]').setValue('123456')
+    await w.find('[data-test="verify-code"]').trigger('click')
+    await flushPromises()
+    expect(post).toHaveBeenCalledWith('/api/prohibitorum/auth/recovery-code/verify?return_to=%2Fme', {
+      partial_session_token: 'pt_1', code: 'backup-1', reset_authenticator: true,
+      totp_secret_base32: 'ABCD', totp_code: '123456',
+    })
+    expect(w.text()).toContain(en.recoveryCodes.heading)
+    await w.find('[data-test="saved"]').trigger('click')
+    await w.find('[data-test="done"]').trigger('click')
+    expect(w.emitted('success')).toEqual([['/me']])
+  })
+
+  it('explains that the recovery code is single-use and offers the reset choice', () => {
     const w = mountC()
     expect(w.text()).toContain(en.recovery.codeWarning)
-    expect(w.text()).toContain(en.recovery.reenrollHeadsUp)
+    expect(w.text()).toContain(en.recovery.resetAuthenticator)
   })
-  it('emits restart when the recovery code is rejected', async () => {
-    post.mockRejectedValue({ code: 'bad_credentials', message: 'zh' })
+
+  it('emits restart when the single recovery submission fails', async () => {
+    post.mockRejectedValue({ code: 'bad_credentials' })
     const w = mountC()
     await w.find('input[name="recovery-code"]').setValue('wrong')
-    await w.find('[data-test="verify-code"]').trigger('click'); await flushPromises()
+    await w.find('[data-test="verify-code"]').trigger('click')
+    await flushPromises()
     expect(w.emitted('restart')).toBeTruthy()
   })
-  it('shows a retry when totp/begin fails, then recovers on retry', async () => {
-    let beginCalls = 0
-    post.mockImplementation(async (p: string) => {
-      if (p.endsWith('/recovery-code/verify')) return { recovery_session_token: 'rs_1' }
-      if (p.endsWith('/recovery/totp/begin')) { beginCalls++; if (beginCalls === 1) throw { code: 'server_error', message: 'boom' }; return { secret_base32: 'ABCD', otpauth_uri: 'otpauth://x' } }
-      return undefined
-    })
+
+  it('does not consume the recovery token when local candidate generation fails', async () => {
+    generateTotpEnrollment.mockRejectedValueOnce({ code: 'network_error' })
     const w = mountC()
-    await w.find('input[name="recovery-code"]').setValue('backup-1')
-    await w.find('[data-test="verify-code"]').trigger('click'); await flushPromises()
-    expect(w.find('[data-test="reenroll-retry"]').exists()).toBe(true) // stranded → retry offered
-    await w.find('[data-test="reenroll-retry"]').trigger('click'); await flushPromises()
-    expect(w.text()).toContain('ABCD') // QR/secret now loaded
-  })
-  it('stays in reenroll when the TOTP code is wrong', async () => {
-    post.mockImplementation(async (p: string) => {
-      if (p.endsWith('/recovery-code/verify')) return { recovery_session_token: 'rs_1' }
-      if (p.endsWith('/recovery/totp/begin')) return { secret_base32: 'ABCD', otpauth_uri: 'otpauth://x' }
-      if (p.endsWith('/recovery/totp/verify')) throw { code: 'bad_credentials', message: 'zh' }
-      return undefined
-    })
-    const w = mountC()
-    await w.find('input[name="recovery-code"]').setValue('backup-1')
-    await w.find('[data-test="verify-code"]').trigger('click'); await flushPromises()
-    await w.find('input[name="reenroll-code"]').setValue('000000')
-    await w.find('[data-test="confirm-reenroll"]').trigger('click'); await flushPromises()
-    expect(w.find('input[name="reenroll-code"]').exists()).toBe(true) // still in reenroll
-    expect(w.text()).toContain(en.errors.codes.bad_credentials)
+    await w.find('[data-test="reset-authenticator"]').trigger('click')
+    await flushPromises()
+    expect(post).not.toHaveBeenCalled()
+    expect(w.find('[data-test="replacement-authenticator"]').exists()).toBe(false)
+    expect(w.get('[data-test="error-summary"]').text()).toBe(en.errors.unknown)
   })
 })

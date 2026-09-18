@@ -170,6 +170,15 @@ type AuthStatus struct {
 	Bootstrapped bool `json:"bootstrapped"`
 }
 
+// PublicTOTPConfig contains the non-secret settings the browser needs to build
+// an otpauth URI for a client-generated TOTP secret.
+type PublicTOTPConfig struct {
+	Issuer    string `json:"issuer"`
+	Algorithm string `json:"algorithm"`
+	Digits    int    `json:"digits"`
+	Period    int    `json:"period"`
+}
+
 // PublicConfig is the unauthenticated branding payload the SPA loads at boot.
 type PublicConfig struct {
 	InstanceName  string `json:"instanceName"`
@@ -184,9 +193,10 @@ type PublicConfig struct {
 	// Login-page background: served verbatim (no re-encode) from BackgroundURL when
 	// an admin uploaded one. HasCustomBackground=false → the SPA uses its build-time
 	// asset / gradient fallback.
-	HasCustomBackground bool   `json:"hasCustomBackground"`
-	BackgroundURL       string `json:"backgroundUrl"`
-	BackgroundEtag      string `json:"backgroundEtag"`
+	HasCustomBackground bool             `json:"hasCustomBackground"`
+	BackgroundURL       string           `json:"backgroundUrl"`
+	BackgroundEtag      string           `json:"backgroundEtag"`
+	TOTP                PublicTOTPConfig `json:"totp"`
 }
 
 // EnrollmentURLResponse is returned by reissue-enrollment. Reveal-once: the URL

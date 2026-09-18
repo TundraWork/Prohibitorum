@@ -16,13 +16,11 @@
 // chosen method is stashed at /begin in `sudo_intent:<session_id>` (5-min
 // TTL) and read at /complete to dispatch the verification.
 //
-// recovery_code is INTENTIONALLY EXCLUDED from sudo (recovery ceremony
-// hardening, 2026-05-28). NIST SP 800-63B-4 §5.2 cautions against using a
+// recovery_code is intentionally excluded from sudo. NIST SP 800-63B-4 §5.2 cautions against using a
 // knowledge factor for reauthentication, and a stolen session + a single
 // leaked recovery code would otherwise let an attacker escalate to password
-// change / revoke-password-totp. The recovery-code login path now mints a
-// narrow-scope recovery_session_token and routes the user through a forced
-// TOTP re-enrollment ceremony at /auth/recovery/totp/{begin,verify}.
+// change / revoke-password-totp. Recovery-code login can optionally replace
+// the authenticator in the same atomic request.
 package server
 
 import (
@@ -222,11 +220,11 @@ func (s *Server) handleSudoCompleteHTTP(w http.ResponseWriter, r *http.Request) 
 	if err != nil {
 		accountID := sess.Account.ID
 		audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
-				AccountID: &accountID,
-				Factor:    audit.FactorSession,
-				Event:     audit.EventSudoFailed,
-				Detail:    map[string]any{"reason": "ceremony_expired"},
-			})
+			AccountID: &accountID,
+			Factor:    audit.FactorSession,
+			Event:     audit.EventSudoFailed,
+			Detail:    map[string]any{"reason": "ceremony_expired"},
+		})
 		writeAuthErr(w, authn.ErrCeremonyExpired())
 		return
 	}
@@ -234,11 +232,11 @@ func (s *Server) handleSudoCompleteHTTP(w http.ResponseWriter, r *http.Request) 
 	if err := json.Unmarshal([]byte(intentRaw), &intent); err != nil {
 		accountID := sess.Account.ID
 		audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
-				AccountID: &accountID,
-				Factor:    audit.FactorSession,
-				Event:     audit.EventSudoFailed,
-				Detail:    map[string]any{"reason": "ceremony_state"},
-			})
+			AccountID: &accountID,
+			Factor:    audit.FactorSession,
+			Event:     audit.EventSudoFailed,
+			Detail:    map[string]any{"reason": "ceremony_state"},
+		})
 		writeAuthErr(w, authn.ErrCeremonyState())
 		return
 	}
@@ -283,11 +281,11 @@ func (s *Server) completeSudoWebAuthn(w http.ResponseWriter, r *http.Request, se
 	if err != nil {
 		accountID := sess.Account.ID
 		audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
-				AccountID: &accountID,
-				Factor:    audit.FactorWebAuthn,
-				Event:     audit.EventSudoFailed,
-				Detail:    map[string]any{"reason": "finish_login_failed", "method": string(authn.MethodWebAuthn)},
-			})
+			AccountID: &accountID,
+			Factor:    audit.FactorWebAuthn,
+			Event:     audit.EventSudoFailed,
+			Detail:    map[string]any{"reason": "finish_login_failed", "method": string(authn.MethodWebAuthn)},
+		})
 		writeAuthErr(w, webauthnauth.MapLoginCeremonyError(r.Context(), err))
 		return
 	}
@@ -309,11 +307,11 @@ func (s *Server) completeSudoWebAuthn(w http.ResponseWriter, r *http.Request, se
 				}).Warn("auth")
 				accountID := sess.Account.ID
 				audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
-						AccountID: &accountID,
-						Factor:    audit.FactorWebAuthn,
-						Event:     audit.EventCloneWarning,
-						Detail:    map[string]any{"reason": "clone_warning"},
-					})
+					AccountID: &accountID,
+					Factor:    audit.FactorWebAuthn,
+					Event:     audit.EventCloneWarning,
+					Detail:    map[string]any{"reason": "clone_warning"},
+				})
 				break
 			}
 		}
@@ -350,11 +348,11 @@ func (s *Server) completeSudoPasswordTOTP(w http.ResponseWriter, r *http.Request
 		// generic 401 so /complete doesn't leak which factor missed.
 		accountID := sess.Account.ID
 		audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
-				AccountID: &accountID,
-				Factor:    audit.FactorPassword,
-				Event:     audit.EventSudoFailed,
-				Detail:    map[string]any{"reason": "bad_credentials", "method": string(authn.MethodPasswordTOTP)},
-			})
+			AccountID: &accountID,
+			Factor:    audit.FactorPassword,
+			Event:     audit.EventSudoFailed,
+			Detail:    map[string]any{"reason": "bad_credentials", "method": string(authn.MethodPasswordTOTP)},
+		})
 		writeAuthErr(w, authn.ErrBadCredentials())
 		return
 	}
@@ -366,11 +364,11 @@ func (s *Server) completeSudoPasswordTOTP(w http.ResponseWriter, r *http.Request
 		}
 		accountID := sess.Account.ID
 		audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
-				AccountID: &accountID,
-				Factor:    audit.FactorTOTP,
-				Event:     audit.EventSudoFailed,
-				Detail:    map[string]any{"reason": "bad_credentials", "method": string(authn.MethodPasswordTOTP)},
-			})
+			AccountID: &accountID,
+			Factor:    audit.FactorTOTP,
+			Event:     audit.EventSudoFailed,
+			Detail:    map[string]any{"reason": "bad_credentials", "method": string(authn.MethodPasswordTOTP)},
+		})
 		writeAuthErr(w, authn.ErrBadCredentials())
 		return
 	}

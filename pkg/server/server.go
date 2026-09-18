@@ -545,8 +545,6 @@ func (s *Server) registerOperations() {
 	registerOpHTTP(s.router, "POST", "/api/prohibitorum/auth/password/begin", publicReq, s.handlePasswordBeginHTTP)
 	registerOpHTTP(s.router, "POST", "/api/prohibitorum/auth/totp/verify", publicReq, s.handleTOTPVerifyHTTP)
 	registerOpHTTP(s.router, "POST", "/api/prohibitorum/auth/recovery-code/verify", publicReq, s.handleRecoveryCodeVerifyHTTP)
-	registerOpHTTP(s.router, "POST", "/api/prohibitorum/auth/recovery/totp/begin", publicReq, s.handleAuthRecoveryTOTPBeginHTTP)
-	registerOpHTTP(s.router, "POST", "/api/prohibitorum/auth/recovery/totp/verify", publicReq, s.handleAuthRecoveryTOTPVerifyHTTP)
 
 	// federation: upstream OIDC login + /me/identities management
 	registerOpHTTP(s.router, "GET", "/api/prohibitorum/auth/federation", publicReq, s.handleListFederationProvidersHTTP)
@@ -566,7 +564,6 @@ func (s *Server) registerOperations() {
 	registerOp(mgmt, contract.OperationPreviewEnrollment, s.handlePreviewEnrollment, publicReq)
 	registerOpHTTP(s.router, "POST", "/api/prohibitorum/enrollments/{token}/register/begin", publicReq, s.handleEnrollmentBeginHTTP)
 	registerOpHTTP(s.router, "POST", "/api/prohibitorum/enrollments/{token}/register/complete", publicReq, s.handleEnrollmentCompleteHTTP)
-	registerOpHTTP(s.router, "POST", "/api/prohibitorum/enrollments/{token}/password-totp/begin", publicReq, s.handleEnrollmentPasswordTOTPBeginHTTP)
 	registerOpHTTP(s.router, "POST", "/api/prohibitorum/enrollments/{token}/password-totp/verify", publicReq, s.handleEnrollmentPasswordTOTPVerifyHTTP)
 	registerOpHTTP(s.router, "GET", "/api/prohibitorum/enrollments/{token}/start-federation", publicReq, s.handleEnrollmentStartFederationHTTP)
 
@@ -579,7 +576,6 @@ func (s *Server) registerOperations() {
 	registerOp(mgmt, contract.OperationRenameMyCredential, s.handleRenameMyCredential, sessionReq)
 	registerOpHTTP(s.router, "POST", "/api/prohibitorum/me/credentials/register/begin", sessionReq, s.handleAddCredentialBeginHTTP)
 	registerOpHTTP(s.router, "POST", "/api/prohibitorum/me/credentials/register/complete", sessionReq, s.handleAddCredentialCompleteHTTP)
-	registerOpHTTP(s.router, "POST", "/api/prohibitorum/me/password-totp/begin", sessionReq, s.handleMePasswordTOTPBeginHTTP)
 	registerOpHTTP(s.router, "POST", "/api/prohibitorum/me/password-totp/verify", sessionReq, s.handleMePasswordTOTPVerifyHTTP)
 	registerOp(mgmt, contract.OperationListMySessions, s.handleListMySessions, sessionReq)
 	registerOp(mgmt, contract.OperationRevokeMySession, s.handleRevokeMySession, sessionReq)
@@ -629,9 +625,8 @@ func (s *Server) registerOperations() {
 	registerOpHTTP(s.router, "GET", "/api/prohibitorum/me/avatar/status", sessionReq, s.handleAvatarStatusHTTP)
 	registerOpHTTP(s.router, "GET", "/avatar/{subject}", contract.AuthRequirement{Kind: contract.AuthPublic}, s.handleGetAvatarHTTP)
 
-	// /me sensitive endpoints (sudo-gated, conditional for TOTP enrollment).
+	// /me sensitive endpoints.
 	registerOpHTTP(s.router, "POST", "/api/prohibitorum/me/password/set", sessionReq, s.handleMePasswordSetHTTP)
-	registerOpHTTP(s.router, "POST", "/api/prohibitorum/me/totp/begin", sessionReq, s.handleMeTOTPBeginHTTP)
 	registerOpHTTP(s.router, "POST", "/api/prohibitorum/me/totp/verify", sessionReq, s.handleMeTOTPVerifyHTTP)
 	registerOpHTTP(s.router, "POST", "/api/prohibitorum/me/recovery-codes/regenerate", sessionReq, s.handleMeRegenerateRecoveryCodesHTTP)
 	registerOpHTTP(s.router, "POST", "/api/prohibitorum/me/auth/revoke-password-totp", sessionReq, s.handleMeRevokePwdTOTPHTTP)

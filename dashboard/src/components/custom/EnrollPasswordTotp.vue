@@ -3,7 +3,7 @@ import { usePrivateState } from '@/composables/usePrivateState'
 /**
  * EnrollPasswordTotp — the password+TOTP arm of the enrollment ceremony
  * (/enroll/:token). Modeled on AccountRecovery: an unauthenticated,
- * token-scoped begin→QR→confirm→recovery-codes flow, composed from the shared
+ * token-scoped local-generation→confirm→recovery-codes flow, composed from the shared
  * threshold leaves. Offered for every intent except bootstrap (EnrollView's
  * method chooser gates that). The verify response sets the session cookie, so
  * on success we hard-redirect to the app root.
@@ -13,6 +13,7 @@ import { useI18n } from 'vue-i18n'
 import { api } from '@/lib/api'
 import { useApi } from '@/composables/useApi'
 import { hardRedirect } from '@/lib/navigate'
+import { generateTotpEnrollment } from '@/lib/totpEnrollment'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -25,6 +26,7 @@ import ErrorPanel from '@/components/custom/ErrorPanel.vue'
 const props = defineProps<{
   token: string
   identity: { username: string; displayName: string } | null
+  accountLabel: string
 }>()
 const emit = defineEmits<{ back: [] }>()
 
@@ -40,8 +42,8 @@ const otpauthUri = ref('')
 const totpCode = ref('')
 const newCodes = ref<string[]>([])
 
-const basePath = computed(
-  () => `/api/prohibitorum/enrollments/${encodeURIComponent(props.token)}/password-totp`,
+const verifyPath = computed(
+  () => `/api/prohibitorum/enrollments/${encodeURIComponent(props.token)}/password-totp/verify`,
 )
 
 async function submitPassword(): Promise<void> {
@@ -54,24 +56,24 @@ async function submitPassword(): Promise<void> {
     localError.value = t('enroll.pwMismatch')
     return
   }
-  const body: Record<string, string> = { password: password.value }
-  if (props.identity) {
-    body.username = props.identity.username
-    body.displayName = props.identity.displayName
-  }
-  const res = await run(() =>
-    api.post<{ secret_base32: string; otpauth_uri: string }>(`${basePath.value}/begin`, body),
-  )
-  if (!res) return
-  secret.value = res.secret_base32
-  otpauthUri.value = res.otpauth_uri
+  const enrollment = await run(() => generateTotpEnrollment(props.accountLabel))
+  if (!enrollment) return
+  secret.value = enrollment.secretBase32
+  otpauthUri.value = enrollment.otpauthUri
   phase.value = 'totp'
 }
 
 async function verifyTotp(): Promise<void> {
-  const res = await run(() =>
-    api.post<{ recoveryCodes: string[] }>(`${basePath.value}/verify`, { code: totpCode.value }),
-  )
+  const body: Record<string, string> = {
+    password: password.value,
+    secret_base32: secret.value,
+    code: totpCode.value,
+  }
+  if (props.identity) {
+    body.username = props.identity.username
+    body.displayName = props.identity.displayName
+  }
+  const res = await run(() => api.post<{ recoveryCodes: string[] }>(verifyPath.value, body))
   if (!res) return
   newCodes.value = res.recoveryCodes
   phase.value = 'done'

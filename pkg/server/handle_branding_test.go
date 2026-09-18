@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"prohibitorum/pkg/branding"
+	"prohibitorum/pkg/configx"
 )
 
 type fakeBrandingStore struct {
@@ -35,14 +36,19 @@ func (f *fakeBrandingStore) SetLoginBG(context.Context, []byte, string) error   
 func (f *fakeBrandingStore) ClearLoginBG(context.Context) error                  { return nil }
 
 func TestBrandingConfigEndpoint(t *testing.T) {
-	s := &Server{branding: branding.NewWithStore("TestCo", &fakeBrandingStore{})}
+	s := &Server{
+		branding: branding.NewWithStore("TestCo", &fakeBrandingStore{}),
+		config: &configx.Config{TOTP: configx.TOTPConfig{
+			Issuer: "TestCo Auth", DefaultAlgorithm: "SHA256", DefaultDigits: 8, DefaultPeriod: 45,
+		}},
+	}
 	rec := httptest.NewRecorder()
 	s.handleGetPublicConfigHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/prohibitorum/config", nil))
 	if rec.Code != 200 {
 		t.Fatalf("status %d", rec.Code)
 	}
 	body := rec.Body.String()
-	for _, want := range []string{`"instanceName":"TestCo"`, `"iconUrl":"/branding/icon"`, `"hasCustomIcon":false`, `"hasCustomBackground":false`, `"backgroundUrl":"/branding/background"`} {
+	for _, want := range []string{`"instanceName":"TestCo"`, `"iconUrl":"/branding/icon"`, `"hasCustomIcon":false`, `"hasCustomBackground":false`, `"backgroundUrl":"/branding/background"`, `"totp":{"issuer":"TestCo Auth","algorithm":"SHA256","digits":8,"period":45}`} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("body missing %q: %s", want, body)
 		}

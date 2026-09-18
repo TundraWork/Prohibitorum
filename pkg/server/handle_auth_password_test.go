@@ -20,10 +20,12 @@ import (
 	"crypto/cipher"
 	"crypto/rand"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -128,9 +130,10 @@ func TestLoginCompleteRateLimitsByIP(t *testing.T) {
 type fakeAuthQueries struct {
 	db.Querier
 
-	totpRow      *db.TotpCredential
-	recoveryRows []db.RecoveryCode
-	nextRecID    int32
+	totpRow            *db.TotpCredential
+	recoveryRows       []db.RecoveryCode
+	nextRecID          int32
+	consumeRecoveryErr error
 
 	throttle map[string]db.AuthThrottle
 	events   []db.InsertCredentialEventParams
@@ -160,6 +163,10 @@ func (f *fakeAuthQueries) GetAccountByID(_ context.Context, id int32) (db.Accoun
 		return a, nil
 	}
 	return db.Account{ID: id, Username: "alice"}, nil
+}
+
+func (f *fakeAuthQueries) GetAccountByIDForUpdate(ctx context.Context, id int32) (db.Account, error) {
+	return f.GetAccountByID(ctx, id)
 }
 
 func (f *fakeAuthQueries) GetTOTPCredential(_ context.Context, accountID int32) (db.TotpCredential, error) {
@@ -229,6 +236,9 @@ func (f *fakeAuthQueries) InsertRecoveryCode(_ context.Context, arg db.InsertRec
 }
 
 func (f *fakeAuthQueries) ConsumeRecoveryCode(_ context.Context, arg db.ConsumeRecoveryCodeParams) (db.RecoveryCode, error) {
+	if f.consumeRecoveryErr != nil {
+		return db.RecoveryCode{}, f.consumeRecoveryErr
+	}
 	for i := range f.recoveryRows {
 		if f.recoveryRows[i].ID == arg.ID && !f.recoveryRows[i].UsedAt.Valid {
 			f.recoveryRows[i].UsedAt = pgtype.Timestamptz{Time: time.Now(), Valid: true}
@@ -319,6 +329,52 @@ func (f *fakeAuthQueries) RevokeAllSessionsByAccount(_ context.Context, _ int32)
 	return nil
 }
 
+type fakeAuthEnrollmentTxRunner struct {
+	q         *fakeAuthQueries
+	commitErr error
+}
+
+func (r *fakeAuthEnrollmentTxRunner) BeginEnrollmentTx(context.Context) (enrollmentTx, error) {
+	var totpRow *db.TotpCredential
+	if r.q.totpRow != nil {
+		row := *r.q.totpRow
+		row.SecretEnc = append([]byte(nil), row.SecretEnc...)
+		row.SecretNonce = append([]byte(nil), row.SecretNonce...)
+		totpRow = &row
+	}
+	return &fakeAuthEnrollmentTx{
+		q: r.q, commitErr: r.commitErr, totpRow: totpRow,
+		recoveryRows: append([]db.RecoveryCode(nil), r.q.recoveryRows...), nextRecID: r.q.nextRecID,
+	}, nil
+}
+
+type fakeAuthEnrollmentTx struct {
+	q            *fakeAuthQueries
+	commitErr    error
+	committed    bool
+	totpRow      *db.TotpCredential
+	recoveryRows []db.RecoveryCode
+	nextRecID    int32
+}
+
+func (tx *fakeAuthEnrollmentTx) Queries() db.Querier { return tx.q }
+func (tx *fakeAuthEnrollmentTx) Commit(context.Context) error {
+	if tx.commitErr != nil {
+		return tx.commitErr
+	}
+	tx.committed = true
+	return nil
+}
+func (tx *fakeAuthEnrollmentTx) Rollback(context.Context) error {
+	if tx.committed {
+		return nil
+	}
+	tx.q.totpRow = tx.totpRow
+	tx.q.recoveryRows = append([]db.RecoveryCode(nil), tx.recoveryRows...)
+	tx.q.nextRecID = tx.nextRecID
+	return nil
+}
+
 // --- Server scaffolding ----------------------------------------------------
 
 // newTestServer builds a Server with the minimum wiring needed to exercise
@@ -363,15 +419,16 @@ func newTestServer(t *testing.T) (*Server, *fakeAuthQueries, []byte) {
 	sessionStore := sessstore.NewSessionStore(kvStore, f, cfg.SessionTTL)
 
 	s := &Server{
-		config:        cfg,
-		kvStore:       kvStore,
-		sessionStore:  sessionStore,
-		rateLimiter:   authn.NewRateLimiter(),
-		totpStore:     totpStore,
-		throttle:      throttle,
-		Audit:         auditWriter,
-		accountLookup: f, // Fix 4: step-2 disabled re-check
-		clientIP:      newDirectResolver(),
+		config:                     cfg,
+		kvStore:                    kvStore,
+		sessionStore:               sessionStore,
+		rateLimiter:                authn.NewRateLimiter(),
+		totpStore:                  totpStore,
+		throttle:                   throttle,
+		Audit:                      auditWriter,
+		accountLookup:              f, // Fix 4: step-2 disabled re-check
+		clientIP:                   newDirectResolver(),
+		enrollmentTxRunnerOverride: &fakeAuthEnrollmentTxRunner{q: f},
 	}
 	return s, f, dek
 }
@@ -382,15 +439,15 @@ func newTestServer(t *testing.T) (*Server, *fakeAuthQueries, []byte) {
 func seedConfirmedTOTP(t *testing.T, s *Server, f *fakeAuthQueries, dek []byte, accountID int32) []string {
 	t.Helper()
 	ctx := context.Background()
-	if _, err := s.totpStore.Begin(ctx, accountID, "alice"); err != nil {
-		t.Fatalf("totpStore.Begin: %v", err)
+	secret := browserTOTPSecret(t)
+	code := codeForSecret(t, secret)
+	step, ok := s.totpStore.VerifyCandidateSecret(secret, code)
+	if !ok {
+		t.Fatal("candidate TOTP rejected")
 	}
-	row := *f.totpRow
-	// First verify confirms enrollment and mints recovery codes.
-	code := totpCodeFor(t, dek, row, accountID, time.Now(), 0)
-	codes, err := s.totpStore.Verify(ctx, accountID, code)
+	codes, err := s.totpStore.EnrollConfirmedForTx(ctx, f, accountID, secret, step)
 	if err != nil {
-		t.Fatalf("totpStore.Verify (confirm): %v", err)
+		t.Fatalf("seed confirmed TOTP: %v", err)
 	}
 	if len(codes) != 10 {
 		t.Fatalf("recovery codes: want 10, got %d", len(codes))
@@ -668,73 +725,195 @@ func TestTOTPVerify_ConsumesTokenOnFailure(t *testing.T) {
 	}
 }
 
-// TestRecoveryCodeVerify_Success exercises the repurposed
-// /auth/recovery-code/verify (2026-05-28 recovery-ceremony hardening).
-// Success no longer issues a session; it returns a recovery_session_token
-// that the client must redeem at /auth/recovery/totp/{begin,verify}.
-func TestRecoveryCodeVerify_Success(t *testing.T) {
-	s, f, dek := newTestServer(t)
-	const accountID int32 = 42
-	codes := seedConfirmedTOTP(t, s, f, dek, accountID)
-
-	token := mustToken(t)
-	stashPartialSession(t, s, token, accountID)
-
-	bodyJSON := fmt.Sprintf(`{"partial_session_token":%q,"code":%q}`, token, codes[0])
-	req := httptest.NewRequest(http.MethodPost, "/api/prohibitorum/auth/recovery-code/verify",
-		strings.NewReader(bodyJSON))
+func recoveryCodeVerify(t *testing.T, s *Server, token, code string, reset bool, secret, totpCode string) *httptest.ResponseRecorder {
+	t.Helper()
+	body := fmt.Sprintf(`{"partial_session_token":%q,"code":%q,"reset_authenticator":%t`, token, code, reset)
+	if secret != "" {
+		body += fmt.Sprintf(`,"totp_secret_base32":%q`, secret)
+	}
+	if totpCode != "" {
+		body += fmt.Sprintf(`,"totp_code":%q`, totpCode)
+	}
+	body += "}"
+	req := httptest.NewRequest(http.MethodPost, "/api/prohibitorum/auth/recovery-code/verify?return_to=%2Fme%2Fsecurity", strings.NewReader(body))
 	req.RemoteAddr = "127.0.0.1:5555"
 	w := httptest.NewRecorder()
-
 	s.handleRecoveryCodeVerifyHTTP(w, req)
+	return w
+}
 
+func TestRecoveryCodeVerify_WithoutResetConsumesOnlyOneCode(t *testing.T) {
+	s, f, dek := newTestServer(t)
+	codes := seedConfirmedTOTP(t, s, f, dek, 42)
+	oldTOTP := *f.totpRow
+	token := mustToken(t)
+	stashPartialSession(t, s, token, 42)
+	w := recoveryCodeVerify(t, s, token, codes[0], false, "", "")
 	if w.Code != http.StatusOK {
-		t.Fatalf("status: want 200, got %d (body=%s)", w.Code, w.Body.String())
+		t.Fatalf("status = %d, want 200: %s", w.Code, w.Body.String())
 	}
-	// No session cookie set — the recovery ceremony hasn't completed yet.
-	if len(f.sessions) != 0 {
-		t.Errorf("sessions: want 0 (no cookie until ceremony completes), got %d", len(f.sessions))
+	var result struct {
+		Redirect string `json:"redirect"`
 	}
-	for _, c := range w.Result().Cookies() {
-		if c.Name == sessstore.SessionCookieName {
-			t.Errorf("unexpected session cookie set: %+v", c)
+	if err := json.Unmarshal(w.Body.Bytes(), &result); err != nil || result.Redirect != "/me/security" {
+		t.Fatalf("response = %+v, err = %v", result, err)
+	}
+	if len(f.sessions) != 1 || !equalAmr(f.sessions[0].Amr, []string{"pwd", "recovery_code", "mfa"}) {
+		t.Fatalf("sessions = %+v", f.sessions)
+	}
+	if !f.recoveryRows[0].UsedAt.Valid {
+		t.Fatal("submitted recovery code was not consumed")
+	}
+	for _, row := range f.recoveryRows[1:] {
+		if row.UsedAt.Valid {
+			t.Fatal("another recovery code was consumed")
 		}
 	}
-	var resp map[string]string
-	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
-		t.Fatalf("decode response: %v (body=%s)", err, w.Body.String())
-	}
-	rst := resp["recovery_session_token"]
-	if rst == "" {
-		t.Fatalf("missing recovery_session_token in response: %s", w.Body.String())
-	}
-	// Token must exist in KV under the recovery_session: namespace.
-	if _, err := s.kvStore.Get(context.Background(), recoverySessionKey(rst)); err != nil {
-		t.Errorf("recovery_session not stashed in KV: %v", err)
+	if !slices.Equal(f.totpRow.SecretEnc, oldTOTP.SecretEnc) {
+		t.Fatal("TOTP changed without reset")
 	}
 }
 
-func TestRecoveryCodeVerify_InvalidCodeConsumesToken(t *testing.T) {
+func TestRecoveryCodeVerify_WithResetReplacesAuthenticatorAtomically(t *testing.T) {
 	s, f, dek := newTestServer(t)
-	const accountID int32 = 42
-	_ = seedConfirmedTOTP(t, s, f, dek, accountID)
-
+	codes := seedConfirmedTOTP(t, s, f, dek, 42)
+	oldSecret := append([]byte(nil), decryptTOTPSecret(t, dek, *f.totpRow, 42)...)
 	token := mustToken(t)
-	stashPartialSession(t, s, token, accountID)
-
-	body := fmt.Sprintf(`{"partial_session_token":%q,"code":"WRONG-CODE-NOT-VALID"}`, token)
-	req := httptest.NewRequest(http.MethodPost, "/api/prohibitorum/auth/recovery-code/verify",
-		strings.NewReader(body))
-	req.RemoteAddr = "127.0.0.1:5555"
-	w := httptest.NewRecorder()
-	s.handleRecoveryCodeVerifyHTTP(w, req)
-
-	if w.Code != http.StatusUnauthorized {
-		t.Fatalf("status: want 401, got %d", w.Code)
+	stashPartialSession(t, s, token, 42)
+	candidate, candidateCode := passwordTOTPCandidate(t, s)
+	w := recoveryCodeVerify(t, s, token, codes[0], true, candidate, candidateCode)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200: %s", w.Code, w.Body.String())
 	}
-	// Token consumed.
-	if _, err := s.kvStore.Get(context.Background(), partialSessionKey(token)); err == nil {
-		t.Error("partial-session token should be consumed even on recovery-code failure")
+	var result struct {
+		Redirect      string   `json:"redirect"`
+		RecoveryCodes []string `json:"recovery_codes"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &result); err != nil {
+		t.Fatal(err)
+	}
+	if result.Redirect != "/me/security" || len(result.RecoveryCodes) != 10 {
+		t.Fatalf("response = %+v", result)
+	}
+	if slices.Equal(decryptTOTPSecret(t, dek, *f.totpRow, 42), oldSecret) || f.totpRow.LastStep <= 0 {
+		t.Fatal("TOTP was not replaced with replay step")
+	}
+	if len(f.recoveryRows) != 10 {
+		t.Fatalf("recovery rows = %d, want 10", len(f.recoveryRows))
+	}
+	if len(f.sessions) != 1 || !equalAmr(f.sessions[0].Amr, []string{"pwd", "otp", "mfa"}) {
+		t.Fatalf("sessions = %+v", f.sessions)
+	}
+}
+
+func TestRecoveryCodeVerify_ResetFieldsMustMatchFlag(t *testing.T) {
+	for _, tc := range []struct {
+		name         string
+		reset        bool
+		secret, code string
+	}{
+		{"reset missing replacement", true, "", ""},
+		{"reset missing code", true, "ABCDEFGHIJKLMNOPQRSTUVWX23456789", ""},
+		{"replacement without reset", false, "ABCDEFGHIJKLMNOPQRSTUVWX23456789", "123456"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s, f, dek := newTestServer(t)
+			codes := seedConfirmedTOTP(t, s, f, dek, 42)
+			token := mustToken(t)
+			stashPartialSession(t, s, token, 42)
+			w := recoveryCodeVerify(t, s, token, codes[0], tc.reset, tc.secret, tc.code)
+			if w.Code != http.StatusBadRequest {
+				t.Fatalf("status = %d, want 400: %s", w.Code, w.Body.String())
+			}
+			if _, err := s.kvStore.Get(context.Background(), partialSessionKey(token)); err != nil {
+				t.Fatal("invalid request shape consumed partial token")
+			}
+		})
+	}
+}
+
+func TestRecoveryCodeVerify_InvalidCredentialsConsumePartialAndPreserveFactors(t *testing.T) {
+	for _, tc := range []struct {
+		name               string
+		recoveryOK, totpOK bool
+	}{
+		{"recovery code", false, true},
+		{"candidate TOTP", true, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s, f, dek := newTestServer(t)
+			codes := seedConfirmedTOTP(t, s, f, dek, 42)
+			oldTOTP := *f.totpRow
+			oldCodes := append([]db.RecoveryCode(nil), f.recoveryRows...)
+			token := mustToken(t)
+			stashPartialSession(t, s, token, 42)
+			candidate, candidateCode := passwordTOTPCandidate(t, s)
+			recovery := "WRONG-CODE-NOT-VALID"
+			if tc.recoveryOK {
+				recovery = codes[0]
+			}
+			if !tc.totpOK {
+				candidateCode = "000000"
+			}
+			w := recoveryCodeVerify(t, s, token, recovery, true, candidate, candidateCode)
+			if w.Code != http.StatusUnauthorized {
+				t.Fatalf("status = %d, want 401: %s", w.Code, w.Body.String())
+			}
+			if _, err := s.kvStore.Get(context.Background(), partialSessionKey(token)); err == nil {
+				t.Fatal("failed attempt did not consume partial token")
+			}
+			if !slices.Equal(f.totpRow.SecretEnc, oldTOTP.SecretEnc) || !slices.Equal(f.recoveryRows, oldCodes) {
+				t.Fatal("failed attempt changed credentials")
+			}
+		})
+	}
+}
+
+func TestRecoveryCodeVerify_CommitFailureRollsBack(t *testing.T) {
+	s, f, dek := newTestServer(t)
+	codes := seedConfirmedTOTP(t, s, f, dek, 42)
+	oldTOTP := *f.totpRow
+	oldTOTP.SecretEnc = append([]byte(nil), oldTOTP.SecretEnc...)
+	oldTOTP.SecretNonce = append([]byte(nil), oldTOTP.SecretNonce...)
+	oldCodes := append([]db.RecoveryCode(nil), f.recoveryRows...)
+	token := mustToken(t)
+	stashPartialSession(t, s, token, 42)
+	candidate, candidateCode := passwordTOTPCandidate(t, s)
+	s.enrollmentTxRunnerOverride.(*fakeAuthEnrollmentTxRunner).commitErr = errors.New("commit failed")
+	w := recoveryCodeVerify(t, s, token, codes[0], true, candidate, candidateCode)
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500: %s", w.Code, w.Body.String())
+	}
+	if !slices.Equal(f.totpRow.SecretEnc, oldTOTP.SecretEnc) || !slices.Equal(f.totpRow.SecretNonce, oldTOTP.SecretNonce) || !slices.Equal(f.recoveryRows, oldCodes) {
+		t.Fatal("commit failure changed credentials")
+	}
+	if len(f.sessions) != 0 {
+		t.Fatal("commit failure issued a session")
+	}
+}
+
+func TestRecoveryCodeVerify_ConsumeInfrastructureFailureDoesNotCountAsBadCredentials(t *testing.T) {
+	s, f, dek := newTestServer(t)
+	codes := seedConfirmedTOTP(t, s, f, dek, 42)
+	oldCodes := append([]db.RecoveryCode(nil), f.recoveryRows...)
+	token := mustToken(t)
+	stashPartialSession(t, s, token, 42)
+	f.consumeRecoveryErr = errors.New("database unavailable")
+
+	w := recoveryCodeVerify(t, s, token, codes[0], false, "", "")
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500: %s", w.Code, w.Body.String())
+	}
+	if _, ok := f.throttle[f.throttleKey(42, "recovery_code")]; ok {
+		t.Fatal("infrastructure failure incremented recovery-code throttle")
+	}
+	for _, event := range f.events {
+		if event.Event == string(audit.EventFail) && event.Factor == string(audit.FactorRecoveryCode) {
+			t.Fatal("infrastructure failure emitted a recovery-code failure event")
+		}
+	}
+	if !slices.Equal(f.recoveryRows, oldCodes) {
+		t.Fatal("infrastructure failure changed recovery codes")
 	}
 }
 

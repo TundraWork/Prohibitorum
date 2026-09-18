@@ -15,6 +15,15 @@ func (s *Server) handleGetPublicConfigHTTP(w http.ResponseWriter, r *http.Reques
 	_, etag, _ := s.branding.Icon(ctx)
 	maintenance, maintenanceMsg := s.branding.Maintenance(ctx)
 	_, bgEtag, hasBG := s.branding.Background(ctx)
+	var totpConfig contract.PublicTOTPConfig
+	if s.config != nil {
+		totpConfig = contract.PublicTOTPConfig{
+			Issuer:    s.config.TOTP.Issuer,
+			Algorithm: s.config.TOTP.DefaultAlgorithm,
+			Digits:    s.config.TOTP.DefaultDigits,
+			Period:    s.config.TOTP.DefaultPeriod,
+		}
+	}
 	cfg := contract.PublicConfig{
 		InstanceName:        s.branding.InstanceName(ctx),
 		HasCustomIcon:       s.branding.HasCustomIcon(ctx),
@@ -25,6 +34,7 @@ func (s *Server) handleGetPublicConfigHTTP(w http.ResponseWriter, r *http.Reques
 		HasCustomBackground: hasBG,
 		BackgroundURL:       "/branding/background",
 		BackgroundEtag:      bgEtag,
+		TOTP:                totpConfig,
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "no-store")

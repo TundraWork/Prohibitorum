@@ -11,9 +11,7 @@ import { usePrivateState } from '@/composables/usePrivateState'
  *     → POST /auth/totp/verify { partial_session_token, code }
  *     → 200 { redirect } → emit('success', redirect)
  *
- * Note: /auth/totp/verify returns { redirect } — the server-validated
- * destination to navigate to. The account-recovery sub-flow emits success
- * with no redirect argument; LoginView falls back to goReturnTo() in that case.
+ * Both normal verification and recovery return a server-validated redirect.
  *
  * Errors render via errors.<code> (fallback to the raw message) in a
  * role="alert" aria-live="polite" region; busy guards re-entrancy.
@@ -136,7 +134,14 @@ usePrivateState(() => { password.value = ''; code.value = ''; partialToken.value
           {{ t('login.lostAuthenticator') }}
         </button>
       </template>
-      <AccountRecovery v-else :partial-token="partialToken" @success="emit('success')" @restart="onRecoveryRestart" />
+      <AccountRecovery
+        v-else
+        :partial-token="partialToken"
+        :username="username"
+        :return-to="props.returnTo"
+        @success="(redirect) => emit('success', redirect)"
+        @restart="onRecoveryRestart"
+      />
     </template>
 
     <template v-if="!recovering">

@@ -2,9 +2,8 @@ package totp
 
 import (
 	"context"
+	"crypto/rand"
 	"encoding/base32"
-	"net/url"
-	"strings"
 	"testing"
 	"time"
 
@@ -12,6 +11,15 @@ import (
 
 	"prohibitorum/pkg/db"
 )
+
+func candidateSecret(t *testing.T) string {
+	t.Helper()
+	secret := make([]byte, 20)
+	if _, err := rand.Read(secret); err != nil {
+		t.Fatal(err)
+	}
+	return base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(secret)
+}
 
 func decodeSecretB32(t *testing.T, b32 string) []byte {
 	t.Helper()
@@ -22,50 +30,17 @@ func decodeSecretB32(t *testing.T, b32 string) []byte {
 	return secret
 }
 
-func TestGenerateEnrollment_NoDBNoRow(t *testing.T) {
-	at := time.Unix(1_700_000_000, 0)
-	s, f, _ := newTestStoreAt(t, at)
-
-	enr, err := s.GenerateEnrollment("alice")
-	if err != nil {
-		t.Fatalf("GenerateEnrollment: %v", err)
-	}
-	if enr.SecretBase32 == "" {
-		t.Fatal("empty secret")
-	}
-	// Crucially, no DB write happened — the account may not exist yet.
-	if f.insertCalls != 0 || f.getCalls != 0 || f.totpRow != nil {
-		t.Fatalf("GenerateEnrollment touched the DB: insert=%d get=%d row=%v", f.insertCalls, f.getCalls, f.totpRow)
-	}
-	u, err := url.Parse(enr.ProvisioningURI)
-	if err != nil {
-		t.Fatalf("parse uri: %v", err)
-	}
-	if !strings.HasPrefix(enr.ProvisioningURI, "otpauth://totp/") {
-		t.Errorf("uri prefix: %s", enr.ProvisioningURI)
-	}
-	if got := u.Query().Get("secret"); got != enr.SecretBase32 {
-		t.Errorf("uri secret = %s, want %s", got, enr.SecretBase32)
-	}
-	if got := u.Query().Get("issuer"); got != "Prohibitorum" {
-		t.Errorf("uri issuer = %s, want Prohibitorum", got)
-	}
-}
-
 func TestVerifyCandidateSecret(t *testing.T) {
 	at := time.Unix(1_700_000_000, 0)
 	s, _, _ := newTestStoreAt(t, at)
-	enr, err := s.GenerateEnrollment("alice")
-	if err != nil {
-		t.Fatalf("GenerateEnrollment: %v", err)
-	}
-	secret := decodeSecretB32(t, enr.SecretBase32)
+	secretB32 := candidateSecret(t)
+	secret := decodeSecretB32(t, secretB32)
 	nowStep := stepFor(at.Unix(), 30)
 
 	// Correct current-step code is accepted; matched step is returned for
 	// last_step seeding.
 	code := computeCode(secret, nowStep, 6)
-	step, ok := s.VerifyCandidateSecret(enr.SecretBase32, code)
+	step, ok := s.VerifyCandidateSecret(secretB32, code)
 	if !ok {
 		t.Fatal("current-step code rejected")
 	}
@@ -74,15 +49,15 @@ func TestVerifyCandidateSecret(t *testing.T) {
 	}
 
 	// The ±1 drift window is honored.
-	if _, ok := s.VerifyCandidateSecret(enr.SecretBase32, computeCode(secret, nowStep-1, 6)); !ok {
+	if _, ok := s.VerifyCandidateSecret(secretB32, computeCode(secret, nowStep-1, 6)); !ok {
 		t.Error("prev-step (within drift) code rejected")
 	}
 	// Outside the drift window is rejected.
-	if _, ok := s.VerifyCandidateSecret(enr.SecretBase32, computeCode(secret, nowStep+5, 6)); ok {
+	if _, ok := s.VerifyCandidateSecret(secretB32, computeCode(secret, nowStep+5, 6)); ok {
 		t.Error("far-future code accepted")
 	}
 	// A wrong code is rejected.
-	if _, ok := s.VerifyCandidateSecret(enr.SecretBase32, "000000"); ok {
+	if _, ok := s.VerifyCandidateSecret(secretB32, "000000"); ok {
 		t.Error("wrong code accepted")
 	}
 	// A malformed base32 secret yields (0, false), never a panic.
@@ -96,17 +71,14 @@ func TestEnrollConfirmedForTx(t *testing.T) {
 	s, f, dek := newTestStoreAt(t, at)
 	ctx := context.Background()
 
-	enr, err := s.GenerateEnrollment("alice")
-	if err != nil {
-		t.Fatalf("GenerateEnrollment: %v", err)
-	}
-	secret := decodeSecretB32(t, enr.SecretBase32)
-	step, ok := s.VerifyCandidateSecret(enr.SecretBase32, computeCode(secret, stepFor(at.Unix(), 30), 6))
+	secretB32 := candidateSecret(t)
+	secret := decodeSecretB32(t, secretB32)
+	step, ok := s.VerifyCandidateSecret(secretB32, computeCode(secret, stepFor(at.Unix(), 30), 6))
 	if !ok {
 		t.Fatal("candidate verify failed")
 	}
 
-	codes, err := s.EnrollConfirmedForTx(ctx, f, 7, enr.SecretBase32, step)
+	codes, err := s.EnrollConfirmedForTx(ctx, f, 7, secretB32, step)
 	if err != nil {
 		t.Fatalf("EnrollConfirmedForTx: %v", err)
 	}
@@ -163,11 +135,8 @@ func TestEnrollConfirmedForTx_WipesPriorRows(t *testing.T) {
 	f.recoveryRows = []db.RecoveryCode{{ID: 100, AccountID: 7, Hash: "old"}, {ID: 101, AccountID: 7, Hash: "old"}}
 	f.nextRecID = 200
 
-	enr, err := s.GenerateEnrollment("alice")
-	if err != nil {
-		t.Fatalf("GenerateEnrollment: %v", err)
-	}
-	codes, err := s.EnrollConfirmedForTx(ctx, f, 7, enr.SecretBase32, 0)
+	secretB32 := candidateSecret(t)
+	codes, err := s.EnrollConfirmedForTx(ctx, f, 7, secretB32, 0)
 	if err != nil {
 		t.Fatalf("EnrollConfirmedForTx: %v", err)
 	}

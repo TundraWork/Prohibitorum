@@ -384,54 +384,39 @@ curl -X POST http://localhost:8080/api/prohibitorum/auth/totp/verify \
 
 The session from step 2a carries `amr=["pwd","otp","mfa"]` (ID tokens project this).
 
-### Recovery ceremony: password → recovery code → forced TOTP re-enrollment
+### Recovery: password → recovery code, with optional authenticator reset
 
-When the authenticator app is unavailable, recovery is a **three-step ceremony**, not a one-shot login. A recovery code never issues a session directly; it grants a narrow-scope token (10-min TTL) the user must redeem by re-enrolling TOTP. NIST SP 800-63B-4 §5.2 forbids a knowledge factor for reauthentication, which is why a recovery code cannot mint a session or sudo grant directly.
+After `/auth/password/begin`, the recovery request either signs the user in with the current authenticator unchanged or replaces TOTP and the recovery-code batch atomically. Recovery codes remain excluded from sudo.
 
 **Step 1.** `/auth/password/begin` exactly as normal login (above) — returns a `partial_session_token`.
 
-**Step 2.** Redeem one of the 10 codes from TOTP enrollment:
+**Step 2.** Redeem one recovery code for a direct login:
 
 ```bash
 curl -X POST http://localhost:8080/api/prohibitorum/auth/recovery-code/verify \
   -H 'Content-Type: application/json' \
-  -d '{"partial_session_token":"<token>","code":"ABCD-1234-EFGH-5678"}'
+  -c cookies.txt \
+  -d '{"partial_session_token":"<token>","code":"ABCD-1234-EFGH-5678","reset_authenticator":false}'
 # 200 OK
-# { "recovery_session_token": "<token>" }
-# NO session cookie set yet.
+# { "redirect": "/" }
+# Session AMR: ["pwd","recovery_code","mfa"]
 ```
 
-The server marks the code consumed (`used_at`, `used_session_id`, `used_ip`) and stashes a `recovery_session:<tok>` KV entry (10-min TTL). The remaining 9 codes are NOT yet wiped — if the user abandons the ceremony, they can retry with another code.
-
-**Step 3a.** Start a fresh TOTP enrollment:
+To replace the authenticator, the browser generates a 20-byte secret, encodes it as 32-character unpadded RFC 4648 Base32, builds the `otpauth://` URI from `GET /config`, and collects a current code.
 
 ```bash
-curl -X POST http://localhost:8080/api/prohibitorum/auth/recovery/totp/begin \
-  -H 'Content-Type: application/json' \
-  -d '{"recovery_session_token":"<recovery_session_token>"}'
-# 200 OK
-# { "secret_base32": "…", "otpauth_uri": "otpauth://totp/…" }
-```
-
-The old TOTP credential row is wiped (audit: `totp:revoke reason=recovery`) and a fresh unconfirmed row inserted. The recovery_session_token stays valid for the 10-min window — call `/begin` again if the user fails to scan the QR.
-
-**Step 3b.** Confirm the new TOTP and complete the ceremony:
-
-```bash
-curl -X POST http://localhost:8080/api/prohibitorum/auth/recovery/totp/verify \
+curl -X POST http://localhost:8080/api/prohibitorum/auth/recovery-code/verify \
   -H 'Content-Type: application/json' \
   -c cookies.txt \
-  -d '{"recovery_session_token":"<recovery_session_token>","code":"123456"}'
+  -d '{"partial_session_token":"<token>","code":"ABCD-1234-EFGH-5678","reset_authenticator":true,"totp_secret_base32":"<32-char secret>","totp_code":"123456"}'
 # 200 OK
-# { "recovery_codes": [ ... 10 fresh codes ... ] }
-# Session cookie set; amr=["pwd","otp","mfa"]
+# { "redirect": "/", "recovery_codes": [ ... ] }
+# Session AMR: ["pwd","otp","mfa"]
 ```
 
-**Atomically single-use** (the token is Pop'd at entry). On success: new TOTP confirmed, the 9 surviving old recovery codes wiped (audit: `recovery_code:revoke reason=recovery_complete`), 10 fresh codes minted in the same transaction, user logged in with the same `amr` as a normal Password+TOTP login.
+The partial token is single-use. Invalid recovery or TOTP input changes no credentials. On success, recovery-code consumption, optional TOTP replacement, and optional recovery-code replacement commit together.
 
-**On TOTP failure:** the token is already consumed, so the user must restart from `/auth/password/begin`. This harsher UX is deliberate — keeping a one-shot token live across a failed verify would require an atomicity-hazardous re-stash.
-
-When all 10 codes are eventually consumed via this flow, the user (or an admin) calls `/me/recovery-codes/regenerate` (sudo-gated; below).
+When all codes are consumed, the user or an admin calls `/me/recovery-codes/regenerate` after sudo.
 
 Auth failures at either step increment the per-`(account, factor)` row in `auth_throttle` with exponential backoff `[0,0,1s,2s,4s,8s,16s,32s,1m,2m,4m,8m,15m]`. A locked row returns `429 Too Many Requests` with `Retry-After: <seconds>`, and the expensive crypto check is skipped — no oracle for "is this account currently locked?"
 
@@ -448,28 +433,15 @@ curl -X POST http://localhost:8080/api/prohibitorum/me/password/set \
 
 argon2id-hashes with current `PasswordHashParams`, stamps `password_changed_at`. Idempotent — calling again replaces the hash.
 
-### Enrolling TOTP
+### Setting password + TOTP, or resetting TOTP
 
 ```bash
-# Step 1 — server mints secret + otpauth URI.
-# (No sudo when no confirmed totp_credential exists. Sudo required if
-# the caller is replacing an existing confirmed credential.)
-curl -X POST http://localhost:8080/api/prohibitorum/me/totp/begin \
-  -H 'Content-Type: application/json' \
-  -b cookies.txt -d '{}'
-# 200 OK
-# {
-#   "secret_base32": "JBSWY3DPEHPK3PXP",
-#   "otpauth_uri": "otpauth://totp/Prohibitorum:alice?secret=JBSWY3DPEHPK3PXP&issuer=Prohibitorum&algorithm=SHA1&digits=6&period=30"
-# }
-# Frontend renders the otpauth URI as a QR code; user scans with
-# Google Authenticator / 1Password / etc. and produces a 6-digit code.
-
-# Step 2 — confirm the credential, receive recovery codes.
-curl -X POST http://localhost:8080/api/prohibitorum/me/totp/verify \
+# The browser reads GET /config, generates the secret locally, and displays
+# the otpauth URI. First setup must submit password and TOTP together.
+curl -X POST http://localhost:8080/api/prohibitorum/me/password-totp/verify \
   -H 'Content-Type: application/json' \
   -b cookies.txt \
-  -d '{"code":"123456"}'
+  -d '{"password":"correct horse battery staple","secret_base32":"<32-char secret>","code":"123456"}'
 # 200 OK
 # {
 #   "recovery_codes": [
@@ -478,9 +450,9 @@ curl -X POST http://localhost:8080/api/prohibitorum/me/totp/verify \
 # }
 ```
 
-Stamps `totp_credential.confirmed_at` and mints 10 recovery codes in the same transaction. The plaintext codes are returned in this response body and never again — the user must save them before dismissing the dialog.
+The server verifies the password and candidate TOTP before persisting both factors and recovery codes in one transaction. Invitation, federated-registration, and reset enrollments use the same combined fields at `POST /enrollments/{token}/password-totp/verify`.
 
-If `/me/totp/verify` returns 401 (wrong code), the unconfirmed row remains and a fresh `/me/totp/begin` UPSERTs a new secret.
+`POST /me/totp/verify` is reserved for replacing an existing confirmed authenticator. It requires fresh sudo and accepts `{"secret_base32":"...","code":"123456"}`. A successful reset replaces TOTP and recovery codes atomically.
 
 ### Regenerating recovery codes
 
@@ -511,7 +483,7 @@ curl -X POST http://localhost:8080/api/prohibitorum/me/auth/revoke-password-totp
 
 Sensitive `/me/*` actions (set password, regenerate recovery codes, revoke fallback factors) require a recent credential proof. Sudo accepts **three** methods — pick whichever the account has: `webauthn`, `password_totp`, and `federation_oidc` (forced upstream re-authentication, for accounts with a linked upstream IdP — including federated-only users with no passkey or password).
 
-**Note.** `recovery_code` is intentionally NOT a sudo method. Recovery codes route exclusively through the ceremony at `/auth/recovery/totp/{begin,verify}` (see "Recovery ceremony"). NIST SP 800-63B-4 §5.2 forbids knowledge factors for reauthentication.
+**Note.** `recovery_code` is intentionally not a sudo method. It is accepted only by the login recovery endpoint. NIST SP 800-63B-4 §5.2 forbids knowledge factors for reauthentication.
 
 ```bash
 # Discover available methods + the linked providers offerable for OIDC sudo:

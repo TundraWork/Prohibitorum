@@ -27,7 +27,9 @@ import type { PublicKeyCredentialCreationOptionsJSON } from '@simplewebauthn/bro
 import { api } from '@/lib/api'
 import { useApi } from '@/composables/useApi'
 import { useWebauthn } from '@/composables/useWebauthn'
-import { withSudo } from '@/lib/sudo'
+import { ensureSudo, withSudo } from '@/lib/sudo'
+import { generateTotpEnrollment } from '@/lib/totpEnrollment'
+import { useSession } from '@/composables/useSession'
 import { hardRedirect } from '@/lib/navigate'
 import { safeReturnTo } from '@/lib/returnTo'
 import CenteredLayout from '@/pages/CenteredLayout.vue'
@@ -47,6 +49,7 @@ const route = useRoute()
 const { t } = useI18n()
 const { busy: netBusy, error: netError, run, clear: clearNet } = useApi()
 const { busy: waBusy, error: waError, register } = useWebauthn()
+const session = useSession()
 
 const busy = computed(() => netBusy.value || waBusy.value)
 const error = computed(() => netError.value ?? waError.value)
@@ -126,38 +129,28 @@ async function submitPassword(): Promise<void> {
   }
   // Sudo elevation happens before the QR is shown, so the modal cannot
   // interrupt the user mid-code-entry (same hoisting as PasswordTotpCard).
-  const r = await run(() => withSudo(
-    () => api.post<{ secret_base32: string; otpauth_uri: string }>(
-      '/api/prohibitorum/me/password-totp/begin',
-      { password: pw.value },
-    ),
-    t('sudo.reason.setPasswordTotp'),
-  ))
-  if (!r) return
-  secret.value = r.secret_base32
-  otpauthUri.value = r.otpauth_uri
+  const enrollment = await run(async () => {
+    if (!await ensureSudo(t('sudo.reason.setPasswordTotp'))) return null
+    const username = session.me?.username
+    if (!username) throw new Error('session username is unavailable')
+    return generateTotpEnrollment(username)
+  })
+  if (!enrollment) return
+  secret.value = enrollment.secretBase32
+  otpauthUri.value = enrollment.otpauthUri
   phase.value = 'totp'
 }
 
 async function verifyTotp(): Promise<void> {
   clearError()
-  // No withSudo here — begin already elevated the session (PasswordTotpCard rationale).
   const r = await run(() =>
-    api.post<{ recovery_codes?: string[] }>('/api/prohibitorum/me/password-totp/verify', { code: totpCode.value }),
+    api.post<{ recovery_codes?: string[] }>('/api/prohibitorum/me/password-totp/verify', {
+      password: pw.value,
+      secret_base32: secret.value,
+      code: totpCode.value,
+    }),
   )
-  if (!r) {
-    // The KV stash lives 10 minutes, and this screen has no back button by
-    // design — so once it lapsed the page was a dead end with refresh as the
-    // only way out. Send the user back to the password step (the error banner
-    // above stays visible), which is where a fresh stash comes from.
-    if (netError.value?.code === 'ceremony_expired') {
-      secret.value = ''
-      otpauthUri.value = ''
-      totpCode.value = ''
-      phase.value = 'password'
-    }
-    return
-  }
+  if (!r) return
   recoveryCodes.value = r.recovery_codes ?? []
   phase.value = 'done'
 }

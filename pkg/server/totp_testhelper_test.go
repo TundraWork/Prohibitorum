@@ -11,9 +11,21 @@ package server
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/base32"
+	"testing"
 
 	"prohibitorum/pkg/credential/totp"
 )
+
+func browserTOTPSecret(t *testing.T) string {
+	t.Helper()
+	secret := make([]byte, 20)
+	if _, err := rand.Read(secret); err != nil {
+		t.Fatal(err)
+	}
+	return base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(secret)
+}
 
 type totpTestTxRunner struct {
 	q totp.TOTPQueries
