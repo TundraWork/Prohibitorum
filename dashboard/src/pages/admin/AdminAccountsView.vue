@@ -305,8 +305,8 @@ onBeforeUnmount(() => {
             </div>
           </TableCell>
           <TableCell>
-            <StatusBadge :variant="account.role === 'admin' ? 'caution' : account.role === 'app_manager' ? 'info' : 'neutral'">
-              {{ account.role === 'admin' ? t('admin.account.roleAdmin') : account.role === 'app_manager' ? t('admin.account.roleAppManager') : t('admin.account.roleUser') }}
+            <StatusBadge :variant="account.role === 'admin' ? 'caution' : 'neutral'">
+              {{ account.role === 'admin' ? t('admin.account.roleAdmin') : t('admin.account.roleUser') }}
             </StatusBadge>
           </TableCell>
           <TableCell>

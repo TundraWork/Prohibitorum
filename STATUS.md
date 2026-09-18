@@ -294,13 +294,12 @@ Application access is now an app-bound policy service rather than directory-wide
 RBAC. It evaluates every decision from current identity state and is shared by
 the downstream protocols and app listings.
 
-- **Roles and delegation:** `app_manager` keeps ordinary member capabilities and
-  can manage policy only for assigned OIDC, forward-auth, or SAML apps. An
-  assignment never authorizes the manager to use that app or edit its
-  configuration. Only an admin can assign or remove a manager, and both
-  assignment mutations require fresh sudo. Leaving the `app_manager` role
-  deletes outstanding assignments transactionally; disablement ends delegated
-  authority immediately, and account/app deletion removes assignments by cascade.
+- **Roles and delegation:** accounts have either the `user` or `admin` role. Any
+  active account can manage an assigned OIDC, forward-auth, or SAML app. An
+  assignment never authorizes the account to use that app. Only an admin can add
+  or remove assignments, and both mutations require fresh sudo. Disablement ends
+  delegated authority immediately, and account/app deletion removes assignments
+  by cascade.
 - **App-bound groups:** every group has one immutable app binding. An app has
   at most one manual group with `allow`, `deny`, or neutral per-account
   decisions, plus zero or more calculated rule groups. Rule groups have no
@@ -314,8 +313,9 @@ the downstream protocols and app listings.
   Where group claims are enabled, a manual allow adds the exposed manual slug
   and every exposed matching rule slug to OIDC ID token/userinfo claims or the
   configured SAML attribute. A manual denial issues no token or assertion.
-- **Operations:** the dashboard gives app managers a **Managed applications**
-  section and hides configuration from that view. Delegated work is scoped under
+- **Operations:** every signed-in account uses the normal OIDC, SAML, and
+  forward-auth sections. Admins see every app; other accounts see only assigned
+  apps and cannot create apps or change assignments. Policy work is scoped under
   `/managed-applications/{kind}/{appId}`; unassigned and wrong-kind apps are
   indistinguishable from missing apps. The operator CLI nests
   `manager`, `access`, `group`, and `decision` operations beneath

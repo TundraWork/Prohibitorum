@@ -2,7 +2,7 @@
 
 ## Users
 
-Members, scoped application managers, and admins of a single small
+Members and admins of a single small
 organization running Prohibitorum as their self-hosted identity provider.
 Single-tenant, first-party: everyone who touches the UI belongs to the same
 org.
@@ -15,13 +15,14 @@ org.
   never signs them in; they finish with the same local passkey ceremony as
   every other enrollment. Often non-technical, they meet this UI at the login
   screen and consent screen, occasionally in their own account area.
-- **Application managers** (`app_manager`) keep member capabilities and manage
-  access policy only for explicitly assigned apps. Assignment never grants
-  app use, protocol configuration, account, credential, provider, or instance
-  management. Their **Managed applications** surface shows only those apps.
+- **Members with assigned applications** keep normal member capabilities and can
+  manage the configuration and access policy of only those applications.
+  Assignment does not grant application use or access to accounts, credentials,
+  providers, or instance settings. The OIDC, SAML, and forward-auth lists show
+  each member only the applications assigned to them.
 - **Admins** manage the directory: creating accounts, issuing enrollment
   invitations and resets, configuring the fixed-link-only VRChat proof
-  provider, setting roles and attributes, assigning application managers, and
+  provider, setting roles and attributes, assigning application access, and
   reviewing credentials. The same person is often both a member and an admin
   in a small org.
 
@@ -67,10 +68,11 @@ opts in, a manually allowed account receives that app's exposed manual-group
 slug and every exposed matching rule-group slug, never a group's slug from
 another app. A manual denial produces no token or assertion.
 
-Application managers work in **Managed applications**. Its delegated surface is
-scoped to `/managed-applications/{kind}/{appId}` and exposes only assigned apps;
-global admins retain configuration and assign or remove managers with fresh
-sudo. Policy changes are audited without recording raw rules or evaluated facts.
+Members manage assigned applications in the same OIDC, SAML, and forward-auth
+pages used by admins. The server filters every list and object operation by exact
+assignment. Assigned members can update application configuration and access
+policy, while only admins can create applications or assign and remove accounts.
+Policy changes are audited without recording raw rules or evaluated facts.
 
 This is a destructive cutover: the prior shared policy and direct per-account
 access data are deleted and every app starts open. The deleted policy cannot be

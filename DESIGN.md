@@ -231,7 +231,7 @@ Built on **shadcn-vue / Reka UI** (Tailwind v4). The system is applied by aliasi
 - **Error:** Border and helper text shift to Rose, paired with an icon and a plain-language message, never color alone.
 
 ### Navigation
-- **Style:** persistent left sidebar on Sunken; sections role-gated (member items always; admin items appear only for admins, same vocabulary, more depth).
+- **Style:** persistent left sidebar on Sunken. Account and application sections appear for every signed-in user; application lists are filtered by assignment. Directory and instance sections appear only for admins, using the same vocabulary with more depth.
 - **States:** current route marked with a Tide indicator plus weight change (not color alone); hover raises a subtle Surface tint. Full keyboard traversal with visible focus.
 - **Mobile:** sidebar collapses to a drawer (structural responsive behavior, not fluid type).
 

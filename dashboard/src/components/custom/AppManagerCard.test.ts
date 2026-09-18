@@ -30,6 +30,7 @@ interface AccountView {
   id: number
   username: string
   displayName: string
+  disabled: boolean
 }
 
 interface AccountPage {
@@ -221,7 +222,51 @@ describe('AppManagerCard', () => {
     await searchCandidates(wrapper, 'manager')
 
     expect(wrapper.find('[data-test="manager-account-result-8"]').exists()).toBe(true)
-    expect(wrapper.get<HTMLButtonElement>('[data-test="manager-assign-8"]').element.disabled).toBe(false)
+    expect(wrapper.get<HTMLButtonElement>('[data-test="manager-account-select-8"]').element.disabled).toBe(false)
+  })
+
+  it('pages through unified account search results', async () => {
+    const secondCandidate: AccountView = { id: 9, username: 'katherine', displayName: 'Katherine Johnson', disabled: false }
+    get.mockImplementation(async (path: string) => {
+      if (path.endsWith('/managers')) return MANAGERS
+      if (path === '/api/prohibitorum/accounts?q=engineer&limit=100') {
+        return { items: [ACTIVE_CANDIDATE], nextCursor: 'next/page' }
+      }
+      if (path === '/api/prohibitorum/accounts?q=engineer&limit=100&cursor=next%2Fpage') {
+        return { items: [secondCandidate], nextCursor: '' }
+      }
+      throw new Error(`Unexpected GET ${path}`)
+    })
+    const wrapper = mountCard()
+    await flushPromises()
+
+    await searchCandidates(wrapper, 'engineer')
+    expect(wrapper.find('[data-test="manager-account-result-8"]').exists()).toBe(true)
+    await wrapper.get('[data-test="next-page"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('[data-test="manager-account-result-8"]').exists()).toBe(false)
+    expect(wrapper.find('[data-test="manager-account-result-9"]').exists()).toBe(true)
+    expect(wrapper.get('[data-test="page-indicator"]').text()).toContain('2')
+  })
+
+  it('keeps the next-page control when the current account page has no assignable results', async () => {
+    const disabledCandidate: AccountView = { id: 9, username: 'disabled', displayName: 'Disabled Account', disabled: true }
+    get.mockImplementation(async (path: string) => {
+      if (path.endsWith('/managers')) return MANAGERS
+      if (path === '/api/prohibitorum/accounts?q=engineer&limit=100') {
+        return { items: [ACTIVE_MANAGER, disabledCandidate], nextCursor: 'next/page' }
+      }
+      throw new Error(`Unexpected GET ${path}`)
+    })
+    const wrapper = mountCard()
+    await flushPromises()
+
+    await searchCandidates(wrapper, 'engineer')
+
+    expect(wrapper.find('[data-test="manager-account-result-7"]').exists()).toBe(false)
+    expect(wrapper.find('[data-test="manager-account-result-9"]').exists()).toBe(false)
+    expect(wrapper.get<HTMLButtonElement>('[data-test="next-page"]').element.disabled).toBe(false)
   })
 
   it('assigns one active app manager through sudo and refreshes the manager list once', async () => {
@@ -237,7 +282,7 @@ describe('AppManagerCard', () => {
     await flushPromises()
     await searchCandidates(wrapper, 'Hedy')
 
-    await wrapper.get('[data-test="manager-assign-8"]').trigger('click')
+    await wrapper.get('[data-test="manager-account-select-8"]').trigger('click')
     await flushPromises()
 
     expect(withSudo).toHaveBeenCalledTimes(1)
@@ -276,7 +321,7 @@ describe('AppManagerCard', () => {
     await flushPromises()
     await searchCandidates(wrapper, 'Hedy')
 
-    await wrapper.get('[data-test="manager-assign-8"]').trigger('click')
+    await wrapper.get('[data-test="manager-account-select-8"]').trigger('click')
     await flushPromises()
 
     expect(withSudo).toHaveBeenCalledTimes(1)
@@ -298,7 +343,7 @@ describe('AppManagerCard', () => {
     await flushPromises()
     await searchCandidates(wrapper, 'Hedy')
 
-    const assign = wrapper.get<HTMLButtonElement>('[data-test="manager-assign-8"]')
+    const assign = wrapper.get<HTMLButtonElement>('[data-test="manager-account-select-8"]')
     await assign.trigger('click')
     await flushPromises()
 
@@ -328,7 +373,7 @@ describe('AppManagerCard', () => {
     search.element.focus()
     expect(document.activeElement).toBe(search.element)
 
-    const assign = wrapper.get<HTMLButtonElement>('[data-test="manager-assign-8"]')
+    const assign = wrapper.get<HTMLButtonElement>('[data-test="manager-account-select-8"]')
     const remove = wrapper.get<HTMLButtonElement>('[data-test="manager-remove-7"]')
     for (const control of [assign, remove]) {
       expect(control.element.tagName).toBe('BUTTON')

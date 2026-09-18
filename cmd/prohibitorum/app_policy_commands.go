@@ -107,12 +107,12 @@ func findManualPolicyGroup(ctx context.Context, q *db.Queries, ref appaccess.App
 
 func addAppManagerCommands(parent *cobra.Command, cfg appPolicyCLI) {
 	var target string
-	managerCmd := &cobra.Command{Use: "manager", Short: "Manage application managers"}
+	managerCmd := &cobra.Command{Use: "manager", Short: "Manage accounts assigned to applications"}
 	cfg.bindTargetFlag(managerCmd, &target)
 
 	managerCmd.AddCommand(&cobra.Command{
 		Use:   "list",
-		Short: "List assigned application managers",
+		Short: "List accounts assigned to an application",
 		Run: func(_ *cobra.Command, _ []string) {
 			ctx := context.Background()
 			q, conn := mustOpenDB(ctx)
@@ -142,7 +142,7 @@ func addAppManagerCommands(parent *cobra.Command, cfg appPolicyCLI) {
 	var assignUsername string
 	assignCmd := &cobra.Command{
 		Use:   "assign",
-		Short: "Assign an application manager",
+		Short: "Assign an account to an application",
 		Run: func(_ *cobra.Command, _ []string) {
 			if assignUsername == "" {
 				log.Fatalf("--username is required")
@@ -191,7 +191,7 @@ func addAppManagerCommands(parent *cobra.Command, cfg appPolicyCLI) {
 	var removeUsername string
 	removeCmd := &cobra.Command{
 		Use:   "remove",
-		Short: "Remove an application manager assignment",
+		Short: "Remove an account assignment from an application",
 		Run: func(_ *cobra.Command, _ []string) {
 			if removeUsername == "" {
 				log.Fatalf("--username is required")

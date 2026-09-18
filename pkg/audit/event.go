@@ -40,7 +40,8 @@ const (
 	FactorSettings Factor = "settings"
 	// FactorDiagnostic covers admin request-diagnostic lookups.
 	FactorDiagnostic Factor = "diagnostic"
-	// FactorAppManager covers assignments of scoped application managers.
+	// FactorAppManager covers account assignments to applications. Its value is
+	// retained for audit compatibility.
 	FactorAppManager Factor = "app_manager"
 )
 

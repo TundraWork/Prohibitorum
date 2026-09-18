@@ -91,7 +91,7 @@ function clear(): void { clearMutation(); query.clear(); credentialsQuery.clear(
 
 const displayName = ref('')
 const email = ref('')
-const role = ref<'admin' | 'app_manager' | 'user'>('user')
+const role = ref<'admin' | 'user'>('user')
 const disabled = ref(false)
 const { flag: saved, trigger: triggerSaved } = useTransientFlag()
 
@@ -141,7 +141,7 @@ const hasComplexAttrs = computed(() => Object.keys(attrComplex.value).length > 0
 function seedForm(acc: Account): void {
   displayName.value = acc.displayName
   email.value = acc.email ?? ''
-  role.value = acc.role === 'admin' || acc.role === 'app_manager' ? acc.role : 'user'
+  role.value = acc.role === 'admin' ? 'admin' : 'user'
   disabled.value = acc.disabled
   seedAttrs(acc.attributes)
 }
@@ -274,7 +274,6 @@ usePrivateState(() => { reissueUrl.value = ''; reissueExpires.value = '' })
             <SegmentedControl v-model="role" :aria-label="t('admin.account.role')"
               :options="[
                 {value:'user',label:t('admin.account.roleUser')},
-                {value:'app_manager',label:t('admin.account.roleAppManager')},
                 {value:'admin',label:t('admin.account.roleAdmin')},
               ]" />
             <p class="text-xs text-muted">{{ t('admin.account.roleDesc') }}</p>

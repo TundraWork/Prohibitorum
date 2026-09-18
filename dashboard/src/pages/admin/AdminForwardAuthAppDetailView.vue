@@ -3,7 +3,7 @@ import { removeDetail } from '@/queries/invalidation'
 /**
  * AdminForwardAuthAppDetailView (/admin/forward-auth-apps/:clientId) —
  * edit display-name + host, show the host-substituted Traefik snippet, assign
- * application managers, manage its access policy, and use a danger zone
+ * application access, manage its policy, and use a danger zone
  * (disable/enable + delete). No rotate-secret — forward-auth clients are public.
  */
 import { computed, ref } from 'vue'

@@ -8,10 +8,10 @@ Route-to-source cross-reference:
 
 **Gate notation:**
 - 🔓 = active admin session (`account.role = 'admin'`).
-- 🔐 = active admin session plus a **fresh sudo grant** (valid for configured `sudo_ttl`, default 15 min; covers multiple gated actions until expiry).
-- `manager` = active `app_manager` or `admin` session. A non-admin manager must also hold an exact assignment for the application addressed by the route.
+- 🔐 = the route's base gate plus a **fresh sudo grant** (valid for configured `sudo_ttl`, default 15 min; covers multiple gated actions until expiry).
+- `assigned` = active session with an exact assignment for the application addressed by the route, or an admin session.
 
-`registerSudoOpHTTP` centralises admin auth, JSON content type, 64 KiB body limit, and fresh-sudo enforcement. `registerAdminBodyOpHTTP` applies the same JSON/body controls without sudo; it is also used for reversible delegated policy mutations, with the `manager` requirement instead of an admin requirement. A route-policy test asserts that each 🔐 mutation returns `sudo_required` (HTTP 401) without a fresh sudo grant.
+`registerSudoOpHTTP` centralises auth, JSON content type, 64 KiB body limit, and fresh-sudo enforcement. `registerAdminBodyOpHTTP` applies the same JSON/body controls without sudo; it is also used for reversible assigned-app policy mutations, with the `assigned` requirement instead of an admin requirement. A route-policy test asserts that each 🔐 mutation returns `sudo_required` (HTTP 401) without a fresh sudo grant.
 
 All management and delegated routes use the `/api/prohibitorum` prefix. Administrative resource names are `oidc-applications`, `forward-auth-apps`, `saml-applications`, and `identity-providers`; CLI verbs are `oidc-client`, `forward-auth-app`, `saml-sp`, and `upstream-idp`.
 
@@ -21,16 +21,16 @@ All management and delegated routes use the `/api/prohibitorum` prefix. Administ
 
 | Method | Path | Gate | Notes |
 |--------|------|------|-------|
-| GET | `/api/prohibitorum/oidc-applications` | 🔓 | List all clients. `client_secret_hash` never returned. |
-| GET | `/api/prohibitorum/oidc-applications/{clientId}` | 🔓 | Get one client. Same no-secret guarantee. |
+| GET | `/api/prohibitorum/oidc-applications` | assigned | List all clients for admins, or assigned clients for other accounts. `client_secret_hash` never returned. |
+| GET | `/api/prohibitorum/oidc-applications/{clientId}` | assigned | Get one assigned client. Same no-secret guarantee. |
 | POST | `/api/prohibitorum/oidc-applications` | 🔐 | Create a client. Confidential clients (`public: false`): generates a 32-byte `crypto/rand` secret, returns it in `secret` **once only** — only the argon2id hash is persisted. Public clients return no secret. |
-| PUT | `/api/prohibitorum/oidc-applications/{clientId}` | 🔐 | Full replacement of mutable config fields (display name, redirect URIs, scopes, etc). Does not touch the client secret. |
-| PUT | `/api/prohibitorum/oidc-applications/{clientId}/identity-projection` | manager | Replace the current subject source and claim aliases without sudo. Body: `{"subjectSource":"sub|username|verified_email","claimAliases":{"output":"name|preferred_username|email|picture"}}`. Use an empty object to clear aliases. |
-| POST | `/api/prohibitorum/oidc-applications/rotate-secret` | 🔐 | Body: `{"clientId": "..."}`. Generates and stores a new secret; returns new cleartext in `secret` **once only**. Guaranteed ≠ previous secret. |
-| POST | `/api/prohibitorum/oidc-applications/delete` | 🔐 | Body: `{"clientId": "..."}`. Hard-deletes the client row. |
-| POST | `/api/prohibitorum/oidc-applications/set-disabled` | 🔓 | Body: `{"clientId":"...","disabled":<boolean>}`. Reversibly disables or enables an OIDC application. |
+| PUT | `/api/prohibitorum/oidc-applications/{clientId}` | assigned + 🔐 | Full replacement of mutable config fields (display name, redirect URIs, scopes, etc). Does not touch the client secret. |
+| PUT | `/api/prohibitorum/oidc-applications/{clientId}/identity-projection` | assigned | Replace the current subject source and claim aliases without sudo. Body: `{"subjectSource":"sub|username|verified_email","claimAliases":{"output":"name|preferred_username|email|picture"}}`. Use an empty object to clear aliases. |
+| POST | `/api/prohibitorum/oidc-applications/rotate-secret` | assigned + 🔐 | Body: `{"clientId": "..."}`. Generates and stores a new secret; returns new cleartext in `secret` **once only**. Guaranteed ≠ previous secret. |
+| POST | `/api/prohibitorum/oidc-applications/delete` | assigned + 🔐 | Body: `{"clientId": "..."}`. Hard-deletes the client row. |
+| POST | `/api/prohibitorum/oidc-applications/set-disabled` | assigned | Body: `{"clientId":"...","disabled":<boolean>}`. Reversibly disables or enables an OIDC application. |
 | GET | `/api/prohibitorum/oidc-applications/{clientId}/managers` | 🔓 | List only safe manager-assignment views. |
-| POST | `/api/prohibitorum/oidc-applications/{clientId}/managers` | 🔐 | Body: `{"accountId":<integer>}`. Assign an enabled `app_manager` account. Returns 204. |
+| POST | `/api/prohibitorum/oidc-applications/{clientId}/managers` | 🔐 | Body: `{"accountId":<integer>}`. Assign any enabled account. Returns 204. |
 | POST | `/api/prohibitorum/oidc-applications/{clientId}/managers/remove` | 🔐 | Body: `{"accountId":<integer>}`. Remove the assignment. Returns 204. |
 
 ## Forward-auth applications
@@ -39,15 +39,15 @@ Forward-auth applications are distinct from normal OIDC application administrati
 
 | Method | Path | Gate | Notes |
 |--------|------|------|-------|
-| GET | `/api/prohibitorum/forward-auth-apps` | 🔓 | List forward-auth apps. |
-| GET | `/api/prohibitorum/forward-auth-apps/{clientId}` | 🔓 | Get one app. |
+| GET | `/api/prohibitorum/forward-auth-apps` | assigned | List all apps for admins, or assigned apps for other accounts. |
+| GET | `/api/prohibitorum/forward-auth-apps/{clientId}` | assigned | Get one assigned app. |
 | POST | `/api/prohibitorum/forward-auth-apps` | 🔐 | Create an app and its fixed OIDC-client configuration. |
-| PUT | `/api/prohibitorum/forward-auth-apps/{clientId}` | 🔐 | Replace mutable forward-auth configuration and scope vocabulary. |
-| PUT | `/api/prohibitorum/forward-auth-apps/{clientId}/identity-projection` | manager | Replace the current `Remote-User` source without sudo. Body: `{"remoteUserSource":"sub|username|verified_email"}`. |
-| POST | `/api/prohibitorum/forward-auth-apps/set-disabled` | 🔓 | Body: `{"clientId":"...","disabled":<boolean>}`. |
-| POST | `/api/prohibitorum/forward-auth-apps/delete` | 🔐 | Body: `{"clientId":"..."}`. Hard-delete the app. |
+| PUT | `/api/prohibitorum/forward-auth-apps/{clientId}` | assigned + 🔐 | Replace mutable forward-auth configuration and scope vocabulary. |
+| PUT | `/api/prohibitorum/forward-auth-apps/{clientId}/identity-projection` | assigned | Replace the current `Remote-User` source without sudo. Body: `{"remoteUserSource":"sub|username|verified_email"}`. |
+| POST | `/api/prohibitorum/forward-auth-apps/set-disabled` | assigned | Body: `{"clientId":"...","disabled":<boolean>}`. |
+| POST | `/api/prohibitorum/forward-auth-apps/delete` | assigned + 🔐 | Body: `{"clientId":"..."}`. Hard-delete the app. |
 | GET | `/api/prohibitorum/forward-auth-apps/{clientId}/managers` | 🔓 | List manager assignments. |
-| POST | `/api/prohibitorum/forward-auth-apps/{clientId}/managers` | 🔐 | Body: `{"accountId":<integer>}`. Assign an enabled `app_manager`; returns 204. |
+| POST | `/api/prohibitorum/forward-auth-apps/{clientId}/managers` | 🔐 | Body: `{"accountId":<integer>}`. Assign any enabled account; returns 204. |
 | POST | `/api/prohibitorum/forward-auth-apps/{clientId}/managers/remove` | 🔐 | Body: `{"accountId":<integer>}`. Remove assignment; returns 204. |
 
 ---
@@ -55,22 +55,22 @@ Forward-auth applications are distinct from normal OIDC application administrati
 
 | Method | Path | Gate | Notes |
 |--------|------|------|-------|
-| GET | `/api/prohibitorum/saml-applications` | 🔓 | List all registered SPs. |
-| GET | `/api/prohibitorum/saml-applications/{id}` | 🔓 | Get one SP by numeric ID. |
+| GET | `/api/prohibitorum/saml-applications` | assigned | List all registered SPs for admins, or assigned SPs for other accounts. |
+| GET | `/api/prohibitorum/saml-applications/{id}` | assigned | Get one assigned SP by numeric ID. |
 | POST | `/api/prohibitorum/saml-applications` | 🔓 | Register a new SP. Accepts optional raw SAML metadata XML in `metadataXml` for ACS + cert ingestion (same path as `saml-sp create --metadata-file`). |
-| PUT | `/api/prohibitorum/saml-applications/{id}` | 🔓 | Update SP config (display name, attribute map, session lifetime, etc). |
-| POST | `/api/prohibitorum/saml-applications/{id}/reingest-metadata` | 🔓 | Re-parse fresh SAML metadata XML for an existing SP (updates ACS endpoints + signing certs). |
-| POST | `/api/prohibitorum/saml-applications/delete` | 🔓 | Body: `{"id": <int>}`. Hard-deletes the SP row and child rows (`saml_sp_acs`, `saml_sp_key`). |
-| POST | `/api/prohibitorum/saml-applications/set-disabled` | 🔓 | Body: `{"id":<integer>,"disabled":<boolean>}`. Reversibly disables or enables an SP. |
+| PUT | `/api/prohibitorum/saml-applications/{id}` | assigned | Update SP config (display name, attribute map, session lifetime, etc). |
+| POST | `/api/prohibitorum/saml-applications/{id}/reingest-metadata` | assigned | Re-parse fresh SAML metadata XML for an existing SP (updates ACS endpoints + signing certs). |
+| POST | `/api/prohibitorum/saml-applications/delete` | assigned | Body: `{"id": <int>}`. Hard-deletes the SP row and child rows (`saml_sp_acs`, `saml_sp_key`). |
+| POST | `/api/prohibitorum/saml-applications/set-disabled` | assigned | Body: `{"id":<integer>,"disabled":<boolean>}`. Reversibly disables or enables an SP. |
 | GET | `/api/prohibitorum/saml-applications/{id}/managers` | 🔓 | List manager assignments. |
-| POST | `/api/prohibitorum/saml-applications/{id}/managers` | 🔐 | Body: `{"accountId":<integer>}`. Assign an enabled `app_manager`; returns 204. |
+| POST | `/api/prohibitorum/saml-applications/{id}/managers` | 🔐 | Body: `{"accountId":<integer>}`. Assign any enabled account; returns 204. |
 | POST | `/api/prohibitorum/saml-applications/{id}/managers/remove` | 🔐 | Body: `{"accountId":<integer>}`. Remove assignment; returns 204. |
 
 ---
 
-## Application-manager assignments
+## Application assignments
 
-Only an admin can create or remove an assignment, and both operations require fresh sudo. The assignment target must be enabled and currently have `role: "app_manager"`; otherwise the API returns `invalid_manager_role` (400). Reads are admin-only. Every manager list returns:
+Only an admin can create or remove an assignment, and both operations require fresh sudo. The assignment target may be any enabled account; a disabled target returns `invalid_manager_role` (400) for compatibility. Reads are admin-only. Every assignment list returns:
 
 ```json
 [
@@ -84,7 +84,7 @@ Only an admin can create or remove an assignment, and both operations require fr
 ]
 ```
 
-Assignments are management authority only. They do not grant the manager any OIDC, forward-auth, SAML, launchpad, or PAT eligibility. Changing an account away from `app_manager` removes its assignments transactionally; disablement and deletion take effect immediately through the live session/account checks.
+Assignments grant management authority only. They do not grant the assigned account any OIDC, forward-auth, SAML, launchpad, or PAT eligibility. Role changes preserve assignments; disablement and deletion take effect immediately through live session and account checks.
 
 ---
 
@@ -92,15 +92,7 @@ Assignments are management authority only. They do not grant the manager any OID
 
 The OIDC, SAML (manual or metadata), and forward-auth creation endpoints accept optional boolean `accessRestricted`. Omitted or `false` preserves unrestricted creation; `true` creates the app with no access until its policy grants access. The flag is included in the create response and committed with the app. Forward-auth creation commits its backing client, proxy configuration, scopes and access policy in one transaction.
 
-There are no reusable global groups or direct per-account access grants. A policy group belongs to one immutable application binding:
-
-- an OIDC or forward-auth group binds to its backing OIDC client;
-- a SAML group binds to its SP;
-- an app has zero or one `manual` group and zero or more `rule` groups;
-- group slugs are unique only within their owning app;
-- group kind and app binding cannot be changed. To move or change kind, delete and recreate the group.
-
-`manual` groups hold per-account `allow` / `deny` decisions; absent is neutral. `rule` groups have no manual members or decisions. When an app is restricted, the decision is **manual deny → deny; manual allow → allow; neutral plus any matching rule → allow; otherwise → deny**. An unrestricted app is open. Rules have no priority: all matching rules are ORed, and every matching exposed rule is retained for claims.
+Policy groups are reusable global definitions. Applications select any number of manual or rule groups. Manual groups hold per-account `allow` / `deny` decisions; rule groups calculate membership from current account facts. A restricted app allows an account when at least one selected manual group allows it or one selected rule group matches it, unless a selected manual group denies it. An unrestricted app remains open.
 
 ### Delegated route base and authorization
 
@@ -110,28 +102,23 @@ Let `BASE` be:
 /api/prohibitorum/managed-applications/{kind}/{appId}
 ```
 
-`kind` is exactly `oidc`, `forward_auth`, or `saml`. `appId` is a percent-encoded OIDC client ID for `oidc` and `forward_auth`, or a positive decimal SP ID for `saml`. `manager` routes first require an active `app_manager`/`admin` session; an `app_manager` then needs an assignment for the exact app and kind. Unassigned, wrong-kind, nonexistent, and deleted apps deliberately return the same 404 `client_not_found` response to a manager. Admins can use the same workspace for any app but still use the separate admin routes for protocol configuration and assignments.
+`kind` is exactly `oidc`, `forward_auth`, or `saml`. `appId` is a percent-encoded OIDC client ID for `oidc` and `forward_auth`, or a positive decimal SP ID for `saml`. Every route requires an active session and management authority for the exact app and kind. Admins have that authority for every app; other accounts need an assignment. Unassigned, wrong-kind, nonexistent, and deleted apps deliberately return the same 404 `client_not_found` response.
 
 All delegated mutations require JSON, are limited to 64 KiB, and do **not** require fresh sudo.
 
 | Method | Path | Gate | Notes |
 |--------|------|------|-------|
-| GET | `/api/prohibitorum/managed-applications` | `manager` | List the caller's assigned apps; an admin receives all app summaries. |
-| GET | `BASE/access` | `manager` | Return the complete policy workspace. |
-| POST | `BASE/access/set-restricted` | `manager` | Body `{"restricted":<boolean>}`; returns the updated app summary. |
-| GET | `BASE/groups` | `manager` | List groups bound to this app. |
-| POST | `BASE/groups` | `manager` | Create a manual or rule group; returns 201 with the group. |
-| GET | `BASE/groups/{groupId}` | `manager` | Get one app-bound group. |
-| PUT | `BASE/groups/{groupId}` | `manager` | Update mutable group fields; returns the group. |
-| POST | `BASE/groups/{groupId}/delete` | `manager` | Delete the group; returns 204. |
-| GET | `BASE/groups/{groupId}/decisions` | `manager` | Page manual decisions; manual group only. |
-| POST | `BASE/groups/{groupId}/decisions` | `manager` | Upsert a manual allow or deny; returns the decision. |
-| POST | `BASE/groups/{groupId}/decisions/clear` | `manager` | Clear one manual decision; returns 204. |
-| GET | `BASE/groups/{groupId}/preview` | `manager` | Page calculated matches; rule group only. |
-| GET | `BASE/groups/{groupId}/explain/{accountId}` | `manager` | Return a safe rule explanation for one active account; rule group only. |
-| GET | `BASE/accounts` | `manager` | Page active account summaries for manual-decision selection. |
+| GET | `BASE/access` | assigned | Return the complete policy workspace. |
+| POST | `BASE/access/set-restricted` | assigned | Body `{"restricted":<boolean>}`; returns the updated app summary. |
+| GET | `BASE/groups` | assigned | Return the complete array of groups visible for this app and account. |
+| PUT | `BASE/groups` | assigned | Replace the app's group associations atomically. Non-admin accounts may submit groups they belong to or groups already associated with the app. |
+| GET | `BASE/groups/{groupId}` | assigned | Get one visible associated group. |
+| GET | `BASE/groups/{groupId}/preview` | assigned | Page calculated matches; rule group only. |
+| GET | `BASE/groups/{groupId}/explain/{accountId}` | assigned | Return a safe rule explanation for one active account; rule group only. |
+| POST | `BASE/rule-preview` | assigned | Preview an unsaved rule document. |
+| GET | `BASE/accounts` | assigned | Page active account summaries for policy selection. |
 
-### Workspace and group wire shapes
+### Workspace and group association shapes
 
 `GET BASE/access` returns:
 
@@ -145,14 +132,7 @@ All delegated mutations require JSON, are limited to 64 KiB, and do **not** requ
   },
   "accessRestricted": true,
   "providers": [{"slug": "corporate-oidc"}],
-  "manualGroup": {
-    "id": 7,
-    "kind": "manual",
-    "slug": "exceptions",
-    "displayName": "Exceptions",
-    "exposedToDownstream": true
-  },
-  "ruleGroups": [
+  "groups": [
     {
       "id": 8,
       "kind": "rule",
@@ -168,27 +148,9 @@ All delegated mutations require JSON, are limited to 64 KiB, and do **not** requ
 }
 ```
 
-`app` may additionally contain `launchUrl` and `redirectUris` for OIDC, `entityId` for SAML, or `forwardAuthHost` and `forwardAuthScopes` for forward-auth. `manualGroup` is omitted when no manual group exists; `ruleGroups` and `providers` are arrays. A group object always has `id`, `kind`, `slug`, `displayName`, and `exposedToDownstream`; `description` is optional and `rule` exists only for `kind: "rule"`.
+`app` may additionally contain `launchUrl` and `redirectUris` for OIDC, `entityId` for SAML, or `forwardAuthHost` and `forwardAuthScopes` for forward-auth. `groups` and `providers` are arrays. A group object always has `id`, `kind`, `slug`, `displayName`, and `exposedToDownstream`; `description` is optional and `rule` exists only for `kind: "rule"`.
 
-Create with:
-
-```json
-{
-  "kind": "rule",
-  "slug": "passkey-users",
-  "displayName": "Passkey users",
-  "description": "Optional",
-  "exposedToDownstream": true,
-  "rule": {
-    "version": 1,
-    "condition": {"fact": "login_method", "method": "passkey"}
-  }
-}
-```
-
-`kind` is `manual` or `rule`; a manual create must omit `rule`, while a rule create requires it. `exposedToDownstream` defaults to `true`. The slug must match `^[a-z0-9](-?[a-z0-9])*$` and be at most 64 characters. Only one manual group can be created per app.
-
-`PUT BASE/groups/{groupId}` cannot change group kind or application binding; clients should omit both. It requires a non-empty `slug` and `displayName`; `description` is a replacement value (an omitted/empty value clears it), `exposedToDownstream` is optional and otherwise retained, and a rule group retains its current rule unless a replacement `rule` is supplied. A manual group must not receive a rule.
+`PUT BASE/groups` accepts `{"groupIds":[7,8]}` and atomically replaces the selected global groups. Admins may submit any existing group. Other assigned accounts may submit groups they currently belong to or groups already selected by the app. Duplicate IDs, missing groups, and groups outside that scope are rejected without partial writes.
 
 Rules are a version-1 closed AST. `all` / `any` use non-empty `children`; `not` has exactly one `child`; leaf facts are:
 
@@ -199,15 +161,9 @@ Rules are a version-1 closed AST. `all` / `any` use non-empty `children`; `not` 
 
 Unknown fields and values are rejected. Maximums are 8 levels of nesting, 64 total nodes, and 32 children per combinator. The workspace's `providers` list is the authoring catalog; it includes known provider slugs so existing verified-connection facts remain expressible even if a provider is disabled or invite-only.
 
-Manual decision mutation body:
+Account search and rule preview are paginated as `{"items":[...],"nextCursor":"opaque-or-empty"}` with optional `limit` and `cursor`. Preview items use `{account, matched}`; explanations use `{account, explanation}` where an explanation contains only `path`, `label`, `result`, and nested `children`, never raw identity facts. Global group definitions and manual decisions use the admin-only `/groups` routes. `GET /groups` is the exception: every signed-in account may call it, and it returns a complete array containing the admin's full directory or the non-admin caller's current memberships without rule documents.
 
-```json
-{"accountId": 42, "effect": "allow"}
-```
-
-`effect` is `allow` or `deny`; the response is `{"account":{"id":42,"username":"alex","displayName":"Alex Example"},"effect":"allow","updatedAt":"..."}`. Clear accepts `{"accountId":42}`. Manual decisions, account search, and rule preview are paginated as `{"items":[...],"nextCursor":"opaque-or-empty"}` with optional `limit` (default 50, clamped to 100) and `cursor`. Preview items use `{account, matched}`; explanations use `{account, explanation}` where an explanation contains only `path`, `label`, `result`, and nested `children`, never raw identity facts.
-
-Stable policy errors are `manual_group_exists` (409), `group_slug_conflict` (409), `group_not_found` (404), and `invalid_group_rule` (400). The latter supplies only `{"path":"...","reason":"..."}` in its error details. Normal API errors use the public envelope `{code, details?, requestId}`.
+Stable policy errors include `group_slug_conflict` (409), `group_not_found` (404), `permission_denied` (403), and `invalid_group_rule` (400). The latter supplies only `{"path":"...","reason":"..."}` in its error details. Normal API errors use the public envelope `{code, details?, requestId}`.
 
 ### Live facts, claims, and protocol enforcement
 
@@ -221,16 +177,16 @@ OIDC interactive denial redirects to the IdP error page, while `prompt=none` ret
 
 ### CLI mapping
 
-The CLI has no global group or grant commands. For each of `oidc-client --client-id`, `forward-auth-app --client-id`, and `saml-sp --entity-id`, use:
+For each of `oidc-client --client-id`, `forward-auth-app --client-id`, and `saml-sp --entity-id`, use:
 
 - `manager list|assign|remove --username <name>` for scoped manager assignments;
 - `access set-restricted --restricted=true|false`;
-- `group list|create-manual|create-rule|update|delete|preview` (rule creation/update uses `--rule-file`);
+- `group list|select|preview`;
 - `decision list|set --username <name> --effect allow|deny|clear`.
 
 ### Destructive migration
 
-The cutover deletes legacy global-group membership and direct application-access data and resets every existing application to unrestricted. It does not migrate assignments or policy decisions, and it exposes no compatibility aliases. Recreate the desired app-bound policy explicitly after migration.
+The earlier policy cutover deleted legacy group membership and direct application-access data and reset every existing application to unrestricted. PHB-61 preserves current global groups, manual decisions, application-group associations, and application assignments while converting `app_manager` roles to `user`.
 
 ---
 
@@ -319,7 +275,7 @@ The publish set for `/oauth/jwks` and `/saml/metadata` is `status IN ('pending',
 |--------|------|------|-------|
 | GET | `/api/prohibitorum/audit-events` | 🔓 | Query `credential_event` rows. Filterable by `factor`, `event`, `accountId`, `since`, `until`. Keyset pagination via `cursor` + `limit`. `detail` JSONB passed through verbatim — no secret material (write-site invariant). |
 
-Policy and assignment events are written to `credential_event` for both admins and delegated app managers:
+Policy and assignment events are written to `credential_event` for admins and assigned accounts:
 
 - manager assignment/removal uses `factor: "app_manager"` and events `app_manager_assigned` / `app_manager_removed`;
 - restriction changes, group create/update/delete, and manual allow/deny/clear use `factor: "app_policy"` with `access_restricted_set`, `register`, `update`, `revoke`, `access_granted`, `access_denied`, or `access_revoked` as applicable;

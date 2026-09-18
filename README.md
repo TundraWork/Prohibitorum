@@ -34,12 +34,12 @@ whole IdP plus its admin UI.
 
 **Authorization & delegated management**
 - [x] App-bound access policy — one optional manual group and calculated rule groups per app, evaluated from live verified-connection, login-method, and avatar facts
-- [x] Scoped `app_manager` role — assigned-app policy management only; no implicit app access or protocol configuration authority
+- [x] Assigned-application management — any active account can manage an assigned app; assignment does not grant app access
 - [x] App-aware group claims — exposed manual allow and every exposed matching rule group for the owning app only
 
 **Dashboard**
 - [x] Admin console — accounts, apps, providers, signing keys, audit log, and manager assignments
-- [x] Managed applications — assigned app-policy workspace for application managers
+- [x] Permission-aware application pages — admins see every app; other users see only apps assigned to them
 - [x] End-user self-service — credentials, sessions, devices, linked accounts
 - [x] End-user app launchpad
 
@@ -118,7 +118,7 @@ Global group definitions are managed in the admin dashboard. Application
 commands identify them by ID because slugs may be shared.
 
 ```bash
-# The account already has the app_manager role; assignment manages policy, not use.
+# The account is active; assignment grants management authority, not app access.
 ./prohibitorum oidc-client manager assign --client-id docs --username policy-manager
 ./prohibitorum oidc-client group select --client-id docs --group-id 12 --group-id 18
 ./prohibitorum oidc-client decision set --client-id docs --group-id 12 --username alice --effect=allow

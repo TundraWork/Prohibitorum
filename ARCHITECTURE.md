@@ -192,15 +192,14 @@ SP-initiated SSO (HTTP-Redirect and HTTP-POST bindings for AuthnRequest; HTTP-PO
 
 Prohibitorum is not a resource-permission engine: downstream applications remain responsible for their own resource authorization. It does own the final admission decision for an app and uses one protocol-neutral service for OIDC, forward-auth, SAML, launchpad candidates, PAT candidates, ID-token/userinfo claims, and SAML attributes. Protocol handlers do not duplicate policy logic.
 
-#### Roles and manager assignments
+#### Roles and application assignments
 
-- `user` has self-service and downstream-authentication capabilities.
-- `app_manager` has user capabilities plus access-policy management for exactly the apps assigned to that account.
-- `admin` has global instance authority. Existing admin routes remain admin-only; an admin may use every access workspace, but there is no downstream-use bypass.
+- `user` has self-service and downstream-authentication capabilities, plus management authority for exactly the apps assigned to that account.
+- `admin` has global instance authority and may manage every application's policy. No role bypasses downstream app admission.
 
-Only an admin may add or remove an assignment, and both mutations require fresh sudo. The target must be an enabled account whose current role is `app_manager`. A manager may not promote or edit accounts, assign managers, edit app protocol configuration, inspect credentials or secrets, manage providers, view global audit records, or change instance settings. Assignment grants management authority only; it never makes the assignee eligible to use that app.
+Only an admin may add or remove an assignment, and both mutations require fresh sudo. The target may be any enabled account, including an admin. A non-admin assignee cannot promote or edit accounts, change assignments, inspect credentials or secrets, manage providers, view global audit records, or change instance settings. Assignment grants management authority only; it never makes the assignee eligible to use that app.
 
-Assignments are FK-backed: OIDC and forward-auth applications use the backing OIDC client assignment, while SAML applications use an SP assignment. A manager can have many assignments and an app can have many managers. The route kind is checked as well as the backing ID, so an OIDC management path cannot expose a forward-auth app or vice versa. Sessions reload the account on authenticated requests; demotion from `app_manager`, disablement, or deletion takes effect immediately, and a role change away from `app_manager` transactionally removes its assignments.
+Assignments are FK-backed: OIDC and forward-auth applications use the backing OIDC client assignment, while SAML applications use an SP assignment. An account can have many assignments and an app can have many assignees. The route kind is checked as well as the backing ID, so an OIDC management path cannot expose a forward-auth app or vice versa. Sessions reload the account on authenticated requests; disablement or deletion takes effect immediately, while changing between `user` and `admin` preserves assignments.
 
 #### Groups, rules, and facts
 
@@ -234,7 +233,7 @@ neutral + any matching rule group → allow
 otherwise                         → deny
 ```
 
-An unrestricted app remains open regardless of stored groups. No role, including `admin` or `app_manager`, bypasses this decision. A manual allow projects its exposed manual slug plus every exposed matching rule slug; neutral rule-based access projects every exposed matching rule slug. Slugs are sorted and deduplicated. A manual deny produces no credential, assertion, or claim. OIDC requires the `groups` scope; SAML requires an attribute-map `groups` source; forward-auth returns the same app-bound slugs in `Remote-Groups`. These projections are app-aware and never cross an application boundary.
+An unrestricted app remains open regardless of stored groups. No role, including `admin`, bypasses this decision. A manual allow projects its exposed manual slug plus every exposed matching rule slug; neutral rule-based access projects every exposed matching rule slug. Slugs are sorted and deduplicated. A manual deny produces no credential, assertion, or claim. OIDC requires the `groups` scope; SAML requires an attribute-map `groups` source; forward-auth returns the same app-bound slugs in `Remote-Groups`. These projections are app-aware and never cross an application boundary.
 
 OIDC interactive denials use the IdP error page; `prompt=none` receives protocol-native `access_denied`. Authorization-code exchange rechecks current policy before minting tokens and returns `invalid_grant` on denial. Refresh does the same and revokes the entire refresh family before returning `invalid_grant`; `/userinfo` rejects a now-denied bearer token. SAML interactive denial uses the IdP error page, while passive SSO returns `Responder` / `RequestDenied`. Forward-auth re-evaluates both cookie and PAT requests, returns its existing denial response, and issues no downstream session. Launchpad and PAT app lists omit denied applications.
 
@@ -248,21 +247,20 @@ All management and delegated routes use the `/api/prohibitorum` prefix. Admin-on
 
 ### Application configuration and assignments
 
-Application configuration remains an admin-only concern:
+Application pages are available to every signed-in account:
 
-- OIDC: `/oidc-applications`; forward-auth: `/forward-auth-apps`; SAML: `/saml-applications`.
-- Each kind has admin-only manager-list, assign, and remove endpoints. Assignment bodies use `{"accountId": <integer>}`; list responses expose only `id`, `username`, `displayName`, `disabled`, and `assignedAt`.
-- Global admins use the same app-policy workspace service from their app detail pages. App managers use only the dedicated managed-application surface and cannot use configuration endpoints.
+- OIDC: `/oidc-applications`; forward-auth: `/forward-auth-apps`; SAML: `/saml-applications`. Admins see all apps; other accounts see only their assigned apps.
+- Assigned accounts use the normal detail pages to edit the assigned app and its access policy, including sudo-protected operations such as OIDC secret rotation. App creation, assignment management, and directory or instance administration remain admin-only.
+- Each kind has admin-only assignment-list, assign, and remove endpoints. Assignment bodies use `{"accountId": <integer>}`; list responses expose only `id`, `username`, `displayName`, `disabled`, and `assignedAt`.
 
 ### Delegated app-policy surface
 
-`/managed-applications` is available to an active `app_manager` or `admin`. The caller must then pass an exact assignment check unless an admin. App kind is explicit: `oidc`, `forward_auth`, or `saml`; OIDC and forward-auth IDs are URL-escaped client IDs, and SAML IDs are positive decimal IDs. An invalid kind, wrong kind, missing/deleted app, or unassigned app is indistinguishable (`404`) to a non-admin manager.
+The policy endpoints under `/managed-applications/{kind}/{appId}` are available to signed-in accounts that can manage the exact app, plus admins. App kind is explicit: `oidc`, `forward_auth`, or `saml`; OIDC and forward-auth IDs are URL-escaped client IDs, and SAML IDs are positive decimal IDs. An invalid kind, wrong kind, missing or deleted app, or absent assignment is indistinguishable (`404`) to a non-admin account.
 
-- `GET /managed-applications` lists assigned application summaries.
 - `GET /managed-applications/{kind}/{appId}/access` returns the app, restriction flag, known provider slugs, optional manual group, and rule groups.
 - `POST /managed-applications/{kind}/{appId}/access/set-restricted` accepts `{"restricted": <boolean>}`.
-- `/managed-applications/{kind}/{appId}/groups` supports list/create/get/update/delete of only groups bound to that app.
-- Manual-decision list/upsert/clear, rule preview, safe rule explanation, and active-account search are nested under that same app and group path. No endpoint accepts a global group or an access grant.
+- `GET` and `PUT /managed-applications/{kind}/{appId}/groups` list or replace the app's associated global groups. An assigned account may retain groups already associated with the app and add groups that currently include that account.
+- Rule preview, safe rule explanation, and active-account search remain nested under the same app path. Global group definitions and manual decisions are managed through admin-only `/groups` endpoints.
 
 ### Upstream IdPs
 
@@ -291,7 +289,7 @@ The `status` column is the sole lifecycle. Partial unique index `one_active_sign
 
 - `GET /audit-events` — admin-only query of `credential_event`, filterable by `factor`, `event`, `accountId`, `since`, and `until`, with keyset pagination.
 
-The audit stream records application-manager assignment/removal (`factor=app_manager`); restriction changes, group create/update/delete, and manual allow/deny/clear (`factor=app_policy`); and protocol access denials (`factor=oidc_client` or `saml_sp`). App-policy records identify the actor, app kind/ID, target account where applicable, group ID, and action. They never include rule JSON, evaluated facts, credential details, identity metadata, hashes, private keys, or secrets. Writes remain best-effort: an insertion failure becomes a structured error log without the redacted detail payload.
+The audit stream records application assignment/removal with the compatibility factor `app_manager`; restriction changes, group create/update/delete, and manual allow/deny/clear with `factor=app_policy`; and protocol access denials with `factor=oidc_client` or `saml_sp`. App-policy records identify the actor, app kind/ID, target account where applicable, group ID, and action. They never include rule JSON, evaluated facts, credential details, identity metadata, hashes, private keys, or secrets. Writes remain best-effort: an insertion failure becomes a structured error log without the redacted detail payload.
 
 ### Account credentials (admin)
 
@@ -326,7 +324,7 @@ SAML IdP flow:
 
 ## Authorization model
 
-- **`account.role`** is one of `user`, `app_manager`, or `admin`. Roles are flat. `app_manager` is a scoped management role, not an application-entitlement role; `admin` is the only global management role.
+- **`account.role`** is either `user` or `admin`. Roles are flat; application assignments separately grant management authority for exact apps.
 - **`account.attributes`** is a JSONB map. It is opaque to Prohibitorum and carried verbatim into ID-token `attributes` claims and SAML AttributeStatements. RPs decide which keys are meaningful.
 - **App admission versus application authorization:** Prohibitorum decides whether a user may obtain credentials for a particular downstream app. The RP still decides what the user may do inside that app. It does not evaluate arbitrary account-attribute expressions, scripts, CEL, Rego, or a generic resource/action permission graph.
 

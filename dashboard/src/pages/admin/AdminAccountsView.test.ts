@@ -90,11 +90,12 @@ describe('AdminAccountsView', () => {
     expect(wrapper.text()).toContain(en.admin.accounts.disabled)
   })
 
-  it('renders application managers as a distinct role', async () => {
-    mockGets([{ id: 3, username: 'maya', displayName: 'Maya Chen', role: 'app_manager', disabled: false, matchingIdentities: [] }])
+  it('renders only user and admin roles', async () => {
+    mockGets([{ id: 3, username: 'maya', displayName: 'Maya Chen', role: 'user', disabled: false, matchingIdentities: [] }])
     const wrapper = mountView(); await flushPromises()
     expect(wrapper.text()).toContain('Maya Chen')
-    expect(wrapper.text()).toContain('App manager')
+    expect(wrapper.text()).toContain(en.admin.account.roleUser)
+    expect(wrapper.text()).not.toContain('App manager')
   })
 
   it('row click and keyboard activation navigate to account detail', async () => {

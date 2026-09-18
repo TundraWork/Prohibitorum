@@ -2,8 +2,8 @@ package contract
 
 import "time"
 
-// AppManagerView is one application-manager assignment shown on an admin
-// application's manager surface.
+// AppManagerView is one account assignment shown on an admin application's
+// assignment surface. The name is retained for API compatibility.
 type AppManagerView struct {
 	ID          int32     `json:"id"`
 	Username    string    `json:"username"`
