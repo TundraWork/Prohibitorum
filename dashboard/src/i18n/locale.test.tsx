@@ -65,7 +65,7 @@ describe("language preference", () => {
     await user.clear(name);
     await user.type(name, "Unsubmitted edit");
     await user.click(screen.getByRole("button", { name: /Language/ }));
-    await user.click(screen.getByRole("option", { name: "Chinese" }));
+    await user.click(screen.getByRole("menuitemradio", { name: "中文" }));
 
     expect(screen.getByRole("heading", { name: "界面预览" })).toBeVisible();
     expect(screen.getByRole("textbox", { name: "显示名称" })).toHaveValue(
@@ -132,8 +132,5 @@ describe("language preference", () => {
     expect(
       screen.getByRole("heading", { name: "Interface preview" }),
     ).toBeVisible();
-    expect(screen.getByRole("button", { name: /Language/ })).toHaveTextContent(
-      "English",
-    );
   });
 });

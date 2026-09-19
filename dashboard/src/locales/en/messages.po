@@ -58,11 +58,6 @@ msgid "error.validation_failed"
 msgstr "Check the submitted information and try again."
 
 #. js-lingui-explicit-id
-#: src/components/custom/LanguageSelect.tsx
-msgid "language.chinese"
-msgstr "Chinese"
-
-#. js-lingui-explicit-id
 #: src/components/custom/ConsoleLayout.tsx
 msgid "console.close-menu"
 msgstr "Close navigation"
@@ -150,6 +145,11 @@ msgid "console.current-account"
 msgstr "Current account"
 
 #. js-lingui-explicit-id
+#: src/components/custom/ThemeSelect.tsx
+msgid "theme.dark"
+msgstr "Dark theme"
+
+#. js-lingui-explicit-id
 #: src/routes/DevForms.tsx
 msgid "dev.forms.eyebrow"
 msgstr "Development only"
@@ -183,11 +183,6 @@ msgstr "Download codes"
 #: src/routes/DevForms.tsx
 msgid "dev.forms.logout.title"
 msgstr "Empty response request"
-
-#. js-lingui-explicit-id
-#: src/components/custom/LanguageSelect.tsx
-msgid "language.english"
-msgstr "English"
 
 #. js-lingui-explicit-id
 #: src/routes/Login.tsx
@@ -286,7 +281,7 @@ msgid "preview.title"
 msgstr "Interface preview"
 
 #. js-lingui-explicit-id
-#: src/components/custom/LanguageSelect.tsx
+#: src/components/custom/LanguageMenu.tsx
 msgid "language.label"
 msgstr "Language"
 
@@ -294,6 +289,11 @@ msgstr "Language"
 #: src/components/custom/RecoveryCodes.tsx
 msgid "login.codes.leave"
 msgstr "Leave without saving? These recovery codes cannot be shown again."
+
+#. js-lingui-explicit-id
+#: src/components/custom/ThemeSelect.tsx
+msgid "theme.light"
+msgstr "Light theme"
 
 #. js-lingui-explicit-id
 #: src/components/custom/RouteFeedback.tsx
@@ -572,6 +572,11 @@ msgid "forms.submitting"
 msgstr "Submitting…"
 
 #. js-lingui-explicit-id
+#: src/components/custom/ThemeSelect.tsx
+msgid "theme.system"
+msgstr "System theme"
+
+#. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.bad_credentials"
 msgstr "The credentials could not be verified."
@@ -647,6 +652,11 @@ msgid "error.request_too_large"
 msgstr "The submitted data is too large."
 
 #. js-lingui-explicit-id
+#: src/components/custom/ThemeSelect.tsx
+msgid "theme.label"
+msgstr "Theme"
+
+#. js-lingui-explicit-id
 #: src/components/custom/RecoveryCodes.tsx
 msgid "login.codes.once"
 msgstr "These codes are shown only once. Keep them somewhere safe before continuing. Your old recovery codes no longer work."
@@ -715,11 +725,6 @@ msgstr "This sign-in attempt has expired. Enter your password again."
 #: src/api/errors.ts
 msgid "error.invalid_login_link"
 msgstr "This sign-in link is invalid. Open a new sign-in link and try again."
-
-#. js-lingui-explicit-id
-#: src/components/custom/ThemeToggle.tsx
-msgid "theme.toggle"
-msgstr "Toggle theme"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts

@@ -31,6 +31,7 @@
     "@tanstack/react-router": "1.170.38",
     "class-variance-authority": "0.7.1",
     "jotai": "3.0.0",
+    "lucide-react": "1.47.0",
     "openapi-fetch": "0.17.0",
     "qrcode": "1.5.4",
     "react": "19.3.0",

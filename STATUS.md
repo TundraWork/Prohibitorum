@@ -19,7 +19,11 @@ The form verification route is development-only. API declarations use an isolate
 Password + TOTP, recovery-code and passkey sign-in are available at `/login`.
 Recovery can atomically reset the authenticator; new recovery codes require a save
 confirmation before continuing. The responsive console at `/` shows the current
-account, language/theme controls and sign-out, with session revalidation on focus.
+account and sign-out, with session revalidation on focus.
+
+The dashboard sidebar places the avatar and account name above compact icon navigation.
+Login and console pages share top-right language and light/dark/system theme controls.
+System mode follows OS changes; explicit theme choices remain in memory.
 
 Component previews remain available at `/preview/components` and `/preview/api`.
 Enrollment, self-service (M4), application management and admin pages (M5) remain

@@ -58,11 +58,6 @@ msgid "error.validation_failed"
 msgstr "请检查提交的信息后重试。"
 
 #. js-lingui-explicit-id
-#: src/components/custom/LanguageSelect.tsx
-msgid "language.chinese"
-msgstr "中文"
-
-#. js-lingui-explicit-id
 #: src/components/custom/ConsoleLayout.tsx
 msgid "console.close-menu"
 msgstr "关闭导航"
@@ -150,6 +145,11 @@ msgid "console.current-account"
 msgstr "当前账号"
 
 #. js-lingui-explicit-id
+#: src/components/custom/ThemeSelect.tsx
+msgid "theme.dark"
+msgstr "夜间模式"
+
+#. js-lingui-explicit-id
 #: src/routes/DevForms.tsx
 msgid "dev.forms.eyebrow"
 msgstr "仅供开发验证"
@@ -183,11 +183,6 @@ msgstr "下载恢复码"
 #: src/routes/DevForms.tsx
 msgid "dev.forms.logout.title"
 msgstr "空响应请求"
-
-#. js-lingui-explicit-id
-#: src/components/custom/LanguageSelect.tsx
-msgid "language.english"
-msgstr "英语"
 
 #. js-lingui-explicit-id
 #: src/routes/Login.tsx
@@ -286,7 +281,7 @@ msgid "preview.title"
 msgstr "界面预览"
 
 #. js-lingui-explicit-id
-#: src/components/custom/LanguageSelect.tsx
+#: src/components/custom/LanguageMenu.tsx
 msgid "language.label"
 msgstr "语言"
 
@@ -294,6 +289,11 @@ msgstr "语言"
 #: src/components/custom/RecoveryCodes.tsx
 msgid "login.codes.leave"
 msgstr "要在未保存的情况下离开吗？这些恢复码无法再次查看。"
+
+#. js-lingui-explicit-id
+#: src/components/custom/ThemeSelect.tsx
+msgid "theme.light"
+msgstr "日间模式"
 
 #. js-lingui-explicit-id
 #: src/components/custom/RouteFeedback.tsx
@@ -572,6 +572,11 @@ msgid "forms.submitting"
 msgstr "正在提交…"
 
 #. js-lingui-explicit-id
+#: src/components/custom/ThemeSelect.tsx
+msgid "theme.system"
+msgstr "跟随系统"
+
+#. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.bad_credentials"
 msgstr "无法验证凭据。"
@@ -647,6 +652,11 @@ msgid "error.request_too_large"
 msgstr "提交的数据过大。"
 
 #. js-lingui-explicit-id
+#: src/components/custom/ThemeSelect.tsx
+msgid "theme.label"
+msgstr "主题"
+
+#. js-lingui-explicit-id
 #: src/components/custom/RecoveryCodes.tsx
 msgid "login.codes.once"
 msgstr "这些恢复码仅显示一次。请妥善保存后再继续，旧恢复码已失效。"
@@ -715,11 +725,6 @@ msgstr "本次登录已过期。请重新输入密码。"
 #: src/api/errors.ts
 msgid "error.invalid_login_link"
 msgstr "登录链接无效。请打开新的登录链接重试。"
-
-#. js-lingui-explicit-id
-#: src/components/custom/ThemeToggle.tsx
-msgid "theme.toggle"
-msgstr "切换深浅色"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts

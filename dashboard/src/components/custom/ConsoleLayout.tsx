@@ -3,6 +3,7 @@ import {
   Button,
   Drawer,
   Link,
+  Separator,
   Spinner,
   useOverlayState,
 } from "@heroui/react";
@@ -14,6 +15,16 @@ import {
   useRouter,
   useRouterState,
 } from "@tanstack/react-router";
+import { cva } from "class-variance-authority";
+import {
+  AppWindow,
+  House,
+  LogOut,
+  MonitorSmartphone,
+  PanelLeft,
+  ShieldCheck,
+  UserRound,
+} from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import type { components } from "@/api/generated/schema";
@@ -21,25 +32,39 @@ import { logoutMutationOptions } from "@/api/mutations";
 import { clearSessionQueries, sessionQueryOptions } from "@/api/queries";
 import { instanceName } from "@/components/custom/AppLayout";
 import { notificationQueue } from "@/components/custom/AppNotifications";
-import { LanguageSelect } from "@/components/custom/LanguageSelect";
+import { AppToolbar } from "@/components/custom/AppToolbar";
 import { RouteError, RoutePending } from "@/components/custom/RouteFeedback";
-import { ThemeToggle } from "@/components/custom/ThemeToggle";
 
 type Session = components["schemas"]["SessionView"];
 const NavigationLink = createLink(Link);
+const navigationItem = cva(
+  "flex w-full items-center gap-3 rounded-field px-3 py-2.5 text-sm no-underline",
+  {
+    variants: {
+      state: {
+        available:
+          "text-foreground data-[status=active]:bg-default data-[status=active]:font-medium",
+        unavailable: "text-muted",
+      },
+    },
+    defaultVariants: { state: "available" },
+  },
+);
 
 function ConsoleNavigation({ session }: { session: Session }) {
   const { t } = useLingui();
   return (
-    <div className="flex min-w-0 flex-col gap-8">
-      <div className="flex min-w-0 items-start gap-3">
+    <div className="flex min-w-0 flex-col gap-5">
+      <div className="flex min-w-0 items-center gap-3 px-3 py-2">
         <Avatar className="shrink-0">
           {session.avatarUrl && <Avatar.Image src={session.avatarUrl} alt="" />}
-          <Avatar.Fallback />
+          <Avatar.Fallback>
+            <UserRound size={20} aria-hidden="true" />
+          </Avatar.Fallback>
         </Avatar>
         <div className="min-w-0 wrap-anywhere">
-          <p className="font-semibold">{session.displayName}</p>
-          <p className="text-sm text-muted">{session.username}</p>
+          <p className="text-sm font-semibold">{session.displayName}</p>
+          <p className="text-xs text-muted">{session.username}</p>
         </div>
       </div>
       <nav
@@ -47,24 +72,38 @@ function ConsoleNavigation({ session }: { session: Session }) {
           id: "console.navigation",
           message: "Console navigation",
         })}
-        className="flex flex-col items-start gap-5"
+        className="flex flex-col gap-1"
       >
-        <NavigationLink to="/" activeOptions={{ exact: true }} preload={false}>
+        <NavigationLink
+          to="/"
+          activeOptions={{ exact: true }}
+          preload={false}
+          className={navigationItem()}
+        >
+          <House size={18} className="shrink-0" aria-hidden="true" />
           <Trans id="console.home">Console home</Trans>
         </NavigationLink>
-        <p className="text-sm text-muted">
+        <p className="px-3 pb-1 pt-5 text-xs font-medium text-muted">
           <Trans id="console.coming-soon">Coming later</Trans>
         </p>
-        <Link isDisabled>
+        <Link isDisabled className={navigationItem({ state: "unavailable" })}>
+          <UserRound size={18} className="shrink-0" aria-hidden="true" />
           <Trans id="console.profile">Profile</Trans>
         </Link>
-        <Link isDisabled>
+        <Link isDisabled className={navigationItem({ state: "unavailable" })}>
+          <ShieldCheck size={18} className="shrink-0" aria-hidden="true" />
           <Trans id="console.security">Security</Trans>
         </Link>
-        <Link isDisabled>
+        <Link isDisabled className={navigationItem({ state: "unavailable" })}>
+          <AppWindow size={18} className="shrink-0" aria-hidden="true" />
           <Trans id="console.applications">Applications</Trans>
         </Link>
-        <Link isDisabled>
+        <Link isDisabled className={navigationItem({ state: "unavailable" })}>
+          <MonitorSmartphone
+            size={18}
+            className="shrink-0"
+            aria-hidden="true"
+          />
           <Trans id="console.devices">Devices</Trans>
         </Link>
       </nav>
@@ -80,11 +119,19 @@ function ConsoleActions({
   onLogout: () => void;
 }) {
   return (
-    <div className="flex w-full flex-col items-start gap-3">
-      <LanguageSelect />
-      <ThemeToggle />
-      <Button variant="outline" isPending={pending} onPress={onLogout}>
-        {pending && <Spinner size="sm" />}
+    <div className="flex w-full flex-col gap-3">
+      <Separator />
+      <Button
+        variant="ghost"
+        className="w-full justify-start"
+        isPending={pending}
+        onPress={onLogout}
+      >
+        {pending ? (
+          <Spinner size="sm" />
+        ) : (
+          <LogOut size={18} aria-hidden="true" />
+        )}
         <Trans id="console.logout">Sign out</Trans>
       </Button>
     </div>
@@ -119,19 +166,27 @@ function ConsoleShell({
     onLogout();
   };
   return (
-    <div className="min-h-dvh md:grid md:grid-cols-[17rem_minmax(0,1fr)]">
-      <aside className="sticky top-0 hidden h-dvh min-w-0 flex-col gap-8 overflow-y-auto p-6 md:flex">
+    <div className="min-h-dvh md:grid md:grid-cols-[16rem_minmax(0,1fr)]">
+      <aside className="sticky top-0 hidden h-dvh min-w-0 flex-col gap-6 overflow-y-auto border-r border-separator p-3 md:flex">
         <ConsoleNavigation session={session} />
-        <div className="mt-auto pt-8">
+        <div className="mt-auto">
           <ConsoleActions pending={pending} onLogout={logout} />
         </div>
       </aside>
       <div className="min-w-0">
-        <header className="flex min-w-0 items-center gap-4 px-4 py-6 sm:px-6">
+        <AppToolbar>
           <div className="md:hidden">
             <Drawer state={drawer}>
-              <Button variant="outline">
-                <Trans id="console.open-menu">Open navigation</Trans>
+              <Button
+                isIconOnly
+                size="sm"
+                variant="ghost"
+                aria-label={t({
+                  id: "console.open-menu",
+                  message: "Open navigation",
+                })}
+              >
+                <PanelLeft size={18} aria-hidden="true" />
               </Button>
               <Drawer.Backdrop>
                 <Drawer.Content placement="left">
@@ -160,10 +215,10 @@ function ConsoleShell({
               </Drawer.Backdrop>
             </Drawer>
           </div>
-          <span className="min-w-0 text-lg font-semibold wrap-anywhere">
+          <span className="min-w-0 truncate text-lg font-semibold">
             {instanceName}
           </span>
-        </header>
+        </AppToolbar>
         <main className="flex min-w-0 flex-col gap-6 px-4 pb-8 sm:px-6">
           <Outlet />
         </main>
