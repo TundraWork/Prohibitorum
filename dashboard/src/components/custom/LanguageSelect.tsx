@@ -10,7 +10,7 @@ export function LanguageSelect() {
   return (
     <Select
       aria-label={t({ id: "language.label", message: "Language" })}
-      className="language-select"
+      className="w-36"
       value={resolveLocale(locale)}
       onChange={(value) => {
         if (value === "en" || value === "zh") setLocale(value);

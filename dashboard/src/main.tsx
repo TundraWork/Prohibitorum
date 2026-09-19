@@ -1,4 +1,4 @@
-import "@fontsource-variable/hanken-grotesk";
+import "@fontsource-variable/inter";
 import "@/styles/index.css";
 import { I18nProvider } from "@lingui/react";
 import { Provider } from "jotai";

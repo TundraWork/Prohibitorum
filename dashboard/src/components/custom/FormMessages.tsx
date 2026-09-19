@@ -27,7 +27,9 @@ export function FormMessages({ errors }: { errors: readonly unknown[] }) {
   return (
     <>
       {[...new Set(messages)].map((message) => (
-        <div key={message}>{message}</div>
+        <span className="block" key={message}>
+          {message}
+        </span>
       ))}
     </>
   );

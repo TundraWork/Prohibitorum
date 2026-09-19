@@ -156,5 +156,5 @@ library) is the OIDC OP toolkit; `crewjam/saml` the SAML side.
 - [`CONFIG.md`](./CONFIG.md) — env-var reference + deployment hardening.
 - [`TOOLING.md`](./TOOLING.md) — mise, lockfile, dev/CI/prod build.
 - [`INTEGRATION.md`](./INTEGRATION.md) — relying-party integration patterns.
-- [`DESIGN.md`](./DESIGN.md) / [`PRODUCT.md`](./PRODUCT.md) — dashboard design + product framing.
+- [`PRODUCT.md`](./PRODUCT.md) — product framing.
 - [`AUDIT.md`](./AUDIT.md) — per-layer compliance checklist.

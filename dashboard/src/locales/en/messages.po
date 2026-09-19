@@ -314,8 +314,7 @@ msgid "error.bad_credentials"
 msgstr "The credentials could not be verified."
 
 #. js-lingui-explicit-id
-#: src/routes/ApiPreview.tsx
-#: src/routes/Preview.tsx
+#: src/components/custom/PreviewLayout.tsx
 msgid "preview.notice"
 msgstr "The frontend is being rebuilt. Sign-in and other features are temporarily unavailable."
 
@@ -353,11 +352,6 @@ msgstr "The service is undergoing maintenance. Please try again later."
 #: src/api/errors.ts
 msgid "error.request_too_large"
 msgstr "The submitted data is too large."
-
-#. js-lingui-explicit-id
-#: src/routes/Preview.tsx
-msgid "theme.swatches"
-msgstr "Theme color samples"
 
 #. js-lingui-explicit-id
 #: src/routes/DevForms.tsx

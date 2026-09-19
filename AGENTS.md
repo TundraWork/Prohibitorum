@@ -36,9 +36,19 @@
 
 ## Dashboard and generated assets
 
-- Follow [DESIGN.md](DESIGN.md). Use HeroUI React components and centralized
-  theme tokens in `dashboard/src/styles`; application-specific components belong
-  in `dashboard/src/components/custom`.
+- Follow the current HeroUI official documentation and preserve its default
+  component styles. The former `DESIGN.md` is retired.
+- Keep the approved HeroUI Theme Builder configuration:
+  `chroma=0.1&hue=204&lightness=0.52&formRadius=small&radius=extra-small&base=0.003`.
+  Its exported theme variables belong in `dashboard/src/styles/theme.css`,
+  imported after `@heroui/styles`; preserve other component defaults.
+- Prefer compositions of HeroUI components whenever they cover the UI need;
+  use `Alert` for notices such as the frontend-rebuild banner.
+- Write custom layout and styling as Tailwind classes directly in JSX.
+  Reuse styles through React components in `dashboard/src/components/custom`,
+  using `class-variance-authority` for shared variants.
+- HTML mockups describe wireframes and interaction flows only. Implement visual
+  details according to HeroUI rather than copying mockup styling.
 - `dashboard-old` is a reference-only archive. Keep it outside imports, builds,
   tests and lint scopes; do not restore its routes or vendored UI into the app.
 - M1 serves a bilingual foundation preview. Login, enrollment, self-service and
@@ -55,8 +65,7 @@
 
 - Follow the project's `srh` writing skill when it is available. It is not
   vendored here; do not claim to have applied unavailable instructions.
-- The repository's baseline is [DESIGN.md](DESIGN.md): plain language that says
-  what happened and what to do next, without jargon or blame. Explain technical
-  details only when they help the user decide or act.
+- Use plain language that says what happened and what to do next, without jargon
+  or blame. Explain technical details only when they help the reader decide or act.
 - Keep Chinese and English locale entries in sync. Public repository guidance
   describes roles and workflow without naming individual operators.

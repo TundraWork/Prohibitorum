@@ -2,15 +2,6 @@
 @import "@heroui/styles";
 @import "./theme.css";
 
-* {
-  box-sizing: border-box;
-}
-
-body {
-  margin: 0;
-  background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-sans);
-  font-size: 1rem;
-  line-height: 1.6;
+@theme {
+  --font-inter: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
 }

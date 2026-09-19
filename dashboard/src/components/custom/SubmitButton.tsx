@@ -8,7 +8,7 @@ export function SubmitButton({ children }: { children: ReactNode }) {
   const form = useFormContext();
   const submitting = useStore(form.store, (state) => state.isSubmitting);
   return (
-    <div className="actions">
+    <div className="flex flex-wrap gap-2">
       <Button type="submit" isPending={submitting}>
         {({ isPending }) => (
           <>

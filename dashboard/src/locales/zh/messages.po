@@ -314,8 +314,7 @@ msgid "error.bad_credentials"
 msgstr "无法验证凭据。"
 
 #. js-lingui-explicit-id
-#: src/routes/ApiPreview.tsx
-#: src/routes/Preview.tsx
+#: src/components/custom/PreviewLayout.tsx
 msgid "preview.notice"
 msgstr "前端重写中，登录与业务功能暂不可用。"
 
@@ -353,11 +352,6 @@ msgstr "服务正在维护，请稍后重试。"
 #: src/api/errors.ts
 msgid "error.request_too_large"
 msgstr "提交的数据过大。"
-
-#. js-lingui-explicit-id
-#: src/routes/Preview.tsx
-msgid "theme.swatches"
-msgstr "主题颜色样例"
 
 #. js-lingui-explicit-id
 #: src/routes/DevForms.tsx

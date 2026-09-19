@@ -30,7 +30,6 @@ export function FormField({
   const errorId = `${id}-error`;
   return (
     <TextField
-      className="preview-field"
       name={field.name}
       value={field.state.value}
       isDisabled={submitting}
@@ -62,7 +61,7 @@ export function FormField({
         <Description id={descriptionId}>{description}</Description>
       )}
       {invalid && (
-        <FieldError id={errorId} className="form-field-errors">
+        <FieldError id={errorId}>
           <FormMessages errors={errors} />
         </FieldError>
       )}

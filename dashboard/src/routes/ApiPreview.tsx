@@ -1,10 +1,11 @@
-import { Button, Spinner } from "@heroui/react";
+import { Alert, Button, Card, Spinner } from "@heroui/react";
 import { Trans } from "@lingui/react/macro";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import {
   authStatusQueryOptions,
   publicConfigQueryOptions,
 } from "@/api/queries";
+import { PageHeader, RewriteNotice } from "@/components/custom/PreviewLayout";
 
 export function ApiPreview() {
   const config = useSuspenseQuery(publicConfigQueryOptions());
@@ -12,70 +13,76 @@ export function ApiPreview() {
   const refreshing = config.isFetching || status.isFetching;
   return (
     <>
-      <div className="eyebrow">
-        <Trans id="api.eyebrow">PHB-65 / M2 · Public API preview</Trans>
-      </div>
-      <h1>
-        <Trans id="api.title">Public configuration</Trans>
-      </h1>
-      <p className="intro">
-        <Trans id="api.description">
-          This page reads the instance configuration and initialization status
-          from the server.
-        </Trans>
-      </p>
-      <div className="rewrite-notice">
-        <Trans id="preview.notice">
-          The frontend is being rebuilt. Sign-in and other features are
-          temporarily unavailable.
-        </Trans>
-      </div>
-      <section className="preview-card">
-        <h2>
-          <Trans id="api.instance">Instance</Trans>
-        </h2>
-        <dl className="api-details">
-          <div>
-            <dt>
-              <Trans id="api.name">Name</Trans>
-            </dt>
-            <dd>{config.data.instanceName}</dd>
-          </div>
-          <div>
-            <dt>
-              <Trans id="api.initialization">Initialization</Trans>
-            </dt>
-            <dd>
-              {status.data.bootstrapped ? (
-                <Trans id="api.initialized">Initialized</Trans>
-              ) : (
-                <Trans id="api.uninitialized">Not initialized</Trans>
-              )}
-            </dd>
-          </div>
-          <div>
-            <dt>
-              <Trans id="api.maintenance">Maintenance</Trans>
-            </dt>
-            <dd>
-              {config.data.maintenanceMode ? (
-                <Trans id="api.maintenance.active">Active</Trans>
-              ) : (
-                <Trans id="api.maintenance.inactive">Inactive</Trans>
-              )}
-            </dd>
-          </div>
-          <div>
-            <dt>
-              <Trans id="api.issuer">Authenticator issuer</Trans>
-            </dt>
-            <dd>{config.data.totp.issuer}</dd>
-          </div>
-        </dl>
-        {config.data.maintenanceMode && config.data.maintenanceMessage && (
-          <p>{config.data.maintenanceMessage}</p>
-        )}
-        <div className="actions">
+      <PageHeader
+        eyebrow={
+          <Trans id="api.eyebrow">PHB-65 / M2 · Public API preview</Trans>
+        }
+        title={<Trans id="api.title">Public configuration</Trans>}
+        description={
+          <Trans id="api.description">
+            This page reads the instance configuration and initialization status
+            from the server.
+          </Trans>
+        }
+      />
+      <RewriteNotice />
+      <Card>
+        <Card.Header>
+          <Card.Title>
+            <Trans id="api.instance">Instance</Trans>
+          </Card.Title>
+        </Card.Header>
+        <Card.Content className="flex flex-col gap-4">
+          <dl className="grid gap-4 sm:grid-cols-2">
+            <div className="min-w-0 space-y-1">
+              <dt className="text-sm text-muted">
+                <Trans id="api.name">Name</Trans>
+              </dt>
+              <dd className="break-words">{config.data.instanceName}</dd>
+            </div>
+            <div className="min-w-0 space-y-1">
+              <dt className="text-sm text-muted">
+                <Trans id="api.initialization">Initialization</Trans>
+              </dt>
+              <dd>
+                {status.data.bootstrapped ? (
+                  <Trans id="api.initialized">Initialized</Trans>
+                ) : (
+                  <Trans id="api.uninitialized">Not initialized</Trans>
+                )}
+              </dd>
+            </div>
+            <div className="min-w-0 space-y-1">
+              <dt className="text-sm text-muted">
+                <Trans id="api.maintenance">Maintenance</Trans>
+              </dt>
+              <dd>
+                {config.data.maintenanceMode ? (
+                  <Trans id="api.maintenance.active">Active</Trans>
+                ) : (
+                  <Trans id="api.maintenance.inactive">Inactive</Trans>
+                )}
+              </dd>
+            </div>
+            <div className="min-w-0 space-y-1">
+              <dt className="text-sm text-muted">
+                <Trans id="api.issuer">Authenticator issuer</Trans>
+              </dt>
+              <dd className="break-words">{config.data.totp.issuer}</dd>
+            </div>
+          </dl>
+          {config.data.maintenanceMode && config.data.maintenanceMessage && (
+            <Alert status="warning">
+              <Alert.Indicator />
+              <Alert.Content>
+                <Alert.Description>
+                  {config.data.maintenanceMessage}
+                </Alert.Description>
+              </Alert.Content>
+            </Alert>
+          )}
+        </Card.Content>
+        <Card.Footer className="flex flex-col items-start gap-3">
           <Button
             variant="outline"
             isPending={refreshing}
@@ -94,13 +101,13 @@ export function ApiPreview() {
               </>
             )}
           </Button>
-        </div>
-        <p>
-          <Trans id="api.public-note">
-            Initialization does not indicate whether you are signed in.
-          </Trans>
-        </p>
-      </section>
+          <p className="text-sm text-muted">
+            <Trans id="api.public-note">
+              Initialization does not indicate whether you are signed in.
+            </Trans>
+          </p>
+        </Card.Footer>
+      </Card>
     </>
   );
 }
