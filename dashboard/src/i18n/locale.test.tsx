@@ -32,7 +32,11 @@ async function mountApplication() {
 beforeEach(() => {
   vi.resetModules();
   localStorage.clear();
-  window.history.replaceState(null, "", "/?lang=zh&returnTo=%2Fapps#details");
+  window.history.replaceState(
+    null,
+    "",
+    "/preview/components?lang=zh&returnTo=%2Fapps#details",
+  );
 });
 
 afterEach(() => {

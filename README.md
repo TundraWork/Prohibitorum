@@ -7,13 +7,14 @@
 ![deploy](https://img.shields.io/badge/deploy-single%20binary-blue)
 
 **A self-hosted, single-binary identity provider for small orgs.** Single-tenant,
-first-party, no email channel — admin-issued enrollment is the only recovery path.
+first-party, no email channel — recovery uses recovery codes or admin-issued enrollment.
 The dashboard SPA is embedded in the binary: one `./prohibitorum` process is the
 whole IdP plus its frontend.
 
-**Frontend rewrite (M2):** the embedded UI shows bilingual component and public API
-previews. Login, enrollment, self-service, application management and admin pages
-are temporarily unavailable. Backend authentication and protocol APIs are unchanged.
+**Frontend rewrite (M3):** password + TOTP, recovery-code and passkey sign-in are
+available, including optional authenticator reset and a responsive bilingual console.
+Enrollment, self-service (M4), application management and admin pages (M5) remain
+unavailable. Backend authentication and protocol APIs are unchanged.
 
 - **Sign-in** — WebAuthn passkeys (preferred), Password + TOTP fallback, or federation through upstream OIDC, Steam, and VRChat providers.
 - **Downstream** — OIDC provider for modern apps, SAML 2.0 IdP for GitHub Enterprise Server and other legacy SaaS, and a forward-auth gateway.
@@ -41,10 +42,12 @@ are temporarily unavailable. Backend authentication and protocol APIs are unchan
 - [x] Assigned-application management — any active account can manage an assigned app; assignment does not grant app access
 - [x] App-aware group claims — exposed manual allow and every exposed matching rule group for the owning app only
 
-**Dashboard — M2 rewrite**
+**Dashboard — M3 rewrite**
 - [x] React/HeroUI foundation preview with English and Chinese, persisted language preference, and interactive component samples
 - [x] Typed OpenAPI client, shared Query cache, route loading feedback and reusable mutation/form integration
-- [ ] Login and enrollment UI
+- [x] Password + TOTP, recovery-code and passkey login; authenticator reset and one-time recovery-code saving
+- [x] Responsive console, current account, language/theme controls and sign-out
+- [ ] Enrollment UI
 - [ ] Admin console and permission-aware application management
 - [ ] End-user self-service and app launchpad
 

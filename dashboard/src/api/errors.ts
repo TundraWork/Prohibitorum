@@ -9,7 +9,7 @@ export interface PublicError {
 }
 
 export interface ApiErrorOptions {
-  kind: "http" | "network" | "invalid-response";
+  kind: "http" | "network" | "invalid-response" | "local";
   status?: number;
   code?: string;
   details?: Record<string, unknown>;
@@ -115,6 +115,60 @@ const errorMessages: Readonly<Record<string, MessageDescriptor>> = {
   rate_limited: msg({
     id: "error.rate_limited",
     message: "Too many requests. Please wait before trying again.",
+  }),
+  partial_session_invalid: msg({
+    id: "error.partial_session_invalid",
+    message: "This sign-in attempt has expired. Enter your password again.",
+  }),
+  factor_locked: msg({
+    id: "error.factor_locked",
+    message: "Too many verification attempts. Please wait before trying again.",
+  }),
+  ceremony_missing: msg({
+    id: "error.ceremony_missing",
+    message: "Start passkey sign-in again to continue.",
+  }),
+  ceremony_expired: msg({
+    id: "error.ceremony_expired",
+    message: "The passkey sign-in attempt has expired. Please start again.",
+  }),
+  ceremony_state_invalid: msg({
+    id: "error.ceremony_state_invalid",
+    message:
+      "The passkey sign-in attempt could not be verified. Please start again.",
+  }),
+  login_failed: msg({
+    id: "error.login_failed",
+    message: "Passkey sign-in failed. Try again or use your password.",
+  }),
+  login_verification_failed: msg({
+    id: "error.login_verification_failed",
+    message:
+      "The passkey could not be verified. Try again or use your password.",
+  }),
+  login_account_not_found: msg({
+    id: "error.login_account_not_found",
+    message:
+      "The passkey could not be verified. Try again or use your password.",
+  }),
+  not_bootstrapped: msg({
+    id: "error.not_bootstrapped",
+    message:
+      "This instance is not ready for sign-in. Contact its administrator.",
+  }),
+  passkey_incomplete: msg({
+    id: "error.passkey_incomplete",
+    message: "Verification was not completed. Try again or use your password.",
+  }),
+  passkey_unsupported: msg({
+    id: "error.passkey_unsupported",
+    message:
+      "Passkeys are unavailable in this browser. Use your password instead.",
+  }),
+  invalid_login_link: msg({
+    id: "error.invalid_login_link",
+    message:
+      "This sign-in link is invalid. Open a new sign-in link and try again.",
   }),
   server_error: msg({
     id: "error.server_error",

@@ -35,11 +35,11 @@ The React/TypeScript dashboard is a Vite application in the `dashboard` pnpm wor
 - Dev, CI and production tasks run `pnpm install --frozen-lockfile`. Every triggered build installs, so lockfile changes are applied even when `node_modules` exists.
 - English and Chinese PO catalogs live in `src/locales`; Lingui checks reject missing translations and compilation errors. Biome and Vitest run only against the new application.
 - `dashboard-old` is a reference-only archive, excluded from imports, build inputs and frontend checks. Its npm lockfile belongs only to the archive.
-- M2 adds a public API preview at `/preview/api` and shared Query, Router and Form mechanisms. Login, enrollment, self-service, application management and admin pages are temporarily unavailable; backend API semantics remain unchanged.
+- M3 provides `/login` (password + TOTP, recovery/reset and passkeys) and the protected console at `/`. Component and API previews remain public at `/preview/components` and `/preview/api`. Enrollment, self-service (M4), application management and admin pages (M5) remain unavailable; backend API semantics are unchanged.
 
 ### API types and development forms
 
-Run `mise run dev:api-types` after changing API schemas and commit `dashboard/src/api/generated/schema.d.ts`. `mise run ci:api-types` regenerates in a temporary directory and rejects drift; generation requires neither a database nor a frontend bundle. Raw config/logout paths supplement endpoints outside Huma's schema.
+Run `mise run dev:api-types` after changing API schemas and commit `dashboard/src/api/generated/schema.d.ts`. `mise run ci:api-types` regenerates in a temporary directory and rejects drift; generation requires neither a database nor a frontend bundle. Raw config, login and logout paths supplement endpoints outside Huma's schema.
 
 `mise run dev:dashboard` exposes `/__dev/forms` for real nickname/logout mutation checks. Use an isolated browser and test account: submissions can change credentials or end a session. Browser request interception supplies failure scenarios during verification; the route is excluded from production builds.
 
@@ -160,7 +160,7 @@ mise lock                          # refresh mise.lock after changing [tools]
 
 Brings up two local instances: an **upstream** OP (`https://idp-a.example.test`) and a **downstream** RP (`https://idp-b.example.test`) that federates to it. Distinct hostnames give each its own cookie jar; nginx terminates TLS and proxies each to a loopback http backend (`127.0.0.1:18080` / `:18081`); the two databases (`prohibitorum_upstream` / `prohibitorum_downstream`) are separate from `prohibitorum_dev`.
 
-Browser enrollment and the manual UI paths below are temporarily unavailable in M1. The harness still provisions backend instances and API data; use `mise run ci:smoke` for automated backend protocol verification.
+Browser enrollment and the federation UI paths below remain unavailable in M3. Local password/TOTP, recovery and passkey login are available. The harness still provisions backend instances and API data; use `mise run ci:smoke` for automated backend protocol verification.
 
 **Local config (never committed).** Real hostnames + cert paths live in the gitignored `.dev/dev-federation.env`. First run writes a commented template (`example.test` placeholders) and exits — fill in your real values (DNS names pinned to `127.0.0.1`, plus the wildcard cert nginx serves) and re-run.
 
@@ -169,7 +169,7 @@ Browser enrollment and the manual UI paths below are temporarily unavailable in 
 1. (optional) `mise run db start` — the harness auto-starts it otherwise.
 2. `mise run dev:federation` — first run writes `.dev/dev-federation.env`; edit it.
 3. `mise run dev:federation` again — seeds, wires, generates `.dev/nginx/prohibitorum-federation.conf`, and prints a one-time `sudo cp … && sudo nginx -t && sudo systemctl reload nginx` command. Run it.
-4. The harness prints admin-enrollment URLs; their browser UI becomes available with the later authentication milestone.
+4. The harness prints admin-enrollment URLs; their browser UI remains unavailable until the enrollment milestone.
 
 **Manual-test paths (require the restored authentication UI):**
 

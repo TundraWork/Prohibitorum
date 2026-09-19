@@ -6,7 +6,7 @@ proof-backed local registration/recovery. It provides OIDC OP, SAML 2.0 IdP,
 and forward-auth downstream access, plus app-bound policy, delegated
 application management. This file records capabilities by version and the roadmap.
 
-## Unreleased — PHB-65 data, routing and forms
+## Unreleased — PHB-66 login and console
 
 The React/HeroUI dashboard includes a bilingual component preview and a real public
 configuration preview. Typed OpenAPI requests share Query caches and error notifications;
@@ -16,9 +16,15 @@ Reusable forms preserve input and combine server field errors with global notifi
 The form verification route is development-only. API declarations use an isolated TypeScript
 5 generator with CI drift checks; the application remains on TypeScript 7.
 
-Login, enrollment, self-service, application management and admin pages are
-temporarily unavailable during the approved rewrite. Backend APIs are unchanged.
-The version history below describes previously shipped capabilities.
+Password + TOTP, recovery-code and passkey sign-in are available at `/login`.
+Recovery can atomically reset the authenticator; new recovery codes require a save
+confirmation before continuing. The responsive console at `/` shows the current
+account, language/theme controls and sign-out, with session revalidation on focus.
+
+Component previews remain available at `/preview/components` and `/preview/api`.
+Enrollment, self-service (M4), application management and admin pages (M5) remain
+unavailable. Backend APIs are unchanged. The version history below describes
+previously shipped capabilities.
 
 ## v0.1 — rescope + decoupling
 

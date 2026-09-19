@@ -41,6 +41,34 @@ function createClient() {
 }
 
 describe("shared server state", () => {
+  it("treats only 401 no_session as anonymous without an error notification", async () => {
+    const { queryClient, notices } = createClient();
+    fetchBoundary.mockResolvedValueOnce(
+      Response.json(
+        { code: "no_session", requestId: "anonymous" },
+        { status: 401 },
+      ),
+    );
+    expect(await queryClient.fetchQuery(sessionQueryOptions())).toBeNull();
+    expect(notices).not.toHaveBeenCalled();
+
+    for (const [status, code] of [
+      [401, "bad_credentials"],
+      [401, "sudo_required"],
+      [403, "account_disabled"],
+      [503, "maintenance_mode"],
+      [500, "no_session"],
+    ] as const) {
+      fetchBoundary.mockResolvedValueOnce(
+        Response.json({ code, requestId: "session-error" }, { status }),
+      );
+      await expect(
+        queryClient.fetchQuery(sessionQueryOptions()),
+      ).rejects.toMatchObject({ status, code });
+    }
+    expect(notices).toHaveBeenCalledTimes(5);
+  });
+
   it("notifies once for a failed shared query and separately for independent failures", async () => {
     const { queryClient, notices } = createClient();
     fetchBoundary.mockImplementation(async () =>

@@ -1,5 +1,6 @@
 import { type QueryClient, queryOptions } from "@tanstack/react-query";
 import { client, requireJsonData } from "@/api/client";
+import { ApiError } from "@/api/errors";
 
 export function publicConfigQueryOptions() {
   return queryOptions({
@@ -26,8 +27,22 @@ export function sessionQueryOptions() {
     queryKey: ["session", "me"],
     staleTime: 0,
     meta: { requiresSession: true },
-    queryFn: ({ signal }) =>
-      requireJsonData(client.GET("/api/prohibitorum/me", { signal })),
+    queryFn: async ({ signal }) => {
+      try {
+        return await requireJsonData(
+          client.GET("/api/prohibitorum/me", { signal }),
+        );
+      } catch (error) {
+        if (
+          error instanceof ApiError &&
+          error.status === 401 &&
+          error.code === "no_session"
+        ) {
+          return null;
+        }
+        throw error;
+      }
+    },
   });
 }
 

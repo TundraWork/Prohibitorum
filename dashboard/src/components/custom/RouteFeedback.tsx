@@ -1,6 +1,7 @@
 import { Alert, Button, Card, Link } from "@heroui/react";
-import { Trans } from "@lingui/react/macro";
+import { Trans, useLingui } from "@lingui/react/macro";
 import { createLink, useRouter } from "@tanstack/react-router";
+import { describeError } from "@/api/errors";
 import { PageSkeleton } from "@/components/custom/PreviewLayout";
 
 const RouterLink = createLink(Link);
@@ -20,7 +21,8 @@ export function RoutePending() {
   );
 }
 
-export function RouteError() {
+export function RouteError({ error }: { error: unknown }) {
+  const { i18n } = useLingui();
   const router = useRouter();
   return (
     <Card>
@@ -32,9 +34,7 @@ export function RouteError() {
               <Trans id="route.failed">Unable to load this page</Trans>
             </Alert.Title>
             <Alert.Description>
-              <Trans id="route.retry.description">
-                Check your connection and try again.
-              </Trans>
+              {i18n._(describeError(error))}
             </Alert.Description>
           </Alert.Content>
         </Alert>
@@ -66,7 +66,7 @@ export function RouteNotFound() {
         </Card.Description>
       </Card.Header>
       <Card.Footer>
-        <RouterLink to="/">
+        <RouterLink to="/preview/components">
           <Trans id="route.home">Return to preview</Trans>
         </RouterLink>
       </Card.Footer>

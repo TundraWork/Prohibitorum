@@ -1,7 +1,44 @@
-import { Alert, Skeleton } from "@heroui/react";
-import { Trans } from "@lingui/react/macro";
+import { Alert, Link, Skeleton } from "@heroui/react";
+import { Trans, useLingui } from "@lingui/react/macro";
+import { createLink, Outlet } from "@tanstack/react-router";
 import { cva, type VariantProps } from "class-variance-authority";
 import type { ReactNode } from "react";
+
+const NavigationLink = createLink(Link);
+
+export function PreviewLayout() {
+  const { t } = useLingui();
+  return (
+    <>
+      <nav
+        className="flex flex-wrap items-center gap-x-6 gap-y-3"
+        aria-label={t({
+          id: "navigation.preview",
+          message: "Preview navigation",
+        })}
+      >
+        <NavigationLink to="/preview/components">
+          <Trans id="navigation.components">Components</Trans>
+        </NavigationLink>
+        <NavigationLink to="/preview/api">
+          <Trans id="navigation.api">Public API</Trans>
+        </NavigationLink>
+        <NavigationLink to="/login" preload={false}>
+          <Trans id="navigation.login">Sign in</Trans>
+        </NavigationLink>
+        <NavigationLink to="/" preload={false}>
+          <Trans id="console.home">Console home</Trans>
+        </NavigationLink>
+        {import.meta.env.DEV && (
+          <NavigationLink to="/__dev/forms">
+            <Trans id="navigation.forms">Form verification (development)</Trans>
+          </NavigationLink>
+        )}
+      </nav>
+      <Outlet />
+    </>
+  );
+}
 
 export function PageHeader({
   eyebrow,
@@ -28,8 +65,8 @@ export function RewriteNotice() {
       <Alert.Content>
         <Alert.Title>
           <Trans id="preview.notice">
-            The frontend is being rebuilt. Sign-in and other features are
-            temporarily unavailable.
+            This is a public component preview. Account management and
+            administration pages are not available yet.
           </Trans>
         </Alert.Title>
       </Alert.Content>

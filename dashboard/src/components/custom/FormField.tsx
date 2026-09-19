@@ -6,7 +6,7 @@ import {
   TextField,
 } from "@heroui/react";
 import { useStore } from "@tanstack/react-form";
-import { type ReactNode, useId } from "react";
+import { type ComponentProps, type ReactNode, useId } from "react";
 import { FormMessages } from "@/components/custom/FormMessages";
 import { useFieldContext, useFormContext } from "@/forms/context";
 import { withoutServerErrors } from "@/forms/server-errors";
@@ -15,10 +15,20 @@ export function FormField({
   label,
   description,
   inputMode,
+  type,
+  autoComplete,
+  autoCapitalize,
+  spellCheck,
+  isDisabled = false,
 }: {
   label: ReactNode;
   description?: ReactNode;
   inputMode?: "text" | "numeric";
+  type?: ComponentProps<typeof Input>["type"];
+  autoComplete?: string;
+  autoCapitalize?: string;
+  spellCheck?: boolean;
+  isDisabled?: boolean;
 }) {
   const field = useFieldContext<string>();
   const form = useFormContext();
@@ -32,14 +42,14 @@ export function FormField({
     <TextField
       name={field.name}
       value={field.state.value}
-      isDisabled={submitting}
+      isDisabled={submitting || isDisabled}
       isInvalid={invalid}
       validationBehavior="aria"
       onBlur={() => {
-        if (!form.state.isSubmitting) field.handleBlur();
+        if (!form.state.isSubmitting && !isDisabled) field.handleBlur();
       }}
       onChange={(value) => {
-        if (form.state.isSubmitting) return;
+        if (form.state.isSubmitting || isDisabled) return;
         field.setErrorMap({
           onSubmit: withoutServerErrors(field.state.meta.errorMap.onSubmit),
         });
@@ -50,6 +60,10 @@ export function FormField({
       <Input
         id={id}
         inputMode={inputMode}
+        type={type}
+        autoComplete={autoComplete}
+        autoCapitalize={autoCapitalize}
+        spellCheck={spellCheck}
         aria-invalid={invalid || undefined}
         aria-describedby={
           [description && descriptionId, invalid && errorId]

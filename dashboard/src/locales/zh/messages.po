@@ -18,9 +18,39 @@ msgid "api.maintenance.active"
 msgstr "已开启"
 
 #. js-lingui-explicit-id
+#: src/components/custom/TotpSetup.tsx
+msgid "login.reset.warning"
+msgstr "重设成功后，旧身份验证器和所有旧恢复码都将失效。"
+
+#. js-lingui-explicit-id
+#: src/components/custom/ConsoleLayout.tsx
+msgid "console.applications"
+msgstr "应用"
+
+#. js-lingui-explicit-id
+#: src/routes/Login.tsx
+msgid "login.enroll_instruction"
+msgstr "请联系运维人员，在服务器运行 <0>prohibitorum enroll-admin</0> 后再登录。"
+
+#. js-lingui-explicit-id
+#: src/routes/Login.tsx
+msgid "login.totp.code"
+msgstr "身份验证器验证码"
+
+#. js-lingui-explicit-id
 #: src/routes/ApiPreview.tsx
 msgid "api.issuer"
 msgstr "验证器签发者"
+
+#. js-lingui-explicit-id
+#: src/routes/Login.tsx
+msgid "login.complete"
+msgstr "身份验证器已重设"
+
+#. js-lingui-explicit-id
+#: src/routes/Login.tsx
+msgid "login.back"
+msgstr "返回密码登录"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -28,14 +58,14 @@ msgid "error.validation_failed"
 msgstr "请检查提交的信息后重试。"
 
 #. js-lingui-explicit-id
-#: src/components/custom/RouteFeedback.tsx
-msgid "route.retry.description"
-msgstr "请检查网络连接后重试。"
-
-#. js-lingui-explicit-id
 #: src/components/custom/LanguageSelect.tsx
 msgid "language.chinese"
 msgstr "中文"
+
+#. js-lingui-explicit-id
+#: src/components/custom/ConsoleLayout.tsx
+msgid "console.close-menu"
+msgstr "关闭导航"
 
 #. js-lingui-explicit-id
 #: src/components/custom/AppNotifications.tsx
@@ -43,19 +73,66 @@ msgid "notification.close"
 msgstr "关闭通知"
 
 #. js-lingui-explicit-id
+#: src/components/custom/RecoveryCodes.tsx
+msgid "login.codes.copied"
+msgstr "恢复码已复制。"
+
+#. js-lingui-explicit-id
+#: src/components/custom/ConsoleLayout.tsx
+msgid "console.coming-soon"
+msgstr "后续开放"
+
+#. js-lingui-explicit-id
 #: src/routes/Preview.tsx
 msgid "components.title"
 msgstr "基础组件"
 
 #. js-lingui-explicit-id
-#: src/components/custom/AppLayout.tsx
+#: src/components/custom/PreviewLayout.tsx
 msgid "navigation.components"
 msgstr "基础组件"
+
+#. js-lingui-explicit-id
+#: src/components/custom/ConsoleLayout.tsx
+#: src/components/custom/PreviewLayout.tsx
+#: src/routes/Console.tsx
+msgid "console.home"
+msgstr "控制台首页"
+
+#. js-lingui-explicit-id
+#: src/components/custom/ConsoleLayout.tsx
+msgid "console.navigation"
+msgstr "控制台导航"
+
+#. js-lingui-explicit-id
+#: src/components/custom/RecoveryCodes.tsx
+msgid "login.codes.continue"
+msgstr "继续"
+
+#. js-lingui-explicit-id
+#: src/routes/Login.tsx
+msgid "login.password.next"
+msgstr "使用密码继续"
+
+#. js-lingui-explicit-id
+#: src/components/custom/RecoveryCodes.tsx
+msgid "login.codes.copy"
+msgstr "复制恢复码"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.network"
 msgstr "无法连接服务器，请检查网络连接后重试。"
+
+#. js-lingui-explicit-id
+#: src/components/custom/RecoveryCodes.tsx
+msgid "login.codes.copy_failed"
+msgstr "无法复制恢复码。请选中上方恢复码手动复制，或下载保存。"
+
+#. js-lingui-explicit-id
+#: src/components/custom/RecoveryCodes.tsx
+msgid "login.codes.download_failed"
+msgstr "无法下载恢复码。请复制或手动保存。"
 
 #. js-lingui-explicit-id
 #: src/routes/DevForms.tsx
@@ -68,9 +145,19 @@ msgid "dev.forms.rename.title"
 msgstr "凭据昵称请求"
 
 #. js-lingui-explicit-id
+#: src/routes/Console.tsx
+msgid "console.current-account"
+msgstr "当前账号"
+
+#. js-lingui-explicit-id
 #: src/routes/DevForms.tsx
 msgid "dev.forms.eyebrow"
 msgstr "仅供开发验证"
+
+#. js-lingui-explicit-id
+#: src/components/custom/ConsoleLayout.tsx
+msgid "console.devices"
+msgstr "设备"
 
 #. js-lingui-explicit-id
 #: src/routes/Preview.tsx
@@ -78,9 +165,19 @@ msgid "button.disabled"
 msgstr "禁用按钮"
 
 #. js-lingui-explicit-id
+#: src/routes/Console.tsx
+msgid "console.display-name"
+msgstr "显示名称"
+
+#. js-lingui-explicit-id
 #: src/routes/Preview.tsx
 msgid "name.label"
 msgstr "显示名称"
+
+#. js-lingui-explicit-id
+#: src/components/custom/RecoveryCodes.tsx
+msgid "login.codes.download"
+msgstr "下载恢复码"
 
 #. js-lingui-explicit-id
 #: src/routes/DevForms.tsx
@@ -93,14 +190,45 @@ msgid "language.english"
 msgstr "英语"
 
 #. js-lingui-explicit-id
+#: src/routes/Login.tsx
+msgid "login.totp.invalid"
+msgstr "请输入符合配置位数的验证码，仅使用数字 0–9。"
+
+#. js-lingui-explicit-id
+#: src/routes/Login.tsx
+msgid "login.password.invalid"
+msgstr "请输入密码，长度不超过 1024 个 UTF-8 字节。"
+
+#. js-lingui-explicit-id
 #: src/routes/DevForms.tsx
 msgid "dev.forms.id.invalid"
 msgstr "请输入有效的正整数凭据 ID（不超过 2147483647）。"
 
 #. js-lingui-explicit-id
+#: src/routes/Login.tsx
+msgid "login.recovery.invalid"
+msgstr "请输入 XXXX-XXXX-XXXX-XXXX 格式的恢复码，仅使用大写字母 A–Z 和数字 2–7。"
+
+#. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.invalid_nickname"
 msgstr "请输入有效昵称，不要包含控制字符。"
+
+#. js-lingui-explicit-id
+#. placeholder {0}: config.totp.digits
+#: src/routes/Login.tsx
+msgid "login.totp.digits"
+msgstr "请输入身份验证器中的 {0} 位验证码。"
+
+#. js-lingui-explicit-id
+#: src/routes/Login.tsx
+msgid "login.factor.restart"
+msgstr "请重新输入密码后再尝试验证码。本次验证不能重复使用。"
+
+#. js-lingui-explicit-id
+#: src/routes/Login.tsx
+msgid "login.username.required"
+msgstr "请输入用户名。"
 
 #. js-lingui-explicit-id
 #: src/routes/DevForms.tsx
@@ -118,9 +246,14 @@ msgid "dev.forms.title"
 msgstr "表单集成验证"
 
 #. js-lingui-explicit-id
-#: src/components/custom/AppLayout.tsx
+#: src/components/custom/PreviewLayout.tsx
 msgid "navigation.forms"
 msgstr "表单验证（开发）"
+
+#. js-lingui-explicit-id
+#: src/components/custom/RecoveryCodes.tsx
+msgid "login.codes.saved"
+msgstr "我已保存恢复码"
 
 #. js-lingui-explicit-id
 #: src/routes/ApiPreview.tsx
@@ -158,6 +291,11 @@ msgid "language.label"
 msgstr "语言"
 
 #. js-lingui-explicit-id
+#: src/components/custom/RecoveryCodes.tsx
+msgid "login.codes.leave"
+msgstr "要在未保存的情况下离开吗？这些恢复码无法再次查看。"
+
+#. js-lingui-explicit-id
 #: src/components/custom/RouteFeedback.tsx
 msgid "route.loading"
 msgstr "正在加载页面…"
@@ -193,6 +331,21 @@ msgid "api.name"
 msgstr "名称"
 
 #. js-lingui-explicit-id
+#: src/routes/Login.tsx
+msgid "login.reset.code"
+msgstr "新身份验证器验证码"
+
+#. js-lingui-explicit-id
+#: src/components/custom/TotpSetup.tsx
+msgid "login.reset.qr"
+msgstr "新身份验证器设置二维码"
+
+#. js-lingui-explicit-id
+#: src/components/custom/RecoveryCodes.tsx
+msgid "login.codes.label"
+msgstr "新恢复码"
+
+#. js-lingui-explicit-id
 #: src/routes/DevForms.tsx
 msgid "dev.forms.nickname.label"
 msgstr "昵称"
@@ -213,9 +366,34 @@ msgid "notification.region"
 msgstr "通知"
 
 #. js-lingui-explicit-id
+#: src/components/custom/ConsoleLayout.tsx
+msgid "console.open-menu"
+msgstr "打开导航"
+
+#. js-lingui-explicit-id
 #: src/components/custom/RouteFeedback.tsx
 msgid "route.not-found"
 msgstr "页面不存在"
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.login_failed"
+msgstr "通行密钥登录失败。请重试或使用密码。"
+
+#. js-lingui-explicit-id
+#: src/routes/Login.tsx
+msgid "login.passkey.unsupported"
+msgstr "当前浏览器或连接不支持通行密钥。请使用密码登录。"
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.passkey_unsupported"
+msgstr "当前浏览器不支持通行密钥。请使用密码登录。"
+
+#. js-lingui-explicit-id
+#: src/routes/Login.tsx
+msgid "login.password"
+msgstr "密码"
 
 #. js-lingui-explicit-id
 #: src/routes/Preview.tsx
@@ -233,7 +411,7 @@ msgid "preview.tabs"
 msgstr "预览"
 
 #. js-lingui-explicit-id
-#: src/components/custom/AppLayout.tsx
+#: src/components/custom/PreviewLayout.tsx
 msgid "navigation.preview"
 msgstr "预览导航"
 
@@ -243,7 +421,17 @@ msgid "notification.message"
 msgstr "这是预览通知，没有提交任何数据。"
 
 #. js-lingui-explicit-id
-#: src/components/custom/AppLayout.tsx
+#: src/components/custom/ConsoleLayout.tsx
+msgid "console.profile"
+msgstr "个人资料"
+
+#. js-lingui-explicit-id
+#: src/routes/Console.tsx
+msgid "console.availability"
+msgstr "个人资料、安全、应用和设备页面将在后续更新中开放。"
+
+#. js-lingui-explicit-id
+#: src/components/custom/PreviewLayout.tsx
 msgid "navigation.api"
 msgstr "公开 API"
 
@@ -251,6 +439,11 @@ msgstr "公开 API"
 #: src/routes/ApiPreview.tsx
 msgid "api.title"
 msgstr "公开配置"
+
+#. js-lingui-explicit-id
+#: src/routes/Login.tsx
+msgid "login.recovery.code"
+msgstr "恢复码"
 
 #. js-lingui-explicit-id
 #: src/routes/ApiPreview.tsx
@@ -269,6 +462,11 @@ msgid "notification.request_id"
 msgstr "请求编号：{0}"
 
 #. js-lingui-explicit-id
+#: src/routes/Login.tsx
+msgid "login.reset.toggle"
+msgstr "重设身份验证器"
+
+#. js-lingui-explicit-id
 #: src/components/custom/RouteFeedback.tsx
 msgid "route.home"
 msgstr "返回预览"
@@ -279,14 +477,79 @@ msgid "preview.description"
 msgstr "检查语言、颜色与组件状态。"
 
 #. js-lingui-explicit-id
+#: src/components/custom/RecoveryCodes.tsx
+msgid "login.codes.title"
+msgstr "保存新的恢复码"
+
+#. js-lingui-explicit-id
+#: src/components/custom/TotpSetup.tsx
+msgid "login.reset.scan"
+msgstr "使用身份验证器扫描二维码，或手动输入设置密钥，然后输入新身份验证器中的验证码。"
+
+#. js-lingui-explicit-id
+#: src/components/custom/ConsoleLayout.tsx
+msgid "console.security"
+msgstr "安全"
+
+#. js-lingui-explicit-id
+#: src/components/custom/TotpSetup.tsx
+msgid "login.reset.secret"
+msgstr "设置密钥"
+
+#. js-lingui-explicit-id
 #: src/routes/Preview.tsx
 msgid "notification.show"
 msgstr "显示通知"
 
 #. js-lingui-explicit-id
+#: src/routes/Login.tsx
+msgid "login.verify"
+msgstr "登录"
+
+#. js-lingui-explicit-id
+#: src/routes/Login.tsx
+msgid "login.title"
+msgstr "登录"
+
+#. js-lingui-explicit-id
+#: src/components/custom/PreviewLayout.tsx
+msgid "navigation.login"
+msgstr "登录"
+
+#. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.no_session"
 msgstr "请登录后继续。"
+
+#. js-lingui-explicit-id
+#: src/routes/Login.tsx
+msgid "login.passkey"
+msgstr "使用通行密钥登录"
+
+#. js-lingui-explicit-id
+#: src/routes/Login.tsx
+msgid "login.password.form"
+msgstr "使用密码登录"
+
+#. js-lingui-explicit-id
+#: src/routes/Login.tsx
+msgid "login.recovery.form"
+msgstr "使用恢复码登录"
+
+#. js-lingui-explicit-id
+#: src/components/custom/ConsoleLayout.tsx
+msgid "console.logout"
+msgstr "退出登录"
+
+#. js-lingui-explicit-id
+#: src/routes/Login.tsx
+msgid "login.factor.account"
+msgstr "正在登录 {username}"
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.ceremony_missing"
+msgstr "请重新发起通行密钥登录。"
 
 #. js-lingui-explicit-id
 #: src/routes/Preview.tsx
@@ -314,9 +577,29 @@ msgid "error.bad_credentials"
 msgstr "无法验证凭据。"
 
 #. js-lingui-explicit-id
-#: src/components/custom/PreviewLayout.tsx
-msgid "preview.notice"
-msgstr "前端重写中，登录与业务功能暂不可用。"
+#: src/api/errors.ts
+msgid "error.login_verification_failed"
+msgstr "无法验证通行密钥。请重试或使用密码。"
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.login_account_not_found"
+msgstr "无法验证通行密钥。请重试或使用密码。"
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.ceremony_state_invalid"
+msgstr "无法验证本次通行密钥登录。请重新开始。"
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.ceremony_expired"
+msgstr "本次通行密钥登录已过期。请重新开始。"
+
+#. js-lingui-explicit-id
+#: src/components/custom/TotpSetup.tsx
+msgid "login.reset.qr_failed"
+msgstr "无法显示二维码。请手动输入设置密钥。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -327,6 +610,11 @@ msgstr "无法接受此请求。"
 #: src/api/errors.ts
 msgid "error.request_failed"
 msgstr "请求失败，请重试。"
+
+#. js-lingui-explicit-id
+#: src/routes/Login.tsx
+msgid "login.reset.uncertain"
+msgstr "重设可能已经完成。请尝试新身份验证器或通行密钥。再次尝试验证码前，请重新输入密码；旧恢复码可能已失效。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -344,6 +632,11 @@ msgid "dev.forms.nickname.description"
 msgstr "服务器会验证此值；请求成功后将修改测试凭据。"
 
 #. js-lingui-explicit-id
+#: src/routes/Login.tsx
+msgid "login.maintenance"
+msgstr "服务正在维护，管理员仍可尝试登录。"
+
+#. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.maintenance_mode"
 msgstr "服务正在维护，请稍后重试。"
@@ -352,6 +645,11 @@ msgstr "服务正在维护，请稍后重试。"
 #: src/api/errors.ts
 msgid "error.request_too_large"
 msgstr "提交的数据过大。"
+
+#. js-lingui-explicit-id
+#: src/components/custom/RecoveryCodes.tsx
+msgid "login.codes.once"
+msgstr "这些恢复码仅显示一次。请妥善保存后再继续，旧恢复码已失效。"
 
 #. js-lingui-explicit-id
 #: src/routes/DevForms.tsx
@@ -379,9 +677,24 @@ msgid "error.unsupported_media_type"
 msgstr "不支持此数据格式。"
 
 #. js-lingui-explicit-id
+#: src/routes/Login.tsx
+msgid "login.uninitialized"
+msgstr "此实例尚未初始化。"
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.not_bootstrapped"
+msgstr "此实例尚未开放登录。请联系管理员。"
+
+#. js-lingui-explicit-id
 #: src/routes/Preview.tsx
 msgid "name.description"
 msgstr "这是本地预览；输入内容不会提交。"
+
+#. js-lingui-explicit-id
+#: src/components/custom/PreviewLayout.tsx
+msgid "preview.notice"
+msgstr "登录和控制台已开放。注册、自助服务和管理页面将在后续更新中开放。"
 
 #. js-lingui-explicit-id
 #: src/routes/ApiPreview.tsx
@@ -394,7 +707,17 @@ msgid "dev.forms.logout.description"
 msgstr "此操作会发送真实退出请求，并清除会话查询缓存。请仅在隔离浏览器会话中使用，不要在日常登录会话中操作。"
 
 #. js-lingui-explicit-id
-#: src/components/custom/AppLayout.tsx
+#: src/api/errors.ts
+msgid "error.partial_session_invalid"
+msgstr "本次登录已过期。请重新输入密码。"
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.invalid_login_link"
+msgstr "登录链接无效。请打开新的登录链接重试。"
+
+#. js-lingui-explicit-id
+#: src/components/custom/ThemeToggle.tsx
 msgid "theme.toggle"
 msgstr "切换深浅色"
 
@@ -402,6 +725,11 @@ msgstr "切换深浅色"
 #: src/api/errors.ts
 msgid "error.rate_limited"
 msgstr "请求过于频繁，请稍后重试。"
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.factor_locked"
+msgstr "验证尝试次数过多。请稍后重试。"
 
 #. js-lingui-explicit-id
 #: src/components/custom/RouteFeedback.tsx
@@ -429,6 +757,36 @@ msgid "dev.forms.id.description"
 msgstr "请使用属于隔离测试账户的凭据。"
 
 #. js-lingui-explicit-id
+#: src/routes/Login.tsx
+msgid "login.use_recovery"
+msgstr "使用恢复码"
+
+#. js-lingui-explicit-id
+#: src/routes/Login.tsx
+msgid "login.use_totp"
+msgstr "使用身份验证器验证码"
+
+#. js-lingui-explicit-id
+#: src/routes/Console.tsx
+msgid "console.username"
+msgstr "用户名"
+
+#. js-lingui-explicit-id
+#: src/routes/Login.tsx
+msgid "login.username"
+msgstr "用户名"
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.passkey_incomplete"
+msgstr "验证未完成。请重试或使用密码。"
+
+#. js-lingui-explicit-id
+#: src/routes/Login.tsx
+msgid "login.totp.form"
+msgstr "验证身份验证器"
+
+#. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.sudo_required"
 msgstr "请重新验证身份后继续。"
@@ -437,3 +795,8 @@ msgstr "请重新验证身份后继续。"
 #: src/api/errors.ts
 msgid "error.not_admin"
 msgstr "你没有执行此操作的权限。"
+
+#. js-lingui-explicit-id
+#: src/components/custom/ConsoleLayout.tsx
+msgid "console.session-expired"
+msgstr "会话已过期，请重新登录。"
