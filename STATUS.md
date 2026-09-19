@@ -25,6 +25,9 @@ The dashboard sidebar places the avatar and account name above compact icon navi
 Login and console pages share top-right language and light/dark/system theme controls.
 System mode follows OS changes; explicit theme choices remain in memory.
 
+Authenticator and recovery steps stack full-width sign-in and method-switch
+actions. An accessible back icon beside the heading returns to password entry.
+
 Component previews remain available at `/preview/components` and `/preview/api`.
 Enrollment, self-service (M4), application management and admin pages (M5) remain
 unavailable. Backend APIs are unchanged. The version history below describes

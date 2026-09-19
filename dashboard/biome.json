@@ -3,6 +3,7 @@
   "files": {
     "includes": [
       "**",
+      "!.impeccable",
       "!src/locales/**/*.mjs",
       "!src/api/generated",
       "!node_modules",

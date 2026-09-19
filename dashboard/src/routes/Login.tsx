@@ -9,6 +9,7 @@ import {
   useSuspenseQuery,
 } from "@tanstack/react-query";
 import { useLocation } from "@tanstack/react-router";
+import { ArrowLeft } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   buildTotpUri,
@@ -175,7 +176,6 @@ function FactorForm({
   takeToken,
   onFailure,
   onSuccess,
-  onBack,
   onSwitch,
 }: {
   control: FlowControl;
@@ -186,7 +186,6 @@ function FactorForm({
   takeToken: () => string | undefined;
   onFailure: (error: unknown, reset: boolean) => void;
   onSuccess: (redirect: string, codes?: string[]) => Promise<void>;
-  onBack: () => void;
   onSwitch: () => void;
 }) {
   const { t } = useLingui();
@@ -363,13 +362,14 @@ function FactorForm({
             )}
           </>
         )}
-        <div className="flex flex-wrap items-center gap-2">
-          <form.SubmitButton>
+        <div className="flex flex-col gap-2 [&_button]:h-auto [&_button]:min-h-10 [&_button]:whitespace-normal [&_button]:py-2 md:[&_button]:min-h-9">
+          <form.SubmitButton fullWidth>
             <Trans id="login.verify">Sign in</Trans>
           </form.SubmitButton>
           <Button
             type="button"
             variant="ghost"
+            fullWidth
             isDisabled={control.busy}
             onPress={onSwitch}
           >
@@ -378,14 +378,6 @@ function FactorForm({
             ) : (
               <Trans id="login.use_totp">Use an authenticator code</Trans>
             )}
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            isDisabled={control.busy}
-            onPress={onBack}
-          >
-            <Trans id="login.back">Back to password</Trans>
           </Button>
         </div>
       </form.Form>
@@ -400,6 +392,7 @@ function LoginFlow({
   config: PublicConfig;
   returnTo?: string;
 }) {
+  const { t } = useLingui();
   const queryClient = useQueryClient();
   const [step, setStep] = useState<Step>("password");
   const [username, setUsername] = useState("");
@@ -466,22 +459,38 @@ function LoginFlow({
 
   return (
     <div className="flex flex-col gap-4">
-      <h1
-        key={`${step}-${Boolean(savedCodes)}-${Boolean(failure)}`}
-        ref={focusHeading}
-        tabIndex={-1}
-        className="min-w-0 text-xl font-semibold wrap-anywhere"
-      >
-        {savedCodes ? (
-          <Trans id="login.complete">Authenticator reset complete</Trans>
-        ) : step === "password" ? (
-          <Trans id="login.title">Sign in</Trans>
-        ) : step === "totp" ? (
-          <Trans id="login.factor.account">Signing in as {username}</Trans>
-        ) : (
-          <Trans id="login.recovery.form">Sign in with a recovery code</Trans>
+      <div className="flex items-center gap-2">
+        {step !== "password" && !savedCodes && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            isIconOnly
+            className="shrink-0"
+            aria-label={t({ id: "login.back", message: "Back to password" })}
+            isDisabled={control.busy}
+            onPress={back}
+          >
+            <ArrowLeft aria-hidden="true" />
+          </Button>
         )}
-      </h1>
+        <h1
+          key={`${step}-${Boolean(savedCodes)}-${Boolean(failure)}`}
+          ref={focusHeading}
+          tabIndex={-1}
+          className="min-w-0 text-xl font-semibold wrap-anywhere"
+        >
+          {savedCodes ? (
+            <Trans id="login.complete">Authenticator reset complete</Trans>
+          ) : step === "password" ? (
+            <Trans id="login.title">Sign in</Trans>
+          ) : step === "totp" ? (
+            <Trans id="login.factor.account">Signing in as {username}</Trans>
+          ) : (
+            <Trans id="login.recovery.form">Sign in with a recovery code</Trans>
+          )}
+        </h1>
+      </div>
       {failure && (
         <Alert status="danger" role="alert">
           <Alert.Indicator />
@@ -559,7 +568,6 @@ function LoginFlow({
                   await clearSessionQueries(queryClient);
                 } else await finish(redirect);
               }}
-              onBack={back}
               onSwitch={() => {
                 if (!control.busy)
                   setStep(step === "totp" ? "recovery" : "totp");

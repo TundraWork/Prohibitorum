@@ -37,7 +37,8 @@
 ## Dashboard and generated assets
 
 - Follow the current HeroUI official documentation and preserve its default
-  component styles. The former `DESIGN.md` is retired.
+  component styles. `DESIGN.md` records the approved HeroUI implementation for
+  design tooling; keep it aligned with the theme and component defaults below.
 - Keep the approved HeroUI Theme Builder configuration:
   `chroma=0.1&hue=204&lightness=0.52&formRadius=small&radius=extra-small&base=0.003`.
   Its exported theme variables belong in `dashboard/src/styles/theme.css`,

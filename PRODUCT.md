@@ -1,5 +1,11 @@
 # Product
 
+<!-- impeccable:product-schema 1 -->
+
+## Platform
+
+web
+
 ## Users
 
 Members and admins of a single small
@@ -26,6 +32,8 @@ org.
   reviewing credentials. The same person is often both a member and an admin
   in a small org.
 
+## Operating Context
+
 Context of use: a browser, at a desk or on a phone, usually mid-task — they
 came here to get into something else, or to fix one specific thing about
 their account. The IdP is infrastructure; time spent in it is overhead the
@@ -48,6 +56,35 @@ hesitation and without reading instructions; an admin issues an invitation
 and sees its state at a glance; and at no point does anyone wonder whether
 the thing guarding their identity is competent. The interface should be
 forgettable in the best way, the user gets in, does the one thing, and leaves.
+
+## Positioning
+
+Prohibitorum combines a first-party account directory, authentication, and
+downstream OIDC, SAML, and forward-auth in a self-hosted binary with an embedded
+web dashboard. It serves a single small organization.
+
+## Capabilities and Constraints
+
+- Deployment uses PostgreSQL and either a Redis-compatible store or the
+  in-process memory driver. Build and development commands are in `TOOLING.md`.
+- Recovery uses recovery codes or admin-issued enrollment; there is no email
+  channel. VRChat profile proof can authorize local enrollment or recovery,
+  followed by a local passkey ceremony; it never directly signs a member in.
+- English and Chinese locale entries stay in sync. The dashboard supports
+  browser use on desktop and mobile.
+- The dashboard is being rewritten. The workflows above describe product
+  capabilities; check current routes and release status before presenting a
+  workflow as available in the UI.
+
+## Evidence on Hand
+
+- `README.md` documents deployment, capabilities, and frontend release status;
+  `TOOLING.md` documents builds and verification.
+- `api.md` and `ARCHITECTURE.md` describe API and system behavior.
+- `dashboard/` contains the current interface. `dashboard-old/` is a
+  reference-only archive excluded from application builds.
+- The README's VRChat sign-in wording conflicts with the confirmed product
+  restriction above. Preserve proof-only enrollment and recovery in future work.
 
 ## Application Access Policy
 

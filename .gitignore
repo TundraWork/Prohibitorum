@@ -31,6 +31,7 @@
 
 # Impeccable design-skill artifacts + installed skill copies (tooling, not source)
 /.impeccable/
+/dashboard/.impeccable/
 /.agents/
 /.claude/
 
