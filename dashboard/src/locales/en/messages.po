@@ -13,29 +13,79 @@ msgstr ""
 "Plural-Forms: \n"
 
 #. js-lingui-explicit-id
+#: src/routes/ApiPreview.tsx
+msgid "api.maintenance.active"
+msgstr "Active"
+
+#. js-lingui-explicit-id
+#: src/routes/ApiPreview.tsx
+msgid "api.issuer"
+msgstr "Authenticator issuer"
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.validation_failed"
+msgstr "Check the submitted information and try again."
+
+#. js-lingui-explicit-id
+#: src/components/custom/RouteFeedback.tsx
+msgid "route.retry.description"
+msgstr "Check your connection and try again."
+
+#. js-lingui-explicit-id
 #: src/components/custom/LanguageSelect.tsx
 msgid "language.chinese"
 msgstr "Chinese"
 
 #. js-lingui-explicit-id
-#: src/App.tsx
+#: src/components/custom/AppNotifications.tsx
 msgid "notification.close"
 msgstr "Close notification"
 
 #. js-lingui-explicit-id
-#: src/App.tsx
+#: src/routes/Preview.tsx
 msgid "components.title"
 msgstr "Components"
 
 #. js-lingui-explicit-id
-#: src/App.tsx
+#: src/components/custom/AppLayout.tsx
+msgid "navigation.components"
+msgstr "Components"
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.network"
+msgstr "Could not connect to the server. Check your connection and try again."
+
+#. js-lingui-explicit-id
+#: src/routes/DevForms.tsx
+msgid "dev.forms.id.label"
+msgstr "Credential ID"
+
+#. js-lingui-explicit-id
+#: src/routes/DevForms.tsx
+msgid "dev.forms.rename.title"
+msgstr "Credential nickname request"
+
+#. js-lingui-explicit-id
+#: src/routes/DevForms.tsx
+msgid "dev.forms.eyebrow"
+msgstr "Development only"
+
+#. js-lingui-explicit-id
+#: src/routes/Preview.tsx
 msgid "button.disabled"
 msgstr "Disabled button"
 
 #. js-lingui-explicit-id
-#: src/App.tsx
+#: src/routes/Preview.tsx
 msgid "name.label"
 msgstr "Display name"
+
+#. js-lingui-explicit-id
+#: src/routes/DevForms.tsx
+msgid "dev.forms.logout.title"
+msgstr "Empty response request"
 
 #. js-lingui-explicit-id
 #: src/components/custom/LanguageSelect.tsx
@@ -43,12 +93,62 @@ msgid "language.english"
 msgstr "English"
 
 #. js-lingui-explicit-id
-#: src/App.tsx
+#: src/routes/DevForms.tsx
+msgid "dev.forms.id.invalid"
+msgstr "Enter a positive credential ID (up to 2147483647)."
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.invalid_nickname"
+msgstr "Enter a valid nickname without control characters."
+
+#. js-lingui-explicit-id
+#: src/routes/DevForms.tsx
+msgid "dev.forms.description"
+msgstr "Exercise the real API client, mutations, and form feedback. Use an isolated test account or intercept requests in browser tools. This page does not simulate responses."
+
+#. js-lingui-explicit-id
+#: src/routes/Preview.tsx
 msgid "feedback.tab"
 msgstr "Feedback"
 
 #. js-lingui-explicit-id
-#: src/App.tsx
+#: src/routes/DevForms.tsx
+msgid "dev.forms.title"
+msgstr "Form integration checks"
+
+#. js-lingui-explicit-id
+#: src/components/custom/AppLayout.tsx
+msgid "navigation.forms"
+msgstr "Form verification (development)"
+
+#. js-lingui-explicit-id
+#: src/routes/ApiPreview.tsx
+msgid "api.maintenance.inactive"
+msgstr "Inactive"
+
+#. js-lingui-explicit-id
+#: src/routes/ApiPreview.tsx
+msgid "api.initialization"
+msgstr "Initialization"
+
+#. js-lingui-explicit-id
+#: src/routes/ApiPreview.tsx
+msgid "api.public-note"
+msgstr "Initialization does not indicate whether you are signed in."
+
+#. js-lingui-explicit-id
+#: src/routes/ApiPreview.tsx
+msgid "api.initialized"
+msgstr "Initialized"
+
+#. js-lingui-explicit-id
+#: src/routes/ApiPreview.tsx
+msgid "api.instance"
+msgstr "Instance"
+
+#. js-lingui-explicit-id
+#: src/routes/Preview.tsx
 msgid "preview.title"
 msgstr "Interface preview"
 
@@ -58,81 +158,288 @@ msgid "language.label"
 msgstr "Language"
 
 #. js-lingui-explicit-id
-#: src/App.tsx
+#: src/components/custom/RouteFeedback.tsx
+msgid "route.loading"
+msgstr "Loading page…"
+
+#. js-lingui-explicit-id
+#: src/routes/Preview.tsx
 msgid "feedback.skeleton"
 msgstr "Loading skeleton example"
 
 #. js-lingui-explicit-id
-#: src/App.tsx
+#: src/routes/Preview.tsx
 msgid "preview.footer"
 msgstr "Local preview · HeroUI components"
 
 #. js-lingui-explicit-id
-#: src/App.tsx
+#: src/routes/DevForms.tsx
+msgid "dev.forms.logout.submit"
+msgstr "Log out test session"
+
+#. js-lingui-explicit-id
+#: src/routes/DevForms.tsx
+msgid "dev.forms.logout.success"
+msgstr "Logout completed with no response body."
+
+#. js-lingui-explicit-id
+#: src/routes/ApiPreview.tsx
+msgid "api.maintenance"
+msgstr "Maintenance"
+
+#. js-lingui-explicit-id
+#: src/routes/ApiPreview.tsx
+msgid "api.name"
+msgstr "Name"
+
+#. js-lingui-explicit-id
+#: src/routes/DevForms.tsx
+msgid "dev.forms.nickname.label"
+msgstr "Nickname"
+
+#. js-lingui-explicit-id
+#: src/routes/DevForms.tsx
+msgid "dev.forms.rename.success"
+msgstr "Nickname saved. Your input has been kept."
+
+#. js-lingui-explicit-id
+#: src/routes/ApiPreview.tsx
+msgid "api.uninitialized"
+msgstr "Not initialized"
+
+#. js-lingui-explicit-id
+#: src/components/custom/AppNotifications.tsx
 msgid "notification.region"
 msgstr "Notifications"
 
 #. js-lingui-explicit-id
-#: src/App.tsx
+#: src/components/custom/RouteFeedback.tsx
+msgid "route.not-found"
+msgstr "Page not found"
+
+#. js-lingui-explicit-id
+#: src/routes/Preview.tsx
 msgid "preview.eyebrow"
 msgstr "PHB-64 / M1 · Foundation preview"
 
 #. js-lingui-explicit-id
-#: src/App.tsx
+#: src/routes/ApiPreview.tsx
+msgid "api.eyebrow"
+msgstr "PHB-65 / M2 · Public API preview"
+
+#. js-lingui-explicit-id
+#: src/routes/Preview.tsx
 msgid "preview.tabs"
 msgstr "Preview"
 
 #. js-lingui-explicit-id
-#: src/App.tsx
+#: src/components/custom/AppLayout.tsx
+msgid "navigation.preview"
+msgstr "Preview navigation"
+
+#. js-lingui-explicit-id
+#: src/routes/Preview.tsx
 msgid "notification.message"
 msgstr "Preview notification. No data was submitted."
 
 #. js-lingui-explicit-id
-#: src/App.tsx
+#: src/components/custom/AppLayout.tsx
+msgid "navigation.api"
+msgstr "Public API"
+
+#. js-lingui-explicit-id
+#: src/routes/ApiPreview.tsx
+msgid "api.title"
+msgstr "Public configuration"
+
+#. js-lingui-explicit-id
+#: src/routes/ApiPreview.tsx
+msgid "api.refresh"
+msgstr "Refresh data"
+
+#. js-lingui-explicit-id
+#: src/routes/ApiPreview.tsx
+msgid "api.refreshing"
+msgstr "Refreshing…"
+
+#. js-lingui-explicit-id
+#. placeholder {0}: toast.content.error.requestId
+#: src/components/custom/AppNotifications.tsx
+msgid "notification.request_id"
+msgstr "Request ID: {0}"
+
+#. js-lingui-explicit-id
+#: src/components/custom/RouteFeedback.tsx
+msgid "route.home"
+msgstr "Return to preview"
+
+#. js-lingui-explicit-id
+#: src/routes/Preview.tsx
 msgid "preview.description"
 msgstr "Review language, colors, and component states."
 
 #. js-lingui-explicit-id
-#: src/App.tsx
+#: src/routes/Preview.tsx
 msgid "notification.show"
 msgstr "Show notification"
 
 #. js-lingui-explicit-id
-#: src/App.tsx
+#: src/api/errors.ts
+msgid "error.no_session"
+msgstr "Sign in to continue."
+
+#. js-lingui-explicit-id
+#: src/routes/Preview.tsx
 msgid "feedback.title"
 msgstr "State examples"
 
 #. js-lingui-explicit-id
-#: src/App.tsx
+#: src/routes/DevForms.tsx
+msgid "dev.forms.rename.submit"
+msgstr "Submit nickname"
+
+#. js-lingui-explicit-id
+#: src/routes/Preview.tsx
 msgid "feedback.submitting"
 msgstr "Submitting (example)"
 
 #. js-lingui-explicit-id
-#: src/App.tsx
+#: src/components/custom/SubmitButton.tsx
+msgid "forms.submitting"
+msgstr "Submitting…"
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.bad_credentials"
+msgstr "The credentials could not be verified."
+
+#. js-lingui-explicit-id
+#: src/routes/ApiPreview.tsx
+#: src/routes/Preview.tsx
 msgid "preview.notice"
 msgstr "The frontend is being rebuilt. Sign-in and other features are temporarily unavailable."
 
 #. js-lingui-explicit-id
-#: src/App.tsx
+#: src/api/errors.ts
+msgid "error.bad_request"
+msgstr "The request could not be accepted."
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.request_failed"
+msgstr "The request failed. Please try again."
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.server_error"
+msgstr "The server could not complete the request. Please try again."
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.invalid_response"
+msgstr "The server returned an invalid response. Please try again."
+
+#. js-lingui-explicit-id
+#: src/routes/DevForms.tsx
+msgid "dev.forms.nickname.description"
+msgstr "The server validates this value. A successful request changes the test credential."
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.maintenance_mode"
+msgstr "The service is undergoing maintenance. Please try again later."
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.request_too_large"
+msgstr "The submitted data is too large."
+
+#. js-lingui-explicit-id
+#: src/routes/Preview.tsx
 msgid "theme.swatches"
 msgstr "Theme color samples"
 
 #. js-lingui-explicit-id
-#: src/App.tsx
+#: src/routes/DevForms.tsx
+msgid "dev.forms.warning"
+msgstr "These controls send real requests. They are development checks, not a credential management or sign-in page."
+
+#. js-lingui-explicit-id
+#: src/routes/Preview.tsx
 msgid "feedback.description"
 msgstr "These visual examples do not send requests."
 
 #. js-lingui-explicit-id
-#: src/App.tsx
+#: src/api/errors.ts
+msgid "error.account_disabled"
+msgstr "This account is disabled."
+
+#. js-lingui-explicit-id
+#: src/components/custom/RouteFeedback.tsx
+msgid "route.not-found.description"
+msgstr "This address does not have a page."
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.unsupported_media_type"
+msgstr "This data format is not supported."
+
+#. js-lingui-explicit-id
+#: src/routes/Preview.tsx
 msgid "name.description"
 msgstr "This is a local preview. Your input will not be submitted."
 
 #. js-lingui-explicit-id
-#: src/App.tsx
+#: src/routes/ApiPreview.tsx
+msgid "api.description"
+msgstr "This page reads the instance configuration and initialization status from the server."
+
+#. js-lingui-explicit-id
+#: src/routes/DevForms.tsx
+msgid "dev.forms.logout.description"
+msgstr "This sends a real logout request and clears session queries. Use only an isolated browser session, never your regular signed-in session."
+
+#. js-lingui-explicit-id
+#: src/components/custom/AppLayout.tsx
 msgid "theme.toggle"
 msgstr "Toggle theme"
 
 #. js-lingui-explicit-id
-#: src/App.tsx
+#: src/api/errors.ts
+msgid "error.rate_limited"
+msgstr "Too many requests. Please wait before trying again."
+
+#. js-lingui-explicit-id
+#: src/components/custom/RouteFeedback.tsx
+msgid "route.retry"
+msgstr "Try again"
+
+#. js-lingui-explicit-id
+#: src/components/custom/RouteFeedback.tsx
+msgid "route.failed"
+msgstr "Unable to load this page"
+
+#. js-lingui-explicit-id
+#: src/routes/Preview.tsx
 msgid "feedback.error"
 msgstr "Unable to save. Check your input and try again. (Example)"
+
+#. js-lingui-explicit-id
+#: src/components/custom/FormError.tsx
+msgid "forms.error.title"
+msgstr "Unable to submit"
+
+#. js-lingui-explicit-id
+#: src/routes/DevForms.tsx
+msgid "dev.forms.id.description"
+msgstr "Use a credential belonging to an isolated test account."
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.sudo_required"
+msgstr "Verify your identity again to continue."
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.not_admin"
+msgstr "You do not have permission to perform this action."

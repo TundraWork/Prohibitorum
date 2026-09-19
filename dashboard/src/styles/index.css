@@ -293,3 +293,72 @@ p {
     transition: none;
   }
 }
+
+.preview-navigation {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  margin-bottom: 28px;
+}
+
+a {
+  color: var(--link);
+  text-underline-offset: 4px;
+}
+
+a:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+}
+
+.preview-navigation a[aria-current="page"] {
+  font-weight: 600;
+  text-decoration: underline;
+}
+
+.api-details {
+  display: grid;
+  gap: 16px;
+  margin-block: 24px;
+}
+
+.api-details > div {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px 24px;
+}
+
+.api-details dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.app-form {
+  display: grid;
+  gap: 20px;
+}
+
+.form-error-summary,
+.form-field-errors {
+  color: var(--danger);
+  overflow-wrap: anywhere;
+}
+
+.form-error-summary {
+  border: 1px solid var(--danger);
+  border-radius: var(--radius);
+  padding: 16px;
+}
+
+.submit-feedback {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.form-checks {
+  display: grid;
+  gap: 24px;
+}

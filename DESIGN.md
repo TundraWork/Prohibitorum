@@ -27,9 +27,9 @@ spacing:
 
 ## Scope
 
-The active application is `dashboard`: React, TypeScript, HeroUI and Tailwind CSS v4. M1 presents a bilingual component preview with a visible notice that login, enrollment and business pages are temporarily unavailable. Samples must be labelled as examples and must not imply a signed-in account or a working business operation.
+The active application is `dashboard`: React, TypeScript, HeroUI and Tailwind CSS v4. The bilingual component preview at `/` and real public configuration preview at `/preview/api` retain a visible notice that login, enrollment and business pages are temporarily unavailable. Samples must be labelled as examples.
 
-`dashboard-old` preserves the former frontend for reference. New components, styles, imports and builds use only the active application. Business routing, API/query/form infrastructure and the console arrive in later milestones.
+`dashboard-old` preserves the former frontend for reference. New components, styles, imports and builds use only the active application. M2 supplies shared API, Query, Router and Form mechanisms; business pages and the console arrive in later milestones.
 
 ## Character
 
@@ -95,7 +95,11 @@ Use tabs to separate related areas without stacking every section vertically. Ta
 
 Keep resting surfaces flat, separated by tone or a border. Use elevation for floating popovers, dialogs and notifications; dark-mode elevation also needs a visible surface or border distinction. Avoid colored side stripes on cards or alerts.
 
-Notifications explain the result and any required next step. M1 notifications report local preview interactions. API query/mutation error notifications and form integration belong to the later API milestone.
+Notifications explain the result and any required next step. Query and mutation failures each produce one global notification, including when a form also displays an error. Store error descriptors so open notifications follow language changes; canceled requests stay silent.
+
+Navigation keeps the header visible and immediately displays a content skeleton while route data loads. Public configuration and initialization status load concurrently into shared Query caches; background refresh keeps available data visible.
+
+Forms freeze their fields during submission, show loading feedback beside the button, preserve failed input, and focus the first invalid field or error summary. Server errors use explicit field mappings, with unknown locations shown in the summary. The development-only `/__dev/forms` route exercises these mechanisms against isolated accounts.
 
 ### Future business pages
 

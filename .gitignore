@@ -1,5 +1,5 @@
 /prohibitorum
-/dashboard/node_modules
+/dashboard/**/node_modules
 /dashboard/dist
 /dashboard/.vite
 /dashboard/.pnpm-store

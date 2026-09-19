@@ -525,13 +525,6 @@ func registerSecurityScheme(api huma.API, cookieName string) {
 }
 
 func (s *Server) registerOperations() {
-	if s.webUIHandler == nil {
-		instanceName := ""
-		if s.config != nil {
-			instanceName = s.config.Branding.InstanceName
-		}
-		s.webUIHandler = webui.Handler(instanceName)
-	}
 	mgmt := huma.NewGroup(s.api, "/api/prohibitorum")
 	admin := contract.AuthRequirement{Kind: contract.AuthAdmin}
 	sessionReq := contract.AuthRequirement{Kind: contract.AuthSession}

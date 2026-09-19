@@ -2,9 +2,9 @@
 
 How a relying party (RP) — backend service, SPA, or legacy SaaS — authenticates its users against Prohibitorum.
 
-During the M1 frontend rewrite, browser login, enrollment and management pages
+During the frontend rewrite, browser login, enrollment and management pages
 are temporarily unavailable. The protocol and management APIs documented here
-remain available; integrations requiring a new interactive sign-in cannot complete through the M1 UI.
+remain available; integrations requiring a new interactive sign-in cannot complete through the preview UI.
 
 ## Pick a pattern
 

@@ -25,17 +25,14 @@ async function mountApplication() {
       </I18nProvider>
     </Provider>,
   );
+  await screen.findByRole("heading", { level: 1 });
   return { ...view, localeBeforeMount };
 }
 
 beforeEach(() => {
   vi.resetModules();
   localStorage.clear();
-  window.history.replaceState(
-    null,
-    "",
-    "/preview?lang=zh&returnTo=%2Fapps#details",
-  );
+  window.history.replaceState(null, "", "/?lang=zh&returnTo=%2Fapps#details");
 });
 
 afterEach(() => {

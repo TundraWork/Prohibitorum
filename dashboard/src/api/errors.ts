@@ -1,0 +1,153 @@
+import type { MessageDescriptor } from "@lingui/core";
+import { msg } from "@lingui/core/macro";
+import { isCancelledError } from "@tanstack/react-query";
+
+export interface PublicError {
+  code: string;
+  details?: Record<string, unknown>;
+  requestId: string;
+}
+
+export interface ApiErrorOptions {
+  kind: "http" | "network" | "invalid-response";
+  status?: number;
+  code?: string;
+  details?: Record<string, unknown>;
+  requestId?: string;
+}
+
+export class ApiError extends Error {
+  readonly kind: ApiErrorOptions["kind"];
+  readonly status?: number;
+  readonly code?: string;
+  readonly details?: Record<string, unknown>;
+  readonly requestId?: string;
+
+  constructor(options: ApiErrorOptions, cause?: ErrorOptions) {
+    super(options.kind, cause);
+    this.name = "ApiError";
+    this.kind = options.kind;
+    this.status = options.status;
+    this.code = options.code;
+    this.details = options.details;
+    this.requestId = options.requestId;
+  }
+}
+
+export function isPublicError(value: unknown): value is PublicError {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    !Array.isArray(value) &&
+    "code" in value &&
+    typeof value.code === "string" &&
+    value.code.length > 0 &&
+    "requestId" in value &&
+    typeof value.requestId === "string" &&
+    (!("details" in value) ||
+      value.details === undefined ||
+      (typeof value.details === "object" &&
+        value.details !== null &&
+        !Array.isArray(value.details)))
+  );
+}
+
+export function isCancellation(error: unknown): boolean {
+  return (
+    isCancelledError(error) ||
+    (typeof error === "object" &&
+      error !== null &&
+      "name" in error &&
+      error.name === "AbortError")
+  );
+}
+
+const genericFailure = msg({
+  id: "error.request_failed",
+  message: "The request failed. Please try again.",
+});
+
+const errorMessages: Readonly<Record<string, MessageDescriptor>> = {
+  validation_failed: msg({
+    id: "error.validation_failed",
+    message: "Check the submitted information and try again.",
+  }),
+  invalid_nickname: msg({
+    id: "error.invalid_nickname",
+    message: "Enter a valid nickname without control characters.",
+  }),
+  bad_request: msg({
+    id: "error.bad_request",
+    message: "The request could not be accepted.",
+  }),
+  request_too_large: msg({
+    id: "error.request_too_large",
+    message: "The submitted data is too large.",
+  }),
+  unsupported_media_type: msg({
+    id: "error.unsupported_media_type",
+    message: "This data format is not supported.",
+  }),
+  no_session: msg({
+    id: "error.no_session",
+    message: "Sign in to continue.",
+  }),
+  not_admin: msg({
+    id: "error.not_admin",
+    message: "You do not have permission to perform this action.",
+  }),
+  account_disabled: msg({
+    id: "error.account_disabled",
+    message: "This account is disabled.",
+  }),
+  sudo_required: msg({
+    id: "error.sudo_required",
+    message: "Verify your identity again to continue.",
+  }),
+  bad_credentials: msg({
+    id: "error.bad_credentials",
+    message: "The credentials could not be verified.",
+  }),
+  maintenance_mode: msg({
+    id: "error.maintenance_mode",
+    message: "The service is undergoing maintenance. Please try again later.",
+  }),
+  rate_limited: msg({
+    id: "error.rate_limited",
+    message: "Too many requests. Please wait before trying again.",
+  }),
+  server_error: msg({
+    id: "error.server_error",
+    message: "The server could not complete the request. Please try again.",
+  }),
+};
+
+export type ErrorDescription = MessageDescriptor & { requestId?: string };
+
+export function describeError(error: unknown): ErrorDescription {
+  if (!(error instanceof ApiError)) return genericFailure;
+  if (error.kind === "network") {
+    return msg({
+      id: "error.network",
+      message:
+        "Could not connect to the server. Check your connection and try again.",
+    });
+  }
+  if (error.kind === "invalid-response") {
+    return msg({
+      id: "error.invalid_response",
+      message: "The server returned an invalid response. Please try again.",
+    });
+  }
+  const message =
+    error.code && Object.hasOwn(errorMessages, error.code)
+      ? (errorMessages[error.code] ?? genericFailure)
+      : genericFailure;
+  return {
+    ...message,
+    requestId:
+      error.requestId && /^[A-Za-z0-9_-]{1,128}$/.test(error.requestId)
+        ? error.requestId
+        : undefined,
+  };
+}

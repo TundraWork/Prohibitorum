@@ -17,8 +17,8 @@ env:
   MISE_EXPERIMENTAL: true
 
 jobs:
-  # The same gate developers run locally: Go vet/build/test plus frozen pnpm
-  # install, Biome, translations, behavior tests, typecheck and the SPA build.
+  # Check API declaration drift before building embedded assets, then run the
+  # Go and frontend checks with the frozen workspace lockfile.
   gate:
     name: Gate (Go + frontend)
     runs-on: ubuntu-latest

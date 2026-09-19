@@ -11,8 +11,8 @@ first-party, no email channel — admin-issued enrollment is the only recovery p
 The dashboard SPA is embedded in the binary: one `./prohibitorum` process is the
 whole IdP plus its frontend.
 
-**Frontend rewrite (M1):** the embedded UI currently shows a bilingual component
-preview. Login, enrollment, self-service, application management and admin pages
+**Frontend rewrite (M2):** the embedded UI shows bilingual component and public API
+previews. Login, enrollment, self-service, application management and admin pages
 are temporarily unavailable. Backend authentication and protocol APIs are unchanged.
 
 - **Sign-in** — WebAuthn passkeys (preferred), Password + TOTP fallback, or federation through upstream OIDC, Steam, and VRChat providers.
@@ -41,8 +41,9 @@ are temporarily unavailable. Backend authentication and protocol APIs are unchan
 - [x] Assigned-application management — any active account can manage an assigned app; assignment does not grant app access
 - [x] App-aware group claims — exposed manual allow and every exposed matching rule group for the owning app only
 
-**Dashboard — M1 rewrite**
+**Dashboard — M2 rewrite**
 - [x] React/HeroUI foundation preview with English and Chinese, persisted language preference, and interactive component samples
+- [x] Typed OpenAPI client, shared Query cache, route loading feedback and reusable mutation/form integration
 - [ ] Login and enrollment UI
 - [ ] Admin console and permission-aware application management
 - [ ] End-user self-service and app launchpad
@@ -112,13 +113,13 @@ command auto-migrates first. Verbs: `enroll-admin`, `signing-key`, `oidc-client`
 `saml-sp`, `forward-auth-app`, `upstream-idp`, `openapi`, `dev-seed` — run
 `<command> --help` for flags. The admin HTTP API uses role names
 (`oidc-applications`, `saml-applications`, `identity-providers`); CLI verbs
-remain protocol-named. The admin UI is temporarily unavailable during M1.
+remain protocol-named. The admin UI is temporarily unavailable during the rewrite.
 
 Access-policy commands are scoped beneath the owning app command:
 `manager list|assign|remove`, `access set-restricted`,
 `group list|select|preview`, and `decision list|set`. Use `--client-id` for
 `oidc-client` and `forward-auth-app`, or `--entity-id` for `saml-sp`.
-Global group definitions are managed through the admin API during M1. Application
+Global group definitions are managed through the admin API during the rewrite. Application
 commands identify them by ID because slugs may be shared.
 
 ```bash

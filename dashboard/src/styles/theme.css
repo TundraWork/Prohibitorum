@@ -57,6 +57,7 @@
   --surface-tertiary: oklch(0.28 var(--neutral-chroma) var(--brand-hue));
   --overlay: var(--surface);
   --muted: oklch(0.76 var(--neutral-chroma) var(--brand-hue));
+  --link: oklch(0.8 var(--brand-chroma) var(--brand-hue));
   --border: oklch(0.36 var(--neutral-chroma) var(--brand-hue));
   --field-background: var(--background);
   --preview-soft: oklch(0.29 0.025 var(--brand-hue));

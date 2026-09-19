@@ -29,13 +29,19 @@
 
 ## Frontend
 
-The React/TypeScript dashboard is a single Vite package in `dashboard`, using HeroUI, Tailwind v4, Lingui, Jotai and Biome.
+The React/TypeScript dashboard is a Vite application in the `dashboard` pnpm workspace, using HeroUI, Tailwind v4, Lingui, Jotai and Biome. `tools/api-types` isolates the OpenAPI generator's TypeScript 5 dependency from the application's TypeScript 7 compiler.
 
 - `package.json` declares `"packageManager": "pnpm@12.4.2"`; `dashboard/pnpm-lock.yaml` is the active frontend lockfile.
 - Dev, CI and production tasks run `pnpm install --frozen-lockfile`. Every triggered build installs, so lockfile changes are applied even when `node_modules` exists.
 - English and Chinese PO catalogs live in `src/locales`; Lingui checks reject missing translations and compilation errors. Biome and Vitest run only against the new application.
 - `dashboard-old` is a reference-only archive, excluded from imports, build inputs and frontend checks. Its npm lockfile belongs only to the archive.
-- M1 displays a bilingual component preview. Login, enrollment, self-service, application management and admin pages are temporarily unavailable; backend APIs remain unchanged.
+- M2 adds a public API preview at `/preview/api` and shared Query, Router and Form mechanisms. Login, enrollment, self-service, application management and admin pages are temporarily unavailable; backend API semantics remain unchanged.
+
+### API types and development forms
+
+Run `mise run dev:api-types` after changing API schemas and commit `dashboard/src/api/generated/schema.d.ts`. `mise run ci:api-types` regenerates in a temporary directory and rejects drift; generation requires neither a database nor a frontend bundle. Raw config/logout paths supplement endpoints outside Huma's schema.
+
+`mise run dev:dashboard` exposes `/__dev/forms` for real nickname/logout mutation checks. Use an isolated browser and test account: submissions can change credentials or end a session. Browser request interception supplies failure scenarios during verification; the route is excluded from production builds.
 
 ## Dev
 
@@ -99,7 +105,7 @@ cosign verify ghcr.io/tundrawork/prohibitorum:<tag> \
 
 [`jdx/mise-action@v3`](https://github.com/jdx/mise-action) (or the [step-security hardened fork](https://github.com/step-security/mise-action)) runs the same tasks humans run. With `mise.lock` present the action auto-applies `--locked`. `.github/workflows/ci.yml` runs:
 
-- **gate** runs `mise run ci` = `mise run ci:go` (`go vet ./...` → `go build -tags nodynamic ./...` → `go test ./...`) + `mise run ci:frontend` (`pnpm install --frozen-lockfile` → `pnpm run check` → `pnpm run i18n:check` → `pnpm run test` → `pnpm run build`). The build script typechecks before Vite.
+- **gate** runs `mise run ci:api-types` before `mise run ci:go` (`go vet ./...` → `go build -tags nodynamic ./...` → `go test ./...`) and `mise run ci:frontend` (`pnpm install --frozen-lockfile` → `pnpm run check` → `pnpm run i18n:check` → `pnpm run test` → `pnpm run build`). The build script typechecks before Vite.
 - **smoke** runs `mise run ci:smoke` (`scripts/db.sh start` → throwaway `prohibitorum_smoke` DB → server → `cmd/smoke`). Pins `PROHIBITORUM_COMPOSE=docker compose` for determinism on the runner.
 - **release-check** runs `mise run ci:release-check` (`goreleaser check`) + `mise run ci:lint-actions` (`actionlint` schema/shellcheck + `zizmor` supply-chain audit over `.github/workflows`) on every PR. A broken release config or workflow fails here, not on the first tag push.
 
@@ -109,15 +115,15 @@ cosign verify ghcr.io/tundrawork/prohibitorum:<tag> \
 
 `pkg/webui/dist` is generated, never committed: only a `.gitkeep` placeholder is tracked, so `go:embed all:dist` still compiles on a clean checkout. Every path that produces a binary builds the SPA first — `ci:go`, `ci:smoke` and `prod:build` through `build:web`, and the image workflows and the GoReleaser before-hook through `mise run --force build:web`. Locally, `build:web`'s `sources`/`outputs` skip the rebuild while `dashboard/**` is unchanged.
 
-The incremental inputs include source and PO catalogs, public assets, scripts, the pnpm lockfile, and Lingui/Biome/Vite/Vitest/TypeScript configuration. Both frontend build tasks restore `.gitkeep` after Vite empties the output directory. Archive changes do not trigger `build:web` or the release snapshot path filter.
+The incremental inputs include source and PO catalogs, public assets, scripts, the API tooling workspace, generated declarations, the pnpm lockfile, and Lingui/Biome/Vite/Vitest/TypeScript configuration. Both frontend build tasks restore `.gitkeep` after Vite empties the output directory. Archive changes do not trigger `build:web` or the release snapshot path filter.
 
 ## Task namespaces
 
 | Namespace | Context | Commands |
 |-----------|---------|----------|
-| `dev:*` | local development | `dev:server`, `dev:dashboard`, `dev:enroll-admin`, `dev:seed`, `dev:federation`, `dev:forward-auth`, `dev:openapi` |
+| `dev:*` | local development | `dev:server`, `dev:dashboard`, `dev:enroll-admin`, `dev:seed`, `dev:federation`, `dev:forward-auth`, `dev:openapi`, `dev:api-types` |
 | `db` | local Postgres lifecycle (dev + smoke) | `mise run db start\|stop\|reset\|migrate\|status` |
-| `ci:*` | the checks CI runs | `ci`, `ci:smoke`, `ci:release-check`, `ci:lint-actions`, `ci:release-snapshot` (internal: `ci:go`, `ci:frontend`) |
+| `ci:*` | the checks CI runs | `ci`, `ci:api-types`, `ci:smoke`, `ci:release-check`, `ci:lint-actions`, `ci:release-snapshot` (internal: `ci:go`, `ci:frontend`) |
 | `prod:*` | **production** build + release | `prod:build`, `prod:release` |
 
 The SPA bundle build is the hidden, `sources`/`outputs`-gated `build:web` task, shared by `dev:server`, `prod:build`, and the GoReleaser before-hook.

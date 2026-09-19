@@ -6,11 +6,15 @@ proof-backed local registration/recovery. It provides OIDC OP, SAML 2.0 IdP,
 and forward-auth downstream access, plus app-bound policy, delegated
 application management. This file records capabilities by version and the roadmap.
 
-## Unreleased — PHB-64 frontend foundation
+## Unreleased — PHB-65 data, routing and forms
 
-The embedded dashboard now uses React, HeroUI, Tailwind v4, Lingui and Jotai,
-built with pnpm/Vite and checked with Biome. M1 provides a bilingual component
-preview with persisted language selection; the former app is archived in `dashboard-old`.
+The React/HeroUI dashboard includes a bilingual component preview and a real public
+configuration preview. Typed OpenAPI requests share Query caches and error notifications;
+Router loaders provide concurrent requests, skeletons, retry and not-found feedback.
+
+Reusable forms preserve input and combine server field errors with global notifications.
+The form verification route is development-only. API declarations use an isolated TypeScript
+5 generator with CI drift checks; the application remains on TypeScript 7.
 
 Login, enrollment, self-service, application management and admin pages are
 temporarily unavailable during the approved rewrite. Backend APIs are unchanged.

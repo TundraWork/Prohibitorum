@@ -93,6 +93,10 @@ run = "exec scripts/dev-forward-auth.sh \"$@\""
 description = "DEV: regenerate openapi.yaml from the humacli."
 run = "go run ./cmd/prohibitorum openapi > openapi.yaml"
 
+[tasks."dev:api-types"]
+description = "DEV: generate dashboard API declarations from the current Go OpenAPI schema."
+run = "sh scripts/api-types.sh generate"
+
 # ---- db: local Postgres lifecycle (dev + the smoke) -------------------------
 
 [tasks.db]
@@ -102,8 +106,16 @@ run = "scripts/db.sh"
 # ---- ci: the checks GitHub Actions runs (also runnable locally) -------------
 
 [tasks.ci]
-description = "CI: the full fast gate (ci:go + ci:frontend) — the same task the CI `gate` job runs."
-run = "mise run ci:go && mise run ci:frontend"
+description = "CI: API declaration drift, Go and frontend checks — the same task the CI gate job runs."
+run = "mise run ci:api-types && mise run ci:go && mise run ci:frontend"
+
+[tasks."ci:api-types"]
+description = "CI: regenerate dashboard API declarations and reject drift before building the SPA."
+run = """
+set -e
+pnpm --dir dashboard install --frozen-lockfile
+sh scripts/api-types.sh check
+"""
 
 [tasks."ci:go"]
 hide = true
@@ -248,6 +260,8 @@ sources = [
   "dashboard/pnpm-lock.yaml",
   "dashboard/pnpm-workspace.yaml",
   "dashboard/scripts/**/*",
+  "dashboard/tools/api-types/package.json",
+  "scripts/api-types.sh",
   "dashboard/biome.json",
   "dashboard/lingui.config.ts",
   "dashboard/vite.config.ts",
