@@ -139,6 +139,11 @@ Inputs use semantic field colors, the field radius, and a subtle shadow.
 Labels, descriptions, and validation messages remain associated with their
 fields. HeroUI owns focus, invalid, hover, and disabled styling.
 
+Fields that sit on a surface, such as those in the sign-in card, use the
+secondary variant: the shadow is dropped and the fill follows the surface so
+the field reads as part of the card. One-time-code fields follow the same
+variant through `InputOTP`.
+
 ### Cards / Containers
 
 Default cards use the surface color, control radius, and surface shadow.

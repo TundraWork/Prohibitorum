@@ -7,7 +7,7 @@ import {
   TextField,
 } from "@heroui/react";
 import { useStore } from "@tanstack/react-form";
-import { Fragment, type ReactNode, useId } from "react";
+import { type ComponentProps, Fragment, type ReactNode, useId } from "react";
 import { FormMessages } from "@/components/custom/FormMessages";
 import { useFieldContext, useFormContext } from "@/forms/context";
 import { withoutServerErrors } from "@/forms/server-errors";
@@ -22,11 +22,14 @@ export function OtpField({
   description,
   digits,
   isDisabled = false,
+  variant,
 }: {
   label: ReactNode;
   description?: ReactNode;
   digits: number;
   isDisabled?: boolean;
+  /** HeroUI input variant. Use `secondary` when the field sits on a surface. */
+  variant?: ComponentProps<typeof InputOTP>["variant"];
 }) {
   const field = useFieldContext<string>();
   const form = useFormContext();
@@ -75,6 +78,7 @@ export function OtpField({
         isInvalid={invalid}
         inputMode="numeric"
         autoComplete="one-time-code"
+        variant={variant}
         textAlign="center"
         aria-invalid={invalid || undefined}
         aria-describedby={

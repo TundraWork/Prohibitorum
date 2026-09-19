@@ -3,6 +3,7 @@
   "files": {
     "includes": [
       "**",
+      "!.heroui-docs",
       "!.impeccable",
       "!src/locales/**/*.mjs",
       "!src/api/generated",

@@ -140,6 +140,7 @@ function PasswordForm({
                 autoCapitalize="none"
                 spellCheck={false}
                 isDisabled={control.busy}
+                variant="secondary"
               />
             )}
           </form.AppField>
@@ -156,6 +157,7 @@ function PasswordForm({
                 type="password"
                 autoComplete="current-password"
                 isDisabled={control.busy}
+                variant="secondary"
               />
             )}
           </form.AppField>
@@ -280,6 +282,7 @@ function FactorForm({
             mode === "totp" ? (
               <OtpField
                 digits={config.totp.digits}
+                variant="secondary"
                 label={<Trans id="login.totp.code">Authenticator code</Trans>}
                 description={
                   <Trans id="login.totp.digits">
@@ -295,6 +298,7 @@ function FactorForm({
                 autoComplete="off"
                 autoCapitalize="none"
                 spellCheck={false}
+                variant="secondary"
               />
             )
           }
@@ -341,15 +345,15 @@ function FactorForm({
                         : codeInvalid,
                   }}
                 >
-                  {(field) => (
-                    <field.FormField
+                  {() => (
+                    <OtpField
+                      digits={config.totp.digits}
+                      variant="secondary"
                       label={
                         <Trans id="login.reset.code">
                           New authenticator code
                         </Trans>
                       }
-                      inputMode="numeric"
-                      autoComplete="one-time-code"
                     />
                   )}
                 </form.AppField>
@@ -481,7 +485,6 @@ function LoginFlow({
         <h1
           key={`${step}-${Boolean(savedCodes)}-${Boolean(failure)}`}
           ref={focusHeading}
-          tabIndex={-1}
           className="min-w-0 text-xl font-semibold wrap-anywhere"
         >
           {savedCodes ? (
@@ -630,7 +633,7 @@ export function Login() {
     linkError = describeError(error);
   }
   return (
-    <main className="mx-auto flex w-full max-w-lg flex-col gap-4 px-4 py-8">
+    <main className="mx-auto flex w-full max-w-[30rem] flex-col gap-4 px-4 py-8">
       {config.maintenanceMode && (
         <Alert status="warning">
           <Alert.Indicator />

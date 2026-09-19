@@ -70,7 +70,7 @@ export function TotpSetup({ secret, uri }: { secret: string; uri: string }) {
         <Label>
           <Trans id="login.reset.secret">Setup key</Trans>
         </Label>
-        <Input autoComplete="off" spellCheck={false} />
+        <Input variant="secondary" autoComplete="off" spellCheck={false} />
       </TextField>
     </div>
   );

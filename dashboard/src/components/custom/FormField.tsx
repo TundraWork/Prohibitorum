@@ -20,6 +20,7 @@ export function FormField({
   autoCapitalize,
   spellCheck,
   isDisabled = false,
+  variant,
 }: {
   label: ReactNode;
   description?: ReactNode;
@@ -29,6 +30,8 @@ export function FormField({
   autoCapitalize?: string;
   spellCheck?: boolean;
   isDisabled?: boolean;
+  /** HeroUI input variant. Use `secondary` when the field sits on a surface. */
+  variant?: ComponentProps<typeof Input>["variant"];
 }) {
   const field = useFieldContext<string>();
   const form = useFormContext();
@@ -64,6 +67,7 @@ export function FormField({
         autoComplete={autoComplete}
         autoCapitalize={autoCapitalize}
         spellCheck={spellCheck}
+        variant={variant}
         aria-invalid={invalid || undefined}
         aria-describedby={
           [description && descriptionId, invalid && errorId]
