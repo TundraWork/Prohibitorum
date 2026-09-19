@@ -37,7 +37,7 @@ export function TotpSetup({ secret, uri }: { secret: string; uri: string }) {
           </Alert.Title>
         </Alert.Content>
       </Alert>
-      <p>
+      <p className="text-sm text-muted">
         <Trans id="login.reset.scan">
           Scan this QR code with your authenticator, or enter the setup key
           manually. Then enter a code from the new authenticator.

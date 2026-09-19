@@ -79,10 +79,12 @@ function PasswordForm({
   control,
   username,
   onSuccess,
+  onFailure,
 }: {
   control: FlowControl;
   username: string;
   onSuccess: (username: string, token: string) => void;
+  onFailure: (error: unknown) => void;
 }) {
   const { t } = useLingui();
   const mutation = useMutation(passwordMutationOptions());
@@ -96,8 +98,7 @@ function PasswordForm({
         if (control.isActive())
           onSuccess(value.username, result.partial_session_token);
       } catch (error) {
-        if (control.isActive() && !isCancellation(error))
-          applyServerError(formApi, error, noFields);
+        if (control.isActive() && !isCancellation(error)) onFailure(error);
       } finally {
         mutation.reset();
         control.release();
@@ -123,7 +124,6 @@ function PasswordForm({
             message: "Sign in with a password",
           })}
         >
-          <form.FormError />
           <form.AppField
             name="username"
             validators={{
@@ -157,7 +157,7 @@ function PasswordForm({
               />
             )}
           </form.AppField>
-          <form.SubmitButton>
+          <form.SubmitButton fullWidth>
             <Trans id="login.password.next">Continue with password</Trans>
           </form.SubmitButton>
         </form.Form>
@@ -263,9 +263,11 @@ function FactorForm({
         }
       >
         <form.FormError />
-        <p className="break-words">
-          <Trans id="login.factor.account">Signing in as {username}</Trans>
-        </p>
+        {mode === "recovery" && (
+          <p className="break-words">
+            <Trans id="login.factor.account">Signing in as {username}</Trans>
+          </p>
+        )}
         <form.AppField
           name="code"
           validators={{
@@ -361,13 +363,13 @@ function FactorForm({
             )}
           </>
         )}
-        <form.SubmitButton>
-          <Trans id="login.verify">Sign in</Trans>
-        </form.SubmitButton>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <form.SubmitButton>
+            <Trans id="login.verify">Sign in</Trans>
+          </form.SubmitButton>
           <Button
             type="button"
-            variant="secondary"
+            variant="ghost"
             isDisabled={control.busy}
             onPress={onSwitch}
           >
@@ -379,7 +381,7 @@ function FactorForm({
           </Button>
           <Button
             type="button"
-            variant="tertiary"
+            variant="ghost"
             isDisabled={control.busy}
             onPress={onBack}
           >
@@ -464,22 +466,22 @@ function LoginFlow({
 
   return (
     <div className="flex flex-col gap-4">
-      <h2
+      <h1
         key={`${step}-${Boolean(savedCodes)}-${Boolean(failure)}`}
         ref={focusHeading}
         tabIndex={-1}
-        className="text-xl font-semibold"
+        className="min-w-0 text-xl font-semibold wrap-anywhere"
       >
         {savedCodes ? (
           <Trans id="login.complete">Authenticator reset complete</Trans>
         ) : step === "password" ? (
           <Trans id="login.title">Sign in</Trans>
         ) : step === "totp" ? (
-          <Trans id="login.totp.form">Verify your authenticator</Trans>
+          <Trans id="login.factor.account">Signing in as {username}</Trans>
         ) : (
           <Trans id="login.recovery.form">Sign in with a recovery code</Trans>
         )}
-      </h2>
+      </h1>
       {failure && (
         <Alert status="danger" role="alert">
           <Alert.Indicator />
@@ -519,6 +521,9 @@ function LoginFlow({
             <PasswordForm
               control={control}
               username={username}
+              onFailure={(error) =>
+                setFailure({ message: describeError(error) })
+              }
               onSuccess={(name, partialToken) => {
                 setUsername(name);
                 token.current = partialToken;
@@ -565,11 +570,11 @@ function LoginFlow({
             <>
               <Button
                 variant="secondary"
+                fullWidth
                 isPending={passkey.isPending}
                 isDisabled={!supported || (control.busy && !passkey.isPending)}
                 onPress={() => {
                   if (!control.acquire()) return;
-                  setFailure(undefined);
                   void (async () => {
                     try {
                       const result = await passkey.mutateAsync();
@@ -616,18 +621,6 @@ export function Login() {
   }
   return (
     <main className="mx-auto flex w-full max-w-lg flex-col gap-4 px-4 py-8">
-      <header className="flex min-w-0 items-center gap-3">
-        {config.hasCustomIcon && (
-          <img
-            src={config.iconUrl}
-            alt=""
-            className="size-10 shrink-0 object-contain"
-          />
-        )}
-        <h1 className="min-w-0 break-words text-2xl font-semibold">
-          {config.instanceName}
-        </h1>
-      </header>
       {config.maintenanceMode && (
         <Alert status="warning">
           <Alert.Indicator />

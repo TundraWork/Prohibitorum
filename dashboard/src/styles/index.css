@@ -5,3 +5,7 @@
 @theme {
   --font-inter: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
 }
+
+:focus:not(:focus-visible) {
+  outline: none;
+}

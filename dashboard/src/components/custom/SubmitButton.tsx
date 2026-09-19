@@ -4,12 +4,18 @@ import { useStore } from "@tanstack/react-form";
 import type { ReactNode } from "react";
 import { useFormContext } from "@/forms/context";
 
-export function SubmitButton({ children }: { children: ReactNode }) {
+export function SubmitButton({
+  children,
+  fullWidth = false,
+}: {
+  children: ReactNode;
+  fullWidth?: boolean;
+}) {
   const form = useFormContext();
   const submitting = useStore(form.store, (state) => state.isSubmitting);
   return (
     <div className="flex flex-wrap gap-2">
-      <Button type="submit" isPending={submitting}>
+      <Button type="submit" fullWidth={fullWidth} isPending={submitting}>
         {({ isPending }) => (
           <>
             {isPending && <Spinner size="sm" color="current" />}

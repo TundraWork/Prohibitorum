@@ -18,6 +18,7 @@ import {
 } from "@testing-library/react";
 import userEvent, { type UserEvent } from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { ApiError, describeError } from "@/api/errors";
 import type { components } from "@/api/generated/schema";
 import {
   authStatusQueryOptions,
@@ -109,6 +110,49 @@ function rejectedCode() {
     { status: 401 },
   );
 }
+
+it("replaces the shared login error when alternating password and passkey failures", async () => {
+  vi.stubGlobal("isSecureContext", true);
+  vi.stubGlobal("PublicKeyCredential", class {});
+  const fetch = vi
+    .fn<typeof globalThis.fetch>()
+    .mockResolvedValueOnce(rejectedCode())
+    .mockResolvedValueOnce(
+      Response.json(
+        { code: "server_error", requestId: "passkey-failure" },
+        { status: 503 },
+      ),
+    )
+    .mockResolvedValueOnce(
+      Response.json(
+        { code: "rate_limited", requestId: "password-retry" },
+        { status: 429 },
+      ),
+    );
+  vi.stubGlobal("fetch", fetch);
+  const user = userEvent.setup();
+  mount();
+  await user.type(
+    await screen.findByRole("textbox", { name: "Username" }),
+    "alice",
+  );
+  await user.type(screen.getByLabelText("Password"), " password ");
+  for (const [button, code] of [
+    ["Continue with password", "bad_credentials"],
+    ["Sign in with a passkey", "server_error"],
+    ["Continue with password", "rate_limited"],
+  ]) {
+    await user.click(screen.getByRole("button", { name: button }));
+    await waitFor(() => {
+      const alerts = screen.getAllByRole("alert");
+      expect(alerts).toHaveLength(1);
+      expect(alerts[0]).toHaveTextContent(
+        i18n._(describeError(new ApiError({ kind: "http", code }))),
+      );
+    });
+    expect(screen.getByLabelText("Password")).toHaveValue(" password ");
+  }
+});
 
 describe("single-use password verification", () => {
   it("keeps a token after local validation but requires another password after sending a failed code", async () => {
