@@ -44,6 +44,8 @@
   imported after `@heroui/styles`; preserve other component defaults.
 - Prefer compositions of HeroUI components whenever they cover the UI need;
   use `Alert` for notices such as the frontend-rebuild banner.
+- For an Alert with a single message, use `Alert.Title` alone inside
+  `Alert.Content`. Add `Alert.Description` only for supplementary text.
 - Write custom layout and styling as Tailwind classes directly in JSX.
   Reuse styles through React components in `dashboard/src/components/custom`,
   using `class-variance-authority` for shared variants.

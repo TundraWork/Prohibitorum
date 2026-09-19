@@ -75,9 +75,7 @@ export function ApiPreview() {
             <Alert status="warning">
               <Alert.Indicator />
               <Alert.Content>
-                <Alert.Description>
-                  {config.data.maintenanceMessage}
-                </Alert.Description>
+                <Alert.Title>{config.data.maintenanceMessage}</Alert.Title>
               </Alert.Content>
             </Alert>
           )}

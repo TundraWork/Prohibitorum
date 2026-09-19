@@ -26,12 +26,12 @@ export function RewriteNotice() {
     <Alert status="warning">
       <Alert.Indicator />
       <Alert.Content>
-        <Alert.Description>
+        <Alert.Title>
           <Trans id="preview.notice">
             The frontend is being rebuilt. Sign-in and other features are
             temporarily unavailable.
           </Trans>
-        </Alert.Description>
+        </Alert.Title>
       </Alert.Content>
     </Alert>
   );

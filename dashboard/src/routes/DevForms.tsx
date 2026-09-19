@@ -101,11 +101,11 @@ function RenameForm() {
               <Alert status="success" role="status">
                 <Alert.Indicator />
                 <Alert.Content>
-                  <Alert.Description>
+                  <Alert.Title>
                     <Trans id="dev.forms.rename.success">
                       Nickname saved. Your input has been kept.
                     </Trans>
-                  </Alert.Description>
+                  </Alert.Title>
                 </Alert.Content>
               </Alert>
             )}
@@ -164,11 +164,11 @@ function LogoutForm() {
               <Alert status="success" role="status">
                 <Alert.Indicator />
                 <Alert.Content>
-                  <Alert.Description>
+                  <Alert.Title>
                     <Trans id="dev.forms.logout.success">
                       Logout completed with no response body.
                     </Trans>
-                  </Alert.Description>
+                  </Alert.Title>
                 </Alert.Content>
               </Alert>
             )}
@@ -196,12 +196,12 @@ export default function DevForms() {
       <Alert status="warning">
         <Alert.Indicator />
         <Alert.Content>
-          <Alert.Description>
+          <Alert.Title>
             <Trans id="dev.forms.warning">
               These controls send real requests. They are development checks,
               not a credential management or sign-in page.
             </Trans>
-          </Alert.Description>
+          </Alert.Title>
         </Alert.Content>
       </Alert>
       <RenameForm />

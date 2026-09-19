@@ -120,11 +120,11 @@ export function Preview() {
               <Alert status="danger">
                 <Alert.Indicator />
                 <Alert.Content>
-                  <Alert.Description>
+                  <Alert.Title>
                     <Trans id="feedback.error">
                       Unable to save. Check your input and try again. (Example)
                     </Trans>
-                  </Alert.Description>
+                  </Alert.Title>
                 </Alert.Content>
               </Alert>
               <p>
