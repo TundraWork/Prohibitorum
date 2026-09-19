@@ -78,22 +78,20 @@ export function ApiPreview() {
         <div className="actions">
           <Button
             variant="outline"
-            isDisabled={refreshing}
+            isPending={refreshing}
             onPress={() => {
               void Promise.all([config.refetch(), status.refetch()]);
             }}
           >
-            {refreshing ? (
+            {({ isPending }) => (
               <>
-                <span aria-hidden="true">
-                  <Spinner size="sm" color="current" />
-                </span>
-                <span role="status">
+                {isPending && <Spinner size="sm" color="current" />}
+                {isPending ? (
                   <Trans id="api.refreshing">Refreshing…</Trans>
-                </span>
+                ) : (
+                  <Trans id="api.refresh">Refresh data</Trans>
+                )}
               </>
-            ) : (
-              <Trans id="api.refresh">Refresh data</Trans>
             )}
           </Button>
         </div>

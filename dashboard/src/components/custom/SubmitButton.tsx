@@ -8,20 +8,19 @@ export function SubmitButton({ children }: { children: ReactNode }) {
   const form = useFormContext();
   const submitting = useStore(form.store, (state) => state.isSubmitting);
   return (
-    <div className="actions submit-feedback">
-      <Button type="submit" isDisabled={submitting}>
-        {children}
-      </Button>
-      <span role="status">
-        {submitting && (
+    <div className="actions">
+      <Button type="submit" isPending={submitting}>
+        {({ isPending }) => (
           <>
-            <span aria-hidden="true">
-              <Spinner size="sm" color="current" />
-            </span>
-            <Trans id="forms.submitting">Submitting…</Trans>
+            {isPending && <Spinner size="sm" color="current" />}
+            {isPending ? (
+              <Trans id="forms.submitting">Submitting…</Trans>
+            ) : (
+              children
+            )}
           </>
         )}
-      </span>
+      </Button>
     </div>
   );
 }

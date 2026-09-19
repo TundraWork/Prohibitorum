@@ -91,11 +91,13 @@ export function Preview() {
             </Trans>
           </p>
           <div className="actions">
-            <Button isDisabled>
-              <span aria-hidden="true">
-                <Spinner size="sm" color="current" />
-              </span>
-              <Trans id="feedback.submitting">Submitting (example)</Trans>
+            <Button isPending>
+              {({ isPending }) => (
+                <>
+                  {isPending && <Spinner size="sm" color="current" />}
+                  <Trans id="feedback.submitting">Submitting (example)</Trans>
+                </>
+              )}
             </Button>
           </div>
           <div className="error-example">

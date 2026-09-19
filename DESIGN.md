@@ -85,6 +85,8 @@ Use HeroUI components directly and compose application-specific behavior under `
 
 Make the primary action visually prominent and use secondary or ghost treatments for alternatives. Reserve danger treatments for destructive confirmation. Interactive samples must perform their stated local action; they must not fake server submissions.
 
+Use HeroUI Button's `isPending` and render-function composition for loading, including examples. Render Spinner directly inside the button alongside localized text so the library centers both and preserves pending-state keyboard behavior.
+
 ### Fields and tabs
 
 Give every field a visible label and associate help or validation text with it. Show errors with text and a visible state change. Keyboard focus must remain distinct from hover, selection and validation states.
@@ -97,9 +99,9 @@ Keep resting surfaces flat, separated by tone or a border. Use elevation for flo
 
 Notifications explain the result and any required next step. Query and mutation failures each produce one global notification, including when a form also displays an error. Store error descriptors so open notifications follow language changes; canceled requests stay silent.
 
-Navigation keeps the header visible and immediately displays a content skeleton while route data loads. Public configuration and initialization status load concurrently into shared Query caches; background refresh keeps available data visible. During refresh, the disabled refresh button contains the spinner and localized loading text.
+Navigation keeps the header visible and immediately displays a content skeleton while route data loads. Public configuration and initialization status load concurrently into shared Query caches; background refresh keeps available data visible. During refresh, the pending button contains the spinner and localized loading text.
 
-Forms freeze their fields during submission, show loading feedback beside the button, preserve failed input, and focus the first invalid field or error summary. Server errors use explicit field mappings, with unknown locations shown in the summary. The development-only `/__dev/forms` route exercises these mechanisms against isolated accounts.
+Forms freeze their fields during submission, show loading feedback inside the pending submit button, preserve failed input, and focus the first invalid field or error summary. Server errors use explicit field mappings, with unknown locations shown in the summary. The development-only `/__dev/forms` route exercises these mechanisms against isolated accounts.
 
 ### Future business pages
 

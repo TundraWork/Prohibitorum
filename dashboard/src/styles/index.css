@@ -351,13 +351,6 @@ a:focus-visible {
   padding: 16px;
 }
 
-.submit-feedback {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 12px;
-}
-
 .form-checks {
   display: grid;
   gap: 24px;

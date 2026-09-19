@@ -84,7 +84,10 @@ describe("mutation form feedback", () => {
     await waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
     expect(id).toBeDisabled();
     expect(nickname).toBeDisabled();
-    expect(within(form).getByRole("button")).toBeDisabled();
+    expect(within(form).getByRole("button")).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
     expect(form).toHaveAttribute("aria-busy", "true");
     await act(async () =>
       resolvePending(publicError("validation_failed", "body.nickname")),
