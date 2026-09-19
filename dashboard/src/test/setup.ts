@@ -28,4 +28,8 @@ Object.defineProperty(window, "matchMedia", {
 });
 
 HTMLElement.prototype.scrollIntoView = vi.fn();
+
+// input-otp probes password-manager overlays with a hit test jsdom does not implement.
+document.elementFromPoint = () => null;
+
 afterEach(cleanup);

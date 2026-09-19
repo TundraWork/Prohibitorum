@@ -39,6 +39,7 @@ import type {
   RecoveryResult,
 } from "@/api/raw-paths";
 import { FormMessages } from "@/components/custom/FormMessages";
+import { OtpField } from "@/components/custom/OtpField";
 import { RecoveryCodes } from "@/components/custom/RecoveryCodes";
 import { TotpSetup } from "@/components/custom/TotpSetup";
 import { applyServerError } from "@/forms/server-errors";
@@ -262,11 +263,6 @@ function FactorForm({
         }
       >
         <form.FormError />
-        {mode === "recovery" && (
-          <p className="break-words">
-            <Trans id="login.factor.account">Signing in as {username}</Trans>
-          </p>
-        )}
         <form.AppField
           name="code"
           validators={{
@@ -280,29 +276,28 @@ function FactorForm({
                   : recoveryInvalid,
           }}
         >
-          {(field) => (
-            <field.FormField
-              label={
-                mode === "totp" ? (
-                  <Trans id="login.totp.code">Authenticator code</Trans>
-                ) : (
-                  <Trans id="login.recovery.code">Recovery code</Trans>
-                )
-              }
-              inputMode={mode === "totp" ? "numeric" : "text"}
-              autoComplete={mode === "totp" ? "one-time-code" : "off"}
-              autoCapitalize="none"
-              spellCheck={false}
-              description={
-                mode === "totp" ? (
+          {(field) =>
+            mode === "totp" ? (
+              <OtpField
+                digits={config.totp.digits}
+                label={<Trans id="login.totp.code">Authenticator code</Trans>}
+                description={
                   <Trans id="login.totp.digits">
                     Enter the {config.totp.digits}-digit code from your
                     authenticator.
                   </Trans>
-                ) : undefined
-              }
-            />
-          )}
+                }
+              />
+            ) : (
+              <field.FormField
+                label={<Trans id="login.recovery.code">Recovery code</Trans>}
+                inputMode="text"
+                autoComplete="off"
+                autoCapitalize="none"
+                spellCheck={false}
+              />
+            )
+          }
         </form.AppField>
         {mode === "recovery" && (
           <>
@@ -366,19 +361,17 @@ function FactorForm({
           <form.SubmitButton fullWidth>
             <Trans id="login.verify">Sign in</Trans>
           </form.SubmitButton>
-          <Button
-            type="button"
-            variant="ghost"
-            fullWidth
-            isDisabled={control.busy}
-            onPress={onSwitch}
-          >
-            {mode === "totp" ? (
+          {mode === "totp" && (
+            <Button
+              type="button"
+              variant="ghost"
+              fullWidth
+              isDisabled={control.busy}
+              onPress={onSwitch}
+            >
               <Trans id="login.use_recovery">Use a recovery code</Trans>
-            ) : (
-              <Trans id="login.use_totp">Use an authenticator code</Trans>
-            )}
-          </Button>
+            </Button>
+          )}
         </div>
       </form.Form>
     </form.AppForm>
@@ -453,6 +446,10 @@ function LoginFlow({
   }
   function back() {
     if (control.busy) return;
+    if (step === "recovery") {
+      setStep("totp");
+      return;
+    }
     token.current = undefined;
     setStep("password");
   }
@@ -467,7 +464,14 @@ function LoginFlow({
             size="sm"
             isIconOnly
             className="shrink-0"
-            aria-label={t({ id: "login.back", message: "Back to password" })}
+            aria-label={
+              step === "recovery"
+                ? t({
+                    id: "login.use_totp",
+                    message: "Use an authenticator code",
+                  })
+                : t({ id: "login.back", message: "Back to password" })
+            }
             isDisabled={control.busy}
             onPress={back}
           >
@@ -484,10 +488,8 @@ function LoginFlow({
             <Trans id="login.complete">Authenticator reset complete</Trans>
           ) : step === "password" ? (
             <Trans id="login.title">Sign in</Trans>
-          ) : step === "totp" ? (
-            <Trans id="login.factor.account">Signing in as {username}</Trans>
           ) : (
-            <Trans id="login.recovery.form">Sign in with a recovery code</Trans>
+            <Trans id="login.factor.account">Signing in as {username}</Trans>
           )}
         </h1>
       </div>
