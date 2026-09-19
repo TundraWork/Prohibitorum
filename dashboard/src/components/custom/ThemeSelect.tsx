@@ -1,4 +1,4 @@
-import { Button, ButtonGroup } from "@heroui/react";
+import { ToggleButton, ToggleButtonGroup } from "@heroui/react";
 import { useLingui } from "@lingui/react/macro";
 import { atom, useAtom } from "jotai";
 import { Monitor, Moon, Sun } from "lucide-react";
@@ -27,24 +27,26 @@ export function ThemeSelect() {
   ] as const;
 
   return (
-    <ButtonGroup
+    <ToggleButtonGroup
       size="sm"
+      selectionMode="single"
+      disallowEmptySelection
+      selectedKeys={[theme]}
+      onSelectionChange={(keys) => {
+        const value = keys.values().next().value;
+        if (value === "light" || value === "dark" || value === "system") {
+          setTheme(value);
+        }
+      }}
       aria-label={t({ id: "theme.label", message: "Theme" })}
     >
       {options.map(({ value, label, icon: Icon }) => (
-        <Button
-          key={value}
-          isIconOnly
-          aria-label={label}
-          aria-pressed={theme === value}
-          variant={theme === value ? "secondary" : "ghost"}
-          onPress={() => setTheme(value)}
-        >
+        <ToggleButton key={value} id={value} isIconOnly aria-label={label}>
           <Icon size={16} aria-hidden="true">
             <title>{label}</title>
           </Icon>
-        </Button>
+        </ToggleButton>
       ))}
-    </ButtonGroup>
+    </ToggleButtonGroup>
   );
 }
