@@ -1,4 +1,4 @@
-import { Button } from "@heroui/react";
+import { Button, Spinner } from "@heroui/react";
 import { Trans } from "@lingui/react/macro";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import {
@@ -83,13 +83,19 @@ export function ApiPreview() {
               void Promise.all([config.refetch(), status.refetch()]);
             }}
           >
-            <Trans id="api.refresh">Refresh data</Trans>
+            {refreshing ? (
+              <>
+                <span aria-hidden="true">
+                  <Spinner size="sm" color="current" />
+                </span>
+                <span role="status">
+                  <Trans id="api.refreshing">Refreshing…</Trans>
+                </span>
+              </>
+            ) : (
+              <Trans id="api.refresh">Refresh data</Trans>
+            )}
           </Button>
-          {refreshing && (
-            <span role="status">
-              <Trans id="api.refreshing">Refreshing…</Trans>
-            </span>
-          )}
         </div>
         <p>
           <Trans id="api.public-note">
