@@ -104,6 +104,66 @@ const errorMessages: Readonly<Record<string, MessageDescriptor>> = {
     id: "error.sudo_required",
     message: "Verify your identity again to continue.",
   }),
+  sudo_method_unavailable: msg({
+    id: "error.sudo_method_unavailable",
+    message: "That verification method is not available. Choose another one.",
+  }),
+  last_passkey: msg({
+    id: "error.last_passkey",
+    message:
+      "Keep at least one passkey on the account. Add another one before removing this one.",
+  }),
+  last_sign_in_method: msg({
+    id: "error.last_sign_in_method",
+    message:
+      "This is your only way to sign in, so it cannot be removed. Add another method first.",
+  }),
+  credential_not_found: msg({
+    id: "error.credential_not_found",
+    message: "That passkey is already gone. The list has been refreshed.",
+  }),
+  session_not_found: msg({
+    id: "error.session_not_found",
+    message: "That session has already ended. The list has been refreshed.",
+  }),
+  cannot_revoke_current_session: msg({
+    id: "error.cannot_revoke_current_session",
+    message: "This is the session you are using. Sign out instead.",
+  }),
+  pairing_not_found: msg({
+    id: "error.pairing_not_found",
+    message:
+      "That pairing code is not valid. It may have been used already, or it may have expired.",
+  }),
+  pairing_expired: msg({
+    id: "error.pairing_expired",
+    message: "That pairing code has expired. Generate a new one on the device.",
+  }),
+  pairing_not_approved: msg({
+    id: "error.pairing_not_approved",
+    message: "This pairing is not ready to be approved yet.",
+  }),
+  pairing_state: msg({
+    id: "error.pairing_state",
+    message: "This pairing is no longer in a state that allows that action.",
+  }),
+  avatar_too_large: msg({
+    id: "error.avatar_too_large",
+    message: "That picture is larger than 5 MiB. Choose a smaller one.",
+  }),
+  avatar_invalid_image: msg({
+    id: "error.avatar_invalid_image",
+    message: "That file is not an image this instance can use.",
+  }),
+  avatar_source_unavailable: msg({
+    id: "error.avatar_source_unavailable",
+    message: "That picture is no longer available. Choose another source.",
+  }),
+  would_remove_last_factor: msg({
+    id: "error.would_remove_last_factor",
+    message:
+      "This is your only way to sign in, so it cannot be removed. Add another method first.",
+  }),
   bad_credentials: msg({
     id: "error.bad_credentials",
     message: "The credentials could not be verified.",

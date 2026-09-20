@@ -1,0 +1,185 @@
+import { AlertDialog, Button, Chip } from "@heroui/react";
+import { Trans, useLingui } from "@lingui/react/macro";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
+import { describeError } from "@/api/errors";
+import type { components } from "@/api/generated/schema";
+import { revokeSessionMutationOptions } from "@/api/mutations";
+import { sessionsQueryOptions } from "@/api/queries";
+import { DataTable, type TableColumn } from "@/components/custom/DataTable";
+
+type Session = components["schemas"]["SessionListItem"];
+
+/** A one-line summary of a User-Agent; the raw string is not parsed further. */
+function agentSummary(value?: string): string {
+  if (!value) return "—";
+  return value.length > 80 ? `${value.slice(0, 79)}…` : value;
+}
+
+/**
+ * Sign-ins that are still active. The server marks the row belonging to the
+ * current request and refuses to revoke it, so that row shows no button at all
+ * rather than a control that always fails.
+ */
+export function SessionsPanel() {
+  const { t, i18n } = useLingui();
+  const queryClient = useQueryClient();
+  const sessions = useQuery(sessionsQueryOptions());
+  const [target, setTarget] = useState<Session | null>(null);
+  const [error, setError] = useState<unknown>(null);
+  const revoke = useMutation(revokeSessionMutationOptions(queryClient));
+
+  const format = (value: string) =>
+    new Intl.DateTimeFormat(i18n.locale, {
+      dateStyle: "medium",
+      timeStyle: "short",
+    }).format(new Date(value));
+
+  const columns: readonly TableColumn<Session>[] = [
+    {
+      id: "current",
+      header: <Trans id="security.sessions.column.status">Status</Trans>,
+      cell: (session) =>
+        session.isCurrent ? (
+          <Chip color="accent" size="sm">
+            <Trans id="security.sessions.current">This device</Trans>
+          </Chip>
+        ) : (
+          <span className="text-muted">
+            <Trans id="security.sessions.other">Signed in</Trans>
+          </span>
+        ),
+    },
+    {
+      id: "issuedAt",
+      header: <Trans id="security.sessions.column.issued">Started</Trans>,
+      cell: (session) => format(session.issuedAt),
+    },
+    {
+      id: "expiresAt",
+      header: <Trans id="security.sessions.column.expires">Expires</Trans>,
+      cell: (session) => format(session.expiresAt),
+    },
+    {
+      id: "lastSeenIp",
+      header: <Trans id="security.sessions.column.ip">Last seen from</Trans>,
+      cell: (session) => (
+        <span className="wrap-anywhere">{session.lastSeenIp || "—"}</span>
+      ),
+    },
+    {
+      id: "userAgent",
+      header: <Trans id="security.sessions.column.agent">Device</Trans>,
+      cell: (session) => (
+        <span className="wrap-anywhere" title={session.userAgent ?? undefined}>
+          {agentSummary(session.userAgent)}
+        </span>
+      ),
+    },
+    {
+      id: "actions",
+      header: <Trans id="security.column.actions">Actions</Trans>,
+      cell: (session) =>
+        session.isCurrent ? (
+          <span className="text-sm text-muted">
+            <Trans id="security.sessions.use_sign_out">
+              Use sign out to end this one
+            </Trans>
+          </span>
+        ) : (
+          <Button
+            size="sm"
+            variant="danger-soft"
+            onPress={() => setTarget(session)}
+          >
+            <Trans id="security.sessions.sign_out">End session</Trans>
+          </Button>
+        ),
+      align: "end",
+    },
+  ];
+
+  return (
+    <>
+      <p className="max-w-prose text-sm text-muted">
+        <Trans id="security.sessions.intro">
+          Everywhere this account is signed in right now. Ending a session signs
+          that device out immediately.
+        </Trans>
+      </p>
+
+      {error !== null && (
+        <p role="alert" className="mt-2 text-sm">
+          {t(describeError(error))}
+        </p>
+      )}
+
+      <DataTable
+        label={t({ id: "security.sessions.table", message: "Active sessions" })}
+        columns={columns}
+        rows={sessions.data ?? []}
+        rowId={(session) => session.id}
+        loading={sessions.isPending}
+        empty={
+          <Trans id="security.sessions.empty">
+            There are no other sessions on this account.
+          </Trans>
+        }
+      />
+
+      <AlertDialog
+        isOpen={target !== null}
+        onOpenChange={(open) => !open && setTarget(null)}
+      >
+        <AlertDialog.Backdrop>
+          <AlertDialog.Container placement="center" size="md">
+            <AlertDialog.Dialog>
+              <AlertDialog.Header>
+                <AlertDialog.Heading>
+                  <Trans id="security.sessions.revoke.title">
+                    End this session?
+                  </Trans>
+                </AlertDialog.Heading>
+              </AlertDialog.Header>
+              <AlertDialog.Body>
+                <p>
+                  <Trans id="security.sessions.revoke.body">
+                    That device is signed out immediately and will need to sign
+                    in again. Anything it is doing right now stops.
+                  </Trans>
+                </p>
+              </AlertDialog.Body>
+              <AlertDialog.Footer>
+                <Button
+                  variant="secondary"
+                  onPress={() => setTarget(null)}
+                  isDisabled={revoke.isPending}
+                >
+                  <Trans id="security.cancel">Cancel</Trans>
+                </Button>
+                <Button
+                  variant="danger"
+                  isPending={revoke.isPending}
+                  onPress={() => {
+                    if (!target) return;
+                    revoke.mutate(target.id, {
+                      onSuccess: () => setTarget(null),
+                      onError: (failure) => {
+                        setError(failure);
+                        setTarget(null);
+                      },
+                    });
+                  }}
+                >
+                  <Trans id="security.sessions.revoke.action">
+                    End session
+                  </Trans>
+                </Button>
+              </AlertDialog.Footer>
+            </AlertDialog.Dialog>
+          </AlertDialog.Container>
+        </AlertDialog.Backdrop>
+      </AlertDialog>
+    </>
+  );
+}

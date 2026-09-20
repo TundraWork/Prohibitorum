@@ -13,9 +13,72 @@ msgstr ""
 "Plural-Forms: \n"
 
 #. js-lingui-explicit-id
+#: src/pages/security/TokensPanel.tsx
+msgid "security.tokens.expiry.365"
+msgstr "1 year"
+
+#. js-lingui-explicit-id
+#: src/pages/security/TokensPanel.tsx
+msgid "security.tokens.expiry.30"
+msgstr "30 days"
+
+#. js-lingui-explicit-id
+#: src/pages/security/TokensPanel.tsx
+msgid "security.tokens.expiry.90"
+msgstr "90 days"
+
+#. js-lingui-explicit-id
+#: src/pages/security/PasskeysPanel.tsx
+msgid "security.passkeys.rename.hint"
+msgstr "A name you will recognise, such as the device it lives on."
+
+#. js-lingui-explicit-id
+#: src/pages/Security.tsx
+msgid "security.tab.tokens"
+msgstr "Access tokens"
+
+#. js-lingui-explicit-id
+#: src/pages/security/TokensPanel.tsx
+msgid "security.tokens.table"
+msgstr "Access tokens"
+
+#. js-lingui-explicit-id
+#: src/pages/ConnectedApps.tsx
+msgid "apps.column.actions"
+msgstr "Actions"
+
+#. js-lingui-explicit-id
+#: src/pages/security/IdentitiesPanel.tsx
+#: src/pages/security/PasskeysPanel.tsx
+#: src/pages/security/SessionsPanel.tsx
+#: src/pages/security/TokensPanel.tsx
+msgid "security.column.actions"
+msgstr "Actions"
+
+#. js-lingui-explicit-id
 #: src/pages/ApiPreview.tsx
 msgid "api.maintenance.active"
 msgstr "Active"
+
+#. js-lingui-explicit-id
+#: src/pages/Security.tsx
+msgid "security.tab.sessions"
+msgstr "Active sessions"
+
+#. js-lingui-explicit-id
+#: src/pages/security/SessionsPanel.tsx
+msgid "security.sessions.table"
+msgstr "Active sessions"
+
+#. js-lingui-explicit-id
+#: src/pages/security/PasskeysPanel.tsx
+msgid "security.passkeys.add"
+msgstr "Add a passkey"
+
+#. js-lingui-explicit-id
+#: src/pages/security/PasskeysPanel.tsx
+msgid "security.passkeys.column.created"
+msgstr "Added"
 
 #. js-lingui-explicit-id
 #: src/components/custom/TotpSetup.tsx
@@ -23,9 +86,34 @@ msgid "login.reset.warning"
 msgstr "After a successful reset, your old authenticator and all old recovery codes will stop working."
 
 #. js-lingui-explicit-id
-#: src/components/custom/ConsoleLayout.tsx
-msgid "console.applications"
-msgstr "Applications"
+#: src/pages/security/TokensPanel.tsx
+msgid "security.tokens.column.scopes"
+msgstr "Allowed"
+
+#. js-lingui-explicit-id
+#: src/pages/security/TokensPanel.tsx
+msgid "security.tokens.revoke.body"
+msgstr "Anything using this token stops working immediately. This cannot be undone."
+
+#. js-lingui-explicit-id
+#: src/pages/ConnectedApps.tsx
+msgid "apps.column.name"
+msgstr "Application"
+
+#. js-lingui-explicit-id
+#: src/pages/ConnectedApps.tsx
+msgid "apps.intro"
+msgstr "Applications you have approved. Removing access revokes what they can read about you; they will ask again the next time you sign in."
+
+#. js-lingui-explicit-id
+#: src/pages/Devices.tsx
+msgid "devices.approve"
+msgstr "Approve this device"
+
+#. js-lingui-explicit-id
+#: src/pages/Devices.tsx
+msgid "devices.note"
+msgstr "Approving lets this device continue, but it is not signed in yet: it still has to set up a passkey of its own."
 
 #. js-lingui-explicit-id
 #: src/components/custom/LoginShell.tsx
@@ -35,6 +123,11 @@ msgstr "Ask the operator to run <0>prohibitorum enroll-admin</0> on the server b
 #. js-lingui-explicit-id
 #: src/pages/Login.tsx
 msgid "login.totp.code"
+msgstr "Authenticator code"
+
+#. js-lingui-explicit-id
+#: src/components/custom/SudoDialog.tsx
+msgid "sudo.code"
 msgstr "Authenticator code"
 
 #. js-lingui-explicit-id
@@ -48,14 +141,88 @@ msgid "login.complete"
 msgstr "Authenticator reset complete"
 
 #. js-lingui-explicit-id
+#: src/pages/ConnectedApps.tsx
+msgid "apps.column.granted"
+msgstr "Authorized"
+
+#. js-lingui-explicit-id
+#: src/pages/Profile.tsx
+msgid "profile.tab.avatar"
+msgstr "Avatar"
+
+#. js-lingui-explicit-id
+#: src/pages/profile/AvatarPanel.tsx
+msgid "profile.avatar.title"
+msgstr "Avatar"
+
+#. js-lingui-explicit-id
 #: src/components/custom/LoginShell.tsx
 msgid "login.back"
 msgstr "Back to password"
 
 #. js-lingui-explicit-id
+#: src/pages/ConnectedApps.tsx
+msgid "apps.scopes.none"
+msgstr "Basic profile"
+
+#. js-lingui-explicit-id
+#: src/pages/security/IdentitiesPanel.tsx
+#: src/pages/security/PasskeysPanel.tsx
+#: src/pages/security/PasswordTotpPanel.tsx
+#: src/pages/security/SessionsPanel.tsx
+#: src/pages/security/TokensPanel.tsx
+msgid "security.cancel"
+msgstr "Cancel"
+
+#. js-lingui-explicit-id
+#: src/components/custom/SudoDialog.tsx
+msgid "sudo.cancel"
+msgstr "Cancel"
+
+#. js-lingui-explicit-id
+#: src/pages/security/PasswordTotpPanel.tsx
+msgid "security.password.change.title"
+msgstr "Change password"
+
+#. js-lingui-explicit-id
+#: src/pages/security/PasswordTotpPanel.tsx
+msgid "security.password.change.form"
+msgstr "Change password"
+
+#. js-lingui-explicit-id
+#: src/pages/security/PasswordTotpPanel.tsx
+msgid "security.password.change.action"
+msgstr "Change password"
+
+#. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.validation_failed"
 msgstr "Check the submitted information and try again."
+
+#. js-lingui-explicit-id
+#: src/pages/Devices.tsx
+msgid "devices.confirm.title"
+msgstr "Check this is the device you started"
+
+#. js-lingui-explicit-id
+#: src/pages/security/PasswordTotpPanel.tsx
+msgid "security.setup.password"
+msgstr "Choose a password"
+
+#. js-lingui-explicit-id
+#: src/pages/profile/AvatarPanel.tsx
+msgid "profile.avatar.not_image"
+msgstr "Choose an image file."
+
+#. js-lingui-explicit-id
+#: src/pages/profile/AvatarPanel.tsx
+msgid "profile.avatar.too_large"
+msgstr "Choose an image smaller than 5 MiB."
+
+#. js-lingui-explicit-id
+#: src/pages/security/TokensPanel.tsx
+msgid "security.tokens.apps.required"
+msgstr "Choose at least one application, or allow every application."
 
 #. js-lingui-explicit-id
 #: src/components/custom/ConsoleLayout.tsx
@@ -68,14 +235,14 @@ msgid "notification.close"
 msgstr "Close notification"
 
 #. js-lingui-explicit-id
-#: src/components/custom/RecoveryCodes.tsx
-msgid "login.codes.copied"
-msgstr "Codes copied."
+#: src/pages/Devices.tsx
+msgid "devices.field.code"
+msgstr "Code"
 
 #. js-lingui-explicit-id
-#: src/components/custom/ConsoleLayout.tsx
-msgid "console.coming-soon"
-msgstr "Coming later"
+#: src/pages/Devices.tsx
+msgid "devices.code.label"
+msgstr "Code from the other device"
 
 #. js-lingui-explicit-id
 #: src/pages/Preview.tsx
@@ -86,6 +253,82 @@ msgstr "Components"
 #: src/components/custom/PreviewLayout.tsx
 msgid "navigation.components"
 msgstr "Components"
+
+#. js-lingui-explicit-id
+#: src/components/custom/SudoDialog.tsx
+msgid "sudo.title"
+msgstr "Confirm it is you"
+
+#. js-lingui-explicit-id
+#: src/api/sudo-reasons.ts
+msgid "sudo.reason.add-passkey"
+msgstr "Confirm it is you to add a passkey to this account."
+
+#. js-lingui-explicit-id
+#: src/api/sudo-reasons.ts
+msgid "sudo.reason.approve-device"
+msgstr "Confirm it is you to approve this device."
+
+#. js-lingui-explicit-id
+#: src/api/sudo-reasons.ts
+msgid "sudo.reason.change-password"
+msgstr "Confirm it is you to change your password."
+
+#. js-lingui-explicit-id
+#: src/api/sudo-reasons.ts
+msgid "sudo.reason.create-token"
+msgstr "Confirm it is you to create this access token."
+
+#. js-lingui-explicit-id
+#: src/api/sudo-reasons.ts
+msgid "sudo.reason.link-identity"
+msgstr "Confirm it is you to link this identity."
+
+#. js-lingui-explicit-id
+#: src/api/sudo-reasons.ts
+msgid "sudo.reason.replace-authenticator"
+msgstr "Confirm it is you to replace your authenticator."
+
+#. js-lingui-explicit-id
+#: src/api/sudo-reasons.ts
+msgid "sudo.reason.recovery-codes"
+msgstr "Confirm it is you to replace your recovery codes."
+
+#. js-lingui-explicit-id
+#: src/api/sudo-reasons.ts
+msgid "sudo.reason.set-password-totp"
+msgstr "Confirm it is you to set up a password and authenticator on this account."
+
+#. js-lingui-explicit-id
+#: src/api/sudo-reasons.ts
+msgid "sudo.reason.revoke-password-totp"
+msgstr "Confirm it is you to turn off your password and authenticator."
+
+#. js-lingui-explicit-id
+#: src/api/sudo-reasons.ts
+msgid "sudo.reason.unlink-identity"
+msgstr "Confirm it is you to unlink this identity."
+
+#. js-lingui-explicit-id
+#: src/components/custom/ConsoleLayout.tsx
+#: src/pages/ConnectedApps.tsx
+msgid "console.applications"
+msgstr "Applications"
+
+#. js-lingui-explicit-id
+#: src/pages/ConnectedApps.tsx
+msgid "apps.table.label"
+msgstr "Connected applications"
+
+#. js-lingui-explicit-id
+#: src/pages/Security.tsx
+msgid "security.tab.identities"
+msgstr "Connected identities"
+
+#. js-lingui-explicit-id
+#: src/pages/security/IdentitiesPanel.tsx
+msgid "security.identities.table"
+msgstr "Connected identities"
 
 #. js-lingui-explicit-id
 #: src/components/custom/ConsoleLayout.tsx
@@ -100,7 +343,7 @@ msgid "console.navigation"
 msgstr "Console navigation"
 
 #. js-lingui-explicit-id
-#: src/components/custom/RecoveryCodes.tsx
+#: src/components/custom/secret-reveal-copy.ts
 msgid "login.codes.continue"
 msgstr "Continue"
 
@@ -110,9 +353,24 @@ msgid "login.password.next"
 msgstr "Continue with password"
 
 #. js-lingui-explicit-id
-#: src/components/custom/RecoveryCodes.tsx
+#: src/components/custom/SecretReveal.tsx
+msgid "secret.copied"
+msgstr "Copied."
+
+#. js-lingui-explicit-id
+#: src/components/custom/secret-reveal-copy.ts
 msgid "login.codes.copy"
 msgstr "Copy codes"
+
+#. js-lingui-explicit-id
+#: src/components/custom/secret-reveal-copy.ts
+msgid "security.tokens.reveal.copy"
+msgstr "Copy token"
+
+#. js-lingui-explicit-id
+#: src/components/custom/secret-reveal-copy.ts
+msgid "security.tokens.reveal.title"
+msgstr "Copy your new access token"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -120,14 +378,44 @@ msgid "error.network"
 msgstr "Could not connect to the server. Check your connection and try again."
 
 #. js-lingui-explicit-id
-#: src/components/custom/RecoveryCodes.tsx
+#: src/components/custom/secret-reveal-copy.ts
 msgid "login.codes.copy_failed"
 msgstr "Could not copy the codes. Select the codes above and copy them manually, or download them."
 
 #. js-lingui-explicit-id
-#: src/components/custom/RecoveryCodes.tsx
+#: src/components/custom/secret-reveal-copy.ts
+msgid "security.tokens.reveal.copy_failed"
+msgstr "Could not copy the token. Select the token above and copy it manually, or download it."
+
+#. js-lingui-explicit-id
+#: src/components/custom/secret-reveal-copy.ts
 msgid "login.codes.download_failed"
 msgstr "Could not download the codes. Copy them or save them manually."
+
+#. js-lingui-explicit-id
+#: src/components/custom/secret-reveal-copy.ts
+msgid "security.tokens.reveal.download_failed"
+msgstr "Could not download the token. Copy it or save it manually."
+
+#. js-lingui-explicit-id
+#: src/pages/ConnectedApps.tsx
+msgid "apps.load_failed"
+msgstr "Could not load your connected applications."
+
+#. js-lingui-explicit-id
+#: src/pages/security/TokensPanel.tsx
+msgid "security.tokens.create.open"
+msgstr "Create a token"
+
+#. js-lingui-explicit-id
+#: src/pages/security/TokensPanel.tsx
+msgid "security.tokens.create.action"
+msgstr "Create token"
+
+#. js-lingui-explicit-id
+#: src/pages/security/TokensPanel.tsx
+msgid "security.tokens.column.created"
+msgstr "Created"
 
 #. js-lingui-explicit-id
 #: src/pages/DevForms.tsx
@@ -145,9 +433,24 @@ msgid "console.current-account"
 msgstr "Current account"
 
 #. js-lingui-explicit-id
+#: src/pages/security/PasswordTotpPanel.tsx
+msgid "security.totp.code"
+msgstr "Current code"
+
+#. js-lingui-explicit-id
+#: src/components/custom/SudoDialog.tsx
+msgid "sudo.password"
+msgstr "Current password"
+
+#. js-lingui-explicit-id
 #: src/components/custom/ThemeSelect.tsx
 msgid "theme.dark"
 msgstr "Dark theme"
+
+#. js-lingui-explicit-id
+#: src/pages/Devices.tsx
+msgid "devices.decline"
+msgstr "Decline"
 
 #. js-lingui-explicit-id
 #: src/pages/DevForms.tsx
@@ -155,7 +458,23 @@ msgid "dev.forms.eyebrow"
 msgstr "Development only"
 
 #. js-lingui-explicit-id
+#: src/pages/Devices.tsx
+msgid "devices.field.agent"
+msgstr "Device"
+
+#. js-lingui-explicit-id
+#: src/pages/security/SessionsPanel.tsx
+msgid "security.sessions.column.agent"
+msgstr "Device"
+
+#. js-lingui-explicit-id
+#: src/pages/Devices.tsx
+msgid "devices.form"
+msgstr "Device pairing"
+
+#. js-lingui-explicit-id
 #: src/components/custom/ConsoleLayout.tsx
+#: src/pages/Devices.tsx
 msgid "console.devices"
 msgstr "Devices"
 
@@ -175,14 +494,64 @@ msgid "name.label"
 msgstr "Display name"
 
 #. js-lingui-explicit-id
-#: src/components/custom/RecoveryCodes.tsx
+#: src/pages/Profile.tsx
+msgid "profile.tab.display-name"
+msgstr "Display name"
+
+#. js-lingui-explicit-id
+#: src/pages/Profile.tsx
+msgid "profile.display-name.title"
+msgstr "Display name"
+
+#. js-lingui-explicit-id
+#: src/pages/Profile.tsx
+msgid "profile.display-name.form"
+msgstr "Display name"
+
+#. js-lingui-explicit-id
+#: src/components/custom/secret-reveal-copy.ts
+msgid "security.tokens.reveal.continue"
+msgstr "Done"
+
+#. js-lingui-explicit-id
+#: src/components/custom/secret-reveal-copy.ts
 msgid "login.codes.download"
 msgstr "Download codes"
+
+#. js-lingui-explicit-id
+#: src/components/custom/secret-reveal-copy.ts
+msgid "security.tokens.reveal.download"
+msgstr "Download token"
+
+#. js-lingui-explicit-id
+#: src/pages/security/IdentitiesPanel.tsx
+msgid "security.identities.column.email"
+msgstr "Email"
 
 #. js-lingui-explicit-id
 #: src/pages/DevForms.tsx
 msgid "dev.forms.logout.title"
 msgstr "Empty response request"
+
+#. js-lingui-explicit-id
+#: src/pages/security/SessionsPanel.tsx
+msgid "security.sessions.sign_out"
+msgstr "End session"
+
+#. js-lingui-explicit-id
+#: src/pages/security/SessionsPanel.tsx
+msgid "security.sessions.revoke.action"
+msgstr "End session"
+
+#. js-lingui-explicit-id
+#: src/pages/security/SessionsPanel.tsx
+msgid "security.sessions.revoke.title"
+msgstr "End this session?"
+
+#. js-lingui-explicit-id
+#: src/pages/security/PasskeysPanel.tsx
+msgid "security.passkeys.column.id"
+msgstr "Ends with"
 
 #. js-lingui-explicit-id
 #: src/pages/Login.tsx
@@ -216,6 +585,16 @@ msgid "login.totp.digits"
 msgstr "Enter the {0}-digit code from your authenticator."
 
 #. js-lingui-explicit-id
+#: src/pages/security/PasswordTotpPanel.tsx
+msgid "security.totp.invalid"
+msgstr "Enter the code your authenticator shows, using only 0–9."
+
+#. js-lingui-explicit-id
+#: src/pages/Devices.tsx
+msgid "devices.code.required"
+msgstr "Enter the pairing code shown on the other device."
+
+#. js-lingui-explicit-id
 #: src/components/custom/LoginShell.tsx
 msgid "login.factor.restart"
 msgstr "Enter your password again before trying another code. This verification attempt cannot be reused."
@@ -226,14 +605,59 @@ msgid "login.username.required"
 msgstr "Enter your username."
 
 #. js-lingui-explicit-id
+#: src/pages/security/TokensPanel.tsx
+msgid "security.tokens.all_apps"
+msgstr "Every application"
+
+#. js-lingui-explicit-id
+#: src/pages/security/TokensPanel.tsx
+msgid "security.tokens.every_app"
+msgstr "Every application you can use"
+
+#. js-lingui-explicit-id
+#: src/pages/security/SessionsPanel.tsx
+msgid "security.sessions.intro"
+msgstr "Everywhere this account is signed in right now. Ending a session signs that device out immediately."
+
+#. js-lingui-explicit-id
 #: src/pages/DevForms.tsx
 msgid "dev.forms.description"
 msgstr "Exercise the real API client, mutations, and form feedback. Use an isolated test account or intercept requests in browser tools. This page does not simulate responses."
 
 #. js-lingui-explicit-id
+#: src/pages/Devices.tsx
+msgid "devices.field.expires"
+msgstr "Expires"
+
+#. js-lingui-explicit-id
+#: src/pages/security/SessionsPanel.tsx
+msgid "security.sessions.column.expires"
+msgstr "Expires"
+
+#. js-lingui-explicit-id
+#: src/pages/security/TokensPanel.tsx
+msgid "security.tokens.column.expires"
+msgstr "Expires"
+
+#. js-lingui-explicit-id
+#: src/pages/security/TokensPanel.tsx
+msgid "security.tokens.expiry"
+msgstr "Expires after"
+
+#. js-lingui-explicit-id
+#: src/pages/security/TokensPanel.tsx
+msgid "security.tokens.expiry.label"
+msgstr "Expires after"
+
+#. js-lingui-explicit-id
 #: src/pages/Preview.tsx
 msgid "feedback.tab"
 msgstr "Feedback"
+
+#. js-lingui-explicit-id
+#: src/components/custom/SudoDialog.tsx
+msgid "sudo.intro"
+msgstr "For your security, verify your identity again to continue."
 
 #. js-lingui-explicit-id
 #: src/pages/DevForms.tsx
@@ -246,9 +670,34 @@ msgid "navigation.forms"
 msgstr "Form verification (development)"
 
 #. js-lingui-explicit-id
-#: src/components/custom/RecoveryCodes.tsx
+#: src/pages/security/PasswordTotpPanel.tsx
+msgid "security.recovery.generate"
+msgstr "Generate new recovery codes"
+
+#. js-lingui-explicit-id
+#: src/pages/security/TokensPanel.tsx
+msgid "security.tokens.name.required"
+msgstr "Give the token a name so you can recognise it later."
+
+#. js-lingui-explicit-id
+#: src/components/custom/secret-reveal-copy.ts
+msgid "security.tokens.reveal.saved"
+msgstr "I have saved my access token"
+
+#. js-lingui-explicit-id
+#: src/components/custom/secret-reveal-copy.ts
 msgid "login.codes.saved"
 msgstr "I have saved my recovery codes"
+
+#. js-lingui-explicit-id
+#: src/pages/security/IdentitiesPanel.tsx
+msgid "security.identities.column.subject"
+msgstr "Identifier"
+
+#. js-lingui-explicit-id
+#: src/components/custom/SudoDialog.tsx
+msgid "sudo.form.label"
+msgstr "Identity verification"
 
 #. js-lingui-explicit-id
 #: src/pages/ApiPreview.tsx
@@ -281,14 +730,54 @@ msgid "preview.title"
 msgstr "Interface preview"
 
 #. js-lingui-explicit-id
+#: src/pages/ConnectedApps.tsx
+msgid "apps.confirm.cancel"
+msgstr "Keep access"
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.last_passkey"
+msgstr "Keep at least one passkey on the account. Add another one before removing this one."
+
+#. js-lingui-explicit-id
+#: src/pages/security/PasskeysPanel.tsx
+msgid "security.keep"
+msgstr "Keep it"
+
+#. js-lingui-explicit-id
+#: src/pages/ConnectedApps.tsx
+msgid "apps.column.kind"
+msgstr "Kind"
+
+#. js-lingui-explicit-id
 #: src/components/custom/LanguageMenu.tsx
 msgid "language.label"
 msgstr "Language"
 
 #. js-lingui-explicit-id
-#: src/components/custom/RecoveryCodes.tsx
+#: src/pages/security/SessionsPanel.tsx
+msgid "security.sessions.column.ip"
+msgstr "Last seen from"
+
+#. js-lingui-explicit-id
+#: src/pages/security/PasskeysPanel.tsx
+msgid "security.passkeys.column.lastUsed"
+msgstr "Last used"
+
+#. js-lingui-explicit-id
+#: src/pages/security/TokensPanel.tsx
+msgid "security.tokens.column.lastUsed"
+msgstr "Last used"
+
+#. js-lingui-explicit-id
+#: src/components/custom/secret-reveal-copy.ts
 msgid "login.codes.leave"
 msgstr "Leave without saving? These recovery codes cannot be shown again."
+
+#. js-lingui-explicit-id
+#: src/components/custom/secret-reveal-copy.ts
+msgid "security.tokens.reveal.leave"
+msgstr "Leave without saving? This token cannot be shown again."
 
 #. js-lingui-explicit-id
 #: src/components/custom/ThemeSelect.tsx
@@ -296,9 +785,30 @@ msgid "theme.light"
 msgstr "Light theme"
 
 #. js-lingui-explicit-id
+#. placeholder {0}: provider.displayName
+#: src/pages/security/IdentitiesPanel.tsx
+msgid "security.identities.link.action"
+msgstr "Link {0}"
+
+#. js-lingui-explicit-id
+#: src/pages/security/IdentitiesPanel.tsx
+msgid "security.identities.link.title"
+msgstr "Link another identity"
+
+#. js-lingui-explicit-id
+#: src/pages/security/IdentitiesPanel.tsx
+msgid "security.identities.column.linked"
+msgstr "Linked"
+
+#. js-lingui-explicit-id
 #: src/pages/Preview.tsx
 msgid "feedback.skeleton"
 msgstr "Loading skeleton example"
+
+#. js-lingui-explicit-id
+#: src/pages/security/PasswordTotpPanel.tsx
+msgid "security.loading"
+msgstr "Loading…"
 
 #. js-lingui-explicit-id
 #: src/pages/Preview.tsx
@@ -316,14 +826,79 @@ msgid "dev.forms.logout.success"
 msgstr "Logout completed with no response body."
 
 #. js-lingui-explicit-id
+#: src/pages/Devices.tsx
+msgid "devices.lookup"
+msgstr "Look up code"
+
+#. js-lingui-explicit-id
 #: src/pages/ApiPreview.tsx
 msgid "api.maintenance"
 msgstr "Maintenance"
 
 #. js-lingui-explicit-id
+#: src/components/custom/SudoDialog.tsx
+msgid "sudo.method.label"
+msgstr "Method"
+
+#. js-lingui-explicit-id
+#: src/pages/profile/AvatarPanel.tsx
+msgid "profile.avatar.source.user"
+msgstr "My uploaded picture"
+
+#. js-lingui-explicit-id
 #: src/pages/ApiPreview.tsx
 msgid "api.name"
 msgstr "Name"
+
+#. js-lingui-explicit-id
+#: src/pages/Profile.tsx
+msgid "profile.display-name.label"
+msgstr "Name"
+
+#. js-lingui-explicit-id
+#: src/pages/security/PasskeysPanel.tsx
+msgid "security.passkeys.column.name"
+msgstr "Name"
+
+#. js-lingui-explicit-id
+#: src/pages/security/PasskeysPanel.tsx
+msgid "security.passkeys.rename.label"
+msgstr "Name"
+
+#. js-lingui-explicit-id
+#: src/pages/security/TokensPanel.tsx
+msgid "security.tokens.column.name"
+msgstr "Name"
+
+#. js-lingui-explicit-id
+#: src/pages/security/TokensPanel.tsx
+msgid "security.tokens.name"
+msgstr "Name"
+
+#. js-lingui-explicit-id
+#: src/pages/security/TokensPanel.tsx
+msgid "security.tokens.never_expires"
+msgstr "Never"
+
+#. js-lingui-explicit-id
+#: src/pages/security/TokensPanel.tsx
+msgid "security.tokens.expiry.never"
+msgstr "Never expires"
+
+#. js-lingui-explicit-id
+#: src/pages/security/TokensPanel.tsx
+msgid "security.tokens.create.title"
+msgstr "New access token"
+
+#. js-lingui-explicit-id
+#: src/pages/security/TokensPanel.tsx
+msgid "security.tokens.create.form"
+msgstr "New access token"
+
+#. js-lingui-explicit-id
+#: src/components/custom/secret-reveal-copy.ts
+msgid "security.tokens.reveal.label"
+msgstr "New access token"
 
 #. js-lingui-explicit-id
 #: src/pages/Login.tsx
@@ -336,7 +911,17 @@ msgid "login.reset.qr"
 msgstr "New authenticator setup QR code"
 
 #. js-lingui-explicit-id
-#: src/components/custom/RecoveryCodes.tsx
+#: src/pages/security/PasswordTotpPanel.tsx
+msgid "security.password.new"
+msgstr "New password"
+
+#. js-lingui-explicit-id
+#: src/pages/security/PasswordTotpPanel.tsx
+msgid "security.setup.new_password"
+msgstr "New password"
+
+#. js-lingui-explicit-id
+#: src/components/custom/secret-reveal-copy.ts
 msgid "login.codes.label"
 msgstr "New recovery codes"
 
@@ -351,9 +936,34 @@ msgid "dev.forms.rename.success"
 msgstr "Nickname saved. Your input has been kept."
 
 #. js-lingui-explicit-id
+#: src/pages/security/TokensPanel.tsx
+msgid "security.tokens.no_apps"
+msgstr "No applications"
+
+#. js-lingui-explicit-id
+#: src/pages/security/IdentitiesPanel.tsx
+msgid "security.identities.empty"
+msgstr "No other sign-in identities are linked yet."
+
+#. js-lingui-explicit-id
+#: src/pages/profile/AvatarPanel.tsx
+msgid "profile.avatar.source.none"
+msgstr "No picture"
+
+#. js-lingui-explicit-id
 #: src/pages/ApiPreview.tsx
 msgid "api.uninitialized"
 msgstr "Not initialized"
+
+#. js-lingui-explicit-id
+#: src/pages/security/PasskeysPanel.tsx
+msgid "security.passkeys.never_used"
+msgstr "Not used yet"
+
+#. js-lingui-explicit-id
+#: src/pages/security/TokensPanel.tsx
+msgid "security.tokens.never_used"
+msgstr "Not used yet"
 
 #. js-lingui-explicit-id
 #: src/components/custom/AppNotifications.tsx
@@ -366,14 +976,44 @@ msgid "console.open-menu"
 msgstr "Open navigation"
 
 #. js-lingui-explicit-id
+#: src/pages/ConnectedApps.tsx
+msgid "apps.kind.oidc"
+msgstr "OpenID Connect"
+
+#. js-lingui-explicit-id
+#: src/pages/security/IdentitiesPanel.tsx
+msgid "security.identities.intro"
+msgstr "Other services you can sign in through. Each identity you link becomes another way into this account."
+
+#. js-lingui-explicit-id
 #: src/components/custom/RouteFeedback.tsx
 msgid "route.not-found"
 msgstr "Page not found"
 
 #. js-lingui-explicit-id
+#: src/pages/Devices.tsx
+msgid "devices.code.title"
+msgstr "Pairing code"
+
+#. js-lingui-explicit-id
+#: src/pages/Devices.tsx
+msgid "devices.code.hint"
+msgstr "Pairing codes are short-lived. If yours has expired, generate a new one on that device."
+
+#. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.login_failed"
 msgstr "Passkey sign-in failed. Try again or use your password."
+
+#. js-lingui-explicit-id
+#: src/pages/Security.tsx
+msgid "security.tab.passkeys"
+msgstr "Passkeys"
+
+#. js-lingui-explicit-id
+#: src/pages/security/PasskeysPanel.tsx
+msgid "security.passkeys.table"
+msgstr "Passkeys"
 
 #. js-lingui-explicit-id
 #: src/pages/Login.tsx
@@ -391,6 +1031,11 @@ msgid "login.password"
 msgstr "Password"
 
 #. js-lingui-explicit-id
+#: src/pages/Security.tsx
+msgid "security.tab.password"
+msgstr "Password and authenticator"
+
+#. js-lingui-explicit-id
 #: src/pages/Preview.tsx
 msgid "preview.eyebrow"
 msgstr "PHB-64 / M1 · Foundation preview"
@@ -399,6 +1044,21 @@ msgstr "PHB-64 / M1 · Foundation preview"
 #: src/pages/ApiPreview.tsx
 msgid "api.eyebrow"
 msgstr "PHB-65 / M2 · Public API preview"
+
+#. js-lingui-explicit-id
+#: src/pages/profile/AvatarPanel.tsx
+msgid "profile.avatar.source"
+msgstr "Picture to show"
+
+#. js-lingui-explicit-id
+#: src/pages/profile/AvatarPanel.tsx
+msgid "profile.avatar.source.label"
+msgstr "Picture to show"
+
+#. js-lingui-explicit-id
+#: src/pages/profile/AvatarPanel.tsx
+msgid "profile.avatar.hint"
+msgstr "PNG, JPEG, WebP, GIF or AVIF, up to 5 MiB. Larger pictures are scaled down."
 
 #. js-lingui-explicit-id
 #: src/pages/Preview.tsx
@@ -417,13 +1077,24 @@ msgstr "Preview notification. No data was submitted."
 
 #. js-lingui-explicit-id
 #: src/components/custom/ConsoleLayout.tsx
+#: src/pages/Profile.tsx
 msgid "console.profile"
 msgstr "Profile"
 
 #. js-lingui-explicit-id
-#: src/pages/Console.tsx
-msgid "console.availability"
-msgstr "Profile, security, applications, and devices will be available in a later update."
+#: src/pages/Profile.tsx
+msgid "profile.tabs"
+msgstr "Profile"
+
+#. js-lingui-explicit-id
+#: src/pages/security/IdentitiesPanel.tsx
+msgid "security.identities.column.protocol"
+msgstr "Protocol"
+
+#. js-lingui-explicit-id
+#: src/pages/security/IdentitiesPanel.tsx
+msgid "security.identities.column.provider"
+msgstr "Provider"
 
 #. js-lingui-explicit-id
 #: src/components/custom/PreviewLayout.tsx
@@ -441,6 +1112,11 @@ msgid "login.recovery.code"
 msgstr "Recovery code"
 
 #. js-lingui-explicit-id
+#: src/pages/security/PasswordTotpPanel.tsx
+msgid "security.recovery.title"
+msgstr "Recovery codes"
+
+#. js-lingui-explicit-id
 #: src/pages/ApiPreview.tsx
 msgid "api.refresh"
 msgstr "Refresh data"
@@ -451,10 +1127,100 @@ msgid "api.refreshing"
 msgstr "Refreshing…"
 
 #. js-lingui-explicit-id
+#: src/pages/security/PasskeysPanel.tsx
+msgid "security.passkeys.delete"
+msgstr "Remove"
+
+#. js-lingui-explicit-id
+#: src/pages/security/PasskeysPanel.tsx
+msgid "security.passkeys.delete.confirm"
+msgstr "Remove"
+
+#. js-lingui-explicit-id
+#: src/pages/ConnectedApps.tsx
+msgid "apps.remove"
+msgstr "Remove access"
+
+#. js-lingui-explicit-id
+#: src/pages/ConnectedApps.tsx
+msgid "apps.confirm.remove"
+msgstr "Remove access"
+
+#. js-lingui-explicit-id
+#: src/pages/ConnectedApps.tsx
+msgid "apps.confirm.title"
+msgstr "Remove access?"
+
+#. js-lingui-explicit-id
+#: src/pages/Profile.tsx
+msgid "profile.display-name.control"
+msgstr "Remove control characters from the name."
+
+#. js-lingui-explicit-id
+#: src/pages/security/PasskeysPanel.tsx
+msgid "security.passkeys.delete.title"
+msgstr "Remove this passkey?"
+
+#. js-lingui-explicit-id
+#: src/pages/profile/AvatarPanel.tsx
+msgid "profile.avatar.remove"
+msgstr "Remove upload"
+
+#. js-lingui-explicit-id
+#: src/pages/security/PasswordTotpPanel.tsx
+msgid "security.revoke.note"
+msgstr "Removes your password and authenticator from this account. Your passkeys keep working."
+
+#. js-lingui-explicit-id
+#: src/pages/security/PasskeysPanel.tsx
+msgid "security.passkeys.rename"
+msgstr "Rename"
+
+#. js-lingui-explicit-id
+#: src/pages/security/PasskeysPanel.tsx
+msgid "security.passkeys.rename.title"
+msgstr "Rename this passkey"
+
+#. js-lingui-explicit-id
+#: src/pages/security/PasswordTotpPanel.tsx
+msgid "security.password.confirm"
+msgstr "Repeat new password"
+
+#. js-lingui-explicit-id
+#: src/pages/security/PasswordTotpPanel.tsx
+msgid "security.totp.replace.title"
+msgstr "Replace authenticator"
+
+#. js-lingui-explicit-id
+#: src/pages/security/PasswordTotpPanel.tsx
+msgid "security.totp.replace.form"
+msgstr "Replace authenticator"
+
+#. js-lingui-explicit-id
+#: src/pages/security/PasswordTotpPanel.tsx
+msgid "security.totp.replace.action"
+msgstr "Replace authenticator"
+
+#. js-lingui-explicit-id
+#: src/pages/profile/AvatarPanel.tsx
+msgid "profile.avatar.replace"
+msgstr "Replace upload"
+
+#. js-lingui-explicit-id
 #. placeholder {0}: toast.content.error.requestId
 #: src/components/custom/AppNotifications.tsx
 msgid "notification.request_id"
 msgstr "Request ID: {0}"
+
+#. js-lingui-explicit-id
+#: src/pages/Devices.tsx
+msgid "devices.field.created"
+msgstr "Requested"
+
+#. js-lingui-explicit-id
+#: src/pages/Devices.tsx
+msgid "devices.field.ip"
+msgstr "Requested from"
 
 #. js-lingui-explicit-id
 #: src/pages/Login.tsx
@@ -472,7 +1238,37 @@ msgid "preview.description"
 msgstr "Review language, colors, and component states."
 
 #. js-lingui-explicit-id
-#: src/components/custom/RecoveryCodes.tsx
+#: src/pages/security/TokensPanel.tsx
+msgid "security.tokens.revoke"
+msgstr "Revoke"
+
+#. js-lingui-explicit-id
+#: src/pages/security/TokensPanel.tsx
+msgid "security.tokens.revoke.action"
+msgstr "Revoke"
+
+#. js-lingui-explicit-id
+#: src/pages/security/TokensPanel.tsx
+msgid "security.tokens.revoke.title"
+msgstr "Revoke this token?"
+
+#. js-lingui-explicit-id
+#: src/pages/ConnectedApps.tsx
+msgid "apps.kind.saml"
+msgstr "SAML"
+
+#. js-lingui-explicit-id
+#: src/pages/Profile.tsx
+msgid "profile.display-name.save"
+msgstr "Save"
+
+#. js-lingui-explicit-id
+#: src/pages/security/PasskeysPanel.tsx
+msgid "security.passkeys.rename.save"
+msgstr "Save name"
+
+#. js-lingui-explicit-id
+#: src/components/custom/secret-reveal-copy.ts
 msgid "login.codes.title"
 msgstr "Save your new recovery codes"
 
@@ -482,9 +1278,35 @@ msgid "login.reset.scan"
 msgstr "Scan this QR code with your authenticator, or enter the setup key manually. Then enter a code from the new authenticator."
 
 #. js-lingui-explicit-id
+#: src/pages/ConnectedApps.tsx
+msgid "apps.column.scopes"
+msgstr "Scopes"
+
+#. js-lingui-explicit-id
 #: src/components/custom/ConsoleLayout.tsx
+#: src/pages/Security.tsx
 msgid "console.security"
 msgstr "Security"
+
+#. js-lingui-explicit-id
+#: src/pages/Security.tsx
+msgid "security.tabs"
+msgstr "Security"
+
+#. js-lingui-explicit-id
+#: src/pages/security/PasswordTotpPanel.tsx
+msgid "security.setup.title.both"
+msgstr "Set up a password and authenticator"
+
+#. js-lingui-explicit-id
+#: src/pages/security/PasswordTotpPanel.tsx
+msgid "security.setup.form"
+msgstr "Set up a password and authenticator"
+
+#. js-lingui-explicit-id
+#: src/pages/security/PasswordTotpPanel.tsx
+msgid "security.setup.title.totp"
+msgstr "Set up an authenticator with a new password"
 
 #. js-lingui-explicit-id
 #: src/components/custom/TotpSetup.tsx
@@ -532,9 +1354,19 @@ msgid "login.recovery.form"
 msgstr "Sign in with a recovery code"
 
 #. js-lingui-explicit-id
+#: src/pages/security/PasskeysPanel.tsx
+msgid "security.passkeys.intro"
+msgstr "Sign in with your fingerprint, face, or a security key instead of typing anything. You can keep several passkeys on one account."
+
+#. js-lingui-explicit-id
 #: src/components/custom/ConsoleLayout.tsx
 msgid "console.logout"
 msgstr "Sign out"
+
+#. js-lingui-explicit-id
+#: src/pages/security/SessionsPanel.tsx
+msgid "security.sessions.other"
+msgstr "Signed in"
 
 #. js-lingui-explicit-id
 #: src/components/custom/LoginShell.tsx
@@ -542,14 +1374,34 @@ msgid "login.factor.account"
 msgstr "Signing in as {username}"
 
 #. js-lingui-explicit-id
+#: src/pages/Devices.tsx
+msgid "devices.intro"
+msgstr "Signing in somewhere new? Enter the code that device is showing, check it is really you, and approve it here."
+
+#. js-lingui-explicit-id
+#: src/pages/security/PasswordTotpPanel.tsx
+msgid "security.setup.note"
+msgstr "Signing in will then ask for your password and a code from this authenticator. Anything you used before that stops working."
+
+#. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.ceremony_missing"
 msgstr "Start passkey sign-in again to continue."
 
 #. js-lingui-explicit-id
+#: src/pages/security/SessionsPanel.tsx
+msgid "security.sessions.column.issued"
+msgstr "Started"
+
+#. js-lingui-explicit-id
 #: src/pages/Preview.tsx
 msgid "feedback.title"
 msgstr "State examples"
+
+#. js-lingui-explicit-id
+#: src/pages/security/SessionsPanel.tsx
+msgid "security.sessions.column.status"
+msgstr "Status"
 
 #. js-lingui-explicit-id
 #: src/pages/DevForms.tsx
@@ -567,9 +1419,64 @@ msgid "forms.submitting"
 msgstr "Submitting…"
 
 #. js-lingui-explicit-id
+#: src/pages/security/PasskeysPanel.tsx
+msgid "security.passkeys.column.synced"
+msgstr "Synced"
+
+#. js-lingui-explicit-id
+#: src/pages/security/PasskeysPanel.tsx
+msgid "security.passkeys.synced"
+msgstr "Synced"
+
+#. js-lingui-explicit-id
 #: src/components/custom/ThemeSelect.tsx
 msgid "theme.system"
 msgstr "System theme"
+
+#. js-lingui-explicit-id
+#: src/pages/security/SessionsPanel.tsx
+msgid "security.sessions.revoke.body"
+msgstr "That device is signed out immediately and will need to sign in again. Anything it is doing right now stops."
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.avatar_invalid_image"
+msgstr "That file is not an image this instance can use."
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.pairing_expired"
+msgstr "That pairing code has expired. Generate a new one on the device."
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.pairing_not_found"
+msgstr "That pairing code is not valid. It may have been used already, or it may have expired."
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.credential_not_found"
+msgstr "That passkey is already gone. The list has been refreshed."
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.avatar_too_large"
+msgstr "That picture is larger than 5 MiB. Choose a smaller one."
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.avatar_source_unavailable"
+msgstr "That picture is no longer available. Choose another source."
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.session_not_found"
+msgstr "That session has already ended. The list has been refreshed."
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.sudo_method_unavailable"
+msgstr "That verification method is not available. Choose another one."
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -647,12 +1554,27 @@ msgid "error.request_too_large"
 msgstr "The submitted data is too large."
 
 #. js-lingui-explicit-id
+#: src/pages/security/TokensPanel.tsx
+msgid "security.tokens.create.note"
+msgstr "The token itself is shown once, right after you create it. Copy it then; the list will only ever show the last few characters."
+
+#. js-lingui-explicit-id
+#: src/pages/security/PasswordTotpPanel.tsx
+msgid "security.password.mismatch"
+msgstr "The two passwords do not match."
+
+#. js-lingui-explicit-id
 #: src/components/custom/ThemeSelect.tsx
 msgid "theme.label"
 msgstr "Theme"
 
 #. js-lingui-explicit-id
-#: src/components/custom/RecoveryCodes.tsx
+#: src/pages/security/SessionsPanel.tsx
+msgid "security.sessions.empty"
+msgstr "There are no other sessions on this account."
+
+#. js-lingui-explicit-id
+#: src/components/custom/secret-reveal-copy.ts
 msgid "login.codes.once"
 msgstr "These codes are shown only once. Keep them somewhere safe before continuing. Your old recovery codes no longer work."
 
@@ -667,6 +1589,11 @@ msgid "feedback.description"
 msgstr "These visual examples do not send requests."
 
 #. js-lingui-explicit-id
+#: src/components/custom/SudoDialog.tsx
+msgid "sudo.no-methods"
+msgstr "This account has no way to confirm your identity from here. Set up a passkey, or a password and authenticator, before trying again."
+
+#. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.account_disabled"
 msgstr "This account is disabled."
@@ -677,9 +1604,34 @@ msgid "route.not-found.description"
 msgstr "This address does not have a page."
 
 #. js-lingui-explicit-id
+#: src/pages/security/TokensPanel.tsx
+msgid "security.tokens.app_no_scopes"
+msgstr "This application defines no scopes."
+
+#. js-lingui-explicit-id
+#: src/pages/ConnectedApps.tsx
+msgid "apps.confirm.body"
+msgstr "This application will no longer read your profile. It will need to ask for permission again."
+
+#. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.unsupported_media_type"
 msgstr "This data format is not supported."
+
+#. js-lingui-explicit-id
+#: src/pages/security/SessionsPanel.tsx
+msgid "security.sessions.current"
+msgstr "This device"
+
+#. js-lingui-explicit-id
+#: src/pages/security/PasskeysPanel.tsx
+msgid "security.passkeys.device_bound"
+msgstr "This device only"
+
+#. js-lingui-explicit-id
+#: src/pages/security/IdentitiesPanel.tsx
+msgid "security.identities.link.none"
+msgstr "This instance has no other providers configured."
 
 #. js-lingui-explicit-id
 #: src/components/custom/LoginShell.tsx
@@ -702,9 +1654,49 @@ msgid "preview.notice"
 msgstr "This is a public component preview. Account management and administration pages are not available yet."
 
 #. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.cannot_revoke_current_session"
+msgstr "This is the session you are using. Sign out instead."
+
+#. js-lingui-explicit-id
+#: src/pages/security/PasskeysPanel.tsx
+msgid "security.passkeys.last_one"
+msgstr "This is your only passkey, so it cannot be removed. Add another one first."
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.last_sign_in_method"
+msgstr "This is your only way to sign in, so it cannot be removed. Add another method first."
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.would_remove_last_factor"
+msgstr "This is your only way to sign in, so it cannot be removed. Add another method first."
+
+#. js-lingui-explicit-id
+#: src/pages/security/PasswordTotpPanel.tsx
+msgid "security.revoke.last"
+msgstr "This is your only way to sign in, so it cannot be turned off. Add a passkey first."
+
+#. js-lingui-explicit-id
 #: src/pages/ApiPreview.tsx
 msgid "api.description"
 msgstr "This page reads the instance configuration and initialization status from the server."
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.pairing_state"
+msgstr "This pairing is no longer in a state that allows that action."
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.pairing_not_approved"
+msgstr "This pairing is not ready to be approved yet."
+
+#. js-lingui-explicit-id
+#: src/pages/security/PasskeysPanel.tsx
+msgid "security.passkeys.delete.body"
+msgstr "This passkey will stop working for sign-in right away. Any other way you have to sign in is unaffected."
 
 #. js-lingui-explicit-id
 #: src/pages/DevForms.tsx
@@ -722,9 +1714,24 @@ msgid "error.invalid_login_link"
 msgstr "This sign-in link is invalid. Open a new sign-in link and try again."
 
 #. js-lingui-explicit-id
+#: src/components/custom/secret-reveal-copy.ts
+msgid "security.tokens.reveal.once"
+msgstr "This token is shown only once. Store it somewhere safe before continuing. The list will only ever show its hint."
+
+#. js-lingui-explicit-id
 #: src/components/custom/ConsoleLayout.tsx
 msgid "console.toggle-sidebar"
 msgstr "Toggle sidebar"
+
+#. js-lingui-explicit-id
+#: src/pages/security/TokensPanel.tsx
+msgid "security.tokens.column.hint"
+msgstr "Token"
+
+#. js-lingui-explicit-id
+#: src/pages/security/TokensPanel.tsx
+msgid "security.tokens.intro"
+msgstr "Tokens let a script or another service act as you without your password. Treat one like a password: anyone who has it can use it until you revoke it."
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -737,9 +1744,39 @@ msgid "error.factor_locked"
 msgstr "Too many verification attempts. Please wait before trying again."
 
 #. js-lingui-explicit-id
+#: src/pages/security/PasskeysPanel.tsx
+msgid "security.passkeys.column.transport"
+msgstr "Transport"
+
+#. js-lingui-explicit-id
 #: src/components/custom/RouteFeedback.tsx
 msgid "route.retry"
 msgstr "Try again"
+
+#. js-lingui-explicit-id
+#: src/pages/security/PasswordTotpPanel.tsx
+msgid "security.revoke.action"
+msgstr "Turn off"
+
+#. js-lingui-explicit-id
+#: src/pages/security/PasswordTotpPanel.tsx
+msgid "security.revoke.confirm.action"
+msgstr "Turn off"
+
+#. js-lingui-explicit-id
+#: src/pages/security/PasswordTotpPanel.tsx
+msgid "security.revoke.title"
+msgstr "Turn off password and authenticator"
+
+#. js-lingui-explicit-id
+#: src/pages/security/PasswordTotpPanel.tsx
+msgid "security.revoke.confirm.title"
+msgstr "Turn off password and authenticator?"
+
+#. js-lingui-explicit-id
+#: src/pages/security/PasswordTotpPanel.tsx
+msgid "security.setup.action"
+msgstr "Turn on both"
 
 #. js-lingui-explicit-id
 #: src/components/custom/RouteFeedback.tsx
@@ -757,9 +1794,49 @@ msgid "forms.error.title"
 msgstr "Unable to submit"
 
 #. js-lingui-explicit-id
+#: src/pages/security/IdentitiesPanel.tsx
+msgid "security.identities.unlink"
+msgstr "Unlink"
+
+#. js-lingui-explicit-id
+#: src/pages/security/IdentitiesPanel.tsx
+msgid "security.identities.unlink.action"
+msgstr "Unlink"
+
+#. js-lingui-explicit-id
+#: src/pages/security/IdentitiesPanel.tsx
+msgid "security.identities.unlink.title"
+msgstr "Unlink this identity?"
+
+#. js-lingui-explicit-id
+#: src/pages/security/PasskeysPanel.tsx
+msgid "security.passkeys.unnamed"
+msgstr "Unnamed passkey"
+
+#. js-lingui-explicit-id
+#: src/pages/profile/AvatarPanel.tsx
+msgid "profile.avatar.upload"
+msgstr "Upload a picture"
+
+#. js-lingui-explicit-id
+#: src/pages/Profile.tsx
+msgid "profile.display-name.too_long"
+msgstr "Use 60 characters or fewer."
+
+#. js-lingui-explicit-id
 #: src/pages/DevForms.tsx
 msgid "dev.forms.id.description"
 msgstr "Use a credential belonging to an isolated test account."
+
+#. js-lingui-explicit-id
+#: src/components/custom/SudoDialog.tsx
+msgid "sudo.method.passkey"
+msgstr "Use a passkey"
+
+#. js-lingui-explicit-id
+#: src/pages/security/PasswordTotpPanel.tsx
+msgid "security.password.invalid"
+msgstr "Use a password of at least 8 characters."
 
 #. js-lingui-explicit-id
 #: src/pages/Login.tsx
@@ -767,12 +1844,28 @@ msgid "login.use_recovery"
 msgstr "Use a recovery code"
 
 #. js-lingui-explicit-id
+#: src/pages/security/PasswordTotpPanel.tsx
+msgid "security.recovery.note"
+msgstr "Use a recovery code to sign in when you cannot use your password or authenticator. Generating new ones replaces every existing code."
+
+#. js-lingui-explicit-id
 #: src/components/custom/LoginShell.tsx
 msgid "login.use_totp"
 msgstr "Use an authenticator code"
 
 #. js-lingui-explicit-id
+#: src/pages/security/SessionsPanel.tsx
+msgid "security.sessions.use_sign_out"
+msgstr "Use sign out to end this one"
+
+#. js-lingui-explicit-id
+#: src/components/custom/SudoDialog.tsx
+msgid "sudo.method.password"
+msgstr "Use your password and authenticator"
+
+#. js-lingui-explicit-id
 #: src/pages/Console.tsx
+#: src/pages/Profile.tsx
 msgid "console.username"
 msgstr "Username"
 
@@ -782,9 +1875,29 @@ msgid "login.username"
 msgstr "Username"
 
 #. js-lingui-explicit-id
+#: src/components/custom/SudoDialog.tsx
+msgid "sudo.methods"
+msgstr "Verification method"
+
+#. js-lingui-explicit-id
+#: src/api/sudo.ts
+msgid "sudo.cancelled"
+msgstr "Verification was cancelled. Nothing was changed."
+
+#. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.passkey_incomplete"
 msgstr "Verification was not completed. Try again or use your password."
+
+#. js-lingui-explicit-id
+#: src/components/custom/SudoDialog.tsx
+msgid "sudo.submit"
+msgstr "Verify and continue"
+
+#. js-lingui-explicit-id
+#: src/components/custom/SudoDialog.tsx
+msgid "sudo.use-passkey"
+msgstr "Verify with a passkey"
 
 #. js-lingui-explicit-id
 #: src/pages/Login.tsx
@@ -797,6 +1910,106 @@ msgid "error.sudo_required"
 msgstr "Verify your identity again to continue."
 
 #. js-lingui-explicit-id
+#: src/pages/security/TokensPanel.tsx
+msgid "security.tokens.scope"
+msgstr "What it may access"
+
+#. js-lingui-explicit-id
+#: src/pages/security/TokensPanel.tsx
+msgid "security.tokens.name.hint"
+msgstr "What will use this token, so you know what to revoke later."
+
+#. js-lingui-explicit-id
+#: src/pages/Devices.tsx
+msgid "devices.approved"
+msgstr "You approved this device. It still has to set up a passkey on itself before the sign-in finishes."
+
+#. js-lingui-explicit-id
+#: src/pages/Devices.tsx
+msgid "devices.cancelled"
+msgstr "You declined this pairing. The other device does not get access."
+
+#. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.not_admin"
 msgstr "You do not have permission to perform this action."
+
+#. js-lingui-explicit-id
+#: src/pages/Devices.tsx
+msgid "devices.already_bound"
+msgstr "You have already approved this pairing. The other device should be finishing its setup."
+
+#. js-lingui-explicit-id
+#: src/pages/security/TokensPanel.tsx
+msgid "security.tokens.empty"
+msgstr "You have no access tokens yet."
+
+#. js-lingui-explicit-id
+#: src/pages/security/TokensPanel.tsx
+msgid "security.tokens.no_forward_auth"
+msgstr "You have no applications available to grant."
+
+#. js-lingui-explicit-id
+#: src/pages/security/PasskeysPanel.tsx
+msgid "security.passkeys.empty"
+msgstr "You have no passkeys yet."
+
+#. js-lingui-explicit-id
+#: src/pages/ConnectedApps.tsx
+msgid "apps.empty"
+msgstr "You have not approved any applications yet."
+
+#. js-lingui-explicit-id
+#: src/pages/profile/AvatarPanel.tsx
+msgid "profile.avatar.no_upload"
+msgstr "You have not uploaded a picture yet."
+
+#. js-lingui-explicit-id
+#: src/pages/security/IdentitiesPanel.tsx
+msgid "security.identities.unlink.body"
+msgstr "You will no longer be able to sign in through this provider. Your other sign-in methods are unaffected."
+
+#. js-lingui-explicit-id
+#: src/pages/security/IdentitiesPanel.tsx
+msgid "security.identities.link.note"
+msgstr "You will verify your identity here first, and the provider will then ask you to sign in."
+
+#. js-lingui-explicit-id
+#: src/components/custom/ConsoleLayout.tsx
+msgid "console.account"
+msgstr "Your account"
+
+#. js-lingui-explicit-id
+#: src/pages/security/PasswordTotpPanel.tsx
+msgid "security.totp.replace.note"
+msgstr "Your current authenticator and every existing recovery code stop working as soon as this succeeds."
+
+#. js-lingui-explicit-id
+#: src/pages/Profile.tsx
+msgid "profile.display-name.saved"
+msgstr "Your display name is updated."
+
+#. js-lingui-explicit-id
+#: src/pages/security/PasswordTotpPanel.tsx
+msgid "security.password.changed"
+msgstr "Your password is updated. Which sudo prompt you see next may change."
+
+#. js-lingui-explicit-id
+#: src/pages/security/PasswordTotpPanel.tsx
+msgid "security.revoke.confirm.body"
+msgstr "Your password, your authenticator and all recovery codes stop working immediately."
+
+#. js-lingui-explicit-id
+#: src/pages/profile/AvatarPanel.tsx
+msgid "profile.avatar.pending"
+msgstr "Your picture from the upstream provider is still syncing. It will appear here once it arrives."
+
+#. js-lingui-explicit-id
+#: src/pages/Console.tsx
+msgid "console.availability"
+msgstr "Your profile, security settings, connected applications and devices are on the pages listed in the sidebar. Administrative pages are still to come."
+
+#. js-lingui-explicit-id
+#: src/pages/Profile.tsx
+msgid "profile.username.note"
+msgstr "Your username identifies you at sign-in and cannot be changed."

@@ -42,8 +42,9 @@ export function Console() {
         <Alert.Content>
           <Alert.Title>
             <Trans id="console.availability">
-              Profile, security, applications, and devices will be available in
-              a later update.
+              Your profile, security settings, connected applications and
+              devices are on the pages listed in the sidebar. Administrative
+              pages are still to come.
             </Trans>
           </Alert.Title>
         </Alert.Content>

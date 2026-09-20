@@ -11,10 +11,11 @@ first-party, no email channel — recovery uses recovery codes or admin-issued e
 The dashboard SPA is embedded in the binary: one `./prohibitorum` process is the
 whole IdP plus its frontend.
 
-**Frontend rewrite (M3):** password + TOTP, recovery-code and passkey sign-in are
-available, including optional authenticator reset and a responsive bilingual console.
-Enrollment, self-service (M4), application management and admin pages (M5) remain
-unavailable. Backend authentication and protocol APIs are unchanged.
+**Frontend rewrite (M4):** password + TOTP, recovery-code and passkey sign-in are
+available, including optional authenticator reset and a responsive bilingual console
+that now covers the signed-in account itself — profile, security, connected
+applications and device pairing. Enrollment, application management and admin pages
+(M5) remain unavailable. Backend authentication and protocol APIs are unchanged.
 
 - **Sign-in** — WebAuthn passkeys (preferred), Password + TOTP fallback, or federation through upstream OIDC, Steam, and VRChat providers.
 - **Downstream** — OIDC provider for modern apps, SAML 2.0 IdP for GitHub Enterprise Server and other legacy SaaS, and a forward-auth gateway.
@@ -42,14 +43,19 @@ unavailable. Backend authentication and protocol APIs are unchanged.
 - [x] Assigned-application management — any active account can manage an assigned app; assignment does not grant app access
 - [x] App-aware group claims — exposed manual allow and every exposed matching rule group for the owning app only
 
-**Dashboard — M3 rewrite**
+**Dashboard — M4 rewrite**
 - [x] React/HeroUI foundation preview with English and Chinese, persisted language preference, and interactive component samples
 - [x] Typed OpenAPI client, shared Query cache, route loading feedback and reusable mutation/form integration
 - [x] Password + TOTP, recovery-code and passkey login; authenticator reset and one-time recovery-code saving
 - [x] Responsive console, current account, language/theme controls and sign-out
+- [x] Profile — display name and avatar, with switchable upload, upstream and no-picture sources
+- [x] Security — passkeys, password and authenticator, active sessions, connected identities and personal access tokens
+- [x] Connected applications — review approvals and remove access
+- [x] Device pairing — look up a code another device shows, then approve or decline
+- [x] Step-up re-verification — one passkey/password prompt reused by every guarded action
 - [ ] Enrollment UI
 - [ ] Admin console and permission-aware application management
-- [ ] End-user self-service and app launchpad
+- [ ] App launchpad
 
 **Keys & operations**
 - [x] Signing-key lifecycle — rotation, grace windows, sealed at rest

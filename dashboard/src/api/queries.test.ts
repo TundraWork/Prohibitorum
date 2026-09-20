@@ -9,6 +9,7 @@ import { isCancellation } from "@/api/errors";
 import {
   logoutMutationOptions,
   renameCredentialMutationOptions,
+  updateProfileMutationOptions,
 } from "@/api/mutations";
 import {
   authStatusQueryOptions,
@@ -247,5 +248,40 @@ describe("shared server state", () => {
     expect(queryClient.getQueryData(publicData.queryKey)).toEqual({
       bootstrapped: true,
     });
+  });
+});
+
+describe("profile updates", () => {
+  it("replaces the session cache with what the server returned, without a second identity source", async () => {
+    const { queryClient } = createClient();
+    const before = {
+      id: 1,
+      username: "alice",
+      displayName: "Alice",
+      role: "user",
+    };
+    queryClient.setQueryData(sessionQueryOptions().queryKey, before);
+
+    const after = { ...before, displayName: "Alice Renamed" };
+    fetchBoundary.mockResolvedValueOnce(Response.json(after));
+
+    const update = new MutationObserver(
+      queryClient,
+      updateProfileMutationOptions(queryClient),
+    );
+    await update.mutate({ displayName: "Alice Renamed" });
+
+    // The sidebar and every page head read this key; a refetch would leave the
+    // old name on screen until it came back.
+    expect(queryClient.getQueryData(sessionQueryOptions().queryKey)).toEqual(
+      after,
+    );
+    // The write goes only to the profile endpoint: there is no second copy of
+    // the display name to keep in step.
+    expect(
+      fetchBoundary.mock.calls.map(
+        ([request]) => new URL(request.url).pathname,
+      ),
+    ).toEqual(["/api/prohibitorum/me"]);
   });
 });

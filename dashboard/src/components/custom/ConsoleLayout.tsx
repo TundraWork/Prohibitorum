@@ -33,6 +33,7 @@ import { logoutMutationOptions } from "@/api/mutations";
 import { clearSessionQueries, sessionQueryOptions } from "@/api/queries";
 import { instanceName } from "@/components/custom/AppLayout";
 import { LanguageMenu } from "@/components/custom/LanguageMenu";
+import { SudoDialog } from "@/components/custom/SudoDialog";
 import { ThemeSelect } from "@/components/custom/ThemeSelect";
 
 type Session = components["schemas"]["SessionView"];
@@ -98,6 +99,10 @@ function ConsoleNavigation({
   onNavigate: (path: string) => void;
 }) {
   const { t } = useLingui();
+  // Prefix matching, so a page's own query strings and any nested route keep the
+  // section highlighted. `/` only ever matches the console home.
+  const isActive = (path: string) =>
+    path === "/" ? activePath === "/" : activePath.startsWith(path);
   return (
     <div className="flex min-w-0 flex-col">
       <div className="px-4 pb-2 pt-4">
@@ -129,25 +134,41 @@ function ConsoleNavigation({
           className="flex flex-col gap-0.5"
         >
           <NavItem
-            active={activePath === "/"}
+            active={isActive("/")}
             icon={House}
             onPress={() => onNavigate("/")}
           >
             <Trans id="console.home">Console home</Trans>
           </NavItem>
           <p className="px-2 pb-1 pt-3 text-xs font-medium text-muted">
-            <Trans id="console.coming-soon">Coming later</Trans>
+            <Trans id="console.account">Your account</Trans>
           </p>
-          <NavItem disabled icon={UserRound}>
+          <NavItem
+            active={isActive("/profile")}
+            icon={UserRound}
+            onPress={() => onNavigate("/profile")}
+          >
             <Trans id="console.profile">Profile</Trans>
           </NavItem>
-          <NavItem disabled icon={ShieldCheck}>
+          <NavItem
+            active={isActive("/security")}
+            icon={ShieldCheck}
+            onPress={() => onNavigate("/security")}
+          >
             <Trans id="console.security">Security</Trans>
           </NavItem>
-          <NavItem disabled icon={AppWindow}>
-            <Trans id="console.applications">Applications</Trans>
+          <NavItem
+            active={isActive("/apps")}
+            icon={AppWindow}
+            onPress={() => onNavigate("/apps")}
+          >
+            <Trans id="console.applications">Connected applications</Trans>
           </NavItem>
-          <NavItem disabled icon={MonitorSmartphone}>
+          <NavItem
+            active={isActive("/devices")}
+            icon={MonitorSmartphone}
+            onPress={() => onNavigate("/devices")}
+          >
             <Trans id="console.devices">Devices</Trans>
           </NavItem>
         </nav>
@@ -327,6 +348,9 @@ function ConsoleShell({
           <Outlet />
         </main>
       </div>
+
+      {/* One step-up prompt for the whole console; see SudoDialog. */}
+      <SudoDialog />
     </div>
   );
 }

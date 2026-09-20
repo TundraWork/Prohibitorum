@@ -6,6 +6,26 @@ proof-backed local registration/recovery. It provides OIDC OP, SAML 2.0 IdP,
 and forward-auth downstream access, plus app-bound policy, delegated
 application management. This file records capabilities by version and the roadmap.
 
+## Unreleased — PHB-67 self-service pages
+
+The console covers the signed-in account itself. `/profile` edits the display name and
+the avatar — uploading a picture, and switching between the upload, an upstream-provided
+picture and no picture. `/security` splits five areas into tabs: passkeys, password and
+authenticator, active sessions, connected identities and personal access tokens.
+`/apps` lists the applications this account has approved and removes that access.
+`/devices` looks up the code another device shows and approves or declines it.
+
+Each tab's selection lives in the URL query, so a reload or a shared link lands on the
+same tab and the back button still leaves the page. Lists use HeroUI tables and scroll
+sideways on narrow screens rather than switching to a second layout.
+
+Actions the backend guards with a recent sign-in now share one step-up prompt: it reads
+the available methods, runs either a passkey or a password-and-authenticator ceremony,
+and replays the blocked action once. Cancelling changes nothing.
+
+Administrative pages (M5) remain unplanned for this milestone. Backend APIs and the
+database schema are unchanged.
+
 ## Unreleased — PHB-66 login and console
 
 The React/HeroUI dashboard includes a bilingual component preview and a real public
@@ -29,9 +49,8 @@ Authenticator and recovery steps stack full-width sign-in and method-switch
 actions. An accessible back icon beside the heading returns to password entry.
 
 Component previews remain available at `/preview/components` and `/preview/api`.
-Enrollment, self-service (M4), application management and admin pages (M5) remain
-unavailable. Backend APIs are unchanged. The version history below describes
-previously shipped capabilities.
+Enrollment and admin pages (M5) remain unavailable. Backend APIs are unchanged.
+The version history below describes previously shipped capabilities.
 
 ## v0.1 — rescope + decoupling
 

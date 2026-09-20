@@ -11,6 +11,9 @@ beforeEach(() => {
       disconnect() {}
     },
   );
+  // A destroyed jsdom history keeps rejecting writes it has already queued, so
+  // window.history must be replaced before each test rather than reused.
+  window.history.replaceState(null, "", "/");
 });
 
 Object.defineProperty(window, "matchMedia", {
@@ -28,6 +31,10 @@ Object.defineProperty(window, "matchMedia", {
 });
 
 HTMLElement.prototype.scrollIntoView = vi.fn();
+
+// react-aria inspects CSS transitions on shared-element updates; jsdom has no
+// animations, so an empty list is the honest answer.
+HTMLElement.prototype.getAnimations = () => [];
 
 // input-otp probes password-manager overlays with a hit test jsdom does not implement.
 document.elementFromPoint = () => null;

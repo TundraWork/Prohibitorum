@@ -12,6 +12,10 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as ProtectedRouteImport } from './routes/_protected'
 import { Route as PublicRouteImport } from './routes/_public'
 import { Route as ProtectedIndexRouteImport } from './routes/_protected.index'
+import { Route as ProtectedAppsRouteImport } from './routes/_protected.apps'
+import { Route as ProtectedDevicesRouteImport } from './routes/_protected.devices'
+import { Route as ProtectedProfileRouteImport } from './routes/_protected.profile'
+import { Route as ProtectedSecurityRouteImport } from './routes/_protected.security'
 import { Route as PublicPreviewRouteImport } from './routes/_public._preview'
 import { Route as PublicLoginRouteImport } from './routes/_public.login'
 import { Route as PublicLoginRecoveryRouteImport } from './routes/_public.login_.recovery'
@@ -31,6 +35,26 @@ const PublicRoute = PublicRouteImport.update({
 const ProtectedIndexRoute = ProtectedIndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => ProtectedRoute,
+} as any)
+const ProtectedAppsRoute = ProtectedAppsRouteImport.update({
+  id: '/apps',
+  path: '/apps',
+  getParentRoute: () => ProtectedRoute,
+} as any)
+const ProtectedDevicesRoute = ProtectedDevicesRouteImport.update({
+  id: '/devices',
+  path: '/devices',
+  getParentRoute: () => ProtectedRoute,
+} as any)
+const ProtectedProfileRoute = ProtectedProfileRouteImport.update({
+  id: '/profile',
+  path: '/profile',
+  getParentRoute: () => ProtectedRoute,
+} as any)
+const ProtectedSecurityRoute = ProtectedSecurityRouteImport.update({
+  id: '/security',
+  path: '/security',
   getParentRoute: () => ProtectedRoute,
 } as any)
 const PublicPreviewRoute = PublicPreviewRouteImport.update({
@@ -71,6 +95,10 @@ const PublicPreviewPreviewComponentsRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof ProtectedIndexRoute
+  '/apps': typeof ProtectedAppsRoute
+  '/devices': typeof ProtectedDevicesRoute
+  '/profile': typeof ProtectedProfileRoute
+  '/security': typeof ProtectedSecurityRoute
   '/login': typeof PublicLoginRoute
   '/login/recovery': typeof PublicLoginRecoveryRoute
   '/login/totp': typeof PublicLoginTotpRoute
@@ -80,6 +108,10 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof ProtectedIndexRoute
+  '/apps': typeof ProtectedAppsRoute
+  '/devices': typeof ProtectedDevicesRoute
+  '/profile': typeof ProtectedProfileRoute
+  '/security': typeof ProtectedSecurityRoute
   '/login': typeof PublicLoginRoute
   '/login/recovery': typeof PublicLoginRecoveryRoute
   '/login/totp': typeof PublicLoginTotpRoute
@@ -91,6 +123,10 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_protected': typeof ProtectedRouteWithChildren
   '/_public': typeof PublicRouteWithChildren
+  '/_protected/apps': typeof ProtectedAppsRoute
+  '/_protected/devices': typeof ProtectedDevicesRoute
+  '/_protected/profile': typeof ProtectedProfileRoute
+  '/_protected/security': typeof ProtectedSecurityRoute
   '/_public/_preview': typeof PublicPreviewRouteWithChildren
   '/_public/login': typeof PublicLoginRoute
   '/_protected/': typeof ProtectedIndexRoute
@@ -104,6 +140,10 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/apps'
+    | '/devices'
+    | '/profile'
+    | '/security'
     | '/login'
     | '/login/recovery'
     | '/login/totp'
@@ -113,6 +153,10 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/apps'
+    | '/devices'
+    | '/profile'
+    | '/security'
     | '/login'
     | '/login/recovery'
     | '/login/totp'
@@ -123,6 +167,10 @@ export interface FileRouteTypes {
     | '__root__'
     | '/_protected'
     | '/_public'
+    | '/_protected/apps'
+    | '/_protected/devices'
+    | '/_protected/profile'
+    | '/_protected/security'
     | '/_public/_preview'
     | '/_public/login'
     | '/_protected/'
@@ -159,6 +207,34 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof ProtectedIndexRouteImport
+      parentRoute: typeof ProtectedRoute
+    }
+    '/_protected/apps': {
+      id: '/_protected/apps'
+      path: '/apps'
+      fullPath: '/apps'
+      preLoaderRoute: typeof ProtectedAppsRouteImport
+      parentRoute: typeof ProtectedRoute
+    }
+    '/_protected/devices': {
+      id: '/_protected/devices'
+      path: '/devices'
+      fullPath: '/devices'
+      preLoaderRoute: typeof ProtectedDevicesRouteImport
+      parentRoute: typeof ProtectedRoute
+    }
+    '/_protected/profile': {
+      id: '/_protected/profile'
+      path: '/profile'
+      fullPath: '/profile'
+      preLoaderRoute: typeof ProtectedProfileRouteImport
+      parentRoute: typeof ProtectedRoute
+    }
+    '/_protected/security': {
+      id: '/_protected/security'
+      path: '/security'
+      fullPath: '/security'
+      preLoaderRoute: typeof ProtectedSecurityRouteImport
       parentRoute: typeof ProtectedRoute
     }
     '/_public/_preview': {
@@ -214,10 +290,18 @@ declare module '@tanstack/react-router' {
 }
 
 interface ProtectedRouteChildren {
+  ProtectedAppsRoute: typeof ProtectedAppsRoute
+  ProtectedDevicesRoute: typeof ProtectedDevicesRoute
+  ProtectedProfileRoute: typeof ProtectedProfileRoute
+  ProtectedSecurityRoute: typeof ProtectedSecurityRoute
   ProtectedIndexRoute: typeof ProtectedIndexRoute
 }
 
 const ProtectedRouteChildren: ProtectedRouteChildren = {
+  ProtectedAppsRoute: ProtectedAppsRoute,
+  ProtectedDevicesRoute: ProtectedDevicesRoute,
+  ProtectedProfileRoute: ProtectedProfileRoute,
+  ProtectedSecurityRoute: ProtectedSecurityRoute,
   ProtectedIndexRoute: ProtectedIndexRoute,
 }
 
