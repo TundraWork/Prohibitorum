@@ -11,7 +11,7 @@ import {
   useQueryClient,
   useSuspenseQuery,
 } from "@tanstack/react-query";
-import { Outlet, useRouter, useRouterState } from "@tanstack/react-router";
+import { Outlet, useNavigate, useRouter, useRouterState } from "@tanstack/react-router";
 import { cva } from "class-variance-authority";
 import {
   AppWindow,
@@ -30,7 +30,6 @@ import { clearSessionQueries, sessionQueryOptions } from "@/api/queries";
 import { instanceName } from "@/components/custom/AppLayout";
 import { notificationQueue } from "@/components/custom/AppNotifications";
 import { LanguageMenu } from "@/components/custom/LanguageMenu";
-import { RoutePending } from "@/components/custom/RouteFeedback";
 import { ThemeSelect } from "@/components/custom/ThemeSelect";
 
 type Session = components["schemas"]["SessionView"];
@@ -186,11 +185,11 @@ function ConsoleActions({
 
 function ConsoleShell({
   session,
-  pending,
+  pendingLogout,
   onLogout,
 }: {
   session: Session;
-  pending: boolean;
+  pendingLogout: boolean;
   onLogout: () => void;
 }) {
   const { t } = useLingui();
@@ -239,7 +238,7 @@ function ConsoleShell({
             onNavigate={navigate}
           />
           <div className="mt-auto">
-            <ConsoleActions pending={pending} onLogout={logout} />
+            <ConsoleActions pending={pendingLogout} onLogout={logout} />
           </div>
         </aside>
       </div>
@@ -278,7 +277,7 @@ function ConsoleShell({
                         onNavigate={navigate}
                       />
                       <div className="mt-auto">
-                        <ConsoleActions pending={pending} onLogout={logout} />
+                        <ConsoleActions pending={pendingLogout} onLogout={logout} />
                       </div>
                     </Drawer.Body>
                   </Drawer.Dialog>
@@ -328,11 +327,7 @@ function ConsoleShell({
 
 export function ConsoleLayout() {
   const queryClient = useQueryClient();
-  const router = useRouter();
-  const routeLoading = useRouterState({ select: (state) => state.isLoading });
-  const [leaving, setLeaving] = useState(false);
-  const expiryHandled = useRef(false);
-  const logoutStarted = useRef(false);
+  const navigate = useNavigate();
   const { data: session } = useSuspenseQuery({
     ...sessionQueryOptions(),
     refetchOnMount: false,
@@ -341,51 +336,22 @@ export function ConsoleLayout() {
   const logout = useMutation({
     ...logoutMutationOptions(queryClient),
     onSuccess: async () => {
-      flushSync(() => setLeaving(true));
       await clearSessionQueries(queryClient);
       queryClient.getMutationCache().clear();
-      window.location.replace("/login");
-    },
-    onError: () => {
-      logoutStarted.current = false;
+      await navigate({ to: '/login' })
     },
   });
 
-  useEffect(() => {
-    if (
-      session !== null ||
-      leaving ||
-      logout.isPending ||
-      expiryHandled.current
-    )
-      return;
-    expiryHandled.current = true;
-    setLeaving(true);
-    notificationQueue.add({
-      title: (
-        <Trans id="console.session-expired">
-          Your session has expired. Sign in again.
-        </Trans>
-      ),
-    });
-    void clearSessionQueries(queryClient).then(() => {
-      queryClient.getMutationCache().clear();
-      return router.navigate({ to: "/login", replace: true });
-    });
-  }, [session, leaving, logout.isPending, queryClient, router]);
-
-  if (leaving || routeLoading || session === null) {
-    return <RoutePending />;
+  // session must be not null, just a type guard
+  if (session === null) {
+    return null;
   }
+
   return (
     <ConsoleShell
       session={session}
-      pending={logout.isPending}
-      onLogout={() => {
-        if (logoutStarted.current) return;
-        logoutStarted.current = true;
-        logout.mutate();
-      }}
+      pendingLogout={logout.isPending}
+      onLogout={logout.mutate}
     />
   );
 }

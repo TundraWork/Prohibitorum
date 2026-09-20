@@ -7,7 +7,7 @@ export const Route = createFileRoute("/_protected")({
     const session = await queryClient.query(sessionQueryOptions());
     if (session === null) {
       await clearSessionQueries(queryClient);
-      throw redirect({ to: "/login", replace: true });
+      throw redirect({ to: "/login" });
     }
   },
   component: ConsoleLayout,

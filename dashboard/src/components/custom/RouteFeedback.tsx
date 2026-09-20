@@ -2,7 +2,6 @@ import { Button, Card, Link, Spinner } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { createLink, useRouter } from "@tanstack/react-router";
 import { describeError } from "@/api/errors";
-import { PageSkeleton } from "@/components/custom/PreviewLayout";
 import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
 
 const RouterLink = createLink(Link);
@@ -13,21 +12,6 @@ export function PublicPending() {
     <div className="flex justify-center py-16">
       <Spinner size="lg" />
     </div>
-  );
-}
-
-export function RoutePending() {
-  return (
-    <Card aria-busy="true">
-      <Card.Content>
-        <div className="flex flex-col gap-4">
-          <p role="status">
-            <Trans id="route.loading">Loading page…</Trans>
-          </p>
-          <PageSkeleton />
-        </div>
-      </Card.Content>
-    </Card>
   );
 }
 

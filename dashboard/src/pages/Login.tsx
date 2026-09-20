@@ -147,7 +147,7 @@ function PasswordForm({
 }: {
   control: FlowControl;
   username: string;
-  onSuccess: (username: string, token: string) => void;
+  onSuccess: (username: string, token: string) => void | Promise<void>;
   onFailure: (error: unknown) => void;
 }) {
   const { t } = useLingui();
@@ -160,7 +160,7 @@ function PasswordForm({
         const result = await mutation.mutateAsync(value);
         formApi.setFieldValue("password", "");
         if (control.isActive())
-          onSuccess(value.username, result.partial_session_token);
+          await onSuccess(value.username, result.partial_session_token);
       } catch (error) {
         if (control.isActive() && !isCancellation(error)) onFailure(error);
       } finally {
@@ -461,10 +461,14 @@ export function PasswordPage() {
         username={username ?? ""}
         onSuccess={async (username, token) => {
           flow.setFailure(undefined);
+          console.log('prepare nav');
+          await new Promise(resolve => setTimeout(resolve, 3000));
+          console.log('start nav');
           await navigate({
             to: "/login/totp",
             state: loginState({ username, token }),
           });
+          console.log('end nav');
         }}
         onFailure={(error) =>
           flow.setFailure({ message: describeError(error) })
@@ -521,41 +525,37 @@ export function TotpPage() {
       failure={flow.failure}
       onBack={() => void navigate({ to: "/login" })}
     >
-      {flow.finishing ? (
-        <Spinner />
-      ) : (
-        <FactorForm
-          control={flow.control}
-          mode="totp"
-          config={config}
-          username={username ?? ""}
-          returnTo={returnTo}
-          token={token ?? ""}
-          onFailure={async (error, reset) => {
-            await navigate({
-              to: "/login",
-              state: loginState({
-                username,
-                failure: {
-                  message: describeError(error),
-                  secondStep: true,
-                  reset,
-                },
-              }),
-            });
-          }}
-          onSuccess={(redirect) => {
-            flow.setFailure(undefined);
-            return flow.finish(redirect);
-          }}
-          onSwitch={() =>
-            void navigate({
-              to: "/login/recovery",
-              state: loginState({ username, token }),
-            })
-          }
-        />
-      )}
+      <FactorForm
+        control={flow.control}
+        mode="totp"
+        config={config}
+        username={username ?? ""}
+        returnTo={returnTo}
+        token={token ?? ""}
+        onFailure={async (error, reset) => {
+          await navigate({
+            to: "/login",
+            state: loginState({
+              username,
+              failure: {
+                message: describeError(error),
+                secondStep: true,
+                reset,
+              },
+            }),
+          });
+        }}
+        onSuccess={(redirect) => {
+          flow.setFailure(undefined);
+          return flow.finish(redirect);
+        }}
+        onSwitch={() =>
+          void navigate({
+            to: "/login/recovery",
+            state: loginState({ username, token }),
+          })
+        }
+      />
     </LoginShell>
   );
 }
@@ -591,8 +591,6 @@ export function RecoveryPage() {
           codes={savedCodes.codes}
           onContinue={() => flow.finish(savedCodes.redirect)}
         />
-      ) : flow.finishing ? (
-        <Spinner />
       ) : (
         <FactorForm
           control={flow.control}
