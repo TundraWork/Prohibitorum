@@ -108,6 +108,9 @@ smaller text from the small breakpoint, as provided by HeroUI.
 The public layout is a centered column capped at 64rem, with 16px horizontal
 padding increasing to 24px at 640px. Major sections have 24px gaps. Preview
 navigation and action rows wrap rather than forcing horizontal overflow.
+The public toolbar stays fixed while the page scrolls. Sign-in centers its card
+in the window with even space above and below once the card outgrows it; from
+1024px only the card area scrolls.
 
 The console uses a separate responsive navigation composition. Preserve its
 existing layout and permission behavior when refining shared components.

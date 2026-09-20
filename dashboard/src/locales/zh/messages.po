@@ -28,7 +28,7 @@ msgid "console.applications"
 msgstr "应用"
 
 #. js-lingui-explicit-id
-#: src/routes/Login.tsx
+#: src/components/custom/LoginShell.tsx
 msgid "login.enroll_instruction"
 msgstr "请联系运维人员，在服务器运行 <0>prohibitorum enroll-admin</0> 后再登录。"
 
@@ -43,12 +43,12 @@ msgid "api.issuer"
 msgstr "验证器签发者"
 
 #. js-lingui-explicit-id
-#: src/routes/Login.tsx
+#: src/components/custom/LoginShell.tsx
 msgid "login.complete"
 msgstr "身份验证器已重设"
 
 #. js-lingui-explicit-id
-#: src/routes/Login.tsx
+#: src/components/custom/LoginShell.tsx
 msgid "login.back"
 msgstr "返回密码登录"
 
@@ -216,7 +216,7 @@ msgid "login.totp.digits"
 msgstr "请输入身份验证器中的 {0} 位验证码。"
 
 #. js-lingui-explicit-id
-#: src/routes/Login.tsx
+#: src/components/custom/LoginShell.tsx
 msgid "login.factor.restart"
 msgstr "请重新输入密码后再尝试验证码。本次验证不能重复使用。"
 
@@ -507,7 +507,7 @@ msgid "login.verify"
 msgstr "登录"
 
 #. js-lingui-explicit-id
-#: src/routes/Login.tsx
+#: src/components/custom/LoginShell.tsx
 msgid "login.title"
 msgstr "登录"
 
@@ -542,7 +542,7 @@ msgid "console.logout"
 msgstr "退出登录"
 
 #. js-lingui-explicit-id
-#: src/routes/Login.tsx
+#: src/components/custom/LoginShell.tsx
 msgid "login.factor.account"
 msgstr "正在登录 {username}"
 
@@ -617,7 +617,7 @@ msgid "error.request_failed"
 msgstr "请求失败，请重试。"
 
 #. js-lingui-explicit-id
-#: src/routes/Login.tsx
+#: src/components/custom/LoginShell.tsx
 msgid "login.reset.uncertain"
 msgstr "重设可能已经完成。请尝试新身份验证器或通行密钥。再次尝试验证码前，请重新输入密码；旧恢复码可能已失效。"
 
@@ -637,7 +637,7 @@ msgid "dev.forms.nickname.description"
 msgstr "服务器会验证此值；请求成功后将修改测试凭据。"
 
 #. js-lingui-explicit-id
-#: src/routes/Login.tsx
+#: src/components/custom/LoginShell.tsx
 msgid "login.maintenance"
 msgstr "服务正在维护，管理员仍可尝试登录。"
 
@@ -687,7 +687,7 @@ msgid "error.unsupported_media_type"
 msgstr "不支持此数据格式。"
 
 #. js-lingui-explicit-id
-#: src/routes/Login.tsx
+#: src/components/custom/LoginShell.tsx
 msgid "login.uninitialized"
 msgstr "此实例尚未初始化。"
 
@@ -767,7 +767,7 @@ msgid "login.use_recovery"
 msgstr "使用恢复码"
 
 #. js-lingui-explicit-id
-#: src/routes/Login.tsx
+#: src/components/custom/LoginShell.tsx
 msgid "login.use_totp"
 msgstr "使用身份验证器验证码"
 

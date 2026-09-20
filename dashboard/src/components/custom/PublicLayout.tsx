@@ -5,10 +5,12 @@ import { AppToolbar } from "@/components/custom/AppToolbar";
 export function PublicLayout() {
   return (
     <>
-      <AppToolbar>
-        <span className="truncate text-lg font-semibold">{instanceName}</span>
-      </AppToolbar>
-      <main className="mx-auto flex w-full min-w-0 max-w-5xl flex-col gap-6 px-4 pb-8 sm:px-6">
+      <div className="lg:fixed inset-x-0 top-0 z-0 bg-background">
+        <AppToolbar>
+          <span className="truncate text-lg font-semibold">{instanceName}</span>
+        </AppToolbar>
+      </div>
+      <main className="mx-auto flex lg:min-h-dvh w-full min-w-0 max-w-5xl flex-col px-4 sm:px-6">
         <Outlet />
       </main>
     </>

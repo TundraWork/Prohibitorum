@@ -25,7 +25,7 @@ import {
 } from "@/components/custom/RouteFeedback";
 import { ApiPreview } from "@/routes/ApiPreview";
 import { Console } from "@/routes/Console";
-import { Login } from "@/routes/Login";
+import { PasswordPage, RecoveryPage, TotpPage } from "@/routes/Login";
 import { Preview } from "@/routes/Preview";
 
 type RouterContext = { queryClient: QueryClient };
@@ -54,28 +54,49 @@ const publicRoute = createRoute({
   id: "public",
   component: PublicLayout,
 });
+const loginLoader = async ({
+  context: { queryClient },
+  location,
+  cause,
+}: {
+  context: RouterContext;
+  location: { searchStr: string };
+  cause: "preload" | "enter" | "stay";
+}) => {
+  // A mounted sign-in page may be displaying newly issued recovery codes.
+  if (cause === "stay") return;
+  const [, , session] = await Promise.all([
+    queryClient.ensureQueryData(publicConfigQueryOptions()),
+    queryClient.ensureQueryData(authStatusQueryOptions()),
+    queryClient.fetchQuery(sessionQueryOptions()),
+  ]);
+  let returnTo: string | undefined;
+  try {
+    returnTo = parseReturnTo(location.searchStr, window.location.origin);
+  } catch {
+    return;
+  }
+  if (session !== null && returnTo === undefined) {
+    throw redirect({ to: "/", replace: true });
+  }
+};
 const loginRoute = createRoute({
   getParentRoute: () => publicRoute,
   path: "/login",
-  loader: async ({ context: { queryClient }, location, cause }) => {
-    // A mounted login flow may be displaying newly issued recovery codes.
-    if (cause === "stay") return;
-    const [, , session] = await Promise.all([
-      queryClient.ensureQueryData(publicConfigQueryOptions()),
-      queryClient.ensureQueryData(authStatusQueryOptions()),
-      queryClient.fetchQuery(sessionQueryOptions()),
-    ]);
-    let returnTo: string | undefined;
-    try {
-      returnTo = parseReturnTo(location.searchStr, window.location.origin);
-    } catch {
-      return;
-    }
-    if (session !== null && returnTo === undefined) {
-      throw redirect({ to: "/", replace: true });
-    }
-  },
-  component: Login,
+  loader: loginLoader,
+  component: PasswordPage,
+});
+const loginTotpRoute = createRoute({
+  getParentRoute: () => publicRoute,
+  path: "/login/totp",
+  loader: loginLoader,
+  component: TotpPage,
+});
+const loginRecoveryRoute = createRoute({
+  getParentRoute: () => publicRoute,
+  path: "/login/recovery",
+  loader: loginLoader,
+  component: RecoveryPage,
 });
 const previewRoute = createRoute({
   getParentRoute: () => publicRoute,
@@ -111,6 +132,8 @@ const routeTree = rootRoute.addChildren([
   protectedRoute.addChildren([indexRoute]),
   publicRoute.addChildren([
     loginRoute,
+    loginTotpRoute,
+    loginRecoveryRoute,
     previewRoute.addChildren([componentsRoute, apiRoute, ...devRoutes]),
   ]),
 ]);

@@ -28,7 +28,7 @@ msgid "console.applications"
 msgstr "Applications"
 
 #. js-lingui-explicit-id
-#: src/routes/Login.tsx
+#: src/components/custom/LoginShell.tsx
 msgid "login.enroll_instruction"
 msgstr "Ask the operator to run <0>prohibitorum enroll-admin</0> on the server before signing in."
 
@@ -43,12 +43,12 @@ msgid "api.issuer"
 msgstr "Authenticator issuer"
 
 #. js-lingui-explicit-id
-#: src/routes/Login.tsx
+#: src/components/custom/LoginShell.tsx
 msgid "login.complete"
 msgstr "Authenticator reset complete"
 
 #. js-lingui-explicit-id
-#: src/routes/Login.tsx
+#: src/components/custom/LoginShell.tsx
 msgid "login.back"
 msgstr "Back to password"
 
@@ -216,7 +216,7 @@ msgid "login.totp.digits"
 msgstr "Enter the {0}-digit code from your authenticator."
 
 #. js-lingui-explicit-id
-#: src/routes/Login.tsx
+#: src/components/custom/LoginShell.tsx
 msgid "login.factor.restart"
 msgstr "Enter your password again before trying another code. This verification attempt cannot be reused."
 
@@ -507,7 +507,7 @@ msgid "login.verify"
 msgstr "Sign in"
 
 #. js-lingui-explicit-id
-#: src/routes/Login.tsx
+#: src/components/custom/LoginShell.tsx
 msgid "login.title"
 msgstr "Sign in"
 
@@ -542,7 +542,7 @@ msgid "console.logout"
 msgstr "Sign out"
 
 #. js-lingui-explicit-id
-#: src/routes/Login.tsx
+#: src/components/custom/LoginShell.tsx
 msgid "login.factor.account"
 msgstr "Signing in as {username}"
 
@@ -617,7 +617,7 @@ msgid "error.request_failed"
 msgstr "The request failed. Please try again."
 
 #. js-lingui-explicit-id
-#: src/routes/Login.tsx
+#: src/components/custom/LoginShell.tsx
 msgid "login.reset.uncertain"
 msgstr "The reset may already have completed. Try your new authenticator or a passkey. Enter your password again before another code attempt; your old codes may no longer work."
 
@@ -637,7 +637,7 @@ msgid "dev.forms.nickname.description"
 msgstr "The server validates this value. A successful request changes the test credential."
 
 #. js-lingui-explicit-id
-#: src/routes/Login.tsx
+#: src/components/custom/LoginShell.tsx
 msgid "login.maintenance"
 msgstr "The service is undergoing maintenance. Administrators can still try to sign in."
 
@@ -687,7 +687,7 @@ msgid "error.unsupported_media_type"
 msgstr "This data format is not supported."
 
 #. js-lingui-explicit-id
-#: src/routes/Login.tsx
+#: src/components/custom/LoginShell.tsx
 msgid "login.uninitialized"
 msgstr "This instance has not been initialized."
 
@@ -767,7 +767,7 @@ msgid "login.use_recovery"
 msgstr "Use a recovery code"
 
 #. js-lingui-explicit-id
-#: src/routes/Login.tsx
+#: src/components/custom/LoginShell.tsx
 msgid "login.use_totp"
 msgstr "Use an authenticator code"
 

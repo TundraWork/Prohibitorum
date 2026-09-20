@@ -1,16 +1,11 @@
-import { Alert, Button, Card, Checkbox, Spinner } from "@heroui/react";
-import type { MessageDescriptor } from "@lingui/core";
+import { Button, Checkbox, Spinner } from "@heroui/react";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { browserSupportsWebAuthn } from "@simplewebauthn/browser";
-import {
-  useMutation,
-  useQueryClient,
-  useSuspenseQuery,
-} from "@tanstack/react-query";
-import { useLocation } from "@tanstack/react-router";
-import { ArrowLeft } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import type { HistoryState } from "@tanstack/react-router";
+import { useLocation, useNavigate } from "@tanstack/react-router";
+import { useEffect, useRef, useState } from "react";
 import {
   buildTotpUri,
   cancelPasskeyAuthentication,
@@ -18,7 +13,6 @@ import {
   isValidLoginPassword,
   isValidRecoveryCode,
   isValidTotpCode,
-  parseReturnTo,
   validateRedirect,
 } from "@/api/auth";
 import { describeError, isCancellation } from "@/api/errors";
@@ -28,17 +22,14 @@ import {
   recoveryMutationOptions,
   totpMutationOptions,
 } from "@/api/mutations";
-import {
-  authStatusQueryOptions,
-  clearSessionQueries,
-  publicConfigQueryOptions,
-} from "@/api/queries";
+import { clearSessionQueries } from "@/api/queries";
 import type {
   PublicConfig,
   RecoveryRequest,
   RecoveryResult,
 } from "@/api/raw-paths";
-import { FormMessages } from "@/components/custom/FormMessages";
+import type { LoginFailure } from "@/components/custom/LoginShell";
+import { LoginShell, useLoginContext } from "@/components/custom/LoginShell";
 import { OtpField } from "@/components/custom/OtpField";
 import { RecoveryCodes } from "@/components/custom/RecoveryCodes";
 import { TotpSetup } from "@/components/custom/TotpSetup";
@@ -64,18 +55,89 @@ const recoveryInvalid = msg({
     "Enter a recovery code in XXXX-XXXX-XXXX-XXXX format, using uppercase A–Z and digits 2–7.",
 });
 
+/** Sign-in progress carried between the step routes through the history entry. */
+type LoginRouteState = {
+  username?: string;
+  token?: string;
+  failure?: LoginFailure;
+};
+
+type LoginHistoryState = { login?: LoginRouteState };
+
 type FlowControl = {
   busy: boolean;
   acquire: () => boolean;
   release: () => void;
   isActive: () => boolean;
 };
-type Step = "password" | "totp" | "recovery";
-type Failure = {
-  message: MessageDescriptor;
-  secondStep?: boolean;
-  reset?: boolean;
-};
+
+/** TanStack Router types extra history state through an unresolvable module, so this cast carries it. */
+function loginState(login: LoginRouteState): HistoryState {
+  return { login } as HistoryState;
+}
+
+function useLoginRouteState(): LoginRouteState | undefined {
+  return useLocation({
+    select: (location) => (location.state as LoginHistoryState).login,
+  });
+}
+
+function useLoginFlow(initialFailure?: LoginFailure) {
+  const queryClient = useQueryClient();
+  const [busy, setBusy] = useState(false);
+  const [finishing, setFinishing] = useState(false);
+  const [failure, setFailure] = useState<LoginFailure | undefined>(
+    initialFailure,
+  );
+  const locked = useRef(false);
+  const active = useRef(false);
+  useEffect(() => {
+    active.current = true;
+    return () => {
+      active.current = false;
+    };
+  }, []);
+  const control: FlowControl = {
+    busy: busy || finishing,
+    acquire: () => {
+      if (locked.current || finishing || !active.current) return false;
+      locked.current = true;
+      setBusy(true);
+      return true;
+    },
+    release: () => {
+      locked.current = false;
+      if (active.current) setBusy(false);
+    },
+    isActive: () => active.current,
+  };
+  async function finish(redirect: string) {
+    try {
+      const destination = validateRedirect(redirect, window.location.origin);
+      setFinishing(true);
+      await clearSessionQueries(queryClient);
+      if (!active.current) return;
+      window.location.assign(destination);
+    } catch (error) {
+      setFinishing(false);
+      setFailure({ message: describeError(error) });
+      throw error;
+    }
+  }
+  return { control, finishing, failure, setFailure, finish };
+}
+
+/** Sends a factor route opened without a password result back to the first step. */
+function usePasswordResult(token: string | undefined): boolean {
+  const navigate = useNavigate();
+  // The token cannot change while this page is mounted, so read it once:
+  // re-reading it during unmount would navigate away from the step being entered.
+  const [ready] = useState(token !== undefined);
+  useEffect(() => {
+    if (!ready) void navigate({ to: "/login", replace: true });
+  }, [ready, navigate]);
+  return ready;
+}
 
 function PasswordForm({
   control,
@@ -176,7 +238,7 @@ function FactorForm({
   config,
   username,
   returnTo,
-  takeToken,
+  token,
   onFailure,
   onSuccess,
   onSwitch,
@@ -186,10 +248,10 @@ function FactorForm({
   config: PublicConfig;
   username: string;
   returnTo?: string;
-  takeToken: () => string | undefined;
+  token: string;
   onFailure: (error: unknown, reset: boolean) => void;
   onSuccess: (redirect: string, codes?: string[]) => Promise<void>;
-  onSwitch: () => void;
+  onSwitch?: () => void;
 }) {
   const { t } = useLingui();
   const totp = useMutation(totpMutationOptions(returnTo));
@@ -199,30 +261,25 @@ function FactorForm({
     defaultValues: { code: "", totpCode: "" },
     onSubmit: async ({ value, formApi }) => {
       if (!control.acquire()) return;
-      const partialToken = takeToken();
-      if (!partialToken) {
-        control.release();
-        return;
-      }
       const resetting = setup !== undefined;
       try {
         const result: RecoveryResult =
           mode === "totp"
             ? await totp.mutateAsync({
-                partial_session_token: partialToken,
+                partial_session_token: token,
                 code: value.code,
               })
             : await recovery.mutateAsync(
                 setup
                   ? ({
-                      partial_session_token: partialToken,
+                      partial_session_token: token,
                       code: value.code,
                       reset_authenticator: true,
                       totp_secret_base32: setup.secret,
                       totp_code: value.totpCode,
                     } satisfies RecoveryRequest)
                   : ({
-                      partial_session_token: partialToken,
+                      partial_session_token: token,
                       code: value.code,
                       reset_authenticator: false,
                     } satisfies RecoveryRequest),
@@ -365,7 +422,7 @@ function FactorForm({
           <form.SubmitButton fullWidth>
             <Trans id="login.verify">Sign in</Trans>
           </form.SubmitButton>
-          {mode === "totp" && (
+          {mode === "totp" && onSwitch && (
             <Button
               type="button"
               variant="ghost"
@@ -382,311 +439,190 @@ function FactorForm({
   );
 }
 
-function LoginFlow({
-  config,
-  returnTo,
-}: {
-  config: PublicConfig;
-  returnTo?: string;
-}) {
-  const { t } = useLingui();
+export function PasswordPage() {
+  const { username, failure } = useLoginRouteState() ?? {};
+  const { returnTo } = useLoginContext();
+  const flow = useLoginFlow(failure);
+  const navigate = useNavigate();
+  const passkey = useMutation(passkeyMutationOptions(returnTo));
+  const resetPasskey = passkey.reset;
+  useEffect(
+    () => () => {
+      cancelPasskeyAuthentication();
+      resetPasskey();
+    },
+    [resetPasskey],
+  );
+  const supported = window.isSecureContext && browserSupportsWebAuthn();
+  return (
+    <LoginShell step="password" busy={flow.control.busy} failure={flow.failure}>
+      <PasswordForm
+        control={flow.control}
+        username={username ?? ""}
+        onSuccess={(username, token) => {
+          flow.setFailure(undefined);
+          void navigate({
+            to: "/login/totp",
+            state: loginState({ username, token }),
+          });
+        }}
+        onFailure={(error) =>
+          flow.setFailure({ message: describeError(error) })
+        }
+      />
+      <Button
+        variant="secondary"
+        fullWidth
+        isPending={passkey.isPending}
+        isDisabled={!supported || (flow.control.busy && !passkey.isPending)}
+        onPress={() => {
+          if (!flow.control.acquire()) return;
+          void (async () => {
+            try {
+              const result = await passkey.mutateAsync();
+              if (flow.control.isActive()) await flow.finish(result.redirect);
+            } catch (error) {
+              if (flow.control.isActive() && !isCancellation(error))
+                flow.setFailure({ message: describeError(error) });
+            } finally {
+              passkey.reset();
+              flow.control.release();
+            }
+          })();
+        }}
+      >
+        {passkey.isPending && <Spinner size="sm" color="current" />}
+        <Trans id="login.passkey">Sign in with a passkey</Trans>
+      </Button>
+      {!supported && (
+        <p className="text-sm text-muted">
+          <Trans id="login.passkey.unsupported">
+            Passkeys are unavailable in this browser or connection. Use your
+            password instead.
+          </Trans>
+        </p>
+      )}
+    </LoginShell>
+  );
+}
+
+export function TotpPage() {
+  const { username, token } = useLoginRouteState() ?? {};
+  const { config, returnTo } = useLoginContext();
+  const flow = useLoginFlow();
+  const navigate = useNavigate();
+  const ready = usePasswordResult(token);
+  if (!ready) return null;
+  return (
+    <LoginShell
+      step="totp"
+      username={username}
+      busy={flow.control.busy}
+      failure={flow.failure}
+      onBack={() => void navigate({ to: "/login" })}
+    >
+      {flow.finishing ? (
+        <Spinner />
+      ) : (
+        <FactorForm
+          control={flow.control}
+          mode="totp"
+          config={config}
+          username={username ?? ""}
+          returnTo={returnTo}
+          token={token ?? ""}
+          onFailure={(error, reset) => {
+            void navigate({
+              to: "/login",
+              state: loginState({
+                username,
+                failure: {
+                  message: describeError(error),
+                  secondStep: true,
+                  reset,
+                },
+              }),
+            });
+          }}
+          onSuccess={(redirect) => {
+            flow.setFailure(undefined);
+            return flow.finish(redirect);
+          }}
+          onSwitch={() =>
+            void navigate({
+              to: "/login/recovery",
+              state: loginState({ username, token }),
+            })
+          }
+        />
+      )}
+    </LoginShell>
+  );
+}
+
+export function RecoveryPage() {
+  const { username, token } = useLoginRouteState() ?? {};
+  const { config, returnTo } = useLoginContext();
+  const flow = useLoginFlow();
   const queryClient = useQueryClient();
-  const [step, setStep] = useState<Step>("password");
-  const [username, setUsername] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [finishing, setFinishing] = useState(false);
-  const [failure, setFailure] = useState<Failure>();
+  const navigate = useNavigate();
   const [savedCodes, setSavedCodes] = useState<{
     redirect: string;
     codes: string[];
   }>();
-  const token = useRef<string | undefined>(undefined);
-  const locked = useRef(false);
-  const active = useRef(false);
-  const focusHeading = useCallback((node: HTMLHeadingElement | null) => {
-    node?.focus();
-  }, []);
-  const passkey = useMutation(passkeyMutationOptions(returnTo));
-  const resetPasskey = passkey.reset;
-  const supported = window.isSecureContext && browserSupportsWebAuthn();
-  useEffect(() => {
-    active.current = true;
-    return () => {
-      active.current = false;
-      token.current = undefined;
-      cancelPasskeyAuthentication();
-      resetPasskey();
-    };
-  }, [resetPasskey]);
-
-  const control: FlowControl = {
-    busy: busy || finishing,
-    acquire: () => {
-      if (locked.current || finishing || !active.current) return false;
-      locked.current = true;
-      setBusy(true);
-      return true;
-    },
-    release: () => {
-      locked.current = false;
-      if (active.current) setBusy(false);
-    },
-    isActive: () => active.current,
-  };
-  async function finish(redirect: string) {
-    try {
-      const destination = validateRedirect(redirect, window.location.origin);
-      setFinishing(true);
-      await clearSessionQueries(queryClient);
-      if (!active.current) return;
-      token.current = undefined;
-      setSavedCodes(undefined);
-      window.location.assign(destination);
-    } catch (error) {
-      setFinishing(false);
-      setFailure({ message: describeError(error) });
-      throw error;
-    }
-  }
-  function back() {
-    if (control.busy) return;
-    if (step === "recovery") {
-      setStep("totp");
-      return;
-    }
-    token.current = undefined;
-    setStep("password");
-  }
-
+  const ready = usePasswordResult(token);
+  if (!ready) return null;
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-center gap-2">
-        {step !== "password" && !savedCodes && (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            isIconOnly
-            className="shrink-0"
-            aria-label={
-              step === "recovery"
-                ? t({
-                    id: "login.use_totp",
-                    message: "Use an authenticator code",
-                  })
-                : t({ id: "login.back", message: "Back to password" })
-            }
-            isDisabled={control.busy}
-            onPress={back}
-          >
-            <ArrowLeft aria-hidden="true" />
-          </Button>
-        )}
-        <h1
-          key={`${step}-${Boolean(savedCodes)}-${Boolean(failure)}`}
-          ref={focusHeading}
-          className="min-w-0 text-xl font-semibold wrap-anywhere"
-        >
-          {savedCodes ? (
-            <Trans id="login.complete">Authenticator reset complete</Trans>
-          ) : step === "password" ? (
-            <Trans id="login.title">Sign in</Trans>
-          ) : (
-            <Trans id="login.factor.account">Signing in as {username}</Trans>
-          )}
-        </h1>
-      </div>
-      {failure && (
-        <Alert status="danger" role="alert">
-          <Alert.Indicator />
-          <Alert.Content>
-            <Alert.Title>
-              <FormMessages errors={[failure.message]} />
-            </Alert.Title>
-            {failure.secondStep && (
-              <Alert.Description>
-                {failure.reset ? (
-                  <Trans id="login.reset.uncertain">
-                    The reset may already have completed. Try your new
-                    authenticator or a passkey. Enter your password again before
-                    another code attempt; your old codes may no longer work.
-                  </Trans>
-                ) : (
-                  <Trans id="login.factor.restart">
-                    Enter your password again before trying another code. This
-                    verification attempt cannot be reused.
-                  </Trans>
-                )}
-              </Alert.Description>
-            )}
-          </Alert.Content>
-        </Alert>
-      )}
+    <LoginShell
+      step="recovery"
+      username={username}
+      busy={flow.control.busy}
+      failure={flow.failure}
+      complete={savedCodes !== undefined}
+      onBack={() =>
+        void navigate({
+          to: "/login/totp",
+          state: loginState({ username, token }),
+        })
+      }
+    >
       {savedCodes ? (
         <RecoveryCodes
           codes={savedCodes.codes}
-          onContinue={() => finish(savedCodes.redirect)}
+          onContinue={() => flow.finish(savedCodes.redirect)}
         />
-      ) : finishing ? (
+      ) : flow.finishing ? (
         <Spinner />
       ) : (
-        <>
-          {step === "password" ? (
-            <PasswordForm
-              control={control}
-              username={username}
-              onFailure={(error) =>
-                setFailure({ message: describeError(error) })
-              }
-              onSuccess={(name, partialToken) => {
-                setUsername(name);
-                token.current = partialToken;
-                setFailure(undefined);
-                setStep("totp");
-              }}
-            />
-          ) : (
-            <FactorForm
-              key={step}
-              control={control}
-              mode={step}
-              config={config}
-              username={username}
-              returnTo={returnTo}
-              takeToken={() => {
-                const current = token.current;
-                token.current = undefined;
-                return current;
-              }}
-              onFailure={(error, reset) => {
-                setFailure({
+        <FactorForm
+          control={flow.control}
+          mode="recovery"
+          config={config}
+          username={username ?? ""}
+          returnTo={returnTo}
+          token={token ?? ""}
+          onFailure={(error, reset) => {
+            void navigate({
+              to: "/login",
+              state: loginState({
+                username,
+                failure: {
                   message: describeError(error),
                   secondStep: true,
                   reset,
-                });
-                setStep("password");
-              }}
-              onSuccess={async (redirect, codes) => {
-                setFailure(undefined);
-                if (codes) {
-                  setSavedCodes({ redirect, codes });
-                  await clearSessionQueries(queryClient);
-                } else await finish(redirect);
-              }}
-              onSwitch={() => {
-                if (!control.busy)
-                  setStep(step === "totp" ? "recovery" : "totp");
-              }}
-            />
-          )}
-          {step === "password" && (
-            <>
-              <Button
-                variant="secondary"
-                fullWidth
-                isPending={passkey.isPending}
-                isDisabled={!supported || (control.busy && !passkey.isPending)}
-                onPress={() => {
-                  if (!control.acquire()) return;
-                  void (async () => {
-                    try {
-                      const result = await passkey.mutateAsync();
-                      if (active.current) await finish(result.redirect);
-                    } catch (error) {
-                      if (active.current && !isCancellation(error))
-                        setFailure({ message: describeError(error) });
-                    } finally {
-                      passkey.reset();
-                      control.release();
-                    }
-                  })();
-                }}
-              >
-                {passkey.isPending && <Spinner size="sm" color="current" />}
-                <Trans id="login.passkey">Sign in with a passkey</Trans>
-              </Button>
-              {!supported && (
-                <p className="text-sm text-muted">
-                  <Trans id="login.passkey.unsupported">
-                    Passkeys are unavailable in this browser or connection. Use
-                    your password instead.
-                  </Trans>
-                </p>
-              )}
-            </>
-          )}
-        </>
+                },
+              }),
+            });
+          }}
+          onSuccess={async (redirect, codes) => {
+            flow.setFailure(undefined);
+            if (codes) {
+              setSavedCodes({ redirect, codes });
+              await clearSessionQueries(queryClient);
+            } else await flow.finish(redirect);
+          }}
+        />
       )}
-    </div>
-  );
-}
-
-export function Login() {
-  const { data: config } = useSuspenseQuery(publicConfigQueryOptions());
-  const { data: status } = useSuspenseQuery(authStatusQueryOptions());
-  const search = useLocation({ select: (location) => location.searchStr });
-  let returnTo: string | undefined;
-  let linkError: MessageDescriptor | undefined;
-  try {
-    returnTo = parseReturnTo(search, window.location.origin);
-  } catch (error) {
-    linkError = describeError(error);
-  }
-  return (
-    <main className="mx-auto flex w-full max-w-[30rem] flex-col gap-4 px-4 py-8">
-      {config.maintenanceMode && (
-        <Alert status="warning">
-          <Alert.Indicator />
-          <Alert.Content>
-            <Alert.Title>
-              <Trans id="login.maintenance">
-                The service is undergoing maintenance. Administrators can still
-                try to sign in.
-              </Trans>
-            </Alert.Title>
-            {config.maintenanceMessage && (
-              <Alert.Description>{config.maintenanceMessage}</Alert.Description>
-            )}
-          </Alert.Content>
-        </Alert>
-      )}
-      {linkError ? (
-        <Alert status="danger" role="alert">
-          <Alert.Indicator />
-          <Alert.Content>
-            <Alert.Title>
-              <FormMessages errors={[linkError]} />
-            </Alert.Title>
-          </Alert.Content>
-        </Alert>
-      ) : !status.bootstrapped ? (
-        <Alert status="warning">
-          <Alert.Indicator />
-          <Alert.Content>
-            <Alert.Title>
-              <Trans id="login.uninitialized">
-                This instance has not been initialized.
-              </Trans>
-            </Alert.Title>
-            <Alert.Description>
-              <Trans id="login.enroll_instruction">
-                Ask the operator to run <code>prohibitorum enroll-admin</code>{" "}
-                on the server before signing in.
-              </Trans>
-            </Alert.Description>
-          </Alert.Content>
-        </Alert>
-      ) : (
-        <Card>
-          <Card.Content>
-            <LoginFlow
-              key={returnTo ?? ""}
-              config={config}
-              returnTo={returnTo}
-            />
-          </Card.Content>
-        </Card>
-      )}
-    </main>
+    </LoginShell>
   );
 }

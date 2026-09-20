@@ -1,6 +1,7 @@
 import { I18nProvider } from "@lingui/react";
 import { type QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
+  type AnyRoute,
   createBrowserHistory,
   createRootRoute,
   createRoute,
@@ -17,6 +18,7 @@ import {
   waitFor,
 } from "@testing-library/react";
 import userEvent, { type UserEvent } from "@testing-library/user-event";
+import type { ReactElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError, describeError } from "@/api/errors";
 import type { components } from "@/api/generated/schema";
@@ -29,7 +31,7 @@ import type { PublicConfig } from "@/api/raw-paths";
 import { createQueryClient } from "@/app/query-client";
 import { RecoveryCodes } from "@/components/custom/RecoveryCodes";
 import { i18n } from "@/i18n";
-import { Login } from "@/routes/Login";
+import { PasswordPage, RecoveryPage, TotpPage } from "@/routes/Login";
 
 vi.mock("qrcode", () => ({
   default: { toCanvas: vi.fn().mockResolvedValue(undefined) },
@@ -67,22 +69,8 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-function mount(component = Login) {
-  const root = createRootRoute({ component: Outlet });
-  const login = createRoute({
-    getParentRoute: () => root,
-    path: "/login",
-    component,
-  });
-  const elsewhere = createRoute({
-    getParentRoute: () => root,
-    path: "/",
-    component: () => <h1>Destination</h1>,
-  });
-  const router = createRouter({
-    routeTree: root.addChildren([login, elsewhere]),
-    history,
-  });
+function mountRouter(routeTree: AnyRoute) {
+  const router = createRouter({ routeTree, history });
   render(
     <I18nProvider i18n={i18n}>
       <QueryClientProvider client={queryClient}>
@@ -91,6 +79,41 @@ function mount(component = Login) {
     </I18nProvider>,
   );
   return router;
+}
+
+function mount() {
+  const root = createRootRoute({ component: Outlet });
+  const password = createRoute({
+    getParentRoute: () => root,
+    path: "/login",
+    component: PasswordPage,
+  });
+  const totp = createRoute({
+    getParentRoute: () => root,
+    path: "/login/totp",
+    component: TotpPage,
+  });
+  const recovery = createRoute({
+    getParentRoute: () => root,
+    path: "/login/recovery",
+    component: RecoveryPage,
+  });
+  const elsewhere = createRoute({
+    getParentRoute: () => root,
+    path: "/",
+    component: () => <h1>Destination</h1>,
+  });
+  return mountRouter(root.addChildren([password, totp, recovery, elsewhere]));
+}
+
+function mountStandalone(component: () => ReactElement) {
+  const root = createRootRoute({ component: Outlet });
+  const login = createRoute({
+    getParentRoute: () => root,
+    path: "/login",
+    component,
+  });
+  return mountRouter(root.addChildren([login]));
 }
 
 async function password(user: UserEvent) {
@@ -328,7 +351,7 @@ it("keeps new recovery codes visible across session changes and blocks leaving w
     };
     queryClient.setQueryData(sessionQueryOptions().queryKey, session);
   });
-  expect(router.state.location.pathname).toBe("/login");
+  expect(router.state.location.pathname).toBe("/login/recovery");
   expect(display).toBeVisible();
   expect(screen.getByRole("button", { name: "Continue" })).toBeDisabled();
   const beforeUnload = new Event("beforeunload", { cancelable: true });
@@ -361,7 +384,7 @@ it("requires saved confirmation and does not report a rejected clipboard write a
   vi.spyOn(navigator.clipboard, "writeText").mockRejectedValue(
     new DOMException("Denied", "NotAllowedError"),
   );
-  mount(() => (
+  mountStandalone(() => (
     <RecoveryCodes codes={["ABCD-EFGH-IJKL-MNOP"]} onContinue={onContinue} />
   ));
   await user.click(await screen.findByRole("button", { name: "Copy codes" }));
