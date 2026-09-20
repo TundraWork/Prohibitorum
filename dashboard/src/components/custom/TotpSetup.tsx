@@ -1,7 +1,8 @@
-import { Alert, Input, Label, TextField } from "@heroui/react";
+import { Input, Label, TextField } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import QRCode from "qrcode";
 import { useEffect, useRef, useState } from "react";
+import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
 
 export function TotpSetup({ secret, uri }: { secret: string; uri: string }) {
   const { t } = useLingui();
@@ -26,17 +27,17 @@ export function TotpSetup({ secret, uri }: { secret: string; uri: string }) {
 
   return (
     <div className="flex min-w-0 flex-col gap-4">
-      <Alert status="warning">
-        <Alert.Indicator />
-        <Alert.Content>
-          <Alert.Title>
+      <SurfaceAlert status="warning">
+        <SurfaceAlert.Indicator />
+        <SurfaceAlert.Content>
+          <SurfaceAlert.Title>
             <Trans id="login.reset.warning">
               After a successful reset, your old authenticator and all old
               recovery codes will stop working.
             </Trans>
-          </Alert.Title>
-        </Alert.Content>
-      </Alert>
+          </SurfaceAlert.Title>
+        </SurfaceAlert.Content>
+      </SurfaceAlert>
       <p className="text-sm text-muted">
         <Trans id="login.reset.scan">
           Scan this QR code with your authenticator, or enter the setup key
@@ -55,16 +56,16 @@ export function TotpSetup({ secret, uri }: { secret: string; uri: string }) {
         />
       )}
       {qrFailed && (
-        <Alert status="warning">
-          <Alert.Content>
-            <Alert.Title>
+        <SurfaceAlert status="warning">
+          <SurfaceAlert.Content>
+            <SurfaceAlert.Title>
               <Trans id="login.reset.qr_failed">
                 The QR code could not be displayed. Enter the setup key
                 manually.
               </Trans>
-            </Alert.Title>
-          </Alert.Content>
-        </Alert>
+            </SurfaceAlert.Title>
+          </SurfaceAlert.Content>
+        </SurfaceAlert>
       )}
       <TextField isReadOnly value={secret}>
         <Label>

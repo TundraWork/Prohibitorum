@@ -14,6 +14,7 @@ import {
 } from "@/api/queries";
 import { FormMessages } from "@/components/custom/FormMessages";
 import { PageFrame } from "@/components/custom/PageFrame";
+import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
 
 export type LoginStep = "password" | "totp" | "recovery";
 
@@ -156,14 +157,14 @@ export function LoginShell({
                   </h1>
                 </div>
                 {failure && (
-                  <Alert status="danger" role="alert">
-                    <Alert.Indicator />
-                    <Alert.Content>
-                      <Alert.Title>
+                  <SurfaceAlert status="danger" role="alert">
+                    <SurfaceAlert.Indicator />
+                    <SurfaceAlert.Content>
+                      <SurfaceAlert.Title>
                         <FormMessages errors={[failure.message]} />
-                      </Alert.Title>
+                      </SurfaceAlert.Title>
                       {failure.secondStep && (
-                        <Alert.Description>
+                        <SurfaceAlert.Description>
                           {failure.reset ? (
                             <Trans id="login.reset.uncertain">
                               The reset may already have completed. Try your new
@@ -177,10 +178,10 @@ export function LoginShell({
                               code. This verification attempt cannot be reused.
                             </Trans>
                           )}
-                        </Alert.Description>
+                        </SurfaceAlert.Description>
                       )}
-                    </Alert.Content>
-                  </Alert>
+                    </SurfaceAlert.Content>
+                  </SurfaceAlert>
                 )}
                 {children}
               </div>

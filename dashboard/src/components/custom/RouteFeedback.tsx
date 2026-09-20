@@ -1,8 +1,9 @@
-import { Alert, Button, Card, Link } from "@heroui/react";
+import { Button, Card, Link } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { createLink, useRouter } from "@tanstack/react-router";
 import { describeError } from "@/api/errors";
 import { PageSkeleton } from "@/components/custom/PreviewLayout";
+import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
 
 const RouterLink = createLink(Link);
 
@@ -27,17 +28,17 @@ export function RouteError({ error }: { error: unknown }) {
   return (
     <Card>
       <Card.Content>
-        <Alert status="danger" role="alert">
-          <Alert.Indicator />
-          <Alert.Content>
-            <Alert.Title render={(props) => <h1 {...props} />}>
+        <SurfaceAlert status="danger" role="alert">
+          <SurfaceAlert.Indicator />
+          <SurfaceAlert.Content>
+            <SurfaceAlert.Title render={(props) => <h1 {...props} />}>
               <Trans id="route.failed">Unable to load this page</Trans>
-            </Alert.Title>
-            <Alert.Description>
+            </SurfaceAlert.Title>
+            <SurfaceAlert.Description>
               {i18n._(describeError(error))}
-            </Alert.Description>
-          </Alert.Content>
-        </Alert>
+            </SurfaceAlert.Description>
+          </SurfaceAlert.Content>
+        </SurfaceAlert>
       </Card.Content>
       <Card.Footer>
         <Button

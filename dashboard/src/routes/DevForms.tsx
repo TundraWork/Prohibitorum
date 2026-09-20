@@ -9,6 +9,7 @@ import {
   renameCredentialMutationOptions,
 } from "@/api/mutations";
 import { PageHeader } from "@/components/custom/PreviewLayout";
+import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
 import { applyServerError, type ServerFieldMap } from "@/forms/server-errors";
 import { useAppForm } from "@/forms/use-app-form";
 
@@ -98,16 +99,16 @@ function RenameForm() {
               <Trans id="dev.forms.rename.submit">Submit nickname</Trans>
             </form.SubmitButton>
             {saved && (
-              <Alert status="success" role="status">
-                <Alert.Indicator />
-                <Alert.Content>
-                  <Alert.Title>
+              <SurfaceAlert status="success" role="status">
+                <SurfaceAlert.Indicator />
+                <SurfaceAlert.Content>
+                  <SurfaceAlert.Title>
                     <Trans id="dev.forms.rename.success">
                       Nickname saved. Your input has been kept.
                     </Trans>
-                  </Alert.Title>
-                </Alert.Content>
-              </Alert>
+                  </SurfaceAlert.Title>
+                </SurfaceAlert.Content>
+              </SurfaceAlert>
             )}
           </form.Form>
         </form.AppForm>
@@ -161,16 +162,16 @@ function LogoutForm() {
               <Trans id="dev.forms.logout.submit">Log out test session</Trans>
             </form.SubmitButton>
             {completed && (
-              <Alert status="success" role="status">
-                <Alert.Indicator />
-                <Alert.Content>
-                  <Alert.Title>
+              <SurfaceAlert status="success" role="status">
+                <SurfaceAlert.Indicator />
+                <SurfaceAlert.Content>
+                  <SurfaceAlert.Title>
                     <Trans id="dev.forms.logout.success">
                       Logout completed with no response body.
                     </Trans>
-                  </Alert.Title>
-                </Alert.Content>
-              </Alert>
+                  </SurfaceAlert.Title>
+                </SurfaceAlert.Content>
+              </SurfaceAlert>
             )}
           </form.Form>
         </form.AppForm>

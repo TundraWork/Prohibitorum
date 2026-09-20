@@ -1,5 +1,4 @@
 import {
-  Alert,
   Button,
   Checkbox,
   Label,
@@ -10,6 +9,7 @@ import {
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useBlocker } from "@tanstack/react-router";
 import { useRef, useState } from "react";
+import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
 
 export function RecoveryCodes({
   codes,
@@ -79,17 +79,17 @@ export function RecoveryCodes({
       <h2 className="text-xl font-semibold">
         <Trans id="login.codes.title">Save your new recovery codes</Trans>
       </h2>
-      <Alert status="warning">
-        <Alert.Indicator />
-        <Alert.Content>
-          <Alert.Title>
+      <SurfaceAlert status="warning">
+        <SurfaceAlert.Indicator />
+        <SurfaceAlert.Content>
+          <SurfaceAlert.Title>
             <Trans id="login.codes.once">
               These codes are shown only once. Keep them somewhere safe before
               continuing. Your old recovery codes no longer work.
             </Trans>
-          </Alert.Title>
-        </Alert.Content>
-      </Alert>
+          </SurfaceAlert.Title>
+        </SurfaceAlert.Content>
+      </SurfaceAlert>
       <TextField isReadOnly value={text}>
         <Label>
           <Trans id="login.codes.label">New recovery codes</Trans>
@@ -121,27 +121,27 @@ export function RecoveryCodes({
         </p>
       )}
       {copyState === "failed" && (
-        <Alert status="warning" role="alert">
-          <Alert.Content>
-            <Alert.Title>
+        <SurfaceAlert status="warning" role="alert">
+          <SurfaceAlert.Content>
+            <SurfaceAlert.Title>
               <Trans id="login.codes.copy_failed">
                 Could not copy the codes. Select the codes above and copy them
                 manually, or download them.
               </Trans>
-            </Alert.Title>
-          </Alert.Content>
-        </Alert>
+            </SurfaceAlert.Title>
+          </SurfaceAlert.Content>
+        </SurfaceAlert>
       )}
       {downloadFailed && (
-        <Alert status="warning" role="alert">
-          <Alert.Content>
-            <Alert.Title>
+        <SurfaceAlert status="warning" role="alert">
+          <SurfaceAlert.Content>
+            <SurfaceAlert.Title>
               <Trans id="login.codes.download_failed">
                 Could not download the codes. Copy them or save them manually.
               </Trans>
-            </Alert.Title>
-          </Alert.Content>
-        </Alert>
+            </SurfaceAlert.Title>
+          </SurfaceAlert.Content>
+        </SurfaceAlert>
       )}
       <Checkbox isSelected={saved} onChange={setSaved} isDisabled={pending}>
         <Checkbox.Content>

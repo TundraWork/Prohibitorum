@@ -1,5 +1,4 @@
 import {
-  Alert,
   Button,
   Card,
   Description,
@@ -17,6 +16,7 @@ import {
   PageSkeleton,
   RewriteNotice,
 } from "@/components/custom/PreviewLayout";
+import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
 
 export function Preview() {
   const { t } = useLingui();
@@ -117,16 +117,16 @@ export function Preview() {
                   )}
                 </Button>
               </div>
-              <Alert status="danger">
-                <Alert.Indicator />
-                <Alert.Content>
-                  <Alert.Title>
+              <SurfaceAlert status="danger">
+                <SurfaceAlert.Indicator />
+                <SurfaceAlert.Content>
+                  <SurfaceAlert.Title>
                     <Trans id="feedback.error">
                       Unable to save. Check your input and try again. (Example)
                     </Trans>
-                  </Alert.Title>
-                </Alert.Content>
-              </Alert>
+                  </SurfaceAlert.Title>
+                </SurfaceAlert.Content>
+              </SurfaceAlert>
               <p>
                 <Trans id="feedback.skeleton">Loading skeleton example</Trans>
               </p>

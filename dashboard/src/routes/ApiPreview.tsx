@@ -1,4 +1,4 @@
-import { Alert, Button, Card, Spinner } from "@heroui/react";
+import { Button, Card, Spinner } from "@heroui/react";
 import { Trans } from "@lingui/react/macro";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import {
@@ -6,6 +6,7 @@ import {
   publicConfigQueryOptions,
 } from "@/api/queries";
 import { PageHeader, RewriteNotice } from "@/components/custom/PreviewLayout";
+import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
 
 export function ApiPreview() {
   const config = useSuspenseQuery(publicConfigQueryOptions());
@@ -72,12 +73,14 @@ export function ApiPreview() {
             </div>
           </dl>
           {config.data.maintenanceMode && config.data.maintenanceMessage && (
-            <Alert status="warning">
-              <Alert.Indicator />
-              <Alert.Content>
-                <Alert.Title>{config.data.maintenanceMessage}</Alert.Title>
-              </Alert.Content>
-            </Alert>
+            <SurfaceAlert status="warning">
+              <SurfaceAlert.Indicator />
+              <SurfaceAlert.Content>
+                <SurfaceAlert.Title>
+                  {config.data.maintenanceMessage}
+                </SurfaceAlert.Title>
+              </SurfaceAlert.Content>
+            </SurfaceAlert>
           )}
         </Card.Content>
         <Card.Footer className="flex flex-col items-start gap-3">
