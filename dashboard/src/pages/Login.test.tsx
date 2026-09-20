@@ -31,7 +31,7 @@ import type { PublicConfig } from "@/api/raw-paths";
 import { createQueryClient } from "@/app/query-client";
 import { RecoveryCodes } from "@/components/custom/RecoveryCodes";
 import { i18n } from "@/i18n";
-import { PasswordPage, RecoveryPage, TotpPage } from "@/routes/Login";
+import { PasswordPage, RecoveryPage, TotpPage } from "@/pages/Login";
 
 vi.mock("qrcode", () => ({
   default: { toCanvas: vi.fn().mockResolvedValue(undefined) },

@@ -2,11 +2,15 @@ import { fileURLToPath, URL } from "node:url";
 import { lingui, linguiTransformerBabelPreset } from "@lingui/vite-plugin";
 import babel from "@rolldown/plugin-babel";
 import tailwindcss from "@tailwindcss/vite";
+import { tanstackRouter } from "@tanstack/router-plugin/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   plugins: [
+    // Tests import the committed routeTree.gen.ts; generation would
+    // double-evaluate route modules under Vitest's resetModules.
+    ...(process.env.VITEST ? [] : [tanstackRouter({ target: "react" })]),
     react(),
     lingui({ failOnMissing: true, failOnCompileError: true }),
     babel({ presets: [linguiTransformerBabelPreset()] }),

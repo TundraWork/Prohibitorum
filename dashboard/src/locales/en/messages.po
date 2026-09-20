@@ -13,7 +13,7 @@ msgstr ""
 "Plural-Forms: \n"
 
 #. js-lingui-explicit-id
-#: src/routes/ApiPreview.tsx
+#: src/pages/ApiPreview.tsx
 msgid "api.maintenance.active"
 msgstr "Active"
 
@@ -33,12 +33,12 @@ msgid "login.enroll_instruction"
 msgstr "Ask the operator to run <0>prohibitorum enroll-admin</0> on the server before signing in."
 
 #. js-lingui-explicit-id
-#: src/routes/Login.tsx
+#: src/pages/Login.tsx
 msgid "login.totp.code"
 msgstr "Authenticator code"
 
 #. js-lingui-explicit-id
-#: src/routes/ApiPreview.tsx
+#: src/pages/ApiPreview.tsx
 msgid "api.issuer"
 msgstr "Authenticator issuer"
 
@@ -78,7 +78,7 @@ msgid "console.coming-soon"
 msgstr "Coming later"
 
 #. js-lingui-explicit-id
-#: src/routes/Preview.tsx
+#: src/pages/Preview.tsx
 msgid "components.title"
 msgstr "Components"
 
@@ -90,7 +90,7 @@ msgstr "Components"
 #. js-lingui-explicit-id
 #: src/components/custom/ConsoleLayout.tsx
 #: src/components/custom/PreviewLayout.tsx
-#: src/routes/Console.tsx
+#: src/pages/Console.tsx
 msgid "console.home"
 msgstr "Console home"
 
@@ -105,7 +105,7 @@ msgid "login.codes.continue"
 msgstr "Continue"
 
 #. js-lingui-explicit-id
-#: src/routes/Login.tsx
+#: src/pages/Login.tsx
 msgid "login.password.next"
 msgstr "Continue with password"
 
@@ -130,17 +130,17 @@ msgid "login.codes.download_failed"
 msgstr "Could not download the codes. Copy them or save them manually."
 
 #. js-lingui-explicit-id
-#: src/routes/DevForms.tsx
+#: src/pages/DevForms.tsx
 msgid "dev.forms.id.label"
 msgstr "Credential ID"
 
 #. js-lingui-explicit-id
-#: src/routes/DevForms.tsx
+#: src/pages/DevForms.tsx
 msgid "dev.forms.rename.title"
 msgstr "Credential nickname request"
 
 #. js-lingui-explicit-id
-#: src/routes/Console.tsx
+#: src/pages/Console.tsx
 msgid "console.current-account"
 msgstr "Current account"
 
@@ -150,7 +150,7 @@ msgid "theme.dark"
 msgstr "Dark theme"
 
 #. js-lingui-explicit-id
-#: src/routes/DevForms.tsx
+#: src/pages/DevForms.tsx
 msgid "dev.forms.eyebrow"
 msgstr "Development only"
 
@@ -160,17 +160,17 @@ msgid "console.devices"
 msgstr "Devices"
 
 #. js-lingui-explicit-id
-#: src/routes/Preview.tsx
+#: src/pages/Preview.tsx
 msgid "button.disabled"
 msgstr "Disabled button"
 
 #. js-lingui-explicit-id
-#: src/routes/Console.tsx
+#: src/pages/Console.tsx
 msgid "console.display-name"
 msgstr "Display name"
 
 #. js-lingui-explicit-id
-#: src/routes/Preview.tsx
+#: src/pages/Preview.tsx
 msgid "name.label"
 msgstr "Display name"
 
@@ -180,27 +180,27 @@ msgid "login.codes.download"
 msgstr "Download codes"
 
 #. js-lingui-explicit-id
-#: src/routes/DevForms.tsx
+#: src/pages/DevForms.tsx
 msgid "dev.forms.logout.title"
 msgstr "Empty response request"
 
 #. js-lingui-explicit-id
-#: src/routes/Login.tsx
+#: src/pages/Login.tsx
 msgid "login.totp.invalid"
 msgstr "Enter a code with the configured number of digits, using only 0–9."
 
 #. js-lingui-explicit-id
-#: src/routes/Login.tsx
+#: src/pages/Login.tsx
 msgid "login.password.invalid"
 msgstr "Enter a password of no more than 1024 UTF-8 bytes."
 
 #. js-lingui-explicit-id
-#: src/routes/DevForms.tsx
+#: src/pages/DevForms.tsx
 msgid "dev.forms.id.invalid"
 msgstr "Enter a positive credential ID (up to 2147483647)."
 
 #. js-lingui-explicit-id
-#: src/routes/Login.tsx
+#: src/pages/Login.tsx
 msgid "login.recovery.invalid"
 msgstr "Enter a recovery code in XXXX-XXXX-XXXX-XXXX format, using uppercase A–Z and digits 2–7."
 
@@ -211,7 +211,7 @@ msgstr "Enter a valid nickname without control characters."
 
 #. js-lingui-explicit-id
 #. placeholder {0}: config.totp.digits
-#: src/routes/Login.tsx
+#: src/pages/Login.tsx
 msgid "login.totp.digits"
 msgstr "Enter the {0}-digit code from your authenticator."
 
@@ -221,22 +221,22 @@ msgid "login.factor.restart"
 msgstr "Enter your password again before trying another code. This verification attempt cannot be reused."
 
 #. js-lingui-explicit-id
-#: src/routes/Login.tsx
+#: src/pages/Login.tsx
 msgid "login.username.required"
 msgstr "Enter your username."
 
 #. js-lingui-explicit-id
-#: src/routes/DevForms.tsx
+#: src/pages/DevForms.tsx
 msgid "dev.forms.description"
 msgstr "Exercise the real API client, mutations, and form feedback. Use an isolated test account or intercept requests in browser tools. This page does not simulate responses."
 
 #. js-lingui-explicit-id
-#: src/routes/Preview.tsx
+#: src/pages/Preview.tsx
 msgid "feedback.tab"
 msgstr "Feedback"
 
 #. js-lingui-explicit-id
-#: src/routes/DevForms.tsx
+#: src/pages/DevForms.tsx
 msgid "dev.forms.title"
 msgstr "Form integration checks"
 
@@ -251,32 +251,32 @@ msgid "login.codes.saved"
 msgstr "I have saved my recovery codes"
 
 #. js-lingui-explicit-id
-#: src/routes/ApiPreview.tsx
+#: src/pages/ApiPreview.tsx
 msgid "api.maintenance.inactive"
 msgstr "Inactive"
 
 #. js-lingui-explicit-id
-#: src/routes/ApiPreview.tsx
+#: src/pages/ApiPreview.tsx
 msgid "api.initialization"
 msgstr "Initialization"
 
 #. js-lingui-explicit-id
-#: src/routes/ApiPreview.tsx
+#: src/pages/ApiPreview.tsx
 msgid "api.public-note"
 msgstr "Initialization does not indicate whether you are signed in."
 
 #. js-lingui-explicit-id
-#: src/routes/ApiPreview.tsx
+#: src/pages/ApiPreview.tsx
 msgid "api.initialized"
 msgstr "Initialized"
 
 #. js-lingui-explicit-id
-#: src/routes/ApiPreview.tsx
+#: src/pages/ApiPreview.tsx
 msgid "api.instance"
 msgstr "Instance"
 
 #. js-lingui-explicit-id
-#: src/routes/Preview.tsx
+#: src/pages/Preview.tsx
 msgid "preview.title"
 msgstr "Interface preview"
 
@@ -301,37 +301,37 @@ msgid "route.loading"
 msgstr "Loading page…"
 
 #. js-lingui-explicit-id
-#: src/routes/Preview.tsx
+#: src/pages/Preview.tsx
 msgid "feedback.skeleton"
 msgstr "Loading skeleton example"
 
 #. js-lingui-explicit-id
-#: src/routes/Preview.tsx
+#: src/pages/Preview.tsx
 msgid "preview.footer"
 msgstr "Local preview · HeroUI components"
 
 #. js-lingui-explicit-id
-#: src/routes/DevForms.tsx
+#: src/pages/DevForms.tsx
 msgid "dev.forms.logout.submit"
 msgstr "Log out test session"
 
 #. js-lingui-explicit-id
-#: src/routes/DevForms.tsx
+#: src/pages/DevForms.tsx
 msgid "dev.forms.logout.success"
 msgstr "Logout completed with no response body."
 
 #. js-lingui-explicit-id
-#: src/routes/ApiPreview.tsx
+#: src/pages/ApiPreview.tsx
 msgid "api.maintenance"
 msgstr "Maintenance"
 
 #. js-lingui-explicit-id
-#: src/routes/ApiPreview.tsx
+#: src/pages/ApiPreview.tsx
 msgid "api.name"
 msgstr "Name"
 
 #. js-lingui-explicit-id
-#: src/routes/Login.tsx
+#: src/pages/Login.tsx
 msgid "login.reset.code"
 msgstr "New authenticator code"
 
@@ -346,17 +346,17 @@ msgid "login.codes.label"
 msgstr "New recovery codes"
 
 #. js-lingui-explicit-id
-#: src/routes/DevForms.tsx
+#: src/pages/DevForms.tsx
 msgid "dev.forms.nickname.label"
 msgstr "Nickname"
 
 #. js-lingui-explicit-id
-#: src/routes/DevForms.tsx
+#: src/pages/DevForms.tsx
 msgid "dev.forms.rename.success"
 msgstr "Nickname saved. Your input has been kept."
 
 #. js-lingui-explicit-id
-#: src/routes/ApiPreview.tsx
+#: src/pages/ApiPreview.tsx
 msgid "api.uninitialized"
 msgstr "Not initialized"
 
@@ -381,7 +381,7 @@ msgid "error.login_failed"
 msgstr "Passkey sign-in failed. Try again or use your password."
 
 #. js-lingui-explicit-id
-#: src/routes/Login.tsx
+#: src/pages/Login.tsx
 msgid "login.passkey.unsupported"
 msgstr "Passkeys are unavailable in this browser or connection. Use your password instead."
 
@@ -391,22 +391,22 @@ msgid "error.passkey_unsupported"
 msgstr "Passkeys are unavailable in this browser. Use your password instead."
 
 #. js-lingui-explicit-id
-#: src/routes/Login.tsx
+#: src/pages/Login.tsx
 msgid "login.password"
 msgstr "Password"
 
 #. js-lingui-explicit-id
-#: src/routes/Preview.tsx
+#: src/pages/Preview.tsx
 msgid "preview.eyebrow"
 msgstr "PHB-64 / M1 · Foundation preview"
 
 #. js-lingui-explicit-id
-#: src/routes/ApiPreview.tsx
+#: src/pages/ApiPreview.tsx
 msgid "api.eyebrow"
 msgstr "PHB-65 / M2 · Public API preview"
 
 #. js-lingui-explicit-id
-#: src/routes/Preview.tsx
+#: src/pages/Preview.tsx
 msgid "preview.tabs"
 msgstr "Preview"
 
@@ -416,7 +416,7 @@ msgid "navigation.preview"
 msgstr "Preview navigation"
 
 #. js-lingui-explicit-id
-#: src/routes/Preview.tsx
+#: src/pages/Preview.tsx
 msgid "notification.message"
 msgstr "Preview notification. No data was submitted."
 
@@ -426,7 +426,7 @@ msgid "console.profile"
 msgstr "Profile"
 
 #. js-lingui-explicit-id
-#: src/routes/Console.tsx
+#: src/pages/Console.tsx
 msgid "console.availability"
 msgstr "Profile, security, applications, and devices will be available in a later update."
 
@@ -436,22 +436,22 @@ msgid "navigation.api"
 msgstr "Public API"
 
 #. js-lingui-explicit-id
-#: src/routes/ApiPreview.tsx
+#: src/pages/ApiPreview.tsx
 msgid "api.title"
 msgstr "Public configuration"
 
 #. js-lingui-explicit-id
-#: src/routes/Login.tsx
+#: src/pages/Login.tsx
 msgid "login.recovery.code"
 msgstr "Recovery code"
 
 #. js-lingui-explicit-id
-#: src/routes/ApiPreview.tsx
+#: src/pages/ApiPreview.tsx
 msgid "api.refresh"
 msgstr "Refresh data"
 
 #. js-lingui-explicit-id
-#: src/routes/ApiPreview.tsx
+#: src/pages/ApiPreview.tsx
 msgid "api.refreshing"
 msgstr "Refreshing…"
 
@@ -462,7 +462,7 @@ msgid "notification.request_id"
 msgstr "Request ID: {0}"
 
 #. js-lingui-explicit-id
-#: src/routes/Login.tsx
+#: src/pages/Login.tsx
 msgid "login.reset.toggle"
 msgstr "Reset my authenticator"
 
@@ -472,7 +472,7 @@ msgid "route.home"
 msgstr "Return to preview"
 
 #. js-lingui-explicit-id
-#: src/routes/Preview.tsx
+#: src/pages/Preview.tsx
 msgid "preview.description"
 msgstr "Review language, colors, and component states."
 
@@ -497,12 +497,12 @@ msgid "login.reset.secret"
 msgstr "Setup key"
 
 #. js-lingui-explicit-id
-#: src/routes/Preview.tsx
+#: src/pages/Preview.tsx
 msgid "notification.show"
 msgstr "Show notification"
 
 #. js-lingui-explicit-id
-#: src/routes/Login.tsx
+#: src/pages/Login.tsx
 msgid "login.verify"
 msgstr "Sign in"
 
@@ -522,17 +522,17 @@ msgid "error.no_session"
 msgstr "Sign in to continue."
 
 #. js-lingui-explicit-id
-#: src/routes/Login.tsx
+#: src/pages/Login.tsx
 msgid "login.passkey"
 msgstr "Sign in with a passkey"
 
 #. js-lingui-explicit-id
-#: src/routes/Login.tsx
+#: src/pages/Login.tsx
 msgid "login.password.form"
 msgstr "Sign in with a password"
 
 #. js-lingui-explicit-id
-#: src/routes/Login.tsx
+#: src/pages/Login.tsx
 msgid "login.recovery.form"
 msgstr "Sign in with a recovery code"
 
@@ -552,17 +552,17 @@ msgid "error.ceremony_missing"
 msgstr "Start passkey sign-in again to continue."
 
 #. js-lingui-explicit-id
-#: src/routes/Preview.tsx
+#: src/pages/Preview.tsx
 msgid "feedback.title"
 msgstr "State examples"
 
 #. js-lingui-explicit-id
-#: src/routes/DevForms.tsx
+#: src/pages/DevForms.tsx
 msgid "dev.forms.rename.submit"
 msgstr "Submit nickname"
 
 #. js-lingui-explicit-id
-#: src/routes/Preview.tsx
+#: src/pages/Preview.tsx
 msgid "feedback.submitting"
 msgstr "Submitting (example)"
 
@@ -632,7 +632,7 @@ msgid "error.invalid_response"
 msgstr "The server returned an invalid response. Please try again."
 
 #. js-lingui-explicit-id
-#: src/routes/DevForms.tsx
+#: src/pages/DevForms.tsx
 msgid "dev.forms.nickname.description"
 msgstr "The server validates this value. A successful request changes the test credential."
 
@@ -662,12 +662,12 @@ msgid "login.codes.once"
 msgstr "These codes are shown only once. Keep them somewhere safe before continuing. Your old recovery codes no longer work."
 
 #. js-lingui-explicit-id
-#: src/routes/DevForms.tsx
+#: src/pages/DevForms.tsx
 msgid "dev.forms.warning"
 msgstr "These controls send real requests. They are development checks, not a credential management or sign-in page."
 
 #. js-lingui-explicit-id
-#: src/routes/Preview.tsx
+#: src/pages/Preview.tsx
 msgid "feedback.description"
 msgstr "These visual examples do not send requests."
 
@@ -697,7 +697,7 @@ msgid "error.not_bootstrapped"
 msgstr "This instance is not ready for sign-in. Contact its administrator."
 
 #. js-lingui-explicit-id
-#: src/routes/Preview.tsx
+#: src/pages/Preview.tsx
 msgid "name.description"
 msgstr "This is a local preview. Your input will not be submitted."
 
@@ -707,12 +707,12 @@ msgid "preview.notice"
 msgstr "This is a public component preview. Account management and administration pages are not available yet."
 
 #. js-lingui-explicit-id
-#: src/routes/ApiPreview.tsx
+#: src/pages/ApiPreview.tsx
 msgid "api.description"
 msgstr "This page reads the instance configuration and initialization status from the server."
 
 #. js-lingui-explicit-id
-#: src/routes/DevForms.tsx
+#: src/pages/DevForms.tsx
 msgid "dev.forms.logout.description"
 msgstr "This sends a real logout request and clears session queries. Use only an isolated browser session, never your regular signed-in session."
 
@@ -747,7 +747,7 @@ msgid "route.failed"
 msgstr "Unable to load this page"
 
 #. js-lingui-explicit-id
-#: src/routes/Preview.tsx
+#: src/pages/Preview.tsx
 msgid "feedback.error"
 msgstr "Unable to save. Check your input and try again. (Example)"
 
@@ -757,12 +757,12 @@ msgid "forms.error.title"
 msgstr "Unable to submit"
 
 #. js-lingui-explicit-id
-#: src/routes/DevForms.tsx
+#: src/pages/DevForms.tsx
 msgid "dev.forms.id.description"
 msgstr "Use a credential belonging to an isolated test account."
 
 #. js-lingui-explicit-id
-#: src/routes/Login.tsx
+#: src/pages/Login.tsx
 msgid "login.use_recovery"
 msgstr "Use a recovery code"
 
@@ -772,12 +772,12 @@ msgid "login.use_totp"
 msgstr "Use an authenticator code"
 
 #. js-lingui-explicit-id
-#: src/routes/Console.tsx
+#: src/pages/Console.tsx
 msgid "console.username"
 msgstr "Username"
 
 #. js-lingui-explicit-id
-#: src/routes/Login.tsx
+#: src/pages/Login.tsx
 msgid "login.username"
 msgstr "Username"
 
@@ -787,7 +787,7 @@ msgid "error.passkey_incomplete"
 msgstr "Verification was not completed. Try again or use your password."
 
 #. js-lingui-explicit-id
-#: src/routes/Login.tsx
+#: src/pages/Login.tsx
 msgid "login.totp.form"
 msgstr "Verify your authenticator"
 

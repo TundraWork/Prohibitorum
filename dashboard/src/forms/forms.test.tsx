@@ -20,7 +20,7 @@ import {
 import { ServerFormError } from "@/forms/server-errors";
 import { useAppForm } from "@/forms/use-app-form";
 import { i18n } from "@/i18n";
-import DevForms from "@/routes/DevForms";
+import DevForms from "@/pages/DevForms";
 
 let queryClient: QueryClient;
 
