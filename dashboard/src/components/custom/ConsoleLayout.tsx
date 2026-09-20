@@ -2,19 +2,12 @@ import {
   Avatar,
   Button,
   Drawer,
-  Link,
-  Separator,
   Spinner,
   useOverlayState,
 } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  createLink,
-  Outlet,
-  useRouter,
-  useRouterState,
-} from "@tanstack/react-router";
+import { Outlet, useRouter, useRouterState } from "@tanstack/react-router";
 import { cva } from "class-variance-authority";
 import {
   AppWindow,
@@ -32,13 +25,14 @@ import { logoutMutationOptions } from "@/api/mutations";
 import { clearSessionQueries, sessionQueryOptions } from "@/api/queries";
 import { instanceName } from "@/components/custom/AppLayout";
 import { notificationQueue } from "@/components/custom/AppNotifications";
-import { AppToolbar } from "@/components/custom/AppToolbar";
+import { LanguageMenu } from "@/components/custom/LanguageMenu";
 import { RouteError, RoutePending } from "@/components/custom/RouteFeedback";
+import { ThemeSelect } from "@/components/custom/ThemeSelect";
 
 type Session = components["schemas"]["SessionView"];
-const NavigationLink = createLink(Link);
+
 const navigationItem = cva(
-  "flex w-full items-center gap-3 rounded-field px-3 py-2.5 text-sm no-underline",
+  "group flex h-9 w-full items-center justify-start gap-3 rounded-field px-2 py-1.5 text-sm leading-5",
   {
     variants: {
       state: {
@@ -51,62 +45,107 @@ const navigationItem = cva(
   },
 );
 
-function ConsoleNavigation({ session }: { session: Session }) {
+function NavItem({
+  active,
+  icon: Icon,
+  children,
+  disabled,
+  onPress,
+}: {
+  active?: boolean;
+  icon: React.ComponentType<{ size?: number; className?: string }>;
+  children: React.ReactNode;
+  disabled?: boolean;
+  onPress?: () => void;
+}) {
+  const state = disabled ? "unavailable" : "available";
+  const cls = navigationItem({ state });
+  return (
+    <Button
+      variant="ghost"
+      className={cls}
+      isDisabled={disabled}
+      data-status={active ? "active" : undefined}
+      onPress={onPress}
+    >
+      <Icon
+        size={16}
+        className={
+          disabled
+            ? "shrink-0"
+            : "shrink-0 text-muted group-data-[status=active]:text-foreground"
+        }
+        aria-hidden="true"
+      />
+      <span className="truncate">{children}</span>
+    </Button>
+  );
+}
+
+function ConsoleNavigation({
+  session,
+  activePath,
+  onNavigate,
+}: {
+  session: Session;
+  activePath: string;
+  onNavigate: (path: string) => void;
+}) {
   const { t } = useLingui();
   return (
-    <div className="flex min-w-0 flex-col gap-5">
-      <div className="flex min-w-0 items-center gap-3 px-3 py-2">
-        <Avatar className="shrink-0">
-          {session.avatarUrl && <Avatar.Image src={session.avatarUrl} alt="" />}
-          <Avatar.Fallback>
-            <UserRound size={20} aria-hidden="true" />
-          </Avatar.Fallback>
-        </Avatar>
-        <div className="min-w-0 wrap-anywhere">
-          <p className="text-sm font-semibold">{session.displayName}</p>
-          <p className="text-xs text-muted">{session.username}</p>
+    <div className="flex min-w-0 flex-col">
+      <div className="px-4 pb-2 pt-4">
+        <div className="flex items-center gap-3 px-1 py-1">
+          <Avatar className="size-9 shrink-0">
+            {session.avatarUrl && (
+              <Avatar.Image src={session.avatarUrl} alt="" />
+            )}
+            <Avatar.Fallback>
+              <UserRound size={20} aria-hidden="true" />
+            </Avatar.Fallback>
+          </Avatar>
+          <div className="flex min-w-0 flex-col">
+            <span className="text-sm font-medium leading-tight text-foreground">
+              {session.displayName}
+            </span>
+            <span className="text-xs font-medium leading-tight text-muted">
+              {session.username}
+            </span>
+          </div>
         </div>
       </div>
-      <nav
-        aria-label={t({
-          id: "console.navigation",
-          message: "Console navigation",
-        })}
-        className="flex flex-col gap-1"
-      >
-        <NavigationLink
-          to="/"
-          activeOptions={{ exact: true }}
-          preload={false}
-          className={navigationItem()}
+      <div className="flex flex-1 flex-col overflow-y-auto px-3">
+        <nav
+          aria-label={t({
+            id: "console.navigation",
+            message: "Console navigation",
+          })}
+          className="flex flex-col gap-0.5"
         >
-          <House size={18} className="shrink-0" aria-hidden="true" />
-          <Trans id="console.home">Console home</Trans>
-        </NavigationLink>
-        <p className="px-3 pb-1 pt-5 text-xs font-medium text-muted">
-          <Trans id="console.coming-soon">Coming later</Trans>
-        </p>
-        <Link isDisabled className={navigationItem({ state: "unavailable" })}>
-          <UserRound size={18} className="shrink-0" aria-hidden="true" />
-          <Trans id="console.profile">Profile</Trans>
-        </Link>
-        <Link isDisabled className={navigationItem({ state: "unavailable" })}>
-          <ShieldCheck size={18} className="shrink-0" aria-hidden="true" />
-          <Trans id="console.security">Security</Trans>
-        </Link>
-        <Link isDisabled className={navigationItem({ state: "unavailable" })}>
-          <AppWindow size={18} className="shrink-0" aria-hidden="true" />
-          <Trans id="console.applications">Applications</Trans>
-        </Link>
-        <Link isDisabled className={navigationItem({ state: "unavailable" })}>
-          <MonitorSmartphone
-            size={18}
-            className="shrink-0"
-            aria-hidden="true"
-          />
-          <Trans id="console.devices">Devices</Trans>
-        </Link>
-      </nav>
+          <NavItem
+            active={activePath === "/"}
+            icon={House}
+            onPress={() => onNavigate("/")}
+          >
+            <Trans id="console.home">Console home</Trans>
+          </NavItem>
+          <p className="px-2 pb-1 pt-3 text-xs font-medium text-muted">
+            <Trans id="console.coming-soon">Coming later</Trans>
+          </p>
+          <NavItem disabled icon={UserRound}>
+            <Trans id="console.profile">Profile</Trans>
+          </NavItem>
+          <NavItem disabled icon={ShieldCheck}>
+            <Trans id="console.security">Security</Trans>
+          </NavItem>
+          <NavItem disabled icon={AppWindow}>
+            <Trans id="console.applications">Applications</Trans>
+          </NavItem>
+          <NavItem disabled icon={MonitorSmartphone}>
+            <Trans id="console.devices">Devices</Trans>
+          </NavItem>
+        </nav>
+      </div>
     </div>
   );
 }
@@ -119,18 +158,21 @@ function ConsoleActions({
   onLogout: () => void;
 }) {
   return (
-    <div className="flex w-full flex-col gap-3">
-      <Separator />
+    <div className="flex flex-col gap-0.5 px-3 pb-4 pt-2">
       <Button
         variant="ghost"
-        className="w-full justify-start"
+        className={navigationItem()}
         isPending={pending}
         onPress={onLogout}
       >
         {pending ? (
-          <Spinner size="sm" />
+          <Spinner size="sm" className="shrink-0" />
         ) : (
-          <LogOut size={18} aria-hidden="true" />
+          <LogOut
+            size={16}
+            className="shrink-0 text-muted"
+            aria-hidden="true"
+          />
         )}
         <Trans id="console.logout">Sign out</Trans>
       </Button>
@@ -149,8 +191,11 @@ function ConsoleShell({
 }) {
   const { t } = useLingui();
   const drawer = useOverlayState();
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const router = useRouter();
+  const activePath = useRouterState({ select: (s) => s.location.pathname });
   const { close } = drawer;
+
   useEffect(() => router.subscribe("onBeforeNavigate", close), [router, close]);
   useEffect(() => {
     const desktop = window.matchMedia("(min-width: 768px)");
@@ -161,20 +206,45 @@ function ConsoleShell({
     desktop.addEventListener("change", onChange);
     return () => desktop.removeEventListener("change", onChange);
   }, [close]);
+
   const logout = () => {
     close();
     onLogout();
   };
+  const navigate = (path: string) => {
+    close();
+    void router.navigate({ to: path });
+  };
+
   return (
-    <div className="min-h-dvh md:grid md:grid-cols-[16rem_minmax(0,1fr)]">
-      <aside className="sticky top-0 hidden h-dvh min-w-0 flex-col gap-6 overflow-y-auto border-r border-separator p-3 md:flex">
-        <ConsoleNavigation session={session} />
-        <div className="mt-auto">
-          <ConsoleActions pending={pending} onLogout={logout} />
-        </div>
-      </aside>
-      <div className="min-w-0">
-        <AppToolbar>
+    <div className="flex min-h-dvh">
+      {/* Desktop sidebar wrapper */}
+      <div
+        className={`hidden shrink-0 overflow-hidden transition-[width] duration-200 motion-reduce:transition-none md:block ${
+          sidebarCollapsed ? "w-0" : "w-60"
+        }`}
+      >
+        <aside
+          className={`sticky top-0 flex h-dvh w-60 flex-col border-r border-separator transition-[translate,visibility] duration-200 motion-reduce:transition-none ${
+            sidebarCollapsed ? "invisible -translate-x-full" : "translate-x-0"
+          }`}
+        >
+          <ConsoleNavigation
+            session={session}
+            activePath={activePath}
+            onNavigate={navigate}
+          />
+          <div className="mt-auto">
+            <ConsoleActions pending={pending} onLogout={logout} />
+          </div>
+        </aside>
+      </div>
+
+      {/* Body */}
+      <div className="flex min-w-0 flex-1 flex-col">
+        {/* Header */}
+        <header className="sticky top-0 z-10 flex h-16 items-center gap-4 bg-background px-6">
+          {/* Mobile menu toggle */}
           <div className="md:hidden">
             <Drawer state={drawer}>
               <Button
@@ -186,40 +256,65 @@ function ConsoleShell({
                   message: "Open navigation",
                 })}
               >
-                <PanelLeft size={18} aria-hidden="true" />
+                <PanelLeft size={16} aria-hidden="true" />
               </Button>
               <Drawer.Backdrop>
                 <Drawer.Content placement="left">
-                  <Drawer.Dialog>
+                  <Drawer.Dialog className="w-[300px] max-w-[85vw] p-0 sm:w-[300px]">
                     <Drawer.CloseTrigger
                       aria-label={t({
                         id: "console.close-menu",
                         message: "Close navigation",
                       })}
                     />
-                    <Drawer.Header>
-                      <Drawer.Heading>
-                        <Trans id="console.navigation">
-                          Console navigation
-                        </Trans>
-                      </Drawer.Heading>
-                    </Drawer.Header>
-                    <Drawer.Body>
-                      <ConsoleNavigation session={session} />
+                    <Drawer.Body className="flex flex-col p-0">
+                      <ConsoleNavigation
+                        session={session}
+                        activePath={activePath}
+                        onNavigate={navigate}
+                      />
+                      <div className="mt-auto">
+                        <ConsoleActions pending={pending} onLogout={logout} />
+                      </div>
                     </Drawer.Body>
-                    <Drawer.Footer>
-                      <ConsoleActions pending={pending} onLogout={logout} />
-                    </Drawer.Footer>
                   </Drawer.Dialog>
                 </Drawer.Content>
               </Drawer.Backdrop>
             </Drawer>
           </div>
-          <span className="min-w-0 truncate text-lg font-semibold">
+
+          {/* Desktop sidebar trigger */}
+          <Button
+            isIconOnly
+            size="sm"
+            variant="ghost"
+            className="hidden md:flex"
+            onPress={() => setSidebarCollapsed(!sidebarCollapsed)}
+            aria-label={t({
+              id: "console.toggle-sidebar",
+              message: "Toggle sidebar",
+            })}
+          >
+            <PanelLeft size={16} aria-hidden="true" />
+          </Button>
+
+          {/* Title */}
+          <h1 className="truncate text-xl font-semibold text-foreground">
             {instanceName}
-          </span>
-        </AppToolbar>
-        <main className="flex min-w-0 flex-col gap-6 px-4 pb-8 sm:px-6">
+          </h1>
+
+          {/* Spacer */}
+          <div className="flex-1" />
+
+          {/* Actions */}
+          <div className="flex items-center gap-2">
+            <LanguageMenu />
+            <ThemeSelect />
+          </div>
+        </header>
+
+        {/* Main content */}
+        <main className="flex min-w-0 flex-1 flex-col gap-6 px-4 pb-8 sm:px-6">
           <Outlet />
         </main>
       </div>
