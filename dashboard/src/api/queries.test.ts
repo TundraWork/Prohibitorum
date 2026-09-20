@@ -49,7 +49,7 @@ describe("shared server state", () => {
         { status: 401 },
       ),
     );
-    expect(await queryClient.fetchQuery(sessionQueryOptions())).toBeNull();
+    expect(await queryClient.query(sessionQueryOptions())).toBeNull();
     expect(notices).not.toHaveBeenCalled();
 
     for (const [status, code] of [
@@ -63,7 +63,7 @@ describe("shared server state", () => {
         Response.json({ code, requestId: "session-error" }, { status }),
       );
       await expect(
-        queryClient.fetchQuery(sessionQueryOptions()),
+        queryClient.query(sessionQueryOptions()),
       ).rejects.toMatchObject({ status, code });
     }
     expect(notices).toHaveBeenCalledTimes(5);
@@ -90,7 +90,7 @@ describe("shared server state", () => {
       expect(notices).toHaveBeenCalledTimes(1);
 
       await expect(
-        queryClient.fetchQuery(publicConfigQueryOptions()),
+        queryClient.query(publicConfigQueryOptions()),
       ).rejects.toMatchObject({ status: 500 });
       expect(notices).toHaveBeenCalledTimes(2);
     } finally {
@@ -112,13 +112,13 @@ describe("shared server state", () => {
     queryClient.setQueryData(["public", "config"], {
       instanceName: "Public instance",
     });
-    await queryClient.fetchQuery({
+    await queryClient.query({
       queryKey: ["credential-details", 7],
       meta: { requiresSession: true },
       queryFn: async () => ({ nickname: "Old account key" }),
     });
     const pending = queryClient
-      .fetchQuery(sessionQueryOptions())
+      .query(sessionQueryOptions())
       .catch((error: unknown) => error);
     await waitFor(() => expect(requestSignal).toBeDefined());
 
@@ -154,7 +154,7 @@ describe("shared server state", () => {
       instanceName: "Public instance",
     });
     await expect(
-      queryClient.fetchQuery(authStatusQueryOptions()),
+      queryClient.query(authStatusQueryOptions()),
     ).rejects.toMatchObject({ name: "AbortError" });
     const mutation = new MutationObserver(
       queryClient,
@@ -172,7 +172,7 @@ describe("shared server state", () => {
 
   it("reports a failed mutation once, without retry or treating sudo_required as logout", async () => {
     const { queryClient, notices } = createClient();
-    await queryClient.fetchQuery({
+    await queryClient.query({
       ...sessionQueryOptions(),
       queryFn: async () => ({
         id: 3,
@@ -211,13 +211,13 @@ describe("shared server state", () => {
       meta: { requiresSession: true },
       queryFn: async () => [{ id: 7, nickname }],
     };
-    await queryClient.fetchQuery(credentials);
+    await queryClient.query(credentials);
     const publicData = {
       queryKey: ["public", "auth-status"],
       staleTime: Infinity,
       queryFn: async () => ({ bootstrapped: true }),
     };
-    await queryClient.fetchQuery(publicData);
+    await queryClient.query(publicData);
     fetchBoundary.mockImplementation(
       async () => new Response(null, { status: 204 }),
     );
@@ -228,11 +228,11 @@ describe("shared server state", () => {
       renameCredentialMutationOptions(queryClient),
     );
     await rename.mutate({ id: 7, nickname });
-    expect(await queryClient.fetchQuery(credentials)).toEqual([
+    expect(await queryClient.query(credentials)).toEqual([
       { id: 7, nickname: "Renamed" },
     ]);
     expect(
-      await queryClient.fetchQuery({
+      await queryClient.query({
         ...publicData,
         queryFn: async () => ({ bootstrapped: false }),
       }),

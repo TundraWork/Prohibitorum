@@ -4,7 +4,7 @@ import { ConsoleLayout } from "@/components/custom/ConsoleLayout";
 
 export const Route = createFileRoute("/_protected")({
   loader: async ({ context: { queryClient } }) => {
-    const session = await queryClient.fetchQuery(sessionQueryOptions());
+    const session = await queryClient.query(sessionQueryOptions());
     if (session === null) {
       await clearSessionQueries(queryClient);
       throw redirect({ to: "/login", replace: true });

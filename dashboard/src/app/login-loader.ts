@@ -19,9 +19,9 @@ export async function loginLoader({
   // A mounted sign-in page may be displaying newly issued recovery codes.
   if (cause === "stay") return;
   const [, , session] = await Promise.all([
-    queryClient.ensureQueryData(publicConfigQueryOptions()),
-    queryClient.ensureQueryData(authStatusQueryOptions()),
-    queryClient.fetchQuery(sessionQueryOptions()),
+    queryClient.query(publicConfigQueryOptions()),
+    queryClient.query(authStatusQueryOptions()),
+    queryClient.query(sessionQueryOptions()),
   ]);
   let returnTo: string | undefined;
   try {
