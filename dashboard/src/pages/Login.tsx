@@ -249,7 +249,7 @@ function FactorForm({
   username: string;
   returnTo?: string;
   token: string;
-  onFailure: (error: unknown, reset: boolean) => void;
+  onFailure: (error: unknown, reset: boolean) => void | Promise<void>;
   onSuccess: (redirect: string, codes?: string[]) => Promise<void>;
   onSwitch?: () => void;
 }) {
@@ -291,7 +291,7 @@ function FactorForm({
       } catch (error) {
         formApi.reset();
         setSetup(undefined);
-        if (control.isActive()) onFailure(error, resetting);
+        if (control.isActive()) await onFailure(error, resetting);
       } finally {
         totp.reset();
         recovery.reset();
@@ -459,9 +459,9 @@ export function PasswordPage() {
       <PasswordForm
         control={flow.control}
         username={username ?? ""}
-        onSuccess={(username, token) => {
+        onSuccess={async (username, token) => {
           flow.setFailure(undefined);
-          void navigate({
+          await navigate({
             to: "/login/totp",
             state: loginState({ username, token }),
           });
@@ -531,8 +531,8 @@ export function TotpPage() {
           username={username ?? ""}
           returnTo={returnTo}
           token={token ?? ""}
-          onFailure={(error, reset) => {
-            void navigate({
+          onFailure={async (error, reset) => {
+            await navigate({
               to: "/login",
               state: loginState({
                 username,
@@ -601,8 +601,8 @@ export function RecoveryPage() {
           username={username ?? ""}
           returnTo={returnTo}
           token={token ?? ""}
-          onFailure={(error, reset) => {
-            void navigate({
+          onFailure={async (error, reset) => {
+            await navigate({
               to: "/login",
               state: loginState({
                 username,

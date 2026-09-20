@@ -63,6 +63,10 @@
 - During integration, resolve source changes. Generated assets cannot conflict
   because they are not in the repository; when you need the merged source in a
   binary, force a rebuild with `mise run --force build:web`.
+- After an async mutation completes (success or failure), await route navigation
+  before proceeding. Use `await navigate(...)` in `onSuccess` or `onFailure`
+  handlers, not `void navigate(...)`. This ensures the route loads before the
+  handler returns.
 
 ## User-facing language
 
