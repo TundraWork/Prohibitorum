@@ -1,4 +1,4 @@
-import { Button, Card, Link } from "@heroui/react";
+import { Button, Card, Link, Spinner } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { createLink, useRouter } from "@tanstack/react-router";
 import { describeError } from "@/api/errors";
@@ -6,6 +6,15 @@ import { PageSkeleton } from "@/components/custom/PreviewLayout";
 import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
 
 const RouterLink = createLink(Link);
+
+/** Pending state for public routes: the layout supplies the card, this only centers a spinner inside it. */
+export function PublicPending() {
+  return (
+    <div className="flex justify-center py-16">
+      <Spinner size="lg" />
+    </div>
+  );
+}
 
 export function RoutePending() {
   return (

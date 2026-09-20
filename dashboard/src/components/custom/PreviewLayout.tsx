@@ -9,7 +9,7 @@ const NavigationLink = createLink(Link);
 export function PreviewLayout() {
   const { t } = useLingui();
   return (
-    <div className="flex flex-col gap-6 pb-8 pt-16">
+    <div className="flex flex-col gap-6">
       <nav
         className="flex flex-wrap items-center gap-x-6 gap-y-3"
         aria-label={t({

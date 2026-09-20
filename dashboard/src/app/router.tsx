@@ -19,6 +19,7 @@ import { ConsoleLayout } from "@/components/custom/ConsoleLayout";
 import { PreviewLayout } from "@/components/custom/PreviewLayout";
 import { PublicLayout } from "@/components/custom/PublicLayout";
 import {
+  PublicPending,
   RouteError,
   RouteNotFound,
   RoutePending,
@@ -53,6 +54,7 @@ const publicRoute = createRoute({
   getParentRoute: () => rootRoute,
   id: "public",
   component: PublicLayout,
+  pendingComponent: PublicPending,
 });
 const loginLoader = async ({
   context: { queryClient },
@@ -124,6 +126,7 @@ const devRoutes = import.meta.env.DEV
       createRoute({
         getParentRoute: () => previewRoute,
         path: "/__dev/forms",
+        pendingComponent: PublicPending,
         component: lazyRouteComponent(() => import("@/routes/DevForms")),
       }),
     ]
@@ -144,9 +147,9 @@ export function createAppRouter(context: RouterContext) {
     context,
     defaultPreload: "intent",
     defaultPreloadStaleTime: 0,
-    defaultPendingMs: 0,
-    defaultPendingMinMs: 0,
-    defaultPendingComponent: RoutePending,
+    defaultPendingMs: 350,
+    defaultPendingMinMs: 120,
+    defaultPendingComponent: PublicPending,
     defaultErrorComponent: RouteError,
     defaultNotFoundComponent: RouteNotFound,
     scrollRestoration: true,
