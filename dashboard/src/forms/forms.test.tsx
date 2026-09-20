@@ -173,7 +173,7 @@ function ErrorClearingForm() {
       <form.Form label="Error clearing">
         <form.AppField
           name="nickname"
-          validators={{ onChange: () => "Client validation remains" }}
+          validators={{ onBlur: () => "Client validation remains" }}
         >
           {(field) => <field.FormField label="Nickname" />}
         </form.AppField>
@@ -216,6 +216,7 @@ it("clears only the edited field's server error and retains current client valid
   expect(nickname).toHaveAttribute("aria-invalid", "true");
   expect(other).toHaveAttribute("aria-invalid", "true");
   await user.type(nickname, " edited");
+  await user.tab();
   expect(nickname).toHaveAccessibleDescription("Client validation remains");
   expect(other).toHaveAttribute("aria-invalid", "true");
   expect(other).toHaveAccessibleDescription();

@@ -191,7 +191,7 @@ function PasswordForm({
           <form.AppField
             name="username"
             validators={{
-              onChange: ({ value }) =>
+              onBlur: ({ value }) =>
                 value.length ? undefined : usernameInvalid,
             }}
           >
@@ -209,7 +209,7 @@ function PasswordForm({
           <form.AppField
             name="password"
             validators={{
-              onChange: ({ value }) =>
+              onBlur: ({ value }) =>
                 isValidLoginPassword(value) ? undefined : passwordInvalid,
             }}
           >
@@ -325,7 +325,7 @@ function FactorForm({
         <form.AppField
           name="code"
           validators={{
-            onChange: ({ value }) =>
+            onBlur: ({ value }) =>
               mode === "totp"
                 ? isValidTotpCode(value, config.totp.digits)
                   ? undefined
@@ -396,7 +396,7 @@ function FactorForm({
                 <form.AppField
                   name="totpCode"
                   validators={{
-                    onChange: ({ value }) =>
+                    onBlur: ({ value }) =>
                       isValidTotpCode(value, config.totp.digits)
                         ? undefined
                         : codeInvalid,

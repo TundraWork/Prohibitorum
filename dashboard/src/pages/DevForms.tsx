@@ -58,7 +58,7 @@ function RenameForm() {
             <form.AppField
               name="id"
               validators={{
-                onChange: ({ value }) =>
+                onBlur: ({ value }) =>
                   /^\d+$/.test(value) &&
                   Number(value) > 0 &&
                   Number(value) <= 2147483647

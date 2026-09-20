@@ -20,7 +20,7 @@ msgstr "已开启"
 #. js-lingui-explicit-id
 #: src/components/custom/TotpSetup.tsx
 msgid "login.reset.warning"
-msgstr "重设成功后，旧身份验证器和所有旧恢复码都将失效。"
+msgstr "提交后，旧身份验证器和恢复码都将失效。"
 
 #. js-lingui-explicit-id
 #: src/components/custom/ConsoleLayout.tsx
