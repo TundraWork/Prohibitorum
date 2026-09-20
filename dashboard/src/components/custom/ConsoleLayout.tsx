@@ -6,7 +6,11 @@ import {
   useOverlayState,
 } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useMutation,
+  useQueryClient,
+  useSuspenseQuery,
+} from "@tanstack/react-query";
 import { Outlet, useRouter, useRouterState } from "@tanstack/react-router";
 import { cva } from "class-variance-authority";
 import {
@@ -26,7 +30,7 @@ import { clearSessionQueries, sessionQueryOptions } from "@/api/queries";
 import { instanceName } from "@/components/custom/AppLayout";
 import { notificationQueue } from "@/components/custom/AppNotifications";
 import { LanguageMenu } from "@/components/custom/LanguageMenu";
-import { RouteError, RoutePending } from "@/components/custom/RouteFeedback";
+import { RoutePending } from "@/components/custom/RouteFeedback";
 import { ThemeSelect } from "@/components/custom/ThemeSelect";
 
 type Session = components["schemas"]["SessionView"];
@@ -329,9 +333,8 @@ export function ConsoleLayout() {
   const [leaving, setLeaving] = useState(false);
   const expiryHandled = useRef(false);
   const logoutStarted = useRef(false);
-  const session = useQuery({
+  const { data: session } = useSuspenseQuery({
     ...sessionQueryOptions(),
-    enabled: !leaving,
     refetchOnMount: false,
     refetchOnWindowFocus: "always",
   });
@@ -350,7 +353,7 @@ export function ConsoleLayout() {
 
   useEffect(() => {
     if (
-      session.data !== null ||
+      session !== null ||
       leaving ||
       logout.isPending ||
       expiryHandled.current
@@ -369,37 +372,14 @@ export function ConsoleLayout() {
       queryClient.getMutationCache().clear();
       return router.navigate({ to: "/login", replace: true });
     });
-  }, [session.data, leaving, logout.isPending, queryClient, router]);
+  }, [session, leaving, logout.isPending, queryClient, router]);
 
-  useEffect(() => {
-    if (leaving) return;
-    const revalidate = () => {
-      void queryClient.refetchQueries(
-        {
-          queryKey: sessionQueryOptions().queryKey,
-          exact: true,
-          type: "active",
-        },
-        { cancelRefetch: false },
-      );
-    };
-    window.addEventListener("focus", revalidate);
-    return () => window.removeEventListener("focus", revalidate);
-  }, [leaving, queryClient]);
-
-  if (
-    leaving ||
-    routeLoading ||
-    session.isFetching ||
-    session.isPending ||
-    session.data === null
-  ) {
+  if (leaving || routeLoading || session === null) {
     return <RoutePending />;
   }
-  if (session.isError) return <RouteError error={session.error} />;
   return (
     <ConsoleShell
-      session={session.data}
+      session={session}
       pending={logout.isPending}
       onLogout={() => {
         if (logoutStarted.current) return;

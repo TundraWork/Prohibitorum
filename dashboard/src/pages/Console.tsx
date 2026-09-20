@@ -1,14 +1,14 @@
 import { Alert, Card } from "@heroui/react";
 import { Trans } from "@lingui/react/macro";
-import { useQuery } from "@tanstack/react-query";
+import { useSuspenseQuery } from "@tanstack/react-query";
 import { sessionQueryOptions } from "@/api/queries";
 
 export function Console() {
-  const { data: session } = useQuery({
+  const { data: session } = useSuspenseQuery({
     ...sessionQueryOptions(),
     refetchOnMount: false,
   });
-  if (!session) return null;
+  if (session === null) return null;
   return (
     <>
       <h1 className="text-2xl font-semibold">

@@ -727,6 +727,11 @@ msgid "error.invalid_login_link"
 msgstr "This sign-in link is invalid. Open a new sign-in link and try again."
 
 #. js-lingui-explicit-id
+#: src/components/custom/ConsoleLayout.tsx
+msgid "console.toggle-sidebar"
+msgstr "Toggle sidebar"
+
+#. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.rate_limited"
 msgstr "Too many requests. Please wait before trying again."

@@ -727,6 +727,11 @@ msgid "error.invalid_login_link"
 msgstr "登录链接无效。请打开新的登录链接重试。"
 
 #. js-lingui-explicit-id
+#: src/components/custom/ConsoleLayout.tsx
+msgid "console.toggle-sidebar"
+msgstr "切换侧边栏"
+
+#. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.rate_limited"
 msgstr "请求过于频繁，请稍后重试。"
