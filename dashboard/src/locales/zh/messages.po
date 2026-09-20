@@ -296,11 +296,6 @@ msgid "theme.light"
 msgstr "日间模式"
 
 #. js-lingui-explicit-id
-#: src/components/custom/RouteFeedback.tsx
-msgid "route.loading"
-msgstr "正在加载页面…"
-
-#. js-lingui-explicit-id
 #: src/pages/Preview.tsx
 msgid "feedback.skeleton"
 msgstr "加载骨架样例"
@@ -805,8 +800,3 @@ msgstr "请重新验证身份后继续。"
 #: src/api/errors.ts
 msgid "error.not_admin"
 msgstr "你没有执行此操作的权限。"
-
-#. js-lingui-explicit-id
-#: src/components/custom/ConsoleLayout.tsx
-msgid "console.session-expired"
-msgstr "会话已过期，请重新登录。"

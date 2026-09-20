@@ -296,11 +296,6 @@ msgid "theme.light"
 msgstr "Light theme"
 
 #. js-lingui-explicit-id
-#: src/components/custom/RouteFeedback.tsx
-msgid "route.loading"
-msgstr "Loading page…"
-
-#. js-lingui-explicit-id
 #: src/pages/Preview.tsx
 msgid "feedback.skeleton"
 msgstr "Loading skeleton example"
@@ -805,8 +800,3 @@ msgstr "Verify your identity again to continue."
 #: src/api/errors.ts
 msgid "error.not_admin"
 msgstr "You do not have permission to perform this action."
-
-#. js-lingui-explicit-id
-#: src/components/custom/ConsoleLayout.tsx
-msgid "console.session-expired"
-msgstr "Your session has expired. Sign in again."

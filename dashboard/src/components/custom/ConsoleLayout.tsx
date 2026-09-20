@@ -11,7 +11,12 @@ import {
   useQueryClient,
   useSuspenseQuery,
 } from "@tanstack/react-query";
-import { Outlet, useNavigate, useRouter, useRouterState } from "@tanstack/react-router";
+import {
+  Outlet,
+  useNavigate,
+  useRouter,
+  useRouterState,
+} from "@tanstack/react-router";
 import { cva } from "class-variance-authority";
 import {
   AppWindow,
@@ -22,13 +27,11 @@ import {
   ShieldCheck,
   UserRound,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
-import { flushSync } from "react-dom";
+import { useEffect, useState } from "react";
 import type { components } from "@/api/generated/schema";
 import { logoutMutationOptions } from "@/api/mutations";
 import { clearSessionQueries, sessionQueryOptions } from "@/api/queries";
 import { instanceName } from "@/components/custom/AppLayout";
-import { notificationQueue } from "@/components/custom/AppNotifications";
 import { LanguageMenu } from "@/components/custom/LanguageMenu";
 import { ThemeSelect } from "@/components/custom/ThemeSelect";
 
@@ -277,7 +280,10 @@ function ConsoleShell({
                         onNavigate={navigate}
                       />
                       <div className="mt-auto">
-                        <ConsoleActions pending={pendingLogout} onLogout={logout} />
+                        <ConsoleActions
+                          pending={pendingLogout}
+                          onLogout={logout}
+                        />
                       </div>
                     </Drawer.Body>
                   </Drawer.Dialog>
@@ -338,7 +344,7 @@ export function ConsoleLayout() {
     onSuccess: async () => {
       await clearSessionQueries(queryClient);
       queryClient.getMutationCache().clear();
-      await navigate({ to: '/login' })
+      await navigate({ to: "/login" });
     },
   });
 

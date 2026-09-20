@@ -28,6 +28,7 @@ import type {
   RecoveryResult,
 } from "@/api/raw-paths";
 import { followRedirect } from "@/app/redirect";
+import { withRouterSkipLoading } from "@/app/router";
 import type { LoginFailure } from "@/components/custom/LoginShell";
 import { LoginShell, useLoginContext } from "@/components/custom/LoginShell";
 import { OtpField } from "@/components/custom/OtpField";
@@ -117,7 +118,9 @@ function useLoginFlow(initialFailure?: LoginFailure) {
       setFinishing(true);
       await clearSessionQueries(queryClient);
       if (!active.current) return;
-      await followRedirect(router, redirect);
+      await withRouterSkipLoading(router, () =>
+        followRedirect(router, redirect),
+      );
     } catch (error) {
       setFinishing(false);
       setFailure({ message: describeError(error) });
@@ -444,6 +447,7 @@ export function PasswordPage() {
   const { returnTo } = useLoginContext();
   const flow = useLoginFlow(failure);
   const navigate = useNavigate();
+  const router = useRouter();
   const passkey = useMutation(passkeyMutationOptions(returnTo));
   const resetPasskey = passkey.reset;
   useEffect(
@@ -461,14 +465,12 @@ export function PasswordPage() {
         username={username ?? ""}
         onSuccess={async (username, token) => {
           flow.setFailure(undefined);
-          console.log('prepare nav');
-          await new Promise(resolve => setTimeout(resolve, 3000));
-          console.log('start nav');
-          await navigate({
-            to: "/login/totp",
-            state: loginState({ username, token }),
-          });
-          console.log('end nav');
+          await withRouterSkipLoading(router, () =>
+            navigate({
+              to: "/login/totp",
+              state: loginState({ username, token }),
+            }),
+          );
         }}
         onFailure={(error) =>
           flow.setFailure({ message: describeError(error) })
@@ -515,6 +517,7 @@ export function TotpPage() {
   const { config, returnTo } = useLoginContext();
   const flow = useLoginFlow();
   const navigate = useNavigate();
+  const router = useRouter();
   const ready = usePasswordResult(token);
   if (!ready) return null;
   return (
@@ -523,7 +526,9 @@ export function TotpPage() {
       username={username}
       busy={flow.control.busy}
       failure={flow.failure}
-      onBack={() => void navigate({ to: "/login" })}
+      onBack={() =>
+        void withRouterSkipLoading(router, () => navigate({ to: "/login" }))
+      }
     >
       <FactorForm
         control={flow.control}
@@ -533,27 +538,31 @@ export function TotpPage() {
         returnTo={returnTo}
         token={token ?? ""}
         onFailure={async (error, reset) => {
-          await navigate({
-            to: "/login",
-            state: loginState({
-              username,
-              failure: {
-                message: describeError(error),
-                secondStep: true,
-                reset,
-              },
+          await withRouterSkipLoading(router, () =>
+            navigate({
+              to: "/login",
+              state: loginState({
+                username,
+                failure: {
+                  message: describeError(error),
+                  secondStep: true,
+                  reset,
+                },
+              }),
             }),
-          });
+          );
         }}
         onSuccess={(redirect) => {
           flow.setFailure(undefined);
           return flow.finish(redirect);
         }}
         onSwitch={() =>
-          void navigate({
-            to: "/login/recovery",
-            state: loginState({ username, token }),
-          })
+          void withRouterSkipLoading(router, () =>
+            navigate({
+              to: "/login/recovery",
+              state: loginState({ username, token }),
+            }),
+          )
         }
       />
     </LoginShell>
@@ -566,6 +575,7 @@ export function RecoveryPage() {
   const flow = useLoginFlow();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const router = useRouter();
   const [savedCodes, setSavedCodes] = useState<{
     redirect: string;
     codes: string[];
@@ -580,10 +590,12 @@ export function RecoveryPage() {
       failure={flow.failure}
       complete={savedCodes !== undefined}
       onBack={() =>
-        void navigate({
-          to: "/login/totp",
-          state: loginState({ username, token }),
-        })
+        void withRouterSkipLoading(router, () =>
+          navigate({
+            to: "/login/totp",
+            state: loginState({ username, token }),
+          }),
+        )
       }
     >
       {savedCodes ? (
@@ -600,17 +612,19 @@ export function RecoveryPage() {
           returnTo={returnTo}
           token={token ?? ""}
           onFailure={async (error, reset) => {
-            await navigate({
-              to: "/login",
-              state: loginState({
-                username,
-                failure: {
-                  message: describeError(error),
-                  secondStep: true,
-                  reset,
-                },
+            await withRouterSkipLoading(router, () =>
+              navigate({
+                to: "/login",
+                state: loginState({
+                  username,
+                  failure: {
+                    message: describeError(error),
+                    secondStep: true,
+                    reset,
+                  },
+                }),
               }),
-            });
+            );
           }}
           onSuccess={async (redirect, codes) => {
             flow.setFailure(undefined);
