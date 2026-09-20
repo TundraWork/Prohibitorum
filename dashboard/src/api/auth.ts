@@ -11,49 +11,19 @@ import { client, requireJsonData } from "@/api/client";
 import { ApiError, isCancellation } from "@/api/errors";
 import type { LoginResult, PublicConfig } from "@/api/raw-paths";
 
-export function validateRedirect(value: string, origin: string): string {
-  for (let index = 0; index < value.length; index++) {
-    const code = value.charCodeAt(index);
-    if (code < 32 || code === 127 || code === 92) {
-      throw new ApiError({ kind: "local", code: "invalid_login_link" });
-    }
-  }
-  if (
-    !value ||
-    value !== value.trim() ||
-    value.startsWith("//") ||
-    (!value.startsWith("/") && !/^https?:\/\//i.test(value))
-  ) {
-    throw new ApiError({ kind: "local", code: "invalid_login_link" });
-  }
-  try {
-    const base = new URL(origin);
-    const target = new URL(value, base);
-    if (
-      !["http:", "https:"].includes(target.protocol) ||
-      target.origin !== base.origin ||
-      target.username ||
-      target.password ||
-      target.pathname.startsWith("//")
-    ) {
-      throw new Error();
-    }
-  } catch {
-    throw new ApiError({ kind: "local", code: "invalid_login_link" });
-  }
-  return value;
-}
-
-export function parseReturnTo(
-  search: string,
-  origin: string,
-): string | undefined {
+/**
+ * Reads the single `return_to` parameter of a sign-in link. The value itself
+ * needs no client-side validation: the server validates it before returning
+ * the final redirect target. Only a duplicated parameter makes the link
+ * malformed.
+ */
+export function parseReturnTo(search: string): string | undefined {
   const values = new URLSearchParams(search).getAll("return_to");
   if (values.length === 0) return undefined;
   if (values.length !== 1) {
     throw new ApiError({ kind: "local", code: "invalid_login_link" });
   }
-  return validateRedirect(values[0] ?? "", origin);
+  return values[0] ?? "";
 }
 
 export function isValidLoginPassword(password: string): boolean {
@@ -118,7 +88,6 @@ export function validateLoginResult(result: LoginResult): LoginResult {
   ) {
     throw new ApiError({ kind: "invalid-response" });
   }
-  validateRedirect(result.redirect, window.location.origin);
   return result;
 }
 
@@ -135,8 +104,6 @@ export async function authenticateWithPasskey(
   if (!window.isSecureContext || !browserSupportsWebAuthn()) {
     throw new ApiError({ kind: "local", code: "passkey_unsupported" });
   }
-  if (returnTo !== undefined)
-    validateRedirect(returnTo, window.location.origin);
   cancelPasskeyAuthentication();
   const controller = new AbortController();
   passkeyController = controller;

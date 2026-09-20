@@ -31,7 +31,7 @@ export function useLoginContext() {
   let returnTo: string | undefined;
   let linkError: MessageDescriptor | undefined;
   try {
-    returnTo = parseReturnTo(search, window.location.origin);
+    returnTo = parseReturnTo(search);
   } catch (error) {
     linkError = describeError(error);
   }

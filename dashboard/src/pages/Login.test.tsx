@@ -311,6 +311,28 @@ it("rejects noncanonical recovery codes and discards canceled authenticator rese
   });
 });
 
+it("navigates client-side when the sign-in redirect targets a dashboard route", async () => {
+  const fetch = vi
+    .fn<typeof globalThis.fetch>()
+    .mockResolvedValueOnce(
+      Response.json({ partial_session_token: "finish-once" }),
+    )
+    .mockResolvedValueOnce(Response.json({ redirect: "/" }));
+  vi.stubGlobal("fetch", fetch);
+  const user = userEvent.setup();
+  const router = mount();
+  await password(user);
+  await user.type(
+    screen.getByRole("textbox", { name: "Authenticator code" }),
+    "012345",
+  );
+  await user.click(screen.getByRole("button", { name: "Sign in" }));
+  expect(
+    await screen.findByRole("heading", { name: "Destination" }),
+  ).toBeVisible();
+  expect(router.state.location.pathname).toBe("/");
+});
+
 it("keeps new recovery codes visible across session changes and blocks leaving without confirmation", async () => {
   const codes = ["ABCD-EFGH-IJKL-MNOP", "QRST-UVWX-YZ23-4567"];
   const fetch = vi

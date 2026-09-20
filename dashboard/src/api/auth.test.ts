@@ -22,14 +22,12 @@ import {
   isValidRecoveryCode,
   isValidTotpCode,
   parseReturnTo,
-  validateRedirect,
 } from "@/api/auth";
 import { ApiError, describeError, isCancellation } from "@/api/errors";
 import {
   passkeyMutationOptions,
   passwordMutationOptions,
   recoveryMutationOptions,
-  totpMutationOptions,
 } from "@/api/mutations";
 import type { RecoveryRequest } from "@/api/raw-paths";
 import { createQueryClient } from "@/app/query-client";
@@ -69,50 +67,24 @@ function createClient() {
 }
 
 describe("authentication redirects", () => {
-  it("preserves allowed values exactly and distinguishes absence from an empty parameter", () => {
-    expect(parseReturnTo("?unrelated=value", origin)).toBeUndefined();
+  it("preserves the parameter value exactly and distinguishes absence from an empty parameter", () => {
+    expect(parseReturnTo("?unrelated=value")).toBeUndefined();
     for (const value of [
       "/oauth/authorize?state=a%2Bb",
       `${origin}/saml/sso?RelayState=x`,
       "/",
+      "",
     ]) {
-      expect(
-        parseReturnTo(`?return_to=${encodeURIComponent(value)}`, origin),
-      ).toBe(value);
-      expect(validateRedirect(value, origin)).toBe(value);
+      expect(parseReturnTo(`?return_to=${encodeURIComponent(value)}`)).toBe(
+        value,
+      );
     }
-    expect(() => parseReturnTo("?return_to=", origin)).toThrow(ApiError);
-    expect(() => parseReturnTo("?return_to", origin)).toThrow(ApiError);
-  });
-
-  it.each([
-    "https://evil.example/path",
-    "//evil.example/path",
-    "/\\evil.example/path",
-    "\\\\evil.example/path",
-    "/safe\\path",
-    "javascript:alert(1)",
-    "safe/path",
-    "https://id.example:8443/path",
-    "http://id.example/path",
-    "https://user:secret@id.example/path",
-    "https://id.example//evil.example",
-    " https://id.example/path",
-    "/path ",
-    "/path\nnext",
-    "/path\u0000next",
-    "/path\u007fnext",
-  ])("rejects unsafe navigation %j", (value) => {
-    expect(() =>
-      parseReturnTo(`?return_to=${encodeURIComponent(value)}`, origin),
-    ).toThrow(ApiError);
-    expect(() => validateRedirect(value, origin)).toThrow(ApiError);
   });
 
   it("rejects duplicate parameters including encoded names", () => {
-    expect(() =>
-      parseReturnTo("?return_to=%2F&return%5fto=%2F", origin),
-    ).toThrow(ApiError);
+    expect(() => parseReturnTo("?return_to=%2F&return%5fto=%2F")).toThrow(
+      ApiError,
+    );
   });
 });
 
@@ -188,7 +160,7 @@ describe("strict authentication inputs", () => {
 });
 
 describe("authentication mutations", () => {
-  it("rejects reset success without newly issued codes and unsafe server redirects", async () => {
+  it("rejects reset success without newly issued codes", async () => {
     const { queryClient, notices } = createClient();
     fetchBoundary.mockResolvedValueOnce(Response.json({ redirect: "/" }));
     const recovery = new MutationObserver(
@@ -207,15 +179,6 @@ describe("authentication mutations", () => {
     expect(notices).toHaveBeenCalledTimes(1);
     expect(fetchBoundary).toHaveBeenCalledTimes(1);
     recovery.reset();
-
-    fetchBoundary.mockResolvedValueOnce(
-      Response.json({ redirect: "https://evil.example/" }),
-    );
-    const totp = new MutationObserver(queryClient, totpMutationOptions());
-    await expect(
-      totp.mutate({ partial_session_token: "new-token", code: "001234" }),
-    ).rejects.toMatchObject({ code: "invalid_login_link" });
-    totp.reset();
   });
 
   it("removes sensitive password results and variables after reset", async () => {

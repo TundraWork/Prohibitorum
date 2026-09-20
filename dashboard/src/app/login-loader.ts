@@ -25,7 +25,7 @@ export async function loginLoader({
   ]);
   let returnTo: string | undefined;
   try {
-    returnTo = parseReturnTo(location.searchStr, window.location.origin);
+    returnTo = parseReturnTo(location.searchStr);
   } catch {
     return;
   }

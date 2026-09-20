@@ -3,7 +3,6 @@ import {
   authenticateWithPasskey,
   isValidRecoveryCode,
   validateLoginResult,
-  validateRedirect,
 } from "@/api/auth";
 import { client, requireJsonData } from "@/api/client";
 import { ApiError } from "@/api/errors";
@@ -66,8 +65,6 @@ export function totpMutationOptions(returnTo?: string) {
     retry: false,
     gcTime: 0,
     mutationFn: async (body: TotpRequest) => {
-      if (returnTo !== undefined)
-        validateRedirect(returnTo, window.location.origin);
       const result = await requireJsonData(
         client.POST("/api/prohibitorum/auth/totp/verify", {
           body,
@@ -86,8 +83,6 @@ export function recoveryMutationOptions(returnTo?: string) {
     retry: false,
     gcTime: 0,
     mutationFn: async (body: RecoveryRequest): Promise<RecoveryResult> => {
-      if (returnTo !== undefined)
-        validateRedirect(returnTo, window.location.origin);
       const result = await requireJsonData(
         client.POST("/api/prohibitorum/auth/recovery-code/verify", {
           body,

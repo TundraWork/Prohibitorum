@@ -4,7 +4,7 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import { browserSupportsWebAuthn } from "@simplewebauthn/browser";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { HistoryState } from "@tanstack/react-router";
-import { useLocation, useNavigate } from "@tanstack/react-router";
+import { useLocation, useNavigate, useRouter } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import {
   buildTotpUri,
@@ -13,7 +13,6 @@ import {
   isValidLoginPassword,
   isValidRecoveryCode,
   isValidTotpCode,
-  validateRedirect,
 } from "@/api/auth";
 import { describeError, isCancellation } from "@/api/errors";
 import {
@@ -28,6 +27,7 @@ import type {
   RecoveryRequest,
   RecoveryResult,
 } from "@/api/raw-paths";
+import { followRedirect } from "@/app/redirect";
 import type { LoginFailure } from "@/components/custom/LoginShell";
 import { LoginShell, useLoginContext } from "@/components/custom/LoginShell";
 import { OtpField } from "@/components/custom/OtpField";
@@ -84,6 +84,7 @@ function useLoginRouteState(): LoginRouteState | undefined {
 
 function useLoginFlow(initialFailure?: LoginFailure) {
   const queryClient = useQueryClient();
+  const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [finishing, setFinishing] = useState(false);
   const [failure, setFailure] = useState<LoginFailure | undefined>(
@@ -113,11 +114,10 @@ function useLoginFlow(initialFailure?: LoginFailure) {
   };
   async function finish(redirect: string) {
     try {
-      const destination = validateRedirect(redirect, window.location.origin);
       setFinishing(true);
       await clearSessionQueries(queryClient);
       if (!active.current) return;
-      window.location.assign(destination);
+      await followRedirect(router, redirect);
     } catch (error) {
       setFinishing(false);
       setFailure({ message: describeError(error) });
