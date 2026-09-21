@@ -149,11 +149,13 @@ function DisplayNameCard({
               }}
             >
               {(field) => (
-                <field.FormField
-                  label={<Trans id="profile.display-name.label">Name</Trans>}
-                  autoComplete="nickname"
-                  variant="secondary"
-                />
+                <div className="max-w-lg">
+                  <field.FormField
+                    label={<Trans id="profile.display-name.label">Name</Trans>}
+                    autoComplete="nickname"
+                    variant="secondary"
+                  />
+                </div>
               )}
             </form.AppField>
             <div className="flex flex-col gap-1">
