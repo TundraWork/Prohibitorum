@@ -11,9 +11,6 @@ export function Console() {
   if (session === null) return null;
   return (
     <>
-      <h1 className="text-2xl font-semibold">
-        <Trans id="console.home">Console home</Trans>
-      </h1>
       <Card>
         <Card.Header>
           <Card.Title render={(props) => <h2 {...props} />}>

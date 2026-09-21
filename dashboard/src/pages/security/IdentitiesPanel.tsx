@@ -106,13 +106,6 @@ export function IdentitiesPanel() {
 
   return (
     <>
-      <p className="max-w-prose text-sm text-muted">
-        <Trans id="security.identities.intro">
-          Other services you can sign in through. Each identity you link becomes
-          another way into this account.
-        </Trans>
-      </p>
-
       {error !== null && (
         <SurfaceAlert status="danger" role="alert">
           <SurfaceAlert.Indicator />

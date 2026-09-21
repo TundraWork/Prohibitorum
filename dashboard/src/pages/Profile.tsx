@@ -10,7 +10,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { updateProfileMutationOptions } from "@/api/mutations";
 import { sessionQueryOptions } from "@/api/queries";
-import { PageHeading } from "@/components/custom/PageHeading";
+
 import { applyServerError } from "@/forms/server-errors";
 import { useAppForm } from "@/forms/use-app-form";
 import type { ProfileTab } from "@/pages/console/tabs";
@@ -56,9 +56,6 @@ export function Profile() {
 
   return (
     <>
-      <PageHeading>
-        <Trans id="console.profile">Profile</Trans>
-      </PageHeading>
       <Tabs
         selectedKey={tab}
         onSelectionChange={(key) => {
@@ -70,13 +67,16 @@ export function Profile() {
           });
         }}
       >
-        <Tabs.ListContainer>
-          <Tabs.List aria-label={t({ id: "profile.tabs", message: "Profile" })}>
-            <Tabs.Tab id="display-name">
+        <Tabs.ListContainer className="ml-2 w-fit max-w-full">
+          <Tabs.List
+            className="grid grid-flow-col auto-cols-fr"
+            aria-label={t({ id: "profile.tabs", message: "Profile" })}
+          >
+            <Tabs.Tab className="whitespace-nowrap" id="display-name">
               <Trans id="profile.tab.display-name">Display name</Trans>
               <Tabs.Indicator />
             </Tabs.Tab>
-            <Tabs.Tab id="avatar">
+            <Tabs.Tab className="whitespace-nowrap" id="avatar">
               <Trans id="profile.tab.avatar">Avatar</Trans>
               <Tabs.Indicator />
             </Tabs.Tab>
@@ -122,7 +122,7 @@ function DisplayNameCard({
   });
 
   return (
-    <Card className="mt-4">
+    <Card>
       <Card.Header>
         <Card.Title render={(props) => <h2 {...props} />}>
           <Trans id="profile.display-name.title">Display name</Trans>

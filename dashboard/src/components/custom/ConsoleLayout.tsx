@@ -5,6 +5,7 @@ import {
   Spinner,
   useOverlayState,
 } from "@heroui/react";
+import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import {
   useMutation,
@@ -31,12 +32,55 @@ import { useEffect, useState } from "react";
 import type { components } from "@/api/generated/schema";
 import { logoutMutationOptions } from "@/api/mutations";
 import { clearSessionQueries, sessionQueryOptions } from "@/api/queries";
-import { instanceName } from "@/components/custom/AppLayout";
+import { instanceIconUrl, instanceName } from "@/components/custom/AppLayout";
 import { LanguageMenu } from "@/components/custom/LanguageMenu";
 import { SudoDialog } from "@/components/custom/SudoDialog";
 import { ThemeSelect } from "@/components/custom/ThemeSelect";
 
 type Session = components["schemas"]["SessionView"];
+
+/**
+ * The console's sections, in the order the sidebar lists them. The header names
+ * the section you are in, so each label exists once: the string a member clicks
+ * and the title they land on come from the same place.
+ */
+const consoleHome = {
+  path: "/",
+  icon: House,
+  title: msg({ id: "console.home", message: "Console home" }),
+};
+
+const accountSections = [
+  {
+    path: "/profile",
+    icon: UserRound,
+    title: msg({ id: "console.profile", message: "Profile" }),
+  },
+  {
+    path: "/security",
+    icon: ShieldCheck,
+    title: msg({ id: "console.security", message: "Security" }),
+  },
+  {
+    path: "/apps",
+    icon: AppWindow,
+    title: msg({
+      id: "console.applications",
+      message: "Connected applications",
+    }),
+  },
+  {
+    path: "/devices",
+    icon: MonitorSmartphone,
+    title: msg({ id: "console.devices", message: "Devices" }),
+  },
+];
+
+// Prefix matching, so a page's own query strings and any nested route keep the
+// section highlighted. `/` only ever matches the console home.
+function isActiveSection(path: string, activePath: string) {
+  return path === "/" ? activePath === "/" : activePath.startsWith(path);
+}
 
 const navigationItem = cva(
   "group flex h-9 w-full items-center justify-start gap-3 rounded-field px-2 py-1.5 text-sm leading-5",
@@ -90,42 +134,16 @@ function NavItem({
 }
 
 function ConsoleNavigation({
-  session,
   activePath,
   onNavigate,
 }: {
-  session: Session;
   activePath: string;
   onNavigate: (path: string) => void;
 }) {
-  const { t } = useLingui();
-  // Prefix matching, so a page's own query strings and any nested route keep the
-  // section highlighted. `/` only ever matches the console home.
-  const isActive = (path: string) =>
-    path === "/" ? activePath === "/" : activePath.startsWith(path);
+  const { i18n, t } = useLingui();
   return (
     <div className="flex min-w-0 flex-col">
-      <div className="px-4 pb-2 pt-4">
-        <div className="flex items-center gap-3 px-1 py-1">
-          <Avatar className="size-9 shrink-0">
-            {session.avatarUrl && (
-              <Avatar.Image src={session.avatarUrl} alt="" />
-            )}
-            <Avatar.Fallback>
-              <UserRound size={20} aria-hidden="true" />
-            </Avatar.Fallback>
-          </Avatar>
-          <div className="flex min-w-0 flex-col">
-            <span className="text-sm font-medium leading-tight text-foreground">
-              {session.displayName}
-            </span>
-            <span className="text-xs font-medium leading-tight text-muted">
-              {session.username}
-            </span>
-          </div>
-        </div>
-      </div>
-      <div className="flex flex-1 flex-col overflow-y-auto px-3">
+      <div className="flex flex-1 flex-col overflow-y-auto px-3 pt-2">
         <nav
           aria-label={t({
             id: "console.navigation",
@@ -134,63 +152,86 @@ function ConsoleNavigation({
           className="flex flex-col gap-0.5"
         >
           <NavItem
-            active={isActive("/")}
-            icon={House}
-            onPress={() => onNavigate("/")}
+            active={isActiveSection(consoleHome.path, activePath)}
+            icon={consoleHome.icon}
+            onPress={() => onNavigate(consoleHome.path)}
           >
-            <Trans id="console.home">Console home</Trans>
+            {i18n._(consoleHome.title)}
           </NavItem>
           <p className="px-2 pb-1 pt-3 text-xs font-medium text-muted">
             <Trans id="console.account">Your account</Trans>
           </p>
-          <NavItem
-            active={isActive("/profile")}
-            icon={UserRound}
-            onPress={() => onNavigate("/profile")}
-          >
-            <Trans id="console.profile">Profile</Trans>
-          </NavItem>
-          <NavItem
-            active={isActive("/security")}
-            icon={ShieldCheck}
-            onPress={() => onNavigate("/security")}
-          >
-            <Trans id="console.security">Security</Trans>
-          </NavItem>
-          <NavItem
-            active={isActive("/apps")}
-            icon={AppWindow}
-            onPress={() => onNavigate("/apps")}
-          >
-            <Trans id="console.applications">Connected applications</Trans>
-          </NavItem>
-          <NavItem
-            active={isActive("/devices")}
-            icon={MonitorSmartphone}
-            onPress={() => onNavigate("/devices")}
-          >
-            <Trans id="console.devices">Devices</Trans>
-          </NavItem>
+          {accountSections.map((section) => (
+            <NavItem
+              key={section.path}
+              active={isActiveSection(section.path, activePath)}
+              icon={section.icon}
+              onPress={() => onNavigate(section.path)}
+            >
+              {i18n._(section.title)}
+            </NavItem>
+          ))}
         </nav>
       </div>
     </div>
   );
 }
 
-function ConsoleActions({
+/**
+ * Which install this console belongs to, above the navigation. The header names
+ * the section you are in; this names the instance all of it is served from.
+ */
+function ConsoleIdentity() {
+  return (
+    <div className="flex items-center gap-3 px-4 pb-2 pt-4">
+      <Avatar className="size-8 shrink-0">
+        <Avatar.Image src={instanceIconUrl} alt="" />
+        <Avatar.Fallback>{instanceName.slice(0, 1)}</Avatar.Fallback>
+      </Avatar>
+      <span className="truncate text-sm font-medium text-foreground">
+        {instanceName}
+      </span>
+    </div>
+  );
+}
+
+/**
+ * The signed-in account and the one action it carries, at the foot of every
+ * console surface: who you are, and the way out.
+ */
+function ConsoleAccount({
+  session,
   pending,
   onLogout,
 }: {
+  session: Session;
   pending: boolean;
   onLogout: () => void;
 }) {
+  const { t } = useLingui();
   return (
-    <div className="flex flex-col gap-0.5 px-3 pb-4 pt-2">
+    <div className="flex items-center gap-3 p-2">
+      <Avatar className="size-8 shrink-0">
+        {session.avatarUrl && <Avatar.Image src={session.avatarUrl} alt="" />}
+        <Avatar.Fallback>
+          <UserRound size={20} aria-hidden="true" />
+        </Avatar.Fallback>
+      </Avatar>
+      <div className="flex min-w-0 flex-1 flex-col">
+        <span className="truncate text-sm font-medium leading-tight text-foreground">
+          {session.displayName}
+        </span>
+        <span className="truncate text-xs font-medium leading-tight text-muted">
+          {session.username}
+        </span>
+      </div>
       <Button
+        isIconOnly
+        size="sm"
         variant="ghost"
-        className={navigationItem()}
         isPending={pending}
         onPress={onLogout}
+        aria-label={t({ id: "console.logout", message: "Sign out" })}
       >
         {pending ? (
           <Spinner size="sm" className="shrink-0" />
@@ -201,7 +242,6 @@ function ConsoleActions({
             aria-hidden="true"
           />
         )}
-        <Trans id="console.logout">Sign out</Trans>
       </Button>
     </div>
   );
@@ -216,11 +256,15 @@ function ConsoleShell({
   pendingLogout: boolean;
   onLogout: () => void;
 }) {
-  const { t } = useLingui();
+  const { i18n, t } = useLingui();
   const drawer = useOverlayState();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const router = useRouter();
   const activePath = useRouterState({ select: (s) => s.location.pathname });
+  const sectionTitle =
+    [consoleHome, ...accountSections].find((section) =>
+      isActiveSection(section.path, activePath),
+    )?.title ?? consoleHome.title;
   const { close } = drawer;
 
   useEffect(() => router.subscribe("onBeforeNavigate", close), [router, close]);
@@ -256,13 +300,14 @@ function ConsoleShell({
             sidebarCollapsed ? "invisible -translate-x-full" : "translate-x-0"
           }`}
         >
-          <ConsoleNavigation
-            session={session}
-            activePath={activePath}
-            onNavigate={navigate}
-          />
-          <div className="mt-auto">
-            <ConsoleActions pending={pendingLogout} onLogout={logout} />
+          <ConsoleIdentity />
+          <ConsoleNavigation activePath={activePath} onNavigate={navigate} />
+          <div className="mt-auto px-3 pb-4 pt-3">
+            <ConsoleAccount
+              session={session}
+              pending={pendingLogout}
+              onLogout={logout}
+            />
           </div>
         </aside>
       </div>
@@ -295,13 +340,14 @@ function ConsoleShell({
                       })}
                     />
                     <Drawer.Body className="flex flex-col p-0">
+                      <ConsoleIdentity />
                       <ConsoleNavigation
-                        session={session}
                         activePath={activePath}
                         onNavigate={navigate}
                       />
-                      <div className="mt-auto">
-                        <ConsoleActions
+                      <div className="mt-auto px-3 pb-4 pt-3">
+                        <ConsoleAccount
+                          session={session}
                           pending={pendingLogout}
                           onLogout={logout}
                         />
@@ -328,10 +374,16 @@ function ConsoleShell({
             <PanelLeft size={16} aria-hidden="true" />
           </Button>
 
-          {/* Title */}
-          <h1 className="truncate text-xl font-semibold text-foreground">
-            {instanceName}
-          </h1>
+          {/* Title: which instance this console belongs to, above the section
+              in view. */}
+          <div className="flex min-w-0 flex-col gap-0.5">
+            <span className="truncate text-xs uppercase tracking-wider leading-tight text-muted">
+              {instanceName}
+            </span>
+            <h1 className="truncate text-lg font-semibold leading-tight text-foreground">
+              {i18n._(sectionTitle)}
+            </h1>
+          </div>
 
           {/* Spacer */}
           <div className="flex-1" />
@@ -343,9 +395,13 @@ function ConsoleShell({
           </div>
         </header>
 
-        {/* Main content */}
-        <main className="flex min-w-0 flex-1 flex-col gap-6 px-4 pb-8 sm:px-6">
-          <Outlet />
+        {/* Main content: one measured column, so a wide window reads as a page
+            rather than a stretched one. It is also the container the tables
+            measure their full-bleed width against. */}
+        <main className="@container flex min-w-0 flex-1 flex-col px-4 pt-2 pb-4 sm:px-6">
+          <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
+            <Outlet />
+          </div>
         </main>
       </div>
 

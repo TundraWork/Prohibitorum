@@ -101,13 +101,6 @@ export function SessionsPanel() {
 
   return (
     <>
-      <p className="max-w-prose text-sm text-muted">
-        <Trans id="security.sessions.intro">
-          Everywhere this account is signed in right now. Ending a session signs
-          that device out immediately.
-        </Trans>
-      </p>
-
       {error !== null && (
         <p role="alert" className="mt-2 text-sm">
           {t(describeError(error))}

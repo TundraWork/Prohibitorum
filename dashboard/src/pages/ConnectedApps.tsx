@@ -6,7 +6,7 @@ import { useState } from "react";
 import { revokeConsentMutationOptions } from "@/api/mutations";
 import { consentQueryOptions } from "@/api/queries";
 import { DataTable, type TableColumn } from "@/components/custom/DataTable";
-import { PageHeading } from "@/components/custom/PageHeading";
+
 import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
 
 type ConsentedApp = {
@@ -103,9 +103,6 @@ export function ConnectedApps() {
 
   return (
     <>
-      <PageHeading>
-        <Trans id="console.applications">Connected applications</Trans>
-      </PageHeading>
       <p className="text-sm text-muted">
         <Trans id="apps.intro">
           Applications you have approved. Removing access revokes what they can

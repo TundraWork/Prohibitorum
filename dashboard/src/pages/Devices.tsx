@@ -16,7 +16,7 @@ import {
   cancelDeviceMutationOptions,
   deviceLookupQueryOptions,
 } from "@/api/mutations";
-import { PageHeading } from "@/components/custom/PageHeading";
+
 import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
 
 /**
@@ -56,9 +56,6 @@ export function Devices() {
 
   return (
     <>
-      <PageHeading>
-        <Trans id="console.devices">Devices</Trans>
-      </PageHeading>
       <p className="text-sm text-muted">
         <Trans id="devices.intro">
           Signing in somewhere new? Enter the code that device is showing, check
@@ -66,7 +63,7 @@ export function Devices() {
         </Trans>
       </p>
 
-      <Card className="mt-4">
+      <Card>
         <Card.Header>
           <Card.Title render={(props) => <h2 {...props} />}>
             <Trans id="devices.code.title">Pairing code</Trans>

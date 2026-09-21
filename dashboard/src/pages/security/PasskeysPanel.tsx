@@ -149,13 +149,7 @@ export function PasskeysPanel() {
   return (
     <>
       <div className="flex flex-col gap-4">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <p className="max-w-prose text-sm text-muted">
-            <Trans id="security.passkeys.intro">
-              Sign in with your fingerprint, face, or a security key instead of
-              typing anything. You can keep several passkeys on one account.
-            </Trans>
-          </p>
+        <div className="flex flex-wrap items-center justify-end gap-4">
           <Button
             isPending={add.isPending}
             onPress={() => {

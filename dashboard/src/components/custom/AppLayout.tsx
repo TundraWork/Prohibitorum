@@ -14,6 +14,9 @@ export const instanceName =
     ? configuredName
     : "Prohibitorum";
 
+/** The instance's own mark, served from the same origin as the console. */
+export const instanceIconUrl = "/branding/icon";
+
 export function AppLayout() {
   const { i18n } = useLingui();
   const theme = useAtomValue(themeAtom);

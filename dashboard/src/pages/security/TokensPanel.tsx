@@ -168,14 +168,6 @@ export function TokensPanel() {
 
   return (
     <>
-      <p className="max-w-prose text-sm text-muted">
-        <Trans id="security.tokens.intro">
-          Tokens let a script or another service act as you without your
-          password. Treat one like a password: anyone who has it can use it
-          until you revoke it.
-        </Trans>
-      </p>
-
       {error !== null && (
         <SurfaceAlert status="danger" role="alert">
           <SurfaceAlert.Indicator />

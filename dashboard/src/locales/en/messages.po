@@ -310,15 +310,14 @@ msgid "sudo.reason.unlink-identity"
 msgstr "Confirm it is you to unlink this identity."
 
 #. js-lingui-explicit-id
-#: src/components/custom/ConsoleLayout.tsx
-#: src/pages/ConnectedApps.tsx
-msgid "console.applications"
-msgstr "Applications"
-
-#. js-lingui-explicit-id
 #: src/pages/ConnectedApps.tsx
 msgid "apps.table.label"
 msgstr "Connected applications"
+
+#. js-lingui-explicit-id
+#: src/components/custom/ConsoleLayout.tsx
+msgid "console.applications"
+msgstr "Applications"
 
 #. js-lingui-explicit-id
 #: src/pages/Security.tsx
@@ -333,7 +332,6 @@ msgstr "Connected identities"
 #. js-lingui-explicit-id
 #: src/components/custom/ConsoleLayout.tsx
 #: src/components/custom/PreviewLayout.tsx
-#: src/pages/Console.tsx
 msgid "console.home"
 msgstr "Console home"
 
@@ -474,7 +472,6 @@ msgstr "Device pairing"
 
 #. js-lingui-explicit-id
 #: src/components/custom/ConsoleLayout.tsx
-#: src/pages/Devices.tsx
 msgid "console.devices"
 msgstr "Devices"
 
@@ -613,11 +610,6 @@ msgstr "Every application"
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.every_app"
 msgstr "Every application you can use"
-
-#. js-lingui-explicit-id
-#: src/pages/security/SessionsPanel.tsx
-msgid "security.sessions.intro"
-msgstr "Everywhere this account is signed in right now. Ending a session signs that device out immediately."
 
 #. js-lingui-explicit-id
 #: src/pages/DevForms.tsx
@@ -981,11 +973,6 @@ msgid "apps.kind.oidc"
 msgstr "OpenID Connect"
 
 #. js-lingui-explicit-id
-#: src/pages/security/IdentitiesPanel.tsx
-msgid "security.identities.intro"
-msgstr "Other services you can sign in through. Each identity you link becomes another way into this account."
-
-#. js-lingui-explicit-id
 #: src/components/custom/RouteFeedback.tsx
 msgid "route.not-found"
 msgstr "Page not found"
@@ -1076,14 +1063,13 @@ msgid "notification.message"
 msgstr "Preview notification. No data was submitted."
 
 #. js-lingui-explicit-id
-#: src/components/custom/ConsoleLayout.tsx
 #: src/pages/Profile.tsx
-msgid "console.profile"
+msgid "profile.tabs"
 msgstr "Profile"
 
 #. js-lingui-explicit-id
-#: src/pages/Profile.tsx
-msgid "profile.tabs"
+#: src/components/custom/ConsoleLayout.tsx
+msgid "console.profile"
 msgstr "Profile"
 
 #. js-lingui-explicit-id
@@ -1283,14 +1269,13 @@ msgid "apps.column.scopes"
 msgstr "Scopes"
 
 #. js-lingui-explicit-id
-#: src/components/custom/ConsoleLayout.tsx
 #: src/pages/Security.tsx
-msgid "console.security"
+msgid "security.tabs"
 msgstr "Security"
 
 #. js-lingui-explicit-id
-#: src/pages/Security.tsx
-msgid "security.tabs"
+#: src/components/custom/ConsoleLayout.tsx
+msgid "console.security"
 msgstr "Security"
 
 #. js-lingui-explicit-id
@@ -1352,11 +1337,6 @@ msgstr "Sign in with a password"
 #: src/pages/Login.tsx
 msgid "login.recovery.form"
 msgstr "Sign in with a recovery code"
-
-#. js-lingui-explicit-id
-#: src/pages/security/PasskeysPanel.tsx
-msgid "security.passkeys.intro"
-msgstr "Sign in with your fingerprint, face, or a security key instead of typing anything. You can keep several passkeys on one account."
 
 #. js-lingui-explicit-id
 #: src/components/custom/ConsoleLayout.tsx
@@ -1727,11 +1707,6 @@ msgstr "Toggle sidebar"
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.column.hint"
 msgstr "Token"
-
-#. js-lingui-explicit-id
-#: src/pages/security/TokensPanel.tsx
-msgid "security.tokens.intro"
-msgstr "Tokens let a script or another service act as you without your password. Treat one like a password: anyone who has it can use it until you revoke it."
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts

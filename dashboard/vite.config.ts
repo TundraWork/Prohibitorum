@@ -22,6 +22,7 @@ export default defineConfig({
   server: {
     proxy: {
       "/api": "http://localhost:8080",
+      "/branding": "http://localhost:8080",
       "/oauth": "http://localhost:8080",
       "/saml": "http://localhost:8080",
       "/oidc": "http://localhost:8080",

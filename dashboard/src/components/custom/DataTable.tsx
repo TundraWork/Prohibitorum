@@ -33,11 +33,22 @@ export function DataTable<T>({
   loading?: boolean;
   empty: ReactNode;
 }) {
+  // Cells never wrap: a wrapped timestamp or user agent makes rows different
+  // heights and hides the column rhythm. The table scrolls sideways instead.
   const cellClass = (align: TableColumn<T>["align"]) =>
-    align === "end" ? "text-end tabular-nums" : undefined;
+    align === "end"
+      ? "text-end tabular-nums whitespace-nowrap"
+      : "whitespace-nowrap";
   return (
-    <Table.ScrollContainer className="min-w-0">
-      <Table aria-label={label}>
+    <Table.ScrollContainer
+      // Past the console column's measure there is room to spare, so a wide
+      // table takes the console's own width and gives it back to both gutters
+      // instead of leaving them empty (`cqw` is that column's container; see
+      // `main` in ConsoleLayout). Cells never wrap, so a table wider than its
+      // column scrolls sideways instead of clipping.
+      className="min-w-0 overflow-x-auto min-[1440px]:w-[100cqw] min-[1440px]:mx-[calc(50%_-_50cqw)]"
+    >
+      <Table aria-label={label} className="w-max min-w-full">
         <Table.Content>
           <Table.Header>
             {columns.map((column) => (

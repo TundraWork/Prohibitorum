@@ -1,7 +1,7 @@
 import { Tabs } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useNavigate } from "@tanstack/react-router";
-import { PageHeading } from "@/components/custom/PageHeading";
+
 import type { SecurityTab } from "@/pages/console/tabs";
 import { IdentitiesPanel } from "@/pages/security/IdentitiesPanel";
 import { PasskeysPanel } from "@/pages/security/PasskeysPanel";
@@ -26,9 +26,6 @@ export function Security() {
 
   return (
     <>
-      <PageHeading>
-        <Trans id="console.security">Security</Trans>
-      </PageHeading>
       <Tabs
         selectedKey={tab}
         onSelectionChange={(key) => {
@@ -40,29 +37,30 @@ export function Security() {
           });
         }}
       >
-        <Tabs.ListContainer>
+        <Tabs.ListContainer className="ml-2 w-fit max-w-full">
           <Tabs.List
+            className="grid grid-flow-col auto-cols-fr"
             aria-label={t({ id: "security.tabs", message: "Security" })}
           >
-            <Tabs.Tab id="passkeys">
+            <Tabs.Tab className="whitespace-nowrap" id="passkeys">
               <Trans id="security.tab.passkeys">Passkeys</Trans>
               <Tabs.Indicator />
             </Tabs.Tab>
-            <Tabs.Tab id="password">
+            <Tabs.Tab className="whitespace-nowrap" id="password">
               <Trans id="security.tab.password">
                 Password and authenticator
               </Trans>
               <Tabs.Indicator />
             </Tabs.Tab>
-            <Tabs.Tab id="sessions">
+            <Tabs.Tab className="whitespace-nowrap" id="sessions">
               <Trans id="security.tab.sessions">Active sessions</Trans>
               <Tabs.Indicator />
             </Tabs.Tab>
-            <Tabs.Tab id="identities">
+            <Tabs.Tab className="whitespace-nowrap" id="identities">
               <Trans id="security.tab.identities">Connected identities</Trans>
               <Tabs.Indicator />
             </Tabs.Tab>
-            <Tabs.Tab id="tokens">
+            <Tabs.Tab className="whitespace-nowrap" id="tokens">
               <Trans id="security.tab.tokens">Access tokens</Trans>
               <Tabs.Indicator />
             </Tabs.Tab>

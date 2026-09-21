@@ -310,15 +310,14 @@ msgid "sudo.reason.unlink-identity"
 msgstr "请验证身份，以解绑此身份。"
 
 #. js-lingui-explicit-id
-#: src/components/custom/ConsoleLayout.tsx
-#: src/pages/ConnectedApps.tsx
-msgid "console.applications"
-msgstr "应用"
-
-#. js-lingui-explicit-id
 #: src/pages/ConnectedApps.tsx
 msgid "apps.table.label"
 msgstr "已连接应用"
+
+#. js-lingui-explicit-id
+#: src/components/custom/ConsoleLayout.tsx
+msgid "console.applications"
+msgstr "应用"
 
 #. js-lingui-explicit-id
 #: src/pages/Security.tsx
@@ -333,7 +332,6 @@ msgstr "已连接身份"
 #. js-lingui-explicit-id
 #: src/components/custom/ConsoleLayout.tsx
 #: src/components/custom/PreviewLayout.tsx
-#: src/pages/Console.tsx
 msgid "console.home"
 msgstr "控制台首页"
 
@@ -474,7 +472,6 @@ msgstr "设备配对"
 
 #. js-lingui-explicit-id
 #: src/components/custom/ConsoleLayout.tsx
-#: src/pages/Devices.tsx
 msgid "console.devices"
 msgstr "设备"
 
@@ -613,11 +610,6 @@ msgstr "全部应用"
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.every_app"
 msgstr "你可以使用的全部应用"
-
-#. js-lingui-explicit-id
-#: src/pages/security/SessionsPanel.tsx
-msgid "security.sessions.intro"
-msgstr "此账号当前登录的全部位置。结束会话会立即让该设备退出登录。"
 
 #. js-lingui-explicit-id
 #: src/pages/DevForms.tsx
@@ -981,11 +973,6 @@ msgid "apps.kind.oidc"
 msgstr "OpenID Connect"
 
 #. js-lingui-explicit-id
-#: src/pages/security/IdentitiesPanel.tsx
-msgid "security.identities.intro"
-msgstr "可以用于登录的其它服务。每绑定一个身份，就多一种进入此账号的方式。"
-
-#. js-lingui-explicit-id
 #: src/components/custom/RouteFeedback.tsx
 msgid "route.not-found"
 msgstr "页面不存在"
@@ -1076,14 +1063,13 @@ msgid "notification.message"
 msgstr "这是预览通知，没有提交任何数据。"
 
 #. js-lingui-explicit-id
-#: src/components/custom/ConsoleLayout.tsx
 #: src/pages/Profile.tsx
-msgid "console.profile"
+msgid "profile.tabs"
 msgstr "个人资料"
 
 #. js-lingui-explicit-id
-#: src/pages/Profile.tsx
-msgid "profile.tabs"
+#: src/components/custom/ConsoleLayout.tsx
+msgid "console.profile"
 msgstr "个人资料"
 
 #. js-lingui-explicit-id
@@ -1283,14 +1269,13 @@ msgid "apps.column.scopes"
 msgstr "作用范围"
 
 #. js-lingui-explicit-id
-#: src/components/custom/ConsoleLayout.tsx
 #: src/pages/Security.tsx
-msgid "console.security"
+msgid "security.tabs"
 msgstr "安全"
 
 #. js-lingui-explicit-id
-#: src/pages/Security.tsx
-msgid "security.tabs"
+#: src/components/custom/ConsoleLayout.tsx
+msgid "console.security"
 msgstr "安全"
 
 #. js-lingui-explicit-id
@@ -1352,11 +1337,6 @@ msgstr "使用密码登录"
 #: src/pages/Login.tsx
 msgid "login.recovery.form"
 msgstr "使用恢复码登录"
-
-#. js-lingui-explicit-id
-#: src/pages/security/PasskeysPanel.tsx
-msgid "security.passkeys.intro"
-msgstr "用指纹、面容或安全密钥登录，无需输入任何内容。同一账号可以保存多把通行密钥。"
 
 #. js-lingui-explicit-id
 #: src/components/custom/ConsoleLayout.tsx
@@ -1727,11 +1707,6 @@ msgstr "切换侧边栏"
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.column.hint"
 msgstr "令牌"
-
-#. js-lingui-explicit-id
-#: src/pages/security/TokensPanel.tsx
-msgid "security.tokens.intro"
-msgstr "令牌让脚本或其它服务在不知道你密码的情况下以此账号行事。请像对待密码一样对待令牌：任何持有者都能使用它，直到你撤销。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
