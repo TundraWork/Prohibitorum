@@ -1,4 +1,4 @@
-import { Skeleton, Table } from "@heroui/react";
+import { Spinner, Table } from "@heroui/react";
 import type { ReactNode } from "react";
 import {
   TableActionCell,
@@ -23,7 +23,7 @@ export interface TableColumn<T> {
 
 /**
  * Thin wrapper over the HeroUI `Table` for the console's account-owned lists:
- * one column definition per table, a shared empty state and a loading skeleton,
+ * one column definition per table, a shared empty state and a loading row,
  * and horizontal scrolling on narrow screens instead of a second card layout.
  * A trailing column can be marked `pinned` to stay stuck to the right while the
  * rest scrolls (see `TableActionCell`).
@@ -81,7 +81,20 @@ export function DataTable<T>({
               ),
             )}
           </Table.Header>
-          <Table.Body renderEmptyState={() => (loading ? <Skeleton /> : empty)}>
+          <Table.Body
+            renderEmptyState={() =>
+              loading ? (
+                // The rows have not arrived yet, so stand in for them with one
+                // full-width row on the console's gray surface, which reads as
+                // chrome rather than data.
+                <div className="flex items-center justify-center bg-surface-secondary py-6">
+                  <Spinner size="md" />
+                </div>
+              ) : (
+                empty
+              )
+            }
+          >
             {rows.map((row) => (
               <Table.Row key={rowId(row)} id={rowId(row)}>
                 {columns.map((column) =>
