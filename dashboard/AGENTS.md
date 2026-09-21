@@ -18,7 +18,7 @@ Tanstack table: <https://tanstack.com/tables/latest/llms.txt>
 
 ## API mocks (development only)
 
-- The devtools host carries an "API mock" panel: the master switch answers reads from fabricated data, "Override writes" extends that to writes, and the rows beneath set the data (session, sign-in factors, list sizes, step-up methods, instance notices). A write also moves the data it changed, so the reads that follow agree with it.
+- The devtools host carries an "API mock" panel: the master switch answers reads from fabricated data, "Override writes" extends that to writes, and every answer waits the configurable response delay (700 ms by default) so pages show the pending states they render while waiting. The rows beneath set the data (session, sign-in factors, list sizes, step-up methods, instance notices). A write also moves the data it changed, so the reads that follow agree with it.
 - Fixtures live in `src/devtools/mock`; `main.tsx` installs the middleware behind `import.meta.env.DEV`, so none of it ships in the production bundle. The mock owns whole verbs, not a list of paths: while reads are mocked every GET is answered, and "Override writes" extends that to the other methods. Add an endpoint by naming its `schemaPath` in `buildMockReply`; a request with no fixture fails with `mock_unmocked` instead of reaching the server, so passkey ceremonies fail that way too.
 - The master switch returns to off after a reload; the data edits, including the writes switch, persist.
 

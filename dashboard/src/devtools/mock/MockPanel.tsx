@@ -1,7 +1,9 @@
 import { type ReactNode, useSyncExternalStore } from "react";
 import {
   clampCount,
+  clampDelay,
   getMockConfig,
+  mockDelayMax,
   mockListMax,
   resetMockConfig,
   subscribeMockConfig,
@@ -100,6 +102,39 @@ function Text({
   );
 }
 
+/** Numeric duration control, dimmed while the master switch keeps it inert. */
+function Delay({
+  label,
+  value,
+  disabled,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  disabled?: boolean;
+  onChange: (next: number) => void;
+}) {
+  return (
+    <label
+      className={`flex items-center gap-2 py-1 ${
+        disabled ? "cursor-not-allowed opacity-40" : ""
+      }`}
+    >
+      <input
+        type="number"
+        min={0}
+        max={mockDelayMax}
+        step={50}
+        disabled={disabled}
+        value={value}
+        onChange={(event) => onChange(clampDelay(Number(event.target.value)))}
+        className={`w-16 text-left tabular-nums ${controlClass}`}
+      />
+      <span className="min-w-0">{label}</span>
+    </label>
+  );
+}
+
 /**
  * The mock controls: whether reads and writes are answered from here, and the
  * account the console should believe it is serving. Answers land through the
@@ -135,6 +170,16 @@ export function MockPanel() {
               })
             }
           />
+          <Delay
+            label="Response delay (ms)"
+            value={config.delayMs}
+            disabled={!config.enabled}
+            onChange={(next) =>
+              updateMockConfig((draft) => {
+                draft.delayMs = next;
+              })
+            }
+          />
         </div>
         <button
           type="button"
@@ -146,9 +191,10 @@ export function MockPanel() {
       </div>
       <p className="text-xs opacity-60">
         Reads answer from this panel; with Override writes on, writes answer
-        here too. A request with no fixture fails as <code>mock_unmocked</code>
-        rather than reaching the server, so a passkey step-up cannot be faked.
-        Mocking is off again after a reload.
+        here too. Each answer waits the response delay. A request with no
+        fixture fails as <code>mock_unmocked</code> rather than reaching the
+        server, so a passkey step-up cannot be faked. Mocking is off again after
+        a reload.
       </p>
 
       <fieldset

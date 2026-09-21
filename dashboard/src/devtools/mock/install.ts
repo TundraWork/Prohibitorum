@@ -53,6 +53,9 @@ export function installApiMocks(application: Application): void {
         config,
       );
       if (!reply) return undefined;
+      // Latency is part of what the panel fakes: an instant reply hides the
+      // pending states a page shows while it waits.
+      await wait(config.delayMs);
       // Applied before the reply leaves, so the reads that follow the write
       // already agree with it.
       if (reply.effect) updateMockConfig(reply.effect);
@@ -99,6 +102,12 @@ async function jsonBody(request: Request): Promise<unknown> {
   } catch {
     return undefined;
   }
+}
+
+/** Holds a mocked reply back for the configured latency. */
+function wait(ms: number): Promise<void> {
+  if (ms <= 0) return Promise.resolve();
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 async function refresh(application: Application): Promise<void> {

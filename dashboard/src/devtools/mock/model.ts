@@ -9,6 +9,8 @@ export interface MockConfig {
   enabled: boolean;
   /** Whether writes answer from the panel as well. Inert while `enabled` is off. */
   writes: boolean;
+  /** Milliseconds every mocked response waits before it is answered. */
+  delayMs: number;
   session: {
     signedIn: boolean;
     displayName: string;
@@ -43,9 +45,13 @@ export interface MockConfig {
 /** Upper bound for every list length, so one control cannot render a huge table. */
 export const mockListMax = 10;
 
+/** Upper bound for the response delay, so one control cannot stall a page for minutes. */
+export const mockDelayMax = 5000;
+
 export const defaultMockConfig: MockConfig = {
   enabled: false,
   writes: false,
+  delayMs: 700,
   session: {
     signedIn: true,
     displayName: "Mock Member",
@@ -160,4 +166,9 @@ export function resetMockConfig(): void {
 export function clampCount(value: number): number {
   if (!Number.isFinite(value)) return 0;
   return Math.max(0, Math.min(mockListMax, Math.floor(value)));
+}
+
+export function clampDelay(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  return Math.max(0, Math.min(mockDelayMax, Math.round(value)));
 }

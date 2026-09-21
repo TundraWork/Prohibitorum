@@ -1,8 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   clampCount,
+  clampDelay,
   defaultMockConfig,
   getMockConfig,
+  mockDelayMax,
   mockListMax,
   resetMockConfig,
   subscribeMockConfig,
@@ -24,6 +26,13 @@ describe("mock config", () => {
     expect(clampCount(2.7)).toBe(2);
     expect(clampCount(mockListMax + 1)).toBe(mockListMax);
     expect(clampCount(Number.NaN)).toBe(0);
+  });
+
+  it("clamps the response delay into the range the panel offers", () => {
+    expect(clampDelay(-20)).toBe(0);
+    expect(clampDelay(699.6)).toBe(700);
+    expect(clampDelay(mockDelayMax + 1)).toBe(mockDelayMax);
+    expect(clampDelay(Number.NaN)).toBe(0);
   });
 
   it("publishes a changed config to its subscribers and restores the defaults on reset", () => {
