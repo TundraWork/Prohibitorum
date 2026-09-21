@@ -35,6 +35,7 @@ The React/TypeScript dashboard is a Vite application in the `dashboard` pnpm wor
 - Dev, CI and production tasks run `pnpm install --frozen-lockfile`. Every triggered build installs, so lockfile changes are applied even when `node_modules` exists.
 - English and Chinese PO catalogs live in `src/locales`; Lingui checks reject missing translations and compilation errors. Biome and Vitest run only against the new application.
 - `dashboard-old` is a reference-only archive, excluded from imports, build inputs and frontend checks. Its npm lockfile belongs only to the archive.
+- TanStack Devtools is development-only: `vite.config.ts` registers `devtools()` first (it must stay first), `src/devtools/Devtools.tsx` mounts the shell once from `main.tsx`, and `src/devtools/events.ts` is the typed event client the sudo flow emits through. The plugin injects source locations, pipes console output to the dev server, and removes every Devtools import and element from production builds.
 - M3 provides `/login` (password + TOTP, recovery/reset and passkeys) and the protected console at `/`. Component and API previews remain public at `/preview/components` and `/preview/api`. M4 adds the signed-in account pages under the same protected console: `/profile`, `/security`, `/apps` and `/devices`, plus the shared step-up prompt every sudo-guarded action uses. Enrollment and admin pages (M5) remain unavailable; backend API semantics are unchanged.
 
 ### API types and development forms

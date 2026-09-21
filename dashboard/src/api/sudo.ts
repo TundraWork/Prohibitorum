@@ -5,6 +5,7 @@ import { atom } from "jotai";
 import { client, requireJsonData } from "@/api/client";
 import { ApiError, isCancellation } from "@/api/errors";
 import type { SudoMethod, SudoMethods } from "@/api/raw-paths";
+import { prohibitorumDevtools } from "@/devtools/events";
 
 export const sudoQueryKey = ["session", "sudo"] as const;
 
@@ -135,14 +136,24 @@ export async function runWithSudo<T>(
   const fresh = active.getFresh() || cached?.fresh === true;
   active.setFresh(fresh);
 
+  let stale = false;
   if (fresh) {
     try {
-      return await perform();
+      const result = await perform();
+      prohibitorumDevtools.emit("sudo-granted", { method: "cached" });
+      return result;
     } catch (error) {
       if (!isSudoRequired(error)) throw error;
+      // The window read as fresh but the backend had already closed it; the
+      // prompt below is the only way through from here.
       active.setFresh(false);
+      stale = true;
     }
   }
+  prohibitorumDevtools.emit("sudo-challenge", {
+    reason: reason?.id ?? null,
+    stale,
+  });
   return (await new Promise<unknown>((resolve, reject) => {
     active.set({ perform, reason, resolve, reject });
   })) as T;

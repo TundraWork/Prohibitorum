@@ -5,6 +5,7 @@ import { Provider } from "jotai";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "@/App";
+import { Devtools } from "@/devtools/Devtools";
 import { i18n, initializeLocale, store } from "@/i18n";
 
 const stopLocaleSync = initializeLocale();
@@ -18,6 +19,7 @@ createRoot(root).render(
         <App />
       </I18nProvider>
     </Provider>
+    <Devtools />
   </StrictMode>,
 );
 
