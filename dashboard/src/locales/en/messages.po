@@ -1644,8 +1644,8 @@ msgstr "This is the session you are using. Sign out instead."
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
-msgid "security.passkeys.last_one"
-msgstr "This is your only passkey, so it cannot be removed. Add another one first."
+msgid "security.passkeys.last_one_tooltip"
+msgstr "This is your only passkey, so it cannot be removed."
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -1932,11 +1932,6 @@ msgstr "You have not uploaded a picture yet."
 #: src/pages/security/IdentitiesPanel.tsx
 msgid "security.identities.unlink.body"
 msgstr "You will no longer be able to sign in through this provider. Your other sign-in methods are unaffected."
-
-#. js-lingui-explicit-id
-#: src/pages/security/IdentitiesPanel.tsx
-msgid "security.identities.link.note"
-msgstr "You will verify your identity here first, and the provider will then ask you to sign in."
 
 #. js-lingui-explicit-id
 #: src/components/custom/ConsoleLayout.tsx

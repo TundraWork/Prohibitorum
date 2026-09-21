@@ -6,6 +6,7 @@ import {
   Input,
   Label,
   TextField,
+  Tooltip,
 } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -132,20 +133,8 @@ export function PasskeysPanel() {
     {
       id: "actions",
       header: <Trans id="security.column.actions">Actions</Trans>,
-      cell: (credential) => (
-        <div className="flex flex-wrap justify-end gap-2">
-          <Button
-            size="sm"
-            variant="secondary"
-            onPress={() =>
-              setRenaming({
-                credential,
-                nickname: credential.nickname ?? "",
-              })
-            }
-          >
-            <Trans id="security.passkeys.rename">Rename</Trans>
-          </Button>
+      cell: (credential) => {
+        const removeButton = (
           <Button
             size="sm"
             variant="danger-soft"
@@ -154,8 +143,38 @@ export function PasskeysPanel() {
           >
             <Trans id="security.passkeys.delete">Remove</Trans>
           </Button>
-        </div>
-      ),
+        );
+        return (
+          <div className="flex flex-wrap justify-end gap-2">
+            <Button
+              size="sm"
+              variant="secondary"
+              onPress={() =>
+                setRenaming({
+                  credential,
+                  nickname: credential.nickname ?? "",
+                })
+              }
+            >
+              <Trans id="security.passkeys.rename">Rename</Trans>
+            </Button>
+            {/* A disabled button emits no hover or focus, so the tooltip
+                listens on the trigger wrapper instead. */}
+            {lastOne ? (
+              <Tooltip delay={0}>
+                <Tooltip.Trigger>{removeButton}</Tooltip.Trigger>
+                <Tooltip.Content>
+                  <Trans id="security.passkeys.last_one_tooltip">
+                    This is your only passkey, so it cannot be removed.
+                  </Trans>
+                </Tooltip.Content>
+              </Tooltip>
+            ) : (
+              removeButton
+            )}
+          </div>
+        );
+      },
       align: "end",
     },
   ];
@@ -168,15 +187,6 @@ export function PasskeysPanel() {
             <Trans id="security.passkeys.add">Add a passkey</Trans>
           </Button>
         </div>
-
-        {lastOne && rows.length === 1 && (
-          <Description>
-            <Trans id="security.passkeys.last_one">
-              This is your only passkey, so it cannot be removed. Add another
-              one first.
-            </Trans>
-          </Description>
-        )}
 
         {error !== null && (
           <Alert status="danger" role="alert">

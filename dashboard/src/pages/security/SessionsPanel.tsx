@@ -1,4 +1,4 @@
-import { AlertDialog, Button, Chip } from "@heroui/react";
+import { AlertDialog, Button, Chip, Tooltip } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { MonitorSmartphone } from "lucide-react";
@@ -20,8 +20,8 @@ function agentSummary(value?: string): string {
 
 /**
  * Sign-ins that are still active. The server marks the row belonging to the
- * current request and refuses to revoke it, so that row shows no button at all
- * rather than a control that always fails.
+ * current request and refuses to revoke it, so that row's action is disabled
+ * and its tooltip explains that signing out is the way to end it.
  */
 export function SessionsPanel() {
   const { t, i18n } = useLingui();
@@ -81,22 +81,33 @@ export function SessionsPanel() {
     {
       id: "actions",
       header: <Trans id="security.column.actions">Actions</Trans>,
-      cell: (session) =>
-        session.isCurrent ? (
-          <span className="text-sm text-muted">
-            <Trans id="security.sessions.use_sign_out">
-              Use sign out to end this one
-            </Trans>
-          </span>
-        ) : (
+      cell: (session) => {
+        const endSession = (
           <Button
             size="sm"
             variant="danger-soft"
+            isDisabled={session.isCurrent}
             onPress={() => setTarget(session)}
           >
             <Trans id="security.sessions.sign_out">End session</Trans>
           </Button>
-        ),
+        );
+        // The current session is disabled rather than hidden, and the tooltip
+        // carries the reason. A disabled button emits no hover or focus, so the
+        // tooltip listens on the trigger wrapper instead.
+        return session.isCurrent ? (
+          <Tooltip delay={0}>
+            <Tooltip.Trigger>{endSession}</Tooltip.Trigger>
+            <Tooltip.Content>
+              <Trans id="security.sessions.use_sign_out">
+                Use sign out to end this one
+              </Trans>
+            </Tooltip.Content>
+          </Tooltip>
+        ) : (
+          endSession
+        );
+      },
       align: "end",
     },
   ];

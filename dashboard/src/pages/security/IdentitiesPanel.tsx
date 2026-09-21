@@ -119,11 +119,6 @@ export function IdentitiesPanel() {
   const linkedSlugs = new Set(
     (identities.data ?? []).map((identity) => identity.providerSlug),
   );
-  // What the menu can still offer: a provider already bound to this account has
-  // nothing left to do, so it is listed but disabled.
-  const linkable = available.filter(
-    (provider) => !linkedSlugs.has(provider.slug),
-  );
 
   const startLink = (slug: string) => {
     setError(null);
@@ -150,15 +145,6 @@ export function IdentitiesPanel() {
             onSelect={startLink}
           />
         </div>
-
-        {linkable.length > 0 && (
-          <p className="max-w-prose text-sm text-muted">
-            <Trans id="security.identities.link.note">
-              You will verify your identity here first, and the provider will
-              then ask you to sign in.
-            </Trans>
-          </p>
-        )}
 
         {error !== null && (
           <Alert status="danger" role="alert">

@@ -1644,8 +1644,8 @@ msgstr "这是你正在使用的会话，请改用退出登录。"
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
-msgid "security.passkeys.last_one"
-msgstr "这是你唯一的通行密钥，因此不能移除。请先添加另一把。"
+msgid "security.passkeys.last_one_tooltip"
+msgstr "这是你唯一的通行密钥，无法移除。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -1932,11 +1932,6 @@ msgstr "你还没有上传头像。"
 #: src/pages/security/IdentitiesPanel.tsx
 msgid "security.identities.unlink.body"
 msgstr "你将无法再通过该提供方登录。其它登录方式不受影响。"
-
-#. js-lingui-explicit-id
-#: src/pages/security/IdentitiesPanel.tsx
-msgid "security.identities.link.note"
-msgstr "先在此验证你的身份，随后提供方会要求你登录。"
 
 #. js-lingui-explicit-id
 #: src/components/custom/ConsoleLayout.tsx
