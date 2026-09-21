@@ -392,6 +392,7 @@ function CreateTokenCard({
                       </Trans>
                     }
                     autoComplete="off"
+                    variant="secondary"
                   />
                 )}
               </form.AppField>

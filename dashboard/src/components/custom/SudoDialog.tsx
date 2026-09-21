@@ -286,6 +286,7 @@ function SudoStep({
                           }
                           type="password"
                           autoComplete="current-password"
+                          variant="secondary"
                         />
                       )}
                     </form.AppField>
@@ -296,6 +297,7 @@ function SudoStep({
                             <Trans id="sudo.code">Authenticator code</Trans>
                           }
                           digits={6}
+                          variant="secondary"
                         />
                       )}
                     </form.AppField>

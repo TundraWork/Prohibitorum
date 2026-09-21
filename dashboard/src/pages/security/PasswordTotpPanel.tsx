@@ -177,6 +177,7 @@ function ChangePasswordCard() {
                   label={<Trans id="security.password.new">New password</Trans>}
                   type="password"
                   autoComplete="new-password"
+                  variant="secondary"
                 />
               )}
             </form.AppField>
@@ -202,6 +203,7 @@ function ChangePasswordCard() {
                   }
                   type="password"
                   autoComplete="new-password"
+                  variant="secondary"
                 />
               )}
             </form.AppField>
@@ -286,6 +288,7 @@ function ReplaceTotpCard({ onCodes }: { onCodes: (codes: string[]) => void }) {
                 <field.OtpField
                   label={<Trans id="security.totp.code">Current code</Trans>}
                   digits={config.data?.totp.digits ?? 6}
+                  variant="secondary"
                 />
               )}
             </form.AppField>
@@ -381,6 +384,7 @@ function SetupCard({
                   }
                   type="password"
                   autoComplete="new-password"
+                  variant="secondary"
                 />
               )}
             </form.AppField>
@@ -398,6 +402,7 @@ function SetupCard({
                 <field.OtpField
                   label={<Trans id="security.totp.code">Current code</Trans>}
                   digits={config.data?.totp.digits ?? 6}
+                  variant="secondary"
                 />
               )}
             </form.AppField>

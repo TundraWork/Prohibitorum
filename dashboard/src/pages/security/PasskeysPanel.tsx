@@ -296,7 +296,7 @@ export function PasskeysPanel() {
                   <Label>
                     <Trans id="security.passkeys.rename.label">Name</Trans>
                   </Label>
-                  <Input autoComplete="off" />
+                  <Input autoComplete="off" variant="secondary" />
                   <Description>
                     <Trans id="security.passkeys.rename.hint">
                       A name you will recognise, such as the device it lives on.

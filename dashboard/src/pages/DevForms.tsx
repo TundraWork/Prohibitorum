@@ -79,6 +79,7 @@ function RenameForm() {
                       Use a credential belonging to an isolated test account.
                     </Trans>
                   }
+                  variant="secondary"
                 />
               )}
             </form.AppField>
@@ -92,6 +93,7 @@ function RenameForm() {
                       changes the test credential.
                     </Trans>
                   }
+                  variant="secondary"
                 />
               )}
             </form.AppField>

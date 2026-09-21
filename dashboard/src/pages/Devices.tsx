@@ -117,6 +117,7 @@ export function Devices() {
                 autoCapitalize="characters"
                 className="font-mono"
                 aria-invalid={inputError !== null || undefined}
+                variant="secondary"
               />
               <Description>
                 <Trans id="devices.code.hint">

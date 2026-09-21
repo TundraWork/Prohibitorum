@@ -152,6 +152,7 @@ function DisplayNameCard({
                 <field.FormField
                   label={<Trans id="profile.display-name.label">Name</Trans>}
                   autoComplete="nickname"
+                  variant="secondary"
                 />
               )}
             </form.AppField>
