@@ -5,10 +5,20 @@ import { Provider } from "jotai";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "@/App";
+import { application } from "@/app/application";
 import { Devtools } from "@/devtools/Devtools";
 import { i18n, initializeLocale, store } from "@/i18n";
 
 const stopLocaleSync = initializeLocale();
+
+// Answering API reads from the mock panel is a development aid; the guard keeps
+// the module and its fixtures out of the production bundle.
+if (import.meta.env.DEV) {
+  void import("@/devtools/mock/install").then(({ installApiMocks }) =>
+    installApiMocks(application),
+  );
+}
+
 const root = document.getElementById("root");
 if (!root) throw new Error("Missing application root");
 

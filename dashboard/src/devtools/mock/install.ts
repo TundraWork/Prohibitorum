@@ -1,0 +1,122 @@
+import type { QueryClient } from "@tanstack/react-query";
+import type { RegisteredRouter } from "@tanstack/react-router";
+import { client } from "@/api/client";
+import { ApiError } from "@/api/errors";
+import { sessionQueryOptions } from "@/api/queries";
+import { buildMockReply } from "@/devtools/mock/fixtures";
+import {
+  getMockConfig,
+  subscribeMockConfig,
+  updateMockConfig,
+} from "@/devtools/mock/model";
+
+type Application = { queryClient: QueryClient; router: RegisteredRouter };
+
+const publicPrefixes = ["/login", "/preview", "/__dev"];
+
+function isPublicPath(pathname: string): boolean {
+  return publicPrefixes.some(
+    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
+  );
+}
+
+let installed = false;
+
+/**
+ * Answers the app's reads from the mock config, and refreshes everything the
+ * console already loaded whenever that config changes.
+ *
+ * The query client is handed in rather than imported so the invalidation runs
+ * against the very instance the pages render against, and the router follows so
+ * a sign-in change moves between the console and the sign-in page.
+ */
+export function installApiMocks(application: Application): void {
+  if (installed) return;
+  installed = true;
+
+  client.use({
+    async onRequest({ schemaPath, request }) {
+      const config = getMockConfig();
+      if (!config.enabled) return undefined;
+      const reply = buildMockReply(
+        {
+          method: request.method,
+          schemaPath,
+          url: request.url,
+          body: request.method === "GET" ? undefined : await jsonBody(request),
+        },
+        config,
+      );
+      if (!reply) return undefined;
+      // Applied before the reply leaves, so the reads that follow the write
+      // already agree with it.
+      if (reply.effect) updateMockConfig(reply.effect);
+      // Thrown rather than returned: a response returned from `onRequest`
+      // skips the client's own onResponse middleware, so the ApiError shape the
+      // callers switch on has to come from here.
+      if (reply.kind === "error") {
+        throw new ApiError({
+          kind: "http",
+          status: reply.status,
+          code: reply.code,
+        });
+      }
+      if (reply.kind === "empty") {
+        return new Response(null, { status: reply.status });
+      }
+      return new Response(JSON.stringify(reply.body), {
+        status: reply.status,
+        headers: { "content-type": "application/json" },
+      });
+    },
+  });
+
+  let lastEnabled = getMockConfig().enabled;
+  subscribeMockConfig(() => {
+    const config = getMockConfig();
+    const wasEnabled = lastEnabled;
+    lastEnabled = config.enabled;
+    // While mocking is off, editing the panel changes nothing the app can see,
+    // so it must not send the real API a burst of refetches.
+    if (!config.enabled && !wasEnabled) return;
+    void refresh(application);
+  });
+}
+
+/**
+ * The JSON body of a write, when it has one. An uploaded image and an empty
+ * body are not JSON.
+ */
+async function jsonBody(request: Request): Promise<unknown> {
+  try {
+    return await request.clone().json();
+  } catch {
+    return undefined;
+  }
+}
+
+async function refresh(application: Application): Promise<void> {
+  const { queryClient, router } = application;
+  try {
+    await queryClient.invalidateQueries();
+    await router.invalidate();
+  } catch {
+    // A redirect thrown by a loader lands here; the router already followed it.
+  }
+  let session: unknown;
+  try {
+    session = await queryClient.fetchQuery(sessionQueryOptions());
+  } catch {
+    return;
+  }
+  const { pathname } = router.state.location;
+  try {
+    if (session === null) {
+      if (pathname !== "/login") await router.navigate({ to: "/login" });
+    } else if (isPublicPath(pathname)) {
+      await router.navigate({ to: "/" });
+    }
+  } catch {
+    // Same: the loader's redirect is the intended outcome.
+  }
+}
