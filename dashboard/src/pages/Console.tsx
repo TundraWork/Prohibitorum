@@ -1,7 +1,8 @@
-import { Alert, Card } from "@heroui/react";
+import { Alert } from "@heroui/react";
 import { Trans } from "@lingui/react/macro";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { sessionQueryOptions } from "@/api/queries";
+import { ConsoleCard } from "@/components/custom/ConsoleCard";
 
 export function Console() {
   const { data: session } = useSuspenseQuery({
@@ -11,29 +12,24 @@ export function Console() {
   if (session === null) return null;
   return (
     <>
-      <Card>
-        <Card.Header>
-          <Card.Title render={(props) => <h2 {...props} />}>
-            <Trans id="console.current-account">Current account</Trans>
-          </Card.Title>
-        </Card.Header>
-        <Card.Content>
-          <dl className="grid min-w-0 gap-4 sm:grid-cols-2">
-            <div className="min-w-0">
-              <dt className="text-sm text-muted">
-                <Trans id="console.display-name">Display name</Trans>
-              </dt>
-              <dd className="wrap-anywhere">{session.displayName}</dd>
-            </div>
-            <div className="min-w-0">
-              <dt className="text-sm text-muted">
-                <Trans id="console.username">Username</Trans>
-              </dt>
-              <dd className="wrap-anywhere">{session.username}</dd>
-            </div>
-          </dl>
-        </Card.Content>
-      </Card>
+      <ConsoleCard
+        title={<Trans id="console.current-account">Current account</Trans>}
+      >
+        <dl className="grid min-w-0 gap-4 sm:grid-cols-2">
+          <div className="min-w-0">
+            <dt className="text-sm text-muted">
+              <Trans id="console.display-name">Display name</Trans>
+            </dt>
+            <dd className="wrap-anywhere">{session.displayName}</dd>
+          </div>
+          <div className="min-w-0">
+            <dt className="text-sm text-muted">
+              <Trans id="console.username">Username</Trans>
+            </dt>
+            <dd className="wrap-anywhere">{session.username}</dd>
+          </div>
+        </dl>
+      </ConsoleCard>
       <Alert status="accent">
         <Alert.Indicator />
         <Alert.Content>

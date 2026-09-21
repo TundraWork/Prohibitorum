@@ -2,7 +2,6 @@ import {
   Alert,
   AlertDialog,
   Button,
-  Card,
   Description,
   Spinner,
 } from "@heroui/react";
@@ -29,6 +28,7 @@ import {
   publicConfigQueryOptions,
   sessionQueryOptions,
 } from "@/api/queries";
+import { ConsoleCard } from "@/components/custom/ConsoleCard";
 import { RecoveryCodes } from "@/components/custom/RecoveryCodes";
 import { TotpSetup } from "@/components/custom/TotpSetup";
 import { applyServerError } from "@/forms/server-errors";
@@ -114,12 +114,11 @@ export function PasswordTotpPanel() {
   return (
     <div className="flex flex-col gap-6">
       {passwordSet && totpEnrolled ? (
-        // One column at every width. The form inside each card keeps its own
-        // measure, so a password field does not span the console column.
-        <div className="grid gap-6 [&_[data-slot=card]_form]:max-w-lg">
+        // One column at every width; each card caps its own form.
+        <>
           <ChangePasswordCard />
           <ReplaceTotpCard onCodes={setCodes} />
-        </div>
+        </>
       ) : (
         <SetupCard
           key={rotateKey(rotate)}
@@ -157,77 +156,70 @@ function ChangePasswordCard() {
   });
 
   return (
-    <Card>
-      <Card.Header>
-        <Card.Title render={(props) => <h2 {...props} />}>
-          <Trans id="security.password.change.title">Change password</Trans>
-        </Card.Title>
-      </Card.Header>
-      <Card.Content>
-        <form.AppForm>
-          <form.Form
-            label={t({
-              id: "security.password.change.form",
-              message: "Change password",
-            })}
+    <ConsoleCard
+      title={<Trans id="security.password.change.title">Change password</Trans>}
+    >
+      <form.AppForm>
+        <form.Form
+          label={t({
+            id: "security.password.change.form",
+            message: "Change password",
+          })}
+        >
+          <form.FormError />
+          <form.AppField
+            name="password"
+            validators={{ onChange: ({ value }) => checkPassword(value) }}
           >
-            <form.FormError />
-            <form.AppField
-              name="password"
-              validators={{ onChange: ({ value }) => checkPassword(value) }}
-            >
-              {(field) => (
-                <field.FormField
-                  label={<Trans id="security.password.new">New password</Trans>}
-                  type="password"
-                  autoComplete="new-password"
-                  variant="secondary"
-                />
-              )}
-            </form.AppField>
-            <form.AppField
-              name="confirm"
-              validators={{
-                onChangeListenTo: ["password"],
-                onChange: ({ value, fieldApi }) =>
-                  value === fieldApi.form.getFieldValue("password")
-                    ? undefined
-                    : msg({
-                        id: "security.password.mismatch",
-                        message: "The two passwords do not match.",
-                      }),
-              }}
-            >
-              {(field) => (
-                <field.FormField
-                  label={
-                    <Trans id="security.password.confirm">
-                      Repeat new password
-                    </Trans>
-                  }
-                  type="password"
-                  autoComplete="new-password"
-                  variant="secondary"
-                />
-              )}
-            </form.AppField>
-            {saved && (
-              <p role="status" className="text-sm">
-                <Trans id="security.password.changed">
-                  Your password is updated. Which sudo prompt you see next may
-                  change.
-                </Trans>
-              </p>
+            {(field) => (
+              <field.FormField
+                label={<Trans id="security.password.new">New password</Trans>}
+                type="password"
+                autoComplete="new-password"
+                variant="secondary"
+              />
             )}
-            <form.SubmitButton>
-              <Trans id="security.password.change.action">
-                Change password
+          </form.AppField>
+          <form.AppField
+            name="confirm"
+            validators={{
+              onChangeListenTo: ["password"],
+              onChange: ({ value, fieldApi }) =>
+                value === fieldApi.form.getFieldValue("password")
+                  ? undefined
+                  : msg({
+                      id: "security.password.mismatch",
+                      message: "The two passwords do not match.",
+                    }),
+            }}
+          >
+            {(field) => (
+              <field.FormField
+                label={
+                  <Trans id="security.password.confirm">
+                    Repeat new password
+                  </Trans>
+                }
+                type="password"
+                autoComplete="new-password"
+                variant="secondary"
+              />
+            )}
+          </form.AppField>
+          {saved && (
+            <p role="status" className="text-sm">
+              <Trans id="security.password.changed">
+                Your password is updated. Which sudo prompt you see next may
+                change.
               </Trans>
-            </form.SubmitButton>
-          </form.Form>
-        </form.AppForm>
-      </Card.Content>
-    </Card>
+            </p>
+          )}
+          <form.SubmitButton>
+            <Trans id="security.password.change.action">Change password</Trans>
+          </form.SubmitButton>
+        </form.Form>
+      </form.AppForm>
+    </ConsoleCard>
   );
 }
 
@@ -257,54 +249,51 @@ function ReplaceTotpCard({ onCodes }: { onCodes: (codes: string[]) => void }) {
   });
 
   return (
-    <Card>
-      <Card.Header>
-        <Card.Title render={(props) => <h2 {...props} />}>
-          <Trans id="security.totp.replace.title">Replace authenticator</Trans>
-        </Card.Title>
-      </Card.Header>
-      <Card.Content>
-        <form.AppForm>
-          <form.Form
-            label={t({
-              id: "security.totp.replace.form",
-              message: "Replace authenticator",
-            })}
+    <ConsoleCard
+      title={
+        <Trans id="security.totp.replace.title">Replace authenticator</Trans>
+      }
+    >
+      <form.AppForm>
+        <form.Form
+          label={t({
+            id: "security.totp.replace.form",
+            message: "Replace authenticator",
+          })}
+        >
+          <form.FormError />
+          <TotpSetup secret={setup.secret} uri={setup.uri} />
+          <Description>
+            <Trans id="security.totp.replace.note">
+              Your current authenticator and every existing recovery code stop
+              working as soon as this succeeds.
+            </Trans>
+          </Description>
+          <form.AppField
+            name="code"
+            validators={{
+              onChange: ({ value }) =>
+                config.data && isValidTotpCode(value, config.data.totp.digits)
+                  ? undefined
+                  : codeInvalid,
+            }}
           >
-            <form.FormError />
-            <TotpSetup secret={setup.secret} uri={setup.uri} />
-            <Description>
-              <Trans id="security.totp.replace.note">
-                Your current authenticator and every existing recovery code stop
-                working as soon as this succeeds.
-              </Trans>
-            </Description>
-            <form.AppField
-              name="code"
-              validators={{
-                onChange: ({ value }) =>
-                  config.data && isValidTotpCode(value, config.data.totp.digits)
-                    ? undefined
-                    : codeInvalid,
-              }}
-            >
-              {(field) => (
-                <field.OtpField
-                  label={<Trans id="security.totp.code">Current code</Trans>}
-                  digits={config.data?.totp.digits ?? 6}
-                  variant="secondary"
-                />
-              )}
-            </form.AppField>
-            <form.SubmitButton>
-              <Trans id="security.totp.replace.action">
-                Replace authenticator
-              </Trans>
-            </form.SubmitButton>
-          </form.Form>
-        </form.AppForm>
-      </Card.Content>
-    </Card>
+            {(field) => (
+              <field.OtpField
+                label={<Trans id="security.totp.code">Current code</Trans>}
+                digits={config.data?.totp.digits ?? 6}
+                variant="secondary"
+              />
+            )}
+          </form.AppField>
+          <form.SubmitButton>
+            <Trans id="security.totp.replace.action">
+              Replace authenticator
+            </Trans>
+          </form.SubmitButton>
+        </form.Form>
+      </form.AppForm>
+    </ConsoleCard>
   );
 }
 
@@ -346,83 +335,78 @@ function SetupCard({
   });
 
   return (
-    <Card>
-      <Card.Header>
-        <Card.Title render={(props) => <h2 {...props} />}>
-          {passwordSet ? (
-            <Trans id="security.setup.title.totp">
-              Set up an authenticator with a new password
-            </Trans>
-          ) : (
-            <Trans id="security.setup.title.both">
-              Set up a password and authenticator
-            </Trans>
-          )}
-        </Card.Title>
-      </Card.Header>
-      <Card.Content>
-        <form.AppForm>
-          <form.Form
-            label={t({
-              id: "security.setup.form",
-              message: "Set up a password and authenticator",
-            })}
+    <ConsoleCard
+      title={
+        passwordSet ? (
+          <Trans id="security.setup.title.totp">
+            Set up an authenticator with a new password
+          </Trans>
+        ) : (
+          <Trans id="security.setup.title.both">
+            Set up a password and authenticator
+          </Trans>
+        )
+      }
+    >
+      <form.AppForm>
+        <form.Form
+          label={t({
+            id: "security.setup.form",
+            message: "Set up a password and authenticator",
+          })}
+        >
+          <form.FormError />
+          <form.AppField
+            name="password"
+            validators={{ onChange: ({ value }) => checkPassword(value) }}
           >
-            <form.FormError />
-            <form.AppField
-              name="password"
-              validators={{ onChange: ({ value }) => checkPassword(value) }}
-            >
-              {(field) => (
-                <field.FormField
-                  label={
-                    passwordSet ? (
-                      <Trans id="security.setup.new_password">
-                        New password
-                      </Trans>
-                    ) : (
-                      <Trans id="security.setup.password">
-                        Choose a password
-                      </Trans>
-                    )
-                  }
-                  type="password"
-                  autoComplete="new-password"
-                  variant="secondary"
-                />
-              )}
-            </form.AppField>
-            <TotpSetup secret={setup.secret} uri={setup.uri} />
-            <form.AppField
-              name="code"
-              validators={{
-                onChange: ({ value }) =>
-                  config.data && isValidTotpCode(value, config.data.totp.digits)
-                    ? undefined
-                    : codeInvalid,
-              }}
-            >
-              {(field) => (
-                <field.OtpField
-                  label={<Trans id="security.totp.code">Current code</Trans>}
-                  digits={config.data?.totp.digits ?? 6}
-                  variant="secondary"
-                />
-              )}
-            </form.AppField>
-            <Description>
-              <Trans id="security.setup.note">
-                Signing in will then ask for your password and a code from this
-                authenticator. Anything you used before that stops working.
-              </Trans>
-            </Description>
-            <form.SubmitButton>
-              <Trans id="security.setup.action">Turn on both</Trans>
-            </form.SubmitButton>
-          </form.Form>
-        </form.AppForm>
-      </Card.Content>
-    </Card>
+            {(field) => (
+              <field.FormField
+                label={
+                  passwordSet ? (
+                    <Trans id="security.setup.new_password">New password</Trans>
+                  ) : (
+                    <Trans id="security.setup.password">
+                      Choose a password
+                    </Trans>
+                  )
+                }
+                type="password"
+                autoComplete="new-password"
+                variant="secondary"
+              />
+            )}
+          </form.AppField>
+          <TotpSetup secret={setup.secret} uri={setup.uri} />
+          <form.AppField
+            name="code"
+            validators={{
+              onChange: ({ value }) =>
+                config.data && isValidTotpCode(value, config.data.totp.digits)
+                  ? undefined
+                  : codeInvalid,
+            }}
+          >
+            {(field) => (
+              <field.OtpField
+                label={<Trans id="security.totp.code">Current code</Trans>}
+                digits={config.data?.totp.digits ?? 6}
+                variant="secondary"
+              />
+            )}
+          </form.AppField>
+          <Description>
+            <Trans id="security.setup.note">
+              Signing in will then ask for your password and a code from this
+              authenticator. Anything you used before that stops working.
+            </Trans>
+          </Description>
+          <form.SubmitButton>
+            <Trans id="security.setup.action">Turn on both</Trans>
+          </form.SubmitButton>
+        </form.Form>
+      </form.AppForm>
+    </ConsoleCard>
   );
 }
 
@@ -441,36 +425,32 @@ function RecoveryCodesCard({
   if (!enrolled) return null;
 
   return (
-    <Card>
-      <Card.Header>
-        <Card.Title render={(props) => <h2 {...props} />}>
-          <Trans id="security.recovery.title">Recovery codes</Trans>
-        </Card.Title>
-      </Card.Header>
-      <Card.Content className="flex flex-col gap-4">
-        <Description>
-          <Trans id="security.recovery.note">
-            Use a recovery code to sign in when you cannot use your password or
-            authenticator. Generating new ones replaces every existing code.
+    <ConsoleCard
+      title={<Trans id="security.recovery.title">Recovery codes</Trans>}
+      contentClassName="flex flex-col gap-4"
+    >
+      <Description>
+        <Trans id="security.recovery.note">
+          Use a recovery code to sign in when you cannot use your password or
+          authenticator. Generating new ones replaces every existing code.
+        </Trans>
+      </Description>
+      <div>
+        <Button
+          variant="secondary"
+          isPending={regenerate.isPending}
+          onPress={() => {
+            regenerate.mutate(undefined, {
+              onSuccess: (result) => onCodes(result.recovery_codes),
+            });
+          }}
+        >
+          <Trans id="security.recovery.generate">
+            Generate new recovery codes
           </Trans>
-        </Description>
-        <div>
-          <Button
-            variant="secondary"
-            isPending={regenerate.isPending}
-            onPress={() => {
-              regenerate.mutate(undefined, {
-                onSuccess: (result) => onCodes(result.recovery_codes),
-              });
-            }}
-          >
-            <Trans id="security.recovery.generate">
-              Generate new recovery codes
-            </Trans>
-          </Button>
-        </div>
-      </Card.Content>
-    </Card>
+        </Button>
+      </div>
+    </ConsoleCard>
   );
 }
 
@@ -483,15 +463,15 @@ function RevokeCard({ passkeyCount }: { passkeyCount: number }) {
   const lastWay = passkeyCount === 0;
 
   return (
-    <Card>
-      <Card.Header>
-        <Card.Title render={(props) => <h2 {...props} />}>
+    <>
+      <ConsoleCard
+        title={
           <Trans id="security.revoke.title">
             Turn off password and authenticator
           </Trans>
-        </Card.Title>
-      </Card.Header>
-      <Card.Content className="flex flex-col gap-4">
+        }
+        contentClassName="flex flex-col gap-4"
+      >
         <Description>
           {lastWay ? (
             <Trans id="security.revoke.last">
@@ -515,7 +495,7 @@ function RevokeCard({ passkeyCount }: { passkeyCount: number }) {
             <Trans id="security.revoke.action">Turn off</Trans>
           </Button>
         </div>
-      </Card.Content>
+      </ConsoleCard>
       <RevokeConfirm
         open={confirming}
         pending={revoke.isPending}
@@ -524,7 +504,7 @@ function RevokeCard({ passkeyCount }: { passkeyCount: number }) {
           revoke.mutate(undefined, { onSettled: () => setConfirming(false) })
         }
       />
-    </Card>
+    </>
   );
 }
 

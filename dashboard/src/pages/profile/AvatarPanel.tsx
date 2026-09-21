@@ -1,7 +1,6 @@
 import {
   Avatar,
   Button,
-  Card,
   Description,
   Label,
   Radio,
@@ -14,6 +13,7 @@ import { Upload, UserRound } from "lucide-react";
 import { useRef, useState } from "react";
 import { client } from "@/api/client";
 import { describeError } from "@/api/errors";
+import { ConsoleCard } from "@/components/custom/ConsoleCard";
 import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
 
 const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
@@ -137,148 +137,141 @@ export function AvatarPanel({ current }: { current: Session }) {
   const busy = pending || select.isPending || remove.isPending;
 
   return (
-    <Card>
-      <Card.Header>
-        <Card.Title render={(props) => <h2 {...props} />}>
-          <Trans id="profile.avatar.title">Avatar</Trans>
-        </Card.Title>
-      </Card.Header>
-      <Card.Content>
-        <div className="flex flex-col gap-6">
-          <div className="flex items-center gap-4">
-            <Avatar className="size-16 shrink-0">
-              {current.avatarUrl && (
-                <Avatar.Image src={current.avatarUrl} alt="" />
-              )}
-              <Avatar.Fallback>
-                <UserRound size={28} aria-hidden="true" />
-              </Avatar.Fallback>
-            </Avatar>
-            {current.avatarPending && (
-              <p className="text-sm text-muted">
-                <Trans id="profile.avatar.pending">
-                  Your picture from the upstream provider is still syncing. It
-                  will appear here once it arrives.
-                </Trans>
-              </p>
+    <ConsoleCard title={<Trans id="profile.avatar.title">Avatar</Trans>}>
+      <div className="flex flex-col gap-6">
+        <div className="flex items-center gap-4">
+          <Avatar className="size-16 shrink-0">
+            {current.avatarUrl && (
+              <Avatar.Image src={current.avatarUrl} alt="" />
             )}
-          </div>
-
-          <div className="flex flex-col gap-2">
-            <input
-              ref={input}
-              type="file"
-              accept={ACCEPTED_TYPES}
-              className="sr-only"
-              onChange={(event) => {
-                const file = event.target.files?.[0];
-                // Reset so choosing the same file twice still fires a change.
-                event.target.value = "";
-                if (file) void upload(file);
-              }}
-            />
-            <div className="flex flex-wrap gap-2">
-              <Button
-                variant="secondary"
-                isDisabled={busy}
-                onPress={() => input.current?.click()}
-              >
-                {pending ? (
-                  <Spinner size="sm" color="current" />
-                ) : (
-                  <Upload size={16} aria-hidden="true" />
-                )}
-                {hasUpload ? (
-                  <Trans id="profile.avatar.replace">Replace upload</Trans>
-                ) : (
-                  <Trans id="profile.avatar.upload">Upload a picture</Trans>
-                )}
-              </Button>
-              {hasUpload && (
-                <Button
-                  variant="danger-soft"
-                  isDisabled={busy}
-                  isPending={remove.isPending}
-                  onPress={() => {
-                    setFailure(null);
-                    remove.mutate();
-                  }}
-                >
-                  <Trans id="profile.avatar.remove">Remove upload</Trans>
-                </Button>
-              )}
-            </div>
-            <Description>
-              <Trans id="profile.avatar.hint">
-                PNG, JPEG, WebP, GIF or AVIF, up to 5 MiB. Larger pictures are
-                scaled down.
+            <Avatar.Fallback>
+              <UserRound size={28} aria-hidden="true" />
+            </Avatar.Fallback>
+          </Avatar>
+          {current.avatarPending && (
+            <p className="text-sm text-muted">
+              <Trans id="profile.avatar.pending">
+                Your picture from the upstream provider is still syncing. It
+                will appear here once it arrives.
               </Trans>
-            </Description>
-          </div>
-
-          {localError && (
-            <SurfaceAlert status="warning" role="alert">
-              <SurfaceAlert.Indicator />
-              <SurfaceAlert.Content>
-                <SurfaceAlert.Title>{localError}</SurfaceAlert.Title>
-              </SurfaceAlert.Content>
-            </SurfaceAlert>
-          )}
-
-          {failure !== null && (
-            <SurfaceAlert status="danger" role="alert">
-              <SurfaceAlert.Indicator />
-              <SurfaceAlert.Content>
-                <SurfaceAlert.Title>
-                  {t(describeError(failure))}
-                </SurfaceAlert.Title>
-              </SurfaceAlert.Content>
-            </SurfaceAlert>
-          )}
-
-          <RadioGroup
-            aria-label={t({
-              id: "profile.avatar.source",
-              message: "Picture to show",
-            })}
-            value={value}
-            onChange={(next) => {
-              setFailure(null);
-              select.mutate(String(next));
-            }}
-            isDisabled={busy}
-          >
-            <Label>
-              <Trans id="profile.avatar.source.label">Picture to show</Trans>
-            </Label>
-            {options.map((source) => (
-              <Radio key={source} value={source}>
-                <Radio.Content>
-                  <Radio.Control>
-                    <Radio.Indicator />
-                  </Radio.Control>
-                  {source === "user" ? (
-                    <Trans id="profile.avatar.source.user">
-                      My uploaded picture
-                    </Trans>
-                  ) : source === "none" ? (
-                    <Trans id="profile.avatar.source.none">No picture</Trans>
-                  ) : (
-                    (current.avatarSourceLabels?.[source] ?? source)
-                  )}
-                </Radio.Content>
-              </Radio>
-            ))}
-          </RadioGroup>
-          {!hasUpload && (
-            <Description>
-              <Trans id="profile.avatar.no_upload">
-                You have not uploaded a picture yet.
-              </Trans>
-            </Description>
+            </p>
           )}
         </div>
-      </Card.Content>
-    </Card>
+
+        <div className="flex flex-col gap-2">
+          <input
+            ref={input}
+            type="file"
+            accept={ACCEPTED_TYPES}
+            className="sr-only"
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              // Reset so choosing the same file twice still fires a change.
+              event.target.value = "";
+              if (file) void upload(file);
+            }}
+          />
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="secondary"
+              isDisabled={busy}
+              onPress={() => input.current?.click()}
+            >
+              {pending ? (
+                <Spinner size="sm" color="current" />
+              ) : (
+                <Upload size={16} aria-hidden="true" />
+              )}
+              {hasUpload ? (
+                <Trans id="profile.avatar.replace">Replace upload</Trans>
+              ) : (
+                <Trans id="profile.avatar.upload">Upload a picture</Trans>
+              )}
+            </Button>
+            {hasUpload && (
+              <Button
+                variant="danger-soft"
+                isDisabled={busy}
+                isPending={remove.isPending}
+                onPress={() => {
+                  setFailure(null);
+                  remove.mutate();
+                }}
+              >
+                <Trans id="profile.avatar.remove">Remove upload</Trans>
+              </Button>
+            )}
+          </div>
+          <Description>
+            <Trans id="profile.avatar.hint">
+              PNG, JPEG, WebP, GIF or AVIF, up to 5 MiB. Larger pictures are
+              scaled down.
+            </Trans>
+          </Description>
+        </div>
+
+        {localError && (
+          <SurfaceAlert status="warning" role="alert">
+            <SurfaceAlert.Indicator />
+            <SurfaceAlert.Content>
+              <SurfaceAlert.Title>{localError}</SurfaceAlert.Title>
+            </SurfaceAlert.Content>
+          </SurfaceAlert>
+        )}
+
+        {failure !== null && (
+          <SurfaceAlert status="danger" role="alert">
+            <SurfaceAlert.Indicator />
+            <SurfaceAlert.Content>
+              <SurfaceAlert.Title>
+                {t(describeError(failure))}
+              </SurfaceAlert.Title>
+            </SurfaceAlert.Content>
+          </SurfaceAlert>
+        )}
+
+        <RadioGroup
+          aria-label={t({
+            id: "profile.avatar.source",
+            message: "Picture to show",
+          })}
+          value={value}
+          onChange={(next) => {
+            setFailure(null);
+            select.mutate(String(next));
+          }}
+          isDisabled={busy}
+        >
+          <Label>
+            <Trans id="profile.avatar.source.label">Picture to show</Trans>
+          </Label>
+          {options.map((source) => (
+            <Radio key={source} value={source}>
+              <Radio.Content>
+                <Radio.Control>
+                  <Radio.Indicator />
+                </Radio.Control>
+                {source === "user" ? (
+                  <Trans id="profile.avatar.source.user">
+                    My uploaded picture
+                  </Trans>
+                ) : source === "none" ? (
+                  <Trans id="profile.avatar.source.none">No picture</Trans>
+                ) : (
+                  (current.avatarSourceLabels?.[source] ?? source)
+                )}
+              </Radio.Content>
+            </Radio>
+          ))}
+        </RadioGroup>
+        {!hasUpload && (
+          <Description>
+            <Trans id="profile.avatar.no_upload">
+              You have not uploaded a picture yet.
+            </Trans>
+          </Description>
+        )}
+      </div>
+    </ConsoleCard>
   );
 }

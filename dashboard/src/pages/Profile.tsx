@@ -1,4 +1,4 @@
-import { Card, Description, Tabs } from "@heroui/react";
+import { Description, Tabs } from "@heroui/react";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import {
@@ -11,6 +11,7 @@ import { useState } from "react";
 import { updateProfileMutationOptions } from "@/api/mutations";
 import { sessionQueryOptions } from "@/api/queries";
 
+import { ConsoleCard } from "@/components/custom/ConsoleCard";
 import { applyServerError } from "@/forms/server-errors";
 import { useAppForm } from "@/forms/use-app-form";
 import type { ProfileTab } from "@/pages/console/tabs";
@@ -122,66 +123,59 @@ function DisplayNameCard({
   });
 
   return (
-    <Card>
-      <Card.Header>
-        <Card.Title render={(props) => <h2 {...props} />}>
-          <Trans id="profile.display-name.title">Display name</Trans>
-        </Card.Title>
-      </Card.Header>
-      <Card.Content>
-        <form.AppForm>
-          <form.Form
-            label={t({
-              id: "profile.display-name.form",
-              message: "Display name",
-            })}
+    <ConsoleCard
+      title={<Trans id="profile.display-name.title">Display name</Trans>}
+    >
+      <form.AppForm>
+        <form.Form
+          label={t({
+            id: "profile.display-name.form",
+            message: "Display name",
+          })}
+        >
+          <form.FormError />
+          <form.AppField
+            name="displayName"
+            validators={{
+              onChange: ({ value }) => {
+                const kind = nicknameError(value);
+                if (kind === "too_long") return tooLong;
+                if (kind === "control") return hasControl;
+                return undefined;
+              },
+            }}
           >
-            <form.FormError />
-            <form.AppField
-              name="displayName"
-              validators={{
-                onChange: ({ value }) => {
-                  const kind = nicknameError(value);
-                  if (kind === "too_long") return tooLong;
-                  if (kind === "control") return hasControl;
-                  return undefined;
-                },
-              }}
-            >
-              {(field) => (
-                <div className="max-w-lg">
-                  <field.FormField
-                    label={<Trans id="profile.display-name.label">Name</Trans>}
-                    autoComplete="nickname"
-                    variant="secondary"
-                  />
-                </div>
-              )}
-            </form.AppField>
-            <div className="flex flex-col gap-1">
-              <span className="text-sm text-muted">
-                <Trans id="console.username">Username</Trans>
-              </span>
-              <span className="wrap-anywhere">{username}</span>
-              <Description>
-                <Trans id="profile.username.note">
-                  Your username identifies you at sign-in and cannot be changed.
-                </Trans>
-              </Description>
-            </div>
-            {saved && (
-              <p role="status" className="text-sm">
-                <Trans id="profile.display-name.saved">
-                  Your display name is updated.
-                </Trans>
-              </p>
+            {(field) => (
+              <field.FormField
+                label={<Trans id="profile.display-name.label">Name</Trans>}
+                autoComplete="nickname"
+                variant="secondary"
+              />
             )}
-            <form.SubmitButton>
-              <Trans id="profile.display-name.save">Save</Trans>
-            </form.SubmitButton>
-          </form.Form>
-        </form.AppForm>
-      </Card.Content>
-    </Card>
+          </form.AppField>
+          <div className="flex flex-col gap-1">
+            <span className="text-sm text-muted">
+              <Trans id="console.username">Username</Trans>
+            </span>
+            <span className="wrap-anywhere">{username}</span>
+            <Description>
+              <Trans id="profile.username.note">
+                Your username identifies you at sign-in and cannot be changed.
+              </Trans>
+            </Description>
+          </div>
+          {saved && (
+            <p role="status" className="text-sm">
+              <Trans id="profile.display-name.saved">
+                Your display name is updated.
+              </Trans>
+            </p>
+          )}
+          <form.SubmitButton>
+            <Trans id="profile.display-name.save">Save</Trans>
+          </form.SubmitButton>
+        </form.Form>
+      </form.AppForm>
+    </ConsoleCard>
   );
 }
