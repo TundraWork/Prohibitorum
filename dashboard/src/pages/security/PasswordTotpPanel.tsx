@@ -5,6 +5,7 @@ import {
   Description,
   Disclosure,
   DisclosureGroup,
+  Modal,
   Separator,
   Spinner,
 } from "@heroui/react";
@@ -32,6 +33,7 @@ import {
   sessionQueryOptions,
 } from "@/api/queries";
 import { RecoveryCodes } from "@/components/custom/RecoveryCodes";
+import { recoveryCodesCopy } from "@/components/custom/secret-reveal-copy";
 import { TotpSetup } from "@/components/custom/TotpSetup";
 import { applyServerError } from "@/forms/server-errors";
 import { useAppForm } from "@/forms/use-app-form";
@@ -69,19 +71,26 @@ function checkPassword(value: string) {
  * query, which re-renders this panel and unmounts that section the moment it
  * succeeds — so a section-local copy would be thrown away before the user could
  * read it, and those codes are the only time the server will ever show them.
+ *
+ * The two writes the user asks for from a section they were reading — replacing
+ * the authenticator and regenerating the recovery codes — show their codes in a
+ * dialog over the panel, so the page is still there when the dialog closes. The
+ * enrollment write sets up the account instead of doing one step of a section,
+ * so it keeps the page-wide reveal that replaces the panel.
  */
 export function PasswordTotpPanel() {
   const { t } = useLingui();
   const factors = useQuery(factorsQueryOptions());
-  const [codes, setCodes] = useState<string[] | null>(null);
+  const [enrollmentCodes, setEnrollmentCodes] = useState<string[] | null>(null);
+  const [dialogCodes, setDialogCodes] = useState<string[] | null>(null);
   const [rotate, setRotate] = useState(0);
 
-  if (codes !== null) {
+  if (enrollmentCodes !== null) {
     return (
       <RecoveryCodes
-        codes={codes}
+        codes={enrollmentCodes}
         onContinue={async () => {
-          setCodes(null);
+          setEnrollmentCodes(null);
           // A fresh secret for the next attempt, so the one the user just
           // consumed never reappears as if it were unused.
           setRotate((count) => count + 1);
@@ -144,7 +153,7 @@ export function PasswordTotpPanel() {
                 </Trans>
               }
             >
-              <ReplaceTotpForm onCodes={setCodes} />
+              <ReplaceTotpForm onCodes={setDialogCodes} />
             </Section>
           ),
         },
@@ -170,7 +179,7 @@ export function PasswordTotpPanel() {
               <SetupForm
                 key={rotateKey(rotate)}
                 passwordSet={passwordSet}
-                onCodes={setCodes}
+                onCodes={setEnrollmentCodes}
               />
             </Section>
           ),
@@ -185,7 +194,7 @@ export function PasswordTotpPanel() {
           id="recovery-codes"
           title={<Trans id="security.recovery.title">Recovery codes</Trans>}
         >
-          <RecoveryCodeActions onCodes={setCodes} />
+          <RecoveryCodeActions onCodes={setDialogCodes} />
         </Section>
       ),
     });
@@ -205,7 +214,56 @@ export function PasswordTotpPanel() {
           </Fragment>
         ))}
       </DisclosureGroup>
+      {dialogCodes !== null && (
+        <RecoveryCodesDialog
+          codes={dialogCodes}
+          onContinue={async () => setDialogCodes(null)}
+        />
+      )}
     </div>
+  );
+}
+
+/**
+ * The codes a replace or a regeneration just issued, in a dialog over the panel
+ * rather than in place of it. Both writes start from a section the user was
+ * reading, so the codes are one step of that section and the page should still
+ * be there when the dialog closes. The header carries the title, and the reveal
+ * fills the body.
+ *
+ * The backdrop, Escape and clicks outside all leave the dialog open, because
+ * the server will never show these codes again. The continue control is the
+ * only way out, and the saved confirmation unlocks it (see `SecretReveal`).
+ */
+function RecoveryCodesDialog({
+  codes,
+  onContinue,
+}: {
+  codes: string[];
+  onContinue: () => Promise<void>;
+}) {
+  const { t } = useLingui();
+  return (
+    // The dialog is open exactly while the codes are held here, so it cannot
+    // outlive them and only `onContinue` can close it.
+    <Modal isOpen onOpenChange={() => {}}>
+      <Modal.Backdrop isDismissable={false} isKeyboardDismissDisabled>
+        <Modal.Container placement="center" size="lg" scroll="inside">
+          <Modal.Dialog>
+            <Modal.Header>
+              <Modal.Heading>{t(recoveryCodesCopy.title)}</Modal.Heading>
+            </Modal.Header>
+            <Modal.Body>
+              <RecoveryCodes
+                codes={codes}
+                onContinue={onContinue}
+                heading={false}
+              />
+            </Modal.Body>
+          </Modal.Dialog>
+        </Modal.Container>
+      </Modal.Backdrop>
+    </Modal>
   );
 }
 

@@ -1,10 +1,19 @@
 import { I18nProvider } from "@lingui/react";
 import { type QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  createMemoryHistory,
+  createRootRoute,
+  createRoute,
+  createRouter,
+  Outlet,
+  RouterProvider,
+} from "@tanstack/react-router";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent, { type UserEvent } from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { components } from "@/api/generated/schema";
 import { factorsQueryOptions, sessionQueryOptions } from "@/api/queries";
+import { configureSudo, resetSudo } from "@/api/sudo";
 import { createQueryClient } from "@/app/query-client";
 import { i18n } from "@/i18n";
 import { PasswordTotpPanel } from "@/pages/security/PasswordTotpPanel";
@@ -44,28 +53,46 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  resetSudo();
   queryClient.clear();
   vi.unstubAllGlobals();
 });
 
-function mount(factors: {
-  passwordSet: boolean;
-  totpEnrolled: boolean;
-  passkeyCount: number;
-  recoveryCodesRemaining: number;
-}) {
+function mount(
+  factors: {
+    passwordSet: boolean;
+    totpEnrolled: boolean;
+    passkeyCount: number;
+    recoveryCodesRemaining: number;
+  },
+  extra?: (path: string) => Response | undefined,
+) {
   fetchBoundary.mockImplementation(async (request) => {
     const path = new URL(request.url).pathname;
+    const canned = extra?.(path);
+    if (canned) return canned;
     if (path.endsWith("/me/factors")) return json(factors);
     if (path.endsWith("/me/sudo/methods")) {
       return json({ methods: ["password_totp"], fresh: true });
     }
     return new Response(null, { status: 204 });
   });
+  // The reveal guards against leaving with unsaved codes, and that guard is the
+  // router's, so the panel needs one mounted even when nothing navigates.
+  const root = createRootRoute({ component: Outlet });
+  const security = createRoute({
+    getParentRoute: () => root,
+    path: "/",
+    component: PasswordTotpPanel,
+  });
+  const router = createRouter({
+    routeTree: root.addChildren([security]),
+    history: createMemoryHistory({ initialEntries: ["/"] }),
+  });
   render(
     <I18nProvider i18n={i18n}>
       <QueryClientProvider client={queryClient}>
-        <PasswordTotpPanel />
+        <RouterProvider router={router} />
       </QueryClientProvider>
     </I18nProvider>,
   );
@@ -84,8 +111,11 @@ describe("password and authenticator factors", () => {
    * section repeats its heading as its submit button, so the name alone is
    * ambiguous once that section is open.
    */
-  function trigger(name: string) {
-    return within(screen.getByRole("heading", { name })).getByRole("button");
+  function trigger(name: string, hidden = false) {
+    return within(screen.getByRole("heading", { name, hidden })).getByRole(
+      "button",
+      { hidden },
+    );
   }
 
   it("shows a section per action when both factors exist, and never the combined endpoint", async () => {
@@ -138,6 +168,61 @@ describe("password and authenticator factors", () => {
       ([request]) => request.method !== "GET",
     );
     expect(writes).toEqual([]);
+  });
+
+  it("reveals regenerated recovery codes in a dialog rather than in place of the panel", async () => {
+    const codes = ["ABCD-EFGH-IJKL-MN23", "QRST-UVWX-YZ23-4567"];
+    mount(bothSet, (path) =>
+      path.endsWith("/me/recovery-codes/regenerate")
+        ? json({ recovery_codes: codes })
+        : undefined,
+    );
+    configureSudo({
+      queryClient,
+      set: () => {},
+      setFresh: () => {},
+      getFresh: () => true,
+    });
+    const user: UserEvent = userEvent.setup();
+
+    await screen.findByRole("heading", { name: "Change password" });
+    await user.click(trigger("Recovery codes"));
+    await user.click(
+      screen.getByRole("button", { name: "Generate new recovery codes" }),
+    );
+
+    const dialog = await screen.findByRole("dialog", {
+      name: "Save your new recovery codes",
+    });
+    expect(
+      within(dialog).getByRole("textbox", { name: "New recovery codes" }),
+    ).toHaveValue(codes.join("\n"));
+    // The console is still there behind the codes, not replaced by them. The
+    // dialog hides the rest of the page from assistive technology while it is
+    // open, so the panel is only reachable through hidden queries.
+    expect(
+      screen.getByRole("heading", { name: "Change password", hidden: true }),
+    ).toBeInTheDocument();
+    expect(trigger("Recovery codes", true)).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+
+    // Saving is what unlocks the only way out of the dialog.
+    const leave = within(dialog).getByRole("button", { name: "Continue" });
+    expect(leave).toBeDisabled();
+    await user.click(
+      within(dialog).getByRole("checkbox", {
+        name: "I have saved my recovery codes",
+      }),
+    );
+    await user.click(leave);
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
+    expect(
+      screen.getByRole("heading", { name: "Change password" }),
+    ).toBeInTheDocument();
   });
 
   it("shows one combined section when a factor is missing, and submits the atomic endpoint", async () => {

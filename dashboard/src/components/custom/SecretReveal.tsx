@@ -21,6 +21,10 @@ import type { SecretRevealCopy } from "@/components/custom/secret-reveal-copy";
  *
  * `onSurface` follows where the caller draws it: the console shows the reveal
  * on the page background, while the sign-in reset shows it inside the card.
+ *
+ * `heading` does the same for the title. A dialog draws the title in its own
+ * header, so the reveal leaves it out there and the header stays the only
+ * heading the dialog has.
  */
 export function SecretReveal({
   text,
@@ -28,12 +32,14 @@ export function SecretReveal({
   copy,
   onContinue,
   onSurface = false,
+  heading = true,
 }: {
   text: string;
   filename: string;
   copy: SecretRevealCopy;
   onContinue: () => Promise<void>;
   onSurface?: boolean;
+  heading?: boolean;
 }) {
   const Notice = onSurface ? SurfaceAlert : Alert;
   const { t } = useLingui();
@@ -86,7 +92,7 @@ export function SecretReveal({
 
   return (
     <div className="flex flex-col gap-4">
-      <h2 className="text-xl font-semibold">{t(copy.title)}</h2>
+      {heading && <h2 className="text-xl font-semibold">{t(copy.title)}</h2>}
       <Notice status="warning">
         <Notice.Indicator />
         <Notice.Content>
