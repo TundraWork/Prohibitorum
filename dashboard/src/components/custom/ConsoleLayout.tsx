@@ -289,14 +289,16 @@ function ConsoleShell({
 
   return (
     <div className="flex min-h-dvh">
-      {/* Desktop sidebar wrapper */}
+      {/* Desktop sidebar wrapper. The rail is pinned here rather than on the
+          aside inside: an `overflow-hidden` ancestor is a scroll container, and
+          an aside stuck to a box that never scrolls never moves. */}
       <div
-        className={`hidden shrink-0 overflow-hidden transition-[width] duration-200 motion-reduce:transition-none md:block ${
+        className={`hidden shrink-0 sticky top-0 h-dvh overflow-hidden transition-[width] duration-200 motion-reduce:transition-none md:block ${
           sidebarCollapsed ? "w-0" : "w-60"
         }`}
       >
         <aside
-          className={`sticky top-0 flex h-dvh w-60 flex-col border-r border-separator transition-[translate,visibility] duration-200 motion-reduce:transition-none ${
+          className={`flex h-full w-60 flex-col border-r border-separator transition-[translate,visibility] duration-200 motion-reduce:transition-none ${
             sidebarCollapsed ? "invisible -translate-x-full" : "translate-x-0"
           }`}
         >
