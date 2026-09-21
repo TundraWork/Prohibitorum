@@ -1,6 +1,6 @@
 import { I18nProvider } from "@lingui/react";
 import { type QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent, { type UserEvent } from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { components } from "@/api/generated/schema";
@@ -79,7 +79,16 @@ const bothSet = {
 };
 
 describe("password and authenticator factors", () => {
-  it("shows the separate cards when both factors exist, and never the combined endpoint", async () => {
+  /**
+   * The heading button is the section's own control. A form inside the open
+   * section repeats its heading as its submit button, so the name alone is
+   * ambiguous once that section is open.
+   */
+  function trigger(name: string) {
+    return within(screen.getByRole("heading", { name })).getByRole("button");
+  }
+
+  it("shows a section per action when both factors exist, and never the combined endpoint", async () => {
     mount(bothSet);
 
     expect(
@@ -99,6 +108,31 @@ describe("password and authenticator factors", () => {
       }),
     ).not.toBeInTheDocument();
 
+    // Nothing is pending, so every section waits for the user to open it.
+    expect(trigger("Change password")).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+    expect(trigger("Replace authenticator")).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+
+    // One at a time: the section opened last is the only one on screen, so the
+    // column never grows past the controls in use.
+    const user: UserEvent = userEvent.setup();
+    await user.click(trigger("Change password"));
+    expect(trigger("Change password")).toHaveAttribute("aria-expanded", "true");
+    await user.click(trigger("Replace authenticator"));
+    expect(trigger("Replace authenticator")).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+    expect(trigger("Change password")).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+
     // Reading the state is not a write.
     const writes = fetchBoundary.mock.calls.filter(
       ([request]) => request.method !== "GET",
@@ -106,20 +140,26 @@ describe("password and authenticator factors", () => {
     expect(writes).toEqual([]);
   });
 
-  it("shows one combined card when a factor is missing, and submits the atomic endpoint", async () => {
+  it("shows one combined section when a factor is missing, and submits the atomic endpoint", async () => {
     mount({
       passwordSet: false,
       totpEnrolled: false,
       passkeyCount: 0,
       recoveryCodesRemaining: 0,
     });
+    const user: UserEvent = userEvent.setup();
 
-    // One card, not two: the backend only establishes both together.
+    // One section, not two: the backend only establishes both together. It is
+    // the only thing left to do, so it is open on arrival.
     expect(
       await screen.findByRole("heading", {
         name: "Set up a password and authenticator",
       }),
     ).toBeInTheDocument();
+    expect(trigger("Set up a password and authenticator")).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
     expect(
       screen.queryByRole("heading", { name: "Change password" }),
     ).not.toBeInTheDocument();
@@ -129,6 +169,7 @@ describe("password and authenticator factors", () => {
 
     // No passkeys, so turning the pair off is the last way in and is refused
     // before the attempt rather than after.
+    await user.click(trigger("Turn off password and authenticator"));
     expect(screen.getByRole("button", { name: "Turn off" })).toBeDisabled();
   });
 
@@ -196,12 +237,22 @@ describe("password and authenticator factors", () => {
     mount(bothSet);
     const user: UserEvent = userEvent.setup();
 
+    await screen.findByRole("heading", { name: "Change password" });
+    await user.click(trigger("Change password"));
+
     await user.type(
-      await screen.findByLabelText("New password"),
+      screen.getByLabelText("New password"),
       "a-long-enough-password",
     );
     await user.type(screen.getByLabelText("Repeat new password"), "different");
-    await user.click(screen.getByRole("button", { name: "Change password" }));
+    // The heading trigger carries the same words as the submit button, so the
+    // click is scoped to the form.
+    await user.click(
+      within(screen.getByRole("form", { name: "Change password" })).getByRole(
+        "button",
+        { name: "Change password" },
+      ),
+    );
 
     expect(
       await screen.findByText("The two passwords do not match."),

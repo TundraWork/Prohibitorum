@@ -395,7 +395,7 @@ function FactorForm({
             </Checkbox>
             {setup && (
               <>
-                <TotpSetup secret={setup.secret} uri={setup.uri} />
+                <TotpSetup secret={setup.secret} uri={setup.uri} onSurface />
                 <form.AppField
                   name="totpCode"
                   validators={{

@@ -1,10 +1,26 @@
-import { Input, Label, TextField } from "@heroui/react";
+import { Alert, Input, Label, TextField } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import QRCode from "qrcode";
 import { useEffect, useRef, useState } from "react";
 import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
 
-export function TotpSetup({ secret, uri }: { secret: string; uri: string }) {
+/**
+ * The locally generated authenticator secret, its otpauth URI, and the QR code
+ * that carries them.
+ *
+ * `onSurface` follows where the caller draws it: the console shows the setup on
+ * the page background, while the sign-in reset shows it inside the card.
+ */
+export function TotpSetup({
+  secret,
+  uri,
+  onSurface = false,
+}: {
+  secret: string;
+  uri: string;
+  onSurface?: boolean;
+}) {
+  const Notice = onSurface ? SurfaceAlert : Alert;
   const { t } = useLingui();
   const canvas = useRef<HTMLCanvasElement>(null);
   const [qrFailed, setQrFailed] = useState(false);
@@ -31,17 +47,17 @@ export function TotpSetup({ secret, uri }: { secret: string; uri: string }) {
 
   return (
     <div className="flex min-w-0 flex-col gap-4">
-      <SurfaceAlert status="warning">
-        <SurfaceAlert.Indicator />
-        <SurfaceAlert.Content>
-          <SurfaceAlert.Title>
+      <Notice status="warning">
+        <Notice.Indicator />
+        <Notice.Content>
+          <Notice.Title>
             <Trans id="login.reset.warning">
               After a successful reset, your old authenticator and all old
               recovery codes will stop working.
             </Trans>
-          </SurfaceAlert.Title>
-        </SurfaceAlert.Content>
-      </SurfaceAlert>
+          </Notice.Title>
+        </Notice.Content>
+      </Notice>
       <p className="text-sm text-muted">
         <Trans id="login.reset.scan">
           Scan this QR code with your authenticator, or enter the setup key
@@ -58,22 +74,26 @@ export function TotpSetup({ secret, uri }: { secret: string; uri: string }) {
         })}
       />
       {qrFailed && (
-        <SurfaceAlert status="warning">
-          <SurfaceAlert.Content>
-            <SurfaceAlert.Title>
+        <Notice status="warning">
+          <Notice.Content>
+            <Notice.Title>
               <Trans id="login.reset.qr_failed">
                 The QR code could not be displayed. Enter the setup key
                 manually.
               </Trans>
-            </SurfaceAlert.Title>
-          </SurfaceAlert.Content>
-        </SurfaceAlert>
+            </Notice.Title>
+          </Notice.Content>
+        </Notice>
       )}
       <TextField isReadOnly value={secret}>
         <Label>
           <Trans id="login.reset.secret">Setup key</Trans>
         </Label>
-        <Input variant="secondary" autoComplete="off" spellCheck={false} />
+        <Input
+          variant={onSurface ? "secondary" : "primary"}
+          autoComplete="off"
+          spellCheck={false}
+        />
       </TextField>
     </div>
   );
