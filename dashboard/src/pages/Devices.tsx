@@ -1,10 +1,7 @@
 import {
   Button,
   Description,
-  FieldError,
-  Input,
-  Label,
-  TextField,
+  REGEXP_ONLY_DIGITS_AND_CHARS,
 } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -18,24 +15,24 @@ import {
 
 import { ConsoleCard } from "@/components/custom/ConsoleCard";
 import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
+import { useAppForm } from "@/forms/use-app-form";
 
 /**
  * The already-signed-in half of device pairing. The other device shows a code
  * and polls for approval; this page looks the code up, shows who is asking, and
  * lets the account approve or decline.
  *
- * The code is passed through exactly as typed: the server owns the format, and
- * normalising it here would only hide a real mismatch. Only an empty box is
+ * The code is typed into slot boxes that accept the letters and digits the
+ * server's alphabet contains; the server still owns the exact format and
+ * normalises case, so the value goes out as typed. Only an empty box is
  * rejected locally.
  */
 export function Devices() {
   const { t } = useLingui();
   const queryClient = useQueryClient();
-  const [code, setCode] = useState("");
   const [submitted, setSubmitted] = useState<string | null>(null);
   const [error, setError] = useState<unknown>(null);
   const [outcome, setOutcome] = useState<"approved" | "cancelled" | null>(null);
-  const [inputError, setInputError] = useState<string | null>(null);
 
   const lookup = useQuery({
     ...deviceLookupQueryOptions(submitted ?? ""),
@@ -47,6 +44,20 @@ export function Devices() {
 
   const busy = approve.isPending || decline.isPending;
   const found = lookup.data;
+
+  const form = useAppForm({
+    defaultValues: { code: "" },
+    onSubmit: ({ value }) => {
+      setError(null);
+      setOutcome(null);
+      if (submitted === value.code) {
+        // Same code, so the query would serve its cache; ask again.
+        void lookup.refetch();
+        return;
+      }
+      setSubmitted(value.code);
+    },
+  });
 
   const formatTime = (value: string) =>
     new Intl.DateTimeFormat(undefined, {
@@ -67,66 +78,51 @@ export function Devices() {
         title={<Trans id="devices.code.title">Pairing code</Trans>}
         contentClassName="flex flex-col gap-4"
       >
-        <form
-          className="flex flex-col gap-4"
-          aria-label={t({ id: "devices.form", message: "Device pairing" })}
-          onSubmit={(event) => {
-            event.preventDefault();
-            setError(null);
-            setOutcome(null);
-            setInputError(null);
-            if (code.trim() === "") {
-              setInputError(
-                t({
-                  id: "devices.code.required",
-                  message: "Enter the pairing code shown on the other device.",
-                }),
-              );
-              return;
-            }
-            if (submitted === code) {
-              // Same code, so the query would serve its cache; ask again.
-              void lookup.refetch();
-              return;
-            }
-            setSubmitted(code);
-          }}
-        >
-          <TextField
-            name="code"
-            value={code}
-            isInvalid={inputError !== null}
-            validationBehavior="aria"
-            onChange={(value) => {
-              setInputError(null);
-              setCode(value);
-            }}
+        <form.AppForm>
+          <form.Form
+            className="flex flex-col gap-4"
+            label={t({ id: "devices.form", message: "Device pairing" })}
           >
-            <Label>
-              <Trans id="devices.code.label">Code from the other device</Trans>
-            </Label>
-            <Input
-              autoComplete="one-time-code"
-              spellCheck={false}
-              autoCapitalize="characters"
-              className="font-mono"
-              aria-invalid={inputError !== null || undefined}
-              variant="secondary"
-            />
-            <Description>
-              <Trans id="devices.code.hint">
-                Pairing codes are short-lived. If yours has expired, generate a
-                new one on that device.
-              </Trans>
-            </Description>
-            {inputError && <FieldError>{inputError}</FieldError>}
-          </TextField>
-          <div>
-            <Button type="submit" isPending={lookup.isFetching}>
-              <Trans id="devices.lookup">Look up code</Trans>
-            </Button>
-          </div>
-        </form>
+            <form.AppField
+              name="code"
+              validators={{
+                onSubmit: ({ value }) =>
+                  value.trim() === ""
+                    ? t({
+                        id: "devices.code.required",
+                        message:
+                          "Enter the pairing code shown on the other device.",
+                      })
+                    : undefined,
+              }}
+            >
+              {(field) => (
+                <field.OtpField
+                  digits={8}
+                  pattern={REGEXP_ONLY_DIGITS_AND_CHARS}
+                  inputMode="text"
+                  variant="secondary"
+                  label={
+                    <Trans id="devices.code.label">
+                      Code from the other device
+                    </Trans>
+                  }
+                  description={
+                    <Trans id="devices.code.hint">
+                      Pairing codes are short-lived. If yours has expired,
+                      generate a new one on that device.
+                    </Trans>
+                  }
+                />
+              )}
+            </form.AppField>
+            <div>
+              <Button type="submit" isPending={lookup.isFetching}>
+                <Trans id="devices.lookup">Look up code</Trans>
+              </Button>
+            </div>
+          </form.Form>
+        </form.AppForm>
 
         {lookup.isError && lookup.error !== null && (
           <SurfaceAlert status="danger" role="alert">

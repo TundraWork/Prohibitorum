@@ -13,9 +13,9 @@ import { useFieldContext, useFormContext } from "@/forms/context";
 import { withoutServerErrors } from "@/forms/server-errors";
 
 /**
- * Numeric one-time-code field. Same label, description, error and disable
- * wiring as `FormField`, with HeroUI's `InputOTP` slots replacing the single
- * text input.
+ * One-time-code field. Same label, description, error and disable wiring as
+ * `FormField`, with HeroUI's `InputOTP` slots replacing the single text input.
+ * Digits by default; pass `pattern`/`inputMode` for letter-bearing codes.
  */
 export function OtpField({
   label,
@@ -23,6 +23,8 @@ export function OtpField({
   digits,
   isDisabled = false,
   variant,
+  pattern = REGEXP_ONLY_DIGITS,
+  inputMode = "numeric",
 }: {
   label: ReactNode;
   description?: ReactNode;
@@ -30,6 +32,13 @@ export function OtpField({
   isDisabled?: boolean;
   /** HeroUI input variant. Use `secondary` when the field sits on a surface. */
   variant?: ComponentProps<typeof InputOTP>["variant"];
+  /**
+   * Accepted characters per slot. Defaults to digits; alphanumeric codes pass
+   * `REGEXP_ONLY_DIGITS_AND_CHARS`.
+   */
+  pattern?: string;
+  /** Soft-keyboard hint; keep it in step with `pattern`. */
+  inputMode?: ComponentProps<typeof InputOTP>["inputMode"];
 }) {
   const field = useFieldContext<string>();
   const form = useFormContext();
@@ -68,7 +77,7 @@ export function OtpField({
         id={id}
         name={field.name}
         maxLength={count}
-        pattern={REGEXP_ONLY_DIGITS}
+        pattern={pattern}
         value={field.state.value}
         onChange={handleChange}
         onBlur={() => {
@@ -76,7 +85,7 @@ export function OtpField({
         }}
         isDisabled={disabled}
         isInvalid={invalid}
-        inputMode="numeric"
+        inputMode={inputMode}
         autoComplete="one-time-code"
         variant={variant}
         textAlign="center"
