@@ -110,7 +110,9 @@ export function PasswordTotpPanel() {
   return (
     <div className="flex flex-col gap-6">
       {passwordSet && totpEnrolled ? (
-        <div className="grid gap-6 lg:grid-cols-2">
+        // One column at every width. The form inside each card keeps its own
+        // measure, so a password field does not span the console column.
+        <div className="grid gap-6 [&_[data-slot=card]_form]:max-w-lg">
           <ChangePasswordCard />
           <ReplaceTotpCard onCodes={setCodes} />
         </div>
