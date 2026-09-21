@@ -203,16 +203,6 @@ export function PasskeysPanel() {
                   No passkeys yet
                 </Trans>
               }
-              hint={
-                <Trans id="security.passkeys.empty.hint">
-                  A passkey signs you in without typing a password.
-                </Trans>
-              }
-              action={
-                <Button size="sm" isPending={add.isPending} onPress={startAdd}>
-                  <Trans id="security.passkeys.add">Add a passkey</Trans>
-                </Button>
-              }
             />
           }
         />

@@ -1,10 +1,12 @@
 import {
   AlertDialog,
   Button,
-  Card,
   Checkbox,
   Description,
-  Spinner,
+  Label,
+  ListBox,
+  Modal,
+  Select,
 } from "@heroui/react";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
@@ -56,6 +58,7 @@ export function TokensPanel() {
   const apps = useQuery(forwardAuthAppsQueryOptions());
   const [plaintext, setPlaintext] = useState<string | null>(null);
   const [target, setTarget] = useState<Token | null>(null);
+  const [creating, setCreating] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const revoke = useMutation(revokeTokenMutationOptions(queryClient));
 
@@ -170,35 +173,45 @@ export function TokensPanel() {
 
   return (
     <>
-      {error !== null && (
-        <SurfaceAlert status="danger" role="alert">
-          <SurfaceAlert.Indicator />
-          <SurfaceAlert.Content>
-            <SurfaceAlert.Title>{t(describeError(error))}</SurfaceAlert.Title>
-          </SurfaceAlert.Content>
-        </SurfaceAlert>
-      )}
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-wrap items-center justify-end gap-4">
+          <Button onPress={() => setCreating(true)}>
+            <Trans id="security.tokens.create.open">Create a token</Trans>
+          </Button>
+        </div>
 
-      <DataTable
-        label={t({ id: "security.tokens.table", message: "Access tokens" })}
-        columns={columns}
-        rows={tokens.data ?? []}
-        rowId={(token) => token.id}
-        loading={tokens.isPending}
-        empty={
-          <TableEmptyState
-            icon={<Ticket size={18} strokeWidth={1.75} aria-hidden="true" />}
-            title={
-              <Trans id="security.tokens.empty">No access tokens yet</Trans>
-            }
-          />
-        }
-      />
+        {error !== null && (
+          <SurfaceAlert status="danger" role="alert">
+            <SurfaceAlert.Indicator />
+            <SurfaceAlert.Content>
+              <SurfaceAlert.Title>{t(describeError(error))}</SurfaceAlert.Title>
+            </SurfaceAlert.Content>
+          </SurfaceAlert>
+        )}
 
-      <CreateTokenCard
+        <DataTable
+          label={t({ id: "security.tokens.table", message: "Access tokens" })}
+          columns={columns}
+          rows={tokens.data ?? []}
+          rowId={(token) => token.id}
+          loading={tokens.isPending}
+          empty={
+            <TableEmptyState
+              icon={<Ticket size={18} strokeWidth={1.75} aria-hidden="true" />}
+              title={
+                <Trans id="security.tokens.empty">No access tokens yet</Trans>
+              }
+            />
+          }
+        />
+      </div>
+
+      <CreateTokenDialog
+        apps={apps.data ?? []}
+        isOpen={creating}
+        onOpenChange={setCreating}
         onCreated={setPlaintext}
         onError={setError}
-        apps={apps.data ?? []}
       />
 
       <AlertDialog
@@ -289,21 +302,57 @@ export function isOfferedScope(
 
 type ForwardAuthApp = components["schemas"]["MyForwardAuthApp"];
 
-function CreateTokenCard({
+/**
+ * Asks for everything a new token needs, in a dialog over the list it will join.
+ * The plaintext stays behind the dialog, so creating a token and reading it
+ * remain two steps.
+ *
+ * The form element spans the body and the footer rather than the body alone:
+ * the submit button belongs in the footer, and only the body should scroll when
+ * a long scope list does not fit.
+ */
+function CreateTokenDialog({
   apps,
+  isOpen,
+  onOpenChange,
   onCreated,
   onError,
 }: {
   apps: ForwardAuthApp[];
+  isOpen: boolean;
+  onOpenChange: (open: boolean) => void;
   onCreated: (token: string) => void;
   onError: (error: unknown) => void;
 }) {
   const { t } = useLingui();
   const queryClient = useQueryClient();
-  const [open, setOpen] = useState(false);
   const [allApps, setAllApps] = useState(true);
   const [expiresInDays, setExpiresInDays] = useState("0");
   const [grants, setGrants] = useState<Record<string, string[]>>({});
+
+  // The values are the day counts `buildTokenRequest` reads; zero means the
+  // server stores no expiry at all.
+  const expiryOptions = [
+    {
+      value: "0",
+      label: t({
+        id: "security.tokens.expiry.never",
+        message: "Never expires",
+      }),
+    },
+    {
+      value: "30",
+      label: t({ id: "security.tokens.expiry.30", message: "30 days" }),
+    },
+    {
+      value: "90",
+      label: t({ id: "security.tokens.expiry.90", message: "90 days" }),
+    },
+    {
+      value: "365",
+      label: t({ id: "security.tokens.expiry.365", message: "1 year" }),
+    },
+  ];
 
   const create = useMutation(createTokenMutationOptions(queryClient));
 
@@ -330,10 +379,10 @@ function CreateTokenCard({
         );
         const created = result as { token?: unknown };
         if (typeof created?.token !== "string") return;
-        setOpen(false);
         setGrants({});
         setAllApps(true);
         form.reset();
+        onOpenChange(false);
         onCreated(created.token);
       } catch (failure) {
         if (isCancellation(failure)) return;
@@ -347,200 +396,205 @@ function CreateTokenCard({
   });
 
   return (
-    <Card>
-      <Card.Header>
-        <Card.Title render={(props) => <h2 {...props} />}>
-          <Trans id="security.tokens.create.title">New access token</Trans>
-        </Card.Title>
-      </Card.Header>
-      <Card.Content className="flex flex-col gap-4">
-        <Description>
-          <Trans id="security.tokens.create.note">
-            The token itself is shown once, right after you create it. Copy it
-            then; the list will only ever show the last few characters.
-          </Trans>
-        </Description>
-        {!open ? (
-          <div>
-            <Button onPress={() => setOpen(true)}>
-              <Trans id="security.tokens.create.open">Create a token</Trans>
-            </Button>
-          </div>
-        ) : (
-          <form.AppForm>
-            <form.Form
-              label={t({
-                id: "security.tokens.create.form",
-                message: "New access token",
-              })}
-            >
-              <form.FormError />
-              <form.AppField
-                name="name"
-                validators={{
-                  onChange: ({ value }) =>
-                    value.trim() === "" ? nameRequired : undefined,
-                }}
+    <Modal isOpen={isOpen} onOpenChange={onOpenChange}>
+      <Modal.Backdrop>
+        <Modal.Container placement="center" size="lg">
+          <Modal.Dialog>
+            <Modal.Header>
+              <Modal.Heading>
+                <Trans id="security.tokens.create.title">
+                  New access token
+                </Trans>
+              </Modal.Heading>
+            </Modal.Header>
+
+            <form.AppForm>
+              <form.Form
+                label={t({
+                  id: "security.tokens.create.form",
+                  message: "New access token",
+                })}
+                className="flex min-h-0 flex-1 flex-col"
               >
-                {(field) => (
-                  <field.FormField
-                    label={<Trans id="security.tokens.name">Name</Trans>}
-                    description={
-                      <Trans id="security.tokens.name.hint">
-                        What will use this token, so you know what to revoke
-                        later.
+                <Modal.Body>
+                  <div className="flex flex-col gap-4">
+                    <Description>
+                      <Trans id="security.tokens.create.note">
+                        The token itself is shown once, right after you create
+                        it. Copy it then; the list will only ever show the last
+                        few characters.
                       </Trans>
-                    }
-                    autoComplete="off"
-                    variant="secondary"
-                  />
-                )}
-              </form.AppField>
+                    </Description>
 
-              <div className="flex flex-col gap-2">
-                <span className="text-sm font-medium">
-                  <Trans id="security.tokens.expiry">Expires after</Trans>
-                </span>
-                <select
-                  className="h-9 rounded-field border border-separator bg-surface px-3 text-sm"
-                  value={expiresInDays}
-                  onChange={(event) => setExpiresInDays(event.target.value)}
-                  aria-label={t({
-                    id: "security.tokens.expiry.label",
-                    message: "Expires after",
-                  })}
-                >
-                  <option value="0">
-                    {t({
-                      id: "security.tokens.expiry.never",
-                      message: "Never expires",
-                    })}
-                  </option>
-                  <option value="30">
-                    {t({
-                      id: "security.tokens.expiry.30",
-                      message: "30 days",
-                    })}
-                  </option>
-                  <option value="90">
-                    {t({
-                      id: "security.tokens.expiry.90",
-                      message: "90 days",
-                    })}
-                  </option>
-                  <option value="365">
-                    {t({
-                      id: "security.tokens.expiry.365",
-                      message: "1 year",
-                    })}
-                  </option>
-                </select>
-              </div>
+                    <form.FormError />
+                    <form.AppField
+                      name="name"
+                      validators={{
+                        onChange: ({ value }) =>
+                          value.trim() === "" ? nameRequired : undefined,
+                      }}
+                    >
+                      {(field) => (
+                        <field.FormField
+                          label={<Trans id="security.tokens.name">Name</Trans>}
+                          description={
+                            <Trans id="security.tokens.name.hint">
+                              What will use this token, so you know what to
+                              revoke later.
+                            </Trans>
+                          }
+                          autoComplete="off"
+                          variant="secondary"
+                        />
+                      )}
+                    </form.AppField>
 
-              <div className="flex flex-col gap-3">
-                <span className="text-sm font-medium">
-                  <Trans id="security.tokens.scope">What it may access</Trans>
-                </span>
-                <Checkbox
-                  isSelected={allApps}
-                  onChange={(selected) => setAllApps(selected === true)}
-                >
-                  <Checkbox.Content>
-                    <Checkbox.Control>
-                      <Checkbox.Indicator />
-                    </Checkbox.Control>
-                    <Trans id="security.tokens.every_app">
-                      Every application you can use
-                    </Trans>
-                  </Checkbox.Content>
-                </Checkbox>
-                {!allApps && (
-                  <div className="flex flex-col gap-4 border-separator border-s ps-4">
-                    {apps.length === 0 ? (
-                      <p className="text-sm text-muted">
-                        <Trans id="security.tokens.no_forward_auth">
-                          You have no applications available to grant.
+                    <Select
+                      variant="secondary"
+                      value={expiresInDays}
+                      onChange={(key) => {
+                        if (typeof key === "string") setExpiresInDays(key);
+                      }}
+                    >
+                      <Label>
+                        <Trans id="security.tokens.expiry">Expires after</Trans>
+                      </Label>
+                      <Select.Trigger>
+                        <Select.Value />
+                        <Select.Indicator />
+                      </Select.Trigger>
+                      <Select.Popover>
+                        <ListBox>
+                          {expiryOptions.map((option) => (
+                            <ListBox.Item
+                              key={option.value}
+                              id={option.value}
+                              textValue={option.label}
+                            >
+                              <Label>{option.label}</Label>
+                              <ListBox.ItemIndicator />
+                            </ListBox.Item>
+                          ))}
+                        </ListBox>
+                      </Select.Popover>
+                    </Select>
+
+                    <div className="flex flex-col gap-3">
+                      <span className="text-sm font-medium">
+                        <Trans id="security.tokens.scope">
+                          What it may access
                         </Trans>
-                      </p>
-                    ) : (
-                      apps.map((app) => (
-                        <div key={app.clientId} className="flex flex-col gap-2">
-                          <span className="text-sm font-medium wrap-anywhere">
-                            {app.displayName}
-                          </span>
-                          {(app.scopes ?? []).length === 0 ? (
-                            <span className="text-sm text-muted">
-                              <Trans id="security.tokens.app_no_scopes">
-                                This application defines no scopes.
+                      </span>
+                      <Checkbox
+                        isSelected={allApps}
+                        onChange={(selected) => setAllApps(selected === true)}
+                      >
+                        <Checkbox.Content>
+                          <Checkbox.Control>
+                            <Checkbox.Indicator />
+                          </Checkbox.Control>
+                          <Trans id="security.tokens.every_app">
+                            Every application you can use
+                          </Trans>
+                        </Checkbox.Content>
+                      </Checkbox>
+                      {!allApps && (
+                        <div className="flex flex-col gap-4 border-separator border-s ps-4">
+                          {apps.length === 0 ? (
+                            <p className="text-sm text-muted">
+                              <Trans id="security.tokens.no_forward_auth">
+                                You have no applications available to grant.
                               </Trans>
-                            </span>
+                            </p>
                           ) : (
-                            (app.scopes ?? []).map((scope) => {
-                              const selected =
-                                grants[app.clientId]?.includes(scope.name) ??
-                                false;
-                              return (
-                                <Checkbox
-                                  key={`${app.clientId}:${scope.name}`}
-                                  isSelected={selected}
-                                  onChange={(next) => {
-                                    setGrants((current) => {
-                                      const list = new Set(
-                                        current[app.clientId] ?? [],
-                                      );
-                                      if (next === true) list.add(scope.name);
-                                      else list.delete(scope.name);
-                                      const updated = { ...current };
-                                      if (list.size === 0)
-                                        delete updated[app.clientId];
-                                      else updated[app.clientId] = [...list];
-                                      return updated;
-                                    });
-                                  }}
-                                >
-                                  <Checkbox.Content>
-                                    <Checkbox.Control>
-                                      <Checkbox.Indicator />
-                                    </Checkbox.Control>
-                                    <span className="flex flex-col gap-0.5">
-                                      <span className="wrap-anywhere font-mono text-xs">
-                                        {scope.name}
-                                      </span>
-                                      {scope.description && (
-                                        <span className="text-sm text-muted">
-                                          {scope.description}
-                                        </span>
-                                      )}
-                                    </span>
-                                  </Checkbox.Content>
-                                </Checkbox>
-                              );
-                            })
+                            apps.map((app) => (
+                              <div
+                                key={app.clientId}
+                                className="flex flex-col gap-2"
+                              >
+                                <span className="text-sm font-medium wrap-anywhere">
+                                  {app.displayName}
+                                </span>
+                                {(app.scopes ?? []).length === 0 ? (
+                                  <span className="text-sm text-muted">
+                                    <Trans id="security.tokens.app_no_scopes">
+                                      This application defines no scopes.
+                                    </Trans>
+                                  </span>
+                                ) : (
+                                  (app.scopes ?? []).map((scope) => {
+                                    const selected =
+                                      grants[app.clientId]?.includes(
+                                        scope.name,
+                                      ) ?? false;
+                                    return (
+                                      <Checkbox
+                                        key={`${app.clientId}:${scope.name}`}
+                                        isSelected={selected}
+                                        onChange={(next) => {
+                                          setGrants((current) => {
+                                            const list = new Set(
+                                              current[app.clientId] ?? [],
+                                            );
+                                            if (next === true)
+                                              list.add(scope.name);
+                                            else list.delete(scope.name);
+                                            const updated = { ...current };
+                                            if (list.size === 0)
+                                              delete updated[app.clientId];
+                                            else
+                                              updated[app.clientId] = [...list];
+                                            return updated;
+                                          });
+                                        }}
+                                      >
+                                        <Checkbox.Content>
+                                          <Checkbox.Control>
+                                            <Checkbox.Indicator />
+                                          </Checkbox.Control>
+                                          <span className="flex flex-col gap-0.5">
+                                            <span className="wrap-anywhere font-mono text-xs">
+                                              {scope.name}
+                                            </span>
+                                            {scope.description && (
+                                              <span className="text-sm text-muted">
+                                                {scope.description}
+                                              </span>
+                                            )}
+                                          </span>
+                                        </Checkbox.Content>
+                                      </Checkbox>
+                                    );
+                                  })
+                                )}
+                              </div>
+                            ))
                           )}
                         </div>
-                      ))
-                    )}
+                      )}
+                    </div>
                   </div>
-                )}
-              </div>
+                </Modal.Body>
 
-              <div className="flex flex-wrap gap-2">
-                <form.SubmitButton>
-                  <Trans id="security.tokens.create.action">Create token</Trans>
-                </form.SubmitButton>
-                <Button
-                  variant="secondary"
-                  isDisabled={create.isPending}
-                  onPress={() => setOpen(false)}
-                >
-                  <Trans id="security.cancel">Cancel</Trans>
-                </Button>
-                {create.isPending && <Spinner size="sm" />}
-              </div>
-            </form.Form>
-          </form.AppForm>
-        )}
-      </Card.Content>
-    </Card>
+                <Modal.Footer className="mt-5">
+                  <Button
+                    variant="secondary"
+                    isDisabled={create.isPending}
+                    onPress={() => onOpenChange(false)}
+                  >
+                    <Trans id="security.cancel">Cancel</Trans>
+                  </Button>
+                  <form.SubmitButton>
+                    <Trans id="security.tokens.create.action">
+                      Create token
+                    </Trans>
+                  </form.SubmitButton>
+                </Modal.Footer>
+              </form.Form>
+            </form.AppForm>
+          </Modal.Dialog>
+        </Modal.Container>
+      </Modal.Backdrop>
+    </Modal>
   );
 }

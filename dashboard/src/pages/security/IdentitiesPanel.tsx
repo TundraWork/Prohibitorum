@@ -1,4 +1,4 @@
-import { AlertDialog, Button, Spinner } from "@heroui/react";
+import { AlertDialog, Avatar, Button, Dropdown, Label } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link2 } from "lucide-react";
@@ -20,6 +20,7 @@ import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
 import { TableEmptyState } from "@/components/custom/TableEmptyState";
 
 type Identity = components["schemas"]["AccountIdentityView"];
+type Provider = components["schemas"]["FederationProvider"];
 
 /**
  * Upstream identities bound to this account.
@@ -29,6 +30,10 @@ type Identity = components["schemas"]["AccountIdentityView"];
  * the browser is sent there directly rather than through the router. The sudo
  * prompt runs first, because the begin endpoint is sudo-guarded and a redirect
  * cannot ask for verification.
+ *
+ * The providers are not listed on the page itself: the header action opens them
+ * as a menu, each entry carrying the provider's mark and name, which keeps the
+ * panel one list of what is actually linked.
  */
 export function IdentitiesPanel() {
   const { t, i18n } = useLingui();
@@ -105,89 +110,79 @@ export function IdentitiesPanel() {
   ];
 
   const available = providers.data ?? [];
+  const linkedSlugs = new Set(
+    (identities.data ?? []).map((identity) => identity.providerSlug),
+  );
+  // What the menu can still offer: a provider already bound to this account has
+  // nothing left to do, so it is listed but disabled.
+  const linkable = available.filter(
+    (provider) => !linkedSlugs.has(provider.slug),
+  );
+
+  const startLink = (slug: string) => {
+    setError(null);
+    setLinking(slug);
+    void runWithSudo(async () => {
+      // A full-page assignment: the response is a redirect the browser has to
+      // follow, not a body the client can read.
+      window.location.assign(identityLinkUrl(slug));
+    }, sudoReason.linkIdentity)
+      .catch((failure: unknown) => {
+        if (!isCancellation(failure)) setError(failure);
+      })
+      .finally(() => setLinking(null));
+  };
 
   return (
     <>
-      {error !== null && (
-        <SurfaceAlert status="danger" role="alert">
-          <SurfaceAlert.Indicator />
-          <SurfaceAlert.Content>
-            <SurfaceAlert.Title>{t(describeError(error))}</SurfaceAlert.Title>
-          </SurfaceAlert.Content>
-        </SurfaceAlert>
-      )}
-
-      <DataTable
-        label={t({
-          id: "security.identities.table",
-          message: "Connected identities",
-        })}
-        columns={columns}
-        rows={identities.data ?? []}
-        rowId={(identity) => identity.id}
-        loading={identities.isPending}
-        empty={
-          <TableEmptyState
-            icon={<Link2 size={18} strokeWidth={1.75} aria-hidden="true" />}
-            title={
-              <Trans id="security.identities.empty">
-                No other identities linked yet
-              </Trans>
-            }
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-wrap items-center justify-end gap-4">
+          <LinkIdentityMenu
+            providers={available}
+            linkedSlugs={linkedSlugs}
+            isPending={linking !== null}
+            onSelect={startLink}
           />
-        }
-      />
+        </div>
 
-      <div className="flex flex-col gap-3">
-        <h3 className="text-lg font-semibold">
-          <Trans id="security.identities.link.title">
-            Link another identity
-          </Trans>
-        </h3>
-        <p className="max-w-prose text-sm text-muted">
-          <Trans id="security.identities.link.note">
-            You will verify your identity here first, and the provider will then
-            ask you to sign in.
-          </Trans>
-        </p>
-        {available.length === 0 ? (
-          <p className="text-sm text-muted">
-            <Trans id="security.identities.link.none">
-              This instance has no other providers configured.
+        {linkable.length > 0 && (
+          <p className="max-w-prose text-sm text-muted">
+            <Trans id="security.identities.link.note">
+              You will verify your identity here first, and the provider will
+              then ask you to sign in.
             </Trans>
           </p>
-        ) : (
-          <div className="flex flex-wrap gap-2">
-            {available.map((provider) => (
-              <Button
-                key={provider.slug}
-                variant="secondary"
-                isPending={linking === provider.slug}
-                isDisabled={linking !== null}
-                onPress={() => {
-                  setError(null);
-                  setLinking(provider.slug);
-                  void runWithSudo(async () => {
-                    // A full-page assignment: the response is a redirect the
-                    // browser has to follow, not a body the client can read.
-                    window.location.assign(identityLinkUrl(provider.slug));
-                  }, sudoReason.linkIdentity)
-                    .catch((failure: unknown) => {
-                      if (!isCancellation(failure)) setError(failure);
-                    })
-                    .finally(() => setLinking(null));
-                }}
-              >
-                {linking === provider.slug && (
-                  <Spinner size="sm" color="current" />
-                )}
-                <Trans id="security.identities.link.action">
-                  Link {provider.displayName}
-                </Trans>
-              </Button>
-            ))}
-          </div>
         )}
+
+        {error !== null && (
+          <SurfaceAlert status="danger" role="alert">
+            <SurfaceAlert.Indicator />
+            <SurfaceAlert.Content>
+              <SurfaceAlert.Title>{t(describeError(error))}</SurfaceAlert.Title>
+            </SurfaceAlert.Content>
+          </SurfaceAlert>
+        )}
+
+        <DataTable
+          label={t({
+            id: "security.identities.table",
+            message: "Connected identities",
+          })}
+          columns={columns}
+          rows={identities.data ?? []}
+          rowId={(identity) => identity.id}
+          loading={identities.isPending}
+          empty={
+            <TableEmptyState
+              icon={<Link2 size={18} strokeWidth={1.75} aria-hidden="true" />}
+              title={
+                <Trans id="security.identities.empty">
+                  No other identities linked yet
+                </Trans>
+              }
+            />
+          }
+        />
       </div>
 
       <AlertDialog
@@ -242,5 +237,83 @@ export function IdentitiesPanel() {
         </AlertDialog.Backdrop>
       </AlertDialog>
     </>
+  );
+}
+
+/**
+ * The configured providers, as a menu under the panel's primary action. Each
+ * entry carries the provider's own mark so a member recognises the service
+ * before committing to the sign-in round trip.
+ *
+ * The menu always opens, even when there is nothing to pick: an instance with no
+ * providers answers with one disabled line, and a provider this account already
+ * carries stays in the list, disabled, so the menu still tells the member what
+ * exists rather than losing the entry.
+ */
+function LinkIdentityMenu({
+  providers,
+  linkedSlugs,
+  isPending,
+  onSelect,
+}: {
+  providers: readonly Provider[];
+  linkedSlugs: ReadonlySet<string>;
+  isPending: boolean;
+  onSelect: (slug: string) => void;
+}) {
+  const { t } = useLingui();
+  const label = t({
+    id: "security.identities.link.title",
+    message: "Link another identity",
+  });
+
+  return (
+    <Dropdown>
+      <Button isPending={isPending} isDisabled={isPending}>
+        <Trans id="security.identities.link.title">Link another identity</Trans>
+      </Button>
+      <Dropdown.Popover placement="bottom end">
+        <Dropdown.Menu
+          aria-label={label}
+          onAction={(key) => onSelect(String(key))}
+        >
+          {providers.length === 0 ? (
+            <Dropdown.Item
+              id="unavailable"
+              textValue={t({
+                id: "security.identities.link.unavailable",
+                message: "No identities available to link",
+              })}
+              isDisabled
+            >
+              <Label>
+                <Trans id="security.identities.link.unavailable">
+                  No identities available to link
+                </Trans>
+              </Label>
+            </Dropdown.Item>
+          ) : (
+            providers.map((provider) => (
+              <Dropdown.Item
+                key={provider.slug}
+                id={provider.slug}
+                textValue={provider.displayName}
+                isDisabled={linkedSlugs.has(provider.slug)}
+              >
+                <Avatar className="size-5 shrink-0">
+                  {provider.iconUrl && (
+                    <Avatar.Image src={provider.iconUrl} alt="" />
+                  )}
+                  <Avatar.Fallback>
+                    <Link2 size={12} aria-hidden="true" />
+                  </Avatar.Fallback>
+                </Avatar>
+                <Label>{provider.displayName}</Label>
+              </Dropdown.Item>
+            ))
+          )}
+        </Dropdown.Menu>
+      </Dropdown.Popover>
+    </Dropdown>
   );
 }

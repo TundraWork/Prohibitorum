@@ -33,11 +33,6 @@ msgid "security.passkeys.rename.hint"
 msgstr "便于你识别的名字，例如它所在的设备。"
 
 #. js-lingui-explicit-id
-#: src/pages/security/PasskeysPanel.tsx
-msgid "security.passkeys.empty.hint"
-msgstr "通行密钥让你免输密码即可登录。"
-
-#. js-lingui-explicit-id
 #: src/pages/Security.tsx
 msgid "security.tab.tokens"
 msgstr "个人访问令牌"
@@ -642,11 +637,6 @@ msgid "security.tokens.expiry"
 msgstr "有效期"
 
 #. js-lingui-explicit-id
-#: src/pages/security/TokensPanel.tsx
-msgid "security.tokens.expiry.label"
-msgstr "有效期"
-
-#. js-lingui-explicit-id
 #: src/pages/Preview.tsx
 msgid "feedback.tab"
 msgstr "状态反馈"
@@ -780,12 +770,6 @@ msgstr "尚未保存就离开？此令牌无法再次显示。"
 #: src/components/custom/ThemeSelect.tsx
 msgid "theme.light"
 msgstr "日间模式"
-
-#. js-lingui-explicit-id
-#. placeholder {0}: provider.displayName
-#: src/pages/security/IdentitiesPanel.tsx
-msgid "security.identities.link.action"
-msgstr "绑定 {0}"
 
 #. js-lingui-explicit-id
 #: src/pages/security/IdentitiesPanel.tsx
@@ -946,6 +930,11 @@ msgstr "未指定应用"
 #: src/pages/ConnectedApps.tsx
 msgid "apps.empty"
 msgstr "还没有已批准的应用"
+
+#. js-lingui-explicit-id
+#: src/pages/security/IdentitiesPanel.tsx
+msgid "security.identities.link.unavailable"
+msgstr "暂无可绑定的身份"
 
 #. js-lingui-explicit-id
 #: src/pages/security/IdentitiesPanel.tsx
@@ -1627,11 +1616,6 @@ msgstr "本设备"
 #: src/pages/security/PasskeysPanel.tsx
 msgid "security.passkeys.device_bound"
 msgstr "仅限本设备"
-
-#. js-lingui-explicit-id
-#: src/pages/security/IdentitiesPanel.tsx
-msgid "security.identities.link.none"
-msgstr "此实例没有配置其它提供方。"
 
 #. js-lingui-explicit-id
 #: src/components/custom/LoginShell.tsx

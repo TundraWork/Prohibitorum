@@ -2,19 +2,20 @@ import { EmptyState } from "@heroui/react";
 import type { ReactNode } from "react";
 
 /**
- * Empty state for the console's own tables: the mark, what is missing, and the
- * next step where the panel has exactly one. The mark is sized for an 18px icon.
+ * Empty state for the console's own tables: the mark for the kind of thing that
+ * is missing, and one line naming what is missing.
+ *
+ * It carries nothing else on purpose. Every one of these tables sits under the
+ * panel's own action, so a button repeated here reads as two offers of the same
+ * thing; and the list is empty precisely when the member has just arrived, which
+ * is when an explanation is least needed.
  */
 export function TableEmptyState({
   icon,
   title,
-  hint,
-  action,
 }: {
   icon: ReactNode;
   title: ReactNode;
-  hint?: ReactNode;
-  action?: ReactNode;
 }) {
   return (
     <EmptyState className="flex flex-col items-center gap-3 py-10 text-center max-sm:items-start max-sm:text-start">
@@ -22,8 +23,6 @@ export function TableEmptyState({
         {icon}
       </span>
       <span className="text-sm font-medium text-foreground">{title}</span>
-      {hint ? <p className="max-w-[46ch] text-sm text-muted">{hint}</p> : null}
-      {action}
     </EmptyState>
   );
 }

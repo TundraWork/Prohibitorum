@@ -7,9 +7,16 @@ import { clearServerErrors } from "@/forms/server-errors";
 export function Form({
   children,
   label,
+  className = "flex flex-col gap-4",
 }: {
   children: ReactNode;
   label: string;
+  /**
+   * Layout classes for the form element. A dialog that has to keep its footer
+   * outside the scrolling area passes the column classes that let it fill and
+   * shrink within the dialog.
+   */
+  className?: string;
 }) {
   const form = useFormContext();
   const submitting = useStore(form.store, (state) => state.isSubmitting);
@@ -17,7 +24,7 @@ export function Form({
 
   return (
     <HeroUIForm
-      className="flex flex-col gap-4"
+      className={className}
       aria-label={label}
       aria-busy={submitting}
       validationBehavior="aria"
