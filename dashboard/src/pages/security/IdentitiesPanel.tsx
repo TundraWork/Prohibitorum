@@ -1,6 +1,7 @@
 import { AlertDialog, Button, Spinner } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link2 } from "lucide-react";
 import { useState } from "react";
 import { describeError, isCancellation } from "@/api/errors";
 import type { components } from "@/api/generated/schema";
@@ -16,6 +17,7 @@ import { runWithSudo } from "@/api/sudo";
 import { sudoReason } from "@/api/sudo-reasons";
 import { DataTable, type TableColumn } from "@/components/custom/DataTable";
 import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
+import { TableEmptyState } from "@/components/custom/TableEmptyState";
 
 type Identity = components["schemas"]["AccountIdentityView"];
 
@@ -125,9 +127,14 @@ export function IdentitiesPanel() {
         rowId={(identity) => identity.id}
         loading={identities.isPending}
         empty={
-          <Trans id="security.identities.empty">
-            No other sign-in identities are linked yet.
-          </Trans>
+          <TableEmptyState
+            icon={<Link2 size={18} strokeWidth={1.75} aria-hidden="true" />}
+            title={
+              <Trans id="security.identities.empty">
+                No other identities linked yet
+              </Trans>
+            }
+          />
         }
       />
 

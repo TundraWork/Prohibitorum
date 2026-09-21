@@ -33,6 +33,11 @@ msgid "security.passkeys.rename.hint"
 msgstr "A name you will recognise, such as the device it lives on."
 
 #. js-lingui-explicit-id
+#: src/pages/security/PasskeysPanel.tsx
+msgid "security.passkeys.empty.hint"
+msgstr "A passkey signs you in without typing a password."
+
+#. js-lingui-explicit-id
 #: src/pages/Security.tsx
 msgid "security.tab.tokens"
 msgstr "Access tokens"
@@ -929,13 +934,33 @@ msgstr "Nickname saved. Your input has been kept."
 
 #. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
+msgid "security.tokens.empty"
+msgstr "No access tokens yet"
+
+#. js-lingui-explicit-id
+#: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.no_apps"
 msgstr "No applications"
 
 #. js-lingui-explicit-id
+#: src/pages/ConnectedApps.tsx
+msgid "apps.empty"
+msgstr "No approved applications yet"
+
+#. js-lingui-explicit-id
 #: src/pages/security/IdentitiesPanel.tsx
 msgid "security.identities.empty"
-msgstr "No other sign-in identities are linked yet."
+msgstr "No other identities linked yet"
+
+#. js-lingui-explicit-id
+#: src/pages/security/SessionsPanel.tsx
+msgid "security.sessions.empty"
+msgstr "No other sessions"
+
+#. js-lingui-explicit-id
+#: src/pages/security/PasskeysPanel.tsx
+msgid "security.passkeys.empty.title"
+msgstr "No passkeys yet"
 
 #. js-lingui-explicit-id
 #: src/pages/profile/AvatarPanel.tsx
@@ -1549,11 +1574,6 @@ msgid "theme.label"
 msgstr "Theme"
 
 #. js-lingui-explicit-id
-#: src/pages/security/SessionsPanel.tsx
-msgid "security.sessions.empty"
-msgstr "There are no other sessions on this account."
-
-#. js-lingui-explicit-id
 #: src/components/custom/secret-reveal-copy.ts
 msgid "login.codes.once"
 msgstr "These codes are shown only once. Keep them somewhere safe before continuing. Your old recovery codes no longer work."
@@ -1916,23 +1936,8 @@ msgstr "You have already approved this pairing. The other device should be finis
 
 #. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
-msgid "security.tokens.empty"
-msgstr "You have no access tokens yet."
-
-#. js-lingui-explicit-id
-#: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.no_forward_auth"
 msgstr "You have no applications available to grant."
-
-#. js-lingui-explicit-id
-#: src/pages/security/PasskeysPanel.tsx
-msgid "security.passkeys.empty"
-msgstr "You have no passkeys yet."
-
-#. js-lingui-explicit-id
-#: src/pages/ConnectedApps.tsx
-msgid "apps.empty"
-msgstr "You have not approved any applications yet."
 
 #. js-lingui-explicit-id
 #: src/pages/profile/AvatarPanel.tsx

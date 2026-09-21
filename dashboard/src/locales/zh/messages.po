@@ -33,6 +33,11 @@ msgid "security.passkeys.rename.hint"
 msgstr "便于你识别的名字，例如它所在的设备。"
 
 #. js-lingui-explicit-id
+#: src/pages/security/PasskeysPanel.tsx
+msgid "security.passkeys.empty.hint"
+msgstr "通行密钥让你免输密码即可登录。"
+
+#. js-lingui-explicit-id
 #: src/pages/Security.tsx
 msgid "security.tab.tokens"
 msgstr "个人访问令牌"
@@ -929,13 +934,33 @@ msgstr "昵称已保存，输入内容已保留。"
 
 #. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
+msgid "security.tokens.empty"
+msgstr "还没有访问令牌"
+
+#. js-lingui-explicit-id
+#: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.no_apps"
 msgstr "未指定应用"
 
 #. js-lingui-explicit-id
+#: src/pages/ConnectedApps.tsx
+msgid "apps.empty"
+msgstr "还没有已批准的应用"
+
+#. js-lingui-explicit-id
 #: src/pages/security/IdentitiesPanel.tsx
 msgid "security.identities.empty"
-msgstr "尚未绑定其它登录身份。"
+msgstr "还没有绑定其它身份"
+
+#. js-lingui-explicit-id
+#: src/pages/security/SessionsPanel.tsx
+msgid "security.sessions.empty"
+msgstr "没有其它会话"
+
+#. js-lingui-explicit-id
+#: src/pages/security/PasskeysPanel.tsx
+msgid "security.passkeys.empty.title"
+msgstr "还没有通行密钥"
 
 #. js-lingui-explicit-id
 #: src/pages/profile/AvatarPanel.tsx
@@ -1549,11 +1574,6 @@ msgid "theme.label"
 msgstr "主题"
 
 #. js-lingui-explicit-id
-#: src/pages/security/SessionsPanel.tsx
-msgid "security.sessions.empty"
-msgstr "此账号没有其它会话。"
-
-#. js-lingui-explicit-id
 #: src/components/custom/secret-reveal-copy.ts
 msgid "login.codes.once"
 msgstr "这些恢复码仅显示一次。请妥善保存后再继续，旧恢复码已失效。"
@@ -1916,23 +1936,8 @@ msgstr "你已批准过这次配对，另一台设备应该正在完成设置。
 
 #. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
-msgid "security.tokens.empty"
-msgstr "你还没有访问令牌。"
-
-#. js-lingui-explicit-id
-#: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.no_forward_auth"
 msgstr "没有可授权的应用。"
-
-#. js-lingui-explicit-id
-#: src/pages/security/PasskeysPanel.tsx
-msgid "security.passkeys.empty"
-msgstr "你还没有通行密钥。"
-
-#. js-lingui-explicit-id
-#: src/pages/ConnectedApps.tsx
-msgid "apps.empty"
-msgstr "你还没有批准任何应用。"
 
 #. js-lingui-explicit-id
 #: src/pages/profile/AvatarPanel.tsx

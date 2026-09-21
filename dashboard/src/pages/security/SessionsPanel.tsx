@@ -1,12 +1,14 @@
 import { AlertDialog, Button, Chip } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { MonitorSmartphone } from "lucide-react";
 import { useState } from "react";
 import { describeError } from "@/api/errors";
 import type { components } from "@/api/generated/schema";
 import { revokeSessionMutationOptions } from "@/api/mutations";
 import { sessionsQueryOptions } from "@/api/queries";
 import { DataTable, type TableColumn } from "@/components/custom/DataTable";
+import { TableEmptyState } from "@/components/custom/TableEmptyState";
 
 type Session = components["schemas"]["SessionListItem"];
 
@@ -114,9 +116,18 @@ export function SessionsPanel() {
         rowId={(session) => session.id}
         loading={sessions.isPending}
         empty={
-          <Trans id="security.sessions.empty">
-            There are no other sessions on this account.
-          </Trans>
+          <TableEmptyState
+            icon={
+              <MonitorSmartphone
+                size={18}
+                strokeWidth={1.75}
+                aria-hidden="true"
+              />
+            }
+            title={
+              <Trans id="security.sessions.empty">No other sessions</Trans>
+            }
+          />
         }
       />
 

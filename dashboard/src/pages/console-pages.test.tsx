@@ -192,7 +192,7 @@ describe("connected applications", () => {
     mount("/apps", ConnectedApps, () => ({}));
 
     expect(
-      await screen.findByText("You have not approved any applications yet."),
+      await screen.findByText("No approved applications yet"),
     ).toBeInTheDocument();
   });
 

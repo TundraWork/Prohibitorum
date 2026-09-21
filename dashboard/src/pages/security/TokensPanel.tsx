@@ -9,6 +9,7 @@ import {
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Ticket } from "lucide-react";
 import { useState } from "react";
 import { describeError, isCancellation } from "@/api/errors";
 import type { components } from "@/api/generated/schema";
@@ -24,6 +25,7 @@ import { DataTable, type TableColumn } from "@/components/custom/DataTable";
 import { SecretReveal } from "@/components/custom/SecretReveal";
 import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
 import { accessTokenCopy } from "@/components/custom/secret-reveal-copy";
+import { TableEmptyState } from "@/components/custom/TableEmptyState";
 import { applyServerError } from "@/forms/server-errors";
 import { useAppForm } from "@/forms/use-app-form";
 
@@ -184,9 +186,12 @@ export function TokensPanel() {
         rowId={(token) => token.id}
         loading={tokens.isPending}
         empty={
-          <Trans id="security.tokens.empty">
-            You have no access tokens yet.
-          </Trans>
+          <TableEmptyState
+            icon={<Ticket size={18} strokeWidth={1.75} aria-hidden="true" />}
+            title={
+              <Trans id="security.tokens.empty">No access tokens yet</Trans>
+            }
+          />
         }
       />
 

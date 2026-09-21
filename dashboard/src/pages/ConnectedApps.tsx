@@ -8,6 +8,7 @@ import { consentQueryOptions } from "@/api/queries";
 import { DataTable, type TableColumn } from "@/components/custom/DataTable";
 
 import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
+import { TableEmptyState } from "@/components/custom/TableEmptyState";
 
 type ConsentedApp = {
   clientId: string;
@@ -134,9 +135,10 @@ export function ConnectedApps() {
         rowId={(app) => `${app.kind}:${app.clientId}`}
         loading={consent.isPending}
         empty={
-          <Trans id="apps.empty">
-            You have not approved any applications yet.
-          </Trans>
+          <TableEmptyState
+            icon={<AppWindow size={18} strokeWidth={1.75} aria-hidden="true" />}
+            title={<Trans id="apps.empty">No approved applications yet</Trans>}
+          />
         }
       />
 

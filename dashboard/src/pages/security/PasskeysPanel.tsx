@@ -8,6 +8,7 @@ import {
 } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Fingerprint } from "lucide-react";
 import { useState } from "react";
 import { describeError, isCancellation } from "@/api/errors";
 import type { components } from "@/api/generated/schema";
@@ -19,6 +20,7 @@ import {
 import { credentialsQueryOptions } from "@/api/queries";
 import { DataTable, type TableColumn } from "@/components/custom/DataTable";
 import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
+import { TableEmptyState } from "@/components/custom/TableEmptyState";
 
 type Credential = components["schemas"]["CredentialView"];
 
@@ -42,6 +44,18 @@ export function PasskeysPanel() {
   const add = useMutation(addCredentialMutationOptions(queryClient));
   const rename = useMutation(renameCredentialMutationOptions(queryClient));
   const remove = useMutation(deleteCredentialMutationOptions(queryClient));
+
+  // The header action and the empty state both start the same registration.
+  const startAdd = () => {
+    setError(null);
+    add.mutate(undefined, {
+      onError: (failure) => {
+        // A browser-level cancellation is a decision, not a failure:
+        // there is nothing to report and nothing was changed.
+        if (!isCancellation(failure)) setError(failure);
+      },
+    });
+  };
 
   const rows = credentials.data ?? [];
   // The server rejects removing the last passkey; disable it here so the
@@ -150,19 +164,7 @@ export function PasskeysPanel() {
     <>
       <div className="flex flex-col gap-4">
         <div className="flex flex-wrap items-center justify-end gap-4">
-          <Button
-            isPending={add.isPending}
-            onPress={() => {
-              setError(null);
-              add.mutate(undefined, {
-                onError: (failure) => {
-                  // A browser-level cancellation is a decision, not a failure:
-                  // there is nothing to report and nothing was changed.
-                  if (!isCancellation(failure)) setError(failure);
-                },
-              });
-            }}
-          >
+          <Button isPending={add.isPending} onPress={startAdd}>
             <Trans id="security.passkeys.add">Add a passkey</Trans>
           </Button>
         </div>
@@ -192,9 +194,26 @@ export function PasskeysPanel() {
           rowId={(credential) => credential.id}
           loading={credentials.isPending}
           empty={
-            <Trans id="security.passkeys.empty">
-              You have no passkeys yet.
-            </Trans>
+            <TableEmptyState
+              icon={
+                <Fingerprint size={18} strokeWidth={1.75} aria-hidden="true" />
+              }
+              title={
+                <Trans id="security.passkeys.empty.title">
+                  No passkeys yet
+                </Trans>
+              }
+              hint={
+                <Trans id="security.passkeys.empty.hint">
+                  A passkey signs you in without typing a password.
+                </Trans>
+              }
+              action={
+                <Button size="sm" isPending={add.isPending} onPress={startAdd}>
+                  <Trans id="security.passkeys.add">Add a passkey</Trans>
+                </Button>
+              }
+            />
           }
         />
       </div>
