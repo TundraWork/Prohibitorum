@@ -19,7 +19,13 @@ export type MockEffect = (draft: MockConfig) => void;
 export type MockReply =
   | { kind: "json"; status: number; body: unknown; effect?: MockEffect }
   | { kind: "empty"; status: number; effect?: MockEffect }
-  | { kind: "error"; status: number; code: string; effect?: MockEffect };
+  | {
+      kind: "error";
+      status: number;
+      code: string;
+      details?: Record<string, unknown>;
+      effect?: MockEffect;
+    };
 
 export interface MockRequest {
   method: string;
@@ -98,6 +104,22 @@ function empty(status = 204, effect?: MockEffect): MockReply {
 
 function noSession(): MockReply {
   return { kind: "error", status: 401, code: "no_session" };
+}
+
+/**
+ * A request the mock has taken on but has no fixture for.
+ *
+ * It fails rather than reaching the server: a page that mixes fabricated and
+ * real data is harder to trust than one that reports the gap, and the details
+ * name the request that needs a fixture.
+ */
+function unmocked(request: MockRequest): MockReply {
+  return {
+    kind: "error",
+    status: 501,
+    code: "mock_unmocked",
+    details: { method: request.method, path: request.schemaPath },
+  };
 }
 
 /** Reads behind `/me` answer `no_session` while the panel is signed out. */
@@ -444,7 +466,8 @@ function writeReply(
 
     case "/api/prohibitorum/me/sudo/begin":
       // A passkey assertion cannot come from a fabricated challenge, so only
-      // the password-and-code method is answerable here.
+      // the password-and-code method is answerable here; the passkey method
+      // falls through to the unmocked failure.
       return stringField(body, "method") === "password_totp"
         ? empty()
         : undefined;
@@ -460,16 +483,21 @@ function writeReply(
 }
 
 /**
- * The reply for one request, or `undefined` when it is left to the server.
+ * The reply for one request, or `undefined` when the mock is not answering it.
  *
- * Reads follow the master switch; a write is answered only once the caller has
- * also turned on `writes`.
+ * The mock owns a whole verb rather than a list of paths: while reads are
+ * mocked every GET is answered, and once `writes` is on so is every other
+ * method. A path with no fixture fails with `mock_unmocked` instead of
+ * reaching the server, so a mocked console never mixes fabricated answers
+ * with real ones.
  */
 export function buildMockReply(
   request: MockRequest,
   config: MockConfig,
 ): MockReply | undefined {
-  if (request.method === "GET") return readReply(request, config);
+  if (request.method === "GET") {
+    return readReply(request, config) ?? unmocked(request);
+  }
   if (!config.writes) return undefined;
-  return writeReply(request, config);
+  return writeReply(request, config) ?? unmocked(request);
 }

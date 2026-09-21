@@ -23,8 +23,13 @@ function isPublicPath(pathname: string): boolean {
 let installed = false;
 
 /**
- * Answers the app's reads from the mock config, and refreshes everything the
+ * Answers the app's requests from the mock config, and refreshes everything the
  * console already loaded whenever that config changes.
+ *
+ * While the master switch is on the mock owns every read, and the writes
+ * switch extends that to the other methods; a request with no fixture fails
+ * rather than reaching the server, so nothing is answered from two sources at
+ * once. Requests of a verb the mock does not own still go to the server.
  *
  * The query client is handed in rather than imported so the invalidation runs
  * against the very instance the pages render against, and the router follows so
@@ -59,6 +64,7 @@ export function installApiMocks(application: Application): void {
           kind: "http",
           status: reply.status,
           code: reply.code,
+          ...(reply.details ? { details: reply.details } : {}),
         });
       }
       if (reply.kind === "empty") {

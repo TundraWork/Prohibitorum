@@ -146,8 +146,9 @@ export function MockPanel() {
       </div>
       <p className="text-xs opacity-60">
         Reads answer from this panel; with Override writes on, writes answer
-        here too. Passkey ceremonies always reach the server, and mocking is off
-        again after a reload.
+        here too. A request with no fixture fails as <code>mock_unmocked</code>
+        rather than reaching the server, so a passkey step-up cannot be faked.
+        Mocking is off again after a reload.
       </p>
 
       <fieldset

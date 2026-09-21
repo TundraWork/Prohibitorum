@@ -169,8 +169,13 @@ describe("mock replies", () => {
     expect(bodyOf(reply)).toMatchObject({ displayCode: "ABCD2345" });
   });
 
-  it("leaves an endpoint it does not serve to the server", () => {
-    expect(read("/api/prohibitorum/accounts")).toBeUndefined();
+  it("fails an endpoint it has no fixture for instead of reaching the server", () => {
+    expect(read("/api/prohibitorum/accounts")).toEqual({
+      kind: "error",
+      status: 501,
+      code: "mock_unmocked",
+      details: { method: "GET", path: "/api/prohibitorum/accounts" },
+    });
   });
 });
 
@@ -180,6 +185,21 @@ describe("mocked writes", () => {
     expect(
       call("POST", "/api/prohibitorum/auth/logout", writes()),
     ).toMatchObject({ kind: "empty", status: 204 });
+  });
+
+  it("fails a write it has no fixture for once writes are on", () => {
+    const current = writes();
+    for (const [method, path] of [
+      ["POST", "/api/prohibitorum/accounts"],
+      ["DELETE", "/api/prohibitorum/me"],
+    ] as const) {
+      expect(call(method, path, current)).toEqual({
+        kind: "error",
+        status: 501,
+        code: "mock_unmocked",
+        details: { method, path },
+      });
+    }
   });
 
   it("signs the panel out on logout, so the next read is anonymous", () => {
@@ -257,13 +277,18 @@ describe("mocked writes", () => {
     ).toHaveLength(2);
   });
 
-  it("answers a password step-up and leaves the passkey one to the server", () => {
+  it("answers a password step-up and fails the passkey one it cannot fake", () => {
     const current = writes();
     expect(
       call("POST", "/api/prohibitorum/me/sudo/begin", current, {
         method: "webauthn",
       }),
-    ).toBeUndefined();
+    ).toEqual({
+      kind: "error",
+      status: 501,
+      code: "mock_unmocked",
+      details: { method: "POST", path: "/api/prohibitorum/me/sudo/begin" },
+    });
     expect(
       call("POST", "/api/prohibitorum/me/sudo/begin", current, {
         method: "password_totp",
