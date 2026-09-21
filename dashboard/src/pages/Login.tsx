@@ -602,6 +602,7 @@ export function RecoveryPage() {
         <RecoveryCodes
           codes={savedCodes.codes}
           onContinue={() => flow.finish(savedCodes.redirect)}
+          onSurface
         />
       ) : (
         <FactorForm

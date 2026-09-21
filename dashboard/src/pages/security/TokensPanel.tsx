@@ -1,4 +1,5 @@
 import {
+  Alert,
   AlertDialog,
   Button,
   Checkbox,
@@ -25,7 +26,6 @@ import { runWithSudo } from "@/api/sudo";
 import { sudoReason } from "@/api/sudo-reasons";
 import { DataTable, type TableColumn } from "@/components/custom/DataTable";
 import { SecretReveal } from "@/components/custom/SecretReveal";
-import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
 import { accessTokenCopy } from "@/components/custom/secret-reveal-copy";
 import { TableEmptyState } from "@/components/custom/TableEmptyState";
 import { applyServerError } from "@/forms/server-errors";
@@ -181,12 +181,12 @@ export function TokensPanel() {
         </div>
 
         {error !== null && (
-          <SurfaceAlert status="danger" role="alert">
-            <SurfaceAlert.Indicator />
-            <SurfaceAlert.Content>
-              <SurfaceAlert.Title>{t(describeError(error))}</SurfaceAlert.Title>
-            </SurfaceAlert.Content>
-          </SurfaceAlert>
+          <Alert status="danger" role="alert">
+            <Alert.Indicator />
+            <Alert.Content>
+              <Alert.Title>{t(describeError(error))}</Alert.Title>
+            </Alert.Content>
+          </Alert>
         )}
 
         <DataTable

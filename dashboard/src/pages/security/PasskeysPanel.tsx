@@ -1,4 +1,5 @@
 import {
+  Alert,
   AlertDialog,
   Button,
   Description,
@@ -19,7 +20,6 @@ import {
 } from "@/api/mutations";
 import { credentialsQueryOptions } from "@/api/queries";
 import { DataTable, type TableColumn } from "@/components/custom/DataTable";
-import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
 import { TableEmptyState } from "@/components/custom/TableEmptyState";
 
 type Credential = components["schemas"]["CredentialView"];
@@ -179,12 +179,12 @@ export function PasskeysPanel() {
         )}
 
         {error !== null && (
-          <SurfaceAlert status="danger" role="alert">
-            <SurfaceAlert.Indicator />
-            <SurfaceAlert.Content>
-              <SurfaceAlert.Title>{t(describeError(error))}</SurfaceAlert.Title>
-            </SurfaceAlert.Content>
-          </SurfaceAlert>
+          <Alert status="danger" role="alert">
+            <Alert.Indicator />
+            <Alert.Content>
+              <Alert.Title>{t(describeError(error))}</Alert.Title>
+            </Alert.Content>
+          </Alert>
         )}
 
         <DataTable

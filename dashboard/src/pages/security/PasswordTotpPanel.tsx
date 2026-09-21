@@ -1,4 +1,11 @@
-import { AlertDialog, Button, Card, Description, Spinner } from "@heroui/react";
+import {
+  Alert,
+  AlertDialog,
+  Button,
+  Card,
+  Description,
+  Spinner,
+} from "@heroui/react";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -23,7 +30,6 @@ import {
   sessionQueryOptions,
 } from "@/api/queries";
 import { RecoveryCodes } from "@/components/custom/RecoveryCodes";
-import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
 import { TotpSetup } from "@/components/custom/TotpSetup";
 import { applyServerError } from "@/forms/server-errors";
 import { useAppForm } from "@/forms/use-app-form";
@@ -93,14 +99,12 @@ export function PasswordTotpPanel() {
 
   if (!factors.data) {
     return (
-      <SurfaceAlert status="danger" role="alert">
-        <SurfaceAlert.Indicator />
-        <SurfaceAlert.Content>
-          <SurfaceAlert.Title>
-            {t(describeError(factors.error))}
-          </SurfaceAlert.Title>
-        </SurfaceAlert.Content>
-      </SurfaceAlert>
+      <Alert status="danger" role="alert">
+        <Alert.Indicator />
+        <Alert.Content>
+          <Alert.Title>{t(describeError(factors.error))}</Alert.Title>
+        </Alert.Content>
+      </Alert>
     );
   }
 

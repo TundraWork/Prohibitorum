@@ -163,11 +163,13 @@ composition, including unavailable states and narrow-screen behavior.
 Use HeroUI Alert. A single message uses `Alert.Title` inside `Alert.Content`;
 add `Alert.Description` only for supplementary text.
 
-Inside a card, use `SurfaceAlert` from `dashboard/src/components/custom`
+Inside a card or a dialog, use `SurfaceAlert` from `dashboard/src/components/custom`
 instead: the surface shadow is dropped and the alert fills with the status's
 soft tint (`bg-*-soft`; the default status uses `bg-surface-secondary`), so it
 reads as part of the surface rather than a raised block. Page-level notices on
-the background plane keep the library's surface shadow.
+the background plane keep the library's surface shadow. A shared piece that can
+be drawn on either plane, such as `SecretReveal`, takes `onSurface` from the
+caller that knows which one it is.
 
 ## Do's and Don'ts
 

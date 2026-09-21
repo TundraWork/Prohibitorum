@@ -1,4 +1,4 @@
-import { Alert, Button } from "@heroui/react";
+import { Button } from "@heroui/react";
 import type { MessageDescriptor } from "@lingui/core";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useSuspenseQuery } from "@tanstack/react-query";
@@ -68,47 +68,49 @@ export function LoginShell({
   return (
     <div className="mx-auto flex w-full max-w-[30rem] flex-col gap-4">
       {config.maintenanceMode && (
-        <Alert status="warning">
-          <Alert.Indicator />
-          <Alert.Content>
-            <Alert.Title>
+        <SurfaceAlert status="warning">
+          <SurfaceAlert.Indicator />
+          <SurfaceAlert.Content>
+            <SurfaceAlert.Title>
               <Trans id="login.maintenance">
                 The service is undergoing maintenance. Administrators can still
                 try to sign in.
               </Trans>
-            </Alert.Title>
+            </SurfaceAlert.Title>
             {config.maintenanceMessage && (
-              <Alert.Description>{config.maintenanceMessage}</Alert.Description>
+              <SurfaceAlert.Description>
+                {config.maintenanceMessage}
+              </SurfaceAlert.Description>
             )}
-          </Alert.Content>
-        </Alert>
+          </SurfaceAlert.Content>
+        </SurfaceAlert>
       )}
       {linkError ? (
-        <Alert status="danger" role="alert">
-          <Alert.Indicator />
-          <Alert.Content>
-            <Alert.Title>
+        <SurfaceAlert status="danger" role="alert">
+          <SurfaceAlert.Indicator />
+          <SurfaceAlert.Content>
+            <SurfaceAlert.Title>
               <FormMessages errors={[linkError]} />
-            </Alert.Title>
-          </Alert.Content>
-        </Alert>
+            </SurfaceAlert.Title>
+          </SurfaceAlert.Content>
+        </SurfaceAlert>
       ) : !bootstrapped ? (
-        <Alert status="warning">
-          <Alert.Indicator />
-          <Alert.Content>
-            <Alert.Title>
+        <SurfaceAlert status="warning">
+          <SurfaceAlert.Indicator />
+          <SurfaceAlert.Content>
+            <SurfaceAlert.Title>
               <Trans id="login.uninitialized">
                 This instance has not been initialized.
               </Trans>
-            </Alert.Title>
-            <Alert.Description>
+            </SurfaceAlert.Title>
+            <SurfaceAlert.Description>
               <Trans id="login.enroll_instruction">
                 Ask the operator to run <code>prohibitorum enroll-admin</code>{" "}
                 on the server before signing in.
               </Trans>
-            </Alert.Description>
-          </Alert.Content>
-        </Alert>
+            </SurfaceAlert.Description>
+          </SurfaceAlert.Content>
+        </SurfaceAlert>
       ) : (
         <div className="flex flex-col gap-4">
           <div className="flex items-center gap-2">

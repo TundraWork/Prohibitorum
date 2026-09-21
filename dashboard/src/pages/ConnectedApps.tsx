@@ -1,4 +1,4 @@
-import { AlertDialog, Avatar, Button } from "@heroui/react";
+import { Alert, AlertDialog, Avatar, Button } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AppWindow } from "lucide-react";
@@ -6,8 +6,6 @@ import { useState } from "react";
 import { revokeConsentMutationOptions } from "@/api/mutations";
 import { consentQueryOptions } from "@/api/queries";
 import { DataTable, type TableColumn } from "@/components/custom/DataTable";
-
-import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
 import { TableEmptyState } from "@/components/custom/TableEmptyState";
 
 type ConsentedApp = {
@@ -112,17 +110,17 @@ export function ConnectedApps() {
       </p>
 
       {consent.isError && (
-        <SurfaceAlert status="danger" role="alert">
-          <SurfaceAlert.Indicator />
-          <SurfaceAlert.Content>
-            <SurfaceAlert.Title>
+        <Alert status="danger" role="alert">
+          <Alert.Indicator />
+          <Alert.Content>
+            <Alert.Title>
               {t({
                 id: "apps.load_failed",
                 message: "Could not load your connected applications.",
               })}
-            </SurfaceAlert.Title>
-          </SurfaceAlert.Content>
-        </SurfaceAlert>
+            </Alert.Title>
+          </Alert.Content>
+        </Alert>
       )}
 
       <DataTable

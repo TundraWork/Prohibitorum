@@ -1,8 +1,9 @@
-import { Alert, Link, Skeleton } from "@heroui/react";
+import { Link, Skeleton } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { createLink, Outlet } from "@tanstack/react-router";
 import { cva, type VariantProps } from "class-variance-authority";
 import type { ReactNode } from "react";
+import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
 
 const NavigationLink = createLink(Link);
 
@@ -60,17 +61,17 @@ export function PageHeader({
 
 export function RewriteNotice() {
   return (
-    <Alert status="warning">
-      <Alert.Indicator />
-      <Alert.Content>
-        <Alert.Title>
+    <SurfaceAlert status="warning">
+      <SurfaceAlert.Indicator />
+      <SurfaceAlert.Content>
+        <SurfaceAlert.Title>
           <Trans id="preview.notice">
             This is a public component preview. Account management and
             administration pages are not available yet.
           </Trans>
-        </Alert.Title>
-      </Alert.Content>
-    </Alert>
+        </SurfaceAlert.Title>
+      </SurfaceAlert.Content>
+    </SurfaceAlert>
   );
 }
 

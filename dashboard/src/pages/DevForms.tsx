@@ -1,4 +1,4 @@
-import { Alert, Card } from "@heroui/react";
+import { Card } from "@heroui/react";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -196,17 +196,17 @@ export default function DevForms() {
           </Trans>
         }
       />
-      <Alert status="warning">
-        <Alert.Indicator />
-        <Alert.Content>
-          <Alert.Title>
+      <SurfaceAlert status="warning">
+        <SurfaceAlert.Indicator />
+        <SurfaceAlert.Content>
+          <SurfaceAlert.Title>
             <Trans id="dev.forms.warning">
               These controls send real requests. They are development checks,
               not a credential management or sign-in page.
             </Trans>
-          </Alert.Title>
-        </Alert.Content>
-      </Alert>
+          </SurfaceAlert.Title>
+        </SurfaceAlert.Content>
+      </SurfaceAlert>
       <RenameForm />
       <LogoutForm />
     </>

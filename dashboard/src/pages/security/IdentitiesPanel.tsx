@@ -1,4 +1,11 @@
-import { AlertDialog, Avatar, Button, Dropdown, Label } from "@heroui/react";
+import {
+  Alert,
+  AlertDialog,
+  Avatar,
+  Button,
+  Dropdown,
+  Label,
+} from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link2 } from "lucide-react";
@@ -16,7 +23,6 @@ import {
 import { runWithSudo } from "@/api/sudo";
 import { sudoReason } from "@/api/sudo-reasons";
 import { DataTable, type TableColumn } from "@/components/custom/DataTable";
-import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
 import { TableEmptyState } from "@/components/custom/TableEmptyState";
 
 type Identity = components["schemas"]["AccountIdentityView"];
@@ -155,12 +161,12 @@ export function IdentitiesPanel() {
         )}
 
         {error !== null && (
-          <SurfaceAlert status="danger" role="alert">
-            <SurfaceAlert.Indicator />
-            <SurfaceAlert.Content>
-              <SurfaceAlert.Title>{t(describeError(error))}</SurfaceAlert.Title>
-            </SurfaceAlert.Content>
-          </SurfaceAlert>
+          <Alert status="danger" role="alert">
+            <Alert.Indicator />
+            <Alert.Content>
+              <Alert.Title>{t(describeError(error))}</Alert.Title>
+            </Alert.Content>
+          </Alert>
         )}
 
         <DataTable
