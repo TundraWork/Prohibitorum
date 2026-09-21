@@ -8,7 +8,7 @@ import type { ReactNode } from "react";
  */
 export function PageFrame({ children }: { children: ReactNode }) {
   return (
-    <div className="flex lg:min-h-dvh flex-col py-4 lg:py-16">
+    <div className="flex lg:min-h-[var(--app-viewport-height)] flex-col py-4 lg:py-16">
       <div className="m-auto w-full">{children}</div>
     </div>
   );

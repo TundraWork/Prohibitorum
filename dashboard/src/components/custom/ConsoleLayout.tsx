@@ -142,7 +142,9 @@ function ConsoleNavigation({
 }) {
   const { i18n, t } = useLingui();
   return (
-    <div className="flex min-w-0 flex-col">
+    // Shrinks with the rail so the account footer below stays at its foot,
+    // however short the visible area is.
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       <div className="flex flex-1 flex-col overflow-y-auto px-3 pt-2">
         <nav
           aria-label={t({
@@ -288,12 +290,12 @@ function ConsoleShell({
   };
 
   return (
-    <div className="flex min-h-dvh">
+    <div className="flex min-h-[var(--app-viewport-height)]">
       {/* Desktop sidebar wrapper. The rail is pinned here rather than on the
           aside inside: an `overflow-hidden` ancestor is a scroll container, and
           an aside stuck to a box that never scrolls never moves. */}
       <div
-        className={`hidden shrink-0 sticky top-0 h-dvh overflow-hidden transition-[width] duration-200 motion-reduce:transition-none md:block ${
+        className={`hidden shrink-0 sticky top-[var(--app-sticky-offset)] h-[var(--app-viewport-height)] overflow-hidden transition-[width] duration-200 motion-reduce:transition-none md:block ${
           sidebarCollapsed ? "w-0" : "w-60"
         }`}
       >
@@ -317,7 +319,7 @@ function ConsoleShell({
       {/* Body */}
       <div className="flex min-w-0 flex-1 flex-col">
         {/* Header */}
-        <header className="sticky top-0 z-10 flex h-16 items-center gap-4 bg-background px-6">
+        <header className="sticky top-[var(--app-sticky-offset)] z-10 flex h-16 items-center gap-4 bg-background px-6">
           {/* Mobile menu toggle */}
           <div className="md:hidden">
             <Drawer state={drawer}>

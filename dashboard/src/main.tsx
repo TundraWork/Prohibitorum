@@ -19,6 +19,14 @@ if (import.meta.env.DEV) {
   );
 }
 
+// Making room for the open devtools panel is a development aid as well: the
+// panel is a fixed overlay, and the watch narrows the page to what is left.
+if (import.meta.env.DEV) {
+  void import("@/devtools/dock/dock").then(({ installDevtoolsDock }) => {
+    installDevtoolsDock();
+  });
+}
+
 const root = document.getElementById("root");
 if (!root) throw new Error("Missing application root");
 

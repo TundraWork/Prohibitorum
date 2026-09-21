@@ -6,6 +6,24 @@
   --font-inter: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
 }
 
+/*
+ * The space a page may fill. The devtools dock (`src/devtools/dock`) narrows the
+ * viewport by the height of its open panel and adds the matching gutter, so the
+ * panel covers empty space instead of the page. These defaults describe an
+ * undocked page, which is every page in a production build.
+ */
+:root {
+  --app-viewport-height: 100dvh;
+  --app-sticky-offset: 0px;
+  --app-gutter-top: 0px;
+  --app-gutter-bottom: 0px;
+}
+
+body {
+  padding-top: var(--app-gutter-top);
+  padding-bottom: var(--app-gutter-bottom);
+}
+
 :focus:not(:focus-visible) {
   outline: none;
 }
