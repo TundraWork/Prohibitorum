@@ -12,7 +12,7 @@ import {
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Ticket } from "lucide-react";
+import { Ban, Ticket } from "lucide-react";
 import { useState } from "react";
 import { describeError, isCancellation } from "@/api/errors";
 import type { components } from "@/api/generated/schema";
@@ -147,14 +147,16 @@ export function TokensPanel() {
       header: <Trans id="security.column.actions">Actions</Trans>,
       cell: (token) => (
         <Button
+          isIconOnly
           size="sm"
           variant="danger-soft"
+          aria-label={t({ id: "security.tokens.revoke", message: "Revoke" })}
           onPress={() => setTarget(token)}
         >
-          <Trans id="security.tokens.revoke">Revoke</Trans>
+          <Ban size={16} aria-hidden="true" />
         </Button>
       ),
-      align: "end",
+      pinned: true,
     },
   ];
 

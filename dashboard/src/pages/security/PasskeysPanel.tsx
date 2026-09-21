@@ -10,7 +10,7 @@ import {
 } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Fingerprint } from "lucide-react";
+import { Fingerprint, Pencil, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { describeError, isCancellation } from "@/api/errors";
 import type { components } from "@/api/generated/schema";
@@ -136,19 +136,29 @@ export function PasskeysPanel() {
       cell: (credential) => {
         const removeButton = (
           <Button
+            isIconOnly
             size="sm"
             variant="danger-soft"
+            aria-label={t({
+              id: "security.passkeys.delete",
+              message: "Remove",
+            })}
             isDisabled={lastOne}
             onPress={() => setDeleting(credential)}
           >
-            <Trans id="security.passkeys.delete">Remove</Trans>
+            <Trash2 size={16} aria-hidden="true" />
           </Button>
         );
         return (
-          <div className="flex flex-wrap justify-end gap-2">
+          <>
             <Button
+              isIconOnly
               size="sm"
-              variant="secondary"
+              variant="tertiary"
+              aria-label={t({
+                id: "security.passkeys.rename",
+                message: "Rename",
+              })}
               onPress={() =>
                 setRenaming({
                   credential,
@@ -156,7 +166,7 @@ export function PasskeysPanel() {
                 })
               }
             >
-              <Trans id="security.passkeys.rename">Rename</Trans>
+              <Pencil size={16} aria-hidden="true" />
             </Button>
             {/* A disabled button emits no hover or focus, so the tooltip
                 listens on the trigger wrapper instead. */}
@@ -172,10 +182,10 @@ export function PasskeysPanel() {
             ) : (
               removeButton
             )}
-          </div>
+          </>
         );
       },
-      align: "end",
+      pinned: true,
     },
   ];
 

@@ -1,5 +1,9 @@
 import { Skeleton, Table } from "@heroui/react";
 import type { ReactNode } from "react";
+import {
+  TableActionCell,
+  TableActionColumn,
+} from "@/components/custom/TableActionCell";
 
 export interface TableColumn<T> {
   /** Stable column identity, also the React key. */
@@ -8,12 +12,21 @@ export interface TableColumn<T> {
   cell: (row: T) => ReactNode;
   /** Right-aligned cells suit timestamps and other short status values. */
   align?: "start" | "end";
+  /**
+   * Pin the column to the trailing edge of the scrolling table. Meant for a
+   * single trailing action column: its cells stick to the right while the
+   * other columns scroll under them, so the row's controls stay reachable on a
+   * narrow screen. Rendered through `TableActionColumn` / `TableActionCell`.
+   */
+  pinned?: boolean;
 }
 
 /**
  * Thin wrapper over the HeroUI `Table` for the console's account-owned lists:
  * one column definition per table, a shared empty state and a loading skeleton,
  * and horizontal scrolling on narrow screens instead of a second card layout.
+ * A trailing column can be marked `pinned` to stay stuck to the right while the
+ * rest scrolls (see `TableActionCell`).
  *
  * No sorting, paging or virtualisation: every list here is the signed-in
  * account's own handful of rows.
@@ -51,28 +64,40 @@ export function DataTable<T>({
       <Table aria-label={label} className="w-max min-w-full">
         <Table.Content>
           <Table.Header>
-            {columns.map((column) => (
-              <Table.Column
-                key={column.id}
-                id={column.id}
-                isRowHeader={columns[0]?.id === column.id}
-                className={cellClass(column.align)}
-              >
-                {column.header}
-              </Table.Column>
-            ))}
+            {columns.map((column) =>
+              column.pinned ? (
+                <TableActionColumn key={column.id} id={column.id}>
+                  {column.header}
+                </TableActionColumn>
+              ) : (
+                <Table.Column
+                  key={column.id}
+                  id={column.id}
+                  isRowHeader={columns[0]?.id === column.id}
+                  className={cellClass(column.align)}
+                >
+                  {column.header}
+                </Table.Column>
+              ),
+            )}
           </Table.Header>
           <Table.Body renderEmptyState={() => (loading ? <Skeleton /> : empty)}>
             {rows.map((row) => (
               <Table.Row key={rowId(row)} id={rowId(row)}>
-                {columns.map((column) => (
-                  <Table.Cell
-                    key={column.id}
-                    className={cellClass(column.align)}
-                  >
-                    {column.cell(row)}
-                  </Table.Cell>
-                ))}
+                {columns.map((column) =>
+                  column.pinned ? (
+                    <TableActionCell key={column.id}>
+                      {column.cell(row)}
+                    </TableActionCell>
+                  ) : (
+                    <Table.Cell
+                      key={column.id}
+                      className={cellClass(column.align)}
+                    >
+                      {column.cell(row)}
+                    </Table.Cell>
+                  ),
+                )}
               </Table.Row>
             ))}
           </Table.Body>

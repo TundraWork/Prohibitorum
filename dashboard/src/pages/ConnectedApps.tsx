@@ -1,7 +1,7 @@
 import { Alert, AlertDialog, Avatar, Button } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AppWindow } from "lucide-react";
+import { AppWindow, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { revokeConsentMutationOptions } from "@/api/mutations";
 import { consentQueryOptions } from "@/api/queries";
@@ -86,17 +86,19 @@ export function ConnectedApps() {
       header: <Trans id="apps.column.actions">Actions</Trans>,
       cell: (app) => (
         <Button
+          isIconOnly
           size="sm"
           variant="danger-soft"
+          aria-label={t({ id: "apps.remove", message: "Remove access" })}
           onPress={() => {
             setTarget(app);
             setConfirming(true);
           }}
         >
-          <Trans id="apps.remove">Remove access</Trans>
+          <Trash2 size={16} aria-hidden="true" />
         </Button>
       ),
-      align: "end",
+      pinned: true,
     },
   ];
 

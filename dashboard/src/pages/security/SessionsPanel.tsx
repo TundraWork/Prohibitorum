@@ -1,7 +1,7 @@
 import { AlertDialog, Button, Chip, Tooltip } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { MonitorSmartphone } from "lucide-react";
+import { LogOut, MonitorSmartphone } from "lucide-react";
 import { useState } from "react";
 import { describeError } from "@/api/errors";
 import type { components } from "@/api/generated/schema";
@@ -84,12 +84,17 @@ export function SessionsPanel() {
       cell: (session) => {
         const endSession = (
           <Button
+            isIconOnly
             size="sm"
             variant="danger-soft"
+            aria-label={t({
+              id: "security.sessions.sign_out",
+              message: "End session",
+            })}
             isDisabled={session.isCurrent}
             onPress={() => setTarget(session)}
           >
-            <Trans id="security.sessions.sign_out">End session</Trans>
+            <LogOut size={16} aria-hidden="true" />
           </Button>
         );
         // The current session is disabled rather than hidden, and the tooltip
@@ -108,7 +113,7 @@ export function SessionsPanel() {
           endSession
         );
       },
-      align: "end",
+      pinned: true,
     },
   ];
 

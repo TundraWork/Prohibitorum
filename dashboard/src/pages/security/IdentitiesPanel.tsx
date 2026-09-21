@@ -8,7 +8,7 @@ import {
 } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link2 } from "lucide-react";
+import { Link2, Unlink } from "lucide-react";
 import { useState } from "react";
 import { describeError, isCancellation } from "@/api/errors";
 import type { components } from "@/api/generated/schema";
@@ -104,14 +104,19 @@ export function IdentitiesPanel() {
       header: <Trans id="security.column.actions">Actions</Trans>,
       cell: (identity) => (
         <Button
+          isIconOnly
           size="sm"
           variant="danger-soft"
+          aria-label={t({
+            id: "security.identities.unlink",
+            message: "Unlink",
+          })}
           onPress={() => setTarget(identity)}
         >
-          <Trans id="security.identities.unlink">Unlink</Trans>
+          <Unlink size={16} aria-hidden="true" />
         </Button>
       ),
-      align: "end",
+      pinned: true,
     },
   ];
 

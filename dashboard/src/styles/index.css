@@ -27,3 +27,24 @@ body {
 :focus:not(:focus-visible) {
   outline: none;
 }
+
+/*
+ * A pinned action cell (`TableActionCell`) is opaque so the columns scrolling
+ * underneath it never show through. HeroUI tints a hovered row's cells with the
+ * translucent `bg-surface/40`; on the pinned cell that would both read as no
+ * change and let the scrolled content bleed, so paint the same result over the
+ * row's own backdrop as a solid mix. Layered with the library's so it wins the
+ * cascade at equal specificity.
+ */
+@layer components {
+  @media (hover: hover) {
+    .table__row:hover .table__cell.table-action-cell,
+    .table__row[data-hovered="true"] .table__cell.table-action-cell {
+      background-color: color-mix(
+        in oklab,
+        var(--surface) 40%,
+        var(--surface-secondary)
+      );
+    }
+  }
+}
