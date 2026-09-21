@@ -1,4 +1,3 @@
-import { Button } from "@heroui/react";
 import type { MessageDescriptor } from "@lingui/core";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useSuspenseQuery } from "@tanstack/react-query";
@@ -12,6 +11,7 @@ import {
   authStatusQueryOptions,
   publicConfigQueryOptions,
 } from "@/api/queries";
+import { Button } from "@/components/custom/Button";
 import { FormMessages } from "@/components/custom/FormMessages";
 import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
 

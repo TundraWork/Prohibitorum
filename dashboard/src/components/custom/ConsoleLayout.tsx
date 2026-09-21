@@ -1,10 +1,4 @@
-import {
-  Avatar,
-  Button,
-  Drawer,
-  Spinner,
-  useOverlayState,
-} from "@heroui/react";
+import { Avatar, Drawer, useOverlayState } from "@heroui/react";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import {
@@ -33,6 +27,7 @@ import type { components } from "@/api/generated/schema";
 import { logoutMutationOptions } from "@/api/mutations";
 import { clearSessionQueries, sessionQueryOptions } from "@/api/queries";
 import { instanceIconUrl, instanceName } from "@/components/custom/AppLayout";
+import { Button } from "@/components/custom/Button";
 import { LanguageMenu } from "@/components/custom/LanguageMenu";
 import { SudoDialog } from "@/components/custom/SudoDialog";
 import { ThemeSelect } from "@/components/custom/ThemeSelect";
@@ -235,15 +230,7 @@ function ConsoleAccount({
         onPress={onLogout}
         aria-label={t({ id: "console.logout", message: "Sign out" })}
       >
-        {pending ? (
-          <Spinner size="sm" className="shrink-0" />
-        ) : (
-          <LogOut
-            size={16}
-            className="shrink-0 text-muted"
-            aria-hidden="true"
-          />
-        )}
+        <LogOut size={16} className="shrink-0 text-muted" aria-hidden="true" />
       </Button>
     </div>
   );

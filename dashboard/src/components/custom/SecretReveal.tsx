@@ -1,16 +1,15 @@
 import {
   Alert,
-  Button,
   Checkbox,
   Label,
   Modal,
-  Spinner,
   TextArea,
   TextField,
 } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useBlocker } from "@tanstack/react-router";
 import { useRef, useState } from "react";
+import { Button } from "@/components/custom/Button";
 import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
 import type { SecretRevealCopy } from "@/components/custom/secret-reveal-copy";
 
@@ -171,7 +170,6 @@ export function SecretReveal({
         });
       }}
     >
-      {pending && <Spinner size="sm" color="current" />}
       {t(copy.continueLabel)}
     </Button>
   );

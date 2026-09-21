@@ -1,16 +1,15 @@
 import {
-  Button,
   Card,
   Description,
   Input,
   Label,
-  Spinner,
   Tabs,
   TextField,
 } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useState } from "react";
 import { notificationQueue } from "@/components/custom/AppNotifications";
+import { Button } from "@/components/custom/Button";
 import {
   PageHeader,
   PageSkeleton,
@@ -110,14 +109,7 @@ export function Preview() {
             <Card.Content className="flex flex-col gap-4">
               <div className="flex flex-wrap gap-3">
                 <Button isPending>
-                  {({ isPending }) => (
-                    <>
-                      {isPending && <Spinner size="sm" color="current" />}
-                      <Trans id="feedback.submitting">
-                        Submitting (example)
-                      </Trans>
-                    </>
-                  )}
+                  <Trans id="feedback.submitting">Submitting (example)</Trans>
                 </Button>
               </div>
               <SurfaceAlert status="danger">

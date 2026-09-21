@@ -1,7 +1,6 @@
 import {
   Alert,
   AlertDialog,
-  Button,
   Description,
   Disclosure,
   DisclosureGroup,
@@ -32,6 +31,7 @@ import {
   publicConfigQueryOptions,
   sessionQueryOptions,
 } from "@/api/queries";
+import { Button } from "@/components/custom/Button";
 import { RecoveryCodes } from "@/components/custom/RecoveryCodes";
 import { recoveryCodesCopy } from "@/components/custom/secret-reveal-copy";
 import { TotpSetup } from "@/components/custom/TotpSetup";

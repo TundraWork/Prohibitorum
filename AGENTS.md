@@ -57,6 +57,13 @@
   title into the caller's `Modal.Header` and its continue control into
   `Modal.Footer`, where HeroUI keeps dialog actions. `DESIGN.md` holds the same
   rule under Components.
+- Buttons in the app come from `Button` in
+  `dashboard/src/components/custom/Button.tsx`. It wraps HeroUI's `Button` and
+  draws the spinner itself while `isPending` is set: a button with text keeps
+  that text beside the spinner, and an icon-only button shows the spinner in
+  place of its icon. Mark work in flight with `isPending` and do not put a
+  `Spinner` inside a button. Forms keep using `form.SubmitButton`, which builds
+  on the same wrapper.
 - Write custom layout and styling as Tailwind classes directly in JSX.
   Reuse styles through React components in `dashboard/src/components/custom`,
   using `class-variance-authority` for shared variants.

@@ -1,10 +1,11 @@
-import { Button, Card, Spinner } from "@heroui/react";
+import { Card } from "@heroui/react";
 import { Trans } from "@lingui/react/macro";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import {
   authStatusQueryOptions,
   publicConfigQueryOptions,
 } from "@/api/queries";
+import { Button } from "@/components/custom/Button";
 import { PageHeader, RewriteNotice } from "@/components/custom/PreviewLayout";
 import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
 
@@ -91,16 +92,13 @@ export function ApiPreview() {
               void Promise.all([config.refetch(), status.refetch()]);
             }}
           >
-            {({ isPending }) => (
-              <>
-                {isPending && <Spinner size="sm" color="current" />}
-                {isPending ? (
-                  <Trans id="api.refreshing">Refreshing…</Trans>
-                ) : (
-                  <Trans id="api.refresh">Refresh data</Trans>
-                )}
-              </>
-            )}
+            {({ isPending }) =>
+              isPending ? (
+                <Trans id="api.refreshing">Refreshing…</Trans>
+              ) : (
+                <Trans id="api.refresh">Refresh data</Trans>
+              )
+            }
           </Button>
           <p className="text-sm text-muted">
             <Trans id="api.public-note">

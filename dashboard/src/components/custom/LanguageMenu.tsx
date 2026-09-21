@@ -1,7 +1,8 @@
-import { Button, Dropdown, Label } from "@heroui/react";
+import { Dropdown, Label } from "@heroui/react";
 import { useLingui } from "@lingui/react/macro";
 import { useAtom } from "jotai";
 import { Languages } from "lucide-react";
+import { Button } from "@/components/custom/Button";
 import { localeAtom, resolveLocale } from "@/i18n";
 
 export function LanguageMenu() {

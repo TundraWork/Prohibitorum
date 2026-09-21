@@ -1,8 +1,4 @@
-import {
-  Button,
-  Description,
-  REGEXP_ONLY_DIGITS_AND_CHARS,
-} from "@heroui/react";
+import { Description, REGEXP_ONLY_DIGITS_AND_CHARS } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -13,6 +9,7 @@ import {
   deviceLookupQueryOptions,
 } from "@/api/mutations";
 
+import { Button } from "@/components/custom/Button";
 import { ConsoleCard } from "@/components/custom/ConsoleCard";
 import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
 import { useAppForm } from "@/forms/use-app-form";

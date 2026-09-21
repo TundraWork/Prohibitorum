@@ -1,18 +1,11 @@
-import {
-  Avatar,
-  Button,
-  Description,
-  Label,
-  Radio,
-  RadioGroup,
-  Spinner,
-} from "@heroui/react";
+import { Avatar, Description, Label, Radio, RadioGroup } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Upload, UserRound } from "lucide-react";
 import { useRef, useState } from "react";
 import { client } from "@/api/client";
 import { describeError } from "@/api/errors";
+import { Button } from "@/components/custom/Button";
 import { ConsoleCard } from "@/components/custom/ConsoleCard";
 import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
 
@@ -175,17 +168,18 @@ export function AvatarPanel({ current }: { current: Session }) {
             <Button
               variant="secondary"
               isDisabled={busy}
+              isPending={pending}
               onPress={() => input.current?.click()}
             >
-              {pending ? (
-                <Spinner size="sm" color="current" />
-              ) : (
-                <Upload size={16} aria-hidden="true" />
-              )}
-              {hasUpload ? (
-                <Trans id="profile.avatar.replace">Replace upload</Trans>
-              ) : (
-                <Trans id="profile.avatar.upload">Upload a picture</Trans>
+              {({ isPending }) => (
+                <>
+                  {!isPending && <Upload size={16} aria-hidden="true" />}
+                  {hasUpload ? (
+                    <Trans id="profile.avatar.replace">Replace upload</Trans>
+                  ) : (
+                    <Trans id="profile.avatar.upload">Upload a picture</Trans>
+                  )}
+                </>
               )}
             </Button>
             {hasUpload && (

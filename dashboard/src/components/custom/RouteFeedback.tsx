@@ -1,7 +1,8 @@
-import { Button, Card, Link, Spinner } from "@heroui/react";
+import { Card, Link, Spinner } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { createLink, useRouter } from "@tanstack/react-router";
 import { describeError } from "@/api/errors";
+import { Button } from "@/components/custom/Button";
 import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
 
 const RouterLink = createLink(Link);

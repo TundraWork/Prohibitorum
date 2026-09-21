@@ -1,10 +1,11 @@
-import { Alert, AlertDialog, Avatar, Button } from "@heroui/react";
+import { Alert, AlertDialog, Avatar } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AppWindow, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { revokeConsentMutationOptions } from "@/api/mutations";
 import { consentQueryOptions } from "@/api/queries";
+import { Button } from "@/components/custom/Button";
 import { DataTable, type TableColumn } from "@/components/custom/DataTable";
 import { TableEmptyState } from "@/components/custom/TableEmptyState";
 

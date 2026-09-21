@@ -1,11 +1,4 @@
-import {
-  Alert,
-  AlertDialog,
-  Avatar,
-  Button,
-  Dropdown,
-  Label,
-} from "@heroui/react";
+import { Alert, AlertDialog, Avatar, Dropdown, Label } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link2, Unlink } from "lucide-react";
@@ -22,6 +15,7 @@ import {
 } from "@/api/queries";
 import { runWithSudo } from "@/api/sudo";
 import { sudoReason } from "@/api/sudo-reasons";
+import { Button } from "@/components/custom/Button";
 import { DataTable, type TableColumn } from "@/components/custom/DataTable";
 import { TableEmptyState } from "@/components/custom/TableEmptyState";
 

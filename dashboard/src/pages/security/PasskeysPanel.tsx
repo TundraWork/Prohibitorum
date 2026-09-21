@@ -1,7 +1,6 @@
 import {
   Alert,
   AlertDialog,
-  Button,
   Description,
   Input,
   Label,
@@ -20,6 +19,7 @@ import {
   renameCredentialMutationOptions,
 } from "@/api/mutations";
 import { credentialsQueryOptions } from "@/api/queries";
+import { Button } from "@/components/custom/Button";
 import { DataTable, type TableColumn } from "@/components/custom/DataTable";
 import { TableEmptyState } from "@/components/custom/TableEmptyState";
 

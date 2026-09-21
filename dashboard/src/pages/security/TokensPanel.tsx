@@ -1,7 +1,6 @@
 import {
   Alert,
   AlertDialog,
-  Button,
   Checkbox,
   Description,
   Label,
@@ -24,6 +23,7 @@ import {
 import { forwardAuthAppsQueryOptions, tokensQueryOptions } from "@/api/queries";
 import { runWithSudo } from "@/api/sudo";
 import { sudoReason } from "@/api/sudo-reasons";
+import { Button } from "@/components/custom/Button";
 import { DataTable, type TableColumn } from "@/components/custom/DataTable";
 import { SecretReveal } from "@/components/custom/SecretReveal";
 import { accessTokenCopy } from "@/components/custom/secret-reveal-copy";

@@ -1,4 +1,4 @@
-import { Button, Checkbox, Spinner } from "@heroui/react";
+import { Checkbox } from "@heroui/react";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { browserSupportsWebAuthn } from "@simplewebauthn/browser";
@@ -29,6 +29,7 @@ import type {
 } from "@/api/raw-paths";
 import { followRedirect } from "@/app/redirect";
 import { withRouterSkipLoading } from "@/app/router";
+import { Button } from "@/components/custom/Button";
 import type { LoginFailure } from "@/components/custom/LoginShell";
 import { LoginShell, useLoginContext } from "@/components/custom/LoginShell";
 import { OtpField } from "@/components/custom/OtpField";
@@ -497,7 +498,6 @@ export function PasswordPage() {
           })();
         }}
       >
-        {passkey.isPending && <Spinner size="sm" color="current" />}
         <Trans id="login.passkey">Sign in with a passkey</Trans>
       </Button>
       {!supported && (

@@ -1,4 +1,4 @@
-import { AlertDialog, Button, Chip, Tooltip } from "@heroui/react";
+import { AlertDialog, Chip, Tooltip } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { LogOut, MonitorSmartphone } from "lucide-react";
@@ -7,6 +7,7 @@ import { describeError } from "@/api/errors";
 import type { components } from "@/api/generated/schema";
 import { revokeSessionMutationOptions } from "@/api/mutations";
 import { sessionsQueryOptions } from "@/api/queries";
+import { Button } from "@/components/custom/Button";
 import { DataTable, type TableColumn } from "@/components/custom/DataTable";
 import { TableEmptyState } from "@/components/custom/TableEmptyState";
 

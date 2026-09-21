@@ -1,5 +1,4 @@
 import {
-  Button,
   Label,
   Modal,
   Radio,
@@ -27,6 +26,7 @@ import {
   sudoFreshAtom,
   sudoMethodsQueryOptions,
 } from "@/api/sudo";
+import { Button } from "@/components/custom/Button";
 import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
 import { applyServerError } from "@/forms/server-errors";
 import { useAppForm } from "@/forms/use-app-form";
