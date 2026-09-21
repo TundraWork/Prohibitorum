@@ -3,7 +3,6 @@ import { ReactQueryDevtoolsPanel } from "@tanstack/react-query-devtools";
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
 import { application } from "@/app/application";
 import { MockPanel } from "@/devtools/mock/MockPanel";
-import { ProhibitorumPanel } from "@/devtools/ProhibitorumPanel";
 
 /**
  * The one mount point for the devtools shell.
@@ -26,7 +25,6 @@ export function Devtools() {
           name: "TanStack Router",
           render: <TanStackRouterDevtoolsPanel router={application.router} />,
         },
-        { name: "Prohibitorum", render: <ProhibitorumPanel /> },
         { name: "API mock", render: <MockPanel /> },
       ]}
     />

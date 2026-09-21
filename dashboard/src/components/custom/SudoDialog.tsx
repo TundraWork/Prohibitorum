@@ -28,7 +28,6 @@ import {
   sudoMethodsQueryOptions,
 } from "@/api/sudo";
 import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
-import { prohibitorumDevtools } from "@/devtools/events";
 import { applyServerError } from "@/forms/server-errors";
 import { useAppForm } from "@/forms/use-app-form";
 
@@ -74,15 +73,13 @@ export function SudoDialog() {
   function dismiss() {
     const pending = request;
     setDialog(null);
-    prohibitorumDevtools.emit("sudo-cancelled", undefined);
     pending?.reject(new SudoCancelled());
   }
 
-  function verified(method: SudoMethod, result: unknown) {
+  function verified(result: unknown) {
     const pending = request;
     setFresh(true);
     setDialog(null);
-    prohibitorumDevtools.emit("sudo-granted", { method });
     pending?.resolve(result);
   }
 
@@ -116,7 +113,7 @@ function SudoStep({
 }: {
   request: SudoRequest;
   onDismiss: () => void;
-  onVerified: (method: SudoMethod, result: unknown) => void;
+  onVerified: (result: unknown) => void;
 }) {
   const { t } = useLingui();
   const methods = useQuery(sudoMethodsQueryOptions());
@@ -135,18 +132,12 @@ function SudoStep({
     try {
       await completeSudoWithPasskey();
       settled.current = true;
-      onVerified("webauthn", await request.perform());
+      onVerified(await request.perform());
     } catch (error) {
       // The operation itself can fail here too, and it is the more useful
       // message: the caller's own error mapping never ran.
-      if (settled.current) {
-        setFailure(error);
-      } else {
-        setFailure(error);
-        prohibitorumDevtools.emit("sudo-refused", {
-          method: "webauthn",
-          reason: describeError(error).id,
-        });
+      setFailure(error);
+      if (!settled.current) {
         // A second begin is required after an expired ceremony, so the method
         // list is re-read rather than the old options being reused.
         void methods.refetch();
@@ -160,23 +151,16 @@ function SudoStep({
     defaultValues: { password: "", totp_code: "" },
     onSubmit: async ({ value }) => {
       if (settled.current) return;
-      let verified = false;
       try {
         await completeSudoWithPasswordTotp({
           current_password: value.password,
           totp_code: value.totp_code,
         });
         settled.current = true;
-        verified = true;
-        onVerified("password_totp", await request.perform());
+        onVerified(await request.perform());
       } catch (error) {
+        // A retry after a failure re-runs the operation, not just the form.
         settled.current = false;
-        if (!verified) {
-          prohibitorumDevtools.emit("sudo-refused", {
-            method: "password_totp",
-            reason: describeError(error).id,
-          });
-        }
         applyServerError(form, error, noFields);
         throw error;
       }
