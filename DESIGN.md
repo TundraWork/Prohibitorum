@@ -169,7 +169,10 @@ soft tint (`bg-*-soft`; the default status uses `bg-surface-secondary`), so it
 reads as part of the surface rather than a raised block. Page-level notices on
 the background plane keep the library's surface shadow. A shared piece that can
 be drawn on either plane, such as `SecretReveal`, takes `onSurface` from the
-caller that knows which one it is.
+caller that knows which one it is. In a dialog, `SecretReveal` also takes
+`inDialog`: the dialog heading draws the title, and the reveal draws the body and
+puts its continue control in `Modal.Footer`, which is where HeroUI keeps dialog
+actions.
 
 ## Do's and Don'ts
 

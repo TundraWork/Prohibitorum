@@ -47,6 +47,16 @@
   use `Alert` for notices such as the frontend-rebuild banner.
 - For an Alert with a single message, use `Alert.Title` alone inside
   `Alert.Content`. Add `Alert.Description` only for supplementary text.
+- A Card or a Dialog is a surface. Fields and notices drawn directly on one take
+  the surface treatment — `SurfaceAlert` for notices, `variant="secondary"` for
+  `Input` and `TextArea` — because the library's own field and alert styling
+  carries a background and a shadow that read as a raised block on top of the
+  surface. `SecretReveal` and `TotpSetup` expose this as `onSurface`, which is
+  passed from a Card and left off on the page background; `SecretReveal` also
+  takes `inDialog`, which brings the surface treatment with it and moves its
+  title into the caller's `Modal.Header` and its continue control into
+  `Modal.Footer`, where HeroUI keeps dialog actions. `DESIGN.md` holds the same
+  rule under Components.
 - Write custom layout and styling as Tailwind classes directly in JSX.
   Reuse styles through React components in `dashboard/src/components/custom`,
   using `class-variance-authority` for shared variants.

@@ -3,6 +3,7 @@ import {
   Button,
   Checkbox,
   Label,
+  Modal,
   Spinner,
   TextArea,
   TextField,
@@ -19,12 +20,15 @@ import type { SecretRevealCopy } from "@/components/custom/secret-reveal-copy";
  * and the filename; the leaving guard, copy and download behaviour is shared so
  * both secrets warn about the same irreversible loss.
  *
- * `onSurface` follows where the caller draws it: the console shows the reveal
- * on the page background, while the sign-in reset shows it inside the card.
+ * `onSurface` follows where the caller draws it. On a surface — a Card or a
+ * Dialog — the alert and the code field drop their own background and shadow,
+ * because the surface already carries that plane: the sign-in reset inside a
+ * card passes it, while the enrollment reveal on the page background does not.
  *
- * `heading` does the same for the title. A dialog draws the title in its own
- * header, so the reveal leaves it out there and the header stays the only
- * heading the dialog has.
+ * `inDialog` is for the Dialog plane, which is a surface as well. It brings the
+ * surface treatment with it and hands the dialog its two other sections: the
+ * title goes in `Modal.Header`, which the caller draws, and the continue
+ * control becomes `Modal.Footer` so it stays put under a long code list.
  */
 export function SecretReveal({
   text,
@@ -32,16 +36,17 @@ export function SecretReveal({
   copy,
   onContinue,
   onSurface = false,
-  heading = true,
+  inDialog = false,
 }: {
   text: string;
   filename: string;
   copy: SecretRevealCopy;
   onContinue: () => Promise<void>;
   onSurface?: boolean;
-  heading?: boolean;
+  inDialog?: boolean;
 }) {
-  const Notice = onSurface ? SurfaceAlert : Alert;
+  const surface = onSurface || inDialog;
+  const Notice = surface ? SurfaceAlert : Alert;
   const { t } = useLingui();
   const [saved, setSaved] = useState(false);
   const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">(
@@ -90,9 +95,9 @@ export function SecretReveal({
     }
   }
 
-  return (
-    <div className="flex flex-col gap-4">
-      {heading && <h2 className="text-xl font-semibold">{t(copy.title)}</h2>}
+  const body = (
+    <>
+      {!inDialog && <h2 className="text-xl font-semibold">{t(copy.title)}</h2>}
       <Notice status="warning">
         <Notice.Indicator />
         <Notice.Content>
@@ -103,6 +108,7 @@ export function SecretReveal({
         <Label>{t(copy.label)}</Label>
         <TextArea
           rows={rows}
+          variant={surface ? "secondary" : "primary"}
           autoComplete="off"
           spellCheck={false}
           className="font-mono"
@@ -149,22 +155,40 @@ export function SecretReveal({
           {t(copy.saved)}
         </Checkbox.Content>
       </Checkbox>
-      <Button
-        isDisabled={!saved}
-        isPending={pending}
-        onPress={() => {
-          if (!saved || continuing.current) return;
-          continuing.current = true;
-          setPending(true);
-          void onContinue().catch(() => {
-            continuing.current = false;
-            setPending(false);
-          });
-        }}
-      >
-        {pending && <Spinner size="sm" color="current" />}
-        {t(copy.continueLabel)}
-      </Button>
+    </>
+  );
+  const action = (
+    <Button
+      isDisabled={!saved}
+      isPending={pending}
+      onPress={() => {
+        if (!saved || continuing.current) return;
+        continuing.current = true;
+        setPending(true);
+        void onContinue().catch(() => {
+          continuing.current = false;
+          setPending(false);
+        });
+      }}
+    >
+      {pending && <Spinner size="sm" color="current" />}
+      {t(copy.continueLabel)}
+    </Button>
+  );
+
+  if (inDialog) {
+    return (
+      <>
+        <Modal.Body className="flex flex-col gap-4">{body}</Modal.Body>
+        <Modal.Footer>{action}</Modal.Footer>
+      </>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      {body}
+      {action}
     </div>
   );
 }

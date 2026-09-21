@@ -253,13 +253,9 @@ function RecoveryCodesDialog({
             <Modal.Header>
               <Modal.Heading>{t(recoveryCodesCopy.title)}</Modal.Heading>
             </Modal.Header>
-            <Modal.Body>
-              <RecoveryCodes
-                codes={codes}
-                onContinue={onContinue}
-                heading={false}
-              />
-            </Modal.Body>
+            {/* The reveal draws the body and the footer, so its controls stay
+                under the codes however long the list is. */}
+            <RecoveryCodes codes={codes} onContinue={onContinue} inDialog />
           </Modal.Dialog>
         </Modal.Container>
       </Modal.Backdrop>

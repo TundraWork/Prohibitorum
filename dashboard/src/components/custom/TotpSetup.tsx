@@ -8,8 +8,10 @@ import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
  * The locally generated authenticator secret, its otpauth URI, and the QR code
  * that carries them.
  *
- * `onSurface` follows where the caller draws it: the console shows the setup on
- * the page background, while the sign-in reset shows it inside the card.
+ * `onSurface` follows where the caller draws it. On a surface — a Card or a
+ * Dialog — the alert and the setup key drop their own background and shadow,
+ * because the surface already carries that plane: the sign-in reset inside a
+ * card passes it, while the console draws the setup on the page background.
  */
 export function TotpSetup({
   secret,

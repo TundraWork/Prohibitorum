@@ -5,12 +5,12 @@ export function RecoveryCodes({
   codes,
   onContinue,
   onSurface,
-  heading,
+  inDialog,
 }: {
   codes: string[];
   onContinue: () => Promise<void>;
   onSurface?: boolean;
-  heading?: boolean;
+  inDialog?: boolean;
 }) {
   return (
     <SecretReveal
@@ -19,7 +19,7 @@ export function RecoveryCodes({
       copy={recoveryCodesCopy}
       onContinue={onContinue}
       onSurface={onSurface}
-      heading={heading}
+      inDialog={inDialog}
     />
   );
 }
