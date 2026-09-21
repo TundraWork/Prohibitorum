@@ -10,6 +10,7 @@ import {
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAtomValue, useSetAtom, useStore } from "jotai";
+import { ShieldCheck } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { describeError, isCancellation } from "@/api/errors";
 import {
@@ -169,153 +170,175 @@ function SudoStep({
 
   const message = methods.isPending ? null : describeError(methods.error);
 
-  return (
-    <>
-      <Modal.Header>
-        <Modal.Heading>
-          <Trans id="sudo.title">Confirm it is you</Trans>
-        </Modal.Heading>
-      </Modal.Header>
-      <Modal.Body>
-        <div className="flex flex-col gap-4">
-          <p className="text-sm text-muted">
-            {request.reason ? (
-              t(request.reason)
-            ) : (
-              <Trans id="sudo.intro">
-                For your security, verify your identity again to continue.
+  // A passkey is verified straight from the footer, so only the password path
+  // needs the fields wrapped in a form element.
+  const usesForm = available.length > 0 && selected !== "webauthn";
+
+  const cancel = (
+    <Button variant="secondary" onPress={onDismiss} isDisabled={busy}>
+      <Trans id="sudo.cancel">Cancel</Trans>
+    </Button>
+  );
+
+  const content = (
+    <div className="flex flex-col gap-4">
+      <p className="text-sm text-muted">
+        {request.reason ? (
+          t(request.reason)
+        ) : (
+          <Trans id="sudo.intro">
+            For your security, verify your identity again to continue.
+          </Trans>
+        )}
+      </p>
+
+      {methods.isPending && <Skeleton className="h-24 rounded-lg" />}
+
+      {methods.isError && message && (
+        <SurfaceAlert status="danger" role="alert">
+          <SurfaceAlert.Indicator />
+          <SurfaceAlert.Content>
+            <SurfaceAlert.Title>{t(message)}</SurfaceAlert.Title>
+          </SurfaceAlert.Content>
+        </SurfaceAlert>
+      )}
+
+      {methods.isSuccess && available.length === 0 && (
+        <SurfaceAlert status="warning">
+          <SurfaceAlert.Indicator />
+          <SurfaceAlert.Content>
+            <SurfaceAlert.Title>
+              <Trans id="sudo.no-methods">
+                This account has no way to confirm your identity from here. Set
+                up a passkey, or a password and authenticator, before trying
+                again.
               </Trans>
-            )}
-          </p>
+            </SurfaceAlert.Title>
+          </SurfaceAlert.Content>
+        </SurfaceAlert>
+      )}
 
-          {methods.isPending && <Skeleton className="h-24 rounded-lg" />}
+      {available.length > 0 && (
+        <>
+          {available.length > 1 && (
+            <RadioGroup
+              aria-label={t({
+                id: "sudo.methods",
+                message: "Verification method",
+              })}
+              value={selected}
+              onChange={(value) => setChoice(value as SudoMethod)}
+              isDisabled={busy}
+            >
+              <Label>
+                <Trans id="sudo.method.label">Method</Trans>
+              </Label>
+              {available.map((method) => (
+                <Radio key={method} value={method}>
+                  <Radio.Content>
+                    <Radio.Control>
+                      <Radio.Indicator />
+                    </Radio.Control>
+                    {method === "webauthn" ? (
+                      <Trans id="sudo.method.passkey">Use a passkey</Trans>
+                    ) : (
+                      <Trans id="sudo.method.password">
+                        Use your password and authenticator
+                      </Trans>
+                    )}
+                  </Radio.Content>
+                </Radio>
+              ))}
+            </RadioGroup>
+          )}
 
-          {methods.isError && message && (
+          {failure !== null && !isCancellation(failure) && (
             <SurfaceAlert status="danger" role="alert">
               <SurfaceAlert.Indicator />
               <SurfaceAlert.Content>
-                <SurfaceAlert.Title>{t(message)}</SurfaceAlert.Title>
-              </SurfaceAlert.Content>
-            </SurfaceAlert>
-          )}
-
-          {methods.isSuccess && available.length === 0 && (
-            <SurfaceAlert status="warning">
-              <SurfaceAlert.Indicator />
-              <SurfaceAlert.Content>
                 <SurfaceAlert.Title>
-                  <Trans id="sudo.no-methods">
-                    This account has no way to confirm your identity from here.
-                    Set up a passkey, or a password and authenticator, before
-                    trying again.
-                  </Trans>
+                  {t(describeError(failure))}
                 </SurfaceAlert.Title>
               </SurfaceAlert.Content>
             </SurfaceAlert>
           )}
 
-          {available.length > 0 && (
+          {usesForm && (
             <>
-              {available.length > 1 && (
-                <RadioGroup
-                  aria-label={t({
-                    id: "sudo.methods",
-                    message: "Verification method",
-                  })}
-                  value={selected}
-                  onChange={(value) => setChoice(value as SudoMethod)}
-                  isDisabled={busy}
-                >
-                  <Label>
-                    <Trans id="sudo.method.label">Method</Trans>
-                  </Label>
-                  {available.map((method) => (
-                    <Radio key={method} value={method}>
-                      <Radio.Content>
-                        <Radio.Control>
-                          <Radio.Indicator />
-                        </Radio.Control>
-                        {method === "webauthn" ? (
-                          <Trans id="sudo.method.passkey">Use a passkey</Trans>
-                        ) : (
-                          <Trans id="sudo.method.password">
-                            Use your password and authenticator
-                          </Trans>
-                        )}
-                      </Radio.Content>
-                    </Radio>
-                  ))}
-                </RadioGroup>
-              )}
-
-              {failure !== null && !isCancellation(failure) && (
-                <SurfaceAlert status="danger" role="alert">
-                  <SurfaceAlert.Indicator />
-                  <SurfaceAlert.Content>
-                    <SurfaceAlert.Title>
-                      {t(describeError(failure))}
-                    </SurfaceAlert.Title>
-                  </SurfaceAlert.Content>
-                </SurfaceAlert>
-              )}
-
-              {selected === "webauthn" ? (
-                <Button
-                  isPending={busy}
-                  isDisabled={busy}
-                  onPress={() => {
-                    void passkey();
-                  }}
-                >
-                  <Trans id="sudo.use-passkey">Verify with a passkey</Trans>
-                </Button>
-              ) : (
-                <form.AppForm>
-                  <form.Form
-                    label={t({
-                      id: "sudo.form.label",
-                      message: "Identity verification",
-                    })}
-                  >
-                    <form.FormError />
-                    <form.AppField name="password">
-                      {(field) => (
-                        <field.FormField
-                          label={
-                            <Trans id="sudo.password">Current password</Trans>
-                          }
-                          type="password"
-                          autoComplete="current-password"
-                          variant="secondary"
-                        />
-                      )}
-                    </form.AppField>
-                    <form.AppField name="totp_code">
-                      {(field) => (
-                        <field.OtpField
-                          label={
-                            <Trans id="sudo.code">Authenticator code</Trans>
-                          }
-                          digits={6}
-                          variant="secondary"
-                        />
-                      )}
-                    </form.AppField>
-                    <form.SubmitButton>
-                      <Trans id="sudo.submit">Verify and continue</Trans>
-                    </form.SubmitButton>
-                  </form.Form>
-                </form.AppForm>
-              )}
+              <form.FormError />
+              <form.AppField name="password">
+                {(field) => (
+                  <field.FormField
+                    label={<Trans id="sudo.password">Current password</Trans>}
+                    type="password"
+                    autoComplete="current-password"
+                    variant="secondary"
+                  />
+                )}
+              </form.AppField>
+              <form.AppField name="totp_code">
+                {(field) => (
+                  <field.OtpField
+                    label={<Trans id="sudo.code">Authenticator code</Trans>}
+                    digits={6}
+                    variant="secondary"
+                  />
+                )}
+              </form.AppField>
             </>
           )}
-        </div>
-      </Modal.Body>
-      <Modal.Footer>
-        <Button variant="secondary" onPress={onDismiss} isDisabled={busy}>
-          <Trans id="sudo.cancel">Cancel</Trans>
-        </Button>
-      </Modal.Footer>
+        </>
+      )}
+    </div>
+  );
+
+  return (
+    <>
+      <Modal.Header>
+        <Modal.Icon className="bg-default text-foreground">
+          <ShieldCheck size={20} strokeWidth={1.75} aria-hidden="true" />
+        </Modal.Icon>
+        <Modal.Heading>
+          <Trans id="sudo.title">Confirm it is you</Trans>
+        </Modal.Heading>
+      </Modal.Header>
+      {usesForm ? (
+        <form.AppForm>
+          <form.Form
+            className="flex min-h-0 flex-1 flex-col"
+            label={t({
+              id: "sudo.form.label",
+              message: "Identity verification",
+            })}
+          >
+            <Modal.Body>{content}</Modal.Body>
+            <Modal.Footer>
+              {cancel}
+              <form.SubmitButton>
+                <Trans id="sudo.submit">Verify and continue</Trans>
+              </form.SubmitButton>
+            </Modal.Footer>
+          </form.Form>
+        </form.AppForm>
+      ) : (
+        <>
+          <Modal.Body>{content}</Modal.Body>
+          <Modal.Footer>
+            {cancel}
+            {available.length > 0 && (
+              <Button
+                isPending={busy}
+                isDisabled={busy}
+                onPress={() => {
+                  void passkey();
+                }}
+              >
+                <Trans id="sudo.use-passkey">Verify with a passkey</Trans>
+              </Button>
+            )}
+          </Modal.Footer>
+        </>
+      )}
     </>
   );
 }
