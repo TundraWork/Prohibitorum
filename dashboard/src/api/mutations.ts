@@ -16,8 +16,24 @@ import {
 } from "@/api/auth";
 import { client, requireJsonData } from "@/api/client";
 import { ApiError } from "@/api/errors";
-import type { paths } from "@/api/generated/schema";
+import type { components, paths } from "@/api/generated/schema";
 import { clearSessionQueries } from "@/api/queries";
+import type {
+  AppGroupView,
+  ClearDecisionRequest,
+  CreateGroupRequest,
+  CreateInvitationRequest,
+  DeleteAccountCredentialRequest,
+  ManualDecisionView,
+  RevokeAccountSessionRequest,
+  RevokeAccountSessionsResult,
+  RevokeAccountTokenRequest,
+  RulePreviewPageView,
+  RulePreviewRequest,
+  SetAccountDisabledRequest,
+  UpdateGroupRequest,
+  UpsertDecisionRequest,
+} from "@/api/raw-admin-paths";
 import type {
   CreatedPersonalAccessToken,
   DevicePairing,
@@ -31,6 +47,8 @@ import type {
 } from "@/api/raw-paths";
 import { runWithSudo, sudoMethodsQueryOptions, sudoQueryKey } from "@/api/sudo";
 import { sudoReason } from "@/api/sudo-reasons";
+
+type AccountView = components["schemas"]["AccountView"];
 
 export type RenameCredentialInput =
   paths["/api/prohibitorum/me/credentials/rename"]["post"]["requestBody"]["content"]["application/json"];
@@ -482,5 +500,362 @@ export function cancelDeviceMutationOptions(queryClient: QueryClient) {
       queryClient.invalidateQueries({
         queryKey: ["session", "device-pairing", code],
       }),
+  });
+}
+
+/* ------------------------------------------------------------ admin -- */
+
+/**
+ * Management mutations. Each guarded write wraps *its own* call in
+ * `runWithSudo` rather than pushing the ceremony up to the caller, so a page
+ * calls `mutate` and gets the step-up prompt as part of the mutation itself.
+ *
+ * Every one of them invalidates by the `["admin", ...]` prefix rather than a
+ * fully-qualified key, because the account list's key carries its filters: a
+ * rename has to reach every filtered variant of that list, not just the one the
+ * admin happens to be looking at.
+ */
+
+/** Invalidates one account's detail plus every filtered view of the list. */
+function invalidateAccount(queryClient: QueryClient, id: number) {
+  return Promise.all([
+    queryClient.invalidateQueries({ queryKey: ["admin", "accounts", id] }),
+    queryClient.invalidateQueries({ queryKey: ["admin", "accounts"] }),
+  ]);
+}
+
+export type UpdateAccountInput =
+  paths["/api/prohibitorum/accounts/{id}"]["put"]["requestBody"]["content"]["application/json"];
+
+/** Replaces the whole account record: an omitted `attributes` clears them. */
+export function updateAccountMutationOptions(queryClient: QueryClient) {
+  return mutationOptions({
+    retry: false,
+    mutationFn: async ({
+      id,
+      body,
+    }: {
+      id: number;
+      body: UpdateAccountInput;
+    }): Promise<AccountView> =>
+      runWithSudo(
+        () =>
+          requireJsonData(
+            client.PUT("/api/prohibitorum/accounts/{id}", {
+              params: { path: { id } },
+              body,
+            }),
+          ),
+        sudoReason.updateAccount,
+      ),
+    onSuccess: (_account, { id }) => invalidateAccount(queryClient, id),
+  });
+}
+
+/**
+ * Flips only the disabled flag, independent of the profile form. The backend
+ * refuses to disable an admin until they have been demoted, which surfaces as
+ * an error rather than being prevented here.
+ */
+export function setAccountDisabledMutationOptions(queryClient: QueryClient) {
+  return mutationOptions({
+    retry: false,
+    mutationFn: async (body: SetAccountDisabledRequest): Promise<AccountView> =>
+      runWithSudo(
+        () =>
+          requireJsonData(
+            client.POST("/api/prohibitorum/accounts/set-disabled", { body }),
+          ),
+        sudoReason.setAccountDisabled,
+      ),
+    onSuccess: (_account, { id }) => invalidateAccount(queryClient, id),
+  });
+}
+
+export function deleteAccountMutationOptions(queryClient: QueryClient) {
+  return mutationOptions({
+    retry: false,
+    mutationFn: async (id: number) => {
+      await runWithSudo(
+        () =>
+          client.POST("/api/prohibitorum/accounts/delete", { body: { id } }),
+        sudoReason.deleteAccount,
+      );
+    },
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["admin", "accounts"] }),
+  });
+}
+
+/** Reveal-once: the returned URL is shown through `SecretReveal`. */
+export function reissueEnrollmentMutationOptions() {
+  return mutationOptions({
+    retry: false,
+    mutationFn: async (id: number) =>
+      runWithSudo(
+        () =>
+          requireJsonData(
+            client.POST("/api/prohibitorum/accounts/reissue-enrollment", {
+              body: { id },
+            }),
+          ),
+        sudoReason.reissueEnrollment,
+      ),
+  });
+}
+
+export function deleteAccountCredentialMutationOptions(
+  queryClient: QueryClient,
+) {
+  return mutationOptions({
+    retry: false,
+    mutationFn: async (body: DeleteAccountCredentialRequest) => {
+      await runWithSudo(
+        () =>
+          client.POST("/api/prohibitorum/accounts/credentials/delete", {
+            body,
+          }),
+        sudoReason.revokeAccountCredential,
+      );
+    },
+    onSuccess: (_result, { accountId }) =>
+      queryClient.invalidateQueries({
+        queryKey: ["admin", "accounts", accountId, "credentials"],
+      }),
+  });
+}
+
+export function revokeAccountTokenMutationOptions(queryClient: QueryClient) {
+  return mutationOptions({
+    retry: false,
+    mutationFn: async ({
+      accountId,
+      ...body
+    }: { accountId: number } & RevokeAccountTokenRequest) => {
+      await runWithSudo(
+        () => client.POST("/api/prohibitorum/accounts/tokens/revoke", { body }),
+        sudoReason.revokeAccountToken,
+      );
+    },
+    onSuccess: (_result, { accountId }) =>
+      queryClient.invalidateQueries({
+        queryKey: ["admin", "accounts", accountId, "tokens"],
+      }),
+  });
+}
+
+/** Ending one session is reversible housekeeping, so it is not sudo-guarded. */
+export function revokeAccountSessionMutationOptions(queryClient: QueryClient) {
+  return mutationOptions({
+    retry: false,
+    mutationFn: async ({
+      accountId,
+      ...body
+    }: { accountId: number } & RevokeAccountSessionRequest) => {
+      await client.POST("/api/prohibitorum/accounts/{id}/sessions/revoke", {
+        params: { path: { id: accountId } },
+        body,
+      });
+    },
+    onSuccess: (_result, { accountId }) =>
+      queryClient.invalidateQueries({
+        queryKey: ["admin", "accounts", accountId, "sessions"],
+      }),
+  });
+}
+
+export function revokeAccountSessionsMutationOptions(queryClient: QueryClient) {
+  return mutationOptions({
+    retry: false,
+    mutationFn: async (id: number): Promise<RevokeAccountSessionsResult> =>
+      runWithSudo(
+        () =>
+          requireJsonData(
+            client.POST("/api/prohibitorum/accounts/revoke-sessions", {
+              body: { id },
+            }),
+          ),
+        sudoReason.revokeAccountSessions,
+      ),
+    onSuccess: (_result, id) =>
+      queryClient.invalidateQueries({
+        queryKey: ["admin", "accounts", id, "sessions"],
+      }),
+  });
+}
+
+/* ------------------------------------------------------------ groups -- */
+
+function invalidateGroup(queryClient: QueryClient, groupId: number) {
+  return Promise.all([
+    queryClient.invalidateQueries({ queryKey: ["admin", "groups"] }),
+    queryClient.invalidateQueries({ queryKey: ["admin", "groups", groupId] }),
+  ]);
+}
+
+export function createGroupMutationOptions(queryClient: QueryClient) {
+  return mutationOptions({
+    retry: false,
+    mutationFn: async (body: CreateGroupRequest): Promise<AppGroupView> =>
+      runWithSudo(
+        () =>
+          requireJsonData(client.POST("/api/prohibitorum/groups", { body })),
+        sudoReason.createGroup,
+      ),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["admin", "groups"] }),
+  });
+}
+
+export function updateGroupMutationOptions(queryClient: QueryClient) {
+  return mutationOptions({
+    retry: false,
+    mutationFn: async ({
+      groupId,
+      body,
+    }: {
+      groupId: number;
+      body: UpdateGroupRequest;
+    }): Promise<AppGroupView> =>
+      runWithSudo(
+        () =>
+          requireJsonData(
+            client.PUT("/api/prohibitorum/groups/{groupId}", {
+              params: { path: { groupId } },
+              body,
+            }),
+          ),
+        sudoReason.updateGroup,
+      ),
+    onSuccess: (_group, { groupId }) => invalidateGroup(queryClient, groupId),
+  });
+}
+
+/**
+ * The backend refuses to delete a group an application still selects, so the
+ * caller disables the control while `applicationCount` is non-zero and lets
+ * `group_in_use` cover the race.
+ */
+export function deleteGroupMutationOptions(queryClient: QueryClient) {
+  return mutationOptions({
+    retry: false,
+    mutationFn: async (groupId: number) => {
+      await runWithSudo(
+        () =>
+          client.POST("/api/prohibitorum/groups/{groupId}/delete", {
+            params: { path: { groupId } },
+          }),
+        sudoReason.deleteGroup,
+      );
+    },
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["admin", "groups"] }),
+  });
+}
+
+export function upsertDecisionMutationOptions(queryClient: QueryClient) {
+  return mutationOptions({
+    retry: false,
+    mutationFn: async ({
+      groupId,
+      body,
+    }: {
+      groupId: number;
+      body: UpsertDecisionRequest;
+    }): Promise<ManualDecisionView> =>
+      runWithSudo(
+        () =>
+          requireJsonData(
+            client.POST("/api/prohibitorum/groups/{groupId}/decisions", {
+              params: { path: { groupId } },
+              body,
+            }),
+          ),
+        sudoReason.groupDecision,
+      ),
+    onSuccess: (_decision, { groupId }) =>
+      queryClient.invalidateQueries({
+        queryKey: ["admin", "groups", groupId, "decisions"],
+      }),
+  });
+}
+
+export function clearDecisionMutationOptions(queryClient: QueryClient) {
+  return mutationOptions({
+    retry: false,
+    mutationFn: async ({
+      groupId,
+      body,
+    }: {
+      groupId: number;
+      body: ClearDecisionRequest;
+    }) => {
+      await runWithSudo(
+        () =>
+          client.POST("/api/prohibitorum/groups/{groupId}/decisions/clear", {
+            params: { path: { groupId } },
+            body,
+          }),
+        sudoReason.groupDecision,
+      );
+    },
+    onSuccess: (_result, { groupId }) =>
+      queryClient.invalidateQueries({
+        queryKey: ["admin", "groups", groupId, "decisions"],
+      }),
+  });
+}
+
+/**
+ * Validates an unsaved draft and pages the accounts it matches. A read in every
+ * respect but the verb, so it is not sudo-guarded.
+ */
+export function rulePreviewMutationOptions() {
+  return mutationOptions({
+    retry: false,
+    mutationFn: async (
+      body: RulePreviewRequest,
+    ): Promise<RulePreviewPageView> =>
+      requireJsonData(
+        client.POST("/api/prohibitorum/groups/rule-preview", { body }),
+      ),
+  });
+}
+
+/* ------------------------------------------------------- invitations -- */
+
+export function createInvitationMutationOptions(queryClient: QueryClient) {
+  return mutationOptions({
+    retry: false,
+    mutationFn: async (
+      body: CreateInvitationRequest,
+    ): Promise<components["schemas"]["InvitationResponse"]> =>
+      runWithSudo(
+        () =>
+          requireJsonData(
+            client.POST("/api/prohibitorum/invitations", { body }),
+          ),
+        sudoReason.createInvitation,
+      ),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["admin", "invitations"] }),
+  });
+}
+
+/** Answers 200 with an empty body, unlike the 204s elsewhere in this group. */
+export function revokeInvitationMutationOptions(queryClient: QueryClient) {
+  return mutationOptions({
+    retry: false,
+    mutationFn: async (token: string) => {
+      await runWithSudo(
+        () =>
+          client.POST("/api/prohibitorum/invitations/revoke", {
+            body: { token },
+          }),
+        sudoReason.revokeInvitation,
+      );
+    },
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["admin", "invitations"] }),
   });
 }

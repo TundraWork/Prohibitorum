@@ -234,6 +234,70 @@ const errorMessages: Readonly<Record<string, MessageDescriptor>> = {
     id: "error.server_error",
     message: "The server could not complete the request. Please try again.",
   }),
+
+  /* Management. These arrive on writes the console's admin pages make, and each
+     one has an action the reader can take, so none of them may fall through to
+     the generic failure above. */
+  last_admin: msg({
+    id: "error.last_admin",
+    message:
+      "This is the only administrator. Make another account an administrator first.",
+  }),
+  admin_cannot_be_disabled: msg({
+    id: "error.admin_cannot_be_disabled",
+    message:
+      "An administrator cannot be disabled. Change the role to user first.",
+  }),
+  cannot_delete_self: msg({
+    id: "error.cannot_delete_self",
+    message: "You cannot delete your own account. Ask another administrator.",
+  }),
+  invalid_role: msg({
+    id: "error.invalid_role",
+    message: "That role is not one this instance accepts.",
+  }),
+  username_immutable: msg({
+    id: "error.username_immutable",
+    message: "A username cannot be changed once the account exists.",
+  }),
+  invalid_username: msg({
+    id: "error.invalid_username",
+    message: "That username is not in a format this instance accepts.",
+  }),
+  username_taken: msg({
+    id: "error.username_taken",
+    message: "That username is already taken.",
+  }),
+  account_not_found: msg({
+    id: "error.account_not_found",
+    message: "That account no longer exists. The list has been refreshed.",
+  }),
+  invitation_not_found: msg({
+    id: "error.invitation_not_found",
+    message: "That invitation has already been revoked or used.",
+  }),
+  invitation_groups_unavailable: msg({
+    id: "error.invitation_groups_unavailable",
+    message: "One of the chosen user groups no longer exists. Choose again.",
+  }),
+  upstream_idp_not_found: msg({
+    id: "error.upstream_idp_not_found",
+    message:
+      "That provider is not available. It may have been deleted or disabled.",
+  }),
+  group_not_found: msg({
+    id: "error.group_not_found",
+    message: "That user group no longer exists. The list has been refreshed.",
+  }),
+  group_in_use: msg({
+    id: "error.group_in_use",
+    message:
+      "One or more applications still use this user group. Remove it from them before deleting it.",
+  }),
+  invalid_group_rule: msg({
+    id: "error.invalid_group_rule",
+    message: "The server did not accept this rule. Check it and try again.",
+  }),
 };
 
 export type ErrorDescription = MessageDescriptor & { requestId?: string };

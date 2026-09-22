@@ -1,9 +1,26 @@
 import createClient from "openapi-fetch";
 import { ApiError, isCancellation, isPublicError } from "@/api/errors";
 import type { paths } from "@/api/generated/schema";
+import type { RawAdminPaths } from "@/api/raw-admin-paths";
 import type { RawPaths } from "@/api/raw-paths";
 
-export const client = createClient<paths & RawPaths>({
+/**
+ * The generated schema and the hand-written paths disagree about a few
+ * operations — Huma registers `/invitations` without `pageInput`, so the schema
+ * says "no query" where the handler pages by cursor. Intersecting both
+ * declarations of one key collapses it to `never`, so the generated side is
+ * dropped for the keys the hand-written file takes over.
+ */
+type OmitPaths<T, K extends PropertyKey> = Omit<T, Extract<keyof T, K>>;
+
+type AdminPaths = RawPaths &
+  RawAdminPaths &
+  OmitPaths<
+    paths,
+    "/api/prohibitorum/invitations" | "/api/prohibitorum/invitations/revoke"
+  >;
+
+export const client = createClient<AdminPaths>({
   baseUrl: window.location.origin,
   credentials: "same-origin",
   fetch: (request) => globalThis.fetch(request),

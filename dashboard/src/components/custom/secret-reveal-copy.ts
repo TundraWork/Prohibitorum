@@ -56,6 +56,51 @@ export const recoveryCodesCopy: SecretRevealCopy = {
   }),
 };
 
+export const invitationLinkCopy: SecretRevealCopy = {
+  title: msg({
+    id: "admin.invitations.reveal.title",
+    message: "Copy the registration link",
+  }),
+  once: msg({
+    id: "admin.invitations.reveal.once",
+    message:
+      "This link is shown only once and it signs the holder in as the invited account. Send it to the person yourself, and only over a channel you trust.",
+  }),
+  label: msg({
+    id: "admin.invitations.reveal.label",
+    message: "Registration link",
+  }),
+  copy: msg({
+    id: "admin.invitations.reveal.copy",
+    message: "Copy link",
+  }),
+  download: msg({
+    id: "admin.invitations.reveal.download",
+    message: "Download link",
+  }),
+  copyFailed: msg({
+    id: "admin.invitations.reveal.copy_failed",
+    message:
+      "Could not copy the link. Select it above and copy it manually, or download it.",
+  }),
+  downloadFailed: msg({
+    id: "admin.invitations.reveal.download_failed",
+    message: "Could not download the link. Copy it or save it manually.",
+  }),
+  saved: msg({
+    id: "admin.invitations.reveal.saved",
+    message: "I have saved the registration link",
+  }),
+  continueLabel: msg({
+    id: "admin.invitations.reveal.continue",
+    message: "Done",
+  }),
+  leave: msg({
+    id: "admin.invitations.reveal.leave",
+    message: "Leave without saving? This link cannot be shown again.",
+  }),
+};
+
 export const accessTokenCopy: SecretRevealCopy = {
   title: msg({
     id: "security.tokens.reveal.title",

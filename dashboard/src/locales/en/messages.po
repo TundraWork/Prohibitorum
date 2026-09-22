@@ -13,6 +13,16 @@ msgstr ""
 "Plural-Forms: \n"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminInvitations.tsx
+msgid "admin.invitations.groups.missing"
+msgstr "(some groups no longer exist)"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.rule.matched"
+msgstr "One account matches this rule."
+
+#. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.expiry.365"
 msgstr "1 year"
@@ -28,9 +38,74 @@ msgid "security.tokens.expiry.90"
 msgstr "90 days"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.disabled.hint"
+msgstr "A disabled account cannot sign in. An admin has to be made a user before they can be disabled."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.rule.problem.too_many_children"
+msgstr "A group can hold at most 32 conditions."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.rule.reason.max_children_exceeded"
+msgstr "A group can hold at most 32 conditions."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroups.tsx
+msgid "admin.groups.note"
+msgstr "A group either keeps the members you add by hand, or works its members out from a rule."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.rule.reason.empty_children"
+msgstr "A group needs at least one condition."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.kind.fixed"
+msgstr "A group's kind is set when it is created and cannot be changed afterwards."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.attributes.hint"
+msgstr "A JSON object stored with the account. Saving sends whatever is in this box, so anything removed here is removed from the account."
+
+#. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
 msgid "security.passkeys.rename.hint"
 msgstr "A name you will recognise, such as the device it lives on."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.rule.reason.not_requires_fact"
+msgstr "A negated row must hold one condition, not another group."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.rule.json.nodocument"
+msgstr "A rule document needs a version and a condition. The form view still holds your rule."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.kind.note"
+msgstr "A rule group keeps itself up to date as accounts change. A manual group holds the accounts you allow or deny by hand."
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.username_immutable"
+msgstr "A username cannot be changed once the account exists."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.tab.access"
+msgstr "Access"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.access.title"
+msgstr "Access"
 
 #. js-lingui-explicit-id
 #: src/pages/Security.tsx
@@ -43,6 +118,41 @@ msgid "security.tokens.table"
 msgstr "Access tokens"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.tokens.title"
+msgstr "Access tokens"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.tokens.table"
+msgstr "Access tokens"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.title"
+msgstr "Account"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.tabs"
+msgstr "Account"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.profile.form"
+msgstr "Account profile"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminInvitationForm.tsx
+msgid "admin.invitations.new.username"
+msgstr "Account username"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminInvitations.tsx
+msgid "admin.invitations.column.username"
+msgstr "Account username"
+
+#. js-lingui-explicit-id
 #: src/pages/ConnectedApps.tsx
 msgid "apps.column.actions"
 msgstr "Actions"
@@ -53,6 +163,18 @@ msgstr "Actions"
 #: src/pages/security/SessionsPanel.tsx
 #: src/pages/security/TokensPanel.tsx
 msgid "security.column.actions"
+msgstr "Actions"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroups.tsx
+#: src/pages/admin/AdminInvitations.tsx
+#: src/pages/admin/AdminUsers.tsx
+msgid "admin.column.actions"
+msgstr "Actions"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.column.actions"
 msgstr "Actions"
 
 #. js-lingui-explicit-id
@@ -71,9 +193,29 @@ msgid "security.sessions.table"
 msgstr "Active sessions"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.sessions.title"
+msgstr "Active sessions"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.sessions.table"
+msgstr "Active sessions"
+
+#. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
 msgid "security.passkeys.add"
 msgstr "Add a passkey"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.rule.add"
+msgstr "Add condition"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.rule.addGroup"
+msgstr "Add group"
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
@@ -81,9 +223,45 @@ msgid "security.passkeys.column.created"
 msgstr "Added"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.passkeys.column.created"
+msgstr "Added"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminInvitationForm.tsx
+#: src/pages/admin/AdminInvitations.tsx
+msgid "admin.invitations.role.admin"
+msgstr "Admin"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.role.admin"
+msgstr "Admin"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUsers.tsx
+msgid "admin.users.role.admin"
+msgstr "Admin"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminHome.tsx
+msgid "admin.home.title"
+msgstr "Administration"
+
+#. js-lingui-explicit-id
+#: src/components/custom/ConsoleLayout.tsx
+msgid "console.administration"
+msgstr "Administration"
+
+#. js-lingui-explicit-id
 #: src/components/custom/TotpSetup.tsx
 msgid "login.reset.warning"
 msgstr "After a successful reset, your old authenticator and all old recovery codes will stop working."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.rule.group.all"
+msgstr "All of these"
 
 #. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
@@ -91,14 +269,54 @@ msgid "security.tokens.column.scopes"
 msgstr "Allowed"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.rule.hint"
+msgstr "An account joins this group while the rule matches it. Rules are checked whenever access is asked for, so the group stays current."
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.admin_cannot_be_disabled"
+msgstr "An administrator cannot be disabled. Change the role to user first."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.rule.group.any"
+msgstr "Any of these"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUsers.tsx
+msgid "admin.users.filter.provider"
+msgstr "Any provider"
+
+#. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.revoke.body"
+msgstr "Anything using this token stops working immediately. This cannot be undone."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.tokens.revoke.body"
 msgstr "Anything using this token stops working immediately. This cannot be undone."
 
 #. js-lingui-explicit-id
 #: src/pages/ConnectedApps.tsx
 msgid "apps.column.name"
 msgstr "Application"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroups.tsx
+msgid "admin.groups.column.applications"
+msgstr "Applications"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.exposed.hint"
+msgstr "Applications can select this group for the access they grant."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.oidcSubject.hint"
+msgstr "Applications identify this account by this value. It never changes."
 
 #. js-lingui-explicit-id
 #: src/pages/ConnectedApps.tsx
@@ -119,6 +337,16 @@ msgstr "Approving lets this device continue, but it is not signed in yet: it sti
 #: src/components/custom/LoginShell.tsx
 msgid "login.enroll_instruction"
 msgstr "Ask the operator to run <0>prohibitorum enroll-admin</0> on the server before signing in."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.attributes"
+msgstr "Attributes"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.attributes.not_object"
+msgstr "Attributes must be a JSON object, such as {}."
 
 #. js-lingui-explicit-id
 #: src/pages/Login.tsx
@@ -175,6 +403,22 @@ msgid "security.cancel"
 msgstr "Cancel"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.cancel"
+msgstr "Cancel"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminInvitationForm.tsx
+#: src/pages/admin/AdminInvitations.tsx
+msgid "admin.cancel"
+msgstr "Cancel"
+
+#. js-lingui-explicit-id
+#: src/components/custom/DangerZone.tsx
+msgid "admin.danger.cancel"
+msgstr "Cancel"
+
+#. js-lingui-explicit-id
 #: src/components/custom/SudoDialog.tsx
 msgid "sudo.cancel"
 msgstr "Cancel"
@@ -205,9 +449,44 @@ msgid "devices.confirm.title"
 msgstr "Check this is the device you started"
 
 #. js-lingui-explicit-id
+#: src/components/custom/FormFields.tsx
+msgid "forms.field.invalid"
+msgstr "Check this value."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUsers.tsx
+msgid "admin.users.filter.field"
+msgstr "Choose a field"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUsers.tsx
+msgid "admin.users.filter.match"
+msgstr "Choose a match"
+
+#. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
 msgid "security.setup.password"
 msgstr "Choose a password"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.rule.provider.placeholder"
+msgstr "Choose a provider"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.rule.problem.provider_required"
+msgstr "Choose a provider for every provider condition."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.rule.reason.missing_provider"
+msgstr "Choose a provider for this condition."
+
+#. js-lingui-explicit-id
+#: src/components/custom/EntityPicker.tsx
+msgid "admin.picker.invalid"
+msgstr "Choose a valid option."
 
 #. js-lingui-explicit-id
 #: src/pages/profile/AvatarPanel.tsx
@@ -223,6 +502,16 @@ msgstr "Choose an image smaller than 5 MiB."
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.apps.required"
 msgstr "Choose at least one application, or allow every application."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminInvitationForm.tsx
+msgid "admin.invitations.new.groups.invalid"
+msgstr "Choose the groups again — one of them is not a valid group."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUsers.tsx
+msgid "admin.users.filter.clear"
+msgstr "Clear the filter"
 
 #. js-lingui-explicit-id
 #: src/components/custom/ConsoleLayout.tsx
@@ -255,6 +544,26 @@ msgid "navigation.components"
 msgstr "Components"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.rule.fact"
+msgstr "Condition"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.rule.view.form"
+msgstr "Conditions"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.rule.problem.too_deep"
+msgstr "Conditions are nested too deeply. Use at most 8 levels."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.rule.reason.max_depth_exceeded"
+msgstr "Conditions are nested too deeply. Use at most 8 levels."
+
+#. js-lingui-explicit-id
 #: src/components/custom/SudoDialog.tsx
 msgid "sudo.title"
 msgstr "Confirm it is you"
@@ -271,6 +580,26 @@ msgstr "Confirm it is you to approve this device."
 
 #. js-lingui-explicit-id
 #: src/api/sudo-reasons.ts
+msgid "sudo.reason.update-account"
+msgstr "Confirm it is you to change this account."
+
+#. js-lingui-explicit-id
+#: src/api/sudo-reasons.ts
+msgid "sudo.reason.update-group"
+msgstr "Confirm it is you to change this group."
+
+#. js-lingui-explicit-id
+#: src/api/sudo-reasons.ts
+msgid "sudo.reason.set-account-disabled"
+msgstr "Confirm it is you to change whether this account can sign in."
+
+#. js-lingui-explicit-id
+#: src/api/sudo-reasons.ts
+msgid "sudo.reason.group-decision"
+msgstr "Confirm it is you to change who this group allows."
+
+#. js-lingui-explicit-id
+#: src/api/sudo-reasons.ts
 msgid "sudo.reason.change-password"
 msgstr "Confirm it is you to change your password."
 
@@ -278,6 +607,31 @@ msgstr "Confirm it is you to change your password."
 #: src/api/sudo-reasons.ts
 msgid "sudo.reason.create-token"
 msgstr "Confirm it is you to create this access token."
+
+#. js-lingui-explicit-id
+#: src/api/sudo-reasons.ts
+msgid "sudo.reason.create-group"
+msgstr "Confirm it is you to create this group."
+
+#. js-lingui-explicit-id
+#: src/api/sudo-reasons.ts
+msgid "sudo.reason.create-invitation"
+msgstr "Confirm it is you to create this invitation."
+
+#. js-lingui-explicit-id
+#: src/api/sudo-reasons.ts
+msgid "sudo.reason.delete-account"
+msgstr "Confirm it is you to delete this account. This cannot be undone."
+
+#. js-lingui-explicit-id
+#: src/api/sudo-reasons.ts
+msgid "sudo.reason.delete-group"
+msgstr "Confirm it is you to delete this group. This cannot be undone."
+
+#. js-lingui-explicit-id
+#: src/api/sudo-reasons.ts
+msgid "sudo.reason.reissue-enrollment"
+msgstr "Confirm it is you to issue a new registration link."
 
 #. js-lingui-explicit-id
 #: src/api/sudo-reasons.ts
@@ -296,8 +650,28 @@ msgstr "Confirm it is you to replace your recovery codes."
 
 #. js-lingui-explicit-id
 #: src/api/sudo-reasons.ts
+msgid "sudo.reason.revoke-account-token"
+msgstr "Confirm it is you to revoke this access token."
+
+#. js-lingui-explicit-id
+#: src/api/sudo-reasons.ts
+msgid "sudo.reason.revoke-invitation"
+msgstr "Confirm it is you to revoke this invitation."
+
+#. js-lingui-explicit-id
+#: src/api/sudo-reasons.ts
+msgid "sudo.reason.revoke-account-credential"
+msgstr "Confirm it is you to revoke this passkey."
+
+#. js-lingui-explicit-id
+#: src/api/sudo-reasons.ts
 msgid "sudo.reason.set-password-totp"
 msgstr "Confirm it is you to set up a password and authenticator on this account."
+
+#. js-lingui-explicit-id
+#: src/api/sudo-reasons.ts
+msgid "sudo.reason.revoke-account-sessions"
+msgstr "Confirm it is you to sign this account out everywhere."
 
 #. js-lingui-explicit-id
 #: src/api/sudo-reasons.ts
@@ -330,6 +704,16 @@ msgid "security.identities.table"
 msgstr "Connected identities"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.identities.title"
+msgstr "Connected identities"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.identities.table"
+msgstr "Connected identities"
+
+#. js-lingui-explicit-id
 #: src/components/custom/ConsoleLayout.tsx
 #: src/components/custom/PreviewLayout.tsx
 msgid "console.home"
@@ -351,14 +735,49 @@ msgid "login.password.next"
 msgstr "Continue with password"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminInvitations.tsx
+msgid "admin.invitations.copy.done"
+msgstr "Copied."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.copied"
+msgstr "Copied."
+
+#. js-lingui-explicit-id
 #: src/components/custom/SecretReveal.tsx
 msgid "secret.copied"
 msgstr "Copied."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.oidcSubject.copy"
+msgstr "Copy"
+
+#. js-lingui-explicit-id
 #: src/components/custom/secret-reveal-copy.ts
 msgid "login.codes.copy"
 msgstr "Copy codes"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminInvitations.tsx
+msgid "admin.invitations.copy.action"
+msgstr "Copy link"
+
+#. js-lingui-explicit-id
+#: src/components/custom/secret-reveal-copy.ts
+msgid "admin.invitations.reveal.copy"
+msgstr "Copy link"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminInvitations.tsx
+msgid "admin.invitations.copy"
+msgstr "Copy the registration link"
+
+#. js-lingui-explicit-id
+#: src/components/custom/secret-reveal-copy.ts
+msgid "admin.invitations.reveal.title"
+msgstr "Copy the registration link"
 
 #. js-lingui-explicit-id
 #: src/components/custom/secret-reveal-copy.ts
@@ -382,6 +801,16 @@ msgstr "Could not copy the codes. Select the codes above and copy them manually,
 
 #. js-lingui-explicit-id
 #: src/components/custom/secret-reveal-copy.ts
+msgid "admin.invitations.reveal.copy_failed"
+msgstr "Could not copy the link. Select it above and copy it manually, or download it."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminInvitations.tsx
+msgid "admin.invitations.copy.failed"
+msgstr "Could not copy the link. Your browser blocked the clipboard; allow it and try again."
+
+#. js-lingui-explicit-id
+#: src/components/custom/secret-reveal-copy.ts
 msgid "security.tokens.reveal.copy_failed"
 msgstr "Could not copy the token. Select the token above and copy it manually, or download it."
 
@@ -389,6 +818,11 @@ msgstr "Could not copy the token. Select the token above and copy it manually, o
 #: src/components/custom/secret-reveal-copy.ts
 msgid "login.codes.download_failed"
 msgstr "Could not download the codes. Copy them or save them manually."
+
+#. js-lingui-explicit-id
+#: src/components/custom/secret-reveal-copy.ts
+msgid "admin.invitations.reveal.download_failed"
+msgstr "Could not download the link. Copy it or save it manually."
 
 #. js-lingui-explicit-id
 #: src/components/custom/secret-reveal-copy.ts
@@ -406,6 +840,16 @@ msgid "security.tokens.create.open"
 msgstr "Create a token"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.create"
+msgstr "Create group"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminInvitationForm.tsx
+msgid "admin.invitations.new.submit"
+msgstr "Create invitation"
+
+#. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.create.action"
 msgstr "Create token"
@@ -413,6 +857,16 @@ msgstr "Create token"
 #. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.column.created"
+msgstr "Created"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminInvitations.tsx
+msgid "admin.invitations.column.created"
+msgstr "Created"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.tokens.column.created"
 msgstr "Created"
 
 #. js-lingui-explicit-id
@@ -441,6 +895,16 @@ msgid "sudo.password"
 msgstr "Current password"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.tab.danger"
+msgstr "Danger zone"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.danger.title"
+msgstr "Danger zone"
+
+#. js-lingui-explicit-id
 #: src/components/custom/ThemeSelect.tsx
 msgid "theme.dark"
 msgstr "Dark theme"
@@ -449,6 +913,36 @@ msgstr "Dark theme"
 #: src/pages/Devices.tsx
 msgid "devices.decline"
 msgstr "Decline"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.delete.confirm.action"
+msgstr "Delete account"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.delete.title"
+msgstr "Delete this account"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.delete.action"
+msgstr "Delete this account"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.delete.confirm.title"
+msgstr "Delete this account?"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.description"
+msgstr "Description"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroups.tsx
+msgid "admin.groups.column.description"
+msgstr "Description"
 
 #. js-lingui-explicit-id
 #: src/pages/DevForms.tsx
@@ -466,6 +960,11 @@ msgid "security.sessions.column.agent"
 msgstr "Device"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.sessions.column.agent"
+msgstr "Device"
+
+#. js-lingui-explicit-id
 #: src/pages/Devices.tsx
 msgid "devices.form"
 msgstr "Device pairing"
@@ -476,9 +975,39 @@ msgid "console.devices"
 msgstr "Devices"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.state.disable.action"
+msgstr "Disable"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.state.disable"
+msgstr "Disable this account"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.state.disable.title"
+msgstr "Disable this account?"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.disabled"
+msgstr "Disabled"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUsers.tsx
+msgid "admin.users.state.disabled"
+msgstr "Disabled"
+
+#. js-lingui-explicit-id
 #: src/pages/Preview.tsx
 msgid "button.disabled"
 msgstr "Disabled button"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.state.enabled.note"
+msgstr "Disabling stops this account signing in and ends nothing else. An admin has to be made a user first."
 
 #. js-lingui-explicit-id
 #: src/pages/Console.tsx
@@ -506,6 +1035,21 @@ msgid "profile.display-name.form"
 msgstr "Display name"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.displayName"
+msgstr "Display name"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUsers.tsx
+msgid "admin.users.column.displayName"
+msgstr "Display name"
+
+#. js-lingui-explicit-id
+#: src/components/custom/secret-reveal-copy.ts
+msgid "admin.invitations.reveal.continue"
+msgstr "Done"
+
+#. js-lingui-explicit-id
 #: src/components/custom/secret-reveal-copy.ts
 msgid "security.tokens.reveal.continue"
 msgstr "Done"
@@ -517,8 +1061,28 @@ msgstr "Download codes"
 
 #. js-lingui-explicit-id
 #: src/components/custom/secret-reveal-copy.ts
+msgid "admin.invitations.reveal.download"
+msgstr "Download link"
+
+#. js-lingui-explicit-id
+#: src/components/custom/secret-reveal-copy.ts
 msgid "security.tokens.reveal.download"
 msgstr "Download token"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroups.tsx
+msgid "admin.groups.edit"
+msgstr "Edit"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUsers.tsx
+msgid "admin.users.edit"
+msgstr "Edit"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.rule.json.hint"
+msgstr "Edited on blur: leave the box and the form view picks up what the document says."
 
 #. js-lingui-explicit-id
 #: src/pages/security/IdentitiesPanel.tsx
@@ -526,9 +1090,44 @@ msgid "security.identities.column.email"
 msgstr "Email"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.email"
+msgstr "Email"
+
+#. js-lingui-explicit-id
 #: src/pages/DevForms.tsx
 msgid "dev.forms.logout.title"
 msgstr "Empty response request"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.state.enable.action"
+msgstr "Enable"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.state.enable"
+msgstr "Enable this account"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.state.enable.title"
+msgstr "Enable this account?"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUsers.tsx
+msgid "admin.users.state.enabled"
+msgstr "Enabled"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.state.title"
+msgstr "Enabled or disabled"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.sessions.revoke"
+msgstr "End"
 
 #. js-lingui-explicit-id
 #: src/pages/security/SessionsPanel.tsx
@@ -541,13 +1140,33 @@ msgid "security.sessions.revoke.action"
 msgstr "End session"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.sessions.revoke.action"
+msgstr "End session"
+
+#. js-lingui-explicit-id
 #: src/pages/security/SessionsPanel.tsx
 msgid "security.sessions.revoke.title"
 msgstr "End this session?"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.sessions.revoke.title"
+msgstr "End this session?"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.sessions.revoke_all.hint"
+msgstr "Ends every session this account has, on every device."
+
+#. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
 msgid "security.passkeys.column.id"
+msgstr "Ends with"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.passkeys.column.id"
 msgstr "Ends with"
 
 #. js-lingui-explicit-id
@@ -612,6 +1231,11 @@ msgid "security.tokens.every_app"
 msgstr "Every application you can use"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.sessions.revoke_all.body"
+msgstr "Every device signed in to this account is signed out immediately and will need to sign in again."
+
+#. js-lingui-explicit-id
 #: src/pages/DevForms.tsx
 msgid "dev.forms.description"
 msgstr "Exercise the real API client, mutations, and form feedback. Use an isolated test account or intercept requests in browser tools. This page does not simulate responses."
@@ -632,14 +1256,44 @@ msgid "security.tokens.column.expires"
 msgstr "Expires"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminInvitations.tsx
+msgid "admin.invitations.column.expires"
+msgstr "Expires"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.sessions.column.expires"
+msgstr "Expires"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.tokens.column.expires"
+msgstr "Expires"
+
+#. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.expiry"
 msgstr "Expires after"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminHome.tsx
+msgid "admin.home.availability"
+msgstr "Federation, downstream applications, logs and settings are not available yet. This area will grow to cover them."
+
+#. js-lingui-explicit-id
 #: src/pages/Preview.tsx
 msgid "feedback.tab"
 msgstr "Feedback"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUsers.tsx
+msgid "admin.users.filter.fieldLabel"
+msgstr "Field"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUsers.tsx
+msgid "admin.users.filter.incomplete"
+msgstr "Fill in the provider, field, match and value to apply this filter."
 
 #. js-lingui-explicit-id
 #: src/components/custom/SudoDialog.tsx
@@ -662,9 +1316,29 @@ msgid "security.recovery.generate"
 msgstr "Generate new recovery codes"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.displayName.required"
+msgstr "Give the account a display name."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.display-name.required"
+msgstr "Give the group a name."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.slug.required"
+msgstr "Give the group an identifier."
+
+#. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.name.required"
 msgstr "Give the token a name so you can recognise it later."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.kind.label"
+msgstr "How it fills"
 
 #. js-lingui-explicit-id
 #: src/components/custom/secret-reveal-copy.ts
@@ -677,9 +1351,24 @@ msgid "login.codes.saved"
 msgstr "I have saved my recovery codes"
 
 #. js-lingui-explicit-id
+#: src/components/custom/secret-reveal-copy.ts
+msgid "admin.invitations.reveal.saved"
+msgstr "I have saved the registration link"
+
+#. js-lingui-explicit-id
 #: src/pages/security/IdentitiesPanel.tsx
 msgid "security.identities.column.subject"
 msgstr "Identifier"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.slug"
+msgstr "Identifier"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUsers.tsx
+msgid "admin.users.filter.advanced"
+msgstr "Identity filter"
 
 #. js-lingui-explicit-id
 #: src/components/custom/SudoDialog.tsx
@@ -717,6 +1406,46 @@ msgid "preview.title"
 msgstr "Interface preview"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminInvitations.tsx
+msgid "admin.invitations.title"
+msgstr "Invitations"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminInvitations.tsx
+msgid "admin.invitations.table"
+msgstr "Invitations"
+
+#. js-lingui-explicit-id
+#: src/components/custom/ConsoleLayout.tsx
+msgid "console.admin.invitations"
+msgstr "Invitations"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminInvitations.tsx
+msgid "admin.invitations.invite"
+msgstr "Invite a user"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUsers.tsx
+msgid "admin.users.invite"
+msgstr "Invite a user"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.enrollment.action"
+msgstr "Issue a registration link"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.enrollment.note"
+msgstr "Issues a new link this account can use to set up how they sign in. The link is shown once, and any earlier link stops working."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.rule.view.json"
+msgstr "JSON"
+
+#. js-lingui-explicit-id
 #: src/pages/ConnectedApps.tsx
 msgid "apps.confirm.cancel"
 msgstr "Keep access"
@@ -737,6 +1466,11 @@ msgid "apps.column.kind"
 msgstr "Kind"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminGroups.tsx
+msgid "admin.groups.column.kind"
+msgstr "Kind"
+
+#. js-lingui-explicit-id
 #: src/components/custom/LanguageMenu.tsx
 msgid "language.label"
 msgstr "Language"
@@ -745,6 +1479,16 @@ msgstr "Language"
 #: src/pages/security/SessionsPanel.tsx
 msgid "security.sessions.column.ip"
 msgstr "Last seen from"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.sessions.column.ip"
+msgstr "Last seen from"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUsers.tsx
+msgid "admin.users.column.lastSignIn"
+msgstr "Last signed in"
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
@@ -757,9 +1501,24 @@ msgid "security.tokens.column.lastUsed"
 msgstr "Last used"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.passkeys.column.lastUsed"
+msgstr "Last used"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.tokens.column.lastUsed"
+msgstr "Last used"
+
+#. js-lingui-explicit-id
 #: src/components/custom/secret-reveal-copy.ts
 msgid "login.codes.leave"
 msgstr "Leave without saving? These recovery codes cannot be shown again."
+
+#. js-lingui-explicit-id
+#: src/components/custom/secret-reveal-copy.ts
+msgid "admin.invitations.reveal.leave"
+msgstr "Leave without saving? This link cannot be shown again."
 
 #. js-lingui-explicit-id
 #: src/components/custom/secret-reveal-copy.ts
@@ -772,6 +1531,11 @@ msgid "theme.light"
 msgstr "Light theme"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminInvitations.tsx
+msgid "admin.invitations.column.link"
+msgstr "Link"
+
+#. js-lingui-explicit-id
 #: src/pages/security/IdentitiesPanel.tsx
 msgid "security.identities.link.title"
 msgstr "Link another identity"
@@ -779,6 +1543,11 @@ msgstr "Link another identity"
 #. js-lingui-explicit-id
 #: src/pages/security/IdentitiesPanel.tsx
 msgid "security.identities.column.linked"
+msgstr "Linked"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.identities.column.linked"
 msgstr "Linked"
 
 #. js-lingui-explicit-id
@@ -812,9 +1581,39 @@ msgid "devices.lookup"
 msgstr "Look up code"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.slug.hint"
+msgstr "Lowercase letters, digits and hyphens. Applications name this group by it."
+
+#. js-lingui-explicit-id
 #: src/pages/ApiPreview.tsx
 msgid "api.maintenance"
 msgstr "Maintenance"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.kind.manual"
+msgstr "Manual"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroups.tsx
+msgid "admin.groups.kind.manual"
+msgstr "Manual"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.rule.group.op"
+msgstr "Match"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUsers.tsx
+msgid "admin.users.filter.matchLabel"
+msgstr "Match"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.rule.not.hint"
+msgstr "Match accounts this condition does not describe."
 
 #. js-lingui-explicit-id
 #: src/components/custom/SudoDialog.tsx
@@ -857,8 +1656,33 @@ msgid "security.tokens.name"
 msgstr "Name"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.display-name"
+msgstr "Name"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroups.tsx
+msgid "admin.groups.column.name"
+msgstr "Name"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.passkeys.column.name"
+msgstr "Name"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.tokens.column.name"
+msgstr "Name"
+
+#. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.never_expires"
+msgstr "Never"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.tokens.never_expires"
 msgstr "Never"
 
 #. js-lingui-explicit-id
@@ -892,6 +1716,21 @@ msgid "login.reset.qr"
 msgstr "New authenticator setup QR code"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminGroups.tsx
+msgid "admin.groups.new"
+msgstr "New group"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminInvitationForm.tsx
+msgid "admin.invitations.new.title"
+msgstr "New invitation"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminInvitationForm.tsx
+msgid "admin.invitations.new.form"
+msgstr "New invitation"
+
+#. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
 msgid "security.password.new"
 msgstr "New password"
@@ -907,6 +1746,11 @@ msgid "login.codes.label"
 msgstr "New recovery codes"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.create.title"
+msgstr "New user group"
+
+#. js-lingui-explicit-id
 #: src/pages/DevForms.tsx
 msgid "dev.forms.nickname.label"
 msgstr "Nickname"
@@ -917,9 +1761,19 @@ msgid "dev.forms.rename.success"
 msgstr "Nickname saved. Your input has been kept."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.tokens.empty"
+msgstr "No access tokens"
+
+#. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.empty"
 msgstr "No access tokens yet"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.sessions.empty"
+msgstr "No active sessions"
 
 #. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
@@ -932,9 +1786,24 @@ msgid "apps.empty"
 msgstr "No approved applications yet"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.identities.empty"
+msgstr "No connected identities"
+
+#. js-lingui-explicit-id
 #: src/pages/security/IdentitiesPanel.tsx
 msgid "security.identities.link.unavailable"
 msgstr "No identities available to link"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminInvitations.tsx
+msgid "admin.invitations.empty"
+msgstr "No invitations yet"
+
+#. js-lingui-explicit-id
+#: src/components/custom/EntityPicker.tsx
+msgid "admin.picker.empty"
+msgstr "No matches"
 
 #. js-lingui-explicit-id
 #: src/pages/security/IdentitiesPanel.tsx
@@ -947,6 +1816,11 @@ msgid "security.sessions.empty"
 msgstr "No other sessions"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.passkeys.empty"
+msgstr "No passkeys"
+
+#. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
 msgid "security.passkeys.empty.title"
 msgstr "No passkeys yet"
@@ -955,6 +1829,21 @@ msgstr "No passkeys yet"
 #: src/pages/profile/AvatarPanel.tsx
 msgid "profile.avatar.source.none"
 msgstr "No picture"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroups.tsx
+msgid "admin.groups.empty"
+msgstr "No user groups yet"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUsers.tsx
+msgid "admin.users.empty"
+msgstr "No users match"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.rule.not"
+msgstr "Not"
 
 #. js-lingui-explicit-id
 #: src/pages/ApiPreview.tsx
@@ -972,9 +1861,39 @@ msgid "security.tokens.never_used"
 msgstr "Not used yet"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.passkeys.never_used"
+msgstr "Not used yet"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.tokens.never_used"
+msgstr "Not used yet"
+
+#. js-lingui-explicit-id
 #: src/components/custom/AppNotifications.tsx
 msgid "notification.region"
 msgstr "Notifications"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.exposed"
+msgstr "Offer to applications"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.oidcSubject"
+msgstr "OIDC subject"
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.invitation_groups_unavailable"
+msgstr "One of the chosen user groups no longer exists. Choose again."
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.group_in_use"
+msgstr "One or more applications still use this user group. Remove it from them before deleting it."
 
 #. js-lingui-explicit-id
 #: src/components/custom/ConsoleLayout.tsx
@@ -985,6 +1904,26 @@ msgstr "Open navigation"
 #: src/pages/ConnectedApps.tsx
 msgid "apps.kind.oidc"
 msgstr "OpenID Connect"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminInvitationForm.tsx
+msgid "admin.invitations.new.username.hint"
+msgstr "Optional. Leave it empty to let the invited person choose their own when they register."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.email.hint"
+msgstr "Optional. Leave it empty to store no address."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminInvitationForm.tsx
+msgid "admin.invitations.new.provider.hint"
+msgstr "Optional. Only providers that are enabled and ready are offered; the invited person must sign in through the one chosen here."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.description.hint"
+msgstr "Optional. What this group is for, for whoever reads it next."
 
 #. js-lingui-explicit-id
 #: src/components/custom/RouteFeedback.tsx
@@ -1014,6 +1953,16 @@ msgstr "Passkeys"
 #. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
 msgid "security.passkeys.table"
+msgstr "Passkeys"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.passkeys.title"
+msgstr "Passkeys"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.passkeys.table"
 msgstr "Passkeys"
 
 #. js-lingui-explicit-id
@@ -1082,6 +2031,16 @@ msgid "profile.tabs"
 msgstr "Profile"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.tab.profile"
+msgstr "Profile"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.profile.title"
+msgstr "Profile"
+
+#. js-lingui-explicit-id
 #: src/components/custom/ConsoleLayout.tsx
 msgid "console.profile"
 msgstr "Profile"
@@ -1092,8 +2051,23 @@ msgid "security.identities.column.protocol"
 msgstr "Protocol"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.identities.column.protocol"
+msgstr "Protocol"
+
+#. js-lingui-explicit-id
 #: src/pages/security/IdentitiesPanel.tsx
 msgid "security.identities.column.provider"
+msgstr "Provider"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.identities.column.provider"
+msgstr "Provider"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUsers.tsx
+msgid "admin.users.filter.providerLabel"
 msgstr "Provider"
 
 #. js-lingui-explicit-id
@@ -1127,6 +2101,16 @@ msgid "api.refreshing"
 msgstr "Refreshing…"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.enrollment.title"
+msgstr "Registration link"
+
+#. js-lingui-explicit-id
+#: src/components/custom/secret-reveal-copy.ts
+msgid "admin.invitations.reveal.label"
+msgstr "Registration link"
+
+#. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
 msgid "security.passkeys.delete"
 msgstr "Remove"
@@ -1134,6 +2118,11 @@ msgstr "Remove"
 #. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
 msgid "security.passkeys.delete.confirm"
+msgstr "Remove"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.passkeys.revoke"
 msgstr "Remove"
 
 #. js-lingui-explicit-id
@@ -1157,14 +2146,34 @@ msgid "profile.display-name.control"
 msgstr "Remove control characters from the name."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.passkeys.revoke.action"
+msgstr "Remove passkey"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.rule.remove"
+msgstr "Remove this condition"
+
+#. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
 msgid "security.passkeys.delete.title"
+msgstr "Remove this passkey?"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.passkeys.revoke.title"
 msgstr "Remove this passkey?"
 
 #. js-lingui-explicit-id
 #: src/pages/profile/AvatarPanel.tsx
 msgid "profile.avatar.remove"
 msgstr "Remove upload"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.delete.note"
+msgstr "Removes the account and everything it owns: passkeys, sessions, access tokens and connected identities. This cannot be undone."
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
@@ -1248,9 +2257,74 @@ msgid "security.tokens.revoke.action"
 msgstr "Revoke"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminInvitations.tsx
+msgid "admin.invitations.revoke.action"
+msgstr "Revoke"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.tokens.revoke"
+msgstr "Revoke"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminInvitations.tsx
+msgid "admin.invitations.revoke.title"
+msgstr "Revoke this invitation?"
+
+#. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.revoke.title"
 msgstr "Revoke this token?"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.tokens.revoke.title"
+msgstr "Revoke this token?"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.tokens.revoke.action"
+msgstr "Revoke token"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminInvitationForm.tsx
+msgid "admin.invitations.new.role"
+msgstr "Role"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminInvitations.tsx
+msgid "admin.invitations.column.role"
+msgstr "Role"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.role"
+msgstr "Role"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUsers.tsx
+msgid "admin.users.column.role"
+msgstr "Role"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.kind.rule"
+msgstr "Rule"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroups.tsx
+msgid "admin.groups.kind.rule"
+msgstr "Rule"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.rule.json.label"
+msgstr "Rule document"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.rule.views"
+msgstr "Rule editor"
 
 #. js-lingui-explicit-id
 #: src/pages/ConnectedApps.tsx
@@ -1261,6 +2335,16 @@ msgstr "SAML"
 #: src/pages/Profile.tsx
 msgid "profile.display-name.save"
 msgstr "Save"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.save"
+msgstr "Save changes"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.save"
+msgstr "Save changes"
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
@@ -1281,6 +2365,26 @@ msgstr "Scan this QR code with your authenticator, or enter the setup key manual
 #: src/pages/ConnectedApps.tsx
 msgid "apps.column.scopes"
 msgstr "Scopes"
+
+#. js-lingui-explicit-id
+#: src/components/custom/EntityPicker.tsx
+msgid "admin.picker.search"
+msgstr "Search"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminInvitationForm.tsx
+msgid "admin.invitations.new.provider.placeholder"
+msgstr "Search providers"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminInvitationForm.tsx
+msgid "admin.invitations.new.groups.placeholder"
+msgstr "Search user groups"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUsers.tsx
+msgid "admin.users.search"
+msgstr "Search users"
 
 #. js-lingui-explicit-id
 #: src/pages/Security.tsx
@@ -1358,6 +2462,21 @@ msgid "console.logout"
 msgstr "Sign out"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.sessions.revoke_all"
+msgstr "Sign out everywhere"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.sessions.revoke_all.action"
+msgstr "Sign out everywhere"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.sessions.revoke_all.title"
+msgstr "Sign this account out everywhere?"
+
+#. js-lingui-explicit-id
 #: src/pages/security/SessionsPanel.tsx
 msgid "security.sessions.other"
 msgstr "Signed in"
@@ -1378,6 +2497,11 @@ msgid "security.setup.note"
 msgstr "Signing in will then ask for your password and a code from this authenticator. Anything you used before that stops working."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminGroups.tsx
+msgid "admin.groups.column.slug"
+msgstr "Slug"
+
+#. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.ceremony_missing"
 msgstr "Start passkey sign-in again to continue."
@@ -1388,6 +2512,16 @@ msgid "security.sessions.column.issued"
 msgstr "Started"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.sessions.column.issued"
+msgstr "Started"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUsers.tsx
+msgid "admin.users.column.state"
+msgstr "State"
+
+#. js-lingui-explicit-id
 #: src/pages/Preview.tsx
 msgid "feedback.title"
 msgstr "State examples"
@@ -1396,6 +2530,11 @@ msgstr "State examples"
 #: src/pages/security/SessionsPanel.tsx
 msgid "security.sessions.column.status"
 msgstr "Status"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.identities.column.subject"
+msgstr "Subject"
 
 #. js-lingui-explicit-id
 #: src/pages/DevForms.tsx
@@ -1428,14 +2567,39 @@ msgid "theme.system"
 msgstr "System theme"
 
 #. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.account_not_found"
+msgstr "That account no longer exists. The list has been refreshed."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.rule.reason.invalid_fact"
+msgstr "That condition type is not supported."
+
+#. js-lingui-explicit-id
 #: src/pages/security/SessionsPanel.tsx
 msgid "security.sessions.revoke.body"
+msgstr "That device is signed out immediately and will need to sign in again. Anything it is doing right now stops."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.sessions.revoke.body"
 msgstr "That device is signed out immediately and will need to sign in again. Anything it is doing right now stops."
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.avatar_invalid_image"
 msgstr "That file is not an image this instance can use."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.rule.reason.invalid_op"
+msgstr "That group type is not supported."
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.invitation_not_found"
+msgstr "That invitation has already been revoked or used."
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -1463,9 +2627,54 @@ msgid "error.avatar_source_unavailable"
 msgstr "That picture is no longer available. Choose another source."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.rule.reason.invalid_source"
+msgstr "That picture source is not supported."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.rule.reason.invalid_protocol"
+msgstr "That protocol is not supported."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.rule.reason.provider_not_found"
+msgstr "That provider is not available on this instance."
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.upstream_idp_not_found"
+msgstr "That provider is not available. It may have been deleted or disabled."
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.invalid_role"
+msgstr "That role is not one this instance accepts."
+
+#. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.session_not_found"
 msgstr "That session has already ended. The list has been refreshed."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.rule.reason.invalid_method"
+msgstr "That sign-in method is not supported."
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.group_not_found"
+msgstr "That user group no longer exists. The list has been refreshed."
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.username_taken"
+msgstr "That username is already taken."
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.invalid_username"
+msgstr "That username is not in a format this instance accepts."
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -1473,9 +2682,64 @@ msgid "error.sudo_method_unavailable"
 msgstr "That verification method is not available. Choose another one."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.delete.confirm.body"
+msgstr "The account, its passkeys, its sessions, its access tokens and its connected identities are removed immediately. This cannot be undone."
+
+#. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.bad_credentials"
 msgstr "The credentials could not be verified."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.rule.reason.unknown_field"
+msgstr "The document has a field the server does not recognise."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.rule.reason.trailing_json"
+msgstr "The document has content after the rule."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.rule.reason.missing_condition"
+msgstr "The document is missing its condition."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.rule.reason.missing_version"
+msgstr "The document is missing its version."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.rule.reason.invalid_json"
+msgstr "The document is not valid JSON."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.enrollment.expires"
+msgstr "The link expires on {expiry}."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroups.tsx
+msgid "admin.groups.error"
+msgstr "The list could not be loaded. Try again."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminInvitations.tsx
+msgid "admin.invitations.error"
+msgstr "The list could not be loaded. Try again."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUsers.tsx
+msgid "admin.users.error"
+msgstr "The list could not be loaded. Try again."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminInvitationForm.tsx
+msgid "admin.invitations.new.groups.hint"
+msgstr "The manual groups the new account joins when it registers."
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -1503,6 +2767,11 @@ msgid "login.reset.qr_failed"
 msgstr "The QR code could not be displayed. Enter the setup key manually."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminInvitations.tsx
+msgid "admin.invitations.revoke.body"
+msgstr "The registration link stops working immediately, and the invitation no longer appears in this list. This cannot be undone."
+
+#. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.bad_request"
 msgstr "The request could not be accepted."
@@ -1521,6 +2790,16 @@ msgstr "The reset may already have completed. Try your new authenticator or a pa
 #: src/api/errors.ts
 msgid "error.server_error"
 msgstr "The server could not complete the request. Please try again."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.rule.rejected"
+msgstr "The server did not accept this rule. Check it and try again."
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.invalid_group_rule"
+msgstr "The server did not accept this rule. Check it and try again."
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -1578,6 +2857,26 @@ msgid "feedback.description"
 msgstr "These visual examples do not send requests."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.state.enable.body"
+msgstr "They will be able to sign in again straight away."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.state.disable.body"
+msgstr "They will not be able to sign in. Sessions they already have stay active until you end them."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.state.disabled.note"
+msgstr "This account cannot sign in. Enabling it restores access with the sign-in methods it already had."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.sessions.revoke_all.none"
+msgstr "This account has no active sessions."
+
+#. js-lingui-explicit-id
 #: src/components/custom/SudoDialog.tsx
 msgid "sudo.no-methods"
 msgstr "This account has no way to confirm your identity from here. Set up a passkey, or a password and authenticator, before trying again."
@@ -1586,6 +2885,11 @@ msgstr "This account has no way to confirm your identity from here. Set up a pas
 #: src/api/errors.ts
 msgid "error.account_disabled"
 msgstr "This account is disabled."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.saved"
+msgstr "This account is updated."
 
 #. js-lingui-explicit-id
 #: src/components/custom/RouteFeedback.tsx
@@ -1601,6 +2905,11 @@ msgstr "This application defines no scopes."
 #: src/pages/ConnectedApps.tsx
 msgid "apps.confirm.body"
 msgstr "This application will no longer read your profile. It will need to ask for permission again."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.rule.reason.invalid_shape"
+msgstr "This condition mixes fields that do not belong together."
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -1638,6 +2947,21 @@ msgid "preview.notice"
 msgstr "This is a public component preview. Account management and administration pages are not available yet."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.attributes.invalid"
+msgstr "This is not valid JSON. Check the braces, commas and quotes."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.rule.json.unreadable"
+msgstr "This is not valid JSON. The form view still holds your rule."
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.last_admin"
+msgstr "This is the only administrator. Make another account an administrator first."
+
+#. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.cannot_revoke_current_session"
 msgstr "This is the session you are using. Sign out instead."
@@ -1663,6 +2987,11 @@ msgid "security.revoke.last"
 msgstr "This is your only way to sign in, so it cannot be turned off. Add a passkey first."
 
 #. js-lingui-explicit-id
+#: src/components/custom/secret-reveal-copy.ts
+msgid "admin.invitations.reveal.once"
+msgstr "This link is shown only once and it signs the holder in as the invited account. Send it to the person yourself, and only over a channel you trust."
+
+#. js-lingui-explicit-id
 #: src/pages/ApiPreview.tsx
 msgid "api.description"
 msgstr "This page reads the instance configuration and initialization status from the server."
@@ -1678,9 +3007,29 @@ msgid "error.pairing_not_approved"
 msgstr "This pairing is not ready to be approved yet."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.passkeys.revoke.body"
+msgstr "This passkey stops working immediately. If it is the only way this account signs in, they will need a new registration link."
+
+#. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
 msgid "security.passkeys.delete.body"
 msgstr "This passkey will stop working for sign-in right away. Any other way you have to sign in is unaffected."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.rule.problem.too_many_nodes"
+msgstr "This rule has too many conditions. Use at most 64 in total."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.rule.reason.max_nodes_exceeded"
+msgstr "This rule has too many conditions. Use at most 64 in total."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.rule.reason.unsupported_version"
+msgstr "This rule was written for another version of the server."
 
 #. js-lingui-explicit-id
 #: src/pages/DevForms.tsx
@@ -1710,6 +3059,11 @@ msgstr "Toggle sidebar"
 #. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.column.hint"
+msgstr "Token"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.tokens.column.hint"
 msgstr "Token"
 
 #. js-lingui-explicit-id
@@ -1793,9 +3147,24 @@ msgid "security.passkeys.unnamed"
 msgstr "Unnamed passkey"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.passkeys.unnamed"
+msgstr "Unnamed passkey"
+
+#. js-lingui-explicit-id
 #: src/pages/profile/AvatarPanel.tsx
 msgid "profile.avatar.upload"
 msgstr "Upload a picture"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminInvitations.tsx
+msgid "admin.invitations.column.provider"
+msgstr "Upstream provider"
+
+#. js-lingui-explicit-id
+#: src/components/custom/EntityPicker.tsx
+msgid "admin.picker.provider"
+msgstr "Upstream provider"
 
 #. js-lingui-explicit-id
 #: src/pages/Profile.tsx
@@ -1833,6 +3202,11 @@ msgid "login.use_totp"
 msgstr "Use an authenticator code"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.slug.format"
+msgstr "Use lowercase letters, digits and hyphens, up to 64 characters."
+
+#. js-lingui-explicit-id
 #: src/pages/security/SessionsPanel.tsx
 msgid "security.sessions.use_sign_out"
 msgstr "Use sign out to end this one"
@@ -1841,6 +3215,57 @@ msgstr "Use sign out to end this one"
 #: src/components/custom/SudoDialog.tsx
 msgid "sudo.method.password"
 msgstr "Use your password and authenticator"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminInvitationForm.tsx
+#: src/pages/admin/AdminInvitations.tsx
+msgid "admin.invitations.role.user"
+msgstr "User"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.role.user"
+msgstr "User"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUsers.tsx
+msgid "admin.users.role.user"
+msgstr "User"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.edit.title"
+msgstr "User group"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.form"
+msgstr "User group"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroups.tsx
+msgid "admin.groups.title"
+msgstr "User groups"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroups.tsx
+msgid "admin.groups.table"
+msgstr "User groups"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminInvitations.tsx
+msgid "admin.invitations.column.groups"
+msgstr "User groups"
+
+#. js-lingui-explicit-id
+#: src/components/custom/ConsoleLayout.tsx
+msgid "console.admin.groups"
+msgstr "User groups"
+
+#. js-lingui-explicit-id
+#: src/components/custom/EntityPicker.tsx
+msgid "admin.picker.group"
+msgstr "User groups"
 
 #. js-lingui-explicit-id
 #: src/pages/Console.tsx
@@ -1852,6 +3277,51 @@ msgstr "Username"
 #: src/pages/Login.tsx
 msgid "login.username"
 msgstr "Username"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUsers.tsx
+msgid "admin.users.column.username"
+msgstr "Username"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUsers.tsx
+msgid "admin.users.search.placeholder"
+msgstr "Username or display name"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUsers.tsx
+msgid "admin.users.title"
+msgstr "Users"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUsers.tsx
+msgid "admin.users.table"
+msgstr "Users"
+
+#. js-lingui-explicit-id
+#: src/components/custom/ConsoleLayout.tsx
+msgid "console.admin.users"
+msgstr "Users"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminHome.tsx
+msgid "admin.home.summary"
+msgstr "Users, user groups and invitations are managed from the sections in the sidebar. Each one lists what exists and opens a page of its own for creating or changing a single entry."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.rule.value"
+msgstr "Value"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUsers.tsx
+msgid "admin.users.filter.valuePlaceholder"
+msgstr "Value"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUsers.tsx
+msgid "admin.users.filter.value"
+msgstr "Value to match"
 
 #. js-lingui-explicit-id
 #: src/components/custom/SudoDialog.tsx
@@ -1894,14 +3364,34 @@ msgid "security.tokens.scope"
 msgstr "What it may access"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.display-name.hint"
+msgstr "What this group is called in the console."
+
+#. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.name.hint"
 msgstr "What will use this token, so you know what to revoke later."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.manual.note"
+msgstr "Which accounts this group holds is decided on the group's own page, once it has been created."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.rule.label"
+msgstr "Who the rule matches"
+
+#. js-lingui-explicit-id
 #: src/pages/Devices.tsx
 msgid "devices.approved"
 msgstr "You approved this device. It still has to set up a passkey on itself before the sign-in finishes."
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.cannot_delete_self"
+msgstr "You cannot delete your own account. Ask another administrator."
 
 #. js-lingui-explicit-id
 #: src/pages/Devices.tsx

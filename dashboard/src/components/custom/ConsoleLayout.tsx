@@ -16,11 +16,14 @@ import { cva } from "class-variance-authority";
 import {
   AppWindow,
   House,
+  Layers,
   LogOut,
+  MailPlus,
   MonitorSmartphone,
   PanelLeft,
   ShieldCheck,
   UserRound,
+  Users,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { components } from "@/api/generated/schema";
@@ -68,6 +71,33 @@ const accountSections = [
     path: "/devices",
     icon: MonitorSmartphone,
     title: msg({ id: "console.devices", message: "Devices" }),
+  },
+];
+
+/**
+ * Management sections. Only the three M5a areas exist so far; the rest of the
+ * parent card's seven — federation, downstream applications, logs and settings
+ * — arrive with the later milestones, and no empty page stands in for them.
+ *
+ * Filtered out for a non-admin before it reaches the sidebar, and separately
+ * refused by the `_protected.admin` loader, so a hidden entry is never the only
+ * thing keeping a member out.
+ */
+const adminSections = [
+  {
+    path: "/admin/users",
+    icon: Users,
+    title: msg({ id: "console.admin.users", message: "Users" }),
+  },
+  {
+    path: "/admin/groups",
+    icon: Layers,
+    title: msg({ id: "console.admin.groups", message: "User groups" }),
+  },
+  {
+    path: "/admin/invitations",
+    icon: MailPlus,
+    title: msg({ id: "console.admin.invitations", message: "Invitations" }),
   },
 ];
 
@@ -130,9 +160,11 @@ function NavItem({
 
 function ConsoleNavigation({
   activePath,
+  isAdmin,
   onNavigate,
 }: {
   activePath: string;
+  isAdmin: boolean;
   onNavigate: (path: string) => void;
 }) {
   const { i18n, t } = useLingui();
@@ -168,6 +200,23 @@ function ConsoleNavigation({
               {i18n._(section.title)}
             </NavItem>
           ))}
+          {isAdmin && (
+            <>
+              <p className="px-2 pb-1 pt-3 text-xs font-medium text-muted">
+                <Trans id="console.administration">Administration</Trans>
+              </p>
+              {adminSections.map((section) => (
+                <NavItem
+                  key={section.path}
+                  active={isActiveSection(section.path, activePath)}
+                  icon={section.icon}
+                  onPress={() => onNavigate(section.path)}
+                >
+                  {i18n._(section.title)}
+                </NavItem>
+              ))}
+            </>
+          )}
         </nav>
       </div>
     </div>
@@ -250,9 +299,10 @@ function ConsoleShell({
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const router = useRouter();
   const activePath = useRouterState({ select: (s) => s.location.pathname });
+  const isAdmin = session.role === "admin";
   const sectionTitle =
-    [consoleHome, ...accountSections].find((section) =>
-      isActiveSection(section.path, activePath),
+    [...(isAdmin ? adminSections : []), consoleHome, ...accountSections].find(
+      (section) => isActiveSection(section.path, activePath),
     )?.title ?? consoleHome.title;
   const { close } = drawer;
 
@@ -292,7 +342,11 @@ function ConsoleShell({
           }`}
         >
           <ConsoleIdentity />
-          <ConsoleNavigation activePath={activePath} onNavigate={navigate} />
+          <ConsoleNavigation
+            activePath={activePath}
+            isAdmin={isAdmin}
+            onNavigate={navigate}
+          />
           <div className="mt-auto px-3 pb-4 pt-3">
             <ConsoleAccount
               session={session}
@@ -334,6 +388,7 @@ function ConsoleShell({
                       <ConsoleIdentity />
                       <ConsoleNavigation
                         activePath={activePath}
+                        isAdmin={isAdmin}
                         onNavigate={navigate}
                       />
                       <div className="mt-auto px-3 pb-4 pt-3">

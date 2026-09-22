@@ -13,6 +13,16 @@ msgstr ""
 "Plural-Forms: \n"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminInvitations.tsx
+msgid "admin.invitations.groups.missing"
+msgstr "（部分用户组已不存在）"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.rule.matched"
+msgstr "有 # 个账号匹配该规则。"
+
+#. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.expiry.365"
 msgstr "1 年"
@@ -28,9 +38,74 @@ msgid "security.tokens.expiry.90"
 msgstr "90 天"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.disabled.hint"
+msgstr "被停用的账号无法登录。管理员需要先被改为普通用户，才能被停用。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.rule.problem.too_many_children"
+msgstr "一个条件组最多容纳 32 个条件。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.rule.reason.max_children_exceeded"
+msgstr "一个条件组最多容纳 32 个条件。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroups.tsx
+msgid "admin.groups.note"
+msgstr "用户组要么保存你手工加入的成员，要么按规则自行算出成员。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.rule.reason.empty_children"
+msgstr "条件组至少要有一个条件。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.kind.fixed"
+msgstr "用户组的类型在创建时确定，之后无法更改。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.attributes.hint"
+msgstr "随账号保存的 JSON 对象。保存时提交的就是这个框里的内容，所以在这里删掉的内容也会从账号上删掉。"
+
+#. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
 msgid "security.passkeys.rename.hint"
 msgstr "便于你识别的名字，例如它所在的设备。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.rule.reason.not_requires_fact"
+msgstr "取反的一条必须放一个条件，不能放另一个条件组。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.rule.json.nodocument"
+msgstr "规则文档需要 version 和 condition。表单视图中的规则仍然保留。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.kind.note"
+msgstr "规则组会随账号变化自动保持最新。手工组保存你手工允许或拒绝的账号。"
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.username_immutable"
+msgstr "账号创建后，用户名不可更改。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.tab.access"
+msgstr "访问"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.access.title"
+msgstr "访问"
 
 #. js-lingui-explicit-id
 #: src/pages/Security.tsx
@@ -43,6 +118,41 @@ msgid "security.tokens.table"
 msgstr "个人访问令牌"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.tokens.title"
+msgstr "个人访问令牌"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.tokens.table"
+msgstr "个人访问令牌"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.title"
+msgstr "账号"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.tabs"
+msgstr "账号"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.profile.form"
+msgstr "账号资料"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminInvitationForm.tsx
+msgid "admin.invitations.new.username"
+msgstr "账号用户名"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminInvitations.tsx
+msgid "admin.invitations.column.username"
+msgstr "账号用户名"
+
+#. js-lingui-explicit-id
 #: src/pages/ConnectedApps.tsx
 msgid "apps.column.actions"
 msgstr "操作"
@@ -53,6 +163,18 @@ msgstr "操作"
 #: src/pages/security/SessionsPanel.tsx
 #: src/pages/security/TokensPanel.tsx
 msgid "security.column.actions"
+msgstr "操作"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroups.tsx
+#: src/pages/admin/AdminInvitations.tsx
+#: src/pages/admin/AdminUsers.tsx
+msgid "admin.column.actions"
+msgstr "操作"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.column.actions"
 msgstr "操作"
 
 #. js-lingui-explicit-id
@@ -71,9 +193,29 @@ msgid "security.sessions.table"
 msgstr "在线会话"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.sessions.title"
+msgstr "在线会话"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.sessions.table"
+msgstr "在线会话"
+
+#. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
 msgid "security.passkeys.add"
 msgstr "添加通行密钥"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.rule.add"
+msgstr "添加条件"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.rule.addGroup"
+msgstr "添加条件组"
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
@@ -81,9 +223,45 @@ msgid "security.passkeys.column.created"
 msgstr "添加时间"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.passkeys.column.created"
+msgstr "添加时间"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminInvitationForm.tsx
+#: src/pages/admin/AdminInvitations.tsx
+msgid "admin.invitations.role.admin"
+msgstr "管理员"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.role.admin"
+msgstr "管理员"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUsers.tsx
+msgid "admin.users.role.admin"
+msgstr "管理员"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminHome.tsx
+msgid "admin.home.title"
+msgstr "管理"
+
+#. js-lingui-explicit-id
+#: src/components/custom/ConsoleLayout.tsx
+msgid "console.administration"
+msgstr "管理"
+
+#. js-lingui-explicit-id
 #: src/components/custom/TotpSetup.tsx
 msgid "login.reset.warning"
 msgstr "提交后，旧身份验证器和恢复码都将失效。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.rule.group.all"
+msgstr "以下全部"
 
 #. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
@@ -91,14 +269,54 @@ msgid "security.tokens.column.scopes"
 msgstr "作用范围"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.rule.hint"
+msgstr "账号在规则匹配期间属于本组。每次请求访问时都会检查规则，所以用户组始终保持最新。"
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.admin_cannot_be_disabled"
+msgstr "管理员无法被停用。请先将角色改为普通用户。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.rule.group.any"
+msgstr "以下任一"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUsers.tsx
+msgid "admin.users.filter.provider"
+msgstr "任意提供商"
+
+#. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.revoke.body"
 msgstr "所有使用此令牌的服务会立即失效，且无法恢复。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.tokens.revoke.body"
+msgstr "使用该令牌的一切会立即停止工作，且无法撤销。"
+
+#. js-lingui-explicit-id
 #: src/pages/ConnectedApps.tsx
 msgid "apps.column.name"
 msgstr "应用"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroups.tsx
+msgid "admin.groups.column.applications"
+msgstr "应用"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.exposed.hint"
+msgstr "应用可以把本组用于它们授予的访问权限。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.oidcSubject.hint"
+msgstr "应用用这个值识别该账号。它永不改变。"
 
 #. js-lingui-explicit-id
 #: src/pages/ConnectedApps.tsx
@@ -119,6 +337,16 @@ msgstr "批准后该设备可以继续，但它还没有登录：仍需自行设
 #: src/components/custom/LoginShell.tsx
 msgid "login.enroll_instruction"
 msgstr "请联系运维人员，在服务器运行 <0>prohibitorum enroll-admin</0> 后再登录。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.attributes"
+msgstr "属性"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.attributes.not_object"
+msgstr "属性必须是 JSON 对象，例如 {}。"
 
 #. js-lingui-explicit-id
 #: src/pages/Login.tsx
@@ -175,6 +403,22 @@ msgid "security.cancel"
 msgstr "取消"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.cancel"
+msgstr "取消"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminInvitationForm.tsx
+#: src/pages/admin/AdminInvitations.tsx
+msgid "admin.cancel"
+msgstr "取消"
+
+#. js-lingui-explicit-id
+#: src/components/custom/DangerZone.tsx
+msgid "admin.danger.cancel"
+msgstr "取消"
+
+#. js-lingui-explicit-id
 #: src/components/custom/SudoDialog.tsx
 msgid "sudo.cancel"
 msgstr "取消"
@@ -205,9 +449,44 @@ msgid "devices.confirm.title"
 msgstr "确认这就是你发起的那台设备"
 
 #. js-lingui-explicit-id
+#: src/components/custom/FormFields.tsx
+msgid "forms.field.invalid"
+msgstr "请检查这个值。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUsers.tsx
+msgid "admin.users.filter.field"
+msgstr "选择字段"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUsers.tsx
+msgid "admin.users.filter.match"
+msgstr "选择匹配方式"
+
+#. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
 msgid "security.setup.password"
 msgstr "设置密码"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.rule.provider.placeholder"
+msgstr "选择提供商"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.rule.problem.provider_required"
+msgstr "请为每个提供商条件选择提供商。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.rule.reason.missing_provider"
+msgstr "请为这个条件选择提供商。"
+
+#. js-lingui-explicit-id
+#: src/components/custom/EntityPicker.tsx
+msgid "admin.picker.invalid"
+msgstr "请选择一个有效的选项。"
 
 #. js-lingui-explicit-id
 #: src/pages/profile/AvatarPanel.tsx
@@ -223,6 +502,16 @@ msgstr "请选择小于 5 MiB 的图片。"
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.apps.required"
 msgstr "请至少选择一个应用，或允许全部应用。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminInvitationForm.tsx
+msgid "admin.invitations.new.groups.invalid"
+msgstr "请重新选择用户组——其中有一个不是有效的用户组。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUsers.tsx
+msgid "admin.users.filter.clear"
+msgstr "清除筛选"
 
 #. js-lingui-explicit-id
 #: src/components/custom/ConsoleLayout.tsx
@@ -255,6 +544,26 @@ msgid "navigation.components"
 msgstr "基础组件"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.rule.fact"
+msgstr "条件"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.rule.view.form"
+msgstr "条件"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.rule.problem.too_deep"
+msgstr "条件嵌套过深，最多 8 层。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.rule.reason.max_depth_exceeded"
+msgstr "条件嵌套过深，最多 8 层。"
+
+#. js-lingui-explicit-id
 #: src/components/custom/SudoDialog.tsx
 msgid "sudo.title"
 msgstr "验证你的身份"
@@ -271,6 +580,26 @@ msgstr "请验证身份，以批准此设备。"
 
 #. js-lingui-explicit-id
 #: src/api/sudo-reasons.ts
+msgid "sudo.reason.update-account"
+msgstr "请确认是你本人要更改该账号。"
+
+#. js-lingui-explicit-id
+#: src/api/sudo-reasons.ts
+msgid "sudo.reason.update-group"
+msgstr "请确认是你本人要更改该用户组。"
+
+#. js-lingui-explicit-id
+#: src/api/sudo-reasons.ts
+msgid "sudo.reason.set-account-disabled"
+msgstr "请确认是你本人要更改该账号能否登录。"
+
+#. js-lingui-explicit-id
+#: src/api/sudo-reasons.ts
+msgid "sudo.reason.group-decision"
+msgstr "请确认是你本人要更改本组允许的对象。"
+
+#. js-lingui-explicit-id
+#: src/api/sudo-reasons.ts
 msgid "sudo.reason.change-password"
 msgstr "请验证身份，以修改你的密码。"
 
@@ -278,6 +607,31 @@ msgstr "请验证身份，以修改你的密码。"
 #: src/api/sudo-reasons.ts
 msgid "sudo.reason.create-token"
 msgstr "请验证身份，以创建此访问令牌。"
+
+#. js-lingui-explicit-id
+#: src/api/sudo-reasons.ts
+msgid "sudo.reason.create-group"
+msgstr "请确认是你本人要创建该用户组。"
+
+#. js-lingui-explicit-id
+#: src/api/sudo-reasons.ts
+msgid "sudo.reason.create-invitation"
+msgstr "请确认是你本人要创建该邀请。"
+
+#. js-lingui-explicit-id
+#: src/api/sudo-reasons.ts
+msgid "sudo.reason.delete-account"
+msgstr "请确认是你本人要删除该账号。此操作无法撤销。"
+
+#. js-lingui-explicit-id
+#: src/api/sudo-reasons.ts
+msgid "sudo.reason.delete-group"
+msgstr "请确认是你本人要删除该用户组。此操作无法撤销。"
+
+#. js-lingui-explicit-id
+#: src/api/sudo-reasons.ts
+msgid "sudo.reason.reissue-enrollment"
+msgstr "请确认是你本人要签发新的注册链接。"
 
 #. js-lingui-explicit-id
 #: src/api/sudo-reasons.ts
@@ -296,8 +650,28 @@ msgstr "请验证身份，以更换你的恢复码。"
 
 #. js-lingui-explicit-id
 #: src/api/sudo-reasons.ts
+msgid "sudo.reason.revoke-account-token"
+msgstr "请确认是你本人要吊销该访问令牌。"
+
+#. js-lingui-explicit-id
+#: src/api/sudo-reasons.ts
+msgid "sudo.reason.revoke-invitation"
+msgstr "请确认是你本人要吊销该邀请。"
+
+#. js-lingui-explicit-id
+#: src/api/sudo-reasons.ts
+msgid "sudo.reason.revoke-account-credential"
+msgstr "请确认是你本人要吊销该通行密钥。"
+
+#. js-lingui-explicit-id
+#: src/api/sudo-reasons.ts
 msgid "sudo.reason.set-password-totp"
 msgstr "请验证身份，以为此账号设置密码与验证器。"
+
+#. js-lingui-explicit-id
+#: src/api/sudo-reasons.ts
+msgid "sudo.reason.revoke-account-sessions"
+msgstr "请确认是你本人要将该账号在所有设备上登出。"
 
 #. js-lingui-explicit-id
 #: src/api/sudo-reasons.ts
@@ -330,6 +704,16 @@ msgid "security.identities.table"
 msgstr "已连接身份"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.identities.title"
+msgstr "已连接身份"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.identities.table"
+msgstr "已连接身份"
+
+#. js-lingui-explicit-id
 #: src/components/custom/ConsoleLayout.tsx
 #: src/components/custom/PreviewLayout.tsx
 msgid "console.home"
@@ -351,14 +735,49 @@ msgid "login.password.next"
 msgstr "使用密码继续"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminInvitations.tsx
+msgid "admin.invitations.copy.done"
+msgstr "已复制。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.copied"
+msgstr "已复制。"
+
+#. js-lingui-explicit-id
 #: src/components/custom/SecretReveal.tsx
 msgid "secret.copied"
 msgstr "已复制。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.oidcSubject.copy"
+msgstr "复制"
+
+#. js-lingui-explicit-id
 #: src/components/custom/secret-reveal-copy.ts
 msgid "login.codes.copy"
 msgstr "复制恢复码"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminInvitations.tsx
+msgid "admin.invitations.copy.action"
+msgstr "复制链接"
+
+#. js-lingui-explicit-id
+#: src/components/custom/secret-reveal-copy.ts
+msgid "admin.invitations.reveal.copy"
+msgstr "复制链接"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminInvitations.tsx
+msgid "admin.invitations.copy"
+msgstr "复制注册链接"
+
+#. js-lingui-explicit-id
+#: src/components/custom/secret-reveal-copy.ts
+msgid "admin.invitations.reveal.title"
+msgstr "复制注册链接"
 
 #. js-lingui-explicit-id
 #: src/components/custom/secret-reveal-copy.ts
@@ -382,6 +801,16 @@ msgstr "无法复制恢复码。请选中上方恢复码手动复制，或下载
 
 #. js-lingui-explicit-id
 #: src/components/custom/secret-reveal-copy.ts
+msgid "admin.invitations.reveal.copy_failed"
+msgstr "无法复制链接。请在上方选中后手动复制，或下载它。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminInvitations.tsx
+msgid "admin.invitations.copy.failed"
+msgstr "无法复制链接。浏览器阻止了剪贴板，请允许后重试。"
+
+#. js-lingui-explicit-id
+#: src/components/custom/secret-reveal-copy.ts
 msgid "security.tokens.reveal.copy_failed"
 msgstr "无法复制令牌。请选中上方令牌手动复制，或下载保存。"
 
@@ -389,6 +818,11 @@ msgstr "无法复制令牌。请选中上方令牌手动复制，或下载保存
 #: src/components/custom/secret-reveal-copy.ts
 msgid "login.codes.download_failed"
 msgstr "无法下载恢复码。请复制或手动保存。"
+
+#. js-lingui-explicit-id
+#: src/components/custom/secret-reveal-copy.ts
+msgid "admin.invitations.reveal.download_failed"
+msgstr "无法下载链接。请手动复制或保存它。"
 
 #. js-lingui-explicit-id
 #: src/components/custom/secret-reveal-copy.ts
@@ -406,6 +840,16 @@ msgid "security.tokens.create.open"
 msgstr "创建令牌"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.create"
+msgstr "创建用户组"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminInvitationForm.tsx
+msgid "admin.invitations.new.submit"
+msgstr "创建邀请"
+
+#. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.create.action"
 msgstr "创建令牌"
@@ -413,6 +857,16 @@ msgstr "创建令牌"
 #. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.column.created"
+msgstr "创建时间"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminInvitations.tsx
+msgid "admin.invitations.column.created"
+msgstr "创建时间"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.tokens.column.created"
 msgstr "创建时间"
 
 #. js-lingui-explicit-id
@@ -441,6 +895,16 @@ msgid "sudo.password"
 msgstr "当前密码"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.tab.danger"
+msgstr "危险操作"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.danger.title"
+msgstr "危险操作"
+
+#. js-lingui-explicit-id
 #: src/components/custom/ThemeSelect.tsx
 msgid "theme.dark"
 msgstr "夜间模式"
@@ -449,6 +913,36 @@ msgstr "夜间模式"
 #: src/pages/Devices.tsx
 msgid "devices.decline"
 msgstr "取消"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.delete.confirm.action"
+msgstr "删除账号"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.delete.title"
+msgstr "删除该账号"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.delete.action"
+msgstr "删除该账号"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.delete.confirm.title"
+msgstr "要删除该账号吗？"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.description"
+msgstr "描述"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroups.tsx
+msgid "admin.groups.column.description"
+msgstr "描述"
 
 #. js-lingui-explicit-id
 #: src/pages/DevForms.tsx
@@ -466,6 +960,11 @@ msgid "security.sessions.column.agent"
 msgstr "设备"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.sessions.column.agent"
+msgstr "设备"
+
+#. js-lingui-explicit-id
 #: src/pages/Devices.tsx
 msgid "devices.form"
 msgstr "设备配对"
@@ -476,9 +975,39 @@ msgid "console.devices"
 msgstr "设备"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.state.disable.action"
+msgstr "停用"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.state.disable"
+msgstr "停用该账号"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.state.disable.title"
+msgstr "要停用该账号吗？"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.disabled"
+msgstr "已停用"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUsers.tsx
+msgid "admin.users.state.disabled"
+msgstr "已停用"
+
+#. js-lingui-explicit-id
 #: src/pages/Preview.tsx
 msgid "button.disabled"
 msgstr "禁用按钮"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.state.enabled.note"
+msgstr "停用会阻止该账号登录，除此之外不会有别的变化。管理员需要先被改为普通用户。"
 
 #. js-lingui-explicit-id
 #: src/pages/Console.tsx
@@ -506,6 +1035,21 @@ msgid "profile.display-name.form"
 msgstr "显示名称"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.displayName"
+msgstr "显示名"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUsers.tsx
+msgid "admin.users.column.displayName"
+msgstr "显示名"
+
+#. js-lingui-explicit-id
+#: src/components/custom/secret-reveal-copy.ts
+msgid "admin.invitations.reveal.continue"
+msgstr "完成"
+
+#. js-lingui-explicit-id
 #: src/components/custom/secret-reveal-copy.ts
 msgid "security.tokens.reveal.continue"
 msgstr "完成"
@@ -517,8 +1061,28 @@ msgstr "下载恢复码"
 
 #. js-lingui-explicit-id
 #: src/components/custom/secret-reveal-copy.ts
+msgid "admin.invitations.reveal.download"
+msgstr "下载链接"
+
+#. js-lingui-explicit-id
+#: src/components/custom/secret-reveal-copy.ts
 msgid "security.tokens.reveal.download"
 msgstr "下载令牌"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroups.tsx
+msgid "admin.groups.edit"
+msgstr "编辑"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUsers.tsx
+msgid "admin.users.edit"
+msgstr "编辑"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.rule.json.hint"
+msgstr "失去焦点时生效：移出输入框后，表单视图会采用文档中的内容。"
 
 #. js-lingui-explicit-id
 #: src/pages/security/IdentitiesPanel.tsx
@@ -526,9 +1090,44 @@ msgid "security.identities.column.email"
 msgstr "邮箱"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.email"
+msgstr "邮箱"
+
+#. js-lingui-explicit-id
 #: src/pages/DevForms.tsx
 msgid "dev.forms.logout.title"
 msgstr "空响应请求"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.state.enable.action"
+msgstr "启用"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.state.enable"
+msgstr "启用该账号"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.state.enable.title"
+msgstr "要启用该账号吗？"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUsers.tsx
+msgid "admin.users.state.enabled"
+msgstr "已启用"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.state.title"
+msgstr "启用或停用"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.sessions.revoke"
+msgstr "结束"
 
 #. js-lingui-explicit-id
 #: src/pages/security/SessionsPanel.tsx
@@ -541,14 +1140,34 @@ msgid "security.sessions.revoke.action"
 msgstr "结束会话"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.sessions.revoke.action"
+msgstr "结束会话"
+
+#. js-lingui-explicit-id
 #: src/pages/security/SessionsPanel.tsx
 msgid "security.sessions.revoke.title"
 msgstr "结束此会话？"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.sessions.revoke.title"
+msgstr "要结束这条会话吗？"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.sessions.revoke_all.hint"
+msgstr "结束该账号在所有设备上的全部会话。"
+
+#. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
 msgid "security.passkeys.column.id"
 msgstr "凭据后缀"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.passkeys.column.id"
+msgstr "结尾为"
 
 #. js-lingui-explicit-id
 #: src/pages/Login.tsx
@@ -612,6 +1231,11 @@ msgid "security.tokens.every_app"
 msgstr "你可以使用的全部应用"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.sessions.revoke_all.body"
+msgstr "该账号已登录的每台设备都会立即登出，需要重新登录。"
+
+#. js-lingui-explicit-id
 #: src/pages/DevForms.tsx
 msgid "dev.forms.description"
 msgstr "验证真实 API 客户端、写入请求和表单反馈。请使用隔离测试账户，或通过浏览器工具拦截请求。本页不会模拟响应。"
@@ -632,14 +1256,44 @@ msgid "security.tokens.column.expires"
 msgstr "过期时间"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminInvitations.tsx
+msgid "admin.invitations.column.expires"
+msgstr "过期时间"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.sessions.column.expires"
+msgstr "过期时间"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.tokens.column.expires"
+msgstr "过期时间"
+
+#. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.expiry"
 msgstr "有效期"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminHome.tsx
+msgid "admin.home.availability"
+msgstr "联合认证、下游应用、日志与设置尚未开放。本区域之后会补齐这些内容。"
+
+#. js-lingui-explicit-id
 #: src/pages/Preview.tsx
 msgid "feedback.tab"
 msgstr "状态反馈"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUsers.tsx
+msgid "admin.users.filter.fieldLabel"
+msgstr "字段"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUsers.tsx
+msgid "admin.users.filter.incomplete"
+msgstr "请填写提供商、字段、匹配方式和值，以应用该筛选。"
 
 #. js-lingui-explicit-id
 #: src/components/custom/SudoDialog.tsx
@@ -662,9 +1316,29 @@ msgid "security.recovery.generate"
 msgstr "重新生成恢复码"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.displayName.required"
+msgstr "请为该账号填写显示名。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.display-name.required"
+msgstr "请为该用户组填写名称。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.slug.required"
+msgstr "请为该用户组填写标识。"
+
+#. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.name.required"
 msgstr "请为令牌命名，便于日后识别。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.kind.label"
+msgstr "成员来源"
 
 #. js-lingui-explicit-id
 #: src/components/custom/secret-reveal-copy.ts
@@ -677,9 +1351,24 @@ msgid "login.codes.saved"
 msgstr "我已保存恢复码"
 
 #. js-lingui-explicit-id
+#: src/components/custom/secret-reveal-copy.ts
+msgid "admin.invitations.reveal.saved"
+msgstr "我已保存该注册链接"
+
+#. js-lingui-explicit-id
 #: src/pages/security/IdentitiesPanel.tsx
 msgid "security.identities.column.subject"
 msgstr "标识"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.slug"
+msgstr "标识"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUsers.tsx
+msgid "admin.users.filter.advanced"
+msgstr "身份筛选"
 
 #. js-lingui-explicit-id
 #: src/components/custom/SudoDialog.tsx
@@ -717,6 +1406,46 @@ msgid "preview.title"
 msgstr "界面预览"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminInvitations.tsx
+msgid "admin.invitations.title"
+msgstr "邀请"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminInvitations.tsx
+msgid "admin.invitations.table"
+msgstr "邀请"
+
+#. js-lingui-explicit-id
+#: src/components/custom/ConsoleLayout.tsx
+msgid "console.admin.invitations"
+msgstr "邀请"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminInvitations.tsx
+msgid "admin.invitations.invite"
+msgstr "邀请用户"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUsers.tsx
+msgid "admin.users.invite"
+msgstr "邀请用户"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.enrollment.action"
+msgstr "签发注册链接"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.enrollment.note"
+msgstr "签发一条新链接，该账号可用它设置自己的登录方式。链接只显示一次，此前的链接会立即失效。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.rule.view.json"
+msgstr "JSON"
+
+#. js-lingui-explicit-id
 #: src/pages/ConnectedApps.tsx
 msgid "apps.confirm.cancel"
 msgstr "保留授权"
@@ -737,6 +1466,11 @@ msgid "apps.column.kind"
 msgstr "类型"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminGroups.tsx
+msgid "admin.groups.column.kind"
+msgstr "类型"
+
+#. js-lingui-explicit-id
 #: src/components/custom/LanguageMenu.tsx
 msgid "language.label"
 msgstr "语言"
@@ -745,6 +1479,16 @@ msgstr "语言"
 #: src/pages/security/SessionsPanel.tsx
 msgid "security.sessions.column.ip"
 msgstr "最后活动 IP"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.sessions.column.ip"
+msgstr "最近来源"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUsers.tsx
+msgid "admin.users.column.lastSignIn"
+msgstr "最近登录"
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
@@ -757,9 +1501,24 @@ msgid "security.tokens.column.lastUsed"
 msgstr "最后使用"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.passkeys.column.lastUsed"
+msgstr "最近使用"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.tokens.column.lastUsed"
+msgstr "最近使用"
+
+#. js-lingui-explicit-id
 #: src/components/custom/secret-reveal-copy.ts
 msgid "login.codes.leave"
 msgstr "要在未保存的情况下离开吗？这些恢复码无法再次查看。"
+
+#. js-lingui-explicit-id
+#: src/components/custom/secret-reveal-copy.ts
+msgid "admin.invitations.reveal.leave"
+msgstr "不保存就离开吗？该链接无法再次显示。"
 
 #. js-lingui-explicit-id
 #: src/components/custom/secret-reveal-copy.ts
@@ -772,6 +1531,11 @@ msgid "theme.light"
 msgstr "日间模式"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminInvitations.tsx
+msgid "admin.invitations.column.link"
+msgstr "链接"
+
+#. js-lingui-explicit-id
 #: src/pages/security/IdentitiesPanel.tsx
 msgid "security.identities.link.title"
 msgstr "绑定其它身份"
@@ -780,6 +1544,11 @@ msgstr "绑定其它身份"
 #: src/pages/security/IdentitiesPanel.tsx
 msgid "security.identities.column.linked"
 msgstr "绑定时间"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.identities.column.linked"
+msgstr "连接时间"
 
 #. js-lingui-explicit-id
 #: src/pages/Preview.tsx
@@ -812,9 +1581,39 @@ msgid "devices.lookup"
 msgstr "查询配对码"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.slug.hint"
+msgstr "小写字母、数字和连字符。应用通过它来引用本用户组。"
+
+#. js-lingui-explicit-id
 #: src/pages/ApiPreview.tsx
 msgid "api.maintenance"
 msgstr "维护模式"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.kind.manual"
+msgstr "手工"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroups.tsx
+msgid "admin.groups.kind.manual"
+msgstr "手工"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.rule.group.op"
+msgstr "匹配"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUsers.tsx
+msgid "admin.users.filter.matchLabel"
+msgstr "匹配方式"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.rule.not.hint"
+msgstr "匹配不符合该条件的账号。"
 
 #. js-lingui-explicit-id
 #: src/components/custom/SudoDialog.tsx
@@ -857,8 +1656,33 @@ msgid "security.tokens.name"
 msgstr "名称"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.display-name"
+msgstr "名称"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroups.tsx
+msgid "admin.groups.column.name"
+msgstr "名称"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.passkeys.column.name"
+msgstr "名称"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.tokens.column.name"
+msgstr "名称"
+
+#. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.never_expires"
+msgstr "永不过期"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.tokens.never_expires"
 msgstr "永不过期"
 
 #. js-lingui-explicit-id
@@ -892,6 +1716,21 @@ msgid "login.reset.qr"
 msgstr "新身份验证器设置二维码"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminGroups.tsx
+msgid "admin.groups.new"
+msgstr "新建用户组"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminInvitationForm.tsx
+msgid "admin.invitations.new.title"
+msgstr "新建邀请"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminInvitationForm.tsx
+msgid "admin.invitations.new.form"
+msgstr "新建邀请"
+
+#. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
 msgid "security.password.new"
 msgstr "新密码"
@@ -907,6 +1746,11 @@ msgid "login.codes.label"
 msgstr "新恢复码"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.create.title"
+msgstr "新建用户组"
+
+#. js-lingui-explicit-id
 #: src/pages/DevForms.tsx
 msgid "dev.forms.nickname.label"
 msgstr "昵称"
@@ -917,9 +1761,19 @@ msgid "dev.forms.rename.success"
 msgstr "昵称已保存，输入内容已保留。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.tokens.empty"
+msgstr "暂无个人访问令牌"
+
+#. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.empty"
 msgstr "还没有访问令牌"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.sessions.empty"
+msgstr "暂无在线会话"
 
 #. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
@@ -932,9 +1786,24 @@ msgid "apps.empty"
 msgstr "还没有已批准的应用"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.identities.empty"
+msgstr "暂无已连接身份"
+
+#. js-lingui-explicit-id
 #: src/pages/security/IdentitiesPanel.tsx
 msgid "security.identities.link.unavailable"
 msgstr "暂无可绑定的身份"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminInvitations.tsx
+msgid "admin.invitations.empty"
+msgstr "暂无邀请"
+
+#. js-lingui-explicit-id
+#: src/components/custom/EntityPicker.tsx
+msgid "admin.picker.empty"
+msgstr "没有匹配项"
 
 #. js-lingui-explicit-id
 #: src/pages/security/IdentitiesPanel.tsx
@@ -947,6 +1816,11 @@ msgid "security.sessions.empty"
 msgstr "没有其它会话"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.passkeys.empty"
+msgstr "暂无通行密钥"
+
+#. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
 msgid "security.passkeys.empty.title"
 msgstr "还没有通行密钥"
@@ -955,6 +1829,21 @@ msgstr "还没有通行密钥"
 #: src/pages/profile/AvatarPanel.tsx
 msgid "profile.avatar.source.none"
 msgstr "不显示头像"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroups.tsx
+msgid "admin.groups.empty"
+msgstr "暂无用户组"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUsers.tsx
+msgid "admin.users.empty"
+msgstr "没有匹配的用户"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.rule.not"
+msgstr "取反"
 
 #. js-lingui-explicit-id
 #: src/pages/ApiPreview.tsx
@@ -972,9 +1861,39 @@ msgid "security.tokens.never_used"
 msgstr "尚未使用"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.passkeys.never_used"
+msgstr "尚未使用"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.tokens.never_used"
+msgstr "尚未使用"
+
+#. js-lingui-explicit-id
 #: src/components/custom/AppNotifications.tsx
 msgid "notification.region"
 msgstr "通知"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.exposed"
+msgstr "提供给应用"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.oidcSubject"
+msgstr "OIDC 主体"
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.invitation_groups_unavailable"
+msgstr "所选用户组之一已不存在，请重新选择。"
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.group_in_use"
+msgstr "仍有应用在使用该用户组。请先从中移除，再删除该组。"
 
 #. js-lingui-explicit-id
 #: src/components/custom/ConsoleLayout.tsx
@@ -985,6 +1904,26 @@ msgstr "打开导航"
 #: src/pages/ConnectedApps.tsx
 msgid "apps.kind.oidc"
 msgstr "OpenID Connect"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminInvitationForm.tsx
+msgid "admin.invitations.new.username.hint"
+msgstr "可选。留空则让被邀请人在注册时自己选择。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.email.hint"
+msgstr "可选。留空则不保存邮箱地址。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminInvitationForm.tsx
+msgid "admin.invitations.new.provider.hint"
+msgstr "可选。只提供已启用且就绪的提供商；被邀请人必须通过这里选定的提供商登录。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.description.hint"
+msgstr "可选。说明本用户组的用途，供之后阅读的人参考。"
 
 #. js-lingui-explicit-id
 #: src/components/custom/RouteFeedback.tsx
@@ -1014,6 +1953,16 @@ msgstr "通行密钥"
 #. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
 msgid "security.passkeys.table"
+msgstr "通行密钥"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.passkeys.title"
+msgstr "通行密钥"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.passkeys.table"
 msgstr "通行密钥"
 
 #. js-lingui-explicit-id
@@ -1082,6 +2031,16 @@ msgid "profile.tabs"
 msgstr "个人资料"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.tab.profile"
+msgstr "资料"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.profile.title"
+msgstr "资料"
+
+#. js-lingui-explicit-id
 #: src/components/custom/ConsoleLayout.tsx
 msgid "console.profile"
 msgstr "个人资料"
@@ -1092,9 +2051,24 @@ msgid "security.identities.column.protocol"
 msgstr "协议"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.identities.column.protocol"
+msgstr "协议"
+
+#. js-lingui-explicit-id
 #: src/pages/security/IdentitiesPanel.tsx
 msgid "security.identities.column.provider"
 msgstr "提供方"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.identities.column.provider"
+msgstr "提供商"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUsers.tsx
+msgid "admin.users.filter.providerLabel"
+msgstr "提供商"
 
 #. js-lingui-explicit-id
 #: src/components/custom/PreviewLayout.tsx
@@ -1127,6 +2101,16 @@ msgid "api.refreshing"
 msgstr "正在刷新…"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.enrollment.title"
+msgstr "注册链接"
+
+#. js-lingui-explicit-id
+#: src/components/custom/secret-reveal-copy.ts
+msgid "admin.invitations.reveal.label"
+msgstr "注册链接"
+
+#. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
 msgid "security.passkeys.delete"
 msgstr "移除"
@@ -1134,6 +2118,11 @@ msgstr "移除"
 #. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
 msgid "security.passkeys.delete.confirm"
+msgstr "移除"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.passkeys.revoke"
 msgstr "移除"
 
 #. js-lingui-explicit-id
@@ -1157,14 +2146,34 @@ msgid "profile.display-name.control"
 msgstr "请去掉名称中的控制字符。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.passkeys.revoke.action"
+msgstr "移除通行密钥"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.rule.remove"
+msgstr "移除此条件"
+
+#. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
 msgid "security.passkeys.delete.title"
 msgstr "移除这把通行密钥？"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.passkeys.revoke.title"
+msgstr "要移除该通行密钥吗？"
+
+#. js-lingui-explicit-id
 #: src/pages/profile/AvatarPanel.tsx
 msgid "profile.avatar.remove"
 msgstr "移除上传"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.delete.note"
+msgstr "删除该账号及其拥有的一切：通行密钥、会话、访问令牌和已连接身份。此操作无法撤销。"
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
@@ -1248,9 +2257,74 @@ msgid "security.tokens.revoke.action"
 msgstr "撤销"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminInvitations.tsx
+msgid "admin.invitations.revoke.action"
+msgstr "吊销"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.tokens.revoke"
+msgstr "吊销"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminInvitations.tsx
+msgid "admin.invitations.revoke.title"
+msgstr "要吊销该邀请吗？"
+
+#. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.revoke.title"
 msgstr "撤销此令牌？"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.tokens.revoke.title"
+msgstr "要吊销该令牌吗？"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.tokens.revoke.action"
+msgstr "吊销令牌"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminInvitationForm.tsx
+msgid "admin.invitations.new.role"
+msgstr "角色"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminInvitations.tsx
+msgid "admin.invitations.column.role"
+msgstr "角色"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.role"
+msgstr "角色"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUsers.tsx
+msgid "admin.users.column.role"
+msgstr "角色"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.kind.rule"
+msgstr "规则"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroups.tsx
+msgid "admin.groups.kind.rule"
+msgstr "规则"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.rule.json.label"
+msgstr "规则文档"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.rule.views"
+msgstr "规则编辑器"
 
 #. js-lingui-explicit-id
 #: src/pages/ConnectedApps.tsx
@@ -1261,6 +2335,16 @@ msgstr "SAML"
 #: src/pages/Profile.tsx
 msgid "profile.display-name.save"
 msgstr "保存"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.save"
+msgstr "保存更改"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.save"
+msgstr "保存更改"
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
@@ -1281,6 +2365,26 @@ msgstr "使用身份验证器扫描二维码，或手动输入设置密钥，然
 #: src/pages/ConnectedApps.tsx
 msgid "apps.column.scopes"
 msgstr "作用范围"
+
+#. js-lingui-explicit-id
+#: src/components/custom/EntityPicker.tsx
+msgid "admin.picker.search"
+msgstr "搜索"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminInvitationForm.tsx
+msgid "admin.invitations.new.provider.placeholder"
+msgstr "搜索提供商"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminInvitationForm.tsx
+msgid "admin.invitations.new.groups.placeholder"
+msgstr "搜索用户组"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUsers.tsx
+msgid "admin.users.search"
+msgstr "搜索用户"
 
 #. js-lingui-explicit-id
 #: src/pages/Security.tsx
@@ -1358,6 +2462,21 @@ msgid "console.logout"
 msgstr "退出登录"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.sessions.revoke_all"
+msgstr "全部登出"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.sessions.revoke_all.action"
+msgstr "全部登出"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.sessions.revoke_all.title"
+msgstr "要将该账号在所有设备上登出吗？"
+
+#. js-lingui-explicit-id
 #: src/pages/security/SessionsPanel.tsx
 msgid "security.sessions.other"
 msgstr "已登录"
@@ -1378,6 +2497,11 @@ msgid "security.setup.note"
 msgstr "之后登录会要求输入密码与此验证器生成的验证码。此前使用的凭据会同时失效。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminGroups.tsx
+msgid "admin.groups.column.slug"
+msgstr "标识"
+
+#. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.ceremony_missing"
 msgstr "请重新发起通行密钥登录。"
@@ -1388,6 +2512,16 @@ msgid "security.sessions.column.issued"
 msgstr "签发时间"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.sessions.column.issued"
+msgstr "开始时间"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUsers.tsx
+msgid "admin.users.column.state"
+msgstr "状态"
+
+#. js-lingui-explicit-id
 #: src/pages/Preview.tsx
 msgid "feedback.title"
 msgstr "状态样例"
@@ -1396,6 +2530,11 @@ msgstr "状态样例"
 #: src/pages/security/SessionsPanel.tsx
 msgid "security.sessions.column.status"
 msgstr "状态"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.identities.column.subject"
+msgstr "主体"
 
 #. js-lingui-explicit-id
 #: src/pages/DevForms.tsx
@@ -1428,14 +2567,39 @@ msgid "theme.system"
 msgstr "跟随系统"
 
 #. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.account_not_found"
+msgstr "该账号已不存在，列表已刷新。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.rule.reason.invalid_fact"
+msgstr "不支持该条件类型。"
+
+#. js-lingui-explicit-id
 #: src/pages/security/SessionsPanel.tsx
 msgid "security.sessions.revoke.body"
 msgstr "该设备会立即退出登录，需要重新登录。它正在进行的操作会中止。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.sessions.revoke.body"
+msgstr "该设备会立即登出，需要重新登录。它正在进行的操作都会停止。"
+
+#. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.avatar_invalid_image"
 msgstr "该文件不是此实例可用的图片。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.rule.reason.invalid_op"
+msgstr "不支持该条件组类型。"
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.invitation_not_found"
+msgstr "该邀请已被吊销或已使用。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -1463,9 +2627,54 @@ msgid "error.avatar_source_unavailable"
 msgstr "该头像已不可用，请选择其它来源。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.rule.reason.invalid_source"
+msgstr "不支持该头像来源。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.rule.reason.invalid_protocol"
+msgstr "不支持该协议。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.rule.reason.provider_not_found"
+msgstr "本实例上没有该提供商。"
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.upstream_idp_not_found"
+msgstr "该提供商不可用，可能已被删除或停用。"
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.invalid_role"
+msgstr "本实例不接受该角色。"
+
+#. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.session_not_found"
 msgstr "该会话已结束，列表已刷新。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.rule.reason.invalid_method"
+msgstr "不支持该登录方式。"
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.group_not_found"
+msgstr "该用户组已不存在，列表已刷新。"
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.username_taken"
+msgstr "该用户名已被占用。"
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.invalid_username"
+msgstr "该用户名的格式不被本实例接受。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -1473,9 +2682,64 @@ msgid "error.sudo_method_unavailable"
 msgstr "该验证方式当前不可用，请选择其它方式。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.delete.confirm.body"
+msgstr "该账号及其通行密钥、会话、访问令牌和已连接身份会立即被删除。此操作无法撤销。"
+
+#. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.bad_credentials"
 msgstr "无法验证凭据。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.rule.reason.unknown_field"
+msgstr "该文档包含服务器无法识别的字段。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.rule.reason.trailing_json"
+msgstr "该文档在规则之后还有内容。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.rule.reason.missing_condition"
+msgstr "该文档缺少 condition。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.rule.reason.missing_version"
+msgstr "该文档缺少 version。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.rule.reason.invalid_json"
+msgstr "该文档不是有效的 JSON。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.enrollment.expires"
+msgstr "链接于 {expiry} 过期。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroups.tsx
+msgid "admin.groups.error"
+msgstr "无法加载列表，请重试。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminInvitations.tsx
+msgid "admin.invitations.error"
+msgstr "无法加载列表，请重试。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUsers.tsx
+msgid "admin.users.error"
+msgstr "无法加载列表，请重试。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminInvitationForm.tsx
+msgid "admin.invitations.new.groups.hint"
+msgstr "新账号注册后加入的手工用户组。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -1503,6 +2767,11 @@ msgid "login.reset.qr_failed"
 msgstr "无法显示二维码。请手动输入设置密钥。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminInvitations.tsx
+msgid "admin.invitations.revoke.body"
+msgstr "注册链接会立即失效，该邀请也不再出现在此列表中。此操作无法撤销。"
+
+#. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.bad_request"
 msgstr "无法接受此请求。"
@@ -1521,6 +2790,16 @@ msgstr "重设可能已经完成。请尝试新身份验证器或通行密钥。
 #: src/api/errors.ts
 msgid "error.server_error"
 msgstr "服务器未能完成请求，请重试。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.rule.rejected"
+msgstr "服务器未接受该规则。请检查后重试。"
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.invalid_group_rule"
+msgstr "服务器未接受该规则。请检查后重试。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -1578,6 +2857,26 @@ msgid "feedback.description"
 msgstr "以下为视觉样例，不会发送请求。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.state.enable.body"
+msgstr "他们可以立即重新登录。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.state.disable.body"
+msgstr "他们将无法登录。已有的会话保持有效，直到你结束它们。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.state.disabled.note"
+msgstr "该账号无法登录。启用后，它会用原有的登录方式恢复访问。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.sessions.revoke_all.none"
+msgstr "该账号没有在线会话。"
+
+#. js-lingui-explicit-id
 #: src/components/custom/SudoDialog.tsx
 msgid "sudo.no-methods"
 msgstr "此账号无法在此验证身份。请先设置通行密钥，或设置密码与验证器，然后再试。"
@@ -1586,6 +2885,11 @@ msgstr "此账号无法在此验证身份。请先设置通行密钥，或设置
 #: src/api/errors.ts
 msgid "error.account_disabled"
 msgstr "此账户已停用。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.saved"
+msgstr "该账号已更新。"
 
 #. js-lingui-explicit-id
 #: src/components/custom/RouteFeedback.tsx
@@ -1601,6 +2905,11 @@ msgstr "该应用未定义作用范围。"
 #: src/pages/ConnectedApps.tsx
 msgid "apps.confirm.body"
 msgstr "该应用将无法再读取你的资料，下次使用时需要重新请求授权。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.rule.reason.invalid_shape"
+msgstr "该条件混用了不属于一起的字段。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -1638,6 +2947,21 @@ msgid "preview.notice"
 msgstr "登录和控制台已开放。注册、自助服务和管理页面将在后续更新中开放。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.attributes.invalid"
+msgstr "这不是有效的 JSON。请检查花括号、逗号和引号。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.rule.json.unreadable"
+msgstr "这不是有效的 JSON。表单视图中的规则仍然保留。"
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.last_admin"
+msgstr "这是唯一的管理员。请先把另一个账号设为管理员。"
+
+#. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.cannot_revoke_current_session"
 msgstr "这是你正在使用的会话，请改用退出登录。"
@@ -1663,6 +2987,11 @@ msgid "security.revoke.last"
 msgstr "这是你唯一的登录方式，因此不能关闭。请先添加通行密钥。"
 
 #. js-lingui-explicit-id
+#: src/components/custom/secret-reveal-copy.ts
+msgid "admin.invitations.reveal.once"
+msgstr "该链接只显示一次，持有者可用它登录为被邀请的账号。请自行发给对方，且只通过你信任的渠道发送。"
+
+#. js-lingui-explicit-id
 #: src/pages/ApiPreview.tsx
 msgid "api.description"
 msgstr "本页从服务器读取实例配置和初始化状态。"
@@ -1678,9 +3007,29 @@ msgid "error.pairing_not_approved"
 msgstr "此次配对尚未到可以批准的阶段。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.passkeys.revoke.body"
+msgstr "该通行密钥会立即失效。如果它是该账号唯一的登录方式，他们需要新的注册链接。"
+
+#. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
 msgid "security.passkeys.delete.body"
 msgstr "这把通行密钥会立即无法用于登录。你其它的登录方式不受影响。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.rule.problem.too_many_nodes"
+msgstr "该规则的条件过多，总共最多 64 个。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.rule.reason.max_nodes_exceeded"
+msgstr "该规则的条件过多，总共最多 64 个。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.rule.reason.unsupported_version"
+msgstr "该规则是为另一个版本的服务器编写的。"
 
 #. js-lingui-explicit-id
 #: src/pages/DevForms.tsx
@@ -1710,6 +3059,11 @@ msgstr "切换侧边栏"
 #. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.column.hint"
+msgstr "令牌"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.tokens.column.hint"
 msgstr "令牌"
 
 #. js-lingui-explicit-id
@@ -1793,9 +3147,24 @@ msgid "security.passkeys.unnamed"
 msgstr "未命名通行密钥"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.passkeys.unnamed"
+msgstr "未命名通行密钥"
+
+#. js-lingui-explicit-id
 #: src/pages/profile/AvatarPanel.tsx
 msgid "profile.avatar.upload"
 msgstr "上传头像"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminInvitations.tsx
+msgid "admin.invitations.column.provider"
+msgstr "上游提供商"
+
+#. js-lingui-explicit-id
+#: src/components/custom/EntityPicker.tsx
+msgid "admin.picker.provider"
+msgstr "上游提供商"
 
 #. js-lingui-explicit-id
 #: src/pages/Profile.tsx
@@ -1833,6 +3202,11 @@ msgid "login.use_totp"
 msgstr "使用身份验证器验证码"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.slug.format"
+msgstr "请使用小写字母、数字和连字符，最多 64 个字符。"
+
+#. js-lingui-explicit-id
 #: src/pages/security/SessionsPanel.tsx
 msgid "security.sessions.use_sign_out"
 msgstr "请使用退出登录结束此会话"
@@ -1841,6 +3215,57 @@ msgstr "请使用退出登录结束此会话"
 #: src/components/custom/SudoDialog.tsx
 msgid "sudo.method.password"
 msgstr "使用密码与验证器"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminInvitationForm.tsx
+#: src/pages/admin/AdminInvitations.tsx
+msgid "admin.invitations.role.user"
+msgstr "用户"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.role.user"
+msgstr "用户"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUsers.tsx
+msgid "admin.users.role.user"
+msgstr "用户"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.edit.title"
+msgstr "用户组"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.form"
+msgstr "用户组"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroups.tsx
+msgid "admin.groups.title"
+msgstr "用户组"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroups.tsx
+msgid "admin.groups.table"
+msgstr "用户组"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminInvitations.tsx
+msgid "admin.invitations.column.groups"
+msgstr "用户组"
+
+#. js-lingui-explicit-id
+#: src/components/custom/ConsoleLayout.tsx
+msgid "console.admin.groups"
+msgstr "用户组"
+
+#. js-lingui-explicit-id
+#: src/components/custom/EntityPicker.tsx
+msgid "admin.picker.group"
+msgstr "用户组"
 
 #. js-lingui-explicit-id
 #: src/pages/Console.tsx
@@ -1852,6 +3277,51 @@ msgstr "用户名"
 #: src/pages/Login.tsx
 msgid "login.username"
 msgstr "用户名"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUsers.tsx
+msgid "admin.users.column.username"
+msgstr "用户名"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUsers.tsx
+msgid "admin.users.search.placeholder"
+msgstr "用户名或显示名"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUsers.tsx
+msgid "admin.users.title"
+msgstr "用户"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUsers.tsx
+msgid "admin.users.table"
+msgstr "用户"
+
+#. js-lingui-explicit-id
+#: src/components/custom/ConsoleLayout.tsx
+msgid "console.admin.users"
+msgstr "用户"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminHome.tsx
+msgid "admin.home.summary"
+msgstr "用户、用户组与邀请在侧栏对应的区域中管理。每个区域列出已有条目，并打开独立的页面来新建或修改单个条目。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.rule.value"
+msgstr "取值"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUsers.tsx
+msgid "admin.users.filter.valuePlaceholder"
+msgstr "值"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUsers.tsx
+msgid "admin.users.filter.value"
+msgstr "要匹配的值"
 
 #. js-lingui-explicit-id
 #: src/components/custom/SudoDialog.tsx
@@ -1894,14 +3364,34 @@ msgid "security.tokens.scope"
 msgstr "可访问范围"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.display-name.hint"
+msgstr "本用户组在控制台中显示的名称。"
+
+#. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.name.hint"
 msgstr "用它做什么，便于日后知道该撤销哪个。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.manual.note"
+msgstr "本组包含哪些账号，在创建完成后于该用户组自己的页面上决定。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminGroupForm.tsx
+msgid "admin.group.rule.label"
+msgstr "规则匹配的账号"
+
+#. js-lingui-explicit-id
 #: src/pages/Devices.tsx
 msgid "devices.approved"
 msgstr "你已批准此设备。它仍需在本机设置通行密钥，登录才会完成。"
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.cannot_delete_self"
+msgstr "你无法删除自己的账号。请让另一位管理员操作。"
 
 #. js-lingui-explicit-id
 #: src/pages/Devices.tsx
