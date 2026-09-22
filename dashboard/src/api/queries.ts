@@ -129,3 +129,244 @@ export function federationProvidersQueryOptions() {
       ),
   });
 }
+
+/* ---------------------------------------------------------------- admin -- */
+
+/**
+ * Management reads deliberately carry no `meta: { requiresSession: true }`.
+ * That marker is how signing out finds the queries holding *this session's*
+ * private data; the admin directory belongs to the instance, not to whoever is
+ * signed in, so a sign-out leaves it cached rather than cancelling and removing
+ * it (`clearSessionQueries`).
+ */
+
+/** The filters `GET /accounts` accepts; all optional and all server-side. */
+export interface AccountFilters {
+  q?: string;
+  provider?: string;
+  field?: string;
+  value?: string;
+  match?: string;
+}
+
+/**
+ * One page of the account directory. Written for `useCursorList`, which walks
+ * the pages one issued cursor at a time; `filters` is what the reader asked
+ * for, and the cursor is where the previous page stopped.
+ */
+export function accountsListOptions(filters: AccountFilters) {
+  return {
+    queryKey: ["admin", "accounts", filters] as const,
+    queryFn: ({ cursor, signal }: { cursor?: string; signal: AbortSignal }) =>
+      requireJsonData(
+        client.GET("/api/prohibitorum/accounts", {
+          params: {
+            query: cursor === undefined ? filters : { ...filters, cursor },
+          },
+          signal,
+        }),
+      ),
+  };
+}
+
+export function accountQueryOptions(id: number) {
+  return queryOptions({
+    queryKey: ["admin", "accounts", id] as const,
+    queryFn: ({ signal }) =>
+      requireJsonData(
+        client.GET("/api/prohibitorum/accounts/{id}", {
+          params: { path: { id } },
+          signal,
+        }),
+      ),
+  });
+}
+
+/** A bare array, not a `{ items, nextCursor }` envelope. */
+export function accountIdentitiesQueryOptions(id: number) {
+  return queryOptions({
+    queryKey: ["admin", "accounts", id, "identities"] as const,
+    queryFn: ({ signal }) =>
+      requireJsonData(
+        client.GET("/api/prohibitorum/accounts/{id}/identities", {
+          params: { path: { id } },
+          signal,
+        }),
+      ),
+  });
+}
+
+export function accountCredentialsQueryOptions(id: number) {
+  return queryOptions({
+    queryKey: ["admin", "accounts", id, "credentials"] as const,
+    queryFn: ({ signal }) =>
+      requireJsonData(
+        client.GET("/api/prohibitorum/accounts/{id}/credentials", {
+          params: { path: { id } },
+          signal,
+        }),
+      ),
+  });
+}
+
+export function accountSessionsQueryOptions(id: number) {
+  return queryOptions({
+    queryKey: ["admin", "accounts", id, "sessions"] as const,
+    queryFn: ({ signal }) =>
+      requireJsonData(
+        client.GET("/api/prohibitorum/accounts/{id}/sessions", {
+          params: { path: { id } },
+          signal,
+        }),
+      ),
+  });
+}
+
+export function accountTokensQueryOptions(id: number) {
+  return queryOptions({
+    queryKey: ["admin", "accounts", id, "tokens"] as const,
+    queryFn: ({ signal }) =>
+      requireJsonData(
+        client.GET("/api/prohibitorum/accounts/{id}/tokens", {
+          params: { path: { id } },
+          signal,
+        }),
+      ),
+  });
+}
+
+export function invitationsQueryOptions(cursor?: string) {
+  return queryOptions({
+    queryKey: ["admin", "invitations", cursor ?? ""] as const,
+    queryFn: ({ signal }) =>
+      requireJsonData(
+        client.GET("/api/prohibitorum/invitations", {
+          // Omitted rather than sent empty: an empty `cursor` is not the same
+          // request as no cursor at all.
+          ...(cursor === undefined ? {} : { params: { query: { cursor } } }),
+          signal,
+        }),
+      ),
+  });
+}
+
+/**
+ * The same read, shaped for `useCursorList`: one page per issued cursor, so the
+ * list can walk invitations without rebuilding the query context by hand.
+ */
+export function invitationsListOptions() {
+  return {
+    queryKey: ["admin", "invitations"] as const,
+    queryFn: ({ cursor, signal }: { cursor?: string; signal: AbortSignal }) =>
+      requireJsonData(
+        client.GET("/api/prohibitorum/invitations", {
+          ...(cursor === undefined ? {} : { params: { query: { cursor } } }),
+          signal,
+        }),
+      ),
+  };
+}
+
+/** Providers carry the search fields and match operators the filter offers. */
+export function identityProvidersQueryOptions() {
+  return queryOptions({
+    queryKey: ["admin", "identity-providers"] as const,
+    queryFn: ({ signal }) =>
+      requireJsonData(
+        client.GET("/api/prohibitorum/identity-providers", { signal }),
+      ),
+  });
+}
+
+/** A bare array: the admin's whole directory, or a non-admin's memberships. */
+export function groupsQueryOptions() {
+  return queryOptions({
+    queryKey: ["admin", "groups"] as const,
+    queryFn: ({ signal }) =>
+      requireJsonData(client.GET("/api/prohibitorum/groups", { signal })),
+  });
+}
+
+export function groupQueryOptions(groupId: number) {
+  return queryOptions({
+    queryKey: ["admin", "groups", groupId] as const,
+    queryFn: ({ signal }) =>
+      requireJsonData(
+        client.GET("/api/prohibitorum/groups/{groupId}", {
+          params: { path: { groupId } },
+          signal,
+        }),
+      ),
+  });
+}
+
+/** The rule editor's provider vocabulary; includes disabled and invite-only. */
+export function groupProvidersQueryOptions() {
+  return queryOptions({
+    queryKey: ["admin", "groups", "providers"] as const,
+    queryFn: ({ signal }) =>
+      requireJsonData(
+        client.GET("/api/prohibitorum/groups/providers", { signal }),
+      ),
+  });
+}
+
+export function groupDecisionsQueryOptions(groupId: number, cursor?: string) {
+  return queryOptions({
+    queryKey: ["admin", "groups", groupId, "decisions", cursor ?? ""] as const,
+    queryFn: ({ signal }) =>
+      requireJsonData(
+        client.GET("/api/prohibitorum/groups/{groupId}/decisions", {
+          params: {
+            path: { groupId },
+            query: cursor === undefined ? {} : { cursor },
+          },
+          signal,
+        }),
+      ),
+  });
+}
+
+/**
+ * Fixed to one page: the handler always answers with an empty `nextCursor`, so
+ * the interface offers no "load more" for it.
+ */
+export function groupPreviewQueryOptions(groupId: number) {
+  return queryOptions({
+    queryKey: ["admin", "groups", groupId, "preview"] as const,
+    queryFn: ({ signal }) =>
+      requireJsonData(
+        client.GET("/api/prohibitorum/groups/{groupId}/preview", {
+          params: { path: { groupId } },
+          signal,
+        }),
+      ),
+  });
+}
+
+export function groupExplainQueryOptions(groupId: number, accountId: number) {
+  return queryOptions({
+    queryKey: ["admin", "groups", groupId, "explain", accountId] as const,
+    queryFn: ({ signal }) =>
+      requireJsonData(
+        client.GET("/api/prohibitorum/groups/{groupId}/explain/{accountId}", {
+          params: { path: { groupId, accountId } },
+          signal,
+        }),
+      ),
+  });
+}
+
+/** Fixed to one page, like the preview. */
+export function groupApplicationsQueryOptions(groupId: number) {
+  return queryOptions({
+    queryKey: ["admin", "groups", groupId, "applications"] as const,
+    queryFn: ({ signal }) =>
+      requireJsonData(
+        client.GET("/api/prohibitorum/groups/{groupId}/applications", {
+          params: { path: { groupId } },
+          signal,
+        }),
+      ),
+  });
+}

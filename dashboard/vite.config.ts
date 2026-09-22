@@ -48,5 +48,9 @@ export default defineConfig({
     setupFiles: ["./src/test/setup.ts"],
     include: ["src/**/*.test.{ts,tsx}"],
     environmentOptions: { jsdom: { url: "http://localhost/" } },
+    // Each file gets its own jsdom, and the language-preference tests build a
+    // whole router twice; on a loaded machine that alone runs to a few seconds
+    // against Vitest's five-second default.
+    testTimeout: 15000,
   },
 });

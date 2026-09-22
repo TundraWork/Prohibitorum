@@ -45,3 +45,16 @@ export type SecurityTab = (typeof securityTabs)[number];
 export function securityTab(value: unknown): SecurityTab {
   return pickTab(value, securityTabs);
 }
+
+/**
+ * Sections of one account in the management area. The profile form stands
+ * alone, the per-account actions each own a block, and everything read-only
+ * about how the account gets in shares the last tab, so the destructive
+ * controls are not stacked beside the fields a reader came to edit.
+ */
+export const accountTabs = ["profile", "access", "danger"] as const;
+export type AccountTab = (typeof accountTabs)[number];
+
+export function accountTab(value: unknown): AccountTab {
+  return pickTab(value, accountTabs);
+}
