@@ -10,7 +10,12 @@ import {
 } from "@heroui/react";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useMutation,
+  useQuery,
+  useQueryClient,
+  useSuspenseQuery,
+} from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import {
   Fingerprint,
@@ -116,26 +121,7 @@ export function AdminUser() {
   const { id } = Route.useParams();
   const { tab } = Route.useSearch();
   const accountId = Number(id);
-  const account = useQuery(accountQueryOptions(accountId));
-
-  // No loader stands behind this route, so there is no `pendingComponent` to
-  // fall back to; the tabs wait rather than drawing a form with no values.
-  if (account.isPending) return null;
-
-  if (!account.data) {
-    return (
-      <ConsoleCard title={<Trans id="admin.user.title">Account</Trans>}>
-        <SurfaceAlert status="danger" role="alert">
-          <SurfaceAlert.Indicator />
-          <SurfaceAlert.Content>
-            <SurfaceAlert.Title>
-              {t(describeError(account.error))}
-            </SurfaceAlert.Title>
-          </SurfaceAlert.Content>
-        </SurfaceAlert>
-      </ConsoleCard>
-    );
-  }
+  const account = useSuspenseQuery(accountQueryOptions(accountId));
 
   return (
     <Tabs

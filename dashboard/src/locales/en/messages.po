@@ -53,11 +53,6 @@ msgid "admin.group.rule.reason.max_children_exceeded"
 msgstr "A group can hold at most 32 conditions."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminGroups.tsx
-msgid "admin.groups.note"
-msgstr "A group either keeps the members you add by hand, or works its members out from a rule."
-
-#. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
 msgid "admin.group.rule.reason.empty_children"
 msgstr "A group needs at least one condition."
@@ -131,11 +126,6 @@ msgstr "Access tokens"
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.tokens.table"
 msgstr "Access tokens"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/AdminUser.tsx
-msgid "admin.user.title"
-msgstr "Account"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
@@ -314,11 +304,6 @@ msgstr "Applications can select this group for the access they grant."
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.oidcSubject.hint"
 msgstr "Applications identify this account by this value. It never changes."
-
-#. js-lingui-explicit-id
-#: src/pages/ConnectedApps.tsx
-msgid "apps.intro"
-msgstr "Applications you have approved. Removing access revokes what they can read about you; they will ask again the next time you sign in."
 
 #. js-lingui-explicit-id
 #: src/pages/Devices.tsx
@@ -2412,11 +2397,6 @@ msgstr "Signed out everywhere"
 #: src/components/custom/LoginShell.tsx
 msgid "login.factor.account"
 msgstr "Signing in as {username}"
-
-#. js-lingui-explicit-id
-#: src/pages/Devices.tsx
-msgid "devices.intro"
-msgstr "Signing in somewhere new? Enter the code that device is showing, check it is really you, and approve it here."
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx

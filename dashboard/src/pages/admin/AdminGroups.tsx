@@ -35,12 +35,6 @@ export function AdminGroups() {
         <Button onPress={() => void navigate({ to: "/admin/groups/new" })}>
           <Trans id="admin.groups.new">New group</Trans>
         </Button>
-        <p className="text-xs text-muted">
-          <Trans id="admin.groups.note">
-            A group either keeps the members you add by hand, or works its
-            members out from a rule.
-          </Trans>
-        </p>
       </div>
 
       {groups.isError && (

@@ -53,11 +53,6 @@ msgid "admin.group.rule.reason.max_children_exceeded"
 msgstr "一个条件组最多容纳 32 个条件。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminGroups.tsx
-msgid "admin.groups.note"
-msgstr "用户组要么保存你手工加入的成员，要么按规则自行算出成员。"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
 msgid "admin.group.rule.reason.empty_children"
 msgstr "条件组至少要有一个条件。"
@@ -131,11 +126,6 @@ msgstr "个人访问令牌"
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.tokens.table"
 msgstr "个人访问令牌"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/AdminUser.tsx
-msgid "admin.user.title"
-msgstr "账号"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
@@ -314,11 +304,6 @@ msgstr "应用可以把本组用于它们授予的访问权限。"
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.oidcSubject.hint"
 msgstr "应用用这个值识别该账号。它永不改变。"
-
-#. js-lingui-explicit-id
-#: src/pages/ConnectedApps.tsx
-msgid "apps.intro"
-msgstr "你已批准的应用。移除授权会收回它们读取你资料的能力；下次登录时它们会重新请求授权。"
 
 #. js-lingui-explicit-id
 #: src/pages/Devices.tsx
@@ -2412,11 +2397,6 @@ msgstr "已在所有设备上登出"
 #: src/components/custom/LoginShell.tsx
 msgid "login.factor.account"
 msgstr "正在登录 {username}"
-
-#. js-lingui-explicit-id
-#: src/pages/Devices.tsx
-msgid "devices.intro"
-msgstr "在新设备上登录？输入该设备显示的配对码，核对其确实是你本人，然后在这里批准。"
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx

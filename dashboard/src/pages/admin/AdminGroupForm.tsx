@@ -15,7 +15,7 @@ import {
 import { msg } from "@lingui/core/macro";
 import { Plural, Trans, useLingui } from "@lingui/react/macro";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, useRouter } from "@tanstack/react-router";
 import { Plus, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import {
@@ -23,14 +23,16 @@ import {
   rulePreviewMutationOptions,
   updateGroupMutationOptions,
 } from "@/api/mutations";
-import { groupProvidersQueryOptions, groupQueryOptions } from "@/api/queries";
+import { groupProvidersQueryOptions } from "@/api/queries";
 import type {
   AppAccessCondition,
   AppAccessRule,
+  AppGroupView,
   CreateGroupRequest,
   ProviderDescriptorView,
   UpdateGroupRequest,
 } from "@/api/raw-admin-paths";
+import { withRouterSkipLoading } from "@/app/router";
 import { Button } from "@/components/custom/Button";
 import { ConsoleCard } from "@/components/custom/ConsoleCard";
 import { applyServerError } from "@/forms/server-errors";
@@ -413,25 +415,38 @@ function appendChild(node: RuleNode, id: string, child: RuleNode): RuleNode {
  * own page, a rule group is described by a document — and the server rejects
  * `kind` on update, so an existing group shows it as a fact, not a control.
  */
-export function AdminGroupForm({ groupId }: { groupId?: number }) {
+/**
+ * Creates a group, or edits `group` when one is given.
+ *
+ * The group's own values are copied into the form once, on mount. A later
+ * refetch is a refresh of a record the reader may already be editing, so it is
+ * not allowed to overwrite what they have typed.
+ */
+export function AdminGroupForm({ group }: { group?: AppGroupView }) {
   const { t } = useLingui();
   const navigate = useNavigate();
+  const router = useRouter();
   const queryClient = useQueryClient();
-  const editing = groupId !== undefined;
-  const group = useQuery({
-    ...groupQueryOptions(groupId ?? 0),
-    enabled: editing,
-  });
+  const editing = group !== undefined;
   const providers = useQuery(groupProvidersQueryOptions());
 
-  const [kind, setKind] = useState<GroupKind>("manual");
-  const [tree, setTree] = useState<RuleNode>(rootTree);
+  const [kind, setKind] = useState<GroupKind>(
+    group?.kind === "rule" ? "rule" : "manual",
+  );
+  const [tree, setTree] = useState<RuleNode>(() =>
+    group === undefined ? rootTree() : treeForRule(group.rule),
+  );
   const [ruleError, setRuleError] = useState<{
     message: string;
     nodeId: string | null;
   } | null>(null);
   const [matchedCount, setMatchedCount] = useState<number | null>(null);
-  const [initialised, setInitialised] = useState(!editing);
+  const [defaultValues] = useState(() => ({
+    displayName: group?.displayName ?? "",
+    slug: group?.slug ?? "",
+    description: group?.description ?? "",
+    exposedToDownstream: group?.exposedToDownstream ?? true,
+  }));
 
   const create = useMutation(createGroupMutationOptions(queryClient));
   const update = useMutation(updateGroupMutationOptions(queryClient));
@@ -441,12 +456,7 @@ export function AdminGroupForm({ groupId }: { groupId?: number }) {
   const pending = create.isPending || update.isPending;
 
   const form = useAppForm({
-    defaultValues: {
-      displayName: "",
-      slug: "",
-      description: "",
-      exposedToDownstream: true,
-    },
+    defaultValues,
     onSubmit: async ({ value }) => {
       setRuleError(null);
       const body = {
@@ -457,23 +467,27 @@ export function AdminGroupForm({ groupId }: { groupId?: number }) {
       };
       const draft = ruleForTree(tree);
       try {
-        if (!editing) {
+        if (group === undefined) {
           const request: CreateGroupRequest = { ...body, kind };
           // A rule on a manual group is rejected outright, so it is left off
           // the request rather than sent empty.
           if (ruleGroup) request.rule = draft;
           const saved = await create.mutateAsync(request);
-          await navigate({
-            to: "/admin/groups/$groupId",
-            params: { groupId: String(saved.id) },
-          });
+          // The pressed submit button already shows the wait while the new
+          // group's page loads, so the form stays up instead of a spinner.
+          await withRouterSkipLoading(router, () =>
+            navigate({
+              to: "/admin/groups/$groupId",
+              params: { groupId: String(saved.id) },
+            }),
+          );
           return;
         }
         const request: UpdateGroupRequest = body;
         // An omitted rule means "keep the current one", so a manual group
         // never sends the document it does not have.
         if (ruleGroup) request.rule = draft;
-        await update.mutateAsync({ groupId: groupId as number, body: request });
+        await update.mutateAsync({ groupId: group.id, body: request });
         await navigate({ to: "/admin/groups" });
       } catch (error) {
         // `group_slug_conflict` is about one field, so it lands on that field;
@@ -485,25 +499,6 @@ export function AdminGroupForm({ groupId }: { groupId?: number }) {
       }
     },
   });
-
-  const { reset } = form;
-  const details = group.data;
-
-  // The group's own values are copied into the form once. A later refetch is a
-  // refresh of a record the reader may already be editing, so it is not allowed
-  // to overwrite what they have typed.
-  useEffect(() => {
-    if (initialised || details === undefined) return;
-    setInitialised(true);
-    setKind(details.kind === "rule" ? "rule" : "manual");
-    setTree(treeForRule(details.rule));
-    reset({
-      displayName: details.displayName,
-      slug: details.slug,
-      description: details.description ?? "",
-      exposedToDownstream: details.exposedToDownstream,
-    });
-  }, [details, initialised, reset]);
 
   const { mutateAsync: previewRule, reset: clearPreview } = preview;
 
@@ -550,8 +545,6 @@ export function AdminGroupForm({ groupId }: { groupId?: number }) {
       clearPreview();
     };
   }, [clearPreview, editing, previewRule, ruleGroup, t, tree]);
-
-  if (editing && !initialised) return null;
 
   return (
     <ConsoleCard

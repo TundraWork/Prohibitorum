@@ -35,13 +35,6 @@ export function ConnectedApps() {
 
   return (
     <>
-      <p className="text-sm text-muted">
-        <Trans id="apps.intro">
-          Applications you have approved. Removing access revokes what they can
-          read about you; they will ask again the next time you sign in.
-        </Trans>
-      </p>
-
       {consent.isError && (
         <Alert status="danger" role="alert">
           <Alert.Indicator />
