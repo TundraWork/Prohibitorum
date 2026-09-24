@@ -2,7 +2,7 @@ import { Alert, AlertDialog, Chip } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { ClipboardCopy, MailPlus } from "lucide-react";
+import { Ban, Check, ClipboardCopy, MailPlus } from "lucide-react";
 import { useState } from "react";
 import { useCursorList } from "@/api/cursor-list";
 import { describeError } from "@/api/errors";
@@ -37,6 +37,7 @@ export function AdminInvitations() {
   const queryClient = useQueryClient();
   const providers = useQuery(identityProvidersQueryOptions());
   const [target, setTarget] = useState<Invitation | null>(null);
+  const [copyFailed, setCopyFailed] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const revoke = useMutation(revokeInvitationMutationOptions(queryClient));
 
@@ -53,7 +54,7 @@ export function AdminInvitations() {
   return (
     <>
       <div className="flex flex-col gap-4">
-        <div className="flex flex-wrap items-center justify-end gap-4">
+        <div className="flex flex-wrap items-center gap-4">
           <Button
             onPress={() => void navigate({ to: "/admin/invitations/new" })}
           >
@@ -83,9 +84,25 @@ export function AdminInvitations() {
           </Alert>
         )}
 
+        {copyFailed && (
+          <Alert status="danger" role="alert">
+            <Alert.Indicator />
+            <Alert.Content>
+              <Alert.Title>
+                <Trans id="admin.invitations.copy.failed">
+                  Could not copy the link. Your browser blocked the clipboard;
+                  allow it and try again.
+                </Trans>
+              </Alert.Title>
+            </Alert.Content>
+          </Alert>
+        )}
+
         <DataTable
           label={t({ id: "admin.invitations.table", message: "Invitations" })}
-          columns={invitationColumns(i18n, providerName, setTarget)}
+          columns={invitationColumns(i18n, t, providerName, setTarget, (ok) =>
+            setCopyFailed(!ok),
+          )}
           rows={list.items}
           rowId={(invitation) => invitation.token}
           loading={list.loading}
@@ -166,15 +183,16 @@ export function AdminInvitations() {
 
 function invitationColumns(
   i18n: Locale,
+  t: ReturnType<typeof useLingui>["t"],
   providerName: (slug?: string) => string | null,
   revoke: (invitation: Invitation) => void,
+  onCopied: (ok: boolean) => void,
 ): TableColumn<Invitation>[] {
   const format = (value?: string) =>
     value === undefined
       ? "—"
       : new Intl.DateTimeFormat(i18n.locale, {
           dateStyle: "medium",
-          timeStyle: "short",
         }).format(new Date(value));
   return [
     {
@@ -233,32 +251,29 @@ function invitationColumns(
     },
     {
       align: "end",
-      id: "createdAt",
-      header: <Trans id="admin.invitations.column.created">Created</Trans>,
-      cell: (invitation) => format(invitation.createdAt),
-    },
-    {
-      align: "end",
       id: "expiresAt",
       header: <Trans id="admin.invitations.column.expires">Expires</Trans>,
       cell: (invitation) => format(invitation.expiresAt),
     },
     {
-      id: "url",
-      header: <Trans id="admin.invitations.column.link">Link</Trans>,
-      cell: (invitation) => <CopyLink url={invitation.url} />,
-    },
-    {
       id: "actions",
       header: <Trans id="admin.column.actions">Actions</Trans>,
       cell: (invitation) => (
-        <Button
-          size="sm"
-          variant="danger-soft"
-          onPress={() => revoke(invitation)}
-        >
-          <Trans id="admin.invitations.revoke.action">Revoke</Trans>
-        </Button>
+        <>
+          <CopyLink url={invitation.url} onCopied={onCopied} />
+          <Button
+            isIconOnly
+            size="sm"
+            variant="danger-soft"
+            aria-label={t({
+              id: "admin.invitations.revoke.action",
+              message: "Revoke",
+            })}
+            onPress={() => revoke(invitation)}
+          >
+            <Ban size={16} aria-hidden="true" />
+          </Button>
+        </>
       ),
       pinned: true,
     },
@@ -268,49 +283,50 @@ function invitationColumns(
 /**
  * The registration link as an affordance rather than a value. The URL is long
  * and it is a bearer token, so the row offers to put it on the clipboard and
- * confirms only that the copy happened.
+ * confirms only that the copy happened: the icon turns into a check. A blocked
+ * clipboard is reported above the table, where there is room to say what to do.
  */
-function CopyLink({ url }: { url: string }) {
+function CopyLink({
+  url,
+  onCopied,
+}: {
+  url: string;
+  onCopied: (ok: boolean) => void;
+}) {
   const { t } = useLingui();
-  const [state, setState] = useState<"idle" | "copied" | "failed">("idle");
+  const [copied, setCopied] = useState(false);
 
   return (
-    <span className="flex items-center gap-2">
-      <Button
-        size="sm"
-        variant="secondary"
-        aria-label={t({
-          id: "admin.invitations.copy",
-          message: "Copy the registration link",
-        })}
-        onPress={() => {
-          void (async () => {
-            setState("idle");
-            try {
-              await navigator.clipboard.writeText(url);
-              setState("copied");
-            } catch {
-              setState("failed");
-            }
-          })();
-        }}
-      >
+    <Button
+      isIconOnly
+      size="sm"
+      variant="tertiary"
+      aria-label={
+        copied
+          ? t({ id: "admin.invitations.copy.done", message: "Copied." })
+          : t({
+              id: "admin.invitations.copy",
+              message: "Copy the registration link",
+            })
+      }
+      onPress={() => {
+        void (async () => {
+          try {
+            await navigator.clipboard.writeText(url);
+            setCopied(true);
+            onCopied(true);
+          } catch {
+            setCopied(false);
+            onCopied(false);
+          }
+        })();
+      }}
+    >
+      {copied ? (
+        <Check size={16} aria-hidden="true" />
+      ) : (
         <ClipboardCopy size={16} aria-hidden="true" />
-        <Trans id="admin.invitations.copy.action">Copy link</Trans>
-      </Button>
-      {state === "copied" && (
-        <span className="text-sm text-muted" role="status">
-          <Trans id="admin.invitations.copy.done">Copied.</Trans>
-        </span>
       )}
-      {state === "failed" && (
-        <span className="text-sm text-danger" role="status">
-          <Trans id="admin.invitations.copy.failed">
-            Could not copy the link. Your browser blocked the clipboard; allow
-            it and try again.
-          </Trans>
-        </span>
-      )}
-    </span>
+    </Button>
   );
 }

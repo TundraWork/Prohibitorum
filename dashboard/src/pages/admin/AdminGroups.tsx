@@ -31,16 +31,16 @@ export function AdminGroups() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-4">
+      <div className="flex flex-wrap items-center gap-4">
+        <Button onPress={() => void navigate({ to: "/admin/groups/new" })}>
+          <Trans id="admin.groups.new">New group</Trans>
+        </Button>
         <p className="text-xs text-muted">
           <Trans id="admin.groups.note">
             A group either keeps the members you add by hand, or works its
             members out from a rule.
           </Trans>
         </p>
-        <Button onPress={() => void navigate({ to: "/admin/groups/new" })}>
-          <Trans id="admin.groups.new">New group</Trans>
-        </Button>
       </div>
 
       {groups.isError && (

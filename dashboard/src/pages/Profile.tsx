@@ -69,10 +69,7 @@ export function Profile() {
         }}
       >
         <Tabs.ListContainer className="ml-2 w-fit max-w-full">
-          <Tabs.List
-            className="grid grid-flow-col auto-cols-fr"
-            aria-label={t({ id: "profile.tabs", message: "Profile" })}
-          >
+          <Tabs.List aria-label={t({ id: "profile.tabs", message: "Profile" })}>
             <Tabs.Tab className="whitespace-nowrap" id="display-name">
               <Trans id="profile.tab.display-name">Display name</Trans>
               <Tabs.Indicator />

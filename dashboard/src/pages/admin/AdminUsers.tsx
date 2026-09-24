@@ -3,14 +3,14 @@ import {
   Chip,
   Label,
   ListBox,
+  Popover,
   SearchField,
   Select,
-  useOverlayState,
 } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { ChevronDown, ChevronRight, UserRound } from "lucide-react";
+import { SlidersHorizontal, UserRound } from "lucide-react";
 import { useCursorList } from "@/api/cursor-list";
 import type { components } from "@/api/generated/schema";
 import {
@@ -47,7 +47,6 @@ export function AdminUsers() {
   const { t, i18n } = useLingui();
   const navigate = useNavigate();
   const filters = Route.useSearch();
-  const advanced = useOverlayState();
 
   const query = accountFilterQuery(filters);
   const list = useCursorList<Account>({
@@ -75,6 +74,9 @@ export function AdminUsers() {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-end gap-2">
+        <Button onPress={() => void navigate({ to: "/admin/invitations/new" })}>
+          <Trans id="admin.users.invite">Invite a user</Trans>
+        </Button>
         <SearchField
           aria-label={t({ id: "admin.users.search", message: "Search users" })}
           className="min-w-56 flex-1"
@@ -91,25 +93,23 @@ export function AdminUsers() {
             />
           </SearchField.Group>
         </SearchField>
-        <Button
-          variant="secondary"
-          onPress={() => advanced.setOpen(!advanced.isOpen)}
-        >
-          {advanced.isOpen ? (
-            <ChevronDown size={16} aria-hidden="true" />
-          ) : (
-            <ChevronRight size={16} aria-hidden="true" />
-          )}
-          <Trans id="admin.users.filter.advanced">Identity filter</Trans>
-        </Button>
-        <Button onPress={() => void navigate({ to: "/admin/invitations/new" })}>
-          <Trans id="admin.users.invite">Invite a user</Trans>
-        </Button>
+        <Popover>
+          <Button variant="secondary">
+            <SlidersHorizontal size={16} aria-hidden="true" />
+            <Trans id="admin.users.filter.advanced">Identity filter</Trans>
+            {filters.provider !== "" && (
+              <Chip color="accent" size="sm" variant="soft">
+                <Trans id="admin.users.filter.on">On</Trans>
+              </Chip>
+            )}
+          </Button>
+          <Popover.Content placement="bottom end" className="w-80">
+            <Popover.Dialog>
+              <AdvancedIdentityFilter filters={filters} onChange={setFilter} />
+            </Popover.Dialog>
+          </Popover.Content>
+        </Popover>
       </div>
-
-      {advanced.isOpen && (
-        <AdvancedIdentityFilter filters={filters} onChange={setFilter} />
-      )}
 
       {list.error !== null && list.error !== undefined && (
         <Alert status="danger" role="alert">
@@ -153,7 +153,6 @@ function userColumns(
       ? "—"
       : new Intl.DateTimeFormat(i18n.locale, {
           dateStyle: "medium",
-          timeStyle: "short",
         }).format(new Date(value));
   return [
     {
@@ -252,10 +251,11 @@ function AdvancedIdentityFilter({
   ).map((operator) => ({ operator }));
 
   return (
-    <div className="flex flex-col gap-4 rounded-medium border border-separator p-4">
-      <div className="grid gap-4 sm:grid-cols-2">
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-3">
         <Select
           className="w-full"
+          variant="secondary"
           isDisabled={providers.isPending}
           placeholder={t({
             id: "admin.users.filter.provider",
@@ -297,6 +297,7 @@ function AdvancedIdentityFilter({
 
         <Select
           className="w-full"
+          variant="secondary"
           isDisabled={filters.provider === ""}
           placeholder={t({
             id: "admin.users.filter.field",
@@ -332,6 +333,7 @@ function AdvancedIdentityFilter({
 
         <Select
           className="w-full"
+          variant="secondary"
           isDisabled={filters.field === ""}
           placeholder={t({
             id: "admin.users.filter.match",
@@ -362,6 +364,7 @@ function AdvancedIdentityFilter({
         </Select>
 
         <SearchField
+          variant="secondary"
           aria-label={t({
             id: "admin.users.filter.value",
             message: "Value to match",
@@ -389,9 +392,11 @@ function AdvancedIdentityFilter({
         </p>
       )}
 
-      <div className="flex flex-wrap gap-2">
+      <div className="flex justify-end">
         <Button
-          variant="secondary"
+          size="sm"
+          variant="tertiary"
+          isDisabled={filters.provider === ""}
           onPress={() =>
             onChange({ provider: "", field: "", value: "", match: "" })
           }

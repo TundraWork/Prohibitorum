@@ -103,11 +103,6 @@ msgid "admin.user.tab.access"
 msgstr "访问"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminUser.tsx
-msgid "admin.user.access.title"
-msgstr "访问"
-
-#. js-lingui-explicit-id
 #: src/pages/Security.tsx
 msgid "security.tab.tokens"
 msgstr "个人访问令牌"
@@ -153,28 +148,10 @@ msgid "admin.invitations.column.username"
 msgstr "账号用户名"
 
 #. js-lingui-explicit-id
-#: src/pages/ConnectedApps.tsx
-msgid "apps.column.actions"
-msgstr "操作"
-
-#. js-lingui-explicit-id
-#: src/pages/security/IdentitiesPanel.tsx
-#: src/pages/security/PasskeysPanel.tsx
-#: src/pages/security/SessionsPanel.tsx
-#: src/pages/security/TokensPanel.tsx
-msgid "security.column.actions"
-msgstr "操作"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/AdminGroups.tsx
 #: src/pages/admin/AdminInvitations.tsx
 #: src/pages/admin/AdminUsers.tsx
 msgid "admin.column.actions"
-msgstr "操作"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/AdminUser.tsx
-msgid "admin.user.column.actions"
 msgstr "操作"
 
 #. js-lingui-explicit-id
@@ -218,14 +195,16 @@ msgid "admin.group.rule.addGroup"
 msgstr "添加条件组"
 
 #. js-lingui-explicit-id
+#. placeholder {0}: format(credential.createdAt)
 #: src/pages/security/PasskeysPanel.tsx
-msgid "security.passkeys.column.created"
-msgstr "添加时间"
+msgid "security.passkeys.detail.added"
+msgstr "添加于 {0}"
 
 #. js-lingui-explicit-id
+#. placeholder {0}: format(credential.createdAt)
 #: src/pages/admin/AdminUser.tsx
-msgid "admin.user.passkeys.column.created"
-msgstr "添加时间"
+msgid "admin.user.passkeys.detail.added"
+msgstr "添加于 {0}"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminInvitationForm.tsx
@@ -264,11 +243,6 @@ msgid "admin.group.rule.group.all"
 msgstr "以下全部"
 
 #. js-lingui-explicit-id
-#: src/pages/security/TokensPanel.tsx
-msgid "security.tokens.column.scopes"
-msgstr "作用范围"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
 msgid "admin.group.rule.hint"
 msgstr "账号在规则匹配期间属于本组。每次请求访问时都会检查规则，所以用户组始终保持最新。"
@@ -297,11 +271,6 @@ msgstr "所有使用此令牌的服务会立即失效，且无法恢复。"
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.tokens.revoke.body"
 msgstr "使用该令牌的一切会立即停止工作，且无法撤销。"
-
-#. js-lingui-explicit-id
-#: src/pages/ConnectedApps.tsx
-msgid "apps.column.name"
-msgstr "应用"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminGroups.tsx
@@ -369,9 +338,10 @@ msgid "login.complete"
 msgstr "身份验证器已重设"
 
 #. js-lingui-explicit-id
+#. placeholder {0}: format(app.grantedAt)
 #: src/pages/ConnectedApps.tsx
-msgid "apps.column.granted"
-msgstr "授权时间"
+msgid "apps.detail.granted"
+msgstr "授权于 {0}"
 
 #. js-lingui-explicit-id
 #: src/pages/Profile.tsx
@@ -425,6 +395,11 @@ msgstr "取消"
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
+msgid "security.password.change.open"
+msgstr "修改"
+
+#. js-lingui-explicit-id
+#: src/pages/security/PasswordTotpPanel.tsx
 msgid "security.password.change.title"
 msgstr "修改密码"
 
@@ -462,6 +437,11 @@ msgstr "选择字段"
 #: src/pages/admin/AdminUsers.tsx
 msgid "admin.users.filter.match"
 msgstr "选择匹配方式"
+
+#. js-lingui-explicit-id
+#: src/pages/security/PasswordTotpPanel.tsx
+msgid "security.password.change.note"
+msgstr "为登录设置一个新密码。"
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
@@ -760,11 +740,6 @@ msgid "login.codes.copy"
 msgstr "复制恢复码"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminInvitations.tsx
-msgid "admin.invitations.copy.action"
-msgstr "复制链接"
-
-#. js-lingui-explicit-id
 #: src/components/custom/secret-reveal-copy.ts
 msgid "admin.invitations.reveal.copy"
 msgstr "复制链接"
@@ -855,21 +830,6 @@ msgid "security.tokens.create.action"
 msgstr "创建令牌"
 
 #. js-lingui-explicit-id
-#: src/pages/security/TokensPanel.tsx
-msgid "security.tokens.column.created"
-msgstr "创建时间"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/AdminInvitations.tsx
-msgid "admin.invitations.column.created"
-msgstr "创建时间"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/AdminUser.tsx
-msgid "admin.user.tokens.column.created"
-msgstr "创建时间"
-
-#. js-lingui-explicit-id
 #: src/pages/DevForms.tsx
 msgid "dev.forms.id.label"
 msgstr "凭据 ID"
@@ -952,16 +912,6 @@ msgstr "仅供开发验证"
 #. js-lingui-explicit-id
 #: src/pages/Devices.tsx
 msgid "devices.field.agent"
-msgstr "设备"
-
-#. js-lingui-explicit-id
-#: src/pages/security/SessionsPanel.tsx
-msgid "security.sessions.column.agent"
-msgstr "设备"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/AdminUser.tsx
-msgid "admin.user.sessions.column.agent"
 msgstr "设备"
 
 #. js-lingui-explicit-id
@@ -1085,11 +1035,6 @@ msgid "admin.group.rule.json.hint"
 msgstr "失去焦点时生效：移出输入框后，表单视图会采用文档中的内容。"
 
 #. js-lingui-explicit-id
-#: src/pages/security/IdentitiesPanel.tsx
-msgid "security.identities.column.email"
-msgstr "邮箱"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.email"
 msgstr "邮箱"
@@ -1153,21 +1098,6 @@ msgstr "结束此会话？"
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.sessions.revoke.title"
 msgstr "要结束这条会话吗？"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/AdminUser.tsx
-msgid "admin.user.sessions.revoke_all.hint"
-msgstr "结束该账号在所有设备上的全部会话。"
-
-#. js-lingui-explicit-id
-#: src/pages/security/PasskeysPanel.tsx
-msgid "security.passkeys.column.id"
-msgstr "凭据后缀"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/AdminUser.tsx
-msgid "admin.user.passkeys.column.id"
-msgstr "结尾为"
 
 #. js-lingui-explicit-id
 #: src/pages/Login.tsx
@@ -1246,29 +1176,31 @@ msgid "devices.field.expires"
 msgstr "过期时间"
 
 #. js-lingui-explicit-id
-#: src/pages/security/SessionsPanel.tsx
-msgid "security.sessions.column.expires"
-msgstr "过期时间"
-
-#. js-lingui-explicit-id
-#: src/pages/security/TokensPanel.tsx
-msgid "security.tokens.column.expires"
-msgstr "过期时间"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/AdminInvitations.tsx
 msgid "admin.invitations.column.expires"
 msgstr "过期时间"
 
 #. js-lingui-explicit-id
+#. placeholder {0}: format(session.expiresAt)
+#: src/pages/security/SessionsPanel.tsx
+msgid "security.sessions.detail.expires"
+msgstr "{0} 过期"
+
+#. js-lingui-explicit-id
+#. placeholder {0}: format(session.expiresAt)
 #: src/pages/admin/AdminUser.tsx
-msgid "admin.user.sessions.column.expires"
-msgstr "过期时间"
+msgid "admin.user.sessions.detail.expires"
+msgstr "{0} 过期"
+
+#. js-lingui-explicit-id
+#: src/pages/security/TokensPanel.tsx
+msgid "security.tokens.detail.expires"
+msgstr "{expires} 过期"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
-msgid "admin.user.tokens.column.expires"
-msgstr "过期时间"
+msgid "admin.user.tokens.detail.expires"
+msgstr "{expires} 过期"
 
 #. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
@@ -1354,11 +1286,6 @@ msgstr "我已保存恢复码"
 #: src/components/custom/secret-reveal-copy.ts
 msgid "admin.invitations.reveal.saved"
 msgstr "我已保存该注册链接"
-
-#. js-lingui-explicit-id
-#: src/pages/security/IdentitiesPanel.tsx
-msgid "security.identities.column.subject"
-msgstr "标识"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
@@ -1456,11 +1383,6 @@ msgid "security.keep"
 msgstr "保留"
 
 #. js-lingui-explicit-id
-#: src/pages/ConnectedApps.tsx
-msgid "apps.column.kind"
-msgstr "类型"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/AdminGroups.tsx
 msgid "admin.groups.column.kind"
 msgstr "类型"
@@ -1471,39 +1393,29 @@ msgid "language.label"
 msgstr "语言"
 
 #. js-lingui-explicit-id
-#: src/pages/security/SessionsPanel.tsx
-msgid "security.sessions.column.ip"
-msgstr "最后活动 IP"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/AdminUser.tsx
-msgid "admin.user.sessions.column.ip"
-msgstr "最近来源"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/AdminUsers.tsx
 msgid "admin.users.column.lastSignIn"
 msgstr "最近登录"
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
-msgid "security.passkeys.column.lastUsed"
-msgstr "最后使用"
+msgid "security.passkeys.detail.lastUsed"
+msgstr "最后使用于 {lastUsed}"
 
 #. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
-msgid "security.tokens.column.lastUsed"
-msgstr "最后使用"
+msgid "security.tokens.detail.lastUsed"
+msgstr "最后使用于 {lastUsed}"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
-msgid "admin.user.passkeys.column.lastUsed"
-msgstr "最近使用"
+msgid "admin.user.passkeys.detail.lastUsed"
+msgstr "最后使用于 {lastUsed}"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
-msgid "admin.user.tokens.column.lastUsed"
-msgstr "最近使用"
+msgid "admin.user.tokens.detail.lastUsed"
+msgstr "最后使用于 {lastUsed}"
 
 #. js-lingui-explicit-id
 #: src/components/custom/secret-reveal-copy.ts
@@ -1526,24 +1438,21 @@ msgid "theme.light"
 msgstr "日间模式"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminInvitations.tsx
-msgid "admin.invitations.column.link"
-msgstr "链接"
-
-#. js-lingui-explicit-id
 #: src/pages/security/IdentitiesPanel.tsx
 msgid "security.identities.link.title"
 msgstr "绑定其它身份"
 
 #. js-lingui-explicit-id
+#. placeholder {0}: format(identity.linkedAt)
 #: src/pages/security/IdentitiesPanel.tsx
-msgid "security.identities.column.linked"
-msgstr "绑定时间"
+msgid "security.identities.detail.linked"
+msgstr "绑定于 {0}"
 
 #. js-lingui-explicit-id
+#. placeholder {0}: format(identity.linkedAt)
 #: src/pages/admin/AdminUser.tsx
-msgid "admin.user.identities.column.linked"
-msgstr "连接时间"
+msgid "admin.user.identities.detail.linked"
+msgstr "绑定于 {0}"
 
 #. js-lingui-explicit-id
 #: src/pages/Preview.tsx
@@ -1632,18 +1541,8 @@ msgstr "名称"
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
-msgid "security.passkeys.column.name"
-msgstr "昵称"
-
-#. js-lingui-explicit-id
-#: src/pages/security/PasskeysPanel.tsx
 msgid "security.passkeys.rename.label"
 msgstr "昵称"
-
-#. js-lingui-explicit-id
-#: src/pages/security/TokensPanel.tsx
-msgid "security.tokens.column.name"
-msgstr "名称"
 
 #. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
@@ -1661,28 +1560,18 @@ msgid "admin.groups.column.name"
 msgstr "名称"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminUser.tsx
-msgid "admin.user.passkeys.column.name"
-msgstr "名称"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/AdminUser.tsx
-msgid "admin.user.tokens.column.name"
-msgstr "名称"
-
-#. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
-msgid "security.tokens.never_expires"
-msgstr "永不过期"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/AdminUser.tsx
-msgid "admin.user.tokens.never_expires"
+msgid "security.tokens.detail.noExpiry"
 msgstr "永不过期"
 
 #. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.expiry.never"
+msgstr "永不过期"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.tokens.detail.noExpiry"
 msgstr "永不过期"
 
 #. js-lingui-explicit-id
@@ -1881,6 +1770,11 @@ msgid "admin.user.oidcSubject"
 msgstr "OIDC 主体"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminUsers.tsx
+msgid "admin.users.filter.on"
+msgstr "已启用"
+
+#. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.invitation_groups_unavailable"
 msgstr "所选用户组之一已不存在，请重新选择。"
@@ -1981,6 +1875,11 @@ msgid "security.tab.password"
 msgstr "密码与验证器"
 
 #. js-lingui-explicit-id
+#: src/pages/security/PasswordTotpPanel.tsx
+msgid "security.password.list"
+msgstr "密码与验证器"
+
+#. js-lingui-explicit-id
 #: src/pages/Preview.tsx
 msgid "preview.eyebrow"
 msgstr "PHB-64 / M1 · 基础界面预览"
@@ -2039,26 +1938,6 @@ msgstr "资料"
 #: src/components/custom/ConsoleLayout.tsx
 msgid "console.profile"
 msgstr "个人资料"
-
-#. js-lingui-explicit-id
-#: src/pages/security/IdentitiesPanel.tsx
-msgid "security.identities.column.protocol"
-msgstr "协议"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/AdminUser.tsx
-msgid "admin.user.identities.column.protocol"
-msgstr "协议"
-
-#. js-lingui-explicit-id
-#: src/pages/security/IdentitiesPanel.tsx
-msgid "security.identities.column.provider"
-msgstr "提供方"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/AdminUser.tsx
-msgid "admin.user.identities.column.provider"
-msgstr "提供商"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminUsers.tsx
@@ -2189,6 +2068,11 @@ msgstr "重命名这把通行密钥"
 #: src/pages/security/PasswordTotpPanel.tsx
 msgid "security.password.confirm"
 msgstr "再次输入新密码"
+
+#. js-lingui-explicit-id
+#: src/pages/security/PasswordTotpPanel.tsx
+msgid "security.totp.replace.open"
+msgstr "替换"
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
@@ -2357,11 +2241,6 @@ msgid "login.reset.scan"
 msgstr "使用身份验证器扫描二维码，或手动输入设置密钥，然后输入新身份验证器中的验证码。"
 
 #. js-lingui-explicit-id
-#: src/pages/ConnectedApps.tsx
-msgid "apps.column.scopes"
-msgstr "作用范围"
-
-#. js-lingui-explicit-id
 #: src/components/custom/EntityPicker.tsx
 msgid "admin.picker.search"
 msgstr "搜索"
@@ -2472,11 +2351,6 @@ msgid "admin.user.sessions.revoke_all.title"
 msgstr "要将该账号在所有设备上登出吗？"
 
 #. js-lingui-explicit-id
-#: src/pages/security/SessionsPanel.tsx
-msgid "security.sessions.other"
-msgstr "已登录"
-
-#. js-lingui-explicit-id
 #: src/components/custom/LoginShell.tsx
 msgid "login.factor.account"
 msgstr "正在登录 {username}"
@@ -2502,14 +2376,16 @@ msgid "error.ceremony_missing"
 msgstr "请重新发起通行密钥登录。"
 
 #. js-lingui-explicit-id
+#. placeholder {0}: format(session.issuedAt)
 #: src/pages/security/SessionsPanel.tsx
-msgid "security.sessions.column.issued"
-msgstr "签发时间"
+msgid "security.sessions.detail.issued"
+msgstr "签发于 {0}"
 
 #. js-lingui-explicit-id
+#. placeholder {0}: format(session.issuedAt)
 #: src/pages/admin/AdminUser.tsx
-msgid "admin.user.sessions.column.issued"
-msgstr "开始时间"
+msgid "admin.user.sessions.detail.issued"
+msgstr "签发于 {0}"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminUsers.tsx
@@ -2520,16 +2396,6 @@ msgstr "状态"
 #: src/pages/Preview.tsx
 msgid "feedback.title"
 msgstr "状态样例"
-
-#. js-lingui-explicit-id
-#: src/pages/security/SessionsPanel.tsx
-msgid "security.sessions.column.status"
-msgstr "状态"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/AdminUser.tsx
-msgid "admin.user.identities.column.subject"
-msgstr "主体"
 
 #. js-lingui-explicit-id
 #: src/pages/DevForms.tsx
@@ -2545,11 +2411,6 @@ msgstr "提交中（样例）"
 #: src/components/custom/SubmitButton.tsx
 msgid "forms.submitting"
 msgstr "正在提交…"
-
-#. js-lingui-explicit-id
-#: src/pages/security/PasskeysPanel.tsx
-msgid "security.passkeys.column.synced"
-msgstr "同步"
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
@@ -2867,11 +2728,6 @@ msgid "admin.user.state.disabled.note"
 msgstr "该账号无法登录。启用后，它会用原有的登录方式恢复访问。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminUser.tsx
-msgid "admin.user.sessions.revoke_all.none"
-msgstr "该账号没有在线会话。"
-
-#. js-lingui-explicit-id
 #: src/components/custom/SudoDialog.tsx
 msgid "sudo.no-methods"
 msgstr "此账号无法在此验证身份。请先设置通行密钥，或设置密码与验证器，然后再试。"
@@ -3052,16 +2908,6 @@ msgid "console.toggle-sidebar"
 msgstr "切换侧边栏"
 
 #. js-lingui-explicit-id
-#: src/pages/security/TokensPanel.tsx
-msgid "security.tokens.column.hint"
-msgstr "令牌"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/AdminUser.tsx
-msgid "admin.user.tokens.column.hint"
-msgstr "令牌"
-
-#. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.rate_limited"
 msgstr "请求过于频繁，请稍后重试。"
@@ -3070,11 +2916,6 @@ msgstr "请求过于频繁，请稍后重试。"
 #: src/api/errors.ts
 msgid "error.factor_locked"
 msgstr "验证尝试次数过多。请稍后重试。"
-
-#. js-lingui-explicit-id
-#: src/pages/security/PasskeysPanel.tsx
-msgid "security.passkeys.column.transport"
-msgstr "传输方式"
 
 #. js-lingui-explicit-id
 #: src/components/custom/RouteFeedback.tsx

@@ -179,12 +179,10 @@ export function DataTable<T extends RowData>({
 
   return (
     <Table.ScrollContainer
-      // Past the console column's measure there is room to spare, so a wide
-      // table takes the console's own width and gives it back to both gutters
-      // instead of leaving them empty (`cqw` is that column's container; see
-      // `main` in ConsoleLayout). Cells never wrap, so a table wider than its
-      // column scrolls sideways instead of clipping.
-      className="min-w-0 overflow-x-auto min-[1440px]:w-[100cqw] min-[1440px]:mx-[calc(50%_-_50cqw)]"
+      // The table keeps to the console column like every other block. Cells
+      // never wrap, so a table wider than its column scrolls sideways instead
+      // of clipping.
+      className="min-w-0 overflow-x-auto"
     >
       <Table aria-label={label} className="w-max min-w-full">
         <Table.Content

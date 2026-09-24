@@ -39,7 +39,6 @@ export function Security() {
       >
         <Tabs.ListContainer className="ml-2 w-fit max-w-full">
           <Tabs.List
-            className="grid grid-flow-col auto-cols-fr"
             aria-label={t({ id: "security.tabs", message: "Security" })}
           >
             <Tabs.Tab className="whitespace-nowrap" id="passkeys">

@@ -1,4 +1,4 @@
-import { Alert, AlertDialog, Avatar } from "@heroui/react";
+import { Alert, AlertDialog, Avatar, Chip } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AppWindow, Trash2 } from "lucide-react";
@@ -6,7 +6,7 @@ import { useState } from "react";
 import { revokeConsentMutationOptions } from "@/api/mutations";
 import { consentQueryOptions } from "@/api/queries";
 import { Button } from "@/components/custom/Button";
-import { DataTable, type TableColumn } from "@/components/custom/DataTable";
+import { ItemList, ItemListRow } from "@/components/custom/ItemList";
 import { TableEmptyState } from "@/components/custom/TableEmptyState";
 
 type ConsentedApp = {
@@ -35,73 +35,7 @@ export function ConnectedApps() {
   const format = (value: string) =>
     new Intl.DateTimeFormat(i18n.locale, {
       dateStyle: "medium",
-      timeStyle: "short",
     }).format(new Date(value));
-
-  const columns: readonly TableColumn<ConsentedApp>[] = [
-    {
-      id: "name",
-      header: <Trans id="apps.column.name">Application</Trans>,
-      cell: (app) => (
-        <div className="flex min-w-0 items-center gap-3">
-          <Avatar className="size-8 shrink-0">
-            {app.iconUrl && <Avatar.Image src={app.iconUrl} alt="" />}
-            <Avatar.Fallback>
-              <AppWindow size={16} aria-hidden="true" />
-            </Avatar.Fallback>
-          </Avatar>
-          <span className="wrap-anywhere font-medium">{app.name}</span>
-        </div>
-      ),
-    },
-    {
-      id: "kind",
-      header: <Trans id="apps.column.kind">Kind</Trans>,
-      cell: (app) =>
-        app.kind === "saml" ? (
-          <Trans id="apps.kind.saml">SAML</Trans>
-        ) : (
-          <Trans id="apps.kind.oidc">OpenID Connect</Trans>
-        ),
-    },
-    {
-      id: "grantedAt",
-      header: <Trans id="apps.column.granted">Authorized</Trans>,
-      cell: (app) => format(app.grantedAt),
-      align: "end",
-    },
-    {
-      id: "scopes",
-      header: <Trans id="apps.column.scopes">Scopes</Trans>,
-      cell: (app) =>
-        app.scopes && app.scopes.length > 0 ? (
-          <span className="wrap-anywhere">{app.scopes.join(", ")}</span>
-        ) : (
-          <span className="text-muted">
-            <Trans id="apps.scopes.none">Basic profile</Trans>
-          </span>
-        ),
-    },
-    {
-      id: "actions",
-      header: <Trans id="apps.column.actions">Actions</Trans>,
-      cell: (app) => (
-        <Button
-          isIconOnly
-          size="sm"
-          variant="danger-soft"
-          aria-label={t({ id: "apps.remove", message: "Remove access" })}
-          onPress={() => {
-            setTarget(app);
-            setConfirming(true);
-          }}
-        >
-          <Trash2 size={16} aria-hidden="true" />
-        </Button>
-      ),
-      pinned: true,
-    },
-  ];
 
   return (
     <>
@@ -126,14 +60,11 @@ export function ConnectedApps() {
         </Alert>
       )}
 
-      <DataTable
+      <ItemList
         label={t({
           id: "apps.table.label",
           message: "Connected applications",
         })}
-        columns={columns}
-        rows={consent.data ?? []}
-        rowId={(app) => `${app.kind}:${app.clientId}`}
         loading={consent.isPending}
         empty={
           <TableEmptyState
@@ -141,7 +72,57 @@ export function ConnectedApps() {
             title={<Trans id="apps.empty">No approved applications yet</Trans>}
           />
         }
-      />
+      >
+        {(consent.data ?? []).map((app) => (
+          <ItemListRow
+            key={`${app.kind}:${app.clientId}`}
+            icon={
+              <Avatar className="size-9 rounded-[0.375rem]">
+                {app.iconUrl && <Avatar.Image src={app.iconUrl} alt="" />}
+                <Avatar.Fallback className="rounded-[0.375rem]">
+                  <AppWindow size={18} aria-hidden="true" />
+                </Avatar.Fallback>
+              </Avatar>
+            }
+            title={app.name}
+            badges={
+              <Chip size="sm" variant="soft">
+                {app.kind === "saml" ? (
+                  <Trans id="apps.kind.saml">SAML</Trans>
+                ) : (
+                  <Trans id="apps.kind.oidc">OpenID Connect</Trans>
+                )}
+              </Chip>
+            }
+            details={[
+              <Trans key="granted" id="apps.detail.granted">
+                Authorized {format(app.grantedAt)}
+              </Trans>,
+              app.scopes && app.scopes.length > 0 ? (
+                app.scopes.join(", ")
+              ) : (
+                <Trans key="scopes" id="apps.scopes.none">
+                  Basic profile
+                </Trans>
+              ),
+            ]}
+            actions={
+              <Button
+                isIconOnly
+                size="sm"
+                variant="danger-soft"
+                aria-label={t({ id: "apps.remove", message: "Remove access" })}
+                onPress={() => {
+                  setTarget(app);
+                  setConfirming(true);
+                }}
+              >
+                <Trash2 size={16} aria-hidden="true" />
+              </Button>
+            }
+          />
+        ))}
+      </ItemList>
 
       <AlertDialog isOpen={confirming} onOpenChange={setConfirming}>
         <AlertDialog.Backdrop>

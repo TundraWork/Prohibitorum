@@ -1,17 +1,8 @@
-import {
-  Alert,
-  AlertDialog,
-  Description,
-  Disclosure,
-  DisclosureGroup,
-  Modal,
-  Separator,
-  Spinner,
-} from "@heroui/react";
+import { Alert, AlertDialog, Description, Modal, Spinner } from "@heroui/react";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Fragment, type ReactNode, useState } from "react";
+import { type ReactNode, useState } from "react";
 import {
   buildTotpUri,
   generateTotpSecret,
@@ -32,6 +23,8 @@ import {
   sessionQueryOptions,
 } from "@/api/queries";
 import { Button } from "@/components/custom/Button";
+import { ConsoleCard } from "@/components/custom/ConsoleCard";
+import { ItemList, ItemListRow } from "@/components/custom/ItemList";
 import { RecoveryCodes } from "@/components/custom/RecoveryCodes";
 import { recoveryCodesCopy } from "@/components/custom/secret-reveal-copy";
 import { TotpSetup } from "@/components/custom/TotpSetup";
@@ -58,24 +51,26 @@ function checkPassword(value: string) {
  * Password and authenticator.
  *
  * There is no separate "current state" section: the state of each factor
- * decides which sections the group holds and what their buttons say.
+ * decides which rows the list holds and what their buttons say. Every row is
+ * on screen at once; a row whose action needs input opens it in a dialog.
  *
- * The single-section shape is not a layout preference. The backend offers one
- * atomic call that establishes both factors together and replaces the recovery
- * codes as a batch, and a password set on its own would leave the account
- * without a second factor — so there is no interface here that sets only the
- * missing half. That section is the one thing left to do, so it arrives open.
+ * The setup form is not a layout preference. The backend offers one atomic
+ * call that establishes both factors together and replaces the recovery codes
+ * as a batch, and a password set on its own would leave the account without a
+ * second factor — so there is no interface here that sets only the missing
+ * half. Setup is the one thing left to do, so it is drawn in place on a card
+ * rather than behind a button.
  *
  * The recovery codes a write returns are held here rather than inside the
- * section that produced them. Every one of those writes invalidates the factors
- * query, which re-renders this panel and unmounts that section the moment it
- * succeeds — so a section-local copy would be thrown away before the user could
+ * row that produced them. Every one of those writes invalidates the factors
+ * query, which re-renders this panel and may unmount that row the moment it
+ * succeeds — so a row-local copy would be thrown away before the user could
  * read it, and those codes are the only time the server will ever show them.
  *
- * The two writes the user asks for from a section they were reading — replacing
+ * The two writes the user asks for from a row they were reading — replacing
  * the authenticator and regenerating the recovery codes — show their codes in a
  * dialog over the panel, so the page is still there when the dialog closes. The
- * enrollment write sets up the account instead of doing one step of a section,
+ * enrollment write sets up the account instead of doing one step of a row,
  * so it keeps the page-wide reveal that replaces the panel.
  */
 export function PasswordTotpPanel() {
@@ -125,95 +120,53 @@ export function PasswordTotpPanel() {
   // single section, which opens on arrival rather than waiting for a click.
   const bothSet = passwordSet && totpEnrolled;
 
-  const sections: { id: string; node: ReactNode }[] = bothSet
-    ? [
-        {
-          id: "change-password",
-          node: (
-            <Section
-              id="change-password"
-              title={
-                <Trans id="security.password.change.title">
-                  Change password
-                </Trans>
-              }
-            >
-              <ChangePasswordForm />
-            </Section>
-          ),
-        },
-        {
-          id: "replace-totp",
-          node: (
-            <Section
-              id="replace-totp"
-              title={
-                <Trans id="security.totp.replace.title">
-                  Replace authenticator
-                </Trans>
-              }
-            >
-              <ReplaceTotpForm onCodes={setDialogCodes} />
-            </Section>
-          ),
-        },
-      ]
-    : [
-        {
-          id: "setup",
-          node: (
-            <Section
-              id="setup"
-              title={
-                passwordSet ? (
-                  <Trans id="security.setup.title.totp">
-                    Set up an authenticator with a new password
-                  </Trans>
-                ) : (
-                  <Trans id="security.setup.title.both">
-                    Set up a password and authenticator
-                  </Trans>
-                )
-              }
-            >
-              <SetupForm
-                key={rotateKey(rotate)}
-                passwordSet={passwordSet}
-                onCodes={setEnrollmentCodes}
-              />
-            </Section>
-          ),
-        },
-      ];
-
-  if (totpEnrolled) {
-    sections.push({
-      id: "recovery-codes",
-      node: (
-        <Section
-          id="recovery-codes"
-          title={<Trans id="security.recovery.title">Recovery codes</Trans>}
-        >
-          <RecoveryCodeActions onCodes={setDialogCodes} />
-        </Section>
-      ),
-    });
+  const rows: ReactNode[] = [];
+  if (bothSet) {
+    rows.push(
+      <ChangePasswordRow key="change-password" />,
+      <ReplaceTotpRow key="replace-totp" onCodes={setDialogCodes} />,
+    );
   }
-  sections.push({
-    id: "revoke",
-    node: <RevokeSection passkeyCount={passkeyCount} />,
-  });
+  if (totpEnrolled) {
+    rows.push(
+      <RecoveryCodesRow key="recovery-codes" onCodes={setDialogCodes} />,
+    );
+  }
+  rows.push(<RevokeRow key="revoke" passkeyCount={passkeyCount} />);
 
   return (
-    <div className="flex w-full max-w-lg flex-col">
-      <DisclosureGroup defaultExpandedKeys={bothSet ? undefined : ["setup"]}>
-        {sections.map((section, index) => (
-          <Fragment key={section.id}>
-            {index > 0 && <Separator className="my-2" />}
-            {section.node}
-          </Fragment>
-        ))}
-      </DisclosureGroup>
+    <div className="flex flex-col gap-4">
+      {!bothSet && (
+        // The one thing left to do is on screen as it is, not behind a click.
+        <ConsoleCard
+          title={
+            passwordSet ? (
+              <Trans id="security.setup.title.totp">
+                Set up an authenticator with a new password
+              </Trans>
+            ) : (
+              <Trans id="security.setup.title.both">
+                Set up a password and authenticator
+              </Trans>
+            )
+          }
+        >
+          <SetupForm
+            key={rotateKey(rotate)}
+            passwordSet={passwordSet}
+            onCodes={setEnrollmentCodes}
+          />
+        </ConsoleCard>
+      )}
+      <ItemList
+        label={t({
+          id: "security.password.list",
+          message: "Password and authenticator",
+        })}
+        empty={null}
+      >
+        {rows}
+      </ItemList>
       {dialogCodes !== null && (
         <RecoveryCodesDialog
           codes={dialogCodes}
@@ -264,66 +217,23 @@ function RecoveryCodesDialog({
 }
 
 /**
- * One collapsible block of the group: the heading row that opens it, and the
- * controls that belong to it.
- *
- * The trigger carries the whole row, so the open section is the one with a
- * filled heading — the closed rows stay flush with the page. Closed content
- * stays in the document, so a half-filled form survives opening another
- * section.
+ * Changing the password is one step, so the row opens it in a dialog and says
+ * on the row that it is done once the dialog closes.
  */
-function Section({
-  id,
-  title,
-  children,
-}: {
-  id: string;
-  /** The trigger reads out as this, so it stays short and concrete. */
-  title: ReactNode;
-  children: ReactNode;
-}) {
-  return (
-    <Disclosure id={id}>
-      {({ isExpanded }) => (
-        <>
-          <Disclosure.Heading level={2}>
-            <Button
-              slot="trigger"
-              variant={isExpanded ? "secondary" : "tertiary"}
-              className={
-                isExpanded
-                  ? "w-full justify-between"
-                  : "w-full justify-between bg-transparent"
-              }
-            >
-              {title}
-              <Disclosure.Indicator className="text-muted" />
-            </Button>
-          </Disclosure.Heading>
-          <Disclosure.Content>
-            <Disclosure.Body className="flex flex-col gap-4 p-2">
-              {children}
-            </Disclosure.Body>
-          </Disclosure.Content>
-        </>
-      )}
-    </Disclosure>
-  );
-}
-
-function ChangePasswordForm() {
+function ChangePasswordRow() {
   const { t } = useLingui();
   const queryClient = useQueryClient();
+  const [open, setOpen] = useState(false);
   const [saved, setSaved] = useState(false);
   const change = useMutation(setPasswordMutationOptions(queryClient));
 
   const form = useAppForm({
     defaultValues: { password: "", confirm: "" },
     onSubmit: async ({ value }) => {
-      setSaved(false);
       try {
         await change.mutateAsync(value.password);
         setSaved(true);
+        setOpen(false);
         form.reset();
       } catch (error) {
         applyServerError(form, error, {
@@ -335,68 +245,189 @@ function ChangePasswordForm() {
   });
 
   return (
-    <form.AppForm>
-      <form.Form
-        label={t({
-          id: "security.password.change.form",
-          message: "Change password",
-        })}
-      >
-        <form.FormError />
-        <form.AppField
-          name="password"
-          validators={{ onChange: ({ value }) => checkPassword(value) }}
-        >
-          {(field) => (
-            <field.FormField
-              label={<Trans id="security.password.new">New password</Trans>}
-              type="password"
-              autoComplete="new-password"
-            />
-          )}
-        </form.AppField>
-        <form.AppField
-          name="confirm"
-          validators={{
-            onChangeListenTo: ["password"],
-            onChange: ({ value, fieldApi }) =>
-              value === fieldApi.form.getFieldValue("password")
-                ? undefined
-                : msg({
-                    id: "security.password.mismatch",
-                    message: "The two passwords do not match.",
-                  }),
-          }}
-        >
-          {(field) => (
-            <field.FormField
-              label={
-                <Trans id="security.password.confirm">
-                  Repeat new password
-                </Trans>
-              }
-              type="password"
-              autoComplete="new-password"
-            />
-          )}
-        </form.AppField>
-        {saved && (
-          <p role="status" className="text-sm">
+    <ItemListRow
+      title={<Trans id="security.password.change.title">Change password</Trans>}
+      details={[
+        saved ? (
+          <span key="note" role="status">
             <Trans id="security.password.changed">
               Your password is updated. Which sudo prompt you see next may
               change.
             </Trans>
-          </p>
-        )}
-        <form.SubmitButton>
-          <Trans id="security.password.change.action">Change password</Trans>
-        </form.SubmitButton>
-      </form.Form>
-    </form.AppForm>
+          </span>
+        ) : (
+          <Trans key="note" id="security.password.change.note">
+            Choose a new password for signing in.
+          </Trans>
+        ),
+      ]}
+      actions={
+        <Button
+          size="sm"
+          variant="secondary"
+          onPress={() => {
+            setSaved(false);
+            setOpen(true);
+          }}
+        >
+          <Trans id="security.password.change.open">Change</Trans>
+        </Button>
+      }
+    >
+      <Modal isOpen={open} onOpenChange={setOpen}>
+        <Modal.Backdrop>
+          <Modal.Container placement="center" size="md">
+            <Modal.Dialog>
+              <Modal.Header>
+                <Modal.Heading>
+                  <Trans id="security.password.change.title">
+                    Change password
+                  </Trans>
+                </Modal.Heading>
+              </Modal.Header>
+              <form.AppForm>
+                <form.Form
+                  label={t({
+                    id: "security.password.change.form",
+                    message: "Change password",
+                  })}
+                  className="flex min-h-0 flex-1 flex-col"
+                >
+                  <Modal.Body>
+                    <div className="flex flex-col gap-4">
+                      <form.FormError />
+                      <form.AppField
+                        name="password"
+                        validators={{
+                          onChange: ({ value }) => checkPassword(value),
+                        }}
+                      >
+                        {(field) => (
+                          <field.FormField
+                            label={
+                              <Trans id="security.password.new">
+                                New password
+                              </Trans>
+                            }
+                            type="password"
+                            autoComplete="new-password"
+                            variant="secondary"
+                          />
+                        )}
+                      </form.AppField>
+                      <form.AppField
+                        name="confirm"
+                        validators={{
+                          onChangeListenTo: ["password"],
+                          onChange: ({ value, fieldApi }) =>
+                            value === fieldApi.form.getFieldValue("password")
+                              ? undefined
+                              : msg({
+                                  id: "security.password.mismatch",
+                                  message: "The two passwords do not match.",
+                                }),
+                        }}
+                      >
+                        {(field) => (
+                          <field.FormField
+                            label={
+                              <Trans id="security.password.confirm">
+                                Repeat new password
+                              </Trans>
+                            }
+                            type="password"
+                            autoComplete="new-password"
+                            variant="secondary"
+                          />
+                        )}
+                      </form.AppField>
+                    </div>
+                  </Modal.Body>
+                  <Modal.Footer className="mt-5">
+                    <Button
+                      variant="secondary"
+                      isDisabled={change.isPending}
+                      onPress={() => setOpen(false)}
+                    >
+                      <Trans id="security.cancel">Cancel</Trans>
+                    </Button>
+                    <form.SubmitButton>
+                      <Trans id="security.password.change.action">
+                        Change password
+                      </Trans>
+                    </form.SubmitButton>
+                  </Modal.Footer>
+                </form.Form>
+              </form.AppForm>
+            </Modal.Dialog>
+          </Modal.Container>
+        </Modal.Backdrop>
+      </Modal>
+    </ItemListRow>
   );
 }
 
-function ReplaceTotpForm({ onCodes }: { onCodes: (codes: string[]) => void }) {
+/**
+ * Replacing the authenticator needs a new secret scanned and a code from it,
+ * so the dialog carries the whole setup. The codes it returns go up to the
+ * panel, which shows them once this dialog has closed.
+ */
+function ReplaceTotpRow({ onCodes }: { onCodes: (codes: string[]) => void }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <ItemListRow
+      title={
+        <Trans id="security.totp.replace.title">Replace authenticator</Trans>
+      }
+      details={[
+        <Trans key="note" id="security.totp.replace.note">
+          Your current authenticator and every existing recovery code stop
+          working as soon as this succeeds.
+        </Trans>,
+      ]}
+      actions={
+        <Button size="sm" variant="secondary" onPress={() => setOpen(true)}>
+          <Trans id="security.totp.replace.open">Replace</Trans>
+        </Button>
+      }
+    >
+      <Modal isOpen={open} onOpenChange={setOpen}>
+        <Modal.Backdrop>
+          <Modal.Container placement="center" size="md" scroll="inside">
+            <Modal.Dialog>
+              <Modal.Header>
+                <Modal.Heading>
+                  <Trans id="security.totp.replace.title">
+                    Replace authenticator
+                  </Trans>
+                </Modal.Heading>
+              </Modal.Header>
+              {/* Mounted only while open, so every opening draws a fresh
+                  secret rather than one the user may already have scanned. */}
+              {open && (
+                <ReplaceTotpForm
+                  onCancel={() => setOpen(false)}
+                  onCodes={(codes) => {
+                    setOpen(false);
+                    onCodes(codes);
+                  }}
+                />
+              )}
+            </Modal.Dialog>
+          </Modal.Container>
+        </Modal.Backdrop>
+      </Modal>
+    </ItemListRow>
+  );
+}
+
+function ReplaceTotpForm({
+  onCancel,
+  onCodes,
+}: {
+  onCancel: () => void;
+  onCodes: (codes: string[]) => void;
+}) {
   const { t } = useLingui();
   const queryClient = useQueryClient();
   const config = useQuery(publicConfigQueryOptions());
@@ -428,34 +459,45 @@ function ReplaceTotpForm({ onCodes }: { onCodes: (codes: string[]) => void }) {
           id: "security.totp.replace.form",
           message: "Replace authenticator",
         })}
+        className="flex min-h-0 flex-1 flex-col"
       >
-        <form.FormError />
-        <TotpSetup secret={setup.secret} uri={setup.uri} />
-        <Description>
-          <Trans id="security.totp.replace.note">
-            Your current authenticator and every existing recovery code stop
-            working as soon as this succeeds.
-          </Trans>
-        </Description>
-        <form.AppField
-          name="code"
-          validators={{
-            onChange: ({ value }) =>
-              config.data && isValidTotpCode(value, config.data.totp.digits)
-                ? undefined
-                : codeInvalid,
-          }}
-        >
-          {(field) => (
-            <field.OtpField
-              label={<Trans id="security.totp.code">Current code</Trans>}
-              digits={config.data?.totp.digits ?? 6}
-            />
-          )}
-        </form.AppField>
-        <form.SubmitButton>
-          <Trans id="security.totp.replace.action">Replace authenticator</Trans>
-        </form.SubmitButton>
+        <Modal.Body>
+          <div className="flex flex-col gap-4">
+            <form.FormError />
+            <TotpSetup secret={setup.secret} uri={setup.uri} onSurface />
+            <form.AppField
+              name="code"
+              validators={{
+                onChange: ({ value }) =>
+                  config.data && isValidTotpCode(value, config.data.totp.digits)
+                    ? undefined
+                    : codeInvalid,
+              }}
+            >
+              {(field) => (
+                <field.OtpField
+                  label={<Trans id="security.totp.code">Current code</Trans>}
+                  digits={config.data?.totp.digits ?? 6}
+                  variant="secondary"
+                />
+              )}
+            </form.AppField>
+          </div>
+        </Modal.Body>
+        <Modal.Footer className="mt-5">
+          <Button
+            variant="secondary"
+            isDisabled={replace.isPending}
+            onPress={onCancel}
+          >
+            <Trans id="security.cancel">Cancel</Trans>
+          </Button>
+          <form.SubmitButton>
+            <Trans id="security.totp.replace.action">
+              Replace authenticator
+            </Trans>
+          </form.SubmitButton>
+        </Modal.Footer>
       </form.Form>
     </form.AppForm>
   );
@@ -522,10 +564,11 @@ function SetupForm({
               }
               type="password"
               autoComplete="new-password"
+              variant="secondary"
             />
           )}
         </form.AppField>
-        <TotpSetup secret={setup.secret} uri={setup.uri} />
+        <TotpSetup secret={setup.secret} uri={setup.uri} onSurface />
         <form.AppField
           name="code"
           validators={{
@@ -539,6 +582,7 @@ function SetupForm({
             <field.OtpField
               label={<Trans id="security.totp.code">Current code</Trans>}
               digits={config.data?.totp.digits ?? 6}
+              variant="secondary"
             />
           )}
         </form.AppField>
@@ -556,26 +600,24 @@ function SetupForm({
   );
 }
 
-function RecoveryCodeActions({
-  onCodes,
-}: {
-  onCodes: (codes: string[]) => void;
-}) {
+function RecoveryCodesRow({ onCodes }: { onCodes: (codes: string[]) => void }) {
   const queryClient = useQueryClient();
   const regenerate = useMutation(
     regenerateRecoveryCodesMutationOptions(queryClient),
   );
 
   return (
-    <>
-      <Description>
-        <Trans id="security.recovery.note">
+    <ItemListRow
+      title={<Trans id="security.recovery.title">Recovery codes</Trans>}
+      details={[
+        <Trans key="note" id="security.recovery.note">
           Use a recovery code to sign in when you cannot use your password or
           authenticator. Generating new ones replaces every existing code.
-        </Trans>
-      </Description>
-      <div>
+        </Trans>,
+      ]}
+      actions={
         <Button
+          size="sm"
           variant="secondary"
           isPending={regenerate.isPending}
           onPress={() => {
@@ -588,12 +630,12 @@ function RecoveryCodeActions({
             Generate new recovery codes
           </Trans>
         </Button>
-      </div>
-    </>
+      }
+    />
   );
 }
 
-function RevokeSection({ passkeyCount }: { passkeyCount: number }) {
+function RevokeRow({ passkeyCount }: { passkeyCount: number }) {
   const queryClient = useQueryClient();
   const revoke = useMutation(revokePasswordTotpMutationOptions(queryClient));
   const [confirming, setConfirming] = useState(false);
@@ -602,39 +644,37 @@ function RevokeSection({ passkeyCount }: { passkeyCount: number }) {
   const lastWay = passkeyCount === 0;
 
   return (
-    <>
-      <Section
-        id="revoke"
-        title={
-          <Trans id="security.revoke.title">
-            Turn off password and authenticator
+    <ItemListRow
+      title={
+        <Trans id="security.revoke.title">
+          Turn off password and authenticator
+        </Trans>
+      }
+      details={[
+        lastWay ? (
+          <Trans key="note" id="security.revoke.last">
+            This is your only way to sign in, so it cannot be turned off. Add a
+            passkey first.
           </Trans>
-        }
-      >
-        <Description>
-          {lastWay ? (
-            <Trans id="security.revoke.last">
-              This is your only way to sign in, so it cannot be turned off. Add
-              a passkey first.
-            </Trans>
-          ) : (
-            <Trans id="security.revoke.note">
-              Removes your password and authenticator from this account. Your
-              passkeys keep working.
-            </Trans>
-          )}
-        </Description>
-        <div>
-          <Button
-            variant="danger-soft"
-            isDisabled={lastWay}
-            isPending={revoke.isPending}
-            onPress={() => setConfirming(true)}
-          >
-            <Trans id="security.revoke.action">Turn off</Trans>
-          </Button>
-        </div>
-      </Section>
+        ) : (
+          <Trans key="note" id="security.revoke.note">
+            Removes your password and authenticator from this account. Your
+            passkeys keep working.
+          </Trans>
+        ),
+      ]}
+      actions={
+        <Button
+          size="sm"
+          variant="danger-soft"
+          isDisabled={lastWay}
+          isPending={revoke.isPending}
+          onPress={() => setConfirming(true)}
+        >
+          <Trans id="security.revoke.action">Turn off</Trans>
+        </Button>
+      }
+    >
       <RevokeConfirm
         open={confirming}
         pending={revoke.isPending}
@@ -643,7 +683,7 @@ function RevokeSection({ passkeyCount }: { passkeyCount: number }) {
           revoke.mutate(undefined, { onSettled: () => setConfirming(false) })
         }
       />
-    </>
+    </ItemListRow>
   );
 }
 

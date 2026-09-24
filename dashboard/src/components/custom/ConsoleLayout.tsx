@@ -445,7 +445,7 @@ function ConsoleShell({
             rather than a stretched one. It is also the container the tables
             measure their full-bleed width against. */}
         <main className="@container flex min-w-0 flex-1 flex-col px-4 pt-2 pb-4 sm:px-6">
-          <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
+          <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
             <Outlet />
           </div>
         </main>

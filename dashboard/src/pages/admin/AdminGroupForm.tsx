@@ -864,7 +864,6 @@ function RuleEditor({
       >
         <Tabs.ListContainer className="w-fit max-w-full">
           <Tabs.List
-            className="grid grid-flow-col auto-cols-fr"
             aria-label={t({
               id: "admin.group.rule.views",
               message: "Rule editor",

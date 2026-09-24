@@ -18,7 +18,7 @@ export function TableEmptyState({
   title: ReactNode;
 }) {
   return (
-    <EmptyState className="flex flex-col items-center gap-3 py-10 text-center max-sm:items-start max-sm:text-start">
+    <EmptyState className="flex flex-col items-center gap-3 py-8 text-center max-sm:items-start max-sm:text-start">
       <span className="grid size-9 shrink-0 place-items-center rounded-[0.375rem] bg-accent-soft text-accent-soft-foreground">
         {icon}
       </span>

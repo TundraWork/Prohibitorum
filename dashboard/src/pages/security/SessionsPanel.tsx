@@ -8,7 +8,7 @@ import type { components } from "@/api/generated/schema";
 import { revokeSessionMutationOptions } from "@/api/mutations";
 import { sessionsQueryOptions } from "@/api/queries";
 import { Button } from "@/components/custom/Button";
-import { DataTable, type TableColumn } from "@/components/custom/DataTable";
+import { ItemList, ItemListRow } from "@/components/custom/ItemList";
 import { TableEmptyState } from "@/components/custom/TableEmptyState";
 
 type Session = components["schemas"]["SessionListItem"];
@@ -35,88 +35,40 @@ export function SessionsPanel() {
   const format = (value: string) =>
     new Intl.DateTimeFormat(i18n.locale, {
       dateStyle: "medium",
-      timeStyle: "short",
     }).format(new Date(value));
 
-  const columns: readonly TableColumn<Session>[] = [
-    {
-      id: "current",
-      header: <Trans id="security.sessions.column.status">Status</Trans>,
-      cell: (session) =>
-        session.isCurrent ? (
-          <Chip color="accent" size="sm">
-            <Trans id="security.sessions.current">This device</Trans>
-          </Chip>
-        ) : (
-          <span className="text-muted">
-            <Trans id="security.sessions.other">Signed in</Trans>
-          </span>
-        ),
-    },
-    {
-      id: "issuedAt",
-      header: <Trans id="security.sessions.column.issued">Started</Trans>,
-      cell: (session) => format(session.issuedAt),
-    },
-    {
-      id: "expiresAt",
-      header: <Trans id="security.sessions.column.expires">Expires</Trans>,
-      cell: (session) => format(session.expiresAt),
-    },
-    {
-      id: "lastSeenIp",
-      header: <Trans id="security.sessions.column.ip">Last seen from</Trans>,
-      cell: (session) => (
-        <span className="wrap-anywhere">{session.lastSeenIp || "—"}</span>
-      ),
-    },
-    {
-      id: "userAgent",
-      header: <Trans id="security.sessions.column.agent">Device</Trans>,
-      cell: (session) => (
-        <span className="wrap-anywhere" title={session.userAgent ?? undefined}>
-          {agentSummary(session.userAgent)}
-        </span>
-      ),
-    },
-    {
-      id: "actions",
-      header: <Trans id="security.column.actions">Actions</Trans>,
-      cell: (session) => {
-        const endSession = (
-          <Button
-            isIconOnly
-            size="sm"
-            variant="danger-soft"
-            aria-label={t({
-              id: "security.sessions.sign_out",
-              message: "End session",
-            })}
-            isDisabled={session.isCurrent}
-            onPress={() => setTarget(session)}
-          >
-            <LogOut size={16} aria-hidden="true" />
-          </Button>
-        );
-        // The current session is disabled rather than hidden, and the tooltip
-        // carries the reason. A disabled button emits no hover or focus, so the
-        // tooltip listens on the trigger wrapper instead.
-        return session.isCurrent ? (
-          <Tooltip delay={0}>
-            <Tooltip.Trigger>{endSession}</Tooltip.Trigger>
-            <Tooltip.Content>
-              <Trans id="security.sessions.use_sign_out">
-                Use sign out to end this one
-              </Trans>
-            </Tooltip.Content>
-          </Tooltip>
-        ) : (
-          endSession
-        );
-      },
-      pinned: true,
-    },
-  ];
+  const endSession = (session: Session) => {
+    const button = (
+      <Button
+        isIconOnly
+        size="sm"
+        variant="danger-soft"
+        aria-label={t({
+          id: "security.sessions.sign_out",
+          message: "End session",
+        })}
+        isDisabled={session.isCurrent}
+        onPress={() => setTarget(session)}
+      >
+        <LogOut size={16} aria-hidden="true" />
+      </Button>
+    );
+    // The current session is disabled rather than hidden, and the tooltip
+    // carries the reason. A disabled button emits no hover or focus, so the
+    // tooltip listens on the trigger wrapper instead.
+    return session.isCurrent ? (
+      <Tooltip delay={0}>
+        <Tooltip.Trigger>{button}</Tooltip.Trigger>
+        <Tooltip.Content>
+          <Trans id="security.sessions.use_sign_out">
+            Use sign out to end this one
+          </Trans>
+        </Tooltip.Content>
+      </Tooltip>
+    ) : (
+      button
+    );
+  };
 
   return (
     <>
@@ -126,11 +78,8 @@ export function SessionsPanel() {
         </p>
       )}
 
-      <DataTable
+      <ItemList
         label={t({ id: "security.sessions.table", message: "Active sessions" })}
-        columns={columns}
-        rows={sessions.data ?? []}
-        rowId={(session) => session.id}
         loading={sessions.isPending}
         empty={
           <TableEmptyState
@@ -146,7 +95,36 @@ export function SessionsPanel() {
             }
           />
         }
-      />
+      >
+        {(sessions.data ?? []).map((session) => (
+          <ItemListRow
+            key={session.id}
+            icon={<MonitorSmartphone size={18} aria-hidden="true" />}
+            title={
+              <span title={session.userAgent ?? undefined}>
+                {agentSummary(session.userAgent)}
+              </span>
+            }
+            badges={
+              session.isCurrent && (
+                <Chip color="accent" size="sm" variant="soft">
+                  <Trans id="security.sessions.current">This device</Trans>
+                </Chip>
+              )
+            }
+            details={[
+              session.lastSeenIp || undefined,
+              <Trans key="issued" id="security.sessions.detail.issued">
+                Started {format(session.issuedAt)}
+              </Trans>,
+              <Trans key="expires" id="security.sessions.detail.expires">
+                Expires {format(session.expiresAt)}
+              </Trans>,
+            ]}
+            actions={endSession(session)}
+          />
+        ))}
+      </ItemList>
 
       <AlertDialog
         isOpen={target !== null}

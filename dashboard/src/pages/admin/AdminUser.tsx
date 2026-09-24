@@ -1,20 +1,25 @@
 import {
+  Alert,
+  Chip,
   Description,
-  Disclosure,
-  DisclosureGroup,
   Label,
   ListBox,
   Modal,
   Select,
-  Separator,
   Tabs,
 } from "@heroui/react";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { Fingerprint, KeyRound, Link2, MonitorSmartphone } from "lucide-react";
-import { Fragment, type ReactNode, useState } from "react";
+import {
+  Fingerprint,
+  KeyRound,
+  Link2,
+  MonitorSmartphone,
+  Ticket,
+} from "lucide-react";
+import { useState } from "react";
 import { describeError } from "@/api/errors";
 import type { components } from "@/api/generated/schema";
 import {
@@ -38,7 +43,7 @@ import {
 import { Button } from "@/components/custom/Button";
 import { ConsoleCard } from "@/components/custom/ConsoleCard";
 import { DangerZone } from "@/components/custom/DangerZone";
-import { DataTable, type TableColumn } from "@/components/custom/DataTable";
+import { ItemList, ItemListRow } from "@/components/custom/ItemList";
 import { SecretReveal } from "@/components/custom/SecretReveal";
 import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
 import { invitationLinkCopy } from "@/components/custom/secret-reveal-copy";
@@ -49,10 +54,6 @@ import type { AccountTab } from "@/pages/console/tabs";
 import { Route } from "@/routes/_protected.admin.users_.$id";
 
 type Account = components["schemas"]["AccountView"];
-type Identity = components["schemas"]["AccountIdentityView"];
-type Credential = components["schemas"]["CredentialView"];
-type Session = components["schemas"]["SessionListItem"];
-type Token = components["schemas"]["PersonalAccessTokenView"];
 
 const attributesInvalid = msg({
   id: "admin.user.attributes.invalid",
@@ -150,7 +151,6 @@ export function AdminUser() {
     >
       <Tabs.ListContainer className="ml-2 w-fit max-w-full">
         <Tabs.List
-          className="grid grid-flow-col auto-cols-fr"
           aria-label={t({ id: "admin.user.tabs", message: "Account" })}
         >
           <Tabs.Tab className="whitespace-nowrap" id="profile">
@@ -177,68 +177,6 @@ export function AdminUser() {
         {tab === "danger" && <DangerPanel account={account.data} />}
       </Tabs.Panel>
     </Tabs>
-  );
-}
-
-/**
- * One collapsible block of a tab: the heading row that opens it, and the
- * controls that belong to it. Closed content stays in the document, so a
- * half-filled form survives opening another section.
- */
-function Section({
-  id,
-  title,
-  children,
-}: {
-  id: string;
-  /** The trigger reads out as this, so it stays short and concrete. */
-  title: ReactNode;
-  children: ReactNode;
-}) {
-  return (
-    <Disclosure id={id}>
-      {({ isExpanded }) => (
-        <>
-          <Disclosure.Heading level={2}>
-            <Button
-              slot="trigger"
-              variant={isExpanded ? "secondary" : "tertiary"}
-              className={
-                isExpanded
-                  ? "w-full justify-between"
-                  : "w-full justify-between bg-transparent"
-              }
-            >
-              {title}
-              <Disclosure.Indicator className="text-muted" />
-            </Button>
-          </Disclosure.Heading>
-          <Disclosure.Content>
-            <Disclosure.Body className="flex flex-col gap-4 p-2">
-              {children}
-            </Disclosure.Body>
-          </Disclosure.Content>
-        </>
-      )}
-    </Disclosure>
-  );
-}
-
-/** Lays out the sections of a tab with a rule between them. */
-function Sections({
-  children,
-}: {
-  children: { id: string; node: ReactNode }[];
-}) {
-  return (
-    <DisclosureGroup>
-      {children.map((section, index) => (
-        <Fragment key={section.id}>
-          {index > 0 && <Separator className="my-2" />}
-          {section.node}
-        </Fragment>
-      ))}
-    </DisclosureGroup>
   );
 }
 
@@ -482,80 +420,42 @@ function OidcSubject({ value }: { value: string }) {
   );
 }
 
-/** Everything about how this account gets in, and the ways to cut it off. */
+/**
+ * Everything about how this account gets in, and the ways to cut it off: one
+ * list per kind of sign-in, all on screen at once, so an admin reads the whole
+ * picture without opening anything.
+ */
 function AccessPanel({ accountId }: { accountId: number }) {
   return (
-    <ConsoleCard title={<Trans id="admin.user.access.title">Access</Trans>}>
-      <Sections>
-        {[
-          {
-            id: "identities",
-            node: (
-              <Section
-                id="identities"
-                title={
-                  <Trans id="admin.user.identities.title">
-                    Connected identities
-                  </Trans>
-                }
-              >
-                <IdentitiesBlock accountId={accountId} />
-              </Section>
-            ),
-          },
-          {
-            id: "passkeys",
-            node: (
-              <Section
-                id="passkeys"
-                title={<Trans id="admin.user.passkeys.title">Passkeys</Trans>}
-              >
-                <PasskeysBlock accountId={accountId} />
-              </Section>
-            ),
-          },
-          {
-            id: "sessions",
-            node: (
-              <Section
-                id="sessions"
-                title={
-                  <Trans id="admin.user.sessions.title">Active sessions</Trans>
-                }
-              >
-                <SessionsBlock accountId={accountId} />
-              </Section>
-            ),
-          },
-          {
-            id: "tokens",
-            node: (
-              <Section
-                id="tokens"
-                title={
-                  <Trans id="admin.user.tokens.title">Access tokens</Trans>
-                }
-              >
-                <TokensBlock accountId={accountId} />
-              </Section>
-            ),
-          },
-        ]}
-      </Sections>
-    </ConsoleCard>
+    <div className="flex flex-col gap-4">
+      <IdentitiesBlock accountId={accountId} />
+      <PasskeysBlock accountId={accountId} />
+      <SessionsBlock accountId={accountId} />
+      <TokensBlock accountId={accountId} />
+    </div>
   );
 }
 
-/** A failed block reports itself rather than leaving an empty table behind. */
-function BlockError({ error }: { error: unknown }) {
+/**
+ * A failed block reports itself rather than leaving an empty list behind.
+ * Above a list it sits on the page; inside a row it is on the card's surface.
+ */
+function BlockError({
+  error,
+  onSurface = false,
+}: {
+  error: unknown;
+  onSurface?: boolean;
+}) {
   const { t } = useLingui();
+  const Notice = onSurface ? SurfaceAlert : Alert;
   return (
-    <SurfaceAlert status="danger" role="alert">
-      <SurfaceAlert.Indicator />
-      <SurfaceAlert.Content>
-        <SurfaceAlert.Title>{t(describeError(error))}</SurfaceAlert.Title>
-      </SurfaceAlert.Content>
-    </SurfaceAlert>
+    <Notice status="danger" role="alert">
+      <Notice.Indicator />
+      <Notice.Content>
+        <Notice.Title>{t(describeError(error))}</Notice.Title>
+      </Notice.Content>
+    </Notice>
   );
 }
 
@@ -566,7 +466,6 @@ function useDateFormat() {
       ? null
       : new Intl.DateTimeFormat(i18n.locale, {
           dateStyle: "medium",
-          timeStyle: "short",
         }).format(new Date(value));
 }
 
@@ -575,52 +474,17 @@ function IdentitiesBlock({ accountId }: { accountId: number }) {
   const format = useDateFormat();
   const identities = useQuery(accountIdentitiesQueryOptions(accountId));
 
-  const columns: readonly TableColumn<Identity>[] = [
-    {
-      id: "provider",
-      header: (
-        <Trans id="admin.user.identities.column.provider">Provider</Trans>
-      ),
-      cell: (identity) => (
-        <span className="wrap-anywhere font-medium">
-          {identity.providerDisplayName}
-        </span>
-      ),
-    },
-    {
-      id: "protocol",
-      header: (
-        <Trans id="admin.user.identities.column.protocol">Protocol</Trans>
-      ),
-      cell: (identity) => identity.protocol,
-    },
-    {
-      id: "subject",
-      header: <Trans id="admin.user.identities.column.subject">Subject</Trans>,
-      cell: (identity) => (
-        <span className="wrap-anywhere font-mono text-xs">
-          {identity.subject}
-        </span>
-      ),
-    },
-    {
-      id: "linkedAt",
-      header: <Trans id="admin.user.identities.column.linked">Linked</Trans>,
-      cell: (identity) => format(identity.linkedAt),
-    },
-  ];
-
   return (
-    <>
+    <div className="flex flex-col gap-2">
       {identities.error !== null && <BlockError error={identities.error} />}
-      <DataTable
+      <ItemList
+        title={
+          <Trans id="admin.user.identities.title">Connected identities</Trans>
+        }
         label={t({
           id: "admin.user.identities.table",
           message: "Connected identities",
         })}
-        columns={columns}
-        rows={identities.data ?? []}
-        rowId={(identity) => identity.id}
         loading={identities.isPending}
         empty={
           <TableEmptyState
@@ -632,8 +496,29 @@ function IdentitiesBlock({ accountId }: { accountId: number }) {
             }
           />
         }
-      />
-    </>
+      >
+        {(identities.data ?? []).map((identity) => (
+          <ItemListRow
+            key={identity.id}
+            icon={<Link2 size={18} aria-hidden="true" />}
+            title={identity.providerDisplayName}
+            badges={
+              <Chip size="sm" variant="soft">
+                <span className="uppercase">{identity.protocol}</span>
+              </Chip>
+            }
+            details={[
+              <span key="subject" className="font-mono">
+                {identity.subject}
+              </span>,
+              <Trans key="linked" id="admin.user.identities.detail.linked">
+                Linked {format(identity.linkedAt)}
+              </Trans>,
+            ]}
+          />
+        ))}
+      </ItemList>
+    </div>
   );
 }
 
@@ -646,84 +531,13 @@ function PasskeysBlock({ accountId }: { accountId: number }) {
     deleteAccountCredentialMutationOptions(queryClient),
   );
 
-  const columns: readonly TableColumn<Credential>[] = [
-    {
-      id: "nickname",
-      header: <Trans id="admin.user.passkeys.column.name">Name</Trans>,
-      cell: (credential) =>
-        credential.nickname ? (
-          <span className="wrap-anywhere font-medium">
-            {credential.nickname}
-          </span>
-        ) : (
-          <span className="text-muted">
-            <Trans id="admin.user.passkeys.unnamed">Unnamed passkey</Trans>
-          </span>
-        ),
-    },
-    {
-      id: "suffix",
-      header: <Trans id="admin.user.passkeys.column.id">Ends with</Trans>,
-      cell: (credential) => (
-        <span className="font-mono">{credential.credentialIdSuffix}</span>
-      ),
-    },
-    {
-      id: "createdAt",
-      header: <Trans id="admin.user.passkeys.column.created">Added</Trans>,
-      cell: (credential) => format(credential.createdAt),
-    },
-    {
-      id: "lastUsedAt",
-      header: <Trans id="admin.user.passkeys.column.lastUsed">Last used</Trans>,
-      cell: (credential) =>
-        format(credential.lastUsedAt) ?? (
-          <span className="text-muted">
-            <Trans id="admin.user.passkeys.never_used">Not used yet</Trans>
-          </span>
-        ),
-    },
-    {
-      id: "actions",
-      header: <Trans id="admin.user.column.actions">Actions</Trans>,
-      cell: (credential) => (
-        <DangerZone
-          label={<Trans id="admin.user.passkeys.revoke">Remove</Trans>}
-          title={
-            <Trans id="admin.user.passkeys.revoke.title">
-              Remove this passkey?
-            </Trans>
-          }
-          body={
-            <p>
-              <Trans id="admin.user.passkeys.revoke.body">
-                This passkey stops working immediately. If it is the only way
-                this account signs in, they will need a new registration link.
-              </Trans>
-            </p>
-          }
-          confirmLabel={
-            <Trans id="admin.user.passkeys.revoke.action">Remove passkey</Trans>
-          }
-          isPending={revoke.isPending}
-          onConfirm={() =>
-            revoke.mutate({ accountId, credentialId: credential.id })
-          }
-        />
-      ),
-      pinned: true,
-    },
-  ];
-
   return (
-    <>
+    <div className="flex flex-col gap-2">
       {credentials.error !== null && <BlockError error={credentials.error} />}
       {revoke.error !== null && <BlockError error={revoke.error} />}
-      <DataTable
+      <ItemList
+        title={<Trans id="admin.user.passkeys.title">Passkeys</Trans>}
         label={t({ id: "admin.user.passkeys.table", message: "Passkeys" })}
-        columns={columns}
-        rows={credentials.data?.items ?? []}
-        rowId={(credential) => credential.id}
         loading={credentials.isPending}
         empty={
           <TableEmptyState
@@ -733,8 +547,73 @@ function PasskeysBlock({ accountId }: { accountId: number }) {
             title={<Trans id="admin.user.passkeys.empty">No passkeys</Trans>}
           />
         }
-      />
-    </>
+      >
+        {(credentials.data?.items ?? []).map((credential) => {
+          const lastUsed = format(credential.lastUsedAt);
+          return (
+            <ItemListRow
+              key={credential.id}
+              icon={<KeyRound size={18} aria-hidden="true" />}
+              title={
+                credential.nickname || (
+                  <span className="text-muted">
+                    <Trans id="admin.user.passkeys.unnamed">
+                      Unnamed passkey
+                    </Trans>
+                  </span>
+                )
+              }
+              details={[
+                <Trans key="added" id="admin.user.passkeys.detail.added">
+                  Added {format(credential.createdAt)}
+                </Trans>,
+                lastUsed === null ? (
+                  <Trans key="used" id="admin.user.passkeys.never_used">
+                    Not used yet
+                  </Trans>
+                ) : (
+                  <Trans key="used" id="admin.user.passkeys.detail.lastUsed">
+                    Last used {lastUsed}
+                  </Trans>
+                ),
+                <span key="suffix" className="font-mono">
+                  …{credential.credentialIdSuffix}
+                </span>,
+              ]}
+              actions={
+                <DangerZone
+                  size="sm"
+                  label={<Trans id="admin.user.passkeys.revoke">Remove</Trans>}
+                  title={
+                    <Trans id="admin.user.passkeys.revoke.title">
+                      Remove this passkey?
+                    </Trans>
+                  }
+                  body={
+                    <p>
+                      <Trans id="admin.user.passkeys.revoke.body">
+                        This passkey stops working immediately. If it is the
+                        only way this account signs in, they will need a new
+                        registration link.
+                      </Trans>
+                    </p>
+                  }
+                  confirmLabel={
+                    <Trans id="admin.user.passkeys.revoke.action">
+                      Remove passkey
+                    </Trans>
+                  }
+                  isPending={revoke.isPending}
+                  onConfirm={() =>
+                    revoke.mutate({ accountId, credentialId: credential.id })
+                  }
+                />
+              }
+            />
+          );
+        })}
+      </ItemList>
+    </div>
   );
 }
 
@@ -755,76 +634,17 @@ function SessionsBlock({ accountId }: { accountId: number }) {
   );
   const rows = sessions.data?.items ?? [];
 
-  const columns: readonly TableColumn<Session>[] = [
-    {
-      id: "issuedAt",
-      header: <Trans id="admin.user.sessions.column.issued">Started</Trans>,
-      cell: (session) => format(session.issuedAt),
-    },
-    {
-      id: "expiresAt",
-      header: <Trans id="admin.user.sessions.column.expires">Expires</Trans>,
-      cell: (session) => format(session.expiresAt),
-    },
-    {
-      id: "lastSeenIp",
-      header: <Trans id="admin.user.sessions.column.ip">Last seen from</Trans>,
-      cell: (session) => (
-        <span className="wrap-anywhere">{session.lastSeenIp || "—"}</span>
-      ),
-    },
-    {
-      id: "userAgent",
-      header: <Trans id="admin.user.sessions.column.agent">Device</Trans>,
-      cell: (session) => (
-        <span className="wrap-anywhere" title={session.userAgent ?? undefined}>
-          {agentSummary(session.userAgent)}
-        </span>
-      ),
-    },
-    {
-      id: "actions",
-      header: <Trans id="admin.user.column.actions">Actions</Trans>,
-      cell: (session) => (
-        <DangerZone
-          label={<Trans id="admin.user.sessions.revoke">End</Trans>}
-          title={
-            <Trans id="admin.user.sessions.revoke.title">
-              End this session?
-            </Trans>
-          }
-          body={
-            <p>
-              <Trans id="admin.user.sessions.revoke.body">
-                That device is signed out immediately and will need to sign in
-                again. Anything it is doing right now stops.
-              </Trans>
-            </p>
-          }
-          confirmLabel={
-            <Trans id="admin.user.sessions.revoke.action">End session</Trans>
-          }
-          isPending={revoke.isPending}
-          onConfirm={() => revoke.mutate({ accountId, id: session.id })}
-        />
-      ),
-      pinned: true,
-    },
-  ];
-
   return (
-    <>
+    <div className="flex flex-col gap-2">
       {sessions.error !== null && <BlockError error={sessions.error} />}
       {revoke.error !== null && <BlockError error={revoke.error} />}
       {revokeAll.error !== null && <BlockError error={revokeAll.error} />}
-      <DataTable
+      <ItemList
+        title={<Trans id="admin.user.sessions.title">Active sessions</Trans>}
         label={t({
           id: "admin.user.sessions.table",
           message: "Active sessions",
         })}
-        columns={columns}
-        rows={rows}
-        rowId={(session) => session.id}
         loading={sessions.isPending}
         empty={
           <TableEmptyState
@@ -840,44 +660,87 @@ function SessionsBlock({ accountId }: { accountId: number }) {
             }
           />
         }
-      />
-      <DangerZone
-        label={
-          <Trans id="admin.user.sessions.revoke_all">Sign out everywhere</Trans>
+        footer={
+          rows.length > 1 ? (
+            <DangerZone
+              size="sm"
+              label={
+                <Trans id="admin.user.sessions.revoke_all">
+                  Sign out everywhere
+                </Trans>
+              }
+              title={
+                <Trans id="admin.user.sessions.revoke_all.title">
+                  Sign this account out everywhere?
+                </Trans>
+              }
+              body={
+                <p>
+                  <Trans id="admin.user.sessions.revoke_all.body">
+                    Every device signed in to this account is signed out
+                    immediately and will need to sign in again.
+                  </Trans>
+                </p>
+              }
+              confirmLabel={
+                <Trans id="admin.user.sessions.revoke_all.action">
+                  Sign out everywhere
+                </Trans>
+              }
+              isPending={revokeAll.isPending}
+              onConfirm={() => revokeAll.mutate(accountId)}
+            />
+          ) : undefined
         }
-        description={
-          <Trans id="admin.user.sessions.revoke_all.hint">
-            Ends every session this account has, on every device.
-          </Trans>
-        }
-        title={
-          <Trans id="admin.user.sessions.revoke_all.title">
-            Sign this account out everywhere?
-          </Trans>
-        }
-        body={
-          <p>
-            <Trans id="admin.user.sessions.revoke_all.body">
-              Every device signed in to this account is signed out immediately
-              and will need to sign in again.
-            </Trans>
-          </p>
-        }
-        confirmLabel={
-          <Trans id="admin.user.sessions.revoke_all.action">
-            Sign out everywhere
-          </Trans>
-        }
-        disabled={rows.length === 0}
-        disabledReason={
-          <Trans id="admin.user.sessions.revoke_all.none">
-            This account has no active sessions.
-          </Trans>
-        }
-        isPending={revokeAll.isPending}
-        onConfirm={() => revokeAll.mutate(accountId)}
-      />
-    </>
+      >
+        {rows.map((session) => (
+          <ItemListRow
+            key={session.id}
+            icon={<MonitorSmartphone size={18} aria-hidden="true" />}
+            title={
+              <span title={session.userAgent ?? undefined}>
+                {agentSummary(session.userAgent)}
+              </span>
+            }
+            details={[
+              session.lastSeenIp || undefined,
+              <Trans key="issued" id="admin.user.sessions.detail.issued">
+                Started {format(session.issuedAt)}
+              </Trans>,
+              <Trans key="expires" id="admin.user.sessions.detail.expires">
+                Expires {format(session.expiresAt)}
+              </Trans>,
+            ]}
+            actions={
+              <DangerZone
+                size="sm"
+                label={<Trans id="admin.user.sessions.revoke">End</Trans>}
+                title={
+                  <Trans id="admin.user.sessions.revoke.title">
+                    End this session?
+                  </Trans>
+                }
+                body={
+                  <p>
+                    <Trans id="admin.user.sessions.revoke.body">
+                      That device is signed out immediately and will need to
+                      sign in again. Anything it is doing right now stops.
+                    </Trans>
+                  </p>
+                }
+                confirmLabel={
+                  <Trans id="admin.user.sessions.revoke.action">
+                    End session
+                  </Trans>
+                }
+                isPending={revoke.isPending}
+                onConfirm={() => revoke.mutate({ accountId, id: session.id })}
+              />
+            }
+          />
+        ))}
+      </ItemList>
+    </div>
   );
 }
 
@@ -888,151 +751,102 @@ function TokensBlock({ accountId }: { accountId: number }) {
   const tokens = useQuery(accountTokensQueryOptions(accountId));
   const revoke = useMutation(revokeAccountTokenMutationOptions(queryClient));
 
-  const columns: readonly TableColumn<Token>[] = [
-    {
-      id: "name",
-      header: <Trans id="admin.user.tokens.column.name">Name</Trans>,
-      cell: (token) => (
-        <span className="wrap-anywhere font-medium">{token.name}</span>
-      ),
-    },
-    {
-      id: "hint",
-      header: <Trans id="admin.user.tokens.column.hint">Token</Trans>,
-      cell: (token) => (
-        <span className="font-mono text-xs">…{token.tokenHint}</span>
-      ),
-    },
-    {
-      id: "createdAt",
-      header: <Trans id="admin.user.tokens.column.created">Created</Trans>,
-      cell: (token) => format(token.createdAt),
-    },
-    {
-      id: "expiresAt",
-      header: <Trans id="admin.user.tokens.column.expires">Expires</Trans>,
-      cell: (token) =>
-        format(token.expiresAt) ?? (
-          <span className="text-muted">
-            <Trans id="admin.user.tokens.never_expires">Never</Trans>
-          </span>
-        ),
-    },
-    {
-      id: "lastUsedAt",
-      header: <Trans id="admin.user.tokens.column.lastUsed">Last used</Trans>,
-      cell: (token) =>
-        format(token.lastUsedAt) ?? (
-          <span className="text-muted">
-            <Trans id="admin.user.tokens.never_used">Not used yet</Trans>
-          </span>
-        ),
-    },
-    {
-      id: "actions",
-      header: <Trans id="admin.user.column.actions">Actions</Trans>,
-      cell: (token) => (
-        <DangerZone
-          label={<Trans id="admin.user.tokens.revoke">Revoke</Trans>}
-          title={
-            <Trans id="admin.user.tokens.revoke.title">
-              Revoke this token?
-            </Trans>
-          }
-          body={
-            <p>
-              <Trans id="admin.user.tokens.revoke.body">
-                Anything using this token stops working immediately. This cannot
-                be undone.
-              </Trans>
-            </p>
-          }
-          confirmLabel={
-            <Trans id="admin.user.tokens.revoke.action">Revoke token</Trans>
-          }
-          isPending={revoke.isPending}
-          onConfirm={() => revoke.mutate({ accountId, id: token.id })}
-        />
-      ),
-      pinned: true,
-    },
-  ];
-
   return (
-    <>
+    <div className="flex flex-col gap-2">
       {tokens.error !== null && <BlockError error={tokens.error} />}
       {revoke.error !== null && <BlockError error={revoke.error} />}
-      <DataTable
+      <ItemList
+        title={<Trans id="admin.user.tokens.title">Access tokens</Trans>}
         label={t({ id: "admin.user.tokens.table", message: "Access tokens" })}
-        columns={columns}
-        rows={tokens.data?.items ?? []}
-        rowId={(token) => token.id}
         loading={tokens.isPending}
         empty={
           <TableEmptyState
-            icon={<KeyRound size={18} strokeWidth={1.75} aria-hidden="true" />}
+            icon={<Ticket size={18} strokeWidth={1.75} aria-hidden="true" />}
             title={<Trans id="admin.user.tokens.empty">No access tokens</Trans>}
           />
         }
-      />
-    </>
+      >
+        {(tokens.data?.items ?? []).map((token) => {
+          const expires = format(token.expiresAt);
+          const lastUsed = format(token.lastUsedAt);
+          return (
+            <ItemListRow
+              key={token.id}
+              icon={<Ticket size={18} aria-hidden="true" />}
+              title={token.name}
+              details={[
+                <span key="hint" className="font-mono">
+                  …{token.tokenHint}
+                </span>,
+                expires === null ? (
+                  <Trans key="expires" id="admin.user.tokens.detail.noExpiry">
+                    Never expires
+                  </Trans>
+                ) : (
+                  <Trans key="expires" id="admin.user.tokens.detail.expires">
+                    Expires {expires}
+                  </Trans>
+                ),
+                lastUsed === null ? (
+                  <Trans key="used" id="admin.user.tokens.never_used">
+                    Not used yet
+                  </Trans>
+                ) : (
+                  <Trans key="used" id="admin.user.tokens.detail.lastUsed">
+                    Last used {lastUsed}
+                  </Trans>
+                ),
+              ]}
+              actions={
+                <DangerZone
+                  size="sm"
+                  label={<Trans id="admin.user.tokens.revoke">Revoke</Trans>}
+                  title={
+                    <Trans id="admin.user.tokens.revoke.title">
+                      Revoke this token?
+                    </Trans>
+                  }
+                  body={
+                    <p>
+                      <Trans id="admin.user.tokens.revoke.body">
+                        Anything using this token stops working immediately.
+                        This cannot be undone.
+                      </Trans>
+                    </p>
+                  }
+                  confirmLabel={
+                    <Trans id="admin.user.tokens.revoke.action">
+                      Revoke token
+                    </Trans>
+                  }
+                  isPending={revoke.isPending}
+                  onConfirm={() => revoke.mutate({ accountId, id: token.id })}
+                />
+              }
+            />
+          );
+        })}
+      </ItemList>
+    </div>
   );
 }
 
-/** The three actions that end an account, each behind its own confirmation. */
+/**
+ * The three actions that end or reset an account, one row each with its own
+ * confirmation, all on screen at once.
+ */
 function DangerPanel({ account }: { account: Account }) {
+  const { t } = useLingui();
   return (
-    <ConsoleCard
+    <ItemList
       title={<Trans id="admin.user.danger.title">Danger zone</Trans>}
+      label={t({ id: "admin.user.danger.title", message: "Danger zone" })}
+      empty={null}
     >
-      <Sections>
-        {[
-          {
-            id: "enrollment",
-            node: (
-              <Section
-                id="enrollment"
-                title={
-                  <Trans id="admin.user.enrollment.title">
-                    Registration link
-                  </Trans>
-                }
-              >
-                <EnrollmentBlock accountId={account.id} />
-              </Section>
-            ),
-          },
-          {
-            id: "disabled",
-            node: (
-              <Section
-                id="disabled"
-                title={
-                  <Trans id="admin.user.state.title">Enabled or disabled</Trans>
-                }
-              >
-                <DisabledBlock account={account} />
-              </Section>
-            ),
-          },
-          {
-            id: "delete",
-            node: (
-              <Section
-                id="delete"
-                title={
-                  <Trans id="admin.user.delete.title">
-                    Delete this account
-                  </Trans>
-                }
-              >
-                <DeleteBlock account={account} />
-              </Section>
-            ),
-          },
-        ]}
-      </Sections>
-    </ConsoleCard>
+      <EnrollmentBlock key="enrollment" accountId={account.id} />
+      <DisabledBlock key="disabled" account={account} />
+      <DeleteBlock key="delete" account={account} />
+    </ItemList>
   );
 }
 
@@ -1062,16 +876,17 @@ function EnrollmentBlock({ accountId }: { accountId: number }) {
         }).format(new Date(link.expiresAt));
 
   return (
-    <>
-      <Description>
-        <Trans id="admin.user.enrollment.note">
+    <ItemListRow
+      title={<Trans id="admin.user.enrollment.title">Registration link</Trans>}
+      details={[
+        <Trans key="note" id="admin.user.enrollment.note">
           Issues a new link this account can use to set up how they sign in. The
           link is shown once, and any earlier link stops working.
-        </Trans>
-      </Description>
-      {reissue.error !== null && <BlockError error={reissue.error} />}
-      <div>
+        </Trans>,
+      ]}
+      actions={
         <Button
+          size="sm"
           variant="secondary"
           isPending={reissue.isPending}
           onPress={() => {
@@ -1084,7 +899,9 @@ function EnrollmentBlock({ accountId }: { accountId: number }) {
             Issue a registration link
           </Trans>
         </Button>
-      </div>
+      }
+    >
+      {reissue.error !== null && <BlockError error={reissue.error} onSurface />}
       {link !== null && (
         <p className="text-xs text-muted">
           <Trans id="admin.user.enrollment.expires">
@@ -1114,7 +931,7 @@ function EnrollmentBlock({ accountId }: { accountId: number }) {
           </Modal.Backdrop>
         </Modal>
       )}
-    </>
+    </ItemListRow>
   );
 }
 
@@ -1125,67 +942,74 @@ function DisabledBlock({ account }: { account: Account }) {
   );
 
   return (
-    <>
-      <Description>
-        {account.disabled ? (
-          <Trans id="admin.user.state.disabled.note">
+    <ItemListRow
+      title={<Trans id="admin.user.state.title">Enabled or disabled</Trans>}
+      details={[
+        account.disabled ? (
+          <Trans key="note" id="admin.user.state.disabled.note">
             This account cannot sign in. Enabling it restores access with the
             sign-in methods it already had.
           </Trans>
         ) : (
-          <Trans id="admin.user.state.enabled.note">
+          <Trans key="note" id="admin.user.state.enabled.note">
             Disabling stops this account signing in and ends nothing else. An
             admin has to be made a user first.
           </Trans>
-        )}
-      </Description>
-      {setDisabled.error !== null && <BlockError error={setDisabled.error} />}
-      <DangerZone
-        label={
-          account.disabled ? (
-            <Trans id="admin.user.state.enable">Enable this account</Trans>
-          ) : (
-            <Trans id="admin.user.state.disable">Disable this account</Trans>
-          )
-        }
-        title={
-          account.disabled ? (
-            <Trans id="admin.user.state.enable.title">
-              Enable this account?
-            </Trans>
-          ) : (
-            <Trans id="admin.user.state.disable.title">
-              Disable this account?
-            </Trans>
-          )
-        }
-        body={
-          <p>
-            {account.disabled ? (
-              <Trans id="admin.user.state.enable.body">
-                They will be able to sign in again straight away.
+        ),
+      ]}
+      actions={
+        <DangerZone
+          size="sm"
+          label={
+            account.disabled ? (
+              <Trans id="admin.user.state.enable">Enable this account</Trans>
+            ) : (
+              <Trans id="admin.user.state.disable">Disable this account</Trans>
+            )
+          }
+          title={
+            account.disabled ? (
+              <Trans id="admin.user.state.enable.title">
+                Enable this account?
               </Trans>
             ) : (
-              <Trans id="admin.user.state.disable.body">
-                They will not be able to sign in. Sessions they already have
-                stay active until you end them.
+              <Trans id="admin.user.state.disable.title">
+                Disable this account?
               </Trans>
-            )}
-          </p>
-        }
-        confirmLabel={
-          account.disabled ? (
-            <Trans id="admin.user.state.enable.action">Enable</Trans>
-          ) : (
-            <Trans id="admin.user.state.disable.action">Disable</Trans>
-          )
-        }
-        isPending={setDisabled.isPending}
-        onConfirm={() =>
-          setDisabled.mutate({ id: account.id, disabled: !account.disabled })
-        }
-      />
-    </>
+            )
+          }
+          body={
+            <p>
+              {account.disabled ? (
+                <Trans id="admin.user.state.enable.body">
+                  They will be able to sign in again straight away.
+                </Trans>
+              ) : (
+                <Trans id="admin.user.state.disable.body">
+                  They will not be able to sign in. Sessions they already have
+                  stay active until you end them.
+                </Trans>
+              )}
+            </p>
+          }
+          confirmLabel={
+            account.disabled ? (
+              <Trans id="admin.user.state.enable.action">Enable</Trans>
+            ) : (
+              <Trans id="admin.user.state.disable.action">Disable</Trans>
+            )
+          }
+          isPending={setDisabled.isPending}
+          onConfirm={() =>
+            setDisabled.mutate({ id: account.id, disabled: !account.disabled })
+          }
+        />
+      }
+    >
+      {setDisabled.error !== null && (
+        <BlockError error={setDisabled.error} onSurface />
+      )}
+    </ItemListRow>
   );
 }
 
@@ -1195,53 +1019,60 @@ function DeleteBlock({ account }: { account: Account }) {
   const remove = useMutation(deleteAccountMutationOptions(queryClient));
 
   return (
-    <>
-      <Description>
-        <Trans id="admin.user.delete.note">
+    <ItemListRow
+      title={<Trans id="admin.user.delete.title">Delete this account</Trans>}
+      details={[
+        <Trans key="note" id="admin.user.delete.note">
           Removes the account and everything it owns: passkeys, sessions, access
           tokens and connected identities. This cannot be undone.
-        </Trans>
-      </Description>
-      {remove.error !== null && <BlockError error={remove.error} />}
-      <DangerZone
-        label={<Trans id="admin.user.delete.action">Delete this account</Trans>}
-        title={
-          <Trans id="admin.user.delete.confirm.title">
-            Delete this account?
-          </Trans>
-        }
-        body={
-          <p>
-            <Trans id="admin.user.delete.confirm.body">
-              The account, its passkeys, its sessions, its access tokens and its
-              connected identities are removed immediately. This cannot be
-              undone.
+        </Trans>,
+      ]}
+      actions={
+        <DangerZone
+          size="sm"
+          label={
+            <Trans id="admin.user.delete.action">Delete this account</Trans>
+          }
+          title={
+            <Trans id="admin.user.delete.confirm.title">
+              Delete this account?
             </Trans>
-          </p>
-        }
-        confirmLabel={
-          <Trans id="admin.user.delete.confirm.action">Delete account</Trans>
-        }
-        isPending={remove.isPending}
-        onConfirm={() =>
-          remove.mutate(account.id, {
-            onSuccess: async () => {
-              await navigate({
-                to: "/admin/users",
-                search: {
-                  q: "",
-                  provider: "",
-                  field: "",
-                  value: "",
-                  match: "",
-                  role: "",
-                  state: "",
-                },
-              });
-            },
-          })
-        }
-      />
-    </>
+          }
+          body={
+            <p>
+              <Trans id="admin.user.delete.confirm.body">
+                The account, its passkeys, its sessions, its access tokens and
+                its connected identities are removed immediately. This cannot be
+                undone.
+              </Trans>
+            </p>
+          }
+          confirmLabel={
+            <Trans id="admin.user.delete.confirm.action">Delete account</Trans>
+          }
+          isPending={remove.isPending}
+          onConfirm={() =>
+            remove.mutate(account.id, {
+              onSuccess: async () => {
+                await navigate({
+                  to: "/admin/users",
+                  search: {
+                    q: "",
+                    provider: "",
+                    field: "",
+                    value: "",
+                    match: "",
+                    role: "",
+                    state: "",
+                  },
+                });
+              },
+            })
+          }
+        />
+      }
+    >
+      {remove.error !== null && <BlockError error={remove.error} onSurface />}
+    </ItemListRow>
   );
 }

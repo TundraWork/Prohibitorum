@@ -1,6 +1,7 @@
 import {
   Alert,
   AlertDialog,
+  Chip,
   Description,
   Input,
   Label,
@@ -9,7 +10,7 @@ import {
 } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Fingerprint, Pencil, Trash2 } from "lucide-react";
+import { Fingerprint, KeyRound, Pencil, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { describeError, isCancellation } from "@/api/errors";
 import type { components } from "@/api/generated/schema";
@@ -20,7 +21,7 @@ import {
 } from "@/api/mutations";
 import { credentialsQueryOptions } from "@/api/queries";
 import { Button } from "@/components/custom/Button";
-import { DataTable, type TableColumn } from "@/components/custom/DataTable";
+import { ItemList, ItemListRow } from "@/components/custom/ItemList";
 import { TableEmptyState } from "@/components/custom/TableEmptyState";
 
 type Credential = components["schemas"]["CredentialView"];
@@ -68,131 +69,65 @@ export function PasskeysPanel() {
       ? null
       : new Intl.DateTimeFormat(i18n.locale, {
           dateStyle: "medium",
-          timeStyle: "short",
         }).format(new Date(value));
 
-  const columns: readonly TableColumn<Credential>[] = [
-    {
-      id: "nickname",
-      header: <Trans id="security.passkeys.column.name">Name</Trans>,
-      cell: (credential) =>
-        credential.nickname ? (
-          <span className="wrap-anywhere font-medium">
-            {credential.nickname}
-          </span>
+  const actions = (credential: Credential) => {
+    const removeButton = (
+      <Button
+        isIconOnly
+        size="sm"
+        variant="danger-soft"
+        aria-label={t({
+          id: "security.passkeys.delete",
+          message: "Remove",
+        })}
+        isDisabled={lastOne}
+        onPress={() => setDeleting(credential)}
+      >
+        <Trash2 size={16} aria-hidden="true" />
+      </Button>
+    );
+    return (
+      <>
+        <Button
+          isIconOnly
+          size="sm"
+          variant="tertiary"
+          aria-label={t({
+            id: "security.passkeys.rename",
+            message: "Rename",
+          })}
+          onPress={() =>
+            setRenaming({
+              credential,
+              nickname: credential.nickname ?? "",
+            })
+          }
+        >
+          <Pencil size={16} aria-hidden="true" />
+        </Button>
+        {/* A disabled button emits no hover or focus, so the tooltip
+            listens on the trigger wrapper instead. */}
+        {lastOne ? (
+          <Tooltip delay={0}>
+            <Tooltip.Trigger>{removeButton}</Tooltip.Trigger>
+            <Tooltip.Content>
+              <Trans id="security.passkeys.last_one_tooltip">
+                This is your only passkey, so it cannot be removed.
+              </Trans>
+            </Tooltip.Content>
+          </Tooltip>
         ) : (
-          <span className="text-muted">
-            <Trans id="security.passkeys.unnamed">Unnamed passkey</Trans>
-          </span>
-        ),
-    },
-    {
-      id: "createdAt",
-      header: <Trans id="security.passkeys.column.created">Added</Trans>,
-      cell: (credential) => format(credential.createdAt),
-    },
-    {
-      id: "lastUsedAt",
-      header: <Trans id="security.passkeys.column.lastUsed">Last used</Trans>,
-      cell: (credential) =>
-        format(credential.lastUsedAt) ?? (
-          <span className="text-muted">
-            <Trans id="security.passkeys.never_used">Not used yet</Trans>
-          </span>
-        ),
-    },
-    {
-      id: "backupState",
-      header: <Trans id="security.passkeys.column.synced">Synced</Trans>,
-      cell: (credential) =>
-        credential.backupState ? (
-          <Trans id="security.passkeys.synced">Synced</Trans>
-        ) : (
-          <Trans id="security.passkeys.device_bound">This device only</Trans>
-        ),
-    },
-    {
-      id: "transports",
-      header: <Trans id="security.passkeys.column.transport">Transport</Trans>,
-      cell: (credential) =>
-        credential.transports && credential.transports.length > 0 ? (
-          <span className="wrap-anywhere">
-            {credential.transports.join(", ")}
-          </span>
-        ) : (
-          "—"
-        ),
-    },
-    {
-      id: "suffix",
-      header: <Trans id="security.passkeys.column.id">Ends with</Trans>,
-      cell: (credential) => (
-        <span className="font-mono">{credential.credentialIdSuffix}</span>
-      ),
-    },
-    {
-      id: "actions",
-      header: <Trans id="security.column.actions">Actions</Trans>,
-      cell: (credential) => {
-        const removeButton = (
-          <Button
-            isIconOnly
-            size="sm"
-            variant="danger-soft"
-            aria-label={t({
-              id: "security.passkeys.delete",
-              message: "Remove",
-            })}
-            isDisabled={lastOne}
-            onPress={() => setDeleting(credential)}
-          >
-            <Trash2 size={16} aria-hidden="true" />
-          </Button>
-        );
-        return (
-          <>
-            <Button
-              isIconOnly
-              size="sm"
-              variant="tertiary"
-              aria-label={t({
-                id: "security.passkeys.rename",
-                message: "Rename",
-              })}
-              onPress={() =>
-                setRenaming({
-                  credential,
-                  nickname: credential.nickname ?? "",
-                })
-              }
-            >
-              <Pencil size={16} aria-hidden="true" />
-            </Button>
-            {/* A disabled button emits no hover or focus, so the tooltip
-                listens on the trigger wrapper instead. */}
-            {lastOne ? (
-              <Tooltip delay={0}>
-                <Tooltip.Trigger>{removeButton}</Tooltip.Trigger>
-                <Tooltip.Content>
-                  <Trans id="security.passkeys.last_one_tooltip">
-                    This is your only passkey, so it cannot be removed.
-                  </Trans>
-                </Tooltip.Content>
-              </Tooltip>
-            ) : (
-              removeButton
-            )}
-          </>
-        );
-      },
-      pinned: true,
-    },
-  ];
+          removeButton
+        )}
+      </>
+    );
+  };
 
   return (
     <>
       <div className="flex flex-col gap-4">
-        <div className="flex flex-wrap items-center justify-end gap-4">
+        <div className="flex flex-wrap items-center gap-4">
           <Button isPending={add.isPending} onPress={startAdd}>
             <Trans id="security.passkeys.add">Add a passkey</Trans>
           </Button>
@@ -207,11 +142,8 @@ export function PasskeysPanel() {
           </Alert>
         )}
 
-        <DataTable
+        <ItemList
           label={t({ id: "security.passkeys.table", message: "Passkeys" })}
-          columns={columns}
-          rows={rows}
-          rowId={(credential) => credential.id}
           loading={credentials.isPending}
           empty={
             <TableEmptyState
@@ -225,7 +157,55 @@ export function PasskeysPanel() {
               }
             />
           }
-        />
+        >
+          {rows.map((credential) => {
+            const lastUsed = format(credential.lastUsedAt);
+            return (
+              <ItemListRow
+                key={credential.id}
+                icon={<KeyRound size={18} aria-hidden="true" />}
+                title={
+                  credential.nickname || (
+                    <span className="text-muted">
+                      <Trans id="security.passkeys.unnamed">
+                        Unnamed passkey
+                      </Trans>
+                    </span>
+                  )
+                }
+                badges={
+                  <Chip size="sm" variant="soft">
+                    {credential.backupState ? (
+                      <Trans id="security.passkeys.synced">Synced</Trans>
+                    ) : (
+                      <Trans id="security.passkeys.device_bound">
+                        This device only
+                      </Trans>
+                    )}
+                  </Chip>
+                }
+                details={[
+                  <Trans key="added" id="security.passkeys.detail.added">
+                    Added {format(credential.createdAt)}
+                  </Trans>,
+                  lastUsed === null ? (
+                    <Trans key="used" id="security.passkeys.never_used">
+                      Not used yet
+                    </Trans>
+                  ) : (
+                    <Trans key="used" id="security.passkeys.detail.lastUsed">
+                      Last used {lastUsed}
+                    </Trans>
+                  ),
+                  <span key="suffix" className="font-mono">
+                    …{credential.credentialIdSuffix}
+                  </span>,
+                ]}
+                actions={actions(credential)}
+              />
+            );
+          })}
+        </ItemList>
       </div>
 
       <AlertDialog

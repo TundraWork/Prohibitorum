@@ -33,6 +33,7 @@ export function DangerZone({
   disabled = false,
   disabledReason,
   isPending = false,
+  size,
   onConfirm,
 }: {
   label: ReactNode;
@@ -46,11 +47,14 @@ export function DangerZone({
   /** Shown in a tooltip when `disabled`; omit when the reason is self-evident. */
   disabledReason?: ReactNode;
   isPending?: boolean;
+  /** `sm` inside a list row, beside the row's other small controls. */
+  size?: "sm" | "md";
   onConfirm: () => void;
 }) {
   const dialog = useOverlayState();
   const trigger = (
     <Button
+      size={size}
       variant="danger-soft"
       isDisabled={disabled || isPending}
       isPending={isPending}

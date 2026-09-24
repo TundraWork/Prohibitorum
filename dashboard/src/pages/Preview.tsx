@@ -36,10 +36,7 @@ export function Preview() {
       <RewriteNotice />
       <Tabs defaultSelectedKey="components" variant="secondary">
         <Tabs.ListContainer className="ml-2 w-fit max-w-full">
-          <Tabs.List
-            className="grid grid-flow-col auto-cols-fr"
-            aria-label={t({ id: "preview.tabs", message: "Preview" })}
-          >
+          <Tabs.List aria-label={t({ id: "preview.tabs", message: "Preview" })}>
             <Tabs.Tab className="whitespace-nowrap" id="components">
               <Trans id="components.title">Components</Trans>
               <Tabs.Indicator />

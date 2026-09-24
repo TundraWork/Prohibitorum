@@ -1,4 +1,11 @@
-import { Alert, AlertDialog, Avatar, Dropdown, Label } from "@heroui/react";
+import {
+  Alert,
+  AlertDialog,
+  Avatar,
+  Chip,
+  Dropdown,
+  Label,
+} from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link2, Unlink } from "lucide-react";
@@ -16,7 +23,7 @@ import {
 import { runWithSudo } from "@/api/sudo";
 import { sudoReason } from "@/api/sudo-reasons";
 import { Button } from "@/components/custom/Button";
-import { DataTable, type TableColumn } from "@/components/custom/DataTable";
+import { ItemList, ItemListRow } from "@/components/custom/ItemList";
 import { TableEmptyState } from "@/components/custom/TableEmptyState";
 
 type Identity = components["schemas"]["AccountIdentityView"];
@@ -49,70 +56,7 @@ export function IdentitiesPanel() {
   const format = (value: string) =>
     new Intl.DateTimeFormat(i18n.locale, {
       dateStyle: "medium",
-      timeStyle: "short",
     }).format(new Date(value));
-
-  const columns: readonly TableColumn<Identity>[] = [
-    {
-      id: "provider",
-      header: <Trans id="security.identities.column.provider">Provider</Trans>,
-      cell: (identity) => (
-        <span className="wrap-anywhere font-medium">
-          {identity.providerDisplayName}
-        </span>
-      ),
-    },
-    {
-      id: "protocol",
-      header: <Trans id="security.identities.column.protocol">Protocol</Trans>,
-      cell: (identity) => (
-        <span className="uppercase">{identity.protocol}</span>
-      ),
-    },
-    {
-      id: "subject",
-      header: <Trans id="security.identities.column.subject">Identifier</Trans>,
-      cell: (identity) => (
-        <span className="wrap-anywhere font-mono text-xs">
-          {identity.subject}
-        </span>
-      ),
-    },
-    {
-      id: "email",
-      header: <Trans id="security.identities.column.email">Email</Trans>,
-      cell: (identity) =>
-        identity.email ? (
-          <span className="wrap-anywhere">{identity.email}</span>
-        ) : (
-          <span className="text-muted">—</span>
-        ),
-    },
-    {
-      id: "linkedAt",
-      header: <Trans id="security.identities.column.linked">Linked</Trans>,
-      cell: (identity) => format(identity.linkedAt),
-    },
-    {
-      id: "actions",
-      header: <Trans id="security.column.actions">Actions</Trans>,
-      cell: (identity) => (
-        <Button
-          isIconOnly
-          size="sm"
-          variant="danger-soft"
-          aria-label={t({
-            id: "security.identities.unlink",
-            message: "Unlink",
-          })}
-          onPress={() => setTarget(identity)}
-        >
-          <Unlink size={16} aria-hidden="true" />
-        </Button>
-      ),
-      pinned: true,
-    },
-  ];
 
   const available = providers.data ?? [];
   const linkedSlugs = new Set(
@@ -136,7 +80,7 @@ export function IdentitiesPanel() {
   return (
     <>
       <div className="flex flex-col gap-4">
-        <div className="flex flex-wrap items-center justify-end gap-4">
+        <div className="flex flex-wrap items-center gap-4">
           <LinkIdentityMenu
             providers={available}
             linkedSlugs={linkedSlugs}
@@ -154,14 +98,11 @@ export function IdentitiesPanel() {
           </Alert>
         )}
 
-        <DataTable
+        <ItemList
           label={t({
             id: "security.identities.table",
             message: "Connected identities",
           })}
-          columns={columns}
-          rows={identities.data ?? []}
-          rowId={(identity) => identity.id}
           loading={identities.isPending}
           empty={
             <TableEmptyState
@@ -173,7 +114,43 @@ export function IdentitiesPanel() {
               }
             />
           }
-        />
+        >
+          {(identities.data ?? []).map((identity) => (
+            <ItemListRow
+              key={identity.id}
+              icon={<Link2 size={18} aria-hidden="true" />}
+              title={identity.providerDisplayName}
+              badges={
+                <Chip size="sm" variant="soft">
+                  <span className="uppercase">{identity.protocol}</span>
+                </Chip>
+              }
+              details={[
+                identity.email || undefined,
+                <span key="subject" className="font-mono">
+                  {identity.subject}
+                </span>,
+                <Trans key="linked" id="security.identities.detail.linked">
+                  Linked {format(identity.linkedAt)}
+                </Trans>,
+              ]}
+              actions={
+                <Button
+                  isIconOnly
+                  size="sm"
+                  variant="danger-soft"
+                  aria-label={t({
+                    id: "security.identities.unlink",
+                    message: "Unlink",
+                  })}
+                  onPress={() => setTarget(identity)}
+                >
+                  <Unlink size={16} aria-hidden="true" />
+                </Button>
+              }
+            />
+          ))}
+        </ItemList>
       </div>
 
       <AlertDialog
@@ -263,7 +240,7 @@ function LinkIdentityMenu({
       <Button isPending={isPending} isDisabled={isPending}>
         <Trans id="security.identities.link.title">Link another identity</Trans>
       </Button>
-      <Dropdown.Popover placement="bottom end">
+      <Dropdown.Popover placement="bottom start">
         <Dropdown.Menu
           aria-label={label}
           onAction={(key) => onSelect(String(key))}

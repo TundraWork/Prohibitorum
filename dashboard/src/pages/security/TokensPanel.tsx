@@ -24,7 +24,7 @@ import { forwardAuthAppsQueryOptions, tokensQueryOptions } from "@/api/queries";
 import { runWithSudo } from "@/api/sudo";
 import { sudoReason } from "@/api/sudo-reasons";
 import { Button } from "@/components/custom/Button";
-import { DataTable, type TableColumn } from "@/components/custom/DataTable";
+import { ItemList, ItemListRow } from "@/components/custom/ItemList";
 import { SecretReveal } from "@/components/custom/SecretReveal";
 import { accessTokenCopy } from "@/components/custom/secret-reveal-copy";
 import { TableEmptyState } from "@/components/custom/TableEmptyState";
@@ -67,7 +67,6 @@ export function TokensPanel() {
       ? null
       : new Intl.DateTimeFormat(i18n.locale, {
           dateStyle: "medium",
-          timeStyle: "short",
         }).format(new Date(value));
 
   const scopeSummary = (token: Token) => {
@@ -97,69 +96,6 @@ export function TokensPanel() {
     );
   };
 
-  const columns: readonly TableColumn<Token>[] = [
-    {
-      id: "name",
-      header: <Trans id="security.tokens.column.name">Name</Trans>,
-      cell: (token) => (
-        <span className="wrap-anywhere font-medium">{token.name}</span>
-      ),
-    },
-    {
-      id: "hint",
-      header: <Trans id="security.tokens.column.hint">Token</Trans>,
-      cell: (token) => (
-        <span className="font-mono text-xs">…{token.tokenHint}</span>
-      ),
-    },
-    {
-      id: "createdAt",
-      header: <Trans id="security.tokens.column.created">Created</Trans>,
-      cell: (token) => format(token.createdAt),
-    },
-    {
-      id: "expiresAt",
-      header: <Trans id="security.tokens.column.expires">Expires</Trans>,
-      cell: (token) =>
-        format(token.expiresAt) ?? (
-          <span className="text-muted">
-            <Trans id="security.tokens.never_expires">Never</Trans>
-          </span>
-        ),
-    },
-    {
-      id: "lastUsedAt",
-      header: <Trans id="security.tokens.column.lastUsed">Last used</Trans>,
-      cell: (token) =>
-        format(token.lastUsedAt) ?? (
-          <span className="text-muted">
-            <Trans id="security.tokens.never_used">Not used yet</Trans>
-          </span>
-        ),
-    },
-    {
-      id: "scopes",
-      header: <Trans id="security.tokens.column.scopes">Allowed</Trans>,
-      cell: scopeSummary,
-    },
-    {
-      id: "actions",
-      header: <Trans id="security.column.actions">Actions</Trans>,
-      cell: (token) => (
-        <Button
-          isIconOnly
-          size="sm"
-          variant="danger-soft"
-          aria-label={t({ id: "security.tokens.revoke", message: "Revoke" })}
-          onPress={() => setTarget(token)}
-        >
-          <Ban size={16} aria-hidden="true" />
-        </Button>
-      ),
-      pinned: true,
-    },
-  ];
-
   if (plaintext !== null) {
     return (
       <SecretReveal
@@ -176,7 +112,7 @@ export function TokensPanel() {
   return (
     <>
       <div className="flex flex-col gap-4">
-        <div className="flex flex-wrap items-center justify-end gap-4">
+        <div className="flex flex-wrap items-center gap-4">
           <Button onPress={() => setCreating(true)}>
             <Trans id="security.tokens.create.open">Create a token</Trans>
           </Button>
@@ -191,11 +127,8 @@ export function TokensPanel() {
           </Alert>
         )}
 
-        <DataTable
+        <ItemList
           label={t({ id: "security.tokens.table", message: "Access tokens" })}
-          columns={columns}
-          rows={tokens.data ?? []}
-          rowId={(token) => token.id}
           loading={tokens.isPending}
           empty={
             <TableEmptyState
@@ -205,7 +138,57 @@ export function TokensPanel() {
               }
             />
           }
-        />
+        >
+          {(tokens.data ?? []).map((token) => {
+            const expires = format(token.expiresAt);
+            const lastUsed = format(token.lastUsedAt);
+            return (
+              <ItemListRow
+                key={token.id}
+                icon={<Ticket size={18} aria-hidden="true" />}
+                title={token.name}
+                details={[
+                  <span key="hint" className="font-mono">
+                    …{token.tokenHint}
+                  </span>,
+                  <span key="scopes">{scopeSummary(token)}</span>,
+                  expires === null ? (
+                    <Trans key="expires" id="security.tokens.detail.noExpiry">
+                      Never expires
+                    </Trans>
+                  ) : (
+                    <Trans key="expires" id="security.tokens.detail.expires">
+                      Expires {expires}
+                    </Trans>
+                  ),
+                  lastUsed === null ? (
+                    <Trans key="used" id="security.tokens.never_used">
+                      Not used yet
+                    </Trans>
+                  ) : (
+                    <Trans key="used" id="security.tokens.detail.lastUsed">
+                      Last used {lastUsed}
+                    </Trans>
+                  ),
+                ]}
+                actions={
+                  <Button
+                    isIconOnly
+                    size="sm"
+                    variant="danger-soft"
+                    aria-label={t({
+                      id: "security.tokens.revoke",
+                      message: "Revoke",
+                    })}
+                    onPress={() => setTarget(token)}
+                  >
+                    <Ban size={16} aria-hidden="true" />
+                  </Button>
+                }
+              />
+            );
+          })}
+        </ItemList>
       </div>
 
       <CreateTokenDialog

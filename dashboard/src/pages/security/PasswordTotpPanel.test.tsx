@@ -106,26 +106,17 @@ const bothSet = {
 };
 
 describe("password and authenticator factors", () => {
-  /**
-   * The heading button is the section's own control. A form inside the open
-   * section repeats its heading as its submit button, so the name alone is
-   * ambiguous once that section is open.
-   */
-  function trigger(name: string, hidden = false) {
-    return within(screen.getByRole("heading", { name, hidden })).getByRole(
-      "button",
-      { hidden },
-    );
-  }
-
-  it("shows a section per action when both factors exist, and never the combined endpoint", async () => {
+  it("lists every action at once when both factors exist, and never the combined endpoint", async () => {
     mount(bothSet);
 
+    // Each action is a row that is on screen from the start: nothing to open.
+    expect(await screen.findByText("Change password")).toBeInTheDocument();
+    expect(screen.getByText("Replace authenticator")).toBeInTheDocument();
+    expect(screen.getByText("Recovery codes")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Change" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Replace" })).toBeInTheDocument();
     expect(
-      await screen.findByRole("heading", { name: "Change password" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("heading", { name: "Replace authenticator" }),
+      screen.getByRole("button", { name: "Generate new recovery codes" }),
     ).toBeInTheDocument();
     expect(
       screen.queryByRole("heading", {
@@ -138,30 +129,8 @@ describe("password and authenticator factors", () => {
       }),
     ).not.toBeInTheDocument();
 
-    // Nothing is pending, so every section waits for the user to open it.
-    expect(trigger("Change password")).toHaveAttribute(
-      "aria-expanded",
-      "false",
-    );
-    expect(trigger("Replace authenticator")).toHaveAttribute(
-      "aria-expanded",
-      "false",
-    );
-
-    // One at a time: the section opened last is the only one on screen, so the
-    // column never grows past the controls in use.
-    const user: UserEvent = userEvent.setup();
-    await user.click(trigger("Change password"));
-    expect(trigger("Change password")).toHaveAttribute("aria-expanded", "true");
-    await user.click(trigger("Replace authenticator"));
-    expect(trigger("Replace authenticator")).toHaveAttribute(
-      "aria-expanded",
-      "true",
-    );
-    expect(trigger("Change password")).toHaveAttribute(
-      "aria-expanded",
-      "false",
-    );
+    // The forms wait in dialogs until the user asks for one.
+    expect(screen.queryByLabelText("New password")).not.toBeInTheDocument();
 
     // Reading the state is not a write.
     const writes = fetchBoundary.mock.calls.filter(
@@ -185,8 +154,7 @@ describe("password and authenticator factors", () => {
     });
     const user: UserEvent = userEvent.setup();
 
-    await screen.findByRole("heading", { name: "Change password" });
-    await user.click(trigger("Recovery codes"));
+    await screen.findByText("Change password");
     await user.click(
       screen.getByRole("button", { name: "Generate new recovery codes" }),
     );
@@ -201,12 +169,8 @@ describe("password and authenticator factors", () => {
     // dialog hides the rest of the page from assistive technology while it is
     // open, so the panel is only reachable through hidden queries.
     expect(
-      screen.getByRole("heading", { name: "Change password", hidden: true }),
+      screen.getByRole("button", { name: "Change", hidden: true }),
     ).toBeInTheDocument();
-    expect(trigger("Recovery codes", true)).toHaveAttribute(
-      "aria-expanded",
-      "true",
-    );
 
     // Saving is what unlocks the only way out of the dialog.
     const leave = within(dialog).getByRole("button", { name: "Continue" });
@@ -220,41 +184,30 @@ describe("password and authenticator factors", () => {
     await waitFor(() =>
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
     );
-    expect(
-      screen.getByRole("heading", { name: "Change password" }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Change" })).toBeInTheDocument();
   });
 
-  it("shows one combined section when a factor is missing, and submits the atomic endpoint", async () => {
+  it("shows the combined setup in place when a factor is missing", async () => {
     mount({
       passwordSet: false,
       totpEnrolled: false,
       passkeyCount: 0,
       recoveryCodesRemaining: 0,
     });
-    const user: UserEvent = userEvent.setup();
 
-    // One section, not two: the backend only establishes both together. It is
-    // the only thing left to do, so it is open on arrival.
+    // One form, not two: the backend only establishes both together. It is
+    // the only thing left to do, so its fields are on screen on arrival.
     expect(
       await screen.findByRole("heading", {
         name: "Set up a password and authenticator",
       }),
     ).toBeInTheDocument();
-    expect(trigger("Set up a password and authenticator")).toHaveAttribute(
-      "aria-expanded",
-      "true",
-    );
-    expect(
-      screen.queryByRole("heading", { name: "Change password" }),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("heading", { name: "Replace authenticator" }),
-    ).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Choose a password")).toBeInTheDocument();
+    expect(screen.queryByText("Change password")).not.toBeInTheDocument();
+    expect(screen.queryByText("Replace authenticator")).not.toBeInTheDocument();
 
     // No passkeys, so turning the pair off is the last way in and is refused
     // before the attempt rather than after.
-    await user.click(trigger("Turn off password and authenticator"));
     expect(screen.getByRole("button", { name: "Turn off" })).toBeDisabled();
   });
 
@@ -322,21 +275,21 @@ describe("password and authenticator factors", () => {
     mount(bothSet);
     const user: UserEvent = userEvent.setup();
 
-    await screen.findByRole("heading", { name: "Change password" });
-    await user.click(trigger("Change password"));
+    await user.click(await screen.findByRole("button", { name: "Change" }));
+    const dialog = await screen.findByRole("dialog", {
+      name: "Change password",
+    });
 
     await user.type(
-      screen.getByLabelText("New password"),
+      within(dialog).getByLabelText("New password"),
       "a-long-enough-password",
     );
-    await user.type(screen.getByLabelText("Repeat new password"), "different");
-    // The heading trigger carries the same words as the submit button, so the
-    // click is scoped to the form.
+    await user.type(
+      within(dialog).getByLabelText("Repeat new password"),
+      "different",
+    );
     await user.click(
-      within(screen.getByRole("form", { name: "Change password" })).getByRole(
-        "button",
-        { name: "Change password" },
-      ),
+      within(dialog).getByRole("button", { name: "Change password" }),
     );
 
     expect(
@@ -353,7 +306,7 @@ describe("password and authenticator factors", () => {
 describe("factor cache", () => {
   it("re-reads factors from the server rather than trusting a stale cache", async () => {
     mount(bothSet);
-    await screen.findByRole("heading", { name: "Change password" });
+    await screen.findByText("Change password");
     expect(
       queryClient.getQueryData(factorsQueryOptions().queryKey),
     ).toMatchObject({ passwordSet: true });
