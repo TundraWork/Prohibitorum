@@ -44,6 +44,9 @@ function refreshAfter(then: number, now: number): number {
   return DAY * 1000;
 }
 
+/** How long a pointer has to rest on the time before the tooltip opens. */
+const hoverDelay = 600;
+
 /**
  * A moment said as a distance from now — "3 days ago", "in 2 hours" — with
  * the exact date and time in a tooltip. For the times a reader asks "how long
@@ -79,13 +82,13 @@ export function RelativeTime({ value }: { value: string }) {
   }).format(then);
 
   return (
-    <Tooltip delay={0}>
+    <Tooltip delay={hoverDelay}>
       <Tooltip.Trigger<"time">
         render={(props) => <time {...props} dateTime={value} />}
       >
         {relative}
       </Tooltip.Trigger>
-      <Tooltip.Content>{exact}</Tooltip.Content>
+      <Tooltip.Content placement="bottom">{exact}</Tooltip.Content>
     </Tooltip>
   );
 }
