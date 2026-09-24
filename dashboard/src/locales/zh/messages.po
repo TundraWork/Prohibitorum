@@ -103,6 +103,16 @@ msgid "admin.user.tab.access"
 msgstr "访问"
 
 #. js-lingui-explicit-id
+#: src/api/success-messages.ts
+msgid "success.app.access-removed"
+msgstr "已移除授权"
+
+#. js-lingui-explicit-id
+#: src/api/success-messages.ts
+msgid "success.token.revoked"
+msgstr "访问令牌已撤销"
+
+#. js-lingui-explicit-id
 #: src/pages/Security.tsx
 msgid "security.tab.tokens"
 msgstr "个人访问令牌"
@@ -133,9 +143,29 @@ msgid "admin.user.tabs"
 msgstr "账号"
 
 #. js-lingui-explicit-id
+#: src/api/success-messages.ts
+msgid "success.account.deleted"
+msgstr "账号已删除"
+
+#. js-lingui-explicit-id
+#: src/api/success-messages.ts
+msgid "success.account.disabled"
+msgstr "账号已停用"
+
+#. js-lingui-explicit-id
+#: src/api/success-messages.ts
+msgid "success.account.enabled"
+msgstr "账号已启用"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.profile.form"
 msgstr "账号资料"
+
+#. js-lingui-explicit-id
+#: src/api/success-messages.ts
+msgid "success.account.saved"
+msgstr "账号已保存"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminInvitationForm.tsx
@@ -195,16 +225,14 @@ msgid "admin.group.rule.addGroup"
 msgstr "添加条件组"
 
 #. js-lingui-explicit-id
-#. placeholder {0}: format(credential.createdAt)
 #: src/pages/security/PasskeysPanel.tsx
 msgid "security.passkeys.detail.added"
-msgstr "添加于 {0}"
+msgstr "<0/>添加"
 
 #. js-lingui-explicit-id
-#. placeholder {0}: format(credential.createdAt)
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.passkeys.detail.added"
-msgstr "添加于 {0}"
+msgstr "<0/>添加"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminInvitationForm.tsx
@@ -338,10 +366,9 @@ msgid "login.complete"
 msgstr "身份验证器已重设"
 
 #. js-lingui-explicit-id
-#. placeholder {0}: format(app.grantedAt)
 #: src/pages/ConnectedApps.tsx
 msgid "apps.detail.granted"
-msgstr "授权于 {0}"
+msgstr "<0/>授权"
 
 #. js-lingui-explicit-id
 #: src/pages/Profile.tsx
@@ -352,6 +379,11 @@ msgstr "头像"
 #: src/pages/profile/AvatarPanel.tsx
 msgid "profile.avatar.title"
 msgstr "头像"
+
+#. js-lingui-explicit-id
+#: src/api/success-messages.ts
+msgid "success.avatar.updated"
+msgstr "头像已更新"
 
 #. js-lingui-explicit-id
 #: src/components/custom/LoginShell.tsx
@@ -995,6 +1027,11 @@ msgid "admin.users.column.displayName"
 msgstr "显示名"
 
 #. js-lingui-explicit-id
+#: src/api/success-messages.ts
+msgid "success.display-name.saved"
+msgstr "显示名称已保存"
+
+#. js-lingui-explicit-id
 #: src/components/custom/secret-reveal-copy.ts
 msgid "admin.invitations.reveal.continue"
 msgstr "完成"
@@ -1181,18 +1218,6 @@ msgid "admin.invitations.column.expires"
 msgstr "过期时间"
 
 #. js-lingui-explicit-id
-#. placeholder {0}: format(session.expiresAt)
-#: src/pages/security/SessionsPanel.tsx
-msgid "security.sessions.detail.expires"
-msgstr "{0} 过期"
-
-#. js-lingui-explicit-id
-#. placeholder {0}: format(session.expiresAt)
-#: src/pages/admin/AdminUser.tsx
-msgid "admin.user.sessions.detail.expires"
-msgstr "{0} 过期"
-
-#. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.detail.expires"
 msgstr "{expires} 过期"
@@ -1298,6 +1323,11 @@ msgid "admin.users.filter.advanced"
 msgstr "身份筛选"
 
 #. js-lingui-explicit-id
+#: src/api/success-messages.ts
+msgid "success.identity.unlinked"
+msgstr "身份已解绑"
+
+#. js-lingui-explicit-id
 #: src/components/custom/SudoDialog.tsx
 msgid "sudo.form.label"
 msgstr "身份验证"
@@ -1331,6 +1361,11 @@ msgstr "实例"
 #: src/pages/Preview.tsx
 msgid "preview.title"
 msgstr "界面预览"
+
+#. js-lingui-explicit-id
+#: src/api/success-messages.ts
+msgid "success.invitation.revoked"
+msgstr "邀请已吊销"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminInvitations.tsx
@@ -1400,22 +1435,22 @@ msgstr "最近登录"
 #. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
 msgid "security.passkeys.detail.lastUsed"
-msgstr "最后使用于 {lastUsed}"
+msgstr "<0/>使用过"
 
 #. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.detail.lastUsed"
-msgstr "最后使用于 {lastUsed}"
+msgstr "<0/>使用过"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.passkeys.detail.lastUsed"
-msgstr "最后使用于 {lastUsed}"
+msgstr "<0/>使用过"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.tokens.detail.lastUsed"
-msgstr "最后使用于 {lastUsed}"
+msgstr "<0/>使用过"
 
 #. js-lingui-explicit-id
 #: src/components/custom/secret-reveal-copy.ts
@@ -1441,18 +1476,6 @@ msgstr "日间模式"
 #: src/pages/security/IdentitiesPanel.tsx
 msgid "security.identities.link.title"
 msgstr "绑定其它身份"
-
-#. js-lingui-explicit-id
-#. placeholder {0}: format(identity.linkedAt)
-#: src/pages/security/IdentitiesPanel.tsx
-msgid "security.identities.detail.linked"
-msgstr "绑定于 {0}"
-
-#. js-lingui-explicit-id
-#. placeholder {0}: format(identity.linkedAt)
-#: src/pages/admin/AdminUser.tsx
-msgid "admin.user.identities.detail.linked"
-msgstr "绑定于 {0}"
 
 #. js-lingui-explicit-id
 #: src/pages/Preview.tsx
@@ -1830,6 +1853,21 @@ msgid "devices.code.hint"
 msgstr "配对码有效期很短。如果已过期，请在那台设备上重新生成。"
 
 #. js-lingui-explicit-id
+#: src/api/success-messages.ts
+msgid "success.passkey.added"
+msgstr "通行密钥已添加"
+
+#. js-lingui-explicit-id
+#: src/api/success-messages.ts
+msgid "success.passkey.removed"
+msgstr "通行密钥已移除"
+
+#. js-lingui-explicit-id
+#: src/api/success-messages.ts
+msgid "success.passkey.renamed"
+msgstr "通行密钥已重命名"
+
+#. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.login_failed"
 msgstr "通行密钥登录失败。请重试或使用密码。"
@@ -1878,6 +1916,16 @@ msgstr "密码与验证器"
 #: src/pages/security/PasswordTotpPanel.tsx
 msgid "security.password.list"
 msgstr "密码与验证器"
+
+#. js-lingui-explicit-id
+#: src/api/success-messages.ts
+msgid "success.password-totp.revoked"
+msgstr "已关闭密码与验证器"
+
+#. js-lingui-explicit-id
+#: src/api/success-messages.ts
+msgid "success.password.changed"
+msgstr "密码已修改"
 
 #. js-lingui-explicit-id
 #: src/pages/Preview.tsx
@@ -2271,6 +2319,11 @@ msgid "console.security"
 msgstr "安全"
 
 #. js-lingui-explicit-id
+#: src/api/success-messages.ts
+msgid "success.session.ended"
+msgstr "会话已结束"
+
+#. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
 msgid "security.setup.title.both"
 msgstr "设置密码与验证器"
@@ -2351,6 +2404,11 @@ msgid "admin.user.sessions.revoke_all.title"
 msgstr "要将该账号在所有设备上登出吗？"
 
 #. js-lingui-explicit-id
+#: src/api/success-messages.ts
+msgid "success.sessions.ended"
+msgstr "已在所有设备上登出"
+
+#. js-lingui-explicit-id
 #: src/components/custom/LoginShell.tsx
 msgid "login.factor.account"
 msgstr "正在登录 {username}"
@@ -2376,16 +2434,14 @@ msgid "error.ceremony_missing"
 msgstr "请重新发起通行密钥登录。"
 
 #. js-lingui-explicit-id
-#. placeholder {0}: format(session.issuedAt)
 #: src/pages/security/SessionsPanel.tsx
 msgid "security.sessions.detail.issued"
-msgstr "签发于 {0}"
+msgstr "<0/>登录"
 
 #. js-lingui-explicit-id
-#. placeholder {0}: format(session.issuedAt)
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.sessions.detail.issued"
-msgstr "签发于 {0}"
+msgstr "<0/>登录"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminUsers.tsx
@@ -2738,11 +2794,6 @@ msgid "error.account_disabled"
 msgstr "此账户已停用。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminUser.tsx
-msgid "admin.user.saved"
-msgstr "该账号已更新。"
-
-#. js-lingui-explicit-id
 #: src/components/custom/RouteFeedback.tsx
 msgid "route.not-found.description"
 msgstr "此地址没有对应的页面。"
@@ -2993,6 +3044,11 @@ msgid "profile.avatar.upload"
 msgstr "上传头像"
 
 #. js-lingui-explicit-id
+#: src/api/success-messages.ts
+msgid "success.avatar.upload-removed"
+msgstr "已移除上传的图片"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminInvitations.tsx
 msgid "admin.invitations.column.provider"
 msgstr "上游提供商"
@@ -3077,6 +3133,21 @@ msgstr "用户组"
 #: src/pages/admin/AdminGroupForm.tsx
 msgid "admin.group.form"
 msgstr "用户组"
+
+#. js-lingui-explicit-id
+#: src/api/success-messages.ts
+msgid "success.group.created"
+msgstr "用户组已创建"
+
+#. js-lingui-explicit-id
+#: src/api/success-messages.ts
+msgid "success.group.deleted"
+msgstr "用户组已删除"
+
+#. js-lingui-explicit-id
+#: src/api/success-messages.ts
+msgid "success.group.saved"
+msgstr "用户组已保存"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminGroups.tsx
@@ -3258,16 +3329,6 @@ msgstr "你的账号"
 #: src/pages/security/PasswordTotpPanel.tsx
 msgid "security.totp.replace.note"
 msgstr "替换成功后，当前验证器与全部已有恢复码会立即失效。"
-
-#. js-lingui-explicit-id
-#: src/pages/Profile.tsx
-msgid "profile.display-name.saved"
-msgstr "显示名称已更新。"
-
-#. js-lingui-explicit-id
-#: src/pages/security/PasswordTotpPanel.tsx
-msgid "security.password.changed"
-msgstr "密码已更新。之后出现的验证提示可能会有所不同。"
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx

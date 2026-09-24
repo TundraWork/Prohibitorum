@@ -9,6 +9,7 @@ import { revokeSessionMutationOptions } from "@/api/mutations";
 import { sessionsQueryOptions } from "@/api/queries";
 import { Button } from "@/components/custom/Button";
 import { ItemList, ItemListRow } from "@/components/custom/ItemList";
+import { RelativeTime } from "@/components/custom/RelativeTime";
 import { TableEmptyState } from "@/components/custom/TableEmptyState";
 
 type Session = components["schemas"]["SessionListItem"];
@@ -25,17 +26,12 @@ function agentSummary(value?: string): string {
  * and its tooltip explains that signing out is the way to end it.
  */
 export function SessionsPanel() {
-  const { t, i18n } = useLingui();
+  const { t } = useLingui();
   const queryClient = useQueryClient();
   const sessions = useQuery(sessionsQueryOptions());
   const [target, setTarget] = useState<Session | null>(null);
   const [error, setError] = useState<unknown>(null);
   const revoke = useMutation(revokeSessionMutationOptions(queryClient));
-
-  const format = (value: string) =>
-    new Intl.DateTimeFormat(i18n.locale, {
-      dateStyle: "medium",
-    }).format(new Date(value));
 
   const endSession = (session: Session) => {
     const button = (
@@ -115,10 +111,7 @@ export function SessionsPanel() {
             details={[
               session.lastSeenIp || undefined,
               <Trans key="issued" id="security.sessions.detail.issued">
-                Started {format(session.issuedAt)}
-              </Trans>,
-              <Trans key="expires" id="security.sessions.detail.expires">
-                Expires {format(session.expiresAt)}
+                Started <RelativeTime value={session.issuedAt} />
               </Trans>,
             ]}
             actions={endSession(session)}

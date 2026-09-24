@@ -1,4 +1,5 @@
 import { Toast, ToastQueue } from "@heroui/react";
+import type { MessageDescriptor } from "@lingui/core";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { type ReactNode, useEffect } from "react";
 import {
@@ -8,15 +9,27 @@ import {
 } from "@/api/errors";
 
 type Notification =
-  | { title: ReactNode; error?: never }
-  | { error: ErrorDescription; title?: never };
+  | { title: ReactNode; error?: never; success?: never }
+  | { error: ErrorDescription; title?: never; success?: never }
+  | { success: MessageDescriptor; title?: never; error?: never };
 
 export const notificationQueue = new ToastQueue<Notification>();
+
+/** How long a success stays up; an error stays until it is closed. */
+const successTimeout = 5000;
 
 export function notifyError(error: unknown) {
   if (!isCancellation(error)) {
     notificationQueue.add({ error: describeError(error) });
   }
+}
+
+/**
+ * Says that a write went through. The message is a descriptor rather than
+ * text, so a toast still on screen follows a change of language.
+ */
+export function notifySuccess(message: MessageDescriptor) {
+  notificationQueue.add({ success: message }, { timeout: successTimeout });
 }
 
 export function AppNotifications() {
@@ -32,13 +45,22 @@ export function AppNotifications() {
       {({ toast }) => (
         <Toast
           toast={toast}
-          variant={toast.content.error ? "danger" : "default"}
+          variant={
+            toast.content.error
+              ? "danger"
+              : toast.content.success
+                ? "success"
+                : "default"
+          }
         >
+          {toast.content.success && <Toast.Indicator variant="success" />}
           <Toast.Content>
             <Toast.Title>
               {toast.content.error
                 ? i18n._(toast.content.error)
-                : toast.content.title}
+                : toast.content.success
+                  ? i18n._(toast.content.success)
+                  : toast.content.title}
             </Toast.Title>
             {toast.content.error?.requestId && (
               <Toast.Description>

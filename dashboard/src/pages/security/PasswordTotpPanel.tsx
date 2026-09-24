@@ -217,14 +217,13 @@ function RecoveryCodesDialog({
 }
 
 /**
- * Changing the password is one step, so the row opens it in a dialog and says
- * on the row that it is done once the dialog closes.
+ * Changing the password is one step, so the row opens it in a dialog; the
+ * toast says it is done once the dialog closes.
  */
 function ChangePasswordRow() {
   const { t } = useLingui();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
-  const [saved, setSaved] = useState(false);
   const change = useMutation(setPasswordMutationOptions(queryClient));
 
   const form = useAppForm({
@@ -232,7 +231,6 @@ function ChangePasswordRow() {
     onSubmit: async ({ value }) => {
       try {
         await change.mutateAsync(value.password);
-        setSaved(true);
         setOpen(false);
         form.reset();
       } catch (error) {
@@ -248,28 +246,12 @@ function ChangePasswordRow() {
     <ItemListRow
       title={<Trans id="security.password.change.title">Change password</Trans>}
       details={[
-        saved ? (
-          <span key="note" role="status">
-            <Trans id="security.password.changed">
-              Your password is updated. Which sudo prompt you see next may
-              change.
-            </Trans>
-          </span>
-        ) : (
-          <Trans key="note" id="security.password.change.note">
-            Choose a new password for signing in.
-          </Trans>
-        ),
+        <Trans key="note" id="security.password.change.note">
+          Choose a new password for signing in.
+        </Trans>,
       ]}
       actions={
-        <Button
-          size="sm"
-          variant="secondary"
-          onPress={() => {
-            setSaved(false);
-            setOpen(true);
-          }}
-        >
+        <Button size="sm" variant="secondary" onPress={() => setOpen(true)}>
           <Trans id="security.password.change.open">Change</Trans>
         </Button>
       }

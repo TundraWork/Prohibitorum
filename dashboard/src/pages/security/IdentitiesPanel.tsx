@@ -43,7 +43,7 @@ type Provider = components["schemas"]["FederationProvider"];
  * panel one list of what is actually linked.
  */
 export function IdentitiesPanel() {
-  const { t, i18n } = useLingui();
+  const { t } = useLingui();
   const queryClient = useQueryClient();
   const identities = useQuery(identitiesQueryOptions());
   const providers = useQuery(federationProvidersQueryOptions());
@@ -52,11 +52,6 @@ export function IdentitiesPanel() {
   const [linking, setLinking] = useState<string | null>(null);
 
   const unlink = useMutation(unlinkIdentityMutationOptions(queryClient));
-
-  const format = (value: string) =>
-    new Intl.DateTimeFormat(i18n.locale, {
-      dateStyle: "medium",
-    }).format(new Date(value));
 
   const available = providers.data ?? [];
   const linkedSlugs = new Set(
@@ -130,9 +125,6 @@ export function IdentitiesPanel() {
                 <span key="subject" className="font-mono">
                   {identity.subject}
                 </span>,
-                <Trans key="linked" id="security.identities.detail.linked">
-                  Linked {format(identity.linkedAt)}
-                </Trans>,
               ]}
               actions={
                 <Button

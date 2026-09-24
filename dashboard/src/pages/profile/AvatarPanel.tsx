@@ -5,6 +5,8 @@ import { Upload, UserRound } from "lucide-react";
 import { useRef, useState } from "react";
 import { client } from "@/api/client";
 import { describeError } from "@/api/errors";
+import { successMessage } from "@/api/success-messages";
+import { notifySuccess } from "@/components/custom/AppNotifications";
 import { Button } from "@/components/custom/Button";
 import { ConsoleCard } from "@/components/custom/ConsoleCard";
 import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
@@ -57,6 +59,7 @@ export function AvatarPanel({ current }: { current: Session }) {
 
   const select = useMutation({
     retry: false,
+    meta: { success: successMessage.updateAvatar },
     mutationFn: async (source: string) => {
       await client.PUT("/api/prohibitorum/me/avatar/selection", {
         body: { source },
@@ -68,6 +71,7 @@ export function AvatarPanel({ current }: { current: Session }) {
 
   const remove = useMutation({
     retry: false,
+    meta: { success: successMessage.removeAvatarUpload },
     mutationFn: async () => {
       await client.DELETE("/api/prohibitorum/me/avatar");
     },
@@ -113,6 +117,8 @@ export function AvatarPanel({ current }: { current: Session }) {
         bodySerializer: (value) => value as BodyInit,
       });
       await refreshSession();
+      // A direct request rather than a mutation, so it announces itself.
+      notifySuccess(successMessage.updateAvatar);
     } catch (error) {
       setFailure(error);
     } finally {

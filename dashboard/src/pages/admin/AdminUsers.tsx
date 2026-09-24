@@ -19,6 +19,7 @@ import {
 } from "@/api/queries";
 import { Button } from "@/components/custom/Button";
 import { DataTable, type TableColumn } from "@/components/custom/DataTable";
+import { RelativeTime } from "@/components/custom/RelativeTime";
 import { TableEmptyState } from "@/components/custom/TableEmptyState";
 import {
   accountFilterQuery,
@@ -28,7 +29,6 @@ import {
 import { Route } from "@/routes/_protected.admin.users";
 
 type Account = components["schemas"]["AccountView"];
-type Locale = ReturnType<typeof useLingui>["i18n"];
 
 /**
  * The account directory.
@@ -44,7 +44,7 @@ type Locale = ReturnType<typeof useLingui>["i18n"];
  * here that pretends otherwise.
  */
 export function AdminUsers() {
-  const { t, i18n } = useLingui();
+  const { t } = useLingui();
   const navigate = useNavigate();
   const filters = Route.useSearch();
 
@@ -126,7 +126,7 @@ export function AdminUsers() {
 
       <DataTable
         label={t({ id: "admin.users.table", message: "Users" })}
-        columns={userColumns(i18n, openAccount)}
+        columns={userColumns(openAccount)}
         rows={list.items}
         rowId={(account) => account.id}
         loading={list.loading}
@@ -144,16 +144,7 @@ export function AdminUsers() {
   );
 }
 
-function userColumns(
-  i18n: Locale,
-  open: (id: number) => void,
-): TableColumn<Account>[] {
-  const format = (value?: string) =>
-    value === undefined
-      ? "—"
-      : new Intl.DateTimeFormat(i18n.locale, {
-          dateStyle: "medium",
-        }).format(new Date(value));
+function userColumns(open: (id: number) => void): TableColumn<Account>[] {
   return [
     {
       id: "username",
@@ -204,7 +195,12 @@ function userColumns(
       align: "end",
       id: "lastSignInAt",
       header: <Trans id="admin.users.column.lastSignIn">Last signed in</Trans>,
-      cell: (account) => format(account.lastSignInAt),
+      cell: (account) =>
+        account.lastSignInAt === undefined ? (
+          "—"
+        ) : (
+          <RelativeTime value={account.lastSignInAt} />
+        ),
     },
     {
       id: "actions",

@@ -1,3 +1,4 @@
+import type { MessageDescriptor } from "@lingui/core";
 import { I18nProvider } from "@lingui/react";
 import { type QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
@@ -23,6 +24,7 @@ vi.mock("qrcode", () => ({
 }));
 
 const fetchBoundary = vi.fn<(request: Request) => Promise<Response>>();
+const notifySuccess = vi.fn<(message: MessageDescriptor) => void>();
 let queryClient: QueryClient;
 
 function json(body: unknown) {
@@ -32,8 +34,9 @@ function json(body: unknown) {
 beforeEach(() => {
   i18n.activate("en");
   fetchBoundary.mockReset();
+  notifySuccess.mockReset();
   vi.stubGlobal("fetch", fetchBoundary);
-  queryClient = createQueryClient(() => undefined);
+  queryClient = createQueryClient(() => undefined, notifySuccess);
   queryClient.setQueryData<components["schemas"]["SessionView"]>(
     sessionQueryOptions().queryKey,
     { id: 1, username: "alice", displayName: "Alice", role: "user" },
@@ -269,6 +272,48 @@ describe("password and authenticator factors", () => {
         new URL(request.url).pathname.endsWith("/me/totp/verify"),
       ),
     ).toBe(false);
+  });
+
+  it("closes the dialog and announces the change once the password is set", async () => {
+    mount(bothSet);
+    configureSudo({
+      queryClient,
+      set: () => {},
+      setFresh: () => {},
+      getFresh: () => true,
+    });
+    const user: UserEvent = userEvent.setup();
+
+    await user.click(await screen.findByRole("button", { name: "Change" }));
+    const dialog = await screen.findByRole("dialog", {
+      name: "Change password",
+    });
+    await user.type(
+      within(dialog).getByLabelText("New password"),
+      "a-long-enough-password",
+    );
+    await user.type(
+      within(dialog).getByLabelText("Repeat new password"),
+      "a-long-enough-password",
+    );
+    await user.click(
+      within(dialog).getByRole("button", { name: "Change password" }),
+    );
+
+    await waitFor(() =>
+      expect(notifySuccess).toHaveBeenCalledWith(
+        expect.objectContaining({ id: "success.password.changed" }),
+      ),
+    );
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("dialog", { name: "Change password" }),
+      ).not.toBeInTheDocument(),
+    );
+    // The row keeps describing the action instead of carrying a note.
+    expect(
+      screen.getByText("Choose a new password for signing in."),
+    ).toBeInTheDocument();
   });
 
   it("keeps a swallowed failure out of the request and reports a mismatch locally", async () => {

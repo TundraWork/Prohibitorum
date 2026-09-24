@@ -6,6 +6,7 @@ import { ApiError } from "@/api/errors";
 import {
   AppNotifications,
   notifyError,
+  notifySuccess,
 } from "@/components/custom/AppNotifications";
 
 it("keeps independent errors visible and translates queued descriptions when locale changes", () => {
@@ -53,4 +54,35 @@ it("keeps independent errors visible and translates queued descriptions when loc
   expect(
     screen.queryByText("Sign in for this request"),
   ).not.toBeInTheDocument();
+});
+
+it("shows a success as a success toast and follows a change of language", () => {
+  const i18n = setupI18n({
+    locale: "en",
+    messages: {
+      en: {
+        "success.passkey.added": "Passkey added",
+        "notification.region": "Notifications",
+        "notification.close": "Close notification",
+      },
+      zh: {
+        "success.passkey.added": "通行密钥已添加",
+        "notification.region": "通知",
+        "notification.close": "关闭通知",
+      },
+    },
+  });
+  render(
+    <I18nProvider i18n={i18n}>
+      <AppNotifications />
+    </I18nProvider>,
+  );
+
+  act(() => notifySuccess({ id: "success.passkey.added" }));
+  const title = screen.getByText("Passkey added");
+  expect(title).toBeVisible();
+  expect(title.closest("[data-slot='toast']")).toHaveClass("toast--success");
+
+  act(() => i18n.activate("zh"));
+  expect(screen.getByText("通行密钥已添加")).toBeVisible();
 });

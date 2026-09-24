@@ -45,6 +45,7 @@ import type {
   SudoPasswordTotpComplete,
   TotpRequest,
 } from "@/api/raw-paths";
+import { successMessage } from "@/api/success-messages";
 import { runWithSudo, sudoMethodsQueryOptions, sudoQueryKey } from "@/api/sudo";
 import { sudoReason } from "@/api/sudo-reasons";
 
@@ -66,6 +67,7 @@ export function logoutMutationOptions(queryClient: QueryClient) {
 
 export function renameCredentialMutationOptions(queryClient: QueryClient) {
   return mutationOptions({
+    meta: { success: successMessage.renamePasskey },
     mutationFn: async (body: RenameCredentialInput) => {
       await client.POST("/api/prohibitorum/me/credentials/rename", { body });
     },
@@ -158,6 +160,7 @@ export type ConsentRevoke =
 
 export function updateProfileMutationOptions(queryClient: QueryClient) {
   return mutationOptions({
+    meta: { success: successMessage.saveDisplayName },
     retry: false,
     mutationFn: async (body: SessionUpdate) =>
       requireJsonData(client.PUT("/api/prohibitorum/me", { body })),
@@ -170,6 +173,7 @@ export function updateProfileMutationOptions(queryClient: QueryClient) {
 
 export function revokeConsentMutationOptions(queryClient: QueryClient) {
   return mutationOptions({
+    meta: { success: successMessage.removeAppAccess },
     retry: false,
     mutationFn: async (body: ConsentRevoke) => {
       await client.POST("/api/prohibitorum/me/consent/revoke", { body });
@@ -264,6 +268,7 @@ export async function registerPasskey(nickname?: string): Promise<void> {
 
 export function addCredentialMutationOptions(queryClient: QueryClient) {
   return mutationOptions({
+    meta: { success: successMessage.addPasskey },
     retry: false,
     mutationFn: (nickname?: string) =>
       // The begin step is sudo-guarded, so the prompt comes first: the user
@@ -276,6 +281,7 @@ export function addCredentialMutationOptions(queryClient: QueryClient) {
 
 export function deleteCredentialMutationOptions(queryClient: QueryClient) {
   return mutationOptions({
+    meta: { success: successMessage.removePasskey },
     retry: false,
     mutationFn: async (id: number) => {
       await client.POST("/api/prohibitorum/me/credentials/delete", {
@@ -291,6 +297,7 @@ export function deleteCredentialMutationOptions(queryClient: QueryClient) {
 
 export function setPasswordMutationOptions(queryClient: QueryClient) {
   return mutationOptions({
+    meta: { success: successMessage.changePassword },
     retry: false,
     mutationFn: async (password: string) => {
       await runWithSudo(
@@ -360,6 +367,7 @@ export function regenerateRecoveryCodesMutationOptions(
 
 export function revokePasswordTotpMutationOptions(queryClient: QueryClient) {
   return mutationOptions({
+    meta: { success: successMessage.revokePasswordTotp },
     retry: false,
     mutationFn: async () => {
       await runWithSudo(
@@ -376,6 +384,7 @@ export function revokePasswordTotpMutationOptions(queryClient: QueryClient) {
 
 export function revokeSessionMutationOptions(queryClient: QueryClient) {
   return mutationOptions({
+    meta: { success: successMessage.endSession },
     retry: false,
     mutationFn: async (id: string) => {
       await client.POST("/api/prohibitorum/me/sessions/revoke", {
@@ -391,6 +400,7 @@ export function revokeSessionMutationOptions(queryClient: QueryClient) {
 
 export function unlinkIdentityMutationOptions(queryClient: QueryClient) {
   return mutationOptions({
+    meta: { success: successMessage.unlinkIdentity },
     retry: false,
     mutationFn: async (id: number) => {
       await runWithSudo(
@@ -438,6 +448,7 @@ export function createTokenMutationOptions(queryClient: QueryClient) {
 
 export function revokeTokenMutationOptions(queryClient: QueryClient) {
   return mutationOptions({
+    meta: { success: successMessage.revokeToken },
     retry: false,
     mutationFn: async (id: number) => {
       await client.POST("/api/prohibitorum/me/tokens/revoke", { body: { id } });
@@ -530,6 +541,7 @@ export type UpdateAccountInput =
 /** Replaces the whole account record: an omitted `attributes` clears them. */
 export function updateAccountMutationOptions(queryClient: QueryClient) {
   return mutationOptions({
+    meta: { success: successMessage.saveAccount },
     retry: false,
     mutationFn: async ({
       id,
@@ -559,6 +571,12 @@ export function updateAccountMutationOptions(queryClient: QueryClient) {
  */
 export function setAccountDisabledMutationOptions(queryClient: QueryClient) {
   return mutationOptions({
+    meta: {
+      success: (variables) =>
+        (variables as SetAccountDisabledRequest).disabled
+          ? successMessage.disableAccount
+          : successMessage.enableAccount,
+    },
     retry: false,
     mutationFn: async (body: SetAccountDisabledRequest): Promise<AccountView> =>
       runWithSudo(
@@ -574,6 +592,7 @@ export function setAccountDisabledMutationOptions(queryClient: QueryClient) {
 
 export function deleteAccountMutationOptions(queryClient: QueryClient) {
   return mutationOptions({
+    meta: { success: successMessage.deleteAccount },
     retry: false,
     mutationFn: async (id: number) => {
       await runWithSudo(
@@ -608,6 +627,7 @@ export function deleteAccountCredentialMutationOptions(
   queryClient: QueryClient,
 ) {
   return mutationOptions({
+    meta: { success: successMessage.removePasskey },
     retry: false,
     mutationFn: async (body: DeleteAccountCredentialRequest) => {
       await runWithSudo(
@@ -627,6 +647,7 @@ export function deleteAccountCredentialMutationOptions(
 
 export function revokeAccountTokenMutationOptions(queryClient: QueryClient) {
   return mutationOptions({
+    meta: { success: successMessage.revokeToken },
     retry: false,
     mutationFn: async ({
       accountId,
@@ -647,6 +668,7 @@ export function revokeAccountTokenMutationOptions(queryClient: QueryClient) {
 /** Ending one session is reversible housekeeping, so it is not sudo-guarded. */
 export function revokeAccountSessionMutationOptions(queryClient: QueryClient) {
   return mutationOptions({
+    meta: { success: successMessage.endSession },
     retry: false,
     mutationFn: async ({
       accountId,
@@ -666,6 +688,7 @@ export function revokeAccountSessionMutationOptions(queryClient: QueryClient) {
 
 export function revokeAccountSessionsMutationOptions(queryClient: QueryClient) {
   return mutationOptions({
+    meta: { success: successMessage.endAllSessions },
     retry: false,
     mutationFn: async (id: number): Promise<RevokeAccountSessionsResult> =>
       runWithSudo(
@@ -695,6 +718,7 @@ function invalidateGroup(queryClient: QueryClient, groupId: number) {
 
 export function createGroupMutationOptions(queryClient: QueryClient) {
   return mutationOptions({
+    meta: { success: successMessage.createGroup },
     retry: false,
     mutationFn: async (body: CreateGroupRequest): Promise<AppGroupView> =>
       runWithSudo(
@@ -709,6 +733,7 @@ export function createGroupMutationOptions(queryClient: QueryClient) {
 
 export function updateGroupMutationOptions(queryClient: QueryClient) {
   return mutationOptions({
+    meta: { success: successMessage.saveGroup },
     retry: false,
     mutationFn: async ({
       groupId,
@@ -738,6 +763,7 @@ export function updateGroupMutationOptions(queryClient: QueryClient) {
  */
 export function deleteGroupMutationOptions(queryClient: QueryClient) {
   return mutationOptions({
+    meta: { success: successMessage.deleteGroup },
     retry: false,
     mutationFn: async (groupId: number) => {
       await runWithSudo(
@@ -845,6 +871,7 @@ export function createInvitationMutationOptions(queryClient: QueryClient) {
 /** Answers 200 with an empty body, unlike the 204s elsewhere in this group. */
 export function revokeInvitationMutationOptions(queryClient: QueryClient) {
   return mutationOptions({
+    meta: { success: successMessage.revokeInvitation },
     retry: false,
     mutationFn: async (token: string) => {
       await runWithSudo(

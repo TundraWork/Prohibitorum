@@ -22,6 +22,7 @@ import {
 import { credentialsQueryOptions } from "@/api/queries";
 import { Button } from "@/components/custom/Button";
 import { ItemList, ItemListRow } from "@/components/custom/ItemList";
+import { RelativeTime } from "@/components/custom/RelativeTime";
 import { TableEmptyState } from "@/components/custom/TableEmptyState";
 
 type Credential = components["schemas"]["CredentialView"];
@@ -33,7 +34,7 @@ type Credential = components["schemas"]["CredentialView"];
  * ask for a passkey before it does.
  */
 export function PasskeysPanel() {
-  const { t, i18n } = useLingui();
+  const { t } = useLingui();
   const queryClient = useQueryClient();
   const credentials = useQuery(credentialsQueryOptions());
   const [error, setError] = useState<unknown>(null);
@@ -63,13 +64,6 @@ export function PasskeysPanel() {
   // The server rejects removing the last passkey; disable it here so the
   // reason is visible before the attempt, rather than only as an error.
   const lastOne = rows.length <= 1;
-
-  const format = (value?: string) =>
-    value === undefined
-      ? null
-      : new Intl.DateTimeFormat(i18n.locale, {
-          dateStyle: "medium",
-        }).format(new Date(value));
 
   const actions = (credential: Credential) => {
     const removeButton = (
@@ -159,7 +153,7 @@ export function PasskeysPanel() {
           }
         >
           {rows.map((credential) => {
-            const lastUsed = format(credential.lastUsedAt);
+            const lastUsed = credential.lastUsedAt;
             return (
               <ItemListRow
                 key={credential.id}
@@ -186,15 +180,15 @@ export function PasskeysPanel() {
                 }
                 details={[
                   <Trans key="added" id="security.passkeys.detail.added">
-                    Added {format(credential.createdAt)}
+                    Added <RelativeTime value={credential.createdAt} />
                   </Trans>,
-                  lastUsed === null ? (
+                  lastUsed === undefined ? (
                     <Trans key="used" id="security.passkeys.never_used">
                       Not used yet
                     </Trans>
                   ) : (
                     <Trans key="used" id="security.passkeys.detail.lastUsed">
-                      Last used {lastUsed}
+                      Last used <RelativeTime value={lastUsed} />
                     </Trans>
                   ),
                   <span key="suffix" className="font-mono">

@@ -127,6 +127,18 @@ async function password(user: UserEvent) {
   await screen.findByRole("textbox", { name: "Authenticator code" });
 }
 
+/**
+ * The calls a test means to count. The login page also keeps its config and
+ * auth-status queries fresh, which can refetch at any moment; those are not
+ * what a single-use check is about.
+ */
+function authCalls(fetch: { mock: { calls: unknown[][] } }) {
+  return fetch.mock.calls.filter(([input]) => {
+    const path = new URL((input as Request).url).pathname;
+    return !path.endsWith("/config") && !path.endsWith("/auth/status");
+  });
+}
+
 function rejectedCode() {
   return Response.json(
     { code: "bad_credentials", requestId: "login-test" },
@@ -201,7 +213,7 @@ describe("single-use password verification", () => {
     const code = screen.getByRole("textbox", { name: "Authenticator code" });
     await user.type(code, "１２３４５６");
     await user.click(screen.getByRole("button", { name: "Sign in" }));
-    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(authCalls(fetch)).toHaveLength(1);
     expect(code).toHaveAttribute("aria-invalid", "true");
     await user.clear(code);
     await user.type(code, "012345");
@@ -217,7 +229,7 @@ describe("single-use password verification", () => {
     await user.click(
       screen.getByRole("button", { name: "Continue with password" }),
     );
-    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(authCalls(fetch)).toHaveLength(2);
     await password(user);
     await user.type(
       screen.getByRole("textbox", { name: "Authenticator code" }),

@@ -7,6 +7,7 @@ import { revokeConsentMutationOptions } from "@/api/mutations";
 import { consentQueryOptions } from "@/api/queries";
 import { Button } from "@/components/custom/Button";
 import { ItemList, ItemListRow } from "@/components/custom/ItemList";
+import { RelativeTime } from "@/components/custom/RelativeTime";
 import { TableEmptyState } from "@/components/custom/TableEmptyState";
 
 type ConsentedApp = {
@@ -24,18 +25,13 @@ type ConsentedApp = {
  * of this page.
  */
 export function ConnectedApps() {
-  const { i18n, t } = useLingui();
+  const { t } = useLingui();
   const queryClient = useQueryClient();
   const consent = useQuery(consentQueryOptions());
   const [target, setTarget] = useState<ConsentedApp | null>(null);
   const [confirming, setConfirming] = useState(false);
 
   const revoke = useMutation(revokeConsentMutationOptions(queryClient));
-
-  const format = (value: string) =>
-    new Intl.DateTimeFormat(i18n.locale, {
-      dateStyle: "medium",
-    }).format(new Date(value));
 
   return (
     <>
@@ -96,7 +92,7 @@ export function ConnectedApps() {
             }
             details={[
               <Trans key="granted" id="apps.detail.granted">
-                Authorized {format(app.grantedAt)}
+                Authorized <RelativeTime value={app.grantedAt} />
               </Trans>,
               app.scopes && app.scopes.length > 0 ? (
                 app.scopes.join(", ")

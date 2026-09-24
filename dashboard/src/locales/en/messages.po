@@ -103,6 +103,16 @@ msgid "admin.user.tab.access"
 msgstr "Access"
 
 #. js-lingui-explicit-id
+#: src/api/success-messages.ts
+msgid "success.app.access-removed"
+msgstr "Access removed"
+
+#. js-lingui-explicit-id
+#: src/api/success-messages.ts
+msgid "success.token.revoked"
+msgstr "Access token revoked"
+
+#. js-lingui-explicit-id
 #: src/pages/Security.tsx
 msgid "security.tab.tokens"
 msgstr "Access tokens"
@@ -133,9 +143,29 @@ msgid "admin.user.tabs"
 msgstr "Account"
 
 #. js-lingui-explicit-id
+#: src/api/success-messages.ts
+msgid "success.account.deleted"
+msgstr "Account deleted"
+
+#. js-lingui-explicit-id
+#: src/api/success-messages.ts
+msgid "success.account.disabled"
+msgstr "Account disabled"
+
+#. js-lingui-explicit-id
+#: src/api/success-messages.ts
+msgid "success.account.enabled"
+msgstr "Account enabled"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.profile.form"
 msgstr "Account profile"
+
+#. js-lingui-explicit-id
+#: src/api/success-messages.ts
+msgid "success.account.saved"
+msgstr "Account saved"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminInvitationForm.tsx
@@ -195,16 +225,14 @@ msgid "admin.group.rule.addGroup"
 msgstr "Add group"
 
 #. js-lingui-explicit-id
-#. placeholder {0}: format(credential.createdAt)
 #: src/pages/security/PasskeysPanel.tsx
 msgid "security.passkeys.detail.added"
-msgstr "Added {0}"
+msgstr "Added <0/>"
 
 #. js-lingui-explicit-id
-#. placeholder {0}: format(credential.createdAt)
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.passkeys.detail.added"
-msgstr "Added {0}"
+msgstr "Added <0/>"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminInvitationForm.tsx
@@ -338,10 +366,9 @@ msgid "login.complete"
 msgstr "Authenticator reset complete"
 
 #. js-lingui-explicit-id
-#. placeholder {0}: format(app.grantedAt)
 #: src/pages/ConnectedApps.tsx
 msgid "apps.detail.granted"
-msgstr "Authorized {0}"
+msgstr "Authorized <0/>"
 
 #. js-lingui-explicit-id
 #: src/pages/Profile.tsx
@@ -352,6 +379,11 @@ msgstr "Avatar"
 #: src/pages/profile/AvatarPanel.tsx
 msgid "profile.avatar.title"
 msgstr "Avatar"
+
+#. js-lingui-explicit-id
+#: src/api/success-messages.ts
+msgid "success.avatar.updated"
+msgstr "Avatar updated"
 
 #. js-lingui-explicit-id
 #: src/components/custom/LoginShell.tsx
@@ -995,6 +1027,11 @@ msgid "admin.users.column.displayName"
 msgstr "Display name"
 
 #. js-lingui-explicit-id
+#: src/api/success-messages.ts
+msgid "success.display-name.saved"
+msgstr "Display name saved"
+
+#. js-lingui-explicit-id
 #: src/components/custom/secret-reveal-copy.ts
 msgid "admin.invitations.reveal.continue"
 msgstr "Done"
@@ -1181,18 +1218,6 @@ msgid "admin.invitations.column.expires"
 msgstr "Expires"
 
 #. js-lingui-explicit-id
-#. placeholder {0}: format(session.expiresAt)
-#: src/pages/security/SessionsPanel.tsx
-msgid "security.sessions.detail.expires"
-msgstr "Expires {0}"
-
-#. js-lingui-explicit-id
-#. placeholder {0}: format(session.expiresAt)
-#: src/pages/admin/AdminUser.tsx
-msgid "admin.user.sessions.detail.expires"
-msgstr "Expires {0}"
-
-#. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.detail.expires"
 msgstr "Expires {expires}"
@@ -1298,6 +1323,11 @@ msgid "admin.users.filter.advanced"
 msgstr "Identity filter"
 
 #. js-lingui-explicit-id
+#: src/api/success-messages.ts
+msgid "success.identity.unlinked"
+msgstr "Identity unlinked"
+
+#. js-lingui-explicit-id
 #: src/components/custom/SudoDialog.tsx
 msgid "sudo.form.label"
 msgstr "Identity verification"
@@ -1331,6 +1361,11 @@ msgstr "Instance"
 #: src/pages/Preview.tsx
 msgid "preview.title"
 msgstr "Interface preview"
+
+#. js-lingui-explicit-id
+#: src/api/success-messages.ts
+msgid "success.invitation.revoked"
+msgstr "Invitation revoked"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminInvitations.tsx
@@ -1400,22 +1435,22 @@ msgstr "Last signed in"
 #. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
 msgid "security.passkeys.detail.lastUsed"
-msgstr "Last used {lastUsed}"
+msgstr "Last used <0/>"
 
 #. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.detail.lastUsed"
-msgstr "Last used {lastUsed}"
+msgstr "Last used <0/>"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.passkeys.detail.lastUsed"
-msgstr "Last used {lastUsed}"
+msgstr "Last used <0/>"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.tokens.detail.lastUsed"
-msgstr "Last used {lastUsed}"
+msgstr "Last used <0/>"
 
 #. js-lingui-explicit-id
 #: src/components/custom/secret-reveal-copy.ts
@@ -1441,18 +1476,6 @@ msgstr "Light theme"
 #: src/pages/security/IdentitiesPanel.tsx
 msgid "security.identities.link.title"
 msgstr "Link another identity"
-
-#. js-lingui-explicit-id
-#. placeholder {0}: format(identity.linkedAt)
-#: src/pages/security/IdentitiesPanel.tsx
-msgid "security.identities.detail.linked"
-msgstr "Linked {0}"
-
-#. js-lingui-explicit-id
-#. placeholder {0}: format(identity.linkedAt)
-#: src/pages/admin/AdminUser.tsx
-msgid "admin.user.identities.detail.linked"
-msgstr "Linked {0}"
 
 #. js-lingui-explicit-id
 #: src/pages/Preview.tsx
@@ -1830,6 +1853,21 @@ msgid "devices.code.hint"
 msgstr "Pairing codes are short-lived. If yours has expired, generate a new one on that device."
 
 #. js-lingui-explicit-id
+#: src/api/success-messages.ts
+msgid "success.passkey.added"
+msgstr "Passkey added"
+
+#. js-lingui-explicit-id
+#: src/api/success-messages.ts
+msgid "success.passkey.removed"
+msgstr "Passkey removed"
+
+#. js-lingui-explicit-id
+#: src/api/success-messages.ts
+msgid "success.passkey.renamed"
+msgstr "Passkey renamed"
+
+#. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.login_failed"
 msgstr "Passkey sign-in failed. Try again or use your password."
@@ -1878,6 +1916,16 @@ msgstr "Password and authenticator"
 #: src/pages/security/PasswordTotpPanel.tsx
 msgid "security.password.list"
 msgstr "Password and authenticator"
+
+#. js-lingui-explicit-id
+#: src/api/success-messages.ts
+msgid "success.password-totp.revoked"
+msgstr "Password and authenticator turned off"
+
+#. js-lingui-explicit-id
+#: src/api/success-messages.ts
+msgid "success.password.changed"
+msgstr "Password changed"
 
 #. js-lingui-explicit-id
 #: src/pages/Preview.tsx
@@ -2271,6 +2319,11 @@ msgid "console.security"
 msgstr "Security"
 
 #. js-lingui-explicit-id
+#: src/api/success-messages.ts
+msgid "success.session.ended"
+msgstr "Session ended"
+
+#. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
 msgid "security.setup.title.both"
 msgstr "Set up a password and authenticator"
@@ -2351,6 +2404,11 @@ msgid "admin.user.sessions.revoke_all.title"
 msgstr "Sign this account out everywhere?"
 
 #. js-lingui-explicit-id
+#: src/api/success-messages.ts
+msgid "success.sessions.ended"
+msgstr "Signed out everywhere"
+
+#. js-lingui-explicit-id
 #: src/components/custom/LoginShell.tsx
 msgid "login.factor.account"
 msgstr "Signing in as {username}"
@@ -2376,16 +2434,14 @@ msgid "error.ceremony_missing"
 msgstr "Start passkey sign-in again to continue."
 
 #. js-lingui-explicit-id
-#. placeholder {0}: format(session.issuedAt)
 #: src/pages/security/SessionsPanel.tsx
 msgid "security.sessions.detail.issued"
-msgstr "Started {0}"
+msgstr "Started <0/>"
 
 #. js-lingui-explicit-id
-#. placeholder {0}: format(session.issuedAt)
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.sessions.detail.issued"
-msgstr "Started {0}"
+msgstr "Started <0/>"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminUsers.tsx
@@ -2738,11 +2794,6 @@ msgid "error.account_disabled"
 msgstr "This account is disabled."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminUser.tsx
-msgid "admin.user.saved"
-msgstr "This account is updated."
-
-#. js-lingui-explicit-id
 #: src/components/custom/RouteFeedback.tsx
 msgid "route.not-found.description"
 msgstr "This address does not have a page."
@@ -2993,6 +3044,11 @@ msgid "profile.avatar.upload"
 msgstr "Upload a picture"
 
 #. js-lingui-explicit-id
+#: src/api/success-messages.ts
+msgid "success.avatar.upload-removed"
+msgstr "Uploaded picture removed"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminInvitations.tsx
 msgid "admin.invitations.column.provider"
 msgstr "Upstream provider"
@@ -3077,6 +3133,21 @@ msgstr "User group"
 #: src/pages/admin/AdminGroupForm.tsx
 msgid "admin.group.form"
 msgstr "User group"
+
+#. js-lingui-explicit-id
+#: src/api/success-messages.ts
+msgid "success.group.created"
+msgstr "User group created"
+
+#. js-lingui-explicit-id
+#: src/api/success-messages.ts
+msgid "success.group.deleted"
+msgstr "User group deleted"
+
+#. js-lingui-explicit-id
+#: src/api/success-messages.ts
+msgid "success.group.saved"
+msgstr "User group saved"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminGroups.tsx
@@ -3258,16 +3329,6 @@ msgstr "Your account"
 #: src/pages/security/PasswordTotpPanel.tsx
 msgid "security.totp.replace.note"
 msgstr "Your current authenticator and every existing recovery code stop working as soon as this succeeds."
-
-#. js-lingui-explicit-id
-#: src/pages/Profile.tsx
-msgid "profile.display-name.saved"
-msgstr "Your display name is updated."
-
-#. js-lingui-explicit-id
-#: src/pages/security/PasswordTotpPanel.tsx
-msgid "security.password.changed"
-msgstr "Your password is updated. Which sudo prompt you see next may change."
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx

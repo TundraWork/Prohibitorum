@@ -7,7 +7,6 @@ import {
   useSuspenseQuery,
 } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
 import { updateProfileMutationOptions } from "@/api/mutations";
 import { sessionQueryOptions } from "@/api/queries";
 
@@ -103,16 +102,13 @@ function DisplayNameCard({
 }) {
   const { t } = useLingui();
   const queryClient = useQueryClient();
-  const [saved, setSaved] = useState(false);
   const update = useMutation(updateProfileMutationOptions(queryClient));
 
   const form = useAppForm({
     defaultValues: { displayName },
     onSubmit: async ({ value }) => {
-      setSaved(false);
       try {
         await update.mutateAsync({ displayName: value.displayName });
-        setSaved(true);
       } catch (error) {
         applyServerError(form, error, { locations: {}, codes: {} });
       }
@@ -161,13 +157,6 @@ function DisplayNameCard({
               </Trans>
             </Description>
           </div>
-          {saved && (
-            <p role="status" className="text-sm">
-              <Trans id="profile.display-name.saved">
-                Your display name is updated.
-              </Trans>
-            </p>
-          )}
           <form.SubmitButton>
             <Trans id="profile.display-name.save">Save</Trans>
           </form.SubmitButton>

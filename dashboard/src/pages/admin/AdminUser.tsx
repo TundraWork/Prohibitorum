@@ -44,6 +44,7 @@ import { Button } from "@/components/custom/Button";
 import { ConsoleCard } from "@/components/custom/ConsoleCard";
 import { DangerZone } from "@/components/custom/DangerZone";
 import { ItemList, ItemListRow } from "@/components/custom/ItemList";
+import { RelativeTime } from "@/components/custom/RelativeTime";
 import { SecretReveal } from "@/components/custom/SecretReveal";
 import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
 import { invitationLinkCopy } from "@/components/custom/secret-reveal-copy";
@@ -191,7 +192,6 @@ export function AdminUser() {
 function ProfilePanel({ account }: { account: Account }) {
   const { t } = useLingui();
   const queryClient = useQueryClient();
-  const [saved, setSaved] = useState(false);
   const [role, setRole] = useState(account.role);
   const update = useMutation(updateAccountMutationOptions(queryClient));
 
@@ -203,7 +203,6 @@ function ProfilePanel({ account }: { account: Account }) {
       attributes: formatAttributes(account.attributes),
     },
     onSubmit: async ({ value }) => {
-      setSaved(false);
       const attributes = parseAttributes(value.attributes);
       if (!attributes.ok) {
         form.setFieldMeta("attributes", (meta) => ({
@@ -227,7 +226,6 @@ function ProfilePanel({ account }: { account: Account }) {
       };
       try {
         await update.mutateAsync({ id: account.id, body });
-        setSaved(true);
       } catch (error) {
         applyServerError(form, error, {
           locations: {
@@ -367,11 +365,6 @@ function ProfilePanel({ account }: { account: Account }) {
 
           <OidcSubject value={account.oidcSubject} />
 
-          {saved && (
-            <p role="status" className="text-sm">
-              <Trans id="admin.user.saved">This account is updated.</Trans>
-            </p>
-          )}
           <form.SubmitButton>
             <Trans id="admin.user.save">Save changes</Trans>
           </form.SubmitButton>
@@ -471,7 +464,6 @@ function useDateFormat() {
 
 function IdentitiesBlock({ accountId }: { accountId: number }) {
   const { t } = useLingui();
-  const format = useDateFormat();
   const identities = useQuery(accountIdentitiesQueryOptions(accountId));
 
   return (
@@ -511,9 +503,6 @@ function IdentitiesBlock({ accountId }: { accountId: number }) {
               <span key="subject" className="font-mono">
                 {identity.subject}
               </span>,
-              <Trans key="linked" id="admin.user.identities.detail.linked">
-                Linked {format(identity.linkedAt)}
-              </Trans>,
             ]}
           />
         ))}
@@ -524,7 +513,6 @@ function IdentitiesBlock({ accountId }: { accountId: number }) {
 
 function PasskeysBlock({ accountId }: { accountId: number }) {
   const { t } = useLingui();
-  const format = useDateFormat();
   const queryClient = useQueryClient();
   const credentials = useQuery(accountCredentialsQueryOptions(accountId));
   const revoke = useMutation(
@@ -549,7 +537,7 @@ function PasskeysBlock({ accountId }: { accountId: number }) {
         }
       >
         {(credentials.data?.items ?? []).map((credential) => {
-          const lastUsed = format(credential.lastUsedAt);
+          const lastUsed = credential.lastUsedAt;
           return (
             <ItemListRow
               key={credential.id}
@@ -565,15 +553,15 @@ function PasskeysBlock({ accountId }: { accountId: number }) {
               }
               details={[
                 <Trans key="added" id="admin.user.passkeys.detail.added">
-                  Added {format(credential.createdAt)}
+                  Added <RelativeTime value={credential.createdAt} />
                 </Trans>,
-                lastUsed === null ? (
+                lastUsed === undefined ? (
                   <Trans key="used" id="admin.user.passkeys.never_used">
                     Not used yet
                   </Trans>
                 ) : (
                   <Trans key="used" id="admin.user.passkeys.detail.lastUsed">
-                    Last used {lastUsed}
+                    Last used <RelativeTime value={lastUsed} />
                   </Trans>
                 ),
                 <span key="suffix" className="font-mono">
@@ -625,7 +613,6 @@ function agentSummary(value?: string): string {
 
 function SessionsBlock({ accountId }: { accountId: number }) {
   const { t } = useLingui();
-  const format = useDateFormat();
   const queryClient = useQueryClient();
   const sessions = useQuery(accountSessionsQueryOptions(accountId));
   const revoke = useMutation(revokeAccountSessionMutationOptions(queryClient));
@@ -705,10 +692,7 @@ function SessionsBlock({ accountId }: { accountId: number }) {
             details={[
               session.lastSeenIp || undefined,
               <Trans key="issued" id="admin.user.sessions.detail.issued">
-                Started {format(session.issuedAt)}
-              </Trans>,
-              <Trans key="expires" id="admin.user.sessions.detail.expires">
-                Expires {format(session.expiresAt)}
+                Started <RelativeTime value={session.issuedAt} />
               </Trans>,
             ]}
             actions={
@@ -768,7 +752,7 @@ function TokensBlock({ accountId }: { accountId: number }) {
       >
         {(tokens.data?.items ?? []).map((token) => {
           const expires = format(token.expiresAt);
-          const lastUsed = format(token.lastUsedAt);
+          const lastUsed = token.lastUsedAt;
           return (
             <ItemListRow
               key={token.id}
@@ -787,13 +771,13 @@ function TokensBlock({ accountId }: { accountId: number }) {
                     Expires {expires}
                   </Trans>
                 ),
-                lastUsed === null ? (
+                lastUsed === undefined ? (
                   <Trans key="used" id="admin.user.tokens.never_used">
                     Not used yet
                   </Trans>
                 ) : (
                   <Trans key="used" id="admin.user.tokens.detail.lastUsed">
-                    Last used {lastUsed}
+                    Last used <RelativeTime value={lastUsed} />
                   </Trans>
                 ),
               ]}

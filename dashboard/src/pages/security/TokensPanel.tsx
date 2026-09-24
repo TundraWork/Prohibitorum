@@ -25,6 +25,7 @@ import { runWithSudo } from "@/api/sudo";
 import { sudoReason } from "@/api/sudo-reasons";
 import { Button } from "@/components/custom/Button";
 import { ItemList, ItemListRow } from "@/components/custom/ItemList";
+import { RelativeTime } from "@/components/custom/RelativeTime";
 import { SecretReveal } from "@/components/custom/SecretReveal";
 import { accessTokenCopy } from "@/components/custom/secret-reveal-copy";
 import { TableEmptyState } from "@/components/custom/TableEmptyState";
@@ -141,7 +142,7 @@ export function TokensPanel() {
         >
           {(tokens.data ?? []).map((token) => {
             const expires = format(token.expiresAt);
-            const lastUsed = format(token.lastUsedAt);
+            const lastUsed = token.lastUsedAt;
             return (
               <ItemListRow
                 key={token.id}
@@ -161,13 +162,13 @@ export function TokensPanel() {
                       Expires {expires}
                     </Trans>
                   ),
-                  lastUsed === null ? (
+                  lastUsed === undefined ? (
                     <Trans key="used" id="security.tokens.never_used">
                       Not used yet
                     </Trans>
                   ) : (
                     <Trans key="used" id="security.tokens.detail.lastUsed">
-                      Last used {lastUsed}
+                      Last used <RelativeTime value={lastUsed} />
                     </Trans>
                   ),
                 ]}

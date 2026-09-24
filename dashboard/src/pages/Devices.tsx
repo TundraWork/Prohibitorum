@@ -11,6 +11,7 @@ import {
 
 import { Button } from "@/components/custom/Button";
 import { ConsoleCard } from "@/components/custom/ConsoleCard";
+import { RelativeTime } from "@/components/custom/RelativeTime";
 import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
 import { useAppForm } from "@/forms/use-app-form";
 
@@ -55,12 +56,6 @@ export function Devices() {
       setSubmitted(value.code);
     },
   });
-
-  const formatTime = (value: string) =>
-    new Intl.DateTimeFormat(undefined, {
-      dateStyle: "medium",
-      timeStyle: "short",
-    }).format(new Date(value));
 
   return (
     <>
@@ -199,13 +194,17 @@ export function Devices() {
                 <dt className="text-sm text-muted">
                   <Trans id="devices.field.created">Requested</Trans>
                 </dt>
-                <dd className="wrap-anywhere">{formatTime(found.createdAt)}</dd>
+                <dd className="wrap-anywhere">
+                  <RelativeTime value={found.createdAt} />
+                </dd>
               </div>
               <div className="min-w-0">
                 <dt className="text-sm text-muted">
                   <Trans id="devices.field.expires">Expires</Trans>
                 </dt>
-                <dd className="wrap-anywhere">{formatTime(found.expiresAt)}</dd>
+                <dd className="wrap-anywhere">
+                  <RelativeTime value={found.expiresAt} />
+                </dd>
               </div>
             </dl>
             {found.alreadyBound && (

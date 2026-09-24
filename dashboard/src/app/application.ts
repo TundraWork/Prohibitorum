@@ -1,8 +1,11 @@
 import { createQueryClient } from "@/app/query-client";
 import { createAppRouter } from "@/app/router";
-import { notifyError } from "@/components/custom/AppNotifications";
+import {
+  notifyError,
+  notifySuccess,
+} from "@/components/custom/AppNotifications";
 
-const queryClient = createQueryClient(notifyError);
+const queryClient = createQueryClient(notifyError, notifySuccess);
 
 /**
  * The console's long-lived query client and router.
