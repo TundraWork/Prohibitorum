@@ -1,4 +1,4 @@
-import { AlertDialog, Chip } from "@heroui/react";
+import { Alert, AlertDialog, Chip } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
@@ -13,9 +13,7 @@ import {
   invitationsListOptions,
 } from "@/api/queries";
 import { Button } from "@/components/custom/Button";
-import { ConsoleCard } from "@/components/custom/ConsoleCard";
 import { DataTable, type TableColumn } from "@/components/custom/DataTable";
-import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
 import { TableEmptyState } from "@/components/custom/TableEmptyState";
 
 type Invitation = components["schemas"]["InvitationView"];
@@ -54,64 +52,58 @@ export function AdminInvitations() {
 
   return (
     <>
-      <ConsoleCard
-        title={<Trans id="admin.invitations.title">Invitations</Trans>}
-      >
-        <div className="flex flex-col gap-4">
-          <div className="flex flex-wrap items-center justify-end gap-4">
-            <Button
-              onPress={() => void navigate({ to: "/admin/invitations/new" })}
-            >
-              <Trans id="admin.invitations.invite">Invite a user</Trans>
-            </Button>
-          </div>
-
-          {error !== null && (
-            <SurfaceAlert status="danger" role="alert">
-              <SurfaceAlert.Indicator />
-              <SurfaceAlert.Content>
-                <SurfaceAlert.Title>
-                  {t(describeError(error))}
-                </SurfaceAlert.Title>
-              </SurfaceAlert.Content>
-            </SurfaceAlert>
-          )}
-
-          {list.error !== null && list.error !== undefined && (
-            <SurfaceAlert status="danger" role="alert">
-              <SurfaceAlert.Indicator />
-              <SurfaceAlert.Content>
-                <SurfaceAlert.Title>
-                  <Trans id="admin.invitations.error">
-                    The list could not be loaded. Try again.
-                  </Trans>
-                </SurfaceAlert.Title>
-              </SurfaceAlert.Content>
-            </SurfaceAlert>
-          )}
-
-          <DataTable
-            label={t({ id: "admin.invitations.table", message: "Invitations" })}
-            columns={invitationColumns(i18n, providerName, setTarget)}
-            rows={list.items}
-            rowId={(invitation) => invitation.token}
-            loading={list.loading}
-            hasMore={list.hasMore}
-            loadingMore={list.loadingMore}
-            onLoadMore={list.loadMore}
-            empty={
-              <TableEmptyState
-                icon={
-                  <MailPlus size={18} strokeWidth={1.75} aria-hidden="true" />
-                }
-                title={
-                  <Trans id="admin.invitations.empty">No invitations yet</Trans>
-                }
-              />
-            }
-          />
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-wrap items-center justify-end gap-4">
+          <Button
+            onPress={() => void navigate({ to: "/admin/invitations/new" })}
+          >
+            <Trans id="admin.invitations.invite">Invite a user</Trans>
+          </Button>
         </div>
-      </ConsoleCard>
+
+        {error !== null && (
+          <Alert status="danger" role="alert">
+            <Alert.Indicator />
+            <Alert.Content>
+              <Alert.Title>{t(describeError(error))}</Alert.Title>
+            </Alert.Content>
+          </Alert>
+        )}
+
+        {list.error !== null && list.error !== undefined && (
+          <Alert status="danger" role="alert">
+            <Alert.Indicator />
+            <Alert.Content>
+              <Alert.Title>
+                <Trans id="admin.invitations.error">
+                  The list could not be loaded. Try again.
+                </Trans>
+              </Alert.Title>
+            </Alert.Content>
+          </Alert>
+        )}
+
+        <DataTable
+          label={t({ id: "admin.invitations.table", message: "Invitations" })}
+          columns={invitationColumns(i18n, providerName, setTarget)}
+          rows={list.items}
+          rowId={(invitation) => invitation.token}
+          loading={list.loading}
+          hasMore={list.hasMore}
+          loadingMore={list.loadingMore}
+          onLoadMore={list.loadMore}
+          empty={
+            <TableEmptyState
+              icon={
+                <MailPlus size={18} strokeWidth={1.75} aria-hidden="true" />
+              }
+              title={
+                <Trans id="admin.invitations.empty">No invitations yet</Trans>
+              }
+            />
+          }
+        />
+      </div>
 
       <AlertDialog
         isOpen={target !== null}

@@ -32,7 +32,12 @@
   Confirm that targeted tests actually ran: `go test -run` can succeed with
   no matching tests. Inspect failures and asynchronous test errors.
 - Check affected user flows in a browser when layout or interaction changes;
-  include relevant narrow-screen behavior.
+  include relevant narrow-screen behavior. Dashboard walkthroughs run against
+  the devtools API mock (`dashboard/src/devtools/mock`, open the TanStack
+  Devtools panel): it switches the signed-in role between admin and member and
+  sets how many accounts, user groups and invitations exist, so role guards and
+  list states can be reviewed without a backend. See `dashboard/AGENTS.md` for
+  what the panel covers.
 
 ## Dashboard and generated assets
 

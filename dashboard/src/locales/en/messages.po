@@ -1407,11 +1407,6 @@ msgstr "Interface preview"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminInvitations.tsx
-msgid "admin.invitations.title"
-msgstr "Invitations"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/AdminInvitations.tsx
 msgid "admin.invitations.table"
 msgstr "Invitations"
 
@@ -3244,11 +3239,6 @@ msgstr "User group"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminGroups.tsx
-msgid "admin.groups.title"
-msgstr "User groups"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/AdminGroups.tsx
 msgid "admin.groups.table"
 msgstr "User groups"
 
@@ -3287,11 +3277,6 @@ msgstr "Username"
 #: src/pages/admin/AdminUsers.tsx
 msgid "admin.users.search.placeholder"
 msgstr "Username or display name"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/AdminUsers.tsx
-msgid "admin.users.title"
-msgstr "Users"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminUsers.tsx

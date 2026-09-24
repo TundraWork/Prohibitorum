@@ -1,4 +1,4 @@
-import { Chip } from "@heroui/react";
+import { Alert, Chip } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
@@ -6,9 +6,7 @@ import { UsersRound } from "lucide-react";
 import { groupsQueryOptions } from "@/api/queries";
 import type { AppGroupView } from "@/api/raw-admin-paths";
 import { Button } from "@/components/custom/Button";
-import { ConsoleCard } from "@/components/custom/ConsoleCard";
 import { DataTable, type TableColumn } from "@/components/custom/DataTable";
-import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
 import { TableEmptyState } from "@/components/custom/TableEmptyState";
 
 /**
@@ -32,31 +30,30 @@ export function AdminGroups() {
   };
 
   return (
-    <ConsoleCard title={<Trans id="admin.groups.title">User groups</Trans>}>
-      <p className="text-xs text-muted">
-        <Trans id="admin.groups.note">
-          A group either keeps the members you add by hand, or works its members
-          out from a rule.
-        </Trans>
-      </p>
-
-      <div className="flex flex-wrap items-center justify-end gap-4">
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <p className="text-xs text-muted">
+          <Trans id="admin.groups.note">
+            A group either keeps the members you add by hand, or works its
+            members out from a rule.
+          </Trans>
+        </p>
         <Button onPress={() => void navigate({ to: "/admin/groups/new" })}>
           <Trans id="admin.groups.new">New group</Trans>
         </Button>
       </div>
 
       {groups.isError && (
-        <SurfaceAlert status="danger" role="alert">
-          <SurfaceAlert.Indicator />
-          <SurfaceAlert.Content>
-            <SurfaceAlert.Title>
+        <Alert status="danger" role="alert">
+          <Alert.Indicator />
+          <Alert.Content>
+            <Alert.Title>
               <Trans id="admin.groups.error">
                 The list could not be loaded. Try again.
               </Trans>
-            </SurfaceAlert.Title>
-          </SurfaceAlert.Content>
-        </SurfaceAlert>
+            </Alert.Title>
+          </Alert.Content>
+        </Alert>
       )}
 
       <DataTable
@@ -74,7 +71,7 @@ export function AdminGroups() {
           />
         }
       />
-    </ConsoleCard>
+    </div>
   );
 }
 

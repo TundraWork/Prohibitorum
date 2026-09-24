@@ -1,4 +1,5 @@
 import {
+  Alert,
   Chip,
   Label,
   ListBox,
@@ -17,9 +18,7 @@ import {
   identityProvidersQueryOptions,
 } from "@/api/queries";
 import { Button } from "@/components/custom/Button";
-import { ConsoleCard } from "@/components/custom/ConsoleCard";
 import { DataTable, type TableColumn } from "@/components/custom/DataTable";
-import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
 import { TableEmptyState } from "@/components/custom/TableEmptyState";
 import {
   accountFilterQuery,
@@ -74,7 +73,7 @@ export function AdminUsers() {
   };
 
   return (
-    <ConsoleCard title={<Trans id="admin.users.title">Users</Trans>}>
+    <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-end gap-2">
         <SearchField
           aria-label={t({ id: "admin.users.search", message: "Search users" })}
@@ -113,16 +112,16 @@ export function AdminUsers() {
       )}
 
       {list.error !== null && list.error !== undefined && (
-        <SurfaceAlert status="danger" role="alert">
-          <SurfaceAlert.Indicator />
-          <SurfaceAlert.Content>
-            <SurfaceAlert.Title>
+        <Alert status="danger" role="alert">
+          <Alert.Indicator />
+          <Alert.Content>
+            <Alert.Title>
               <Trans id="admin.users.error">
                 The list could not be loaded. Try again.
               </Trans>
-            </SurfaceAlert.Title>
-          </SurfaceAlert.Content>
-        </SurfaceAlert>
+            </Alert.Title>
+          </Alert.Content>
+        </Alert>
       )}
 
       <DataTable
@@ -141,7 +140,7 @@ export function AdminUsers() {
           />
         }
       />
-    </ConsoleCard>
+    </div>
   );
 }
 

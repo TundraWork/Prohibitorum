@@ -5,6 +5,7 @@ import {
   defaultMockConfig,
   type MockConfig,
   mockListMax,
+  mockPageSize,
 } from "@/devtools/mock/model";
 
 function config(overrides: (draft: MockConfig) => void = () => {}): MockConfig {
@@ -20,14 +21,23 @@ function writes(): MockConfig {
   });
 }
 
+/**
+ * One request, as the client sends it. A `{placeholder}` in the schema path is
+ * replaced by the matching body field, because that is what openapi-fetch does
+ * before the request leaves: the fixture reads an id from the URL, never from
+ * the template it was registered under.
+ */
 function call(
   method: string,
   schemaPath: string,
   current: MockConfig = config(),
   body?: unknown,
 ): MockReply | undefined {
+  const path = schemaPath.replace(/\{(\w+)\}/g, (_, key: string) =>
+    String((body as Record<string, unknown> | undefined)?.[key] ?? key),
+  );
   return buildMockReply(
-    { method, schemaPath, url: `http://localhost${schemaPath}`, body },
+    { method, schemaPath, url: `http://localhost${path}`, body },
     current,
   );
 }
@@ -170,12 +180,182 @@ describe("mock replies", () => {
   });
 
   it("fails an endpoint it has no fixture for instead of reaching the server", () => {
-    expect(read("/api/prohibitorum/accounts")).toEqual({
+    expect(read("/api/prohibitorum/audit-events")).toEqual({
       kind: "error",
       status: 501,
       code: "mock_unmocked",
-      details: { method: "GET", path: "/api/prohibitorum/accounts" },
+      details: { method: "GET", path: "/api/prohibitorum/audit-events" },
     });
+  });
+});
+
+describe("mocked management directory", () => {
+  it("serves the account directory one cursor page at a time", () => {
+    const current = config((draft) => {
+      draft.admin.accounts = mockPageSize + 1;
+    });
+    const first = bodyOf(read("/api/prohibitorum/accounts", current)) as {
+      items: unknown[];
+      nextCursor: string;
+    };
+    expect(first.items).toHaveLength(mockPageSize);
+    expect(first.nextCursor).toBe(String(mockPageSize));
+
+    const second = bodyOf(
+      read(
+        "/api/prohibitorum/accounts",
+        current,
+        `http://localhost/api/prohibitorum/accounts?cursor=${first.nextCursor}`,
+      ),
+    ) as { items: unknown[]; nextCursor: string };
+    expect(second.items).toHaveLength(1);
+    expect(second.nextCursor).toBe("");
+  });
+
+  it("signs the panel in as the account the directory lists first", () => {
+    const current = config((draft) => {
+      draft.session.username = "ada";
+      draft.session.role = "member";
+    });
+    const page = bodyOf(read("/api/prohibitorum/accounts", current)) as {
+      items: Array<{ username: string; role: string }>;
+    };
+    expect(page.items[0]).toMatchObject({ username: "ada", role: "member" });
+  });
+
+  it("answers an unknown account with not_found rather than a fabricated one", () => {
+    const many = config((draft) => {
+      draft.admin.accounts = 2;
+    });
+    expect(
+      read(
+        "/api/prohibitorum/accounts/{id}",
+        many,
+        "http://localhost/api/prohibitorum/accounts/99",
+      ),
+    ).toEqual({ kind: "error", status: 404, code: "not_found" });
+  });
+
+  it("offers both a manual and a rule group, so both edit shapes are reachable", () => {
+    const groups = bodyOf(read("/api/prohibitorum/groups", config())) as Array<{
+      kind: string;
+      rule?: unknown;
+    }>;
+    expect(groups.map((group) => group.kind)).toEqual([
+      "manual",
+      "rule",
+      "manual",
+    ]);
+    expect(groups[1]?.rule).toBeDefined();
+    expect(groups[0]?.rule).toBeUndefined();
+  });
+
+  it("still lists a group when the panel is set to none", () => {
+    const current = config((draft) => {
+      draft.admin.groups = 0;
+    });
+    expect(bodyOf(read("/api/prohibitorum/groups", current))).toHaveLength(1);
+  });
+
+  it("pages invitations and names their upstream provider", () => {
+    const invitations = bodyOf(
+      read(
+        "/api/prohibitorum/invitations",
+        config((draft) => {
+          draft.admin.invitations = 2;
+        }),
+      ),
+    ) as { items: Array<{ expectedUpstreamIdpSlug?: string }> };
+    expect(invitations.items).toHaveLength(2);
+    expect(invitations.items[0]?.expectedUpstreamIdpSlug).toBe("provider-1");
+    expect(invitations.items[1]?.expectedUpstreamIdpSlug).toBeUndefined();
+  });
+
+  it("publishes the search fields and operators the advanced filter reads", () => {
+    const page = bodyOf(
+      read("/api/prohibitorum/identity-providers", config()),
+    ) as {
+      items: Array<{
+        slug: string;
+        searchFields: Array<{ operators: string[] }>;
+      }>;
+      nextCursor: string;
+    };
+    expect(page.items[0]?.searchFields).toEqual([
+      { key: "email", operators: ["eq", "contains"] },
+      { key: "subject", operators: ["eq"] },
+    ]);
+  });
+
+  it("matches nobody for a rule draft that carries no condition", () => {
+    const current = writes();
+    const draft = call(
+      "POST",
+      "/api/prohibitorum/groups/rule-preview",
+      current,
+      {
+        version: 1,
+        condition: { op: "all", children: [] },
+      },
+    );
+    expect(bodyOf(draft)).toMatchObject({ items: [], matchedCount: 0 });
+  });
+
+  it("predicts matches for a rule draft that carries a condition", () => {
+    const current = writes();
+    const reply = call(
+      "POST",
+      "/api/prohibitorum/groups/rule-preview",
+      current,
+      {
+        version: 1,
+        condition: { fact: "login_method", method: "passkey" },
+      },
+    );
+    const preview = bodyOf(reply) as { items: unknown[]; matchedCount: number };
+    expect(preview.matchedCount).toBeGreaterThan(0);
+  });
+
+  it("shrinks the directory a create or delete left behind", () => {
+    const current = writes();
+    current.admin.accounts = 3;
+    const deleted = call("POST", "/api/prohibitorum/accounts/delete", current, {
+      id: 2,
+    });
+    expect(
+      bodyOf(read("/api/prohibitorum/accounts", applied(deleted, current))),
+    ).toMatchObject({ items: expect.any(Array) });
+    expect(applied(deleted, current).admin.accounts).toBe(2);
+
+    const created = call("POST", "/api/prohibitorum/invitations", current, {
+      role: "member",
+    });
+    expect(bodyOf(created)).toMatchObject({
+      url: expect.stringContaining("/enroll/"),
+    });
+    const revoked = call(
+      "POST",
+      "/api/prohibitorum/invitations/revoke",
+      applied(created, current),
+      { token: "mock-invitation-1" },
+    );
+    expect(applied(revoked, applied(created, current)).admin.invitations).toBe(
+      current.admin.invitations,
+    );
+  });
+
+  it("carries a role change back onto the signed-in session", () => {
+    const current = writes();
+    const reply = call("PUT", "/api/prohibitorum/accounts/{id}", current, {
+      id: 1,
+      username: current.session.username,
+      displayName: current.session.displayName,
+      role: "member",
+    });
+    expect(applied(reply, current).session.role).toBe("member");
+    expect(
+      bodyOf(read("/api/prohibitorum/me", applied(reply, current))),
+    ).toMatchObject({ role: "member" });
   });
 });
 

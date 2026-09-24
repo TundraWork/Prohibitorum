@@ -1407,11 +1407,6 @@ msgstr "界面预览"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminInvitations.tsx
-msgid "admin.invitations.title"
-msgstr "邀请"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/AdminInvitations.tsx
 msgid "admin.invitations.table"
 msgstr "邀请"
 
@@ -3244,11 +3239,6 @@ msgstr "用户组"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminGroups.tsx
-msgid "admin.groups.title"
-msgstr "用户组"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/AdminGroups.tsx
 msgid "admin.groups.table"
 msgstr "用户组"
 
@@ -3287,11 +3277,6 @@ msgstr "用户名"
 #: src/pages/admin/AdminUsers.tsx
 msgid "admin.users.search.placeholder"
 msgstr "用户名或显示名"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/AdminUsers.tsx
-msgid "admin.users.title"
-msgstr "用户"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminUsers.tsx

@@ -16,6 +16,12 @@ export interface MockConfig {
     displayName: string;
     username: string;
     avatarPending: boolean;
+    /**
+     * The role the sign-in carries, which is also the management area's gate:
+     * the sidebar hides it and `_protected.admin` redirects away from it unless
+     * the account is an admin.
+     */
+    role: "admin" | "member";
   };
   factors: {
     passwordSet: boolean;
@@ -31,6 +37,17 @@ export interface MockConfig {
     federationProviders: number;
     forwardAuthApps: number;
   };
+  /**
+   * The management area's directory. Kept apart from `lists` because these are
+   * the instance's records rather than the signed-in account's, and because
+   * their ceiling is higher: the account directory pages by cursor, so a
+   * walkthrough needs enough rows to reach the second page.
+   */
+  admin: {
+    accounts: number;
+    groups: number;
+    invitations: number;
+  };
   sudo: {
     fresh: boolean;
     webauthn: boolean;
@@ -45,6 +62,16 @@ export interface MockConfig {
 /** Upper bound for every list length, so one control cannot render a huge table. */
 export const mockListMax = 10;
 
+/**
+ * Upper bound for the management directory. Higher than `mockListMax` because
+ * the account list pages by cursor: reaching the second page is part of what a
+ * walkthrough has to be able to see.
+ */
+export const mockAdminListMax = 50;
+
+/** How many rows one mocked cursor page carries. */
+export const mockPageSize = 5;
+
 /** Upper bound for the response delay, so one control cannot stall a page for minutes. */
 export const mockDelayMax = 5000;
 
@@ -57,6 +84,7 @@ export const defaultMockConfig: MockConfig = {
     displayName: "Mock Member",
     username: "mock",
     avatarPending: false,
+    role: "admin",
   },
   factors: {
     passwordSet: true,
@@ -72,9 +100,14 @@ export const defaultMockConfig: MockConfig = {
     federationProviders: 2,
     forwardAuthApps: 1,
   },
+  admin: {
+    accounts: 12,
+    groups: 3,
+    invitations: 4,
+  },
   sudo: { fresh: true, webauthn: true, passwordTotp: true },
   instance: { maintenance: false, bootstrapped: true },
-};
+} satisfies MockConfig;
 
 const storageKey = "prohibitorum.devtools.mock";
 
@@ -166,6 +199,11 @@ export function resetMockConfig(): void {
 export function clampCount(value: number): number {
   if (!Number.isFinite(value)) return 0;
   return Math.max(0, Math.min(mockListMax, Math.floor(value)));
+}
+
+export function clampAdminCount(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  return Math.max(0, Math.min(mockAdminListMax, Math.floor(value)));
 }
 
 export function clampDelay(value: number): number {

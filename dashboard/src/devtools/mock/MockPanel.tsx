@@ -1,8 +1,10 @@
 import { type ReactNode, useSyncExternalStore } from "react";
 import {
+  clampAdminCount,
   clampCount,
   clampDelay,
   getMockConfig,
+  mockAdminListMax,
   mockDelayMax,
   mockListMax,
   resetMockConfig,
@@ -59,10 +61,12 @@ function Toggle({
 function Count({
   label,
   value,
+  max = mockListMax,
   onChange,
 }: {
   label: string;
   value: number;
+  max?: number;
   onChange: (next: number) => void;
 }) {
   return (
@@ -70,13 +74,53 @@ function Count({
       <input
         type="number"
         min={0}
-        max={mockListMax}
+        max={max}
         value={value}
-        onChange={(event) => onChange(clampCount(Number(event.target.value)))}
+        onChange={(event) =>
+          onChange(
+            max === mockListMax
+              ? clampCount(Number(event.target.value))
+              : clampAdminCount(Number(event.target.value)),
+          )
+        }
         className={`w-14 text-left tabular-nums ${controlClass}`}
       />
       <span className="min-w-0">{label}</span>
     </label>
+  );
+}
+
+/** One labelled choice out of two, laid out like the numeric rows above it. */
+function Choose<T extends string>({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: T;
+  options: { value: T; label: string }[];
+  onChange: (next: T) => void;
+}) {
+  return (
+    <fieldset className="flex items-center gap-2 py-1">
+      <legend className="sr-only">{label}</legend>
+      <span className="min-w-0">{label}</span>
+      <div className="flex gap-1">
+        {options.map((option) => (
+          <label key={option.value} className="flex items-center gap-1">
+            <input
+              type="radio"
+              name={label}
+              checked={value === option.value}
+              onChange={() => onChange(option.value)}
+              className="size-3 shrink-0 accent-emerald-500"
+            />
+            <span>{option.label}</span>
+          </label>
+        ))}
+      </div>
+    </fieldset>
   );
 }
 
@@ -194,7 +238,8 @@ export function MockPanel() {
         here too. Each answer waits the response delay. A request with no
         fixture fails as <code>mock_unmocked</code> rather than reaching the
         server, so a passkey step-up cannot be faked. Mocking is off again after
-        a reload.
+        a reload. The role under Session is what opens the management area: as a
+        member the sidebar omits it and its pages redirect home.
       </p>
 
       <fieldset
@@ -217,6 +262,19 @@ export function MockPanel() {
             onChange={(next) =>
               updateMockConfig((draft) => {
                 draft.session.avatarPending = next;
+              })
+            }
+          />
+          <Choose
+            label="Role"
+            value={config.session.role}
+            options={[
+              { value: "admin", label: "Admin" },
+              { value: "member", label: "Member" },
+            ]}
+            onChange={(next) =>
+              updateMockConfig((draft) => {
+                draft.session.role = next;
               })
             }
           />
@@ -331,6 +389,39 @@ export function MockPanel() {
             onChange={(next) =>
               updateMockConfig((draft) => {
                 draft.lists.forwardAuthApps = next;
+              })
+            }
+          />
+        </Section>
+
+        <Section title="Management">
+          <Count
+            label="Accounts"
+            max={mockAdminListMax}
+            value={config.admin.accounts}
+            onChange={(next) =>
+              updateMockConfig((draft) => {
+                draft.admin.accounts = next;
+              })
+            }
+          />
+          <Count
+            label="User groups"
+            max={mockAdminListMax}
+            value={config.admin.groups}
+            onChange={(next) =>
+              updateMockConfig((draft) => {
+                draft.admin.groups = next;
+              })
+            }
+          />
+          <Count
+            label="Invitations"
+            max={mockAdminListMax}
+            value={config.admin.invitations}
+            onChange={(next) =>
+              updateMockConfig((draft) => {
+                draft.admin.invitations = next;
               })
             }
           />

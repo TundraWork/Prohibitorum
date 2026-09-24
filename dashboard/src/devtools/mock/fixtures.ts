@@ -1,6 +1,18 @@
 import type { components } from "@/api/generated/schema";
+import type {
+  AppAccessRule,
+  AppGroupView,
+  ManualDecisionView,
+  ProviderDescriptorView,
+  RulePreviewPageView,
+} from "@/api/raw-admin-paths";
 import type { DevicePairing, PublicConfig, SudoMethod } from "@/api/raw-paths";
-import { clampCount, type MockConfig } from "@/devtools/mock/model";
+import {
+  clampAdminCount,
+  clampCount,
+  type MockConfig,
+  mockPageSize,
+} from "@/devtools/mock/model";
 
 type Credential = components["schemas"]["CredentialView"];
 type Session = components["schemas"]["SessionView"];
@@ -11,6 +23,9 @@ type ForwardAuthApp = components["schemas"]["MyForwardAuthApp"];
 type ConsentedApp = components["schemas"]["ConsentedApp"];
 type Provider = components["schemas"]["FederationProvider"];
 type Factors = components["schemas"]["MeFactorsView"];
+type Account = components["schemas"]["AccountView"];
+type Invitation = components["schemas"]["InvitationView"];
+type IdentityProvider = components["schemas"]["IdentityProviderView"];
 
 /** Applies what a write did to the config, so the reads that follow agree with it. */
 export type MockEffect = (draft: MockConfig) => void;
@@ -127,6 +142,21 @@ function guarded(config: MockConfig, reply: () => MockReply): MockReply {
   return config.session.signedIn ? reply() : noSession();
 }
 
+/**
+ * The last path segment as a number. Every admin detail route ends in an id —
+ * the account id, the group id, the account id inside an explain — so one
+ * reading serves them all, and a route that ever ends otherwise gets its own.
+ *
+ * The segment comes from the URL because that is where a real request carries
+ * it: openapi-fetch substitutes the path parameter before the request leaves,
+ * so the fixture never sees a `{id}` placeholder.
+ */
+function pathTail(request: MockRequest): number {
+  const segment = new URL(request.url).pathname.split("/").pop() ?? "";
+  const value = Number(segment);
+  return Number.isFinite(value) ? value : 0;
+}
+
 /* ------------------------------------------------------------------ reads -- */
 
 function publicConfig(config: MockConfig): PublicConfig {
@@ -156,7 +186,7 @@ function sessionView(config: MockConfig): Session {
     id: 1,
     username: config.session.username,
     displayName: config.session.displayName,
-    role: "member",
+    role: config.session.role,
     avatarUrl: mockAvatarUrl,
     avatarPending: config.session.avatarPending,
     avatarSource: "user",
@@ -165,9 +195,9 @@ function sessionView(config: MockConfig): Session {
   };
 }
 
-function credentialViews(config: MockConfig): Credential[] {
+function credentialViews(count: number): Credential[] {
   const transportSets: (string[] | null)[] = [["internal", "hybrid"], null];
-  return range(config.factors.passkeys).map((index) => ({
+  return range(count).map((index) => ({
     id: index + 1,
     nickname: `Passkey ${index + 1}`,
     createdAt: iso(-day * (index + 3)),
@@ -188,12 +218,12 @@ function factorsView(config: MockConfig): Factors {
   };
 }
 
-function sessionList(config: MockConfig): SessionListItem[] {
+function sessionList(count: number): SessionListItem[] {
   const agents = [
     "Mozilla/5.0 (X11; Linux x86_64) MockBrowser/1.0",
     "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) MockBrowser/1.0",
   ];
-  return range(config.lists.sessions).map((index) => ({
+  return range(count).map((index) => ({
     id: `mock-session-${index + 1}`,
     isCurrent: index === 0,
     issuedAt: iso(-day * (index + 1)),
@@ -203,8 +233,8 @@ function sessionList(config: MockConfig): SessionListItem[] {
   }));
 }
 
-function identityList(config: MockConfig): Identity[] {
-  return range(config.lists.identities).map((index) => ({
+function identityList(count: number): Identity[] {
+  return range(count).map((index) => ({
     id: index + 1,
     providerSlug: `provider-${index + 1}`,
     providerDisplayName: `Example IdP ${index + 1}`,
@@ -216,8 +246,8 @@ function identityList(config: MockConfig): Identity[] {
   }));
 }
 
-function tokenList(config: MockConfig): Token[] {
-  return range(config.lists.tokens).map((index) => ({
+function tokenList(count: number): Token[] {
+  return range(count).map((index) => ({
     id: index + 1,
     name: `Mock token ${index + 1}`,
     tokenHint: `phb_mock${index + 1}`,
@@ -277,6 +307,255 @@ function pairing(code: string): DevicePairing {
   };
 }
 
+/* ------------------------------------------------------- admin directory -- */
+
+/**
+ * The account directory the management area walks.
+ *
+ * The rows are generated from one index so every page of the directory agrees
+ * with the next: account 3 is the same account whether it arrives in the first
+ * cursor page, in its detail page, or in a preview list. Where a row's shape
+ * varies — an admin here, a disabled account there — it varies by a rule on the
+ * index rather than at random, so a walkthrough can name the row it means.
+ */
+function accountAt(index: number, config: MockConfig): Account {
+  const id = index + 1;
+  const disabled = index % 4 === 3;
+  return {
+    id,
+    username: `mock-user-${id}`,
+    displayName: `Mock User ${id}`,
+    role: index % 5 === 0 ? "admin" : "member",
+    // The account the panel is signed in as, so a mocked profile write and the
+    // signed-in session stay one account rather than two. It is written after
+    // the role above on purpose: the panel's own role wins for this row.
+    ...(id === 1
+      ? {
+          username: config.session.username,
+          displayName: config.session.displayName,
+          role: config.session.role,
+        }
+      : {}),
+    disabled,
+    email: `mock-user-${id}@example.com`,
+    emailVerified: index % 3 !== 2,
+    oidcSubject: `mock-oidc-${id}`,
+    avatarUrl: mockAvatarUrl,
+    createdAt: iso(-day * (index + 30)),
+    updatedAt: iso(-day * (index + 1)),
+    ...(disabled ? {} : { lastSignInAt: iso(-day * (index + 1)) }),
+    attributes: {},
+    matchingIdentities: [],
+  };
+}
+
+function accounts(config: MockConfig): Account[] {
+  return Array.from(
+    { length: clampAdminCount(config.admin.accounts) },
+    (_, index) => accountAt(index, config),
+  );
+}
+
+function accountIdentities(index: number): Identity[] {
+  const id = index + 1;
+  // Every third account is reachable by a single provider rather than two, so a
+  // walkthrough sees both a linked pair and a lone identity.
+  const count = index % 3 === 2 ? 1 : 2;
+  return Array.from({ length: count }, (_, position) => ({
+    id: index * 2 + position + 1,
+    providerSlug: `provider-${position + 1}`,
+    providerDisplayName: `Example IdP ${position + 1}`,
+    protocol: position % 2 === 0 ? "oidc" : "saml",
+    subject: `mock-subject-${id}-${position + 1}`,
+    email: `mock-user-${id}@example.com`,
+    linkedAt: iso(-day * (index + 7)),
+    data: {},
+  }));
+}
+
+function accountCredentials(index: number): Credential[] {
+  return credentialViews(index % 3);
+}
+
+function accountSessions(index: number): SessionListItem[] {
+  return sessionList((index % 3) + 1).map((session, position) => ({
+    ...session,
+    id: `mock-account-${index + 1}-session-${position + 1}`,
+  }));
+}
+
+function accountTokens(index: number): Token[] {
+  return tokenList(index % 2).map((token, position) => ({
+    ...token,
+    id: index * 10 + position + 1,
+    name: `Mock token ${position + 1}`,
+  }));
+}
+
+function invitationAt(index: number, config: MockConfig): Invitation {
+  const groups =
+    groupsFrom(config)
+      .slice(0, index % 3)
+      .map((group) => ({
+        id: group.id,
+        slug: group.slug,
+        displayName: group.displayName,
+      })) ?? [];
+  return {
+    token: `mock-invitation-${index + 1}`,
+    url: `http://localhost:8080/enroll/mock-invitation-${index + 1}`,
+    role: index % 4 === 0 ? "admin" : "member",
+    createdAt: iso(-day * (index + 2)),
+    expiresAt: iso(day * (7 - index)),
+    username: index % 2 === 0 ? `mock-invitee-${index + 1}` : "",
+    // Every other invitation insists on an upstream, which is what the list's
+    // provider column reads as absent rather than empty.
+    ...(index % 2 === 0 ? { expectedUpstreamIdpSlug: "provider-1" } : {}),
+    groupIds: groups.map((group) => group.id),
+    groups,
+    attributes: {},
+  };
+}
+
+/**
+ * The user-group directory. One manual group and one rule group are always
+ * present, because the two edit shapes are the point of the page: a walkthrough
+ * that only ever sees manual groups never reaches the rule editor.
+ */
+function groupsFrom(config: MockConfig): AppGroupView[] {
+  const generated = Array.from(
+    { length: clampAdminCount(config.admin.groups) },
+    (_, index): AppGroupView => {
+      const id = index + 1;
+      const kind = index % 2 === 0 ? "manual" : "rule";
+      return {
+        id,
+        kind,
+        slug: `${kind === "rule" ? "rule" : "manual"}-group-${id}`,
+        displayName: `${kind === "rule" ? "Rule" : "Manual"} group ${id}`,
+        description: index % 3 === 2 ? "" : `A mock ${kind} group.`,
+        exposedToDownstream: index % 2 === 0,
+        ...(kind === "rule" ? { rule: sampleRule(id) } : {}),
+        applicationCount: index % 4,
+      };
+    },
+  );
+  return generated.length > 0
+    ? generated
+    : [
+        {
+          id: 1,
+          kind: "manual",
+          slug: "manual-group-1",
+          displayName: "Manual group 1",
+          description: "A mock manual group.",
+          exposedToDownstream: true,
+          applicationCount: 1,
+        },
+      ];
+}
+
+/** Two conditions and a `not`, so the rule editor has something to render. */
+function sampleRule(id: number): AppAccessRule {
+  return {
+    version: 1,
+    condition: {
+      op: "all",
+      children: [
+        { fact: "login_method", method: id % 2 === 0 ? "passkey" : "password" },
+        { fact: "connection.provider", provider: "provider-1" },
+      ],
+    },
+  };
+}
+
+/**
+ * The per-account allow/deny rows a manual group carries. Not a panel control:
+ * the decisions belong to one group rather than to the instance, and a handful
+ * is enough to show the list, its effects and its clear action.
+ */
+const mockDecisions = 4;
+
+function groupDecisions(): ManualDecisionView[] {
+  return Array.from(
+    { length: mockDecisions },
+    (_, index): ManualDecisionView => ({
+      account: {
+        id: index + 1,
+        username: `mock-user-${index + 1}`,
+        displayName: `Mock User ${index + 1}`,
+      },
+      effect: index % 3 === 2 ? "deny" : "allow",
+      updatedAt: iso(-day * (index + 1)),
+    }),
+  );
+}
+
+function groupPreview(config: MockConfig): RulePreviewPageView {
+  const items = Array.from(
+    { length: clampAdminCount(config.admin.accounts) },
+    (_, index) => ({
+      account: {
+        id: index + 1,
+        username: `mock-user-${index + 1}`,
+        displayName: `Mock User ${index + 1}`,
+      },
+      matched: index % 2 === 0,
+    }),
+  );
+  return {
+    items,
+    matchedCount: items.filter((item) => item.matched).length,
+    nextCursor: "",
+  };
+}
+
+function identityProviders(): IdentityProvider[] {
+  return [
+    {
+      slug: "provider-1",
+      displayName: "Example IdP 1",
+      protocol: "oidc",
+      mode: "manual",
+      disabled: false,
+      ready: true,
+      secretConfigured: true,
+      secretStatus: "valid",
+      secretValidatedAt: iso(-day),
+      createdAt: iso(-day * 60),
+      iconUrl: mockAvatarUrl,
+      config: {},
+      supportsOperator: true,
+      searchFields: [
+        { key: "email", operators: ["eq", "contains"] },
+        { key: "subject", operators: ["eq"] },
+      ],
+    },
+    {
+      slug: "provider-2",
+      displayName: "Example IdP 2",
+      protocol: "saml",
+      mode: "manual",
+      disabled: true,
+      ready: false,
+      secretConfigured: false,
+      secretStatus: "missing",
+      secretValidatedAt: null,
+      createdAt: iso(-day * 60),
+      config: {},
+      supportsOperator: true,
+      searchFields: [{ key: "email", operators: ["eq"] }],
+    },
+  ];
+}
+
+function groupProviders(): ProviderDescriptorView[] {
+  return [
+    { slug: "provider-1", displayName: "Example IdP 1" },
+    { slug: "provider-2", displayName: "Example IdP 2" },
+  ];
+}
+
 function readReply(
   request: MockRequest,
   config: MockConfig,
@@ -289,15 +568,17 @@ function readReply(
     case "/api/prohibitorum/me":
       return guarded(config, () => json(sessionView(config)));
     case "/api/prohibitorum/me/credentials":
-      return guarded(config, () => json(credentialViews(config)));
+      return guarded(config, () =>
+        json(credentialViews(config.factors.passkeys)),
+      );
     case "/api/prohibitorum/me/factors":
       return guarded(config, () => json(factorsView(config)));
     case "/api/prohibitorum/me/sessions":
-      return guarded(config, () => json(sessionList(config)));
+      return guarded(config, () => json(sessionList(config.lists.sessions)));
     case "/api/prohibitorum/me/identities":
-      return guarded(config, () => json(identityList(config)));
+      return guarded(config, () => json(identityList(config.lists.identities)));
     case "/api/prohibitorum/me/tokens":
-      return guarded(config, () => json(tokenList(config)));
+      return guarded(config, () => json(tokenList(config.lists.tokens)));
     case "/api/prohibitorum/me/forward-auth-apps":
       return guarded(config, () => json(forwardAuthAppList(config)));
     case "/api/prohibitorum/me/consent":
@@ -314,6 +595,127 @@ function readReply(
       const code = new URL(request.url).searchParams.get("code") ?? "";
       return guarded(config, () => json(pairing(code)));
     }
+
+    /* -------------------------------------------------- admin directory -- */
+
+    // The management reads answer with the same account the panel signed in as,
+    // so a walkthrough that edits its own profile sees one account rather than
+    // two. A member is answered with the whole directory here too: the real
+    // server would refuse it, but the guard that keeps a member out of these
+    // pages is the role on `/me`, which this fixture also drives.
+    case "/api/prohibitorum/accounts": {
+      const all = accounts(config);
+      const cursor = new URL(request.url).searchParams.get("cursor");
+      const start = cursor === null ? 0 : Number(cursor);
+      const page = all.slice(start, start + mockPageSize);
+      const next = start + page.length;
+      return guarded(config, () =>
+        json({
+          items: page,
+          nextCursor: next < all.length ? String(next) : "",
+        }),
+      );
+    }
+    case "/api/prohibitorum/accounts/{id}": {
+      const id = Number(new URL(request.url).pathname.split("/").pop());
+      const found = accounts(config).find((account) => account.id === id);
+      return guarded(config, () =>
+        found ? json(found) : { kind: "error", status: 404, code: "not_found" },
+      );
+    }
+    case "/api/prohibitorum/accounts/{id}/identities": {
+      const id = pathTail(request);
+      return guarded(config, () => json(accountIdentities(id - 1)));
+    }
+    case "/api/prohibitorum/accounts/{id}/credentials": {
+      const id = pathTail(request);
+      return guarded(config, () => json(accountCredentials(id - 1)));
+    }
+    case "/api/prohibitorum/accounts/{id}/sessions": {
+      const id = pathTail(request);
+      return guarded(config, () => json(accountSessions(id - 1)));
+    }
+    case "/api/prohibitorum/accounts/{id}/tokens": {
+      const id = pathTail(request);
+      return guarded(config, () => json(accountTokens(id - 1)));
+    }
+    case "/api/prohibitorum/invitations": {
+      const all = Array.from(
+        { length: clampAdminCount(config.admin.invitations) },
+        (_, index) => invitationAt(index, config),
+      );
+      const cursor = new URL(request.url).searchParams.get("cursor");
+      const start = cursor === null ? 0 : Number(cursor);
+      const page = all.slice(start, start + mockPageSize);
+      const next = start + page.length;
+      return guarded(config, () =>
+        json({
+          items: page,
+          nextCursor: next < all.length ? String(next) : "",
+        }),
+      );
+    }
+    case "/api/prohibitorum/identity-providers":
+      // A cursor page, like the handler's `contract.Page[...]` envelope — not
+      // the bare array `GET /groups` answers with.
+      return guarded(config, () =>
+        json({ items: identityProviders(), nextCursor: "" }),
+      );
+    case "/api/prohibitorum/groups":
+      return guarded(config, () => json(groupsFrom(config)));
+    case "/api/prohibitorum/groups/providers":
+      return guarded(config, () => json(groupProviders()));
+    case "/api/prohibitorum/groups/{groupId}": {
+      const id = pathTail(request);
+      const found = groupsFrom(config).find((group) => group.id === id);
+      return guarded(config, () =>
+        found ? json(found) : { kind: "error", status: 404, code: "not_found" },
+      );
+    }
+    case "/api/prohibitorum/groups/{groupId}/decisions":
+      return guarded(config, () =>
+        json({ items: groupDecisions(), nextCursor: "" }),
+      );
+    case "/api/prohibitorum/groups/{groupId}/preview":
+      return guarded(config, () => json(groupPreview(config)));
+    case "/api/prohibitorum/groups/{groupId}/applications":
+      return guarded(config, () =>
+        json({
+          items: range(clampCount(config.admin.groups)).map((index) => ({
+            appId: `mock-client-${index + 1}`,
+            kind: index % 2 === 0 ? "oidc" : "saml",
+            displayName: `Sample application ${index + 1}`,
+            iconUrl: mockAvatarUrl,
+          })),
+          nextCursor: "",
+        }),
+      );
+    case "/api/prohibitorum/groups/{groupId}/explain/{accountId}": {
+      const accountId = pathTail(request);
+      return guarded(config, () =>
+        json({
+          account: {
+            id: accountId,
+            username: `mock-user-${accountId}`,
+            displayName: `Mock User ${accountId}`,
+          },
+          explanation: {
+            path: "$",
+            label: "All of",
+            result: accountId % 2 === 0,
+            children: [
+              { path: "$.0", label: "Signed in with a passkey", result: true },
+              {
+                path: "$.1",
+                label: "Provider is Example IdP 1",
+                result: false,
+              },
+            ],
+          },
+        }),
+      );
+    }
+
     default:
       return undefined;
   }
@@ -477,9 +879,170 @@ function writeReply(
         draft.sudo.fresh = true;
       });
 
+    /* ------------------------------------------------- admin directory -- */
+
+    // The directory's writes follow the same rule as the rest of the mock: the
+    // reply carries the new state and an effect moves the config, so the read
+    // that follows the write agrees with it rather than undoing it.
+    case "/api/prohibitorum/accounts/{id}": {
+      if (method !== "PUT") return undefined;
+      const id = pathTail(request);
+      const index = id - 1;
+      const current = accountAt(index, config);
+      const updated: Account = {
+        ...current,
+        displayName: stringField(body, "displayName") ?? current.displayName,
+        role: stringField(body, "role") ?? current.role,
+        updatedAt: iso(0),
+      };
+      if (index === 0) {
+        return json(updated, (draft) => {
+          draft.session.displayName = updated.displayName;
+          draft.session.role = updated.role === "admin" ? "admin" : "member";
+        });
+      }
+      return json(updated);
+    }
+
+    case "/api/prohibitorum/accounts/set-disabled": {
+      const id = Number(field(body, "id"));
+      const disabled = booleanField(body, "disabled") ?? false;
+      return json({ ...accountAt(id - 1, config), disabled });
+    }
+
+    case "/api/prohibitorum/accounts/delete":
+      return json({}, (draft) => {
+        draft.admin.accounts = Math.max(0, draft.admin.accounts - 1);
+      });
+
+    case "/api/prohibitorum/accounts/reissue-enrollment": {
+      const id = Number(field(body, "id"));
+      return json({
+        url: `http://localhost:8080/enroll/mock-reissue-${id}`,
+        expiresAt: iso(day),
+      });
+    }
+
+    case "/api/prohibitorum/accounts/credentials/delete":
+      return empty();
+
+    case "/api/prohibitorum/accounts/tokens/revoke":
+      return empty();
+
+    case "/api/prohibitorum/accounts/{id}/sessions/revoke":
+      return empty();
+
+    case "/api/prohibitorum/accounts/revoke-sessions":
+      return json({ revoked: 1 });
+
+    case "/api/prohibitorum/invitations": {
+      if (method !== "POST") return undefined;
+      const id = clampAdminCount(config.admin.invitations) + 1;
+      return json(
+        {
+          url: `http://localhost:8080/enroll/mock-invitation-${id}`,
+          expiresAt: iso(day * 7),
+          groupIds: (field(body, "groupIds") as number[] | undefined) ?? null,
+          username: stringField(body, "username") ?? "",
+        },
+        (draft) => {
+          draft.admin.invitations = clampAdminCount(
+            draft.admin.invitations + 1,
+          );
+        },
+      );
+    }
+
+    case "/api/prohibitorum/invitations/revoke":
+      return json({}, (draft) => {
+        draft.admin.invitations = Math.max(0, draft.admin.invitations - 1);
+      });
+
+    case "/api/prohibitorum/groups": {
+      if (method !== "POST") return undefined;
+      return json(createdGroup(body, config), (draft) => {
+        draft.admin.groups = clampAdminCount(draft.admin.groups + 1);
+      });
+    }
+
+    case "/api/prohibitorum/groups/{groupId}": {
+      if (method !== "PUT") return undefined;
+      const id = pathTail(request);
+      const current = groupsFrom(config).find((group) => group.id === id);
+      return json({
+        ...(current ?? createdGroup(body, config)),
+        id,
+        slug: stringField(body, "slug") ?? current?.slug ?? `group-${id}`,
+        displayName:
+          stringField(body, "displayName") ?? current?.displayName ?? "",
+        description: stringField(body, "description") ?? "",
+      });
+    }
+
+    case "/api/prohibitorum/groups/{groupId}/delete":
+      return empty(204, (draft) => {
+        draft.admin.groups = Math.max(0, draft.admin.groups - 1);
+      });
+
+    case "/api/prohibitorum/groups/{groupId}/decisions": {
+      const accountId = Number(field(body, "accountId"));
+      return json({
+        account: {
+          id: accountId,
+          username: `mock-user-${accountId}`,
+          displayName: `Mock User ${accountId}`,
+        },
+        effect: stringField(body, "effect") ?? "allow",
+        updatedAt: iso(0),
+      });
+    }
+
+    case "/api/prohibitorum/groups/{groupId}/decisions/clear":
+      return empty();
+
+    case "/api/prohibitorum/groups/rule-preview": {
+      // The draft is what is being previewed, so the answer is derived from it
+      // rather than from the saved groups: a rule with no conditions matches
+      // nobody, which is what the editor should show for an empty draft.
+      const condition = field(body, "condition");
+      const matches = hasLeaf(condition)
+        ? groupPreview(config)
+        : emptyPreview();
+      return json(matches);
+    }
+
     default:
       return undefined;
   }
+}
+
+/** The group a create write should answer with, taken from what it carried. */
+function createdGroup(body: unknown, config: MockConfig): AppGroupView {
+  const id = clampAdminCount(config.admin.groups) + 1;
+  const kind = stringField(body, "kind") ?? "manual";
+  const rule = field(body, "rule") as AppAccessRule | undefined;
+  return {
+    id,
+    kind,
+    slug: stringField(body, "slug") ?? `group-${id}`,
+    displayName: stringField(body, "displayName") ?? `Group ${id}`,
+    description: stringField(body, "description") ?? "",
+    exposedToDownstream: booleanField(body, "exposedToDownstream") ?? false,
+    ...(kind === "rule" && rule ? { rule } : {}),
+    applicationCount: 0,
+  };
+}
+
+/** Whether a rule draft carries at least one leaf condition. */
+function hasLeaf(condition: unknown): boolean {
+  if (typeof condition !== "object" || condition === null) return false;
+  const node = condition as { fact?: unknown; children?: unknown[] };
+  if (typeof node.fact === "string") return true;
+  return Array.isArray(node.children) && node.children.some(hasLeaf);
+}
+
+function emptyPreview(): RulePreviewPageView {
+  return { items: [], matchedCount: 0, nextCursor: "" };
 }
 
 /**
