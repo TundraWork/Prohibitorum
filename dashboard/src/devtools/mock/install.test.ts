@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { client } from "@/api/client";
+import { ApiError } from "@/api/errors";
 import { installApiMocks } from "@/devtools/mock/install";
 import { resetMockConfig, updateMockConfig } from "@/devtools/mock/model";
 
@@ -64,5 +65,44 @@ describe("mock middleware latency", () => {
     const result = await pending;
     expect(settled).toBe(true);
     expect(result.response.status).toBe(200);
+  });
+});
+
+describe("mock failures", () => {
+  it("carries the same request details as a real failure", async () => {
+    updateMockConfig((draft) => {
+      draft.enabled = true;
+      draft.writes = true;
+      draft.delayMs = 0;
+    });
+    installApiMocks(application());
+
+    // A passkey begin has no fixture. The extra field stands in for a secret a
+    // real unmocked write could carry.
+    const error = await client
+      .POST("/api/prohibitorum/me/sudo/begin", {
+        body: { method: "webauthn", password: "hunter2" } as never,
+      })
+      .catch((failure: unknown) => failure);
+
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error).toMatchObject({
+      kind: "http",
+      status: 501,
+      code: "mock_unmocked",
+      details: { method: "POST", path: "/api/prohibitorum/me/sudo/begin" },
+      exchange: {
+        method: "POST",
+        path: "/api/prohibitorum/me/sudo/begin",
+        response: { status: 501 },
+      },
+    });
+    const { exchange, requestId } = error as ApiError;
+    expect(requestId).toMatch(/^mock-/);
+    expect(JSON.parse(exchange?.requestBody ?? "")).toEqual({
+      method: "webauthn",
+      password: "••••••",
+    });
+    expect(exchange?.response?.body).toContain('"code": "mock_unmocked"');
   });
 });

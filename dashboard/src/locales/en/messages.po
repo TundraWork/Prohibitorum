@@ -1244,6 +1244,11 @@ msgid "admin.federation.diagnostics.close"
 msgstr "Close"
 
 #. js-lingui-explicit-id
+#: src/components/custom/RequestDetailsDialog.tsx
+msgid "request_details.close"
+msgstr "Close"
+
+#. js-lingui-explicit-id
 #: src/components/custom/ConsoleLayout.tsx
 msgid "console.close-menu"
 msgstr "Close navigation"
@@ -2008,6 +2013,11 @@ msgstr "Description"
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminLogs.tsx
 msgid "admin.logs.detail.detail"
+msgstr "Details"
+
+#. js-lingui-explicit-id
+#: src/components/custom/AppNotifications.tsx
+msgid "notification.details"
 msgstr "Details"
 
 #. js-lingui-explicit-id
@@ -3903,6 +3913,11 @@ msgid "admin.federation.empty"
 msgstr "No providers yet"
 
 #. js-lingui-explicit-id
+#: src/components/custom/RequestDetailsDialog.tsx
+msgid "request_details.no_response"
+msgstr "No response was received from the server."
+
+#. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AdminSamlApplications.tsx
 msgid "admin.saml-apps.empty"
 msgstr "No SAML applications yet"
@@ -4865,6 +4880,21 @@ msgid "admin.saml-apps.metadata.dialog.hint"
 msgstr "Replaces the endpoints and certificates below. The Entity ID and the name stay as they are."
 
 #. js-lingui-explicit-id
+#: src/components/custom/RequestDetailsDialog.tsx
+msgid "request_details.request"
+msgstr "Request"
+
+#. js-lingui-explicit-id
+#: src/components/custom/RequestDetailsDialog.tsx
+msgid "request_details.request_body"
+msgstr "Request body"
+
+#. js-lingui-explicit-id
+#: src/components/custom/RequestDetailsDialog.tsx
+msgid "request_details.title"
+msgstr "Request details"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
 msgid "admin.federation.diagnostics.stage.request"
 msgstr "Request ID <0>{requestId}</0>"
@@ -4922,6 +4952,16 @@ msgstr "Required to sign in. Always included."
 #: src/pages/Login.tsx
 msgid "login.reset.toggle"
 msgstr "Reset my authenticator"
+
+#. js-lingui-explicit-id
+#: src/components/custom/RequestDetailsDialog.tsx
+msgid "request_details.response_body"
+msgstr "Response body"
+
+#. js-lingui-explicit-id
+#: src/components/custom/RequestDetailsDialog.tsx
+msgid "request_details.response_headers"
+msgstr "Response headers"
 
 #. js-lingui-explicit-id
 #: src/components/custom/AppAccessPanel.tsx
@@ -5672,6 +5712,11 @@ msgstr "State examples"
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/SigningKeysPanel.tsx
 msgid "settings.keys.column.status"
+msgstr "Status"
+
+#. js-lingui-explicit-id
+#: src/components/custom/RequestDetailsDialog.tsx
+msgid "request_details.status"
 msgstr "Status"
 
 #. js-lingui-explicit-id

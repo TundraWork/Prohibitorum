@@ -1244,6 +1244,11 @@ msgid "admin.federation.diagnostics.close"
 msgstr "关闭"
 
 #. js-lingui-explicit-id
+#: src/components/custom/RequestDetailsDialog.tsx
+msgid "request_details.close"
+msgstr "关闭"
+
+#. js-lingui-explicit-id
 #: src/components/custom/ConsoleLayout.tsx
 msgid "console.close-menu"
 msgstr "关闭导航"
@@ -2008,6 +2013,11 @@ msgstr "说明"
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminLogs.tsx
 msgid "admin.logs.detail.detail"
+msgstr "详情"
+
+#. js-lingui-explicit-id
+#: src/components/custom/AppNotifications.tsx
+msgid "notification.details"
 msgstr "详情"
 
 #. js-lingui-explicit-id
@@ -3903,6 +3913,11 @@ msgid "admin.federation.empty"
 msgstr "暂无提供商"
 
 #. js-lingui-explicit-id
+#: src/components/custom/RequestDetailsDialog.tsx
+msgid "request_details.no_response"
+msgstr "没有收到服务器的响应。"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AdminSamlApplications.tsx
 msgid "admin.saml-apps.empty"
 msgstr "暂无 SAML 应用"
@@ -4865,6 +4880,21 @@ msgid "admin.saml-apps.metadata.dialog.hint"
 msgstr "会替换下面的端点和证书。Entity ID 和名称保持不变。"
 
 #. js-lingui-explicit-id
+#: src/components/custom/RequestDetailsDialog.tsx
+msgid "request_details.request"
+msgstr "请求"
+
+#. js-lingui-explicit-id
+#: src/components/custom/RequestDetailsDialog.tsx
+msgid "request_details.request_body"
+msgstr "请求体"
+
+#. js-lingui-explicit-id
+#: src/components/custom/RequestDetailsDialog.tsx
+msgid "request_details.title"
+msgstr "请求详情"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
 msgid "admin.federation.diagnostics.stage.request"
 msgstr "请求 ID <0>{requestId}</0>"
@@ -4922,6 +4952,16 @@ msgstr "登录必需，始终包含。"
 #: src/pages/Login.tsx
 msgid "login.reset.toggle"
 msgstr "重设身份验证器"
+
+#. js-lingui-explicit-id
+#: src/components/custom/RequestDetailsDialog.tsx
+msgid "request_details.response_body"
+msgstr "响应体"
+
+#. js-lingui-explicit-id
+#: src/components/custom/RequestDetailsDialog.tsx
+msgid "request_details.response_headers"
+msgstr "响应头"
 
 #. js-lingui-explicit-id
 #: src/components/custom/AppAccessPanel.tsx
@@ -5673,6 +5713,11 @@ msgstr "状态样例"
 #: src/pages/admin/settings/SigningKeysPanel.tsx
 msgid "settings.keys.column.status"
 msgstr "状态"
+
+#. js-lingui-explicit-id
+#: src/components/custom/RequestDetailsDialog.tsx
+msgid "request_details.status"
+msgstr "状态码"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-options.ts

@@ -1,5 +1,6 @@
 import createClient from "openapi-fetch";
-import { ApiError, isCancellation, isPublicError } from "@/api/errors";
+import { ApiError, isCancellation } from "@/api/errors";
+import { httpFailure, networkFailure } from "@/api/exchange";
 import type { paths } from "@/api/generated/schema";
 import type { RawAdminPaths } from "@/api/raw-admin-paths";
 import type { RawPaths } from "@/api/raw-paths";
@@ -50,32 +51,22 @@ type AdminPaths = RawPaths &
 export const client = createClient<AdminPaths>({
   baseUrl: window.location.origin,
   credentials: "same-origin",
-  fetch: (request) => globalThis.fetch(request),
+  // A clone goes out, so the middleware's request keeps its body for the
+  // details of a failure.
+  fetch: (request) => globalThis.fetch(request.clone()),
 });
 
 client.use({
-  async onResponse({ response }) {
+  async onResponse({ request, response }) {
     if (response.ok) return;
-    let body: unknown;
-    try {
-      body = await response.json();
-    } catch (error) {
-      if (isCancellation(error)) throw error;
-    }
-    throw new ApiError({
-      kind: "http",
-      status: response.status,
-      ...(isPublicError(body)
-        ? { code: body.code, details: body.details, requestId: body.requestId }
-        : {}),
-    });
+    throw await httpFailure(request, response);
   },
-  onError({ error, request }) {
+  async onError({ error, request }) {
     if (isCancellation(error)) return;
     if (request.signal.aborted) {
       return new DOMException("The request was aborted.", "AbortError");
     }
-    return new ApiError({ kind: "network" }, { cause: error });
+    return await networkFailure(request, error);
   },
 });
 

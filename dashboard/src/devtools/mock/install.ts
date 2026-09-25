@@ -1,7 +1,7 @@
 import type { QueryClient } from "@tanstack/react-query";
 import type { RegisteredRouter } from "@tanstack/react-router";
 import { client } from "@/api/client";
-import { ApiError } from "@/api/errors";
+import { httpFailure } from "@/api/exchange";
 import { sessionQueryOptions } from "@/api/queries";
 import { buildMockReply } from "@/devtools/mock/fixtures";
 import {
@@ -52,7 +52,7 @@ export function installApiMocks(application: Application): void {
   application.router.subscribe("onResolved", applyLocation);
 
   client.use({
-    async onRequest({ schemaPath, request }) {
+    async onRequest({ schemaPath, request, id }) {
       const config = getMockConfig();
       if (!config.enabled) return undefined;
       const reply = buildMockReply(
@@ -72,15 +72,22 @@ export function installApiMocks(application: Application): void {
       // already agree with it.
       if (reply.effect) updateMockConfig(reply.effect);
       // Thrown rather than returned: a response returned from `onRequest`
-      // skips the client's own onResponse middleware, so the ApiError shape the
-      // callers switch on has to come from here.
+      // skips the client's own onResponse middleware, so the error is built
+      // here, from the same response a server would send, the way the client
+      // builds it. The request ID is part of that envelope; without one the
+      // client would not trust the code.
       if (reply.kind === "error") {
-        throw new ApiError({
-          kind: "http",
-          status: reply.status,
-          code: reply.code,
-          ...(reply.details ? { details: reply.details } : {}),
-        });
+        throw await httpFailure(
+          request,
+          Response.json(
+            {
+              code: reply.code,
+              requestId: `mock-${id}`,
+              ...(reply.details ? { details: reply.details } : {}),
+            },
+            { status: reply.status },
+          ),
+        );
       }
       if (reply.kind === "empty") {
         return new Response(null, { status: reply.status });

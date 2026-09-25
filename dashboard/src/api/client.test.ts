@@ -170,4 +170,69 @@ describe("typed API transport", () => {
     expect(request?.credentials).toBe("same-origin");
     expect(await request?.json()).toEqual({ id: 7, nickname: "  Desk KEY  " });
   });
+
+  it("keeps the masked request and the response of a failed write", async () => {
+    fetchBoundary.mockResolvedValueOnce(
+      Response.json(
+        { code: "bad_credentials", requestId: "request-password" },
+        { status: 401, headers: { "x-request-id": "request-password" } },
+      ),
+    );
+    const error = await client
+      .POST("/api/prohibitorum/me/sudo/complete", {
+        body: { current_password: "old secret", totp_code: "123456" },
+      })
+      .catch((failure: unknown) => failure);
+
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error).toMatchObject({
+      kind: "http",
+      status: 401,
+      code: "bad_credentials",
+      requestId: "request-password",
+      exchange: {
+        method: "POST",
+        path: "/api/prohibitorum/me/sudo/complete",
+        response: {
+          status: 401,
+          body: '{\n  "code": "bad_credentials",\n  "requestId": "request-password"\n}',
+        },
+      },
+    });
+    const { exchange } = error as ApiError;
+    expect(JSON.parse(exchange?.requestBody ?? "")).toEqual({
+      current_password: "••••••",
+      totp_code: "••••••",
+    });
+    expect(exchange?.requestBody).not.toContain("secret");
+    expect(exchange?.requestBody).not.toContain("123456");
+    expect(exchange?.response?.headers).toContainEqual([
+      "x-request-id",
+      "request-password",
+    ]);
+    expect(JSON.stringify(describeError(error))).not.toContain("secret");
+  });
+
+  it("keeps the request of a network failure without a response", async () => {
+    fetchBoundary.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+    const error = await client
+      .POST("/api/prohibitorum/me/credentials/rename", {
+        body: { id: 7, nickname: "Desk key" },
+      })
+      .catch((failure: unknown) => failure);
+
+    expect(error).toMatchObject({
+      kind: "network",
+      exchange: {
+        method: "POST",
+        path: "/api/prohibitorum/me/credentials/rename",
+      },
+    });
+    const { exchange } = error as ApiError;
+    expect(JSON.parse(exchange?.requestBody ?? "")).toEqual({
+      id: 7,
+      nickname: "Desk key",
+    });
+    expect(exchange?.response).toBeUndefined();
+  });
 });

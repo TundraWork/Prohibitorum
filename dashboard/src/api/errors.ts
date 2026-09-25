@@ -1,6 +1,7 @@
 import type { MessageDescriptor } from "@lingui/core";
 import { msg } from "@lingui/core/macro";
 import { isCancelledError } from "@tanstack/react-query";
+import type { RequestExchange } from "@/api/exchange";
 
 export interface PublicError {
   code: string;
@@ -14,6 +15,8 @@ export interface ApiErrorOptions {
   code?: string;
   details?: Record<string, unknown>;
   requestId?: string;
+  /** The failed request and its response, for the details dialog only. */
+  exchange?: RequestExchange;
 }
 
 export class ApiError extends Error {
@@ -22,6 +25,7 @@ export class ApiError extends Error {
   readonly code?: string;
   readonly details?: Record<string, unknown>;
   readonly requestId?: string;
+  readonly exchange?: RequestExchange;
 
   constructor(options: ApiErrorOptions, cause?: ErrorOptions) {
     super(options.kind, cause);
@@ -31,6 +35,7 @@ export class ApiError extends Error {
     this.code = options.code;
     this.details = options.details;
     this.requestId = options.requestId;
+    this.exchange = options.exchange;
   }
 }
 

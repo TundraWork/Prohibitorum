@@ -5,7 +5,7 @@ import {
 } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { type ReactNode, useState } from "react";
+import { useState } from "react";
 import { describeError, isCancellation } from "@/api/errors";
 import {
   approveDeviceMutationOptions,
@@ -14,6 +14,7 @@ import {
 } from "@/api/mutations";
 import type { DevicePairing } from "@/api/raw-paths";
 import { Button } from "@/components/custom/Button";
+import { Detail } from "@/components/custom/Detail";
 import { RelativeTime } from "@/components/custom/RelativeTime";
 import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
 import { applyServerError } from "@/forms/server-errors";
@@ -237,20 +238,5 @@ function ApproveDialog({
         </Modal.Container>
       </Modal.Backdrop>
     </Modal>
-  );
-}
-
-function Detail({
-  label,
-  children,
-}: {
-  label: ReactNode;
-  children: ReactNode;
-}) {
-  return (
-    <div className="min-w-0">
-      <dt className="text-sm text-muted">{label}</dt>
-      <dd className="wrap-anywhere">{children}</dd>
-    </div>
   );
 }
