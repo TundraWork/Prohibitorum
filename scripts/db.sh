@@ -7,6 +7,9 @@
 #   scripts/db.sh reset     # DESTROY the data volume + recreate
 #   scripts/db.sh migrate   # apply goose migrations
 #   scripts/db.sh status    # container + migration status
+#
+# migrate and status use $PROHIBITORUM_DATABASE_URL, which mise.toml [env]
+# provides; run them through `mise run db …`.
 #   scripts/db.sh ensure    # start only if not already accepting (dev tasks call this)
 #
 # Sourcing this file (`. scripts/db.sh`) defines the helpers (compose_cmd, pg,
@@ -89,16 +92,12 @@ db_recreate() {
 }
 
 db_migrate() {
-	# shellcheck disable=SC1091
-	. "$ROOT/scripts/dev-env.sh"
 	goose -dir "$ROOT/db/migrations" postgres "$PROHIBITORUM_DATABASE_URL" up
 }
 
 db_status() {
 	# shellcheck disable=SC2046,SC2086
 	( cd "$ROOT" && $(compose_cmd) ps )
-	# shellcheck disable=SC1091
-	. "$ROOT/scripts/dev-env.sh"
 	goose -dir "$ROOT/db/migrations" postgres "$PROHIBITORUM_DATABASE_URL" status || true
 }
 

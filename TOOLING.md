@@ -49,7 +49,7 @@ Run `mise run dev:api-types` after changing API schemas and commit `dashboard/sr
 
 - One-stop: `mise install` provisions every pinned tool (Go, Node, pnpm, sqlc, goose, GoReleaser, cosign).
 - Dev DB: **`mise run db start`** — a Postgres container from `compose.yaml`, via `scripts/db.sh`, which auto-detects `podman compose` or `docker compose` (override with `PROHIBITORUM_COMPOSE`). The dev tasks (`dev:server`, `dev:seed`, `dev:enroll-admin`, the harnesses) call `scripts/db.sh ensure` to start it automatically when down.
-- Env: `scripts/dev-env.sh` exports the dev `PROHIBITORUM_*` vars + a stable `.dev/encryption-key`, sourced internally by the dev tasks.
+- Env: `mise.toml` `[env]` sets the dev `PROHIBITORUM_*` vars — public origin `http://localhost:8080`, the `prohibitorum_dev` DSN, WebAuthn origins for `:8080` and the Vite server on `:5173`, and a data key generated once into `.dev/encryption-key`. Every `mise run` task and a `mise activate`d shell get them; a value already in the environment wins, and `mise.local.toml` holds lasting overrides. `ci:smoke` and the `dev:federation` / `dev:forward-auth` harnesses set their own origins.
 
 ## Prod — OCI image via GoReleaser + ko
 

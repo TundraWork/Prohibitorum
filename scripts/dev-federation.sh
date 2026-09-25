@@ -82,9 +82,10 @@ for h in "$DEV_FED_UPSTREAM_HOST" "$DEV_FED_DOWNSTREAM_HOST"; do
 	esac
 done
 
-# --- 2. shared encryption key (reuse dev-env.sh's) -------------------------
-[ -f .dev/encryption-key ] || openssl rand -base64 32 >.dev/encryption-key
-export PROHIBITORUM_DATA_ENCRYPTION_KEY_V1="$(cat .dev/encryption-key)"
+# --- 2. shared encryption key and origins (from mise.toml [env]) -----------
+: "${PROHIBITORUM_DATA_ENCRYPTION_KEY_V1:?run this through mise run dev:federation}"
+# Each instance derives its WebAuthn origins from its own public origin.
+unset PROHIBITORUM_WEBAUTHN_RP_ORIGINS
 
 # --- DB: ensure the dev Postgres (container) is up. psql/createdb run INSIDE
 # the container via the pg() helper from db.sh — no host Postgres client needed.

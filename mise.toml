@@ -28,6 +28,18 @@ lockfile = true
 # back — `go.mod`'s `go 1.26` stays the language floor. See TOOLING.md.
 GOTOOLCHAIN = "local"
 
+# Dev defaults for the server, so `mise run dev:*`, `./prohibitorum` and ad-hoc
+# go/goose commands in an activated shell share one environment. A value already
+# set in the environment wins; put lasting overrides in mise.local.toml.
+PROHIBITORUM_PUBLIC_ORIGIN = "{{ get_env(name='PROHIBITORUM_PUBLIC_ORIGIN', default='http://localhost:8080') }}"
+PROHIBITORUM_DATABASE_URL = "{{ get_env(name='PROHIBITORUM_DATABASE_URL', default='postgres://prohibitorum:prohibitorum@localhost:5432/prohibitorum_dev?sslmode=disable') }}"
+# Passkeys also work from the Vite dev server (`mise run dev:dashboard`), whose
+# pages carry their own origin even though /api is proxied to :8080.
+PROHIBITORUM_WEBAUTHN_RP_ORIGINS = "{{ get_env(name='PROHIBITORUM_WEBAUTHN_RP_ORIGINS', default=env.PROHIBITORUM_PUBLIC_ORIGIN ~ ',http://localhost:5173') }}"
+# Generated once into .dev/encryption-key (gitignored) and reused, so persisted
+# data stays decryptable across runs.
+PROHIBITORUM_DATA_ENCRYPTION_KEY_V1 = { value = "{{ get_env(name='PROHIBITORUM_DATA_ENCRYPTION_KEY_V1', default=exec(command='f=\"' ~ config_root ~ '/.dev/encryption-key\"; [ -s \"$f\" ] || { mkdir -p \"${f%/*}\" && (umask 077 && openssl rand -base64 32 >\"$f\"); }; cat \"$f\"')) }}", redact = true }
+
 # =============================================================================
 # Tasks — namespaced by CONTEXT so dev, CI, and prod can't be mixed up.
 # Run with `mise run <task>`, e.g. `mise run dev:server`.
@@ -50,7 +62,6 @@ depends = ["build:web"]
 run = """
 set -e
 scripts/db.sh ensure
-. ./scripts/dev-env.sh
 exec go run ./cmd/prohibitorum
 """
 
@@ -68,7 +79,6 @@ description = "DEV: issue an admin passkey-enrollment URL against the dev DB; op
 run = """
 set -e
 scripts/db.sh ensure
-. ./scripts/dev-env.sh
 exec go run ./cmd/prohibitorum enroll-admin "$@"
 """
 
@@ -77,7 +87,6 @@ description = "DEV: seed the dev database with example providers/accounts/invita
 run = """
 set -e
 scripts/db.sh ensure
-. ./scripts/dev-env.sh
 exec go run ./cmd/prohibitorum dev-seed
 """
 
@@ -159,6 +168,9 @@ scripts/db.sh recreate-db prohibitorum_smoke
 export PROHIBITORUM_DATABASE_URL="postgres://prohibitorum:prohibitorum@localhost:5432/prohibitorum_smoke?sslmode=disable"
 export PROHIBITORUM_DATA_ENCRYPTION_KEY_V1="$(openssl rand -base64 32)"
 export PROHIBITORUM_PUBLIC_ORIGIN="https://127.0.0.1:18443"
+# Replace the dev [env] origin list; set rather than unset, because a nested
+# `mise exec` would fill an unset value back in from [env].
+export PROHIBITORUM_WEBAUTHN_RP_ORIGINS="$PROHIBITORUM_PUBLIC_ORIGIN"
 export PROHIBITORUM_FEDERATION_STATE_TTL="5s"
 
 TMP_DIR="$(mktemp -d)"
@@ -282,7 +294,7 @@ touch pkg/webui/dist/.gitkeep
 # ---- prod: production build + release (the ship path) -----------------------
 
 [tasks."prod:build"]
-description = "PROD: build the SPA + compile the ./prohibitorum release binary (-tags nodynamic, embeds the SPA), matching the released artifact. Run it with `. ./scripts/dev-env.sh && ./prohibitorum` or set PROHIBITORUM_* yourself."
+description = "PROD: build the SPA + compile the ./prohibitorum release binary (-tags nodynamic, embeds the SPA), matching the released artifact. Run it with `mise exec -- ./prohibitorum` (the dev env from [env]) or set PROHIBITORUM_* yourself."
 depends = ["build:web"]
 run = """
 set -e
