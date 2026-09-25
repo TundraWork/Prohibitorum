@@ -45,11 +45,12 @@ type listAuditEventsOut struct {
 
 // ----- projection helper -----------------------------------------------------
 
-// auditEventView projects a db.CredentialEvent row into the wire-safe view.
+// auditEventView projects a db.ListCredentialEventsRow into the wire-safe view.
 // IP is formatted to string (empty if nil); UserAgent is from pgtype.Text.
 // Detail is decoded from JSON bytes into map[string]any — nil if empty.
+// AccountUsername comes from the LEFT JOIN on account; empty when there is none.
 // This function is the projection chokepoint; it adds and removes no keys.
-func auditEventView(r db.CredentialEvent) contract.AuditEventView {
+func auditEventView(r db.ListCredentialEventsRow) contract.AuditEventView {
 	v := contract.AuditEventView{
 		ID:     r.ID,
 		At:     r.At.Time,
@@ -66,6 +67,9 @@ func auditEventView(r db.CredentialEvent) contract.AuditEventView {
 	}
 	if r.UserAgent.Valid {
 		v.UserAgent = r.UserAgent.String
+	}
+	if r.AccountUsername.Valid {
+		v.AccountUsername = r.AccountUsername.String
 	}
 	return v
 }

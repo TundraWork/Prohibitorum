@@ -663,6 +663,7 @@ export interface components {
         AuditEventView: {
             /** Format: int32 */
             accountId?: number;
+            accountUsername?: string;
             /** Format: date-time */
             at: string;
             detail?: {

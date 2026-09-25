@@ -162,7 +162,7 @@ type Querier interface {
 	// still resolves its display name.
 	ListAvatarSourcesByAccount(ctx context.Context, accountID int32) ([]ListAvatarSourcesByAccountRow, error)
 	ListConsentsByAccount(ctx context.Context, accountID int32) ([]ListConsentsByAccountRow, error)
-	ListCredentialEvents(ctx context.Context, arg ListCredentialEventsParams) ([]CredentialEvent, error)
+	ListCredentialEvents(ctx context.Context, arg ListCredentialEventsParams) ([]ListCredentialEventsRow, error)
 	ListCredentialEventsByAccount(ctx context.Context, arg ListCredentialEventsByAccountParams) ([]CredentialEvent, error)
 	ListCredentialEventsByFactor(ctx context.Context, arg ListCredentialEventsByFactorParams) ([]CredentialEvent, error)
 	ListCredentialsByAccount(ctx context.Context, accountID int32) ([]WebauthnCredential, error)

@@ -247,10 +247,10 @@ The admin account details page displays it with a copy button.
 
 | Method | Path | Gate | Notes |
 |--------|------|------|-------|
-| GET | `/api/prohibitorum/signing-keys` | 🔓 | List all signing keys. Returns `kid`, `status`, `use`, `algorithm`, `publicJwk`, `x509CertPem`, timestamps. Sealed private key **never** returned. |
+| GET | `/api/prohibitorum/signing-keys` | 🔓 | List all signing keys. Returns `kid`, `status`, `use`, `algorithm`, `publicJwk`, and the `activatedAt`, `decommissionedAt`, `retireAfter` timestamps, newest first by creation. The x509 certificate and creation time are not in the response. Sealed private key **never** returned. |
 | POST | `/api/prohibitorum/signing-keys/generate` | 🔐 | Mint a new RSA-2048 signing key (RFC 7638 thumbprint `kid`, JWK, self-signed x509). Enters `status=pending`; immediately published in JWKS + SAML metadata. Prior active key continues signing until `activate` is called. |
-| POST | `/api/prohibitorum/signing-keys/{kid}/activate` | 🔐 | Promote a `pending` key to `active`. In one transaction: prior `active` → `decommissioning` (sets `retire_after = now() + grace`), target → `active`. New tokens signed by new key; old key stays in JWKS during grace window. Returns 409 if kid not found or not in `pending` state. |
-| POST | `/api/prohibitorum/signing-keys/{kid}/retire` | 🔐 | Transition a `decommissioning` key to `decommissioning` with immediate `retire_after`. Returns 409 if called on the `active` key (refuses to remove the only signer). Background reconcile loop promotes `decommissioning` → `retired` once `retire_after` has passed. |
+| POST | `/api/prohibitorum/signing-keys/{kid}/activate` | 🔐 | Promote a `pending` key to `active`. In one transaction: prior `active` → `decommissioning` (sets `retire_after = now() + grace`), target → `active`. New tokens signed by new key; old key stays in JWKS during grace window. Returns 404 `credential_not_found` if kid not found or not in `pending` state. |
+| POST | `/api/prohibitorum/signing-keys/{kid}/retire` | 🔐 | Move a `pending` or `decommissioning` key to `decommissioning` with `retire_after = now() + grace` (`decommissioned_at` is set only the first time). Calling it on a key that is already `decommissioning` therefore postpones its retirement rather than hastening it. Returns 409 `active_key_no_replacement` if called on the `active` key (refuses to remove the only signer), 404 `credential_not_found` for a `retired` or unknown kid. Background reconcile loop promotes `decommissioning` → `retired` once `retire_after` has passed. |
 
 ### Signing-key lifecycle states
 
@@ -273,7 +273,7 @@ The publish set for `/oauth/jwks` and `/saml/metadata` is `status IN ('pending',
 
 | Method | Path | Gate | Notes |
 |--------|------|------|-------|
-| GET | `/api/prohibitorum/audit-events` | 🔓 | Query `credential_event` rows. Filterable by `factor`, `event`, `accountId`, `since`, `until`. Keyset pagination via `cursor` + `limit`. `detail` JSONB passed through verbatim — no secret material (write-site invariant). |
+| GET | `/api/prohibitorum/audit-events` | 🔓 | Query `credential_event` rows. Filterable by `factor`, `event`, `accountId`, `since`, `until`. Keyset pagination via `cursor` + `limit`. Each event carries `accountUsername` from a join on `account`, omitted for events without an account or whose account has been deleted. `detail` JSONB passed through verbatim — no secret material (write-site invariant). |
 
 Policy and assignment events are written to `credential_event` for admins and assigned accounts:
 
