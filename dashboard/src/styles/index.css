@@ -35,8 +35,16 @@ body {
  * change and let the scrolled content bleed, so paint the same result over the
  * row's own backdrop as a solid mix. Layered with the library's so it wins the
  * cascade at equal specificity.
+ *
+ * The resting background lives here too, not as a `bg-surface` utility on the
+ * cell: utilities are a later layer than components, so a utility would beat
+ * the hover rule and the pinned cell would never follow the row.
  */
 @layer components {
+  .table__cell.table-action-cell {
+    background-color: var(--surface);
+  }
+
   @media (hover: hover) {
     .table__row:hover .table__cell.table-action-cell,
     .table__row[data-hovered="true"] .table__cell.table-action-cell {
