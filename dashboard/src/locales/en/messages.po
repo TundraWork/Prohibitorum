@@ -308,7 +308,12 @@ msgstr "Applications identify this account by this value. It never changes."
 #. js-lingui-explicit-id
 #: src/pages/Devices.tsx
 msgid "devices.approve"
-msgstr "Approve this device"
+msgstr "Approve"
+
+#. js-lingui-explicit-id
+#: src/pages/Devices.tsx
+msgid "devices.confirm.title"
+msgstr "Approve this device?"
 
 #. js-lingui-explicit-id
 #: src/pages/Devices.tsx
@@ -436,11 +441,6 @@ msgid "error.validation_failed"
 msgstr "Check the submitted information and try again."
 
 #. js-lingui-explicit-id
-#: src/pages/Devices.tsx
-msgid "devices.confirm.title"
-msgstr "Check this is the device you started"
-
-#. js-lingui-explicit-id
 #: src/components/custom/FormFields.tsx
 msgid "forms.field.invalid"
 msgstr "Check this value."
@@ -519,11 +519,6 @@ msgstr "Close navigation"
 #: src/components/custom/AppNotifications.tsx
 msgid "notification.close"
 msgstr "Close notification"
-
-#. js-lingui-explicit-id
-#: src/pages/Devices.tsx
-msgid "devices.field.code"
-msgstr "Code"
 
 #. js-lingui-explicit-id
 #: src/pages/Devices.tsx
@@ -932,6 +927,11 @@ msgid "devices.field.agent"
 msgstr "Device"
 
 #. js-lingui-explicit-id
+#: src/api/success-messages.ts
+msgid "success.device.approved"
+msgstr "Device approved"
+
+#. js-lingui-explicit-id
 #: src/pages/Devices.tsx
 msgid "devices.form"
 msgstr "Device pairing"
@@ -1191,11 +1191,6 @@ msgstr "Every device signed in to this account is signed out immediately and wil
 #: src/pages/DevForms.tsx
 msgid "dev.forms.description"
 msgstr "Exercise the real API client, mutations, and form feedback. Use an isolated test account or intercept requests in browser tools. This page does not simulate responses."
-
-#. js-lingui-explicit-id
-#: src/pages/Devices.tsx
-msgid "devices.field.expires"
-msgstr "Expires"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminInvitations.tsx
@@ -1486,11 +1481,6 @@ msgstr "Log out test session"
 #: src/pages/DevForms.tsx
 msgid "dev.forms.logout.success"
 msgstr "Logout completed with no response body."
-
-#. js-lingui-explicit-id
-#: src/pages/Devices.tsx
-msgid "devices.lookup"
-msgstr "Look up code"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
@@ -1793,6 +1783,11 @@ msgid "error.group_in_use"
 msgstr "One or more applications still use this user group. Remove it from them before deleting it."
 
 #. js-lingui-explicit-id
+#: src/pages/Devices.tsx
+msgid "devices.confirm.body"
+msgstr "Only approve it if these details match the device you are signing in on."
+
+#. js-lingui-explicit-id
 #: src/components/custom/ConsoleLayout.tsx
 msgid "console.open-menu"
 msgstr "Open navigation"
@@ -1829,13 +1824,13 @@ msgstr "Page not found"
 
 #. js-lingui-explicit-id
 #: src/pages/Devices.tsx
-msgid "devices.code.title"
-msgstr "Pairing code"
+msgid "devices.pair"
+msgstr "Pair"
 
 #. js-lingui-explicit-id
-#: src/pages/Devices.tsx
-msgid "devices.code.hint"
-msgstr "Pairing codes are short-lived. If yours has expired, generate a new one on that device."
+#: src/api/success-messages.ts
+msgid "success.device.declined"
+msgstr "Pairing declined"
 
 #. js-lingui-explicit-id
 #: src/api/success-messages.ts
@@ -3261,19 +3256,9 @@ msgid "admin.group.rule.label"
 msgstr "Who the rule matches"
 
 #. js-lingui-explicit-id
-#: src/pages/Devices.tsx
-msgid "devices.approved"
-msgstr "You approved this device. It still has to set up a passkey on itself before the sign-in finishes."
-
-#. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.cannot_delete_self"
 msgstr "You cannot delete your own account. Ask another administrator."
-
-#. js-lingui-explicit-id
-#: src/pages/Devices.tsx
-msgid "devices.cancelled"
-msgstr "You declined this pairing. The other device does not get access."
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts

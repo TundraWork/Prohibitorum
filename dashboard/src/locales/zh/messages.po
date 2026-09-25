@@ -308,7 +308,12 @@ msgstr "应用用这个值识别该账号。它永不改变。"
 #. js-lingui-explicit-id
 #: src/pages/Devices.tsx
 msgid "devices.approve"
-msgstr "批准此设备"
+msgstr "批准"
+
+#. js-lingui-explicit-id
+#: src/pages/Devices.tsx
+msgid "devices.confirm.title"
+msgstr "批准这台设备？"
 
 #. js-lingui-explicit-id
 #: src/pages/Devices.tsx
@@ -436,11 +441,6 @@ msgid "error.validation_failed"
 msgstr "请检查提交的信息后重试。"
 
 #. js-lingui-explicit-id
-#: src/pages/Devices.tsx
-msgid "devices.confirm.title"
-msgstr "确认这就是你发起的那台设备"
-
-#. js-lingui-explicit-id
 #: src/components/custom/FormFields.tsx
 msgid "forms.field.invalid"
 msgstr "请检查这个值。"
@@ -519,11 +519,6 @@ msgstr "关闭导航"
 #: src/components/custom/AppNotifications.tsx
 msgid "notification.close"
 msgstr "关闭通知"
-
-#. js-lingui-explicit-id
-#: src/pages/Devices.tsx
-msgid "devices.field.code"
-msgstr "配对码"
 
 #. js-lingui-explicit-id
 #: src/pages/Devices.tsx
@@ -889,7 +884,7 @@ msgstr "夜间模式"
 #. js-lingui-explicit-id
 #: src/pages/Devices.tsx
 msgid "devices.decline"
-msgstr "取消"
+msgstr "拒绝"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
@@ -930,6 +925,11 @@ msgstr "仅供开发验证"
 #: src/pages/Devices.tsx
 msgid "devices.field.agent"
 msgstr "设备"
+
+#. js-lingui-explicit-id
+#: src/api/success-messages.ts
+msgid "success.device.approved"
+msgstr "设备已批准"
 
 #. js-lingui-explicit-id
 #: src/pages/Devices.tsx
@@ -1191,11 +1191,6 @@ msgstr "该账号已登录的每台设备都会立即登出，需要重新登录
 #: src/pages/DevForms.tsx
 msgid "dev.forms.description"
 msgstr "验证真实 API 客户端、写入请求和表单反馈。请使用隔离测试账户，或通过浏览器工具拦截请求。本页不会模拟响应。"
-
-#. js-lingui-explicit-id
-#: src/pages/Devices.tsx
-msgid "devices.field.expires"
-msgstr "过期时间"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminInvitations.tsx
@@ -1486,11 +1481,6 @@ msgstr "退出测试会话"
 #: src/pages/DevForms.tsx
 msgid "dev.forms.logout.success"
 msgstr "已退出，服务器未返回响应正文。"
-
-#. js-lingui-explicit-id
-#: src/pages/Devices.tsx
-msgid "devices.lookup"
-msgstr "查询配对码"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
@@ -1793,6 +1783,11 @@ msgid "error.group_in_use"
 msgstr "仍有应用在使用该用户组。请先从中移除，再删除该组。"
 
 #. js-lingui-explicit-id
+#: src/pages/Devices.tsx
+msgid "devices.confirm.body"
+msgstr "请先确认以下信息与你正在登录的设备一致，再批准。"
+
+#. js-lingui-explicit-id
 #: src/components/custom/ConsoleLayout.tsx
 msgid "console.open-menu"
 msgstr "打开导航"
@@ -1829,13 +1824,13 @@ msgstr "页面不存在"
 
 #. js-lingui-explicit-id
 #: src/pages/Devices.tsx
-msgid "devices.code.title"
-msgstr "配对码"
+msgid "devices.pair"
+msgstr "配对"
 
 #. js-lingui-explicit-id
-#: src/pages/Devices.tsx
-msgid "devices.code.hint"
-msgstr "配对码有效期很短。如果已过期，请在那台设备上重新生成。"
+#: src/api/success-messages.ts
+msgid "success.device.declined"
+msgstr "配对已拒绝"
 
 #. js-lingui-explicit-id
 #: src/api/success-messages.ts
@@ -3261,19 +3256,9 @@ msgid "admin.group.rule.label"
 msgstr "规则匹配的账号"
 
 #. js-lingui-explicit-id
-#: src/pages/Devices.tsx
-msgid "devices.approved"
-msgstr "你已批准此设备。它仍需在本机设置通行密钥，登录才会完成。"
-
-#. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.cannot_delete_self"
 msgstr "你无法删除自己的账号。请让另一位管理员操作。"
-
-#. js-lingui-explicit-id
-#: src/pages/Devices.tsx
-msgid "devices.cancelled"
-msgstr "你取消了这次配对，另一台设备不会获得访问权限。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts

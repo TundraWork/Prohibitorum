@@ -95,12 +95,11 @@ export function OtpField({
             .filter(Boolean)
             .join(" ") || undefined
         }
-        className="justify-center"
       >
         {groups.map((group) => (
           <Fragment key={group[0]}>
             {group[0] !== 0 && <InputOTP.Separator />}
-            <InputOTP.Group className="flex-1">
+            <InputOTP.Group>
               {group.map((index) => (
                 <InputOTP.Slot key={index} index={index} />
               ))}

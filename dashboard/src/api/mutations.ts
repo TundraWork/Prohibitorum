@@ -479,6 +479,7 @@ export function deviceLookupQueryOptions(code: string) {
 
 export function approveDeviceMutationOptions(queryClient: QueryClient) {
   return mutationOptions({
+    meta: { success: successMessage.approveDevice },
     retry: false,
     mutationFn: async (code: string) => {
       // Approval is sudo-guarded, so it goes through the step-up prompt rather
@@ -501,6 +502,7 @@ export function approveDeviceMutationOptions(queryClient: QueryClient) {
 
 export function cancelDeviceMutationOptions(queryClient: QueryClient) {
   return mutationOptions({
+    meta: { success: successMessage.declineDevice },
     retry: false,
     mutationFn: async (code: string) => {
       await client.POST("/api/prohibitorum/me/devices/pair/cancel", {

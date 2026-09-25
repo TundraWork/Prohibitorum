@@ -56,6 +56,14 @@ export const successMessage = {
     id: "success.token.revoked",
     message: "Access token revoked",
   }),
+  approveDevice: msg({
+    id: "success.device.approved",
+    message: "Device approved",
+  }),
+  declineDevice: msg({
+    id: "success.device.declined",
+    message: "Pairing declined",
+  }),
   saveAccount: msg({ id: "success.account.saved", message: "Account saved" }),
   enableAccount: msg({
     id: "success.account.enabled",

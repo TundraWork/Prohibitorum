@@ -1,24 +1,31 @@
-import { Description, REGEXP_ONLY_DIGITS_AND_CHARS } from "@heroui/react";
+import {
+  Description,
+  Modal,
+  REGEXP_ONLY_DIGITS_AND_CHARS,
+} from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
-import { describeError } from "@/api/errors";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { type ReactNode, useState } from "react";
+import { describeError, isCancellation } from "@/api/errors";
 import {
   approveDeviceMutationOptions,
   cancelDeviceMutationOptions,
   deviceLookupQueryOptions,
 } from "@/api/mutations";
-
+import type { DevicePairing } from "@/api/raw-paths";
 import { Button } from "@/components/custom/Button";
-import { ConsoleCard } from "@/components/custom/ConsoleCard";
 import { RelativeTime } from "@/components/custom/RelativeTime";
 import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
+import { applyServerError } from "@/forms/server-errors";
 import { useAppForm } from "@/forms/use-app-form";
+
+type PairingRequest = { code: string; pairing: DevicePairing };
 
 /**
  * The already-signed-in half of device pairing. The other device shows a code
- * and polls for approval; this page looks the code up, shows who is asking, and
- * lets the account approve or decline.
+ * and polls for approval; this page takes the code, then asks in a dialog
+ * whether the device it names is the one the user started, and approves or
+ * declines it from there.
  *
  * The code is typed into slot boxes that accept the letters and digits the
  * server's alphabet contains; the server still owns the exact format and
@@ -28,45 +35,32 @@ import { useAppForm } from "@/forms/use-app-form";
 export function Devices() {
   const { t } = useLingui();
   const queryClient = useQueryClient();
-  const [submitted, setSubmitted] = useState<string | null>(null);
-  const [error, setError] = useState<unknown>(null);
-  const [outcome, setOutcome] = useState<"approved" | "cancelled" | null>(null);
-
-  const lookup = useQuery({
-    ...deviceLookupQueryOptions(submitted ?? ""),
-    enabled: submitted !== null,
-  });
-
-  const approve = useMutation(approveDeviceMutationOptions(queryClient));
-  const decline = useMutation(cancelDeviceMutationOptions(queryClient));
-
-  const busy = approve.isPending || decline.isPending;
-  const found = lookup.data;
+  const [request, setRequest] = useState<PairingRequest | null>(null);
 
   const form = useAppForm({
     defaultValues: { code: "" },
-    onSubmit: ({ value }) => {
-      setError(null);
-      setOutcome(null);
-      if (submitted === value.code) {
-        // Same code, so the query would serve its cache; ask again.
-        void lookup.refetch();
-        return;
+    onSubmit: async ({ value }) => {
+      try {
+        // Fetched afresh on every submit: a pairing changes state on the
+        // other device, so an earlier answer for the same code may be stale.
+        const pairing = await queryClient.fetchQuery(
+          deviceLookupQueryOptions(value.code),
+        );
+        setRequest({ code: value.code, pairing });
+      } catch (error) {
+        applyServerError(form, error, {
+          locations: {},
+          codes: { pairing_not_found: "code", pairing_expired: "code" },
+        });
       }
-      setSubmitted(value.code);
     },
   });
 
   return (
-    <ConsoleCard
-      title={<Trans id="devices.code.title">Pairing code</Trans>}
-      contentClassName="flex flex-col gap-4"
-    >
+    <>
       <form.AppForm>
-        <form.Form
-          className="flex flex-col gap-4"
-          label={t({ id: "devices.form", message: "Device pairing" })}
-        >
+        <form.Form label={t({ id: "devices.form", message: "Device pairing" })}>
+          <form.FormError />
           <form.AppField
             name="code"
             validators={{
@@ -85,169 +79,178 @@ export function Devices() {
                 digits={8}
                 pattern={REGEXP_ONLY_DIGITS_AND_CHARS}
                 inputMode="text"
-                variant="secondary"
                 label={
                   <Trans id="devices.code.label">
                     Code from the other device
                   </Trans>
                 }
-                description={
-                  <Trans id="devices.code.hint">
-                    Pairing codes are short-lived. If yours has expired,
-                    generate a new one on that device.
-                  </Trans>
-                }
               />
             )}
           </form.AppField>
-          <div>
-            <Button type="submit" isPending={lookup.isFetching}>
-              <Trans id="devices.lookup">Look up code</Trans>
-            </Button>
-          </div>
+          <form.SubmitButton>
+            <Trans id="devices.pair">Pair</Trans>
+          </form.SubmitButton>
         </form.Form>
       </form.AppForm>
 
-      {lookup.isError && lookup.error !== null && (
-        <SurfaceAlert status="danger" role="alert">
-          <SurfaceAlert.Indicator />
-          <SurfaceAlert.Content>
-            <SurfaceAlert.Title>
-              {t(describeError(lookup.error))}
-            </SurfaceAlert.Title>
-          </SurfaceAlert.Content>
-        </SurfaceAlert>
-      )}
+      <ApproveDialog
+        request={request}
+        onClose={() => setRequest(null)}
+        onDone={() => {
+          setRequest(null);
+          form.reset();
+        }}
+      />
+    </>
+  );
+}
 
-      {error !== null && (
-        <SurfaceAlert status="danger" role="alert">
-          <SurfaceAlert.Indicator />
-          <SurfaceAlert.Content>
-            <SurfaceAlert.Title>{t(describeError(error))}</SurfaceAlert.Title>
-          </SurfaceAlert.Content>
-        </SurfaceAlert>
-      )}
+/**
+ * Who is asking, and the decision. The dialog stays mounted between requests
+ * so its closing animation still has the last request to draw.
+ */
+function ApproveDialog({
+  request,
+  onClose,
+  onDone,
+}: {
+  request: PairingRequest | null;
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const { t } = useLingui();
+  const queryClient = useQueryClient();
+  const approve = useMutation(approveDeviceMutationOptions(queryClient));
+  const decline = useMutation(cancelDeviceMutationOptions(queryClient));
+  const [shown, setShown] = useState<PairingRequest | null>(request);
+  const [error, setError] = useState<unknown>(null);
 
-      {outcome === "approved" && (
-        <SurfaceAlert status="success" role="status">
-          <SurfaceAlert.Indicator />
-          <SurfaceAlert.Content>
-            <SurfaceAlert.Title>
-              <Trans id="devices.approved">
-                You approved this device. It still has to set up a passkey on
-                itself before the sign-in finishes.
-              </Trans>
-            </SurfaceAlert.Title>
-          </SurfaceAlert.Content>
-        </SurfaceAlert>
-      )}
+  // Keep the last request while the dialog closes, and drop the previous
+  // request's error when a new one arrives.
+  if (request !== null && request !== shown) {
+    setShown(request);
+    setError(null);
+  }
 
-      {outcome === "cancelled" && (
-        <SurfaceAlert status="warning" role="status">
-          <SurfaceAlert.Indicator />
-          <SurfaceAlert.Content>
-            <SurfaceAlert.Title>
-              <Trans id="devices.cancelled">
-                You declined this pairing. The other device does not get access.
-              </Trans>
-            </SurfaceAlert.Title>
-          </SurfaceAlert.Content>
-        </SurfaceAlert>
-      )}
+  const busy = approve.isPending || decline.isPending;
+  const pairing = shown?.pairing;
 
-      {found && outcome === null && (
-        <div className="flex flex-col gap-4">
-          <h3 className="text-lg font-semibold">
-            <Trans id="devices.confirm.title">
-              Check this is the device you started
-            </Trans>
-          </h3>
-          <dl className="grid min-w-0 gap-4 sm:grid-cols-2">
-            <div className="min-w-0">
-              <dt className="text-sm text-muted">
-                <Trans id="devices.field.code">Code</Trans>
-              </dt>
-              <dd className="wrap-anywhere font-mono">{found.displayCode}</dd>
-            </div>
-            <div className="min-w-0">
-              <dt className="text-sm text-muted">
-                <Trans id="devices.field.ip">Requested from</Trans>
-              </dt>
-              <dd className="wrap-anywhere">{found.initiatorIp || "—"}</dd>
-            </div>
-            <div className="min-w-0">
-              <dt className="text-sm text-muted">
-                <Trans id="devices.field.agent">Device</Trans>
-              </dt>
-              <dd className="wrap-anywhere">{found.initiatorUa || "—"}</dd>
-            </div>
-            <div className="min-w-0">
-              <dt className="text-sm text-muted">
-                <Trans id="devices.field.created">Requested</Trans>
-              </dt>
-              <dd className="wrap-anywhere">
-                <RelativeTime value={found.createdAt} />
-              </dd>
-            </div>
-            <div className="min-w-0">
-              <dt className="text-sm text-muted">
-                <Trans id="devices.field.expires">Expires</Trans>
-              </dt>
-              <dd className="wrap-anywhere">
-                <RelativeTime value={found.expiresAt} />
-              </dd>
-            </div>
-          </dl>
-          {found.alreadyBound && (
-            <SurfaceAlert status="warning">
-              <SurfaceAlert.Indicator />
-              <SurfaceAlert.Content>
-                <SurfaceAlert.Title>
-                  <Trans id="devices.already_bound">
-                    You have already approved this pairing. The other device
-                    should be finishing its setup.
-                  </Trans>
-                </SurfaceAlert.Title>
-              </SurfaceAlert.Content>
-            </SurfaceAlert>
-          )}
-          <div className="flex flex-wrap gap-2">
-            <Button
-              isDisabled={busy || found.alreadyBound}
-              isPending={approve.isPending}
-              onPress={() => {
-                setError(null);
-                approve.mutate(submitted as string, {
-                  onSuccess: () => setOutcome("approved"),
-                  onError: (failure) => setError(failure),
-                });
-              }}
-            >
-              <Trans id="devices.approve">Approve this device</Trans>
-            </Button>
-            <Button
-              variant="secondary"
-              isDisabled={busy}
-              isPending={decline.isPending}
-              onPress={() => {
-                setError(null);
-                decline.mutate(submitted as string, {
-                  onSuccess: () => setOutcome("cancelled"),
-                  onError: (failure) => setError(failure),
-                });
-              }}
-            >
-              <Trans id="devices.decline">Decline</Trans>
-            </Button>
-          </div>
-          <Description>
-            <Trans id="devices.note">
-              Approving lets this device continue, but it is not signed in yet:
-              it still has to set up a passkey of its own.
-            </Trans>
-          </Description>
-        </div>
-      )}
-    </ConsoleCard>
+  const decide = (mutation: typeof approve | typeof decline) => {
+    if (!shown) return;
+    setError(null);
+    mutation.mutate(shown.code, {
+      onSuccess: onDone,
+      onError: (failure) => {
+        // Dismissing the identity check is a decision, not a failure.
+        if (!isCancellation(failure)) setError(failure);
+      },
+    });
+  };
+
+  return (
+    <Modal
+      isOpen={request !== null}
+      onOpenChange={(open) => !open && !busy && onClose()}
+    >
+      <Modal.Backdrop>
+        <Modal.Container placement="center" size="md">
+          <Modal.Dialog>
+            <Modal.Header>
+              <Modal.Heading>
+                <Trans id="devices.confirm.title">Approve this device?</Trans>
+              </Modal.Heading>
+            </Modal.Header>
+            <Modal.Body className="flex flex-col gap-4">
+              {error !== null && (
+                <SurfaceAlert status="danger" role="alert">
+                  <SurfaceAlert.Indicator />
+                  <SurfaceAlert.Content>
+                    <SurfaceAlert.Title>
+                      {t(describeError(error))}
+                    </SurfaceAlert.Title>
+                  </SurfaceAlert.Content>
+                </SurfaceAlert>
+              )}
+              {pairing?.alreadyBound && (
+                <SurfaceAlert status="warning">
+                  <SurfaceAlert.Indicator />
+                  <SurfaceAlert.Content>
+                    <SurfaceAlert.Title>
+                      <Trans id="devices.already_bound">
+                        You have already approved this pairing. The other device
+                        should be finishing its setup.
+                      </Trans>
+                    </SurfaceAlert.Title>
+                  </SurfaceAlert.Content>
+                </SurfaceAlert>
+              )}
+              <p>
+                <Trans id="devices.confirm.body">
+                  Only approve it if these details match the device you are
+                  signing in on.
+                </Trans>
+              </p>
+              {pairing && (
+                <dl className="flex min-w-0 flex-col gap-3">
+                  <Detail
+                    label={<Trans id="devices.field.agent">Device</Trans>}
+                  >
+                    {pairing.initiatorUa || "—"}
+                  </Detail>
+                  <Detail
+                    label={<Trans id="devices.field.ip">Requested from</Trans>}
+                  >
+                    {pairing.initiatorIp || "—"}
+                  </Detail>
+                  <Detail
+                    label={<Trans id="devices.field.created">Requested</Trans>}
+                  >
+                    <RelativeTime value={pairing.createdAt} />
+                  </Detail>
+                </dl>
+              )}
+              <Description>
+                <Trans id="devices.note">
+                  Approving lets this device continue, but it is not signed in
+                  yet: it still has to set up a passkey of its own.
+                </Trans>
+              </Description>
+            </Modal.Body>
+            <Modal.Footer>
+              <Button
+                variant="secondary"
+                isDisabled={busy}
+                isPending={decline.isPending}
+                onPress={() => decide(decline)}
+              >
+                <Trans id="devices.decline">Decline</Trans>
+              </Button>
+              <Button
+                isDisabled={busy || pairing?.alreadyBound}
+                isPending={approve.isPending}
+                onPress={() => decide(approve)}
+              >
+                <Trans id="devices.approve">Approve</Trans>
+              </Button>
+            </Modal.Footer>
+          </Modal.Dialog>
+        </Modal.Container>
+      </Modal.Backdrop>
+    </Modal>
+  );
+}
+
+function Detail({
+  label,
+  children,
+}: {
+  label: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <div className="min-w-0">
+      <dt className="text-sm text-muted">{label}</dt>
+      <dd className="wrap-anywhere">{children}</dd>
+    </div>
   );
 }
