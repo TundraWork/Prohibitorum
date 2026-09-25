@@ -23,7 +23,7 @@ import type { ReactNode } from "react";
  */
 export function TableActionCell({ children }: { children: ReactNode }) {
   return (
-    <Table.Cell className="table-action-cell table-pinned sticky end-0 z-[1] bg-surface">
+    <Table.Cell className="table-action-cell table-pinned sticky end-0 z-[1]">
       <div className="flex items-center justify-end gap-1">{children}</div>
     </Table.Cell>
   );
