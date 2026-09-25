@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ApiError } from "@/api/errors";
+import { ApiError, isCancellation } from "@/api/errors";
 import {
   configureSudo,
   isSudoCancelled,
@@ -132,6 +132,8 @@ describe("sudo runner", () => {
 
     const error = await pending.catch((failure: unknown) => failure);
     expect(isSudoCancelled(error)).toBe(true);
+    // Backing out is a decision, so pages and the error toast stay quiet.
+    expect(isCancellation(error)).toBe(true);
     expect(perform).not.toHaveBeenCalled();
   });
 

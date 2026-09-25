@@ -52,13 +52,19 @@ export function isPublicError(value: unknown): value is PublicError {
   );
 }
 
+/**
+ * Whether a failure is the user or the app backing out rather than something
+ * going wrong: an aborted request, a cancelled query, or a dismissed identity
+ * check (`SudoCancelled`, matched by name because the sudo module builds on
+ * this one). None of these is reported.
+ */
 export function isCancellation(error: unknown): boolean {
   return (
     isCancelledError(error) ||
     (typeof error === "object" &&
       error !== null &&
       "name" in error &&
-      error.name === "AbortError")
+      (error.name === "AbortError" || error.name === "SudoCancelled"))
   );
 }
 

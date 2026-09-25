@@ -1,11 +1,4 @@
-import {
-  Label,
-  Modal,
-  Radio,
-  RadioGroup,
-  Skeleton,
-  useOverlayState,
-} from "@heroui/react";
+import { Label, Modal, Radio, RadioGroup, Skeleton } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAtomValue, useSetAtom, useStore } from "jotai";
@@ -51,7 +44,6 @@ export function SudoDialog() {
   const setDialog = useSetAtom(sudoDialogAtom);
   const setFresh = useSetAtom(sudoFreshAtom);
   const request = useAtomValue(sudoDialogAtom);
-  const state = useOverlayState();
 
   useEffect(() => {
     configureSudo({
@@ -62,13 +54,6 @@ export function SudoDialog() {
     });
     return () => resetSudo();
   }, [queryClient, setDialog, setFresh, store]);
-
-  const open = request !== null;
-  const { open: openOverlay, close: closeOverlay } = state;
-  useEffect(() => {
-    if (open) openOverlay();
-    else closeOverlay();
-  }, [open, openOverlay, closeOverlay]);
 
   function dismiss() {
     const pending = request;
@@ -84,7 +69,15 @@ export function SudoDialog() {
   }
 
   return (
-    <Modal state={state}>
+    // Open while a request is parked. Closing it any way the dialog allows —
+    // Cancel, or Escape — settles the request as cancelled, so the operation
+    // that asked never waits on a prompt that is gone.
+    <Modal
+      isOpen={request !== null}
+      onOpenChange={(isOpen) => {
+        if (!isOpen) dismiss();
+      }}
+    >
       <Modal.Backdrop isDismissable={false}>
         <Modal.Container placement="center" size="md">
           <Modal.Dialog>
