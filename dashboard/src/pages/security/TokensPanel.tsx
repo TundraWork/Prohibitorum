@@ -1,6 +1,5 @@
 import {
   Alert,
-  AlertDialog,
   Checkbox,
   Description,
   Label,
@@ -24,6 +23,7 @@ import { forwardAuthAppsQueryOptions, tokensQueryOptions } from "@/api/queries";
 import { runWithSudo } from "@/api/sudo";
 import { sudoReason } from "@/api/sudo-reasons";
 import { Button } from "@/components/custom/Button";
+import { ConfirmDialog } from "@/components/custom/ConfirmDialog";
 import { ItemList, ItemListRow } from "@/components/custom/ItemList";
 import { RelativeTime } from "@/components/custom/RelativeTime";
 import { SecretReveal } from "@/components/custom/SecretReveal";
@@ -200,57 +200,34 @@ export function TokensPanel() {
         onError={setError}
       />
 
-      <AlertDialog
+      <ConfirmDialog
         isOpen={target !== null}
         onOpenChange={(open) => !open && setTarget(null)}
-      >
-        <AlertDialog.Backdrop>
-          <AlertDialog.Container placement="center" size="md">
-            <AlertDialog.Dialog>
-              <AlertDialog.Header>
-                <AlertDialog.Heading>
-                  <Trans id="security.tokens.revoke.title">
-                    Revoke this token?
-                  </Trans>
-                </AlertDialog.Heading>
-              </AlertDialog.Header>
-              <AlertDialog.Body>
-                <p>
-                  <Trans id="security.tokens.revoke.body">
-                    Anything using this token stops working immediately. This
-                    cannot be undone.
-                  </Trans>
-                </p>
-              </AlertDialog.Body>
-              <AlertDialog.Footer>
-                <Button
-                  variant="secondary"
-                  onPress={() => setTarget(null)}
-                  isDisabled={revoke.isPending}
-                >
-                  <Trans id="security.cancel">Cancel</Trans>
-                </Button>
-                <Button
-                  variant="danger"
-                  isPending={revoke.isPending}
-                  onPress={() => {
-                    if (!target) return;
-                    revoke.mutate(target.id, {
-                      onSuccess: () => setTarget(null),
-                      onError: (failure) => {
-                        setError(failure);
-                        setTarget(null);
-                      },
-                    });
-                  }}
-                >
-                  <Trans id="security.tokens.revoke.action">Revoke</Trans>
-                </Button>
-              </AlertDialog.Footer>
-            </AlertDialog.Dialog>
-          </AlertDialog.Container>
-        </AlertDialog.Backdrop>
-      </AlertDialog>
+        status="danger"
+        title={
+          <Trans id="security.tokens.revoke.title">Revoke this token?</Trans>
+        }
+        body={
+          <p>
+            <Trans id="security.tokens.revoke.body">
+              Anything using this token stops working immediately. This cannot
+              be undone.
+            </Trans>
+          </p>
+        }
+        confirmLabel={<Trans id="security.tokens.revoke.action">Revoke</Trans>}
+        isPending={revoke.isPending}
+        onConfirm={() => {
+          if (!target) return;
+          revoke.mutate(target.id, {
+            onSuccess: () => setTarget(null),
+            onError: (failure) => {
+              setError(failure);
+              setTarget(null);
+            },
+          });
+        }}
+      />
     </>
   );
 }

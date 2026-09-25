@@ -139,4 +139,54 @@ describe("DataTable", () => {
     await userEvent.click(within(first).getByRole("button", { name: "Open" }));
     expect(opened).toEqual([1]);
   });
+
+  it("opens a row's detail in a child row that spans every column, and offers no toggle for a row without one", async () => {
+    mount({
+      expandedRow: (row) =>
+        row.id === 2 ? null : <span>Detail of {row.name}</span>,
+    });
+
+    // The detail is not rendered until its row is opened.
+    expect(screen.queryByText("Detail of gamma")).not.toBeInTheDocument();
+    // Each toggle is named with its row, so a screen reader hears which one.
+    const toggles = screen.getAllByRole("button", { name: /^Show details/ });
+    // gamma and beta have a detail; alpha does not.
+    expect(toggles).toHaveLength(2);
+    expect(
+      screen.getByRole("button", { name: "Show details gamma" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Show details alpha" }),
+    ).not.toBeInTheDocument();
+
+    // Start from focus inside the grid, as a reader would. With nothing
+    // focused, jsdom retargets the body's blur to the window, which React
+    // Aria's focus guard on the toggle cannot inspect; a browser fires no
+    // such event.
+    await userEvent.tab();
+    await userEvent.click(
+      screen.getByRole("button", { name: "Show details gamma" }),
+    );
+
+    const detail = await screen.findByText("Detail of gamma");
+    const cell = detail.closest("td");
+    expect(cell).not.toBeNull();
+    expect(cell?.getAttribute("colspan")).toBe(String(columns().length));
+    expect(
+      screen.getByRole("button", { name: "Hide details gamma" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Detail of beta")).not.toBeInTheDocument();
+
+    await userEvent.click(
+      screen.getByRole("button", { name: "Hide details gamma" }),
+    );
+    expect(screen.queryByText("Detail of gamma")).not.toBeInTheDocument();
+  });
+
+  it("draws no toggle at all when the table has no details", () => {
+    mount();
+    expect(
+      screen.queryByRole("button", { name: /^Show details/ }),
+    ).not.toBeInTheDocument();
+  });
 });

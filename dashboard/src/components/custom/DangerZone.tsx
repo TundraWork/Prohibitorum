@@ -1,13 +1,7 @@
-import {
-  AlertDialog,
-  Description,
-  Label,
-  Tooltip,
-  useOverlayState,
-} from "@heroui/react";
-import { Trans } from "@lingui/react/macro";
+import { Description, Label, Tooltip, useOverlayState } from "@heroui/react";
 import type { ReactNode } from "react";
 import { Button } from "@/components/custom/Button";
+import { ConfirmDialog } from "@/components/custom/ConfirmDialog";
 
 /**
  * One irreversible action on the console, with its confirmation and its
@@ -80,37 +74,19 @@ export function DangerZone({
         <Description className="text-xs text-muted">{description}</Description>
       )}
 
-      <AlertDialog isOpen={dialog.isOpen} onOpenChange={dialog.setOpen}>
-        <AlertDialog.Backdrop>
-          <AlertDialog.Container placement="center" size="md">
-            <AlertDialog.Dialog>
-              <AlertDialog.Header>
-                <AlertDialog.Heading>{title}</AlertDialog.Heading>
-              </AlertDialog.Header>
-              <AlertDialog.Body>{body}</AlertDialog.Body>
-              <AlertDialog.Footer>
-                <Button
-                  variant="secondary"
-                  isDisabled={isPending}
-                  onPress={() => dialog.setOpen(false)}
-                >
-                  <Trans id="admin.danger.cancel">Cancel</Trans>
-                </Button>
-                <Button
-                  variant="danger"
-                  isPending={isPending}
-                  onPress={() => {
-                    onConfirm();
-                    dialog.setOpen(false);
-                  }}
-                >
-                  {confirmLabel}
-                </Button>
-              </AlertDialog.Footer>
-            </AlertDialog.Dialog>
-          </AlertDialog.Container>
-        </AlertDialog.Backdrop>
-      </AlertDialog>
+      <ConfirmDialog
+        isOpen={dialog.isOpen}
+        onOpenChange={dialog.setOpen}
+        status="danger"
+        title={title}
+        body={body}
+        confirmLabel={confirmLabel}
+        isPending={isPending}
+        onConfirm={() => {
+          onConfirm();
+          dialog.setOpen(false);
+        }}
+      />
     </div>
   );
 }

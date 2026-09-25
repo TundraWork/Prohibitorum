@@ -1,4 +1,4 @@
-import { Alert, AlertDialog, Avatar, Chip } from "@heroui/react";
+import { Alert, Avatar, Chip } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AppWindow, Trash2 } from "lucide-react";
@@ -6,6 +6,7 @@ import { useState } from "react";
 import { revokeConsentMutationOptions } from "@/api/mutations";
 import { consentQueryOptions } from "@/api/queries";
 import { Button } from "@/components/custom/Button";
+import { ConfirmDialog } from "@/components/custom/ConfirmDialog";
 import { ItemList, ItemListRow } from "@/components/custom/ItemList";
 import { RelativeTime } from "@/components/custom/RelativeTime";
 import { TableEmptyState } from "@/components/custom/TableEmptyState";
@@ -113,58 +114,39 @@ export function ConnectedApps() {
         ))}
       </ItemList>
 
-      <AlertDialog isOpen={confirming} onOpenChange={setConfirming}>
-        <AlertDialog.Backdrop>
-          <AlertDialog.Container placement="center" size="md">
-            <AlertDialog.Dialog>
-              <AlertDialog.Header>
-                <AlertDialog.Heading>
-                  <Trans id="apps.confirm.title">Remove access?</Trans>
-                </AlertDialog.Heading>
-              </AlertDialog.Header>
-              <AlertDialog.Body>
-                <p>
-                  <Trans id="apps.confirm.body">
-                    This application will no longer read your profile. It will
-                    need to ask for permission again.
-                  </Trans>
-                </p>
-              </AlertDialog.Body>
-              <AlertDialog.Footer>
-                <Button
-                  variant="secondary"
-                  onPress={() => setConfirming(false)}
-                  isDisabled={revoke.isPending}
-                >
-                  <Trans id="apps.confirm.cancel">Keep access</Trans>
-                </Button>
-                <Button
-                  variant="danger"
-                  isPending={revoke.isPending}
-                  onPress={() => {
-                    if (!target) return;
-                    // `kind` is echoed exactly as listed: the server uses it to
-                    // tell an OIDC client id from a SAML entity id.
-                    revoke.mutate(
-                      { clientId: target.clientId, kind: target.kind },
-                      {
-                        onSuccess: () => {
-                          setConfirming(false);
-                          setTarget(null);
-                        },
-                        // The global toast reports what went wrong.
-                        onError: () => setConfirming(false),
-                      },
-                    );
-                  }}
-                >
-                  <Trans id="apps.confirm.remove">Remove access</Trans>
-                </Button>
-              </AlertDialog.Footer>
-            </AlertDialog.Dialog>
-          </AlertDialog.Container>
-        </AlertDialog.Backdrop>
-      </AlertDialog>
+      <ConfirmDialog
+        isOpen={confirming}
+        onOpenChange={setConfirming}
+        status="danger"
+        title={<Trans id="apps.confirm.title">Remove access?</Trans>}
+        body={
+          <p>
+            <Trans id="apps.confirm.body">
+              This application will no longer read your profile. It will need to
+              ask for permission again.
+            </Trans>
+          </p>
+        }
+        cancelLabel={<Trans id="apps.confirm.cancel">Keep access</Trans>}
+        confirmLabel={<Trans id="apps.confirm.remove">Remove access</Trans>}
+        isPending={revoke.isPending}
+        onConfirm={() => {
+          if (!target) return;
+          // `kind` is echoed exactly as listed: the server uses it to tell an
+          // OIDC client id from a SAML entity id.
+          revoke.mutate(
+            { clientId: target.clientId, kind: target.kind },
+            {
+              onSuccess: () => {
+                setConfirming(false);
+                setTarget(null);
+              },
+              // The global toast reports what went wrong.
+              onError: () => setConfirming(false),
+            },
+          );
+        }}
+      />
     </>
   );
 }

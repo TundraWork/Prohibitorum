@@ -1,4 +1,4 @@
-import { Alert, AlertDialog, Description, Modal, Spinner } from "@heroui/react";
+import { Alert, Description, Modal, Spinner } from "@heroui/react";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -23,6 +23,7 @@ import {
   sessionQueryOptions,
 } from "@/api/queries";
 import { Button } from "@/components/custom/Button";
+import { ConfirmDialog } from "@/components/custom/ConfirmDialog";
 import { ConsoleCard } from "@/components/custom/ConsoleCard";
 import { ItemList, ItemListRow } from "@/components/custom/ItemList";
 import { RecoveryCodes } from "@/components/custom/RecoveryCodes";
@@ -582,11 +583,17 @@ function SetupForm({
   );
 }
 
+/**
+ * New codes void every existing one, including any the user printed or saved,
+ * so the request waits for a confirmation. The codes it returns still open in
+ * the panel's dialog.
+ */
 function RecoveryCodesRow({ onCodes }: { onCodes: (codes: string[]) => void }) {
   const queryClient = useQueryClient();
   const regenerate = useMutation(
     regenerateRecoveryCodesMutationOptions(queryClient),
   );
+  const [confirming, setConfirming] = useState(false);
 
   return (
     <ItemListRow
@@ -602,18 +609,42 @@ function RecoveryCodesRow({ onCodes }: { onCodes: (codes: string[]) => void }) {
           size="sm"
           variant="secondary"
           isPending={regenerate.isPending}
-          onPress={() => {
-            regenerate.mutate(undefined, {
-              onSuccess: (result) => onCodes(result.recovery_codes),
-            });
-          }}
+          onPress={() => setConfirming(true)}
         >
           <Trans id="security.recovery.generate">
             Generate new recovery codes
           </Trans>
         </Button>
       }
-    />
+    >
+      <ConfirmDialog
+        isOpen={confirming}
+        onOpenChange={setConfirming}
+        status="warning"
+        title={
+          <Trans id="security.recovery.confirm.title">
+            Replace your recovery codes?
+          </Trans>
+        }
+        body={
+          <p>
+            <Trans id="security.recovery.confirm.body">
+              Every recovery code you have now stops working.
+            </Trans>
+          </p>
+        }
+        confirmLabel={
+          <Trans id="security.recovery.confirm.action">Replace codes</Trans>
+        }
+        isPending={regenerate.isPending}
+        onConfirm={() => {
+          regenerate.mutate(undefined, {
+            onSuccess: (result) => onCodes(result.recovery_codes),
+            onSettled: () => setConfirming(false),
+          });
+        }}
+      />
+    </ItemListRow>
   );
 }
 
@@ -681,41 +712,27 @@ function RevokeConfirm({
   onConfirm: () => void;
 }) {
   return (
-    <AlertDialog isOpen={open} onOpenChange={(next) => !next && onClose()}>
-      <AlertDialog.Backdrop>
-        <AlertDialog.Container placement="center" size="md">
-          <AlertDialog.Dialog>
-            <AlertDialog.Header>
-              <AlertDialog.Heading>
-                <Trans id="security.revoke.confirm.title">
-                  Turn off password and authenticator?
-                </Trans>
-              </AlertDialog.Heading>
-            </AlertDialog.Header>
-            <AlertDialog.Body>
-              <p>
-                <Trans id="security.revoke.confirm.body">
-                  Your password, your authenticator and all recovery codes stop
-                  working immediately.
-                </Trans>
-              </p>
-            </AlertDialog.Body>
-            <AlertDialog.Footer>
-              <Button
-                variant="secondary"
-                onPress={onClose}
-                isDisabled={pending}
-              >
-                <Trans id="security.cancel">Cancel</Trans>
-              </Button>
-              <Button variant="danger" isPending={pending} onPress={onConfirm}>
-                <Trans id="security.revoke.confirm.action">Turn off</Trans>
-              </Button>
-            </AlertDialog.Footer>
-          </AlertDialog.Dialog>
-        </AlertDialog.Container>
-      </AlertDialog.Backdrop>
-    </AlertDialog>
+    <ConfirmDialog
+      isOpen={open}
+      onOpenChange={(next) => !next && onClose()}
+      status="danger"
+      title={
+        <Trans id="security.revoke.confirm.title">
+          Turn off password and authenticator?
+        </Trans>
+      }
+      body={
+        <p>
+          <Trans id="security.revoke.confirm.body">
+            Your password, your authenticator and all recovery codes stop
+            working immediately.
+          </Trans>
+        </p>
+      }
+      confirmLabel={<Trans id="security.revoke.confirm.action">Turn off</Trans>}
+      isPending={pending}
+      onConfirm={onConfirm}
+    />
   );
 }
 

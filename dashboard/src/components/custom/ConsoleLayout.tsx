@@ -21,6 +21,8 @@ import {
   MailPlus,
   MonitorSmartphone,
   PanelLeft,
+  ScrollText,
+  Settings,
   ShieldCheck,
   UserRound,
   Users,
@@ -29,8 +31,8 @@ import { useEffect, useState } from "react";
 import type { components } from "@/api/generated/schema";
 import { logoutMutationOptions } from "@/api/mutations";
 import { clearSessionQueries, sessionQueryOptions } from "@/api/queries";
-import { instanceIconUrl, instanceName } from "@/components/custom/AppLayout";
 import { Button } from "@/components/custom/Button";
+import { useInstanceBranding } from "@/components/custom/instance-branding";
 import { LanguageMenu } from "@/components/custom/LanguageMenu";
 import { SudoDialog } from "@/components/custom/SudoDialog";
 import { ThemeSelect } from "@/components/custom/ThemeSelect";
@@ -75,9 +77,8 @@ const accountSections = [
 ];
 
 /**
- * Management sections. Only the three M5a areas exist so far; the rest of the
- * parent card's seven — federation, downstream applications, logs and settings
- * — arrive with the later milestones, and no empty page stands in for them.
+ * Management sections. Federation and downstream applications arrive with a
+ * later milestone, and no empty page stands in for them.
  *
  * Filtered out for a non-admin before it reaches the sidebar, and separately
  * refused by the `_protected.admin` loader, so a hidden entry is never the only
@@ -98,6 +99,16 @@ const adminSections = [
     path: "/admin/invitations",
     icon: MailPlus,
     title: msg({ id: "console.admin.invitations", message: "Invitations" }),
+  },
+  {
+    path: "/admin/logs",
+    icon: ScrollText,
+    title: msg({ id: "console.admin.logs", message: "Logs" }),
+  },
+  {
+    path: "/admin/settings",
+    icon: Settings,
+    title: msg({ id: "console.admin.settings", message: "Settings" }),
   },
 ];
 
@@ -228,14 +239,15 @@ function ConsoleNavigation({
  * the section you are in; this names the instance all of it is served from.
  */
 function ConsoleIdentity() {
+  const { name, iconUrl } = useInstanceBranding();
   return (
     <div className="flex items-center gap-3 px-4 pb-2 pt-4">
       <Avatar className="size-8 shrink-0">
-        <Avatar.Image src={instanceIconUrl} alt="" />
-        <Avatar.Fallback>{instanceName.slice(0, 1)}</Avatar.Fallback>
+        <Avatar.Image src={iconUrl} alt="" />
+        <Avatar.Fallback>{name.slice(0, 1)}</Avatar.Fallback>
       </Avatar>
       <span className="truncate text-sm font-medium text-foreground">
-        {instanceName}
+        {name}
       </span>
     </div>
   );
@@ -295,6 +307,7 @@ function ConsoleShell({
   onLogout: () => void;
 }) {
   const { i18n, t } = useLingui();
+  const { name: instanceName } = useInstanceBranding();
   const drawer = useOverlayState();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const router = useRouter();

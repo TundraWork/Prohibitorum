@@ -5,6 +5,7 @@ import { type ReactNode, useEffect } from "react";
 import {
   describeError,
   type ErrorDescription,
+  type ErrorScope,
   isCancellation,
 } from "@/api/errors";
 
@@ -18,9 +19,9 @@ export const notificationQueue = new ToastQueue<Notification>();
 /** How long a success stays up; an error stays until it is closed. */
 const successTimeout = 5000;
 
-export function notifyError(error: unknown) {
+export function notifyError(error: unknown, scope?: ErrorScope) {
   if (!isCancellation(error)) {
-    notificationQueue.add({ error: describeError(error) });
+    notificationQueue.add({ error: describeError(error, scope) });
   }
 }
 

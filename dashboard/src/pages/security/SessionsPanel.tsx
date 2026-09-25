@@ -1,4 +1,4 @@
-import { AlertDialog, Chip, Tooltip } from "@heroui/react";
+import { Chip, Tooltip } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { LogOut, MonitorSmartphone } from "lucide-react";
@@ -8,6 +8,7 @@ import type { components } from "@/api/generated/schema";
 import { revokeSessionMutationOptions } from "@/api/mutations";
 import { sessionsQueryOptions } from "@/api/queries";
 import { Button } from "@/components/custom/Button";
+import { ConfirmDialog } from "@/components/custom/ConfirmDialog";
 import { ItemList, ItemListRow } from "@/components/custom/ItemList";
 import { RelativeTime } from "@/components/custom/RelativeTime";
 import { TableEmptyState } from "@/components/custom/TableEmptyState";
@@ -119,59 +120,36 @@ export function SessionsPanel() {
         ))}
       </ItemList>
 
-      <AlertDialog
+      <ConfirmDialog
         isOpen={target !== null}
         onOpenChange={(open) => !open && setTarget(null)}
-      >
-        <AlertDialog.Backdrop>
-          <AlertDialog.Container placement="center" size="md">
-            <AlertDialog.Dialog>
-              <AlertDialog.Header>
-                <AlertDialog.Heading>
-                  <Trans id="security.sessions.revoke.title">
-                    End this session?
-                  </Trans>
-                </AlertDialog.Heading>
-              </AlertDialog.Header>
-              <AlertDialog.Body>
-                <p>
-                  <Trans id="security.sessions.revoke.body">
-                    That device is signed out immediately and will need to sign
-                    in again. Anything it is doing right now stops.
-                  </Trans>
-                </p>
-              </AlertDialog.Body>
-              <AlertDialog.Footer>
-                <Button
-                  variant="secondary"
-                  onPress={() => setTarget(null)}
-                  isDisabled={revoke.isPending}
-                >
-                  <Trans id="security.cancel">Cancel</Trans>
-                </Button>
-                <Button
-                  variant="danger"
-                  isPending={revoke.isPending}
-                  onPress={() => {
-                    if (!target) return;
-                    revoke.mutate(target.id, {
-                      onSuccess: () => setTarget(null),
-                      onError: (failure) => {
-                        setError(failure);
-                        setTarget(null);
-                      },
-                    });
-                  }}
-                >
-                  <Trans id="security.sessions.revoke.action">
-                    End session
-                  </Trans>
-                </Button>
-              </AlertDialog.Footer>
-            </AlertDialog.Dialog>
-          </AlertDialog.Container>
-        </AlertDialog.Backdrop>
-      </AlertDialog>
+        status="danger"
+        title={
+          <Trans id="security.sessions.revoke.title">End this session?</Trans>
+        }
+        body={
+          <p>
+            <Trans id="security.sessions.revoke.body">
+              That device is signed out immediately and will need to sign in
+              again. Anything it is doing right now stops.
+            </Trans>
+          </p>
+        }
+        confirmLabel={
+          <Trans id="security.sessions.revoke.action">End session</Trans>
+        }
+        isPending={revoke.isPending}
+        onConfirm={() => {
+          if (!target) return;
+          revoke.mutate(target.id, {
+            onSuccess: () => setTarget(null),
+            onError: (failure) => {
+              setError(failure);
+              setTarget(null);
+            },
+          });
+        }}
+      />
     </>
   );
 }

@@ -1,5 +1,6 @@
-import type { SortDescriptor } from "@heroui/react";
+import type { Selection, SortDescriptor } from "@heroui/react";
 import { Spinner, Table } from "@heroui/react";
+import { useLingui } from "@lingui/react/macro";
 import type {
   ColumnDef,
   RowData,
@@ -17,7 +18,9 @@ import {
   tableFeatures,
   useTable,
 } from "@tanstack/react-table";
+import { ChevronRight } from "lucide-react";
 import { type ReactNode, useMemo, useState } from "react";
+import { Button } from "@/components/custom/Button";
 import {
   TableActionCell,
   TableActionColumn,
@@ -101,6 +104,12 @@ function toSortingState(descriptor: SortDescriptor): SortingState {
  *
  * `onLoadMore` turns the foot of the table into a sentinel row that asks for
  * the next cursor page as it scrolls into view.
+ *
+ * `expandedRow` gives each row a detail it can open in place, through HeroUI's
+ * expandable rows: the first column becomes the tree column and carries the
+ * toggle, and the detail is a child row with one cell spanning every column.
+ * A row whose detail is `null` has no toggle. Which rows are open is the
+ * table's own state; it is not worth a place in the URL.
  */
 export function DataTable<T extends RowData>({
   label,
@@ -114,6 +123,7 @@ export function DataTable<T extends RowData>({
   hasMore = false,
   loadingMore = false,
   onLoadMore,
+  expandedRow,
 }: {
   label: string;
   columns: readonly TableColumn<T>[];
@@ -129,7 +139,11 @@ export function DataTable<T extends RowData>({
   /** A page is on its way; the sentinel row shows progress rather than asking again. */
   loadingMore?: boolean;
   onLoadMore?: () => void;
+  /** The detail a row opens to, or `null` for a row with nothing more to show. */
+  expandedRow?: (row: T) => ReactNode | null;
 }) {
+  const { t } = useLingui();
+  const [expandedKeys, setExpandedKeys] = useState<Selection>(() => new Set());
   const definitions = useMemo<ColumnDef<typeof features, T, unknown>[]>(
     () =>
       columns.map((column) => {
@@ -176,16 +190,26 @@ export function DataTable<T extends RowData>({
 
   const headers = table.getHeaderGroups()[0]?.headers ?? [];
   const byId = new Map(columns.map((column) => [column.id, column]));
+  const treeColumn = expandedRow ? headers[0]?.id : undefined;
 
   return (
     <Table.ScrollContainer
       // The table keeps to the console column like every other block. Cells
       // never wrap, so a table wider than its column scrolls sideways instead
-      // of clipping.
-      className="min-w-0 overflow-x-auto"
+      // of clipping. The container is also what a row's detail measures its
+      // width against, and the scroll timeline the pinned column's shadow
+      // follows (`data-table-scroll` in `styles/index.css`).
+      className="data-table-scroll @container min-w-0 overflow-x-auto"
     >
       <Table aria-label={label} className="w-max min-w-full">
         <Table.Content
+          {...(treeColumn === undefined
+            ? {}
+            : {
+                treeColumn,
+                expandedKeys,
+                onExpandedChange: setExpandedKeys,
+              })}
           sortDescriptor={toSortDescriptor(activeSorting)}
           onSortChange={(descriptor) =>
             table.setSorting(toSortingState(descriptor))
@@ -241,27 +265,94 @@ export function DataTable<T extends RowData>({
               )
             }
           >
-            {table.getRowModel().rows.map((row) => (
-              <Table.Row key={row.id} id={row.id}>
-                {row.getAllCells().map((cell) => {
-                  const column = byId.get(cell.column.id);
-                  const content = flexRender(
-                    cell.column.columnDef.cell,
-                    cell.getContext(),
-                  );
-                  return column?.pinned ? (
-                    <TableActionCell key={cell.id}>{content}</TableActionCell>
-                  ) : (
-                    <Table.Cell
-                      key={cell.id}
-                      className={cellClass(column?.align)}
-                    >
-                      {content}
-                    </Table.Cell>
-                  );
-                })}
-              </Table.Row>
-            ))}
+            {table.getRowModel().rows.map((row) => {
+              const detail = expandedRow ? expandedRow(row.original) : null;
+              return (
+                <Table.Row key={row.id} id={row.id}>
+                  {row.getAllCells().map((cell) => {
+                    const column = byId.get(cell.column.id);
+                    const content = flexRender(
+                      cell.column.columnDef.cell,
+                      cell.getContext(),
+                    );
+                    if (column?.pinned) {
+                      return (
+                        <TableActionCell key={cell.id}>
+                          {content}
+                        </TableActionCell>
+                      );
+                    }
+                    if (cell.column.id === treeColumn) {
+                      return (
+                        <Table.Cell
+                          key={cell.id}
+                          className={cellClass(column?.align)}
+                        >
+                          {({ hasChildItems, isExpanded, isTreeColumn }) => (
+                            <span className="flex items-center gap-1">
+                              {hasChildItems && isTreeColumn && (
+                                <Button
+                                  isIconOnly
+                                  size="sm"
+                                  slot="chevron"
+                                  variant="ghost"
+                                  className="-ms-2"
+                                  aria-label={
+                                    isExpanded
+                                      ? t({
+                                          id: "table.row.collapse",
+                                          message: "Hide details",
+                                        })
+                                      : t({
+                                          id: "table.row.expand",
+                                          message: "Show details",
+                                        })
+                                  }
+                                >
+                                  <ChevronRight
+                                    size={16}
+                                    aria-hidden="true"
+                                    className={`text-muted transition-transform duration-150 motion-reduce:transition-none ${
+                                      isExpanded
+                                        ? "rotate-90"
+                                        : "rtl:rotate-180"
+                                    }`}
+                                  />
+                                </Button>
+                              )}
+                              {content}
+                            </span>
+                          )}
+                        </Table.Cell>
+                      );
+                    }
+                    return (
+                      <Table.Cell
+                        key={cell.id}
+                        className={cellClass(column?.align)}
+                      >
+                        {content}
+                      </Table.Cell>
+                    );
+                  })}
+                  {detail !== null && (
+                    <Table.Row id={`${row.id}:detail`}>
+                      <Table.Cell
+                        colSpan={columns.length}
+                        className="whitespace-normal"
+                      >
+                        {/* Held at the leading edge of the scrolling area and
+                            no wider than it, so the detail stays readable
+                            however far the columns are scrolled. */}
+                        <div className="sticky start-4 max-w-[calc(100cqw-2rem)]">
+                          {detail}
+                        </div>
+                      </Table.Cell>
+                    </Table.Row>
+                  )}
+                </Table.Row>
+              );
+            })}
             {onLoadMore !== undefined && hasMore && (
               <Table.LoadMore
                 isLoading={loadingMore}

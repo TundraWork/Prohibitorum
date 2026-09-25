@@ -29,8 +29,34 @@ async function mountApplication() {
   return { ...view, localeBeforeMount };
 }
 
+/**
+ * The root route loads the instance's branding before anything paints, so the
+ * application asks for `/config` even on a preview page; nothing else here
+ * reaches the server.
+ */
+const config = {
+  instanceName: "Prohibitorum",
+  hasCustomIcon: false,
+  iconUrl: "/branding/icon",
+  iconEtag: "",
+  maintenanceMode: false,
+  maintenanceMessage: "",
+  hasCustomBackground: false,
+  backgroundUrl: "/branding/background",
+  backgroundEtag: "",
+  totp: { issuer: "Prohibitorum", algorithm: "SHA1", digits: 6, period: 30 },
+};
+
 beforeEach(() => {
   vi.resetModules();
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (request: Request) =>
+      new URL(request.url).pathname === "/api/prohibitorum/config"
+        ? Response.json(config)
+        : new Response(null, { status: 404 }),
+    ),
+  );
   localStorage.clear();
   window.history.replaceState(
     null,
@@ -42,6 +68,7 @@ beforeEach(() => {
 afterEach(() => {
   stopLocaleSync?.();
   stopLocaleSync = undefined;
+  vi.unstubAllGlobals();
 });
 
 describe("language preference", () => {

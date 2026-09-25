@@ -21,9 +21,11 @@ import { clearSessionQueries } from "@/api/queries";
 import type {
   AppGroupView,
   ClearDecisionRequest,
+  ClientIpSettings,
   CreateGroupRequest,
   CreateInvitationRequest,
   DeleteAccountCredentialRequest,
+  MaintenanceSettings,
   ManualDecisionView,
   RevokeAccountSessionRequest,
   RevokeAccountSessionsResult,
@@ -886,5 +888,216 @@ export function revokeInvitationMutationOptions(queryClient: QueryClient) {
     },
     onSuccess: () =>
       queryClient.invalidateQueries({ queryKey: ["admin", "invitations"] }),
+  });
+}
+
+/* ------------------------------------------------------ instance settings -- */
+
+/**
+ * Every instance setting `/config` publishes — the name, the maintenance notice,
+ * the icon and the sign-in background — is read from that one query, by the
+ * sidebar, the header, the document title and the sign-in page alike. A write
+ * therefore refreshes it and nothing else.
+ */
+function invalidatePublicConfig(queryClient: QueryClient) {
+  return queryClient.invalidateQueries({ queryKey: ["public", "config"] });
+}
+
+/** An empty name clears the override; the instance falls back to its configuration. */
+export function updateInstanceNameMutationOptions(queryClient: QueryClient) {
+  return mutationOptions({
+    meta: { success: successMessage.saveInstanceName },
+    retry: false,
+    mutationFn: async (instanceName: string) => {
+      await runWithSudo(
+        () =>
+          client.PUT("/api/prohibitorum/admin/settings", {
+            body: { instanceName },
+          }),
+        sudoReason.updateInstanceName,
+      );
+    },
+    onSuccess: () => invalidatePublicConfig(queryClient),
+  });
+}
+
+export function updateMaintenanceMutationOptions(queryClient: QueryClient) {
+  return mutationOptions({
+    meta: {
+      success: (variables) =>
+        (variables as MaintenanceSettings).maintenanceMode
+          ? successMessage.maintenanceOn
+          : successMessage.maintenanceSaved,
+    },
+    retry: false,
+    mutationFn: async (body: MaintenanceSettings) => {
+      await runWithSudo(
+        () =>
+          client.PUT("/api/prohibitorum/admin/settings/maintenance", { body }),
+        sudoReason.updateMaintenance,
+      );
+    },
+    onSuccess: () => invalidatePublicConfig(queryClient),
+  });
+}
+
+/** The two instance images, which share their endpoints' shape and limits. */
+export type InstanceImageKind = "icon" | "background";
+
+const instanceImagePath = {
+  icon: "/api/prohibitorum/admin/settings/icon",
+  background: "/api/prohibitorum/admin/settings/background",
+} as const;
+
+/**
+ * Uploads raw bytes, not a multipart form. The handler checks sudo itself rather
+ * than through the JSON-only wrapper, and answers `sudo_required` the same way,
+ * so `runWithSudo` covers it like any other guarded write.
+ */
+export function uploadInstanceImageMutationOptions(
+  queryClient: QueryClient,
+  kind: InstanceImageKind,
+) {
+  return mutationOptions({
+    meta: {
+      success:
+        kind === "icon"
+          ? successMessage.updateInstanceIcon
+          : successMessage.updateSignInBackground,
+    },
+    retry: false,
+    mutationFn: async (file: File) => {
+      await runWithSudo(
+        () =>
+          client.PUT(instanceImagePath[kind], {
+            body: file,
+            // openapi-fetch serialises JSON by default; the endpoint wants the
+            // bytes as they are.
+            bodySerializer: (value) => value as BodyInit,
+          }),
+        kind === "icon"
+          ? sudoReason.updateInstanceIcon
+          : sudoReason.updateSignInBackground,
+      );
+    },
+    onSuccess: () => invalidatePublicConfig(queryClient),
+  });
+}
+
+export function removeInstanceImageMutationOptions(
+  queryClient: QueryClient,
+  kind: InstanceImageKind,
+) {
+  return mutationOptions({
+    meta: {
+      success:
+        kind === "icon"
+          ? successMessage.removeInstanceIcon
+          : successMessage.removeSignInBackground,
+    },
+    retry: false,
+    mutationFn: async () => {
+      await runWithSudo(
+        () => client.DELETE(instanceImagePath[kind]),
+        kind === "icon"
+          ? sudoReason.updateInstanceIcon
+          : sudoReason.updateSignInBackground,
+      );
+    },
+    onSuccess: () => invalidatePublicConfig(queryClient),
+  });
+}
+
+/** Replaces the whole policy; the server keeps nothing from the previous one. */
+export function updateClientIpMutationOptions(queryClient: QueryClient) {
+  return mutationOptions({
+    meta: { success: successMessage.saveClientIp },
+    retry: false,
+    mutationFn: async (body: ClientIpSettings) => {
+      await runWithSudo(
+        () =>
+          client.PUT("/api/prohibitorum/admin/settings/client-ip", { body }),
+        sudoReason.updateClientIp,
+      );
+    },
+    onSuccess: () =>
+      queryClient.invalidateQueries({
+        queryKey: ["admin", "settings", "client-ip"],
+      }),
+  });
+}
+
+/* ---------------------------------------------------------- signing keys -- */
+
+function invalidateSigningKeys(queryClient: QueryClient) {
+  return queryClient.invalidateQueries({ queryKey: ["admin", "signing-keys"] });
+}
+
+/** A new key starts out pending: published for verification, never signing. */
+export function generateSigningKeyMutationOptions(queryClient: QueryClient) {
+  return mutationOptions({
+    meta: { success: successMessage.generateSigningKey },
+    retry: false,
+    mutationFn: async () =>
+      runWithSudo(
+        () =>
+          requireJsonData(
+            client.POST("/api/prohibitorum/signing-keys/generate", {
+              body: {},
+            }),
+          ),
+        sudoReason.generateSigningKey,
+      ),
+    onSuccess: () => invalidateSigningKeys(queryClient),
+  });
+}
+
+/**
+ * The key-state writes answer `credential_not_found` for a key that is no longer
+ * in the state the list showed, so they carry the signing-key error scope and
+ * refresh the list whichever way they end: after a refusal the rows on screen
+ * are the ones that were wrong.
+ */
+export function activateSigningKeyMutationOptions(queryClient: QueryClient) {
+  return mutationOptions({
+    meta: {
+      success: successMessage.activateSigningKey,
+      errorScope: "signing-key",
+    },
+    retry: false,
+    mutationFn: async (kid: string) =>
+      runWithSudo(
+        () =>
+          requireJsonData(
+            client.POST("/api/prohibitorum/signing-keys/{kid}/activate", {
+              params: { path: { kid } },
+              body: {},
+            }),
+          ),
+        sudoReason.activateSigningKey,
+      ),
+    onSettled: () => invalidateSigningKeys(queryClient),
+  });
+}
+
+export function retireSigningKeyMutationOptions(queryClient: QueryClient) {
+  return mutationOptions({
+    meta: {
+      success: successMessage.retireSigningKey,
+      errorScope: "signing-key",
+    },
+    retry: false,
+    mutationFn: async (kid: string) =>
+      runWithSudo(
+        () =>
+          requireJsonData(
+            client.POST("/api/prohibitorum/signing-keys/{kid}/retire", {
+              params: { path: { kid } },
+              body: {},
+            }),
+          ),
+        sudoReason.retireSigningKey,
+      ),
+    onSettled: () => invalidateSigningKeys(queryClient),
   });
 }

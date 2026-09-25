@@ -1,32 +1,22 @@
 import { Avatar, Description, Label, Radio, RadioGroup } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Upload, UserRound } from "lucide-react";
-import { useRef, useState } from "react";
+import { UserRound } from "lucide-react";
+import { useState } from "react";
 import { client } from "@/api/client";
-import { describeError } from "@/api/errors";
 import { successMessage } from "@/api/success-messages";
 import { notifySuccess } from "@/components/custom/AppNotifications";
-import { Button } from "@/components/custom/Button";
 import { ConsoleCard } from "@/components/custom/ConsoleCard";
-import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
+import { ImageUploadControl } from "@/components/custom/ImageUploadControl";
 
-const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
-const ACCEPTED_TYPES = "image/png,image/jpeg,image/webp,image/gif,image/avif";
-
-/**
- * The two checks worth making before sending a file: the server enforces both
- * limits anyway, and this only avoids a doomed upload. Anything that passes is
- * still the server's call.
- */
-export function rejectAvatar(file: {
-  size: number;
-  type: string;
-}): "too_large" | "not_image" | null {
-  if (file.size > MAX_AVATAR_BYTES) return "too_large";
-  if (!file.type.startsWith("image/")) return "not_image";
-  return null;
-}
+/** What `PUT /me/avatar` decodes; the file picker offers the same list. */
+export const avatarTypes = [
+  "image/png",
+  "image/jpeg",
+  "image/webp",
+  "image/gif",
+  "image/avif",
+] as const;
 
 type Session = {
   avatarUrl?: string;
@@ -45,9 +35,7 @@ export function AvatarPanel({ current }: { current: Session }) {
   const { t } = useLingui();
   const queryClient = useQueryClient();
   const [failure, setFailure] = useState<unknown>(null);
-  const [localError, setLocalError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
-  const input = useRef<HTMLInputElement>(null);
 
   // Every avatar write changes `SessionView`: the source, the URL and the
   // pending flag all come from there, so the session cache is the one thing to
@@ -81,31 +69,11 @@ export function AvatarPanel({ current }: { current: Session }) {
 
   /**
    * Uploads raw bytes, not a multipart form: the server caps the body at 5 MiB
-   * and re-encodes to webp, so the checks here only save a doomed round trip.
-   * The chosen file stays selected on failure so the user can retry.
+   * and re-encodes to webp, so the control's checks only save a doomed round
+   * trip.
    */
   async function upload(file: File) {
     setFailure(null);
-    setLocalError(null);
-    const rejected = rejectAvatar(file);
-    if (rejected === "too_large") {
-      setLocalError(
-        t({
-          id: "profile.avatar.too_large",
-          message: "Choose an image smaller than 5 MiB.",
-        }),
-      );
-      return;
-    }
-    if (rejected === "not_image") {
-      setLocalError(
-        t({
-          id: "profile.avatar.not_image",
-          message: "Choose an image file.",
-        }),
-      );
-      return;
-    }
     setPending(true);
     try {
       // Through the shared client, so an error arrives as an `ApiError` with
@@ -157,78 +125,32 @@ export function AvatarPanel({ current }: { current: Session }) {
           )}
         </div>
 
-        <div className="flex flex-col gap-2">
-          <input
-            ref={input}
-            type="file"
-            accept={ACCEPTED_TYPES}
-            className="sr-only"
-            onChange={(event) => {
-              const file = event.target.files?.[0];
-              // Reset so choosing the same file twice still fires a change.
-              event.target.value = "";
-              if (file) void upload(file);
-            }}
-          />
-          <div className="flex flex-wrap gap-2">
-            <Button
-              variant="secondary"
-              isDisabled={busy}
-              isPending={pending}
-              onPress={() => input.current?.click()}
-            >
-              {({ isPending }) => (
-                <>
-                  {!isPending && <Upload size={16} aria-hidden="true" />}
-                  {hasUpload ? (
-                    <Trans id="profile.avatar.replace">Replace upload</Trans>
-                  ) : (
-                    <Trans id="profile.avatar.upload">Upload a picture</Trans>
-                  )}
-                </>
-              )}
-            </Button>
-            {hasUpload && (
-              <Button
-                variant="danger-soft"
-                isDisabled={busy}
-                isPending={remove.isPending}
-                onPress={() => {
-                  setFailure(null);
-                  remove.mutate();
-                }}
-              >
-                <Trans id="profile.avatar.remove">Remove upload</Trans>
-              </Button>
-            )}
-          </div>
-          <Description>
+        <ImageUploadControl
+          types={avatarTypes}
+          hasImage={hasUpload}
+          uploadLabel={
+            <Trans id="profile.avatar.upload">Upload a picture</Trans>
+          }
+          replaceLabel={
+            <Trans id="profile.avatar.replace">Replace upload</Trans>
+          }
+          removeLabel={<Trans id="profile.avatar.remove">Remove upload</Trans>}
+          hint={
             <Trans id="profile.avatar.hint">
               PNG, JPEG, WebP, GIF or AVIF, up to 5 MiB. Larger pictures are
               scaled down.
             </Trans>
-          </Description>
-        </div>
-
-        {localError && (
-          <SurfaceAlert status="warning" role="alert">
-            <SurfaceAlert.Indicator />
-            <SurfaceAlert.Content>
-              <SurfaceAlert.Title>{localError}</SurfaceAlert.Title>
-            </SurfaceAlert.Content>
-          </SurfaceAlert>
-        )}
-
-        {failure !== null && (
-          <SurfaceAlert status="danger" role="alert">
-            <SurfaceAlert.Indicator />
-            <SurfaceAlert.Content>
-              <SurfaceAlert.Title>
-                {t(describeError(failure))}
-              </SurfaceAlert.Title>
-            </SurfaceAlert.Content>
-          </SurfaceAlert>
-        )}
+          }
+          isUploading={pending}
+          isRemoving={remove.isPending}
+          isDisabled={select.isPending}
+          failure={failure}
+          onUpload={(file) => void upload(file)}
+          onRemove={() => {
+            setFailure(null);
+            remove.mutate();
+          }}
+        />
 
         <RadioGroup
           aria-label={t({

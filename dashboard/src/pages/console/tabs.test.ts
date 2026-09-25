@@ -5,17 +5,22 @@ import {
   profileTabs,
   securityTab,
   securityTabs,
+  settingsTab,
+  settingsTabs,
 } from "@/pages/console/tabs";
 
 describe("console tab search", () => {
   it("keeps a value the page can render", () => {
     expect(profileTab("avatar")).toBe("avatar");
     expect(securityTab("tokens")).toBe("tokens");
+    expect(settingsTab("keys")).toBe("keys");
   });
 
   it("falls back to the first tab for a missing value", () => {
     expect(profileTab(undefined)).toBe(profileTabs[0]);
     expect(securityTab(undefined)).toBe(securityTabs[0]);
+    expect(settingsTab(undefined)).toBe(settingsTabs[0]);
+    expect(settingsTab("Keys")).toBe(settingsTabs[0]);
   });
 
   it("falls back rather than guessing at an unknown tab", () => {

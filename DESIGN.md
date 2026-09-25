@@ -174,6 +174,16 @@ caller that knows which one it is. In a dialog, `SecretReveal` also takes
 puts its continue control in `Modal.Footer`, which is where HeroUI keeps dialog
 actions.
 
+### Confirmations
+
+A consequential action confirms through `ConfirmDialog` from
+`dashboard/src/components/custom`: HeroUI's `AlertDialog` with
+`AlertDialog.Icon` beside the heading, the consequence in the body, cancel
+(`tertiary`) on the left and the action on the right. The status sets the icon
+and the action button: `danger` for what removes something for good, with a
+`danger` button; `warning` for a change of state that can be undone, and
+`accent` for a step worth a second look, both with a `primary` button.
+
 ## Do's and Don'ts
 
 ### Do:

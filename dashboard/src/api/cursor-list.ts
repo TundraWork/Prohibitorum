@@ -53,6 +53,11 @@ export function useCursorList<T>(options: {
     cursor?: string;
     signal: AbortSignal;
   }) => Promise<CursorPage<T>>;
+  /**
+   * `false` while the question is not finished — a date range with no end —
+   * so nothing is sent until it is.
+   */
+  enabled?: boolean;
 }) {
   const query = useInfiniteQuery<
     CursorPage<T>,
@@ -60,13 +65,19 @@ export function useCursorList<T>(options: {
     InfiniteData<CursorPage<T>>,
     readonly unknown[],
     string | undefined
-  >(cursorListOptions(options));
+  >({
+    ...cursorListOptions(options),
+    enabled: options.enabled ?? true,
+  });
 
   const pages = query.data?.pages ?? [];
   return {
     items: pages.flatMap((page) => page.items ?? []),
-    /** The first page is still on its way; there is nothing to draw yet. */
-    loading: query.isPending,
+    /**
+     * The first page is still on its way; there is nothing to draw yet. A list
+     * that is not asking has nothing on its way.
+     */
+    loading: query.isPending && query.fetchStatus !== "idle",
     /** A later page is on its way; the rows in hand stay on screen. */
     loadingMore: query.isFetchingNextPage,
     hasMore: query.hasNextPage,
