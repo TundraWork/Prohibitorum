@@ -6,7 +6,6 @@ import {
   ListBox,
   Modal,
   Select,
-  Tabs,
 } from "@heroui/react";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
@@ -47,6 +46,7 @@ import {
 } from "@/api/queries";
 import { Button } from "@/components/custom/Button";
 import { ConsoleCard } from "@/components/custom/ConsoleCard";
+import { ConsoleTabs } from "@/components/custom/ConsoleTabs";
 import { DangerZone } from "@/components/custom/DangerZone";
 import { ItemList, ItemListRow } from "@/components/custom/ItemList";
 import { RelativeTime } from "@/components/custom/RelativeTime";
@@ -56,7 +56,6 @@ import { invitationLinkCopy } from "@/components/custom/secret-reveal-copy";
 import { TableEmptyState } from "@/components/custom/TableEmptyState";
 import { applyServerError } from "@/forms/server-errors";
 import { useAppForm } from "@/forms/use-app-form";
-import type { AccountTab } from "@/pages/console/tabs";
 import { Route } from "@/routes/_protected.admin.users_.$id";
 
 type Account = components["schemas"]["AccountView"];
@@ -124,46 +123,35 @@ export function AdminUser() {
   const account = useSuspenseQuery(accountQueryOptions(accountId));
 
   return (
-    <Tabs
-      selectedKey={tab}
-      onSelectionChange={(key) => {
-        // replace, so browsing tabs never buries the page the user came from.
+    <ConsoleTabs
+      label={t({ id: "admin.user.tabs", message: "Account" })}
+      selected={tab}
+      onSelectionChange={(next) =>
         void navigate({
           to: "/admin/users/$id",
           params: { id },
-          search: { tab: key as AccountTab },
+          search: { tab: next },
           replace: true,
-        });
-      }}
-    >
-      <Tabs.ListContainer className="ml-2 w-fit max-w-full">
-        <Tabs.List
-          aria-label={t({ id: "admin.user.tabs", message: "Account" })}
-        >
-          <Tabs.Tab className="whitespace-nowrap" id="profile">
-            <Trans id="admin.user.tab.profile">Profile</Trans>
-            <Tabs.Indicator />
-          </Tabs.Tab>
-          <Tabs.Tab className="whitespace-nowrap" id="access">
-            <Trans id="admin.user.tab.access">Access</Trans>
-            <Tabs.Indicator />
-          </Tabs.Tab>
-          <Tabs.Tab className="whitespace-nowrap" id="danger">
-            <Trans id="admin.user.tab.danger">Danger zone</Trans>
-            <Tabs.Indicator />
-          </Tabs.Tab>
-        </Tabs.List>
-      </Tabs.ListContainer>
-      <Tabs.Panel id="profile" className="pt-4">
-        {tab === "profile" && <ProfilePanel account={account.data} />}
-      </Tabs.Panel>
-      <Tabs.Panel id="access" className="pt-4">
-        {tab === "access" && <AccessPanel accountId={accountId} />}
-      </Tabs.Panel>
-      <Tabs.Panel id="danger" className="pt-4">
-        {tab === "danger" && <DangerPanel account={account.data} />}
-      </Tabs.Panel>
-    </Tabs>
+        })
+      }
+      tabs={[
+        {
+          id: "profile",
+          title: <Trans id="admin.user.tab.profile">Profile</Trans>,
+          panel: () => <ProfilePanel account={account.data} />,
+        },
+        {
+          id: "access",
+          title: <Trans id="admin.user.tab.access">Access</Trans>,
+          panel: () => <AccessPanel accountId={accountId} />,
+        },
+        {
+          id: "danger",
+          title: <Trans id="admin.user.tab.danger">Danger zone</Trans>,
+          panel: () => <DangerPanel account={account.data} />,
+        },
+      ]}
+    />
   );
 }
 
