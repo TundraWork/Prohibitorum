@@ -304,11 +304,38 @@ const errorMessages: Readonly<Record<string, MessageDescriptor>> = {
     id: "error.invalid_group_rule",
     message: "The server did not accept this rule. Check it and try again.",
   }),
+  active_key_no_replacement: msg({
+    id: "error.active_key_no_replacement",
+    message: "Activate another key first, then retire this one.",
+  }),
+};
+
+/**
+ * Where a request was made, for the few codes whose meaning depends on it.
+ * A mutation names its scope as `meta.errorScope`, and the query client hands
+ * it on, so the toast reads the scoped wording before the general one.
+ */
+export type ErrorScope = "signing-key";
+
+const scopedErrorMessages: Readonly<
+  Record<ErrorScope, Readonly<Record<string, MessageDescriptor>>>
+> = {
+  // The key handlers reuse `credential_not_found` for a key that is gone or no
+  // longer pending, and the general wording for that code names a passkey.
+  "signing-key": {
+    credential_not_found: msg({
+      id: "error.signing-key.credential_not_found",
+      message: "This key is no longer pending. The list has been refreshed.",
+    }),
+  },
 };
 
 export type ErrorDescription = MessageDescriptor & { requestId?: string };
 
-export function describeError(error: unknown): ErrorDescription {
+export function describeError(
+  error: unknown,
+  scope?: ErrorScope,
+): ErrorDescription {
   if (!(error instanceof ApiError)) return genericFailure;
   if (error.kind === "network") {
     return msg({
@@ -323,10 +350,13 @@ export function describeError(error: unknown): ErrorDescription {
       message: "The server returned an invalid response. Please try again.",
     });
   }
+  const scoped = scope === undefined ? undefined : scopedErrorMessages[scope];
   const message =
-    error.code && Object.hasOwn(errorMessages, error.code)
-      ? (errorMessages[error.code] ?? genericFailure)
-      : genericFailure;
+    error.code && scoped && Object.hasOwn(scoped, error.code)
+      ? (scoped[error.code] ?? genericFailure)
+      : error.code && Object.hasOwn(errorMessages, error.code)
+        ? (errorMessages[error.code] ?? genericFailure)
+        : genericFailure;
   return {
     ...message,
     requestId:

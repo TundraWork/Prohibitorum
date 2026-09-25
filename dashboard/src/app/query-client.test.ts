@@ -51,3 +51,31 @@ it("picks the message from what was sent, and says nothing when the write fails"
   expect(notifySuccess).toHaveBeenCalledWith(disabled);
   expect(notifyError).toHaveBeenCalledTimes(1);
 });
+
+it("hands a write's error scope to the error notice, and none for a read", async () => {
+  const notifyError = vi.fn();
+  const queryClient = createQueryClient(notifyError);
+  const refused = new Error("refused");
+
+  await expect(
+    new MutationObserver(queryClient, {
+      mutationFn: async () => {
+        throw refused;
+      },
+      meta: { errorScope: "signing-key" },
+    }).mutate(),
+  ).rejects.toThrow("refused");
+  await expect(
+    queryClient.fetchQuery({
+      queryKey: ["scope-test"],
+      queryFn: async () => {
+        throw refused;
+      },
+    }),
+  ).rejects.toThrow("refused");
+
+  expect(notifyError.mock.calls).toEqual([
+    [refused, "signing-key"],
+    [refused, undefined],
+  ]);
+});

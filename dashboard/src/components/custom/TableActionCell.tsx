@@ -15,14 +15,15 @@ import type { ReactNode } from "react";
  * applied here it would both read as no change and let the columns sliding
  * underneath show through, so the same result is painted as a solid mix of the
  * surface and the body's own backdrop. A soft shadow on the leading edge marks
- * where the pinned column begins.
+ * where the pinned column begins while there are columns still to scroll
+ * under it (`table-pinned` in `styles/index.css`).
  *
  * `justify-end` keeps a lone button or a small group against the pinned edge;
  * icon buttons are laid out with a one-step gap.
  */
 export function TableActionCell({ children }: { children: ReactNode }) {
   return (
-    <Table.Cell className="table-action-cell sticky end-0 z-[1] bg-surface shadow-[-8px_0_8px_-8px_rgb(0_0_0/0.15)]">
+    <Table.Cell className="table-action-cell table-pinned sticky end-0 z-[1] bg-surface">
       <div className="flex items-center justify-end gap-1">{children}</div>
     </Table.Cell>
   );
@@ -39,7 +40,7 @@ export function TableActionColumn({
   return (
     <Table.Column
       id={id}
-      className="sticky end-0 z-[1] bg-surface-secondary text-end shadow-[-8px_0_8px_-8px_rgb(0_0_0/0.15)]"
+      className="table-pinned sticky end-0 z-[1] bg-surface-secondary text-end"
     >
       {children}
     </Table.Column>

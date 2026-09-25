@@ -101,6 +101,13 @@ function mount(
   );
 }
 
+/** Requests that asked for new recovery codes. */
+function regenerateRequests() {
+  return fetchBoundary.mock.calls.filter(([request]) =>
+    new URL(request.url).pathname.endsWith("/me/recovery-codes/regenerate"),
+  );
+}
+
 const bothSet = {
   passwordSet: true,
   totpEnrolled: true,
@@ -161,10 +168,19 @@ describe("password and authenticator factors", () => {
     await user.click(
       screen.getByRole("button", { name: "Generate new recovery codes" }),
     );
+    // The old codes stop working, so nothing is sent until that is confirmed.
+    const confirm = await screen.findByRole("alertdialog", {
+      name: "Replace your recovery codes?",
+    });
+    expect(regenerateRequests()).toHaveLength(0);
+    await user.click(
+      within(confirm).getByRole("button", { name: "Replace codes" }),
+    );
 
     const dialog = await screen.findByRole("dialog", {
       name: "Save your new recovery codes",
     });
+    expect(regenerateRequests()).toHaveLength(1);
     expect(
       within(dialog).getByRole("textbox", { name: "New recovery codes" }),
     ).toHaveValue(codes.join("\n"));
@@ -188,6 +204,25 @@ describe("password and authenticator factors", () => {
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
     );
     expect(screen.getByRole("button", { name: "Change" })).toBeInTheDocument();
+  });
+
+  it("keeps the existing recovery codes when the replacement is cancelled", async () => {
+    mount(bothSet);
+    const user: UserEvent = userEvent.setup();
+
+    await screen.findByText("Change password");
+    await user.click(
+      screen.getByRole("button", { name: "Generate new recovery codes" }),
+    );
+    const confirm = await screen.findByRole("alertdialog", {
+      name: "Replace your recovery codes?",
+    });
+    await user.click(within(confirm).getByRole("button", { name: "Cancel" }));
+
+    await waitFor(() =>
+      expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument(),
+    );
+    expect(regenerateRequests()).toHaveLength(0);
   });
 
   it("shows the combined setup in place when a factor is missing", async () => {

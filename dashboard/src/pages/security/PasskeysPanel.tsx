@@ -21,6 +21,7 @@ import {
 } from "@/api/mutations";
 import { credentialsQueryOptions } from "@/api/queries";
 import { Button } from "@/components/custom/Button";
+import { ConfirmDialog } from "@/components/custom/ConfirmDialog";
 import { ItemList, ItemListRow } from "@/components/custom/ItemList";
 import { RelativeTime } from "@/components/custom/RelativeTime";
 import { TableEmptyState } from "@/components/custom/TableEmptyState";
@@ -202,57 +203,39 @@ export function PasskeysPanel() {
         </ItemList>
       </div>
 
-      <AlertDialog
+      <ConfirmDialog
         isOpen={deleting !== null}
         onOpenChange={(open) => !open && setDeleting(null)}
-      >
-        <AlertDialog.Backdrop>
-          <AlertDialog.Container placement="center" size="md">
-            <AlertDialog.Dialog>
-              <AlertDialog.Header>
-                <AlertDialog.Heading>
-                  <Trans id="security.passkeys.delete.title">
-                    Remove this passkey?
-                  </Trans>
-                </AlertDialog.Heading>
-              </AlertDialog.Header>
-              <AlertDialog.Body>
-                <p>
-                  <Trans id="security.passkeys.delete.body">
-                    This passkey will stop working for sign-in right away. Any
-                    other way you have to sign in is unaffected.
-                  </Trans>
-                </p>
-              </AlertDialog.Body>
-              <AlertDialog.Footer>
-                <Button
-                  variant="secondary"
-                  onPress={() => setDeleting(null)}
-                  isDisabled={remove.isPending}
-                >
-                  <Trans id="security.keep">Keep it</Trans>
-                </Button>
-                <Button
-                  variant="danger"
-                  isPending={remove.isPending}
-                  onPress={() => {
-                    if (!deleting) return;
-                    remove.mutate(deleting.id, {
-                      onSuccess: () => setDeleting(null),
-                      onError: (failure) => {
-                        setError(failure);
-                        setDeleting(null);
-                      },
-                    });
-                  }}
-                >
-                  <Trans id="security.passkeys.delete.confirm">Remove</Trans>
-                </Button>
-              </AlertDialog.Footer>
-            </AlertDialog.Dialog>
-          </AlertDialog.Container>
-        </AlertDialog.Backdrop>
-      </AlertDialog>
+        status="danger"
+        title={
+          <Trans id="security.passkeys.delete.title">
+            Remove this passkey?
+          </Trans>
+        }
+        body={
+          <p>
+            <Trans id="security.passkeys.delete.body">
+              This passkey will stop working for sign-in right away. Any other
+              way you have to sign in is unaffected.
+            </Trans>
+          </p>
+        }
+        cancelLabel={<Trans id="security.keep">Keep it</Trans>}
+        confirmLabel={
+          <Trans id="security.passkeys.delete.confirm">Remove</Trans>
+        }
+        isPending={remove.isPending}
+        onConfirm={() => {
+          if (!deleting) return;
+          remove.mutate(deleting.id, {
+            onSuccess: () => setDeleting(null),
+            onError: (failure) => {
+              setError(failure);
+              setDeleting(null);
+            },
+          });
+        }}
+      />
 
       <AlertDialog
         isOpen={renaming !== null}

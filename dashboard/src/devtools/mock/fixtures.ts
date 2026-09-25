@@ -11,6 +11,7 @@ import {
   clampAdminCount,
   clampCount,
   type MockConfig,
+  mockListMax,
   mockPageSize,
 } from "@/devtools/mock/model";
 
@@ -26,6 +27,8 @@ type Factors = components["schemas"]["MeFactorsView"];
 type Account = components["schemas"]["AccountView"];
 type Invitation = components["schemas"]["InvitationView"];
 type IdentityProvider = components["schemas"]["IdentityProviderView"];
+type AuditEvent = components["schemas"]["AuditEventView"];
+type SigningKey = components["schemas"]["SigningKeyView"];
 
 /** Applies what a write did to the config, so the reads that follow agree with it. */
 export type MockEffect = (draft: MockConfig) => void;
@@ -157,21 +160,53 @@ function pathTail(request: MockRequest): number {
   return Number.isFinite(value) ? value : 0;
 }
 
+/** A placeholder image as a `data:` URL, so a mocked image needs no fetch. */
+function svgUrl(svg: string): string {
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+}
+
+/**
+ * The instance icon: the built-in mark, or an "uploaded" one whose colour moves
+ * with every image write, so replacing it visibly changes the sidebar.
+ */
+function mockIconUrl(config: MockConfig): string {
+  if (!config.instance.customIcon) {
+    return svgUrl(
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#1f5f7a"/><path d="M20 46V18h14a9 9 0 0 1 0 18H28v10z" fill="#e8f2f7"/></svg>',
+    );
+  }
+  const hue = (config.instance.imageRevision * 67) % 360;
+  return svgUrl(
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="hsl(${hue} 55% 42%)"/><circle cx="32" cy="32" r="14" fill="#fff" fill-opacity=".85"/></svg>`,
+  );
+}
+
+/** A soft gradient standing in for an uploaded sign-in background. */
+function mockBackgroundUrl(config: MockConfig): string {
+  const hue = (config.instance.imageRevision * 67 + 180) % 360;
+  return svgUrl(
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="hsl(${hue} 45% 70%)"/><stop offset="1" stop-color="hsl(${(hue + 60) % 360} 45% 35%)"/></linearGradient></defs><rect width="1600" height="900" fill="url(#g)"/></svg>`,
+  );
+}
+
 /* ------------------------------------------------------------------ reads -- */
 
 function publicConfig(config: MockConfig): PublicConfig {
+  const revision = String(config.instance.imageRevision);
   return {
-    instanceName: "Prohibitorum (mock)",
-    hasCustomIcon: false,
-    iconUrl: "",
-    iconEtag: "",
+    instanceName: config.instance.name || "Prohibitorum (mock)",
+    hasCustomIcon: config.instance.customIcon,
+    iconUrl: mockIconUrl(config),
+    iconEtag: `icon-${revision}`,
     maintenanceMode: config.instance.maintenance,
-    maintenanceMessage: config.instance.maintenance
-      ? "Scheduled maintenance is in progress."
+    maintenanceMessage: config.instance.maintenanceMessage,
+    hasCustomBackground: config.instance.customBackground,
+    backgroundUrl: config.instance.customBackground
+      ? mockBackgroundUrl(config)
       : "",
-    hasCustomBackground: false,
-    backgroundUrl: "",
-    backgroundEtag: "",
+    backgroundEtag: config.instance.customBackground
+      ? `background-${revision}`
+      : "",
     totp: {
       issuer: "Prohibitorum (mock)",
       algorithm: "SHA1",
@@ -556,6 +591,195 @@ function groupProviders(): ProviderDescriptorView[] {
   ];
 }
 
+/* ------------------------------------------------------------ audit log -- */
+
+/**
+ * What each generated event records, cycling so that every page mixes
+ * factors, failures, events with and without an account, and details with and
+ * without a browser or a detail map.
+ */
+const auditShapes: readonly {
+  factor: string;
+  event: string;
+  detail?: Record<string, unknown>;
+}[] = [
+  { factor: "webauthn", event: "use" },
+  { factor: "password", event: "fail", detail: { reason: "bad_password" } },
+  { factor: "session", event: "session_start" },
+  {
+    factor: "settings",
+    event: "update",
+    detail: { reason: "maintenance_enabled" },
+  },
+  {
+    factor: "signing_key",
+    event: "register",
+    detail: { kid: "mock-key", action: "generate" },
+  },
+  { factor: "totp", event: "factor_locked" },
+  { factor: "account", event: "update", detail: { field: "role" } },
+  {
+    factor: "oidc_client",
+    event: "access_denied",
+    detail: { clientId: "mock-client-1" },
+  },
+  { factor: "invitation", event: "enrollment_issued" },
+  { factor: "session", event: "sudo_failed" },
+  { factor: "personal_access_token", event: "revoke" },
+  // A value the dashboard's vocabulary does not know, shown as it arrives.
+  { factor: "mock_unknown", event: "mock_event" },
+];
+
+/**
+ * The generated log, newest first, one event every two hours: the default
+ * count spans two days, so the day-long preset shows part of it and the
+ * week-long one all of it.
+ */
+function auditEventsFrom(config: MockConfig): AuditEvent[] {
+  const accountCount = clampAdminCount(config.admin.accounts);
+  return Array.from(
+    { length: clampAdminCount(config.admin.auditEvents) },
+    (_, index): AuditEvent => {
+      const shape = auditShapes[index % auditShapes.length] ?? {
+        factor: "webauthn",
+        event: "use",
+      };
+      // Every fourth event is the system's own, with no account; the rest
+      // belong to the directory's accounts.
+      const account =
+        index % 4 === 3 || accountCount === 0
+          ? undefined
+          : accountAt(index % accountCount, config);
+      return {
+        id: 10_000 - index,
+        at: iso(-(index * 2 + 0.25) * 3_600_000),
+        ...(account === undefined
+          ? {}
+          : { accountId: account.id, accountUsername: account.username }),
+        factor: shape.factor,
+        event: shape.event,
+        ...(index % 5 === 4 ? {} : { ip: `198.51.100.${(index % 250) + 1}` }),
+        ...(index % 2 === 0
+          ? {
+              userAgent:
+                "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) MockBrowser/1.0 Safari/537.36",
+            }
+          : {}),
+        ...(shape.detail ? { detail: shape.detail } : {}),
+      };
+    },
+  );
+}
+
+/** The log with `GET /audit-events`' filters applied, as the server would. */
+function filteredAuditEvents(
+  request: MockRequest,
+  config: MockConfig,
+): AuditEvent[] {
+  const params = new URL(request.url).searchParams;
+  const factor = params.get("factor");
+  const event = params.get("event");
+  const accountId = params.get("accountId");
+  const since = params.get("since");
+  const until = params.get("until");
+  return auditEventsFrom(config).filter(
+    (item) =>
+      (factor === null || item.factor === factor) &&
+      (event === null || item.event === event) &&
+      (accountId === null || item.accountId === Number(accountId)) &&
+      (since === null || Date.parse(item.at) >= Date.parse(since)) &&
+      (until === null || Date.parse(item.at) <= Date.parse(until)),
+  );
+}
+
+/* --------------------------------------------------------- signing keys -- */
+
+const keyStateLetters = {
+  P: "pending",
+  A: "active",
+  D: "decommissioning",
+  R: "retired",
+  // Retiring, but retired straight from pending: it never signed.
+  X: "decommissioning",
+} as const;
+type KeyStateLetter = keyof typeof keyStateLetters;
+
+/**
+ * Each key's state letter, newest first. A key the stored string does not
+ * reach takes its state from its position: the newest is pending, the next
+ * signs, the one before that is retiring, and the rest are retired.
+ */
+function signingKeyStates(config: MockConfig): KeyStateLetter[] {
+  return Array.from(
+    { length: clampCount(config.admin.signingKeys) },
+    (_, index): KeyStateLetter => {
+      const stored = config.admin.signingKeyStates[index];
+      if (stored !== undefined && stored in keyStateLetters) {
+        return stored as KeyStateLetter;
+      }
+      return index === 0 ? "P" : index === 1 ? "A" : index === 2 ? "D" : "R";
+    },
+  );
+}
+
+/**
+ * The key list. A key is numbered from the oldest, so generating one adds a
+ * number at the top and leaves every existing key's id where it was.
+ */
+function signingKeysFrom(config: MockConfig): SigningKey[] {
+  const states = signingKeyStates(config);
+  return states.map((letter, index): SigningKey => {
+    const serial = states.length - index;
+    const status = keyStateLetters[letter];
+    return {
+      kid: `mock${String(serial).padStart(3, "0")}-${"x".repeat(26)}-k${serial}`,
+      algorithm: "RS256",
+      use: "sig",
+      status,
+      publicJwk: {
+        kty: "RSA",
+        kid: `mock-key-${serial}`,
+        use: "sig",
+        alg: "RS256",
+        n: `mock-modulus-${serial}`,
+        e: "AQAB",
+      },
+      ...(letter === "P" || letter === "X"
+        ? {}
+        : { activatedAt: iso(-day * (index * 90 + 30)) }),
+      ...(status === "decommissioning"
+        ? {
+            decommissionedAt: iso(-day * (index * 90 - 60)),
+            retireAfter: iso(day * 2),
+          }
+        : status === "retired"
+          ? {
+              decommissionedAt: iso(-day * (index * 90 - 60)),
+              retireAfter: iso(-day * (index * 90 - 88)),
+            }
+          : {}),
+    };
+  });
+}
+
+/** The index of the key a path names, or -1 when there is none. */
+function signingKeyIndex(request: MockRequest, config: MockConfig): number {
+  const segments = new URL(request.url).pathname.split("/");
+  const kid = decodeURIComponent(segments[segments.length - 2] ?? "");
+  return signingKeysFrom(config).findIndex((key) => key.kid === kid);
+}
+
+function withKeyStates(
+  config: MockConfig,
+  change: (states: KeyStateLetter[]) => void,
+): MockEffect {
+  const states = signingKeyStates(config);
+  change(states);
+  return (draft) => {
+    draft.admin.signingKeyStates = states.join("");
+  };
+}
+
 function readReply(
   request: MockRequest,
   config: MockConfig,
@@ -690,6 +914,43 @@ function readReply(
           nextCursor: "",
         }),
       );
+    case "/api/prohibitorum/audit-events": {
+      const all = filteredAuditEvents(request, config);
+      const cursor = new URL(request.url).searchParams.get("cursor");
+      const start = cursor === null ? 0 : Number(cursor);
+      const page = all.slice(start, start + mockPageSize);
+      const next = start + page.length;
+      return guarded(config, () =>
+        json({
+          items: page,
+          nextCursor: next < all.length ? String(next) : "",
+        }),
+      );
+    }
+    case "/api/prohibitorum/signing-keys": {
+      const all = signingKeysFrom(config);
+      const cursor = new URL(request.url).searchParams.get("cursor");
+      const start = cursor === null ? 0 : Number(cursor);
+      const page = all.slice(start, start + mockPageSize);
+      const next = start + page.length;
+      return guarded(config, () =>
+        json({
+          items: page,
+          nextCursor: next < all.length ? String(next) : "",
+        }),
+      );
+    }
+    case "/api/prohibitorum/admin/settings/client-ip":
+      return guarded(config, () =>
+        json({
+          strategy: config.instance.clientIpStrategy,
+          header: config.instance.clientIpHeader,
+          trustedProxies: config.instance.trustedProxies
+            .split("\n")
+            .filter((line) => line !== ""),
+        }),
+      );
+
     case "/api/prohibitorum/groups/{groupId}/explain/{accountId}": {
       const accountId = pathTail(request);
       return guarded(config, () =>
@@ -999,6 +1260,123 @@ function writeReply(
 
     case "/api/prohibitorum/groups/{groupId}/decisions/clear":
       return empty();
+
+    /* ------------------------------------------------ instance settings -- */
+
+    case "/api/prohibitorum/admin/settings": {
+      if (method !== "PUT") return undefined;
+      const name = stringField(body, "instanceName") ?? "";
+      return empty(204, (draft) => {
+        draft.instance.name = name;
+      });
+    }
+
+    case "/api/prohibitorum/admin/settings/maintenance": {
+      const on = booleanField(body, "maintenanceMode") ?? false;
+      const message = stringField(body, "maintenanceMessage") ?? "";
+      return empty(204, (draft) => {
+        draft.instance.maintenance = on;
+        draft.instance.maintenanceMessage = message;
+      });
+    }
+
+    case "/api/prohibitorum/admin/settings/icon":
+      if (method !== "PUT" && method !== "DELETE") return undefined;
+      return empty(204, (draft) => {
+        draft.instance.customIcon = method === "PUT";
+        draft.instance.imageRevision += 1;
+      });
+
+    case "/api/prohibitorum/admin/settings/background":
+      if (method !== "PUT" && method !== "DELETE") return undefined;
+      return empty(204, (draft) => {
+        draft.instance.customBackground = method === "PUT";
+        draft.instance.imageRevision += 1;
+      });
+
+    case "/api/prohibitorum/admin/settings/client-ip": {
+      if (method !== "PUT") return undefined;
+      const strategy = stringField(body, "strategy");
+      const proxies = field(body, "trustedProxies");
+      return empty(204, (draft) => {
+        if (
+          strategy === "direct" ||
+          strategy === "forwarded" ||
+          strategy === "header"
+        ) {
+          draft.instance.clientIpStrategy = strategy;
+        }
+        draft.instance.clientIpHeader = stringField(body, "header") ?? "";
+        draft.instance.trustedProxies = Array.isArray(proxies)
+          ? proxies.filter((line) => typeof line === "string").join("\n")
+          : "";
+      });
+    }
+
+    /* ----------------------------------------------------- signing keys -- */
+
+    case "/api/prohibitorum/signing-keys/generate": {
+      const serial = clampCount(config.admin.signingKeys) + 1;
+      if (serial > mockListMax) {
+        return { kind: "error", status: 500, code: "server_error" };
+      }
+      const states = signingKeyStates(config);
+      const generated = signingKeysFrom({
+        ...config,
+        admin: {
+          ...config.admin,
+          signingKeys: serial,
+          signingKeyStates: `P${states.join("")}`,
+        },
+      })[0];
+      return {
+        kind: "json",
+        status: 201,
+        body: generated,
+        effect: (draft) => {
+          draft.admin.signingKeys = serial;
+          draft.admin.signingKeyStates = `P${states.join("")}`;
+        },
+      };
+    }
+
+    case "/api/prohibitorum/signing-keys/{kid}/activate": {
+      // Like the handler: only a pending key, and anything else is "not found".
+      const index = signingKeyIndex(request, config);
+      if (signingKeyStates(config)[index] !== "P") {
+        return { kind: "error", status: 404, code: "credential_not_found" };
+      }
+      const effect = withKeyStates(config, (states) => {
+        states.forEach((state, position) => {
+          if (state === "A") states[position] = "D";
+        });
+        states[index] = "A";
+      });
+      const next = structuredClone(config);
+      effect(next);
+      return json(signingKeysFrom(next)[index], effect);
+    }
+
+    case "/api/prohibitorum/signing-keys/{kid}/retire": {
+      const index = signingKeyIndex(request, config);
+      const state = signingKeyStates(config)[index];
+      if (state === "A") {
+        return {
+          kind: "error",
+          status: 409,
+          code: "active_key_no_replacement",
+        };
+      }
+      if (state !== "P" && state !== "D" && state !== "X") {
+        return { kind: "error", status: 404, code: "credential_not_found" };
+      }
+      const effect = withKeyStates(config, (states) => {
+        if (state === "P") states[index] = "X";
+      });
+      const next = structuredClone(config);
+      effect(next);
+      return json(signingKeysFrom(next)[index], effect);
+    }
 
     case "/api/prohibitorum/groups/rule-preview": {
       // The draft is what is being previewed, so the answer is derived from it

@@ -20,8 +20,10 @@
 package server
 
 import (
+	"encoding/json"
 	"net/netip"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -78,7 +80,7 @@ func TestAdminAuditEvents_Projection_BasicFields(t *testing.T) {
 
 	at := time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
 	accountID := int32(42)
-	row := db.CredentialEvent{
+	row := db.ListCredentialEventsRow{
 		ID:        99,
 		AccountID: &accountID,
 		Factor:    "webauthn",
@@ -119,7 +121,7 @@ func TestAdminAuditEvents_Projection_BasicFields(t *testing.T) {
 func TestAdminAuditEvents_Projection_NilAccountID(t *testing.T) {
 	t.Parallel()
 
-	row := db.CredentialEvent{
+	row := db.ListCredentialEventsRow{
 		ID:        1,
 		AccountID: nil, // system event, no account
 		Factor:    "system",
@@ -134,11 +136,57 @@ func TestAdminAuditEvents_Projection_NilAccountID(t *testing.T) {
 	}
 }
 
+func TestAdminAuditEvents_Projection_AccountUsername(t *testing.T) {
+	t.Parallel()
+
+	accountID := int32(42)
+	row := db.ListCredentialEventsRow{
+		ID:              2,
+		AccountID:       &accountID,
+		AccountUsername: pgtype.Text{String: "alice", Valid: true},
+		Factor:          "password",
+		Event:           "use",
+		At:              pgtype.Timestamptz{Time: time.Now(), Valid: true},
+	}
+
+	v := auditEventView(row)
+
+	if v.AccountUsername != "alice" {
+		t.Errorf("AccountUsername: got %q, want %q", v.AccountUsername, "alice")
+	}
+}
+
+func TestAdminAuditEvents_Projection_NoAccountUsername(t *testing.T) {
+	t.Parallel()
+
+	// The LEFT JOIN yields NULL for a system event and for a deleted account.
+	row := db.ListCredentialEventsRow{
+		ID:              3,
+		AccountUsername: pgtype.Text{Valid: false},
+		Factor:          "settings",
+		Event:           "update",
+		At:              pgtype.Timestamptz{Time: time.Now(), Valid: true},
+	}
+
+	v := auditEventView(row)
+
+	if v.AccountUsername != "" {
+		t.Errorf("AccountUsername: got %q, want empty string for NULL username", v.AccountUsername)
+	}
+	data, err := json.Marshal(v)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if strings.Contains(string(data), "accountUsername") {
+		t.Errorf("JSON %s: accountUsername should be omitted", data)
+	}
+}
+
 func TestAdminAuditEvents_Projection_IPAddress(t *testing.T) {
 	t.Parallel()
 
 	addr := netip.MustParseAddr("192.168.1.100")
-	row := db.CredentialEvent{
+	row := db.ListCredentialEventsRow{
 		ID:     5,
 		Factor: "webauthn",
 		Event:  "verify",
@@ -156,7 +204,7 @@ func TestAdminAuditEvents_Projection_IPAddress(t *testing.T) {
 func TestAdminAuditEvents_Projection_NilIP(t *testing.T) {
 	t.Parallel()
 
-	row := db.CredentialEvent{
+	row := db.ListCredentialEventsRow{
 		ID:     6,
 		Factor: "webauthn",
 		Event:  "verify",
@@ -174,7 +222,7 @@ func TestAdminAuditEvents_Projection_NilIP(t *testing.T) {
 func TestAdminAuditEvents_Projection_EmptyUserAgent(t *testing.T) {
 	t.Parallel()
 
-	row := db.CredentialEvent{
+	row := db.ListCredentialEventsRow{
 		ID:        7,
 		Factor:    "signing_key",
 		Event:     "register",
@@ -192,7 +240,7 @@ func TestAdminAuditEvents_Projection_EmptyUserAgent(t *testing.T) {
 func TestAdminAuditEvents_Projection_EmptyDetail(t *testing.T) {
 	t.Parallel()
 
-	row := db.CredentialEvent{
+	row := db.ListCredentialEventsRow{
 		ID:     8,
 		Factor: "webauthn",
 		Event:  "verify",
@@ -230,7 +278,7 @@ func TestAdminAuditEvents_ViewerPassesDetailThrough(t *testing.T) {
 	}
 
 	detail := encodeAttributes(inputDetail)
-	row := db.CredentialEvent{
+	row := db.ListCredentialEventsRow{
 		ID:     100,
 		Factor: "signing_key",
 		Event:  "update",
@@ -281,20 +329,21 @@ func TestAdminAuditEvents_ContractType_ExactFields(t *testing.T) {
 	// Construct a value using all exported fields — the compiler will error if
 	// any field name changes or is removed.
 	_ = contract.AuditEventView{
-		ID:        1,
-		At:        time.Now(),
-		AccountID: nil,
-		Factor:    "webauthn",
-		Event:     "register",
-		IP:        "1.2.3.4",
-		UserAgent: "test-ua",
-		Detail:    map[string]any{"key": "val"},
+		ID:              1,
+		At:              time.Now(),
+		AccountID:       nil,
+		AccountUsername: "alice",
+		Factor:          "webauthn",
+		Event:           "register",
+		IP:              "1.2.3.4",
+		UserAgent:       "test-ua",
+		Detail:          map[string]any{"key": "val"},
 	}
 
 	// Use reflection to enumerate the actual exported fields and assert exactly
 	// the seven expected fields are present and no more. Any additional field
 	// that lands here needs a security review (is it from a secret column?).
-	expectedFields := []string{"ID", "At", "AccountID", "Factor", "Event", "IP", "UserAgent", "Detail"}
+	expectedFields := []string{"ID", "At", "AccountID", "AccountUsername", "Factor", "Event", "IP", "UserAgent", "Detail"}
 	ty := reflect.TypeOf(contract.AuditEventView{})
 	actualFields := make([]string, 0, ty.NumField())
 	for i := 0; i < ty.NumField(); i++ {

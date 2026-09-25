@@ -6,9 +6,9 @@ import {
   TextArea,
   TextField,
 } from "@heroui/react";
-import { Trans } from "@lingui/react/macro";
 import { useStore } from "@tanstack/react-form";
 import { type ComponentProps, type ReactNode, useId } from "react";
+import { FormMessages } from "@/components/custom/FormMessages";
 import { useFieldContext, useFormContext } from "@/forms/context";
 import { withoutServerErrors } from "@/forms/server-errors";
 
@@ -76,7 +76,11 @@ export function TextAreaField({
         variant={variant}
       />
       {description !== undefined && <Description>{description}</Description>}
-      {invalid && <span className={errorClass}>{renderErrors(errors)}</span>}
+      {invalid && (
+        <span className={errorClass}>
+          <FormMessages errors={errors} />
+        </span>
+      )}
     </TextField>
   );
 }
@@ -125,7 +129,11 @@ export function SwitchField({
       {description !== undefined && (
         <Description className="text-xs text-muted">{description}</Description>
       )}
-      {invalid && <span className={errorClass}>{renderErrors(errors)}</span>}
+      {invalid && (
+        <span className={errorClass}>
+          <FormMessages errors={errors} />
+        </span>
+      )}
     </div>
   );
 }
@@ -168,7 +176,11 @@ export function NumberField({
       <Label htmlFor={id}>{label}</Label>
       <Input id={id} inputMode="numeric" />
       {description !== undefined && <Description>{description}</Description>}
-      {invalid && <span className={errorClass}>{renderErrors(errors)}</span>}
+      {invalid && (
+        <span className={errorClass}>
+          <FormMessages errors={errors} />
+        </span>
+      )}
     </TextField>
   );
 }
@@ -189,41 +201,5 @@ export function ReadOnlyField({
       <Input readOnly />
       {description !== undefined && <Description>{description}</Description>}
     </TextField>
-  );
-}
-
-/**
- * Renders a field's errors. Kept local rather than importing `FormMessages`
- * because these fields are plain HeroUI controls: the messages are already
- * strings by the time they arrive here.
- */
-function renderErrors(errors: readonly unknown[]): ReactNode {
-  const messages = errors
-    .flat(Infinity)
-    .map((error) => {
-      if (typeof error === "string") return error;
-      if (error instanceof Error) return error.message;
-      if (
-        typeof error === "object" &&
-        error !== null &&
-        "message" in error &&
-        typeof error.message === "string"
-      ) {
-        return error.message;
-      }
-      return undefined;
-    })
-    .filter((message): message is string => message !== undefined);
-  if (!messages.length) {
-    return <Trans id="forms.field.invalid">Check this value.</Trans>;
-  }
-  return (
-    <>
-      {[...new Set(messages)].map((message) => (
-        <span className="block" key={message}>
-          {message}
-        </span>
-      ))}
-    </>
   );
 }

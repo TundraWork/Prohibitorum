@@ -60,7 +60,7 @@ type topLevelQueries interface {
 	ListAllUpstreamIDPs(ctx context.Context, p db.ListAllUpstreamIDPsParams) ([]db.UpstreamIdp, error)
 	ListAllSigningKeys(ctx context.Context, p db.ListAllSigningKeysParams) ([]db.SigningKey, error)
 	ListForwardAuthClients(ctx context.Context, p db.ListForwardAuthClientsParams) ([]db.ListForwardAuthClientsRow, error)
-	ListCredentialEvents(ctx context.Context, p db.ListCredentialEventsParams) ([]db.CredentialEvent, error)
+	ListCredentialEvents(ctx context.Context, p db.ListCredentialEventsParams) ([]db.ListCredentialEventsRow, error)
 }
 
 // listQ returns the override (for tests) or the real queries. The real

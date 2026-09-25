@@ -48,3 +48,33 @@ body {
     }
   }
 }
+
+/*
+ * The pinned column's shadow marks where columns scroll under it, so it shows
+ * only while there are columns still to scroll: the table is wider than its
+ * container and not yet scrolled to the end. The scroll position drives it
+ * through a scroll-driven animation, with no script. A table that fits has an
+ * inactive timeline, so the animation never applies and there is no shadow;
+ * the last step of the timeline, scrolled to the end, has none either. A
+ * browser without scroll timelines shows no shadow at all.
+ */
+@supports (animation-timeline: scroll()) {
+  .data-table-scroll {
+    scroll-timeline: --table-x inline;
+  }
+
+  .table-pinned {
+    animation: table-pinned-shadow linear both;
+    animation-timeline: --table-x;
+  }
+
+  @keyframes table-pinned-shadow {
+    from,
+    99.9% {
+      box-shadow: -8px 0 8px -8px rgb(0 0 0 / 0.15);
+    }
+    to {
+      box-shadow: none;
+    }
+  }
+}

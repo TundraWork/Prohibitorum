@@ -742,14 +742,17 @@ var OperationGetSAMLApplication = huma.Operation{
 // table has no column that carries private key material, client secrets, tokens,
 // or auth codes — those are design-level invariants of the schema.
 type AuditEventView struct {
-	ID        int64          `json:"id"`
-	At        time.Time      `json:"at"`
-	AccountID *int32         `json:"accountId,omitempty"`
-	Factor    string         `json:"factor"`
-	Event     string         `json:"event"`
-	IP        string         `json:"ip,omitempty"`
-	UserAgent string         `json:"userAgent,omitempty"`
-	Detail    map[string]any `json:"detail,omitempty"`
+	ID        int64     `json:"id"`
+	At        time.Time `json:"at"`
+	AccountID *int32    `json:"accountId,omitempty"`
+	// AccountUsername is the username of the account the event belongs to,
+	// omitted when the event has no account or the account was deleted.
+	AccountUsername string         `json:"accountUsername,omitempty"`
+	Factor          string         `json:"factor"`
+	Event           string         `json:"event"`
+	IP              string         `json:"ip,omitempty"`
+	UserAgent       string         `json:"userAgent,omitempty"`
+	Detail          map[string]any `json:"detail,omitempty"`
 }
 
 var OperationListAuditEvents = huma.Operation{

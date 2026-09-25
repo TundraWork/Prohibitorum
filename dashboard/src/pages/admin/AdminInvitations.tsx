@@ -1,4 +1,4 @@
-import { Alert, AlertDialog, Chip } from "@heroui/react";
+import { Alert, Chip } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
@@ -13,6 +13,7 @@ import {
   invitationsListOptions,
 } from "@/api/queries";
 import { Button } from "@/components/custom/Button";
+import { ConfirmDialog } from "@/components/custom/ConfirmDialog";
 import { DataTable, type TableColumn } from "@/components/custom/DataTable";
 import { TableEmptyState } from "@/components/custom/TableEmptyState";
 
@@ -122,61 +123,41 @@ export function AdminInvitations() {
         />
       </div>
 
-      <AlertDialog
+      <ConfirmDialog
         isOpen={target !== null}
         onOpenChange={(open) => !open && setTarget(null)}
-      >
-        <AlertDialog.Backdrop>
-          <AlertDialog.Container placement="center" size="md">
-            <AlertDialog.Dialog>
-              <AlertDialog.Header>
-                <AlertDialog.Heading>
-                  <Trans id="admin.invitations.revoke.title">
-                    Revoke this invitation?
-                  </Trans>
-                </AlertDialog.Heading>
-              </AlertDialog.Header>
-              <AlertDialog.Body>
-                <p>
-                  <Trans id="admin.invitations.revoke.body">
-                    The registration link stops working immediately, and the
-                    invitation no longer appears in this list. This cannot be
-                    undone.
-                  </Trans>
-                </p>
-              </AlertDialog.Body>
-              <AlertDialog.Footer>
-                <Button
-                  variant="secondary"
-                  onPress={() => setTarget(null)}
-                  isDisabled={revoke.isPending}
-                >
-                  <Trans id="admin.cancel">Cancel</Trans>
-                </Button>
-                <Button
-                  variant="danger"
-                  isPending={revoke.isPending}
-                  onPress={() => {
-                    if (!target) return;
-                    revoke.mutate(target.token, {
-                      onSuccess: async () => {
-                        setTarget(null);
-                        await navigate({ to: "/admin/invitations" });
-                      },
-                      onError: (failure) => {
-                        setError(failure);
-                        setTarget(null);
-                      },
-                    });
-                  }}
-                >
-                  <Trans id="admin.invitations.revoke.action">Revoke</Trans>
-                </Button>
-              </AlertDialog.Footer>
-            </AlertDialog.Dialog>
-          </AlertDialog.Container>
-        </AlertDialog.Backdrop>
-      </AlertDialog>
+        status="danger"
+        title={
+          <Trans id="admin.invitations.revoke.title">
+            Revoke this invitation?
+          </Trans>
+        }
+        body={
+          <p>
+            <Trans id="admin.invitations.revoke.body">
+              The registration link stops working immediately, and the
+              invitation no longer appears in this list. This cannot be undone.
+            </Trans>
+          </p>
+        }
+        confirmLabel={
+          <Trans id="admin.invitations.revoke.action">Revoke</Trans>
+        }
+        isPending={revoke.isPending}
+        onConfirm={() => {
+          if (!target) return;
+          revoke.mutate(target.token, {
+            onSuccess: async () => {
+              setTarget(null);
+              await navigate({ to: "/admin/invitations" });
+            },
+            onError: (failure) => {
+              setError(failure);
+              setTarget(null);
+            },
+          });
+        }}
+      />
     </>
   );
 }

@@ -98,9 +98,29 @@ msgid "admin.user.tab.access"
 msgstr "Access"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/audit-vocabulary.ts
+msgid "audit.event.access_granted"
+msgstr "Access allowed"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/audit-vocabulary.ts
+msgid "audit.event.access_revoked"
+msgstr "Access cleared"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/audit-vocabulary.ts
+msgid "audit.event.access_denied"
+msgstr "Access denied"
+
+#. js-lingui-explicit-id
 #: src/api/success-messages.ts
 msgid "success.app.access-removed"
 msgstr "Access removed"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/audit-vocabulary.ts
+msgid "audit.factor.personal_access_token"
+msgstr "Access token"
 
 #. js-lingui-explicit-id
 #: src/api/success-messages.ts
@@ -128,8 +148,23 @@ msgid "admin.user.tokens.table"
 msgstr "Access tokens"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminLogs.tsx
+msgid "admin.logs.column.account"
+msgstr "Account"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminLogs.tsx
+msgid "admin.logs.filter.account"
+msgstr "Account"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.tabs"
+msgstr "Account"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/audit-vocabulary.ts
+msgid "audit.factor.account"
 msgstr "Account"
 
 #. js-lingui-explicit-id
@@ -171,8 +206,24 @@ msgstr "Account username"
 #: src/pages/admin/AdminGroups.tsx
 #: src/pages/admin/AdminInvitations.tsx
 #: src/pages/admin/AdminUsers.tsx
+#: src/pages/admin/settings/SigningKeysPanel.tsx
 msgid "admin.column.actions"
 msgstr "Actions"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/SigningKeysPanel.tsx
+msgid "settings.keys.activate.action"
+msgstr "Activate"
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.active_key_no_replacement"
+msgstr "Activate another key first, then retire this one."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/SigningKeysPanel.tsx
+msgid "settings.keys.column.activated"
+msgstr "Activated"
 
 #. js-lingui-explicit-id
 #: src/pages/ApiPreview.tsx
@@ -256,9 +307,24 @@ msgid "login.reset.warning"
 msgstr "After a successful reset, your old authenticator and all old recovery codes will stop working."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/SigningKeysPanel.tsx
+msgid "settings.keys.retire.body"
+msgstr "After the grace period it is removed from the JWKS and the SAML metadata."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/SigningKeysPanel.tsx
+msgid "settings.keys.column.algorithm"
+msgstr "Algorithm"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
 msgid "admin.group.rule.group.all"
 msgstr "All of these"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminLogs.tsx
+msgid "admin.logs.range.all"
+msgstr "All time"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
@@ -269,6 +335,26 @@ msgstr "An account joins this group while the rule matches it. Rules are checked
 #: src/api/errors.ts
 msgid "error.admin_cannot_be_disabled"
 msgstr "An administrator cannot be disabled. Change the role to user first."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/NetworkPanel.tsx
+msgid "settings.network.strategy.header"
+msgstr "Another header"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminLogs.tsx
+msgid "admin.logs.filter.account.any"
+msgstr "Any account"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminLogs.tsx
+msgid "admin.logs.filter.factor.any"
+msgstr "Any category"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminLogs.tsx
+msgid "admin.logs.filter.event.any"
+msgstr "Any event"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
@@ -289,6 +375,16 @@ msgstr "Anything using this token stops working immediately. This cannot be undo
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.tokens.revoke.body"
 msgstr "Anything using this token stops working immediately. This cannot be undone."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/audit-vocabulary.ts
+msgid "audit.factor.app_policy"
+msgstr "Application access"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/audit-vocabulary.ts
+msgid "audit.factor.app_manager"
+msgstr "Application manager"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminGroups.tsx
@@ -334,6 +430,16 @@ msgstr "Attributes"
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.attributes.not_object"
 msgstr "Attributes must be a JSON object, such as {}."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminLogs.tsx
+msgid "admin.logs.table"
+msgstr "Audit events"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/audit-vocabulary.ts
+msgid "audit.factor.totp"
+msgstr "Authenticator"
 
 #. js-lingui-explicit-id
 #: src/pages/Login.tsx
@@ -386,10 +492,8 @@ msgid "apps.scopes.none"
 msgstr "Basic profile"
 
 #. js-lingui-explicit-id
-#: src/pages/security/IdentitiesPanel.tsx
 #: src/pages/security/PasskeysPanel.tsx
 #: src/pages/security/PasswordTotpPanel.tsx
-#: src/pages/security/SessionsPanel.tsx
 #: src/pages/security/TokensPanel.tsx
 msgid "security.cancel"
 msgstr "Cancel"
@@ -401,19 +505,28 @@ msgstr "Cancel"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminInvitationForm.tsx
-#: src/pages/admin/AdminInvitations.tsx
 msgid "admin.cancel"
 msgstr "Cancel"
 
 #. js-lingui-explicit-id
-#: src/components/custom/DangerZone.tsx
-msgid "admin.danger.cancel"
+#: src/components/custom/ConfirmDialog.tsx
+msgid "confirm.cancel"
 msgstr "Cancel"
 
 #. js-lingui-explicit-id
 #: src/components/custom/SudoDialog.tsx
 msgid "sudo.cancel"
 msgstr "Cancel"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminLogs.tsx
+msgid "admin.logs.column.factor"
+msgstr "Category"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminLogs.tsx
+msgid "admin.logs.filter.factor"
+msgstr "Category"
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
@@ -436,14 +549,14 @@ msgid "security.password.change.action"
 msgstr "Change password"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/audit-vocabulary.ts
+msgid "audit.event.update"
+msgstr "Changed"
+
+#. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.validation_failed"
 msgstr "Check the submitted information and try again."
-
-#. js-lingui-explicit-id
-#: src/components/custom/FormFields.tsx
-msgid "forms.field.invalid"
-msgstr "Check this value."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminUsers.tsx
@@ -481,19 +594,19 @@ msgid "admin.group.rule.reason.missing_provider"
 msgstr "Choose a provider for this condition."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminLogs.tsx
+msgid "admin.logs.range.incomplete"
+msgstr "Choose a start and an end date"
+
+#. js-lingui-explicit-id
 #: src/components/custom/EntityPicker.tsx
 msgid "admin.picker.invalid"
 msgstr "Choose a valid option."
 
 #. js-lingui-explicit-id
-#: src/pages/profile/AvatarPanel.tsx
-msgid "profile.avatar.not_image"
-msgstr "Choose an image file."
-
-#. js-lingui-explicit-id
-#: src/pages/profile/AvatarPanel.tsx
-msgid "profile.avatar.too_large"
-msgstr "Choose an image smaller than 5 MiB."
+#: src/components/custom/ImageUploadControl.tsx
+msgid "image-upload.too_large"
+msgstr "Choose an image no larger than {limitMiB} MiB."
 
 #. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
@@ -506,9 +619,34 @@ msgid "admin.invitations.new.groups.invalid"
 msgstr "Choose the groups again — one of them is not a valid group."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminLogs.tsx
+msgid "admin.logs.filter.clear"
+msgstr "Clear filters"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminUsers.tsx
 msgid "admin.users.filter.clear"
 msgstr "Clear the filter"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/NetworkPanel.tsx
+msgid "settings.network.title"
+msgstr "Client IP"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/NetworkPanel.tsx
+msgid "settings.network.form"
+msgstr "Client IP"
+
+#. js-lingui-explicit-id
+#: src/api/success-messages.ts
+msgid "success.client-ip.saved"
+msgstr "Client IP settings saved"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/SigningKeysPanel.tsx
+msgid "settings.keys.jwk.close"
+msgstr "Close"
 
 #. js-lingui-explicit-id
 #: src/components/custom/ConsoleLayout.tsx
@@ -572,6 +710,26 @@ msgstr "Confirm it is you to approve this device."
 
 #. js-lingui-explicit-id
 #: src/api/sudo-reasons.ts
+msgid "sudo.reason.update-client-ip"
+msgstr "Confirm it is you to change how client addresses are read."
+
+#. js-lingui-explicit-id
+#: src/api/sudo-reasons.ts
+msgid "sudo.reason.update-maintenance"
+msgstr "Confirm it is you to change maintenance mode."
+
+#. js-lingui-explicit-id
+#: src/api/sudo-reasons.ts
+msgid "sudo.reason.update-instance-icon"
+msgstr "Confirm it is you to change the instance icon."
+
+#. js-lingui-explicit-id
+#: src/api/sudo-reasons.ts
+msgid "sudo.reason.update-sign-in-background"
+msgstr "Confirm it is you to change the sign-in background."
+
+#. js-lingui-explicit-id
+#: src/api/sudo-reasons.ts
 msgid "sudo.reason.update-account"
 msgstr "Confirm it is you to change this account."
 
@@ -622,6 +780,11 @@ msgstr "Confirm it is you to delete this group. This cannot be undone."
 
 #. js-lingui-explicit-id
 #: src/api/sudo-reasons.ts
+msgid "sudo.reason.generate-signing-key"
+msgstr "Confirm it is you to generate a signing key."
+
+#. js-lingui-explicit-id
+#: src/api/sudo-reasons.ts
 msgid "sudo.reason.reissue-enrollment"
 msgstr "Confirm it is you to issue a new registration link."
 
@@ -632,6 +795,11 @@ msgstr "Confirm it is you to link this identity."
 
 #. js-lingui-explicit-id
 #: src/api/sudo-reasons.ts
+msgid "sudo.reason.update-instance-name"
+msgstr "Confirm it is you to rename this instance."
+
+#. js-lingui-explicit-id
+#: src/api/sudo-reasons.ts
 msgid "sudo.reason.replace-authenticator"
 msgstr "Confirm it is you to replace your authenticator."
 
@@ -639,6 +807,11 @@ msgstr "Confirm it is you to replace your authenticator."
 #: src/api/sudo-reasons.ts
 msgid "sudo.reason.recovery-codes"
 msgstr "Confirm it is you to replace your recovery codes."
+
+#. js-lingui-explicit-id
+#: src/api/sudo-reasons.ts
+msgid "sudo.reason.retire-signing-key"
+msgstr "Confirm it is you to retire this signing key."
 
 #. js-lingui-explicit-id
 #: src/api/sudo-reasons.ts
@@ -664,6 +837,11 @@ msgstr "Confirm it is you to set up a password and authenticator on this account
 #: src/api/sudo-reasons.ts
 msgid "sudo.reason.revoke-account-sessions"
 msgstr "Confirm it is you to sign this account out everywhere."
+
+#. js-lingui-explicit-id
+#: src/api/sudo-reasons.ts
+msgid "sudo.reason.activate-signing-key"
+msgstr "Confirm it is you to start signing with this key."
 
 #. js-lingui-explicit-id
 #: src/api/sudo-reasons.ts
@@ -727,6 +905,16 @@ msgid "login.password.next"
 msgstr "Continue with password"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/SigningKeysPanel.tsx
+msgid "settings.keys.kid.copied"
+msgstr "Copied"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/SigningKeysPanel.tsx
+msgid "settings.keys.jwk.copied"
+msgstr "Copied"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminInvitations.tsx
 msgid "admin.invitations.copy.done"
 msgstr "Copied."
@@ -747,9 +935,19 @@ msgid "admin.user.oidcSubject.copy"
 msgstr "Copy"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/SigningKeysPanel.tsx
+msgid "settings.keys.jwk.copy"
+msgstr "Copy"
+
+#. js-lingui-explicit-id
 #: src/components/custom/secret-reveal-copy.ts
 msgid "login.codes.copy"
 msgstr "Copy codes"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/SigningKeysPanel.tsx
+msgid "settings.keys.kid.copy"
+msgstr "Copy key ID"
 
 #. js-lingui-explicit-id
 #: src/components/custom/secret-reveal-copy.ts
@@ -802,6 +1000,11 @@ msgid "security.tokens.reveal.copy_failed"
 msgstr "Could not copy the token. Select the token above and copy it manually, or download it."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/SigningKeysPanel.tsx
+msgid "settings.keys.jwk.copy.failed"
+msgstr "Could not copy. Your browser blocked the clipboard; allow it and try again."
+
+#. js-lingui-explicit-id
 #: src/components/custom/secret-reveal-copy.ts
 msgid "login.codes.download_failed"
 msgstr "Could not download the codes. Copy them or save them manually."
@@ -842,6 +1045,11 @@ msgid "security.tokens.create.action"
 msgstr "Create token"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/audit-vocabulary.ts
+msgid "audit.event.register"
+msgstr "Created"
+
+#. js-lingui-explicit-id
 #: src/pages/DevForms.tsx
 msgid "dev.forms.id.label"
 msgstr "Credential ID"
@@ -867,6 +1075,11 @@ msgid "sudo.password"
 msgstr "Current password"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminLogs.tsx
+msgid "admin.logs.range.custom"
+msgstr "Custom range"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.tab.danger"
 msgstr "Danger zone"
@@ -880,6 +1093,11 @@ msgstr "Danger zone"
 #: src/components/custom/ThemeSelect.tsx
 msgid "theme.dark"
 msgstr "Dark theme"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminLogs.tsx
+msgid "admin.logs.range.dates"
+msgstr "Dates"
 
 #. js-lingui-explicit-id
 #: src/pages/Devices.tsx
@@ -917,6 +1135,11 @@ msgid "admin.groups.column.description"
 msgstr "Description"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminLogs.tsx
+msgid "admin.logs.detail.detail"
+msgstr "Details"
+
+#. js-lingui-explicit-id
 #: src/pages/DevForms.tsx
 msgid "dev.forms.eyebrow"
 msgstr "Development only"
@@ -940,6 +1163,16 @@ msgstr "Device pairing"
 #: src/components/custom/ConsoleLayout.tsx
 msgid "console.devices"
 msgstr "Devices"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/audit-vocabulary.ts
+msgid "audit.event.diagnostic_lookup"
+msgstr "Diagnostic lookup"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/audit-vocabulary.ts
+msgid "audit.factor.diagnostic"
+msgstr "Diagnostics"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
@@ -1147,6 +1380,16 @@ msgid "error.invalid_nickname"
 msgstr "Enter a valid nickname without control characters."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/client-ip-form.ts
+msgid "settings.network.proxies.required"
+msgstr "Enter at least one trusted proxy. Without one, this method has no effect."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/client-ip-form.ts
+msgid "settings.network.proxies.too_many"
+msgstr "Enter at most 64 ranges."
+
+#. js-lingui-explicit-id
 #. placeholder {0}: config.totp.digits
 #: src/pages/Login.tsx
 msgid "login.totp.digits"
@@ -1156,6 +1399,11 @@ msgstr "Enter the {0}-digit code from your authenticator."
 #: src/pages/security/PasswordTotpPanel.tsx
 msgid "security.totp.invalid"
 msgstr "Enter the code your authenticator shows, using only 0–9."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/client-ip-form.ts
+msgid "settings.network.header.required"
+msgstr "Enter the name of the header that carries the client address."
 
 #. js-lingui-explicit-id
 #: src/pages/Devices.tsx
@@ -1173,6 +1421,16 @@ msgid "login.username.required"
 msgstr "Enter your username."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminLogs.tsx
+msgid "admin.logs.column.event"
+msgstr "Event"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminLogs.tsx
+msgid "admin.logs.filter.event"
+msgstr "Event"
+
+#. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.all_apps"
 msgstr "Every application"
@@ -1186,6 +1444,11 @@ msgstr "Every application you can use"
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.sessions.revoke_all.body"
 msgstr "Every device signed in to this account is signed out immediately and will need to sign in again."
+
+#. js-lingui-explicit-id
+#: src/pages/security/PasswordTotpPanel.tsx
+msgid "security.recovery.confirm.body"
+msgstr "Every recovery code you have now stops working."
 
 #. js-lingui-explicit-id
 #: src/pages/DevForms.tsx
@@ -1213,9 +1476,14 @@ msgid "security.tokens.expiry"
 msgstr "Expires after"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/audit-vocabulary.ts
+msgid "audit.event.fail"
+msgstr "Failed"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminHome.tsx
 msgid "admin.home.availability"
-msgstr "Federation, downstream applications, logs and settings are not available yet. This area will grow to cover them."
+msgstr "Federation and downstream applications are not available yet. This area will grow to cover them."
 
 #. js-lingui-explicit-id
 #: src/pages/Preview.tsx
@@ -1233,6 +1501,11 @@ msgid "admin.users.filter.incomplete"
 msgstr "Fill in the provider, field, match and value to apply this filter."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminLogs.tsx
+msgid "admin.logs.filter"
+msgstr "Filter"
+
+#. js-lingui-explicit-id
 #: src/components/custom/SudoDialog.tsx
 msgid "sudo.intro"
 msgstr "For your security, verify your identity again to continue."
@@ -1246,6 +1519,16 @@ msgstr "Form integration checks"
 #: src/components/custom/PreviewLayout.tsx
 msgid "navigation.forms"
 msgstr "Form verification (development)"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminSettings.tsx
+msgid "settings.tab.general"
+msgstr "General"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/SigningKeysPanel.tsx
+msgid "settings.keys.generate"
+msgstr "Generate key"
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
@@ -1273,6 +1556,16 @@ msgid "security.tokens.name.required"
 msgstr "Give the token a name so you can recognise it later."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/NetworkPanel.tsx
+msgid "settings.network.header"
+msgstr "Header name"
+
+#. js-lingui-explicit-id
+#: src/components/custom/DataTable.tsx
+msgid "table.row.collapse"
+msgstr "Hide details"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
 msgid "admin.group.kind.label"
 msgstr "How it fills"
@@ -1293,9 +1586,34 @@ msgid "admin.invitations.reveal.saved"
 msgstr "I have saved the registration link"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/GeneralPanel.tsx
+msgid "settings.general.icon.title"
+msgstr "Icon"
+
+#. js-lingui-explicit-id
+#: src/api/success-messages.ts
+msgid "success.instance-icon.removed"
+msgstr "Icon removed"
+
+#. js-lingui-explicit-id
+#: src/api/success-messages.ts
+msgid "success.instance-icon.updated"
+msgstr "Icon updated"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
 msgid "admin.group.slug"
 msgstr "Identifier"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/audit-vocabulary.ts
+msgid "audit.event.sudo_failed"
+msgstr "Identity check failed"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/audit-vocabulary.ts
+msgid "audit.event.sudo_granted"
+msgstr "Identity confirmed"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminUsers.tsx
@@ -1338,9 +1656,29 @@ msgid "api.instance"
 msgstr "Instance"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/GeneralPanel.tsx
+msgid "settings.general.name.title"
+msgstr "Instance name"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/GeneralPanel.tsx
+msgid "settings.general.name.form"
+msgstr "Instance name"
+
+#. js-lingui-explicit-id
+#: src/api/success-messages.ts
+msgid "success.instance-name.saved"
+msgstr "Instance name saved"
+
+#. js-lingui-explicit-id
 #: src/pages/Preview.tsx
 msgid "preview.title"
 msgstr "Interface preview"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/audit-vocabulary.ts
+msgid "audit.factor.invitation"
+msgstr "Invitation"
 
 #. js-lingui-explicit-id
 #: src/api/success-messages.ts
@@ -1366,6 +1704,16 @@ msgstr "Invite a user"
 #: src/pages/admin/AdminUsers.tsx
 msgid "admin.users.invite"
 msgstr "Invite a user"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminLogs.tsx
+msgid "admin.logs.column.ip"
+msgstr "IP"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminLogs.tsx
+msgid "admin.logs.detail.ip"
+msgstr "IP"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
@@ -1398,6 +1746,11 @@ msgid "security.keep"
 msgstr "Keep it"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/SigningKeysPanel.tsx
+msgid "settings.keys.column.kid"
+msgstr "Key ID"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminGroups.tsx
 msgid "admin.groups.column.kind"
 msgstr "Kind"
@@ -1406,6 +1759,26 @@ msgstr "Kind"
 #: src/components/custom/LanguageMenu.tsx
 msgid "language.label"
 msgstr "Language"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminLogs.tsx
+msgid "admin.logs.range.24h"
+msgstr "Last 24 hours"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminLogs.tsx
+msgid "admin.logs.range.30d"
+msgstr "Last 30 days"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminLogs.tsx
+msgid "admin.logs.range.7d"
+msgstr "Last 7 days"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminLogs.tsx
+msgid "admin.logs.range.1h"
+msgstr "Last hour"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminUsers.tsx
@@ -1433,6 +1806,11 @@ msgid "admin.user.tokens.detail.lastUsed"
 msgstr "Last used <0/>"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/GeneralPanel.tsx
+msgid "settings.general.name.hint"
+msgstr "Leave it empty to use the name from the deployment configuration."
+
+#. js-lingui-explicit-id
 #: src/components/custom/secret-reveal-copy.ts
 msgid "login.codes.leave"
 msgstr "Leave without saving? These recovery codes cannot be shown again."
@@ -1453,9 +1831,34 @@ msgid "theme.light"
 msgstr "Light theme"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/client-ip-form.ts
+msgid "settings.network.proxies.invalid"
+msgstr "Line {line} is not an IPv4 or IPv6 range, such as 10.0.0.0/8 or 2001:db8::/32."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/client-ip-form.ts
+msgid "settings.network.proxies.spaces"
+msgstr "Line {line}: remove the spaces around the address."
+
+#. js-lingui-explicit-id
 #: src/pages/security/IdentitiesPanel.tsx
 msgid "security.identities.link.title"
 msgstr "Link another identity"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/audit-vocabulary.ts
+msgid "audit.event.enrollment_issued"
+msgstr "Link issued"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/audit-vocabulary.ts
+msgid "audit.event.enrollment_consumed"
+msgstr "Link used"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/audit-vocabulary.ts
+msgid "audit.event.link"
+msgstr "Linked"
 
 #. js-lingui-explicit-id
 #: src/pages/Preview.tsx
@@ -1473,6 +1876,11 @@ msgid "preview.footer"
 msgstr "Local preview · HeroUI components"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/audit-vocabulary.ts
+msgid "audit.event.factor_locked"
+msgstr "Locked"
+
+#. js-lingui-explicit-id
 #: src/pages/DevForms.tsx
 msgid "dev.forms.logout.submit"
 msgstr "Log out test session"
@@ -1483,6 +1891,11 @@ msgid "dev.forms.logout.success"
 msgstr "Logout completed with no response body."
 
 #. js-lingui-explicit-id
+#: src/components/custom/ConsoleLayout.tsx
+msgid "console.admin.logs"
+msgstr "Logs"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
 msgid "admin.group.slug.hint"
 msgstr "Lowercase letters, digits and hyphens. Applications name this group by it."
@@ -1491,6 +1904,46 @@ msgstr "Lowercase letters, digits and hyphens. Applications name this group by i
 #: src/pages/ApiPreview.tsx
 msgid "api.maintenance"
 msgstr "Maintenance"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminSettings.tsx
+msgid "settings.tab.maintenance"
+msgstr "Maintenance"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/MaintenancePanel.tsx
+msgid "settings.maintenance.title"
+msgstr "Maintenance mode"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/MaintenancePanel.tsx
+msgid "settings.maintenance.form"
+msgstr "Maintenance mode"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/MaintenancePanel.tsx
+msgid "settings.maintenance.switch"
+msgstr "Maintenance mode"
+
+#. js-lingui-explicit-id
+#: src/api/success-messages.ts
+msgid "success.maintenance.on"
+msgstr "Maintenance mode is on"
+
+#. js-lingui-explicit-id
+#: src/api/success-messages.ts
+msgid "success.maintenance.saved"
+msgstr "Maintenance settings saved"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/audit-vocabulary.ts
+msgid "audit.event.app_manager_assigned"
+msgstr "Manager assigned"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/audit-vocabulary.ts
+msgid "audit.event.app_manager_removed"
+msgstr "Manager removed"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
@@ -1556,6 +2009,16 @@ msgstr "Name"
 #: src/pages/admin/AdminGroups.tsx
 msgid "admin.groups.column.name"
 msgstr "Name"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/GeneralPanel.tsx
+msgid "settings.general.name.label"
+msgstr "Name"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminSettings.tsx
+msgid "settings.tab.network"
+msgstr "Network"
 
 #. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
@@ -1628,6 +2091,11 @@ msgid "login.codes.label"
 msgstr "New recovery codes"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/SigningKeysPanel.tsx
+msgid "settings.keys.activate.body"
+msgstr "New tokens are signed with this key. The current key keeps verifying what it signed until it is retired."
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
 msgid "admin.group.create.title"
 msgstr "New user group"
@@ -1673,6 +2141,11 @@ msgid "admin.user.identities.empty"
 msgstr "No connected identities"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminLogs.tsx
+msgid "admin.logs.empty"
+msgstr "No events in this range"
+
+#. js-lingui-explicit-id
 #: src/pages/security/IdentitiesPanel.tsx
 msgid "security.identities.link.unavailable"
 msgstr "No identities available to link"
@@ -1713,6 +2186,11 @@ msgid "profile.avatar.source.none"
 msgstr "No picture"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/SigningKeysPanel.tsx
+msgid "settings.keys.empty"
+msgstr "No signing keys"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminGroups.tsx
 msgid "admin.groups.empty"
 msgstr "No user groups yet"
@@ -1721,6 +2199,11 @@ msgstr "No user groups yet"
 #: src/pages/admin/AdminUsers.tsx
 msgid "admin.users.empty"
 msgstr "No users match"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/MaintenancePanel.tsx
+msgid "settings.maintenance.confirm.body"
+msgstr "Nobody except administrators can sign in or use applications until it is turned off."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
@@ -1753,6 +2236,11 @@ msgid "admin.user.tokens.never_used"
 msgstr "Not used yet"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/MaintenancePanel.tsx
+msgid "settings.maintenance.notice"
+msgstr "Notice"
+
+#. js-lingui-explicit-id
 #: src/components/custom/AppNotifications.tsx
 msgid "notification.region"
 msgstr "Notifications"
@@ -1763,6 +2251,11 @@ msgid "admin.group.exposed"
 msgstr "Offer to applications"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/audit-vocabulary.ts
+msgid "audit.factor.oidc_client"
+msgstr "OIDC application"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.oidcSubject"
 msgstr "OIDC subject"
@@ -1771,6 +2264,11 @@ msgstr "OIDC subject"
 #: src/pages/admin/AdminUsers.tsx
 msgid "admin.users.filter.on"
 msgstr "On"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/NetworkPanel.tsx
+msgid "settings.network.proxies.hint"
+msgstr "One address range per line, such as 10.0.0.0/8."
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -1833,6 +2331,11 @@ msgid "success.device.declined"
 msgstr "Pairing declined"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/audit-vocabulary.ts
+msgid "audit.factor.webauthn"
+msgstr "Passkey"
+
+#. js-lingui-explicit-id
 #: src/api/success-messages.ts
 msgid "success.passkey.added"
 msgstr "Passkey added"
@@ -1888,6 +2391,11 @@ msgid "login.password"
 msgstr "Password"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/audit-vocabulary.ts
+msgid "audit.factor.password"
+msgstr "Password"
+
+#. js-lingui-explicit-id
 #: src/pages/Security.tsx
 msgid "security.tab.password"
 msgstr "Password and authenticator"
@@ -1906,6 +2414,11 @@ msgstr "Password and authenticator turned off"
 #: src/api/success-messages.ts
 msgid "success.password.changed"
 msgstr "Password changed"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/SigningKeysPanel.tsx
+msgid "settings.keys.status.pending"
+msgstr "Pending"
 
 #. js-lingui-explicit-id
 #: src/pages/Preview.tsx
@@ -1928,9 +2441,24 @@ msgid "profile.avatar.source.label"
 msgstr "Picture to show"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/GeneralPanel.tsx
+msgid "settings.general.background.hint"
+msgstr "PNG, JPEG or WebP, up to 5 MiB."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/GeneralPanel.tsx
+msgid "settings.general.icon.hint"
+msgstr "PNG, JPEG, WebP or GIF, up to 5 MiB."
+
+#. js-lingui-explicit-id
 #: src/pages/profile/AvatarPanel.tsx
 msgid "profile.avatar.hint"
 msgstr "PNG, JPEG, WebP, GIF or AVIF, up to 5 MiB. Larger pictures are scaled down."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/audit-vocabulary.ts
+msgid "audit.event.clone_warning"
+msgstr "Possible clone"
 
 #. js-lingui-explicit-id
 #: src/pages/Preview.tsx
@@ -1983,14 +2511,34 @@ msgid "api.title"
 msgstr "Public configuration"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/SigningKeysPanel.tsx
+msgid "settings.keys.jwk.title"
+msgstr "Public key"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/NetworkPanel.tsx
+msgid "settings.network.strategy"
+msgstr "Read the address from"
+
+#. js-lingui-explicit-id
 #: src/pages/Login.tsx
 msgid "login.recovery.code"
+msgstr "Recovery code"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/audit-vocabulary.ts
+msgid "audit.factor.recovery_code"
 msgstr "Recovery code"
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
 msgid "security.recovery.title"
 msgstr "Recovery codes"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminLogs.tsx
+msgid "admin.logs.refresh"
+msgstr "Refresh"
 
 #. js-lingui-explicit-id
 #: src/pages/ApiPreview.tsx
@@ -2001,6 +2549,11 @@ msgstr "Refresh data"
 #: src/pages/ApiPreview.tsx
 msgid "api.refreshing"
 msgstr "Refreshing…"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/audit-vocabulary.ts
+msgid "audit.factor.enrollment"
+msgstr "Registration"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
@@ -2043,9 +2596,19 @@ msgid "apps.confirm.title"
 msgstr "Remove access?"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/GeneralPanel.tsx
+msgid "settings.general.background.remove"
+msgstr "Remove background"
+
+#. js-lingui-explicit-id
 #: src/pages/Profile.tsx
 msgid "profile.display-name.control"
 msgstr "Remove control characters from the name."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/GeneralPanel.tsx
+msgid "settings.general.icon.remove"
+msgstr "Remove icon"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
@@ -2118,9 +2681,29 @@ msgid "security.totp.replace.action"
 msgstr "Replace authenticator"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/GeneralPanel.tsx
+msgid "settings.general.background.replace"
+msgstr "Replace background"
+
+#. js-lingui-explicit-id
+#: src/pages/security/PasswordTotpPanel.tsx
+msgid "security.recovery.confirm.action"
+msgstr "Replace codes"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/GeneralPanel.tsx
+msgid "settings.general.icon.replace"
+msgstr "Replace icon"
+
+#. js-lingui-explicit-id
 #: src/pages/profile/AvatarPanel.tsx
 msgid "profile.avatar.replace"
 msgstr "Replace upload"
+
+#. js-lingui-explicit-id
+#: src/pages/security/PasswordTotpPanel.tsx
+msgid "security.recovery.confirm.title"
+msgstr "Replace your recovery codes?"
 
 #. js-lingui-explicit-id
 #. placeholder {0}: toast.content.error.requestId
@@ -2142,6 +2725,36 @@ msgstr "Requested from"
 #: src/pages/Login.tsx
 msgid "login.reset.toggle"
 msgstr "Reset my authenticator"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/audit-vocabulary.ts
+msgid "audit.event.access_restricted_set"
+msgstr "Restriction changed"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/SigningKeysPanel.tsx
+msgid "settings.keys.retire.action"
+msgstr "Retire"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/SigningKeysPanel.tsx
+msgid "settings.keys.retire.title"
+msgstr "Retire this key?"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/SigningKeysPanel.tsx
+msgid "settings.keys.status.retired"
+msgstr "Retired"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/SigningKeysPanel.tsx
+msgid "settings.keys.column.retires"
+msgstr "Retires"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/SigningKeysPanel.tsx
+msgid "settings.keys.status.decommissioning"
+msgstr "Retiring"
 
 #. js-lingui-explicit-id
 #: src/components/custom/RouteFeedback.tsx
@@ -2194,6 +2807,11 @@ msgid "admin.user.tokens.revoke.action"
 msgstr "Revoke token"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/audit-vocabulary.ts
+msgid "audit.event.revoke"
+msgstr "Revoked"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminInvitationForm.tsx
 msgid "admin.invitations.new.role"
 msgstr "Role"
@@ -2212,6 +2830,11 @@ msgstr "Role"
 #: src/pages/admin/AdminUsers.tsx
 msgid "admin.users.column.role"
 msgstr "Role"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/audit-vocabulary.ts
+msgid "audit.event.rotate"
+msgstr "Rotated"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
@@ -2239,8 +2862,28 @@ msgid "apps.kind.saml"
 msgstr "SAML"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/audit-vocabulary.ts
+msgid "audit.factor.saml_sp"
+msgstr "SAML application"
+
+#. js-lingui-explicit-id
 #: src/pages/Profile.tsx
 msgid "profile.display-name.save"
+msgstr "Save"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/GeneralPanel.tsx
+msgid "settings.general.save"
+msgstr "Save"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/MaintenancePanel.tsx
+msgid "settings.maintenance.save"
+msgstr "Save"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/NetworkPanel.tsx
+msgid "settings.network.save"
 msgstr "Save"
 
 #. js-lingui-explicit-id
@@ -2274,6 +2917,11 @@ msgid "admin.picker.search"
 msgstr "Search"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminLogs.tsx
+msgid "admin.logs.filter.account.search"
+msgstr "Search accounts"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminInvitationForm.tsx
 msgid "admin.invitations.new.provider.placeholder"
 msgstr "Search providers"
@@ -2299,6 +2947,11 @@ msgid "console.security"
 msgstr "Security"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/audit-vocabulary.ts
+msgid "audit.factor.session"
+msgstr "Session"
+
+#. js-lingui-explicit-id
 #: src/api/success-messages.ts
 msgid "success.session.ended"
 msgstr "Session ended"
@@ -2319,14 +2972,39 @@ msgid "security.setup.title.totp"
 msgstr "Set up an authenticator with a new password"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminSettings.tsx
+msgid "settings.tabs"
+msgstr "Settings"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/audit-vocabulary.ts
+msgid "audit.factor.settings"
+msgstr "Settings"
+
+#. js-lingui-explicit-id
+#: src/components/custom/ConsoleLayout.tsx
+msgid "console.admin.settings"
+msgstr "Settings"
+
+#. js-lingui-explicit-id
 #: src/components/custom/TotpSetup.tsx
 msgid "login.reset.secret"
 msgstr "Setup key"
 
 #. js-lingui-explicit-id
+#: src/components/custom/DataTable.tsx
+msgid "table.row.expand"
+msgstr "Show details"
+
+#. js-lingui-explicit-id
 #: src/pages/Preview.tsx
 msgid "notification.show"
 msgstr "Show notification"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/MaintenancePanel.tsx
+msgid "settings.maintenance.notice.hint"
+msgstr "Shown on the sign-in page while maintenance mode is on."
 
 #. js-lingui-explicit-id
 #: src/pages/Login.tsx
@@ -2384,9 +3062,44 @@ msgid "admin.user.sessions.revoke_all.title"
 msgstr "Sign this account out everywhere?"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/SigningKeysPanel.tsx
+msgid "settings.keys.activate.title"
+msgstr "Sign with this key?"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/GeneralPanel.tsx
+msgid "settings.general.background.title"
+msgstr "Sign-in background"
+
+#. js-lingui-explicit-id
+#: src/api/success-messages.ts
+msgid "success.sign-in-background.removed"
+msgstr "Sign-in background removed"
+
+#. js-lingui-explicit-id
+#: src/api/success-messages.ts
+msgid "success.sign-in-background.updated"
+msgstr "Sign-in background updated"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/audit-vocabulary.ts
+msgid "audit.event.session_start"
+msgstr "Signed in"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/audit-vocabulary.ts
+msgid "audit.event.session_end"
+msgstr "Signed out"
+
+#. js-lingui-explicit-id
 #: src/api/success-messages.ts
 msgid "success.sessions.ended"
 msgstr "Signed out everywhere"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/SigningKeysPanel.tsx
+msgid "settings.keys.status.active"
+msgstr "Signing"
 
 #. js-lingui-explicit-id
 #: src/components/custom/LoginShell.tsx
@@ -2397,6 +3110,36 @@ msgstr "Signing in as {username}"
 #: src/pages/security/PasswordTotpPanel.tsx
 msgid "security.setup.note"
 msgstr "Signing in will then ask for your password and a code from this authenticator. Anything you used before that stops working."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/audit-vocabulary.ts
+msgid "audit.factor.signing_key"
+msgstr "Signing key"
+
+#. js-lingui-explicit-id
+#: src/api/success-messages.ts
+msgid "success.signing-key.activated"
+msgstr "Signing key activated"
+
+#. js-lingui-explicit-id
+#: src/api/success-messages.ts
+msgid "success.signing-key.generated"
+msgstr "Signing key generated"
+
+#. js-lingui-explicit-id
+#: src/api/success-messages.ts
+msgid "success.signing-key.retired"
+msgstr "Signing key is being retired"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminSettings.tsx
+msgid "settings.tab.keys"
+msgstr "Signing keys"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/SigningKeysPanel.tsx
+msgid "settings.keys.table"
+msgstr "Signing keys"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminGroups.tsx
@@ -2427,6 +3170,11 @@ msgstr "State"
 #: src/pages/Preview.tsx
 msgid "feedback.title"
 msgstr "State examples"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/SigningKeysPanel.tsx
+msgid "settings.keys.column.status"
+msgstr "Status"
 
 #. js-lingui-explicit-id
 #: src/pages/DevForms.tsx
@@ -2574,6 +3322,11 @@ msgid "admin.user.delete.confirm.body"
 msgstr "The account, its passkeys, its sessions, its access tokens and its connected identities are removed immediately. This cannot be undone."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/NetworkPanel.tsx
+msgid "settings.network.strategy.direct"
+msgstr "The connection"
+
+#. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.bad_credentials"
 msgstr "The credentials could not be verified."
@@ -2604,6 +3357,11 @@ msgid "admin.group.rule.reason.invalid_json"
 msgstr "The document is not valid JSON."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/SigningKeysPanel.tsx
+msgid "settings.keys.error"
+msgstr "The keys could not be loaded. Try again."
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.enrollment.expires"
 msgstr "The link expires on {expiry}."
@@ -2622,6 +3380,11 @@ msgstr "The list could not be loaded. Try again."
 #: src/pages/admin/AdminUsers.tsx
 msgid "admin.users.error"
 msgstr "The list could not be loaded. Try again."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminLogs.tsx
+msgid "admin.logs.error"
+msgstr "The log could not be loaded. Try again."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminInvitationForm.tsx
@@ -2709,6 +3472,11 @@ msgid "error.maintenance_mode"
 msgstr "The service is undergoing maintenance. Please try again later."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminLogs.tsx
+msgid "admin.logs.range.reversed"
+msgstr "The start date is after the end date"
+
+#. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.request_too_large"
 msgstr "The submitted data is too large."
@@ -2717,6 +3485,11 @@ msgstr "The submitted data is too large."
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.create.note"
 msgstr "The token itself is shown once, right after you create it. Copy it then; the list will only ever show the last few characters."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/NetworkPanel.tsx
+msgid "settings.network.proxies.hidden_invalid"
+msgstr "The trusted proxies list has an entry the server will not accept. Choose X-Forwarded-For to correct it."
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
@@ -2804,6 +3577,11 @@ msgid "security.passkeys.device_bound"
 msgstr "This device only"
 
 #. js-lingui-explicit-id
+#: src/components/custom/ImageUploadControl.tsx
+msgid "image-upload.wrong_type"
+msgstr "This file type is not supported. Choose one of the formats listed above."
+
+#. js-lingui-explicit-id
 #: src/components/custom/LoginShell.tsx
 msgid "login.uninitialized"
 msgstr "This instance has not been initialized."
@@ -2862,6 +3640,11 @@ msgstr "This is your only way to sign in, so it cannot be removed. Add another m
 #: src/pages/security/PasswordTotpPanel.tsx
 msgid "security.revoke.last"
 msgstr "This is your only way to sign in, so it cannot be turned off. Add a passkey first."
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.signing-key.credential_not_found"
+msgstr "This key is no longer pending. The list has been refreshed."
 
 #. js-lingui-explicit-id
 #: src/components/custom/secret-reveal-copy.ts
@@ -2929,6 +3712,16 @@ msgid "security.tokens.reveal.once"
 msgstr "This token is shown only once. Store it somewhere safe before continuing. The list will only ever show its hint."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminLogs.tsx
+msgid "admin.logs.column.at"
+msgstr "Time"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminLogs.tsx
+msgid "admin.logs.range"
+msgstr "Time range"
+
+#. js-lingui-explicit-id
 #: src/components/custom/ConsoleLayout.tsx
 msgid "console.toggle-sidebar"
 msgstr "Toggle sidebar"
@@ -2942,6 +3735,11 @@ msgstr "Too many requests. Please wait before trying again."
 #: src/api/errors.ts
 msgid "error.factor_locked"
 msgstr "Too many verification attempts. Please wait before trying again."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/NetworkPanel.tsx
+msgid "settings.network.proxies"
+msgstr "Trusted proxies"
 
 #. js-lingui-explicit-id
 #: src/components/custom/RouteFeedback.tsx
@@ -2969,9 +3767,24 @@ msgid "security.revoke.confirm.title"
 msgstr "Turn off password and authenticator?"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/MaintenancePanel.tsx
+msgid "settings.maintenance.confirm.action"
+msgstr "Turn on"
+
+#. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
 msgid "security.setup.action"
 msgstr "Turn on both"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/MaintenancePanel.tsx
+msgid "settings.maintenance.confirm.title"
+msgstr "Turn on maintenance mode?"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/audit-vocabulary.ts
+msgid "audit.event.factor_disabled"
+msgstr "Turned off"
 
 #. js-lingui-explicit-id
 #: src/components/custom/RouteFeedback.tsx
@@ -3004,6 +3817,11 @@ msgid "security.identities.unlink.title"
 msgstr "Unlink this identity?"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/audit-vocabulary.ts
+msgid "audit.event.unlink"
+msgstr "Unlinked"
+
+#. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
 msgid "security.passkeys.unnamed"
 msgstr "Unnamed passkey"
@@ -3014,9 +3832,19 @@ msgid "admin.user.passkeys.unnamed"
 msgstr "Unnamed passkey"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/GeneralPanel.tsx
+msgid "settings.general.background.upload"
+msgstr "Upload a background"
+
+#. js-lingui-explicit-id
 #: src/pages/profile/AvatarPanel.tsx
 msgid "profile.avatar.upload"
 msgstr "Upload a picture"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/GeneralPanel.tsx
+msgid "settings.general.icon.upload"
+msgstr "Upload an icon"
 
 #. js-lingui-explicit-id
 #: src/api/success-messages.ts
@@ -3029,14 +3857,34 @@ msgid "admin.invitations.column.provider"
 msgstr "Upstream provider"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/audit-vocabulary.ts
+msgid "audit.factor.upstream_idp"
+msgstr "Upstream provider"
+
+#. js-lingui-explicit-id
 #: src/components/custom/EntityPicker.tsx
 msgid "admin.picker.provider"
 msgstr "Upstream provider"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/audit-vocabulary.ts
+msgid "audit.factor.federation_oidc"
+msgstr "Upstream sign-in"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/MaintenancePanel.tsx
+msgid "settings.maintenance.notice.too_long"
+msgstr "Use 500 characters or fewer."
+
+#. js-lingui-explicit-id
 #: src/pages/Profile.tsx
 msgid "profile.display-name.too_long"
 msgstr "Use 60 characters or fewer."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/GeneralPanel.tsx
+msgid "settings.general.name.too_long"
+msgstr "Use 64 characters or fewer."
 
 #. js-lingui-explicit-id
 #: src/pages/DevForms.tsx
@@ -3074,6 +3922,11 @@ msgid "admin.group.slug.format"
 msgstr "Use lowercase letters, digits and hyphens, up to 64 characters."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/client-ip-form.ts
+msgid "settings.network.header.invalid"
+msgstr "Use only letters, digits, hyphens and underscores."
+
+#. js-lingui-explicit-id
 #: src/pages/security/SessionsPanel.tsx
 msgid "security.sessions.use_sign_out"
 msgstr "Use sign out to end this one"
@@ -3082,6 +3935,11 @@ msgstr "Use sign out to end this one"
 #: src/components/custom/SudoDialog.tsx
 msgid "sudo.method.password"
 msgstr "Use your password and authenticator"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/audit-vocabulary.ts
+msgid "audit.event.use"
+msgstr "Used"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminInvitationForm.tsx
@@ -3145,6 +4003,11 @@ msgid "admin.picker.group"
 msgstr "User groups"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminLogs.tsx
+msgid "admin.logs.detail.userAgent"
+msgstr "User-Agent"
+
+#. js-lingui-explicit-id
 #: src/pages/Console.tsx
 #: src/pages/Profile.tsx
 msgid "console.username"
@@ -3178,7 +4041,7 @@ msgstr "Users"
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminHome.tsx
 msgid "admin.home.summary"
-msgstr "Users, user groups and invitations are managed from the sections in the sidebar. Each one lists what exists and opens a page of its own for creating or changing a single entry."
+msgstr "Users, user groups, invitations, logs and settings are managed from the sections in the sidebar."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
@@ -3229,6 +4092,16 @@ msgstr "Verify your authenticator"
 #: src/api/errors.ts
 msgid "error.sudo_required"
 msgstr "Verify your identity again to continue."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/SigningKeysPanel.tsx
+msgid "settings.keys.view"
+msgstr "View public key"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/audit-vocabulary.ts
+msgid "audit.event.vrchat_operator_session_invalidated"
+msgstr "VRChat operator signed out"
 
 #. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx

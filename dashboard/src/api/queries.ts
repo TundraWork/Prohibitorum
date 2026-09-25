@@ -169,6 +169,23 @@ export function accountsListOptions(filters: AccountFilters) {
   };
 }
 
+/**
+ * The first page of accounts matching a search, for a picker. Kept apart from
+ * `accountsListOptions`, whose key holds the directory's accumulated pages.
+ */
+export function accountSearchQueryOptions(q: string) {
+  return queryOptions({
+    queryKey: ["admin", "accounts", "search", q] as const,
+    queryFn: ({ signal }) =>
+      requireJsonData(
+        client.GET("/api/prohibitorum/accounts", {
+          params: { query: q === "" ? {} : { q } },
+          signal,
+        }),
+      ),
+  });
+}
+
 export function accountQueryOptions(id: number) {
   return queryOptions({
     queryKey: ["admin", "accounts", id] as const,
@@ -367,6 +384,60 @@ export function groupApplicationsQueryOptions(groupId: number) {
           params: { path: { groupId } },
           signal,
         }),
+      ),
+  });
+}
+
+/**
+ * The filters `GET /audit-events` takes. `since` and `until` are fixed ISO
+ * instants rather than "the last day", because the server binds its cursor to
+ * the filters: every page of one answer has to ask the same question.
+ */
+export interface AuditEventFilters {
+  factor?: string;
+  event?: string;
+  accountId?: number;
+  since?: string;
+  until?: string;
+}
+
+/** One page of the audit log, written for `useCursorList`. */
+export function auditEventsListOptions(filters: AuditEventFilters) {
+  return {
+    queryKey: ["admin", "audit-events", filters] as const,
+    queryFn: ({ cursor, signal }: { cursor?: string; signal: AbortSignal }) =>
+      requireJsonData(
+        client.GET("/api/prohibitorum/audit-events", {
+          params: {
+            query: cursor === undefined ? filters : { ...filters, cursor },
+          },
+          signal,
+        }),
+      ),
+  };
+}
+
+/** One page of signing keys, written for `useCursorList`. */
+export function signingKeysListOptions() {
+  return {
+    queryKey: ["admin", "signing-keys"] as const,
+    queryFn: ({ cursor, signal }: { cursor?: string; signal: AbortSignal }) =>
+      requireJsonData(
+        client.GET("/api/prohibitorum/signing-keys", {
+          ...(cursor === undefined ? {} : { params: { query: { cursor } } }),
+          signal,
+        }),
+      ),
+  };
+}
+
+/** The stored client-IP policy; the only instance setting `/config` omits. */
+export function clientIpQueryOptions() {
+  return queryOptions({
+    queryKey: ["admin", "settings", "client-ip"] as const,
+    queryFn: ({ signal }) =>
+      requireJsonData(
+        client.GET("/api/prohibitorum/admin/settings/client-ip", { signal }),
       ),
   });
 }

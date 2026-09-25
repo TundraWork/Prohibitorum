@@ -205,6 +205,43 @@ export interface RulePreviewPageView {
   nextCursor: string;
 }
 
+/**
+ * `GET`/`PUT /admin/settings/client-ip` — how the server finds a request's
+ * address behind a proxy. The write replaces the whole policy.
+ */
+export interface ClientIpSettings {
+  strategy: "direct" | "forwarded" | "header";
+  /** Only read for `header`; kept as sent otherwise. */
+  header: string;
+  trustedProxies: string[];
+}
+
+/** `PUT /admin/settings/maintenance`. The message is at most 500 characters. */
+export interface MaintenanceSettings {
+  maintenanceMode: boolean;
+  maintenanceMessage: string;
+}
+
+/**
+ * The lifecycle states `pkg/protocol/oidc` moves a signing key through. The
+ * generated `SigningKeyView` types `status` as a plain string.
+ */
+export type SigningKeyStatus =
+  | "pending"
+  | "active"
+  | "decommissioning"
+  | "retired";
+
+type NoParameters = {
+  query?: never;
+  header?: never;
+  path?: never;
+  cookie?: never;
+};
+
+/** An empty JSON object: the sudo wrapper only accepts JSON bodies. */
+type EmptyJsonBody = { content: { "application/json": Record<string, never> } };
+
 export interface RawAdminPaths {
   /**
    * Declared here rather than read from the generated schema: Huma registers
@@ -513,6 +550,175 @@ export interface RawAdminPaths {
       responses: {
         200: { content: { "application/json": PageGroupApplicationView } };
       };
+    };
+  };
+  /**
+   * Declared here for the same reason as `/invitations`: the handler embeds
+   * `pageInput`, which the schema leaves out, so `cursor` and `limit` would
+   * otherwise be untypeable.
+   */
+  "/api/prohibitorum/audit-events": {
+    get: {
+      parameters: {
+        query?: {
+          factor?: string;
+          event?: string;
+          accountId?: number;
+          since?: string;
+          until?: string;
+          cursor?: string;
+          limit?: number;
+        };
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        200: {
+          content: {
+            "application/json": components["schemas"]["PageAuditEventView"];
+          };
+        };
+      };
+    };
+  };
+  /** Paged like `/audit-events`; newest first by creation. */
+  "/api/prohibitorum/signing-keys": {
+    get: {
+      parameters: {
+        query?: { cursor?: string; limit?: number };
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        200: {
+          content: {
+            "application/json": components["schemas"]["PageSigningKeyView"];
+          };
+        };
+      };
+    };
+  };
+  "/api/prohibitorum/signing-keys/generate": {
+    post: {
+      parameters: NoParameters;
+      requestBody: EmptyJsonBody;
+      responses: {
+        201: {
+          content: {
+            "application/json": components["schemas"]["SigningKeyView"];
+          };
+        };
+      };
+    };
+  };
+  /**
+   * Only a `pending` key can be activated. Any other state, like an unknown
+   * kid, answers 404 `credential_not_found` — not the 409 `api.md` used to say.
+   */
+  "/api/prohibitorum/signing-keys/{kid}/activate": {
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: { kid: string };
+        cookie?: never;
+      };
+      requestBody: EmptyJsonBody;
+      responses: {
+        200: {
+          content: {
+            "application/json": components["schemas"]["SigningKeyView"];
+          };
+        };
+      };
+    };
+  };
+  /**
+   * Always sets `retire_after` to now plus the grace period, so on a key that
+   * is already decommissioning it postpones retirement. The active key answers
+   * 409 `active_key_no_replacement`.
+   */
+  "/api/prohibitorum/signing-keys/{kid}/retire": {
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: { kid: string };
+        cookie?: never;
+      };
+      requestBody: EmptyJsonBody;
+      responses: {
+        200: {
+          content: {
+            "application/json": components["schemas"]["SigningKeyView"];
+          };
+        };
+      };
+    };
+  };
+  /** An empty name clears the override and falls back to the configured one. */
+  "/api/prohibitorum/admin/settings": {
+    put: {
+      parameters: NoParameters;
+      requestBody: {
+        content: { "application/json": { instanceName: string } };
+      };
+      responses: { 204: { content?: never } };
+    };
+  };
+  "/api/prohibitorum/admin/settings/maintenance": {
+    put: {
+      parameters: NoParameters;
+      requestBody: {
+        content: { "application/json": MaintenanceSettings };
+      };
+      responses: { 204: { content?: never } };
+    };
+  };
+  /**
+   * Raw image bytes, not multipart, like the avatar upload. The handler checks
+   * sudo itself, because the sudo wrapper only accepts JSON bodies.
+   */
+  "/api/prohibitorum/admin/settings/icon": {
+    put: {
+      parameters: NoParameters;
+      requestBody: { content: { "application/octet-stream": Blob } };
+      responses: { 204: { content?: never } };
+    };
+    delete: {
+      parameters: NoParameters;
+      requestBody?: never;
+      responses: { 204: { content?: never } };
+    };
+  };
+  "/api/prohibitorum/admin/settings/background": {
+    put: {
+      parameters: NoParameters;
+      requestBody: { content: { "application/octet-stream": Blob } };
+      responses: { 204: { content?: never } };
+    };
+    delete: {
+      parameters: NoParameters;
+      requestBody?: never;
+      responses: { 204: { content?: never } };
+    };
+  };
+  "/api/prohibitorum/admin/settings/client-ip": {
+    get: {
+      parameters: NoParameters;
+      requestBody?: never;
+      responses: {
+        200: { content: { "application/json": ClientIpSettings } };
+      };
+    };
+    put: {
+      parameters: NoParameters;
+      requestBody: { content: { "application/json": ClientIpSettings } };
+      responses: { 204: { content?: never } };
     };
   };
 }

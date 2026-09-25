@@ -47,6 +47,18 @@ export interface MockConfig {
     accounts: number;
     groups: number;
     invitations: number;
+    /** Audit log entries, paged like the directory and capped the same. */
+    auditEvents: number;
+    /** Signing keys, newest first; a short list, capped like `lists`. */
+    signingKeys: number;
+    /**
+     * Each signing key's state as one letter, newest first — `P`ending,
+     * `A`ctive, `D`ecommissioning, `R`etired, or `X` for decommissioning
+     * straight from pending — once a write has moved one.
+     * A key past the end of the string takes its state from its position.
+     * A string rather than a list, so it survives the stored-config overlay.
+     */
+    signingKeyStates: string;
   };
   sudo: {
     fresh: boolean;
@@ -55,7 +67,18 @@ export interface MockConfig {
   };
   instance: {
     maintenance: boolean;
+    maintenanceMessage: string;
     bootstrapped: boolean;
+    /** The saved name override; empty means the configured name. */
+    name: string;
+    customIcon: boolean;
+    customBackground: boolean;
+    /** Bumped by every image write, so `/config` reports a new ETag. */
+    imageRevision: number;
+    clientIpStrategy: "direct" | "forwarded" | "header";
+    clientIpHeader: string;
+    /** The trusted proxies, one per line, like the settings field. */
+    trustedProxies: string;
   };
 }
 
@@ -104,9 +127,23 @@ export const defaultMockConfig: MockConfig = {
     accounts: 12,
     groups: 3,
     invitations: 4,
+    auditEvents: 24,
+    signingKeys: 4,
+    signingKeyStates: "",
   },
   sudo: { fresh: true, webauthn: true, passwordTotp: true },
-  instance: { maintenance: false, bootstrapped: true },
+  instance: {
+    maintenance: false,
+    maintenanceMessage: "Scheduled maintenance is in progress.",
+    bootstrapped: true,
+    name: "",
+    customIcon: false,
+    customBackground: false,
+    imageRevision: 0,
+    clientIpStrategy: "direct",
+    clientIpHeader: "",
+    trustedProxies: "",
+  },
 } satisfies MockConfig;
 
 const storageKey = "prohibitorum.devtools.mock";

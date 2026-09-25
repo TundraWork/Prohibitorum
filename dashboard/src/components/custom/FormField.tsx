@@ -19,6 +19,7 @@ export function FormField({
   autoComplete,
   autoCapitalize,
   spellCheck,
+  placeholder,
   isDisabled = false,
   variant,
 }: {
@@ -29,6 +30,8 @@ export function FormField({
   autoComplete?: string;
   autoCapitalize?: string;
   spellCheck?: boolean;
+  /** An example value, for a field whose format is easier shown than said. */
+  placeholder?: string;
   isDisabled?: boolean;
   /** HeroUI input variant. Use `secondary` when the field sits on a surface. */
   variant?: ComponentProps<typeof Input>["variant"];
@@ -67,6 +70,7 @@ export function FormField({
         autoComplete={autoComplete}
         autoCapitalize={autoCapitalize}
         spellCheck={spellCheck}
+        placeholder={placeholder}
         variant={variant}
         aria-invalid={invalid || undefined}
         aria-describedby={

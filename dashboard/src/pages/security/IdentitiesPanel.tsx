@@ -1,11 +1,4 @@
-import {
-  Alert,
-  AlertDialog,
-  Avatar,
-  Chip,
-  Dropdown,
-  Label,
-} from "@heroui/react";
+import { Alert, Avatar, Chip, Dropdown, Label } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link2, Unlink } from "lucide-react";
@@ -23,6 +16,7 @@ import {
 import { runWithSudo } from "@/api/sudo";
 import { sudoReason } from "@/api/sudo-reasons";
 import { Button } from "@/components/custom/Button";
+import { ConfirmDialog } from "@/components/custom/ConfirmDialog";
 import { ItemList, ItemListRow } from "@/components/custom/ItemList";
 import { TableEmptyState } from "@/components/custom/TableEmptyState";
 
@@ -145,57 +139,38 @@ export function IdentitiesPanel() {
         </ItemList>
       </div>
 
-      <AlertDialog
+      <ConfirmDialog
         isOpen={target !== null}
         onOpenChange={(open) => !open && setTarget(null)}
-      >
-        <AlertDialog.Backdrop>
-          <AlertDialog.Container placement="center" size="md">
-            <AlertDialog.Dialog>
-              <AlertDialog.Header>
-                <AlertDialog.Heading>
-                  <Trans id="security.identities.unlink.title">
-                    Unlink this identity?
-                  </Trans>
-                </AlertDialog.Heading>
-              </AlertDialog.Header>
-              <AlertDialog.Body>
-                <p>
-                  <Trans id="security.identities.unlink.body">
-                    You will no longer be able to sign in through this provider.
-                    Your other sign-in methods are unaffected.
-                  </Trans>
-                </p>
-              </AlertDialog.Body>
-              <AlertDialog.Footer>
-                <Button
-                  variant="secondary"
-                  onPress={() => setTarget(null)}
-                  isDisabled={unlink.isPending}
-                >
-                  <Trans id="security.cancel">Cancel</Trans>
-                </Button>
-                <Button
-                  variant="danger"
-                  isPending={unlink.isPending}
-                  onPress={() => {
-                    if (!target) return;
-                    unlink.mutate(target.id, {
-                      onSuccess: () => setTarget(null),
-                      onError: (failure) => {
-                        setError(failure);
-                        setTarget(null);
-                      },
-                    });
-                  }}
-                >
-                  <Trans id="security.identities.unlink.action">Unlink</Trans>
-                </Button>
-              </AlertDialog.Footer>
-            </AlertDialog.Dialog>
-          </AlertDialog.Container>
-        </AlertDialog.Backdrop>
-      </AlertDialog>
+        status="danger"
+        title={
+          <Trans id="security.identities.unlink.title">
+            Unlink this identity?
+          </Trans>
+        }
+        body={
+          <p>
+            <Trans id="security.identities.unlink.body">
+              You will no longer be able to sign in through this provider. Your
+              other sign-in methods are unaffected.
+            </Trans>
+          </p>
+        }
+        confirmLabel={
+          <Trans id="security.identities.unlink.action">Unlink</Trans>
+        }
+        isPending={unlink.isPending}
+        onConfirm={() => {
+          if (!target) return;
+          unlink.mutate(target.id, {
+            onSuccess: () => setTarget(null),
+            onError: (failure) => {
+              setError(failure);
+              setTarget(null);
+            },
+          });
+        }}
+      />
     </>
   );
 }

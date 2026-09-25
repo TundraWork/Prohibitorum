@@ -88,7 +88,7 @@ type fakeListQ struct {
 	faCalls int
 
 	// audit
-	auditRows []db.CredentialEvent
+	auditRows []db.ListCredentialEventsRow
 	auditCall db.ListCredentialEventsParams
 }
 
@@ -140,7 +140,7 @@ func (f *fakeListQ) ListForwardAuthClients(_ context.Context, p db.ListForwardAu
 	return f.faRows, nil
 }
 
-func (f *fakeListQ) ListCredentialEvents(_ context.Context, p db.ListCredentialEventsParams) ([]db.CredentialEvent, error) {
+func (f *fakeListQ) ListCredentialEvents(_ context.Context, p db.ListCredentialEventsParams) ([]db.ListCredentialEventsRow, error) {
 	f.auditCall = p
 	return f.auditRows, nil
 }
@@ -642,7 +642,7 @@ func TestListAuditEvents_FilterMismatch_ReturnsCursorInvalid(t *testing.T) {
 
 func TestListAuditEvents_SameFilters_AcceptsCursor(t *testing.T) {
 	q := &fakeListQ{}
-	q.auditRows = []db.CredentialEvent{
+	q.auditRows = []db.ListCredentialEventsRow{
 		{ID: 40, At: pgTS("2026-07-03T00:00:00Z")},
 		{ID: 39, At: pgTS("2026-07-02T00:00:00Z")},
 	}

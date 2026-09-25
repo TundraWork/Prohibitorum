@@ -180,11 +180,11 @@ describe("mock replies", () => {
   });
 
   it("fails an endpoint it has no fixture for instead of reaching the server", () => {
-    expect(read("/api/prohibitorum/audit-events")).toEqual({
+    expect(read("/api/prohibitorum/oidc-applications")).toEqual({
       kind: "error",
       status: 501,
       code: "mock_unmocked",
-      details: { method: "GET", path: "/api/prohibitorum/audit-events" },
+      details: { method: "GET", path: "/api/prohibitorum/oidc-applications" },
     });
   });
 });
@@ -356,6 +356,204 @@ describe("mocked management directory", () => {
     expect(
       bodyOf(read("/api/prohibitorum/me", applied(reply, current))),
     ).toMatchObject({ role: "member" });
+  });
+});
+
+describe("mocked logs, settings and signing keys", () => {
+  type Page<T> = { items: T[]; nextCursor: string };
+  type Event = {
+    factor: string;
+    event: string;
+    at: string;
+    accountId?: number;
+    accountUsername?: string;
+  };
+  type Key = { kid: string; status: string };
+
+  it("pages the audit log and applies the server's filters", () => {
+    const current = config((draft) => {
+      draft.admin.auditEvents = 24;
+    });
+    const first = bodyOf(
+      read("/api/prohibitorum/audit-events", current),
+    ) as Page<Event>;
+    expect(first.items).toHaveLength(mockPageSize);
+    expect(first.nextCursor).toBe(String(mockPageSize));
+    // Some events belong to an account, named; some to nobody.
+    const all = bodyOf(
+      read(
+        "/api/prohibitorum/audit-events",
+        current,
+        "http://localhost/api/prohibitorum/audit-events?cursor=0",
+      ),
+    ) as Page<Event>;
+    expect(all.items.some((item) => item.accountUsername)).toBe(true);
+    expect(all.items.some((item) => item.accountId === undefined)).toBe(true);
+
+    const failed = bodyOf(
+      read(
+        "/api/prohibitorum/audit-events",
+        current,
+        "http://localhost/api/prohibitorum/audit-events?factor=password&event=fail",
+      ),
+    ) as Page<Event>;
+    expect(failed.items.length).toBeGreaterThan(0);
+    expect(
+      failed.items.every(
+        (item) => item.factor === "password" && item.event === "fail",
+      ),
+    ).toBe(true);
+
+    const since = new Date(Date.now() - 3 * 3_600_000).toISOString();
+    const recent = bodyOf(
+      read(
+        "/api/prohibitorum/audit-events",
+        current,
+        `http://localhost/api/prohibitorum/audit-events?since=${encodeURIComponent(since)}`,
+      ),
+    ) as Page<Event>;
+    expect(recent.items).toHaveLength(2);
+    expect(recent.nextCursor).toBe("");
+  });
+
+  it("carries a saved name, notice and images into /config", () => {
+    let current = writes();
+    for (const [method, path, body] of [
+      ["PUT", "/api/prohibitorum/admin/settings", { instanceName: "Home" }],
+      [
+        "PUT",
+        "/api/prohibitorum/admin/settings/maintenance",
+        { maintenanceMode: true, maintenanceMessage: "Back soon" },
+      ],
+      ["PUT", "/api/prohibitorum/admin/settings/icon", undefined],
+      ["PUT", "/api/prohibitorum/admin/settings/background", undefined],
+    ] as const) {
+      current = applied(call(method, path, current, body), current);
+    }
+    const saved = bodyOf(read("/api/prohibitorum/config", current)) as {
+      instanceName: string;
+      maintenanceMode: boolean;
+      maintenanceMessage: string;
+      hasCustomIcon: boolean;
+      hasCustomBackground: boolean;
+      iconEtag: string;
+    };
+    expect(saved).toMatchObject({
+      instanceName: "Home",
+      maintenanceMode: true,
+      maintenanceMessage: "Back soon",
+      hasCustomIcon: true,
+      hasCustomBackground: true,
+    });
+
+    // Clearing the override falls back to the configured name, and removing
+    // the icon is a new version of it.
+    const before = saved.iconEtag;
+    current = applied(
+      call("PUT", "/api/prohibitorum/admin/settings", current, {
+        instanceName: "",
+      }),
+      current,
+    );
+    current = applied(
+      call("DELETE", "/api/prohibitorum/admin/settings/icon", current),
+      current,
+    );
+    const cleared = bodyOf(read("/api/prohibitorum/config", current)) as {
+      instanceName: string;
+      hasCustomIcon: boolean;
+      iconEtag: string;
+    };
+    expect(cleared.instanceName).toBe("Prohibitorum (mock)");
+    expect(cleared.hasCustomIcon).toBe(false);
+    expect(cleared.iconEtag).not.toBe(before);
+  });
+
+  it("stores the client-IP policy it was sent", () => {
+    const policy = {
+      strategy: "forwarded",
+      header: "",
+      trustedProxies: ["10.0.0.0/8", "2001:db8::/32"],
+    };
+    const current = applied(
+      call(
+        "PUT",
+        "/api/prohibitorum/admin/settings/client-ip",
+        writes(),
+        policy,
+      ),
+      writes(),
+    );
+    expect(
+      bodyOf(read("/api/prohibitorum/admin/settings/client-ip", current)),
+    ).toEqual(policy);
+  });
+
+  it("moves signing keys through their states as the handlers do", () => {
+    let current = writes();
+    const keys = () =>
+      (bodyOf(read("/api/prohibitorum/signing-keys", current)) as Page<Key>)
+        .items;
+    expect(keys().map((key) => key.status)).toEqual([
+      "pending",
+      "active",
+      "decommissioning",
+      "retired",
+    ]);
+
+    // A new key is pending and on top; the others keep their ids.
+    const before = keys().map((key) => key.kid);
+    const generated = call(
+      "POST",
+      "/api/prohibitorum/signing-keys/generate",
+      current,
+      {},
+    );
+    expect(generated).toMatchObject({ kind: "json", status: 201 });
+    current = applied(generated, current);
+    expect(
+      keys()
+        .slice(1)
+        .map((key) => key.kid),
+    ).toEqual(before);
+    expect(keys()[0]?.status).toBe("pending");
+
+    // Activating one pending key retires the signer.
+    const target = keys()[1]?.kid ?? "";
+    current = applied(
+      call("POST", "/api/prohibitorum/signing-keys/{kid}/activate", current, {
+        kid: target,
+      }),
+      current,
+    );
+    expect(keys().map((key) => key.status)).toEqual([
+      "pending",
+      "active",
+      "decommissioning",
+      "decommissioning",
+      "retired",
+    ]);
+
+    // The signer cannot be retired, and a key that is not pending cannot be
+    // activated.
+    expect(
+      call("POST", "/api/prohibitorum/signing-keys/{kid}/retire", current, {
+        kid: target,
+      }),
+    ).toMatchObject({ code: "active_key_no_replacement", status: 409 });
+    expect(
+      call("POST", "/api/prohibitorum/signing-keys/{kid}/activate", current, {
+        kid: target,
+      }),
+    ).toMatchObject({ code: "credential_not_found", status: 404 });
+
+    current = applied(
+      call("POST", "/api/prohibitorum/signing-keys/{kid}/retire", current, {
+        kid: keys()[0]?.kid ?? "",
+      }),
+      current,
+    );
+    expect(keys()[0]?.status).toBe("decommissioning");
   });
 });
 

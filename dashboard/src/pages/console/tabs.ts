@@ -58,3 +58,20 @@ export type AccountTab = (typeof accountTabs)[number];
 export function accountTab(value: unknown): AccountTab {
   return pickTab(value, accountTabs);
 }
+
+/**
+ * The instance settings, one tab per kind: what the instance is called and
+ * looks like, whether it is open, how it reads client addresses, and the keys
+ * it signs with.
+ */
+export const settingsTabs = [
+  "general",
+  "maintenance",
+  "network",
+  "keys",
+] as const;
+export type SettingsTab = (typeof settingsTabs)[number];
+
+export function settingsTab(value: unknown): SettingsTab {
+  return pickTab(value, settingsTabs);
+}

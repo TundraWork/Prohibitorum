@@ -105,4 +105,36 @@ export const sudoReason = {
     id: "sudo.reason.revoke-invitation",
     message: "Confirm it is you to revoke this invitation.",
   }),
+  updateInstanceName: msg({
+    id: "sudo.reason.update-instance-name",
+    message: "Confirm it is you to rename this instance.",
+  }),
+  updateMaintenance: msg({
+    id: "sudo.reason.update-maintenance",
+    message: "Confirm it is you to change maintenance mode.",
+  }),
+  updateInstanceIcon: msg({
+    id: "sudo.reason.update-instance-icon",
+    message: "Confirm it is you to change the instance icon.",
+  }),
+  updateSignInBackground: msg({
+    id: "sudo.reason.update-sign-in-background",
+    message: "Confirm it is you to change the sign-in background.",
+  }),
+  updateClientIp: msg({
+    id: "sudo.reason.update-client-ip",
+    message: "Confirm it is you to change how client addresses are read.",
+  }),
+  generateSigningKey: msg({
+    id: "sudo.reason.generate-signing-key",
+    message: "Confirm it is you to generate a signing key.",
+  }),
+  activateSigningKey: msg({
+    id: "sudo.reason.activate-signing-key",
+    message: "Confirm it is you to start signing with this key.",
+  }),
+  retireSigningKey: msg({
+    id: "sudo.reason.retire-signing-key",
+    message: "Confirm it is you to retire this signing key.",
+  }),
 } as const;

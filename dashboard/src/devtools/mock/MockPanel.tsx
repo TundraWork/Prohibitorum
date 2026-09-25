@@ -239,7 +239,9 @@ export function MockPanel() {
         fixture fails as <code>mock_unmocked</code> rather than reaching the
         server, so a passkey step-up cannot be faked. Mocking is off again after
         a reload. The role under Session is what opens the management area: as a
-        member the sidebar omits it and its pages redirect home.
+        member the sidebar omits it and its pages redirect home. The instance
+        name, icon and background below are what every page and the sign-in
+        screen draw.
       </p>
 
       <fieldset
@@ -425,6 +427,25 @@ export function MockPanel() {
               })
             }
           />
+          <Count
+            label="Audit events"
+            max={mockAdminListMax}
+            value={config.admin.auditEvents}
+            onChange={(next) =>
+              updateMockConfig((draft) => {
+                draft.admin.auditEvents = next;
+              })
+            }
+          />
+          <Count
+            label="Signing keys"
+            value={config.admin.signingKeys}
+            onChange={(next) =>
+              updateMockConfig((draft) => {
+                draft.admin.signingKeys = next;
+              })
+            }
+          />
         </Section>
 
         <Section title="Step-up verification">
@@ -473,6 +494,35 @@ export function MockPanel() {
             onChange={(next) =>
               updateMockConfig((draft) => {
                 draft.instance.bootstrapped = next;
+              })
+            }
+          />
+          <Toggle
+            label="Custom icon"
+            checked={config.instance.customIcon}
+            onChange={(next) =>
+              updateMockConfig((draft) => {
+                draft.instance.customIcon = next;
+                draft.instance.imageRevision += 1;
+              })
+            }
+          />
+          <Toggle
+            label="Custom sign-in background"
+            checked={config.instance.customBackground}
+            onChange={(next) =>
+              updateMockConfig((draft) => {
+                draft.instance.customBackground = next;
+                draft.instance.imageRevision += 1;
+              })
+            }
+          />
+          <Text
+            label="Name override (empty for the configured name)"
+            value={config.instance.name}
+            onChange={(next) =>
+              updateMockConfig((draft) => {
+                draft.instance.name = next;
               })
             }
           />

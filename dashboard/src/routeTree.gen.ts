@@ -21,6 +21,8 @@ import { Route as PublicPreviewRouteImport } from './routes/_public._preview'
 import { Route as PublicLoginRouteImport } from './routes/_public.login'
 import { Route as ProtectedAdminIndexRouteImport } from './routes/_protected.admin.index'
 import { Route as ProtectedAdminInvitationsRouteImport } from './routes/_protected.admin.invitations'
+import { Route as ProtectedAdminLogsRouteImport } from './routes/_protected.admin.logs'
+import { Route as ProtectedAdminSettingsRouteImport } from './routes/_protected.admin.settings'
 import { Route as ProtectedAdminUsersRouteImport } from './routes/_protected.admin.users'
 import { Route as PublicLoginRecoveryRouteImport } from './routes/_public.login_.recovery'
 import { Route as PublicLoginTotpRouteImport } from './routes/_public.login_.totp'
@@ -91,6 +93,16 @@ const ProtectedAdminInvitationsRoute =
     path: '/invitations',
     getParentRoute: () => ProtectedAdminRoute,
   } as any)
+const ProtectedAdminLogsRoute = ProtectedAdminLogsRouteImport.update({
+  id: '/logs',
+  path: '/logs',
+  getParentRoute: () => ProtectedAdminRoute,
+} as any)
+const ProtectedAdminSettingsRoute = ProtectedAdminSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => ProtectedAdminRoute,
+} as any)
 const ProtectedAdminUsersRoute = ProtectedAdminUsersRouteImport.update({
   id: '/users',
   path: '/users',
@@ -160,6 +172,8 @@ export interface FileRoutesByFullPath {
   '/security': typeof ProtectedSecurityRoute
   '/login': typeof PublicLoginRoute
   '/admin/invitations': typeof ProtectedAdminInvitationsRoute
+  '/admin/logs': typeof ProtectedAdminLogsRoute
+  '/admin/settings': typeof ProtectedAdminSettingsRoute
   '/admin/users': typeof ProtectedAdminUsersRoute
   '/login/recovery': typeof PublicLoginRecoveryRoute
   '/login/totp': typeof PublicLoginTotpRoute
@@ -181,6 +195,8 @@ export interface FileRoutesByTo {
   '/security': typeof ProtectedSecurityRoute
   '/login': typeof PublicLoginRoute
   '/admin/invitations': typeof ProtectedAdminInvitationsRoute
+  '/admin/logs': typeof ProtectedAdminLogsRoute
+  '/admin/settings': typeof ProtectedAdminSettingsRoute
   '/admin/users': typeof ProtectedAdminUsersRoute
   '/login/recovery': typeof PublicLoginRecoveryRoute
   '/login/totp': typeof PublicLoginTotpRoute
@@ -207,6 +223,8 @@ export interface FileRoutesById {
   '/_public/login': typeof PublicLoginRoute
   '/_protected/': typeof ProtectedIndexRoute
   '/_protected/admin/invitations': typeof ProtectedAdminInvitationsRoute
+  '/_protected/admin/logs': typeof ProtectedAdminLogsRoute
+  '/_protected/admin/settings': typeof ProtectedAdminSettingsRoute
   '/_protected/admin/users': typeof ProtectedAdminUsersRoute
   '/_public/login_/recovery': typeof PublicLoginRecoveryRoute
   '/_public/login_/totp': typeof PublicLoginTotpRoute
@@ -231,6 +249,8 @@ export interface FileRouteTypes {
     | '/security'
     | '/login'
     | '/admin/invitations'
+    | '/admin/logs'
+    | '/admin/settings'
     | '/admin/users'
     | '/login/recovery'
     | '/login/totp'
@@ -252,6 +272,8 @@ export interface FileRouteTypes {
     | '/security'
     | '/login'
     | '/admin/invitations'
+    | '/admin/logs'
+    | '/admin/settings'
     | '/admin/users'
     | '/login/recovery'
     | '/login/totp'
@@ -277,6 +299,8 @@ export interface FileRouteTypes {
     | '/_public/login'
     | '/_protected/'
     | '/_protected/admin/invitations'
+    | '/_protected/admin/logs'
+    | '/_protected/admin/settings'
     | '/_protected/admin/users'
     | '/_public/login_/recovery'
     | '/_public/login_/totp'
@@ -382,6 +406,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProtectedAdminInvitationsRouteImport
       parentRoute: typeof ProtectedAdminRoute
     }
+    '/_protected/admin/logs': {
+      id: '/_protected/admin/logs'
+      path: '/logs'
+      fullPath: '/admin/logs'
+      preLoaderRoute: typeof ProtectedAdminLogsRouteImport
+      parentRoute: typeof ProtectedAdminRoute
+    }
+    '/_protected/admin/settings': {
+      id: '/_protected/admin/settings'
+      path: '/settings'
+      fullPath: '/admin/settings'
+      preLoaderRoute: typeof ProtectedAdminSettingsRouteImport
+      parentRoute: typeof ProtectedAdminRoute
+    }
     '/_protected/admin/users': {
       id: '/_protected/admin/users'
       path: '/users'
@@ -464,6 +502,8 @@ declare module '@tanstack/react-router' {
 
 interface ProtectedAdminRouteChildren {
   ProtectedAdminInvitationsRoute: typeof ProtectedAdminInvitationsRoute
+  ProtectedAdminLogsRoute: typeof ProtectedAdminLogsRoute
+  ProtectedAdminSettingsRoute: typeof ProtectedAdminSettingsRoute
   ProtectedAdminUsersRoute: typeof ProtectedAdminUsersRoute
   ProtectedAdminIndexRoute: typeof ProtectedAdminIndexRoute
   ProtectedAdminGroupsNewRoute: typeof ProtectedAdminGroupsNewRoute
@@ -475,6 +515,8 @@ interface ProtectedAdminRouteChildren {
 
 const ProtectedAdminRouteChildren: ProtectedAdminRouteChildren = {
   ProtectedAdminInvitationsRoute: ProtectedAdminInvitationsRoute,
+  ProtectedAdminLogsRoute: ProtectedAdminLogsRoute,
+  ProtectedAdminSettingsRoute: ProtectedAdminSettingsRoute,
   ProtectedAdminUsersRoute: ProtectedAdminUsersRoute,
   ProtectedAdminIndexRoute: ProtectedAdminIndexRoute,
   ProtectedAdminGroupsNewRoute: ProtectedAdminGroupsNewRoute,
