@@ -3692,6 +3692,11 @@ msgid "admin.group.rule.reason.unsupported_version"
 msgstr "该规则是为另一个版本的服务器编写的。"
 
 #. js-lingui-explicit-id
+#: src/components/custom/ConsoleTabs.tsx
+msgid "tabs.panel.failed"
+msgstr "无法加载这一部分"
+
+#. js-lingui-explicit-id
 #: src/pages/DevForms.tsx
 msgid "dev.forms.logout.description"
 msgstr "此操作会发送真实退出请求，并清除会话查询缓存。请仅在隔离浏览器会话中使用，不要在日常登录会话中操作。"
@@ -3740,6 +3745,11 @@ msgstr "验证尝试次数过多。请稍后重试。"
 #: src/pages/admin/settings/NetworkPanel.tsx
 msgid "settings.network.proxies"
 msgstr "可信代理"
+
+#. js-lingui-explicit-id
+#: src/components/custom/ConsoleTabs.tsx
+msgid "tabs.panel.retry"
+msgstr "重试"
 
 #. js-lingui-explicit-id
 #: src/components/custom/RouteFeedback.tsx

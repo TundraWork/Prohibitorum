@@ -1,4 +1,4 @@
-import { Description, Tabs } from "@heroui/react";
+import { Description } from "@heroui/react";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import {
@@ -9,11 +9,10 @@ import {
 import { useNavigate } from "@tanstack/react-router";
 import { updateProfileMutationOptions } from "@/api/mutations";
 import { sessionQueryOptions } from "@/api/queries";
-
 import { ConsoleCard } from "@/components/custom/ConsoleCard";
+import { ConsoleTabs } from "@/components/custom/ConsoleTabs";
 import { applyServerError } from "@/forms/server-errors";
 import { useAppForm } from "@/forms/use-app-form";
-import type { ProfileTab } from "@/pages/console/tabs";
 import { AvatarPanel } from "@/pages/profile/AvatarPanel";
 import { Route } from "@/routes/_protected.profile";
 
@@ -55,41 +54,30 @@ export function Profile() {
   if (session === null) return null;
 
   return (
-    <>
-      <Tabs
-        selectedKey={tab}
-        onSelectionChange={(key) => {
-          // replace, so browsing tabs never buries the page the user came from.
-          void navigate({
-            to: "/profile",
-            search: { tab: key as ProfileTab },
-            replace: true,
-          });
-        }}
-      >
-        <Tabs.ListContainer className="ml-2 w-fit max-w-full">
-          <Tabs.List aria-label={t({ id: "profile.tabs", message: "Profile" })}>
-            <Tabs.Tab className="whitespace-nowrap" id="display-name">
-              <Trans id="profile.tab.display-name">Display name</Trans>
-              <Tabs.Indicator />
-            </Tabs.Tab>
-            <Tabs.Tab className="whitespace-nowrap" id="avatar">
-              <Trans id="profile.tab.avatar">Avatar</Trans>
-              <Tabs.Indicator />
-            </Tabs.Tab>
-          </Tabs.List>
-        </Tabs.ListContainer>
-        <Tabs.Panel id="display-name">
-          <DisplayNameCard
-            displayName={session.displayName}
-            username={session.username}
-          />
-        </Tabs.Panel>
-        <Tabs.Panel id="avatar">
-          <AvatarPanel current={session} />
-        </Tabs.Panel>
-      </Tabs>
-    </>
+    <ConsoleTabs
+      label={t({ id: "profile.tabs", message: "Profile" })}
+      selected={tab}
+      onSelectionChange={(next) =>
+        void navigate({ to: "/profile", search: { tab: next }, replace: true })
+      }
+      tabs={[
+        {
+          id: "display-name",
+          title: <Trans id="profile.tab.display-name">Display name</Trans>,
+          panel: () => (
+            <DisplayNameCard
+              displayName={session.displayName}
+              username={session.username}
+            />
+          ),
+        },
+        {
+          id: "avatar",
+          title: <Trans id="profile.tab.avatar">Avatar</Trans>,
+          panel: () => <AvatarPanel current={session} />,
+        },
+      ]}
+    />
   );
 }
 

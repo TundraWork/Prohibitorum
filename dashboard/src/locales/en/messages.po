@@ -3692,6 +3692,11 @@ msgid "admin.group.rule.reason.unsupported_version"
 msgstr "This rule was written for another version of the server."
 
 #. js-lingui-explicit-id
+#: src/components/custom/ConsoleTabs.tsx
+msgid "tabs.panel.failed"
+msgstr "This section could not be loaded"
+
+#. js-lingui-explicit-id
 #: src/pages/DevForms.tsx
 msgid "dev.forms.logout.description"
 msgstr "This sends a real logout request and clears session queries. Use only an isolated browser session, never your regular signed-in session."
@@ -3740,6 +3745,11 @@ msgstr "Too many verification attempts. Please wait before trying again."
 #: src/pages/admin/settings/NetworkPanel.tsx
 msgid "settings.network.proxies"
 msgstr "Trusted proxies"
+
+#. js-lingui-explicit-id
+#: src/components/custom/ConsoleTabs.tsx
+msgid "tabs.panel.retry"
+msgstr "Try again"
 
 #. js-lingui-explicit-id
 #: src/components/custom/RouteFeedback.tsx
