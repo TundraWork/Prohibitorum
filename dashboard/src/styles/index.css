@@ -44,6 +44,36 @@
 }
 
 /*
+ * The page's scrollbars avoid the open devtools panel the same way the content
+ * does.
+ *
+ * The panel is a fixed overlay on an edge of the viewport, and the dock narrows
+ * the page by writing the `--app-gutter-*` properties. The page scrollbar is
+ * fixed to the viewport rather than sized by the page, so it does not follow
+ * that narrowing on its own: its track would run the full height underneath the
+ * panel. These offsets pull the track clear of the panel, and because the
+ * gutters are `0px` unless a panel is open — they are only ever written by
+ * `src/devtools/dock`, which is development-only — a production build resolves
+ * them to the library's own `0`.
+ *
+ * `body >` scopes this to the page scrollbar: a `ScrollArea` keeps its
+ * scrollbars inside its own host, where the gutters do not apply.
+ */
+body > .os-scrollbar.os-scrollbar-vertical.os-scrollbar-cornerless {
+  top: var(--app-gutter-top);
+  bottom: var(--app-gutter-bottom);
+}
+
+/*
+ * The horizontal bar only ever sits at the foot of the viewport, so only a
+ * bottom-docked panel can cover it: the gutter lifts it by the panel's height.
+ * A top-docked panel leaves `--app-gutter-bottom` at `0px`.
+ */
+body > .os-scrollbar.os-scrollbar-horizontal.os-scrollbar-cornerless {
+  bottom: var(--app-gutter-bottom);
+}
+
+/*
  * The space a page may fill. The devtools dock (`src/devtools/dock`) narrows the
  * viewport by the height of its open panel and adds the matching gutter, so the
  * panel covers empty space instead of the page. These defaults describe an
