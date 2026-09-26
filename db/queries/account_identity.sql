@@ -20,6 +20,19 @@ RETURNING *;
 -- deleted, or unknown id). Callers map ErrNoRows to a 404 + skip audit.
 DELETE FROM account_identity WHERE id = $1 AND account_id = $2 RETURNING id;
 
+-- name: DeleteAccountIdentitiesByUpstreamIDP :many
+-- Every identity linked to one provider, removed together when the provider
+-- itself is deleted. The account rows survive: an account that could also sign
+-- in another way keeps those, and one that could only use this provider is
+-- left for an admin to reissue an enrollment for. RETURNING account_id lets the
+-- caller audit exactly whose links were dropped.
+DELETE FROM account_identity WHERE upstream_idp_id = $1 RETURNING account_id;
+
+-- name: CountAccountsLinkedToUpstreamIDP :one
+-- How many accounts hold an identity from this provider, distinct because one
+-- account can link the same provider twice (two subjects).
+SELECT COUNT(DISTINCT account_id)::bigint FROM account_identity WHERE upstream_idp_id = $1;
+
 -- name: UpdateAccountIdentityVerifiedData :exec
 UPDATE account_identity
 SET upstream_email = $2, upstream_data = $3

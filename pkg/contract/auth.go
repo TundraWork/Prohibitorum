@@ -705,6 +705,11 @@ type IdentityProviderView struct {
 	SupportsOperator  bool                      `json:"supportsOperator"`
 	SearchFields      []IdentitySearchFieldView `json:"searchFields"`
 	CreatedAt         time.Time                 `json:"createdAt"`
+	// LinkedAccountCount is the number of distinct accounts holding an identity
+	// from this provider. Set on the single-provider GET only: the list does not
+	// need it, and counting it per row would cost a query per row. The delete
+	// confirmation uses it to say how many accounts lose this sign-in method.
+	LinkedAccountCount *int32 `json:"linkedAccountCount,omitempty"`
 }
 
 var OperationListIdentityProviders = huma.Operation{

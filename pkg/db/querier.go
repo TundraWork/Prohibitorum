@@ -43,6 +43,9 @@ type Querier interface {
 	// pgx.ErrNoRows surfaces on any not-consumable branch.
 	ConsumeInviteEnrollment(ctx context.Context, token string) (Enrollment, error)
 	ConsumeRecoveryCode(ctx context.Context, arg ConsumeRecoveryCodeParams) (RecoveryCode, error)
+	// How many accounts hold an identity from this provider, distinct because one
+	// account can link the same provider twice (two subjects).
+	CountAccountsLinkedToUpstreamIDP(ctx context.Context, upstreamIdpID int64) (int64, error)
 	CountActiveAdminsForUpdate(ctx context.Context) (int64, error)
 	CountCredentialsByAccount(ctx context.Context, accountID int32) (int64, error)
 	// Linked identities the account can actually sign in / step up with: the
@@ -55,6 +58,12 @@ type Querier interface {
 	CreateOIDCAppGroup(ctx context.Context, arg CreateOIDCAppGroupParams) (UserGroup, error)
 	CreateSAMLAppGroup(ctx context.Context, arg CreateSAMLAppGroupParams) (UserGroup, error)
 	DeleteAccountByID(ctx context.Context, id int32) error
+	// Every identity linked to one provider, removed together when the provider
+	// itself is deleted. The account rows survive: an account that could also sign
+	// in another way keeps those, and one that could only use this provider is
+	// left for an admin to reissue an enrollment for. RETURNING account_id lets the
+	// caller audit exactly whose links were dropped.
+	DeleteAccountIdentitiesByUpstreamIDP(ctx context.Context, upstreamIdpID int64) ([]int32, error)
 	// Returns the deleted row's id when one matched; pgx.ErrNoRows when the
 	// (id, account_id) pair matches nothing (foreign identity, already-
 	// deleted, or unknown id). Callers map ErrNoRows to a 404 + skip audit.

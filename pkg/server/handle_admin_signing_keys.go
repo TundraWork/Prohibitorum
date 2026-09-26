@@ -73,7 +73,7 @@ func writeSigningKeyJSON(w http.ResponseWriter, status int, v contract.SigningKe
 // ----- GET /signing-keys (typed, role-only) ----------------------------------
 
 type listSigningKeysIn struct {
-	pageInput
+	PageInput
 }
 
 type listSigningKeysOut struct {

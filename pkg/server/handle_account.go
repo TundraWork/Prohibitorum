@@ -145,7 +145,7 @@ func accountViewFromAccount(a *db.Account, lastSignInAt *time.Time, origin strin
 // ----- GET /accounts ---------------------------------------------------------
 
 type listAccountsIn struct {
-	pageInput
+	PageInput
 	Q        string `query:"q"`
 	Provider string `query:"provider"`
 	Field    string `query:"field"`
@@ -1002,7 +1002,7 @@ func (s *Server) handleCreateInvitation(ctx context.Context, in *createInvitatio
 // ----- GET /invitations ------------------------------------------------------
 
 type listInvitationsIn struct {
-	pageInput
+	PageInput
 }
 
 type listInvitationsOut struct {

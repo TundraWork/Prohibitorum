@@ -90,6 +90,11 @@ type fakeListQ struct {
 	// audit
 	auditRows []db.ListCredentialEventsRow
 	auditCall db.ListCredentialEventsParams
+
+	// entity icons, keyed by owner kind then owner id. The list handlers call
+	// this once per page to fill iconUrl, so a handler test that leaves it nil
+	// gets no icon on any row.
+	iconEtags map[string]map[string]string
 }
 
 func (f *fakeListQ) ListAccounts(_ context.Context, p db.ListAccountsParams) ([]db.ListAccountsRow, error) {
@@ -143,6 +148,17 @@ func (f *fakeListQ) ListForwardAuthClients(_ context.Context, p db.ListForwardAu
 func (f *fakeListQ) ListCredentialEvents(_ context.Context, p db.ListCredentialEventsParams) ([]db.ListCredentialEventsRow, error) {
 	f.auditCall = p
 	return f.auditRows, nil
+}
+
+// ListEntityIconEtags is the per-page icon lookup the list handlers make to fill
+// iconUrl. Returning no rows is the common case here: a handler test is about
+// paging, not icons.
+func (f *fakeListQ) ListEntityIconEtags(_ context.Context, ownerKind string) ([]db.ListEntityIconEtagsRow, error) {
+	rows := make([]db.ListEntityIconEtagsRow, 0, len(f.iconEtags[ownerKind]))
+	for ownerID, etag := range f.iconEtags[ownerKind] {
+		rows = append(rows, db.ListEntityIconEtagsRow{OwnerID: ownerID, Etag: etag})
+	}
+	return rows, nil
 }
 
 // InsertCredentialEvent is a no-op sink for audit rows.
@@ -345,7 +361,7 @@ func TestListAccountsNormalizesAndBindsIdentityFilters(t *testing.T) {
 	s := newPaginationTestServer(q)
 
 	_, err := s.handleListAccounts(context.Background(), &listAccountsIn{
-		pageInput: pageInput{Limit: 10},
+		PageInput: PageInput{Limit: 10},
 		Q:         "  Alice  ",
 		Provider:  "  STEAM-MAIN ",
 		Field:     " personaName ",
@@ -384,7 +400,7 @@ func TestListAccounts_FirstPage_HasNextCursor(t *testing.T) {
 	s := newPaginationTestServer(q)
 	// We need to call through the real queries, not the fake. Override:
 
-	out, err := s.handleListAccounts(context.Background(), &listAccountsIn{pageInput: pageInput{Limit: 2}})
+	out, err := s.handleListAccounts(context.Background(), &listAccountsIn{PageInput: PageInput{Limit: 2}})
 	if err != nil {
 		t.Fatalf("handleListAccounts: %v", err)
 	}
@@ -407,7 +423,7 @@ func TestListAccounts_FinalPage_NoNextCursor(t *testing.T) {
 		{ID: 1, CreatedAt: pgTS("2026-07-01T00:00:00Z")},
 	}
 	s := newPaginationTestServer(q)
-	out, err := s.handleListAccounts(context.Background(), &listAccountsIn{pageInput: pageInput{Limit: 5}})
+	out, err := s.handleListAccounts(context.Background(), &listAccountsIn{PageInput: PageInput{Limit: 5}})
 	if err != nil {
 		t.Fatalf("handleListAccounts: %v", err)
 	}
@@ -437,7 +453,7 @@ func TestListAccounts_MiddlePage_UsesCursorKeys(t *testing.T) {
 	}
 
 	out, err := s.handleListAccounts(context.Background(), &listAccountsIn{
-		pageInput: pageInput{Limit: 2, Cursor: cursor},
+		PageInput: PageInput{Limit: 2, Cursor: cursor},
 	})
 	if err != nil {
 		t.Fatalf("handleListAccounts: %v", err)
@@ -465,7 +481,7 @@ func TestListAccounts_DuplicateTimestamps_StableOrder(t *testing.T) {
 		{ID: 11, CreatedAt: pgTS("2026-07-03T00:00:00Z")},
 	}
 	s := newPaginationTestServer(q)
-	out, err := s.handleListAccounts(context.Background(), &listAccountsIn{pageInput: pageInput{Limit: 5}})
+	out, err := s.handleListAccounts(context.Background(), &listAccountsIn{PageInput: PageInput{Limit: 5}})
 	if err != nil {
 		t.Fatalf("handleListAccounts: %v", err)
 	}
@@ -486,7 +502,7 @@ func TestListAccounts_LimitClamp_Default(t *testing.T) {
 	q := &fakeListQ{}
 	q.accountsRows = []db.ListAccountsRow{}
 	s := newPaginationTestServer(q)
-	_, err := s.handleListAccounts(context.Background(), &listAccountsIn{pageInput: pageInput{Limit: 0}})
+	_, err := s.handleListAccounts(context.Background(), &listAccountsIn{PageInput: PageInput{Limit: 0}})
 	if err != nil {
 		t.Fatalf("handleListAccounts: %v", err)
 	}
@@ -500,7 +516,7 @@ func TestListAccounts_LimitClamp_Max(t *testing.T) {
 	q := &fakeListQ{}
 	q.accountsRows = []db.ListAccountsRow{}
 	s := newPaginationTestServer(q)
-	_, err := s.handleListAccounts(context.Background(), &listAccountsIn{pageInput: pageInput{Limit: 500}})
+	_, err := s.handleListAccounts(context.Background(), &listAccountsIn{PageInput: PageInput{Limit: 500}})
 	if err != nil {
 		t.Fatalf("handleListAccounts: %v", err)
 	}
@@ -514,7 +530,7 @@ func TestListAccounts_TamperedCursor_ReturnsCursorInvalid(t *testing.T) {
 	q := &fakeListQ{}
 	s := newPaginationTestServer(q)
 	_, err := s.handleListAccounts(context.Background(), &listAccountsIn{
-		pageInput: pageInput{Limit: 5, Cursor: "tampered-not-a-real-cursor"},
+		PageInput: PageInput{Limit: 5, Cursor: "tampered-not-a-real-cursor"},
 	})
 	if err == nil {
 		t.Fatal("expected error for tampered cursor")
@@ -535,7 +551,7 @@ func TestListAccountsRejectsCursorAfterFilterChange(t *testing.T) {
 	}}
 	s := newPaginationTestServer(q)
 	first, err := s.handleListAccounts(context.Background(), &listAccountsIn{
-		pageInput: pageInput{Limit: 1},
+		PageInput: PageInput{Limit: 1},
 		Q:         "alice",
 	})
 	if err != nil {
@@ -547,7 +563,7 @@ func TestListAccountsRejectsCursorAfterFilterChange(t *testing.T) {
 	callsBeforeReuse := q.accountsCalls
 
 	_, err = s.handleListAccounts(context.Background(), &listAccountsIn{
-		pageInput: pageInput{Limit: 1, Cursor: first.Body.NextCursor},
+		PageInput: PageInput{Limit: 1, Cursor: first.Body.NextCursor},
 		Q:         "bob",
 	})
 	if err == nil {
@@ -564,7 +580,7 @@ func TestListAccounts_ReturnsPage_NotBareArray(t *testing.T) {
 		{ID: 1, CreatedAt: pgTS("2026-07-01T00:00:00Z")},
 	}
 	s := newPaginationTestServer(q)
-	out, err := s.handleListAccounts(context.Background(), &listAccountsIn{pageInput: pageInput{Limit: 10}})
+	out, err := s.handleListAccounts(context.Background(), &listAccountsIn{PageInput: PageInput{Limit: 10}})
 	if err != nil {
 		t.Fatalf("handleListAccounts: %v", err)
 	}
@@ -626,7 +642,7 @@ func TestListAuditEvents_FilterMismatch_ReturnsCursorInvalid(t *testing.T) {
 
 	_, err := s.handleListAuditEvents(context.Background(), &listAuditEventsIn{
 		Factor:    "password",
-		pageInput: pageInput{Limit: 10, Cursor: cursor},
+		PageInput: PageInput{Limit: 10, Cursor: cursor},
 	})
 	if err == nil {
 		t.Fatal("expected error for filter mismatch")
@@ -653,7 +669,7 @@ func TestListAuditEvents_SameFilters_AcceptsCursor(t *testing.T) {
 
 	_, err := s.handleListAuditEvents(context.Background(), &listAuditEventsIn{
 		Factor:    "webauthn",
-		pageInput: pageInput{Limit: 10, Cursor: cursor},
+		PageInput: PageInput{Limit: 10, Cursor: cursor},
 	})
 	if err != nil {
 		t.Fatalf("expected no error for matching filters: %v", err)
@@ -728,7 +744,7 @@ func TestListInvitations_FirstPage_HasNextCursor(t *testing.T) {
 	}
 	s := newPaginationTestServer(q)
 	// invitationOverride is already set to q by newPaginationTestServer
-	out, err := s.handleListInvitations(context.Background(), &listInvitationsIn{pageInput: pageInput{Limit: 2}})
+	out, err := s.handleListInvitations(context.Background(), &listInvitationsIn{PageInput: PageInput{Limit: 2}})
 	if err != nil {
 		t.Fatalf("handleListInvitations: %v", err)
 	}
@@ -746,7 +762,7 @@ func TestListInvitations_FinalPage_NoNextCursor(t *testing.T) {
 		{Token: "t1", CreatedAt: pgTS("2026-07-01T00:00:00Z"), ExpiresAt: pgTS("2026-07-02T00:00:00Z")},
 	}
 	s := newPaginationTestServer(q)
-	out, err := s.handleListInvitations(context.Background(), &listInvitationsIn{pageInput: pageInput{Limit: 5}})
+	out, err := s.handleListInvitations(context.Background(), &listInvitationsIn{PageInput: PageInput{Limit: 5}})
 	if err != nil {
 		t.Fatalf("handleListInvitations: %v", err)
 	}
@@ -770,7 +786,7 @@ func TestListSigningKeys_ReturnsPage(t *testing.T) {
 		{Kid: "k1", Algorithm: "RS256", Use: "sig", Status: "active", CreatedAt: pgTS("2026-07-01T00:00:00Z")},
 	}
 	s := newPaginationTestServer(q)
-	out, err := s.handleListSigningKeys(context.Background(), &listSigningKeysIn{pageInput: pageInput{Limit: 10}})
+	out, err := s.handleListSigningKeys(context.Background(), &listSigningKeysIn{PageInput: PageInput{Limit: 10}})
 	if err != nil {
 		t.Fatalf("handleListSigningKeys: %v", err)
 	}
@@ -788,7 +804,7 @@ func TestListOIDCApplications_ReturnsPage(t *testing.T) {
 		{ClientID: "c1", DisplayName: "App 1", CreatedAt: pgTS("2026-07-01T00:00:00Z")},
 	}
 	s := newPaginationTestServer(q)
-	out, err := s.handleListOIDCApplications(adminListContext(), &listOIDCApplicationsIn{pageInput: pageInput{Limit: 10}})
+	out, err := s.handleListOIDCApplications(adminListContext(), &listOIDCApplicationsIn{PageInput: PageInput{Limit: 10}})
 	if err != nil {
 		t.Fatalf("handleListOIDCApplications: %v", err)
 	}
@@ -806,7 +822,7 @@ func TestListSAMLApplications_ReturnsPage(t *testing.T) {
 		{ID: 1, EntityID: "sp1", DisplayName: "SP 1", CreatedAt: pgTS("2026-07-01T00:00:00Z")},
 	}
 	s := newPaginationTestServer(q)
-	out, err := s.handleListSAMLApplications(adminListContext(), &listSAMLApplicationsIn{pageInput: pageInput{Limit: 10}})
+	out, err := s.handleListSAMLApplications(adminListContext(), &listSAMLApplicationsIn{PageInput: PageInput{Limit: 10}})
 	if err != nil {
 		t.Fatalf("handleListSAMLApplications: %v", err)
 	}
@@ -824,7 +840,7 @@ func TestListIdentityProviders_ReturnsPage(t *testing.T) {
 		{ID: 1, Slug: "steam", DisplayName: "Steam", Protocol: "steam", ProviderConfig: []byte(`{}`), SecretStatus: "unconfigured", CreatedAt: pgTS("2026-07-01T00:00:00Z")},
 	}
 	s := newPaginationTestServer(q)
-	out, err := s.handleListIdentityProviders(context.Background(), &listIdentityProvidersIn{pageInput: pageInput{Limit: 10}})
+	out, err := s.handleListIdentityProviders(context.Background(), &listIdentityProvidersIn{PageInput: PageInput{Limit: 10}})
 	if err != nil {
 		t.Fatalf("handleListIdentityProviders: %v", err)
 	}
@@ -839,7 +855,7 @@ func TestListForwardAuthApps_ReturnsPage(t *testing.T) {
 		{ClientID: "fa1", DisplayName: "FA 1", CreatedAt: pgTS("2026-07-01T00:00:00Z")},
 	}
 	s := newPaginationTestServer(q)
-	out, err := s.handleListForwardAuthApps(adminListContext(), &listForwardAuthAppsIn{pageInput: pageInput{Limit: 10}})
+	out, err := s.handleListForwardAuthApps(adminListContext(), &listForwardAuthAppsIn{PageInput: PageInput{Limit: 10}})
 	if err != nil {
 		t.Fatalf("handleListForwardAuthApps: %v", err)
 	}
@@ -907,7 +923,7 @@ func TestApplicationListCursorsAreBoundToAuthorizationScope(t *testing.T) {
 		{
 			name: "OIDC", collection: "oidc_applications", keys: []string{"2026-07-01T00:00:00Z", "oidc-1"},
 			invoke: func(s *Server, ctx context.Context, cursor string) error {
-				_, err := s.handleListOIDCApplications(ctx, &listOIDCApplicationsIn{pageInput: pageInput{Cursor: cursor}})
+				_, err := s.handleListOIDCApplications(ctx, &listOIDCApplicationsIn{PageInput: PageInput{Cursor: cursor}})
 				return err
 			},
 			calls: func(q *fakeListQ) int { return q.oidcCalls },
@@ -915,7 +931,7 @@ func TestApplicationListCursorsAreBoundToAuthorizationScope(t *testing.T) {
 		{
 			name: "forward auth", collection: "forward_auth_apps", keys: []string{"2026-07-01T00:00:00Z", "fa-1"},
 			invoke: func(s *Server, ctx context.Context, cursor string) error {
-				_, err := s.handleListForwardAuthApps(ctx, &listForwardAuthAppsIn{pageInput: pageInput{Cursor: cursor}})
+				_, err := s.handleListForwardAuthApps(ctx, &listForwardAuthAppsIn{PageInput: PageInput{Cursor: cursor}})
 				return err
 			},
 			calls: func(q *fakeListQ) int { return q.faCalls },
@@ -923,7 +939,7 @@ func TestApplicationListCursorsAreBoundToAuthorizationScope(t *testing.T) {
 		{
 			name: "SAML", collection: "saml_applications", keys: []string{"2026-07-01T00:00:00Z", "1"},
 			invoke: func(s *Server, ctx context.Context, cursor string) error {
-				_, err := s.handleListSAMLApplications(ctx, &listSAMLApplicationsIn{pageInput: pageInput{Cursor: cursor}})
+				_, err := s.handleListSAMLApplications(ctx, &listSAMLApplicationsIn{PageInput: PageInput{Cursor: cursor}})
 				return err
 			},
 			calls: func(q *fakeListQ) int { return q.samlCalls },

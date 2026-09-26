@@ -313,7 +313,7 @@ func TestListInvitations_SlugRoundTrip(t *testing.T) {
 	}
 	s := minimalServerForInvitations(q)
 
-	out, err := s.handleListInvitations(context.Background(), &listInvitationsIn{pageInput: pageInput{Limit: 10}})
+	out, err := s.handleListInvitations(context.Background(), &listInvitationsIn{PageInput: PageInput{Limit: 10}})
 	if err != nil {
 		t.Fatalf("handleListInvitations: %v", err)
 	}
@@ -359,7 +359,7 @@ func TestListInvitations_NoSlugOmitted(t *testing.T) {
 	}
 	s := minimalServerForInvitations(q)
 
-	out, err := s.handleListInvitations(context.Background(), &listInvitationsIn{pageInput: pageInput{Limit: 10}})
+	out, err := s.handleListInvitations(context.Background(), &listInvitationsIn{PageInput: PageInput{Limit: 10}})
 	if err != nil {
 		t.Fatalf("handleListInvitations: %v", err)
 	}
@@ -394,7 +394,7 @@ func TestListInvitations_ReturnsSavedIDsAndResolvableGroups(t *testing.T) {
 		},
 	}
 	s := minimalServerForInvitations(q)
-	out, err := s.handleListInvitations(context.Background(), &listInvitationsIn{pageInput: pageInput{Limit: 10}})
+	out, err := s.handleListInvitations(context.Background(), &listInvitationsIn{PageInput: PageInput{Limit: 10}})
 	if err != nil {
 		t.Fatalf("handleListInvitations: %v", err)
 	}
