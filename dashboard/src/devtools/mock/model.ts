@@ -22,6 +22,15 @@ export interface MockConfig {
      * the account is an admin.
      */
     role: "admin" | "member";
+    /**
+     * How many applications of each kind the account is assigned to manage.
+     *
+     * A delegated manager reaches the application sections without being an
+     * admin, so this is what a walkthrough varies to see the member's view of
+     * them: the sidebar entries appear one kind at a time, and each list answers
+     * with only the assigned rows.
+     */
+    managedApps: { oidc: number; saml: number; forwardAuth: number };
   };
   factors: {
     passwordSet: boolean;
@@ -51,6 +60,23 @@ export interface MockConfig {
     auditEvents: number;
     /** Signing keys, newest first; a short list, capped like `lists`. */
     signingKeys: number;
+    /**
+     * Identity providers. The fixture cycles protocols and states in order, so a
+     * walkthrough always sees an OIDC, a Steam and a VRChat provider, an enabled
+     * one, a disabled one and one that is not ready.
+     */
+    identityProviders: number;
+    /** OIDC applications, paged; covers confidential and public, restricted and open. */
+    oidcApps: number;
+    /** SAML applications, paged. */
+    samlApps: number;
+    /** Forward-auth applications, paged. */
+    forwardAuthApps: number;
+    /**
+     * What a diagnostic run reports once it finishes: the success path shows the
+     * claims a provider returned, the failure path shows a stage that failed.
+     */
+    diagnosticOutcome: "succeeded" | "failed";
     /**
      * Each signing key's state as one letter, newest first — `P`ending,
      * `A`ctive, `D`ecommissioning, `R`etired, or `X` for decommissioning
@@ -108,6 +134,7 @@ export const defaultMockConfig: MockConfig = {
     username: "mock",
     avatarPending: false,
     role: "admin",
+    managedApps: { oidc: 0, saml: 0, forwardAuth: 0 },
   },
   factors: {
     passwordSet: true,
@@ -130,6 +157,11 @@ export const defaultMockConfig: MockConfig = {
     auditEvents: 24,
     signingKeys: 4,
     signingKeyStates: "",
+    identityProviders: 4,
+    oidcApps: 12,
+    samlApps: 6,
+    forwardAuthApps: 6,
+    diagnosticOutcome: "succeeded",
   },
   sudo: { fresh: true, webauthn: true, passwordTotp: true },
   instance: {

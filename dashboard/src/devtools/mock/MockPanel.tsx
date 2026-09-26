@@ -377,6 +377,33 @@ export function MockPanel() {
             }
           />
           <Count
+            label="Assigned OIDC apps"
+            value={config.session.managedApps.oidc}
+            onChange={(next) =>
+              updateMockConfig((draft) => {
+                draft.session.managedApps.oidc = next;
+              })
+            }
+          />
+          <Count
+            label="Assigned SAML apps"
+            value={config.session.managedApps.saml}
+            onChange={(next) =>
+              updateMockConfig((draft) => {
+                draft.session.managedApps.saml = next;
+              })
+            }
+          />
+          <Count
+            label="Assigned forward-auth apps"
+            value={config.session.managedApps.forwardAuth}
+            onChange={(next) =>
+              updateMockConfig((draft) => {
+                draft.session.managedApps.forwardAuth = next;
+              })
+            }
+          />
+          <Count
             label="Federation providers"
             value={config.lists.federationProviders}
             onChange={(next) =>
@@ -443,6 +470,59 @@ export function MockPanel() {
             onChange={(next) =>
               updateMockConfig((draft) => {
                 draft.admin.signingKeys = next;
+              })
+            }
+          />
+          <Count
+            label="Identity providers"
+            max={mockListMax}
+            value={config.admin.identityProviders}
+            onChange={(next) =>
+              updateMockConfig((draft) => {
+                draft.admin.identityProviders = next;
+              })
+            }
+          />
+          <Count
+            label="OIDC applications"
+            max={mockAdminListMax}
+            value={config.admin.oidcApps}
+            onChange={(next) =>
+              updateMockConfig((draft) => {
+                draft.admin.oidcApps = next;
+              })
+            }
+          />
+          <Count
+            label="SAML applications"
+            max={mockAdminListMax}
+            value={config.admin.samlApps}
+            onChange={(next) =>
+              updateMockConfig((draft) => {
+                draft.admin.samlApps = next;
+              })
+            }
+          />
+          <Count
+            label="Forward-auth applications"
+            max={mockAdminListMax}
+            value={config.admin.forwardAuthApps}
+            onChange={(next) =>
+              updateMockConfig((draft) => {
+                draft.admin.forwardAuthApps = next;
+              })
+            }
+          />
+          <Choose
+            label="Diagnostic result"
+            value={config.admin.diagnosticOutcome}
+            options={[
+              { value: "succeeded", label: "Succeeds" },
+              { value: "failed", label: "Fails" },
+            ]}
+            onChange={(next) =>
+              updateMockConfig((draft) => {
+                draft.admin.diagnosticOutcome = next;
               })
             }
           />

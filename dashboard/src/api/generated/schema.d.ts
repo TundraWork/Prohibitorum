@@ -776,6 +776,8 @@ export interface components {
             disabled: boolean;
             displayName: string;
             iconUrl?: string;
+            /** Format: int32 */
+            linkedAccountCount?: number;
             mode: string;
             protocol: string;
             ready: boolean;
@@ -1065,7 +1067,11 @@ export interface operations {
     listAccounts: {
         parameters: {
             query?: {
+                /** @description Opaque pagination cursor from a prior response. */
+                cursor?: string;
                 field?: string;
+                /** @description Page size (default 50, max 100). */
+                limit?: number;
                 match?: string;
                 provider?: string;
                 q?: string;
@@ -1165,7 +1171,12 @@ export interface operations {
     };
     listAccountCredentials: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Opaque pagination cursor from a prior response. */
+                cursor?: string;
+                /** @description Page size (default 50, max 100). */
+                limit?: number;
+            };
             header?: never;
             path: {
                 id: number;
@@ -1227,7 +1238,12 @@ export interface operations {
     };
     listAccountSessions: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Opaque pagination cursor from a prior response. */
+                cursor?: string;
+                /** @description Page size (default 50, max 100). */
+                limit?: number;
+            };
             header?: never;
             path: {
                 id: number;
@@ -1258,7 +1274,12 @@ export interface operations {
     };
     listAccountTokens: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Opaque pagination cursor from a prior response. */
+                cursor?: string;
+                /** @description Page size (default 50, max 100). */
+                limit?: number;
+            };
             header?: never;
             path: {
                 id: number;
@@ -1389,10 +1410,14 @@ export interface operations {
             query?: {
                 /** @description Filter to events for a specific account ID. */
                 accountId?: number;
+                /** @description Opaque pagination cursor from a prior response. */
+                cursor?: string;
                 /** @description Filter by event type (e.g. 'register', 'revoke'). */
                 event?: string;
                 /** @description Filter by factor (e.g. 'webauthn', 'password', 'signing_key'). */
                 factor?: string;
+                /** @description Page size (default 50, max 100). */
+                limit?: number;
                 /** @description Return events at or after this RFC3339 timestamp. */
                 since?: string;
                 /** @description Return events at or before this RFC3339 timestamp. */
@@ -1486,7 +1511,12 @@ export interface operations {
     };
     listForwardAuthApps: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Opaque pagination cursor from a prior response. */
+                cursor?: string;
+                /** @description Page size (default 50, max 100). */
+                limit?: number;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -1546,7 +1576,12 @@ export interface operations {
     };
     listIdentityProviders: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Opaque pagination cursor from a prior response. */
+                cursor?: string;
+                /** @description Page size (default 50, max 100). */
+                limit?: number;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -1606,7 +1641,12 @@ export interface operations {
     };
     listInvitations: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Opaque pagination cursor from a prior response. */
+                cursor?: string;
+                /** @description Page size (default 50, max 100). */
+                limit?: number;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -2152,7 +2192,12 @@ export interface operations {
     };
     listOIDCApplications: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Opaque pagination cursor from a prior response. */
+                cursor?: string;
+                /** @description Page size (default 50, max 100). */
+                limit?: number;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -2212,7 +2257,12 @@ export interface operations {
     };
     listSAMLApplications: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Opaque pagination cursor from a prior response. */
+                cursor?: string;
+                /** @description Page size (default 50, max 100). */
+                limit?: number;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -2272,7 +2322,12 @@ export interface operations {
     };
     listSigningKeys: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Opaque pagination cursor from a prior response. */
+                cursor?: string;
+                /** @description Page size (default 50, max 100). */
+                limit?: number;
+            };
             header?: never;
             path?: never;
             cookie?: never;

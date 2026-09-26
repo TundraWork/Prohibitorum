@@ -1,6 +1,7 @@
 import type { components } from "@/api/generated/schema";
 import type {
   AppAccessRule,
+  AppAccessWorkspace,
   AppGroupView,
   ManualDecisionView,
   ProviderDescriptorView,
@@ -11,6 +12,7 @@ import {
   clampAdminCount,
   clampCount,
   type MockConfig,
+  mockAdminListMax,
   mockListMax,
   mockPageSize,
 } from "@/devtools/mock/model";
@@ -545,43 +547,236 @@ function groupPreview(config: MockConfig): RulePreviewPageView {
   };
 }
 
-function identityProviders(): IdentityProvider[] {
-  return [
-    {
-      slug: "provider-1",
-      displayName: "Example IdP 1",
-      protocol: "oidc",
-      mode: "manual",
-      disabled: false,
-      ready: true,
-      secretConfigured: true,
-      secretStatus: "valid",
-      secretValidatedAt: iso(-day),
-      createdAt: iso(-day * 60),
-      iconUrl: mockAvatarUrl,
-      config: {},
-      supportsOperator: true,
+/**
+ * The provider directory, cycling protocols and states.
+ *
+ * Each of the three protocols appears, and so does each state a row can be in:
+ * ready and enabled (no mark), disabled (a grey dot) and not ready (an amber
+ * dot). A walkthrough that only ever saw ready providers would never reach the
+ * row treatments the list exists to show.
+ */
+function identityProviders(config: MockConfig): IdentityProvider[] {
+  const protocols: readonly string[] = ["oidc", "steam", "vrchat"];
+  return range(config.admin.identityProviders).map((index) => {
+    const protocol = protocols[index % protocols.length] ?? "oidc";
+    // Every third row is disabled, every fourth is not ready, and the two can
+    // coincide — the list shows "not ready" then, which is the precedence the
+    // cell documents.
+    const disabled = index % 3 === 1;
+    const ready = index % 4 !== 3;
+    const configured = protocol !== "vrchat" && index % 2 === 0;
+    return {
+      slug: `provider-${index + 1}`,
+      displayName: `Example ${protocol.toUpperCase()} ${index + 1}`,
+      protocol,
+      mode:
+        protocol === "vrchat"
+          ? "link_only"
+          : index % 2 === 0
+            ? "auto_provision"
+            : "invite_only",
+      disabled,
+      ready,
+      secretConfigured: configured,
+      secretStatus: configured
+        ? "valid"
+        : protocol === "vrchat"
+          ? "unconfigured"
+          : "unconfigured",
+      secretValidatedAt: configured ? iso(-day) : null,
+      createdAt: iso(-day * (index + 2)),
+      ...(index % 2 === 0 ? { iconUrl: mockAvatarUrl } : {}),
+      config: config0(protocol, index),
+      supportsOperator: protocol === "vrchat",
       searchFields: [
         { key: "email", operators: ["eq", "contains"] },
         { key: "subject", operators: ["eq"] },
       ],
+      // Two of the three deletion confirmations: with linked accounts, and
+      // without. The linked one is what says how many people are affected.
+      ...(index === 0 ? { linkedAccountCount: 3 } : { linkedAccountCount: 0 }),
+    } satisfies IdentityProvider;
+  });
+}
+
+/** A complete OIDC config for the rows that carry one, `{}` for the rest. */
+function config0(protocol: string, index: number): unknown {
+  if (protocol !== "oidc") return {};
+  return {
+    issuerUrl: `https://idp${index + 1}.example.test`,
+    clientId: `client-${index + 1}`,
+    scopes: ["openid", "profile", "email"],
+    allowedDomains: [],
+    requireVerifiedEmail: true,
+    allowPrivateNetwork: false,
+    usernameClaim: "preferred_username",
+    displayNameClaim: "name",
+    emailClaim: "email",
+    pictureClaim: "picture",
+    subjectClaim: "sub",
+    configurationMode: index % 2 === 0 ? "discovery" : "manual",
+    endpoints: {
+      authorization: null,
+      token: null,
+      userinfo: null,
+      jwks: null,
     },
-    {
-      slug: "provider-2",
-      displayName: "Example IdP 2",
-      protocol: "saml",
-      mode: "manual",
-      disabled: true,
-      ready: false,
-      secretConfigured: false,
-      secretStatus: "missing",
-      secretValidatedAt: null,
-      createdAt: iso(-day * 60),
-      config: {},
-      supportsOperator: true,
-      searchFields: [{ key: "email", operators: ["eq"] }],
+    tokenAuthMethod: "discovery",
+    pkceMethod: "S256",
+  };
+}
+
+/**
+ * OIDC applications, cycling the two client types and the two access states.
+ *
+ * The list does not carry a status column: a row that is disabled wears a grey
+ * dot on its icon and a restricted one a padlock, so the fixture has to produce
+ * both of those as well as the ordinary rows, or a walkthrough never sees them.
+ */
+function oidcApplications(
+  config: MockConfig,
+): components["schemas"]["OIDCApplicationView"][] {
+  return range(config.admin.oidcApps).map((index) => ({
+    clientId: `mock-client-${index + 1}`,
+    displayName: `Sample application ${index + 1}`,
+    redirectUris: [`https://app${index + 1}.example.test/callback`],
+    postLogoutRedirectUris: [`https://app${index + 1}.example.test/signed-out`],
+    allowedScopes: ["openid", "profile", "email"],
+    clientAuthMethod: index % 3 === 2 ? "none" : "client_secret_basic",
+    disabled: index % 4 === 1,
+    accessRestricted: index % 3 === 1,
+    subjectSource: "sub",
+    // Always an object, never a conditional: `claimAliases` is an index
+    // signature, and a spread that sometimes contributes a key widens it to
+    // include `undefined`.
+    claimAliases:
+      index % 2 === 0
+        ? { nickname: "preferred_username" }
+        : ({} as Record<string, string>),
+    ...(index % 2 === 0 ? { iconUrl: mockAvatarUrl } : {}),
+    ...(index % 4 === 2
+      ? { launchUrl: `https://app${index + 1}.example.test` }
+      : {}),
+    requireConsent: index % 2 === 1,
+    requirePkce: true,
+    createdAt: iso(-day * (index + 2)),
+  }));
+}
+
+/** SAML applications, cycling ACS shapes and the session-lifetime field. */
+function samlApplications(
+  config: MockConfig,
+): components["schemas"]["SAMLApplicationView"][] {
+  return range(config.admin.samlApps).map((index) => ({
+    id: index + 1,
+    entityId: `https://saml${index + 1}.example.test/metadata`,
+    displayName: `SAML application ${index + 1}`,
+    nameIdFormat:
+      index % 2 === 0
+        ? "urn:oasis:names:tc:SAML:2.0:nameid-format:persistent"
+        : "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress",
+    attributeMap: [],
+    requireSignedAuthnRequest: index % 2 === 0,
+    allowIdpInitiated: index % 3 === 0,
+    disabled: index % 4 === 1,
+    accessRestricted: index % 3 === 1,
+    ...(index % 4 === 2 ? { sessionLifetimeSecs: 3600 } : {}),
+    ...(index % 2 === 0 ? { iconUrl: mockAvatarUrl } : {}),
+    acs: [
+      {
+        binding: "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST",
+        location: `https://saml${index + 1}.example.test/acs`,
+        index: 0,
+        isDefault: true,
+      },
+    ],
+    keys: [
+      {
+        use: "signing",
+        notAfter: iso(day * 300),
+      },
+    ],
+    createdAt: iso(-day * (index + 2)),
+  }));
+}
+
+/** Forward-auth applications, with a scope vocabulary of varying length. */
+function forwardAuthApplications(
+  config: MockConfig,
+): components["schemas"]["ForwardAuthAppView"][] {
+  return range(config.admin.forwardAuthApps).map((index) => ({
+    clientId: `mock-forward-auth-${index + 1}`,
+    displayName: `Protected service ${index + 1}`,
+    forwardAuthHost: `service${index + 1}.example.test`,
+    scopes: range((index % 5) + 1).map((scope) => ({
+      name: `scope${scope + 1}`,
+      ...(scope % 2 === 0 ? { description: `Scope number ${scope + 1}` } : {}),
+    })),
+    accessRestricted: index % 3 === 1,
+    disabled: index % 4 === 1,
+    remoteUserSource: index % 2 === 0 ? "username" : "verified_email",
+    ...(index % 2 === 0 ? { iconUrl: mockAvatarUrl } : {}),
+    createdAt: iso(-day * (index + 2)),
+  }));
+}
+
+/**
+ * The access workspace the access panel reads: the application's summary, its
+ * restriction flag and the user groups selected for it.
+ *
+ * The same shape answers for all three protocols and for an administrator and a
+ * delegated manager alike, which is why the fixture does not branch on the
+ * caller. What it does vary is the group selection — rotated by the application
+ * id — so a walkthrough sees both "no groups selected" and a populated list.
+ */
+function accessWorkspace(
+  config: MockConfig,
+  kind: string,
+  appId: string,
+): AppAccessWorkspace {
+  const groups = groupsFrom(config);
+  const offset = (appId.length + kind.length) % 3;
+  const selected = groups.slice(offset, offset + ((appId.length % 3) + 1));
+
+  const oidc = oidcApplications(config).find((app) => app.clientId === appId);
+  const saml = samlApplications(config).find((app) => String(app.id) === appId);
+  const forwardAuth = forwardAuthApplications(config).find(
+    (app) => app.clientId === appId,
+  );
+
+  return {
+    app: {
+      kind,
+      appId,
+      displayName:
+        oidc?.displayName ??
+        saml?.displayName ??
+        forwardAuth?.displayName ??
+        appId,
+      accessRestricted:
+        oidc?.accessRestricted ??
+        saml?.accessRestricted ??
+        forwardAuth?.accessRestricted ??
+        false,
+      ...((oidc?.iconUrl ?? saml?.iconUrl ?? forwardAuth?.iconUrl) === undefined
+        ? {}
+        : { iconUrl: oidc?.iconUrl ?? saml?.iconUrl ?? forwardAuth?.iconUrl }),
+      ...(forwardAuth === undefined
+        ? {}
+        : { forwardAuthHost: forwardAuth.forwardAuthHost }),
+      ...(saml === undefined ? {} : { entityId: saml.entityId }),
     },
-  ];
+    accessRestricted:
+      oidc?.accessRestricted ??
+      saml?.accessRestricted ??
+      forwardAuth?.accessRestricted ??
+      false,
+    providers: groupProviders(),
+    groups: selected.map((group) => ({
+      ...group,
+      applicationCount: 1,
+    })),
+  };
 }
 
 function groupProviders(): ProviderDescriptorView[] {
@@ -879,12 +1074,112 @@ function readReply(
         }),
       );
     }
-    case "/api/prohibitorum/identity-providers":
-      // A cursor page, like the handler's `contract.Page[...]` envelope — not
-      // the bare array `GET /groups` answers with.
+    case "/api/prohibitorum/identity-providers": {
+      const all = identityProviders(config);
+      const cursor = new URL(request.url).searchParams.get("cursor");
+      const start = cursor === null ? 0 : Number(cursor);
+      const page = all.slice(start, start + mockPageSize);
+      const next = start + page.length;
       return guarded(config, () =>
-        json({ items: identityProviders(), nextCursor: "" }),
+        json({
+          items: page,
+          nextCursor: next < all.length ? String(next) : "",
+        }),
       );
+    }
+    case "/api/prohibitorum/identity-providers/{slug}": {
+      const slug = new URL(request.url).pathname.split("/").pop() ?? "";
+      const found = identityProviders(config).find(
+        (provider) => provider.slug === slug,
+      );
+      return guarded(config, () =>
+        found
+          ? json(found)
+          : {
+              kind: "error",
+              status: 404,
+              code: "upstream_idp_not_found",
+            },
+      );
+    }
+    case "/api/prohibitorum/oidc-applications": {
+      const all = oidcApplications(config);
+      const cursor = new URL(request.url).searchParams.get("cursor");
+      const start = cursor === null ? 0 : Number(cursor);
+      const page = all.slice(start, start + mockPageSize);
+      const next = start + page.length;
+      return guarded(config, () =>
+        json({
+          items: page,
+          nextCursor: next < all.length ? String(next) : "",
+        }),
+      );
+    }
+    case "/api/prohibitorum/oidc-applications/{clientId}": {
+      const clientId = new URL(request.url).pathname.split("/").pop() ?? "";
+      const found = oidcApplications(config).find(
+        (application) => application.clientId === clientId,
+      );
+      return guarded(config, () =>
+        found
+          ? json(found)
+          : { kind: "error", status: 404, code: "client_not_found" },
+      );
+    }
+    case "/api/prohibitorum/saml-applications": {
+      const all = samlApplications(config);
+      const cursor = new URL(request.url).searchParams.get("cursor");
+      const start = cursor === null ? 0 : Number(cursor);
+      const page = all.slice(start, start + mockPageSize);
+      const next = start + page.length;
+      return guarded(config, () =>
+        json({
+          items: page,
+          nextCursor: next < all.length ? String(next) : "",
+        }),
+      );
+    }
+    case "/api/prohibitorum/saml-applications/{id}": {
+      const id = pathTail(request);
+      const found = samlApplications(config).find(
+        (application) => application.id === id,
+      );
+      return guarded(config, () =>
+        found
+          ? json(found)
+          : { kind: "error", status: 404, code: "client_not_found" },
+      );
+    }
+    case "/api/prohibitorum/forward-auth-apps": {
+      const all = forwardAuthApplications(config);
+      const cursor = new URL(request.url).searchParams.get("cursor");
+      const start = cursor === null ? 0 : Number(cursor);
+      const page = all.slice(start, start + mockPageSize);
+      const next = start + page.length;
+      return guarded(config, () =>
+        json({
+          items: page,
+          nextCursor: next < all.length ? String(next) : "",
+        }),
+      );
+    }
+    case "/api/prohibitorum/forward-auth-apps/{clientId}": {
+      const clientId = new URL(request.url).pathname.split("/").pop() ?? "";
+      const found = forwardAuthApplications(config).find(
+        (application) => application.clientId === clientId,
+      );
+      return guarded(config, () =>
+        found
+          ? json(found)
+          : { kind: "error", status: 404, code: "client_not_found" },
+      );
+    }
+    case "/api/prohibitorum/managed-applications/{kind}/{appId}/access": {
+      const segments = new URL(request.url).pathname.split("/");
+      const kind = segments[segments.length - 3] ?? "oidc";
+      const appId = segments[segments.length - 2] ?? "";
+      return guarded(config, () => json(accessWorkspace(config, kind, appId)));
+    }
     case "/api/prohibitorum/groups":
       return guarded(config, () => json(groupsFrom(config)));
     case "/api/prohibitorum/groups/providers":
@@ -1377,6 +1672,395 @@ function writeReply(
       effect(next);
       return json(signingKeysFrom(next)[index], effect);
     }
+
+    case "/api/prohibitorum/identity-providers": {
+      const slug = stringField(body, "slug") ?? `provider-${Date.now()}`;
+      const protocol = stringField(body, "protocol") ?? "oidc";
+      const created: IdentityProvider = {
+        slug,
+        displayName: stringField(body, "displayName") ?? slug,
+        protocol,
+        mode: stringField(body, "mode") ?? "invite_only",
+        disabled: false,
+        ready: false,
+        secretConfigured: stringField(body, "secret") !== undefined,
+        secretStatus:
+          stringField(body, "secret") === undefined
+            ? "unconfigured"
+            : "configured",
+        secretValidatedAt: null,
+        createdAt: iso(0),
+        config: field(body, "config") ?? {},
+        supportsOperator: protocol === "vrchat",
+        searchFields: [],
+        linkedAccountCount: 0,
+      };
+      return {
+        kind: "json",
+        status: 201,
+        body: created,
+        // The new provider is not part of the generated set, so it is remembered
+        // rather than derived: a walkthrough that creates one must find it again
+        // on the list and on its own page.
+        effect: (draft) => {
+          draft.admin.identityProviders = Math.min(
+            mockAdminListMax,
+            draft.admin.identityProviders + 1,
+          );
+        },
+      };
+    }
+
+    case "/api/prohibitorum/identity-providers/{slug}":
+    case "/api/prohibitorum/identity-providers/set-disabled": {
+      const slug =
+        stringField(body, "slug") ??
+        new URL(request.url).pathname.split("/").pop() ??
+        "";
+      const found = identityProviders(config).find(
+        (provider) => provider.slug === slug,
+      );
+      if (found === undefined) {
+        return { kind: "error", status: 404, code: "upstream_idp_not_found" };
+      }
+      const disabled = booleanField(body, "disabled");
+      const next: IdentityProvider =
+        disabled === undefined
+          ? {
+              ...found,
+              displayName:
+                stringField(body, "displayName") ?? found.displayName,
+              mode: stringField(body, "mode") ?? found.mode,
+              config: field(body, "config") ?? found.config,
+            }
+          : { ...found, disabled };
+      // Enabling a provider the server considers unready is refused, which is
+      // the one branch of this endpoint a member view cannot produce.
+      if (disabled === false && !found.ready) {
+        return { kind: "error", status: 503, code: "provider_not_ready" };
+      }
+      return json(next);
+    }
+
+    case "/api/prohibitorum/identity-providers/delete":
+      return { kind: "empty", status: 204 };
+
+    case "/api/prohibitorum/identity-providers/rotate-secret":
+      return { kind: "empty", status: 204 };
+
+    case "/api/prohibitorum/oidc-applications": {
+      const clientId = stringField(body, "clientId") ?? `mock-client-new`;
+      const publicClient = booleanField(body, "public") ?? false;
+      return {
+        kind: "json",
+        status: 201,
+        body: {
+          clientId,
+          displayName: stringField(body, "displayName") ?? "",
+          ...(publicClient ? {} : { secret: "mock-client-secret-value" }),
+        },
+      };
+    }
+
+    case "/api/prohibitorum/oidc-applications/{clientId}": {
+      const clientId = new URL(request.url).pathname.split("/").pop() ?? "";
+      const found = oidcApplications(config).find(
+        (application) => application.clientId === clientId,
+      );
+      if (found === undefined) {
+        return { kind: "error", status: 404, code: "client_not_found" };
+      }
+      // The PUT replaces the whole record, so the answer is the body with the
+      // identity fields kept — which is what makes a walkthrough able to see
+      // that an omitted field really does reset.
+      return json({
+        ...found,
+        displayName: stringField(body, "displayName") ?? found.displayName,
+        redirectUris:
+          (field(body, "redirectUris") as string[] | undefined) ?? null,
+        postLogoutRedirectUris:
+          (field(body, "postLogoutRedirectUris") as string[] | undefined) ??
+          null,
+        allowedScopes:
+          (field(body, "allowedScopes") as string[] | undefined) ?? null,
+        requireConsent: booleanField(body, "requireConsent") ?? false,
+        requirePkce: booleanField(body, "requirePkce") ?? found.requirePkce,
+        disabled: booleanField(body, "disabled") ?? false,
+        launchUrl: stringField(body, "launchUrl"),
+      });
+    }
+
+    case "/api/prohibitorum/oidc-applications/set-disabled": {
+      const clientId = stringField(body, "clientId") ?? "";
+      const found = oidcApplications(config).find(
+        (application) => application.clientId === clientId,
+      );
+      if (found === undefined) {
+        return { kind: "error", status: 404, code: "client_not_found" };
+      }
+      return json({
+        ...found,
+        disabled: booleanField(body, "disabled") ?? false,
+      });
+    }
+
+    case "/api/prohibitorum/oidc-applications/rotate-secret":
+      return json({
+        clientId: stringField(body, "clientId") ?? "",
+        secret: "mock-rotated-client-secret",
+      });
+
+    case "/api/prohibitorum/oidc-applications/delete":
+    case "/api/prohibitorum/saml-applications/delete":
+    case "/api/prohibitorum/forward-auth-apps/delete":
+      return { kind: "empty", status: 204 };
+
+    case "/api/prohibitorum/saml-applications": {
+      const id = clampCount(config.admin.samlApps) + 1;
+      return {
+        kind: "json",
+        status: 201,
+        body: {
+          id,
+          entityId:
+            stringField(body, "entityId") ?? `https://saml${id}.example.test`,
+          displayName:
+            stringField(body, "displayName") ?? `SAML application ${id}`,
+          nameIdFormat: stringField(body, "nameIdFormat") ?? "",
+          attributeMap: [],
+          requireSignedAuthnRequest:
+            booleanField(body, "requireSignedAuthnRequest") ?? false,
+          allowIdpInitiated: booleanField(body, "allowIdpInitiated") ?? false,
+          disabled: false,
+          accessRestricted: booleanField(body, "accessRestricted") ?? false,
+          acs: [],
+          keys: [],
+          createdAt: iso(0),
+        },
+      };
+    }
+
+    case "/api/prohibitorum/saml-applications/{id}": {
+      const id = pathTail(request);
+      const found = samlApplications(config).find(
+        (application) => application.id === id,
+      );
+      if (found === undefined) {
+        return { kind: "error", status: 404, code: "client_not_found" };
+      }
+      const seconds = field(body, "sessionLifetimeSecs");
+      return json({
+        ...found,
+        displayName: stringField(body, "displayName") ?? found.displayName,
+        nameIdFormat: stringField(body, "nameIdFormat") ?? found.nameIdFormat,
+        attributeMap: field(body, "attributeMap") ?? [],
+        requireSignedAuthnRequest:
+          booleanField(body, "requireSignedAuthnRequest") ?? false,
+        allowIdpInitiated: booleanField(body, "allowIdpInitiated") ?? false,
+        ...(typeof seconds === "number"
+          ? { sessionLifetimeSecs: seconds }
+          : {}),
+      });
+    }
+
+    case "/api/prohibitorum/saml-applications/set-disabled": {
+      const id = Number(field(body, "id") ?? 0);
+      const found = samlApplications(config).find(
+        (application) => application.id === id,
+      );
+      if (found === undefined) {
+        return { kind: "error", status: 404, code: "client_not_found" };
+      }
+      return json({
+        ...found,
+        disabled: booleanField(body, "disabled") ?? false,
+      });
+    }
+
+    case "/api/prohibitorum/forward-auth-apps": {
+      const clientId = stringField(body, "clientId") ?? "mock-forward-auth-new";
+      return {
+        kind: "json",
+        status: 201,
+        body: {
+          clientId,
+          displayName: stringField(body, "displayName") ?? "",
+          forwardAuthHost: stringField(body, "host") ?? "",
+          scopes: field(body, "scopes") ?? [],
+          accessRestricted: booleanField(body, "accessRestricted") ?? false,
+          disabled: false,
+          remoteUserSource: "username",
+          createdAt: iso(0),
+        },
+      };
+    }
+
+    case "/api/prohibitorum/forward-auth-apps/{clientId}": {
+      const clientId = new URL(request.url).pathname.split("/").pop() ?? "";
+      const found = forwardAuthApplications(config).find(
+        (application) => application.clientId === clientId,
+      );
+      if (found === undefined) {
+        return { kind: "error", status: 404, code: "client_not_found" };
+      }
+      return json({
+        ...found,
+        displayName: stringField(body, "displayName") ?? found.displayName,
+        forwardAuthHost: stringField(body, "host") ?? found.forwardAuthHost,
+        scopes: field(body, "scopes") ?? [],
+      });
+    }
+
+    case "/api/prohibitorum/forward-auth-apps/set-disabled": {
+      const clientId = stringField(body, "clientId") ?? "";
+      const found = forwardAuthApplications(config).find(
+        (application) => application.clientId === clientId,
+      );
+      if (found === undefined) {
+        return { kind: "error", status: 404, code: "client_not_found" };
+      }
+      return json({
+        ...found,
+        disabled: booleanField(body, "disabled") ?? false,
+      });
+    }
+
+    case "/api/prohibitorum/managed-applications/{kind}/{appId}/access/set-restricted": {
+      const segments = new URL(request.url).pathname.split("/");
+      const kind = segments[segments.length - 4] ?? "oidc";
+      const appId = segments[segments.length - 3] ?? "";
+      const workspace = accessWorkspace(config, kind, appId);
+      const restricted = booleanField(body, "restricted") ?? false;
+      return json({
+        ...workspace.app,
+        accessRestricted: restricted,
+      });
+    }
+
+    case "/api/prohibitorum/managed-applications/{kind}/{appId}/groups": {
+      // The path names the application, but the answer is only the groups the
+      // caller asked to keep: the endpoint replaces the selection, so what comes
+      // back is the ids that were sent, resolved against the directory.
+      const ids = (field(body, "groupIds") as number[] | undefined) ?? [];
+      const groups = groupsFrom(config).filter((group) =>
+        ids.includes(group.id),
+      );
+      return json(groups.map((group) => ({ ...group, applicationCount: 1 })));
+    }
+
+    // Assigning a manager answers 204: the console refetches the manager list,
+    // which is where the new row comes from.
+    case "/api/prohibitorum/oidc-applications/{clientId}/managers":
+    case "/api/prohibitorum/forward-auth-apps/{clientId}/managers":
+    case "/api/prohibitorum/saml-applications/{id}/managers":
+      return { kind: "empty", status: 204 };
+
+    case "/api/prohibitorum/oidc-applications/{clientId}/managers/remove":
+    case "/api/prohibitorum/forward-auth-apps/{clientId}/managers/remove":
+    case "/api/prohibitorum/saml-applications/{id}/managers/remove":
+      return { kind: "empty", status: 204 };
+
+    case "/api/prohibitorum/identity-providers/{slug}/effective-config":
+      return json({
+        mode: "discovery",
+        fetchedAt: iso(0),
+        callbackUrl: `http://localhost:8080/auth/federation/provider-1/test/callback`,
+        fields: {
+          issuer: { value: "https://idp1.example.test", source: "discovery" },
+          authorizationEndpoint: {
+            value: "https://idp1.example.test/authorize",
+            source: "discovery",
+          },
+          tokenEndpoint: {
+            value: "https://idp1.example.test/token",
+            source: "discovery",
+          },
+          jwksEndpoint: {
+            value: "https://idp1.example.test/jwks",
+            source: "discovery",
+          },
+          scopes: { value: ["openid", "profile", "email"], source: "manual" },
+        },
+      });
+
+    case "/api/prohibitorum/identity-providers/{slug}/tests": {
+      const id = "mock-diagnostic-run-id-0123456789abcdefghijkl";
+      return json({
+        id,
+        authorizationUrl: "about:blank",
+        expiresAt: iso(600_000),
+      });
+    }
+
+    case "/api/prohibitorum/identity-providers/{slug}/tests/{id}": {
+      const succeeded = config.admin.diagnosticOutcome === "succeeded";
+      const stages = [
+        { name: "discovery", status: "succeeded", durationMs: 42 },
+        { name: "authorize", status: "succeeded", durationMs: 12 },
+        { name: "callback", status: "succeeded", durationMs: 8 },
+        {
+          name: "token_exchange",
+          status: succeeded ? "succeeded" : "failed",
+          durationMs: 55,
+          ...(succeeded
+            ? {}
+            : { errorCode: "token_exchange_failed", httpStatus: 400 }),
+        },
+        { name: "id_token", status: succeeded ? "succeeded" : "pending" },
+        { name: "userinfo", status: succeeded ? "succeeded" : "skipped" },
+      ];
+      return json({
+        status: succeeded ? "succeeded" : "failed",
+        expiresAt: iso(600_000),
+        stages,
+        ...(succeeded
+          ? {
+              claims: {
+                issuer: "https://idp1.example.test",
+                subject: "mock-subject",
+                username: "mock-user",
+                email: "mock-user@example.test",
+                email_verified: true,
+              },
+            }
+          : {}),
+      });
+    }
+
+    case "/api/prohibitorum/identity-providers/{slug}/tests/{id}/complete":
+      return json({
+        status: "running",
+        expiresAt: iso(600_000),
+        stages: [{ name: "discovery", status: "succeeded" }],
+      });
+
+    case "/api/prohibitorum/identity-providers/{slug}/operator-session/start": {
+      const username = stringField(body, "username") ?? "";
+      if (username === "challenge") {
+        return json({
+          status: "challenge",
+          challenge: "mock-challenge",
+          methods: ["totp", "emailOtp"],
+          expiresAt: iso(600_000),
+        });
+      }
+      return json({ status: "valid" });
+    }
+
+    case "/api/prohibitorum/identity-providers/{slug}/operator-session/verify": {
+      const code = stringField(body, "code") ?? "";
+      if (code !== "123456") {
+        return {
+          kind: "error",
+          status: 422,
+          code: "vrchat_operator_code_invalid",
+        };
+      }
+      return json({ status: "valid" });
+    }
+
+    case "/api/prohibitorum/identity-providers/{slug}/operator-session/validate":
+      return json({ status: "valid" });
 
     case "/api/prohibitorum/groups/rule-preview": {
       // The draft is what is being previewed, so the answer is derived from it

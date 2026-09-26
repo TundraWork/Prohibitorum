@@ -137,4 +137,58 @@ export const sudoReason = {
     id: "sudo.reason.retire-signing-key",
     message: "Confirm it is you to retire this signing key.",
   }),
+  createIdentityProvider: msg({
+    id: "sudo.reason.create-identity-provider",
+    message: "Confirm it is you to add this identity provider.",
+  }),
+  saveIdentityProvider: msg({
+    id: "sudo.reason.save-identity-provider",
+    message: "Confirm it is you to change this identity provider.",
+  }),
+  setIdentityProviderSecret: msg({
+    id: "sudo.reason.set-identity-provider-secret",
+    message: "Confirm it is you to set this provider's secret.",
+  }),
+  deleteIdentityProvider: msg({
+    id: "sudo.reason.delete-identity-provider",
+    message:
+      "Confirm it is you to delete this provider and every identity linked through it.",
+  }),
+  updateEntityIcon: msg({
+    id: "sudo.reason.update-entity-icon",
+    message: "Confirm it is you to change this icon.",
+  }),
+  removeEntityIcon: msg({
+    id: "sudo.reason.remove-entity-icon",
+    message: "Confirm it is you to remove this icon.",
+  }),
+  createApplication: msg({
+    id: "sudo.reason.create-application",
+    message: "Confirm it is you to add this application.",
+  }),
+  saveApplication: msg({
+    id: "sudo.reason.save-application",
+    message: "Confirm it is you to change this application.",
+  }),
+  rotateClientSecret: msg({
+    id: "sudo.reason.rotate-client-secret",
+    message:
+      "Confirm it is you to replace this client secret. The old one stops working immediately.",
+  }),
+  deleteApplication: msg({
+    id: "sudo.reason.delete-application",
+    message: "Confirm it is you to delete this application.",
+  }),
+  assignAppManager: msg({
+    id: "sudo.reason.assign-app-manager",
+    message: "Confirm it is you to let this account manage the application.",
+  }),
+  removeAppManager: msg({
+    id: "sudo.reason.remove-app-manager",
+    message: "Confirm it is you to remove this account as a manager.",
+  }),
+  operatorSession: msg({
+    id: "sudo.reason.operator-session",
+    message: "Confirm it is you to sign in as the VRChat operator.",
+  }),
 } as const;

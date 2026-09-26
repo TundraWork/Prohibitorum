@@ -180,11 +180,13 @@ describe("mock replies", () => {
   });
 
   it("fails an endpoint it has no fixture for instead of reaching the server", () => {
-    expect(read("/api/prohibitorum/oidc-applications")).toEqual({
+    // The account's own application list has no fixture on purpose: nothing in
+    // the console reads it, so a walkthrough never reaches it.
+    expect(read("/api/prohibitorum/me/apps")).toEqual({
       kind: "error",
       status: 501,
       code: "mock_unmocked",
-      details: { method: "GET", path: "/api/prohibitorum/oidc-applications" },
+      details: { method: "GET", path: "/api/prohibitorum/me/apps" },
     });
   });
 });

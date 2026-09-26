@@ -3,7 +3,7 @@ import { accountQueryOptions } from "@/api/queries";
 import { AdminUser } from "@/pages/admin/AdminUser";
 import { accountTab } from "@/pages/console/tabs";
 
-export const Route = createFileRoute("/_protected/admin/users_/$id")({
+export const Route = createFileRoute("/_protected/admin/_admin/users_/$id")({
   validateSearch: (search: Record<string, unknown>) => ({
     tab: accountTab(search.tab),
   }),
