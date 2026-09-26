@@ -172,6 +172,24 @@ const adminSections: {
 ];
 
 /**
+ * Which management entries one account sees.
+ *
+ * Split out from the hook because it is the rule, not the read: the tests that
+ * matter are about which sections a given combination of role and assignment
+ * produces, and they should not have to render a sidebar to ask.
+ */
+export function visibleManagementSections(
+  isAdmin: boolean,
+  managed: { oidc: boolean; saml: boolean; forwardAuth: boolean } | undefined,
+): typeof adminSections {
+  if (isAdmin) return adminSections;
+  return adminSections.filter((section) => {
+    if (section.visibleTo === "admin") return false;
+    return managed?.[section.visibleTo] === true;
+  });
+}
+
+/**
  * The management entries this account may see.
  *
  * An administrator sees all of them. Anyone else sees only the application
@@ -189,11 +207,7 @@ function useManagementSections(session: Session) {
     ...managedApplicationsQueryOptions(),
     enabled: !isAdmin,
   });
-  if (isAdmin) return adminSections;
-  return adminSections.filter((section) => {
-    if (section.visibleTo === "admin") return false;
-    return managed?.[section.visibleTo] === true;
-  });
+  return visibleManagementSections(isAdmin, managed);
 }
 
 // Prefix matching, so a page's own query strings and any nested route keep the
