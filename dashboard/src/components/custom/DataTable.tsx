@@ -21,6 +21,7 @@ import {
 import { ChevronRight } from "lucide-react";
 import { type ReactNode, useMemo, useState } from "react";
 import { Button } from "@/components/custom/Button";
+import { ScrollArea } from "@/components/custom/ScrollArea";
 import {
   TableActionCell,
   TableActionColumn,
@@ -193,13 +194,21 @@ export function DataTable<T extends RowData>({
   const treeColumn = expandedRow ? headers[0]?.id : undefined;
 
   return (
-    <Table.ScrollContainer
+    <ScrollArea
       // The table keeps to the console column like every other block. Cells
       // never wrap, so a table wider than its column scrolls sideways instead
       // of clipping. The container is also what a row's detail measures its
-      // width against, and the scroll timeline the pinned column's shadow
-      // follows (`data-table-scroll` in `styles/index.css`).
-      className="data-table-scroll @container min-w-0 overflow-x-auto"
+      // width against, and the container the pinned column sticks to.
+      //
+      // `ScrollArea` replaces the native `overflow-x-auto`. Both axes stay on
+      // OverlayScrollbars' default `scroll`: a scrollbar only appears on an
+      // axis that actually overflows, so a table that fits shows neither, and
+      // the vertical axis keeps the `auto` the native rule computed to. That
+      // matters beyond looks — `Table.LoadMore` finds its scroll container by
+      // walking up to the nearest ancestor whose *computed* overflow is
+      // `auto`/`scroll`, and an axis left `visible` is invisible to it, which
+      // stops the cursor pages from ever loading.
+      className="data-table-scroll @container min-w-0"
     >
       <Table aria-label={label} className="w-max min-w-full">
         <Table.Content
@@ -367,6 +376,6 @@ export function DataTable<T extends RowData>({
           </Table.Body>
         </Table.Content>
       </Table>
-    </Table.ScrollContainer>
+    </ScrollArea>
   );
 }

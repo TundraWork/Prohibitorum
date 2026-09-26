@@ -9,6 +9,7 @@ import {
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useStore } from "@tanstack/react-form";
 import type { ComponentProps, ReactNode } from "react";
+import { ScrollArea } from "@/components/custom/ScrollArea";
 import { useFieldContext, useFormContext } from "@/forms/context";
 import { withoutServerErrors } from "@/forms/server-errors";
 
@@ -119,29 +120,38 @@ export function EntityPicker({
               />
             </SearchField.Group>
           </SearchField>
-          <ListBox
-            className="max-h-[420px] overflow-y-auto"
-            items={items}
-            renderEmptyState={() => (
-              <EmptyState>
-                <Trans id="admin.picker.empty">No matches</Trans>
-              </EmptyState>
-            )}
-          >
-            {(item: EntityOption) => (
-              <ListBox.Item id={item.id} textValue={item.label}>
-                <span className="flex min-w-0 flex-col">
-                  <span className="truncate">{item.label}</span>
-                  {item.description && (
-                    <span className="truncate text-xs text-muted">
-                      {item.description}
-                    </span>
-                  )}
-                </span>
-                <ListBox.ItemIndicator />
-              </ListBox.Item>
-            )}
-          </ListBox>
+          {/*
+            The candidate list is the picker's scroll area. `max-h` sits on the
+            `ScrollArea` host so it keeps the 420px ceiling, and the list itself
+            drops its own `overflow-y-auto`: a utility class would out-rank the
+            rule OverlayScrollbars writes on the generated viewport, leaving two
+            nested scrollers. HeroUI's own `max-h-[320px]` on the same slot is a
+            component-layer rule, so the utility here still wins over it.
+          */}
+          <ScrollArea className="max-h-[420px]">
+            <ListBox
+              items={items}
+              renderEmptyState={() => (
+                <EmptyState>
+                  <Trans id="admin.picker.empty">No matches</Trans>
+                </EmptyState>
+              )}
+            >
+              {(item: EntityOption) => (
+                <ListBox.Item id={item.id} textValue={item.label}>
+                  <span className="flex min-w-0 flex-col">
+                    <span className="truncate">{item.label}</span>
+                    {item.description && (
+                      <span className="truncate text-xs text-muted">
+                        {item.description}
+                      </span>
+                    )}
+                  </span>
+                  <ListBox.ItemIndicator />
+                </ListBox.Item>
+              )}
+            </ListBox>
+          </ScrollArea>
         </Autocomplete.Filter>
       </Autocomplete.Popover>
       {isInvalid && errorMessage !== undefined && (

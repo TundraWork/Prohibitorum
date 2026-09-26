@@ -1,9 +1,46 @@
 @import "tailwindcss";
 @import "@heroui/styles";
 @import "./theme.css";
+/*
+ * OverlayScrollbars draws its own scrollbars, so its stylesheet has to come
+ * after the theme: it is unlayered, which puts it above Tailwind's layers, and
+ * a later unlayered rule is what lets `os-theme-app` below restate the colours.
+ */
+@import "overlayscrollbars/overlayscrollbars.css";
 
 @theme {
   --font-inter: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+}
+
+/*
+ * The OverlayScrollbars theme the app uses (`ScrollArea` passes the name to the
+ * `scrollbars.theme` option). The library's own `os-theme-light`/`os-theme-dark`
+ * are hard-coded greys; this one reads the same `--scrollbar` token HeroUI's
+ * `scrollbar` utility uses, so a surface that keeps its native scrollbar and one
+ * that uses `ScrollArea` look identical, and both follow the light/dark theme
+ * without any script. The class name must match the option string.
+ *
+ * `--os-track-bg` is left unset, so only the handle paints and the track stays
+ * clear, which is what the HeroUI scrollbar does.
+ */
+.os-theme-app {
+  --os-size: 10px;
+  --os-padding-perpendicular: 0px;
+  --os-padding-axis: 2px;
+  --os-track-border-radius: 10px;
+  --os-handle-border-radius: 10px;
+  --os-handle-bg: var(--scrollbar);
+  --os-handle-bg-hover: color-mix(
+    in oklab,
+    var(--scrollbar) 85%,
+    var(--foreground)
+  );
+  --os-handle-bg-active: color-mix(
+    in oklab,
+    var(--scrollbar) 70%,
+    var(--foreground)
+  );
+  --os-handle-min-size: 33px;
 }
 
 /*
@@ -65,9 +102,15 @@ body {
  * inactive timeline, so the animation never applies and there is no shadow;
  * the last step of the timeline, scrolled to the end, has none either. A
  * browser without scroll timelines shows no shadow at all.
+ *
+ * The timeline has to be on the element that actually scrolls, which for a
+ * `ScrollArea` table is the viewport OverlayScrollbars generates inside it,
+ * not `data-table-scroll` itself. `:not([data-overlayscrollbars])` keeps this
+ * off a nested scroll area's own host, whose viewport belongs to it.
  */
 @supports (animation-timeline: scroll()) {
-  .data-table-scroll {
+  .data-table-scroll
+    [data-overlayscrollbars-viewport]:not([data-overlayscrollbars]) {
     scroll-timeline: --table-x inline;
   }
 

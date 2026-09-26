@@ -35,6 +35,7 @@ import {
   type EntityOption,
   EntityPicker,
 } from "@/components/custom/EntityPicker";
+import { ScrollArea } from "@/components/custom/ScrollArea";
 import { TableEmptyState } from "@/components/custom/TableEmptyState";
 import {
   type AuditRange,
@@ -362,9 +363,17 @@ function eventDetail(event: AuditEventView): ReactNode | null {
             <Trans id="admin.logs.detail.detail">Details</Trans>
           </dt>
           <dd>
-            <pre className="overflow-x-auto font-mono text-xs">
-              {JSON.stringify(event.detail, null, 2)}
-            </pre>
+            {/*
+              The event detail is a JSON blob whose lines do not wrap, so it
+              scrolls sideways. The background and padding would have to live on
+              the `<pre>` to be scrolled with the text, but they are what the
+              `ScrollArea` host must carry instead: the `<pre>` is only as wide as
+              the viewport, so a background on it would stop short of the
+              scrolled-in text.
+            */}
+            <ScrollArea className="font-mono text-xs">
+              <pre>{JSON.stringify(event.detail, null, 2)}</pre>
+            </ScrollArea>
           </dd>
         </>
       )}

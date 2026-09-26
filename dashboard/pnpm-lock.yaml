@@ -220,6 +220,12 @@ importers:
       openapi-fetch:
         specifier: 0.17.0
         version: 0.17.0
+      overlayscrollbars:
+        specifier: 2.16.0
+        version: 2.16.0
+      overlayscrollbars-react:
+        specifier: 0.5.6
+        version: 0.5.6(overlayscrollbars@2.16.0)(react@19.3.0)
       qrcode:
         specifier: 1.5.4
         version: 1.5.4
@@ -2692,6 +2698,15 @@ packages:
   ora@9.4.1:
     resolution: {integrity: sha512-6VlU9MLXbjVQD04AZCMX28hVtA5bUoadvUqO76MUCVA0ilwJbMiHsITRPfyVm6p/BC0Av/BXMujx39WCe1LEqw==}
     engines: {node: '>=20'}
+
+  overlayscrollbars-react@0.5.6:
+    resolution: {integrity: sha512-E5To04bL5brn9GVCZ36SnfGanxa2I2MDkWoa4Cjo5wol7l+diAgi4DBc983V7l2nOk/OLJ6Feg4kySspQEGDBw==}
+    peerDependencies:
+      overlayscrollbars: ^2.0.0
+      react: '>=16.8.0'
+
+  overlayscrollbars@2.16.0:
+    resolution: {integrity: sha512-N03oje/q7j93D0aLZtoCdsDSYLmhheSsv8H7oSLE7HhdV9P/bmCURtLV/KbPye7P/bpfyt/obSfDpGUYoJ0OWg==}
 
   oxc-parser@0.120.0:
     resolution: {integrity: sha512-WyPWZlcIm+Fkte63FGfgFB8mAAk33aH9h5N9lphXVOHSXEBFFsmYdOBedVKly363aWABjZdaj/m9lBfEY4wt+w==}
@@ -5426,6 +5441,13 @@ snapshots:
       log-symbols: 7.0.1
       stdin-discarder: 0.3.2
       string-width: 8.2.2
+
+  overlayscrollbars-react@0.5.6(overlayscrollbars@2.16.0)(react@19.3.0):
+    dependencies:
+      overlayscrollbars: 2.16.0
+      react: 19.3.0
+
+  overlayscrollbars@2.16.0: {}
 
   oxc-parser@0.120.0(@emnapi/core@1.11.3)(@emnapi/runtime@1.11.3):
     dependencies:

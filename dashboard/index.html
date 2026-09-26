@@ -1,12 +1,22 @@
 <!doctype html>
-<html lang="en">
+<!--
+  `data-overlayscrollbars-initialize` hides the native scrollbars from the first
+  paint, so the page does not show one and then swap to the drawn one once
+  `PageScrollArea` runs. It has to be on both elements for a `body` scrollbar.
+  A JavaScript-less visitor therefore gets no scrollbar — which for this SPA is
+  moot, since the root is empty without JavaScript either way.
+-->
+<html lang="en" data-overlayscrollbars-initialize>
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="instance-name" content="__INSTANCE_NAME__" />
     <title>__INSTANCE_NAME__</title>
   </head>
-  <body class="min-h-screen bg-background text-foreground">
+  <body
+    class="min-h-screen bg-background text-foreground"
+    data-overlayscrollbars-initialize
+  >
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

@@ -34,6 +34,7 @@ import { clearSessionQueries, sessionQueryOptions } from "@/api/queries";
 import { Button } from "@/components/custom/Button";
 import { useInstanceBranding } from "@/components/custom/instance-branding";
 import { LanguageMenu } from "@/components/custom/LanguageMenu";
+import { ScrollArea } from "@/components/custom/ScrollArea";
 import { SudoDialog } from "@/components/custom/SudoDialog";
 import { ThemeSelect } from "@/components/custom/ThemeSelect";
 
@@ -183,53 +184,60 @@ function ConsoleNavigation({
     // Shrinks with the rail so the account footer below stays at its foot,
     // however short the visible area is.
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-      <div className="flex flex-1 flex-col overflow-y-auto px-3 pt-2">
-        <nav
-          aria-label={t({
-            id: "console.navigation",
-            message: "Console navigation",
-          })}
-          className="flex flex-col gap-0.5"
-        >
-          <NavItem
-            active={isActiveSection(consoleHome.path, activePath)}
-            icon={consoleHome.icon}
-            onPress={() => onNavigate(consoleHome.path)}
+      {/*
+        The rail's own scroll area. `ScrollArea` makes this element the
+        OverlayScrollbars host, which forces `flex-direction: row` on it, so the
+        column and its padding live on the child below instead.
+      */}
+      <ScrollArea className="flex flex-1 flex-col">
+        <div className="flex flex-1 flex-col px-3 pt-2">
+          <nav
+            aria-label={t({
+              id: "console.navigation",
+              message: "Console navigation",
+            })}
+            className="flex flex-col gap-0.5"
           >
-            {i18n._(consoleHome.title)}
-          </NavItem>
-          <p className="px-2 pb-1 pt-3 text-xs font-medium text-muted">
-            <Trans id="console.account">Your account</Trans>
-          </p>
-          {accountSections.map((section) => (
             <NavItem
-              key={section.path}
-              active={isActiveSection(section.path, activePath)}
-              icon={section.icon}
-              onPress={() => onNavigate(section.path)}
+              active={isActiveSection(consoleHome.path, activePath)}
+              icon={consoleHome.icon}
+              onPress={() => onNavigate(consoleHome.path)}
             >
-              {i18n._(section.title)}
+              {i18n._(consoleHome.title)}
             </NavItem>
-          ))}
-          {isAdmin && (
-            <>
-              <p className="px-2 pb-1 pt-3 text-xs font-medium text-muted">
-                <Trans id="console.administration">Administration</Trans>
-              </p>
-              {adminSections.map((section) => (
-                <NavItem
-                  key={section.path}
-                  active={isActiveSection(section.path, activePath)}
-                  icon={section.icon}
-                  onPress={() => onNavigate(section.path)}
-                >
-                  {i18n._(section.title)}
-                </NavItem>
-              ))}
-            </>
-          )}
-        </nav>
-      </div>
+            <p className="px-2 pb-1 pt-3 text-xs font-medium text-muted">
+              <Trans id="console.account">Your account</Trans>
+            </p>
+            {accountSections.map((section) => (
+              <NavItem
+                key={section.path}
+                active={isActiveSection(section.path, activePath)}
+                icon={section.icon}
+                onPress={() => onNavigate(section.path)}
+              >
+                {i18n._(section.title)}
+              </NavItem>
+            ))}
+            {isAdmin && (
+              <>
+                <p className="px-2 pb-1 pt-3 text-xs font-medium text-muted">
+                  <Trans id="console.administration">Administration</Trans>
+                </p>
+                {adminSections.map((section) => (
+                  <NavItem
+                    key={section.path}
+                    active={isActiveSection(section.path, activePath)}
+                    icon={section.icon}
+                    onPress={() => onNavigate(section.path)}
+                  >
+                    {i18n._(section.title)}
+                  </NavItem>
+                ))}
+              </>
+            )}
+          </nav>
+        </div>
+      </ScrollArea>
     </div>
   );
 }

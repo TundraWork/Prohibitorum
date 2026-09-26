@@ -23,6 +23,7 @@ import { Button } from "@/components/custom/Button";
 import { ConfirmDialog } from "@/components/custom/ConfirmDialog";
 import { DataTable, type TableColumn } from "@/components/custom/DataTable";
 import { RelativeTime } from "@/components/custom/RelativeTime";
+import { ScrollArea } from "@/components/custom/ScrollArea";
 import { Section } from "@/components/custom/Section";
 import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
 import { TableEmptyState } from "@/components/custom/TableEmptyState";
@@ -362,9 +363,13 @@ function PublicKeyDialog({
               </Modal.Heading>
             </Modal.Header>
             <Modal.Body className="flex flex-col gap-3">
-              <pre className="overflow-x-auto rounded-[0.375rem] bg-surface-secondary p-3 font-mono text-xs">
-                {jwk}
-              </pre>
+              {/* The background and radius stay on the `ScrollArea` host rather
+                  than on the `<pre>`: the `<pre>` is only as wide as the
+                  viewport, so painting the surface there would leave the
+                  scrolled-in half of a long JWK on the modal's own backdrop. */}
+              <ScrollArea className="rounded-[0.375rem] bg-surface-secondary p-3 font-mono text-xs">
+                <pre>{jwk}</pre>
+              </ScrollArea>
               {copy === "failed" && (
                 <SurfaceAlert status="danger" role="alert">
                   <SurfaceAlert.Indicator />

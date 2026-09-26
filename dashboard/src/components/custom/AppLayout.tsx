@@ -5,6 +5,7 @@ import { useEffect } from "react";
 import { I18nProvider as AriaI18nProvider } from "react-aria";
 import { AppNotifications } from "@/components/custom/AppNotifications";
 import { useInstanceBranding } from "@/components/custom/instance-branding";
+import { PageScrollArea } from "@/components/custom/PageScrollArea";
 import { themeAtom } from "@/components/custom/ThemeSelect";
 
 export function AppLayout() {
@@ -32,6 +33,7 @@ export function AppLayout() {
   return (
     <AriaI18nProvider locale={i18n.locale === "zh" ? "zh-CN" : "en"}>
       <Outlet />
+      <PageScrollArea />
       <AppNotifications />
     </AriaI18nProvider>
   );
