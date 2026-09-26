@@ -129,7 +129,7 @@ function SectionPending() {
     <Card className="gap-0 p-0">
       <div
         aria-hidden="true"
-        className="skeleton--shimmer flex flex-col gap-3 p-4"
+        className="skeleton--shimmer relative flex flex-col gap-3 overflow-hidden p-4"
       >
         <Skeleton animationType="none" className="h-4 w-2/5" />
         <Skeleton animationType="none" className="h-4 w-full" />

@@ -17,12 +17,19 @@ import { Skeleton } from "@heroui/react";
  * label is what a reader is waiting on, and a set of placeholder bars has
  * nothing to announce; the container takes it out of the accessibility tree so
  * that a reader is not told about shape without content.
+ *
+ * `relative overflow-hidden` are not optional alongside `skeleton--shimmer`.
+ * The shimmer is an absolutely positioned pseudo-element that crosses a box by
+ * translating itself a full width and more, so without a positioned ancestor it
+ * resolves against the viewport and its band sweeps the whole page — over the
+ * console's rail. Without `overflow-hidden` nothing clips it back to the box
+ * either, and the sweep is wider than that box to begin with.
  */
 export function ListSkeleton({ rows = 3 }: { rows?: number }) {
   return (
     <div
       aria-hidden="true"
-      className="skeleton--shimmer flex flex-col gap-4 p-4"
+      className="skeleton--shimmer relative flex flex-col gap-4 overflow-hidden p-4"
     >
       {Array.from({ length: rows }).map((_, index) => (
         // Placeholders are positional and never reordered.
