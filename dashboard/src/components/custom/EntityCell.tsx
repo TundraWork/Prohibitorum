@@ -67,17 +67,22 @@ export function EntityCell({
       {stateLabel === undefined ? (
         avatar
       ) : (
-        // `Badge` with no label draws just the dot; the anchor positions it on
-        // the avatar's corner, which is what makes it read as the entity's
-        // state rather than as a list marker.
-        <Badge
-          color={state === "disabled" ? "default" : "warning"}
-          placement="bottom-right"
-          size="sm"
-          aria-label={stateLabel}
-        >
-          <Badge.Anchor>{avatar}</Badge.Anchor>
-        </Badge>
+        // `Badge.Anchor` is the positioning wrapper and holds both the avatar
+        // and the badge; the badge is absolutely placed against it, so the dot
+        // lands on the avatar's corner and reads as the entity's state rather
+        // than as a list marker. `Badge` with no children draws just the dot.
+        // The nesting is the library's own and is not interchangeable: with
+        // `Badge` outside, the anchor would be the positioned box and the
+        // avatar, taken out of flow, would disappear with the dot.
+        <Badge.Anchor>
+          {avatar}
+          <Badge
+            color={state === "disabled" ? "default" : "warning"}
+            placement="bottom-right"
+            size="sm"
+            aria-label={stateLabel}
+          />
+        </Badge.Anchor>
       )}
       <div className="flex min-w-0 flex-col">
         <span
