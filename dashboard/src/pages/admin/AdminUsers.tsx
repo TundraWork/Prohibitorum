@@ -26,7 +26,7 @@ import {
   advancedFilterIncomplete,
   type UserFilters,
 } from "@/pages/admin/user-filters";
-import { Route } from "@/routes/_protected.admin.users";
+import { Route } from "@/routes/_protected.admin._admin.users";
 
 type Account = components["schemas"]["AccountView"];
 

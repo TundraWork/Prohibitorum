@@ -152,6 +152,22 @@ variant through `InputOTP`.
 Default cards use the surface color, control radius, and surface shadow.
 Content has 16px padding and 12px gaps; card titles use compact medium-weight text.
 
+### Record lists and detail pages
+
+A management table leads with an identity cell: `EntityAvatar` with the
+entity's icon, its name, and the monospace identifier under it. HeroUI's
+`Avatar` keeps its own shape at `size="sm"`; the console rounds it to the
+control radius so a list row and an icon card show the same entity the same
+way. State is a HeroUI `Badge` dot on the icon's corner rather than a column,
+which is the library's own anchor/placement composition and keeps the table to
+the measure.
+
+A detail page stacks `Section`s, one per block, with the heading on the page
+background and a single `ConsoleCard` under it. The access policy shared by the
+three application kinds is `AppAccessPanel`, and a read-only value that is meant
+to be copied elsewhere — a Client ID, an Entity ID, a callback address — is
+`CopyValue`, HeroUI's `InputGroup` with a copy suffix.
+
 ### Navigation
 
 Public navigation uses wrapping HeroUI links. Preview tabs use the secondary

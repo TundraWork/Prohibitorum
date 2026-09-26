@@ -134,4 +134,82 @@ export const successMessage = {
     id: "success.signing-key.retired",
     message: "Signing key is being retired",
   }),
+  createIdentityProvider: msg({
+    id: "success.identity-provider.created",
+    message: "Provider created",
+  }),
+  saveIdentityProvider: msg({
+    id: "success.identity-provider.saved",
+    message: "Provider saved",
+  }),
+  setIdentityProviderSecret: msg({
+    id: "success.identity-provider.secret-set",
+    message: "Secret saved",
+  }),
+  enableIdentityProvider: msg({
+    id: "success.identity-provider.enabled",
+    message: "Provider enabled",
+  }),
+  disableIdentityProvider: msg({
+    id: "success.identity-provider.disabled",
+    message: "Provider disabled",
+  }),
+  deleteIdentityProvider: msg({
+    id: "success.identity-provider.deleted",
+    message: "Provider deleted",
+  }),
+  updateEntityIcon: msg({
+    id: "success.entity-icon.updated",
+    message: "Icon updated",
+  }),
+  removeEntityIcon: msg({
+    id: "success.entity-icon.removed",
+    message: "Icon removed",
+  }),
+  createOidcApp: msg({
+    id: "success.oidc-app.created",
+    message: "Application created",
+  }),
+  saveOidcApp: msg({
+    id: "success.oidc-app.saved",
+    message: "Application saved",
+  }),
+  saveIdentityProjection: msg({
+    id: "success.identity-projection.saved",
+    message: "Identity projection saved",
+  }),
+  enableApp: msg({ id: "success.app.enabled", message: "Application enabled" }),
+  disableApp: msg({
+    id: "success.app.disabled",
+    message: "Application disabled",
+  }),
+  deleteApp: msg({ id: "success.app.deleted", message: "Application deleted" }),
+  reingestMetadata: msg({
+    id: "success.saml-app.metadata-reingested",
+    message: "Metadata re-imported",
+  }),
+  restrictAppAccess: msg({
+    id: "success.app.access-restricted",
+    message: "Access restricted to the selected user groups",
+  }),
+  openAppAccess: msg({
+    id: "success.app.access-opened",
+    message: "Access opened to every account",
+  }),
+  saveAppGroups: msg({
+    id: "success.app.groups-saved",
+    message: "User groups saved",
+  }),
+  assignAppManager: msg({
+    id: "success.app.manager-assigned",
+    message: "Manager assigned",
+  }),
+  removeAppManager: msg({
+    id: "success.app.manager-removed",
+    message: "Manager removed",
+  }),
+  validateOperatorSession: msg({
+    id: "success.operator-session.validated",
+    message: "Session is still valid",
+  }),
 };

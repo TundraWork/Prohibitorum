@@ -2,7 +2,7 @@
 //
 // Shared types and query interface for nested admin collection pagination.
 // Each retained nested collection (account credentials, sessions, and PATs)
-// embeds pageInput and returns contract.Page[T] with cursors bound to its
+// embeds PageInput and returns contract.Page[T] with cursors bound to its
 // parent account ID.
 
 package server
@@ -46,7 +46,7 @@ func (s *Server) nestedQ() nestedQueries {
 // /accounts/{id}/tokens.
 type listAccountPageIn struct {
 	ID int32 `path:"id"`
-	pageInput
+	PageInput
 }
 
 

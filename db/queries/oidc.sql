@@ -145,7 +145,7 @@ WHERE client_id = $1 AND forward_auth_enabled = true;
 UPDATE oidc_client
 SET display_name = $2, redirect_uris = $3, forward_auth_host = $4, forward_auth_scopes = $5
 WHERE client_id = $1 AND forward_auth_enabled = true
-RETURNING client_id, display_name, forward_auth_host, forward_auth_scopes, access_restricted, disabled, created_at;
+RETURNING client_id, display_name, forward_auth_host, forward_auth_scopes, access_restricted, disabled, created_at, principal_source;
 
 -- name: SetForwardAuthScopes :exec
 UPDATE oidc_client SET forward_auth_scopes = $2

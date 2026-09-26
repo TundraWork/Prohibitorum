@@ -93,7 +93,7 @@ func faActorID(ctx context.Context) *int32 {
 // ----- GET /forward-auth-apps (typed, role-only) -----------------------------
 
 type listForwardAuthAppsIn struct {
-	pageInput
+	PageInput
 }
 
 type listForwardAuthAppsOut struct {
@@ -128,9 +128,12 @@ func (s *Server) handleListForwardAuthApps(ctx context.Context, in *listForwardA
 	if more {
 		rows = rows[:lim]
 	}
+	iconURLs := s.listIconURLs(ctx, "oidc_client")
 	views := make([]contract.ForwardAuthAppView, 0, len(rows))
 	for _, r := range rows {
-		views = append(views, forwardAuthAppView(r.ClientID, r.DisplayName, r.ForwardAuthHost, r.ForwardAuthScopes, r.AccessRestricted, r.Disabled, r.CreatedAt, r.PrincipalSource))
+		view := forwardAuthAppView(r.ClientID, r.DisplayName, r.ForwardAuthHost, r.ForwardAuthScopes, r.AccessRestricted, r.Disabled, r.CreatedAt, r.PrincipalSource)
+		view.IconURL = iconURLFor(iconURLs, r.ClientID)
+		views = append(views, view)
 	}
 	var nextCursor string
 	if more && len(rows) > 0 {
@@ -312,7 +315,7 @@ func (s *Server) handleUpdateForwardAuthAppHTTP(w http.ResponseWriter, r *http.R
 		Detail:    map[string]any{"client_id": clientID, "forward_auth": true, "host": body.Host},
 	})
 
-	view := forwardAuthAppView(row.ClientID, row.DisplayName, row.ForwardAuthHost, row.ForwardAuthScopes, row.AccessRestricted, row.Disabled, row.CreatedAt)
+	view := forwardAuthAppView(row.ClientID, row.DisplayName, row.ForwardAuthHost, row.ForwardAuthScopes, row.AccessRestricted, row.Disabled, row.CreatedAt, row.PrincipalSource)
 	view.IconURL = s.enrichIconURL(r.Context(), "oidc_client", row.ClientID)
 	writeJSON(w, view)
 }
@@ -369,7 +372,7 @@ func (s *Server) handleSetForwardAuthAppDisabledHTTP(w http.ResponseWriter, r *h
 	})
 
 	// SetOIDCClientDisabled returns a full OidcClient; project only FA fields.
-	view := forwardAuthAppView(c.ClientID, c.DisplayName, c.ForwardAuthHost, c.ForwardAuthScopes, c.AccessRestricted, c.Disabled, c.CreatedAt)
+	view := forwardAuthAppView(c.ClientID, c.DisplayName, c.ForwardAuthHost, c.ForwardAuthScopes, c.AccessRestricted, c.Disabled, c.CreatedAt, c.PrincipalSource)
 	view.IconURL = s.enrichIconURL(r.Context(), "oidc_client", c.ClientID)
 	writeJSON(w, view)
 }

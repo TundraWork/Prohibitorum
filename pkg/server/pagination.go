@@ -61,6 +61,9 @@ type topLevelQueries interface {
 	ListAllSigningKeys(ctx context.Context, p db.ListAllSigningKeysParams) ([]db.SigningKey, error)
 	ListForwardAuthClients(ctx context.Context, p db.ListForwardAuthClientsParams) ([]db.ListForwardAuthClientsRow, error)
 	ListCredentialEvents(ctx context.Context, p db.ListCredentialEventsParams) ([]db.ListCredentialEventsRow, error)
+	// ListEntityIconEtags backs the iconUrl each list row carries, so the list
+	// handlers reach it through the same seam as their paging query.
+	ListEntityIconEtags(ctx context.Context, ownerKind string) ([]db.ListEntityIconEtagsRow, error)
 }
 
 // listQ returns the override (for tests) or the real queries. The real
@@ -72,11 +75,17 @@ func (s *Server) listQ() topLevelQueries {
 	return s.queries
 }
 
-// pageInput is the shared query-string shape every top-level admin list
+// PageInput is the shared query-string shape every top-level admin list
 // endpoint embeds in its huma input struct. Limit and Cursor are optional —
 // limit defaults to 50 (via pagination.Limit) and an empty cursor means
 // "first page".
-type pageInput struct {
+//
+// Exported deliberately: huma reflects over the input struct to build the
+// operation's OpenAPI parameters, and it does not descend into an unexported
+// embedded struct. While this type was lowercase the two fields never reached
+// the schema, so generated clients could not send them and every list stayed
+// on the first page of 50.
+type PageInput struct {
 	Limit  int    `query:"limit" doc:"Page size (default 50, max 100)."`
 	Cursor string `query:"cursor" doc:"Opaque pagination cursor from a prior response."`
 }

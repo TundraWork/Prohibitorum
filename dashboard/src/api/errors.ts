@@ -308,6 +308,60 @@ const errorMessages: Readonly<Record<string, MessageDescriptor>> = {
     id: "error.active_key_no_replacement",
     message: "Activate another key first, then retire this one.",
   }),
+  upstream_idp_already_exists: msg({
+    id: "error.upstream_idp_already_exists",
+    message: "That identifier is already taken by another provider.",
+  }),
+  provider_not_ready: msg({
+    id: "error.provider_not_ready",
+    message:
+      "This provider is not ready yet. Finish setting up its credentials before enabling it.",
+  }),
+  oidc_client_already_exists: msg({
+    id: "error.oidc_client_already_exists",
+    message: "That Client ID or host name is already in use.",
+  }),
+  saml_application_already_exists: msg({
+    id: "error.saml_application_already_exists",
+    message: "An application with that Entity ID already exists.",
+  }),
+  client_not_found: msg({
+    id: "error.client_not_found",
+    message: "That application no longer exists. The list has been refreshed.",
+  }),
+  invalid_manager_role: msg({
+    id: "error.invalid_manager_role",
+    message: "A disabled account cannot manage an application.",
+  }),
+  // VRChat operator sign-in: the code is wrong, or the whole challenge expired.
+  vrchat_operator_code_invalid: msg({
+    id: "error.vrchat_operator_code_invalid",
+    message: "That code is not valid. Check it and try again.",
+  }),
+  vrchat_operator_credentials_invalid: msg({
+    id: "error.vrchat_operator_credentials_invalid",
+    message: "Those VRChat credentials were not accepted.",
+  }),
+  vrchat_operator_challenge_invalid: msg({
+    id: "error.vrchat_operator_challenge_invalid",
+    message: "This sign-in took too long. Start again with your password.",
+  }),
+  upstream_rate_limited: msg({
+    id: "error.upstream_rate_limited",
+    message:
+      "The provider is asking us to slow down. Wait a moment and try again.",
+  }),
+  upstream_temporarily_unavailable: msg({
+    id: "error.upstream_temporarily_unavailable",
+    message:
+      "The provider could not be reached just now. Check the endpoint and try again.",
+  }),
+  // A diagnostic run is single-use and short-lived. The console does not treat
+  // this as a signed-out session: only `no_session` means that.
+  federation_state_invalid: msg({
+    id: "error.federation_state_invalid",
+    message: "This test is no longer valid. Start a new one.",
+  }),
 };
 
 /**

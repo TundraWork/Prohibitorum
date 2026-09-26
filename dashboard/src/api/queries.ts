@@ -1,6 +1,7 @@
 import { type QueryClient, queryOptions } from "@tanstack/react-query";
 import { client, requireJsonData } from "@/api/client";
 import { ApiError } from "@/api/errors";
+import type { ManagedApplicationKind } from "@/api/raw-admin-paths";
 
 export function publicConfigQueryOptions() {
   return queryOptions({
@@ -301,6 +302,277 @@ export function groupsQueryOptions() {
     queryKey: ["admin", "groups"] as const,
     queryFn: ({ signal }) =>
       requireJsonData(client.GET("/api/prohibitorum/groups", { signal })),
+  });
+}
+
+/* ------------------------------------------------------------- federation -- */
+
+/**
+ * One page of identity providers, shaped for `useCursorList`. The cursor is
+ * threaded through as the page parameter and never reaches the URL.
+ */
+export function identityProvidersListOptions() {
+  return {
+    queryKey: ["admin", "identity-providers", "page"] as const,
+    queryFn: ({ cursor, signal }: { cursor?: string; signal: AbortSignal }) =>
+      requireJsonData(
+        client.GET("/api/prohibitorum/identity-providers", {
+          ...(cursor === undefined ? {} : { params: { query: { cursor } } }),
+          signal,
+        }),
+      ),
+  };
+}
+
+export function identityProviderQueryOptions(slug: string) {
+  return queryOptions({
+    queryKey: ["admin", "identity-providers", slug] as const,
+    queryFn: ({ signal }) =>
+      requireJsonData(
+        client.GET("/api/prohibitorum/identity-providers/{slug}", {
+          params: { path: { slug } },
+          signal,
+        }),
+      ),
+  });
+}
+
+/**
+ * The resolved OIDC configuration, fetched only when the reader asks: the
+ * endpoint discovers against the upstream and is rate limited to 20 a minute, so
+ * it must never be a mount-time read. `staleTime: 0` keeps a second click from
+ * serving the first answer back.
+ */
+export function effectiveConfigQueryOptions(slug: string) {
+  return queryOptions({
+    queryKey: [
+      "admin",
+      "identity-providers",
+      slug,
+      "effective-config",
+    ] as const,
+    staleTime: 0,
+    queryFn: ({ signal }) =>
+      requireJsonData(
+        client.GET(
+          "/api/prohibitorum/identity-providers/{slug}/effective-config",
+          {
+            params: { path: { slug } },
+            signal,
+          },
+        ),
+      ),
+  });
+}
+
+/**
+ * One diagnostic run's result. The interval lives in the page (it starts when a
+ * test is in flight and stops after 30 seconds) because only the page knows
+ * whether the run is still being watched; the query itself is a plain read.
+ */
+export function diagnosticResultQueryOptions(slug: string, id: string) {
+  return queryOptions({
+    queryKey: ["admin", "identity-providers", slug, "tests", id] as const,
+    queryFn: ({ signal }) =>
+      requireJsonData(
+        client.GET("/api/prohibitorum/identity-providers/{slug}/tests/{id}", {
+          params: { path: { slug, id } },
+          signal,
+        }),
+      ),
+  });
+}
+
+/* ------------------------------------------------------- downstream apps -- */
+
+export function oidcAppsListOptions() {
+  return {
+    queryKey: ["admin", "oidc-applications", "page"] as const,
+    queryFn: ({ cursor, signal }: { cursor?: string; signal: AbortSignal }) =>
+      requireJsonData(
+        client.GET("/api/prohibitorum/oidc-applications", {
+          ...(cursor === undefined ? {} : { params: { query: { cursor } } }),
+          signal,
+        }),
+      ),
+  };
+}
+
+export function oidcAppQueryOptions(clientId: string) {
+  return queryOptions({
+    queryKey: ["admin", "oidc-applications", clientId] as const,
+    queryFn: ({ signal }) =>
+      requireJsonData(
+        client.GET("/api/prohibitorum/oidc-applications/{clientId}", {
+          params: { path: { clientId } },
+          signal,
+        }),
+      ),
+  });
+}
+
+export function samlAppsListOptions() {
+  return {
+    queryKey: ["admin", "saml-applications", "page"] as const,
+    queryFn: ({ cursor, signal }: { cursor?: string; signal: AbortSignal }) =>
+      requireJsonData(
+        client.GET("/api/prohibitorum/saml-applications", {
+          ...(cursor === undefined ? {} : { params: { query: { cursor } } }),
+          signal,
+        }),
+      ),
+  };
+}
+
+export function samlAppQueryOptions(id: number) {
+  return queryOptions({
+    queryKey: ["admin", "saml-applications", id] as const,
+    queryFn: ({ signal }) =>
+      requireJsonData(
+        client.GET("/api/prohibitorum/saml-applications/{id}", {
+          params: { path: { id } },
+          signal,
+        }),
+      ),
+  });
+}
+
+export function forwardAuthAppsListOptions() {
+  return {
+    queryKey: ["admin", "forward-auth-apps", "page"] as const,
+    queryFn: ({ cursor, signal }: { cursor?: string; signal: AbortSignal }) =>
+      requireJsonData(
+        client.GET("/api/prohibitorum/forward-auth-apps", {
+          ...(cursor === undefined ? {} : { params: { query: { cursor } } }),
+          signal,
+        }),
+      ),
+  };
+}
+
+export function forwardAuthAppQueryOptions(clientId: string) {
+  return queryOptions({
+    queryKey: ["admin", "forward-auth-apps", clientId] as const,
+    queryFn: ({ signal }) =>
+      requireJsonData(
+        client.GET("/api/prohibitorum/forward-auth-apps/{clientId}", {
+          params: { path: { clientId } },
+          signal,
+        }),
+      ),
+  });
+}
+
+/**
+ * The access workspace: the app summary, its restriction flag and its selected
+ * groups, in one read. Served by the same handler for admins and for an
+ * application's own managers, which is why the access panel is one component.
+ */
+export function appAccessQueryOptions(
+  kind: ManagedApplicationKind,
+  appId: string,
+) {
+  return queryOptions({
+    queryKey: ["admin", "managed-applications", kind, appId, "access"] as const,
+    queryFn: ({ signal }) =>
+      requireJsonData(
+        client.GET(
+          "/api/prohibitorum/managed-applications/{kind}/{appId}/access",
+          {
+            params: { path: { kind, appId } },
+            signal,
+          },
+        ),
+      ),
+  });
+}
+
+/**
+ * Who may manage this application. The endpoint is admin-only, so a non-admin
+ * manager must not call it at all — `AppAccessPanel` decides whether to render
+ * the managers block, and this factory is only reached when it does.
+ */
+export function appManagersQueryOptions(
+  kind: ManagedApplicationKind,
+  appId: string,
+) {
+  const path =
+    kind === "saml"
+      ? ("/api/prohibitorum/saml-applications/{id}/managers" as const)
+      : kind === "oidc"
+        ? ("/api/prohibitorum/oidc-applications/{clientId}/managers" as const)
+        : ("/api/prohibitorum/forward-auth-apps/{clientId}/managers" as const);
+  return queryOptions({
+    queryKey: [
+      "admin",
+      "managed-applications",
+      kind,
+      appId,
+      "managers",
+    ] as const,
+    queryFn: ({ signal }) => {
+      if (kind === "saml") {
+        return requireJsonData(
+          client.GET(path, {
+            params: { path: { id: Number(appId) } },
+            signal,
+          }),
+        );
+      }
+      return requireJsonData(
+        client.GET(path, { params: { path: { clientId: appId } }, signal }),
+      );
+    },
+  });
+}
+
+/** Which application sections this account may see. */
+export interface ManagedApplications {
+  oidc: boolean;
+  saml: boolean;
+  forwardAuth: boolean;
+}
+
+/**
+ * Whether the signed-in account manages at least one application of each kind.
+ *
+ * An admin manages all three without asking: the lists would answer "everything"
+ * and the sidebar is the same either way. Everyone else gets one row from each
+ * list — `limit=1` is enough to know the list is not empty, and the list endpoint
+ * already filters to the caller's assignments, so no dedicated endpoint is
+ * needed. The three reads run together rather than in sequence.
+ */
+export function managedApplicationsQueryOptions() {
+  return queryOptions({
+    queryKey: ["session", "managed-applications"] as const,
+    meta: { requiresSession: true },
+    queryFn: async ({ signal }) => {
+      const [oidc, saml, forwardAuth] = await Promise.all([
+        requireJsonData(
+          client.GET("/api/prohibitorum/oidc-applications", {
+            params: { query: { limit: 1 } },
+            signal,
+          }),
+        ),
+        requireJsonData(
+          client.GET("/api/prohibitorum/saml-applications", {
+            params: { query: { limit: 1 } },
+            signal,
+          }),
+        ),
+        requireJsonData(
+          client.GET("/api/prohibitorum/forward-auth-apps", {
+            params: { query: { limit: 1 } },
+            signal,
+          }),
+        ),
+      ]);
+      return {
+        oidc: (oidc.items?.length ?? 0) > 0,
+        saml: (saml.items?.length ?? 0) > 0,
+        forwardAuth: (forwardAuth.items?.length ?? 0) > 0,
+      } satisfies ManagedApplications;
+    },
   });
 }
 

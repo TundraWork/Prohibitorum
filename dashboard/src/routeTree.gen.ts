@@ -19,21 +19,34 @@ import { Route as ProtectedProfileRouteImport } from './routes/_protected.profil
 import { Route as ProtectedSecurityRouteImport } from './routes/_protected.security'
 import { Route as PublicPreviewRouteImport } from './routes/_public._preview'
 import { Route as PublicLoginRouteImport } from './routes/_public.login'
-import { Route as ProtectedAdminIndexRouteImport } from './routes/_protected.admin.index'
-import { Route as ProtectedAdminInvitationsRouteImport } from './routes/_protected.admin.invitations'
-import { Route as ProtectedAdminLogsRouteImport } from './routes/_protected.admin.logs'
-import { Route as ProtectedAdminSettingsRouteImport } from './routes/_protected.admin.settings'
-import { Route as ProtectedAdminUsersRouteImport } from './routes/_protected.admin.users'
+import { Route as ProtectedAdminAdminRouteImport } from './routes/_protected.admin._admin'
 import { Route as PublicLoginRecoveryRouteImport } from './routes/_public.login_.recovery'
 import { Route as PublicLoginTotpRouteImport } from './routes/_public.login_.totp'
-import { Route as ProtectedAdminGroupsIndexRouteImport } from './routes/_protected.admin.groups.index'
-import { Route as ProtectedAdminGroupsNewRouteImport } from './routes/_protected.admin.groups.new'
-import { Route as ProtectedAdminGroupsGroupIdRouteImport } from './routes/_protected.admin.groups_.$groupId'
-import { Route as ProtectedAdminInvitationsNewRouteImport } from './routes/_protected.admin.invitations_.new'
-import { Route as ProtectedAdminUsersIdRouteImport } from './routes/_protected.admin.users_.$id'
+import { Route as ProtectedAdminAdminIndexRouteImport } from './routes/_protected.admin._admin.index'
+import { Route as ProtectedAdminAdminInvitationsRouteImport } from './routes/_protected.admin._admin.invitations'
+import { Route as ProtectedAdminAdminLogsRouteImport } from './routes/_protected.admin._admin.logs'
+import { Route as ProtectedAdminAdminSettingsRouteImport } from './routes/_protected.admin._admin.settings'
+import { Route as ProtectedAdminAdminUsersRouteImport } from './routes/_protected.admin._admin.users'
+import { Route as ProtectedAdminForwardAuthAppsIndexRouteImport } from './routes/_protected.admin.forward-auth-apps.index'
+import { Route as ProtectedAdminForwardAuthAppsClientIdRouteImport } from './routes/_protected.admin.forward-auth-apps_.$clientId'
+import { Route as ProtectedAdminForwardAuthAppsNewRouteImport } from './routes/_protected.admin.forward-auth-apps_.new'
+import { Route as ProtectedAdminOidcApplicationsIndexRouteImport } from './routes/_protected.admin.oidc-applications.index'
+import { Route as ProtectedAdminOidcApplicationsClientIdRouteImport } from './routes/_protected.admin.oidc-applications_.$clientId'
+import { Route as ProtectedAdminOidcApplicationsNewRouteImport } from './routes/_protected.admin.oidc-applications_.new'
+import { Route as ProtectedAdminSamlApplicationsIndexRouteImport } from './routes/_protected.admin.saml-applications.index'
+import { Route as ProtectedAdminSamlApplicationsIdRouteImport } from './routes/_protected.admin.saml-applications_.$id'
+import { Route as ProtectedAdminSamlApplicationsNewRouteImport } from './routes/_protected.admin.saml-applications_.new'
 import { Route as PublicPreview_devFormsRouteImport } from './routes/_public._preview.[_]_dev.forms'
 import { Route as PublicPreviewPreviewApiRouteImport } from './routes/_public._preview.preview.api'
 import { Route as PublicPreviewPreviewComponentsRouteImport } from './routes/_public._preview.preview.components'
+import { Route as ProtectedAdminAdminGroupsIndexRouteImport } from './routes/_protected.admin._admin.groups.index'
+import { Route as ProtectedAdminAdminGroupsNewRouteImport } from './routes/_protected.admin._admin.groups.new'
+import { Route as ProtectedAdminAdminGroupsGroupIdRouteImport } from './routes/_protected.admin._admin.groups_.$groupId'
+import { Route as ProtectedAdminAdminIdentityProvidersIndexRouteImport } from './routes/_protected.admin._admin.identity-providers.index'
+import { Route as ProtectedAdminAdminIdentityProvidersSlugRouteImport } from './routes/_protected.admin._admin.identity-providers.$slug'
+import { Route as ProtectedAdminAdminIdentityProvidersNewRouteImport } from './routes/_protected.admin._admin.identity-providers.new'
+import { Route as ProtectedAdminAdminInvitationsNewRouteImport } from './routes/_protected.admin._admin.invitations_.new'
+import { Route as ProtectedAdminAdminUsersIdRouteImport } from './routes/_protected.admin._admin.users_.$id'
 
 const ProtectedRoute = ProtectedRouteImport.update({
   id: '/_protected',
@@ -82,30 +95,8 @@ const PublicLoginRoute = PublicLoginRouteImport.update({
   path: '/login',
   getParentRoute: () => PublicRoute,
 } as any)
-const ProtectedAdminIndexRoute = ProtectedAdminIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => ProtectedAdminRoute,
-} as any)
-const ProtectedAdminInvitationsRoute =
-  ProtectedAdminInvitationsRouteImport.update({
-    id: '/invitations',
-    path: '/invitations',
-    getParentRoute: () => ProtectedAdminRoute,
-  } as any)
-const ProtectedAdminLogsRoute = ProtectedAdminLogsRouteImport.update({
-  id: '/logs',
-  path: '/logs',
-  getParentRoute: () => ProtectedAdminRoute,
-} as any)
-const ProtectedAdminSettingsRoute = ProtectedAdminSettingsRouteImport.update({
-  id: '/settings',
-  path: '/settings',
-  getParentRoute: () => ProtectedAdminRoute,
-} as any)
-const ProtectedAdminUsersRoute = ProtectedAdminUsersRouteImport.update({
-  id: '/users',
-  path: '/users',
+const ProtectedAdminAdminRoute = ProtectedAdminAdminRouteImport.update({
+  id: '/_admin',
   getParentRoute: () => ProtectedAdminRoute,
 } as any)
 const PublicLoginRecoveryRoute = PublicLoginRecoveryRouteImport.update({
@@ -118,34 +109,89 @@ const PublicLoginTotpRoute = PublicLoginTotpRouteImport.update({
   path: '/login/totp',
   getParentRoute: () => PublicRoute,
 } as any)
-const ProtectedAdminGroupsIndexRoute =
-  ProtectedAdminGroupsIndexRouteImport.update({
-    id: '/groups/',
-    path: '/groups/',
-    getParentRoute: () => ProtectedAdminRoute,
+const ProtectedAdminAdminIndexRoute =
+  ProtectedAdminAdminIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => ProtectedAdminAdminRoute,
   } as any)
-const ProtectedAdminGroupsNewRoute = ProtectedAdminGroupsNewRouteImport.update({
-  id: '/groups/new',
-  path: '/groups/new',
-  getParentRoute: () => ProtectedAdminRoute,
+const ProtectedAdminAdminInvitationsRoute =
+  ProtectedAdminAdminInvitationsRouteImport.update({
+    id: '/invitations',
+    path: '/invitations',
+    getParentRoute: () => ProtectedAdminAdminRoute,
+  } as any)
+const ProtectedAdminAdminLogsRoute = ProtectedAdminAdminLogsRouteImport.update({
+  id: '/logs',
+  path: '/logs',
+  getParentRoute: () => ProtectedAdminAdminRoute,
 } as any)
-const ProtectedAdminGroupsGroupIdRoute =
-  ProtectedAdminGroupsGroupIdRouteImport.update({
-    id: '/groups_/$groupId',
-    path: '/groups/$groupId',
+const ProtectedAdminAdminSettingsRoute =
+  ProtectedAdminAdminSettingsRouteImport.update({
+    id: '/settings',
+    path: '/settings',
+    getParentRoute: () => ProtectedAdminAdminRoute,
+  } as any)
+const ProtectedAdminAdminUsersRoute =
+  ProtectedAdminAdminUsersRouteImport.update({
+    id: '/users',
+    path: '/users',
+    getParentRoute: () => ProtectedAdminAdminRoute,
+  } as any)
+const ProtectedAdminForwardAuthAppsIndexRoute =
+  ProtectedAdminForwardAuthAppsIndexRouteImport.update({
+    id: '/forward-auth-apps/',
+    path: '/forward-auth-apps/',
     getParentRoute: () => ProtectedAdminRoute,
   } as any)
-const ProtectedAdminInvitationsNewRoute =
-  ProtectedAdminInvitationsNewRouteImport.update({
-    id: '/invitations_/new',
-    path: '/invitations/new',
+const ProtectedAdminForwardAuthAppsClientIdRoute =
+  ProtectedAdminForwardAuthAppsClientIdRouteImport.update({
+    id: '/forward-auth-apps_/$clientId',
+    path: '/forward-auth-apps/$clientId',
     getParentRoute: () => ProtectedAdminRoute,
   } as any)
-const ProtectedAdminUsersIdRoute = ProtectedAdminUsersIdRouteImport.update({
-  id: '/users_/$id',
-  path: '/users/$id',
-  getParentRoute: () => ProtectedAdminRoute,
-} as any)
+const ProtectedAdminForwardAuthAppsNewRoute =
+  ProtectedAdminForwardAuthAppsNewRouteImport.update({
+    id: '/forward-auth-apps_/new',
+    path: '/forward-auth-apps/new',
+    getParentRoute: () => ProtectedAdminRoute,
+  } as any)
+const ProtectedAdminOidcApplicationsIndexRoute =
+  ProtectedAdminOidcApplicationsIndexRouteImport.update({
+    id: '/oidc-applications/',
+    path: '/oidc-applications/',
+    getParentRoute: () => ProtectedAdminRoute,
+  } as any)
+const ProtectedAdminOidcApplicationsClientIdRoute =
+  ProtectedAdminOidcApplicationsClientIdRouteImport.update({
+    id: '/oidc-applications_/$clientId',
+    path: '/oidc-applications/$clientId',
+    getParentRoute: () => ProtectedAdminRoute,
+  } as any)
+const ProtectedAdminOidcApplicationsNewRoute =
+  ProtectedAdminOidcApplicationsNewRouteImport.update({
+    id: '/oidc-applications_/new',
+    path: '/oidc-applications/new',
+    getParentRoute: () => ProtectedAdminRoute,
+  } as any)
+const ProtectedAdminSamlApplicationsIndexRoute =
+  ProtectedAdminSamlApplicationsIndexRouteImport.update({
+    id: '/saml-applications/',
+    path: '/saml-applications/',
+    getParentRoute: () => ProtectedAdminRoute,
+  } as any)
+const ProtectedAdminSamlApplicationsIdRoute =
+  ProtectedAdminSamlApplicationsIdRouteImport.update({
+    id: '/saml-applications_/$id',
+    path: '/saml-applications/$id',
+    getParentRoute: () => ProtectedAdminRoute,
+  } as any)
+const ProtectedAdminSamlApplicationsNewRoute =
+  ProtectedAdminSamlApplicationsNewRouteImport.update({
+    id: '/saml-applications_/new',
+    path: '/saml-applications/new',
+    getParentRoute: () => ProtectedAdminRoute,
+  } as any)
 const PublicPreview_devFormsRoute = PublicPreview_devFormsRouteImport.update({
   id: '/__dev/forms',
   path: '/__dev/forms',
@@ -162,6 +208,54 @@ const PublicPreviewPreviewComponentsRoute =
     path: '/preview/components',
     getParentRoute: () => PublicPreviewRoute,
   } as any)
+const ProtectedAdminAdminGroupsIndexRoute =
+  ProtectedAdminAdminGroupsIndexRouteImport.update({
+    id: '/groups/',
+    path: '/groups/',
+    getParentRoute: () => ProtectedAdminAdminRoute,
+  } as any)
+const ProtectedAdminAdminGroupsNewRoute =
+  ProtectedAdminAdminGroupsNewRouteImport.update({
+    id: '/groups/new',
+    path: '/groups/new',
+    getParentRoute: () => ProtectedAdminAdminRoute,
+  } as any)
+const ProtectedAdminAdminGroupsGroupIdRoute =
+  ProtectedAdminAdminGroupsGroupIdRouteImport.update({
+    id: '/groups_/$groupId',
+    path: '/groups/$groupId',
+    getParentRoute: () => ProtectedAdminAdminRoute,
+  } as any)
+const ProtectedAdminAdminIdentityProvidersIndexRoute =
+  ProtectedAdminAdminIdentityProvidersIndexRouteImport.update({
+    id: '/identity-providers/',
+    path: '/identity-providers/',
+    getParentRoute: () => ProtectedAdminAdminRoute,
+  } as any)
+const ProtectedAdminAdminIdentityProvidersSlugRoute =
+  ProtectedAdminAdminIdentityProvidersSlugRouteImport.update({
+    id: '/identity-providers/$slug',
+    path: '/identity-providers/$slug',
+    getParentRoute: () => ProtectedAdminAdminRoute,
+  } as any)
+const ProtectedAdminAdminIdentityProvidersNewRoute =
+  ProtectedAdminAdminIdentityProvidersNewRouteImport.update({
+    id: '/identity-providers/new',
+    path: '/identity-providers/new',
+    getParentRoute: () => ProtectedAdminAdminRoute,
+  } as any)
+const ProtectedAdminAdminInvitationsNewRoute =
+  ProtectedAdminAdminInvitationsNewRouteImport.update({
+    id: '/invitations_/new',
+    path: '/invitations/new',
+    getParentRoute: () => ProtectedAdminAdminRoute,
+  } as any)
+const ProtectedAdminAdminUsersIdRoute =
+  ProtectedAdminAdminUsersIdRouteImport.update({
+    id: '/users_/$id',
+    path: '/users/$id',
+    getParentRoute: () => ProtectedAdminAdminRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof ProtectedIndexRoute
@@ -171,44 +265,68 @@ export interface FileRoutesByFullPath {
   '/profile': typeof ProtectedProfileRoute
   '/security': typeof ProtectedSecurityRoute
   '/login': typeof PublicLoginRoute
-  '/admin/invitations': typeof ProtectedAdminInvitationsRoute
-  '/admin/logs': typeof ProtectedAdminLogsRoute
-  '/admin/settings': typeof ProtectedAdminSettingsRoute
-  '/admin/users': typeof ProtectedAdminUsersRoute
   '/login/recovery': typeof PublicLoginRecoveryRoute
   '/login/totp': typeof PublicLoginTotpRoute
-  '/admin/': typeof ProtectedAdminIndexRoute
-  '/admin/groups/new': typeof ProtectedAdminGroupsNewRoute
-  '/admin/groups/$groupId': typeof ProtectedAdminGroupsGroupIdRoute
-  '/admin/invitations/new': typeof ProtectedAdminInvitationsNewRoute
-  '/admin/users/$id': typeof ProtectedAdminUsersIdRoute
+  '/admin/invitations': typeof ProtectedAdminAdminInvitationsRoute
+  '/admin/logs': typeof ProtectedAdminAdminLogsRoute
+  '/admin/settings': typeof ProtectedAdminAdminSettingsRoute
+  '/admin/users': typeof ProtectedAdminAdminUsersRoute
+  '/admin/forward-auth-apps/$clientId': typeof ProtectedAdminForwardAuthAppsClientIdRoute
+  '/admin/forward-auth-apps/new': typeof ProtectedAdminForwardAuthAppsNewRoute
+  '/admin/oidc-applications/$clientId': typeof ProtectedAdminOidcApplicationsClientIdRoute
+  '/admin/oidc-applications/new': typeof ProtectedAdminOidcApplicationsNewRoute
+  '/admin/saml-applications/$id': typeof ProtectedAdminSamlApplicationsIdRoute
+  '/admin/saml-applications/new': typeof ProtectedAdminSamlApplicationsNewRoute
   '/__dev/forms': typeof PublicPreview_devFormsRoute
   '/preview/api': typeof PublicPreviewPreviewApiRoute
   '/preview/components': typeof PublicPreviewPreviewComponentsRoute
-  '/admin/groups/': typeof ProtectedAdminGroupsIndexRoute
+  '/admin/': typeof ProtectedAdminAdminIndexRoute
+  '/admin/forward-auth-apps/': typeof ProtectedAdminForwardAuthAppsIndexRoute
+  '/admin/oidc-applications/': typeof ProtectedAdminOidcApplicationsIndexRoute
+  '/admin/saml-applications/': typeof ProtectedAdminSamlApplicationsIndexRoute
+  '/admin/groups/new': typeof ProtectedAdminAdminGroupsNewRoute
+  '/admin/groups/$groupId': typeof ProtectedAdminAdminGroupsGroupIdRoute
+  '/admin/identity-providers/$slug': typeof ProtectedAdminAdminIdentityProvidersSlugRoute
+  '/admin/identity-providers/new': typeof ProtectedAdminAdminIdentityProvidersNewRoute
+  '/admin/invitations/new': typeof ProtectedAdminAdminInvitationsNewRoute
+  '/admin/users/$id': typeof ProtectedAdminAdminUsersIdRoute
+  '/admin/groups/': typeof ProtectedAdminAdminGroupsIndexRoute
+  '/admin/identity-providers/': typeof ProtectedAdminAdminIdentityProvidersIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof ProtectedIndexRoute
+  '/admin': typeof ProtectedAdminAdminIndexRoute
   '/apps': typeof ProtectedAppsRoute
   '/devices': typeof ProtectedDevicesRoute
   '/profile': typeof ProtectedProfileRoute
   '/security': typeof ProtectedSecurityRoute
   '/login': typeof PublicLoginRoute
-  '/admin/invitations': typeof ProtectedAdminInvitationsRoute
-  '/admin/logs': typeof ProtectedAdminLogsRoute
-  '/admin/settings': typeof ProtectedAdminSettingsRoute
-  '/admin/users': typeof ProtectedAdminUsersRoute
   '/login/recovery': typeof PublicLoginRecoveryRoute
   '/login/totp': typeof PublicLoginTotpRoute
-  '/admin': typeof ProtectedAdminIndexRoute
-  '/admin/groups/new': typeof ProtectedAdminGroupsNewRoute
-  '/admin/groups/$groupId': typeof ProtectedAdminGroupsGroupIdRoute
-  '/admin/invitations/new': typeof ProtectedAdminInvitationsNewRoute
-  '/admin/users/$id': typeof ProtectedAdminUsersIdRoute
+  '/admin/invitations': typeof ProtectedAdminAdminInvitationsRoute
+  '/admin/logs': typeof ProtectedAdminAdminLogsRoute
+  '/admin/settings': typeof ProtectedAdminAdminSettingsRoute
+  '/admin/users': typeof ProtectedAdminAdminUsersRoute
+  '/admin/forward-auth-apps/$clientId': typeof ProtectedAdminForwardAuthAppsClientIdRoute
+  '/admin/forward-auth-apps/new': typeof ProtectedAdminForwardAuthAppsNewRoute
+  '/admin/oidc-applications/$clientId': typeof ProtectedAdminOidcApplicationsClientIdRoute
+  '/admin/oidc-applications/new': typeof ProtectedAdminOidcApplicationsNewRoute
+  '/admin/saml-applications/$id': typeof ProtectedAdminSamlApplicationsIdRoute
+  '/admin/saml-applications/new': typeof ProtectedAdminSamlApplicationsNewRoute
   '/__dev/forms': typeof PublicPreview_devFormsRoute
   '/preview/api': typeof PublicPreviewPreviewApiRoute
   '/preview/components': typeof PublicPreviewPreviewComponentsRoute
-  '/admin/groups': typeof ProtectedAdminGroupsIndexRoute
+  '/admin/forward-auth-apps': typeof ProtectedAdminForwardAuthAppsIndexRoute
+  '/admin/oidc-applications': typeof ProtectedAdminOidcApplicationsIndexRoute
+  '/admin/saml-applications': typeof ProtectedAdminSamlApplicationsIndexRoute
+  '/admin/groups/new': typeof ProtectedAdminAdminGroupsNewRoute
+  '/admin/groups/$groupId': typeof ProtectedAdminAdminGroupsGroupIdRoute
+  '/admin/identity-providers/$slug': typeof ProtectedAdminAdminIdentityProvidersSlugRoute
+  '/admin/identity-providers/new': typeof ProtectedAdminAdminIdentityProvidersNewRoute
+  '/admin/invitations/new': typeof ProtectedAdminAdminInvitationsNewRoute
+  '/admin/users/$id': typeof ProtectedAdminAdminUsersIdRoute
+  '/admin/groups': typeof ProtectedAdminAdminGroupsIndexRoute
+  '/admin/identity-providers': typeof ProtectedAdminAdminIdentityProvidersIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -222,21 +340,34 @@ export interface FileRoutesById {
   '/_public/_preview': typeof PublicPreviewRouteWithChildren
   '/_public/login': typeof PublicLoginRoute
   '/_protected/': typeof ProtectedIndexRoute
-  '/_protected/admin/invitations': typeof ProtectedAdminInvitationsRoute
-  '/_protected/admin/logs': typeof ProtectedAdminLogsRoute
-  '/_protected/admin/settings': typeof ProtectedAdminSettingsRoute
-  '/_protected/admin/users': typeof ProtectedAdminUsersRoute
+  '/_protected/admin/_admin': typeof ProtectedAdminAdminRouteWithChildren
   '/_public/login_/recovery': typeof PublicLoginRecoveryRoute
   '/_public/login_/totp': typeof PublicLoginTotpRoute
-  '/_protected/admin/': typeof ProtectedAdminIndexRoute
-  '/_protected/admin/groups/new': typeof ProtectedAdminGroupsNewRoute
-  '/_protected/admin/groups_/$groupId': typeof ProtectedAdminGroupsGroupIdRoute
-  '/_protected/admin/invitations_/new': typeof ProtectedAdminInvitationsNewRoute
-  '/_protected/admin/users_/$id': typeof ProtectedAdminUsersIdRoute
+  '/_protected/admin/_admin/invitations': typeof ProtectedAdminAdminInvitationsRoute
+  '/_protected/admin/_admin/logs': typeof ProtectedAdminAdminLogsRoute
+  '/_protected/admin/_admin/settings': typeof ProtectedAdminAdminSettingsRoute
+  '/_protected/admin/_admin/users': typeof ProtectedAdminAdminUsersRoute
+  '/_protected/admin/forward-auth-apps_/$clientId': typeof ProtectedAdminForwardAuthAppsClientIdRoute
+  '/_protected/admin/forward-auth-apps_/new': typeof ProtectedAdminForwardAuthAppsNewRoute
+  '/_protected/admin/oidc-applications_/$clientId': typeof ProtectedAdminOidcApplicationsClientIdRoute
+  '/_protected/admin/oidc-applications_/new': typeof ProtectedAdminOidcApplicationsNewRoute
+  '/_protected/admin/saml-applications_/$id': typeof ProtectedAdminSamlApplicationsIdRoute
+  '/_protected/admin/saml-applications_/new': typeof ProtectedAdminSamlApplicationsNewRoute
   '/_public/_preview/__dev/forms': typeof PublicPreview_devFormsRoute
   '/_public/_preview/preview/api': typeof PublicPreviewPreviewApiRoute
   '/_public/_preview/preview/components': typeof PublicPreviewPreviewComponentsRoute
-  '/_protected/admin/groups/': typeof ProtectedAdminGroupsIndexRoute
+  '/_protected/admin/_admin/': typeof ProtectedAdminAdminIndexRoute
+  '/_protected/admin/forward-auth-apps/': typeof ProtectedAdminForwardAuthAppsIndexRoute
+  '/_protected/admin/oidc-applications/': typeof ProtectedAdminOidcApplicationsIndexRoute
+  '/_protected/admin/saml-applications/': typeof ProtectedAdminSamlApplicationsIndexRoute
+  '/_protected/admin/_admin/groups/new': typeof ProtectedAdminAdminGroupsNewRoute
+  '/_protected/admin/_admin/groups_/$groupId': typeof ProtectedAdminAdminGroupsGroupIdRoute
+  '/_protected/admin/_admin/identity-providers/$slug': typeof ProtectedAdminAdminIdentityProvidersSlugRoute
+  '/_protected/admin/_admin/identity-providers/new': typeof ProtectedAdminAdminIdentityProvidersNewRoute
+  '/_protected/admin/_admin/invitations_/new': typeof ProtectedAdminAdminInvitationsNewRoute
+  '/_protected/admin/_admin/users_/$id': typeof ProtectedAdminAdminUsersIdRoute
+  '/_protected/admin/_admin/groups/': typeof ProtectedAdminAdminGroupsIndexRoute
+  '/_protected/admin/_admin/identity-providers/': typeof ProtectedAdminAdminIdentityProvidersIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -248,44 +379,68 @@ export interface FileRouteTypes {
     | '/profile'
     | '/security'
     | '/login'
+    | '/login/recovery'
+    | '/login/totp'
     | '/admin/invitations'
     | '/admin/logs'
     | '/admin/settings'
     | '/admin/users'
-    | '/login/recovery'
-    | '/login/totp'
-    | '/admin/'
-    | '/admin/groups/new'
-    | '/admin/groups/$groupId'
-    | '/admin/invitations/new'
-    | '/admin/users/$id'
+    | '/admin/forward-auth-apps/$clientId'
+    | '/admin/forward-auth-apps/new'
+    | '/admin/oidc-applications/$clientId'
+    | '/admin/oidc-applications/new'
+    | '/admin/saml-applications/$id'
+    | '/admin/saml-applications/new'
     | '/__dev/forms'
     | '/preview/api'
     | '/preview/components'
+    | '/admin/'
+    | '/admin/forward-auth-apps/'
+    | '/admin/oidc-applications/'
+    | '/admin/saml-applications/'
+    | '/admin/groups/new'
+    | '/admin/groups/$groupId'
+    | '/admin/identity-providers/$slug'
+    | '/admin/identity-providers/new'
+    | '/admin/invitations/new'
+    | '/admin/users/$id'
     | '/admin/groups/'
+    | '/admin/identity-providers/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/admin'
     | '/apps'
     | '/devices'
     | '/profile'
     | '/security'
     | '/login'
+    | '/login/recovery'
+    | '/login/totp'
     | '/admin/invitations'
     | '/admin/logs'
     | '/admin/settings'
     | '/admin/users'
-    | '/login/recovery'
-    | '/login/totp'
-    | '/admin'
-    | '/admin/groups/new'
-    | '/admin/groups/$groupId'
-    | '/admin/invitations/new'
-    | '/admin/users/$id'
+    | '/admin/forward-auth-apps/$clientId'
+    | '/admin/forward-auth-apps/new'
+    | '/admin/oidc-applications/$clientId'
+    | '/admin/oidc-applications/new'
+    | '/admin/saml-applications/$id'
+    | '/admin/saml-applications/new'
     | '/__dev/forms'
     | '/preview/api'
     | '/preview/components'
+    | '/admin/forward-auth-apps'
+    | '/admin/oidc-applications'
+    | '/admin/saml-applications'
+    | '/admin/groups/new'
+    | '/admin/groups/$groupId'
+    | '/admin/identity-providers/$slug'
+    | '/admin/identity-providers/new'
+    | '/admin/invitations/new'
+    | '/admin/users/$id'
     | '/admin/groups'
+    | '/admin/identity-providers'
   id:
     | '__root__'
     | '/_protected'
@@ -298,21 +453,34 @@ export interface FileRouteTypes {
     | '/_public/_preview'
     | '/_public/login'
     | '/_protected/'
-    | '/_protected/admin/invitations'
-    | '/_protected/admin/logs'
-    | '/_protected/admin/settings'
-    | '/_protected/admin/users'
+    | '/_protected/admin/_admin'
     | '/_public/login_/recovery'
     | '/_public/login_/totp'
-    | '/_protected/admin/'
-    | '/_protected/admin/groups/new'
-    | '/_protected/admin/groups_/$groupId'
-    | '/_protected/admin/invitations_/new'
-    | '/_protected/admin/users_/$id'
+    | '/_protected/admin/_admin/invitations'
+    | '/_protected/admin/_admin/logs'
+    | '/_protected/admin/_admin/settings'
+    | '/_protected/admin/_admin/users'
+    | '/_protected/admin/forward-auth-apps_/$clientId'
+    | '/_protected/admin/forward-auth-apps_/new'
+    | '/_protected/admin/oidc-applications_/$clientId'
+    | '/_protected/admin/oidc-applications_/new'
+    | '/_protected/admin/saml-applications_/$id'
+    | '/_protected/admin/saml-applications_/new'
     | '/_public/_preview/__dev/forms'
     | '/_public/_preview/preview/api'
     | '/_public/_preview/preview/components'
-    | '/_protected/admin/groups/'
+    | '/_protected/admin/_admin/'
+    | '/_protected/admin/forward-auth-apps/'
+    | '/_protected/admin/oidc-applications/'
+    | '/_protected/admin/saml-applications/'
+    | '/_protected/admin/_admin/groups/new'
+    | '/_protected/admin/_admin/groups_/$groupId'
+    | '/_protected/admin/_admin/identity-providers/$slug'
+    | '/_protected/admin/_admin/identity-providers/new'
+    | '/_protected/admin/_admin/invitations_/new'
+    | '/_protected/admin/_admin/users_/$id'
+    | '/_protected/admin/_admin/groups/'
+    | '/_protected/admin/_admin/identity-providers/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -392,39 +560,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PublicLoginRouteImport
       parentRoute: typeof PublicRoute
     }
-    '/_protected/admin/': {
-      id: '/_protected/admin/'
-      path: '/'
-      fullPath: '/admin/'
-      preLoaderRoute: typeof ProtectedAdminIndexRouteImport
-      parentRoute: typeof ProtectedAdminRoute
-    }
-    '/_protected/admin/invitations': {
-      id: '/_protected/admin/invitations'
-      path: '/invitations'
-      fullPath: '/admin/invitations'
-      preLoaderRoute: typeof ProtectedAdminInvitationsRouteImport
-      parentRoute: typeof ProtectedAdminRoute
-    }
-    '/_protected/admin/logs': {
-      id: '/_protected/admin/logs'
-      path: '/logs'
-      fullPath: '/admin/logs'
-      preLoaderRoute: typeof ProtectedAdminLogsRouteImport
-      parentRoute: typeof ProtectedAdminRoute
-    }
-    '/_protected/admin/settings': {
-      id: '/_protected/admin/settings'
-      path: '/settings'
-      fullPath: '/admin/settings'
-      preLoaderRoute: typeof ProtectedAdminSettingsRouteImport
-      parentRoute: typeof ProtectedAdminRoute
-    }
-    '/_protected/admin/users': {
-      id: '/_protected/admin/users'
-      path: '/users'
-      fullPath: '/admin/users'
-      preLoaderRoute: typeof ProtectedAdminUsersRouteImport
+    '/_protected/admin/_admin': {
+      id: '/_protected/admin/_admin'
+      path: ''
+      fullPath: '/admin'
+      preLoaderRoute: typeof ProtectedAdminAdminRouteImport
       parentRoute: typeof ProtectedAdminRoute
     }
     '/_public/login_/recovery': {
@@ -441,39 +581,102 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PublicLoginTotpRouteImport
       parentRoute: typeof PublicRoute
     }
-    '/_protected/admin/groups/': {
-      id: '/_protected/admin/groups/'
-      path: '/groups'
-      fullPath: '/admin/groups/'
-      preLoaderRoute: typeof ProtectedAdminGroupsIndexRouteImport
+    '/_protected/admin/_admin/': {
+      id: '/_protected/admin/_admin/'
+      path: '/'
+      fullPath: '/admin/'
+      preLoaderRoute: typeof ProtectedAdminAdminIndexRouteImport
+      parentRoute: typeof ProtectedAdminAdminRoute
+    }
+    '/_protected/admin/_admin/invitations': {
+      id: '/_protected/admin/_admin/invitations'
+      path: '/invitations'
+      fullPath: '/admin/invitations'
+      preLoaderRoute: typeof ProtectedAdminAdminInvitationsRouteImport
+      parentRoute: typeof ProtectedAdminAdminRoute
+    }
+    '/_protected/admin/_admin/logs': {
+      id: '/_protected/admin/_admin/logs'
+      path: '/logs'
+      fullPath: '/admin/logs'
+      preLoaderRoute: typeof ProtectedAdminAdminLogsRouteImport
+      parentRoute: typeof ProtectedAdminAdminRoute
+    }
+    '/_protected/admin/_admin/settings': {
+      id: '/_protected/admin/_admin/settings'
+      path: '/settings'
+      fullPath: '/admin/settings'
+      preLoaderRoute: typeof ProtectedAdminAdminSettingsRouteImport
+      parentRoute: typeof ProtectedAdminAdminRoute
+    }
+    '/_protected/admin/_admin/users': {
+      id: '/_protected/admin/_admin/users'
+      path: '/users'
+      fullPath: '/admin/users'
+      preLoaderRoute: typeof ProtectedAdminAdminUsersRouteImport
+      parentRoute: typeof ProtectedAdminAdminRoute
+    }
+    '/_protected/admin/forward-auth-apps/': {
+      id: '/_protected/admin/forward-auth-apps/'
+      path: '/forward-auth-apps'
+      fullPath: '/admin/forward-auth-apps/'
+      preLoaderRoute: typeof ProtectedAdminForwardAuthAppsIndexRouteImport
       parentRoute: typeof ProtectedAdminRoute
     }
-    '/_protected/admin/groups/new': {
-      id: '/_protected/admin/groups/new'
-      path: '/groups/new'
-      fullPath: '/admin/groups/new'
-      preLoaderRoute: typeof ProtectedAdminGroupsNewRouteImport
+    '/_protected/admin/forward-auth-apps_/$clientId': {
+      id: '/_protected/admin/forward-auth-apps_/$clientId'
+      path: '/forward-auth-apps/$clientId'
+      fullPath: '/admin/forward-auth-apps/$clientId'
+      preLoaderRoute: typeof ProtectedAdminForwardAuthAppsClientIdRouteImport
       parentRoute: typeof ProtectedAdminRoute
     }
-    '/_protected/admin/groups_/$groupId': {
-      id: '/_protected/admin/groups_/$groupId'
-      path: '/groups/$groupId'
-      fullPath: '/admin/groups/$groupId'
-      preLoaderRoute: typeof ProtectedAdminGroupsGroupIdRouteImport
+    '/_protected/admin/forward-auth-apps_/new': {
+      id: '/_protected/admin/forward-auth-apps_/new'
+      path: '/forward-auth-apps/new'
+      fullPath: '/admin/forward-auth-apps/new'
+      preLoaderRoute: typeof ProtectedAdminForwardAuthAppsNewRouteImport
       parentRoute: typeof ProtectedAdminRoute
     }
-    '/_protected/admin/invitations_/new': {
-      id: '/_protected/admin/invitations_/new'
-      path: '/invitations/new'
-      fullPath: '/admin/invitations/new'
-      preLoaderRoute: typeof ProtectedAdminInvitationsNewRouteImport
+    '/_protected/admin/oidc-applications/': {
+      id: '/_protected/admin/oidc-applications/'
+      path: '/oidc-applications'
+      fullPath: '/admin/oidc-applications/'
+      preLoaderRoute: typeof ProtectedAdminOidcApplicationsIndexRouteImport
       parentRoute: typeof ProtectedAdminRoute
     }
-    '/_protected/admin/users_/$id': {
-      id: '/_protected/admin/users_/$id'
-      path: '/users/$id'
-      fullPath: '/admin/users/$id'
-      preLoaderRoute: typeof ProtectedAdminUsersIdRouteImport
+    '/_protected/admin/oidc-applications_/$clientId': {
+      id: '/_protected/admin/oidc-applications_/$clientId'
+      path: '/oidc-applications/$clientId'
+      fullPath: '/admin/oidc-applications/$clientId'
+      preLoaderRoute: typeof ProtectedAdminOidcApplicationsClientIdRouteImport
+      parentRoute: typeof ProtectedAdminRoute
+    }
+    '/_protected/admin/oidc-applications_/new': {
+      id: '/_protected/admin/oidc-applications_/new'
+      path: '/oidc-applications/new'
+      fullPath: '/admin/oidc-applications/new'
+      preLoaderRoute: typeof ProtectedAdminOidcApplicationsNewRouteImport
+      parentRoute: typeof ProtectedAdminRoute
+    }
+    '/_protected/admin/saml-applications/': {
+      id: '/_protected/admin/saml-applications/'
+      path: '/saml-applications'
+      fullPath: '/admin/saml-applications/'
+      preLoaderRoute: typeof ProtectedAdminSamlApplicationsIndexRouteImport
+      parentRoute: typeof ProtectedAdminRoute
+    }
+    '/_protected/admin/saml-applications_/$id': {
+      id: '/_protected/admin/saml-applications_/$id'
+      path: '/saml-applications/$id'
+      fullPath: '/admin/saml-applications/$id'
+      preLoaderRoute: typeof ProtectedAdminSamlApplicationsIdRouteImport
+      parentRoute: typeof ProtectedAdminRoute
+    }
+    '/_protected/admin/saml-applications_/new': {
+      id: '/_protected/admin/saml-applications_/new'
+      path: '/saml-applications/new'
+      fullPath: '/admin/saml-applications/new'
+      preLoaderRoute: typeof ProtectedAdminSamlApplicationsNewRouteImport
       parentRoute: typeof ProtectedAdminRoute
     }
     '/_public/_preview/__dev/forms': {
@@ -497,33 +700,135 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PublicPreviewPreviewComponentsRouteImport
       parentRoute: typeof PublicPreviewRoute
     }
+    '/_protected/admin/_admin/groups/': {
+      id: '/_protected/admin/_admin/groups/'
+      path: '/groups'
+      fullPath: '/admin/groups/'
+      preLoaderRoute: typeof ProtectedAdminAdminGroupsIndexRouteImport
+      parentRoute: typeof ProtectedAdminAdminRoute
+    }
+    '/_protected/admin/_admin/groups/new': {
+      id: '/_protected/admin/_admin/groups/new'
+      path: '/groups/new'
+      fullPath: '/admin/groups/new'
+      preLoaderRoute: typeof ProtectedAdminAdminGroupsNewRouteImport
+      parentRoute: typeof ProtectedAdminAdminRoute
+    }
+    '/_protected/admin/_admin/groups_/$groupId': {
+      id: '/_protected/admin/_admin/groups_/$groupId'
+      path: '/groups/$groupId'
+      fullPath: '/admin/groups/$groupId'
+      preLoaderRoute: typeof ProtectedAdminAdminGroupsGroupIdRouteImport
+      parentRoute: typeof ProtectedAdminAdminRoute
+    }
+    '/_protected/admin/_admin/identity-providers/': {
+      id: '/_protected/admin/_admin/identity-providers/'
+      path: '/identity-providers'
+      fullPath: '/admin/identity-providers/'
+      preLoaderRoute: typeof ProtectedAdminAdminIdentityProvidersIndexRouteImport
+      parentRoute: typeof ProtectedAdminAdminRoute
+    }
+    '/_protected/admin/_admin/identity-providers/$slug': {
+      id: '/_protected/admin/_admin/identity-providers/$slug'
+      path: '/identity-providers/$slug'
+      fullPath: '/admin/identity-providers/$slug'
+      preLoaderRoute: typeof ProtectedAdminAdminIdentityProvidersSlugRouteImport
+      parentRoute: typeof ProtectedAdminAdminRoute
+    }
+    '/_protected/admin/_admin/identity-providers/new': {
+      id: '/_protected/admin/_admin/identity-providers/new'
+      path: '/identity-providers/new'
+      fullPath: '/admin/identity-providers/new'
+      preLoaderRoute: typeof ProtectedAdminAdminIdentityProvidersNewRouteImport
+      parentRoute: typeof ProtectedAdminAdminRoute
+    }
+    '/_protected/admin/_admin/invitations_/new': {
+      id: '/_protected/admin/_admin/invitations_/new'
+      path: '/invitations/new'
+      fullPath: '/admin/invitations/new'
+      preLoaderRoute: typeof ProtectedAdminAdminInvitationsNewRouteImport
+      parentRoute: typeof ProtectedAdminAdminRoute
+    }
+    '/_protected/admin/_admin/users_/$id': {
+      id: '/_protected/admin/_admin/users_/$id'
+      path: '/users/$id'
+      fullPath: '/admin/users/$id'
+      preLoaderRoute: typeof ProtectedAdminAdminUsersIdRouteImport
+      parentRoute: typeof ProtectedAdminAdminRoute
+    }
   }
 }
 
+interface ProtectedAdminAdminRouteChildren {
+  ProtectedAdminAdminInvitationsRoute: typeof ProtectedAdminAdminInvitationsRoute
+  ProtectedAdminAdminLogsRoute: typeof ProtectedAdminAdminLogsRoute
+  ProtectedAdminAdminSettingsRoute: typeof ProtectedAdminAdminSettingsRoute
+  ProtectedAdminAdminUsersRoute: typeof ProtectedAdminAdminUsersRoute
+  ProtectedAdminAdminIndexRoute: typeof ProtectedAdminAdminIndexRoute
+  ProtectedAdminAdminGroupsNewRoute: typeof ProtectedAdminAdminGroupsNewRoute
+  ProtectedAdminAdminGroupsGroupIdRoute: typeof ProtectedAdminAdminGroupsGroupIdRoute
+  ProtectedAdminAdminIdentityProvidersSlugRoute: typeof ProtectedAdminAdminIdentityProvidersSlugRoute
+  ProtectedAdminAdminIdentityProvidersNewRoute: typeof ProtectedAdminAdminIdentityProvidersNewRoute
+  ProtectedAdminAdminInvitationsNewRoute: typeof ProtectedAdminAdminInvitationsNewRoute
+  ProtectedAdminAdminUsersIdRoute: typeof ProtectedAdminAdminUsersIdRoute
+  ProtectedAdminAdminGroupsIndexRoute: typeof ProtectedAdminAdminGroupsIndexRoute
+  ProtectedAdminAdminIdentityProvidersIndexRoute: typeof ProtectedAdminAdminIdentityProvidersIndexRoute
+}
+
+const ProtectedAdminAdminRouteChildren: ProtectedAdminAdminRouteChildren = {
+  ProtectedAdminAdminInvitationsRoute: ProtectedAdminAdminInvitationsRoute,
+  ProtectedAdminAdminLogsRoute: ProtectedAdminAdminLogsRoute,
+  ProtectedAdminAdminSettingsRoute: ProtectedAdminAdminSettingsRoute,
+  ProtectedAdminAdminUsersRoute: ProtectedAdminAdminUsersRoute,
+  ProtectedAdminAdminIndexRoute: ProtectedAdminAdminIndexRoute,
+  ProtectedAdminAdminGroupsNewRoute: ProtectedAdminAdminGroupsNewRoute,
+  ProtectedAdminAdminGroupsGroupIdRoute: ProtectedAdminAdminGroupsGroupIdRoute,
+  ProtectedAdminAdminIdentityProvidersSlugRoute:
+    ProtectedAdminAdminIdentityProvidersSlugRoute,
+  ProtectedAdminAdminIdentityProvidersNewRoute:
+    ProtectedAdminAdminIdentityProvidersNewRoute,
+  ProtectedAdminAdminInvitationsNewRoute:
+    ProtectedAdminAdminInvitationsNewRoute,
+  ProtectedAdminAdminUsersIdRoute: ProtectedAdminAdminUsersIdRoute,
+  ProtectedAdminAdminGroupsIndexRoute: ProtectedAdminAdminGroupsIndexRoute,
+  ProtectedAdminAdminIdentityProvidersIndexRoute:
+    ProtectedAdminAdminIdentityProvidersIndexRoute,
+}
+
+const ProtectedAdminAdminRouteWithChildren =
+  ProtectedAdminAdminRoute._addFileChildren(ProtectedAdminAdminRouteChildren)
+
 interface ProtectedAdminRouteChildren {
-  ProtectedAdminInvitationsRoute: typeof ProtectedAdminInvitationsRoute
-  ProtectedAdminLogsRoute: typeof ProtectedAdminLogsRoute
-  ProtectedAdminSettingsRoute: typeof ProtectedAdminSettingsRoute
-  ProtectedAdminUsersRoute: typeof ProtectedAdminUsersRoute
-  ProtectedAdminIndexRoute: typeof ProtectedAdminIndexRoute
-  ProtectedAdminGroupsNewRoute: typeof ProtectedAdminGroupsNewRoute
-  ProtectedAdminGroupsGroupIdRoute: typeof ProtectedAdminGroupsGroupIdRoute
-  ProtectedAdminInvitationsNewRoute: typeof ProtectedAdminInvitationsNewRoute
-  ProtectedAdminUsersIdRoute: typeof ProtectedAdminUsersIdRoute
-  ProtectedAdminGroupsIndexRoute: typeof ProtectedAdminGroupsIndexRoute
+  ProtectedAdminAdminRoute: typeof ProtectedAdminAdminRouteWithChildren
+  ProtectedAdminForwardAuthAppsClientIdRoute: typeof ProtectedAdminForwardAuthAppsClientIdRoute
+  ProtectedAdminForwardAuthAppsNewRoute: typeof ProtectedAdminForwardAuthAppsNewRoute
+  ProtectedAdminOidcApplicationsClientIdRoute: typeof ProtectedAdminOidcApplicationsClientIdRoute
+  ProtectedAdminOidcApplicationsNewRoute: typeof ProtectedAdminOidcApplicationsNewRoute
+  ProtectedAdminSamlApplicationsIdRoute: typeof ProtectedAdminSamlApplicationsIdRoute
+  ProtectedAdminSamlApplicationsNewRoute: typeof ProtectedAdminSamlApplicationsNewRoute
+  ProtectedAdminForwardAuthAppsIndexRoute: typeof ProtectedAdminForwardAuthAppsIndexRoute
+  ProtectedAdminOidcApplicationsIndexRoute: typeof ProtectedAdminOidcApplicationsIndexRoute
+  ProtectedAdminSamlApplicationsIndexRoute: typeof ProtectedAdminSamlApplicationsIndexRoute
 }
 
 const ProtectedAdminRouteChildren: ProtectedAdminRouteChildren = {
-  ProtectedAdminInvitationsRoute: ProtectedAdminInvitationsRoute,
-  ProtectedAdminLogsRoute: ProtectedAdminLogsRoute,
-  ProtectedAdminSettingsRoute: ProtectedAdminSettingsRoute,
-  ProtectedAdminUsersRoute: ProtectedAdminUsersRoute,
-  ProtectedAdminIndexRoute: ProtectedAdminIndexRoute,
-  ProtectedAdminGroupsNewRoute: ProtectedAdminGroupsNewRoute,
-  ProtectedAdminGroupsGroupIdRoute: ProtectedAdminGroupsGroupIdRoute,
-  ProtectedAdminInvitationsNewRoute: ProtectedAdminInvitationsNewRoute,
-  ProtectedAdminUsersIdRoute: ProtectedAdminUsersIdRoute,
-  ProtectedAdminGroupsIndexRoute: ProtectedAdminGroupsIndexRoute,
+  ProtectedAdminAdminRoute: ProtectedAdminAdminRouteWithChildren,
+  ProtectedAdminForwardAuthAppsClientIdRoute:
+    ProtectedAdminForwardAuthAppsClientIdRoute,
+  ProtectedAdminForwardAuthAppsNewRoute: ProtectedAdminForwardAuthAppsNewRoute,
+  ProtectedAdminOidcApplicationsClientIdRoute:
+    ProtectedAdminOidcApplicationsClientIdRoute,
+  ProtectedAdminOidcApplicationsNewRoute:
+    ProtectedAdminOidcApplicationsNewRoute,
+  ProtectedAdminSamlApplicationsIdRoute: ProtectedAdminSamlApplicationsIdRoute,
+  ProtectedAdminSamlApplicationsNewRoute:
+    ProtectedAdminSamlApplicationsNewRoute,
+  ProtectedAdminForwardAuthAppsIndexRoute:
+    ProtectedAdminForwardAuthAppsIndexRoute,
+  ProtectedAdminOidcApplicationsIndexRoute:
+    ProtectedAdminOidcApplicationsIndexRoute,
+  ProtectedAdminSamlApplicationsIndexRoute:
+    ProtectedAdminSamlApplicationsIndexRoute,
 }
 
 const ProtectedAdminRouteWithChildren = ProtectedAdminRoute._addFileChildren(

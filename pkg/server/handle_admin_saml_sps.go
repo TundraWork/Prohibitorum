@@ -103,7 +103,7 @@ func samlSPNotFound() *authn.AuthError {
 // ----- GET /saml-applications (typed, role-only) --------------------------------
 
 type listSAMLApplicationsIn struct {
-	pageInput
+	PageInput
 }
 
 type listSAMLApplicationsOut struct {
@@ -141,9 +141,12 @@ func (s *Server) handleListSAMLApplications(ctx context.Context, in *listSAMLApp
 	if more {
 		rows = rows[:lim]
 	}
+	iconURLs := s.listIconURLs(ctx, "saml_sp")
 	views := make([]contract.SAMLApplicationView, 0, len(rows))
 	for _, sp := range rows {
-		views = append(views, samlApplicationView(sp, nil, nil))
+		view := samlApplicationView(sp, nil, nil)
+		view.IconURL = iconURLFor(iconURLs, strconv.FormatInt(sp.ID, 10))
+		views = append(views, view)
 	}
 	var nextCursor string
 	if more && len(rows) > 0 {

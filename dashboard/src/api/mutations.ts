@@ -20,20 +20,38 @@ import type { components, paths } from "@/api/generated/schema";
 import { clearSessionQueries } from "@/api/queries";
 import type {
   AppGroupView,
+  AppSummaryView,
   ClearDecisionRequest,
   ClientIpSettings,
+  CreateForwardAuthAppRequest,
   CreateGroupRequest,
   CreateInvitationRequest,
+  CreateOidcAppRequest,
+  CreateOidcAppResponse,
+  CreateSamlAppRequest,
   DeleteAccountCredentialRequest,
+  DiagnosticResultView,
+  DiagnosticStartView,
   MaintenanceSettings,
+  ManagedApplicationKind,
   ManualDecisionView,
+  OperatorSessionStartRequest,
+  OperatorSessionVerifyRequest,
+  OperatorSessionView,
+  ProviderWriteBody,
   RevokeAccountSessionRequest,
   RevokeAccountSessionsResult,
   RevokeAccountTokenRequest,
+  RotateOidcSecretResponse,
   RulePreviewPageView,
   RulePreviewRequest,
   SetAccountDisabledRequest,
+  UpdateForwardAuthAppRequest,
+  UpdateForwardAuthProjectionRequest,
   UpdateGroupRequest,
+  UpdateOidcAppRequest,
+  UpdateOidcProjectionRequest,
+  UpdateSamlAppRequest,
   UpsertDecisionRequest,
 } from "@/api/raw-admin-paths";
 import type {
@@ -1077,6 +1095,408 @@ export function activateSigningKeyMutationOptions(queryClient: QueryClient) {
   });
 }
 
+/* ------------------------------------------------------ identity providers -- */
+
+/** The list and the detail both live under this prefix, so one call covers both. */
+function invalidateIdentityProviders(queryClient: QueryClient, slug?: string) {
+  return Promise.all([
+    queryClient.invalidateQueries({
+      queryKey: ["admin", "identity-providers"],
+    }),
+    ...(slug === undefined
+      ? []
+      : [
+          queryClient.invalidateQueries({
+            queryKey: ["admin", "identity-providers", slug],
+          }),
+        ]),
+  ]);
+}
+
+export function createIdentityProviderMutationOptions(
+  queryClient: QueryClient,
+) {
+  return mutationOptions({
+    meta: { success: successMessage.createIdentityProvider },
+    retry: false,
+    mutationFn: async (body: ProviderWriteBody) =>
+      runWithSudo(
+        () =>
+          requireJsonData(
+            client.POST("/api/prohibitorum/identity-providers", { body }),
+          ),
+        sudoReason.createIdentityProvider,
+      ),
+    onSuccess: () => invalidateIdentityProviders(queryClient),
+  });
+}
+
+export function updateIdentityProviderMutationOptions(
+  queryClient: QueryClient,
+) {
+  return mutationOptions({
+    meta: { success: successMessage.saveIdentityProvider },
+    retry: false,
+    mutationFn: async ({
+      slug,
+      body,
+    }: {
+      slug: string;
+      body: ProviderWriteBody;
+    }) =>
+      runWithSudo(
+        () =>
+          requireJsonData(
+            client.PUT("/api/prohibitorum/identity-providers/{slug}", {
+              params: { path: { slug } },
+              body,
+            }),
+          ),
+        sudoReason.saveIdentityProvider,
+      ),
+    onSuccess: (_view, { slug }) =>
+      invalidateIdentityProviders(queryClient, slug),
+  });
+}
+
+/** Rotating a secret never reads back; the page refetches the detail after. */
+export function setIdentityProviderSecretMutationOptions(
+  queryClient: QueryClient,
+) {
+  return mutationOptions({
+    meta: { success: successMessage.setIdentityProviderSecret },
+    retry: false,
+    mutationFn: async ({ slug, secret }: { slug: string; secret: string }) => {
+      await runWithSudo(
+        () =>
+          client.POST("/api/prohibitorum/identity-providers/rotate-secret", {
+            body: { slug, secret },
+          }),
+        sudoReason.setIdentityProviderSecret,
+      );
+    },
+    onSuccess: (_result, { slug }) =>
+      invalidateIdentityProviders(queryClient, slug),
+  });
+}
+
+/**
+ * No fixed `meta.success`: which line the reader gets depends on the direction
+ * the flag moved, so the message is chosen from the variables.
+ */
+export function setIdentityProviderDisabledMutationOptions(
+  queryClient: QueryClient,
+) {
+  return mutationOptions({
+    meta: {
+      success: (variables) =>
+        (variables as { disabled: boolean }).disabled
+          ? successMessage.disableIdentityProvider
+          : successMessage.enableIdentityProvider,
+    },
+    retry: false,
+    mutationFn: async ({
+      slug,
+      disabled,
+    }: {
+      slug: string;
+      disabled: boolean;
+    }) =>
+      requireJsonData(
+        client.POST("/api/prohibitorum/identity-providers/set-disabled", {
+          body: { slug, disabled },
+        }),
+      ),
+    onSuccess: (view) => invalidateIdentityProviders(queryClient, view.slug),
+  });
+}
+
+export function deleteIdentityProviderMutationOptions(
+  queryClient: QueryClient,
+) {
+  return mutationOptions({
+    meta: { success: successMessage.deleteIdentityProvider },
+    retry: false,
+    mutationFn: async (slug: string) => {
+      await runWithSudo(
+        () =>
+          client.POST("/api/prohibitorum/identity-providers/delete", {
+            body: { slug },
+          }),
+        sudoReason.deleteIdentityProvider,
+      );
+    },
+    onSuccess: () => invalidateIdentityProviders(queryClient),
+  });
+}
+
+/**
+ * The entity icons all share one shape: raw bytes on PUT, nothing on DELETE, and
+ * sudo checked inside the handler. Either way the entity's own queries are
+ * invalidated, because its iconUrl — and the cache-buster in it — just changed.
+ */
+export type EntityIconTarget =
+  | { kind: "identity-provider"; slug: string }
+  | { kind: ManagedApplicationKind; appId: string };
+
+/** One prefix per application family, covering its list and its detail. */
+const applicationQueryPrefix = {
+  oidc: ["admin", "oidc-applications"],
+  saml: ["admin", "saml-applications"],
+  forward_auth: ["admin", "forward-auth-apps"],
+} as const;
+
+/**
+ * A write to an application touches more than its own record: `disabled` and the
+ * access restriction both show in the list, so the whole family is invalidated
+ * rather than just the detail. Anything that reads the access workspace or the
+ * manager list is invalidated by its own mutation.
+ */
+function invalidateApplication(
+  queryClient: QueryClient,
+  kind: ManagedApplicationKind,
+  appId: string,
+) {
+  return Promise.all([
+    queryClient.invalidateQueries({ queryKey: applicationQueryPrefix[kind] }),
+    queryClient.invalidateQueries({
+      queryKey: ["admin", "managed-applications", kind, appId],
+    }),
+  ]);
+}
+
+function invalidateEntityIcon(
+  queryClient: QueryClient,
+  target: EntityIconTarget,
+) {
+  return target.kind === "identity-provider"
+    ? invalidateIdentityProviders(queryClient, target.slug)
+    : invalidateApplication(queryClient, target.kind, target.appId);
+}
+
+export function uploadEntityIconMutationOptions(
+  queryClient: QueryClient,
+  target: EntityIconTarget,
+) {
+  return mutationOptions({
+    meta: { success: successMessage.updateEntityIcon },
+    retry: false,
+    mutationFn: async (file: File) => {
+      // openapi-fetch serializes JSON by default; these endpoints want the bytes.
+      const options = {
+        body: file,
+        bodySerializer: (value: Blob) => value as BodyInit,
+      };
+      await runWithSudo(() => {
+        if (target.kind === "identity-provider") {
+          return client.PUT(
+            "/api/prohibitorum/identity-providers/{slug}/icon",
+            {
+              params: { path: { slug: target.slug } },
+              ...options,
+            },
+          );
+        }
+        if (target.kind === "saml") {
+          return client.PUT("/api/prohibitorum/saml-applications/{id}/icon", {
+            params: { path: { id: Number(target.appId) } },
+            ...options,
+          });
+        }
+        return target.kind === "oidc"
+          ? client.PUT("/api/prohibitorum/oidc-applications/{clientId}/icon", {
+              params: { path: { clientId: target.appId } },
+              ...options,
+            })
+          : client.PUT("/api/prohibitorum/forward-auth-apps/{clientId}/icon", {
+              params: { path: { clientId: target.appId } },
+              ...options,
+            });
+      }, sudoReason.updateEntityIcon);
+    },
+    onSuccess: () => invalidateEntityIcon(queryClient, target),
+  });
+}
+
+export function removeEntityIconMutationOptions(
+  queryClient: QueryClient,
+  target: EntityIconTarget,
+) {
+  return mutationOptions({
+    meta: { success: successMessage.removeEntityIcon },
+    retry: false,
+    mutationFn: async () => {
+      await runWithSudo(() => {
+        if (target.kind === "identity-provider") {
+          return client.DELETE(
+            "/api/prohibitorum/identity-providers/{slug}/icon",
+            { params: { path: { slug: target.slug } } },
+          );
+        }
+        if (target.kind === "saml") {
+          return client.DELETE(
+            "/api/prohibitorum/saml-applications/{id}/icon",
+            {
+              params: { path: { id: Number(target.appId) } },
+            },
+          );
+        }
+        return target.kind === "oidc"
+          ? client.DELETE(
+              "/api/prohibitorum/oidc-applications/{clientId}/icon",
+              {
+                params: { path: { clientId: target.appId } },
+              },
+            )
+          : client.DELETE(
+              "/api/prohibitorum/forward-auth-apps/{clientId}/icon",
+              { params: { path: { clientId: target.appId } } },
+            );
+      }, sudoReason.removeEntityIcon);
+    },
+    onSuccess: () => invalidateEntityIcon(queryClient, target),
+  });
+}
+
+/* ----------------------------------------------------- OIDC diagnostics -- */
+
+/**
+ * Effective configuration. Not a `useQuery` factory: the endpoint discovers
+ * against the upstream and is rate limited, so the page fetches it on demand.
+ */
+export function refreshEffectiveConfigMutationOptions() {
+  return mutationOptions({
+    retry: false,
+    mutationFn: async (slug: string) =>
+      requireJsonData(
+        client.GET(
+          "/api/prohibitorum/identity-providers/{slug}/effective-config",
+          {
+            params: { path: { slug } },
+          },
+        ),
+      ),
+  });
+}
+
+/**
+ * Starts a test run. The page navigates the browser to `authorizationUrl`, so
+ * this one returns its result rather than invalidating anything.
+ */
+export function startDiagnosticMutationOptions() {
+  return mutationOptions({
+    retry: false,
+    mutationFn: async (slug: string): Promise<DiagnosticStartView> =>
+      requireJsonData(
+        client.POST("/api/prohibitorum/identity-providers/{slug}/tests", {
+          params: { path: { slug } },
+          body: {},
+        }),
+      ),
+  });
+}
+
+/** Marks the callback as received; the read that follows carries the result. */
+export function completeDiagnosticMutationOptions(queryClient: QueryClient) {
+  return mutationOptions({
+    retry: false,
+    mutationFn: async ({
+      slug,
+      id,
+    }: {
+      slug: string;
+      id: string;
+    }): Promise<DiagnosticResultView> =>
+      requireJsonData(
+        client.POST(
+          "/api/prohibitorum/identity-providers/{slug}/tests/{id}/complete",
+          { params: { path: { slug, id } }, body: {} },
+        ),
+      ),
+    onSuccess: (_result, { slug, id }) =>
+      queryClient.invalidateQueries({
+        queryKey: ["admin", "identity-providers", slug, "tests", id],
+      }),
+  });
+}
+
+/* -------------------------------------------------- VRChat operator session -- */
+
+function invalidateOperatorSession(queryClient: QueryClient, slug: string) {
+  return invalidateIdentityProviders(queryClient, slug);
+}
+
+export function startOperatorSessionMutationOptions(queryClient: QueryClient) {
+  return mutationOptions({
+    retry: false,
+    mutationFn: async ({
+      slug,
+      body,
+    }: {
+      slug: string;
+      body: OperatorSessionStartRequest;
+    }): Promise<OperatorSessionView> =>
+      runWithSudo(
+        () =>
+          requireJsonData(
+            client.POST(
+              "/api/prohibitorum/identity-providers/{slug}/operator-session/start",
+              { params: { path: { slug } }, body },
+            ),
+          ),
+        sudoReason.operatorSession,
+      ),
+    onSuccess: (_result, { slug }) =>
+      invalidateOperatorSession(queryClient, slug),
+  });
+}
+
+export function verifyOperatorSessionMutationOptions(queryClient: QueryClient) {
+  return mutationOptions({
+    retry: false,
+    mutationFn: async ({
+      slug,
+      body,
+    }: {
+      slug: string;
+      body: OperatorSessionVerifyRequest;
+    }): Promise<OperatorSessionView> =>
+      runWithSudo(
+        () =>
+          requireJsonData(
+            client.POST(
+              "/api/prohibitorum/identity-providers/{slug}/operator-session/verify",
+              { params: { path: { slug } }, body },
+            ),
+          ),
+        sudoReason.operatorSession,
+      ),
+    onSuccess: (_result, { slug }) =>
+      invalidateOperatorSession(queryClient, slug),
+  });
+}
+
+export function validateOperatorSessionMutationOptions(
+  queryClient: QueryClient,
+) {
+  return mutationOptions({
+    meta: { success: successMessage.validateOperatorSession },
+    retry: false,
+    mutationFn: async (slug: string): Promise<OperatorSessionView> =>
+      runWithSudo(
+        () =>
+          requireJsonData(
+            client.POST(
+              "/api/prohibitorum/identity-providers/{slug}/operator-session/validate",
+              { params: { path: { slug } }, body: {} },
+            ),
+          ),
+        sudoReason.operatorSession,
+      ),
+    onSuccess: (_result, slug) => invalidateOperatorSession(queryClient, slug),
+  });
+}
+
 export function retireSigningKeyMutationOptions(queryClient: QueryClient) {
   return mutationOptions({
     meta: {
@@ -1096,5 +1516,497 @@ export function retireSigningKeyMutationOptions(queryClient: QueryClient) {
         sudoReason.retireSigningKey,
       ),
     onSettled: () => invalidateSigningKeys(queryClient),
+  });
+}
+
+/* ------------------------------------------------------ OIDC applications -- */
+
+/**
+ * The create answers with a client secret once, for a confidential client. The
+ * page reveals it and only then navigates; nothing here caches it.
+ */
+export function createOidcAppMutationOptions() {
+  return mutationOptions({
+    retry: false,
+    mutationFn: async (
+      body: CreateOidcAppRequest,
+    ): Promise<CreateOidcAppResponse> =>
+      runWithSudo(
+        () =>
+          requireJsonData(
+            client.POST("/api/prohibitorum/oidc-applications", { body }),
+          ),
+        sudoReason.createApplication,
+      ),
+  });
+}
+
+export function updateOidcAppMutationOptions(queryClient: QueryClient) {
+  return mutationOptions({
+    meta: { success: successMessage.saveOidcApp },
+    retry: false,
+    mutationFn: async ({
+      clientId,
+      body,
+    }: {
+      clientId: string;
+      body: UpdateOidcAppRequest;
+    }) =>
+      runWithSudo(
+        () =>
+          requireJsonData(
+            client.PUT("/api/prohibitorum/oidc-applications/{clientId}", {
+              params: { path: { clientId } },
+              body,
+            }),
+          ),
+        sudoReason.saveApplication,
+      ),
+    onSuccess: (_view, { clientId }) =>
+      invalidateApplication(queryClient, "oidc", clientId),
+  });
+}
+
+/** The projection write is not sudo-gated: it changes no credential. */
+export function updateOidcProjectionMutationOptions(queryClient: QueryClient) {
+  return mutationOptions({
+    meta: { success: successMessage.saveIdentityProjection },
+    retry: false,
+    mutationFn: async ({
+      clientId,
+      body,
+    }: {
+      clientId: string;
+      body: UpdateOidcProjectionRequest;
+    }) =>
+      requireJsonData(
+        client.PUT(
+          "/api/prohibitorum/oidc-applications/{clientId}/identity-projection",
+          { params: { path: { clientId } }, body },
+        ),
+      ),
+    onSuccess: (_view, { clientId }) =>
+      invalidateApplication(queryClient, "oidc", clientId),
+  });
+}
+
+/** Rotating answers with the new secret, which the page reveals once. */
+export function rotateOidcSecretMutationOptions(queryClient: QueryClient) {
+  return mutationOptions({
+    retry: false,
+    mutationFn: async (clientId: string): Promise<RotateOidcSecretResponse> =>
+      runWithSudo(
+        () =>
+          requireJsonData(
+            client.POST("/api/prohibitorum/oidc-applications/rotate-secret", {
+              body: { clientId },
+            }),
+          ),
+        sudoReason.rotateClientSecret,
+      ),
+    onSuccess: (_result, clientId) =>
+      invalidateApplication(queryClient, "oidc", clientId),
+  });
+}
+
+export function deleteOidcAppMutationOptions(queryClient: QueryClient) {
+  return mutationOptions({
+    meta: { success: successMessage.deleteApp },
+    retry: false,
+    mutationFn: async (clientId: string) => {
+      await runWithSudo(
+        () =>
+          client.POST("/api/prohibitorum/oidc-applications/delete", {
+            body: { clientId },
+          }),
+        sudoReason.deleteApplication,
+      );
+    },
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: applicationQueryPrefix.oidc }),
+  });
+}
+
+/* ------------------------------------------------------------ forward auth -- */
+
+export function createForwardAuthAppMutationOptions() {
+  return mutationOptions({
+    retry: false,
+    mutationFn: async (body: CreateForwardAuthAppRequest) =>
+      runWithSudo(
+        () =>
+          requireJsonData(
+            client.POST("/api/prohibitorum/forward-auth-apps", { body }),
+          ),
+        sudoReason.createApplication,
+      ),
+  });
+}
+
+export function updateForwardAuthAppMutationOptions(queryClient: QueryClient) {
+  return mutationOptions({
+    meta: { success: successMessage.saveOidcApp },
+    retry: false,
+    mutationFn: async ({
+      clientId,
+      body,
+    }: {
+      clientId: string;
+      body: UpdateForwardAuthAppRequest;
+    }) =>
+      runWithSudo(
+        () =>
+          requireJsonData(
+            client.PUT("/api/prohibitorum/forward-auth-apps/{clientId}", {
+              params: { path: { clientId } },
+              body,
+            }),
+          ),
+        sudoReason.saveApplication,
+      ),
+    onSuccess: (_view, { clientId }) =>
+      invalidateApplication(queryClient, "forward_auth", clientId),
+  });
+}
+
+export function updateForwardAuthProjectionMutationOptions(
+  queryClient: QueryClient,
+) {
+  return mutationOptions({
+    meta: { success: successMessage.saveIdentityProjection },
+    retry: false,
+    mutationFn: async ({
+      clientId,
+      body,
+    }: {
+      clientId: string;
+      body: UpdateForwardAuthProjectionRequest;
+    }) =>
+      requireJsonData(
+        client.PUT(
+          "/api/prohibitorum/forward-auth-apps/{clientId}/identity-projection",
+          { params: { path: { clientId } }, body },
+        ),
+      ),
+    onSuccess: (_view, { clientId }) =>
+      invalidateApplication(queryClient, "forward_auth", clientId),
+  });
+}
+
+export function deleteForwardAuthAppMutationOptions(queryClient: QueryClient) {
+  return mutationOptions({
+    meta: { success: successMessage.deleteApp },
+    retry: false,
+    mutationFn: async (clientId: string) => {
+      await runWithSudo(
+        () =>
+          client.POST("/api/prohibitorum/forward-auth-apps/delete", {
+            body: { clientId },
+          }),
+        sudoReason.deleteApplication,
+      );
+    },
+    onSuccess: () =>
+      queryClient.invalidateQueries({
+        queryKey: applicationQueryPrefix.forward_auth,
+      }),
+  });
+}
+
+/* ------------------------------------------------------ SAML applications -- */
+
+/**
+ * SAML creation needs no step-up: it establishes no credential and grants no
+ * access, so it goes straight through.
+ */
+export function createSamlAppMutationOptions() {
+  return mutationOptions({
+    retry: false,
+    mutationFn: async (body: CreateSamlAppRequest) =>
+      requireJsonData(
+        client.POST("/api/prohibitorum/saml-applications", { body }),
+      ),
+  });
+}
+
+export function updateSamlAppMutationOptions(queryClient: QueryClient) {
+  return mutationOptions({
+    meta: { success: successMessage.saveOidcApp },
+    retry: false,
+    mutationFn: async ({
+      id,
+      body,
+    }: {
+      id: number;
+      body: UpdateSamlAppRequest;
+    }) =>
+      requireJsonData(
+        client.PUT("/api/prohibitorum/saml-applications/{id}", {
+          params: { path: { id } },
+          body,
+        }),
+      ),
+    onSuccess: (_view, { id }) =>
+      invalidateApplication(queryClient, "saml", String(id)),
+  });
+}
+
+/**
+ * Re-imports metadata, which replaces the ACS endpoints and signing
+ * certificates while keeping the Entity ID and name. No sudo: the record's
+ * identity does not change.
+ */
+export function reingestSamlMetadataMutationOptions(queryClient: QueryClient) {
+  return mutationOptions({
+    meta: { success: successMessage.reingestMetadata },
+    retry: false,
+    mutationFn: async ({
+      id,
+      metadataXml,
+    }: {
+      id: number;
+      metadataXml: string;
+    }) =>
+      requireJsonData(
+        client.POST(
+          "/api/prohibitorum/saml-applications/{id}/reingest-metadata",
+          {
+            params: { path: { id } },
+            body: { metadataXml },
+          },
+        ),
+      ),
+    onSuccess: (_view, { id }) =>
+      invalidateApplication(queryClient, "saml", String(id)),
+  });
+}
+
+export function deleteSamlAppMutationOptions(queryClient: QueryClient) {
+  return mutationOptions({
+    meta: { success: successMessage.deleteApp },
+    retry: false,
+    mutationFn: async (id: number) => {
+      await client.POST("/api/prohibitorum/saml-applications/delete", {
+        body: { id },
+      });
+    },
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: applicationQueryPrefix.saml }),
+  });
+}
+
+/* --------------------------------------------------- enable / disable any -- */
+
+/**
+ * One factory for all three families: the flag lives on every application and
+ * the section that flips it is the same wherever it appears.
+ */
+export function setAppDisabledMutationOptions(
+  queryClient: QueryClient,
+  kind: ManagedApplicationKind,
+) {
+  return mutationOptions({
+    meta: {
+      success: (variables) =>
+        (variables as { disabled: boolean }).disabled
+          ? successMessage.disableApp
+          : successMessage.enableApp,
+    },
+    retry: false,
+    mutationFn: async ({
+      appId,
+      disabled,
+    }: {
+      appId: string;
+      disabled: boolean;
+    }) => {
+      if (kind === "oidc") {
+        return requireJsonData(
+          client.POST("/api/prohibitorum/oidc-applications/set-disabled", {
+            body: { clientId: appId, disabled },
+          }),
+        );
+      }
+      if (kind === "forward_auth") {
+        return requireJsonData(
+          client.POST("/api/prohibitorum/forward-auth-apps/set-disabled", {
+            body: { clientId: appId, disabled },
+          }),
+        );
+      }
+      return requireJsonData(
+        client.POST("/api/prohibitorum/saml-applications/set-disabled", {
+          body: { id: Number(appId), disabled },
+        }),
+      );
+    },
+    onSuccess: (_view, { appId }) =>
+      invalidateApplication(queryClient, kind, appId),
+  });
+}
+
+/* --------------------------------------------------------------- access -- */
+
+export function setAppAccessRestrictedMutationOptions(
+  queryClient: QueryClient,
+  kind: ManagedApplicationKind,
+) {
+  return mutationOptions({
+    meta: {
+      success: (variables) =>
+        (variables as { restricted: boolean }).restricted
+          ? successMessage.restrictAppAccess
+          : successMessage.openAppAccess,
+    },
+    retry: false,
+    mutationFn: async ({
+      appId,
+      restricted,
+    }: {
+      appId: string;
+      restricted: boolean;
+    }): Promise<AppSummaryView> =>
+      requireJsonData(
+        client.POST(
+          "/api/prohibitorum/managed-applications/{kind}/{appId}/access/set-restricted",
+          { params: { path: { kind, appId } }, body: { restricted } },
+        ),
+      ),
+    onSuccess: (_view, { appId }) =>
+      invalidateApplication(queryClient, kind, appId),
+  });
+}
+
+/**
+ * Replaces the whole selected-group list, so adding and removing are one call
+ * carrying the ids that should end up selected.
+ */
+export function replaceAppGroupsMutationOptions(
+  queryClient: QueryClient,
+  kind: ManagedApplicationKind,
+) {
+  return mutationOptions({
+    meta: { success: successMessage.saveAppGroups },
+    retry: false,
+    mutationFn: async ({
+      appId,
+      groupIds,
+    }: {
+      appId: string;
+      groupIds: number[];
+    }): Promise<AppGroupView[]> =>
+      requireJsonData(
+        client.PUT(
+          "/api/prohibitorum/managed-applications/{kind}/{appId}/groups",
+          {
+            params: { path: { kind, appId } },
+            body: { groupIds },
+          },
+        ),
+      ),
+    onSuccess: (_groups, { appId }) =>
+      invalidateApplication(queryClient, kind, appId),
+  });
+}
+
+/* ------------------------------------------------------------- managers -- */
+
+/**
+ * Assigning and removing are admin-only and sudo-gated. The manager list is not
+ * paged and is only ever read by an admin, so invalidating it is enough — the
+ * application's own queries do not carry it.
+ */
+export function assignAppManagerMutationOptions(
+  queryClient: QueryClient,
+  kind: ManagedApplicationKind,
+) {
+  return mutationOptions({
+    meta: { success: successMessage.assignAppManager },
+    retry: false,
+    mutationFn: async ({
+      appId,
+      accountId,
+    }: {
+      appId: string;
+      accountId: number;
+    }) => {
+      await runWithSudo(
+        () =>
+          kind === "saml"
+            ? client.POST("/api/prohibitorum/saml-applications/{id}/managers", {
+                params: { path: { id: Number(appId) } },
+                body: { accountId },
+              })
+            : kind === "oidc"
+              ? client.POST(
+                  "/api/prohibitorum/oidc-applications/{clientId}/managers",
+                  {
+                    params: { path: { clientId: appId } },
+                    body: { accountId },
+                  },
+                )
+              : client.POST(
+                  "/api/prohibitorum/forward-auth-apps/{clientId}/managers",
+                  {
+                    params: { path: { clientId: appId } },
+                    body: { accountId },
+                  },
+                ),
+        sudoReason.assignAppManager,
+      );
+    },
+    onSuccess: (_result, { appId }) =>
+      queryClient.invalidateQueries({
+        queryKey: ["admin", "managed-applications", kind, appId, "managers"],
+      }),
+  });
+}
+
+export function removeAppManagerMutationOptions(
+  queryClient: QueryClient,
+  kind: ManagedApplicationKind,
+) {
+  return mutationOptions({
+    meta: { success: successMessage.removeAppManager },
+    retry: false,
+    mutationFn: async ({
+      appId,
+      accountId,
+    }: {
+      appId: string;
+      accountId: number;
+    }) => {
+      await runWithSudo(
+        () =>
+          kind === "saml"
+            ? client.POST(
+                "/api/prohibitorum/saml-applications/{id}/managers/remove",
+                {
+                  params: { path: { id: Number(appId) } },
+                  body: { accountId },
+                },
+              )
+            : kind === "oidc"
+              ? client.POST(
+                  "/api/prohibitorum/oidc-applications/{clientId}/managers/remove",
+                  {
+                    params: { path: { clientId: appId } },
+                    body: { accountId },
+                  },
+                )
+              : client.POST(
+                  "/api/prohibitorum/forward-auth-apps/{clientId}/managers/remove",
+                  {
+                    params: { path: { clientId: appId } },
+                    body: { accountId },
+                  },
+                ),
+        sudoReason.removeAppManager,
+      );
+    },
+    onSuccess: (_result, { appId }) =>
+      queryClient.invalidateQueries({
+        queryKey: ["admin", "managed-applications", kind, appId, "managers"],
+      }),
   });
 }

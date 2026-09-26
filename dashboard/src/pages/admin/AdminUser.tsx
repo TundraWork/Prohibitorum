@@ -56,7 +56,7 @@ import { invitationLinkCopy } from "@/components/custom/secret-reveal-copy";
 import { TableEmptyState } from "@/components/custom/TableEmptyState";
 import { applyServerError } from "@/forms/server-errors";
 import { useAppForm } from "@/forms/use-app-form";
-import { Route } from "@/routes/_protected.admin.users_.$id";
+import { Route } from "@/routes/_protected.admin._admin.users_.$id";
 
 type Account = components["schemas"]["AccountView"];
 

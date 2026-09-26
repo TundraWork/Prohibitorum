@@ -55,7 +55,7 @@ import {
   isAuditEvent,
   isAuditFactor,
 } from "@/pages/admin/audit-vocabulary";
-import { Route } from "@/routes/_protected.admin.logs";
+import { Route } from "@/routes/_protected.admin._admin.logs";
 
 type AuditEventView = components["schemas"]["AuditEventView"];
 type Locale = ReturnType<typeof useLingui>["i18n"];

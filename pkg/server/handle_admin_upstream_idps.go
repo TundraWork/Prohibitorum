@@ -195,7 +195,7 @@ func (s *Server) currentDEK() (int32, []byte, error) {
 }
 
 type listIdentityProvidersIn struct {
-	pageInput
+	PageInput
 }
 
 type listIdentityProvidersOut struct {
@@ -229,12 +229,14 @@ func (s *Server) handleListIdentityProviders(ctx context.Context, in *listIdenti
 	if more {
 		rows = rows[:limit]
 	}
+	iconURLs := s.listIconURLs(ctx, "upstream_idp")
 	views := make([]contract.IdentityProviderView, 0, len(rows))
 	for _, row := range rows {
 		view, viewErr := s.identityProviderView(row)
 		if viewErr != nil {
 			return nil, fmt.Errorf("handleListIdentityProviders: view: %w", viewErr)
 		}
+		view.IconURL = iconURLFor(iconURLs, row.Slug)
 		views = append(views, view)
 	}
 	var nextCursor string
@@ -268,6 +270,14 @@ func (s *Server) handleGetIdentityProvider(ctx context.Context, in *getIdentityP
 		return nil, fmt.Errorf("handleGetIdentityProvider: view: %w", err)
 	}
 	view.IconURL = s.enrichIconURL(ctx, "upstream_idp", row.Slug)
+	// Only the single-provider read pays for this: the delete confirmation needs
+	// to say how many accounts are affected, and the list does not.
+	linked, err := s.queries.CountAccountsLinkedToUpstreamIDP(ctx, row.ID)
+	if err != nil {
+		return nil, fmt.Errorf("handleGetIdentityProvider: count linked accounts: %w", err)
+	}
+	linkedCount := int32(linked)
+	view.LinkedAccountCount = &linkedCount
 	return &identityProviderOut{Body: view}, nil
 }
 
@@ -510,14 +520,46 @@ func (s *Server) handleDeleteIdentityProviderHTTP(w http.ResponseWriter, r *http
 		writeAuthErr(w, fmt.Errorf("handleDeleteIdentityProvider: lookup: %w", err))
 		return
 	}
-	if err := s.queries.DeleteUpstreamIDP(r.Context(), row.ID); err != nil {
+
+	// The provider and its identities go together. account_identity carries a
+	// RESTRICT foreign key, so deleting the provider first fails with a 500 as
+	// soon as one account is linked; both deletes belong in one transaction so a
+	// failure part-way leaves neither gone.
+	tx, err := s.dbPool.Begin(r.Context())
+	if err != nil {
+		writeAuthErr(w, fmt.Errorf("handleDeleteIdentityProvider: begin tx: %w", err))
+		return
+	}
+	defer tx.Rollback(r.Context()) //nolint:errcheck
+	qtx := s.queries.WithTx(tx)
+
+	unlinkedAccounts, err := qtx.DeleteAccountIdentitiesByUpstreamIDP(r.Context(), row.ID)
+	if err != nil {
+		writeAuthErr(w, fmt.Errorf("handleDeleteIdentityProvider: delete identities: %w", err))
+		return
+	}
+	if err := qtx.DeleteUpstreamIDP(r.Context(), row.ID); err != nil {
 		writeAuthErr(w, fmt.Errorf("handleDeleteIdentityProvider: delete: %w", err))
 		return
 	}
+	if err := tx.Commit(r.Context()); err != nil {
+		writeAuthErr(w, fmt.Errorf("handleDeleteIdentityProvider: commit: %w", err))
+		return
+	}
+
+	// The icon has no foreign key to the provider, so it is not part of the
+	// transaction above and its failure must not fail the delete.
 	_ = s.queries.DeleteEntityIcon(r.Context(), db.DeleteEntityIconParams{OwnerKind: "upstream_idp", OwnerID: body.Slug})
 	audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
 		AccountID: sessionAccountID(r.Context()), Factor: audit.FactorUpstreamIDP,
-		Event: audit.EventRevoke, Detail: map[string]any{"slug": body.Slug},
+		Event: audit.EventRevoke,
+		Detail: map[string]any{
+			"slug": body.Slug,
+			// How many accounts lost their link to this provider. The account
+			// rows themselves survive; this is what tells an operator how many
+			// people just lost a sign-in method.
+			"unlinked_accounts": len(unlinkedAccounts),
+		},
 	})
 	w.WriteHeader(http.StatusNoContent)
 }

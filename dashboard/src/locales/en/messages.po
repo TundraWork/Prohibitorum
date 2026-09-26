@@ -18,9 +18,50 @@ msgid "admin.invitations.groups.missing"
 msgstr "(some groups no longer exist)"
 
 #. js-lingui-explicit-id
+#. placeholder {0}: provider.linkedAccountCount
+#: src/pages/admin/identity-providers/AdminIdentityProvider.tsx
+msgid "admin.federation.danger.delete.confirm.linked"
+msgstr "{0} accounts lose the way they sign in with it. An account that can only sign in this way needs a new registration link from you."
+
+#. js-lingui-explicit-id
+#. placeholder {0}: app.displayName || app.clientId
+#. placeholder {1}: groups.length
+#: src/pages/admin/forward-auth-apps/ForwardAuthDangerSection.tsx
+msgid "admin.forward-auth-apps.delete.confirm.groups"
+msgstr "{name} is removed along with its scope vocabulary, its icon and its access policy — including its selection of {count} user groups. Requests through its router are turned away immediately. This cannot be undone."
+
+#. js-lingui-explicit-id
+#. placeholder {0}: app.displayName || app.clientId
+#: src/pages/admin/forward-auth-apps/ForwardAuthDangerSection.tsx
+msgid "admin.forward-auth-apps.delete.confirm.open"
+msgstr "{name} is removed along with its scope vocabulary, its icon and its access policy. Requests through its router are turned away immediately. This cannot be undone."
+
+#. js-lingui-explicit-id
+#. placeholder {0}: app.displayName || app.clientId
+#: src/pages/admin/oidc-applications/DangerSection.tsx
+msgid "admin.oidc-apps.delete.body"
+msgstr "{name} stops being able to sign anyone in, and its icon, secret and access policy go with it. This cannot be undone."
+
+#. js-lingui-explicit-id
+#. placeholder {0}: target?.displayName ?? ""
+#: src/components/custom/AppAccessPanel.tsx
+msgid "app.managers.confirm.body"
+msgstr "{name} will no longer be able to change this application. Their account is not affected."
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
 msgid "admin.group.rule.matched"
 msgstr "One account matches this rule."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/SamlDangerSection.tsx
+msgid "admin.saml-apps.danger.delete.body"
+msgstr "{name} and its certificates are removed, and anyone who signs in through it is turned away. This cannot be undone."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/SamlDangerSection.tsx
+msgid "admin.saml-apps.danger.disable.body"
+msgstr "{name} stops accepting sign-ins immediately. Its configuration, endpoints and certificates are kept, so it can be enabled again."
 
 #. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
@@ -36,6 +77,16 @@ msgstr "30 days"
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.expiry.90"
 msgstr "90 days"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/GeneralSection.tsx
+msgid "admin.oidc-apps.field.redirect.required"
+msgstr "A client needs at least one redirect URI to sign in with."
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.invalid_manager_role"
+msgstr "A disabled account cannot manage an application."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
@@ -78,6 +129,12 @@ msgid "admin.group.rule.reason.not_requires_fact"
 msgstr "A negated row must hold one condition, not another group."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
+#: src/pages/admin/oidc-applications/GeneralSection.tsx
+msgid "admin.oidc-apps.field.pkce.public"
+msgstr "A public client always proves the request it started."
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
 msgid "admin.group.rule.json.nodocument"
 msgstr "A rule document needs a version and a condition. The form view still holds your rule."
@@ -88,6 +145,11 @@ msgid "admin.group.kind.note"
 msgstr "A rule group keeps itself up to date as accounts change. A manual group holds the accounts you allow or deny by hand."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/forward-auth-validation.ts
+msgid "admin.forward-auth-apps.scope.name.duplicate"
+msgstr "A scope with this name is already in the list."
+
+#. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.username_immutable"
 msgstr "A username cannot be changed once the account exists."
@@ -95,6 +157,21 @@ msgstr "A username cannot be changed once the account exists."
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.tab.access"
+msgstr "Access"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/AdminSamlApplication.tsx
+msgid "admin.saml-apps.access"
+msgstr "Access"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/AdminOidcApplication.tsx
+msgid "admin.oidc-apps.access"
+msgstr "Access"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/AdminForwardAuthApp.tsx
+msgid "admin.forward-auth-apps.access"
 msgstr "Access"
 
 #. js-lingui-explicit-id
@@ -114,8 +191,23 @@ msgstr "Access denied"
 
 #. js-lingui-explicit-id
 #: src/api/success-messages.ts
+msgid "success.app.access-opened"
+msgstr "Access opened to every account"
+
+#. js-lingui-explicit-id
+#: src/api/success-messages.ts
 msgid "success.app.access-removed"
 msgstr "Access removed"
+
+#. js-lingui-explicit-id
+#: src/api/success-messages.ts
+msgid "success.app.access-restricted"
+msgstr "Access restricted to the selected user groups"
+
+#. js-lingui-explicit-id
+#: src/components/custom/AppAccessPanel.tsx
+msgid "app.access.restriction.label"
+msgstr "Access restriction"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts
@@ -168,6 +260,11 @@ msgid "audit.factor.account"
 msgstr "Account"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/saml-projection.ts
+msgid "admin.saml-apps.source.attributes"
+msgstr "Account attribute"
+
+#. js-lingui-explicit-id
 #: src/api/success-messages.ts
 msgid "success.account.deleted"
 msgstr "Account deleted"
@@ -181,6 +278,11 @@ msgstr "Account disabled"
 #: src/api/success-messages.ts
 msgid "success.account.enabled"
 msgstr "Account enabled"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ForwardAuthIdentitySection.tsx
+msgid "admin.forward-auth-apps.source.sub"
+msgstr "Account ID"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
@@ -201,6 +303,21 @@ msgstr "Account username"
 #: src/pages/admin/AdminInvitations.tsx
 msgid "admin.invitations.column.username"
 msgstr "Account username"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProvider.tsx
+msgid "admin.federation.claims.title"
+msgstr "Accounts and claims"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
+msgid "admin.federation.claims.form"
+msgstr "Accounts and claims"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminHome.tsx
+msgid "admin.home.summary"
+msgstr "Users, user groups, invitations, logs and settings are managed from the sections in the sidebar."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminGroups.tsx
@@ -256,14 +373,60 @@ msgid "security.passkeys.add"
 msgstr "Add a passkey"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProviders.tsx
+msgid "admin.federation.create"
+msgstr "Add a provider"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/AdminForwardAuthAppNew.tsx
+#: src/pages/admin/forward-auth-apps/ForwardAuthGeneralSection.tsx
+msgid "admin.forward-auth-apps.field.scopes.add"
+msgstr "Add a scope"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/IdentityProjectionSection.tsx
+msgid "admin.oidc-apps.aliases.add"
+msgstr "Add alias"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/SamlIdentitySection.tsx
+msgid "admin.saml-apps.mapping.add"
+msgstr "Add an attribute"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
+msgid "admin.federation.new.form"
+msgstr "Add an identity provider"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/saml-validation.ts
+msgid "admin.saml-apps.acs.required"
+msgstr "Add at least one Assertion Consumer Service endpoint."
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
 msgid "admin.group.rule.add"
 msgstr "Add condition"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
+msgid "admin.saml-apps.acs.add"
+msgstr "Add endpoint"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
 msgid "admin.group.rule.addGroup"
 msgstr "Add group"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
+msgid "admin.federation.new.submit"
+msgstr "Add provider"
+
+#. js-lingui-explicit-id
+#: src/components/custom/AppAccessPanel.tsx
+msgid "app.groups.add"
+msgstr "Add user groups"
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
@@ -274,6 +437,11 @@ msgstr "Added <0/>"
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.passkeys.detail.added"
 msgstr "Added <0/>"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/AcsRowFields.tsx
+msgid "admin.saml-apps.acs.location"
+msgstr "Address"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminInvitationForm.tsx
@@ -327,6 +495,22 @@ msgid "admin.logs.range.all"
 msgstr "All time"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
+#: src/pages/admin/saml-applications/SamlGeneralSection.tsx
+msgid "admin.saml-apps.field.idp-initiated"
+msgstr "Allow IdP-initiated sign-in"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/AdminSamlApplications.tsx
+msgid "admin.saml-apps.idp-initiated.allowed"
+msgstr "Allowed"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
+msgid "admin.federation.claims.domains"
+msgstr "Allowed email domains"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
 msgid "admin.group.rule.hint"
 msgstr "An account joins this group while the rule matches it. Rules are checked whenever access is asked for, so the group stays current."
@@ -335,6 +519,21 @@ msgstr "An account joins this group while the rule matches it. Rules are checked
 #: src/api/errors.ts
 msgid "error.admin_cannot_be_disabled"
 msgstr "An administrator cannot be disabled. Change the role to user first."
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.saml_application_already_exists"
+msgstr "An application with that Entity ID already exists."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/IdentityProjectionSection.tsx
+msgid "admin.oidc-apps.alias.name.duplicate"
+msgstr "Another alias already uses this name."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/saml-projection.ts
+msgid "admin.saml-apps.mapping.name.duplicate"
+msgstr "Another attribute already sends under this name."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/NetworkPanel.tsx
@@ -377,14 +576,59 @@ msgid "admin.user.tokens.revoke.body"
 msgstr "Anything using this token stops working immediately. This cannot be undone."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
+msgid "admin.federation.new.slug.hint"
+msgstr "Appears in the callback address and cannot be changed later."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/AdminSamlApplications.tsx
+msgid "admin.saml-apps.column.application"
+msgstr "Application"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/AdminOidcApplications.tsx
+msgid "admin.oidc-apps.column.application"
+msgstr "Application"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/AdminForwardAuthApps.tsx
+msgid "admin.forward-auth-apps.column.application"
+msgstr "Application"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts
 msgid "audit.factor.app_policy"
 msgstr "Application access"
 
 #. js-lingui-explicit-id
+#: src/api/success-messages.ts
+msgid "success.oidc-app.created"
+msgstr "Application created"
+
+#. js-lingui-explicit-id
+#: src/api/success-messages.ts
+msgid "success.app.deleted"
+msgstr "Application deleted"
+
+#. js-lingui-explicit-id
+#: src/api/success-messages.ts
+msgid "success.app.disabled"
+msgstr "Application disabled"
+
+#. js-lingui-explicit-id
+#: src/api/success-messages.ts
+msgid "success.app.enabled"
+msgstr "Application enabled"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts
 msgid "audit.factor.app_manager"
 msgstr "Application manager"
+
+#. js-lingui-explicit-id
+#: src/api/success-messages.ts
+msgid "success.oidc-app.saved"
+msgstr "Application saved"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminGroups.tsx
@@ -417,9 +661,55 @@ msgid "devices.note"
 msgstr "Approving lets this device continue, but it is not signed in yet: it still has to set up a passkey of its own."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
+#: src/pages/admin/oidc-applications/GeneralSection.tsx
+msgid "admin.oidc-apps.field.consent.hint"
+msgstr "Ask the account to approve the scopes before signing them in."
+
+#. js-lingui-explicit-id
 #: src/components/custom/LoginShell.tsx
 msgid "login.enroll_instruction"
 msgstr "Ask the operator to run <0>prohibitorum enroll-admin</0> on the server before signing in."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
+msgid "admin.saml-apps.field.acs"
+msgstr "Assertion Consumer Service endpoints"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/SamlMetadataSection.tsx
+msgid "admin.saml-apps.acs.title"
+msgstr "Assertion Consumer Service endpoints"
+
+#. js-lingui-explicit-id
+#: src/components/custom/AppAccessPanel.tsx
+msgid "app.managers.dialog.save"
+msgstr "Assign"
+
+#. js-lingui-explicit-id
+#: src/components/custom/AppAccessPanel.tsx
+msgid "app.managers.assign"
+msgstr "Assign a manager"
+
+#. js-lingui-explicit-id
+#: src/components/custom/AppAccessPanel.tsx
+msgid "app.managers.dialog.title"
+msgstr "Assign a manager"
+
+#. js-lingui-explicit-id
+#: src/components/custom/AppAccessPanel.tsx
+msgid "app.managers.assigned"
+msgstr "Assigned <0/>"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/MappingRowFields.tsx
+msgid "admin.saml-apps.mapping.key"
+msgstr "Attribute key"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/SamlIdentitySection.tsx
+msgid "admin.saml-apps.mapping.title"
+msgstr "Attribute map"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
@@ -442,6 +732,11 @@ msgid "audit.factor.totp"
 msgstr "Authenticator"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderOperatorSection.tsx
+msgid "admin.federation.operator.method.totp"
+msgstr "Authenticator app"
+
+#. js-lingui-explicit-id
 #: src/pages/Login.tsx
 msgid "login.totp.code"
 msgstr "Authenticator code"
@@ -462,9 +757,29 @@ msgid "login.complete"
 msgstr "Authenticator reset complete"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+msgid "admin.federation.diagnostics.stage.authorize"
+msgstr "Authorization"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderConnectionSection.tsx
+msgid "admin.federation.connection.authorization"
+msgstr "Authorization endpoint"
+
+#. js-lingui-explicit-id
 #: src/pages/ConnectedApps.tsx
 msgid "apps.detail.granted"
 msgstr "Authorized <0/>"
+
+#. js-lingui-explicit-id
+#: src/components/custom/AppAccessPanel.tsx
+msgid "app.access.restricted"
+msgstr "Available only to the selected user groups"
+
+#. js-lingui-explicit-id
+#: src/components/custom/EntityCell.tsx
+msgid "entity.restricted"
+msgstr "Available only to the selected user groups"
 
 #. js-lingui-explicit-id
 #: src/pages/Profile.tsx
@@ -477,6 +792,11 @@ msgid "success.avatar.updated"
 msgstr "Avatar updated"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/saml-projection.ts
+msgid "admin.saml-apps.source.avatar-url"
+msgstr "Avatar URL"
+
+#. js-lingui-explicit-id
 #: src/components/custom/LoginShell.tsx
 msgid "login.back"
 msgstr "Back to password"
@@ -485,6 +805,21 @@ msgstr "Back to password"
 #: src/pages/ConnectedApps.tsx
 msgid "apps.scopes.none"
 msgstr "Basic profile"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/AcsRowFields.tsx
+msgid "admin.saml-apps.acs.binding"
+msgstr "Binding"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+msgid "admin.federation.diagnostics.stage.callback"
+msgstr "Callback"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+msgid "admin.federation.diagnostics.callback"
+msgstr "Callback address"
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
@@ -500,11 +835,14 @@ msgstr "Cancel"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminInvitationForm.tsx
+#: src/pages/admin/saml-applications/SamlMetadataSection.tsx
 msgid "admin.cancel"
 msgstr "Cancel"
 
 #. js-lingui-explicit-id
 #: src/components/custom/ConfirmDialog.tsx
+#: src/pages/admin/identity-providers/AdminIdentityProvider.tsx
+#: src/pages/admin/identity-providers/ProviderOperatorSection.tsx
 msgid "confirm.cancel"
 msgstr "Cancel"
 
@@ -529,6 +867,16 @@ msgid "security.password.change.open"
 msgstr "Change"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/IdentityProjectionSection.tsx
+msgid "admin.oidc-apps.subject.confirm.action"
+msgstr "Change"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ForwardAuthIdentitySection.tsx
+msgid "admin.forward-auth-apps.identity.confirm.action"
+msgstr "Change it"
+
+#. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
 msgid "security.password.change.title"
 msgstr "Change password"
@@ -544,14 +892,29 @@ msgid "security.password.change.action"
 msgstr "Change password"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/IdentityProjectionSection.tsx
+msgid "admin.oidc-apps.subject.confirm.title"
+msgstr "Change the subject source?"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts
 msgid "audit.event.update"
 msgstr "Changed"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderOperatorSection.tsx
+msgid "admin.federation.operator.check"
+msgstr "Check"
+
+#. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.validation_failed"
 msgstr "Check the submitted information and try again."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderOperatorSection.tsx
+msgid "admin.federation.operator.validated"
+msgstr "Checked <0/>"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminUsers.tsx
@@ -614,6 +977,26 @@ msgid "admin.invitations.new.groups.invalid"
 msgstr "Choose the groups again — one of them is not a valid group."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/saml-validation.ts
+msgid "admin.saml-apps.acs.binding.invalid"
+msgstr "Choose the HTTP POST or the HTTP Redirect binding."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/saml-projection.ts
+msgid "admin.saml-apps.mapping.source.unknown"
+msgstr "Choose where this attribute reads from."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/IdentityProjectionSection.tsx
+msgid "admin.oidc-apps.aliases"
+msgstr "Claim aliases"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/AliasRowFields.tsx
+msgid "admin.oidc-apps.alias.name"
+msgstr "Claim name"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminLogs.tsx
 msgid "admin.logs.filter.clear"
 msgstr "Clear filters"
@@ -622,6 +1005,33 @@ msgstr "Clear filters"
 #: src/pages/admin/AdminUsers.tsx
 msgid "admin.users.filter.clear"
 msgstr "Clear the filter"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
+msgid "admin.federation.new.auth-method"
+msgstr "Client authentication"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
+#: src/pages/admin/oidc-applications/GeneralSection.tsx
+msgid "admin.oidc-apps.field.client-id"
+msgstr "Client ID"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
+msgid "admin.federation.new.client-id"
+msgstr "Client ID"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderConnectionSection.tsx
+msgid "admin.federation.connection.client-id"
+msgstr "Client ID"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/AdminForwardAuthAppNew.tsx
+#: src/pages/admin/forward-auth-apps/ForwardAuthGeneralSection.tsx
+msgid "admin.forward-auth-apps.field.client-id"
+msgstr "Client ID"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminSettings.tsx
@@ -640,8 +1050,44 @@ msgid "success.client-ip.saved"
 msgstr "Client IP settings saved"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/secret-copy.ts
+msgid "admin.oidc-apps.secret.label"
+msgstr "Client secret"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProvider.tsx
+#: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
+msgid "admin.federation.new.secret"
+msgstr "Client secret"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
+msgid "admin.oidc-apps.field.kind"
+msgstr "Client type"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/DangerSection.tsx
+msgid "admin.oidc-apps.enable.body"
+msgstr "Clients can sign accounts in again straight away. Accounts that signed in while it was disabled were not affected."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/DangerSection.tsx
+msgid "admin.oidc-apps.enable.note"
+msgstr "Clients can sign accounts in again. Nothing else about the application changes."
+
+#. js-lingui-explicit-id
 #: src/pages/admin/settings/SigningKeysPanel.tsx
 msgid "settings.keys.jwk.close"
+msgstr "Close"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/SamlDangerSection.tsx
+msgid "admin.saml-apps.danger.delete.dismiss"
+msgstr "Close"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+msgid "admin.federation.diagnostics.close"
 msgstr "Close"
 
 #. js-lingui-explicit-id
@@ -653,6 +1099,16 @@ msgstr "Close navigation"
 #: src/components/custom/AppNotifications.tsx
 msgid "notification.close"
 msgstr "Close notification"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderOperatorSection.tsx
+msgid "admin.federation.operator.method.otp"
+msgstr "Code"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderOperatorSection.tsx
+msgid "admin.federation.operator.code"
+msgstr "Code"
 
 #. js-lingui-explicit-id
 #: src/pages/Devices.tsx
@@ -690,6 +1146,12 @@ msgid "admin.group.rule.reason.max_depth_exceeded"
 msgstr "Conditions are nested too deeply. Use at most 8 levels."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
+#: src/pages/admin/oidc-applications/AdminOidcApplications.tsx
+msgid "admin.oidc-apps.kind.confidential"
+msgstr "Confidential"
+
+#. js-lingui-explicit-id
 #: src/components/custom/SudoDialog.tsx
 msgid "sudo.title"
 msgstr "Confirm it is you"
@@ -698,6 +1160,16 @@ msgstr "Confirm it is you"
 #: src/api/sudo-reasons.ts
 msgid "sudo.reason.add-passkey"
 msgstr "Confirm it is you to add a passkey to this account."
+
+#. js-lingui-explicit-id
+#: src/api/sudo-reasons.ts
+msgid "sudo.reason.create-application"
+msgstr "Confirm it is you to add this application."
+
+#. js-lingui-explicit-id
+#: src/api/sudo-reasons.ts
+msgid "sudo.reason.create-identity-provider"
+msgstr "Confirm it is you to add this identity provider."
 
 #. js-lingui-explicit-id
 #: src/api/sudo-reasons.ts
@@ -731,8 +1203,23 @@ msgstr "Confirm it is you to change this account."
 
 #. js-lingui-explicit-id
 #: src/api/sudo-reasons.ts
+msgid "sudo.reason.save-application"
+msgstr "Confirm it is you to change this application."
+
+#. js-lingui-explicit-id
+#: src/api/sudo-reasons.ts
 msgid "sudo.reason.update-group"
 msgstr "Confirm it is you to change this group."
+
+#. js-lingui-explicit-id
+#: src/api/sudo-reasons.ts
+msgid "sudo.reason.update-entity-icon"
+msgstr "Confirm it is you to change this icon."
+
+#. js-lingui-explicit-id
+#: src/api/sudo-reasons.ts
+msgid "sudo.reason.save-identity-provider"
+msgstr "Confirm it is you to change this identity provider."
 
 #. js-lingui-explicit-id
 #: src/api/sudo-reasons.ts
@@ -771,8 +1258,18 @@ msgstr "Confirm it is you to delete this account. This cannot be undone."
 
 #. js-lingui-explicit-id
 #: src/api/sudo-reasons.ts
+msgid "sudo.reason.delete-application"
+msgstr "Confirm it is you to delete this application."
+
+#. js-lingui-explicit-id
+#: src/api/sudo-reasons.ts
 msgid "sudo.reason.delete-group"
 msgstr "Confirm it is you to delete this group. This cannot be undone."
+
+#. js-lingui-explicit-id
+#: src/api/sudo-reasons.ts
+msgid "sudo.reason.delete-identity-provider"
+msgstr "Confirm it is you to delete this provider and every identity linked through it."
 
 #. js-lingui-explicit-id
 #: src/api/sudo-reasons.ts
@@ -786,13 +1283,33 @@ msgstr "Confirm it is you to issue a new registration link."
 
 #. js-lingui-explicit-id
 #: src/api/sudo-reasons.ts
+msgid "sudo.reason.assign-app-manager"
+msgstr "Confirm it is you to let this account manage the application."
+
+#. js-lingui-explicit-id
+#: src/api/sudo-reasons.ts
 msgid "sudo.reason.link-identity"
 msgstr "Confirm it is you to link this identity."
 
 #. js-lingui-explicit-id
 #: src/api/sudo-reasons.ts
+msgid "sudo.reason.remove-app-manager"
+msgstr "Confirm it is you to remove this account as a manager."
+
+#. js-lingui-explicit-id
+#: src/api/sudo-reasons.ts
+msgid "sudo.reason.remove-entity-icon"
+msgstr "Confirm it is you to remove this icon."
+
+#. js-lingui-explicit-id
+#: src/api/sudo-reasons.ts
 msgid "sudo.reason.update-instance-name"
 msgstr "Confirm it is you to rename this instance."
+
+#. js-lingui-explicit-id
+#: src/api/sudo-reasons.ts
+msgid "sudo.reason.rotate-client-secret"
+msgstr "Confirm it is you to replace this client secret. The old one stops working immediately."
 
 #. js-lingui-explicit-id
 #: src/api/sudo-reasons.ts
@@ -826,8 +1343,18 @@ msgstr "Confirm it is you to revoke this passkey."
 
 #. js-lingui-explicit-id
 #: src/api/sudo-reasons.ts
+msgid "sudo.reason.set-identity-provider-secret"
+msgstr "Confirm it is you to set this provider's secret."
+
+#. js-lingui-explicit-id
+#: src/api/sudo-reasons.ts
 msgid "sudo.reason.set-password-totp"
 msgstr "Confirm it is you to set up a password and authenticator on this account."
+
+#. js-lingui-explicit-id
+#: src/api/sudo-reasons.ts
+msgid "sudo.reason.operator-session"
+msgstr "Confirm it is you to sign in as the VRChat operator."
 
 #. js-lingui-explicit-id
 #: src/api/sudo-reasons.ts
@@ -880,6 +1407,16 @@ msgid "admin.user.identities.table"
 msgstr "Connected identities"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProvider.tsx
+msgid "admin.federation.connection.title"
+msgstr "Connection"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderConnectionSection.tsx
+msgid "admin.federation.connection.form"
+msgstr "Connection settings"
+
+#. js-lingui-explicit-id
 #: src/components/custom/ConsoleLayout.tsx
 #: src/components/custom/PreviewLayout.tsx
 msgid "console.home"
@@ -911,6 +1448,16 @@ msgid "settings.keys.jwk.copied"
 msgstr "Copied"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ForwardAuthProxySection.tsx
+msgid "admin.forward-auth-apps.proxy.copied"
+msgstr "Copied"
+
+#. js-lingui-explicit-id
+#: src/components/custom/CopyValue.tsx
+msgid "copy-value.copied"
+msgstr "Copied"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminInvitations.tsx
 msgid "admin.invitations.copy.done"
 msgstr "Copied."
@@ -936,6 +1483,11 @@ msgid "settings.keys.jwk.copy"
 msgstr "Copy"
 
 #. js-lingui-explicit-id
+#: src/components/custom/CopyValue.tsx
+msgid "copy-value.copy"
+msgstr "Copy"
+
+#. js-lingui-explicit-id
 #: src/components/custom/secret-reveal-copy.ts
 msgid "login.codes.copy"
 msgstr "Copy codes"
@@ -949,6 +1501,21 @@ msgstr "Copy key ID"
 #: src/components/custom/secret-reveal-copy.ts
 msgid "admin.invitations.reveal.copy"
 msgstr "Copy link"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/secret-copy.ts
+msgid "admin.oidc-apps.secret.copy"
+msgstr "Copy secret"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/secret-copy.ts
+msgid "admin.oidc-apps.secret.title"
+msgstr "Copy the client secret"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ForwardAuthProxySection.tsx
+msgid "admin.forward-auth-apps.proxy.copy"
+msgstr "Copy the configuration"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminInvitations.tsx
@@ -991,6 +1558,11 @@ msgid "admin.invitations.copy.failed"
 msgstr "Could not copy the link. Your browser blocked the clipboard; allow it and try again."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/secret-copy.ts
+msgid "admin.oidc-apps.secret.copy_failed"
+msgstr "Could not copy the secret. Select it above and copy it manually, or download it."
+
+#. js-lingui-explicit-id
 #: src/components/custom/secret-reveal-copy.ts
 msgid "security.tokens.reveal.copy_failed"
 msgstr "Could not copy the token. Select the token above and copy it manually, or download it."
@@ -1011,9 +1583,19 @@ msgid "admin.invitations.reveal.download_failed"
 msgstr "Could not download the link. Copy it or save it manually."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/secret-copy.ts
+msgid "admin.oidc-apps.secret.download_failed"
+msgstr "Could not download the secret. Copy it or save it manually."
+
+#. js-lingui-explicit-id
 #: src/components/custom/secret-reveal-copy.ts
 msgid "security.tokens.reveal.download_failed"
 msgstr "Could not download the token. Copy it or save it manually."
+
+#. js-lingui-explicit-id
+#: src/components/custom/AppAccessPanel.tsx
+msgid "app.access.load_failed"
+msgstr "Could not load the access policy."
 
 #. js-lingui-explicit-id
 #: src/pages/ConnectedApps.tsx
@@ -1024,6 +1606,21 @@ msgstr "Could not load your connected applications."
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.create.open"
 msgstr "Create a token"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
+msgid "admin.saml-apps.new.submit"
+msgstr "Create application"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
+msgid "admin.oidc-apps.new.submit"
+msgstr "Create application"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/AdminForwardAuthAppNew.tsx
+msgid "admin.forward-auth-apps.new.submit"
+msgstr "Create application"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
@@ -1044,6 +1641,13 @@ msgstr "Create token"
 #: src/pages/admin/audit-vocabulary.ts
 msgid "audit.event.register"
 msgstr "Created"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
+#: src/pages/admin/identity-providers/AdminIdentityProviders.tsx
+#: src/pages/admin/identity-providers/ProviderGeneralSection.tsx
+msgid "admin.federation.mode.auto"
+msgstr "Creates accounts"
 
 #. js-lingui-explicit-id
 #: src/pages/DevForms.tsx
@@ -1086,6 +1690,31 @@ msgid "admin.user.danger.title"
 msgstr "Danger zone"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/SamlDangerSection.tsx
+msgid "admin.saml-apps.danger"
+msgstr "Danger zone"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/DangerSection.tsx
+msgid "admin.oidc-apps.danger"
+msgstr "Danger zone"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProvider.tsx
+msgid "admin.federation.danger.title"
+msgstr "Danger zone"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProvider.tsx
+msgid "admin.federation.danger.label"
+msgstr "Danger zone"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ForwardAuthDangerSection.tsx
+msgid "admin.forward-auth-apps.danger"
+msgstr "Danger zone"
+
+#. js-lingui-explicit-id
 #: src/components/custom/ThemeSelect.tsx
 msgid "theme.dark"
 msgstr "Dark theme"
@@ -1101,9 +1730,69 @@ msgid "devices.decline"
 msgstr "Decline"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/AcsRowFields.tsx
+msgid "admin.saml-apps.acs.default"
+msgstr "Default"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/SamlMetadataSection.tsx
+msgid "admin.saml-apps.acs.default-endpoint"
+msgstr "Default"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/SamlDangerSection.tsx
+msgid "admin.saml-apps.danger.delete.action"
+msgstr "Delete"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/SamlDangerSection.tsx
+msgid "admin.saml-apps.danger.delete.confirm"
+msgstr "Delete"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/DangerSection.tsx
+msgid "admin.oidc-apps.delete.action"
+msgstr "Delete"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProvider.tsx
+msgid "admin.federation.danger.delete.action"
+msgstr "Delete"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProvider.tsx
+msgid "admin.federation.danger.delete.confirm.action"
+msgstr "Delete"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ForwardAuthDangerSection.tsx
+msgid "admin.forward-auth-apps.delete.action"
+msgstr "Delete"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.delete.confirm.action"
 msgstr "Delete account"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ForwardAuthDangerSection.tsx
+msgid "admin.forward-auth-apps.delete.confirm.action"
+msgstr "Delete application"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/SamlDangerSection.tsx
+msgid "admin.saml-apps.danger.delete"
+msgstr "Delete the application"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/DangerSection.tsx
+msgid "admin.oidc-apps.delete"
+msgstr "Delete the application"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ForwardAuthDangerSection.tsx
+msgid "admin.forward-auth-apps.delete"
+msgstr "Delete the application"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
@@ -1121,6 +1810,31 @@ msgid "admin.user.delete.confirm.title"
 msgstr "Delete this account?"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/SamlDangerSection.tsx
+msgid "admin.saml-apps.danger.delete.title"
+msgstr "Delete this application?"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/DangerSection.tsx
+msgid "admin.oidc-apps.delete.title"
+msgstr "Delete this application?"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ForwardAuthDangerSection.tsx
+msgid "admin.forward-auth-apps.delete.confirm.title"
+msgstr "Delete this application?"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProvider.tsx
+msgid "admin.federation.danger.delete"
+msgstr "Delete this provider"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProvider.tsx
+msgid "admin.federation.danger.delete.confirm.title"
+msgstr "Delete this provider?"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
 msgid "admin.group.description"
 msgstr "Description"
@@ -1128,6 +1842,11 @@ msgstr "Description"
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminGroups.tsx
 msgid "admin.groups.column.description"
+msgstr "Description"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ScopeRows.tsx
+msgid "admin.forward-auth-apps.scope.description"
 msgstr "Description"
 
 #. js-lingui-explicit-id
@@ -1171,9 +1890,59 @@ msgid "audit.factor.diagnostic"
 msgstr "Diagnostics"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProvider.tsx
+msgid "admin.federation.diagnostics.title"
+msgstr "Diagnostics"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.state.disable.action"
 msgstr "Disable"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/SamlDangerSection.tsx
+msgid "admin.saml-apps.danger.disable.action"
+msgstr "Disable"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/SamlDangerSection.tsx
+msgid "admin.saml-apps.danger.disable.confirm"
+msgstr "Disable"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/DangerSection.tsx
+msgid "admin.oidc-apps.disable.action"
+msgstr "Disable"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProvider.tsx
+msgid "admin.federation.danger.disable.action"
+msgstr "Disable"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProvider.tsx
+msgid "admin.federation.danger.disable.confirm.action"
+msgstr "Disable"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ForwardAuthDangerSection.tsx
+msgid "admin.forward-auth-apps.disable.action"
+msgstr "Disable"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/SamlDangerSection.tsx
+msgid "admin.saml-apps.danger.disable"
+msgstr "Disable the application"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/DangerSection.tsx
+msgid "admin.oidc-apps.disable"
+msgstr "Disable the application"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ForwardAuthDangerSection.tsx
+msgid "admin.forward-auth-apps.disable"
+msgstr "Disable the application"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
@@ -1186,6 +1955,31 @@ msgid "admin.user.state.disable.title"
 msgstr "Disable this account?"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/SamlDangerSection.tsx
+msgid "admin.saml-apps.danger.disable.title"
+msgstr "Disable this application?"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/DangerSection.tsx
+msgid "admin.oidc-apps.disable.title"
+msgstr "Disable this application?"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ForwardAuthDangerSection.tsx
+msgid "admin.forward-auth-apps.disable.confirm.title"
+msgstr "Disable this application?"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProvider.tsx
+msgid "admin.federation.danger.disable"
+msgstr "Disable this provider"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProvider.tsx
+msgid "admin.federation.danger.disable.confirm.title"
+msgstr "Disable this provider?"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.disabled"
 msgstr "Disabled"
@@ -1193,6 +1987,11 @@ msgstr "Disabled"
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminUsers.tsx
 msgid "admin.users.state.disabled"
+msgstr "Disabled"
+
+#. js-lingui-explicit-id
+#: src/components/custom/EntityCell.tsx
+msgid "entity.state.disabled"
 msgstr "Disabled"
 
 #. js-lingui-explicit-id
@@ -1204,6 +2003,31 @@ msgstr "Disabled button"
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.state.enabled.note"
 msgstr "Disabling stops this account signing in and ends nothing else. An admin has to be made a user first."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/SamlDangerSection.tsx
+msgid "admin.saml-apps.danger.enabled-note"
+msgstr "Disabling turns everyone away at the service provider. It can be undone."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderConnectionSection.tsx
+msgid "admin.federation.connection.mode.discovery"
+msgstr "Discover automatically"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+msgid "admin.federation.diagnostics.source.discovery"
+msgstr "Discovered"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+msgid "admin.federation.diagnostics.stage.discovery"
+msgstr "Discovery"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderConnectionSection.tsx
+msgid "admin.federation.connection.mode.note"
+msgstr "Discovery reads the endpoints from the issuer. Anything you enter here replaces what it found."
 
 #. js-lingui-explicit-id
 #: src/pages/Console.tsx
@@ -1236,6 +2060,11 @@ msgid "admin.users.column.displayName"
 msgstr "Display name"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
+msgid "admin.federation.claims.display-name"
+msgstr "Display name"
+
+#. js-lingui-explicit-id
 #: src/api/success-messages.ts
 msgid "success.display-name.saved"
 msgstr "Display name saved"
@@ -1259,6 +2088,11 @@ msgstr "Download codes"
 #: src/components/custom/secret-reveal-copy.ts
 msgid "admin.invitations.reveal.download"
 msgstr "Download link"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/secret-copy.ts
+msgid "admin.oidc-apps.secret.download"
+msgstr "Download secret"
 
 #. js-lingui-explicit-id
 #: src/components/custom/secret-reveal-copy.ts
@@ -1286,6 +2120,16 @@ msgid "admin.user.email"
 msgstr "Email"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
+msgid "admin.federation.claims.email"
+msgstr "Email"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderOperatorSection.tsx
+msgid "admin.federation.operator.method.email"
+msgstr "Email code"
+
+#. js-lingui-explicit-id
 #: src/pages/DevForms.tsx
 msgid "dev.forms.logout.title"
 msgstr "Empty response request"
@@ -1296,6 +2140,41 @@ msgid "admin.user.state.enable.action"
 msgstr "Enable"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/SamlDangerSection.tsx
+msgid "admin.saml-apps.danger.enable.action"
+msgstr "Enable"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/DangerSection.tsx
+msgid "admin.oidc-apps.enable.action"
+msgstr "Enable"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProvider.tsx
+msgid "admin.federation.danger.enable.action"
+msgstr "Enable"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ForwardAuthDangerSection.tsx
+msgid "admin.forward-auth-apps.enable.action"
+msgstr "Enable"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/SamlDangerSection.tsx
+msgid "admin.saml-apps.danger.enable"
+msgstr "Enable the application"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/DangerSection.tsx
+msgid "admin.oidc-apps.enable"
+msgstr "Enable the application"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ForwardAuthDangerSection.tsx
+msgid "admin.forward-auth-apps.enable"
+msgstr "Enable the application"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.state.enable"
 msgstr "Enable this account"
@@ -1304,6 +2183,21 @@ msgstr "Enable this account"
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.state.enable.title"
 msgstr "Enable this account?"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/DangerSection.tsx
+msgid "admin.oidc-apps.enable.title"
+msgstr "Enable this application?"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ForwardAuthDangerSection.tsx
+msgid "admin.forward-auth-apps.enable.confirm.title"
+msgstr "Enable this application?"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProvider.tsx
+msgid "admin.federation.danger.enable"
+msgstr "Enable this provider"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminUsers.tsx
@@ -1345,10 +2239,72 @@ msgstr "End this session?"
 msgid "admin.user.sessions.revoke.title"
 msgstr "End this session?"
 
+#. The endpoint's index in the service provider's own list
+#. js-lingui-explicit-id
+#. placeholder {0}: endpoint.index
+#: src/pages/admin/saml-applications/SamlMetadataSection.tsx
+msgid "admin.saml-apps.acs.endpoint"
+msgstr "Endpoint {0}"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderConnectionSection.tsx
+msgid "admin.federation.connection.mode"
+msgstr "Endpoint configuration"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
+msgid "admin.oidc-apps.new.client-id.required"
+msgstr "Enter a Client ID."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/AdminForwardAuthAppNew.tsx
+msgid "admin.forward-auth-apps.new.client-id.required"
+msgstr "Enter a Client ID."
+
 #. js-lingui-explicit-id
 #: src/pages/Login.tsx
 msgid "login.totp.invalid"
 msgstr "Enter a code with the configured number of digits, using only 0–9."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
+msgid "admin.federation.claims.domains.invalid"
+msgstr "Enter a domain such as example.com, without a scheme or a path."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/forward-auth-validation.ts
+msgid "admin.forward-auth-apps.host.required"
+msgstr "Enter a hostname."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/saml-validation.ts
+msgid "admin.saml-apps.name.required"
+msgstr "Enter a name."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
+msgid "admin.oidc-apps.new.name.required"
+msgstr "Enter a name."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/GeneralSection.tsx
+msgid "admin.oidc-apps.field.name.required"
+msgstr "Enter a name."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
+msgid "admin.federation.new.name.required"
+msgstr "Enter a name."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/AdminForwardAuthAppNew.tsx
+msgid "admin.forward-auth-apps.new.name.required"
+msgstr "Enter a name."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ForwardAuthGeneralSection.tsx
+msgid "admin.forward-auth-apps.field.name.required"
+msgstr "Enter a name."
 
 #. js-lingui-explicit-id
 #: src/pages/Login.tsx
@@ -1366,9 +2322,39 @@ msgid "login.recovery.invalid"
 msgstr "Enter a recovery code in XXXX-XXXX-XXXX-XXXX format, using uppercase A–Z and digits 2–7."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/forward-auth-validation.ts
+msgid "admin.forward-auth-apps.scope.name.required"
+msgstr "Enter a scope name."
+
+#. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.invalid_nickname"
 msgstr "Enter a valid nickname without control characters."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
+msgid "admin.federation.new.slug.required"
+msgstr "Enter an identifier."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
+msgid "admin.oidc-apps.new.redirect.required"
+msgstr "Enter at least one redirect URI."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/GeneralSection.tsx
+msgid "admin.oidc-apps.field.scopes.required"
+msgstr "Enter at least one scope."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
+msgid "admin.federation.new.scopes.required"
+msgstr "Enter at least one scope."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderConnectionSection.tsx
+msgid "admin.federation.connection.scopes.required"
+msgstr "Enter at least one scope."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/client-ip-form.ts
@@ -1381,15 +2367,65 @@ msgid "settings.network.proxies.too_many"
 msgstr "Enter at most 64 ranges."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
+msgid "admin.saml-apps.new.mode.manual"
+msgstr "Enter it by hand"
+
+#. js-lingui-explicit-id
 #. placeholder {0}: config.totp.digits
 #: src/pages/Login.tsx
 msgid "login.totp.digits"
 msgstr "Enter the {0}-digit code from your authenticator."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/saml-validation.ts
+msgid "admin.saml-apps.acs.address.required"
+msgstr "Enter the Assertion Consumer Service address."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderConnectionSection.tsx
+msgid "admin.federation.connection.authorization.required"
+msgstr "Enter the authorization endpoint."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/IdentityProjectionSection.tsx
+msgid "admin.oidc-apps.alias.name.required"
+msgstr "Enter the claim name the client will read."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
+msgid "admin.federation.new.client-id.required"
+msgstr "Enter the client ID."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
+msgid "admin.federation.new.secret.required"
+msgstr "Enter the client secret."
+
+#. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
 msgid "security.totp.invalid"
 msgstr "Enter the code your authenticator shows, using only 0–9."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderConnectionSection.tsx
+msgid "admin.federation.connection.mode.manual"
+msgstr "Enter the endpoints"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
+msgid "admin.federation.new.issuer.required"
+msgstr "Enter the issuer URL."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderConnectionSection.tsx
+msgid "admin.federation.connection.issuer.required"
+msgstr "Enter the issuer URL."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderConnectionSection.tsx
+msgid "admin.federation.connection.jwks.required"
+msgstr "Enter the JWKS endpoint."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/client-ip-form.ts
@@ -1402,6 +2438,26 @@ msgid "devices.code.required"
 msgstr "Enter the pairing code shown on the other device."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProvider.tsx
+msgid "admin.federation.danger.secret.required"
+msgstr "Enter the secret."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/saml-validation.ts
+msgid "admin.saml-apps.entity-id.required"
+msgstr "Enter the service provider's Entity ID."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderConnectionSection.tsx
+msgid "admin.federation.connection.token.required"
+msgstr "Enter the token endpoint."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
+msgid "admin.federation.new.steam-key.required"
+msgstr "Enter the Web API key."
+
+#. js-lingui-explicit-id
 #: src/components/custom/LoginShell.tsx
 msgid "login.factor.restart"
 msgstr "Enter your password again before trying another code. This verification attempt cannot be reused."
@@ -1410,6 +2466,17 @@ msgstr "Enter your password again before trying another code. This verification 
 #: src/pages/Login.tsx
 msgid "login.username.required"
 msgstr "Enter your username."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+msgid "admin.federation.diagnostics.source.manual"
+msgstr "Entered by hand"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
+#: src/pages/admin/saml-applications/SamlGeneralSection.tsx
+msgid "admin.saml-apps.field.entity-id"
+msgstr "Entity ID"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminLogs.tsx
@@ -1422,6 +2489,16 @@ msgid "admin.logs.filter.event"
 msgstr "Event"
 
 #. js-lingui-explicit-id
+#: src/components/custom/AppAccessPanel.tsx
+msgid "app.access.open"
+msgstr "Every account can use this"
+
+#. js-lingui-explicit-id
+#: src/components/custom/AppAccessPanel.tsx
+msgid "app.access.open.body"
+msgstr "Every account on this instance can use this application. The selected user groups stay where they are, ready if you restrict it again."
+
+#. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.all_apps"
 msgstr "Every application"
@@ -1430,6 +2507,21 @@ msgstr "Every application"
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.every_app"
 msgstr "Every application you can use"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/DangerSection.tsx
+msgid "admin.oidc-apps.disable.note"
+msgstr "Every client of this application stops being able to sign accounts in. The record, its secret and its access policy are kept."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/DangerSection.tsx
+msgid "admin.oidc-apps.disable.body"
+msgstr "Every client stops being able to sign accounts in, including the ones that are working. You can enable it again at any time."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/IdentityProjectionSection.tsx
+msgid "admin.oidc-apps.subject.confirm.body"
+msgstr "Every client that has signed this account in before stores the subject it was given. Changing the source makes each of them see a new account, so existing sessions at those clients no longer recognise it."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
@@ -1442,6 +2534,16 @@ msgid "security.recovery.confirm.body"
 msgstr "Every recovery code you have now stops working."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ForwardAuthDangerSection.tsx
+msgid "admin.forward-auth-apps.disable.note"
+msgstr "Every request through its router is turned away, including ones from people who are signed in. The record, its vocabulary and its access policy are kept."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/SamlDangerSection.tsx
+msgid "admin.saml-apps.danger.disabled-note"
+msgstr "Everyone is turned away at the service provider until it is enabled again."
+
+#. js-lingui-explicit-id
 #: src/pages/DevForms.tsx
 msgid "dev.forms.description"
 msgstr "Exercise the real API client, mutations, and form feedback. Use an isolated test account or intercept requests in browser tools. This page does not simulate responses."
@@ -1450,6 +2552,13 @@ msgstr "Exercise the real API client, mutations, and form feedback. Use an isola
 #: src/pages/admin/AdminInvitations.tsx
 msgid "admin.invitations.column.expires"
 msgstr "Expires"
+
+#. A date the administrator plans around, so it is a date and not a relative time
+#. js-lingui-explicit-id
+#. placeholder {0}: formatExpiry(key.notAfter, i18n.locale)
+#: src/pages/admin/saml-applications/SamlMetadataSection.tsx
+msgid "admin.saml-apps.keys.expires"
+msgstr "Expires {0}"
 
 #. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
@@ -1472,9 +2581,9 @@ msgid "audit.event.fail"
 msgstr "Failed"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminHome.tsx
-msgid "admin.home.availability"
-msgstr "Federation and downstream applications are not available yet. This area will grow to cover them."
+#: src/components/custom/ConsoleLayout.tsx
+msgid "console.admin.federation"
+msgstr "Federation"
 
 #. js-lingui-explicit-id
 #: src/pages/Preview.tsx
@@ -1512,6 +2621,36 @@ msgid "navigation.forms"
 msgstr "Form verification (development)"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/AdminForwardAuthApps.tsx
+msgid "admin.forward-auth-apps.table"
+msgstr "Forward-auth applications"
+
+#. js-lingui-explicit-id
+#: src/components/custom/ConsoleLayout.tsx
+msgid "console.admin.forward-auth-apps"
+msgstr "Forward-auth applications"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/MappingRowFields.tsx
+msgid "admin.saml-apps.mapping.friendly-name"
+msgstr "Friendly name"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/SamlGeneralSection.tsx
+msgid "admin.saml-apps.general"
+msgstr "General"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/GeneralSection.tsx
+msgid "admin.oidc-apps.general"
+msgstr "General"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ForwardAuthGeneralSection.tsx
+msgid "admin.forward-auth-apps.general"
+msgstr "General"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/settings/SigningKeysPanel.tsx
 msgid "settings.keys.generate"
 msgstr "Generate key"
@@ -1537,9 +2676,24 @@ msgid "admin.group.slug.required"
 msgstr "Give the group an identifier."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderGeneralSection.tsx
+msgid "admin.federation.general.name.required"
+msgstr "Give the provider a name."
+
+#. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.name.required"
 msgstr "Give the token a name so you can recognise it later."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/saml-projection.ts
+msgid "admin.saml-apps.mapping.name.required"
+msgstr "Give this attribute a name."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/secret-copy.ts
+msgid "admin.oidc-apps.secret.continue"
+msgstr "Go to the application"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/NetworkPanel.tsx
@@ -1552,9 +2706,30 @@ msgid "table.row.collapse"
 msgstr "Hide details"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/AdminForwardAuthAppNew.tsx
+#: src/pages/admin/forward-auth-apps/ForwardAuthGeneralSection.tsx
+msgid "admin.forward-auth-apps.field.host"
+msgstr "Hostname"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/AdminForwardAuthApps.tsx
+msgid "admin.forward-auth-apps.column.host"
+msgstr "Hostname"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
 msgid "admin.group.kind.label"
 msgstr "How it fills"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
+msgid "admin.saml-apps.new.mode"
+msgstr "How the application is registered"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/AcsRowFields.tsx
+msgid "admin.saml-apps.acs.location.placeholder"
+msgstr "https://sp.example.com/saml/acs"
 
 #. js-lingui-explicit-id
 #: src/components/custom/secret-reveal-copy.ts
@@ -1567,6 +2742,11 @@ msgid "login.codes.saved"
 msgstr "I have saved my recovery codes"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/secret-copy.ts
+msgid "admin.oidc-apps.secret.saved"
+msgstr "I have saved the client secret"
+
+#. js-lingui-explicit-id
 #: src/components/custom/secret-reveal-copy.ts
 msgid "admin.invitations.reveal.saved"
 msgstr "I have saved the registration link"
@@ -1577,8 +2757,33 @@ msgid "settings.general.icon.title"
 msgstr "Icon"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/SamlGeneralSection.tsx
+msgid "admin.saml-apps.icon"
+msgstr "Icon"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/GeneralSection.tsx
+msgid "admin.oidc-apps.icon"
+msgstr "Icon"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderGeneralSection.tsx
+msgid "admin.federation.icon.title"
+msgstr "Icon"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ForwardAuthGeneralSection.tsx
+msgid "admin.forward-auth-apps.icon"
+msgstr "Icon"
+
+#. js-lingui-explicit-id
 #: src/api/success-messages.ts
 msgid "success.instance-icon.removed"
+msgstr "Icon removed"
+
+#. js-lingui-explicit-id
+#: src/api/success-messages.ts
+msgid "success.entity-icon.removed"
 msgstr "Icon removed"
 
 #. js-lingui-explicit-id
@@ -1587,8 +2792,23 @@ msgid "success.instance-icon.updated"
 msgstr "Icon updated"
 
 #. js-lingui-explicit-id
+#: src/api/success-messages.ts
+msgid "success.entity-icon.updated"
+msgstr "Icon updated"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+msgid "admin.federation.diagnostics.stage.id-token"
+msgstr "ID token"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
 msgid "admin.group.slug"
+msgstr "Identifier"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
+msgid "admin.federation.new.slug"
 msgstr "Identifier"
 
 #. js-lingui-explicit-id
@@ -1607,6 +2827,31 @@ msgid "admin.users.filter.advanced"
 msgstr "Identity filter"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/SamlIdentitySection.tsx
+msgid "admin.saml-apps.identity"
+msgstr "Identity projection"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/IdentityProjectionSection.tsx
+msgid "admin.oidc-apps.identity"
+msgstr "Identity projection"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ForwardAuthIdentitySection.tsx
+msgid "admin.forward-auth-apps.identity"
+msgstr "Identity projection"
+
+#. js-lingui-explicit-id
+#: src/api/success-messages.ts
+msgid "success.identity-projection.saved"
+msgstr "Identity projection saved"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProviders.tsx
+msgid "admin.federation.table"
+msgstr "Identity providers"
+
+#. js-lingui-explicit-id
 #: src/api/success-messages.ts
 msgid "success.identity.unlinked"
 msgstr "Identity unlinked"
@@ -1617,9 +2862,29 @@ msgid "sudo.form.label"
 msgstr "Identity verification"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/AdminSamlApplications.tsx
+msgid "admin.saml-apps.column.idp-initiated"
+msgstr "IdP-initiated"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
+msgid "admin.saml-apps.new.mode.metadata"
+msgstr "Import metadata"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/SamlGeneralSection.tsx
+msgid "admin.saml-apps.field.lifetime.hint"
+msgstr "In minutes. Leave it empty to set no limit on how long a session lasts."
+
+#. js-lingui-explicit-id
 #: src/pages/ApiPreview.tsx
 msgid "api.maintenance.inactive"
 msgstr "Inactive"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/AcsRowFields.tsx
+msgid "admin.saml-apps.acs.index"
+msgstr "Index"
 
 #. js-lingui-explicit-id
 #: src/pages/ApiPreview.tsx
@@ -1667,6 +2932,13 @@ msgid "audit.factor.invitation"
 msgstr "Invitation"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
+#: src/pages/admin/identity-providers/AdminIdentityProviders.tsx
+#: src/pages/admin/identity-providers/ProviderGeneralSection.tsx
+msgid "admin.federation.mode.invite"
+msgstr "Invitation only"
+
+#. js-lingui-explicit-id
 #: src/api/success-messages.ts
 msgid "success.invitation.revoked"
 msgstr "Invitation revoked"
@@ -1707,14 +2979,44 @@ msgid "admin.user.enrollment.action"
 msgstr "Issue a registration link"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
+msgid "admin.federation.new.issuer"
+msgstr "Issuer URL"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderConnectionSection.tsx
+msgid "admin.federation.connection.issuer"
+msgstr "Issuer URL"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.enrollment.note"
 msgstr "Issues a new link this account can use to set up how they sign in. The link is shown once, and any earlier link stops working."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/DangerSection.tsx
+msgid "admin.oidc-apps.rotate.note"
+msgstr "Issues a new secret and discards the old one. Clients still using the old secret stop signing accounts in until they are updated."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProvider.tsx
+msgid "admin.federation.danger.disable.confirm.body"
+msgstr "It disappears from the sign-in page and from every account that could step up with it. Nothing is deleted."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProvider.tsx
+msgid "admin.federation.danger.enable.hint"
+msgstr "It is not offered at sign-in right now."
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
 msgid "admin.group.rule.view.json"
 msgstr "JSON"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderConnectionSection.tsx
+msgid "admin.federation.connection.jwks"
+msgstr "JWKS endpoint"
 
 #. js-lingui-explicit-id
 #: src/pages/ConnectedApps.tsx
@@ -1792,6 +3094,16 @@ msgid "admin.user.tokens.detail.lastUsed"
 msgstr "Last used <0/>"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/GeneralSection.tsx
+msgid "admin.oidc-apps.field.launch"
+msgstr "Launch URL"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderConnectionSection.tsx
+msgid "admin.federation.connection.userinfo.hint"
+msgstr "Leave it empty to skip the UserInfo request."
+
+#. js-lingui-explicit-id
 #: src/pages/admin/settings/GeneralPanel.tsx
 msgid "settings.general.name.hint"
 msgstr "Leave it empty to use the name from the deployment configuration."
@@ -1807,9 +3119,24 @@ msgid "admin.invitations.reveal.leave"
 msgstr "Leave without saving? This link cannot be shown again."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/secret-copy.ts
+msgid "admin.oidc-apps.secret.leave"
+msgstr "Leave without saving? This secret cannot be shown again."
+
+#. js-lingui-explicit-id
 #: src/components/custom/secret-reveal-copy.ts
 msgid "security.tokens.reveal.leave"
 msgstr "Leave without saving? This token cannot be shown again."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
+msgid "admin.saml-apps.field.idp-initiated.hint"
+msgstr "Let people start at this instance instead of at the service provider."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/SamlGeneralSection.tsx
+msgid "admin.saml-apps.general.idp-initiated.hint"
+msgstr "Let people start at this instance instead of at the service provider."
 
 #. js-lingui-explicit-id
 #: src/components/custom/ThemeSelect.tsx
@@ -1822,9 +3149,19 @@ msgid "settings.network.proxies.invalid"
 msgstr "Line {line} is not an IPv4 or IPv6 range, such as 10.0.0.0/8 or 2001:db8::/32."
 
 #. js-lingui-explicit-id
+#: src/forms/lines.ts
+msgid "form.lines.invalid"
+msgstr "Line {line}: {reason}"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/settings/client-ip-form.ts
 msgid "settings.network.proxies.spaces"
 msgstr "Line {line}: remove the spaces around the address."
+
+#. js-lingui-explicit-id
+#: src/forms/lines.ts
+msgid "form.lines.spaces"
+msgstr "Line {line}: remove the spaces at either end."
 
 #. js-lingui-explicit-id
 #: src/pages/security/IdentitiesPanel.tsx
@@ -1845,6 +3182,13 @@ msgstr "Link used"
 #: src/pages/admin/audit-vocabulary.ts
 msgid "audit.event.link"
 msgstr "Linked"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
+#: src/pages/admin/identity-providers/AdminIdentityProviders.tsx
+#: src/pages/admin/identity-providers/ProviderGeneralSection.tsx
+msgid "admin.federation.mode.link"
+msgstr "Links existing accounts"
 
 #. js-lingui-explicit-id
 #: src/pages/Preview.tsx
@@ -1913,14 +3257,39 @@ msgid "success.maintenance.saved"
 msgstr "Maintenance settings saved"
 
 #. js-lingui-explicit-id
+#: src/components/custom/AppAccessPanel.tsx
+msgid "app.access.open.action"
+msgstr "Make it open"
+
+#. js-lingui-explicit-id
+#: src/components/custom/AppAccessPanel.tsx
+msgid "app.managers.dialog.label"
+msgstr "Manager"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts
 msgid "audit.event.app_manager_assigned"
+msgstr "Manager assigned"
+
+#. js-lingui-explicit-id
+#: src/api/success-messages.ts
+msgid "success.app.manager-assigned"
 msgstr "Manager assigned"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts
 msgid "audit.event.app_manager_removed"
 msgstr "Manager removed"
+
+#. js-lingui-explicit-id
+#: src/api/success-messages.ts
+msgid "success.app.manager-removed"
+msgstr "Manager removed"
+
+#. js-lingui-explicit-id
+#: src/components/custom/AppAccessPanel.tsx
+msgid "app.managers.label"
+msgstr "Managers"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
@@ -1931,6 +3300,11 @@ msgstr "Manual"
 #: src/pages/admin/AdminGroups.tsx
 msgid "admin.groups.kind.manual"
 msgstr "Manual"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/saml-validation.ts
+msgid "admin.saml-apps.acs.default.required"
+msgstr "Mark exactly one endpoint as the default."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
@@ -1946,6 +3320,26 @@ msgstr "Match"
 #: src/pages/admin/AdminGroupForm.tsx
 msgid "admin.group.rule.not.hint"
 msgstr "Match accounts this condition does not describe."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/SamlMetadataSection.tsx
+msgid "admin.saml-apps.metadata"
+msgstr "Metadata"
+
+#. js-lingui-explicit-id
+#: src/api/success-messages.ts
+msgid "success.saml-app.metadata-reingested"
+msgstr "Metadata re-imported"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
+msgid "admin.saml-apps.field.metadata"
+msgstr "Metadata XML"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/SamlMetadataSection.tsx
+msgid "admin.saml-apps.metadata.dialog.field"
+msgstr "Metadata XML"
 
 #. js-lingui-explicit-id
 #: src/components/custom/SudoDialog.tsx
@@ -1993,6 +3387,60 @@ msgid "settings.general.name.label"
 msgstr "Name"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
+#: src/pages/admin/saml-applications/SamlGeneralSection.tsx
+msgid "admin.saml-apps.field.name"
+msgstr "Name"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/MappingRowFields.tsx
+msgid "admin.saml-apps.mapping.name"
+msgstr "Name"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
+#: src/pages/admin/oidc-applications/GeneralSection.tsx
+msgid "admin.oidc-apps.field.name"
+msgstr "Name"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
+msgid "admin.federation.new.name"
+msgstr "Name"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderGeneralSection.tsx
+msgid "admin.federation.general.name"
+msgstr "Name"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/AdminForwardAuthAppNew.tsx
+#: src/pages/admin/forward-auth-apps/ForwardAuthGeneralSection.tsx
+msgid "admin.forward-auth-apps.field.name"
+msgstr "Name"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/MappingRowFields.tsx
+msgid "admin.saml-apps.mapping.name-format"
+msgstr "Name format"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/saml-projection.ts
+msgid "admin.saml-apps.mapping.key.required"
+msgstr "Name the account attribute this reads from."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
+#: src/pages/admin/saml-applications/SamlIdentitySection.tsx
+msgid "admin.saml-apps.field.name-id"
+msgstr "NameID format"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/AdminSamlApplications.tsx
+msgid "admin.saml-apps.column.name-id"
+msgstr "NameID format"
+
+#. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.detail.noExpiry"
 msgstr "Never expires"
@@ -2023,6 +3471,21 @@ msgid "security.tokens.reveal.label"
 msgstr "New access token"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/AdminSamlApplications.tsx
+msgid "admin.saml-apps.create"
+msgstr "New application"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/AdminOidcApplications.tsx
+msgid "admin.oidc-apps.create"
+msgstr "New application"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/AdminForwardAuthApps.tsx
+msgid "admin.forward-auth-apps.create"
+msgstr "New application"
+
+#. js-lingui-explicit-id
 #: src/pages/Login.tsx
 msgid "login.reset.code"
 msgstr "New authenticator code"
@@ -2031,6 +3494,11 @@ msgstr "New authenticator code"
 #: src/components/custom/TotpSetup.tsx
 msgid "login.reset.qr"
 msgstr "New authenticator setup QR code"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/AdminForwardAuthAppNew.tsx
+msgid "admin.forward-auth-apps.new.form"
+msgstr "New forward-auth application"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminGroups.tsx
@@ -2048,6 +3516,11 @@ msgid "admin.invitations.new.form"
 msgstr "New invitation"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
+msgid "admin.oidc-apps.new.form"
+msgstr "New OIDC application"
+
+#. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
 msgid "security.password.new"
 msgstr "New password"
@@ -2061,6 +3534,11 @@ msgstr "New password"
 #: src/components/custom/secret-reveal-copy.ts
 msgid "login.codes.label"
 msgstr "New recovery codes"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
+msgid "admin.saml-apps.new.form"
+msgstr "New SAML application"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/SigningKeysPanel.tsx
@@ -2108,6 +3586,11 @@ msgid "apps.empty"
 msgstr "No approved applications yet"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/SamlMetadataSection.tsx
+msgid "admin.saml-apps.keys.empty"
+msgstr "No certificates are published for this application."
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.identities.empty"
 msgstr "No connected identities"
@@ -2116,6 +3599,16 @@ msgstr "No connected identities"
 #: src/pages/admin/AdminLogs.tsx
 msgid "admin.logs.empty"
 msgstr "No events in this range"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/SamlMetadataSection.tsx
+msgid "admin.saml-apps.keys.no-expiry"
+msgstr "No expiry"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/AdminForwardAuthApps.tsx
+msgid "admin.forward-auth-apps.empty"
+msgstr "No forward-auth applications yet"
 
 #. js-lingui-explicit-id
 #: src/pages/security/IdentitiesPanel.tsx
@@ -2128,9 +3621,19 @@ msgid "admin.invitations.empty"
 msgstr "No invitations yet"
 
 #. js-lingui-explicit-id
+#: src/components/custom/AppAccessPanel.tsx
+msgid "app.managers.empty"
+msgstr "No managers assigned yet"
+
+#. js-lingui-explicit-id
 #: src/components/custom/EntityPicker.tsx
 msgid "admin.picker.empty"
 msgstr "No matches"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/AdminOidcApplications.tsx
+msgid "admin.oidc-apps.empty"
+msgstr "No OIDC applications yet"
 
 #. js-lingui-explicit-id
 #: src/pages/security/IdentitiesPanel.tsx
@@ -2158,9 +3661,24 @@ msgid "profile.avatar.source.none"
 msgstr "No picture"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProviders.tsx
+msgid "admin.federation.empty"
+msgstr "No providers yet"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/AdminSamlApplications.tsx
+msgid "admin.saml-apps.empty"
+msgstr "No SAML applications yet"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/settings/SigningKeysPanel.tsx
 msgid "settings.keys.empty"
 msgstr "No signing keys"
+
+#. js-lingui-explicit-id
+#: src/components/custom/AppAccessPanel.tsx
+msgid "app.groups.empty"
+msgstr "No user groups selected yet"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminGroups.tsx
@@ -2171,6 +3689,26 @@ msgstr "No user groups yet"
 #: src/pages/admin/AdminUsers.tsx
 msgid "admin.users.empty"
 msgstr "No users match"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProvider.tsx
+msgid "admin.federation.danger.disable.hint"
+msgstr "Nobody can sign in with it while it is disabled."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
+msgid "admin.saml-apps.field.restricted.hint"
+msgstr "Nobody can use the application until you select a user group."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
+msgid "admin.oidc-apps.field.restricted.hint"
+msgstr "Nobody can use the application until you select a user group."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/AdminForwardAuthAppNew.tsx
+msgid "admin.forward-auth-apps.field.restricted.hint"
+msgstr "Nobody can use the application until you select a user group."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/MaintenancePanel.tsx
@@ -2186,6 +3724,16 @@ msgstr "Not"
 #: src/pages/ApiPreview.tsx
 msgid "api.uninitialized"
 msgstr "Not initialized"
+
+#. js-lingui-explicit-id
+#: src/components/custom/EntityCell.tsx
+msgid "entity.state.not_ready"
+msgstr "Not ready"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderOperatorSection.tsx
+msgid "admin.federation.operator.none"
+msgstr "Not set up"
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
@@ -2223,9 +3771,25 @@ msgid "admin.group.exposed"
 msgstr "Offer to applications"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
+#: src/pages/admin/identity-providers/AdminIdentityProviders.tsx
+msgid "admin.federation.protocol.oidc"
+msgstr "OIDC"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts
 msgid "audit.factor.oidc_client"
 msgstr "OIDC application"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/AdminOidcApplications.tsx
+msgid "admin.oidc-apps.table"
+msgstr "OIDC applications"
+
+#. js-lingui-explicit-id
+#: src/components/custom/ConsoleLayout.tsx
+msgid "console.admin.oidc-applications"
+msgstr "OIDC applications"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
@@ -2253,9 +3817,70 @@ msgid "error.group_in_use"
 msgstr "One or more applications still use this user group. Remove it from them before deleting it."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/GeneralSection.tsx
+msgid "admin.oidc-apps.field.post-logout.hint"
+msgstr "One per line, where the client may return after signing out. Empty means it may not."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderConnectionSection.tsx
+msgid "admin.federation.connection.scopes.hint"
+msgstr "One per line."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
+#: src/pages/admin/oidc-applications/GeneralSection.tsx
+msgid "admin.oidc-apps.field.redirects.hint"
+msgstr "One per line. Absolute http or https addresses."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
+msgid "admin.federation.claims.domains.hint"
+msgstr "One per line. Leave empty to accept every domain."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
+msgid "admin.federation.scopes.hint"
+msgstr "One per line. The upstream must support every scope you list."
+
+#. js-lingui-explicit-id
+#: src/components/custom/RowsField.tsx
+msgid "form.rows.hint"
+msgstr "One value per line. Blank lines are ignored; a line with spaces at either end is refused rather than trimmed."
+
+#. js-lingui-explicit-id
+#: src/components/custom/AppAccessPanel.tsx
+msgid "app.access.restrict.body"
+msgstr "Only accounts in the user groups you select can use this application. Until you select one, nobody can."
+
+#. js-lingui-explicit-id
 #: src/pages/Devices.tsx
 msgid "devices.confirm.body"
 msgstr "Only approve it if these details match the device you are signing in on."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/saml-validation.ts
+msgid "admin.saml-apps.acs.default.duplicate"
+msgstr "Only one endpoint can be the default one."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/AdminSamlApplications.tsx
+msgid "admin.saml-apps.open"
+msgstr "Open {name}"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/AdminOidcApplications.tsx
+msgid "admin.oidc-apps.open"
+msgstr "Open {name}"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderActions.tsx
+msgid "admin.federation.edit"
+msgstr "Open {name}"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/AdminForwardAuthApps.tsx
+msgid "admin.forward-auth-apps.open"
+msgstr "Open {name}"
 
 #. js-lingui-explicit-id
 #: src/components/custom/ConsoleLayout.tsx
@@ -2263,9 +3888,24 @@ msgid "console.open-menu"
 msgstr "Open navigation"
 
 #. js-lingui-explicit-id
+#: src/components/custom/AppAccessPanel.tsx
+msgid "app.access.open.title"
+msgstr "Open this application to everyone?"
+
+#. js-lingui-explicit-id
+#: src/components/custom/AppAccessPanel.tsx
+msgid "app.access.open.confirm"
+msgstr "Open to everyone"
+
+#. js-lingui-explicit-id
 #: src/pages/ConnectedApps.tsx
 msgid "apps.kind.oidc"
 msgstr "OpenID Connect"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProvider.tsx
+msgid "admin.federation.operator.title"
+msgstr "Operator session"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminInvitationForm.tsx
@@ -2286,6 +3926,11 @@ msgstr "Optional. Only providers that are enabled and ready are offered; the inv
 #: src/pages/admin/AdminGroupForm.tsx
 msgid "admin.group.description.hint"
 msgstr "Optional. What this group is for, for whoever reads it next."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+msgid "admin.federation.diagnostics.source.override"
+msgstr "Overridden"
 
 #. js-lingui-explicit-id
 #: src/components/custom/RouteFeedback.tsx
@@ -2368,6 +4013,11 @@ msgid "audit.factor.password"
 msgstr "Password"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderOperatorSection.tsx
+msgid "admin.federation.operator.password"
+msgstr "Password"
+
+#. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
 msgid "security.section.password"
 msgstr "Password and authenticator"
@@ -2388,6 +4038,11 @@ msgid "success.password.changed"
 msgstr "Password changed"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/saml-validation.ts
+msgid "admin.saml-apps.metadata.required"
+msgstr "Paste the service provider's metadata document."
+
+#. js-lingui-explicit-id
 #: src/pages/admin/settings/SigningKeysPanel.tsx
 msgid "settings.keys.status.pending"
 msgstr "Pending"
@@ -2401,6 +4056,11 @@ msgstr "PHB-64 / M1 · Foundation preview"
 #: src/pages/ApiPreview.tsx
 msgid "api.eyebrow"
 msgstr "PHB-65 / M2 · Public API preview"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
+msgid "admin.federation.claims.picture"
+msgstr "Picture"
 
 #. js-lingui-explicit-id
 #: src/pages/profile/AvatarPanel.tsx
@@ -2423,6 +4083,11 @@ msgid "settings.general.icon.hint"
 msgstr "PNG, JPEG, WebP or GIF, up to 5 MiB."
 
 #. js-lingui-explicit-id
+#: src/components/custom/EntityIconCard.tsx
+msgid "entity.icon.hint"
+msgstr "PNG, JPEG, WebP or GIF, up to 5 MiB."
+
+#. js-lingui-explicit-id
 #: src/pages/profile/AvatarPanel.tsx
 msgid "profile.avatar.hint"
 msgstr "PNG, JPEG, WebP, GIF or AVIF, up to 5 MiB. Larger pictures are scaled down."
@@ -2431,6 +4096,11 @@ msgstr "PNG, JPEG, WebP, GIF or AVIF, up to 5 MiB. Larger pictures are scaled do
 #: src/pages/admin/audit-vocabulary.ts
 msgid "audit.event.clone_warning"
 msgstr "Possible clone"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/GeneralSection.tsx
+msgid "admin.oidc-apps.field.post-logout"
+msgstr "Post-logout redirect URIs"
 
 #. js-lingui-explicit-id
 #: src/pages/Preview.tsx
@@ -2463,14 +4133,90 @@ msgid "console.profile"
 msgstr "Profile"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
+msgid "admin.federation.new.protocol"
+msgstr "Protocol"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProviders.tsx
+msgid "admin.federation.column.protocol"
+msgstr "Protocol"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminUsers.tsx
 msgid "admin.users.filter.providerLabel"
 msgstr "Provider"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProvider.tsx
+msgid "admin.federation.general.title"
+msgstr "Provider"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProviders.tsx
+msgid "admin.federation.column.provider"
+msgstr "Provider"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderGeneralSection.tsx
+msgid "admin.federation.general.form"
+msgstr "Provider"
+
+#. js-lingui-explicit-id
+#: src/api/success-messages.ts
+msgid "success.identity-provider.created"
+msgstr "Provider created"
+
+#. js-lingui-explicit-id
+#: src/api/success-messages.ts
+msgid "success.identity-provider.deleted"
+msgstr "Provider deleted"
+
+#. js-lingui-explicit-id
+#: src/api/success-messages.ts
+msgid "success.identity-provider.disabled"
+msgstr "Provider disabled"
+
+#. js-lingui-explicit-id
+#: src/api/success-messages.ts
+msgid "success.identity-provider.enabled"
+msgstr "Provider enabled"
+
+#. js-lingui-explicit-id
+#: src/api/success-messages.ts
+msgid "success.identity-provider.saved"
+msgstr "Provider saved"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
+msgid "admin.federation.new.mode"
+msgstr "Provisioning"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProviders.tsx
+msgid "admin.federation.column.mode"
+msgstr "Provisioning"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderGeneralSection.tsx
+msgid "admin.federation.general.mode"
+msgstr "Provisioning"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
+#: src/pages/admin/oidc-applications/AdminOidcApplications.tsx
+msgid "admin.oidc-apps.kind.public"
+msgstr "Public"
+
+#. js-lingui-explicit-id
 #: src/components/custom/PreviewLayout.tsx
 msgid "navigation.api"
 msgstr "Public API"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
+msgid "admin.federation.auth.none"
+msgstr "Public client"
 
 #. js-lingui-explicit-id
 #: src/pages/ApiPreview.tsx
@@ -2481,6 +4227,41 @@ msgstr "Public configuration"
 #: src/pages/admin/settings/SigningKeysPanel.tsx
 msgid "settings.keys.jwk.title"
 msgstr "Public key"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/IdentityProjectionSection.tsx
+msgid "admin.oidc-apps.aliases.hint"
+msgstr "Publish a granted claim under a second name, for a client that expects one the specification does not define."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/SamlIdentitySection.tsx
+msgid "admin.saml-apps.mapping.hint"
+msgstr "Publish the account's own facts under the names the service provider expects."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/SamlMetadataSection.tsx
+msgid "admin.saml-apps.metadata.dialog.submit"
+msgstr "Re-import"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/SamlMetadataSection.tsx
+msgid "admin.saml-apps.metadata.reingest"
+msgstr "Re-import metadata"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/SamlMetadataSection.tsx
+msgid "admin.saml-apps.metadata.dialog.title"
+msgstr "Re-import metadata"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ScopeRows.tsx
+msgid "admin.forward-auth-apps.scope.name.placeholder"
+msgstr "read"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+msgid "admin.federation.diagnostics.fetched"
+msgstr "Read <0/>"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/NetworkPanel.tsx
@@ -2503,8 +4284,19 @@ msgid "security.recovery.title"
 msgstr "Recovery codes"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
+#: src/pages/admin/oidc-applications/GeneralSection.tsx
+msgid "admin.oidc-apps.field.redirects"
+msgstr "Redirect URIs"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminLogs.tsx
 msgid "admin.logs.refresh"
+msgstr "Refresh"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+msgid "admin.federation.diagnostics.refresh"
 msgstr "Refresh"
 
 #. js-lingui-explicit-id
@@ -2513,9 +4305,29 @@ msgid "api.refresh"
 msgstr "Refresh data"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+msgid "admin.federation.diagnostics.refresh-result"
+msgstr "Refresh result"
+
+#. js-lingui-explicit-id
 #: src/pages/ApiPreview.tsx
 msgid "api.refreshing"
 msgstr "Refreshing…"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/SamlGeneralSection.tsx
+msgid "admin.saml-apps.general.signed-request.hint"
+msgstr "Refuse a sign-in request the service provider has not signed. Good practice for every provider that can sign one."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
+msgid "admin.saml-apps.field.signed-request.hint"
+msgstr "Refuse a sign-in request the service provider has not signed. Turn this off only if it cannot sign one."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+msgid "admin.federation.diagnostics.callback.hint"
+msgstr "Register this address with the provider."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts
@@ -2533,6 +4345,11 @@ msgid "admin.invitations.reveal.label"
 msgstr "Registration link"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ForwardAuthIdentitySection.tsx
+msgid "admin.forward-auth-apps.identity.source"
+msgstr "Remote-User"
+
+#. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
 msgid "security.passkeys.delete"
 msgstr "Remove"
@@ -2546,6 +4363,21 @@ msgstr "Remove"
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.passkeys.revoke"
 msgstr "Remove"
+
+#. js-lingui-explicit-id
+#: src/components/custom/AppAccessPanel.tsx
+msgid "app.managers.confirm.action"
+msgstr "Remove"
+
+#. js-lingui-explicit-id
+#: src/components/custom/AppAccessPanel.tsx
+msgid "app.groups.remove"
+msgstr "Remove {group}"
+
+#. js-lingui-explicit-id
+#: src/components/custom/AppAccessPanel.tsx
+msgid "app.managers.remove"
+msgstr "Remove {name}"
 
 #. js-lingui-explicit-id
 #: src/pages/ConnectedApps.tsx
@@ -2578,14 +4410,29 @@ msgid "settings.general.icon.remove"
 msgstr "Remove icon"
 
 #. js-lingui-explicit-id
+#: src/components/custom/EntityIconCard.tsx
+msgid "entity.icon.remove"
+msgstr "Remove icon"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.passkeys.revoke.action"
 msgstr "Remove passkey"
 
 #. js-lingui-explicit-id
+#: src/components/custom/RowsField.tsx
+msgid "form.rows.remove"
+msgstr "Remove row {row}"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
 msgid "admin.group.rule.remove"
 msgstr "Remove this condition"
+
+#. js-lingui-explicit-id
+#: src/components/custom/AppAccessPanel.tsx
+msgid "app.managers.confirm.title"
+msgstr "Remove this manager?"
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
@@ -2606,6 +4453,16 @@ msgstr "Remove upload"
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.delete.note"
 msgstr "Removes the account and everything it owns: passkeys, sessions, access tokens and connected identities. This cannot be undone."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ForwardAuthDangerSection.tsx
+msgid "admin.forward-auth-apps.delete.note"
+msgstr "Removes the application, its scope vocabulary, its icon and its access policy. Accounts are not affected."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/DangerSection.tsx
+msgid "admin.oidc-apps.delete.note"
+msgstr "Removes the application, its secret, its icon and its access policy. This cannot be undone."
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
@@ -2663,6 +4520,16 @@ msgid "settings.general.icon.replace"
 msgstr "Replace icon"
 
 #. js-lingui-explicit-id
+#: src/components/custom/EntityIconCard.tsx
+msgid "entity.icon.replace"
+msgstr "Replace icon"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProvider.tsx
+msgid "admin.federation.danger.replace-secret"
+msgstr "Replace the secret"
+
+#. js-lingui-explicit-id
 #: src/pages/profile/AvatarPanel.tsx
 msgid "profile.avatar.replace"
 msgstr "Replace upload"
@@ -2671,6 +4538,11 @@ msgstr "Replace upload"
 #: src/pages/security/PasswordTotpPanel.tsx
 msgid "security.recovery.confirm.title"
 msgstr "Replace your recovery codes?"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/SamlMetadataSection.tsx
+msgid "admin.saml-apps.metadata.dialog.hint"
+msgstr "Replaces the endpoints and certificates below. The Entity ID and the name stay as they are."
 
 #. js-lingui-explicit-id
 #. placeholder {0}: toast.content.error.requestId
@@ -2689,9 +4561,67 @@ msgid "devices.field.ip"
 msgstr "Requested from"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ForwardAuthDangerSection.tsx
+msgid "admin.forward-auth-apps.enable.note"
+msgstr "Requests through its router are accepted again, under the access policy it already has."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
+#: src/pages/admin/saml-applications/SamlGeneralSection.tsx
+msgid "admin.saml-apps.field.signed-request"
+msgstr "Require a signed AuthnRequest"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
+msgid "admin.federation.claims.verified"
+msgstr "Require a verified email address"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
+#: src/pages/admin/oidc-applications/GeneralSection.tsx
+msgid "admin.oidc-apps.field.consent"
+msgstr "Require consent"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
+#: src/pages/admin/oidc-applications/GeneralSection.tsx
+msgid "admin.oidc-apps.field.pkce"
+msgstr "Require PKCE"
+
+#. js-lingui-explicit-id
 #: src/pages/Login.tsx
 msgid "login.reset.toggle"
 msgstr "Reset my authenticator"
+
+#. js-lingui-explicit-id
+#: src/components/custom/AppAccessPanel.tsx
+msgid "app.access.restrict.confirm"
+msgstr "Restrict"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
+msgid "admin.saml-apps.field.restricted"
+msgstr "Restrict access"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
+msgid "admin.oidc-apps.field.restricted"
+msgstr "Restrict access"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/AdminForwardAuthAppNew.tsx
+msgid "admin.forward-auth-apps.field.restricted"
+msgstr "Restrict access"
+
+#. js-lingui-explicit-id
+#: src/components/custom/AppAccessPanel.tsx
+msgid "app.access.restrict.action"
+msgstr "Restrict access"
+
+#. js-lingui-explicit-id
+#: src/components/custom/AppAccessPanel.tsx
+msgid "app.access.restrict.title"
+msgstr "Restrict this application?"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts
@@ -2727,6 +4657,11 @@ msgstr "Retiring"
 #: src/components/custom/RouteFeedback.tsx
 msgid "route.home"
 msgstr "Return to preview"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ForwardAuthProxySection.tsx
+msgid "admin.forward-auth-apps.proxy"
+msgstr "Reverse proxy"
 
 #. js-lingui-explicit-id
 #: src/pages/Preview.tsx
@@ -2799,6 +4734,26 @@ msgid "admin.users.column.role"
 msgstr "Role"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/DangerSection.tsx
+msgid "admin.oidc-apps.rotate.action"
+msgstr "Rotate secret"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/DangerSection.tsx
+msgid "admin.oidc-apps.rotate.confirm"
+msgstr "Rotate secret"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/DangerSection.tsx
+msgid "admin.oidc-apps.rotate"
+msgstr "Rotate the client secret"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/DangerSection.tsx
+msgid "admin.oidc-apps.rotate.title"
+msgstr "Rotate the client secret?"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts
 msgid "audit.event.rotate"
 msgstr "Rotated"
@@ -2834,6 +4789,16 @@ msgid "audit.factor.saml_sp"
 msgstr "SAML application"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/AdminSamlApplications.tsx
+msgid "admin.saml-apps.table"
+msgstr "SAML applications"
+
+#. js-lingui-explicit-id
+#: src/components/custom/ConsoleLayout.tsx
+msgid "console.admin.saml-applications"
+msgstr "SAML applications"
+
+#. js-lingui-explicit-id
 #: src/pages/Profile.tsx
 msgid "profile.display-name.save"
 msgstr "Save"
@@ -2851,6 +4816,56 @@ msgstr "Save"
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/NetworkPanel.tsx
 msgid "settings.network.save"
+msgstr "Save"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/SamlGeneralSection.tsx
+msgid "admin.saml-apps.general.save"
+msgstr "Save"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/SamlIdentitySection.tsx
+msgid "admin.saml-apps.identity.save"
+msgstr "Save"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/GeneralSection.tsx
+msgid "admin.oidc-apps.save"
+msgstr "Save"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/IdentityProjectionSection.tsx
+msgid "admin.oidc-apps.identity.save"
+msgstr "Save"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProvider.tsx
+msgid "admin.federation.danger.secret.save"
+msgstr "Save"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
+msgid "admin.federation.claims.save"
+msgstr "Save"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderConnectionSection.tsx
+msgid "admin.federation.connection.save"
+msgstr "Save"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderGeneralSection.tsx
+msgid "admin.federation.general.save"
+msgstr "Save"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ForwardAuthGeneralSection.tsx
+msgid "admin.forward-auth-apps.save"
+msgstr "Save"
+
+#. js-lingui-explicit-id
+#: src/components/custom/AppAccessPanel.tsx
+msgid "app.groups.dialog.save"
 msgstr "Save"
 
 #. js-lingui-explicit-id
@@ -2879,6 +4894,43 @@ msgid "login.reset.scan"
 msgstr "Scan this QR code with your authenticator, or enter the setup key manually. Then enter a code from the new authenticator."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ScopeRows.tsx
+msgid "admin.forward-auth-apps.scope.name"
+msgstr "Scope name"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/AdminForwardAuthAppNew.tsx
+#: src/pages/admin/forward-auth-apps/ForwardAuthGeneralSection.tsx
+msgid "admin.forward-auth-apps.field.scopes"
+msgstr "Scope vocabulary"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
+#: src/pages/admin/oidc-applications/GeneralSection.tsx
+msgid "admin.oidc-apps.field.scopes"
+msgstr "Scopes"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/AdminOidcApplications.tsx
+msgid "admin.oidc-apps.column.scopes"
+msgstr "Scopes"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
+msgid "admin.federation.scopes.label"
+msgstr "Scopes"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderConnectionSection.tsx
+msgid "admin.federation.connection.scopes"
+msgstr "Scopes"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/AdminForwardAuthApps.tsx
+msgid "admin.forward-auth-apps.column.scopes"
+msgstr "Scopes"
+
+#. js-lingui-explicit-id
 #: src/components/custom/EntityPicker.tsx
 msgid "admin.picker.search"
 msgstr "Search"
@@ -2904,9 +4956,34 @@ msgid "admin.users.search"
 msgstr "Search users"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProvider.tsx
+msgid "admin.federation.danger.secret.form"
+msgstr "Secret"
+
+#. js-lingui-explicit-id
+#: src/api/success-messages.ts
+msgid "success.identity-provider.secret-set"
+msgstr "Secret saved"
+
+#. js-lingui-explicit-id
 #: src/components/custom/ConsoleLayout.tsx
 msgid "console.security"
 msgstr "Security"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ForwardAuthIdentitySection.tsx
+msgid "admin.forward-auth-apps.identity.confirm.title"
+msgstr "Send a different identifier?"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/MappingRowFields.tsx
+msgid "admin.saml-apps.mapping.multi"
+msgstr "Send every value"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/GeneralSection.tsx
+msgid "admin.oidc-apps.field.scopes.hint"
+msgstr "Separated by spaces, as a client sends them."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts
@@ -2917,6 +4994,36 @@ msgstr "Session"
 #: src/api/success-messages.ts
 msgid "success.session.ended"
 msgstr "Session ended"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderOperatorSection.tsx
+msgid "admin.federation.operator.invalid"
+msgstr "Session expired"
+
+#. js-lingui-explicit-id
+#: src/api/success-messages.ts
+msgid "success.operator-session.validated"
+msgstr "Session is still valid"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/SamlGeneralSection.tsx
+msgid "admin.saml-apps.field.lifetime"
+msgstr "Session lifetime"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderOperatorSection.tsx
+msgid "admin.federation.operator.valid"
+msgstr "Session valid"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProvider.tsx
+msgid "admin.federation.danger.secret.action"
+msgstr "Set"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProvider.tsx
+msgid "admin.federation.danger.set-secret"
+msgstr "Set the secret"
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
@@ -2959,6 +5066,11 @@ msgid "notification.show"
 msgstr "Show notification"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+msgid "admin.federation.diagnostics.stale"
+msgstr "Showing the last configuration that was read."
+
+#. js-lingui-explicit-id
 #: src/pages/admin/settings/MaintenancePanel.tsx
 msgid "settings.maintenance.notice.hint"
 msgstr "Shown on the sign-in page while maintenance mode is on."
@@ -2966,6 +5078,16 @@ msgstr "Shown on the sign-in page while maintenance mode is on."
 #. js-lingui-explicit-id
 #: src/pages/Login.tsx
 msgid "login.verify"
+msgstr "Sign in"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderOperatorSection.tsx
+msgid "admin.federation.operator.login"
+msgstr "Sign in"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderOperatorSection.tsx
+msgid "admin.federation.operator.submit"
 msgstr "Sign in"
 
 #. js-lingui-explicit-id
@@ -2979,9 +5101,19 @@ msgid "navigation.login"
 msgstr "Sign in"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderOperatorSection.tsx
+msgid "admin.federation.operator.replace"
+msgstr "Sign in again"
+
+#. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.no_session"
 msgstr "Sign in to continue."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderOperatorSection.tsx
+msgid "admin.federation.operator.sign-in-title"
+msgstr "Sign in to VRChat"
 
 #. js-lingui-explicit-id
 #: src/pages/Login.tsx
@@ -3059,6 +5191,16 @@ msgid "settings.keys.status.active"
 msgstr "Signing"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/SamlMetadataSection.tsx
+msgid "admin.saml-apps.keys.use"
+msgstr "Signing"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/SamlMetadataSection.tsx
+msgid "admin.saml-apps.keys.title"
+msgstr "Signing certificates"
+
+#. js-lingui-explicit-id
 #: src/components/custom/LoginShell.tsx
 msgid "login.factor.account"
 msgstr "Signing in as {username}"
@@ -3105,9 +5247,29 @@ msgid "admin.groups.column.slug"
 msgstr "Slug"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/MappingRowFields.tsx
+msgid "admin.saml-apps.mapping.source"
+msgstr "Source"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/AliasRowFields.tsx
+msgid "admin.oidc-apps.alias.source"
+msgstr "Source claim"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+msgid "admin.federation.diagnostics.start"
+msgstr "Start a test"
+
+#. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.ceremony_missing"
 msgstr "Start passkey sign-in again to continue."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/IdentityProjectionSection.tsx
+msgid "admin.oidc-apps.alias.name.invalid"
+msgstr "Start with a letter or an underscore, then letters, digits or underscores, up to 64 characters."
 
 #. js-lingui-explicit-id
 #: src/pages/security/SessionsPanel.tsx
@@ -3135,6 +5297,27 @@ msgid "settings.keys.column.status"
 msgstr "Status"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
+#: src/pages/admin/identity-providers/AdminIdentityProviders.tsx
+msgid "admin.federation.protocol.steam"
+msgstr "Steam"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProvider.tsx
+msgid "admin.federation.danger.secret.hint"
+msgstr "Stored encrypted and never shown again."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
+msgid "admin.federation.claims.subject"
+msgstr "Subject"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/IdentityProjectionSection.tsx
+msgid "admin.oidc-apps.subject"
+msgstr "Subject source"
+
+#. js-lingui-explicit-id
 #: src/pages/DevForms.tsx
 msgid "dev.forms.rename.submit"
 msgstr "Submit nickname"
@@ -3160,9 +5343,34 @@ msgid "theme.system"
 msgstr "System theme"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/AliasRowFields.tsx
+msgid "admin.oidc-apps.alias.name.placeholder"
+msgstr "team"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+msgid "admin.federation.diagnostics.stages"
+msgstr "Test stages"
+
+#. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.account_not_found"
 msgstr "That account no longer exists. The list has been refreshed."
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.client_not_found"
+msgstr "That application no longer exists. The list has been refreshed."
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.oidc_client_already_exists"
+msgstr "That Client ID or host name is already in use."
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.vrchat_operator_code_invalid"
+msgstr "That code is not valid. Check it and try again."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
@@ -3188,6 +5396,11 @@ msgstr "That file is not an image this instance can use."
 #: src/pages/admin/AdminGroupForm.tsx
 msgid "admin.group.rule.reason.invalid_op"
 msgstr "That group type is not supported."
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.upstream_idp_already_exists"
+msgstr "That identifier is already taken by another provider."
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -3280,6 +5493,38 @@ msgid "admin.user.delete.confirm.body"
 msgstr "The account, its passkeys, its sessions, its access tokens and its connected identities are removed immediately. This cannot be undone."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProvider.tsx
+msgid "admin.federation.danger.delete.hint"
+msgstr "The accounts linked through it stay; only the link is removed."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/SamlDangerSection.tsx
+msgid "admin.saml-apps.danger.delete.failed"
+msgstr "The application could not be deleted"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/SamlDangerSection.tsx
+msgid "admin.saml-apps.danger.delete-note"
+msgstr "The application, its endpoints and its certificates are removed. This cannot be undone."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/AdminForwardAuthAppNew.tsx
+#: src/pages/admin/forward-auth-apps/ForwardAuthGeneralSection.tsx
+msgid "admin.forward-auth-apps.field.scopes.hint"
+msgstr "The application's own scope names. A personal access token grants a subset of these, and the gateway sends the granted names on as Remote-Scopes."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
+#: src/pages/admin/oidc-applications/GeneralSection.tsx
+msgid "admin.oidc-apps.field.client-id.hint"
+msgstr "The client is configured with this value; it cannot change."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProvider.tsx
+msgid "admin.federation.danger.secret.oidc"
+msgstr "The client secret this instance signs in with."
+
+#. js-lingui-explicit-id
 #: src/pages/admin/settings/NetworkPanel.tsx
 msgid "settings.network.strategy.direct"
 msgstr "The connection"
@@ -3288,6 +5533,11 @@ msgstr "The connection"
 #: src/api/errors.ts
 msgid "error.bad_credentials"
 msgstr "The credentials could not be verified."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/DangerSection.tsx
+msgid "admin.oidc-apps.rotate.body"
+msgstr "The current secret stops working the moment this is confirmed. Any client still configured with it stops signing accounts in until you give it the new one, so have somewhere to put the new secret before you go ahead."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
@@ -3313,6 +5563,63 @@ msgstr "The document is missing its version."
 #: src/pages/admin/AdminGroupForm.tsx
 msgid "admin.group.rule.reason.invalid_json"
 msgstr "The document is not valid JSON."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
+msgid "admin.saml-apps.field.metadata.hint"
+msgstr "The document the service provider publishes for its metadata endpoint."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
+msgid "admin.saml-apps.field.name-id.hint"
+msgstr "The format of the identifier the instance sends as the subject of an assertion."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ForwardAuthDangerSection.tsx
+msgid "admin.forward-auth-apps.disable.confirm.body"
+msgstr "The gateway refuses every request through this application, including ones from people who are signed in. Nothing is deleted, and enabling it again restores access."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ForwardAuthDangerSection.tsx
+msgid "admin.forward-auth-apps.enable.confirm.body"
+msgstr "The gateway starts accepting requests through this application again, under the access policy it already has."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/AdminForwardAuthAppNew.tsx
+#: src/pages/admin/forward-auth-apps/ForwardAuthGeneralSection.tsx
+msgid "admin.forward-auth-apps.field.host.hint"
+msgstr "The host the application is served on, as Traefik matches it — no scheme and no port."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/IdentityProjectionSection.tsx
+msgid "admin.oidc-apps.alias.name.reserved"
+msgstr "The ID token already defines this claim."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/IdentityProjectionSection.tsx
+msgid "admin.oidc-apps.subject.hint"
+msgstr "The identifier a client stores for this account. Changing it signs everyone out of every client."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/AdminForwardAuthAppNew.tsx
+#: src/pages/admin/forward-auth-apps/ForwardAuthGeneralSection.tsx
+msgid "admin.forward-auth-apps.field.client-id.hint"
+msgstr "The identifier every request to this application carries. It cannot change later."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/SamlIdentitySection.tsx
+msgid "admin.saml-apps.identity.name-id.hint"
+msgstr "The identifier the assertion's subject carries. Changing it makes every service provider see a new account."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
+msgid "admin.saml-apps.field.entity-id.hint"
+msgstr "The identifier the service provider publishes. It cannot be changed later."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/SamlGeneralSection.tsx
+msgid "admin.saml-apps.general.entity-id.hint"
+msgstr "The identifier the service provider publishes. The instance sends it with every response."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/SigningKeysPanel.tsx
@@ -3368,6 +5675,28 @@ msgstr "The passkey sign-in attempt could not be verified. Please start again."
 #: src/api/errors.ts
 msgid "error.ceremony_expired"
 msgstr "The passkey sign-in attempt has expired. Please start again."
+
+#. js-lingui-explicit-id
+#. placeholder {0}: pending === null ? "" : label(pending)
+#. placeholder {1}: label(saved)
+#: src/pages/admin/forward-auth-apps/ForwardAuthIdentitySection.tsx
+msgid "admin.forward-auth-apps.identity.confirm.body"
+msgstr "The protected application will know this account as its {0} instead of its {1}. Anything it has already keyed on the old value is not updated, so it will treat the account as a new one."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProvider.tsx
+msgid "admin.federation.danger.delete.confirm.empty"
+msgstr "The provider and its icon are removed."
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.upstream_temporarily_unavailable"
+msgstr "The provider could not be reached just now. Check the endpoint and try again."
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.upstream_rate_limited"
+msgstr "The provider is asking us to slow down. Wait a moment and try again."
 
 #. js-lingui-explicit-id
 #: src/components/custom/TotpSetup.tsx
@@ -3433,6 +5762,11 @@ msgstr "The service is undergoing maintenance. Please try again later."
 #: src/pages/admin/AdminLogs.tsx
 msgid "admin.logs.range.reversed"
 msgstr "The start date is after the end date"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProvider.tsx
+msgid "admin.federation.danger.secret.steam"
+msgstr "The Steam Web API key."
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -3510,6 +5844,11 @@ msgid "security.tokens.app_no_scopes"
 msgstr "This application defines no scopes."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/SamlMetadataSection.tsx
+msgid "admin.saml-apps.acs.empty"
+msgstr "This application has no endpoints."
+
+#. js-lingui-explicit-id
 #: src/pages/ConnectedApps.tsx
 msgid "apps.confirm.body"
 msgstr "This application will no longer read your profile. It will need to ask for permission again."
@@ -3533,6 +5872,11 @@ msgstr "This device"
 #: src/pages/security/PasskeysPanel.tsx
 msgid "security.passkeys.device_bound"
 msgstr "This device only"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/saml-validation.ts
+msgid "admin.saml-apps.metadata.too_large"
+msgstr "This document is too large to send. It and the rest of the form have to stay under 64 KiB."
 
 #. js-lingui-explicit-id
 #: src/components/custom/ImageUploadControl.tsx
@@ -3635,6 +5979,11 @@ msgid "security.passkeys.delete.body"
 msgstr "This passkey will stop working for sign-in right away. Any other way you have to sign in is unaffected."
 
 #. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.provider_not_ready"
+msgstr "This provider is not ready yet. Finish setting up its credentials before enabling it."
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
 msgid "admin.group.rule.problem.too_many_nodes"
 msgstr "This rule has too many conditions. Use at most 64 in total."
@@ -3648,6 +5997,11 @@ msgstr "This rule has too many conditions. Use at most 64 in total."
 #: src/pages/admin/AdminGroupForm.tsx
 msgid "admin.group.rule.reason.unsupported_version"
 msgstr "This rule was written for another version of the server."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/secret-copy.ts
+msgid "admin.oidc-apps.secret.once"
+msgstr "This secret is shown only once. Put it into the client's configuration now — it cannot be read back later, and a client that loses it stops signing in."
 
 #. js-lingui-explicit-id
 #: src/components/custom/Section.tsx
@@ -3670,9 +6024,29 @@ msgid "error.invalid_login_link"
 msgstr "This sign-in link is invalid. Open a new sign-in link and try again."
 
 #. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.vrchat_operator_challenge_invalid"
+msgstr "This sign-in took too long. Start again with your password."
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.federation_state_invalid"
+msgstr "This test is no longer valid. Start a new one."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+msgid "admin.federation.diagnostics.timeout"
+msgstr "This test is taking longer than expected. Check it again when the provider has finished."
+
+#. js-lingui-explicit-id
 #: src/components/custom/secret-reveal-copy.ts
 msgid "security.tokens.reveal.once"
 msgstr "This token is shown only once. Store it somewhere safe before continuing. The list will only ever show its hint."
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.vrchat_operator_credentials_invalid"
+msgstr "Those VRChat credentials were not accepted."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminLogs.tsx
@@ -3688,6 +6062,16 @@ msgstr "Time range"
 #: src/components/custom/ConsoleLayout.tsx
 msgid "console.toggle-sidebar"
 msgstr "Toggle sidebar"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderConnectionSection.tsx
+msgid "admin.federation.connection.token"
+msgstr "Token endpoint"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+msgid "admin.federation.diagnostics.stage.token"
+msgstr "Token exchange"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -3755,6 +6139,11 @@ msgid "audit.event.factor_disabled"
 msgstr "Turned off"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/AdminOidcApplications.tsx
+msgid "admin.oidc-apps.column.kind"
+msgstr "Type"
+
+#. js-lingui-explicit-id
 #: src/components/custom/RouteFeedback.tsx
 msgid "route.failed"
 msgstr "Unable to load this page"
@@ -3815,6 +6204,11 @@ msgid "settings.general.icon.upload"
 msgstr "Upload an icon"
 
 #. js-lingui-explicit-id
+#: src/components/custom/EntityIconCard.tsx
+msgid "entity.icon.upload"
+msgstr "Upload an icon"
+
+#. js-lingui-explicit-id
 #: src/api/success-messages.ts
 msgid "success.avatar.upload-removed"
 msgstr "Uploaded picture removed"
@@ -3840,6 +6234,16 @@ msgid "audit.factor.federation_oidc"
 msgstr "Upstream sign-in"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/forward-auth-validation.ts
+msgid "admin.forward-auth-apps.host.too_long"
+msgstr "Use 253 characters or fewer."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/forward-auth-validation.ts
+msgid "admin.forward-auth-apps.scope.description.too_long"
+msgstr "Use 256 characters or fewer."
+
+#. js-lingui-explicit-id
 #: src/pages/admin/settings/MaintenancePanel.tsx
 msgid "settings.maintenance.notice.too_long"
 msgstr "Use 500 characters or fewer."
@@ -3858,6 +6262,11 @@ msgstr "Use 64 characters or fewer."
 #: src/pages/DevForms.tsx
 msgid "dev.forms.id.description"
 msgstr "Use a credential belonging to an isolated test account."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/forward-auth-validation.ts
+msgid "admin.forward-auth-apps.host.invalid"
+msgstr "Use a lowercase hostname with no scheme and no port, such as app.example.com."
 
 #. js-lingui-explicit-id
 #: src/components/custom/SudoDialog.tsx
@@ -3880,14 +6289,59 @@ msgid "security.recovery.note"
 msgstr "Use a recovery code to sign in when you cannot use your password or authenticator. Generating new ones replaces every existing code."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/saml-validation.ts
+msgid "admin.saml-apps.lifetime.invalid"
+msgstr "Use a whole number of minutes, or leave it empty."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/saml-validation.ts
+msgid "admin.saml-apps.acs.index.invalid"
+msgstr "Use a whole number of zero or more."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
+msgid "admin.oidc-apps.new.redirect.invalid"
+msgstr "Use an absolute http or https address."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/GeneralSection.tsx
+msgid "admin.oidc-apps.field.redirect.invalid"
+msgstr "Use an absolute http or https address."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/saml-validation.ts
+msgid "admin.saml-apps.acs.address.invalid"
+msgstr "Use an absolute https address."
+
+#. js-lingui-explicit-id
 #: src/components/custom/LoginShell.tsx
 msgid "login.use_totp"
 msgstr "Use an authenticator code"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
+msgid "admin.oidc-apps.new.client-id.invalid"
+msgstr "Use letters, digits, dots, underscores and hyphens, starting with a letter or a digit, up to 128 characters."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/AdminForwardAuthAppNew.tsx
+msgid "admin.forward-auth-apps.new.client-id.invalid"
+msgstr "Use letters, digits, dots, underscores and hyphens, starting with a letter or a digit, up to 128 characters."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/forward-auth-validation.ts
+msgid "admin.forward-auth-apps.scope.name.invalid"
+msgstr "Use letters, digits, dots, underscores, colons and hyphens, starting and ending with a letter or a digit, up to 64 characters."
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
 msgid "admin.group.slug.format"
 msgstr "Use lowercase letters, digits and hyphens, up to 64 characters."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
+msgid "admin.federation.new.slug.invalid"
+msgstr "Use lowercase letters, digits and single hyphens — the identifier appears in the callback address."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/client-ip-form.ts
@@ -3898,6 +6352,22 @@ msgstr "Use only letters, digits, hyphens and underscores."
 #: src/pages/security/SessionsPanel.tsx
 msgid "security.sessions.use_sign_out"
 msgstr "Use sign out to end this one"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
+#: src/pages/admin/saml-applications/SamlIdentitySection.tsx
+msgid "admin.saml-apps.name-id.default"
+msgstr "Use the instance default"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ForwardAuthProxySection.tsx
+msgid "admin.forward-auth-apps.proxy.note"
+msgstr "Use this only behind a trusted reverse proxy, and set <0>forwardedHeaders.trustedIPs</0> on the entrypoint so Traefik replaces the client's own X-Forwarded-* headers. See <1>the forward-auth guide</1> for the full requirements."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
+msgid "admin.federation.auth.discovery"
+msgstr "Use what discovery reports"
 
 #. js-lingui-explicit-id
 #: src/components/custom/SudoDialog.tsx
@@ -3961,6 +6431,26 @@ msgid "admin.invitations.column.groups"
 msgstr "User groups"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/saml-projection.ts
+msgid "admin.saml-apps.source.groups"
+msgstr "User groups"
+
+#. js-lingui-explicit-id
+#: src/components/custom/AppAccessPanel.tsx
+msgid "app.groups.label"
+msgstr "User groups"
+
+#. js-lingui-explicit-id
+#: src/components/custom/AppAccessPanel.tsx
+msgid "app.groups.dialog.title"
+msgstr "User groups"
+
+#. js-lingui-explicit-id
+#: src/components/custom/AppAccessPanel.tsx
+msgid "app.groups.dialog.label"
+msgstr "User groups"
+
+#. js-lingui-explicit-id
 #: src/components/custom/ConsoleLayout.tsx
 msgid "console.admin.groups"
 msgstr "User groups"
@@ -3971,9 +6461,24 @@ msgid "admin.picker.group"
 msgstr "User groups"
 
 #. js-lingui-explicit-id
+#: src/api/success-messages.ts
+msgid "success.app.groups-saved"
+msgstr "User groups saved"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminLogs.tsx
 msgid "admin.logs.detail.userAgent"
 msgstr "User-Agent"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+msgid "admin.federation.diagnostics.stage.userinfo"
+msgstr "UserInfo"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderConnectionSection.tsx
+msgid "admin.federation.connection.userinfo"
+msgstr "UserInfo endpoint"
 
 #. js-lingui-explicit-id
 #: src/pages/Console.tsx
@@ -3992,6 +6497,31 @@ msgid "admin.users.column.username"
 msgstr "Username"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/saml-projection.ts
+msgid "admin.saml-apps.source.username"
+msgstr "Username"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/IdentityProjectionSection.tsx
+msgid "admin.oidc-apps.subject.username"
+msgstr "Username"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
+msgid "admin.federation.claims.username"
+msgstr "Username"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderOperatorSection.tsx
+msgid "admin.federation.operator.username"
+msgstr "Username"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ForwardAuthIdentitySection.tsx
+msgid "admin.forward-auth-apps.source.username"
+msgstr "Username"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminUsers.tsx
 msgid "admin.users.search.placeholder"
 msgstr "Username or display name"
@@ -4007,11 +6537,6 @@ msgid "console.admin.users"
 msgstr "Users"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminHome.tsx
-msgid "admin.home.summary"
-msgstr "Users, user groups, invitations, logs and settings are managed from the sections in the sidebar."
-
-#. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
 msgid "admin.group.rule.value"
 msgstr "Value"
@@ -4022,9 +6547,19 @@ msgid "admin.users.filter.valuePlaceholder"
 msgstr "Value"
 
 #. js-lingui-explicit-id
+#: src/components/custom/CopyValue.tsx
+msgid "copy-value.field"
+msgstr "Value"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminUsers.tsx
 msgid "admin.users.filter.value"
 msgstr "Value to match"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderOperatorSection.tsx
+msgid "admin.federation.operator.method"
+msgstr "Verification method"
 
 #. js-lingui-explicit-id
 #: src/components/custom/SudoDialog.tsx
@@ -4040,6 +6575,21 @@ msgstr "Verification was cancelled. Nothing was changed."
 #: src/api/errors.ts
 msgid "error.passkey_incomplete"
 msgstr "Verification was not completed. Try again or use your password."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/IdentityProjectionSection.tsx
+msgid "admin.oidc-apps.subject.email"
+msgstr "Verified e-mail address"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ForwardAuthIdentitySection.tsx
+msgid "admin.forward-auth-apps.source.email"
+msgstr "Verified email"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderOperatorSection.tsx
+msgid "admin.federation.operator.verify"
+msgstr "Verify"
 
 #. js-lingui-explicit-id
 #: src/components/custom/SudoDialog.tsx
@@ -4067,9 +6617,36 @@ msgid "settings.keys.view"
 msgstr "View public key"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
+#: src/pages/admin/identity-providers/AdminIdentityProviders.tsx
+msgid "admin.federation.protocol.vrchat"
+msgstr "VRChat"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderGeneralSection.tsx
+msgid "admin.federation.general.mode.vrchat"
+msgstr "VRChat accounts can only be linked, never created."
+
+#. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts
 msgid "audit.event.vrchat_operator_session_invalidated"
 msgstr "VRChat operator signed out"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderOperatorSection.tsx
+msgid "admin.federation.operator.form"
+msgstr "VRChat sign-in"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderOperatorSection.tsx
+msgid "admin.federation.operator.pending"
+msgstr "Waiting for VRChat…"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProvider.tsx
+#: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
+msgid "admin.federation.new.steam-key"
+msgstr "Web API key"
 
 #. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
@@ -4085,6 +6662,16 @@ msgstr "What this group is called in the console."
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.name.hint"
 msgstr "What will use this token, so you know what to revoke later."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/GeneralSection.tsx
+msgid "admin.oidc-apps.field.launch.hint"
+msgstr "Where the console links when the application is opened from here. Leave it empty to link nowhere."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
+msgid "admin.saml-apps.field.acs.hint"
+msgstr "Where the instance sends the assertion. Exactly one endpoint is the default one."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx

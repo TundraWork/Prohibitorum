@@ -314,7 +314,7 @@ func TestHandleListAccountCredentials_PageShape(t *testing.T) {
 
 	out, err := s.handleListAccountCredentials(context.Background(), &listAccountPageIn{
 		ID: 42,
-		pageInput: pageInput{Limit: 50},
+		PageInput: PageInput{Limit: 50},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -347,7 +347,7 @@ func TestHandleListAccountCredentials_ParentNotFound404(t *testing.T) {
 
 	_, err := s.handleListAccountCredentials(context.Background(), &listAccountPageIn{
 		ID: 999,
-		pageInput: pageInput{Limit: 50},
+		PageInput: PageInput{Limit: 50},
 	})
 	if err == nil {
 		t.Fatal("expected 404 for unknown account")
@@ -379,7 +379,7 @@ func TestHandleListAccountCredentials_LimitClamp(t *testing.T) {
 	// Request limit=2 with 3 items → should get 2 items + nextCursor.
 	out, err := s.handleListAccountCredentials(context.Background(), &listAccountPageIn{
 		ID: 42,
-		pageInput: pageInput{Limit: 2},
+		PageInput: PageInput{Limit: 2},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -413,7 +413,7 @@ func TestHandleListAccountCredentials_ExactPageBoundary(t *testing.T) {
 	// Request limit=2 with exactly 2 items → no nextCursor.
 	out, err := s.handleListAccountCredentials(context.Background(), &listAccountPageIn{
 		ID: 42,
-		pageInput: pageInput{Limit: 2},
+		PageInput: PageInput{Limit: 2},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -463,7 +463,7 @@ func TestHandleListAccountCredentials_CursorParentIDMismatch(t *testing.T) {
 	// account-existence check fires first and returns 404.
 	_, err = s.handleListAccountCredentials(context.Background(), &listAccountPageIn{
 		ID: 99,
-		pageInput: pageInput{Cursor: cursor, Limit: 10},
+		PageInput: PageInput{Cursor: cursor, Limit: 10},
 	})
 	if err == nil {
 		t.Fatal("expected error for unknown account 99")
@@ -482,7 +482,7 @@ func TestHandleListAccountCredentials_EmptyResultShape(t *testing.T) {
 
 	out, err := s.handleListAccountCredentials(context.Background(), &listAccountPageIn{
 		ID: 42,
-		pageInput: pageInput{Limit: 50},
+		PageInput: PageInput{Limit: 50},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -527,7 +527,7 @@ func TestHandleListAccountSessions_PageShape(t *testing.T) {
 
 	out, err := s.handleListAccountSessions(ctx, &listAccountPageIn{
 		ID: 42,
-		pageInput: pageInput{Limit: 2},
+		PageInput: PageInput{Limit: 2},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -556,7 +556,7 @@ func TestHandleListAccountSessions_ParentNotFound404(t *testing.T) {
 
 	_, err := s.handleListAccountSessions(context.Background(), &listAccountPageIn{
 		ID: 999,
-		pageInput: pageInput{Limit: 50},
+		PageInput: PageInput{Limit: 50},
 	})
 	if err == nil {
 		t.Fatal("expected 404 for unknown account")
@@ -590,7 +590,7 @@ func TestHandleListAccountTokens_PageShape(t *testing.T) {
 	// Limit=2 with 3 items → 2 items + nextCursor.
 	out, err := s.handleListAccountTokens(context.Background(), &listAccountPageIn{
 		ID: 42,
-		pageInput: pageInput{Limit: 2},
+		PageInput: PageInput{Limit: 2},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -615,7 +615,7 @@ func TestHandleListAccountTokens_ParentNotFound404(t *testing.T) {
 
 	_, err := s.handleListAccountTokens(context.Background(), &listAccountPageIn{
 		ID: 999,
-		pageInput: pageInput{Limit: 50},
+		PageInput: PageInput{Limit: 50},
 	})
 	if err == nil {
 		t.Fatal("expected 404 for unknown account")

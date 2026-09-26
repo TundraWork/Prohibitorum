@@ -20,6 +20,19 @@ func (q *Queries) ConfirmAccountIdentity(ctx context.Context, id int64) error {
 	return err
 }
 
+const countAccountsLinkedToUpstreamIDP = `-- name: CountAccountsLinkedToUpstreamIDP :one
+SELECT COUNT(DISTINCT account_id)::bigint FROM account_identity WHERE upstream_idp_id = $1
+`
+
+// How many accounts hold an identity from this provider, distinct because one
+// account can link the same provider twice (two subjects).
+func (q *Queries) CountAccountsLinkedToUpstreamIDP(ctx context.Context, upstreamIdpID int64) (int64, error) {
+	row := q.db.QueryRow(ctx, countAccountsLinkedToUpstreamIDP, upstreamIdpID)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const countUsableSignInFederation = `-- name: CountUsableSignInFederation :one
 SELECT COUNT(*) FROM account_identity ai
 JOIN upstream_idp ip ON ip.id = ai.upstream_idp_id
@@ -35,6 +48,35 @@ func (q *Queries) CountUsableSignInFederation(ctx context.Context, accountID int
 	var count int64
 	err := row.Scan(&count)
 	return count, err
+}
+
+const deleteAccountIdentitiesByUpstreamIDP = `-- name: DeleteAccountIdentitiesByUpstreamIDP :many
+DELETE FROM account_identity WHERE upstream_idp_id = $1 RETURNING account_id
+`
+
+// Every identity linked to one provider, removed together when the provider
+// itself is deleted. The account rows survive: an account that could also sign
+// in another way keeps those, and one that could only use this provider is
+// left for an admin to reissue an enrollment for. RETURNING account_id lets the
+// caller audit exactly whose links were dropped.
+func (q *Queries) DeleteAccountIdentitiesByUpstreamIDP(ctx context.Context, upstreamIdpID int64) ([]int32, error) {
+	rows, err := q.db.Query(ctx, deleteAccountIdentitiesByUpstreamIDP, upstreamIdpID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []int32
+	for rows.Next() {
+		var account_id int32
+		if err := rows.Scan(&account_id); err != nil {
+			return nil, err
+		}
+		items = append(items, account_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const deleteAccountIdentity = `-- name: DeleteAccountIdentity :one

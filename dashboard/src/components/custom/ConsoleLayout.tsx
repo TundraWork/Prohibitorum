@@ -3,6 +3,7 @@ import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import {
   useMutation,
+  useQuery,
   useQueryClient,
   useSuspenseQuery,
 } from "@tanstack/react-query";
@@ -15,12 +16,16 @@ import {
 import { cva } from "class-variance-authority";
 import {
   AppWindow,
+  Blocks,
+  FileKey,
   House,
   Layers,
+  LogIn,
   LogOut,
   MailPlus,
   MonitorSmartphone,
   PanelLeft,
+  Route,
   ScrollText,
   Settings,
   ShieldCheck,
@@ -30,7 +35,11 @@ import {
 import { useEffect, useState } from "react";
 import type { components } from "@/api/generated/schema";
 import { logoutMutationOptions } from "@/api/mutations";
-import { clearSessionQueries, sessionQueryOptions } from "@/api/queries";
+import {
+  clearSessionQueries,
+  managedApplicationsQueryOptions,
+  sessionQueryOptions,
+} from "@/api/queries";
 import { Button } from "@/components/custom/Button";
 import { useInstanceBranding } from "@/components/custom/instance-branding";
 import { LanguageMenu } from "@/components/custom/LanguageMenu";
@@ -78,40 +87,128 @@ const accountSections = [
 ];
 
 /**
- * Management sections. Federation and downstream applications arrive with a
- * later milestone, and no empty page stands in for them.
+ * Management sections.
  *
- * Filtered out for a non-admin before it reaches the sidebar, and separately
- * refused by the `_protected.admin` loader, so a hidden entry is never the only
- * thing keeping a member out.
+ * `visibleTo` decides which accounts see an entry. Most are for administrators
+ * alone; the three application sections are also for an account assigned to
+ * manage at least one application of that kind, which is why the entry and the
+ * `_protected.admin` loader ask the same question. Federation is administrator
+ * only, so it keeps the admin gate.
+ *
+ * A hidden entry is never the only thing keeping someone out: `_protected.admin`
+ * and `_protected.admin._admin` refuse the routes themselves.
  */
-const adminSections = [
+type SectionVisibility = "admin" | "oidc" | "saml" | "forwardAuth";
+
+const adminSections: {
+  path: string;
+  icon: typeof Users;
+  title: ReturnType<typeof msg>;
+  visibleTo: SectionVisibility;
+}[] = [
   {
     path: "/admin/users",
     icon: Users,
     title: msg({ id: "console.admin.users", message: "Users" }),
+    visibleTo: "admin",
   },
   {
     path: "/admin/groups",
     icon: Layers,
     title: msg({ id: "console.admin.groups", message: "User groups" }),
+    visibleTo: "admin",
   },
   {
     path: "/admin/invitations",
     icon: MailPlus,
     title: msg({ id: "console.admin.invitations", message: "Invitations" }),
+    visibleTo: "admin",
+  },
+  {
+    path: "/admin/identity-providers",
+    icon: LogIn,
+    title: msg({ id: "console.admin.federation", message: "Federation" }),
+    visibleTo: "admin",
+  },
+  {
+    path: "/admin/oidc-applications",
+    icon: Blocks,
+    title: msg({
+      id: "console.admin.oidc-applications",
+      message: "OIDC applications",
+    }),
+    visibleTo: "oidc",
+  },
+  {
+    path: "/admin/saml-applications",
+    icon: FileKey,
+    title: msg({
+      id: "console.admin.saml-applications",
+      message: "SAML applications",
+    }),
+    visibleTo: "saml",
+  },
+  {
+    path: "/admin/forward-auth-apps",
+    icon: Route as typeof Users,
+    title: msg({
+      id: "console.admin.forward-auth-apps",
+      message: "Forward-auth applications",
+    }),
+    visibleTo: "forwardAuth",
   },
   {
     path: "/admin/logs",
     icon: ScrollText,
     title: msg({ id: "console.admin.logs", message: "Logs" }),
+    visibleTo: "admin",
   },
   {
     path: "/admin/settings",
     icon: Settings,
     title: msg({ id: "console.admin.settings", message: "Settings" }),
+    visibleTo: "admin",
   },
 ];
+
+/**
+ * Which management entries one account sees.
+ *
+ * Split out from the hook because it is the rule, not the read: the tests that
+ * matter are about which sections a given combination of role and assignment
+ * produces, and they should not have to render a sidebar to ask.
+ */
+export function visibleManagementSections(
+  isAdmin: boolean,
+  managed: { oidc: boolean; saml: boolean; forwardAuth: boolean } | undefined,
+): typeof adminSections {
+  if (isAdmin) return adminSections;
+  return adminSections.filter((section) => {
+    if (section.visibleTo === "admin") return false;
+    return managed?.[section.visibleTo] === true;
+  });
+}
+
+/**
+ * The management entries this account may see.
+ *
+ * An administrator sees all of them. Anyone else sees only the application
+ * sections they have been assigned work in: the server lets them manage those
+ * applications, so the entry is theirs, but nothing else in the management area
+ * is. Asking the same question the `_protected.admin` loader asks keeps the
+ * sidebar and the routes in step.
+ *
+ * The managed-application read is only made when it can matter; for an admin the
+ * answer is already known.
+ */
+function useManagementSections(session: Session) {
+  const isAdmin = session.role === "admin";
+  const { data: managed } = useQuery({
+    ...managedApplicationsQueryOptions(),
+    enabled: !isAdmin,
+  });
+  return visibleManagementSections(isAdmin, managed);
+}
 
 // Prefix matching, so a page's own query strings and any nested route keep the
 // section highlighted. `/` only ever matches the console home.
@@ -172,11 +269,16 @@ function NavItem({
 
 function ConsoleNavigation({
   activePath,
-  isAdmin,
+  managementSections,
   onNavigate,
 }: {
   activePath: string;
-  isAdmin: boolean;
+  /**
+   * The management entries this account may see, already filtered. The caller
+   * decides, because the answer depends on what the account manages, and the
+   * loader that guards the routes asks the same question.
+   */
+  managementSections: typeof adminSections;
   onNavigate: (path: string) => void;
 }) {
   const { i18n, t } = useLingui();
@@ -218,12 +320,12 @@ function ConsoleNavigation({
                 {i18n._(section.title)}
               </NavItem>
             ))}
-            {isAdmin && (
+            {managementSections.length > 0 && (
               <>
                 <p className="px-2 pb-1 pt-3 text-xs font-medium text-muted">
                   <Trans id="console.administration">Administration</Trans>
                 </p>
-                {adminSections.map((section) => (
+                {managementSections.map((section) => (
                   <NavItem
                     key={section.path}
                     active={isActiveSection(section.path, activePath)}
@@ -320,10 +422,10 @@ function ConsoleShell({
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const router = useRouter();
   const activePath = useRouterState({ select: (s) => s.location.pathname });
-  const isAdmin = session.role === "admin";
+  const managementSections = useManagementSections(session);
   const sectionTitle =
-    [...(isAdmin ? adminSections : []), consoleHome, ...accountSections].find(
-      (section) => isActiveSection(section.path, activePath),
+    [...managementSections, consoleHome, ...accountSections].find((section) =>
+      isActiveSection(section.path, activePath),
     )?.title ?? consoleHome.title;
   const { close } = drawer;
 
@@ -365,7 +467,7 @@ function ConsoleShell({
           <ConsoleIdentity />
           <ConsoleNavigation
             activePath={activePath}
-            isAdmin={isAdmin}
+            managementSections={managementSections}
             onNavigate={navigate}
           />
           <div className="mt-auto px-3 pb-4 pt-3">
@@ -409,7 +511,7 @@ function ConsoleShell({
                       <ConsoleIdentity />
                       <ConsoleNavigation
                         activePath={activePath}
-                        isAdmin={isAdmin}
+                        managementSections={managementSections}
                         onNavigate={navigate}
                       />
                       <div className="mt-auto px-3 pb-4 pt-3">

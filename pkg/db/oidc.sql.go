@@ -875,7 +875,7 @@ const updateForwardAuthApp = `-- name: UpdateForwardAuthApp :one
 UPDATE oidc_client
 SET display_name = $2, redirect_uris = $3, forward_auth_host = $4, forward_auth_scopes = $5
 WHERE client_id = $1 AND forward_auth_enabled = true
-RETURNING client_id, display_name, forward_auth_host, forward_auth_scopes, access_restricted, disabled, created_at
+RETURNING client_id, display_name, forward_auth_host, forward_auth_scopes, access_restricted, disabled, created_at, principal_source
 `
 
 type UpdateForwardAuthAppParams struct {
@@ -894,6 +894,7 @@ type UpdateForwardAuthAppRow struct {
 	AccessRestricted  bool               `json:"accessRestricted"`
 	Disabled          bool               `json:"disabled"`
 	CreatedAt         pgtype.Timestamptz `json:"createdAt"`
+	PrincipalSource   string             `json:"principalSource"`
 }
 
 func (q *Queries) UpdateForwardAuthApp(ctx context.Context, arg UpdateForwardAuthAppParams) (UpdateForwardAuthAppRow, error) {
@@ -913,6 +914,7 @@ func (q *Queries) UpdateForwardAuthApp(ctx context.Context, arg UpdateForwardAut
 		&i.AccessRestricted,
 		&i.Disabled,
 		&i.CreatedAt,
+		&i.PrincipalSource,
 	)
 	return i, err
 }

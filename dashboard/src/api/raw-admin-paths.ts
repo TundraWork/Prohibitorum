@@ -242,64 +242,291 @@ type NoParameters = {
 /** An empty JSON object: the sudo wrapper only accepts JSON bodies. */
 type EmptyJsonBody = { content: { "application/json": Record<string, never> } };
 
+/* ----------------------------------------------------- federation writes -- */
+
+/**
+ * The protocol a provider speaks. The server also accepts these on the wire as
+ * plain strings; the view types are narrowed here so a page can switch on the
+ * protocol without re-checking what it got.
+ */
+export type ProviderProtocol = "oidc" | "steam" | "vrchat";
+
+/** Who the provider may create accounts for. VRChat is `link_only` by rule. */
+export type ProviderMode = "auto_provision" | "invite_only" | "link_only";
+
+/**
+ * `config` for an OIDC provider. The server validates this as an exact object —
+ * all fifteen keys present, none null, none extra, under 8192 bytes — so the
+ * type lists them all as required rather than leaving the shape open.
+ */
+export interface OidcProviderConfig {
+  issuerUrl: string;
+  clientId: string;
+  scopes: string[];
+  allowedDomains: string[];
+  requireVerifiedEmail: boolean;
+  allowPrivateNetwork: boolean;
+  usernameClaim: string;
+  displayNameClaim: string;
+  emailClaim: string;
+  pictureClaim: string;
+  subjectClaim: string;
+  configurationMode: "discovery" | "manual";
+  /** Null means "no override" in discovery mode, and "do not use" for userinfo. */
+  endpoints: {
+    authorization: string | null;
+    token: string | null;
+    userinfo: string | null;
+    jwks: string | null;
+  };
+  tokenAuthMethod:
+    | "discovery"
+    | "client_secret_basic"
+    | "client_secret_post"
+    | "none";
+  /** A public client (`none`) must keep this at `S256`. */
+  pkceMethod: "S256" | "plain" | "off";
+}
+
+/**
+ * `POST /identity-providers` and `PUT /identity-providers/{slug}`. `slug` and
+ * `protocol` are create-only: the update handler ignores them, and a rename is
+ * not offered. `config` is `{}` for Steam and VRChat, which take no config.
+ */
+export interface ProviderWriteBody {
+  slug?: string;
+  displayName: string;
+  protocol?: ProviderProtocol;
+  mode: ProviderMode;
+  config: OidcProviderConfig | Record<string, never>;
+  /** Required for OIDC unless the client is public; required for Steam. */
+  secret?: string;
+}
+
+/** One resolved value of the effective OIDC configuration and where it came from. */
+export interface EffectiveConfigField {
+  value: string | string[];
+  source: string;
+}
+
+export interface EffectiveConfigView {
+  mode: string;
+  fetchedAt: string;
+  callbackUrl: string;
+  fields: Record<string, EffectiveConfigField>;
+}
+
+/** One stage of a diagnostic run. `status` is pending/succeeded/skipped/failed. */
+export interface DiagnosticStageView {
+  name: string;
+  status: string;
+  durationMs?: number;
+  endpoint?: string;
+  httpStatus?: number;
+  errorCode?: string;
+  requestId?: string;
+}
+
+export interface DiagnosticResultView {
+  status: string;
+  expiresAt: string;
+  stages: DiagnosticStageView[] | null;
+  claims?: Record<string, unknown>;
+}
+
+/** `POST /identity-providers/{slug}/tests` — where to send the browser. */
+export interface DiagnosticStartView {
+  id: string;
+  authorizationUrl: string;
+  expiresAt: string;
+}
+
+/**
+ * The operator-session responses. `challenge` is present while a second factor
+ * is still needed; `provider` comes back only once the session is stored, and
+ * carries no icon because the provider row did not change.
+ */
+export interface OperatorSessionView {
+  status: string;
+  challenge?: string;
+  methods?: string[];
+  expiresAt?: string;
+  provider?: components["schemas"]["IdentityProviderView"];
+}
+
+export interface OperatorSessionStartRequest {
+  username: string;
+  password: string;
+}
+
+export interface OperatorSessionVerifyRequest {
+  challenge: string;
+  method: string;
+  code: string;
+}
+
+/** `POST /oidc-applications` — a confidential client answers with its secret once. */
+export interface CreateOidcAppRequest {
+  clientId: string;
+  displayName?: string;
+  redirectUris: string[];
+  postLogoutRedirectUris?: string[];
+  scopes?: string[];
+  public?: boolean;
+  requireConsent?: boolean;
+  requirePkce?: boolean;
+  accessRestricted?: boolean;
+}
+
+export interface CreateOidcAppResponse {
+  secret?: string;
+  clientId: string;
+  displayName: string;
+}
+
+/**
+ * `PUT /oidc-applications/{clientId}` replaces the whole record: `disabled` and
+ * `launchUrl` must carry the current value, because omitting either resets it
+ * (enabled, and no launch URL). `update-bodies.ts` builds this from the saved
+ * view plus the edited fields so no page has to remember that.
+ */
+export interface UpdateOidcAppRequest {
+  displayName: string;
+  redirectUris: string[];
+  postLogoutRedirectUris: string[];
+  allowedScopes: string[];
+  requireConsent: boolean;
+  disabled: boolean;
+  launchUrl: string | null;
+  requirePkce: boolean;
+}
+
+export interface RotateOidcSecretResponse {
+  clientId: string;
+  secret: string;
+}
+
+/** Subject source for OIDC's `sub`, and the forward-auth `Remote-User`. */
+export type PrincipalSource = "sub" | "username" | "verified_email";
+
+export interface UpdateOidcProjectionRequest {
+  subjectSource: PrincipalSource;
+  claimAliases: Record<string, string>;
+}
+
+export interface UpdateForwardAuthProjectionRequest {
+  remoteUserSource: PrincipalSource;
+}
+
+export interface CreateForwardAuthAppRequest {
+  clientId: string;
+  host: string;
+  displayName?: string;
+  scopes?: { name: string; description?: string }[];
+  accessRestricted?: boolean;
+}
+
+export interface UpdateForwardAuthAppRequest {
+  displayName: string;
+  host: string;
+  /** The whole vocabulary; omitting it clears it. */
+  scopes: { name: string; description?: string }[];
+}
+
+export interface SamlAcsEndpointRequest {
+  binding: string;
+  location: string;
+  index: number;
+  isDefault: boolean;
+}
+
+/**
+ * One SAML attribute mapping. `source` is either one of the named account facts
+ * or `attributes.<key>`. The server does not validate any of this, so the only
+ * check a mapping ever gets is the client's.
+ */
+export interface SamlAttributeMapping {
+  name: string;
+  name_format: string;
+  friendly_name?: string;
+  source: string;
+  multi: boolean;
+}
+
+export interface CreateSamlAppRequest {
+  displayName?: string;
+  accessRestricted?: boolean;
+  /** Wins over `acs` when present: the server parses it instead. */
+  metadataXml?: string;
+  entityId?: string;
+  /** Empty string means the instance default. */
+  nameIdFormat?: string;
+  requireSignedAuthnRequest?: boolean;
+  allowIdpInitiated?: boolean;
+  acs?: SamlAcsEndpointRequest[];
+}
+
+/** `PUT /saml-applications/{id}`; `attributeMap` must carry the current value. */
+export interface UpdateSamlAppRequest {
+  displayName: string;
+  nameIdFormat: string;
+  attributeMap: SamlAttributeMapping[];
+  requireSignedAuthnRequest: boolean;
+  allowIdpInitiated: boolean;
+  /** Omitted or non-positive means no limit. */
+  sessionLifetimeSecs?: number;
+}
+
+/** One account that may manage an application. */
+export interface AppManagerView {
+  id: number;
+  username: string;
+  displayName: string;
+  disabled: boolean;
+  assignedAt: string;
+}
+
+/** `kind` selects the resource family; `appId` is its own identifier. */
+export type ManagedApplicationKind = "oidc" | "forward_auth" | "saml";
+
+/** The protocol-neutral identity of one application, as the access API sees it. */
+export interface AppSummaryView {
+  iconUrl?: string;
+  kind: string;
+  appId: string;
+  displayName: string;
+  launchUrl?: string;
+  entityId?: string;
+  forwardAuthHost?: string;
+  accessRestricted: boolean;
+}
+
+/**
+ * `GET /managed-applications/{kind}/{appId}/access` — the workspace the access
+ * panel reads. The admin path answers the same shape, which is why the panel is
+ * one component for all three protocols.
+ */
+export interface AppAccessWorkspace {
+  app: AppSummaryView;
+  accessRestricted: boolean;
+  providers: ProviderDescriptorView[];
+  groups: AppGroupView[];
+}
+
+export interface SetAppAccessRestrictedRequest {
+  restricted: boolean;
+}
+
+export interface ReplaceAppGroupsRequest {
+  groupIds: number[];
+}
+
+/** What every client-shaped route carries: the OIDC / forward-auth client id. */
+export interface ClientKindBody {
+  clientId: string;
+}
+
 export interface RawAdminPaths {
-  /**
-   * Declared here rather than read from the generated schema: Huma registers
-   * this operation without `pageInput`, so the schema says "no query" while the
-   * handler pages by cursor like every other admin list. Taking the generated
-   * type would make a paged call impossible to type.
-   */
-  "/api/prohibitorum/invitations": {
-    get: {
-      parameters: {
-        query?: { cursor?: string; limit?: number };
-        header?: never;
-        path?: never;
-        cookie?: never;
-      };
-      requestBody?: never;
-      responses: {
-        200: {
-          content: {
-            "application/json": components["schemas"]["PageInvitationView"];
-          };
-        };
-      };
-    };
-    post: {
-      parameters: {
-        query?: never;
-        header?: never;
-        path?: never;
-        cookie?: never;
-      };
-      requestBody: {
-        content: { "application/json": CreateInvitationRequest };
-      };
-      responses: {
-        200: {
-          content: {
-            "application/json": components["schemas"]["InvitationResponse"];
-          };
-        };
-      };
-    };
-  };
-  /** Answers 200 with an empty object, unlike the 204s elsewhere in the group. */
-  "/api/prohibitorum/invitations/revoke": {
-    post: {
-      parameters: {
-        query?: never;
-        header?: never;
-        path?: never;
-        cookie?: never;
-      };
-      requestBody: { content: { "application/json": RevokeInvitationRequest } };
-      responses: {
-        200: { content: { "application/json": Record<string, never> } };
-      };
-    };
-  };
   "/api/prohibitorum/accounts/set-disabled": {
     post: {
       parameters: {
@@ -552,56 +779,6 @@ export interface RawAdminPaths {
       };
     };
   };
-  /**
-   * Declared here for the same reason as `/invitations`: the handler embeds
-   * `pageInput`, which the schema leaves out, so `cursor` and `limit` would
-   * otherwise be untypeable.
-   */
-  "/api/prohibitorum/audit-events": {
-    get: {
-      parameters: {
-        query?: {
-          factor?: string;
-          event?: string;
-          accountId?: number;
-          since?: string;
-          until?: string;
-          cursor?: string;
-          limit?: number;
-        };
-        header?: never;
-        path?: never;
-        cookie?: never;
-      };
-      requestBody?: never;
-      responses: {
-        200: {
-          content: {
-            "application/json": components["schemas"]["PageAuditEventView"];
-          };
-        };
-      };
-    };
-  };
-  /** Paged like `/audit-events`; newest first by creation. */
-  "/api/prohibitorum/signing-keys": {
-    get: {
-      parameters: {
-        query?: { cursor?: string; limit?: number };
-        header?: never;
-        path?: never;
-        cookie?: never;
-      };
-      requestBody?: never;
-      responses: {
-        200: {
-          content: {
-            "application/json": components["schemas"]["PageSigningKeyView"];
-          };
-        };
-      };
-    };
-  };
   "/api/prohibitorum/signing-keys/generate": {
     post: {
       parameters: NoParameters;
@@ -719,6 +896,649 @@ export interface RawAdminPaths {
       parameters: NoParameters;
       requestBody: { content: { "application/json": ClientIpSettings } };
       responses: { 204: { content?: never } };
+    };
+  };
+
+  /* -------------------------------------------------- identity providers -- */
+
+  "/api/prohibitorum/identity-providers": {
+    post: {
+      parameters: NoParameters;
+      requestBody: { content: { "application/json": ProviderWriteBody } };
+      responses: {
+        201: {
+          content: {
+            "application/json": components["schemas"]["IdentityProviderView"];
+          };
+        };
+      };
+    };
+  };
+  "/api/prohibitorum/identity-providers/{slug}": {
+    put: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: { slug: string };
+        cookie?: never;
+      };
+      requestBody: { content: { "application/json": ProviderWriteBody } };
+      responses: {
+        200: {
+          content: {
+            "application/json": components["schemas"]["IdentityProviderView"];
+          };
+        };
+      };
+    };
+  };
+  "/api/prohibitorum/identity-providers/rotate-secret": {
+    post: {
+      parameters: NoParameters;
+      requestBody: {
+        content: { "application/json": { slug: string; secret: string } };
+      };
+      responses: { 204: { content?: never } };
+    };
+  };
+  "/api/prohibitorum/identity-providers/set-disabled": {
+    post: {
+      parameters: NoParameters;
+      requestBody: {
+        content: { "application/json": { slug: string; disabled: boolean } };
+      };
+      responses: {
+        200: {
+          content: {
+            "application/json": components["schemas"]["IdentityProviderView"];
+          };
+        };
+      };
+    };
+  };
+  "/api/prohibitorum/identity-providers/delete": {
+    post: {
+      parameters: NoParameters;
+      requestBody: { content: { "application/json": { slug: string } } };
+      responses: { 204: { content?: never } };
+    };
+  };
+  "/api/prohibitorum/identity-providers/{slug}/icon": {
+    put: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: { slug: string };
+        cookie?: never;
+      };
+      requestBody: { content: { "application/octet-stream": Blob } };
+      responses: { 204: { content?: never } };
+    };
+    delete: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: { slug: string };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: { 204: { content?: never } };
+    };
+  };
+  "/api/prohibitorum/identity-providers/{slug}/effective-config": {
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: { slug: string };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        200: { content: { "application/json": EffectiveConfigView } };
+      };
+    };
+  };
+  "/api/prohibitorum/identity-providers/{slug}/tests": {
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: { slug: string };
+        cookie?: never;
+      };
+      requestBody: EmptyJsonBody;
+      responses: {
+        200: { content: { "application/json": DiagnosticStartView } };
+      };
+    };
+  };
+  "/api/prohibitorum/identity-providers/{slug}/tests/{id}": {
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: { slug: string; id: string };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        200: { content: { "application/json": DiagnosticResultView } };
+      };
+    };
+  };
+  "/api/prohibitorum/identity-providers/{slug}/tests/{id}/complete": {
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: { slug: string; id: string };
+        cookie?: never;
+      };
+      requestBody: EmptyJsonBody;
+      responses: {
+        200: { content: { "application/json": DiagnosticResultView } };
+      };
+    };
+  };
+  "/api/prohibitorum/identity-providers/{slug}/operator-session/start": {
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: { slug: string };
+        cookie?: never;
+      };
+      requestBody: {
+        content: { "application/json": OperatorSessionStartRequest };
+      };
+      responses: {
+        200: { content: { "application/json": OperatorSessionView } };
+      };
+    };
+  };
+  "/api/prohibitorum/identity-providers/{slug}/operator-session/verify": {
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: { slug: string };
+        cookie?: never;
+      };
+      requestBody: {
+        content: { "application/json": OperatorSessionVerifyRequest };
+      };
+      responses: {
+        200: { content: { "application/json": OperatorSessionView } };
+      };
+    };
+  };
+  "/api/prohibitorum/identity-providers/{slug}/operator-session/validate": {
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: { slug: string };
+        cookie?: never;
+      };
+      requestBody: EmptyJsonBody;
+      responses: {
+        200: { content: { "application/json": OperatorSessionView } };
+      };
+    };
+  };
+
+  /* --------------------------------------------------- OIDC applications -- */
+
+  "/api/prohibitorum/oidc-applications": {
+    post: {
+      parameters: NoParameters;
+      requestBody: { content: { "application/json": CreateOidcAppRequest } };
+      responses: {
+        201: { content: { "application/json": CreateOidcAppResponse } };
+      };
+    };
+  };
+  "/api/prohibitorum/oidc-applications/{clientId}": {
+    put: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: { clientId: string };
+        cookie?: never;
+      };
+      requestBody: { content: { "application/json": UpdateOidcAppRequest } };
+      responses: {
+        200: {
+          content: {
+            "application/json": components["schemas"]["OIDCApplicationView"];
+          };
+        };
+      };
+    };
+  };
+  "/api/prohibitorum/oidc-applications/{clientId}/identity-projection": {
+    put: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: { clientId: string };
+        cookie?: never;
+      };
+      requestBody: {
+        content: { "application/json": UpdateOidcProjectionRequest };
+      };
+      responses: {
+        200: {
+          content: {
+            "application/json": components["schemas"]["OIDCApplicationView"];
+          };
+        };
+      };
+    };
+  };
+  "/api/prohibitorum/oidc-applications/rotate-secret": {
+    post: {
+      parameters: NoParameters;
+      requestBody: { content: { "application/json": ClientKindBody } };
+      responses: {
+        200: { content: { "application/json": RotateOidcSecretResponse } };
+      };
+    };
+  };
+  "/api/prohibitorum/oidc-applications/set-disabled": {
+    post: {
+      parameters: NoParameters;
+      requestBody: {
+        content: {
+          "application/json": { clientId: string; disabled: boolean };
+        };
+      };
+      responses: {
+        200: {
+          content: {
+            "application/json": components["schemas"]["OIDCApplicationView"];
+          };
+        };
+      };
+    };
+  };
+  "/api/prohibitorum/oidc-applications/delete": {
+    post: {
+      parameters: NoParameters;
+      requestBody: { content: { "application/json": ClientKindBody } };
+      responses: { 204: { content?: never } };
+    };
+  };
+  "/api/prohibitorum/oidc-applications/{clientId}/icon": {
+    put: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: { clientId: string };
+        cookie?: never;
+      };
+      requestBody: { content: { "application/octet-stream": Blob } };
+      responses: { 204: { content?: never } };
+    };
+    delete: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: { clientId: string };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: { 204: { content?: never } };
+    };
+  };
+  "/api/prohibitorum/oidc-applications/{clientId}/managers": {
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: { clientId: string };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: { 200: { content: { "application/json": AppManagerView[] } } };
+    };
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: { clientId: string };
+        cookie?: never;
+      };
+      requestBody: { content: { "application/json": { accountId: number } } };
+      responses: { 204: { content?: never } };
+    };
+  };
+  "/api/prohibitorum/oidc-applications/{clientId}/managers/remove": {
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: { clientId: string };
+        cookie?: never;
+      };
+      requestBody: { content: { "application/json": { accountId: number } } };
+      responses: { 204: { content?: never } };
+    };
+  };
+
+  /* -------------------------------------------- forward-auth applications -- */
+
+  "/api/prohibitorum/forward-auth-apps": {
+    post: {
+      parameters: NoParameters;
+      requestBody: {
+        content: { "application/json": CreateForwardAuthAppRequest };
+      };
+      responses: {
+        201: {
+          content: {
+            "application/json": components["schemas"]["ForwardAuthAppView"];
+          };
+        };
+      };
+    };
+  };
+  "/api/prohibitorum/forward-auth-apps/{clientId}": {
+    put: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: { clientId: string };
+        cookie?: never;
+      };
+      requestBody: {
+        content: { "application/json": UpdateForwardAuthAppRequest };
+      };
+      responses: {
+        200: {
+          content: {
+            "application/json": components["schemas"]["ForwardAuthAppView"];
+          };
+        };
+      };
+    };
+  };
+  "/api/prohibitorum/forward-auth-apps/{clientId}/identity-projection": {
+    put: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: { clientId: string };
+        cookie?: never;
+      };
+      requestBody: {
+        content: { "application/json": UpdateForwardAuthProjectionRequest };
+      };
+      responses: {
+        200: {
+          content: {
+            "application/json": components["schemas"]["ForwardAuthAppView"];
+          };
+        };
+      };
+    };
+  };
+  "/api/prohibitorum/forward-auth-apps/set-disabled": {
+    post: {
+      parameters: NoParameters;
+      requestBody: {
+        content: {
+          "application/json": { clientId: string; disabled: boolean };
+        };
+      };
+      responses: {
+        200: {
+          content: {
+            "application/json": components["schemas"]["ForwardAuthAppView"];
+          };
+        };
+      };
+    };
+  };
+  "/api/prohibitorum/forward-auth-apps/delete": {
+    post: {
+      parameters: NoParameters;
+      requestBody: { content: { "application/json": ClientKindBody } };
+      responses: { 204: { content?: never } };
+    };
+  };
+  "/api/prohibitorum/forward-auth-apps/{clientId}/icon": {
+    put: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: { clientId: string };
+        cookie?: never;
+      };
+      requestBody: { content: { "application/octet-stream": Blob } };
+      responses: { 204: { content?: never } };
+    };
+    delete: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: { clientId: string };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: { 204: { content?: never } };
+    };
+  };
+  "/api/prohibitorum/forward-auth-apps/{clientId}/managers": {
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: { clientId: string };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: { 200: { content: { "application/json": AppManagerView[] } } };
+    };
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: { clientId: string };
+        cookie?: never;
+      };
+      requestBody: { content: { "application/json": { accountId: number } } };
+      responses: { 204: { content?: never } };
+    };
+  };
+  "/api/prohibitorum/forward-auth-apps/{clientId}/managers/remove": {
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: { clientId: string };
+        cookie?: never;
+      };
+      requestBody: { content: { "application/json": { accountId: number } } };
+      responses: { 204: { content?: never } };
+    };
+  };
+
+  /* --------------------------------------------------- SAML applications -- */
+
+  "/api/prohibitorum/saml-applications": {
+    post: {
+      parameters: NoParameters;
+      requestBody: { content: { "application/json": CreateSamlAppRequest } };
+      responses: {
+        201: {
+          content: {
+            "application/json": components["schemas"]["SAMLApplicationView"];
+          };
+        };
+      };
+    };
+  };
+  "/api/prohibitorum/saml-applications/{id}": {
+    put: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: { id: number };
+        cookie?: never;
+      };
+      requestBody: { content: { "application/json": UpdateSamlAppRequest } };
+      responses: {
+        200: {
+          content: {
+            "application/json": components["schemas"]["SAMLApplicationView"];
+          };
+        };
+      };
+    };
+  };
+  "/api/prohibitorum/saml-applications/{id}/reingest-metadata": {
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: { id: number };
+        cookie?: never;
+      };
+      requestBody: { content: { "application/json": { metadataXml: string } } };
+      responses: {
+        200: {
+          content: {
+            "application/json": components["schemas"]["SAMLApplicationView"];
+          };
+        };
+      };
+    };
+  };
+  "/api/prohibitorum/saml-applications/set-disabled": {
+    post: {
+      parameters: NoParameters;
+      requestBody: {
+        content: { "application/json": { id: number; disabled: boolean } };
+      };
+      responses: {
+        200: {
+          content: {
+            "application/json": components["schemas"]["SAMLApplicationView"];
+          };
+        };
+      };
+    };
+  };
+  "/api/prohibitorum/saml-applications/delete": {
+    post: {
+      parameters: NoParameters;
+      requestBody: { content: { "application/json": { id: number } } };
+      responses: { 204: { content?: never } };
+    };
+  };
+  "/api/prohibitorum/saml-applications/{id}/icon": {
+    put: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: { id: number };
+        cookie?: never;
+      };
+      requestBody: { content: { "application/octet-stream": Blob } };
+      responses: { 204: { content?: never } };
+    };
+    delete: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: { id: number };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: { 204: { content?: never } };
+    };
+  };
+  "/api/prohibitorum/saml-applications/{id}/managers": {
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: { id: number };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: { 200: { content: { "application/json": AppManagerView[] } } };
+    };
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: { id: number };
+        cookie?: never;
+      };
+      requestBody: { content: { "application/json": { accountId: number } } };
+      responses: { 204: { content?: never } };
+    };
+  };
+  "/api/prohibitorum/saml-applications/{id}/managers/remove": {
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: { id: number };
+        cookie?: never;
+      };
+      requestBody: { content: { "application/json": { accountId: number } } };
+      responses: { 204: { content?: never } };
+    };
+  };
+
+  /* ------------------------------------------------ managed applications -- */
+
+  "/api/prohibitorum/managed-applications/{kind}/{appId}/access": {
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: { kind: ManagedApplicationKind; appId: string };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        200: { content: { "application/json": AppAccessWorkspace } };
+      };
+    };
+  };
+  "/api/prohibitorum/managed-applications/{kind}/{appId}/access/set-restricted": {
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: { kind: ManagedApplicationKind; appId: string };
+        cookie?: never;
+      };
+      requestBody: {
+        content: { "application/json": SetAppAccessRestrictedRequest };
+      };
+      responses: {
+        200: { content: { "application/json": AppSummaryView } };
+      };
+    };
+  };
+  "/api/prohibitorum/managed-applications/{kind}/{appId}/groups": {
+    put: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: { kind: ManagedApplicationKind; appId: string };
+        cookie?: never;
+      };
+      requestBody: { content: { "application/json": ReplaceAppGroupsRequest } };
+      responses: {
+        200: { content: { "application/json": AppGroupView[] } };
+      };
     };
   };
 }

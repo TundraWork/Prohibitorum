@@ -36,7 +36,7 @@ type listAuditEventsIn struct {
 	AccountID int32     `query:"accountId" doc:"Filter to events for a specific account ID."`
 	Since     time.Time `query:"since"     doc:"Return events at or after this RFC3339 timestamp."`
 	Until     time.Time `query:"until"     doc:"Return events at or before this RFC3339 timestamp."`
-	pageInput
+	PageInput
 }
 
 type listAuditEventsOut struct {

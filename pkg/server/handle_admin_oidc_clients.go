@@ -94,7 +94,7 @@ func oidcApplicationView(c db.OidcClient) contract.OIDCApplicationView {
 // ----- GET /oidc-applications (typed, role-only) -----------------------------------
 
 type listOIDCApplicationsIn struct {
-	pageInput
+	PageInput
 }
 
 type listOIDCApplicationsOut struct {
@@ -129,6 +129,7 @@ func (s *Server) handleListOIDCApplications(ctx context.Context, in *listOIDCApp
 	if more {
 		rows = rows[:lim]
 	}
+	iconURLs := s.listIconURLs(ctx, "oidc_client")
 	views := make([]contract.OIDCApplicationView, 0, len(rows))
 	for _, r := range rows {
 		aliases := map[string]string{}
@@ -147,6 +148,7 @@ func (s *Server) handleListOIDCApplications(ctx context.Context, in *listOIDCApp
 			AccessRestricted: r.AccessRestricted,
 			SubjectSource:    source,
 			ClaimAliases:     aliases,
+			IconURL:          iconURLFor(iconURLs, r.ClientID),
 		}
 		if r.CreatedAt.Valid {
 			v.CreatedAt = r.CreatedAt.Time
@@ -334,6 +336,22 @@ func (s *Server) handleUpdateOIDCApplicationHTTP(w http.ResponseWriter, r *http.
 		requirePKCE = *body.RequirePkce
 	}
 
+	// Validate launchUrl BEFORE the update. This is an all-or-nothing PUT: if the
+	// URL were rejected after UpdateOIDCClient had already run, the client would
+	// keep its new display name, scopes and disabled flag while launchUrl stayed
+	// at its old value — a half-applied write reported as a 400.
+	var launchURL pgtype.Text
+	if body.LaunchURL != nil {
+		if t := strings.TrimSpace(*body.LaunchURL); t != "" {
+			u, perr := url.Parse(t)
+			if perr != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+				writeAuthErr(w, authn.ErrBadRequest())
+				return
+			}
+			launchURL = pgtype.Text{String: t, Valid: true}
+		}
+	}
+
 	// Default post-logout URIs to empty slice (not nil) to satisfy NOT NULL.
 	postLogout := body.PostLogoutRedirectURIs
 	if postLogout == nil {
@@ -367,17 +385,6 @@ func (s *Server) handleUpdateOIDCApplicationHTTP(w http.ResponseWriter, r *http.
 		return
 	}
 
-	var launchURL pgtype.Text
-	if body.LaunchURL != nil {
-		if t := strings.TrimSpace(*body.LaunchURL); t != "" {
-			u, perr := url.Parse(t)
-			if perr != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
-				writeAuthErr(w, authn.ErrBadRequest())
-				return
-			}
-			launchURL = pgtype.Text{String: t, Valid: true}
-		}
-	}
 	if err := s.queries.SetOIDCClientLaunchURL(r.Context(), db.SetOIDCClientLaunchURLParams{
 		ClientID: clientID, LaunchUrl: launchURL,
 	}); err != nil {
