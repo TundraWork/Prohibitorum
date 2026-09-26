@@ -513,3 +513,75 @@ func TestAdminSAMLSPs_ContractType_SAMLProviderView(t *testing.T) {
 	}
 	_ = v
 }
+
+// ----- List rows carry their own ACS + keys ----------------------------------
+
+// TestAdminSAMLSPs_ListFillsACSAndKeys pins the two list columns the dashboard
+// shows: each row carries its own ACS endpoints and its signing keys, taken from
+// one batched query per child table for the whole page rather than two queries
+// per row, and an application with neither still renders empty lists.
+func TestAdminSAMLSPs_ListFillsACSAndKeys(t *testing.T) {
+	q := &fakeListQ{
+		samlRows: []db.SamlSp{
+			makeSamlSp(31, "https://one.test", "One", "generic"),
+			makeSamlSp(32, "https://two.test", "Two", "generic"),
+		},
+		acsRows: []db.SamlSpAc{
+			{SpID: 31, Idx: 0, Binding: "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST", Location: "https://one.test/acs", IsDefault: true},
+			{SpID: 31, Idx: 1, Binding: "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect", Location: "https://one.test/acs/redirect"},
+		},
+		keyRows: []db.SamlSpKey{
+			{ID: 1, SpID: 31, Use: "signing", CertPem: "PEM-MUST-NOT-LEAK", NotAfter: pgTS("2027-01-01T00:00:00Z")},
+		},
+	}
+	s := newPaginationTestServer(q)
+	out, err := s.handleListSAMLApplications(adminListContext(), &listSAMLApplicationsIn{PageInput: PageInput{Limit: 10}})
+	if err != nil {
+		t.Fatalf("handleListSAMLApplications: %v", err)
+	}
+	if len(out.Body.Items) != 2 {
+		t.Fatalf("items = %d, want 2", len(out.Body.Items))
+	}
+
+	byID := map[int64]contract.SAMLApplicationView{}
+	for _, item := range out.Body.Items {
+		byID[item.ID] = item
+	}
+
+	one := byID[31]
+	if len(one.ACS) != 2 {
+		t.Fatalf("sp 31 acs = %d, want the 2 rows the batch returned for it", len(one.ACS))
+	}
+	if one.ACS[0].Location != "https://one.test/acs" || !one.ACS[0].IsDefault || one.ACS[1].Index != 1 {
+		t.Errorf("sp 31 acs = %#v, want its own rows in idx order", one.ACS)
+	}
+	if len(one.Keys) != 1 || one.Keys[0].NotAfter == nil {
+		t.Fatalf("sp 31 keys = %#v, want one signing key with an expiry", one.Keys)
+	}
+	if !one.Keys[0].NotAfter.Equal(ts("2027-01-01T00:00:00Z")) {
+		t.Errorf("sp 31 key notAfter = %v, want the batched row's expiry", one.Keys[0].NotAfter)
+	}
+
+	// The second application has no child rows at all.
+	two := byID[32]
+	if len(two.ACS) != 0 || len(two.Keys) != 0 {
+		t.Errorf("sp 32 acs = %#v keys = %#v, want empty lists", two.ACS, two.Keys)
+	}
+
+	// One query each for the whole page, not two per row.
+	if q.acsCalls != 1 || q.keyCalls != 1 {
+		t.Errorf("batched child queries ran %d acs / %d keys, want 1 / 1", q.acsCalls, q.keyCalls)
+	}
+	if len(q.acsIds) != 2 || len(q.keyIds) != 2 {
+		t.Errorf("child queries asked for %d / %d ids, want both page ids in one call each", len(q.acsIds), len(q.keyIds))
+	}
+
+	// The key summary never carries the certificate, batched or not.
+	encoded, err := json.Marshal(out.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(encoded), "PEM-MUST-NOT-LEAK") || strings.Contains(string(encoded), "certPem") {
+		t.Fatalf("list response leaked certificate material: %s", encoded)
+	}
+}

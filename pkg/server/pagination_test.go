@@ -95,6 +95,20 @@ type fakeListQ struct {
 	// this once per page to fill iconUrl, so a handler test that leaves it nil
 	// gets no icon on any row.
 	iconEtags map[string]map[string]string
+
+	// The batched per-page child lookups. The idp list counts linked accounts
+	// and the saml list loads ACS + signing keys; each is called once per page.
+	// linkedCountIds records the ids the count was asked for, so a test can
+	// assert the list asks once for the whole page rather than per row.
+	linkedCounts   map[int64]int64
+	linkedCountIds []int64
+	linkedCalls    int
+	acsRows        []db.SamlSpAc
+	acsIds         []int64
+	acsCalls       int
+	keyRows        []db.SamlSpKey
+	keyIds         []int64
+	keyCalls       int
 }
 
 func (f *fakeListQ) ListAccounts(_ context.Context, p db.ListAccountsParams) ([]db.ListAccountsRow, error) {
@@ -159,6 +173,38 @@ func (f *fakeListQ) ListEntityIconEtags(_ context.Context, ownerKind string) ([]
 		rows = append(rows, db.ListEntityIconEtagsRow{OwnerID: ownerID, Etag: etag})
 	}
 	return rows, nil
+}
+
+// CountAccountsLinkedToUpstreamIDPs answers the identity-provider list's batched
+// linked-account count. Only providers present in f.linkedCounts come back, so a
+// test that seeds one provider's count still exercises the "no row means 0" path
+// for the rest of the page.
+func (f *fakeListQ) CountAccountsLinkedToUpstreamIDPs(_ context.Context, upstreamIdpIds []int64) ([]db.CountAccountsLinkedToUpstreamIDPsRow, error) {
+	f.linkedCountIds = upstreamIdpIds
+	f.linkedCalls++
+	rows := make([]db.CountAccountsLinkedToUpstreamIDPsRow, 0, len(upstreamIdpIds))
+	for _, id := range upstreamIdpIds {
+		count, ok := f.linkedCounts[id]
+		if !ok {
+			continue
+		}
+		rows = append(rows, db.CountAccountsLinkedToUpstreamIDPsRow{UpstreamIdpID: id, LinkedAccountCount: count})
+	}
+	return rows, nil
+}
+
+// ListSAMLSPACSEndpointsBySPIDs is the SAML list's batched ACS lookup.
+func (f *fakeListQ) ListSAMLSPACSEndpointsBySPIDs(_ context.Context, spIds []int64) ([]db.SamlSpAc, error) {
+	f.acsIds = spIds
+	f.acsCalls++
+	return f.acsRows, nil
+}
+
+// ListSAMLSPKeysBySPIDs is the SAML list's batched signing-key lookup.
+func (f *fakeListQ) ListSAMLSPKeysBySPIDs(_ context.Context, arg db.ListSAMLSPKeysBySPIDsParams) ([]db.SamlSpKey, error) {
+	f.keyIds = arg.SpIds
+	f.keyCalls++
+	return f.keyRows, nil
 }
 
 // InsertCredentialEvent is a no-op sink for audit rows.

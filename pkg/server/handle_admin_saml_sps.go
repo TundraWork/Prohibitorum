@@ -95,6 +95,38 @@ func samlApplicationView(sp db.SamlSp, acs []db.SamlSpAc, keys []db.SamlSpKey) c
 	return v
 }
 
+// samlSPChildren loads the ACS and signing-key rows for a whole page of
+// applications in two statements — the same pair the single-application read
+// runs, batched over the page's ids — and groups them back by sp id. An
+// application with no ACS or no signing key simply has no entry in its map, and
+// the projection turns that into an empty list.
+func (s *Server) samlSPChildren(ctx context.Context, rows []db.SamlSp) (map[int64][]db.SamlSpAc, map[int64][]db.SamlSpKey, error) {
+	acsBySP := make(map[int64][]db.SamlSpAc, len(rows))
+	keysBySP := make(map[int64][]db.SamlSpKey, len(rows))
+	if len(rows) == 0 {
+		return acsBySP, keysBySP, nil
+	}
+	ids := make([]int64, 0, len(rows))
+	for _, sp := range rows {
+		ids = append(ids, sp.ID)
+	}
+	acsRows, err := s.listQ().ListSAMLSPACSEndpointsBySPIDs(ctx, ids)
+	if err != nil {
+		return nil, nil, fmt.Errorf("acs: %w", err)
+	}
+	for _, acs := range acsRows {
+		acsBySP[acs.SpID] = append(acsBySP[acs.SpID], acs)
+	}
+	keyRows, err := s.listQ().ListSAMLSPKeysBySPIDs(ctx, db.ListSAMLSPKeysBySPIDsParams{SpIds: ids, Use: "signing"})
+	if err != nil {
+		return nil, nil, fmt.Errorf("keys: %w", err)
+	}
+	for _, key := range keyRows {
+		keysBySP[key.SpID] = append(keysBySP[key.SpID], key)
+	}
+	return acsBySP, keysBySP, nil
+}
+
 // samlSPNotFound returns the canonical 404 for a missing SAML SP.
 func samlSPNotFound() *authn.AuthError {
 	return authn.ErrCredentialNotFound() // reuse 404 shape; no need for a dedicated code
@@ -141,10 +173,14 @@ func (s *Server) handleListSAMLApplications(ctx context.Context, in *listSAMLApp
 	if more {
 		rows = rows[:lim]
 	}
+	acsBySP, keysBySP, err := s.samlSPChildren(ctx, rows)
+	if err != nil {
+		return nil, fmt.Errorf("handleListSAMLApplications: %w", err)
+	}
 	iconURLs := s.listIconURLs(ctx, "saml_sp")
 	views := make([]contract.SAMLApplicationView, 0, len(rows))
 	for _, sp := range rows {
-		view := samlApplicationView(sp, nil, nil)
+		view := samlApplicationView(sp, acsBySP[sp.ID], keysBySP[sp.ID])
 		view.IconURL = iconURLFor(iconURLs, strconv.FormatInt(sp.ID, 10))
 		views = append(views, view)
 	}

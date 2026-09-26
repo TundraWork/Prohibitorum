@@ -229,6 +229,10 @@ func (s *Server) handleListIdentityProviders(ctx context.Context, in *listIdenti
 	if more {
 		rows = rows[:limit]
 	}
+	linkedCounts, err := s.linkedAccountCounts(ctx, rows)
+	if err != nil {
+		return nil, fmt.Errorf("handleListIdentityProviders: linked account counts: %w", err)
+	}
 	iconURLs := s.listIconURLs(ctx, "upstream_idp")
 	views := make([]contract.IdentityProviderView, 0, len(rows))
 	for _, row := range rows {
@@ -237,6 +241,8 @@ func (s *Server) handleListIdentityProviders(ctx context.Context, in *listIdenti
 			return nil, fmt.Errorf("handleListIdentityProviders: view: %w", viewErr)
 		}
 		view.IconURL = iconURLFor(iconURLs, row.Slug)
+		count := linkedCounts[row.ID]
+		view.LinkedAccountCount = &count
 		views = append(views, view)
 	}
 	var nextCursor string
@@ -247,6 +253,30 @@ func (s *Server) handleListIdentityProviders(ctx context.Context, in *listIdenti
 		})
 	}
 	return &listIdentityProvidersOut{Body: buildPage(views, nextCursor)}, nil
+}
+
+// linkedAccountCounts counts the accounts linked to each provider on the page
+// in one statement, so the list pays a single extra query rather than one per
+// row. Providers with no linked identity are absent from the result and get 0
+// from the map, which is what the caller needs: the client renders "0" instead
+// of treating the field as unknown.
+func (s *Server) linkedAccountCounts(ctx context.Context, rows []db.UpstreamIdp) (map[int64]int32, error) {
+	counts := make(map[int64]int32, len(rows))
+	if len(rows) == 0 {
+		return counts, nil
+	}
+	ids := make([]int64, 0, len(rows))
+	for _, row := range rows {
+		ids = append(ids, row.ID)
+	}
+	countRows, err := s.listQ().CountAccountsLinkedToUpstreamIDPs(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	for _, row := range countRows {
+		counts[row.UpstreamIdpID] = int32(row.LinkedAccountCount)
+	}
+	return counts, nil
 }
 
 type getIdentityProviderIn struct {
@@ -270,8 +300,9 @@ func (s *Server) handleGetIdentityProvider(ctx context.Context, in *getIdentityP
 		return nil, fmt.Errorf("handleGetIdentityProvider: view: %w", err)
 	}
 	view.IconURL = s.enrichIconURL(ctx, "upstream_idp", row.Slug)
-	// Only the single-provider read pays for this: the delete confirmation needs
-	// to say how many accounts are affected, and the list does not.
+	// Same count the list fills in per row, but here it is a single provider, so
+	// the scalar query is enough. The delete confirmation uses it to say how
+	// many accounts lose this sign-in method.
 	linked, err := s.queries.CountAccountsLinkedToUpstreamIDP(ctx, row.ID)
 	if err != nil {
 		return nil, fmt.Errorf("handleGetIdentityProvider: count linked accounts: %w", err)

@@ -433,3 +433,80 @@ func jsonBool(value bool) string {
 	}
 	return "false"
 }
+
+// TestListIdentityProvidersFillsLinkedAccountCount pins the list column the
+// dashboard reads: every row carries linkedAccountCount, taken from one batched
+// count over the whole page rather than one count per provider, and a provider
+// the count query does not mention still reports 0 instead of staying absent.
+func TestListIdentityProvidersFillsLinkedAccountCount(t *testing.T) {
+	q := &fakeListQ{
+		idpRows: []db.UpstreamIdp{
+			{ID: 11, Slug: "steam", DisplayName: "Steam", Protocol: "steam", ProviderConfig: []byte(`{}`), SecretStatus: "unconfigured", CreatedAt: pgTS("2026-07-03T00:00:00Z")},
+			{ID: 12, Slug: "vrchat", DisplayName: "VRChat", Protocol: "vrchat", ProviderConfig: []byte(`{}`), SecretStatus: "unconfigured", CreatedAt: pgTS("2026-07-02T00:00:00Z")},
+			{ID: 13, Slug: "unused", DisplayName: "Unused", Protocol: "steam", ProviderConfig: []byte(`{}`), SecretStatus: "unconfigured", CreatedAt: pgTS("2026-07-01T00:00:00Z")},
+		},
+		// Only two of the three providers have linked identities; the third has
+		// no row at all, which is the case the handler has to read as zero.
+		linkedCounts: map[int64]int64{11: 4, 12: 0},
+	}
+	s := newPaginationTestServer(q)
+	out, err := s.handleListIdentityProviders(context.Background(), &listIdentityProvidersIn{PageInput: PageInput{Limit: 10}})
+	if err != nil {
+		t.Fatalf("handleListIdentityProviders: %v", err)
+	}
+	if len(out.Body.Items) != 3 {
+		t.Fatalf("items = %d, want 3", len(out.Body.Items))
+	}
+	want := map[string]int32{"steam": 4, "vrchat": 0, "unused": 0}
+	for _, item := range out.Body.Items {
+		if item.LinkedAccountCount == nil {
+			t.Fatalf("%s: linkedAccountCount missing from the list row", item.Slug)
+		}
+		if got := *item.LinkedAccountCount; got != want[item.Slug] {
+			t.Errorf("%s: linkedAccountCount = %d, want %d", item.Slug, got, want[item.Slug])
+		}
+	}
+	if q.linkedCalls != 1 {
+		t.Errorf("linked-account count ran %d times, want once for the page", q.linkedCalls)
+	}
+	if len(q.linkedCountIds) != 3 {
+		t.Errorf("count asked for %d ids, want all 3 page ids in one call", len(q.linkedCountIds))
+	}
+}
+
+// TestListIdentityProvidersWithoutLinkedCountsStillZeroes covers the empty page
+// and the all-unlinked page: the count is never issued for zero rows, and every
+// row that survives still reports a set zero.
+func TestListIdentityProvidersWithoutLinkedCountsStillZeroes(t *testing.T) {
+	t.Run("empty page issues no count", func(t *testing.T) {
+		q := &fakeListQ{}
+		s := newPaginationTestServer(q)
+		out, err := s.handleListIdentityProviders(context.Background(), &listIdentityProvidersIn{PageInput: PageInput{Limit: 10}})
+		if err != nil {
+			t.Fatalf("handleListIdentityProviders: %v", err)
+		}
+		if len(out.Body.Items) != 0 {
+			t.Fatalf("items = %d, want 0", len(out.Body.Items))
+		}
+		if q.linkedCalls != 0 {
+			t.Errorf("count ran %d times on an empty page, want 0", q.linkedCalls)
+		}
+	})
+
+	t.Run("page with no linked accounts", func(t *testing.T) {
+		q := &fakeListQ{idpRows: []db.UpstreamIdp{
+			{ID: 21, Slug: "steam", DisplayName: "Steam", Protocol: "steam", ProviderConfig: []byte(`{}`), SecretStatus: "unconfigured", CreatedAt: pgTS("2026-07-03T00:00:00Z")},
+		}}
+		s := newPaginationTestServer(q)
+		out, err := s.handleListIdentityProviders(context.Background(), &listIdentityProvidersIn{PageInput: PageInput{Limit: 10}})
+		if err != nil {
+			t.Fatalf("handleListIdentityProviders: %v", err)
+		}
+		if len(out.Body.Items) != 1 || out.Body.Items[0].LinkedAccountCount == nil {
+			t.Fatalf("items = %#v, want one row with a set linkedAccountCount", out.Body.Items)
+		}
+		if got := *out.Body.Items[0].LinkedAccountCount; got != 0 {
+			t.Errorf("linkedAccountCount = %d, want 0", got)
+		}
+	})
+}

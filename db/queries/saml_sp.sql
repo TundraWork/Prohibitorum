@@ -25,6 +25,14 @@ RETURNING *;
 -- name: ListSAMLSPACSEndpoints :many
 SELECT * FROM saml_sp_acs WHERE sp_id = $1 ORDER BY idx;
 
+-- name: ListSAMLSPACSEndpointsBySPIDs :many
+-- The same rows as ListSAMLSPACSEndpoints for a whole page of applications at
+-- once, so the list can fill each row's acs without a query per row. Ordering
+-- matches the single-SP form, with sp_id leading so the caller can group the
+-- flat result back into per-application slices in one pass.
+SELECT * FROM saml_sp_acs WHERE sp_id = ANY(sqlc.arg(sp_ids)::bigint[])
+ORDER BY sp_id, idx;
+
 -- name: InsertSAMLSPACS :exec
 INSERT INTO saml_sp_acs (sp_id, idx, binding, location, is_default)
 VALUES ($1, $2, $3, $4, $5);
@@ -32,6 +40,14 @@ VALUES ($1, $2, $3, $4, $5);
 -- name: ListSAMLSPKeys :many
 SELECT * FROM saml_sp_key WHERE sp_id = $1 AND use = $2
 ORDER BY added_at DESC;
+
+-- name: ListSAMLSPKeysBySPIDs :many
+-- The same rows as ListSAMLSPKeys for a whole page of applications at once.
+-- Batched form of ListSAMLSPKeys, so the list can fill each row's keys without
+-- a query per row. sp_id leads the ordering for the same grouping reason as
+-- ListSAMLSPACSEndpointsBySPIDs; added_at DESC matches the single-SP form.
+SELECT * FROM saml_sp_key WHERE sp_id = ANY(sqlc.arg(sp_ids)::bigint[]) AND use = sqlc.arg('use')
+ORDER BY sp_id, added_at DESC;
 
 -- name: InsertSAMLSPKey :exec
 INSERT INTO saml_sp_key (sp_id, use, cert_pem, not_after)

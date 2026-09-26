@@ -33,6 +33,43 @@ func (q *Queries) CountAccountsLinkedToUpstreamIDP(ctx context.Context, upstream
 	return column_1, err
 }
 
+const countAccountsLinkedToUpstreamIDPs = `-- name: CountAccountsLinkedToUpstreamIDPs :many
+SELECT upstream_idp_id, COUNT(DISTINCT account_id)::bigint AS linked_account_count
+FROM account_identity
+WHERE upstream_idp_id = ANY($1::bigint[])
+GROUP BY upstream_idp_id
+ORDER BY upstream_idp_id
+`
+
+type CountAccountsLinkedToUpstreamIDPsRow struct {
+	UpstreamIdpID      int64 `json:"upstreamIdpId"`
+	LinkedAccountCount int64 `json:"linkedAccountCount"`
+}
+
+// The same count as CountAccountsLinkedToUpstreamIDP for a whole page of
+// providers at once, so the list can fill linkedAccountCount without a query
+// per row. Providers with no linked identity produce no row here; the caller
+// reads a missing id as zero.
+func (q *Queries) CountAccountsLinkedToUpstreamIDPs(ctx context.Context, upstreamIdpIds []int64) ([]CountAccountsLinkedToUpstreamIDPsRow, error) {
+	rows, err := q.db.Query(ctx, countAccountsLinkedToUpstreamIDPs, upstreamIdpIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CountAccountsLinkedToUpstreamIDPsRow
+	for rows.Next() {
+		var i CountAccountsLinkedToUpstreamIDPsRow
+		if err := rows.Scan(&i.UpstreamIdpID, &i.LinkedAccountCount); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const countUsableSignInFederation = `-- name: CountUsableSignInFederation :one
 SELECT COUNT(*) FROM account_identity ai
 JOIN upstream_idp ip ON ip.id = ai.upstream_idp_id

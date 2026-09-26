@@ -64,6 +64,13 @@ type topLevelQueries interface {
 	// ListEntityIconEtags backs the iconUrl each list row carries, so the list
 	// handlers reach it through the same seam as their paging query.
 	ListEntityIconEtags(ctx context.Context, ownerKind string) ([]db.ListEntityIconEtagsRow, error)
+	// The batched child lookups two lists need to fill the per-row detail their
+	// single-record GETs already carry. They take the whole page's ids and
+	// return every matching row tagged with its parent, so a page costs two
+	// queries rather than two per row.
+	CountAccountsLinkedToUpstreamIDPs(ctx context.Context, upstreamIdpIds []int64) ([]db.CountAccountsLinkedToUpstreamIDPsRow, error)
+	ListSAMLSPACSEndpointsBySPIDs(ctx context.Context, spIds []int64) ([]db.SamlSpAc, error)
+	ListSAMLSPKeysBySPIDs(ctx context.Context, arg db.ListSAMLSPKeysBySPIDsParams) ([]db.SamlSpKey, error)
 }
 
 // listQ returns the override (for tests) or the real queries. The real

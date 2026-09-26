@@ -706,9 +706,10 @@ type IdentityProviderView struct {
 	SearchFields      []IdentitySearchFieldView `json:"searchFields"`
 	CreatedAt         time.Time                 `json:"createdAt"`
 	// LinkedAccountCount is the number of distinct accounts holding an identity
-	// from this provider. Set on the single-provider GET only: the list does not
-	// need it, and counting it per row would cost a query per row. The delete
-	// confirmation uses it to say how many accounts lose this sign-in method.
+	// from this provider. Always set: the single-provider read sets it for the
+	// delete confirmation, and the list sets it on every row for its account
+	// column, using one batched count for the whole page. A provider with no
+	// linked accounts reports 0 rather than omitting the field.
 	LinkedAccountCount *int32 `json:"linkedAccountCount,omitempty"`
 }
 

@@ -33,6 +33,17 @@ DELETE FROM account_identity WHERE upstream_idp_id = $1 RETURNING account_id;
 -- account can link the same provider twice (two subjects).
 SELECT COUNT(DISTINCT account_id)::bigint FROM account_identity WHERE upstream_idp_id = $1;
 
+-- name: CountAccountsLinkedToUpstreamIDPs :many
+-- The same count as CountAccountsLinkedToUpstreamIDP for a whole page of
+-- providers at once, so the list can fill linkedAccountCount without a query
+-- per row. Providers with no linked identity produce no row here; the caller
+-- reads a missing id as zero.
+SELECT upstream_idp_id, COUNT(DISTINCT account_id)::bigint AS linked_account_count
+FROM account_identity
+WHERE upstream_idp_id = ANY(sqlc.arg(upstream_idp_ids)::bigint[])
+GROUP BY upstream_idp_id
+ORDER BY upstream_idp_id;
+
 -- name: UpdateAccountIdentityVerifiedData :exec
 UPDATE account_identity
 SET upstream_email = $2, upstream_data = $3

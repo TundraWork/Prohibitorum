@@ -375,6 +375,41 @@ func (q *Queries) ListSAMLSPACSEndpoints(ctx context.Context, spID int64) ([]Sam
 	return items, nil
 }
 
+const listSAMLSPACSEndpointsBySPIDs = `-- name: ListSAMLSPACSEndpointsBySPIDs :many
+SELECT sp_id, idx, binding, location, is_default FROM saml_sp_acs WHERE sp_id = ANY($1::bigint[])
+ORDER BY sp_id, idx
+`
+
+// The same rows as ListSAMLSPACSEndpoints for a whole page of applications at
+// once, so the list can fill each row's acs without a query per row. Ordering
+// matches the single-SP form, with sp_id leading so the caller can group the
+// flat result back into per-application slices in one pass.
+func (q *Queries) ListSAMLSPACSEndpointsBySPIDs(ctx context.Context, spIds []int64) ([]SamlSpAc, error) {
+	rows, err := q.db.Query(ctx, listSAMLSPACSEndpointsBySPIDs, spIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []SamlSpAc
+	for rows.Next() {
+		var i SamlSpAc
+		if err := rows.Scan(
+			&i.SpID,
+			&i.Idx,
+			&i.Binding,
+			&i.Location,
+			&i.IsDefault,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listSAMLSPKeys = `-- name: ListSAMLSPKeys :many
 SELECT id, sp_id, use, cert_pem, not_after, added_at FROM saml_sp_key WHERE sp_id = $1 AND use = $2
 ORDER BY added_at DESC
@@ -387,6 +422,47 @@ type ListSAMLSPKeysParams struct {
 
 func (q *Queries) ListSAMLSPKeys(ctx context.Context, arg ListSAMLSPKeysParams) ([]SamlSpKey, error) {
 	rows, err := q.db.Query(ctx, listSAMLSPKeys, arg.SpID, arg.Use)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []SamlSpKey
+	for rows.Next() {
+		var i SamlSpKey
+		if err := rows.Scan(
+			&i.ID,
+			&i.SpID,
+			&i.Use,
+			&i.CertPem,
+			&i.NotAfter,
+			&i.AddedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listSAMLSPKeysBySPIDs = `-- name: ListSAMLSPKeysBySPIDs :many
+SELECT id, sp_id, use, cert_pem, not_after, added_at FROM saml_sp_key WHERE sp_id = ANY($1::bigint[]) AND use = $2
+ORDER BY sp_id, added_at DESC
+`
+
+type ListSAMLSPKeysBySPIDsParams struct {
+	SpIds []int64 `json:"spIds"`
+	Use   string  `json:"use"`
+}
+
+// The same rows as ListSAMLSPKeys for a whole page of applications at once.
+// Batched form of ListSAMLSPKeys, so the list can fill each row's keys without
+// a query per row. sp_id leads the ordering for the same grouping reason as
+// ListSAMLSPACSEndpointsBySPIDs; added_at DESC matches the single-SP form.
+func (q *Queries) ListSAMLSPKeysBySPIDs(ctx context.Context, arg ListSAMLSPKeysBySPIDsParams) ([]SamlSpKey, error) {
+	rows, err := q.db.Query(ctx, listSAMLSPKeysBySPIDs, arg.SpIds, arg.Use)
 	if err != nil {
 		return nil, err
 	}

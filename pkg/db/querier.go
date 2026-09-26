@@ -46,6 +46,11 @@ type Querier interface {
 	// How many accounts hold an identity from this provider, distinct because one
 	// account can link the same provider twice (two subjects).
 	CountAccountsLinkedToUpstreamIDP(ctx context.Context, upstreamIdpID int64) (int64, error)
+	// The same count as CountAccountsLinkedToUpstreamIDP for a whole page of
+	// providers at once, so the list can fill linkedAccountCount without a query
+	// per row. Providers with no linked identity produce no row here; the caller
+	// reads a missing id as zero.
+	CountAccountsLinkedToUpstreamIDPs(ctx context.Context, upstreamIdpIds []int64) ([]CountAccountsLinkedToUpstreamIDPsRow, error)
 	CountActiveAdminsForUpdate(ctx context.Context) (int64, error)
 	CountCredentialsByAccount(ctx context.Context, accountID int32) (int64, error)
 	// Linked identities the account can actually sign in / step up with: the
@@ -211,7 +216,17 @@ type Querier interface {
 	ListSAMLAppRuleGroups(ctx context.Context, samlSpID int64) ([]UserGroup, error)
 	ListSAMLConsentsByAccount(ctx context.Context, accountID int32) ([]ListSAMLConsentsByAccountRow, error)
 	ListSAMLSPACSEndpoints(ctx context.Context, spID int64) ([]SamlSpAc, error)
+	// The same rows as ListSAMLSPACSEndpoints for a whole page of applications at
+	// once, so the list can fill each row's acs without a query per row. Ordering
+	// matches the single-SP form, with sp_id leading so the caller can group the
+	// flat result back into per-application slices in one pass.
+	ListSAMLSPACSEndpointsBySPIDs(ctx context.Context, spIds []int64) ([]SamlSpAc, error)
 	ListSAMLSPKeys(ctx context.Context, arg ListSAMLSPKeysParams) ([]SamlSpKey, error)
+	// The same rows as ListSAMLSPKeys for a whole page of applications at once.
+	// Batched form of ListSAMLSPKeys, so the list can fill each row's keys without
+	// a query per row. sp_id leads the ordering for the same grouping reason as
+	// ListSAMLSPACSEndpointsBySPIDs; added_at DESC matches the single-SP form.
+	ListSAMLSPKeysBySPIDs(ctx context.Context, arg ListSAMLSPKeysBySPIDsParams) ([]SamlSpKey, error)
 	ListSAMLSPManagers(ctx context.Context, samlSpID int64) ([]ListSAMLSPManagersRow, error)
 	ListSAMLSPs(ctx context.Context, arg ListSAMLSPsParams) ([]SamlSp, error)
 	ListSAMLSessionsByNameID(ctx context.Context, arg ListSAMLSessionsByNameIDParams) ([]SamlSession, error)
