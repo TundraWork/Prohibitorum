@@ -1,4 +1,4 @@
-import { Card, Spinner } from "@heroui/react";
+import { Card, Skeleton } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { QueryErrorResetBoundary } from "@tanstack/react-query";
 import { CatchBoundary } from "@tanstack/react-router";
@@ -40,8 +40,10 @@ export function Section({
           without line up across sections: left to the text, the row would be
           half the height and its heading would sit higher than its
           neighbours'. */}
-      <div className="flex min-h-10 items-center justify-between gap-4">
-        <h2 className="text-sm font-medium text-foreground">{title}</h2>
+      <div className="flex min-h-9 items-center justify-between gap-4">
+        <h2 className="text-[0.9375rem] font-semibold tracking-[-0.005em] text-foreground">
+          {title}
+        </h2>
         {action}
       </div>
       {children}
@@ -113,14 +115,25 @@ export function AsyncSection({
 
 /**
  * The block's own shape while its read is in flight: a card the height of a
- * short one, so the page settles where the content will land rather than
- * collapsing to nothing and growing again.
+ * short one, drawn as the rows that are about to arrive rather than as a
+ * spinner. The page then settles where the content will land instead of
+ * collapsing to nothing and growing again, and the wait says what is coming.
+ *
+ * The lines are `aria-hidden` and unmounted from the accessibility tree by the
+ * container: HeroUI's spinner carried a status role, but a set of placeholder
+ * bars has nothing to announce. A reader waiting on a section hears the page
+ * arrive when it does.
  */
 function SectionPending() {
   return (
     <Card className="gap-0 p-0">
-      <div className="flex items-center justify-center py-10">
-        <Spinner size="md" />
+      <div
+        aria-hidden="true"
+        className="skeleton--shimmer flex flex-col gap-3 p-4"
+      >
+        <Skeleton animationType="none" className="h-4 w-2/5" />
+        <Skeleton animationType="none" className="h-4 w-full" />
+        <Skeleton animationType="none" className="h-4 w-4/5" />
       </div>
     </Card>
   );

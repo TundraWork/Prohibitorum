@@ -89,6 +89,17 @@ Cool near-neutral backgrounds, white light-mode surfaces, and dark foregrounds
 separate content without decorative color. Dark mode uses the corresponding
 semantic tokens rather than inverting light-mode colors.
 
+The console shell reads as three tonal layers, and they are tokens rather than
+borders: the rail and header are `surface-secondary` (the chrome), `main` keeps
+the page's `background`, and every card is the library's white `surface`. The
+header alone closes with a `separator` rule, because it is sticky and content
+scrolls under it. The rail's selected entry is the accent's soft tint
+(`bg-accent-soft`, icon in `text-accent`) — the only place the product's colour
+appears in the shell, and a step *above* the rail where `default` would read as
+a hole punched in it. Rail labels are `text-foreground/85` rather than `muted`:
+on the secondary surface that token measures about 4.2:1 in light mode, under
+the body-text floor.
+
 Status colors retain HeroUI's danger, warning, and success roles. Their exact
 light/dark values remain in `dashboard/src/styles/theme.css`.
 
@@ -168,11 +179,30 @@ three application kinds is `AppAccessPanel`, and a read-only value that is meant
 to be copied elsewhere — a Client ID, an Entity ID, a callback address — is
 `CopyValue`, HeroUI's `InputGroup` with a copy suffix.
 
+### Loading
+
+A list of records waits in the shape it will arrive in, not behind a spinner:
+`ListSkeleton` from `dashboard/src/components/custom` draws an icon-sized block
+and two lines per row, and everything that shows a list of records uses it —
+`ItemList`, `DataTable` (one placeholder per column), and the panels that read
+with `useQuery` and so draw their own pending state. The shimmer is HeroUI's
+`skeleton--shimmer`: the class goes on the container and its children take
+`animationType="none"`, so one shimmer passes over the whole set rather than each
+bar pulsing on its own. The skeleton is `aria-hidden`; a placeholder has nothing
+to announce.
+
+A `Spinner` is for a wait that is a process rather than a shape: the route-level
+pending component, an in-flight lookup, and the work a `Button` reports through
+`isPending`.
+
 ### Navigation
 
 Public navigation uses wrapping HeroUI links. Preview tabs use the secondary
 variant with the library indicator. Console navigation uses its existing shared
-composition, including unavailable states and narrow-screen behavior.
+composition, including unavailable states and narrow-screen behavior. The rail
+names the instance and the header names the section in view, so each string is
+written once: the header carries no eyebrow repeating the instance above its
+heading.
 
 ### Notices
 

@@ -216,14 +216,28 @@ function isActiveSection(path: string, activePath: string) {
   return path === "/" ? activePath === "/" : activePath.startsWith(path);
 }
 
+/**
+ * One navigation entry.
+ *
+ * The rail sits on `bg-surface-secondary`, so an entry cannot borrow the
+ * console's own `default` gray for its selected state: that token is a step
+ * *below* the rail and would read as a hole punched in it. Selection is the
+ * accent's soft tint instead, which is the one place in the shell where the
+ * product's colour appears.
+ *
+ * The label stays `text-foreground` at reduced opacity rather than `text-muted`:
+ * on the rail `muted` measures about 4.2:1 in light mode, under the 4.5:1 body
+ * floor, while an 85% foreground measures about 10:1 and still sits a clear step
+ * below the selected entry.
+ */
 const navigationItem = cva(
   "group flex h-9 w-full items-center justify-start gap-3 rounded-field px-2 py-1.5 text-sm leading-5",
   {
     variants: {
       state: {
         available:
-          "text-foreground data-[status=active]:bg-default data-[status=active]:font-medium",
-        unavailable: "text-muted",
+          "text-foreground/85 transition-colors hover:text-foreground data-[status=active]:bg-accent-soft data-[status=active]:font-medium data-[status=active]:text-foreground",
+        unavailable: "text-foreground/45",
       },
     },
     defaultVariants: { state: "available" },
@@ -258,7 +272,7 @@ function NavItem({
         className={
           disabled
             ? "shrink-0"
-            : "shrink-0 text-muted group-data-[status=active]:text-foreground"
+            : "shrink-0 text-foreground/45 transition-colors group-hover:text-foreground/70 group-data-[status=active]:text-accent"
         }
         aria-hidden="true"
       />
@@ -292,7 +306,7 @@ function ConsoleNavigation({
         column and its padding live on the child below instead.
       */}
       <ScrollArea className="flex flex-1 flex-col">
-        <div className="flex flex-1 flex-col px-3 pt-2">
+        <div className="flex flex-1 flex-col px-3 pt-2 pb-3">
           <nav
             aria-label={t({
               id: "console.navigation",
@@ -307,7 +321,7 @@ function ConsoleNavigation({
             >
               {i18n._(consoleHome.title)}
             </NavItem>
-            <p className="px-2 pb-1 pt-3 text-xs font-medium text-muted">
+            <p className="px-2 pb-1 pt-3 text-xs font-medium text-foreground/60">
               <Trans id="console.account">Your account</Trans>
             </p>
             {accountSections.map((section) => (
@@ -322,7 +336,7 @@ function ConsoleNavigation({
             ))}
             {managementSections.length > 0 && (
               <>
-                <p className="px-2 pb-1 pt-3 text-xs font-medium text-muted">
+                <p className="px-2 pb-1 pt-3 text-xs font-medium text-foreground/60">
                   <Trans id="console.administration">Administration</Trans>
                 </p>
                 {managementSections.map((section) => (
@@ -351,12 +365,14 @@ function ConsoleNavigation({
 function ConsoleIdentity() {
   const { name, iconUrl } = useInstanceBranding();
   return (
-    <div className="flex items-center gap-3 px-4 pb-2 pt-4">
-      <Avatar className="size-8 shrink-0">
+    <div className="flex items-center gap-3 px-4 pb-3 pt-5">
+      <Avatar className="size-8 shrink-0 rounded-field">
         <Avatar.Image src={iconUrl} alt="" />
-        <Avatar.Fallback>{name.slice(0, 1)}</Avatar.Fallback>
+        <Avatar.Fallback className="rounded-field">
+          {name.slice(0, 1)}
+        </Avatar.Fallback>
       </Avatar>
-      <span className="truncate text-sm font-medium text-foreground">
+      <span className="truncate text-sm font-semibold tracking-[-0.01em] text-foreground">
         {name}
       </span>
     </div>
@@ -378,10 +394,10 @@ function ConsoleAccount({
 }) {
   const { t } = useLingui();
   return (
-    <div className="flex items-center gap-3 p-2">
-      <Avatar className="size-8 shrink-0">
+    <div className="flex items-center gap-3 rounded-field p-2">
+      <Avatar className="size-8 shrink-0 rounded-field">
         {session.avatarUrl && <Avatar.Image src={session.avatarUrl} alt="" />}
-        <Avatar.Fallback>
+        <Avatar.Fallback className="rounded-field">
           <UserRound size={20} aria-hidden="true" />
         </Avatar.Fallback>
       </Avatar>
@@ -389,7 +405,7 @@ function ConsoleAccount({
         <span className="truncate text-sm font-medium leading-tight text-foreground">
           {session.displayName}
         </span>
-        <span className="truncate text-xs font-medium leading-tight text-muted">
+        <span className="truncate font-mono text-xs leading-tight text-foreground/60">
           {session.username}
         </span>
       </div>
@@ -401,7 +417,11 @@ function ConsoleAccount({
         onPress={onLogout}
         aria-label={t({ id: "console.logout", message: "Sign out" })}
       >
-        <LogOut size={16} className="shrink-0 text-muted" aria-hidden="true" />
+        <LogOut
+          size={16}
+          className="shrink-0 text-foreground/60"
+          aria-hidden="true"
+        />
       </Button>
     </div>
   );
@@ -417,7 +437,6 @@ function ConsoleShell({
   onLogout: () => void;
 }) {
   const { i18n, t } = useLingui();
-  const { name: instanceName } = useInstanceBranding();
   const drawer = useOverlayState();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const router = useRouter();
@@ -460,7 +479,7 @@ function ConsoleShell({
         }`}
       >
         <aside
-          className={`flex h-full w-60 flex-col border-r border-separator transition-[translate,visibility] duration-200 motion-reduce:transition-none ${
+          className={`flex h-full w-60 flex-col border-r border-separator bg-surface-secondary transition-[translate,visibility] duration-200 motion-reduce:transition-none ${
             sidebarCollapsed ? "invisible -translate-x-full" : "translate-x-0"
           }`}
         >
@@ -483,7 +502,7 @@ function ConsoleShell({
       {/* Body */}
       <div className="flex min-w-0 flex-1 flex-col">
         {/* Header */}
-        <header className="sticky top-[var(--app-sticky-offset)] z-10 flex h-16 items-center gap-4 bg-background px-6">
+        <header className="sticky top-[var(--app-sticky-offset)] z-10 flex h-16 items-center gap-4 border-b border-separator bg-background px-4 sm:px-6">
           {/* Mobile menu toggle */}
           <div className="md:hidden">
             <Drawer state={drawer}>
@@ -543,16 +562,12 @@ function ConsoleShell({
             <PanelLeft size={16} aria-hidden="true" />
           </Button>
 
-          {/* Title: which instance this console belongs to, above the section
-              in view. */}
-          <div className="flex min-w-0 flex-col gap-0.5">
-            <span className="truncate text-xs uppercase tracking-wider leading-tight text-muted">
-              {instanceName}
-            </span>
-            <h1 className="truncate text-lg font-semibold leading-tight text-foreground">
-              {i18n._(sectionTitle)}
-            </h1>
-          </div>
+          {/* The section in view. The rail above already names the instance, so
+              the header names only where you are and says it once: an eyebrow
+              repeating the instance would take the size the heading needs. */}
+          <h1 className="min-w-0 truncate text-xl font-semibold leading-tight tracking-[-0.01em] text-foreground">
+            {i18n._(sectionTitle)}
+          </h1>
 
           {/* Spacer */}
           <div className="flex-1" />

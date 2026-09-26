@@ -1,6 +1,7 @@
-import { Card, Spinner } from "@heroui/react";
+import { Card } from "@heroui/react";
 import { ChevronRight } from "lucide-react";
 import { Children, type ReactNode } from "react";
+import { ListSkeleton } from "@/components/custom/ListSkeleton";
 
 /**
  * The console's list: one HeroUI `Card` holding a row per record, with a rule
@@ -47,9 +48,7 @@ export function ItemList({
         </Card.Header>
       )}
       {loading && rows.length === 0 ? (
-        <div className="flex items-center justify-center py-10">
-          <Spinner size="md" />
-        </div>
+        <ListSkeleton />
       ) : rows.length === 0 ? (
         empty
       ) : (

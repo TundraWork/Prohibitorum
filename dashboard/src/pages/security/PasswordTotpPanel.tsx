@@ -1,4 +1,4 @@
-import { Card, Description, Modal, Spinner } from "@heroui/react";
+import { Card, Description, Modal } from "@heroui/react";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -26,6 +26,7 @@ import { Button } from "@/components/custom/Button";
 import { ConfirmDialog } from "@/components/custom/ConfirmDialog";
 import { ConsoleCard } from "@/components/custom/ConsoleCard";
 import { ItemList, ItemListRow } from "@/components/custom/ItemList";
+import { ListSkeleton } from "@/components/custom/ListSkeleton";
 import { RecoveryCodes } from "@/components/custom/RecoveryCodes";
 import { Section } from "@/components/custom/Section";
 import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
@@ -110,9 +111,7 @@ export function PasswordTotpPanel() {
         }
       >
         <Card className="gap-0 p-0">
-          <div className="flex items-center justify-center py-10">
-            <Spinner size="md" />
-          </div>
+          <ListSkeleton />
         </Card>
       </Section>
     );

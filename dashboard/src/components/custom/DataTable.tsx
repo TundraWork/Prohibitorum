@@ -1,5 +1,5 @@
 import type { Selection, SortDescriptor } from "@heroui/react";
-import { Spinner, Table } from "@heroui/react";
+import { Skeleton, Spinner, Table } from "@heroui/react";
 import { useLingui } from "@lingui/react/macro";
 import type {
   ColumnDef,
@@ -263,11 +263,26 @@ export function DataTable<T extends RowData>({
           <Table.Body
             renderEmptyState={() =>
               loading ? (
-                // The rows have not arrived yet, so stand in for them with one
-                // full-width row on the console's gray surface, which reads as
-                // chrome rather than data.
-                <div className="flex items-center justify-center bg-surface-secondary py-6">
-                  <Spinner size="md" />
+                // The rows have not arrived yet, so stand in for them with the
+                // rows that are about to: one placeholder per column, on the
+                // console's gray surface so the wait reads as chrome rather
+                // than as data. It holds the table's own height, so the list
+                // does not jump when the first page lands.
+                <div className="flex flex-col gap-3 bg-surface-secondary px-4 py-3">
+                  {Array.from({ length: 3 }).map((_, row) => (
+                    // Placeholders are positional and never reordered.
+                    // biome-ignore lint/suspicious/noArrayIndexKey: see above
+                    <div key={row} className="flex items-center gap-4">
+                      {columns.map((column) => (
+                        <Skeleton
+                          key={column.id}
+                          className={
+                            column.pinned ? "h-4 w-12 shrink-0" : "h-4 flex-1"
+                          }
+                        />
+                      ))}
+                    </div>
+                  ))}
                 </div>
               ) : (
                 empty
