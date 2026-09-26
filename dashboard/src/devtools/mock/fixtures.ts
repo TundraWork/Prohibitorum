@@ -592,9 +592,11 @@ function identityProviders(config: MockConfig): IdentityProvider[] {
         { key: "email", operators: ["eq", "contains"] },
         { key: "subject", operators: ["eq"] },
       ],
-      // Two of the three deletion confirmations: with linked accounts, and
-      // without. The linked one is what says how many people are affected.
-      ...(index === 0 ? { linkedAccountCount: 3 } : { linkedAccountCount: 0 }),
+      // Varied on purpose: the list shows this as a column, and a column of
+      // identical numbers says nothing about whether it is being read from the
+      // right field. Zero is a real case — a provider nobody has used is the one
+      // an operator is most likely to touch.
+      linkedAccountCount: index % 4 === 3 ? 0 : (index + 1) * 7,
     } satisfies IdentityProvider;
   });
 }
@@ -627,77 +629,107 @@ function config0(protocol: string, index: number): unknown {
 }
 
 /**
- * OIDC applications, cycling the two client types and the two access states.
+ * OIDC applications, cycling the two client types, the two access states, and
+ * the redirect shapes the list's diagnostic column has to render.
  *
- * The list does not carry a status column: a row that is disabled wears a grey
- * dot on its icon and a restricted one a padlock, so the fixture has to produce
- * both of those as well as the ordinary rows, or a walkthrough never sees them.
+ * The list does not carry a status column: a row that is disabled recedes, and a
+ * restricted one carries a padlock, so the fixture has to produce all of those
+ * as well as the ordinary rows, or a walkthrough never sees them. The redirect
+ * column is the one that replaced the scopes column, so it deliberately includes
+ * a client with a single address, one with several (the `+n` count), and one
+ * with none at all — that last one being the misconfiguration the column exists
+ * to surface.
  */
 function oidcApplications(
   config: MockConfig,
 ): components["schemas"]["OIDCApplicationView"][] {
-  return range(config.admin.oidcApps).map((index) => ({
-    clientId: `mock-client-${index + 1}`,
-    displayName: `Sample application ${index + 1}`,
-    redirectUris: [`https://app${index + 1}.example.test/callback`],
-    postLogoutRedirectUris: [`https://app${index + 1}.example.test/signed-out`],
-    allowedScopes: ["openid", "profile", "email"],
-    clientAuthMethod: index % 3 === 2 ? "none" : "client_secret_basic",
-    disabled: index % 4 === 1,
-    accessRestricted: index % 3 === 1,
-    subjectSource: "sub",
-    // Always an object, never a conditional: `claimAliases` is an index
-    // signature, and a spread that sometimes contributes a key widens it to
-    // include `undefined`.
-    claimAliases:
-      index % 2 === 0
-        ? { nickname: "preferred_username" }
-        : ({} as Record<string, string>),
-    ...(index % 2 === 0 ? { iconUrl: mockAvatarUrl } : {}),
-    ...(index % 4 === 2
-      ? { launchUrl: `https://app${index + 1}.example.test` }
-      : {}),
-    requireConsent: index % 2 === 1,
-    requirePkce: true,
-    createdAt: iso(-day * (index + 2)),
-  }));
+  return range(config.admin.oidcApps).map((index) => {
+    const redirectCount = index % 4 === 3 ? 0 : (index % 3) + 1;
+    return {
+      clientId: `mock-client-${index + 1}`,
+      displayName: `Sample application ${index + 1}`,
+      redirectUris: range(redirectCount).map(
+        (n) => `https://app${index + 1}-${n + 1}.example.test/callback`,
+      ),
+      postLogoutRedirectUris: [
+        `https://app${index + 1}.example.test/signed-out`,
+      ],
+      allowedScopes: ["openid", "profile", "email"],
+      clientAuthMethod: index % 3 === 2 ? "none" : "client_secret",
+      disabled: index % 4 === 1,
+      accessRestricted: index % 3 === 1,
+      subjectSource: "sub",
+      // Always an object, never a conditional: `claimAliases` is an index
+      // signature, and a spread that sometimes contributes a key widens it to
+      // include `undefined`.
+      claimAliases:
+        index % 2 === 0
+          ? { nickname: "preferred_username" }
+          : ({} as Record<string, string>),
+      ...(index % 2 === 0 ? { iconUrl: mockAvatarUrl } : {}),
+      ...(index % 4 === 2
+        ? { launchUrl: `https://app${index + 1}.example.test` }
+        : {}),
+      requireConsent: index % 2 === 1,
+      requirePkce: true,
+      createdAt: iso(-day * (index + 2)),
+    };
+  });
 }
 
-/** SAML applications, cycling ACS shapes and the session-lifetime field. */
+/**
+ * SAML applications, cycling ACS shapes, the session-lifetime field, and the
+ * three certificate states the list's expiry column has to render: a healthy
+ * key, one that has already expired (the only state on this list that is
+ * already broken), and a service provider with no signing key published at all.
+ */
 function samlApplications(
   config: MockConfig,
 ): components["schemas"]["SAMLApplicationView"][] {
-  return range(config.admin.samlApps).map((index) => ({
-    id: index + 1,
-    entityId: `https://saml${index + 1}.example.test/metadata`,
-    displayName: `SAML application ${index + 1}`,
-    nameIdFormat:
-      index % 2 === 0
-        ? "urn:oasis:names:tc:SAML:2.0:nameid-format:persistent"
-        : "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress",
-    attributeMap: [],
-    requireSignedAuthnRequest: index % 2 === 0,
-    allowIdpInitiated: index % 3 === 0,
-    disabled: index % 4 === 1,
-    accessRestricted: index % 3 === 1,
-    ...(index % 4 === 2 ? { sessionLifetimeSecs: 3600 } : {}),
-    ...(index % 2 === 0 ? { iconUrl: mockAvatarUrl } : {}),
-    acs: [
-      {
-        binding: "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST",
-        location: `https://saml${index + 1}.example.test/acs`,
-        index: 0,
-        isDefault: true,
-      },
-    ],
-    keys: [
-      {
-        use: "signing",
-        notAfter: iso(day * 300),
-      },
-    ],
-    createdAt: iso(-day * (index + 2)),
-  }));
+  return range(config.admin.samlApps).map((index) => {
+    const keyState = index % 3;
+    return {
+      id: index + 1,
+      entityId: `https://saml${index + 1}.example.test/metadata`,
+      displayName: `SAML application ${index + 1}`,
+      nameIdFormat:
+        index % 2 === 0
+          ? "urn:oasis:names:tc:SAML:2.0:nameid-format:persistent"
+          : "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress",
+      attributeMap: [],
+      requireSignedAuthnRequest: index % 2 === 0,
+      allowIdpInitiated: index % 3 === 0,
+      disabled: index % 4 === 1,
+      accessRestricted: index % 3 === 1,
+      ...(index % 4 === 2 ? { sessionLifetimeSecs: 3600 } : {}),
+      ...(index % 2 === 0 ? { iconUrl: mockAvatarUrl } : {}),
+      acs: [
+        {
+          binding: "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST",
+          location: `https://saml${index + 1}.example.test/acs`,
+          index: 0,
+          isDefault: true,
+        },
+      ],
+      // The expiry column looks at `signing` keys only, so the fixture carries an
+      // encryption key alongside each signing one — a walkthrough that saw only
+      // signing keys would not catch a column that read the wrong `use`.
+      keys:
+        keyState === 2
+          ? []
+          : [
+              {
+                use: "signing",
+                notAfter:
+                  keyState === 1
+                    ? iso(-day * 12)
+                    : iso(day * (30 * (index + 1))),
+              },
+              { use: "encryption", notAfter: iso(day * 365) },
+            ],
+      createdAt: iso(-day * (index + 2)),
+    };
+  });
 }
 
 /** Forward-auth applications, with a scope vocabulary of varying length. */

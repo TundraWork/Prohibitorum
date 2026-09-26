@@ -15,6 +15,8 @@ function application(): Application {
     router: {
       invalidate: vi.fn(),
       navigate: vi.fn(),
+      // `subscribe` returns its unsubscribe, as the router's own does.
+      subscribe: vi.fn(() => () => {}),
       state: { location: { pathname: "/login" } },
     },
   } as unknown as Application;
@@ -37,7 +39,17 @@ describe("mock middleware latency", () => {
       draft.enabled = true;
       draft.delayMs = 700;
     });
-    installApiMocks(application());
+    const app = application();
+    installApiMocks(app);
+
+    // The URL control is wired at install time: the address bar is read once
+    // here and again on every navigation, so a walkthrough can set a screen up
+    // without the panel. Asserted on the latency test because `installApiMocks`
+    // runs once per module.
+    expect(app.router.subscribe).toHaveBeenCalledWith(
+      "onResolved",
+      expect.any(Function),
+    );
 
     const pending = client.GET("/api/prohibitorum/me");
     let settled = false;

@@ -4,11 +4,16 @@ import { useNavigate } from "@tanstack/react-router";
 import { LogIn } from "lucide-react";
 import { useCursorList } from "@/api/cursor-list";
 import { describeError } from "@/api/errors";
+import { readProviderMode, readProviderProtocol } from "@/api/federation";
 import type { components } from "@/api/generated/schema";
 import { identityProvidersListOptions } from "@/api/queries";
 import { Button } from "@/components/custom/Button";
 import { DataTable, type TableColumn } from "@/components/custom/DataTable";
 import { EntityCell } from "@/components/custom/EntityCell";
+import {
+  LinkedAccountsCell,
+  NotReadyChip,
+} from "@/components/custom/ListCells";
 import { TableEmptyState } from "@/components/custom/TableEmptyState";
 import { ProviderActions } from "@/pages/admin/identity-providers/ProviderActions";
 
@@ -17,14 +22,21 @@ type Provider = components["schemas"]["IdentityProviderView"];
 /**
  * The upstream identity providers this instance signs people in with.
  *
- * A provider is either ready or it is not, and either enabled or not, and those
- * two are the only facts a reader scans for. Rather than two columns mostly
- * reading "yes", the state rides on the row's own icon — see `EntityCell` — so
- * only the rows that need attention carry a mark.
+ * A reader scans this list for three things: which protocol a provider speaks,
+ * how it treats an unknown person arriving from it, and whether it is working at
+ * all. The first two are one column — they are both short descriptions of the
+ * same configuration, and splitting them costs a column out of the measure for
+ * two words each. The third is the readiness chip at the trailing edge.
  *
- * A provider that is not ready cannot be enabled, which is the one thing an
- * administrator arriving here usually wants to fix; the row's action menu says
- * why rather than leaving a disabled button unexplained.
+ * Readiness is the only state this list announces. A provider that is not ready
+ * cannot be enabled, which is the one thing an administrator arriving here
+ * usually wants to fix, so it is the fact worth raising; the row's action menu
+ * says why. A provider that is merely switched off recedes instead — it is a
+ * settled decision, and labelling it would bury the one that needs work.
+ *
+ * The account count answers the question an operator asks before touching a
+ * provider — whether anyone actually signs in through it — which is what decides
+ * whether a change is safe. The server counts it in one batched query per page.
  */
 export function AdminIdentityProviders() {
   const { t } = useLingui();
@@ -41,41 +53,34 @@ export function AdminIdentityProviders() {
           name={provider.displayName}
           identifier={provider.slug}
           href={`/admin/identity-providers/${provider.slug}`}
-          // Not ready outranks disabled: an operator cannot enable it until it
-          // is, so that is the fact worth showing.
-          state={
-            !provider.ready
-              ? "not_ready"
-              : provider.disabled
-                ? "disabled"
-                : undefined
-          }
+          dimmed={provider.disabled}
         />
       ),
     },
     {
       id: "protocol",
       header: <Trans id="admin.federation.column.protocol">Protocol</Trans>,
-      cell: (provider) =>
-        provider.protocol === "oidc" ? (
-          <Trans id="admin.federation.protocol.oidc">OIDC</Trans>
-        ) : provider.protocol === "steam" ? (
-          <Trans id="admin.federation.protocol.steam">Steam</Trans>
-        ) : (
-          <Trans id="admin.federation.protocol.vrchat">VRChat</Trans>
-        ),
+      // Protocol and provisioning mode are two halves of one description: what
+      // the provider speaks, and what it does with someone it has not seen. A
+      // value the console cannot read is reported as such rather than printed
+      // raw — the server narrows both loosely.
+      cell: (provider) => <ProtocolMode provider={provider} />,
     },
     {
-      id: "mode",
-      header: <Trans id="admin.federation.column.mode">Provisioning</Trans>,
-      cell: (provider) =>
-        provider.mode === "auto_provision" ? (
-          <Trans id="admin.federation.mode.auto">Creates accounts</Trans>
-        ) : provider.mode === "invite_only" ? (
-          <Trans id="admin.federation.mode.invite">Invitation only</Trans>
-        ) : (
-          <Trans id="admin.federation.mode.link">Links existing accounts</Trans>
-        ),
+      align: "end",
+      id: "linkedAccounts",
+      header: (
+        <Trans id="admin.federation.column.linked-accounts">Accounts</Trans>
+      ),
+      cell: (provider) => (
+        <LinkedAccountsCell count={provider.linkedAccountCount} />
+      ),
+    },
+    {
+      align: "end",
+      id: "ready",
+      header: "",
+      cell: (provider) => (provider.ready ? null : <NotReadyChip />),
     },
     {
       id: "actions",
@@ -136,5 +141,49 @@ export function AdminIdentityProviders() {
         }
       />
     </div>
+  );
+}
+
+/**
+ * What a provider speaks, and what it does with a person it has not seen.
+ *
+ * Both values arrive from the server as loosely-typed strings, so they are
+ * narrowed through `api/federation` and anything outside the known vocabulary
+ * reads as absent rather than being printed raw. The protocol leads and the
+ * provisioning follows in muted text: a reader scanning the column compares
+ * protocols, and the provisioning is the qualifier.
+ *
+ * They sit in one cell rather than two columns because each is one or two words,
+ * and a column of two words costs the same width as a column of ten.
+ */
+function ProtocolMode({ provider }: { provider: Provider }) {
+  const protocol = readProviderProtocol(provider.protocol);
+  const mode = readProviderMode(provider.mode);
+  const modeLabel =
+    mode === "auto_provision" ? (
+      <Trans id="admin.federation.mode.auto">Creates accounts</Trans>
+    ) : mode === "invite_only" ? (
+      <Trans id="admin.federation.mode.invite">Invitation only</Trans>
+    ) : mode === "link_only" ? (
+      <Trans id="admin.federation.mode.link">Links existing accounts</Trans>
+    ) : null;
+
+  return (
+    <span className="flex min-w-0 flex-col">
+      <span>
+        {protocol === "oidc" ? (
+          <Trans id="admin.federation.protocol.oidc">OIDC</Trans>
+        ) : protocol === "steam" ? (
+          <Trans id="admin.federation.protocol.steam">Steam</Trans>
+        ) : protocol === "vrchat" ? (
+          <Trans id="admin.federation.protocol.vrchat">VRChat</Trans>
+        ) : (
+          <span className="text-muted">—</span>
+        )}
+      </span>
+      {modeLabel !== null && (
+        <span className="text-xs text-muted">{modeLabel}</span>
+      )}
+    </span>
   );
 }

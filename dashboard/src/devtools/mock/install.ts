@@ -9,6 +9,7 @@ import {
   subscribeMockConfig,
   updateMockConfig,
 } from "@/devtools/mock/model";
+import { applyMockQuery } from "@/devtools/mock/query";
 
 type Application = { queryClient: QueryClient; router: RegisteredRouter };
 
@@ -38,6 +39,17 @@ let installed = false;
 export function installApiMocks(application: Application): void {
   if (installed) return;
   installed = true;
+
+  // A URL that asks for mocked data turns the mock on before anything reads it,
+  // and keeps doing so as the address changes — a walkthrough can then set up a
+  // screen by editing the address bar rather than by opening the panel. The
+  // subscription below picks the change up and refreshes what is already drawn.
+  const applyLocation = () => {
+    applyMockQuery(window.location.search);
+  };
+  applyLocation();
+  window.addEventListener("popstate", applyLocation);
+  application.router.subscribe("onResolved", applyLocation);
 
   client.use({
     async onRequest({ schemaPath, request }) {

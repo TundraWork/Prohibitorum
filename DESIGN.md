@@ -169,9 +169,24 @@ A management table leads with an identity cell: `EntityAvatar` with the
 entity's icon, its name, and the monospace identifier under it. HeroUI's
 `Avatar` keeps its own shape at `size="sm"`; the console rounds it to the
 control radius so a list row and an icon card show the same entity the same
-way. State is a HeroUI `Badge` dot on the icon's corner rather than a column,
-which is the library's own anchor/placement composition and keeps the table to
-the measure.
+way.
+
+A row that is switched off recedes rather than being labelled: the whole
+identity cell drops to a fraction of its opacity, icon and text together. It
+carries no chip — a status label on every settled row costs the measure and
+buries the row that is genuinely wrong — and the recession is decoration on top
+of a fact, never the only record of it, so the same word reaches a screen
+reader. The state that does get a mark is the one an operator has to act on: a
+provider that is not ready cannot be enabled, so it carries `NotReadyChip`,
+HeroUI's status-chip anatomy with a dot and a word.
+
+The four federation lists take their shared cells from `ListCells`:
+`NotReadyChip`, `CodeValue`, `RedirectCell`, `LinkedAccountsCell`,
+`PrincipalSourceCell` and `CertificateExpiryCell`. Each leads with one
+diagnostic column answering "is this row set up the way I expect" — a redirect
+count, a signing-certificate expiry, a linked-account count — because that fact
+differs per kind and a generic column would be empty for someone. A value the
+table will clip keeps the whole of itself in a tooltip.
 
 A detail page stacks `Section`s, one per block, with the heading on the page
 background and a single `ConsoleCard` under it. The access policy shared by the

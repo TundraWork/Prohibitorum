@@ -1,4 +1,4 @@
-import { Alert, Tooltip } from "@heroui/react";
+import { Alert } from "@heroui/react";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useQuery } from "@tanstack/react-query";
@@ -11,6 +11,10 @@ import { samlAppsListOptions, sessionQueryOptions } from "@/api/queries";
 import { Button } from "@/components/custom/Button";
 import { DataTable, type TableColumn } from "@/components/custom/DataTable";
 import { EntityCell } from "@/components/custom/EntityCell";
+import {
+  CertificateExpiryCell,
+  CodeValue,
+} from "@/components/custom/ListCells";
 import { TableEmptyState } from "@/components/custom/TableEmptyState";
 import { shortNameIdFormat } from "@/pages/admin/saml-applications/saml-projection";
 
@@ -24,10 +28,22 @@ const openAppMessage = msg({
 /**
  * The SAML applications this instance is an identity provider for.
  *
- * Three facts distinguish one row from another, and only the first is the
- * record's identity. The name and Entity ID are the identity cell; the state
- * rides on that cell's icon rather than in a column of its own; and the two
- * that remain describe how the application signs people in.
+ * A reader scanning this list asks three things of a row: what it is, how it
+ * identifies people to the service provider, and whether its signing certificate
+ * is still good. The first is the identity cell, the second is the NameID
+ * column, and the third is the certificate column at the trailing edge.
+ *
+ * The certificate column is the one fact here that changes on its own, and the
+ * one that will eventually break sign-in for the application without anyone
+ * touching it. It was previously only on the application's own page, which is
+ * the wrong place for a deadline: nobody opens five detail pages to find out
+ * which one is about to expire, and an expired row now says so in the list.
+ *
+ * An earlier version of this table carried an "IdP-initiated" column that drew
+ * "Allowed" and nothing at all otherwise, which left an empty cell meaning
+ * either "not allowed" or "the value did not arrive". The permission is still
+ * visible on the application's own page; a column whose empty state is ambiguous
+ * does not earn its width.
  *
  * The row's only control opens the application. Every change worth making —
  * the metadata, the attribute map, the access policy, whether it is enabled at
@@ -58,7 +74,7 @@ export function AdminSamlApplications() {
           name={app.displayName || app.entityId}
           identifier={<EntityId value={app.entityId} />}
           href={`/admin/saml-applications/${app.id}`}
-          state={app.disabled ? "disabled" : undefined}
+          dimmed={app.disabled}
           restricted={app.accessRestricted}
         />
       ),
@@ -76,16 +92,14 @@ export function AdminSamlApplications() {
       ),
     },
     {
-      id: "idpInitiated",
+      id: "certificate",
       header: (
-        <Trans id="admin.saml-apps.column.idp-initiated">IdP-initiated</Trans>
+        <Trans id="admin.saml-apps.column.certificate">Certificate</Trans>
       ),
-      // Most applications never accept a sign-in the user did not start at the
-      // service provider, so the row says nothing unless this one does.
-      cell: (app) =>
-        app.allowIdpInitiated ? (
-          <Trans id="admin.saml-apps.idp-initiated.allowed">Allowed</Trans>
-        ) : null,
+      // The signing key is the one that matters: it is what the SP validates
+      // assertions against, and what expires. An encryption key has no bearing
+      // on whether sign-in works.
+      cell: (app) => <CertificateExpiryCell notAfter={signingKeyExpiry(app)} />,
     },
     {
       align: "end",
@@ -169,12 +183,28 @@ export function AdminSamlApplications() {
  * that guessed would be wrong at one width or the other.
  */
 function EntityId({ value }: { value: string }) {
-  return (
-    <Tooltip delay={0}>
-      <Tooltip.Trigger<"span"> render={(props) => <span {...props} />}>
-        <span className="font-mono text-xs">{value}</span>
-      </Tooltip.Trigger>
-      <Tooltip.Content className="break-all font-mono">{value}</Tooltip.Content>
-    </Tooltip>
-  );
+  return <CodeValue value={value} />;
+}
+
+/**
+ * When this application's signing certificate stops being valid.
+ *
+ * A SAML SP validates assertions against the IdP's signing key, so that is the
+ * key whose expiry breaks sign-in; an encryption key expiring would not. The
+ * server returns both uses in `keys`, so the filtering happens here rather than
+ * on the row.
+ *
+ * The earliest expiry wins when a key has been rotated and the old one is still
+ * published for verification: it is the first date on which something stops
+ * working, which is the deadline the reader is looking for.
+ */
+function signingKeyExpiry(app: SamlApp): string | undefined {
+  let earliest: string | undefined;
+  for (const key of app.keys ?? []) {
+    if (key.use !== "signing" || key.notAfter === undefined) continue;
+    if (earliest === undefined || key.notAfter < earliest) {
+      earliest = key.notAfter;
+    }
+  }
+  return earliest;
 }

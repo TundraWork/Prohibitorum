@@ -17,6 +17,11 @@ msgstr ""
 msgid "admin.invitations.groups.missing"
 msgstr "(some groups no longer exist)"
 
+#. placeholder {0}: hosts.length
+#: src/components/custom/ListCells.tsx
+msgid "{0, plural, one {# address} other {# addresses}}"
+msgstr "{0, plural, one {# address} other {# addresses}}"
+
 #. js-lingui-explicit-id
 #. placeholder {0}: provider.linkedAccountCount
 #: src/pages/admin/identity-providers/AdminIdentityProvider.tsx
@@ -305,6 +310,11 @@ msgid "admin.invitations.column.username"
 msgstr "Account username"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProviders.tsx
+msgid "admin.federation.column.linked-accounts"
+msgstr "Accounts"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/AdminIdentityProvider.tsx
 msgid "admin.federation.claims.title"
 msgstr "Accounts and claims"
@@ -499,11 +509,6 @@ msgstr "All time"
 #: src/pages/admin/saml-applications/SamlGeneralSection.tsx
 msgid "admin.saml-apps.field.idp-initiated"
 msgstr "Allow IdP-initiated sign-in"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/saml-applications/AdminSamlApplications.tsx
-msgid "admin.saml-apps.idp-initiated.allowed"
-msgstr "Allowed"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
@@ -860,6 +865,11 @@ msgstr "Category"
 #: src/pages/admin/AdminLogs.tsx
 msgid "admin.logs.filter.factor"
 msgstr "Category"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/AdminSamlApplications.tsx
+msgid "admin.saml-apps.column.certificate"
+msgstr "Certificate"
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
@@ -2549,6 +2559,11 @@ msgid "dev.forms.description"
 msgstr "Exercise the real API client, mutations, and form feedback. Use an isolated test account or intercept requests in browser tools. This page does not simulate responses."
 
 #. js-lingui-explicit-id
+#: src/components/custom/ListCells.tsx
+msgid "list.diagnostics.certificate.expired"
+msgstr "Expired"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminInvitations.tsx
 msgid "admin.invitations.column.expires"
 msgstr "Expires"
@@ -2860,11 +2875,6 @@ msgstr "Identity unlinked"
 #: src/components/custom/SudoDialog.tsx
 msgid "sudo.form.label"
 msgstr "Identity verification"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/saml-applications/AdminSamlApplications.tsx
-msgid "admin.saml-apps.column.idp-initiated"
-msgstr "IdP-initiated"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
@@ -3716,6 +3726,11 @@ msgid "settings.maintenance.confirm.body"
 msgstr "Nobody except administrators can sign in or use applications until it is turned off."
 
 #. js-lingui-explicit-id
+#: src/components/custom/ListCells.tsx
+msgid "list.diagnostics.redirect.none"
+msgstr "None"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
 msgid "admin.group.rule.not"
 msgstr "Not"
@@ -3726,8 +3741,8 @@ msgid "api.uninitialized"
 msgstr "Not initialized"
 
 #. js-lingui-explicit-id
-#: src/components/custom/EntityCell.tsx
-msgid "entity.state.not_ready"
+#: src/components/custom/ListCells.tsx
+msgid "list.state.not_ready"
 msgstr "Not ready"
 
 #. js-lingui-explicit-id
@@ -4193,11 +4208,6 @@ msgid "admin.federation.new.mode"
 msgstr "Provisioning"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/AdminIdentityProviders.tsx
-msgid "admin.federation.column.mode"
-msgstr "Provisioning"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderGeneralSection.tsx
 msgid "admin.federation.general.mode"
 msgstr "Provisioning"
@@ -4290,6 +4300,11 @@ msgid "admin.oidc-apps.field.redirects"
 msgstr "Redirect URIs"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/AdminOidcApplications.tsx
+msgid "admin.oidc-apps.column.redirect"
+msgstr "Redirects"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminLogs.tsx
 msgid "admin.logs.refresh"
 msgstr "Refresh"
@@ -4343,6 +4358,11 @@ msgstr "Registration link"
 #: src/components/custom/secret-reveal-copy.ts
 msgid "admin.invitations.reveal.label"
 msgstr "Registration link"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/AdminForwardAuthApps.tsx
+msgid "admin.forward-auth-apps.column.remote-user"
+msgstr "Remote user"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/ForwardAuthIdentitySection.tsx
@@ -4911,11 +4931,6 @@ msgid "admin.oidc-apps.field.scopes"
 msgstr "Scopes"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/AdminOidcApplications.tsx
-msgid "admin.oidc-apps.column.scopes"
-msgstr "Scopes"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
 msgid "admin.federation.scopes.label"
 msgstr "Scopes"
@@ -5310,6 +5325,11 @@ msgstr "Stored encrypted and never shown again."
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
 msgid "admin.federation.claims.subject"
+msgstr "Subject"
+
+#. js-lingui-explicit-id
+#: src/components/custom/ListCells.tsx
+msgid "list.principal-source.sub"
 msgstr "Subject"
 
 #. js-lingui-explicit-id
@@ -6522,6 +6542,11 @@ msgid "admin.forward-auth-apps.source.username"
 msgstr "Username"
 
 #. js-lingui-explicit-id
+#: src/components/custom/ListCells.tsx
+msgid "list.principal-source.username"
+msgstr "Username"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminUsers.tsx
 msgid "admin.users.search.placeholder"
 msgstr "Username or display name"
@@ -6535,6 +6560,11 @@ msgstr "Users"
 #: src/components/custom/ConsoleLayout.tsx
 msgid "console.admin.users"
 msgstr "Users"
+
+#. js-lingui-explicit-id
+#: src/components/custom/ListCells.tsx
+msgid "list.diagnostics.certificate.valid"
+msgstr "Valid until this date"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
@@ -6584,6 +6614,11 @@ msgstr "Verified e-mail address"
 #. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/ForwardAuthIdentitySection.tsx
 msgid "admin.forward-auth-apps.source.email"
+msgstr "Verified email"
+
+#. js-lingui-explicit-id
+#: src/components/custom/ListCells.tsx
+msgid "list.principal-source.verified-email"
 msgstr "Verified email"
 
 #. js-lingui-explicit-id

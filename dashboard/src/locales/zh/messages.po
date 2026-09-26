@@ -17,6 +17,11 @@ msgstr ""
 msgid "admin.invitations.groups.missing"
 msgstr "（部分用户组已不存在）"
 
+#. placeholder {0}: hosts.length
+#: src/components/custom/ListCells.tsx
+msgid "{0, plural, one {# address} other {# addresses}}"
+msgstr "{0, plural, other {# 个地址}}"
+
 #. js-lingui-explicit-id
 #. placeholder {0}: provider.linkedAccountCount
 #: src/pages/admin/identity-providers/AdminIdentityProvider.tsx
@@ -305,6 +310,11 @@ msgid "admin.invitations.column.username"
 msgstr "账号用户名"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProviders.tsx
+msgid "admin.federation.column.linked-accounts"
+msgstr "关联账号"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/AdminIdentityProvider.tsx
 msgid "admin.federation.claims.title"
 msgstr "账号与声明"
@@ -499,11 +509,6 @@ msgstr "全部"
 #: src/pages/admin/saml-applications/SamlGeneralSection.tsx
 msgid "admin.saml-apps.field.idp-initiated"
 msgstr "允许 IdP 发起登录"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/saml-applications/AdminSamlApplications.tsx
-msgid "admin.saml-apps.idp-initiated.allowed"
-msgstr "允许"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
@@ -860,6 +865,11 @@ msgstr "类别"
 #: src/pages/admin/AdminLogs.tsx
 msgid "admin.logs.filter.factor"
 msgstr "类别"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/AdminSamlApplications.tsx
+msgid "admin.saml-apps.column.certificate"
+msgstr "证书"
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
@@ -2549,6 +2559,11 @@ msgid "dev.forms.description"
 msgstr "验证真实 API 客户端、写入请求和表单反馈。请使用隔离测试账户，或通过浏览器工具拦截请求。本页不会模拟响应。"
 
 #. js-lingui-explicit-id
+#: src/components/custom/ListCells.tsx
+msgid "list.diagnostics.certificate.expired"
+msgstr "已过期"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminInvitations.tsx
 msgid "admin.invitations.column.expires"
 msgstr "过期时间"
@@ -2860,11 +2875,6 @@ msgstr "身份已解绑"
 #: src/components/custom/SudoDialog.tsx
 msgid "sudo.form.label"
 msgstr "身份验证"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/saml-applications/AdminSamlApplications.tsx
-msgid "admin.saml-apps.column.idp-initiated"
-msgstr "IdP 发起"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
@@ -3716,6 +3726,11 @@ msgid "settings.maintenance.confirm.body"
 msgstr "除管理员外，所有人都无法登录或使用应用，直到关闭为止。"
 
 #. js-lingui-explicit-id
+#: src/components/custom/ListCells.tsx
+msgid "list.diagnostics.redirect.none"
+msgstr "无"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
 msgid "admin.group.rule.not"
 msgstr "取反"
@@ -3726,8 +3741,8 @@ msgid "api.uninitialized"
 msgstr "未初始化"
 
 #. js-lingui-explicit-id
-#: src/components/custom/EntityCell.tsx
-msgid "entity.state.not_ready"
+#: src/components/custom/ListCells.tsx
+msgid "list.state.not_ready"
 msgstr "未就绪"
 
 #. js-lingui-explicit-id
@@ -4193,11 +4208,6 @@ msgid "admin.federation.new.mode"
 msgstr "账号创建"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/AdminIdentityProviders.tsx
-msgid "admin.federation.column.mode"
-msgstr "账号创建"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderGeneralSection.tsx
 msgid "admin.federation.general.mode"
 msgstr "账号创建"
@@ -4290,6 +4300,11 @@ msgid "admin.oidc-apps.field.redirects"
 msgstr "重定向 URI"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/AdminOidcApplications.tsx
+msgid "admin.oidc-apps.column.redirect"
+msgstr "回调地址"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminLogs.tsx
 msgid "admin.logs.refresh"
 msgstr "刷新"
@@ -4343,6 +4358,11 @@ msgstr "注册链接"
 #: src/components/custom/secret-reveal-copy.ts
 msgid "admin.invitations.reveal.label"
 msgstr "注册链接"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/AdminForwardAuthApps.tsx
+msgid "admin.forward-auth-apps.column.remote-user"
+msgstr "上游身份"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/ForwardAuthIdentitySection.tsx
@@ -4911,11 +4931,6 @@ msgid "admin.oidc-apps.field.scopes"
 msgstr "作用域"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/AdminOidcApplications.tsx
-msgid "admin.oidc-apps.column.scopes"
-msgstr "作用域"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
 msgid "admin.federation.scopes.label"
 msgstr "作用域"
@@ -5311,6 +5326,11 @@ msgstr "加密保存，之后不再显示。"
 #: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
 msgid "admin.federation.claims.subject"
 msgstr "主体"
+
+#. js-lingui-explicit-id
+#: src/components/custom/ListCells.tsx
+msgid "list.principal-source.sub"
+msgstr "Subject"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/IdentityProjectionSection.tsx
@@ -6522,6 +6542,11 @@ msgid "admin.forward-auth-apps.source.username"
 msgstr "用户名"
 
 #. js-lingui-explicit-id
+#: src/components/custom/ListCells.tsx
+msgid "list.principal-source.username"
+msgstr "用户名"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminUsers.tsx
 msgid "admin.users.search.placeholder"
 msgstr "用户名或显示名"
@@ -6535,6 +6560,11 @@ msgstr "用户"
 #: src/components/custom/ConsoleLayout.tsx
 msgid "console.admin.users"
 msgstr "用户"
+
+#. js-lingui-explicit-id
+#: src/components/custom/ListCells.tsx
+msgid "list.diagnostics.certificate.valid"
+msgstr "在此日期前有效"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
@@ -6584,6 +6614,11 @@ msgstr "已验证的邮箱地址"
 #. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/ForwardAuthIdentitySection.tsx
 msgid "admin.forward-auth-apps.source.email"
+msgstr "已验证邮箱"
+
+#. js-lingui-explicit-id
+#: src/components/custom/ListCells.tsx
+msgid "list.principal-source.verified-email"
 msgstr "已验证邮箱"
 
 #. js-lingui-explicit-id

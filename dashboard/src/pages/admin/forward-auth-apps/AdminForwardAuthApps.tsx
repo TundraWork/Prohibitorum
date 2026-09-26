@@ -11,6 +11,7 @@ import { forwardAuthAppsListOptions, sessionQueryOptions } from "@/api/queries";
 import { Button } from "@/components/custom/Button";
 import { DataTable, type TableColumn } from "@/components/custom/DataTable";
 import { EntityCell } from "@/components/custom/EntityCell";
+import { CodeValue, PrincipalSourceCell } from "@/components/custom/ListCells";
 import { TableEmptyState } from "@/components/custom/TableEmptyState";
 import { scopeSummary } from "@/pages/admin/forward-auth-apps/scope-summary";
 
@@ -66,7 +67,7 @@ export function AdminForwardAuthApps() {
           name={app.displayName || app.clientId}
           identifier={app.clientId}
           href={`/admin/forward-auth-apps/${encodeURIComponent(app.clientId)}`}
-          state={app.disabled ? "disabled" : undefined}
+          dimmed={app.disabled}
           restricted={app.accessRestricted}
         />
       ),
@@ -75,11 +76,26 @@ export function AdminForwardAuthApps() {
       id: "host",
       header: <Trans id="admin.forward-auth-apps.column.host">Hostname</Trans>,
       // Monospace: the value goes into a Traefik rule character by character.
-      cell: (app) => (
-        <span className="truncate font-mono text-xs">
-          {app.forwardAuthHost}
-        </span>
+      // The tooltip carries the whole host, since a long one is clipped.
+      cell: (app) =>
+        app.forwardAuthHost === "" ? (
+          <span className="text-muted">—</span>
+        ) : (
+          <CodeValue value={app.forwardAuthHost} />
+        ),
+    },
+    {
+      id: "remoteUser",
+      header: (
+        <Trans id="admin.forward-auth-apps.column.remote-user">
+          Remote user
+        </Trans>
       ),
+      // What the upstream service receives as the authenticated identity. The
+      // console reads the server's string into the exact vocabulary it renders
+      // and reports nothing for a value it cannot read (see `api/federation`),
+      // rather than printing the raw enum at the reader.
+      cell: (app) => <PrincipalSourceCell value={app.remoteUserSource} />,
     },
     {
       id: "scopes",

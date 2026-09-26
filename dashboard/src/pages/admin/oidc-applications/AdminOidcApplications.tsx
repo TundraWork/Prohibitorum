@@ -11,6 +11,7 @@ import { oidcAppsListOptions, sessionQueryOptions } from "@/api/queries";
 import { Button } from "@/components/custom/Button";
 import { DataTable, type TableColumn } from "@/components/custom/DataTable";
 import { EntityCell } from "@/components/custom/EntityCell";
+import { RedirectCell } from "@/components/custom/ListCells";
 import { TableEmptyState } from "@/components/custom/TableEmptyState";
 
 type OidcApp = components["schemas"]["OIDCApplicationView"];
@@ -23,11 +24,16 @@ const openAppMessage = msg({
 /**
  * The OIDC applications this instance is a provider for.
  *
- * A reader scanning this list asks two things of a row: what it is, and whether
- * a client can still use it. Neither gets a column of its own — the name and
- * Client ID are the identity cell, and the state rides on that cell's icon — so
- * the columns that remain are the two that differ between rows in a way the name
- * does not (`AGENTS.md`, "Tables and lists").
+ * A reader scanning this list asks three things of a row: what it is, whether a
+ * client can still use it, and where it sends people back to. The first is the
+ * identity cell, the third is the redirect column, and the second is the state
+ * column at the trailing edge.
+ *
+ * The redirect column replaced a scopes column. A list of scopes is the same
+ * four names on almost every row, and a reader comparing rows learned nothing
+ * from it; the registered addresses are the fact that differs, and a client with
+ * none is the single most common reason sign-in fails. The full scope set is
+ * still on the application's own page, where changing it belongs.
  *
  * The row's only control opens the application. Everything worth changing —
  * redirect URIs, the identity projection, the access policy, the secret, whether
@@ -60,7 +66,7 @@ export function AdminOidcApplications() {
           name={app.displayName || app.clientId}
           identifier={app.clientId}
           href={`/admin/oidc-applications/${encodeURIComponent(app.clientId)}`}
-          state={app.disabled ? "disabled" : undefined}
+          dimmed={app.disabled}
           restricted={app.accessRestricted}
         />
       ),
@@ -78,15 +84,9 @@ export function AdminOidcApplications() {
         ),
     },
     {
-      id: "scopes",
-      header: <Trans id="admin.oidc-apps.column.scopes">Scopes</Trans>,
-      // Space-separated, as a client sends them in the authorize request, so a
-      // reader can compare the row against what their client asks for.
-      cell: (app) => (
-        <span className="truncate font-mono text-xs text-muted">
-          {(app.allowedScopes ?? []).join(" ") || "—"}
-        </span>
-      ),
+      id: "redirectUris",
+      header: <Trans id="admin.oidc-apps.column.redirect">Redirects</Trans>,
+      cell: (app) => <RedirectCell uris={app.redirectUris ?? []} />,
     },
     {
       align: "end",
