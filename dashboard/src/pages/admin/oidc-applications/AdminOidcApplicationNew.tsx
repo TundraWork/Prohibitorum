@@ -132,14 +132,17 @@ export function AdminOidcApplicationNew() {
       if (!redirects.ok) {
         form.setFieldMeta("redirectUris", (meta) => ({
           ...meta,
-          errors: [lineProblemMessage(redirects.problem)],
+          errorMap: {
+            ...meta.errorMap,
+            onSubmit: [lineProblemMessage(redirects.problem)],
+          },
         }));
         return;
       }
       if (redirects.values.length === 0) {
         form.setFieldMeta("redirectUris", (meta) => ({
           ...meta,
-          errors: [redirectRequired],
+          errorMap: { ...meta.errorMap, onSubmit: [redirectRequired] },
         }));
         return;
       }

@@ -90,7 +90,10 @@ export function IdentityProjectionSection({ app }: { app: OidcApp }) {
       const complain = (index: number, reason: typeof aliasNameInvalid) => {
         form.setFieldMeta("aliases", (meta) => ({
           ...meta,
-          errors: [rowProblem(index, { line: index + 1, reason })],
+          errorMap: {
+            ...meta.errorMap,
+            onSubmit: [rowProblem(index, { line: index + 1, reason })],
+          },
         }));
       };
       for (const [index, row] of value.aliases.entries()) {

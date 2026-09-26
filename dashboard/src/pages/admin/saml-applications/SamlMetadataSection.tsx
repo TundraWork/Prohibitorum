@@ -47,7 +47,7 @@ export function SamlMetadataSection({ app }: { app: SamlApp }) {
       if (document === "") {
         form.setFieldMeta("metadataXml", (meta) => ({
           ...meta,
-          errors: [metadataRequired],
+          errorMap: { ...meta.errorMap, onSubmit: [metadataRequired] },
         }));
         return;
       }

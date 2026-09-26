@@ -99,14 +99,17 @@ export function GeneralSection({ app }: { app: OidcApp }) {
       if (!redirectUris.ok) {
         form.setFieldMeta("redirectUris", (meta) => ({
           ...meta,
-          errors: [lineProblemMessage(redirectUris.problem)],
+          errorMap: {
+            ...meta.errorMap,
+            onSubmit: [lineProblemMessage(redirectUris.problem)],
+          },
         }));
         return;
       }
       if (redirectUris.values.length === 0) {
         form.setFieldMeta("redirectUris", (meta) => ({
           ...meta,
-          errors: [redirectRequired],
+          errorMap: { ...meta.errorMap, onSubmit: [redirectRequired] },
         }));
         return;
       }
@@ -117,7 +120,10 @@ export function GeneralSection({ app }: { app: OidcApp }) {
       if (!postLogout.ok) {
         form.setFieldMeta("postLogoutRedirectUris", (meta) => ({
           ...meta,
-          errors: [lineProblemMessage(postLogout.problem)],
+          errorMap: {
+            ...meta.errorMap,
+            onSubmit: [lineProblemMessage(postLogout.problem)],
+          },
         }));
         return;
       }
@@ -127,7 +133,7 @@ export function GeneralSection({ app }: { app: OidcApp }) {
         if (problem !== undefined) {
           form.setFieldMeta("launchUrl", (meta) => ({
             ...meta,
-            errors: [problem],
+            errorMap: { ...meta.errorMap, onSubmit: [problem] },
           }));
           return;
         }

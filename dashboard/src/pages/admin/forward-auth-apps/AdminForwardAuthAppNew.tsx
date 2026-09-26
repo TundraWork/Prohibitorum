@@ -75,14 +75,17 @@ export function AdminForwardAuthAppNew() {
       const host = value.host.trim();
       const hostIssue = hostProblem(host);
       if (hostIssue !== undefined) {
-        form.setFieldMeta("host", (meta) => ({ ...meta, errors: [hostIssue] }));
+        form.setFieldMeta("host", (meta) => ({
+          ...meta,
+          errorMap: { ...meta.errorMap, onSubmit: [hostIssue] },
+        }));
         return;
       }
       const scopeIssue = scopeListProblem(value.scopes);
       if (scopeIssue !== undefined) {
         form.setFieldMeta("scopes", (meta) => ({
           ...meta,
-          errors: [scopeIssue],
+          errorMap: { ...meta.errorMap, onSubmit: [scopeIssue] },
         }));
         return;
       }

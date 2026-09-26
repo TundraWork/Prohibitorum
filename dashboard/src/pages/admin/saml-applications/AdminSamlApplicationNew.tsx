@@ -88,7 +88,7 @@ export function AdminSamlApplicationNew() {
         if (document === "") {
           form.setFieldMeta("metadataXml", (meta) => ({
             ...meta,
-            errors: [metadataRequired],
+            errorMap: { ...meta.errorMap, onSubmit: [metadataRequired] },
           }));
           return;
         }
@@ -107,16 +107,22 @@ export function AdminSamlApplicationNew() {
         if (rowsProblem !== undefined) {
           form.setFieldMeta("acs", (meta) => ({
             ...meta,
-            errors: [
-              rowProblem(rowsProblem.row, {
-                line: rowsProblem.row + 1,
-                reason: rowsProblem.message,
-              }),
-            ],
+            errorMap: {
+              ...meta.errorMap,
+              onSubmit: [
+                rowProblem(rowsProblem.row, {
+                  line: rowsProblem.row + 1,
+                  reason: rowsProblem.message,
+                }),
+              ],
+            },
           }));
           return;
         }
-        form.setFieldMeta("acs", (meta) => ({ ...meta, errors: undefined }));
+        form.setFieldMeta("acs", (meta) => ({
+          ...meta,
+          errorMap: { ...meta.errorMap, onSubmit: undefined },
+        }));
         body = {
           displayName: name,
           entityId: value.entityId.trim(),
@@ -137,7 +143,7 @@ export function AdminSamlApplicationNew() {
         if (mode === "metadata") {
           form.setFieldMeta("metadataXml", (meta) => ({
             ...meta,
-            errors: [metadataTooLarge],
+            errorMap: { ...meta.errorMap, onSubmit: [metadataTooLarge] },
           }));
         } else {
           // The manual path hides the metadata box, so the budget cannot be
