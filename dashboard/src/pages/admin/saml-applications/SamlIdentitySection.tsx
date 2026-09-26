@@ -80,18 +80,27 @@ export function SamlIdentitySection({ app }: { app: SamlApp }) {
       if (first !== undefined) {
         form.setFieldMeta("mappings", (meta) => ({
           ...meta,
-          errors: [
-            rowProblem(first.index, {
-              line: first.index + 1,
-              reason: first.message,
-            }),
-          ],
+          errorMap: {
+            ...meta.errorMap,
+            onSubmit: [
+              rowProblem(
+                first.index,
+                {
+                  line: first.index + 1,
+                  reason: first.message,
+                },
+                // Carries which input the submit found fault with, so the row
+                // marks that one rather than every box it draws.
+                first.field,
+              ),
+            ],
+          },
         }));
         return;
       }
       form.setFieldMeta("mappings", (meta) => ({
         ...meta,
-        errors: undefined,
+        errorMap: { ...meta.errorMap, onSubmit: undefined },
       }));
 
       try {
@@ -113,7 +122,7 @@ export function SamlIdentitySection({ app }: { app: SamlApp }) {
     <Section
       title={<Trans id="admin.saml-apps.identity">Identity projection</Trans>}
     >
-      <ConsoleCard>
+      <ConsoleCard wide>
         <form.AppForm>
           <form.Form
             label={t({
@@ -123,9 +132,13 @@ export function SamlIdentitySection({ app }: { app: SamlApp }) {
           >
             <form.FormError />
 
+            {/* The NameID format is the field that has to be read before it is
+                changed, so it keeps the reading measure even on a card whose
+                attribute map takes the column: a full-width select reads as a
+                form-wide switch rather than the one careful choice it is. */}
             <form.AppField name="nameIdFormat">
               {(field) => (
-                <div className="flex flex-col gap-1.5">
+                <div className="flex max-w-lg flex-col gap-1.5">
                   <Select
                     className="w-full"
                     variant="secondary"
@@ -218,6 +231,10 @@ export function SamlIdentitySection({ app }: { app: SamlApp }) {
                       service provider expects.
                     </Trans>
                   }
+                  // The row draws two lines, so the remove button belongs on
+                  // the first rather than beside whichever control it happens
+                  // to reach on the second.
+                  align="top"
                   emptyRow={() => ({
                     name: "",
                     nameFormat: defaultAttributeNameFormat,
@@ -231,8 +248,12 @@ export function SamlIdentitySection({ app }: { app: SamlApp }) {
                       Add an attribute
                     </Trans>
                   }
-                  renderRow={(_row, index, error) => (
-                    <MappingRowFields index={index} error={error} />
+                  renderRow={(_row, index, error, problem) => (
+                    <MappingRowFields
+                      index={index}
+                      error={error}
+                      problem={problem}
+                    />
                   )}
                 />
               )}

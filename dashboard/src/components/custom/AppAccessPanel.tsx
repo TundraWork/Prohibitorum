@@ -79,7 +79,7 @@ export function AppAccessPanel({
   isAdmin: boolean;
 }) {
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex flex-col gap-4">
       <AccessRestrictionKind kind={kind} appId={appId} />
       <ApplicationGroupsKind kind={kind} appId={appId} isAdmin={isAdmin} />
       {isAdmin && <ApplicationManagersKind kind={kind} appId={appId} />}
@@ -125,6 +125,9 @@ function AccessRestrictionKind({
   return (
     <>
       <ItemList
+        title={
+          <Trans id="app.access.restriction.label">Access restriction</Trans>
+        }
         label={t({
           id: "app.access.restriction.label",
           message: "Access restriction",
@@ -261,6 +264,7 @@ function ApplicationGroupsKind({
   return (
     <>
       <ItemList
+        title={<Trans id="app.groups.label">User groups</Trans>}
         label={t({ id: "app.groups.label", message: "User groups" })}
         loading={access.isPending}
         empty={
@@ -273,23 +277,21 @@ function ApplicationGroupsKind({
           // open application ignores the selection, and offering to change it
           // would imply otherwise.
           access.data?.accessRestricted === true ? (
-            <div className="px-4 py-3">
-              <Button
-                size="sm"
-                variant="outline"
-                onPress={() => {
-                  form.reset();
-                  form.setFieldValue(
-                    "groupIds",
-                    selected.map((group) => String(group.id)),
-                  );
-                  setEditing(true);
-                }}
-              >
-                <Plus size={16} aria-hidden="true" />
-                <Trans id="app.groups.add">Add user groups</Trans>
-              </Button>
-            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              onPress={() => {
+                form.reset();
+                form.setFieldValue(
+                  "groupIds",
+                  selected.map((group) => String(group.id)),
+                );
+                setEditing(true);
+              }}
+            >
+              <Plus size={16} aria-hidden="true" />
+              <Trans id="app.groups.add">Add user groups</Trans>
+            </Button>
           ) : undefined
         }
       >
@@ -310,26 +312,31 @@ function ApplicationGroupsKind({
             }
             details={[group.slug]}
             actions={
-              <Button
-                isIconOnly
-                size="sm"
-                variant="ghost"
-                aria-label={i18n._({
-                  ...removeGroupMessage,
-                  values: { group: group.displayName },
-                })}
-                isPending={replace.isPending}
-                onPress={() => {
-                  replace.mutate({
-                    appId,
-                    groupIds: selected
-                      .filter((candidate) => candidate.id !== group.id)
-                      .map((candidate) => candidate.id),
-                  });
-                }}
-              >
-                <Trash2 size={16} aria-hidden="true" />
-              </Button>
+              // The same rule as the footer below: while the application is
+              // open the selection decides nothing, so a row does not offer to
+              // edit it either.
+              access.data?.accessRestricted === true ? (
+                <Button
+                  isIconOnly
+                  size="sm"
+                  variant="ghost"
+                  aria-label={i18n._({
+                    ...removeGroupMessage,
+                    values: { group: group.displayName },
+                  })}
+                  isPending={replace.isPending}
+                  onPress={() => {
+                    replace.mutate({
+                      appId,
+                      groupIds: selected
+                        .filter((candidate) => candidate.id !== group.id)
+                        .map((candidate) => candidate.id),
+                    });
+                  }}
+                >
+                  <Trash2 size={16} aria-hidden="true" />
+                </Button>
+              ) : undefined
             }
           />
         ))}
@@ -442,6 +449,7 @@ function ApplicationManagersKind({
   return (
     <>
       <ItemList
+        title={<Trans id="app.managers.label">Managers</Trans>}
         label={t({ id: "app.managers.label", message: "Managers" })}
         loading={managers.isPending}
         empty={
@@ -450,12 +458,10 @@ function ApplicationManagersKind({
           </p>
         }
         footer={
-          <div className="px-4 py-3">
-            <Button size="sm" variant="outline" onPress={() => setAdding(true)}>
-              <UserPlus size={16} aria-hidden="true" />
-              <Trans id="app.managers.assign">Assign a manager</Trans>
-            </Button>
-          </div>
+          <Button size="sm" variant="outline" onPress={() => setAdding(true)}>
+            <UserPlus size={16} aria-hidden="true" />
+            <Trans id="app.managers.assign">Assign a manager</Trans>
+          </Button>
         }
       >
         {(managers.data ?? []).map((manager) => (

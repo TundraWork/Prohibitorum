@@ -80,14 +80,14 @@ export function SamlGeneralSection({ app }: { app: SamlApp }) {
       if (minutes !== null && (!Number.isFinite(minutes) || minutes < 0)) {
         form.setFieldMeta("sessionLifetimeMinutes", (meta) => ({
           ...meta,
-          errors: [sessionLifetimeInvalid],
+          errorMap: { ...meta.errorMap, onSubmit: [sessionLifetimeInvalid] },
         }));
         return;
       }
 
       form.setFieldMeta("sessionLifetimeMinutes", (meta) => ({
         ...meta,
-        errors: undefined,
+        errorMap: { ...meta.errorMap, onSubmit: undefined },
       }));
 
       try {
@@ -161,6 +161,7 @@ export function SamlGeneralSection({ app }: { app: SamlApp }) {
                       session lasts.
                     </Trans>
                   }
+                  variant="secondary"
                 />
               )}
             </form.AppField>

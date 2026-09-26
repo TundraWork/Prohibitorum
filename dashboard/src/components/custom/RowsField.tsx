@@ -43,15 +43,27 @@ export function RowsField<T>({
   isDisabled = false,
   /** Rows are never removed below this count. */
   minRows = 0,
+  /**
+   * Where the row's remove button sits. A one-line row aligns it to the inputs'
+   * own line; a row that draws two lines of controls passes `top`, so the
+   * button reads as removing the whole row rather than the control beside it.
+   */
+  align = "end",
 }: {
   label: ReactNode;
   description?: ReactNode;
-  renderRow: (row: T, index: number, error: ReactNode) => ReactNode;
+  renderRow: (
+    row: T,
+    index: number,
+    error: ReactNode,
+    problem: RowProblem | undefined,
+  ) => ReactNode;
   /** A fresh row for the add button. */
   emptyRow: () => T;
   addLabel: ReactNode;
   isDisabled?: boolean;
   minRows?: number;
+  align?: "end" | "top";
 }) {
   const field = useFieldContext<T[]>();
   const form = useFormContext();
@@ -75,8 +87,9 @@ export function RowsField<T>({
   const rowProblems = errors.filter(isRowProblem);
   const fieldErrors = errors.filter((error) => !isRowProblem(error));
 
+  /** The complaint for `index` as the row's own message, ready to draw. */
   const errorFor = (index: number): ReactNode => {
-    const problem = rowProblems.find((candidate) => candidate.index === index);
+    const problem = problemFor(index);
     if (problem === undefined) return undefined;
     // The line number is a placeholder in the message, not part of its text.
     return i18n._({
@@ -84,6 +97,10 @@ export function RowsField<T>({
       values: { line: problem.message.line },
     });
   };
+
+  /** The same complaint before it was translated, for the row's own use. */
+  const problemFor = (index: number): RowProblem | undefined =>
+    rowProblems.find((candidate) => candidate.index === index);
 
   function changeRows(next: T[]) {
     if (form.state.isSubmitting || isDisabled) return;
@@ -108,14 +125,21 @@ export function RowsField<T>({
         {field.state.value.map((row, index) => (
           // Rows have no stable identity of their own: they are edited in place
           // and reordered only by removal, so the index is the identity.
-          <li key={rowKeys.current[index]} className="flex items-end gap-2">
+          <li
+            key={rowKeys.current[index]}
+            className={`flex gap-2 ${align === "top" ? "items-start" : "items-end"}`}
+          >
             <div className="min-w-0 flex-1">
-              {renderRow(row, index, errorFor(index))}
+              {renderRow(row, index, errorFor(index), problemFor(index))}
             </div>
             <Button
               isIconOnly
               size="sm"
               variant="ghost"
+              // On a row drawn on one line the button matches the inputs' own
+              // height; on a tall row it would otherwise sink to the bottom of
+              // the last line, beside whatever control happens to be there.
+              className={align === "top" ? "mt-6" : undefined}
               isDisabled={
                 submitting || isDisabled || field.state.value.length <= minRows
               }
@@ -168,12 +192,23 @@ export function RowsFieldHint() {
 
 interface RowProblem {
   index: number;
+  /**
+   * Which of the row's inputs the complaint belongs to, when the caller has
+   * one that can name it. A row that draws several inputs asks for its own
+   * field's problem, so a bad name does not also mark the key beside it.
+   */
+  field: string;
   message: LineProblem;
 }
 
 /** The shape a row-level error takes, for the callers that raise one. */
-export function rowProblem(index: number, message: LineProblem): RowProblem {
-  return { index, message };
+export function rowProblem(
+  index: number,
+  message: LineProblem,
+  /** The row's input the complaint is about; `"row"` when it is the row itself. */
+  field = "row",
+): RowProblem {
+  return { index, field, message };
 }
 
 function isRowProblem(value: unknown): value is RowProblem {

@@ -163,6 +163,20 @@ variant through `InputOTP`.
 Default cards use the surface color, control radius, and surface shadow.
 Content has 16px padding and 12px gaps; card titles use compact medium-weight text.
 
+`ConsoleCard` caps its content at the reading measure (`max-w-lg`) and takes
+`wide`, which lifts the cap to the card's own width. The default is for a form
+read top to bottom: one value per line. `wide` is for the two kinds of block
+that shape does not fit — content laid out in columns the eye compares down the
+page, like the SAML attribute map, and rows that have to line up with each
+other. Widening one such card keeps the page to a single content width, since
+the lists beside it already run the full column (`max-w-4xl` in `main`).
+
+A card holding several blocks names each one with an `ItemList` title. Three
+unlabelled cards stacked under one section heading read as one undifferentiated
+pile: the heading names the section, not the block, so each block carries its
+own name inside its card. The access policy panel — a restriction row plus the
+group and manager lists — follows this on all three application kinds.
+
 ### Record lists and detail pages
 
 A management table leads with an identity cell: `EntityAvatar` with the

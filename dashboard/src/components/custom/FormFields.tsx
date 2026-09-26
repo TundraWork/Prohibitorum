@@ -143,10 +143,12 @@ export function NumberField({
   label,
   description,
   isDisabled = false,
+  variant,
 }: {
   label: ReactNode;
   description?: ReactNode;
   isDisabled?: boolean;
+  variant?: ComponentProps<typeof Input>["variant"];
 }) {
   const field = useFieldContext<string>();
   const form = useFormContext();
@@ -174,7 +176,7 @@ export function NumberField({
       }}
     >
       <Label htmlFor={id}>{label}</Label>
-      <Input id={id} inputMode="numeric" />
+      <Input id={id} inputMode="numeric" variant={variant} />
       {description !== undefined && <Description>{description}</Description>}
       {invalid && (
         <span className={errorClass}>

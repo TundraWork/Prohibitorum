@@ -3,6 +3,7 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import { useStore } from "@tanstack/react-form";
 import { type ReactNode, useId } from "react";
 import { FormMessages } from "@/components/custom/FormMessages";
+import type { RowProblem } from "@/components/custom/RowsField";
 import { useFieldContext, useFormContext } from "@/forms/context";
 import { withoutServerErrors } from "@/forms/server-errors";
 import {
@@ -66,14 +67,22 @@ export function readSourceKind(source: string): {
  * the unit of error, which is why it is not five `AppField`s — a mapping has no
  * identity until it is saved, and "the second row's name is empty" is something
  * the reader can act on where "this field is invalid" is not.
+ *
+ * The row also takes that complaint untranslated. It draws several inputs, and
+ * the submit knows which of them it was about, so the mark goes on the input at
+ * fault rather than on all of them: a name that is empty does not also make the
+ * attribute key beside it look wrong.
  */
 export function MappingRowFields({
   index,
   error,
+  problem,
 }: {
   index: number;
-  /** The input's complaint for this row, if the submit found one. */
+  /** The row's complaint, already worded, to draw under the row. */
   error: ReactNode;
+  /** The same complaint before it was worded, naming the input at fault. */
+  problem: RowProblem | undefined;
 }) {
   const { i18n } = useLingui();
   const field = useFieldContext<MappingRow[]>();
@@ -87,7 +96,7 @@ export function MappingRowFields({
   const row = field.state.value[index];
   if (row === undefined) return null;
 
-  const invalid = error !== undefined && error !== null;
+  const isInvalid = (input: string) => problem?.field === input;
 
   const update = (patch: Partial<MappingRow>) => {
     if (form.state.isSubmitting) return;
@@ -103,19 +112,32 @@ export function MappingRowFields({
     );
   };
 
+  // Two lines of three columns rather than one line of five inputs and a
+  // switch: the row is read as an output side (what the provider sees) over a
+  // source side (where the value comes from), and at the console's measure a
+  // single line does not fit — the five controls fell to whatever widths the
+  // flex row had left, so no two rows lined up and the fourth control wrapped
+  // unpredictably. The tracks are fixed, so every row's columns agree, and the
+  // `attributes` key's cell stays reserved whether or not it is drawn.
+  //
+  // Below `sm` the tracks collapse to one column and each input takes the row:
+  // three 100-odd-pixel boxes side by side are not usable on a phone, and the
+  // stacked order still reads output side then source side.
   return (
-    <div className="flex flex-col gap-2">
-      <div className="flex flex-wrap items-end gap-3">
+    <div className="flex flex-col gap-3">
+      <div className="grid grid-cols-1 gap-x-3 gap-y-3 sm:grid-cols-6">
         <LabelledInput
           id={nameId}
+          className="sm:col-span-2"
           label={<Trans id="admin.saml-apps.mapping.name">Name</Trans>}
           value={row.name}
           disabled={submitting}
-          isInvalid={invalid}
+          isInvalid={isInvalid("name")}
           onChange={(value) => update({ name: value })}
         />
         <LabelledInput
           id={formatId}
+          className="sm:col-span-2"
           label={
             <Trans id="admin.saml-apps.mapping.name-format">Name format</Trans>
           }
@@ -125,6 +147,7 @@ export function MappingRowFields({
         />
         <LabelledInput
           id={friendlyId}
+          className="sm:col-span-2"
           label={
             <Trans id="admin.saml-apps.mapping.friendly-name">
               Friendly name
@@ -134,11 +157,9 @@ export function MappingRowFields({
           disabled={submitting}
           onChange={(value) => update({ friendlyName: value })}
         />
-      </div>
 
-      <div className="flex flex-wrap items-end gap-3">
         <Select
-          className="w-44"
+          className="sm:col-span-2"
           variant="secondary"
           isDisabled={submitting}
           value={row.sourceKind}
@@ -178,20 +199,28 @@ export function MappingRowFields({
           </Select.Popover>
         </Select>
 
-        {row.sourceKind === "attributes" && (
-          <LabelledInput
-            id={keyId}
-            label={
-              <Trans id="admin.saml-apps.mapping.key">Attribute key</Trans>
-            }
-            value={row.sourceKey}
-            disabled={submitting}
-            isInvalid={invalid}
-            onChange={(value) => update({ sourceKey: value })}
-          />
-        )}
+        {/* The cell is always there: a row reading one of the named facts has
+            nothing to put in it, and letting the track collapse would shift
+            the switch to the source's trailing edge on those rows only. */}
+        <div className="sm:col-span-2">
+          {row.sourceKind === "attributes" && (
+            <LabelledInput
+              id={keyId}
+              label={
+                <Trans id="admin.saml-apps.mapping.key">Attribute key</Trans>
+              }
+              value={row.sourceKey}
+              disabled={submitting}
+              isInvalid={isInvalid("key")}
+              onChange={(value) => update({ sourceKey: value })}
+            />
+          )}
+        </div>
 
-        <div className="pb-2.5">
+        {/* Bottom-aligned to the row's inputs rather than given a label of its
+            own: the switch carries its own text, and the input boxes beside it
+            end at the same line, so the row reads across. */}
+        <div className="flex h-9 items-center self-end sm:col-span-2">
           <Switch
             isSelected={row.multi}
             isDisabled={submitting}
@@ -207,7 +236,7 @@ export function MappingRowFields({
         </div>
       </div>
 
-      {invalid && (
+      {error !== undefined && error !== null && (
         <span className="text-sm text-danger">
           <FormMessages errors={[error]} />
         </span>
@@ -219,16 +248,22 @@ export function MappingRowFields({
 /**
  * One labeled text input of a row.
  *
- * The five inputs differ only in their label and which part of the row they
- * write, so they are drawn by one of these rather than five times over: a row
- * that repeated the label, the id and the change handler five times would have
- * five places to keep the same.
+ * The row's inputs differ only in their label and which part of the row they
+ * write, so they are drawn by one of these rather than several times over: a
+ * row that repeated the label, the id and the change handler for each of them
+ * would have that many places to keep the same.
+ *
+ * The label is always drawn, including on the row's second line: a reader who
+ * has scrolled to a row's source side should not have to look back up to know
+ * which box holds the attribute key. The grid's tracks carry the widths, so the
+ * col-span comes in from the caller rather than every input being `flex-1`.
  */
 function LabelledInput({
   id,
   label,
   value,
   disabled,
+  className,
   isInvalid = false,
   onChange,
 }: {
@@ -236,11 +271,13 @@ function LabelledInput({
   label: ReactNode;
   value: string;
   disabled: boolean;
+  /** The grid cell this input occupies. */
+  className?: string;
   isInvalid?: boolean;
   onChange: (value: string) => void;
 }) {
   return (
-    <div className="flex min-w-32 flex-1 flex-col gap-1">
+    <div className={`flex flex-col gap-1 ${className ?? ""}`}>
       <Label htmlFor={id}>{label}</Label>
       <Input
         id={id}
