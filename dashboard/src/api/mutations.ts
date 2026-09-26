@@ -423,10 +423,7 @@ export function unlinkIdentityMutationOptions(queryClient: QueryClient) {
  * the browser to a console route when it is done, so this is an assignment
  * rather than a fetch the client can await.
  */
-export function identityLinkUrl(
-  slug: string,
-  returnTo = "/security?tab=identities",
-): string {
+export function identityLinkUrl(slug: string, returnTo = "/security"): string {
   const query = new URLSearchParams({ return_to: returnTo });
   return `/api/prohibitorum/me/identities/link/${encodeURIComponent(slug)}/begin?${query}`;
 }

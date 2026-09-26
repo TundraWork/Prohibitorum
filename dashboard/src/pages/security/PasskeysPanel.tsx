@@ -1,5 +1,4 @@
 import {
-  Alert,
   AlertDialog,
   Chip,
   Description,
@@ -24,6 +23,8 @@ import { Button } from "@/components/custom/Button";
 import { ConfirmDialog } from "@/components/custom/ConfirmDialog";
 import { ItemList, ItemListRow } from "@/components/custom/ItemList";
 import { RelativeTime } from "@/components/custom/RelativeTime";
+import { Section } from "@/components/custom/Section";
+import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
 import { TableEmptyState } from "@/components/custom/TableEmptyState";
 
 type Credential = components["schemas"]["CredentialView"];
@@ -121,20 +122,23 @@ export function PasskeysPanel() {
 
   return (
     <>
-      <div className="flex flex-col gap-4">
-        <div className="flex flex-wrap items-center gap-4">
+      <Section
+        title={<Trans id="security.section.passkeys">Passkeys</Trans>}
+        action={
           <Button isPending={add.isPending} onPress={startAdd}>
             <Trans id="security.passkeys.add">Add a passkey</Trans>
           </Button>
-        </div>
-
+        }
+      >
+        {/* A failed action is reported here rather than inside a boundary:
+            its retry would reload the list, not repeat the write. */}
         {error !== null && (
-          <Alert status="danger" role="alert">
-            <Alert.Indicator />
-            <Alert.Content>
-              <Alert.Title>{t(describeError(error))}</Alert.Title>
-            </Alert.Content>
-          </Alert>
+          <SurfaceAlert status="danger" role="alert">
+            <SurfaceAlert.Indicator />
+            <SurfaceAlert.Content>
+              <SurfaceAlert.Title>{t(describeError(error))}</SurfaceAlert.Title>
+            </SurfaceAlert.Content>
+          </SurfaceAlert>
         )}
 
         <ItemList
@@ -201,7 +205,7 @@ export function PasskeysPanel() {
             );
           })}
         </ItemList>
-      </div>
+      </Section>
 
       <ConfirmDialog
         isOpen={deleting !== null}

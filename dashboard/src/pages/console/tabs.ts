@@ -33,19 +33,6 @@ export function profileTab(value: unknown): ProfileTab {
   return pickTab(value, profileTabs);
 }
 
-export const securityTabs = [
-  "passkeys",
-  "password",
-  "sessions",
-  "identities",
-  "tokens",
-] as const;
-export type SecurityTab = (typeof securityTabs)[number];
-
-export function securityTab(value: unknown): SecurityTab {
-  return pickTab(value, securityTabs);
-}
-
 /**
  * Sections of one account in the management area. The profile form stands
  * alone, the per-account actions each own a block, and everything read-only

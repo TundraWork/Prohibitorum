@@ -1,5 +1,4 @@
 import {
-  Alert,
   Checkbox,
   Description,
   Label,
@@ -27,6 +26,8 @@ import { ConfirmDialog } from "@/components/custom/ConfirmDialog";
 import { ItemList, ItemListRow } from "@/components/custom/ItemList";
 import { RelativeTime } from "@/components/custom/RelativeTime";
 import { SecretReveal } from "@/components/custom/SecretReveal";
+import { Section } from "@/components/custom/Section";
+import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
 import { accessTokenCopy } from "@/components/custom/secret-reveal-copy";
 import { TableEmptyState } from "@/components/custom/TableEmptyState";
 import { applyServerError } from "@/forms/server-errors";
@@ -112,20 +113,21 @@ export function TokensPanel() {
 
   return (
     <>
-      <div className="flex flex-col gap-4">
-        <div className="flex flex-wrap items-center gap-4">
+      <Section
+        title={<Trans id="security.section.tokens">Access tokens</Trans>}
+        action={
           <Button onPress={() => setCreating(true)}>
             <Trans id="security.tokens.create.open">Create a token</Trans>
           </Button>
-        </div>
-
+        }
+      >
         {error !== null && (
-          <Alert status="danger" role="alert">
-            <Alert.Indicator />
-            <Alert.Content>
-              <Alert.Title>{t(describeError(error))}</Alert.Title>
-            </Alert.Content>
-          </Alert>
+          <SurfaceAlert status="danger" role="alert">
+            <SurfaceAlert.Indicator />
+            <SurfaceAlert.Content>
+              <SurfaceAlert.Title>{t(describeError(error))}</SurfaceAlert.Title>
+            </SurfaceAlert.Content>
+          </SurfaceAlert>
         )}
 
         <ItemList
@@ -190,7 +192,7 @@ export function TokensPanel() {
             );
           })}
         </ItemList>
-      </div>
+      </Section>
 
       <CreateTokenDialog
         apps={apps.data ?? []}

@@ -1,66 +1,32 @@
-import { Trans, useLingui } from "@lingui/react/macro";
-import { useNavigate } from "@tanstack/react-router";
-import { ConsoleTabs } from "@/components/custom/ConsoleTabs";
-
 import { IdentitiesPanel } from "@/pages/security/IdentitiesPanel";
 import { PasskeysPanel } from "@/pages/security/PasskeysPanel";
 import { PasswordTotpPanel } from "@/pages/security/PasswordTotpPanel";
 import { SessionsPanel } from "@/pages/security/SessionsPanel";
 import { TokensPanel } from "@/pages/security/TokensPanel";
-import { Route } from "@/routes/_protected.security";
 
 /**
- * Everything about how this account gets in. Five tabs rather than one long
- * column, with the selected tab in the URL so a reload or a shared link lands on
- * the same one.
+ * Everything about how this account gets in, as one page of stacked sections
+ * rather than tabs.
  *
- * Each panel is mounted only while its tab is selected, which is also what keeps
- * the queries behind it from running early: a panel that is not on screen has no
- * reason to ask the server for anything.
+ * The whole page is on screen at once, so every panel mounts with it. That is
+ * the point of dropping the strip — nothing is hidden behind a control the
+ * reader has to work through — and it is also why each panel brings its own
+ * boundary: a block that is still loading, or that failed, says so in its own
+ * place instead of taking the page down with it.
+ *
+ * Each panel draws its own `Section`, so a section's title sits beside the
+ * button it names and that button's handler stays with the state it reads.
+ * This file owns only the order the sections appear in and the space between
+ * them.
  */
 export function Security() {
-  const { t } = useLingui();
-  const navigate = useNavigate();
-  const { tab } = Route.useSearch();
-
   return (
-    <ConsoleTabs
-      label={t({ id: "security.tabs", message: "Security" })}
-      selected={tab}
-      onSelectionChange={(next) =>
-        void navigate({ to: "/security", search: { tab: next }, replace: true })
-      }
-      tabs={[
-        {
-          id: "passkeys",
-          title: <Trans id="security.tab.passkeys">Passkeys</Trans>,
-          panel: () => <PasskeysPanel />,
-        },
-        {
-          id: "password",
-          title: (
-            <Trans id="security.tab.password">Password and authenticator</Trans>
-          ),
-          panel: () => <PasswordTotpPanel />,
-        },
-        {
-          id: "sessions",
-          title: <Trans id="security.tab.sessions">Active sessions</Trans>,
-          panel: () => <SessionsPanel />,
-        },
-        {
-          id: "identities",
-          title: (
-            <Trans id="security.tab.identities">Connected identities</Trans>
-          ),
-          panel: () => <IdentitiesPanel />,
-        },
-        {
-          id: "tokens",
-          title: <Trans id="security.tab.tokens">Access tokens</Trans>,
-          panel: () => <TokensPanel />,
-        },
-      ]}
-    />
+    <div className="flex flex-col gap-8">
+      <PasskeysPanel />
+      <PasswordTotpPanel />
+      <SessionsPanel />
+      <IdentitiesPanel />
+      <TokensPanel />
+    </div>
   );
 }

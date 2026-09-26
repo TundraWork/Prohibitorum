@@ -16,9 +16,8 @@ import { consentQueryOptions, sessionQueryOptions } from "@/api/queries";
 import { createQueryClient } from "@/app/query-client";
 import { i18n } from "@/i18n";
 import { ConnectedApps } from "@/pages/ConnectedApps";
-import { profileTab, securityTab } from "@/pages/console/tabs";
+import { profileTab } from "@/pages/console/tabs";
 import { Profile } from "@/pages/Profile";
-import { Security } from "@/pages/Security";
 
 vi.mock("qrcode", () => ({
   default: { toCanvas: vi.fn().mockResolvedValue(undefined) },
@@ -95,9 +94,6 @@ function mount(
 const profileSearch = (search: Record<string, unknown>) => ({
   tab: profileTab(search.tab),
 });
-const securitySearch = (search: Record<string, unknown>) => ({
-  tab: securityTab(search.tab),
-});
 
 /** Path plus query, so a tab change is visible in the URL the user would share. */
 function location(router: {
@@ -145,43 +141,6 @@ describe("profile tabs", () => {
     await waitFor(() => expect(location(router)).toBe("/profile?tab=avatar"));
     // Replaced, not pushed: browsing tabs adds no history entries, so the page
     // the user came from is still one press back.
-    expect(router.history.length).toBe(before);
-  });
-});
-
-describe("security tabs", () => {
-  it("mounts only the selected area, and does not request the others", async () => {
-    history.push("/security?tab=sessions");
-    mount("/security", Security, securitySearch);
-
-    expect(
-      await screen.findByRole("tab", { name: "Active sessions" }),
-    ).toHaveAttribute("aria-selected", "true");
-    // The passkeys panel is not mounted, so its list is never fetched.
-    expect(
-      fetchBoundary.mock.calls.some(([request]) =>
-        new URL(request.url).pathname.endsWith("/me/credentials"),
-      ),
-    ).toBe(false);
-    expect(screen.queryByRole("button", { name: "Add a passkey" })).toBeNull();
-  });
-
-  it("keeps the URL and the selected tab in step through a switch", async () => {
-    history.push("/security");
-    const router = mount("/security", Security, securitySearch);
-    const user: UserEvent = userEvent.setup();
-    await screen.findByRole("button", { name: "Add a passkey" });
-
-    const before = router.history.length;
-    await user.click(screen.getByRole("tab", { name: "Access tokens" }));
-
-    await waitFor(() =>
-      expect(
-        screen.getByRole("tab", { name: "Access tokens" }),
-      ).toHaveAttribute("aria-selected", "true"),
-    );
-    expect(location(router)).toBe("/security?tab=tokens");
-    // A switch replaces, so it adds nothing to the history stack.
     expect(router.history.length).toBe(before);
   });
 });

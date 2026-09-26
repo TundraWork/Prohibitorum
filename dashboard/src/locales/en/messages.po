@@ -128,8 +128,8 @@ msgid "success.token.revoked"
 msgstr "Access token revoked"
 
 #. js-lingui-explicit-id
-#: src/pages/Security.tsx
-msgid "security.tab.tokens"
+#: src/pages/security/TokensPanel.tsx
+msgid "security.section.tokens"
 msgstr "Access tokens"
 
 #. js-lingui-explicit-id
@@ -231,8 +231,8 @@ msgid "api.maintenance.active"
 msgstr "Active"
 
 #. js-lingui-explicit-id
-#: src/pages/Security.tsx
-msgid "security.tab.sessions"
+#: src/pages/security/SessionsPanel.tsx
+msgid "security.section.sessions"
 msgstr "Active sessions"
 
 #. js-lingui-explicit-id
@@ -864,8 +864,8 @@ msgid "console.applications"
 msgstr "Applications"
 
 #. js-lingui-explicit-id
-#: src/pages/Security.tsx
-msgid "security.tab.identities"
+#: src/pages/security/IdentitiesPanel.tsx
+msgid "security.section.identities"
 msgstr "Connected identities"
 
 #. js-lingui-explicit-id
@@ -1866,11 +1866,6 @@ msgid "feedback.skeleton"
 msgstr "Loading skeleton example"
 
 #. js-lingui-explicit-id
-#: src/pages/security/PasswordTotpPanel.tsx
-msgid "security.loading"
-msgstr "Loading…"
-
-#. js-lingui-explicit-id
 #: src/pages/Preview.tsx
 msgid "preview.footer"
 msgstr "Local preview · HeroUI components"
@@ -2356,8 +2351,8 @@ msgid "error.login_failed"
 msgstr "Passkey sign-in failed. Try again or use your password."
 
 #. js-lingui-explicit-id
-#: src/pages/Security.tsx
-msgid "security.tab.passkeys"
+#: src/pages/security/PasskeysPanel.tsx
+msgid "security.section.passkeys"
 msgstr "Passkeys"
 
 #. js-lingui-explicit-id
@@ -2396,8 +2391,8 @@ msgid "audit.factor.password"
 msgstr "Password"
 
 #. js-lingui-explicit-id
-#: src/pages/Security.tsx
-msgid "security.tab.password"
+#: src/pages/security/PasswordTotpPanel.tsx
+msgid "security.section.password"
 msgstr "Password and authenticator"
 
 #. js-lingui-explicit-id
@@ -2935,11 +2930,6 @@ msgstr "Search user groups"
 #: src/pages/admin/AdminUsers.tsx
 msgid "admin.users.search"
 msgstr "Search users"
-
-#. js-lingui-explicit-id
-#: src/pages/Security.tsx
-msgid "security.tabs"
-msgstr "Security"
 
 #. js-lingui-explicit-id
 #: src/components/custom/ConsoleLayout.tsx
@@ -3692,8 +3682,8 @@ msgid "admin.group.rule.reason.unsupported_version"
 msgstr "This rule was written for another version of the server."
 
 #. js-lingui-explicit-id
-#: src/components/custom/ConsoleTabs.tsx
-msgid "tabs.panel.failed"
+#: src/components/custom/Section.tsx
+msgid "section.failed"
 msgstr "This section could not be loaded"
 
 #. js-lingui-explicit-id
@@ -3747,13 +3737,13 @@ msgid "settings.network.proxies"
 msgstr "Trusted proxies"
 
 #. js-lingui-explicit-id
-#: src/components/custom/ConsoleTabs.tsx
-msgid "tabs.panel.retry"
+#: src/components/custom/RouteFeedback.tsx
+msgid "route.retry"
 msgstr "Try again"
 
 #. js-lingui-explicit-id
-#: src/components/custom/RouteFeedback.tsx
-msgid "route.retry"
+#: src/components/custom/Section.tsx
+msgid "section.retry"
 msgstr "Try again"
 
 #. js-lingui-explicit-id

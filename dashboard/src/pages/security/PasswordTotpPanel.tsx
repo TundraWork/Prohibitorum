@@ -1,4 +1,4 @@
-import { Alert, Description, Modal, Spinner } from "@heroui/react";
+import { Card, Description, Modal, Spinner } from "@heroui/react";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -27,6 +27,8 @@ import { ConfirmDialog } from "@/components/custom/ConfirmDialog";
 import { ConsoleCard } from "@/components/custom/ConsoleCard";
 import { ItemList, ItemListRow } from "@/components/custom/ItemList";
 import { RecoveryCodes } from "@/components/custom/RecoveryCodes";
+import { Section } from "@/components/custom/Section";
+import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
 import { recoveryCodesCopy } from "@/components/custom/secret-reveal-copy";
 import { TotpSetup } from "@/components/custom/TotpSetup";
 import { applyServerError } from "@/forms/server-errors";
@@ -96,22 +98,44 @@ export function PasswordTotpPanel() {
   }
 
   if (factors.isPending) {
+    // The block's own shape while its read is in flight: the heading is
+    // already on screen, and the card below it is the one the rows will
+    // arrive in, so the page does not jump when they do.
     return (
-      <div className="flex items-center gap-2 text-sm text-muted">
-        <Spinner size="sm" />
-        <Trans id="security.loading">Loading…</Trans>
-      </div>
+      <Section
+        title={
+          <Trans id="security.section.password">
+            Password and authenticator
+          </Trans>
+        }
+      >
+        <Card className="gap-0 p-0">
+          <div className="flex items-center justify-center py-10">
+            <Spinner size="md" />
+          </div>
+        </Card>
+      </Section>
     );
   }
 
   if (!factors.data) {
     return (
-      <Alert status="danger" role="alert">
-        <Alert.Indicator />
-        <Alert.Content>
-          <Alert.Title>{t(describeError(factors.error))}</Alert.Title>
-        </Alert.Content>
-      </Alert>
+      <Section
+        title={
+          <Trans id="security.section.password">
+            Password and authenticator
+          </Trans>
+        }
+      >
+        <SurfaceAlert status="danger" role="alert">
+          <SurfaceAlert.Indicator />
+          <SurfaceAlert.Content>
+            <SurfaceAlert.Title>
+              {t(describeError(factors.error))}
+            </SurfaceAlert.Title>
+          </SurfaceAlert.Content>
+        </SurfaceAlert>
+      </Section>
     );
   }
 
@@ -136,7 +160,11 @@ export function PasswordTotpPanel() {
   rows.push(<RevokeRow key="revoke" passkeyCount={passkeyCount} />);
 
   return (
-    <div className="flex flex-col gap-4">
+    <Section
+      title={
+        <Trans id="security.section.password">Password and authenticator</Trans>
+      }
+    >
       {!bothSet && (
         // The one thing left to do is on screen as it is, not behind a click.
         <ConsoleCard
@@ -174,7 +202,7 @@ export function PasswordTotpPanel() {
           onContinue={async () => setDialogCodes(null)}
         />
       )}
-    </div>
+    </Section>
   );
 }
 

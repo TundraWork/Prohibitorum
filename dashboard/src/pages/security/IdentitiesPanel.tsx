@@ -1,4 +1,4 @@
-import { Alert, Avatar, Chip, Dropdown, Label } from "@heroui/react";
+import { Avatar, Chip, Dropdown, Label } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link2, Unlink } from "lucide-react";
@@ -18,6 +18,8 @@ import { sudoReason } from "@/api/sudo-reasons";
 import { Button } from "@/components/custom/Button";
 import { ConfirmDialog } from "@/components/custom/ConfirmDialog";
 import { ItemList, ItemListRow } from "@/components/custom/ItemList";
+import { Section } from "@/components/custom/Section";
+import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
 import { TableEmptyState } from "@/components/custom/TableEmptyState";
 
 type Identity = components["schemas"]["AccountIdentityView"];
@@ -68,23 +70,26 @@ export function IdentitiesPanel() {
 
   return (
     <>
-      <div className="flex flex-col gap-4">
-        <div className="flex flex-wrap items-center gap-4">
+      <Section
+        title={
+          <Trans id="security.section.identities">Connected identities</Trans>
+        }
+        action={
           <LinkIdentityMenu
             providers={available}
             linkedSlugs={linkedSlugs}
             isPending={linking !== null}
             onSelect={startLink}
           />
-        </div>
-
+        }
+      >
         {error !== null && (
-          <Alert status="danger" role="alert">
-            <Alert.Indicator />
-            <Alert.Content>
-              <Alert.Title>{t(describeError(error))}</Alert.Title>
-            </Alert.Content>
-          </Alert>
+          <SurfaceAlert status="danger" role="alert">
+            <SurfaceAlert.Indicator />
+            <SurfaceAlert.Content>
+              <SurfaceAlert.Title>{t(describeError(error))}</SurfaceAlert.Title>
+            </SurfaceAlert.Content>
+          </SurfaceAlert>
         )}
 
         <ItemList
@@ -137,7 +142,7 @@ export function IdentitiesPanel() {
             />
           ))}
         </ItemList>
-      </div>
+      </Section>
 
       <ConfirmDialog
         isOpen={target !== null}

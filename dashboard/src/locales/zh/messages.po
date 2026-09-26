@@ -128,8 +128,8 @@ msgid "success.token.revoked"
 msgstr "访问令牌已撤销"
 
 #. js-lingui-explicit-id
-#: src/pages/Security.tsx
-msgid "security.tab.tokens"
+#: src/pages/security/TokensPanel.tsx
+msgid "security.section.tokens"
 msgstr "个人访问令牌"
 
 #. js-lingui-explicit-id
@@ -231,8 +231,8 @@ msgid "api.maintenance.active"
 msgstr "已开启"
 
 #. js-lingui-explicit-id
-#: src/pages/Security.tsx
-msgid "security.tab.sessions"
+#: src/pages/security/SessionsPanel.tsx
+msgid "security.section.sessions"
 msgstr "在线会话"
 
 #. js-lingui-explicit-id
@@ -864,8 +864,8 @@ msgid "console.applications"
 msgstr "应用"
 
 #. js-lingui-explicit-id
-#: src/pages/Security.tsx
-msgid "security.tab.identities"
+#: src/pages/security/IdentitiesPanel.tsx
+msgid "security.section.identities"
 msgstr "已连接身份"
 
 #. js-lingui-explicit-id
@@ -1866,11 +1866,6 @@ msgid "feedback.skeleton"
 msgstr "加载骨架样例"
 
 #. js-lingui-explicit-id
-#: src/pages/security/PasswordTotpPanel.tsx
-msgid "security.loading"
-msgstr "加载中…"
-
-#. js-lingui-explicit-id
 #: src/pages/Preview.tsx
 msgid "preview.footer"
 msgstr "本地预览 · HeroUI 组件"
@@ -2356,8 +2351,8 @@ msgid "error.login_failed"
 msgstr "通行密钥登录失败。请重试或使用密码。"
 
 #. js-lingui-explicit-id
-#: src/pages/Security.tsx
-msgid "security.tab.passkeys"
+#: src/pages/security/PasskeysPanel.tsx
+msgid "security.section.passkeys"
 msgstr "通行密钥"
 
 #. js-lingui-explicit-id
@@ -2396,8 +2391,8 @@ msgid "audit.factor.password"
 msgstr "密码"
 
 #. js-lingui-explicit-id
-#: src/pages/Security.tsx
-msgid "security.tab.password"
+#: src/pages/security/PasswordTotpPanel.tsx
+msgid "security.section.password"
 msgstr "密码与验证器"
 
 #. js-lingui-explicit-id
@@ -2935,11 +2930,6 @@ msgstr "搜索用户组"
 #: src/pages/admin/AdminUsers.tsx
 msgid "admin.users.search"
 msgstr "搜索用户"
-
-#. js-lingui-explicit-id
-#: src/pages/Security.tsx
-msgid "security.tabs"
-msgstr "安全"
 
 #. js-lingui-explicit-id
 #: src/components/custom/ConsoleLayout.tsx
@@ -3692,8 +3682,8 @@ msgid "admin.group.rule.reason.unsupported_version"
 msgstr "该规则是为另一个版本的服务器编写的。"
 
 #. js-lingui-explicit-id
-#: src/components/custom/ConsoleTabs.tsx
-msgid "tabs.panel.failed"
+#: src/components/custom/Section.tsx
+msgid "section.failed"
 msgstr "无法加载这一部分"
 
 #. js-lingui-explicit-id
@@ -3747,13 +3737,13 @@ msgid "settings.network.proxies"
 msgstr "可信代理"
 
 #. js-lingui-explicit-id
-#: src/components/custom/ConsoleTabs.tsx
-msgid "tabs.panel.retry"
+#: src/components/custom/RouteFeedback.tsx
+msgid "route.retry"
 msgstr "重试"
 
 #. js-lingui-explicit-id
-#: src/components/custom/RouteFeedback.tsx
-msgid "route.retry"
+#: src/components/custom/Section.tsx
+msgid "section.retry"
 msgstr "重试"
 
 #. js-lingui-explicit-id

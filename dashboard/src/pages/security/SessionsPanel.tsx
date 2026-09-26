@@ -11,6 +11,7 @@ import { Button } from "@/components/custom/Button";
 import { ConfirmDialog } from "@/components/custom/ConfirmDialog";
 import { ItemList, ItemListRow } from "@/components/custom/ItemList";
 import { RelativeTime } from "@/components/custom/RelativeTime";
+import { Section } from "@/components/custom/Section";
 import { TableEmptyState } from "@/components/custom/TableEmptyState";
 
 type Session = components["schemas"]["SessionListItem"];
@@ -69,56 +70,63 @@ export function SessionsPanel() {
 
   return (
     <>
-      {error !== null && (
-        <p role="alert" className="mt-2 text-sm">
-          {t(describeError(error))}
-        </p>
-      )}
-
-      <ItemList
-        label={t({ id: "security.sessions.table", message: "Active sessions" })}
-        loading={sessions.isPending}
-        empty={
-          <TableEmptyState
-            icon={
-              <MonitorSmartphone
-                size={18}
-                strokeWidth={1.75}
-                aria-hidden="true"
-              />
-            }
-            title={
-              <Trans id="security.sessions.empty">No other sessions</Trans>
-            }
-          />
-        }
+      <Section
+        title={<Trans id="security.section.sessions">Active sessions</Trans>}
       >
-        {(sessions.data ?? []).map((session) => (
-          <ItemListRow
-            key={session.id}
-            icon={<MonitorSmartphone size={18} aria-hidden="true" />}
-            title={
-              <span title={session.userAgent ?? undefined}>
-                {agentSummary(session.userAgent)}
-              </span>
-            }
-            badges={
-              session.isCurrent && (
-                <Chip color="accent" size="sm" variant="soft">
-                  <Trans id="security.sessions.current">This device</Trans>
-                </Chip>
-              )
-            }
-            details={[
-              session.lastSeenIp || undefined,
-              <Trans key="issued" id="security.sessions.detail.issued">
-                Started <RelativeTime value={session.issuedAt} />
-              </Trans>,
-            ]}
-            actions={endSession(session)}
-          />
-        ))}
-      </ItemList>
+        {error !== null && (
+          <p role="alert" className="text-sm">
+            {t(describeError(error))}
+          </p>
+        )}
+
+        <ItemList
+          label={t({
+            id: "security.sessions.table",
+            message: "Active sessions",
+          })}
+          loading={sessions.isPending}
+          empty={
+            <TableEmptyState
+              icon={
+                <MonitorSmartphone
+                  size={18}
+                  strokeWidth={1.75}
+                  aria-hidden="true"
+                />
+              }
+              title={
+                <Trans id="security.sessions.empty">No other sessions</Trans>
+              }
+            />
+          }
+        >
+          {(sessions.data ?? []).map((session) => (
+            <ItemListRow
+              key={session.id}
+              icon={<MonitorSmartphone size={18} aria-hidden="true" />}
+              title={
+                <span title={session.userAgent ?? undefined}>
+                  {agentSummary(session.userAgent)}
+                </span>
+              }
+              badges={
+                session.isCurrent && (
+                  <Chip color="accent" size="sm" variant="soft">
+                    <Trans id="security.sessions.current">This device</Trans>
+                  </Chip>
+                )
+              }
+              details={[
+                session.lastSeenIp || undefined,
+                <Trans key="issued" id="security.sessions.detail.issued">
+                  Started <RelativeTime value={session.issuedAt} />
+                </Trans>,
+              ]}
+              actions={endSession(session)}
+            />
+          ))}
+        </ItemList>
+      </Section>
 
       <ConfirmDialog
         isOpen={target !== null}

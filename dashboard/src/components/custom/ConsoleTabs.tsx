@@ -1,10 +1,6 @@
-import { Alert, Spinner, Tabs } from "@heroui/react";
-import { Trans, useLingui } from "@lingui/react/macro";
-import { QueryErrorResetBoundary } from "@tanstack/react-query";
-import { CatchBoundary } from "@tanstack/react-router";
-import { type ReactNode, Suspense } from "react";
-import { describeError } from "@/api/errors";
-import { Button } from "@/components/custom/Button";
+import { Tabs } from "@heroui/react";
+import type { ReactNode } from "react";
+import { AsyncSection } from "@/components/custom/Section";
 
 export interface ConsoleTab<T extends string> {
   id: T;
@@ -56,80 +52,10 @@ export function ConsoleTabs<T extends string>({
       {tabs.map((tab) => (
         <Tabs.Panel key={tab.id} id={tab.id} className="pt-4">
           {tab.id === selected && (
-            <TabPanelBoundary resetKey={tab.id}>{tab.panel()}</TabPanelBoundary>
+            <AsyncSection resetKey={tab.id}>{tab.panel()}</AsyncSection>
           )}
         </Tabs.Panel>
       ))}
     </Tabs>
-  );
-}
-
-/**
- * Loading and failure for one panel. A retry clears the failed queries'
- * error state before remounting the panel, so its suspense reads ask again.
- */
-function TabPanelBoundary({
-  resetKey,
-  children,
-}: {
-  resetKey: string;
-  children: ReactNode;
-}) {
-  return (
-    <QueryErrorResetBoundary>
-      {({ reset: resetQueries }) => (
-        <CatchBoundary
-          getResetKey={() => resetKey}
-          errorComponent={({ error, reset }) => (
-            <TabPanelError
-              error={error}
-              onRetry={() => {
-                resetQueries();
-                reset();
-              }}
-            />
-          )}
-        >
-          <Suspense fallback={<TabPanelPending />}>{children}</Suspense>
-        </CatchBoundary>
-      )}
-    </QueryErrorResetBoundary>
-  );
-}
-
-function TabPanelPending() {
-  return (
-    <div className="flex justify-center py-12">
-      <Spinner size="md" />
-    </div>
-  );
-}
-
-function TabPanelError({
-  error,
-  onRetry,
-}: {
-  error: unknown;
-  onRetry: () => void;
-}) {
-  const { t } = useLingui();
-  return (
-    <Alert status="danger" role="alert">
-      <Alert.Indicator />
-      <Alert.Content>
-        <Alert.Title>
-          <Trans id="tabs.panel.failed">This section could not be loaded</Trans>
-        </Alert.Title>
-        <Alert.Description>{t(describeError(error))}</Alert.Description>
-        <Button
-          className="mt-2 w-fit"
-          size="sm"
-          variant="danger"
-          onPress={onRetry}
-        >
-          <Trans id="tabs.panel.retry">Try again</Trans>
-        </Button>
-      </Alert.Content>
-    </Alert>
   );
 }
