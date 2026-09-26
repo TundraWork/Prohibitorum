@@ -6,15 +6,13 @@ import {
   useQueryClient,
   useSuspenseQuery,
 } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
 import { updateProfileMutationOptions } from "@/api/mutations";
 import { sessionQueryOptions } from "@/api/queries";
 import { ConsoleCard } from "@/components/custom/ConsoleCard";
-import { ConsoleTabs } from "@/components/custom/ConsoleTabs";
+import { Section } from "@/components/custom/Section";
 import { applyServerError } from "@/forms/server-errors";
 import { useAppForm } from "@/forms/use-app-form";
 import { AvatarPanel } from "@/pages/profile/AvatarPanel";
-import { Route } from "@/routes/_protected.profile";
 
 /** Mirrors `account.ValidateNickname`: at most 60 runes, no control characters. */
 function nicknameError(value: string): "too_long" | "control" | null {
@@ -38,14 +36,14 @@ const hasControl = msg({
 });
 
 /**
- * The account's own page. Display name and avatar are two tabs rather than two
- * stacked cards, and the selected tab lives in the URL so a shared link or a
- * reload lands where the sender was.
+ * The account's own page: the display name and the avatar, as two sections on
+ * one page rather than two tabs.
+ *
+ * Both are short and a reader who came to change one often wants the other, so
+ * there is no strip to work through. The session read belongs to the page: both
+ * sections draw from it, so it is awaited once here and passed down.
  */
 export function Profile() {
-  const { t } = useLingui();
-  const navigate = useNavigate();
-  const { tab } = Route.useSearch();
   const { data: session } = useSuspenseQuery({
     ...sessionQueryOptions(),
     refetchOnMount: false,
@@ -54,30 +52,19 @@ export function Profile() {
   if (session === null) return null;
 
   return (
-    <ConsoleTabs
-      label={t({ id: "profile.tabs", message: "Profile" })}
-      selected={tab}
-      onSelectionChange={(next) =>
-        void navigate({ to: "/profile", search: { tab: next }, replace: true })
-      }
-      tabs={[
-        {
-          id: "display-name",
-          title: <Trans id="profile.tab.display-name">Display name</Trans>,
-          panel: () => (
-            <DisplayNameCard
-              displayName={session.displayName}
-              username={session.username}
-            />
-          ),
-        },
-        {
-          id: "avatar",
-          title: <Trans id="profile.tab.avatar">Avatar</Trans>,
-          panel: () => <AvatarPanel current={session} />,
-        },
-      ]}
-    />
+    <div className="flex flex-col gap-8">
+      <Section
+        title={<Trans id="profile.display-name.title">Display name</Trans>}
+      >
+        <DisplayNameCard
+          displayName={session.displayName}
+          username={session.username}
+        />
+      </Section>
+      <Section title={<Trans id="profile.avatar.title">Avatar</Trans>}>
+        <AvatarPanel current={session} />
+      </Section>
+    </div>
   );
 }
 
@@ -104,9 +91,7 @@ function DisplayNameCard({
   });
 
   return (
-    <ConsoleCard
-      title={<Trans id="profile.display-name.title">Display name</Trans>}
-    >
+    <ConsoleCard>
       <form.AppForm>
         <form.Form
           label={t({

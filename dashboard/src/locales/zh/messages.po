@@ -468,11 +468,6 @@ msgstr "<0/>授权"
 
 #. js-lingui-explicit-id
 #: src/pages/Profile.tsx
-msgid "profile.tab.avatar"
-msgstr "头像"
-
-#. js-lingui-explicit-id
-#: src/pages/profile/AvatarPanel.tsx
 msgid "profile.avatar.title"
 msgstr "头像"
 
@@ -629,6 +624,7 @@ msgid "admin.users.filter.clear"
 msgstr "清除筛选"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminSettings.tsx
 #: src/pages/admin/settings/NetworkPanel.tsx
 msgid "settings.network.title"
 msgstr "客户端 IP"
@@ -1221,11 +1217,6 @@ msgstr "显示名称"
 
 #. js-lingui-explicit-id
 #: src/pages/Profile.tsx
-msgid "profile.tab.display-name"
-msgstr "显示名称"
-
-#. js-lingui-explicit-id
-#: src/pages/Profile.tsx
 msgid "profile.display-name.title"
 msgstr "显示名称"
 
@@ -1519,11 +1510,6 @@ msgstr "表单集成验证"
 #: src/components/custom/PreviewLayout.tsx
 msgid "navigation.forms"
 msgstr "表单验证（开发）"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/AdminSettings.tsx
-msgid "settings.tab.general"
-msgstr "常规"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/SigningKeysPanel.tsx
@@ -1902,10 +1888,6 @@ msgstr "维护模式"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminSettings.tsx
-msgid "settings.tab.maintenance"
-msgstr "维护"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/settings/MaintenancePanel.tsx
 msgid "settings.maintenance.title"
 msgstr "维护模式"
@@ -2009,11 +1991,6 @@ msgstr "名称"
 #: src/pages/admin/settings/GeneralPanel.tsx
 msgid "settings.general.name.label"
 msgstr "名称"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/AdminSettings.tsx
-msgid "settings.tab.network"
-msgstr "网络"
 
 #. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
@@ -2469,11 +2446,6 @@ msgstr "预览导航"
 #: src/pages/Preview.tsx
 msgid "notification.message"
 msgstr "这是预览通知，没有提交任何数据。"
-
-#. js-lingui-explicit-id
-#: src/pages/Profile.tsx
-msgid "profile.tabs"
-msgstr "个人资料"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
@@ -2962,11 +2934,6 @@ msgid "security.setup.title.totp"
 msgstr "重设验证器并设置新密码"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminSettings.tsx
-msgid "settings.tabs"
-msgstr "设置"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts
 msgid "audit.factor.settings"
 msgstr "设置"
@@ -3123,7 +3090,8 @@ msgstr "签名密钥开始退役"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminSettings.tsx
-msgid "settings.tab.keys"
+#: src/pages/admin/settings/SigningKeysPanel.tsx
+msgid "settings.keys.section"
 msgstr "签名密钥"
 
 #. js-lingui-explicit-id

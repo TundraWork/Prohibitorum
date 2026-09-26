@@ -12,6 +12,7 @@ import { publicConfigQueryOptions } from "@/api/queries";
 import type { MaintenanceSettings } from "@/api/raw-admin-paths";
 import { ConfirmDialog } from "@/components/custom/ConfirmDialog";
 import { ConsoleCard } from "@/components/custom/ConsoleCard";
+import { Section } from "@/components/custom/Section";
 import { applyServerError } from "@/forms/server-errors";
 import { useAppForm } from "@/forms/use-app-form";
 
@@ -77,53 +78,61 @@ function MaintenanceCard({ saved }: { saved: MaintenanceSettings }) {
   });
 
   return (
-    <ConsoleCard
-      title={<Trans id="settings.maintenance.title">Maintenance mode</Trans>}
-    >
-      <form.AppForm>
-        <form.Form
-          label={t({
-            id: "settings.maintenance.form",
-            message: "Maintenance mode",
-          })}
-        >
-          <form.FormError />
-          <form.AppField name="maintenanceMode">
-            {(field) => (
-              <field.SwitchField
-                label={
-                  <Trans id="settings.maintenance.switch">
-                    Maintenance mode
-                  </Trans>
-                }
-              />
-            )}
-          </form.AppField>
-          <form.AppField
-            name="maintenanceMessage"
-            validators={{
-              onChange: ({ value }) =>
-                [...value].length > maxNoticeLength ? noticeTooLong : undefined,
-            }}
-          >
-            {(field) => (
-              <field.TextAreaField
-                label={<Trans id="settings.maintenance.notice">Notice</Trans>}
-                description={
-                  <Trans id="settings.maintenance.notice.hint">
-                    Shown on the sign-in page while maintenance mode is on.
-                  </Trans>
-                }
-                rows={4}
-                variant="secondary"
-              />
-            )}
-          </form.AppField>
-          <form.SubmitButton>
-            <Trans id="settings.maintenance.save">Save</Trans>
-          </form.SubmitButton>
-        </form.Form>
-      </form.AppForm>
+    <>
+      <Section
+        title={<Trans id="settings.maintenance.title">Maintenance mode</Trans>}
+      >
+        <ConsoleCard>
+          <form.AppForm>
+            <form.Form
+              label={t({
+                id: "settings.maintenance.form",
+                message: "Maintenance mode",
+              })}
+            >
+              <form.FormError />
+              <form.AppField name="maintenanceMode">
+                {(field) => (
+                  <field.SwitchField
+                    label={
+                      <Trans id="settings.maintenance.switch">
+                        Maintenance mode
+                      </Trans>
+                    }
+                  />
+                )}
+              </form.AppField>
+              <form.AppField
+                name="maintenanceMessage"
+                validators={{
+                  onChange: ({ value }) =>
+                    [...value].length > maxNoticeLength
+                      ? noticeTooLong
+                      : undefined,
+                }}
+              >
+                {(field) => (
+                  <field.TextAreaField
+                    label={
+                      <Trans id="settings.maintenance.notice">Notice</Trans>
+                    }
+                    description={
+                      <Trans id="settings.maintenance.notice.hint">
+                        Shown on the sign-in page while maintenance mode is on.
+                      </Trans>
+                    }
+                    rows={4}
+                    variant="secondary"
+                  />
+                )}
+              </form.AppField>
+              <form.SubmitButton>
+                <Trans id="settings.maintenance.save">Save</Trans>
+              </form.SubmitButton>
+            </form.Form>
+          </form.AppForm>
+        </ConsoleCard>
+      </Section>
 
       <ConfirmDialog
         isOpen={confirming !== null}
@@ -151,6 +160,6 @@ function MaintenanceCard({ saved }: { saved: MaintenanceSettings }) {
           void save(confirming).finally(() => setConfirming(null));
         }}
       />
-    </ConsoleCard>
+    </>
   );
 }

@@ -23,6 +23,7 @@ import { Button } from "@/components/custom/Button";
 import { ConfirmDialog } from "@/components/custom/ConfirmDialog";
 import { DataTable, type TableColumn } from "@/components/custom/DataTable";
 import { RelativeTime } from "@/components/custom/RelativeTime";
+import { Section } from "@/components/custom/Section";
 import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
 import { TableEmptyState } from "@/components/custom/TableEmptyState";
 
@@ -71,49 +72,54 @@ export function SigningKeysPanel() {
   };
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center gap-4">
-        <Button
-          isPending={generate.isPending}
-          onPress={() => generate.mutate()}
-        >
-          <Trans id="settings.keys.generate">Generate key</Trans>
-        </Button>
-      </div>
-
-      {list.error !== null && list.error !== undefined && (
-        <Alert status="danger" role="alert">
-          <Alert.Indicator />
-          <Alert.Content>
-            <Alert.Title>
-              <Trans id="settings.keys.error">
-                The keys could not be loaded. Try again.
-              </Trans>
-            </Alert.Title>
-          </Alert.Content>
-        </Alert>
-      )}
-
-      <DataTable
-        label={t({ id: "settings.keys.table", message: "Signing keys" })}
-        columns={keyColumns(i18n, {
-          view: setViewing,
-          activate: (key) => setPending({ action: "activate", key }),
-          retire: (key) => setPending({ action: "retire", key }),
-        })}
-        rows={list.items}
-        rowId={(key) => key.kid}
-        loading={list.loading}
-        hasMore={list.hasMore}
-        loadingMore={list.loadingMore}
-        onLoadMore={list.loadMore}
-        empty={
-          <TableEmptyState
-            icon={<KeyRound size={18} strokeWidth={1.75} aria-hidden="true" />}
-            title={<Trans id="settings.keys.empty">No signing keys</Trans>}
-          />
+    <>
+      <Section
+        title={<Trans id="settings.keys.section">Signing keys</Trans>}
+        action={
+          <Button
+            isPending={generate.isPending}
+            onPress={() => generate.mutate()}
+          >
+            <Trans id="settings.keys.generate">Generate key</Trans>
+          </Button>
         }
-      />
+      >
+        {list.error !== null && list.error !== undefined && (
+          <Alert status="danger" role="alert">
+            <Alert.Indicator />
+            <Alert.Content>
+              <Alert.Title>
+                <Trans id="settings.keys.error">
+                  The keys could not be loaded. Try again.
+                </Trans>
+              </Alert.Title>
+            </Alert.Content>
+          </Alert>
+        )}
+
+        <DataTable
+          label={t({ id: "settings.keys.table", message: "Signing keys" })}
+          columns={keyColumns(i18n, {
+            view: setViewing,
+            activate: (key) => setPending({ action: "activate", key }),
+            retire: (key) => setPending({ action: "retire", key }),
+          })}
+          rows={list.items}
+          rowId={(key) => key.kid}
+          loading={list.loading}
+          hasMore={list.hasMore}
+          loadingMore={list.loadingMore}
+          onLoadMore={list.loadMore}
+          empty={
+            <TableEmptyState
+              icon={
+                <KeyRound size={18} strokeWidth={1.75} aria-hidden="true" />
+              }
+              title={<Trans id="settings.keys.empty">No signing keys</Trans>}
+            />
+          }
+        />
+      </Section>
 
       <ConfirmDialog
         isOpen={pending?.action === "activate"}
@@ -152,7 +158,7 @@ export function SigningKeysPanel() {
         onConfirm={confirm}
       />
       <PublicKeyDialog signingKey={viewing} onClose={() => setViewing(null)} />
-    </div>
+    </>
   );
 }
 

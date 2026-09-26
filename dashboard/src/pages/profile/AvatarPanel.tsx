@@ -31,6 +31,13 @@ function activeSource(session: Session): string {
   return session.avatarSource ?? "none";
 }
 
+/**
+ * The avatar as it stands, and the three ways to change it.
+ *
+ * The card carries no heading of its own: the section above it names the block,
+ * and a second heading inside the card would sit below the section's in the
+ * outline without adding anything to it.
+ */
 export function AvatarPanel({ current }: { current: Session }) {
   const { t } = useLingui();
   const queryClient = useQueryClient();
@@ -104,7 +111,7 @@ export function AvatarPanel({ current }: { current: Session }) {
   const busy = pending || select.isPending || remove.isPending;
 
   return (
-    <ConsoleCard title={<Trans id="profile.avatar.title">Avatar</Trans>}>
+    <ConsoleCard>
       <div className="flex flex-col gap-6">
         <div className="flex items-center gap-4">
           <Avatar className="size-16 shrink-0">

@@ -11,6 +11,7 @@ import { updateClientIpMutationOptions } from "@/api/mutations";
 import { clientIpQueryOptions } from "@/api/queries";
 import type { ClientIpSettings } from "@/api/raw-admin-paths";
 import { ConsoleCard } from "@/components/custom/ConsoleCard";
+import { Section } from "@/components/custom/Section";
 import { applyServerError } from "@/forms/server-errors";
 import { useAppForm } from "@/forms/use-app-form";
 import {
@@ -80,114 +81,118 @@ function ClientIpCard({ saved }: { saved: ClientIpSettings }) {
   const submitting = useStore(form.store, (state) => state.isSubmitting);
 
   return (
-    <ConsoleCard title={<Trans id="settings.network.title">Client IP</Trans>}>
-      <form.AppForm>
-        <form.Form
-          label={t({ id: "settings.network.form", message: "Client IP" })}
-        >
-          <form.FormError />
-          <form.Field name="strategy">
-            {(field) => (
-              <RadioGroup
-                variant="secondary"
-                isDisabled={submitting}
-                value={field.state.value}
-                onChange={(next) =>
-                  field.handleChange(next as ClientIpStrategy)
-                }
+    <Section title={<Trans id="settings.network.title">Client IP</Trans>}>
+      <ConsoleCard>
+        <form.AppForm>
+          <form.Form
+            label={t({ id: "settings.network.form", message: "Client IP" })}
+          >
+            <form.FormError />
+            <form.Field name="strategy">
+              {(field) => (
+                <RadioGroup
+                  variant="secondary"
+                  isDisabled={submitting}
+                  value={field.state.value}
+                  onChange={(next) =>
+                    field.handleChange(next as ClientIpStrategy)
+                  }
+                >
+                  <Label>
+                    <Trans id="settings.network.strategy">
+                      Read the address from
+                    </Trans>
+                  </Label>
+                  <Radio value="direct">
+                    <Radio.Content>
+                      <Radio.Control>
+                        <Radio.Indicator />
+                      </Radio.Control>
+                      <Trans id="settings.network.strategy.direct">
+                        The connection
+                      </Trans>
+                    </Radio.Content>
+                  </Radio>
+                  <Radio value="forwarded">
+                    <Radio.Content>
+                      <Radio.Control>
+                        <Radio.Indicator />
+                      </Radio.Control>
+                      X-Forwarded-For
+                    </Radio.Content>
+                  </Radio>
+                  <Radio value="header">
+                    <Radio.Content>
+                      <Radio.Control>
+                        <Radio.Indicator />
+                      </Radio.Control>
+                      <Trans id="settings.network.strategy.header">
+                        Another header
+                      </Trans>
+                    </Radio.Content>
+                  </Radio>
+                </RadioGroup>
+              )}
+            </form.Field>
+
+            {strategy === "header" && (
+              <form.AppField
+                name="header"
+                validators={{
+                  onBlur: ({ value }) => headerNameError(value),
+                  onSubmit: ({ value }) => headerNameError(value),
+                }}
               >
-                <Label>
-                  <Trans id="settings.network.strategy">
-                    Read the address from
-                  </Trans>
-                </Label>
-                <Radio value="direct">
-                  <Radio.Content>
-                    <Radio.Control>
-                      <Radio.Indicator />
-                    </Radio.Control>
-                    <Trans id="settings.network.strategy.direct">
-                      The connection
-                    </Trans>
-                  </Radio.Content>
-                </Radio>
-                <Radio value="forwarded">
-                  <Radio.Content>
-                    <Radio.Control>
-                      <Radio.Indicator />
-                    </Radio.Control>
-                    X-Forwarded-For
-                  </Radio.Content>
-                </Radio>
-                <Radio value="header">
-                  <Radio.Content>
-                    <Radio.Control>
-                      <Radio.Indicator />
-                    </Radio.Control>
-                    <Trans id="settings.network.strategy.header">
-                      Another header
-                    </Trans>
-                  </Radio.Content>
-                </Radio>
-              </RadioGroup>
+                {(field) => (
+                  <field.FormField
+                    label={
+                      <Trans id="settings.network.header">Header name</Trans>
+                    }
+                    placeholder="CF-Connecting-IP"
+                    autoComplete="off"
+                    spellCheck={false}
+                    variant="secondary"
+                  />
+                )}
+              </form.AppField>
             )}
-          </form.Field>
 
-          {strategy === "header" && (
-            <form.AppField
-              name="header"
-              validators={{
-                onBlur: ({ value }) => headerNameError(value),
-                onSubmit: ({ value }) => headerNameError(value),
-              }}
-            >
-              {(field) => (
-                <field.FormField
-                  label={
-                    <Trans id="settings.network.header">Header name</Trans>
-                  }
-                  placeholder="CF-Connecting-IP"
-                  autoComplete="off"
-                  spellCheck={false}
-                  variant="secondary"
-                />
-              )}
-            </form.AppField>
-          )}
+            {strategy !== "direct" && (
+              <form.AppField
+                name="proxies"
+                validators={{
+                  onBlur: ({ value }) => proxiesError(i18n, value),
+                  onSubmit: ({ value }) => proxiesError(i18n, value),
+                }}
+              >
+                {(field) => (
+                  <field.TextAreaField
+                    label={
+                      <Trans id="settings.network.proxies">
+                        Trusted proxies
+                      </Trans>
+                    }
+                    description={
+                      <Trans id="settings.network.proxies.hint">
+                        One address range per line, such as 10.0.0.0/8.
+                      </Trans>
+                    }
+                    rows={5}
+                    spellCheck={false}
+                    variant="secondary"
+                    className="font-mono"
+                  />
+                )}
+              </form.AppField>
+            )}
 
-          {strategy !== "direct" && (
-            <form.AppField
-              name="proxies"
-              validators={{
-                onBlur: ({ value }) => proxiesError(i18n, value),
-                onSubmit: ({ value }) => proxiesError(i18n, value),
-              }}
-            >
-              {(field) => (
-                <field.TextAreaField
-                  label={
-                    <Trans id="settings.network.proxies">Trusted proxies</Trans>
-                  }
-                  description={
-                    <Trans id="settings.network.proxies.hint">
-                      One address range per line, such as 10.0.0.0/8.
-                    </Trans>
-                  }
-                  rows={5}
-                  spellCheck={false}
-                  variant="secondary"
-                  className="font-mono"
-                />
-              )}
-            </form.AppField>
-          )}
-
-          <form.SubmitButton>
-            <Trans id="settings.network.save">Save</Trans>
-          </form.SubmitButton>
-        </form.Form>
-      </form.AppForm>
-    </ConsoleCard>
+            <form.SubmitButton>
+              <Trans id="settings.network.save">Save</Trans>
+            </form.SubmitButton>
+          </form.Form>
+        </form.AppForm>
+      </ConsoleCard>
+    </Section>
   );
 }
 

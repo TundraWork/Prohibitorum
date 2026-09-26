@@ -18,6 +18,7 @@ import { publicConfigQueryOptions } from "@/api/queries";
 import { ConsoleCard } from "@/components/custom/ConsoleCard";
 import { ImageUploadControl } from "@/components/custom/ImageUploadControl";
 import { instanceBranding } from "@/components/custom/instance-branding";
+import { Section } from "@/components/custom/Section";
 import { applyServerError } from "@/forms/server-errors";
 import { useAppForm } from "@/forms/use-app-form";
 
@@ -36,27 +37,48 @@ const iconTypes = ["image/png", "image/jpeg", "image/webp", "image/gif"];
 const backgroundTypes = ["image/png", "image/jpeg", "image/webp"];
 
 /**
- * What the instance is called and how it looks. Every value here comes from
- * `/config`, the same read the sidebar, the header, the title and the sign-in
- * page draw from, so a saved change shows everywhere once it refreshes.
+ * What the instance is called and how it looks, one section per value.
+ *
+ * Every value here comes from `/config`, the same read the sidebar, the header,
+ * the title and the sign-in page draw from, so a saved change shows everywhere
+ * once it refreshes. Three separate sections rather than three cards in one:
+ * each names the thing it changes, and a reader looking for the sign-in
+ * background is not asked to read past the name and the icon first.
  */
 export function GeneralPanel() {
   const { data: config } = useSuspenseQuery(publicConfigQueryOptions());
   const branding = instanceBranding(config);
 
   return (
-    <div className="flex flex-col gap-4">
+    <>
       {/* Keyed by the saved name, so the field starts again from what the
           server now reports — including the configured name after the
           override was cleared. */}
-      <InstanceNameCard key={config.instanceName} name={config.instanceName} />
-      <IconCard
-        iconUrl={branding.iconUrl}
-        name={branding.name}
-        hasCustomIcon={config.hasCustomIcon}
-      />
-      <BackgroundCard backgroundUrl={branding.backgroundUrl} />
-    </div>
+      <Section
+        title={<Trans id="settings.general.name.title">Instance name</Trans>}
+      >
+        <InstanceNameCard
+          key={config.instanceName}
+          name={config.instanceName}
+        />
+      </Section>
+      <Section title={<Trans id="settings.general.icon.title">Icon</Trans>}>
+        <IconCard
+          iconUrl={branding.iconUrl}
+          name={branding.name}
+          hasCustomIcon={config.hasCustomIcon}
+        />
+      </Section>
+      <Section
+        title={
+          <Trans id="settings.general.background.title">
+            Sign-in background
+          </Trans>
+        }
+      >
+        <BackgroundCard backgroundUrl={branding.backgroundUrl} />
+      </Section>
+    </>
   );
 }
 
@@ -81,9 +103,7 @@ function InstanceNameCard({ name }: { name: string }) {
   });
 
   return (
-    <ConsoleCard
-      title={<Trans id="settings.general.name.title">Instance name</Trans>}
-    >
+    <ConsoleCard>
       <form.AppForm>
         <form.Form
           label={t({
@@ -149,8 +169,8 @@ function IconCard({
   const { upload, remove, failure } = useInstanceImage("icon");
 
   return (
-    <ConsoleCard title={<Trans id="settings.general.icon.title">Icon</Trans>}>
-      <div className="flex flex-col gap-4">
+    <ConsoleCard>
+      <div className="flex items-center gap-6">
         <Avatar className="size-16 shrink-0">
           <Avatar.Image src={iconUrl} alt="" />
           <Avatar.Fallback>{name.slice(0, 1)}</Avatar.Fallback>
@@ -187,13 +207,9 @@ function BackgroundCard({ backgroundUrl }: { backgroundUrl?: string }) {
   const { upload, remove, failure } = useInstanceImage("background");
 
   return (
-    <ConsoleCard
-      title={
-        <Trans id="settings.general.background.title">Sign-in background</Trans>
-      }
-    >
-      <div className="flex flex-col gap-4">
-        <div className="grid aspect-video w-full max-w-xs place-items-center overflow-hidden rounded-[0.375rem] bg-surface-secondary text-muted">
+    <ConsoleCard>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:gap-6">
+        <div className="grid aspect-video w-full max-w-xs shrink-0 place-items-center overflow-hidden rounded-[0.375rem] bg-surface-secondary text-muted">
           {backgroundUrl === undefined ? (
             <ImageIcon size={24} strokeWidth={1.5} aria-hidden="true" />
           ) : (

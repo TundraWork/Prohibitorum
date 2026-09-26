@@ -468,11 +468,6 @@ msgstr "Authorized <0/>"
 
 #. js-lingui-explicit-id
 #: src/pages/Profile.tsx
-msgid "profile.tab.avatar"
-msgstr "Avatar"
-
-#. js-lingui-explicit-id
-#: src/pages/profile/AvatarPanel.tsx
 msgid "profile.avatar.title"
 msgstr "Avatar"
 
@@ -629,6 +624,7 @@ msgid "admin.users.filter.clear"
 msgstr "Clear the filter"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminSettings.tsx
 #: src/pages/admin/settings/NetworkPanel.tsx
 msgid "settings.network.title"
 msgstr "Client IP"
@@ -1221,11 +1217,6 @@ msgstr "Display name"
 
 #. js-lingui-explicit-id
 #: src/pages/Profile.tsx
-msgid "profile.tab.display-name"
-msgstr "Display name"
-
-#. js-lingui-explicit-id
-#: src/pages/Profile.tsx
 msgid "profile.display-name.title"
 msgstr "Display name"
 
@@ -1519,11 +1510,6 @@ msgstr "Form integration checks"
 #: src/components/custom/PreviewLayout.tsx
 msgid "navigation.forms"
 msgstr "Form verification (development)"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/AdminSettings.tsx
-msgid "settings.tab.general"
-msgstr "General"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/SigningKeysPanel.tsx
@@ -1902,10 +1888,6 @@ msgstr "Maintenance"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminSettings.tsx
-msgid "settings.tab.maintenance"
-msgstr "Maintenance"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/settings/MaintenancePanel.tsx
 msgid "settings.maintenance.title"
 msgstr "Maintenance mode"
@@ -2009,11 +1991,6 @@ msgstr "Name"
 #: src/pages/admin/settings/GeneralPanel.tsx
 msgid "settings.general.name.label"
 msgstr "Name"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/AdminSettings.tsx
-msgid "settings.tab.network"
-msgstr "Network"
 
 #. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
@@ -2469,11 +2446,6 @@ msgstr "Preview navigation"
 #: src/pages/Preview.tsx
 msgid "notification.message"
 msgstr "Preview notification. No data was submitted."
-
-#. js-lingui-explicit-id
-#: src/pages/Profile.tsx
-msgid "profile.tabs"
-msgstr "Profile"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
@@ -2962,11 +2934,6 @@ msgid "security.setup.title.totp"
 msgstr "Set up an authenticator with a new password"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminSettings.tsx
-msgid "settings.tabs"
-msgstr "Settings"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts
 msgid "audit.factor.settings"
 msgstr "Settings"
@@ -3123,7 +3090,8 @@ msgstr "Signing key is being retired"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminSettings.tsx
-msgid "settings.tab.keys"
+#: src/pages/admin/settings/SigningKeysPanel.tsx
+msgid "settings.keys.section"
 msgstr "Signing keys"
 
 #. js-lingui-explicit-id

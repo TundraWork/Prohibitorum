@@ -8,15 +8,13 @@ import {
   Outlet,
   RouterProvider,
 } from "@tanstack/react-router";
-import { render, screen, waitFor } from "@testing-library/react";
-import userEvent, { type UserEvent } from "@testing-library/user-event";
+import { render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { components } from "@/api/generated/schema";
 import { consentQueryOptions, sessionQueryOptions } from "@/api/queries";
 import { createQueryClient } from "@/app/query-client";
 import { i18n } from "@/i18n";
 import { ConnectedApps } from "@/pages/ConnectedApps";
-import { profileTab } from "@/pages/console/tabs";
 import { Profile } from "@/pages/Profile";
 
 vi.mock("qrcode", () => ({
@@ -54,22 +52,19 @@ afterEach(() => {
 });
 
 /**
- * Mounts one page under a router that owns the tab search parameter.
+ * Mounts one page under a router, the way the real route file mounts it.
  *
- * The route is built the same way the real route file builds it, because the
- * page reads its tab through `Route.useSearch`: a differently declared search
- * would send the page down a different path than the one under test.
+ * None of these pages keeps state in the URL — the profile and the settings
+ * pages are sections, not tabs — so the route declares no search of its own.
  */
 function mount(
   path: "/profile" | "/security" | "/apps",
   component: () => React.ReactElement | null,
-  validateSearch: (search: Record<string, unknown>) => Record<string, unknown>,
 ) {
   const root = createRootRoute({ component: Outlet });
   const route = createRoute({
     getParentRoute: () => root,
     path,
-    validateSearch,
     component,
   });
   const home = createRoute({
@@ -91,64 +86,32 @@ function mount(
   return router;
 }
 
-const profileSearch = (search: Record<string, unknown>) => ({
-  tab: profileTab(search.tab),
-});
+describe("profile", () => {
+  it("shows every section at once, with no control to work through", async () => {
+    history.push("/profile");
+    mount("/profile", Profile);
 
-/** Path plus query, so a tab change is visible in the URL the user would share. */
-function location(router: {
-  state: { location: { pathname: string; search: unknown } };
-}) {
-  const { pathname, search } = router.state.location;
-  const query = new URLSearchParams(
-    Object.entries(search as Record<string, string>),
-  ).toString();
-  return query ? `${pathname}?${query}` : pathname;
-}
-
-describe("profile tabs", () => {
-  it("renders the tab the query names and only that panel's content", async () => {
-    history.push("/profile?tab=avatar");
-    mount("/profile", Profile, profileSearch);
-
-    expect(
-      await screen.findByRole("heading", { name: "Avatar" }),
-    ).toBeInTheDocument();
-    // Only the selected panel is mounted, so its queries never start early.
-    expect(
-      screen.queryByRole("heading", { name: "Display name" }),
-    ).not.toBeInTheDocument();
-  });
-
-  it("falls back to the first tab for an unknown value instead of failing", async () => {
-    history.push("/profile?tab=nonsense");
-    mount("/profile", Profile, profileSearch);
-
+    // Both blocks are on the page as it opens: the display name a reader came
+    // to change, and the avatar beside it.
     expect(
       await screen.findByRole("heading", { name: "Display name" }),
     ).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Avatar" })).toBeInTheDocument();
+    expect(screen.queryByRole("tab")).not.toBeInTheDocument();
   });
 
-  it("writes the chosen tab into the URL and replaces rather than stacks history", async () => {
+  it("keeps the username, which the page reports rather than lets a reader edit", async () => {
     history.push("/profile");
-    const router = mount("/profile", Profile, profileSearch);
-    const user: UserEvent = userEvent.setup();
-    await screen.findByRole("heading", { name: "Display name" });
+    mount("/profile", Profile);
 
-    const before = router.history.length;
-    await user.click(screen.getByRole("tab", { name: "Avatar" }));
-
-    await waitFor(() => expect(location(router)).toBe("/profile?tab=avatar"));
-    // Replaced, not pushed: browsing tabs adds no history entries, so the page
-    // the user came from is still one press back.
-    expect(router.history.length).toBe(before);
+    expect(await screen.findByText("alice")).toBeInTheDocument();
   });
 });
 
 describe("connected applications", () => {
   it("says so plainly when nothing has been approved", async () => {
     history.push("/apps");
-    mount("/apps", ConnectedApps, () => ({}));
+    mount("/apps", ConnectedApps);
 
     expect(
       await screen.findByText("No approved applications yet"),
@@ -166,7 +129,7 @@ describe("connected applications", () => {
       },
     ]);
     history.push("/apps");
-    mount("/apps", ConnectedApps, () => ({}));
+    mount("/apps", ConnectedApps);
 
     expect(await screen.findByText("GitHub Enterprise")).toBeInTheDocument();
     expect(screen.getByText("SAML")).toBeInTheDocument();

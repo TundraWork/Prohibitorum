@@ -1,4 +1,4 @@
-import { Spinner } from "@heroui/react";
+import { Card, Spinner } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { QueryErrorResetBoundary } from "@tanstack/react-query";
 import { CatchBoundary } from "@tanstack/react-router";
@@ -36,7 +36,11 @@ export function Section({
 }) {
   return (
     <section className="flex flex-col gap-3">
-      <div className="flex items-center justify-between gap-4">
+      {/* The row is a button's height so a heading with an action and one
+          without line up across sections: left to the text, the row would be
+          half the height and its heading would sit higher than its
+          neighbours'. */}
+      <div className="flex min-h-10 items-center justify-between gap-4">
         <h2 className="text-sm font-medium text-foreground">{title}</h2>
         {action}
       </div>
@@ -53,17 +57,37 @@ export function Section({
  * block, and one that fails leaves the others readable. That is why a section's
  * data is fetched inside the section, not in a route loader.
  *
+ * The boundary can draw the section's heading itself, from `title`, so the
+ * heading is on screen from the first frame and stays there through the wait.
+ * A fallback without it would leave the page headingless while the reads
+ * resolve and then push everything below it down when they land, which is the
+ * jump the heading exists to prevent.
+ *
+ * `title` is optional because not every boundary is a section. A tab panel
+ * under `ConsoleTabs` already has its name on the strip, so it passes none and
+ * the boundary draws the bare block instead.
+ *
  * A retry clears the failed queries' error state before remounting the
  * children, so their suspense reads ask again.
  */
 export function AsyncSection({
   resetKey,
+  title,
   children,
 }: {
   /** Identifies the boundary's content, so a change to it resets the error. */
   resetKey: string;
+  /**
+   * The section's heading, drawn whether or not the content has arrived.
+   * Omitted where the boundary is not a section and something else already
+   * names the block.
+   */
+  title?: ReactNode;
   children: ReactNode;
 }) {
+  const wrap = (content: ReactNode) =>
+    title === undefined ? content : <Section title={title}>{content}</Section>;
+
   return (
     <QueryErrorResetBoundary>
       {({ reset: resetQueries }) => (
@@ -71,6 +95,7 @@ export function AsyncSection({
           getResetKey={() => resetKey}
           errorComponent={({ error, reset }) => (
             <SectionError
+              title={title}
               error={error}
               onRetry={() => {
                 resetQueries();
@@ -79,48 +104,59 @@ export function AsyncSection({
             />
           )}
         >
-          <Suspense fallback={<SectionPending />}>{children}</Suspense>
+          <Suspense fallback={wrap(<SectionPending />)}>{children}</Suspense>
         </CatchBoundary>
       )}
     </QueryErrorResetBoundary>
   );
 }
 
+/**
+ * The block's own shape while its read is in flight: a card the height of a
+ * short one, so the page settles where the content will land rather than
+ * collapsing to nothing and growing again.
+ */
 function SectionPending() {
   return (
-    <div className="flex justify-center py-12">
-      <Spinner size="md" />
-    </div>
+    <Card className="gap-0 p-0">
+      <div className="flex items-center justify-center py-10">
+        <Spinner size="md" />
+      </div>
+    </Card>
   );
 }
 
 function SectionError({
+  title,
   error,
   onRetry,
 }: {
+  title: ReactNode;
   error: unknown;
   onRetry: () => void;
 }) {
   const { t } = useLingui();
   return (
-    <SurfaceAlert status="danger" role="alert">
-      <SurfaceAlert.Indicator />
-      <SurfaceAlert.Content>
-        <SurfaceAlert.Title>
-          <Trans id="section.failed">This section could not be loaded</Trans>
-        </SurfaceAlert.Title>
-        <SurfaceAlert.Description>
-          {t(describeError(error))}
-        </SurfaceAlert.Description>
-        <Button
-          className="mt-2 w-fit"
-          size="sm"
-          variant="danger"
-          onPress={onRetry}
-        >
-          <Trans id="section.retry">Try again</Trans>
-        </Button>
-      </SurfaceAlert.Content>
-    </SurfaceAlert>
+    <Section title={title}>
+      <SurfaceAlert status="danger" role="alert">
+        <SurfaceAlert.Indicator />
+        <SurfaceAlert.Content>
+          <SurfaceAlert.Title>
+            <Trans id="section.failed">This section could not be loaded</Trans>
+          </SurfaceAlert.Title>
+          <SurfaceAlert.Description>
+            {t(describeError(error))}
+          </SurfaceAlert.Description>
+          <Button
+            className="mt-2 w-fit"
+            size="sm"
+            variant="danger"
+            onPress={onRetry}
+          >
+            <Trans id="section.retry">Try again</Trans>
+          </Button>
+        </SurfaceAlert.Content>
+      </SurfaceAlert>
+    </Section>
   );
 }
