@@ -75,13 +75,13 @@ export function isCancellation(error: unknown): boolean {
 
 const genericFailure = msg({
   id: "error.request_failed",
-  message: "The request failed. Please try again.",
+  message: "The request failed.",
 });
 
 const errorMessages: Readonly<Record<string, MessageDescriptor>> = {
   validation_failed: msg({
     id: "error.validation_failed",
-    message: "Check the submitted information and try again.",
+    message: "The submitted information is not valid.",
   }),
   invalid_nickname: msg({
     id: "error.invalid_nickname",
@@ -105,7 +105,7 @@ const errorMessages: Readonly<Record<string, MessageDescriptor>> = {
   }),
   not_admin: msg({
     id: "error.not_admin",
-    message: "You do not have permission to perform this action.",
+    message: "This requires an administrator.",
   }),
   account_disabled: msg({
     id: "error.account_disabled",
@@ -131,11 +131,11 @@ const errorMessages: Readonly<Record<string, MessageDescriptor>> = {
   }),
   credential_not_found: msg({
     id: "error.credential_not_found",
-    message: "That passkey is already gone. The list has been refreshed.",
+    message: "That passkey is already gone.",
   }),
   session_not_found: msg({
     id: "error.session_not_found",
-    message: "That session has already ended. The list has been refreshed.",
+    message: "That session has already ended.",
   }),
   cannot_revoke_current_session: msg({
     id: "error.cannot_revoke_current_session",
@@ -181,11 +181,11 @@ const errorMessages: Readonly<Record<string, MessageDescriptor>> = {
   }),
   maintenance_mode: msg({
     id: "error.maintenance_mode",
-    message: "The service is undergoing maintenance. Please try again later.",
+    message: "The service is undergoing maintenance.",
   }),
   rate_limited: msg({
     id: "error.rate_limited",
-    message: "Too many requests. Please wait before trying again.",
+    message: "Too many requests. Wait a moment.",
   }),
   partial_session_invalid: msg({
     id: "error.partial_session_invalid",
@@ -193,34 +193,33 @@ const errorMessages: Readonly<Record<string, MessageDescriptor>> = {
   }),
   factor_locked: msg({
     id: "error.factor_locked",
-    message: "Too many verification attempts. Please wait before trying again.",
+    message: "Too many verification attempts. Wait a moment.",
   }),
   ceremony_missing: msg({
     id: "error.ceremony_missing",
-    message: "Start passkey sign-in again to continue.",
+    message: "This passkey sign-in could not be found.",
   }),
   ceremony_expired: msg({
     id: "error.ceremony_expired",
-    message: "The passkey sign-in attempt has expired. Please start again.",
+    message: "The passkey sign-in attempt has expired.",
   }),
   ceremony_state_invalid: msg({
     id: "error.ceremony_state_invalid",
-    message:
-      "The passkey sign-in attempt could not be verified. Please start again.",
+    message: "The passkey sign-in attempt could not be verified.",
   }),
   login_failed: msg({
     id: "error.login_failed",
-    message: "Passkey sign-in failed. Try again or use your password.",
+    message: "Passkey sign-in failed. You can use your password instead.",
   }),
   login_verification_failed: msg({
     id: "error.login_verification_failed",
     message:
-      "The passkey could not be verified. Try again or use your password.",
+      "The passkey could not be verified. You can use your password instead.",
   }),
   login_account_not_found: msg({
     id: "error.login_account_not_found",
     message:
-      "The passkey could not be verified. Try again or use your password.",
+      "The passkey could not be verified. You can use your password instead.",
   }),
   not_bootstrapped: msg({
     id: "error.not_bootstrapped",
@@ -229,7 +228,8 @@ const errorMessages: Readonly<Record<string, MessageDescriptor>> = {
   }),
   passkey_incomplete: msg({
     id: "error.passkey_incomplete",
-    message: "Verification was not completed. Try again or use your password.",
+    message:
+      "Verification was not completed. You can use your password instead.",
   }),
   passkey_unsupported: msg({
     id: "error.passkey_unsupported",
@@ -238,12 +238,11 @@ const errorMessages: Readonly<Record<string, MessageDescriptor>> = {
   }),
   invalid_login_link: msg({
     id: "error.invalid_login_link",
-    message:
-      "This sign-in link is invalid. Open a new sign-in link and try again.",
+    message: "This sign-in link is invalid. Open a new sign-in link.",
   }),
   server_error: msg({
     id: "error.server_error",
-    message: "The server could not complete the request. Please try again.",
+    message: "The server could not complete the request.",
   }),
 
   /* Management. These arrive on writes the console's admin pages make, and each
@@ -281,7 +280,7 @@ const errorMessages: Readonly<Record<string, MessageDescriptor>> = {
   }),
   account_not_found: msg({
     id: "error.account_not_found",
-    message: "That account no longer exists. The list has been refreshed.",
+    message: "That account no longer exists.",
   }),
   invitation_not_found: msg({
     id: "error.invitation_not_found",
@@ -298,7 +297,7 @@ const errorMessages: Readonly<Record<string, MessageDescriptor>> = {
   }),
   group_not_found: msg({
     id: "error.group_not_found",
-    message: "That user group no longer exists. The list has been refreshed.",
+    message: "That user group no longer exists.",
   }),
   group_in_use: msg({
     id: "error.group_in_use",
@@ -307,7 +306,7 @@ const errorMessages: Readonly<Record<string, MessageDescriptor>> = {
   }),
   invalid_group_rule: msg({
     id: "error.invalid_group_rule",
-    message: "The server did not accept this rule. Check it and try again.",
+    message: "The server did not accept this rule.",
   }),
   active_key_no_replacement: msg({
     id: "error.active_key_no_replacement",
@@ -332,7 +331,7 @@ const errorMessages: Readonly<Record<string, MessageDescriptor>> = {
   }),
   client_not_found: msg({
     id: "error.client_not_found",
-    message: "That application no longer exists. The list has been refreshed.",
+    message: "That application no longer exists.",
   }),
   invalid_manager_role: msg({
     id: "error.invalid_manager_role",
@@ -341,7 +340,7 @@ const errorMessages: Readonly<Record<string, MessageDescriptor>> = {
   // VRChat operator sign-in: the code is wrong, or the whole challenge expired.
   vrchat_operator_code_invalid: msg({
     id: "error.vrchat_operator_code_invalid",
-    message: "That code is not valid. Check it and try again.",
+    message: "That code is not valid.",
   }),
   vrchat_operator_credentials_invalid: msg({
     id: "error.vrchat_operator_credentials_invalid",
@@ -353,8 +352,7 @@ const errorMessages: Readonly<Record<string, MessageDescriptor>> = {
   }),
   upstream_rate_limited: msg({
     id: "error.upstream_rate_limited",
-    message:
-      "The provider is asking us to slow down. Wait a moment and try again.",
+    message: "The provider is asking us to slow down. Wait a moment.",
   }),
   upstream_temporarily_unavailable: msg({
     id: "error.upstream_temporarily_unavailable",
@@ -383,7 +381,7 @@ const scopedErrorMessages: Readonly<
   "signing-key": {
     credential_not_found: msg({
       id: "error.signing-key.credential_not_found",
-      message: "This key is no longer pending. The list has been refreshed.",
+      message: "This key is no longer pending.",
     }),
   },
 };
@@ -398,14 +396,13 @@ export function describeError(
   if (error.kind === "network") {
     return msg({
       id: "error.network",
-      message:
-        "Could not connect to the server. Check your connection and try again.",
+      message: "Could not connect to the server. Check your connection.",
     });
   }
   if (error.kind === "invalid-response") {
     return msg({
       id: "error.invalid_response",
-      message: "The server returned an invalid response. Please try again.",
+      message: "The server returned an invalid response.",
     });
   }
   const scoped = scope === undefined ? undefined : scopedErrorMessages[scope];

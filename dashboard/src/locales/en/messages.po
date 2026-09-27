@@ -1015,11 +1015,6 @@ msgid "admin.federation.diagnostics.check-again"
 msgstr "Check again"
 
 #. js-lingui-explicit-id
-#: src/api/errors.ts
-msgid "error.validation_failed"
-msgstr "Check the submitted information and try again."
-
-#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderOperatorSection.tsx
 msgid "admin.federation.operator.validated"
 msgstr "Checked <0/>"
@@ -1683,7 +1678,7 @@ msgstr "Copy your new access token"
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.network"
-msgstr "Could not connect to the server. Check your connection and try again."
+msgstr "Could not connect to the server. Check your connection."
 
 #. js-lingui-explicit-id
 #: src/components/custom/secret-reveal-copy.ts
@@ -1698,7 +1693,7 @@ msgstr "Could not copy the link. Select it above and copy it manually, or downlo
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminInvitations.tsx
 msgid "admin.invitations.copy.failed"
-msgstr "Could not copy the link. Your browser blocked the clipboard; allow it and try again."
+msgstr "Could not copy the link. Your browser blocked the clipboard."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/secret-copy.ts
@@ -1713,7 +1708,7 @@ msgstr "Could not copy the token. Select the token above and copy it manually, o
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/SigningKeysPanel.tsx
 msgid "settings.keys.jwk.copy.failed"
-msgstr "Could not copy. Your browser blocked the clipboard; allow it and try again."
+msgstr "Could not copy. Your browser blocked the clipboard."
 
 #. js-lingui-explicit-id
 #: src/components/custom/secret-reveal-copy.ts
@@ -4235,7 +4230,7 @@ msgstr "Passkey renamed"
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.login_failed"
-msgstr "Passkey sign-in failed. Try again or use your password."
+msgstr "Passkey sign-in failed. You can use your password instead."
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
@@ -5690,11 +5685,6 @@ msgid "admin.federation.diagnostics.start"
 msgstr "Start a test"
 
 #. js-lingui-explicit-id
-#: src/api/errors.ts
-msgid "error.ceremony_missing"
-msgstr "Start passkey sign-in again to continue."
-
-#. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/oidc-validation.ts
 msgid "admin.oidc-apps.alias.name.invalid"
 msgstr "Start with a letter or an underscore, then letters, digits or underscores, up to 64 characters."
@@ -5812,12 +5802,12 @@ msgstr "Test stages"
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.account_not_found"
-msgstr "That account no longer exists. The list has been refreshed."
+msgstr "That account no longer exists."
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.client_not_found"
-msgstr "That application no longer exists. The list has been refreshed."
+msgstr "That application no longer exists."
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -5827,7 +5817,7 @@ msgstr "That Client ID or host name is already in use."
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.vrchat_operator_code_invalid"
-msgstr "That code is not valid. Check it and try again."
+msgstr "That code is not valid."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
@@ -5877,7 +5867,7 @@ msgstr "That pairing code is not valid. It may have been used already, or it may
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.credential_not_found"
-msgstr "That passkey is already gone. The list has been refreshed."
+msgstr "That passkey is already gone."
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -5917,7 +5907,7 @@ msgstr "That role is not one this instance accepts."
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.session_not_found"
-msgstr "That session has already ended. The list has been refreshed."
+msgstr "That session has already ended."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
@@ -5927,7 +5917,7 @@ msgstr "That sign-in method is not supported."
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.group_not_found"
-msgstr "That user group no longer exists. The list has been refreshed."
+msgstr "That user group no longer exists."
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -6079,7 +6069,7 @@ msgstr "The identifier the service provider publishes. The instance sends it wit
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/SigningKeysPanel.tsx
 msgid "settings.keys.error"
-msgstr "The keys could not be loaded. Try again."
+msgstr "The keys could not be loaded."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
@@ -6089,22 +6079,22 @@ msgstr "The link expires on {expiry}."
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminGroups.tsx
 msgid "admin.groups.error"
-msgstr "The list could not be loaded. Try again."
+msgstr "The list could not be loaded."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminInvitations.tsx
 msgid "admin.invitations.error"
-msgstr "The list could not be loaded. Try again."
+msgstr "The list could not be loaded."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminUsers.tsx
 msgid "admin.users.error"
-msgstr "The list could not be loaded. Try again."
+msgstr "The list could not be loaded."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminLogs.tsx
 msgid "admin.logs.error"
-msgstr "The log could not be loaded. Try again."
+msgstr "The log could not be loaded."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminInvitationForm.tsx
@@ -6119,22 +6109,22 @@ msgstr "The openid scope is required."
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.login_verification_failed"
-msgstr "The passkey could not be verified. Try again or use your password."
+msgstr "The passkey could not be verified. You can use your password instead."
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.login_account_not_found"
-msgstr "The passkey could not be verified. Try again or use your password."
+msgstr "The passkey could not be verified. You can use your password instead."
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.ceremony_state_invalid"
-msgstr "The passkey sign-in attempt could not be verified. Please start again."
+msgstr "The passkey sign-in attempt could not be verified."
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.ceremony_expired"
-msgstr "The passkey sign-in attempt has expired. Please start again."
+msgstr "The passkey sign-in attempt has expired."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderDangerSection.tsx
@@ -6144,7 +6134,7 @@ msgstr "The provider and its icon are removed."
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.upstream_rate_limited"
-msgstr "The provider is asking us to slow down. Wait a moment and try again."
+msgstr "The provider is asking us to slow down. Wait a moment."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
@@ -6170,7 +6160,7 @@ msgstr "The request could not be accepted."
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.request_failed"
-msgstr "The request failed. Please try again."
+msgstr "The request failed."
 
 #. js-lingui-explicit-id
 #: src/components/custom/LoginShell.tsx
@@ -6185,22 +6175,22 @@ msgstr "The selection replaces the current one. Only accounts in the groups you 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.server_error"
-msgstr "The server could not complete the request. Please try again."
+msgstr "The server could not complete the request."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
 msgid "admin.group.rule.rejected"
-msgstr "The server did not accept this rule. Check it and try again."
+msgstr "The server did not accept this rule."
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.invalid_group_rule"
-msgstr "The server did not accept this rule. Check it and try again."
+msgstr "The server did not accept this rule."
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.invalid_response"
-msgstr "The server returned an invalid response. Please try again."
+msgstr "The server returned an invalid response."
 
 #. js-lingui-explicit-id
 #: src/pages/DevForms.tsx
@@ -6208,14 +6198,14 @@ msgid "dev.forms.nickname.description"
 msgstr "The server validates this value. A successful request changes the test credential."
 
 #. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.maintenance_mode"
+msgstr "The service is undergoing maintenance."
+
+#. js-lingui-explicit-id
 #: src/components/custom/LoginShell.tsx
 msgid "login.maintenance"
 msgstr "The service is undergoing maintenance. Administrators can still try to sign in."
-
-#. js-lingui-explicit-id
-#: src/api/errors.ts
-msgid "error.maintenance_mode"
-msgstr "The service is undergoing maintenance. Please try again later."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminLogs.tsx
@@ -6231,6 +6221,11 @@ msgstr "The Steam Web API key."
 #: src/api/errors.ts
 msgid "error.request_too_large"
 msgstr "The submitted data is too large."
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.validation_failed"
+msgstr "The submitted information is not valid."
 
 #. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
@@ -6290,7 +6285,7 @@ msgstr "This account cannot sign in. Enabling it restores access with the sign-i
 #. js-lingui-explicit-id
 #: src/components/custom/SudoDialog.tsx
 msgid "sudo.no-methods"
-msgstr "This account has no way to confirm your identity from here. Set up a passkey, or a password and authenticator, before trying again."
+msgstr "This account has no way to confirm your identity from here. Set up a passkey, or a password and authenticator, first."
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -6420,7 +6415,7 @@ msgstr "This is your only way to sign in, so it cannot be turned off. Add a pass
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.signing-key.credential_not_found"
-msgstr "This key is no longer pending. The list has been refreshed."
+msgstr "This key is no longer pending."
 
 #. js-lingui-explicit-id
 #: src/components/custom/secret-reveal-copy.ts
@@ -6443,6 +6438,11 @@ msgid "error.pairing_not_approved"
 msgstr "This pairing is not ready to be approved yet."
 
 #. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.ceremony_missing"
+msgstr "This passkey sign-in could not be found."
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.passkeys.revoke.body"
 msgstr "This passkey stops working immediately. If it is the only way this account signs in, they will need a new registration link."
@@ -6456,6 +6456,11 @@ msgstr "This passkey will stop working for sign-in right away. Any other way you
 #: src/api/errors.ts
 msgid "error.provider_not_ready"
 msgstr "This provider is not ready yet. Finish setting up its credentials before enabling it."
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.not_admin"
+msgstr "This requires an administrator."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
@@ -6495,7 +6500,7 @@ msgstr "This sign-in attempt has expired. Enter your password again."
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.invalid_login_link"
-msgstr "This sign-in link is invalid. Open a new sign-in link and try again."
+msgstr "This sign-in link is invalid. Open a new sign-in link."
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -6565,12 +6570,12 @@ msgstr "Token scopes"
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.rate_limited"
-msgstr "Too many requests. Please wait before trying again."
+msgstr "Too many requests. Wait a moment."
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.factor_locked"
-msgstr "Too many verification attempts. Please wait before trying again."
+msgstr "Too many verification attempts. Wait a moment."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/ForwardAuthProxySection.tsx
@@ -6645,7 +6650,7 @@ msgstr "Unable to load this page"
 #. js-lingui-explicit-id
 #: src/pages/Preview.tsx
 msgid "feedback.error"
-msgstr "Unable to save. Check your input and try again. (Example)"
+msgstr "Unable to save. Check your input. (Example)"
 
 #. js-lingui-explicit-id
 #: src/components/custom/FormError.tsx
@@ -7073,7 +7078,7 @@ msgstr "Verification was cancelled. Nothing was changed."
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.passkey_incomplete"
-msgstr "Verification was not completed. Try again or use your password."
+msgstr "Verification was not completed. You can use your password instead."
 
 #. js-lingui-explicit-id
 #: src/components/custom/principal-sources.ts
@@ -7195,11 +7200,6 @@ msgstr "With endpoints entered by hand, choose a specific method."
 #: src/api/errors.ts
 msgid "error.cannot_delete_self"
 msgstr "You cannot delete your own account. Ask another administrator."
-
-#. js-lingui-explicit-id
-#: src/api/errors.ts
-msgid "error.not_admin"
-msgstr "You do not have permission to perform this action."
 
 #. js-lingui-explicit-id
 #: src/pages/Devices.tsx

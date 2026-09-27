@@ -43,7 +43,7 @@ export function AdminGroups() {
           <Alert.Content>
             <Alert.Title>
               <Trans id="admin.groups.error">
-                The list could not be loaded. Try again.
+                The list could not be loaded.
               </Trans>
             </Alert.Title>
           </Alert.Content>

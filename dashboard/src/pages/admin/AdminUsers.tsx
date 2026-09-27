@@ -117,7 +117,7 @@ export function AdminUsers() {
           <Alert.Content>
             <Alert.Title>
               <Trans id="admin.users.error">
-                The list could not be loaded. Try again.
+                The list could not be loaded.
               </Trans>
             </Alert.Title>
           </Alert.Content>

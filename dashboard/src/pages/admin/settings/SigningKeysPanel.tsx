@@ -91,7 +91,7 @@ export function SigningKeysPanel() {
             <Alert.Content>
               <Alert.Title>
                 <Trans id="settings.keys.error">
-                  The keys could not be loaded. Try again.
+                  The keys could not be loaded.
                 </Trans>
               </Alert.Title>
             </Alert.Content>
@@ -376,8 +376,7 @@ function PublicKeyDialog({
                   <SurfaceAlert.Content>
                     <SurfaceAlert.Title>
                       <Trans id="settings.keys.jwk.copy.failed">
-                        Could not copy. Your browser blocked the clipboard;
-                        allow it and try again.
+                        Could not copy. Your browser blocked the clipboard.
                       </Trans>
                     </SurfaceAlert.Title>
                   </SurfaceAlert.Content>

@@ -1015,11 +1015,6 @@ msgid "admin.federation.diagnostics.check-again"
 msgstr "再次检查"
 
 #. js-lingui-explicit-id
-#: src/api/errors.ts
-msgid "error.validation_failed"
-msgstr "请检查提交的信息后重试。"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderOperatorSection.tsx
 msgid "admin.federation.operator.validated"
 msgstr "检查于 <0/>"
@@ -1683,7 +1678,7 @@ msgstr "复制你的新访问令牌"
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.network"
-msgstr "无法连接服务器，请检查网络连接后重试。"
+msgstr "无法连接服务器，请检查网络连接。"
 
 #. js-lingui-explicit-id
 #: src/components/custom/secret-reveal-copy.ts
@@ -1698,7 +1693,7 @@ msgstr "无法复制链接。请在上方选中后手动复制，或下载它。
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminInvitations.tsx
 msgid "admin.invitations.copy.failed"
-msgstr "无法复制链接。浏览器阻止了剪贴板，请允许后重试。"
+msgstr "无法复制链接，浏览器阻止了剪贴板。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/secret-copy.ts
@@ -1713,7 +1708,7 @@ msgstr "无法复制令牌。请选中上方令牌手动复制，或下载保存
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/SigningKeysPanel.tsx
 msgid "settings.keys.jwk.copy.failed"
-msgstr "无法复制。浏览器阻止了剪贴板，请允许后重试。"
+msgstr "无法复制，浏览器阻止了剪贴板。"
 
 #. js-lingui-explicit-id
 #: src/components/custom/secret-reveal-copy.ts
@@ -4235,7 +4230,7 @@ msgstr "通行密钥已重命名"
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.login_failed"
-msgstr "通行密钥登录失败。请重试或使用密码。"
+msgstr "通行密钥登录失败，可以改用密码。"
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
@@ -5690,11 +5685,6 @@ msgid "admin.federation.diagnostics.start"
 msgstr "开始测试"
 
 #. js-lingui-explicit-id
-#: src/api/errors.ts
-msgid "error.ceremony_missing"
-msgstr "请重新发起通行密钥登录。"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/oidc-validation.ts
 msgid "admin.oidc-apps.alias.name.invalid"
 msgstr "以字母或下划线开头，之后可包含字母、数字或下划线，最多 64 个字符。"
@@ -5812,12 +5802,12 @@ msgstr "测试阶段"
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.account_not_found"
-msgstr "该账号已不存在，列表已刷新。"
+msgstr "该账号已不存在。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.client_not_found"
-msgstr "该应用已不存在，列表已刷新。"
+msgstr "该应用已不存在。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -5827,7 +5817,7 @@ msgstr "该客户端 ID 或主机名已被占用。"
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.vrchat_operator_code_invalid"
-msgstr "该验证码无效。请核对后重试。"
+msgstr "该验证码无效。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
@@ -5877,7 +5867,7 @@ msgstr "配对码无效。它可能已被使用，或已经过期。"
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.credential_not_found"
-msgstr "该通行密钥已不存在，列表已刷新。"
+msgstr "该通行密钥已不存在。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -5917,7 +5907,7 @@ msgstr "本实例不接受该角色。"
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.session_not_found"
-msgstr "该会话已结束，列表已刷新。"
+msgstr "该会话已结束。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
@@ -5927,7 +5917,7 @@ msgstr "不支持该登录方式。"
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.group_not_found"
-msgstr "该用户组已不存在，列表已刷新。"
+msgstr "该用户组已不存在。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -6079,7 +6069,7 @@ msgstr "服务提供商发布的标识符。这个实例在每次响应中都会
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/SigningKeysPanel.tsx
 msgid "settings.keys.error"
-msgstr "无法加载密钥，请重试。"
+msgstr "无法加载密钥。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
@@ -6089,22 +6079,22 @@ msgstr "链接于 {expiry} 过期。"
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminGroups.tsx
 msgid "admin.groups.error"
-msgstr "无法加载列表，请重试。"
+msgstr "无法加载列表。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminInvitations.tsx
 msgid "admin.invitations.error"
-msgstr "无法加载列表，请重试。"
+msgstr "无法加载列表。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminUsers.tsx
 msgid "admin.users.error"
-msgstr "无法加载列表，请重试。"
+msgstr "无法加载列表。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminLogs.tsx
 msgid "admin.logs.error"
-msgstr "无法加载日志，请重试。"
+msgstr "无法加载日志。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminInvitationForm.tsx
@@ -6119,22 +6109,22 @@ msgstr "需要 openid 作用域。"
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.login_verification_failed"
-msgstr "无法验证通行密钥。请重试或使用密码。"
+msgstr "无法验证通行密钥，可以改用密码。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.login_account_not_found"
-msgstr "无法验证通行密钥。请重试或使用密码。"
+msgstr "无法验证通行密钥，可以改用密码。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.ceremony_state_invalid"
-msgstr "无法验证本次通行密钥登录。请重新开始。"
+msgstr "无法验证本次通行密钥登录。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.ceremony_expired"
-msgstr "本次通行密钥登录已过期。请重新开始。"
+msgstr "本次通行密钥登录已过期。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderDangerSection.tsx
@@ -6144,7 +6134,7 @@ msgstr "该提供商及其图标会被删除。"
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.upstream_rate_limited"
-msgstr "提供商要求我们放慢速度。请稍等片刻再试。"
+msgstr "提供商要求我们放慢速度，请稍候。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
@@ -6170,7 +6160,7 @@ msgstr "无法接受此请求。"
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.request_failed"
-msgstr "请求失败，请重试。"
+msgstr "请求失败。"
 
 #. js-lingui-explicit-id
 #: src/components/custom/LoginShell.tsx
@@ -6185,22 +6175,22 @@ msgstr "保存会替换当前的选择。只有所选用户组中的账号可以
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.server_error"
-msgstr "服务器未能完成请求，请重试。"
+msgstr "服务器未能完成请求。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
 msgid "admin.group.rule.rejected"
-msgstr "服务器未接受该规则。请检查后重试。"
+msgstr "服务器未接受该规则。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.invalid_group_rule"
-msgstr "服务器未接受该规则。请检查后重试。"
+msgstr "服务器未接受该规则。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.invalid_response"
-msgstr "服务器返回了无效响应，请重试。"
+msgstr "服务器返回了无效响应。"
 
 #. js-lingui-explicit-id
 #: src/pages/DevForms.tsx
@@ -6208,14 +6198,14 @@ msgid "dev.forms.nickname.description"
 msgstr "服务器会验证此值；请求成功后将修改测试凭据。"
 
 #. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.maintenance_mode"
+msgstr "服务正在维护。"
+
+#. js-lingui-explicit-id
 #: src/components/custom/LoginShell.tsx
 msgid "login.maintenance"
 msgstr "服务正在维护，管理员仍可尝试登录。"
-
-#. js-lingui-explicit-id
-#: src/api/errors.ts
-msgid "error.maintenance_mode"
-msgstr "服务正在维护，请稍后重试。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminLogs.tsx
@@ -6231,6 +6221,11 @@ msgstr "Steam Web API 密钥。"
 #: src/api/errors.ts
 msgid "error.request_too_large"
 msgstr "提交的数据过大。"
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.validation_failed"
+msgstr "提交的信息无效。"
 
 #. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
@@ -6290,7 +6285,7 @@ msgstr "该账号无法登录。启用后，它会用原有的登录方式恢复
 #. js-lingui-explicit-id
 #: src/components/custom/SudoDialog.tsx
 msgid "sudo.no-methods"
-msgstr "此账号无法在此验证身份。请先设置通行密钥，或设置密码与验证器，然后再试。"
+msgstr "此账号无法在此验证身份。请先设置通行密钥，或设置密码与验证器。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -6420,7 +6415,7 @@ msgstr "这是你唯一的登录方式，因此不能关闭。请先添加通行
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.signing-key.credential_not_found"
-msgstr "这个密钥已不是待启用状态，列表已刷新。"
+msgstr "这个密钥已不是待启用状态。"
 
 #. js-lingui-explicit-id
 #: src/components/custom/secret-reveal-copy.ts
@@ -6443,6 +6438,11 @@ msgid "error.pairing_not_approved"
 msgstr "此次配对尚未到可以批准的阶段。"
 
 #. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.ceremony_missing"
+msgstr "找不到本次通行密钥登录。"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.passkeys.revoke.body"
 msgstr "该通行密钥会立即失效。如果它是该账号唯一的登录方式，他们需要新的注册链接。"
@@ -6456,6 +6456,11 @@ msgstr "这把通行密钥会立即无法用于登录。你其它的登录方式
 #: src/api/errors.ts
 msgid "error.provider_not_ready"
 msgstr "该提供商尚未就绪。请先完成凭据设置，再启用它。"
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.not_admin"
+msgstr "需要管理员权限。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
@@ -6495,7 +6500,7 @@ msgstr "本次登录已过期。请重新输入密码。"
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.invalid_login_link"
-msgstr "登录链接无效。请打开新的登录链接重试。"
+msgstr "登录链接无效，请打开新的登录链接。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -6565,12 +6570,12 @@ msgstr "令牌作用域"
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.rate_limited"
-msgstr "请求过于频繁，请稍后重试。"
+msgstr "请求过于频繁，请稍候。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.factor_locked"
-msgstr "验证尝试次数过多。请稍后重试。"
+msgstr "验证尝试次数过多，请稍候。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/ForwardAuthProxySection.tsx
@@ -6645,7 +6650,7 @@ msgstr "无法加载此页面"
 #. js-lingui-explicit-id
 #: src/pages/Preview.tsx
 msgid "feedback.error"
-msgstr "无法保存，请检查输入后重试。（样例）"
+msgstr "无法保存，请检查输入。（样例）"
 
 #. js-lingui-explicit-id
 #: src/components/custom/FormError.tsx
@@ -7073,7 +7078,7 @@ msgstr "已取消验证，没有任何改动。"
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.passkey_incomplete"
-msgstr "验证未完成。请重试或使用密码。"
+msgstr "验证未完成，可以改用密码。"
 
 #. js-lingui-explicit-id
 #: src/components/custom/principal-sources.ts
@@ -7195,11 +7200,6 @@ msgstr "手动填写端点时，请选择具体的认证方式。"
 #: src/api/errors.ts
 msgid "error.cannot_delete_self"
 msgstr "你无法删除自己的账号。请让另一位管理员操作。"
-
-#. js-lingui-explicit-id
-#: src/api/errors.ts
-msgid "error.not_admin"
-msgstr "你没有执行此操作的权限。"
 
 #. js-lingui-explicit-id
 #: src/pages/Devices.tsx

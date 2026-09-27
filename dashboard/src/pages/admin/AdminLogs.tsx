@@ -183,9 +183,7 @@ export function AdminLogs() {
           <Alert.Indicator />
           <Alert.Content>
             <Alert.Title>
-              <Trans id="admin.logs.error">
-                The log could not be loaded. Try again.
-              </Trans>
+              <Trans id="admin.logs.error">The log could not be loaded.</Trans>
             </Alert.Title>
           </Alert.Content>
         </Alert>

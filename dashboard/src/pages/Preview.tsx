@@ -114,7 +114,7 @@ export function Preview() {
                 <SurfaceAlert.Content>
                   <SurfaceAlert.Title>
                     <Trans id="feedback.error">
-                      Unable to save. Check your input and try again. (Example)
+                      Unable to save. Check your input. (Example)
                     </Trans>
                   </SurfaceAlert.Title>
                 </SurfaceAlert.Content>
