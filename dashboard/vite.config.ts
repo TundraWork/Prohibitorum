@@ -34,6 +34,7 @@ export default defineConfig({
       "/saml": "http://localhost:8080",
       "/oidc": "http://localhost:8080",
       "/.well-known": "http://localhost:8080",
+      "/icon": "http://localhost:8080",
     },
   },
   build: {
