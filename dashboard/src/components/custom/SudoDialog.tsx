@@ -218,15 +218,16 @@ function SudoStep({
   }
 
   const message = methods.isPending ? null : describeError(methods.error);
-  // The step opens on whichever control finishes it fastest: the passkey when
-  // this browser can use one, the password otherwise.
-  const focusPasskey = hasPasskey && passkeySupported;
+  // One method leads: the passkey when this browser can use one, the password
+  // otherwise. It takes the primary style and the focus the step opens on, so
+  // the dialog never shows two primary buttons or a primary one disabled.
+  const passkeyLeads = hasPasskey && passkeySupported;
 
   const passkeyButton = (
     <Button
-      variant="secondary"
+      variant={passkeyLeads ? undefined : "secondary"}
       fullWidth
-      autoFocus={focusPasskey}
+      autoFocus={passkeyLeads}
       isPending={passkeyBusy}
       isDisabled={!passkeySupported || busy}
       onPress={() => {
@@ -310,7 +311,7 @@ function SudoStep({
                 label={<Trans id="sudo.password">Current password</Trans>}
                 type="password"
                 autoComplete="current-password"
-                autoFocus={!focusPasskey}
+                autoFocus={!passkeyLeads}
                 isDisabled={passkeyBusy}
                 variant="secondary"
               />
@@ -334,7 +335,11 @@ function SudoStep({
               />
             )}
           </form.AppField>
-          <form.SubmitButton fullWidth isDisabled={passkeyBusy}>
+          <form.SubmitButton
+            fullWidth
+            isDisabled={passkeyBusy}
+            variant={passkeyLeads ? "secondary" : "primary"}
+          >
             <Trans id="sudo.submit">Verify and continue</Trans>
           </form.SubmitButton>
         </>

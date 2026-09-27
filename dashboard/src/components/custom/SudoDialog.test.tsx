@@ -170,10 +170,17 @@ describe("sudo dialog", () => {
     ).not.toBeInTheDocument();
     // The rules around "or" are decoration; only the word is read out.
     expect(within(dialog).queryAllByRole("separator")).toHaveLength(0);
-    // The passkey is the quicker way through, so the dialog opens on it.
+    // The passkey is the quicker way through, so it leads: the primary style
+    // and the focus the dialog opens on.
     expect(
       within(dialog).getByRole("button", { name: "Verify with a passkey" }),
     ).toHaveFocus();
+    expect(
+      within(dialog).getByRole("button", { name: "Verify with a passkey" }),
+    ).toHaveClass("button--primary");
+    expect(
+      within(dialog).getByRole("button", { name: "Verify and continue" }),
+    ).toHaveClass("button--secondary");
   });
 
   it("shows only the form when the account has no passkey", async () => {
@@ -181,6 +188,9 @@ describe("sudo dialog", () => {
     const { dialog } = await intercept(async () => "done");
 
     expect(within(dialog).getByLabelText("Current password")).toHaveFocus();
+    expect(
+      within(dialog).getByRole("button", { name: "Verify and continue" }),
+    ).toHaveClass("button--primary");
     expect(
       within(dialog).queryByRole("button", { name: "Verify with a passkey" }),
     ).not.toBeInTheDocument();
@@ -193,7 +203,7 @@ describe("sudo dialog", () => {
 
     expect(
       within(dialog).getByRole("button", { name: "Verify with a passkey" }),
-    ).toBeInTheDocument();
+    ).toHaveClass("button--primary");
     expect(
       within(dialog).queryByLabelText("Current password"),
     ).not.toBeInTheDocument();
@@ -444,7 +454,11 @@ describe("sudo dialog", () => {
       .getAllByRole("button", { name: "Verify with a passkey" })
       .find((element) => element.tagName === "BUTTON");
     expect(passkey).toBeDisabled();
-    // The password is then the way through, so the dialog opens on it.
+    // The password is then the way through, so it leads instead.
+    expect(passkey).toHaveClass("button--secondary");
+    expect(
+      within(dialog).getByRole("button", { name: "Verify and continue" }),
+    ).toHaveClass("button--primary");
     expect(within(dialog).getByLabelText("Current password")).toHaveFocus();
   });
 
