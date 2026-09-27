@@ -364,8 +364,16 @@ function ConsoleNavigation({
         The rail's own scroll area. `ScrollArea` makes this element the
         OverlayScrollbars host, which forces `flex-direction: row` on it, so the
         column and its padding live on the child below instead.
+
+        The bar shows only while the rail scrolls. It is wider than the gutter
+        beside the entries, so a bar left on screen would sit against every
+        row's background; hiding it on leave or on pointer movement would still
+        show it whenever the pointer is on the rail, which is when that shows.
       */}
-      <ScrollArea className="flex flex-1 flex-col">
+      <ScrollArea
+        className="flex flex-1 flex-col"
+        options={{ scrollbars: { autoHide: "scroll" } }}
+      >
         <div className="flex flex-1 flex-col px-2 pt-2 pb-3">
           <nav
             aria-label={t({
