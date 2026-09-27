@@ -23,34 +23,24 @@ msgid "{0, plural, one {# address} other {# addresses}}"
 msgstr "{0, plural, other {# 个地址}}"
 
 #. js-lingui-explicit-id
-#. placeholder {0}: provider.linkedAccountCount
-#: src/pages/admin/identity-providers/AdminIdentityProvider.tsx
-msgid "admin.federation.danger.delete.confirm.linked"
-msgstr "{count} 个账号将失去用它登录的方式。如果某个账号只能用这种方式登录，需要由你重新签发注册链接。"
-
-#. js-lingui-explicit-id
-#. placeholder {0}: app.displayName || app.clientId
-#. placeholder {1}: groups.length
-#: src/pages/admin/forward-auth-apps/ForwardAuthDangerSection.tsx
-msgid "admin.forward-auth-apps.delete.confirm.groups"
-msgstr "{name} 会被删除，同时删除它的令牌作用域、图标和访问策略，包括其中选定的 {count} 个用户组。经它路由的请求会立即被拒绝。此操作无法撤销。"
-
-#. js-lingui-explicit-id
-#. placeholder {0}: app.displayName || app.clientId
-#: src/pages/admin/forward-auth-apps/ForwardAuthDangerSection.tsx
-msgid "admin.forward-auth-apps.delete.confirm.open"
-msgstr "{name} 会被删除，同时删除它的令牌作用域、图标和访问策略。经它路由的请求会立即被拒绝。此操作无法撤销。"
-
-#. js-lingui-explicit-id
-#. placeholder {0}: target?.displayName ?? ""
-#: src/components/custom/AppAccessPanel.tsx
-msgid "app.managers.confirm.body"
-msgstr "{name} 将不能再修改这个应用。其账号不受影响。"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/ForwardAuthHeadersSection.tsx
 msgid "admin.forward-auth-apps.headers.confirm.body"
 msgstr "{appName} 将收到这个账号的{nextLabel}，而不是{savedLabel}。它按旧值保存的数据不会迁移，已有的人会被当作新账号。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
+msgid "admin.federation.claims.subject.confirm.body"
+msgstr "有 {count, plural, other {# 个账号}}是按 {current} 绑定到 {name} 的。改用 {next} 后这些绑定不再匹配，这些人下次登录时会被当作新身份。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderDangerSection.tsx
+msgid "admin.federation.danger.delete.confirm.linked"
+msgstr "{count, plural, other {# 个账号}}将失去用它登录的方式。如果某个账号只能用这种方式登录，需要由你重新签发注册链接。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+msgid "admin.federation.diagnostics.stage.duration"
+msgstr "{duration} 毫秒"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/UriListField.tsx
@@ -60,12 +50,22 @@ msgstr "{label} {row}"
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
 msgid "admin.group.rule.matched"
-msgstr "有 # 个账号匹配该规则。"
+msgstr "{matchedCount, plural, other {有 # 个账号匹配该规则}}"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/SamlDangerSection.tsx
 msgid "admin.saml-apps.danger.delete.body"
 msgstr "{name} 及其证书会被删除，通过它登录的人都会被拒之门外。此操作无法撤销。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ForwardAuthDangerSection.tsx
+msgid "admin.forward-auth-apps.delete.confirm.groups"
+msgstr "{name} 会被删除，同时删除它的令牌作用域、图标和访问策略，包括其中选定的 {count} 个用户组。经它路由的请求会立即被拒绝。此操作无法撤销。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ForwardAuthDangerSection.tsx
+msgid "admin.forward-auth-apps.delete.confirm.open"
+msgstr "{name} 会被删除，同时删除它的令牌作用域、图标和访问策略。经它路由的请求会立即被拒绝。此操作无法撤销。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/SamlDangerSection.tsx
@@ -78,6 +78,11 @@ msgid "admin.oidc-apps.delete.body"
 msgstr "删除后 {name} 无法再让任何人登录，其图标、密钥和访问策略也会一并删除。此操作无法撤销。"
 
 #. js-lingui-explicit-id
+#: src/components/custom/AppAccessPanel.tsx
+msgid "app.managers.confirm.body"
+msgstr "{name} 将不能再修改这个应用。其账号不受影响。"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/ClientConfigSection.tsx
 msgid "admin.oidc-apps.scopes.remove.title"
 msgstr "{removedCount, plural, other {移除 # 个作用域？}}"
@@ -85,7 +90,7 @@ msgstr "{removedCount, plural, other {移除 # 个作用域？}}"
 #. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/ForwardAuthScopesSection.tsx
 msgid "admin.forward-auth-apps.scopes.remove.title"
-msgstr "删除 # 个作用域？"
+msgstr "{removedCount, plural, other {删除 # 个作用域？}}"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/ForwardAuthScopesSection.tsx
@@ -165,6 +170,11 @@ msgid "admin.oidc-apps.field.pkce.public"
 msgstr "公开客户端每次都会证明请求由自己发起。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-validation.ts
+msgid "admin.federation.auth.public-needs-s256"
+msgstr "公共客户端必须使用 S256 PKCE，但这个提供商设置的是其他 PKCE 方式。"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/oidc-validation.ts
 msgid "admin.oidc-apps.scope.offline-access"
 msgstr "刷新令牌，让客户端保持登录。"
@@ -178,6 +188,11 @@ msgstr "规则文档需要 version 和 condition。表单视图中的规则仍�
 #: src/pages/admin/AdminGroupForm.tsx
 msgid "admin.group.kind.note"
 msgstr "规则组会随账号变化自动保持最新。手工组保存你手工允许或拒绝的账号。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-validation.ts
+msgid "admin.federation.scope.invalid"
+msgstr "作用域不能包含空格、引号或反斜杠。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/forward-auth-validation.ts
@@ -300,6 +315,11 @@ msgid "success.account.enabled"
 msgstr "账号已启用"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ClaimMappingTable.tsx
+msgid "admin.federation.claims.column.field"
+msgstr "账号字段"
+
+#. js-lingui-explicit-id
 #: src/components/custom/principal-sources.ts
 msgid "principal-source.sub"
 msgstr "账号 ID"
@@ -330,19 +350,19 @@ msgid "admin.federation.column.linked-accounts"
 msgstr "关联账号"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/AdminIdentityProvider.tsx
+#: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
 msgid "admin.federation.claims.title"
 msgstr "账号与声明"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
-msgid "admin.federation.claims.form"
-msgstr "账号与声明"
+msgid "admin.federation.claims.subject.hint"
+msgstr "账号按这个值绑定。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminHome.tsx
 msgid "admin.home.summary"
-msgstr "用户、用户组、邀请、日志与设置在侧栏对应的区域中管理。"
+msgstr "账号、用户组、邀请、身份提供商、下游应用、日志与设置在侧栏对应的区域中管理。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminGroups.tsx
@@ -391,6 +411,13 @@ msgstr "在线会话"
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.sessions.table"
 msgstr "在线会话"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
+#: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
+#: src/pages/admin/identity-providers/ProviderConnectionSection.tsx
+msgid "form.tags.add"
+msgstr "添加"
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
@@ -452,6 +479,11 @@ msgstr "添加条件组"
 #: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
 msgid "admin.federation.new.submit"
 msgstr "添加提供商"
+
+#. js-lingui-explicit-id
+#: src/components/custom/TagListField.tsx
+msgid "form.tags.draft"
+msgstr "添加到{label}"
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
@@ -529,6 +561,11 @@ msgstr "允许 IdP 发起登录"
 #: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
 msgid "admin.federation.claims.domains"
 msgstr "允许的邮箱域名"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-validation.ts
+msgid "admin.federation.value.duplicate"
+msgstr "已在列表中。"
 
 #. js-lingui-explicit-id
 #: src/components/custom/AppAccessPanel.tsx
@@ -749,7 +786,7 @@ msgstr "属性映射"
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AttributeMapField.tsx
 msgid "admin.saml-apps.mapping.name"
-msgstr "名称"
+msgstr "属性名称"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
@@ -764,7 +801,7 @@ msgstr "属性必须是 JSON 对象，例如 {}。"
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AttributeMapField.tsx
 msgid "admin.saml-apps.mapping.source.placeholder"
-msgstr "账号属性"
+msgstr "attributes.mail"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminLogs.tsx
@@ -802,12 +839,17 @@ msgid "login.complete"
 msgstr "身份验证器已重设"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+#: src/pages/admin/identity-providers/provider-options.ts
+msgid "admin.federation.effective.authorization"
+msgstr "授权端点"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.diagnostics.stage.authorize"
 msgstr "授权"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderConnectionSection.tsx
+#: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.connection.authorization"
 msgstr "授权端点"
 
@@ -849,7 +891,7 @@ msgstr "返回密码登录"
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AttributeMapField.tsx
 msgid "admin.saml-apps.mapping.name-format.placeholder"
-msgstr "名称格式"
+msgstr "basic"
 
 #. js-lingui-explicit-id
 #: src/pages/ConnectedApps.tsx
@@ -862,14 +904,9 @@ msgid "admin.saml-apps.acs.binding"
 msgstr "绑定"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+#: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.diagnostics.stage.callback"
 msgstr "回调"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
-msgid "admin.federation.diagnostics.callback"
-msgstr "回调地址"
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
@@ -892,7 +929,7 @@ msgstr "取消"
 
 #. js-lingui-explicit-id
 #: src/components/custom/ConfirmDialog.tsx
-#: src/pages/admin/identity-providers/AdminIdentityProvider.tsx
+#: src/pages/admin/identity-providers/ProviderDangerSection.tsx
 #: src/pages/admin/identity-providers/ProviderOperatorSection.tsx
 msgid "confirm.cancel"
 msgstr "取消"
@@ -928,6 +965,11 @@ msgid "admin.oidc-apps.subject.confirm.save"
 msgstr "更换并保存"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
+msgid "admin.federation.claims.subject.confirm.action"
+msgstr "更改并保存"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/ForwardAuthHeadersSection.tsx
 msgid "admin.forward-auth-apps.headers.confirm.action"
 msgstr "更换并保存"
@@ -946,6 +988,11 @@ msgstr "修改密码"
 #: src/pages/security/PasswordTotpPanel.tsx
 msgid "security.password.change.action"
 msgstr "修改密码"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
+msgid "admin.federation.claims.subject.confirm.title"
+msgstr "更改 Subject 声明？"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/IdentityProjectionSection.tsx
@@ -968,6 +1015,11 @@ msgid "admin.federation.operator.check"
 msgstr "检查"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+msgid "admin.federation.diagnostics.check-again"
+msgstr "再次检查"
+
+#. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.validation_failed"
 msgstr "请检查提交的信息后重试。"
@@ -975,7 +1027,12 @@ msgstr "请检查提交的信息后重试。"
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderOperatorSection.tsx
 msgid "admin.federation.operator.validated"
-msgstr "检查通过"
+msgstr "检查于 <0/>"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-options.ts
+msgid "admin.federation.diagnostics.run.checking"
+msgstr "正在检查"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminUsers.tsx
@@ -1053,9 +1110,19 @@ msgid "admin.oidc-apps.aliases"
 msgstr "声明别名"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ClaimMappingTable.tsx
+msgid "admin.federation.claims.mapping"
+msgstr "声明映射"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/AliasTableField.tsx
 msgid "admin.oidc-apps.alias.name"
 msgstr "声明名称"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+msgid "admin.federation.diagnostics.claims"
+msgstr "提供商返回的声明"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminLogs.tsx
@@ -1068,9 +1135,14 @@ msgid "admin.users.filter.clear"
 msgstr "清除筛选"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
+#: src/pages/admin/identity-providers/ClientAuthMethodField.tsx
 msgid "admin.federation.new.auth-method"
-msgstr "客户端认证"
+msgstr "客户端认证方式"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-options.ts
+msgid "admin.federation.effective.auth-method"
+msgstr "客户端认证方式"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/ClientConfigSection.tsx
@@ -1121,8 +1193,8 @@ msgid "admin.oidc-apps.secret.label"
 msgstr "客户密钥"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/AdminIdentityProvider.tsx
 #: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
+#: src/pages/admin/identity-providers/ProviderDangerSection.tsx
 msgid "admin.federation.new.secret"
 msgstr "客户端密钥"
 
@@ -1130,6 +1202,16 @@ msgstr "客户端密钥"
 #: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
 msgid "admin.oidc-apps.field.kind"
 msgstr "客户端类型"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-options.ts
+msgid "admin.federation.auth.basic"
+msgstr "client_secret_basic"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-options.ts
+msgid "admin.federation.auth.post"
+msgstr "client_secret_post"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/DangerSection.tsx
@@ -1478,14 +1560,14 @@ msgid "admin.user.identities.table"
 msgstr "已连接身份"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/AdminIdentityProvider.tsx
+#: src/pages/admin/identity-providers/ProviderConnectionSection.tsx
 msgid "admin.federation.connection.title"
 msgstr "连接"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderConnectionSection.tsx
-msgid "admin.federation.connection.form"
-msgstr "连接设置"
+#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+msgid "admin.federation.diagnostics.test"
+msgstr "连接测试"
 
 #. js-lingui-explicit-id
 #: src/components/custom/ConsoleLayout.tsx
@@ -1664,6 +1746,11 @@ msgid "apps.load_failed"
 msgstr "无法加载已连接应用。"
 
 #. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.upstream_temporarily_unavailable"
+msgstr "无法连接该提供商。"
+
+#. js-lingui-explicit-id
 #: src/components/custom/CopyValue.tsx
 msgid "copy-value.failed"
 msgstr "无法复制。请选中上面的值，手动复制。"
@@ -1709,11 +1796,14 @@ msgid "audit.event.register"
 msgstr "创建"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
-#: src/pages/admin/identity-providers/AdminIdentityProviders.tsx
-#: src/pages/admin/identity-providers/ProviderGeneralSection.tsx
+#: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.mode.auto"
 msgstr "自动创建账号"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-options.ts
+msgid "admin.federation.mode.auto.hint"
+msgstr "没有绑定账号的人第一次登录时，自动为他创建账号。"
 
 #. js-lingui-explicit-id
 #: src/pages/DevForms.tsx
@@ -1766,12 +1856,12 @@ msgid "admin.oidc-apps.danger"
 msgstr "危险操作"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/AdminIdentityProvider.tsx
+#: src/pages/admin/identity-providers/ProviderDangerSection.tsx
 msgid "admin.federation.danger.title"
 msgstr "危险操作"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/AdminIdentityProvider.tsx
+#: src/pages/admin/identity-providers/ProviderDangerSection.tsx
 msgid "admin.federation.danger.label"
 msgstr "危险操作"
 
@@ -1821,12 +1911,12 @@ msgid "admin.oidc-apps.delete.action"
 msgstr "删除"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/AdminIdentityProvider.tsx
+#: src/pages/admin/identity-providers/ProviderDangerSection.tsx
 msgid "admin.federation.danger.delete.action"
 msgstr "删除"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/AdminIdentityProvider.tsx
+#: src/pages/admin/identity-providers/ProviderDangerSection.tsx
 msgid "admin.federation.danger.delete.confirm.action"
 msgstr "删除"
 
@@ -1891,12 +1981,12 @@ msgid "admin.forward-auth-apps.delete.confirm.title"
 msgstr "删除这个应用？"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/AdminIdentityProvider.tsx
+#: src/pages/admin/identity-providers/ProviderDangerSection.tsx
 msgid "admin.federation.danger.delete"
 msgstr "删除该提供商"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/AdminIdentityProvider.tsx
+#: src/pages/admin/identity-providers/ProviderDangerSection.tsx
 msgid "admin.federation.danger.delete.confirm.title"
 msgstr "要删除该提供商吗？"
 
@@ -1956,8 +2046,13 @@ msgid "audit.factor.diagnostic"
 msgstr "诊断"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/AdminIdentityProvider.tsx
+#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
 msgid "admin.federation.diagnostics.title"
+msgstr "诊断"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+msgid "admin.federation.diagnostics.label"
 msgstr "诊断"
 
 #. js-lingui-explicit-id
@@ -1986,12 +2081,12 @@ msgid "admin.oidc-apps.disable.action"
 msgstr "停用"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/AdminIdentityProvider.tsx
+#: src/pages/admin/identity-providers/ProviderDangerSection.tsx
 msgid "admin.federation.danger.disable.action"
 msgstr "停用"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/AdminIdentityProvider.tsx
+#: src/pages/admin/identity-providers/ProviderDangerSection.tsx
 msgid "admin.federation.danger.disable.confirm.action"
 msgstr "停用"
 
@@ -2041,12 +2136,12 @@ msgid "admin.forward-auth-apps.disable.confirm.title"
 msgstr "停用这个应用？"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/AdminIdentityProvider.tsx
+#: src/pages/admin/identity-providers/ProviderDangerSection.tsx
 msgid "admin.federation.danger.disable"
 msgstr "停用该提供商"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/AdminIdentityProvider.tsx
+#: src/pages/admin/identity-providers/ProviderDangerSection.tsx
 msgid "admin.federation.danger.disable.confirm.title"
 msgstr "要停用该提供商吗？"
 
@@ -2086,24 +2181,19 @@ msgid "admin.saml-apps.danger.enabled-note"
 msgstr "停用后，所有人在服务提供商那里都会被拒之门外。此操作可以撤销。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderConnectionSection.tsx
+#: src/pages/admin/identity-providers/EndpointsField.tsx
 msgid "admin.federation.connection.mode.discovery"
 msgstr "自动发现"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+#: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.diagnostics.source.discovery"
-msgstr "发现所得"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
-msgid "admin.federation.diagnostics.stage.discovery"
 msgstr "发现"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderConnectionSection.tsx
-msgid "admin.federation.connection.mode.note"
-msgstr "自动发现会从 Issuer 读取各端点。你在这里填写的任何内容都会覆盖发现到的值。"
+#: src/pages/admin/identity-providers/provider-options.ts
+msgid "admin.federation.diagnostics.stage.discovery"
+msgstr "发现"
 
 #. js-lingui-explicit-id
 #: src/pages/Console.tsx
@@ -2138,7 +2228,7 @@ msgstr "显示名"
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
 msgid "admin.federation.claims.display-name"
-msgstr "显示名"
+msgstr "显示名称"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/ForwardAuthHeadersSection.tsx
@@ -2201,6 +2291,11 @@ msgid "admin.group.rule.json.hint"
 msgstr "失去焦点时生效：移出输入框后，表单视图会采用文档中的内容。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+msgid "admin.federation.diagnostics.effective"
+msgstr "生效配置"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.email"
 msgstr "邮箱"
@@ -2241,7 +2336,7 @@ msgid "admin.oidc-apps.enable.action"
 msgstr "启用"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/AdminIdentityProvider.tsx
+#: src/pages/admin/identity-providers/ProviderDangerSection.tsx
 msgid "admin.federation.danger.enable.action"
 msgstr "启用"
 
@@ -2286,7 +2381,7 @@ msgid "admin.forward-auth-apps.enable.confirm.title"
 msgstr "启用这个应用？"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/AdminIdentityProvider.tsx
+#: src/pages/admin/identity-providers/ProviderDangerSection.tsx
 msgid "admin.federation.danger.enable"
 msgstr "启用该提供商"
 
@@ -2338,9 +2433,14 @@ msgid "admin.saml-apps.acs.endpoint"
 msgstr "端点 {0}"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderConnectionSection.tsx
+#: src/pages/admin/identity-providers/EndpointsField.tsx
 msgid "admin.federation.connection.mode"
-msgstr "端点配置"
+msgstr "端点"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-validation.ts
+msgid "admin.federation.claims.required"
+msgstr "请填写声明名称。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
@@ -2358,9 +2458,14 @@ msgid "login.totp.invalid"
 msgstr "请输入符合配置位数的验证码，仅使用数字 0–9。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
+#: src/pages/admin/identity-providers/provider-validation.ts
 msgid "admin.federation.claims.domains.invalid"
 msgstr "请填写 example.com 这样的域名，不带协议和路径。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-validation.ts
+msgid "admin.federation.url.invalid"
+msgstr "请填写完整地址，例如 https://idp.example.com。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/forward-auth-validation.ts
@@ -2430,17 +2535,7 @@ msgstr "请输入地址，或删除这一行。"
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
 msgid "admin.federation.new.slug.required"
-msgstr "请填写标识。"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
-msgid "admin.federation.new.scopes.required"
-msgstr "请至少填写一个作用域。"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderConnectionSection.tsx
-msgid "admin.federation.connection.scopes.required"
-msgstr "请至少填写一个作用域。"
+msgstr "请填写标识符。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/client-ip-form.ts
@@ -2464,12 +2559,17 @@ msgid "login.totp.digits"
 msgstr "请输入身份验证器中的 {0} 位验证码。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-validation.ts
+msgid "admin.federation.connection.override.required"
+msgstr "请填写地址，或移除这项覆盖。"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/saml-validation.ts
 msgid "admin.saml-apps.acs.address.required"
 msgstr "请填写 ACS 地址。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderConnectionSection.tsx
+#: src/pages/admin/identity-providers/provider-validation.ts
 msgid "admin.federation.connection.authorization.required"
 msgstr "请填写授权端点。"
 
@@ -2479,8 +2579,8 @@ msgid "admin.oidc-apps.alias.name.required"
 msgstr "请填写客户端要读取的声明名称。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
-msgid "admin.federation.new.client-id.required"
+#: src/pages/admin/identity-providers/provider-validation.ts
+msgid "admin.federation.connection.client-id.required"
 msgstr "请填写 Client ID。"
 
 #. js-lingui-explicit-id
@@ -2494,22 +2594,17 @@ msgid "security.totp.invalid"
 msgstr "请输入验证器显示的验证码，只能包含 0–9。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderConnectionSection.tsx
+#: src/pages/admin/identity-providers/EndpointsField.tsx
 msgid "admin.federation.connection.mode.manual"
 msgstr "手动填写"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
-msgid "admin.federation.new.issuer.required"
-msgstr "请填写 Issuer URL。"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderConnectionSection.tsx
+#: src/pages/admin/identity-providers/provider-validation.ts
 msgid "admin.federation.connection.issuer.required"
 msgstr "请填写 Issuer URL。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderConnectionSection.tsx
+#: src/pages/admin/identity-providers/provider-validation.ts
 msgid "admin.federation.connection.jwks.required"
 msgstr "请填写 JWKS 端点。"
 
@@ -2524,7 +2619,7 @@ msgid "devices.code.required"
 msgstr "请输入另一台设备显示的配对码。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/AdminIdentityProvider.tsx
+#: src/pages/admin/identity-providers/ProviderDangerSection.tsx
 msgid "admin.federation.danger.secret.required"
 msgstr "请填写密钥。"
 
@@ -2534,7 +2629,7 @@ msgid "admin.saml-apps.entity-id.required"
 msgstr "请填写服务提供商的 Entity ID。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderConnectionSection.tsx
+#: src/pages/admin/identity-providers/provider-validation.ts
 msgid "admin.federation.connection.token.required"
 msgstr "请填写令牌端点。"
 
@@ -2552,11 +2647,6 @@ msgstr "请重新输入密码后再尝试验证码。本次验证不能重复使
 #: src/pages/Login.tsx
 msgid "login.username.required"
 msgstr "请输入用户名。"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
-msgid "admin.federation.diagnostics.source.manual"
-msgstr "手动填写"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
@@ -2613,6 +2703,11 @@ msgstr "每个曾为该账号登录过的客户端都存有它拿到的 subject�
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.sessions.revoke_all.body"
 msgstr "该账号已登录的每台设备都会立即登出，需要重新登录。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/EndpointsField.tsx
+msgid "admin.federation.endpoints.all-overridden"
+msgstr "四个端点都已覆盖。"
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
@@ -2672,6 +2767,11 @@ msgid "audit.event.fail"
 msgstr "失败"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-options.ts
+msgid "admin.federation.diagnostics.stage-status.failed"
+msgstr "失败"
+
+#. js-lingui-explicit-id
 #: src/components/custom/ConsoleLayout.tsx
 msgid "console.admin.federation"
 msgstr "联合登录"
@@ -2695,6 +2795,11 @@ msgstr "请填写提供商、字段、匹配方式和值，以应用该筛选。
 #: src/pages/admin/AdminLogs.tsx
 msgid "admin.logs.filter"
 msgstr "筛选"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/EndpointsField.tsx
+msgid "admin.federation.connection.mode.manual.hint"
+msgstr "提供商不支持发现时使用。"
 
 #. js-lingui-explicit-id
 #: src/components/custom/SudoDialog.tsx
@@ -2780,6 +2885,11 @@ msgstr "请给这个属性起个名称。"
 #: src/pages/admin/oidc-applications/secret-copy.ts
 msgid "admin.oidc-apps.secret.continue"
 msgstr "前往应用"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-options.ts
+msgid "admin.federation.protocol.oidc.hint"
+msgstr "Google、Microsoft Entra ID、Keycloak 等支持 OpenID Connect 的提供商。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/NetworkPanel.tsx
@@ -2888,7 +2998,7 @@ msgid "success.entity-icon.updated"
 msgstr "图标已更新"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+#: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.diagnostics.stage.id-token"
 msgstr "ID token"
 
@@ -2900,7 +3010,7 @@ msgstr "标识"
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
 msgid "admin.federation.new.slug"
-msgstr "标识"
+msgstr "标识符"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts
@@ -3013,9 +3123,7 @@ msgid "audit.factor.invitation"
 msgstr "邀请"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
-#: src/pages/admin/identity-providers/AdminIdentityProviders.tsx
-#: src/pages/admin/identity-providers/ProviderGeneralSection.tsx
+#: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.mode.invite"
 msgstr "仅限邀请"
 
@@ -3060,6 +3168,11 @@ msgid "admin.user.enrollment.action"
 msgstr "签发注册链接"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-options.ts
+msgid "admin.federation.effective.issuer"
+msgstr "Issuer"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
 msgid "admin.federation.new.issuer"
 msgstr "Issuer URL"
@@ -3080,12 +3193,12 @@ msgid "admin.oidc-apps.rotate.note"
 msgstr "签发新密钥并废弃旧密钥。仍在使用旧密钥的客户端无法登录，直到你为它们更新为止。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/AdminIdentityProvider.tsx
+#: src/pages/admin/identity-providers/ProviderDangerSection.tsx
 msgid "admin.federation.danger.disable.confirm.body"
 msgstr "它会从登录页以及所有可以用它提升验证的账号上消失。不会删除任何数据。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/AdminIdentityProvider.tsx
+#: src/pages/admin/identity-providers/ProviderDangerSection.tsx
 msgid "admin.federation.danger.enable.hint"
 msgstr "当前登录时不会提供它。"
 
@@ -3095,7 +3208,12 @@ msgid "admin.group.rule.view.json"
 msgstr "JSON"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderConnectionSection.tsx
+#: src/pages/admin/identity-providers/provider-options.ts
+msgid "admin.federation.effective.jwks"
+msgstr "JWKS 端点"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.connection.jwks"
 msgstr "JWKS 端点"
 
@@ -3180,7 +3298,12 @@ msgid "admin.oidc-apps.field.launch"
 msgstr "启动地址"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderConnectionSection.tsx
+#: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
+msgid "admin.federation.claims.domains.hint"
+msgstr "留空则接受所有域名。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/EndpointsField.tsx
 msgid "admin.federation.connection.userinfo.hint"
 msgstr "留空则不发送 UserInfo 请求。"
 
@@ -3230,19 +3353,9 @@ msgid "settings.network.proxies.invalid"
 msgstr "第 {line} 行不是 IPv4 或 IPv6 地址段，例如 10.0.0.0/8 或 2001:db8::/32。"
 
 #. js-lingui-explicit-id
-#: src/forms/lines.ts
-msgid "form.lines.invalid"
-msgstr "第 {line} 行：{reason}"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/settings/client-ip-form.ts
 msgid "settings.network.proxies.spaces"
 msgstr "第 {line} 行：去掉地址两侧的空格。"
-
-#. js-lingui-explicit-id
-#: src/forms/lines.ts
-msgid "form.lines.spaces"
-msgstr "第 {line} 行：请去掉首尾的空格。"
 
 #. js-lingui-explicit-id
 #: src/pages/security/IdentitiesPanel.tsx
@@ -3265,11 +3378,19 @@ msgid "audit.event.link"
 msgstr "已关联"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
-#: src/pages/admin/identity-providers/AdminIdentityProviders.tsx
-#: src/pages/admin/identity-providers/ProviderGeneralSection.tsx
+#: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.mode.link"
 msgstr "绑定已有账号"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-options.ts
+msgid "admin.federation.mode.link.hint"
+msgstr "只能绑定到已有账号，不会创建新账号，邀请链接也不能用它注册。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-options.ts
+msgid "admin.federation.protocol.vrchat.hint"
+msgstr "把 VRChat 身份绑定到已有账号，需要一个 VRChat 运营账号。"
 
 #. js-lingui-explicit-id
 #: src/pages/Preview.tsx
@@ -3309,12 +3430,12 @@ msgstr "小写字母、数字和连字符。应用通过它来引用本用户组
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AttributeMapField.tsx
 msgid "admin.saml-apps.mapping.name.placeholder"
-msgstr "属性名称"
+msgstr "mail"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AttributeMapField.tsx
 msgid "admin.saml-apps.mapping.friendly-name.placeholder"
-msgstr "友好名称"
+msgstr "邮箱地址"
 
 #. js-lingui-explicit-id
 #: src/pages/ApiPreview.tsx
@@ -3386,6 +3507,11 @@ msgstr "手工"
 #: src/pages/admin/AdminGroups.tsx
 msgid "admin.groups.kind.manual"
 msgstr "手工"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-options.ts
+msgid "admin.federation.diagnostics.source.manual"
+msgstr "手动"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/saml-validation.ts
@@ -3535,6 +3661,11 @@ msgstr "NameID 格式"
 #: src/pages/admin/saml-applications/AdminSamlApplications.tsx
 msgid "admin.saml-apps.column.name-id"
 msgstr "NameID 格式"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderDangerSection.tsx
+msgid "admin.federation.danger.not-ready.oidc"
+msgstr "连接配置有效、并设置好客户端密钥后才能启用。"
 
 #. js-lingui-explicit-id
 #: src/components/custom/principal-sources.ts
@@ -3692,6 +3823,11 @@ msgid "admin.saml-apps.keys.empty"
 msgstr "这个应用没有发布证书。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderConnectionSection.tsx
+msgid "admin.federation.connection.secret-missing"
+msgstr "还没有设置客户端密钥，请在“危险操作”中设置。"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.identities.empty"
 msgstr "暂无已连接身份"
@@ -3792,7 +3928,7 @@ msgid "admin.users.empty"
 msgstr "没有匹配的用户"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/AdminIdentityProvider.tsx
+#: src/pages/admin/identity-providers/ProviderDangerSection.tsx
 msgid "admin.federation.danger.disable.hint"
 msgstr "停用期间，任何人都无法用它登录。"
 
@@ -3842,6 +3978,11 @@ msgid "admin.federation.operator.none"
 msgstr "未设置"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+msgid "admin.federation.diagnostics.unused"
+msgstr "未使用"
+
+#. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
 msgid "security.passkeys.never_used"
 msgstr "尚未使用"
@@ -3877,8 +4018,7 @@ msgid "admin.group.exposed"
 msgstr "提供给应用"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
-#: src/pages/admin/identity-providers/AdminIdentityProviders.tsx
+#: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.protocol.oidc"
 msgstr "OIDC"
 
@@ -3923,24 +4063,14 @@ msgid "error.group_in_use"
 msgstr "仍有应用在使用该用户组。请先从中移除，再删除该组。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderConnectionSection.tsx
-msgid "admin.federation.connection.scopes.hint"
-msgstr "每行一个。"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
-msgid "admin.federation.claims.domains.hint"
-msgstr "每行一个。留空则接受所有域名。"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
-msgid "admin.federation.scopes.hint"
-msgstr "每行一个。上游必须支持你列出的每一个作用域。"
-
-#. js-lingui-explicit-id
 #: src/components/custom/RowsField.tsx
 msgid "form.rows.hint"
 msgstr "每行一个值。空行会被忽略；首尾带空格的行会被拒绝，而不是自动去掉空格。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
+msgid "admin.federation.claims.verified.hint"
+msgstr "只接受提供商标记为已验证的邮箱地址。"
 
 #. js-lingui-explicit-id
 #: src/components/custom/AppAccessPanel.tsx
@@ -3951,6 +4081,11 @@ msgstr "只有你选定的用户组中的账号可以使用这个应用。在你
 #: src/pages/Devices.tsx
 msgid "devices.confirm.body"
 msgstr "请先确认以下信息与你正在登录的设备一致，再批准。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-options.ts
+msgid "admin.federation.mode.invite.hint"
+msgstr "只有已绑定的账号能登录；新账号要凭邀请链接注册。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/saml-validation.ts
@@ -4000,7 +4135,7 @@ msgstr "OpenID Connect"
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/AdminIdentityProvider.tsx
 msgid "admin.federation.operator.title"
-msgstr "运维会话"
+msgstr "运营账号"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminInvitationForm.tsx
@@ -4023,9 +4158,14 @@ msgid "admin.group.description.hint"
 msgstr "可选。说明本用户组的用途，供之后阅读的人参考。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+#: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.diagnostics.source.override"
-msgstr "已覆盖"
+msgstr "覆盖"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/EndpointsField.tsx
+msgid "admin.federation.endpoints.override"
+msgstr "覆盖端点"
 
 #. js-lingui-explicit-id
 #: src/components/custom/RouteFeedback.tsx
@@ -4041,6 +4181,11 @@ msgstr "配对"
 #: src/api/success-messages.ts
 msgid "success.device.declined"
 msgstr "配对已拒绝"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-options.ts
+msgid "admin.federation.diagnostics.stage-status.succeeded"
+msgstr "通过"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts
@@ -4143,6 +4288,11 @@ msgid "settings.keys.status.pending"
 msgstr "待启用"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-options.ts
+msgid "admin.federation.diagnostics.stage-status.pending"
+msgstr "未执行"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/ScopeTableField.tsx
 msgid "admin.forward-auth-apps.scopes.hint"
 msgstr "个人访问令牌从这里选择要授予的作用域，服务通过 Remote-Scopes 收到。"
@@ -4173,6 +4323,11 @@ msgid "profile.avatar.source.label"
 msgstr "显示哪张头像"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-options.ts
+msgid "admin.federation.effective.pkce"
+msgstr "PKCE"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/settings/GeneralPanel.tsx
 msgid "settings.general.background.hint"
 msgstr "支持 PNG、JPEG 与 WebP，最大 5 MiB。"
@@ -4201,6 +4356,11 @@ msgstr "疑似克隆"
 #: src/pages/admin/oidc-applications/ClientConfigSection.tsx
 msgid "admin.oidc-apps.field.post-logout"
 msgstr "登出后重定向 URI"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-validation.ts
+msgid "admin.federation.tags.draft-pending"
+msgstr "按回车添加，或清空输入框。"
 
 #. js-lingui-explicit-id
 #: src/pages/Preview.tsx
@@ -4253,19 +4413,19 @@ msgid "admin.users.filter.providerLabel"
 msgstr "提供商"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/AdminIdentityProvider.tsx
-msgid "admin.federation.general.title"
-msgstr "提供商"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/AdminIdentityProviders.tsx
 msgid "admin.federation.column.provider"
 msgstr "提供商"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderGeneralSection.tsx
-msgid "admin.federation.general.form"
+msgid "admin.federation.general.title"
 msgstr "提供商"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ClaimMappingTable.tsx
+msgid "admin.federation.claims.column.claim"
+msgstr "提供商声明"
 
 #. js-lingui-explicit-id
 #: src/api/success-messages.ts
@@ -4293,12 +4453,7 @@ msgid "success.identity-provider.saved"
 msgstr "提供商已保存"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
-msgid "admin.federation.new.mode"
-msgstr "账号创建"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderGeneralSection.tsx
+#: src/pages/admin/identity-providers/ProvisioningModeField.tsx
 msgid "admin.federation.general.mode"
 msgstr "账号创建"
 
@@ -4314,9 +4469,9 @@ msgid "navigation.api"
 msgstr "公开 API"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
+#: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.auth.none"
-msgstr "公开客户端"
+msgstr "公共客户端"
 
 #. js-lingui-explicit-id
 #: src/pages/ApiPreview.tsx
@@ -4361,7 +4516,17 @@ msgstr "read"
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
 msgid "admin.federation.diagnostics.fetched"
-msgstr "读取于"
+msgstr "读取于 <0/>"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+msgid "admin.federation.diagnostics.reread"
+msgstr "重新读取"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+msgid "admin.federation.diagnostics.read"
+msgstr "读取配置"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/NetworkPanel.tsx
@@ -4372,6 +4537,16 @@ msgstr "客户端地址来自"
 #: src/pages/admin/forward-auth-apps/ScopeTableField.tsx
 msgid "admin.forward-auth-apps.scopes.description.placeholder"
 msgstr "读取应用的数据"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+msgid "admin.federation.diagnostics.effective.empty"
+msgstr "读取提供商当前生效的端点和设置。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/EndpointsField.tsx
+msgid "admin.federation.connection.mode.discovery.hint"
+msgstr "从 Issuer 的发现文档读取端点。"
 
 #. js-lingui-explicit-id
 #: src/pages/Login.tsx
@@ -4405,19 +4580,9 @@ msgid "admin.logs.refresh"
 msgstr "刷新"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
-msgid "admin.federation.diagnostics.refresh"
-msgstr "刷新"
-
-#. js-lingui-explicit-id
 #: src/pages/ApiPreview.tsx
 msgid "api.refresh"
 msgstr "刷新数据"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
-msgid "admin.federation.diagnostics.refresh-result"
-msgstr "刷新结果"
 
 #. js-lingui-explicit-id
 #: src/pages/ApiPreview.tsx
@@ -4437,7 +4602,7 @@ msgstr "拒绝服务提供商未签名的登录请求。只有在它无法签名
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
 msgid "admin.federation.diagnostics.callback.hint"
-msgstr "请把这个地址登记到提供商那边。"
+msgstr "运行连接测试前，请在提供商处登记这个地址。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts
@@ -4477,6 +4642,11 @@ msgstr "移除"
 #. js-lingui-explicit-id
 #: src/components/custom/AppAccessPanel.tsx
 msgid "app.managers.confirm.action"
+msgstr "移除"
+
+#. js-lingui-explicit-id
+#: src/components/custom/TagListField.tsx
+msgid "form.tags.remove"
 msgstr "移除"
 
 #. js-lingui-explicit-id
@@ -4545,9 +4715,29 @@ msgid "form.rows.remove"
 msgstr "移除第 {row} 行"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/EndpointsField.tsx
+msgid "admin.federation.endpoints.remove"
+msgstr "移除{endpoint}的覆盖"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-validation.ts
+msgid "admin.federation.url.fragment"
+msgstr "去掉 # 及其后面的部分。"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/oidc-validation.ts
 msgid "admin.oidc-apps.uri.spaces"
 msgstr "请删除首尾的空格。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-validation.ts
+msgid "admin.federation.value.spaces"
+msgstr "去掉两端的空格。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-validation.ts
+msgid "admin.federation.url.userinfo"
+msgstr "去掉地址里的用户名和密码。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
@@ -4615,6 +4805,11 @@ msgid "security.totp.replace.open"
 msgstr "替换"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderDangerSection.tsx
+msgid "admin.federation.danger.secret.replace-action"
+msgstr "更换"
+
+#. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
 msgid "security.totp.replace.title"
 msgstr "替换验证器"
@@ -4650,9 +4845,9 @@ msgid "entity.icon.replace"
 msgstr "更换图标"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/AdminIdentityProvider.tsx
+#: src/pages/admin/identity-providers/ProviderDangerSection.tsx
 msgid "admin.federation.danger.replace-secret"
-msgstr "替换密钥"
+msgstr "更换密钥"
 
 #. js-lingui-explicit-id
 #: src/pages/profile/AvatarPanel.tsx
@@ -4668,6 +4863,11 @@ msgstr "替换恢复码？"
 #: src/pages/admin/saml-applications/SamlMetadataSection.tsx
 msgid "admin.saml-apps.metadata.dialog.hint"
 msgstr "会替换下面的端点和证书。Entity ID 和名称保持不变。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+msgid "admin.federation.diagnostics.stage.request"
+msgstr "请求 ID <0>{requestId}</0>"
 
 #. js-lingui-explicit-id
 #. placeholder {0}: toast.content.error.requestId
@@ -4961,11 +5161,6 @@ msgid "admin.oidc-apps.identity.save"
 msgstr "保存"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/AdminIdentityProvider.tsx
-msgid "admin.federation.danger.secret.save"
-msgstr "保存"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
 msgid "admin.federation.claims.save"
 msgstr "保存"
@@ -4973,6 +5168,11 @@ msgstr "保存"
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderConnectionSection.tsx
 msgid "admin.federation.connection.save"
+msgstr "保存"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderDangerSection.tsx
+msgid "admin.federation.danger.secret.save"
 msgstr "保存"
 
 #. js-lingui-explicit-id
@@ -5029,12 +5229,13 @@ msgstr "作用域"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
-msgid "admin.federation.scopes.label"
+#: src/pages/admin/identity-providers/ProviderConnectionSection.tsx
+msgid "admin.federation.connection.scopes"
 msgstr "作用域"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderConnectionSection.tsx
-msgid "admin.federation.connection.scopes"
+#: src/pages/admin/identity-providers/provider-options.ts
+msgid "admin.federation.effective.scopes"
 msgstr "作用域"
 
 #. js-lingui-explicit-id
@@ -5093,7 +5294,7 @@ msgid "admin.users.search"
 msgstr "搜索用户"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/AdminIdentityProvider.tsx
+#: src/pages/admin/identity-providers/ProviderDangerSection.tsx
 msgid "admin.federation.danger.secret.form"
 msgstr "密钥"
 
@@ -5121,6 +5322,16 @@ msgstr "选择用户组"
 #: src/pages/admin/saml-applications/AttributeMapField.tsx
 msgid "admin.saml-apps.mapping.multi"
 msgstr "发送每个值"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-options.ts
+msgid "admin.federation.auth.basic.hint"
+msgstr "在 Authorization 请求头里发送客户端密钥。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-options.ts
+msgid "admin.federation.auth.post.hint"
+msgstr "在请求正文里发送客户端密钥。"
 
 #. js-lingui-explicit-id
 #: src/components/custom/principal-sources.ts
@@ -5158,14 +5369,19 @@ msgid "admin.federation.operator.valid"
 msgstr "会话有效"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/AdminIdentityProvider.tsx
+#: src/pages/admin/identity-providers/ProviderDangerSection.tsx
 msgid "admin.federation.danger.secret.action"
 msgstr "设置"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/AdminIdentityProvider.tsx
+#: src/pages/admin/identity-providers/ProviderDangerSection.tsx
 msgid "admin.federation.danger.set-secret"
 msgstr "设置密钥"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderDangerSection.tsx
+msgid "admin.federation.danger.not-ready.steam"
+msgstr "先设置 Web API 密钥才能启用。"
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
@@ -5208,11 +5424,6 @@ msgid "notification.show"
 msgstr "显示通知"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
-msgid "admin.federation.diagnostics.stale"
-msgstr "显示的是最后一次成功读取的配置。"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/settings/MaintenancePanel.tsx
 msgid "settings.maintenance.notice.hint"
 msgstr "维护模式开启期间显示在登录页上。"
@@ -5248,6 +5459,16 @@ msgid "admin.federation.operator.replace"
 msgstr "重新登录"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+msgid "admin.federation.diagnostics.test.empty"
+msgstr "在提供商处完成一次登录，逐项检查每个阶段。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderDangerSection.tsx
+msgid "admin.federation.danger.not-ready.vrchat"
+msgstr "先登录运营账号才能启用。"
+
+#. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.no_session"
 msgstr "请登录后继续。"
@@ -5271,6 +5492,11 @@ msgstr "使用密码登录"
 #: src/pages/Login.tsx
 msgid "login.recovery.form"
 msgstr "使用恢复码登录"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-options.ts
+msgid "admin.federation.protocol.steam.hint"
+msgstr "用 Steam 账号登录，需要 Steam Web API 密钥。"
 
 #. js-lingui-explicit-id
 #: src/components/custom/ConsoleLayout.tsx
@@ -5389,6 +5615,11 @@ msgid "settings.keys.table"
 msgstr "签名密钥"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-options.ts
+msgid "admin.federation.diagnostics.stage-status.skipped"
+msgstr "跳过"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminGroups.tsx
 msgid "admin.groups.column.slug"
 msgstr "标识"
@@ -5444,20 +5675,19 @@ msgid "settings.keys.column.status"
 msgstr "状态"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
-#: src/pages/admin/identity-providers/AdminIdentityProviders.tsx
+#: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.protocol.steam"
 msgstr "Steam"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/AdminIdentityProvider.tsx
+#: src/pages/admin/identity-providers/ProviderDangerSection.tsx
 msgid "admin.federation.danger.secret.hint"
 msgstr "加密保存，之后不再显示。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
 msgid "admin.federation.claims.subject"
-msgstr "主体"
+msgstr "Subject"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/IdentityProjectionSection.tsx
@@ -5498,6 +5728,26 @@ msgstr "跟随系统"
 #: src/pages/admin/oidc-applications/AliasTableField.tsx
 msgid "admin.oidc-apps.alias.name.placeholder"
 msgstr "team"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+msgid "admin.federation.diagnostics.restart"
+msgstr "重新测试"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+msgid "admin.federation.diagnostics.callback"
+msgstr "测试回调地址"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-options.ts
+msgid "admin.federation.diagnostics.run.failed"
+msgstr "测试失败"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-options.ts
+msgid "admin.federation.diagnostics.run.succeeded"
+msgstr "测试通过"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
@@ -5645,9 +5895,14 @@ msgid "admin.user.delete.confirm.body"
 msgstr "该账号及其通行密钥、会话、访问令牌和已连接身份会立即被删除。此操作无法撤销。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/AdminIdentityProvider.tsx
+#: src/pages/admin/identity-providers/ProviderDangerSection.tsx
 msgid "admin.federation.danger.delete.hint"
 msgstr "通过它绑定的账号会保留，只解除绑定。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/EndpointsField.tsx
+msgid "admin.federation.endpoints.override.note"
+msgstr "这里填写的地址会替换发现结果。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/SamlDangerSection.tsx
@@ -5665,7 +5920,7 @@ msgid "admin.oidc-apps.field.client-id.hint"
 msgstr "客户端就是按这个值配置的，无法修改。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/AdminIdentityProvider.tsx
+#: src/pages/admin/identity-providers/ProviderDangerSection.tsx
 msgid "admin.federation.danger.secret.oidc"
 msgstr "本实例用它登录的客户端密钥。"
 
@@ -5802,6 +6057,11 @@ msgid "admin.invitations.new.groups.hint"
 msgstr "新账号注册后加入的手工用户组。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-validation.ts
+msgid "admin.federation.scope.openid-required"
+msgstr "需要 openid 作用域。"
+
+#. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.login_verification_failed"
 msgstr "无法验证通行密钥。请重试或使用密码。"
@@ -5822,19 +6082,20 @@ msgid "error.ceremony_expired"
 msgstr "本次通行密钥登录已过期。请重新开始。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/AdminIdentityProvider.tsx
+#: src/pages/admin/identity-providers/ProviderDangerSection.tsx
 msgid "admin.federation.danger.delete.confirm.empty"
 msgstr "该提供商及其图标会被删除。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
-msgid "error.upstream_temporarily_unavailable"
-msgstr "刚才无法连接该提供商。请检查端点后重试。"
-
-#. js-lingui-explicit-id
-#: src/api/errors.ts
 msgid "error.upstream_rate_limited"
 msgstr "提供商要求我们放慢速度。请稍等片刻再试。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
+#: src/pages/admin/identity-providers/ProviderConnectionSection.tsx
+msgid "admin.federation.scopes.hint"
+msgstr "提供商必须支持这里的每个作用域。"
 
 #. js-lingui-explicit-id
 #: src/components/custom/TotpSetup.tsx
@@ -5907,7 +6168,7 @@ msgid "admin.logs.range.reversed"
 msgstr "开始日期晚于结束日期"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/AdminIdentityProvider.tsx
+#: src/pages/admin/identity-providers/ProviderDangerSection.tsx
 msgid "admin.federation.danger.secret.steam"
 msgstr "Steam Web API 密钥。"
 
@@ -6217,12 +6478,17 @@ msgid "console.toggle-sidebar"
 msgstr "切换侧边栏"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderConnectionSection.tsx
+#: src/pages/admin/identity-providers/provider-options.ts
+msgid "admin.federation.effective.token"
+msgstr "令牌端点"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.connection.token"
 msgstr "令牌端点"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+#: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.diagnostics.stage.token"
 msgstr "令牌交换"
 
@@ -6432,6 +6698,11 @@ msgid "dev.forms.id.description"
 msgstr "请使用属于隔离测试账户的凭据。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-validation.ts
+msgid "admin.federation.url.ip"
+msgstr "请使用主机名，不要用 IP 地址。"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/forward-auth-validation.ts
 msgid "admin.forward-auth-apps.host.invalid"
 msgstr "请填写小写主机名，不带协议和端口，例如 app.example.com。"
@@ -6482,6 +6753,16 @@ msgid "login.use_totp"
 msgstr "使用身份验证器验证码"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-validation.ts
+msgid "admin.federation.url.scheme"
+msgstr "请使用 http 或 https 地址。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-validation.ts
+msgid "admin.federation.url.https"
+msgstr "请使用 https 地址。"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
 msgid "admin.oidc-apps.new.client-id.invalid"
 msgstr "以字母或数字开头，之后可包含字母、数字、点、下划线和连字符，最多 128 个字符。"
@@ -6504,7 +6785,7 @@ msgstr "请使用小写字母、数字和连字符，最多 64 个字符。"
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
 msgid "admin.federation.new.slug.invalid"
-msgstr "请使用小写字母、数字和单个连字符——该标识会出现在回调地址中。"
+msgstr "请使用小写字母、数字和单个连字符——标识符会出现在回调地址中。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/client-ip-form.ts
@@ -6528,9 +6809,9 @@ msgid "admin.forward-auth-apps.traefik.note"
 msgstr "仅在可信的反向代理后使用，入口点设置见<0>前向认证指南</0>。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
+#: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.auth.discovery"
-msgstr "采用发现结果"
+msgstr "使用发现结果"
 
 #. js-lingui-explicit-id
 #: src/components/custom/SudoDialog.tsx
@@ -6634,12 +6915,17 @@ msgid "admin.logs.detail.userAgent"
 msgstr "User-Agent"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+#: src/pages/admin/identity-providers/provider-options.ts
+msgid "admin.federation.effective.userinfo"
+msgstr "UserInfo 端点"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.diagnostics.stage.userinfo"
 msgstr "UserInfo"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderConnectionSection.tsx
+#: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.connection.userinfo"
 msgstr "UserInfo 端点"
 
@@ -6693,6 +6979,16 @@ msgstr "用户"
 #: src/components/custom/ConsoleLayout.tsx
 msgid "console.admin.users"
 msgstr "用户"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-options.ts
+msgid "admin.federation.auth.none.hint"
+msgstr "不使用客户端密钥，登录时一律使用 PKCE。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-options.ts
+msgid "admin.federation.auth.discovery.hint"
+msgstr "按提供商公布的方式选择；手动填写端点时不可用。"
 
 #. js-lingui-explicit-id
 #: src/components/custom/ListCells.tsx
@@ -6770,13 +7066,12 @@ msgid "settings.keys.view"
 msgstr "查看公钥"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
-#: src/pages/admin/identity-providers/AdminIdentityProviders.tsx
+#: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.protocol.vrchat"
 msgstr "VRChat"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderGeneralSection.tsx
+#: src/pages/admin/identity-providers/ProvisioningModeField.tsx
 msgid "admin.federation.general.mode.vrchat"
 msgstr "VRChat 账号只能绑定，不能创建。"
 
@@ -6791,13 +7086,18 @@ msgid "admin.federation.operator.form"
 msgstr "VRChat 登录"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-options.ts
+msgid "admin.federation.diagnostics.run.waiting"
+msgstr "等待提供商回调"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderOperatorSection.tsx
 msgid "admin.federation.operator.pending"
 msgstr "等待 VRChat…"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/AdminIdentityProvider.tsx
 #: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
+#: src/pages/admin/identity-providers/ProviderDangerSection.tsx
 msgid "admin.federation.new.steam-key"
 msgstr "Web API 密钥"
 
@@ -6840,6 +7140,11 @@ msgstr "本组包含哪些账号，在创建完成后于该用户组自己的页
 #: src/pages/admin/AdminGroupForm.tsx
 msgid "admin.group.rule.label"
 msgstr "规则匹配的账号"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-validation.ts
+msgid "admin.federation.auth.manual-needs-method"
+msgstr "手动填写端点时，请选择具体的认证方式。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts

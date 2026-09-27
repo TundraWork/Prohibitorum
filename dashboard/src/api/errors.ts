@@ -353,8 +353,7 @@ const errorMessages: Readonly<Record<string, MessageDescriptor>> = {
   }),
   upstream_temporarily_unavailable: msg({
     id: "error.upstream_temporarily_unavailable",
-    message:
-      "The provider could not be reached just now. Check the endpoint and try again.",
+    message: "Could not reach the provider.",
   }),
   // A diagnostic run is single-use and short-lived. The console does not treat
   // this as a signed-out session: only `no_session` means that.

@@ -584,6 +584,8 @@ function ApplicationManagersKind({
   const target = (managers.data ?? []).find(
     (manager) => manager.id === removing,
   );
+  // Named, so the confirmation carries it as `{name}` in both catalogs.
+  const name = target?.displayName ?? "";
 
   // A failed read is not an empty list: saying "no managers" would be a claim
   // about the application the console cannot make.
@@ -652,8 +654,8 @@ function ApplicationManagersKind({
         body={
           <p>
             <Trans id="app.managers.confirm.body">
-              {target?.displayName ?? ""} will no longer be able to change this
-              application. Their account is not affected.
+              {name} will no longer be able to change this application. Their
+              account is not affected.
             </Trans>
           </p>
         }

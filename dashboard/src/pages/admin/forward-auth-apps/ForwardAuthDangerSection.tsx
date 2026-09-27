@@ -51,6 +51,10 @@ export function ForwardAuthDangerSection({ app }: { app: ForwardAuthApp }) {
   // has not landed yet only costs the dialog its count.
   const access = useQuery(appAccessQueryOptions("forward_auth", app.clientId));
   const groups = (access.data?.groups ?? []).map((group) => group.displayName);
+  // Named, so the confirmation carries them as `{name}` and `{count}`, the
+  // placeholders both catalogs use.
+  const name = app.displayName || app.clientId;
+  const count = groups.length;
 
   const failure = remove.error ?? setDisabled.error;
 
@@ -210,16 +214,16 @@ export function ForwardAuthDangerSection({ app }: { app: ForwardAuthApp }) {
           <p>
             {groups.length === 0 ? (
               <Trans id="admin.forward-auth-apps.delete.confirm.open">
-                {app.displayName || app.clientId} is removed along with its
-                token scopes, its icon and its access policy. Requests through
-                its router are turned away immediately. This cannot be undone.
+                {name} is removed along with its token scopes, its icon and its
+                access policy. Requests through its router are turned away
+                immediately. This cannot be undone.
               </Trans>
             ) : (
               <Trans id="admin.forward-auth-apps.delete.confirm.groups">
-                {app.displayName || app.clientId} is removed along with its
-                token scopes, its icon and its access policy — including its
-                selection of {groups.length} user groups. Requests through its
-                router are turned away immediately. This cannot be undone.
+                {name} is removed along with its token scopes, its icon and its
+                access policy — including its selection of {count} user groups.
+                Requests through its router are turned away immediately. This
+                cannot be undone.
               </Trans>
             )}
           </p>
