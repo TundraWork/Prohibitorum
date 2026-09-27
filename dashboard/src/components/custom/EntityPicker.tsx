@@ -10,6 +10,7 @@ import {
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useStore } from "@tanstack/react-form";
 import type { ComponentProps, ReactNode } from "react";
+import { FormMessages } from "@/components/custom/FormMessages";
 import { ScrollArea } from "@/components/custom/ScrollArea";
 import { useFieldContext, useFormContext } from "@/forms/context";
 import { withoutServerErrors } from "@/forms/server-errors";
@@ -157,14 +158,15 @@ export function EntityPicker({
             <SearchField.Group>
               <SearchField.SearchIcon />
               <SearchField.Input placeholder={placeholder} />
-              <Spinner
-                size="sm"
-                className={
-                  loading
-                    ? "absolute end-2 top-1/2 -translate-y-1/2"
-                    : "pointer-events-none absolute end-2 top-1/2 -translate-y-1/2 opacity-0"
-                }
-              />
+              {/* Mounted only while a lookup runs: a spinner faded out but
+                  left in place is still a "Loading" status to a screen
+                  reader. It sits over the field, so nothing shifts. */}
+              {loading && (
+                <Spinner
+                  size="sm"
+                  className="absolute end-2 top-1/2 -translate-y-1/2"
+                />
+              )}
             </SearchField.Group>
           </SearchField>
           {/*
@@ -239,9 +241,7 @@ function FieldEntityPicker(
   return (
     <EntityPicker
       {...props}
-      errorMessage={
-        <Trans id="admin.picker.invalid">Choose a valid option.</Trans>
-      }
+      errorMessage={<FormMessages errors={errors} />}
       isDisabled={submitting}
       isInvalid={errors.length > 0}
       value={selected}

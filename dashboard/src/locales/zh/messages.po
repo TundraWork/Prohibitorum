@@ -963,9 +963,9 @@ msgid "admin.logs.range.incomplete"
 msgstr "请选择开始日期和结束日期"
 
 #. js-lingui-explicit-id
-#: src/components/custom/EntityPicker.tsx
-msgid "admin.picker.invalid"
-msgstr "请选择一个有效的选项。"
+#: src/components/custom/AppAccessPanel.tsx
+msgid "app.managers.dialog.required"
+msgstr "选择要指派的账号。"
 
 #. js-lingui-explicit-id
 #: src/components/custom/ImageUploadControl.tsx

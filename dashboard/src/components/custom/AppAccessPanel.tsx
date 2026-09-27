@@ -50,10 +50,10 @@ import { useAppForm } from "@/forms/use-app-form";
  * that owns it.
  *
  * The switch writes on flip rather than on a submit, which is why its handler
- * lives beside the state it reads. Opening an application back up is reversible
- * and runs from the switch; restricting it is not, because until a group is
- * selected nobody can reach the application at all, so that direction asks
- * first and the switch is held back until the dialog is answered.
+ * lives beside the state it reads. Both directions ask first and the switch is
+ * held back until the dialog is answered: restricting says that nobody can
+ * reach the application until a group is selected, and opening it says the
+ * selection is kept for later.
  *
  * The card's first row states the setting, and the selected groups are the
  * rows after it. Nothing is drawn until the policy has been read: a restricted
@@ -92,6 +92,11 @@ import { useAppForm } from "@/forms/use-app-form";
 const removeGroupMessage = msg({
   id: "app.groups.remove",
   message: "Remove {group}",
+});
+
+const accountRequired = msg({
+  id: "app.managers.dialog.required",
+  message: "Choose an account to assign.",
 });
 
 const removeManagerMessage = msg({
@@ -172,8 +177,8 @@ export function AppManagers({
  *
  * The switch is the only control on the heading row and it is held at the
  * server's own value while a write is in flight, so it never shows a state the
- * server has not accepted. A failed write leaves it where it was and says why
- * in the card below.
+ * server has not accepted. A failed write leaves it where it was, and the
+ * failure is reported the way every failed write is.
  */
 function AccessRestrictionKind({
   kind,
@@ -768,7 +773,13 @@ function AssignManagerDialog({
                 <Modal.Body>
                   <div className="flex flex-col gap-4">
                     <form.FormError />
-                    <form.AppField name="accountId">
+                    <form.AppField
+                      name="accountId"
+                      validators={{
+                        onSubmit: ({ value }) =>
+                          value === "" ? accountRequired : undefined,
+                      }}
+                    >
                       {(field) => (
                         <field.AccountPicker
                           label={

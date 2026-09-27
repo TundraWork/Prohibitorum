@@ -66,7 +66,7 @@ describe("ItemList", () => {
     );
   });
 
-  it("fades a dimmed row's content and leaves its actions alone", () => {
+  it("mutes a dimmed row's name and leaves its actions alone", () => {
     render(
       <ItemList label="User groups" empty={null}>
         <ItemListRow
@@ -79,11 +79,9 @@ describe("ItemList", () => {
       </ItemList>,
     );
 
-    const kept = screen.getByText("Kept");
-    expect(kept.closest(".opacity-60")).not.toBeNull();
-    expect(
-      screen.getByRole("button", { name: "Remove" }).closest(".opacity-60"),
-    ).toBeNull();
-    expect(screen.getByText("Active").closest(".opacity-60")).toBeNull();
+    expect(screen.getByText("Kept")).toHaveClass("text-muted");
+    expect(screen.getByText("Active")).toHaveClass("text-foreground");
+    // Nothing in the row is faded by opacity, the action included.
+    expect(document.querySelector("[class*='opacity-']")).toBeNull();
   });
 });

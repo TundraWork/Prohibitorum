@@ -963,9 +963,9 @@ msgid "admin.logs.range.incomplete"
 msgstr "Choose a start and an end date"
 
 #. js-lingui-explicit-id
-#: src/components/custom/EntityPicker.tsx
-msgid "admin.picker.invalid"
-msgstr "Choose a valid option."
+#: src/components/custom/AppAccessPanel.tsx
+msgid "app.managers.dialog.required"
+msgstr "Choose an account to assign."
 
 #. js-lingui-explicit-id
 #: src/components/custom/ImageUploadControl.tsx

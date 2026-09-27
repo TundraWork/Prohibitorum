@@ -86,10 +86,12 @@ export function ItemList({
  * is pressable and ends with a chevron, so there is no separate "edit" button
  * saying the same thing.
  *
- * A `dimmed` row recedes the way `EntityCell`'s does: its icon and text drop
- * in opacity for a record that is kept but not in effect, and its actions stay
- * at full strength. The fading is decoration; whatever puts a row in that state
- * says so in words as well.
+ * A `dimmed` row is a record kept but not in effect. Its name takes the muted
+ * colour its details already use, and its actions stay at full strength. It
+ * recedes by colour rather than by opacity: faded muted text falls well under
+ * the contrast floor, and a kept record is still one the reader has to read.
+ * The recession is decoration; whatever puts a row in that state says so in
+ * words as well.
  */
 export function ItemListRow({
   icon,
@@ -121,21 +123,20 @@ export function ItemListRow({
   const shown = (details ?? []).filter(
     (detail) => detail !== null && detail !== undefined && detail !== false,
   );
-  const fade = dimmed ? " opacity-60" : "";
   const body = (
     <>
       {icon !== undefined && (
-        <span
-          className={`grid size-9 shrink-0 place-items-center rounded-[0.375rem] bg-default text-muted${fade}`}
-        >
+        <span className="grid size-9 shrink-0 place-items-center rounded-[0.375rem] bg-default text-muted">
           {icon}
         </span>
       )}
       {/* The text keeps a floor, so a row whose actions carry a label moves
           them under the text on a narrow screen instead of squeezing it. */}
-      <div className={`flex min-w-40 flex-1 flex-col gap-0.5${fade}`}>
+      <div className="flex min-w-40 flex-1 flex-col gap-0.5">
         <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-          <span className="min-w-0 wrap-anywhere text-sm font-medium text-foreground">
+          <span
+            className={`min-w-0 wrap-anywhere text-sm font-medium ${dimmed ? "text-muted" : "text-foreground"}`}
+          >
             {title}
           </span>
           {badges}
