@@ -358,6 +358,24 @@ in the form, unsent. A changed OIDC subject source or forward-auth
 `Remote-User`, a saved token scope removed, and a saved OIDC scope removed are
 saved this way.
 
+### Step-up verification
+
+A write the server guards with a fresh sudo window stops at `SudoDialog`, the
+console's only prompt to confirm who is signed in. `ShieldCheck` stays beside
+the heading as the dialog's `Modal.Icon`, and the header says why the check is
+needed. The methods the account has are side by side in the body, each with
+its own full-width control: a passkey button with a `Fingerprint` icon, then a
+rule with "or" in the middle, then the current password and authenticator code
+with the submit button right under them. An account with one method sees only
+that method and no rule. One method leads, with the only `primary` button and
+the focus the dialog opens on: the passkey when the browser can use one, and
+otherwise the password, whose submit button is `secondary` while the passkey
+leads. A passkey the browser cannot use is a disabled `secondary` button. The dialog has no footer and
+no cancel button: the close button in the corner and Escape close it. While a
+verification or the replayed write is in flight the dialog is locked, the
+close button disabled and Escape ignored, and the other method's controls are
+disabled.
+
 ## Do's and Don'ts
 
 ### Do:

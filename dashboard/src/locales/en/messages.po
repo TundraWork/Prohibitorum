@@ -935,11 +935,6 @@ msgid "confirm.cancel"
 msgstr "Cancel"
 
 #. js-lingui-explicit-id
-#: src/components/custom/SudoDialog.tsx
-msgid "sudo.cancel"
-msgstr "Cancel"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/AdminLogs.tsx
 msgid "admin.logs.column.factor"
 msgstr "Category"
@@ -1246,6 +1241,11 @@ msgstr "Close"
 #. js-lingui-explicit-id
 #: src/components/custom/RequestDetailsDialog.tsx
 msgid "request_details.close"
+msgstr "Close"
+
+#. js-lingui-explicit-id
+#: src/components/custom/SudoDialog.tsx
+msgid "sudo.close"
 msgstr "Close"
 
 #. js-lingui-explicit-id
@@ -2604,6 +2604,11 @@ msgid "security.totp.invalid"
 msgstr "Enter the code your authenticator shows, using only 0–9."
 
 #. js-lingui-explicit-id
+#: src/components/custom/SudoDialog.tsx
+msgid "sudo.code.invalid"
+msgstr "Enter the code your authenticator shows, using only 0–9."
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/EndpointsField.tsx
 msgid "admin.federation.connection.mode.manual"
 msgstr "Enter the endpoints"
@@ -2647,6 +2652,11 @@ msgstr "Enter the token endpoint."
 #: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
 msgid "admin.federation.new.steam-key.required"
 msgstr "Enter the Web API key."
+
+#. js-lingui-explicit-id
+#: src/components/custom/SudoDialog.tsx
+msgid "sudo.password.invalid"
+msgstr "Enter your current password, up to 1024 UTF-8 bytes."
 
 #. js-lingui-explicit-id
 #: src/components/custom/LoginShell.tsx
@@ -3564,11 +3574,6 @@ msgid "admin.saml-apps.metadata.dialog.field"
 msgstr "Metadata XML"
 
 #. js-lingui-explicit-id
-#: src/components/custom/SudoDialog.tsx
-msgid "sudo.method.label"
-msgstr "Method"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AttributeMapField.tsx
 msgid "admin.saml-apps.mapping.multi.column"
 msgstr "Multi"
@@ -4171,6 +4176,11 @@ msgstr "Optional. Only providers that are enabled and ready are offered; the inv
 #: src/pages/admin/AdminGroupForm.tsx
 msgid "admin.group.description.hint"
 msgstr "Optional. What this group is for, for whoever reads it next."
+
+#. js-lingui-explicit-id
+#: src/components/custom/SudoDialog.tsx
+msgid "sudo.or"
+msgstr "or"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-options.ts
@@ -6313,6 +6323,11 @@ msgid "apps.confirm.body"
 msgstr "This application will no longer read your profile. It will need to ask for permission again."
 
 #. js-lingui-explicit-id
+#: src/components/custom/SudoDialog.tsx
+msgid "sudo.passkey.unsupported"
+msgstr "This browser or connection cannot use passkeys."
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
 msgid "admin.group.rule.reason.invalid_shape"
 msgstr "This condition mixes fields that do not belong together."
@@ -6753,11 +6768,6 @@ msgid "admin.forward-auth-apps.host.invalid"
 msgstr "Use a lowercase hostname with no scheme and no port, such as app.example.com."
 
 #. js-lingui-explicit-id
-#: src/components/custom/SudoDialog.tsx
-msgid "sudo.method.passkey"
-msgstr "Use a passkey"
-
-#. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
 msgid "security.password.invalid"
 msgstr "Use a password of at least 8 characters."
@@ -6857,11 +6867,6 @@ msgstr "Use this only behind a trusted reverse proxy. See <0>the forward-auth gu
 #: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.auth.discovery"
 msgstr "Use what discovery reports"
-
-#. js-lingui-explicit-id
-#: src/components/custom/SudoDialog.tsx
-msgid "sudo.method.password"
-msgstr "Use your password and authenticator"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts
@@ -7058,11 +7063,6 @@ msgstr "Value to match"
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderOperatorSection.tsx
 msgid "admin.federation.operator.method"
-msgstr "Verification method"
-
-#. js-lingui-explicit-id
-#: src/components/custom/SudoDialog.tsx
-msgid "sudo.methods"
 msgstr "Verification method"
 
 #. js-lingui-explicit-id

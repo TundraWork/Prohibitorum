@@ -22,6 +22,7 @@ export function FormField({
   placeholder,
   isDisabled = false,
   isMonospace = false,
+  autoFocus = false,
   variant,
   className,
 }: {
@@ -40,6 +41,11 @@ export function FormField({
    * match another system's copy character for character.
    */
   isMonospace?: boolean;
+  /**
+   * Takes focus on mount, for the field a dialog opens on so the step can be
+   * finished without reaching for the pointer.
+   */
+  autoFocus?: boolean;
   /** HeroUI input variant. Use `secondary` when the field sits on a surface. */
   variant?: ComponentProps<typeof Input>["variant"];
   /**
@@ -86,6 +92,7 @@ export function FormField({
         autoCapitalize={autoCapitalize}
         spellCheck={spellCheck}
         placeholder={placeholder}
+        autoFocus={autoFocus}
         variant={variant}
         aria-invalid={invalid || undefined}
         aria-describedby={
