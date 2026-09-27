@@ -44,6 +44,23 @@
 }
 
 /*
+ * The console rail's bar. The rail leaves an 8px gutter beside its entries, so
+ * the app's 10px bar would lie over the edge of the selected and hovered rows.
+ * Here the track is the gutter itself and the handle is drawn narrower than it:
+ * 4px at rest against the rail's outer edge (a vertical handle sits at the end
+ * of its track), 6px while the bar is hovered or dragged, so it always keeps
+ * 2px clear of the rows. The interactive offset stretches the grab area back
+ * over the whole gutter, so the thin handle is no harder to take hold of.
+ */
+[data-console-rail] > .os-scrollbar-vertical {
+  --os-size: 8px;
+  --os-handle-perpendicular-size: 4px;
+  --os-handle-perpendicular-size-hover: 6px;
+  --os-handle-perpendicular-size-active: 6px;
+  --os-handle-interactive-area-offset: 4px;
+}
+
+/*
  * The page's scrollbars avoid the open devtools panel the same way the content
  * does.
  *
