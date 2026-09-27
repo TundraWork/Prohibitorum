@@ -94,11 +94,14 @@ borders: the rail and header are `surface-secondary` (the chrome), `main` keeps
 the page's `background`, and every card is the library's white `surface`. The
 header alone closes with a `separator` rule, because it is sticky and content
 scrolls under it. The rail's selected entry is the accent's soft tint
-(`bg-accent-soft`, icon in `text-accent`) — the only place the product's colour
-appears in the shell, and a step *above* the rail where `default` would read as
-a hole punched in it. Rail labels are `text-foreground/85` rather than `muted`:
-on the secondary surface that token measures about 4.2:1 in light mode, under
-the body-text floor.
+(`bg-accent-soft`, icon in `text-accent-soft-foreground`, the pair HeroUI draws
+on that tint) — the only place the product's colour appears in the shell, and a
+step *above* the rail where `default` would read as a hole punched in it. Hover
+is half of that tint, so it previews the selection. Rail labels are
+`text-foreground/85` rather than `muted`: on the secondary surface that token
+measures about 4.2:1 in light mode, under the body-text floor. Unselected icons
+are `text-foreground/60` and group headings `text-foreground/70`, so both clear
+their floors (3:1 and 4.5:1) in either theme.
 
 Status colors retain HeroUI's danger, warning, and success roles. Their exact
 light/dark values remain in `dashboard/src/styles/theme.css`.
@@ -237,7 +240,14 @@ pending component, an in-flight lookup, and the work a `Button` reports through
 
 Public navigation uses wrapping HeroUI links. Preview tabs use the secondary
 variant with the library indicator. Console navigation uses its existing shared
-composition, including unavailable states and narrow-screen behavior. The rail
+composition and narrow-screen behavior. Its entries are router links drawn with
+`buttonVariants({ variant: "ghost" })`, so they open in a new tab and keep the
+button's focus ring and press scale; selected entries are medium weight and the
+rest regular. The management entries sit under three headings — directory,
+applications, system — and a heading with nothing visible under it is left out.
+The instance avatar, the entry icons, the headings and the account avatar share
+one edge 20px into the rail. On a narrow screen the same list opens in a drawer
+on the rail's gray, with 44px rows. The rail
 names the instance and the header names the section in view, so each string is
 written once: the header carries no eyebrow repeating the instance above its
 heading.

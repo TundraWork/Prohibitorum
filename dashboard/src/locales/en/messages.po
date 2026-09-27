@@ -455,11 +455,6 @@ msgid "admin.home.title"
 msgstr "Administration"
 
 #. js-lingui-explicit-id
-#: src/components/custom/ConsoleLayout.tsx
-msgid "console.administration"
-msgstr "Administration"
-
-#. js-lingui-explicit-id
 #: src/components/custom/TotpSetup.tsx
 msgid "login.reset.warning"
 msgstr "After a successful reset, your old authenticator and all old recovery codes will stop working."
@@ -623,6 +618,11 @@ msgstr "Application saved"
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminGroups.tsx
 msgid "admin.groups.column.applications"
+msgstr "Applications"
+
+#. js-lingui-explicit-id
+#: src/components/custom/ConsoleLayout.tsx
+msgid "console.group.applications"
 msgstr "Applications"
 
 #. js-lingui-explicit-id
@@ -1395,7 +1395,7 @@ msgstr "Connected applications"
 #. js-lingui-explicit-id
 #: src/components/custom/ConsoleLayout.tsx
 msgid "console.applications"
-msgstr "Applications"
+msgstr "Connected applications"
 
 #. js-lingui-explicit-id
 #: src/pages/security/IdentitiesPanel.tsx
@@ -1899,6 +1899,11 @@ msgstr "Diagnostics"
 #: src/pages/admin/identity-providers/AdminIdentityProvider.tsx
 msgid "admin.federation.diagnostics.title"
 msgstr "Diagnostics"
+
+#. js-lingui-explicit-id
+#: src/components/custom/ConsoleLayout.tsx
+msgid "console.group.directory"
+msgstr "Directory"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
@@ -5377,6 +5382,11 @@ msgstr "Submitting…"
 #: src/pages/security/PasskeysPanel.tsx
 msgid "security.passkeys.synced"
 msgstr "Synced"
+
+#. js-lingui-explicit-id
+#: src/components/custom/ConsoleLayout.tsx
+msgid "console.group.system"
+msgstr "System"
 
 #. js-lingui-explicit-id
 #: src/components/custom/ThemeSelect.tsx

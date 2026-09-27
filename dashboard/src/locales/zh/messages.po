@@ -455,11 +455,6 @@ msgid "admin.home.title"
 msgstr "管理"
 
 #. js-lingui-explicit-id
-#: src/components/custom/ConsoleLayout.tsx
-msgid "console.administration"
-msgstr "管理"
-
-#. js-lingui-explicit-id
 #: src/components/custom/TotpSetup.tsx
 msgid "login.reset.warning"
 msgstr "提交后，旧身份验证器和恢复码都将失效。"
@@ -623,6 +618,11 @@ msgstr "应用已保存"
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminGroups.tsx
 msgid "admin.groups.column.applications"
+msgstr "应用"
+
+#. js-lingui-explicit-id
+#: src/components/custom/ConsoleLayout.tsx
+msgid "console.group.applications"
 msgstr "应用"
 
 #. js-lingui-explicit-id
@@ -1395,7 +1395,7 @@ msgstr "已连接应用"
 #. js-lingui-explicit-id
 #: src/components/custom/ConsoleLayout.tsx
 msgid "console.applications"
-msgstr "应用"
+msgstr "已连接应用"
 
 #. js-lingui-explicit-id
 #: src/pages/security/IdentitiesPanel.tsx
@@ -1899,6 +1899,11 @@ msgstr "诊断"
 #: src/pages/admin/identity-providers/AdminIdentityProvider.tsx
 msgid "admin.federation.diagnostics.title"
 msgstr "诊断"
+
+#. js-lingui-explicit-id
+#: src/components/custom/ConsoleLayout.tsx
+msgid "console.group.directory"
+msgstr "目录"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
@@ -5377,6 +5382,11 @@ msgstr "正在提交…"
 #: src/pages/security/PasskeysPanel.tsx
 msgid "security.passkeys.synced"
 msgstr "已同步"
+
+#. js-lingui-explicit-id
+#: src/components/custom/ConsoleLayout.tsx
+msgid "console.group.system"
+msgstr "系统"
 
 #. js-lingui-explicit-id
 #: src/components/custom/ThemeSelect.tsx
