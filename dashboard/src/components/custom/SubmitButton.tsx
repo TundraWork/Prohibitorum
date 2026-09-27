@@ -13,15 +13,20 @@ import { useFormContext } from "@/forms/context";
  * a scope tokens were granted. The form confirms that save when it is
  * submitted, and the button says so beforehand: the warning colour, and an icon
  * in front of the label, so the state is not carried by colour alone.
+ *
+ * `isDisabled` is for a form that shares its surface with another way to finish
+ * the same step: while that other way is in flight, this one cannot start.
  */
 export function SubmitButton({
   children,
   fullWidth = false,
   tone = "default",
+  isDisabled = false,
 }: {
   children: ReactNode;
   fullWidth?: boolean;
   tone?: "default" | "warning";
+  isDisabled?: boolean;
 }) {
   const form = useFormContext();
   const submitting = useStore(form.store, (state) => state.isSubmitting);
@@ -31,6 +36,7 @@ export function SubmitButton({
         type="submit"
         fullWidth={fullWidth}
         isPending={submitting}
+        isDisabled={isDisabled}
         variant={tone === "warning" ? "warning" : undefined}
       >
         {({ isPending }) =>

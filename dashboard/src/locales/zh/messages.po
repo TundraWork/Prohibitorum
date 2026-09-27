@@ -935,11 +935,6 @@ msgid "confirm.cancel"
 msgstr "取消"
 
 #. js-lingui-explicit-id
-#: src/components/custom/SudoDialog.tsx
-msgid "sudo.cancel"
-msgstr "取消"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/AdminLogs.tsx
 msgid "admin.logs.column.factor"
 msgstr "类别"
@@ -1246,6 +1241,11 @@ msgstr "关闭"
 #. js-lingui-explicit-id
 #: src/components/custom/RequestDetailsDialog.tsx
 msgid "request_details.close"
+msgstr "关闭"
+
+#. js-lingui-explicit-id
+#: src/components/custom/SudoDialog.tsx
+msgid "sudo.close"
 msgstr "关闭"
 
 #. js-lingui-explicit-id
@@ -2604,6 +2604,11 @@ msgid "security.totp.invalid"
 msgstr "请输入验证器显示的验证码，只能包含 0–9。"
 
 #. js-lingui-explicit-id
+#: src/components/custom/SudoDialog.tsx
+msgid "sudo.code.invalid"
+msgstr "请输入验证器显示的验证码，只能包含 0–9。"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/EndpointsField.tsx
 msgid "admin.federation.connection.mode.manual"
 msgstr "手动填写"
@@ -2647,6 +2652,11 @@ msgstr "请填写令牌端点。"
 #: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
 msgid "admin.federation.new.steam-key.required"
 msgstr "请填写 Web API 密钥。"
+
+#. js-lingui-explicit-id
+#: src/components/custom/SudoDialog.tsx
+msgid "sudo.password.invalid"
+msgstr "请输入当前密码，最多 1024 个 UTF-8 字节。"
 
 #. js-lingui-explicit-id
 #: src/components/custom/LoginShell.tsx
@@ -3564,11 +3574,6 @@ msgid "admin.saml-apps.metadata.dialog.field"
 msgstr "元数据 XML"
 
 #. js-lingui-explicit-id
-#: src/components/custom/SudoDialog.tsx
-msgid "sudo.method.label"
-msgstr "方式"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AttributeMapField.tsx
 msgid "admin.saml-apps.mapping.multi.column"
 msgstr "多值"
@@ -4171,6 +4176,11 @@ msgstr "可选。只提供已启用且就绪的提供商；被邀请人必须通
 #: src/pages/admin/AdminGroupForm.tsx
 msgid "admin.group.description.hint"
 msgstr "可选。说明本用户组的用途，供之后阅读的人参考。"
+
+#. js-lingui-explicit-id
+#: src/components/custom/SudoDialog.tsx
+msgid "sudo.or"
+msgstr "或"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-options.ts
@@ -6313,6 +6323,11 @@ msgid "apps.confirm.body"
 msgstr "该应用将无法再读取你的资料，下次使用时需要重新请求授权。"
 
 #. js-lingui-explicit-id
+#: src/components/custom/SudoDialog.tsx
+msgid "sudo.passkey.unsupported"
+msgstr "此浏览器或连接无法使用通行密钥。"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
 msgid "admin.group.rule.reason.invalid_shape"
 msgstr "该条件混用了不属于一起的字段。"
@@ -6753,11 +6768,6 @@ msgid "admin.forward-auth-apps.host.invalid"
 msgstr "请填写小写主机名，不带协议和端口，例如 app.example.com。"
 
 #. js-lingui-explicit-id
-#: src/components/custom/SudoDialog.tsx
-msgid "sudo.method.passkey"
-msgstr "使用通行密钥"
-
-#. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
 msgid "security.password.invalid"
 msgstr "请使用至少 8 个字符的密码。"
@@ -6857,11 +6867,6 @@ msgstr "仅在可信的反向代理后使用，入口点设置见<0>前向认证
 #: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.auth.discovery"
 msgstr "使用发现结果"
-
-#. js-lingui-explicit-id
-#: src/components/custom/SudoDialog.tsx
-msgid "sudo.method.password"
-msgstr "使用密码与验证器"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts
@@ -7058,11 +7063,6 @@ msgstr "要匹配的值"
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderOperatorSection.tsx
 msgid "admin.federation.operator.method"
-msgstr "验证方式"
-
-#. js-lingui-explicit-id
-#: src/components/custom/SudoDialog.tsx
-msgid "sudo.methods"
 msgstr "验证方式"
 
 #. js-lingui-explicit-id
