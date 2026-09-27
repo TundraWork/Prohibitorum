@@ -21,12 +21,13 @@ export function FormField({
   spellCheck,
   placeholder,
   isDisabled = false,
+  isMonospace = false,
   variant,
   className,
 }: {
   label: ReactNode;
   description?: ReactNode;
-  inputMode?: "text" | "numeric";
+  inputMode?: "text" | "numeric" | "url";
   type?: ComponentProps<typeof Input>["type"];
   autoComplete?: string;
   autoCapitalize?: string;
@@ -34,6 +35,11 @@ export function FormField({
   /** An example value, for a field whose format is easier shown than said. */
   placeholder?: string;
   isDisabled?: boolean;
+  /**
+   * For a literal protocol value — an issuer URL, a client ID — that has to
+   * match another system's copy character for character.
+   */
+  isMonospace?: boolean;
   /** HeroUI input variant. Use `secondary` when the field sits on a surface. */
   variant?: ComponentProps<typeof Input>["variant"];
   /**
@@ -73,6 +79,7 @@ export function FormField({
       <Label htmlFor={id}>{label}</Label>
       <Input
         id={id}
+        className={isMonospace ? "font-mono" : undefined}
         inputMode={inputMode}
         type={type}
         autoComplete={autoComplete}
