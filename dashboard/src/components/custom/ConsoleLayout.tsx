@@ -296,7 +296,7 @@ function isActiveSection(path: string, activePath: string) {
  * The press keeps the library's scale, like every other button in the console.
  */
 const navigationItem = cva(
-  "group h-11 w-full justify-start gap-3 rounded-field px-3 text-sm font-normal leading-5 text-foreground/85 hover:bg-accent-soft/50 hover:text-foreground focus-visible:ring-offset-surface-secondary md:h-9 data-[status=active]:bg-accent-soft data-[status=active]:font-medium data-[status=active]:text-foreground data-[status=active]:hover:bg-accent-soft",
+  "group h-11 w-full justify-start gap-3 rounded-3xl px-3 text-sm font-normal leading-5 text-foreground/85 hover:bg-accent-soft/50 hover:text-foreground focus-visible:ring-offset-surface-secondary md:h-9 data-[status=active]:bg-accent-soft data-[status=active]:font-medium data-[status=active]:text-foreground data-[status=active]:hover:bg-accent-soft",
 );
 
 function NavItem({
