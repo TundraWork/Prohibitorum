@@ -564,7 +564,9 @@ function identityProviders(config: MockConfig): IdentityProvider[] {
     // cell documents.
     const disabled = index % 3 === 1;
     const ready = index % 4 !== 3;
-    const configured = protocol !== "vrchat" && index % 2 === 0;
+    // For VRChat the "secret" is the operator session, so an even row has a
+    // checked session and an odd one has none, and both states can be seen.
+    const configured = index % 2 === 0;
     return {
       slug: `provider-${index + 1}`,
       displayName: `Example ${protocol.toUpperCase()} ${index + 1}`,
@@ -578,11 +580,7 @@ function identityProviders(config: MockConfig): IdentityProvider[] {
       disabled,
       ready,
       secretConfigured: configured,
-      secretStatus: configured
-        ? "valid"
-        : protocol === "vrchat"
-          ? "unconfigured"
-          : "unconfigured",
+      secretStatus: configured ? "valid" : "unconfigured",
       secretValidatedAt: configured ? iso(-day) : null,
       createdAt: iso(-day * (index + 2)),
       ...(index % 2 === 0 ? { iconUrl: mockAvatarUrl } : {}),
@@ -604,8 +602,10 @@ function identityProviders(config: MockConfig): IdentityProvider[] {
 /** A complete OIDC config for the rows that carry one, `{}` for the rest. */
 function config0(protocol: string, index: number): unknown {
   if (protocol !== "oidc") return {};
+  const issuer = `https://idp${index + 1}.example.test`;
+  const manual = index % 2 !== 0;
   return {
-    issuerUrl: `https://idp${index + 1}.example.test`,
+    issuerUrl: issuer,
     clientId: `client-${index + 1}`,
     scopes: ["openid", "profile", "email"],
     allowedDomains: [],
@@ -616,14 +616,18 @@ function config0(protocol: string, index: number): unknown {
     emailClaim: "email",
     pictureClaim: "picture",
     subjectClaim: "sub",
-    configurationMode: index % 2 === 0 ? "discovery" : "manual",
-    endpoints: {
-      authorization: null,
-      token: null,
-      userinfo: null,
-      jwks: null,
-    },
-    tokenAuthMethod: "discovery",
+    configurationMode: manual ? "manual" : "discovery",
+    // A manual configuration names its endpoints and its token auth method,
+    // as the server requires; a discovered one overrides nothing.
+    endpoints: manual
+      ? {
+          authorization: `${issuer}/authorize`,
+          token: `${issuer}/token`,
+          userinfo: null,
+          jwks: `${issuer}/jwks`,
+        }
+      : { authorization: null, token: null, userinfo: null, jwks: null },
+    tokenAuthMethod: manual ? "client_secret_post" : "discovery",
     pkceMethod: "S256",
   };
 }
@@ -1171,6 +1175,74 @@ function readReply(
             },
       );
     }
+    // Both diagnostic reads are GETs, so they answer with the other reads
+    // rather than waiting on the writes switch.
+    case "/api/prohibitorum/identity-providers/{slug}/effective-config":
+      return json({
+        mode: "discovery",
+        fetchedAt: iso(0),
+        callbackUrl: `http://localhost:8080/api/prohibitorum/auth/federation/provider-1/test/callback`,
+        // Every field the server resolves, with all three sources and an empty
+        // value among them, so the table's every cell shape can be reviewed.
+        fields: {
+          issuer: { value: "https://idp1.example.test", source: "discovery" },
+          authorizationEndpoint: {
+            value: "https://idp1.example.test/authorize",
+            source: "discovery",
+          },
+          tokenEndpoint: {
+            value: "https://idp1.example.test/token",
+            source: "discovery",
+          },
+          userinfoEndpoint: { value: "", source: "discovery" },
+          jwksEndpoint: {
+            value: "https://keys.idp1.example.test/jwks",
+            source: "override",
+          },
+          tokenAuthMethod: {
+            value: "client_secret_basic",
+            source: "discovery",
+          },
+          pkceMethod: { value: "S256", source: "manual" },
+          scopes: { value: ["openid", "profile", "email"], source: "manual" },
+        },
+      });
+
+    case "/api/prohibitorum/identity-providers/{slug}/tests/{id}": {
+      const succeeded = config.admin.diagnosticOutcome === "succeeded";
+      const stages = [
+        { name: "discovery", status: "succeeded", durationMs: 42 },
+        { name: "authorize", status: "succeeded", durationMs: 12 },
+        { name: "callback", status: "succeeded", durationMs: 8 },
+        {
+          name: "token_exchange",
+          status: succeeded ? "succeeded" : "failed",
+          durationMs: 55,
+          ...(succeeded
+            ? {}
+            : { errorCode: "token_exchange_failed", httpStatus: 400 }),
+        },
+        { name: "id_token", status: succeeded ? "succeeded" : "pending" },
+        { name: "userinfo", status: succeeded ? "succeeded" : "skipped" },
+      ];
+      return json({
+        status: succeeded ? "succeeded" : "failed",
+        expiresAt: iso(600_000),
+        stages,
+        ...(succeeded
+          ? {
+              claims: {
+                issuer: "https://idp1.example.test",
+                subject: "mock-subject",
+                username: "mock-user",
+                email: "mock-user@example.test",
+                email_verified: true,
+              },
+            }
+          : {}),
+      });
+    }
+
     case "/api/prohibitorum/oidc-applications": {
       const all = oidcApplications(config);
       const cursor = new URL(request.url).searchParams.get("cursor");
@@ -2082,70 +2154,12 @@ function writeReply(
     case "/api/prohibitorum/saml-applications/{id}/managers/remove":
       return { kind: "empty", status: 204 };
 
-    case "/api/prohibitorum/identity-providers/{slug}/effective-config":
-      return json({
-        mode: "discovery",
-        fetchedAt: iso(0),
-        callbackUrl: `http://localhost:8080/auth/federation/provider-1/test/callback`,
-        fields: {
-          issuer: { value: "https://idp1.example.test", source: "discovery" },
-          authorizationEndpoint: {
-            value: "https://idp1.example.test/authorize",
-            source: "discovery",
-          },
-          tokenEndpoint: {
-            value: "https://idp1.example.test/token",
-            source: "discovery",
-          },
-          jwksEndpoint: {
-            value: "https://idp1.example.test/jwks",
-            source: "discovery",
-          },
-          scopes: { value: ["openid", "profile", "email"], source: "manual" },
-        },
-      });
-
     case "/api/prohibitorum/identity-providers/{slug}/tests": {
       const id = "mock-diagnostic-run-id-0123456789abcdefghijkl";
       return json({
         id,
         authorizationUrl: "about:blank",
         expiresAt: iso(600_000),
-      });
-    }
-
-    case "/api/prohibitorum/identity-providers/{slug}/tests/{id}": {
-      const succeeded = config.admin.diagnosticOutcome === "succeeded";
-      const stages = [
-        { name: "discovery", status: "succeeded", durationMs: 42 },
-        { name: "authorize", status: "succeeded", durationMs: 12 },
-        { name: "callback", status: "succeeded", durationMs: 8 },
-        {
-          name: "token_exchange",
-          status: succeeded ? "succeeded" : "failed",
-          durationMs: 55,
-          ...(succeeded
-            ? {}
-            : { errorCode: "token_exchange_failed", httpStatus: 400 }),
-        },
-        { name: "id_token", status: succeeded ? "succeeded" : "pending" },
-        { name: "userinfo", status: succeeded ? "succeeded" : "skipped" },
-      ];
-      return json({
-        status: succeeded ? "succeeded" : "failed",
-        expiresAt: iso(600_000),
-        stages,
-        ...(succeeded
-          ? {
-              claims: {
-                issuer: "https://idp1.example.test",
-                subject: "mock-subject",
-                username: "mock-user",
-                email: "mock-user@example.test",
-                email_verified: true,
-              },
-            }
-          : {}),
       });
     }
 

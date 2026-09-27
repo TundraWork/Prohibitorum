@@ -739,3 +739,56 @@ describe("mocked writes", () => {
     expect(applied(complete, current).sudo.fresh).toBe(true);
   });
 });
+
+describe("identity provider diagnostics", () => {
+  // Both are GETs: they answer with the other reads, whether or not the
+  // writes switch is on.
+  it("answers the effective configuration and a run's result as reads", () => {
+    const effective = read(
+      "/api/prohibitorum/identity-providers/{slug}/effective-config",
+      config(),
+      "http://localhost/api/prohibitorum/identity-providers/provider-1/effective-config",
+    );
+    expect(effective?.kind).toBe("json");
+    const fields =
+      effective?.kind === "json"
+        ? Object.keys((effective.body as { fields: object }).fields)
+        : [];
+    expect(fields).toEqual(
+      expect.arrayContaining([
+        "issuer",
+        "authorizationEndpoint",
+        "tokenEndpoint",
+        "userinfoEndpoint",
+        "jwksEndpoint",
+        "tokenAuthMethod",
+        "pkceMethod",
+        "scopes",
+      ]),
+    );
+
+    const result = read(
+      "/api/prohibitorum/identity-providers/{slug}/tests/{id}",
+      config(),
+      "http://localhost/api/prohibitorum/identity-providers/provider-1/tests/run",
+    );
+    expect(result?.kind).toBe("json");
+  });
+
+  it("starts and completes a test without a request body", () => {
+    expect(
+      call(
+        "POST",
+        "/api/prohibitorum/identity-providers/{slug}/tests",
+        writes(),
+      )?.kind,
+    ).toBe("json");
+    expect(
+      call(
+        "POST",
+        "/api/prohibitorum/identity-providers/{slug}/tests/{id}/complete",
+        writes(),
+      )?.kind,
+    ).toBe("json");
+  });
+});

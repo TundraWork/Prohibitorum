@@ -1098,19 +1098,12 @@ export function activateSigningKeyMutationOptions(queryClient: QueryClient) {
 /* ------------------------------------------------------ identity providers -- */
 
 /** The list and the detail both live under this prefix, so one call covers both. */
-function invalidateIdentityProviders(queryClient: QueryClient, slug?: string) {
-  return Promise.all([
-    queryClient.invalidateQueries({
-      queryKey: ["admin", "identity-providers"],
-    }),
-    ...(slug === undefined
-      ? []
-      : [
-          queryClient.invalidateQueries({
-            queryKey: ["admin", "identity-providers", slug],
-          }),
-        ]),
-  ]);
+function invalidateIdentityProviders(queryClient: QueryClient) {
+  // One call: a second, for the detail's own key, would cancel the detail's
+  // refetch this one has just started, and the page reading it would fail.
+  return queryClient.invalidateQueries({
+    queryKey: ["admin", "identity-providers"],
+  });
 }
 
 export function createIdentityProviderMutationOptions(
@@ -1154,8 +1147,7 @@ export function updateIdentityProviderMutationOptions(
           ),
         sudoReason.saveIdentityProvider,
       ),
-    onSuccess: (_view, { slug }) =>
-      invalidateIdentityProviders(queryClient, slug),
+    onSuccess: () => invalidateIdentityProviders(queryClient),
   });
 }
 
@@ -1175,8 +1167,7 @@ export function setIdentityProviderSecretMutationOptions(
         sudoReason.setIdentityProviderSecret,
       );
     },
-    onSuccess: (_result, { slug }) =>
-      invalidateIdentityProviders(queryClient, slug),
+    onSuccess: () => invalidateIdentityProviders(queryClient),
   });
 }
 
@@ -1207,7 +1198,7 @@ export function setIdentityProviderDisabledMutationOptions(
           body: { slug, disabled },
         }),
       ),
-    onSuccess: (view) => invalidateIdentityProviders(queryClient, view.slug),
+    onSuccess: () => invalidateIdentityProviders(queryClient),
   });
 }
 
@@ -1270,7 +1261,7 @@ function invalidateEntityIcon(
   target: EntityIconTarget,
 ) {
   return target.kind === "identity-provider"
-    ? invalidateIdentityProviders(queryClient, target.slug)
+    ? invalidateIdentityProviders(queryClient)
     : invalidateApplication(queryClient, target.kind, target.appId);
 }
 
@@ -1390,7 +1381,6 @@ export function startDiagnosticMutationOptions() {
       requireJsonData(
         client.POST("/api/prohibitorum/identity-providers/{slug}/tests", {
           params: { path: { slug } },
-          body: {},
         }),
       ),
   });
@@ -1410,7 +1400,7 @@ export function completeDiagnosticMutationOptions(queryClient: QueryClient) {
       requireJsonData(
         client.POST(
           "/api/prohibitorum/identity-providers/{slug}/tests/{id}/complete",
-          { params: { path: { slug, id } }, body: {} },
+          { params: { path: { slug, id } } },
         ),
       ),
     onSuccess: (_result, { slug, id }) =>
@@ -1421,10 +1411,6 @@ export function completeDiagnosticMutationOptions(queryClient: QueryClient) {
 }
 
 /* -------------------------------------------------- VRChat operator session -- */
-
-function invalidateOperatorSession(queryClient: QueryClient, slug: string) {
-  return invalidateIdentityProviders(queryClient, slug);
-}
 
 export function startOperatorSessionMutationOptions(queryClient: QueryClient) {
   return mutationOptions({
@@ -1446,8 +1432,7 @@ export function startOperatorSessionMutationOptions(queryClient: QueryClient) {
           ),
         sudoReason.operatorSession,
       ),
-    onSuccess: (_result, { slug }) =>
-      invalidateOperatorSession(queryClient, slug),
+    onSuccess: () => invalidateIdentityProviders(queryClient),
   });
 }
 
@@ -1471,8 +1456,7 @@ export function verifyOperatorSessionMutationOptions(queryClient: QueryClient) {
           ),
         sudoReason.operatorSession,
       ),
-    onSuccess: (_result, { slug }) =>
-      invalidateOperatorSession(queryClient, slug),
+    onSuccess: () => invalidateIdentityProviders(queryClient),
   });
 }
 
@@ -1493,7 +1477,7 @@ export function validateOperatorSessionMutationOptions(
           ),
         sudoReason.operatorSession,
       ),
-    onSuccess: (_result, slug) => invalidateOperatorSession(queryClient, slug),
+    onSuccess: () => invalidateIdentityProviders(queryClient),
   });
 }
 

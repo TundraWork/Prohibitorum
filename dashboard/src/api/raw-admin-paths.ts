@@ -1007,7 +1007,7 @@ export interface RawAdminPaths {
         path: { slug: string };
         cookie?: never;
       };
-      requestBody: EmptyJsonBody;
+      requestBody?: never;
       responses: {
         200: { content: { "application/json": DiagnosticStartView } };
       };
@@ -1035,7 +1035,7 @@ export interface RawAdminPaths {
         path: { slug: string; id: string };
         cookie?: never;
       };
-      requestBody: EmptyJsonBody;
+      requestBody?: never;
       responses: {
         200: { content: { "application/json": DiagnosticResultView } };
       };
