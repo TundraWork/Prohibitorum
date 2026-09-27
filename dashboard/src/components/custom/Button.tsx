@@ -1,7 +1,31 @@
-import { Button as HeroUIButton, Spinner } from "@heroui/react";
+import { buttonVariants, Button as HeroUIButton, Spinner } from "@heroui/react";
 import type { ComponentProps } from "react";
+import { tv } from "tailwind-variants";
 
-type ButtonProps = ComponentProps<typeof HeroUIButton>;
+type HeroUIButtonProps = ComponentProps<typeof HeroUIButton>;
+
+type ButtonProps = Omit<HeroUIButtonProps, "variant"> & {
+  variant?: HeroUIButtonProps["variant"] | "warning";
+};
+
+/**
+ * HeroUI's variants plus `warning`, added the way HeroUI's "Adding custom
+ * variants" example does: `tv` extending `buttonVariants`.
+ *
+ * The library has no warning button, and the console needs one for a save that
+ * carries a consequence (see `SubmitButton`'s `tone`). It sets the same four
+ * tokens `.button--danger` sets, from the theme's warning colours, so hover and
+ * press are derived the way the library derives them for every other variant.
+ */
+const appButtonVariants = tv({
+  extend: buttonVariants,
+  variants: {
+    variant: {
+      warning:
+        "[--button-bg:var(--warning)] [--button-bg-hover:var(--warning-hover)] [--button-bg-pressed:var(--warning-hover)] [--button-fg:var(--warning-foreground)]",
+    },
+  },
+});
 
 /**
  * HeroUI's button with a pending state that always shows progress: while
@@ -15,9 +39,44 @@ type ButtonProps = ComponentProps<typeof HeroUIButton>;
  * different wording while pending still receive HeroUI's render props
  * unchanged.
  */
-export function Button({ children, isIconOnly, ...props }: ButtonProps) {
+export function Button({
+  children,
+  isIconOnly,
+  variant,
+  className,
+  size,
+  fullWidth,
+  ...props
+}: ButtonProps) {
+  // The warning variant is ours, so HeroUI draws its default and the extended
+  // classes override the colour tokens on top of it.
+  const warningClass =
+    variant === "warning"
+      ? (extra?: string) =>
+          appButtonVariants({
+            variant: "warning",
+            size,
+            fullWidth,
+            isIconOnly,
+            className: extra,
+          })
+      : undefined;
+
   return (
-    <HeroUIButton isIconOnly={isIconOnly} {...props}>
+    <HeroUIButton
+      isIconOnly={isIconOnly}
+      size={size}
+      fullWidth={fullWidth}
+      variant={variant === "warning" ? undefined : variant}
+      className={
+        warningClass === undefined
+          ? className
+          : typeof className === "function"
+            ? (values) => warningClass(className(values))
+            : warningClass(className)
+      }
+      {...props}
+    >
       {(values) => {
         const content =
           values.isPending && isIconOnly

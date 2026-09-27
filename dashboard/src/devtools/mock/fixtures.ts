@@ -1999,6 +1999,40 @@ function writeReply(
       });
     }
 
+    // The projection's own endpoints answer with the record as the write left
+    // it. Like the whole-record PUTs above, the mock keeps no per-record edit,
+    // so the next read shows the fixture again.
+    case "/api/prohibitorum/oidc-applications/{clientId}/identity-projection": {
+      const clientId = new URL(request.url).pathname.split("/").at(-2) ?? "";
+      const found = oidcApplications(config).find(
+        (application) => application.clientId === clientId,
+      );
+      if (found === undefined) {
+        return { kind: "error", status: 404, code: "client_not_found" };
+      }
+      return json({
+        ...found,
+        subjectSource:
+          stringField(body, "subjectSource") ?? found.subjectSource,
+        claimAliases: field(body, "claimAliases") ?? found.claimAliases,
+      });
+    }
+
+    case "/api/prohibitorum/forward-auth-apps/{clientId}/identity-projection": {
+      const clientId = new URL(request.url).pathname.split("/").at(-2) ?? "";
+      const found = forwardAuthApplications(config).find(
+        (application) => application.clientId === clientId,
+      );
+      if (found === undefined) {
+        return { kind: "error", status: 404, code: "client_not_found" };
+      }
+      return json({
+        ...found,
+        remoteUserSource:
+          stringField(body, "remoteUserSource") ?? found.remoteUserSource,
+      });
+    }
+
     case "/api/prohibitorum/forward-auth-apps/set-disabled": {
       const clientId = stringField(body, "clientId") ?? "";
       const found = forwardAuthApplications(config).find(

@@ -8,15 +8,10 @@ import { forwardAuthAppUpdateBody } from "@/api/update-bodies";
 import { ConsoleCard } from "@/components/custom/ConsoleCard";
 import { CopyValue } from "@/components/custom/CopyValue";
 import { EntityIconCard } from "@/components/custom/EntityIconCard";
-import { RowsField } from "@/components/custom/RowsField";
 import { Section } from "@/components/custom/Section";
 import { applyServerError } from "@/forms/server-errors";
 import { useAppForm } from "@/forms/use-app-form";
-import {
-  hostProblem,
-  scopeListProblem,
-} from "@/pages/admin/forward-auth-apps/forward-auth-validation";
-import { ScopeRows } from "@/pages/admin/forward-auth-apps/ScopeRows";
+import { hostProblem } from "@/pages/admin/forward-auth-apps/forward-auth-validation";
 
 type ForwardAuthApp = components["schemas"]["ForwardAuthAppView"];
 
@@ -38,6 +33,9 @@ const nameRequired = msg({
  * change with it. The server does not check its shape at all, which is why the
  * console does.
  *
+ * The token scopes are the same record but their own section and their own
+ * save, so a change to one block never carries an unsaved edit from the other.
+ *
  * The whole form submits through `forwardAuthAppUpdateBody`. `PUT` replaces the
  * record rather than patching it, so every field this card does not draw is
  * carried from the saved view — the body module is where that merge lives, and
@@ -53,10 +51,6 @@ export function ForwardAuthGeneralSection({ app }: { app: ForwardAuthApp }) {
     defaultValues: {
       displayName: app.displayName,
       host: app.forwardAuthHost,
-      scopes: (app.scopes ?? []).map((scope) => ({
-        name: scope.name,
-        description: scope.description ?? "",
-      })),
     },
     onSubmit: async ({ value }) => {
       const host = value.host.trim();
@@ -68,14 +62,6 @@ export function ForwardAuthGeneralSection({ app }: { app: ForwardAuthApp }) {
         }));
         return;
       }
-      const scopeIssue = scopeListProblem(value.scopes);
-      if (scopeIssue !== undefined) {
-        form.setFieldMeta("scopes", (meta) => ({
-          ...meta,
-          errorMap: { ...meta.errorMap, onSubmit: [scopeIssue] },
-        }));
-        return;
-      }
 
       try {
         await update.mutateAsync({
@@ -83,15 +69,6 @@ export function ForwardAuthGeneralSection({ app }: { app: ForwardAuthApp }) {
           body: forwardAuthAppUpdateBody(app, {
             displayName: value.displayName.trim(),
             host,
-            // An empty description is omitted rather than sent empty: the
-            // server reports one back only when it is non-empty, so sending
-            // `""` would make the next read disagree with what was saved.
-            scopes: value.scopes.map((scope) => ({
-              name: scope.name,
-              ...(scope.description.trim() === ""
-                ? {}
-                : { description: scope.description.trim() }),
-            })),
           }),
         });
       } catch (error) {
@@ -175,39 +152,6 @@ export function ForwardAuthGeneralSection({ app }: { app: ForwardAuthApp }) {
                   spellCheck={false}
                   placeholder="app.example.com"
                   variant="secondary"
-                />
-              )}
-            </form.AppField>
-
-            <form.AppField
-              name="scopes"
-              validators={{
-                onSubmit: ({ value }) => scopeListProblem(value),
-              }}
-            >
-              {() => (
-                <RowsField
-                  label={
-                    <Trans id="admin.forward-auth-apps.field.scopes">
-                      Scope vocabulary
-                    </Trans>
-                  }
-                  description={
-                    <Trans id="admin.forward-auth-apps.field.scopes.hint">
-                      The application's own scope names. A personal access token
-                      grants a subset of these, and the gateway sends the
-                      granted names on as Remote-Scopes.
-                    </Trans>
-                  }
-                  renderRow={(_row, index, error) => (
-                    <ScopeRows index={index} error={error} />
-                  )}
-                  emptyRow={() => ({ name: "", description: "" })}
-                  addLabel={
-                    <Trans id="admin.forward-auth-apps.field.scopes.add">
-                      Add a scope
-                    </Trans>
-                  }
                 />
               )}
             </form.AppField>

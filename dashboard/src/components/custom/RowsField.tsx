@@ -70,6 +70,11 @@ export function RowsField<T>({
    * and `align` is ignored.
    */
   removePlacement = "beside",
+  /**
+   * For a list whose name is already the heading above it: the label stays for
+   * assistive technology and the list's own `aria-labelledby`.
+   */
+  isLabelHidden = false,
 }: {
   label: ReactNode;
   description?: ReactNode;
@@ -92,6 +97,7 @@ export function RowsField<T>({
   align?: "end" | "top";
   header?: ReactNode;
   removePlacement?: "beside" | "inRow";
+  isLabelHidden?: boolean;
 }) {
   const field = useFieldContext<T[]>();
   const form = useFormContext();
@@ -169,7 +175,9 @@ export function RowsField<T>({
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-col gap-1.5">
-        <Label id={id}>{label}</Label>
+        <Label id={id} className={isLabelHidden ? "sr-only" : undefined}>
+          {label}
+        </Label>
         {description !== undefined && (
           <Description className="text-xs text-muted">
             {description}

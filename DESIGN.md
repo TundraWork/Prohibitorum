@@ -178,6 +178,9 @@ container's width rather than the viewport's: below the breakpoint each row
 becomes a `Fieldset` with a numbered legend and a visible label on every
 control, since a stack of boxes under no column names says nothing about which
 is which. Both layouts are rendered and only one is displayed.
+A forward-auth application's token scopes are the same shape at two columns,
+name and description: a `wide` card on the detail page, and the create page's
+reading measure, which is why that editor switches at 28rem of its own width.
 
 A card holding several blocks names each one with an `ItemList` title. Three
 unlabelled cards stacked under one section heading read as one undifferentiated
@@ -280,6 +283,16 @@ A consequential action confirms through `ConfirmDialog` from
 and the action button: `danger` for what removes something for good, with a
 `danger` button; `warning` for a change of state that can be undone, and
 `accent` for a step worth a second look, both with a `primary` button.
+
+A consequential change made in a form is confirmed when it is saved, not when
+it is made. The control stays free to move — a reader comparing options is not
+committing to one — and while the form holds such a change its save button is
+`SubmitButton` with `tone="warning"`: the theme's warning colour and a
+`TriangleAlert` before the label, so the state is not carried by colour alone.
+Submitting checks the form, then opens a `warning` `ConfirmDialog` naming the
+consequence; the write happens from the dialog, and cancelling leaves the change
+in the form, unsent. A changed OIDC subject source or forward-auth
+`Remote-User`, and a saved token scope removed, are saved this way.
 
 ## Do's and Don'ts
 

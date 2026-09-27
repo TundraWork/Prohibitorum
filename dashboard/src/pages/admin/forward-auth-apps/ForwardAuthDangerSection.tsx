@@ -91,7 +91,7 @@ export function ForwardAuthDangerSection({ app }: { app: ForwardAuthApp }) {
             ) : (
               <Trans key="note" id="admin.forward-auth-apps.disable.note">
                 Every request through its router is turned away, including ones
-                from people who are signed in. The record, its vocabulary and
+                from people who are signed in. The record, its token scopes and
                 its access policy are kept.
               </Trans>
             ),
@@ -123,8 +123,8 @@ export function ForwardAuthDangerSection({ app }: { app: ForwardAuthApp }) {
           }
           details={[
             <Trans key="note" id="admin.forward-auth-apps.delete.note">
-              Removes the application, its scope vocabulary, its icon and its
-              access policy. Accounts are not affected.
+              Removes the application, its token scopes, its icon and its access
+              policy. Accounts are not affected.
             </Trans>,
           ]}
           actions={
@@ -211,14 +211,13 @@ export function ForwardAuthDangerSection({ app }: { app: ForwardAuthApp }) {
             {groups.length === 0 ? (
               <Trans id="admin.forward-auth-apps.delete.confirm.open">
                 {app.displayName || app.clientId} is removed along with its
-                scope vocabulary, its icon and its access policy. Requests
-                through its router are turned away immediately. This cannot be
-                undone.
+                token scopes, its icon and its access policy. Requests through
+                its router are turned away immediately. This cannot be undone.
               </Trans>
             ) : (
               <Trans id="admin.forward-auth-apps.delete.confirm.groups">
                 {app.displayName || app.clientId} is removed along with its
-                scope vocabulary, its icon and its access policy — including its
+                token scopes, its icon and its access policy — including its
                 selection of {groups.length} user groups. Requests through its
                 router are turned away immediately. This cannot be undone.
               </Trans>

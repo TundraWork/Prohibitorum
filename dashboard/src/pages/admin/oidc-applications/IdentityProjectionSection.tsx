@@ -1,13 +1,13 @@
-import { Label, ListBox, Select } from "@heroui/react";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
+import { useStore } from "@tanstack/react-form";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { isCancellation } from "@/api/errors";
 import { readPrincipalSource, reservedAliasNames } from "@/api/federation";
 import type { components } from "@/api/generated/schema";
 import { updateOidcProjectionMutationOptions } from "@/api/mutations";
-import type { PrincipalSource } from "@/api/raw-admin-paths";
+import type { UpdateOidcProjectionRequest } from "@/api/raw-admin-paths";
 import { ConfirmDialog } from "@/components/custom/ConfirmDialog";
 import { ConsoleCard } from "@/components/custom/ConsoleCard";
 import { RowsField, rowProblem } from "@/components/custom/RowsField";
@@ -60,23 +60,30 @@ const aliasNameRequired = msg({
  * define; they are written as rows because each is a small pair rather than a
  * sentence.
  *
+ * The subject source is confirmed when the form is saved, not when it is
+ * picked. The select is free to move — a reader comparing the options is not
+ * committing to one — and the save button turns to its warning tone while the
+ * choice differs from the saved one, so the consequence is announced before the
+ * press. Submitting then opens the dialog with the checked request held beside
+ * the form; the write happens from the dialog, and cancelling leaves the
+ * reader's choice in the form, unsent.
+ *
  * The write is not sudo-gated — it changes no credential — so it submits
- * straight from the form.
+ * straight from the form or the dialog.
  */
 export function IdentityProjectionSection({ app }: { app: OidcApp }) {
   const { t } = useLingui();
   const queryClient = useQueryClient();
   const update = useMutation(updateOidcProjectionMutationOptions(queryClient));
-  const [confirmingSource, setConfirmingSource] = useState(false);
-  // Held beside the form because the confirmation has to be able to cancel the
-  // change: a dialog that reads the form's own value could only confirm it.
-  const [pendingSource, setPendingSource] = useState<PrincipalSource | null>(
-    null,
-  );
+  // The request the dialog is confirming, checked and ready to send.
+  const [pendingBody, setPendingBody] =
+    useState<UpdateOidcProjectionRequest | null>(null);
+
+  const savedSource = readPrincipalSource(app.subjectSource) ?? "sub";
 
   const form = useAppForm({
     defaultValues: {
-      subjectSource: readPrincipalSource(app.subjectSource) ?? "sub",
+      subjectSource: savedSource,
       aliases: Object.entries(app.claimAliases ?? {}).map(
         ([name, source]): AliasRow => ({ name, source }),
       ),
@@ -117,20 +124,31 @@ export function IdentityProjectionSection({ app }: { app: OidcApp }) {
         aliases[name] = row.source;
       }
 
-      try {
-        await update.mutateAsync({
-          clientId: app.clientId,
-          body: {
-            subjectSource: value.subjectSource,
-            claimAliases: aliases,
-          },
-        });
-      } catch (error) {
-        if (isCancellation(error)) return;
-        applyServerError(form, error, { codes: {}, locations: {} });
+      const body = {
+        subjectSource: value.subjectSource,
+        claimAliases: aliases,
+      };
+      if (value.subjectSource !== savedSource) {
+        setPendingBody(body);
+        return;
       }
+      await save(body);
     },
   });
+
+  async function save(body: UpdateOidcProjectionRequest) {
+    try {
+      await update.mutateAsync({ clientId: app.clientId, body });
+    } catch (error) {
+      if (isCancellation(error)) return;
+      applyServerError(form, error, { codes: {}, locations: {} });
+    }
+  }
+
+  const sourceChanged = useStore(
+    form.store,
+    (state) => state.values.subjectSource !== savedSource,
+  );
 
   return (
     <Section
@@ -148,69 +166,17 @@ export function IdentityProjectionSection({ app }: { app: OidcApp }) {
 
             <form.AppField name="subjectSource">
               {(field) => (
-                <div className="flex flex-col gap-1.5">
-                  <Select
-                    className="w-full"
-                    variant="secondary"
-                    value={field.state.value}
-                    onChange={(key) => {
-                      if (typeof key !== "string") return;
-                      if (key === field.state.value) return;
-                      // Changing this makes every client see a new subject, so
-                      // it is confirmed before it is stored — but the field is
-                      // not written until the dialog agrees, or the form would
-                      // already hold the new source if the reader cancels.
-                      setPendingSource(key as PrincipalSource);
-                      setConfirmingSource(true);
-                    }}
-                  >
-                    <Label>
-                      <Trans id="admin.oidc-apps.subject">Subject source</Trans>
-                    </Label>
-                    <Select.Trigger>
-                      <Select.Value />
-                      <Select.Indicator />
-                    </Select.Trigger>
-                    <Select.Popover>
-                      <ListBox>
-                        <ListBox.Item id="sub" textValue="sub">
-                          <span className="font-mono text-sm">sub</span>
-                          <ListBox.ItemIndicator />
-                        </ListBox.Item>
-                        <ListBox.Item
-                          id="username"
-                          textValue={t({
-                            id: "admin.oidc-apps.subject.username",
-                            message: "Username",
-                          })}
-                        >
-                          <Trans id="admin.oidc-apps.subject.username">
-                            Username
-                          </Trans>
-                          <ListBox.ItemIndicator />
-                        </ListBox.Item>
-                        <ListBox.Item
-                          id="verified_email"
-                          textValue={t({
-                            id: "admin.oidc-apps.subject.email",
-                            message: "Verified e-mail address",
-                          })}
-                        >
-                          <Trans id="admin.oidc-apps.subject.email">
-                            Verified e-mail address
-                          </Trans>
-                          <ListBox.ItemIndicator />
-                        </ListBox.Item>
-                      </ListBox>
-                    </Select.Popover>
-                  </Select>
-                  <p className="text-xs text-muted">
+                <field.PrincipalSourceField
+                  label={
+                    <Trans id="admin.oidc-apps.subject">Subject source</Trans>
+                  }
+                  description={
                     <Trans id="admin.oidc-apps.subject.hint">
                       The identifier a client stores for this account. Changing
                       it signs everyone out of every client.
                     </Trans>
-                  </p>
-                </div>
+                  }
+                />
               )}
             </form.AppField>
 
@@ -237,7 +203,7 @@ export function IdentityProjectionSection({ app }: { app: OidcApp }) {
               )}
             </form.AppField>
 
-            <form.SubmitButton>
+            <form.SubmitButton tone={sourceChanged ? "warning" : "default"}>
               <Trans id="admin.oidc-apps.identity.save">Save</Trans>
             </form.SubmitButton>
           </form.Form>
@@ -245,12 +211,9 @@ export function IdentityProjectionSection({ app }: { app: OidcApp }) {
       </ConsoleCard>
 
       <ConfirmDialog
-        isOpen={confirmingSource}
+        isOpen={pendingBody !== null}
         onOpenChange={(open) => {
-          if (!open) {
-            setConfirmingSource(false);
-            setPendingSource(null);
-          }
+          if (!open && !update.isPending) setPendingBody(null);
         }}
         status="warning"
         title={
@@ -269,14 +232,16 @@ export function IdentityProjectionSection({ app }: { app: OidcApp }) {
           </p>
         }
         confirmLabel={
-          <Trans id="admin.oidc-apps.subject.confirm.action">Change</Trans>
+          <Trans id="admin.oidc-apps.subject.confirm.save">
+            Change and save
+          </Trans>
         }
+        isPending={update.isPending}
         onConfirm={() => {
-          if (pendingSource !== null) {
-            form.setFieldValue("subjectSource", pendingSource);
-          }
-          setConfirmingSource(false);
-          setPendingSource(null);
+          if (pendingBody === null) return;
+          // Closed once the write settles either way: a refusal is reported
+          // on the form, where the reader can act on it.
+          void save(pendingBody).finally(() => setPendingBody(null));
         }}
       />
     </Section>

@@ -40,4 +40,16 @@ describe("Button", () => {
     expect(spinner()).not.toBeNull();
     expect(screen.getByRole("button", { name: "Submitting…" })).toBeVisible();
   });
+
+  it("draws the warning variant from the theme's warning tokens and keeps the pending spinner", () => {
+    render(
+      <Button variant="warning" size="sm" isPending>
+        Save
+      </Button>,
+    );
+    const button = screen.getByRole("button", { name: "Save" });
+    expect(button.className).toContain("[--button-bg:var(--warning)]");
+    expect(button.className).toContain("button--sm");
+    expect(spinner()).not.toBeNull();
+  });
 });

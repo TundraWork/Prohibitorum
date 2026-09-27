@@ -6,8 +6,9 @@ import {
   ForwardAuthGeneralSection,
   ForwardAuthIconSection,
 } from "@/pages/admin/forward-auth-apps/ForwardAuthGeneralSection";
-import { ForwardAuthIdentitySection } from "@/pages/admin/forward-auth-apps/ForwardAuthIdentitySection";
+import { ForwardAuthHeadersSection } from "@/pages/admin/forward-auth-apps/ForwardAuthHeadersSection";
 import { ForwardAuthProxySection } from "@/pages/admin/forward-auth-apps/ForwardAuthProxySection";
+import { ForwardAuthScopesSection } from "@/pages/admin/forward-auth-apps/ForwardAuthScopesSection";
 import { Route } from "@/routes/_protected.admin.forward-auth-apps_.$clientId";
 
 /**
@@ -19,6 +20,12 @@ import { Route } from "@/routes/_protected.admin.forward-auth-apps_.$clientId";
  * That is also why the general form and the icon card are separate sections
  * rather than one — each is a short block a reader takes in alongside the
  * others, and a section's heading sits beside the button it names.
+ *
+ * The order follows a request through the gateway. What the application is
+ * and how it looks come first; then what the service receives — the headers,
+ * with `Remote-User` the one choice among them, and the token scopes that fill
+ * `Remote-Scopes` — then the Traefik configuration that puts the gateway in
+ * front of it, and last who may pass and who manages it.
  *
  * Each panel draws its own `Section`, so a heading and the state it names stay
  * in one file. This file owns only the order and the gaps between them.
@@ -37,7 +44,8 @@ export function AdminForwardAuthApp() {
     <div className="flex flex-col gap-8">
       <ForwardAuthGeneralSection app={app} />
       <ForwardAuthIconSection app={app} />
-      <ForwardAuthIdentitySection app={app} />
+      <ForwardAuthHeadersSection app={app} />
+      <ForwardAuthScopesSection app={app} />
       <ForwardAuthProxySection app={app} />
       <AppAccess
         kind="forward_auth"

@@ -1,7 +1,7 @@
 import { Chip, Tooltip } from "@heroui/react";
 import { Plural, Trans, useLingui } from "@lingui/react/macro";
 import { readPrincipalSource } from "@/api/federation";
-import type { PrincipalSource } from "@/api/raw-admin-paths";
+import { principalSourceLabel } from "@/components/custom/principal-sources";
 
 /**
  * The cells the four federation lists share.
@@ -165,18 +165,7 @@ export function PrincipalSourceCell({ value }: { value: string }) {
   const source = readPrincipalSource(value);
   if (source === undefined) return <span className="text-muted">—</span>;
 
-  const labels: Record<PrincipalSource, string> = {
-    sub: t({ id: "list.principal-source.sub", message: "Subject" }),
-    username: t({
-      id: "list.principal-source.username",
-      message: "Username",
-    }),
-    verified_email: t({
-      id: "list.principal-source.verified-email",
-      message: "Verified email",
-    }),
-  };
-  return <span className="text-muted">{labels[source]}</span>;
+  return <span className="text-muted">{t(principalSourceLabel(source))}</span>;
 }
 
 /**

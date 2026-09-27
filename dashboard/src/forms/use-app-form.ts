@@ -14,6 +14,7 @@ import {
   TextAreaField,
 } from "@/components/custom/FormFields";
 import { OtpField } from "@/components/custom/OtpField";
+import { PrincipalSourceField } from "@/components/custom/PrincipalSourceField";
 import { SubmitButton } from "@/components/custom/SubmitButton";
 import { fieldContext, formContext } from "@/forms/context";
 
@@ -30,6 +31,7 @@ export const { useAppForm } = createFormHook({
     AccountPicker,
     GroupPicker,
     IdentityProviderPicker,
+    PrincipalSourceField,
   },
   formComponents: { Form, FormError, SubmitButton },
 });

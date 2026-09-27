@@ -91,19 +91,52 @@ export function scopeNameProblem(value: string): MessageDescriptor | undefined {
   return scopeNamePattern.test(value) ? undefined : scopeNameInvalid;
 }
 
-/** Why a whole vocabulary is not usable, or undefined when it is. */
+/** Where in a vocabulary the first problem is, and what it is. */
+export interface ScopeListProblem {
+  index: number;
+  field: "name" | "description";
+  message: MessageDescriptor;
+}
+
+/**
+ * Why a whole vocabulary is not usable, or undefined when it is.
+ *
+ * The answer names the row and the input, so the editor can mark the one box
+ * at fault: a scope has no identity until it is saved, and "the third row's
+ * name" is the only way to point at it.
+ */
 export function scopeListProblem(
   scopes: readonly { name: string; description?: string }[],
-): MessageDescriptor | undefined {
+): ScopeListProblem | undefined {
   const seen = new Set<string>();
-  for (const scope of scopes) {
+  for (const [index, scope] of scopes.entries()) {
     const problem = scopeNameProblem(scope.name);
-    if (problem !== undefined) return problem;
-    if (seen.has(scope.name)) return scopeNameDuplicate;
+    if (problem !== undefined)
+      return { index, field: "name", message: problem };
+    if (seen.has(scope.name)) {
+      return { index, field: "name", message: scopeNameDuplicate };
+    }
     seen.add(scope.name);
     if ((scope.description ?? "").length > maxScopeDescriptionLength) {
-      return scopeDescriptionTooLong;
+      return { index, field: "description", message: scopeDescriptionTooLong };
     }
   }
   return undefined;
+}
+
+/**
+ * The saved scope names a new vocabulary no longer has, in their saved order.
+ *
+ * Removing a scope is the one vocabulary change with a consequence past the
+ * save: the server checks a token's grants against the vocabulary when the
+ * token is issued, not when it is used, so a token already granted the scope
+ * keeps sending it until it is revoked. A rename is a removal and an addition,
+ * and is reported the same way.
+ */
+export function removedScopeNames(
+  saved: readonly { name: string }[],
+  next: readonly { name: string }[],
+): string[] {
+  const kept = new Set(next.map((scope) => scope.name));
+  return saved.map((scope) => scope.name).filter((name) => !kept.has(name));
 }

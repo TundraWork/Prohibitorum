@@ -33,13 +33,13 @@ msgstr "{count} 个账号将失去用它登录的方式。如果某个账号只�
 #. placeholder {1}: groups.length
 #: src/pages/admin/forward-auth-apps/ForwardAuthDangerSection.tsx
 msgid "admin.forward-auth-apps.delete.confirm.groups"
-msgstr "{name} 会被删除，同时删除它的作用域词表、图标和访问策略，包括其中选定的 {count} 个用户组。经它路由的请求会立即被拒绝。此操作无法撤销。"
+msgstr "{name} 会被删除，同时删除它的令牌作用域、图标和访问策略，包括其中选定的 {count} 个用户组。经它路由的请求会立即被拒绝。此操作无法撤销。"
 
 #. js-lingui-explicit-id
 #. placeholder {0}: app.displayName || app.clientId
 #: src/pages/admin/forward-auth-apps/ForwardAuthDangerSection.tsx
 msgid "admin.forward-auth-apps.delete.confirm.open"
-msgstr "{name} 会被删除，同时删除它的作用域词表、图标和访问策略。经它路由的请求会立即被拒绝。此操作无法撤销。"
+msgstr "{name} 会被删除，同时删除它的令牌作用域、图标和访问策略。经它路由的请求会立即被拒绝。此操作无法撤销。"
 
 #. js-lingui-explicit-id
 #. placeholder {0}: app.displayName || app.clientId
@@ -52,6 +52,11 @@ msgstr "删除后 {name} 无法再让任何人登录，其图标、密钥和访�
 #: src/components/custom/AppAccessPanel.tsx
 msgid "app.managers.confirm.body"
 msgstr "{name} 将不能再修改这个应用。其账号不受影响。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ForwardAuthHeadersSection.tsx
+msgid "admin.forward-auth-apps.headers.confirm.body"
+msgstr "{appName} 将收到这个账号的{nextLabel}，而不是{savedLabel}。它按旧值保存的数据不会迁移，已有的人会被当作新账号。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
@@ -67,6 +72,16 @@ msgstr "{name} 及其证书会被删除，通过它登录的人都会被拒之�
 #: src/pages/admin/saml-applications/SamlDangerSection.tsx
 msgid "admin.saml-apps.danger.disable.body"
 msgstr "{name} 立即停止接受登录。它的配置、端点和证书都会保留，因此可以重新启用。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ForwardAuthScopesSection.tsx
+msgid "admin.forward-auth-apps.scopes.remove.title"
+msgstr "删除 # 个作用域？"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ForwardAuthScopesSection.tsx
+msgid "admin.forward-auth-apps.scopes.remove.body"
+msgstr "{removedCount, plural, other {已经授予 {removedNames} 的令牌会继续发送它们，直到令牌被撤销；新令牌不能再选择它们。}}"
 
 #. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
@@ -270,8 +285,8 @@ msgid "success.account.enabled"
 msgstr "账号已启用"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/forward-auth-apps/ForwardAuthIdentitySection.tsx
-msgid "admin.forward-auth-apps.source.sub"
+#: src/components/custom/principal-sources.ts
+msgid "principal-source.sub"
 msgstr "账号 ID"
 
 #. js-lingui-explicit-id
@@ -373,9 +388,8 @@ msgid "admin.federation.create"
 msgstr "添加提供商"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/forward-auth-apps/AdminForwardAuthAppNew.tsx
-#: src/pages/admin/forward-auth-apps/ForwardAuthGeneralSection.tsx
-msgid "admin.forward-auth-apps.field.scopes.add"
+#: src/pages/admin/forward-auth-apps/ScopeTableField.tsx
+msgid "admin.forward-auth-apps.scopes.add"
 msgstr "添加作用域"
 
 #. js-lingui-explicit-id
@@ -879,13 +893,13 @@ msgstr "修改"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/IdentityProjectionSection.tsx
-msgid "admin.oidc-apps.subject.confirm.action"
-msgstr "修改"
+msgid "admin.oidc-apps.subject.confirm.save"
+msgstr "更换并保存"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/forward-auth-apps/ForwardAuthIdentitySection.tsx
-msgid "admin.forward-auth-apps.identity.confirm.action"
-msgstr "更换"
+#: src/pages/admin/forward-auth-apps/ForwardAuthHeadersSection.tsx
+msgid "admin.forward-auth-apps.headers.confirm.action"
+msgstr "更换并保存"
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
@@ -906,6 +920,11 @@ msgstr "修改密码"
 #: src/pages/admin/oidc-applications/IdentityProjectionSection.tsx
 msgid "admin.oidc-apps.subject.confirm.title"
 msgstr "修改 Subject 来源？"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ForwardAuthHeadersSection.tsx
+msgid "admin.forward-auth-apps.headers.confirm.title"
+msgstr "更换用户标识？"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts
@@ -1460,7 +1479,7 @@ msgstr "已复制"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/ForwardAuthProxySection.tsx
-msgid "admin.forward-auth-apps.proxy.copied"
+msgid "admin.forward-auth-apps.traefik.copied"
 msgstr "已复制"
 
 #. js-lingui-explicit-id
@@ -1481,6 +1500,11 @@ msgstr "已复制。"
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/SigningKeysPanel.tsx
 msgid "settings.keys.jwk.copy"
+msgstr "复制"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ForwardAuthProxySection.tsx
+msgid "admin.forward-auth-apps.traefik.copy"
 msgstr "复制"
 
 #. js-lingui-explicit-id
@@ -1507,11 +1531,6 @@ msgstr "复制密钥"
 #: src/pages/admin/oidc-applications/secret-copy.ts
 msgid "admin.oidc-apps.secret.title"
 msgstr "复制客户密钥"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/forward-auth-apps/ForwardAuthProxySection.tsx
-msgid "admin.forward-auth-apps.proxy.copy"
-msgstr "复制配置"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminInvitations.tsx
@@ -1851,8 +1870,8 @@ msgid "admin.groups.column.description"
 msgstr "描述"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/forward-auth-apps/ScopeRows.tsx
-msgid "admin.forward-auth-apps.scope.description"
+#: src/pages/admin/forward-auth-apps/ScopeTableField.tsx
+msgid "admin.forward-auth-apps.scopes.description"
 msgstr "说明"
 
 #. js-lingui-explicit-id
@@ -2081,6 +2100,11 @@ msgid "admin.federation.claims.display-name"
 msgstr "显示名"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ForwardAuthHeadersSection.tsx
+msgid "admin.forward-auth-apps.headers.name"
+msgstr "显示名称"
+
+#. js-lingui-explicit-id
 #: src/api/success-messages.ts
 msgid "success.display-name.saved"
 msgstr "显示名称已保存"
@@ -2114,6 +2138,11 @@ msgstr "下载密钥"
 #: src/components/custom/secret-reveal-copy.ts
 msgid "security.tokens.reveal.download"
 msgstr "下载令牌"
+
+#. js-lingui-explicit-id
+#: src/components/custom/principal-sources.ts
+msgid "principal-source.username.hint"
+msgstr "易读，管理员可以修改。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminGroups.tsx
@@ -2552,7 +2581,7 @@ msgstr "你现有的恢复码会全部失效。"
 #. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/ForwardAuthDangerSection.tsx
 msgid "admin.forward-auth-apps.disable.note"
-msgstr "经它路由的请求都会被拒绝，包括已登录账号发出的请求。记录、作用域词表和访问策略都会保留。"
+msgstr "经它路由的请求都会被拒绝，包括已登录账号发出的请求。记录、令牌作用域和访问策略都会保留。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/SamlDangerSection.tsx
@@ -2722,6 +2751,11 @@ msgid "settings.network.header"
 msgstr "请求头名称"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ForwardAuthHeadersSection.tsx
+msgid "admin.forward-auth-apps.headers"
+msgstr "发送给服务的请求头"
+
+#. js-lingui-explicit-id
 #: src/components/custom/DataTable.tsx
 msgid "table.row.collapse"
 msgstr "收起详情"
@@ -2855,11 +2889,6 @@ msgstr "身份投影"
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/IdentityProjectionSection.tsx
 msgid "admin.oidc-apps.identity"
-msgstr "身份投影"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/forward-auth-apps/ForwardAuthIdentitySection.tsx
-msgid "admin.forward-auth-apps.identity"
 msgstr "身份投影"
 
 #. js-lingui-explicit-id
@@ -3441,6 +3470,11 @@ msgid "admin.forward-auth-apps.field.name"
 msgstr "名称"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ScopeTableField.tsx
+msgid "admin.forward-auth-apps.scopes.name"
+msgstr "名称"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AttributeMapField.tsx
 msgid "admin.saml-apps.mapping.name-format"
 msgstr "名称格式"
@@ -3460,6 +3494,11 @@ msgstr "NameID 格式"
 #: src/pages/admin/saml-applications/AdminSamlApplications.tsx
 msgid "admin.saml-apps.column.name-id"
 msgstr "NameID 格式"
+
+#. js-lingui-explicit-id
+#: src/components/custom/principal-sources.ts
+msgid "principal-source.sub.hint"
+msgstr "始终不变。"
 
 #. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
@@ -4074,6 +4113,11 @@ msgid "settings.keys.status.pending"
 msgstr "待启用"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ScopeTableField.tsx
+msgid "admin.forward-auth-apps.scopes.hint"
+msgstr "个人访问令牌从这里选择要授予的作用域，服务通过 Remote-Scopes 收到。"
+
+#. js-lingui-explicit-id
 #: src/pages/Preview.tsx
 msgid "preview.eyebrow"
 msgstr "PHB-64 / M1 · 基础界面预览"
@@ -4142,6 +4186,11 @@ msgstr "预览导航"
 #: src/pages/Preview.tsx
 msgid "notification.message"
 msgstr "这是预览通知，没有提交任何数据。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ForwardAuthHeadersSection.tsx
+msgid "admin.forward-auth-apps.headers.email"
+msgstr "主邮箱"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
@@ -4275,7 +4324,7 @@ msgid "admin.saml-apps.metadata.dialog.title"
 msgstr "重新导入元数据"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/forward-auth-apps/ScopeRows.tsx
+#: src/pages/admin/forward-auth-apps/ScopeTableField.tsx
 msgid "admin.forward-auth-apps.scope.name.placeholder"
 msgstr "read"
 
@@ -4288,6 +4337,11 @@ msgstr "读取于"
 #: src/pages/admin/settings/NetworkPanel.tsx
 msgid "settings.network.strategy"
 msgstr "客户端地址来自"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ScopeTableField.tsx
+msgid "admin.forward-auth-apps.scopes.description.placeholder"
+msgstr "读取应用的数据"
 
 #. js-lingui-explicit-id
 #: src/pages/Login.tsx
@@ -4376,11 +4430,6 @@ msgid "admin.forward-auth-apps.column.remote-user"
 msgstr "上游身份"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/forward-auth-apps/ForwardAuthIdentitySection.tsx
-msgid "admin.forward-auth-apps.identity.source"
-msgstr "Remote-User"
-
-#. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
 msgid "security.passkeys.delete"
 msgstr "移除"
@@ -4424,6 +4473,11 @@ msgstr "移除授权"
 #: src/pages/ConnectedApps.tsx
 msgid "apps.confirm.title"
 msgstr "移除授权？"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ForwardAuthScopesSection.tsx
+msgid "admin.forward-auth-apps.scopes.remove.action"
+msgstr "删除并保存"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/GeneralPanel.tsx
@@ -4486,14 +4540,14 @@ msgid "admin.user.delete.note"
 msgstr "删除该账号及其拥有的一切：通行密钥、会话、访问令牌和已连接身份。此操作无法撤销。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/forward-auth-apps/ForwardAuthDangerSection.tsx
-msgid "admin.forward-auth-apps.delete.note"
-msgstr "删除应用及其作用域词表、图标和访问策略。账号不受影响。"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/DangerSection.tsx
 msgid "admin.oidc-apps.delete.note"
 msgstr "删除应用、它的密钥、图标和访问策略。此操作无法撤销。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ForwardAuthDangerSection.tsx
+msgid "admin.forward-auth-apps.delete.note"
+msgstr "删除应用及其令牌作用域、图标和访问策略。账号不受影响。"
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
@@ -4683,11 +4737,6 @@ msgstr "退役中"
 #: src/components/custom/RouteFeedback.tsx
 msgid "route.home"
 msgstr "返回预览"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/forward-auth-apps/ForwardAuthProxySection.tsx
-msgid "admin.forward-auth-apps.proxy"
-msgstr "反向代理"
 
 #. js-lingui-explicit-id
 #: src/pages/Preview.tsx
@@ -4886,6 +4935,8 @@ msgstr "保存"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/ForwardAuthGeneralSection.tsx
+#: src/pages/admin/forward-auth-apps/ForwardAuthHeadersSection.tsx
+#: src/pages/admin/forward-auth-apps/ForwardAuthScopesSection.tsx
 msgid "admin.forward-auth-apps.save"
 msgstr "保存"
 
@@ -4920,15 +4971,9 @@ msgid "login.reset.scan"
 msgstr "使用身份验证器扫描二维码，或手动输入设置密钥，然后输入新身份验证器中的验证码。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/forward-auth-apps/ScopeRows.tsx
-msgid "admin.forward-auth-apps.scope.name"
-msgstr "作用域名称"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/forward-auth-apps/AdminForwardAuthAppNew.tsx
-#: src/pages/admin/forward-auth-apps/ForwardAuthGeneralSection.tsx
-msgid "admin.forward-auth-apps.field.scopes"
-msgstr "作用域词表"
+#: src/pages/admin/forward-auth-apps/ScopeTableField.tsx
+msgid "admin.forward-auth-apps.scopes.row"
+msgstr "作用域 {row}"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
@@ -4950,6 +4995,11 @@ msgstr "作用域"
 #: src/pages/admin/forward-auth-apps/AdminForwardAuthApps.tsx
 msgid "admin.forward-auth-apps.column.scopes"
 msgstr "作用域"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ForwardAuthHeadersSection.tsx
+msgid "admin.forward-auth-apps.headers.scopes"
+msgstr "令牌授予的作用域；浏览器登录时为空。<0>令牌作用域</0>"
 
 #. js-lingui-explicit-id
 #: src/components/custom/ConsoleLayout.tsx
@@ -5022,14 +5072,14 @@ msgid "app.groups.dialog.title"
 msgstr "选择用户组"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/forward-auth-apps/ForwardAuthIdentitySection.tsx
-msgid "admin.forward-auth-apps.identity.confirm.title"
-msgstr "改用另一个标识？"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AttributeMapField.tsx
 msgid "admin.saml-apps.mapping.multi"
 msgstr "发送每个值"
+
+#. js-lingui-explicit-id
+#: src/components/custom/principal-sources.ts
+msgid "principal-source.verified-email.hint"
+msgstr "仅在邮箱已验证且未被其他账号使用时发送，否则请求会被拒绝。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/GeneralSection.tsx
@@ -5364,11 +5414,6 @@ msgid "admin.federation.claims.subject"
 msgstr "主体"
 
 #. js-lingui-explicit-id
-#: src/components/custom/ListCells.tsx
-msgid "list.principal-source.sub"
-msgstr "Subject"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/IdentityProjectionSection.tsx
 msgid "admin.oidc-apps.subject"
 msgstr "Subject 来源"
@@ -5569,12 +5614,6 @@ msgid "admin.saml-apps.danger.delete-note"
 msgstr "应用及其端点、证书都会被移除。此操作无法撤销。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/forward-auth-apps/AdminForwardAuthAppNew.tsx
-#: src/pages/admin/forward-auth-apps/ForwardAuthGeneralSection.tsx
-msgid "admin.forward-auth-apps.field.scopes.hint"
-msgstr "应用自己的作用域名称。个人访问令牌只授予其中的一部分，网关会把获准的名称作为 Remote-Scopes 发送。"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
 #: src/pages/admin/oidc-applications/GeneralSection.tsx
 msgid "admin.oidc-apps.field.client-id.hint"
@@ -5736,13 +5775,6 @@ msgstr "无法验证本次通行密钥登录。请重新开始。"
 #: src/api/errors.ts
 msgid "error.ceremony_expired"
 msgstr "本次通行密钥登录已过期。请重新开始。"
-
-#. js-lingui-explicit-id
-#. placeholder {0}: pending === null ? "" : label(pending)
-#. placeholder {1}: label(saved)
-#: src/pages/admin/forward-auth-apps/ForwardAuthIdentitySection.tsx
-msgid "admin.forward-auth-apps.identity.confirm.body"
-msgstr "被保护的应用会把这个账号认作 {0}，而不是 {1}。它已经按旧值记录的关联不会更新，因此会把这个账号当成新账号。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/AdminIdentityProvider.tsx
@@ -6145,6 +6177,16 @@ msgid "admin.federation.diagnostics.stage.token"
 msgstr "令牌交换"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ForwardAuthScopesSection.tsx
+msgid "admin.forward-auth-apps.scopes"
+msgstr "令牌作用域"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ScopeTableField.tsx
+msgid "admin.forward-auth-apps.scopes.label"
+msgstr "令牌作用域"
+
+#. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.rate_limited"
 msgstr "请求过于频繁，请稍后重试。"
@@ -6153,6 +6195,11 @@ msgstr "请求过于频繁，请稍后重试。"
 #: src/api/errors.ts
 msgid "error.factor_locked"
 msgstr "验证尝试次数过多。请稍后重试。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ForwardAuthProxySection.tsx
+msgid "admin.forward-auth-apps.traefik"
+msgstr "Traefik 配置"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/NetworkPanel.tsx
@@ -6432,8 +6479,8 @@ msgstr "使用实例默认值"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/ForwardAuthProxySection.tsx
-msgid "admin.forward-auth-apps.proxy.note"
-msgstr "仅在可信反向代理后面使用，并在入口点上设置 <0>forwardedHeaders.trustedIPs</0>，让 Traefik 替换客户端自带的 X-Forwarded-* 头。完整要求见 <1>前向认证指南</1>。"
+msgid "admin.forward-auth-apps.traefik.note"
+msgstr "仅在可信的反向代理后使用，入口点设置见<0>前向认证指南</0>。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
@@ -6527,6 +6574,11 @@ msgid "success.app.groups-saved"
 msgstr "用户组已保存"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ForwardAuthHeadersSection.tsx
+msgid "admin.forward-auth-apps.headers.groups"
+msgstr "该应用公开的用户组"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminLogs.tsx
 msgid "admin.logs.detail.userAgent"
 msgstr "User-Agent"
@@ -6563,11 +6615,6 @@ msgid "admin.saml-apps.source.username"
 msgstr "用户名"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/IdentityProjectionSection.tsx
-msgid "admin.oidc-apps.subject.username"
-msgstr "用户名"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
 msgid "admin.federation.claims.username"
 msgstr "用户名"
@@ -6578,13 +6625,8 @@ msgid "admin.federation.operator.username"
 msgstr "用户名"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/forward-auth-apps/ForwardAuthIdentitySection.tsx
-msgid "admin.forward-auth-apps.source.username"
-msgstr "用户名"
-
-#. js-lingui-explicit-id
-#: src/components/custom/ListCells.tsx
-msgid "list.principal-source.username"
+#: src/components/custom/principal-sources.ts
+msgid "principal-source.username"
 msgstr "用户名"
 
 #. js-lingui-explicit-id
@@ -6643,18 +6685,8 @@ msgid "error.passkey_incomplete"
 msgstr "验证未完成。请重试或使用密码。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/IdentityProjectionSection.tsx
-msgid "admin.oidc-apps.subject.email"
-msgstr "已验证的邮箱地址"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/forward-auth-apps/ForwardAuthIdentitySection.tsx
-msgid "admin.forward-auth-apps.source.email"
-msgstr "已验证邮箱"
-
-#. js-lingui-explicit-id
-#: src/components/custom/ListCells.tsx
-msgid "list.principal-source.verified-email"
+#: src/components/custom/principal-sources.ts
+msgid "principal-source.verified-email"
 msgstr "已验证邮箱"
 
 #. js-lingui-explicit-id

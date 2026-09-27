@@ -5,14 +5,17 @@ import { useNavigate } from "@tanstack/react-router";
 import { isCancellation } from "@/api/errors";
 import { createForwardAuthAppMutationOptions } from "@/api/mutations";
 import { ConsoleCard } from "@/components/custom/ConsoleCard";
-import { RowsField } from "@/components/custom/RowsField";
 import { applyServerError } from "@/forms/server-errors";
 import { useAppForm } from "@/forms/use-app-form";
 import {
   hostProblem,
   scopeListProblem,
 } from "@/pages/admin/forward-auth-apps/forward-auth-validation";
-import { ScopeRows } from "@/pages/admin/forward-auth-apps/ScopeRows";
+import {
+  type ScopeRow,
+  ScopeTableField,
+  scopeRowProblem,
+} from "@/pages/admin/forward-auth-apps/ScopeTableField";
 
 /**
  * The Client ID rule, identical to the OIDC application's.
@@ -53,7 +56,7 @@ const nameRequired = msg({
  * its tokens may ask for, since the server takes the Client ID and the host
  * only at creation.
  *
- * A scope vocabulary is offered here rather than left to the detail page
+ * The token scopes are offered here rather than left to the detail page
  * because it is part of the application's contract with the upstream service:
  * a token's grants are validated against it, so a deployment that forgot to
  * declare one has a service that refuses every token with no obvious reason.
@@ -68,7 +71,7 @@ export function AdminForwardAuthAppNew() {
       displayName: "",
       clientId: "",
       host: "",
-      scopes: [] as { name: string; description: string }[],
+      scopes: [] as ScopeRow[],
       accessRestricted: false,
     },
     onSubmit: async ({ value }) => {
@@ -85,7 +88,10 @@ export function AdminForwardAuthAppNew() {
       if (scopeIssue !== undefined) {
         form.setFieldMeta("scopes", (meta) => ({
           ...meta,
-          errorMap: { ...meta.errorMap, onSubmit: [scopeIssue] },
+          errorMap: {
+            ...meta.errorMap,
+            onSubmit: [scopeRowProblem(scopeIssue)],
+          },
         }));
         return;
       }
@@ -210,37 +216,8 @@ export function AdminForwardAuthAppNew() {
             )}
           </form.AppField>
 
-          <form.AppField
-            name="scopes"
-            validators={{
-              onSubmit: ({ value }) => scopeListProblem(value),
-            }}
-          >
-            {() => (
-              <RowsField
-                label={
-                  <Trans id="admin.forward-auth-apps.field.scopes">
-                    Scope vocabulary
-                  </Trans>
-                }
-                description={
-                  <Trans id="admin.forward-auth-apps.field.scopes.hint">
-                    The application's own scope names. A personal access token
-                    grants a subset of these, and the gateway sends the granted
-                    names on as Remote-Scopes.
-                  </Trans>
-                }
-                renderRow={(_row, index, error) => (
-                  <ScopeRows index={index} error={error} />
-                )}
-                emptyRow={() => ({ name: "", description: "" })}
-                addLabel={
-                  <Trans id="admin.forward-auth-apps.field.scopes.add">
-                    Add a scope
-                  </Trans>
-                }
-              />
-            )}
+          <form.AppField name="scopes">
+            {() => <ScopeTableField />}
           </form.AppField>
 
           <form.AppField name="accessRestricted">

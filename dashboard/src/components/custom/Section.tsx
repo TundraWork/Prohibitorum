@@ -22,10 +22,13 @@ import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
  * make the list read as nested inside a second container.
  */
 export function Section({
+  id,
   title,
   action,
   children,
 }: {
+  /** An anchor, for a link elsewhere on the page that points at the block. */
+  id?: string;
   title: ReactNode;
   /**
    * The block's primary action, on the trailing edge of the heading row. Most
@@ -35,7 +38,11 @@ export function Section({
   children: ReactNode;
 }) {
   return (
-    <section className="flex flex-col gap-3">
+    <section
+      id={id}
+      // Clear of the sticky console header when a link scrolls here.
+      className="flex scroll-mt-[calc(var(--app-sticky-offset)+5rem)] flex-col gap-3"
+    >
       {/* The row is a button's height so a heading with an action and one
           without line up across sections: left to the text, the row would be
           half the height and its heading would sit higher than its

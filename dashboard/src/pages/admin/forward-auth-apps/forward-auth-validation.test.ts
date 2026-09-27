@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   hostProblem,
+  removedScopeNames,
+  scopeDescriptionTooLong,
   scopeListProblem,
+  scopeNameDuplicate,
   scopeNameProblem,
 } from "@/pages/admin/forward-auth-apps/forward-auth-validation";
 import { scopeSummary } from "@/pages/admin/forward-auth-apps/scope-summary";
@@ -66,9 +69,10 @@ describe("scope vocabulary", () => {
   });
 
   it("refuses a duplicate, which the server would too", () => {
+    // The later of the two rows is the one named.
     expect(
       scopeListProblem([{ name: "read" }, { name: "write" }, { name: "read" }]),
-    ).toBeDefined();
+    ).toEqual({ index: 2, field: "name", message: scopeNameDuplicate });
     // Distinct names that merely look alike are fine.
     expect(
       scopeListProblem([{ name: "read" }, { name: "Read" }]),
@@ -80,12 +84,63 @@ describe("scope vocabulary", () => {
       scopeListProblem([{ name: "read", description: "a".repeat(256) }]),
     ).toBeUndefined();
     expect(
-      scopeListProblem([{ name: "read", description: "a".repeat(257) }]),
-    ).toBeDefined();
+      scopeListProblem([
+        { name: "read" },
+        { name: "write", description: "a".repeat(257) },
+      ]),
+    ).toEqual({
+      index: 1,
+      field: "description",
+      message: scopeDescriptionTooLong,
+    });
   });
 
   it("accepts an empty vocabulary, which the server also allows", () => {
     expect(scopeListProblem([])).toBeUndefined();
+  });
+
+  it("names the row and the input of a bad name", () => {
+    expect(scopeListProblem([{ name: "read" }, { name: " write" }])).toEqual({
+      index: 1,
+      field: "name",
+      message: scopeNameProblem(" write"),
+    });
+  });
+});
+
+describe("removed scopes", () => {
+  const saved = [{ name: "read" }, { name: "write" }, { name: "admin" }];
+
+  it("lists the saved names the new list drops, in saved order", () => {
+    expect(removedScopeNames(saved, [{ name: "write" }])).toEqual([
+      "read",
+      "admin",
+    ]);
+  });
+
+  it("lists every name when the whole vocabulary is removed", () => {
+    expect(removedScopeNames(saved, [])).toEqual(["read", "write", "admin"]);
+  });
+
+  it("is empty when only descriptions change or scopes are added", () => {
+    expect(
+      removedScopeNames(saved, [
+        { name: "read" },
+        { name: "write" },
+        { name: "admin" },
+        { name: "export" },
+      ]),
+    ).toEqual([]);
+  });
+
+  it("counts a rename as a removal", () => {
+    expect(
+      removedScopeNames(saved, [
+        { name: "read" },
+        { name: "write" },
+        { name: "administer" },
+      ]),
+    ).toEqual(["admin"]);
   });
 });
 

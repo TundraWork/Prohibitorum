@@ -33,13 +33,13 @@ msgstr "{0} accounts lose the way they sign in with it. An account that can only
 #. placeholder {1}: groups.length
 #: src/pages/admin/forward-auth-apps/ForwardAuthDangerSection.tsx
 msgid "admin.forward-auth-apps.delete.confirm.groups"
-msgstr "{name} is removed along with its scope vocabulary, its icon and its access policy — including its selection of {count} user groups. Requests through its router are turned away immediately. This cannot be undone."
+msgstr "{name} is removed along with its token scopes, its icon and its access policy — including its selection of {count} user groups. Requests through its router are turned away immediately. This cannot be undone."
 
 #. js-lingui-explicit-id
 #. placeholder {0}: app.displayName || app.clientId
 #: src/pages/admin/forward-auth-apps/ForwardAuthDangerSection.tsx
 msgid "admin.forward-auth-apps.delete.confirm.open"
-msgstr "{name} is removed along with its scope vocabulary, its icon and its access policy. Requests through its router are turned away immediately. This cannot be undone."
+msgstr "{name} is removed along with its token scopes, its icon and its access policy. Requests through its router are turned away immediately. This cannot be undone."
 
 #. js-lingui-explicit-id
 #. placeholder {0}: app.displayName || app.clientId
@@ -52,6 +52,11 @@ msgstr "{name} stops being able to sign anyone in, and its icon, secret and acce
 #: src/components/custom/AppAccessPanel.tsx
 msgid "app.managers.confirm.body"
 msgstr "{name} will no longer be able to change this application. Their account is not affected."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ForwardAuthHeadersSection.tsx
+msgid "admin.forward-auth-apps.headers.confirm.body"
+msgstr "{appName} will receive the account's {nextLabel} instead of its {savedLabel}. Anything it saved under the old value is not migrated, so people it already knows will be treated as new accounts."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
@@ -67,6 +72,16 @@ msgstr "{name} and its certificates are removed, and anyone who signs in through
 #: src/pages/admin/saml-applications/SamlDangerSection.tsx
 msgid "admin.saml-apps.danger.disable.body"
 msgstr "{name} stops accepting sign-ins immediately. Its configuration, endpoints and certificates are kept, so it can be enabled again."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ForwardAuthScopesSection.tsx
+msgid "admin.forward-auth-apps.scopes.remove.title"
+msgstr "{removedCount, plural, one {Remove # scope?} other {Remove # scopes?}}"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ForwardAuthScopesSection.tsx
+msgid "admin.forward-auth-apps.scopes.remove.body"
+msgstr "{removedCount, plural, one {Tokens already granted {removedNames} keep sending it until they are revoked. New tokens can no longer choose it.} other {Tokens already granted {removedNames} keep sending them until they are revoked. New tokens can no longer choose them.}}"
 
 #. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
@@ -270,8 +285,8 @@ msgid "success.account.enabled"
 msgstr "Account enabled"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/forward-auth-apps/ForwardAuthIdentitySection.tsx
-msgid "admin.forward-auth-apps.source.sub"
+#: src/components/custom/principal-sources.ts
+msgid "principal-source.sub"
 msgstr "Account ID"
 
 #. js-lingui-explicit-id
@@ -373,9 +388,8 @@ msgid "admin.federation.create"
 msgstr "Add a provider"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/forward-auth-apps/AdminForwardAuthAppNew.tsx
-#: src/pages/admin/forward-auth-apps/ForwardAuthGeneralSection.tsx
-msgid "admin.forward-auth-apps.field.scopes.add"
+#: src/pages/admin/forward-auth-apps/ScopeTableField.tsx
+msgid "admin.forward-auth-apps.scopes.add"
 msgstr "Add a scope"
 
 #. js-lingui-explicit-id
@@ -879,13 +893,13 @@ msgstr "Change"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/IdentityProjectionSection.tsx
-msgid "admin.oidc-apps.subject.confirm.action"
-msgstr "Change"
+msgid "admin.oidc-apps.subject.confirm.save"
+msgstr "Change and save"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/forward-auth-apps/ForwardAuthIdentitySection.tsx
-msgid "admin.forward-auth-apps.identity.confirm.action"
-msgstr "Change it"
+#: src/pages/admin/forward-auth-apps/ForwardAuthHeadersSection.tsx
+msgid "admin.forward-auth-apps.headers.confirm.action"
+msgstr "Change and save"
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
@@ -906,6 +920,11 @@ msgstr "Change password"
 #: src/pages/admin/oidc-applications/IdentityProjectionSection.tsx
 msgid "admin.oidc-apps.subject.confirm.title"
 msgstr "Change the subject source?"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ForwardAuthHeadersSection.tsx
+msgid "admin.forward-auth-apps.headers.confirm.title"
+msgstr "Change the user identifier?"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts
@@ -1460,7 +1479,7 @@ msgstr "Copied"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/ForwardAuthProxySection.tsx
-msgid "admin.forward-auth-apps.proxy.copied"
+msgid "admin.forward-auth-apps.traefik.copied"
 msgstr "Copied"
 
 #. js-lingui-explicit-id
@@ -1481,6 +1500,11 @@ msgstr "Copied."
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/SigningKeysPanel.tsx
 msgid "settings.keys.jwk.copy"
+msgstr "Copy"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ForwardAuthProxySection.tsx
+msgid "admin.forward-auth-apps.traefik.copy"
 msgstr "Copy"
 
 #. js-lingui-explicit-id
@@ -1507,11 +1531,6 @@ msgstr "Copy secret"
 #: src/pages/admin/oidc-applications/secret-copy.ts
 msgid "admin.oidc-apps.secret.title"
 msgstr "Copy the client secret"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/forward-auth-apps/ForwardAuthProxySection.tsx
-msgid "admin.forward-auth-apps.proxy.copy"
-msgstr "Copy the configuration"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminInvitations.tsx
@@ -1851,8 +1870,8 @@ msgid "admin.groups.column.description"
 msgstr "Description"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/forward-auth-apps/ScopeRows.tsx
-msgid "admin.forward-auth-apps.scope.description"
+#: src/pages/admin/forward-auth-apps/ScopeTableField.tsx
+msgid "admin.forward-auth-apps.scopes.description"
 msgstr "Description"
 
 #. js-lingui-explicit-id
@@ -2081,6 +2100,11 @@ msgid "admin.federation.claims.display-name"
 msgstr "Display name"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ForwardAuthHeadersSection.tsx
+msgid "admin.forward-auth-apps.headers.name"
+msgstr "Display name"
+
+#. js-lingui-explicit-id
 #: src/api/success-messages.ts
 msgid "success.display-name.saved"
 msgstr "Display name saved"
@@ -2114,6 +2138,11 @@ msgstr "Download secret"
 #: src/components/custom/secret-reveal-copy.ts
 msgid "security.tokens.reveal.download"
 msgstr "Download token"
+
+#. js-lingui-explicit-id
+#: src/components/custom/principal-sources.ts
+msgid "principal-source.username.hint"
+msgstr "Easy to read. An administrator can change it."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminGroups.tsx
@@ -2552,7 +2581,7 @@ msgstr "Every recovery code you have now stops working."
 #. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/ForwardAuthDangerSection.tsx
 msgid "admin.forward-auth-apps.disable.note"
-msgstr "Every request through its router is turned away, including ones from people who are signed in. The record, its vocabulary and its access policy are kept."
+msgstr "Every request through its router is turned away, including ones from people who are signed in. The record, its token scopes and its access policy are kept."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/SamlDangerSection.tsx
@@ -2722,6 +2751,11 @@ msgid "settings.network.header"
 msgstr "Header name"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ForwardAuthHeadersSection.tsx
+msgid "admin.forward-auth-apps.headers"
+msgstr "Headers sent to the service"
+
+#. js-lingui-explicit-id
 #: src/components/custom/DataTable.tsx
 msgid "table.row.collapse"
 msgstr "Hide details"
@@ -2855,11 +2889,6 @@ msgstr "Identity projection"
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/IdentityProjectionSection.tsx
 msgid "admin.oidc-apps.identity"
-msgstr "Identity projection"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/forward-auth-apps/ForwardAuthIdentitySection.tsx
-msgid "admin.forward-auth-apps.identity"
 msgstr "Identity projection"
 
 #. js-lingui-explicit-id
@@ -3441,6 +3470,11 @@ msgid "admin.forward-auth-apps.field.name"
 msgstr "Name"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ScopeTableField.tsx
+msgid "admin.forward-auth-apps.scopes.name"
+msgstr "Name"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AttributeMapField.tsx
 msgid "admin.saml-apps.mapping.name-format"
 msgstr "Name format"
@@ -3460,6 +3494,11 @@ msgstr "NameID format"
 #: src/pages/admin/saml-applications/AdminSamlApplications.tsx
 msgid "admin.saml-apps.column.name-id"
 msgstr "NameID format"
+
+#. js-lingui-explicit-id
+#: src/components/custom/principal-sources.ts
+msgid "principal-source.sub.hint"
+msgstr "Never changes."
 
 #. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
@@ -4074,6 +4113,11 @@ msgid "settings.keys.status.pending"
 msgstr "Pending"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ScopeTableField.tsx
+msgid "admin.forward-auth-apps.scopes.hint"
+msgstr "Personal access tokens choose from these, and the service receives the granted ones in Remote-Scopes."
+
+#. js-lingui-explicit-id
 #: src/pages/Preview.tsx
 msgid "preview.eyebrow"
 msgstr "PHB-64 / M1 · Foundation preview"
@@ -4142,6 +4186,11 @@ msgstr "Preview navigation"
 #: src/pages/Preview.tsx
 msgid "notification.message"
 msgstr "Preview notification. No data was submitted."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ForwardAuthHeadersSection.tsx
+msgid "admin.forward-auth-apps.headers.email"
+msgstr "Primary email"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
@@ -4275,7 +4324,7 @@ msgid "admin.saml-apps.metadata.dialog.title"
 msgstr "Re-import metadata"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/forward-auth-apps/ScopeRows.tsx
+#: src/pages/admin/forward-auth-apps/ScopeTableField.tsx
 msgid "admin.forward-auth-apps.scope.name.placeholder"
 msgstr "read"
 
@@ -4288,6 +4337,11 @@ msgstr "Read <0/>"
 #: src/pages/admin/settings/NetworkPanel.tsx
 msgid "settings.network.strategy"
 msgstr "Read the address from"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ScopeTableField.tsx
+msgid "admin.forward-auth-apps.scopes.description.placeholder"
+msgstr "Read the application's data"
 
 #. js-lingui-explicit-id
 #: src/pages/Login.tsx
@@ -4376,11 +4430,6 @@ msgid "admin.forward-auth-apps.column.remote-user"
 msgstr "Remote user"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/forward-auth-apps/ForwardAuthIdentitySection.tsx
-msgid "admin.forward-auth-apps.identity.source"
-msgstr "Remote-User"
-
-#. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
 msgid "security.passkeys.delete"
 msgstr "Remove"
@@ -4424,6 +4473,11 @@ msgstr "Remove access"
 #: src/pages/ConnectedApps.tsx
 msgid "apps.confirm.title"
 msgstr "Remove access?"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ForwardAuthScopesSection.tsx
+msgid "admin.forward-auth-apps.scopes.remove.action"
+msgstr "Remove and save"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/GeneralPanel.tsx
@@ -4486,14 +4540,14 @@ msgid "admin.user.delete.note"
 msgstr "Removes the account and everything it owns: passkeys, sessions, access tokens and connected identities. This cannot be undone."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/forward-auth-apps/ForwardAuthDangerSection.tsx
-msgid "admin.forward-auth-apps.delete.note"
-msgstr "Removes the application, its scope vocabulary, its icon and its access policy. Accounts are not affected."
-
-#. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/DangerSection.tsx
 msgid "admin.oidc-apps.delete.note"
 msgstr "Removes the application, its secret, its icon and its access policy. This cannot be undone."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ForwardAuthDangerSection.tsx
+msgid "admin.forward-auth-apps.delete.note"
+msgstr "Removes the application, its token scopes, its icon and its access policy. Accounts are not affected."
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
@@ -4683,11 +4737,6 @@ msgstr "Retiring"
 #: src/components/custom/RouteFeedback.tsx
 msgid "route.home"
 msgstr "Return to preview"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/forward-auth-apps/ForwardAuthProxySection.tsx
-msgid "admin.forward-auth-apps.proxy"
-msgstr "Reverse proxy"
 
 #. js-lingui-explicit-id
 #: src/pages/Preview.tsx
@@ -4886,6 +4935,8 @@ msgstr "Save"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/ForwardAuthGeneralSection.tsx
+#: src/pages/admin/forward-auth-apps/ForwardAuthHeadersSection.tsx
+#: src/pages/admin/forward-auth-apps/ForwardAuthScopesSection.tsx
 msgid "admin.forward-auth-apps.save"
 msgstr "Save"
 
@@ -4920,15 +4971,9 @@ msgid "login.reset.scan"
 msgstr "Scan this QR code with your authenticator, or enter the setup key manually. Then enter a code from the new authenticator."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/forward-auth-apps/ScopeRows.tsx
-msgid "admin.forward-auth-apps.scope.name"
-msgstr "Scope name"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/forward-auth-apps/AdminForwardAuthAppNew.tsx
-#: src/pages/admin/forward-auth-apps/ForwardAuthGeneralSection.tsx
-msgid "admin.forward-auth-apps.field.scopes"
-msgstr "Scope vocabulary"
+#: src/pages/admin/forward-auth-apps/ScopeTableField.tsx
+msgid "admin.forward-auth-apps.scopes.row"
+msgstr "Scope {row}"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
@@ -4950,6 +4995,11 @@ msgstr "Scopes"
 #: src/pages/admin/forward-auth-apps/AdminForwardAuthApps.tsx
 msgid "admin.forward-auth-apps.column.scopes"
 msgstr "Scopes"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ForwardAuthHeadersSection.tsx
+msgid "admin.forward-auth-apps.headers.scopes"
+msgstr "Scopes granted by the token; empty for browser sign-ins. <0>Token scopes</0>"
 
 #. js-lingui-explicit-id
 #: src/components/custom/ConsoleLayout.tsx
@@ -5022,14 +5072,14 @@ msgid "app.groups.dialog.title"
 msgstr "Select user groups"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/forward-auth-apps/ForwardAuthIdentitySection.tsx
-msgid "admin.forward-auth-apps.identity.confirm.title"
-msgstr "Send a different identifier?"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AttributeMapField.tsx
 msgid "admin.saml-apps.mapping.multi"
 msgstr "Send every value"
+
+#. js-lingui-explicit-id
+#: src/components/custom/principal-sources.ts
+msgid "principal-source.verified-email.hint"
+msgstr "Sent only while the address is verified and no other account uses it; otherwise the request is refused."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/GeneralSection.tsx
@@ -5364,11 +5414,6 @@ msgid "admin.federation.claims.subject"
 msgstr "Subject"
 
 #. js-lingui-explicit-id
-#: src/components/custom/ListCells.tsx
-msgid "list.principal-source.sub"
-msgstr "Subject"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/IdentityProjectionSection.tsx
 msgid "admin.oidc-apps.subject"
 msgstr "Subject source"
@@ -5569,12 +5614,6 @@ msgid "admin.saml-apps.danger.delete-note"
 msgstr "The application, its endpoints and its certificates are removed. This cannot be undone."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/forward-auth-apps/AdminForwardAuthAppNew.tsx
-#: src/pages/admin/forward-auth-apps/ForwardAuthGeneralSection.tsx
-msgid "admin.forward-auth-apps.field.scopes.hint"
-msgstr "The application's own scope names. A personal access token grants a subset of these, and the gateway sends the granted names on as Remote-Scopes."
-
-#. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
 #: src/pages/admin/oidc-applications/GeneralSection.tsx
 msgid "admin.oidc-apps.field.client-id.hint"
@@ -5736,13 +5775,6 @@ msgstr "The passkey sign-in attempt could not be verified. Please start again."
 #: src/api/errors.ts
 msgid "error.ceremony_expired"
 msgstr "The passkey sign-in attempt has expired. Please start again."
-
-#. js-lingui-explicit-id
-#. placeholder {0}: pending === null ? "" : label(pending)
-#. placeholder {1}: label(saved)
-#: src/pages/admin/forward-auth-apps/ForwardAuthIdentitySection.tsx
-msgid "admin.forward-auth-apps.identity.confirm.body"
-msgstr "The protected application will know this account as its {0} instead of its {1}. Anything it has already keyed on the old value is not updated, so it will treat the account as a new one."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/AdminIdentityProvider.tsx
@@ -6145,6 +6177,16 @@ msgid "admin.federation.diagnostics.stage.token"
 msgstr "Token exchange"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ForwardAuthScopesSection.tsx
+msgid "admin.forward-auth-apps.scopes"
+msgstr "Token scopes"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ScopeTableField.tsx
+msgid "admin.forward-auth-apps.scopes.label"
+msgstr "Token scopes"
+
+#. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.rate_limited"
 msgstr "Too many requests. Please wait before trying again."
@@ -6153,6 +6195,11 @@ msgstr "Too many requests. Please wait before trying again."
 #: src/api/errors.ts
 msgid "error.factor_locked"
 msgstr "Too many verification attempts. Please wait before trying again."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ForwardAuthProxySection.tsx
+msgid "admin.forward-auth-apps.traefik"
+msgstr "Traefik configuration"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/NetworkPanel.tsx
@@ -6432,8 +6479,8 @@ msgstr "Use the instance default"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/ForwardAuthProxySection.tsx
-msgid "admin.forward-auth-apps.proxy.note"
-msgstr "Use this only behind a trusted reverse proxy, and set <0>forwardedHeaders.trustedIPs</0> on the entrypoint so Traefik replaces the client's own X-Forwarded-* headers. See <1>the forward-auth guide</1> for the full requirements."
+msgid "admin.forward-auth-apps.traefik.note"
+msgstr "Use this only behind a trusted reverse proxy. See <0>the forward-auth guide</0> for the entrypoint settings."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
@@ -6527,6 +6574,11 @@ msgid "success.app.groups-saved"
 msgstr "User groups saved"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ForwardAuthHeadersSection.tsx
+msgid "admin.forward-auth-apps.headers.groups"
+msgstr "User groups this application exposes"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminLogs.tsx
 msgid "admin.logs.detail.userAgent"
 msgstr "User-Agent"
@@ -6563,11 +6615,6 @@ msgid "admin.saml-apps.source.username"
 msgstr "Username"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/IdentityProjectionSection.tsx
-msgid "admin.oidc-apps.subject.username"
-msgstr "Username"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
 msgid "admin.federation.claims.username"
 msgstr "Username"
@@ -6578,13 +6625,8 @@ msgid "admin.federation.operator.username"
 msgstr "Username"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/forward-auth-apps/ForwardAuthIdentitySection.tsx
-msgid "admin.forward-auth-apps.source.username"
-msgstr "Username"
-
-#. js-lingui-explicit-id
-#: src/components/custom/ListCells.tsx
-msgid "list.principal-source.username"
+#: src/components/custom/principal-sources.ts
+msgid "principal-source.username"
 msgstr "Username"
 
 #. js-lingui-explicit-id
@@ -6643,18 +6685,8 @@ msgid "error.passkey_incomplete"
 msgstr "Verification was not completed. Try again or use your password."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/IdentityProjectionSection.tsx
-msgid "admin.oidc-apps.subject.email"
-msgstr "Verified e-mail address"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/forward-auth-apps/ForwardAuthIdentitySection.tsx
-msgid "admin.forward-auth-apps.source.email"
-msgstr "Verified email"
-
-#. js-lingui-explicit-id
-#: src/components/custom/ListCells.tsx
-msgid "list.principal-source.verified-email"
+#: src/components/custom/principal-sources.ts
+msgid "principal-source.verified-email"
 msgstr "Verified email"
 
 #. js-lingui-explicit-id
