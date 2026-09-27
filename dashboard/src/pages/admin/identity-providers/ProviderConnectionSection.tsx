@@ -1,49 +1,53 @@
-import { Description, Label, Radio, RadioGroup } from "@heroui/react";
-import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
+import { useStore } from "@tanstack/react-form";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
 import { isCancellation } from "@/api/errors";
 import {
   defaultOidcProviderConfig,
   readOidcProviderConfig,
 } from "@/api/federation";
+import type { components } from "@/api/generated/schema";
 import { updateIdentityProviderMutationOptions } from "@/api/mutations";
-import type { OidcProviderConfig, ProviderMode } from "@/api/raw-admin-paths";
 import { identityProviderUpdateBody } from "@/api/update-bodies";
-import { lineProblemMessage, parseLines } from "@/forms/lines";
+import { ConsoleCard } from "@/components/custom/ConsoleCard";
+import { Section } from "@/components/custom/Section";
+import { TagListField } from "@/components/custom/TagListField";
 import { applyServerError } from "@/forms/server-errors";
 import { useAppForm } from "@/forms/use-app-form";
+import { ClientAuthMethodField } from "@/pages/admin/identity-providers/ClientAuthMethodField";
+import { EndpointsField } from "@/pages/admin/identity-providers/EndpointsField";
+import {
+  type ClientAuthMethod,
+  clientAuthNeedsSecret,
+} from "@/pages/admin/identity-providers/provider-options";
+import {
+  clientAuthMethodProblem,
+  clientIdProblem,
+  endpointProblems,
+  endpointsBody,
+  endpointsValue,
+  issuerProblem,
+  scopeProblem,
+  scopesProblem,
+  tagListValue,
+} from "@/pages/admin/identity-providers/provider-validation";
 
-type Provider = {
-  slug: string;
-  displayName: string;
-  mode: string;
-  config: unknown;
-};
-
-const scopesRequired = msg({
-  id: "admin.federation.connection.scopes.required",
-  message: "Enter at least one scope.",
-});
+type Provider = components["schemas"]["IdentityProviderView"];
 
 /**
- * Where the upstream signs people in.
+ * Where the provider signs people in, and how this instance talks to it.
  *
- * Discovery and a hand-written configuration are one form, not two. They reach
- * the same four endpoints, and discovery's answers can be overridden field by
- * field, so a provider can move from discovery to manual without retyping what
- * discovery already found.
+ * Read top to bottom in the order the provider's own console lists them: the
+ * issuer and client ID to match, how the token request authenticates, the
+ * scopes it asks for, and where the endpoints come from. Discovery is the usual
+ * case, so the endpoints stay out of the way until the reader overrides one.
  *
- * The endpoint configuration is held in component state rather than in the form
- * because it decides which fields are required: a manual configuration without
- * an authorization endpoint is refused by the server, and the reader has to be
- * told which of the four is missing rather than "this form is invalid".
- *
- * The checks mirror `federationoidc.ValidateConfig` and the server's URL rule.
- * They are not a convenience — the server answers every one of them with a bare
- * `bad_request` and no field, so a mistake it catches is one the reader would
- * never have been told about.
+ * Every check runs before the save because the server answers each of them with
+ * a bare `bad_request`: the reader would be told the form is wrong without being
+ * told where. `bad_request` still lands on the issuer, the field most likely to
+ * be the one the server could not reach. The PKCE method and the private-network
+ * switch are not on this page; they are read from the saved configuration and
+ * sent back as they are.
  */
 export function ProviderConnectionSection({
   provider,
@@ -56,67 +60,31 @@ export function ProviderConnectionSection({
     updateIdentityProviderMutationOptions(queryClient),
   );
 
-  const saved = readOidcProviderConfig(provider.config);
-
-  const [configurationMode, setConfigurationMode] = useState<
-    "discovery" | "manual"
-  >(saved?.configurationMode ?? "discovery");
+  const saved =
+    readOidcProviderConfig(provider.config) ?? defaultOidcProviderConfig();
 
   const form = useAppForm({
     defaultValues: {
-      issuerUrl: saved?.issuerUrl ?? "",
-      clientId: saved?.clientId ?? "",
-      scopes: (saved?.scopes ?? ["openid", "profile", "email"]).join("\n"),
-      authorization: saved?.endpoints.authorization ?? "",
-      token: saved?.endpoints.token ?? "",
-      userinfo: saved?.endpoints.userinfo ?? "",
-      jwks: saved?.endpoints.jwks ?? "",
+      issuerUrl: saved.issuerUrl,
+      clientId: saved.clientId,
+      tokenAuthMethod: saved.tokenAuthMethod as ClientAuthMethod,
+      scopes: tagListValue(saved.scopes),
+      endpoints: endpointsValue(saved),
     },
     onSubmit: async ({ value }) => {
-      const scopes = parseLines(value.scopes, () => undefined);
-      if (!scopes.ok || scopes.values.length === 0) return;
-
-      const base = saved ?? defaultOidcProviderConfig();
-      const next: OidcProviderConfig = {
-        ...base,
-        issuerUrl: value.issuerUrl.trim(),
-        clientId: value.clientId.trim(),
-        scopes: scopes.values,
-        configurationMode,
-        endpoints: {
-          authorization: blankToNull(value.authorization),
-          token: blankToNull(value.token),
-          userinfo: blankToNull(value.userinfo),
-          jwks: blankToNull(value.jwks),
-        },
-      };
-
       try {
         await update.mutateAsync({
           slug: provider.slug,
-          body: identityProviderUpdateBody(
-            {
-              slug: provider.slug,
-              displayName: provider.displayName,
-              protocol: "oidc",
-              iconUrl: undefined,
-              mode: provider.mode,
-              config: provider.config,
-              disabled: false,
-              secretConfigured: false,
-              secretStatus: "",
-              secretValidatedAt: null,
-              ready: false,
-              supportsOperator: false,
-              searchFields: [],
-              createdAt: "",
+          body: identityProviderUpdateBody(provider, {
+            config: {
+              ...saved,
+              issuerUrl: value.issuerUrl,
+              clientId: value.clientId,
+              tokenAuthMethod: value.tokenAuthMethod,
+              scopes: value.scopes.tags,
+              ...endpointsBody(value.endpoints),
             },
-            {
-              config: next,
-              displayName: provider.displayName,
-              mode: provider.mode as ProviderMode,
-            },
-          ),
+          }),
         });
       } catch (error) {
         if (isCancellation(error)) return;
@@ -128,235 +96,137 @@ export function ProviderConnectionSection({
     },
   });
 
-  const manual = configurationMode === "manual";
+  const manual = useStore(
+    form.store,
+    (state) => state.values.endpoints.mode === "manual",
+  );
+  const method = useStore(form.store, (state) => state.values.tokenAuthMethod);
+
+  const title = t({
+    id: "admin.federation.connection.title",
+    message: "Connection",
+  });
 
   return (
-    <form.AppForm>
-      <form.Form
-        label={t({
-          id: "admin.federation.connection.form",
-          message: "Connection settings",
-        })}
-      >
-        <form.FormError />
+    <Section title={title}>
+      <ConsoleCard>
+        <form.AppForm>
+          <form.Form label={title}>
+            <form.FormError />
 
-        <form.AppField
-          name="issuerUrl"
-          validators={{
-            onSubmit: ({ value }) =>
-              value.trim() === ""
-                ? msg({
-                    id: "admin.federation.connection.issuer.required",
-                    message: "Enter the issuer URL.",
-                  })
-                : undefined,
-          }}
-        >
-          {(field) => (
-            <field.FormField
-              label={
-                <Trans id="admin.federation.connection.issuer">
-                  Issuer URL
-                </Trans>
-              }
-              autoComplete="off"
-              spellCheck={false}
-              variant="secondary"
-            />
-          )}
-        </form.AppField>
+            <form.AppField
+              name="issuerUrl"
+              validators={{
+                onSubmit: ({ value }) =>
+                  issuerProblem(value, saved.allowPrivateNetwork),
+              }}
+            >
+              {(field) => (
+                <field.FormField
+                  label={
+                    <Trans id="admin.federation.connection.issuer">
+                      Issuer URL
+                    </Trans>
+                  }
+                  inputMode="url"
+                  isMonospace
+                  autoComplete="off"
+                  spellCheck={false}
+                  placeholder="https://idp.example.com"
+                  variant="secondary"
+                />
+              )}
+            </form.AppField>
 
-        <form.AppField name="clientId">
-          {(field) => (
-            <field.FormField
-              label={
-                <Trans id="admin.federation.connection.client-id">
-                  Client ID
-                </Trans>
-              }
-              autoComplete="off"
-              spellCheck={false}
-              variant="secondary"
-            />
-          )}
-        </form.AppField>
+            <form.AppField
+              name="clientId"
+              validators={{ onSubmit: ({ value }) => clientIdProblem(value) }}
+            >
+              {(field) => (
+                <field.FormField
+                  label={
+                    <Trans id="admin.federation.connection.client-id">
+                      Client ID
+                    </Trans>
+                  }
+                  isMonospace
+                  autoComplete="off"
+                  spellCheck={false}
+                  variant="secondary"
+                />
+              )}
+            </form.AppField>
 
-        <form.AppField
-          name="scopes"
-          validators={{
-            onSubmit: ({ value }) => {
-              const parsed = parseLines(value, () => undefined);
-              if (!parsed.ok) return lineProblemMessage(parsed.problem);
-              return parsed.values.length === 0 ? scopesRequired : undefined;
-            },
-          }}
-        >
-          {(field) => (
-            <field.TextAreaField
-              label={
-                <Trans id="admin.federation.connection.scopes">Scopes</Trans>
-              }
-              description={
-                <Trans id="admin.federation.connection.scopes.hint">
-                  One per line.
-                </Trans>
-              }
-              rows={3}
-              spellCheck={false}
-              variant="secondary"
-            />
-          )}
-        </form.AppField>
+            <form.AppField
+              name="tokenAuthMethod"
+              validators={{
+                onSubmit: ({ value, fieldApi }) =>
+                  clientAuthMethodProblem(
+                    value,
+                    fieldApi.form.getFieldValue("endpoints").mode,
+                    saved.pkceMethod,
+                  ),
+              }}
+            >
+              {() => (
+                <ClientAuthMethodField
+                  isDiscoveryUnavailable={manual}
+                  secretHint={
+                    clientAuthNeedsSecret(method) &&
+                    !provider.secretConfigured ? (
+                      <Trans id="admin.federation.connection.secret-missing">
+                        No client secret is set yet. Set one in the danger zone.
+                      </Trans>
+                    ) : undefined
+                  }
+                />
+              )}
+            </form.AppField>
 
-        <RadioGroup
-          name="configurationMode"
-          value={configurationMode}
-          variant="secondary"
-          onChange={(next) =>
-            setConfigurationMode(next as "discovery" | "manual")
-          }
-        >
-          <Label>
-            <Trans id="admin.federation.connection.mode">
-              Endpoint configuration
-            </Trans>
-          </Label>
-          <Description>
-            <Trans id="admin.federation.connection.mode.note">
-              Discovery reads the endpoints from the issuer. Anything you enter
-              here replaces what it found.
-            </Trans>
-          </Description>
-          <Radio value="discovery">
-            <Radio.Content>
-              <Radio.Control>
-                <Radio.Indicator />
-              </Radio.Control>
-              <Trans id="admin.federation.connection.mode.discovery">
-                Discover automatically
-              </Trans>
-            </Radio.Content>
-          </Radio>
-          <Radio value="manual">
-            <Radio.Content>
-              <Radio.Control>
-                <Radio.Indicator />
-              </Radio.Control>
-              <Trans id="admin.federation.connection.mode.manual">
-                Enter the endpoints
-              </Trans>
-            </Radio.Content>
-          </Radio>
-        </RadioGroup>
+            <form.AppField
+              name="scopes"
+              validators={{ onSubmit: ({ value }) => scopesProblem(value) }}
+            >
+              {() => (
+                <TagListField
+                  label={t({
+                    id: "admin.federation.connection.scopes",
+                    message: "Scopes",
+                  })}
+                  description={
+                    <Trans id="admin.federation.scopes.hint">
+                      The provider must support every scope listed here.
+                    </Trans>
+                  }
+                  placeholder="offline_access"
+                  addLabel={<Trans id="form.tags.add">Add</Trans>}
+                  check={scopeProblem}
+                  lockedTags={["openid"]}
+                />
+              )}
+            </form.AppField>
 
-        <form.AppField
-          name="authorization"
-          validators={{
-            onSubmit: ({ value }) =>
-              manual && value.trim() === ""
-                ? msg({
-                    id: "admin.federation.connection.authorization.required",
-                    message: "Enter the authorization endpoint.",
-                  })
-                : undefined,
-          }}
-        >
-          {(field) => (
-            <field.FormField
-              label={
-                <Trans id="admin.federation.connection.authorization">
-                  Authorization endpoint
-                </Trans>
-              }
-              autoComplete="off"
-              spellCheck={false}
-              variant="secondary"
-            />
-          )}
-        </form.AppField>
+            <form.AppField
+              name="endpoints"
+              validators={{
+                onSubmit: ({ value }) => {
+                  const problems = endpointProblems(
+                    value,
+                    saved.allowPrivateNetwork,
+                  );
+                  return problems.length > 0 ? problems : undefined;
+                },
+              }}
+            >
+              {() => <EndpointsField />}
+            </form.AppField>
 
-        <form.AppField
-          name="token"
-          validators={{
-            onSubmit: ({ value }) =>
-              manual && value.trim() === ""
-                ? msg({
-                    id: "admin.federation.connection.token.required",
-                    message: "Enter the token endpoint.",
-                  })
-                : undefined,
-          }}
-        >
-          {(field) => (
-            <field.FormField
-              label={
-                <Trans id="admin.federation.connection.token">
-                  Token endpoint
-                </Trans>
-              }
-              autoComplete="off"
-              spellCheck={false}
-              variant="secondary"
-            />
-          )}
-        </form.AppField>
-
-        <form.AppField name="userinfo">
-          {(field) => (
-            <field.FormField
-              label={
-                <Trans id="admin.federation.connection.userinfo">
-                  UserInfo endpoint
-                </Trans>
-              }
-              description={
-                <Trans id="admin.federation.connection.userinfo.hint">
-                  Leave it empty to skip the UserInfo request.
-                </Trans>
-              }
-              autoComplete="off"
-              spellCheck={false}
-              variant="secondary"
-            />
-          )}
-        </form.AppField>
-
-        <form.AppField
-          name="jwks"
-          validators={{
-            onSubmit: ({ value }) =>
-              manual && value.trim() === ""
-                ? msg({
-                    id: "admin.federation.connection.jwks.required",
-                    message: "Enter the JWKS endpoint.",
-                  })
-                : undefined,
-          }}
-        >
-          {(field) => (
-            <field.FormField
-              label={
-                <Trans id="admin.federation.connection.jwks">
-                  JWKS endpoint
-                </Trans>
-              }
-              autoComplete="off"
-              spellCheck={false}
-              variant="secondary"
-            />
-          )}
-        </form.AppField>
-
-        <form.SubmitButton>
-          <Trans id="admin.federation.connection.save">Save</Trans>
-        </form.SubmitButton>
-      </form.Form>
-    </form.AppForm>
+            <form.SubmitButton>
+              <Trans id="admin.federation.connection.save">Save</Trans>
+            </form.SubmitButton>
+          </form.Form>
+        </form.AppForm>
+      </ConsoleCard>
+    </Section>
   );
-}
-
-/** An untouched endpoint field means "no override", which the wire spells `null`. */
-function blankToNull(value: string): string | null {
-  const trimmed = value.trim();
-  return trimmed === "" ? null : trimmed;
 }

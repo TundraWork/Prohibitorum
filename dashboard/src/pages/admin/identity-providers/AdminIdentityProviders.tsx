@@ -16,6 +16,10 @@ import {
 } from "@/components/custom/ListCells";
 import { TableEmptyState } from "@/components/custom/TableEmptyState";
 import { ProviderActions } from "@/pages/admin/identity-providers/ProviderActions";
+import {
+  providerModeLabel,
+  providerProtocolLabel,
+} from "@/pages/admin/identity-providers/provider-options";
 
 type Provider = components["schemas"]["IdentityProviderView"];
 
@@ -157,32 +161,23 @@ export function AdminIdentityProviders() {
  * and a column of two words costs the same width as a column of ten.
  */
 function ProtocolMode({ provider }: { provider: Provider }) {
+  const { i18n } = useLingui();
   const protocol = readProviderProtocol(provider.protocol);
   const mode = readProviderMode(provider.mode);
-  const modeLabel =
-    mode === "auto_provision" ? (
-      <Trans id="admin.federation.mode.auto">Creates accounts</Trans>
-    ) : mode === "invite_only" ? (
-      <Trans id="admin.federation.mode.invite">Invitation only</Trans>
-    ) : mode === "link_only" ? (
-      <Trans id="admin.federation.mode.link">Links existing accounts</Trans>
-    ) : null;
 
   return (
     <span className="flex min-w-0 flex-col">
       <span>
-        {protocol === "oidc" ? (
-          <Trans id="admin.federation.protocol.oidc">OIDC</Trans>
-        ) : protocol === "steam" ? (
-          <Trans id="admin.federation.protocol.steam">Steam</Trans>
-        ) : protocol === "vrchat" ? (
-          <Trans id="admin.federation.protocol.vrchat">VRChat</Trans>
-        ) : (
+        {protocol === undefined ? (
           <span className="text-muted">—</span>
+        ) : (
+          i18n._(providerProtocolLabel(protocol))
         )}
       </span>
-      {modeLabel !== null && (
-        <span className="text-xs text-muted">{modeLabel}</span>
+      {mode !== undefined && (
+        <span className="text-xs text-muted">
+          {i18n._(providerModeLabel(mode))}
+        </span>
       )}
     </span>
   );
