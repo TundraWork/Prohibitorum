@@ -176,6 +176,34 @@ the line under it stays its description. A choice the product requires is
 `isReadOnly` and ticked, not disabled, which would fade it into looking
 unavailable.
 
+An open list of short literal values — an identity provider's scopes and its
+allowed email domains — is `TagListField`: HeroUI's `TagGroup` with each value
+as a monospace tag and its own remove button, then a `secondary` `InputGroup`
+whose suffix is an "Add" button. Enter or the button adds the typed value after
+the field's own check; a value it refuses stays in the input, marked, with the
+reason under it. Values are kept exactly as typed, a value the list cannot do
+without (`openid`) is drawn without a remove button, and text left in the input
+stops the save with "Press Enter to add it, or clear the box." rather than being
+added or dropped for the reader.
+
+A closed set of choices whose cost has to be read before picking is a
+`secondary` `Select` whose options are two lines tall — the name, then a
+`Description` saying what picking it does — held to the trigger's width, with
+the trigger showing the name alone. `OptionSelectField` draws it for all
+three places that take this shape: an OIDC client's subject source and
+forward-auth's `Remote-User` (through `PrincipalSourceField`), and an identity
+provider's provisioning mode and client authentication method. A name that is a
+literal protocol value, such as `client_secret_basic`, is monospace. An option
+the form's current state rules out is disabled in the list, and the save says
+why rather than changing the value for the reader.
+
+An optional override of a default is hidden until the reader adds it. An
+identity provider's endpoints under discovery draw no inputs at first; an
+outline "Override an endpoint" `Dropdown` adds one row per endpoint, each row an
+input with its visible label and its remove button on the input's centre line,
+and the menu disables what is already overridden. Only when the reader chooses
+to enter every endpoint by hand are all four fields drawn.
+
 ### Cards / Containers
 
 Default cards use the surface color, control radius, and surface shadow.
@@ -242,6 +270,21 @@ to be copied elsewhere — a Client ID, an Entity ID, a callback address — is
 field selects the value and copies it; the copy icon at the trailing edge is
 decoration, not a button, and turns into a check with a brief "Copied" tooltip
 below it. A copy the clipboard refuses shows a `SurfaceAlert` under the field.
+
+An identity provider's diagnostics are an `ItemList` drawn exactly like the
+danger zone under them: one row per diagnostic — the effective configuration,
+the connection test — with its icon, its name, one line saying what it does
+(the configuration's becomes "Read …" once it has been read), and its action at
+the trailing edge. What a diagnostic finds opens in a dialog rather than
+growing under the row, so the section keeps one shape before and after: the
+configuration as a three-column list (what the value is, the value in
+monospace, a soft `Chip` naming where it came from) that stacks name and source
+over the value on a narrow screen, followed by the test callback address; a
+test as its overall state, then one row per stage with an outcome icon, the
+stage's measured details in muted text, and its status word, coloured only
+when the stage failed. Each dialog's footer holds "Close" and the action again.
+A diagnostic or a danger-zone action that fails says so in the console's error
+toast only; the row and the dialog keep their shape.
 
 ### Loading
 
