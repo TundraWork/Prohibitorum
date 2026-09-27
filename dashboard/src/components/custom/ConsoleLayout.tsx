@@ -364,12 +364,16 @@ const railScrollbars = {
  * The rail's scroll area, drawn the way HeroUI's `Tabs.ListContainer` handles an
  * overflowing tab list: while there is more above or below, that edge carries a
  * control that scrolls most of a screen's worth towards it. Here the control is
- * a full row of the rail's own gray rather than a lone chevron, so it cannot be
- * read as a caret on the entry under it, and a short gradient leads from the
- * strip into the list: the fade that says the list goes on. The gradient takes
- * no pointer events, so the entries under it stay clickable. `ScrollShadow`
- * only reports which edges have more; its own mask is switched off, since the
- * strip already covers and fades that edge.
+ * a full row rather than a lone chevron, so it cannot be read as a caret on the
+ * entry under it. Behind it the rail's own gray fades in over 56px, starting
+ * 32px out in the list and reaching full strength past the chevron, so the
+ * chevron sits in the tail of the fade with the list faintly behind it and the
+ * strip is solid only towards the edge: the fade that says the list goes on.
+ * At rest the fade is drawn at 70%, so the strip stays light over the list; it
+ * firms up to full strength while the strip is hovered or pressed, which is the
+ * strip's hover and press state. The gradient takes no pointer events, so the
+ * entries under its lead-in stay clickable. `ScrollShadow` only reports which edges have more; its own mask is
+ * switched off, since the strip already fades that edge.
  *
  * The strips stay out of the tab order, as HeroUI's chevrons do: a keyboard
  * reaches every entry by tabbing, and the rail scrolls to follow focus. A press
@@ -385,12 +389,13 @@ const railScrollbars = {
  * owns it, so the column lives on the children.
  */
 const railScrollEdge = cva(
-  "absolute inset-x-0 z-10 h-11 w-full rounded-none bg-surface-secondary text-foreground/60 hover:bg-surface-secondary hover:text-foreground active:bg-surface-secondary md:h-9 before:pointer-events-none before:absolute before:inset-x-0 before:h-6 before:from-surface-secondary before:to-transparent before:content-['']",
+  "absolute inset-x-0 z-10 h-11 w-full rounded-none bg-transparent text-foreground/60 hover:bg-transparent hover:text-foreground active:bg-transparent md:h-9 before:pointer-events-none before:absolute before:inset-x-0 before:-z-10 before:opacity-70 before:transition-opacity before:duration-150 before:content-[''] hover:before:opacity-100 active:before:opacity-100 motion-reduce:before:transition-none",
   {
     variants: {
       edge: {
-        top: "top-0 before:top-full before:bg-linear-to-b",
-        bottom: "bottom-0 before:bottom-full before:bg-linear-to-t",
+        top: "top-0 before:top-0 before:-bottom-8 before:[background-image:linear-gradient(to_bottom,var(--surface-secondary)_calc(100%-56px),transparent)]",
+        bottom:
+          "bottom-0 before:bottom-0 before:-top-8 before:[background-image:linear-gradient(to_top,var(--surface-secondary)_calc(100%-56px),transparent)]",
       },
     },
   },
