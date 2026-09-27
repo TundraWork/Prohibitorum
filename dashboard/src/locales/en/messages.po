@@ -884,9 +884,19 @@ msgid "admin.saml-apps.source.avatar-url"
 msgstr "Avatar URL"
 
 #. js-lingui-explicit-id
+#: src/components/custom/RouteFeedback.tsx
+msgid "route.console_home"
+msgstr "Back to console home"
+
+#. js-lingui-explicit-id
 #: src/components/custom/LoginShell.tsx
 msgid "login.back"
 msgstr "Back to password"
+
+#. js-lingui-explicit-id
+#: src/components/custom/RouteFeedback.tsx
+msgid "route.back_to_sign_in"
+msgstr "Back to sign-in"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AttributeMapField.tsx
@@ -2012,6 +2022,7 @@ msgstr "Details"
 
 #. js-lingui-explicit-id
 #: src/components/custom/AppNotifications.tsx
+#: src/components/custom/RouteFeedback.tsx
 msgid "notification.details"
 msgstr "Details"
 
@@ -2670,6 +2681,11 @@ msgid "admin.saml-apps.field.entity-id"
 msgstr "Entity ID"
 
 #. js-lingui-explicit-id
+#: src/components/custom/RouteFeedback.tsx
+msgid "route.error.code"
+msgstr "Error code"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminLogs.tsx
 msgid "admin.logs.column.event"
 msgstr "Event"
@@ -2738,6 +2754,11 @@ msgstr "Every request through its router is turned away, including ones from peo
 #: src/pages/admin/saml-applications/SamlDangerSection.tsx
 msgid "admin.saml-apps.danger.disabled-note"
 msgstr "Everyone is turned away at the service provider until it is enabled again."
+
+#. js-lingui-explicit-id
+#: src/components/custom/RouteFeedback.tsx
+msgid "route.error.exception"
+msgstr "Exception"
 
 #. js-lingui-explicit-id
 #: src/pages/DevForms.tsx
@@ -2895,6 +2916,11 @@ msgstr "Give the token a name so you can recognise it later."
 #: src/pages/admin/saml-applications/saml-projection.ts
 msgid "admin.saml-apps.mapping.name.required"
 msgstr "Give this attribute a name."
+
+#. js-lingui-explicit-id
+#: src/components/custom/RouteFeedback.tsx
+msgid "route.go_home"
+msgstr "Go home"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/secret-copy.ts
@@ -4188,6 +4214,7 @@ msgid "admin.federation.endpoints.override"
 msgstr "Override an endpoint"
 
 #. js-lingui-explicit-id
+#: src/components/custom/ConsoleLayout.tsx
 #: src/components/custom/RouteFeedback.tsx
 msgid "route.not-found"
 msgstr "Page not found"
@@ -4640,6 +4667,11 @@ msgid "admin.invitations.reveal.label"
 msgstr "Registration link"
 
 #. js-lingui-explicit-id
+#: src/components/custom/RouteFeedback.tsx
+msgid "route.reload"
+msgstr "Reload"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/AdminForwardAuthApps.tsx
 msgid "admin.forward-auth-apps.column.remote-user"
 msgstr "Remote user"
@@ -4886,6 +4918,7 @@ msgstr "Replaces the endpoints and certificates below. The Entity ID and the nam
 
 #. js-lingui-explicit-id
 #: src/components/custom/RequestDetailsDialog.tsx
+#: src/components/custom/RouteFeedback.tsx
 msgid "request_details.request"
 msgstr "Request"
 
@@ -4898,6 +4931,11 @@ msgstr "Request body"
 #: src/components/custom/RequestDetailsDialog.tsx
 msgid "request_details.title"
 msgstr "Request details"
+
+#. js-lingui-explicit-id
+#: src/components/custom/RouteFeedback.tsx
+msgid "route.error.request_id"
+msgstr "Request ID"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
@@ -5022,11 +5060,6 @@ msgstr "Retires"
 #: src/pages/admin/settings/SigningKeysPanel.tsx
 msgid "settings.keys.status.decommissioning"
 msgstr "Retiring"
-
-#. js-lingui-explicit-id
-#: src/components/custom/RouteFeedback.tsx
-msgid "route.home"
-msgstr "Return to preview"
 
 #. js-lingui-explicit-id
 #: src/pages/Preview.tsx
@@ -5499,6 +5532,11 @@ msgid "navigation.login"
 msgstr "Sign in"
 
 #. js-lingui-explicit-id
+#: src/components/custom/RouteFeedback.tsx
+msgid "route.sign_in"
+msgstr "Sign in"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderOperatorSection.tsx
 msgid "admin.federation.operator.replace"
 msgstr "Sign in again"
@@ -5545,6 +5583,7 @@ msgstr "Sign in with a Steam account. Needs a Steam Web API key."
 
 #. js-lingui-explicit-id
 #: src/components/custom/ConsoleLayout.tsx
+#: src/components/custom/RouteFeedback.tsx
 msgid "console.logout"
 msgstr "Sign out"
 
@@ -5670,6 +5709,11 @@ msgid "admin.groups.column.slug"
 msgstr "Slug"
 
 #. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "route.error.crashed"
+msgstr "Something went wrong on this page."
+
+#. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AttributeMapField.tsx
 msgid "admin.saml-apps.mapping.source"
 msgstr "Source"
@@ -5716,6 +5760,7 @@ msgstr "Status"
 
 #. js-lingui-explicit-id
 #: src/components/custom/RequestDetailsDialog.tsx
+#: src/components/custom/RouteFeedback.tsx
 msgid "request_details.status"
 msgstr "Status"
 
@@ -6291,11 +6336,6 @@ msgstr "This account has no way to confirm your identity from here. Set up a pas
 #: src/api/errors.ts
 msgid "error.account_disabled"
 msgstr "This account is disabled."
-
-#. js-lingui-explicit-id
-#: src/components/custom/RouteFeedback.tsx
-msgid "route.not-found.description"
-msgstr "This address does not have a page."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/oidc-validation.ts

@@ -337,6 +337,31 @@ caller that knows which one it is. In a dialog, `SecretReveal` also takes
 puts its continue control in `Modal.Footer`, which is where HeroUI keeps dialog
 actions.
 
+### Error states
+
+A page that fails to load is drawn in the layout it belongs to. In the console
+it is a danger `Alert` in the page column, under the header's own title. On a
+public page, and when there is no layout left to draw in, the failure replaces
+the page: the sign-in page's `h1` ("Unable to load this page"), focused as it
+appears, over a danger `SurfaceAlert` on the card. The whole-window form is the
+same card without the toolbar or the background picture.
+
+The alert's title is the same line the error toast shows. Under it the facts
+stay in view, left-aligned and never collapsed: the request, status, error code
+and request ID, or the exception for a page that broke. From `sm` they are a
+label column beside a value column; below it each label sits over its value.
+The alert ends with one way out — a retry for a failure that can clear, a
+reload for a page that broke, sign-in or sign-out for a session problem, and
+otherwise a button that leaves for the console home, the sign-in page or the
+home page, drawn only when that is not where the page already is — plus
+"Details" for the request dialog when there was a request.
+
+An address with no page is the same shape without the alert: the heading "Page
+not found" and the leave button. In the console the header names it.
+
+A section that fails inside a page (`AsyncSection`) keeps its own
+`SurfaceAlert` and retry, without the facts.
+
 ### Confirmations
 
 A consequential action confirms through `ConfirmDialog` from

@@ -1,9 +1,9 @@
 import type { RegisteredRouter } from "@tanstack/react-router";
 import { createRouter } from "@tanstack/react-router";
 import {
+  AppRouteNotFound,
   PublicPending,
   RouteError,
-  RouteNotFound,
 } from "@/components/custom/RouteFeedback";
 import type { RouterContext } from "@/routes/__root";
 import { routeTree } from "@/routeTree.gen";
@@ -17,8 +17,10 @@ export function createAppRouter(context: RouterContext) {
     defaultPendingMs: 350,
     defaultPendingMinMs: 120,
     defaultPendingComponent: PublicPending,
+    // A page draws its failure in the layout it sits in (see `RouteError`).
+    // An address no layout claims is not found at the root.
     defaultErrorComponent: RouteError,
-    defaultNotFoundComponent: RouteNotFound,
+    defaultNotFoundComponent: AppRouteNotFound,
     scrollRestoration: true,
   });
 }

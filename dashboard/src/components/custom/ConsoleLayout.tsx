@@ -57,6 +57,7 @@ import {
 import { Button } from "@/components/custom/Button";
 import { useInstanceBranding } from "@/components/custom/instance-branding";
 import { LanguageMenu } from "@/components/custom/LanguageMenu";
+import { RouteLayoutContext } from "@/components/custom/RouteFeedback";
 import { scrollAreaTheme } from "@/components/custom/ScrollArea";
 import { SudoDialog } from "@/components/custom/SudoDialog";
 import { ThemeSelect } from "@/components/custom/ThemeSelect";
@@ -264,6 +265,12 @@ function useManagementSections(session: Session) {
 // section highlighted. `/` only ever matches the console home.
 function isActiveSection(path: string, activePath: string) {
   return path === "/" ? activePath === "/" : activePath.startsWith(path);
+}
+
+const pageNotFound = msg({ id: "route.not-found", message: "Page not found" });
+
+function withoutTrailingSlash(path: string) {
+  return path.length > 1 && path.endsWith("/") ? path.slice(0, -1) : path;
 }
 
 /**
@@ -656,12 +663,20 @@ function ConsoleShell({
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const router = useRouter();
   const activePath = useRouterState({ select: (s) => s.location.pathname });
+  // An address with no page of its own stops matching at the deepest route
+  // that exists, which then draws the not-found view in its outlet.
+  const matchedPath = useRouterState({
+    select: (s) => s.matches.at(-1)?.pathname,
+  });
   const managementSections = useManagementSections(session);
   const asideId = useId();
   const sectionTitle =
-    [...managementSections, consoleHome, ...accountSections].find((section) =>
-      isActiveSection(section.path, activePath),
-    )?.title ?? consoleHome.title;
+    matchedPath !== undefined &&
+    withoutTrailingSlash(matchedPath) !== withoutTrailingSlash(activePath)
+      ? pageNotFound
+      : ([...managementSections, consoleHome, ...accountSections].find(
+          (section) => isActiveSection(section.path, activePath),
+        )?.title ?? consoleHome.title);
   const { close } = drawer;
 
   useEffect(() => router.subscribe("onBeforeNavigate", close), [router, close]);
@@ -802,7 +817,9 @@ function ConsoleShell({
             measure their full-bleed width against. */}
         <main className="@container flex min-w-0 flex-1 flex-col px-4 pt-2 pb-4 sm:px-6">
           <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
-            <Outlet />
+            <RouteLayoutContext value="console">
+              <Outlet />
+            </RouteLayoutContext>
           </div>
         </main>
       </div>

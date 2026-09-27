@@ -884,9 +884,19 @@ msgid "admin.saml-apps.source.avatar-url"
 msgstr "头像 URL"
 
 #. js-lingui-explicit-id
+#: src/components/custom/RouteFeedback.tsx
+msgid "route.console_home"
+msgstr "返回控制台首页"
+
+#. js-lingui-explicit-id
 #: src/components/custom/LoginShell.tsx
 msgid "login.back"
 msgstr "返回密码登录"
+
+#. js-lingui-explicit-id
+#: src/components/custom/RouteFeedback.tsx
+msgid "route.back_to_sign_in"
+msgstr "返回登录"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AttributeMapField.tsx
@@ -2012,6 +2022,7 @@ msgstr "详情"
 
 #. js-lingui-explicit-id
 #: src/components/custom/AppNotifications.tsx
+#: src/components/custom/RouteFeedback.tsx
 msgid "notification.details"
 msgstr "详情"
 
@@ -2670,6 +2681,11 @@ msgid "admin.saml-apps.field.entity-id"
 msgstr "Entity ID"
 
 #. js-lingui-explicit-id
+#: src/components/custom/RouteFeedback.tsx
+msgid "route.error.code"
+msgstr "错误码"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminLogs.tsx
 msgid "admin.logs.column.event"
 msgstr "事件"
@@ -2738,6 +2754,11 @@ msgstr "经它路由的请求都会被拒绝，包括已登录账号发出的请
 #: src/pages/admin/saml-applications/SamlDangerSection.tsx
 msgid "admin.saml-apps.danger.disabled-note"
 msgstr "在重新启用之前，所有人在服务提供商那里都会被拒之门外。"
+
+#. js-lingui-explicit-id
+#: src/components/custom/RouteFeedback.tsx
+msgid "route.error.exception"
+msgstr "异常信息"
 
 #. js-lingui-explicit-id
 #: src/pages/DevForms.tsx
@@ -2895,6 +2916,11 @@ msgstr "请为令牌命名，便于日后识别。"
 #: src/pages/admin/saml-applications/saml-projection.ts
 msgid "admin.saml-apps.mapping.name.required"
 msgstr "请给这个属性起个名称。"
+
+#. js-lingui-explicit-id
+#: src/components/custom/RouteFeedback.tsx
+msgid "route.go_home"
+msgstr "返回首页"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/secret-copy.ts
@@ -4188,6 +4214,7 @@ msgid "admin.federation.endpoints.override"
 msgstr "覆盖端点"
 
 #. js-lingui-explicit-id
+#: src/components/custom/ConsoleLayout.tsx
 #: src/components/custom/RouteFeedback.tsx
 msgid "route.not-found"
 msgstr "页面不存在"
@@ -4640,6 +4667,11 @@ msgid "admin.invitations.reveal.label"
 msgstr "注册链接"
 
 #. js-lingui-explicit-id
+#: src/components/custom/RouteFeedback.tsx
+msgid "route.reload"
+msgstr "重新加载"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/AdminForwardAuthApps.tsx
 msgid "admin.forward-auth-apps.column.remote-user"
 msgstr "上游身份"
@@ -4886,6 +4918,7 @@ msgstr "会替换下面的端点和证书。Entity ID 和名称保持不变。"
 
 #. js-lingui-explicit-id
 #: src/components/custom/RequestDetailsDialog.tsx
+#: src/components/custom/RouteFeedback.tsx
 msgid "request_details.request"
 msgstr "请求"
 
@@ -4898,6 +4931,11 @@ msgstr "请求体"
 #: src/components/custom/RequestDetailsDialog.tsx
 msgid "request_details.title"
 msgstr "请求详情"
+
+#. js-lingui-explicit-id
+#: src/components/custom/RouteFeedback.tsx
+msgid "route.error.request_id"
+msgstr "请求编号"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
@@ -5022,11 +5060,6 @@ msgstr "退役于"
 #: src/pages/admin/settings/SigningKeysPanel.tsx
 msgid "settings.keys.status.decommissioning"
 msgstr "退役中"
-
-#. js-lingui-explicit-id
-#: src/components/custom/RouteFeedback.tsx
-msgid "route.home"
-msgstr "返回预览"
 
 #. js-lingui-explicit-id
 #: src/pages/Preview.tsx
@@ -5499,6 +5532,11 @@ msgid "navigation.login"
 msgstr "登录"
 
 #. js-lingui-explicit-id
+#: src/components/custom/RouteFeedback.tsx
+msgid "route.sign_in"
+msgstr "登录"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderOperatorSection.tsx
 msgid "admin.federation.operator.replace"
 msgstr "重新登录"
@@ -5545,6 +5583,7 @@ msgstr "用 Steam 账号登录，需要 Steam Web API 密钥。"
 
 #. js-lingui-explicit-id
 #: src/components/custom/ConsoleLayout.tsx
+#: src/components/custom/RouteFeedback.tsx
 msgid "console.logout"
 msgstr "退出登录"
 
@@ -5670,6 +5709,11 @@ msgid "admin.groups.column.slug"
 msgstr "标识"
 
 #. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "route.error.crashed"
+msgstr "此页面出错了。"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AttributeMapField.tsx
 msgid "admin.saml-apps.mapping.source"
 msgstr "来源"
@@ -5716,6 +5760,7 @@ msgstr "状态"
 
 #. js-lingui-explicit-id
 #: src/components/custom/RequestDetailsDialog.tsx
+#: src/components/custom/RouteFeedback.tsx
 msgid "request_details.status"
 msgstr "状态码"
 
@@ -6291,11 +6336,6 @@ msgstr "此账号无法在此验证身份。请先设置通行密钥，或设置
 #: src/api/errors.ts
 msgid "error.account_disabled"
 msgstr "此账户已停用。"
-
-#. js-lingui-explicit-id
-#: src/components/custom/RouteFeedback.tsx
-msgid "route.not-found.description"
-msgstr "此地址没有对应的页面。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/oidc-validation.ts

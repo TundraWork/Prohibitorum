@@ -1,8 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { PublicLayout } from "@/components/custom/PublicLayout";
-import { PublicPending } from "@/components/custom/RouteFeedback";
+import {
+  AppRouteError,
+  PublicPending,
+  PublicRouteNotFound,
+} from "@/components/custom/RouteFeedback";
 
 export const Route = createFileRoute("/_public")({
   component: PublicLayout,
   pendingComponent: PublicPending,
+  errorComponent: AppRouteError,
+  notFoundComponent: PublicRouteNotFound,
 });

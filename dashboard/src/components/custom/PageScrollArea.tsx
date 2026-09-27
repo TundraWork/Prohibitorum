@@ -11,8 +11,9 @@ import { useEffect } from "react";
  * sticky header and rail keep working: nothing the app positions is wrapped or
  * moved, and `window.scrollY`/`window.scrollTo` remain the way to scroll.
  *
- * Rendered once by `AppLayout`, so every route has it. The theme class comes
- * from `styles/index.css`, the same one `ScrollArea` uses.
+ * Rendered once by `AppEnvironment`, so every route has it, a failed root
+ * route included. The theme class comes from `styles/index.css`, the same one
+ * `ScrollArea` uses.
  */
 export function PageScrollArea() {
   useEffect(() => {

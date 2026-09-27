@@ -1,8 +1,8 @@
-import { Card } from "@heroui/react";
 import { Outlet } from "@tanstack/react-router";
 import { AppToolbar } from "@/components/custom/AppToolbar";
 import { useInstanceBranding } from "@/components/custom/instance-branding";
-import { PageFrame } from "@/components/custom/PageFrame";
+import { PublicCard } from "@/components/custom/PublicCard";
+import { RouteLayoutContext } from "@/components/custom/RouteFeedback";
 
 export function PublicLayout() {
   const { name, backgroundUrl } = useInstanceBranding();
@@ -24,15 +24,11 @@ export function PublicLayout() {
           <span className="truncate text-lg font-semibold">{name}</span>
         </AppToolbar>
       </div>
-      <main className="mx-auto flex lg:min-h-[var(--app-viewport-height)] w-full min-w-0 max-w-[30rem] flex-col px-4">
-        <PageFrame>
-          <Card className="w-full p-6">
-            <Card.Content>
-              <Outlet />
-            </Card.Content>
-          </Card>
-        </PageFrame>
-      </main>
+      <PublicCard>
+        <RouteLayoutContext value="public">
+          <Outlet />
+        </RouteLayoutContext>
+      </PublicCard>
     </>
   );
 }

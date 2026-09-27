@@ -420,3 +420,88 @@ export function describeError(
         : undefined,
   };
 }
+
+/** The one way out a failed page offers, chosen by what went wrong. */
+export type RouteRecovery =
+  | "retry"
+  | "reload"
+  | "sign-in"
+  | "sign-out"
+  | "none";
+
+/** A page that failed to load or render, as the route error views draw it. */
+export interface RouteFailure {
+  /** What happened; the same line the toast shows. */
+  message: MessageDescriptor;
+  recovery: RouteRecovery;
+  /** Shown under the message as they are; a missing fact is not drawn. */
+  facts: {
+    request?: string;
+    status?: number;
+    code?: string;
+    requestId?: string;
+    exception?: string;
+  };
+  /** What was sent and received, for the details dialog. */
+  exchange?: RequestExchange;
+}
+
+const pageCrashed = msg({
+  id: "route.error.crashed",
+  message: "Something went wrong on this page.",
+});
+
+/**
+ * Reads a route failure. Only a failure that can clear by itself offers a
+ * retry: a lost connection, a server fault or a rate limit. An anonymous
+ * session signs in and a disabled account signs out, since every other exit
+ * lands on the same refusal; anything else the server refused stays refused.
+ * A failure that is not a request is the page itself breaking, which only a
+ * fresh load can clear.
+ */
+export function describeRouteFailure(error: unknown): RouteFailure {
+  if (!(error instanceof ApiError)) {
+    return {
+      message: pageCrashed,
+      recovery: "reload",
+      facts: { exception: describeException(error) },
+    };
+  }
+  const { requestId, ...message } = describeError(error);
+  return {
+    message,
+    recovery: routeRecovery(error),
+    facts: {
+      request: error.exchange
+        ? `${error.exchange.method} ${error.exchange.path}`
+        : undefined,
+      status: error.status,
+      code: error.code,
+      requestId,
+    },
+    exchange: error.exchange,
+  };
+}
+
+function routeRecovery(error: ApiError): RouteRecovery {
+  if (error.kind === "network" || error.kind === "invalid-response") {
+    return "retry";
+  }
+  const status = error.status;
+  if (error.kind === "http" && status !== undefined) {
+    if (status >= 500 || status === 429) return "retry";
+    if (status === 401 && error.code === "no_session") return "sign-in";
+    if (status === 403 && error.code === "account_disabled") return "sign-out";
+  }
+  return "none";
+}
+
+function describeException(error: unknown): string {
+  if (error instanceof Error) return `${error.name}: ${error.message}`;
+  if (typeof error === "string") return error;
+  try {
+    return JSON.stringify(error) ?? String(error);
+  } catch {
+    return String(error);
+  }
+}

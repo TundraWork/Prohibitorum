@@ -91,6 +91,7 @@ async function mount(
   const router = createRouter({
     routeTree: root.addChildren([
       page("/"),
+      page("/admin"),
       page("/profile"),
       page("/admin/users"),
       page("/admin/users/$id"),
@@ -189,5 +190,23 @@ describe("console navigation", () => {
     for (const name of ["Directory", "Applications", "System"]) {
       expect(within(nav).queryByRole("list", { name })).not.toBeInTheDocument();
     }
+  });
+});
+
+describe("console header", () => {
+  it("names an address with no page as not found", async () => {
+    await mount("/admin/nope", admin);
+
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
+      "Page not found",
+    );
+  });
+
+  it("keeps the title of a page that has no section of its own", async () => {
+    await mount("/admin", admin);
+
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
+      "Console home",
+    );
   });
 });
