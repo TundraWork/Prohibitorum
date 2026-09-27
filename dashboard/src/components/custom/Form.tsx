@@ -40,13 +40,22 @@ export function Form({
         } finally {
           pending.current = false;
           requestAnimationFrame(() => {
-            const invalidField = element.querySelector<HTMLElement>(
+            // Each invalid field in turn, stopping at the first that takes
+            // focus. A browser does not focus an element under `display:
+            // none`, which is what puts the caret in the visible one of the
+            // attribute map's two layouts rather than the hidden twin before
+            // it. Trying rather than testing visibility behaves the same in
+            // jsdom, which has no `checkVisibility`.
+            const invalidFields = element.querySelectorAll<HTMLElement>(
               'input[aria-invalid="true"], textarea[aria-invalid="true"], select[aria-invalid="true"]',
             );
-            const summary = element.querySelector<HTMLElement>(
-              "[data-form-error-summary]",
-            );
-            (invalidField ?? summary)?.focus();
+            for (const invalidField of invalidFields) {
+              invalidField.focus();
+              if (document.activeElement === invalidField) return;
+            }
+            element
+              .querySelector<HTMLElement>("[data-form-error-summary]")
+              ?.focus();
           });
         }
       }}

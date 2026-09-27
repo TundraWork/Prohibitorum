@@ -59,6 +59,17 @@ export function RowsField<T>({
    * draws it in place and skips it when there is nothing to head.
    */
   header,
+  /**
+   * Who places the remove button. `beside` draws it after the row, at `align`.
+   *
+   * `inRow` hands it to `renderRow` as `remove` and draws nothing beside the
+   * row, for an editor that lays out its own columns — the attribute map puts it
+   * in the last track of its grid on a wide editor and beside a legend on a
+   * narrow one. The header is then drawn at the list's full width with no room
+   * kept for a button, since the row's own tracks already have a column for it,
+   * and `align` is ignored.
+   */
+  removePlacement = "beside",
 }: {
   label: ReactNode;
   description?: ReactNode;
@@ -67,6 +78,11 @@ export function RowsField<T>({
     index: number,
     error: ReactNode,
     problem: RowProblem | undefined,
+    /**
+     * The row's remove button, bound to it, for the row to place under `inRow`;
+     * `null` under `beside`, where the list draws it.
+     */
+    remove: ReactNode,
   ) => ReactNode;
   /** A fresh row for the add button. */
   emptyRow: () => T;
@@ -75,6 +91,7 @@ export function RowsField<T>({
   minRows?: number;
   align?: "end" | "top";
   header?: ReactNode;
+  removePlacement?: "beside" | "inRow";
 }) {
   const field = useFieldContext<T[]>();
   const form = useFormContext();
@@ -121,6 +138,34 @@ export function RowsField<T>({
     field.handleChange(next);
   }
 
+  const removeButton = (index: number) => (
+    <Button
+      isIconOnly
+      size="sm"
+      variant="ghost"
+      // On a row drawn on one line the button matches the inputs' own
+      // height; on a tall row it would otherwise sink to the bottom of
+      // the last line, beside whatever control happens to be there.
+      className={
+        removePlacement === "beside" && align === "top" ? "mt-6" : undefined
+      }
+      isDisabled={
+        submitting || isDisabled || field.state.value.length <= minRows
+      }
+      aria-label={i18n._({
+        ...removeRowMessage,
+        values: { row: index + 1 },
+      })}
+      onPress={() => {
+        changeRows(field.state.value.filter((_, at) => at !== index));
+      }}
+    >
+      <Trash2 size={16} aria-hidden="true" />
+    </Button>
+  );
+
+  const hasHeader = field.state.value.length > 0 && header !== undefined;
+
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-col gap-1.5">
@@ -141,8 +186,11 @@ export function RowsField<T>({
           a heading laid out across the full width would be a button's width
           wider than every row under it and its columns would point at nothing.
           The width is the icon button's own, so the two agree without either
-          having to know the other's size. */}
-      {field.state.value.length > 0 && header !== undefined && (
+          having to know the other's size. Under `inRow` the row's tracks hold
+          the button, so the heading is the list's own child: a wrapper would
+          leave a gap in the column when the heading is hidden. */}
+      {hasHeader && removePlacement === "inRow" && header}
+      {hasHeader && removePlacement === "beside" && (
         <div
           className={`flex gap-2 ${align === "top" ? "items-start" : "items-end"}`}
         >
@@ -152,39 +200,37 @@ export function RowsField<T>({
       )}
 
       <ul className="flex flex-col gap-3" aria-labelledby={id}>
-        {field.state.value.map((row, index) => (
+        {field.state.value.map((row, index) =>
           // Rows have no stable identity of their own: they are edited in place
           // and reordered only by removal, so the index is the identity.
-          <li
-            key={rowKeys.current[index]}
-            className={`flex gap-2 ${align === "top" ? "items-start" : "items-end"}`}
-          >
-            <div className="min-w-0 flex-1">
-              {renderRow(row, index, errorFor(index), problemFor(index))}
-            </div>
-            <Button
-              isIconOnly
-              size="sm"
-              variant="ghost"
-              // On a row drawn on one line the button matches the inputs' own
-              // height; on a tall row it would otherwise sink to the bottom of
-              // the last line, beside whatever control happens to be there.
-              className={align === "top" ? "mt-6" : undefined}
-              isDisabled={
-                submitting || isDisabled || field.state.value.length <= minRows
-              }
-              aria-label={i18n._({
-                ...removeRowMessage,
-                values: { row: index + 1 },
-              })}
-              onPress={() => {
-                changeRows(field.state.value.filter((_, at) => at !== index));
-              }}
+          removePlacement === "inRow" ? (
+            <li key={rowKeys.current[index]}>
+              {renderRow(
+                row,
+                index,
+                errorFor(index),
+                problemFor(index),
+                removeButton(index),
+              )}
+            </li>
+          ) : (
+            <li
+              key={rowKeys.current[index]}
+              className={`flex gap-2 ${align === "top" ? "items-start" : "items-end"}`}
             >
-              <Trash2 size={16} aria-hidden="true" />
-            </Button>
-          </li>
-        ))}
+              <div className="min-w-0 flex-1">
+                {renderRow(
+                  row,
+                  index,
+                  errorFor(index),
+                  problemFor(index),
+                  null,
+                )}
+              </div>
+              {removeButton(index)}
+            </li>
+          ),
+        )}
       </ul>
 
       <div>

@@ -384,7 +384,7 @@ msgid "admin.oidc-apps.aliases.add"
 msgstr "添加别名"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/saml-applications/SamlIdentitySection.tsx
+#: src/pages/admin/saml-applications/AttributeMapField.tsx
 msgid "admin.saml-apps.mapping.add"
 msgstr "添加一个属性"
 
@@ -692,12 +692,17 @@ msgid "app.managers.assigned"
 msgstr "已指派 <0/>"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/saml-applications/SamlIdentitySection.tsx
+#: src/pages/admin/saml-applications/AttributeMapField.tsx
+msgid "admin.saml-apps.mapping.row"
+msgstr "属性 {row}"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/AttributeMapField.tsx
 msgid "admin.saml-apps.mapping.title"
 msgstr "属性映射"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/saml-applications/MappingRowFields.tsx
+#: src/pages/admin/saml-applications/AttributeMapField.tsx
 msgid "admin.saml-apps.mapping.name"
 msgstr "名称"
 
@@ -712,7 +717,7 @@ msgid "admin.user.attributes.not_object"
 msgstr "属性必须是 JSON 对象，例如 {}。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/saml-applications/MappingRowFields.tsx
+#: src/pages/admin/saml-applications/AttributeMapField.tsx
 msgid "admin.saml-apps.mapping.source.placeholder"
 msgstr "账号属性"
 
@@ -797,7 +802,7 @@ msgid "login.back"
 msgstr "返回密码登录"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/saml-applications/MappingRowFields.tsx
+#: src/pages/admin/saml-applications/AttributeMapField.tsx
 msgid "admin.saml-apps.mapping.name-format.placeholder"
 msgstr "名称格式"
 
@@ -2652,7 +2657,7 @@ msgid "console.admin.forward-auth-apps"
 msgstr "前向认证应用"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/saml-applications/MappingRowFields.tsx
+#: src/pages/admin/saml-applications/AttributeMapField.tsx
 msgid "admin.saml-apps.mapping.friendly-name"
 msgstr "友好名称"
 
@@ -3242,12 +3247,12 @@ msgid "admin.group.slug.hint"
 msgstr "小写字母、数字和连字符。应用通过它来引用本用户组。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/saml-applications/MappingRowFields.tsx
+#: src/pages/admin/saml-applications/AttributeMapField.tsx
 msgid "admin.saml-apps.mapping.name.placeholder"
 msgstr "属性名称"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/saml-applications/MappingRowFields.tsx
+#: src/pages/admin/saml-applications/AttributeMapField.tsx
 msgid "admin.saml-apps.mapping.friendly-name.placeholder"
 msgstr "友好名称"
 
@@ -3368,7 +3373,7 @@ msgid "sudo.method.label"
 msgstr "方式"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/saml-applications/MappingRowFields.tsx
+#: src/pages/admin/saml-applications/AttributeMapField.tsx
 msgid "admin.saml-apps.mapping.multi.column"
 msgstr "多值"
 
@@ -3441,7 +3446,7 @@ msgid "admin.forward-auth-apps.field.name"
 msgstr "名称"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/saml-applications/MappingRowFields.tsx
+#: src/pages/admin/saml-applications/AttributeMapField.tsx
 msgid "admin.saml-apps.mapping.name-format"
 msgstr "名称格式"
 
@@ -4255,7 +4260,7 @@ msgid "admin.oidc-apps.aliases.hint"
 msgstr "把已授权的作用域再用另一个名称发布，供期待规范之外名称的客户端使用。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/saml-applications/SamlIdentitySection.tsx
+#: src/pages/admin/saml-applications/AttributeMapField.tsx
 msgid "admin.saml-apps.mapping.hint"
 msgstr "把账号自己的信息以服务提供商期望的名称发布出去。"
 
@@ -5017,7 +5022,7 @@ msgid "admin.forward-auth-apps.identity.confirm.title"
 msgstr "改用另一个标识？"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/saml-applications/MappingRowFields.tsx
+#: src/pages/admin/saml-applications/AttributeMapField.tsx
 msgid "admin.saml-apps.mapping.multi"
 msgstr "发送每个值"
 
@@ -5288,7 +5293,7 @@ msgid "admin.groups.column.slug"
 msgstr "标识"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/saml-applications/MappingRowFields.tsx
+#: src/pages/admin/saml-applications/AttributeMapField.tsx
 msgid "admin.saml-apps.mapping.source"
 msgstr "来源"
 

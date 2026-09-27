@@ -677,11 +677,39 @@ function oidcApplications(
   });
 }
 
+const samlAttributeMap = [
+  {
+    name: "mail",
+    name_format: "urn:oasis:names:tc:SAML:2.0:attrname-format:basic",
+    friendly_name: "Mail address",
+    source: "attributes.mail",
+    multi: false,
+  },
+  {
+    name: "groups",
+    name_format: "urn:oasis:names:tc:SAML:2.0:attrname-format:uri",
+    source: "groups",
+    multi: true,
+  },
+  {
+    name: "uid",
+    name_format: "urn:example:names:custom",
+    source: "username",
+    multi: false,
+  },
+];
+
 /**
  * SAML applications, cycling ACS shapes, the session-lifetime field, and the
  * three certificate states the list's expiry column has to render: a healthy
  * key, one that has already expired (the only state on this list that is
  * already broken), and a service provider with no signing key published at all.
+ *
+ * Two in three carry an attribute map covering the three shapes a source takes
+ * — an account attribute, a named fact that is multi-valued, a named fact that
+ * is not — plus a name format outside the standard list, which the editor has
+ * to offer as it is rather than rewrite. Every third has none, for the empty
+ * editor.
  */
 function samlApplications(
   config: MockConfig,
@@ -696,7 +724,7 @@ function samlApplications(
         index % 2 === 0
           ? "urn:oasis:names:tc:SAML:2.0:nameid-format:persistent"
           : "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress",
-      attributeMap: [],
+      attributeMap: index % 3 === 2 ? [] : samlAttributeMap,
       requireSignedAuthnRequest: index % 2 === 0,
       allowIdpInitiated: index % 3 === 0,
       disabled: index % 4 === 1,

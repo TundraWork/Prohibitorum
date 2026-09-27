@@ -170,6 +170,11 @@ that shape does not fit — content laid out in columns the eye compares down th
 page, like the SAML attribute map, and rows that have to line up with each
 other. Widening one such card keeps the page to a single content width, since
 the lists beside it already run the full column (`max-w-4xl` in `main`).
+A row editor laid out in columns, like the attribute map, switches on its own
+container's width rather than the viewport's: below the breakpoint each row
+becomes a `Fieldset` with a numbered legend and a visible label on every
+control, since a stack of boxes under no column names says nothing about which
+is which. Both layouts are rendered and only one is displayed.
 
 A card holding several blocks names each one with an `ItemList` title. Three
 unlabelled cards stacked under one section heading read as one undifferentiated

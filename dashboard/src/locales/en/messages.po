@@ -384,7 +384,7 @@ msgid "admin.oidc-apps.aliases.add"
 msgstr "Add alias"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/saml-applications/SamlIdentitySection.tsx
+#: src/pages/admin/saml-applications/AttributeMapField.tsx
 msgid "admin.saml-apps.mapping.add"
 msgstr "Add an attribute"
 
@@ -692,12 +692,17 @@ msgid "app.managers.assigned"
 msgstr "Assigned <0/>"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/saml-applications/SamlIdentitySection.tsx
+#: src/pages/admin/saml-applications/AttributeMapField.tsx
+msgid "admin.saml-apps.mapping.row"
+msgstr "Attribute {row}"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/AttributeMapField.tsx
 msgid "admin.saml-apps.mapping.title"
 msgstr "Attribute map"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/saml-applications/MappingRowFields.tsx
+#: src/pages/admin/saml-applications/AttributeMapField.tsx
 msgid "admin.saml-apps.mapping.name"
 msgstr "Name"
 
@@ -712,7 +717,7 @@ msgid "admin.user.attributes.not_object"
 msgstr "Attributes must be a JSON object, such as {}."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/saml-applications/MappingRowFields.tsx
+#: src/pages/admin/saml-applications/AttributeMapField.tsx
 msgid "admin.saml-apps.mapping.source.placeholder"
 msgstr "Account attribute"
 
@@ -797,7 +802,7 @@ msgid "login.back"
 msgstr "Back to password"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/saml-applications/MappingRowFields.tsx
+#: src/pages/admin/saml-applications/AttributeMapField.tsx
 msgid "admin.saml-apps.mapping.name-format.placeholder"
 msgstr "Name format"
 
@@ -2652,7 +2657,7 @@ msgid "console.admin.forward-auth-apps"
 msgstr "Forward-auth applications"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/saml-applications/MappingRowFields.tsx
+#: src/pages/admin/saml-applications/AttributeMapField.tsx
 msgid "admin.saml-apps.mapping.friendly-name"
 msgstr "Friendly name"
 
@@ -3242,12 +3247,12 @@ msgid "admin.group.slug.hint"
 msgstr "Lowercase letters, digits and hyphens. Applications name this group by it."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/saml-applications/MappingRowFields.tsx
+#: src/pages/admin/saml-applications/AttributeMapField.tsx
 msgid "admin.saml-apps.mapping.name.placeholder"
 msgstr "Attribute name"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/saml-applications/MappingRowFields.tsx
+#: src/pages/admin/saml-applications/AttributeMapField.tsx
 msgid "admin.saml-apps.mapping.friendly-name.placeholder"
 msgstr "Friendly name"
 
@@ -3368,7 +3373,7 @@ msgid "sudo.method.label"
 msgstr "Method"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/saml-applications/MappingRowFields.tsx
+#: src/pages/admin/saml-applications/AttributeMapField.tsx
 msgid "admin.saml-apps.mapping.multi.column"
 msgstr "Multi"
 
@@ -3441,7 +3446,7 @@ msgid "admin.forward-auth-apps.field.name"
 msgstr "Name"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/saml-applications/MappingRowFields.tsx
+#: src/pages/admin/saml-applications/AttributeMapField.tsx
 msgid "admin.saml-apps.mapping.name-format"
 msgstr "Name format"
 
@@ -4255,7 +4260,7 @@ msgid "admin.oidc-apps.aliases.hint"
 msgstr "Publish a granted claim under a second name, for a client that expects one the specification does not define."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/saml-applications/SamlIdentitySection.tsx
+#: src/pages/admin/saml-applications/AttributeMapField.tsx
 msgid "admin.saml-apps.mapping.hint"
 msgstr "Publish the account's own facts under the names the service provider expects."
 
@@ -5017,7 +5022,7 @@ msgid "admin.forward-auth-apps.identity.confirm.title"
 msgstr "Send a different identifier?"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/saml-applications/MappingRowFields.tsx
+#: src/pages/admin/saml-applications/AttributeMapField.tsx
 msgid "admin.saml-apps.mapping.multi"
 msgstr "Send every value"
 
@@ -5288,7 +5293,7 @@ msgid "admin.groups.column.slug"
 msgstr "Slug"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/saml-applications/MappingRowFields.tsx
+#: src/pages/admin/saml-applications/AttributeMapField.tsx
 msgid "admin.saml-apps.mapping.source"
 msgstr "Source"
 

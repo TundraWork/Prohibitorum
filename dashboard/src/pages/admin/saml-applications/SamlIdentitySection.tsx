@@ -8,20 +8,18 @@ import { updateSamlAppMutationOptions } from "@/api/mutations";
 import type { SamlAttributeMapping } from "@/api/raw-admin-paths";
 import { samlAppUpdateBody } from "@/api/update-bodies";
 import { ConsoleCard } from "@/components/custom/ConsoleCard";
-import { RowsField, rowProblem } from "@/components/custom/RowsField";
+import { rowProblem } from "@/components/custom/RowsField";
 import { Section } from "@/components/custom/Section";
 import { applyServerError } from "@/forms/server-errors";
 import { useAppForm } from "@/forms/use-app-form";
 import {
-  MappingHeader,
+  AttributeMapField,
   type MappingRow,
-  MappingRowFields,
   mappingSource,
   readSourceKind,
-} from "@/pages/admin/saml-applications/MappingRowFields";
+} from "@/pages/admin/saml-applications/AttributeMapField";
 import {
   attributeMapProblems,
-  defaultAttributeNameFormat,
   nameIdFormats,
   shortNameIdFormat,
 } from "@/pages/admin/saml-applications/saml-projection";
@@ -219,44 +217,7 @@ export function SamlIdentitySection({ app }: { app: SamlApp }) {
             </form.AppField>
 
             <form.AppField name="mappings">
-              {() => (
-                <RowsField<MappingRow>
-                  label={
-                    <Trans id="admin.saml-apps.mapping.title">
-                      Attribute map
-                    </Trans>
-                  }
-                  description={
-                    <Trans id="admin.saml-apps.mapping.hint">
-                      Publish the account's own facts under the names the
-                      service provider expects.
-                    </Trans>
-                  }
-                  // The row draws one line, so the remove button sits on that
-                  // line rather than being pushed down past it.
-                  header={<MappingHeader />}
-                  emptyRow={() => ({
-                    name: "",
-                    nameFormat: defaultAttributeNameFormat,
-                    friendlyName: "",
-                    sourceKind: "username",
-                    sourceKey: "",
-                    multi: false,
-                  })}
-                  addLabel={
-                    <Trans id="admin.saml-apps.mapping.add">
-                      Add an attribute
-                    </Trans>
-                  }
-                  renderRow={(_row, index, error, problem) => (
-                    <MappingRowFields
-                      index={index}
-                      error={error}
-                      problem={problem}
-                    />
-                  )}
-                />
-              )}
+              {() => <AttributeMapField />}
             </form.AppField>
 
             <form.SubmitButton>

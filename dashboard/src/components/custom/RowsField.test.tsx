@@ -120,3 +120,64 @@ describe("RowsField row problems", () => {
     expect(screen.getByText("Give this row a value.")).toBeTruthy();
   });
 });
+
+function InRowHarness() {
+  const form = useAppForm({
+    defaultValues: { rows: [{ a: "first" }, { a: "second" }] },
+  });
+
+  return (
+    <I18nProvider i18n={i18n}>
+      <form.AppForm>
+        <form.Form label="rows">
+          <form.AppField name="rows">
+            {(field) => (
+              <RowsField<{ a: string }>
+                label="Rows"
+                removePlacement="inRow"
+                header={<span>Heading</span>}
+                renderRow={(_row, index, _error, _problem, remove) => (
+                  <div data-testid={`row-${index}`}>
+                    <input
+                      aria-label={`value-${index}`}
+                      value={field.state.value[index]?.a ?? ""}
+                      readOnly
+                    />
+                    {remove}
+                  </div>
+                )}
+                emptyRow={() => ({ a: "" })}
+                addLabel="Add"
+              />
+            )}
+          </form.AppField>
+        </form.Form>
+      </form.AppForm>
+    </I18nProvider>
+  );
+}
+
+describe("RowsField with the remove button in the row", () => {
+  it("draws each row's remove button where the row puts it, and nowhere else", async () => {
+    const user = userEvent.setup();
+    i18n.activate("en");
+    render(<InRowHarness />);
+
+    const removes = screen.getAllByRole("button", { name: /^Remove row/ });
+    expect(removes).toHaveLength(2);
+    expect(screen.getByTestId("row-0")).toContainElement(
+      screen.getByRole("button", { name: "Remove row 1" }),
+    );
+    expect(screen.getByTestId("row-1")).toContainElement(
+      screen.getByRole("button", { name: "Remove row 2" }),
+    );
+
+    await user.click(screen.getByRole("button", { name: "Remove row 1" }));
+
+    expect(screen.getByLabelText("value-0")).toHaveValue("second");
+    expect(screen.queryByLabelText("value-1")).not.toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: /^Remove row/ })).toHaveLength(
+      1,
+    );
+  });
+});

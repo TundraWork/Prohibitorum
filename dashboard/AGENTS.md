@@ -39,11 +39,11 @@ them is wrong — fix the outlier instead of keeping both.
 
 ## Forms
 
-- Forms are TanStack Form through the hooks in `src/forms/use-app-form.ts`: `createFormHook` registers `FormField`, `OtpField`, `TextAreaField`, `SwitchField`, `NumberField`, `ReadOnlyField`, the pickers (`AccountPicker`, `GroupPicker`, `IdentityProviderPicker`), `Form`, `FormError` and `SubmitButton`, and pages call `useAppForm` rather than composing HeroUI fields themselves. A field whose value is a list of rows is `RowsField` (`src/components/custom`), which needs registering there before a form can use it.
+- Forms are TanStack Form through the hooks in `src/forms/use-app-form.ts`: `createFormHook` registers `FormField`, `OtpField`, `TextAreaField`, `SwitchField`, `NumberField`, `ReadOnlyField`, the pickers (`AccountPicker`, `GroupPicker`, `IdentityProviderPicker`), `Form`, `FormError` and `SubmitButton`, and pages call `useAppForm` rather than composing HeroUI fields themselves. A field whose value is a list of rows is `RowsField` (`src/components/custom`), which needs registering there before a form can use it. An editor whose rows draw their own column heading and a column for the remove button passes `removePlacement="inRow"`: the row receives its bound remove button and places it, and the header is drawn at the list's full width.
 - A field that collects one value per line — redirect URIs, scopes, allowed email domains — goes through `src/forms/lines.ts`. Blank lines separate and are dropped, a line with spaces at either end is refused rather than trimmed, and a failure names the line it is on. The rule is written once so no two such fields disagree about line numbering.
 - Field validation on blur, form validation on submit. Fields are disabled while the form submits, and a field's own server error is cleared as soon as the user edits it.
 - Server errors reach the form through `src/forms/server-errors.ts`: a code or a `validation_failed` location maps to a field via a per-form `ServerFieldMap`, and anything unmapped becomes a form-level error. Do not print raw error codes; the message comes from `describeError`.
-- `Form` stops duplicate submits itself, and after a failed submit moves focus to the first invalid field or the form's error summary. Keep `data-form-error-summary` on that summary so the focus target can be found.
+- `Form` stops duplicate submits itself, and after a failed submit moves focus to the first invalid field that will take it — a field in a hidden layout will not — or else to the form's error summary. Keep `data-form-error-summary` on that summary so the focus target can be found.
 
 ## API layer
 

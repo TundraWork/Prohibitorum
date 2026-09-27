@@ -221,3 +221,41 @@ it("clears only the edited field's server error and retains current client valid
   expect(other).toHaveAttribute("aria-invalid", "true");
   expect(other).toHaveAccessibleDescription();
 });
+
+function TwoInvalidFieldsForm() {
+  const form = useAppForm({ defaultValues: {} });
+  return (
+    <form.AppForm>
+      <form.Form label="Two invalid fields">
+        {/* Stands in for a field whose layout is hidden: a browser refuses to
+            focus an element under `display: none`, and jsdom does not know
+            about layout, so the refusal is spelled out here. */}
+        <input
+          aria-label="Hidden twin"
+          aria-invalid="true"
+          readOnly
+          ref={(input) => {
+            if (input !== null) input.focus = () => {};
+          }}
+        />
+        <input aria-label="Visible field" aria-invalid="true" readOnly />
+        <form.SubmitButton>Save</form.SubmitButton>
+      </form.Form>
+    </form.AppForm>
+  );
+}
+
+it("moves focus past an invalid field that cannot take it to the next one", async () => {
+  const user = userEvent.setup();
+  render(
+    <I18nProvider i18n={i18n}>
+      <TwoInvalidFieldsForm />
+    </I18nProvider>,
+  );
+  await user.click(screen.getByRole("button", { name: "Save" }));
+  await waitFor(() =>
+    expect(
+      screen.getByRole("textbox", { name: "Visible field" }),
+    ).toHaveFocus(),
+  );
+});
