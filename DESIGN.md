@@ -211,7 +211,11 @@ A detail page stacks `Section`s, one per block, with the heading on the page
 background and a single `ConsoleCard` under it. The access policy shared by the
 three application kinds is `AppAccessPanel`, and a read-only value that is meant
 to be copied elsewhere — a Client ID, an Entity ID, a callback address — is
-`CopyValue`, HeroUI's `InputGroup` with a copy suffix.
+`CopyValue`: a read-only field with a visible `Label` over a `secondary`
+`InputGroup`, so it lines up with the fields beside it, and a ghost copy button
+at the trailing edge, inset by the same 2px (`pe-0.5`) the field leaves above
+and below it.
+A copy the clipboard refuses shows a `SurfaceAlert` under the field.
 
 ### Loading
 

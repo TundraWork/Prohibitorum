@@ -1474,19 +1474,9 @@ msgid "admin.invitations.copy.done"
 msgstr "已复制。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminUser.tsx
-msgid "admin.user.copied"
-msgstr "已复制。"
-
-#. js-lingui-explicit-id
 #: src/components/custom/SecretReveal.tsx
 msgid "secret.copied"
 msgstr "已复制。"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/AdminUser.tsx
-msgid "admin.user.oidcSubject.copy"
-msgstr "复制"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/SigningKeysPanel.tsx
@@ -1617,6 +1607,11 @@ msgstr "无法加载应用管理员。"
 #: src/pages/ConnectedApps.tsx
 msgid "apps.load_failed"
 msgstr "无法加载已连接应用。"
+
+#. js-lingui-explicit-id
+#: src/components/custom/CopyValue.tsx
+msgid "copy-value.failed"
+msgstr "无法复制。请选中上面的值，手动复制。"
 
 #. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
@@ -6605,11 +6600,6 @@ msgstr "取值"
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminUsers.tsx
 msgid "admin.users.filter.valuePlaceholder"
-msgstr "值"
-
-#. js-lingui-explicit-id
-#: src/components/custom/CopyValue.tsx
-msgid "copy-value.field"
 msgstr "值"
 
 #. js-lingui-explicit-id

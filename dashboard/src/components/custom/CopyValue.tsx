@@ -1,81 +1,112 @@
-import { Description, InputGroup } from "@heroui/react";
+import {
+  Description,
+  InputGroup,
+  Label,
+  TextField,
+  Tooltip,
+} from "@heroui/react";
 import { useLingui } from "@lingui/react/macro";
-import { Check, ClipboardCopy } from "lucide-react";
-import { type ReactNode, useState } from "react";
+import { Check, Copy } from "lucide-react";
+import { type ReactNode, useEffect, useId, useRef, useState } from "react";
 import { Button } from "@/components/custom/Button";
+import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
+
+/** How long the copied state stays on screen before the button resets. */
+const COPIED_MS = 2000;
 
 /**
- * A read-only value the reader will need elsewhere — a Client ID, an Entity ID,
- * a callback address — with a button that puts it on the clipboard.
+ * A read-only field on a card whose value the reader will paste elsewhere — a
+ * Client ID, an Entity ID, a callback address — with a copy button in place of
+ * editing. It reads like its sibling fields: same label, same surface
+ * `secondary` fill, same start padding, so every caller draws it on a card.
+ * The button is inset from the trailing edge by the same 2px the field leaves
+ * above and below it.
  *
- * The value is drawn in the monospace face and never truncated: these strings
- * are meant to be compared character by character and pasted elsewhere, so a
- * middle ellipsis would defeat the point. It wraps instead, and the copy button
- * sits at the trailing edge where HeroUI keeps a group's suffix.
- *
- * The copy outcome is announced on the button itself: a clipboard refusal is
- * common enough (an insecure origin, a denied permission) that it has to say so
- * rather than silently doing nothing, and the button is where the reader's
- * attention already is.
+ * The value is monospace and never truncated; a long one scrolls inside the
+ * field and the button always copies the whole of it. A copy is confirmed by
+ * the icon, the tooltip and a status message; a refused clipboard shows a
+ * warning, and focusing the value selects it for copying by hand.
  */
 export function CopyValue({
   value,
   label,
   description,
-  copyLabel,
 }: {
   value: string;
-  /** Names the field for assistive technology and for the copy button. */
   label: ReactNode;
   description?: ReactNode;
-  /** Overrides the button's accessible name; falls back to `label`. */
-  copyLabel?: ReactNode;
 }) {
   const { t } = useLingui();
-  const [copied, setCopied] = useState(false);
+  const labelId = useId();
+  const buttonId = useId();
+  const [state, setState] = useState<"idle" | "copied" | "failed">("idle");
+  const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  useEffect(() => () => clearTimeout(timer.current), []);
+
+  const copy = () => {
+    clearTimeout(timer.current);
+    navigator.clipboard.writeText(value).then(
+      () => {
+        setState("copied");
+        timer.current = setTimeout(() => setState("idle"), COPIED_MS);
+      },
+      () => setState("failed"),
+    );
+  };
+
+  const copied = state === "copied";
+  const action = copied
+    ? t({ id: "copy-value.copied", message: "Copied" })
+    : t({ id: "copy-value.copy", message: "Copy" });
 
   return (
-    <div className="flex flex-col gap-1.5">
-      <InputGroup>
-        <InputGroup.Prefix className="sr-only">{label}</InputGroup.Prefix>
+    <TextField isReadOnly value={value}>
+      <Label id={labelId}>{label}</Label>
+      <InputGroup variant="secondary">
         <InputGroup.Input
-          readOnly
-          value={value}
-          aria-label={
-            typeof label === "string"
-              ? label
-              : t({ id: "copy-value.field", message: "Value" })
-          }
-          className="font-mono text-sm"
+          className="font-mono"
+          onFocus={(event) => event.target.select()}
         />
-        <InputGroup.Suffix>
-          <Button
-            isIconOnly
-            size="sm"
-            variant="ghost"
-            aria-label={
-              copied
-                ? t({ id: "copy-value.copied", message: "Copied" })
-                : typeof copyLabel === "string"
-                  ? copyLabel
-                  : t({ id: "copy-value.copy", message: "Copy" })
-            }
-            onPress={() => {
-              void navigator.clipboard.writeText(value).then(
-                () => setCopied(true),
-                () => setCopied(false),
-              );
-            }}
-          >
-            {copied ? (
-              <Check size={14} aria-hidden="true" />
-            ) : (
-              <ClipboardCopy size={14} aria-hidden="true" />
-            )}
-          </Button>
+        <InputGroup.Suffix className="pe-0.5">
+          <Tooltip delay={0}>
+            <Button
+              id={buttonId}
+              isIconOnly
+              size="sm"
+              variant="ghost"
+              aria-label={action}
+              aria-labelledby={`${buttonId} ${labelId}`}
+              onPress={copy}
+            >
+              {copied ? (
+                <Check className="size-4" aria-hidden="true" />
+              ) : (
+                <Copy className="size-4" aria-hidden="true" />
+              )}
+            </Button>
+            <Tooltip.Content>{action}</Tooltip.Content>
+          </Tooltip>
         </InputGroup.Suffix>
       </InputGroup>
       {description !== undefined && <Description>{description}</Description>}
-    </div>
+      <span role="status" className="sr-only">
+        {copied ? action : ""}
+      </span>
+      {state === "failed" && (
+        <SurfaceAlert status="warning" role="alert">
+          <SurfaceAlert.Indicator />
+          <SurfaceAlert.Content>
+            <SurfaceAlert.Title>
+              {t({
+                id: "copy-value.failed",
+                message:
+                  "Couldn't copy. Select the value above and copy it yourself.",
+              })}
+            </SurfaceAlert.Title>
+          </SurfaceAlert.Content>
+        </SurfaceAlert>
+      )}
+    </TextField>
   );
 }

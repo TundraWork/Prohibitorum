@@ -1,12 +1,4 @@
-import {
-  Alert,
-  Chip,
-  Description,
-  Label,
-  ListBox,
-  Modal,
-  Select,
-} from "@heroui/react";
+import { Alert, Chip, Label, ListBox, Modal, Select } from "@heroui/react";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import {
@@ -47,6 +39,7 @@ import {
 import { Button } from "@/components/custom/Button";
 import { ConsoleCard } from "@/components/custom/ConsoleCard";
 import { ConsoleTabs } from "@/components/custom/ConsoleTabs";
+import { CopyValue } from "@/components/custom/CopyValue";
 import { DangerZone } from "@/components/custom/DangerZone";
 import { ItemList, ItemListRow } from "@/components/custom/ItemList";
 import { RelativeTime } from "@/components/custom/RelativeTime";
@@ -337,7 +330,16 @@ function ProfilePanel({ account }: { account: Account }) {
             )}
           </form.AppField>
 
-          <OidcSubject value={account.oidcSubject} />
+          <CopyValue
+            value={account.oidcSubject}
+            label={<Trans id="admin.user.oidcSubject">OIDC subject</Trans>}
+            description={
+              <Trans id="admin.user.oidcSubject.hint">
+                Applications identify this account by this value. It never
+                changes.
+              </Trans>
+            }
+          />
 
           <form.SubmitButton>
             <Trans id="admin.user.save">Save changes</Trans>
@@ -345,45 +347,6 @@ function ProfilePanel({ account }: { account: Account }) {
         </form.Form>
       </form.AppForm>
     </ConsoleCard>
-  );
-}
-
-/** The subject downstream applications see, which the server alone decides. */
-function OidcSubject({ value }: { value: string }) {
-  const { t } = useLingui();
-  const [copied, setCopied] = useState(false);
-
-  return (
-    <div className="flex flex-col gap-1">
-      <span className="text-sm text-muted">
-        <Trans id="admin.user.oidcSubject">OIDC subject</Trans>
-      </span>
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="wrap-anywhere font-mono text-sm">{value}</span>
-        <Button
-          size="sm"
-          variant="secondary"
-          onPress={() => {
-            void navigator.clipboard
-              .writeText(value)
-              .then(() => setCopied(true))
-              .catch(() => setCopied(false));
-          }}
-        >
-          {t({ id: "admin.user.oidcSubject.copy", message: "Copy" })}
-        </Button>
-      </div>
-      {copied && (
-        <p role="status" className="text-sm">
-          <Trans id="admin.user.copied">Copied.</Trans>
-        </p>
-      )}
-      <Description>
-        <Trans id="admin.user.oidcSubject.hint">
-          Applications identify this account by this value. It never changes.
-        </Trans>
-      </Description>
-    </div>
   );
 }
 
