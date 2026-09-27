@@ -42,12 +42,6 @@ msgid "admin.forward-auth-apps.delete.confirm.open"
 msgstr "{name} is removed along with its token scopes, its icon and its access policy. Requests through its router are turned away immediately. This cannot be undone."
 
 #. js-lingui-explicit-id
-#. placeholder {0}: app.displayName || app.clientId
-#: src/pages/admin/oidc-applications/DangerSection.tsx
-msgid "admin.oidc-apps.delete.body"
-msgstr "{name} stops being able to sign anyone in, and its icon, secret and access policy go with it. This cannot be undone."
-
-#. js-lingui-explicit-id
 #. placeholder {0}: target?.displayName ?? ""
 #: src/components/custom/AppAccessPanel.tsx
 msgid "app.managers.confirm.body"
@@ -57,6 +51,11 @@ msgstr "{name} will no longer be able to change this application. Their account 
 #: src/pages/admin/forward-auth-apps/ForwardAuthHeadersSection.tsx
 msgid "admin.forward-auth-apps.headers.confirm.body"
 msgstr "{appName} will receive the account's {nextLabel} instead of its {savedLabel}. Anything it saved under the old value is not migrated, so people it already knows will be treated as new accounts."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/UriListField.tsx
+msgid "admin.oidc-apps.uri.row"
+msgstr "{label} {row}"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
@@ -72,6 +71,16 @@ msgstr "{name} and its certificates are removed, and anyone who signs in through
 #: src/pages/admin/saml-applications/SamlDangerSection.tsx
 msgid "admin.saml-apps.danger.disable.body"
 msgstr "{name} stops accepting sign-ins immediately. Its configuration, endpoints and certificates are kept, so it can be enabled again."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/DangerSection.tsx
+msgid "admin.oidc-apps.delete.body"
+msgstr "{name} stops being able to sign anyone in, and its icon, secret and access policy go with it. This cannot be undone."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/ClientConfigSection.tsx
+msgid "admin.oidc-apps.scopes.remove.title"
+msgstr "{removedCount, plural, one {Remove # scope?} other {Remove # scopes?}}"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/ForwardAuthScopesSection.tsx
@@ -99,9 +108,10 @@ msgid "security.tokens.expiry.90"
 msgstr "90 days"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/GeneralSection.tsx
+#: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
+#: src/pages/admin/oidc-applications/ClientConfigSection.tsx
 msgid "admin.oidc-apps.field.redirect.required"
-msgstr "A client needs at least one redirect URI to sign in with."
+msgstr "A client needs at least one redirect URI."
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -150,9 +160,14 @@ msgstr "A negated row must hold one condition, not another group."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
-#: src/pages/admin/oidc-applications/GeneralSection.tsx
+#: src/pages/admin/oidc-applications/SignInRulesSection.tsx
 msgid "admin.oidc-apps.field.pkce.public"
 msgstr "A public client always proves the request it started."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/oidc-validation.ts
+msgid "admin.oidc-apps.scope.offline-access"
+msgstr "A refresh token, so the client stays signed in."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
@@ -393,7 +408,13 @@ msgid "admin.forward-auth-apps.scopes.add"
 msgstr "Add a scope"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/IdentityProjectionSection.tsx
+#: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
+#: src/pages/admin/oidc-applications/ClientConfigSection.tsx
+msgid "admin.oidc-apps.uri.add"
+msgstr "Add address"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/AliasTableField.tsx
 msgid "admin.oidc-apps.aliases.add"
 msgstr "Add alias"
 
@@ -484,6 +505,11 @@ msgid "settings.keys.column.algorithm"
 msgstr "Algorithm"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/AliasTableField.tsx
+msgid "admin.oidc-apps.aliases.row"
+msgstr "Alias {row}"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
 msgid "admin.group.rule.group.all"
 msgstr "All of these"
@@ -525,7 +551,7 @@ msgid "error.saml_application_already_exists"
 msgstr "An application with that Entity ID already exists."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/IdentityProjectionSection.tsx
+#: src/pages/admin/oidc-applications/oidc-validation.ts
 msgid "admin.oidc-apps.alias.name.duplicate"
 msgstr "Another alias already uses this name."
 
@@ -573,6 +599,11 @@ msgstr "Anything using this token stops working immediately. This cannot be undo
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.tokens.revoke.body"
 msgstr "Anything using this token stops working immediately. This cannot be undone."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/AppearanceSection.tsx
+msgid "admin.oidc-apps.appearance"
+msgstr "Appearance"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
@@ -666,7 +697,7 @@ msgstr "Approving lets this device continue, but it is not signed in yet: it sti
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
-#: src/pages/admin/oidc-applications/GeneralSection.tsx
+#: src/pages/admin/oidc-applications/SignInRulesSection.tsx
 msgid "admin.oidc-apps.field.consent.hint"
 msgstr "Ask the account to approve the scopes before signing them in."
 
@@ -1017,12 +1048,12 @@ msgid "admin.saml-apps.mapping.source.unknown"
 msgstr "Choose where this attribute reads from."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/IdentityProjectionSection.tsx
+#: src/pages/admin/oidc-applications/AliasTableField.tsx
 msgid "admin.oidc-apps.aliases"
 msgstr "Claim aliases"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/AliasRowFields.tsx
+#: src/pages/admin/oidc-applications/AliasTableField.tsx
 msgid "admin.oidc-apps.alias.name"
 msgstr "Claim name"
 
@@ -1042,8 +1073,13 @@ msgid "admin.federation.new.auth-method"
 msgstr "Client authentication"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/ClientConfigSection.tsx
+msgid "admin.oidc-apps.client"
+msgstr "Client configuration"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
-#: src/pages/admin/oidc-applications/GeneralSection.tsx
+#: src/pages/admin/oidc-applications/ClientConfigSection.tsx
 msgid "admin.oidc-apps.field.client-id"
 msgstr "Client ID"
 
@@ -1104,6 +1140,11 @@ msgstr "Clients can sign accounts in again straight away. Accounts that signed i
 #: src/pages/admin/oidc-applications/DangerSection.tsx
 msgid "admin.oidc-apps.enable.note"
 msgstr "Clients can sign accounts in again. Nothing else about the application changes."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/ClientConfigSection.tsx
+msgid "admin.oidc-apps.scopes.remove.body"
+msgstr "Clients that still request <0/> can no longer sign in until they stop requesting {removedCount, plural, one {it} other {them}}. Refresh tokens already issued keep {removedCount, plural, one {it} other {them}} until they expire or are revoked."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/SigningKeysPanel.tsx
@@ -2170,6 +2211,11 @@ msgid "admin.federation.claims.email"
 msgstr "Email"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/oidc-validation.ts
+msgid "admin.oidc-apps.scope.email"
+msgstr "Email address and whether it is verified."
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderOperatorSection.tsx
 msgid "admin.federation.operator.method.email"
 msgstr "Email code"
@@ -2332,7 +2378,7 @@ msgid "admin.oidc-apps.new.name.required"
 msgstr "Enter a name."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/GeneralSection.tsx
+#: src/pages/admin/oidc-applications/AppearanceSection.tsx
 msgid "admin.oidc-apps.field.name.required"
 msgstr "Enter a name."
 
@@ -2377,19 +2423,14 @@ msgid "error.invalid_nickname"
 msgstr "Enter a valid nickname without control characters."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/oidc-validation.ts
+msgid "admin.oidc-apps.uri.required"
+msgstr "Enter an address, or remove the row."
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
 msgid "admin.federation.new.slug.required"
 msgstr "Enter an identifier."
-
-#. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
-msgid "admin.oidc-apps.new.redirect.required"
-msgstr "Enter at least one redirect URI."
-
-#. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/GeneralSection.tsx
-msgid "admin.oidc-apps.field.scopes.required"
-msgstr "Enter at least one scope."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
@@ -2433,7 +2474,7 @@ msgid "admin.federation.connection.authorization.required"
 msgstr "Enter the authorization endpoint."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/IdentityProjectionSection.tsx
+#: src/pages/admin/oidc-applications/oidc-validation.ts
 msgid "admin.oidc-apps.alias.name.required"
 msgstr "Enter the claim name the client will read."
 
@@ -2691,11 +2732,6 @@ msgid "admin.saml-apps.general"
 msgstr "General"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/GeneralSection.tsx
-msgid "admin.oidc-apps.general"
-msgstr "General"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/ForwardAuthGeneralSection.tsx
 msgid "admin.forward-auth-apps.general"
 msgstr "General"
@@ -2817,7 +2853,7 @@ msgid "admin.saml-apps.icon"
 msgstr "Icon"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/GeneralSection.tsx
+#: src/pages/admin/oidc-applications/AppearanceSection.tsx
 msgid "admin.oidc-apps.icon"
 msgstr "Icon"
 
@@ -3139,7 +3175,7 @@ msgid "admin.user.tokens.detail.lastUsed"
 msgstr "Last used <0/>"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/GeneralSection.tsx
+#: src/pages/admin/oidc-applications/AppearanceSection.tsx
 msgid "admin.oidc-apps.field.launch"
 msgstr "Launch URL"
 
@@ -3449,7 +3485,7 @@ msgstr "Name"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
-#: src/pages/admin/oidc-applications/GeneralSection.tsx
+#: src/pages/admin/oidc-applications/AppearanceSection.tsx
 msgid "admin.oidc-apps.field.name"
 msgstr "Name"
 
@@ -3483,6 +3519,11 @@ msgstr "Name format"
 #: src/pages/admin/saml-applications/saml-projection.ts
 msgid "admin.saml-apps.mapping.key.required"
 msgstr "Name the account attribute this reads from."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/oidc-validation.ts
+msgid "admin.oidc-apps.scope.profile"
+msgstr "Name, username and picture."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
@@ -3882,20 +3923,9 @@ msgid "error.group_in_use"
 msgstr "One or more applications still use this user group. Remove it from them before deleting it."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/GeneralSection.tsx
-msgid "admin.oidc-apps.field.post-logout.hint"
-msgstr "One per line, where the client may return after signing out. Empty means it may not."
-
-#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderConnectionSection.tsx
 msgid "admin.federation.connection.scopes.hint"
 msgstr "One per line."
-
-#. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
-#: src/pages/admin/oidc-applications/GeneralSection.tsx
-msgid "admin.oidc-apps.field.redirects.hint"
-msgstr "One per line. Absolute http or https addresses."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
@@ -4168,7 +4198,7 @@ msgid "audit.event.clone_warning"
 msgstr "Possible clone"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/GeneralSection.tsx
+#: src/pages/admin/oidc-applications/ClientConfigSection.tsx
 msgid "admin.oidc-apps.field.post-logout"
 msgstr "Post-logout redirect URIs"
 
@@ -4299,7 +4329,7 @@ msgid "settings.keys.jwk.title"
 msgstr "Public key"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/IdentityProjectionSection.tsx
+#: src/pages/admin/oidc-applications/AliasTableField.tsx
 msgid "admin.oidc-apps.aliases.hint"
 msgstr "Publish a granted claim under a second name, for a client that expects one the specification does not define."
 
@@ -4360,7 +4390,7 @@ msgstr "Recovery codes"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
-#: src/pages/admin/oidc-applications/GeneralSection.tsx
+#: src/pages/admin/oidc-applications/ClientConfigSection.tsx
 msgid "admin.oidc-apps.field.redirects"
 msgstr "Redirect URIs"
 
@@ -4475,6 +4505,11 @@ msgid "apps.confirm.title"
 msgstr "Remove access?"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/ClientConfigSection.tsx
+msgid "admin.oidc-apps.scopes.remove.action"
+msgstr "Remove and save"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/ForwardAuthScopesSection.tsx
 msgid "admin.forward-auth-apps.scopes.remove.action"
 msgstr "Remove and save"
@@ -4508,6 +4543,11 @@ msgstr "Remove passkey"
 #: src/components/custom/RowsField.tsx
 msgid "form.rows.remove"
 msgstr "Remove row {row}"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/oidc-validation.ts
+msgid "admin.oidc-apps.uri.spaces"
+msgstr "Remove the spaces at either end."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
@@ -4663,15 +4703,20 @@ msgstr "Require a verified email address"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
-#: src/pages/admin/oidc-applications/GeneralSection.tsx
+#: src/pages/admin/oidc-applications/SignInRulesSection.tsx
 msgid "admin.oidc-apps.field.consent"
 msgstr "Require consent"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
-#: src/pages/admin/oidc-applications/GeneralSection.tsx
+#: src/pages/admin/oidc-applications/SignInRulesSection.tsx
 msgid "admin.oidc-apps.field.pkce"
 msgstr "Require PKCE"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/oidc-validation.ts
+msgid "admin.oidc-apps.scope.openid"
+msgstr "Required to sign in. Always included."
 
 #. js-lingui-explicit-id
 #: src/pages/Login.tsx
@@ -4904,7 +4949,9 @@ msgid "admin.saml-apps.identity.save"
 msgstr "Save"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/GeneralSection.tsx
+#: src/pages/admin/oidc-applications/AppearanceSection.tsx
+#: src/pages/admin/oidc-applications/ClientConfigSection.tsx
+#: src/pages/admin/oidc-applications/SignInRulesSection.tsx
 msgid "admin.oidc-apps.save"
 msgstr "Save"
 
@@ -4976,8 +5023,7 @@ msgid "admin.forward-auth-apps.scopes.row"
 msgstr "Scope {row}"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
-#: src/pages/admin/oidc-applications/GeneralSection.tsx
+#: src/pages/admin/oidc-applications/OidcScopesField.tsx
 msgid "admin.oidc-apps.field.scopes"
 msgstr "Scopes"
 
@@ -5080,11 +5126,6 @@ msgstr "Send every value"
 #: src/components/custom/principal-sources.ts
 msgid "principal-source.verified-email.hint"
 msgstr "Sent only while the address is verified and no other account uses it; otherwise the request is refused."
-
-#. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/GeneralSection.tsx
-msgid "admin.oidc-apps.field.scopes.hint"
-msgstr "Separated by spaces, as a client sends them."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts
@@ -5272,6 +5313,11 @@ msgid "success.sign-in-background.updated"
 msgstr "Sign-in background updated"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/SignInRulesSection.tsx
+msgid "admin.oidc-apps.sign-in"
+msgstr "Sign-in rules"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts
 msgid "audit.event.session_start"
 msgstr "Signed in"
@@ -5353,7 +5399,7 @@ msgid "admin.saml-apps.mapping.source"
 msgstr "Source"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/AliasRowFields.tsx
+#: src/pages/admin/oidc-applications/AliasTableField.tsx
 msgid "admin.oidc-apps.alias.source"
 msgstr "Source claim"
 
@@ -5368,7 +5414,7 @@ msgid "error.ceremony_missing"
 msgstr "Start passkey sign-in again to continue."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/IdentityProjectionSection.tsx
+#: src/pages/admin/oidc-applications/oidc-validation.ts
 msgid "admin.oidc-apps.alias.name.invalid"
 msgstr "Start with a letter or an underscore, then letters, digits or underscores, up to 64 characters."
 
@@ -5449,7 +5495,7 @@ msgid "theme.system"
 msgstr "System theme"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/AliasRowFields.tsx
+#: src/pages/admin/oidc-applications/AliasTableField.tsx
 msgid "admin.oidc-apps.alias.name.placeholder"
 msgstr "team"
 
@@ -5615,7 +5661,6 @@ msgstr "The application, its endpoints and its certificates are removed. This ca
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
-#: src/pages/admin/oidc-applications/GeneralSection.tsx
 msgid "admin.oidc-apps.field.client-id.hint"
 msgstr "The client is configured with this value; it cannot change."
 
@@ -5691,7 +5736,7 @@ msgid "admin.forward-auth-apps.field.host.hint"
 msgstr "The host the application is served on, as Traefik matches it — no scheme and no port."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/IdentityProjectionSection.tsx
+#: src/pages/admin/oidc-applications/oidc-validation.ts
 msgid "admin.oidc-apps.alias.name.reserved"
 msgstr "The ID token already defines this claim."
 
@@ -5940,6 +5985,11 @@ msgstr "This account is disabled."
 #: src/components/custom/RouteFeedback.tsx
 msgid "route.not-found.description"
 msgstr "This address does not have a page."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/oidc-validation.ts
+msgid "admin.oidc-apps.uri.duplicate"
+msgstr "This address is already in the list."
 
 #. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
@@ -6417,12 +6467,7 @@ msgid "admin.saml-apps.acs.index.invalid"
 msgstr "Use a whole number of zero or more."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
-msgid "admin.oidc-apps.new.redirect.invalid"
-msgstr "Use an absolute http or https address."
-
-#. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/GeneralSection.tsx
+#: src/pages/admin/oidc-applications/oidc-validation.ts
 msgid "admin.oidc-apps.field.redirect.invalid"
 msgstr "Use an absolute http or https address."
 
@@ -6577,6 +6622,11 @@ msgstr "User groups saved"
 #: src/pages/admin/forward-auth-apps/ForwardAuthHeadersSection.tsx
 msgid "admin.forward-auth-apps.headers.groups"
 msgstr "User groups this application exposes"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/oidc-validation.ts
+msgid "admin.oidc-apps.scope.groups"
+msgstr "User groups this application exposes."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminLogs.tsx
@@ -6767,7 +6817,12 @@ msgid "security.tokens.name.hint"
 msgstr "What will use this token, so you know what to revoke later."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/GeneralSection.tsx
+#: src/pages/admin/oidc-applications/ClientConfigSection.tsx
+msgid "admin.oidc-apps.field.post-logout.description"
+msgstr "Where the client may return after signing out."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/AppearanceSection.tsx
 msgid "admin.oidc-apps.field.launch.hint"
 msgstr "Where the console links when the application is opened from here. Leave it empty to link nowhere."
 

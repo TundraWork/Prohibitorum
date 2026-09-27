@@ -53,6 +53,9 @@ export function DangerSection({ app }: { app: OidcApp }) {
   // The list loads first as `undefined`; the danger rows must not offer a
   // rotation the server would take for a public client.
   const isPublic = app.clientAuthMethod === "none";
+  // Named, so the confirmation's message carries it as `{name}` rather than a
+  // positional placeholder the catalogs do not have.
+  const name = app.displayName || app.clientId;
 
   const failure = rotate.error ?? remove.error ?? setDisabled.error;
 
@@ -266,9 +269,8 @@ export function DangerSection({ app }: { app: OidcApp }) {
         body={
           <p>
             <Trans id="admin.oidc-apps.delete.body">
-              {app.displayName || app.clientId} stops being able to sign anyone
-              in, and its icon, secret and access policy go with it. This cannot
-              be undone.
+              {name} stops being able to sign anyone in, and its icon, secret
+              and access policy go with it. This cannot be undone.
             </Trans>
           </p>
         }

@@ -42,12 +42,6 @@ msgid "admin.forward-auth-apps.delete.confirm.open"
 msgstr "{name} 会被删除，同时删除它的令牌作用域、图标和访问策略。经它路由的请求会立即被拒绝。此操作无法撤销。"
 
 #. js-lingui-explicit-id
-#. placeholder {0}: app.displayName || app.clientId
-#: src/pages/admin/oidc-applications/DangerSection.tsx
-msgid "admin.oidc-apps.delete.body"
-msgstr "删除后 {name} 无法再让任何人登录，其图标、密钥和访问策略也会一并删除。此操作无法撤销。"
-
-#. js-lingui-explicit-id
 #. placeholder {0}: target?.displayName ?? ""
 #: src/components/custom/AppAccessPanel.tsx
 msgid "app.managers.confirm.body"
@@ -57,6 +51,11 @@ msgstr "{name} 将不能再修改这个应用。其账号不受影响。"
 #: src/pages/admin/forward-auth-apps/ForwardAuthHeadersSection.tsx
 msgid "admin.forward-auth-apps.headers.confirm.body"
 msgstr "{appName} 将收到这个账号的{nextLabel}，而不是{savedLabel}。它按旧值保存的数据不会迁移，已有的人会被当作新账号。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/UriListField.tsx
+msgid "admin.oidc-apps.uri.row"
+msgstr "{label} {row}"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
@@ -72,6 +71,16 @@ msgstr "{name} 及其证书会被删除，通过它登录的人都会被拒之�
 #: src/pages/admin/saml-applications/SamlDangerSection.tsx
 msgid "admin.saml-apps.danger.disable.body"
 msgstr "{name} 立即停止接受登录。它的配置、端点和证书都会保留，因此可以重新启用。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/DangerSection.tsx
+msgid "admin.oidc-apps.delete.body"
+msgstr "删除后 {name} 无法再让任何人登录，其图标、密钥和访问策略也会一并删除。此操作无法撤销。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/ClientConfigSection.tsx
+msgid "admin.oidc-apps.scopes.remove.title"
+msgstr "{removedCount, plural, other {移除 # 个作用域？}}"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/ForwardAuthScopesSection.tsx
@@ -99,9 +108,10 @@ msgid "security.tokens.expiry.90"
 msgstr "90 天"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/GeneralSection.tsx
+#: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
+#: src/pages/admin/oidc-applications/ClientConfigSection.tsx
 msgid "admin.oidc-apps.field.redirect.required"
-msgstr "客户端至少需要一个重定向 URI 才能登录。"
+msgstr "客户端至少需要一个重定向 URI。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -150,9 +160,14 @@ msgstr "取反的一条必须放一个条件，不能放另一个条件组。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
-#: src/pages/admin/oidc-applications/GeneralSection.tsx
+#: src/pages/admin/oidc-applications/SignInRulesSection.tsx
 msgid "admin.oidc-apps.field.pkce.public"
 msgstr "公开客户端每次都会证明请求由自己发起。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/oidc-validation.ts
+msgid "admin.oidc-apps.scope.offline-access"
+msgstr "刷新令牌，让客户端保持登录。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
@@ -393,7 +408,13 @@ msgid "admin.forward-auth-apps.scopes.add"
 msgstr "添加作用域"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/IdentityProjectionSection.tsx
+#: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
+#: src/pages/admin/oidc-applications/ClientConfigSection.tsx
+msgid "admin.oidc-apps.uri.add"
+msgstr "添加地址"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/AliasTableField.tsx
 msgid "admin.oidc-apps.aliases.add"
 msgstr "添加别名"
 
@@ -484,6 +505,11 @@ msgid "settings.keys.column.algorithm"
 msgstr "算法"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/AliasTableField.tsx
+msgid "admin.oidc-apps.aliases.row"
+msgstr "别名 {row}"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
 msgid "admin.group.rule.group.all"
 msgstr "以下全部"
@@ -525,7 +551,7 @@ msgid "error.saml_application_already_exists"
 msgstr "已有应用使用该 Entity ID。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/IdentityProjectionSection.tsx
+#: src/pages/admin/oidc-applications/oidc-validation.ts
 msgid "admin.oidc-apps.alias.name.duplicate"
 msgstr "已有别名使用了这个名称。"
 
@@ -573,6 +599,11 @@ msgstr "所有使用此令牌的服务会立即失效，且无法恢复。"
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.tokens.revoke.body"
 msgstr "使用该令牌的一切会立即停止工作，且无法撤销。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/AppearanceSection.tsx
+msgid "admin.oidc-apps.appearance"
+msgstr "外观"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
@@ -666,7 +697,7 @@ msgstr "批准后该设备可以继续，但它还没有登录：仍需自行设
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
-#: src/pages/admin/oidc-applications/GeneralSection.tsx
+#: src/pages/admin/oidc-applications/SignInRulesSection.tsx
 msgid "admin.oidc-apps.field.consent.hint"
 msgstr "登录前先让账号确认这些作用域。"
 
@@ -1017,12 +1048,12 @@ msgid "admin.saml-apps.mapping.source.unknown"
 msgstr "请选择这个属性从哪里读取。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/IdentityProjectionSection.tsx
+#: src/pages/admin/oidc-applications/AliasTableField.tsx
 msgid "admin.oidc-apps.aliases"
 msgstr "声明别名"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/AliasRowFields.tsx
+#: src/pages/admin/oidc-applications/AliasTableField.tsx
 msgid "admin.oidc-apps.alias.name"
 msgstr "声明名称"
 
@@ -1042,8 +1073,13 @@ msgid "admin.federation.new.auth-method"
 msgstr "客户端认证"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/ClientConfigSection.tsx
+msgid "admin.oidc-apps.client"
+msgstr "客户端配置"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
-#: src/pages/admin/oidc-applications/GeneralSection.tsx
+#: src/pages/admin/oidc-applications/ClientConfigSection.tsx
 msgid "admin.oidc-apps.field.client-id"
 msgstr "Client ID"
 
@@ -1104,6 +1140,11 @@ msgstr "客户端可以立即重新登录。停用期间登录过的账号不受
 #: src/pages/admin/oidc-applications/DangerSection.tsx
 msgid "admin.oidc-apps.enable.note"
 msgstr "客户端可以重新登录，应用其它设置不变。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/ClientConfigSection.tsx
+msgid "admin.oidc-apps.scopes.remove.body"
+msgstr "仍在请求 <0/> 的客户端将无法登录，直到它们不再请求。已签发的刷新令牌在过期或被吊销前仍保留原有作用域。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/SigningKeysPanel.tsx
@@ -2170,6 +2211,11 @@ msgid "admin.federation.claims.email"
 msgstr "邮箱"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/oidc-validation.ts
+msgid "admin.oidc-apps.scope.email"
+msgstr "邮箱地址及其验证状态。"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderOperatorSection.tsx
 msgid "admin.federation.operator.method.email"
 msgstr "邮箱验证码"
@@ -2332,7 +2378,7 @@ msgid "admin.oidc-apps.new.name.required"
 msgstr "请填写名称。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/GeneralSection.tsx
+#: src/pages/admin/oidc-applications/AppearanceSection.tsx
 msgid "admin.oidc-apps.field.name.required"
 msgstr "请填写名称。"
 
@@ -2377,19 +2423,14 @@ msgid "error.invalid_nickname"
 msgstr "请输入有效昵称，不要包含控制字符。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/oidc-validation.ts
+msgid "admin.oidc-apps.uri.required"
+msgstr "请输入地址，或删除这一行。"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
 msgid "admin.federation.new.slug.required"
 msgstr "请填写标识。"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
-msgid "admin.oidc-apps.new.redirect.required"
-msgstr "请至少填写一个重定向 URI。"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/GeneralSection.tsx
-msgid "admin.oidc-apps.field.scopes.required"
-msgstr "请至少填写一个作用域。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
@@ -2433,7 +2474,7 @@ msgid "admin.federation.connection.authorization.required"
 msgstr "请填写授权端点。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/IdentityProjectionSection.tsx
+#: src/pages/admin/oidc-applications/oidc-validation.ts
 msgid "admin.oidc-apps.alias.name.required"
 msgstr "请填写客户端要读取的声明名称。"
 
@@ -2691,11 +2732,6 @@ msgid "admin.saml-apps.general"
 msgstr "常规"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/GeneralSection.tsx
-msgid "admin.oidc-apps.general"
-msgstr "常规"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/ForwardAuthGeneralSection.tsx
 msgid "admin.forward-auth-apps.general"
 msgstr "常规"
@@ -2817,7 +2853,7 @@ msgid "admin.saml-apps.icon"
 msgstr "图标"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/GeneralSection.tsx
+#: src/pages/admin/oidc-applications/AppearanceSection.tsx
 msgid "admin.oidc-apps.icon"
 msgstr "图标"
 
@@ -3139,7 +3175,7 @@ msgid "admin.user.tokens.detail.lastUsed"
 msgstr "<0/>使用过"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/GeneralSection.tsx
+#: src/pages/admin/oidc-applications/AppearanceSection.tsx
 msgid "admin.oidc-apps.field.launch"
 msgstr "启动地址"
 
@@ -3449,7 +3485,7 @@ msgstr "名称"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
-#: src/pages/admin/oidc-applications/GeneralSection.tsx
+#: src/pages/admin/oidc-applications/AppearanceSection.tsx
 msgid "admin.oidc-apps.field.name"
 msgstr "名称"
 
@@ -3483,6 +3519,11 @@ msgstr "名称格式"
 #: src/pages/admin/saml-applications/saml-projection.ts
 msgid "admin.saml-apps.mapping.key.required"
 msgstr "请填写这条映射读取的账号属性。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/oidc-validation.ts
+msgid "admin.oidc-apps.scope.profile"
+msgstr "姓名、用户名和头像。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
@@ -3882,20 +3923,9 @@ msgid "error.group_in_use"
 msgstr "仍有应用在使用该用户组。请先从中移除，再删除该组。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/GeneralSection.tsx
-msgid "admin.oidc-apps.field.post-logout.hint"
-msgstr "每行一个，客户端登出后可以返回这些地址。留空表示不允许。"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderConnectionSection.tsx
 msgid "admin.federation.connection.scopes.hint"
 msgstr "每行一个。"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
-#: src/pages/admin/oidc-applications/GeneralSection.tsx
-msgid "admin.oidc-apps.field.redirects.hint"
-msgstr "每行一个，使用完整的 http 或 https 地址。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
@@ -4168,7 +4198,7 @@ msgid "audit.event.clone_warning"
 msgstr "疑似克隆"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/GeneralSection.tsx
+#: src/pages/admin/oidc-applications/ClientConfigSection.tsx
 msgid "admin.oidc-apps.field.post-logout"
 msgstr "登出后重定向 URI"
 
@@ -4299,9 +4329,9 @@ msgid "settings.keys.jwk.title"
 msgstr "公钥"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/IdentityProjectionSection.tsx
+#: src/pages/admin/oidc-applications/AliasTableField.tsx
 msgid "admin.oidc-apps.aliases.hint"
-msgstr "把已授权的作用域再用另一个名称发布，供期待规范之外名称的客户端使用。"
+msgstr "把已授权的声明再用另一个名称发布，供期待规范之外名称的客户端使用。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AttributeMapField.tsx
@@ -4360,7 +4390,7 @@ msgstr "恢复码"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
-#: src/pages/admin/oidc-applications/GeneralSection.tsx
+#: src/pages/admin/oidc-applications/ClientConfigSection.tsx
 msgid "admin.oidc-apps.field.redirects"
 msgstr "重定向 URI"
 
@@ -4475,6 +4505,11 @@ msgid "apps.confirm.title"
 msgstr "移除授权？"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/ClientConfigSection.tsx
+msgid "admin.oidc-apps.scopes.remove.action"
+msgstr "移除并保存"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/ForwardAuthScopesSection.tsx
 msgid "admin.forward-auth-apps.scopes.remove.action"
 msgstr "删除并保存"
@@ -4508,6 +4543,11 @@ msgstr "移除通行密钥"
 #: src/components/custom/RowsField.tsx
 msgid "form.rows.remove"
 msgstr "移除第 {row} 行"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/oidc-validation.ts
+msgid "admin.oidc-apps.uri.spaces"
+msgstr "请删除首尾的空格。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
@@ -4663,15 +4703,20 @@ msgstr "要求邮箱已验证"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
-#: src/pages/admin/oidc-applications/GeneralSection.tsx
+#: src/pages/admin/oidc-applications/SignInRulesSection.tsx
 msgid "admin.oidc-apps.field.consent"
 msgstr "要求用户同意"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
-#: src/pages/admin/oidc-applications/GeneralSection.tsx
+#: src/pages/admin/oidc-applications/SignInRulesSection.tsx
 msgid "admin.oidc-apps.field.pkce"
 msgstr "要求 PKCE"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/oidc-validation.ts
+msgid "admin.oidc-apps.scope.openid"
+msgstr "登录必需，始终包含。"
 
 #. js-lingui-explicit-id
 #: src/pages/Login.tsx
@@ -4904,7 +4949,9 @@ msgid "admin.saml-apps.identity.save"
 msgstr "保存"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/GeneralSection.tsx
+#: src/pages/admin/oidc-applications/AppearanceSection.tsx
+#: src/pages/admin/oidc-applications/ClientConfigSection.tsx
+#: src/pages/admin/oidc-applications/SignInRulesSection.tsx
 msgid "admin.oidc-apps.save"
 msgstr "保存"
 
@@ -4976,8 +5023,7 @@ msgid "admin.forward-auth-apps.scopes.row"
 msgstr "作用域 {row}"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
-#: src/pages/admin/oidc-applications/GeneralSection.tsx
+#: src/pages/admin/oidc-applications/OidcScopesField.tsx
 msgid "admin.oidc-apps.field.scopes"
 msgstr "作用域"
 
@@ -5080,11 +5126,6 @@ msgstr "发送每个值"
 #: src/components/custom/principal-sources.ts
 msgid "principal-source.verified-email.hint"
 msgstr "仅在邮箱已验证且未被其他账号使用时发送，否则请求会被拒绝。"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/GeneralSection.tsx
-msgid "admin.oidc-apps.field.scopes.hint"
-msgstr "用空格分隔，与客户端发送的形式一致。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts
@@ -5272,6 +5313,11 @@ msgid "success.sign-in-background.updated"
 msgstr "登录页背景已更新"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/SignInRulesSection.tsx
+msgid "admin.oidc-apps.sign-in"
+msgstr "登录规则"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts
 msgid "audit.event.session_start"
 msgstr "登录"
@@ -5353,7 +5399,7 @@ msgid "admin.saml-apps.mapping.source"
 msgstr "来源"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/AliasRowFields.tsx
+#: src/pages/admin/oidc-applications/AliasTableField.tsx
 msgid "admin.oidc-apps.alias.source"
 msgstr "来源声明"
 
@@ -5368,7 +5414,7 @@ msgid "error.ceremony_missing"
 msgstr "请重新发起通行密钥登录。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/IdentityProjectionSection.tsx
+#: src/pages/admin/oidc-applications/oidc-validation.ts
 msgid "admin.oidc-apps.alias.name.invalid"
 msgstr "以字母或下划线开头，之后可包含字母、数字或下划线，最多 64 个字符。"
 
@@ -5449,7 +5495,7 @@ msgid "theme.system"
 msgstr "跟随系统"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/AliasRowFields.tsx
+#: src/pages/admin/oidc-applications/AliasTableField.tsx
 msgid "admin.oidc-apps.alias.name.placeholder"
 msgstr "team"
 
@@ -5615,7 +5661,6 @@ msgstr "应用及其端点、证书都会被移除。此操作无法撤销。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
-#: src/pages/admin/oidc-applications/GeneralSection.tsx
 msgid "admin.oidc-apps.field.client-id.hint"
 msgstr "客户端就是按这个值配置的，无法修改。"
 
@@ -5691,7 +5736,7 @@ msgid "admin.forward-auth-apps.field.host.hint"
 msgstr "应用对外提供的主机名，按 Traefik 的匹配方式填写，不带协议和端口。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/IdentityProjectionSection.tsx
+#: src/pages/admin/oidc-applications/oidc-validation.ts
 msgid "admin.oidc-apps.alias.name.reserved"
 msgstr "ID token 已经定义了这个声明。"
 
@@ -5940,6 +5985,11 @@ msgstr "此账户已停用。"
 #: src/components/custom/RouteFeedback.tsx
 msgid "route.not-found.description"
 msgstr "此地址没有对应的页面。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/oidc-validation.ts
+msgid "admin.oidc-apps.uri.duplicate"
+msgstr "列表中已有这个地址。"
 
 #. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
@@ -6417,12 +6467,7 @@ msgid "admin.saml-apps.acs.index.invalid"
 msgstr "请填写不小于 0 的整数。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
-msgid "admin.oidc-apps.new.redirect.invalid"
-msgstr "请使用完整的 http 或 https 地址。"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/GeneralSection.tsx
+#: src/pages/admin/oidc-applications/oidc-validation.ts
 msgid "admin.oidc-apps.field.redirect.invalid"
 msgstr "请使用完整的 http 或 https 地址。"
 
@@ -6577,6 +6622,11 @@ msgstr "用户组已保存"
 #: src/pages/admin/forward-auth-apps/ForwardAuthHeadersSection.tsx
 msgid "admin.forward-auth-apps.headers.groups"
 msgstr "该应用公开的用户组"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/oidc-validation.ts
+msgid "admin.oidc-apps.scope.groups"
+msgstr "此应用公开的用户组。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminLogs.tsx
@@ -6767,7 +6817,12 @@ msgid "security.tokens.name.hint"
 msgstr "用它做什么，便于日后知道该撤销哪个。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/GeneralSection.tsx
+#: src/pages/admin/oidc-applications/ClientConfigSection.tsx
+msgid "admin.oidc-apps.field.post-logout.description"
+msgstr "客户端登出后可以返回的地址。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/AppearanceSection.tsx
 msgid "admin.oidc-apps.field.launch.hint"
 msgstr "从这里打开应用时，控制台跳转到的地址。留空表示不提供链接。"
 

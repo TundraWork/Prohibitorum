@@ -161,6 +161,21 @@ secondary variant: the shadow is dropped and the fill follows the surface so
 the field reads as part of the card. One-time-code fields follow the same
 variant through `InputOTP`.
 
+A list of addresses — an OIDC client's redirect and post-logout URIs — is one
+input per address, each with its remove button on the input's centre line and
+an "Add address" button under the last row. A row's message is drawn under that
+row, so the button never moves out of line, and only the input at fault is
+marked. A list the client cannot do without keeps its last row, and that row's
+disabled remove button says why in a tooltip. A closed set of choices that each
+need a word of explanation, such as the OIDC scopes, is a `secondary`
+`CheckboxGroup` laid out like HeroUI's add-ons demo: the value in monospace,
+since it is the literal string a client sends, with one line under it saying
+what it grants, both inside the label and the label across the row, so a press
+anywhere on the row toggles the box. The checkbox is named by the value alone;
+the line under it stays its description. A choice the product requires is
+`isReadOnly` and ticked, not disabled, which would fade it into looking
+unavailable.
+
 ### Cards / Containers
 
 Default cards use the surface color, control radius, and surface shadow.
@@ -181,6 +196,11 @@ is which. Both layouts are rendered and only one is displayed.
 A forward-auth application's token scopes are the same shape at two columns,
 name and description: a `wide` card on the detail page, and the create page's
 reading measure, which is why that editor switches at 28rem of its own width.
+An OIDC application's claim aliases are the same editor again, at two equal
+columns — both halves are claim names — with the name input and the source
+select in monospace at the library's own control height. The select's trigger
+draws the claim name as plain text rather than a copy of the option, whose
+hidden check mark would make it a pixel taller than the input beside it.
 
 A card holding several blocks names each one with an `ItemList` title. Three
 unlabelled cards stacked under one section heading read as one undifferentiated
@@ -292,7 +312,8 @@ committing to one — and while the form holds such a change its save button is
 Submitting checks the form, then opens a `warning` `ConfirmDialog` naming the
 consequence; the write happens from the dialog, and cancelling leaves the change
 in the form, unsent. A changed OIDC subject source or forward-auth
-`Remote-User`, and a saved token scope removed, are saved this way.
+`Remote-User`, a saved token scope removed, and a saved OIDC scope removed are
+saved this way.
 
 ## Do's and Don'ts
 

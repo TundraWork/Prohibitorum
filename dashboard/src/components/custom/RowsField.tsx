@@ -1,4 +1,4 @@
-import { Description, Label } from "@heroui/react";
+import { Description, Label, Tooltip } from "@heroui/react";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useStore } from "@tanstack/react-form";
@@ -43,6 +43,11 @@ export function RowsField<T>({
   isDisabled = false,
   /** Rows are never removed below this count. */
   minRows = 0,
+  /**
+   * Why a row cannot be removed once the list is down to `minRows`, shown in
+   * a tooltip on the disabled button.
+   */
+  minRowsReason,
   /**
    * Where the row's remove button sits. A one-line row aligns it to the inputs'
    * own line; a row that draws more than one line of controls passes `top`, so
@@ -94,6 +99,7 @@ export function RowsField<T>({
   addLabel: ReactNode;
   isDisabled?: boolean;
   minRows?: number;
+  minRowsReason?: ReactNode;
   align?: "end" | "top";
   header?: ReactNode;
   removePlacement?: "beside" | "inRow";
@@ -144,31 +150,42 @@ export function RowsField<T>({
     field.handleChange(next);
   }
 
-  const removeButton = (index: number) => (
-    <Button
-      isIconOnly
-      size="sm"
-      variant="ghost"
-      // On a row drawn on one line the button matches the inputs' own
-      // height; on a tall row it would otherwise sink to the bottom of
-      // the last line, beside whatever control happens to be there.
-      className={
-        removePlacement === "beside" && align === "top" ? "mt-6" : undefined
-      }
-      isDisabled={
-        submitting || isDisabled || field.state.value.length <= minRows
-      }
-      aria-label={i18n._({
-        ...removeRowMessage,
-        values: { row: index + 1 },
-      })}
-      onPress={() => {
-        changeRows(field.state.value.filter((_, at) => at !== index));
-      }}
-    >
-      <Trash2 size={16} aria-hidden="true" />
-    </Button>
-  );
+  const atMinimum = field.state.value.length <= minRows;
+
+  const removeButton = (index: number) => {
+    const button = (
+      <Button
+        isIconOnly
+        size="sm"
+        variant="ghost"
+        // On a row drawn on one line the button matches the inputs' own
+        // height; on a tall row it would otherwise sink to the bottom of
+        // the last line, beside whatever control happens to be there.
+        className={
+          removePlacement === "beside" && align === "top" ? "mt-6" : undefined
+        }
+        isDisabled={submitting || isDisabled || atMinimum}
+        aria-label={i18n._({
+          ...removeRowMessage,
+          values: { row: index + 1 },
+        })}
+        onPress={() => {
+          changeRows(field.state.value.filter((_, at) => at !== index));
+        }}
+      >
+        <Trash2 size={16} aria-hidden="true" />
+      </Button>
+    );
+    if (!atMinimum || minRowsReason === undefined) return button;
+    // A disabled button emits no hover or focus for a tooltip to answer, so
+    // the tooltip listens on the trigger wrapper instead.
+    return (
+      <Tooltip delay={0}>
+        <Tooltip.Trigger>{button}</Tooltip.Trigger>
+        <Tooltip.Content>{minRowsReason}</Tooltip.Content>
+      </Tooltip>
+    );
+  };
 
   const hasHeader = field.state.value.length > 0 && header !== undefined;
 

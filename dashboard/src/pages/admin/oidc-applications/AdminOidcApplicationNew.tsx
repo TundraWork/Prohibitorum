@@ -1,11 +1,4 @@
-import {
-  Checkbox,
-  CheckboxGroup,
-  Label,
-  Modal,
-  Radio,
-  RadioGroup,
-} from "@heroui/react";
+import { Label, Modal, Radio, RadioGroup } from "@heroui/react";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useMutation } from "@tanstack/react-query";
@@ -16,10 +9,18 @@ import { createOidcAppMutationOptions } from "@/api/mutations";
 import type { CreateOidcAppResponse } from "@/api/raw-admin-paths";
 import { ConsoleCard } from "@/components/custom/ConsoleCard";
 import { SecretReveal } from "@/components/custom/SecretReveal";
-import { lineProblemMessage, parseLines } from "@/forms/lines";
 import { applyServerError } from "@/forms/server-errors";
 import { useAppForm } from "@/forms/use-app-form";
+import { OidcScopesField } from "@/pages/admin/oidc-applications/OidcScopesField";
+import {
+  type OidcScope,
+  uriListProblem,
+} from "@/pages/admin/oidc-applications/oidc-validation";
 import { clientSecretCopy } from "@/pages/admin/oidc-applications/secret-copy";
+import {
+  UriListField,
+  uriRowProblem,
+} from "@/pages/admin/oidc-applications/UriListField";
 
 /**
  * The Client ID rule the server enforces, tightened by the console.
@@ -48,45 +49,6 @@ const nameRequired = msg({
   id: "admin.oidc-apps.new.name.required",
   message: "Enter a name.",
 });
-
-const redirectRequired = msg({
-  id: "admin.oidc-apps.new.redirect.required",
-  message: "Enter at least one redirect URI.",
-});
-
-const redirectInvalid = msg({
-  id: "admin.oidc-apps.new.redirect.invalid",
-  message: "Use an absolute http or https address.",
-});
-
-/**
- * Why one redirect URI is not usable.
- *
- * Checked here and not on the server: the endpoint takes the strings as given,
- * so a typo is accepted and then breaks a sign-in that is otherwise set up
- * correctly. The check is deliberately only "absolute http(s) with a host and no
- * credentials" — the server's discovery document and every mainstream library
- * expect an https origin, but a native client may legitimately loop back to
- * localhost over http, and a tighter check would refuse a working client.
- */
-function redirectUriProblem(value: string) {
-  let url: URL;
-  try {
-    url = new URL(value);
-  } catch {
-    return redirectInvalid;
-  }
-  if (url.protocol !== "http:" && url.protocol !== "https:") {
-    return redirectInvalid;
-  }
-  if (url.host === "" || url.username !== "" || url.password !== "") {
-    return redirectInvalid;
-  }
-  return undefined;
-}
-
-/** The scopes the server accepts, in the order the specification names them. */
-const scopeOptions = ["openid", "profile", "email", "offline_access", "groups"];
 
 /**
  * Registering an OIDC client with the instance.
@@ -119,30 +81,20 @@ export function AdminOidcApplicationNew() {
     defaultValues: {
       displayName: "",
       clientId: "",
-      // One per line, because these are copied from a client's configuration as a
-      // block and the order the client sent them in is worth keeping.
-      redirectUris: "",
-      scopes: ["openid", "profile", "email"] as string[],
+      // One row to fill: a client signs in through at least one of these, so
+      // the last row cannot be removed.
+      redirectUris: [""],
+      scopes: ["openid", "profile", "email"] as OidcScope[],
       requireConsent: false,
       requirePkce: true,
       accessRestricted: false,
     },
     onSubmit: async ({ value }) => {
-      const redirects = parseLines(value.redirectUris, redirectUriProblem);
-      if (!redirects.ok) {
+      const problem = uriListProblem(value.redirectUris);
+      if (problem !== undefined) {
         form.setFieldMeta("redirectUris", (meta) => ({
           ...meta,
-          errorMap: {
-            ...meta.errorMap,
-            onSubmit: [lineProblemMessage(redirects.problem)],
-          },
-        }));
-        return;
-      }
-      if (redirects.values.length === 0) {
-        form.setFieldMeta("redirectUris", (meta) => ({
-          ...meta,
-          errorMap: { ...meta.errorMap, onSubmit: [redirectRequired] },
+          errorMap: { ...meta.errorMap, onSubmit: [uriRowProblem(problem)] },
         }));
         return;
       }
@@ -151,7 +103,7 @@ export function AdminOidcApplicationNew() {
         const response = await create.mutateAsync({
           clientId: value.clientId.trim(),
           displayName: value.displayName.trim() || undefined,
-          redirectUris: redirects.values,
+          redirectUris: value.redirectUris,
           scopes: value.scopes,
           // The wire field is the inverse of the console's wording: the reader
           // chooses "confidential" or "public", and only the second sets this.
@@ -270,63 +222,30 @@ export function AdminOidcApplicationNew() {
               </Radio>
             </RadioGroup>
 
-            <form.AppField
-              name="redirectUris"
-              validators={{
-                onSubmit: ({ value }) => {
-                  const parsed = parseLines(value, redirectUriProblem);
-                  if (!parsed.ok) {
-                    return lineProblemMessage(parsed.problem);
+            <form.AppField name="redirectUris">
+              {() => (
+                <UriListField
+                  label={t({
+                    id: "admin.oidc-apps.field.redirects",
+                    message: "Redirect URIs",
+                  })}
+                  addLabel={
+                    <Trans id="admin.oidc-apps.uri.add">Add address</Trans>
                   }
-                  return parsed.values.length === 0
-                    ? redirectRequired
-                    : undefined;
-                },
-              }}
-            >
-              {(field) => (
-                <field.TextAreaField
-                  label={
-                    <Trans id="admin.oidc-apps.field.redirects">
-                      Redirect URIs
+                  placeholder="https://app.example.com/callback"
+                  minRows={1}
+                  minRowsReason={
+                    <Trans id="admin.oidc-apps.field.redirect.required">
+                      A client needs at least one redirect URI.
                     </Trans>
                   }
-                  description={
-                    <Trans id="admin.oidc-apps.field.redirects.hint">
-                      One per line. Absolute http or https addresses.
-                    </Trans>
-                  }
-                  rows={3}
-                  spellCheck={false}
-                  variant="secondary"
                 />
               )}
             </form.AppField>
 
-            <form.Field name="scopes">
-              {(field) => (
-                <CheckboxGroup
-                  variant="secondary"
-                  value={field.state.value}
-                  isDisabled={form.state.isSubmitting}
-                  onChange={(next) => field.handleChange(next as string[])}
-                >
-                  <Label>
-                    <Trans id="admin.oidc-apps.field.scopes">Scopes</Trans>
-                  </Label>
-                  {scopeOptions.map((scope) => (
-                    <Checkbox key={scope} value={scope}>
-                      <Checkbox.Content>
-                        <Checkbox.Control>
-                          <Checkbox.Indicator />
-                        </Checkbox.Control>
-                        <span className="font-mono text-sm">{scope}</span>
-                      </Checkbox.Content>
-                    </Checkbox>
-                  ))}
-                </CheckboxGroup>
-              )}
-            </form.Field>
+            <form.AppField name="scopes">
+              {() => <OidcScopesField />}
+            </form.AppField>
 
             <form.AppField name="requirePkce">
               {(field) => (

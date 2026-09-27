@@ -91,6 +91,22 @@ body > .os-scrollbar.os-scrollbar-horizontal.os-scrollbar-cornerless {
 }
 
 /*
+ * The page's own scroll host stays unpositioned.
+ *
+ * OverlayScrollbars marks `html` as the page's viewport and gives every host
+ * `position: relative`. That makes `html` the containing block for overlays
+ * portalled into `body`, and React Aria places an overlay above its trigger
+ * with a `bottom` offset it measures from the viewport's height whenever the
+ * container is `html`. Against a positioned `html` the browser measures it from
+ * the whole document instead, so a tooltip on a long page lands far below its
+ * trigger. Left static, `html` is the initial containing block React Aria
+ * expects. The page scrollbars are `position: fixed` and do not depend on it.
+ */
+html[data-overlayscrollbars] {
+  position: static;
+}
+
+/*
  * The space a page may fill. The devtools dock (`src/devtools/dock`) narrows the
  * viewport by the height of its open panel and adds the matching gutter, so the
  * panel covers empty space instead of the page. These defaults describe an

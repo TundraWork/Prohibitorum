@@ -2,8 +2,9 @@ import type { MessageDescriptor } from "@lingui/core";
 import { msg } from "@lingui/core/macro";
 
 /**
- * The "one value per line" fields: redirect URIs, scopes, allowed e-mail
- * domains, trusted proxies, SAML ACS addresses.
+ * The "one value per line" fields: an identity provider's scopes and its
+ * allowed e-mail domains. An OIDC client's redirect addresses are a row list
+ * instead (`UriListField`), since each is copied and checked on its own.
  *
  * They all share the same reading, and it is deliberately not forgiving. A
  * blank line only separates groups and is dropped, a line with spaces around it
