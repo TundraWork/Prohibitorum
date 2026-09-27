@@ -1,8 +1,6 @@
-import { Trans } from "@lingui/react/macro";
 import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { samlAppQueryOptions, sessionQueryOptions } from "@/api/queries";
-import { AppAccessPanel } from "@/components/custom/AppAccessPanel";
-import { Section } from "@/components/custom/Section";
+import { AppAccess, AppManagers } from "@/components/custom/AppAccessPanel";
 import { SamlDangerSection } from "@/pages/admin/saml-applications/SamlDangerSection";
 import {
   SamlGeneralSection,
@@ -52,13 +50,17 @@ export function AdminSamlApplication() {
 
       <SamlMetadataSection app={app} />
 
-      <Section title={<Trans id="admin.saml-apps.access">Access</Trans>}>
-        <AppAccessPanel
-          kind="saml"
-          appId={applicationId}
-          isAdmin={session.data?.role === "admin"}
-        />
-      </Section>
+      <AppAccess
+        kind="saml"
+        appId={applicationId}
+        isAdmin={session.data?.role === "admin"}
+      />
+
+      <AppManagers
+        kind="saml"
+        appId={applicationId}
+        isAdmin={session.data?.role === "admin"}
+      />
 
       <SamlDangerSection app={app} />
     </div>

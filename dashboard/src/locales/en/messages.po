@@ -165,21 +165,6 @@ msgid "admin.user.tab.access"
 msgstr "Access"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/saml-applications/AdminSamlApplication.tsx
-msgid "admin.saml-apps.access"
-msgstr "Access"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/AdminOidcApplication.tsx
-msgid "admin.oidc-apps.access"
-msgstr "Access"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/forward-auth-apps/AdminForwardAuthApp.tsx
-msgid "admin.forward-auth-apps.access"
-msgstr "Access"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts
 msgid "audit.event.access_granted"
 msgstr "Access allowed"
@@ -432,11 +417,6 @@ msgstr "Add group"
 #: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
 msgid "admin.federation.new.submit"
 msgstr "Add provider"
-
-#. js-lingui-explicit-id
-#: src/components/custom/AppAccessPanel.tsx
-msgid "app.groups.add"
-msgstr "Add user groups"
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
@@ -707,14 +687,14 @@ msgid "app.managers.assigned"
 msgstr "Assigned <0/>"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/saml-applications/MappingRowFields.tsx
-msgid "admin.saml-apps.mapping.key"
-msgstr "Attribute key"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/SamlIdentitySection.tsx
 msgid "admin.saml-apps.mapping.title"
 msgstr "Attribute map"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/MappingRowFields.tsx
+msgid "admin.saml-apps.mapping.name"
+msgstr "Name"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
@@ -725,6 +705,11 @@ msgstr "Attributes"
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.attributes.not_object"
 msgstr "Attributes must be a JSON object, such as {}."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/MappingRowFields.tsx
+msgid "admin.saml-apps.mapping.source.placeholder"
+msgstr "Account attribute"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminLogs.tsx
@@ -805,6 +790,11 @@ msgstr "Avatar URL"
 #: src/components/custom/LoginShell.tsx
 msgid "login.back"
 msgstr "Back to password"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/MappingRowFields.tsx
+msgid "admin.saml-apps.mapping.name-format.placeholder"
+msgstr "Name format"
 
 #. js-lingui-explicit-id
 #: src/pages/ConnectedApps.tsx
@@ -3236,6 +3226,16 @@ msgid "admin.group.slug.hint"
 msgstr "Lowercase letters, digits and hyphens. Applications name this group by it."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/MappingRowFields.tsx
+msgid "admin.saml-apps.mapping.name.placeholder"
+msgstr "Attribute name"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/MappingRowFields.tsx
+msgid "admin.saml-apps.mapping.friendly-name.placeholder"
+msgstr "Friendly name"
+
+#. js-lingui-explicit-id
 #: src/pages/ApiPreview.tsx
 msgid "api.maintenance"
 msgstr "Maintenance"
@@ -3265,11 +3265,6 @@ msgstr "Maintenance mode is on"
 #: src/api/success-messages.ts
 msgid "success.maintenance.saved"
 msgstr "Maintenance settings saved"
-
-#. js-lingui-explicit-id
-#: src/components/custom/AppAccessPanel.tsx
-msgid "app.access.open.action"
-msgstr "Make it open"
 
 #. js-lingui-explicit-id
 #: src/components/custom/AppAccessPanel.tsx
@@ -3357,6 +3352,11 @@ msgid "sudo.method.label"
 msgstr "Method"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/MappingRowFields.tsx
+msgid "admin.saml-apps.mapping.multi.column"
+msgstr "Multi"
+
+#. js-lingui-explicit-id
 #: src/pages/profile/AvatarPanel.tsx
 msgid "profile.avatar.source.user"
 msgstr "My uploaded picture"
@@ -3400,11 +3400,6 @@ msgstr "Name"
 #: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
 #: src/pages/admin/saml-applications/SamlGeneralSection.tsx
 msgid "admin.saml-apps.field.name"
-msgstr "Name"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/saml-applications/MappingRowFields.tsx
-msgid "admin.saml-apps.mapping.name"
 msgstr "Name"
 
 #. js-lingui-explicit-id
@@ -4635,11 +4630,6 @@ msgstr "Restrict access"
 
 #. js-lingui-explicit-id
 #: src/components/custom/AppAccessPanel.tsx
-msgid "app.access.restrict.action"
-msgstr "Restrict access"
-
-#. js-lingui-explicit-id
-#: src/components/custom/AppAccessPanel.tsx
 msgid "app.access.restrict.title"
 msgstr "Restrict this application?"
 
@@ -4984,6 +4974,16 @@ msgstr "Secret saved"
 #: src/components/custom/ConsoleLayout.tsx
 msgid "console.security"
 msgstr "Security"
+
+#. js-lingui-explicit-id
+#: src/components/custom/AppAccessPanel.tsx
+msgid "app.groups.select"
+msgstr "Select user groups"
+
+#. js-lingui-explicit-id
+#: src/components/custom/AppAccessPanel.tsx
+msgid "app.groups.dialog.title"
+msgstr "User groups"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/ForwardAuthIdentitySection.tsx
@@ -5744,6 +5744,11 @@ msgid "login.reset.uncertain"
 msgstr "The reset may already have completed. Try your new authenticator or a passkey. Enter your password again before another code attempt; your old codes may no longer work."
 
 #. js-lingui-explicit-id
+#: src/components/custom/AppAccessPanel.tsx
+msgid "app.groups.dialog.hint"
+msgstr "The selection replaces the current one. Only accounts in the groups you choose can use this application."
+
+#. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.server_error"
 msgstr "The server could not complete the request. Please try again."
@@ -6453,16 +6458,6 @@ msgstr "User groups"
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/saml-projection.ts
 msgid "admin.saml-apps.source.groups"
-msgstr "User groups"
-
-#. js-lingui-explicit-id
-#: src/components/custom/AppAccessPanel.tsx
-msgid "app.groups.label"
-msgstr "User groups"
-
-#. js-lingui-explicit-id
-#: src/components/custom/AppAccessPanel.tsx
-msgid "app.groups.dialog.title"
 msgstr "User groups"
 
 #. js-lingui-explicit-id

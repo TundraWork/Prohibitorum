@@ -51,6 +51,7 @@ export function TextAreaField({
 
   return (
     <TextField
+      className={className}
       isDisabled={submitting || isDisabled}
       isInvalid={invalid}
       name={field.name}
@@ -144,11 +145,14 @@ export function NumberField({
   description,
   isDisabled = false,
   variant,
+  className,
 }: {
   label: ReactNode;
   description?: ReactNode;
   isDisabled?: boolean;
   variant?: ComponentProps<typeof Input>["variant"];
+  /** Layout classes for the field; see `FormField`'s `className`. */
+  className?: string;
 }) {
   const field = useFieldContext<string>();
   const form = useFormContext();
@@ -159,6 +163,7 @@ export function NumberField({
 
   return (
     <TextField
+      className={className}
       isDisabled={submitting || isDisabled}
       isInvalid={invalid}
       name={field.name}

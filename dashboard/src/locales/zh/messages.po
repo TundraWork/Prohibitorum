@@ -165,21 +165,6 @@ msgid "admin.user.tab.access"
 msgstr "访问"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/saml-applications/AdminSamlApplication.tsx
-msgid "admin.saml-apps.access"
-msgstr "访问权限"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/AdminOidcApplication.tsx
-msgid "admin.oidc-apps.access"
-msgstr "访问"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/forward-auth-apps/AdminForwardAuthApp.tsx
-msgid "admin.forward-auth-apps.access"
-msgstr "访问"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts
 msgid "audit.event.access_granted"
 msgstr "已允许访问"
@@ -432,11 +417,6 @@ msgstr "添加条件组"
 #: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
 msgid "admin.federation.new.submit"
 msgstr "添加提供商"
-
-#. js-lingui-explicit-id
-#: src/components/custom/AppAccessPanel.tsx
-msgid "app.groups.add"
-msgstr "添加用户组"
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
@@ -694,12 +674,12 @@ msgstr "指派"
 #. js-lingui-explicit-id
 #: src/components/custom/AppAccessPanel.tsx
 msgid "app.managers.assign"
-msgstr "指派管理者"
+msgstr "指派应用管理员"
 
 #. js-lingui-explicit-id
 #: src/components/custom/AppAccessPanel.tsx
 msgid "app.managers.dialog.title"
-msgstr "指派管理者"
+msgstr "指派应用管理员"
 
 #. js-lingui-explicit-id
 #: src/components/custom/AppAccessPanel.tsx
@@ -707,14 +687,14 @@ msgid "app.managers.assigned"
 msgstr "已指派 <0/>"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/saml-applications/MappingRowFields.tsx
-msgid "admin.saml-apps.mapping.key"
-msgstr "属性键"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/SamlIdentitySection.tsx
 msgid "admin.saml-apps.mapping.title"
 msgstr "属性映射"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/MappingRowFields.tsx
+msgid "admin.saml-apps.mapping.name"
+msgstr "名称"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
@@ -725,6 +705,11 @@ msgstr "属性"
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.attributes.not_object"
 msgstr "属性必须是 JSON 对象，例如 {}。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/MappingRowFields.tsx
+msgid "admin.saml-apps.mapping.source.placeholder"
+msgstr "账号属性"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminLogs.tsx
@@ -805,6 +790,11 @@ msgstr "头像 URL"
 #: src/components/custom/LoginShell.tsx
 msgid "login.back"
 msgstr "返回密码登录"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/MappingRowFields.tsx
+msgid "admin.saml-apps.mapping.name-format.placeholder"
+msgstr "名称格式"
 
 #. js-lingui-explicit-id
 #: src/pages/ConnectedApps.tsx
@@ -2501,7 +2491,7 @@ msgstr "事件"
 #. js-lingui-explicit-id
 #: src/components/custom/AppAccessPanel.tsx
 msgid "app.access.open"
-msgstr "所有账号均可使用"
+msgstr "所有账号都可以使用"
 
 #. js-lingui-explicit-id
 #: src/components/custom/AppAccessPanel.tsx
@@ -3236,6 +3226,16 @@ msgid "admin.group.slug.hint"
 msgstr "小写字母、数字和连字符。应用通过它来引用本用户组。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/MappingRowFields.tsx
+msgid "admin.saml-apps.mapping.name.placeholder"
+msgstr "属性名称"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/MappingRowFields.tsx
+msgid "admin.saml-apps.mapping.friendly-name.placeholder"
+msgstr "友好名称"
+
+#. js-lingui-explicit-id
 #: src/pages/ApiPreview.tsx
 msgid "api.maintenance"
 msgstr "维护模式"
@@ -3268,13 +3268,8 @@ msgstr "维护设置已保存"
 
 #. js-lingui-explicit-id
 #: src/components/custom/AppAccessPanel.tsx
-msgid "app.access.open.action"
-msgstr "改为开放"
-
-#. js-lingui-explicit-id
-#: src/components/custom/AppAccessPanel.tsx
 msgid "app.managers.dialog.label"
-msgstr "管理者"
+msgstr "应用管理员"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts
@@ -3299,7 +3294,7 @@ msgstr "已移除管理者"
 #. js-lingui-explicit-id
 #: src/components/custom/AppAccessPanel.tsx
 msgid "app.managers.label"
-msgstr "管理者"
+msgstr "应用管理员"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
@@ -3357,6 +3352,11 @@ msgid "sudo.method.label"
 msgstr "方式"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/MappingRowFields.tsx
+msgid "admin.saml-apps.mapping.multi.column"
+msgstr "多值"
+
+#. js-lingui-explicit-id
 #: src/pages/profile/AvatarPanel.tsx
 msgid "profile.avatar.source.user"
 msgstr "我上传的头像"
@@ -3400,11 +3400,6 @@ msgstr "名称"
 #: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
 #: src/pages/admin/saml-applications/SamlGeneralSection.tsx
 msgid "admin.saml-apps.field.name"
-msgstr "名称"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/saml-applications/MappingRowFields.tsx
-msgid "admin.saml-apps.mapping.name"
 msgstr "名称"
 
 #. js-lingui-explicit-id
@@ -3633,7 +3628,7 @@ msgstr "暂无邀请"
 #. js-lingui-explicit-id
 #: src/components/custom/AppAccessPanel.tsx
 msgid "app.managers.empty"
-msgstr "还没有指派管理者"
+msgstr "还没有指派应用管理员"
 
 #. js-lingui-explicit-id
 #: src/components/custom/EntityPicker.tsx
@@ -4452,7 +4447,7 @@ msgstr "移除此条件"
 #. js-lingui-explicit-id
 #: src/components/custom/AppAccessPanel.tsx
 msgid "app.managers.confirm.title"
-msgstr "移除这个管理者？"
+msgstr "移除这个应用管理员？"
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
@@ -4631,11 +4626,6 @@ msgstr "限制访问"
 #. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/AdminForwardAuthAppNew.tsx
 msgid "admin.forward-auth-apps.field.restricted"
-msgstr "限制访问"
-
-#. js-lingui-explicit-id
-#: src/components/custom/AppAccessPanel.tsx
-msgid "app.access.restrict.action"
 msgstr "限制访问"
 
 #. js-lingui-explicit-id
@@ -4984,6 +4974,16 @@ msgstr "密钥已保存"
 #: src/components/custom/ConsoleLayout.tsx
 msgid "console.security"
 msgstr "安全"
+
+#. js-lingui-explicit-id
+#: src/components/custom/AppAccessPanel.tsx
+msgid "app.groups.select"
+msgstr "选择用户组"
+
+#. js-lingui-explicit-id
+#: src/components/custom/AppAccessPanel.tsx
+msgid "app.groups.dialog.title"
+msgstr "选择用户组"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/ForwardAuthIdentitySection.tsx
@@ -5744,6 +5744,11 @@ msgid "login.reset.uncertain"
 msgstr "重设可能已经完成。请尝试新身份验证器或通行密钥。再次尝试验证码前，请重新输入密码；旧恢复码可能已失效。"
 
 #. js-lingui-explicit-id
+#: src/components/custom/AppAccessPanel.tsx
+msgid "app.groups.dialog.hint"
+msgstr "保存会替换当前的选择。只有所选用户组中的账号可以使用这个应用。"
+
+#. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.server_error"
 msgstr "服务器未能完成请求，请重试。"
@@ -6453,16 +6458,6 @@ msgstr "用户组"
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/saml-projection.ts
 msgid "admin.saml-apps.source.groups"
-msgstr "用户组"
-
-#. js-lingui-explicit-id
-#: src/components/custom/AppAccessPanel.tsx
-msgid "app.groups.label"
-msgstr "用户组"
-
-#. js-lingui-explicit-id
-#: src/components/custom/AppAccessPanel.tsx
-msgid "app.groups.dialog.title"
 msgstr "用户组"
 
 #. js-lingui-explicit-id

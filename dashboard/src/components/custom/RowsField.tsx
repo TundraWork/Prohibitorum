@@ -45,10 +45,20 @@ export function RowsField<T>({
   minRows = 0,
   /**
    * Where the row's remove button sits. A one-line row aligns it to the inputs'
-   * own line; a row that draws two lines of controls passes `top`, so the
-   * button reads as removing the whole row rather than the control beside it.
+   * own line; a row that draws more than one line of controls passes `top`, so
+   * the button reads as removing the whole row rather than the control beside
+   * it.
    */
   align = "end",
+  /**
+   * A column-name row drawn between the field's description and the first row.
+   *
+   * A list whose rows are a line of unlabelled boxes — the attribute map, the
+   * claim aliases — says what each column holds once here rather than on every
+   * row. It is the caller's, because only the caller knows the tracks; the list
+   * draws it in place and skips it when there is nothing to head.
+   */
+  header,
 }: {
   label: ReactNode;
   description?: ReactNode;
@@ -64,6 +74,7 @@ export function RowsField<T>({
   isDisabled?: boolean;
   minRows?: number;
   align?: "end" | "top";
+  header?: ReactNode;
 }) {
   const field = useFieldContext<T[]>();
   const form = useFormContext();
@@ -120,6 +131,25 @@ export function RowsField<T>({
           </Description>
         )}
       </div>
+
+      {/* Only over rows: a column name has nothing to name until there is a row
+          under it, and an empty list would read as a table with a heading and no
+          content rather than as a field waiting for its first value.
+
+          It takes the row's own shape — content, then the width the remove
+          button occupies — because the button sits outside the caller's markup:
+          a heading laid out across the full width would be a button's width
+          wider than every row under it and its columns would point at nothing.
+          The width is the icon button's own, so the two agree without either
+          having to know the other's size. */}
+      {field.state.value.length > 0 && header !== undefined && (
+        <div
+          className={`flex gap-2 ${align === "top" ? "items-start" : "items-end"}`}
+        >
+          <div className="min-w-0 flex-1">{header}</div>
+          <div aria-hidden="true" className="w-6 shrink-0" />
+        </div>
+      )}
 
       <ul className="flex flex-col gap-3" aria-labelledby={id}>
         {field.state.value.map((row, index) => (

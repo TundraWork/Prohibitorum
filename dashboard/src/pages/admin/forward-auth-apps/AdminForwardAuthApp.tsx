@@ -1,8 +1,6 @@
-import { Trans } from "@lingui/react/macro";
 import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { forwardAuthAppQueryOptions, sessionQueryOptions } from "@/api/queries";
-import { AppAccessPanel } from "@/components/custom/AppAccessPanel";
-import { Section } from "@/components/custom/Section";
+import { AppAccess, AppManagers } from "@/components/custom/AppAccessPanel";
 import { ForwardAuthDangerSection } from "@/pages/admin/forward-auth-apps/ForwardAuthDangerSection";
 import {
   ForwardAuthGeneralSection,
@@ -41,15 +39,18 @@ export function AdminForwardAuthApp() {
       <ForwardAuthIconSection app={app} />
       <ForwardAuthIdentitySection app={app} />
       <ForwardAuthProxySection app={app} />
-      <Section
-        title={<Trans id="admin.forward-auth-apps.access">Access</Trans>}
-      >
-        <AppAccessPanel
-          kind="forward_auth"
-          appId={app.clientId}
-          isAdmin={session.data?.role === "admin"}
-        />
-      </Section>
+      <AppAccess
+        kind="forward_auth"
+        appId={app.clientId}
+        isAdmin={session.data?.role === "admin"}
+      />
+
+      <AppManagers
+        kind="forward_auth"
+        appId={app.clientId}
+        isAdmin={session.data?.role === "admin"}
+      />
+
       <ForwardAuthDangerSection app={app} />
     </div>
   );

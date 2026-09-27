@@ -201,3 +201,33 @@ export function attributeSourceOf(key: string): string {
  */
 export const defaultAttributeNameFormat =
   "urn:oasis:names:tc:SAML:2.0:attrname-format:basic";
+
+/**
+ * The `NameFormat` values a mapping is offered.
+ *
+ * SAML 2.0 Core names four, and a service provider publishing its own metadata
+ * lists the one it wants, so these are what an administrator meets in practice.
+ * The wire field is free text and the instance does not restrict it, so this is
+ * a list of the common answers rather than a closed set: a record carrying
+ * anything else keeps its value and is offered as it is, exactly as the NameID
+ * format's select does.
+ */
+export const attributeNameFormats = [
+  "urn:oasis:names:tc:SAML:2.0:attrname-format:basic",
+  "urn:oasis:names:tc:SAML:2.0:attrname-format:uri",
+  "urn:oasis:names:tc:SAML:2.0:attrname-format:unspecified",
+] as const;
+
+/**
+ * A `NameFormat` as the word an administrator uses for it.
+ *
+ * The URN is the specification's spelling and is 48 characters of namespace; the
+ * last segment is the whole of what the reader is choosing between, and it is
+ * what the field shows. The stored value is unchanged — the select writes the
+ * URN, so a record round-trips exactly as the server sent it.
+ */
+export function shortAttributeNameFormat(format: string): string {
+  const separator = format.lastIndexOf(":");
+  const short = separator === -1 ? format : format.slice(separator + 1);
+  return short === "" ? format : short;
+}

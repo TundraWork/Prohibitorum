@@ -112,10 +112,11 @@ export function SamlGeneralSection({ app }: { app: SamlApp }) {
 
   return (
     <Section title={<Trans id="admin.saml-apps.general">General</Trans>}>
-      <ConsoleCard>
+      <ConsoleCard wide>
         <form.AppForm>
           <form.Form
             label={t({ id: "admin.saml-apps.general", message: "General" })}
+            className="flex flex-col gap-6"
           >
             <form.FormError />
 
@@ -132,76 +133,85 @@ export function SamlGeneralSection({ app }: { app: SamlApp }) {
               }
             />
 
-            <form.AppField
-              name="displayName"
-              validators={{
-                onSubmit: ({ value }) =>
-                  value.trim() === "" ? displayNameRequired : undefined,
-              }}
-            >
-              {(field) => (
-                <field.FormField
-                  label={<Trans id="admin.saml-apps.field.name">Name</Trans>}
-                  variant="secondary"
-                />
-              )}
-            </form.AppField>
+            {/* The two fields sit side by side and the two switches under them:
+                the card takes the column, and a single stack of 32rem fields
+                inside it would leave the rest of the measure empty. Each
+                control keeps a reading width of its own, so the pair reads as
+                two fields rather than as a stretched row. */}
+            <div className="grid gap-x-6 gap-y-6 sm:grid-cols-2">
+              <form.AppField
+                name="displayName"
+                validators={{
+                  onSubmit: ({ value }) =>
+                    value.trim() === "" ? displayNameRequired : undefined,
+                }}
+              >
+                {(field) => (
+                  <field.FormField
+                    label={<Trans id="admin.saml-apps.field.name">Name</Trans>}
+                    variant="secondary"
+                    className="max-w-sm"
+                  />
+                )}
+              </form.AppField>
 
-            <form.AppField name="sessionLifetimeMinutes">
-              {(field) => (
-                <field.NumberField
-                  label={
-                    <Trans id="admin.saml-apps.field.lifetime">
-                      Session lifetime
-                    </Trans>
-                  }
-                  description={
-                    <Trans id="admin.saml-apps.field.lifetime.hint">
-                      In minutes. Leave it empty to set no limit on how long a
-                      session lasts.
-                    </Trans>
-                  }
-                  variant="secondary"
-                />
-              )}
-            </form.AppField>
+              <form.AppField name="sessionLifetimeMinutes">
+                {(field) => (
+                  <field.NumberField
+                    label={
+                      <Trans id="admin.saml-apps.field.lifetime">
+                        Session lifetime
+                      </Trans>
+                    }
+                    description={
+                      <Trans id="admin.saml-apps.field.lifetime.hint">
+                        In minutes. Leave it empty to set no limit on how long a
+                        session lasts.
+                      </Trans>
+                    }
+                    variant="secondary"
+                    className="max-w-sm"
+                  />
+                )}
+              </form.AppField>
 
-            <form.AppField name="requireSignedAuthnRequest">
-              {(field) => (
-                <field.SwitchField
-                  label={
-                    <Trans id="admin.saml-apps.field.signed-request">
-                      Require a signed AuthnRequest
-                    </Trans>
-                  }
-                  description={
-                    <Trans id="admin.saml-apps.general.signed-request.hint">
-                      Refuse a sign-in request the service provider has not
-                      signed. Good practice for every provider that can sign
-                      one.
-                    </Trans>
-                  }
-                />
-              )}
-            </form.AppField>
+              <form.AppField name="requireSignedAuthnRequest">
+                {(field) => (
+                  <field.SwitchField
+                    label={
+                      <Trans id="admin.saml-apps.field.signed-request">
+                        Require a signed AuthnRequest
+                      </Trans>
+                    }
+                    description={
+                      <Trans id="admin.saml-apps.general.signed-request.hint">
+                        Refuse a sign-in request the service provider has not
+                        signed. Good practice for every provider that can sign
+                        one.
+                      </Trans>
+                    }
+                  />
+                )}
+              </form.AppField>
 
-            <form.AppField name="allowIdpInitiated">
-              {(field) => (
-                <field.SwitchField
-                  label={
-                    <Trans id="admin.saml-apps.field.idp-initiated">
-                      Allow IdP-initiated sign-in
-                    </Trans>
-                  }
-                  description={
-                    <Trans id="admin.saml-apps.general.idp-initiated.hint">
-                      Let people start at this instance instead of at the
-                      service provider.
-                    </Trans>
-                  }
-                />
-              )}
-            </form.AppField>
+              <form.AppField name="allowIdpInitiated">
+                {(field) => (
+                  <field.SwitchField
+                    label={
+                      <Trans id="admin.saml-apps.field.idp-initiated">
+                        Allow IdP-initiated sign-in
+                      </Trans>
+                    }
+                    description={
+                      <Trans id="admin.saml-apps.general.idp-initiated.hint">
+                        Let people start at this instance instead of at the
+                        service provider.
+                      </Trans>
+                    }
+                  />
+                )}
+              </form.AppField>
+            </div>
 
             <form.SubmitButton>
               <Trans id="admin.saml-apps.general.save">Save</Trans>

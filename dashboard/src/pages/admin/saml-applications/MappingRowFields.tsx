@@ -1,28 +1,68 @@
-import { Input, Label, ListBox, Select, Switch } from "@heroui/react";
+import {
+  ComboBox,
+  Description,
+  Input,
+  Label,
+  ListBox,
+  Switch,
+} from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useStore } from "@tanstack/react-form";
-import { type ReactNode, useId } from "react";
+import { type ReactNode, useId, useRef } from "react";
 import { FormMessages } from "@/components/custom/FormMessages";
 import type { RowProblem } from "@/components/custom/RowsField";
 import { useFieldContext, useFormContext } from "@/forms/context";
 import { withoutServerErrors } from "@/forms/server-errors";
 import {
-  accountAttributeLabel,
   attributeKeyOf,
+  attributeNameFormats,
   attributeSourceLabel,
   attributeSourceOf,
+  attributeSourcePrefix,
   attributeSources,
+  shortAttributeNameFormat,
 } from "@/pages/admin/saml-applications/saml-projection";
 
 /**
- * One row of the attribute map while it is being edited.
+ * The attribute map's table. The heading and every row share these tracks, so the
+ * columns line up; the last one is the remove button `RowsField` draws.
  *
- * The wire shape is a mapping — name, format, friendly name, source, multi —
- * but the source is not one choice: it is either one of the named account facts
- * or a key into the account's attribute bag, and the second needs a second input
- * beside it. The row therefore holds the source as the console presents it and
- * composes the wire value on submit, so "which of the two is this row reading"
- * stays out of the stored value.
+ * Below `sm` the tracks are dropped, not shrunk: four controls and a switch
+ * across a phone's width are unusable at any size, so each takes a line.
+ */
+const mappingTracks =
+  "sm:grid-cols-[minmax(0,1.3fr)_minmax(0,1.3fr)_minmax(0,1.2fr)_minmax(0,1.4fr)_4.5rem]";
+
+/** The column names. `aria-hidden`: the controls carry their own labels. */
+export function MappingHeader() {
+  return (
+    <div
+      aria-hidden="true"
+      className={`hidden gap-x-2 text-xs font-medium text-muted sm:grid ${mappingTracks}`}
+    >
+      <span className="truncate">
+        <Trans id="admin.saml-apps.mapping.name">Attribute name</Trans>
+      </span>
+      <span className="truncate">
+        <Trans id="admin.saml-apps.mapping.name-format">Name format</Trans>
+      </span>
+      <span className="truncate">
+        <Trans id="admin.saml-apps.mapping.friendly-name">Friendly name</Trans>
+      </span>
+      <span className="truncate">
+        <Trans id="admin.saml-apps.mapping.source">Source</Trans>
+      </span>
+      <span className="truncate text-center">
+        <Trans id="admin.saml-apps.mapping.multi.column">Multi</Trans>
+      </span>
+    </div>
+  );
+}
+
+/**
+ * One row of the attribute map while it is being edited. The source is a named
+ * account fact or an attribute key; the row holds it as one string and composes
+ * the wire value on submit.
  */
 export interface MappingRow {
   name: string;
@@ -58,20 +98,11 @@ export function readSourceKind(source: string): {
 }
 
 /**
- * The row's inputs, drawn inside `RowsField`.
+ * The row's controls, drawn inside `RowsField`.
  *
- * `RowsField` owns the array and hands each row to a render callback, so the
- * row's inputs address the field by position: this component reads the field
- * from context, writes back a copy with one row replaced, and draws the message
- * the callback was given for that row's input. The row is the unit of edit and
- * the unit of error, which is why it is not five `AppField`s — a mapping has no
- * identity until it is saved, and "the second row's name is empty" is something
- * the reader can act on where "this field is invalid" is not.
- *
- * The row also takes that complaint untranslated. It draws several inputs, and
- * the submit knows which of them it was about, so the mark goes on the input at
- * fault rather than on all of them: a name that is empty does not also make the
- * attribute key beside it look wrong.
+ * The row addresses the field by position, because a mapping has no identity
+ * until it is saved: the row is the unit of edit and of error, so `problem`
+ * names which of its inputs the submit objected to and only that one is marked.
  */
 export function MappingRowFields({
   index,
@@ -84,14 +115,17 @@ export function MappingRowFields({
   /** The same complaint before it was worded, naming the input at fault. */
   problem: RowProblem | undefined;
 }) {
-  const { i18n } = useLingui();
+  const { t, i18n } = useLingui();
   const field = useFieldContext<MappingRow[]>();
   const form = useFormContext();
   const submitting = useStore(form.store, (state) => state.isSubmitting);
   const nameId = useId();
-  const formatId = useId();
   const friendlyId = useId();
-  const keyId = useId();
+
+  // Text typed into a picker, kept out of the form until it is committed so the
+  // caret does not jump mid-word. A choice clears it.
+  const typedFormat = useRef<string | null>(null);
+  const typedSource = useRef<string | null>(null);
 
   const row = field.state.value[index];
   if (row === undefined) return null;
@@ -112,116 +146,237 @@ export function MappingRowFields({
     );
   };
 
-  // Two lines of three columns rather than one line of five inputs and a
-  // switch: the row is read as an output side (what the provider sees) over a
-  // source side (where the value comes from), and at the console's measure a
-  // single line does not fit — the five controls fell to whatever widths the
-  // flex row had left, so no two rows lined up and the fourth control wrapped
-  // unpredictably. The tracks are fixed, so every row's columns agree, and the
-  // `attributes` key's cell stays reserved whether or not it is drawn.
-  //
-  // Below `sm` the tracks collapse to one column and each input takes the row:
-  // three 100-odd-pixel boxes side by side are not usable on a phone, and the
-  // stacked order still reads output side then source side.
+  /**
+   * The format choices, plus the row's own value when a record carries one the
+   * list does not cover.
+   *
+   * A control whose `selectedKey` is not among its items renders as if nothing
+   * were selected, so the stored value is always offered. Its `textValue` is the
+   * whole URN — what the input shows and what is saved are the same string.
+   */
+  const formatItems = [
+    ...attributeNameFormats.map((format) => ({
+      id: format,
+      short: shortAttributeNameFormat(format),
+      full: format,
+    })),
+    ...(attributeNameFormats.includes(
+      row.nameFormat as (typeof attributeNameFormats)[number],
+    )
+      ? []
+      : [
+          {
+            id: row.nameFormat,
+            short: shortAttributeNameFormat(row.nameFormat),
+            full: row.nameFormat,
+          },
+        ]),
+  ];
+
+  /**
+   * The source choices, on the same rule: the named facts, plus the row's own
+   * attribute source when it has one. `textValue` is the wire form again, so the
+   * input shows `attributes.mail` rather than the key alone — and the label says
+   * the same thing in the reader's language.
+   */
+  const sourceValue = mappingSource(row);
+  const sourceItems = [
+    ...attributeSources.map((source) => ({
+      id: source,
+      label: i18n._(attributeSourceLabel(source)),
+    })),
+    ...(row.sourceKind === "attributes" && row.sourceKey !== ""
+      ? [{ id: sourceValue, label: sourceValue }]
+      : []),
+  ];
+
+  /**
+   * Reading a typed source.
+   *
+   * The wire form is what the input shows, so a reader may type either it or the
+   * bare key. A prefix already present is taken as their own spelling of the
+   * same thing and is not doubled.
+   */
+  const commitSource = () => {
+    const typed = typedSource.current;
+    typedSource.current = null;
+    if (typed === null || typed === sourceValue) return;
+    const bare = typed.startsWith(attributeSourcePrefix)
+      ? typed.slice(attributeSourcePrefix.length)
+      : typed;
+    const named = (attributeSources as readonly string[]).includes(bare);
+    const { sourceKind, sourceKey } = readSourceKind(
+      named ? bare : attributeSourceOf(bare),
+    );
+    update({ sourceKind, sourceKey });
+  };
+
+  const commitFormat = () => {
+    const typed = typedFormat.current;
+    typedFormat.current = null;
+    if (typed === null || typed === row.nameFormat) return;
+    update({ nameFormat: typed });
+  };
+
   return (
-    <div className="flex flex-col gap-3">
-      <div className="grid grid-cols-1 gap-x-3 gap-y-3 sm:grid-cols-6">
+    <div className="flex flex-col gap-1.5">
+      <div
+        className={`grid grid-cols-1 items-center gap-x-2 gap-y-3 [&>template]:hidden sm:gap-y-0 ${mappingTracks}`}
+      >
         <LabelledInput
           id={nameId}
-          className="sm:col-span-2"
-          label={<Trans id="admin.saml-apps.mapping.name">Name</Trans>}
+          label={
+            <Trans id="admin.saml-apps.mapping.name">Attribute name</Trans>
+          }
+          placeholder={t({
+            id: "admin.saml-apps.mapping.name.placeholder",
+            message: "mail",
+          })}
           value={row.name}
           disabled={submitting}
           isInvalid={isInvalid("name")}
           onChange={(value) => update({ name: value })}
         />
-        <LabelledInput
-          id={formatId}
-          className="sm:col-span-2"
-          label={
-            <Trans id="admin.saml-apps.mapping.name-format">Name format</Trans>
-          }
-          value={row.nameFormat}
-          disabled={submitting}
-          onChange={(value) => update({ nameFormat: value })}
-        />
+
+        <ComboBox
+          className="w-full"
+          variant="secondary"
+          isDisabled={submitting}
+          allowsCustomValue
+          selectedKey={row.nameFormat}
+          aria-label={t({
+            id: "admin.saml-apps.mapping.name-format",
+            message: "Name format",
+          })}
+          onInputChange={(value) => {
+            typedFormat.current = value;
+          }}
+          onSelectionChange={(key) => {
+            if (typeof key !== "string") return;
+            typedFormat.current = null;
+            update({ nameFormat: key });
+          }}
+        >
+          <ComboBox.InputGroup>
+            <Input
+              placeholder={t({
+                id: "admin.saml-apps.mapping.name-format.placeholder",
+                message: "basic",
+              })}
+              onBlur={commitFormat}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") commitFormat();
+              }}
+            />
+            <ComboBox.Trigger />
+          </ComboBox.InputGroup>
+          <ComboBox.Popover>
+            <ListBox items={formatItems}>
+              {(item) => (
+                <ListBox.Item
+                  key={item.id}
+                  id={item.id}
+                  textValue={item.full}
+                  className="py-2"
+                >
+                  {/* Label over Description: a listbox item lays its children
+                      out in a row, so the pair needs its own column. The four
+                      URNs share 48 characters of namespace, so the short name
+                      is what the reader picks between. */}
+                  <div className="flex min-w-0 flex-col">
+                    <Label className="truncate">{item.short}</Label>
+                    <Description className="truncate text-xs">
+                      {item.full}
+                    </Description>
+                  </div>
+                  <ListBox.ItemIndicator />
+                </ListBox.Item>
+              )}
+            </ListBox>
+          </ComboBox.Popover>
+        </ComboBox>
+
         <LabelledInput
           id={friendlyId}
-          className="sm:col-span-2"
           label={
             <Trans id="admin.saml-apps.mapping.friendly-name">
               Friendly name
             </Trans>
           }
+          placeholder={t({
+            id: "admin.saml-apps.mapping.friendly-name.placeholder",
+            message: "Mail address",
+          })}
           value={row.friendlyName}
           disabled={submitting}
           onChange={(value) => update({ friendlyName: value })}
         />
 
-        <Select
-          className="sm:col-span-2"
+        <ComboBox
+          className="w-full"
           variant="secondary"
           isDisabled={submitting}
-          value={row.sourceKind}
-          onChange={(key) => {
-            if (typeof key === "string") {
-              update({ sourceKind: key as AttributeSourceKind });
-            }
+          allowsCustomValue
+          selectedKey={sourceValue}
+          aria-label={t({
+            id: "admin.saml-apps.mapping.source",
+            message: "Source",
+          })}
+          onInputChange={(value) => {
+            typedSource.current = value;
+          }}
+          onSelectionChange={(key) => {
+            if (typeof key !== "string") return;
+            typedSource.current = null;
+            const { sourceKind, sourceKey } = readSourceKind(key);
+            update({ sourceKind, sourceKey });
           }}
         >
-          <Label>
-            <Trans id="admin.saml-apps.mapping.source">Source</Trans>
-          </Label>
-          <Select.Trigger>
-            <Select.Value />
-            <Select.Indicator />
-          </Select.Trigger>
-          <Select.Popover>
-            <ListBox>
-              {attributeSources.map((source) => (
+          <ComboBox.InputGroup>
+            <Input
+              placeholder={t({
+                id: "admin.saml-apps.mapping.source.placeholder",
+                message: "attributes.mail",
+              })}
+              onBlur={commitSource}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") commitSource();
+              }}
+            />
+            <ComboBox.Trigger />
+          </ComboBox.InputGroup>
+          <ComboBox.Popover>
+            <ListBox items={sourceItems}>
+              {(item) => (
                 <ListBox.Item
-                  key={source}
-                  id={source}
-                  textValue={i18n._(attributeSourceLabel(source))}
+                  key={item.id}
+                  id={item.id}
+                  textValue={item.id}
+                  className="py-2"
                 >
-                  {i18n._(attributeSourceLabel(source))}
+                  {/* The label is the same fact in the reader's language; the
+                      wire form is what the input holds, so the two are told
+                      apart here rather than in the value. */}
+                  <span className="flex min-w-0 flex-col">
+                    <span className="truncate">{item.label}</span>
+                    <span className="truncate text-xs text-muted">
+                      {item.id}
+                    </span>
+                  </span>
                   <ListBox.ItemIndicator />
                 </ListBox.Item>
-              ))}
-              <ListBox.Item
-                id="attributes"
-                textValue={i18n._(accountAttributeLabel)}
-              >
-                {i18n._(accountAttributeLabel)}
-                <ListBox.ItemIndicator />
-              </ListBox.Item>
+              )}
             </ListBox>
-          </Select.Popover>
-        </Select>
+          </ComboBox.Popover>
+        </ComboBox>
 
-        {/* The cell is always there: a row reading one of the named facts has
-            nothing to put in it, and letting the track collapse would shift
-            the switch to the source's trailing edge on those rows only. */}
-        <div className="sm:col-span-2">
-          {row.sourceKind === "attributes" && (
-            <LabelledInput
-              id={keyId}
-              label={
-                <Trans id="admin.saml-apps.mapping.key">Attribute key</Trans>
-              }
-              value={row.sourceKey}
-              disabled={submitting}
-              isInvalid={isInvalid("key")}
-              onChange={(value) => update({ sourceKey: value })}
-            />
-          )}
-        </div>
-
-        {/* Bottom-aligned to the row's inputs rather than given a label of its
-            own: the switch carries its own text, and the input boxes beside it
-            end at the same line, so the row reads across. */}
-        <div className="flex h-9 items-center self-end sm:col-span-2">
+        {/* Bare, because the heading names the column. */}
+        <div className="flex items-center justify-center">
           <Switch
+            aria-label={t({
+              id: "admin.saml-apps.mapping.multi",
+              message: "Send every value",
+            })}
             isSelected={row.multi}
             isDisabled={submitting}
             onChange={(selected) => update({ multi: selected })}
@@ -230,7 +385,6 @@ export function MappingRowFields({
               <Switch.Control>
                 <Switch.Thumb />
               </Switch.Control>
-              <Trans id="admin.saml-apps.mapping.multi">Send every value</Trans>
             </Switch.Content>
           </Switch>
         </div>
@@ -246,46 +400,40 @@ export function MappingRowFields({
 }
 
 /**
- * One labeled text input of a row.
- *
- * The row's inputs differ only in their label and which part of the row they
- * write, so they are drawn by one of these rather than several times over: a
- * row that repeated the label, the id and the change handler for each of them
- * would have that many places to keep the same.
- *
- * The label is always drawn, including on the row's second line: a reader who
- * has scrolled to a row's source side should not have to look back up to know
- * which box holds the attribute key. The grid's tracks carry the widths, so the
- * col-span comes in from the caller rather than every input being `flex-1`.
+ * One text cell of a row. The label is for assistive technology only: the column
+ * is named once by `MappingHeader`, and the placeholder says the same thing in
+ * the empty box.
  */
 function LabelledInput({
   id,
   label,
+  placeholder,
   value,
   disabled,
-  className,
   isInvalid = false,
   onChange,
 }: {
   id: string;
   label: ReactNode;
+  placeholder: string;
   value: string;
   disabled: boolean;
-  /** The grid cell this input occupies. */
-  className?: string;
   isInvalid?: boolean;
   onChange: (value: string) => void;
 }) {
   return (
-    <div className={`flex flex-col gap-1 ${className ?? ""}`}>
-      <Label htmlFor={id}>{label}</Label>
+    <div className="flex min-w-0 flex-col">
+      <label className="sr-only" htmlFor={id}>
+        {label}
+      </label>
       <Input
         id={id}
         value={value}
         disabled={disabled}
-        aria-invalid={isInvalid}
+        aria-invalid={isInvalid || undefined}
         autoComplete="off"
         spellCheck={false}
+        placeholder={placeholder}
         variant="secondary"
         onChange={(event) => onChange(event.target.value)}
       />

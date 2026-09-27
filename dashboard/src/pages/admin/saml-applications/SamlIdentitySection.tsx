@@ -13,6 +13,7 @@ import { Section } from "@/components/custom/Section";
 import { applyServerError } from "@/forms/server-errors";
 import { useAppForm } from "@/forms/use-app-form";
 import {
+  MappingHeader,
   type MappingRow,
   MappingRowFields,
   mappingSource,
@@ -231,10 +232,9 @@ export function SamlIdentitySection({ app }: { app: SamlApp }) {
                       service provider expects.
                     </Trans>
                   }
-                  // The row draws two lines, so the remove button belongs on
-                  // the first rather than beside whichever control it happens
-                  // to reach on the second.
-                  align="top"
+                  // The row draws one line, so the remove button sits on that
+                  // line rather than being pushed down past it.
+                  header={<MappingHeader />}
                   emptyRow={() => ({
                     name: "",
                     nameFormat: defaultAttributeNameFormat,

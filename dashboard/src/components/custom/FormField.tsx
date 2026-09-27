@@ -22,6 +22,7 @@ export function FormField({
   placeholder,
   isDisabled = false,
   variant,
+  className,
 }: {
   label: ReactNode;
   description?: ReactNode;
@@ -35,6 +36,12 @@ export function FormField({
   isDisabled?: boolean;
   /** HeroUI input variant. Use `secondary` when the field sits on a surface. */
   variant?: ComponentProps<typeof Input>["variant"];
+  /**
+   * Layout classes for the field. A field in a grid column takes its reading
+   * width here rather than stretching to the column, which is wider than a
+   * value wants to be read across.
+   */
+  className?: string;
 }) {
   const field = useFieldContext<string>();
   const form = useFormContext();
@@ -46,6 +53,7 @@ export function FormField({
   const errorId = `${id}-error`;
   return (
     <TextField
+      className={className}
       name={field.name}
       value={field.state.value}
       isDisabled={submitting || isDisabled}

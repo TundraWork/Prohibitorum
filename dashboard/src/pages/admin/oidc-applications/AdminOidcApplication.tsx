@@ -1,8 +1,6 @@
-import { Trans } from "@lingui/react/macro";
 import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { oidcAppQueryOptions, sessionQueryOptions } from "@/api/queries";
-import { AppAccessPanel } from "@/components/custom/AppAccessPanel";
-import { Section } from "@/components/custom/Section";
+import { AppAccess, AppManagers } from "@/components/custom/AppAccessPanel";
 import { DangerSection } from "@/pages/admin/oidc-applications/DangerSection";
 import {
   GeneralSection,
@@ -47,13 +45,17 @@ export function AdminOidcApplication() {
 
       <IdentityProjectionSection app={app} />
 
-      <Section title={<Trans id="admin.oidc-apps.access">Access</Trans>}>
-        <AppAccessPanel
-          kind="oidc"
-          appId={app.clientId}
-          isAdmin={session.data?.role === "admin"}
-        />
-      </Section>
+      <AppAccess
+        kind="oidc"
+        appId={app.clientId}
+        isAdmin={session.data?.role === "admin"}
+      />
+
+      <AppManagers
+        kind="oidc"
+        appId={app.clientId}
+        isAdmin={session.data?.role === "admin"}
+      />
 
       <DangerSection app={app} />
     </div>
