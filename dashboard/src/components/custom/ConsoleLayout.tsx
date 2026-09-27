@@ -365,7 +365,7 @@ const railScrollbars = {
  * overflowing tab list: while there is more above or below, that edge carries a
  * control that scrolls most of a screen's worth towards it. Here the control is
  * a full row rather than a lone chevron, so it cannot be read as a caret on the
- * entry under it. Behind it the rail's own gray fades in over 56px, starting
+ * entry under it. Behind it the rail's own gray fades in over 72px, starting
  * 32px out in the list and reaching full strength past the chevron, so the
  * chevron sits in the tail of the fade with the list faintly behind it and the
  * strip is solid only towards the edge: the fade that says the list goes on.
@@ -393,9 +393,9 @@ const railScrollEdge = cva(
   {
     variants: {
       edge: {
-        top: "top-0 before:top-0 before:-bottom-8 before:[background-image:linear-gradient(to_bottom,var(--surface-secondary)_calc(100%-56px),transparent)]",
+        top: "top-0 before:top-0 before:-bottom-9 before:[background-image:linear-gradient(to_bottom,var(--surface-secondary)_calc(100%-72px),transparent)]",
         bottom:
-          "bottom-0 before:bottom-0 before:-top-8 before:[background-image:linear-gradient(to_top,var(--surface-secondary)_calc(100%-56px),transparent)]",
+          "bottom-0 before:bottom-0 before:-top-9 before:[background-image:linear-gradient(to_top,var(--surface-secondary)_calc(100%-72px),transparent)]",
       },
     },
   },
