@@ -4952,6 +4952,16 @@ msgid "admin.forward-auth-apps.column.scopes"
 msgstr "作用域"
 
 #. js-lingui-explicit-id
+#: src/components/custom/ConsoleLayout.tsx
+msgid "console.scroll-down"
+msgstr "向下滚动导航"
+
+#. js-lingui-explicit-id
+#: src/components/custom/ConsoleLayout.tsx
+msgid "console.scroll-up"
+msgstr "向上滚动导航"
+
+#. js-lingui-explicit-id
 #: src/components/custom/EntityPicker.tsx
 msgid "admin.picker.search"
 msgstr "搜索"

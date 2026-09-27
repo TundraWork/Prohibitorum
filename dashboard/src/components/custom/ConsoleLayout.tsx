@@ -1,4 +1,11 @@
-import { Avatar, buttonVariants, Drawer, useOverlayState } from "@heroui/react";
+import {
+  Avatar,
+  buttonVariants,
+  Drawer,
+  ScrollShadow,
+  type ScrollShadowVisibility,
+  useOverlayState,
+} from "@heroui/react";
 import type { MessageDescriptor } from "@lingui/core";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
@@ -20,6 +27,8 @@ import { cva } from "class-variance-authority";
 import {
   AppWindow,
   Blocks,
+  ChevronDown,
+  ChevronUp,
   FileKey,
   House,
   Layers,
@@ -36,7 +45,8 @@ import {
   UserRound,
   Users,
 } from "lucide-react";
-import { useEffect, useId, useState } from "react";
+import { useOverlayScrollbars } from "overlayscrollbars-react";
+import { useEffect, useId, useRef, useState } from "react";
 import type { components } from "@/api/generated/schema";
 import { logoutMutationOptions } from "@/api/mutations";
 import {
@@ -47,7 +57,7 @@ import {
 import { Button } from "@/components/custom/Button";
 import { useInstanceBranding } from "@/components/custom/instance-branding";
 import { LanguageMenu } from "@/components/custom/LanguageMenu";
-import { ScrollArea } from "@/components/custom/ScrollArea";
+import { scrollAreaTheme } from "@/components/custom/ScrollArea";
 import { SudoDialog } from "@/components/custom/SudoDialog";
 import { ThemeSelect } from "@/components/custom/ThemeSelect";
 import type { FileRouteTypes } from "@/routeTree.gen";
@@ -345,6 +355,147 @@ function NavGroup({
   );
 }
 
+// A constant, so the hook does not reapply the options on every render.
+const railScrollbars = {
+  scrollbars: { theme: scrollAreaTheme, autoHide: "scroll" },
+} as const;
+
+/**
+ * The rail's scroll area, drawn the way HeroUI's `Tabs.ListContainer` handles an
+ * overflowing tab list: while there is more above or below, that edge carries a
+ * control that scrolls most of a screen's worth towards it. Here the control is
+ * a full row of the rail's own gray rather than a lone chevron, so it cannot be
+ * read as a caret on the entry under it, and a short gradient leads from the
+ * strip into the list: the fade that says the list goes on. The gradient takes
+ * no pointer events, so the entries under it stay clickable. `ScrollShadow`
+ * only reports which edges have more; its own mask is switched off, since the
+ * strip already covers and fades that edge.
+ *
+ * The strips stay out of the tab order, as HeroUI's chevrons do: a keyboard
+ * reaches every entry by tabbing, and the rail scrolls to follow focus. A press
+ * does not take focus either, since the strip it lands on is removed once that
+ * edge is reached and focus would fall back to the page.
+ *
+ * The scrollbar itself only shows while the rail scrolls. It is wider than the
+ * gutter beside the entries, so a bar left on screen would sit against the
+ * rows, and the strips already say there is more. OverlayScrollbars draws it
+ * with the app's theme and the rail's narrower handle (`data-console-rail` in
+ * `styles/index.css`); it takes the `ScrollShadow` as its viewport, so both work
+ * on the one scrolling element. The host is a flex row once OverlayScrollbars
+ * owns it, so the column lives on the children.
+ */
+const railScrollEdge = cva(
+  "absolute inset-x-0 z-10 h-11 w-full rounded-none bg-surface-secondary text-foreground/60 hover:bg-surface-secondary hover:text-foreground active:bg-surface-secondary md:h-9 before:pointer-events-none before:absolute before:inset-x-0 before:h-6 before:from-surface-secondary before:to-transparent before:content-['']",
+  {
+    variants: {
+      edge: {
+        top: "top-0 before:top-full before:bg-linear-to-b",
+        bottom: "bottom-0 before:bottom-full before:bg-linear-to-t",
+      },
+    },
+  },
+);
+
+function RailScrollEdge({
+  edge,
+  label,
+  onPress,
+}: {
+  edge: "top" | "bottom";
+  label: string;
+  onPress: () => void;
+}) {
+  const Icon = edge === "top" ? ChevronUp : ChevronDown;
+  return (
+    <Button
+      variant="ghost"
+      excludeFromTabOrder
+      preventFocusOnPress
+      className={railScrollEdge({ edge })}
+      aria-label={label}
+      onPress={onPress}
+    >
+      <Icon className="mx-0 size-4" aria-hidden="true" />
+    </Button>
+  );
+}
+
+function RailScrollArea({ children }: { children: React.ReactNode }) {
+  const { t } = useLingui();
+  const hostRef = useRef<HTMLDivElement>(null);
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const [visibility, setVisibility] = useState<ScrollShadowVisibility>("none");
+  const [initialize, instance] = useOverlayScrollbars({
+    options: railScrollbars,
+  });
+
+  useEffect(() => {
+    const host = hostRef.current;
+    const viewport = viewportRef.current;
+    if (!host || !viewport) return;
+    initialize({ target: host, elements: { viewport, content: viewport } });
+    return () => instance()?.destroy();
+  }, [initialize, instance]);
+
+  // HeroUI's step: 80% of the visible height, clamped so a press near the end
+  // lands flush on it. Reduced motion jumps instead of gliding.
+  const scrollBy = (direction: 1 | -1) => {
+    const el = viewportRef.current;
+    if (!el) return;
+    const max = Math.max(0, el.scrollHeight - el.clientHeight);
+    const next = Math.min(
+      max,
+      Math.max(0, el.scrollTop + direction * el.clientHeight * 0.8),
+    );
+    if (next === el.scrollTop) return;
+    const reduced = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+    el.scrollTo({ top: next, behavior: reduced ? "auto" : "smooth" });
+  };
+
+  const moreAbove = visibility === "top" || visibility === "both";
+  const moreBelow = visibility === "bottom" || visibility === "both";
+
+  return (
+    <div
+      ref={hostRef}
+      data-overlayscrollbars-initialize=""
+      data-console-rail=""
+      className="relative flex min-h-0 min-w-0 flex-1"
+    >
+      <ScrollShadow
+        ref={viewportRef}
+        hideScrollBar
+        onVisibilityChange={setVisibility}
+        className="flex min-w-0 flex-1 flex-col [-webkit-mask-image:none] [mask-image:none]"
+      >
+        {children}
+      </ScrollShadow>
+      {moreAbove && (
+        <RailScrollEdge
+          edge="top"
+          label={t({
+            id: "console.scroll-up",
+            message: "Scroll navigation up",
+          })}
+          onPress={() => scrollBy(-1)}
+        />
+      )}
+      {moreBelow && (
+        <RailScrollEdge
+          edge="bottom"
+          label={t({
+            id: "console.scroll-down",
+            message: "Scroll navigation down",
+          })}
+          onPress={() => scrollBy(1)}
+        />
+      )}
+    </div>
+  );
+}
+
 function ConsoleNavigation({
   managementSections,
 }: {
@@ -360,14 +511,7 @@ function ConsoleNavigation({
     // Shrinks with the rail so the account footer below stays at its foot,
     // however short the visible area is.
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-      {/*
-        The rail's own scroll area. `ScrollArea` makes this element the
-        OverlayScrollbars host, which forces `flex-direction: row` on it, so the
-        column and its padding live on the child below instead.
-        `data-console-rail` gives the bar the rail's narrower handle; see
-        `styles/index.css`.
-      */}
-      <ScrollArea data-console-rail="" className="flex flex-1 flex-col">
+      <RailScrollArea>
         <div className="flex flex-1 flex-col px-2 pt-2 pb-3">
           <nav
             aria-label={t({
@@ -419,7 +563,7 @@ function ConsoleNavigation({
             })}
           </nav>
         </div>
-      </ScrollArea>
+      </RailScrollArea>
     </div>
   );
 }

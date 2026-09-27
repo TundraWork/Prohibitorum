@@ -247,7 +247,10 @@ rest regular. The management entries sit under three headings — directory,
 applications, system — and a heading with nothing visible under it is left out.
 The instance avatar, the entry icons, the headings and the account avatar share
 one edge 20px into the rail. On a narrow screen the same list opens in a drawer
-on the rail's gray, with 44px rows. The rail
+on the rail's gray, with 44px rows. A rail too long for the window follows
+HeroUI's overflowing tabs: the edge with more behind it carries a full-row strip
+with a chevron that scrolls towards it, fading into the list, and the scrollbar
+shows only while the rail moves. The rail
 names the instance and the header names the section in view, so each string is
 written once: the header carries no eyebrow repeating the instance above its
 heading.

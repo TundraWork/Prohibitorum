@@ -4952,6 +4952,16 @@ msgid "admin.forward-auth-apps.column.scopes"
 msgstr "Scopes"
 
 #. js-lingui-explicit-id
+#: src/components/custom/ConsoleLayout.tsx
+msgid "console.scroll-down"
+msgstr "Scroll navigation down"
+
+#. js-lingui-explicit-id
+#: src/components/custom/ConsoleLayout.tsx
+msgid "console.scroll-up"
+msgstr "Scroll navigation up"
+
+#. js-lingui-explicit-id
 #: src/components/custom/EntityPicker.tsx
 msgid "admin.picker.search"
 msgstr "Search"

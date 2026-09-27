@@ -1,8 +1,12 @@
 import { OverlayScrollbarsComponent } from "overlayscrollbars-react";
 import type { ComponentProps, ReactNode } from "react";
 
-/** The theme class `os-theme-app` is defined in `styles/index.css`. */
-const theme = "os-theme-app";
+/**
+ * The theme class `os-theme-app` is defined in `styles/index.css`. Exported for
+ * a scroller that sets OverlayScrollbars up itself rather than through this
+ * component, so its bars still match.
+ */
+export const scrollAreaTheme = "os-theme-app";
 
 /**
  * A scroll container whose scrollbars are drawn by OverlayScrollbars rather
@@ -42,7 +46,7 @@ export function ScrollArea({
         ...options,
         // The app's theme is not a caller concern: it is what makes these
         // scrollbars match the ones HeroUI draws, so it is merged in here.
-        scrollbars: { theme, ...options?.scrollbars },
+        scrollbars: { theme: scrollAreaTheme, ...options?.scrollbars },
       }}
       {...props}
     >
