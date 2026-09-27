@@ -496,6 +496,11 @@ msgid "admin.federation.claims.domains"
 msgstr "允许的邮箱域名"
 
 #. js-lingui-explicit-id
+#: src/components/custom/AppAccessPanel.tsx
+msgid "app.managers.candidate.assigned"
+msgstr "已在管理这个应用"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
 msgid "admin.group.rule.hint"
 msgstr "账号在规则匹配期间属于本组。每次请求访问时都会检查规则，所以用户组始终保持最新。"
@@ -829,6 +834,7 @@ msgid "admin.group.cancel"
 msgstr "取消"
 
 #. js-lingui-explicit-id
+#: src/components/custom/AppAccessPanel.tsx
 #: src/pages/admin/AdminInvitationForm.tsx
 #: src/pages/admin/saml-applications/SamlMetadataSection.tsx
 msgid "admin.cancel"
@@ -1598,6 +1604,11 @@ msgid "app.access.load_failed"
 msgstr "无法加载访问策略。"
 
 #. js-lingui-explicit-id
+#: src/components/custom/AppAccessPanel.tsx
+msgid "app.managers.load_failed"
+msgstr "无法加载应用管理员。"
+
+#. js-lingui-explicit-id
 #: src/pages/ConnectedApps.tsx
 msgid "apps.load_failed"
 msgstr "无法加载已连接应用。"
@@ -1993,6 +2004,11 @@ msgstr "已停用"
 #: src/components/custom/EntityCell.tsx
 msgid "entity.state.disabled"
 msgstr "已停用"
+
+#. js-lingui-explicit-id
+#: src/components/custom/AppAccessPanel.tsx
+msgid "app.managers.candidate.disabled"
+msgstr "账号已停用"
 
 #. js-lingui-explicit-id
 #: src/pages/Preview.tsx
@@ -3682,8 +3698,8 @@ msgstr "没有签名密钥"
 
 #. js-lingui-explicit-id
 #: src/components/custom/AppAccessPanel.tsx
-msgid "app.groups.empty"
-msgstr "还没有选择用户组"
+msgid "app.access.restricted.none"
+msgstr "还没有选择用户组，选择之前没有人能使用这个应用。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminGroups.tsx
@@ -4946,6 +4962,11 @@ msgid "admin.logs.filter.account.search"
 msgstr "搜索账号"
 
 #. js-lingui-explicit-id
+#: src/components/custom/AppAccessPanel.tsx
+msgid "app.managers.dialog.placeholder"
+msgstr "搜索账号"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminInvitationForm.tsx
 msgid "admin.invitations.new.provider.placeholder"
 msgstr "搜索提供商"
@@ -4953,6 +4974,11 @@ msgstr "搜索提供商"
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminInvitationForm.tsx
 msgid "admin.invitations.new.groups.placeholder"
+msgstr "搜索用户组"
+
+#. js-lingui-explicit-id
+#: src/components/custom/AppAccessPanel.tsx
+msgid "app.groups.dialog.placeholder"
 msgstr "搜索用户组"
 
 #. js-lingui-explicit-id
@@ -5812,6 +5838,11 @@ msgstr "可信代理列表中有服务器不接受的条目。请选择 X-Forwar
 #: src/pages/security/PasswordTotpPanel.tsx
 msgid "security.password.mismatch"
 msgstr "两次输入的密码不一致。"
+
+#. js-lingui-explicit-id
+#: src/components/custom/AppAccessPanel.tsx
+msgid "app.access.open.kept"
+msgstr "下面的用户组已保留，重新限制后生效。"
 
 #. js-lingui-explicit-id
 #: src/components/custom/ThemeSelect.tsx

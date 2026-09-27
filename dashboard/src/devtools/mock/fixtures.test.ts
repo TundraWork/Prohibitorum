@@ -214,6 +214,62 @@ describe("mocked management directory", () => {
     expect(second.nextCursor).toBe("");
   });
 
+  it("searches the account directory by name before it pages", () => {
+    const current = config((draft) => {
+      draft.admin.accounts = mockPageSize * 2 + 12;
+    });
+    const found = bodyOf(
+      read(
+        "/api/prohibitorum/accounts",
+        current,
+        "http://localhost/api/prohibitorum/accounts?q=MOCK-USER-12",
+      ),
+    ) as { items: Array<{ id: number }>; nextCursor: string };
+    expect(found.items.map((account) => account.id)).toEqual([12]);
+    expect(found.nextCursor).toBe("");
+
+    // The rows carry timestamps relative to now, so the pages are compared by
+    // which accounts they hold.
+    const page = (url: string) => {
+      const body = bodyOf(read("/api/prohibitorum/accounts", current, url)) as {
+        items: Array<{ id: number }>;
+        nextCursor: string;
+      };
+      return [body.items.map((account) => account.id), body.nextCursor];
+    };
+    expect(page("http://localhost/api/prohibitorum/accounts?q=")).toEqual(
+      page("http://localhost/api/prohibitorum/accounts"),
+    );
+  });
+
+  it("lists accounts 2 and 3 as the managers of every kind of application", () => {
+    for (const [schemaPath, url] of [
+      [
+        "/api/prohibitorum/oidc-applications/{clientId}/managers",
+        "http://localhost/api/prohibitorum/oidc-applications/oidc-client-1/managers",
+      ],
+      [
+        "/api/prohibitorum/forward-auth-apps/{clientId}/managers",
+        "http://localhost/api/prohibitorum/forward-auth-apps/fa-client-1/managers",
+      ],
+      [
+        "/api/prohibitorum/saml-applications/{id}/managers",
+        "http://localhost/api/prohibitorum/saml-applications/1/managers",
+      ],
+    ] as const) {
+      const managers = bodyOf(read(schemaPath, config(), url)) as Array<{
+        id: number;
+        username: string;
+        assignedAt: string;
+      }>;
+      expect(managers.map((manager) => manager.id)).toEqual([2, 3]);
+      expect(managers[0]?.username).toBe("mock-user-2");
+      expect(Number.isNaN(Date.parse(managers[0]?.assignedAt ?? ""))).toBe(
+        false,
+      );
+    }
+  });
+
   it("signs the panel in as the account the directory lists first", () => {
     const current = config((draft) => {
       draft.session.username = "ada";

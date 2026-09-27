@@ -1055,8 +1055,17 @@ function readReply(
     // server would refuse it, but the guard that keeps a member out of these
     // pages is the role on `/me`, which this fixture also drives.
     case "/api/prohibitorum/accounts": {
-      const all = accounts(config);
-      const cursor = new URL(request.url).searchParams.get("cursor");
+      // `q` matches the username or the display name, ignoring case, before
+      // the result pages — so a search reaches past the first page.
+      const params = new URL(request.url).searchParams;
+      const q = (params.get("q") ?? "").toLowerCase();
+      const all = accounts(config).filter(
+        (account) =>
+          q === "" ||
+          account.username.toLowerCase().includes(q) ||
+          account.displayName.toLowerCase().includes(q),
+      );
+      const cursor = params.get("cursor");
       const start = cursor === null ? 0 : Number(cursor);
       const page = all.slice(start, start + mockPageSize);
       const next = start + page.length;
@@ -1212,6 +1221,25 @@ function readReply(
       const appId = segments[segments.length - 2] ?? "";
       return guarded(config, () => json(accessWorkspace(config, kind, appId)));
     }
+    // Every application is managed by accounts 2 and 3, so the assign dialog
+    // has candidates it must refuse as already assigned (and account 4, which
+    // the directory disables, one it refuses as disabled).
+    case "/api/prohibitorum/oidc-applications/{clientId}/managers":
+    case "/api/prohibitorum/forward-auth-apps/{clientId}/managers":
+    case "/api/prohibitorum/saml-applications/{id}/managers":
+      return guarded(config, () =>
+        json(
+          accounts(config)
+            .filter((account) => account.id === 2 || account.id === 3)
+            .map((account) => ({
+              id: account.id,
+              username: account.username,
+              displayName: account.displayName,
+              disabled: account.disabled,
+              assignedAt: iso(-day * account.id * 5),
+            })),
+        ),
+      );
     case "/api/prohibitorum/groups":
       return guarded(config, () => json(groupsFrom(config)));
     case "/api/prohibitorum/groups/providers":

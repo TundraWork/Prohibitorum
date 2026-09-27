@@ -65,4 +65,25 @@ describe("ItemList", () => {
       "/tokens/1",
     );
   });
+
+  it("fades a dimmed row's content and leaves its actions alone", () => {
+    render(
+      <ItemList label="User groups" empty={null}>
+        <ItemListRow
+          key="a"
+          title="Kept"
+          dimmed
+          actions={<button type="button">Remove</button>}
+        />
+        <ItemListRow key="b" title="Active" />
+      </ItemList>,
+    );
+
+    const kept = screen.getByText("Kept");
+    expect(kept.closest(".opacity-60")).not.toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Remove" }).closest(".opacity-60"),
+    ).toBeNull();
+    expect(screen.getByText("Active").closest(".opacity-60")).toBeNull();
+  });
 });

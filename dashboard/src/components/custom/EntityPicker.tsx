@@ -5,6 +5,7 @@ import {
   ListBox,
   SearchField,
   Spinner,
+  useFilter,
 } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useStore } from "@tanstack/react-form";
@@ -14,7 +15,7 @@ import { useFieldContext, useFormContext } from "@/forms/context";
 import { withoutServerErrors } from "@/forms/server-errors";
 
 /**
- * Search the server for one entity and select it.
+ * Search for one entity and select it.
  *
  * Accounts, user groups and identity providers are three vocabularies with one
  * shape: a keyword goes to the server, a list of candidates comes back, and one
@@ -27,11 +28,32 @@ import { withoutServerErrors } from "@/forms/server-errors";
  * and the label is looked up from the current result. The field degrades
  * honestly when it cannot resolve one — a saved id whose entity the current
  * query did not return renders as the bare id rather than as a blank control.
+ *
+ * `onValueChange` always receives a list of ids, whichever mode the picker is
+ * in. HeroUI hands a single-selection picker one key (or `null` once cleared)
+ * and a multiple one an array, so the difference is settled here, once, rather
+ * than at every call site that reads the first entry.
+ *
+ * The trigger shows the selection as one line of names — the options' labels
+ * joined the way the reader's language joins a list, cut short with an ellipsis
+ * when they run past the field. The description under each option belongs to
+ * the list, where it tells two similar names apart; repeating it in the trigger
+ * is what made several selected groups stack into an unreadable column.
+ *
+ * Searching is the server's when the caller passes `onSearch`, since the
+ * account directory pages and only the server can look past the first page.
+ * Without it the options are the whole set, and the picker narrows them by
+ * label itself.
  */
 export interface EntityOption {
   id: string;
   label: string;
   description?: string;
+  /**
+   * Why this candidate cannot be chosen. The option is still listed, so a
+   * reader looking for it finds it and learns why, but it cannot be selected.
+   */
+  unavailableReason?: string;
 }
 
 /**
@@ -56,7 +78,11 @@ export function EntityPicker({
 }: {
   label: ReactNode;
   description?: ReactNode;
-  placeholder?: string;
+  /**
+   * Required: without one HeroUI falls back to its own English "Select an
+   * item", whatever the console's language.
+   */
+  placeholder: string;
   searchLabel: string;
   value: readonly string[];
   onValueChange: (value: string[]) => void;
@@ -69,6 +95,8 @@ export function EntityPicker({
   errorMessage?: ReactNode;
   variant?: ComponentProps<typeof Autocomplete>["variant"];
 }) {
+  const { i18n } = useLingui();
+  const { contains } = useFilter({ sensitivity: "base" });
   // A selection the latest result did not return still has to render, or the
   // control would silently look empty while holding a value.
   const known = new Set(options.map((option) => option.id));
@@ -76,22 +104,38 @@ export function EntityPicker({
     ...options,
     ...value.filter((id) => !known.has(id)).map((id) => ({ id, label: id })),
   ];
+  const labels = new Map(items.map((item) => [item.id, item.label]));
+  // Joined in the console's language rather than the browser's, which is what
+  // HeroUI's own `selectedText` would follow.
+  const selectedText = new Intl.ListFormat(i18n.locale, {
+    type: "conjunction",
+  }).format(value.map((id) => labels.get(id) ?? id));
 
   return (
     <Autocomplete
       allowsEmptyCollection
       className="w-full"
+      disabledKeys={items
+        .filter((item) => item.unavailableReason !== undefined)
+        .map((item) => item.id)}
       isDisabled={isDisabled}
       isInvalid={isInvalid}
       placeholder={placeholder}
       selectionMode={multiple ? "multiple" : "single"}
       value={multiple ? [...value] : (value[0] ?? null)}
       variant={variant}
-      onChange={(keys) => onValueChange(keys as string[])}
+      onChange={(next) => {
+        if (Array.isArray(next)) onValueChange(next.map(String));
+        else onValueChange(next === null ? [] : [String(next)]);
+      }}
     >
       <Label>{label}</Label>
       <Autocomplete.Trigger>
-        <Autocomplete.Value />
+        <Autocomplete.Value className="min-w-0 truncate">
+          {({ isPlaceholder, defaultChildren }) =>
+            isPlaceholder ? defaultChildren : selectedText
+          }
+        </Autocomplete.Value>
         <Autocomplete.ClearButton />
         <Autocomplete.Indicator />
       </Autocomplete.Trigger>
@@ -99,7 +143,10 @@ export function EntityPicker({
         <span className="text-xs text-muted">{description}</span>
       )}
       <Autocomplete.Popover>
-        <Autocomplete.Filter onInputChange={(next) => onSearch?.(next)}>
+        <Autocomplete.Filter
+          filter={onSearch === undefined ? contains : undefined}
+          onInputChange={(next) => onSearch?.(next)}
+        >
           <SearchField
             aria-label={searchLabel}
             autoFocus
@@ -137,19 +184,24 @@ export function EntityPicker({
                 </EmptyState>
               )}
             >
-              {(item: EntityOption) => (
-                <ListBox.Item id={item.id} textValue={item.label}>
-                  <span className="flex min-w-0 flex-col">
-                    <span className="truncate">{item.label}</span>
-                    {item.description && (
-                      <span className="truncate text-xs text-muted">
-                        {item.description}
-                      </span>
-                    )}
-                  </span>
-                  <ListBox.ItemIndicator />
-                </ListBox.Item>
-              )}
+              {(item: EntityOption) => {
+                const note = [item.description, item.unavailableReason]
+                  .filter(Boolean)
+                  .join(" · ");
+                return (
+                  <ListBox.Item id={item.id} textValue={item.label}>
+                    <span className="flex min-w-0 flex-col">
+                      <span className="truncate">{item.label}</span>
+                      {note && (
+                        <span className="truncate text-xs text-muted">
+                          {note}
+                        </span>
+                      )}
+                    </span>
+                    <ListBox.ItemIndicator />
+                  </ListBox.Item>
+                );
+              }}
             </ListBox>
           </ScrollArea>
         </Autocomplete.Filter>

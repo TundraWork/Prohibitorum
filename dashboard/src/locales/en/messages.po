@@ -496,6 +496,11 @@ msgid "admin.federation.claims.domains"
 msgstr "Allowed email domains"
 
 #. js-lingui-explicit-id
+#: src/components/custom/AppAccessPanel.tsx
+msgid "app.managers.candidate.assigned"
+msgstr "Already manages this application"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
 msgid "admin.group.rule.hint"
 msgstr "An account joins this group while the rule matches it. Rules are checked whenever access is asked for, so the group stays current."
@@ -829,6 +834,7 @@ msgid "admin.group.cancel"
 msgstr "Cancel"
 
 #. js-lingui-explicit-id
+#: src/components/custom/AppAccessPanel.tsx
 #: src/pages/admin/AdminInvitationForm.tsx
 #: src/pages/admin/saml-applications/SamlMetadataSection.tsx
 msgid "admin.cancel"
@@ -1598,6 +1604,11 @@ msgid "app.access.load_failed"
 msgstr "Could not load the access policy."
 
 #. js-lingui-explicit-id
+#: src/components/custom/AppAccessPanel.tsx
+msgid "app.managers.load_failed"
+msgstr "Could not load the managers."
+
+#. js-lingui-explicit-id
 #: src/pages/ConnectedApps.tsx
 msgid "apps.load_failed"
 msgstr "Could not load your connected applications."
@@ -1993,6 +2004,11 @@ msgstr "Disabled"
 #: src/components/custom/EntityCell.tsx
 msgid "entity.state.disabled"
 msgstr "Disabled"
+
+#. js-lingui-explicit-id
+#: src/components/custom/AppAccessPanel.tsx
+msgid "app.managers.candidate.disabled"
+msgstr "Disabled account"
 
 #. js-lingui-explicit-id
 #: src/pages/Preview.tsx
@@ -3682,8 +3698,8 @@ msgstr "No signing keys"
 
 #. js-lingui-explicit-id
 #: src/components/custom/AppAccessPanel.tsx
-msgid "app.groups.empty"
-msgstr "No user groups selected yet"
+msgid "app.access.restricted.none"
+msgstr "No user groups selected yet. Nobody can use this application until you select one."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminGroups.tsx
@@ -4946,6 +4962,11 @@ msgid "admin.logs.filter.account.search"
 msgstr "Search accounts"
 
 #. js-lingui-explicit-id
+#: src/components/custom/AppAccessPanel.tsx
+msgid "app.managers.dialog.placeholder"
+msgstr "Search accounts"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminInvitationForm.tsx
 msgid "admin.invitations.new.provider.placeholder"
 msgstr "Search providers"
@@ -4953,6 +4974,11 @@ msgstr "Search providers"
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminInvitationForm.tsx
 msgid "admin.invitations.new.groups.placeholder"
+msgstr "Search user groups"
+
+#. js-lingui-explicit-id
+#: src/components/custom/AppAccessPanel.tsx
+msgid "app.groups.dialog.placeholder"
 msgstr "Search user groups"
 
 #. js-lingui-explicit-id
@@ -4983,7 +5009,7 @@ msgstr "Select user groups"
 #. js-lingui-explicit-id
 #: src/components/custom/AppAccessPanel.tsx
 msgid "app.groups.dialog.title"
-msgstr "User groups"
+msgstr "Select user groups"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/ForwardAuthIdentitySection.tsx
@@ -5812,6 +5838,11 @@ msgstr "The trusted proxies list has an entry the server will not accept. Choose
 #: src/pages/security/PasswordTotpPanel.tsx
 msgid "security.password.mismatch"
 msgstr "The two passwords do not match."
+
+#. js-lingui-explicit-id
+#: src/components/custom/AppAccessPanel.tsx
+msgid "app.access.open.kept"
+msgstr "The user groups below are kept and apply again when you restrict this application."
 
 #. js-lingui-explicit-id
 #: src/components/custom/ThemeSelect.tsx

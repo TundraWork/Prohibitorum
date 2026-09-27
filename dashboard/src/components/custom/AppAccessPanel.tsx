@@ -55,11 +55,20 @@ import { useAppForm } from "@/forms/use-app-form";
  * selected nobody can reach the application at all, so that direction asks
  * first and the switch is held back until the dialog is answered.
  *
- * The groups are the card's own rows, so the card keeps one shape whether or
- * not a group is selected: an empty state where the rows would be, and the
- * "Add user groups" action on the card's footer. That action is drawn only
- * while the application is restricted — an open application ignores the
- * selection, and offering to change it would imply otherwise.
+ * The card's first row states the setting, and the selected groups are the
+ * rows after it. Nothing is drawn until the policy has been read: a restricted
+ * application must not flash "every account can use this" while it loads. The
+ * state row is always there once it has, so the card never reaches an empty
+ * list; what an empty selection means is said on the state row instead — while
+ * restricted, that nobody can use the application yet. The "Select user groups"
+ * action sits on that row and is drawn only while the application is
+ * restricted: an open application ignores the selection, and offering to
+ * change it would imply otherwise. The selection is kept while the application
+ * is open, so its rows stay listed, faded, under a line saying they apply again
+ * once it is restricted.
+ *
+ * Both dialogs are forms across HeroUI's body and footer: the fields in the
+ * body, and "Cancel" before the action that saves in the footer.
  *
  * `AppManagers` is a section of its own because only an administrator sees it:
  * the endpoint behind it is administrator-only, so for a delegated manager the
@@ -69,9 +78,10 @@ import { useAppForm } from "@/forms/use-app-form";
  *
  * A manager assigned to the application reaches the access section too. The
  * group picker reads `GET /groups`, which for a non-administrator answers with
- * their own memberships rather than the whole directory. That is exactly the set
- * the server will accept from them, so the candidate list is right without the
- * console having to filter it.
+ * their own memberships rather than the whole directory. The server accepts
+ * those from them, and also the groups the application already selects, so the
+ * candidates are that read plus the current selection: a selected group the
+ * manager is not in keeps its name in the picker and can stay selected.
  *
  * ## Why the group list is written whole
  *
@@ -322,6 +332,31 @@ function AccessSectionBody({
   const [editing, setEditing] = useState(false);
 
   const selected: AppGroupView[] = access.data?.groups ?? [];
+  // The current selection joins the candidates: a delegated manager's read of
+  // `/groups` holds only their own groups, and a selected group outside them
+  // would otherwise show as a bare id and could not be kept.
+  const listed = new Set((groups.data ?? []).map((group) => group.id));
+  const groupOptions: EntityOption[] = [
+    ...(groups.data ?? []),
+    ...selected.filter((group) => !listed.has(group.id)),
+  ].map((group) => ({
+    id: String(group.id),
+    label: group.displayName,
+    description: group.slug,
+  }));
+
+  const note =
+    restricted && selected.length === 0 ? (
+      <Trans id="app.access.restricted.none">
+        No user groups selected yet. Nobody can use this application until you
+        select one.
+      </Trans>
+    ) : !restricted && selected.length > 0 ? (
+      <Trans id="app.access.open.kept">
+        The user groups below are kept and apply again when you restrict this
+        application.
+      </Trans>
+    ) : null;
 
   const form = useAppForm({
     defaultValues: { groupIds: [] as string[] },
@@ -350,56 +385,63 @@ function AccessSectionBody({
           message: "Access restriction",
         })}
         loading={access.isPending}
-        empty={
-          <p className="px-4 py-6 text-center text-sm text-muted">
-            <Trans id="app.groups.empty">No user groups selected yet</Trans>
-          </p>
-        }
+        // Once the policy is read the list always holds the state row, so it
+        // is never empty: an empty selection is described on that row.
+        empty={null}
       >
-        <ItemListRow
-          icon={
-            restricted ? (
-              <Lock size={18} aria-hidden="true" />
-            ) : (
-              <LockOpen size={18} aria-hidden="true" />
-            )
-          }
-          title={
-            restricted ? (
-              <Trans id="app.access.restricted">
-                Available only to the selected user groups
-              </Trans>
-            ) : (
-              <Trans id="app.access.open">Every account can use this</Trans>
-            )
-          }
-          actions={
-            // Choosing the groups is only meaningful while the application is
-            // restricted: an open application ignores the selection, and
-            // offering to change it would imply otherwise.
-            restricted ? (
-              <Button
-                size="sm"
-                variant="secondary"
-                onPress={() => {
-                  form.reset();
-                  form.setFieldValue(
-                    "groupIds",
-                    selected.map((group) => String(group.id)),
-                  );
-                  setEditing(true);
-                }}
-              >
-                <Pencil size={16} aria-hidden="true" />
-                <Trans id="app.groups.select">Select user groups</Trans>
-              </Button>
-            ) : undefined
-          }
-        />
+        {access.data !== undefined && (
+          <ItemListRow
+            key="state"
+            icon={
+              restricted ? (
+                <Lock size={18} aria-hidden="true" />
+              ) : (
+                <LockOpen size={18} aria-hidden="true" />
+              )
+            }
+            title={
+              restricted ? (
+                <Trans id="app.access.restricted">
+                  Available only to the selected user groups
+                </Trans>
+              ) : (
+                <Trans id="app.access.open">Every account can use this</Trans>
+              )
+            }
+            actions={
+              // Choosing the groups is only meaningful while the application is
+              // restricted: an open application ignores the selection, and
+              // offering to change it would imply otherwise.
+              restricted ? (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onPress={() => {
+                    form.reset();
+                    form.setFieldValue(
+                      "groupIds",
+                      selected.map((group) => String(group.id)),
+                    );
+                    setEditing(true);
+                  }}
+                >
+                  <Pencil size={16} aria-hidden="true" />
+                  <Trans id="app.groups.select">Select user groups</Trans>
+                </Button>
+              ) : undefined
+            }
+            // The line under the title, the way the other rows on a detail
+            // page say what they mean.
+            details={[note]}
+          />
+        )}
 
         {selected.map((group) => (
           <ItemListRow
             key={group.id}
+            // Kept but not in effect while the application is open; the state
+            // row says so in words.
+            dimmed={!restricted}
             title={
               isAdmin ? (
                 <a
@@ -453,54 +495,63 @@ function AccessSectionBody({
                   <Trans id="app.groups.dialog.title">Select user groups</Trans>
                 </Modal.Heading>
               </Modal.Header>
-              <Modal.Body>
-                <form.AppForm>
-                  <form.Form
-                    label={t({
-                      id: "app.groups.dialog.label",
-                      message: "User groups",
-                    })}
-                    className="flex flex-col gap-4"
-                  >
-                    <form.FormError />
+              <form.AppForm>
+                <form.Form
+                  label={t({
+                    id: "app.groups.dialog.label",
+                    message: "User groups",
+                  })}
+                  className="flex min-h-0 flex-1 flex-col"
+                >
+                  <Modal.Body>
+                    <div className="flex flex-col gap-4">
+                      {/* Says what saving does, because the control above the
+                          list does not: the picker opens on the current
+                          selection, and the write replaces the whole of it
+                          rather than adding to it. */}
+                      <Description className="text-sm text-muted">
+                        <Trans id="app.groups.dialog.hint">
+                          The selection replaces the current one. Only accounts
+                          in the groups you choose can use this application.
+                        </Trans>
+                      </Description>
 
-                    {/* Says what saving does, because the control above the
-                        list does not: the picker opens on the current
-                        selection, and the write replaces the whole of it
-                        rather than adding to it. */}
-                    <Description className="text-sm text-muted">
-                      <Trans id="app.groups.dialog.hint">
-                        The selection replaces the current one. Only accounts in
-                        the groups you choose can use this application.
-                      </Trans>
-                    </Description>
+                      <form.FormError />
 
-                    <form.AppField name="groupIds">
-                      {(field) => (
-                        <field.GroupPicker
-                          label={
-                            <Trans id="app.groups.dialog.label">
-                              User groups
-                            </Trans>
-                          }
-                          // For a non-admin this read answers with their own groups,
-                          // which is exactly what the server will accept back.
-                          options={(groups.data ?? []).map((group) => ({
-                            id: String(group.id),
-                            label: group.displayName,
-                            description: group.slug,
-                          }))}
-                          loading={groups.isPending}
-                          variant="secondary"
-                        />
-                      )}
-                    </form.AppField>
+                      <form.AppField name="groupIds">
+                        {(field) => (
+                          <field.GroupPicker
+                            label={
+                              <Trans id="app.groups.dialog.label">
+                                User groups
+                              </Trans>
+                            }
+                            placeholder={t({
+                              id: "app.groups.dialog.placeholder",
+                              message: "Search user groups",
+                            })}
+                            options={groupOptions}
+                            loading={groups.isPending}
+                            variant="secondary"
+                          />
+                        )}
+                      </form.AppField>
+                    </div>
+                  </Modal.Body>
+                  <Modal.Footer className="mt-5">
+                    <Button
+                      variant="secondary"
+                      isDisabled={replace.isPending}
+                      onPress={() => setEditing(false)}
+                    >
+                      <Trans id="admin.cancel">Cancel</Trans>
+                    </Button>
                     <form.SubmitButton>
                       <Trans id="app.groups.dialog.save">Save</Trans>
                     </form.SubmitButton>
-                  </form.Form>
-                </form.AppForm>
-              </Modal.Body>
+                  </Modal.Footer>
+                </form.Form>
+              </form.AppForm>
             </Modal.Dialog>
           </Modal.Container>
         </Modal.Backdrop>
@@ -528,6 +579,24 @@ function ApplicationManagersKind({
   const target = (managers.data ?? []).find(
     (manager) => manager.id === removing,
   );
+
+  // A failed read is not an empty list: saying "no managers" would be a claim
+  // about the application the console cannot make.
+  if (managers.isError) {
+    return (
+      <SurfaceAlert status="danger" role="alert">
+        <SurfaceAlert.Indicator />
+        <SurfaceAlert.Content>
+          <SurfaceAlert.Title>
+            {t({
+              id: "app.managers.load_failed",
+              message: "Could not load the managers.",
+            })}
+          </SurfaceAlert.Title>
+        </SurfaceAlert.Content>
+      </SurfaceAlert>
+    );
+  }
 
   return (
     <>
@@ -619,20 +688,42 @@ function AssignManagerDialog({
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
+  const { t } = useLingui();
   const queryClient = useQueryClient();
   const assign = useMutation(
     assignAppManagerMutationOptions(queryClient, kind),
   );
+  // The same read as the list, so an account shown as a manager there is the
+  // one refused here.
+  const managers = useQuery(appManagersQueryOptions(kind, appId));
+  const assigned = new Set((managers.data ?? []).map((manager) => manager.id));
   // The account directory is searched rather than listed: it runs to a page at a
   // time, and an administrator assigning a manager knows the username.
   const [accountSearch, setAccountSearch] = useState("");
   const candidates = useQuery(accountSearchQueryOptions(accountSearch));
+  // Read the way the manager list reads: the display name first, the username
+  // under it. Accounts that cannot be assigned stay listed with the reason, so
+  // an administrator looking for one learns why rather than finding it missing.
   const accountOptions: EntityOption[] = (candidates.data?.items ?? []).map(
-    (account) => ({
-      id: String(account.id),
-      label: account.username,
-      ...(account.displayName ? { description: account.displayName } : {}),
-    }),
+    (account) => {
+      const unavailableReason = account.disabled
+        ? t({
+            id: "app.managers.candidate.disabled",
+            message: "Disabled account",
+          })
+        : assigned.has(account.id)
+          ? t({
+              id: "app.managers.candidate.assigned",
+              message: "Already manages this application",
+            })
+          : undefined;
+      return {
+        id: String(account.id),
+        label: account.displayName || account.username,
+        ...(account.displayName ? { description: account.username } : {}),
+        ...(unavailableReason === undefined ? {} : { unavailableReason }),
+      };
+    },
   );
 
   const form = useAppForm({
@@ -640,7 +731,7 @@ function AssignManagerDialog({
     onSubmit: async ({ value }) => {
       try {
         await assign.mutateAsync({ appId, accountId: Number(value.accountId) });
-        onOpenChange(false);
+        close();
       } catch (error) {
         if (isCancellation(error)) return;
         applyServerError(form, error, {
@@ -651,8 +742,19 @@ function AssignManagerDialog({
     },
   });
 
+  // Each opening starts from an empty choice: the account picked last time is
+  // now a manager, and would open the dialog on a candidate it refuses.
+  function close() {
+    form.reset();
+    setAccountSearch("");
+    onOpenChange(false);
+  }
+
   return (
-    <Modal isOpen={isOpen} onOpenChange={onOpenChange}>
+    <Modal
+      isOpen={isOpen}
+      onOpenChange={(open) => (open ? onOpenChange(true) : close())}
+    >
       <Modal.Backdrop>
         <Modal.Container placement="center" size="md">
           <Modal.Dialog>
@@ -661,29 +763,46 @@ function AssignManagerDialog({
                 <Trans id="app.managers.dialog.title">Assign a manager</Trans>
               </Modal.Heading>
             </Modal.Header>
-            <Modal.Body>
-              <form.AppForm>
-                <form.Form label={label} className="flex flex-col gap-4">
-                  <form.FormError />
-                  <form.AppField name="accountId">
-                    {(field) => (
-                      <field.AccountPicker
-                        label={
-                          <Trans id="app.managers.dialog.label">Manager</Trans>
-                        }
-                        options={accountOptions}
-                        loading={candidates.isFetching}
-                        onSearch={setAccountSearch}
-                        variant="secondary"
-                      />
-                    )}
-                  </form.AppField>
+            <form.AppForm>
+              <form.Form label={label} className="flex min-h-0 flex-1 flex-col">
+                <Modal.Body>
+                  <div className="flex flex-col gap-4">
+                    <form.FormError />
+                    <form.AppField name="accountId">
+                      {(field) => (
+                        <field.AccountPicker
+                          label={
+                            <Trans id="app.managers.dialog.label">
+                              Manager
+                            </Trans>
+                          }
+                          placeholder={t({
+                            id: "app.managers.dialog.placeholder",
+                            message: "Search accounts",
+                          })}
+                          options={accountOptions}
+                          loading={candidates.isFetching}
+                          onSearch={setAccountSearch}
+                          variant="secondary"
+                        />
+                      )}
+                    </form.AppField>
+                  </div>
+                </Modal.Body>
+                <Modal.Footer className="mt-5">
+                  <Button
+                    variant="secondary"
+                    isDisabled={assign.isPending}
+                    onPress={close}
+                  >
+                    <Trans id="admin.cancel">Cancel</Trans>
+                  </Button>
                   <form.SubmitButton>
                     <Trans id="app.managers.dialog.save">Assign</Trans>
                   </form.SubmitButton>
-                </form.Form>
-              </form.AppForm>
-            </Modal.Body>
+                </Modal.Footer>
+              </form.Form>
+            </form.AppForm>
           </Modal.Dialog>
         </Modal.Container>
       </Modal.Backdrop>

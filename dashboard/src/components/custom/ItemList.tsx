@@ -85,6 +85,11 @@ export function ItemList({
  * A row with `onOpen` and no actions is a way into the record: the whole row
  * is pressable and ends with a chevron, so there is no separate "edit" button
  * saying the same thing.
+ *
+ * A `dimmed` row recedes the way `EntityCell`'s does: its icon and text drop
+ * in opacity for a record that is kept but not in effect, and its actions stay
+ * at full strength. The fading is decoration; whatever puts a row in that state
+ * says so in words as well.
  */
 export function ItemListRow({
   icon,
@@ -93,6 +98,7 @@ export function ItemListRow({
   details,
   actions,
   link,
+  dimmed = false,
   children,
 }: {
   icon?: ReactNode;
@@ -105,6 +111,7 @@ export function ItemListRow({
    * content and classes, it returns the link element (a router `Link`).
    */
   link?: (props: { className: string; children: ReactNode }) => ReactNode;
+  dimmed?: boolean;
   /**
    * Drawn under the details: a row's own error, or a note after an action.
    * The row's dialogs can sit here as well, since they render elsewhere.
@@ -114,16 +121,19 @@ export function ItemListRow({
   const shown = (details ?? []).filter(
     (detail) => detail !== null && detail !== undefined && detail !== false,
   );
+  const fade = dimmed ? " opacity-60" : "";
   const body = (
     <>
       {icon !== undefined && (
-        <span className="grid size-9 shrink-0 place-items-center rounded-[0.375rem] bg-default text-muted">
+        <span
+          className={`grid size-9 shrink-0 place-items-center rounded-[0.375rem] bg-default text-muted${fade}`}
+        >
           {icon}
         </span>
       )}
       {/* The text keeps a floor, so a row whose actions carry a label moves
           them under the text on a narrow screen instead of squeezing it. */}
-      <div className="flex min-w-40 flex-1 flex-col gap-0.5">
+      <div className={`flex min-w-40 flex-1 flex-col gap-0.5${fade}`}>
         <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
           <span className="min-w-0 wrap-anywhere text-sm font-medium text-foreground">
             {title}
