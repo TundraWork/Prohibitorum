@@ -7,25 +7,24 @@ import {
 } from "@heroui/react";
 import { useLingui } from "@lingui/react/macro";
 import { Check, Copy } from "lucide-react";
-import { type ReactNode, useEffect, useId, useRef, useState } from "react";
-import { Button } from "@/components/custom/Button";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
 
-/** How long the copied state stays on screen before the button resets. */
+/** How long the check and its tooltip stay on screen after a copy. */
 const COPIED_MS = 2000;
 
 /**
  * A read-only field on a card whose value the reader will paste elsewhere — a
- * Client ID, an Entity ID, a callback address — with a copy button in place of
- * editing. It reads like its sibling fields: same label, same surface
- * `secondary` fill, same start padding, so every caller draws it on a card.
- * The button is inset from the trailing edge by the same 2px the field leaves
- * above and below it.
+ * Client ID, an Entity ID, a callback address. It reads like its sibling
+ * fields: same label, same surface `secondary` fill, same start padding, so
+ * every caller draws it on a card.
  *
- * The value is monospace and never truncated; a long one scrolls inside the
- * field and the button always copies the whole of it. A copy is confirmed by
- * the icon, the tooltip and a status message; a refused clipboard shows a
- * warning, and focusing the value selects it for copying by hand.
+ * Clicking anywhere on the field selects the value and copies it; the icon at
+ * the trailing edge is decoration that turns into a check with a brief
+ * "Copied" tooltip. Keyboard focus only selects, so tabbing through a form
+ * never overwrites the clipboard, and a copy by hand confirms the same way.
+ * The value is monospace and never truncated: a long one scrolls inside the
+ * field and is still copied whole. A refused clipboard shows a warning.
  */
 export function CopyValue({
   value,
@@ -37,61 +36,74 @@ export function CopyValue({
   description?: ReactNode;
 }) {
   const { t } = useLingui();
-  const labelId = useId();
-  const buttonId = useId();
   const [state, setState] = useState<"idle" | "copied" | "failed">("idle");
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const iconRef = useRef<HTMLSpanElement>(null);
 
   useEffect(() => () => clearTimeout(timer.current), []);
 
-  const copy = () => {
+  const confirm = () => {
     clearTimeout(timer.current);
-    navigator.clipboard.writeText(value).then(
-      () => {
-        setState("copied");
-        timer.current = setTimeout(() => setState("idle"), COPIED_MS);
-      },
-      () => setState("failed"),
-    );
+    setState("copied");
+    timer.current = setTimeout(() => setState("idle"), COPIED_MS);
+  };
+
+  const copy = () => {
+    inputRef.current?.focus();
+    inputRef.current?.select();
+    navigator.clipboard.writeText(value).then(confirm, () => {
+      clearTimeout(timer.current);
+      setState("failed");
+    });
   };
 
   const copied = state === "copied";
-  const action = copied
-    ? t({ id: "copy-value.copied", message: "Copied" })
-    : t({ id: "copy-value.copy", message: "Copy" });
+  const copiedLabel = t({ id: "copy-value.copied", message: "Copied" });
 
   return (
     <TextField isReadOnly value={value}>
-      <Label id={labelId}>{label}</Label>
-      <InputGroup variant="secondary">
+      <Label>{label}</Label>
+      <InputGroup
+        variant="secondary"
+        className="cursor-copy"
+        // A press inside a selection collapses it after `click` has run, so
+        // the press never reaches the browser and `copy` places focus itself.
+        onMouseDown={(event) => event.preventDefault()}
+        onClick={copy}
+      >
         <InputGroup.Input
-          className="font-mono"
+          ref={inputRef}
+          className="cursor-copy font-mono"
           onFocus={(event) => event.target.select()}
+          onCopy={confirm}
         />
-        <InputGroup.Suffix className="pe-0.5">
-          <Tooltip delay={0}>
-            <Button
-              id={buttonId}
-              isIconOnly
-              size="sm"
-              variant="ghost"
-              aria-label={action}
-              aria-labelledby={`${buttonId} ${labelId}`}
-              onPress={copy}
-            >
-              {copied ? (
-                <Check className="size-4" aria-hidden="true" />
-              ) : (
-                <Copy className="size-4" aria-hidden="true" />
-              )}
-            </Button>
-            <Tooltip.Content>{action}</Tooltip.Content>
+        {/* The suffix and the icon's box are stretched to the field's height,
+            so the tooltip hangs from the field's edge rather than overlapping
+            it. HeroUI's `height: 100%` does not resolve against the group's
+            `min-height`. */}
+        <InputGroup.Suffix className="h-auto self-stretch">
+          <span
+            ref={iconRef}
+            className="flex items-center self-stretch"
+            aria-hidden="true"
+          >
+            {copied ? (
+              <Check className="size-4 text-success" />
+            ) : (
+              <Copy className="size-4 text-muted" />
+            )}
+          </span>
+          <Tooltip isOpen={copied}>
+            <Tooltip.Content triggerRef={iconRef} placement="bottom">
+              {copiedLabel}
+            </Tooltip.Content>
           </Tooltip>
         </InputGroup.Suffix>
       </InputGroup>
       {description !== undefined && <Description>{description}</Description>}
       <span role="status" className="sr-only">
-        {copied ? action : ""}
+        {copied ? copiedLabel : ""}
       </span>
       {state === "failed" && (
         <SurfaceAlert status="warning" role="alert">

@@ -1484,11 +1484,6 @@ msgid "settings.keys.jwk.copy"
 msgstr "复制"
 
 #. js-lingui-explicit-id
-#: src/components/custom/CopyValue.tsx
-msgid "copy-value.copy"
-msgstr "复制"
-
-#. js-lingui-explicit-id
 #: src/components/custom/secret-reveal-copy.ts
 msgid "login.codes.copy"
 msgstr "复制恢复码"

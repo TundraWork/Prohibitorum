@@ -212,10 +212,10 @@ background and a single `ConsoleCard` under it. The access policy shared by the
 three application kinds is `AppAccessPanel`, and a read-only value that is meant
 to be copied elsewhere — a Client ID, an Entity ID, a callback address — is
 `CopyValue`: a read-only field with a visible `Label` over a `secondary`
-`InputGroup`, so it lines up with the fields beside it, and a ghost copy button
-at the trailing edge, inset by the same 2px (`pe-0.5`) the field leaves above
-and below it.
-A copy the clipboard refuses shows a `SurfaceAlert` under the field.
+`InputGroup`, so it lines up with the fields beside it. A click anywhere on the
+field selects the value and copies it; the copy icon at the trailing edge is
+decoration, not a button, and turns into a check with a brief "Copied" tooltip
+below it. A copy the clipboard refuses shows a `SurfaceAlert` under the field.
 
 ### Loading
 
