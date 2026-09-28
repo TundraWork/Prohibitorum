@@ -1,9 +1,13 @@
+import { z } from "zod";
 import type { AuditEventFilters } from "@/api/queries";
 import {
-  type AuditEvent,
-  type AuditFactor,
-  isAuditEvent,
-  isAuditFactor,
+  optionalSearchText,
+  searchChoice,
+  searchText,
+} from "@/app/search-params";
+import {
+  auditEventKeys,
+  auditFactorKeys,
 } from "@/pages/admin/audit-vocabulary";
 
 /**
@@ -24,56 +28,28 @@ const presetMs: Record<Exclude<AuditRange, "all" | "custom">, number> = {
   "30d": 30 * 24 * 60 * 60 * 1000,
 };
 
-export interface AuditSearch {
-  range: AuditRange;
-  /** `YYYY-MM-DD`, read only for `range=custom`. */
-  from: string;
-  to: string;
-  factor: AuditFactor | "";
-  event: AuditEvent | "";
-  /** An account id, or `undefined` for every account. */
-  account?: number;
-}
-
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
 
-function text(value: unknown): string {
-  return typeof value === "string" ? value : "";
-}
+export const auditSearch = z.object({
+  range: searchChoice(auditRanges, "24h"),
+  /** `YYYY-MM-DD`, read only for `range=custom`. */
+  from: searchText(z.string().regex(datePattern)),
+  to: searchText(z.string().regex(datePattern)),
+  factor: searchChoice(["", ...auditFactorKeys], ""),
+  event: searchChoice(["", ...auditEventKeys], ""),
+  /**
+   * An account id, or `undefined` for every account. It stays the text the
+   * address carried; the request converts it.
+   */
+  account: optionalSearchText(
+    z
+      .string()
+      .regex(/^[1-9]\d*$/)
+      .refine((value) => Number.isSafeInteger(Number(value))),
+  ),
+});
 
-/**
- * The router parses `?account=5` into a number and `?account=abc` into a
- * string, so both are accepted — as long as they name a positive integer.
- */
-function accountId(value: unknown): number | undefined {
-  if (typeof value === "number") {
-    return Number.isSafeInteger(value) && value > 0 ? value : undefined;
-  }
-  if (typeof value === "string" && /^[1-9]\d*$/.test(value)) {
-    const parsed = Number(value);
-    return Number.isSafeInteger(parsed) ? parsed : undefined;
-  }
-  return undefined;
-}
-
-export function auditSearch(search: Record<string, unknown>): AuditSearch {
-  const range = text(search.range);
-  const factor = text(search.factor);
-  const event = text(search.event);
-  const from = text(search.from);
-  const to = text(search.to);
-  const account = accountId(search.account);
-  return {
-    range: (auditRanges as readonly string[]).includes(range)
-      ? (range as AuditRange)
-      : "24h",
-    from: datePattern.test(from) ? from : "",
-    to: datePattern.test(to) ? to : "",
-    factor: isAuditFactor(factor) ? factor : "",
-    event: isAuditEvent(event) ? event : "",
-    ...(account === undefined ? {} : { account }),
-  };
-}
+export type AuditSearch = z.output<typeof auditSearch>;
 
 /**
  * A `YYYY-MM-DD` as a local calendar day, or `null` for a day that does not
@@ -111,7 +87,9 @@ export function auditQuery(search: AuditSearch, anchor: number): AuditQuery {
   const filters: AuditEventFilters = {
     ...(search.factor === "" ? {} : { factor: search.factor }),
     ...(search.event === "" ? {} : { event: search.event }),
-    ...(search.account === undefined ? {} : { accountId: search.account }),
+    ...(search.account === undefined
+      ? {}
+      : { accountId: Number(search.account) }),
   };
   if (search.range === "all") return { status: "ready", filters };
   if (search.range === "custom") {

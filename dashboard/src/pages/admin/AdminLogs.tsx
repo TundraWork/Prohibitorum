@@ -293,7 +293,6 @@ function auditColumns(i18n: Locale): TableColumn<AuditEventView>[] {
           <Link
             className="font-medium"
             params={{ id: String(event.accountId) }}
-            search={{ tab: "profile" as const }}
             to="/admin/users/$id"
           >
             {event.accountUsername}
@@ -476,7 +475,7 @@ function AuditFilters({
   const [accountSearch, setAccountSearch] = useState("");
   const candidates = useQuery(accountSearchQueryOptions(accountSearch));
   const chosen = useQuery({
-    ...accountQueryOptions(search.account ?? 0),
+    ...accountQueryOptions(Number(search.account ?? 0)),
     enabled: search.account !== undefined,
   });
 
@@ -580,11 +579,8 @@ function AuditFilters({
             message: "Any account",
           })}
           variant="secondary"
-          value={search.account === undefined ? [] : [String(search.account)]}
-          onValueChange={(next) => {
-            const id = Number(next[0]);
-            onChange({ account: next[0] === undefined ? undefined : id });
-          }}
+          value={search.account === undefined ? [] : [search.account]}
+          onValueChange={(next) => onChange({ account: next[0] })}
           onSearch={setAccountSearch}
           options={options}
           loading={candidates.isFetching}

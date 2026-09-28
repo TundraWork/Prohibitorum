@@ -1,3 +1,6 @@
+import { z } from "zod";
+import { searchChoice } from "@/app/search-params";
+
 /**
  * Tab state for the console's tabbed pages.
  *
@@ -12,26 +15,15 @@
  * default one, never on a 404 or a half-rendered page.
  */
 
-/** Narrows the raw search value to one of `allowed`, else `allowed[0]`. */
-export function pickTab<T extends string>(
-  value: unknown,
-  allowed: readonly T[],
-): T {
-  const fallback = allowed[0] as T;
-  if (typeof value !== "string") return fallback;
-  // Only the first value of a repeated parameter is considered; anything that
-  // arrives as a list is not a tab the page can render.
-  return (allowed as readonly string[]).includes(value)
-    ? (value as T)
-    : fallback;
+/** The search schema of a page with these tabs: `?tab=`, else the first. */
+export function tabSearch<const T extends readonly [string, ...string[]]>(
+  tabs: T,
+) {
+  return z.object({ tab: searchChoice(tabs, tabs[0]) });
 }
 
 export const profileTabs = ["display-name", "avatar"] as const;
 export type ProfileTab = (typeof profileTabs)[number];
-
-export function profileTab(value: unknown): ProfileTab {
-  return pickTab(value, profileTabs);
-}
 
 /**
  * Sections of one account in the management area. The profile form stands
@@ -41,10 +33,6 @@ export function profileTab(value: unknown): ProfileTab {
  */
 export const accountTabs = ["profile", "access", "danger"] as const;
 export type AccountTab = (typeof accountTabs)[number];
-
-export function accountTab(value: unknown): AccountTab {
-  return pickTab(value, accountTabs);
-}
 
 /**
  * The instance settings, one tab per kind: what the instance is called and
@@ -58,7 +46,3 @@ export const settingsTabs = [
   "keys",
 ] as const;
 export type SettingsTab = (typeof settingsTabs)[number];
-
-export function settingsTab(value: unknown): SettingsTab {
-  return pickTab(value, settingsTabs);
-}

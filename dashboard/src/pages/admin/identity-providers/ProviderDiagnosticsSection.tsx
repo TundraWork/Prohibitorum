@@ -62,13 +62,7 @@ const pollIntervalSeconds = 1;
 const pollWindowSeconds = 30;
 
 /** `?test=<id>` is 43 base64url characters; anything else is ignored. */
-const runIdPattern = /^[A-Za-z0-9_-]{43}$/;
-
-export function readRunId(value: unknown): string | undefined {
-  return typeof value === "string" && runIdPattern.test(value)
-    ? value
-    : undefined;
-}
+export const runIdPattern = /^[A-Za-z0-9_-]{43}$/;
 
 /**
  * Whether the upstream actually works, before anyone depends on it.

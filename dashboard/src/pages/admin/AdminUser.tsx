@@ -975,18 +975,7 @@ function DeleteBlock({ account }: { account: Account }) {
           onConfirm={() =>
             remove.mutate(account.id, {
               onSuccess: async () => {
-                await navigate({
-                  to: "/admin/users",
-                  search: {
-                    q: "",
-                    provider: "",
-                    field: "",
-                    value: "",
-                    match: "",
-                    role: "",
-                    state: "",
-                  },
-                });
+                await navigate({ to: "/admin/users" });
               },
             })
           }
