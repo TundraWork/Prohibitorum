@@ -149,6 +149,7 @@ function allowedValues(path: string): readonly string[] | undefined {
   if (path === "session.role") return ["admin", "member"];
   if (path === "admin.diagnosticOutcome")
     return ["succeeded", "fallback", "failed"];
+  if (path === "publicFlows.consent.grant") return ["first", "incremental"];
   return undefined;
 }
 

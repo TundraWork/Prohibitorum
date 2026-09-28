@@ -13,12 +13,31 @@ import { applyMockQuery } from "@/devtools/mock/query";
 
 type Application = { queryClient: QueryClient; router: RegisteredRouter };
 
-const publicPrefixes = ["/login", "/preview", "/__dev"];
+/** The sign-in steps, which a signed-in account has no use for. */
+const signInPaths = ["/login", "/login/totp", "/login/recovery"];
 
-function isPublicPath(pathname: string): boolean {
-  return publicPrefixes.some(
-    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
-  );
+/**
+ * The public pages that are not a sign-in step. Each decides for itself what a
+ * session means — a consent page sends an anonymous reader to sign in, the
+ * maintenance page offers a way out either way — so a change of session in
+ * the panel leaves the reader on them.
+ */
+const publicPaths = ["/consent", "/saml-consent", "/error", "/maintenance"];
+
+/**
+ * Where a change of session in the panel moves the reader, if anywhere: a
+ * signed-in account off the sign-in steps and home, an anonymous one out of
+ * the console and to the sign-in page.
+ */
+export function refreshTarget(
+  pathname: string,
+  signedIn: boolean,
+): "/" | "/login" | undefined {
+  if (signedIn) return signInPaths.includes(pathname) ? "/" : undefined;
+  if (signInPaths.includes(pathname) || publicPaths.includes(pathname)) {
+    return undefined;
+  }
+  return "/login";
 }
 
 let installed = false;
@@ -143,13 +162,12 @@ async function refresh(application: Application): Promise<void> {
   } catch {
     return;
   }
-  const { pathname } = router.state.location;
+  const target = refreshTarget(
+    router.state.location.pathname,
+    session !== null,
+  );
   try {
-    if (session === null) {
-      if (pathname !== "/login") await router.navigate({ to: "/login" });
-    } else if (isPublicPath(pathname)) {
-      await router.navigate({ to: "/" });
-    }
+    if (target !== undefined) await router.navigate({ to: target });
   } catch {
     // Same: the loader's redirect is the intended outcome.
   }

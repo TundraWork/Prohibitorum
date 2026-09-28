@@ -30,6 +30,16 @@ describe("mock URL control", () => {
     expect(config.admin.oidcApps).toBe(7);
   });
 
+  it("sets up a public flow from the address, refusing a grant the panel does not offer", () => {
+    applyMockQuery(
+      "?mock.publicFlows.consent.grant=incremental&mock.publicFlows.consent.samlAttributes=0",
+    );
+    expect(getMockConfig().publicFlows.consent.grant).toBe("incremental");
+    expect(getMockConfig().publicFlows.consent.samlAttributes).toBe(0);
+    applyMockQuery("?mock.publicFlows.consent.grant=everything");
+    expect(getMockConfig().publicFlows.consent.grant).toBe("incremental");
+  });
+
   it("ignores a URL that names nothing the mock knows", () => {
     applyMockQuery("?tab=profile&page=2");
     expect(getMockConfig().enabled).toBe(false);

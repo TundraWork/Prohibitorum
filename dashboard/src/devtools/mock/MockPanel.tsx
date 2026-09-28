@@ -619,6 +619,76 @@ export function MockPanel() {
           />
         </Section>
 
+        <Section title="Public flows">
+          <Choose
+            label="Consent"
+            value={config.publicFlows.consent.grant}
+            options={[
+              { value: "first", label: "First time" },
+              { value: "incremental", label: "More access" },
+            ]}
+            onChange={(next) =>
+              updateMockConfig((draft) => {
+                draft.publicFlows.consent.grant = next;
+              })
+            }
+          />
+          <Text
+            label="Requested scopes"
+            value={config.publicFlows.consent.scopes}
+            onChange={(next) =>
+              updateMockConfig((draft) => {
+                draft.publicFlows.consent.scopes = next;
+              })
+            }
+          />
+          <Toggle
+            label="Application logo"
+            checked={config.publicFlows.consent.logo}
+            onChange={(next) =>
+              updateMockConfig((draft) => {
+                draft.publicFlows.consent.logo = next;
+              })
+            }
+          />
+          <Toggle
+            label="Privacy policy"
+            checked={config.publicFlows.consent.policy}
+            onChange={(next) =>
+              updateMockConfig((draft) => {
+                draft.publicFlows.consent.policy = next;
+              })
+            }
+          />
+          <Toggle
+            label="Terms of service"
+            checked={config.publicFlows.consent.terms}
+            onChange={(next) =>
+              updateMockConfig((draft) => {
+                draft.publicFlows.consent.terms = next;
+              })
+            }
+          />
+          <Toggle
+            label="Ticket still valid"
+            checked={config.publicFlows.consent.ticketValid}
+            onChange={(next) =>
+              updateMockConfig((draft) => {
+                draft.publicFlows.consent.ticketValid = next;
+              })
+            }
+          />
+          <Count
+            label="SAML attributes"
+            value={config.publicFlows.consent.samlAttributes}
+            onChange={(next) =>
+              updateMockConfig((draft) => {
+                draft.publicFlows.consent.samlAttributes = next;
+              })
+            }
+          />
+        </Section>
+
         <Section title="Instance">
           <Toggle
             label="Maintenance mode"

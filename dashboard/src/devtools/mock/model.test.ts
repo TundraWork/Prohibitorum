@@ -69,6 +69,33 @@ describe("mock config", () => {
     expect(getMockConfig().factors).toEqual(defaultMockConfig.factors);
   });
 
+  it("starts the public flows on a first-time consent with an app-defined scope", () => {
+    expect(defaultMockConfig.publicFlows.consent).toEqual({
+      grant: "first",
+      scopes: "openid profile email groups offline_access wiki:write",
+      logo: true,
+      policy: true,
+      terms: true,
+      ticketValid: true,
+      samlAttributes: 3,
+    });
+  });
+
+  it("loads stored public-flow edits and keeps a default the stored value cannot replace", async () => {
+    window.localStorage.setItem(
+      "prohibitorum.devtools.mock",
+      JSON.stringify({
+        publicFlows: { consent: { grant: "incremental", logo: "no" } },
+      }),
+    );
+    vi.resetModules();
+    const reloaded = await import("@/devtools/mock/model");
+    const consent = reloaded.getMockConfig().publicFlows.consent;
+    expect(consent.grant).toBe("incremental");
+    expect(consent.logo).toBe(true);
+    expect(consent.ticketValid).toBe(true);
+  });
+
   it("keeps the data but not the master switch across a reload", async () => {
     updateMockConfig((draft) => {
       draft.enabled = true;

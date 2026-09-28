@@ -102,6 +102,26 @@ export interface MockConfig {
     /** Whether it asked from this device's own address. */
     sameNetwork: boolean;
   };
+  /** The public pages an application sends the browser to. */
+  publicFlows: {
+    consent: {
+      /**
+       * `first` asks about every scope; `incremental` reports the first three
+       * as allowed before, so the page lists only the rest.
+       */
+      grant: "first" | "incremental";
+      /** The scopes the application asks for, space-separated as in OIDC. */
+      scopes: string;
+      /** Whether the application has a logo, a privacy policy and terms. */
+      logo: boolean;
+      policy: boolean;
+      terms: boolean;
+      /** Off answers every ticket as expired or used. */
+      ticketValid: boolean;
+      /** How many attributes a SAML service receives; 0 draws the fallback line. */
+      samlAttributes: number;
+    };
+  };
   instance: {
     maintenance: boolean;
     maintenanceMessage: string;
@@ -183,6 +203,17 @@ export const defaultMockConfig: MockConfig = {
   },
   sudo: { fresh: true, webauthn: true, passwordTotp: true },
   pairing: { expiresInSeconds: 300, alreadyBound: false, sameNetwork: false },
+  publicFlows: {
+    consent: {
+      grant: "first",
+      scopes: "openid profile email groups offline_access wiki:write",
+      logo: true,
+      policy: true,
+      terms: true,
+      ticketValid: true,
+      samlAttributes: 3,
+    },
+  },
   instance: {
     maintenance: false,
     maintenanceMessage: "Scheduled maintenance is in progress.",
