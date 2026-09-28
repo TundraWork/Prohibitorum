@@ -119,6 +119,39 @@ export interface CreatedPersonalAccessToken {
   };
 }
 
+export interface ConsentAccount {
+  displayName: string;
+  avatarUrl?: string;
+}
+
+/** `GET /consent`: the OIDC authorization waiting on the signed-in account. */
+export interface ConsentRequest {
+  client: {
+    clientId: string;
+    displayName: string;
+    logoUri?: string;
+    policyUri?: string;
+    tosUri?: string;
+  };
+  account: ConsentAccount;
+  scopes: string[];
+  /** The requested scopes this account has allowed before; absent the first time. */
+  alreadyGranted?: string[];
+}
+
+/** `GET /saml-consent`: the SAML sign-in waiting on the signed-in account. */
+export interface SamlConsentRequest {
+  sp: { id: string; displayName: string; logoUri?: string };
+  account: ConsentAccount;
+  /** Labels of the attributes the service will receive. */
+  attributes: string[];
+}
+
+/** Where the browser goes once a consent decision is made. */
+export interface ConsentDecision {
+  redirect: string;
+}
+
 export interface RawPaths {
   "/api/prohibitorum/config": {
     get: {
@@ -531,6 +564,69 @@ export interface RawPaths {
               | null;
           };
         };
+      };
+    };
+  };
+  "/api/prohibitorum/consent": {
+    get: {
+      parameters: {
+        query: { ticket: string };
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        200: { content: { "application/json": ConsentRequest } };
+      };
+    };
+    post: {
+      parameters: {
+        query: { return_to: string };
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody: {
+        content: {
+          "application/json": { ticket: string; decision: "approve" | "deny" };
+        };
+      };
+      responses: {
+        200: { content: { "application/json": ConsentDecision } };
+      };
+    };
+  };
+  "/api/prohibitorum/saml-consent": {
+    get: {
+      parameters: {
+        query: { ticket: string };
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        200: { content: { "application/json": SamlConsentRequest } };
+      };
+    };
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody: {
+        content: {
+          "application/json": {
+            ticket: string;
+            decision: "approve" | "decline";
+          };
+        };
+      };
+      responses: {
+        200: { content: { "application/json": ConsentDecision } };
       };
     };
   };

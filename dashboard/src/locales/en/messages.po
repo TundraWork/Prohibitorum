@@ -93,6 +93,21 @@ msgid "app.managers.confirm.body"
 msgstr "{name} will no longer be able to change this application. Their account is not affected."
 
 #. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.federation.upstream_rate_limited"
+msgstr "{provider} is asking us to slow down. Wait a moment."
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.federation.provider_not_ready"
+msgstr "{provider} isn't set up yet."
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.federation.upstream_error"
+msgstr "{provider} refused this sign-in."
+
+#. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/ClientConfigSection.tsx
 msgid "admin.oidc-apps.scopes.remove.title"
 msgstr "{removedCount, plural, one {Remove # scope?} other {Remove # scopes?}}"
@@ -586,6 +601,11 @@ msgstr "An account joins this group while the rule matches it. Rules are checked
 #: src/api/errors.ts
 msgid "error.admin_cannot_be_disabled"
 msgstr "An administrator cannot be disabled. Change the role to user first."
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.landing.app_access_denied"
+msgstr "An administrator hasn't given your account access to this app."
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -1792,6 +1812,11 @@ msgstr "Could not load your connected applications."
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
+msgid "error.federation.upstream_temporarily_unavailable"
+msgstr "Could not reach {provider}."
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
 msgid "error.upstream_temporarily_unavailable"
 msgstr "Could not reach the provider."
 
@@ -1849,6 +1874,11 @@ msgstr "Creates accounts"
 #: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.mode.auto.hint"
 msgstr "Creates an account the first time someone without one signs in."
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.federation.invite_required"
+msgstr "Creating an account through {provider} requires an invitation."
 
 #. js-lingui-explicit-id
 #: src/pages/DevForms.tsx
@@ -3200,6 +3230,11 @@ msgstr "Instance name saved"
 #: src/pages/Preview.tsx
 msgid "preview.title"
 msgstr "Interface preview"
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.invalid_return_to"
+msgstr "Invalid return address."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts
@@ -5661,6 +5696,11 @@ msgid "admin.federation.operator.replace"
 msgstr "Sign in again"
 
 #. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.federation.link_required"
+msgstr "Sign in first, then link {provider} from Security."
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
 msgid "admin.federation.diagnostics.test.empty"
 msgstr "Sign in once at the provider and check each stage in turn."
@@ -5836,6 +5876,11 @@ msgstr "Slug"
 #: src/api/errors.ts
 msgid "route.error.crashed"
 msgstr "Something went wrong on this page."
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.sign_in_failed"
+msgstr "Something went wrong while signing in."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AttributeMapField.tsx
@@ -6118,6 +6163,16 @@ msgstr "The accounts linked through it stay; only the link is removed."
 #: src/pages/admin/identity-providers/EndpointsField.tsx
 msgid "admin.federation.endpoints.override.note"
 msgstr "The addresses entered here replace what discovery finds."
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.landing.invalid_request"
+msgstr "The app sent a request that can't be used."
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.landing.saml_request_invalid"
+msgstr "The app sent a sign-in request that can't be used."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/SamlDangerSection.tsx
@@ -6458,6 +6513,11 @@ msgid "admin.user.state.disable.body"
 msgstr "They will not be able to sign in. Sessions they already have stay active until you end them."
 
 #. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.federation.federation_identity_conflict"
+msgstr "This {provider} identity is already linked to another account."
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.state.disabled.note"
 msgstr "This account cannot sign in. Enabling it restores access with the sign-in methods it already had."
@@ -6478,6 +6538,16 @@ msgid "admin.oidc-apps.uri.duplicate"
 msgstr "This address is already in the list."
 
 #. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.landing.saml_idp_init_disabled"
+msgstr "This app can't be opened directly from {instance}."
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.landing.saml_sp_unknown"
+msgstr "This app isn't registered with {instance}."
+
+#. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.app_no_scopes"
 msgstr "This application defines no scopes."
@@ -6491,6 +6561,11 @@ msgstr "This application has no endpoints."
 #: src/pages/ConnectedApps.tsx
 msgid "apps.confirm.body"
 msgstr "This application will no longer read your profile. It will need to ask for permission again."
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.invalid_consent_ticket"
+msgstr "This authorization request has expired or was already used. Go back to the app and sign in again."
 
 #. js-lingui-explicit-id
 #: src/components/custom/SudoDialog.tsx
@@ -6536,6 +6611,16 @@ msgstr "This instance has not been initialized."
 #: src/api/errors.ts
 msgid "error.not_bootstrapped"
 msgstr "This instance is not ready for sign-in. Contact its administrator."
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.federation.federation_invite_provider_mismatch"
+msgstr "This invitation can't be accepted with a {provider} account."
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.federation.enrollment_federation_required"
+msgstr "This invitation needs the account to be created through {provider}."
 
 #. js-lingui-explicit-id
 #: src/pages/Preview.tsx
@@ -6681,6 +6766,11 @@ msgstr "This sign-in attempt has expired. Enter your password again."
 #: src/api/errors.ts
 msgid "error.invalid_login_link"
 msgstr "This sign-in link is invalid. Open a new sign-in link."
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.landing.saml_replayed"
+msgstr "This sign-in request was already used. Go back to the app and sign in again."
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -7301,6 +7391,11 @@ msgstr "Verify with a passkey"
 #: src/pages/Login.tsx
 msgid "login.totp.form"
 msgstr "Verify your authenticator"
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.federation.email_not_verified"
+msgstr "Verify your email address with {provider} first."
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts

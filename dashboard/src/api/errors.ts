@@ -244,6 +244,15 @@ const errorMessages: Readonly<Record<string, MessageDescriptor>> = {
     id: "error.server_error",
     message: "The server could not complete the request.",
   }),
+  invalid_consent_ticket: msg({
+    id: "error.invalid_consent_ticket",
+    message:
+      "This authorization request has expired or was already used. Go back to the app and sign in again.",
+  }),
+  invalid_return_to: msg({
+    id: "error.invalid_return_to",
+    message: "Invalid return address.",
+  }),
 
   /* Management. These arrive on writes the console's admin pages make, and each
      one has an action the reader can take, so none of them may fall through to
@@ -370,8 +379,12 @@ const errorMessages: Readonly<Record<string, MessageDescriptor>> = {
  * Where a request was made, for the few codes whose meaning depends on it.
  * A mutation names its scope as `meta.errorScope`, and the query client hands
  * it on, so the toast reads the scoped wording before the general one.
+ *
+ * `federation` is a sign-in or a link that went through an upstream provider:
+ * its wording names the provider, which the failure carries as
+ * `details.federationName`.
  */
-export type ErrorScope = "signing-key";
+export type ErrorScope = "signing-key" | "federation";
 
 const scopedErrorMessages: Readonly<
   Record<ErrorScope, Readonly<Record<string, MessageDescriptor>>>
@@ -384,7 +397,76 @@ const scopedErrorMessages: Readonly<
       message: "This key is no longer pending.",
     }),
   },
+  // Every one of these names the provider. Without a name the sentence would
+  // have to say "the provider", which tells the reader nothing they can act
+  // on, so a failure without one falls back to `signInFailure`.
+  federation: {
+    enrollment_federation_required: msg({
+      id: "error.federation.enrollment_federation_required",
+      message:
+        "This invitation needs the account to be created through {provider}.",
+    }),
+    invite_required: msg({
+      id: "error.federation.invite_required",
+      message: "Creating an account through {provider} requires an invitation.",
+    }),
+    link_required: msg({
+      id: "error.federation.link_required",
+      message: "Sign in first, then link {provider} from Security.",
+    }),
+    federation_identity_conflict: msg({
+      id: "error.federation.federation_identity_conflict",
+      message: "This {provider} identity is already linked to another account.",
+    }),
+    federation_invite_provider_mismatch: msg({
+      id: "error.federation.federation_invite_provider_mismatch",
+      message: "This invitation can't be accepted with a {provider} account.",
+    }),
+    email_not_verified: msg({
+      id: "error.federation.email_not_verified",
+      message: "Verify your email address with {provider} first.",
+    }),
+    upstream_error: msg({
+      id: "error.federation.upstream_error",
+      message: "{provider} refused this sign-in.",
+    }),
+    upstream_rate_limited: msg({
+      id: "error.federation.upstream_rate_limited",
+      message: "{provider} is asking us to slow down. Wait a moment.",
+    }),
+    upstream_temporarily_unavailable: msg({
+      id: "error.federation.upstream_temporarily_unavailable",
+      message: "Could not reach {provider}.",
+    }),
+    provider_not_ready: msg({
+      id: "error.federation.provider_not_ready",
+      message: "{provider} isn't set up yet.",
+    }),
+  },
 };
+
+/** A sign-in that failed with nothing more specific to say. */
+const signInFailure = msg({
+  id: "error.sign_in_failed",
+  message: "Something went wrong while signing in.",
+});
+
+/**
+ * The federation wording for a code, with the provider's name filled in, or
+ * `signInFailure` when the name is missing. `undefined` for a code the
+ * federation table does not hold.
+ */
+function federationMessage(
+  code: string,
+  name: unknown,
+): MessageDescriptor | undefined {
+  const table = scopedErrorMessages.federation;
+  if (!Object.hasOwn(table, code)) return undefined;
+  const message = table[code];
+  if (message === undefined) return undefined;
+  if (typeof name !== "string" || name === "") return signInFailure;
+  return { ...message, values: { provider: name } };
+}
 
 export type ErrorDescription = MessageDescriptor & { requestId?: string };
 
@@ -406,12 +488,17 @@ export function describeError(
     });
   }
   const scoped = scope === undefined ? undefined : scopedErrorMessages[scope];
+  const federation =
+    scope === "federation" && error.code
+      ? federationMessage(error.code, error.details?.federationName)
+      : undefined;
   const message =
-    error.code && scoped && Object.hasOwn(scoped, error.code)
+    federation ??
+    (error.code && scoped && Object.hasOwn(scoped, error.code)
       ? (scoped[error.code] ?? genericFailure)
       : error.code && Object.hasOwn(errorMessages, error.code)
         ? (errorMessages[error.code] ?? genericFailure)
-        : genericFailure;
+        : genericFailure);
   return {
     ...message,
     requestId:
@@ -419,6 +506,74 @@ export function describeError(
         ? error.requestId
         : undefined,
   };
+}
+
+/**
+ * Codes that only ever reach the browser as a redirect to `/error`, from the
+ * OIDC and SAML endpoints, rather than in a response the console reads.
+ */
+const landingMessages: Readonly<Record<string, MessageDescriptor>> = {
+  invalid_request: msg({
+    id: "error.landing.invalid_request",
+    message: "The app sent a request that can't be used.",
+  }),
+  saml_request_invalid: msg({
+    id: "error.landing.saml_request_invalid",
+    message: "The app sent a sign-in request that can't be used.",
+  }),
+  saml_sp_unknown: msg({
+    id: "error.landing.saml_sp_unknown",
+    message: "This app isn't registered with {instance}.",
+  }),
+  saml_replayed: msg({
+    id: "error.landing.saml_replayed",
+    message:
+      "This sign-in request was already used. Go back to the app and sign in again.",
+  }),
+  saml_idp_init_disabled: msg({
+    id: "error.landing.saml_idp_init_disabled",
+    message: "This app can't be opened directly from {instance}.",
+  }),
+};
+
+const appAccessDenied = msg({
+  id: "error.landing.app_access_denied",
+  message: "An administrator hasn't given your account access to this app.",
+});
+
+/**
+ * What the `/error` page says about a flow the server stopped. Its inputs are
+ * the page's search values, which anyone can write, so only a code one of the
+ * tables knows is described and everything else reads as `signInFailure`.
+ *
+ * The order: a denied application, then the codes only a redirect carries,
+ * then the federation codes (which need the provider's name), then the
+ * general table.
+ */
+export function describeErrorLanding({
+  code,
+  reason,
+  federationName,
+  instance,
+}: {
+  code?: string;
+  reason?: string;
+  federationName?: string;
+  instance: string;
+}): MessageDescriptor {
+  if (reason === "app_access_denied") return appAccessDenied;
+  if (code === undefined || code === "") return signInFailure;
+  if (Object.hasOwn(landingMessages, code)) {
+    const message = landingMessages[code];
+    if (message) return { ...message, values: { instance } };
+  }
+  const federation = federationMessage(code, federationName);
+  if (federation) return federation;
+  if (Object.hasOwn(errorMessages, code)) {
+    const message = errorMessages[code];
+    if (message) return message;
+  }
+  return signInFailure;
 }
 
 /** The one way out a failed page offers, chosen by what went wrong. */

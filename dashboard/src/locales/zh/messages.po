@@ -93,6 +93,21 @@ msgid "app.managers.confirm.body"
 msgstr "{name} 将不能再修改这个应用。其账号不受影响。"
 
 #. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.federation.upstream_rate_limited"
+msgstr "{provider} 要求放慢请求。请稍等片刻。"
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.federation.provider_not_ready"
+msgstr "{provider} 尚未配置完成。"
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.federation.upstream_error"
+msgstr "{provider} 拒绝了这次登录。"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/ClientConfigSection.tsx
 msgid "admin.oidc-apps.scopes.remove.title"
 msgstr "{removedCount, plural, other {移除 # 个作用域？}}"
@@ -586,6 +601,11 @@ msgstr "账号在规则匹配期间属于本组。每次请求访问时都会检
 #: src/api/errors.ts
 msgid "error.admin_cannot_be_disabled"
 msgstr "管理员无法被停用。请先将角色改为普通用户。"
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.landing.app_access_denied"
+msgstr "管理员没有为你的账号开放这个应用。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -1792,6 +1812,11 @@ msgstr "无法加载已连接应用。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
+msgid "error.federation.upstream_temporarily_unavailable"
+msgstr "无法连接 {provider}。"
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
 msgid "error.upstream_temporarily_unavailable"
 msgstr "无法连接该提供商。"
 
@@ -1849,6 +1874,11 @@ msgstr "自动创建账号"
 #: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.mode.auto.hint"
 msgstr "没有绑定账号的人第一次登录时，自动为他创建账号。"
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.federation.invite_required"
+msgstr "通过 {provider} 创建账号需要邀请。"
 
 #. js-lingui-explicit-id
 #: src/pages/DevForms.tsx
@@ -3200,6 +3230,11 @@ msgstr "实例名称已保存"
 #: src/pages/Preview.tsx
 msgid "preview.title"
 msgstr "界面预览"
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.invalid_return_to"
+msgstr "非法的返回地址。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts
@@ -5661,6 +5696,11 @@ msgid "admin.federation.operator.replace"
 msgstr "重新登录"
 
 #. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.federation.link_required"
+msgstr "请先登录，再在「安全」中绑定 {provider}。"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
 msgid "admin.federation.diagnostics.test.empty"
 msgstr "在提供商处完成一次登录，逐项检查每个阶段。"
@@ -5836,6 +5876,11 @@ msgstr "标识"
 #: src/api/errors.ts
 msgid "route.error.crashed"
 msgstr "此页面出错了。"
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.sign_in_failed"
+msgstr "登录流程出了问题。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AttributeMapField.tsx
@@ -6118,6 +6163,16 @@ msgstr "通过它绑定的账号会保留，只解除绑定。"
 #: src/pages/admin/identity-providers/EndpointsField.tsx
 msgid "admin.federation.endpoints.override.note"
 msgstr "这里填写的地址会替换发现结果。"
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.landing.invalid_request"
+msgstr "应用发来的请求无效。"
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.landing.saml_request_invalid"
+msgstr "应用发来的登录请求无效。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/SamlDangerSection.tsx
@@ -6458,6 +6513,11 @@ msgid "admin.user.state.disable.body"
 msgstr "他们将无法登录。已有的会话保持有效，直到你结束它们。"
 
 #. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.federation.federation_identity_conflict"
+msgstr "该 {provider} 身份已绑定到另一个账号。"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.state.disabled.note"
 msgstr "该账号无法登录。启用后，它会用原有的登录方式恢复访问。"
@@ -6478,6 +6538,16 @@ msgid "admin.oidc-apps.uri.duplicate"
 msgstr "列表中已有这个地址。"
 
 #. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.landing.saml_idp_init_disabled"
+msgstr "该应用不允许从 {instance} 直接打开。"
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.landing.saml_sp_unknown"
+msgstr "该应用没有在 {instance} 注册。"
+
+#. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.app_no_scopes"
 msgstr "该应用未定义作用范围。"
@@ -6491,6 +6561,11 @@ msgstr "这个应用没有端点。"
 #: src/pages/ConnectedApps.tsx
 msgid "apps.confirm.body"
 msgstr "该应用将无法再读取你的资料，下次使用时需要重新请求授权。"
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.invalid_consent_ticket"
+msgstr "授权请求已过期或已使用。请回到应用重新登录。"
 
 #. js-lingui-explicit-id
 #: src/components/custom/SudoDialog.tsx
@@ -6536,6 +6611,16 @@ msgstr "此实例尚未初始化。"
 #: src/api/errors.ts
 msgid "error.not_bootstrapped"
 msgstr "此实例尚未开放登录。请联系管理员。"
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.federation.federation_invite_provider_mismatch"
+msgstr "该邀请不能用 {provider} 账号接受。"
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.federation.enrollment_federation_required"
+msgstr "该邀请需要通过 {provider} 创建账号。"
 
 #. js-lingui-explicit-id
 #: src/pages/Preview.tsx
@@ -6681,6 +6766,11 @@ msgstr "本次登录已过期。请重新输入密码。"
 #: src/api/errors.ts
 msgid "error.invalid_login_link"
 msgstr "登录链接无效，请打开新的登录链接。"
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.landing.saml_replayed"
+msgstr "该登录请求已经用过。请回到应用重新登录。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -7301,6 +7391,11 @@ msgstr "使用通行密钥验证"
 #: src/pages/Login.tsx
 msgid "login.totp.form"
 msgstr "验证身份验证器"
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.federation.email_not_verified"
+msgstr "请先在 {provider} 验证你的邮箱地址。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts

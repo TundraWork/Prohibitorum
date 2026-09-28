@@ -86,6 +86,44 @@ export function logoutMutationOptions(queryClient: QueryClient) {
   });
 }
 
+/**
+ * An OIDC consent decision. It carries no success message: the page leaves as
+ * soon as it answers, for the authorization or the application's callback.
+ */
+export function consentDecisionMutationOptions() {
+  return mutationOptions({
+    retry: false,
+    gcTime: 0,
+    mutationFn: ({
+      ticket,
+      returnTo,
+      decision,
+    }: {
+      ticket: string;
+      returnTo: string;
+      decision: "approve" | "deny";
+    }) =>
+      requireJsonData(
+        client.POST("/api/prohibitorum/consent", {
+          params: { query: { return_to: returnTo } },
+          body: { ticket, decision },
+        }),
+      ).then(validateLoginResult),
+  });
+}
+
+/** A SAML consent decision; see `consentDecisionMutationOptions`. */
+export function samlConsentDecisionMutationOptions() {
+  return mutationOptions({
+    retry: false,
+    gcTime: 0,
+    mutationFn: (body: { ticket: string; decision: "approve" | "decline" }) =>
+      requireJsonData(
+        client.POST("/api/prohibitorum/saml-consent", { body }),
+      ).then(validateLoginResult),
+  });
+}
+
 export function renameCredentialMutationOptions(queryClient: QueryClient) {
   return mutationOptions({
     meta: { success: successMessage.renamePasskey },

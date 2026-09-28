@@ -51,6 +51,42 @@ export async function clearSessionQueries(queryClient: QueryClient) {
   queryClient.removeQueries(filters);
 }
 
+/**
+ * The OIDC authorization a consent ticket stands for. Reading it only looks at
+ * the ticket; the decision is what uses it up. It is never served from cache,
+ * because a ticket decided in another tab is gone.
+ */
+export function consentRequestQueryOptions(ticket: string) {
+  return queryOptions({
+    queryKey: ["consent-request", ticket],
+    staleTime: 0,
+    meta: { requiresSession: true },
+    queryFn: ({ signal }) =>
+      requireJsonData(
+        client.GET("/api/prohibitorum/consent", {
+          params: { query: { ticket } },
+          signal,
+        }),
+      ),
+  });
+}
+
+/** The SAML sign-in a consent ticket stands for; see `consentRequestQueryOptions`. */
+export function samlConsentRequestQueryOptions(ticket: string) {
+  return queryOptions({
+    queryKey: ["saml-consent-request", ticket],
+    staleTime: 0,
+    meta: { requiresSession: true },
+    queryFn: ({ signal }) =>
+      requireJsonData(
+        client.GET("/api/prohibitorum/saml-consent", {
+          params: { query: { ticket } },
+          signal,
+        }),
+      ),
+  });
+}
+
 export function credentialsQueryOptions() {
   return queryOptions({
     queryKey: ["session", "credentials"],
