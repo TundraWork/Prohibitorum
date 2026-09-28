@@ -38,9 +38,19 @@ msgid "admin.federation.danger.delete.confirm.linked"
 msgstr "{count, plural, one {# account loses} other {# accounts lose}} the way they sign in with it. An account that can only sign in this way needs a new registration link from you."
 
 #. js-lingui-explicit-id
+#: src/pages/security/PasswordTotpPanel.tsx
+msgid "security.recovery.remaining"
+msgstr "{count, plural, one {# code left} other {# codes left}}"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
 msgid "admin.federation.diagnostics.stage.duration"
 msgstr "{duration} ms"
+
+#. js-lingui-explicit-id
+#: src/pages/devices/PairDeviceDialog.tsx
+msgid "devices.field.ip_same"
+msgstr "{ip} · Same as this device"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/UriListField.tsx
@@ -393,16 +403,6 @@ msgid "api.maintenance.active"
 msgstr "Active"
 
 #. js-lingui-explicit-id
-#: src/pages/security/SessionsPanel.tsx
-msgid "security.section.sessions"
-msgstr "Active sessions"
-
-#. js-lingui-explicit-id
-#: src/pages/security/SessionsPanel.tsx
-msgid "security.sessions.table"
-msgstr "Active sessions"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.sessions.title"
 msgstr "Active sessions"
@@ -522,7 +522,7 @@ msgid "admin.home.title"
 msgstr "Administration"
 
 #. js-lingui-explicit-id
-#: src/components/custom/TotpSetup.tsx
+#: src/pages/Login.tsx
 msgid "login.reset.warning"
 msgstr "After a successful reset, your old authenticator and all old recovery codes will stop working."
 
@@ -550,6 +550,11 @@ msgstr "All of these"
 #: src/pages/admin/AdminLogs.tsx
 msgid "admin.logs.range.all"
 msgstr "All time"
+
+#. js-lingui-explicit-id
+#: src/pages/security/PasswordTotpPanel.tsx
+msgid "security.recovery.used_up"
+msgstr "All used"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
@@ -718,19 +723,19 @@ msgid "admin.user.oidcSubject.hint"
 msgstr "Applications identify this account by this value. It never changes."
 
 #. js-lingui-explicit-id
-#: src/pages/Devices.tsx
+#: src/api/success-messages.ts
+msgid "success.device.approval-revoked"
+msgstr "Approval revoked"
+
+#. js-lingui-explicit-id
+#: src/pages/devices/PairDeviceDialog.tsx
 msgid "devices.approve"
 msgstr "Approve"
 
 #. js-lingui-explicit-id
-#: src/pages/Devices.tsx
-msgid "devices.confirm.title"
-msgstr "Approve this device?"
-
-#. js-lingui-explicit-id
-#: src/pages/Devices.tsx
-msgid "devices.note"
-msgstr "Approving lets this device continue, but it is not signed in yet: it still has to set up a passkey of its own."
+#: src/api/success-messages.ts
+msgid "success.device.approved"
+msgstr "Approved. Continue on the new device."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
@@ -809,6 +814,11 @@ msgid "admin.logs.table"
 msgstr "Audit events"
 
 #. js-lingui-explicit-id
+#: src/pages/security/PasswordTotpPanel.tsx
+msgid "security.factor.authenticator"
+msgstr "Authenticator"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts
 msgid "audit.factor.totp"
 msgstr "Authenticator"
@@ -884,6 +894,11 @@ msgid "admin.saml-apps.source.avatar-url"
 msgstr "Avatar URL"
 
 #. js-lingui-explicit-id
+#: src/pages/security/PasswordTotpPanel.tsx
+msgid "security.setup.back"
+msgstr "Back"
+
+#. js-lingui-explicit-id
 #: src/components/custom/RouteFeedback.tsx
 msgid "route.console_home"
 msgstr "Back to console home"
@@ -923,6 +938,11 @@ msgstr "Callback"
 #: src/pages/security/PasswordTotpPanel.tsx
 #: src/pages/security/TokensPanel.tsx
 msgid "security.cancel"
+msgstr "Cancel"
+
+#. js-lingui-explicit-id
+#: src/pages/devices/PairDeviceDialog.tsx
+msgid "devices.cancel"
 msgstr "Cancel"
 
 #. js-lingui-explicit-id
@@ -1043,16 +1063,6 @@ msgstr "Choose a field"
 #: src/pages/admin/AdminUsers.tsx
 msgid "admin.users.filter.match"
 msgstr "Choose a match"
-
-#. js-lingui-explicit-id
-#: src/pages/security/PasswordTotpPanel.tsx
-msgid "security.password.change.note"
-msgstr "Choose a new password for signing in."
-
-#. js-lingui-explicit-id
-#: src/pages/security/PasswordTotpPanel.tsx
-msgid "security.setup.password"
-msgstr "Choose a password"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
@@ -1224,6 +1234,11 @@ msgid "admin.oidc-apps.scopes.remove.body"
 msgstr "Clients that still request <0/> can no longer sign in until they stop requesting {removedCount, plural, one {it} other {them}}. Refresh tokens already issued keep {removedCount, plural, one {it} other {them}} until they expire or are revoked."
 
 #. js-lingui-explicit-id
+#: src/pages/devices/PairDeviceDialog.tsx
+msgid "devices.close"
+msgstr "Close"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/settings/SigningKeysPanel.tsx
 msgid "settings.keys.jwk.close"
 msgstr "Close"
@@ -1269,9 +1284,9 @@ msgid "admin.federation.operator.code"
 msgstr "Code"
 
 #. js-lingui-explicit-id
-#: src/pages/Devices.tsx
-msgid "devices.code.label"
-msgstr "Code from the other device"
+#: src/pages/security/PasswordTotpPanel.tsx
+msgid "security.setup.code"
+msgstr "Code from your authenticator"
 
 #. js-lingui-explicit-id
 #: src/pages/Preview.tsx
@@ -1591,6 +1606,11 @@ msgid "console.navigation"
 msgstr "Console navigation"
 
 #. js-lingui-explicit-id
+#: src/pages/devices/PairDeviceDialog.tsx
+msgid "devices.continue"
+msgstr "Continue"
+
+#. js-lingui-explicit-id
 #: src/components/custom/secret-reveal-copy.ts
 msgid "login.codes.continue"
 msgstr "Continue"
@@ -1906,7 +1926,7 @@ msgid "admin.logs.range.dates"
 msgstr "Dates"
 
 #. js-lingui-explicit-id
-#: src/pages/Devices.tsx
+#: src/pages/devices/PairDeviceDialog.tsx
 msgid "devices.decline"
 msgstr "Decline"
 
@@ -2047,17 +2067,17 @@ msgid "dev.forms.eyebrow"
 msgstr "Development only"
 
 #. js-lingui-explicit-id
-#: src/pages/Devices.tsx
-msgid "devices.field.agent"
+#: src/pages/devices/PairDeviceDialog.tsx
+msgid "devices.field.device"
 msgstr "Device"
 
 #. js-lingui-explicit-id
-#: src/api/success-messages.ts
-msgid "success.device.approved"
-msgstr "Device approved"
+#: src/pages/devices/PairDeviceDialog.tsx
+msgid "devices.review.approved_title"
+msgstr "Device already approved"
 
 #. js-lingui-explicit-id
-#: src/pages/Devices.tsx
+#: src/pages/devices/PairDeviceDialog.tsx
 msgid "devices.form"
 msgstr "Device pairing"
 
@@ -2439,13 +2459,13 @@ msgid "admin.user.sessions.revoke"
 msgstr "End"
 
 #. js-lingui-explicit-id
-#: src/pages/security/SessionsPanel.tsx
-msgid "security.sessions.sign_out"
+#: src/pages/devices/DeviceSessionList.tsx
+msgid "devices.sessions.end"
 msgstr "End session"
 
 #. js-lingui-explicit-id
-#: src/pages/security/SessionsPanel.tsx
-msgid "security.sessions.revoke.action"
+#: src/pages/devices/DeviceSessionList.tsx
+msgid "devices.sessions.revoke.action"
 msgstr "End session"
 
 #. js-lingui-explicit-id
@@ -2454,8 +2474,8 @@ msgid "admin.user.sessions.revoke.action"
 msgstr "End session"
 
 #. js-lingui-explicit-id
-#: src/pages/security/SessionsPanel.tsx
-msgid "security.sessions.revoke.title"
+#: src/pages/devices/DeviceSessionList.tsx
+msgid "devices.sessions.revoke.title"
 msgstr "End this session?"
 
 #. js-lingui-explicit-id
@@ -2642,6 +2662,11 @@ msgid "admin.federation.connection.mode.manual"
 msgstr "Enter the endpoints"
 
 #. js-lingui-explicit-id
+#: src/pages/devices/PairDeviceDialog.tsx
+msgid "devices.code.incomplete"
+msgstr "Enter the full 8-character pairing code."
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-validation.ts
 msgid "admin.federation.connection.issuer.required"
 msgstr "Enter the issuer URL."
@@ -2655,11 +2680,6 @@ msgstr "Enter the JWKS endpoint."
 #: src/pages/admin/settings/client-ip-form.ts
 msgid "settings.network.header.required"
 msgstr "Enter the name of the header that carries the client address."
-
-#. js-lingui-explicit-id
-#: src/pages/Devices.tsx
-msgid "devices.code.required"
-msgstr "Enter the pairing code shown on the other device."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderDangerSection.tsx
@@ -2793,6 +2813,11 @@ msgid "list.diagnostics.certificate.expired"
 msgstr "Expired"
 
 #. js-lingui-explicit-id
+#: src/pages/devices/PairDeviceDialog.tsx
+msgid "devices.field.expires"
+msgstr "Expires"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminInvitations.tsx
 msgid "admin.invitations.column.expires"
 msgstr "Expires"
@@ -2903,11 +2928,6 @@ msgstr "General"
 #: src/pages/admin/settings/SigningKeysPanel.tsx
 msgid "settings.keys.generate"
 msgstr "Generate key"
-
-#. js-lingui-explicit-id
-#: src/pages/security/PasswordTotpPanel.tsx
-msgid "security.recovery.generate"
-msgstr "Generate new recovery codes"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
@@ -3227,6 +3247,11 @@ msgid "admin.logs.detail.ip"
 msgstr "IP"
 
 #. js-lingui-explicit-id
+#: src/pages/devices/PairDeviceDialog.tsx
+msgid "devices.field.ip"
+msgstr "IP address"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.enrollment.action"
 msgstr "Issue a registration link"
@@ -3405,6 +3430,11 @@ msgstr "Let people start at this instance instead of at the service provider."
 #: src/pages/admin/saml-applications/SamlGeneralSection.tsx
 msgid "admin.saml-apps.general.idp-initiated.hint"
 msgstr "Let people start at this instance instead of at the service provider."
+
+#. js-lingui-explicit-id
+#: src/pages/devices/PairDeviceDialog.tsx
+msgid "devices.review.title"
+msgstr "Let this device sign in?"
 
 #. js-lingui-explicit-id
 #: src/components/custom/ThemeSelect.tsx
@@ -3822,11 +3852,6 @@ msgid "security.password.new"
 msgstr "New password"
 
 #. js-lingui-explicit-id
-#: src/pages/security/PasswordTotpPanel.tsx
-msgid "security.setup.new_password"
-msgstr "New password"
-
-#. js-lingui-explicit-id
 #: src/components/custom/secret-reveal-copy.ts
 msgid "login.codes.label"
 msgstr "New recovery codes"
@@ -3845,6 +3870,11 @@ msgstr "New tokens are signed with this key. The current key keeps verifying wha
 #: src/pages/admin/AdminGroupForm.tsx
 msgid "admin.group.create.title"
 msgstr "New user group"
+
+#. js-lingui-explicit-id
+#: src/pages/security/PasswordTotpPanel.tsx
+msgid "security.setup.next"
+msgstr "Next"
 
 #. js-lingui-explicit-id
 #: src/pages/DevForms.tsx
@@ -3952,11 +3982,6 @@ msgid "security.identities.empty"
 msgstr "No other identities linked yet"
 
 #. js-lingui-explicit-id
-#: src/pages/security/SessionsPanel.tsx
-msgid "security.sessions.empty"
-msgstr "No other sessions"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.passkeys.empty"
 msgstr "No passkeys"
@@ -3985,6 +4010,11 @@ msgstr "No response was received from the server."
 #: src/pages/admin/saml-applications/AdminSamlApplications.tsx
 msgid "admin.saml-apps.empty"
 msgstr "No SAML applications yet"
+
+#. js-lingui-explicit-id
+#: src/pages/devices/DeviceSessionList.tsx
+msgid "devices.sessions.empty"
+msgstr "No signed-in devices"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/SigningKeysPanel.tsx
@@ -4055,6 +4085,11 @@ msgstr "Not provided"
 #: src/components/custom/ListCells.tsx
 msgid "list.state.not_ready"
 msgstr "Not ready"
+
+#. js-lingui-explicit-id
+#: src/pages/security/PasswordTotpPanel.tsx
+msgid "security.factor.unset"
+msgstr "Not set"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderOperatorSection.tsx
@@ -4132,6 +4167,16 @@ msgid "admin.users.filter.on"
 msgstr "On"
 
 #. js-lingui-explicit-id
+#: src/pages/devices/PairDeviceDialog.tsx
+msgid "devices.review.consequence"
+msgstr "Once approved, this device is signed in to your account."
+
+#. js-lingui-explicit-id
+#: src/pages/security/PasswordTotpPanel.tsx
+msgid "security.setup.replacing"
+msgstr "Once this is done, your current password, authenticator and recovery codes are all replaced."
+
+#. js-lingui-explicit-id
 #: src/pages/admin/settings/NetworkPanel.tsx
 msgid "settings.network.proxies.hint"
 msgstr "One address range per line, such as 10.0.0.0/8."
@@ -4160,11 +4205,6 @@ msgstr "Only accepts addresses the provider marks as verified."
 #: src/components/custom/AppAccessPanel.tsx
 msgid "app.access.restrict.body"
 msgstr "Only accounts in the user groups you select can use this application. Until you select one, nobody can."
-
-#. js-lingui-explicit-id
-#: src/pages/Devices.tsx
-msgid "devices.confirm.body"
-msgstr "Only approve it if these details match the device you are signing in on."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-options.ts
@@ -4263,9 +4303,9 @@ msgid "route.not-found"
 msgstr "Page not found"
 
 #. js-lingui-explicit-id
-#: src/pages/Devices.tsx
-msgid "devices.pair"
-msgstr "Pair"
+#: src/pages/devices/PairDeviceDialog.tsx
+msgid "devices.code.label"
+msgstr "Pairing code shown on the new device"
 
 #. js-lingui-explicit-id
 #: src/api/success-messages.ts
@@ -4335,6 +4375,11 @@ msgstr "Passkeys are unavailable in this browser. Use your password instead."
 #. js-lingui-explicit-id
 #: src/pages/Login.tsx
 msgid "login.password"
+msgstr "Password"
+
+#. js-lingui-explicit-id
+#: src/pages/security/PasswordTotpPanel.tsx
+msgid "security.factor.password"
 msgstr "Password"
 
 #. js-lingui-explicit-id
@@ -4691,6 +4736,11 @@ msgid "admin.saml-apps.field.signed-request.hint"
 msgstr "Refuse a sign-in request the service provider has not signed. Turn this off only if it cannot sign one."
 
 #. js-lingui-explicit-id
+#: src/pages/security/PasswordTotpPanel.tsx
+msgid "security.recovery.regenerate"
+msgstr "Regenerate"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
 msgid "admin.federation.diagnostics.callback.hint"
 msgstr "Register this address with the provider before running a connection test."
@@ -4876,11 +4926,6 @@ msgid "admin.forward-auth-apps.delete.note"
 msgstr "Removes the application, its token scopes, its icon and its access policy. Accounts are not affected."
 
 #. js-lingui-explicit-id
-#: src/pages/security/PasswordTotpPanel.tsx
-msgid "security.revoke.note"
-msgstr "Removes your password and authenticator from this account. Your passkeys keep working."
-
-#. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
 msgid "security.passkeys.rename"
 msgstr "Rename"
@@ -4993,14 +5038,9 @@ msgid "notification.request_id"
 msgstr "Request ID: {0}"
 
 #. js-lingui-explicit-id
-#: src/pages/Devices.tsx
+#: src/pages/devices/PairDeviceDialog.tsx
 msgid "devices.field.created"
 msgstr "Requested"
-
-#. js-lingui-explicit-id
-#: src/pages/Devices.tsx
-msgid "devices.field.ip"
-msgstr "Requested from"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/ForwardAuthDangerSection.tsx
@@ -5131,6 +5171,11 @@ msgid "admin.user.tokens.revoke"
 msgstr "Revoke"
 
 #. js-lingui-explicit-id
+#: src/pages/devices/PairDeviceDialog.tsx
+msgid "devices.revoke"
+msgstr "Revoke approval"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminInvitations.tsx
 msgid "admin.invitations.revoke.title"
 msgstr "Revoke this invitation?"
@@ -5219,6 +5264,11 @@ msgstr "Rule document"
 #: src/pages/admin/AdminGroupForm.tsx
 msgid "admin.group.rule.views"
 msgstr "Rule editor"
+
+#. js-lingui-explicit-id
+#: src/pages/security/PasswordTotpPanel.tsx
+msgid "security.recovery.low"
+msgstr "Running low"
 
 #. js-lingui-explicit-id
 #: src/pages/ConnectedApps.tsx
@@ -5333,6 +5383,11 @@ msgstr "Save name"
 #: src/components/custom/secret-reveal-copy.ts
 msgid "login.codes.title"
 msgstr "Save your new recovery codes"
+
+#. js-lingui-explicit-id
+#: src/components/custom/secret-reveal-copy.ts
+msgid "security.codes.first.title"
+msgstr "Save your recovery codes"
 
 #. js-lingui-explicit-id
 #: src/components/custom/TotpSetup.tsx
@@ -5491,9 +5546,19 @@ msgid "admin.federation.operator.valid"
 msgstr "Session valid"
 
 #. js-lingui-explicit-id
+#: src/pages/security/PasswordTotpPanel.tsx
+msgid "security.factor.set"
+msgstr "Set"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderDangerSection.tsx
 msgid "admin.federation.danger.secret.action"
 msgstr "Set"
+
+#. js-lingui-explicit-id
+#: src/pages/security/PasswordTotpPanel.tsx
+msgid "security.setup.step.password"
+msgstr "Set a password"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderDangerSection.tsx
@@ -5507,18 +5572,18 @@ msgstr "Set the Web API key before enabling it."
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
-msgid "security.setup.title.both"
-msgstr "Set up a password and authenticator"
+msgid "security.setup.step.authenticator"
+msgstr "Set up an authenticator"
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
-msgid "security.setup.form"
-msgstr "Set up a password and authenticator"
+msgid "security.setup.open"
+msgstr "Set up password and authenticator"
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
-msgid "security.setup.title.totp"
-msgstr "Set up an authenticator with a new password"
+msgid "security.setup.dialog"
+msgstr "Set up password and authenticator"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts
@@ -5579,6 +5644,16 @@ msgstr "Sign in"
 #: src/components/custom/RouteFeedback.tsx
 msgid "route.sign_in"
 msgstr "Sign in"
+
+#. js-lingui-explicit-id
+#: src/pages/Devices.tsx
+msgid "devices.pair.open"
+msgstr "Sign in a new device"
+
+#. js-lingui-explicit-id
+#: src/pages/devices/PairDeviceDialog.tsx
+msgid "devices.pair.title"
+msgstr "Sign in a new device"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderOperatorSection.tsx
@@ -5677,6 +5752,11 @@ msgid "audit.event.session_start"
 msgstr "Signed in"
 
 #. js-lingui-explicit-id
+#: src/pages/devices/DeviceSessionList.tsx
+msgid "devices.sessions.issued"
+msgstr "Signed in <0/>"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts
 msgid "audit.event.session_end"
 msgstr "Signed out"
@@ -5685,6 +5765,11 @@ msgstr "Signed out"
 #: src/api/success-messages.ts
 msgid "success.sessions.ended"
 msgstr "Signed out everywhere"
+
+#. js-lingui-explicit-id
+#: src/pages/devices/DeviceSessionList.tsx
+msgid "devices.sessions.list"
+msgstr "Signed-in devices"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/SigningKeysPanel.tsx
@@ -5705,11 +5790,6 @@ msgstr "Signing certificates"
 #: src/components/custom/LoginShell.tsx
 msgid "login.factor.account"
 msgstr "Signing in as {username}"
-
-#. js-lingui-explicit-id
-#: src/pages/security/PasswordTotpPanel.tsx
-msgid "security.setup.note"
-msgstr "Signing in will then ask for your password and a code from this authenticator. Anything you used before that stops working."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts
@@ -5776,11 +5856,6 @@ msgstr "Start a test"
 #: src/pages/admin/oidc-applications/oidc-validation.ts
 msgid "admin.oidc-apps.alias.name.invalid"
 msgstr "Start with a letter or an underscore, then letters, digits or underscores, up to 64 characters."
-
-#. js-lingui-explicit-id
-#: src/pages/security/SessionsPanel.tsx
-msgid "security.sessions.detail.issued"
-msgstr "Started <0/>"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
@@ -5920,8 +5995,8 @@ msgid "admin.group.rule.reason.invalid_fact"
 msgstr "That condition type is not supported."
 
 #. js-lingui-explicit-id
-#: src/pages/security/SessionsPanel.tsx
-msgid "security.sessions.revoke.body"
+#: src/pages/devices/DeviceSessionList.tsx
+msgid "devices.sessions.revoke.body"
 msgstr "That device is signed out immediately and will need to sign in again. Anything it is doing right now stops."
 
 #. js-lingui-explicit-id
@@ -6354,6 +6429,11 @@ msgstr "Theme"
 
 #. js-lingui-explicit-id
 #: src/components/custom/secret-reveal-copy.ts
+msgid "security.codes.first.once"
+msgstr "These codes are shown only once. Keep them somewhere safe before continuing. Each code signs you in once when you cannot use your authenticator."
+
+#. js-lingui-explicit-id
+#: src/components/custom/secret-reveal-copy.ts
 msgid "login.codes.once"
 msgstr "These codes are shown only once. Keep them somewhere safe before continuing. Your old recovery codes no longer work."
 
@@ -6428,8 +6508,8 @@ msgid "error.unsupported_media_type"
 msgstr "This data format is not supported."
 
 #. js-lingui-explicit-id
-#: src/pages/security/SessionsPanel.tsx
-msgid "security.sessions.current"
+#: src/pages/devices/DeviceSessionList.tsx
+msgid "devices.sessions.current"
 msgstr "This device"
 
 #. js-lingui-explicit-id
@@ -6504,8 +6584,8 @@ msgstr "This is your only way to sign in, so it cannot be removed. Add another m
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
-msgid "security.revoke.last"
-msgstr "This is your only way to sign in, so it cannot be turned off. Add a passkey first."
+msgid "security.revoke.last_tooltip"
+msgstr "This is your only way to sign in. Add a passkey first."
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -6521,6 +6601,11 @@ msgstr "This link is shown only once and it signs the holder in as the invited a
 #: src/pages/ApiPreview.tsx
 msgid "api.description"
 msgstr "This page reads the instance configuration and initialization status from the server."
+
+#. js-lingui-explicit-id
+#: src/pages/devices/PairDeviceDialog.tsx
+msgid "devices.review.expired"
+msgstr "This pairing code has expired. Start again on the new device."
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -6718,14 +6803,14 @@ msgid "security.revoke.confirm.title"
 msgstr "Turn off password and authenticator?"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/MaintenancePanel.tsx
-msgid "settings.maintenance.confirm.action"
+#: src/pages/security/PasswordTotpPanel.tsx
+msgid "security.setup.turn_on"
 msgstr "Turn on"
 
 #. js-lingui-explicit-id
-#: src/pages/security/PasswordTotpPanel.tsx
-msgid "security.setup.action"
-msgstr "Turn on both"
+#: src/pages/admin/settings/MaintenancePanel.tsx
+msgid "settings.maintenance.confirm.action"
+msgstr "Turn on"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/MaintenancePanel.tsx
@@ -6756,6 +6841,11 @@ msgstr "Unable to save. Check your input. (Example)"
 #: src/components/custom/FormError.tsx
 msgid "forms.error.title"
 msgstr "Unable to submit"
+
+#. js-lingui-explicit-id
+#: src/components/custom/DeviceName.tsx
+msgid "device.unknown"
+msgstr "Unknown device"
 
 #. js-lingui-explicit-id
 #: src/pages/security/IdentitiesPanel.tsx
@@ -6883,11 +6973,6 @@ msgid "login.use_recovery"
 msgstr "Use a recovery code"
 
 #. js-lingui-explicit-id
-#: src/pages/security/PasswordTotpPanel.tsx
-msgid "security.recovery.note"
-msgstr "Use a recovery code to sign in when you cannot use your password or authenticator. Generating new ones replaces every existing code."
-
-#. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/saml-validation.ts
 msgid "admin.saml-apps.lifetime.invalid"
 msgstr "Use a whole number of minutes, or leave it empty."
@@ -6953,8 +7038,8 @@ msgid "settings.network.header.invalid"
 msgstr "Use only letters, digits, hyphens and underscores."
 
 #. js-lingui-explicit-id
-#: src/pages/security/SessionsPanel.tsx
-msgid "security.sessions.use_sign_out"
+#: src/pages/devices/DeviceSessionList.tsx
+msgid "devices.sessions.use_sign_out"
 msgstr "Use sign out to end this one"
 
 #. js-lingui-explicit-id
@@ -7319,9 +7404,9 @@ msgid "error.cannot_delete_self"
 msgstr "You cannot delete your own account. Ask another administrator."
 
 #. js-lingui-explicit-id
-#: src/pages/Devices.tsx
-msgid "devices.already_bound"
-msgstr "You have already approved this pairing. The other device should be finishing its setup."
+#: src/pages/devices/PairDeviceDialog.tsx
+msgid "devices.review.already_bound"
+msgstr "You have already approved this pairing. The new device is finishing signing in."
 
 #. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx

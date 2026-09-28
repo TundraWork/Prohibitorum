@@ -56,6 +56,23 @@ export const recoveryCodesCopy: SecretRevealCopy = {
   }),
 };
 
+/**
+ * The same reveal for the first codes an account is given, when there are no
+ * earlier codes for the wording to say were replaced.
+ */
+export const firstRecoveryCodesCopy: SecretRevealCopy = {
+  ...recoveryCodesCopy,
+  title: msg({
+    id: "security.codes.first.title",
+    message: "Save your recovery codes",
+  }),
+  once: msg({
+    id: "security.codes.first.once",
+    message:
+      "These codes are shown only once. Keep them somewhere safe before continuing. Each code signs you in once when you cannot use your authenticator.",
+  }),
+};
+
 export const invitationLinkCopy: SecretRevealCopy = {
   title: msg({
     id: "admin.invitations.reveal.title",

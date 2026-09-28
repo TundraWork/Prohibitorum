@@ -34,6 +34,7 @@ import type { LoginFailure } from "@/components/custom/LoginShell";
 import { LoginShell, useLoginContext } from "@/components/custom/LoginShell";
 import { OtpField } from "@/components/custom/OtpField";
 import { RecoveryCodes } from "@/components/custom/RecoveryCodes";
+import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
 import { TotpSetup } from "@/components/custom/TotpSetup";
 import { applyServerError } from "@/forms/server-errors";
 import { useAppForm } from "@/forms/use-app-form";
@@ -396,6 +397,17 @@ function FactorForm({
             </Checkbox>
             {setup && (
               <>
+                <SurfaceAlert status="warning">
+                  <SurfaceAlert.Indicator />
+                  <SurfaceAlert.Content>
+                    <SurfaceAlert.Title>
+                      <Trans id="login.reset.warning">
+                        After a successful reset, your old authenticator and all
+                        old recovery codes will stop working.
+                      </Trans>
+                    </SurfaceAlert.Title>
+                  </SurfaceAlert.Content>
+                </SurfaceAlert>
                 <TotpSetup secret={setup.secret} uri={setup.uri} onSurface />
                 <form.AppField
                   name="totpCode"

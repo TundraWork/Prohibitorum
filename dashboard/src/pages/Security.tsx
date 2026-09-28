@@ -1,12 +1,12 @@
 import { IdentitiesPanel } from "@/pages/security/IdentitiesPanel";
 import { PasskeysPanel } from "@/pages/security/PasskeysPanel";
 import { PasswordTotpPanel } from "@/pages/security/PasswordTotpPanel";
-import { SessionsPanel } from "@/pages/security/SessionsPanel";
 import { TokensPanel } from "@/pages/security/TokensPanel";
 
 /**
- * Everything about how this account gets in, as one page of stacked sections
- * rather than tabs.
+ * How this account signs in — passkeys, the password and authenticator,
+ * connected identities, access tokens — as one page of stacked sections
+ * rather than tabs. Where it is signed in right now is the Devices page.
  *
  * The whole page is on screen at once, so every panel mounts with it. That is
  * the point of dropping the strip — nothing is hidden behind a control the
@@ -24,7 +24,6 @@ export function Security() {
     <div className="flex flex-col gap-8">
       <PasskeysPanel />
       <PasswordTotpPanel />
-      <SessionsPanel />
       <IdentitiesPanel />
       <TokensPanel />
     </div>

@@ -2,10 +2,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   clampCount,
   clampDelay,
+  clampPairingExpiry,
   defaultMockConfig,
   getMockConfig,
   mockDelayMax,
   mockListMax,
+  mockPairingExpiryMax,
+  mockPairingExpiryMin,
   resetMockConfig,
   subscribeMockConfig,
   updateMockConfig,
@@ -33,6 +36,20 @@ describe("mock config", () => {
     expect(clampDelay(699.6)).toBe(700);
     expect(clampDelay(mockDelayMax + 1)).toBe(mockDelayMax);
     expect(clampDelay(Number.NaN)).toBe(0);
+  });
+
+  it("keeps a pairing's expiry within its bounds, defaulting to the server's five minutes", () => {
+    expect(defaultMockConfig.pairing).toEqual({
+      expiresInSeconds: 300,
+      alreadyBound: false,
+      sameNetwork: false,
+    });
+    expect(clampPairingExpiry(0)).toBe(mockPairingExpiryMin);
+    expect(clampPairingExpiry(9.6)).toBe(10);
+    expect(clampPairingExpiry(mockPairingExpiryMax + 1)).toBe(
+      mockPairingExpiryMax,
+    );
+    expect(clampPairingExpiry(Number.NaN)).toBe(mockPairingExpiryMin);
   });
 
   it("publishes a changed config to its subscribers and restores the defaults on reset", () => {

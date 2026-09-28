@@ -11,6 +11,7 @@ import type { DevicePairing, PublicConfig, SudoMethod } from "@/api/raw-paths";
 import {
   clampAdminCount,
   clampCount,
+  clampPairingExpiry,
   type MockConfig,
   mockAdminListMax,
   mockListMax,
@@ -255,17 +256,37 @@ function factorsView(config: MockConfig): Factors {
   };
 }
 
+/**
+ * Real User-Agents, so a walkthrough sees what the console reads out of them:
+ * a browser and a system by name, and an icon for the kind of device.
+ */
+const userAgents = {
+  firefoxLinux:
+    "Mozilla/5.0 (X11; Linux x86_64; rv:131.0) Gecko/20100101 Firefox/131.0",
+  safariIphone:
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1",
+  chromeWindows:
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36",
+  safariIpad:
+    "Mozilla/5.0 (iPad; CPU OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1",
+};
+
+/** The address the current session reports, which the pairing can share. */
+const currentSessionIp = "192.0.2.1";
+
 function sessionList(count: number): SessionListItem[] {
   const agents = [
-    "Mozilla/5.0 (X11; Linux x86_64) MockBrowser/1.0",
-    "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) MockBrowser/1.0",
+    userAgents.firefoxLinux,
+    userAgents.safariIphone,
+    userAgents.chromeWindows,
+    userAgents.safariIpad,
   ];
   return range(count).map((index) => ({
     id: `mock-session-${index + 1}`,
     isCurrent: index === 0,
     issuedAt: iso(-day * (index + 1)),
     expiresAt: iso(day * (30 - index)),
-    lastSeenIp: `192.0.2.${index + 1}`,
+    lastSeenIp: index === 0 ? currentSessionIp : `192.0.2.${index + 1}`,
     userAgent: agents[index % agents.length],
   }));
 }
@@ -332,15 +353,16 @@ function sudoMethods(config: MockConfig): {
   return { methods, fresh: config.sudo.fresh };
 }
 
-function pairing(code: string): DevicePairing {
+function pairing(code: string, config: MockConfig): DevicePairing {
+  const expiresIn = clampPairingExpiry(config.pairing.expiresInSeconds);
   return {
     pairingId: `mock-pairing-${code}`,
     displayCode: code,
-    initiatorUa: "Mozilla/5.0 (X11; Linux x86_64) MockBrowser/1.0",
-    initiatorIp: "198.51.100.7",
+    initiatorUa: userAgents.chromeWindows,
+    initiatorIp: config.pairing.sameNetwork ? currentSessionIp : "198.51.100.7",
     createdAt: iso(-60_000),
-    expiresAt: iso(9 * 60_000),
-    alreadyBound: false,
+    expiresAt: iso(expiresIn * 1000),
+    alreadyBound: config.pairing.alreadyBound,
   };
 }
 
@@ -1076,7 +1098,7 @@ function readReply(
       return guarded(config, () => json(sudoMethods(config)));
     case "/api/prohibitorum/me/devices/pair/lookup": {
       const code = new URL(request.url).searchParams.get("code") ?? "";
-      return guarded(config, () => json(pairing(code)));
+      return guarded(config, () => json(pairing(code, config)));
     }
 
     /* -------------------------------------------------- admin directory -- */
@@ -1538,7 +1560,13 @@ function writeReply(
         draft.lists.tokens = decrement(draft.lists.tokens);
       });
 
+    // The approved device signs in on its own a moment later; here it is
+    // simply the next session the list reads.
     case "/api/prohibitorum/me/devices/pair/approve":
+      return empty(204, (draft) => {
+        draft.lists.sessions = clampCount(draft.lists.sessions + 1);
+      });
+
     case "/api/prohibitorum/me/devices/pair/cancel":
       return empty();
 

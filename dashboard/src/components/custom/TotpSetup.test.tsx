@@ -67,4 +67,15 @@ describe("TotpSetup", () => {
     expect(uri).toBe(uriB);
     expect(screen.getByRole("img", { name: /setup QR code/i })).toBe(canvas);
   });
+
+  it("shows the setup key as a copyable value and says nothing about replacing", () => {
+    render(setup(uriA));
+
+    const key = screen.getByRole("textbox", { name: "Setup key" });
+    expect(key).toHaveValue("AAAA");
+    expect(key).toHaveAttribute("readonly");
+    expect(key).toHaveClass("font-mono");
+    // A first setup replaces nothing; a caller that does replace warns itself.
+    expect(screen.queryByText(/stop working/i)).not.toBeInTheDocument();
+  });
 });

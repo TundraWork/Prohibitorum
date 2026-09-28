@@ -5,6 +5,8 @@ import {
   mockAdminListMax,
   mockDelayMax,
   mockListMax,
+  mockPairingExpiryMax,
+  mockPairingExpiryMin,
   resetMockConfig,
   subscribeMockConfig,
 } from "@/devtools/mock/model";
@@ -62,6 +64,22 @@ describe("mock URL control", () => {
     const config = getMockConfig();
     expect(config.admin.identityProviders).toBe(mockAdminListMax);
     expect(config.lists.sessions).toBe(mockListMax);
+  });
+
+  it("sets the pairing a lookup finds, clamping its expiry", () => {
+    applyMockQuery(
+      "?mock.pairing.expiresInSeconds=10&mock.pairing.alreadyBound=true&mock.pairing.sameNetwork=1",
+    );
+    expect(getMockConfig().pairing).toEqual({
+      expiresInSeconds: 10,
+      alreadyBound: true,
+      sameNetwork: true,
+    });
+
+    applyMockQuery("?mock.pairing.expiresInSeconds=1");
+    expect(getMockConfig().pairing.expiresInSeconds).toBe(mockPairingExpiryMin);
+    applyMockQuery("?mock.pairing.expiresInSeconds=99999");
+    expect(getMockConfig().pairing.expiresInSeconds).toBe(mockPairingExpiryMax);
   });
 
   it("clamps the response delay", () => {

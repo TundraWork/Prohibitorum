@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { isValidRecoveryCode } from "@/api/auth";
+import type { components } from "@/api/generated/schema";
 import type { DiagnosticResultView } from "@/api/raw-admin-paths";
+import type { DevicePairing } from "@/api/raw-paths";
 import { buildMockReply, type MockReply } from "@/devtools/mock/fixtures";
 import {
   defaultMockConfig,
@@ -8,6 +10,8 @@ import {
   mockListMax,
   mockPageSize,
 } from "@/devtools/mock/model";
+
+type SessionListItem = components["schemas"]["SessionListItem"];
 
 function config(overrides: (draft: MockConfig) => void = () => {}): MockConfig {
   const draft = structuredClone(defaultMockConfig);
@@ -178,6 +182,58 @@ describe("mock replies", () => {
       "http://localhost/api/prohibitorum/me/devices/pair/lookup?code=ABCD2345",
     );
     expect(bodyOf(reply)).toMatchObject({ displayCode: "ABCD2345" });
+  });
+
+  it("answers a pairing lookup as the panel sets it up", () => {
+    const url =
+      "http://localhost/api/prohibitorum/me/devices/pair/lookup?code=ABCD2345";
+    const plain = bodyOf(
+      read("/api/prohibitorum/me/devices/pair/lookup", config(), url),
+    ) as DevicePairing;
+    const sessions = bodyOf(
+      read("/api/prohibitorum/me/sessions", config()),
+    ) as SessionListItem[];
+    const current = sessions.find((session) => session.isCurrent);
+    expect(plain.alreadyBound).toBe(false);
+    expect(plain.initiatorIp).not.toBe(current?.lastSeenIp);
+    // A real User-Agent, so the console has something to read a name from.
+    expect(plain.initiatorUa).toContain("Chrome/");
+    const lifetime = Date.parse(plain.expiresAt) - Date.now();
+    expect(lifetime).toBeGreaterThan(290_000);
+    expect(lifetime).toBeLessThanOrEqual(300_000);
+
+    const set = bodyOf(
+      read(
+        "/api/prohibitorum/me/devices/pair/lookup",
+        config((draft) => {
+          draft.pairing = {
+            expiresInSeconds: 10,
+            alreadyBound: true,
+            sameNetwork: true,
+          };
+        }),
+        url,
+      ),
+    ) as DevicePairing;
+    expect(set.alreadyBound).toBe(true);
+    expect(set.initiatorIp).toBe(current?.lastSeenIp);
+    expect(Date.parse(set.expiresAt) - Date.now()).toBeLessThanOrEqual(10_000);
+  });
+
+  it("reports sessions from real browsers", () => {
+    const sessions = bodyOf(
+      read(
+        "/api/prohibitorum/me/sessions",
+        config((draft) => {
+          draft.lists.sessions = 3;
+        }),
+      ),
+    ) as SessionListItem[];
+    expect(sessions.map((session) => session.userAgent)).toEqual([
+      expect.stringContaining("Firefox/"),
+      expect.stringContaining("iPhone"),
+      expect.stringContaining("Windows NT"),
+    ]);
   });
 
   it("fails an endpoint it has no fixture for instead of reaching the server", () => {
@@ -617,6 +673,33 @@ describe("mocked logs, settings and signing keys", () => {
 });
 
 describe("mocked writes", () => {
+  it("signs the approved device in as one more session", () => {
+    const current = writes();
+    const reply = call(
+      "POST",
+      "/api/prohibitorum/me/devices/pair/approve",
+      current,
+      { code: "ABCD2345" },
+    );
+    expect(reply).toMatchObject({ kind: "empty", status: 204 });
+    expect(applied(reply, current).lists.sessions).toBe(
+      current.lists.sessions + 1,
+    );
+
+    const full = config((draft) => {
+      draft.writes = true;
+      draft.lists.sessions = mockListMax;
+    });
+    expect(
+      applied(
+        call("POST", "/api/prohibitorum/me/devices/pair/approve", full, {
+          code: "ABCD2345",
+        }),
+        full,
+      ).lists.sessions,
+    ).toBe(mockListMax);
+  });
+
   it("leaves a write to the server until the switch is on", () => {
     expect(call("POST", "/api/prohibitorum/auth/logout")).toBeUndefined();
     expect(

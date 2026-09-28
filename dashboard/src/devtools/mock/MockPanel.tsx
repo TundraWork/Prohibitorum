@@ -3,10 +3,13 @@ import {
   clampAdminCount,
   clampCount,
   clampDelay,
+  clampPairingExpiry,
   getMockConfig,
   mockAdminListMax,
   mockDelayMax,
   mockListMax,
+  mockPairingExpiryMax,
+  mockPairingExpiryMin,
   resetMockConfig,
   subscribeMockConfig,
   updateMockConfig,
@@ -172,6 +175,33 @@ function Delay({
         disabled={disabled}
         value={value}
         onChange={(event) => onChange(clampDelay(Number(event.target.value)))}
+        className={`w-16 text-left tabular-nums ${controlClass}`}
+      />
+      <span className="min-w-0">{label}</span>
+    </label>
+  );
+}
+
+/** A pairing's remaining lifetime in seconds, laid out like the counts. */
+function Seconds({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  onChange: (next: number) => void;
+}) {
+  return (
+    <label className="flex items-center gap-2 py-1">
+      <input
+        type="number"
+        min={mockPairingExpiryMin}
+        max={mockPairingExpiryMax}
+        value={value}
+        onChange={(event) =>
+          onChange(clampPairingExpiry(Number(event.target.value)))
+        }
         className={`w-16 text-left tabular-nums ${controlClass}`}
       />
       <span className="min-w-0">{label}</span>
@@ -554,6 +584,36 @@ export function MockPanel() {
             onChange={(next) =>
               updateMockConfig((draft) => {
                 draft.sudo.passwordTotp = next;
+              })
+            }
+          />
+        </Section>
+
+        <Section title="Device pairing">
+          <Seconds
+            label="Seconds until it expires"
+            value={config.pairing.expiresInSeconds}
+            onChange={(next) =>
+              updateMockConfig((draft) => {
+                draft.pairing.expiresInSeconds = next;
+              })
+            }
+          />
+          <Toggle
+            label="Already approved"
+            checked={config.pairing.alreadyBound}
+            onChange={(next) =>
+              updateMockConfig((draft) => {
+                draft.pairing.alreadyBound = next;
+              })
+            }
+          />
+          <Toggle
+            label="Same network as this device"
+            checked={config.pairing.sameNetwork}
+            onChange={(next) =>
+              updateMockConfig((draft) => {
+                draft.pairing.sameNetwork = next;
               })
             }
           />

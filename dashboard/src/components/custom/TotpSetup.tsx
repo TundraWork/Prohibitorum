@@ -1,17 +1,22 @@
-import { Alert, Input, Label, TextField } from "@heroui/react";
+import { Alert } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import QRCode from "qrcode";
 import { useEffect, useRef, useState } from "react";
+import { CopyValue } from "@/components/custom/CopyValue";
 import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
 
 /**
  * The locally generated authenticator secret, its otpauth URI, and the QR code
  * that carries them.
  *
+ * It says nothing about what the new authenticator replaces: a first setup
+ * replaces nothing, so a caller that does replace one — the sign-in reset, the
+ * console's replace dialog — draws that warning itself.
+ *
  * `onSurface` follows where the caller draws it. On a surface — a Card or a
- * Dialog — the alert and the setup key drop their own background and shadow,
- * because the surface already carries that plane: the sign-in reset inside a
- * card passes it, while the console draws the setup on the page background.
+ * Dialog — the QR failure notice drops its own background and shadow, because
+ * the surface already carries that plane. The setup key is a `CopyValue`,
+ * which is drawn for a surface already.
  */
 export function TotpSetup({
   secret,
@@ -49,17 +54,6 @@ export function TotpSetup({
 
   return (
     <div className="flex min-w-0 flex-col gap-4">
-      <Notice status="warning">
-        <Notice.Indicator />
-        <Notice.Content>
-          <Notice.Title>
-            <Trans id="login.reset.warning">
-              After a successful reset, your old authenticator and all old
-              recovery codes will stop working.
-            </Trans>
-          </Notice.Title>
-        </Notice.Content>
-      </Notice>
       <p className="text-sm text-muted">
         <Trans id="login.reset.scan">
           Scan this QR code with your authenticator, or enter the setup key
@@ -87,16 +81,10 @@ export function TotpSetup({
           </Notice.Content>
         </Notice>
       )}
-      <TextField isReadOnly value={secret}>
-        <Label>
-          <Trans id="login.reset.secret">Setup key</Trans>
-        </Label>
-        <Input
-          variant={onSurface ? "secondary" : "primary"}
-          autoComplete="off"
-          spellCheck={false}
-        />
-      </TextField>
+      <CopyValue
+        value={secret}
+        label={<Trans id="login.reset.secret">Setup key</Trans>}
+      />
     </div>
   );
 }

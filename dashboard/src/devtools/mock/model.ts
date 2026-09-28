@@ -93,6 +93,15 @@ export interface MockConfig {
     webauthn: boolean;
     passwordTotp: boolean;
   };
+  /** The device a pairing lookup finds, whatever code was entered. */
+  pairing: {
+    /** How long the pairing has left when it is looked up, in seconds. */
+    expiresInSeconds: number;
+    /** Whether this account has already approved it. */
+    alreadyBound: boolean;
+    /** Whether it asked from this device's own address. */
+    sameNetwork: boolean;
+  };
   instance: {
     maintenance: boolean;
     maintenanceMessage: string;
@@ -125,6 +134,13 @@ export const mockPageSize = 5;
 
 /** Upper bound for the response delay, so one control cannot stall a page for minutes. */
 export const mockDelayMax = 5000;
+
+/**
+ * Bounds for how long a mocked pairing has left. Long enough to be read, short
+ * enough for a walkthrough to wait out; the server's own limit is 300.
+ */
+export const mockPairingExpiryMin = 5;
+export const mockPairingExpiryMax = 600;
 
 export const defaultMockConfig: MockConfig = {
   enabled: false,
@@ -166,6 +182,7 @@ export const defaultMockConfig: MockConfig = {
     diagnosticOutcome: "succeeded",
   },
   sudo: { fresh: true, webauthn: true, passwordTotp: true },
+  pairing: { expiresInSeconds: 300, alreadyBound: false, sameNetwork: false },
   instance: {
     maintenance: false,
     maintenanceMessage: "Scheduled maintenance is in progress.",
@@ -280,4 +297,12 @@ export function clampAdminCount(value: number): number {
 export function clampDelay(value: number): number {
   if (!Number.isFinite(value)) return 0;
   return Math.max(0, Math.min(mockDelayMax, Math.round(value)));
+}
+
+export function clampPairingExpiry(value: number): number {
+  if (!Number.isFinite(value)) return mockPairingExpiryMin;
+  return Math.max(
+    mockPairingExpiryMin,
+    Math.min(mockPairingExpiryMax, Math.round(value)),
+  );
 }

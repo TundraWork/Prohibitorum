@@ -38,9 +38,19 @@ msgid "admin.federation.danger.delete.confirm.linked"
 msgstr "{count, plural, other {# 个账号}}将失去用它登录的方式。如果某个账号只能用这种方式登录，需要由你重新签发注册链接。"
 
 #. js-lingui-explicit-id
+#: src/pages/security/PasswordTotpPanel.tsx
+msgid "security.recovery.remaining"
+msgstr "{count, plural, other {剩余 # 个}}"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
 msgid "admin.federation.diagnostics.stage.duration"
 msgstr "{duration} 毫秒"
+
+#. js-lingui-explicit-id
+#: src/pages/devices/PairDeviceDialog.tsx
+msgid "devices.field.ip_same"
+msgstr "{ip} · 与本设备相同"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/UriListField.tsx
@@ -393,16 +403,6 @@ msgid "api.maintenance.active"
 msgstr "已开启"
 
 #. js-lingui-explicit-id
-#: src/pages/security/SessionsPanel.tsx
-msgid "security.section.sessions"
-msgstr "在线会话"
-
-#. js-lingui-explicit-id
-#: src/pages/security/SessionsPanel.tsx
-msgid "security.sessions.table"
-msgstr "在线会话"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.sessions.title"
 msgstr "在线会话"
@@ -522,7 +522,7 @@ msgid "admin.home.title"
 msgstr "管理"
 
 #. js-lingui-explicit-id
-#: src/components/custom/TotpSetup.tsx
+#: src/pages/Login.tsx
 msgid "login.reset.warning"
 msgstr "提交后，旧身份验证器和恢复码都将失效。"
 
@@ -550,6 +550,11 @@ msgstr "以下全部"
 #: src/pages/admin/AdminLogs.tsx
 msgid "admin.logs.range.all"
 msgstr "全部"
+
+#. js-lingui-explicit-id
+#: src/pages/security/PasswordTotpPanel.tsx
+msgid "security.recovery.used_up"
+msgstr "已用完"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
@@ -718,19 +723,19 @@ msgid "admin.user.oidcSubject.hint"
 msgstr "应用用这个值识别该账号。它永不改变。"
 
 #. js-lingui-explicit-id
-#: src/pages/Devices.tsx
+#: src/api/success-messages.ts
+msgid "success.device.approval-revoked"
+msgstr "已撤销批准"
+
+#. js-lingui-explicit-id
+#: src/pages/devices/PairDeviceDialog.tsx
 msgid "devices.approve"
 msgstr "批准"
 
 #. js-lingui-explicit-id
-#: src/pages/Devices.tsx
-msgid "devices.confirm.title"
-msgstr "批准这台设备？"
-
-#. js-lingui-explicit-id
-#: src/pages/Devices.tsx
-msgid "devices.note"
-msgstr "批准后该设备可以继续，但它还没有登录：仍需自行设置本机通行密钥。"
+#: src/api/success-messages.ts
+msgid "success.device.approved"
+msgstr "已批准。请在新设备上继续。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
@@ -809,6 +814,11 @@ msgid "admin.logs.table"
 msgstr "审计事件"
 
 #. js-lingui-explicit-id
+#: src/pages/security/PasswordTotpPanel.tsx
+msgid "security.factor.authenticator"
+msgstr "身份验证器"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts
 msgid "audit.factor.totp"
 msgstr "验证器"
@@ -884,6 +894,11 @@ msgid "admin.saml-apps.source.avatar-url"
 msgstr "头像 URL"
 
 #. js-lingui-explicit-id
+#: src/pages/security/PasswordTotpPanel.tsx
+msgid "security.setup.back"
+msgstr "上一步"
+
+#. js-lingui-explicit-id
 #: src/components/custom/RouteFeedback.tsx
 msgid "route.console_home"
 msgstr "返回控制台首页"
@@ -923,6 +938,11 @@ msgstr "回调"
 #: src/pages/security/PasswordTotpPanel.tsx
 #: src/pages/security/TokensPanel.tsx
 msgid "security.cancel"
+msgstr "取消"
+
+#. js-lingui-explicit-id
+#: src/pages/devices/PairDeviceDialog.tsx
+msgid "devices.cancel"
 msgstr "取消"
 
 #. js-lingui-explicit-id
@@ -1043,16 +1063,6 @@ msgstr "选择字段"
 #: src/pages/admin/AdminUsers.tsx
 msgid "admin.users.filter.match"
 msgstr "选择匹配方式"
-
-#. js-lingui-explicit-id
-#: src/pages/security/PasswordTotpPanel.tsx
-msgid "security.password.change.note"
-msgstr "为登录设置一个新密码。"
-
-#. js-lingui-explicit-id
-#: src/pages/security/PasswordTotpPanel.tsx
-msgid "security.setup.password"
-msgstr "设置密码"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
@@ -1224,6 +1234,11 @@ msgid "admin.oidc-apps.scopes.remove.body"
 msgstr "仍在请求 <0/> 的客户端将无法登录，直到它们不再请求。已签发的刷新令牌在过期或被吊销前仍保留原有作用域。"
 
 #. js-lingui-explicit-id
+#: src/pages/devices/PairDeviceDialog.tsx
+msgid "devices.close"
+msgstr "关闭"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/settings/SigningKeysPanel.tsx
 msgid "settings.keys.jwk.close"
 msgstr "关闭"
@@ -1269,9 +1284,9 @@ msgid "admin.federation.operator.code"
 msgstr "验证码"
 
 #. js-lingui-explicit-id
-#: src/pages/Devices.tsx
-msgid "devices.code.label"
-msgstr "另一台设备上的配对码"
+#: src/pages/security/PasswordTotpPanel.tsx
+msgid "security.setup.code"
+msgstr "身份验证器中的验证码"
 
 #. js-lingui-explicit-id
 #: src/pages/Preview.tsx
@@ -1477,7 +1492,7 @@ msgstr "验证是你本人后即可更换客户端密钥。旧密钥会立即失
 #. js-lingui-explicit-id
 #: src/api/sudo-reasons.ts
 msgid "sudo.reason.replace-authenticator"
-msgstr "请验证身份，以替换你的验证器。"
+msgstr "请验证身份，以更换你的身份验证器。"
 
 #. js-lingui-explicit-id
 #: src/api/sudo-reasons.ts
@@ -1512,7 +1527,7 @@ msgstr "验证是你本人后即可设置这个提供商的密钥。"
 #. js-lingui-explicit-id
 #: src/api/sudo-reasons.ts
 msgid "sudo.reason.set-password-totp"
-msgstr "请验证身份，以为此账号设置密码与验证器。"
+msgstr "请验证身份，以为此账号设置密码与身份验证器。"
 
 #. js-lingui-explicit-id
 #: src/api/sudo-reasons.ts
@@ -1532,7 +1547,7 @@ msgstr "请确认是你本人要用这个密钥签名。"
 #. js-lingui-explicit-id
 #: src/api/sudo-reasons.ts
 msgid "sudo.reason.revoke-password-totp"
-msgstr "请验证身份，以关闭密码与验证器。"
+msgstr "请验证身份，以关闭密码与身份验证器。"
 
 #. js-lingui-explicit-id
 #: src/api/sudo-reasons.ts
@@ -1589,6 +1604,11 @@ msgstr "控制台首页"
 #: src/components/custom/ConsoleLayout.tsx
 msgid "console.navigation"
 msgstr "控制台导航"
+
+#. js-lingui-explicit-id
+#: src/pages/devices/PairDeviceDialog.tsx
+msgid "devices.continue"
+msgstr "继续"
 
 #. js-lingui-explicit-id
 #: src/components/custom/secret-reveal-copy.ts
@@ -1906,7 +1926,7 @@ msgid "admin.logs.range.dates"
 msgstr "日期"
 
 #. js-lingui-explicit-id
-#: src/pages/Devices.tsx
+#: src/pages/devices/PairDeviceDialog.tsx
 msgid "devices.decline"
 msgstr "拒绝"
 
@@ -2047,17 +2067,17 @@ msgid "dev.forms.eyebrow"
 msgstr "仅供开发验证"
 
 #. js-lingui-explicit-id
-#: src/pages/Devices.tsx
-msgid "devices.field.agent"
+#: src/pages/devices/PairDeviceDialog.tsx
+msgid "devices.field.device"
 msgstr "设备"
 
 #. js-lingui-explicit-id
-#: src/api/success-messages.ts
-msgid "success.device.approved"
-msgstr "设备已批准"
+#: src/pages/devices/PairDeviceDialog.tsx
+msgid "devices.review.approved_title"
+msgstr "已批准这台设备"
 
 #. js-lingui-explicit-id
-#: src/pages/Devices.tsx
+#: src/pages/devices/PairDeviceDialog.tsx
 msgid "devices.form"
 msgstr "设备配对"
 
@@ -2439,13 +2459,13 @@ msgid "admin.user.sessions.revoke"
 msgstr "结束"
 
 #. js-lingui-explicit-id
-#: src/pages/security/SessionsPanel.tsx
-msgid "security.sessions.sign_out"
+#: src/pages/devices/DeviceSessionList.tsx
+msgid "devices.sessions.end"
 msgstr "结束会话"
 
 #. js-lingui-explicit-id
-#: src/pages/security/SessionsPanel.tsx
-msgid "security.sessions.revoke.action"
+#: src/pages/devices/DeviceSessionList.tsx
+msgid "devices.sessions.revoke.action"
 msgstr "结束会话"
 
 #. js-lingui-explicit-id
@@ -2454,8 +2474,8 @@ msgid "admin.user.sessions.revoke.action"
 msgstr "结束会话"
 
 #. js-lingui-explicit-id
-#: src/pages/security/SessionsPanel.tsx
-msgid "security.sessions.revoke.title"
+#: src/pages/devices/DeviceSessionList.tsx
+msgid "devices.sessions.revoke.title"
 msgstr "结束此会话？"
 
 #. js-lingui-explicit-id
@@ -2629,7 +2649,7 @@ msgstr "请填写客户端密钥。"
 #. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
 msgid "security.totp.invalid"
-msgstr "请输入验证器显示的验证码，只能包含 0–9。"
+msgstr "请输入身份验证器显示的验证码，只能包含 0–9。"
 
 #. js-lingui-explicit-id
 #: src/components/custom/SudoDialog.tsx
@@ -2640,6 +2660,11 @@ msgstr "请输入验证器显示的验证码，只能包含 0–9。"
 #: src/pages/admin/identity-providers/EndpointsField.tsx
 msgid "admin.federation.connection.mode.manual"
 msgstr "手动填写"
+
+#. js-lingui-explicit-id
+#: src/pages/devices/PairDeviceDialog.tsx
+msgid "devices.code.incomplete"
+msgstr "请输入完整的 8 位配对码。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-validation.ts
@@ -2655,11 +2680,6 @@ msgstr "请填写 JWKS 端点。"
 #: src/pages/admin/settings/client-ip-form.ts
 msgid "settings.network.header.required"
 msgstr "请填写携带客户端地址的请求头名称。"
-
-#. js-lingui-explicit-id
-#: src/pages/Devices.tsx
-msgid "devices.code.required"
-msgstr "请输入另一台设备显示的配对码。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderDangerSection.tsx
@@ -2793,6 +2813,11 @@ msgid "list.diagnostics.certificate.expired"
 msgstr "已过期"
 
 #. js-lingui-explicit-id
+#: src/pages/devices/PairDeviceDialog.tsx
+msgid "devices.field.expires"
+msgstr "过期时间"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminInvitations.tsx
 msgid "admin.invitations.column.expires"
 msgstr "过期时间"
@@ -2903,11 +2928,6 @@ msgstr "常规"
 #: src/pages/admin/settings/SigningKeysPanel.tsx
 msgid "settings.keys.generate"
 msgstr "生成密钥"
-
-#. js-lingui-explicit-id
-#: src/pages/security/PasswordTotpPanel.tsx
-msgid "security.recovery.generate"
-msgstr "重新生成恢复码"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
@@ -3227,6 +3247,11 @@ msgid "admin.logs.detail.ip"
 msgstr "IP"
 
 #. js-lingui-explicit-id
+#: src/pages/devices/PairDeviceDialog.tsx
+msgid "devices.field.ip"
+msgstr "IP 地址"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.enrollment.action"
 msgstr "签发注册链接"
@@ -3405,6 +3430,11 @@ msgstr "允许人们从这个实例开始登录，而不是从服务提供商开
 #: src/pages/admin/saml-applications/SamlGeneralSection.tsx
 msgid "admin.saml-apps.general.idp-initiated.hint"
 msgstr "允许人们从这个实例开始登录，而不是从服务提供商开始。"
+
+#. js-lingui-explicit-id
+#: src/pages/devices/PairDeviceDialog.tsx
+msgid "devices.review.title"
+msgstr "允许这台设备登录？"
 
 #. js-lingui-explicit-id
 #: src/components/custom/ThemeSelect.tsx
@@ -3822,11 +3852,6 @@ msgid "security.password.new"
 msgstr "新密码"
 
 #. js-lingui-explicit-id
-#: src/pages/security/PasswordTotpPanel.tsx
-msgid "security.setup.new_password"
-msgstr "新密码"
-
-#. js-lingui-explicit-id
 #: src/components/custom/secret-reveal-copy.ts
 msgid "login.codes.label"
 msgstr "新恢复码"
@@ -3845,6 +3870,11 @@ msgstr "新令牌将用这个密钥签名。当前密钥在退役前仍用于验
 #: src/pages/admin/AdminGroupForm.tsx
 msgid "admin.group.create.title"
 msgstr "新建用户组"
+
+#. js-lingui-explicit-id
+#: src/pages/security/PasswordTotpPanel.tsx
+msgid "security.setup.next"
+msgstr "下一步"
 
 #. js-lingui-explicit-id
 #: src/pages/DevForms.tsx
@@ -3952,11 +3982,6 @@ msgid "security.identities.empty"
 msgstr "还没有绑定其它身份"
 
 #. js-lingui-explicit-id
-#: src/pages/security/SessionsPanel.tsx
-msgid "security.sessions.empty"
-msgstr "没有其它会话"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.passkeys.empty"
 msgstr "暂无通行密钥"
@@ -3985,6 +4010,11 @@ msgstr "没有收到服务器的响应。"
 #: src/pages/admin/saml-applications/AdminSamlApplications.tsx
 msgid "admin.saml-apps.empty"
 msgstr "暂无 SAML 应用"
+
+#. js-lingui-explicit-id
+#: src/pages/devices/DeviceSessionList.tsx
+msgid "devices.sessions.empty"
+msgstr "没有已登录的设备"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/SigningKeysPanel.tsx
@@ -4055,6 +4085,11 @@ msgstr "未提供"
 #: src/components/custom/ListCells.tsx
 msgid "list.state.not_ready"
 msgstr "未就绪"
+
+#. js-lingui-explicit-id
+#: src/pages/security/PasswordTotpPanel.tsx
+msgid "security.factor.unset"
+msgstr "未设置"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderOperatorSection.tsx
@@ -4132,6 +4167,16 @@ msgid "admin.users.filter.on"
 msgstr "已启用"
 
 #. js-lingui-explicit-id
+#: src/pages/devices/PairDeviceDialog.tsx
+msgid "devices.review.consequence"
+msgstr "批准后，这台设备会以你的账号登录。"
+
+#. js-lingui-explicit-id
+#: src/pages/security/PasswordTotpPanel.tsx
+msgid "security.setup.replacing"
+msgstr "完成后，现有的密码、身份验证器和恢复码都会被替换。"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/settings/NetworkPanel.tsx
 msgid "settings.network.proxies.hint"
 msgstr "每行一个地址段，例如 10.0.0.0/8。"
@@ -4160,11 +4205,6 @@ msgstr "只接受提供商标记为已验证的邮箱地址。"
 #: src/components/custom/AppAccessPanel.tsx
 msgid "app.access.restrict.body"
 msgstr "只有你选定的用户组中的账号可以使用这个应用。在你选定之前，没有人可以使用。"
-
-#. js-lingui-explicit-id
-#: src/pages/Devices.tsx
-msgid "devices.confirm.body"
-msgstr "请先确认以下信息与你正在登录的设备一致，再批准。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-options.ts
@@ -4263,9 +4303,9 @@ msgid "route.not-found"
 msgstr "页面不存在"
 
 #. js-lingui-explicit-id
-#: src/pages/Devices.tsx
-msgid "devices.pair"
-msgstr "配对"
+#: src/pages/devices/PairDeviceDialog.tsx
+msgid "devices.code.label"
+msgstr "新设备上显示的配对码"
 
 #. js-lingui-explicit-id
 #: src/api/success-messages.ts
@@ -4338,6 +4378,11 @@ msgid "login.password"
 msgstr "密码"
 
 #. js-lingui-explicit-id
+#: src/pages/security/PasswordTotpPanel.tsx
+msgid "security.factor.password"
+msgstr "密码"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts
 msgid "audit.factor.password"
 msgstr "密码"
@@ -4350,17 +4395,17 @@ msgstr "密码"
 #. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
 msgid "security.section.password"
-msgstr "密码与验证器"
+msgstr "密码与身份验证器"
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
 msgid "security.password.list"
-msgstr "密码与验证器"
+msgstr "密码与身份验证器"
 
 #. js-lingui-explicit-id
 #: src/api/success-messages.ts
 msgid "success.password-totp.revoked"
-msgstr "已关闭密码与验证器"
+msgstr "已关闭密码与身份验证器"
 
 #. js-lingui-explicit-id
 #: src/api/success-messages.ts
@@ -4691,6 +4736,11 @@ msgid "admin.saml-apps.field.signed-request.hint"
 msgstr "拒绝服务提供商未签名的登录请求。只有在它无法签名时才关闭。"
 
 #. js-lingui-explicit-id
+#: src/pages/security/PasswordTotpPanel.tsx
+msgid "security.recovery.regenerate"
+msgstr "重新生成"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
 msgid "admin.federation.diagnostics.callback.hint"
 msgstr "运行连接测试前，请在提供商处登记这个地址。"
@@ -4876,11 +4926,6 @@ msgid "admin.forward-auth-apps.delete.note"
 msgstr "删除应用及其令牌作用域、图标和访问策略。账号不受影响。"
 
 #. js-lingui-explicit-id
-#: src/pages/security/PasswordTotpPanel.tsx
-msgid "security.revoke.note"
-msgstr "从此账号移除密码与验证器。你的通行密钥仍然可用。"
-
-#. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
 msgid "security.passkeys.rename"
 msgstr "重命名"
@@ -4898,7 +4943,7 @@ msgstr "再次输入新密码"
 #. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
 msgid "security.totp.replace.open"
-msgstr "替换"
+msgstr "更换"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderDangerSection.tsx
@@ -4908,17 +4953,17 @@ msgstr "更换"
 #. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
 msgid "security.totp.replace.title"
-msgstr "替换验证器"
+msgstr "更换身份验证器"
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
 msgid "security.totp.replace.form"
-msgstr "替换验证器"
+msgstr "更换身份验证器"
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
 msgid "security.totp.replace.action"
-msgstr "替换验证器"
+msgstr "更换身份验证器"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/GeneralPanel.tsx
@@ -4993,14 +5038,9 @@ msgid "notification.request_id"
 msgstr "请求编号：{0}"
 
 #. js-lingui-explicit-id
-#: src/pages/Devices.tsx
+#: src/pages/devices/PairDeviceDialog.tsx
 msgid "devices.field.created"
 msgstr "发起时间"
-
-#. js-lingui-explicit-id
-#: src/pages/Devices.tsx
-msgid "devices.field.ip"
-msgstr "请求来源"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/ForwardAuthDangerSection.tsx
@@ -5131,6 +5171,11 @@ msgid "admin.user.tokens.revoke"
 msgstr "吊销"
 
 #. js-lingui-explicit-id
+#: src/pages/devices/PairDeviceDialog.tsx
+msgid "devices.revoke"
+msgstr "撤销批准"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminInvitations.tsx
 msgid "admin.invitations.revoke.title"
 msgstr "要吊销该邀请吗？"
@@ -5219,6 +5264,11 @@ msgstr "规则文档"
 #: src/pages/admin/AdminGroupForm.tsx
 msgid "admin.group.rule.views"
 msgstr "规则编辑器"
+
+#. js-lingui-explicit-id
+#: src/pages/security/PasswordTotpPanel.tsx
+msgid "security.recovery.low"
+msgstr "即将用完"
 
 #. js-lingui-explicit-id
 #: src/pages/ConnectedApps.tsx
@@ -5333,6 +5383,11 @@ msgstr "保存昵称"
 #: src/components/custom/secret-reveal-copy.ts
 msgid "login.codes.title"
 msgstr "保存新的恢复码"
+
+#. js-lingui-explicit-id
+#: src/components/custom/secret-reveal-copy.ts
+msgid "security.codes.first.title"
+msgstr "保存你的恢复码"
 
 #. js-lingui-explicit-id
 #: src/components/custom/TotpSetup.tsx
@@ -5491,9 +5546,19 @@ msgid "admin.federation.operator.valid"
 msgstr "会话有效"
 
 #. js-lingui-explicit-id
+#: src/pages/security/PasswordTotpPanel.tsx
+msgid "security.factor.set"
+msgstr "已设置"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderDangerSection.tsx
 msgid "admin.federation.danger.secret.action"
 msgstr "设置"
+
+#. js-lingui-explicit-id
+#: src/pages/security/PasswordTotpPanel.tsx
+msgid "security.setup.step.password"
+msgstr "设置密码"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderDangerSection.tsx
@@ -5507,18 +5572,18 @@ msgstr "先设置 Web API 密钥才能启用。"
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
-msgid "security.setup.title.both"
-msgstr "设置密码与验证器"
+msgid "security.setup.step.authenticator"
+msgstr "设置身份验证器"
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
-msgid "security.setup.form"
-msgstr "设置密码与验证器"
+msgid "security.setup.open"
+msgstr "设置密码与身份验证器"
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
-msgid "security.setup.title.totp"
-msgstr "重设验证器并设置新密码"
+msgid "security.setup.dialog"
+msgstr "设置密码与身份验证器"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts
@@ -5579,6 +5644,16 @@ msgstr "登录"
 #: src/components/custom/RouteFeedback.tsx
 msgid "route.sign_in"
 msgstr "登录"
+
+#. js-lingui-explicit-id
+#: src/pages/Devices.tsx
+msgid "devices.pair.open"
+msgstr "登录新设备"
+
+#. js-lingui-explicit-id
+#: src/pages/devices/PairDeviceDialog.tsx
+msgid "devices.pair.title"
+msgstr "登录新设备"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderOperatorSection.tsx
@@ -5677,6 +5752,11 @@ msgid "audit.event.session_start"
 msgstr "登录"
 
 #. js-lingui-explicit-id
+#: src/pages/devices/DeviceSessionList.tsx
+msgid "devices.sessions.issued"
+msgstr "登录于 <0/>"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts
 msgid "audit.event.session_end"
 msgstr "退出登录"
@@ -5685,6 +5765,11 @@ msgstr "退出登录"
 #: src/api/success-messages.ts
 msgid "success.sessions.ended"
 msgstr "已在所有设备上登出"
+
+#. js-lingui-explicit-id
+#: src/pages/devices/DeviceSessionList.tsx
+msgid "devices.sessions.list"
+msgstr "已登录的设备"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/SigningKeysPanel.tsx
@@ -5705,11 +5790,6 @@ msgstr "签名证书"
 #: src/components/custom/LoginShell.tsx
 msgid "login.factor.account"
 msgstr "正在登录 {username}"
-
-#. js-lingui-explicit-id
-#: src/pages/security/PasswordTotpPanel.tsx
-msgid "security.setup.note"
-msgstr "之后登录会要求输入密码与此验证器生成的验证码。此前使用的凭据会同时失效。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts
@@ -5776,11 +5856,6 @@ msgstr "开始测试"
 #: src/pages/admin/oidc-applications/oidc-validation.ts
 msgid "admin.oidc-apps.alias.name.invalid"
 msgstr "以字母或下划线开头，之后可包含字母、数字或下划线，最多 64 个字符。"
-
-#. js-lingui-explicit-id
-#: src/pages/security/SessionsPanel.tsx
-msgid "security.sessions.detail.issued"
-msgstr "<0/>登录"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
@@ -5920,8 +5995,8 @@ msgid "admin.group.rule.reason.invalid_fact"
 msgstr "不支持该条件类型。"
 
 #. js-lingui-explicit-id
-#: src/pages/security/SessionsPanel.tsx
-msgid "security.sessions.revoke.body"
+#: src/pages/devices/DeviceSessionList.tsx
+msgid "devices.sessions.revoke.body"
 msgstr "该设备会立即退出登录，需要重新登录。它正在进行的操作会中止。"
 
 #. js-lingui-explicit-id
@@ -6354,6 +6429,11 @@ msgstr "主题"
 
 #. js-lingui-explicit-id
 #: src/components/custom/secret-reveal-copy.ts
+msgid "security.codes.first.once"
+msgstr "这些恢复码仅显示一次。请妥善保存后再继续。无法使用身份验证器时，每个恢复码可用于登录一次。"
+
+#. js-lingui-explicit-id
+#: src/components/custom/secret-reveal-copy.ts
 msgid "login.codes.once"
 msgstr "这些恢复码仅显示一次。请妥善保存后再继续，旧恢复码已失效。"
 
@@ -6428,8 +6508,8 @@ msgid "error.unsupported_media_type"
 msgstr "不支持此数据格式。"
 
 #. js-lingui-explicit-id
-#: src/pages/security/SessionsPanel.tsx
-msgid "security.sessions.current"
+#: src/pages/devices/DeviceSessionList.tsx
+msgid "devices.sessions.current"
 msgstr "本设备"
 
 #. js-lingui-explicit-id
@@ -6504,8 +6584,8 @@ msgstr "这是你唯一的登录方式，不能移除。请先添加其它方式
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
-msgid "security.revoke.last"
-msgstr "这是你唯一的登录方式，因此不能关闭。请先添加通行密钥。"
+msgid "security.revoke.last_tooltip"
+msgstr "这是你唯一的登录方式。请先添加通行密钥。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -6521,6 +6601,11 @@ msgstr "该链接只显示一次，持有者可用它登录为被邀请的账号
 #: src/pages/ApiPreview.tsx
 msgid "api.description"
 msgstr "本页从服务器读取实例配置和初始化状态。"
+
+#. js-lingui-explicit-id
+#: src/pages/devices/PairDeviceDialog.tsx
+msgid "devices.review.expired"
+msgstr "配对码已过期。请在新设备上重新开始。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -6710,22 +6795,22 @@ msgstr "关闭"
 #. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
 msgid "security.revoke.title"
-msgstr "关闭密码与验证器"
+msgstr "关闭密码与身份验证器"
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
 msgid "security.revoke.confirm.title"
-msgstr "关闭密码与验证器？"
+msgstr "关闭密码与身份验证器？"
+
+#. js-lingui-explicit-id
+#: src/pages/security/PasswordTotpPanel.tsx
+msgid "security.setup.turn_on"
+msgstr "启用"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/MaintenancePanel.tsx
 msgid "settings.maintenance.confirm.action"
 msgstr "开启"
-
-#. js-lingui-explicit-id
-#: src/pages/security/PasswordTotpPanel.tsx
-msgid "security.setup.action"
-msgstr "同时启用"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/MaintenancePanel.tsx
@@ -6756,6 +6841,11 @@ msgstr "无法保存，请检查输入。（样例）"
 #: src/components/custom/FormError.tsx
 msgid "forms.error.title"
 msgstr "无法提交"
+
+#. js-lingui-explicit-id
+#: src/components/custom/DeviceName.tsx
+msgid "device.unknown"
+msgstr "未知设备"
 
 #. js-lingui-explicit-id
 #: src/pages/security/IdentitiesPanel.tsx
@@ -6883,11 +6973,6 @@ msgid "login.use_recovery"
 msgstr "使用恢复码"
 
 #. js-lingui-explicit-id
-#: src/pages/security/PasswordTotpPanel.tsx
-msgid "security.recovery.note"
-msgstr "无法使用密码或验证器时，可用恢复码登录。重新生成会替换全部已有恢复码。"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/saml-validation.ts
 msgid "admin.saml-apps.lifetime.invalid"
 msgstr "请填写整数分钟，或留空。"
@@ -6953,8 +7038,8 @@ msgid "settings.network.header.invalid"
 msgstr "只能使用字母、数字、连字符和下划线。"
 
 #. js-lingui-explicit-id
-#: src/pages/security/SessionsPanel.tsx
-msgid "security.sessions.use_sign_out"
+#: src/pages/devices/DeviceSessionList.tsx
+msgid "devices.sessions.use_sign_out"
 msgstr "请使用退出登录结束此会话"
 
 #. js-lingui-explicit-id
@@ -7319,9 +7404,9 @@ msgid "error.cannot_delete_self"
 msgstr "你无法删除自己的账号。请让另一位管理员操作。"
 
 #. js-lingui-explicit-id
-#: src/pages/Devices.tsx
-msgid "devices.already_bound"
-msgstr "你已批准过这次配对，另一台设备应该正在完成设置。"
+#: src/pages/devices/PairDeviceDialog.tsx
+msgid "devices.review.already_bound"
+msgstr "你已经批准过这次配对，新设备正在完成登录。"
 
 #. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
@@ -7346,12 +7431,12 @@ msgstr "你的账号"
 #. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
 msgid "security.totp.replace.note"
-msgstr "替换成功后，当前验证器与全部已有恢复码会立即失效。"
+msgstr "更换成功后，当前身份验证器与全部已有恢复码会立即失效。"
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
 msgid "security.revoke.confirm.body"
-msgstr "你的密码、验证器与全部恢复码会立即失效。"
+msgstr "你的密码、身份验证器与全部恢复码会立即失效。"
 
 #. js-lingui-explicit-id
 #: src/pages/profile/AvatarPanel.tsx

@@ -1,3 +1,4 @@
+import type { MessageDescriptor } from "@lingui/core";
 import type {
   AuthenticationResponseJSON,
   PublicKeyCredentialCreationOptionsJSON,
@@ -359,8 +360,12 @@ export function passwordTotpMutationOptions(queryClient: QueryClient) {
       secret_base32: string;
       code: string;
     }): Promise<RecoveryCodesResult> =>
-      requireJsonData(
-        client.POST("/api/prohibitorum/me/password-totp/verify", { body }),
+      runWithSudo(
+        () =>
+          requireJsonData(
+            client.POST("/api/prohibitorum/me/password-totp/verify", { body }),
+          ),
+        sudoReason.setPasswordAndAuthenticator,
       ),
     onSuccess: () =>
       queryClient.invalidateQueries({ queryKey: ["session", "factors"] }),
@@ -517,9 +522,16 @@ export function approveDeviceMutationOptions(queryClient: QueryClient) {
   });
 }
 
-export function cancelDeviceMutationOptions(queryClient: QueryClient) {
+/**
+ * Declines a pairing, or revokes one already approved: the server deletes the
+ * pairing either way, so only the line the toast says differs.
+ */
+export function cancelDeviceMutationOptions(
+  queryClient: QueryClient,
+  success: MessageDescriptor = successMessage.declineDevice,
+) {
   return mutationOptions({
-    meta: { success: successMessage.declineDevice },
+    meta: { success },
     retry: false,
     mutationFn: async (code: string) => {
       await client.POST("/api/prohibitorum/me/devices/pair/cancel", {

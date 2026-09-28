@@ -58,11 +58,15 @@ export const successMessage = {
   }),
   approveDevice: msg({
     id: "success.device.approved",
-    message: "Device approved",
+    message: "Approved. Continue on the new device.",
   }),
   declineDevice: msg({
     id: "success.device.declined",
     message: "Pairing declined",
+  }),
+  cancelDevicePairing: msg({
+    id: "success.device.approval-revoked",
+    message: "Approval revoked",
   }),
   saveAccount: msg({ id: "success.account.saved", message: "Account saved" }),
   enableAccount: msg({

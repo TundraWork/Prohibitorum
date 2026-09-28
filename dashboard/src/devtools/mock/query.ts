@@ -2,6 +2,7 @@ import {
   clampAdminCount,
   clampCount,
   clampDelay,
+  clampPairingExpiry,
   defaultMockConfig,
   getMockConfig,
   updateMockConfig,
@@ -26,7 +27,7 @@ import {
  *
  * Values are read the way the field's own type demands, and clamped the way the
  * panel clamps them: a count cannot exceed `mockAdminListMax`, a delay cannot
- * exceed `mockDelayMax`. A URL therefore cannot put the mock into a state the
+ * exceed `mockDelayMax`, a pairing's expiry stays within its own bounds. A URL therefore cannot put the mock into a state the
  * panel could not reach.
  *
  * This is a development aid. It is wired in by `installApiMocks`, which only
@@ -138,6 +139,7 @@ function setPath(
 /** Counts are clamped to the same ceilings the panel's own controls use. */
 function clampFor(path: string, value: number): number {
   if (path === "delayMs") return clampDelay(value);
+  if (path === "pairing.expiresInSeconds") return clampPairingExpiry(value);
   if (path === "admin.diagnosticOutcome") return value;
   return path.startsWith("admin.") ? clampAdminCount(value) : clampCount(value);
 }
