@@ -164,8 +164,10 @@ func (s *Server) handleOIDCTestCallbackHTTP(w http.ResponseWriter, r *http.Reque
 		writeAuthErr(w, authn.ErrBadRequest())
 		return
 	}
-	for key, values := range q {
-		if len(values) != 1 || (key != "state" && key != "code" && key != "error" && key != "error_description" && key != "error_uri" && key != "iss" && key != "session_state") {
+	// Providers append their own parameters (Google adds scope, authuser and
+	// prompt), so only the parameters read here must appear at most once.
+	for _, key := range []string{"state", "code", "error", "iss"} {
+		if len(q[key]) > 1 {
 			writeAuthErr(w, authn.ErrBadRequest())
 			return
 		}

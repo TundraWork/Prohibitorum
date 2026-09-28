@@ -157,7 +157,8 @@ func TestOIDCDiagnosticHandlersRoundTripWithoutAccountsOrSessions(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	rec = request("GET", callback.RequestURI(), "", false)
+	// Parameters the provider adds on its own must not fail the callback.
+	rec = request("GET", callback.RequestURI()+"&scope=openid+email&authuser=0&prompt=consent", "", false)
 	if rec.Code != 302 || tokenCalls.Load() != 0 {
 		t.Fatalf("callback %d: %s", rec.Code, rec.Body.String())
 	}
