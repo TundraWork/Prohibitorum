@@ -73,10 +73,12 @@ export interface MockConfig {
     /** Forward-auth applications, paged. */
     forwardAuthApps: number;
     /**
-     * What a diagnostic run reports once it finishes: the success path shows the
-     * claims a provider returned, the failure path shows a stage that failed.
+     * What a diagnostic run reports once it finishes: `succeeded` shows the
+     * mapped fields and both documents, `fallback` a provider that returns no
+     * ID token (everything from UserInfo), `failed` a code exchange that fails
+     * before there is anything to show.
      */
-    diagnosticOutcome: "succeeded" | "failed";
+    diagnosticOutcome: "succeeded" | "fallback" | "failed";
     /**
      * Each signing key's state as one letter, newest first — `P`ending,
      * `A`ctive, `D`ecommissioning, `R`etired, or `X` for decommissioning

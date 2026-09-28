@@ -1,13 +1,18 @@
 package oidc
 
 import (
+	"bytes"
 	"context"
-	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"net/url"
+	"strings"
 	"time"
+
+	"github.com/zitadel/oidc/v3/pkg/client/rp"
+	oidclib "github.com/zitadel/oidc/v3/pkg/oidc"
+	"golang.org/x/oauth2"
 
 	federationcore "prohibitorum/pkg/federation"
 	"prohibitorum/pkg/kv"
@@ -36,11 +41,41 @@ type DiagnosticStage struct {
 	RequestID  string `json:"requestId,omitempty"`
 }
 type DiagnosticResult struct {
-	Status    string            `json:"status"`
-	ExpiresAt time.Time         `json:"expiresAt"`
-	Stages    []DiagnosticStage `json:"stages"`
-	Claims    map[string]any    `json:"claims,omitempty"`
+	Status    string              `json:"status"`
+	ExpiresAt time.Time           `json:"expiresAt"`
+	Stages    []DiagnosticStage   `json:"stages"`
+	Identity  *DiagnosticIdentity `json:"identity,omitempty"`
+	IDToken   *DiagnosticDocument `json:"idToken,omitempty"`
+	UserInfo  *DiagnosticDocument `json:"userinfo,omitempty"`
 }
+
+// DiagnosticField is one identity field as login maps it: Value is a string,
+// a bool for emailVerified, or nil when the claim is absent. Source names the
+// document it came from (id_token, userinfo or configuration) and Claim the
+// claim that was read.
+type DiagnosticField struct {
+	Value  any    `json:"value"`
+	Source string `json:"source"`
+	Claim  string `json:"claim,omitempty"`
+}
+type DiagnosticIdentity struct {
+	Issuer        DiagnosticField `json:"issuer"`
+	Subject       DiagnosticField `json:"subject"`
+	Username      DiagnosticField `json:"username"`
+	DisplayName   DiagnosticField `json:"displayName"`
+	Email         DiagnosticField `json:"email"`
+	EmailVerified DiagnosticField `json:"emailVerified"`
+	Picture       DiagnosticField `json:"picture"`
+}
+
+// DiagnosticDocument carries an upstream JSON document as compacted text, so
+// numbers and key order reach the browser exactly as the provider sent them.
+// A document over diagnosticDocumentLimit keeps only its compacted size.
+type DiagnosticDocument struct {
+	JSON         string `json:"json,omitempty"`
+	OmittedBytes int    `json:"omittedBytes,omitempty"`
+}
+
 type diagnosticFlow struct {
 	DiagnosticResult
 	Actor         DiagnosticActor `json:"actor"`
@@ -49,10 +84,10 @@ type diagnosticFlow struct {
 	ProviderSlug  string          `json:"providerSlug"`
 	Identity      string          `json:"identity"`
 	Resolved      ResolvedConfig  `json:"resolved"`
-	CallbackURL   string          `json:"callbackUrl"`
-	Nonce         string          `json:"nonce,omitempty"`
-	Verifier      string          `json:"verifier,omitempty"`
-	Code          string          `json:"code,omitempty"`
+	// AdapterState is the login Adapter's own flow state from Begin.
+	AdapterState json.RawMessage `json:"adapterState,omitempty"`
+	Code         string          `json:"code,omitempty"`
+	Issuer       string          `json:"issuer,omitempty"`
 }
 
 type Diagnostics struct {
@@ -84,61 +119,53 @@ func DiagnosticEndpoint(raw string) string {
 	return u.Scheme + "://" + u.Host + u.EscapedPath()
 }
 
+// Start begins a connection test through the same Adapter.Begin that login
+// uses; only the flow storage and the callback route differ.
 func (d *Diagnostics) Start(ctx context.Context, provider federationcore.Provider, actor DiagnosticActor, browser, callback, requestID string) (DiagnosticStart, error) {
 	if actor.AccountID == 0 || actor.SessionID == "" || !ValidDiagnosticID(browser) || !(Definition{}).Ready(provider) {
 		return DiagnosticStart{}, ErrDiagnosticUnavailable
-	}
-	config, err := decodeConfig(provider.Config)
-	if err != nil {
-		return DiagnosticStart{}, ErrDiagnosticUnavailable
-	}
-	start := d.now()
-	resolved, err := ResolveConfig(ctx, config)
-	if err != nil {
-		return DiagnosticStart{}, &DiagnosticResolutionError{Stage: DiagnosticStage{Name: "discovery", Status: "failed", DurationMS: d.now().Sub(start).Milliseconds(), Endpoint: DiagnosticEndpoint(config.IssuerURL), ErrorCode: "discovery_failed", RequestID: requestID}}
 	}
 	id, err := randomB64(32)
 	if err != nil {
 		return DiagnosticStart{}, err
 	}
-	nonce, err := randomB64(32)
-	if err != nil {
-		return DiagnosticStart{}, err
-	}
-	verifier, challenge := "", ""
-	if config.PKCEMethod != "off" {
-		verifier, err = randomB64(32)
+	adapter := NewAdapter(d.secrets)
+	var discovery DiagnosticStage
+	adapter.resolveConfig = func(ctx context.Context, config Config) (ResolvedConfig, error) {
+		begin := d.now()
+		resolved, err := ResolveConfig(ctx, config)
+		discovery = DiagnosticStage{Name: "discovery", Status: "succeeded", DurationMS: d.now().Sub(begin).Milliseconds(), Endpoint: DiagnosticEndpoint(config.IssuerURL), RequestID: requestID}
 		if err != nil {
-			return DiagnosticStart{}, err
+			discovery.Status, discovery.ErrorCode = "failed", "discovery_failed"
+		} else if config.ConfigurationMode == "manual" {
+			discovery.Status = "skipped"
 		}
-		challenge = verifier
-		if config.PKCEMethod == "S256" {
-			digest := sha256.Sum256([]byte(verifier))
-			challenge = base64.RawURLEncoding.EncodeToString(digest[:])
-		}
+		return resolved, err
 	}
-	// Building the authorization URL does not require decrypting credentials.
-	client, err := NewClient(ctx, config.ClientID, "", callback, resolved, nil, config.AllowPrivateNetwork)
+	raw, next, err := adapter.Begin(ctx, provider, federationcore.BeginContext{FlowID: id, CallbackURL: callback})
+	if err != nil {
+		if discovery.Status == "failed" {
+			return DiagnosticStart{}, &DiagnosticResolutionError{Stage: discovery}
+		}
+		return DiagnosticStart{}, err
+	}
+	var state adapterState
+	if err := json.Unmarshal(raw, &state); err != nil {
+		return DiagnosticStart{}, err
+	}
+	flow := diagnosticFlow{DiagnosticResult: DiagnosticResult{Status: "awaiting_callback", ExpiresAt: d.now().Add(DiagnosticTTL), Stages: []DiagnosticStage{discovery, {Name: "authorize", Status: "pending", Endpoint: DiagnosticEndpoint(state.Resolved.AuthorizationEndpoint)}}}, Actor: actor, BrowserDigest: federationcore.BrowserDigest(browser), ProviderID: provider.ID, ProviderSlug: provider.Slug, Identity: providerIdentity(provider), Resolved: state.Resolved, AdapterState: raw}
+	stored, err := json.Marshal(flow)
 	if err != nil {
 		return DiagnosticStart{}, err
 	}
-	status := "succeeded"
-	if config.ConfigurationMode == "manual" {
-		status = "skipped"
-	}
-	flow := diagnosticFlow{DiagnosticResult: DiagnosticResult{Status: "awaiting_callback", ExpiresAt: d.now().Add(DiagnosticTTL), Stages: []DiagnosticStage{{Name: "discovery", Status: status, DurationMS: d.now().Sub(start).Milliseconds(), Endpoint: DiagnosticEndpoint(config.IssuerURL), RequestID: requestID}, {Name: "authorize", Status: "pending", Endpoint: DiagnosticEndpoint(resolved.AuthorizationEndpoint)}}}, Actor: actor, BrowserDigest: federationcore.BrowserDigest(browser), ProviderID: provider.ID, ProviderSlug: provider.Slug, Identity: providerIdentity(provider), Resolved: resolved, CallbackURL: callback, Nonce: nonce, Verifier: verifier}
-	raw, err := json.Marshal(flow)
-	if err != nil {
-		return DiagnosticStart{}, err
-	}
-	ok, err := d.store.SetNX(ctx, diagnosticKey(id), string(raw), DiagnosticTTL)
+	ok, err := d.store.SetNX(ctx, diagnosticKey(id), string(stored), DiagnosticTTL)
 	if err != nil {
 		return DiagnosticStart{}, err
 	}
 	if !ok {
 		return DiagnosticStart{}, ErrDiagnosticUnavailable
 	}
-	return DiagnosticStart{ID: id, AuthorizationURL: client.AuthURL(id, nonce, challenge), ExpiresAt: flow.ExpiresAt}, nil
+	return DiagnosticStart{ID: id, AuthorizationURL: next.URL, ExpiresAt: flow.ExpiresAt}, nil
 }
 
 func (d *Diagnostics) read(ctx context.Context, id, slug, browser string, actor *DiagnosticActor) (diagnosticFlow, string, error) {
@@ -170,9 +197,9 @@ func (d *Diagnostics) replace(ctx context.Context, id, old string, flow diagnost
 	return d.store.CompareAndSwap(ctx, diagnosticKey(id), old, string(raw), ttl)
 }
 func clearDiagnosticSecrets(flow *diagnosticFlow) {
+	flow.AdapterState = nil
 	flow.Code = ""
-	flow.Nonce = ""
-	flow.Verifier = ""
+	flow.Issuer = ""
 }
 
 func (d *Diagnostics) Callback(ctx context.Context, id, slug, browser, code, upstreamError, issuer, requestID string) error {
@@ -189,7 +216,7 @@ func (d *Diagnostics) Callback(ctx context.Context, id, slug, browser, code, ups
 		stage.Status = "failed"
 		stage.ErrorCode = safeOAuthError(upstreamError)
 		flow.Stages[1].Status = "failed"
-	} else if code == "" || len(code) > 8192 || (issuer != "" && issuer != flow.Resolved.Issuer) {
+	} else if code == "" || len(code) > 8192 {
 		stage.Status = "failed"
 		stage.ErrorCode = "invalid_callback"
 	}
@@ -198,8 +225,9 @@ func (d *Diagnostics) Callback(ctx context.Context, id, slug, browser, code, ups
 		flow.Status = "failed"
 		clearDiagnosticSecrets(&flow)
 	} else {
+		// Adapter.Advance checks iss, exactly as it does for login.
 		flow.Status = "ready"
-		flow.Code = code
+		flow.Code, flow.Issuer = code, issuer
 	}
 	ok, err := d.replace(ctx, id, raw, flow)
 	if err != nil {
@@ -223,6 +251,10 @@ func (d *Diagnostics) Get(ctx context.Context, id, slug, browser string, actor D
 	return flow.DiagnosticResult, err
 }
 
+// Complete finishes a connection test by calling the login Adapter.Advance
+// with the stored callback. A recorder on the context observes the upstream
+// requests and the verified documents; the test itself holds no protocol
+// logic, so what it reports is what login would do.
 func (d *Diagnostics) Complete(ctx context.Context, id string, provider federationcore.Provider, browser string, actor DiagnosticActor, requestID string) (DiagnosticResult, error) {
 	flow, raw, err := d.read(ctx, id, provider.Slug, browser, &actor)
 	if err != nil {
@@ -230,6 +262,10 @@ func (d *Diagnostics) Complete(ctx context.Context, id string, provider federati
 	}
 	if flow.Status != "ready" {
 		return flow.DiagnosticResult, nil
+	}
+	if len(flow.AdapterState) == 0 {
+		// Started before connection tests stored the adapter state.
+		return DiagnosticResult{}, ErrDiagnosticUnavailable
 	}
 	if flow.ProviderID != provider.ID || flow.Identity != providerIdentity(provider) || !(Definition{}).Ready(provider) {
 		flow.Status = "failed"
@@ -244,7 +280,7 @@ func (d *Diagnostics) Complete(ctx context.Context, id string, provider federati
 		}
 		return flow.DiagnosticResult, nil
 	}
-	code, verifier, nonce := flow.Code, flow.Verifier, flow.Nonce
+	state, input := flow.AdapterState, federationcore.ActionInput{Kind: federationcore.ActionRedirect, Code: flow.Code, Issuer: flow.Issuer}
 	flow.Status = "running"
 	clearDiagnosticSecrets(&flow)
 	ok, err := d.replace(ctx, id, raw, flow)
@@ -257,44 +293,42 @@ func (d *Diagnostics) Complete(ctx context.Context, id string, provider federati
 	running, _ := json.Marshal(flow)
 	runCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
 	defer cancel()
-	config, secret, err := NewAdapter(d.secrets).open(provider)
-	if err == nil {
-		var client *Client
-		client, err = NewClient(runCtx, config.ClientID, secret, flow.CallbackURL, flow.Resolved, nil, config.AllowPrivateNetwork)
-		if err == nil {
-			tokens, stages, exchangeErr := client.ExchangeDiagnostic(runCtx, code, verifier, flow.Resolved.Issuer, nonce, requestID)
-			flow.Stages = append(flow.Stages, stages...)
-			err = exchangeErr
-			if err == nil {
-				flow.Claims = map[string]any{"issuer": tokens.Issuer, "subject": tokens.Subject, "username": ClaimString(tokens.Raw, config.UsernameClaim), "name": ClaimString(tokens.Raw, config.DisplayNameClaim), "email": ClaimString(tokens.Raw, config.EmailClaim), "email_verified": tokens.EmailVerified}
+	runCtx, recorder := withRecorder(runCtx)
+	adapter := NewAdapter(d.secrets)
+	result, advanceErr := adapter.Advance(runCtx, provider, state, input)
+	advancedAt := time.Now()
+	config, _ := decodeConfig(provider.Config)
+	_, _, _, pictureClaim := config.profileClaims()
 
-				for key, value := range flow.Claims {
-					if text, ok := value.(string); ok && len(text) > 512 {
-						flow.Claims[key] = string([]rune(text)[:min(512, len([]rune(text)))])
-					}
-				}
-				begin := d.now()
-				stage := DiagnosticStage{Name: "userinfo", Status: "skipped", Endpoint: DiagnosticEndpoint(flow.Resolved.UserInfoEndpoint), RequestID: requestID}
-				if flow.Resolved.UserInfoEndpoint != "" {
-					stage.Status = "succeeded"
-					_, stage.HTTPStatus, err = client.UserInfoDiagnostic(runCtx, tokens.AccessToken, tokens.Subject)
-					if err != nil {
-						stage.Status = "failed"
-						stage.ErrorCode = "userinfo_failed"
-					}
-					stage.DurationMS = d.now().Sub(begin).Milliseconds()
-				}
-				flow.Stages = append(flow.Stages, stage)
-			}
+	// Login resolves a missing avatar through userinfo after sign-in. The test
+	// makes that call now; when the id_token already has a picture it still
+	// asks userinfo once, through the same ResolveAvatar, only to show it.
+	var avatarURL string
+	var avatarErr error
+	if advanceErr == nil && !result.Identity.UserInfoFallback {
+		if result.Avatar != nil && result.Avatar.Opaque != nil {
+			avatarURL, avatarErr = adapter.ResolveAvatar(runCtx, provider, *result.Avatar)
+		} else if client, tokens, _ := recorder.exchange(); client != nil && tokens.AccessToken != "" && flow.Resolved.UserInfoEndpoint != "" {
+			reference := &avatarReference{client: clientWrapper{client: client}, accessToken: tokens.AccessToken, subject: tokens.Subject, pictureClaim: pictureClaim}
+			_, avatarErr = adapter.ResolveAvatar(runCtx, provider, federationcore.AvatarDelivery{Opaque: reference})
 		}
 	}
-	if err != nil {
-		flow.Status = "failed"
-		if len(flow.Stages) == 3 {
-			flow.Stages = append(flow.Stages, DiagnosticStage{Name: "token_exchange", Status: "failed", ErrorCode: "credentials_unavailable", RequestID: requestID})
+
+	flow.Stages = append(flow.Stages, diagnosticStages(recorder, flow.Resolved, advanceErr, avatarErr, advancedAt, requestID)...)
+	flow.Status = "succeeded"
+	for _, stage := range flow.Stages {
+		if stage.Status == "failed" {
+			flow.Status = "failed"
 		}
-	} else {
-		flow.Status = "succeeded"
+	}
+	if _, tokens, _ := recorder.exchange(); tokens != nil && tokens.IDToken != "" {
+		flow.IDToken = idTokenDocument(tokens.IDToken)
+	}
+	if call := recorder.call(upstreamUserInfo); call.status >= 200 && call.status < 300 && flow.Stages[len(flow.Stages)-1].ErrorCode != "userinfo_failed" {
+		flow.UserInfo = diagnosticDocument(recorder.userInfoBody())
+	}
+	if advanceErr == nil {
+		flow.DiagnosticResult.Identity = diagnosticIdentity(*result.Identity, config, avatarURL)
 	}
 	ok, saveErr := d.replace(context.WithoutCancel(ctx), id, string(running), flow)
 	if saveErr != nil {
@@ -304,4 +338,151 @@ func (d *Diagnostics) Complete(ctx context.Context, id string, provider federati
 		return DiagnosticResult{}, ErrDiagnosticUnavailable
 	}
 	return flow.DiagnosticResult, nil
+}
+
+// diagnosticStages reads the token_exchange, id_token and userinfo stages
+// from the Advance outcome and the recorded requests.
+func diagnosticStages(recorder *diagnosticRecorder, resolved ResolvedConfig, advanceErr, avatarErr error, advancedAt time.Time, requestID string) []DiagnosticStage {
+	token := recorder.call(upstreamToken)
+	exchange := DiagnosticStage{Name: "token_exchange", Status: "succeeded", Endpoint: DiagnosticEndpoint(resolved.TokenEndpoint), HTTPStatus: token.status, DurationMS: token.duration.Milliseconds(), RequestID: requestID}
+	verification := DiagnosticStage{Name: "id_token", Status: "succeeded", RequestID: requestID}
+	userinfo := DiagnosticStage{Name: "userinfo", Status: "skipped", Endpoint: DiagnosticEndpoint(resolved.UserInfoEndpoint), RequestID: requestID}
+	if call := recorder.call(upstreamUserInfo); call.count > 0 {
+		userinfo.Status, userinfo.HTTPStatus, userinfo.DurationMS = "succeeded", call.status, call.duration.Milliseconds()
+	}
+	fail := func(stage *DiagnosticStage, code string) { stage.Status, stage.ErrorCode = "failed", code }
+
+	reason, flowFailure := federationcore.FailureReasonOf(advanceErr)
+	var retrieval *oauth2.RetrieveError
+	switch {
+	case advanceErr == nil:
+	case !flowFailure:
+		// Only opening the provider fails outside the flow vocabulary, and
+		// that is almost always the client secret.
+		fail(&exchange, "credentials_unavailable")
+	case reason == federationcore.FailureIssuerMismatch:
+		fail(&exchange, "issuer_mismatch")
+	case reason == federationcore.FailureStateInvalid || reason == federationcore.FailureTokenEndpointDrift:
+		fail(&exchange, "configuration_changed")
+	case reason == federationcore.FailureCodeExchange && errors.As(advanceErr, &retrieval):
+		fail(&exchange, safeOAuthError(retrieval.ErrorCode))
+	case reason == federationcore.FailureCodeExchange && (token.status < 200 || token.status >= 300):
+		fail(&exchange, "token_exchange_failed")
+	case reason == federationcore.FailureCodeExchange:
+		fail(&verification, diagnosticVerificationError(advanceErr))
+	case errors.Is(advanceErr, errUpstreamIdentityParse):
+		fail(&verification, "id_token_invalid")
+	case errors.Is(advanceErr, errNoUserInfoEndpoint):
+		fail(&userinfo, "userinfo_required")
+	case errors.Is(advanceErr, errNoSubject):
+		fail(&userinfo, "subject_missing")
+	case reason == federationcore.FailureUpstreamNoIdentity:
+		fail(&userinfo, "userinfo_failed")
+	default:
+		fail(&exchange, "token_exchange_failed")
+	}
+	if exchange.Status == "failed" {
+		verification.Status = "skipped"
+		return []DiagnosticStage{exchange, verification}
+	}
+	_, tokens, exchangedAt := recorder.exchange()
+	if exchangedAt.IsZero() {
+		exchangedAt = advancedAt
+	}
+	if !token.end.IsZero() {
+		verification.DurationMS = exchangedAt.Sub(token.end).Milliseconds()
+	}
+	if verification.Status == "failed" {
+		return []DiagnosticStage{exchange, verification}
+	}
+	if tokens != nil && tokens.IDToken == "" {
+		verification.Status, verification.DurationMS = "skipped", 0
+	}
+	switch {
+	case avatarErr == nil:
+	case errors.Is(avatarErr, rp.ErrUserInfoSubNotMatching):
+		fail(&userinfo, "userinfo_subject_mismatch")
+	default:
+		fail(&userinfo, "userinfo_failed")
+	}
+	return []DiagnosticStage{exchange, verification, userinfo}
+}
+
+// diagnosticIdentity labels each field of the identity login verified with
+// the document and claim it was read from.
+func diagnosticIdentity(identity federationcore.VerifiedIdentity, config Config, resolvedAvatar string) *DiagnosticIdentity {
+	usernameClaim, displayClaim, emailClaim, pictureClaim := config.profileClaims()
+	text := func(value string) any {
+		if value == "" {
+			return nil
+		}
+		return value
+	}
+	source := "id_token"
+	result := &DiagnosticIdentity{
+		Issuer:  DiagnosticField{Value: text(identity.Issuer), Source: "id_token", Claim: "iss"},
+		Subject: DiagnosticField{Value: text(identity.Subject), Source: "id_token", Claim: "sub"},
+	}
+	if identity.UserInfoFallback {
+		source = "userinfo"
+		result.Issuer = DiagnosticField{Value: text(identity.Issuer), Source: "configuration"}
+		result.Subject = DiagnosticField{Value: text(identity.Subject), Source: source, Claim: config.SubjectClaim}
+	}
+	email := ""
+	if identity.Email != nil {
+		email = *identity.Email
+	}
+	result.Username = DiagnosticField{Value: text(identity.Username), Source: source, Claim: usernameClaim}
+	result.DisplayName = DiagnosticField{Value: text(identity.DisplayName), Source: source, Claim: displayClaim}
+	result.Email = DiagnosticField{Value: text(email), Source: source, Claim: emailClaim}
+	result.EmailVerified = DiagnosticField{Value: identity.EmailVerified, Source: source, Claim: "email_verified"}
+	result.Picture = DiagnosticField{Value: text(identity.AvatarURL), Source: source, Claim: pictureClaim}
+	if identity.AvatarURL == "" && resolvedAvatar != "" {
+		result.Picture = DiagnosticField{Value: resolvedAvatar, Source: "userinfo", Claim: pictureClaim}
+	}
+	return result
+}
+
+// idTokenDocument returns the payload of an id_token that Exchange already
+// verified.
+func idTokenDocument(token string) *DiagnosticDocument {
+	parts := strings.Split(token, ".")
+	if len(parts) != 3 {
+		return nil
+	}
+	payload, err := base64.RawURLEncoding.DecodeString(strings.TrimRight(parts[1], "="))
+	if err != nil {
+		return nil
+	}
+	return diagnosticDocument(payload, 0)
+}
+
+// diagnosticDocument compacts a JSON object. size, when larger than the text,
+// is the compacted size of a body the recorder only kept in part.
+func diagnosticDocument(raw []byte, size int) *DiagnosticDocument {
+	if size > diagnosticDocumentLimit {
+		return &DiagnosticDocument{OmittedBytes: size}
+	}
+	var compacted bytes.Buffer
+	if json.Compact(&compacted, raw) != nil || !bytes.HasPrefix(compacted.Bytes(), []byte("{")) {
+		return nil
+	}
+	if compacted.Len() > diagnosticDocumentLimit {
+		return &DiagnosticDocument{OmittedBytes: compacted.Len()}
+	}
+	return &DiagnosticDocument{JSON: compacted.String()}
+}
+
+func diagnosticVerificationError(err error) string {
+	for _, entry := range []struct {
+		cause error
+		code  string
+	}{
+		{oidclib.ErrIssuerInvalid, "issuer_mismatch"}, {oidclib.ErrAudience, "audience_mismatch"}, {oidclib.ErrNonceInvalid, "nonce_mismatch"}, {oidclib.ErrExpired, "token_expired"}, {oidclib.ErrSignatureUnsupportedAlg, "signing_algorithm"}, {oidclib.ErrSignatureInvalid, "signature_invalid"}, {oidclib.ErrAtHash, "access_token_hash"}, {rp.ErrMissingIDToken, "missing_id_token"},
+	} {
+		if errors.Is(err, entry.cause) {
+			return entry.code
+		}
+	}
+	return "id_token_invalid"
 }

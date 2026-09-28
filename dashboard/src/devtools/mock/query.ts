@@ -145,7 +145,8 @@ function clampFor(path: string, value: number): number {
 /** Fields whose value is one of a fixed set, as the panel renders them. */
 function allowedValues(path: string): readonly string[] | undefined {
   if (path === "session.role") return ["admin", "member"];
-  if (path === "admin.diagnosticOutcome") return ["succeeded", "failed"];
+  if (path === "admin.diagnosticOutcome")
+    return ["succeeded", "fallback", "failed"];
   return undefined;
 }
 

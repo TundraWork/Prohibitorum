@@ -1,4 +1,4 @@
-import { Chip, Modal, Spinner } from "@heroui/react";
+import { Chip, Modal, Spinner, Tabs } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -20,6 +20,9 @@ import {
 } from "@/api/mutations";
 import { diagnosticResultQueryOptions } from "@/api/queries";
 import type {
+  DiagnosticDocumentView,
+  DiagnosticFieldView,
+  DiagnosticIdentityView,
   DiagnosticResultView,
   DiagnosticStageView,
   EffectiveConfigField,
@@ -28,12 +31,16 @@ import type {
 import { Button } from "@/components/custom/Button";
 import { CopyValue } from "@/components/custom/CopyValue";
 import { ItemList, ItemListRow } from "@/components/custom/ItemList";
+import { JsonBlock } from "@/components/custom/JsonBlock";
 import { RelativeTime } from "@/components/custom/RelativeTime";
 import { Section } from "@/components/custom/Section";
 import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
 import {
   configSourceLabel,
+  documentSourceLabel,
   effectiveConfigFields,
+  identityFields,
+  identityValue,
   type RunState,
   runState,
   runStatusLabel,
@@ -255,47 +262,67 @@ function EffectiveConfigRow({ slug }: { slug: string }) {
   );
 }
 
+interface SourcedRow {
+  key: string;
+  label: ReactNode;
+  value: ReactNode;
+  source: ReactNode;
+}
+
 /**
- * The resolved values as a three-column list: what the value is, the value,
- * and where it came from. It switches on its own width: wide, the three line
- * up across the card; narrow, the name and its source share a line over the
- * value, which is the column that needs the room.
+ * A three-column list of what a value is, the value, and where it came from,
+ * shared by both diagnostics so they read alike. It switches on its own width:
+ * wide, the three line up across the dialog; narrow, the name and its source
+ * share a line over the value, which is the column that needs the room.
  */
+function SourcedList({ rows }: { rows: readonly SourcedRow[] }) {
+  return (
+    <div className="@container/sourced">
+      <dl className="flex flex-col divide-y divide-separator">
+        {rows.map((row) => (
+          <div
+            key={row.key}
+            className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 py-2.5 first:pt-0 last:pb-0 @xl/sourced:grid-cols-[9rem_minmax(0,1fr)_auto] @xl/sourced:gap-x-6"
+          >
+            <dt className="text-sm text-muted">{row.label}</dt>
+            <dd className="col-span-2 row-start-2 min-w-0 @xl/sourced:col-span-1 @xl/sourced:col-start-2 @xl/sourced:row-start-1">
+              {row.value}
+            </dd>
+            <dd className="col-start-2 row-start-1 justify-self-end @xl/sourced:col-start-3">
+              {row.source !== undefined && row.source !== null && (
+                <Chip size="sm" variant="soft">
+                  <Chip.Label>{row.source}</Chip.Label>
+                </Chip>
+              )}
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </div>
+  );
+}
+
+/** The resolved values, each with where it came from. */
 function EffectiveConfigTable({
   fields,
 }: {
   fields: Record<string, EffectiveConfigField>;
 }) {
   const { i18n } = useLingui();
-  return (
-    <div className="@container/effective">
-      <dl className="flex flex-col divide-y divide-separator">
-        {effectiveConfigFields.map(({ key, label }) => {
-          const field = fields[key];
-          if (field === undefined) return null;
-          const source = configSourceLabel(field.source);
-          return (
-            <div
-              key={key}
-              className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 py-2.5 first:pt-0 last:pb-0 @xl/effective:grid-cols-[9rem_minmax(0,1fr)_auto] @xl/effective:gap-x-6"
-            >
-              <dt className="text-sm text-muted">{i18n._(label)}</dt>
-              <dd className="col-span-2 row-start-2 min-w-0 @xl/effective:col-span-1 @xl/effective:col-start-2 @xl/effective:row-start-1">
-                <EffectiveValue value={field.value} />
-              </dd>
-              <dd className="col-start-2 row-start-1 justify-self-end @xl/effective:col-start-3">
-                {source !== undefined && (
-                  <Chip size="sm" variant="soft">
-                    <Chip.Label>{i18n._(source)}</Chip.Label>
-                  </Chip>
-                )}
-              </dd>
-            </div>
-          );
-        })}
-      </dl>
-    </div>
-  );
+  const rows = effectiveConfigFields.flatMap(({ key, label }) => {
+    const field = fields[key];
+    if (field === undefined) return [];
+    const source = configSourceLabel(field.source);
+    return [
+      {
+        key,
+        label: i18n._(label),
+        value: <EffectiveValue value={field.value} />,
+        source: source === undefined ? undefined : i18n._(source),
+      },
+    ];
+  });
+  return <SourcedList rows={rows} />;
 }
 
 function EffectiveValue({ value }: { value: string | string[] | null }) {
@@ -351,13 +378,18 @@ function ConnectionTestRow({
     setDeadline(Date.now() + pollWindowSeconds * 1000);
   }, [runId]);
 
+  // A finished run does not change again, and now carries both documents, so
+  // polling stops as soon as it has a final status.
   const result = useQuery({
     ...diagnosticResultQueryOptions(slug, runId ?? ""),
     enabled: runId !== undefined,
-    refetchInterval:
-      runId !== undefined && deadline !== null && Date.now() < deadline
+    refetchInterval: (query) => {
+      const status = query.state.data?.status;
+      if (status === "succeeded" || status === "failed") return false;
+      return runId !== undefined && deadline !== null && Date.now() < deadline
         ? pollIntervalSeconds * 1000
-        : false,
+        : false;
+    },
   });
 
   // Whether the window has closed while the run is still going. Recomputed on
@@ -469,17 +501,25 @@ function ConnectionTestRow({
             </SurfaceAlert.Content>
           </SurfaceAlert>
         )}
-        {result.data !== undefined && <DiagnosticResult result={result.data} />}
+        {result.data !== undefined && (
+          <DiagnosticResult key={runId} result={result.data} />
+        )}
       </ResultDialog>
     </ItemListRow>
   );
 }
 
-/** The run's overall state, each stage in turn, then the claims it returned. */
+/**
+ * The run's overall state, each stage in turn, then what the provider sent:
+ * the fields login would map, and the two documents they were read from.
+ */
 function DiagnosticResult({ result }: { result: DiagnosticResultView }) {
   const { t } = useLingui();
   const state = runState(result.status);
-  const claims = Object.entries(result.claims ?? {});
+  const hasDetails =
+    result.identity !== undefined ||
+    result.idToken !== undefined ||
+    result.userinfo !== undefined;
 
   return (
     <div className="flex flex-col gap-4">
@@ -497,28 +537,191 @@ function DiagnosticResult({ result }: { result: DiagnosticResultView }) {
         ))}
       </ol>
 
-      {claims.length > 0 && (
-        <div className="flex flex-col gap-2">
-          <h4 className="text-xs font-medium text-muted">
-            <Trans id="admin.federation.diagnostics.claims">
-              Claims returned by the provider
-            </Trans>
-          </h4>
-          <dl className="grid grid-cols-[minmax(0,max-content)_minmax(0,1fr)] gap-x-6 gap-y-1.5">
-            {claims.map(([name, value]) => (
-              <div key={name} className="contents">
-                <dt className="font-mono text-sm text-muted break-all">
-                  {name}
-                </dt>
-                <dd className="font-mono text-sm break-all text-foreground">
-                  {typeof value === "string" ? value : JSON.stringify(value)}
-                </dd>
-              </div>
-            ))}
-          </dl>
-        </div>
-      )}
+      {hasDetails && <DiagnosticDetails result={result} />}
     </div>
+  );
+}
+
+/**
+ * The mapped fields first, since that is what the reader came to check, then
+ * the ID token and UserInfo to compare against the provider's own records.
+ * The selection is local: the dialog is keyed on the run, so each new result
+ * opens on the mapped fields, and `?test=` stays the only thing in the URL.
+ */
+const tabClass = "whitespace-nowrap @max-sm/details:px-3";
+
+function DiagnosticDetails({ result }: { result: DiagnosticResultView }) {
+  const { t } = useLingui();
+  const userinfoStage = result.stages?.find(
+    (stage) => stage.name === "userinfo",
+  );
+  return (
+    // On a phone the three labels overrun the dialog by a few pixels at
+    // HeroUI's tab padding; a step tighter keeps them all in view down to a
+    // 360px screen, and the library's scroller covers anything narrower.
+    <Tabs
+      variant="secondary"
+      defaultSelectedKey="identity"
+      className="@container/details"
+    >
+      {/* The secondary variant draws its baseline on the container, so the
+          container keeps the dialog's width; the list gives up its default
+          full-width minimum so each tab takes its label's width. */}
+      <Tabs.ListContainer className="max-w-full">
+        <Tabs.List
+          className="w-fit min-w-0"
+          aria-label={t({
+            id: "admin.federation.diagnostics.details",
+            message: "Test results",
+          })}
+        >
+          <Tabs.Tab id="identity" className={tabClass}>
+            <Trans id="admin.federation.diagnostics.identity">
+              Mapped fields
+            </Trans>
+            <Tabs.Indicator />
+          </Tabs.Tab>
+          <Tabs.Tab id="id-token" className={tabClass}>
+            <Trans id="admin.federation.diagnostics.stage.id-token">
+              ID token
+            </Trans>
+            <Tabs.Indicator />
+          </Tabs.Tab>
+          <Tabs.Tab id="userinfo" className={tabClass}>
+            <Trans id="admin.federation.diagnostics.stage.userinfo">
+              UserInfo
+            </Trans>
+            <Tabs.Indicator />
+          </Tabs.Tab>
+        </Tabs.List>
+      </Tabs.ListContainer>
+      <Tabs.Panel id="identity" className="pt-4">
+        {result.identity === undefined ? (
+          <EmptyDetail>
+            <Trans id="admin.federation.diagnostics.identity.empty">
+              No fields could be mapped.
+            </Trans>
+          </EmptyDetail>
+        ) : (
+          <IdentityList identity={result.identity} />
+        )}
+      </Tabs.Panel>
+      <Tabs.Panel id="id-token" className="pt-4">
+        <DocumentPanel
+          document={result.idToken}
+          empty={
+            <Trans id="admin.federation.diagnostics.id-token.empty">
+              The provider returned no ID token.
+            </Trans>
+          }
+        />
+      </Tabs.Panel>
+      <Tabs.Panel id="userinfo" className="pt-4">
+        <DocumentPanel
+          document={result.userinfo}
+          empty={
+            userinfoStage?.status === "failed" ? (
+              <Trans id="admin.federation.diagnostics.userinfo.failed">
+                UserInfo returned nothing to show.
+              </Trans>
+            ) : (
+              <Trans id="admin.federation.diagnostics.userinfo.empty">
+                UserInfo was not requested.
+              </Trans>
+            )
+          }
+        />
+      </Tabs.Panel>
+    </Tabs>
+  );
+}
+
+function EmptyDetail({ children }: { children: ReactNode }) {
+  return <p className="text-sm text-muted">{children}</p>;
+}
+
+function DocumentPanel({
+  document,
+  empty,
+}: {
+  document: DiagnosticDocumentView | undefined;
+  empty: ReactNode;
+}) {
+  if (document?.json !== undefined) return <JsonBlock json={document.json} />;
+  if (document?.omittedBytes !== undefined) {
+    // Named, so the message carries `{size}`.
+    const size = Math.ceil(document.omittedBytes / 1024);
+    return (
+      <EmptyDetail>
+        <Trans id="admin.federation.diagnostics.document.omitted">
+          Too large to keep ({size} KB).
+        </Trans>
+      </EmptyDetail>
+    );
+  }
+  return <EmptyDetail>{empty}</EmptyDetail>;
+}
+
+/**
+ * The fields login would store, each with the document and claim it came
+ * from. The source says the rest: every row on UserInfo means the provider
+ * sent no ID token, and only the picture on UserInfo means it was filled in
+ * from there.
+ */
+function IdentityList({ identity }: { identity: DiagnosticIdentityView }) {
+  const { i18n } = useLingui();
+  const rows = identityFields.map(({ key, label }) => ({
+    key,
+    label: i18n._(label),
+    value: <IdentityFieldValue field={identity[key]} />,
+    source: <FieldSource field={identity[key]} />,
+  }));
+  return <SourcedList rows={rows} />;
+}
+
+function IdentityFieldValue({ field }: { field: DiagnosticFieldView }) {
+  const value = identityValue(field);
+  switch (value.kind) {
+    case "missing":
+      return (
+        <span className="text-sm text-muted">
+          <Trans id="admin.federation.diagnostics.identity.missing">
+            Not provided
+          </Trans>
+        </span>
+      );
+    case "boolean":
+      return (
+        <span className="text-sm text-foreground">
+          {value.value ? (
+            <Trans id="admin.federation.diagnostics.identity.yes">Yes</Trans>
+          ) : (
+            <Trans id="admin.federation.diagnostics.identity.no">No</Trans>
+          )}
+        </span>
+      );
+    case "text":
+      return (
+        <span className="font-mono text-sm break-all text-foreground">
+          {value.text}
+        </span>
+      );
+  }
+}
+
+function FieldSource({ field }: { field: DiagnosticFieldView }) {
+  const { i18n } = useLingui();
+  const document = documentSourceLabel(field.source);
+  return (
+    <>
+      {document === undefined ? field.source : i18n._(document)}
+      {field.claim !== undefined && (
+        <>
+          {" · "}
+          <span className="font-mono">{field.claim}</span>
+        </>
+      )}
+    </>
   );
 }
 

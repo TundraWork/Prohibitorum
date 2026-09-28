@@ -39,6 +39,14 @@ import (
 // the upstream_identity_unavailable failure with the original error text.
 var errUpstreamIdentityParse = errors.New("upstream identity parse")
 
+// errNoUserInfoEndpoint and errNoSubject mark why the no-id_token fallback
+// found no identity, so the connection test can name the cause. Login still
+// reports upstream_identity_unavailable for both.
+var (
+	errNoUserInfoEndpoint = errors.New("no userinfo endpoint")
+	errNoSubject          = errors.New("no subject claim")
+)
+
 // DefaultAllowedAlgs returns the JWT signing-alg allowlist used when NewClient
 // is called with nil allowedAlgs. RS256, ES256, EdDSA only. HS256 and "none"
 // are explicitly excluded.
@@ -221,7 +229,7 @@ func NewClient(_ context.Context, clientID, clientSecret, redirectURI string, re
 	// changes here.
 	hardened := federationcore.NewOutboundHTTPClient(allowPrivateNetwork, 2<<20)
 	wrapped := *hardened
-	wrapped.Transport = &acceptHeaderTransport{base: hardened.Transport}
+	wrapped.Transport = newRecordingTransport(&acceptHeaderTransport{base: hardened.Transport}, resolved)
 	httpClient := &wrapped
 	base, err := rp.NewRelyingPartyOAuth(&oauth2.Config{ClientID: clientID, ClientSecret: clientSecret, RedirectURL: redirectURI, Scopes: append([]string(nil), resolved.Scopes...), Endpoint: oauth2.Endpoint{AuthURL: resolved.AuthorizationEndpoint, TokenURL: resolved.TokenEndpoint}}, rp.WithHTTPClient(httpClient), rp.WithAuthStyle(style))
 	if err != nil {
@@ -320,7 +328,9 @@ func (c *Client) Exchange(
 			if tokenType == "" {
 				tokenType = oidclib.BearerToken
 			}
-			return &Tokens{AccessToken: tokens.AccessToken, TokenType: tokenType}, nil
+			result := &Tokens{AccessToken: tokens.AccessToken, TokenType: tokenType}
+			recorderFrom(ctx).exchanged(c, result)
+			return result, nil
 		}
 		// The remaining failure that loses the token entirely: a form-encoded
 		// response (upstream ignored Accept) or a malformed id_token. Both
@@ -402,7 +412,7 @@ func (c *Client) Exchange(
 		raw["picture"] = claims.Picture
 	}
 
-	return &Tokens{
+	result := &Tokens{
 		TokenType:         tokens.TokenType,
 		IDToken:           tokens.IDToken,
 		AccessToken:       tokens.AccessToken,
@@ -419,7 +429,9 @@ func (c *Client) Exchange(
 		// Go zero time).
 		AuthTime: claims.AuthTime.AsTime(),
 		Raw:      raw,
-	}, nil
+	}
+	recorderFrom(ctx).exchanged(c, result)
+	return result, nil
 }
 
 // allowedAlgs returns the alg allowlist configured on the underlying
@@ -512,7 +524,7 @@ func (c *Client) UserInfo(ctx context.Context, accessToken, subject string) (map
 func (c *Client) UserInfoRaw(ctx context.Context, accessToken, tokenType string) (map[string]any, error) {
 	endpoint := c.rp.UserinfoEndpoint()
 	if endpoint == "" {
-		return nil, errors.New("federation/oidc: no userinfo endpoint resolved")
+		return nil, fmt.Errorf("%w: federation/oidc: no userinfo endpoint resolved", errNoUserInfoEndpoint)
 	}
 	if tokenType == "" {
 		tokenType = oidclib.BearerToken

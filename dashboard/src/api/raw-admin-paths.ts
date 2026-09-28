@@ -327,11 +327,44 @@ export interface DiagnosticStageView {
   requestId?: string;
 }
 
+/**
+ * One mapped identity field: the value login would store, the document it was
+ * read from (`id_token`, `userinfo`, or `configuration` for the fallback
+ * issuer) and the claim read. `value` is `null` when the claim is absent, and
+ * a boolean for `emailVerified`.
+ */
+export interface DiagnosticFieldView {
+  value: string | boolean | null;
+  source: string;
+  claim?: string;
+}
+
+export interface DiagnosticIdentityView {
+  issuer: DiagnosticFieldView;
+  subject: DiagnosticFieldView;
+  username: DiagnosticFieldView;
+  displayName: DiagnosticFieldView;
+  email: DiagnosticFieldView;
+  emailVerified: DiagnosticFieldView;
+  picture: DiagnosticFieldView;
+}
+
+/**
+ * An upstream JSON document as the server compacted it, kept as text so large
+ * numbers survive; `omittedBytes` replaces it when it was too large to keep.
+ */
+export interface DiagnosticDocumentView {
+  json?: string;
+  omittedBytes?: number;
+}
+
 export interface DiagnosticResultView {
   status: string;
   expiresAt: string;
   stages: DiagnosticStageView[] | null;
-  claims?: Record<string, unknown>;
+  identity?: DiagnosticIdentityView;
+  idToken?: DiagnosticDocumentView;
+  userinfo?: DiagnosticDocumentView;
 }
 
 /** `POST /identity-providers/{slug}/tests` — where to send the browser. */
