@@ -1,5 +1,6 @@
 import type { RegisteredRouter, RouterHistory } from "@tanstack/react-router";
 import { createRouter } from "@tanstack/react-router";
+import { searchSerialization } from "@/app/search-params";
 import {
   AppRouteNotFound,
   PublicPending,
@@ -14,6 +15,7 @@ export function createAppRouter(
   history?: RouterHistory,
 ) {
   return createRouter({
+    ...searchSerialization,
     routeTree,
     context,
     ...(history ? { history } : {}),

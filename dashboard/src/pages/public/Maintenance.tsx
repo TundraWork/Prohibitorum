@@ -87,9 +87,7 @@ export function MaintenancePage() {
             <Button
               variant="tertiary"
               fullWidth
-              onPress={() =>
-                navigate({ to: "/login", search: { admin: true } })
-              }
+              onPress={() => navigate({ to: "/login", search: { admin: "1" } })}
             >
               <Trans id="maintenance.admin_sign_in">
                 Administrator sign-in

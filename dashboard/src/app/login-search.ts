@@ -1,4 +1,5 @@
 import { text } from "@/app/search";
+import type { SearchValue } from "@/app/search-params";
 
 export interface LoginSearch {
   return_to?: string;
@@ -7,7 +8,7 @@ export interface LoginSearch {
    * value: `?admin`, `?admin=1` and `?admin=0` all count (see
    * `maintenanceRedirect`).
    */
-  admin?: true;
+  admin?: SearchValue;
 }
 
 /**
@@ -22,6 +23,8 @@ export function loginSearch(search: Record<string, unknown>): LoginSearch {
   const returnTo = text(search.return_to);
   return {
     ...(returnTo === undefined ? {} : { return_to: returnTo }),
-    ...(Object.hasOwn(search, "admin") ? { admin: true } : {}),
+    ...(Object.hasOwn(search, "admin")
+      ? { admin: search.admin as SearchValue }
+      : {}),
   };
 }

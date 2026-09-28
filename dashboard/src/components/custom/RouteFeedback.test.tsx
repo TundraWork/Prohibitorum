@@ -20,6 +20,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@/api/errors";
 import type { RequestExchange } from "@/api/exchange";
 import { createQueryClient } from "@/app/query-client";
+import { searchSerialization } from "@/app/search-params";
 import {
   AppRouteError,
   AppRouteNotFound,
@@ -126,6 +127,7 @@ function mount(path: string) {
     component: () => <p>Other public page</p>,
   });
   const router = createRouter({
+    ...searchSerialization,
     routeTree: root.addChildren([
       consoleLayout.addChildren([home, admin]),
       publicLayout.addChildren([login, loginOther]),

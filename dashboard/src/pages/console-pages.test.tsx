@@ -13,6 +13,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { components } from "@/api/generated/schema";
 import { consentQueryOptions, sessionQueryOptions } from "@/api/queries";
 import { createQueryClient } from "@/app/query-client";
+import { searchSerialization } from "@/app/search-params";
 import { i18n } from "@/i18n";
 import { ConnectedApps } from "@/pages/ConnectedApps";
 import { Profile } from "@/pages/Profile";
@@ -73,6 +74,7 @@ function mount(
     component: () => <h1>Console home</h1>,
   });
   const router = createRouter({
+    ...searchSerialization,
     routeTree: root.addChildren([route, home]),
     history,
   });

@@ -29,6 +29,7 @@ import {
 } from "@/api/queries";
 import type { PublicConfig } from "@/api/raw-paths";
 import { createQueryClient } from "@/app/query-client";
+import { searchSerialization } from "@/app/search-params";
 import { RecoveryCodes } from "@/components/custom/RecoveryCodes";
 import { i18n } from "@/i18n";
 import { PasswordPage, RecoveryPage, TotpPage } from "@/pages/Login";
@@ -70,7 +71,7 @@ afterEach(() => {
 });
 
 function mountRouter(routeTree: AnyRoute) {
-  const router = createRouter({ routeTree, history });
+  const router = createRouter({ ...searchSerialization, routeTree, history });
   render(
     <I18nProvider i18n={i18n}>
       <QueryClientProvider client={queryClient}>
