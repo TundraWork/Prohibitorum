@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
+import { ApiError } from "@/api/errors";
 import {
   defaultOidcProviderConfig,
   readAttributeMap,
   readClaimAliases,
+  readFederationFlow,
   readOidcProviderConfig,
   readPrincipalSource,
   readProviderMode,
@@ -152,5 +154,62 @@ describe("reading claim aliases", () => {
     expect(readClaimAliases(undefined)).toEqual({});
     expect(readClaimAliases(["nickname"])).toEqual({});
     expect(readClaimAliases({ nickname: 3 })).toEqual({});
+  });
+});
+
+describe("readFederationFlow", () => {
+  const identify = {
+    provider: { slug: "vrchat", displayName: "VRChat", protocol: "vrchat" },
+    intent: "enroll",
+    step: "identify",
+    requiresLocalUsername: false,
+    expiresAt: "2026-10-03T00:00:00Z",
+  };
+  const proof = {
+    ...identify,
+    step: "proof",
+    profileUrl: "https://vrchat.com/home/user/usr_1",
+    proofUrl: "https://id.example/verify/vrchat/p",
+    requiresLocalUsername: true,
+  };
+
+  function refused(value: unknown) {
+    try {
+      readFederationFlow(value);
+    } catch (error) {
+      return error instanceof ApiError && error.kind === "invalid-response";
+    }
+    return false;
+  }
+
+  it("reads both steps as they come", () => {
+    expect(readFederationFlow(identify)).toEqual(identify);
+    expect(readFederationFlow(proof)).toEqual(proof);
+  });
+
+  it("refuses an intent or a step it does not know", () => {
+    expect(refused({ ...identify, intent: "recover" })).toBe(true);
+    expect(refused({ ...identify, step: "done" })).toBe(true);
+  });
+
+  it("refuses a proof step without the link to put in the bio", () => {
+    const { proofUrl, ...withoutProof } = proof;
+    expect(refused(withoutProof)).toBe(true);
+    expect(refused({ ...proof, proofUrl: "" })).toBe(true);
+  });
+
+  it("refuses a malformed provider or field", () => {
+    expect(refused(null)).toBe(true);
+    expect(refused([])).toBe(true);
+    expect(refused({ ...identify, provider: "vrchat" })).toBe(true);
+    expect(
+      refused({
+        ...identify,
+        provider: { slug: "vrchat", protocol: "vrchat" },
+      }),
+    ).toBe(true);
+    expect(refused({ ...identify, requiresLocalUsername: "no" })).toBe(true);
+    expect(refused({ ...identify, expiresAt: 1 })).toBe(true);
+    expect(refused({ ...proof, profileUrl: 3 })).toBe(true);
   });
 });

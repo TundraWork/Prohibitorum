@@ -62,8 +62,10 @@ function PublicStepRoot({
 const actionsLayout = cva("", {
   variants: {
     layout: {
-      // One way forward, then the lesser ones under it, all full width.
-      single: "flex flex-col gap-2",
+      // One way forward, then the lesser ones under it, all full width. A
+      // label too long for a narrow card wraps inside its button.
+      single:
+        "flex flex-col gap-2 [&_button]:h-auto [&_button]:min-h-10 [&_button]:whitespace-normal [&_button]:py-2 md:[&_button]:min-h-9",
       // Two equal choices side by side, the one that goes ahead on the right
       // as in a dialog's footer. The card is never too narrow for two.
       decision: "grid grid-cols-2 gap-2",

@@ -2,8 +2,11 @@ import { base32 } from "@scure/base";
 import {
   type AuthenticationResponseJSON,
   browserSupportsWebAuthn,
+  type PublicKeyCredentialCreationOptionsJSON,
   type PublicKeyCredentialRequestOptionsJSON,
+  type RegistrationResponseJSON,
   startAuthentication,
+  startRegistration,
   WebAuthnAbortService,
   WebAuthnError,
 } from "@simplewebauthn/browser";
@@ -146,4 +149,51 @@ export async function authenticateWithPasskey(
   } finally {
     if (passkeyController === controller) passkeyController = undefined;
   }
+}
+
+/**
+ * Whether a failed browser ceremony was the reader backing out: the prompt
+ * dismissed, or the ceremony aborted for another one.
+ */
+function isCeremonyCancelled(error: unknown): boolean {
+  return (
+    isCancellation(error) ||
+    (error instanceof WebAuthnError &&
+      error.code === "ERROR_CEREMONY_ABORTED") ||
+    (error instanceof Error && error.name === "NotAllowedError")
+  );
+}
+
+/**
+ * Creates a passkey: `begin` asks the server for the challenge, the browser
+ * makes the credential, and `complete` sends it back. The two requests are the
+ * caller's, since an enrollment and a signed-in account register through
+ * different endpoints.
+ *
+ * It follows the sign-in ceremony's rules: a browser or connection without
+ * passkeys fails as `passkey_unsupported`, a dismissed prompt becomes an
+ * `AbortError`, which is not reported, and any other failure of the prompt is
+ * `registration_failed`.
+ */
+export async function registerWithPasskey<T>(
+  begin: () => Promise<unknown>,
+  complete: (attestation: RegistrationResponseJSON) => Promise<T>,
+): Promise<T> {
+  if (!window.isSecureContext || !browserSupportsWebAuthn()) {
+    throw new ApiError({ kind: "local", code: "passkey_unsupported" });
+  }
+  const optionsJSON = await begin();
+  let attestation: RegistrationResponseJSON;
+  try {
+    attestation = await startRegistration({
+      // openapi-fetch's Readable maps extension BufferSource methods to objects.
+      optionsJSON: optionsJSON as PublicKeyCredentialCreationOptionsJSON,
+    });
+  } catch (error) {
+    if (isCeremonyCancelled(error)) {
+      throw new DOMException("The request was aborted.", "AbortError");
+    }
+    throw new ApiError({ kind: "local", code: "registration_failed" });
+  }
+  return complete(attestation);
 }

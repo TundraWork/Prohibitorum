@@ -1,5 +1,4 @@
 import { Card, Chip, Modal, Tooltip } from "@heroui/react";
-import { msg } from "@lingui/core/macro";
 import { Plural, Trans, useLingui } from "@lingui/react/macro";
 import { useStore } from "@tanstack/react-form";
 import {
@@ -15,12 +14,7 @@ import {
   Smartphone,
 } from "lucide-react";
 import { type Ref, useEffect, useRef, useState } from "react";
-import {
-  buildTotpUri,
-  generateTotpSecret,
-  isValidLoginPassword,
-  isValidTotpCode,
-} from "@/api/auth";
+import { buildTotpUri, generateTotpSecret, isValidTotpCode } from "@/api/auth";
 import { describeError, isCancellation } from "@/api/errors";
 import {
   passwordTotpMutationOptions,
@@ -47,28 +41,13 @@ import {
   recoveryCodesCopy,
 } from "@/components/custom/secret-reveal-copy";
 import { TotpSetup } from "@/components/custom/TotpSetup";
+import {
+  checkPassword,
+  passwordMismatch,
+  totpCodeInvalid,
+} from "@/forms/password-totp-rules";
 import { applyServerError } from "@/forms/server-errors";
 import { useAppForm } from "@/forms/use-app-form";
-
-const passwordInvalid = msg({
-  id: "security.password.invalid",
-  message: "Use a password of at least 8 characters.",
-});
-const passwordMismatch = msg({
-  id: "security.password.mismatch",
-  message: "The two passwords do not match.",
-});
-const codeInvalid = msg({
-  id: "security.totp.invalid",
-  message: "Enter the code your authenticator shows, using only 0–9.",
-});
-
-/** The password rule is the server's: 8 to 1024 bytes, without trimming. */
-function checkPassword(value: string) {
-  return isValidLoginPassword(value) && value.length >= 8
-    ? undefined
-    : passwordInvalid;
-}
 
 /** Codes this few or fewer are worth a mark on the row. */
 const lowRecoveryCodes = 3;
@@ -510,7 +489,7 @@ function SetupForm({
                     (config.data &&
                       isValidTotpCode(value, config.data.totp.digits))
                       ? undefined
-                      : codeInvalid,
+                      : totpCodeInvalid,
                 }}
               >
                 {(field) => (
@@ -860,7 +839,7 @@ function ReplaceTotpForm({
                 onChange: ({ value }) =>
                   config.data && isValidTotpCode(value, config.data.totp.digits)
                     ? undefined
-                    : codeInvalid,
+                    : totpCodeInvalid,
               }}
             >
               {(field) => (

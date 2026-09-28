@@ -3,24 +3,12 @@ import { useSuspenseQuery } from "@tanstack/react-query";
 import { useNavigate, useRouter } from "@tanstack/react-router";
 import { describeErrorLanding } from "@/api/errors";
 import { sessionQueryOptions } from "@/api/queries";
-import { followRedirect } from "@/app/redirect";
+import { followRedirect, isSitePath } from "@/app/redirect";
 import { Button } from "@/components/custom/Button";
 import { useInstanceBranding } from "@/components/custom/instance-branding";
 import { PublicStep } from "@/components/custom/PublicStep";
 import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
 import { Route } from "@/routes/_public.error";
-
-/**
- * A path on this site. A value starting `//` or `/\` is read by the browser
- * as another host, so it is not one.
- */
-export function isSitePath(value: string | undefined): value is string {
-  return (
-    value?.startsWith("/") === true &&
-    !value.startsWith("//") &&
-    !value.startsWith("/\\")
-  );
-}
 
 /**
  * A flow the server could not continue, in the shape of a public page that

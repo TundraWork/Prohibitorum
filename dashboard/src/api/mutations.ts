@@ -1,22 +1,19 @@
 import type { MessageDescriptor } from "@lingui/core";
 import type {
   AuthenticationResponseJSON,
-  PublicKeyCredentialCreationOptionsJSON,
   PublicKeyCredentialRequestOptionsJSON,
-  RegistrationResponseJSON,
 } from "@simplewebauthn/browser";
-import {
-  startAuthentication,
-  startRegistration,
-} from "@simplewebauthn/browser";
+import { startAuthentication } from "@simplewebauthn/browser";
 import { mutationOptions, type QueryClient } from "@tanstack/react-query";
 import {
   authenticateWithPasskey,
   isValidRecoveryCode,
+  registerWithPasskey,
   validateLoginResult,
 } from "@/api/auth";
 import { client, requireJsonData } from "@/api/client";
 import { ApiError } from "@/api/errors";
+import { readFederationFlow } from "@/api/federation";
 import type { components, paths } from "@/api/generated/schema";
 import { clearSessionQueries } from "@/api/queries";
 import type {
@@ -58,6 +55,9 @@ import type {
 import type {
   CreatedPersonalAccessToken,
   DevicePairing,
+  EnrollmentAccountFields,
+  EnrollmentPasswordTotpResult,
+  FederationConfirmResult,
   PasswordRequest,
   RecoveryCodesResult,
   RecoveryRequest,
@@ -121,6 +121,165 @@ export function samlConsentDecisionMutationOptions() {
       requireJsonData(
         client.POST("/api/prohibitorum/saml-consent", { body }),
       ).then(validateLoginResult),
+  });
+}
+
+/* ------------------------------------------------ enrollment and federation -- */
+
+/**
+ * Creates the account an enrollment link describes with a passkey. `fields`
+ * is what the reader chose; a reset sends none. The answer signs the new
+ * account in, so it carries no success message: the page leaves at once.
+ */
+export function enrollPasskeyMutationOptions(token: string) {
+  return mutationOptions({
+    retry: false,
+    gcTime: 0,
+    meta: { errorScope: "federation" },
+    mutationFn: (fields: EnrollmentAccountFields | undefined) =>
+      registerWithPasskey(
+        () =>
+          requireJsonData(
+            client.POST(
+              "/api/prohibitorum/enrollments/{token}/register/begin",
+              {
+                params: { path: { token } },
+                ...(fields ? { body: fields } : {}),
+              },
+            ),
+          ),
+        (attestation) =>
+          requireJsonData(
+            client.POST(
+              "/api/prohibitorum/enrollments/{token}/register/complete",
+              { params: { path: { token } }, body: attestation },
+            ),
+          ),
+      ),
+  });
+}
+
+/** Creates the enrollment's account with a password and an authenticator. */
+export function enrollPasswordTotpMutationOptions(token: string) {
+  return mutationOptions({
+    retry: false,
+    gcTime: 0,
+    meta: { errorScope: "federation" },
+    mutationFn: (
+      body: EnrollmentAccountFields & {
+        password: string;
+        secret_base32: string;
+        code: string;
+      },
+    ): Promise<EnrollmentPasswordTotpResult> =>
+      requireJsonData(
+        client.POST(
+          "/api/prohibitorum/enrollments/{token}/password-totp/verify",
+          { params: { path: { token } }, body },
+        ),
+      ),
+  });
+}
+
+/** Accepts the account a first sign-in through a provider prepared. */
+export function federationConfirmMutationOptions() {
+  return mutationOptions({
+    retry: false,
+    gcTime: 0,
+    meta: { errorScope: "federation" },
+    mutationFn: async (): Promise<FederationConfirmResult> => {
+      const result = await requireJsonData(
+        client.POST("/api/prohibitorum/auth/federation/confirm", { body: {} }),
+      );
+      if (
+        typeof result.redirect !== "string" ||
+        typeof result.offerLocalSignin !== "boolean"
+      ) {
+        throw new ApiError({ kind: "invalid-response" });
+      }
+      return result;
+    },
+  });
+}
+
+/** Turns down the prepared account; the sign-in ends there. */
+export function federationDeclineMutationOptions() {
+  return mutationOptions({
+    retry: false,
+    gcTime: 0,
+    meta: { errorScope: "federation" },
+    mutationFn: async () => {
+      await client.POST("/api/prohibitorum/auth/federation/confirm/decline");
+    },
+  });
+}
+
+/** Names the VRChat profile to verify; the flow moves on to its proof step. */
+export function federationFlowPrepareMutationOptions(flow: string) {
+  return mutationOptions({
+    retry: false,
+    gcTime: 0,
+    meta: { errorScope: "federation" },
+    mutationFn: async (identity: string) =>
+      readFederationFlow(
+        await requireJsonData(
+          client.POST(
+            "/api/prohibitorum/auth/federation/flows/{flow}/prepare",
+            {
+              params: { path: { flow } },
+              body: { identity },
+            },
+          ),
+        ),
+      ),
+  });
+}
+
+/** Checks the profile's bio for the proof link and finishes the flow. */
+export function federationFlowVerifyMutationOptions(flow: string) {
+  return mutationOptions({
+    retry: false,
+    gcTime: 0,
+    meta: { errorScope: "federation" },
+    mutationFn: (localUsername: string | undefined) =>
+      requireJsonData(
+        client.POST("/api/prohibitorum/auth/federation/flows/{flow}/verify", {
+          params: { path: { flow } },
+          body: localUsername === undefined ? {} : { localUsername },
+        }),
+      ).then(validateLoginResult),
+  });
+}
+
+/**
+ * Adds a passkey right after a first sign-in through a provider. It does not
+ * go through `runWithSudo`: that prompt lives in the console, and the new
+ * session is fresh enough. A session that is not any more fails with
+ * `sudo_required`, which the page answers itself.
+ */
+export function setupPasskeyMutationOptions() {
+  return mutationOptions({
+    retry: false,
+    gcTime: 0,
+    meta: { errorScope: "setup-signin" },
+    mutationFn: () => registerPasskey(),
+  });
+}
+
+/** Sets a password and an authenticator after a first federated sign-in. */
+export function setupPasswordTotpMutationOptions() {
+  return mutationOptions({
+    retry: false,
+    gcTime: 0,
+    meta: { errorScope: "setup-signin" },
+    mutationFn: (body: {
+      password: string;
+      secret_base32: string;
+      code: string;
+    }): Promise<RecoveryCodesResult> =>
+      requireJsonData(
+        client.POST("/api/prohibitorum/me/password-totp/verify", { body }),
+      ),
   });
 }
 
@@ -311,18 +470,19 @@ export async function refreshSudoState(
 
 /** Full registration ceremony: begin (sudo-guarded), browser prompt, complete. */
 export async function registerPasskey(nickname?: string): Promise<void> {
-  const optionsJSON = await requireJsonData(
-    client.POST("/api/prohibitorum/me/credentials/register/begin"),
+  await registerWithPasskey(
+    () =>
+      requireJsonData(
+        client.POST("/api/prohibitorum/me/credentials/register/begin"),
+      ),
+    (attestation) =>
+      client.POST("/api/prohibitorum/me/credentials/register/complete", {
+        body: attestation,
+        ...(nickname === undefined || nickname === ""
+          ? {}
+          : { params: { query: { nickname } } }),
+      }),
   );
-  const attestation = await startRegistration({
-    optionsJSON: optionsJSON as PublicKeyCredentialCreationOptionsJSON,
-  });
-  await client.POST("/api/prohibitorum/me/credentials/register/complete", {
-    body: attestation as RegistrationResponseJSON,
-    ...(nickname === undefined || nickname === ""
-      ? {}
-      : { params: { query: { nickname } } }),
-  });
 }
 
 export function addCredentialMutationOptions(queryClient: QueryClient) {
@@ -1427,6 +1587,7 @@ export function refreshEffectiveConfigMutationOptions() {
 export function startDiagnosticMutationOptions() {
   return mutationOptions({
     retry: false,
+    meta: { errorScope: "diagnostic" },
     mutationFn: async (slug: string): Promise<DiagnosticStartView> =>
       requireJsonData(
         client.POST("/api/prohibitorum/identity-providers/{slug}/tests", {
@@ -1440,6 +1601,7 @@ export function startDiagnosticMutationOptions() {
 export function completeDiagnosticMutationOptions(queryClient: QueryClient) {
   return mutationOptions({
     retry: false,
+    meta: { errorScope: "diagnostic" },
     mutationFn: async ({
       slug,
       id,

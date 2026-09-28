@@ -2,6 +2,8 @@ import { base32 } from "@scure/base";
 import {
   browserSupportsWebAuthn,
   startAuthentication,
+  startRegistration,
+  WebAuthnError,
 } from "@simplewebauthn/browser";
 import { MutationObserver, type QueryClient } from "@tanstack/react-query";
 import { waitFor } from "@testing-library/react";
@@ -22,6 +24,7 @@ import {
   isValidRecoveryCode,
   isValidTotpCode,
   readReturnTo,
+  registerWithPasskey,
 } from "@/api/auth";
 import { ApiError, describeError, isCancellation } from "@/api/errors";
 import {
@@ -36,6 +39,7 @@ import { parseSearch } from "@/app/search-params";
 vi.mock("@simplewebauthn/browser", () => ({
   browserSupportsWebAuthn: vi.fn(),
   startAuthentication: vi.fn(),
+  startRegistration: vi.fn(),
   WebAuthnAbortService: { cancelCeremony: vi.fn() },
   WebAuthnError: class extends Error {
     code = "";
@@ -256,5 +260,83 @@ describe("authentication mutations", () => {
     expect(startAuthentication).not.toHaveBeenCalled();
     expect(notices).not.toHaveBeenCalled();
     mutation.reset();
+  });
+});
+
+describe("registerWithPasskey", () => {
+  const attestation = { id: "new-credential" };
+
+  function ceremony() {
+    const begin = vi.fn(async () => ({ challenge: "c" }));
+    const complete = vi.fn(async (value: unknown) => ({ created: value }));
+    return { begin, complete };
+  }
+
+  async function failure(run: Promise<unknown>): Promise<unknown> {
+    try {
+      await run;
+    } catch (error) {
+      return error;
+    }
+    throw new Error("expected the ceremony to fail");
+  }
+
+  it("refuses a browser or connection without passkeys before asking the server", async () => {
+    for (const setup of [
+      () => vi.stubGlobal("isSecureContext", false),
+      () => vi.mocked(browserSupportsWebAuthn).mockReturnValue(false),
+    ]) {
+      vi.stubGlobal("isSecureContext", true);
+      vi.mocked(browserSupportsWebAuthn).mockReturnValue(true);
+      setup();
+      const { begin, complete } = ceremony();
+      const error = await failure(registerWithPasskey(begin, complete));
+      expect(error).toBeInstanceOf(ApiError);
+      expect((error as ApiError).code).toBe("passkey_unsupported");
+      expect(begin).not.toHaveBeenCalled();
+      expect(complete).not.toHaveBeenCalled();
+    }
+  });
+
+  it("turns a dismissed or aborted prompt into a cancellation", async () => {
+    const aborted = new WebAuthnError({
+      message: "aborted",
+      code: "ERROR_CEREMONY_ABORTED",
+    } as never);
+    Object.assign(aborted, { code: "ERROR_CEREMONY_ABORTED" });
+    const dismissed = new Error("dismissed");
+    dismissed.name = "NotAllowedError";
+    for (const thrown of [dismissed, aborted]) {
+      vi.mocked(startRegistration).mockRejectedValueOnce(thrown);
+      const { begin, complete } = ceremony();
+      const error = await failure(registerWithPasskey(begin, complete));
+      expect(isCancellation(error)).toBe(true);
+      expect(begin).toHaveBeenCalledOnce();
+      expect(complete).not.toHaveBeenCalled();
+    }
+  });
+
+  it("reports any other failure of the prompt as registration_failed", async () => {
+    vi.mocked(startRegistration).mockRejectedValueOnce(
+      new Error("InvalidStateError"),
+    );
+    const { begin, complete } = ceremony();
+    const error = await failure(registerWithPasskey(begin, complete));
+    expect(error).toBeInstanceOf(ApiError);
+    expect((error as ApiError).code).toBe("registration_failed");
+    expect(describeError(error).id).toBe("error.registration_failed");
+    expect(complete).not.toHaveBeenCalled();
+  });
+
+  it("hands the browser's attestation to complete and returns its answer", async () => {
+    vi.mocked(startRegistration).mockResolvedValueOnce(attestation as never);
+    const { begin, complete } = ceremony();
+    await expect(registerWithPasskey(begin, complete)).resolves.toEqual({
+      created: attestation,
+    });
+    expect(vi.mocked(startRegistration).mock.calls[0]?.[0]).toEqual({
+      optionsJSON: { challenge: "c" },
+    });
+    expect(complete).toHaveBeenCalledWith(attestation);
   });
 });

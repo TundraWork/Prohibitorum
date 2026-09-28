@@ -1,4 +1,4 @@
-import { Modal, Separator, Skeleton, Tooltip } from "@heroui/react";
+import { Modal, Skeleton, Tooltip } from "@heroui/react";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { browserSupportsWebAuthn } from "@simplewebauthn/browser";
@@ -28,6 +28,7 @@ import {
   sudoMethodsQueryOptions,
 } from "@/api/sudo";
 import { Button } from "@/components/custom/Button";
+import { OrSeparator } from "@/components/custom/OrSeparator";
 import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
 import { applyServerError, clearServerErrors } from "@/forms/server-errors";
 import { useAppForm } from "@/forms/use-app-form";
@@ -398,24 +399,6 @@ function SudoStep({
  * labelled separator, so the rules are two separators around the word; they
  * are decoration, and a reader hears only "or".
  */
-function OrSeparator() {
-  // React Aria's separator keeps only its own attributes, so the rules are
-  // hidden from the wrapper around each one.
-  return (
-    <div className="flex items-center gap-3">
-      <div aria-hidden="true" className="flex-1">
-        <Separator />
-      </div>
-      <span className="text-xs text-muted">
-        <Trans id="sudo.or">or</Trans>
-      </span>
-      <div aria-hidden="true" className="flex-1">
-        <Separator />
-      </div>
-    </div>
-  );
-}
-
 /**
  * The step's shape while the method list is re-read: the passkey button, the
  * rule between the methods, the two fields and the submit button.

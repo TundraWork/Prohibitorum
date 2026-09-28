@@ -76,6 +76,78 @@ describe("the federation scope", () => {
   });
 });
 
+describe("the enrollment and public federation codes", () => {
+  it.each([
+    "enrollment_consumed",
+    "enrollment_expired",
+    "enrollment_method_not_allowed",
+    "invalid_display_name",
+    "credential_already_registered",
+    "registration_failed",
+    "federation_action_invalid",
+    "username_collision",
+    "vrchat_identity_invalid",
+    "vrchat_proof_missing",
+    "local_username_required",
+  ])("describes %s in its own words", (code) => {
+    expect(describeError(refused(code)).id).toBe(`error.${code}`);
+  });
+
+  it("tells the page that adds a sign-in that its step has timed out", () => {
+    expect(
+      describeError(refused("sudo_required"), "setup-signin"),
+    ).toMatchObject({
+      id: "error.setup-signin.sudo_required",
+      message: "This step has timed out. Add it later from Security.",
+    });
+    expect(describeError(refused("sudo_required")).id).toBe(
+      "error.sudo_required",
+    );
+  });
+
+  it("reads an expired federation state as a sign-in, and as a test in the diagnostic scope", () => {
+    expect(describeError(refused("federation_state_invalid"))).toMatchObject({
+      message: "This sign-in has expired. Sign in again.",
+    });
+    expect(
+      describeError(refused("federation_state_invalid"), "diagnostic"),
+    ).toMatchObject({
+      message: "This test is no longer valid. Start a new one.",
+    });
+  });
+
+  it("says how long a rate-limited provider asks to wait when the response does", () => {
+    const limited = (headers: [string, string][]) =>
+      new ApiError({
+        kind: "http",
+        status: 429,
+        code: "upstream_rate_limited",
+        requestId: "r1",
+        details: { federationName: "VRChat" },
+        exchange: {
+          method: "POST",
+          path: "/api/prohibitorum/auth/federation/flows/f/verify",
+          response: { status: 429, headers },
+        },
+      });
+    expect(
+      describeError(limited([["retry-after", "12"]]), "federation"),
+    ).toMatchObject({
+      id: "error.federation.upstream_rate_limited.seconds",
+      values: { provider: "VRChat", seconds: 12 },
+    });
+    for (const headers of [[], [["retry-after", "soon"]]] as [
+      string,
+      string,
+    ][][]) {
+      expect(describeError(limited(headers), "federation")).toMatchObject({
+        id: "error.federation.upstream_rate_limited",
+        values: { provider: "VRChat" },
+      });
+    }
+  });
+});
+
 describe("describeErrorLanding", () => {
   const instance = "Test instance";
 
