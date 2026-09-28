@@ -22,7 +22,10 @@ import { Route as PublicErrorRouteImport } from './routes/_public.error'
 import { Route as PublicLoginRouteImport } from './routes/_public.login'
 import { Route as PublicMaintenanceRouteImport } from './routes/_public.maintenance'
 import { Route as PublicSamlConsentRouteImport } from './routes/_public.saml-consent'
+import { Route as PublicSetupSigninRouteImport } from './routes/_public.setup-signin'
+import { Route as PublicWelcomeRouteImport } from './routes/_public.welcome'
 import { Route as ProtectedAdminAdminRouteImport } from './routes/_protected.admin._admin'
+import { Route as PublicEnrollTokenRouteImport } from './routes/_public.enroll.$token'
 import { Route as PublicLoginRecoveryRouteImport } from './routes/_public.login_.recovery'
 import { Route as PublicLoginTotpRouteImport } from './routes/_public.login_.totp'
 import { Route as ProtectedAdminAdminIndexRouteImport } from './routes/_protected.admin._admin.index'
@@ -39,6 +42,8 @@ import { Route as ProtectedAdminOidcApplicationsNewRouteImport } from './routes/
 import { Route as ProtectedAdminSamlApplicationsIndexRouteImport } from './routes/_protected.admin.saml-applications.index'
 import { Route as ProtectedAdminSamlApplicationsIdRouteImport } from './routes/_protected.admin.saml-applications_.$id'
 import { Route as ProtectedAdminSamlApplicationsNewRouteImport } from './routes/_protected.admin.saml-applications_.new'
+import { Route as PublicFederationFlowFlowRouteImport } from './routes/_public.federation.flow.$flow'
+import { Route as PublicVerifyVrchatProofRouteImport } from './routes/_public.verify.vrchat.$proof'
 import { Route as ProtectedAdminAdminGroupsIndexRouteImport } from './routes/_protected.admin._admin.groups.index'
 import { Route as ProtectedAdminAdminGroupsNewRouteImport } from './routes/_protected.admin._admin.groups.new'
 import { Route as ProtectedAdminAdminGroupsGroupIdRouteImport } from './routes/_protected.admin._admin.groups_.$groupId'
@@ -111,9 +116,24 @@ const PublicSamlConsentRoute = PublicSamlConsentRouteImport.update({
   path: '/saml-consent',
   getParentRoute: () => PublicRoute,
 } as any)
+const PublicSetupSigninRoute = PublicSetupSigninRouteImport.update({
+  id: '/setup-signin',
+  path: '/setup-signin',
+  getParentRoute: () => PublicRoute,
+} as any)
+const PublicWelcomeRoute = PublicWelcomeRouteImport.update({
+  id: '/welcome',
+  path: '/welcome',
+  getParentRoute: () => PublicRoute,
+} as any)
 const ProtectedAdminAdminRoute = ProtectedAdminAdminRouteImport.update({
   id: '/_admin',
   getParentRoute: () => ProtectedAdminRoute,
+} as any)
+const PublicEnrollTokenRoute = PublicEnrollTokenRouteImport.update({
+  id: '/enroll/$token',
+  path: '/enroll/$token',
+  getParentRoute: () => PublicRoute,
 } as any)
 const PublicLoginRecoveryRoute = PublicLoginRecoveryRouteImport.update({
   id: '/login_/recovery',
@@ -208,6 +228,17 @@ const ProtectedAdminSamlApplicationsNewRoute =
     path: '/saml-applications/new',
     getParentRoute: () => ProtectedAdminRoute,
   } as any)
+const PublicFederationFlowFlowRoute =
+  PublicFederationFlowFlowRouteImport.update({
+    id: '/federation/flow/$flow',
+    path: '/federation/flow/$flow',
+    getParentRoute: () => PublicRoute,
+  } as any)
+const PublicVerifyVrchatProofRoute = PublicVerifyVrchatProofRouteImport.update({
+  id: '/verify/vrchat/$proof',
+  path: '/verify/vrchat/$proof',
+  getParentRoute: () => PublicRoute,
+} as any)
 const ProtectedAdminAdminGroupsIndexRoute =
   ProtectedAdminAdminGroupsIndexRouteImport.update({
     id: '/groups/',
@@ -269,6 +300,9 @@ export interface FileRoutesByFullPath {
   '/login': typeof PublicLoginRoute
   '/maintenance': typeof PublicMaintenanceRoute
   '/saml-consent': typeof PublicSamlConsentRoute
+  '/setup-signin': typeof PublicSetupSigninRoute
+  '/welcome': typeof PublicWelcomeRoute
+  '/enroll/$token': typeof PublicEnrollTokenRoute
   '/login/recovery': typeof PublicLoginRecoveryRoute
   '/login/totp': typeof PublicLoginTotpRoute
   '/admin/invitations': typeof ProtectedAdminAdminInvitationsRoute
@@ -281,6 +315,8 @@ export interface FileRoutesByFullPath {
   '/admin/oidc-applications/new': typeof ProtectedAdminOidcApplicationsNewRoute
   '/admin/saml-applications/$id': typeof ProtectedAdminSamlApplicationsIdRoute
   '/admin/saml-applications/new': typeof ProtectedAdminSamlApplicationsNewRoute
+  '/federation/flow/$flow': typeof PublicFederationFlowFlowRoute
+  '/verify/vrchat/$proof': typeof PublicVerifyVrchatProofRoute
   '/admin/': typeof ProtectedAdminAdminIndexRoute
   '/admin/forward-auth-apps/': typeof ProtectedAdminForwardAuthAppsIndexRoute
   '/admin/oidc-applications/': typeof ProtectedAdminOidcApplicationsIndexRoute
@@ -306,6 +342,9 @@ export interface FileRoutesByTo {
   '/login': typeof PublicLoginRoute
   '/maintenance': typeof PublicMaintenanceRoute
   '/saml-consent': typeof PublicSamlConsentRoute
+  '/setup-signin': typeof PublicSetupSigninRoute
+  '/welcome': typeof PublicWelcomeRoute
+  '/enroll/$token': typeof PublicEnrollTokenRoute
   '/login/recovery': typeof PublicLoginRecoveryRoute
   '/login/totp': typeof PublicLoginTotpRoute
   '/admin/invitations': typeof ProtectedAdminAdminInvitationsRoute
@@ -318,6 +357,8 @@ export interface FileRoutesByTo {
   '/admin/oidc-applications/new': typeof ProtectedAdminOidcApplicationsNewRoute
   '/admin/saml-applications/$id': typeof ProtectedAdminSamlApplicationsIdRoute
   '/admin/saml-applications/new': typeof ProtectedAdminSamlApplicationsNewRoute
+  '/federation/flow/$flow': typeof PublicFederationFlowFlowRoute
+  '/verify/vrchat/$proof': typeof PublicVerifyVrchatProofRoute
   '/admin/forward-auth-apps': typeof ProtectedAdminForwardAuthAppsIndexRoute
   '/admin/oidc-applications': typeof ProtectedAdminOidcApplicationsIndexRoute
   '/admin/saml-applications': typeof ProtectedAdminSamlApplicationsIndexRoute
@@ -344,8 +385,11 @@ export interface FileRoutesById {
   '/_public/login': typeof PublicLoginRoute
   '/_public/maintenance': typeof PublicMaintenanceRoute
   '/_public/saml-consent': typeof PublicSamlConsentRoute
+  '/_public/setup-signin': typeof PublicSetupSigninRoute
+  '/_public/welcome': typeof PublicWelcomeRoute
   '/_protected/': typeof ProtectedIndexRoute
   '/_protected/admin/_admin': typeof ProtectedAdminAdminRouteWithChildren
+  '/_public/enroll/$token': typeof PublicEnrollTokenRoute
   '/_public/login_/recovery': typeof PublicLoginRecoveryRoute
   '/_public/login_/totp': typeof PublicLoginTotpRoute
   '/_protected/admin/_admin/invitations': typeof ProtectedAdminAdminInvitationsRoute
@@ -358,6 +402,8 @@ export interface FileRoutesById {
   '/_protected/admin/oidc-applications_/new': typeof ProtectedAdminOidcApplicationsNewRoute
   '/_protected/admin/saml-applications_/$id': typeof ProtectedAdminSamlApplicationsIdRoute
   '/_protected/admin/saml-applications_/new': typeof ProtectedAdminSamlApplicationsNewRoute
+  '/_public/federation/flow/$flow': typeof PublicFederationFlowFlowRoute
+  '/_public/verify/vrchat/$proof': typeof PublicVerifyVrchatProofRoute
   '/_protected/admin/_admin/': typeof ProtectedAdminAdminIndexRoute
   '/_protected/admin/forward-auth-apps/': typeof ProtectedAdminForwardAuthAppsIndexRoute
   '/_protected/admin/oidc-applications/': typeof ProtectedAdminOidcApplicationsIndexRoute
@@ -385,6 +431,9 @@ export interface FileRouteTypes {
     | '/login'
     | '/maintenance'
     | '/saml-consent'
+    | '/setup-signin'
+    | '/welcome'
+    | '/enroll/$token'
     | '/login/recovery'
     | '/login/totp'
     | '/admin/invitations'
@@ -397,6 +446,8 @@ export interface FileRouteTypes {
     | '/admin/oidc-applications/new'
     | '/admin/saml-applications/$id'
     | '/admin/saml-applications/new'
+    | '/federation/flow/$flow'
+    | '/verify/vrchat/$proof'
     | '/admin/'
     | '/admin/forward-auth-apps/'
     | '/admin/oidc-applications/'
@@ -422,6 +473,9 @@ export interface FileRouteTypes {
     | '/login'
     | '/maintenance'
     | '/saml-consent'
+    | '/setup-signin'
+    | '/welcome'
+    | '/enroll/$token'
     | '/login/recovery'
     | '/login/totp'
     | '/admin/invitations'
@@ -434,6 +488,8 @@ export interface FileRouteTypes {
     | '/admin/oidc-applications/new'
     | '/admin/saml-applications/$id'
     | '/admin/saml-applications/new'
+    | '/federation/flow/$flow'
+    | '/verify/vrchat/$proof'
     | '/admin/forward-auth-apps'
     | '/admin/oidc-applications'
     | '/admin/saml-applications'
@@ -459,8 +515,11 @@ export interface FileRouteTypes {
     | '/_public/login'
     | '/_public/maintenance'
     | '/_public/saml-consent'
+    | '/_public/setup-signin'
+    | '/_public/welcome'
     | '/_protected/'
     | '/_protected/admin/_admin'
+    | '/_public/enroll/$token'
     | '/_public/login_/recovery'
     | '/_public/login_/totp'
     | '/_protected/admin/_admin/invitations'
@@ -473,6 +532,8 @@ export interface FileRouteTypes {
     | '/_protected/admin/oidc-applications_/new'
     | '/_protected/admin/saml-applications_/$id'
     | '/_protected/admin/saml-applications_/new'
+    | '/_public/federation/flow/$flow'
+    | '/_public/verify/vrchat/$proof'
     | '/_protected/admin/_admin/'
     | '/_protected/admin/forward-auth-apps/'
     | '/_protected/admin/oidc-applications/'
@@ -585,12 +646,33 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PublicSamlConsentRouteImport
       parentRoute: typeof PublicRoute
     }
+    '/_public/setup-signin': {
+      id: '/_public/setup-signin'
+      path: '/setup-signin'
+      fullPath: '/setup-signin'
+      preLoaderRoute: typeof PublicSetupSigninRouteImport
+      parentRoute: typeof PublicRoute
+    }
+    '/_public/welcome': {
+      id: '/_public/welcome'
+      path: '/welcome'
+      fullPath: '/welcome'
+      preLoaderRoute: typeof PublicWelcomeRouteImport
+      parentRoute: typeof PublicRoute
+    }
     '/_protected/admin/_admin': {
       id: '/_protected/admin/_admin'
       path: ''
       fullPath: '/admin'
       preLoaderRoute: typeof ProtectedAdminAdminRouteImport
       parentRoute: typeof ProtectedAdminRoute
+    }
+    '/_public/enroll/$token': {
+      id: '/_public/enroll/$token'
+      path: '/enroll/$token'
+      fullPath: '/enroll/$token'
+      preLoaderRoute: typeof PublicEnrollTokenRouteImport
+      parentRoute: typeof PublicRoute
     }
     '/_public/login_/recovery': {
       id: '/_public/login_/recovery'
@@ -703,6 +785,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/admin/saml-applications/new'
       preLoaderRoute: typeof ProtectedAdminSamlApplicationsNewRouteImport
       parentRoute: typeof ProtectedAdminRoute
+    }
+    '/_public/federation/flow/$flow': {
+      id: '/_public/federation/flow/$flow'
+      path: '/federation/flow/$flow'
+      fullPath: '/federation/flow/$flow'
+      preLoaderRoute: typeof PublicFederationFlowFlowRouteImport
+      parentRoute: typeof PublicRoute
+    }
+    '/_public/verify/vrchat/$proof': {
+      id: '/_public/verify/vrchat/$proof'
+      path: '/verify/vrchat/$proof'
+      fullPath: '/verify/vrchat/$proof'
+      preLoaderRoute: typeof PublicVerifyVrchatProofRouteImport
+      parentRoute: typeof PublicRoute
     }
     '/_protected/admin/_admin/groups/': {
       id: '/_protected/admin/_admin/groups/'
@@ -867,8 +963,13 @@ interface PublicRouteChildren {
   PublicLoginRoute: typeof PublicLoginRoute
   PublicMaintenanceRoute: typeof PublicMaintenanceRoute
   PublicSamlConsentRoute: typeof PublicSamlConsentRoute
+  PublicSetupSigninRoute: typeof PublicSetupSigninRoute
+  PublicWelcomeRoute: typeof PublicWelcomeRoute
+  PublicEnrollTokenRoute: typeof PublicEnrollTokenRoute
   PublicLoginRecoveryRoute: typeof PublicLoginRecoveryRoute
   PublicLoginTotpRoute: typeof PublicLoginTotpRoute
+  PublicFederationFlowFlowRoute: typeof PublicFederationFlowFlowRoute
+  PublicVerifyVrchatProofRoute: typeof PublicVerifyVrchatProofRoute
 }
 
 const PublicRouteChildren: PublicRouteChildren = {
@@ -877,8 +978,13 @@ const PublicRouteChildren: PublicRouteChildren = {
   PublicLoginRoute: PublicLoginRoute,
   PublicMaintenanceRoute: PublicMaintenanceRoute,
   PublicSamlConsentRoute: PublicSamlConsentRoute,
+  PublicSetupSigninRoute: PublicSetupSigninRoute,
+  PublicWelcomeRoute: PublicWelcomeRoute,
+  PublicEnrollTokenRoute: PublicEnrollTokenRoute,
   PublicLoginRecoveryRoute: PublicLoginRecoveryRoute,
   PublicLoginTotpRoute: PublicLoginTotpRoute,
+  PublicFederationFlowFlowRoute: PublicFederationFlowFlowRoute,
+  PublicVerifyVrchatProofRoute: PublicVerifyVrchatProofRoute,
 }
 
 const PublicRouteWithChildren =

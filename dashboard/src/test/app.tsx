@@ -74,6 +74,7 @@ export function publicApi(
       Response.json({ bootstrapped: true }),
     "GET /api/prohibitorum/me": () =>
       session ? Response.json(session) : apiError("no_session", 401),
+    "GET /api/prohibitorum/auth/federation": () => Response.json([]),
   };
 }
 

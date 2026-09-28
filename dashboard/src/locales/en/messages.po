@@ -119,6 +119,11 @@ msgstr "{name} will no longer be able to change this application. Their account 
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
+msgid "error.federation.upstream_rate_limited.seconds"
+msgstr "{provider} is asking us to slow down. Wait {seconds, plural, one {# second} other {# seconds}}."
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
 msgid "error.federation.upstream_rate_limited"
 msgstr "{provider} is asking us to slow down. Wait a moment."
 
@@ -126,6 +131,11 @@ msgstr "{provider} is asking us to slow down. Wait a moment."
 #: src/api/errors.ts
 msgid "error.federation.provider_not_ready"
 msgstr "{provider} isn't set up yet."
+
+#. js-lingui-explicit-id
+#: src/pages/public/FederationFlow.tsx
+msgid "federation_flow.description.enroll"
+msgstr "{provider} only proves the profile is yours; next you'll set up your own way to sign in. If you already have an account, link {provider} from Security instead."
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -470,6 +480,11 @@ msgid "security.passkeys.add"
 msgstr "Add a passkey"
 
 #. js-lingui-explicit-id
+#: src/pages/public/SetupSignin.tsx
+msgid "setup_signin.passkey"
+msgstr "Add a passkey"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/AdminIdentityProviders.tsx
 msgid "admin.federation.create"
 msgstr "Add a provider"
@@ -478,6 +493,11 @@ msgstr "Add a provider"
 #: src/pages/admin/forward-auth-apps/ScopeTableField.tsx
 msgid "admin.forward-auth-apps.scopes.add"
 msgstr "Add a scope"
+
+#. js-lingui-explicit-id
+#: src/pages/public/SetupSignin.tsx
+msgid "setup_signin.title"
+msgstr "Add a way to sign in"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
@@ -646,6 +666,11 @@ msgstr "Already manages this application"
 #: src/pages/admin/AdminGroupForm.tsx
 msgid "admin.group.rule.hint"
 msgstr "An account joins this group while the rule matches it. Rules are checked whenever access is asked for, so the group stays current."
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.username_collision"
+msgstr "An account with this username already exists, so one can't be created automatically. Contact your administrator."
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -904,6 +929,11 @@ msgid "login.totp.code"
 msgstr "Authenticator code"
 
 #. js-lingui-explicit-id
+#: src/pages/public/enroll/PasswordTotpSetup.tsx
+msgid "enroll.password_totp.code"
+msgstr "Authenticator code"
+
+#. js-lingui-explicit-id
 #: src/components/custom/SudoDialog.tsx
 msgid "sudo.code"
 msgstr "Authenticator code"
@@ -961,6 +991,11 @@ msgstr "Avatar URL"
 #. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
 msgid "security.setup.back"
+msgstr "Back"
+
+#. js-lingui-explicit-id
+#: src/pages/public/enroll/PasswordTotpSetup.tsx
+msgid "enroll.password_totp.back"
 msgstr "Back"
 
 #. js-lingui-explicit-id
@@ -1148,6 +1183,16 @@ msgstr "Choose a provider for this condition."
 #: src/pages/admin/AdminLogs.tsx
 msgid "admin.logs.range.incomplete"
 msgstr "Choose a start and an end date"
+
+#. js-lingui-explicit-id
+#: src/pages/public/FederationFlow.tsx
+msgid "federation_flow.username.required"
+msgstr "Choose a username for your new account."
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.local_username_required"
+msgstr "Choose a username for your new account."
 
 #. js-lingui-explicit-id
 #: src/components/custom/AppAccessPanel.tsx
@@ -1352,6 +1397,11 @@ msgstr "Code"
 #: src/pages/security/PasswordTotpPanel.tsx
 msgid "security.setup.code"
 msgstr "Code from your authenticator"
+
+#. js-lingui-explicit-id
+#: src/pages/public/FederationFlow.tsx
+msgid "federation_flow.proof.step.verify"
+msgstr "Come back here and press Verify."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
@@ -1610,6 +1660,11 @@ msgid "sudo.reason.unlink-identity"
 msgstr "Confirm it is you to unlink this identity."
 
 #. js-lingui-explicit-id
+#: src/pages/public/enroll/PasswordTotpSetup.tsx
+msgid "enroll.password_totp.confirm"
+msgstr "Confirm password"
+
+#. js-lingui-explicit-id
 #: src/pages/public/consent/scopes.ts
 msgid "consent.scope.openid"
 msgstr "Confirm who you are"
@@ -1665,8 +1720,33 @@ msgid "console.navigation"
 msgstr "Console navigation"
 
 #. js-lingui-explicit-id
+#: src/pages/public/FederationFlow.tsx
+msgid "federation_flow.continue"
+msgstr "Continue"
+
+#. js-lingui-explicit-id
+#: src/pages/public/FederationFlow.tsx
+msgid "federation_flow.identify.continue"
+msgstr "Continue"
+
+#. js-lingui-explicit-id
 #: src/pages/public/SamlConsent.tsx
 msgid "saml_consent.continue"
+msgstr "Continue"
+
+#. js-lingui-explicit-id
+#: src/pages/public/SetupSignin.tsx
+msgid "setup_signin.continue"
+msgstr "Continue"
+
+#. js-lingui-explicit-id
+#: src/pages/public/Welcome.tsx
+msgid "welcome.continue"
+msgstr "Continue"
+
+#. js-lingui-explicit-id
+#: src/pages/public/enroll/PasswordTotpSetup.tsx
+msgid "enroll.password_totp.next"
 msgstr "Continue"
 
 #. js-lingui-explicit-id
@@ -1683,6 +1763,11 @@ msgstr "Continue"
 #: src/pages/public/SamlConsent.tsx
 msgid "saml_consent.title"
 msgstr "Continue to {sp}?"
+
+#. js-lingui-explicit-id
+#: src/components/custom/ProviderButtons.tsx
+msgid "federation.continue_with"
+msgstr "Continue with {name}"
 
 #. js-lingui-explicit-id
 #: src/pages/Login.tsx
@@ -1760,6 +1845,11 @@ msgid "admin.oidc-apps.secret.copy"
 msgstr "Copy secret"
 
 #. js-lingui-explicit-id
+#: src/pages/public/FederationFlow.tsx
+msgid "federation_flow.identify.step.copy"
+msgstr "Copy the address from the address bar."
+
+#. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/secret-copy.ts
 msgid "admin.oidc-apps.secret.title"
 msgstr "Copy the client secret"
@@ -1773,6 +1863,11 @@ msgstr "Copy the registration link"
 #: src/components/custom/secret-reveal-copy.ts
 msgid "admin.invitations.reveal.title"
 msgstr "Copy the registration link"
+
+#. js-lingui-explicit-id
+#: src/pages/public/FederationFlow.tsx
+msgid "federation_flow.proof.step.copy"
+msgstr "Copy the verification link."
 
 #. js-lingui-explicit-id
 #: src/components/custom/secret-reveal-copy.ts
@@ -1873,6 +1968,11 @@ msgstr "Could not reach the provider."
 #: src/components/custom/CopyValue.tsx
 msgid "copy-value.failed"
 msgstr "Couldn't copy. Select the value above and copy it yourself."
+
+#. js-lingui-explicit-id
+#: src/pages/public/Enroll.tsx
+msgid "enroll.passkey"
+msgstr "Create a passkey"
 
 #. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
@@ -2326,6 +2426,11 @@ msgid "profile.display-name.form"
 msgstr "Display name"
 
 #. js-lingui-explicit-id
+#: src/pages/public/Enroll.tsx
+msgid "enroll.display_name"
+msgstr "Display name"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.displayName"
 msgstr "Display name"
@@ -2350,6 +2455,11 @@ msgstr "Display name"
 #: src/api/success-messages.ts
 msgid "success.display-name.saved"
 msgstr "Display name saved"
+
+#. js-lingui-explicit-id
+#: src/pages/public/FederationFlow.tsx
+msgid "federation_flow.identity.description"
+msgstr "Don't enter your VRChat password here."
 
 #. js-lingui-explicit-id
 #: src/components/custom/secret-reveal-copy.ts
@@ -2570,6 +2680,16 @@ msgid "login.totp.invalid"
 msgstr "Enter a code with the configured number of digits, using only 0–9."
 
 #. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.invalid_display_name"
+msgstr "Enter a display name of 1–128 characters, without control characters."
+
+#. js-lingui-explicit-id
+#: src/pages/public/Enroll.tsx
+msgid "enroll.display_name.invalid"
+msgstr "Enter a display name of 1–128 characters."
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-validation.ts
 msgid "admin.federation.claims.domains.invalid"
 msgstr "Enter a domain such as example.com, without a scheme or a path."
@@ -2630,9 +2750,24 @@ msgid "admin.forward-auth-apps.scope.name.required"
 msgstr "Enter a scope name."
 
 #. js-lingui-explicit-id
+#: src/pages/public/Enroll.tsx
+msgid "enroll.username.required"
+msgstr "Enter a username."
+
+#. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.invalid_nickname"
 msgstr "Enter a valid nickname without control characters."
+
+#. js-lingui-explicit-id
+#: src/pages/public/FederationFlow.tsx
+msgid "federation_flow.identity.required"
+msgstr "Enter a VRChat profile address or a user ID beginning with usr_."
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.vrchat_identity_invalid"
+msgstr "Enter a VRChat profile address or a user ID beginning with usr_."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/oidc-validation.ts
@@ -2696,7 +2831,7 @@ msgid "admin.federation.new.secret.required"
 msgstr "Enter the client secret."
 
 #. js-lingui-explicit-id
-#: src/pages/security/PasswordTotpPanel.tsx
+#: src/forms/password-totp-rules.ts
 msgid "security.totp.invalid"
 msgstr "Enter the code your authenticator shows, using only 0–9."
 
@@ -3181,6 +3316,11 @@ msgid "sudo.form.label"
 msgstr "Identity verification"
 
 #. js-lingui-explicit-id
+#: src/pages/public/VrchatProof.tsx
+msgid "vrchat_proof.owner"
+msgstr "If this is your profile, go back to {instance} and press Verify. Once it's verified, remove the link from your bio."
+
+#. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
 msgid "admin.saml-apps.new.mode.metadata"
 msgstr "Import metadata"
@@ -3189,6 +3329,11 @@ msgstr "Import metadata"
 #: src/pages/admin/saml-applications/SamlGeneralSection.tsx
 msgid "admin.saml-apps.field.lifetime.hint"
 msgstr "In minutes. Leave it empty to set no limit on how long a session lasts."
+
+#. js-lingui-explicit-id
+#: src/pages/public/FederationFlow.tsx
+msgid "federation_flow.proof.step.bio"
+msgstr "In VRChat, add it to the links in your bio and save."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AcsRowFields.tsx
@@ -3264,6 +3409,11 @@ msgstr "IP"
 #: src/pages/devices/PairDeviceDialog.tsx
 msgid "devices.field.ip"
 msgstr "IP address"
+
+#. js-lingui-explicit-id
+#: src/pages/public/Welcome.tsx
+msgid "welcome.title"
+msgstr "Is this your account?"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
@@ -3489,6 +3639,11 @@ msgstr "Link issued"
 #: src/pages/admin/audit-vocabulary.ts
 msgid "audit.event.enrollment_consumed"
 msgstr "Link used"
+
+#. js-lingui-explicit-id
+#: src/pages/public/FederationFlow.tsx
+msgid "federation_flow.title.link"
+msgstr "Link your {provider} profile"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts
@@ -4226,9 +4381,19 @@ msgid "admin.forward-auth-apps.open"
 msgstr "Open {name}"
 
 #. js-lingui-explicit-id
+#: src/pages/public/FederationFlow.tsx
+msgid "federation_flow.identify.step.open"
+msgstr "Open <0>vrchat.com</0> in your browser and go to your profile page."
+
+#. js-lingui-explicit-id
 #: src/components/custom/ConsoleLayout.tsx
 msgid "console.open-menu"
 msgstr "Open navigation"
+
+#. js-lingui-explicit-id
+#: src/pages/public/FederationFlow.tsx
+msgid "federation_flow.proof.open_profile"
+msgstr "Open profile"
 
 #. js-lingui-explicit-id
 #: src/components/custom/AppAccessPanel.tsx
@@ -4271,8 +4436,8 @@ msgid "admin.group.description.hint"
 msgstr "Optional. What this group is for, for whoever reads it next."
 
 #. js-lingui-explicit-id
-#: src/components/custom/SudoDialog.tsx
-msgid "sudo.or"
+#: src/components/custom/OrSeparator.tsx
+msgid "common.or"
 msgstr "or"
 
 #. js-lingui-explicit-id
@@ -4362,6 +4527,11 @@ msgid "error.passkey_unsupported"
 msgstr "Passkeys are unavailable in this browser. Use your password instead."
 
 #. js-lingui-explicit-id
+#: src/pages/public/enroll/PasskeyButton.tsx
+msgid "enroll.passkey.unsupported"
+msgstr "Passkeys aren't available in this browser or connection."
+
+#. js-lingui-explicit-id
 #: src/pages/Login.tsx
 msgid "login.password"
 msgstr "Password"
@@ -4369,6 +4539,11 @@ msgstr "Password"
 #. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
 msgid "security.factor.password"
+msgstr "Password"
+
+#. js-lingui-explicit-id
+#: src/pages/public/enroll/PasswordTotpSetup.tsx
+msgid "enroll.password_totp.password"
 msgstr "Password"
 
 #. js-lingui-explicit-id
@@ -4483,6 +4658,11 @@ msgid "admin.forward-auth-apps.headers.email"
 msgstr "Primary email"
 
 #. js-lingui-explicit-id
+#: src/pages/public/FederationFlow.tsx
+msgid "federation_flow.proof.profile"
+msgstr "Profile"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.tab.profile"
 msgstr "Profile"
@@ -4496,6 +4676,11 @@ msgstr "Profile"
 #: src/components/custom/ConsoleLayout.tsx
 msgid "console.profile"
 msgstr "Profile"
+
+#. js-lingui-explicit-id
+#: src/pages/public/FederationFlow.tsx
+msgid "federation_flow.verified.title"
+msgstr "Profile verified"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
@@ -5145,6 +5330,11 @@ msgid "audit.event.revoke"
 msgstr "Revoked"
 
 #. js-lingui-explicit-id
+#: src/pages/public/SetupSignin.tsx
+msgid "setup_signin.description"
+msgstr "Right now you can only sign in through {providers}. Add another way to sign in, so losing access to {providers} doesn't lock you out."
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminInvitationForm.tsx
 msgid "admin.invitations.new.role"
 msgstr "Role"
@@ -5505,6 +5695,11 @@ msgid "security.setup.step.password"
 msgstr "Set a password"
 
 #. js-lingui-explicit-id
+#: src/pages/public/enroll/PasswordTotpSetup.tsx
+msgid "enroll.password_totp.password.title"
+msgstr "Set a password"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderDangerSection.tsx
 msgid "admin.federation.danger.set-secret"
 msgstr "Set the secret"
@@ -5515,8 +5710,18 @@ msgid "admin.federation.danger.not-ready.steam"
 msgstr "Set the Web API key before enabling it."
 
 #. js-lingui-explicit-id
+#: src/pages/public/enroll/PasswordTotpSetup.tsx
+msgid "enroll.password_totp.form"
+msgstr "Set up a password and an authenticator"
+
+#. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
 msgid "security.setup.step.authenticator"
+msgstr "Set up an authenticator"
+
+#. js-lingui-explicit-id
+#: src/pages/public/enroll/PasswordTotpSetup.tsx
+msgid "enroll.password_totp.authenticator.title"
 msgstr "Set up an authenticator"
 
 #. js-lingui-explicit-id
@@ -5613,6 +5818,11 @@ msgstr "Sign in once at the provider and check each stage in turn."
 #: src/pages/admin/identity-providers/ProviderDangerSection.tsx
 msgid "admin.federation.danger.not-ready.vrchat"
 msgstr "Sign in the operator account before enabling it."
+
+#. js-lingui-explicit-id
+#: src/pages/public/FederationFlow.tsx
+msgid "federation_flow.title.login"
+msgstr "Sign in through {provider}"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -5778,6 +5988,11 @@ msgid "settings.keys.table"
 msgstr "Signing keys"
 
 #. js-lingui-explicit-id
+#: src/pages/public/SetupSignin.tsx
+msgid "setup_signin.skip"
+msgstr "Skip for now"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.diagnostics.stage-status.skipped"
 msgstr "Skipped"
@@ -5786,6 +6001,11 @@ msgstr "Skipped"
 #: src/pages/admin/AdminGroups.tsx
 msgid "admin.groups.column.slug"
 msgstr "Slug"
+
+#. js-lingui-explicit-id
+#: src/pages/public/VrchatProof.tsx
+msgid "vrchat_proof.passing_by"
+msgstr "Someone put this link in their VRChat bio to prove to {instance} that the profile is theirs. If you're just passing by, there's nothing to do: this page doesn't sign anyone in or grant any access."
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -6258,6 +6478,11 @@ msgstr "The passkey could not be verified. You can use your password instead."
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
+msgid "error.registration_failed"
+msgstr "The passkey couldn't be created."
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
 msgid "error.ceremony_state_invalid"
 msgstr "The passkey sign-in attempt could not be verified."
 
@@ -6378,7 +6603,7 @@ msgid "settings.network.proxies.hidden_invalid"
 msgstr "The trusted proxies list has an entry the server will not accept. Choose X-Forwarded-For to correct it."
 
 #. js-lingui-explicit-id
-#: src/pages/security/PasswordTotpPanel.tsx
+#: src/forms/password-totp-rules.ts
 msgid "security.password.mismatch"
 msgstr "The two passwords do not match."
 
@@ -6386,6 +6611,16 @@ msgstr "The two passwords do not match."
 #: src/components/custom/AppAccessPanel.tsx
 msgid "app.access.open.kept"
 msgstr "The user groups below are kept and apply again when you restrict this application."
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.vrchat_proof_missing"
+msgstr "The verification link isn't in your bio yet. Save your profile, wait a moment, then verify."
+
+#. js-lingui-explicit-id
+#: src/pages/public/FederationFlow.tsx
+msgid "federation_flow.proof.expires"
+msgstr "The verification link works until {until}."
 
 #. js-lingui-explicit-id
 #: src/components/custom/ThemeSelect.tsx
@@ -6518,9 +6753,19 @@ msgid "error.federation.federation_invite_provider_mismatch"
 msgstr "This invitation can't be accepted with a {provider} account."
 
 #. js-lingui-explicit-id
+#: src/pages/public/Enroll.tsx
+msgid "enroll.bound"
+msgstr "This invitation needs the account to be created through {name}."
+
+#. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.federation.enrollment_federation_required"
 msgstr "This invitation needs the account to be created through {provider}."
+
+#. js-lingui-explicit-id
+#: src/pages/public/VrchatProof.tsx
+msgid "vrchat_proof.title"
+msgstr "This is a verification link"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
@@ -6531,6 +6776,11 @@ msgstr "This is not valid JSON. Check the braces, commas and quotes."
 #: src/pages/admin/AdminGroupForm.tsx
 msgid "admin.group.rule.json.unreadable"
 msgstr "This is not valid JSON. The form view still holds your rule."
+
+#. js-lingui-explicit-id
+#: src/pages/public/Enroll.tsx
+msgid "enroll.description.bootstrap"
+msgstr "This is the first account on {instance}."
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -6563,14 +6813,44 @@ msgid "security.revoke.last_tooltip"
 msgstr "This is your only way to sign in. Add a passkey first."
 
 #. js-lingui-explicit-id
+#: src/pages/public/FederationFlow.tsx
+msgid "federation_flow.username.description"
+msgstr "This is your username on {instance}."
+
+#. js-lingui-explicit-id
+#: src/pages/public/Welcome.tsx
+msgid "welcome.decline"
+msgstr "This isn't me"
+
+#. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.signing-key.credential_not_found"
 msgstr "This key is no longer pending."
 
 #. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.enrollment_method_not_allowed"
+msgstr "This link can't be used to set up that sign-in method."
+
+#. js-lingui-explicit-id
 #: src/components/custom/secret-reveal-copy.ts
 msgid "admin.invitations.reveal.once"
 msgstr "This link is shown only once and it signs the holder in as the invited account. Send it to the person yourself, and only over a channel you trust."
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.enrollment_consumed"
+msgstr "This link was already used or has expired. Ask your administrator for a new one."
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.enrollment_expired"
+msgstr "This link was already used or has expired. Ask your administrator for a new one."
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.federation_action_invalid"
+msgstr "This page is no longer valid."
 
 #. js-lingui-explicit-id
 #: src/pages/devices/PairDeviceDialog.tsx
@@ -6586,6 +6866,11 @@ msgstr "This pairing is no longer in a state that allows that action."
 #: src/api/errors.ts
 msgid "error.pairing_not_approved"
 msgstr "This pairing is not ready to be approved yet."
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.credential_already_registered"
+msgstr "This passkey is already registered."
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -6644,6 +6929,11 @@ msgstr "This sign-in attempt has expired. Enter your password again."
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
+msgid "error.federation_state_invalid.sign_in"
+msgstr "This sign-in has expired. Sign in again."
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
 msgid "error.invalid_login_link"
 msgstr "This sign-in link is invalid. Open a new sign-in link."
 
@@ -6656,6 +6946,11 @@ msgstr "This sign-in request was already used. Go back to the app and sign in ag
 #: src/api/errors.ts
 msgid "error.vrchat_operator_challenge_invalid"
 msgstr "This sign-in took too long. Start again with your password."
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.setup-signin.sudo_required"
+msgstr "This step has timed out. Add it later from Security."
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -6933,7 +7228,13 @@ msgid "admin.forward-auth-apps.host.invalid"
 msgstr "Use a lowercase hostname with no scheme and no port, such as app.example.com."
 
 #. js-lingui-explicit-id
-#: src/pages/security/PasswordTotpPanel.tsx
+#: src/pages/public/Enroll.tsx
+#: src/pages/public/SetupSignin.tsx
+msgid "enroll.use_password_totp"
+msgstr "Use a password and an authenticator instead"
+
+#. js-lingui-explicit-id
+#: src/forms/password-totp-rules.ts
 msgid "security.password.invalid"
 msgstr "Use a password of at least 8 characters."
 
@@ -7167,6 +7468,11 @@ msgid "login.username"
 msgstr "Username"
 
 #. js-lingui-explicit-id
+#: src/pages/public/Enroll.tsx
+msgid "enroll.username"
+msgstr "Username"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminUsers.tsx
 msgid "admin.users.column.username"
 msgstr "Username"
@@ -7191,6 +7497,11 @@ msgstr "Username"
 #: src/components/custom/principal-sources.ts
 msgid "principal-source.username"
 msgstr "Username"
+
+#. js-lingui-explicit-id
+#: src/pages/public/FederationFlow.tsx
+msgid "federation_flow.username"
+msgstr "Username for your new account"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminUsers.tsx
@@ -7238,6 +7549,11 @@ msgid "admin.users.filter.value"
 msgstr "Value to match"
 
 #. js-lingui-explicit-id
+#: src/pages/public/FederationFlow.tsx
+msgid "federation_flow.proof.link"
+msgstr "Verification link"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderOperatorSection.tsx
 msgid "admin.federation.operator.method"
 msgstr "Verification method"
@@ -7258,6 +7574,11 @@ msgid "principal-source.verified-email"
 msgstr "Verified email"
 
 #. js-lingui-explicit-id
+#: src/pages/public/FederationFlow.tsx
+msgid "federation_flow.proof.verify"
+msgstr "Verify"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderOperatorSection.tsx
 msgid "admin.federation.operator.verify"
 msgstr "Verify"
@@ -7268,9 +7589,19 @@ msgid "sudo.submit"
 msgstr "Verify and continue"
 
 #. js-lingui-explicit-id
+#: src/pages/public/enroll/PasswordTotpSetup.tsx
+msgid "enroll.password_totp.finish"
+msgstr "Verify and finish"
+
+#. js-lingui-explicit-id
 #: src/components/custom/SudoDialog.tsx
 msgid "sudo.use-passkey"
 msgstr "Verify with a passkey"
+
+#. js-lingui-explicit-id
+#: src/pages/public/FederationFlow.tsx
+msgid "federation_flow.title.verify"
+msgstr "Verify your {provider} profile"
 
 #. js-lingui-explicit-id
 #: src/pages/Login.tsx
@@ -7286,6 +7617,11 @@ msgstr "Verify your email address with {provider} first."
 #: src/api/errors.ts
 msgid "error.sudo_required"
 msgstr "Verify your identity again to continue."
+
+#. js-lingui-explicit-id
+#: src/pages/public/FederationFlow.tsx
+msgid "federation_flow.proof.form"
+msgstr "Verify your profile"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/SigningKeysPanel.tsx
@@ -7306,6 +7642,11 @@ msgstr "VRChat accounts can only be linked, never created."
 #: src/pages/admin/audit-vocabulary.ts
 msgid "audit.event.vrchat_operator_session_invalidated"
 msgstr "VRChat operator signed out"
+
+#. js-lingui-explicit-id
+#: src/pages/public/FederationFlow.tsx
+msgid "federation_flow.identity"
+msgstr "VRChat profile address or user ID"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderOperatorSection.tsx
@@ -7379,6 +7720,21 @@ msgid "admin.federation.diagnostics.identity.yes"
 msgstr "Yes"
 
 #. js-lingui-explicit-id
+#: src/pages/public/SetupSignin.tsx
+msgid "setup_signin.later"
+msgstr "You can also add one later from Security."
+
+#. js-lingui-explicit-id
+#: src/pages/public/FederationFlow.tsx
+msgid "federation_flow.verified.description"
+msgstr "You can remove the verification link from your VRChat bio now."
+
+#. js-lingui-explicit-id
+#: src/pages/public/Enroll.tsx
+msgid "enroll.description.reset"
+msgstr "You can sign in with it as soon as it's set up."
+
+#. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.cannot_delete_self"
 msgstr "You cannot delete your own account. Ask another administrator."
@@ -7412,6 +7768,16 @@ msgstr "You only need to confirm this once. You can revoke it at any time in <0>
 #: src/pages/security/IdentitiesPanel.tsx
 msgid "security.identities.unlink.body"
 msgstr "You will no longer be able to sign in through this provider. Your other sign-in methods are unaffected."
+
+#. js-lingui-explicit-id
+#: src/pages/public/Welcome.tsx
+msgid "welcome.description"
+msgstr "You're signing in through {idp} for the first time, and {instance} has prepared this account for you."
+
+#. js-lingui-explicit-id
+#: src/pages/public/Enroll.tsx
+msgid "enroll.description.invite"
+msgstr "You've been invited to {instance}. This link works until {expires}."
 
 #. js-lingui-explicit-id
 #: src/components/custom/ConsoleLayout.tsx
@@ -7472,3 +7838,13 @@ msgstr "Your profile, security settings, connected applications and devices are 
 #: src/pages/Profile.tsx
 msgid "profile.username.note"
 msgstr "Your username identifies you at sign-in and cannot be changed."
+
+#. js-lingui-explicit-id
+#: src/pages/public/FederationFlow.tsx
+msgid "federation_flow.identify.form"
+msgstr "Your VRChat profile"
+
+#. js-lingui-explicit-id
+#: src/pages/public/Enroll.tsx
+msgid "enroll.description.federated"
+msgstr "Your VRChat profile is verified. Choose your account name, then set up how you'll sign in."

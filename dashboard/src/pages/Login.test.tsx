@@ -25,15 +25,18 @@ import type { components } from "@/api/generated/schema";
 import {
   authStatusQueryOptions,
   publicConfigQueryOptions,
+  publicFederationProvidersQueryOptions,
   sessionQueryOptions,
 } from "@/api/queries";
 import type { PublicConfig } from "@/api/raw-paths";
+import { loadDocument } from "@/app/load-document";
 import { createQueryClient } from "@/app/query-client";
 import { searchSerialization } from "@/app/search-params";
 import { RecoveryCodes } from "@/components/custom/RecoveryCodes";
 import { i18n } from "@/i18n";
 import { PasswordPage, RecoveryPage, TotpPage } from "@/pages/Login";
 
+vi.mock("@/app/load-document", () => ({ loadDocument: vi.fn() }));
 vi.mock("qrcode", () => ({
   default: { toCanvas: vi.fn().mockResolvedValue(undefined) },
 }));
@@ -62,6 +65,10 @@ beforeEach(() => {
   queryClient.setQueryData(authStatusQueryOptions().queryKey, {
     bootstrapped: true,
   });
+  queryClient.setQueryData(
+    publicFederationProvidersQueryOptions().queryKey,
+    [],
+  );
 });
 afterEach(() => {
   history.destroy();
@@ -129,14 +136,18 @@ async function password(user: UserEvent) {
 }
 
 /**
- * The calls a test means to count. The login page also keeps its config and
- * auth-status queries fresh, which can refetch at any moment; those are not
- * what a single-use check is about.
+ * The calls a test means to count. The login page also keeps its config,
+ * auth-status and provider-list queries fresh, which can refetch at any
+ * moment; those are not what a single-use check is about.
  */
 function authCalls(fetch: { mock: { calls: unknown[][] } }) {
   return fetch.mock.calls.filter(([input]) => {
     const path = new URL((input as Request).url).pathname;
-    return !path.endsWith("/config") && !path.endsWith("/auth/status");
+    return (
+      !path.endsWith("/config") &&
+      !path.endsWith("/auth/status") &&
+      !path.endsWith("/auth/federation")
+    );
   });
 }
 
@@ -524,5 +535,82 @@ describe("the sign-in link", () => {
     await screen.findByLabelText("Password");
     expect(screen.queryByRole("alert")).toBeNull();
     expect(query(router)).toEqual({ returnTo: "12e45678", admin: null });
+  });
+});
+
+describe("upstream providers", () => {
+  const gitlab = { slug: "gitlab", displayName: "GitLab", protocol: "oidc" };
+
+  function at(path: string) {
+    history.destroy();
+    window.history.replaceState(null, "", path);
+    history = createBrowserHistory();
+  }
+
+  beforeEach(() => {
+    queryClient.setQueryData(publicFederationProvidersQueryOptions().queryKey, [
+      gitlab,
+    ]);
+  });
+
+  afterEach(() => {
+    vi.mocked(loadDocument).mockReset();
+  });
+
+  it("follow the local sign-ins on the first step, carrying return_to", async () => {
+    at("/login?return_to=%2Foauth%2Fauthorize%3Fclient_id%3Dwiki");
+    const user = userEvent.setup();
+    mount();
+    const button = await screen.findByRole("button", {
+      name: "Continue with GitLab",
+    });
+    expect(screen.getByText("or")).toBeVisible();
+    await user.click(button);
+    expect(loadDocument).toHaveBeenCalledExactlyOnceWith(
+      "/api/prohibitorum/auth/federation/gitlab/login?return_to=%2Foauth%2Fauthorize%3Fclient_id%3Dwiki",
+    );
+  });
+
+  it("leave for the provider alone without a return_to", async () => {
+    const user = userEvent.setup();
+    mount();
+    await user.click(
+      await screen.findByRole("button", { name: "Continue with GitLab" }),
+    );
+    expect(loadDocument).toHaveBeenCalledExactlyOnceWith(
+      "/api/prohibitorum/auth/federation/gitlab/login",
+    );
+  });
+
+  it("are not offered on the second step", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn<typeof globalThis.fetch>()
+        .mockResolvedValueOnce(
+          Response.json({ partial_session_token: "kept" }),
+        ),
+    );
+    const user = userEvent.setup();
+    mount();
+    await screen.findByRole("button", { name: "Continue with GitLab" });
+    await password(user);
+    expect(
+      screen.queryByRole("button", { name: "Continue with GitLab" }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("or")).not.toBeInTheDocument();
+  });
+
+  it("are not offered before the instance is initialized", async () => {
+    queryClient.setQueryData(authStatusQueryOptions().queryKey, {
+      bootstrapped: false,
+    });
+    mount();
+    expect(
+      await screen.findByText("This instance has not been initialized."),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole("button", { name: "Continue with GitLab" }),
+    ).not.toBeInTheDocument();
   });
 });
