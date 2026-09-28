@@ -149,8 +149,9 @@ proof URL, requires that exact URL in the requested VRChat profile's
 For an unknown profile, successful public proof issues a short-lived
 `federated_register` enrollment with only a safe display-name suggestion. For
 an already-linked profile, it issues a provider-backed `reset` enrollment whose
-public preview omits the target account. Proof completion sets no normal
-session: the shared WebAuthn registration ceremony is authoritative. New
+public preview names the target account, as an admin reset does. Proof
+completion sets no normal session: the shared WebAuthn registration ceremony
+is authoritative. New
 registration creates the identity and first session atomically; recovery
 replaces the credential, revokes prior sessions, and only then issues one fresh
 session. Authenticated Connected Accounts linking remains direct and

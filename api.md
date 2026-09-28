@@ -224,9 +224,11 @@ the browser-bound flow API as profile proof, not OAuth/OIDC or direct sign-in:
 The public preview for a new VRChat-backed account is
 `{"intent":"federated_register","expiresAt":"<timestamp>","suggestedDisplayName":"<safe suggestion>"}`.
 A provider-backed recovery preview is
-`{"intent":"reset","expiresAt":"<timestamp>"}` and deliberately omits
-`target`. Neither shape exposes the provider subject, target account, proof
-material, operator session, or internal enrollment snapshot. Proof and
+`{"intent":"reset","target":{"username":"<username>","displayName":"<display name>"},"expiresAt":"<timestamp>"}`,
+the same `target` an admin reset carries, so the page can name the account
+that gets a new sign-in method. A reset whose target account cannot be read
+fails the preview. Neither shape exposes the provider subject, proof material,
+operator session, or internal enrollment snapshot. Proof and
 enrollment tokens are opaque bearer values and must not be logged or treated
 as API-readable state.
 

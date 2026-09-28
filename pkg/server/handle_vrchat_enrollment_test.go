@@ -486,7 +486,7 @@ func TestEnrollmentPreviewFederatedRegistrationReturnsOnlySafeSuggestion(t *test
 	}
 }
 
-func TestEnrollmentPreviewProviderRecoverySuppressesTargetButAdminResetKeepsIt(t *testing.T) {
+func TestEnrollmentPreviewResetShowsTarget(t *testing.T) {
 	account := db.Account{ID: 73, Username: "private-user", DisplayName: "Private Name"}
 	providerRecovery := pendingEnrollment("provider-reset", enrollment.IntentReset)
 	providerRecovery.TargetAccountID = pgtype.Int4{Int32: account.ID, Valid: true}
@@ -499,19 +499,36 @@ func TestEnrollmentPreviewProviderRecoverySuppressesTargetButAdminResetKeepsIt(t
 	}
 	s := &Server{enrollmentQueriesOverride: q}
 
-	providerOut, err := s.handlePreviewEnrollment(context.Background(), &previewIn{Token: providerRecovery.Token})
-	if err != nil {
-		t.Fatal(err)
+	for _, token := range []string{providerRecovery.Token, adminReset.Token} {
+		out, err := s.handlePreviewEnrollment(context.Background(), &previewIn{Token: token})
+		if err != nil {
+			t.Fatalf("%s preview: %v", token, err)
+		}
+		if out.Body.Target == nil || out.Body.Target.Username != account.Username || out.Body.Target.DisplayName != account.DisplayName {
+			t.Fatalf("%s target = %+v", token, out.Body.Target)
+		}
 	}
-	if providerOut.Body.Target != nil {
-		t.Fatalf("provider recovery exposed target %+v", providerOut.Body.Target)
+}
+
+func TestEnrollmentPreviewResetFailsWithoutReadableTarget(t *testing.T) {
+	missing := pendingEnrollment("missing-target", enrollment.IntentReset)
+	missing.TargetAccountID = pgtype.Int4{Int32: 404, Valid: true}
+	missing.RecoverySourceUpstreamIdpID = pgtype.Int8{Int64: 41, Valid: true}
+	unset := pendingEnrollment("unset-target", enrollment.IntentReset)
+	q := &vrchatEnrollmentQueries{
+		enrollments: map[string]db.Enrollment{missing.Token: missing, unset.Token: unset},
+		accounts:    map[int32]db.Account{},
 	}
-	adminOut, err := s.handlePreviewEnrollment(context.Background(), &previewIn{Token: adminReset.Token})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if adminOut.Body.Target == nil || adminOut.Body.Target.Username != account.Username || adminOut.Body.Target.DisplayName != account.DisplayName {
-		t.Fatalf("admin reset target = %+v", adminOut.Body.Target)
+	s := &Server{enrollmentQueriesOverride: q}
+
+	for _, token := range []string{missing.Token, unset.Token} {
+		out, err := s.handlePreviewEnrollment(context.Background(), &previewIn{Token: token})
+		if err == nil {
+			t.Fatalf("%s preview succeeded without a target: %+v", token, out.Body)
+		}
+		if authn.AsAuthError(err) != nil {
+			t.Fatalf("%s preview error = %v, want an internal failure", token, err)
+		}
 	}
 }
 
