@@ -12,18 +12,22 @@ import { ApiError, isCancellation } from "@/api/errors";
 import type { LoginResult, PublicConfig } from "@/api/raw-paths";
 
 /**
- * Reads the single `return_to` parameter of a sign-in link. The value itself
- * needs no client-side validation: the server validates it before returning
- * the final redirect target. Only a duplicated parameter makes the link
- * malformed.
+ * Reads the single `return_to` parameter of a sign-in link from the router's
+ * parsed search. The value itself needs no client-side validation: the server
+ * validates it before returning the final redirect target. Only a malformed
+ * link is refused here: the router folds a repeated parameter into an array,
+ * and turns a value that is not text — a bare number, say — into something
+ * that is no longer the address the link carried.
  */
-export function parseReturnTo(search: string): string | undefined {
-  const values = new URLSearchParams(search).getAll("return_to");
-  if (values.length === 0) return undefined;
-  if (values.length !== 1) {
+export function readReturnTo(
+  search: Record<string, unknown>,
+): string | undefined {
+  if (!Object.hasOwn(search, "return_to")) return undefined;
+  const value = search.return_to;
+  if (typeof value !== "string") {
     throw new ApiError({ kind: "local", code: "invalid_login_link" });
   }
-  return values[0] ?? "";
+  return value;
 }
 
 export function isValidLoginPassword(password: string): boolean {

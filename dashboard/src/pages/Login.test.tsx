@@ -439,3 +439,73 @@ it("requires saved confirmation and does not report a rejected clipboard write a
   await user.click(next);
   expect(onContinue).toHaveBeenCalledOnce();
 });
+
+describe("the sign-in link", () => {
+  function at(path: string) {
+    history.destroy();
+    window.history.replaceState(null, "", path);
+    history = createBrowserHistory();
+  }
+
+  function query(router: { state: { location: { searchStr: string } } }) {
+    const params = new URLSearchParams(router.state.location.searchStr);
+    return { returnTo: params.get("return_to"), admin: params.get("admin") };
+  }
+
+  it("keeps return_to and admin through every step and sends return_to with the second one", async () => {
+    at("/login?return_to=%2Fapps&admin=1");
+    const fetch = vi
+      .fn<typeof globalThis.fetch>()
+      .mockResolvedValueOnce(Response.json({ partial_session_token: "kept" }))
+      .mockResolvedValueOnce(rejectedCode());
+    vi.stubGlobal("fetch", fetch);
+    const user = userEvent.setup();
+    const router = mount();
+    const kept = { returnTo: "/apps", admin: "1" };
+
+    await password(user);
+    expect(router.state.location.pathname).toBe("/login/totp");
+    expect(query(router)).toEqual(kept);
+
+    await user.click(
+      screen.getByRole("button", { name: "Use a recovery code" }),
+    );
+    await screen.findByRole("textbox", { name: "Recovery code" });
+    expect(query(router)).toEqual(kept);
+
+    await user.click(
+      screen.getByRole("button", { name: "Use an authenticator code" }),
+    );
+    await user.type(
+      await screen.findByRole("textbox", { name: "Authenticator code" }),
+      "012345",
+    );
+    expect(query(router)).toEqual(kept);
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
+
+    // The failed code returns to the first step, still on the same link.
+    await screen.findByLabelText("Password");
+    expect(router.state.location.pathname).toBe("/login");
+    expect(query(router)).toEqual(kept);
+    const verify = fetch.mock.calls[1]?.[0] as Request;
+    expect(new URL(verify.url).searchParams.get("return_to")).toBe("/apps");
+  });
+
+  it("keeps the link when a second step opened without a password result sends the reader back", async () => {
+    at("/login/totp?return_to=%2Fapps&admin");
+    vi.stubGlobal("fetch", vi.fn<typeof globalThis.fetch>());
+    const router = mount();
+    await screen.findByLabelText("Password");
+    expect(router.state.location.pathname).toBe("/login");
+    expect(query(router)).toEqual({ returnTo: "/apps", admin: "" });
+  });
+
+  it("still refuses a link that names return_to twice", async () => {
+    at("/login?return_to=%2Fa&return_to=%2Fb");
+    vi.stubGlobal("fetch", vi.fn<typeof globalThis.fetch>());
+    mount();
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "This sign-in link is invalid. Open a new sign-in link.",
+    );
+  });
+});

@@ -139,7 +139,7 @@ function usePasswordResult(token: string | undefined): boolean {
   // re-reading it during unmount would navigate away from the step being entered.
   const [ready] = useState(token !== undefined);
   useEffect(() => {
-    if (!ready) void navigate({ to: "/login", replace: true });
+    if (!ready) void navigate({ to: "/login", search: true, replace: true });
   }, [ready, navigate]);
   return ready;
 }
@@ -481,6 +481,7 @@ export function PasswordPage() {
           await withRouterSkipLoading(router, () =>
             navigate({
               to: "/login/totp",
+              search: true,
               state: loginState({ username, token }),
             }),
           );
@@ -539,7 +540,9 @@ export function TotpPage() {
       busy={flow.control.busy}
       failure={flow.failure}
       onBack={() =>
-        void withRouterSkipLoading(router, () => navigate({ to: "/login" }))
+        void withRouterSkipLoading(router, () =>
+          navigate({ to: "/login", search: true }),
+        )
       }
     >
       <FactorForm
@@ -553,6 +556,7 @@ export function TotpPage() {
           await withRouterSkipLoading(router, () =>
             navigate({
               to: "/login",
+              search: true,
               state: loginState({
                 username,
                 failure: {
@@ -572,6 +576,7 @@ export function TotpPage() {
           void withRouterSkipLoading(router, () =>
             navigate({
               to: "/login/recovery",
+              search: true,
               state: loginState({ username, token }),
             }),
           )
@@ -605,6 +610,7 @@ export function RecoveryPage() {
         void withRouterSkipLoading(router, () =>
           navigate({
             to: "/login/totp",
+            search: true,
             state: loginState({ username, token }),
           }),
         )
@@ -628,6 +634,7 @@ export function RecoveryPage() {
             await withRouterSkipLoading(router, () =>
               navigate({
                 to: "/login",
+                search: true,
                 state: loginState({
                   username,
                   failure: {

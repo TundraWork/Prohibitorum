@@ -3,7 +3,7 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { useLocation } from "@tanstack/react-router";
 import type { ReactNode } from "react";
-import { parseReturnTo } from "@/api/auth";
+import { readReturnTo } from "@/api/auth";
 import { describeError } from "@/api/errors";
 import {
   authStatusQueryOptions,
@@ -25,11 +25,11 @@ export type LoginFailure = {
 export function useLoginContext() {
   const { data: config } = useSuspenseQuery(publicConfigQueryOptions());
   const { data: status } = useSuspenseQuery(authStatusQueryOptions());
-  const search = useLocation({ select: (location) => location.searchStr });
+  const search = useLocation({ select: (location) => location.search });
   let returnTo: string | undefined;
   let linkError: MessageDescriptor | undefined;
   try {
-    returnTo = parseReturnTo(search);
+    returnTo = readReturnTo(search);
   } catch (error) {
     linkError = describeError(error);
   }
