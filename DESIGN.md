@@ -414,6 +414,17 @@ picture is on its way the avatar's place is a `Skeleton` of the same shape.
 The VRChat verification lists its instructions as a numbered `text-sm` list
 with muted numbers, and gives the verification link as a `CopyValue`.
 
+`/pair` signs this device in from another one. Its body is the pairing code,
+centred in monospace at `text-3xl` with wide tracking, read out to a screen
+reader one character at a time; under it the `QrCode` of the approval link
+(the same canvas `TotpSetup` draws), a muted line saying it can be scanned,
+and the status: a small `Spinner` with the countdown, which is not announced
+as it runs. An expired code dims the code and the QR to half opacity, drops
+the scan line, and puts a warning `SurfaceAlert` and a full-width "Get a new
+code" in the status's place. Once signed in the page offers a passkey, with a
+`tertiary` "Not now" under it. The sign-in page's first step ends with a
+centred link to it, left out during maintenance.
+
 A flow the server stopped (`/error`) has the shape of a public page that failed
 to load: the title, then a danger `SurfaceAlert` with what happened, a
 monospace reference an administrator can look up, and one `secondary` way out
