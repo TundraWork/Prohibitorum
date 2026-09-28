@@ -67,9 +67,9 @@ export function LoginShell({
           <SurfaceAlert.Indicator />
           <SurfaceAlert.Content>
             <SurfaceAlert.Title>
-              <Trans id="login.maintenance">
-                The service is undergoing maintenance. Administrators can still
-                try to sign in.
+              <Trans id="login.maintenance.admin_only">
+                The service is undergoing maintenance. Only administrators can
+                sign in.
               </Trans>
             </SurfaceAlert.Title>
             {config.maintenanceMessage && (

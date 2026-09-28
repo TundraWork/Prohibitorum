@@ -5,7 +5,7 @@ import {
 } from "@tanstack/react-query";
 import { waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { isCancellation } from "@/api/errors";
+import { type ApiError, isCancellation } from "@/api/errors";
 import {
   logoutMutationOptions,
   renameCredentialMutationOptions,
@@ -67,7 +67,15 @@ describe("shared server state", () => {
         queryClient.query(sessionQueryOptions()),
       ).rejects.toMatchObject({ status, code });
     }
-    expect(notices).toHaveBeenCalledTimes(5);
+    // Maintenance is not reported: it takes the reader to the maintenance page.
+    expect(
+      notices.mock.calls.map(([error]) => (error as ApiError).code),
+    ).toEqual([
+      "bad_credentials",
+      "sudo_required",
+      "account_disabled",
+      "no_session",
+    ]);
   });
 
   it("notifies once for a failed shared query and separately for independent failures", async () => {

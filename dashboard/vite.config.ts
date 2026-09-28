@@ -31,7 +31,9 @@ export default defineConfig({
       "/api": "http://localhost:8080",
       "/branding": "http://localhost:8080",
       "/oauth": "http://localhost:8080",
-      "/saml": "http://localhost:8080",
+      // The SAML endpoints all sit under `/saml/`; the bare prefix would also
+      // take the dashboard's own `/saml-consent`.
+      "^/saml/": "http://localhost:8080",
       "/oidc": "http://localhost:8080",
       "/.well-known": "http://localhost:8080",
       "/icon": "http://localhost:8080",

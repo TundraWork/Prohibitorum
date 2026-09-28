@@ -18,7 +18,11 @@ import { Route as ProtectedDevicesRouteImport } from './routes/_protected.device
 import { Route as ProtectedProfileRouteImport } from './routes/_protected.profile'
 import { Route as ProtectedSecurityRouteImport } from './routes/_protected.security'
 import { Route as PublicPreviewRouteImport } from './routes/_public._preview'
+import { Route as PublicConsentRouteImport } from './routes/_public.consent'
+import { Route as PublicErrorRouteImport } from './routes/_public.error'
 import { Route as PublicLoginRouteImport } from './routes/_public.login'
+import { Route as PublicMaintenanceRouteImport } from './routes/_public.maintenance'
+import { Route as PublicSamlConsentRouteImport } from './routes/_public.saml-consent'
 import { Route as ProtectedAdminAdminRouteImport } from './routes/_protected.admin._admin'
 import { Route as PublicLoginRecoveryRouteImport } from './routes/_public.login_.recovery'
 import { Route as PublicLoginTotpRouteImport } from './routes/_public.login_.totp'
@@ -90,9 +94,29 @@ const PublicPreviewRoute = PublicPreviewRouteImport.update({
   id: '/_preview',
   getParentRoute: () => PublicRoute,
 } as any)
+const PublicConsentRoute = PublicConsentRouteImport.update({
+  id: '/consent',
+  path: '/consent',
+  getParentRoute: () => PublicRoute,
+} as any)
+const PublicErrorRoute = PublicErrorRouteImport.update({
+  id: '/error',
+  path: '/error',
+  getParentRoute: () => PublicRoute,
+} as any)
 const PublicLoginRoute = PublicLoginRouteImport.update({
   id: '/login',
   path: '/login',
+  getParentRoute: () => PublicRoute,
+} as any)
+const PublicMaintenanceRoute = PublicMaintenanceRouteImport.update({
+  id: '/maintenance',
+  path: '/maintenance',
+  getParentRoute: () => PublicRoute,
+} as any)
+const PublicSamlConsentRoute = PublicSamlConsentRouteImport.update({
+  id: '/saml-consent',
+  path: '/saml-consent',
   getParentRoute: () => PublicRoute,
 } as any)
 const ProtectedAdminAdminRoute = ProtectedAdminAdminRouteImport.update({
@@ -264,7 +288,11 @@ export interface FileRoutesByFullPath {
   '/devices': typeof ProtectedDevicesRoute
   '/profile': typeof ProtectedProfileRoute
   '/security': typeof ProtectedSecurityRoute
+  '/consent': typeof PublicConsentRoute
+  '/error': typeof PublicErrorRoute
   '/login': typeof PublicLoginRoute
+  '/maintenance': typeof PublicMaintenanceRoute
+  '/saml-consent': typeof PublicSamlConsentRoute
   '/login/recovery': typeof PublicLoginRecoveryRoute
   '/login/totp': typeof PublicLoginTotpRoute
   '/admin/invitations': typeof ProtectedAdminAdminInvitationsRoute
@@ -300,7 +328,11 @@ export interface FileRoutesByTo {
   '/devices': typeof ProtectedDevicesRoute
   '/profile': typeof ProtectedProfileRoute
   '/security': typeof ProtectedSecurityRoute
+  '/consent': typeof PublicConsentRoute
+  '/error': typeof PublicErrorRoute
   '/login': typeof PublicLoginRoute
+  '/maintenance': typeof PublicMaintenanceRoute
+  '/saml-consent': typeof PublicSamlConsentRoute
   '/login/recovery': typeof PublicLoginRecoveryRoute
   '/login/totp': typeof PublicLoginTotpRoute
   '/admin/invitations': typeof ProtectedAdminAdminInvitationsRoute
@@ -338,7 +370,11 @@ export interface FileRoutesById {
   '/_protected/profile': typeof ProtectedProfileRoute
   '/_protected/security': typeof ProtectedSecurityRoute
   '/_public/_preview': typeof PublicPreviewRouteWithChildren
+  '/_public/consent': typeof PublicConsentRoute
+  '/_public/error': typeof PublicErrorRoute
   '/_public/login': typeof PublicLoginRoute
+  '/_public/maintenance': typeof PublicMaintenanceRoute
+  '/_public/saml-consent': typeof PublicSamlConsentRoute
   '/_protected/': typeof ProtectedIndexRoute
   '/_protected/admin/_admin': typeof ProtectedAdminAdminRouteWithChildren
   '/_public/login_/recovery': typeof PublicLoginRecoveryRoute
@@ -378,7 +414,11 @@ export interface FileRouteTypes {
     | '/devices'
     | '/profile'
     | '/security'
+    | '/consent'
+    | '/error'
     | '/login'
+    | '/maintenance'
+    | '/saml-consent'
     | '/login/recovery'
     | '/login/totp'
     | '/admin/invitations'
@@ -414,7 +454,11 @@ export interface FileRouteTypes {
     | '/devices'
     | '/profile'
     | '/security'
+    | '/consent'
+    | '/error'
     | '/login'
+    | '/maintenance'
+    | '/saml-consent'
     | '/login/recovery'
     | '/login/totp'
     | '/admin/invitations'
@@ -451,7 +495,11 @@ export interface FileRouteTypes {
     | '/_protected/profile'
     | '/_protected/security'
     | '/_public/_preview'
+    | '/_public/consent'
+    | '/_public/error'
     | '/_public/login'
+    | '/_public/maintenance'
+    | '/_public/saml-consent'
     | '/_protected/'
     | '/_protected/admin/_admin'
     | '/_public/login_/recovery'
@@ -553,11 +601,39 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PublicPreviewRouteImport
       parentRoute: typeof PublicRoute
     }
+    '/_public/consent': {
+      id: '/_public/consent'
+      path: '/consent'
+      fullPath: '/consent'
+      preLoaderRoute: typeof PublicConsentRouteImport
+      parentRoute: typeof PublicRoute
+    }
+    '/_public/error': {
+      id: '/_public/error'
+      path: '/error'
+      fullPath: '/error'
+      preLoaderRoute: typeof PublicErrorRouteImport
+      parentRoute: typeof PublicRoute
+    }
     '/_public/login': {
       id: '/_public/login'
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof PublicLoginRouteImport
+      parentRoute: typeof PublicRoute
+    }
+    '/_public/maintenance': {
+      id: '/_public/maintenance'
+      path: '/maintenance'
+      fullPath: '/maintenance'
+      preLoaderRoute: typeof PublicMaintenanceRouteImport
+      parentRoute: typeof PublicRoute
+    }
+    '/_public/saml-consent': {
+      id: '/_public/saml-consent'
+      path: '/saml-consent'
+      fullPath: '/saml-consent'
+      preLoaderRoute: typeof PublicSamlConsentRouteImport
       parentRoute: typeof PublicRoute
     }
     '/_protected/admin/_admin': {
@@ -875,14 +951,22 @@ const PublicPreviewRouteWithChildren = PublicPreviewRoute._addFileChildren(
 
 interface PublicRouteChildren {
   PublicPreviewRoute: typeof PublicPreviewRouteWithChildren
+  PublicConsentRoute: typeof PublicConsentRoute
+  PublicErrorRoute: typeof PublicErrorRoute
   PublicLoginRoute: typeof PublicLoginRoute
+  PublicMaintenanceRoute: typeof PublicMaintenanceRoute
+  PublicSamlConsentRoute: typeof PublicSamlConsentRoute
   PublicLoginRecoveryRoute: typeof PublicLoginRecoveryRoute
   PublicLoginTotpRoute: typeof PublicLoginTotpRoute
 }
 
 const PublicRouteChildren: PublicRouteChildren = {
   PublicPreviewRoute: PublicPreviewRouteWithChildren,
+  PublicConsentRoute: PublicConsentRoute,
+  PublicErrorRoute: PublicErrorRoute,
   PublicLoginRoute: PublicLoginRoute,
+  PublicMaintenanceRoute: PublicMaintenanceRoute,
+  PublicSamlConsentRoute: PublicSamlConsentRoute,
   PublicLoginRecoveryRoute: PublicLoginRecoveryRoute,
   PublicLoginTotpRoute: PublicLoginTotpRoute,
 }
