@@ -2,17 +2,15 @@ import type { MessageDescriptor } from "@lingui/core";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { useLocation } from "@tanstack/react-router";
-import { ArrowLeft } from "lucide-react";
 import type { ReactNode } from "react";
-import { useCallback } from "react";
 import { parseReturnTo } from "@/api/auth";
 import { describeError } from "@/api/errors";
 import {
   authStatusQueryOptions,
   publicConfigQueryOptions,
 } from "@/api/queries";
-import { Button } from "@/components/custom/Button";
 import { FormMessages } from "@/components/custom/FormMessages";
+import { PublicStep } from "@/components/custom/PublicStep";
 import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
 
 export type LoginStep = "password" | "totp" | "recovery";
@@ -62,9 +60,6 @@ export function LoginShell({
 }) {
   const { t } = useLingui();
   const { config, bootstrapped, linkError } = useLoginContext();
-  const focusHeading = useCallback((node: HTMLHeadingElement | null) => {
-    node?.focus();
-  }, []);
   return (
     <div className="mx-auto flex w-full max-w-[30rem] flex-col gap-4">
       {config.maintenanceMode && (
@@ -112,45 +107,33 @@ export function LoginShell({
           </SurfaceAlert.Content>
         </SurfaceAlert>
       ) : (
-        <div className="flex flex-col gap-4">
-          <div className="flex items-center gap-2">
-            {step !== "password" && !complete && onBack && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                isIconOnly
-                className="shrink-0"
-                aria-label={
-                  step === "recovery"
-                    ? t({
-                        id: "login.use_totp",
-                        message: "Use an authenticator code",
-                      })
-                    : t({ id: "login.back", message: "Back to password" })
+        <PublicStep
+          titleKey={`${step}-${complete}-${Boolean(failure)}`}
+          back={
+            step !== "password" && !complete && onBack
+              ? {
+                  label:
+                    step === "recovery"
+                      ? t({
+                          id: "login.use_totp",
+                          message: "Use an authenticator code",
+                        })
+                      : t({ id: "login.back", message: "Back to password" }),
+                  onPress: onBack,
+                  isDisabled: busy,
                 }
-                isDisabled={busy}
-                onPress={onBack}
-              >
-                <ArrowLeft aria-hidden="true" />
-              </Button>
-            )}
-            <h1
-              key={`${step}-${complete}-${Boolean(failure)}`}
-              ref={focusHeading}
-              className="min-w-0 text-xl font-semibold wrap-anywhere"
-            >
-              {complete ? (
-                <Trans id="login.complete">Authenticator reset complete</Trans>
-              ) : step === "password" ? (
-                <Trans id="login.title">Sign in</Trans>
-              ) : (
-                <Trans id="login.factor.account">
-                  Signing in as {username}
-                </Trans>
-              )}
-            </h1>
-          </div>
+              : undefined
+          }
+          title={
+            complete ? (
+              <Trans id="login.complete">Authenticator reset complete</Trans>
+            ) : step === "password" ? (
+              <Trans id="login.title">Sign in</Trans>
+            ) : (
+              <Trans id="login.factor.account">Signing in as {username}</Trans>
+            )
+          }
+        >
           {failure && (
             <SurfaceAlert status="danger" role="alert">
               <SurfaceAlert.Indicator />
@@ -179,7 +162,7 @@ export function LoginShell({
             </SurfaceAlert>
           )}
           {children}
-        </div>
+        </PublicStep>
       )}
     </div>
   );

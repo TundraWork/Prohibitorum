@@ -16,7 +16,6 @@ import {
   Fragment,
   type ReactNode,
   use,
-  useCallback,
   useEffect,
   useState,
 } from "react";
@@ -25,6 +24,7 @@ import type { RequestExchange } from "@/api/exchange";
 import { logoutMutationOptions } from "@/api/mutations";
 import { clearSessionQueries } from "@/api/queries";
 import { Button } from "@/components/custom/Button";
+import { PageHeading } from "@/components/custom/PageHeading";
 import { PublicCard } from "@/components/custom/PublicCard";
 import { RequestDetailsDialog } from "@/components/custom/RequestDetailsDialog";
 import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
@@ -156,26 +156,6 @@ function MissingPage({ leave }: { leave: Leave }) {
         <LeaveButton to={leave.to}>{leave.label}</LeaveButton>
       </div>
     </div>
-  );
-}
-
-/**
- * The page's title in place of the one it replaced. It takes focus as it
- * appears, so a screen reader starts from the new page; it is not a control,
- * so it draws no focus ring.
- */
-function PageHeading({ children }: { children: ReactNode }) {
-  const focus = useCallback((node: HTMLHeadingElement | null) => {
-    node?.focus();
-  }, []);
-  return (
-    <h1
-      ref={focus}
-      tabIndex={-1}
-      className="min-w-0 text-xl font-semibold wrap-anywhere outline-none"
-    >
-      {children}
-    </h1>
   );
 }
 
