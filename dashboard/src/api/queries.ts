@@ -8,7 +8,7 @@ import { readEnrollmentPreview } from "@/api/enrollment";
 import { ApiError } from "@/api/errors";
 import { readFederationFlow } from "@/api/federation";
 import type { ManagedApplicationKind } from "@/api/raw-admin-paths";
-import type { FederationConfirm } from "@/api/raw-paths";
+import type { FederationConfirm, PairingStatus } from "@/api/raw-paths";
 
 export function publicConfigQueryOptions() {
   return queryOptions({
@@ -149,6 +149,34 @@ export function federationConfirmQueryOptions() {
     queryFn: ({ signal }): Promise<FederationConfirm> =>
       requireJsonData(
         client.GET("/api/prohibitorum/auth/federation/confirm", { signal }),
+      ),
+  });
+}
+
+/** How often a waiting pairing is asked whether it has been approved. */
+export const pairingPollMs = 2500;
+
+/**
+ * Where a pairing this device started stands, read every 2.5 seconds while it
+ * is still waiting for the other device and not after. A failed read is not
+ * reported: the next one is on its way, and the page keeps waiting.
+ */
+export function pairingStatusQueryOptions(id: string) {
+  return queryOptions({
+    queryKey: ["public", "pairing-status", id],
+    staleTime: 0,
+    refetchOnWindowFocus: false,
+    meta: { quiet: true },
+    refetchInterval: (query: Query<PairingStatus, Error>) =>
+      query.state.data === undefined || query.state.data.status === "pending"
+        ? pairingPollMs
+        : false,
+    queryFn: ({ signal }): Promise<PairingStatus> =>
+      requireJsonData(
+        client.GET("/api/prohibitorum/auth/devices/pair/status", {
+          params: { query: { id } },
+          signal,
+        }),
       ),
   });
 }

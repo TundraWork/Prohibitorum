@@ -614,3 +614,48 @@ describe("upstream providers", () => {
     ).not.toBeInTheDocument();
   });
 });
+
+describe("signing in with another device", () => {
+  const name = "Sign in with another device";
+
+  function at(path: string) {
+    history.destroy();
+    window.history.replaceState(null, "", path);
+    history = createBrowserHistory();
+  }
+
+  it("is offered at the foot of the first step, carrying return_to", async () => {
+    at("/login?return_to=%2Foauth%2Fauthorize%3Fclient_id%3Dwiki");
+    mount();
+    expect(await screen.findByRole("link", { name })).toHaveAttribute(
+      "href",
+      "/pair?return_to=%2Foauth%2Fauthorize%3Fclient_id%3Dwiki",
+    );
+  });
+
+  it("is not offered on the second step", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn<typeof globalThis.fetch>()
+        .mockResolvedValueOnce(
+          Response.json({ partial_session_token: "kept" }),
+        ),
+    );
+    const user = userEvent.setup();
+    mount();
+    await screen.findByRole("link", { name });
+    await password(user);
+    expect(screen.queryByRole("link", { name })).not.toBeInTheDocument();
+  });
+
+  it("is not offered during maintenance, when only administrators sign in", async () => {
+    queryClient.setQueryData(publicConfigQueryOptions().queryKey, {
+      ...config,
+      maintenanceMode: true,
+    });
+    mount();
+    await screen.findByRole("button", { name: "Continue with password" });
+    expect(screen.queryByRole("link", { name })).not.toBeInTheDocument();
+  });
+});

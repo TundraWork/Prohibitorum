@@ -140,7 +140,12 @@ function setPath(
 /** Counts are clamped to the same ceilings the panel's own controls use. */
 function clampFor(path: string, value: number): number {
   if (path === "delayMs") return clampDelay(value);
-  if (path === "pairing.expiresInSeconds") return clampPairingExpiry(value);
+  if (
+    path === "pairing.expiresInSeconds" ||
+    path === "publicFlows.pairing.expiresInSeconds"
+  ) {
+    return clampPairingExpiry(value);
+  }
   if (path === "publicFlows.enrollment.providers") {
     return clampEnrollmentProviders(value);
   }

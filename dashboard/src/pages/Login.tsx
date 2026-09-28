@@ -1,4 +1,4 @@
-import { Checkbox } from "@heroui/react";
+import { Checkbox, linkVariants } from "@heroui/react";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { browserSupportsWebAuthn } from "@simplewebauthn/browser";
@@ -8,7 +8,12 @@ import {
   useSuspenseQuery,
 } from "@tanstack/react-query";
 import type { HistoryState } from "@tanstack/react-router";
-import { useLocation, useNavigate, useRouter } from "@tanstack/react-router";
+import {
+  Link as RouterLink,
+  useLocation,
+  useNavigate,
+  useRouter,
+} from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import {
   buildTotpUri,
@@ -531,7 +536,29 @@ export function PasswordPage() {
         </p>
       )}
       <FederationSignIn returnTo={returnTo} />
+      <OtherDeviceSignIn returnTo={returnTo} />
     </LoginShell>
+  );
+}
+
+/**
+ * The way to sign in from a device that is signed in already, at the foot of
+ * the first step. During maintenance only administrators reach this page,
+ * and pairing sits behind the maintenance guard, so the link is left out.
+ */
+function OtherDeviceSignIn({ returnTo }: { returnTo?: string }) {
+  const { config } = useLoginContext();
+  if (config.maintenanceMode) return null;
+  return (
+    <p className="text-center text-sm">
+      <RouterLink
+        to="/pair"
+        search={returnTo === undefined ? {} : { return_to: returnTo }}
+        className={linkVariants().base()}
+      >
+        <Trans id="login.other_device">Sign in with another device</Trans>
+      </RouterLink>
+    </p>
   );
 }
 

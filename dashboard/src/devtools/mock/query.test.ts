@@ -110,6 +110,24 @@ describe("mock URL control", () => {
     expect(getMockConfig().pairing.expiresInSeconds).toBe(mockPairingExpiryMax);
   });
 
+  it("sets how the new device's pairing goes, clamping its expiry and reads", () => {
+    applyMockQuery(
+      "?mock.publicFlows.pairing.approveAfterPolls=0&mock.publicFlows.pairing.expiresInSeconds=30",
+    );
+    expect(getMockConfig().publicFlows.pairing).toEqual({
+      approveAfterPolls: 0,
+      expiresInSeconds: 30,
+    });
+    applyMockQuery("?mock.publicFlows.pairing.expiresInSeconds=1");
+    expect(getMockConfig().publicFlows.pairing.expiresInSeconds).toBe(
+      mockPairingExpiryMin,
+    );
+    applyMockQuery("?mock.publicFlows.pairing.approveAfterPolls=999");
+    expect(getMockConfig().publicFlows.pairing.approveAfterPolls).toBe(
+      mockListMax,
+    );
+  });
+
   it("clamps the response delay", () => {
     applyMockQuery(`?mock.delayMs=${mockDelayMax * 10}`);
     expect(getMockConfig().delayMs).toBe(mockDelayMax);

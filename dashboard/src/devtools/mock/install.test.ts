@@ -119,6 +119,7 @@ describe("mock session refresh", () => {
       "/maintenance",
       "/enroll/abc",
       "/welcome",
+      "/pair",
       "/",
       "/security",
     ]) {
@@ -141,6 +142,7 @@ describe("mock session refresh", () => {
       "/setup-signin",
       "/federation/flow/f1",
       "/verify/vrchat/p1",
+      "/pair",
     ]) {
       expect(refreshTarget(path, false)).toBeUndefined();
     }

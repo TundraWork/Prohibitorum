@@ -5,6 +5,15 @@ import { publicConfigQueryOptions } from "@/api/queries";
 
 declare module "@tanstack/react-query" {
   interface Register {
+    queryMeta: {
+      /** Marks a query for the signed-in account; see `clearSessionQueries`. */
+      requiresSession?: boolean;
+      /**
+       * A read the page repeats on its own, whose failure is therefore not
+       * reported: the next read is already on its way.
+       */
+      quiet?: boolean;
+    };
     mutationMeta: {
       /**
        * What the toast says once the write succeeds. A write whose outcome
@@ -20,12 +29,17 @@ declare module "@tanstack/react-query" {
   }
 }
 
+function isMaintenance(error: unknown): boolean {
+  return error instanceof ApiError && error.code === "maintenance_mode";
+}
+
 /**
  * The console's query client. Every failed read and write is reported through
  * `notifyError`, apart from a cancellation, and apart from `maintenance_mode`:
  * maintenance that began while a page was open is not a failure of the thing
  * the reader pressed, so the cached config learns that maintenance is on and
- * `onMaintenance` takes the reader to the maintenance page.
+ * `onMaintenance` takes the reader to the maintenance page. A read marked
+ * `quiet` reports nothing but maintenance.
  */
 export function createQueryClient(
   notifyError: (error: unknown, scope?: ErrorScope) => void,
@@ -34,7 +48,7 @@ export function createQueryClient(
 ) {
   const onError = (error: unknown, scope?: ErrorScope) => {
     if (isCancellation(error)) return;
-    if (error instanceof ApiError && error.code === "maintenance_mode") {
+    if (isMaintenance(error)) {
       queryClient.setQueryData(publicConfigQueryOptions().queryKey, (config) =>
         config ? { ...config, maintenanceMode: true } : config,
       );
@@ -44,7 +58,12 @@ export function createQueryClient(
     notifyError(error, scope);
   };
   const queryClient = new QueryClient({
-    queryCache: new QueryCache({ onError: (error) => onError(error) }),
+    queryCache: new QueryCache({
+      onError: (error, query) => {
+        if (query.meta?.quiet === true && !isMaintenance(error)) return;
+        onError(error);
+      },
+    }),
     mutationCache: new MutationCache({
       onError: (error, _variables, _context, mutation) =>
         onError(error, mutation.meta?.errorScope),

@@ -156,6 +156,16 @@ export interface MockConfig {
       /** Whether verifying answers that the link is not in the bio yet. */
       proofMissing: boolean;
     };
+    /** The pairing `/pair` starts, as the new device sees it. */
+    pairing: {
+      /**
+       * How many status reads answer "pending" before one answers "approved".
+       * 0 never approves, so the code is left to run out.
+       */
+      approveAfterPolls: number;
+      /** How long a new code lasts, in seconds. */
+      expiresInSeconds: number;
+    };
   };
   instance: {
     maintenance: boolean;
@@ -267,6 +277,7 @@ export const defaultMockConfig: MockConfig = {
       requiresLocalUsername: false,
       proofMissing: false,
     },
+    pairing: { approveAfterPolls: 3, expiresInSeconds: 300 },
   },
   instance: {
     maintenance: false,
