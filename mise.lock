@@ -7,30 +7,37 @@ backend = "aqua:anchore/syft"
 [tools."aqua:anchore/syft"."platforms.linux-arm64"]
 checksum = "sha256:797d2b57110be185fefa2eb9f2b0bfd2fa5aa153910d33f7da67f5ade28f6254"
 url = "https://github.com/anchore/syft/releases/download/v1.27.1/syft_1.27.1_linux_arm64.tar.gz"
+url_api = "https://api.github.com/repos/anchore/syft/releases/assets/263294325"
 
 [tools."aqua:anchore/syft"."platforms.linux-arm64-musl"]
 checksum = "sha256:797d2b57110be185fefa2eb9f2b0bfd2fa5aa153910d33f7da67f5ade28f6254"
 url = "https://github.com/anchore/syft/releases/download/v1.27.1/syft_1.27.1_linux_arm64.tar.gz"
+url_api = "https://api.github.com/repos/anchore/syft/releases/assets/263294325"
 
 [tools."aqua:anchore/syft"."platforms.linux-x64"]
 checksum = "sha256:c2cb5867a238baf41adf15f7e01e28cbd886378859eed81e52c080ca0346eefe"
 url = "https://github.com/anchore/syft/releases/download/v1.27.1/syft_1.27.1_linux_amd64.tar.gz"
+url_api = "https://api.github.com/repos/anchore/syft/releases/assets/263294327"
 
 [tools."aqua:anchore/syft"."platforms.linux-x64-musl"]
 checksum = "sha256:c2cb5867a238baf41adf15f7e01e28cbd886378859eed81e52c080ca0346eefe"
 url = "https://github.com/anchore/syft/releases/download/v1.27.1/syft_1.27.1_linux_amd64.tar.gz"
+url_api = "https://api.github.com/repos/anchore/syft/releases/assets/263294327"
 
 [tools."aqua:anchore/syft"."platforms.macos-arm64"]
 checksum = "sha256:4e155573140c8962c9aa9e7d303a972ac7a3cb6784a7b57c1ada7c6b225a7245"
 url = "https://github.com/anchore/syft/releases/download/v1.27.1/syft_1.27.1_darwin_arm64.tar.gz"
+url_api = "https://api.github.com/repos/anchore/syft/releases/assets/263294337"
 
 [tools."aqua:anchore/syft"."platforms.macos-x64"]
 checksum = "sha256:6b7acfea1441f2f4e4740a60ebd7fe8e151e618ed29c3765aa58e58c47f9363b"
 url = "https://github.com/anchore/syft/releases/download/v1.27.1/syft_1.27.1_darwin_amd64.tar.gz"
+url_api = "https://api.github.com/repos/anchore/syft/releases/assets/263294338"
 
 [tools."aqua:anchore/syft"."platforms.windows-x64"]
 checksum = "sha256:50ac4d381e58fb16a115a7458aa3f1ba48e54cecdb6a632417439bbc553bc6f7"
 url = "https://github.com/anchore/syft/releases/download/v1.27.1/syft_1.27.1_windows_amd64.zip"
+url_api = "https://api.github.com/repos/anchore/syft/releases/assets/263294339"
 
 [[tools."aqua:goreleaser/goreleaser"]]
 version = "2.16.0"
@@ -39,36 +46,43 @@ backend = "aqua:goreleaser/goreleaser"
 [tools."aqua:goreleaser/goreleaser"."platforms.linux-arm64"]
 checksum = "sha256:0102d974373fcdeb77042d1f5897caffa193be36620fdc6c1da43a01ef8e10d3"
 url = "https://github.com/goreleaser/goreleaser/releases/download/v2.16.0/goreleaser_Linux_arm64.tar.gz"
+url_api = "https://api.github.com/repos/goreleaser/goreleaser/releases/assets/428676998"
 provenance = "github-attestations"
 
 [tools."aqua:goreleaser/goreleaser"."platforms.linux-arm64-musl"]
 checksum = "sha256:0102d974373fcdeb77042d1f5897caffa193be36620fdc6c1da43a01ef8e10d3"
 url = "https://github.com/goreleaser/goreleaser/releases/download/v2.16.0/goreleaser_Linux_arm64.tar.gz"
+url_api = "https://api.github.com/repos/goreleaser/goreleaser/releases/assets/428676998"
 provenance = "github-attestations"
 
 [tools."aqua:goreleaser/goreleaser"."platforms.linux-x64"]
 checksum = "sha256:eaae05b5eba07533bd0f06846b68c808399504784df00c62eb219541fc04e5e2"
 url = "https://github.com/goreleaser/goreleaser/releases/download/v2.16.0/goreleaser_Linux_x86_64.tar.gz"
+url_api = "https://api.github.com/repos/goreleaser/goreleaser/releases/assets/428676974"
 provenance = "github-attestations"
 
 [tools."aqua:goreleaser/goreleaser"."platforms.linux-x64-musl"]
 checksum = "sha256:eaae05b5eba07533bd0f06846b68c808399504784df00c62eb219541fc04e5e2"
 url = "https://github.com/goreleaser/goreleaser/releases/download/v2.16.0/goreleaser_Linux_x86_64.tar.gz"
+url_api = "https://api.github.com/repos/goreleaser/goreleaser/releases/assets/428676974"
 provenance = "github-attestations"
 
 [tools."aqua:goreleaser/goreleaser"."platforms.macos-arm64"]
 checksum = "sha256:6a102e4d588fd3553a9ac7321ca6023a9f205843f4861ca35bd337dfa9e72ece"
 url = "https://github.com/goreleaser/goreleaser/releases/download/v2.16.0/goreleaser_Darwin_all.tar.gz"
+url_api = "https://api.github.com/repos/goreleaser/goreleaser/releases/assets/428677010"
 provenance = "github-attestations"
 
 [tools."aqua:goreleaser/goreleaser"."platforms.macos-x64"]
 checksum = "sha256:6a102e4d588fd3553a9ac7321ca6023a9f205843f4861ca35bd337dfa9e72ece"
 url = "https://github.com/goreleaser/goreleaser/releases/download/v2.16.0/goreleaser_Darwin_all.tar.gz"
+url_api = "https://api.github.com/repos/goreleaser/goreleaser/releases/assets/428677010"
 provenance = "github-attestations"
 
 [tools."aqua:goreleaser/goreleaser"."platforms.windows-x64"]
 checksum = "sha256:6fe5eda11f0bcac8069aff3ef3dcb0b11816c9e95f89773595564697a5278bc9"
 url = "https://github.com/goreleaser/goreleaser/releases/download/v2.16.0/goreleaser_Windows_x86_64.zip"
+url_api = "https://api.github.com/repos/goreleaser/goreleaser/releases/assets/428676991"
 provenance = "github-attestations"
 
 [[tools."aqua:ko-build/ko"]]
@@ -138,30 +152,37 @@ backend = "aqua:pressly/goose"
 [tools."aqua:pressly/goose"."platforms.linux-arm64"]
 checksum = "sha256:55f65caa1ee94d4b66f1bdf7091df3bdf72578cf8d44a817b2d6cd6f96af8b02"
 url = "https://github.com/pressly/goose/releases/download/v3.27.0/goose_linux_arm64"
+url_api = "https://api.github.com/repos/pressly/goose/releases/assets/360250446"
 
 [tools."aqua:pressly/goose"."platforms.linux-arm64-musl"]
 checksum = "sha256:55f65caa1ee94d4b66f1bdf7091df3bdf72578cf8d44a817b2d6cd6f96af8b02"
 url = "https://github.com/pressly/goose/releases/download/v3.27.0/goose_linux_arm64"
+url_api = "https://api.github.com/repos/pressly/goose/releases/assets/360250446"
 
 [tools."aqua:pressly/goose"."platforms.linux-x64"]
 checksum = "sha256:ad487c23744ae5de5dbdf5a81d4e6fac05fdfbe74f02379f9e498cf2070a9ef8"
 url = "https://github.com/pressly/goose/releases/download/v3.27.0/goose_linux_x86_64"
+url_api = "https://api.github.com/repos/pressly/goose/releases/assets/360250449"
 
 [tools."aqua:pressly/goose"."platforms.linux-x64-musl"]
 checksum = "sha256:ad487c23744ae5de5dbdf5a81d4e6fac05fdfbe74f02379f9e498cf2070a9ef8"
 url = "https://github.com/pressly/goose/releases/download/v3.27.0/goose_linux_x86_64"
+url_api = "https://api.github.com/repos/pressly/goose/releases/assets/360250449"
 
 [tools."aqua:pressly/goose"."platforms.macos-arm64"]
 checksum = "sha256:2a8cc185b617f6fac31bd6b0a257f50dbb14fdb4c8313cca8201d2ecd0987dd5"
 url = "https://github.com/pressly/goose/releases/download/v3.27.0/goose_darwin_arm64"
+url_api = "https://api.github.com/repos/pressly/goose/releases/assets/360250447"
 
 [tools."aqua:pressly/goose"."platforms.macos-x64"]
 checksum = "sha256:4f3bd3f276e4da55364483b627943a91f91327e743523f8c7563e702621a002a"
 url = "https://github.com/pressly/goose/releases/download/v3.27.0/goose_darwin_x86_64"
+url_api = "https://api.github.com/repos/pressly/goose/releases/assets/360250455"
 
 [tools."aqua:pressly/goose"."platforms.windows-x64"]
 checksum = "sha256:c73e4f4bc52e74694831e982b5592fd194376e981174a1a6b99f7a21c3345e60"
 url = "https://github.com/pressly/goose/releases/download/v3.27.0/goose_windows_x86_64.exe"
+url_api = "https://api.github.com/repos/pressly/goose/releases/assets/360250461"
 
 [[tools."aqua:rhysd/actionlint"]]
 version = "1.7.12"
@@ -170,36 +191,43 @@ backend = "aqua:rhysd/actionlint"
 [tools."aqua:rhysd/actionlint"."platforms.linux-arm64"]
 checksum = "sha256:325e971b6ba9bfa504672e29be93c24981eeb1c07576d730e9f7c8805afff0c6"
 url = "https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_arm64.tar.gz"
+url_api = "https://api.github.com/repos/rhysd/actionlint/releases/assets/384924897"
 provenance = "github-attestations"
 
 [tools."aqua:rhysd/actionlint"."platforms.linux-arm64-musl"]
 checksum = "sha256:325e971b6ba9bfa504672e29be93c24981eeb1c07576d730e9f7c8805afff0c6"
 url = "https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_arm64.tar.gz"
+url_api = "https://api.github.com/repos/rhysd/actionlint/releases/assets/384924897"
 provenance = "github-attestations"
 
 [tools."aqua:rhysd/actionlint"."platforms.linux-x64"]
 checksum = "sha256:8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8"
 url = "https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz"
+url_api = "https://api.github.com/repos/rhysd/actionlint/releases/assets/384924896"
 provenance = "github-attestations"
 
 [tools."aqua:rhysd/actionlint"."platforms.linux-x64-musl"]
 checksum = "sha256:8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8"
 url = "https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz"
+url_api = "https://api.github.com/repos/rhysd/actionlint/releases/assets/384924896"
 provenance = "github-attestations"
 
 [tools."aqua:rhysd/actionlint"."platforms.macos-arm64"]
 checksum = "sha256:aba9ced2dee8d27fecca3dc7feb1a7f9a52caefa1eb46f3271ea66b6e0e6953f"
 url = "https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_darwin_arm64.tar.gz"
+url_api = "https://api.github.com/repos/rhysd/actionlint/releases/assets/384924893"
 provenance = "github-attestations"
 
 [tools."aqua:rhysd/actionlint"."platforms.macos-x64"]
 checksum = "sha256:5b44c3bc2255115c9b69e30efc0fecdf498fdb63c5d58e17084fd5f16324c644"
 url = "https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_darwin_amd64.tar.gz"
+url_api = "https://api.github.com/repos/rhysd/actionlint/releases/assets/384924880"
 provenance = "github-attestations"
 
 [tools."aqua:rhysd/actionlint"."platforms.windows-x64"]
 checksum = "sha256:6e7241b51e6817ea6a047693d8e6fed13b31819c9a0dd6c5a726e1592d22f6e9"
 url = "https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_windows_amd64.zip"
+url_api = "https://api.github.com/repos/rhysd/actionlint/releases/assets/384924919"
 provenance = "github-attestations"
 
 [[tools."aqua:sigstore/cosign"]]
@@ -209,36 +237,43 @@ backend = "aqua:sigstore/cosign"
 [tools."aqua:sigstore/cosign"."platforms.linux-arm64"]
 checksum = "sha256:2ec865872e331c32fd12b08dae15332d3f92c0aa029219589684a4903ca85d11"
 url = "https://github.com/sigstore/cosign/releases/download/v3.1.1/cosign-linux-arm64"
+url_api = "https://api.github.com/repos/sigstore/cosign/releases/assets/442898897"
 provenance = "cosign"
 
 [tools."aqua:sigstore/cosign"."platforms.linux-arm64-musl"]
 checksum = "sha256:2ec865872e331c32fd12b08dae15332d3f92c0aa029219589684a4903ca85d11"
 url = "https://github.com/sigstore/cosign/releases/download/v3.1.1/cosign-linux-arm64"
+url_api = "https://api.github.com/repos/sigstore/cosign/releases/assets/442898897"
 provenance = "cosign"
 
 [tools."aqua:sigstore/cosign"."platforms.linux-x64"]
 checksum = "sha256:ae1ecd212663f3693ad9edf8b1a183900c9a52d3155ba6e354237f9a0f6463fc"
 url = "https://github.com/sigstore/cosign/releases/download/v3.1.1/cosign-linux-amd64"
+url_api = "https://api.github.com/repos/sigstore/cosign/releases/assets/442898812"
 provenance = "cosign"
 
 [tools."aqua:sigstore/cosign"."platforms.linux-x64-musl"]
 checksum = "sha256:ae1ecd212663f3693ad9edf8b1a183900c9a52d3155ba6e354237f9a0f6463fc"
 url = "https://github.com/sigstore/cosign/releases/download/v3.1.1/cosign-linux-amd64"
+url_api = "https://api.github.com/repos/sigstore/cosign/releases/assets/442898812"
 provenance = "cosign"
 
 [tools."aqua:sigstore/cosign"."platforms.macos-arm64"]
 checksum = "sha256:94b42a9e697be95675f6160ab031a9a5f1ec1e646d6f648d7b2f5cd59ececbc5"
 url = "https://github.com/sigstore/cosign/releases/download/v3.1.1/cosign-darwin-arm64"
+url_api = "https://api.github.com/repos/sigstore/cosign/releases/assets/442899033"
 provenance = "cosign"
 
 [tools."aqua:sigstore/cosign"."platforms.macos-x64"]
 checksum = "sha256:14d2678dfbfde18798151e86fbd91ebdadbb7424b18412a42a155dd8a2df4c7a"
 url = "https://github.com/sigstore/cosign/releases/download/v3.1.1/cosign-darwin-amd64"
+url_api = "https://api.github.com/repos/sigstore/cosign/releases/assets/442899292"
 provenance = "cosign"
 
 [tools."aqua:sigstore/cosign"."platforms.windows-x64"]
 checksum = "sha256:9d2c026e667bfd979fa7ba1cab8c4b24d2e73f336ec2d57f7fc72c7e73e5b4b6"
 url = "https://github.com/sigstore/cosign/releases/download/v3.1.1/cosign-windows-amd64.exe"
+url_api = "https://api.github.com/repos/sigstore/cosign/releases/assets/442899047"
 provenance = "cosign"
 
 [[tools."aqua:zizmorcore/zizmor"]]
@@ -248,6 +283,7 @@ backend = "aqua:zizmorcore/zizmor"
 [tools."aqua:zizmorcore/zizmor"."platforms.linux-arm64"]
 checksum = "sha256:711f5af366b299128f9a04b1470e37d990b41fbd21f14a1a4148d25004a83762"
 url = "https://github.com/zizmorcore/zizmor/releases/download/v1.26.1/zizmor-aarch64-unknown-linux-gnu.tar.gz"
+url_api = "https://api.github.com/repos/zizmorcore/zizmor/releases/assets/453417983"
 provenance = "github-attestations"
 
 [tools."aqua:zizmorcore/zizmor"."platforms.linux-arm64-musl"]
@@ -256,6 +292,7 @@ provenance = "github-attestations"
 [tools."aqua:zizmorcore/zizmor"."platforms.linux-x64"]
 checksum = "sha256:8556289a64e7aaf2400cd516f61a471aa91c5902cc56ad96a82fd12f90c2ef73"
 url = "https://github.com/zizmorcore/zizmor/releases/download/v1.26.1/zizmor-x86_64-unknown-linux-gnu.tar.gz"
+url_api = "https://api.github.com/repos/zizmorcore/zizmor/releases/assets/453417985"
 provenance = "github-attestations"
 
 [tools."aqua:zizmorcore/zizmor"."platforms.linux-x64-musl"]
@@ -264,16 +301,19 @@ provenance = "github-attestations"
 [tools."aqua:zizmorcore/zizmor"."platforms.macos-arm64"]
 checksum = "sha256:68ab2b37836bbd44f6cfffcc102b9ffffbc20c5d67d84293dafb63bd2775a1da"
 url = "https://github.com/zizmorcore/zizmor/releases/download/v1.26.1/zizmor-aarch64-apple-darwin.tar.gz"
+url_api = "https://api.github.com/repos/zizmorcore/zizmor/releases/assets/453417984"
 provenance = "github-attestations"
 
 [tools."aqua:zizmorcore/zizmor"."platforms.macos-x64"]
 checksum = "sha256:2967414a561f8c1264121e8f723c3b5abcf3d1bf7ce5063114df99985dd75801"
 url = "https://github.com/zizmorcore/zizmor/releases/download/v1.26.1/zizmor-x86_64-apple-darwin.tar.gz"
+url_api = "https://api.github.com/repos/zizmorcore/zizmor/releases/assets/453417982"
 provenance = "github-attestations"
 
 [tools."aqua:zizmorcore/zizmor"."platforms.windows-x64"]
 checksum = "sha256:c6cea156935e3b9d36faeca4fd8f622d23f7a7578da26adb34e6456abd9beb9a"
 url = "https://github.com/zizmorcore/zizmor/releases/download/v1.26.1/zizmor-x86_64-pc-windows-msvc.zip"
+url_api = "https://api.github.com/repos/zizmorcore/zizmor/releases/assets/453417981"
 provenance = "github-attestations"
 
 [[tools.go]]
@@ -385,36 +425,22 @@ version = "1.30.0"
 backend = "aqua:sqlc-dev/sqlc"
 
 [tools.sqlc."platforms.linux-arm64"]
-checksum = "sha256:dd9ab43b022ba3b3402054f99d7ae6e5efea33c949e869c3c66b214415e0c82d"
-url = "https://github.com/sqlc-dev/sqlc/releases/download/v1.30.0/sqlc_1.30.0_linux_arm64.tar.gz"
-url_api = "https://api.github.com/repos/sqlc-dev/sqlc/releases/assets/288589120"
+url = "https://downloads.sqlc.dev/sqlc_1.30.0_linux_arm64.tar.gz"
 
 [tools.sqlc."platforms.linux-arm64-musl"]
-checksum = "sha256:dd9ab43b022ba3b3402054f99d7ae6e5efea33c949e869c3c66b214415e0c82d"
-url = "https://github.com/sqlc-dev/sqlc/releases/download/v1.30.0/sqlc_1.30.0_linux_arm64.tar.gz"
-url_api = "https://api.github.com/repos/sqlc-dev/sqlc/releases/assets/288589120"
+url = "https://downloads.sqlc.dev/sqlc_1.30.0_linux_arm64.tar.gz"
 
 [tools.sqlc."platforms.linux-x64"]
-checksum = "sha256:468aecee071bfe55e97fcbcac52ea0208eeca444f67736f3b8f0f3d6a106132e"
-url = "https://github.com/sqlc-dev/sqlc/releases/download/v1.30.0/sqlc_1.30.0_linux_amd64.tar.gz"
-url_api = "https://api.github.com/repos/sqlc-dev/sqlc/releases/assets/288589112"
+url = "https://downloads.sqlc.dev/sqlc_1.30.0_linux_amd64.tar.gz"
 
 [tools.sqlc."platforms.linux-x64-musl"]
-checksum = "sha256:468aecee071bfe55e97fcbcac52ea0208eeca444f67736f3b8f0f3d6a106132e"
-url = "https://github.com/sqlc-dev/sqlc/releases/download/v1.30.0/sqlc_1.30.0_linux_amd64.tar.gz"
-url_api = "https://api.github.com/repos/sqlc-dev/sqlc/releases/assets/288589112"
+url = "https://downloads.sqlc.dev/sqlc_1.30.0_linux_amd64.tar.gz"
 
 [tools.sqlc."platforms.macos-arm64"]
-checksum = "sha256:ff18793b97715d08dde364446f43082a06da87b7797b9ec79ef2b31aeb0894e5"
-url = "https://github.com/sqlc-dev/sqlc/releases/download/v1.30.0/sqlc_1.30.0_darwin_arm64.tar.gz"
-url_api = "https://api.github.com/repos/sqlc-dev/sqlc/releases/assets/288589106"
+url = "https://downloads.sqlc.dev/sqlc_1.30.0_darwin_arm64.tar.gz"
 
 [tools.sqlc."platforms.macos-x64"]
-checksum = "sha256:eb065ca44f02a9500f8e51cb63594a6bbd2486af04d18c0f81efadf7eadf5e29"
-url = "https://github.com/sqlc-dev/sqlc/releases/download/v1.30.0/sqlc_1.30.0_darwin_amd64.tar.gz"
-url_api = "https://api.github.com/repos/sqlc-dev/sqlc/releases/assets/288589097"
+url = "https://downloads.sqlc.dev/sqlc_1.30.0_darwin_amd64.tar.gz"
 
 [tools.sqlc."platforms.windows-x64"]
-checksum = "sha256:1f18956ac8b38740420d5ab275df3425ee62e154310aee2dc42d5457181a2c06"
-url = "https://github.com/sqlc-dev/sqlc/releases/download/v1.30.0/sqlc_1.30.0_windows_amd64.zip"
-url_api = "https://api.github.com/repos/sqlc-dev/sqlc/releases/assets/288589288"
+url = "https://downloads.sqlc.dev/sqlc_1.30.0_windows_amd64.tar.gz"
