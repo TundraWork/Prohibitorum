@@ -1115,11 +1115,6 @@ msgid "admin.oidc-apps.alias.name"
 msgstr "Claim name"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
-msgid "admin.federation.diagnostics.claims"
-msgstr "Claims returned by the provider"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/AdminLogs.tsx
 msgid "admin.logs.filter.clear"
 msgstr "Clear filters"
@@ -1308,6 +1303,11 @@ msgstr "Conditions are nested too deeply. Use at most 8 levels."
 #: src/pages/admin/oidc-applications/AdminOidcApplications.tsx
 msgid "admin.oidc-apps.kind.confidential"
 msgstr "Confidential"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-options.ts
+msgid "admin.federation.diagnostics.source.configuration"
+msgstr "Configuration"
 
 #. js-lingui-explicit-id
 #: src/components/custom/SudoDialog.tsx
@@ -1616,6 +1616,11 @@ msgid "copy-value.copied"
 msgstr "Copied"
 
 #. js-lingui-explicit-id
+#: src/components/custom/JsonBlock.tsx
+msgid "json-block.copied"
+msgstr "Copied"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminInvitations.tsx
 msgid "admin.invitations.copy.done"
 msgstr "Copied."
@@ -1633,6 +1638,11 @@ msgstr "Copy"
 #. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/ForwardAuthProxySection.tsx
 msgid "admin.forward-auth-apps.traefik.copy"
+msgstr "Copy"
+
+#. js-lingui-explicit-id
+#: src/components/custom/JsonBlock.tsx
+msgid "json-block.copy"
 msgstr "Copy"
 
 #. js-lingui-explicit-id
@@ -1713,6 +1723,11 @@ msgstr "Could not copy the token. Select the token above and copy it manually, o
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/SigningKeysPanel.tsx
 msgid "settings.keys.jwk.copy.failed"
+msgstr "Could not copy. Your browser blocked the clipboard; allow it and try again."
+
+#. js-lingui-explicit-id
+#: src/components/custom/JsonBlock.tsx
+msgid "json-block.copy.failed"
 msgstr "Could not copy. Your browser blocked the clipboard; allow it and try again."
 
 #. js-lingui-explicit-id
@@ -2236,6 +2251,7 @@ msgid "admin.users.column.displayName"
 msgstr "Display name"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-options.ts
 #: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
 msgid "admin.federation.claims.display-name"
 msgstr "Display name"
@@ -2311,6 +2327,7 @@ msgid "admin.user.email"
 msgstr "Email"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-options.ts
 #: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
 msgid "admin.federation.claims.email"
 msgstr "Email"
@@ -2324,6 +2341,11 @@ msgstr "Email address and whether it is verified."
 #: src/pages/admin/identity-providers/ProviderOperatorSection.tsx
 msgid "admin.federation.operator.method.email"
 msgstr "Email code"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-options.ts
+msgid "admin.federation.diagnostics.identity.email-verified"
+msgstr "Email verified"
 
 #. js-lingui-explicit-id
 #: src/pages/DevForms.tsx
@@ -3019,6 +3041,7 @@ msgstr "Icon updated"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-options.ts
+#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
 msgid "admin.federation.diagnostics.stage.id-token"
 msgstr "ID token"
 
@@ -3534,6 +3557,11 @@ msgid "admin.federation.diagnostics.source.manual"
 msgstr "Manual"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+msgid "admin.federation.diagnostics.identity"
+msgstr "Mapped fields"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/saml-validation.ts
 msgid "admin.saml-apps.acs.default.required"
 msgstr "Mark exactly one endpoint as the default."
@@ -3808,6 +3836,11 @@ msgid "dev.forms.rename.success"
 msgstr "Nickname saved. Your input has been kept."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+msgid "admin.federation.diagnostics.identity.no"
+msgstr "No"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.tokens.empty"
 msgstr "No access tokens"
@@ -3856,6 +3889,11 @@ msgstr "No events in this range"
 #: src/pages/admin/saml-applications/SamlMetadataSection.tsx
 msgid "admin.saml-apps.keys.no-expiry"
 msgstr "No expiry"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+msgid "admin.federation.diagnostics.identity.empty"
+msgstr "No fields could be mapped."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/AdminForwardAuthApps.tsx
@@ -3986,6 +4024,11 @@ msgstr "Not"
 #: src/pages/ApiPreview.tsx
 msgid "api.uninitialized"
 msgstr "Not initialized"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+msgid "admin.federation.diagnostics.identity.missing"
+msgstr "Not provided"
 
 #. js-lingui-explicit-id
 #: src/components/custom/ListCells.tsx
@@ -4333,6 +4376,7 @@ msgid "api.eyebrow"
 msgstr "PHB-65 / M2 · Public API preview"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-options.ts
 #: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
 msgid "admin.federation.claims.picture"
 msgstr "Picture"
@@ -5740,6 +5784,7 @@ msgid "admin.federation.danger.secret.hint"
 msgstr "Stored encrypted and never shown again."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-options.ts
 #: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
 msgid "admin.federation.claims.subject"
 msgstr "Subject"
@@ -5803,6 +5848,11 @@ msgstr "Test failed"
 #: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.diagnostics.run.succeeded"
 msgstr "Test passed"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+msgid "admin.federation.diagnostics.details"
+msgstr "Test results"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
@@ -6151,6 +6201,11 @@ msgstr "The provider is asking us to slow down. Wait a moment and try again."
 #: src/pages/admin/identity-providers/ProviderConnectionSection.tsx
 msgid "admin.federation.scopes.hint"
 msgstr "The provider must support every scope listed here."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+msgid "admin.federation.diagnostics.id-token.empty"
+msgstr "The provider returned no ID token."
 
 #. js-lingui-explicit-id
 #: src/components/custom/TotpSetup.tsx
@@ -6563,6 +6618,11 @@ msgid "admin.forward-auth-apps.scopes.label"
 msgstr "Token scopes"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+msgid "admin.federation.diagnostics.document.omitted"
+msgstr "Too large to keep ({size} KB)."
+
+#. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.rate_limited"
 msgstr "Too many requests. Please wait before trying again."
@@ -6966,18 +7026,29 @@ msgstr "User-Agent"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-options.ts
-msgid "admin.federation.effective.userinfo"
+#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+msgid "admin.federation.diagnostics.stage.userinfo"
 msgstr "UserInfo"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-options.ts
-msgid "admin.federation.diagnostics.stage.userinfo"
+msgid "admin.federation.effective.userinfo"
 msgstr "UserInfo"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.connection.userinfo"
 msgstr "UserInfo endpoint"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+msgid "admin.federation.diagnostics.userinfo.failed"
+msgstr "UserInfo returned nothing to show."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+msgid "admin.federation.diagnostics.userinfo.empty"
+msgstr "UserInfo was not requested."
 
 #. js-lingui-explicit-id
 #: src/pages/Console.tsx
@@ -7001,6 +7072,7 @@ msgid "admin.saml-apps.source.username"
 msgstr "Username"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-options.ts
 #: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
 msgid "admin.federation.claims.username"
 msgstr "Username"
@@ -7190,6 +7262,11 @@ msgstr "Who the rule matches"
 #: src/pages/admin/identity-providers/provider-validation.ts
 msgid "admin.federation.auth.manual-needs-method"
 msgstr "With endpoints entered by hand, choose a specific method."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+msgid "admin.federation.diagnostics.identity.yes"
+msgstr "Yes"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts

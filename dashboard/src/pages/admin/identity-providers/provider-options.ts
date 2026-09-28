@@ -1,6 +1,8 @@
 import type { MessageDescriptor } from "@lingui/core";
 import { msg } from "@lingui/core/macro";
 import type {
+  DiagnosticFieldView,
+  DiagnosticIdentityView,
   OidcProviderConfig,
   ProviderMode,
   ProviderProtocol,
@@ -417,5 +419,94 @@ export function stageStatusLabel(state: StageState): MessageDescriptor {
         id: "admin.federation.diagnostics.stage-status.pending",
         message: "Pending",
       });
+  }
+}
+
+/**
+ * The identity a connection test mapped, in the order the result lists it:
+ * who the account is, what it is called, how to reach it, then its picture.
+ * The labels are the claim section's, so a field reads the same in both.
+ */
+export const identityFields: readonly {
+  key: keyof DiagnosticIdentityView;
+  label: MessageDescriptor;
+}[] = [
+  {
+    key: "issuer",
+    label: msg({ id: "admin.federation.effective.issuer", message: "Issuer" }),
+  },
+  {
+    key: "subject",
+    label: msg({ id: "admin.federation.claims.subject", message: "Subject" }),
+  },
+  {
+    key: "username",
+    label: msg({ id: "admin.federation.claims.username", message: "Username" }),
+  },
+  {
+    key: "displayName",
+    label: msg({
+      id: "admin.federation.claims.display-name",
+      message: "Display name",
+    }),
+  },
+  {
+    key: "email",
+    label: msg({ id: "admin.federation.claims.email", message: "Email" }),
+  },
+  {
+    key: "emailVerified",
+    label: msg({
+      id: "admin.federation.diagnostics.identity.email-verified",
+      message: "Email verified",
+    }),
+  },
+  {
+    key: "picture",
+    label: msg({ id: "admin.federation.claims.picture", message: "Picture" }),
+  },
+];
+
+/**
+ * A mapped value as the result draws it: text, a yes or no, or absent. An
+ * empty string reads as absent, the way login treats it.
+ */
+export type IdentityValue =
+  | { kind: "text"; text: string }
+  | { kind: "boolean"; value: boolean }
+  | { kind: "missing" };
+
+export function identityValue(field: DiagnosticFieldView): IdentityValue {
+  if (typeof field.value === "boolean") {
+    return { kind: "boolean", value: field.value };
+  }
+  if (typeof field.value === "string" && field.value !== "") {
+    return { kind: "text", text: field.value };
+  }
+  return { kind: "missing" };
+}
+
+/** The document a mapped value came from; unknown sources read as absent. */
+export function documentSourceLabel(
+  source: string,
+): MessageDescriptor | undefined {
+  switch (source) {
+    case "id_token":
+      return msg({
+        id: "admin.federation.diagnostics.stage.id-token",
+        message: "ID token",
+      });
+    case "userinfo":
+      return msg({
+        id: "admin.federation.diagnostics.stage.userinfo",
+        message: "UserInfo",
+      });
+    case "configuration":
+      return msg({
+        id: "admin.federation.diagnostics.source.configuration",
+        message: "Configuration",
+      });
+    default:
+      return undefined;
   }
 }

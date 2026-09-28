@@ -282,7 +282,19 @@ monospace, a soft `Chip` naming where it came from) that stacks name and source
 over the value on a narrow screen, followed by the test callback address; a
 test as its overall state, then one row per stage with an outcome icon, the
 stage's measured details in muted text, and its status word, coloured only
-when the stage failed. Each dialog's footer holds "Close" and the action again.
+when the stage failed. Once a test has anything to show, `Tabs
+variant="secondary"` under the stages hold, in order, the mapped fields, the ID
+token and UserInfo, and every new result opens on the first; the underline
+variant adds no fill of its own on the dialog's surface. The mapped fields use
+the configuration's three-column list, one component for both, with the source
+`Chip` reading "document · `claim`" (claim in monospace) and an absent value in
+the same muted "Not provided" style as "Not used". The two documents are a
+`JsonBlock` (`dashboard/src/components/custom`): the indented JSON in
+monospace on a `ScrollArea` that carries the fill and scrolls long lines
+sideways, never wrapping, with an icon-only ghost copy button and its
+"Copy"/"Copied" tooltip at the top-right corner, and a danger `SurfaceAlert`
+below when the clipboard refuses. A tab with nothing to show says so in one
+muted sentence. Each dialog's footer holds "Close" and the action again.
 A diagnostic or a danger-zone action that fails says so in the console's error
 toast only; the row and the dialog keep their shape.
 

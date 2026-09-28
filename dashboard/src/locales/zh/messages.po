@@ -1115,11 +1115,6 @@ msgid "admin.oidc-apps.alias.name"
 msgstr "声明名称"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
-msgid "admin.federation.diagnostics.claims"
-msgstr "提供商返回的声明"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/AdminLogs.tsx
 msgid "admin.logs.filter.clear"
 msgstr "清除筛选"
@@ -1308,6 +1303,11 @@ msgstr "条件嵌套过深，最多 8 层。"
 #: src/pages/admin/oidc-applications/AdminOidcApplications.tsx
 msgid "admin.oidc-apps.kind.confidential"
 msgstr "机密客户端"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-options.ts
+msgid "admin.federation.diagnostics.source.configuration"
+msgstr "配置"
 
 #. js-lingui-explicit-id
 #: src/components/custom/SudoDialog.tsx
@@ -1616,6 +1616,11 @@ msgid "copy-value.copied"
 msgstr "已复制"
 
 #. js-lingui-explicit-id
+#: src/components/custom/JsonBlock.tsx
+msgid "json-block.copied"
+msgstr "已复制"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminInvitations.tsx
 msgid "admin.invitations.copy.done"
 msgstr "已复制。"
@@ -1633,6 +1638,11 @@ msgstr "复制"
 #. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/ForwardAuthProxySection.tsx
 msgid "admin.forward-auth-apps.traefik.copy"
+msgstr "复制"
+
+#. js-lingui-explicit-id
+#: src/components/custom/JsonBlock.tsx
+msgid "json-block.copy"
 msgstr "复制"
 
 #. js-lingui-explicit-id
@@ -1713,6 +1723,11 @@ msgstr "无法复制令牌。请选中上方令牌手动复制，或下载保存
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/SigningKeysPanel.tsx
 msgid "settings.keys.jwk.copy.failed"
+msgstr "无法复制。浏览器阻止了剪贴板，请允许后重试。"
+
+#. js-lingui-explicit-id
+#: src/components/custom/JsonBlock.tsx
+msgid "json-block.copy.failed"
 msgstr "无法复制。浏览器阻止了剪贴板，请允许后重试。"
 
 #. js-lingui-explicit-id
@@ -2236,6 +2251,7 @@ msgid "admin.users.column.displayName"
 msgstr "显示名"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-options.ts
 #: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
 msgid "admin.federation.claims.display-name"
 msgstr "显示名称"
@@ -2311,6 +2327,7 @@ msgid "admin.user.email"
 msgstr "邮箱"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-options.ts
 #: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
 msgid "admin.federation.claims.email"
 msgstr "邮箱"
@@ -2324,6 +2341,11 @@ msgstr "邮箱地址及其验证状态。"
 #: src/pages/admin/identity-providers/ProviderOperatorSection.tsx
 msgid "admin.federation.operator.method.email"
 msgstr "邮箱验证码"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-options.ts
+msgid "admin.federation.diagnostics.identity.email-verified"
+msgstr "邮箱已验证"
 
 #. js-lingui-explicit-id
 #: src/pages/DevForms.tsx
@@ -3019,6 +3041,7 @@ msgstr "图标已更新"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-options.ts
+#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
 msgid "admin.federation.diagnostics.stage.id-token"
 msgstr "ID token"
 
@@ -3534,6 +3557,11 @@ msgid "admin.federation.diagnostics.source.manual"
 msgstr "手动"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+msgid "admin.federation.diagnostics.identity"
+msgstr "映射结果"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/saml-validation.ts
 msgid "admin.saml-apps.acs.default.required"
 msgstr "请把其中一个端点标记为默认。"
@@ -3808,6 +3836,11 @@ msgid "dev.forms.rename.success"
 msgstr "昵称已保存，输入内容已保留。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+msgid "admin.federation.diagnostics.identity.no"
+msgstr "否"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.tokens.empty"
 msgstr "暂无个人访问令牌"
@@ -3856,6 +3889,11 @@ msgstr "这个范围内没有事件"
 #: src/pages/admin/saml-applications/SamlMetadataSection.tsx
 msgid "admin.saml-apps.keys.no-expiry"
 msgstr "无过期时间"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+msgid "admin.federation.diagnostics.identity.empty"
+msgstr "没有可映射的字段。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/AdminForwardAuthApps.tsx
@@ -3986,6 +4024,11 @@ msgstr "取反"
 #: src/pages/ApiPreview.tsx
 msgid "api.uninitialized"
 msgstr "未初始化"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+msgid "admin.federation.diagnostics.identity.missing"
+msgstr "未提供"
 
 #. js-lingui-explicit-id
 #: src/components/custom/ListCells.tsx
@@ -4333,6 +4376,7 @@ msgid "api.eyebrow"
 msgstr "PHB-65 / M2 · 公开 API 预览"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-options.ts
 #: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
 msgid "admin.federation.claims.picture"
 msgstr "头像"
@@ -5740,6 +5784,7 @@ msgid "admin.federation.danger.secret.hint"
 msgstr "加密保存，之后不再显示。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-options.ts
 #: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
 msgid "admin.federation.claims.subject"
 msgstr "Subject"
@@ -5803,6 +5848,11 @@ msgstr "测试失败"
 #: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.diagnostics.run.succeeded"
 msgstr "测试通过"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+msgid "admin.federation.diagnostics.details"
+msgstr "测试结果"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
@@ -6151,6 +6201,11 @@ msgstr "提供商要求我们放慢速度。请稍等片刻再试。"
 #: src/pages/admin/identity-providers/ProviderConnectionSection.tsx
 msgid "admin.federation.scopes.hint"
 msgstr "提供商必须支持这里的每个作用域。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+msgid "admin.federation.diagnostics.id-token.empty"
+msgstr "提供商没有返回 ID token。"
 
 #. js-lingui-explicit-id
 #: src/components/custom/TotpSetup.tsx
@@ -6563,6 +6618,11 @@ msgid "admin.forward-auth-apps.scopes.label"
 msgstr "令牌作用域"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+msgid "admin.federation.diagnostics.document.omitted"
+msgstr "内容过大，未保留（{size} KB）。"
+
+#. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.rate_limited"
 msgstr "请求过于频繁，请稍后重试。"
@@ -6966,18 +7026,29 @@ msgstr "User-Agent"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-options.ts
-msgid "admin.federation.effective.userinfo"
-msgstr "UserInfo 端点"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/provider-options.ts
+#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
 msgid "admin.federation.diagnostics.stage.userinfo"
 msgstr "UserInfo"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-options.ts
+msgid "admin.federation.effective.userinfo"
+msgstr "UserInfo 端点"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.connection.userinfo"
 msgstr "UserInfo 端点"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+msgid "admin.federation.diagnostics.userinfo.failed"
+msgstr "UserInfo 没有返回可显示的内容。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+msgid "admin.federation.diagnostics.userinfo.empty"
+msgstr "未请求 UserInfo。"
 
 #. js-lingui-explicit-id
 #: src/pages/Console.tsx
@@ -7001,6 +7072,7 @@ msgid "admin.saml-apps.source.username"
 msgstr "用户名"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-options.ts
 #: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
 msgid "admin.federation.claims.username"
 msgstr "用户名"
@@ -7190,6 +7262,11 @@ msgstr "规则匹配的账号"
 #: src/pages/admin/identity-providers/provider-validation.ts
 msgid "admin.federation.auth.manual-needs-method"
 msgstr "手动填写端点时，请选择具体的认证方式。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+msgid "admin.federation.diagnostics.identity.yes"
+msgstr "是"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts

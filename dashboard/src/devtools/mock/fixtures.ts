@@ -1208,40 +1208,8 @@ function readReply(
         },
       });
 
-    case "/api/prohibitorum/identity-providers/{slug}/tests/{id}": {
-      const succeeded = config.admin.diagnosticOutcome === "succeeded";
-      const stages = [
-        { name: "discovery", status: "succeeded", durationMs: 42 },
-        { name: "authorize", status: "succeeded", durationMs: 12 },
-        { name: "callback", status: "succeeded", durationMs: 8 },
-        {
-          name: "token_exchange",
-          status: succeeded ? "succeeded" : "failed",
-          durationMs: 55,
-          ...(succeeded
-            ? {}
-            : { errorCode: "token_exchange_failed", httpStatus: 400 }),
-        },
-        { name: "id_token", status: succeeded ? "succeeded" : "pending" },
-        { name: "userinfo", status: succeeded ? "succeeded" : "skipped" },
-      ];
-      return json({
-        status: succeeded ? "succeeded" : "failed",
-        expiresAt: iso(600_000),
-        stages,
-        ...(succeeded
-          ? {
-              claims: {
-                issuer: "https://idp1.example.test",
-                subject: "mock-subject",
-                username: "mock-user",
-                email: "mock-user@example.test",
-                email_verified: true,
-              },
-            }
-          : {}),
-      });
-    }
+    case "/api/prohibitorum/identity-providers/{slug}/tests/{id}":
+      return json(diagnosticResult(config.admin.diagnosticOutcome));
 
     case "/api/prohibitorum/oidc-applications": {
       const all = oidcApplications(config);
@@ -2261,4 +2229,125 @@ export function buildMockReply(
   }
   if (!config.writes) return undefined;
   return writeReply(request, config) ?? unmocked(request);
+}
+
+/**
+ * A finished connection test in each shape the result dialog draws.
+ *
+ * - `succeeded`: the provider returned an ID token without a picture and
+ *   UserInfo supplied it, so one row of the mapped fields is sourced from
+ *   UserInfo and both documents are present.
+ * - `fallback`: a provider that returns no ID token (a GitHub OAuth App): the
+ *   ID token stage is skipped, every field comes from UserInfo, the issuer from
+ *   configuration, and the subject is a numeric id past a double's precision.
+ * - `failed`: the code exchange fails, so there is nothing to show under the
+ *   stages.
+ */
+export function diagnosticResult(
+  outcome: MockConfig["admin"]["diagnosticOutcome"],
+) {
+  const before = [
+    { name: "discovery", status: "succeeded", durationMs: 42 },
+    { name: "authorize", status: "succeeded", durationMs: 12 },
+    { name: "callback", status: "succeeded", durationMs: 8 },
+  ];
+  const endpoint = "https://idp1.example.test";
+  if (outcome === "failed") {
+    return {
+      status: "failed",
+      expiresAt: iso(600_000),
+      stages: [
+        ...before,
+        {
+          name: "token_exchange",
+          status: "failed",
+          durationMs: 55,
+          endpoint: `${endpoint}/token`,
+          errorCode: "invalid_client",
+          httpStatus: 401,
+        },
+        { name: "id_token", status: "skipped" },
+      ],
+    };
+  }
+  const exchange = {
+    name: "token_exchange",
+    status: "succeeded",
+    durationMs: 55,
+    endpoint: `${endpoint}/token`,
+    httpStatus: 200,
+  };
+  const userinfoStage = {
+    name: "userinfo",
+    status: "succeeded",
+    durationMs: 31,
+    endpoint: `${endpoint}/userinfo`,
+    httpStatus: 200,
+  };
+  if (outcome === "fallback") {
+    const field = (value: string | boolean | null, claim: string) => ({
+      value,
+      source: "userinfo",
+      claim,
+    });
+    return {
+      status: "succeeded",
+      expiresAt: iso(600_000),
+      stages: [
+        ...before,
+        exchange,
+        { name: "id_token", status: "skipped" },
+        userinfoStage,
+      ],
+      identity: {
+        issuer: { value: "https://github.com", source: "configuration" },
+        subject: field("9007199254740993", "id"),
+        username: field("octocat", "login"),
+        displayName: field(null, "name"),
+        email: field("octocat@example.test", "email"),
+        emailVerified: field(false, "email_verified"),
+        picture: field(
+          "https://avatars.example.test/u/9007199254740993",
+          "avatar_url",
+        ),
+      },
+      userinfo: {
+        json: '{"login":"octocat","id":9007199254740993,"node_id":"MDQ6VXNlcjE=","avatar_url":"https://avatars.example.test/u/9007199254740993","type":"User","site_admin":false,"name":null,"company":"@example","blog":"","location":"San Francisco","email":"octocat@example.test","bio":null,"public_repos":8,"created_at":"2011-01-25T18:44:36Z"}',
+      },
+    };
+  }
+  const token = (value: string | boolean | null, claim: string) => ({
+    value,
+    source: "id_token",
+    claim,
+  });
+  return {
+    status: "succeeded",
+    expiresAt: iso(600_000),
+    stages: [
+      ...before,
+      exchange,
+      { name: "id_token", status: "succeeded", durationMs: 9 },
+      userinfoStage,
+    ],
+    identity: {
+      issuer: token(endpoint, "iss"),
+      subject: token("248289761001", "sub"),
+      username: token("mock-user", "preferred_username"),
+      displayName: token("Mock User", "name"),
+      email: token("mock-user@example.test", "email"),
+      emailVerified: token(true, "email_verified"),
+      picture: {
+        value: `${endpoint}/avatars/mock-user.png`,
+        source: "userinfo",
+        claim: "picture",
+      },
+    },
+    idToken: {
+      json: `{"iss":"${endpoint}","sub":"248289761001","aud":"mock-client-1","exp":1790000600,"iat":1790000000,"auth_time":1789999990,"nonce":"n-0S6_WzA2Mj","amr":["pwd","mfa"],"preferred_username":"mock-user","name":"Mock User","email":"mock-user@example.test","email_verified":true,"groups":[],"address":{}}`,
+    },
+    userinfo: {
+      json: `{"sub":"248289761001","name":"Mock User","preferred_username":"mock-user","email":"mock-user@example.test","email_verified":true,"picture":"${endpoint}/avatars/mock-user.png","locale":"en-US","note":"say \\"hi\\" {, }"}`,
+    },
+  };
 }

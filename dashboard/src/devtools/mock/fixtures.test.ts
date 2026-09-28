@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { isValidRecoveryCode } from "@/api/auth";
+import type { DiagnosticResultView } from "@/api/raw-admin-paths";
 import { buildMockReply, type MockReply } from "@/devtools/mock/fixtures";
 import {
   defaultMockConfig,
@@ -773,6 +774,41 @@ describe("identity provider diagnostics", () => {
       "http://localhost/api/prohibitorum/identity-providers/provider-1/tests/run",
     );
     expect(result?.kind).toBe("json");
+  });
+
+  it("shapes each outcome the result dialog draws", () => {
+    const result = (outcome: MockConfig["admin"]["diagnosticOutcome"]) => {
+      const reply = read(
+        "/api/prohibitorum/identity-providers/{slug}/tests/{id}",
+        config((draft) => {
+          draft.admin.diagnosticOutcome = outcome;
+        }),
+        "http://localhost/api/prohibitorum/identity-providers/provider-1/tests/run",
+      );
+      return (reply?.kind === "json" ? reply.body : {}) as DiagnosticResultView;
+    };
+
+    const succeeded = result("succeeded");
+    expect(succeeded.status).toBe("succeeded");
+    expect(succeeded.idToken?.json).toContain('"aud":');
+    expect(succeeded.userinfo?.json).toContain('"picture":');
+    expect(succeeded.identity?.subject.source).toBe("id_token");
+    // The picture is filled in from UserInfo, the rest from the ID token.
+    expect(succeeded.identity?.picture.source).toBe("userinfo");
+
+    const fallback = result("fallback");
+    expect(fallback.idToken).toBeUndefined();
+    expect(fallback.userinfo?.json).toContain('"id":9007199254740993');
+    expect(fallback.identity?.issuer.source).toBe("configuration");
+    expect(fallback.stages?.find((s) => s.name === "id_token")?.status).toBe(
+      "skipped",
+    );
+
+    const failed = result("failed");
+    expect(failed.status).toBe("failed");
+    expect(failed.identity).toBeUndefined();
+    expect(failed.idToken).toBeUndefined();
+    expect(failed.userinfo).toBeUndefined();
   });
 
   it("starts and completes a test without a request body", () => {

@@ -518,6 +518,7 @@ export function MockPanel() {
             value={config.admin.diagnosticOutcome}
             options={[
               { value: "succeeded", label: "Succeeds" },
+              { value: "fallback", label: "No ID token" },
               { value: "failed", label: "Fails" },
             ]}
             onChange={(next) =>
