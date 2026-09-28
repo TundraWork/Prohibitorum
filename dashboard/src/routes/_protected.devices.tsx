@@ -1,6 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Devices } from "@/pages/Devices";
+import { DevicesPage } from "@/pages/Devices";
+import { devicesSearch } from "@/pages/devices/pairing-code";
 
 export const Route = createFileRoute("/_protected/devices")({
-  component: Devices,
+  validateSearch: devicesSearch,
+  component: DevicesPage,
 });

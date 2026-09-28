@@ -18,12 +18,10 @@ import { RelativeTime } from "@/components/custom/RelativeTime";
 import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
 import { applyServerError } from "@/forms/server-errors";
 import { useAppForm } from "@/forms/use-app-form";
-
-/** The server's code alphabet: base32 without 0, 1, I, L and O. */
-const codeAlphabet = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
-/** Either case is accepted; the server compares codes without it. */
-const codePattern = `^[${codeAlphabet}${codeAlphabet.toLowerCase()}]+$`;
-const codeLength = 8;
+import {
+  pairingCodeLength,
+  pairingCodePattern,
+} from "@/pages/devices/pairing-code";
 
 const codeIncomplete = msg({
   id: "devices.code.incomplete",
@@ -40,16 +38,19 @@ type PairingRequest = { code: string; pairing: DevicePairing };
  *
  * The dialog's content is keyed by `attempt`, which the page changes on every
  * opening: the next opening starts at the code again, while a closing dialog
- * keeps the last request to draw on its way out.
+ * keeps the last request to draw on its way out. `initialCode` fills the code
+ * in for an opening that arrived with one.
  */
 export function PairDeviceDialog({
   isOpen,
   attempt,
+  initialCode,
   onClose,
   onApproved,
 }: {
   isOpen: boolean;
   attempt: number;
+  initialCode?: string;
   onClose: () => void;
   onApproved: (pairing: DevicePairing) => void;
 }) {
@@ -66,6 +67,7 @@ export function PairDeviceDialog({
           <Modal.Dialog>
             <PairingFlow
               key={attempt}
+              initialCode={initialCode}
               onBusy={setBusy}
               onClose={onClose}
               onApproved={onApproved}
@@ -78,17 +80,23 @@ export function PairDeviceDialog({
 }
 
 function PairingFlow({
+  initialCode,
   onBusy,
   onClose,
   onApproved,
 }: {
+  initialCode?: string;
   onBusy: (busy: boolean) => void;
   onClose: () => void;
   onApproved: (pairing: DevicePairing) => void;
 }) {
   const [request, setRequest] = useState<PairingRequest | null>(null);
   return request === null ? (
-    <CodeStep onCancel={onClose} onFound={setRequest} />
+    <CodeStep
+      initialCode={initialCode}
+      onCancel={onClose}
+      onFound={setRequest}
+    />
   ) : (
     <ReviewStep
       request={request}
@@ -102,19 +110,22 @@ function PairingFlow({
 /**
  * The code the new device shows, in slots that take only the characters the
  * server's alphabet contains. It goes out as typed; the server owns the
- * format and ignores case.
+ * format and ignores case. A code the page arrived with is filled in, and
+ * looked up only once the reader continues.
  */
 function CodeStep({
+  initialCode = "",
   onCancel,
   onFound,
 }: {
+  initialCode?: string;
   onCancel: () => void;
   onFound: (request: PairingRequest) => void;
 }) {
   const { t } = useLingui();
   const queryClient = useQueryClient();
   const form = useAppForm({
-    defaultValues: { code: "" },
+    defaultValues: { code: initialCode },
     onSubmit: async ({ value }) => {
       try {
         // Fetched afresh on every submit: a pairing changes state on the
@@ -151,13 +162,15 @@ function CodeStep({
               name="code"
               validators={{
                 onSubmit: ({ value }) =>
-                  value.length === codeLength ? undefined : codeIncomplete,
+                  value.length === pairingCodeLength
+                    ? undefined
+                    : codeIncomplete,
               }}
             >
               {(field) => (
                 <field.OtpField
-                  digits={codeLength}
-                  pattern={codePattern}
+                  digits={pairingCodeLength}
+                  pattern={pairingCodePattern}
                   inputMode="text"
                   variant="secondary"
                   label={

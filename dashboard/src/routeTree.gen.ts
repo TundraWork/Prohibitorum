@@ -21,6 +21,7 @@ import { Route as PublicConsentRouteImport } from './routes/_public.consent'
 import { Route as PublicErrorRouteImport } from './routes/_public.error'
 import { Route as PublicLoginRouteImport } from './routes/_public.login'
 import { Route as PublicMaintenanceRouteImport } from './routes/_public.maintenance'
+import { Route as PublicPairRouteImport } from './routes/_public.pair'
 import { Route as PublicSamlConsentRouteImport } from './routes/_public.saml-consent'
 import { Route as PublicSetupSigninRouteImport } from './routes/_public.setup-signin'
 import { Route as PublicWelcomeRouteImport } from './routes/_public.welcome'
@@ -109,6 +110,11 @@ const PublicLoginRoute = PublicLoginRouteImport.update({
 const PublicMaintenanceRoute = PublicMaintenanceRouteImport.update({
   id: '/maintenance',
   path: '/maintenance',
+  getParentRoute: () => PublicRoute,
+} as any)
+const PublicPairRoute = PublicPairRouteImport.update({
+  id: '/pair',
+  path: '/pair',
   getParentRoute: () => PublicRoute,
 } as any)
 const PublicSamlConsentRoute = PublicSamlConsentRouteImport.update({
@@ -299,6 +305,7 @@ export interface FileRoutesByFullPath {
   '/error': typeof PublicErrorRoute
   '/login': typeof PublicLoginRoute
   '/maintenance': typeof PublicMaintenanceRoute
+  '/pair': typeof PublicPairRoute
   '/saml-consent': typeof PublicSamlConsentRoute
   '/setup-signin': typeof PublicSetupSigninRoute
   '/welcome': typeof PublicWelcomeRoute
@@ -341,6 +348,7 @@ export interface FileRoutesByTo {
   '/error': typeof PublicErrorRoute
   '/login': typeof PublicLoginRoute
   '/maintenance': typeof PublicMaintenanceRoute
+  '/pair': typeof PublicPairRoute
   '/saml-consent': typeof PublicSamlConsentRoute
   '/setup-signin': typeof PublicSetupSigninRoute
   '/welcome': typeof PublicWelcomeRoute
@@ -384,6 +392,7 @@ export interface FileRoutesById {
   '/_public/error': typeof PublicErrorRoute
   '/_public/login': typeof PublicLoginRoute
   '/_public/maintenance': typeof PublicMaintenanceRoute
+  '/_public/pair': typeof PublicPairRoute
   '/_public/saml-consent': typeof PublicSamlConsentRoute
   '/_public/setup-signin': typeof PublicSetupSigninRoute
   '/_public/welcome': typeof PublicWelcomeRoute
@@ -430,6 +439,7 @@ export interface FileRouteTypes {
     | '/error'
     | '/login'
     | '/maintenance'
+    | '/pair'
     | '/saml-consent'
     | '/setup-signin'
     | '/welcome'
@@ -472,6 +482,7 @@ export interface FileRouteTypes {
     | '/error'
     | '/login'
     | '/maintenance'
+    | '/pair'
     | '/saml-consent'
     | '/setup-signin'
     | '/welcome'
@@ -514,6 +525,7 @@ export interface FileRouteTypes {
     | '/_public/error'
     | '/_public/login'
     | '/_public/maintenance'
+    | '/_public/pair'
     | '/_public/saml-consent'
     | '/_public/setup-signin'
     | '/_public/welcome'
@@ -637,6 +649,13 @@ declare module '@tanstack/react-router' {
       path: '/maintenance'
       fullPath: '/maintenance'
       preLoaderRoute: typeof PublicMaintenanceRouteImport
+      parentRoute: typeof PublicRoute
+    }
+    '/_public/pair': {
+      id: '/_public/pair'
+      path: '/pair'
+      fullPath: '/pair'
+      preLoaderRoute: typeof PublicPairRouteImport
       parentRoute: typeof PublicRoute
     }
     '/_public/saml-consent': {
@@ -962,6 +981,7 @@ interface PublicRouteChildren {
   PublicErrorRoute: typeof PublicErrorRoute
   PublicLoginRoute: typeof PublicLoginRoute
   PublicMaintenanceRoute: typeof PublicMaintenanceRoute
+  PublicPairRoute: typeof PublicPairRoute
   PublicSamlConsentRoute: typeof PublicSamlConsentRoute
   PublicSetupSigninRoute: typeof PublicSetupSigninRoute
   PublicWelcomeRoute: typeof PublicWelcomeRoute
@@ -977,6 +997,7 @@ const PublicRouteChildren: PublicRouteChildren = {
   PublicErrorRoute: PublicErrorRoute,
   PublicLoginRoute: PublicLoginRoute,
   PublicMaintenanceRoute: PublicMaintenanceRoute,
+  PublicPairRoute: PublicPairRoute,
   PublicSamlConsentRoute: PublicSamlConsentRoute,
   PublicSetupSigninRoute: PublicSetupSigninRoute,
   PublicWelcomeRoute: PublicWelcomeRoute,

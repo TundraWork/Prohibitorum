@@ -10,6 +10,7 @@ import { configureSudo, resetSudo } from "@/api/sudo";
 import { createQueryClient } from "@/app/query-client";
 import { i18n } from "@/i18n";
 import { Devices } from "@/pages/Devices";
+import { devicesSearch } from "@/pages/devices/pairing-code";
 
 type Session = components["schemas"]["SessionListItem"];
 
@@ -88,11 +89,11 @@ function serve(
   });
 }
 
-function mount() {
+function mount(code?: string) {
   render(
     <I18nProvider i18n={i18n}>
       <QueryClientProvider client={queryClient}>
-        <Devices />
+        <Devices code={code} />
       </QueryClientProvider>
     </I18nProvider>,
   );
@@ -414,5 +415,70 @@ describe("signing in a new device", () => {
     expect(
       within(again).getByLabelText("Pairing code shown on the new device"),
     ).toHaveValue("");
+  });
+
+  it("opens with the code a pairing link brought, and looks it up on Continue", async () => {
+    serve(() => Response.json(pairing()));
+    const user = userEvent.setup();
+    mount("ABCD2345");
+
+    const dialog = await screen.findByRole("dialog", {
+      name: "Sign in a new device",
+    });
+    expect(
+      within(dialog).getByLabelText("Pairing code shown on the new device"),
+    ).toHaveValue("ABCD2345");
+    expect(requests("/pair/lookup")).toHaveLength(0);
+
+    await user.click(within(dialog).getByRole("button", { name: "Continue" }));
+    expect(
+      await screen.findByRole("dialog", { name: "Let this device sign in?" }),
+    ).toBeInTheDocument();
+    const [lookup] = requests("/pair/lookup");
+    expect(new URL(lookup?.url ?? "").searchParams.get("code")).toBe(
+      "ABCD2345",
+    );
+  });
+
+  it("starts from an empty code when opened again after a pairing link", async () => {
+    serve(() => Response.json(pairing()));
+    const user = userEvent.setup();
+    mount("ABCD2345");
+
+    const first = await screen.findByRole("dialog", {
+      name: "Sign in a new device",
+    });
+    await user.click(within(first).getByRole("button", { name: "Cancel" }));
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
+    const again = await openPairing(user);
+    expect(
+      within(again).getByLabelText("Pairing code shown on the new device"),
+    ).toHaveValue("");
+  });
+});
+
+describe("the pairing link's code", () => {
+  const validate = (search: Record<string, unknown>) =>
+    devicesSearch.parse(search);
+
+  it("keeps a whole code in the server's alphabet, in either case", () => {
+    expect(validate({ code: "K7QM4XTB" })).toEqual({ code: "K7QM4XTB" });
+    expect(validate({ code: "k7qm4xtb" })).toEqual({ code: "k7qm4xtb" });
+  });
+
+  it.each([
+    ["a short code", "K7QM4XT"],
+    ["a long one", "K7QM4XTBA"],
+    ["a formatted one", "K7QM-4XTB"],
+    ["one with a letter outside the alphabet", "K7QM4XTO"],
+    ["a repeated one", ["K7QM4XTB", "K7QM4XTB"]],
+  ])("drops %s", (_, code) => {
+    expect(validate({ code }).code).toBeUndefined();
+  });
+
+  it("opens the page without one", () => {
+    expect(validate({}).code).toBeUndefined();
   });
 });

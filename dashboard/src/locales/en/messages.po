@@ -480,9 +480,19 @@ msgid "security.passkeys.add"
 msgstr "Add a passkey"
 
 #. js-lingui-explicit-id
+#: src/pages/public/Pair.tsx
+msgid "pair.signed_in.passkey"
+msgstr "Add a passkey"
+
+#. js-lingui-explicit-id
 #: src/pages/public/SetupSignin.tsx
 msgid "setup_signin.passkey"
 msgstr "Add a passkey"
+
+#. js-lingui-explicit-id
+#: src/pages/public/Pair.tsx
+msgid "pair.signed_in.description"
+msgstr "Add a passkey to sign in on this device directly next time."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/AdminIdentityProviders.tsx
@@ -833,6 +843,11 @@ msgid "success.device.approved"
 msgstr "Approved. Continue on the new device."
 
 #. js-lingui-explicit-id
+#: src/pages/public/Pair.tsx
+msgid "pair.approved"
+msgstr "Approved. Signing in…"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
 #: src/pages/admin/oidc-applications/SignInRulesSection.tsx
 msgid "admin.oidc-apps.field.consent.hint"
@@ -1007,6 +1022,11 @@ msgstr "Back to console home"
 #: src/components/custom/LoginShell.tsx
 msgid "login.back"
 msgstr "Back to password"
+
+#. js-lingui-explicit-id
+#: src/pages/public/Pair.tsx
+msgid "pair.back"
+msgstr "Back to sign in"
 
 #. js-lingui-explicit-id
 #: src/components/custom/RouteFeedback.tsx
@@ -1727,6 +1747,11 @@ msgstr "Continue"
 #. js-lingui-explicit-id
 #: src/pages/public/FederationFlow.tsx
 msgid "federation_flow.identify.continue"
+msgstr "Continue"
+
+#. js-lingui-explicit-id
+#: src/pages/public/Pair.tsx
+msgid "pair.signed_in.continue"
 msgstr "Continue"
 
 #. js-lingui-explicit-id
@@ -3094,6 +3119,11 @@ msgid "settings.keys.generate"
 msgstr "Generate key"
 
 #. js-lingui-explicit-id
+#: src/pages/public/Pair.tsx
+msgid "pair.restart"
+msgstr "Get a new code"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.displayName.required"
 msgstr "Give the account a display name."
@@ -4211,6 +4241,11 @@ msgid "admin.group.rule.not"
 msgstr "Not"
 
 #. js-lingui-explicit-id
+#: src/pages/public/Pair.tsx
+msgid "pair.signed_in.skip"
+msgstr "Not now"
+
+#. js-lingui-explicit-id
 #: src/pages/public/SamlConsent.tsx
 msgid "saml_consent.decline"
 msgstr "Not now"
@@ -4304,6 +4339,11 @@ msgstr "OIDC subject"
 #: src/pages/admin/AdminUsers.tsx
 msgid "admin.users.filter.on"
 msgstr "On"
+
+#. js-lingui-explicit-id
+#: src/pages/public/Pair.tsx
+msgid "pair.description"
+msgstr "On a device that's already signed in to {instance}, open Devices and enter the code below."
 
 #. js-lingui-explicit-id
 #: src/pages/devices/PairDeviceDialog.tsx
@@ -4439,6 +4479,11 @@ msgstr "Optional. What this group is for, for whoever reads it next."
 #: src/components/custom/OrSeparator.tsx
 msgid "common.or"
 msgstr "or"
+
+#. js-lingui-explicit-id
+#: src/pages/public/Pair.tsx
+msgid "pair.qr_hint"
+msgstr "Or scan it with that device to open it there."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-options.ts
@@ -4767,6 +4812,11 @@ msgstr "Publish a granted claim under a second name, for a client that expects o
 #: src/pages/admin/saml-applications/AttributeMapField.tsx
 msgid "admin.saml-apps.mapping.hint"
 msgstr "Publish the account's own facts under the names the service provider expects."
+
+#. js-lingui-explicit-id
+#: src/pages/public/Pair.tsx
+msgid "pair.qr"
+msgstr "QR code that opens this pairing on the other device"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/SamlMetadataSection.tsx
@@ -5855,6 +5905,16 @@ msgid "admin.federation.protocol.steam.hint"
 msgstr "Sign in with a Steam account. Needs a Steam Web API key."
 
 #. js-lingui-explicit-id
+#: src/pages/Login.tsx
+msgid "login.other_device"
+msgstr "Sign in with another device"
+
+#. js-lingui-explicit-id
+#: src/pages/public/Pair.tsx
+msgid "pair.title"
+msgstr "Sign in with another device"
+
+#. js-lingui-explicit-id
 #: src/components/custom/ConsoleLayout.tsx
 #: src/components/custom/RouteFeedback.tsx
 #: src/pages/public/Maintenance.tsx
@@ -6723,6 +6783,11 @@ msgid "devices.sessions.current"
 msgstr "This device"
 
 #. js-lingui-explicit-id
+#: src/pages/public/Pair.tsx
+msgid "pair.signed_in.title"
+msgstr "This device is signed in"
+
+#. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
 msgid "security.passkeys.device_bound"
 msgstr "This device only"
@@ -6851,6 +6916,11 @@ msgstr "This link was already used or has expired. Ask your administrator for a 
 #: src/api/errors.ts
 msgid "error.federation_action_invalid"
 msgstr "This page is no longer valid."
+
+#. js-lingui-explicit-id
+#: src/pages/public/Pair.tsx
+msgid "pair.expired"
+msgstr "This pairing code has expired."
 
 #. js-lingui-explicit-id
 #: src/pages/devices/PairDeviceDialog.tsx
@@ -7040,6 +7110,11 @@ msgstr "Trusted proxies"
 #. js-lingui-explicit-id
 #: src/pages/public/Maintenance.tsx
 msgid "maintenance.retry"
+msgstr "Try again"
+
+#. js-lingui-explicit-id
+#: src/pages/public/Pair.tsx
+msgid "pair.retry"
 msgstr "Try again"
 
 #. js-lingui-explicit-id
@@ -7652,6 +7727,11 @@ msgstr "VRChat profile address or user ID"
 #: src/pages/admin/identity-providers/ProviderOperatorSection.tsx
 msgid "admin.federation.operator.form"
 msgstr "VRChat sign-in"
+
+#. js-lingui-explicit-id
+#: src/pages/public/Pair.tsx
+msgid "pair.waiting"
+msgstr "Waiting for approval… The code expires in {left}."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-options.ts
