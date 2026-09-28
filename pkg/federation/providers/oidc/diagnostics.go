@@ -82,8 +82,11 @@ type diagnosticFlow struct {
 	BrowserDigest string          `json:"browserDigest"`
 	ProviderID    int64           `json:"providerId"`
 	ProviderSlug  string          `json:"providerSlug"`
-	Identity      string          `json:"identity"`
-	Resolved      ResolvedConfig  `json:"resolved"`
+	// ProviderIdentity is the provider configuration fingerprint. Its key must
+	// differ from the embedded DiagnosticResult.Identity: encoding/json keeps
+	// the shallower of two fields that share a key and drops the other.
+	ProviderIdentity string         `json:"providerIdentity"`
+	Resolved         ResolvedConfig `json:"resolved"`
 	// AdapterState is the login Adapter's own flow state from Begin.
 	AdapterState json.RawMessage `json:"adapterState,omitempty"`
 	Code         string          `json:"code,omitempty"`
@@ -153,7 +156,7 @@ func (d *Diagnostics) Start(ctx context.Context, provider federationcore.Provide
 	if err := json.Unmarshal(raw, &state); err != nil {
 		return DiagnosticStart{}, err
 	}
-	flow := diagnosticFlow{DiagnosticResult: DiagnosticResult{Status: "awaiting_callback", ExpiresAt: d.now().Add(DiagnosticTTL), Stages: []DiagnosticStage{discovery, {Name: "authorize", Status: "pending", Endpoint: DiagnosticEndpoint(state.Resolved.AuthorizationEndpoint)}}}, Actor: actor, BrowserDigest: federationcore.BrowserDigest(browser), ProviderID: provider.ID, ProviderSlug: provider.Slug, Identity: providerIdentity(provider), Resolved: state.Resolved, AdapterState: raw}
+	flow := diagnosticFlow{DiagnosticResult: DiagnosticResult{Status: "awaiting_callback", ExpiresAt: d.now().Add(DiagnosticTTL), Stages: []DiagnosticStage{discovery, {Name: "authorize", Status: "pending", Endpoint: DiagnosticEndpoint(state.Resolved.AuthorizationEndpoint)}}}, Actor: actor, BrowserDigest: federationcore.BrowserDigest(browser), ProviderID: provider.ID, ProviderSlug: provider.Slug, ProviderIdentity: providerIdentity(provider), Resolved: state.Resolved, AdapterState: raw}
 	stored, err := json.Marshal(flow)
 	if err != nil {
 		return DiagnosticStart{}, err
@@ -267,7 +270,7 @@ func (d *Diagnostics) Complete(ctx context.Context, id string, provider federati
 		// Started before connection tests stored the adapter state.
 		return DiagnosticResult{}, ErrDiagnosticUnavailable
 	}
-	if flow.ProviderID != provider.ID || flow.Identity != providerIdentity(provider) || !(Definition{}).Ready(provider) {
+	if flow.ProviderID != provider.ID || flow.ProviderIdentity != providerIdentity(provider) || !(Definition{}).Ready(provider) {
 		flow.Status = "failed"
 		flow.Stages = append(flow.Stages, DiagnosticStage{Name: "token_exchange", Status: "failed", ErrorCode: "configuration_changed", RequestID: requestID})
 		clearDiagnosticSecrets(&flow)

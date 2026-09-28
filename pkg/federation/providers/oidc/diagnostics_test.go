@@ -148,11 +148,22 @@ func (h *diagnosticHarness) run(t *testing.T) DiagnosticResult {
 	t.Helper()
 	s := h.start(t)
 	h.callback(t, s)
-	result, err := h.service.Complete(context.Background(), s.ID, h.provider, h.browser, h.actor, "request-complete")
+	completed, err := h.service.Complete(context.Background(), s.ID, h.provider, h.browser, h.actor, "request-complete")
 	if err != nil {
 		t.Fatal(err)
 	}
-	return result
+	// The dashboard discards the Complete response and reads the stored
+	// result, so the stored copy must carry every field Complete returned.
+	stored, err := h.service.Get(context.Background(), s.ID, h.provider.Slug, h.browser, h.actor)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want, _ := json.Marshal(completed)
+	got, _ := json.Marshal(stored)
+	if string(got) != string(want) {
+		t.Fatalf("stored result differs from Complete:\n got %s\nwant %s", got, want)
+	}
+	return stored
 }
 
 // login runs the real login path against the same mock OP.

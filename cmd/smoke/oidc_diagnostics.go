@@ -109,14 +109,22 @@ func smokeOIDCDiagnostics(admin *client, base string, op *mockop.Server) error {
 	if result.IDToken == nil || !strings.Contains(result.IDToken.JSON, `"sub":"diagnostic-only-subject"`) || result.UserInfo == nil || !strings.Contains(result.UserInfo.JSON, `"sub":"diagnostic-only-subject"`) {
 		return fmt.Errorf("diagnostic result lacks the ID token or UserInfo document")
 	}
+	// The repeat and the read both come from the stored result, which is what
+	// the dashboard shows; decode each afresh so a field lost in storage is
+	// not masked by the first response.
+	result.Identity = nil
 	if err := admin.postJSON(path+"/tests/"+start.ID+"/complete", nil, &result); err != nil {
 		return err
 	}
+	if result.Status != "succeeded" || result.Identity == nil || result.Identity.Subject.Value != "diagnostic-only-subject" {
+		return fmt.Errorf("repeated complete lost the mapped identity")
+	}
+	result.Identity = nil
 	readReq, _ := http.NewRequest(http.MethodGet, base+path+"/tests/"+start.ID, nil)
 	if err := admin.do(readReq, &result); err != nil {
 		return err
 	}
-	if result.Status != "succeeded" {
+	if result.Status != "succeeded" || result.Identity == nil || result.Identity.Subject.Value != "diagnostic-only-subject" {
 		return fmt.Errorf("result not durable")
 	}
 	wire, _ := json.Marshal(result)
