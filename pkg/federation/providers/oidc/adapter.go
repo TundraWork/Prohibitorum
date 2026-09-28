@@ -208,22 +208,7 @@ func (a *Adapter) Advance(ctx context.Context, provider federationcore.Provider,
 		}
 		return federationcore.AdvanceResult{}, federationcore.NewFailureWithCause(federationcore.FailureCodeExchange, nil, err)
 	}
-	usernameClaim := config.UsernameClaim
-	if usernameClaim == "" {
-		usernameClaim = "preferred_username"
-	}
-	displayClaim := config.DisplayNameClaim
-	if displayClaim == "" {
-		displayClaim = "name"
-	}
-	emailClaim := config.EmailClaim
-	if emailClaim == "" {
-		emailClaim = "email"
-	}
-	pictureClaim := config.PictureClaim
-	if pictureClaim == "" {
-		pictureClaim = "picture"
-	}
+	usernameClaim, displayClaim, emailClaim, pictureClaim := config.profileClaims()
 	emailValue := ClaimString(tokens.Raw, emailClaim)
 	var email *string
 	if emailValue != "" {
@@ -244,7 +229,7 @@ func (a *Adapter) Advance(ctx context.Context, provider federationcore.Provider,
 		}
 		subject := ClaimIdentifier(claims, config.SubjectClaim)
 		if subject == "" {
-			err := fmt.Errorf("federation/oidc: userinfo carries no usable %q claim", config.SubjectClaim)
+			err := fmt.Errorf("%w: federation/oidc: userinfo carries no usable %q claim", errNoSubject, config.SubjectClaim)
 			return federationcore.AdvanceResult{}, federationcore.NewFailureWithCause(federationcore.FailureUpstreamNoIdentity, nil, err)
 		}
 		emailValue := ClaimString(claims, emailClaim)
@@ -286,6 +271,25 @@ func (a *Adapter) Advance(ctx context.Context, provider federationcore.Provider,
 		}
 	}
 	return result, nil
+}
+
+// profileClaims returns the claim names login maps into the username, display
+// name, email and picture, with the OIDC defaults for unset overrides.
+func (c Config) profileClaims() (username, displayName, email, picture string) {
+	username, displayName, email, picture = c.UsernameClaim, c.DisplayNameClaim, c.EmailClaim, c.PictureClaim
+	if username == "" {
+		username = "preferred_username"
+	}
+	if displayName == "" {
+		displayName = "name"
+	}
+	if email == "" {
+		email = "email"
+	}
+	if picture == "" {
+		picture = "picture"
+	}
+	return username, displayName, email, picture
 }
 
 func (a *Adapter) ResolveAvatar(ctx context.Context, _ federationcore.Provider, delivery federationcore.AvatarDelivery) (string, error) {

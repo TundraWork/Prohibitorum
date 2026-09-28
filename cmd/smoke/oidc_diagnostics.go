@@ -88,16 +88,26 @@ func smokeOIDCDiagnostics(admin *client, base string, op *mockop.Server) error {
 	if len(u.Query()) != 1 || u.Query().Get("test") != start.ID || strings.Contains(destination, "code=") {
 		return fmt.Errorf("callback exposed data")
 	}
+	type document struct {
+		JSON string `json:"json"`
+	}
 	var result struct {
-		Status string
-		Claims map[string]any
-		Stages []map[string]any
+		Status   string
+		Stages   []map[string]any
+		Identity *struct {
+			Subject struct{ Value any }
+		}
+		IDToken  *document `json:"idToken"`
+		UserInfo *document `json:"userinfo"`
 	}
 	if err := admin.postJSON(path+"/tests/"+start.ID+"/complete", nil, &result); err != nil {
 		return err
 	}
-	if result.Status != "succeeded" || result.Claims["subject"] != "diagnostic-only-subject" || len(result.Stages) != 6 {
+	if result.Status != "succeeded" || result.Identity == nil || result.Identity.Subject.Value != "diagnostic-only-subject" || len(result.Stages) != 6 {
 		return fmt.Errorf("diagnostic result: status=%s stages=%d", result.Status, len(result.Stages))
+	}
+	if result.IDToken == nil || !strings.Contains(result.IDToken.JSON, `"sub":"diagnostic-only-subject"`) || result.UserInfo == nil || !strings.Contains(result.UserInfo.JSON, `"sub":"diagnostic-only-subject"`) {
+		return fmt.Errorf("diagnostic result lacks the ID token or UserInfo document")
 	}
 	if err := admin.postJSON(path+"/tests/"+start.ID+"/complete", nil, &result); err != nil {
 		return err
@@ -110,7 +120,7 @@ func smokeOIDCDiagnostics(admin *client, base string, op *mockop.Server) error {
 		return fmt.Errorf("result not durable")
 	}
 	wire, _ := json.Marshal(result)
-	for _, forbidden := range []string{"access_token", "refresh_token", "raw_id_token", "client_secret", "code_verifier"} {
+	for _, forbidden := range []string{"access_token", "refresh_token", "raw_id_token", "client_secret", "code_verifier", "eyJ"} {
 		if strings.Contains(string(wire), forbidden) {
 			return fmt.Errorf("diagnostic exposed %s", forbidden)
 		}
