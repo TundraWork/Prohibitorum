@@ -238,7 +238,7 @@ func redirectAuthErrToError(w http.ResponseWriter, r *http.Request, err error) s
 
 // redirectAuthErrToErrorReturn is redirectAuthErrToError with a return_to hint
 // so the /error page's "go back" link can send the user where they started
-// (e.g. /connected for an identity-link begin). Pass only a server-validated,
+// (e.g. /security for an identity-link begin). Pass only a server-validated,
 // same-origin returnTo (e.g. the value from validateFederationReturnTo); "" to
 // omit it.
 func redirectAuthErrToErrorReturn(w http.ResponseWriter, r *http.Request, err error, returnTo string) string {

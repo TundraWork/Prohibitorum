@@ -776,7 +776,7 @@ func TestRedirectAuthErrToErrorReturn_ProjectsOnlyNamedFederationDetail(t *testi
 	req := httptest.NewRequest(http.MethodGet, "/federation/callback", nil)
 	err := authn.ErrFederationIdentityConflict("A&B + <身份>")
 	err.Details["accountID"] = int32(42)
-	redirectAuthErrToErrorReturn(rec, req, err, "/connected")
+	redirectAuthErrToErrorReturn(rec, req, err, "/security")
 
 	location := rec.Header().Get("Location")
 	target, parseErr := url.Parse(location)
@@ -784,7 +784,7 @@ func TestRedirectAuthErrToErrorReturn_ProjectsOnlyNamedFederationDetail(t *testi
 		t.Fatal(parseErr)
 	}
 	query := target.Query()
-	if query.Get("federationName") != "A&B + <身份>" || query.Get("return_to") != "/connected" {
+	if query.Get("federationName") != "A&B + <身份>" || query.Get("return_to") != "/security" {
 		t.Fatalf("Location = %q, want encoded federation name and return target", location)
 	}
 	for key := range query {

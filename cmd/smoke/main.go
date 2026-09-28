@@ -1042,8 +1042,8 @@ func main() {
 	}
 	if loc, err := c.getRedirectAbs(linkCallbackURL); err != nil {
 		log.Fatalf("link/callback: %v", err)
-	} else if loc != "/connected" {
-		log.Fatalf("link/callback: want /connected, got %q", loc)
+	} else if loc != "/security" {
+		log.Fatalf("link/callback: want /security, got %q", loc)
 	}
 	postSessions, err := c.listMySessions()
 	if err != nil {
@@ -1060,7 +1060,7 @@ func main() {
 		log.Fatalf("link/callback: session id changed (%s → %s) — link must not Issue a new session",
 			preSessID, postSessID)
 	}
-	log.Printf("  link/callback → 302 /connected; session id unchanged (%s) ✓", preSessID)
+	log.Printf("  link/callback → 302 /security; session id unchanged (%s) ✓", preSessID)
 
 	step(fmt.Sprintf("federation %d/%d — DB assert: account_identity for admin-link-1 owned by smoke-admin", 19, nFederation))
 	if err := verifyFederatedIdentityCreated(adminMe.ID, "admin-link-1", mockopIDPID); err != nil {

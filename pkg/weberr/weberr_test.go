@@ -36,11 +36,11 @@ func TestRedirectToError(t *testing.T) {
 func TestRedirectToErrorWithReturn(t *testing.T) {
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/x", nil)
-	RedirectToErrorWithReturn(rec, req, "server_error", "deadbeef", "/connected")
+	RedirectToErrorWithReturn(rec, req, "server_error", "deadbeef", "/security")
 	if rec.Code != http.StatusFound {
 		t.Fatalf("status = %d, want 302", rec.Code)
 	}
-	if got, want := rec.Header().Get("Location"), "/error?error=server_error&ref=deadbeef&return_to=%2Fconnected"; got != want {
+	if got, want := rec.Header().Get("Location"), "/error?error=server_error&ref=deadbeef&return_to=%2Fsecurity"; got != want {
 		t.Fatalf("Location = %q, want %q", got, want)
 	}
 }

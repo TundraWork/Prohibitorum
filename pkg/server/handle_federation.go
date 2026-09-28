@@ -175,7 +175,7 @@ func (s *Server) writeFederationCompletion(w http.ResponseWriter, r *http.Reques
 	}
 	if result.Intent == federation.IntentLink {
 		http.SetCookie(w, sessstore.ClearedFedStateCookie(s.config, r))
-		s.writeFederationCompletionDestination(w, r, "/connected", mode)
+		s.writeFederationCompletionDestination(w, r, "/security", mode)
 		return
 	}
 	if !result.Confirmed {

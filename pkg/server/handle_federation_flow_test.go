@@ -694,7 +694,7 @@ func TestFederationFlowLocalLinkUsesCurrentSessionAndNeverMintsSession(t *testin
 	if err := json.NewDecoder(rr.Body).Decode(&destination); err != nil {
 		t.Fatal(err)
 	}
-	if destination.Redirect != "/connected" {
+	if destination.Redirect != "/security" {
 		t.Fatalf("link redirect = %q", destination.Redirect)
 	}
 }
@@ -769,7 +769,7 @@ func TestFederationCompletionConfirmedLoginJSON(t *testing.T) {
 	}
 }
 
-func TestFederationCompletionLinkAlwaysConnectedWithoutSession(t *testing.T) {
+func TestFederationCompletionLinkAlwaysSecurityWithoutSession(t *testing.T) {
 	h := newLocalFlowHarness(t)
 	rr := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/complete", nil)
@@ -783,7 +783,7 @@ func TestFederationCompletionLinkAlwaysConnectedWithoutSession(t *testing.T) {
 	if err := json.NewDecoder(rr.Body).Decode(&result); err != nil {
 		t.Fatal(err)
 	}
-	if result.Redirect != "/connected" {
+	if result.Redirect != "/security" {
 		t.Fatalf("redirect = %q", result.Redirect)
 	}
 }

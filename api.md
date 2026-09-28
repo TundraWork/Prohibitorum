@@ -215,7 +215,7 @@ the browser-bound flow API as profile proof, not OAuth/OIDC or direct sign-in:
 | GET | `/api/prohibitorum/auth/federation/{slug}/callback` | Complete external OIDC/Steam callbacks. |
 | GET | `/api/prohibitorum/auth/federation/flows/{flow}` | Return the browser-safe local step projection. |
 | POST | `/api/prohibitorum/auth/federation/flows/{flow}/prepare` | Submit the requested VRChat profile identity and obtain a fresh proof instruction. |
-| POST | `/api/prohibitorum/auth/federation/flows/{flow}/verify` | Verify profile ownership. Public proof returns an opaque registration/recovery enrollment destination and sets no normal session cookie; authenticated linking returns `/connected` without replacing the current session. |
+| POST | `/api/prohibitorum/auth/federation/flows/{flow}/verify` | Verify profile ownership. Public proof returns an opaque registration/recovery enrollment destination and sets no normal session cookie; authenticated linking returns `/security` without replacing the current session. |
 | GET | `/verify/vrchat/{proof}` | Public ownership-proof explanation page; visiting it performs no account action. |
 | GET | `/api/prohibitorum/enrollments/{token}` | Public-safe enrollment preview. See the shapes below. |
 | POST | `/api/prohibitorum/enrollments/{token}/register/begin` | Begin the authoritative local WebAuthn registration or replacement ceremony. |

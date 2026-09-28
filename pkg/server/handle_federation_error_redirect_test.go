@@ -59,7 +59,7 @@ func TestFederationLogin_BadReturnTo_RedirectsToErrorPage(t *testing.T) {
 func TestFederationLogin_BeginError_ForwardsReturnTo(t *testing.T) {
 	h := newFederationTestServer(t)
 
-	_, resp := h.driveLogin(t, "no-such-idp", "/connected")
+	_, resp := h.driveLogin(t, "no-such-idp", "/security")
 	if resp.StatusCode != http.StatusFound {
 		t.Fatalf("status: want 302, got %d", resp.StatusCode)
 	}
@@ -67,8 +67,8 @@ func TestFederationLogin_BeginError_ForwardsReturnTo(t *testing.T) {
 	if !strings.HasPrefix(loc, "/error?error=") {
 		t.Fatalf("want an /error redirect, got %q", loc)
 	}
-	if !strings.Contains(loc, "return_to=%2Fconnected") {
-		t.Errorf("Location must forward return_to=%%2Fconnected, got %q", loc)
+	if !strings.Contains(loc, "return_to=%2Fsecurity") {
+		t.Errorf("Location must forward return_to=%%2Fsecurity, got %q", loc)
 	}
 }
 

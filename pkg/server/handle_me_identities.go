@@ -291,7 +291,7 @@ func (s *Server) handleMeIdentitiesLinkBeginHTTP(w http.ResponseWriter, r *http.
 
 	req, err := s.federationService.BeginLink(r.Context(), slug, returnTo, sess.Account.ID, sess.Data.SessionID)
 	if err != nil {
-		// returnTo is validated + same-origin (e.g. /connected) — forward it so
+		// returnTo is validated + same-origin (e.g. /security) — forward it so
 		// the /error "go back" link returns the user to where they started.
 		if errors.Is(err, federation.ErrUnknownProvider) {
 			// Collapse "no such slug" onto the generic state-invalid code —

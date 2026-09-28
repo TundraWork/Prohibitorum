@@ -717,10 +717,10 @@ func runVRChatSmoke(admin *client, base, control, caFile, serverLog, mockLog str
 		return fmt.Errorf("operator recovery validate = %+v err=%w", validated, err)
 	}
 
-	step(fmt.Sprintf("vrchat %d/%d — authenticated Connected Accounts link remains session-bound", 17, nVRChat))
+	step(fmt.Sprintf("vrchat %d/%d — authenticated Security link remains session-bound", 17, nVRChat))
 	v.fixture.CurrentUserID, v.fixture.PublicUserID, v.fixture.DisplayName, v.fixture.BioLinks = vrchatUserA, vrchatUserA, "VRChat Smoke Alpha Refreshed", nil
 	_ = v.setFixture()
-	conflictFlow, err := v.begin(admin, "/api/prohibitorum/me/identities/link/"+vrchatSlug+"/begin?return_to=/connected")
+	conflictFlow, err := v.begin(admin, "/api/prohibitorum/me/identities/link/"+vrchatSlug+"/begin?return_to=/security")
 	if err != nil {
 		return err
 	}
@@ -736,14 +736,14 @@ func runVRChatSmoke(admin *client, base, control, caFile, serverLog, mockLog str
 	if err != nil {
 		return err
 	}
-	linkFlow, err := v.begin(admin, "/api/prohibitorum/me/identities/link/"+vrchatSlug+"/begin?return_to=/connected")
+	linkFlow, err := v.begin(admin, "/api/prohibitorum/me/identities/link/"+vrchatSlug+"/begin?return_to=/security")
 	if err != nil {
 		return err
 	}
 	linkView, _ := v.prepare(admin, linkFlow, vrchatUserC)
 	_, _ = v.publish(linkView)
 	resp, body, _ = v.verify(admin, linkFlow, "")
-	if statusOf(resp) != http.StatusOK || !bytes.Contains(body, []byte(`"redirect":"/connected"`)) {
+	if statusOf(resp) != http.StatusOK || !bytes.Contains(body, []byte(`"redirect":"/security"`)) {
 		return fmt.Errorf("authenticated link status=%d", statusOf(resp))
 	}
 	afterLinkSession, err := currentSessionID(admin)
