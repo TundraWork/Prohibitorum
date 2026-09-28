@@ -434,8 +434,9 @@ const errorMessages: Readonly<Record<string, MessageDescriptor>> = {
  *
  * `federation` is a sign-in or a link that went through an upstream provider:
  * its wording names the provider, which the failure carries as
- * `details.federationName`. `setup-signin` is the page that adds a first local
- * sign-in right after one; `diagnostic` is an administrator's connection test
+ * `details.federationName`. `setup-signin` is a public page that adds a
+ * sign-in of the account's own right after a first one — `/setup-signin`, and
+ * `/pair` once the device is signed in; `diagnostic` is an administrator's connection test
  * of a provider.
  */
 export type ErrorScope =

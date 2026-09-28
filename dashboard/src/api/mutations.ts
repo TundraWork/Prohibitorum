@@ -58,6 +58,7 @@ import type {
   EnrollmentAccountFields,
   EnrollmentPasswordTotpResult,
   FederationConfirmResult,
+  PairingStart,
   PasswordRequest,
   RecoveryCodesResult,
   RecoveryRequest,
@@ -252,9 +253,10 @@ export function federationFlowVerifyMutationOptions(flow: string) {
 }
 
 /**
- * Adds a passkey right after a first sign-in through a provider. It does not
- * go through `runWithSudo`: that prompt lives in the console, and the new
- * session is fresh enough. A session that is not any more fails with
+ * Adds a passkey right after a first sign-in through a provider, or right
+ * after this device was signed in by another one. It does not go through
+ * `runWithSudo`: that prompt lives in the console, and the new session is
+ * fresh enough. A session that is not any more fails with
  * `sudo_required`, which the page answers itself.
  */
 export function setupPasskeyMutationOptions() {
@@ -675,6 +677,62 @@ export function revokeTokenMutationOptions(queryClient: QueryClient) {
     },
     onSuccess: () =>
       queryClient.invalidateQueries({ queryKey: ["session", "tokens"] }),
+  });
+}
+
+/* ------------------------------------------------- pairing a new device -- */
+
+/** Starts a pairing: the code this device shows until another one approves it. */
+export function pairingStartMutationOptions() {
+  return mutationOptions({
+    retry: false,
+    gcTime: 0,
+    mutationFn: (): Promise<PairingStart> =>
+      requireJsonData(client.POST("/api/prohibitorum/auth/devices/pair/begin")),
+  });
+}
+
+/** The codes with which completing says the pairing is gone for good. */
+const pairingGone = new Set([
+  "pairing_expired",
+  "pairing_not_found",
+  "pairing_state",
+]);
+
+export type PairingCompletion =
+  | { outcome: "signed-in"; redirect: string }
+  | { outcome: "expired" };
+
+/**
+ * Signs this device in with a pairing another device approved. A pairing that
+ * ran out or was used up in the meantime is an outcome rather than a failure:
+ * the page shows it as expired and offers a new code, so there is nothing for
+ * the toast to say.
+ */
+export function pairingCompleteMutationOptions(returnTo: string | undefined) {
+  return mutationOptions({
+    retry: false,
+    gcTime: 0,
+    mutationFn: async (pairingId: string): Promise<PairingCompletion> => {
+      try {
+        const { redirect } = validateLoginResult(
+          await requireJsonData(
+            client.POST("/api/prohibitorum/auth/devices/pair/complete", {
+              params: {
+                query: returnTo === undefined ? {} : { return_to: returnTo },
+              },
+              body: { pairingId },
+            }),
+          ),
+        );
+        return { outcome: "signed-in", redirect };
+      } catch (error) {
+        if (error instanceof ApiError && pairingGone.has(error.code ?? "")) {
+          return { outcome: "expired" };
+        }
+        throw error;
+      }
+    },
   });
 }
 

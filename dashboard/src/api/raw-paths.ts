@@ -105,6 +105,31 @@ export interface DevicePairing {
   alreadyBound: boolean;
 }
 
+/** `POST /auth/devices/pair/begin`: the code a new device shows while it waits. */
+export interface PairingStart {
+  pairingId: string;
+  /** The raw 8-character code, which the approval link carries. */
+  code: string;
+  /** The code as the reader sees it, `XXXX-XXXX`. */
+  displayCode: string;
+  expiresAt: string;
+}
+
+/**
+ * `GET /auth/devices/pair/status`: where a pairing stands. A pairing that is
+ * used up or unknown reads as `expired`.
+ */
+export interface PairingStatus {
+  status: "pending" | "approved" | "expired";
+  expiresAt?: string;
+}
+
+/** `POST /auth/devices/pair/complete`: the new device's session and where it goes. */
+export interface PairingComplete {
+  session: components["schemas"]["SessionView"];
+  redirect: string;
+}
+
 export interface CreatedPersonalAccessToken {
   token: string;
   pat: {
@@ -602,6 +627,48 @@ export interface RawPaths {
       };
       requestBody: { content: { "application/json": { code: string } } };
       responses: { 204: { content?: never } };
+    };
+  };
+  "/api/prohibitorum/auth/devices/pair/begin": {
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        200: { content: { "application/json": PairingStart } };
+      };
+    };
+  };
+  "/api/prohibitorum/auth/devices/pair/status": {
+    get: {
+      parameters: {
+        query: { id: string };
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        200: { content: { "application/json": PairingStatus } };
+      };
+    };
+  };
+  "/api/prohibitorum/auth/devices/pair/complete": {
+    post: {
+      parameters: {
+        query?: { return_to?: string };
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody: { content: { "application/json": { pairingId: string } } };
+      responses: {
+        200: { content: { "application/json": PairingComplete } };
+      };
     };
   };
   "/api/prohibitorum/auth/federation": {
