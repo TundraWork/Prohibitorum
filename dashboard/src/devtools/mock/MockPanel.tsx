@@ -3,10 +3,12 @@ import {
   clampAdminCount,
   clampCount,
   clampDelay,
+  clampEnrollmentProviders,
   clampPairingExpiry,
   getMockConfig,
   mockAdminListMax,
   mockDelayMax,
+  mockEnrollmentProvidersMax,
   mockListMax,
   mockPairingExpiryMax,
   mockPairingExpiryMin,
@@ -684,6 +686,146 @@ export function MockPanel() {
             onChange={(next) =>
               updateMockConfig((draft) => {
                 draft.publicFlows.consent.samlAttributes = next;
+              })
+            }
+          />
+          <Choose
+            label="Enrollment"
+            value={config.publicFlows.enrollment.intent}
+            options={[
+              { value: "bootstrap", label: "First admin" },
+              { value: "invite", label: "Invite" },
+              { value: "federated_register", label: "VRChat" },
+              { value: "reset", label: "Reset" },
+            ]}
+            onChange={(next) =>
+              updateMockConfig((draft) => {
+                draft.publicFlows.enrollment.intent = next;
+              })
+            }
+          />
+          <Toggle
+            label="Enrollment fixes the username"
+            checked={config.publicFlows.enrollment.fixedUsername}
+            onChange={(next) =>
+              updateMockConfig((draft) => {
+                draft.publicFlows.enrollment.fixedUsername = next;
+              })
+            }
+          />
+          <Toggle
+            label="Enrollment allows password and authenticator"
+            checked={config.publicFlows.enrollment.passwordTotp}
+            onChange={(next) =>
+              updateMockConfig((draft) => {
+                draft.publicFlows.enrollment.passwordTotp = next;
+              })
+            }
+          />
+          <Count
+            label="Enrollment providers"
+            value={config.publicFlows.enrollment.providers}
+            max={mockEnrollmentProvidersMax}
+            onChange={(next) =>
+              updateMockConfig((draft) => {
+                draft.publicFlows.enrollment.providers =
+                  clampEnrollmentProviders(next);
+              })
+            }
+          />
+          <Toggle
+            label="Invitation bound to the first provider"
+            checked={config.publicFlows.enrollment.bound}
+            onChange={(next) =>
+              updateMockConfig((draft) => {
+                draft.publicFlows.enrollment.bound = next;
+              })
+            }
+          />
+          <Toggle
+            label="Enrollment link still valid"
+            checked={config.publicFlows.enrollment.valid}
+            onChange={(next) =>
+              updateMockConfig((draft) => {
+                draft.publicFlows.enrollment.valid = next;
+              })
+            }
+          />
+          <Choose
+            label="Welcome picture"
+            value={config.publicFlows.welcome.avatarPending}
+            options={[
+              { value: "off", label: "Ready" },
+              { value: "resolves", label: "Arrives" },
+              { value: "never", label: "Never" },
+            ]}
+            onChange={(next) =>
+              updateMockConfig((draft) => {
+                draft.publicFlows.welcome.avatarPending = next;
+              })
+            }
+          />
+          <Toggle
+            label="Welcome offers a local sign-in"
+            checked={config.publicFlows.welcome.offerLocalSignin}
+            onChange={(next) =>
+              updateMockConfig((draft) => {
+                draft.publicFlows.welcome.offerLocalSignin = next;
+              })
+            }
+          />
+          <Toggle
+            label="Welcome sign-in still valid"
+            checked={config.publicFlows.welcome.valid}
+            onChange={(next) =>
+              updateMockConfig((draft) => {
+                draft.publicFlows.welcome.valid = next;
+              })
+            }
+          />
+          <Choose
+            label="VRChat flow"
+            value={config.publicFlows.flow.intent}
+            options={[
+              { value: "login", label: "Sign in" },
+              { value: "link", label: "Link" },
+              { value: "enroll", label: "Register" },
+              { value: "invite", label: "Invite" },
+            ]}
+            onChange={(next) =>
+              updateMockConfig((draft) => {
+                draft.publicFlows.flow.intent = next;
+              })
+            }
+          />
+          <Choose
+            label="VRChat step"
+            value={config.publicFlows.flow.step}
+            options={[
+              { value: "identify", label: "Profile" },
+              { value: "proof", label: "Proof" },
+            ]}
+            onChange={(next) =>
+              updateMockConfig((draft) => {
+                draft.publicFlows.flow.step = next;
+              })
+            }
+          />
+          <Toggle
+            label="VRChat asks for a username"
+            checked={config.publicFlows.flow.requiresLocalUsername}
+            onChange={(next) =>
+              updateMockConfig((draft) => {
+                draft.publicFlows.flow.requiresLocalUsername = next;
+              })
+            }
+          />
+          <Toggle
+            label="VRChat proof not in the bio yet"
+            checked={config.publicFlows.flow.proofMissing}
+            onChange={(next) =>
+              updateMockConfig((draft) => {
+                draft.publicFlows.flow.proofMissing = next;
               })
             }
           />

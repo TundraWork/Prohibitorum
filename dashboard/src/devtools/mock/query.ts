@@ -2,6 +2,7 @@ import {
   clampAdminCount,
   clampCount,
   clampDelay,
+  clampEnrollmentProviders,
   clampPairingExpiry,
   defaultMockConfig,
   getMockConfig,
@@ -140,6 +141,9 @@ function setPath(
 function clampFor(path: string, value: number): number {
   if (path === "delayMs") return clampDelay(value);
   if (path === "pairing.expiresInSeconds") return clampPairingExpiry(value);
+  if (path === "publicFlows.enrollment.providers") {
+    return clampEnrollmentProviders(value);
+  }
   if (path === "admin.diagnosticOutcome") return value;
   return path.startsWith("admin.") ? clampAdminCount(value) : clampCount(value);
 }
@@ -150,6 +154,16 @@ function allowedValues(path: string): readonly string[] | undefined {
   if (path === "admin.diagnosticOutcome")
     return ["succeeded", "fallback", "failed"];
   if (path === "publicFlows.consent.grant") return ["first", "incremental"];
+  if (path === "publicFlows.enrollment.intent") {
+    return ["bootstrap", "invite", "federated_register", "reset"];
+  }
+  if (path === "publicFlows.welcome.avatarPending") {
+    return ["off", "resolves", "never"];
+  }
+  if (path === "publicFlows.flow.intent") {
+    return ["login", "link", "enroll", "invite"];
+  }
+  if (path === "publicFlows.flow.step") return ["identify", "proof"];
   return undefined;
 }
 

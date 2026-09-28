@@ -2,10 +2,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   clampCount,
   clampDelay,
+  clampEnrollmentProviders,
   clampPairingExpiry,
   defaultMockConfig,
   getMockConfig,
   mockDelayMax,
+  mockEnrollmentProvidersMax,
   mockListMax,
   mockPairingExpiryMax,
   mockPairingExpiryMin,
@@ -94,6 +96,26 @@ describe("mock config", () => {
     expect(consent.grant).toBe("incremental");
     expect(consent.logo).toBe(true);
     expect(consent.ticketValid).toBe(true);
+  });
+
+  it("gives a panel saved before the enrollment and VRChat settings their defaults", async () => {
+    window.localStorage.setItem(
+      "prohibitorum.devtools.mock",
+      JSON.stringify({ publicFlows: { consent: { grant: "incremental" } } }),
+    );
+    vi.resetModules();
+    const reloaded = await import("@/devtools/mock/model");
+    const flows = reloaded.getMockConfig().publicFlows;
+    expect(flows.consent.grant).toBe("incremental");
+    expect(flows.enrollment).toEqual(defaultMockConfig.publicFlows.enrollment);
+    expect(flows.welcome).toEqual(defaultMockConfig.publicFlows.welcome);
+    expect(flows.flow).toEqual(defaultMockConfig.publicFlows.flow);
+  });
+
+  it("caps an enrollment's providers at three", () => {
+    expect(clampEnrollmentProviders(-1)).toBe(0);
+    expect(clampEnrollmentProviders(2.5)).toBe(2);
+    expect(clampEnrollmentProviders(9)).toBe(mockEnrollmentProvidersMax);
   });
 
   it("keeps the data but not the master switch across a reload", async () => {

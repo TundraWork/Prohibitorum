@@ -121,6 +121,41 @@ export interface MockConfig {
       /** How many attributes a SAML service receives; 0 draws the fallback line. */
       samlAttributes: number;
     };
+    /** What an enrollment link previews, whatever its token. */
+    enrollment: {
+      intent: "bootstrap" | "invite" | "federated_register" | "reset";
+      /** Whether the link fixes the username, so the page shows it read-only. */
+      fixedUsername: boolean;
+      /** Whether a password and an authenticator are allowed besides a passkey. */
+      passwordTotp: boolean;
+      /** How many upstream providers the page offers, up to three. */
+      providers: number;
+      /** Whether the invitation must be accepted through the first provider. */
+      bound: boolean;
+      /** Off answers every token as expired. */
+      valid: boolean;
+    };
+    /** The account a first federated sign-in prepared, on `/welcome`. */
+    welcome: {
+      /**
+       * `off` has the picture already; `resolves` has it arrive on the third
+       * read; `never` keeps it pending, so the page stops waiting.
+       */
+      avatarPending: "off" | "resolves" | "never";
+      /** Whether confirming goes on to offer a local sign-in. */
+      offerLocalSignin: boolean;
+      /** Off answers as an expired sign-in. */
+      valid: boolean;
+    };
+    /** A VRChat profile verification on `/federation/flow/$flow`. */
+    flow: {
+      intent: "login" | "link" | "enroll" | "invite";
+      step: "identify" | "proof";
+      /** Whether verifying asks for the new account's username. */
+      requiresLocalUsername: boolean;
+      /** Whether verifying answers that the link is not in the bio yet. */
+      proofMissing: boolean;
+    };
   };
   instance: {
     maintenance: boolean;
@@ -212,6 +247,25 @@ export const defaultMockConfig: MockConfig = {
       terms: true,
       ticketValid: true,
       samlAttributes: 3,
+    },
+    enrollment: {
+      intent: "invite",
+      fixedUsername: false,
+      passwordTotp: true,
+      providers: 1,
+      bound: false,
+      valid: true,
+    },
+    welcome: {
+      avatarPending: "resolves",
+      offerLocalSignin: true,
+      valid: true,
+    },
+    flow: {
+      intent: "enroll",
+      step: "identify",
+      requiresLocalUsername: false,
+      proofMissing: false,
     },
   },
   instance: {
@@ -328,6 +382,14 @@ export function clampAdminCount(value: number): number {
 export function clampDelay(value: number): number {
   if (!Number.isFinite(value)) return 0;
   return Math.max(0, Math.min(mockDelayMax, Math.round(value)));
+}
+
+/** The most providers an enrollment preview offers. */
+export const mockEnrollmentProvidersMax = 3;
+
+export function clampEnrollmentProviders(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  return Math.max(0, Math.min(mockEnrollmentProvidersMax, Math.floor(value)));
 }
 
 export function clampPairingExpiry(value: number): number {

@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { isValidRecoveryCode } from "@/api/auth";
+import { readEnrollmentPreview } from "@/api/enrollment";
+import { readFederationFlow } from "@/api/federation";
 import type { components } from "@/api/generated/schema";
 import type { DiagnosticResultView } from "@/api/raw-admin-paths";
 import type {
   ConsentRequest,
   DevicePairing,
+  FederationConfirm,
   SamlConsentRequest,
 } from "@/api/raw-paths";
 import { buildMockReply, type MockReply } from "@/devtools/mock/fixtures";
@@ -1021,5 +1024,205 @@ describe("mocked public flows", () => {
     expect(bodyOf(consentWrite(writes(), "deny", at("/apps")))).toEqual({
       redirect: "/",
     });
+  });
+});
+
+describe("mocked enrollment and federation pages", () => {
+  type Preview = components["schemas"]["EnrollmentPreview"];
+  const enrollment = "/api/prohibitorum/enrollments/{token}";
+
+  function preview(overrides: (draft: MockConfig) => void = () => {}) {
+    return bodyOf(read(enrollment, config(overrides))) as Preview;
+  }
+
+  it("previews what the panel sets up, with a readable preview for every intent", () => {
+    for (const intent of [
+      "bootstrap",
+      "invite",
+      "federated_register",
+      "reset",
+    ] as const) {
+      const body = preview((draft) => {
+        draft.publicFlows.enrollment.intent = intent;
+      });
+      expect(readEnrollmentPreview(body).intent).toBe(intent);
+    }
+    const reset = preview((draft) => {
+      draft.publicFlows.enrollment.intent = "reset";
+    });
+    expect(reset.target).toEqual({
+      username: "mock",
+      displayName: "Mock Member",
+    });
+  });
+
+  it("offers only a passkey and no providers to the first administrator", () => {
+    const body = preview((draft) => {
+      draft.publicFlows.enrollment.intent = "bootstrap";
+      draft.publicFlows.enrollment.providers = 3;
+    });
+    expect(body.allowedMethods).toEqual(["passkey"]);
+    expect(body.providers).toBeUndefined();
+  });
+
+  it("binds an invitation to the first provider it offers, and caps the list at three", () => {
+    const body = preview((draft) => {
+      draft.publicFlows.enrollment.providers = 9;
+      draft.publicFlows.enrollment.bound = true;
+    });
+    expect(body.providers?.map((provider) => provider.displayName)).toEqual([
+      "GitLab",
+      "VRChat",
+      "Steam",
+    ]);
+    expect(body.expectedUpstreamIdpSlug).toBe("gitlab");
+  });
+
+  it("answers an expired link as the server does", () => {
+    expect(
+      read(
+        enrollment,
+        config((draft) => {
+          draft.publicFlows.enrollment.valid = false;
+        }),
+      ),
+    ).toMatchObject({ kind: "error", status: 410, code: "enrollment_expired" });
+  });
+
+  it("signs the new account in with its first codes, and names the provider a bound invitation needs", () => {
+    const verify = "/api/prohibitorum/enrollments/{token}/password-totp/verify";
+    const current = writes();
+    const reply = call("POST", verify, current, {
+      token: "t",
+      username: "carol",
+      displayName: "Carol",
+      password: "correct horse",
+      secret_base32: "A".repeat(32),
+      code: "123456",
+    });
+    const body = bodyOf(reply) as {
+      session: { username: string };
+      recoveryCodes: string[];
+    };
+    expect(body.session.username).toBe("carol");
+    expect(body.recoveryCodes.every(isValidRecoveryCode)).toBe(true);
+    const after = applied(reply, current);
+    expect(after.session.signedIn).toBe(true);
+    expect(after.session.username).toBe("carol");
+
+    const bound = config((draft) => {
+      draft.writes = true;
+      draft.publicFlows.enrollment.bound = true;
+    });
+    expect(call("POST", verify, bound, { token: "t" })).toMatchObject({
+      kind: "error",
+      code: "enrollment_federation_required",
+      details: { federationName: "GitLab" },
+    });
+  });
+
+  it("leaves the passkey enrollment unmocked", () => {
+    expect(
+      call(
+        "POST",
+        "/api/prohibitorum/enrollments/{token}/register/begin",
+        writes(),
+        { token: "t" },
+      ),
+    ).toMatchObject({ kind: "error", code: "mock_unmocked" });
+  });
+
+  it("brings the prepared account's picture on the third read, and confirms with the offer the panel sets", () => {
+    const confirm = "/api/prohibitorum/auth/federation/confirm";
+    const current = writes();
+    // Answering resets the count, so this starts from a first read.
+    call("POST", `${confirm}/decline`, current);
+    const pending = () =>
+      (bodyOf(read(confirm, current)) as FederationConfirm).avatarPending;
+    expect([pending(), pending(), pending()]).toEqual([true, true, false]);
+
+    const never = config((draft) => {
+      draft.publicFlows.welcome.avatarPending = "never";
+    });
+    expect((bodyOf(read(confirm, never)) as FederationConfirm).avatarUrl).toBe(
+      undefined,
+    );
+
+    const reply = call("POST", confirm, current, {});
+    expect(bodyOf(reply)).toEqual({ redirect: "/", offerLocalSignin: true });
+    expect(applied(reply, current).session.signedIn).toBe(true);
+
+    const expired = config((draft) => {
+      draft.publicFlows.welcome.valid = false;
+    });
+    expect(read(confirm, expired)).toMatchObject({
+      status: 401,
+      code: "federation_state_invalid",
+    });
+  });
+
+  it("walks a VRChat flow from the profile to the proof and finishes it", () => {
+    const flow = "/api/prohibitorum/auth/federation/flows/{flow}";
+    const current = writes();
+    const first = readFederationFlow(bodyOf(read(flow, current)));
+    expect(first.step).toBe("identify");
+
+    const prepared = call("POST", `${flow}/prepare`, current, {
+      flow: "f",
+      identity: "usr_1",
+    });
+    expect(readFederationFlow(bodyOf(prepared)).step).toBe("proof");
+    const proof = applied(prepared, current);
+    expect(readFederationFlow(bodyOf(read(flow, proof))).proofUrl).toBe(
+      "http://localhost/verify/vrchat/mock-proof",
+    );
+
+    expect(
+      bodyOf(call("POST", `${flow}/verify`, proof, { flow: "f" })),
+    ).toEqual({
+      redirect: "/enroll/mock-federated",
+    });
+  });
+
+  it("asks for the username and reports a missing proof when the panel says so", () => {
+    const verify = "/api/prohibitorum/auth/federation/flows/{flow}/verify";
+    const at = (change: (draft: MockConfig) => void) =>
+      config((draft) => {
+        draft.writes = true;
+        draft.publicFlows.flow.step = "proof";
+        change(draft);
+      });
+    expect(
+      call(
+        "POST",
+        verify,
+        at((draft) => {
+          draft.publicFlows.flow.requiresLocalUsername = true;
+        }),
+        { flow: "f" },
+      ),
+    ).toMatchObject({ code: "local_username_required" });
+    expect(
+      call(
+        "POST",
+        verify,
+        at((draft) => {
+          draft.publicFlows.flow.proofMissing = true;
+        }),
+        { flow: "f" },
+      ),
+    ).toMatchObject({ code: "vrchat_proof_missing" });
+    expect(
+      bodyOf(
+        call(
+          "POST",
+          verify,
+          at((draft) => {
+            draft.publicFlows.flow.intent = "link";
+          }),
+          { flow: "f" },
+        ),
+      ),
+    ).toEqual({ redirect: "/security" });
   });
 });
