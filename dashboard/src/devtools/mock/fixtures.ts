@@ -650,6 +650,86 @@ function pairing(code: string, config: MockConfig): DevicePairing {
   };
 }
 
+/**
+ * The pairing `/pair` started, as the mock remembers it between the page's
+ * reads: its id and code, when it runs out, and how many times its status has
+ * been read. Starting a pairing replaces it, and completing one clears it.
+ */
+let startedPairing:
+  | { id: string; code: string; expiresAt: number; reads: number }
+  | undefined;
+let pairingsStarted = 0;
+
+const pairingCodeAlphabet = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+
+function startPairing(config: MockConfig): MockReply {
+  pairingsStarted += 1;
+  const code = Array.from(
+    { length: 8 },
+    (_, index) =>
+      pairingCodeAlphabet[
+        (pairingsStarted * 11 + index * 7) % pairingCodeAlphabet.length
+      ] ?? "A",
+  ).join("");
+  const expiresIn = clampPairingExpiry(
+    config.publicFlows.pairing.expiresInSeconds,
+  );
+  const expiresAt = Date.now() + expiresIn * 1000;
+  startedPairing = {
+    id: `mock-new-device-${pairingsStarted}`,
+    code,
+    expiresAt,
+    reads: 0,
+  };
+  return json({
+    pairingId: startedPairing.id,
+    code,
+    displayCode: `${code.slice(0, 4)}-${code.slice(4)}`,
+    expiresAt: new Date(expiresAt).toISOString(),
+  });
+}
+
+/** The started pairing `id` names, while it is still good. */
+function livePairing(id: string | null | undefined) {
+  if (startedPairing === undefined || startedPairing.id !== id) return;
+  if (Date.now() >= startedPairing.expiresAt) return;
+  return startedPairing;
+}
+
+/** Pending until the configured read, then approved; anything else has expired. */
+function pairingStatus(request: MockRequest, config: MockConfig): MockReply {
+  const live = livePairing(new URL(request.url).searchParams.get("id"));
+  if (live === undefined) return json({ status: "expired" });
+  live.reads += 1;
+  const after = clampCount(config.publicFlows.pairing.approveAfterPolls);
+  return json({
+    status: after > 0 && live.reads >= after ? "approved" : "pending",
+    expiresAt: new Date(live.expiresAt).toISOString(),
+  });
+}
+
+function completePairing(request: MockRequest, config: MockConfig): MockReply {
+  const live = livePairing(stringField(request.body, "pairingId"));
+  if (live === undefined) {
+    return { kind: "error", status: 410, code: "pairing_expired" };
+  }
+  const after = clampCount(config.publicFlows.pairing.approveAfterPolls);
+  if (after === 0 || live.reads < after) {
+    return { kind: "error", status: 428, code: "pairing_not_approved" };
+  }
+  startedPairing = undefined;
+  const returnTo = new URL(request.url).searchParams.get("return_to");
+  return json(
+    {
+      session: sessionView(config),
+      redirect: returnTo?.startsWith("/") ? returnTo : "/",
+    },
+    (draft) => {
+      draft.session.signedIn = true;
+    },
+  );
+}
+
 /* ------------------------------------------------------- admin directory -- */
 
 /**
@@ -1394,6 +1474,8 @@ function readReply(
         : expiredSignIn();
     case "/api/prohibitorum/auth/federation/flows/{flow}":
       return json(federationFlow(config, new URL(request.url).origin));
+    case "/api/prohibitorum/auth/devices/pair/status":
+      return pairingStatus(request, config);
     case "/api/prohibitorum/me/devices/pair/lookup": {
       const code = new URL(request.url).searchParams.get("code") ?? "";
       return guarded(config, () => json(pairing(code, config)));
@@ -1923,6 +2005,12 @@ function writeReply(
       return empty(204, (draft) => {
         draft.lists.tokens = decrement(draft.lists.tokens);
       });
+
+    case "/api/prohibitorum/auth/devices/pair/begin":
+      return startPairing(config);
+
+    case "/api/prohibitorum/auth/devices/pair/complete":
+      return completePairing(request, config);
 
     // The approved device signs in on its own a moment later; here it is
     // simply the next session the list reads.

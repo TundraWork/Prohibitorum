@@ -829,6 +829,24 @@ export function MockPanel() {
               })
             }
           />
+          <Count
+            label="New device approved after this many reads (0 never)"
+            value={config.publicFlows.pairing.approveAfterPolls}
+            onChange={(next) =>
+              updateMockConfig((draft) => {
+                draft.publicFlows.pairing.approveAfterPolls = next;
+              })
+            }
+          />
+          <Seconds
+            label="Seconds a new device's code lasts"
+            value={config.publicFlows.pairing.expiresInSeconds}
+            onChange={(next) =>
+              updateMockConfig((draft) => {
+                draft.publicFlows.pairing.expiresInSeconds = next;
+              })
+            }
+          />
         </Section>
 
         <Section title="Instance">

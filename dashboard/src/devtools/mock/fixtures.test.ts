@@ -8,6 +8,8 @@ import type {
   ConsentRequest,
   DevicePairing,
   FederationConfirm,
+  PairingStart,
+  PairingStatus,
   SamlConsentRequest,
 } from "@/api/raw-paths";
 import { buildMockReply, type MockReply } from "@/devtools/mock/fixtures";
@@ -1224,5 +1226,88 @@ describe("mocked enrollment and federation pages", () => {
         ),
       ),
     ).toEqual({ redirect: "/security" });
+  });
+});
+
+describe("mocked pairing of a new device", () => {
+  const begin = "/api/prohibitorum/auth/devices/pair/begin";
+  const status = "/api/prohibitorum/auth/devices/pair/status";
+  const complete = "/api/prohibitorum/auth/devices/pair/complete";
+
+  function start(current: MockConfig): PairingStart {
+    return bodyOf(call("POST", begin, current)) as PairingStart;
+  }
+
+  function statusOf(id: string, current: MockConfig): PairingStatus {
+    return bodyOf(
+      read(status, current, `http://localhost${status}?id=${id}`),
+    ) as PairingStatus;
+  }
+
+  it("starts a pairing only while writes are mocked", () => {
+    expect(call("POST", begin)).toBeUndefined();
+    const pairing = start(writes());
+    expect(pairing.code).toMatch(/^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{8}$/);
+    expect(pairing.displayCode).toBe(
+      `${pairing.code.slice(0, 4)}-${pairing.code.slice(4)}`,
+    );
+    const left = Date.parse(pairing.expiresAt) - Date.now();
+    expect(left).toBeGreaterThan(299_000);
+    expect(left).toBeLessThanOrEqual(300_000);
+  });
+
+  it("approves on the configured read and signs the device in", () => {
+    const current = config((draft) => {
+      draft.writes = true;
+      draft.publicFlows.pairing.approveAfterPolls = 2;
+    });
+    const { pairingId } = start(current);
+    expect(call("POST", complete, current, { pairingId })).toMatchObject({
+      code: "pairing_not_approved",
+    });
+    expect(statusOf(pairingId, current).status).toBe("pending");
+    expect(statusOf(pairingId, current).status).toBe("approved");
+
+    const reply = buildMockReply(
+      {
+        method: "POST",
+        schemaPath: complete,
+        url: `http://localhost${complete}?return_to=%2Fapps`,
+        body: { pairingId },
+      },
+      current,
+    );
+    expect(bodyOf(reply)).toMatchObject({ redirect: "/apps" });
+    expect(applied(reply, current).session.signedIn).toBe(true);
+    // Used up: it reads as expired, and cannot be completed twice.
+    expect(statusOf(pairingId, current).status).toBe("expired");
+    expect(call("POST", complete, current, { pairingId })).toMatchObject({
+      code: "pairing_expired",
+    });
+  });
+
+  it("never approves at 0, and answers an older pairing as expired", () => {
+    const current = config((draft) => {
+      draft.writes = true;
+      draft.publicFlows.pairing.approveAfterPolls = 0;
+    });
+    const first = start(current);
+    for (let read = 0; read < 12; read += 1) {
+      expect(statusOf(first.pairingId, current).status).toBe("pending");
+    }
+    const second = start(current);
+    expect(statusOf(first.pairingId, current).status).toBe("expired");
+    expect(statusOf(second.pairingId, current).status).toBe("pending");
+    expect(second.code).not.toBe(first.code);
+  });
+
+  it("lasts as long as the panel says", () => {
+    const current = config((draft) => {
+      draft.writes = true;
+      draft.publicFlows.pairing.expiresInSeconds = 20;
+    });
+    const left = Date.parse(start(current).expiresAt) - Date.now();
+    expect(left).toBeGreaterThan(19_000);
+    expect(left).toBeLessThanOrEqual(20_000);
   });
 });

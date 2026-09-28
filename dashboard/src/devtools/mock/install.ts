@@ -20,8 +20,9 @@ const signInPaths = ["/login", "/login/totp", "/login/recovery"];
  * The public pages that are not a sign-in step. Each decides for itself what a
  * session means — a consent page sends an anonymous reader to sign in, the
  * maintenance page offers a way out either way, an enrollment or a VRChat
- * verification needs none — so a change of session in the panel leaves the
- * reader on them. The pages with a token in the path are matched by prefix.
+ * verification needs none, and pairing signs the device in itself — so a
+ * change of session in the panel leaves the reader on them. The pages with a
+ * token in the path are matched by prefix.
  */
 const publicPaths = [
   "/consent",
@@ -30,6 +31,7 @@ const publicPaths = [
   "/maintenance",
   "/welcome",
   "/setup-signin",
+  "/pair",
 ];
 const publicPrefixes = ["/enroll/", "/federation/flow/", "/verify/vrchat/"];
 
