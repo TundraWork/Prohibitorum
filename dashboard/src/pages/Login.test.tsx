@@ -501,12 +501,28 @@ describe("the sign-in link", () => {
     expect(query(router)).toEqual({ returnTo: "/apps", admin: "" });
   });
 
-  it("still refuses a link that names return_to twice", async () => {
+  it("refuses a link that names return_to twice and sends nothing", async () => {
     at("/login?return_to=%2Fa&return_to=%2Fb");
-    vi.stubGlobal("fetch", vi.fn<typeof globalThis.fetch>());
-    mount();
+    const fetch = vi.fn<typeof globalThis.fetch>();
+    vi.stubGlobal("fetch", fetch);
+    const router = mount();
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "This sign-in link is invalid. Open a new sign-in link.",
     );
+    expect(screen.queryByLabelText("Password")).toBeNull();
+    expect(fetch).not.toHaveBeenCalled();
+    // The address is not folded into one value on the way in.
+    expect(router.state.location.searchStr).toBe(
+      "?return_to=%2Fa&return_to=%2Fb",
+    );
+  });
+
+  it("keeps a return_to that looks like a number as the address carried it", async () => {
+    at("/login?return_to=12e45678");
+    vi.stubGlobal("fetch", vi.fn<typeof globalThis.fetch>());
+    const router = mount();
+    await screen.findByLabelText("Password");
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(query(router)).toEqual({ returnTo: "12e45678", admin: null });
   });
 });

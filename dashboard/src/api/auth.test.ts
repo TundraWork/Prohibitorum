@@ -4,7 +4,6 @@ import {
   startAuthentication,
 } from "@simplewebauthn/browser";
 import { MutationObserver, type QueryClient } from "@tanstack/react-query";
-import { defaultParseSearch } from "@tanstack/react-router";
 import { waitFor } from "@testing-library/react";
 import {
   afterEach,
@@ -32,6 +31,7 @@ import {
 } from "@/api/mutations";
 import type { RecoveryRequest } from "@/api/raw-paths";
 import { createQueryClient } from "@/app/query-client";
+import { parseSearch } from "@/app/search-params";
 
 vi.mock("@simplewebauthn/browser", () => ({
   browserSupportsWebAuthn: vi.fn(),
@@ -69,7 +69,7 @@ function createClient() {
 
 describe("authentication redirects", () => {
   // The sign-in page reads the search the router has already parsed.
-  const read = (search: string) => readReturnTo(defaultParseSearch(search));
+  const read = (search: string) => readReturnTo(parseSearch(search).return_to);
 
   it("preserves the parameter value exactly and distinguishes absence from an empty parameter", () => {
     expect(read("?unrelated=value")).toBeUndefined();
@@ -88,8 +88,10 @@ describe("authentication redirects", () => {
     expect(() => read("?return_to=%2F&return%5fto=%2F")).toThrow(ApiError);
   });
 
-  it("rejects a value the router no longer reads as the address", () => {
-    expect(() => read("?return_to=12345")).toThrow(ApiError);
+  it("keeps a value that looks like a number or JSON as the address carried it", () => {
+    expect(read("?return_to=12345")).toBe("12345");
+    expect(read("?return_to=12e45678")).toBe("12e45678");
+    expect(read("?return_to=%5B%22%2Fa%22%5D")).toBe('["/a"]');
   });
 });
 

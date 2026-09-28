@@ -1,7 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { z } from "zod";
 import { consentRequestQueryOptions } from "@/api/queries";
 import { loadConsentRequest } from "@/app/consent-loader";
-import { textParams } from "@/app/search";
+import { optionalSearchText } from "@/app/search-params";
 import { ConsentPage } from "@/pages/public/Consent";
 
 /**
@@ -10,8 +11,10 @@ import { ConsentPage } from "@/pages/public/Consent";
  * authorization address to resume once it is allowed.
  */
 export const Route = createFileRoute("/_public/consent")({
-  validateSearch: (search: Record<string, unknown>) =>
-    textParams(search, ["ticket", "return_to"]),
+  validateSearch: z.object({
+    ticket: optionalSearchText(),
+    return_to: optionalSearchText(),
+  }),
   loaderDeps: ({ search: { ticket, return_to } }) => ({ ticket, return_to }),
   // Without the authorization to resume, an answer would have nowhere to go,
   // so a link missing it is as unusable as one missing its ticket.

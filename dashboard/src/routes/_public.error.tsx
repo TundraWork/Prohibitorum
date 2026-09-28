@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { z } from "zod";
 import { sessionQueryOptions } from "@/api/queries";
-import { textParams } from "@/app/search";
+import { optionalSearchText } from "@/app/search-params";
 import { ErrorLandingPage } from "@/pages/public/ErrorLanding";
 
 /**
@@ -9,15 +10,14 @@ import { ErrorLandingPage } from "@/pages/public/ErrorLanding";
  * built the link, so the page only describes what it recognises.
  */
 export const Route = createFileRoute("/_public/error")({
-  validateSearch: (search: Record<string, unknown>) =>
-    textParams(search, [
-      "error",
-      "reason",
-      "app",
-      "federationName",
-      "ref",
-      "return_to",
-    ]),
+  validateSearch: z.object({
+    error: optionalSearchText(),
+    reason: optionalSearchText(),
+    app: optionalSearchText(),
+    federationName: optionalSearchText(),
+    ref: optionalSearchText(),
+    return_to: optionalSearchText(),
+  }),
   // The way out depends on whether anyone is signed in.
   loader: ({ context: { queryClient } }) =>
     queryClient.ensureQueryData(sessionQueryOptions()),

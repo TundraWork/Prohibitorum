@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { maintenanceRedirect } from "@/app/maintenance-guard";
+import { parseSearch } from "@/app/search-params";
 
 const member = { role: "user" };
 const admin = { role: "admin" };
@@ -31,20 +32,22 @@ describe("the maintenance guard", () => {
   });
 
   it("lets the administrators' sign-in through whatever `admin` holds", () => {
-    for (const [path, search] of [
-      ["/login", { admin: "" }],
-      ["/login", { admin: 1 }],
-      ["/login", { admin: 0 }],
-      ["/login/totp", { admin: true }],
-      ["/login/recovery", { admin: 1, return_to: "/" }],
+    for (const [path, searchStr] of [
+      ["/login", "?admin"],
+      ["/login", "?admin="],
+      ["/login", "?admin=1"],
+      ["/login", "?admin=0"],
+      ["/login", "?admin=1&admin=2"],
+      ["/login/totp", "?admin=true"],
+      ["/login/recovery", "?admin=1&return_to=%2F"],
     ] as const) {
-      expect(redirects(path, search, null)).toBe(false);
+      expect(redirects(path, parseSearch(searchStr), null)).toBe(false);
     }
   });
 
   it("does not let a sign-in without `admin`, or `admin` on another page, through", () => {
-    expect(redirects("/login", { return_to: "/" }, null)).toBe(true);
-    expect(redirects("/apps", { admin: true })).toBe(true);
+    expect(redirects("/login", parseSearch("?return_to=%2F"), null)).toBe(true);
+    expect(redirects("/apps", parseSearch("?admin=1"))).toBe(true);
   });
 
   it("does nothing while maintenance is off", () => {
