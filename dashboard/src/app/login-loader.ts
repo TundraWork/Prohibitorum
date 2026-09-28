@@ -3,6 +3,7 @@ import { readReturnTo } from "@/api/auth";
 import {
   authStatusQueryOptions,
   publicConfigQueryOptions,
+  publicFederationProvidersQueryOptions,
   sessionQueryOptions,
 } from "@/api/queries";
 import type { loginLoaderDeps } from "@/app/login-search";
@@ -23,6 +24,7 @@ export async function loginLoader({
     queryClient.query(publicConfigQueryOptions()),
     queryClient.query(authStatusQueryOptions()),
     queryClient.query(sessionQueryOptions()),
+    queryClient.ensureQueryData(publicFederationProvidersQueryOptions()),
   ]);
   let returnTo: string | undefined;
   try {

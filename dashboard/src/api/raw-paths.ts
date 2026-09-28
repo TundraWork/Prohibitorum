@@ -152,6 +152,63 @@ export interface ConsentDecision {
   redirect: string;
 }
 
+type SessionView = components["schemas"]["SessionView"];
+
+/** The account fields an enrollment sends with its first request. */
+export interface EnrollmentAccountFields {
+  username?: string;
+  displayName?: string;
+}
+
+/** `POST /enrollments/{token}/register/complete`: the new account is signed in. */
+export interface EnrollmentRegistered {
+  session: SessionView;
+  newCredentialId: number;
+}
+
+/**
+ * `POST /enrollments/{token}/password-totp/verify`. The field is
+ * `recoveryCodes` here, unlike `recovery_codes` on `/me/password-totp/verify`.
+ */
+export interface EnrollmentPasswordTotpResult {
+  session: SessionView;
+  recoveryCodes: string[];
+}
+
+/** `GET /auth/federation/confirm`: the account a first federated sign-in prepared. */
+export interface FederationConfirm {
+  idpDisplayName: string;
+  displayName: string;
+  username: string;
+  email: string;
+  avatarUrl?: string;
+  /** The picture is still being fetched from the provider. */
+  avatarPending: boolean;
+}
+
+/** `POST /auth/federation/confirm`: where to go, and whether to offer a local sign-in. */
+export interface FederationConfirmResult {
+  redirect: string;
+  offerLocalSignin: boolean;
+}
+
+export type FederationFlowIntent = "login" | "link" | "invite" | "enroll";
+export type FederationFlowStep = "identify" | "proof";
+
+/**
+ * A VRChat profile verification in progress, as the page reads it after
+ * `readFederationFlow` has checked the loose fields.
+ */
+export interface FederationFlow {
+  provider: { slug: string; displayName: string; protocol: string };
+  intent: FederationFlowIntent;
+  step: FederationFlowStep;
+  profileUrl?: string;
+  proofUrl?: string;
+  requiresLocalUsername: boolean;
+  expiresAt: string;
+}
+
 export interface RawPaths {
   "/api/prohibitorum/config": {
     get: {
@@ -627,6 +684,152 @@ export interface RawPaths {
       };
       responses: {
         200: { content: { "application/json": ConsentDecision } };
+      };
+    };
+  };
+  "/api/prohibitorum/enrollments/{token}/register/begin": {
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: { token: string };
+        cookie?: never;
+      };
+      /** Absent for a reset, which keeps the account it names. */
+      requestBody?: {
+        content: { "application/json": EnrollmentAccountFields };
+      };
+      responses: {
+        200: {
+          content: {
+            "application/json": PublicKeyCredentialCreationOptionsJSON;
+          };
+        };
+      };
+    };
+  };
+  "/api/prohibitorum/enrollments/{token}/register/complete": {
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: { token: string };
+        cookie?: never;
+      };
+      requestBody: {
+        content: { "application/json": RegistrationResponseJSON };
+      };
+      responses: {
+        200: { content: { "application/json": EnrollmentRegistered } };
+      };
+    };
+  };
+  "/api/prohibitorum/enrollments/{token}/password-totp/verify": {
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: { token: string };
+        cookie?: never;
+      };
+      requestBody: {
+        content: {
+          "application/json": EnrollmentAccountFields & {
+            password: string;
+            secret_base32: string;
+            code: string;
+          };
+        };
+      };
+      responses: {
+        200: {
+          content: { "application/json": EnrollmentPasswordTotpResult };
+        };
+      };
+    };
+  };
+  "/api/prohibitorum/auth/federation/confirm": {
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        200: { content: { "application/json": FederationConfirm } };
+      };
+    };
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody: {
+        content: { "application/json": Record<string, never> };
+      };
+      responses: {
+        200: { content: { "application/json": FederationConfirmResult } };
+      };
+    };
+  };
+  "/api/prohibitorum/auth/federation/confirm/decline": {
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: { 204: { content?: never } };
+    };
+  };
+  "/api/prohibitorum/auth/federation/flows/{flow}": {
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: { flow: string };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** Loose until `readFederationFlow` has checked it. */
+        200: { content: { "application/json": unknown } };
+      };
+    };
+  };
+  "/api/prohibitorum/auth/federation/flows/{flow}/prepare": {
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: { flow: string };
+        cookie?: never;
+      };
+      requestBody: { content: { "application/json": { identity: string } } };
+      responses: {
+        200: { content: { "application/json": unknown } };
+      };
+    };
+  };
+  "/api/prohibitorum/auth/federation/flows/{flow}/verify": {
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: { flow: string };
+        cookie?: never;
+      };
+      requestBody: {
+        content: { "application/json": { localUsername?: string } };
+      };
+      responses: {
+        200: { content: { "application/json": LoginResult } };
       };
     };
   };

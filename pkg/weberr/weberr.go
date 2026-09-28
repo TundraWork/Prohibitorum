@@ -37,7 +37,7 @@ func RedirectToError(w http.ResponseWriter, r *http.Request, code, ref string) {
 
 // RedirectToErrorWithReturn is RedirectToError plus a return_to hint the SPA's
 // error page uses for its "go back" link, so a user who hit a dead-end mid-flow
-// (e.g. linking an identity from /connected) can return where they came from.
+// (e.g. linking an identity from /security) can return where they came from.
 // returnTo MUST already be a server-validated, same-origin value (the SPA also
 // re-guards it through safeReturnTo); pass "" when there is no safe origin. An
 // empty returnTo omits the param entirely, matching RedirectToError.

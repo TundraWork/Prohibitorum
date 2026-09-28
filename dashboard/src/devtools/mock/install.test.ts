@@ -117,6 +117,8 @@ describe("mock session refresh", () => {
       "/saml-consent",
       "/error",
       "/maintenance",
+      "/enroll/abc",
+      "/welcome",
       "/",
       "/security",
     ]) {
@@ -134,8 +136,15 @@ describe("mock session refresh", () => {
       "/saml-consent",
       "/error",
       "/maintenance",
+      "/enroll/abc",
+      "/welcome",
+      "/setup-signin",
+      "/federation/flow/f1",
+      "/verify/vrchat/p1",
     ]) {
       expect(refreshTarget(path, false)).toBeUndefined();
     }
+    // A prefix only counts with the token after it.
+    expect(refreshTarget("/enrollments", false)).toBe("/login");
   });
 });

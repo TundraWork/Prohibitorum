@@ -18,6 +18,7 @@ import (
 
 const (
 	vrchatSlug       = "vrchat-smoke"
+	vrchatName       = "VRChat Smoke"
 	vrchatUserA      = "usr_10000000-0000-0000-0000-000000000001"
 	vrchatUserB      = "usr_10000000-0000-0000-0000-000000000002"
 	vrchatUserC      = "usr_10000000-0000-0000-0000-000000000003"
@@ -231,6 +232,16 @@ func (v *vrchatSmoke) expectError(resp *http.Response, body []byte, status int, 
 	return nil
 }
 
+// expectNamedError is expectError for a code that names the provider: its
+// only detail must be federationName set to the provider's display name.
+func (v *vrchatSmoke) expectNamedError(resp *http.Response, body []byte, status int, code string) error {
+	got := decodeVRChatError(body)
+	if resp.StatusCode != status || got.Code != code || len(got.Details) != 1 || got.Details["federationName"] != vrchatName {
+		return fmt.Errorf("error got status=%d body=%s; want %d %s naming %q", resp.StatusCode, body, status, code, vrchatName)
+	}
+	return nil
+}
+
 func (v *vrchatSmoke) preview(c *client, token string) (vrchatEnrollmentPreview, map[string]json.RawMessage, error) {
 	const label = "enrollment preview"
 	req, err := http.NewRequest(http.MethodGet, c.base+"/api/prohibitorum/enrollments/"+url.PathEscape(token), nil)
@@ -385,7 +396,7 @@ func runVRChatSmoke(admin *client, base, control, caFile, serverLog, mockLog str
 
 	step(fmt.Sprintf("vrchat %d/%d — create disabled, unconfigured fixed link_only provider", 1, nVRChat))
 	var provider vrchatProviderView
-	if err := admin.postJSON("/api/prohibitorum/identity-providers", map[string]any{"slug": vrchatSlug, "displayName": "VRChat Smoke", "protocol": "vrchat", "mode": "link_only", "config": map[string]any{}}, &provider); err != nil {
+	if err := admin.postJSON("/api/prohibitorum/identity-providers", map[string]any{"slug": vrchatSlug, "displayName": vrchatName, "protocol": "vrchat", "mode": "link_only", "config": map[string]any{}}, &provider); err != nil {
 		return err
 	}
 	if provider.Slug != vrchatSlug || provider.Protocol != "vrchat" || provider.Mode != "link_only" || !provider.Disabled || provider.Ready || provider.SecretConfigured || provider.SecretStatus != "unconfigured" {
@@ -525,7 +536,7 @@ func runVRChatSmoke(admin *client, base, control, caFile, serverLog, mockLog str
 		return fmt.Errorf("registration identity metadata projection is incomplete or uncurated")
 	}
 
-	step(fmt.Sprintf("vrchat %d/%d — recovery proof returns target-hidden reset and no session", 9, nVRChat))
+	step(fmt.Sprintf("vrchat %d/%d — recovery proof returns a reset naming its account and no session", 9, nVRChat))
 	v.fixture.DisplayName = "VRChat Smoke Alpha Refreshed"
 	v.fixture.AvatarURL = "https://api.vrchat.cloud/avatar-alpha-refreshed.png"
 	v.fixture.BioLinks = nil
@@ -563,15 +574,24 @@ func runVRChatSmoke(admin *client, base, control, caFile, serverLog, mockLog str
 	if err != nil {
 		return err
 	}
-	if recoveryPreview.Intent != "reset" || len(recoveryPreview.Target) != 0 || recoveryPreview.SuggestedDisplayName != "" || recoveryPreview.ExpiresAt.IsZero() {
-		return fmt.Errorf("provider-backed reset preview was not target-hidden")
+	// Provider recovery names the account it resets, like an admin reset.
+	var recoveryTarget struct {
+		Username    string `json:"username"`
+		DisplayName string `json:"displayName"`
+	}
+	if err := json.Unmarshal(recoveryPreview.Target, &recoveryTarget); err != nil ||
+		recoveryTarget.Username != registrationMe.Username || recoveryTarget.DisplayName != registrationMe.DisplayName {
+		return fmt.Errorf("provider-backed reset preview target = %s, want %s", recoveryPreview.Target, registrationMe.Username)
+	}
+	if recoveryPreview.Intent != "reset" || recoveryPreview.SuggestedDisplayName != "" || recoveryPreview.ExpiresAt.IsZero() {
+		return fmt.Errorf("provider-backed reset preview = %+v", recoveryPreview)
 	}
 	// VRChat provider-recovery reset offers passkey OR password+TOTP.
 	if strings.Join(recoveryPreview.AllowedMethods, ",") != "passkey,password_totp" {
 		return fmt.Errorf("provider-backed reset preview allowedMethods = %v, want [passkey password_totp]", recoveryPreview.AllowedMethods)
 	}
 	for field := range recoveryFields {
-		if field != "intent" && field != "expiresAt" && field != "allowedMethods" {
+		if field != "intent" && field != "target" && field != "expiresAt" && field != "allowedMethods" {
 			return fmt.Errorf("provider-backed reset preview exposed unexpected field %q", field)
 		}
 	}
@@ -656,7 +676,7 @@ func runVRChatSmoke(admin *client, base, control, caFile, serverLog, mockLog str
 	v.fixture.PublicStatus, v.fixture.RetryAfter = http.StatusTooManyRequests, "1"
 	_ = v.setFixture()
 	resp, body, _ = v.verify(rate, rateFlow, "")
-	if err := v.expectError(resp, body, http.StatusTooManyRequests, "upstream_rate_limited"); err != nil || resp.Header.Get("Retry-After") != "1" {
+	if err := v.expectNamedError(resp, body, http.StatusTooManyRequests, "upstream_rate_limited"); err != nil || resp.Header.Get("Retry-After") != "1" {
 		return fmt.Errorf("rate limit: %v header=%q", err, resp.Header.Get("Retry-After"))
 	}
 	time.Sleep(1100 * time.Millisecond)
@@ -679,7 +699,7 @@ func runVRChatSmoke(admin *client, base, control, caFile, serverLog, mockLog str
 		v.fixture.PublicBodyMode, v.fixture.PublicStatus = failure.mode, failure.status
 		_ = v.setFixture()
 		resp, body, _ = v.verify(failureClient, failureFlow, "")
-		if err := v.expectError(resp, body, http.StatusServiceUnavailable, "upstream_temporarily_unavailable"); err != nil {
+		if err := v.expectNamedError(resp, body, http.StatusServiceUnavailable, "upstream_temporarily_unavailable"); err != nil {
 			return fmt.Errorf("public failure %q/%d: %w", failure.mode, failure.status, err)
 		}
 		v.fixture.PublicBodyMode, v.fixture.PublicStatus = "", 0
@@ -698,7 +718,7 @@ func runVRChatSmoke(admin *client, base, control, caFile, serverLog, mockLog str
 	v.fixture.PublicStatus = http.StatusUnauthorized
 	_ = v.setFixture()
 	resp, body, _ = v.verify(unauthorized, unauthorizedFlow, "")
-	if err := v.expectError(resp, body, http.StatusServiceUnavailable, "provider_not_ready"); err != nil {
+	if err := v.expectNamedError(resp, body, http.StatusServiceUnavailable, "provider_not_ready"); err != nil {
 		return err
 	}
 	if err := admin.get("/api/prohibitorum/identity-providers/"+vrchatSlug, &provider); err != nil || provider.Ready || provider.SecretStatus != "invalid" {
@@ -717,17 +737,17 @@ func runVRChatSmoke(admin *client, base, control, caFile, serverLog, mockLog str
 		return fmt.Errorf("operator recovery validate = %+v err=%w", validated, err)
 	}
 
-	step(fmt.Sprintf("vrchat %d/%d — authenticated Connected Accounts link remains session-bound", 17, nVRChat))
+	step(fmt.Sprintf("vrchat %d/%d — authenticated Security link remains session-bound", 17, nVRChat))
 	v.fixture.CurrentUserID, v.fixture.PublicUserID, v.fixture.DisplayName, v.fixture.BioLinks = vrchatUserA, vrchatUserA, "VRChat Smoke Alpha Refreshed", nil
 	_ = v.setFixture()
-	conflictFlow, err := v.begin(admin, "/api/prohibitorum/me/identities/link/"+vrchatSlug+"/begin?return_to=/connected")
+	conflictFlow, err := v.begin(admin, "/api/prohibitorum/me/identities/link/"+vrchatSlug+"/begin?return_to=/security")
 	if err != nil {
 		return err
 	}
 	conflictView, _ := v.prepare(admin, conflictFlow, vrchatUserA)
 	_, _ = v.publish(conflictView)
 	resp, body, _ = v.verify(admin, conflictFlow, "")
-	if err := v.expectError(resp, body, http.StatusConflict, "federation_identity_conflict"); err != nil {
+	if err := v.expectNamedError(resp, body, http.StatusConflict, "federation_identity_conflict"); err != nil {
 		return err
 	}
 	v.fixture.CurrentUserID, v.fixture.PublicUserID, v.fixture.DisplayName, v.fixture.BioLinks = vrchatUserC, vrchatUserC, "VRChat Smoke Linked", nil
@@ -736,14 +756,14 @@ func runVRChatSmoke(admin *client, base, control, caFile, serverLog, mockLog str
 	if err != nil {
 		return err
 	}
-	linkFlow, err := v.begin(admin, "/api/prohibitorum/me/identities/link/"+vrchatSlug+"/begin?return_to=/connected")
+	linkFlow, err := v.begin(admin, "/api/prohibitorum/me/identities/link/"+vrchatSlug+"/begin?return_to=/security")
 	if err != nil {
 		return err
 	}
 	linkView, _ := v.prepare(admin, linkFlow, vrchatUserC)
 	_, _ = v.publish(linkView)
 	resp, body, _ = v.verify(admin, linkFlow, "")
-	if statusOf(resp) != http.StatusOK || !bytes.Contains(body, []byte(`"redirect":"/connected"`)) {
+	if statusOf(resp) != http.StatusOK || !bytes.Contains(body, []byte(`"redirect":"/security"`)) {
 		return fmt.Errorf("authenticated link status=%d", statusOf(resp))
 	}
 	afterLinkSession, err := currentSessionID(admin)

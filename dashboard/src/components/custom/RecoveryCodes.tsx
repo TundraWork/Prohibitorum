@@ -13,12 +13,15 @@ export function RecoveryCodes({
   onContinue,
   onSurface,
   inDialog,
+  titled,
   firstIssue = false,
 }: {
   codes: string[];
   onContinue: () => Promise<void>;
   onSurface?: boolean;
   inDialog?: boolean;
+  /** Off when the caller draws the title; see `SecretReveal`. */
+  titled?: boolean;
   firstIssue?: boolean;
 }) {
   return (
@@ -29,6 +32,7 @@ export function RecoveryCodes({
       onContinue={onContinue}
       onSurface={onSurface}
       inDialog={inDialog}
+      titled={titled}
     />
   );
 }

@@ -215,7 +215,7 @@ the browser-bound flow API as profile proof, not OAuth/OIDC or direct sign-in:
 | GET | `/api/prohibitorum/auth/federation/{slug}/callback` | Complete external OIDC/Steam callbacks. |
 | GET | `/api/prohibitorum/auth/federation/flows/{flow}` | Return the browser-safe local step projection. |
 | POST | `/api/prohibitorum/auth/federation/flows/{flow}/prepare` | Submit the requested VRChat profile identity and obtain a fresh proof instruction. |
-| POST | `/api/prohibitorum/auth/federation/flows/{flow}/verify` | Verify profile ownership. Public proof returns an opaque registration/recovery enrollment destination and sets no normal session cookie; authenticated linking returns `/connected` without replacing the current session. |
+| POST | `/api/prohibitorum/auth/federation/flows/{flow}/verify` | Verify profile ownership. Public proof returns an opaque registration/recovery enrollment destination and sets no normal session cookie; authenticated linking returns `/security` without replacing the current session. |
 | GET | `/verify/vrchat/{proof}` | Public ownership-proof explanation page; visiting it performs no account action. |
 | GET | `/api/prohibitorum/enrollments/{token}` | Public-safe enrollment preview. See the shapes below. |
 | POST | `/api/prohibitorum/enrollments/{token}/register/begin` | Begin the authoritative local WebAuthn registration or replacement ceremony. |
@@ -224,9 +224,11 @@ the browser-bound flow API as profile proof, not OAuth/OIDC or direct sign-in:
 The public preview for a new VRChat-backed account is
 `{"intent":"federated_register","expiresAt":"<timestamp>","suggestedDisplayName":"<safe suggestion>"}`.
 A provider-backed recovery preview is
-`{"intent":"reset","expiresAt":"<timestamp>"}` and deliberately omits
-`target`. Neither shape exposes the provider subject, target account, proof
-material, operator session, or internal enrollment snapshot. Proof and
+`{"intent":"reset","target":{"username":"<username>","displayName":"<display name>"},"expiresAt":"<timestamp>"}`,
+the same `target` an admin reset carries, so the page can name the account
+that gets a new sign-in method. A reset whose target account cannot be read
+fails the preview. Neither shape exposes the provider subject, proof material,
+operator session, or internal enrollment snapshot. Proof and
 enrollment tokens are opaque bearer values and must not be logged or treated
 as API-readable state.
 

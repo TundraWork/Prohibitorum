@@ -119,6 +119,11 @@ msgstr "{name} 将不能再修改这个应用。其账号不受影响。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
+msgid "error.federation.upstream_rate_limited.seconds"
+msgstr "{provider} 要求放慢请求。请等待 {seconds, plural, other {# 秒}}。"
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
 msgid "error.federation.upstream_rate_limited"
 msgstr "{provider} 要求放慢请求。请稍等片刻。"
 
@@ -126,6 +131,11 @@ msgstr "{provider} 要求放慢请求。请稍等片刻。"
 #: src/api/errors.ts
 msgid "error.federation.provider_not_ready"
 msgstr "{provider} 尚未配置完成。"
+
+#. js-lingui-explicit-id
+#: src/pages/public/FederationFlow.tsx
+msgid "federation_flow.description.enroll"
+msgstr "{provider} 只用来证明资料属于你，之后你会创建自己的登录方式。已有账号请在「安全」中绑定 {provider}。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -470,6 +480,11 @@ msgid "security.passkeys.add"
 msgstr "添加通行密钥"
 
 #. js-lingui-explicit-id
+#: src/pages/public/SetupSignin.tsx
+msgid "setup_signin.passkey"
+msgstr "添加通行密钥"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/AdminIdentityProviders.tsx
 msgid "admin.federation.create"
 msgstr "添加提供商"
@@ -478,6 +493,11 @@ msgstr "添加提供商"
 #: src/pages/admin/forward-auth-apps/ScopeTableField.tsx
 msgid "admin.forward-auth-apps.scopes.add"
 msgstr "添加作用域"
+
+#. js-lingui-explicit-id
+#: src/pages/public/SetupSignin.tsx
+msgid "setup_signin.title"
+msgstr "添加一种登录方式"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
@@ -646,6 +666,11 @@ msgstr "已在管理这个应用"
 #: src/pages/admin/AdminGroupForm.tsx
 msgid "admin.group.rule.hint"
 msgstr "账号在规则匹配期间属于本组。每次请求访问时都会检查规则，所以用户组始终保持最新。"
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.username_collision"
+msgstr "已有同名账号，无法自动创建。请联系管理员。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -904,6 +929,11 @@ msgid "login.totp.code"
 msgstr "身份验证器验证码"
 
 #. js-lingui-explicit-id
+#: src/pages/public/enroll/PasswordTotpSetup.tsx
+msgid "enroll.password_totp.code"
+msgstr "验证码"
+
+#. js-lingui-explicit-id
 #: src/components/custom/SudoDialog.tsx
 msgid "sudo.code"
 msgstr "验证器验证码"
@@ -962,6 +992,11 @@ msgstr "头像 URL"
 #: src/pages/security/PasswordTotpPanel.tsx
 msgid "security.setup.back"
 msgstr "上一步"
+
+#. js-lingui-explicit-id
+#: src/pages/public/enroll/PasswordTotpSetup.tsx
+msgid "enroll.password_totp.back"
+msgstr "返回"
 
 #. js-lingui-explicit-id
 #: src/components/custom/RouteFeedback.tsx
@@ -1148,6 +1183,16 @@ msgstr "请为这个条件选择提供商。"
 #: src/pages/admin/AdminLogs.tsx
 msgid "admin.logs.range.incomplete"
 msgstr "请选择开始日期和结束日期"
+
+#. js-lingui-explicit-id
+#: src/pages/public/FederationFlow.tsx
+msgid "federation_flow.username.required"
+msgstr "请为新账号选择用户名。"
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.local_username_required"
+msgstr "请为新账号选择用户名。"
 
 #. js-lingui-explicit-id
 #: src/components/custom/AppAccessPanel.tsx
@@ -1352,6 +1397,11 @@ msgstr "验证码"
 #: src/pages/security/PasswordTotpPanel.tsx
 msgid "security.setup.code"
 msgstr "身份验证器中的验证码"
+
+#. js-lingui-explicit-id
+#: src/pages/public/FederationFlow.tsx
+msgid "federation_flow.proof.step.verify"
+msgstr "回到这里按“验证”。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
@@ -1610,6 +1660,11 @@ msgid "sudo.reason.unlink-identity"
 msgstr "请验证身份，以解绑此身份。"
 
 #. js-lingui-explicit-id
+#: src/pages/public/enroll/PasswordTotpSetup.tsx
+msgid "enroll.password_totp.confirm"
+msgstr "确认密码"
+
+#. js-lingui-explicit-id
 #: src/pages/public/consent/scopes.ts
 msgid "consent.scope.openid"
 msgstr "确认你的身份"
@@ -1665,8 +1720,33 @@ msgid "console.navigation"
 msgstr "控制台导航"
 
 #. js-lingui-explicit-id
+#: src/pages/public/FederationFlow.tsx
+msgid "federation_flow.continue"
+msgstr "继续"
+
+#. js-lingui-explicit-id
+#: src/pages/public/FederationFlow.tsx
+msgid "federation_flow.identify.continue"
+msgstr "继续"
+
+#. js-lingui-explicit-id
 #: src/pages/public/SamlConsent.tsx
 msgid "saml_consent.continue"
+msgstr "继续"
+
+#. js-lingui-explicit-id
+#: src/pages/public/SetupSignin.tsx
+msgid "setup_signin.continue"
+msgstr "继续"
+
+#. js-lingui-explicit-id
+#: src/pages/public/Welcome.tsx
+msgid "welcome.continue"
+msgstr "继续"
+
+#. js-lingui-explicit-id
+#: src/pages/public/enroll/PasswordTotpSetup.tsx
+msgid "enroll.password_totp.next"
 msgstr "继续"
 
 #. js-lingui-explicit-id
@@ -1683,6 +1763,11 @@ msgstr "继续"
 #: src/pages/public/SamlConsent.tsx
 msgid "saml_consent.title"
 msgstr "继续登录 {sp}？"
+
+#. js-lingui-explicit-id
+#: src/components/custom/ProviderButtons.tsx
+msgid "federation.continue_with"
+msgstr "使用 {name} 继续"
 
 #. js-lingui-explicit-id
 #: src/pages/Login.tsx
@@ -1760,6 +1845,11 @@ msgid "admin.oidc-apps.secret.copy"
 msgstr "复制密钥"
 
 #. js-lingui-explicit-id
+#: src/pages/public/FederationFlow.tsx
+msgid "federation_flow.identify.step.copy"
+msgstr "复制地址栏里的地址。"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/secret-copy.ts
 msgid "admin.oidc-apps.secret.title"
 msgstr "复制客户密钥"
@@ -1773,6 +1863,11 @@ msgstr "复制注册链接"
 #: src/components/custom/secret-reveal-copy.ts
 msgid "admin.invitations.reveal.title"
 msgstr "复制注册链接"
+
+#. js-lingui-explicit-id
+#: src/pages/public/FederationFlow.tsx
+msgid "federation_flow.proof.step.copy"
+msgstr "复制验证链接。"
 
 #. js-lingui-explicit-id
 #: src/components/custom/secret-reveal-copy.ts
@@ -1873,6 +1968,11 @@ msgstr "无法连接该提供商。"
 #: src/components/custom/CopyValue.tsx
 msgid "copy-value.failed"
 msgstr "无法复制。请选中上面的值，手动复制。"
+
+#. js-lingui-explicit-id
+#: src/pages/public/Enroll.tsx
+msgid "enroll.passkey"
+msgstr "创建通行密钥"
 
 #. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
@@ -2326,6 +2426,11 @@ msgid "profile.display-name.form"
 msgstr "显示名称"
 
 #. js-lingui-explicit-id
+#: src/pages/public/Enroll.tsx
+msgid "enroll.display_name"
+msgstr "显示名称"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.displayName"
 msgstr "显示名"
@@ -2350,6 +2455,11 @@ msgstr "显示名称"
 #: src/api/success-messages.ts
 msgid "success.display-name.saved"
 msgstr "显示名称已保存"
+
+#. js-lingui-explicit-id
+#: src/pages/public/FederationFlow.tsx
+msgid "federation_flow.identity.description"
+msgstr "不要在这里输入 VRChat 密码。"
 
 #. js-lingui-explicit-id
 #: src/components/custom/secret-reveal-copy.ts
@@ -2570,6 +2680,16 @@ msgid "login.totp.invalid"
 msgstr "请输入符合配置位数的验证码，仅使用数字 0–9。"
 
 #. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.invalid_display_name"
+msgstr "请输入 1–128 个字符的显示名称，不含控制字符。"
+
+#. js-lingui-explicit-id
+#: src/pages/public/Enroll.tsx
+msgid "enroll.display_name.invalid"
+msgstr "请输入 1–128 个字符的显示名称。"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-validation.ts
 msgid "admin.federation.claims.domains.invalid"
 msgstr "请填写 example.com 这样的域名，不带协议和路径。"
@@ -2630,9 +2750,24 @@ msgid "admin.forward-auth-apps.scope.name.required"
 msgstr "请填写作用域名称。"
 
 #. js-lingui-explicit-id
+#: src/pages/public/Enroll.tsx
+msgid "enroll.username.required"
+msgstr "请输入用户名。"
+
+#. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.invalid_nickname"
 msgstr "请输入有效昵称，不要包含控制字符。"
+
+#. js-lingui-explicit-id
+#: src/pages/public/FederationFlow.tsx
+msgid "federation_flow.identity.required"
+msgstr "请输入 VRChat 资料地址或以 usr_ 开头的用户 ID。"
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.vrchat_identity_invalid"
+msgstr "请输入 VRChat 资料地址或以 usr_ 开头的用户 ID。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/oidc-validation.ts
@@ -2696,7 +2831,7 @@ msgid "admin.federation.new.secret.required"
 msgstr "请填写客户端密钥。"
 
 #. js-lingui-explicit-id
-#: src/pages/security/PasswordTotpPanel.tsx
+#: src/forms/password-totp-rules.ts
 msgid "security.totp.invalid"
 msgstr "请输入身份验证器显示的验证码，只能包含 0–9。"
 
@@ -3181,6 +3316,11 @@ msgid "sudo.form.label"
 msgstr "身份验证"
 
 #. js-lingui-explicit-id
+#: src/pages/public/VrchatProof.tsx
+msgid "vrchat_proof.owner"
+msgstr "如果这是你的资料：回到 {instance} 按“验证”。验证完成后，把链接从简介里删掉。"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
 msgid "admin.saml-apps.new.mode.metadata"
 msgstr "导入元数据"
@@ -3189,6 +3329,11 @@ msgstr "导入元数据"
 #: src/pages/admin/saml-applications/SamlGeneralSection.tsx
 msgid "admin.saml-apps.field.lifetime.hint"
 msgstr "以分钟为单位。留空则不限制会话时长。"
+
+#. js-lingui-explicit-id
+#: src/pages/public/FederationFlow.tsx
+msgid "federation_flow.proof.step.bio"
+msgstr "在 VRChat 把它加到个人简介的链接里并保存。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AcsRowFields.tsx
@@ -3264,6 +3409,11 @@ msgstr "IP"
 #: src/pages/devices/PairDeviceDialog.tsx
 msgid "devices.field.ip"
 msgstr "IP 地址"
+
+#. js-lingui-explicit-id
+#: src/pages/public/Welcome.tsx
+msgid "welcome.title"
+msgstr "这是你的账号吗？"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
@@ -3489,6 +3639,11 @@ msgstr "已签发链接"
 #: src/pages/admin/audit-vocabulary.ts
 msgid "audit.event.enrollment_consumed"
 msgstr "链接已使用"
+
+#. js-lingui-explicit-id
+#: src/pages/public/FederationFlow.tsx
+msgid "federation_flow.title.link"
+msgstr "绑定 {provider} 资料"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts
@@ -4226,9 +4381,19 @@ msgid "admin.forward-auth-apps.open"
 msgstr "开放 {name}"
 
 #. js-lingui-explicit-id
+#: src/pages/public/FederationFlow.tsx
+msgid "federation_flow.identify.step.open"
+msgstr "在浏览器打开 <0>vrchat.com</0> 并进入你的个人资料页。"
+
+#. js-lingui-explicit-id
 #: src/components/custom/ConsoleLayout.tsx
 msgid "console.open-menu"
 msgstr "打开导航"
+
+#. js-lingui-explicit-id
+#: src/pages/public/FederationFlow.tsx
+msgid "federation_flow.proof.open_profile"
+msgstr "打开资料"
 
 #. js-lingui-explicit-id
 #: src/components/custom/AppAccessPanel.tsx
@@ -4271,8 +4436,8 @@ msgid "admin.group.description.hint"
 msgstr "可选。说明本用户组的用途，供之后阅读的人参考。"
 
 #. js-lingui-explicit-id
-#: src/components/custom/SudoDialog.tsx
-msgid "sudo.or"
+#: src/components/custom/OrSeparator.tsx
+msgid "common.or"
 msgstr "或"
 
 #. js-lingui-explicit-id
@@ -4362,6 +4527,11 @@ msgid "error.passkey_unsupported"
 msgstr "当前浏览器不支持通行密钥。请使用密码登录。"
 
 #. js-lingui-explicit-id
+#: src/pages/public/enroll/PasskeyButton.tsx
+msgid "enroll.passkey.unsupported"
+msgstr "此浏览器或连接不支持通行密钥。"
+
+#. js-lingui-explicit-id
 #: src/pages/Login.tsx
 msgid "login.password"
 msgstr "密码"
@@ -4369,6 +4539,11 @@ msgstr "密码"
 #. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
 msgid "security.factor.password"
+msgstr "密码"
+
+#. js-lingui-explicit-id
+#: src/pages/public/enroll/PasswordTotpSetup.tsx
+msgid "enroll.password_totp.password"
 msgstr "密码"
 
 #. js-lingui-explicit-id
@@ -4483,6 +4658,11 @@ msgid "admin.forward-auth-apps.headers.email"
 msgstr "主邮箱"
 
 #. js-lingui-explicit-id
+#: src/pages/public/FederationFlow.tsx
+msgid "federation_flow.proof.profile"
+msgstr "资料"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.tab.profile"
 msgstr "资料"
@@ -4496,6 +4676,11 @@ msgstr "资料"
 #: src/components/custom/ConsoleLayout.tsx
 msgid "console.profile"
 msgstr "个人资料"
+
+#. js-lingui-explicit-id
+#: src/pages/public/FederationFlow.tsx
+msgid "federation_flow.verified.title"
+msgstr "资料已验证"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
@@ -5145,6 +5330,11 @@ msgid "audit.event.revoke"
 msgstr "已撤销"
 
 #. js-lingui-explicit-id
+#: src/pages/public/SetupSignin.tsx
+msgid "setup_signin.description"
+msgstr "现在你只能通过 {providers} 登录。再添加一种方式，{providers} 不可用时也能进入账号。"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminInvitationForm.tsx
 msgid "admin.invitations.new.role"
 msgstr "角色"
@@ -5505,6 +5695,11 @@ msgid "security.setup.step.password"
 msgstr "设置密码"
 
 #. js-lingui-explicit-id
+#: src/pages/public/enroll/PasswordTotpSetup.tsx
+msgid "enroll.password_totp.password.title"
+msgstr "设置密码"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderDangerSection.tsx
 msgid "admin.federation.danger.set-secret"
 msgstr "设置密钥"
@@ -5515,9 +5710,19 @@ msgid "admin.federation.danger.not-ready.steam"
 msgstr "先设置 Web API 密钥才能启用。"
 
 #. js-lingui-explicit-id
+#: src/pages/public/enroll/PasswordTotpSetup.tsx
+msgid "enroll.password_totp.form"
+msgstr "设置密码和验证器"
+
+#. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
 msgid "security.setup.step.authenticator"
 msgstr "设置身份验证器"
+
+#. js-lingui-explicit-id
+#: src/pages/public/enroll/PasswordTotpSetup.tsx
+msgid "enroll.password_totp.authenticator.title"
+msgstr "绑定验证器"
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
@@ -5613,6 +5818,11 @@ msgstr "在提供商处完成一次登录，逐项检查每个阶段。"
 #: src/pages/admin/identity-providers/ProviderDangerSection.tsx
 msgid "admin.federation.danger.not-ready.vrchat"
 msgstr "先登录运营账号才能启用。"
+
+#. js-lingui-explicit-id
+#: src/pages/public/FederationFlow.tsx
+msgid "federation_flow.title.login"
+msgstr "通过 {provider} 登录"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -5778,6 +5988,11 @@ msgid "settings.keys.table"
 msgstr "签名密钥"
 
 #. js-lingui-explicit-id
+#: src/pages/public/SetupSignin.tsx
+msgid "setup_signin.skip"
+msgstr "暂时跳过"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.diagnostics.stage-status.skipped"
 msgstr "跳过"
@@ -5786,6 +6001,11 @@ msgstr "跳过"
 #: src/pages/admin/AdminGroups.tsx
 msgid "admin.groups.column.slug"
 msgstr "标识"
+
+#. js-lingui-explicit-id
+#: src/pages/public/VrchatProof.tsx
+msgid "vrchat_proof.passing_by"
+msgstr "有人把该链接放进了自己的 VRChat 简介，用来向 {instance} 证明该资料属于自己。如果你只是路过，什么都不用做：该页面不会登录任何人，也不会授予任何权限。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -6258,6 +6478,11 @@ msgstr "无法验证通行密钥，可以改用密码。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
+msgid "error.registration_failed"
+msgstr "无法创建通行密钥。"
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
 msgid "error.ceremony_state_invalid"
 msgstr "无法验证本次通行密钥登录。"
 
@@ -6378,7 +6603,7 @@ msgid "settings.network.proxies.hidden_invalid"
 msgstr "可信代理列表中有服务器不接受的条目。请选择 X-Forwarded-For 后修改。"
 
 #. js-lingui-explicit-id
-#: src/pages/security/PasswordTotpPanel.tsx
+#: src/forms/password-totp-rules.ts
 msgid "security.password.mismatch"
 msgstr "两次输入的密码不一致。"
 
@@ -6386,6 +6611,16 @@ msgstr "两次输入的密码不一致。"
 #: src/components/custom/AppAccessPanel.tsx
 msgid "app.access.open.kept"
 msgstr "下面的用户组已保留，重新限制后生效。"
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.vrchat_proof_missing"
+msgstr "还没在你的简介里找到验证链接。保存资料后稍等片刻再验证。"
+
+#. js-lingui-explicit-id
+#: src/pages/public/FederationFlow.tsx
+msgid "federation_flow.proof.expires"
+msgstr "验证链接 {until} 前有效。"
 
 #. js-lingui-explicit-id
 #: src/components/custom/ThemeSelect.tsx
@@ -6518,9 +6753,19 @@ msgid "error.federation.federation_invite_provider_mismatch"
 msgstr "该邀请不能用 {provider} 账号接受。"
 
 #. js-lingui-explicit-id
+#: src/pages/public/Enroll.tsx
+msgid "enroll.bound"
+msgstr "该邀请需要通过 {name} 创建账号。"
+
+#. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.federation.enrollment_federation_required"
 msgstr "该邀请需要通过 {provider} 创建账号。"
+
+#. js-lingui-explicit-id
+#: src/pages/public/VrchatProof.tsx
+msgid "vrchat_proof.title"
+msgstr "这是一个验证链接"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
@@ -6531,6 +6776,11 @@ msgstr "这不是有效的 JSON。请检查花括号、逗号和引号。"
 #: src/pages/admin/AdminGroupForm.tsx
 msgid "admin.group.rule.json.unreadable"
 msgstr "这不是有效的 JSON。表单视图中的规则仍然保留。"
+
+#. js-lingui-explicit-id
+#: src/pages/public/Enroll.tsx
+msgid "enroll.description.bootstrap"
+msgstr "这是 {instance} 的第一个账号。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -6563,14 +6813,44 @@ msgid "security.revoke.last_tooltip"
 msgstr "这是你唯一的登录方式。请先添加通行密钥。"
 
 #. js-lingui-explicit-id
+#: src/pages/public/FederationFlow.tsx
+msgid "federation_flow.username.description"
+msgstr "这是你在 {instance} 的用户名。"
+
+#. js-lingui-explicit-id
+#: src/pages/public/Welcome.tsx
+msgid "welcome.decline"
+msgstr "这不是我"
+
+#. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.signing-key.credential_not_found"
 msgstr "这个密钥已不是待启用状态。"
 
 #. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.enrollment_method_not_allowed"
+msgstr "该链接不能用这种方式设置登录。"
+
+#. js-lingui-explicit-id
 #: src/components/custom/secret-reveal-copy.ts
 msgid "admin.invitations.reveal.once"
 msgstr "该链接只显示一次，持有者可用它登录为被邀请的账号。请自行发给对方，且只通过你信任的渠道发送。"
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.enrollment_consumed"
+msgstr "该链接已经用过或已过期。请向管理员索取新链接。"
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.enrollment_expired"
+msgstr "该链接已经用过或已过期。请向管理员索取新链接。"
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.federation_action_invalid"
+msgstr "该页面已失效。"
 
 #. js-lingui-explicit-id
 #: src/pages/devices/PairDeviceDialog.tsx
@@ -6586,6 +6866,11 @@ msgstr "此次配对当前状态不允许该操作。"
 #: src/api/errors.ts
 msgid "error.pairing_not_approved"
 msgstr "此次配对尚未到可以批准的阶段。"
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.credential_already_registered"
+msgstr "该通行密钥已经注册过了。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -6644,6 +6929,11 @@ msgstr "本次登录已过期。请重新输入密码。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
+msgid "error.federation_state_invalid.sign_in"
+msgstr "这次登录已过期。请重新登录。"
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
 msgid "error.invalid_login_link"
 msgstr "登录链接无效，请打开新的登录链接。"
 
@@ -6656,6 +6946,11 @@ msgstr "该登录请求已经用过。请回到应用重新登录。"
 #: src/api/errors.ts
 msgid "error.vrchat_operator_challenge_invalid"
 msgstr "本次登录耗时过长。请重新输入密码开始。"
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.setup-signin.sudo_required"
+msgstr "该步骤已超时。请之后在「安全」中添加。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -6933,7 +7228,13 @@ msgid "admin.forward-auth-apps.host.invalid"
 msgstr "请填写小写主机名，不带协议和端口，例如 app.example.com。"
 
 #. js-lingui-explicit-id
-#: src/pages/security/PasswordTotpPanel.tsx
+#: src/pages/public/Enroll.tsx
+#: src/pages/public/SetupSignin.tsx
+msgid "enroll.use_password_totp"
+msgstr "改用密码和验证器"
+
+#. js-lingui-explicit-id
+#: src/forms/password-totp-rules.ts
 msgid "security.password.invalid"
 msgstr "请使用至少 8 个字符的密码。"
 
@@ -7167,6 +7468,11 @@ msgid "login.username"
 msgstr "用户名"
 
 #. js-lingui-explicit-id
+#: src/pages/public/Enroll.tsx
+msgid "enroll.username"
+msgstr "用户名"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminUsers.tsx
 msgid "admin.users.column.username"
 msgstr "用户名"
@@ -7191,6 +7497,11 @@ msgstr "用户名"
 #: src/components/custom/principal-sources.ts
 msgid "principal-source.username"
 msgstr "用户名"
+
+#. js-lingui-explicit-id
+#: src/pages/public/FederationFlow.tsx
+msgid "federation_flow.username"
+msgstr "新账号的用户名"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminUsers.tsx
@@ -7238,6 +7549,11 @@ msgid "admin.users.filter.value"
 msgstr "要匹配的值"
 
 #. js-lingui-explicit-id
+#: src/pages/public/FederationFlow.tsx
+msgid "federation_flow.proof.link"
+msgstr "验证链接"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderOperatorSection.tsx
 msgid "admin.federation.operator.method"
 msgstr "验证方式"
@@ -7258,6 +7574,11 @@ msgid "principal-source.verified-email"
 msgstr "已验证邮箱"
 
 #. js-lingui-explicit-id
+#: src/pages/public/FederationFlow.tsx
+msgid "federation_flow.proof.verify"
+msgstr "验证"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderOperatorSection.tsx
 msgid "admin.federation.operator.verify"
 msgstr "验证"
@@ -7268,9 +7589,19 @@ msgid "sudo.submit"
 msgstr "验证并继续"
 
 #. js-lingui-explicit-id
+#: src/pages/public/enroll/PasswordTotpSetup.tsx
+msgid "enroll.password_totp.finish"
+msgstr "验证并完成"
+
+#. js-lingui-explicit-id
 #: src/components/custom/SudoDialog.tsx
 msgid "sudo.use-passkey"
 msgstr "使用通行密钥验证"
+
+#. js-lingui-explicit-id
+#: src/pages/public/FederationFlow.tsx
+msgid "federation_flow.title.verify"
+msgstr "验证你的 {provider} 资料"
 
 #. js-lingui-explicit-id
 #: src/pages/Login.tsx
@@ -7286,6 +7617,11 @@ msgstr "请先在 {provider} 验证你的邮箱地址。"
 #: src/api/errors.ts
 msgid "error.sudo_required"
 msgstr "请重新验证身份后继续。"
+
+#. js-lingui-explicit-id
+#: src/pages/public/FederationFlow.tsx
+msgid "federation_flow.proof.form"
+msgstr "验证你的资料"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/SigningKeysPanel.tsx
@@ -7306,6 +7642,11 @@ msgstr "VRChat 账号只能绑定，不能创建。"
 #: src/pages/admin/audit-vocabulary.ts
 msgid "audit.event.vrchat_operator_session_invalidated"
 msgstr "VRChat 操作员会话已失效"
+
+#. js-lingui-explicit-id
+#: src/pages/public/FederationFlow.tsx
+msgid "federation_flow.identity"
+msgstr "VRChat 资料地址或用户 ID"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderOperatorSection.tsx
@@ -7379,6 +7720,21 @@ msgid "admin.federation.diagnostics.identity.yes"
 msgstr "是"
 
 #. js-lingui-explicit-id
+#: src/pages/public/SetupSignin.tsx
+msgid "setup_signin.later"
+msgstr "之后也可以在「安全」中添加。"
+
+#. js-lingui-explicit-id
+#: src/pages/public/FederationFlow.tsx
+msgid "federation_flow.verified.description"
+msgstr "现在可以把验证链接从 VRChat 简介里删掉了。"
+
+#. js-lingui-explicit-id
+#: src/pages/public/Enroll.tsx
+msgid "enroll.description.reset"
+msgstr "设置完成后即可用它登录。"
+
+#. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.cannot_delete_self"
 msgstr "你无法删除自己的账号。请让另一位管理员操作。"
@@ -7412,6 +7768,16 @@ msgstr "该确认只需要一次。你可以随时在「<0>已连接应用</0>�
 #: src/pages/security/IdentitiesPanel.tsx
 msgid "security.identities.unlink.body"
 msgstr "你将无法再通过该提供方登录。其它登录方式不受影响。"
+
+#. js-lingui-explicit-id
+#: src/pages/public/Welcome.tsx
+msgid "welcome.description"
+msgstr "你第一次通过 {idp} 登录，{instance} 为你准备了这个账号。"
+
+#. js-lingui-explicit-id
+#: src/pages/public/Enroll.tsx
+msgid "enroll.description.invite"
+msgstr "你受邀加入 {instance}。链接 {expires} 前有效。"
 
 #. js-lingui-explicit-id
 #: src/components/custom/ConsoleLayout.tsx
@@ -7472,3 +7838,13 @@ msgstr "你的个人资料、安全设置、已连接应用与设备都在侧栏
 #: src/pages/Profile.tsx
 msgid "profile.username.note"
 msgstr "用户名用于登录识别，不可修改。"
+
+#. js-lingui-explicit-id
+#: src/pages/public/FederationFlow.tsx
+msgid "federation_flow.identify.form"
+msgstr "你的 VRChat 资料"
+
+#. js-lingui-explicit-id
+#: src/pages/public/Enroll.tsx
+msgid "enroll.description.federated"
+msgstr "你的 VRChat 资料已验证。选好账号名称，再设置登录方式。"

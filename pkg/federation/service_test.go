@@ -2108,3 +2108,176 @@ func TestServiceFencedConsumeBackendFailureDoesNotReinsert(t *testing.T) {
 		t.Fatalf("adapter calls = %d", adapter.calls)
 	}
 }
+
+type namedServiceDefinition struct {
+	protocol string
+	ready    bool
+}
+
+func (d namedServiceDefinition) Protocol() string                           { return d.protocol }
+func (d namedServiceDefinition) Descriptor() Descriptor                     { return descriptor(d.protocol) }
+func (namedServiceDefinition) ValidateConfig(json.RawMessage) error         { return nil }
+func (namedServiceDefinition) ValidateSecret(json.RawMessage, []byte) error { return nil }
+func (d namedServiceDefinition) Ready(Provider) bool                        { return d.ready }
+
+// newNamedServiceHarness builds a service over one enabled provider named
+// "Corporate SSO". The loader is returned by pointer so a test can disable or
+// remove the provider after a flow has begun.
+func newNamedServiceHarness(t *testing.T, protocol string, ready bool) (*Service, *serviceFakeAdapter, *serviceFakeResolver, *fakeProviderLoader) {
+	t.Helper()
+	registry := NewRegistry()
+	if err := registry.RegisterDefinition(namedServiceDefinition{protocol: protocol, ready: ready}); err != nil {
+		t.Fatal(err)
+	}
+	action := NextAction{Kind: ActionRedirect, URL: "https://upstream.test"}
+	mode := ModeAutoProvision
+	if protocol == "vrchat" {
+		action = NextAction{Kind: ActionCollectIdentity}
+		mode = ModeLinkOnly
+	}
+	adapter := &serviceFakeAdapter{protocol: protocol, beginState: json.RawMessage(`{"step":1}`), beginAction: action}
+	if err := registry.RegisterAdapter(adapter); err != nil {
+		t.Fatal(err)
+	}
+	resolver := &serviceFakeResolver{outcome: ResolveOutcome{AccountID: 5, IdentityID: 8, ProviderID: 7, AMR: []string{"fake"}, Confirmed: true}}
+	loader := &fakeProviderLoader{provider: Provider{ID: 7, Slug: "corp", DisplayName: "Corporate SSO", Protocol: protocol, Mode: mode}}
+	service := NewService(registry, loader, kv.NewMemoryStore(), resolver, rejectingEnrollmentIssuer(), ServiceConfig{StateTTL: time.Minute, PublicOrigin: "https://idp.test"})
+	return service, adapter, resolver, loader
+}
+
+func TestEnabledProviderName(t *testing.T) {
+	service, _, _, loader := newNamedServiceHarness(t, "fake", true)
+	if got := service.EnabledProviderName(context.Background(), "corp"); got != "Corporate SSO" {
+		t.Fatalf("enabled provider name = %q", got)
+	}
+	if got := service.EnabledProviderName(context.Background(), ""); got != "" {
+		t.Fatalf("empty slug name = %q", got)
+	}
+	loader.provider.Disabled = true
+	if got := service.EnabledProviderName(context.Background(), "corp"); got != "" {
+		t.Fatalf("disabled provider name = %q", got)
+	}
+	loader.provider.Disabled = false
+	loader.bySlugErr = ErrUnknownProvider
+	if got := service.EnabledProviderName(context.Background(), "corp"); got != "" {
+		t.Fatalf("unknown provider name = %q", got)
+	}
+}
+
+func TestServiceResolverErrorsCarryProviderName(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		code string
+	}{
+		{"invite required", authn.ErrInviteRequired(), "invite_required"},
+		{"email not verified", authn.ErrEmailNotVerified(), "email_not_verified"},
+		{"link required", authn.ErrLinkRequired(), "link_required"},
+		{"email not verified failure", NewFailure(FailureEmailNotVerified, map[string]any{"upstream_iss": "iss"}), "email_not_verified"},
+		{"domain not allowed failure", NewFailure(FailureDomainNotAllowed, nil), "invite_required"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			service, adapter, resolver, _ := newNamedServiceHarness(t, "fake", true)
+			adapter.advance = func(json.RawMessage, ActionInput) (AdvanceResult, error) {
+				return AdvanceResult{Identity: &VerifiedIdentity{Issuer: "iss", Subject: "sub"}}, nil
+			}
+			resolver.err = test.err
+			begin, err := service.BeginPublic(context.Background(), "corp", "/")
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, err = service.VerifyFlow(context.Background(), AdvanceRequest{
+				FlowID: begin.FlowID, BrowserToken: begin.BrowserToken,
+				ProviderSlug: "corp", Protocol: "fake", CallbackRoute: CallbackRoutePublic, Input: ActionInput{Kind: ActionRedirect},
+			})
+			public := authn.AsAuthError(err)
+			if public == nil || public.Code != test.code || public.Details["federationName"] != "Corporate SSO" {
+				t.Fatalf("error = %#v", public)
+			}
+		})
+	}
+
+	t.Run("resolver name is kept", func(t *testing.T) {
+		service, adapter, resolver, _ := newNamedServiceHarness(t, "fake", true)
+		adapter.advance = func(json.RawMessage, ActionInput) (AdvanceResult, error) {
+			return AdvanceResult{Identity: &VerifiedIdentity{Issuer: "iss", Subject: "sub"}}, nil
+		}
+		resolver.err = authn.ErrFederationIdentityConflict("Resolver Name")
+		begin, err := service.BeginPublic(context.Background(), "corp", "/")
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = service.VerifyFlow(context.Background(), AdvanceRequest{
+			FlowID: begin.FlowID, BrowserToken: begin.BrowserToken,
+			ProviderSlug: "corp", Protocol: "fake", CallbackRoute: CallbackRoutePublic, Input: ActionInput{Kind: ActionRedirect},
+		})
+		if public := authn.AsAuthError(err); public == nil || public.Details["federationName"] != "Resolver Name" {
+			t.Fatalf("error = %#v", public)
+		}
+	})
+}
+
+func TestServiceVRChatUpstreamRateLimitCarriesProviderName(t *testing.T) {
+	service, adapter, _, _ := newNamedServiceHarness(t, "vrchat", true)
+	adapter.advance = func(json.RawMessage, ActionInput) (AdvanceResult, error) {
+		return AdvanceResult{}, NewRateLimitedFailure(5 * time.Second)
+	}
+	begin, err := service.BeginLink(context.Background(), "corp", "/security", 5, "session")
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := AdvanceRequest{
+		FlowID: begin.FlowID, BrowserToken: begin.BrowserToken, CallbackRoute: CallbackRouteLocal,
+		AccountID: new(int32(5)), SessionID: "session", Input: ActionInput{Kind: ActionCollectIdentity},
+	}
+	_, prepareErr := service.PrepareFlow(context.Background(), request)
+	_, verifyErr := service.VerifyFlow(context.Background(), request)
+	for step, err := range map[string]error{"prepare": prepareErr, "verify": verifyErr} {
+		public := authn.AsAuthError(err)
+		if public == nil || public.Code != "upstream_rate_limited" || public.RetryAfter != 5*time.Second ||
+			public.Details["federationName"] != "Corporate SSO" {
+			t.Fatalf("%s error = %#v", step, public)
+		}
+	}
+}
+
+func TestServiceVRChatNotReadyBeginCarriesProviderName(t *testing.T) {
+	service, _, _, _ := newNamedServiceHarness(t, "vrchat", false)
+	_, err := service.BeginLink(context.Background(), "corp", "/security", 5, "session")
+	public := authn.AsAuthError(err)
+	if public == nil || public.Code != "provider_not_ready" || public.Details["federationName"] != "Corporate SSO" {
+		t.Fatalf("error = %#v", public)
+	}
+}
+
+func TestServiceUnknownOrDisabledProviderStaysUnnamed(t *testing.T) {
+	for _, change := range []string{"unknown", "disabled"} {
+		t.Run(change, func(t *testing.T) {
+			service, _, _, loader := newNamedServiceHarness(t, "fake", true)
+			begin, err := service.BeginPublic(context.Background(), "corp", "/")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if change == "unknown" {
+				loader.bySlugErr = ErrUnknownProvider
+			} else {
+				loader.provider.Disabled = true
+			}
+			_, err = service.VerifyFlow(context.Background(), AdvanceRequest{
+				FlowID: begin.FlowID, BrowserToken: begin.BrowserToken,
+				ProviderSlug: "corp", Protocol: "fake", CallbackRoute: CallbackRoutePublic, Input: ActionInput{Kind: ActionRedirect},
+			})
+			public := authn.AsAuthError(err)
+			if public == nil || public.Code != "federation_state_invalid" || len(public.Details) != 0 {
+				t.Fatalf("error = %#v", public)
+			}
+		})
+	}
+
+	service, _, _, loader := newNamedServiceHarness(t, "fake", true)
+	loader.bySlugErr = ErrUnknownProvider
+	if _, err := service.BeginPublic(context.Background(), "missing", "/"); !errors.Is(err, ErrUnknownProvider) {
+		t.Fatalf("unknown slug error = %v", err)
+	}
+}

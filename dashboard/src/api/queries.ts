@@ -1,7 +1,14 @@
-import { type QueryClient, queryOptions } from "@tanstack/react-query";
+import {
+  type Query,
+  type QueryClient,
+  queryOptions,
+} from "@tanstack/react-query";
 import { client, requireJsonData } from "@/api/client";
+import { readEnrollmentPreview } from "@/api/enrollment";
 import { ApiError } from "@/api/errors";
+import { readFederationFlow } from "@/api/federation";
 import type { ManagedApplicationKind } from "@/api/raw-admin-paths";
+import type { FederationConfirm } from "@/api/raw-paths";
 
 export function publicConfigQueryOptions() {
   return queryOptions({
@@ -84,6 +91,101 @@ export function samlConsentRequestQueryOptions(ticket: string) {
           signal,
         }),
       ),
+  });
+}
+
+/**
+ * What an enrollment link will set up. Never served from cache, and not read
+ * again on focus: the link is used up once the account exists, and the
+ * passkey prompt takes focus away while that happens.
+ */
+export function enrollmentQueryOptions(token: string) {
+  return queryOptions({
+    queryKey: ["public", "enrollment", token],
+    staleTime: 0,
+    refetchOnWindowFocus: false,
+    queryFn: async ({ signal }) =>
+      readEnrollmentPreview(
+        await requireJsonData(
+          client.GET("/api/prohibitorum/enrollments/{token}", {
+            params: { path: { token } },
+            signal,
+          }),
+        ),
+      ),
+  });
+}
+
+/** How many reads after the first wait for the provider's picture: about 30 seconds. */
+const avatarPendingReads = 20;
+
+/**
+ * Whether the prepared account is still waiting for the provider's picture:
+ * the picture is pending, and the reads have not run out.
+ */
+export function awaitingAvatar(state: {
+  data?: FederationConfirm;
+  dataUpdateCount: number;
+}): boolean {
+  return (
+    state.data?.avatarPending === true &&
+    state.dataUpdateCount <= avatarPendingReads
+  );
+}
+
+/**
+ * The account a first sign-in through a provider has prepared, read from the
+ * browser's federation cookie. While the provider's picture is still being
+ * fetched it is read again every 1.5 seconds, `avatarPendingReads` times at
+ * most. Confirming uses the grant up, so it is not read again on focus.
+ */
+export function federationConfirmQueryOptions() {
+  return queryOptions({
+    queryKey: ["public", "federation-confirm"],
+    staleTime: 0,
+    refetchOnWindowFocus: false,
+    refetchInterval: (query: Query<FederationConfirm, Error>) =>
+      awaitingAvatar(query.state) ? 1500 : false,
+    queryFn: ({ signal }): Promise<FederationConfirm> =>
+      requireJsonData(
+        client.GET("/api/prohibitorum/auth/federation/confirm", { signal }),
+      ),
+  });
+}
+
+/**
+ * A VRChat profile verification. Its step moves on the page's own writes,
+ * which put the flow they return in the cache, and verifying finishes it, so
+ * it is not read again on focus.
+ */
+export function federationFlowQueryOptions(flow: string) {
+  return queryOptions({
+    queryKey: ["public", "federation-flow", flow],
+    staleTime: 0,
+    refetchOnWindowFocus: false,
+    queryFn: async ({ signal }) =>
+      readFederationFlow(
+        await requireJsonData(
+          client.GET("/api/prohibitorum/auth/federation/flows/{flow}", {
+            params: { path: { flow } },
+            signal,
+          }),
+        ),
+      ),
+  });
+}
+
+/**
+ * The providers the sign-in page offers. The list is public, so unlike
+ * `federationProvidersQueryOptions` it does not belong to a session.
+ */
+export function publicFederationProvidersQueryOptions() {
+  return queryOptions({
+    queryKey: ["public", "federation-providers"],
+    queryFn: async ({ signal }) =>
+      (await requireJsonData(
+        client.GET("/api/prohibitorum/auth/federation", { signal }),
+      )) ?? [],
   });
 }
 

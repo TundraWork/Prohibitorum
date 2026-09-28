@@ -486,7 +486,7 @@ func TestEnrollmentPreviewFederatedRegistrationReturnsOnlySafeSuggestion(t *test
 	}
 }
 
-func TestEnrollmentPreviewProviderRecoverySuppressesTargetButAdminResetKeepsIt(t *testing.T) {
+func TestEnrollmentPreviewResetShowsTarget(t *testing.T) {
 	account := db.Account{ID: 73, Username: "private-user", DisplayName: "Private Name"}
 	providerRecovery := pendingEnrollment("provider-reset", enrollment.IntentReset)
 	providerRecovery.TargetAccountID = pgtype.Int4{Int32: account.ID, Valid: true}
@@ -499,19 +499,36 @@ func TestEnrollmentPreviewProviderRecoverySuppressesTargetButAdminResetKeepsIt(t
 	}
 	s := &Server{enrollmentQueriesOverride: q}
 
-	providerOut, err := s.handlePreviewEnrollment(context.Background(), &previewIn{Token: providerRecovery.Token})
-	if err != nil {
-		t.Fatal(err)
+	for _, token := range []string{providerRecovery.Token, adminReset.Token} {
+		out, err := s.handlePreviewEnrollment(context.Background(), &previewIn{Token: token})
+		if err != nil {
+			t.Fatalf("%s preview: %v", token, err)
+		}
+		if out.Body.Target == nil || out.Body.Target.Username != account.Username || out.Body.Target.DisplayName != account.DisplayName {
+			t.Fatalf("%s target = %+v", token, out.Body.Target)
+		}
 	}
-	if providerOut.Body.Target != nil {
-		t.Fatalf("provider recovery exposed target %+v", providerOut.Body.Target)
+}
+
+func TestEnrollmentPreviewResetFailsWithoutReadableTarget(t *testing.T) {
+	missing := pendingEnrollment("missing-target", enrollment.IntentReset)
+	missing.TargetAccountID = pgtype.Int4{Int32: 404, Valid: true}
+	missing.RecoverySourceUpstreamIdpID = pgtype.Int8{Int64: 41, Valid: true}
+	unset := pendingEnrollment("unset-target", enrollment.IntentReset)
+	q := &vrchatEnrollmentQueries{
+		enrollments: map[string]db.Enrollment{missing.Token: missing, unset.Token: unset},
+		accounts:    map[int32]db.Account{},
 	}
-	adminOut, err := s.handlePreviewEnrollment(context.Background(), &previewIn{Token: adminReset.Token})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if adminOut.Body.Target == nil || adminOut.Body.Target.Username != account.Username || adminOut.Body.Target.DisplayName != account.DisplayName {
-		t.Fatalf("admin reset target = %+v", adminOut.Body.Target)
+	s := &Server{enrollmentQueriesOverride: q}
+
+	for _, token := range []string{missing.Token, unset.Token} {
+		out, err := s.handlePreviewEnrollment(context.Background(), &previewIn{Token: token})
+		if err == nil {
+			t.Fatalf("%s preview succeeded without a target: %+v", token, out.Body)
+		}
+		if authn.AsAuthError(err) != nil {
+			t.Fatalf("%s preview error = %v, want an internal failure", token, err)
+		}
 	}
 }
 
@@ -900,13 +917,26 @@ func TestFederatedRegistrationCompletionRollsBackConflictsProviderChangesAndBadS
 			w := httptest.NewRecorder()
 			s.handleEnrollmentCompleteHTTP(w, completeEnrollmentRequest(e.Token))
 			var public struct {
-				Code string `json:"code"`
+				Code    string         `json:"code"`
+				Details map[string]any `json:"details"`
 			}
 			if err := json.Unmarshal(w.Body.Bytes(), &public); err != nil {
 				t.Fatalf("decode response status=%d body=%s: %v", w.Code, w.Body.String(), err)
 			}
 			if public.Code != test.wantCode {
 				t.Fatalf("code = %q status=%d body=%s, want %q", public.Code, w.Code, w.Body.String(), test.wantCode)
+			}
+			// The loaded provider names an identity conflict; the collapsed
+			// provider_not_ready says nothing about which provider changed.
+			wantDetails := 0
+			if test.wantCode == "federation_identity_conflict" {
+				wantDetails = 1
+				if public.Details["federationName"] != "VRChat" {
+					t.Fatalf("details = %#v, want the provider name", public.Details)
+				}
+			}
+			if len(public.Details) != wantDetails {
+				t.Fatalf("details = %#v", public.Details)
 			}
 
 			q.mu.Lock()
@@ -1174,5 +1204,55 @@ func TestFederatedRegistrationAvatarFailureAfterCommitDoesNotAlterSuccess(t *tes
 	defer q.mu.Unlock()
 	if len(q.accounts) != 1 || !q.enrollments[e.Token].ConsumedAt.Valid {
 		t.Fatalf("avatar failure changed committed result: accounts=%d consumed=%v", len(q.accounts), q.enrollments[e.Token].ConsumedAt.Valid)
+	}
+}
+
+func TestEnrollmentBeginFederationBoundInviteNamesEnabledProvider(t *testing.T) {
+	enabled := db.UpstreamIdp{ID: 51, Slug: "corp", DisplayName: "Corporate SSO", Protocol: "oidc", Mode: federation.ModeInviteOnly}
+	disabled := db.UpstreamIdp{ID: 52, Slug: "retired", DisplayName: "Retired SSO", Protocol: "oidc", Mode: federation.ModeInviteOnly, Disabled: true}
+	tests := []struct {
+		slug     string
+		wantName string
+	}{
+		{enabled.Slug, enabled.DisplayName},
+		{disabled.Slug, ""},
+		{"no-such-idp", ""},
+	}
+	for _, test := range tests {
+		t.Run(test.slug, func(t *testing.T) {
+			e := pendingEnrollment("bound-invite", enrollment.IntentInvite)
+			e.ExpectedUpstreamIdpSlug = pgtype.Text{String: test.slug, Valid: true}
+			q := &vrchatEnrollmentQueries{
+				enrollments: map[string]db.Enrollment{e.Token: e},
+				providers:   map[int64]db.UpstreamIdp{enabled.ID: enabled, disabled.ID: disabled},
+			}
+			s := &Server{
+				enrollmentQueriesOverride: q,
+				Audit:                     noopAuditWriter{},
+				federationService:         federation.NewService(federation.NewRegistry(), federation.NewProviderStore(q), nil, nil, nil, federation.ServiceConfig{}),
+			}
+
+			w := httptest.NewRecorder()
+			s.handleEnrollmentBeginHTTP(w, beginEnrollmentRequest(e.Token, `{"username":"invitee","displayName":"Invitee"}`))
+			var public struct {
+				Code    string         `json:"code"`
+				Details map[string]any `json:"details"`
+			}
+			if err := json.Unmarshal(w.Body.Bytes(), &public); err != nil {
+				t.Fatalf("decode response status=%d body=%s: %v", w.Code, w.Body.String(), err)
+			}
+			if w.Code != http.StatusBadRequest || public.Code != "enrollment_federation_required" {
+				t.Fatalf("status=%d body=%s", w.Code, w.Body.String())
+			}
+			if test.wantName == "" {
+				if len(public.Details) != 0 {
+					t.Fatalf("details = %#v, want none", public.Details)
+				}
+				return
+			}
+			if len(public.Details) != 1 || public.Details["federationName"] != test.wantName {
+				t.Fatalf("details = %#v, want federationName %q", public.Details, test.wantName)
+			}
+		})
 	}
 }

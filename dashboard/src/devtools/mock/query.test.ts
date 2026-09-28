@@ -40,6 +40,24 @@ describe("mock URL control", () => {
     expect(getMockConfig().publicFlows.consent.grant).toBe("incremental");
   });
 
+  it("sets up the enrollment, welcome and VRChat pages, within the panel's choices", () => {
+    applyMockQuery(
+      "?mock.publicFlows.enrollment.intent=reset&mock.publicFlows.enrollment.providers=9" +
+        "&mock.publicFlows.welcome.avatarPending=never&mock.publicFlows.flow.step=proof" +
+        "&mock.publicFlows.flow.intent=link",
+    );
+    const flows = getMockConfig().publicFlows;
+    expect(flows.enrollment.intent).toBe("reset");
+    expect(flows.enrollment.providers).toBe(3);
+    expect(flows.welcome.avatarPending).toBe("never");
+    expect(flows.flow).toMatchObject({ step: "proof", intent: "link" });
+    applyMockQuery(
+      "?mock.publicFlows.enrollment.intent=signup&mock.publicFlows.flow.step=done",
+    );
+    expect(getMockConfig().publicFlows.enrollment.intent).toBe("reset");
+    expect(getMockConfig().publicFlows.flow.step).toBe("proof");
+  });
+
   it("ignores a URL that names nothing the mock knows", () => {
     applyMockQuery("?tab=profile&page=2");
     expect(getMockConfig().enabled).toBe(false);

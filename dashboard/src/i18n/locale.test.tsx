@@ -57,6 +57,8 @@ beforeEach(() => {
           return Response.json(config);
         case "/api/prohibitorum/auth/status":
           return Response.json({ bootstrapped: true });
+        case "/api/prohibitorum/auth/federation":
+          return Response.json([]);
         case "/api/prohibitorum/me":
           return Response.json(
             { code: "no_session", requestId: "locale-test" },

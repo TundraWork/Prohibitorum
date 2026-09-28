@@ -2,7 +2,11 @@ import { Checkbox } from "@heroui/react";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { browserSupportsWebAuthn } from "@simplewebauthn/browser";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  useMutation,
+  useQueryClient,
+  useSuspenseQuery,
+} from "@tanstack/react-query";
 import type { HistoryState } from "@tanstack/react-router";
 import { useLocation, useNavigate, useRouter } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
@@ -21,7 +25,10 @@ import {
   recoveryMutationOptions,
   totpMutationOptions,
 } from "@/api/mutations";
-import { clearSessionQueries } from "@/api/queries";
+import {
+  clearSessionQueries,
+  publicFederationProvidersQueryOptions,
+} from "@/api/queries";
 import type {
   PublicConfig,
   RecoveryRequest,
@@ -32,7 +39,9 @@ import { withRouterSkipLoading } from "@/app/router";
 import { Button } from "@/components/custom/Button";
 import type { LoginFailure } from "@/components/custom/LoginShell";
 import { LoginShell, useLoginContext } from "@/components/custom/LoginShell";
+import { OrSeparator } from "@/components/custom/OrSeparator";
 import { OtpField } from "@/components/custom/OtpField";
+import { ProviderButtons } from "@/components/custom/ProviderButtons";
 import { RecoveryCodes } from "@/components/custom/RecoveryCodes";
 import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
 import { TotpSetup } from "@/components/custom/TotpSetup";
@@ -521,7 +530,34 @@ export function PasswordPage() {
           </Trans>
         </p>
       )}
+      <FederationSignIn returnTo={returnTo} />
     </LoginShell>
+  );
+}
+
+/**
+ * The upstream providers, under the local sign-ins. Each leaves for the
+ * provider through the server, carrying the page's `return_to` so the
+ * sign-in still ends where it was headed.
+ */
+function FederationSignIn({ returnTo }: { returnTo?: string }) {
+  const { data: providers } = useSuspenseQuery(
+    publicFederationProvidersQueryOptions(),
+  );
+  if (providers.length === 0) return null;
+  return (
+    <>
+      <OrSeparator />
+      <ProviderButtons
+        providers={providers}
+        href={(provider) => {
+          const address = `/api/prohibitorum/auth/federation/${encodeURIComponent(provider.slug)}/login`;
+          return returnTo === undefined
+            ? address
+            : `${address}?${new URLSearchParams({ return_to: returnTo })}`;
+        }}
+      />
+    </>
   );
 }
 

@@ -34,7 +34,6 @@ import (
 	"prohibitorum/pkg/federation"
 	"prohibitorum/pkg/logx"
 	sessstore "prohibitorum/pkg/session"
-	"prohibitorum/pkg/weberr"
 )
 
 // meIdentitiesQueries is the narrow query surface the /me/identities
@@ -291,7 +290,7 @@ func (s *Server) handleMeIdentitiesLinkBeginHTTP(w http.ResponseWriter, r *http.
 
 	req, err := s.federationService.BeginLink(r.Context(), slug, returnTo, sess.Account.ID, sess.Data.SessionID)
 	if err != nil {
-		// returnTo is validated + same-origin (e.g. /connected) — forward it so
+		// returnTo is validated + same-origin (e.g. /security) — forward it so
 		// the /error "go back" link returns the user to where they started.
 		if errors.Is(err, federation.ErrUnknownProvider) {
 			// Collapse "no such slug" onto the generic state-invalid code —
@@ -329,9 +328,11 @@ func (s *Server) handleMeIdentitiesLinkCallbackHTTP(w http.ResponseWriter, r *ht
 
 	if upstreamErr != "" {
 		// The user is already authenticated, so we know the account_id —
-		// embed it in the audit row. Generate a ref first so both the audit
-		// Detail and the /error redirect carry the same correlation token.
-		ref := weberr.NewRef()
+		// embed it in the audit row. The /error redirect names the provider
+		// when it is enabled, and its ref goes on the audit row so the two
+		// correlate.
+		named := authn.WithFederationName(authn.ErrUpstreamError(upstreamErr, upstreamDesc), s.enabledFederationName(r.Context(), chi.URLParam(r, "slug")))
+		ref := redirectAuthErrToError(w, r, named)
 		acct := sess.Account.ID
 		audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
 			AccountID: &acct,
@@ -344,7 +345,6 @@ func (s *Server) handleMeIdentitiesLinkCallbackHTTP(w http.ResponseWriter, r *ht
 				"ref":                  ref,
 			},
 		})
-		weberr.RedirectToError(w, r, authn.ErrUpstreamError(upstreamErr, upstreamDesc).Code, ref)
 		return
 	}
 

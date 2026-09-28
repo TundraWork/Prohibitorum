@@ -254,6 +254,57 @@ const errorMessages: Readonly<Record<string, MessageDescriptor>> = {
     message: "Invalid return address.",
   }),
 
+  /* Enrollment and the public federation pages. */
+  enrollment_consumed: msg({
+    id: "error.enrollment_consumed",
+    message:
+      "This link was already used or has expired. Ask your administrator for a new one.",
+  }),
+  enrollment_expired: msg({
+    id: "error.enrollment_expired",
+    message:
+      "This link was already used or has expired. Ask your administrator for a new one.",
+  }),
+  enrollment_method_not_allowed: msg({
+    id: "error.enrollment_method_not_allowed",
+    message: "This link can't be used to set up that sign-in method.",
+  }),
+  invalid_display_name: msg({
+    id: "error.invalid_display_name",
+    message:
+      "Enter a display name of 1–128 characters, without control characters.",
+  }),
+  credential_already_registered: msg({
+    id: "error.credential_already_registered",
+    message: "This passkey is already registered.",
+  }),
+  registration_failed: msg({
+    id: "error.registration_failed",
+    message: "The passkey couldn't be created.",
+  }),
+  federation_action_invalid: msg({
+    id: "error.federation_action_invalid",
+    message: "This page is no longer valid.",
+  }),
+  username_collision: msg({
+    id: "error.username_collision",
+    message:
+      "An account with this username already exists, so one can't be created automatically. Contact your administrator.",
+  }),
+  vrchat_identity_invalid: msg({
+    id: "error.vrchat_identity_invalid",
+    message: "Enter a VRChat profile address or a user ID beginning with usr_.",
+  }),
+  vrchat_proof_missing: msg({
+    id: "error.vrchat_proof_missing",
+    message:
+      "The verification link isn't in your bio yet. Save your profile, wait a moment, then verify.",
+  }),
+  local_username_required: msg({
+    id: "error.local_username_required",
+    message: "Choose a username for your new account.",
+  }),
+
   /* Management. These arrive on writes the console's admin pages make, and each
      one has an action the reader can take, so none of them may fall through to
      the generic failure above. */
@@ -367,11 +418,12 @@ const errorMessages: Readonly<Record<string, MessageDescriptor>> = {
     id: "error.upstream_temporarily_unavailable",
     message: "Could not reach the provider.",
   }),
-  // A diagnostic run is single-use and short-lived. The console does not treat
-  // this as a signed-out session: only `no_session` means that.
+  // A sign-in through a provider keeps its state for a short while in the
+  // browser's cookie. This is not a signed-out session: only `no_session`
+  // means that. A connection test reuses the code, in the `diagnostic` scope.
   federation_state_invalid: msg({
-    id: "error.federation_state_invalid",
-    message: "This test is no longer valid. Start a new one.",
+    id: "error.federation_state_invalid.sign_in",
+    message: "This sign-in has expired. Sign in again.",
   }),
 };
 
@@ -382,9 +434,15 @@ const errorMessages: Readonly<Record<string, MessageDescriptor>> = {
  *
  * `federation` is a sign-in or a link that went through an upstream provider:
  * its wording names the provider, which the failure carries as
- * `details.federationName`.
+ * `details.federationName`. `setup-signin` is the page that adds a first local
+ * sign-in right after one; `diagnostic` is an administrator's connection test
+ * of a provider.
  */
-export type ErrorScope = "signing-key" | "federation";
+export type ErrorScope =
+  | "signing-key"
+  | "federation"
+  | "setup-signin"
+  | "diagnostic";
 
 const scopedErrorMessages: Readonly<
   Record<ErrorScope, Readonly<Record<string, MessageDescriptor>>>
@@ -395,6 +453,22 @@ const scopedErrorMessages: Readonly<
     credential_not_found: msg({
       id: "error.signing-key.credential_not_found",
       message: "This key is no longer pending.",
+    }),
+  },
+  // The page that adds a sign-in after a first federated one does not ask
+  // who is signed in again; once its window has passed, the step is left for
+  // the Security page.
+  "setup-signin": {
+    sudo_required: msg({
+      id: "error.setup-signin.sudo_required",
+      message: "This step has timed out. Add it later from Security.",
+    }),
+  },
+  // A connection test is single-use and short-lived.
+  diagnostic: {
+    federation_state_invalid: msg({
+      id: "error.federation_state_invalid",
+      message: "This test is no longer valid. Start a new one.",
     }),
   },
   // Every one of these names the provider. Without a name the sentence would
@@ -445,6 +519,13 @@ const scopedErrorMessages: Readonly<
   },
 };
 
+/** `upstream_rate_limited` when the response says how long to wait. */
+const upstreamRateLimitedFor = msg({
+  id: "error.federation.upstream_rate_limited.seconds",
+  message:
+    "{provider} is asking us to slow down. Wait {seconds, plural, one {# second} other {# seconds}}.",
+});
+
 /** A sign-in that failed with nothing more specific to say. */
 const signInFailure = msg({
   id: "error.sign_in_failed",
@@ -454,18 +535,39 @@ const signInFailure = msg({
 /**
  * The federation wording for a code, with the provider's name filled in, or
  * `signInFailure` when the name is missing. `undefined` for a code the
- * federation table does not hold.
+ * federation table does not hold. `retryAfter` is the response's
+ * `Retry-After` in seconds, which a rate limit reports when it has one.
  */
 function federationMessage(
   code: string,
   name: unknown,
+  retryAfter?: number,
 ): MessageDescriptor | undefined {
   const table = scopedErrorMessages.federation;
   if (!Object.hasOwn(table, code)) return undefined;
   const message = table[code];
   if (message === undefined) return undefined;
   if (typeof name !== "string" || name === "") return signInFailure;
+  if (code === "upstream_rate_limited" && retryAfter !== undefined) {
+    return {
+      ...upstreamRateLimitedFor,
+      values: { provider: name, seconds: retryAfter },
+    };
+  }
   return { ...message, values: { provider: name } };
+}
+
+/**
+ * The whole seconds a failed response asked to wait, from its `Retry-After`.
+ * The date form is not read: the server sends seconds.
+ */
+function retryAfterSeconds(error: ApiError): number | undefined {
+  const header = error.exchange?.response?.headers.find(
+    ([name]) => name.toLowerCase() === "retry-after",
+  )?.[1];
+  if (header === undefined || !/^\d+$/.test(header.trim())) return undefined;
+  const seconds = Number(header.trim());
+  return seconds > 0 && Number.isSafeInteger(seconds) ? seconds : undefined;
 }
 
 export type ErrorDescription = MessageDescriptor & { requestId?: string };
@@ -490,7 +592,11 @@ export function describeError(
   const scoped = scope === undefined ? undefined : scopedErrorMessages[scope];
   const federation =
     scope === "federation" && error.code
-      ? federationMessage(error.code, error.details?.federationName)
+      ? federationMessage(
+          error.code,
+          error.details?.federationName,
+          retryAfterSeconds(error),
+        )
       : undefined;
   const message =
     federation ??

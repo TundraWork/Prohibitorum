@@ -37,7 +37,6 @@ import (
 	"prohibitorum/pkg/db"
 	"prohibitorum/pkg/federation"
 	sessstore "prohibitorum/pkg/session"
-	"prohibitorum/pkg/weberr"
 )
 
 // listFedQueries is the narrow query surface for handleListFederationProvidersHTTP.
@@ -93,6 +92,17 @@ func (s *Server) handleFederationLoginHTTP(w http.ResponseWriter, r *http.Reques
 	http.Redirect(w, r, destination, http.StatusFound)
 }
 
+// enabledFederationName returns the display name of the enabled provider with
+// this slug, or "" when it is unknown, disabled or cannot be read. Public
+// errors are named only through it, so they never reveal a provider the public
+// list at GET /auth/federation does not show.
+func (s *Server) enabledFederationName(ctx context.Context, slug string) string {
+	if s.federationService == nil {
+		return ""
+	}
+	return s.federationService.EnabledProviderName(ctx, slug)
+}
+
 // handleFederationCallbackHTTP serves
 // GET /api/prohibitorum/auth/federation/{slug}/callback.
 func (s *Server) handleFederationCallbackHTTP(w http.ResponseWriter, r *http.Request) {
@@ -107,7 +117,10 @@ func (s *Server) handleFederationCallbackHTTP(w http.ResponseWriter, r *http.Req
 		// Upstream OP refused the user. Emit an audit row (no account_id — we
 		// never reached the resolve step), stamp a correlation ref, then
 		// redirect to the SPA /error page.
-		ref := weberr.NewRef()
+		// The /error redirect names the provider when it is enabled, and its
+		// ref goes on the audit row so the two correlate.
+		named := authn.WithFederationName(authn.ErrUpstreamError(upstreamErr, upstreamDesc), s.enabledFederationName(r.Context(), chi.URLParam(r, "slug")))
+		ref := redirectAuthErrToError(w, r, named)
 		audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
 			Factor: audit.FactorFederationOIDC,
 			Event:  audit.EventFail,
@@ -118,7 +131,6 @@ func (s *Server) handleFederationCallbackHTTP(w http.ResponseWriter, r *http.Req
 				"ref":                  ref,
 			},
 		})
-		weberr.RedirectToError(w, r, authn.ErrUpstreamError(upstreamErr, upstreamDesc).Code, ref)
 		return
 	}
 
@@ -175,7 +187,7 @@ func (s *Server) writeFederationCompletion(w http.ResponseWriter, r *http.Reques
 	}
 	if result.Intent == federation.IntentLink {
 		http.SetCookie(w, sessstore.ClearedFedStateCookie(s.config, r))
-		s.writeFederationCompletionDestination(w, r, "/connected", mode)
+		s.writeFederationCompletionDestination(w, r, "/security", mode)
 		return
 	}
 	if !result.Confirmed {

@@ -27,7 +27,7 @@ func init() {
 		{Code: "username_taken", Status: http.StatusConflict, LocaleKey: "errors.username_taken", DiagnosticKind: "validation"},
 		{Code: "enrollment_expired", Status: http.StatusGone, LocaleKey: "errors.enrollment_expired", DiagnosticKind: "enrollment"},
 		{Code: "enrollment_consumed", Status: http.StatusGone, LocaleKey: "errors.enrollment_consumed", DiagnosticKind: "enrollment"},
-		{Code: "enrollment_federation_required", Status: http.StatusBadRequest, LocaleKey: "errors.enrollment_federation_required", DiagnosticKind: "enrollment"},
+		{Code: "enrollment_federation_required", Status: http.StatusBadRequest, LocaleKey: "errors.enrollment_federation_required", DiagnosticKind: "enrollment", DetailKeys: map[string]struct{}{"federationName": {}}},
 		{Code: "enrollment_method_not_allowed", Status: http.StatusBadRequest, LocaleKey: "errors.enrollment_method_not_allowed", DiagnosticKind: "enrollment"},
 		{Code: "bad_request", Status: http.StatusBadRequest, LocaleKey: "errors.bad_request", DiagnosticKind: "validation"},
 		{Code: "invalid_consent_ticket", Status: http.StatusBadRequest, LocaleKey: "errors.invalid_consent_ticket", DiagnosticKind: "validation"},
@@ -67,23 +67,23 @@ func init() {
 		{Code: "sudo_method_unavailable", Status: http.StatusBadRequest, LocaleKey: "errors.sudo_method_unavailable", DiagnosticKind: "auth"},
 		{Code: "session_not_found", Status: http.StatusNotFound, LocaleKey: "errors.session_not_found", DiagnosticKind: "resource"},
 		{Code: "cannot_revoke_current_session", Status: http.StatusConflict, LocaleKey: "errors.cannot_revoke_current_session", DiagnosticKind: "policy"},
-		{Code: "email_not_verified", Status: http.StatusForbidden, LocaleKey: "errors.email_not_verified", DiagnosticKind: "federation"},
+		{Code: "email_not_verified", Status: http.StatusForbidden, LocaleKey: "errors.email_not_verified", DiagnosticKind: "federation", DetailKeys: map[string]struct{}{"federationName": {}}},
 		{Code: "username_collision", Status: http.StatusForbidden, LocaleKey: "errors.username_collision", DiagnosticKind: "federation"},
-		{Code: "invite_required", Status: http.StatusForbidden, LocaleKey: "errors.invite_required", DiagnosticKind: "federation"},
-		{Code: "link_required", Status: http.StatusForbidden, LocaleKey: "errors.link_required", DiagnosticKind: "federation"},
+		{Code: "invite_required", Status: http.StatusForbidden, LocaleKey: "errors.invite_required", DiagnosticKind: "federation", DetailKeys: map[string]struct{}{"federationName": {}}},
+		{Code: "link_required", Status: http.StatusForbidden, LocaleKey: "errors.link_required", DiagnosticKind: "federation", DetailKeys: map[string]struct{}{"federationName": {}}},
 		{Code: "federation_state_invalid", Status: http.StatusUnauthorized, LocaleKey: "errors.federation_state_invalid", DiagnosticKind: "federation", Recovery: "retry"},
 		{Code: "last_sign_in_method", Status: http.StatusBadRequest, LocaleKey: "errors.last_sign_in_method", DiagnosticKind: "policy"},
 		{Code: "invalid_return_to", Status: http.StatusBadRequest, LocaleKey: "errors.invalid_return_to", DiagnosticKind: "validation"},
-		{Code: "upstream_error", Status: http.StatusBadRequest, LocaleKey: "errors.upstream_error", DiagnosticKind: "federation", DetailKeys: map[string]struct{}{"upstreamCode": {}}},
+		{Code: "upstream_error", Status: http.StatusBadRequest, LocaleKey: "errors.upstream_error", DiagnosticKind: "federation", DetailKeys: map[string]struct{}{"upstreamCode": {}, "federationName": {}}},
 		{Code: "active_key_no_replacement", Status: http.StatusConflict, LocaleKey: "errors.active_key_no_replacement", DiagnosticKind: "policy"},
 		{Code: "client_not_found", Status: http.StatusNotFound, LocaleKey: "errors.client_not_found", DiagnosticKind: "resource"},
 		{Code: "upstream_idp_not_found", Status: http.StatusNotFound, LocaleKey: "errors.upstream_idp_not_found", DiagnosticKind: "resource"},
-		{Code: "provider_not_ready", Status: http.StatusServiceUnavailable, LocaleKey: "errors.provider_not_ready", DiagnosticKind: "federation"},
+		{Code: "provider_not_ready", Status: http.StatusServiceUnavailable, LocaleKey: "errors.provider_not_ready", DiagnosticKind: "federation", DetailKeys: map[string]struct{}{"federationName": {}}},
 		{Code: "vrchat_operator_credentials_invalid", Status: http.StatusUnprocessableEntity, LocaleKey: "errors.vrchat_operator_credentials_invalid", DiagnosticKind: "federation"},
 		{Code: "vrchat_operator_challenge_invalid", Status: http.StatusGone, LocaleKey: "errors.vrchat_operator_challenge_invalid", DiagnosticKind: "federation"},
 		{Code: "vrchat_operator_code_invalid", Status: http.StatusUnprocessableEntity, LocaleKey: "errors.vrchat_operator_code_invalid", DiagnosticKind: "federation", Retryable: true, Recovery: "retry"},
-		{Code: "upstream_rate_limited", Status: http.StatusTooManyRequests, LocaleKey: "errors.upstream_rate_limited", DiagnosticKind: "federation", Retryable: true, Recovery: "retry"},
-		{Code: "upstream_temporarily_unavailable", Status: http.StatusServiceUnavailable, LocaleKey: "errors.upstream_temporarily_unavailable", DiagnosticKind: "federation", Retryable: true, Recovery: "retry"},
+		{Code: "upstream_rate_limited", Status: http.StatusTooManyRequests, LocaleKey: "errors.upstream_rate_limited", DiagnosticKind: "federation", Retryable: true, Recovery: "retry", DetailKeys: map[string]struct{}{"federationName": {}}},
+		{Code: "upstream_temporarily_unavailable", Status: http.StatusServiceUnavailable, LocaleKey: "errors.upstream_temporarily_unavailable", DiagnosticKind: "federation", Retryable: true, Recovery: "retry", DetailKeys: map[string]struct{}{"federationName": {}}},
 		{Code: "vrchat_identity_invalid", Status: http.StatusBadRequest, LocaleKey: "errors.vrchat_identity_invalid", DiagnosticKind: "federation", Recovery: "fix_input"},
 		{Code: "vrchat_proof_missing", Status: http.StatusConflict, LocaleKey: "errors.vrchat_proof_missing", DiagnosticKind: "federation", Retryable: true, Recovery: "retry"},
 		{Code: "local_username_required", Status: http.StatusConflict, LocaleKey: "errors.local_username_required", DiagnosticKind: "federation", Retryable: true, Recovery: "fix_input"},
@@ -616,6 +616,35 @@ func ErrFederationInviteProviderMismatch(federationName string) *AuthError {
 		err.Details = map[string]any{"federationName": name}
 	}
 	return err
+}
+
+// WithFederationName returns a copy of err carrying the provider's display name
+// as details.federationName, so public errors can say which provider failed.
+// It applies only to a direct *AuthError whose registered code allows
+// federationName, when name is non-empty and err carries no name yet. Every
+// other error, including a wrapped one, is returned unchanged. Callers pass a
+// name only for a provider that is known and enabled.
+func WithFederationName(err error, name string) error {
+	ae, ok := err.(*AuthError)
+	name = strings.TrimSpace(name)
+	if !ok || ae == nil || name == "" {
+		return err
+	}
+	if definition, ok := weberr.DefinitionFor(ae.Code); !ok {
+		return err
+	} else if _, allowed := definition.DetailKeys["federationName"]; !allowed {
+		return err
+	}
+	if existing, _ := ae.Details["federationName"].(string); existing != "" {
+		return err
+	}
+	named := *ae
+	named.Details = make(map[string]any, len(ae.Details)+1)
+	for key, value := range ae.Details {
+		named.Details[key] = value
+	}
+	named.Details["federationName"] = name
+	return &named
 }
 
 // ErrClientAlreadyExists is returned when an OIDC client insert violates the

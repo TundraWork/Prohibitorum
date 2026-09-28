@@ -202,13 +202,19 @@ func (s *Server) handlePreviewEnrollment(ctx context.Context, in *previewIn) (*p
 		}
 		out.SuggestedDisplayName = e.FederatedDisplayName.String
 	case enrollment.IntentReset:
-		if !e.RecoverySourceUpstreamIdpID.Valid && e.TargetAccountID.Valid {
-			if a, gerr := q.GetAccountByID(ctx, e.TargetAccountID.Int32); gerr == nil {
-				out.Target = &contract.EnrollmentTarget{
-					Username:    a.Username,
-					DisplayName: a.DisplayName,
-				}
-			}
+		// Admin resets and provider recovery both name the account the new
+		// sign-in method is for. A reset without a readable target fails the
+		// preview rather than leaving the page to guess whose account it is.
+		if !e.TargetAccountID.Valid {
+			return nil, authErrToHuma(errors.New("handlePreviewEnrollment: reset has no target account"))
+		}
+		a, err := q.GetAccountByID(ctx, e.TargetAccountID.Int32)
+		if err != nil {
+			return nil, authErrToHuma(fmt.Errorf("handlePreviewEnrollment: reset target: %w", err))
+		}
+		out.Target = &contract.EnrollmentTarget{
+			Username:    a.Username,
+			DisplayName: a.DisplayName,
 		}
 	}
 	return &previewOut{Body: out}, nil
@@ -326,7 +332,7 @@ func (s *Server) handleEnrollmentBeginHTTP(w http.ResponseWriter, r *http.Reques
 				Event:  audit.EventFail,
 				Detail: map[string]any{"reason": "federation_required"},
 			})
-			writeAuthErr(w, authn.ErrEnrollmentFederationRequired())
+			writeAuthErr(w, authn.WithFederationName(authn.ErrEnrollmentFederationRequired(), s.enabledFederationName(r.Context(), e.ExpectedUpstreamIdpSlug.String)))
 			return
 		}
 		role := "user"
@@ -543,7 +549,7 @@ func (s *Server) handleEnrollmentCompleteHTTP(w http.ResponseWriter, r *http.Req
 				Event:  audit.EventFail,
 				Detail: map[string]any{"reason": "federation_required"},
 			})
-			writeAuthErr(w, authn.ErrEnrollmentFederationRequired())
+			writeAuthErr(w, authn.WithFederationName(authn.ErrEnrollmentFederationRequired(), s.enabledFederationName(r.Context(), consumed.ExpectedUpstreamIdpSlug.String)))
 			return
 		}
 		if stash.Invite == nil {
@@ -671,7 +677,7 @@ func (s *Server) handleEnrollmentCompleteHTTP(w http.ResponseWriter, r *http.Req
 				Event:  audit.EventFail,
 				Detail: map[string]any{"reason": "identity_conflict"},
 			})
-			writeAuthErr(w, authn.ErrFederationIdentityConflict(""))
+			writeAuthErr(w, authn.ErrFederationIdentityConflict(provider.DisplayName))
 			return
 		}
 		if !errors.Is(err, pgx.ErrNoRows) {
@@ -692,7 +698,7 @@ func (s *Server) handleEnrollmentCompleteHTTP(w http.ResponseWriter, r *http.Req
 					Event:  audit.EventFail,
 					Detail: map[string]any{"reason": "identity_conflict"},
 				})
-				writeAuthErr(w, authn.ErrFederationIdentityConflict(""))
+				writeAuthErr(w, authn.ErrFederationIdentityConflict(provider.DisplayName))
 				return
 			}
 			writeAuthErr(w, fmt.Errorf("enrollment/complete federated: insert identity: %w", err))

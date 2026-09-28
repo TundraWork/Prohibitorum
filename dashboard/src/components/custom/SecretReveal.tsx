@@ -28,6 +28,9 @@ import type { SecretRevealCopy } from "@/components/custom/secret-reveal-copy";
  * surface treatment with it and hands the dialog its two other sections: the
  * title goes in `Modal.Header`, which the caller draws, and the continue
  * control becomes `Modal.Footer` so it stays put under a long code list.
+ *
+ * `titled={false}` is for a caller that draws the title as its own heading,
+ * such as a step on the public card whose title is the page's `h1`.
  */
 export function SecretReveal({
   text,
@@ -36,6 +39,7 @@ export function SecretReveal({
   onContinue,
   onSurface = false,
   inDialog = false,
+  titled = true,
 }: {
   text: string;
   filename: string;
@@ -43,6 +47,7 @@ export function SecretReveal({
   onContinue: () => Promise<void>;
   onSurface?: boolean;
   inDialog?: boolean;
+  titled?: boolean;
 }) {
   const surface = onSurface || inDialog;
   const Notice = surface ? SurfaceAlert : Alert;
@@ -96,7 +101,9 @@ export function SecretReveal({
 
   const body = (
     <>
-      {!inDialog && <h2 className="text-xl font-semibold">{t(copy.title)}</h2>}
+      {!inDialog && titled && (
+        <h2 className="text-xl font-semibold">{t(copy.title)}</h2>
+      )}
       <Notice status="warning">
         <Notice.Indicator />
         <Notice.Content>

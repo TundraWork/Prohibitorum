@@ -1,3 +1,4 @@
+import { ApiError } from "@/api/errors";
 import type {
   OidcProviderConfig,
   PrincipalSource,
@@ -5,6 +6,11 @@ import type {
   ProviderProtocol,
   SamlAttributeMapping,
 } from "@/api/raw-admin-paths";
+import type {
+  FederationFlow,
+  FederationFlowIntent,
+  FederationFlowStep,
+} from "@/api/raw-paths";
 
 /**
  * Reads and narrows the loose fields the server sends.
@@ -253,3 +259,56 @@ export const reservedAliasNames: readonly string[] = [
   "at_hash",
   "azp",
 ];
+
+const flowIntents: readonly FederationFlowIntent[] = [
+  "login",
+  "link",
+  "invite",
+  "enroll",
+];
+
+const flowSteps: readonly FederationFlowStep[] = ["identify", "proof"];
+
+function optionalString(value: unknown): value is string | undefined {
+  return value === undefined || typeof value === "string";
+}
+
+/**
+ * Reads a VRChat profile verification. Unlike the console's readers above it
+ * throws rather than returning nothing: the page has no other shape to draw,
+ * so an unknown intent or step, or a proof step without the link to put in
+ * the bio, is a response it cannot use.
+ */
+export function readFederationFlow(raw: unknown): FederationFlow {
+  const invalid = () => new ApiError({ kind: "invalid-response" });
+  if (!isRecord(raw)) throw invalid();
+  const { provider, intent, step, profileUrl, proofUrl } = raw;
+  if (
+    !isRecord(provider) ||
+    typeof provider.slug !== "string" ||
+    typeof provider.displayName !== "string" ||
+    typeof provider.protocol !== "string" ||
+    !isOneOf(intent, flowIntents) ||
+    !isOneOf(step, flowSteps) ||
+    !optionalString(profileUrl) ||
+    !optionalString(proofUrl) ||
+    typeof raw.requiresLocalUsername !== "boolean" ||
+    typeof raw.expiresAt !== "string"
+  ) {
+    throw invalid();
+  }
+  if (step === "proof" && !proofUrl) throw invalid();
+  return {
+    provider: {
+      slug: provider.slug,
+      displayName: provider.displayName,
+      protocol: provider.protocol,
+    },
+    intent,
+    step,
+    ...(profileUrl ? { profileUrl } : {}),
+    ...(proofUrl ? { proofUrl } : {}),
+    requiresLocalUsername: raw.requiresLocalUsername,
+    expiresAt: raw.expiresAt,
+  };
+}

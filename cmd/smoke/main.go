@@ -895,7 +895,7 @@ func main() {
 	negClient1, _ := newFederationClient(*baseURL)
 	opSrv.SetClaims("ext-user-99", "ext99@example.com", false, "extuser99", "Ext 99")
 	if err := expectFederationCallbackError(negClient1, *baseURL, "mockop",
-		"email_not_verified"); err != nil {
+		"email_not_verified", "Mock OP"); err != nil {
 		log.Fatalf("negative email_not_verified: %v", err)
 	}
 	log.Printf("  /callback → 302 /error?error=email_not_verified ✓")
@@ -906,7 +906,7 @@ func main() {
 	// a new account with that name; existing local account wins).
 	opSrv.SetClaims("ext-collide-1", "collide@example.com", true, *username, "Collider")
 	if err := expectFederationCallbackError(negClient2, *baseURL, "mockop",
-		"username_collision"); err != nil {
+		"username_collision", ""); err != nil {
 		log.Fatalf("negative username_collision: %v", err)
 	}
 	log.Printf("  /callback → 302 /error?error=username_collision ✓")
@@ -932,10 +932,10 @@ func main() {
 	negClient4, _ := newFederationClient(*baseURL)
 	opSrv.FailWithError("access_denied", "user denied")
 	if err := expectFederationCallbackError(negClient4, *baseURL, "mockop",
-		"upstream_error"); err != nil {
+		"upstream_error", "Mock OP"); err != nil {
 		log.Fatalf("negative upstream_error: %v", err)
 	}
-	log.Printf("  /callback → 302 /error?error=upstream_error ✓")
+	log.Printf("  /callback → 302 /error?error=upstream_error&federationName=Mock+OP ✓")
 
 	step(fmt.Sprintf("federation %d/%d — GET /me/identities (as federated user)", 14, nFederation))
 	// Restore valid claims and re-login as ext-user-1.
@@ -965,10 +965,10 @@ func main() {
 	negClient5, _ := newFederationClient(*baseURL)
 	opSrv.SetClaims("ext-unknown-9", "unknown@example.com", true, "extuser-unknown", "Unknown")
 	if err := expectFederationCallbackError(negClient5, *baseURL, "mockop-link",
-		"link_required"); err != nil {
+		"link_required", "Mock OP (link-only)"); err != nil {
 		log.Fatalf("negative link_required: %v", err)
 	}
-	log.Printf("  link_only /callback → 302 /error?error=link_required ✓")
+	log.Printf("  link_only /callback → 302 /error?error=link_required&federationName=… ✓")
 
 	// --- Self-service link from smoke-admin (with sudo) ---------------------
 
@@ -1042,8 +1042,8 @@ func main() {
 	}
 	if loc, err := c.getRedirectAbs(linkCallbackURL); err != nil {
 		log.Fatalf("link/callback: %v", err)
-	} else if loc != "/connected" {
-		log.Fatalf("link/callback: want /connected, got %q", loc)
+	} else if loc != "/security" {
+		log.Fatalf("link/callback: want /security, got %q", loc)
 	}
 	postSessions, err := c.listMySessions()
 	if err != nil {
@@ -1060,7 +1060,7 @@ func main() {
 		log.Fatalf("link/callback: session id changed (%s → %s) — link must not Issue a new session",
 			preSessID, postSessID)
 	}
-	log.Printf("  link/callback → 302 /connected; session id unchanged (%s) ✓", preSessID)
+	log.Printf("  link/callback → 302 /security; session id unchanged (%s) ✓", preSessID)
 
 	step(fmt.Sprintf("federation %d/%d — DB assert: account_identity for admin-link-1 owned by smoke-admin", 19, nFederation))
 	if err := verifyFederatedIdentityCreated(adminMe.ID, "admin-link-1", mockopIDPID); err != nil {
@@ -5804,7 +5804,7 @@ func main() {
 	}
 	fmt.Println("✓ smoke OK — core (webauthn enroll/login + password/TOTP/recovery + sudo + throttle + destructive revoke) + federation (upstream OIDC login/link/unlink incl. invite_only) + oidc (OIDC OP code+PKCE flow: userinfo/introspect/refresh-rotation+reuse/revoke/logout) + saml (SAML IdP SSO/SLO + signed metadata + require_signed/bad-ACS/replay negatives) + hardening (forced re-auth / PKCE+introspect policy / NameIDPolicy / POST AuthnRequest / signed metadata / IdP-initiated) + consent (Login+Consent UI backend: consent ticket round-trip + federation-providers list) + admin (OIDC client CRUD reveal-once + signing-key generate→activate JWKS grace lifecycle + audit-events viewer + admin credential listing) + Tier-1 (PUT /me round-trip, GET /me/factors, admin sessions, SAML attr_map round-trip) + sudo-multiuse (single elevation covers multiple gated actions until expiry) + avatar (PUT /me/avatar upload, public GET /avatar/{sub} image/webp+ETag, /me.avatarUrl, userinfo.picture claim) + avatar-fed (federated first-login inherit + no-clobber on re-login + UserInfo fallback + dual-source selection/previews + avatar_source_unavailable negative) + delegated-access (admin assigns one active account; cross-app/config denials; app-bound manual + OR rule groups; manual deny/allow precedence; live avatar eligibility; three exposed OIDC group claims; refresh eligibility re-check and family revocation; assignment/policy audit lifecycle) + error-redirect (federation access_denied + SAML malformed request → 302 /error) + pat (Personal Access Token forward-auth gateway, per-app model: admin sets FA-app scope vocabulary; per-app PAT → 200 + Remote-Scopes=that app's scope, all_apps PAT → 200 + empty Remote-Scopes, non-granted app → 403, bogus PAT → 401; admin GET /accounts/{id}/tokens lists + POST /accounts/tokens/revoke → revoked PAT → 401) + maintenance (admin enables maintenance via sudo PUT → public /config maintenanceMode+message round-trip; admin stays exempt /me 200; disable restores; non-admin dashboard+gateway blocking unit-tested) + client-ip (admin sudo PUT header strategy + GET round-trip; invalid CIDR rejected 400; reset to direct) + login-background (admin sudo PUT custom login-page background → public GET /branding/background byte-for-byte verbatim; /config hasCustomBackground round-trip; sudo DELETE → 404) + steam (Steam OpenID 2.0 login arc: admin create protocol=steam provider; mock Steam OP redirect; callback → /welcome confirm → session; DB account+identity rows) + audit-remediation (new event types: webauthn:use, session:session_start/end, webauthn:sudo_granted, settings:update, PAT register/revoke/fail; ctx-carried IP non-empty on session_start events) + pwd-totp-enroll (password+TOTP enrollment ceremony: plain-invite begin→verify sets password+confirmed-TOTP+10 recovery codes and issues a session, password→TOTP login works, bootstrap rejects password+TOTP as passkey-only) + DB-state assertions passed against",
 		*baseURL)
-	fmt.Println("  VRChat: fixed link_only operator setup + browser-bound profile proof, sessionless federated registration, target-hidden recovery with passkey replacement/session revocation, authenticated linking, filtering, safe negative paths, and secret non-disclosure ✓")
+	fmt.Println("  VRChat: fixed link_only operator setup + browser-bound profile proof, sessionless federated registration, recovery that names its account, with passkey replacement/session revocation, authenticated linking, filtering, safe negative paths, and secret non-disclosure ✓")
 }
 
 func step(msg string) {
@@ -7265,7 +7265,10 @@ func driveFederationLogin(c *client, baseURL, slug, returnTo string) error {
 // page instead of returning a JSON body, so we use a non-following client
 // to observe the 302 + Location header directly.
 // On success returns nil; on any divergence, returns a descriptive error.
-func expectFederationCallbackError(c *client, baseURL, slug string, wantCode string) error {
+// expectFederationCallbackError drives a login to the callback and expects a
+// 302 to /error with wantCode. wantName is the provider name the redirect must
+// carry as federationName, or "" when it must carry none.
+func expectFederationCallbackError(c *client, baseURL, slug string, wantCode, wantName string) error {
 	loginPath := fmt.Sprintf("/api/prohibitorum/auth/federation/%s/login?return_to=/me", slug)
 	authorizeURL, err := c.getRedirect(loginPath)
 	if err != nil {
@@ -7301,6 +7304,13 @@ func expectFederationCallbackError(c *client, baseURL, slug string, wantCode str
 	wantPrefix := "/error?error=" + wantCode
 	if !strings.HasPrefix(loc, wantPrefix) {
 		return fmt.Errorf("/callback Location: want prefix %q, got %q", wantPrefix, loc)
+	}
+	target, err := url.Parse(loc)
+	if err != nil {
+		return fmt.Errorf("/callback Location %q: %w", loc, err)
+	}
+	if got, named := target.Query()["federationName"]; wantName == "" && named || wantName != "" && (len(got) != 1 || got[0] != wantName) {
+		return fmt.Errorf("/callback Location: want federationName %q, got %q", wantName, loc)
 	}
 	return nil
 }

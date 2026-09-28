@@ -81,7 +81,7 @@ func (s *Server) handleEnrollmentPasswordTOTPVerifyHTTP(w http.ResponseWriter, r
 	case enrollment.IntentInvite:
 		if e.ExpectedUpstreamIdpSlug.Valid && e.ExpectedUpstreamIdpSlug.String != "" {
 			audit.RecordOrLog(r.Context(), s.Audit, audit.Record{Factor: audit.FactorEnrollment, Event: audit.EventFail, Detail: map[string]any{"reason": "federation_required"}})
-			writeAuthErr(w, authn.ErrEnrollmentFederationRequired())
+			writeAuthErr(w, authn.WithFederationName(authn.ErrEnrollmentFederationRequired(), s.enabledFederationName(r.Context(), e.ExpectedUpstreamIdpSlug.String)))
 			return
 		}
 		role := "user"
@@ -174,7 +174,7 @@ func (s *Server) handleEnrollmentPasswordTOTPVerifyHTTP(w http.ResponseWriter, r
 				Event:  audit.EventFail,
 				Detail: map[string]any{"reason": "federation_required"},
 			})
-			writeAuthErr(w, authn.ErrEnrollmentFederationRequired())
+			writeAuthErr(w, authn.WithFederationName(authn.ErrEnrollmentFederationRequired(), s.enabledFederationName(r.Context(), consumed.ExpectedUpstreamIdpSlug.String)))
 			return
 		}
 		if proposal.Username == "" {
@@ -258,7 +258,7 @@ func (s *Server) handleEnrollmentPasswordTOTPVerifyHTTP(w http.ResponseWriter, r
 				Event:  audit.EventFail,
 				Detail: map[string]any{"reason": "identity_conflict"},
 			})
-			writeAuthErr(w, authn.ErrFederationIdentityConflict(""))
+			writeAuthErr(w, authn.ErrFederationIdentityConflict(provider.DisplayName))
 			return
 		} else if !errors.Is(ierr, pgx.ErrNoRows) {
 			writeAuthErr(w, fmt.Errorf("enrollment/password-totp/verify federated: check identity: %w", ierr))
@@ -278,7 +278,7 @@ func (s *Server) handleEnrollmentPasswordTOTPVerifyHTTP(w http.ResponseWriter, r
 					Event:  audit.EventFail,
 					Detail: map[string]any{"reason": "identity_conflict"},
 				})
-				writeAuthErr(w, authn.ErrFederationIdentityConflict(""))
+				writeAuthErr(w, authn.ErrFederationIdentityConflict(provider.DisplayName))
 				return
 			}
 			writeAuthErr(w, fmt.Errorf("enrollment/password-totp/verify federated: insert identity: %w", ierr))

@@ -19,10 +19,26 @@ const signInPaths = ["/login", "/login/totp", "/login/recovery"];
 /**
  * The public pages that are not a sign-in step. Each decides for itself what a
  * session means — a consent page sends an anonymous reader to sign in, the
- * maintenance page offers a way out either way — so a change of session in
- * the panel leaves the reader on them.
+ * maintenance page offers a way out either way, an enrollment or a VRChat
+ * verification needs none — so a change of session in the panel leaves the
+ * reader on them. The pages with a token in the path are matched by prefix.
  */
-const publicPaths = ["/consent", "/saml-consent", "/error", "/maintenance"];
+const publicPaths = [
+  "/consent",
+  "/saml-consent",
+  "/error",
+  "/maintenance",
+  "/welcome",
+  "/setup-signin",
+];
+const publicPrefixes = ["/enroll/", "/federation/flow/", "/verify/vrchat/"];
+
+export function isPublicPath(pathname: string): boolean {
+  return (
+    publicPaths.includes(pathname) ||
+    publicPrefixes.some((prefix) => pathname.startsWith(prefix))
+  );
+}
 
 /**
  * Where a change of session in the panel moves the reader, if anywhere: a
@@ -34,7 +50,7 @@ export function refreshTarget(
   signedIn: boolean,
 ): "/" | "/login" | undefined {
   if (signedIn) return signInPaths.includes(pathname) ? "/" : undefined;
-  if (signInPaths.includes(pathname) || publicPaths.includes(pathname)) {
+  if (signInPaths.includes(pathname) || isPublicPath(pathname)) {
     return undefined;
   }
   return "/login";

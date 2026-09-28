@@ -238,7 +238,7 @@ func redirectAuthErrToError(w http.ResponseWriter, r *http.Request, err error) s
 
 // redirectAuthErrToErrorReturn is redirectAuthErrToError with a return_to hint
 // so the /error page's "go back" link can send the user where they started
-// (e.g. /connected for an identity-link begin). Pass only a server-validated,
+// (e.g. /security for an identity-link begin). Pass only a server-validated,
 // same-origin returnTo (e.g. the value from validateFederationReturnTo); "" to
 // omit it.
 func redirectAuthErrToErrorReturn(w http.ResponseWriter, r *http.Request, err error, returnTo string) string {
@@ -246,13 +246,12 @@ func redirectAuthErrToErrorReturn(w http.ResponseWriter, r *http.Request, err er
 	federationName := ""
 	ae := authn.AsAuthError(err)
 	if ae != nil {
-		code = ae.Code
-		if code == "federation_identity_conflict" || code == "federation_invite_provider_mismatch" {
-			_, canonicalCode, details := weberr.Canonicalize(ae.Code, ae.Details)
-			code = canonicalCode
-			if name, ok := details["federationName"].(string); ok {
-				federationName = name
-			}
+		// Canonicalize keeps only the detail keys the code registers, so only
+		// codes that allow federationName can carry it into the query.
+		_, canonicalCode, details := weberr.Canonicalize(ae.Code, ae.Details)
+		code = canonicalCode
+		if name, ok := details["federationName"].(string); ok {
+			federationName = name
 		}
 	}
 	ref := weberr.NewRef()

@@ -11,6 +11,8 @@ import type {
   ConsentAccount,
   ConsentRequest,
   DevicePairing,
+  FederationConfirm,
+  FederationFlow,
   PublicConfig,
   SamlConsentRequest,
   SudoMethod,
@@ -18,6 +20,7 @@ import type {
 import {
   clampAdminCount,
   clampCount,
+  clampEnrollmentProviders,
   clampPairingExpiry,
   type MockConfig,
   mockAdminListMax,
@@ -33,6 +36,7 @@ type Token = components["schemas"]["PersonalAccessTokenView"];
 type ForwardAuthApp = components["schemas"]["MyForwardAuthApp"];
 type ConsentedApp = components["schemas"]["ConsentedApp"];
 type Provider = components["schemas"]["FederationProvider"];
+type EnrollmentPreview = components["schemas"]["EnrollmentPreview"];
 type Factors = components["schemas"]["MeFactorsView"];
 type Account = components["schemas"]["AccountView"];
 type Invitation = components["schemas"]["InvitationView"];
@@ -446,6 +450,181 @@ function consentApproveTarget(url: string): string {
     !target.startsWith("/\\")
     ? target
     : "/";
+}
+
+/** The providers an enrollment preview offers, the first of them the bound one. */
+const enrollmentProviderNames: readonly [string, string][] = [
+  ["GitLab", "oidc"],
+  ["VRChat", "vrchat"],
+  ["Steam", "steam"],
+];
+
+function enrollmentProviders(config: MockConfig): Provider[] {
+  return enrollmentProviderNames
+    .slice(0, clampEnrollmentProviders(config.publicFlows.enrollment.providers))
+    .map(([displayName, protocol]) => ({
+      slug: displayName.toLowerCase(),
+      displayName,
+      protocol,
+    }));
+}
+
+/**
+ * What any enrollment token previews. The administrator's first link only
+ * ever offers a passkey, as the server's does, and a reset names the account
+ * the panel is signed in as.
+ */
+export function enrollmentPreview(config: MockConfig): EnrollmentPreview {
+  const enrollment = config.publicFlows.enrollment;
+  const bootstrap = enrollment.intent === "bootstrap";
+  const providers = bootstrap ? [] : enrollmentProviders(config);
+  const bound = enrollment.bound ? providers[0]?.slug : undefined;
+  return {
+    intent: enrollment.intent,
+    ...(enrollment.fixedUsername && enrollment.intent !== "reset"
+      ? { username: "alice" }
+      : {}),
+    ...(enrollment.intent === "reset"
+      ? {
+          target: {
+            username: config.session.username,
+            displayName: config.session.displayName,
+          },
+        }
+      : {}),
+    expiresAt: iso(day * 5),
+    ...(enrollment.intent === "federated_register"
+      ? { suggestedDisplayName: "Alice Liddell" }
+      : {}),
+    allowedMethods:
+      enrollment.passwordTotp && !bootstrap
+        ? ["passkey", "password_totp"]
+        : ["passkey"],
+    ...(bound ? { expectedUpstreamIdpSlug: bound } : {}),
+    // The server leaves the key out when there is nothing to offer.
+    ...(providers.length > 0 ? { providers } : {}),
+  };
+}
+
+function expiredEnrollment(): MockReply {
+  return { kind: "error", status: 410, code: "enrollment_expired" };
+}
+
+/**
+ * The password-and-authenticator enrollment: it signs the new account in and
+ * hands out its first recovery codes. An invitation bound to a provider is
+ * refused the way the server refuses it, naming the provider.
+ */
+function enrollPasswordTotp(config: MockConfig, body: unknown): MockReply {
+  if (!config.publicFlows.enrollment.valid) return expiredEnrollment();
+  const preview = enrollmentPreview(config);
+  const bound = preview.providers?.find(
+    (provider) => provider.slug === preview.expectedUpstreamIdpSlug,
+  );
+  if (bound) {
+    return {
+      kind: "error",
+      status: 400,
+      code: "enrollment_federation_required",
+      details: { federationName: bound.displayName },
+    };
+  }
+  const username =
+    preview.target?.username ??
+    preview.username ??
+    stringField(body, "username") ??
+    config.session.username;
+  const displayName =
+    preview.target?.displayName ??
+    stringField(body, "displayName") ??
+    config.session.displayName;
+  return json(
+    {
+      session: { ...sessionView(config), username, displayName },
+      recoveryCodes: freshRecoveryCodes(),
+    },
+    (draft) => {
+      draft.session.signedIn = true;
+      draft.session.username = username;
+      draft.session.displayName = displayName;
+      draft.factors.passwordSet = true;
+      draft.factors.totpEnrolled = true;
+      draft.factors.recoveryCodes = issuedRecoveryCodes;
+    },
+  );
+}
+
+/**
+ * Reads of the prepared account since it was last answered. The picture that
+ * `resolves` arrives on the third read, which is what a walkthrough needs to
+ * see the placeholder give way to it.
+ */
+let welcomeReads = 0;
+
+function expiredSignIn(): MockReply {
+  return { kind: "error", status: 401, code: "federation_state_invalid" };
+}
+
+export function federationConfirm(config: MockConfig): FederationConfirm {
+  const mode = config.publicFlows.welcome.avatarPending;
+  welcomeReads += 1;
+  const pending = mode === "never" || (mode === "resolves" && welcomeReads < 3);
+  return {
+    idpDisplayName: "GitLab",
+    displayName: "Alice Liddell",
+    username: "alice",
+    email: "alice@example.com",
+    ...(pending ? {} : { avatarUrl: mockAvatarUrl }),
+    avatarPending: pending,
+  };
+}
+
+/** A VRChat verification as the flow's own step and intent leave it. */
+export function federationFlow(
+  config: MockConfig,
+  origin: string,
+): FederationFlow {
+  const flow = config.publicFlows.flow;
+  const proof = flow.step === "proof";
+  return {
+    provider: { slug: "vrchat", displayName: "VRChat", protocol: "vrchat" },
+    intent: flow.intent,
+    step: flow.step,
+    ...(proof
+      ? {
+          profileUrl:
+            "https://vrchat.com/home/user/usr_3f2a1b9c-4d5e-6f70-8a9b-0c1d2e3f4a5b",
+          proofUrl: `${origin}/verify/vrchat/mock-proof`,
+        }
+      : {}),
+    requiresLocalUsername: proof && flow.requiresLocalUsername,
+    expiresAt: iso(15 * 60_000),
+  };
+}
+
+/** Where a verified flow goes: home, Security for a link, or the new account's enrollment. */
+function flowTarget(intent: MockConfig["publicFlows"]["flow"]["intent"]) {
+  if (intent === "link") return "/security";
+  if (intent === "login") return "/";
+  return "/enroll/mock-federated";
+}
+
+function verifyFlow(config: MockConfig, body: unknown): MockReply {
+  const flow = config.publicFlows.flow;
+  if (flow.step !== "proof") {
+    return { kind: "error", status: 409, code: "federation_action_invalid" };
+  }
+  if (flow.proofMissing) {
+    return { kind: "error", status: 409, code: "vrchat_proof_missing" };
+  }
+  if (flow.requiresLocalUsername && !stringField(body, "localUsername")) {
+    return { kind: "error", status: 409, code: "local_username_required" };
+  }
+  return json({ redirect: flowTarget(flow.intent) }, (draft) => {
+    if (flow.intent === "login") draft.session.signedIn = true;
+    // The next walkthrough starts from the beginning of a flow again.
+    draft.publicFlows.flow.step = "identify";
+  });
 }
 
 function sudoMethods(config: MockConfig): {
@@ -1205,6 +1384,16 @@ function readReply(
       return consentReply(config, () => consentRequest(config));
     case "/api/prohibitorum/saml-consent":
       return consentReply(config, () => samlConsentRequest(config));
+    case "/api/prohibitorum/enrollments/{token}":
+      return config.publicFlows.enrollment.valid
+        ? json(enrollmentPreview(config))
+        : expiredEnrollment();
+    case "/api/prohibitorum/auth/federation/confirm":
+      return config.publicFlows.welcome.valid
+        ? json(federationConfirm(config))
+        : expiredSignIn();
+    case "/api/prohibitorum/auth/federation/flows/{flow}":
+      return json(federationFlow(config, new URL(request.url).origin));
     case "/api/prohibitorum/me/devices/pair/lookup": {
       const code = new URL(request.url).searchParams.get("code") ?? "";
       return guarded(config, () => json(pairing(code, config)));
@@ -1582,6 +1771,49 @@ function writeReply(
           ? json({ redirect: "/" })
           : invalidConsentTicket(),
       );
+
+    // A passkey cannot be made from a fabricated challenge, so the passkey
+    // enrollment's begin falls through to the unmocked failure.
+    case "/api/prohibitorum/enrollments/{token}/password-totp/verify":
+      return enrollPasswordTotp(config, body);
+
+    case "/api/prohibitorum/auth/federation/confirm": {
+      if (!config.publicFlows.welcome.valid) return expiredSignIn();
+      welcomeReads = 0;
+      return json(
+        {
+          redirect: "/",
+          offerLocalSignin: config.publicFlows.welcome.offerLocalSignin,
+        },
+        (draft) => {
+          draft.session.signedIn = true;
+        },
+      );
+    }
+
+    case "/api/prohibitorum/auth/federation/confirm/decline":
+      welcomeReads = 0;
+      return empty();
+
+    case "/api/prohibitorum/auth/federation/flows/{flow}/prepare":
+      return json(
+        federationFlow(
+          {
+            ...config,
+            publicFlows: {
+              ...config.publicFlows,
+              flow: { ...config.publicFlows.flow, step: "proof" },
+            },
+          },
+          new URL(request.url).origin,
+        ),
+        (draft) => {
+          draft.publicFlows.flow.step = "proof";
+        },
+      );
+
+    case "/api/prohibitorum/auth/federation/flows/{flow}/verify":
+      return verifyFlow(config, body);
 
     case "/api/prohibitorum/auth/totp/verify":
       return json({ redirect: "/" }, (draft) => {
