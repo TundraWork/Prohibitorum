@@ -70,6 +70,13 @@ func TestFederationLogin_BeginError_ForwardsReturnTo(t *testing.T) {
 	if !strings.Contains(loc, "return_to=%2Fsecurity") {
 		t.Errorf("Location must forward return_to=%%2Fsecurity, got %q", loc)
 	}
+	query := errorLocationQuery(t, loc)
+	if query.Get("error") != "federation_state_invalid" {
+		t.Errorf("error: want federation_state_invalid, got %q", query.Get("error"))
+	}
+	if _, named := query["federationName"]; named {
+		t.Errorf("an unknown slug must not be named, got %q", loc)
+	}
 }
 
 // TestFederationCallback_UpstreamError_RedirectsToErrorPage: ?error=access_denied
@@ -111,9 +118,52 @@ func TestFederationCallback_UpstreamError_RedirectsToErrorPage(t *testing.T) {
 		t.Errorf("audit detail: want non-empty ref, got %v (detail=%v)", detail["ref"], detail)
 	}
 	// ref in Location and ref in audit detail must match.
-	locRef := strings.TrimPrefix(loc, wantPrefix)
-	if locRef != auditRef {
+	query := errorLocationQuery(t, loc)
+	if locRef := query.Get("ref"); locRef != auditRef {
 		t.Errorf("ref mismatch: Location has %q, audit has %q", locRef, auditRef)
+	}
+	// The enabled provider is named for the /error page.
+	if got := query.Get("federationName"); got != "Mock OP" {
+		t.Errorf("federationName: want %q, got %q (Location=%q)", "Mock OP", got, loc)
+	}
+}
+
+// errorLocationQuery parses an /error redirect target into its query values.
+func errorLocationQuery(t *testing.T, location string) url.Values {
+	t.Helper()
+	target, err := url.Parse(location)
+	if err != nil || target.Path != "/error" {
+		t.Fatalf("want an /error redirect, got %q (err=%v)", location, err)
+	}
+	return target.Query()
+}
+
+// TestFederationCallback_UpstreamError_OmitsNameForUnknownOrDisabledProvider:
+// the upstream ?error= branch names only a provider the public list shows. An
+// unknown or disabled slug keeps the plain upstream_error redirect.
+func TestFederationCallback_UpstreamError_OmitsNameForUnknownOrDisabledProvider(t *testing.T) {
+	h := newFederationTestServer(t)
+	disabled := h.idp
+	disabled.ID, disabled.Slug, disabled.DisplayName, disabled.Disabled = 43, "disabled-op", "Disabled OP", true
+	h.q.idpBySlug[disabled.Slug] = disabled
+
+	for _, slug := range []string{"no-such-idp", disabled.Slug} {
+		t.Run(slug, func(t *testing.T) {
+			q := url.Values{}
+			q.Set("error", "access_denied")
+			resp := h.hitCallback(t, slug, q)
+			if resp.StatusCode != http.StatusFound {
+				t.Fatalf("status: want 302, got %d", resp.StatusCode)
+			}
+			loc := resp.Header.Get("Location")
+			query := errorLocationQuery(t, loc)
+			if query.Get("error") != "upstream_error" || query.Get("ref") == "" {
+				t.Fatalf("Location = %q, want upstream_error with a ref", loc)
+			}
+			if _, named := query["federationName"]; named {
+				t.Fatalf("Location named a provider the public list hides: %q", loc)
+			}
+		})
 	}
 }
 
@@ -214,13 +264,38 @@ func TestIdentityLinkCallback_UpstreamError_RedirectsToErrorPage(t *testing.T) {
 			t.Errorf("audit detail: want non-empty ref; detail=%v", detail)
 		}
 		// ref must match the one in the Location header.
-		locRef := strings.TrimPrefix(loc, wantPrefix)
-		if locRef != auditRef {
+		query := errorLocationQuery(t, loc)
+		if locRef := query.Get("ref"); locRef != auditRef {
 			t.Errorf("ref mismatch: Location=%q audit=%q", locRef, auditRef)
+		}
+		if got := query.Get("federationName"); got != "Mock OP" {
+			t.Errorf("federationName: want %q, got %q (Location=%q)", "Mock OP", got, loc)
 		}
 		break
 	}
 	if !found {
 		t.Errorf("audit: missing upstream_error fail row; events=%+v", h.q.events)
+	}
+}
+
+// TestIdentityLinkCallback_UpstreamError_OmitsNameForUnknownSlug: the link
+// callback's upstream ?error= branch does not name a slug that matches no
+// enabled provider.
+func TestIdentityLinkCallback_UpstreamError_OmitsNameForUnknownSlug(t *testing.T) {
+	h := newLinkTestHarness(t)
+
+	q := url.Values{}
+	q.Set("error", "access_denied")
+	resp := h.hitLinkCallback(t, "no-such-idp", q)
+	if resp.StatusCode != http.StatusFound {
+		t.Fatalf("status: want 302, got %d", resp.StatusCode)
+	}
+	loc := resp.Header.Get("Location")
+	query := errorLocationQuery(t, loc)
+	if query.Get("error") != "upstream_error" || query.Get("ref") == "" {
+		t.Fatalf("Location = %q, want upstream_error with a ref", loc)
+	}
+	if _, named := query["federationName"]; named {
+		t.Fatalf("Location named an unknown provider: %q", loc)
 	}
 }

@@ -52,6 +52,7 @@ type localFlowAdapter struct {
 	mu         sync.Mutex
 	beginCalls int
 	inputs     []federation.ActionInput
+	prepareErr error
 	verifyErr  error
 }
 
@@ -68,6 +69,9 @@ func (a *localFlowAdapter) Advance(_ context.Context, _ federation.Provider, _ j
 	a.inputs = append(a.inputs, input)
 	switch input.Kind {
 	case federation.ActionCollectIdentity:
+		if a.prepareErr != nil {
+			return federation.AdvanceResult{}, a.prepareErr
+		}
 		return federation.AdvanceResult{
 			State: json.RawMessage(`{"private":"proof-secret"}`),
 			Next: &federation.NextAction{Kind: federation.ActionPublishProof, Public: map[string]any{
@@ -537,6 +541,44 @@ func TestFederationFlowRateLimitSetsRetryAfter(t *testing.T) {
 	}
 }
 
+func TestFederationFlowUpstreamRateLimitNamesProvider(t *testing.T) {
+	decode := func(t *testing.T, response *http.Response) map[string]any {
+		t.Helper()
+		if response.StatusCode != http.StatusTooManyRequests || response.Header.Get("Retry-After") != "17" {
+			t.Fatalf("rate response = %d %#v", response.StatusCode, response.Header)
+		}
+		var public struct {
+			Code    string         `json:"code"`
+			Details map[string]any `json:"details"`
+		}
+		if err := json.NewDecoder(response.Body).Decode(&public); err != nil {
+			t.Fatal(err)
+		}
+		if public.Code != "upstream_rate_limited" {
+			t.Fatalf("code = %q", public.Code)
+		}
+		return public.Details
+	}
+
+	h := newLocalFlowHarness(t)
+	flow, _ := h.beginLogin(t)
+	h.adapter.prepareErr = federation.NewRateLimitedFailure(17 * time.Second)
+	prepare := h.request(t, http.MethodPost, "/api/prohibitorum/auth/federation/flows/"+flow+"/prepare", `{"identity":"`+localUserID+`"}`)
+	if details := decode(t, prepare); len(details) != 1 || details["federationName"] != "VRChat" {
+		t.Fatalf("prepare details = %#v", details)
+	}
+
+	h.adapter.prepareErr = nil
+	if response := h.request(t, http.MethodPost, "/api/prohibitorum/auth/federation/flows/"+flow+"/prepare", `{"identity":"`+localUserID+`"}`); response.StatusCode != http.StatusOK {
+		t.Fatalf("prepare = %d", response.StatusCode)
+	}
+	h.adapter.verifyErr = federation.NewRateLimitedFailure(17 * time.Second)
+	verify := h.request(t, http.MethodPost, "/api/prohibitorum/auth/federation/flows/"+flow+"/verify", `{}`)
+	if details := decode(t, verify); len(details) != 1 || details["federationName"] != "VRChat" {
+		t.Fatalf("verify details = %#v", details)
+	}
+}
+
 func TestFederationFlowIdentityConflictIsGeneric(t *testing.T) {
 	h := newLocalFlowHarness(t)
 	flow, _ := h.beginLogin(t)
@@ -557,7 +599,7 @@ func TestFederationFlowIdentityConflictIsGeneric(t *testing.T) {
 	if err := json.NewDecoder(response.Body).Decode(&public); err != nil {
 		t.Fatal(err)
 	}
-	if public.Code != "federation_identity_conflict" || len(public.Details) != 0 {
+	if public.Code != "federation_identity_conflict" || len(public.Details) != 1 || public.Details["federationName"] != "VRChat" {
 		t.Fatalf("public conflict = %+v", public)
 	}
 }

@@ -796,13 +796,31 @@ func TestRedirectAuthErrToErrorReturn_ProjectsOnlyNamedFederationDetail(t *testi
 	}
 }
 
-func TestRedirectAuthErrToErrorReturn_OmitsFederationNameForOtherCodes(t *testing.T) {
+func TestRedirectAuthErrToErrorReturn_ForwardsFederationNameForNamedCodes(t *testing.T) {
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/federation/callback", nil)
-	err := authn.ErrInviteRequired()
+	err := authn.WithFederationName(authn.ErrInviteRequired(), "Corporate SSO")
+	redirectAuthErrToErrorReturn(rec, req, err, "")
+
+	target, parseErr := url.Parse(rec.Header().Get("Location"))
+	if parseErr != nil {
+		t.Fatal(parseErr)
+	}
+	query := target.Query()
+	if query.Get("error") != "invite_required" || query.Get("federationName") != "Corporate SSO" {
+		t.Fatalf("Location = %q, want invite_required naming the provider", rec.Header().Get("Location"))
+	}
+}
+
+func TestRedirectAuthErrToErrorReturn_OmitsFederationNameForUnnamedCodes(t *testing.T) {
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/federation/callback", nil)
+	err := authn.ErrFederationStateInvalid()
 	err.Details = map[string]any{"federationName": "must not appear"}
 	redirectAuthErrToErrorReturn(rec, req, err, "")
-	if strings.Contains(rec.Header().Get("Location"), "federationName") {
-		t.Fatalf("Location leaked detail for invite_required: %q", rec.Header().Get("Location"))
+
+	location := rec.Header().Get("Location")
+	if !strings.Contains(location, "error=federation_state_invalid") || strings.Contains(location, "federationName") {
+		t.Fatalf("Location leaked detail for federation_state_invalid: %q", location)
 	}
 }

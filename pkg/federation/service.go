@@ -122,6 +122,21 @@ func (s *Service) SetAvatarManager(manager avatarInheritor) {
 	s.avatar = manager
 }
 
+// EnabledProviderName returns the display name of the enabled provider with
+// this slug, or "" when the slug is unknown, the provider is disabled, or the
+// lookup fails. It is the same set the public provider list shows, so naming
+// a provider in an error discloses nothing that list does not.
+func (s *Service) EnabledProviderName(ctx context.Context, slug string) string {
+	if slug == "" {
+		return ""
+	}
+	provider, err := s.providers.BySlug(ctx, slug)
+	if err != nil || provider.Disabled {
+		return ""
+	}
+	return provider.DisplayName
+}
+
 func (s *Service) BeginPublic(ctx context.Context, providerSlug, returnTo string) (*BeginResult, error) {
 	provider, err := s.providers.BySlug(ctx, providerSlug)
 	if err != nil {
@@ -151,7 +166,7 @@ func (s *Service) BeginInvite(ctx context.Context, enrollmentToken, selectedSlug
 	provider, err := s.providers.InviteProvider(ctx, enrollmentToken, selectedSlug)
 	if err != nil {
 		if _, _, _, _, ok := failureProjection(err); ok {
-			return nil, s.recordFailure(ctx, nil, nil, "", err)
+			return nil, s.recordFailure(ctx, nil, nil, "", "", err)
 		}
 		return nil, authn.ErrInviteRequired()
 	}
@@ -173,7 +188,7 @@ func (s *Service) begin(ctx context.Context, provider Provider, intent Intent, r
 	}
 	if !definition.Ready(provider) {
 		if provider.Protocol == "vrchat" {
-			return nil, authn.ErrProviderNotReady()
+			return nil, authn.WithFederationName(authn.ErrProviderNotReady(), provider.DisplayName)
 		}
 		return nil, ErrProviderUnready
 	}
@@ -237,10 +252,10 @@ func (s *Service) AdvanceCallback(ctx context.Context, request AdvanceRequest) (
 
 func (s *Service) PrepareFlow(ctx context.Context, request AdvanceRequest) (*FlowView, error) {
 	if !validFlowID(request.FlowID) || !validCallbackRoute(request.CallbackRoute) {
-		return nil, s.recordFailure(ctx, nil, &request, "", NewFailure(FailureStateInvalid, nil))
+		return nil, s.recordFailure(ctx, nil, &request, "", "", NewFailure(FailureStateInvalid, nil))
 	}
 	if _, err := s.kv.Get(ctx, FlowKey(request.FlowID)); err != nil {
-		return nil, s.recordFailure(ctx, nil, &request, "", NewFailure(FailureStateInvalid, nil))
+		return nil, s.recordFailure(ctx, nil, &request, "", "", NewFailure(FailureStateInvalid, nil))
 	}
 	lease, err := s.lock(ctx, request.FlowID)
 	if err != nil {
@@ -258,11 +273,11 @@ func (s *Service) PrepareFlow(ctx context.Context, request AdvanceRequest) (*Flo
 		return nil, leaseErr
 	}
 	if err != nil {
-		return nil, s.recordFailure(ctx, state, &request, provider.Slug, err)
+		return nil, s.recordFailure(ctx, state, &request, provider.Slug, provider.DisplayName, err)
 	}
 	if result.Identity != nil || result.Next == nil || result.Avatar != nil ||
 		result.Candidate != nil && (result.Candidate.Issuer == "" || result.Candidate.Subject == "") {
-		return nil, s.recordFailure(ctx, state, &request, provider.Slug, NewFailure(FailureStateInvalid, nil))
+		return nil, s.recordFailure(ctx, state, &request, provider.Slug, provider.DisplayName, NewFailure(FailureStateInvalid, nil))
 	}
 	if err := validateAdapterState(result.State); err != nil {
 		return nil, err
@@ -311,10 +326,10 @@ func (s *Service) PrepareFlow(ctx context.Context, request AdvanceRequest) (*Flo
 
 func (s *Service) VerifyFlow(ctx context.Context, request AdvanceRequest) (*CompletionResult, error) {
 	if !validFlowID(request.FlowID) || !validCallbackRoute(request.CallbackRoute) {
-		return nil, s.recordFailure(ctx, nil, &request, "", NewFailure(FailureStateInvalid, nil))
+		return nil, s.recordFailure(ctx, nil, &request, "", "", NewFailure(FailureStateInvalid, nil))
 	}
 	if _, err := s.kv.Get(ctx, FlowKey(request.FlowID)); err != nil {
-		return nil, s.recordFailure(ctx, nil, &request, "", NewFailure(FailureStateInvalid, nil))
+		return nil, s.recordFailure(ctx, nil, &request, "", "", NewFailure(FailureStateInvalid, nil))
 	}
 	lease, err := s.lock(ctx, request.FlowID)
 	if err != nil {
@@ -329,33 +344,33 @@ func (s *Service) VerifyFlow(ctx context.Context, request AdvanceRequest) (*Comp
 	}
 	consumed, err := s.kv.FencedCompareAndDelete(operationCtx, lease.key, lease.owner, FlowKey(request.FlowID), raw)
 	if err != nil {
-		return nil, s.recordFailure(operationCtx, state, &request, provider.Slug, fmt.Errorf("%w: consume flow", ErrKVUnavailable))
+		return nil, s.recordFailure(operationCtx, state, &request, provider.Slug, provider.DisplayName, fmt.Errorf("%w: consume flow", ErrKVUnavailable))
 	}
 	if !consumed {
-		return nil, s.recordFailure(operationCtx, state, &request, provider.Slug, NewFailure(FailureStateInvalid, nil))
+		return nil, s.recordFailure(operationCtx, state, &request, provider.Slug, provider.DisplayName, NewFailure(FailureStateInvalid, nil))
 	}
 
 	result, err := adapter.Advance(operationCtx, provider, append(json.RawMessage(nil), state.AdapterState...), request.Input)
 	if err != nil {
-		return nil, s.restoreAfterFailure(operationCtx, request, provider.Slug, state, raw, err, false)
+		return nil, s.restoreAfterFailure(operationCtx, request, provider.Slug, provider.DisplayName, state, raw, err, false)
 	}
 	if leaseErr := lease.check(); leaseErr != nil {
-		return nil, s.restoreAfterFailure(operationCtx, request, provider.Slug, state, raw, leaseErr, false)
+		return nil, s.restoreAfterFailure(operationCtx, request, provider.Slug, provider.DisplayName, state, raw, leaseErr, false)
 	}
 	if result.Identity == nil || result.Next != nil || len(result.State) != 0 || result.Candidate != nil {
-		return nil, s.restoreAfterFailure(operationCtx, request, provider.Slug, state, raw, NewFailure(FailureStateInvalid, nil), false)
+		return nil, s.restoreAfterFailure(operationCtx, request, provider.Slug, provider.DisplayName, state, raw, NewFailure(FailureStateInvalid, nil), false)
 	}
 	if state.Intent == IntentEnroll {
 		if state.Protocol != "vrchat" || provider.Protocol != "vrchat" || provider.Mode != ModeLinkOnly || s.issuer == nil {
-			return nil, s.restoreAfterFailure(operationCtx, request, provider.Slug, state, raw, NewFailure(FailureStateInvalid, nil), false)
+			return nil, s.restoreAfterFailure(operationCtx, request, provider.Slug, provider.DisplayName, state, raw, NewFailure(FailureStateInvalid, nil), false)
 		}
 		grant, issueErr := s.issuer.Issue(operationCtx, provider, *result.Identity)
 		if issueErr != nil {
-			return nil, s.recordFailure(operationCtx, state, &request, provider.Slug, issueErr)
+			return nil, s.recordFailure(operationCtx, state, &request, provider.Slug, provider.DisplayName, issueErr)
 		}
 		completion := &CompletionResult{Intent: IntentEnroll, Enrollment: &grant}
 		if validateErr := completion.Validate(); validateErr != nil {
-			return nil, s.recordFailure(operationCtx, state, &request, provider.Slug, NewFailure(FailureStateInvalid, nil))
+			return nil, s.recordFailure(operationCtx, state, &request, provider.Slug, provider.DisplayName, NewFailure(FailureStateInvalid, nil))
 		}
 		s.recordVRChatTransition(operationCtx, "vrchat_proof_verified", state, provider.Slug, "")
 		return completion, nil
@@ -371,7 +386,7 @@ func (s *Service) VerifyFlow(ctx context.Context, request AdvanceRequest) (*Comp
 		if usernameRequired && state.Protocol == "vrchat" {
 			err = NewFailure(FailureLocalUsernameRequired, nil)
 		}
-		return nil, s.restoreAfterFailure(operationCtx, request, provider.Slug, state, raw, err, usernameRequired)
+		return nil, s.restoreAfterFailure(operationCtx, request, provider.Slug, provider.DisplayName, state, raw, err, usernameRequired)
 	}
 	if state.Protocol == "vrchat" {
 		s.recordVRChatTransition(operationCtx, "vrchat_proof_verified", state, provider.Slug, "")
@@ -456,14 +471,14 @@ func (s *Service) loadForAdvance(ctx context.Context, request AdvanceRequest) (s
 	localRoute := request.CallbackRoute == CallbackRouteLocal
 	if localRoute && (request.ProviderSlug != "" || request.Protocol != "") ||
 		!localRoute && (state.ProviderSlug != request.ProviderSlug || request.Protocol != "" && state.Protocol != request.Protocol) {
-		return "", nil, Provider{}, nil, s.recordFailure(ctx, state, &request, state.ProviderSlug, NewFailure(FailureStateInvalid, nil))
+		return "", nil, Provider{}, nil, s.recordFailure(ctx, state, &request, state.ProviderSlug, provider.DisplayName, NewFailure(FailureStateInvalid, nil))
 	}
 	if state.CurrentAction.Kind != request.Input.Kind {
 		reason := FailureStateInvalid
 		if localRoute {
 			reason = FailureActionInvalid
 		}
-		return "", nil, Provider{}, nil, s.recordFailure(ctx, state, &request, state.ProviderSlug, NewFailure(reason, nil))
+		return "", nil, Provider{}, nil, s.recordFailure(ctx, state, &request, state.ProviderSlug, provider.DisplayName, NewFailure(reason, nil))
 	}
 	return raw, state, provider, adapter, nil
 }
@@ -471,17 +486,17 @@ func (s *Service) loadForAdvance(ctx context.Context, request AdvanceRequest) (s
 func (s *Service) loadBoundFlow(ctx context.Context, request AdvanceRequest) (string, *FlowState, Provider, Adapter, error) {
 	raw, err := s.kv.Get(ctx, FlowKey(request.FlowID))
 	if err != nil {
-		return "", nil, Provider{}, nil, s.recordFailure(ctx, nil, &request, "", NewFailure(FailureStateInvalid, nil))
+		return "", nil, Provider{}, nil, s.recordFailure(ctx, nil, &request, "", "", NewFailure(FailureStateInvalid, nil))
 	}
 	state, err := DecodeFlowState(raw)
 	if err != nil || !state.ExpiresAt.After(s.now()) {
-		return "", nil, Provider{}, nil, s.recordFailure(ctx, nil, &request, "", NewFailure(FailureStateInvalid, nil))
+		return "", nil, Provider{}, nil, s.recordFailure(ctx, nil, &request, "", "", NewFailure(FailureStateInvalid, nil))
 	}
 	if !callbackRouteAllowsIntent(request.CallbackRoute, state.Intent) {
-		return "", nil, Provider{}, nil, s.recordFailure(ctx, state, &request, state.ProviderSlug, NewFailure(FailureStateInvalid, nil))
+		return "", nil, Provider{}, nil, s.recordFailure(ctx, state, &request, state.ProviderSlug, "", NewFailure(FailureStateInvalid, nil))
 	}
 	if !BrowserBindingOK(state.BrowserDigest, request.BrowserToken) {
-		return "", nil, Provider{}, nil, s.recordFailure(ctx, state, &request, state.ProviderSlug, NewFailure(FailureBrowserBindingMismatch, nil))
+		return "", nil, Provider{}, nil, s.recordFailure(ctx, state, &request, state.ProviderSlug, "", NewFailure(FailureBrowserBindingMismatch, nil))
 	}
 	if state.Intent == IntentLink {
 		if request.AccountID == nil || state.LinkAccountID == nil || *request.AccountID != *state.LinkAccountID || request.SessionID == "" || request.SessionID != state.LinkSessionID {
@@ -489,41 +504,46 @@ func (s *Service) loadBoundFlow(ctx context.Context, request AdvanceRequest) (st
 			if state.LinkAccountID != nil {
 				stateAccountID = *state.LinkAccountID
 			}
-			return "", nil, Provider{}, nil, s.recordFailure(ctx, state, &request, state.ProviderSlug, NewFailure(FailureSessionSwap, map[string]any{
+			return "", nil, Provider{}, nil, s.recordFailure(ctx, state, &request, state.ProviderSlug, "", NewFailure(FailureSessionSwap, map[string]any{
 				"state_account_id": stateAccountID,
 			}))
 		}
 	}
 	provider, err := s.providers.ByBinding(ctx, state.ProviderID, state.ProviderSlug, state.Protocol)
 	if err != nil || provider.Disabled {
-		return "", nil, Provider{}, nil, s.recordFailure(ctx, state, &request, state.ProviderSlug, NewFailure(FailureProviderUnavailable, nil))
+		return "", nil, Provider{}, nil, s.recordFailure(ctx, state, &request, state.ProviderSlug, "", NewFailure(FailureProviderUnavailable, nil))
 	}
 	definition, adapter, err := s.flowProvider(provider)
 	if err != nil {
-		return "", nil, Provider{}, nil, s.recordFailure(ctx, state, &request, state.ProviderSlug, NewFailure(FailureProviderUnavailable, nil))
+		return "", nil, Provider{}, nil, s.recordFailure(ctx, state, &request, state.ProviderSlug, provider.DisplayName, NewFailure(FailureProviderUnavailable, nil))
 	}
 	if !definition.Ready(provider) {
 		reason := FailureProviderUnavailable
 		if state.Protocol == "vrchat" {
 			reason = FailureVRChatProviderNotReady
 		}
-		return "", nil, Provider{}, nil, s.recordFailure(ctx, state, &request, state.ProviderSlug, NewFailure(reason, nil))
+		return "", nil, Provider{}, nil, s.recordFailure(ctx, state, &request, state.ProviderSlug, provider.DisplayName, NewFailure(reason, nil))
 	}
 	return raw, state, provider, adapter, nil
 }
 
-func (s *Service) recordFailure(ctx context.Context, state *FlowState, request *AdvanceRequest, providerSlug string, err error) error {
+// recordFailure logs and audits a flow failure and returns its public error.
+// providerName is the display name of a provider that is loaded and enabled,
+// or "" when the provider is unknown; named public codes carry it as
+// federationName, whether they come from the failure policy or pass through
+// unchanged from the resolver.
+func (s *Service) recordFailure(ctx context.Context, state *FlowState, request *AdvanceRequest, providerSlug, providerName string, err error) error {
 	reason, extra, publicErr, cause, ok := failureProjection(err)
 	if state != nil && state.Protocol == "vrchat" {
 		s.recordVRChatFailure(ctx, state, providerSlug, err)
 		if ok {
 			logFlowFailure(ctx, reason, cause, providerSlug, request)
-			return publicErr
+			return authn.WithFederationName(publicErr, providerName)
 		}
-		return err
+		return authn.WithFederationName(err, providerName)
 	}
 	if !ok {
-		return err
+		return authn.WithFederationName(err, providerName)
 	}
 	logFlowFailure(ctx, reason, cause, providerSlug, request)
 	detail := map[string]any{"reason": string(reason)}
@@ -543,7 +563,7 @@ func (s *Service) recordFailure(ctx context.Context, state *FlowState, request *
 		Event:     audit.EventFail,
 		Detail:    detail,
 	})
-	return publicErr
+	return authn.WithFederationName(publicErr, providerName)
 }
 
 func (s *Service) recordVRChatFailure(ctx context.Context, state *FlowState, providerSlug string, err error) {
@@ -670,9 +690,9 @@ func (s *Service) recordVRChatTransition(ctx context.Context, event string, stat
 	})
 }
 
-func (s *Service) restoreAfterFailure(ctx context.Context, request AdvanceRequest, providerSlug string, state *FlowState, originalRaw string, cause error, requireUsername bool) error {
+func (s *Service) restoreAfterFailure(ctx context.Context, request AdvanceRequest, providerSlug, providerName string, state *FlowState, originalRaw string, cause error, requireUsername bool) error {
 	if state.Protocol != "vrchat" {
-		publicErr := s.recordFailure(ctx, state, &request, providerSlug, cause)
+		publicErr := s.recordFailure(ctx, state, &request, providerSlug, providerName, cause)
 		return s.restore(ctx, request.FlowID, state, originalRaw, publicErr, requireUsername)
 	}
 	publicErr := cause
@@ -684,11 +704,12 @@ func (s *Service) restoreAfterFailure(ctx context.Context, request AdvanceReques
 			// Preserve the typed flow failure: it unwraps to both the stable
 			// public AuthError and the resolver sentinel used by retry logic.
 		case FailureLinkConflict:
-			publicErr = authn.ErrFederationIdentityConflict("")
+			publicErr = authn.ErrFederationIdentityConflict(providerName)
 		default:
 			publicErr = projected
 		}
 	}
+	publicErr = authn.WithFederationName(publicErr, providerName)
 	restored := s.restore(ctx, request.FlowID, state, originalRaw, publicErr, requireUsername)
 	auditCause := cause
 	if errors.Is(restored, ErrKVUnavailable) {
