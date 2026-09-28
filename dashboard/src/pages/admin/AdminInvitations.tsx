@@ -78,7 +78,7 @@ export function AdminInvitations() {
             <Alert.Content>
               <Alert.Title>
                 <Trans id="admin.invitations.error">
-                  The list could not be loaded. Try again.
+                  The list could not be loaded.
                 </Trans>
               </Alert.Title>
             </Alert.Content>
@@ -91,8 +91,7 @@ export function AdminInvitations() {
             <Alert.Content>
               <Alert.Title>
                 <Trans id="admin.invitations.copy.failed">
-                  Could not copy the link. Your browser blocked the clipboard;
-                  allow it and try again.
+                  Could not copy the link. Your browser blocked the clipboard.
                 </Trans>
               </Alert.Title>
             </Alert.Content>

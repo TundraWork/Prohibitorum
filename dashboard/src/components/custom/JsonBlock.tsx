@@ -146,8 +146,7 @@ export function JsonBlock({ json }: { json: string }) {
             <SurfaceAlert.Title>
               {t({
                 id: "json-block.copy.failed",
-                message:
-                  "Could not copy. Your browser blocked the clipboard; allow it and try again.",
+                message: "Could not copy. Your browser blocked the clipboard.",
               })}
             </SurfaceAlert.Title>
           </SurfaceAlert.Content>

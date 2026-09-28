@@ -372,7 +372,7 @@ const reasonText: Readonly<Record<string, ReturnType<typeof msg>>> = {
 
 const ruleRejected = msg({
   id: "admin.group.rule.rejected",
-  message: "The server did not accept this rule. Check it and try again.",
+  message: "The server did not accept this rule.",
 });
 
 /* ------------------------------------------------------------ helpers -- */

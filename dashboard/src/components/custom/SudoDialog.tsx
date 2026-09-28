@@ -259,8 +259,7 @@ function SudoStep({
             <SurfaceAlert.Title>
               <Trans id="sudo.no-methods">
                 This account has no way to confirm your identity from here. Set
-                up a passkey, or a password and authenticator, before trying
-                again.
+                up a passkey, or a password and authenticator, first.
               </Trans>
             </SurfaceAlert.Title>
           </SurfaceAlert.Content>

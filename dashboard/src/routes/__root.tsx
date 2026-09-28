@@ -2,6 +2,7 @@ import type { QueryClient } from "@tanstack/react-query";
 import { createRootRouteWithContext } from "@tanstack/react-router";
 import { publicConfigQueryOptions } from "@/api/queries";
 import { AppLayout } from "@/components/custom/AppLayout";
+import { AppRouteError } from "@/components/custom/RouteFeedback";
 
 export type RouterContext = { queryClient: QueryClient };
 
@@ -11,4 +12,5 @@ export const Route = createRootRouteWithContext<RouterContext>()({
   loader: ({ context: { queryClient } }) =>
     queryClient.ensureQueryData(publicConfigQueryOptions()),
   component: AppLayout,
+  errorComponent: AppRouteError,
 });
