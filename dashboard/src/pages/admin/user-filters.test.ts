@@ -1,20 +1,22 @@
 import { describe, expect, it } from "vitest";
+import { parseSearch } from "@/app/search-params";
 import {
   accountFilterQuery,
   advancedFilterIncomplete,
-  userFilters,
+  userSearch,
 } from "@/pages/admin/user-filters";
 
-describe("userFilters", () => {
+/** The filters a page at `?searchStr` reads. */
+function userFilters(searchStr: string) {
+  return userSearch.parse(parseSearch(searchStr));
+}
+
+describe("userSearch", () => {
   it("keeps the values it was given", () => {
     expect(
-      userFilters({
-        q: "ali",
-        provider: "github",
-        field: "email",
-        value: "@example.com",
-        match: "prefix",
-      }),
+      userFilters(
+        "?q=ali&provider=github&field=email&value=%40example.com&match=prefix",
+      ),
     ).toEqual({
       q: "ali",
       provider: "github",
@@ -27,7 +29,7 @@ describe("userFilters", () => {
   });
 
   it("falls back to empty rather than guessing", () => {
-    expect(userFilters({})).toEqual({
+    expect(userFilters("")).toEqual({
       q: "",
       provider: "",
       field: "",
@@ -41,26 +43,32 @@ describe("userFilters", () => {
   it("rejects a match operator outside the server's set", () => {
     // `fuzzy` is not one of exact/prefix/contains; the server would reject the
     // request, so the filter is dropped instead of sent.
-    expect(userFilters({ match: "fuzzy" }).match).toBe("");
+    expect(userFilters("?match=fuzzy").match).toBe("");
   });
 
   it("does not trim or fold case", () => {
-    expect(userFilters({ q: " Ali " }).q).toBe(" Ali ");
-    expect(userFilters({ match: "Prefix" }).match).toBe("");
+    expect(userFilters("?q=+Ali+").q).toBe(" Ali ");
+    expect(userFilters("?match=Prefix").match).toBe("");
   });
 
   it("keeps only the two roles the server defines", () => {
-    expect(userFilters({ role: "admin" }).role).toBe("admin");
-    expect(userFilters({ role: "superuser" }).role).toBe("");
+    expect(userFilters("?role=admin").role).toBe("admin");
+    expect(userFilters("?role=superuser").role).toBe("");
   });
 
-  it("ignores non-string values", () => {
-    expect(userFilters({ q: 42, role: ["admin"] }).q).toBe("");
+  it("keeps a search that looks like a number as text", () => {
+    expect(userFilters("?q=123").q).toBe("123");
+    expect(userFilters("?q=12e45678").q).toBe("12e45678");
+  });
+
+  it("falls back to empty for a repeated value", () => {
+    expect(userFilters("?role=admin&role=user").role).toBe("");
+    expect(userFilters("?q=a&q=b").q).toBe("");
   });
 });
 
 describe("accountFilterQuery", () => {
-  const empty = userFilters({});
+  const empty = userFilters("");
 
   it("sends nothing when nothing was asked for", () => {
     expect(accountFilterQuery(empty)).toEqual({});
@@ -103,7 +111,7 @@ describe("accountFilterQuery", () => {
 });
 
 describe("advancedFilterIncomplete", () => {
-  const empty = userFilters({});
+  const empty = userFilters("");
 
   it("is false when the filter is untouched", () => {
     expect(advancedFilterIncomplete(empty)).toBe(false);

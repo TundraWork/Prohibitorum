@@ -71,6 +71,17 @@ describe("the error landing page", () => {
     expect(screen.getByText(/^Reference/)).toBeVisible();
   });
 
+  it.each(["12345678", "12e45678"])(
+    "shows the reference %s as written, however it reads",
+    async (ref) => {
+      const router = await open(`/error?error=upstream_error&ref=${ref}`);
+      expect(screen.getByText(ref)).toHaveClass("font-mono");
+      expect(router.state.location.href).toBe(
+        `/error?error=upstream_error&ref=${ref}`,
+      );
+    },
+  );
+
   it("goes back to a page on this site", async () => {
     const user = userEvent.setup();
     const router = await open(

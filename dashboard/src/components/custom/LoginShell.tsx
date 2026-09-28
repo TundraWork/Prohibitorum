@@ -1,7 +1,7 @@
 import type { MessageDescriptor } from "@lingui/core";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useSuspenseQuery } from "@tanstack/react-query";
-import { useLocation } from "@tanstack/react-router";
+import { useSearch } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import { readReturnTo } from "@/api/auth";
 import { describeError } from "@/api/errors";
@@ -25,11 +25,15 @@ export type LoginFailure = {
 export function useLoginContext() {
   const { data: config } = useSuspenseQuery(publicConfigQueryOptions());
   const { data: status } = useSuspenseQuery(authStatusQueryOptions());
-  const search = useLocation({ select: (location) => location.search });
+  // The three sign-in steps share this, so it reads whichever one is showing.
+  const rawReturnTo = useSearch({
+    strict: false,
+    select: (search) => search.return_to,
+  });
   let returnTo: string | undefined;
   let linkError: MessageDescriptor | undefined;
   try {
-    returnTo = readReturnTo(search);
+    returnTo = readReturnTo(rawReturnTo);
   } catch (error) {
     linkError = describeError(error);
   }

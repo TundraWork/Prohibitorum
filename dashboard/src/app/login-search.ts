@@ -1,27 +1,26 @@
-import { text } from "@/app/search";
-
-export interface LoginSearch {
-  return_to?: string;
-  /**
-   * Present on the administrators' way in during maintenance, whatever its
-   * value: `?admin`, `?admin=1` and `?admin=0` all count (see
-   * `maintenanceRedirect`).
-   */
-  admin?: true;
-}
+import { z } from "zod";
+import { rawSearchValue } from "@/app/search-params";
 
 /**
- * The sign-in steps' search values. The steps carry the whole search string
- * from one to the next, so both of these reach the second step.
+ * The sign-in steps' search values, kept as the address carried them. The
+ * steps carry the whole search string from one to the next, so both of these
+ * reach the second step.
  *
- * The sign-in page reads `return_to` through `readReturnTo`, which refuses a
- * link that names it twice; this only types it for the links that build a
- * sign-in address.
+ * `return_to` is read through `readReturnTo`, which refuses a link that names
+ * it twice. `admin` is the administrators' way in during maintenance: the key
+ * counts whatever its value, `?admin`, `?admin=0` and a repeated one included
+ * (see `maintenanceRedirect`).
  */
-export function loginSearch(search: Record<string, unknown>): LoginSearch {
-  const returnTo = text(search.return_to);
-  return {
-    ...(returnTo === undefined ? {} : { return_to: returnTo }),
-    ...(Object.hasOwn(search, "admin") ? { admin: true } : {}),
-  };
+export const loginSearch = z.object({
+  return_to: rawSearchValue,
+  admin: rawSearchValue,
+});
+
+/** The sign-in steps' loader reads the raw `return_to`. */
+export function loginLoaderDeps({
+  search,
+}: {
+  search: z.output<typeof loginSearch>;
+}) {
+  return { returnTo: search.return_to };
 }

@@ -16,6 +16,7 @@ import type { components } from "@/api/generated/schema";
 import { factorsQueryOptions, sessionQueryOptions } from "@/api/queries";
 import { configureSudo, resetSudo, type SudoRequest } from "@/api/sudo";
 import { createQueryClient } from "@/app/query-client";
+import { searchSerialization } from "@/app/search-params";
 import { i18n } from "@/i18n";
 import { PasswordTotpPanel } from "@/pages/security/PasswordTotpPanel";
 
@@ -89,6 +90,7 @@ function mount(
     component: PasswordTotpPanel,
   });
   const router = createRouter({
+    ...searchSerialization,
     routeTree: root.addChildren([security]),
     history: createMemoryHistory({ initialEntries: ["/"] }),
   });

@@ -1,16 +1,19 @@
+import { z } from "zod";
 import type { AccountFilters } from "@/api/queries";
+import { searchChoice, searchText } from "@/app/search-params";
 
 /**
  * The account list's filters, which live in the URL and nowhere else: the page
  * renders what the search string says, the server executes it, and a reload or
  * a shared link lands on the same list.
  *
- * Validation is strict and deliberate. The server rejects a partial advanced
- * filter (it wants all four of provider, field, value and match) and a `match`
- * outside the operator set the provider publishes, so a half-typed filter is
- * neither sent nor silently repaired: it is kept in the URL so the user can
- * finish it, but `accountFilterQuery` reports it as incomplete and the page
- * leaves it out of the request instead of guessing.
+ * Validation is strict and deliberate. A missing, repeated or unknown value is
+ * the empty filter. The server rejects a partial advanced filter (it wants all
+ * four of provider, field, value and match) and a `match` outside the operator
+ * set the provider publishes, so a half-typed filter is neither sent nor
+ * silently repaired: it is kept in the URL so the user can finish it, but
+ * `accountFilterQuery` reports it as incomplete and the page leaves it out of
+ * the request instead of guessing.
  *
  * No trimming, case folding or synonym matching. A cursor is never accepted
  * here: pagination is "keep loading" within one result set, and a link that
@@ -25,39 +28,18 @@ export type MatchOperator = (typeof matchOperators)[number];
 const roles = ["user", "admin"] as const;
 export type RoleFilter = (typeof roles)[number];
 
-export interface UserFilters {
-  q: string;
-  provider: string;
-  field: string;
-  value: string;
-  match: MatchOperator | "";
-  role: RoleFilter | "";
+export const userSearch = z.object({
+  q: searchText(),
+  provider: searchText(),
+  field: searchText(),
+  value: searchText(),
+  match: searchChoice(["", ...matchOperators], ""),
+  role: searchChoice(["", ...roles], ""),
   /** `disabled`, `enabled`, or unset for both. */
-  state: "enabled" | "disabled" | "";
-}
+  state: searchChoice(["", "enabled", "disabled"], ""),
+});
 
-function text(value: unknown): string {
-  return typeof value === "string" ? value : "";
-}
-
-export function userFilters(search: Record<string, unknown>): UserFilters {
-  const match = text(search.match);
-  const role = text(search.role);
-  const state = text(search.state);
-  return {
-    q: text(search.q),
-    provider: text(search.provider),
-    field: text(search.field),
-    value: text(search.value),
-    match: (matchOperators as readonly string[]).includes(match)
-      ? (match as MatchOperator)
-      : "",
-    role: (roles as readonly string[]).includes(role)
-      ? (role as RoleFilter)
-      : "",
-    state: state === "enabled" || state === "disabled" ? state : "",
-  };
-}
+export type UserFilters = z.output<typeof userSearch>;
 
 /**
  * The filters as the server takes them, or the reason it cannot take them yet.

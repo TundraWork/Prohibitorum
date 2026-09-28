@@ -17,6 +17,7 @@ import {
 } from "@/api/queries";
 import type { PublicConfig } from "@/api/raw-paths";
 import { createQueryClient } from "@/app/query-client";
+import { searchSerialization } from "@/app/search-params";
 import { ConsoleLayout } from "@/components/custom/ConsoleLayout";
 import { i18n } from "@/i18n";
 
@@ -89,6 +90,7 @@ async function mount(
       component: () => <p>page</p>,
     });
   const router = createRouter({
+    ...searchSerialization,
     routeTree: root.addChildren([
       page("/"),
       page("/admin"),

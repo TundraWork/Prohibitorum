@@ -59,7 +59,6 @@ export function AdminUsers() {
     void navigate({
       to: "/admin/users/$id",
       params: { id: String(id) },
-      search: { tab: "profile" as const },
     });
   };
 
@@ -153,7 +152,6 @@ function userColumns(open: (id: number) => void): TableColumn<Account>[] {
         <Link
           className="font-medium"
           params={{ id: String(account.id) }}
-          search={{ tab: "profile" as const }}
           to="/admin/users/$id"
         >
           {account.username}

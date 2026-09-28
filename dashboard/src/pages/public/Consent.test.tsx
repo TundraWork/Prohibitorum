@@ -202,6 +202,10 @@ describe("OIDC consent", () => {
   it.each([
     ["the ticket", `/consent?return_to=${encodeURIComponent(authorize)}`],
     ["the authorization", "/consent?ticket=t-1"],
+    [
+      "exactly one ticket",
+      `/consent?ticket=t-1&ticket=t-2&return_to=${encodeURIComponent(authorize)}`,
+    ],
   ])(
     "refuses a link without %s and asks nothing of the server",
     async (_, path) => {

@@ -67,7 +67,7 @@ describe("the maintenance page", () => {
       await screen.findByRole("heading", { name: "Sign in" }),
     ).toBeVisible();
     expect(router.state.location.pathname).toBe("/login");
-    expect(router.state.location.search).toEqual({ admin: true });
+    expect(router.state.location.searchStr).toBe("?admin=1");
     expect(
       screen.getByText(
         "The service is undergoing maintenance. Only administrators can sign in.",

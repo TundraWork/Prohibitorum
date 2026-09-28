@@ -10,21 +10,18 @@ import {
 import { client, requireJsonData } from "@/api/client";
 import { ApiError, isCancellation } from "@/api/errors";
 import type { LoginResult, PublicConfig } from "@/api/raw-paths";
+import type { SearchValue } from "@/app/search-params";
 
 /**
- * Reads the single `return_to` parameter of a sign-in link from the router's
- * parsed search. The value itself needs no client-side validation: the server
- * validates it before returning the final redirect target. Only a malformed
- * link is refused here: the router folds a repeated parameter into an array,
- * and turns a value that is not text — a bare number, say — into something
- * that is no longer the address the link carried.
+ * The `return_to` of a sign-in link, as the address carried it. The value
+ * itself needs no client-side validation: the server validates it before
+ * returning the final redirect target. Only a malformed link is refused here:
+ * one that names the parameter more than once.
  */
 export function readReturnTo(
-  search: Record<string, unknown>,
+  value: SearchValue | undefined,
 ): string | undefined {
-  if (!Object.hasOwn(search, "return_to")) return undefined;
-  const value = search.return_to;
-  if (typeof value !== "string") {
+  if (Array.isArray(value)) {
     throw new ApiError({ kind: "local", code: "invalid_login_link" });
   }
   return value;

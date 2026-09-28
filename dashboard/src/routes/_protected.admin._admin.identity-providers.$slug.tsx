@@ -1,7 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { z } from "zod";
 import { identityProviderQueryOptions } from "@/api/queries";
+import { optionalSearchText } from "@/app/search-params";
 import { AdminIdentityProvider } from "@/pages/admin/identity-providers/AdminIdentityProvider";
-import { readRunId } from "@/pages/admin/identity-providers/ProviderDiagnosticsSection";
+import { runIdPattern } from "@/pages/admin/identity-providers/ProviderDiagnosticsSection";
 
 /**
  * One provider's settings, addressed by slug.
@@ -21,12 +23,9 @@ import { readRunId } from "@/pages/admin/identity-providers/ProviderDiagnosticsS
 export const Route = createFileRoute(
   "/_protected/admin/_admin/identity-providers/$slug",
 )({
-  validateSearch: (search: Record<string, unknown>) => {
-    const test = readRunId(search.test);
-    // The key is omitted rather than set to undefined when there is no run, so a
-    // link to this page does not have to name a search value that does not exist.
-    return test === undefined ? {} : { test };
-  },
+  validateSearch: z.object({
+    test: optionalSearchText(z.string().regex(runIdPattern)),
+  }),
   loader: ({ context: { queryClient }, params: { slug } }) =>
     queryClient.ensureQueryData(identityProviderQueryOptions(slug)),
   component: AdminIdentityProviderPage,

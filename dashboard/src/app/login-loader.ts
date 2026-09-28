@@ -5,15 +5,16 @@ import {
   publicConfigQueryOptions,
   sessionQueryOptions,
 } from "@/api/queries";
+import type { loginLoaderDeps } from "@/app/login-search";
 import type { RouterContext } from "@/routes/__root";
 
 export async function loginLoader({
   context: { queryClient },
-  location,
+  deps,
   cause,
 }: {
   context: RouterContext;
-  location: { search: Record<string, unknown> };
+  deps: ReturnType<typeof loginLoaderDeps>;
   cause: "preload" | "enter" | "stay";
 }) {
   // A mounted sign-in page may be displaying newly issued recovery codes.
@@ -25,7 +26,7 @@ export async function loginLoader({
   ]);
   let returnTo: string | undefined;
   try {
-    returnTo = readReturnTo(location.search);
+    returnTo = readReturnTo(deps.returnTo);
   } catch {
     return;
   }
