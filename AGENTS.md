@@ -77,7 +77,7 @@
 - `dashboard-old` is a reference-only archive. Keep it outside imports, builds,
   tests and lint scopes; do not restore its routes or vendored UI into the app.
 - The public flows, the console and the management pages are available.
-  Enrollment, federated sign-in and device pairing pages are still being added.
+  Device pairing pages are still being added.
 - The embedded bundle is generated, not committed. `pkg/webui/dist` is ignored
   apart from the tracked `.gitkeep` that keeps `go:embed all:dist` compiling on
   a clean checkout. After changing dashboard source run `mise run ci:frontend`;

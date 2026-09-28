@@ -395,6 +395,25 @@ that goes ahead (`primary`) on the right and the other (`secondary`) on the
 left, as in a dialog's footer; the pressed one is pending and the other
 disabled until the page leaves.
 
+The sign-in and enrollment pages offer upstream providers under the local
+sign-ins, after an `OrSeparator` (two rules around a `text-xs` muted "or"):
+`ProviderButtons` draws one full-width `secondary` button per provider, with
+its 20px icon or initial and "Continue with {name}". The pressed button is
+pending and the others disabled until the page leaves. An invitation bound to
+a provider shows only that provider's button.
+
+A first password and authenticator on the public card (`PasswordTotpSetup`)
+is three steps, each a `PublicStep`: the password, the authenticator (the
+`TotpSetup` on the surface and an `OtpField`), then the first recovery codes.
+The first two have a back button and share one form; the codes step has none.
+
+`/welcome` shows the account a first federated sign-in prepared as a
+`Surface variant="secondary"` block: a large avatar, the display name at medium
+weight, and a muted line with the username and email. While the provider's
+picture is on its way the avatar's place is a `Skeleton` of the same shape.
+The VRChat verification lists its instructions as a numbered `text-sm` list
+with muted numbers, and gives the verification link as a `CopyValue`.
+
 A flow the server stopped (`/error`) has the shape of a public page that failed
 to load: the title, then a danger `SurfaceAlert` with what happened, a
 monospace reference an administrator can look up, and one `secondary` way out

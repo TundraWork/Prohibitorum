@@ -14,8 +14,10 @@ whole IdP plus its frontend.
 **Frontend rewrite (M4):** password + TOTP, recovery-code and passkey sign-in are
 available, including optional authenticator reset and a responsive bilingual console
 that now covers the signed-in account itself — profile, security, connected
-applications and device pairing. Enrollment, application management and admin pages
-(M5) remain unavailable. Backend authentication and protocol APIs are unchanged.
+applications and device pairing. Enrollment links, sign-in through an upstream
+provider and VRChat profile verification have their pages; signing in a new device
+from the sign-in page (`/pair`) is still being added. Backend authentication and
+protocol APIs are unchanged.
 
 - **Sign-in** — WebAuthn passkeys (preferred), Password + TOTP fallback, or federation through upstream OIDC, Steam, and VRChat providers.
 - **Downstream** — OIDC provider for modern apps, SAML 2.0 IdP for GitHub Enterprise Server and other legacy SaaS, and a forward-auth gateway.
@@ -53,7 +55,7 @@ applications and device pairing. Enrollment, application management and admin pa
 - [x] Connected applications — review approvals and remove access
 - [x] Device pairing — look up a code another device shows, then approve or decline
 - [x] Step-up re-verification — one passkey/password prompt reused by every guarded action
-- [ ] Enrollment UI
+- [x] Enrollment UI
 - [ ] Admin console and permission-aware application management
 - [ ] App launchpad
 
