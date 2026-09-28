@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { ApiError, describeError, describeRouteFailure } from "@/api/errors";
+import {
+  ApiError,
+  describeError,
+  describeErrorLanding,
+  describeRouteFailure,
+} from "@/api/errors";
 
 function refused(code: string) {
   return new ApiError({ kind: "http", status: 404, code, requestId: "r1" });
@@ -25,6 +30,101 @@ describe("describeError", () => {
       requestId: "r1",
     });
   });
+});
+
+describe("the federation scope", () => {
+  function federated(code: string, federationName?: unknown) {
+    return new ApiError({
+      kind: "http",
+      status: 400,
+      code,
+      requestId: "r1",
+      details: federationName === undefined ? {} : { federationName },
+    });
+  }
+
+  it("names the provider the failure carries", () => {
+    expect(
+      describeError(federated("upstream_error", "GitLab"), "federation"),
+    ).toMatchObject({
+      id: "error.federation.upstream_error",
+      values: { provider: "GitLab" },
+      requestId: "r1",
+    });
+  });
+
+  it.each([
+    ["no name", undefined],
+    ["an empty name", ""],
+    ["a name that is not text", 7],
+  ])("falls back rather than say 'the provider' with %s", (_, name) => {
+    expect(
+      describeError(federated("invite_required", name), "federation").id,
+    ).toBe("error.sign_in_failed");
+  });
+
+  it("reads the general table for a code it does not hold", () => {
+    expect(
+      describeError(federated("rate_limited", "GitLab"), "federation").id,
+    ).toBe("error.rate_limited");
+  });
+
+  it("leaves the console's own wording alone outside the scope", () => {
+    expect(describeError(federated("provider_not_ready", "GitLab")).id).toBe(
+      "error.provider_not_ready",
+    );
+  });
+});
+
+describe("describeErrorLanding", () => {
+  const instance = "Test instance";
+
+  it("puts a denied application before any code", () => {
+    expect(
+      describeErrorLanding({
+        code: "upstream_error",
+        reason: "app_access_denied",
+        instance,
+      }).id,
+    ).toBe("error.landing.app_access_denied");
+  });
+
+  it("reads the codes only a redirect carries, with the instance's name", () => {
+    expect(
+      describeErrorLanding({ code: "saml_sp_unknown", instance }),
+    ).toMatchObject({
+      id: "error.landing.saml_sp_unknown",
+      values: { instance },
+    });
+  });
+
+  it("names the provider from the link, and falls back without one", () => {
+    expect(
+      describeErrorLanding({
+        code: "upstream_error",
+        federationName: "GitLab",
+        instance,
+      }),
+    ).toMatchObject({ values: { provider: "GitLab" } });
+    expect(describeErrorLanding({ code: "upstream_error", instance }).id).toBe(
+      "error.sign_in_failed",
+    );
+  });
+
+  it("then reads the general table", () => {
+    expect(
+      describeErrorLanding({ code: "invalid_consent_ticket", instance }).id,
+    ).toBe("error.invalid_consent_ticket");
+  });
+
+  it.each([undefined, "", "made_up", "__proto__", "toString"])(
+    "falls back for %s",
+    (code) => {
+      expect(describeErrorLanding({ code, instance }).id).toBe(
+        "error.sign_in_failed",
+      );
+    },
+  );
 });
 
 function http(status: number, code?: string) {

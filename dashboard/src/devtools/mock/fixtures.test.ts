@@ -2,7 +2,11 @@ import { describe, expect, it } from "vitest";
 import { isValidRecoveryCode } from "@/api/auth";
 import type { components } from "@/api/generated/schema";
 import type { DiagnosticResultView } from "@/api/raw-admin-paths";
-import type { DevicePairing } from "@/api/raw-paths";
+import type {
+  ConsentRequest,
+  DevicePairing,
+  SamlConsentRequest,
+} from "@/api/raw-paths";
 import { buildMockReply, type MockReply } from "@/devtools/mock/fixtures";
 import {
   defaultMockConfig,
@@ -909,5 +913,113 @@ describe("identity provider diagnostics", () => {
         writes(),
       )?.kind,
     ).toBe("json");
+  });
+});
+
+describe("mocked public flows", () => {
+  function consentWrite(current: MockConfig, decision: string, url: string) {
+    return buildMockReply(
+      {
+        method: "POST",
+        schemaPath: "/api/prohibitorum/consent",
+        url,
+        body: { ticket: "t", decision },
+      },
+      current,
+    );
+  }
+
+  it("asks about every scope the first time, one of them the app's own", () => {
+    const body = bodyOf(read("/api/prohibitorum/consent")) as ConsentRequest;
+    expect(body.client.displayName).toBe("Wiki");
+    expect(body.scopes).toEqual([
+      "openid",
+      "profile",
+      "email",
+      "groups",
+      "offline_access",
+      "wiki:write",
+    ]);
+    expect(body.alreadyGranted).toBeUndefined();
+    expect(body.account.displayName).toBe(
+      defaultMockConfig.session.displayName,
+    );
+  });
+
+  it("reports the first three as allowed before for more access", () => {
+    const body = bodyOf(
+      read(
+        "/api/prohibitorum/consent",
+        config((draft) => {
+          draft.publicFlows.consent.grant = "incremental";
+        }),
+      ),
+    ) as ConsentRequest;
+    expect(body.alreadyGranted).toEqual(["openid", "profile", "email"]);
+  });
+
+  it("drops the logo and the policies the panel turns off", () => {
+    const body = bodyOf(
+      read(
+        "/api/prohibitorum/consent",
+        config((draft) => {
+          draft.publicFlows.consent.logo = false;
+          draft.publicFlows.consent.policy = false;
+        }),
+      ),
+    ) as ConsentRequest;
+    expect(body.client).toEqual({
+      clientId: "wiki",
+      displayName: "Wiki",
+      tosUri: "https://wiki.example.test/terms",
+    });
+  });
+
+  it("answers a spent ticket as the server does, for both reads", () => {
+    const spent = config((draft) => {
+      draft.publicFlows.consent.ticketValid = false;
+    });
+    for (const path of [
+      "/api/prohibitorum/consent",
+      "/api/prohibitorum/saml-consent",
+    ]) {
+      expect(read(path, spent)).toMatchObject({
+        kind: "error",
+        status: 400,
+        code: "invalid_consent_ticket",
+      });
+    }
+  });
+
+  it("sends a SAML service as many attributes as the panel says, none at 0", () => {
+    const attributes = (count: number) =>
+      (
+        bodyOf(
+          read(
+            "/api/prohibitorum/saml-consent",
+            config((draft) => {
+              draft.publicFlows.consent.samlAttributes = count;
+            }),
+          ),
+        ) as SamlConsentRequest
+      ).attributes;
+    expect(attributes(3)).toEqual(["显示名称", "邮箱地址", "用户组"]);
+    expect(attributes(0)).toEqual([]);
+  });
+
+  it("resumes an allowed consent at its return_to, and goes home otherwise", () => {
+    const at = (returnTo: string) =>
+      `http://localhost/api/prohibitorum/consent?return_to=${encodeURIComponent(returnTo)}`;
+    expect(bodyOf(consentWrite(writes(), "approve", at("/apps")))).toEqual({
+      redirect: "/apps",
+    });
+    for (const outside of ["//evil.example", "https://evil.example", ""]) {
+      expect(bodyOf(consentWrite(writes(), "approve", at(outside)))).toEqual({
+        redirect: "/",
+      });
+    }
+    expect(bodyOf(consentWrite(writes(), "deny", at("/apps")))).toEqual({
+      redirect: "/",
+    });
   });
 });

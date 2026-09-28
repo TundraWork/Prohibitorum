@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -30,9 +30,9 @@ async function mountApplication() {
 }
 
 /**
- * The root route loads the instance's branding before anything paints, so the
- * application asks for `/config` even on a preview page; nothing else here
- * reaches the server.
+ * The sign-in page is the one every visitor reaches. Before it paints the app
+ * reads the instance's branding, whether the instance is set up, and whether
+ * anyone is signed in; nothing else here reaches the server.
  */
 const config = {
   instanceName: "Prohibitorum",
@@ -51,17 +51,27 @@ beforeEach(() => {
   vi.resetModules();
   vi.stubGlobal(
     "fetch",
-    vi.fn(async (request: Request) =>
-      new URL(request.url).pathname === "/api/prohibitorum/config"
-        ? Response.json(config)
-        : new Response(null, { status: 404 }),
-    ),
+    vi.fn(async (request: Request) => {
+      switch (new URL(request.url).pathname) {
+        case "/api/prohibitorum/config":
+          return Response.json(config);
+        case "/api/prohibitorum/auth/status":
+          return Response.json({ bootstrapped: true });
+        case "/api/prohibitorum/me":
+          return Response.json(
+            { code: "no_session", requestId: "locale-test" },
+            { status: 401 },
+          );
+        default:
+          return new Response(null, { status: 404 });
+      }
+    }),
   );
   localStorage.clear();
   window.history.replaceState(
     null,
     "",
-    "/preview/components?lang=zh&returnTo=%2Fapps#details",
+    "/login?lang=zh&return_to=%2Fapps#details",
   );
 });
 
@@ -78,9 +88,7 @@ describe("language preference", () => {
     const { localeBeforeMount } = await mountApplication();
 
     expect(localeBeforeMount).toBe("en");
-    expect(
-      screen.getByRole("heading", { name: "Interface preview" }),
-    ).toBeVisible();
+    expect(screen.getByRole("heading", { name: "Sign in" })).toBeVisible();
     expect(screen.getByRole("button", { name: /Language/ })).toBeVisible();
   });
 
@@ -88,17 +96,18 @@ describe("language preference", () => {
     const user = userEvent.setup();
     const view = await mountApplication();
     const originalUrl = window.location.href;
-    const name = screen.getByRole("textbox", { name: "Display name" });
-    await user.clear(name);
+    const name = screen.getByRole("textbox", { name: "Username" });
     await user.type(name, "Unsubmitted edit");
     await user.click(screen.getByRole("button", { name: /Language/ }));
     await user.click(screen.getByRole("menuitemradio", { name: "中文" }));
 
-    expect(screen.getByRole("heading", { name: "界面预览" })).toBeVisible();
-    expect(screen.getByRole("textbox", { name: "显示名称" })).toHaveValue(
+    expect(screen.getByRole("heading", { name: "登录" })).toBeVisible();
+    expect(screen.getByRole("textbox", { name: "用户名" })).toHaveValue(
       "Unsubmitted edit",
     );
-    expect(screen.getByRole("button", { name: "显示通知" })).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "使用通行密钥登录" }),
+    ).toBeVisible();
     expect(document.documentElement.lang).toBe("zh-CN");
     expect(window.location.href).toBe(originalUrl);
 
@@ -107,21 +116,16 @@ describe("language preference", () => {
     vi.resetModules();
     const reloaded = await mountApplication();
     expect(reloaded.localeBeforeMount).toBe("zh-CN");
-    expect(screen.getByRole("heading", { name: "界面预览" })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "登录" })).toBeVisible();
     expect(window.location.href).toBe(originalUrl);
   });
 
-  it("updates content, accessible names, and an open notification from another tab without losing input", async () => {
+  it("updates content and accessible names from another tab without losing input", async () => {
     const user = userEvent.setup();
     await mountApplication();
     const originalUrl = window.location.href;
-    const name = screen.getByRole("textbox", { name: "Display name" });
-    await user.clear(name);
+    const name = screen.getByRole("textbox", { name: "Username" });
     await user.type(name, "Still editing");
-    await user.click(screen.getByRole("button", { name: "Show notification" }));
-    expect(
-      screen.getByText("Preview notification. No data was submitted."),
-    ).toBeVisible();
 
     act(() => {
       localStorage.setItem("prohibitorum.locale", '"zh"');
@@ -134,21 +138,13 @@ describe("language preference", () => {
       );
     });
 
-    expect(screen.getByRole("heading", { name: "界面预览" })).toBeVisible();
-    expect(screen.getByRole("textbox", { name: "显示名称" })).toHaveValue(
+    expect(screen.getByRole("heading", { name: "登录" })).toBeVisible();
+    expect(screen.getByRole("textbox", { name: "用户名" })).toHaveValue(
       "Still editing",
     );
-    expect(screen.getByText("这是预览通知，没有提交任何数据。")).toBeVisible();
-    expect(screen.getByRole("button", { name: "关闭通知" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "使用密码继续" })).toBeVisible();
     expect(document.documentElement.lang).toBe("zh-CN");
     expect(window.location.href).toBe(originalUrl);
-
-    await user.click(screen.getByRole("button", { name: "关闭通知" }));
-    await waitFor(() => {
-      expect(
-        screen.queryByText("这是预览通知，没有提交任何数据。"),
-      ).not.toBeInTheDocument();
-    });
   });
 
   it("activates English for a stored value other than the exact supported Chinese value", async () => {
@@ -156,8 +152,6 @@ describe("language preference", () => {
     const { localeBeforeMount } = await mountApplication();
 
     expect(localeBeforeMount).toBe("en");
-    expect(
-      screen.getByRole("heading", { name: "Interface preview" }),
-    ).toBeVisible();
+    expect(screen.getByRole("heading", { name: "Sign in" })).toBeVisible();
   });
 });

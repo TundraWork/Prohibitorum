@@ -19,6 +19,14 @@ export function FormMessages({ errors }: { errors: readonly unknown[] }) {
           "message" in error && typeof error.message === "string"
             ? error.message
             : undefined,
+        // A message that names something, such as the provider a sign-in
+        // went through, carries the name beside it.
+        values:
+          "values" in error &&
+          typeof error.values === "object" &&
+          error.values !== null
+            ? (error.values as Record<string, unknown>)
+            : undefined,
       };
       return [i18n._(descriptor)];
     }

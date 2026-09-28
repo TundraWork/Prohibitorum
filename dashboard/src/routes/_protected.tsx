@@ -7,11 +7,12 @@ import {
 } from "@/components/custom/RouteFeedback";
 
 export const Route = createFileRoute("/_protected")({
-  loader: async ({ context: { queryClient } }) => {
+  loader: async ({ context: { queryClient }, location }) => {
     const session = await queryClient.query(sessionQueryOptions());
     if (session === null) {
       await clearSessionQueries(queryClient);
-      throw redirect({ to: "/login" });
+      // Signing in brings the reader back to the page they asked for.
+      throw redirect({ to: "/login", search: { return_to: location.href } });
     }
   },
   component: ConsoleLayout,

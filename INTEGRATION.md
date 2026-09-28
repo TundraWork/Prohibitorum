@@ -2,9 +2,10 @@
 
 How a relying party (RP) — backend service, SPA, or legacy SaaS — authenticates its users against Prohibitorum.
 
-During the frontend rewrite, browser login, enrollment and management pages
-are temporarily unavailable. The protocol and management APIs documented here
-remain available; integrations requiring a new interactive sign-in cannot complete through the preview UI.
+Interactive sign-in and consent run in the dashboard: an OIDC authorization or a
+SAML request that needs the user signs them in at `/login` and asks for consent at
+`/consent` or `/saml-consent`. Enrollment through a federated provider is still being
+added to the rewritten dashboard.
 
 ## Pick a pattern
 

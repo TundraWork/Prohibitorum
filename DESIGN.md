@@ -111,18 +111,17 @@ light/dark values remain in `dashboard/src/styles/theme.css`.
 ## Typography
 
 Inter Variable is loaded locally, with system sans-serif fallbacks for glyphs
-outside its coverage. Body text uses the body role; preview page headings use
-the title role. Supporting copy is smaller and muted.
+outside its coverage. Body text uses the body role; a public page's title is
+`text-xl` semibold. Supporting copy is smaller and muted.
 
 Buttons use the label role. Inputs use body-sized text on narrow screens and
 smaller text from the small breakpoint, as provided by HeroUI.
 
 ## Layout
 
-The public layout is a centered column capped at 64rem, with 16px horizontal
-padding increasing to 24px at 640px. Major sections have 24px gaps. Preview
-navigation and action rows wrap rather than forcing horizontal overflow.
-The public toolbar stays fixed while the page scrolls. Sign-in centers its card
+Every public page — sign-in, consent, a stopped flow, maintenance — sits on one
+30rem card under the public toolbar, with 16px horizontal padding around it.
+The public toolbar stays fixed while the page scrolls. The card is centered
 in the window with even space above and below once the card outgrows it; from
 1024px only the card area scrolls.
 
@@ -316,8 +315,8 @@ pending component, an in-flight lookup, and the work a `Button` reports through
 
 ### Navigation
 
-Public navigation uses wrapping HeroUI links. Preview tabs use the secondary
-variant with the library indicator. Console navigation uses its existing shared
+Public pages link with HeroUI links; a link to a console page is a router link
+drawn with `linkVariants()`. Console navigation uses its existing shared
 composition and narrow-screen behavior. Its entries are router links drawn with
 `buttonVariants({ variant: "ghost" })`, so they open in a new tab and keep the
 button's focus ring and press scale; selected entries are medium weight and the
@@ -373,6 +372,36 @@ not found" and the leave button. In the console the header names it.
 
 A section that fails inside a page (`AsyncSection`) keeps its own
 `SurfaceAlert` and retry, without the facts.
+
+### Public flows
+
+A public page answers one question. `PublicStep` from
+`dashboard/src/components/custom` draws its skeleton on the card: the entity it
+is about (an application's `EntityAvatar` at 48px) above the title, the title
+row with an optional ghost back button, a muted line under it, the body, then
+the buttons. The title is `PageHeading`, which takes focus as the page appears
+so a screen reader starts from the question; it is not a control, so it is out
+of the Tab order and draws no focus ring. The sign-in steps draw their title
+row through it too.
+
+The consent pages list what the application will get as plain facts on the
+card: a `text-sm` medium list title, then one row per item with a 16px muted
+icon, the name at medium weight and a muted line under it, 12px apart, with no
+rules, fills or nested card. An application-defined OIDC scope is named as
+written, in monospace. Above the list is the account answering, as a small
+avatar and "Signed in as …" with a link to use another account; under it the
+muted footnote. The decision is two equal columns at every width, the answer
+that goes ahead (`primary`) on the right and the other (`secondary`) on the
+left, as in a dialog's footer; the pressed one is pending and the other
+disabled until the page leaves.
+
+A flow the server stopped (`/error`) has the shape of a public page that failed
+to load: the title, then a danger `SurfaceAlert` with what happened, a
+monospace reference an administrator can look up, and one `secondary` way out
+inside it. The maintenance page names the instance in its title, shows the
+administrators' message as a default `SurfaceAlert`, and stacks its buttons
+full width: retry first, then a `tertiary` sign-out or administrators' sign-in.
+A button that fails on a public page is reported by the error toast alone.
 
 ### Confirmations
 

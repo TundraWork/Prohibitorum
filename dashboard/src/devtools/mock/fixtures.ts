@@ -7,7 +7,14 @@ import type {
   ProviderDescriptorView,
   RulePreviewPageView,
 } from "@/api/raw-admin-paths";
-import type { DevicePairing, PublicConfig, SudoMethod } from "@/api/raw-paths";
+import type {
+  ConsentAccount,
+  ConsentRequest,
+  DevicePairing,
+  PublicConfig,
+  SamlConsentRequest,
+  SudoMethod,
+} from "@/api/raw-paths";
 import {
   clampAdminCount,
   clampCount,
@@ -341,6 +348,104 @@ function providerList(config: MockConfig): Provider[] {
     displayName: `Example IdP ${index + 1}`,
     protocol: "oidc",
   }));
+}
+
+/* --------------------------------------------------------- public flows -- */
+
+/** The scopes the incremental consent reports as allowed before. */
+const previouslyGranted = ["openid", "profile", "email"];
+
+/** What a SAML service receives, in the order the attributes are configured. */
+const samlAttributeLabels = [
+  "显示名称",
+  "邮箱地址",
+  "用户组",
+  "用户名",
+  "部门",
+  "工号",
+  "职位",
+  "办公地点",
+  "电话",
+  "语言",
+];
+
+function consentAccount(config: MockConfig): ConsentAccount {
+  return { displayName: config.session.displayName, avatarUrl: mockAvatarUrl };
+}
+
+function appLogoUrl(fill: string, letter: string): string {
+  return svgUrl(
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="12" fill="${fill}"/><text x="32" y="42" text-anchor="middle" font-family="sans-serif" font-size="28" font-weight="600" fill="#fff">${letter}</text></svg>`,
+  );
+}
+
+export function consentRequest(config: MockConfig): ConsentRequest {
+  const consent = config.publicFlows.consent;
+  const scopes = consent.scopes.split(/\s+/).filter((scope) => scope !== "");
+  return {
+    client: {
+      clientId: "wiki",
+      displayName: "Wiki",
+      ...(consent.logo ? { logoUri: appLogoUrl("#3b6e4f", "W") } : {}),
+      ...(consent.policy
+        ? { policyUri: "https://wiki.example.test/privacy" }
+        : {}),
+      ...(consent.terms ? { tosUri: "https://wiki.example.test/terms" } : {}),
+    },
+    account: consentAccount(config),
+    scopes,
+    // The server reports only the requested scopes that were allowed before.
+    ...(consent.grant === "incremental"
+      ? {
+          alreadyGranted: scopes.filter((scope) =>
+            previouslyGranted.includes(scope),
+          ),
+        }
+      : {}),
+  };
+}
+
+export function samlConsentRequest(config: MockConfig): SamlConsentRequest {
+  const consent = config.publicFlows.consent;
+  return {
+    sp: {
+      id: "nextcloud",
+      displayName: "Nextcloud",
+      ...(consent.logo ? { logoUri: appLogoUrl("#0b6fb8", "N") } : {}),
+    },
+    account: consentAccount(config),
+    attributes: samlAttributeLabels.slice(
+      0,
+      clampCount(consent.samlAttributes),
+    ),
+  };
+}
+
+function invalidConsentTicket(): MockReply {
+  return { kind: "error", status: 400, code: "invalid_consent_ticket" };
+}
+
+/** A consent read: signed in, and a ticket the panel says is still good. */
+function consentReply(config: MockConfig, body: () => unknown): MockReply {
+  return guarded(config, () =>
+    config.publicFlows.consent.ticketValid
+      ? json(body())
+      : invalidConsentTicket(),
+  );
+}
+
+/**
+ * Where an allowed OIDC consent resumes: the page's `return_to`, which the
+ * server validates the same way. The mock has no authorization endpoint to
+ * resume, so anything that is not a path on this site goes home.
+ */
+function consentApproveTarget(url: string): string {
+  const target = new URL(url).searchParams.get("return_to") ?? "";
+  return target.startsWith("/") &&
+    !target.startsWith("//") &&
+    !target.startsWith("/\\")
+    ? target
+    : "/";
 }
 
 function sudoMethods(config: MockConfig): {
@@ -1096,6 +1201,10 @@ function readReply(
       return json(providerList(config));
     case "/api/prohibitorum/me/sudo/methods":
       return guarded(config, () => json(sudoMethods(config)));
+    case "/api/prohibitorum/consent":
+      return consentReply(config, () => consentRequest(config));
+    case "/api/prohibitorum/saml-consent":
+      return consentReply(config, () => samlConsentRequest(config));
     case "/api/prohibitorum/me/devices/pair/lookup": {
       const code = new URL(request.url).searchParams.get("code") ?? "";
       return guarded(config, () => json(pairing(code, config)));
@@ -1450,6 +1559,29 @@ function writeReply(
 
     case "/api/prohibitorum/auth/password/begin":
       return json({ partial_session_token: "mock-partial-session" });
+
+    // Allowing an OIDC consent resumes the authorization, which the mock
+    // cannot, and a SAML one posts the assertion from `/saml/sso/resume`,
+    // which it cannot either; both land on a page of the console instead.
+    // Denying goes to the application's callback, and home here.
+    case "/api/prohibitorum/consent":
+      return guarded(config, () =>
+        !config.publicFlows.consent.ticketValid
+          ? invalidConsentTicket()
+          : json({
+              redirect:
+                stringField(body, "decision") === "approve"
+                  ? consentApproveTarget(request.url)
+                  : "/",
+            }),
+      );
+
+    case "/api/prohibitorum/saml-consent":
+      return guarded(config, () =>
+        config.publicFlows.consent.ticketValid
+          ? json({ redirect: "/" })
+          : invalidConsentTicket(),
+      );
 
     case "/api/prohibitorum/auth/totp/verify":
       return json({ redirect: "/" }, (draft) => {

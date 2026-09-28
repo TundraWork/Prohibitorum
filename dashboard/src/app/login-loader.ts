@@ -1,5 +1,5 @@
 import { redirect } from "@tanstack/react-router";
-import { parseReturnTo } from "@/api/auth";
+import { readReturnTo } from "@/api/auth";
 import {
   authStatusQueryOptions,
   publicConfigQueryOptions,
@@ -13,7 +13,7 @@ export async function loginLoader({
   cause,
 }: {
   context: RouterContext;
-  location: { searchStr: string };
+  location: { search: Record<string, unknown> };
   cause: "preload" | "enter" | "stay";
 }) {
   // A mounted sign-in page may be displaying newly issued recovery codes.
@@ -25,7 +25,7 @@ export async function loginLoader({
   ]);
   let returnTo: string | undefined;
   try {
-    returnTo = parseReturnTo(location.searchStr);
+    returnTo = readReturnTo(location.search);
   } catch {
     return;
   }

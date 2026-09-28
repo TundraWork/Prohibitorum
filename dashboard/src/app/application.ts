@@ -5,7 +5,11 @@ import {
   notifySuccess,
 } from "@/components/custom/AppNotifications";
 
-const queryClient = createQueryClient(notifyError, notifySuccess);
+// The router is created after the query client, so the maintenance handler
+// reads it only when a request finds maintenance on.
+const queryClient = createQueryClient(notifyError, notifySuccess, () => {
+  void application.router.navigate({ to: "/maintenance" });
+});
 
 /**
  * The console's long-lived query client and router.

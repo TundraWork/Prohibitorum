@@ -1,4 +1,5 @@
 import type { RegisteredRouter } from "@tanstack/react-router";
+import { loadDocument } from "@/app/load-document";
 
 /**
  * Follows a redirect target the server has already validated. A target that
@@ -18,5 +19,5 @@ export async function followRedirect(
       return;
     }
   }
-  window.location.assign(target);
+  loadDocument(target);
 }

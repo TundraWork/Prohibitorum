@@ -4,6 +4,7 @@ import {
   startAuthentication,
 } from "@simplewebauthn/browser";
 import { MutationObserver, type QueryClient } from "@tanstack/react-query";
+import { defaultParseSearch } from "@tanstack/react-router";
 import { waitFor } from "@testing-library/react";
 import {
   afterEach,
@@ -21,7 +22,7 @@ import {
   isValidLoginPassword,
   isValidRecoveryCode,
   isValidTotpCode,
-  parseReturnTo,
+  readReturnTo,
 } from "@/api/auth";
 import { ApiError, describeError, isCancellation } from "@/api/errors";
 import {
@@ -67,24 +68,28 @@ function createClient() {
 }
 
 describe("authentication redirects", () => {
+  // The sign-in page reads the search the router has already parsed.
+  const read = (search: string) => readReturnTo(defaultParseSearch(search));
+
   it("preserves the parameter value exactly and distinguishes absence from an empty parameter", () => {
-    expect(parseReturnTo("?unrelated=value")).toBeUndefined();
+    expect(read("?unrelated=value")).toBeUndefined();
     for (const value of [
       "/oauth/authorize?state=a%2Bb",
       `${origin}/saml/sso?RelayState=x`,
       "/",
       "",
     ]) {
-      expect(parseReturnTo(`?return_to=${encodeURIComponent(value)}`)).toBe(
-        value,
-      );
+      expect(read(`?return_to=${encodeURIComponent(value)}`)).toBe(value);
     }
   });
 
   it("rejects duplicate parameters including encoded names", () => {
-    expect(() => parseReturnTo("?return_to=%2F&return%5fto=%2F")).toThrow(
-      ApiError,
-    );
+    expect(() => read("?return_to=%2F&return_to=%2Fapps")).toThrow(ApiError);
+    expect(() => read("?return_to=%2F&return%5fto=%2F")).toThrow(ApiError);
+  });
+
+  it("rejects a value the router no longer reads as the address", () => {
+    expect(() => read("?return_to=12345")).toThrow(ApiError);
   });
 });
 

@@ -1,6 +1,9 @@
 import { msg } from "@lingui/core/macro";
 import { MutationObserver } from "@tanstack/react-query";
 import { expect, it, vi } from "vitest";
+import { ApiError } from "@/api/errors";
+import { publicConfigQueryOptions } from "@/api/queries";
+import type { PublicConfig } from "@/api/raw-paths";
 import { createQueryClient } from "@/app/query-client";
 
 const saved = msg({ id: "test.saved", message: "Saved" });
@@ -78,4 +81,54 @@ it("hands a write's error scope to the error notice, and none for a read", async
     [refused, "signing-key"],
     [refused, undefined],
   ]);
+});
+
+it("takes the reader to maintenance instead of reporting it, and remembers that it is on", async () => {
+  const notifyError = vi.fn();
+  const onMaintenance = vi.fn();
+  const queryClient = createQueryClient(notifyError, undefined, onMaintenance);
+  queryClient.setQueryData(publicConfigQueryOptions().queryKey, {
+    maintenanceMode: false,
+  } as PublicConfig);
+  const maintenance = new ApiError({
+    kind: "http",
+    status: 503,
+    code: "maintenance_mode",
+  });
+  const other = new ApiError({
+    kind: "http",
+    status: 500,
+    code: "server_error",
+  });
+
+  await expect(
+    new MutationObserver(queryClient, {
+      mutationFn: async () => {
+        throw maintenance;
+      },
+    }).mutate(),
+  ).rejects.toBe(maintenance);
+  await expect(
+    queryClient.fetchQuery({
+      queryKey: ["maintenance-test"],
+      queryFn: async () => {
+        throw maintenance;
+      },
+    }),
+  ).rejects.toBe(maintenance);
+  await expect(
+    queryClient.fetchQuery({
+      queryKey: ["other-test"],
+      queryFn: async () => {
+        throw other;
+      },
+    }),
+  ).rejects.toBe(other);
+
+  expect(onMaintenance).toHaveBeenCalledTimes(2);
+  expect(
+    queryClient.getQueryData(publicConfigQueryOptions().queryKey)
+      ?.maintenanceMode,
+  ).toBe(true);
+  expect(notifyError.mock.calls).toEqual([[other, undefined]]);
 });

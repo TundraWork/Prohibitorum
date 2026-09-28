@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { client } from "@/api/client";
 import { ApiError } from "@/api/errors";
-import { installApiMocks } from "@/devtools/mock/install";
+import { installApiMocks, refreshTarget } from "@/devtools/mock/install";
 import { resetMockConfig, updateMockConfig } from "@/devtools/mock/model";
 
 type Application = Parameters<typeof installApiMocks>[0];
@@ -104,5 +104,38 @@ describe("mock failures", () => {
       password: "••••••",
     });
     expect(exchange?.response?.body).toContain('"code": "mock_unmocked"');
+  });
+});
+
+describe("mock session refresh", () => {
+  it("moves a signed-in reader off the sign-in steps only", () => {
+    expect(refreshTarget("/login", true)).toBe("/");
+    expect(refreshTarget("/login/totp", true)).toBe("/");
+    expect(refreshTarget("/login/recovery", true)).toBe("/");
+    for (const path of [
+      "/consent",
+      "/saml-consent",
+      "/error",
+      "/maintenance",
+      "/",
+      "/security",
+    ]) {
+      expect(refreshTarget(path, true)).toBeUndefined();
+    }
+  });
+
+  it("sends an anonymous reader to sign in from the console only", () => {
+    expect(refreshTarget("/", false)).toBe("/login");
+    expect(refreshTarget("/admin/users", false)).toBe("/login");
+    for (const path of [
+      "/login",
+      "/login/totp",
+      "/consent",
+      "/saml-consent",
+      "/error",
+      "/maintenance",
+    ]) {
+      expect(refreshTarget(path, false)).toBeUndefined();
+    }
   });
 });

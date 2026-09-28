@@ -1,4 +1,4 @@
-import type { RegisteredRouter } from "@tanstack/react-router";
+import type { RegisteredRouter, RouterHistory } from "@tanstack/react-router";
 import { createRouter } from "@tanstack/react-router";
 import {
   AppRouteNotFound,
@@ -8,10 +8,15 @@ import {
 import type { RouterContext } from "@/routes/__root";
 import { routeTree } from "@/routeTree.gen";
 
-export function createAppRouter(context: RouterContext) {
+/** The app's router. A test passes its own history; the app uses the browser's. */
+export function createAppRouter(
+  context: RouterContext,
+  history?: RouterHistory,
+) {
   return createRouter({
     routeTree,
     context,
+    ...(history ? { history } : {}),
     defaultPreload: "intent",
     defaultPreloadStaleTime: 0,
     defaultPendingMs: 350,

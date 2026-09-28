@@ -17,8 +17,11 @@ import { Route as ProtectedAppsRouteImport } from './routes/_protected.apps'
 import { Route as ProtectedDevicesRouteImport } from './routes/_protected.devices'
 import { Route as ProtectedProfileRouteImport } from './routes/_protected.profile'
 import { Route as ProtectedSecurityRouteImport } from './routes/_protected.security'
-import { Route as PublicPreviewRouteImport } from './routes/_public._preview'
+import { Route as PublicConsentRouteImport } from './routes/_public.consent'
+import { Route as PublicErrorRouteImport } from './routes/_public.error'
 import { Route as PublicLoginRouteImport } from './routes/_public.login'
+import { Route as PublicMaintenanceRouteImport } from './routes/_public.maintenance'
+import { Route as PublicSamlConsentRouteImport } from './routes/_public.saml-consent'
 import { Route as ProtectedAdminAdminRouteImport } from './routes/_protected.admin._admin'
 import { Route as PublicLoginRecoveryRouteImport } from './routes/_public.login_.recovery'
 import { Route as PublicLoginTotpRouteImport } from './routes/_public.login_.totp'
@@ -36,9 +39,6 @@ import { Route as ProtectedAdminOidcApplicationsNewRouteImport } from './routes/
 import { Route as ProtectedAdminSamlApplicationsIndexRouteImport } from './routes/_protected.admin.saml-applications.index'
 import { Route as ProtectedAdminSamlApplicationsIdRouteImport } from './routes/_protected.admin.saml-applications_.$id'
 import { Route as ProtectedAdminSamlApplicationsNewRouteImport } from './routes/_protected.admin.saml-applications_.new'
-import { Route as PublicPreview_devFormsRouteImport } from './routes/_public._preview.[_]_dev.forms'
-import { Route as PublicPreviewPreviewApiRouteImport } from './routes/_public._preview.preview.api'
-import { Route as PublicPreviewPreviewComponentsRouteImport } from './routes/_public._preview.preview.components'
 import { Route as ProtectedAdminAdminGroupsIndexRouteImport } from './routes/_protected.admin._admin.groups.index'
 import { Route as ProtectedAdminAdminGroupsNewRouteImport } from './routes/_protected.admin._admin.groups.new'
 import { Route as ProtectedAdminAdminGroupsGroupIdRouteImport } from './routes/_protected.admin._admin.groups_.$groupId'
@@ -86,13 +86,29 @@ const ProtectedSecurityRoute = ProtectedSecurityRouteImport.update({
   path: '/security',
   getParentRoute: () => ProtectedRoute,
 } as any)
-const PublicPreviewRoute = PublicPreviewRouteImport.update({
-  id: '/_preview',
+const PublicConsentRoute = PublicConsentRouteImport.update({
+  id: '/consent',
+  path: '/consent',
+  getParentRoute: () => PublicRoute,
+} as any)
+const PublicErrorRoute = PublicErrorRouteImport.update({
+  id: '/error',
+  path: '/error',
   getParentRoute: () => PublicRoute,
 } as any)
 const PublicLoginRoute = PublicLoginRouteImport.update({
   id: '/login',
   path: '/login',
+  getParentRoute: () => PublicRoute,
+} as any)
+const PublicMaintenanceRoute = PublicMaintenanceRouteImport.update({
+  id: '/maintenance',
+  path: '/maintenance',
+  getParentRoute: () => PublicRoute,
+} as any)
+const PublicSamlConsentRoute = PublicSamlConsentRouteImport.update({
+  id: '/saml-consent',
+  path: '/saml-consent',
   getParentRoute: () => PublicRoute,
 } as any)
 const ProtectedAdminAdminRoute = ProtectedAdminAdminRouteImport.update({
@@ -192,22 +208,6 @@ const ProtectedAdminSamlApplicationsNewRoute =
     path: '/saml-applications/new',
     getParentRoute: () => ProtectedAdminRoute,
   } as any)
-const PublicPreview_devFormsRoute = PublicPreview_devFormsRouteImport.update({
-  id: '/__dev/forms',
-  path: '/__dev/forms',
-  getParentRoute: () => PublicPreviewRoute,
-} as any)
-const PublicPreviewPreviewApiRoute = PublicPreviewPreviewApiRouteImport.update({
-  id: '/preview/api',
-  path: '/preview/api',
-  getParentRoute: () => PublicPreviewRoute,
-} as any)
-const PublicPreviewPreviewComponentsRoute =
-  PublicPreviewPreviewComponentsRouteImport.update({
-    id: '/preview/components',
-    path: '/preview/components',
-    getParentRoute: () => PublicPreviewRoute,
-  } as any)
 const ProtectedAdminAdminGroupsIndexRoute =
   ProtectedAdminAdminGroupsIndexRouteImport.update({
     id: '/groups/',
@@ -264,7 +264,11 @@ export interface FileRoutesByFullPath {
   '/devices': typeof ProtectedDevicesRoute
   '/profile': typeof ProtectedProfileRoute
   '/security': typeof ProtectedSecurityRoute
+  '/consent': typeof PublicConsentRoute
+  '/error': typeof PublicErrorRoute
   '/login': typeof PublicLoginRoute
+  '/maintenance': typeof PublicMaintenanceRoute
+  '/saml-consent': typeof PublicSamlConsentRoute
   '/login/recovery': typeof PublicLoginRecoveryRoute
   '/login/totp': typeof PublicLoginTotpRoute
   '/admin/invitations': typeof ProtectedAdminAdminInvitationsRoute
@@ -277,9 +281,6 @@ export interface FileRoutesByFullPath {
   '/admin/oidc-applications/new': typeof ProtectedAdminOidcApplicationsNewRoute
   '/admin/saml-applications/$id': typeof ProtectedAdminSamlApplicationsIdRoute
   '/admin/saml-applications/new': typeof ProtectedAdminSamlApplicationsNewRoute
-  '/__dev/forms': typeof PublicPreview_devFormsRoute
-  '/preview/api': typeof PublicPreviewPreviewApiRoute
-  '/preview/components': typeof PublicPreviewPreviewComponentsRoute
   '/admin/': typeof ProtectedAdminAdminIndexRoute
   '/admin/forward-auth-apps/': typeof ProtectedAdminForwardAuthAppsIndexRoute
   '/admin/oidc-applications/': typeof ProtectedAdminOidcApplicationsIndexRoute
@@ -300,7 +301,11 @@ export interface FileRoutesByTo {
   '/devices': typeof ProtectedDevicesRoute
   '/profile': typeof ProtectedProfileRoute
   '/security': typeof ProtectedSecurityRoute
+  '/consent': typeof PublicConsentRoute
+  '/error': typeof PublicErrorRoute
   '/login': typeof PublicLoginRoute
+  '/maintenance': typeof PublicMaintenanceRoute
+  '/saml-consent': typeof PublicSamlConsentRoute
   '/login/recovery': typeof PublicLoginRecoveryRoute
   '/login/totp': typeof PublicLoginTotpRoute
   '/admin/invitations': typeof ProtectedAdminAdminInvitationsRoute
@@ -313,9 +318,6 @@ export interface FileRoutesByTo {
   '/admin/oidc-applications/new': typeof ProtectedAdminOidcApplicationsNewRoute
   '/admin/saml-applications/$id': typeof ProtectedAdminSamlApplicationsIdRoute
   '/admin/saml-applications/new': typeof ProtectedAdminSamlApplicationsNewRoute
-  '/__dev/forms': typeof PublicPreview_devFormsRoute
-  '/preview/api': typeof PublicPreviewPreviewApiRoute
-  '/preview/components': typeof PublicPreviewPreviewComponentsRoute
   '/admin/forward-auth-apps': typeof ProtectedAdminForwardAuthAppsIndexRoute
   '/admin/oidc-applications': typeof ProtectedAdminOidcApplicationsIndexRoute
   '/admin/saml-applications': typeof ProtectedAdminSamlApplicationsIndexRoute
@@ -337,8 +339,11 @@ export interface FileRoutesById {
   '/_protected/devices': typeof ProtectedDevicesRoute
   '/_protected/profile': typeof ProtectedProfileRoute
   '/_protected/security': typeof ProtectedSecurityRoute
-  '/_public/_preview': typeof PublicPreviewRouteWithChildren
+  '/_public/consent': typeof PublicConsentRoute
+  '/_public/error': typeof PublicErrorRoute
   '/_public/login': typeof PublicLoginRoute
+  '/_public/maintenance': typeof PublicMaintenanceRoute
+  '/_public/saml-consent': typeof PublicSamlConsentRoute
   '/_protected/': typeof ProtectedIndexRoute
   '/_protected/admin/_admin': typeof ProtectedAdminAdminRouteWithChildren
   '/_public/login_/recovery': typeof PublicLoginRecoveryRoute
@@ -353,9 +358,6 @@ export interface FileRoutesById {
   '/_protected/admin/oidc-applications_/new': typeof ProtectedAdminOidcApplicationsNewRoute
   '/_protected/admin/saml-applications_/$id': typeof ProtectedAdminSamlApplicationsIdRoute
   '/_protected/admin/saml-applications_/new': typeof ProtectedAdminSamlApplicationsNewRoute
-  '/_public/_preview/__dev/forms': typeof PublicPreview_devFormsRoute
-  '/_public/_preview/preview/api': typeof PublicPreviewPreviewApiRoute
-  '/_public/_preview/preview/components': typeof PublicPreviewPreviewComponentsRoute
   '/_protected/admin/_admin/': typeof ProtectedAdminAdminIndexRoute
   '/_protected/admin/forward-auth-apps/': typeof ProtectedAdminForwardAuthAppsIndexRoute
   '/_protected/admin/oidc-applications/': typeof ProtectedAdminOidcApplicationsIndexRoute
@@ -378,7 +380,11 @@ export interface FileRouteTypes {
     | '/devices'
     | '/profile'
     | '/security'
+    | '/consent'
+    | '/error'
     | '/login'
+    | '/maintenance'
+    | '/saml-consent'
     | '/login/recovery'
     | '/login/totp'
     | '/admin/invitations'
@@ -391,9 +397,6 @@ export interface FileRouteTypes {
     | '/admin/oidc-applications/new'
     | '/admin/saml-applications/$id'
     | '/admin/saml-applications/new'
-    | '/__dev/forms'
-    | '/preview/api'
-    | '/preview/components'
     | '/admin/'
     | '/admin/forward-auth-apps/'
     | '/admin/oidc-applications/'
@@ -414,7 +417,11 @@ export interface FileRouteTypes {
     | '/devices'
     | '/profile'
     | '/security'
+    | '/consent'
+    | '/error'
     | '/login'
+    | '/maintenance'
+    | '/saml-consent'
     | '/login/recovery'
     | '/login/totp'
     | '/admin/invitations'
@@ -427,9 +434,6 @@ export interface FileRouteTypes {
     | '/admin/oidc-applications/new'
     | '/admin/saml-applications/$id'
     | '/admin/saml-applications/new'
-    | '/__dev/forms'
-    | '/preview/api'
-    | '/preview/components'
     | '/admin/forward-auth-apps'
     | '/admin/oidc-applications'
     | '/admin/saml-applications'
@@ -450,8 +454,11 @@ export interface FileRouteTypes {
     | '/_protected/devices'
     | '/_protected/profile'
     | '/_protected/security'
-    | '/_public/_preview'
+    | '/_public/consent'
+    | '/_public/error'
     | '/_public/login'
+    | '/_public/maintenance'
+    | '/_public/saml-consent'
     | '/_protected/'
     | '/_protected/admin/_admin'
     | '/_public/login_/recovery'
@@ -466,9 +473,6 @@ export interface FileRouteTypes {
     | '/_protected/admin/oidc-applications_/new'
     | '/_protected/admin/saml-applications_/$id'
     | '/_protected/admin/saml-applications_/new'
-    | '/_public/_preview/__dev/forms'
-    | '/_public/_preview/preview/api'
-    | '/_public/_preview/preview/components'
     | '/_protected/admin/_admin/'
     | '/_protected/admin/forward-auth-apps/'
     | '/_protected/admin/oidc-applications/'
@@ -546,11 +550,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProtectedSecurityRouteImport
       parentRoute: typeof ProtectedRoute
     }
-    '/_public/_preview': {
-      id: '/_public/_preview'
-      path: ''
-      fullPath: '/'
-      preLoaderRoute: typeof PublicPreviewRouteImport
+    '/_public/consent': {
+      id: '/_public/consent'
+      path: '/consent'
+      fullPath: '/consent'
+      preLoaderRoute: typeof PublicConsentRouteImport
+      parentRoute: typeof PublicRoute
+    }
+    '/_public/error': {
+      id: '/_public/error'
+      path: '/error'
+      fullPath: '/error'
+      preLoaderRoute: typeof PublicErrorRouteImport
       parentRoute: typeof PublicRoute
     }
     '/_public/login': {
@@ -558,6 +569,20 @@ declare module '@tanstack/react-router' {
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof PublicLoginRouteImport
+      parentRoute: typeof PublicRoute
+    }
+    '/_public/maintenance': {
+      id: '/_public/maintenance'
+      path: '/maintenance'
+      fullPath: '/maintenance'
+      preLoaderRoute: typeof PublicMaintenanceRouteImport
+      parentRoute: typeof PublicRoute
+    }
+    '/_public/saml-consent': {
+      id: '/_public/saml-consent'
+      path: '/saml-consent'
+      fullPath: '/saml-consent'
+      preLoaderRoute: typeof PublicSamlConsentRouteImport
       parentRoute: typeof PublicRoute
     }
     '/_protected/admin/_admin': {
@@ -678,27 +703,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/admin/saml-applications/new'
       preLoaderRoute: typeof ProtectedAdminSamlApplicationsNewRouteImport
       parentRoute: typeof ProtectedAdminRoute
-    }
-    '/_public/_preview/__dev/forms': {
-      id: '/_public/_preview/__dev/forms'
-      path: '/__dev/forms'
-      fullPath: '/__dev/forms'
-      preLoaderRoute: typeof PublicPreview_devFormsRouteImport
-      parentRoute: typeof PublicPreviewRoute
-    }
-    '/_public/_preview/preview/api': {
-      id: '/_public/_preview/preview/api'
-      path: '/preview/api'
-      fullPath: '/preview/api'
-      preLoaderRoute: typeof PublicPreviewPreviewApiRouteImport
-      parentRoute: typeof PublicPreviewRoute
-    }
-    '/_public/_preview/preview/components': {
-      id: '/_public/_preview/preview/components'
-      path: '/preview/components'
-      fullPath: '/preview/components'
-      preLoaderRoute: typeof PublicPreviewPreviewComponentsRouteImport
-      parentRoute: typeof PublicPreviewRoute
     }
     '/_protected/admin/_admin/groups/': {
       id: '/_protected/admin/_admin/groups/'
@@ -857,32 +861,22 @@ const ProtectedRouteWithChildren = ProtectedRoute._addFileChildren(
   ProtectedRouteChildren,
 )
 
-interface PublicPreviewRouteChildren {
-  PublicPreview_devFormsRoute: typeof PublicPreview_devFormsRoute
-  PublicPreviewPreviewApiRoute: typeof PublicPreviewPreviewApiRoute
-  PublicPreviewPreviewComponentsRoute: typeof PublicPreviewPreviewComponentsRoute
-}
-
-const PublicPreviewRouteChildren: PublicPreviewRouteChildren = {
-  PublicPreview_devFormsRoute: PublicPreview_devFormsRoute,
-  PublicPreviewPreviewApiRoute: PublicPreviewPreviewApiRoute,
-  PublicPreviewPreviewComponentsRoute: PublicPreviewPreviewComponentsRoute,
-}
-
-const PublicPreviewRouteWithChildren = PublicPreviewRoute._addFileChildren(
-  PublicPreviewRouteChildren,
-)
-
 interface PublicRouteChildren {
-  PublicPreviewRoute: typeof PublicPreviewRouteWithChildren
+  PublicConsentRoute: typeof PublicConsentRoute
+  PublicErrorRoute: typeof PublicErrorRoute
   PublicLoginRoute: typeof PublicLoginRoute
+  PublicMaintenanceRoute: typeof PublicMaintenanceRoute
+  PublicSamlConsentRoute: typeof PublicSamlConsentRoute
   PublicLoginRecoveryRoute: typeof PublicLoginRecoveryRoute
   PublicLoginTotpRoute: typeof PublicLoginTotpRoute
 }
 
 const PublicRouteChildren: PublicRouteChildren = {
-  PublicPreviewRoute: PublicPreviewRouteWithChildren,
+  PublicConsentRoute: PublicConsentRoute,
+  PublicErrorRoute: PublicErrorRoute,
   PublicLoginRoute: PublicLoginRoute,
+  PublicMaintenanceRoute: PublicMaintenanceRoute,
+  PublicSamlConsentRoute: PublicSamlConsentRoute,
   PublicLoginRecoveryRoute: PublicLoginRecoveryRoute,
   PublicLoginTotpRoute: PublicLoginTotpRoute,
 }
