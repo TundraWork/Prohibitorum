@@ -44,7 +44,7 @@ applications and device pairing. Enrollment, application management and admin pa
 - [x] App-aware group claims — exposed manual allow and every exposed matching rule group for the owning app only
 
 **Dashboard — M4 rewrite**
-- [x] React/HeroUI foundation preview with English and Chinese, persisted language preference, and interactive component samples
+- [x] React/HeroUI dashboard in English and Chinese with a persisted language preference: public sign-in, consent, error and maintenance pages, the signed-in console and the management pages
 - [x] Typed OpenAPI client, shared Query cache, route loading feedback and reusable mutation/form integration
 - [x] Password + TOTP, recovery-code and passkey login; authenticator reset and one-time recovery-code saving
 - [x] Responsive console, current account, language/theme controls and sign-out
@@ -122,7 +122,7 @@ command auto-migrates first. Verbs: `enroll-admin`, `signing-key`, `oidc-client`
 `saml-sp`, `forward-auth-app`, `upstream-idp`, `openapi`, `dev-seed` — run
 `<command> --help` for flags. The admin HTTP API uses role names
 (`oidc-applications`, `saml-applications`, `identity-providers`); CLI verbs
-remain protocol-named. The admin UI is temporarily unavailable during the rewrite.
+remain protocol-named.
 
 Access-policy commands are scoped beneath the owning app command:
 `manager list|assign|remove`, `access set-restricted`,

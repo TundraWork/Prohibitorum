@@ -1,5 +1,10 @@
 import { I18nProvider } from "@lingui/react";
-import { type QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  type QueryClient,
+  QueryClientProvider,
+  useMutation,
+  useQueryClient,
+} from "@tanstack/react-query";
 import {
   act,
   fireEvent,
@@ -9,18 +14,26 @@ import {
   within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ApiError } from "@/api/errors";
+import { ApiError, isCancellation } from "@/api/errors";
+import {
+  logoutMutationOptions,
+  renameCredentialMutationOptions,
+} from "@/api/mutations";
 import { createQueryClient } from "@/app/query-client";
 import {
   AppNotifications,
   notificationQueue,
   notifyError,
 } from "@/components/custom/AppNotifications";
-import { ServerFormError } from "@/forms/server-errors";
+import {
+  applyServerError,
+  type ServerFieldMap,
+  ServerFormError,
+} from "@/forms/server-errors";
 import { useAppForm } from "@/forms/use-app-form";
 import { i18n } from "@/i18n";
-import DevForms from "@/pages/DevForms";
 
 let queryClient: QueryClient;
 
@@ -35,11 +48,97 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+const nicknameFields = {
+  locations: { "body.id": "id", "body.nickname": "nickname" },
+  codes: { invalid_nickname: "nickname" },
+} satisfies ServerFieldMap<"id" | "nickname">;
+
+/**
+ * A form the way a page builds one: the app's form hooks over a real mutation,
+ * with server errors applied through the field map.
+ */
+function RenameForm() {
+  const queryClient = useQueryClient();
+  const mutation = useMutation(renameCredentialMutationOptions(queryClient));
+  const [saved, setSaved] = useState(false);
+  const form = useAppForm({
+    defaultValues: { id: "", nickname: "" },
+    onSubmit: async ({ value, formApi }) => {
+      setSaved(false);
+      try {
+        await mutation.mutateAsync({
+          id: Number(value.id),
+          nickname: value.nickname,
+        });
+        setSaved(true);
+      } catch (error) {
+        if (!isCancellation(error))
+          applyServerError(formApi, error, nicknameFields);
+      }
+    },
+  });
+  return (
+    <form.AppForm>
+      <form.Form label="Credential nickname request">
+        <form.FormError />
+        <form.AppField
+          name="id"
+          validators={{
+            onBlur: ({ value }) =>
+              /^\d+$/.test(value) ? undefined : "Enter a credential ID.",
+          }}
+        >
+          {(field) => <field.FormField label="Credential ID" />}
+        </form.AppField>
+        <form.AppField name="nickname">
+          {(field) => <field.FormField label="Nickname" />}
+        </form.AppField>
+        <form.SubmitButton>Submit nickname</form.SubmitButton>
+        {saved && (
+          <p role="status">Nickname saved. Your input has been kept.</p>
+        )}
+      </form.Form>
+    </form.AppForm>
+  );
+}
+
+/** A write that answers with no body. */
+function LogoutForm() {
+  const queryClient = useQueryClient();
+  const mutation = useMutation(logoutMutationOptions(queryClient));
+  const [completed, setCompleted] = useState(false);
+  const form = useAppForm({
+    defaultValues: {},
+    onSubmit: async ({ formApi }) => {
+      setCompleted(false);
+      try {
+        await mutation.mutateAsync();
+        setCompleted(true);
+      } catch (error) {
+        if (!isCancellation(error))
+          applyServerError(formApi, error, { locations: {}, codes: {} });
+      }
+    },
+  });
+  return (
+    <form.AppForm>
+      <form.Form label="Empty response request">
+        <form.FormError />
+        <form.SubmitButton>Log out test session</form.SubmitButton>
+        {completed && (
+          <p role="status">Logout completed with no response body.</p>
+        )}
+      </form.Form>
+    </form.AppForm>
+  );
+}
+
 function mountForms() {
   render(
     <I18nProvider i18n={i18n}>
       <QueryClientProvider client={queryClient}>
-        <DevForms />
+        <RenameForm />
+        <LogoutForm />
         <AppNotifications />
       </QueryClientProvider>
     </I18nProvider>,

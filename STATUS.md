@@ -6,6 +6,21 @@ proof-backed local registration/recovery. It provides OIDC OP, SAML 2.0 IdP,
 and forward-auth downstream access, plus app-bound policy, delegated
 application management. This file records capabilities by version and the roadmap.
 
+## Unreleased — PHB-91 consent, error and maintenance pages
+
+OIDC and SAML consent run in the dashboard again. `/consent` lists what an application
+asks for — only the new scopes when some were allowed before — and `/saml-consent` the
+attributes a service will receive; both let the reader switch accounts. `/error` explains
+a flow the server stopped, names the upstream provider where one was involved, shows a
+reference an administrator can look up, and offers one way out.
+
+While maintenance mode is on, everyone but an administrator is shown `/maintenance`, which
+rechecks every three minutes and offers administrators their sign-in (`/login?admin`).
+A request that finds maintenance started meanwhile goes there too, instead of reporting a
+failure. The sign-in steps now keep `return_to` from one step to the next, and opening a
+console page signed out comes back to it after sign-in. The component and API preview
+routes are gone.
+
 ## Unreleased — PHB-67 self-service pages
 
 The console covers the signed-in account itself. `/profile` edits the display name and
@@ -28,8 +43,7 @@ database schema are unchanged.
 
 ## Unreleased — PHB-66 login and console
 
-The React/HeroUI dashboard includes a bilingual component preview and a real public
-configuration preview. Typed OpenAPI requests share Query caches and error notifications;
+The React/HeroUI dashboard is bilingual. Typed OpenAPI requests share Query caches and error notifications;
 Router loaders provide concurrent requests, skeletons, retry and not-found feedback.
 
 Reusable forms preserve input and combine server field errors with global notifications.
@@ -48,8 +62,7 @@ System mode follows OS changes; explicit theme choices remain in memory.
 Authenticator and recovery steps stack full-width sign-in and method-switch
 actions. An accessible back icon beside the heading returns to password entry.
 
-Component previews remain available at `/preview/components` and `/preview/api`.
-Enrollment and admin pages (M5) remain unavailable. Backend APIs are unchanged.
+Backend APIs are unchanged.
 The version history below describes previously shipped capabilities.
 
 ## v0.1 — rescope + decoupling

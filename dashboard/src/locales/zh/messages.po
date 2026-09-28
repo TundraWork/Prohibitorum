@@ -448,11 +448,6 @@ msgid "settings.keys.column.activated"
 msgstr "启用于"
 
 #. js-lingui-explicit-id
-#: src/pages/ApiPreview.tsx
-msgid "api.maintenance.active"
-msgstr "已开启"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.sessions.title"
 msgstr "在线会话"
@@ -914,11 +909,6 @@ msgid "sudo.code"
 msgstr "验证器验证码"
 
 #. js-lingui-explicit-id
-#: src/pages/ApiPreview.tsx
-msgid "api.issuer"
-msgstr "验证器签发者"
-
-#. js-lingui-explicit-id
 #: src/components/custom/LoginShell.tsx
 msgid "login.complete"
 msgstr "身份验证器已重设"
@@ -1364,16 +1354,6 @@ msgid "security.setup.code"
 msgstr "身份验证器中的验证码"
 
 #. js-lingui-explicit-id
-#: src/pages/Preview.tsx
-msgid "components.title"
-msgstr "基础组件"
-
-#. js-lingui-explicit-id
-#: src/components/custom/PreviewLayout.tsx
-msgid "navigation.components"
-msgstr "基础组件"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
 msgid "admin.group.rule.fact"
 msgstr "条件"
@@ -1676,7 +1656,6 @@ msgstr "连接测试"
 
 #. js-lingui-explicit-id
 #: src/components/custom/ConsoleLayout.tsx
-#: src/components/custom/PreviewLayout.tsx
 msgid "console.home"
 msgstr "控制台首页"
 
@@ -1951,16 +1930,6 @@ msgid "error.federation.invite_required"
 msgstr "通过 {provider} 创建账号需要邀请。"
 
 #. js-lingui-explicit-id
-#: src/pages/DevForms.tsx
-msgid "dev.forms.id.label"
-msgstr "凭据 ID"
-
-#. js-lingui-explicit-id
-#: src/pages/DevForms.tsx
-msgid "dev.forms.rename.title"
-msgstr "凭据昵称请求"
-
-#. js-lingui-explicit-id
 #: src/pages/Console.tsx
 msgid "console.current-account"
 msgstr "当前账号"
@@ -2167,11 +2136,6 @@ msgid "notification.details"
 msgstr "详情"
 
 #. js-lingui-explicit-id
-#: src/pages/DevForms.tsx
-msgid "dev.forms.eyebrow"
-msgstr "仅供开发验证"
-
-#. js-lingui-explicit-id
 #: src/pages/devices/PairDeviceDialog.tsx
 msgid "devices.field.device"
 msgstr "设备"
@@ -2322,11 +2286,6 @@ msgid "app.managers.candidate.disabled"
 msgstr "账号已停用"
 
 #. js-lingui-explicit-id
-#: src/pages/Preview.tsx
-msgid "button.disabled"
-msgstr "禁用按钮"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.state.enabled.note"
 msgstr "停用会阻止该账号登录，除此之外不会有别的变化。管理员需要先被改为普通用户。"
@@ -2354,11 +2313,6 @@ msgstr "发现"
 #. js-lingui-explicit-id
 #: src/pages/Console.tsx
 msgid "console.display-name"
-msgstr "显示名称"
-
-#. js-lingui-explicit-id
-#: src/pages/Preview.tsx
-msgid "name.label"
 msgstr "显示名称"
 
 #. js-lingui-explicit-id
@@ -2477,11 +2431,6 @@ msgstr "邮箱验证码"
 #: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.diagnostics.identity.email-verified"
 msgstr "邮箱已验证"
-
-#. js-lingui-explicit-id
-#: src/pages/DevForms.tsx
-msgid "dev.forms.logout.title"
-msgstr "空响应请求"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
@@ -2669,11 +2618,6 @@ msgstr "请填写名称。"
 #: src/pages/Login.tsx
 msgid "login.password.invalid"
 msgstr "请输入密码，长度不超过 1024 个 UTF-8 字节。"
-
-#. js-lingui-explicit-id
-#: src/pages/DevForms.tsx
-msgid "dev.forms.id.invalid"
-msgstr "请输入有效的正整数凭据 ID（不超过 2147483647）。"
 
 #. js-lingui-explicit-id
 #: src/pages/Login.tsx
@@ -2908,11 +2852,6 @@ msgid "route.error.exception"
 msgstr "异常信息"
 
 #. js-lingui-explicit-id
-#: src/pages/DevForms.tsx
-msgid "dev.forms.description"
-msgstr "验证真实 API 客户端、写入请求和表单反馈。请使用隔离测试账户，或通过浏览器工具拦截请求。本页不会模拟响应。"
-
-#. js-lingui-explicit-id
 #: src/components/custom/ListCells.tsx
 msgid "list.diagnostics.certificate.expired"
 msgstr "已过期"
@@ -2965,11 +2904,6 @@ msgid "console.admin.federation"
 msgstr "联合登录"
 
 #. js-lingui-explicit-id
-#: src/pages/Preview.tsx
-msgid "feedback.tab"
-msgstr "状态反馈"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/AdminUsers.tsx
 msgid "admin.users.filter.fieldLabel"
 msgstr "字段"
@@ -2993,16 +2927,6 @@ msgstr "提供商不支持发现时使用。"
 #: src/components/custom/SudoDialog.tsx
 msgid "sudo.intro"
 msgstr "出于安全考虑，请重新验证身份后继续。"
-
-#. js-lingui-explicit-id
-#: src/pages/DevForms.tsx
-msgid "dev.forms.title"
-msgstr "表单集成验证"
-
-#. js-lingui-explicit-id
-#: src/components/custom/PreviewLayout.tsx
-msgid "navigation.forms"
-msgstr "表单验证（开发）"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/AdminForwardAuthApps.tsx
@@ -3267,34 +3191,9 @@ msgid "admin.saml-apps.field.lifetime.hint"
 msgstr "以分钟为单位。留空则不限制会话时长。"
 
 #. js-lingui-explicit-id
-#: src/pages/ApiPreview.tsx
-msgid "api.maintenance.inactive"
-msgstr "未开启"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AcsRowFields.tsx
 msgid "admin.saml-apps.acs.index"
 msgstr "索引"
-
-#. js-lingui-explicit-id
-#: src/pages/ApiPreview.tsx
-msgid "api.initialization"
-msgstr "初始化状态"
-
-#. js-lingui-explicit-id
-#: src/pages/ApiPreview.tsx
-msgid "api.public-note"
-msgstr "初始化状态不代表你是否已登录。"
-
-#. js-lingui-explicit-id
-#: src/pages/ApiPreview.tsx
-msgid "api.initialized"
-msgstr "已初始化"
-
-#. js-lingui-explicit-id
-#: src/pages/ApiPreview.tsx
-msgid "api.instance"
-msgstr "实例"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/GeneralPanel.tsx
@@ -3310,11 +3209,6 @@ msgstr "实例名称"
 #: src/api/success-messages.ts
 msgid "success.instance-name.saved"
 msgstr "实例名称已保存"
-
-#. js-lingui-explicit-id
-#: src/pages/Preview.tsx
-msgid "preview.title"
-msgstr "界面预览"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -3617,29 +3511,9 @@ msgid "admin.federation.protocol.vrchat.hint"
 msgstr "把 VRChat 身份绑定到已有账号，需要一个 VRChat 运营账号。"
 
 #. js-lingui-explicit-id
-#: src/pages/Preview.tsx
-msgid "feedback.skeleton"
-msgstr "加载骨架样例"
-
-#. js-lingui-explicit-id
-#: src/pages/Preview.tsx
-msgid "preview.footer"
-msgstr "本地预览 · HeroUI 组件"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts
 msgid "audit.event.factor_locked"
 msgstr "已锁定"
-
-#. js-lingui-explicit-id
-#: src/pages/DevForms.tsx
-msgid "dev.forms.logout.submit"
-msgstr "退出测试会话"
-
-#. js-lingui-explicit-id
-#: src/pages/DevForms.tsx
-msgid "dev.forms.logout.success"
-msgstr "已退出，服务器未返回响应正文。"
 
 #. js-lingui-explicit-id
 #: src/components/custom/ConsoleLayout.tsx
@@ -3660,11 +3534,6 @@ msgstr "mail"
 #: src/pages/admin/saml-applications/AttributeMapField.tsx
 msgid "admin.saml-apps.mapping.friendly-name.placeholder"
 msgstr "邮箱地址"
-
-#. js-lingui-explicit-id
-#: src/pages/ApiPreview.tsx
-msgid "api.maintenance"
-msgstr "维护模式"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminSettings.tsx
@@ -3791,11 +3660,6 @@ msgstr "多值"
 #: src/pages/profile/AvatarPanel.tsx
 msgid "profile.avatar.source.user"
 msgstr "我上传的头像"
-
-#. js-lingui-explicit-id
-#: src/pages/ApiPreview.tsx
-msgid "api.name"
-msgstr "名称"
 
 #. js-lingui-explicit-id
 #: src/pages/Profile.tsx
@@ -4007,16 +3871,6 @@ msgid "security.setup.next"
 msgstr "下一步"
 
 #. js-lingui-explicit-id
-#: src/pages/DevForms.tsx
-msgid "dev.forms.nickname.label"
-msgstr "昵称"
-
-#. js-lingui-explicit-id
-#: src/pages/DevForms.tsx
-msgid "dev.forms.rename.success"
-msgstr "昵称已保存，输入内容已保留。"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
 msgid "admin.federation.diagnostics.identity.no"
 msgstr "否"
@@ -4200,11 +4054,6 @@ msgstr "无"
 #: src/pages/admin/AdminGroupForm.tsx
 msgid "admin.group.rule.not"
 msgstr "取反"
-
-#. js-lingui-explicit-id
-#: src/pages/ApiPreview.tsx
-msgid "api.uninitialized"
-msgstr "未初始化"
 
 #. js-lingui-explicit-id
 #: src/pages/public/SamlConsent.tsx
@@ -4573,16 +4422,6 @@ msgid "admin.forward-auth-apps.scopes.hint"
 msgstr "个人访问令牌从这里选择要授予的作用域，服务通过 Remote-Scopes 收到。"
 
 #. js-lingui-explicit-id
-#: src/pages/Preview.tsx
-msgid "preview.eyebrow"
-msgstr "PHB-64 / M1 · 基础界面预览"
-
-#. js-lingui-explicit-id
-#: src/pages/ApiPreview.tsx
-msgid "api.eyebrow"
-msgstr "PHB-65 / M2 · 公开 API 预览"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-options.ts
 #: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
 msgid "admin.federation.claims.picture"
@@ -4637,21 +4476,6 @@ msgstr "登出后重定向 URI"
 #: src/pages/admin/identity-providers/provider-validation.ts
 msgid "admin.federation.tags.draft-pending"
 msgstr "按回车添加，或清空输入框。"
-
-#. js-lingui-explicit-id
-#: src/pages/Preview.tsx
-msgid "preview.tabs"
-msgstr "预览"
-
-#. js-lingui-explicit-id
-#: src/components/custom/PreviewLayout.tsx
-msgid "navigation.preview"
-msgstr "预览导航"
-
-#. js-lingui-explicit-id
-#: src/pages/Preview.tsx
-msgid "notification.message"
-msgstr "这是预览通知，没有提交任何数据。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/ForwardAuthHeadersSection.tsx
@@ -4740,19 +4564,9 @@ msgid "admin.oidc-apps.kind.public"
 msgstr "公开客户端"
 
 #. js-lingui-explicit-id
-#: src/components/custom/PreviewLayout.tsx
-msgid "navigation.api"
-msgstr "公开 API"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.auth.none"
 msgstr "公共客户端"
-
-#. js-lingui-explicit-id
-#: src/pages/ApiPreview.tsx
-msgid "api.title"
-msgstr "公开配置"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/SigningKeysPanel.tsx
@@ -4859,16 +4673,6 @@ msgstr "参考编号 <0>{ref}</0>"
 #: src/pages/admin/AdminLogs.tsx
 msgid "admin.logs.refresh"
 msgstr "刷新"
-
-#. js-lingui-explicit-id
-#: src/pages/ApiPreview.tsx
-msgid "api.refresh"
-msgstr "刷新数据"
-
-#. js-lingui-explicit-id
-#: src/pages/ApiPreview.tsx
-msgid "api.refreshing"
-msgstr "正在刷新…"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/SamlGeneralSection.tsx
@@ -5289,11 +5093,6 @@ msgstr "退役于"
 #: src/pages/admin/settings/SigningKeysPanel.tsx
 msgid "settings.keys.status.decommissioning"
 msgstr "退役中"
-
-#. js-lingui-explicit-id
-#: src/pages/Preview.tsx
-msgid "preview.description"
-msgstr "检查语言、颜色与组件状态。"
 
 #. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
@@ -5751,11 +5550,6 @@ msgid "table.row.expand"
 msgstr "展开详情"
 
 #. js-lingui-explicit-id
-#: src/pages/Preview.tsx
-msgid "notification.show"
-msgstr "显示通知"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/settings/MaintenancePanel.tsx
 msgid "settings.maintenance.notice.hint"
 msgstr "维护模式开启期间显示在登录页上。"
@@ -5783,11 +5577,6 @@ msgstr "登录"
 #. js-lingui-explicit-id
 #: src/components/custom/LoginShell.tsx
 msgid "login.title"
-msgstr "登录"
-
-#. js-lingui-explicit-id
-#: src/components/custom/PreviewLayout.tsx
-msgid "navigation.login"
 msgstr "登录"
 
 #. js-lingui-explicit-id
@@ -6039,11 +5828,6 @@ msgid "admin.users.column.state"
 msgstr "状态"
 
 #. js-lingui-explicit-id
-#: src/pages/Preview.tsx
-msgid "feedback.title"
-msgstr "状态样例"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/settings/SigningKeysPanel.tsx
 msgid "settings.keys.column.status"
 msgstr "状态"
@@ -6079,16 +5863,6 @@ msgstr "Subject"
 #: src/pages/admin/oidc-applications/IdentityProjectionSection.tsx
 msgid "admin.oidc-apps.subject"
 msgstr "Subject 来源"
-
-#. js-lingui-explicit-id
-#: src/pages/DevForms.tsx
-msgid "dev.forms.rename.submit"
-msgstr "提交昵称"
-
-#. js-lingui-explicit-id
-#: src/pages/Preview.tsx
-msgid "feedback.submitting"
-msgstr "提交中（样例）"
 
 #. js-lingui-explicit-id
 #: src/components/custom/SubmitButton.tsx
@@ -6564,11 +6338,6 @@ msgid "error.invalid_response"
 msgstr "服务器返回了无效响应。"
 
 #. js-lingui-explicit-id
-#: src/pages/DevForms.tsx
-msgid "dev.forms.nickname.description"
-msgstr "服务器会验证此值；请求成功后将修改测试凭据。"
-
-#. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.maintenance_mode"
 msgstr "服务正在维护。"
@@ -6632,16 +6401,6 @@ msgstr "这些恢复码仅显示一次。请妥善保存后再继续。无法使
 #: src/components/custom/secret-reveal-copy.ts
 msgid "login.codes.once"
 msgstr "这些恢复码仅显示一次。请妥善保存后再继续，旧恢复码已失效。"
-
-#. js-lingui-explicit-id
-#: src/pages/DevForms.tsx
-msgid "dev.forms.warning"
-msgstr "这些控件会发送真实请求，仅供开发验证。凭据管理和登录页面将在后续里程碑提供。"
-
-#. js-lingui-explicit-id
-#: src/pages/Preview.tsx
-msgid "feedback.description"
-msgstr "以下为视觉样例，不会发送请求。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
@@ -6764,16 +6523,6 @@ msgid "error.federation.enrollment_federation_required"
 msgstr "该邀请需要通过 {provider} 创建账号。"
 
 #. js-lingui-explicit-id
-#: src/pages/Preview.tsx
-msgid "name.description"
-msgstr "这是本地预览；输入内容不会提交。"
-
-#. js-lingui-explicit-id
-#: src/components/custom/PreviewLayout.tsx
-msgid "preview.notice"
-msgstr "登录和控制台已开放。注册、自助服务和管理页面将在后续更新中开放。"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.attributes.invalid"
 msgstr "这不是有效的 JSON。请检查花括号、逗号和引号。"
@@ -6822,11 +6571,6 @@ msgstr "这个密钥已不是待启用状态。"
 #: src/components/custom/secret-reveal-copy.ts
 msgid "admin.invitations.reveal.once"
 msgstr "该链接只显示一次，持有者可用它登录为被邀请的账号。请自行发给对方，且只通过你信任的渠道发送。"
-
-#. js-lingui-explicit-id
-#: src/pages/ApiPreview.tsx
-msgid "api.description"
-msgstr "本页从服务器读取实例配置和初始化状态。"
 
 #. js-lingui-explicit-id
 #: src/pages/devices/PairDeviceDialog.tsx
@@ -6892,11 +6636,6 @@ msgstr "此密钥只显示一次。请立即填入客户端配置——之后无
 #: src/components/custom/Section.tsx
 msgid "section.failed"
 msgstr "无法加载这一部分"
-
-#. js-lingui-explicit-id
-#: src/pages/DevForms.tsx
-msgid "dev.forms.logout.description"
-msgstr "此操作会发送真实退出请求，并清除会话查询缓存。请仅在隔离浏览器会话中使用，不要在日常登录会话中操作。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -7074,11 +6813,6 @@ msgid "route.failed"
 msgstr "无法加载此页面"
 
 #. js-lingui-explicit-id
-#: src/pages/Preview.tsx
-msgid "feedback.error"
-msgstr "无法保存，请检查输入。（样例）"
-
-#. js-lingui-explicit-id
 #: src/components/custom/FormError.tsx
 msgid "forms.error.title"
 msgstr "无法提交"
@@ -7187,11 +6921,6 @@ msgstr "请使用不超过 60 个字符。"
 #: src/pages/admin/settings/GeneralPanel.tsx
 msgid "settings.general.name.too_long"
 msgstr "最多 64 个字符。"
-
-#. js-lingui-explicit-id
-#: src/pages/DevForms.tsx
-msgid "dev.forms.id.description"
-msgstr "请使用属于隔离测试账户的凭据。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-validation.ts

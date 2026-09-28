@@ -37,13 +37,11 @@ The React/TypeScript dashboard is a Vite application in the `dashboard` pnpm wor
 - `dashboard-old` is a reference-only archive, excluded from imports, build inputs and frontend checks. Its npm lockfile belongs only to the archive.
 - TanStack Devtools is development-only: `vite.config.ts` registers `devtools()` first (it must stay first), and `src/devtools/Devtools.tsx` mounts the shell once from `main.tsx`. The plugin injects source locations, pipes console output to the dev server, and removes every Devtools import and element from production builds.
 - The open Devtools panel docks over the page, so `src/devtools/dock` watches it and narrows the page to the space that is left: it writes `--app-viewport-height`, `--app-sticky-offset` and the two `--app-gutter-*` properties on `<html>`, which `src/styles/index.css` defines and the full-height layouts consume. A detached (picture-in-picture) panel covers nothing, so the page keeps its full size. Like the rest of the Devtools code, it is installed only under `import.meta.env.DEV` and leaves no bytes in a production bundle.
-- M3 provides `/login` (password + TOTP, recovery/reset and passkeys) and the protected console at `/`. Component and API previews remain public at `/preview/components` and `/preview/api`. M4 adds the signed-in account pages under the same protected console: `/profile`, `/security`, `/apps` and `/devices`, plus the shared step-up prompt every sudo-guarded action uses. Enrollment and admin pages (M5) remain unavailable; backend API semantics are unchanged.
+- M3 provides `/login` (password + TOTP, recovery/reset and passkeys) and the protected console at `/`. The public flows beside it are `/consent` and `/saml-consent` (the OIDC and SAML consent pages), `/error` (where the server sends a flow it cannot continue) and `/maintenance`. M4 adds the signed-in account pages under the same protected console: `/profile`, `/security`, `/apps` and `/devices`, plus the shared step-up prompt every sudo-guarded action uses. Enrollment and admin pages (M5) remain unavailable; backend API semantics are unchanged.
 
 ### API types and development forms
 
 Run `mise run dev:api-types` after changing API schemas and commit `dashboard/src/api/generated/schema.d.ts`. `mise run ci:api-types` regenerates in a temporary directory and rejects drift; generation requires neither a database nor a frontend bundle. Raw config, login and logout paths supplement endpoints outside Huma's schema.
-
-`mise run dev:dashboard` exposes `/__dev/forms` for real nickname/logout mutation checks. Use an isolated browser and test account: submissions can change credentials or end a session. Browser request interception supplies failure scenarios during verification; the route is excluded from production builds.
 
 ## Dev
 

@@ -448,11 +448,6 @@ msgid "settings.keys.column.activated"
 msgstr "Activated"
 
 #. js-lingui-explicit-id
-#: src/pages/ApiPreview.tsx
-msgid "api.maintenance.active"
-msgstr "Active"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.sessions.title"
 msgstr "Active sessions"
@@ -914,11 +909,6 @@ msgid "sudo.code"
 msgstr "Authenticator code"
 
 #. js-lingui-explicit-id
-#: src/pages/ApiPreview.tsx
-msgid "api.issuer"
-msgstr "Authenticator issuer"
-
-#. js-lingui-explicit-id
 #: src/components/custom/LoginShell.tsx
 msgid "login.complete"
 msgstr "Authenticator reset complete"
@@ -1364,16 +1354,6 @@ msgid "security.setup.code"
 msgstr "Code from your authenticator"
 
 #. js-lingui-explicit-id
-#: src/pages/Preview.tsx
-msgid "components.title"
-msgstr "Components"
-
-#. js-lingui-explicit-id
-#: src/components/custom/PreviewLayout.tsx
-msgid "navigation.components"
-msgstr "Components"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
 msgid "admin.group.rule.fact"
 msgstr "Condition"
@@ -1676,7 +1656,6 @@ msgstr "Connection test"
 
 #. js-lingui-explicit-id
 #: src/components/custom/ConsoleLayout.tsx
-#: src/components/custom/PreviewLayout.tsx
 msgid "console.home"
 msgstr "Console home"
 
@@ -1951,16 +1930,6 @@ msgid "error.federation.invite_required"
 msgstr "Creating an account through {provider} requires an invitation."
 
 #. js-lingui-explicit-id
-#: src/pages/DevForms.tsx
-msgid "dev.forms.id.label"
-msgstr "Credential ID"
-
-#. js-lingui-explicit-id
-#: src/pages/DevForms.tsx
-msgid "dev.forms.rename.title"
-msgstr "Credential nickname request"
-
-#. js-lingui-explicit-id
 #: src/pages/Console.tsx
 msgid "console.current-account"
 msgstr "Current account"
@@ -2167,11 +2136,6 @@ msgid "notification.details"
 msgstr "Details"
 
 #. js-lingui-explicit-id
-#: src/pages/DevForms.tsx
-msgid "dev.forms.eyebrow"
-msgstr "Development only"
-
-#. js-lingui-explicit-id
 #: src/pages/devices/PairDeviceDialog.tsx
 msgid "devices.field.device"
 msgstr "Device"
@@ -2322,11 +2286,6 @@ msgid "app.managers.candidate.disabled"
 msgstr "Disabled account"
 
 #. js-lingui-explicit-id
-#: src/pages/Preview.tsx
-msgid "button.disabled"
-msgstr "Disabled button"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.state.enabled.note"
 msgstr "Disabling stops this account signing in and ends nothing else. An admin has to be made a user first."
@@ -2354,11 +2313,6 @@ msgstr "Discovery"
 #. js-lingui-explicit-id
 #: src/pages/Console.tsx
 msgid "console.display-name"
-msgstr "Display name"
-
-#. js-lingui-explicit-id
-#: src/pages/Preview.tsx
-msgid "name.label"
 msgstr "Display name"
 
 #. js-lingui-explicit-id
@@ -2477,11 +2431,6 @@ msgstr "Email code"
 #: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.diagnostics.identity.email-verified"
 msgstr "Email verified"
-
-#. js-lingui-explicit-id
-#: src/pages/DevForms.tsx
-msgid "dev.forms.logout.title"
-msgstr "Empty response request"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
@@ -2669,11 +2618,6 @@ msgstr "Enter a name."
 #: src/pages/Login.tsx
 msgid "login.password.invalid"
 msgstr "Enter a password of no more than 1024 UTF-8 bytes."
-
-#. js-lingui-explicit-id
-#: src/pages/DevForms.tsx
-msgid "dev.forms.id.invalid"
-msgstr "Enter a positive credential ID (up to 2147483647)."
 
 #. js-lingui-explicit-id
 #: src/pages/Login.tsx
@@ -2908,11 +2852,6 @@ msgid "route.error.exception"
 msgstr "Exception"
 
 #. js-lingui-explicit-id
-#: src/pages/DevForms.tsx
-msgid "dev.forms.description"
-msgstr "Exercise the real API client, mutations, and form feedback. Use an isolated test account or intercept requests in browser tools. This page does not simulate responses."
-
-#. js-lingui-explicit-id
 #: src/components/custom/ListCells.tsx
 msgid "list.diagnostics.certificate.expired"
 msgstr "Expired"
@@ -2965,11 +2904,6 @@ msgid "console.admin.federation"
 msgstr "Federation"
 
 #. js-lingui-explicit-id
-#: src/pages/Preview.tsx
-msgid "feedback.tab"
-msgstr "Feedback"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/AdminUsers.tsx
 msgid "admin.users.filter.fieldLabel"
 msgstr "Field"
@@ -2993,16 +2927,6 @@ msgstr "For a provider that does not publish discovery."
 #: src/components/custom/SudoDialog.tsx
 msgid "sudo.intro"
 msgstr "For your security, verify your identity again to continue."
-
-#. js-lingui-explicit-id
-#: src/pages/DevForms.tsx
-msgid "dev.forms.title"
-msgstr "Form integration checks"
-
-#. js-lingui-explicit-id
-#: src/components/custom/PreviewLayout.tsx
-msgid "navigation.forms"
-msgstr "Form verification (development)"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/AdminForwardAuthApps.tsx
@@ -3267,34 +3191,9 @@ msgid "admin.saml-apps.field.lifetime.hint"
 msgstr "In minutes. Leave it empty to set no limit on how long a session lasts."
 
 #. js-lingui-explicit-id
-#: src/pages/ApiPreview.tsx
-msgid "api.maintenance.inactive"
-msgstr "Inactive"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AcsRowFields.tsx
 msgid "admin.saml-apps.acs.index"
 msgstr "Index"
-
-#. js-lingui-explicit-id
-#: src/pages/ApiPreview.tsx
-msgid "api.initialization"
-msgstr "Initialization"
-
-#. js-lingui-explicit-id
-#: src/pages/ApiPreview.tsx
-msgid "api.public-note"
-msgstr "Initialization does not indicate whether you are signed in."
-
-#. js-lingui-explicit-id
-#: src/pages/ApiPreview.tsx
-msgid "api.initialized"
-msgstr "Initialized"
-
-#. js-lingui-explicit-id
-#: src/pages/ApiPreview.tsx
-msgid "api.instance"
-msgstr "Instance"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/GeneralPanel.tsx
@@ -3310,11 +3209,6 @@ msgstr "Instance name"
 #: src/api/success-messages.ts
 msgid "success.instance-name.saved"
 msgstr "Instance name saved"
-
-#. js-lingui-explicit-id
-#: src/pages/Preview.tsx
-msgid "preview.title"
-msgstr "Interface preview"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -3617,29 +3511,9 @@ msgid "admin.federation.protocol.vrchat.hint"
 msgstr "Links VRChat identities to existing accounts. Needs a VRChat operator account."
 
 #. js-lingui-explicit-id
-#: src/pages/Preview.tsx
-msgid "feedback.skeleton"
-msgstr "Loading skeleton example"
-
-#. js-lingui-explicit-id
-#: src/pages/Preview.tsx
-msgid "preview.footer"
-msgstr "Local preview · HeroUI components"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts
 msgid "audit.event.factor_locked"
 msgstr "Locked"
-
-#. js-lingui-explicit-id
-#: src/pages/DevForms.tsx
-msgid "dev.forms.logout.submit"
-msgstr "Log out test session"
-
-#. js-lingui-explicit-id
-#: src/pages/DevForms.tsx
-msgid "dev.forms.logout.success"
-msgstr "Logout completed with no response body."
 
 #. js-lingui-explicit-id
 #: src/components/custom/ConsoleLayout.tsx
@@ -3660,11 +3534,6 @@ msgstr "mail"
 #: src/pages/admin/saml-applications/AttributeMapField.tsx
 msgid "admin.saml-apps.mapping.friendly-name.placeholder"
 msgstr "Mail address"
-
-#. js-lingui-explicit-id
-#: src/pages/ApiPreview.tsx
-msgid "api.maintenance"
-msgstr "Maintenance"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminSettings.tsx
@@ -3791,11 +3660,6 @@ msgstr "Multi"
 #: src/pages/profile/AvatarPanel.tsx
 msgid "profile.avatar.source.user"
 msgstr "My uploaded picture"
-
-#. js-lingui-explicit-id
-#: src/pages/ApiPreview.tsx
-msgid "api.name"
-msgstr "Name"
 
 #. js-lingui-explicit-id
 #: src/pages/Profile.tsx
@@ -4007,16 +3871,6 @@ msgid "security.setup.next"
 msgstr "Next"
 
 #. js-lingui-explicit-id
-#: src/pages/DevForms.tsx
-msgid "dev.forms.nickname.label"
-msgstr "Nickname"
-
-#. js-lingui-explicit-id
-#: src/pages/DevForms.tsx
-msgid "dev.forms.rename.success"
-msgstr "Nickname saved. Your input has been kept."
-
-#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
 msgid "admin.federation.diagnostics.identity.no"
 msgstr "No"
@@ -4200,11 +4054,6 @@ msgstr "None"
 #: src/pages/admin/AdminGroupForm.tsx
 msgid "admin.group.rule.not"
 msgstr "Not"
-
-#. js-lingui-explicit-id
-#: src/pages/ApiPreview.tsx
-msgid "api.uninitialized"
-msgstr "Not initialized"
 
 #. js-lingui-explicit-id
 #: src/pages/public/SamlConsent.tsx
@@ -4573,16 +4422,6 @@ msgid "admin.forward-auth-apps.scopes.hint"
 msgstr "Personal access tokens choose from these, and the service receives the granted ones in Remote-Scopes."
 
 #. js-lingui-explicit-id
-#: src/pages/Preview.tsx
-msgid "preview.eyebrow"
-msgstr "PHB-64 / M1 · Foundation preview"
-
-#. js-lingui-explicit-id
-#: src/pages/ApiPreview.tsx
-msgid "api.eyebrow"
-msgstr "PHB-65 / M2 · Public API preview"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-options.ts
 #: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
 msgid "admin.federation.claims.picture"
@@ -4637,21 +4476,6 @@ msgstr "Post-logout redirect URIs"
 #: src/pages/admin/identity-providers/provider-validation.ts
 msgid "admin.federation.tags.draft-pending"
 msgstr "Press Enter to add it, or clear the box."
-
-#. js-lingui-explicit-id
-#: src/pages/Preview.tsx
-msgid "preview.tabs"
-msgstr "Preview"
-
-#. js-lingui-explicit-id
-#: src/components/custom/PreviewLayout.tsx
-msgid "navigation.preview"
-msgstr "Preview navigation"
-
-#. js-lingui-explicit-id
-#: src/pages/Preview.tsx
-msgid "notification.message"
-msgstr "Preview notification. No data was submitted."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/ForwardAuthHeadersSection.tsx
@@ -4740,19 +4564,9 @@ msgid "admin.oidc-apps.kind.public"
 msgstr "Public"
 
 #. js-lingui-explicit-id
-#: src/components/custom/PreviewLayout.tsx
-msgid "navigation.api"
-msgstr "Public API"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.auth.none"
 msgstr "Public client"
-
-#. js-lingui-explicit-id
-#: src/pages/ApiPreview.tsx
-msgid "api.title"
-msgstr "Public configuration"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/SigningKeysPanel.tsx
@@ -4859,16 +4673,6 @@ msgstr "Reference <0>{ref}</0>"
 #: src/pages/admin/AdminLogs.tsx
 msgid "admin.logs.refresh"
 msgstr "Refresh"
-
-#. js-lingui-explicit-id
-#: src/pages/ApiPreview.tsx
-msgid "api.refresh"
-msgstr "Refresh data"
-
-#. js-lingui-explicit-id
-#: src/pages/ApiPreview.tsx
-msgid "api.refreshing"
-msgstr "Refreshing…"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/SamlGeneralSection.tsx
@@ -5289,11 +5093,6 @@ msgstr "Retires"
 #: src/pages/admin/settings/SigningKeysPanel.tsx
 msgid "settings.keys.status.decommissioning"
 msgstr "Retiring"
-
-#. js-lingui-explicit-id
-#: src/pages/Preview.tsx
-msgid "preview.description"
-msgstr "Review language, colors, and component states."
 
 #. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
@@ -5751,11 +5550,6 @@ msgid "table.row.expand"
 msgstr "Show details"
 
 #. js-lingui-explicit-id
-#: src/pages/Preview.tsx
-msgid "notification.show"
-msgstr "Show notification"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/settings/MaintenancePanel.tsx
 msgid "settings.maintenance.notice.hint"
 msgstr "Shown on the sign-in page while maintenance mode is on."
@@ -5783,11 +5577,6 @@ msgstr "Sign in"
 #. js-lingui-explicit-id
 #: src/components/custom/LoginShell.tsx
 msgid "login.title"
-msgstr "Sign in"
-
-#. js-lingui-explicit-id
-#: src/components/custom/PreviewLayout.tsx
-msgid "navigation.login"
 msgstr "Sign in"
 
 #. js-lingui-explicit-id
@@ -6039,11 +5828,6 @@ msgid "admin.users.column.state"
 msgstr "State"
 
 #. js-lingui-explicit-id
-#: src/pages/Preview.tsx
-msgid "feedback.title"
-msgstr "State examples"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/settings/SigningKeysPanel.tsx
 msgid "settings.keys.column.status"
 msgstr "Status"
@@ -6079,16 +5863,6 @@ msgstr "Subject"
 #: src/pages/admin/oidc-applications/IdentityProjectionSection.tsx
 msgid "admin.oidc-apps.subject"
 msgstr "Subject source"
-
-#. js-lingui-explicit-id
-#: src/pages/DevForms.tsx
-msgid "dev.forms.rename.submit"
-msgstr "Submit nickname"
-
-#. js-lingui-explicit-id
-#: src/pages/Preview.tsx
-msgid "feedback.submitting"
-msgstr "Submitting (example)"
 
 #. js-lingui-explicit-id
 #: src/components/custom/SubmitButton.tsx
@@ -6564,11 +6338,6 @@ msgid "error.invalid_response"
 msgstr "The server returned an invalid response."
 
 #. js-lingui-explicit-id
-#: src/pages/DevForms.tsx
-msgid "dev.forms.nickname.description"
-msgstr "The server validates this value. A successful request changes the test credential."
-
-#. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.maintenance_mode"
 msgstr "The service is undergoing maintenance."
@@ -6632,16 +6401,6 @@ msgstr "These codes are shown only once. Keep them somewhere safe before continu
 #: src/components/custom/secret-reveal-copy.ts
 msgid "login.codes.once"
 msgstr "These codes are shown only once. Keep them somewhere safe before continuing. Your old recovery codes no longer work."
-
-#. js-lingui-explicit-id
-#: src/pages/DevForms.tsx
-msgid "dev.forms.warning"
-msgstr "These controls send real requests. They are development checks, not a credential management or sign-in page."
-
-#. js-lingui-explicit-id
-#: src/pages/Preview.tsx
-msgid "feedback.description"
-msgstr "These visual examples do not send requests."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
@@ -6764,16 +6523,6 @@ msgid "error.federation.enrollment_federation_required"
 msgstr "This invitation needs the account to be created through {provider}."
 
 #. js-lingui-explicit-id
-#: src/pages/Preview.tsx
-msgid "name.description"
-msgstr "This is a local preview. Your input will not be submitted."
-
-#. js-lingui-explicit-id
-#: src/components/custom/PreviewLayout.tsx
-msgid "preview.notice"
-msgstr "This is a public component preview. Account management and administration pages are not available yet."
-
-#. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.attributes.invalid"
 msgstr "This is not valid JSON. Check the braces, commas and quotes."
@@ -6822,11 +6571,6 @@ msgstr "This key is no longer pending."
 #: src/components/custom/secret-reveal-copy.ts
 msgid "admin.invitations.reveal.once"
 msgstr "This link is shown only once and it signs the holder in as the invited account. Send it to the person yourself, and only over a channel you trust."
-
-#. js-lingui-explicit-id
-#: src/pages/ApiPreview.tsx
-msgid "api.description"
-msgstr "This page reads the instance configuration and initialization status from the server."
 
 #. js-lingui-explicit-id
 #: src/pages/devices/PairDeviceDialog.tsx
@@ -6892,11 +6636,6 @@ msgstr "This secret is shown only once. Put it into the client's configuration n
 #: src/components/custom/Section.tsx
 msgid "section.failed"
 msgstr "This section could not be loaded"
-
-#. js-lingui-explicit-id
-#: src/pages/DevForms.tsx
-msgid "dev.forms.logout.description"
-msgstr "This sends a real logout request and clears session queries. Use only an isolated browser session, never your regular signed-in session."
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -7074,11 +6813,6 @@ msgid "route.failed"
 msgstr "Unable to load this page"
 
 #. js-lingui-explicit-id
-#: src/pages/Preview.tsx
-msgid "feedback.error"
-msgstr "Unable to save. Check your input. (Example)"
-
-#. js-lingui-explicit-id
 #: src/components/custom/FormError.tsx
 msgid "forms.error.title"
 msgstr "Unable to submit"
@@ -7187,11 +6921,6 @@ msgstr "Use 60 characters or fewer."
 #: src/pages/admin/settings/GeneralPanel.tsx
 msgid "settings.general.name.too_long"
 msgstr "Use 64 characters or fewer."
-
-#. js-lingui-explicit-id
-#: src/pages/DevForms.tsx
-msgid "dev.forms.id.description"
-msgstr "Use a credential belonging to an isolated test account."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-validation.ts
