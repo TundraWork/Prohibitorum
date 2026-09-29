@@ -392,6 +392,11 @@ function CreateTokenDialog({
     },
   });
 
+  // The "choose an application" notice is set on submit and, having no
+  // validator of its own, would keep the form from submitting again until it is
+  // cleared, so any change to the choice clears it.
+  const clearChoiceError = () => form.setErrorMap({ onSubmit: undefined });
+
   return (
     <Modal isOpen={isOpen} onOpenChange={onOpenChange}>
       <Modal.Backdrop>
@@ -480,7 +485,10 @@ function CreateTokenDialog({
                       variant="secondary"
                       name="access"
                       value={access}
-                      onChange={(next) => setAccess(next as TokenAccess)}
+                      onChange={(next) => {
+                        setAccess(next as TokenAccess);
+                        clearChoiceError();
+                      }}
                     >
                       <Label>
                         <Trans id="security.tokens.scope">
@@ -514,7 +522,10 @@ function CreateTokenDialog({
                           variant="secondary"
                           name="appClientIds"
                           value={chosen}
-                          onChange={setChosen}
+                          onChange={(next) => {
+                            setChosen(next);
+                            clearChoiceError();
+                          }}
                           className="border-separator border-s ps-4"
                         >
                           <Label>

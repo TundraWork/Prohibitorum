@@ -831,8 +831,9 @@ function accountSessions(index: number): SessionListItem[] {
   }));
 }
 
+/** Accounts with an even id have none; the others have one of each level. */
 function accountTokens(index: number): Token[] {
-  return tokenList(index % 2).map((token, position) => ({
+  return tokenList((index % 2) * 4).map((token, position) => ({
     ...token,
     id: index * 10 + position + 1,
     name: `Mock token ${position + 1}`,
@@ -1550,8 +1551,14 @@ function readReply(
       return guarded(config, () => json(accountSessions(id - 1)));
     }
     case "/api/prohibitorum/accounts/{id}/tokens": {
-      const id = pathTail(request);
-      return guarded(config, () => json(accountTokens(id - 1)));
+      // The id is the segment before `tokens`, and the list is a page.
+      const id = Number(new URL(request.url).pathname.split("/").at(-2));
+      return guarded(config, () =>
+        json({
+          items: accountTokens(Number.isFinite(id) ? id - 1 : 0),
+          nextCursor: "",
+        }),
+      );
     }
     case "/api/prohibitorum/invitations": {
       const all = Array.from(

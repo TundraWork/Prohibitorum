@@ -1222,7 +1222,7 @@ msgstr "Choose an image no larger than {limitMiB} MiB."
 #. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.apps.required"
-msgstr "Choose at least one application, or allow every application."
+msgstr "Choose at least one application, or pick another level of access."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminInvitationForm.tsx
