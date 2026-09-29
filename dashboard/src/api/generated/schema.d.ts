@@ -456,7 +456,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List the forward-auth apps the caller may use, with each app's scope vocabulary. */
+        /** List the forward-auth apps the caller can grant to a personal access token. */
         get: operations["listMyForwardAuthApps"];
         put?: never;
         post?: never;
@@ -698,10 +698,9 @@ export interface components {
             username?: string;
         };
         CreateMyTokenInBody: {
-            allApps: boolean;
-            appGrants: {
-                [key: string]: string[] | null;
-            };
+            /** @enum {string} */
+            access: "selected_apps" | "all_apps" | "full" | "sudo";
+            appClientIds?: string[] | null;
             /** Format: int64 */
             expiresInDays?: number;
             name: string;
@@ -763,11 +762,6 @@ export interface components {
             forwardAuthHost: string;
             iconUrl?: string;
             remoteUserSource: string;
-            scopes: components["schemas"]["ForwardAuthScope"][] | null;
-        };
-        ForwardAuthScope: {
-            description?: string;
-            name: string;
         };
         IdentityProviderView: {
             config: unknown;
@@ -842,7 +836,6 @@ export interface components {
         MyForwardAuthApp: {
             clientId: string;
             displayName: string;
-            scopes: components["schemas"]["ForwardAuthScope"][] | null;
         };
         OIDCApplicationView: {
             accessRestricted: boolean;
@@ -908,15 +901,18 @@ export interface components {
             items: components["schemas"]["SigningKeyView"][] | null;
             nextCursor: string;
         };
+        PersonalAccessTokenApp: {
+            clientId: string;
+            displayName: string;
+        };
         PersonalAccessTokenCreated: {
             pat: components["schemas"]["PersonalAccessTokenView"];
             token: string;
         };
         PersonalAccessTokenView: {
-            allApps: boolean;
-            appGrants: {
-                [key: string]: string[] | null;
-            };
+            /** @enum {string} */
+            access: "selected_apps" | "all_apps" | "full" | "sudo";
+            apps: components["schemas"]["PersonalAccessTokenApp"][] | null;
             /** Format: date-time */
             createdAt: string;
             /** Format: date-time */
