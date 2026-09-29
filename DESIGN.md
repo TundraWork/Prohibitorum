@@ -121,9 +121,20 @@ smaller text from the small breakpoint, as provided by HeroUI.
 
 Every public page — sign-in, consent, a stopped flow, maintenance — sits on one
 30rem card under the public toolbar, with 16px horizontal padding around it.
-The public toolbar stays fixed while the page scrolls. The card is centered
-in the window with even space above and below once the card outgrows it; from
-1024px only the card area scrolls.
+The card's padding is 24px, and 32px from 640px.
+
+The public toolbar is 64px high and has no fill, so a custom background runs
+from the top of the window to the bottom behind it. What it carries sits on two
+40px capsules, one at each end: `rounded-full`, `bg-surface/70` with
+`backdrop-blur-md` and the surface shadow, so it reads on any picture and looks
+the same without one. The left capsule holds the instance's `InstanceIdentity`
+and gives way on a narrow screen, truncating the name; the right one holds the
+language menu and the theme switch. The toolbar scrolls with the page rather
+than staying fixed, so the card never passes underneath it.
+
+The card is centred in the window below the toolbar: from 640px the space under
+the card matches the toolbar's height, which puts the card at the window's
+centre. A card taller than the window scrolls with the page.
 
 The console uses a separate responsive navigation composition. Preserve its
 existing layout and permission behavior when refining shared components.
@@ -323,7 +334,10 @@ button's focus ring and press scale; selected entries are medium weight and the
 rest regular. The management entries sit under three headings — directory,
 applications, system — and a heading with nothing visible under it is left out.
 The instance avatar, the entry icons, the headings and the account avatar share
-one edge 20px into the rail. On a narrow screen the same list opens in a drawer
+one edge 20px into the rail. The rail's instance avatar and name are
+`InstanceIdentity`, the same component the public toolbar draws: a 32px
+`Avatar` at the field radius with the name's first letter as its fallback, and
+the name in semibold `text-sm`, truncated. On a narrow screen the same list opens in a drawer
 on the rail's gray, with 44px rows. A rail too long for the window follows
 HeroUI's overflowing tabs: the edge with more behind it carries a full-row strip
 with a chevron that scrolls towards it, fading into the list, and the scrollbar
@@ -355,7 +369,8 @@ it is a danger `Alert` in the page column, under the header's own title. On a
 public page, and when there is no layout left to draw in, the failure replaces
 the page: the sign-in page's `h1` ("Unable to load this page"), focused as it
 appears, over a danger `SurfaceAlert` on the card. The whole-window form is the
-same card without the toolbar or the background picture.
+same card without the toolbar or the background picture, in the same place:
+the toolbar's height stays empty above it.
 
 The alert's title is the same line the error toast shows. Under it the facts
 stay in view, left-aligned and never collapsed: the request, status, error code
@@ -395,6 +410,19 @@ that goes ahead (`primary`) on the right and the other (`secondary`) on the
 left, as in a dialog's footer; the pressed one is pending and the other
 disabled until the page leaves.
 
+The sign-in page's first step starts from the passkey: a full-width `primary`
+button with a `Fingerprint` icon. Under an `OrSeparator` comes the password
+form, whose submit button is `secondary` while the passkey leads. A browser that
+cannot use a passkey gets a disabled `secondary` passkey button with a muted
+line under it, and the password's submit button turns `primary`; the order
+stays the same. After a second `OrSeparator` come the ways that start somewhere
+else: a full-width `secondary` "Sign in with another device" with the
+`MonitorSmartphone` icon, which opens `/pair` and is left out during
+maintenance, then the providers. With neither, the second separator is left
+out too. One way runs at a time: while any of them is in flight, and while a
+provider is taking the page away, the others are disabled. The title is "Sign
+in" alone; the toolbar already names the instance.
+
 The sign-in and enrollment pages offer upstream providers under the local
 sign-ins, after an `OrSeparator` (two rules around a `text-xs` muted "or"):
 `ProviderButtons` draws one full-width `secondary` button per provider, with
@@ -422,8 +450,8 @@ and the status: a small `Spinner` with the countdown, which is not announced
 as it runs. An expired code dims the code and the QR to half opacity, drops
 the scan line, and puts a warning `SurfaceAlert` and a full-width "Get a new
 code" in the status's place. Once signed in the page offers a passkey, with a
-`tertiary` "Not now" under it. The sign-in page's first step ends with a
-centred link to it, left out during maintenance.
+`tertiary` "Not now" under it. The sign-in page's first step leads to it
+with the "Sign in with another device" button.
 
 A flow the server stopped (`/error`) has the shape of a public page that failed
 to load: the title, then a danger `SurfaceAlert` with what happened, a
