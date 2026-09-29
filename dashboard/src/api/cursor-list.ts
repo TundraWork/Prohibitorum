@@ -18,9 +18,25 @@ export interface CursorPage<T> {
 }
 
 /**
+ * The last element of every cursor-list key.
+ *
+ * TanStack Query remembers that a key was built by an infinite observer, so a
+ * plain read of the same key — `fetchQuery`, `ensureQueryData`, `useQuery` —
+ * gets `{ pages, pageParams }` back, or runs the paging behaviour without the
+ * options it needs. A plain key is made of strings, numbers and filter objects
+ * and never ends in this marker, so no single-record read can land on a list's
+ * key, not even one built from a slug or Client ID an administrator typed as
+ * `page`.
+ */
+export const cursorPagesMarker = { pages: "cursor" } as const;
+
+/**
  * The infinite-query options for one cursor-paged endpoint. The page parameter
  * is the cursor the server issued, or `undefined` for the first page — never an
  * empty string, which is what the last page reports back.
+ *
+ * The caller's key is the resource's prefix, so invalidating that prefix still
+ * reaches the list; `cursorPagesMarker` is appended to it here.
  */
 export function cursorListOptions<T>(options: {
   queryKey: readonly unknown[];
@@ -30,7 +46,7 @@ export function cursorListOptions<T>(options: {
   }) => Promise<CursorPage<T>>;
 }) {
   return {
-    queryKey: options.queryKey,
+    queryKey: [...options.queryKey, cursorPagesMarker] as const,
     initialPageParam: undefined as string | undefined,
     queryFn: ({
       pageParam,
