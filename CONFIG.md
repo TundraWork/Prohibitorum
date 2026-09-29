@@ -107,8 +107,11 @@ VRChat's API-usage guidelines. Production requests are fixed to
 reuse the operator session, honor shared `429` backoff, and invalidate
 readiness on upstream `401`/`403`. Each member sign-in requires a fresh exact
 Prohibitorum proof URL in the member's VRChat `bioLinks`; the member should
-remove it after verification. Prohibitorum stores the verified VRChat user ID,
-display name, and canonical profile URL, not member credentials.
+remove it after verification. The proof URL is built on the first
+`PROHIBITORUM_PUBLIC_ORIGIN` entry and uses that entry's scheme (`http` or
+`https`); the server refuses to start when that entry is not a bare origin.
+Prohibitorum stores the verified VRChat user ID, display name, and canonical
+profile URL, not member credentials.
 
 ## Deployment hardening
 

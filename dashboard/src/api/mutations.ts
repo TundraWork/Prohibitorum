@@ -1754,7 +1754,7 @@ export function validateOperatorSessionMutationOptions(
           requireJsonData(
             client.POST(
               "/api/prohibitorum/identity-providers/{slug}/operator-session/validate",
-              { params: { path: { slug } }, body: {} },
+              { params: { path: { slug } } },
             ),
           ),
         sudoReason.operatorSession,

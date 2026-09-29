@@ -71,13 +71,43 @@ func (w *proofAuditStub) Record(_ context.Context, record audit.Record) error {
 	return nil
 }
 
+func newTestAdapter(t *testing.T, client proofClient, secrets proofSecretStore, store kv.Store, queries proofQueries, publicOrigin string, writer audit.Writer) *Adapter {
+	t.Helper()
+	adapter, err := NewAdapter(client, secrets, store, queries, publicOrigin, writer)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return adapter
+}
+
+func TestNewAdapterPublicOrigin(t *testing.T) {
+	for _, origin := range []string{"http://localhost:8080", "https://login.example.com", "https://login.example.com/"} {
+		if _, err := NewAdapter(&proofClientStub{}, &proofSecretsStub{}, kv.NewMemoryStore(), &proofQueriesStub{}, origin, nil); err != nil {
+			t.Errorf("NewAdapter(%q): %v", origin, err)
+		}
+	}
+	for _, origin := range []string{
+		"ftp://login.example.com",
+		"login.example.com",
+		"https://login.example.com/base",
+		"https://user@login.example.com",
+		"https://login.example.com?x=1",
+		"https://login.example.com#x",
+		"",
+	} {
+		if _, err := NewAdapter(&proofClientStub{}, &proofSecretsStub{}, kv.NewMemoryStore(), &proofQueriesStub{}, origin, nil); err == nil {
+			t.Errorf("NewAdapter(%q) unexpectedly accepted", origin)
+		}
+	}
+}
+
 func readyVRChatProvider() federation.Provider {
 	now := time.Now().UTC()
 	return federation.Provider{ID: 7, Slug: "vrchat", Protocol: Protocol, Mode: federation.ModeAutoProvision, Config: json.RawMessage(`{}`), Secret: &federation.SealedSecret{Ciphertext: []byte("cipher"), Nonce: []byte("nonce"), KeyVersion: 3}, SecretStatus: "valid", SecretValidatedAt: &now}
 }
 
 func TestVRChatAdapterIntentPolicy(t *testing.T) {
-	adapter := NewAdapter(&proofClientStub{}, &proofSecretsStub{}, kv.NewMemoryStore(), &proofQueriesStub{}, "https://login.example.com", nil)
+	adapter := newTestAdapter(t, &proofClientStub{}, &proofSecretsStub{}, kv.NewMemoryStore(), &proofQueriesStub{}, "https://login.example.com", nil)
 	provider := readyVRChatProvider()
 	provider.Mode = federation.ModeLinkOnly
 
@@ -100,7 +130,7 @@ func TestVRChatAdapterIntentPolicy(t *testing.T) {
 }
 
 func TestVRChatAdapterBeginAndCollectIdentity(t *testing.T) {
-	adapter := NewAdapter(&proofClientStub{}, &proofSecretsStub{}, kv.NewMemoryStore(), &proofQueriesStub{}, "https://login.example.com", nil)
+	adapter := newTestAdapter(t, &proofClientStub{}, &proofSecretsStub{}, kv.NewMemoryStore(), &proofQueriesStub{}, "https://login.example.com", nil)
 	adapter.random = bytes.NewReader(bytes.Repeat([]byte{0x2a}, 32))
 	provider := readyVRChatProvider()
 	provider.Mode = federation.ModeLinkOnly
@@ -135,11 +165,41 @@ func TestVRChatAdapterBeginAndCollectIdentity(t *testing.T) {
 	}
 }
 
+func TestVRChatAdapterCollectIdentityOnHTTPOrigin(t *testing.T) {
+	adapter := newTestAdapter(t, &proofClientStub{}, &proofSecretsStub{}, kv.NewMemoryStore(), &proofQueriesStub{}, "http://localhost:8080", nil)
+	adapter.random = bytes.NewReader(bytes.Repeat([]byte{0x2a}, 32))
+	state, _ := json.Marshal(adapterState{Step: stepIdentify})
+	result, err := adapter.Advance(context.Background(), readyVRChatProvider(), state, federation.ActionInput{Kind: federation.ActionCollectIdentity, Identity: testUserID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Next == nil || result.Next.Kind != federation.ActionPublishProof {
+		t.Fatalf("Next = %+v", result.Next)
+	}
+	if want := "http://localhost:8080/verify/vrchat/KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio"; result.Next.Public["proofUrl"] != want {
+		t.Errorf("proofUrl = %v, want %s", result.Next.Public["proofUrl"], want)
+	}
+}
+
+func TestVRChatAdapterPublishProofOnHTTPOrigin(t *testing.T) {
+	token := "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+	client := &proofClientStub{user: PublicUser{ID: testUserID, DisplayName: "Display", BioLinks: []string{"http://LOCALHOST:8080/verify/vrchat/" + token}}}
+	adapter := newTestAdapter(t, client, &proofSecretsStub{plaintext: []byte("cookies")}, kv.NewMemoryStore(), &proofQueriesStub{}, "http://localhost:8080", nil)
+	state, _ := json.Marshal(adapterState{Step: stepProof, UserID: testUserID, ProofToken: token})
+	result, err := adapter.Advance(context.Background(), readyVRChatProvider(), state, federation.ActionInput{Kind: federation.ActionPublishProof})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Identity == nil || result.Identity.Subject != testUserID {
+		t.Fatalf("Identity = %+v", result.Identity)
+	}
+}
+
 func TestVRChatAdapterPublishProofExactIdentity(t *testing.T) {
 	token := "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
 	client := &proofClientStub{user: PublicUser{ID: testUserID, DisplayName: "Display", BioLinks: []string{"https://LOGIN.EXAMPLE.COM:443/verify/vrchat/" + token}, CurrentAvatarThumbnailImageURL: "https://api.vrchat.cloud/avatar.png"}}
 	plaintext := []byte("serialized cookies")
-	adapter := NewAdapter(client, &proofSecretsStub{plaintext: plaintext}, kv.NewMemoryStore(), &proofQueriesStub{}, "https://login.example.com", nil)
+	adapter := newTestAdapter(t, client, &proofSecretsStub{plaintext: plaintext}, kv.NewMemoryStore(), &proofQueriesStub{}, "https://login.example.com", nil)
 	state, _ := json.Marshal(adapterState{Step: stepProof, UserID: testUserID, ProofToken: token})
 	result, err := adapter.Advance(context.Background(), readyVRChatProvider(), state, federation.ActionInput{Kind: federation.ActionPublishProof})
 	if err != nil {
@@ -175,7 +235,7 @@ func TestVRChatAdapterRateLimitCreatesSharedProviderBackoff(t *testing.T) {
 	now := time.Date(2026, 7, 17, 12, 0, 0, 0, time.UTC)
 	store := kv.NewMemoryStore()
 	firstClient := &proofClientStub{err: &HTTPError{Status: http.StatusTooManyRequests, RetryAfter: 30 * time.Minute, Category: "rate_limited"}}
-	adapter := NewAdapter(firstClient, &proofSecretsStub{plaintext: []byte("cookies")}, store, &proofQueriesStub{}, "https://login.example.com", nil)
+	adapter := newTestAdapter(t, firstClient, &proofSecretsStub{plaintext: []byte("cookies")}, store, &proofQueriesStub{}, "https://login.example.com", nil)
 	adapter.now = func() time.Time { return now }
 	state, _ := json.Marshal(adapterState{Step: stepProof, UserID: testUserID, ProofToken: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"})
 	_, err := adapter.Advance(context.Background(), readyVRChatProvider(), state, federation.ActionInput{Kind: federation.ActionPublishProof})
@@ -184,7 +244,7 @@ func TestVRChatAdapterRateLimitCreatesSharedProviderBackoff(t *testing.T) {
 		t.Fatalf("first error = %#v (%v)", publicErr, err)
 	}
 	secondClient := &proofClientStub{}
-	second := NewAdapter(secondClient, &proofSecretsStub{plaintext: []byte("cookies")}, store, &proofQueriesStub{}, "https://login.example.com", nil)
+	second := newTestAdapter(t, secondClient, &proofSecretsStub{plaintext: []byte("cookies")}, store, &proofQueriesStub{}, "https://login.example.com", nil)
 	second.now = func() time.Time { return now.Add(time.Minute) }
 	_, err = second.Advance(context.Background(), readyVRChatProvider(), state, federation.ActionInput{Kind: federation.ActionPublishProof})
 	if !errors.As(err, &publicErr) || publicErr.RetryAfter != 14*time.Minute {
@@ -207,7 +267,7 @@ func TestVRChatAdapterConcurrentRateLimitsNeverShortenSharedDeadline(t *testing.
 		<-release
 		return PublicUser{}, &HTTPError{Status: http.StatusTooManyRequests, RetryAfter: time.Minute, Category: "rate_limited"}
 	}}
-	short := NewAdapter(shortClient, &proofSecretsStub{plaintext: []byte("short")}, store, &proofQueriesStub{}, "https://login.example.com", nil)
+	short := newTestAdapter(t, shortClient, &proofSecretsStub{plaintext: []byte("short")}, store, &proofQueriesStub{}, "https://login.example.com", nil)
 	short.now = func() time.Time { return now }
 	shortResult := make(chan error, 1)
 	go func() {
@@ -216,7 +276,7 @@ func TestVRChatAdapterConcurrentRateLimitsNeverShortenSharedDeadline(t *testing.
 	}()
 	<-entered
 	longClient := &proofClientStub{err: &HTTPError{Status: http.StatusTooManyRequests, RetryAfter: maxProviderBackoff, Category: "rate_limited"}}
-	long := NewAdapter(longClient, &proofSecretsStub{plaintext: []byte("long")}, store, &proofQueriesStub{}, "https://login.example.com", nil)
+	long := newTestAdapter(t, longClient, &proofSecretsStub{plaintext: []byte("long")}, store, &proofQueriesStub{}, "https://login.example.com", nil)
 	long.now = func() time.Time { return now }
 	if _, err := long.Advance(context.Background(), readyVRChatProvider(), state, input); err == nil {
 		t.Fatal("long rate limit unexpectedly succeeded")
@@ -253,7 +313,7 @@ func TestVRChatAdapterAuthenticationFailureInvalidatesOnlySnapshot(t *testing.T)
 			queries := &proofQueriesStub{err: test.queryErr}
 			client := &proofClientStub{err: &HTTPError{Status: test.status, Category: "authentication"}}
 			writer := &proofAuditStub{}
-			adapter := NewAdapter(client, &proofSecretsStub{plaintext: []byte("cookies")}, kv.NewMemoryStore(), queries, "https://login.example.com", writer)
+			adapter := newTestAdapter(t, client, &proofSecretsStub{plaintext: []byte("cookies")}, kv.NewMemoryStore(), queries, "https://login.example.com", writer)
 			state, _ := json.Marshal(adapterState{Step: stepProof, UserID: testUserID, ProofToken: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"})
 			_, err := adapter.Advance(context.Background(), readyVRChatProvider(), state, federation.ActionInput{Kind: federation.ActionPublishProof})
 			var publicErr *authn.AuthError
@@ -299,7 +359,7 @@ func TestVRChatAdapterInvalidCookieSnapshotInvalidatesOnlyMatchingSecret(t *test
 			if test.unusable {
 				client.decodeErr = nil
 			}
-			adapter := NewAdapter(client, &proofSecretsStub{plaintext: []byte("cookies")}, kv.NewMemoryStore(), queries, "https://login.example.com", writer)
+			adapter := newTestAdapter(t, client, &proofSecretsStub{plaintext: []byte("cookies")}, kv.NewMemoryStore(), queries, "https://login.example.com", writer)
 			state, _ := json.Marshal(adapterState{Step: stepProof, UserID: testUserID, ProofToken: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"})
 			_, err := adapter.Advance(context.Background(), readyVRChatProvider(), state, federation.ActionInput{Kind: federation.ActionPublishProof})
 			var publicErr *authn.AuthError
@@ -318,7 +378,7 @@ func TestVRChatAdapterInvalidCookieSnapshotInvalidatesOnlyMatchingSecret(t *test
 
 func TestVRChatAdapterPublicUserNotFoundIsInvalidIdentity(t *testing.T) {
 	client := &proofClientStub{err: &HTTPError{Status: http.StatusNotFound, Category: "unexpected_status"}}
-	adapter := NewAdapter(client, &proofSecretsStub{plaintext: []byte("cookies")}, kv.NewMemoryStore(), &proofQueriesStub{}, "https://login.example.com", nil)
+	adapter := newTestAdapter(t, client, &proofSecretsStub{plaintext: []byte("cookies")}, kv.NewMemoryStore(), &proofQueriesStub{}, "https://login.example.com", nil)
 	state, _ := json.Marshal(adapterState{Step: stepProof, UserID: testUserID, ProofToken: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"})
 	_, err := adapter.Advance(context.Background(), readyVRChatProvider(), state, federation.ActionInput{Kind: federation.ActionPublishProof})
 	if reason, ok := federation.FailureReasonOf(err); !ok || reason != federation.FailureVRChatIdentityInvalid {
@@ -327,7 +387,7 @@ func TestVRChatAdapterPublicUserNotFoundIsInvalidIdentity(t *testing.T) {
 }
 
 func TestVRChatAdapterRejectsNonCanonicalPrivateState(t *testing.T) {
-	adapter := NewAdapter(&proofClientStub{}, &proofSecretsStub{}, kv.NewMemoryStore(), &proofQueriesStub{}, "https://login.example.com", nil)
+	adapter := newTestAdapter(t, &proofClientStub{}, &proofSecretsStub{}, kv.NewMemoryStore(), &proofQueriesStub{}, "https://login.example.com", nil)
 	for _, raw := range []json.RawMessage{
 		json.RawMessage(`{"step":"identify","unexpected":true}`),
 		json.RawMessage(`{"step":"proof","user_id":"` + testUserID + `","proof_token":"short"}`),
