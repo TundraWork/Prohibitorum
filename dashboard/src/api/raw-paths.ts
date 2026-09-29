@@ -136,8 +136,8 @@ export interface CreatedPersonalAccessToken {
     id: number;
     name: string;
     tokenHint: string;
-    allApps: boolean;
-    appGrants: Record<string, string[] | null>;
+    access: "selected_apps" | "all_apps" | "full" | "sudo";
+    apps: { clientId: string; displayName: string }[] | null;
     createdAt: string;
     expiresAt?: string;
     lastUsedAt?: string;

@@ -33,9 +33,6 @@ const nameRequired = msg({
  * change with it. The server does not check its shape at all, which is why the
  * console does.
  *
- * The token scopes are the same record but their own section and their own
- * save, so a change to one block never carries an unsaved edit from the other.
- *
  * The whole form submits through `forwardAuthAppUpdateBody`. `PUT` replaces the
  * record rather than patching it, so every field this card does not draw is
  * carried from the saved view — the body module is where that merge lives, and

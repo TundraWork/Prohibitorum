@@ -1,11 +1,15 @@
 import {
   Checkbox,
+  CheckboxGroup,
   Description,
   Label,
   ListBox,
   Modal,
+  Radio,
+  RadioGroup,
   Select,
 } from "@heroui/react";
+import type { MessageDescriptor } from "@lingui/core";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -30,6 +34,10 @@ import { Section } from "@/components/custom/Section";
 import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
 import { accessTokenCopy } from "@/components/custom/secret-reveal-copy";
 import { TableEmptyState } from "@/components/custom/TableEmptyState";
+import {
+  TokenAccessBadge,
+  TokenAccessSummary,
+} from "@/components/custom/TokenAccess";
 import { applyServerError } from "@/forms/server-errors";
 import { useAppForm } from "@/forms/use-app-form";
 
@@ -39,19 +47,70 @@ const nameRequired = msg({
   id: "security.tokens.name.required",
   message: "Give the token a name so you can recognise it later.",
 });
+const accessOptions: {
+  value: TokenAccess;
+  label: MessageDescriptor;
+  description: MessageDescriptor;
+}[] = [
+  {
+    value: "selected_apps",
+    label: msg({
+      id: "security.tokens.access.selected_apps",
+      message: "Applications you choose",
+    }),
+    description: msg({
+      id: "security.tokens.access.selected_apps.hint",
+      message: "Works only on the applications you pick.",
+    }),
+  },
+  {
+    value: "all_apps",
+    label: msg({
+      id: "security.tokens.access.all_apps",
+      message: "Every application you can use",
+    }),
+    description: msg({
+      id: "security.tokens.access.all_apps.hint",
+      message: "Works on each application you can use.",
+    }),
+  },
+  {
+    value: "full",
+    label: msg({
+      id: "security.tokens.access.full",
+      message: "Full access",
+    }),
+    description: msg({
+      id: "security.tokens.access.full.hint",
+      message:
+        "Applications and your account. Actions that ask you to verify your identity again are refused.",
+    }),
+  },
+  {
+    value: "sudo",
+    label: msg({
+      id: "security.tokens.access.sudo",
+      message: "Full access, skipping identity checks",
+    }),
+    description: msg({
+      id: "security.tokens.access.sudo.hint",
+      message:
+        "Everything, including changing how you sign in, without asking you to verify your identity again.",
+    }),
+  },
+];
 const chooseApp = msg({
   id: "security.tokens.apps.required",
-  message: "Choose at least one application, or allow every application.",
+  message: "Choose at least one application, or pick another level of access.",
 });
 
 /**
  * Personal access tokens.
  *
- * A token's scopes have to be chosen from the vocabulary each forward-auth
- * application publishes, so the form is built from `GET /me/forward-auth-apps`
- * rather than letting a caller type a scope. "Every application" and the
- * per-application list are mutually exclusive: the server rejects a request that
- * sets both, which is why the grants are dropped from the body in that case.
+ * A token has one access level: the applications chosen, every application you
+ * can use, full access, or full access that also skips identity checks. The
+ * chosen applications come from `GET /me/forward-auth-apps`, so a caller picks
+ * from what they can use rather than typing an identifier.
  */
 export function TokensPanel() {
   const { t, i18n } = useLingui();
@@ -70,33 +129,6 @@ export function TokensPanel() {
       : new Intl.DateTimeFormat(i18n.locale, {
           dateStyle: "medium",
         }).format(new Date(value));
-
-  const scopeSummary = (token: Token) => {
-    if (token.allApps) {
-      return <Trans id="security.tokens.all_apps">Every application</Trans>;
-    }
-    const entries = Object.entries(token.appGrants ?? {});
-    if (entries.length === 0) {
-      return (
-        <span className="text-muted">
-          <Trans id="security.tokens.no_apps">No applications</Trans>
-        </span>
-      );
-    }
-    const nameOf = (clientId: string) =>
-      (apps.data ?? []).find((app) => app.clientId === clientId)?.displayName ??
-      clientId;
-    return (
-      <span className="wrap-anywhere">
-        {entries
-          .map(
-            ([clientId, scopes]) =>
-              `${nameOf(clientId)}: ${(scopes ?? []).join(", ") || "—"}`,
-          )
-          .join("; ")}
-      </span>
-    );
-  };
 
   if (plaintext !== null) {
     return (
@@ -150,11 +182,12 @@ export function TokensPanel() {
                 key={token.id}
                 icon={<Ticket size={18} aria-hidden="true" />}
                 title={token.name}
+                badges={<TokenAccessBadge token={token} />}
                 details={[
                   <span key="hint" className="font-mono">
                     …{token.tokenHint}
                   </span>,
-                  <span key="scopes">{scopeSummary(token)}</span>,
+                  <TokenAccessSummary key="access" token={token} />,
                   expires === null ? (
                     <Trans key="expires" id="security.tokens.detail.noExpiry">
                       Never expires
@@ -234,35 +267,29 @@ export function TokensPanel() {
   );
 }
 
+export type TokenAccess = Token["access"];
+
 /**
- * Builds the create request, keeping `allApps` and `appGrants` mutually
- * exclusive: the server rejects a body that sets grants while also allowing
- * every application, so the grants are dropped rather than sent and ignored.
- * Days of zero or less mean "no expiry", which the server takes as omitted.
+ * Builds the create request. Only a token limited to chosen applications
+ * carries a list of them: the server refuses one on any other level, even an
+ * empty one. Days of zero or less mean "no expiry", which the server takes as
+ * omitted.
  */
 export function buildTokenRequest(input: {
   name: string;
-  allApps: boolean;
-  grants: Record<string, string[]>;
+  access: TokenAccess;
+  appClientIds: readonly string[];
   expiresInDays: string;
 }): CreateTokenInput {
   const days = Number(input.expiresInDays);
   return {
     name: input.name,
-    allApps: input.allApps,
-    appGrants: input.allApps ? {} : input.grants,
+    access: input.access,
+    ...(input.access === "selected_apps"
+      ? { appClientIds: [...input.appClientIds] }
+      : {}),
     ...(Number.isInteger(days) && days > 0 ? { expiresInDays: days } : {}),
   };
-}
-
-/** A scope is only offerable if the application publishes it. */
-export function isOfferedScope(
-  apps: readonly ForwardAuthApp[],
-  clientId: string,
-  scope: string,
-): boolean {
-  const app = apps.find((candidate) => candidate.clientId === clientId);
-  return app?.scopes?.some((entry) => entry.name === scope) ?? false;
 }
 
 type ForwardAuthApp = components["schemas"]["MyForwardAuthApp"];
@@ -274,7 +301,7 @@ type ForwardAuthApp = components["schemas"]["MyForwardAuthApp"];
  *
  * The form element spans the body and the footer rather than the body alone:
  * the submit button belongs in the footer, and only the body should scroll when
- * a long scope list does not fit.
+ * a long application list does not fit.
  */
 function CreateTokenDialog({
   apps,
@@ -289,11 +316,11 @@ function CreateTokenDialog({
   onCreated: (token: string) => void;
   onError: (error: unknown) => void;
 }) {
-  const { t } = useLingui();
+  const { t, i18n } = useLingui();
   const queryClient = useQueryClient();
-  const [allApps, setAllApps] = useState(true);
+  const [access, setAccess] = useState<TokenAccess>("all_apps");
   const [expiresInDays, setExpiresInDays] = useState("0");
-  const [grants, setGrants] = useState<Record<string, string[]>>({});
+  const [chosen, setChosen] = useState<string[]>([]);
 
   // The values are the day counts `buildTokenRequest` reads; zero means the
   // server stores no expiry at all.
@@ -332,11 +359,16 @@ function CreateTokenDialog({
         }));
         return;
       }
-      if (!allApps && Object.keys(grants).length === 0) {
+      if (access === "selected_apps" && chosen.length === 0) {
         form.setErrorMap({ onSubmit: { form: chooseApp, fields: {} } });
         return;
       }
-      const body = buildTokenRequest({ name, allApps, grants, expiresInDays });
+      const body = buildTokenRequest({
+        name,
+        access,
+        appClientIds: chosen,
+        expiresInDays,
+      });
       try {
         const result = await runWithSudo(
           () => create.mutateAsync(body),
@@ -344,8 +376,8 @@ function CreateTokenDialog({
         );
         const created = result as { token?: unknown };
         if (typeof created?.token !== "string") return;
-        setGrants({});
-        setAllApps(true);
+        setChosen([]);
+        setAccess("all_apps");
         form.reset();
         onOpenChange(false);
         onCreated(created.token);
@@ -444,100 +476,66 @@ function CreateTokenDialog({
                       </Select.Popover>
                     </Select>
 
-                    <div className="flex flex-col gap-3">
-                      <span className="text-sm font-medium">
+                    <RadioGroup
+                      variant="secondary"
+                      name="access"
+                      value={access}
+                      onChange={(next) => setAccess(next as TokenAccess)}
+                    >
+                      <Label>
                         <Trans id="security.tokens.scope">
                           What it may access
                         </Trans>
-                      </span>
-                      <Checkbox
-                        isSelected={allApps}
-                        onChange={(selected) => setAllApps(selected === true)}
-                      >
-                        <Checkbox.Content>
-                          <Checkbox.Control>
-                            <Checkbox.Indicator />
-                          </Checkbox.Control>
-                          <Trans id="security.tokens.every_app">
-                            Every application you can use
+                      </Label>
+                      {accessOptions.map((option) => (
+                        <Radio key={option.value} value={option.value}>
+                          <Radio.Content>
+                            <Radio.Control>
+                              <Radio.Indicator />
+                            </Radio.Control>
+                            {i18n._(option.label)}
+                          </Radio.Content>
+                          <Description>
+                            {i18n._(option.description)}
+                          </Description>
+                        </Radio>
+                      ))}
+                    </RadioGroup>
+
+                    {access === "selected_apps" &&
+                      (apps.length === 0 ? (
+                        <p className="text-sm text-muted">
+                          <Trans id="security.tokens.no_forward_auth">
+                            You have no applications available to grant.
                           </Trans>
-                        </Checkbox.Content>
-                      </Checkbox>
-                      {!allApps && (
-                        <div className="flex flex-col gap-4 border-separator border-s ps-4">
-                          {apps.length === 0 ? (
-                            <p className="text-sm text-muted">
-                              <Trans id="security.tokens.no_forward_auth">
-                                You have no applications available to grant.
-                              </Trans>
-                            </p>
-                          ) : (
-                            apps.map((app) => (
-                              <div
-                                key={app.clientId}
-                                className="flex flex-col gap-2"
-                              >
-                                <span className="text-sm font-medium wrap-anywhere">
+                        </p>
+                      ) : (
+                        <CheckboxGroup
+                          variant="secondary"
+                          name="appClientIds"
+                          value={chosen}
+                          onChange={setChosen}
+                          className="border-separator border-s ps-4"
+                        >
+                          <Label>
+                            <Trans id="security.tokens.apps">
+                              Applications
+                            </Trans>
+                          </Label>
+                          {apps.map((app) => (
+                            <Checkbox key={app.clientId} value={app.clientId}>
+                              <Checkbox.Content>
+                                <Checkbox.Control>
+                                  <Checkbox.Indicator />
+                                </Checkbox.Control>
+                                <span className="wrap-anywhere">
                                   {app.displayName}
                                 </span>
-                                {(app.scopes ?? []).length === 0 ? (
-                                  <span className="text-sm text-muted">
-                                    <Trans id="security.tokens.app_no_scopes">
-                                      This application defines no scopes.
-                                    </Trans>
-                                  </span>
-                                ) : (
-                                  (app.scopes ?? []).map((scope) => {
-                                    const selected =
-                                      grants[app.clientId]?.includes(
-                                        scope.name,
-                                      ) ?? false;
-                                    return (
-                                      <Checkbox
-                                        key={`${app.clientId}:${scope.name}`}
-                                        isSelected={selected}
-                                        onChange={(next) => {
-                                          setGrants((current) => {
-                                            const list = new Set(
-                                              current[app.clientId] ?? [],
-                                            );
-                                            if (next === true)
-                                              list.add(scope.name);
-                                            else list.delete(scope.name);
-                                            const updated = { ...current };
-                                            if (list.size === 0)
-                                              delete updated[app.clientId];
-                                            else
-                                              updated[app.clientId] = [...list];
-                                            return updated;
-                                          });
-                                        }}
-                                      >
-                                        <Checkbox.Content>
-                                          <Checkbox.Control>
-                                            <Checkbox.Indicator />
-                                          </Checkbox.Control>
-                                          <span className="flex flex-col gap-0.5">
-                                            <span className="wrap-anywhere font-mono text-xs">
-                                              {scope.name}
-                                            </span>
-                                            {scope.description && (
-                                              <span className="text-sm text-muted">
-                                                {scope.description}
-                                              </span>
-                                            )}
-                                          </span>
-                                        </Checkbox.Content>
-                                      </Checkbox>
-                                    );
-                                  })
-                                )}
-                              </div>
-                            ))
-                          )}
-                        </div>
-                      )}
-                    </div>
+                              </Checkbox.Content>
+                            </Checkbox>
+                          ))}
+                        </CheckboxGroup>
+                      ))}
                   </div>
                 </Modal.Body>
 
@@ -549,7 +547,9 @@ function CreateTokenDialog({
                   >
                     <Trans id="security.cancel">Cancel</Trans>
                   </Button>
-                  <form.SubmitButton>
+                  <form.SubmitButton
+                    tone={access === "sudo" ? "warning" : "default"}
+                  >
                     <Trans id="security.tokens.create.action">
                       Create token
                     </Trans>

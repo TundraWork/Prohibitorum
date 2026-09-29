@@ -7,15 +7,7 @@ import { createForwardAuthAppMutationOptions } from "@/api/mutations";
 import { ConsoleCard } from "@/components/custom/ConsoleCard";
 import { applyServerError } from "@/forms/server-errors";
 import { useAppForm } from "@/forms/use-app-form";
-import {
-  hostProblem,
-  scopeListProblem,
-} from "@/pages/admin/forward-auth-apps/forward-auth-validation";
-import {
-  type ScopeRow,
-  ScopeTableField,
-  scopeRowProblem,
-} from "@/pages/admin/forward-auth-apps/ScopeTableField";
+import { hostProblem } from "@/pages/admin/forward-auth-apps/forward-auth-validation";
 
 /**
  * The Client ID rule, identical to the OIDC application's.
@@ -48,18 +40,12 @@ const nameRequired = msg({
 /**
  * Registering one forward-auth application.
  *
- * Only what the server cannot default is asked for. The scopes, the identity
- * projection, the icon and the access policy all have a working default — the
- * record's own — and are set on the detail page, where the application as it
- * currently stands is beside the field. What cannot be defaulted is what the
- * application *is*: its identifier, the host it protects, and the vocabulary
- * its tokens may ask for, since the server takes the Client ID and the host
- * only at creation.
- *
- * The token scopes are offered here rather than left to the detail page
- * because it is part of the application's contract with the upstream service:
- * a token's grants are validated against it, so a deployment that forgot to
- * declare one has a service that refuses every token with no obvious reason.
+ * Only what the server cannot default is asked for. The identity projection,
+ * the icon and the access policy all have a working default — the record's
+ * own — and are set on the detail page, where the application as it currently
+ * stands is beside the field. What cannot be defaulted is what the application
+ * *is*: its identifier and the host it protects, since the server takes the
+ * Client ID and the host only at creation.
  */
 export function AdminForwardAuthAppNew() {
   const { t } = useLingui();
@@ -71,7 +57,6 @@ export function AdminForwardAuthAppNew() {
       displayName: "",
       clientId: "",
       host: "",
-      scopes: [] as ScopeRow[],
       accessRestricted: false,
     },
     onSubmit: async ({ value }) => {
@@ -84,32 +69,11 @@ export function AdminForwardAuthAppNew() {
         }));
         return;
       }
-      const scopeIssue = scopeListProblem(value.scopes);
-      if (scopeIssue !== undefined) {
-        form.setFieldMeta("scopes", (meta) => ({
-          ...meta,
-          errorMap: {
-            ...meta.errorMap,
-            onSubmit: [scopeRowProblem(scopeIssue)],
-          },
-        }));
-        return;
-      }
-
       try {
         const created = await create.mutateAsync({
           clientId: value.clientId.trim(),
           host,
           displayName: value.displayName.trim() || undefined,
-          // An empty description is omitted rather than sent empty: the server
-          // reports it back only when it is non-empty, so sending `""` would
-          // make the round trip disagree with itself.
-          scopes: value.scopes.map((scope) => ({
-            name: scope.name,
-            ...(scope.description.trim() === ""
-              ? {}
-              : { description: scope.description.trim() }),
-          })),
           accessRestricted: value.accessRestricted,
         });
         await navigate({
@@ -214,10 +178,6 @@ export function AdminForwardAuthAppNew() {
                 variant="secondary"
               />
             )}
-          </form.AppField>
-
-          <form.AppField name="scopes">
-            {() => <ScopeTableField />}
           </form.AppField>
 
           <form.AppField name="accessRestricted">

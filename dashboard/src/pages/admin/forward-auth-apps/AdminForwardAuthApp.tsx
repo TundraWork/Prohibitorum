@@ -8,7 +8,6 @@ import {
 } from "@/pages/admin/forward-auth-apps/ForwardAuthGeneralSection";
 import { ForwardAuthHeadersSection } from "@/pages/admin/forward-auth-apps/ForwardAuthHeadersSection";
 import { ForwardAuthProxySection } from "@/pages/admin/forward-auth-apps/ForwardAuthProxySection";
-import { ForwardAuthScopesSection } from "@/pages/admin/forward-auth-apps/ForwardAuthScopesSection";
 import { Route } from "@/routes/_protected.admin.forward-auth-apps_.$clientId";
 
 /**
@@ -23,8 +22,7 @@ import { Route } from "@/routes/_protected.admin.forward-auth-apps_.$clientId";
  *
  * The order follows a request through the gateway. What the application is
  * and how it looks come first; then what the service receives — the headers,
- * with `Remote-User` the one choice among them, and the token scopes that fill
- * `Remote-Scopes` — then the Traefik configuration that puts the gateway in
+ * with `Remote-User` the one choice among them — then the Traefik configuration that puts the gateway in
  * front of it, and last who may pass and who manages it.
  *
  * Each panel draws its own `Section`, so a heading and the state it names stay
@@ -45,7 +43,6 @@ export function AdminForwardAuthApp() {
       <ForwardAuthGeneralSection app={app} />
       <ForwardAuthIconSection app={app} />
       <ForwardAuthHeadersSection app={app} />
-      <ForwardAuthScopesSection app={app} />
       <ForwardAuthProxySection app={app} />
       <AppAccess
         kind="forward_auth"

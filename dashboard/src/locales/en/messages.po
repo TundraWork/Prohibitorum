@@ -148,16 +148,6 @@ msgid "admin.oidc-apps.scopes.remove.title"
 msgstr "{removedCount, plural, one {Remove # scope?} other {Remove # scopes?}}"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/forward-auth-apps/ForwardAuthScopesSection.tsx
-msgid "admin.forward-auth-apps.scopes.remove.title"
-msgstr "{removedCount, plural, one {Remove # scope?} other {Remove # scopes?}}"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/forward-auth-apps/ForwardAuthScopesSection.tsx
-msgid "admin.forward-auth-apps.scopes.remove.body"
-msgstr "{removedCount, plural, one {Tokens already granted {removedNames} keep sending it until they are revoked. New tokens can no longer choose it.} other {Tokens already granted {removedNames} keep sending them until they are revoked. New tokens can no longer choose them.}}"
-
-#. js-lingui-explicit-id
 #: src/pages/public/SamlConsent.tsx
 msgid "saml_consent.facts"
 msgstr "{sp} will receive:"
@@ -263,11 +253,6 @@ msgstr "A rule group keeps itself up to date as accounts change. A manual group 
 #: src/pages/admin/identity-providers/provider-validation.ts
 msgid "admin.federation.scope.invalid"
 msgstr "A scope cannot contain spaces, quotes or backslashes."
-
-#. js-lingui-explicit-id
-#: src/pages/admin/forward-auth-apps/forward-auth-validation.ts
-msgid "admin.forward-auth-apps.scope.name.duplicate"
-msgstr "A scope with this name is already in the list."
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -498,11 +483,6 @@ msgstr "Add a passkey to sign in on this device directly next time."
 #: src/pages/admin/identity-providers/AdminIdentityProviders.tsx
 msgid "admin.federation.create"
 msgstr "Add a provider"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/forward-auth-apps/ScopeTableField.tsx
-msgid "admin.forward-auth-apps.scopes.add"
-msgstr "Add a scope"
 
 #. js-lingui-explicit-id
 #: src/pages/public/SetupSignin.tsx
@@ -808,6 +788,11 @@ msgid "success.oidc-app.saved"
 msgstr "Application saved"
 
 #. js-lingui-explicit-id
+#: src/pages/security/TokensPanel.tsx
+msgid "security.tokens.apps"
+msgstr "Applications"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminGroups.tsx
 msgid "admin.groups.column.applications"
 msgstr "Applications"
@@ -818,6 +803,11 @@ msgid "console.group.applications"
 msgstr "Applications"
 
 #. js-lingui-explicit-id
+#: src/pages/security/TokensPanel.tsx
+msgid "security.tokens.access.full.hint"
+msgstr "Applications and your account. Actions that ask you to verify your identity again are refused."
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
 msgid "admin.group.exposed.hint"
 msgstr "Applications can select this group for the access they grant."
@@ -826,6 +816,11 @@ msgstr "Applications can select this group for the access they grant."
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.oidcSubject.hint"
 msgstr "Applications identify this account by this value. It never changes."
+
+#. js-lingui-explicit-id
+#: src/pages/security/TokensPanel.tsx
+msgid "security.tokens.access.selected_apps"
+msgstr "Applications you choose"
 
 #. js-lingui-explicit-id
 #: src/api/success-messages.ts
@@ -2245,11 +2240,6 @@ msgid "admin.groups.column.description"
 msgstr "Description"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/forward-auth-apps/ScopeTableField.tsx
-msgid "admin.forward-auth-apps.scopes.description"
-msgstr "Description"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/AdminLogs.tsx
 msgid "admin.logs.detail.detail"
 msgstr "Details"
@@ -2770,11 +2760,6 @@ msgid "login.recovery.invalid"
 msgstr "Enter a recovery code in XXXX-XXXX-XXXX-XXXX format, using uppercase A–Z and digits 2–7."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/forward-auth-apps/forward-auth-validation.ts
-msgid "admin.forward-auth-apps.scope.name.required"
-msgstr "Enter a scope name."
-
-#. js-lingui-explicit-id
 #: src/pages/public/Enroll.tsx
 msgid "enroll.username.required"
 msgstr "Enter a username."
@@ -2957,13 +2942,13 @@ msgid "app.access.open.body"
 msgstr "Every account on this instance can use this application. The selected user groups stay where they are, ready if you restrict it again."
 
 #. js-lingui-explicit-id
-#: src/pages/security/TokensPanel.tsx
-msgid "security.tokens.all_apps"
+#: src/components/custom/TokenAccess.tsx
+msgid "token.access.all_apps"
 msgstr "Every application"
 
 #. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
-msgid "security.tokens.every_app"
+msgid "security.tokens.access.all_apps"
 msgstr "Every application you can use"
 
 #. js-lingui-explicit-id
@@ -3005,6 +2990,11 @@ msgstr "Every request through its router is turned away, including ones from peo
 #: src/pages/admin/saml-applications/SamlDangerSection.tsx
 msgid "admin.saml-apps.danger.disabled-note"
 msgstr "Everyone is turned away at the service provider until it is enabled again."
+
+#. js-lingui-explicit-id
+#: src/pages/security/TokensPanel.tsx
+msgid "security.tokens.access.sudo.hint"
+msgstr "Everything, including changing how you sign in, without asking you to verify your identity again."
 
 #. js-lingui-explicit-id
 #: src/components/custom/RouteFeedback.tsx
@@ -3102,6 +3092,26 @@ msgstr "Forward-auth applications"
 #: src/pages/admin/saml-applications/AttributeMapField.tsx
 msgid "admin.saml-apps.mapping.friendly-name"
 msgstr "Friendly name"
+
+#. js-lingui-explicit-id
+#: src/pages/security/TokensPanel.tsx
+msgid "security.tokens.access.full"
+msgstr "Full access"
+
+#. js-lingui-explicit-id
+#: src/components/custom/TokenAccess.tsx
+msgid "token.access.full"
+msgstr "Full access"
+
+#. js-lingui-explicit-id
+#: src/components/custom/TokenAccess.tsx
+msgid "token.access.sudo"
+msgstr "Full access, no identity checks"
+
+#. js-lingui-explicit-id
+#: src/pages/security/TokensPanel.tsx
+msgid "security.tokens.access.sudo"
+msgstr "Full access, skipping identity checks"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/SamlGeneralSection.tsx
@@ -3905,11 +3915,6 @@ msgid "admin.forward-auth-apps.field.name"
 msgstr "Name"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/forward-auth-apps/ScopeTableField.tsx
-msgid "admin.forward-auth-apps.scopes.name"
-msgstr "Name"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AttributeMapField.tsx
 msgid "admin.saml-apps.mapping.name-format"
 msgstr "Name format"
@@ -4076,8 +4081,8 @@ msgid "admin.user.sessions.empty"
 msgstr "No active sessions"
 
 #. js-lingui-explicit-id
-#: src/pages/security/TokensPanel.tsx
-msgid "security.tokens.no_apps"
+#: src/components/custom/TokenAccess.tsx
+msgid "token.access.none"
 msgstr "No applications"
 
 #. js-lingui-explicit-id
@@ -4637,11 +4642,6 @@ msgid "admin.federation.diagnostics.stage-status.pending"
 msgstr "Pending"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/forward-auth-apps/ScopeTableField.tsx
-msgid "admin.forward-auth-apps.scopes.hint"
-msgstr "Personal access tokens choose from these, and the service receives the granted ones in Remote-Scopes."
-
-#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-options.ts
 #: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
 msgid "admin.federation.claims.picture"
@@ -4834,11 +4834,6 @@ msgid "admin.saml-apps.metadata.dialog.title"
 msgstr "Re-import metadata"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/forward-auth-apps/ScopeTableField.tsx
-msgid "admin.forward-auth-apps.scope.name.placeholder"
-msgstr "read"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
 msgid "admin.federation.diagnostics.fetched"
 msgstr "Read <0/>"
@@ -4857,11 +4852,6 @@ msgstr "Read configuration"
 #: src/pages/admin/settings/NetworkPanel.tsx
 msgid "settings.network.strategy"
 msgstr "Read the address from"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/forward-auth-apps/ScopeTableField.tsx
-msgid "admin.forward-auth-apps.scopes.description.placeholder"
-msgstr "Read the application's data"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
@@ -5010,11 +5000,6 @@ msgid "admin.oidc-apps.scopes.remove.action"
 msgstr "Remove and save"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/forward-auth-apps/ForwardAuthScopesSection.tsx
-msgid "admin.forward-auth-apps.scopes.remove.action"
-msgstr "Remove and save"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/settings/GeneralPanel.tsx
 msgid "settings.general.background.remove"
 msgstr "Remove background"
@@ -5100,14 +5085,14 @@ msgid "admin.user.delete.note"
 msgstr "Removes the account and everything it owns: passkeys, sessions, access tokens and connected identities. This cannot be undone."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/DangerSection.tsx
-msgid "admin.oidc-apps.delete.note"
-msgstr "Removes the application, its secret, its icon and its access policy. This cannot be undone."
-
-#. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/ForwardAuthDangerSection.tsx
 msgid "admin.forward-auth-apps.delete.note"
 msgstr "Removes the application, its token scopes, its icon and its access policy. Accounts are not affected."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/DangerSection.tsx
+msgid "admin.oidc-apps.delete.note"
+msgstr "Removes the application, its secret, its icon and its access policy. This cannot be undone."
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
@@ -5539,7 +5524,6 @@ msgstr "Save"
 #. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/ForwardAuthGeneralSection.tsx
 #: src/pages/admin/forward-auth-apps/ForwardAuthHeadersSection.tsx
-#: src/pages/admin/forward-auth-apps/ForwardAuthScopesSection.tsx
 msgid "admin.forward-auth-apps.save"
 msgstr "Save"
 
@@ -5579,11 +5563,6 @@ msgid "login.reset.scan"
 msgstr "Scan this QR code with your authenticator, or enter the setup key manually. Then enter a code from the new authenticator."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/forward-auth-apps/ScopeTableField.tsx
-msgid "admin.forward-auth-apps.scopes.row"
-msgstr "Scope {row}"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/OidcScopesField.tsx
 msgid "admin.oidc-apps.field.scopes"
 msgstr "Scopes"
@@ -5598,16 +5577,6 @@ msgstr "Scopes"
 #: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.effective.scopes"
 msgstr "Scopes"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/forward-auth-apps/AdminForwardAuthApps.tsx
-msgid "admin.forward-auth-apps.column.scopes"
-msgstr "Scopes"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/forward-auth-apps/ForwardAuthHeadersSection.tsx
-msgid "admin.forward-auth-apps.headers.scopes"
-msgstr "Scopes granted by the token; empty for browser sign-ins. <0>Token scopes</0>"
 
 #. js-lingui-explicit-id
 #: src/components/custom/ConsoleLayout.tsx
@@ -5885,6 +5854,11 @@ msgid "admin.federation.operator.sign-in-title"
 msgstr "Sign in to VRChat"
 
 #. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.pat_browser_session_required"
+msgstr "Sign in with a browser to do this. An access token cannot."
+
+#. js-lingui-explicit-id
 #: src/pages/Login.tsx
 msgid "login.passkey"
 msgstr "Sign in with a passkey"
@@ -6056,6 +6030,11 @@ msgstr "Skip for now"
 #: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.diagnostics.stage-status.skipped"
 msgstr "Skipped"
+
+#. js-lingui-explicit-id
+#: src/components/custom/TokenAccess.tsx
+msgid "token.access.sudo.badge"
+msgstr "Skips identity checks"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminGroups.tsx
@@ -6708,6 +6687,16 @@ msgid "error.federation.federation_identity_conflict"
 msgstr "This {provider} identity is already linked to another account."
 
 #. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.pat_api_not_allowed"
+msgstr "This access token can only be used for applications, not for the account."
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.pat_invalid"
+msgstr "This access token is not valid. It may have expired or been revoked."
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.state.disabled.note"
 msgstr "This account cannot sign in. Enabling it restores access with the sign-in methods it already had."
@@ -6736,11 +6725,6 @@ msgstr "This app can't be opened directly from {instance}."
 #: src/api/errors.ts
 msgid "error.landing.saml_sp_unknown"
 msgstr "This app isn't registered with {instance}."
-
-#. js-lingui-explicit-id
-#: src/pages/security/TokensPanel.tsx
-msgid "security.tokens.app_no_scopes"
-msgstr "This application defines no scopes."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/SamlMetadataSection.tsx
@@ -7073,16 +7057,6 @@ msgid "admin.federation.diagnostics.stage.token"
 msgstr "Token exchange"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/forward-auth-apps/ForwardAuthScopesSection.tsx
-msgid "admin.forward-auth-apps.scopes"
-msgstr "Token scopes"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/forward-auth-apps/ScopeTableField.tsx
-msgid "admin.forward-auth-apps.scopes.label"
-msgstr "Token scopes"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
 msgid "admin.federation.diagnostics.document.omitted"
 msgstr "Too large to keep ({size} KB)."
@@ -7273,11 +7247,6 @@ msgid "admin.forward-auth-apps.host.too_long"
 msgstr "Use 253 characters or fewer."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/forward-auth-apps/forward-auth-validation.ts
-msgid "admin.forward-auth-apps.scope.description.too_long"
-msgstr "Use 256 characters or fewer."
-
-#. js-lingui-explicit-id
 #: src/pages/admin/settings/MaintenancePanel.tsx
 msgid "settings.maintenance.notice.too_long"
 msgstr "Use 500 characters or fewer."
@@ -7367,11 +7336,6 @@ msgstr "Use letters, digits, dots, underscores and hyphens, starting with a lett
 #: src/pages/admin/forward-auth-apps/AdminForwardAuthAppNew.tsx
 msgid "admin.forward-auth-apps.new.client-id.invalid"
 msgstr "Use letters, digits, dots, underscores and hyphens, starting with a letter or a digit, up to 128 characters."
-
-#. js-lingui-explicit-id
-#: src/pages/admin/forward-auth-apps/forward-auth-validation.ts
-msgid "admin.forward-auth-apps.scope.name.invalid"
-msgstr "Use letters, digits, dots, underscores, colons and hyphens, starting and ending with a letter or a digit, up to 64 characters."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
@@ -7793,6 +7757,16 @@ msgstr "Who the rule matches"
 #: src/pages/admin/identity-providers/provider-validation.ts
 msgid "admin.federation.auth.manual-needs-method"
 msgstr "With endpoints entered by hand, choose a specific method."
+
+#. js-lingui-explicit-id
+#: src/pages/security/TokensPanel.tsx
+msgid "security.tokens.access.all_apps.hint"
+msgstr "Works on each application you can use."
+
+#. js-lingui-explicit-id
+#: src/pages/security/TokensPanel.tsx
+msgid "security.tokens.access.selected_apps.hint"
+msgstr "Works only on the applications you pick."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx

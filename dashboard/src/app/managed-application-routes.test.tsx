@@ -53,7 +53,6 @@ function forwardAuthApp(clientId: string, displayName: string): ForwardAuthApp {
     clientId,
     displayName,
     forwardAuthHost: "service.example.test",
-    scopes: [],
     accessRestricted: false,
     disabled: false,
     remoteUserSource: "username",

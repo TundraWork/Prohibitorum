@@ -47,6 +47,10 @@ import { SecretReveal } from "@/components/custom/SecretReveal";
 import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
 import { invitationLinkCopy } from "@/components/custom/secret-reveal-copy";
 import { TableEmptyState } from "@/components/custom/TableEmptyState";
+import {
+  TokenAccessBadge,
+  TokenAccessSummary,
+} from "@/components/custom/TokenAccess";
 import { applyServerError } from "@/forms/server-errors";
 import { useAppForm } from "@/forms/use-app-form";
 import { Route } from "@/routes/_protected.admin._admin.users_.$id";
@@ -695,10 +699,12 @@ function TokensBlock({ accountId }: { accountId: number }) {
               key={token.id}
               icon={<Ticket size={18} aria-hidden="true" />}
               title={token.name}
+              badges={<TokenAccessBadge token={token} />}
               details={[
                 <span key="hint" className="font-mono">
                   …{token.tokenHint}
                 </span>,
+                <TokenAccessSummary key="access" token={token} />,
                 expires === null ? (
                   <Trans key="expires" id="admin.user.tokens.detail.noExpiry">
                     Never expires

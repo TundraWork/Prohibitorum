@@ -97,12 +97,19 @@ function booleanField(source: unknown, key: string): boolean | undefined {
   return typeof value === "boolean" ? value : undefined;
 }
 
-function grantsField(source: unknown): Record<string, string[] | null> {
-  const value = field(source, "appGrants");
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-    ? (value as Record<string, string[] | null>)
-    : {};
+function stringListField(source: unknown, key: string): string[] {
+  const value = field(source, key);
+  return Array.isArray(value)
+    ? value.filter((entry): entry is string => typeof entry === "string")
+    : [];
 }
+
+const tokenAccessLevels: Token["access"][] = [
+  "selected_apps",
+  "all_apps",
+  "full",
+  "sudo",
+];
 
 /** Codes in the `XXXX-XXXX-XXXX-XXXX` shape the console validates against. */
 function freshRecoveryCodes(): string[] {
@@ -315,24 +322,41 @@ function identityList(count: number): Identity[] {
   }));
 }
 
+/** Tokens cycle through the four access levels, so a list shows each one. */
 function tokenList(count: number): Token[] {
-  return range(count).map((index) => ({
-    id: index + 1,
-    name: `Mock token ${index + 1}`,
-    tokenHint: `phb_mock${index + 1}`,
-    allApps: index % 2 === 0,
-    appGrants: {},
-    createdAt: iso(-day * (index + 2)),
-    expiresAt: iso(day * 90),
-    ...(index === 0 ? { lastUsedAt: iso(-day) } : {}),
-  }));
+  return range(count).map((index) => {
+    const access = tokenAccessLevels[
+      index % tokenAccessLevels.length
+    ] as Token["access"];
+    return {
+      id: index + 1,
+      name: `Mock token ${index + 1}`,
+      tokenHint: `phb_mock${index + 1}`,
+      access,
+      apps:
+        access === "selected_apps"
+          ? [
+              {
+                clientId: "forward-auth-1",
+                displayName: "Protected service 1",
+              },
+              {
+                clientId: "forward-auth-2",
+                displayName: "Protected service 2",
+              },
+            ]
+          : [],
+      createdAt: iso(-day * (index + 2)),
+      expiresAt: iso(day * 90),
+      ...(index === 0 ? { lastUsedAt: iso(-day) } : {}),
+    };
+  });
 }
 
 function forwardAuthAppList(config: MockConfig): ForwardAuthApp[] {
   return range(config.lists.forwardAuthApps).map((index) => ({
     clientId: `forward-auth-${index + 1}`,
     displayName: `Protected service ${index + 1}`,
-    scopes: [{ name: "profile", description: "Read your profile" }],
   }));
 }
 
@@ -1150,7 +1174,7 @@ function samlApplications(
   });
 }
 
-/** Forward-auth applications, with a scope vocabulary of varying length. */
+/** Forward-auth applications. */
 function forwardAuthApplications(
   config: MockConfig,
 ): components["schemas"]["ForwardAuthAppView"][] {
@@ -1158,10 +1182,6 @@ function forwardAuthApplications(
     clientId: `mock-forward-auth-${index + 1}`,
     displayName: `Protected service ${index + 1}`,
     forwardAuthHost: `service${index + 1}.example.test`,
-    scopes: range((index % 5) + 1).map((scope) => ({
-      name: `scope${scope + 1}`,
-      ...(scope % 2 === 0 ? { description: `Scope number ${scope + 1}` } : {}),
-    })),
     accessRestricted: index % 3 === 1,
     disabled: index % 4 === 1,
     remoteUserSource: index % 2 === 0 ? "username" : "verified_email",
@@ -1983,6 +2003,10 @@ function writeReply(
       if (method !== "POST") return undefined;
       const id = clampCount(config.lists.tokens) + 1;
       const name = stringField(body, "name") ?? `Mock token ${id}`;
+      const access =
+        tokenAccessLevels.find(
+          (level) => level === stringField(body, "access"),
+        ) ?? "all_apps";
       return json(
         {
           token: `phb_mock_${id}_${name}`,
@@ -1990,8 +2014,17 @@ function writeReply(
             id,
             name,
             tokenHint: `phb_mock${id}`,
-            allApps: booleanField(body, "allApps") ?? true,
-            appGrants: grantsField(body),
+            access,
+            apps: (access === "selected_apps"
+              ? stringListField(body, "appClientIds")
+              : []
+            ).map((clientId) => ({
+              clientId,
+              displayName:
+                forwardAuthAppList(config).find(
+                  (app) => app.clientId === clientId,
+                )?.displayName ?? clientId,
+            })),
             createdAt: iso(0),
           },
         },
@@ -2494,7 +2527,6 @@ function writeReply(
           clientId,
           displayName: stringField(body, "displayName") ?? "",
           forwardAuthHost: stringField(body, "host") ?? "",
-          scopes: field(body, "scopes") ?? [],
           accessRestricted: booleanField(body, "accessRestricted") ?? false,
           disabled: false,
           remoteUserSource: "username",
@@ -2515,7 +2547,6 @@ function writeReply(
         ...found,
         displayName: stringField(body, "displayName") ?? found.displayName,
         forwardAuthHost: stringField(body, "host") ?? found.forwardAuthHost,
-        scopes: field(body, "scopes") ?? [],
       });
     }
 

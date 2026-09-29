@@ -40,13 +40,12 @@ export const authCookieName = "__Host-prohibitorum_forward_auth";
  */
 export const callbackPrefix = "/.prohibitorum-forward-auth/";
 
-/** The five identity headers the gateway sets, all unconditionally. */
+/** The four identity headers the gateway sets, all unconditionally. */
 export const identityHeaders = [
   "Remote-User",
   "Remote-Name",
   "Remote-Email",
   "Remote-Groups",
-  "Remote-Scopes",
 ] as const;
 
 /** A trailing slash on the origin would produce a doubled one in the address. */
@@ -69,11 +68,11 @@ function withoutTrailingSlash(value: string): string {
  * It is emitted on every application because adding it to a browser-only router
  * costs nothing, while omitting it on one that does carry PATs leaks the token.
  *
- * ## Why all five headers
+ * ## Why all four headers
  *
  * `authResponseHeaders` replaces the listed headers with the gateway's verified
  * values on an allowed request. A header left off the list is one a client can
- * supply itself, so the full five are listed whatever identifier the
+ * supply itself, so all four are listed whatever identifier the
  * application is configured to emit — the value that varies is inside
  * `Remote-User`, not which headers exist.
  */

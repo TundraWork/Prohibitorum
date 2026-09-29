@@ -794,16 +794,41 @@ describe("mocked writes", () => {
     current.lists.tokens = 1;
     const reply = call("POST", "/api/prohibitorum/me/tokens", current, {
       name: "CI",
-      allApps: false,
-      appGrants: { "mock-client-1": ["openid"] },
+      access: "selected_apps",
+      appClientIds: ["forward-auth-1"],
     });
     expect(bodyOf(reply)).toMatchObject({
-      pat: { name: "CI", allApps: false },
+      pat: {
+        name: "CI",
+        access: "selected_apps",
+        apps: [
+          { clientId: "forward-auth-1", displayName: "Protected service 1" },
+        ],
+      },
     });
     expect((bodyOf(reply) as { token: string }).token).toMatch(/^phb_mock_/);
     expect(
       bodyOf(read("/api/prohibitorum/me/tokens", applied(reply, current))),
     ).toHaveLength(2);
+  });
+
+  it("lists tokens across the four access levels", () => {
+    const current = writes();
+    current.lists.tokens = 4;
+    const tokens = bodyOf(read("/api/prohibitorum/me/tokens", current)) as {
+      access: string;
+      apps: unknown[];
+    }[];
+    expect(tokens.map((token) => token.access)).toEqual([
+      "selected_apps",
+      "all_apps",
+      "full",
+      "sudo",
+    ]);
+    expect(tokens[0]?.apps).toHaveLength(2);
+    expect(tokens.slice(1).every((token) => token.apps.length === 0)).toBe(
+      true,
+    );
   });
 
   it("answers a password step-up and fails the passkey one it cannot fake", () => {

@@ -148,16 +148,6 @@ msgid "admin.oidc-apps.scopes.remove.title"
 msgstr "{removedCount, plural, other {移除 # 个作用域？}}"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/forward-auth-apps/ForwardAuthScopesSection.tsx
-msgid "admin.forward-auth-apps.scopes.remove.title"
-msgstr "{removedCount, plural, other {删除 # 个作用域？}}"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/forward-auth-apps/ForwardAuthScopesSection.tsx
-msgid "admin.forward-auth-apps.scopes.remove.body"
-msgstr "{removedCount, plural, other {已经授予 {removedNames} 的令牌会继续发送它们，直到令牌被撤销；新令牌不能再选择它们。}}"
-
-#. js-lingui-explicit-id
 #: src/pages/public/SamlConsent.tsx
 msgid "saml_consent.facts"
 msgstr "{sp} 将收到："
@@ -263,11 +253,6 @@ msgstr "规则组会随账号变化自动保持最新。手工组保存你手工
 #: src/pages/admin/identity-providers/provider-validation.ts
 msgid "admin.federation.scope.invalid"
 msgstr "作用域不能包含空格、引号或反斜杠。"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/forward-auth-apps/forward-auth-validation.ts
-msgid "admin.forward-auth-apps.scope.name.duplicate"
-msgstr "列表中已有同名的作用域。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -498,11 +483,6 @@ msgstr "添加一个通行密钥，下次就能在这台设备上直接登录。
 #: src/pages/admin/identity-providers/AdminIdentityProviders.tsx
 msgid "admin.federation.create"
 msgstr "添加提供商"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/forward-auth-apps/ScopeTableField.tsx
-msgid "admin.forward-auth-apps.scopes.add"
-msgstr "添加作用域"
 
 #. js-lingui-explicit-id
 #: src/pages/public/SetupSignin.tsx
@@ -808,6 +788,11 @@ msgid "success.oidc-app.saved"
 msgstr "应用已保存"
 
 #. js-lingui-explicit-id
+#: src/pages/security/TokensPanel.tsx
+msgid "security.tokens.apps"
+msgstr "应用"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminGroups.tsx
 msgid "admin.groups.column.applications"
 msgstr "应用"
@@ -818,6 +803,11 @@ msgid "console.group.applications"
 msgstr "应用"
 
 #. js-lingui-explicit-id
+#: src/pages/security/TokensPanel.tsx
+msgid "security.tokens.access.full.hint"
+msgstr "可用于应用和你的账户。需要再次验证身份的操作会被拒绝。"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
 msgid "admin.group.exposed.hint"
 msgstr "应用可以把本组用于它们授予的访问权限。"
@@ -826,6 +816,11 @@ msgstr "应用可以把本组用于它们授予的访问权限。"
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.oidcSubject.hint"
 msgstr "应用用这个值识别该账号。它永不改变。"
+
+#. js-lingui-explicit-id
+#: src/pages/security/TokensPanel.tsx
+msgid "security.tokens.access.selected_apps"
+msgstr "你选择的应用"
 
 #. js-lingui-explicit-id
 #: src/api/success-messages.ts
@@ -1227,7 +1222,7 @@ msgstr "请选择不超过 {limitMiB} MiB 的图片。"
 #. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.apps.required"
-msgstr "请至少选择一个应用，或允许全部应用。"
+msgstr "请至少选择一个应用，或换一种访问级别。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminInvitationForm.tsx
@@ -2245,11 +2240,6 @@ msgid "admin.groups.column.description"
 msgstr "描述"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/forward-auth-apps/ScopeTableField.tsx
-msgid "admin.forward-auth-apps.scopes.description"
-msgstr "说明"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/AdminLogs.tsx
 msgid "admin.logs.detail.detail"
 msgstr "详情"
@@ -2770,11 +2760,6 @@ msgid "login.recovery.invalid"
 msgstr "请输入 XXXX-XXXX-XXXX-XXXX 格式的恢复码，仅使用大写字母 A–Z 和数字 2–7。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/forward-auth-apps/forward-auth-validation.ts
-msgid "admin.forward-auth-apps.scope.name.required"
-msgstr "请填写作用域名称。"
-
-#. js-lingui-explicit-id
 #: src/pages/public/Enroll.tsx
 msgid "enroll.username.required"
 msgstr "请输入用户名。"
@@ -2957,14 +2942,14 @@ msgid "app.access.open.body"
 msgstr "本实例上的所有账号都可以使用这个应用。已选定的用户组会保留，需要再次限制时可直接使用。"
 
 #. js-lingui-explicit-id
-#: src/pages/security/TokensPanel.tsx
-msgid "security.tokens.all_apps"
-msgstr "全部应用"
+#: src/components/custom/TokenAccess.tsx
+msgid "token.access.all_apps"
+msgstr "所有应用"
 
 #. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
-msgid "security.tokens.every_app"
-msgstr "你可以使用的全部应用"
+msgid "security.tokens.access.all_apps"
+msgstr "你能使用的所有应用"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/DangerSection.tsx
@@ -3005,6 +2990,11 @@ msgstr "经它路由的请求都会被拒绝，包括已登录账号发出的请
 #: src/pages/admin/saml-applications/SamlDangerSection.tsx
 msgid "admin.saml-apps.danger.disabled-note"
 msgstr "在重新启用之前，所有人在服务提供商那里都会被拒之门外。"
+
+#. js-lingui-explicit-id
+#: src/pages/security/TokensPanel.tsx
+msgid "security.tokens.access.sudo.hint"
+msgstr "包括更改登录方式在内的所有操作，都不会再要求验证身份。"
 
 #. js-lingui-explicit-id
 #: src/components/custom/RouteFeedback.tsx
@@ -3102,6 +3092,26 @@ msgstr "前向认证应用"
 #: src/pages/admin/saml-applications/AttributeMapField.tsx
 msgid "admin.saml-apps.mapping.friendly-name"
 msgstr "友好名称"
+
+#. js-lingui-explicit-id
+#: src/pages/security/TokensPanel.tsx
+msgid "security.tokens.access.full"
+msgstr "完全访问"
+
+#. js-lingui-explicit-id
+#: src/components/custom/TokenAccess.tsx
+msgid "token.access.full"
+msgstr "完全访问"
+
+#. js-lingui-explicit-id
+#: src/components/custom/TokenAccess.tsx
+msgid "token.access.sudo"
+msgstr "完全访问，跳过身份验证"
+
+#. js-lingui-explicit-id
+#: src/pages/security/TokensPanel.tsx
+msgid "security.tokens.access.sudo"
+msgstr "完全访问，跳过身份验证"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/SamlGeneralSection.tsx
@@ -3905,11 +3915,6 @@ msgid "admin.forward-auth-apps.field.name"
 msgstr "名称"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/forward-auth-apps/ScopeTableField.tsx
-msgid "admin.forward-auth-apps.scopes.name"
-msgstr "名称"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AttributeMapField.tsx
 msgid "admin.saml-apps.mapping.name-format"
 msgstr "名称格式"
@@ -4076,9 +4081,9 @@ msgid "admin.user.sessions.empty"
 msgstr "暂无在线会话"
 
 #. js-lingui-explicit-id
-#: src/pages/security/TokensPanel.tsx
-msgid "security.tokens.no_apps"
-msgstr "未指定应用"
+#: src/components/custom/TokenAccess.tsx
+msgid "token.access.none"
+msgstr "没有应用"
 
 #. js-lingui-explicit-id
 #: src/pages/ConnectedApps.tsx
@@ -4637,11 +4642,6 @@ msgid "admin.federation.diagnostics.stage-status.pending"
 msgstr "未执行"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/forward-auth-apps/ScopeTableField.tsx
-msgid "admin.forward-auth-apps.scopes.hint"
-msgstr "个人访问令牌从这里选择要授予的作用域，服务通过 Remote-Scopes 收到。"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-options.ts
 #: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
 msgid "admin.federation.claims.picture"
@@ -4834,11 +4834,6 @@ msgid "admin.saml-apps.metadata.dialog.title"
 msgstr "重新导入元数据"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/forward-auth-apps/ScopeTableField.tsx
-msgid "admin.forward-auth-apps.scope.name.placeholder"
-msgstr "read"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
 msgid "admin.federation.diagnostics.fetched"
 msgstr "读取于 <0/>"
@@ -4857,11 +4852,6 @@ msgstr "读取配置"
 #: src/pages/admin/settings/NetworkPanel.tsx
 msgid "settings.network.strategy"
 msgstr "客户端地址来自"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/forward-auth-apps/ScopeTableField.tsx
-msgid "admin.forward-auth-apps.scopes.description.placeholder"
-msgstr "读取应用的数据"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
@@ -5010,11 +5000,6 @@ msgid "admin.oidc-apps.scopes.remove.action"
 msgstr "移除并保存"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/forward-auth-apps/ForwardAuthScopesSection.tsx
-msgid "admin.forward-auth-apps.scopes.remove.action"
-msgstr "删除并保存"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/settings/GeneralPanel.tsx
 msgid "settings.general.background.remove"
 msgstr "移除背景"
@@ -5100,14 +5085,14 @@ msgid "admin.user.delete.note"
 msgstr "删除该账号及其拥有的一切：通行密钥、会话、访问令牌和已连接身份。此操作无法撤销。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/DangerSection.tsx
-msgid "admin.oidc-apps.delete.note"
-msgstr "删除应用、它的密钥、图标和访问策略。此操作无法撤销。"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/ForwardAuthDangerSection.tsx
 msgid "admin.forward-auth-apps.delete.note"
 msgstr "删除应用及其令牌作用域、图标和访问策略。账号不受影响。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/DangerSection.tsx
+msgid "admin.oidc-apps.delete.note"
+msgstr "删除应用、它的密钥、图标和访问策略。此操作无法撤销。"
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
@@ -5539,7 +5524,6 @@ msgstr "保存"
 #. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/ForwardAuthGeneralSection.tsx
 #: src/pages/admin/forward-auth-apps/ForwardAuthHeadersSection.tsx
-#: src/pages/admin/forward-auth-apps/ForwardAuthScopesSection.tsx
 msgid "admin.forward-auth-apps.save"
 msgstr "保存"
 
@@ -5579,11 +5563,6 @@ msgid "login.reset.scan"
 msgstr "使用身份验证器扫描二维码，或手动输入设置密钥，然后输入新身份验证器中的验证码。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/forward-auth-apps/ScopeTableField.tsx
-msgid "admin.forward-auth-apps.scopes.row"
-msgstr "作用域 {row}"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/OidcScopesField.tsx
 msgid "admin.oidc-apps.field.scopes"
 msgstr "作用域"
@@ -5598,16 +5577,6 @@ msgstr "作用域"
 #: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.effective.scopes"
 msgstr "作用域"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/forward-auth-apps/AdminForwardAuthApps.tsx
-msgid "admin.forward-auth-apps.column.scopes"
-msgstr "作用域"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/forward-auth-apps/ForwardAuthHeadersSection.tsx
-msgid "admin.forward-auth-apps.headers.scopes"
-msgstr "令牌授予的作用域；浏览器登录时为空。<0>令牌作用域</0>"
 
 #. js-lingui-explicit-id
 #: src/components/custom/ConsoleLayout.tsx
@@ -5885,6 +5854,11 @@ msgid "admin.federation.operator.sign-in-title"
 msgstr "登录 VRChat"
 
 #. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.pat_browser_session_required"
+msgstr "请在浏览器中登录后再进行此操作，访问令牌不能用于此操作。"
+
+#. js-lingui-explicit-id
 #: src/pages/Login.tsx
 msgid "login.passkey"
 msgstr "使用通行密钥登录"
@@ -6056,6 +6030,11 @@ msgstr "暂时跳过"
 #: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.diagnostics.stage-status.skipped"
 msgstr "跳过"
+
+#. js-lingui-explicit-id
+#: src/components/custom/TokenAccess.tsx
+msgid "token.access.sudo.badge"
+msgstr "跳过身份验证"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminGroups.tsx
@@ -6708,6 +6687,16 @@ msgid "error.federation.federation_identity_conflict"
 msgstr "该 {provider} 身份已绑定到另一个账号。"
 
 #. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.pat_api_not_allowed"
+msgstr "这个访问令牌只能用于应用，不能用于账户。"
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.pat_invalid"
+msgstr "这个访问令牌无效，可能已过期或已被撤销。"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.state.disabled.note"
 msgstr "该账号无法登录。启用后，它会用原有的登录方式恢复访问。"
@@ -6736,11 +6725,6 @@ msgstr "该应用不允许从 {instance} 直接打开。"
 #: src/api/errors.ts
 msgid "error.landing.saml_sp_unknown"
 msgstr "该应用没有在 {instance} 注册。"
-
-#. js-lingui-explicit-id
-#: src/pages/security/TokensPanel.tsx
-msgid "security.tokens.app_no_scopes"
-msgstr "该应用未定义作用范围。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/SamlMetadataSection.tsx
@@ -7073,16 +7057,6 @@ msgid "admin.federation.diagnostics.stage.token"
 msgstr "令牌交换"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/forward-auth-apps/ForwardAuthScopesSection.tsx
-msgid "admin.forward-auth-apps.scopes"
-msgstr "令牌作用域"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/forward-auth-apps/ScopeTableField.tsx
-msgid "admin.forward-auth-apps.scopes.label"
-msgstr "令牌作用域"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
 msgid "admin.federation.diagnostics.document.omitted"
 msgstr "内容过大，未保留（{size} KB）。"
@@ -7273,11 +7247,6 @@ msgid "admin.forward-auth-apps.host.too_long"
 msgstr "请不超过 253 个字符。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/forward-auth-apps/forward-auth-validation.ts
-msgid "admin.forward-auth-apps.scope.description.too_long"
-msgstr "请不超过 256 个字符。"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/settings/MaintenancePanel.tsx
 msgid "settings.maintenance.notice.too_long"
 msgstr "最多 500 个字符。"
@@ -7367,11 +7336,6 @@ msgstr "以字母或数字开头，之后可包含字母、数字、点、下划
 #: src/pages/admin/forward-auth-apps/AdminForwardAuthAppNew.tsx
 msgid "admin.forward-auth-apps.new.client-id.invalid"
 msgstr "请使用字母、数字、点、下划线和连字符，以字母或数字开头，最多 128 个字符。"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/forward-auth-apps/forward-auth-validation.ts
-msgid "admin.forward-auth-apps.scope.name.invalid"
-msgstr "请使用字母、数字、点、下划线、冒号和连字符，以字母或数字开头和结尾，最多 64 个字符。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
@@ -7793,6 +7757,16 @@ msgstr "规则匹配的账号"
 #: src/pages/admin/identity-providers/provider-validation.ts
 msgid "admin.federation.auth.manual-needs-method"
 msgstr "手动填写端点时，请选择具体的认证方式。"
+
+#. js-lingui-explicit-id
+#: src/pages/security/TokensPanel.tsx
+msgid "security.tokens.access.all_apps.hint"
+msgstr "可在你能使用的每个应用上使用。"
+
+#. js-lingui-explicit-id
+#: src/pages/security/TokensPanel.tsx
+msgid "security.tokens.access.selected_apps.hint"
+msgstr "只能在你选的应用上使用。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
