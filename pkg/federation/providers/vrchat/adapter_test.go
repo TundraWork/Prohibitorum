@@ -197,7 +197,7 @@ func TestVRChatAdapterPublishProofOnHTTPOrigin(t *testing.T) {
 
 func TestVRChatAdapterPublishProofExactIdentity(t *testing.T) {
 	token := "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-	client := &proofClientStub{user: PublicUser{ID: testUserID, DisplayName: "Display", BioLinks: []string{"https://LOGIN.EXAMPLE.COM:443/verify/vrchat/" + token}, CurrentAvatarThumbnailImageURL: "https://api.vrchat.cloud/avatar.png"}}
+	client := &proofClientStub{user: PublicUser{ID: testUserID, DisplayName: "Display", BioLinks: []string{"https://LOGIN.EXAMPLE.COM:443/verify/vrchat/" + token}, IconURL: "https://api.vrchat.cloud/avatar.png"}}
 	plaintext := []byte("serialized cookies")
 	adapter := newTestAdapter(t, client, &proofSecretsStub{plaintext: plaintext}, kv.NewMemoryStore(), &proofQueriesStub{}, "https://login.example.com", nil)
 	state, _ := json.Marshal(adapterState{Step: stepProof, UserID: testUserID, ProofToken: token})

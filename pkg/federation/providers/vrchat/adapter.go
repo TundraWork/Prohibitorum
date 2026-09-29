@@ -192,10 +192,10 @@ func (a *Adapter) publishProof(ctx context.Context, provider federationcore.Prov
 	profileURL := profileURLBase + state.UserID
 	identity := &federationcore.VerifiedIdentity{
 		Issuer: issuerURL, Subject: state.UserID, DisplayName: user.DisplayName,
-		EmailVerificationSupported: false, AMR: []string{"vrchat_profile"}, AvatarURL: user.CurrentAvatarThumbnailImageURL,
+		EmailVerificationSupported: false, AMR: []string{"vrchat_profile"}, AvatarURL: user.IconURL,
 		UpstreamData: map[string]string{"userId": state.UserID, "displayName": user.DisplayName, "profileUrl": profileURL},
 	}
-	return federationcore.AdvanceResult{Identity: identity, Avatar: &federationcore.AvatarDelivery{URL: user.CurrentAvatarThumbnailImageURL}}, nil
+	return federationcore.AdvanceResult{Identity: identity, Avatar: &federationcore.AvatarDelivery{URL: user.IconURL}}, nil
 }
 
 func providerBackoffKey(providerID int64) string {

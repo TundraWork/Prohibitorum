@@ -71,8 +71,8 @@ func TestClientEveryRequestHasUserAgentAndFixedPaths(t *testing.T) {
 		switch r.URL.Path {
 		case "/api/1/auth/user":
 			return response(200, `{"id":"usr_12345678-1234-1234-1234-123456789abc","displayName":"Name"}`), nil
-		case "/api/1/users/usr_12345678-1234-1234-1234-123456789abc":
-			return response(200, `{"id":"usr_12345678-1234-1234-1234-123456789abc","displayName":"Name","bioLinks":[],"currentAvatarThumbnailImageUrl":"https://example.test/a.png"}`), nil
+		case "/api/1/profile/usr_12345678-1234-1234-1234-123456789abc":
+			return response(200, `{"id":"usr_12345678-1234-1234-1234-123456789abc","displayName":"Name","bioLinks":[],"iconUrl":"https://example.test/a.png"}`), nil
 		default:
 			return response(200, `{"verified":true}`), nil
 		}
@@ -85,7 +85,7 @@ func TestClientEveryRequestHasUserAgentAndFixedPaths(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	want := []string{"/api/1/auth/user", "/api/1/users/usr_12345678-1234-1234-1234-123456789abc", "/api/1/auth/twofactorauth/totp/verify", "/api/1/auth/twofactorauth/emailotp/verify", "/api/1/auth/twofactorauth/otp/verify"}
+	want := []string{"/api/1/auth/user", "/api/1/profile/usr_12345678-1234-1234-1234-123456789abc", "/api/1/auth/twofactorauth/totp/verify", "/api/1/auth/twofactorauth/emailotp/verify", "/api/1/auth/twofactorauth/otp/verify"}
 	if strings.Join(paths, "|") != strings.Join(want, "|") {
 		t.Fatalf("paths = %#v, want %#v", paths, want)
 	}
@@ -153,25 +153,27 @@ func TestClientCurrentUserUnionBoundaries(t *testing.T) {
 
 func TestClientPublicUserBoundariesAndIDValidation(t *testing.T) {
 	id := "usr_12345678-1234-1234-1234-123456789abc"
-	valid := `{"id":"` + id + `","displayName":"Name","bioLinks":[],"currentAvatarThumbnailImageUrl":"https://example.test/a.png"}`
+	valid := `{"id":"` + id + `","displayName":"Name","bioLinks":[],"iconUrl":"https://example.test/a.png"}`
 	tests := []struct {
 		name, requested, body string
 		ok                    bool
 	}{
 		{"valid", id, valid, true},
-		{"safe noncanonical segment", "usr_x", `{"id":"usr_x","displayName":"Name","bioLinks":[],"currentAvatarThumbnailImageUrl":"x"}`, false},
-		{"missing id", id, `{"displayName":"Name","bioLinks":[],"currentAvatarThumbnailImageUrl":"x"}`, false},
-		{"missing display", id, `{"id":"` + id + `","bioLinks":[],"currentAvatarThumbnailImageUrl":"x"}`, false},
-		{"missing links", id, `{"id":"` + id + `","displayName":"Name","currentAvatarThumbnailImageUrl":"x"}`, false},
-		{"null links", id, `{"id":"` + id + `","displayName":"Name","bioLinks":null,"currentAvatarThumbnailImageUrl":"x"}`, false},
-		{"bad links", id, `{"id":"` + id + `","displayName":"Name","bioLinks":[1],"currentAvatarThumbnailImageUrl":"x"}`, false},
-		{"missing avatar", id, `{"id":"` + id + `","displayName":"Name","bioLinks":[]}`, false},
-		{"wrong id", id, `{"id":"usr_aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa","displayName":"Name","bioLinks":[],"currentAvatarThumbnailImageUrl":"x"}`, false},
+		{"safe noncanonical segment", "usr_x", `{"id":"usr_x","displayName":"Name","bioLinks":[],"iconUrl":"x"}`, false},
+		{"missing id", id, `{"displayName":"Name","bioLinks":[],"iconUrl":"x"}`, false},
+		{"missing display", id, `{"id":"` + id + `","bioLinks":[],"iconUrl":"x"}`, false},
+		{"missing links", id, `{"id":"` + id + `","displayName":"Name","iconUrl":"x"}`, false},
+		{"null links", id, `{"id":"` + id + `","displayName":"Name","bioLinks":null,"iconUrl":"x"}`, false},
+		{"bad links", id, `{"id":"` + id + `","displayName":"Name","bioLinks":[1],"iconUrl":"x"}`, false},
+		{"missing avatar", id, `{"id":"` + id + `","displayName":"Name","bioLinks":[]}`, true},
+		{"null avatar", id, `{"id":"` + id + `","displayName":"Name","bioLinks":[],"iconUrl":null}`, true},
+		{"bad avatar", id, `{"id":"` + id + `","displayName":"Name","bioLinks":[],"iconUrl":1}`, false},
+		{"wrong id", id, `{"id":"usr_aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa","displayName":"Name","bioLinks":[],"iconUrl":"x"}`, false},
 		{"path escape", "../auth/user", valid, false}, {"encoded slash", "usr_a%2Fb", valid, false},
-		{"long display", id, `{"id":"` + id + `","displayName":"` + strings.Repeat("x", 257) + `","bioLinks":[],"currentAvatarThumbnailImageUrl":"x"}`, false},
-		{"too many links", id, `{"id":"` + id + `","displayName":"Name","bioLinks":["1","2","3","4","5","6","7","8","9","10","11","12","13","14","15","16","17"],"currentAvatarThumbnailImageUrl":"x"}`, false},
-		{"long link", id, `{"id":"` + id + `","displayName":"Name","bioLinks":["` + strings.Repeat("x", 2049) + `"],"currentAvatarThumbnailImageUrl":"x"}`, false},
-		{"long avatar", id, `{"id":"` + id + `","displayName":"Name","bioLinks":[],"currentAvatarThumbnailImageUrl":"` + strings.Repeat("x", 4097) + `"}`, false},
+		{"long display", id, `{"id":"` + id + `","displayName":"` + strings.Repeat("x", 257) + `","bioLinks":[],"iconUrl":"x"}`, false},
+		{"too many links", id, `{"id":"` + id + `","displayName":"Name","bioLinks":["1","2","3","4","5","6","7","8","9","10","11","12","13","14","15","16","17"],"iconUrl":"x"}`, false},
+		{"long link", id, `{"id":"` + id + `","displayName":"Name","bioLinks":["` + strings.Repeat("x", 2049) + `"],"iconUrl":"x"}`, false},
+		{"long avatar", id, `{"id":"` + id + `","displayName":"Name","bioLinks":[],"iconUrl":"` + strings.Repeat("x", 4097) + `"}`, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -362,8 +364,18 @@ func TestClientTimeoutIsTenSeconds(t *testing.T) {
 	}
 }
 
+func TestDecodePublicUserReadsIconURL(t *testing.T) {
+	user, err := decodePublicUser([]byte(`{"id":"`+testUserID+`","displayName":"Name","bioLinks":["https://example.test"],"iconUrl":"https://api.vrchat.cloud/api/1/image/file_x/1/256","currentAvatarThumbnailImageUrl":null}`), testUserID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if user.IconURL != "https://api.vrchat.cloud/api/1/image/file_x/1/256" || len(user.BioLinks) != 1 {
+		t.Fatalf("user = %+v", user)
+	}
+}
+
 func TestDecodePublicUserDistinguishesReturnedUserMismatch(t *testing.T) {
-	_, err := decodePublicUser([]byte(`{"id":"usr_11111111-1111-1111-1111-111111111111","displayName":"Other","bioLinks":[],"currentAvatarThumbnailImageUrl":"https://api.vrchat.cloud/avatar.png"}`), testUserID)
+	_, err := decodePublicUser([]byte(`{"id":"usr_11111111-1111-1111-1111-111111111111","displayName":"Other","bioLinks":[],"iconUrl":"https://api.vrchat.cloud/avatar.png"}`), testUserID)
 	var mismatch *IdentityMismatchError
 	if !errors.As(err, &mismatch) {
 		t.Fatalf("error = %T %v, want IdentityMismatchError", err, err)

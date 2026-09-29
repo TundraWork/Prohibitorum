@@ -99,7 +99,7 @@ func (c *Client) PublicUser(ctx context.Context, userID string, cookies []http.C
 	if !canonicalUserIDPattern.MatchString(userID) {
 		return PublicUser{}, nil, &ValidationError{Category: "user ID"}
 	}
-	req, err := c.request(ctx, http.MethodGet, "/users/"+userID, nil, cookies)
+	req, err := c.request(ctx, http.MethodGet, "/profile/"+userID, nil, cookies)
 	if err != nil {
 		return PublicUser{}, nil, err
 	}
@@ -292,8 +292,8 @@ func decodePublicUser(body []byte, requestedID string) (PublicUser, error) {
 	if err := json.Unmarshal(body, &wire); err != nil {
 		return PublicUser{}, &DecodeError{Category: "public-user"}
 	}
-	if wire.ID == nil || wire.DisplayName == nil || wire.CurrentAvatarThumbnailImageURL == nil ||
-		!canonicalUserIDPattern.MatchString(*wire.ID) || len(*wire.DisplayName) == 0 || len(*wire.DisplayName) > 256 || len(*wire.CurrentAvatarThumbnailImageURL) == 0 || len(*wire.CurrentAvatarThumbnailImageURL) > 4096 || wire.BioLinks == nil || bytes.Equal(bytes.TrimSpace(wire.BioLinks), []byte("null")) {
+	if wire.ID == nil || wire.DisplayName == nil ||
+		!canonicalUserIDPattern.MatchString(*wire.ID) || len(*wire.DisplayName) == 0 || len(*wire.DisplayName) > 256 || len(wire.IconURL) > 4096 || wire.BioLinks == nil || bytes.Equal(bytes.TrimSpace(wire.BioLinks), []byte("null")) {
 		return PublicUser{}, &DecodeError{Category: "public-user"}
 	}
 	if *wire.ID != requestedID {
@@ -308,5 +308,5 @@ func decodePublicUser(body []byte, requestedID string) (PublicUser, error) {
 			return PublicUser{}, &DecodeError{Category: "public-user"}
 		}
 	}
-	return PublicUser{ID: *wire.ID, DisplayName: *wire.DisplayName, BioLinks: links, CurrentAvatarThumbnailImageURL: *wire.CurrentAvatarThumbnailImageURL}, nil
+	return PublicUser{ID: *wire.ID, DisplayName: *wire.DisplayName, BioLinks: links, IconURL: wire.IconURL}, nil
 }

@@ -7,7 +7,7 @@ Status: Design approved (pending written-spec review)
 
 Prohibitorum supports OIDC and Steam upstream identity providers. VRChat does not offer OAuth or OpenID Connect to public developers. Its unofficially documented login endpoint accepts account credentials directly, but VRChat's published Creator Guidelines explicitly say third-party applications must not request or store users' credentials, auth tokens, or session data, and must not act on behalf of users from a server.
 
-A server-side credential relay is therefore not an acceptable design. VRChat does expose public profile data, including a stable `usr_…` ID, display name, and `bioLinks`, through `GET /api/1/users/{userId}`. That endpoint still requires an authenticated VRChat session. The approved design uses a dedicated operator verification account only to read public profiles. End users prove control of a VRChat profile by temporarily placing a one-time Prohibitorum URL in `bioLinks`.
+A server-side credential relay is therefore not an acceptable design. VRChat does expose public profile data, including a stable `usr_…` ID, display name, and `bioLinks`, through `GET /api/1/profile/{userId}` (`GET /api/1/users/{userId}` no longer returns `bioLinks`). That endpoint still requires an authenticated VRChat session. The approved design uses a dedicated operator verification account only to read public profiles. End users prove control of a VRChat profile by temporarily placing a one-time Prohibitorum URL in `bioLinks`.
 
 The current federation architecture is also OIDC-owned: Steam is implemented as protocol branches inside `pkg/federation/oidc`. Adding another multi-step non-OIDC ceremony there would deepen the coupling. This feature will instead perform a breaking, clean-cutover refactor to a protocol-neutral provider registry. The project has no production deployment, so API and internal compatibility shims are explicitly unnecessary.
 
@@ -61,7 +61,7 @@ VRChat's API is unofficial and may change without notice. The adapter must:
 Relevant sources:
 
 - VRChat current-user/login endpoint: <https://vrchat.community/reference/get-current-user>
-- VRChat public user endpoint: <https://vrchat.community/reference/get-user>
+- VRChat public user endpoint, which no longer carries `bioLinks` (proof reads `GET /api/1/profile/{userId}` instead): <https://vrchat.community/reference/get-user>
 - VRChat TOTP verification: <https://vrchat.community/reference/verify2fa>
 - VRCX authentication implementation used as protocol-behavior reference: <https://github.com/vrcx-team/VRCX/blob/master/src/stores/auth.js>
 - VRChat Creator Guidelines, API Usage / Bots: <https://hello.vrchat.com/creator-guidelines#api-usage>
@@ -285,7 +285,7 @@ The server:
 
 1. verifies the flow/browser/account binding and per-flow retry window;
 2. enforces any shared per-provider backoff before making a VRChat request;
-3. calls `GET /users/{userId}` with the encrypted operator session and required User-Agent;
+3. calls `GET /profile/{userId}` with the encrypted operator session and required User-Agent;
 4. bounds and parses the response;
 5. requires the returned ID to equal the requested ID exactly;
 6. canonicalizes each returned bio link and requires scheme, effective host/port, decoded path, and proof token to match the issued URL, with no userinfo, query, or fragment;
@@ -435,7 +435,7 @@ English and Chinese translations cover all new labels, instructions, warnings, a
 
 - VRChat API origin and paths are constants.
 - User profile URLs are parsed only to extract a validated `usr_…` ID; they are never requested.
-- VRChat avatar inheritance uses only `currentAvatarThumbnailImageUrl` from the verified public-user response and the existing bounded/SSRF-screened avatar pipeline.
+- VRChat avatar inheritance uses only `iconUrl` from the verified profile response (no avatar when it is empty) and the existing bounded/SSRF-screened avatar pipeline.
 - JSON bodies and metadata are size bounded before decoding/persistence.
 
 ### Rate limiting
