@@ -1,14 +1,14 @@
 import type { ReactNode } from "react";
 
 /**
- * Centers a page below the fixed toolbar. The symmetric padding matches the
- * toolbar height, so the card keeps the window center and the toolbar stays
- * clear when the content is taller than the window; from `lg` the frame is the
- * scroll container, leaving the toolbar in place.
+ * Centers a page in the window below the toolbar. The toolbar scrolls with the
+ * page, so the frame fills the height it leaves and, from `sm`, keeps a space
+ * of the same height underneath: the card then sits at the window's centre.
+ * Content taller than that scrolls with the page.
  */
 export function PageFrame({ children }: { children: ReactNode }) {
   return (
-    <div className="flex lg:min-h-[var(--app-viewport-height)] flex-col py-4 lg:py-16">
+    <div className="flex min-h-[calc(var(--app-viewport-height)-4rem)] flex-col py-4 sm:pb-20">
       <div className="m-auto w-full">{children}</div>
     </div>
   );

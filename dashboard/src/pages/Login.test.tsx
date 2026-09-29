@@ -111,7 +111,14 @@ function mount() {
     path: "/",
     component: () => <h1>Destination</h1>,
   });
-  return mountRouter(root.addChildren([password, totp, recovery, elsewhere]));
+  const pair = createRoute({
+    getParentRoute: () => root,
+    path: "/pair",
+    component: () => <h1>Pairing</h1>,
+  });
+  return mountRouter(
+    root.addChildren([password, totp, recovery, elsewhere, pair]),
+  );
 }
 
 function mountStandalone(component: () => ReactElement) {
@@ -564,7 +571,8 @@ describe("upstream providers", () => {
     const button = await screen.findByRole("button", {
       name: "Continue with GitLab",
     });
-    expect(screen.getByText("or")).toBeVisible();
+    // One separator before the password form, one before the other ways.
+    expect(screen.getAllByText("or")).toHaveLength(2);
     await user.click(button);
     expect(loadDocument).toHaveBeenCalledExactlyOnceWith(
       "/api/prohibitorum/auth/federation/gitlab/login?return_to=%2Foauth%2Fauthorize%3Fclient_id%3Dwiki",
@@ -624,13 +632,24 @@ describe("signing in with another device", () => {
     history = createBrowserHistory();
   }
 
-  it("is offered at the foot of the first step, carrying return_to", async () => {
+  it("is a button on the first step that opens pairing, carrying return_to", async () => {
     at("/login?return_to=%2Foauth%2Fauthorize%3Fclient_id%3Dwiki");
-    mount();
-    expect(await screen.findByRole("link", { name })).toHaveAttribute(
-      "href",
-      "/pair?return_to=%2Foauth%2Fauthorize%3Fclient_id%3Dwiki",
-    );
+    const user = userEvent.setup();
+    const router = mount();
+    await user.click(await screen.findByRole("button", { name }));
+    await screen.findByRole("heading", { name: "Pairing" });
+    expect(router.state.location.pathname).toBe("/pair");
+    expect(
+      new URLSearchParams(router.state.location.searchStr).get("return_to"),
+    ).toBe("/oauth/authorize?client_id=wiki");
+  });
+
+  it("opens pairing alone without a return_to", async () => {
+    const user = userEvent.setup();
+    const router = mount();
+    await user.click(await screen.findByRole("button", { name }));
+    await screen.findByRole("heading", { name: "Pairing" });
+    expect(router.state.location.searchStr).toBe("");
   });
 
   it("is not offered on the second step", async () => {
@@ -644,9 +663,9 @@ describe("signing in with another device", () => {
     );
     const user = userEvent.setup();
     mount();
-    await screen.findByRole("link", { name });
+    await screen.findByRole("button", { name });
     await password(user);
-    expect(screen.queryByRole("link", { name })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name })).not.toBeInTheDocument();
   });
 
   it("is not offered during maintenance, when only administrators sign in", async () => {
@@ -656,6 +675,123 @@ describe("signing in with another device", () => {
     });
     mount();
     await screen.findByRole("button", { name: "Continue with password" });
-    expect(screen.queryByRole("link", { name })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name })).not.toBeInTheDocument();
+    // With no provider either, the second separator goes with it.
+    expect(screen.getAllByText("or")).toHaveLength(1);
+  });
+});
+
+describe("the first step", () => {
+  const gitlab = { slug: "gitlab", displayName: "GitLab", protocol: "oidc" };
+
+  beforeEach(() => {
+    queryClient.setQueryData(publicFederationProvidersQueryOptions().queryKey, [
+      gitlab,
+    ]);
+  });
+
+  afterEach(() => {
+    vi.mocked(loadDocument).mockReset();
+  });
+
+  function supportPasskeys() {
+    vi.stubGlobal("isSecureContext", true);
+    vi.stubGlobal("PublicKeyCredential", class {});
+  }
+
+  function button(name: string) {
+    return screen.getByRole("button", { name });
+  }
+
+  it("puts the passkey first, then the password form, then the other ways", async () => {
+    supportPasskeys();
+    mount();
+    await screen.findByRole("button", { name: "Continue with GitLab" });
+    const order = [
+      button("Sign in with a passkey"),
+      screen.getByRole("textbox", { name: "Username" }),
+      screen.getByLabelText("Password"),
+      button("Continue with password"),
+      button("Sign in with another device"),
+      button("Continue with GitLab"),
+    ];
+    order.reduce((previous, element) => {
+      expect(
+        previous.compareDocumentPosition(element) &
+          Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+      return element;
+    });
+  });
+
+  it("makes the passkey the primary button where passkeys work", async () => {
+    supportPasskeys();
+    mount();
+    const passkey = await screen.findByRole("button", {
+      name: "Sign in with a passkey",
+    });
+    expect(passkey).toHaveClass("button--primary");
+    expect(passkey).toBeEnabled();
+    expect(button("Continue with password")).toHaveClass("button--secondary");
+    expect(
+      screen.queryByText(/Passkeys are unavailable/),
+    ).not.toBeInTheDocument();
+  });
+
+  it("hands the primary style to the password where passkeys do not work", async () => {
+    mount();
+    const passkey = await screen.findByRole("button", {
+      name: "Sign in with a passkey",
+    });
+    expect(passkey).toHaveClass("button--secondary");
+    expect(passkey).toBeDisabled();
+    expect(button("Continue with password")).toHaveClass("button--primary");
+    expect(screen.getByText(/Passkeys are unavailable/)).toBeVisible();
+  });
+
+  it("holds the other ways while the password is being checked", async () => {
+    supportPasskeys();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof globalThis.fetch>(() => new Promise(() => {})),
+    );
+    const user = userEvent.setup();
+    mount();
+    await user.type(
+      await screen.findByRole("textbox", { name: "Username" }),
+      "alice",
+    );
+    await user.type(screen.getByLabelText("Password"), "password");
+    await user.click(button("Continue with password"));
+    await waitFor(() =>
+      expect(button("Sign in with another device")).toBeDisabled(),
+    );
+    expect(button("Continue with GitLab")).toBeDisabled();
+    expect(button("Sign in with a passkey")).toBeDisabled();
+  });
+
+  it("holds every other way while a provider takes the page, and lets go when the page comes back", async () => {
+    supportPasskeys();
+    const user = userEvent.setup();
+    mount();
+    await user.click(
+      await screen.findByRole("button", { name: "Continue with GitLab" }),
+    );
+    await waitFor(() =>
+      expect(button("Sign in with another device")).toBeDisabled(),
+    );
+    expect(button("Sign in with a passkey")).toBeDisabled();
+    expect(screen.getByRole("textbox", { name: "Username" })).toBeDisabled();
+
+    act(() => {
+      window.dispatchEvent(
+        new PageTransitionEvent("pageshow", { persisted: true }),
+      );
+    });
+    await waitFor(() =>
+      expect(button("Sign in with another device")).toBeEnabled(),
+    );
+    expect(button("Sign in with a passkey")).toBeEnabled();
+    expect(button("Continue with GitLab")).toBeEnabled();
   });
 });
