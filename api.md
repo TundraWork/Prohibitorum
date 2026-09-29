@@ -35,14 +35,14 @@ All management and delegated routes use the `/api/prohibitorum` prefix. Administ
 
 ## Forward-auth applications
 
-Forward-auth applications are distinct from normal OIDC application administration, even though each is backed by an OIDC client. They have a fixed OIDC callback and use the same app-bound policy and manager assignment as that backing client. Their scope vocabulary is an ordered `scopes` array of `{name: string, description: string}` pairs. It is opaque to Prohibitorum; a protected service interprets the labels.
+Forward-auth applications are distinct from normal OIDC application administration, even though each is backed by an OIDC client. They have a fixed OIDC callback and use the same app-bound policy and manager assignment as that backing client. They have no per-app scope vocabulary: create and update bodies reject a `scopes` field with `bad_request` (400).
 
 | Method | Path | Gate | Notes |
 |--------|------|------|-------|
 | GET | `/api/prohibitorum/forward-auth-apps` | assigned | List all apps for admins, or assigned apps for other accounts. |
 | GET | `/api/prohibitorum/forward-auth-apps/{clientId}` | assigned | Get one assigned app. |
 | POST | `/api/prohibitorum/forward-auth-apps` | 🔐 | Create an app and its fixed OIDC-client configuration. |
-| PUT | `/api/prohibitorum/forward-auth-apps/{clientId}` | assigned + 🔐 | Replace mutable forward-auth configuration and scope vocabulary. |
+| PUT | `/api/prohibitorum/forward-auth-apps/{clientId}` | assigned + 🔐 | Replace mutable forward-auth configuration (`displayName`, `host`). |
 | PUT | `/api/prohibitorum/forward-auth-apps/{clientId}/identity-projection` | assigned | Replace the current `Remote-User` source without sudo. Body: `{"remoteUserSource":"sub|username|verified_email"}`. |
 | POST | `/api/prohibitorum/forward-auth-apps/set-disabled` | assigned | Body: `{"clientId":"...","disabled":<boolean>}`. |
 | POST | `/api/prohibitorum/forward-auth-apps/delete` | assigned + 🔐 | Body: `{"clientId":"..."}`. Hard-delete the app. |
@@ -90,7 +90,7 @@ Assignments grant management authority only. They do not grant the assigned acco
 
 ## App-bound access workspace
 
-The OIDC, SAML (manual or metadata), and forward-auth creation endpoints accept optional boolean `accessRestricted`. Omitted or `false` preserves unrestricted creation; `true` creates the app with no access until its policy grants access. The flag is included in the create response and committed with the app. Forward-auth creation commits its backing client, proxy configuration, scopes and access policy in one transaction.
+The OIDC, SAML (manual or metadata), and forward-auth creation endpoints accept optional boolean `accessRestricted`. Omitted or `false` preserves unrestricted creation; `true` creates the app with no access until its policy grants access. The flag is included in the create response and committed with the app. Forward-auth creation commits its backing client, proxy configuration and access policy in one transaction.
 
 Policy groups are reusable global definitions. Applications select any number of manual or rule groups. Manual groups hold per-account `allow` / `deny` decisions; rule groups calculate membership from current account facts. A restricted app allows an account when at least one selected manual group allows it or one selected rule group matches it, unless a selected manual group denies it. An unrestricted app remains open.
 
@@ -148,7 +148,7 @@ All delegated mutations require JSON, are limited to 64 KiB, and do **not** requ
 }
 ```
 
-`app` may additionally contain `launchUrl` and `redirectUris` for OIDC, `entityId` for SAML, or `forwardAuthHost` and `forwardAuthScopes` for forward-auth. `groups` and `providers` are arrays. A group object always has `id`, `kind`, `slug`, `displayName`, and `exposedToDownstream`; `description` is optional and `rule` exists only for `kind: "rule"`.
+`app` may additionally contain `launchUrl` and `redirectUris` for OIDC, `entityId` for SAML, or `forwardAuthHost` for forward-auth. `groups` and `providers` are arrays. A group object always has `id`, `kind`, `slug`, `displayName`, and `exposedToDownstream`; `description` is optional and `rule` exists only for `kind: "rule"`.
 
 `PUT BASE/groups` accepts `{"groupIds":[7,8]}` and atomically replaces the selected global groups. Admins may submit any existing group. Other assigned accounts may submit groups they currently belong to or groups already selected by the app. Duplicate IDs, missing groups, and groups outside that scope are rejected without partial writes.
 
@@ -318,12 +318,37 @@ Gate notation for this section:
 
 | Method | Path | Gate | Notes |
 |--------|------|------|-------|
-| GET | `/api/prohibitorum/me/tokens` | 🔓 | List the calling user's PATs. Each row (`PersonalAccessTokenView`): `id`, `name`, `tokenHint` (non-secret display aid = token prefix + last 4 chars, e.g. `prohibitorum_pat_…a1b2`), `allApps` (bool), `appGrants` (object: clientId → `[scopes]`), `createdAt`, `expiresAt` (omitted when no expiry), `lastUsedAt` (omitted until first use). The raw token secret is **never returned** here. |
-| POST | `/api/prohibitorum/me/tokens` | 🔐 | Create a new PAT. Body: `{name, expiresInDays?, allApps, appGrants}`. `name` is required (1–128 chars). `expiresInDays` is an **integer number of days** (not a timestamp): omitted or `0` = no expiry; valid range 1–3650; a negative value or one above 3650 is rejected (`bad_request`). `allApps` (bool): `true` = token accepted at every forward-auth app the owner can reach; `appGrants` must be empty when `allApps: true`. `appGrants` (object: clientId → `[scopes]`): when `allApps: false`, must specify at least one app; each app must be in the caller's authorized forward-auth app set and each scope must be in that app's declared scope vocabulary — mismatches are rejected (`bad_request`). Generates a cryptographically random token; the response is `{token, pat}` where `token` is the plaintext, revealed **once only** — only the hash is persisted. |
+| GET | `/api/prohibitorum/me/tokens` | 🔓 | List the calling user's PATs. Each row (`PersonalAccessTokenView`): `id`, `name`, `tokenHint` (non-secret display aid = token prefix + last 4 chars, e.g. `prohibitorum_pat_…a1b2`), `access` (`selected_apps`, `all_apps`, `full` or `sudo`), `apps` (`[{clientId, displayName}]`, always present; non-empty only for `selected_apps`, ordered by display name), `createdAt`, `expiresAt` (omitted when no expiry), `lastUsedAt` (omitted until first use). The raw token secret is **never returned** here. |
+| POST | `/api/prohibitorum/me/tokens` | 🔐 | Create a new PAT. Body: `{name, expiresInDays?, access, appClientIds?}`. `name` is required (1–128 chars). `expiresInDays` is an **integer number of days** (not a timestamp): omitted or `0` = no expiry; valid range 1–3650; a negative value or one above 3650 is rejected (`bad_request`). `access` is required and one of `selected_apps`, `all_apps`, `full`, `sudo`; any other value, and the removed `allApps` / `appGrants` fields, fail schema validation (`validation_failed`, 422). `selected_apps` needs a non-empty `appClientIds` with no duplicates, every entry a forward-auth app the caller may currently use; the other three levels must not carry `appClientIds` at all (an empty array counts) — violations are `bad_request`. The token row and its app list are written in one transaction. Generates a cryptographically random token; the response is `{token, pat}` where `token` is the plaintext, revealed **once only** — only the hash is persisted. Creating any PAT needs a fresh sudo grant, which a `sudo` PAT satisfies, so a `sudo` PAT can mint further PATs. |
 | POST | `/api/prohibitorum/me/tokens/revoke` | 🔓 | Body: `{"id": <int>}`. Revokes the specified PAT. The caller must own the token; revoking another user's token returns 404. |
-| GET | `/api/prohibitorum/me/forward-auth-apps` | 🔓 | List the calling user's currently allowed forward-auth apps and their scope vocabulary. Each entry: `clientId`, `displayName`, `scopes: [{name, description}]`. The live app-bound policy, not manager assignment, determines this list. |
+| GET | `/api/prohibitorum/me/forward-auth-apps` | 🔓 | List the forward-auth apps the calling user can currently grant to a PAT. Each entry: `clientId`, `displayName`. The live app-bound policy, not manager assignment, determines this list. |
 
-`Remote-Scopes` at the verify endpoint carries only the scopes the PAT granted to the **specific app** being accessed (per-app isolation). `allApps` PATs emit an empty `Remote-Scopes`. The gateway does not interpret scope labels — the upstream service enforces them.
+### PAT access levels
+
+A PAT carries exactly one `access` level; each includes the ones before it. No level widens what the owner may do: the gateway still applies the app access policy, and the management API still applies the owner's role and app-manager assignments.
+
+| `access` | Forward-auth gateway | Management API | Sudo checks |
+|----------|----------------------|----------------|-------------|
+| `selected_apps` | only the apps listed on the token (others → 403) | `403 pat_api_not_allowed` | — |
+| `all_apps` | every app the owner can use | `403 pat_api_not_allowed` | — |
+| `full` | every app the owner can use | as the owner | fail with `401 sudo_required` |
+| `sudo` | every app the owner can use | as the owner | always pass |
+
+### Calling the management API with a PAT
+
+Send the raw token in `X-Prohibitorum-PAT: prohibitorum_pat_<43 chars>` (no `Bearer` prefix; `Authorization` is not used for PATs). The header selects PAT authentication for every `/api/prohibitorum/` route except `/api/prohibitorum/forward-auth/*`, which applies the gateway rules to the same header. Once the header is present — even empty — the request is judged as a PAT request only and never falls back to a cookie. A value that is empty, repeated, lacks the `prohibitorum_pat_` prefix, or contains whitespace or a comma (including leading or trailing spaces) returns `401 pat_invalid`; so does an unknown, expired or revoked token, or one whose owner no longer exists. A disabled owner returns `403 account_disabled`. `last_used_at` is updated on success, and audit events caused by the token carry `pat_id` in `detail`.
+
+| Code | Status | When |
+|------|--------|------|
+| `pat_invalid` | 401 | Malformed header; unknown, expired or revoked token; missing owner. |
+| `pat_api_not_allowed` | 403 | A `selected_apps` or `all_apps` token calls the management API. |
+| `pat_browser_session_required` | 403 | Any PAT calls a browser-only route (below). |
+
+Public routes and the OIDC/SAML protocol endpoints never see the PAT principal. The maintenance gate treats a non-admin PAT owner like a signed-in non-admin. In the OpenAPI document PAT-capable operations list both the `prohibitorumSession` and `prohibitorumPAT` security schemes; browser-only ones list only the session.
+
+**Browser-only routes** (they depend on the browser session or issue browser credentials): `/me/sudo/methods`, `/me/sudo/begin`, `/me/sudo/complete`; `/me/credentials/register/begin|complete`; `/consent` and `/saml-consent` (GET and POST); `/me/identities/link/{slug}/begin|callback`; `/identity-providers/{slug}/tests`, `/tests/{id}`, `/tests/{id}/complete`; `/identity-providers/{slug}/operator-session/start|verify|validate`; `/me/devices/pair/lookup|approve|cancel`. Under a PAT, `GET /me/sessions` reports `isCurrent: false` for every session.
+
+The verify endpoint no longer emits `Remote-Scopes`.
 
 ---
 
@@ -333,7 +358,7 @@ Admin routes for inspecting and revoking any user's PATs. Gate notation follows 
 
 | Method | Path | Gate | Notes |
 |--------|------|------|-------|
-| GET | `/api/prohibitorum/accounts/{id}/tokens` | 🔓 | List all PATs belonging to account `{id}`. Returns the same `PersonalAccessTokenView` shape as `GET /me/tokens` (`id`, `name`, `tokenHint`, `allApps`, `appGrants`, `createdAt`, `expiresAt?`, `lastUsedAt?`). Raw token secret is **never returned**. |
+| GET | `/api/prohibitorum/accounts/{id}/tokens` | 🔓 | List all PATs belonging to account `{id}`. Returns the same `PersonalAccessTokenView` shape as `GET /me/tokens` (`id`, `name`, `tokenHint`, `access`, `apps`, `createdAt`, `expiresAt?`, `lastUsedAt?`). Raw token secret is **never returned**. |
 | POST | `/api/prohibitorum/accounts/tokens/revoke` | 🔐 | Body: `{"id": <int>}`. Admin force-revoke of any PAT by its numeric ID. Requires a fresh sudo grant. Returns 404 if the token does not exist. |
 
 ---
@@ -368,11 +393,11 @@ credential. Login remains available when this optional explanation cannot load.
 - `403`: `X-Forwarded-Host` is not a registered forward-auth service.
 
 **PAT (API) flow** — `X-Prohibitorum-PAT: <token>` header present (raw token, no Bearer prefix). Terminal: never redirects.
-- `200` + `Remote-*` identity headers (including `Remote-Scopes`): valid PAT, owner is active and authorized.
+- `200` + `Remote-*` identity headers: valid PAT, owner is active and authorized.
 - `401`: token is invalid, expired, or revoked; or the owning account is disabled.
 - `403`: valid token, but the owner is not authorized for this application by the live app-bound policy or the PAT's app restriction.
 
-The PAT path takes precedence: if an `X-Prohibitorum-PAT` header is present the request is always handled as a PAT regardless of any cookie. Empty or repeated PAT headers return 401. `Authorization` is ignored by this verifier and remains available to the protected application. Existing PAT clients must switch headers; proxies must strip `X-Prohibitorum-PAT` after verification and preserve `Authorization`.
+The PAT path takes precedence: if an `X-Prohibitorum-PAT` header is present the request is always handled as a PAT regardless of any cookie. Empty, repeated, malformed or whitespace-padded PAT headers return 401 (the value is not trimmed). A `selected_apps` PAT reaches only its listed apps (403 elsewhere); the other levels reach any app the owner may use. `Authorization` is ignored by this verifier and remains available to the protected application. Existing PAT clients must switch headers; proxies must strip `X-Prohibitorum-PAT` after verification and preserve `Authorization`.
 
 
 ## Sudo grace period

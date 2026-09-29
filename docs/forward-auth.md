@@ -58,7 +58,6 @@ http:
           - Remote-Name
           - Remote-Email
           - Remote-Groups
-          - Remote-Scopes
 
   routers:
     # The protected app — gated by the forward-auth middleware.
@@ -116,18 +115,20 @@ Clears the per-domain cookie + session, bounces to Prohibitorum to terminate the
 
 ## 3. Personal Access Tokens
 
-A **Personal Access Token (PAT)** is a user-owned bearer credential that can authenticate to the forward-auth verify endpoint. This enables non-browser API or automation clients to traverse the gateway without a session cookie.
+A **Personal Access Token (PAT)** is a user-owned bearer credential that can authenticate to the forward-auth verify endpoint, and, at the upper levels, to the management API. This lets non-browser API or automation clients traverse the gateway without a session cookie.
 
-### Per-app scope model
+### Access levels
 
-Each forward-auth app (OIDC client) carries an admin-defined **scope vocabulary** — a list of `{name, description}` pairs that the operator declares meaningful for that app. Examples: `read`, `write`, `admin:users`, or any opaque label the upstream service understands.
+Each PAT carries one **access level**. When a user creates a token they pick it; the levels include one another in this order:
 
-When a user creates a PAT they choose **which forward-auth apps** the token may reach, and **which scopes** to request from each app's vocabulary. Two grant modes:
+| Level | At the gateway | Management API (`/api/prohibitorum/*`) |
+|-------|----------------|----------------------------------------|
+| `selected_apps` | only the forward-auth apps chosen on the token | not allowed (`403 pat_api_not_allowed`) |
+| `all_apps` | every forward-auth app the owner is authorized to access | not allowed (`403 pat_api_not_allowed`) |
+| `full` | same as `all_apps` | allowed as the owner; actions that need a fresh sudo fail with `401 sudo_required` |
+| `sudo` | same as `all_apps` | allowed as the owner; every sudo check passes, so it can also create further PATs |
 
-- **Per-app grants** (`allApps: false`) — the PAT lists one or more forward-auth apps; for each app the user selects a subset of that app's declared scopes. The token is only accepted at those specific apps.
-- **All-apps mode** (`allApps: true`) — the PAT is accepted at every forward-auth app the owner is authorized to access. No per-app scopes are carried; `Remote-Scopes` is always empty. Useful for identity-only integrations that do not consume scopes.
-
-**Per-app isolation.** When the gateway evaluates a PAT-bearing request it knows which forward-auth app is being accessed (from `X-Forwarded-Host`). It emits `Remote-Scopes` containing *only* the scopes the PAT granted to **that specific app**. Scopes granted to other apps in the same PAT are never leaked to the current app.
+No level grants more than the owner already has. The gateway still applies the protected app's access policy on every request, and the management API still applies the owner's role and app-manager assignments. Apps carry no scope vocabulary and the gateway sends no `Remote-Scopes` header; the protected service decides what an identity may do. Calling the management API with a PAT is described in `api.md`.
 
 ### PAT authentication at the verify endpoint
 
@@ -135,16 +136,17 @@ When `GET /api/prohibitorum/forward-auth/verify` receives an `X-Prohibitorum-PAT
 
 | Outcome | HTTP | Meaning |
 |---------|------|---------|
-| Valid token, owner allowed | `200` | Identity headers emitted (including `Remote-Scopes`); Traefik forwards request upstream. |
+| Valid token, owner allowed | `200` | Identity headers emitted; Traefik forwards request upstream. |
 | Invalid, expired, or revoked token; disabled owner | `401` | Token authentication failed. |
 | Valid token, owner not authorized for this app | `403` | PAT does not grant access to this app, or RBAC denied. |
 
 No `X-Prohibitorum-PAT` header present → the existing browser flow: valid cookie → `200`, no/expired cookie → `302` into the login flow.
 
-PATs act as the owning user with the **intersection** of the owner's authorization, the PAT's per-app grants (`appGrants`), and the protected-app access policy.
+PATs act as the owning user with the **intersection** of the owner's authorization, the token's access level (for `selected_apps`, its listed apps), and the protected-app access policy.
 
-Send the raw token without a `Bearer ` prefix. An empty, repeated, or malformed
-PAT header returns `401` even if a valid browser cookie is present. The verifier
+Send the raw token without a `Bearer ` prefix. An empty, repeated, malformed, or
+whitespace-padded PAT header returns `401` (the value is not trimmed) even if a
+valid browser cookie is present. The verifier
 ignores `Authorization`, leaving Basic/Bearer credentials available to the
 protected application.
 
@@ -153,11 +155,11 @@ protected application.
 `Authorization` with one that strips only `X-Prohibitorum-PAT`, after forward-auth.
 There is no legacy Authorization fallback.
 
-PATs are accepted **only** at the forward-auth verify endpoint. They are not accepted at the admin API or OIDC/SAML endpoints.
+PATs are accepted at the forward-auth verify endpoint and, for `full` and `sudo` levels, at the management API under the same `X-Prohibitorum-PAT` header. They are never accepted at OIDC/SAML endpoints.
 
 ### Authoritative identity headers
 
-The gateway emits five headers on every allowed request, **all unconditionally** (even empty), so Traefik's `authResponseHeaders` copy overwrites any client-supplied value:
+The gateway emits four headers on every allowed request, **all unconditionally** (even empty), so Traefik's `authResponseHeaders` copy overwrites any client-supplied value:
 
 | Header | Content |
 |--------|---------|
@@ -165,11 +167,10 @@ The gateway emits five headers on every allowed request, **all unconditionally**
 | `Remote-Name` | Display name. |
 | `Remote-Email` | Primary email address. |
 | `Remote-Groups` | Comma-joined group slugs exposed to downstreams. |
-| `Remote-Scopes` | Comma-joined scopes the PAT granted to **this specific app** (per-app isolation); **empty string for cookie/browser sessions and for `allApps` PATs**. The gateway does not interpret these labels — the upstream service enforces them. |
 
 The application setting applies to browser sessions and PAT requests on the next verification. Choosing verified email requires the current account email to be verified and unique across accounts. If the selected value is missing or ambiguous, verification returns `403` without identity headers instead of falling back to another identifier. Changing the source can make the protected application treat an existing person as a different account.
 
-The operator **must** list all five in `authResponseHeaders` (or use `authResponseHeadersRegex: "Remote-.*"`) so Prohibitorum's authoritative values always overwrite any client-supplied copies. Update the Traefik middleware from the example in section 2:
+The operator **must** list all four in `authResponseHeaders` (or use `authResponseHeadersRegex: "Remote-.*"`) so Prohibitorum's authoritative values always overwrite any client-supplied copies. Update the Traefik middleware from the example in section 2:
 
 ```yaml
 authResponseHeaders:
@@ -177,7 +178,6 @@ authResponseHeaders:
   - Remote-Name
   - Remote-Email
   - Remote-Groups
-  - Remote-Scopes
 ```
 
 ### Required Traefik configuration for PAT-protected routers
@@ -186,7 +186,7 @@ authResponseHeaders:
 
 Two requirements:
 
-1. **`authResponseHeaders` for all five `Remote-*` headers** — ensures the gateway's verified values reach the upstream service (see example above).
+1. **`authResponseHeaders` for all four `Remote-*` headers** — ensures the gateway's verified values reach the upstream service (see example above).
 
 2. **An explicit `headers` middleware that removes the inbound `X-Prohibitorum-PAT` header** before the request is forwarded upstream. Do NOT rely on `authResponseHeaders` to clear `X-Prohibitorum-PAT` — that behaviour is not guaranteed across Traefik versions. Strip it explicitly on PAT-protected routers.
 
@@ -206,7 +206,6 @@ http:
           - Remote-Name
           - Remote-Email
           - Remote-Groups
-          - Remote-Scopes
 
     strip-prohibitorum-pat:
       headers:
