@@ -63,6 +63,9 @@ func init() {
 		{Code: "pairing_not_approved", Status: http.StatusPreconditionRequired, LocaleKey: "errors.pairing_not_approved", DiagnosticKind: "pairing"},
 		{Code: "rate_limited", Status: http.StatusTooManyRequests, LocaleKey: "errors.rate_limited", DiagnosticKind: "throttle", Retryable: true, Recovery: "retry", DetailKeys: map[string]struct{}{"retryAfterSeconds": {}}},
 		{Code: "factor_locked", Status: http.StatusTooManyRequests, LocaleKey: "errors.factor_locked", DiagnosticKind: "throttle", Retryable: true, Recovery: "retry", DetailKeys: map[string]struct{}{"retryAfterSeconds": {}}},
+		{Code: "pat_invalid", Status: http.StatusUnauthorized, LocaleKey: "errors.pat_invalid", DiagnosticKind: "auth"},
+		{Code: "pat_api_not_allowed", Status: http.StatusForbidden, LocaleKey: "errors.pat_api_not_allowed", DiagnosticKind: "auth"},
+		{Code: "pat_browser_session_required", Status: http.StatusForbidden, LocaleKey: "errors.pat_browser_session_required", DiagnosticKind: "auth"},
 		{Code: "sudo_required", Status: http.StatusUnauthorized, LocaleKey: "errors.sudo_required", DiagnosticKind: "auth", Recovery: "reauth"},
 		{Code: "sudo_method_unavailable", Status: http.StatusBadRequest, LocaleKey: "errors.sudo_method_unavailable", DiagnosticKind: "auth"},
 		{Code: "session_not_found", Status: http.StatusNotFound, LocaleKey: "errors.session_not_found", DiagnosticKind: "resource"},
@@ -449,6 +452,24 @@ func ErrFactorLocked(retryAfter time.Duration) *AuthError {
 // dashboard can branch on to trigger the sudo flow + retry.
 func ErrSudoRequired() *AuthError {
 	return newErr(http.StatusUnauthorized, "sudo_required", "敏感操作需要重新验证 Passkey")
+}
+
+// ErrPATInvalid is returned when an X-Prohibitorum-PAT header is malformed or
+// names no usable token (unknown, expired, revoked, or ownerless).
+func ErrPATInvalid() *AuthError {
+	return newErr(http.StatusUnauthorized, "pat_invalid", "访问令牌无效")
+}
+
+// ErrPATAPINotAllowed is returned when a token limited to forward-auth
+// applications calls the management API.
+func ErrPATAPINotAllowed() *AuthError {
+	return newErr(http.StatusForbidden, "pat_api_not_allowed", "该访问令牌不能用于账户 API")
+}
+
+// ErrPATBrowserSessionRequired is returned when a PAT calls a route that needs
+// a browser session.
+func ErrPATBrowserSessionRequired() *AuthError {
+	return newErr(http.StatusForbidden, "pat_browser_session_required", "该操作需要在浏览器中登录后进行")
 }
 
 // ErrSudoMethodUnavailable is returned by /me/sudo/begin when the caller

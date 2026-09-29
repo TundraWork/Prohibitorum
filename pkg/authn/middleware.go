@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"prohibitorum/pkg/contract"
+	"prohibitorum/pkg/credential/pat"
 	"prohibitorum/pkg/db"
 )
 
@@ -44,15 +45,30 @@ func (d *SessionData) HasFreshSudo() bool {
 //
 // The type lives in pkg/authn so that pkg/session can import pkg/authn
 // without creating a circular dependency (authn.Check takes *authn.Session).
+//
+// A request authenticated by a Personal Access Token carries PAT instead of
+// Token + Data (both zero). Such a session is visible only through
+// PrincipalFromContext and to handlers of protected operations; see
+// WithPATSession.
 type Session struct {
 	Account *db.Account
 	Token   string
 	Data    *SessionData
+	PAT     *PATPrincipal
+}
+
+// PATPrincipal identifies the token a PAT-authenticated request came from.
+type PATPrincipal struct {
+	ID     int32
+	Access pat.Access
 }
 
 type ctxKey struct{ name string }
 
-var sessionCtxKey = ctxKey{name: "session"}
+var (
+	sessionCtxKey    = ctxKey{name: "session"}
+	patSessionCtxKey = ctxKey{name: "pat_session"}
+)
 
 // WithSession returns a new context with the session attached.
 func WithSession(ctx context.Context, s *Session) context.Context {
@@ -64,6 +80,28 @@ func WithSession(ctx context.Context, s *Session) context.Context {
 func SessionFromContext(ctx context.Context) *Session {
 	s, _ := ctx.Value(sessionCtxKey).(*Session)
 	return s
+}
+
+// WithPATSession attaches the PAT-authenticated session under its own key, so
+// SessionFromContext keeps returning cookie sessions only. Public routes and
+// protocol endpoints therefore never see a PAT principal.
+func WithPATSession(ctx context.Context, s *Session) context.Context {
+	return context.WithValue(ctx, patSessionCtxKey, s)
+}
+
+// PrincipalFromContext returns the cookie session, or else the PAT session.
+func PrincipalFromContext(ctx context.Context) *Session {
+	if s := SessionFromContext(ctx); s != nil {
+		return s
+	}
+	s, _ := ctx.Value(patSessionCtxKey).(*Session)
+	return s
+}
+
+// HasPATPrincipal reports whether the request was authenticated by a PAT.
+func HasPATPrincipal(ctx context.Context) bool {
+	s, _ := ctx.Value(patSessionCtxKey).(*Session)
+	return s != nil
 }
 
 // Check enforces the AuthRequirement against the (possibly nil) session.
@@ -80,6 +118,9 @@ func Check(s *Session, req contract.AuthRequirement) error {
 	// ApiRequestError carries a machine-readable code.
 	if s.Account.Disabled {
 		return ErrAccountDisabled()
+	}
+	if s.PAT != nil && req.BrowserOnly {
+		return ErrPATBrowserSessionRequired()
 	}
 	switch req.Kind {
 	case contract.AuthSession:

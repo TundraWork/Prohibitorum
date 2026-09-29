@@ -29,6 +29,7 @@ import (
 	"prohibitorum/pkg/contract"
 	"prohibitorum/pkg/credential/pairing"
 	"prohibitorum/pkg/credential/password"
+	"prohibitorum/pkg/credential/pat"
 	"prohibitorum/pkg/credential/totp"
 	webauthnauth "prohibitorum/pkg/credential/webauthn"
 	"prohibitorum/pkg/db"
@@ -285,6 +286,7 @@ func NewServer(ctx context.Context) (*Server, error) {
 	// X-Request-ID. Inbound values are never trusted as the server ID.
 	router.Use(weberr.RequestID)
 	router.Use(requestMetaMW(clientIPResolver.IP))
+	router.Use(patAuthMW(queries, audit.NewWriter(queries)))
 	router.Use(sessstore.LoadSession(config, queries, sessionStore, clientIPResolver.IP))
 	router.Use(diagnosticCaptureMW(diagStore))
 	router.Use(maintenanceGateMW(brandingResolver))
@@ -525,6 +527,11 @@ func registerSecurityScheme(api huma.API, cookieName string) {
 		In:   "cookie",
 		Name: cookieName,
 	}
+	doc.Components.SecuritySchemes["prohibitorumPAT"] = &huma.SecurityScheme{
+		Type: "apiKey",
+		In:   "header",
+		Name: pat.HeaderName,
+	}
 }
 
 func (s *Server) registerOperations() {
@@ -532,6 +539,12 @@ func (s *Server) registerOperations() {
 	admin := contract.AuthRequirement{Kind: contract.AuthAdmin}
 	sessionReq := contract.AuthRequirement{Kind: contract.AuthSession}
 	publicReq := contract.AuthRequirement{Kind: contract.AuthPublic}
+	// browserReq / adminBrowserReq mark routes bound to the browser session
+	// (its cookie token or session id) or that issue browser credentials; a PAT
+	// caller gets pat_browser_session_required. Add a route here whenever its
+	// handler reads sess.Data or sess.Token without a nil guard.
+	browserReq := contract.AuthRequirement{Kind: contract.AuthSession, BrowserOnly: true}
+	adminBrowserReq := contract.AuthRequirement{Kind: contract.AuthAdmin, BrowserOnly: true}
 
 	// Auth
 	registerOp(mgmt, contract.OperationAuthStatus, s.handleAuthStatus, publicReq)
@@ -570,8 +583,8 @@ func (s *Server) registerOperations() {
 	registerOp(mgmt, contract.OperationListMyCredentials, s.handleListMyCredentials, sessionReq)
 	registerOp(mgmt, contract.OperationDeleteMyCredential, s.handleDeleteMyCredential, sessionReq)
 	registerOp(mgmt, contract.OperationRenameMyCredential, s.handleRenameMyCredential, sessionReq)
-	registerOpHTTP(s.router, "POST", "/api/prohibitorum/me/credentials/register/begin", sessionReq, s.handleAddCredentialBeginHTTP)
-	registerOpHTTP(s.router, "POST", "/api/prohibitorum/me/credentials/register/complete", sessionReq, s.handleAddCredentialCompleteHTTP)
+	registerOpHTTP(s.router, "POST", "/api/prohibitorum/me/credentials/register/begin", browserReq, s.handleAddCredentialBeginHTTP)
+	registerOpHTTP(s.router, "POST", "/api/prohibitorum/me/credentials/register/complete", browserReq, s.handleAddCredentialCompleteHTTP)
 	registerOpHTTP(s.router, "POST", "/api/prohibitorum/me/password-totp/verify", sessionReq, s.handleMePasswordTOTPVerifyHTTP)
 	registerOp(mgmt, contract.OperationListMySessions, s.handleListMySessions, sessionReq)
 	registerOp(mgmt, contract.OperationRevokeMySession, s.handleRevokeMySession, sessionReq)
@@ -584,17 +597,17 @@ func (s *Server) registerOperations() {
 	registerOp(mgmt, contract.OperationRevokeConsent, s.handleRevokeMyConsent, sessionReq)
 
 	// Consent app API (OIDC consent UI context + decision).
-	registerOpHTTP(s.router, "GET", "/api/prohibitorum/consent", sessionReq, s.handleConsentContextHTTP)
-	registerOpHTTP(s.router, "POST", "/api/prohibitorum/consent", sessionReq, s.handleConsentDecisionHTTP)
+	registerOpHTTP(s.router, "GET", "/api/prohibitorum/consent", browserReq, s.handleConsentContextHTTP)
+	registerOpHTTP(s.router, "POST", "/api/prohibitorum/consent", browserReq, s.handleConsentDecisionHTTP)
 
 	// SAML advisory consent (UI context + decision), mirroring the OIDC pair.
-	registerOpHTTP(s.router, "GET", "/api/prohibitorum/saml-consent", sessionReq, s.handleSAMLConsentContextHTTP)
-	registerOpHTTP(s.router, "POST", "/api/prohibitorum/saml-consent", sessionReq, s.handleSAMLConsentDecisionHTTP)
+	registerOpHTTP(s.router, "GET", "/api/prohibitorum/saml-consent", browserReq, s.handleSAMLConsentContextHTTP)
+	registerOpHTTP(s.router, "POST", "/api/prohibitorum/saml-consent", browserReq, s.handleSAMLConsentDecisionHTTP)
 
 	// Sudo
-	registerOpHTTP(s.router, "GET", "/api/prohibitorum/me/sudo/methods", sessionReq, s.handleSudoMethodsHTTP)
-	registerOpHTTP(s.router, "POST", "/api/prohibitorum/me/sudo/begin", sessionReq, s.handleSudoBeginHTTP)
-	registerOpHTTP(s.router, "POST", "/api/prohibitorum/me/sudo/complete", sessionReq, s.handleSudoCompleteHTTP)
+	registerOpHTTP(s.router, "GET", "/api/prohibitorum/me/sudo/methods", browserReq, s.handleSudoMethodsHTTP)
+	registerOpHTTP(s.router, "POST", "/api/prohibitorum/me/sudo/begin", browserReq, s.handleSudoBeginHTTP)
+	registerOpHTTP(s.router, "POST", "/api/prohibitorum/me/sudo/complete", browserReq, s.handleSudoCompleteHTTP)
 
 	// Public branding: SPA boot config + icon image.
 	registerOpHTTP(s.router, "GET", "/api/prohibitorum/config", publicReq, s.handleGetPublicConfigHTTP)
@@ -631,16 +644,16 @@ func (s *Server) registerOperations() {
 	// lives inside the handlers, not at the route layer.
 	registerOpHTTP(s.router, "GET", "/api/prohibitorum/me/identities", sessionReq, s.handleMeIdentitiesListHTTP)
 	registerOpHTTP(s.router, "POST", "/api/prohibitorum/me/identities/{id}/unlink", sessionReq, s.handleMeIdentitiesUnlinkHTTP)
-	registerOpHTTP(s.router, "GET", "/api/prohibitorum/me/identities/link/{slug}/begin", sessionReq, s.handleMeIdentitiesLinkBeginHTTP)
-	registerOpHTTP(s.router, "GET", "/api/prohibitorum/me/identities/link/{slug}/callback", sessionReq, s.handleMeIdentitiesLinkCallbackHTTP)
+	registerOpHTTP(s.router, "GET", "/api/prohibitorum/me/identities/link/{slug}/begin", browserReq, s.handleMeIdentitiesLinkBeginHTTP)
+	registerOpHTTP(s.router, "GET", "/api/prohibitorum/me/identities/link/{slug}/callback", browserReq, s.handleMeIdentitiesLinkCallbackHTTP)
 
 	// Device pairing
 	registerOpHTTP(s.router, "POST", "/api/prohibitorum/auth/devices/pair/begin", publicReq, s.handlePairBeginHTTP)
 	registerOpHTTP(s.router, "GET", "/api/prohibitorum/auth/devices/pair/status", publicReq, s.handlePairStatusHTTP)
 	registerOpHTTP(s.router, "POST", "/api/prohibitorum/auth/devices/pair/complete", publicReq, s.handlePairCompleteHTTP)
-	registerOpHTTP(s.router, "GET", "/api/prohibitorum/me/devices/pair/lookup", sessionReq, s.handlePairLookupHTTP)
-	registerOpHTTP(s.router, "POST", "/api/prohibitorum/me/devices/pair/approve", sessionReq, s.handlePairApproveHTTP)
-	registerOpHTTP(s.router, "POST", "/api/prohibitorum/me/devices/pair/cancel", sessionReq, s.handlePairCancelHTTP)
+	registerOpHTTP(s.router, "GET", "/api/prohibitorum/me/devices/pair/lookup", browserReq, s.handlePairLookupHTTP)
+	registerOpHTTP(s.router, "POST", "/api/prohibitorum/me/devices/pair/approve", browserReq, s.handlePairApproveHTTP)
+	registerOpHTTP(s.router, "POST", "/api/prohibitorum/me/devices/pair/cancel", browserReq, s.handlePairCancelHTTP)
 
 	// Admin: audit events (read-only, filterable, keyset-paginated)
 	registerOp(mgmt, contract.OperationListAuditEvents, s.handleListAuditEvents, admin)
@@ -722,17 +735,17 @@ func (s *Server) registerOperations() {
 	registerOp(mgmt, contract.OperationListIdentityProviders, s.handleListIdentityProviders, admin)
 	registerOp(mgmt, contract.OperationGetIdentityProvider, s.handleGetIdentityProvider, admin)
 	registerOpHTTP(s.router, "GET", "/api/prohibitorum/identity-providers/{slug}/effective-config", admin, s.handleOIDCEffectiveConfigHTTP)
-	s.registerAdminBodyOpHTTP(s.router, "POST", "/api/prohibitorum/identity-providers/{slug}/tests", admin, diagnosticSameOrigin(s.handleOIDCTestStartHTTP))
-	registerOpHTTP(s.router, "GET", "/api/prohibitorum/identity-providers/{slug}/tests/{id}", admin, s.handleOIDCTestGetHTTP)
-	s.registerAdminBodyOpHTTP(s.router, "POST", "/api/prohibitorum/identity-providers/{slug}/tests/{id}/complete", admin, diagnosticSameOrigin(s.handleOIDCTestCompleteHTTP))
+	s.registerAdminBodyOpHTTP(s.router, "POST", "/api/prohibitorum/identity-providers/{slug}/tests", adminBrowserReq, diagnosticSameOrigin(s.handleOIDCTestStartHTTP))
+	registerOpHTTP(s.router, "GET", "/api/prohibitorum/identity-providers/{slug}/tests/{id}", adminBrowserReq, s.handleOIDCTestGetHTTP)
+	s.registerAdminBodyOpHTTP(s.router, "POST", "/api/prohibitorum/identity-providers/{slug}/tests/{id}/complete", adminBrowserReq, diagnosticSameOrigin(s.handleOIDCTestCompleteHTTP))
 	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/identity-providers", admin, s.handleCreateIdentityProviderHTTP)
 	s.registerSudoOpHTTP(s.router, "PUT", "/api/prohibitorum/identity-providers/{slug}", admin, s.handleUpdateIdentityProviderHTTP)
 	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/identity-providers/rotate-secret", admin, s.handleRotateIdentityProviderSecretHTTP)
 	s.registerAdminBodyOpHTTP(s.router, "POST", "/api/prohibitorum/identity-providers/set-disabled", admin, s.handleSetIdentityProviderDisabledHTTP)
 	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/identity-providers/delete", admin, s.handleDeleteIdentityProviderHTTP)
-	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/identity-providers/{slug}/operator-session/start", admin, s.handleVRChatOperatorStartHTTP)
-	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/identity-providers/{slug}/operator-session/verify", admin, s.handleVRChatOperatorVerifyHTTP)
-	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/identity-providers/{slug}/operator-session/validate", admin, s.handleVRChatOperatorValidateHTTP)
+	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/identity-providers/{slug}/operator-session/start", adminBrowserReq, s.handleVRChatOperatorStartHTTP)
+	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/identity-providers/{slug}/operator-session/verify", adminBrowserReq, s.handleVRChatOperatorVerifyHTTP)
+	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/identity-providers/{slug}/operator-session/validate", adminBrowserReq, s.handleVRChatOperatorValidateHTTP)
 
 	// Admin: SAML application management
 	registerOp(mgmt, contract.OperationListSAMLApplications, s.handleListSAMLApplications, sessionReq)

@@ -276,7 +276,7 @@ func (q *policyTestQueries) ListForwardAuthAccessCandidates(context.Context) ([]
 		}
 		rows = append(rows, db.ListForwardAuthAccessCandidatesRow{
 			ClientID: client.ClientID, DisplayName: client.DisplayName, ForwardAuthHost: client.ForwardAuthHost,
-			ForwardAuthScopes: client.ForwardAuthScopes, AccessRestricted: client.AccessRestricted,
+			AccessRestricted: client.AccessRestricted,
 		})
 	}
 	sort.Slice(rows, func(i, j int) bool { return rows[i].ClientID < rows[j].ClientID })
@@ -674,7 +674,7 @@ func newPolicyTestServer() (*Server, *policyTestQueries, *policyAuditCapture) {
 
 func seedPolicyFixtures(q *policyTestQueries) {
 	q.oidc["wiki"] = db.OidcClient{ClientID: "wiki", DisplayName: "Wiki", LaunchUrl: pgtype.Text{String: "https://wiki.example", Valid: true}, RedirectUris: []string{"https://wiki.example/callback"}}
-	q.oidc["forward"] = db.OidcClient{ClientID: "forward", DisplayName: "Forward", ForwardAuthEnabled: true, ForwardAuthHost: pgtype.Text{String: "app.example", Valid: true}, ForwardAuthScopes: []byte(`[{"name":"user","description":"User"}]`)}
+	q.oidc["forward"] = db.OidcClient{ClientID: "forward", DisplayName: "Forward", ForwardAuthEnabled: true, ForwardAuthHost: pgtype.Text{String: "app.example", Valid: true}}
 	q.oidc["other"] = db.OidcClient{ClientID: "other", DisplayName: "Other"}
 	q.oidc["disabled-oidc"] = db.OidcClient{ClientID: "disabled-oidc", DisplayName: "Disabled OIDC", Disabled: true}
 	q.oidc["disabled-forward"] = db.OidcClient{ClientID: "disabled-forward", DisplayName: "Disabled Forward", Disabled: true, ForwardAuthEnabled: true}

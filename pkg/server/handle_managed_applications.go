@@ -412,11 +412,6 @@ func managedOIDCSummary(kind appaccess.AppKind, client db.OidcClient) (contract.
 		if client.ForwardAuthHost.Valid {
 			view.ForwardAuthHost = client.ForwardAuthHost.String
 		}
-		if len(client.ForwardAuthScopes) > 0 {
-			if err := json.Unmarshal(client.ForwardAuthScopes, &view.ForwardAuthScopes); err != nil {
-				return contract.AppSummaryView{}, fmt.Errorf("decode forward-auth scopes: %w", err)
-			}
-		}
 		return view, nil
 	}
 	if client.LaunchUrl.Valid {

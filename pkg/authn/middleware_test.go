@@ -84,3 +84,36 @@ func TestSessionContext_Roundtrip(t *testing.T) {
 		t.Error("empty ctx should return nil")
 	}
 }
+
+func TestCheck_BrowserOnlyRejectsPAT(t *testing.T) {
+	pats := &Session{Account: &db.Account{Role: "admin"}, PAT: &PATPrincipal{ID: 1, Access: "full"}}
+	req := contract.AuthRequirement{Kind: contract.AuthSession, BrowserOnly: true}
+	err := Check(pats, req)
+	if AsAuthError(err) == nil || AsAuthError(err).Code != "pat_browser_session_required" {
+		t.Fatalf("want pat_browser_session_required, got %v", err)
+	}
+	if err := Check(&Session{Account: &db.Account{}}, req); err != nil {
+		t.Errorf("cookie session on BrowserOnly route: %v", err)
+	}
+	if err := Check(pats, contract.AuthRequirement{Kind: contract.AuthAdmin}); err != nil {
+		t.Errorf("PAT on ordinary admin route: %v", err)
+	}
+}
+
+func TestPrincipalFromContext(t *testing.T) {
+	cookie := &Session{Account: &db.Account{ID: 1}}
+	token := &Session{Account: &db.Account{ID: 2}, PAT: &PATPrincipal{ID: 9}}
+	ctx := WithPATSession(context.Background(), token)
+	if SessionFromContext(ctx) != nil {
+		t.Error("SessionFromContext must not expose the PAT principal")
+	}
+	if PrincipalFromContext(ctx) != token || !HasPATPrincipal(ctx) {
+		t.Error("PrincipalFromContext should fall back to the PAT session")
+	}
+	if PrincipalFromContext(WithSession(ctx, cookie)) != cookie {
+		t.Error("cookie session should win")
+	}
+	if PrincipalFromContext(context.Background()) != nil || HasPATPrincipal(context.Background()) {
+		t.Error("empty ctx should have no principal")
+	}
+}

@@ -2,11 +2,11 @@ package server
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/sirupsen/logrus"
 
@@ -26,6 +26,8 @@ import (
 type patQueries interface {
 	InsertPAT(ctx context.Context, arg db.InsertPATParams) (db.PersonalAccessToken, error)
 	ListPATsByAccount(ctx context.Context, accountID int32) ([]db.PersonalAccessToken, error)
+	InsertPATApp(ctx context.Context, arg db.InsertPATAppParams) error
+	ListPATAppsByPATIDs(ctx context.Context, patIds []int32) ([]db.ListPATAppsByPATIDsRow, error)
 	RevokePAT(ctx context.Context, arg db.RevokePATParams) (int64, error)
 	// GetAccountByID backs the admin account-existence 404 guard on
 	// GET /accounts/{id}/tokens (handle_admin_account_tokens.go), mirroring the
@@ -33,15 +35,20 @@ type patQueries interface {
 	GetAccountByID(ctx context.Context, id int32) (db.Account, error)
 }
 
-// patView projects a row, unmarshalling app_grants (jsonb) to a map.
-func patView(row db.PersonalAccessToken) contract.PersonalAccessTokenView {
-	grants := map[string][]string{}
-	if len(row.AppGrants) > 0 {
-		_ = json.Unmarshal(row.AppGrants, &grants)
+// patAppLister loads the applications of selected_apps tokens.
+type patAppLister interface {
+	ListPATAppsByPATIDs(ctx context.Context, patIds []int32) ([]db.ListPATAppsByPATIDsRow, error)
+}
+
+// patView projects a token row and its application list (nil unless the token
+// is selected_apps) into the wire view. apps is always serialized as an array.
+func patView(row db.PersonalAccessToken, apps []contract.PersonalAccessTokenApp) contract.PersonalAccessTokenView {
+	if apps == nil {
+		apps = []contract.PersonalAccessTokenApp{}
 	}
 	v := contract.PersonalAccessTokenView{
 		ID: row.ID, Name: row.Name, TokenHint: row.TokenHint,
-		AllApps: row.AllApps, AppGrants: grants, CreatedAt: row.CreatedAt.Time,
+		Access: row.Access, Apps: apps, CreatedAt: row.CreatedAt.Time,
 	}
 	if row.ExpiresAt.Valid {
 		t := row.ExpiresAt.Time
@@ -54,21 +61,30 @@ func patView(row db.PersonalAccessToken) contract.PersonalAccessTokenView {
 	return v
 }
 
-// parseFAScopes unmarshals an app's forward_auth_scopes jsonb into the wire shape.
-func parseFAScopes(raw []byte) []contract.ForwardAuthScope {
-	out := []contract.ForwardAuthScope{}
-	if len(raw) > 0 {
-		_ = json.Unmarshal(raw, &out)
+// patViews projects rows with one query for all their application lists. The
+// query orders by display name, so each token's apps keep that order.
+func patViews(ctx context.Context, q patAppLister, rows []db.PersonalAccessToken) ([]contract.PersonalAccessTokenView, error) {
+	ids := make([]int32, 0, len(rows))
+	for _, row := range rows {
+		if pat.Access(row.Access) == pat.AccessSelectedApps {
+			ids = append(ids, row.ID)
+		}
 	}
-	return out
-}
-
-func contractFAScopes(scopes []appaccess.Scope) []contract.ForwardAuthScope {
-	out := make([]contract.ForwardAuthScope, 0, len(scopes))
-	for _, scope := range scopes {
-		out = append(out, contract.ForwardAuthScope{Name: scope.Name, Description: scope.Description})
+	byPAT := map[int32][]contract.PersonalAccessTokenApp{}
+	if len(ids) > 0 {
+		appRows, err := q.ListPATAppsByPATIDs(ctx, ids)
+		if err != nil {
+			return nil, fmt.Errorf("list token apps: %w", err)
+		}
+		for _, ar := range appRows {
+			byPAT[ar.PatID] = append(byPAT[ar.PatID], contract.PersonalAccessTokenApp{ClientID: ar.ClientID, DisplayName: ar.DisplayName})
+		}
 	}
-	return out
+	out := make([]contract.PersonalAccessTokenView, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, patView(row, byPAT[row.ID]))
+	}
+	return out, nil
 }
 
 func (s *Server) listAllowedApps(ctx context.Context, accountID int32) ([]appaccess.AppSummary, error) {
@@ -101,9 +117,9 @@ func (s *Server) handleListMyTokens(ctx context.Context, _ *struct{}) (*listMyTo
 	if err != nil {
 		return nil, fmt.Errorf("handleListMyTokens: %w", err)
 	}
-	out := make([]contract.PersonalAccessTokenView, 0, len(rows))
-	for _, row := range rows {
-		out = append(out, patView(row))
+	out, err := patViews(ctx, q, rows)
+	if err != nil {
+		return nil, fmt.Errorf("handleListMyTokens: %w", err)
 	}
 	return &listMyTokensOut{Body: out}, nil
 }
@@ -112,10 +128,10 @@ func (s *Server) handleListMyTokens(ctx context.Context, _ *struct{}) (*listMyTo
 
 type createMyTokenIn struct {
 	Body struct {
-		Name          string              `json:"name"`
-		ExpiresInDays *int                `json:"expiresInDays,omitempty"`
-		AllApps       bool                `json:"allApps"`
-		AppGrants     map[string][]string `json:"appGrants"`
+		Name          string   `json:"name"`
+		ExpiresInDays *int     `json:"expiresInDays,omitempty"`
+		Access        string   `json:"access" enum:"selected_apps,all_apps,full,sudo"`
+		AppClientIDs  []string `json:"appClientIds,omitempty"`
 	}
 }
 
@@ -135,18 +151,15 @@ func (s *Server) handleCreateMyToken(ctx context.Context, in *createMyTokenIn) (
 	if d := in.Body.ExpiresInDays; d != nil && (*d < 0 || *d > 3650) {
 		return nil, authErrToHuma(authn.ErrBadRequest())
 	}
+	access, err := pat.ParseAccess(in.Body.Access)
+	if err != nil {
+		return nil, authErrToHuma(authn.ErrBadRequest())
+	}
 
 	q := s.patQueriesFn()
-	grants := in.Body.AppGrants
-	if grants == nil {
-		grants = map[string][]string{}
-	}
-	if in.Body.AllApps {
-		if len(grants) > 0 { // all_apps is identity-only
-			return nil, authErrToHuma(authn.ErrBadRequest())
-		}
-	} else {
-		if len(grants) == 0 { // least-privilege: must pick ≥1 app
+	clientIDs := in.Body.AppClientIDs
+	if access == pat.AccessSelectedApps {
+		if len(clientIDs) == 0 { // least-privilege: must pick ≥1 app
 			return nil, authErrToHuma(authn.ErrBadRequest())
 		}
 		// Re-evaluate the owner's allowed apps at creation time so a stale picker
@@ -155,53 +168,73 @@ func (s *Server) handleCreateMyToken(ctx context.Context, in *createMyTokenIn) (
 		if err != nil {
 			return nil, fmt.Errorf("handleCreateMyToken: allowed apps: %w", err)
 		}
-		vocab := make(map[string]map[string]bool, len(apps))
+		allowed := make(map[string]bool, len(apps))
 		for _, app := range apps {
-			if app.Ref.Kind != appaccess.KindForwardAuth {
-				continue
-			}
-			set := make(map[string]bool, len(app.ForwardAuthScopes))
-			for _, scope := range app.ForwardAuthScopes {
-				set[scope.Name] = true
-			}
-			vocab[app.Ref.OIDCClientID] = set
-		}
-		for cid, scopes := range grants {
-			allowed, ok := vocab[cid]
-			if !ok {
-				return nil, authErrToHuma(authn.ErrBadRequest()) // not an authorized app
-			}
-			for _, sc := range scopes {
-				if !allowed[sc] {
-					return nil, authErrToHuma(authn.ErrBadRequest()) // scope not in vocabulary
-				}
+			if app.Ref.Kind == appaccess.KindForwardAuth {
+				allowed[app.Ref.OIDCClientID] = true
 			}
 		}
+		seen := make(map[string]bool, len(clientIDs))
+		for _, cid := range clientIDs {
+			if !allowed[cid] || seen[cid] { // not an authorized app, or listed twice
+				return nil, authErrToHuma(authn.ErrBadRequest())
+			}
+			seen[cid] = true
+		}
+	} else if clientIDs != nil { // an empty list still counts as present
+		return nil, authErrToHuma(authn.ErrBadRequest())
 	}
 
 	raw, hash, hint, err := pat.Generate()
 	if err != nil {
 		return nil, fmt.Errorf("handleCreateMyToken: generate: %w", err)
 	}
-	grantsJSON, _ := json.Marshal(grants)
 	var expires pgtype.Timestamptz
 	if in.Body.ExpiresInDays != nil && *in.Body.ExpiresInDays > 0 {
 		expires = pgtype.Timestamptz{Time: time.Now().AddDate(0, 0, *in.Body.ExpiresInDays), Valid: true}
 	}
-	row, err := q.InsertPAT(ctx, db.InsertPATParams{
+	params := db.InsertPATParams{
 		AccountID: sess.Account.ID, Name: name, TokenHash: hash, TokenHint: hint,
-		AllApps: in.Body.AllApps, AppGrants: grantsJSON, ExpiresAt: expires,
-	})
+		Access: string(access), ExpiresAt: expires,
+	}
+
+	// The token row and its application list commit together. Without a pool
+	// (unit-test seam) the injected queries are used directly.
+	var row db.PersonalAccessToken
+	var tx pgx.Tx
+	if s.dbPool != nil && s.patQueriesOverride == nil {
+		tx, err = s.dbPool.Begin(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("handleCreateMyToken: begin: %w", err)
+		}
+		defer tx.Rollback(ctx) //nolint:errcheck
+		q = s.queries.WithTx(tx)
+	}
+	row, err = q.InsertPAT(ctx, params)
 	if err != nil {
 		return nil, fmt.Errorf("handleCreateMyToken: insert: %w", err)
+	}
+	for _, cid := range clientIDs {
+		if err := q.InsertPATApp(ctx, db.InsertPATAppParams{PatID: row.ID, ClientID: cid}); err != nil {
+			return nil, fmt.Errorf("handleCreateMyToken: insert app: %w", err)
+		}
+	}
+	if tx != nil {
+		if err := tx.Commit(ctx); err != nil {
+			return nil, fmt.Errorf("handleCreateMyToken: commit: %w", err)
+		}
+	}
+	views, err := patViews(ctx, q, []db.PersonalAccessToken{row})
+	if err != nil {
+		return nil, fmt.Errorf("handleCreateMyToken: %w", err)
 	}
 	credRef := int64(row.ID)
 	audit.RecordOrLog(ctx, s.Audit, audit.Record{
 		AccountID: &sess.Account.ID, Factor: audit.FactorPAT, Event: audit.EventRegister,
-		CredentialRef: &credRef, Detail: map[string]any{"name": name},
+		CredentialRef: &credRef, Detail: map[string]any{"name": name, "access": string(access)},
 	})
 	logx.WithContext(ctx).WithFields(logrus.Fields{"event": "auth.pat_created", "account_id": sess.Account.ID, "pat_id": row.ID}).Info("auth")
-	return &createMyTokenOut{Body: contract.PersonalAccessTokenCreated{Token: raw, PAT: patView(row)}}, nil
+	return &createMyTokenOut{Body: contract.PersonalAccessTokenCreated{Token: raw, PAT: views[0]}}, nil
 }
 
 // ----- GET /me/forward-auth-apps -----------------------------------------
@@ -225,7 +258,7 @@ func (s *Server) handleListMyForwardAuthApps(ctx context.Context, _ *struct{}) (
 			continue
 		}
 		out = append(out, contract.MyForwardAuthApp{
-			ClientID: app.Ref.OIDCClientID, DisplayName: app.DisplayName, Scopes: contractFAScopes(app.ForwardAuthScopes),
+			ClientID: app.Ref.OIDCClientID, DisplayName: app.DisplayName,
 		})
 	}
 	return &listMyFAAppsOut{Body: out}, nil

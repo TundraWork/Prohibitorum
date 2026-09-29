@@ -16,7 +16,12 @@
 package server
 
 import (
+	"net/http"
+	"net/http/httptest"
+
 	"context"
+	"github.com/danielgtaylor/huma/v2"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -40,6 +45,32 @@ type fakePATQ struct {
 
 	rows   []db.PersonalAccessToken // seed + mutated state
 	nextID int32                    // auto-increment for inserts
+	// apps holds (pat, client) pairs written by InsertPATApp; names maps
+	// client_id to the display name the list join would return.
+	apps  []db.InsertPATAppParams
+	names map[string]string
+}
+
+func (f *fakePATQ) InsertPATApp(_ context.Context, arg db.InsertPATAppParams) error {
+	f.apps = append(f.apps, arg)
+	return nil
+}
+
+func (f *fakePATQ) ListPATAppsByPATIDs(_ context.Context, ids []int32) ([]db.ListPATAppsByPATIDsRow, error) {
+	var out []db.ListPATAppsByPATIDsRow
+	for _, a := range f.apps {
+		for _, id := range ids {
+			if a.PatID == id {
+				name := f.names[a.ClientID]
+				if name == "" {
+					name = a.ClientID
+				}
+				out = append(out, db.ListPATAppsByPATIDsRow{PatID: a.PatID, ClientID: a.ClientID, DisplayName: name})
+			}
+		}
+	}
+	sort.SliceStable(out, func(i, j int) bool { return out[i].DisplayName < out[j].DisplayName })
+	return out, nil
 }
 
 func (f *fakePATQ) InsertPAT(_ context.Context, arg db.InsertPATParams) (db.PersonalAccessToken, error) {
@@ -50,8 +81,7 @@ func (f *fakePATQ) InsertPAT(_ context.Context, arg db.InsertPATParams) (db.Pers
 		Name:      arg.Name,
 		TokenHash: arg.TokenHash,
 		TokenHint: arg.TokenHint,
-		AllApps:   arg.AllApps,
-		AppGrants: arg.AppGrants,
+		Access:    arg.Access,
 		CreatedAt: pgtype.Timestamptz{Time: time.Now(), Valid: true},
 		ExpiresAt: arg.ExpiresAt,
 	}
@@ -94,14 +124,16 @@ func newPATServer(q *fakePATQ) *Server {
 		patQueriesOverride: q,
 		appLister: &fakeAppLister{apps: []appaccess.AppSummary{
 			{
-				Ref:               appaccess.AppRef{Kind: appaccess.KindForwardAuth, OIDCClientID: "svc"},
-				DisplayName:       "Service",
-				ForwardAuthScopes: []appaccess.Scope{{Name: "repo:read"}, {Name: "repo:write"}},
+				Ref:         appaccess.AppRef{Kind: appaccess.KindForwardAuth, OIDCClientID: "svc"},
+				DisplayName: "Service",
 			},
 			{
-				Ref:               appaccess.AppRef{Kind: appaccess.KindOIDC, OIDCClientID: "oidc-only"},
-				DisplayName:       "OIDC only",
-				ForwardAuthScopes: []appaccess.Scope{{Name: "must:not:grant"}},
+				Ref:         appaccess.AppRef{Kind: appaccess.KindForwardAuth, OIDCClientID: "wiki"},
+				DisplayName: "Wiki",
+			},
+			{
+				Ref:         appaccess.AppRef{Kind: appaccess.KindOIDC, OIDCClientID: "oidc-only"},
+				DisplayName: "OIDC only",
 			},
 		}},
 		Audit: audit.NewWriter(q),
@@ -130,7 +162,7 @@ func TestHandleCreateMyToken_HappyPath(t *testing.T) {
 
 	in := &createMyTokenIn{}
 	in.Body.Name = "ci-runner"
-	in.Body.AllApps = true
+	in.Body.Access = "all_apps"
 
 	out, err := s.handleCreateMyToken(ctx, in)
 	if err != nil {
@@ -276,7 +308,7 @@ func TestHandleListMyTokens_ReturnsOnlyActiveTokens(t *testing.T) {
 	// Create one token.
 	createIn := &createMyTokenIn{}
 	createIn.Body.Name = "my-token"
-	createIn.Body.AllApps = true
+	createIn.Body.Access = "all_apps"
 	createOut, err := s.handleCreateMyToken(ctx, createIn)
 	if err != nil {
 		t.Fatalf("handleCreateMyToken: %v", err)
@@ -328,7 +360,7 @@ func TestHandleRevokeMyToken_ForeignID(t *testing.T) {
 	ctx1 := patCtx(1)
 	createIn := &createMyTokenIn{}
 	createIn.Body.Name = "account-1-token"
-	createIn.Body.AllApps = true
+	createIn.Body.Access = "all_apps"
 	createOut, err := s.handleCreateMyToken(ctx1, createIn)
 	if err != nil {
 		t.Fatalf("handleCreateMyToken: %v", err)
@@ -369,7 +401,7 @@ func TestHandleRevokeMyToken_DoubleRevoke(t *testing.T) {
 	// Create and revoke.
 	createIn := &createMyTokenIn{}
 	createIn.Body.Name = "short-lived"
-	createIn.Body.AllApps = true
+	createIn.Body.Access = "all_apps"
 	createOut, err := s.handleCreateMyToken(ctx, createIn)
 	if err != nil {
 		t.Fatalf("handleCreateMyToken: %v", err)
@@ -402,7 +434,7 @@ func TestHandleListMyTokens_NeverExposesPlaintextOrHash(t *testing.T) {
 	// Create a token.
 	createIn := &createMyTokenIn{}
 	createIn.Body.Name = "secret-guard"
-	createIn.Body.AllApps = true
+	createIn.Body.Access = "all_apps"
 	createOut, err := s.handleCreateMyToken(ctx, createIn)
 	if err != nil {
 		t.Fatalf("handleCreateMyToken: %v", err)
@@ -429,85 +461,86 @@ func TestHandleListMyTokens_NeverExposesPlaintextOrHash(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// Per-app grant validation (Task 2)
+// Access levels and application selection
 // ---------------------------------------------------------------------------
 
-// TestHandleCreateMyToken_GrantedAppValidScope — an app the owner is authorized
-// for plus a scope in that app's vocabulary inserts successfully and the view
-// round-trips the per-app grant.
-func TestHandleCreateMyToken_GrantedAppValidScope(t *testing.T) {
+func createWith(s *Server, access string, clientIDs []string) (*createMyTokenOut, error) {
+	in := &createMyTokenIn{}
+	in.Body.Name = "tok"
+	in.Body.Access = access
+	in.Body.AppClientIDs = clientIDs
+	return s.handleCreateMyToken(patCtx(1), in)
+}
+
+// Every level is created with the right stored access; only selected_apps
+// writes application rows.
+func TestHandleCreateMyToken_EachAccessLevel(t *testing.T) {
 	t.Parallel()
 
-	q := &fakePATQ{}
-	s := newPATServer(q)
-	ctx := patCtx(1)
+	for _, access := range []string{"all_apps", "full", "sudo"} {
+		q := &fakePATQ{}
+		out, err := createWith(newPATServer(q), access, nil)
+		if err != nil {
+			t.Fatalf("%s: %v", access, err)
+		}
+		if out.Body.PAT.Access != access || len(out.Body.PAT.Apps) != 0 || out.Body.PAT.Apps == nil {
+			t.Errorf("%s: view = %+v (apps must be an empty, non-nil list)", access, out.Body.PAT)
+		}
+		if len(q.rows) != 1 || q.rows[0].Access != access || len(q.apps) != 0 {
+			t.Errorf("%s: rows=%+v apps=%+v", access, q.rows, q.apps)
+		}
+	}
 
-	in := &createMyTokenIn{}
-	in.Body.Name = "per-app"
-	in.Body.AppGrants = map[string][]string{"svc": {"repo:read"}}
-
-	out, err := s.handleCreateMyToken(ctx, in)
+	q := &fakePATQ{names: map[string]string{"svc": "Service", "wiki": "Wiki"}}
+	out, err := createWith(newPATServer(q), "selected_apps", []string{"wiki", "svc"})
 	if err != nil {
-		t.Fatalf("handleCreateMyToken: %v", err)
+		t.Fatalf("selected_apps: %v", err)
 	}
-	if out.Body.PAT.AllApps {
-		t.Error("AllApps: want false for a per-app grant")
+	apps := out.Body.PAT.Apps
+	if out.Body.PAT.Access != "selected_apps" || len(apps) != 2 || apps[0].DisplayName != "Service" || apps[1].ClientID != "wiki" {
+		t.Errorf("selected_apps view = %+v (apps sorted by display name)", out.Body.PAT)
 	}
-	got := out.Body.PAT.AppGrants["svc"]
-	if len(got) != 1 || got[0] != "repo:read" {
-		t.Errorf("AppGrants[svc]: want [repo:read], got %v", got)
-	}
-	if len(q.rows) != 1 {
-		t.Fatalf("InsertPAT row count: want 1, got %d", len(q.rows))
+	if len(q.apps) != 2 {
+		t.Errorf("app rows = %+v", q.apps)
 	}
 }
 
-// TestHandleCreateMyToken_UnknownApp — granting an app the owner is NOT
-// authorized for is rejected with bad_request and no row inserted.
-func TestHandleCreateMyToken_UnknownApp(t *testing.T) {
+func TestHandleCreateMyToken_RejectsBadSelections(t *testing.T) {
 	t.Parallel()
 
-	q := &fakePATQ{}
-	s := newPATServer(q)
-	ctx := patCtx(1)
-
-	in := &createMyTokenIn{}
-	in.Body.Name = "bad-app"
-	in.Body.AppGrants = map[string][]string{"not-authorized": {"repo:read"}}
-
-	_, err := s.handleCreateMyToken(ctx, in)
-	if err == nil {
-		t.Fatal("expected error for unauthorized app, got nil")
+	cases := []struct {
+		name      string
+		access    string
+		clientIDs []string
+	}{
+		{"selected without apps", "selected_apps", nil},
+		{"selected with empty list", "selected_apps", []string{}},
+		{"duplicate app", "selected_apps", []string{"svc", "svc"}},
+		{"app not offered", "selected_apps", []string{"not-authorized"}},
+		{"non forward-auth app", "selected_apps", []string{"oidc-only"}},
+		{"one good one bad", "selected_apps", []string{"svc", "nope"}},
+		{"all_apps with apps", "all_apps", []string{"svc"}},
+		{"full with apps", "full", []string{"svc"}},
+		{"sudo with apps", "sudo", []string{"svc"}},
+		{"all_apps with empty list", "all_apps", []string{}},
+		{"sudo with empty list", "sudo", []string{}},
+		{"unknown access", "root", nil},
+		{"empty access", "", nil},
+		{"wrong case", "Full", nil},
 	}
-	if code := codeFromErr(t, err); code != "bad_request" {
-		t.Errorf("code: want bad_request, got %s", code)
-	}
-	if len(q.rows) != 0 {
-		t.Errorf("InsertPAT must not be called for unauthorized app; got %d row(s)", len(q.rows))
-	}
-}
-
-// A regular OIDC app must never become a forward-auth PAT grant candidate.
-func TestHandleCreateMyToken_RejectsNonForwardAuthApp(t *testing.T) {
-	t.Parallel()
-
-	q := &fakePATQ{}
-	s := newPATServer(q)
-	ctx := patCtx(1)
-
-	in := &createMyTokenIn{}
-	in.Body.Name = "wrong-kind"
-	in.Body.AppGrants = map[string][]string{"oidc-only": {"must:not:grant"}}
-
-	_, err := s.handleCreateMyToken(ctx, in)
-	if err == nil {
-		t.Fatal("expected error for non-forward-auth app, got nil")
-	}
-	if code := codeFromErr(t, err); code != "bad_request" {
-		t.Errorf("code: want bad_request, got %s", code)
-	}
-	if len(q.rows) != 0 {
-		t.Errorf("InsertPAT must not be called for non-forward-auth app; got %d row(s)", len(q.rows))
+	for _, tc := range cases {
+		q := &fakePATQ{}
+		_, err := createWith(newPATServer(q), tc.access, tc.clientIDs)
+		if err == nil {
+			t.Errorf("%s: expected error", tc.name)
+			continue
+		}
+		if code := codeFromErr(t, err); code != "bad_request" {
+			t.Errorf("%s: code = %s, want bad_request", tc.name, code)
+		}
+		if len(q.rows) != 0 || len(q.apps) != 0 {
+			t.Errorf("%s: wrote rows=%d apps=%d", tc.name, len(q.rows), len(q.apps))
+		}
 	}
 }
 
@@ -519,13 +552,7 @@ func TestHandleCreateMyToken_NowDeniedApp(t *testing.T) {
 	q := &fakePATQ{}
 	s := newPATServer(q)
 	s.appLister = &fakeAppLister{apps: []appaccess.AppSummary{}}
-	ctx := patCtx(1)
-
-	in := &createMyTokenIn{}
-	in.Body.Name = "stale-picker"
-	in.Body.AppGrants = map[string][]string{"svc": {"repo:read"}}
-
-	_, err := s.handleCreateMyToken(ctx, in)
+	_, err := createWith(s, "selected_apps", []string{"svc"})
 	if err == nil {
 		t.Fatal("expected error for now-denied app, got nil")
 	}
@@ -537,84 +564,43 @@ func TestHandleCreateMyToken_NowDeniedApp(t *testing.T) {
 	}
 }
 
-// TestHandleCreateMyToken_UnknownScope — a scope outside the app's vocabulary is
-// rejected with bad_request and no row inserted.
-func TestHandleCreateMyToken_UnknownScope(t *testing.T) {
+// The list view carries each token's apps, ordered by display name.
+func TestHandleListMyTokens_IncludesApps(t *testing.T) {
 	t.Parallel()
 
-	q := &fakePATQ{}
+	q := &fakePATQ{names: map[string]string{"svc": "Service", "wiki": "Wiki"}}
 	s := newPATServer(q)
-	ctx := patCtx(1)
-
-	in := &createMyTokenIn{}
-	in.Body.Name = "bad-scope"
-	in.Body.AppGrants = map[string][]string{"svc": {"repo:delete"}}
-
-	_, err := s.handleCreateMyToken(ctx, in)
-	if err == nil {
-		t.Fatal("expected error for out-of-vocabulary scope, got nil")
+	if _, err := createWith(s, "selected_apps", []string{"wiki", "svc"}); err != nil {
+		t.Fatal(err)
 	}
-	if code := codeFromErr(t, err); code != "bad_request" {
-		t.Errorf("code: want bad_request, got %s", code)
+	if _, err := createWith(s, "full", nil); err != nil {
+		t.Fatal(err)
 	}
-	if len(q.rows) != 0 {
-		t.Errorf("InsertPAT must not be called for bad scope; got %d row(s)", len(q.rows))
+	out, err := s.handleListMyTokens(patCtx(1), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(out.Body) != 2 {
+		t.Fatalf("len = %d", len(out.Body))
+	}
+	for _, v := range out.Body {
+		switch v.Access {
+		case "selected_apps":
+			if len(v.Apps) != 2 || v.Apps[0].ClientID != "svc" || v.Apps[1].ClientID != "wiki" {
+				t.Errorf("selected apps = %+v", v.Apps)
+			}
+		case "full":
+			if v.Apps == nil || len(v.Apps) != 0 {
+				t.Errorf("full apps = %#v, want empty non-nil", v.Apps)
+			}
+		default:
+			t.Errorf("unexpected access %q", v.Access)
+		}
 	}
 }
 
-// TestHandleCreateMyToken_EmptyGrantsNotAllApps — allApps=false with no app
-// grants violates least-privilege and is rejected with bad_request.
-func TestHandleCreateMyToken_EmptyGrantsNotAllApps(t *testing.T) {
-	t.Parallel()
-
-	q := &fakePATQ{}
-	s := newPATServer(q)
-	ctx := patCtx(1)
-
-	in := &createMyTokenIn{}
-	in.Body.Name = "no-apps"
-	// AllApps defaults to false; AppGrants nil.
-
-	_, err := s.handleCreateMyToken(ctx, in)
-	if err == nil {
-		t.Fatal("expected error for empty grants without all_apps, got nil")
-	}
-	if code := codeFromErr(t, err); code != "bad_request" {
-		t.Errorf("code: want bad_request, got %s", code)
-	}
-	if len(q.rows) != 0 {
-		t.Errorf("InsertPAT must not be called; got %d row(s)", len(q.rows))
-	}
-}
-
-// TestHandleCreateMyToken_AllAppsWithGrantsConflict — allApps=true MUST be
-// identity-only; supplying app grants alongside it is rejected with bad_request.
-func TestHandleCreateMyToken_AllAppsWithGrantsConflict(t *testing.T) {
-	t.Parallel()
-
-	q := &fakePATQ{}
-	s := newPATServer(q)
-	ctx := patCtx(1)
-
-	in := &createMyTokenIn{}
-	in.Body.Name = "conflict"
-	in.Body.AllApps = true
-	in.Body.AppGrants = map[string][]string{"svc": {"repo:read"}}
-
-	_, err := s.handleCreateMyToken(ctx, in)
-	if err == nil {
-		t.Fatal("expected error for all_apps with grants, got nil")
-	}
-	if code := codeFromErr(t, err); code != "bad_request" {
-		t.Errorf("code: want bad_request, got %s", code)
-	}
-	if len(q.rows) != 0 {
-		t.Errorf("InsertPAT must not be called; got %d row(s)", len(q.rows))
-	}
-}
-
-// TestHandleListMyForwardAuthApps — returns the caller's authorized FA apps,
-// each carrying its scope vocabulary, for the create picker.
+// TestHandleListMyForwardAuthApps — returns the caller's authorized FA apps
+// for the create picker.
 func TestHandleListMyForwardAuthApps(t *testing.T) {
 	t.Parallel()
 
@@ -626,14 +612,63 @@ func TestHandleListMyForwardAuthApps(t *testing.T) {
 	if err != nil {
 		t.Fatalf("handleListMyForwardAuthApps: %v", err)
 	}
-	if len(out.Body) != 1 {
-		t.Fatalf("app count: want 1, got %d", len(out.Body))
+	if len(out.Body) != 2 {
+		t.Fatalf("app count: want 2, got %d", len(out.Body))
 	}
-	app := out.Body[0]
-	if app.ClientID != "svc" || app.DisplayName != "Service" {
+	if app := out.Body[0]; app.ClientID != "svc" || app.DisplayName != "Service" {
 		t.Errorf("app identity: got %q / %q", app.ClientID, app.DisplayName)
 	}
-	if len(app.Scopes) != 2 || app.Scopes[0].Name != "repo:read" || app.Scopes[1].Name != "repo:write" {
-		t.Errorf("scopes vocabulary: got %+v", app.Scopes)
+}
+
+// The wire schema is closed: the removed allApps/appGrants fields, a missing
+// access, and an access outside the enum are all schema failures (422), and
+// nothing reaches the handler.
+func TestCreateMyTokenRoute_SchemaRejectsLegacyAndInvalidBodies(t *testing.T) {
+	router, _ := realAdminOnlyRouter(t)
+	sess := adminSession(time.Now().Add(time.Hour)) // fresh sudo
+	cases := map[string]struct{ body, location string }{
+		"allApps field":    {`{"name":"x","access":"full","allApps":true}`, ""},
+		"appGrants field":  {`{"name":"x","access":"full","appGrants":{"svc":["r"]}}`, ""},
+		"legacy body only": {`{"name":"x","allApps":true}`, ""},
+		"missing access":   {`{"name":"x"}`, "required property access"},
+		"unknown access":   {`{"name":"x","access":"root"}`, "body.access"},
+		"wrong case":       {`{"name":"x","access":"FULL"}`, "body.access"},
+	}
+	for name, tc := range cases {
+		rr := httptest.NewRecorder()
+		router.ServeHTTP(rr, reqWithSession("POST", "/api/prohibitorum/me/tokens", tc.body, "", sess))
+		if rr.Code != http.StatusUnprocessableEntity || !strings.Contains(rr.Body.String(), "validation_failed") {
+			t.Errorf("%s: status=%d body=%s; want 422 validation_failed", name, rr.Code, rr.Body.String())
+			continue
+		}
+		if tc.location != "" && !strings.Contains(rr.Body.String(), tc.location) {
+			t.Errorf("%s: body=%s; want location %s", name, rr.Body.String(), tc.location)
+		}
+	}
+}
+
+// The OpenAPI document advertises the PAT header scheme, and only on routes a
+// PAT may call.
+func TestOpenAPISecuritySchemes_PAT(t *testing.T) {
+	api := NewHuma()
+	doc := api.OpenAPI()
+	scheme := doc.Components.SecuritySchemes["prohibitorumPAT"]
+	if scheme == nil || scheme.Type != "apiKey" || scheme.In != "header" || scheme.Name != "X-Prohibitorum-PAT" {
+		t.Fatalf("prohibitorumPAT scheme = %+v", scheme)
+	}
+	has := func(op *huma.Operation, name string) bool {
+		for _, req := range op.Security {
+			if _, ok := req[name]; ok {
+				return true
+			}
+		}
+		return false
+	}
+	get := doc.Paths["/api/prohibitorum/me/tokens"].Post
+	if get == nil || !has(get, "prohibitorumSession") || !has(get, "prohibitorumPAT") {
+		t.Errorf("createMyToken security = %+v, want session and PAT", get)
+	}
+	if pub := doc.Paths["/api/prohibitorum/auth/status"].Get; pub == nil || len(pub.Security) != 0 {
+		t.Errorf("public op security = %+v, want none", pub)
 	}
 }

@@ -242,7 +242,6 @@ http:
           - Remote-Name
           - Remote-Email
           - Remote-Groups
-          - Remote-Scopes
     strip-prohibitorum-pat:
       headers:
         customRequestHeaders:

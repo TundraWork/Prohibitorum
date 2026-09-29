@@ -39,6 +39,8 @@ import (
 // via nestedQueriesOverride.
 type adminFakePATQ struct {
 	rows []db.PersonalAccessToken
+	// apps are returned for every ListPATAppsByPATIDs call.
+	apps []db.ListPATAppsByPATIDsRow
 	// accountMissing makes GetAccountByID return pgx.ErrNoRows, exercising the
 	// account-existence 404 guard on handleListAccountTokens.
 	accountMissing bool
@@ -59,6 +61,10 @@ func (f *adminFakePATQ) ListPATsByAccountPage(_ context.Context, arg db.ListPATs
 	return out, nil
 }
 
+func (f *adminFakePATQ) ListPATAppsByPATIDs(_ context.Context, _ []int32) ([]db.ListPATAppsByPATIDsRow, error) {
+	return f.apps, nil
+}
+
 func (f *adminFakePATQ) ListCredentialsByAccountPage(_ context.Context, arg db.ListCredentialsByAccountPageParams) ([]db.WebauthnCredential, error) {
 	return nil, nil
 }
@@ -70,6 +76,7 @@ func (f *adminFakePATQ) ListPATsByAccount(_ context.Context, _ int32) ([]db.Pers
 func (f *adminFakePATQ) InsertPAT(_ context.Context, _ db.InsertPATParams) (db.PersonalAccessToken, error) {
 	return db.PersonalAccessToken{}, nil
 }
+func (f *adminFakePATQ) InsertPATApp(_ context.Context, _ db.InsertPATAppParams) error { return nil }
 func (f *adminFakePATQ) RevokePAT(_ context.Context, _ db.RevokePATParams) (int64, error) {
 	return 0, nil
 }
@@ -96,8 +103,7 @@ func TestHandleListAccountTokens_MapsRowsToViews(t *testing.T) {
 			AccountID: 42,
 			Name:      "ci-token",
 			TokenHint: "abc...xyz",
-			AllApps:   false,
-			AppGrants: []byte(`{"svc":["repo:read"]}`),
+			Access:    "selected_apps",
 			CreatedAt: pgtype.Timestamptz{Time: now, Valid: true},
 		},
 		{
@@ -105,13 +111,14 @@ func TestHandleListAccountTokens_MapsRowsToViews(t *testing.T) {
 			AccountID: 42,
 			Name:      "all-apps-token",
 			TokenHint: "def...uvw",
-			AllApps:   true,
-			AppGrants: []byte(`{}`),
+			Access:    "all_apps",
 			CreatedAt: pgtype.Timestamptz{Time: now, Valid: true},
 		},
 	}
 
-	fakeQ := &adminFakePATQ{rows: rows}
+	fakeQ := &adminFakePATQ{rows: rows, apps: []db.ListPATAppsByPATIDsRow{
+		{PatID: 1, ClientID: "svc", DisplayName: "Service"},
+	}}
 	s := &Server{nestedQueriesOverride: fakeQ, cursorCodec: testCodec(), Audit: noopAuditWriter{}}
 
 	out, err := s.handleListAccountTokens(context.Background(), &listAccountPageIn{ID: 42})
@@ -122,28 +129,28 @@ func TestHandleListAccountTokens_MapsRowsToViews(t *testing.T) {
 		t.Fatalf("len(out.Body.Items) = %d; want 2", len(out.Body.Items))
 	}
 
-	// First token: app-grant, no allApps.
+	// First token: selected_apps with its application.
 	v0 := out.Body.Items[0]
 	if v0.ID != 1 {
 		t.Errorf("v0.ID = %d; want 1", v0.ID)
 	}
-	if v0.AllApps {
-		t.Error("v0.AllApps: want false")
+	if v0.Access != "selected_apps" {
+		t.Errorf("v0.Access = %q; want selected_apps", v0.Access)
 	}
-	if scopes, ok := v0.AppGrants["svc"]; !ok || len(scopes) != 1 || scopes[0] != "repo:read" {
-		t.Errorf("v0.AppGrants[svc] = %v; want [repo:read]", v0.AppGrants["svc"])
+	if len(v0.Apps) != 1 || v0.Apps[0].ClientID != "svc" || v0.Apps[0].DisplayName != "Service" {
+		t.Errorf("v0.Apps = %+v; want [svc/Service]", v0.Apps)
 	}
 	if v0.TokenHint == "" {
 		t.Error("v0.TokenHint: want non-empty display aid")
 	}
 
-	// Second token: allApps=true.
+	// Second token: all_apps carries an empty (non-nil) app list.
 	v1 := out.Body.Items[1]
-	if !v1.AllApps {
-		t.Error("v1.AllApps: want true")
+	if v1.Access != "all_apps" {
+		t.Errorf("v1.Access = %q; want all_apps", v1.Access)
 	}
-	if len(v1.AppGrants) != 0 {
-		t.Errorf("v1.AppGrants: want empty, got %v", v1.AppGrants)
+	if v1.Apps == nil || len(v1.Apps) != 0 {
+		t.Errorf("v1.Apps: want empty non-nil, got %#v", v1.Apps)
 	}
 }
 
@@ -159,8 +166,7 @@ func TestHandleListAccountTokens_NoSecret(t *testing.T) {
 		Name:      "secret-test",
 		TokenHint: "tok...end",
 		TokenHash: secretHash,
-		AllApps:   true,
-		AppGrants: []byte(`{}`),
+		Access:    "all_apps",
 		CreatedAt: pgtype.Timestamptz{Time: time.Now(), Valid: true},
 	}
 

@@ -33,7 +33,7 @@ const roleAdmin = "admin"
 func maintenanceGateMW(b *branding.Resolver) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			sess := authn.SessionFromContext(r.Context())
+			sess := authn.PrincipalFromContext(r.Context())
 			if sess == nil || sess.Account == nil || sess.Account.Role == roleAdmin {
 				next.ServeHTTP(w, r)
 				return

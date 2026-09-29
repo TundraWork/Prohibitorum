@@ -135,6 +135,27 @@ func writeHumaPublicErr(ctx huma.Context, code string, details map[string]any) {
 	})
 }
 
+// securityRequirements lists the OpenAPI security alternatives for a protected
+// operation: the browser session, and a PAT unless the route is BrowserOnly.
+func securityRequirements(req contract.AuthRequirement) []map[string][]string {
+	sec := []map[string][]string{{"prohibitorumSession": {}}}
+	if !req.BrowserOnly {
+		sec = append(sec, map[string][]string{"prohibitorumPAT": {}})
+	}
+	return sec
+}
+
+// withPATSession makes a PAT principal visible to the handler through
+// authn.SessionFromContext. Cookie sessions already are, so ctx passes through.
+// Public operations never receive it, and protected ones only after authn.Check
+// has cleared the route for PAT callers.
+func withPATSession(ctx huma.Context, sess *authn.Session, req contract.AuthRequirement) huma.Context {
+	if sess == nil || sess.PAT == nil || req.Kind == contract.AuthPublic {
+		return ctx
+	}
+	return huma.WithContext(ctx, authn.WithSession(ctx.Context(), sess))
+}
+
 // registerOp wraps huma.Register so every operation declares its auth
 // requirement at the call site. The wrapper appends a per-operation
 // middleware that reads *auth.Session from the request context (placed
@@ -150,19 +171,18 @@ func registerOp[I, O any](
 ) {
 	if req.Kind != contract.AuthPublic {
 		// Public ops omit the security requirement in OpenAPI; everyone else
-		// references the prohibitorumSession scheme (registered at server boot).
-		op.Security = append(op.Security, map[string][]string{
-			"prohibitorumSession": {},
-		})
+		// references the prohibitorumSession scheme (registered at server boot),
+		// plus prohibitorumPAT unless the route needs a browser session.
+		op.Security = append(op.Security, securityRequirements(req)...)
 	}
 	op.Middlewares = append(op.Middlewares, func(ctx huma.Context, next func(huma.Context)) {
-		sess := authn.SessionFromContext(ctx.Context())
+		sess := authn.PrincipalFromContext(ctx.Context())
 		if err := authn.Check(sess, req); err != nil {
 			ae := authn.AsAuthError(err)
 			writeHumaPublicErr(ctx, ae.Code, ae.Details)
 			return
 		}
-		next(ctx)
+		next(withPATSession(ctx, sess, req))
 	})
 	huma.Register(api, op, handler)
 }
@@ -183,12 +203,10 @@ func registerSudoOp[I, O any](
 	req contract.AuthRequirement,
 ) {
 	if req.Kind != contract.AuthPublic {
-		op.Security = append(op.Security, map[string][]string{
-			"prohibitorumSession": {},
-		})
+		op.Security = append(op.Security, securityRequirements(req)...)
 	}
 	op.Middlewares = append(op.Middlewares, func(ctx huma.Context, next func(huma.Context)) {
-		sess := authn.SessionFromContext(ctx.Context())
+		sess := authn.PrincipalFromContext(ctx.Context())
 		if err := authn.Check(sess, req); err != nil {
 			ae := authn.AsAuthError(err)
 			writeHumaPublicErr(ctx, ae.Code, ae.Details)
@@ -199,7 +217,7 @@ func registerSudoOp[I, O any](
 			writeHumaPublicErr(ctx, ae.Code, ae.Details)
 			return
 		}
-		next(ctx)
+		next(withPATSession(ctx, sess, req))
 	})
 	huma.Register(api, op, handler)
 }
@@ -223,7 +241,7 @@ func registerOpHTTP(
 	h http.HandlerFunc,
 ) {
 	wrapped := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		sess := authn.SessionFromContext(r.Context())
+		sess := authn.PrincipalFromContext(r.Context())
 		if err := authn.Check(sess, req); err != nil {
 			ae := authn.AsAuthError(err)
 			if ae == nil {
@@ -237,6 +255,9 @@ func registerOpHTTP(
 			// raw handler path exactly: {code, requestId} with no message.
 			writeAuthErr(w, ae)
 			return
+		}
+		if sess != nil && sess.PAT != nil && req.Kind != contract.AuthPublic {
+			r = r.WithContext(authn.WithSession(r.Context(), sess))
 		}
 		h(w, r)
 	})

@@ -7,6 +7,7 @@ type ctxKey int
 const (
 	ipCtxKey ctxKey = iota
 	uaCtxKey
+	patCtxKey
 )
 
 // WithRequestMeta returns a ctx carrying the client IP + User-Agent for audit
@@ -34,4 +35,17 @@ func uaFromCtx(ctx context.Context) string {
 		return v
 	}
 	return ""
+}
+
+// WithPATActor marks ctx as acting through the Personal Access Token with the
+// given id. dbWriter.Record adds it to Detail as pat_id, so every event a
+// token causes traces back to that token. The key lives here because authn
+// already imports audit, not the reverse.
+func WithPATActor(ctx context.Context, patID int32) context.Context {
+	return context.WithValue(ctx, patCtxKey, patID)
+}
+
+func patFromCtx(ctx context.Context) (int32, bool) {
+	v, ok := ctx.Value(patCtxKey).(int32)
+	return v, ok
 }

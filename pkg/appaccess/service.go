@@ -28,23 +28,16 @@ type AppRef struct {
 	SAMLSPID     int64   `json:"samlSpId,omitempty"`
 }
 
-// Scope is one forward-auth scope advertised by an application.
-type Scope struct {
-	Name        string `json:"name"`
-	Description string `json:"description"`
-}
-
 // AppSummary is the safe application projection returned by the launchpad.
 type AppSummary struct {
-	RequireConsent    bool     `json:"requireConsent"`
-	Ref               AppRef   `json:"ref"`
-	DisplayName       string   `json:"displayName"`
-	LaunchURL         string   `json:"launchUrl,omitempty"`
-	RedirectURIs      []string `json:"redirectUris,omitempty"`
-	EntityID          string   `json:"entityId,omitempty"`
-	ForwardAuthHost   string   `json:"forwardAuthHost,omitempty"`
-	ForwardAuthScopes []Scope  `json:"forwardAuthScopes,omitempty"`
-	AccessRestricted  bool     `json:"accessRestricted"`
+	RequireConsent   bool     `json:"requireConsent"`
+	Ref              AppRef   `json:"ref"`
+	DisplayName      string   `json:"displayName"`
+	LaunchURL        string   `json:"launchUrl,omitempty"`
+	RedirectURIs     []string `json:"redirectUris,omitempty"`
+	EntityID         string   `json:"entityId,omitempty"`
+	ForwardAuthHost  string   `json:"forwardAuthHost,omitempty"`
+	AccessRestricted bool     `json:"accessRestricted"`
 }
 
 // AccountSummary contains only fields safe to return from a rule preview.
@@ -258,16 +251,11 @@ func (s *Service) ListAllowedApps(ctx context.Context, accountID int32) ([]AppSu
 		if !decision.Allowed {
 			continue
 		}
-		scopes, err := parseScopes(app.ForwardAuthScopes)
-		if err != nil {
-			return nil, err
-		}
 		out = append(out, AppSummary{
-			Ref:               AppRef{Kind: KindForwardAuth, OIDCClientID: app.ClientID},
-			DisplayName:       app.DisplayName,
-			ForwardAuthHost:   app.ForwardAuthHost.String,
-			ForwardAuthScopes: scopes,
-			AccessRestricted:  app.AccessRestricted,
+			Ref:              AppRef{Kind: KindForwardAuth, OIDCClientID: app.ClientID},
+			DisplayName:      app.DisplayName,
+			ForwardAuthHost:  app.ForwardAuthHost.String,
+			AccessRestricted: app.AccessRestricted,
 		})
 	}
 	for _, app := range samlApps {
@@ -741,17 +729,6 @@ func manualGroupMatch(group db.UserGroup, effect ManualEffect) (GroupMatch, erro
 		Exposed: group.ExposedToDownstream,
 		Matched: effect == ManualAllow,
 	}, nil
-}
-
-func parseScopes(raw []byte) ([]Scope, error) {
-	if len(raw) == 0 {
-		return []Scope{}, nil
-	}
-	var scopes []Scope
-	if err := json.Unmarshal(raw, &scopes); err != nil {
-		return nil, fmt.Errorf("appaccess: parse forward-auth scopes: %w", err)
-	}
-	return scopes, nil
 }
 
 func invalidPolicy(format string, args ...any) error {

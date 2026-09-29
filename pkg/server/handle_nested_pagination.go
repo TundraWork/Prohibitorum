@@ -31,6 +31,7 @@ type nestedQueries interface {
 	GetAccountByID(ctx context.Context, id int32) (db.Account, error)
 	ListCredentialsByAccountPage(ctx context.Context, arg db.ListCredentialsByAccountPageParams) ([]db.WebauthnCredential, error)
 	ListPATsByAccountPage(ctx context.Context, arg db.ListPATsByAccountPageParams) ([]db.PersonalAccessToken, error)
+	ListPATAppsByPATIDs(ctx context.Context, patIds []int32) ([]db.ListPATAppsByPATIDsRow, error)
 }
 
 // nestedQ resolves the nested query surface: override (tests) or production.
@@ -233,9 +234,9 @@ func (s *Server) handleListAccountTokens(ctx context.Context, in *listAccountPag
 	if hasMore {
 		rows = rows[:lim]
 	}
-	views := make([]contract.PersonalAccessTokenView, 0, len(rows))
-	for _, r := range rows {
-		views = append(views, patView(r))
+	views, err := patViews(ctx, q, rows)
+	if err != nil {
+		return nil, fmt.Errorf("handleListAccountTokens: %w", err)
 	}
 	nextCursor := ""
 	if hasMore && len(rows) > 0 {

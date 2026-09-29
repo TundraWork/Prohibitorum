@@ -100,6 +100,9 @@ func TestAuthErrToHumaProducesPublicError(t *testing.T) {
 		{"diagnostic_not_found", authn.ErrDiagnosticNotFound(), "diagnostic_not_found"},
 		{"invalid_role", authn.ErrInvalidRole(), "invalid_role"},
 		{"sudo_required", authn.ErrSudoRequired(), "sudo_required"},
+		{"pat_invalid", authn.ErrPATInvalid(), "pat_invalid"},
+		{"pat_api_not_allowed", authn.ErrPATAPINotAllowed(), "pat_api_not_allowed"},
+		{"pat_browser_session_required", authn.ErrPATBrowserSessionRequired(), "pat_browser_session_required"},
 		{"last_admin", authn.ErrLastAdmin(), "last_admin"},
 		{"bad_request", authn.ErrBadRequest(), "bad_request"},
 	}
