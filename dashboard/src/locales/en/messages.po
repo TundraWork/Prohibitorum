@@ -6533,11 +6533,6 @@ msgstr "The passkey could not be verified. You can use your password instead."
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
-msgid "error.login_account_not_found"
-msgstr "The passkey could not be verified. You can use your password instead."
-
-#. js-lingui-explicit-id
-#: src/api/errors.ts
 msgid "error.registration_failed"
 msgstr "The passkey couldn't be created."
 
@@ -6941,6 +6936,11 @@ msgstr "This pairing is not ready to be approved yet."
 #: src/api/errors.ts
 msgid "error.credential_already_registered"
 msgstr "This passkey is already registered."
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.login_credential_unknown"
+msgstr "This passkey is no longer registered here. Use another passkey or your password."
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts

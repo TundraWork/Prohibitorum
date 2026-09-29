@@ -7,7 +7,9 @@ import { startAuthentication } from "@simplewebauthn/browser";
 import { mutationOptions, type QueryClient } from "@tanstack/react-query";
 import {
   authenticateWithPasskey,
+  completePasskeyLogin,
   isValidRecoveryCode,
+  type PasskeyAssertion,
   registerWithPasskey,
   validateLoginResult,
 } from "@/api/auth";
@@ -370,6 +372,16 @@ export function passkeyMutationOptions(returnTo?: string) {
     retry: false,
     gcTime: 0,
     mutationFn: () => authenticateWithPasskey(returnTo),
+  });
+}
+
+/** Finishes signing in with a passkey picked from the username autofill. */
+export function passkeyAutofillMutationOptions(returnTo?: string) {
+  return mutationOptions({
+    retry: false,
+    gcTime: 0,
+    mutationFn: (assertion: PasskeyAssertion) =>
+      completePasskeyLogin({ assertion, mediation: "conditional", returnTo }),
   });
 }
 

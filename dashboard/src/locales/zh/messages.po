@@ -6533,11 +6533,6 @@ msgstr "无法验证通行密钥，可以改用密码。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
-msgid "error.login_account_not_found"
-msgstr "无法验证通行密钥，可以改用密码。"
-
-#. js-lingui-explicit-id
-#: src/api/errors.ts
 msgid "error.registration_failed"
 msgstr "无法创建通行密钥。"
 
@@ -6941,6 +6936,11 @@ msgstr "此次配对尚未到可以批准的阶段。"
 #: src/api/errors.ts
 msgid "error.credential_already_registered"
 msgstr "该通行密钥已经注册过了。"
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.login_credential_unknown"
+msgstr "这个通行密钥已不在本站登记。请换用其他通行密钥或密码登录。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts

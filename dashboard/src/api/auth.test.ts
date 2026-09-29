@@ -1,8 +1,10 @@
 import { base32 } from "@scure/base";
 import {
   browserSupportsWebAuthn,
+  browserSupportsWebAuthnAutofill,
   startAuthentication,
   startRegistration,
+  WebAuthnAbortService,
   WebAuthnError,
 } from "@simplewebauthn/browser";
 import { MutationObserver, type QueryClient } from "@tanstack/react-query";
@@ -17,14 +19,19 @@ import {
   vi,
 } from "vitest";
 import {
+  authenticateWithPasskey,
   buildTotpUri,
   cancelPasskeyAuthentication,
+  completePasskeyLogin,
   generateTotpSecret,
+  isPasskeyAutofillAvailable,
   isValidLoginPassword,
   isValidRecoveryCode,
   isValidTotpCode,
+  type PasskeyAssertion,
   readReturnTo,
   registerWithPasskey,
+  waitForPasskeyAutofill,
 } from "@/api/auth";
 import { ApiError, describeError, isCancellation } from "@/api/errors";
 import {
@@ -38,6 +45,7 @@ import { parseSearch } from "@/app/search-params";
 
 vi.mock("@simplewebauthn/browser", () => ({
   browserSupportsWebAuthn: vi.fn(),
+  browserSupportsWebAuthnAutofill: vi.fn(),
   startAuthentication: vi.fn(),
   startRegistration: vi.fn(),
   WebAuthnAbortService: { cancelCeremony: vi.fn() },
@@ -215,7 +223,7 @@ describe("authentication mutations", () => {
   it("reports browser refusal once and begins a new ceremony on retry", async () => {
     const { queryClient, notices } = createClient();
     fetchBoundary.mockImplementation(async () =>
-      Response.json({ challenge: "new-challenge" }),
+      Response.json({ challenge: "new-challenge", rpId: "id.example" }),
     );
     vi.mocked(startAuthentication).mockRejectedValue(
       new DOMException("private browser details", "NotAllowedError"),
@@ -255,7 +263,7 @@ describe("authentication mutations", () => {
     const pending = mutation.mutate().catch((error: unknown) => error);
     await waitFor(() => expect(fetchBoundary).toHaveBeenCalledTimes(1));
     cancelPasskeyAuthentication();
-    release(Response.json({ challenge: "late-challenge" }));
+    release(Response.json({ challenge: "late-challenge", rpId: "id.example" }));
     expect(isCancellation(await pending)).toBe(true);
     expect(startAuthentication).not.toHaveBeenCalled();
     expect(notices).not.toHaveBeenCalled();
@@ -338,5 +346,304 @@ describe("registerWithPasskey", () => {
       optionsJSON: { challenge: "c" },
     });
     expect(complete).toHaveBeenCalledWith(attestation);
+  });
+});
+
+describe("passkey autofill", () => {
+  const picked = {
+    id: "credential-id",
+    rawId: "credential-id",
+    type: "public-key",
+    response: {
+      authenticatorData: "a",
+      clientDataJSON: "c",
+      signature: "s",
+      userHandle: "u",
+    },
+    clientExtensionResults: {},
+  } as const;
+
+  function options(challenge: string, extra: object = {}) {
+    return Response.json({
+      challenge,
+      rpId: "id.example",
+      timeout: 300_000,
+      ...extra,
+    });
+  }
+
+  function requestUrl(call: number): URL {
+    const request = fetchBoundary.mock.calls[call]?.[0];
+    if (!request) throw new Error(`no request ${call}`);
+    return new URL(request.url);
+  }
+
+  function aborted() {
+    const error = new WebAuthnError({} as never);
+    Object.assign(error, { code: "ERROR_CEREMONY_ABORTED" });
+    return error;
+  }
+
+  function refused() {
+    return new DOMException("private browser details", "NotAllowedError");
+  }
+
+  /** A browser request that stays open until the ceremony is cancelled. */
+  function pendingUntilCancelled() {
+    return new Promise<never>((_, reject) => {
+      vi.mocked(WebAuthnAbortService.cancelCeremony).mockImplementationOnce(
+        () => reject(aborted()),
+      );
+    });
+  }
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("is available only in a secure context whose browser supports it", async () => {
+    vi.mocked(browserSupportsWebAuthnAutofill).mockResolvedValue(true);
+    await expect(isPasskeyAutofillAvailable()).resolves.toBe(true);
+    vi.mocked(browserSupportsWebAuthnAutofill).mockResolvedValue(false);
+    await expect(isPasskeyAutofillAvailable()).resolves.toBe(false);
+    vi.mocked(browserSupportsWebAuthnAutofill).mockResolvedValue(true);
+    vi.stubGlobal("isSecureContext", false);
+    await expect(isPasskeyAutofillAvailable()).resolves.toBe(false);
+  });
+
+  it("begins a conditional ceremony and returns the passkey picked from autofill", async () => {
+    fetchBoundary.mockResolvedValueOnce(options("autofill-challenge"));
+    vi.mocked(startAuthentication).mockResolvedValueOnce(picked as never);
+    await expect(
+      waitForPasskeyAutofill(new AbortController().signal),
+    ).resolves.toEqual({ rpId: "id.example", response: picked });
+    expect(requestUrl(0).pathname).toBe("/api/prohibitorum/auth/login/begin");
+    expect(requestUrl(0).search).toBe("?mediation=conditional");
+    expect(vi.mocked(startAuthentication)).toHaveBeenCalledExactlyOnceWith({
+      optionsJSON: expect.objectContaining({
+        challenge: "autofill-challenge",
+      }) as never,
+      useBrowserAutofill: true,
+    });
+  });
+
+  it("refuses begin options without an RP ID or a timeout past the renewal margin", async () => {
+    for (const extra of [
+      { rpId: undefined },
+      { rpId: "" },
+      { timeout: undefined },
+      { timeout: 60_000 },
+      { timeout: 90_000.5 },
+      { timeout: "300000" },
+    ]) {
+      fetchBoundary.mockResolvedValueOnce(options("c", extra));
+      await expect(
+        waitForPasskeyAutofill(new AbortController().signal),
+      ).rejects.toMatchObject({ kind: "invalid-response" });
+    }
+    expect(startAuthentication).not.toHaveBeenCalled();
+  });
+
+  it("renews the ceremony a minute before the server lets it expire", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    fetchBoundary
+      .mockResolvedValueOnce(options("first", { timeout: 120_000 }))
+      .mockResolvedValueOnce(options("second"));
+    vi.mocked(startAuthentication)
+      .mockImplementationOnce(pendingUntilCancelled)
+      .mockResolvedValueOnce(picked as never);
+    const waiting = waitForPasskeyAutofill(new AbortController().signal);
+    await vi.advanceTimersByTimeAsync(59_999);
+    expect(WebAuthnAbortService.cancelCeremony).not.toHaveBeenCalled();
+    expect(fetchBoundary).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1);
+    await expect(waiting).resolves.toEqual({
+      rpId: "id.example",
+      response: picked,
+    });
+    expect(WebAuthnAbortService.cancelCeremony).toHaveBeenCalledOnce();
+    expect(fetchBoundary).toHaveBeenCalledTimes(2);
+    expect(requestUrl(1).search).toBe("?mediation=conditional");
+    expect(
+      vi.mocked(startAuthentication).mock.calls[1]?.[0].optionsJSON.challenge,
+    ).toBe("second");
+  });
+
+  it("offers autofill again after a refusal and gives up after three in a row", async () => {
+    fetchBoundary.mockImplementation(async () => options("c"));
+    vi.mocked(startAuthentication)
+      .mockRejectedValueOnce(refused())
+      .mockRejectedValueOnce(refused())
+      .mockResolvedValueOnce(picked as never);
+    await expect(
+      waitForPasskeyAutofill(new AbortController().signal),
+    ).resolves.toMatchObject({ response: picked });
+    expect(fetchBoundary).toHaveBeenCalledTimes(3);
+
+    fetchBoundary.mockClear();
+    vi.mocked(startAuthentication).mockRejectedValue(refused());
+    await expect(
+      waitForPasskeyAutofill(new AbortController().signal),
+    ).rejects.toBeInstanceOf(ApiError);
+    expect(fetchBoundary).toHaveBeenCalledTimes(3);
+  });
+
+  it("becomes a cancellation when its signal aborts or another ceremony takes over", async () => {
+    fetchBoundary.mockImplementation(async () => options("c"));
+    vi.mocked(startAuthentication).mockRejectedValueOnce(aborted());
+    const takenOver = await waitForPasskeyAutofill(
+      new AbortController().signal,
+    ).catch((error: unknown) => error);
+    expect(isCancellation(takenOver)).toBe(true);
+    expect(fetchBoundary).toHaveBeenCalledTimes(1);
+
+    vi.mocked(startAuthentication).mockImplementationOnce(
+      pendingUntilCancelled,
+    );
+    const controller = new AbortController();
+    const waiting = waitForPasskeyAutofill(controller.signal).catch(
+      (error: unknown) => error,
+    );
+    await waitFor(() => expect(startAuthentication).toHaveBeenCalledTimes(2));
+    controller.abort();
+    expect(isCancellation(await waiting)).toBe(true);
+    expect(WebAuthnAbortService.cancelCeremony).toHaveBeenCalledOnce();
+    expect(fetchBoundary).toHaveBeenCalledTimes(2);
+  });
+
+  it("rethrows a failed begin and any other browser error", async () => {
+    fetchBoundary.mockResolvedValueOnce(
+      Response.json({ code: "mock_unmocked", requestId: "r" }, { status: 501 }),
+    );
+    await expect(
+      waitForPasskeyAutofill(new AbortController().signal),
+    ).rejects.toMatchObject({ code: "mock_unmocked" });
+    fetchBoundary.mockResolvedValueOnce(options("c"));
+    const failure = new Error("Browser does not support WebAuthn autofill");
+    vi.mocked(startAuthentication).mockRejectedValueOnce(failure);
+    await expect(
+      waitForPasskeyAutofill(new AbortController().signal),
+    ).rejects.toBe(failure);
+  });
+});
+
+describe("completing a passkey sign-in", () => {
+  const assertion: PasskeyAssertion = {
+    rpId: "id.example",
+    response: {
+      id: "credential-id",
+      rawId: "credential-id",
+      type: "public-key",
+      response: {
+        authenticatorData: "a",
+        clientDataJSON: "c",
+        signature: "s",
+      },
+      clientExtensionResults: {},
+    },
+  };
+
+  function refusedWith(code: string) {
+    return Response.json({ code, requestId: "r" }, { status: 401 });
+  }
+
+  function stubSignal(result: Promise<void> = Promise.resolve()) {
+    const signalUnknownCredential = vi.fn(() => result);
+    vi.stubGlobal("PublicKeyCredential", { signalUnknownCredential });
+    return signalUnknownCredential;
+  }
+
+  it("names the conditional mediation and return_to on the request", async () => {
+    fetchBoundary.mockResolvedValueOnce(Response.json({ redirect: "/apps" }));
+    await expect(
+      completePasskeyLogin({
+        assertion,
+        mediation: "conditional",
+        returnTo: "/apps",
+      }),
+    ).resolves.toEqual({ redirect: "/apps" });
+    const request = fetchBoundary.mock.calls[0]?.[0];
+    const url = new URL(request?.url ?? "");
+    expect(url.pathname).toBe("/api/prohibitorum/auth/login/complete");
+    expect(Object.fromEntries(url.searchParams)).toEqual({
+      mediation: "conditional",
+      return_to: "/apps",
+    });
+    expect(await request?.json()).toEqual(assertion.response);
+
+    fetchBoundary.mockResolvedValueOnce(Response.json({ redirect: "/" }));
+    await completePasskeyLogin({ assertion });
+    expect(new URL(fetchBoundary.mock.calls[1]?.[0].url ?? "").search).toBe("");
+  });
+
+  it("tells the password manager about a passkey the server does not hold, then fails", async () => {
+    const signalUnknownCredential = stubSignal();
+    fetchBoundary.mockResolvedValueOnce(
+      refusedWith("login_credential_unknown"),
+    );
+    const error = await completePasskeyLogin({ assertion }).catch(
+      (failure: unknown) => failure,
+    );
+    expect(error).toMatchObject({ code: "login_credential_unknown" });
+    expect(describeError(error).id).toBe("error.login_credential_unknown");
+    expect(signalUnknownCredential).toHaveBeenCalledExactlyOnceWith({
+      rpId: "id.example",
+      credentialId: "credential-id",
+    });
+  });
+
+  it("fails with the server's error where the Signal API is missing or fails", async () => {
+    for (const setup of [
+      () => vi.stubGlobal("PublicKeyCredential", class {}),
+      () => vi.stubGlobal("PublicKeyCredential", undefined),
+      () => stubSignal(Promise.reject(new Error("signal failed"))),
+    ]) {
+      setup();
+      fetchBoundary.mockResolvedValueOnce(
+        refusedWith("login_credential_unknown"),
+      );
+      await expect(completePasskeyLogin({ assertion })).rejects.toMatchObject({
+        code: "login_credential_unknown",
+      });
+    }
+  });
+
+  it("leaves the password manager alone for any other failure", async () => {
+    const signalUnknownCredential = stubSignal();
+    fetchBoundary.mockResolvedValueOnce(
+      refusedWith("login_verification_failed"),
+    );
+    await expect(completePasskeyLogin({ assertion })).rejects.toMatchObject({
+      code: "login_verification_failed",
+    });
+    expect(signalUnknownCredential).not.toHaveBeenCalled();
+  });
+
+  it("signals from the passkey button too", async () => {
+    const signalUnknownCredential = stubSignal();
+    fetchBoundary
+      .mockResolvedValueOnce(
+        Response.json({ challenge: "c", rpId: "id.example", timeout: 60_000 }),
+      )
+      .mockResolvedValueOnce(refusedWith("login_credential_unknown"));
+    vi.mocked(startAuthentication).mockResolvedValueOnce(
+      assertion.response as never,
+    );
+    await expect(authenticateWithPasskey()).rejects.toMatchObject({
+      code: "login_credential_unknown",
+    });
+    expect(signalUnknownCredential).toHaveBeenCalledExactlyOnceWith({
+      rpId: "id.example",
+      credentialId: "credential-id",
+    });
+    expect(new URL(fetchBoundary.mock.calls[0]?.[0].url ?? "").search).toBe("");
+  });
+
+  it("refuses begin options without an RP ID before opening the browser prompt", async () => {
+    fetchBoundary.mockResolvedValueOnce(Response.json({ challenge: "c" }));
+    await expect(authenticateWithPasskey()).rejects.toMatchObject({
+      kind: "invalid-response",
+    });
+    expect(startAuthentication).not.toHaveBeenCalled();
   });
 });
