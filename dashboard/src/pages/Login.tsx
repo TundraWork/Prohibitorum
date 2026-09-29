@@ -1,4 +1,4 @@
-import { Checkbox, linkVariants } from "@heroui/react";
+import { Checkbox } from "@heroui/react";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { browserSupportsWebAuthn } from "@simplewebauthn/browser";
@@ -8,13 +8,9 @@ import {
   useSuspenseQuery,
 } from "@tanstack/react-query";
 import type { HistoryState } from "@tanstack/react-router";
-import {
-  Link as RouterLink,
-  useLocation,
-  useNavigate,
-  useRouter,
-} from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { useLocation, useNavigate, useRouter } from "@tanstack/react-router";
+import { Fingerprint, MonitorSmartphone } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   buildTotpUri,
   cancelPasskeyAuthentication,
@@ -104,6 +100,7 @@ function useLoginFlow(initialFailure?: LoginFailure) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [finishing, setFinishing] = useState(false);
+  const [held, setHeld] = useState(false);
   const [failure, setFailure] = useState<LoginFailure | undefined>(
     initialFailure,
   );
@@ -115,10 +112,18 @@ function useLoginFlow(initialFailure?: LoginFailure) {
       active.current = false;
     };
   }, []);
+  // A provider holds the flow while it takes the page away, and lets go when
+  // the page comes back from the back-forward cache.
+  const heldRef = useRef(false);
+  const hold = useCallback((leaving: boolean) => {
+    heldRef.current = leaving;
+    setHeld(leaving);
+  }, []);
   const control: FlowControl = {
-    busy: busy || finishing,
+    busy: busy || finishing || held,
     acquire: () => {
-      if (locked.current || finishing || !active.current) return false;
+      if (locked.current || heldRef.current || finishing || !active.current)
+        return false;
       locked.current = true;
       setBusy(true);
       return true;
@@ -143,7 +148,7 @@ function useLoginFlow(initialFailure?: LoginFailure) {
       throw error;
     }
   }
-  return { control, finishing, failure, setFailure, finish };
+  return { control, finishing, failure, setFailure, finish, hold };
 }
 
 /** Sends a factor route opened without a password result back to the first step. */
@@ -161,11 +166,13 @@ function usePasswordResult(token: string | undefined): boolean {
 function PasswordForm({
   control,
   username,
+  submitVariant,
   onSuccess,
   onFailure,
 }: {
   control: FlowControl;
   username: string;
+  submitVariant: "primary" | "secondary";
   onSuccess: (username: string, token: string) => void | Promise<void>;
   onFailure: (error: unknown) => void;
 }) {
@@ -242,7 +249,7 @@ function PasswordForm({
               />
             )}
           </form.AppField>
-          <form.SubmitButton fullWidth>
+          <form.SubmitButton fullWidth variant={submitVariant}>
             <Trans id="login.password.next">Continue with password</Trans>
           </form.SubmitButton>
         </form.Form>
@@ -487,25 +494,8 @@ export function PasswordPage() {
   const supported = window.isSecureContext && browserSupportsWebAuthn();
   return (
     <LoginShell step="password" busy={flow.control.busy} failure={flow.failure}>
-      <PasswordForm
-        control={flow.control}
-        username={username ?? ""}
-        onSuccess={async (username, token) => {
-          flow.setFailure(undefined);
-          await withRouterSkipLoading(router, () =>
-            navigate({
-              to: "/login/totp",
-              search: true,
-              state: loginState({ username, token }),
-            }),
-          );
-        }}
-        onFailure={(error) =>
-          flow.setFailure({ message: describeError(error) })
-        }
-      />
       <Button
-        variant="secondary"
+        variant={supported ? "primary" : "secondary"}
         fullWidth
         isPending={passkey.isPending}
         isDisabled={!supported || (flow.control.busy && !passkey.isPending)}
@@ -525,6 +515,7 @@ export function PasswordPage() {
           })();
         }}
       >
+        <Fingerprint size={16} aria-hidden="true" />
         <Trans id="login.passkey">Sign in with a passkey</Trans>
       </Button>
       {!supported && (
@@ -535,55 +526,93 @@ export function PasswordPage() {
           </Trans>
         </p>
       )}
-      <FederationSignIn returnTo={returnTo} />
-      <OtherDeviceSignIn returnTo={returnTo} />
+      <OrSeparator />
+      <PasswordForm
+        control={flow.control}
+        username={username ?? ""}
+        submitVariant={supported ? "secondary" : "primary"}
+        onSuccess={async (username, token) => {
+          flow.setFailure(undefined);
+          await withRouterSkipLoading(router, () =>
+            navigate({
+              to: "/login/totp",
+              search: true,
+              state: loginState({ username, token }),
+            }),
+          );
+        }}
+        onFailure={(error) =>
+          flow.setFailure({ message: describeError(error) })
+        }
+      />
+      <OtherSignIns
+        returnTo={returnTo}
+        busy={flow.control.busy}
+        onLeavingChange={flow.hold}
+      />
     </LoginShell>
   );
 }
 
 /**
- * The way to sign in from a device that is signed in already, at the foot of
- * the first step. During maintenance only administrators reach this page,
- * and pairing sits behind the maintenance guard, so the link is left out.
- */
-function OtherDeviceSignIn({ returnTo }: { returnTo?: string }) {
-  const { config } = useLoginContext();
-  if (config.maintenanceMode) return null;
-  return (
-    <p className="text-center text-sm">
-      <RouterLink
-        to="/pair"
-        search={returnTo === undefined ? {} : { return_to: returnTo }}
-        className={linkVariants().base()}
-      >
-        <Trans id="login.other_device">Sign in with another device</Trans>
-      </RouterLink>
-    </p>
-  );
-}
-
-/**
- * The upstream providers, under the local sign-ins. Each leaves for the
- * provider through the server, carrying the page's `return_to` so the
+ * The ways to sign in that start somewhere else, under the local ones: from a
+ * device that is signed in already, then through each upstream provider. A
+ * provider is left through the server, carrying the page's `return_to` so the
  * sign-in still ends where it was headed.
+ *
+ * During maintenance only administrators reach this page, and pairing sits
+ * behind the maintenance guard, so the device button is left out. With
+ * neither the device button nor a provider, nothing is drawn, the separator
+ * included.
  */
-function FederationSignIn({ returnTo }: { returnTo?: string }) {
+function OtherSignIns({
+  returnTo,
+  busy,
+  onLeavingChange,
+}: {
+  returnTo?: string;
+  busy: boolean;
+  onLeavingChange: (leaving: boolean) => void;
+}) {
+  const { config } = useLoginContext();
+  const navigate = useNavigate();
   const { data: providers } = useSuspenseQuery(
     publicFederationProvidersQueryOptions(),
   );
-  if (providers.length === 0) return null;
+  const pairing = !config.maintenanceMode;
+  if (!pairing && providers.length === 0) return null;
   return (
     <>
       <OrSeparator />
-      <ProviderButtons
-        providers={providers}
-        href={(provider) => {
-          const address = `/api/prohibitorum/auth/federation/${encodeURIComponent(provider.slug)}/login`;
-          return returnTo === undefined
-            ? address
-            : `${address}?${new URLSearchParams({ return_to: returnTo })}`;
-        }}
-      />
+      <div className="flex flex-col gap-2">
+        {pairing && (
+          <Button
+            variant="secondary"
+            fullWidth
+            isDisabled={busy}
+            onPress={() =>
+              void navigate({
+                to: "/pair",
+                search: returnTo === undefined ? {} : { return_to: returnTo },
+              })
+            }
+          >
+            <MonitorSmartphone size={16} aria-hidden="true" />
+            <Trans id="login.other_device">Sign in with another device</Trans>
+          </Button>
+        )}
+        <ProviderButtons
+          providers={providers}
+          isDisabled={busy}
+          onLeavingChange={onLeavingChange}
+          href={(provider) => {
+            const address = `/api/prohibitorum/auth/federation/${encodeURIComponent(provider.slug)}/login`;
+            return returnTo === undefined
+              ? address
+              : `${address}?${new URLSearchParams({ return_to: returnTo })}`;
+          }}
+        />
+      </div>
     </>
   );
 }
