@@ -1,6 +1,9 @@
 package vrchat
 
-import "testing"
+import (
+	"net/url"
+	"testing"
+)
 
 func TestParseIdentityCanonicalTable(t *testing.T) {
 	valid := []string{testUserID, "https://vrchat.com/home/user/" + testUserID}
@@ -34,31 +37,55 @@ func TestParseIdentityCanonicalTable(t *testing.T) {
 
 func TestProofLinkCanonicalOriginAndToken(t *testing.T) {
 	token := "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-	origin := "https://login.example.com"
-	valid := []string{
-		origin + "/verify/vrchat/" + token,
-		"https://LOGIN.EXAMPLE.COM/verify/vrchat/" + token,
-		"https://login.example.com:443/verify/vrchat/" + token,
-	}
-	for _, link := range valid {
-		if !proofLinkMatches(link, origin, token) {
-			t.Errorf("proofLinkMatches(%q) rejected", link)
+	for _, test := range []struct {
+		origin  string
+		valid   []string
+		invalid []string
+	}{
+		{
+			origin: "https://login.example.com",
+			valid: []string{
+				"https://login.example.com/verify/vrchat/" + token,
+				"https://LOGIN.EXAMPLE.COM/verify/vrchat/" + token,
+				"https://login.example.com:443/verify/vrchat/" + token,
+			},
+			invalid: []string{
+				"http://login.example.com/verify/vrchat/" + token,
+				"https://evil.example/verify/vrchat/" + token,
+				"https://login.example.com:444/verify/vrchat/" + token,
+				"https://user@login.example.com/verify/vrchat/" + token,
+				"https://login.example.com/verify/vrchat/" + token + "?x=1",
+				"https://login.example.com/verify/vrchat/" + token + "#x",
+				"https://login.example.com/verify%2fvrchat/" + token,
+				"https://login.example.com/verify%252fvrchat/" + token,
+				"https://login.example.com/verify/vrchat/wrong",
+			},
+		},
+		{
+			origin: "http://login.example.com",
+			valid: []string{
+				"http://login.example.com/verify/vrchat/" + token,
+				"http://login.example.com:80/verify/vrchat/" + token,
+			},
+			invalid: []string{
+				"https://login.example.com/verify/vrchat/" + token,
+				"http://login.example.com:8080/verify/vrchat/" + token,
+			},
+		},
+	} {
+		origin, err := url.Parse(test.origin)
+		if err != nil {
+			t.Fatal(err)
 		}
-	}
-	invalid := []string{
-		"http://login.example.com/verify/vrchat/" + token,
-		"https://evil.example/verify/vrchat/" + token,
-		"https://login.example.com:444/verify/vrchat/" + token,
-		"https://user@login.example.com/verify/vrchat/" + token,
-		origin + "/verify/vrchat/" + token + "?x=1",
-		origin + "/verify/vrchat/" + token + "#x",
-		origin + "/verify%2fvrchat/" + token,
-		origin + "/verify%252fvrchat/" + token,
-		origin + "/verify/vrchat/wrong",
-	}
-	for _, link := range invalid {
-		if proofLinkMatches(link, origin, token) {
-			t.Errorf("proofLinkMatches(%q) unexpectedly accepted", link)
+		for _, link := range test.valid {
+			if !proofLinkMatches(link, origin, token) {
+				t.Errorf("proofLinkMatches(%q, %q) rejected", link, test.origin)
+			}
+		}
+		for _, link := range test.invalid {
+			if proofLinkMatches(link, origin, token) {
+				t.Errorf("proofLinkMatches(%q, %q) unexpectedly accepted", link, test.origin)
+			}
 		}
 	}
 }

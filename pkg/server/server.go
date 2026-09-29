@@ -300,7 +300,10 @@ func NewServer(ctx context.Context) (*Server, error) {
 	federationSecrets := federation.NewSecretStore(config.DataEncryptionKeys)
 	oidcAdapter := federationoidc.NewAdapter(federationSecrets)
 	steamAdapter := federationsteam.NewAdapter(federationSecrets)
-	vrchatAdapter := federationvrchat.NewAdapter(vrchatClient, federationSecrets, kvStore, queries, publicOrigin, auditWriter)
+	vrchatAdapter, err := federationvrchat.NewAdapter(vrchatClient, federationSecrets, kvStore, queries, publicOrigin, auditWriter)
+	if err != nil {
+		return nil, fmt.Errorf("vrchat adapter: %w", err)
+	}
 	federationRegistry, err := newFederationRegistry(oidcAdapter, steamAdapter, vrchatAdapter)
 	if err != nil {
 		return nil, err

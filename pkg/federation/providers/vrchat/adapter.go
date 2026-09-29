@@ -49,13 +49,21 @@ type Adapter struct {
 	kv           kv.Store
 	queries      proofQueries
 	publicOrigin string
+	proofOrigin  *url.URL
 	audit        audit.Writer
 	now          func() time.Time
 	random       io.Reader
 }
 
-func NewAdapter(client proofClient, secrets proofSecretStore, store kv.Store, queries proofQueries, publicOrigin string, writer audit.Writer) *Adapter {
-	return &Adapter{client: client, secrets: secrets, kv: store, queries: queries, publicOrigin: strings.TrimSuffix(publicOrigin, "/"), audit: writer, now: time.Now, random: rand.Reader}
+// NewAdapter builds proof links on publicOrigin, which must be a bare http or
+// https origin; the links take its scheme.
+func NewAdapter(client proofClient, secrets proofSecretStore, store kv.Store, queries proofQueries, publicOrigin string, writer audit.Writer) (*Adapter, error) {
+	publicOrigin = strings.TrimSuffix(publicOrigin, "/")
+	origin, err := url.Parse(publicOrigin)
+	if err != nil || (origin.Scheme != "http" && origin.Scheme != "https") || origin.Host == "" || origin.User != nil || origin.Path != "" || origin.RawPath != "" || origin.RawQuery != "" || origin.ForceQuery || origin.Fragment != "" {
+		return nil, errors.New("vrchat: invalid public origin")
+	}
+	return &Adapter{client: client, secrets: secrets, kv: store, queries: queries, publicOrigin: publicOrigin, proofOrigin: origin, audit: writer, now: time.Now, random: rand.Reader}, nil
 }
 
 func (*Adapter) Protocol() string { return Protocol }
@@ -127,10 +135,6 @@ func (a *Adapter) collectIdentity(state adapterState, input federationcore.Actio
 }
 
 func (a *Adapter) newProofURL() (string, error) {
-	origin, err := url.Parse(a.publicOrigin)
-	if err != nil || origin.Scheme != "https" || origin.Host == "" || origin.User != nil || origin.Path != "" || origin.RawPath != "" || origin.RawQuery != "" || origin.ForceQuery || origin.Fragment != "" {
-		return "", errors.New("vrchat: invalid public origin")
-	}
 	bytes := make([]byte, 32)
 	if _, err := io.ReadFull(a.random, bytes); err != nil {
 		return "", err
@@ -177,7 +181,7 @@ func (a *Adapter) publishProof(ctx context.Context, provider federationcore.Prov
 	}
 	matched := false
 	for _, link := range user.BioLinks {
-		if proofLinkMatches(link, a.publicOrigin, state.ProofToken) {
+		if proofLinkMatches(link, a.proofOrigin, state.ProofToken) {
 			matched = true
 			break
 		}
