@@ -1,5 +1,5 @@
 import type { QueryClient } from "@tanstack/react-query";
-import { screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import type { components } from "@/api/generated/schema";
 import { createQueryClient } from "@/app/query-client";
@@ -14,6 +14,7 @@ import {
 
 type OidcApp = components["schemas"]["OIDCApplicationView"];
 type ForwardAuthApp = components["schemas"]["ForwardAuthAppView"];
+type Provider = components["schemas"]["IdentityProviderView"];
 
 let queryClient: QueryClient;
 
@@ -60,6 +61,25 @@ function forwardAuthApp(clientId: string, displayName: string): ForwardAuthApp {
   };
 }
 
+function provider(slug: string, displayName: string): Provider {
+  return {
+    slug,
+    displayName,
+    protocol: "steam",
+    mode: "auto_provision",
+    disabled: false,
+    ready: true,
+    secretConfigured: true,
+    secretStatus: "valid",
+    secretValidatedAt: null,
+    createdAt,
+    config: {},
+    supportsOperator: false,
+    searchFields: [],
+    linkedAccountCount: 0,
+  };
+}
+
 function page<T>(items: T[]) {
   return () => Response.json({ items, nextCursor: "" });
 }
@@ -74,16 +94,19 @@ function managementApi(
   apps: {
     oidc?: OidcApp[];
     forwardAuth?: ForwardAuthApp[];
+    providers?: Provider[];
   },
 ) {
   const oidc = apps.oidc ?? [];
   const forwardAuth = apps.forwardAuth ?? [];
+  const providers = apps.providers ?? [];
   const base = "/api/prohibitorum";
   return fakeApi({
     ...publicApi({ ...testSession, role }),
     [`GET ${base}/oidc-applications`]: page(oidc),
     [`GET ${base}/saml-applications`]: page([]),
     [`GET ${base}/forward-auth-apps`]: page(forwardAuth),
+    [`GET ${base}/identity-providers`]: page(providers),
     ...Object.fromEntries(
       oidc.map((app) => [
         `GET ${base}/oidc-applications/${app.clientId}`,
@@ -94,6 +117,12 @@ function managementApi(
       forwardAuth.map((app) => [
         `GET ${base}/forward-auth-apps/${app.clientId}`,
         () => Response.json(app),
+      ]),
+    ),
+    ...Object.fromEntries(
+      providers.map((item) => [
+        `GET ${base}/identity-providers/${item.slug}`,
+        () => Response.json(item),
       ]),
     ),
   });
@@ -149,4 +178,42 @@ it("shows the console's route error for an application the manager was not given
   expect(
     api.sent("GET", "/api/prohibitorum/oidc-applications/other-client"),
   ).toHaveLength(1);
+});
+
+it("keeps an identity provider named `page` apart from the provider list", async () => {
+  managementApi("admin", { providers: [provider("page", "Game accounts")] });
+  const router = renderApp("/admin/identity-providers", queryClient);
+  expect(await screen.findByText("Game accounts")).toBeVisible();
+
+  await router.navigate({
+    to: "/admin/identity-providers/$slug",
+    params: { slug: "page" },
+  });
+  expect(router.state.location.pathname).toBe("/admin/identity-providers/page");
+  expect(await screen.findByDisplayValue("Game accounts")).toBeVisible();
+
+  await router.navigate({ to: "/admin/identity-providers" });
+  await waitFor(() =>
+    expect(router.state.location.pathname).toBe("/admin/identity-providers"),
+  );
+  expect(await screen.findByText("Game accounts")).toBeVisible();
+});
+
+it("keeps an OIDC application with Client ID `page` apart from the application list", async () => {
+  managementApi("admin", { oidc: [oidcApp("page", "Team wiki")] });
+  const router = renderApp("/admin/oidc-applications", queryClient);
+  expect(await screen.findByText("Team wiki")).toBeVisible();
+
+  await router.navigate({
+    to: "/admin/oidc-applications/$clientId",
+    params: { clientId: "page" },
+  });
+  expect(router.state.location.pathname).toBe("/admin/oidc-applications/page");
+  expect(await screen.findByDisplayValue("Team wiki")).toBeVisible();
+
+  await router.navigate({ to: "/admin/oidc-applications" });
+  await waitFor(() =>
+    expect(router.state.location.pathname).toBe("/admin/oidc-applications"),
+  );
+  expect(await screen.findByText("Team wiki")).toBeVisible();
 });

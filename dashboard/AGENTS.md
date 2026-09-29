@@ -29,6 +29,7 @@ them is wrong — fix the outlier instead of keeping both.
 - `useSuspenseQuery` supports neither `enabled` nor `placeholderData`; conditional fetching belongs in the loader.
 - Express refetch behavior through query options (`refetchOnWindowFocus`, `staleTime`), not manual DOM listeners plus `refetchQueries`; duplicating both refetches twice.
 - A query for the signed-in account's own data carries `meta: { requiresSession: true }`, which is how clearing the session finds them all: `clearSessionQueries` cancels and removes by that marker instead of naming every key. A new session-scoped query needs the marker, or a sign-out leaves its data cached.
+- A cursor-paged list is an infinite query, and its key belongs to that infinite query alone. Read it only through `useCursorList`; never pass a list factory's key to `fetchQuery`, `query`, `ensureQueryData`, `prefetchQuery`, `useQuery`, `useSuspenseQuery`, `setQueryData` or `getQueryData`. TanStack Query remembers that a key was built by an infinite observer, so a plain read of it returns `{ pages, pageParams }` or runs the paging behavior with options it does not have. `cursorListOptions` appends `cursorPagesMarker` to every list key so that no plain key — including one built from an administrator-chosen slug or Client ID — can equal it. A guard that needs to know whether a record is visible reads that record, not the list.
 
 ## Routing and guards
 

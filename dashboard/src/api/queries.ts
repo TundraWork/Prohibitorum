@@ -337,8 +337,9 @@ export function accountsListOptions(filters: AccountFilters) {
 }
 
 /**
- * The first page of accounts matching a search, for a picker. Kept apart from
- * `accountsListOptions`, whose key holds the directory's accumulated pages.
+ * The first page of accounts matching a search, for a picker. A plain read of
+ * its own, not `accountsListOptions`: that key belongs to the directory's
+ * infinite query, and only `useCursorList` may read it.
  */
 export function accountSearchQueryOptions(q: string) {
   return queryOptions({
@@ -419,25 +420,7 @@ export function accountTokensQueryOptions(id: number) {
   });
 }
 
-export function invitationsQueryOptions(cursor?: string) {
-  return queryOptions({
-    queryKey: ["admin", "invitations", cursor ?? ""] as const,
-    queryFn: ({ signal }) =>
-      requireJsonData(
-        client.GET("/api/prohibitorum/invitations", {
-          // Omitted rather than sent empty: an empty `cursor` is not the same
-          // request as no cursor at all.
-          ...(cursor === undefined ? {} : { params: { query: { cursor } } }),
-          signal,
-        }),
-      ),
-  });
-}
-
-/**
- * The same read, shaped for `useCursorList`: one page per issued cursor, so the
- * list can walk invitations without rebuilding the query context by hand.
- */
+/** One page of invitations, written for `useCursorList`. */
 export function invitationsListOptions() {
   return {
     queryKey: ["admin", "invitations"] as const,
@@ -479,7 +462,7 @@ export function groupsQueryOptions() {
  */
 export function identityProvidersListOptions() {
   return {
-    queryKey: ["admin", "identity-providers", "page"] as const,
+    queryKey: ["admin", "identity-providers"] as const,
     queryFn: ({ cursor, signal }: { cursor?: string; signal: AbortSignal }) =>
       requireJsonData(
         client.GET("/api/prohibitorum/identity-providers", {
@@ -553,7 +536,7 @@ export function diagnosticResultQueryOptions(slug: string, id: string) {
 
 export function oidcAppsListOptions() {
   return {
-    queryKey: ["admin", "oidc-applications", "page"] as const,
+    queryKey: ["admin", "oidc-applications"] as const,
     queryFn: ({ cursor, signal }: { cursor?: string; signal: AbortSignal }) =>
       requireJsonData(
         client.GET("/api/prohibitorum/oidc-applications", {
@@ -579,7 +562,7 @@ export function oidcAppQueryOptions(clientId: string) {
 
 export function samlAppsListOptions() {
   return {
-    queryKey: ["admin", "saml-applications", "page"] as const,
+    queryKey: ["admin", "saml-applications"] as const,
     queryFn: ({ cursor, signal }: { cursor?: string; signal: AbortSignal }) =>
       requireJsonData(
         client.GET("/api/prohibitorum/saml-applications", {
@@ -605,7 +588,7 @@ export function samlAppQueryOptions(id: number) {
 
 export function forwardAuthAppsListOptions() {
   return {
-    queryKey: ["admin", "forward-auth-apps", "page"] as const,
+    queryKey: ["admin", "forward-auth-apps"] as const,
     queryFn: ({ cursor, signal }: { cursor?: string; signal: AbortSignal }) =>
       requireJsonData(
         client.GET("/api/prohibitorum/forward-auth-apps", {
