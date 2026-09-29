@@ -224,7 +224,8 @@ func (s *Server) handleCreateMyToken(ctx context.Context, in *createMyTokenIn) (
 			return nil, fmt.Errorf("handleCreateMyToken: commit: %w", err)
 		}
 	}
-	views, err := patViews(ctx, q, []db.PersonalAccessToken{row})
+	// q may be bound to the finished transaction; read back through the pool.
+	views, err := patViews(ctx, s.patQueriesFn(), []db.PersonalAccessToken{row})
 	if err != nil {
 		return nil, fmt.Errorf("handleCreateMyToken: %w", err)
 	}
