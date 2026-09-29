@@ -66,7 +66,10 @@ export function AdminForwardAuthApps() {
           iconUrl={app.iconUrl}
           name={app.displayName || app.clientId}
           identifier={app.clientId}
-          href={`/admin/forward-auth-apps/${encodeURIComponent(app.clientId)}`}
+          link={{
+            to: "/admin/forward-auth-apps/$clientId",
+            params: { clientId: app.clientId },
+          }}
           dimmed={app.disabled}
           restricted={app.accessRestricted}
         />

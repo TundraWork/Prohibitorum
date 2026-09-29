@@ -65,7 +65,10 @@ export function AdminOidcApplications() {
           iconUrl={app.iconUrl}
           name={app.displayName || app.clientId}
           identifier={app.clientId}
-          href={`/admin/oidc-applications/${encodeURIComponent(app.clientId)}`}
+          link={{
+            to: "/admin/oidc-applications/$clientId",
+            params: { clientId: app.clientId },
+          }}
           dimmed={app.disabled}
           restricted={app.accessRestricted}
         />

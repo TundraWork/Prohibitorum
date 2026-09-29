@@ -56,7 +56,10 @@ export function AdminIdentityProviders() {
           iconUrl={provider.iconUrl}
           name={provider.displayName}
           identifier={provider.slug}
-          href={`/admin/identity-providers/${provider.slug}`}
+          link={{
+            to: "/admin/identity-providers/$slug",
+            params: { slug: provider.slug },
+          }}
           dimmed={provider.disabled}
         />
       ),

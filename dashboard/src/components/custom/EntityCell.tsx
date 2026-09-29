@@ -1,5 +1,6 @@
 import { Tooltip } from "@heroui/react";
 import { useLingui } from "@lingui/react/macro";
+import { Link, type LinkProps } from "@tanstack/react-router";
 import { Lock } from "lucide-react";
 import type { ReactNode } from "react";
 import { EntityAvatar } from "@/components/custom/EntityAvatar";
@@ -33,7 +34,7 @@ export function EntityCell({
   iconUrl,
   name,
   identifier,
-  href,
+  link,
   dimmed = false,
   restricted = false,
   /** Overrides the avatar's placeholder; the app icon is the default. */
@@ -44,7 +45,7 @@ export function EntityCell({
   /** The monospace line under the name: a slug, Client ID or Entity ID. */
   identifier?: ReactNode;
   /** Where the name links; rendered as a plain name when omitted. */
-  href?: string;
+  link?: LinkProps;
   /** The row is switched off; it recedes and says so to a screen reader. */
   dimmed?: boolean;
   /** The row is limited to selected user groups. */
@@ -58,12 +59,12 @@ export function EntityCell({
       <EntityAvatar iconUrl={iconUrl} fallback={fallback} />
       <div className="flex min-w-0 flex-col">
         <span className="flex items-center gap-1.5">
-          {href === undefined ? (
+          {link === undefined ? (
             name
           ) : (
-            <a className="hover:underline" href={href}>
+            <Link className="hover:underline" {...link}>
               {name}
-            </a>
+            </Link>
           )}
           {dimmed && (
             <span className="sr-only">

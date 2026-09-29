@@ -73,7 +73,10 @@ export function AdminSamlApplications() {
           iconUrl={app.iconUrl}
           name={app.displayName || app.entityId}
           identifier={<EntityId value={app.entityId} />}
-          href={`/admin/saml-applications/${app.id}`}
+          link={{
+            to: "/admin/saml-applications/$id",
+            params: { id: String(app.id) },
+          }}
           dimmed={app.disabled}
           restricted={app.accessRestricted}
         />
