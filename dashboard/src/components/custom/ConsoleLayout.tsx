@@ -55,7 +55,7 @@ import {
   sessionQueryOptions,
 } from "@/api/queries";
 import { Button } from "@/components/custom/Button";
-import { useInstanceBranding } from "@/components/custom/instance-branding";
+import { InstanceIdentity } from "@/components/custom/InstanceIdentity";
 import { LanguageMenu } from "@/components/custom/LanguageMenu";
 import { RouteLayoutContext } from "@/components/custom/RouteFeedback";
 import { scrollAreaTheme } from "@/components/custom/ScrollArea";
@@ -585,18 +585,9 @@ function ConsoleNavigation({
  * the section you are in; this names the instance all of it is served from.
  */
 function ConsoleIdentity() {
-  const { name, iconUrl } = useInstanceBranding();
   return (
-    <div className="flex items-center gap-3 px-5 pb-3 pt-5">
-      <Avatar className="size-8 shrink-0 rounded-field">
-        <Avatar.Image src={iconUrl} alt="" />
-        <Avatar.Fallback className="rounded-field">
-          {name.slice(0, 1)}
-        </Avatar.Fallback>
-      </Avatar>
-      <span className="truncate text-sm font-semibold tracking-[-0.01em] text-foreground">
-        {name}
-      </span>
+    <div className="px-5 pb-3 pt-5">
+      <InstanceIdentity />
     </div>
   );
 }

@@ -4,14 +4,23 @@ import { PageFrame } from "@/components/custom/PageFrame";
 
 /**
  * The card the public pages sit on, centered in the window. `PublicLayout`
- * draws it under the toolbar; a page that fails before any layout can draw
- * uses it alone.
+ * draws it under the toolbar and passes `belowToolbar`; a page that fails
+ * before any layout can draw uses it alone, keeping the toolbar's height
+ * empty above it so the card lands in the same place.
  */
-export function PublicCard({ children }: { children: ReactNode }) {
+export function PublicCard({
+  children,
+  belowToolbar = false,
+}: {
+  children: ReactNode;
+  belowToolbar?: boolean;
+}) {
   return (
-    <main className="mx-auto flex lg:min-h-[var(--app-viewport-height)] w-full min-w-0 max-w-[30rem] flex-col px-4">
+    <main
+      className={`mx-auto flex w-full min-w-0 max-w-[30rem] flex-col px-4 ${belowToolbar ? "" : "pt-16"}`}
+    >
       <PageFrame>
-        <Card className="w-full p-6">
+        <Card className="w-full p-6 sm:p-8">
           <Card.Content>{children}</Card.Content>
         </Card>
       </PageFrame>

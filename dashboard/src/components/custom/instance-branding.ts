@@ -4,7 +4,7 @@ import type { PublicConfig } from "@/api/raw-paths";
 
 /**
  * What the instance calls itself and how it looks, as every surface draws it:
- * the console's sidebar and header, the sign-in toolbar, the sign-in background
+ * the console's sidebar and header, the public toolbar, the sign-in background
  * and the document title.
  *
  * All of it comes from `GET /config`, which reports the effective values — an

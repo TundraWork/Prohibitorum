@@ -212,3 +212,15 @@ describe("console header", () => {
     );
   });
 });
+
+describe("console sidebar", () => {
+  it("names the instance above the navigation", async () => {
+    const navigation = await mount("/", member);
+    const sidebar = screen.getByRole("complementary");
+    const name = within(sidebar).getByText("Prohibitorum");
+    expect(
+      name.compareDocumentPosition(navigation) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+});
