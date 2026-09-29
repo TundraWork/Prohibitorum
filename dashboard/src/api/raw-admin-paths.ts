@@ -1114,7 +1114,7 @@ export interface RawAdminPaths {
         path: { slug: string };
         cookie?: never;
       };
-      requestBody: EmptyJsonBody;
+      requestBody?: never;
       responses: {
         200: { content: { "application/json": OperatorSessionView } };
       };

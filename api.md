@@ -203,7 +203,7 @@ The earlier policy cutover deleted legacy group membership and direct applicatio
 | POST | `/api/prohibitorum/identity-providers/delete` | 🔐 | Hard-delete a provider and its linked `account_identity` rows. |
 | POST | `/api/prohibitorum/identity-providers/{slug}/operator-session/start` | 🔐 | VRChat only. Transient Basic-auth login; returns a bounded 2FA challenge when required. Credentials are not retained. |
 | POST | `/api/prohibitorum/identity-providers/{slug}/operator-session/verify` | 🔐 | VRChat only. Verify the challenge with an allowlisted 2FA method/code, seal the resulting cookie jar, and mark the provider ready. |
-| POST | `/api/prohibitorum/identity-providers/{slug}/operator-session/validate` | 🔐 | VRChat only. Validate the sealed operator session without accepting credentials. |
+| POST | `/api/prohibitorum/identity-providers/{slug}/operator-session/validate` | 🔐 | VRChat only. Validate the sealed operator session without accepting credentials. The request carries no body. |
 
 Public federation flows retain the protocol-neutral entry points. VRChat uses
 the browser-bound flow API as profile proof, not OAuth/OIDC or direct sign-in:
