@@ -52,6 +52,13 @@ func TestPATAccessLevelsMigrationPostgres(t *testing.T) {
 	if err := goose.SetDialect("postgres"); err != nil {
 		t.Fatal(err)
 	}
+	if err := goose.UpTo(conn, ".", 31); err != nil {
+		t.Fatal(err)
+	}
+	// Later migrations use extension operators installed in public.
+	if _, err := conn.ExecContext(ctx, "SET search_path TO "+quoted+", public"); err != nil {
+		t.Fatal(err)
+	}
 	if err := goose.UpTo(conn, ".", 43); err != nil {
 		t.Fatal(err)
 	}
