@@ -129,3 +129,15 @@ func LoginOptions() []webauthn.LoginOption {
 		webauthn.WithUserVerification(protocol.VerificationRequired),
 	}
 }
+
+// ConditionalLoginOptions are LoginOptions for a ceremony started by
+// username-field autofill (mediation=conditional). The browser keeps that
+// request pending while the page is open and the user may pick a passkey
+// minutes later, so the ceremony lives for lifetime instead of the 60 s modal
+// timeout. go-webauthn derives SessionData.Expires from this Timeout and sends
+// the same value to the browser, so pass the ceremony's KV TTL here.
+func ConditionalLoginOptions(lifetime time.Duration) []webauthn.LoginOption {
+	return append(LoginOptions(), func(o *protocol.PublicKeyCredentialRequestOptions) {
+		o.Timeout = int(lifetime.Milliseconds())
+	})
+}

@@ -86,7 +86,16 @@ policy and persistence path.
 
 ### WebAuthn (primary)
 
-ResidentKey=Required (discoverable credentials), UV=Required at register / Preferred at login. Sign-count regression detection writes `webauthn_credential.clone_warning_at` so the admin UI can surface suspected cloned authenticators. COSE algorithm, user handle, and `uv_initialized` are persisted per credential per WebAuthn L3 §4.
+ResidentKey=Required (discoverable credentials), UV=Required at register / Required at login. Sign-count regression detection writes `webauthn_credential.clone_warning_at` so the admin UI can surface suspected cloned authenticators. COSE algorithm, user handle, and `uv_initialized` are persisted per credential per WebAuthn L3 §4.
+
+Sign-in is a discoverable ceremony (`POST /api/prohibitorum/auth/login/{begin,complete}`) in one of two mediations, chosen by the optional `?mediation=` query on both calls:
+
+- **Modal** (no parameter): the passkey button. The challenge lives 60 s (go-webauthn's login timeout) and the ceremony token rides in the `prohibitorum_ceremony` cookie.
+- **Conditional** (`mediation=conditional`): passkeys offered in the username field's autofill. The browser request stays pending while the page is open, so the challenge lives the full 5-minute ceremony TTL — the `timeout` sent to the browser, `SessionData.Expires`, the KV TTL and the cookie's Max-Age agree — and the token rides in its own `prohibitorum_ceremony_conditional` cookie, so an autofill ceremony and a button ceremony pending together never overwrite each other. The dashboard renews it a minute before it expires.
+
+Any other `mediation` value is `400 bad_request` and touches no ceremony. Both mediations share the `webauthn_ceremony:login:` KV prefix and the per-IP login rate limit.
+
+`complete` looks up the asserted credential ID before the user handle. A credential ID with no `webauthn_credential` row — the passkey was revoked, or its account deleted, which cascades — is `401 login_credential_unknown`, and only then: the dashboard relays that code to the password manager through `PublicKeyCredential.signalUnknownCredential`, which removes the passkey, so a database failure maps to `database_unavailable` and a user handle that does not name the credential's owner to `login_verification_failed`. A disabled account keeps its credentials and still answers `account_disabled`.
 
 When a user adds a passkey via `POST /api/prohibitorum/me/credentials/register/{begin,complete}`, Prohibitorum offers to delete the account's password + TOTP + recovery codes in the same transaction (via `authn.DisableNonWebAuthnFallbacks`). Default yes. The decision is captured server-side; no client-side bypass.
 

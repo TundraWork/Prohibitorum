@@ -216,10 +216,10 @@ const errorMessages: Readonly<Record<string, MessageDescriptor>> = {
     message:
       "The passkey could not be verified. You can use your password instead.",
   }),
-  login_account_not_found: msg({
-    id: "error.login_account_not_found",
+  login_credential_unknown: msg({
+    id: "error.login_credential_unknown",
     message:
-      "The passkey could not be verified. You can use your password instead.",
+      "This passkey is no longer registered here. Use another passkey or your password.",
   }),
   not_bootstrapped: msg({
     id: "error.not_bootstrapped",

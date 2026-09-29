@@ -49,10 +49,6 @@ func MapRegisterCeremonyError(ctx context.Context, err error) *authn.AuthError {
 func classifyLogin(msg string) *authn.AuthError {
 	lower := strings.ToLower(msg)
 	switch {
-	case strings.Contains(lower, "unknown user handle"),
-		strings.Contains(lower, "failed to lookup"),
-		strings.Contains(lower, "could not find"):
-		return authn.ErrLoginAccountNotFound()
 	case strings.Contains(lower, "signature"),
 		strings.Contains(lower, "verification"),
 		strings.Contains(lower, "verify"):

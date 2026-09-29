@@ -17,10 +17,10 @@ import (
 func TestCeremonyCookieSecureFromConfig(t *testing.T) {
 	r := httptest.NewRequest(http.MethodPost, "/api/prohibitorum/auth/login/begin", nil) // r.TLS == nil
 
-	if c := CeremonyCookie(secureCfg(), r, "v"); !c.Secure {
+	if c := CeremonyCookie(secureCfg(), r, CeremonyCookieName, "v"); !c.Secure {
 		t.Errorf("https deployment: ceremony cookie Secure = false, want true (behind a TLS proxy r.TLS is nil)")
 	}
-	if c := CeremonyCookie(devCfg(), r, "v"); c.Secure {
+	if c := CeremonyCookie(devCfg(), r, CeremonyCookieName, "v"); c.Secure {
 		t.Errorf("http dev deployment: ceremony cookie Secure = true, want false")
 	}
 }

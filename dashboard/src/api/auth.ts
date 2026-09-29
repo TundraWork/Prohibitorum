@@ -2,6 +2,7 @@ import { base32 } from "@scure/base";
 import {
   type AuthenticationResponseJSON,
   browserSupportsWebAuthn,
+  browserSupportsWebAuthnAutofill,
   type PublicKeyCredentialCreationOptionsJSON,
   type PublicKeyCredentialRequestOptionsJSON,
   type RegistrationResponseJSON,
@@ -95,6 +96,31 @@ export function validateLoginResult(result: LoginResult): LoginResult {
   return result;
 }
 
+/** A signed passkey assertion and the RP ID the browser signed it for. */
+export interface PasskeyAssertion {
+  rpId: string;
+  response: AuthenticationResponseJSON;
+}
+
+// The autofill ceremony is renewed this long before the server expires it, so
+// a passkey picked just before renewal still has time for the biometric prompt
+// and the round trip.
+const autofillRenewMargin = 60_000;
+// Consecutive browser refusals after which autofill stays off for this visit.
+const autofillRefusalLimit = 3;
+
+function abortError(): DOMException {
+  return new DOMException("The request was aborted.", "AbortError");
+}
+
+/** The request options' RP ID, which a Signal to the password manager names. */
+function requireRpId(options: { rpId?: string }): string {
+  if (typeof options.rpId !== "string" || options.rpId.length === 0) {
+    throw new ApiError({ kind: "invalid-response" });
+  }
+  return options.rpId;
+}
+
 let passkeyController: AbortController | undefined;
 
 export function cancelPasskeyAuthentication(): void {
@@ -117,9 +143,10 @@ export async function authenticateWithPasskey(
       client.POST("/api/prohibitorum/auth/login/begin", { signal }),
     );
     signal.throwIfAborted();
-    let body: AuthenticationResponseJSON;
+    const rpId = requireRpId(optionsJSON);
+    let response: AuthenticationResponseJSON;
     try {
-      body = await startAuthentication({
+      response = await startAuthentication({
         // openapi-fetch's Readable maps extension BufferSource methods to objects.
         optionsJSON: optionsJSON as PublicKeyCredentialRequestOptionsJSON,
       });
@@ -130,24 +157,185 @@ export async function authenticateWithPasskey(
         (error instanceof WebAuthnError &&
           error.code === "ERROR_CEREMONY_ABORTED")
       ) {
-        throw new DOMException("The request was aborted.", "AbortError");
+        throw abortError();
       }
       throw new ApiError({ kind: "local", code: "passkey_incomplete" });
     }
     signal.throwIfAborted();
-    const result = await requireJsonData(
-      client.POST("/api/prohibitorum/auth/login/complete", {
-        body,
+    const result = await completePasskeyLogin({
+      assertion: { rpId, response },
+      returnTo,
+      signal,
+    });
+    signal.throwIfAborted();
+    return result;
+  } finally {
+    if (passkeyController === controller) passkeyController = undefined;
+  }
+}
+
+/**
+ * Whether this page can offer passkeys in the username field's autofill: a
+ * secure context whose browser supports conditional mediation.
+ */
+export async function isPasskeyAutofillAvailable(): Promise<boolean> {
+  return window.isSecureContext && (await browserSupportsWebAuthnAutofill());
+}
+
+/**
+ * Waits until the reader picks a passkey from the username field's autofill
+ * and returns the signed assertion.
+ *
+ * The browser request stays pending while the page is open, so it is renewed
+ * with a fresh server ceremony before that one expires. A refusal after a
+ * passkey was picked (such as a dismissed biometric prompt) offers autofill
+ * again, up to `autofillRefusalLimit` times in a row. Aborting `signal`, or
+ * another ceremony taking over (the passkey button), rejects with an
+ * `AbortError`; a failed begin or any other browser error is rethrown.
+ */
+export async function waitForPasskeyAutofill(
+  signal: AbortSignal,
+): Promise<PasskeyAssertion> {
+  let refusals = 0;
+  for (;;) {
+    const optionsJSON = await requireJsonData(
+      client.POST("/api/prohibitorum/auth/login/begin", {
+        params: { query: { mediation: "conditional" } },
         signal,
-        ...(returnTo === undefined
-          ? {}
-          : { params: { query: { return_to: returnTo } } }),
       }),
     );
     signal.throwIfAborted();
-    return validateLoginResult(result);
+    const rpId = requireRpId(optionsJSON);
+    const { timeout } = optionsJSON;
+    if (
+      typeof timeout !== "number" ||
+      !Number.isSafeInteger(timeout) ||
+      timeout <= autofillRenewMargin
+    ) {
+      throw new ApiError({ kind: "invalid-response" });
+    }
+    const outcome = await awaitAutofillSelection(
+      // openapi-fetch's Readable maps extension BufferSource methods to objects.
+      optionsJSON as PublicKeyCredentialRequestOptionsJSON,
+      timeout - autofillRenewMargin,
+      signal,
+    );
+    if (outcome === "renew") continue;
+    if (outcome === "refused") {
+      refusals += 1;
+      if (refusals >= autofillRefusalLimit) {
+        throw new ApiError({ kind: "local", code: "passkey_incomplete" });
+      }
+      continue;
+    }
+    return { rpId, response: outcome };
+  }
+}
+
+/**
+ * One conditional browser request: the picked passkey's response, `"renew"`
+ * once `renewAfter` passes without a pick, or `"refused"` when the browser
+ * refused after a pick.
+ */
+async function awaitAutofillSelection(
+  optionsJSON: PublicKeyCredentialRequestOptionsJSON,
+  renewAfter: number,
+  signal: AbortSignal,
+): Promise<AuthenticationResponseJSON | "renew" | "refused"> {
+  let renewing = false;
+  let settled = false;
+  const cancel = () => {
+    if (!settled) WebAuthnAbortService.cancelCeremony();
+  };
+  const timer = setTimeout(() => {
+    renewing = true;
+    cancel();
+  }, renewAfter);
+  signal.addEventListener("abort", cancel, { once: true });
+  try {
+    return await startAuthentication({ optionsJSON, useBrowserAutofill: true });
+  } catch (error) {
+    const aborted =
+      error instanceof WebAuthnError && error.code === "ERROR_CEREMONY_ABORTED";
+    if (signal.aborted || (aborted && !renewing)) throw abortError();
+    if (aborted) return "renew";
+    if (
+      (error instanceof Error || error instanceof DOMException) &&
+      error.name === "NotAllowedError"
+    ) {
+      return "refused";
+    }
+    throw error;
   } finally {
-    if (passkeyController === controller) passkeyController = undefined;
+    settled = true;
+    clearTimeout(timer);
+    signal.removeEventListener("abort", cancel);
+  }
+}
+
+/**
+ * Sends a signed assertion to the server to finish signing in. When the server
+ * holds no such passkey, the password manager is told to remove it before the
+ * error is rethrown.
+ */
+export async function completePasskeyLogin({
+  assertion,
+  mediation,
+  returnTo,
+  signal,
+}: {
+  assertion: PasskeyAssertion;
+  mediation?: "conditional";
+  returnTo?: string;
+  signal?: AbortSignal;
+}): Promise<LoginResult> {
+  try {
+    const result = await requireJsonData(
+      client.POST("/api/prohibitorum/auth/login/complete", {
+        body: assertion.response,
+        signal,
+        params: {
+          query: {
+            ...(mediation === undefined ? {} : { mediation }),
+            ...(returnTo === undefined ? {} : { return_to: returnTo }),
+          },
+        },
+      }),
+    );
+    return validateLoginResult(result);
+  } catch (error) {
+    if (
+      error instanceof ApiError &&
+      error.code === "login_credential_unknown"
+    ) {
+      await signalUnknownPasskey(assertion.rpId, assertion.response.id);
+    }
+    throw error;
+  }
+}
+
+/**
+ * Asks the password manager to remove a passkey this site no longer holds,
+ * where the browser supports the Signal API. Its own failure is ignored: the
+ * reader is shown the server's error either way.
+ */
+async function signalUnknownPasskey(
+  rpId: string,
+  credentialId: string,
+): Promise<void> {
+  // TypeScript's DOM types do not declare the Signal API yet.
+  const credential = globalThis.PublicKeyCredential as
+    | {
+        signalUnknownCredential?: (options: {
+          rpId: string;
+          credentialId: string;
+        }) => Promise<void>;
+      }
+    | undefined;
+  try {
+    await credential?.signalUnknownCredential?.({ rpId, credentialId });
+  } catch {
+    // Nothing to report: the password manager keeps the passkey.
   }
 }
 

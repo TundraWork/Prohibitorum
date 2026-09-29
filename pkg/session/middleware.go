@@ -14,6 +14,10 @@ import (
 const (
 	SessionCookieName  = "prohibitorum_session"
 	CeremonyCookieName = "prohibitorum_ceremony"
+	// ConditionalCeremonyCookieName carries the login ceremony started for
+	// username-field autofill (mediation=conditional), so that ceremony and a
+	// button-started one can be pending at the same time.
+	ConditionalCeremonyCookieName = "prohibitorum_ceremony_conditional"
 	// FedStateCookieName carries the upstream-federation anti-forgery token
 	// (audit follow-up N4). See FedStateCookie for the SameSite rationale.
 	FedStateCookieName = "prohibitorum_fed_state"
@@ -151,13 +155,16 @@ func ClearedSessionCookie(cfg *configx.Config, _ *http.Request) *http.Cookie {
 }
 
 // CeremonyCookie carries the random key that links /auth/login/begin and
-// /auth/login/complete. Path is scoped to /api/prohibitorum/auth so the cookie
+// /auth/login/complete. name is CeremonyCookieName for a button-started (modal)
+// ceremony and ConditionalCeremonyCookieName for an autofill (conditional) one;
+// each mediation keeps its own cookie so neither begin overwrites the other's
+// pending ceremony. Path is scoped to /api/prohibitorum/auth so the cookie
 // isn't sent on unrelated API requests. SameSite=Strict because the
 // ceremony is always same-origin and we want maximum tightness during the
 // ~5 minute window. Max-Age 300 mirrors the KV TTL.
-func CeremonyCookie(cfg *configx.Config, _ *http.Request, value string) *http.Cookie {
+func CeremonyCookie(cfg *configx.Config, _ *http.Request, name, value string) *http.Cookie {
 	return &http.Cookie{
-		Name:     CeremonyCookieName,
+		Name:     name,
 		Value:    value,
 		Path:     "/api/prohibitorum/auth",
 		HttpOnly: true,
@@ -172,9 +179,10 @@ func CeremonyCookie(cfg *configx.Config, _ *http.Request, value string) *http.Co
 	}
 }
 
-// ClearedCeremonyCookie expires the ceremony cookie. Path matches the issue path.
-func ClearedCeremonyCookie(cfg *configx.Config, r *http.Request) *http.Cookie {
-	c := CeremonyCookie(cfg, r, "")
+// ClearedCeremonyCookie expires the named ceremony cookie. Path matches the
+// issue path.
+func ClearedCeremonyCookie(cfg *configx.Config, r *http.Request, name string) *http.Cookie {
+	c := CeremonyCookie(cfg, r, name, "")
 	c.MaxAge = -1
 	return c
 }
@@ -218,4 +226,3 @@ func ClearedFedStateCookie(cfg *configx.Config, r *http.Request) *http.Cookie {
 	c.MaxAge = -1
 	return c
 }
-

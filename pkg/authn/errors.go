@@ -39,7 +39,7 @@ func init() {
 		{Code: "username_immutable", Status: http.StatusBadRequest, LocaleKey: "errors.username_immutable", DiagnosticKind: "validation"},
 		{Code: "last_passkey", Status: http.StatusBadRequest, LocaleKey: "errors.last_passkey", DiagnosticKind: "policy"},
 		{Code: "would_remove_last_factor", Status: http.StatusConflict, LocaleKey: "errors.would_remove_last_factor", DiagnosticKind: "policy"},
-		{Code: "login_account_not_found", Status: http.StatusUnauthorized, LocaleKey: "errors.login_account_not_found", DiagnosticKind: "auth"},
+		{Code: "login_credential_unknown", Status: http.StatusUnauthorized, LocaleKey: "errors.login_credential_unknown", DiagnosticKind: "auth"},
 		{Code: "login_verification_failed", Status: http.StatusUnauthorized, LocaleKey: "errors.login_verification_failed", DiagnosticKind: "auth"},
 		{Code: "ceremony_expired", Status: http.StatusBadRequest, LocaleKey: "errors.ceremony_expired", DiagnosticKind: "ceremony", Retryable: true, Recovery: "retry"},
 		{Code: "ceremony_missing", Status: http.StatusBadRequest, LocaleKey: "errors.ceremony_missing", DiagnosticKind: "ceremony"},
@@ -298,12 +298,14 @@ func ErrWouldRemoveLastFactorAuth() *AuthError {
 	return newErr(http.StatusConflict, "would_remove_last_factor", "无法撤销密码和 TOTP：账户将无任何可用登录方式，请先添加 Passkey 或联合身份")
 }
 
-// ErrLoginAccountNotFound is returned when the WebAuthn library can't resolve
-// the credential's user handle to an account row — typically because the
-// account was deleted or the credential was force-revoked. Distinct from
-// account_disabled (account exists but is locked out).
-func ErrLoginAccountNotFound() *AuthError {
-	return newErr(http.StatusUnauthorized, "login_account_not_found", "未找到对应账户或凭证")
+// ErrLoginCredentialUnknown is returned only when the asserted credential ID
+// has no webauthn_credential row — the passkey was revoked, or its account was
+// deleted (the row cascades). The client relays it to the password manager
+// through PublicKeyCredential.signalUnknownCredential, which removes the
+// passkey, so lookup failures (database errors) must never map here. Distinct
+// from account_disabled (account and credential exist but are locked out).
+func ErrLoginCredentialUnknown() *AuthError {
+	return newErr(http.StatusUnauthorized, "login_credential_unknown", "该 passkey 已不在本站登记")
 }
 
 // ErrLoginVerificationFailed is returned when the credential's assertion

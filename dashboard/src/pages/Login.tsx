@@ -10,17 +10,27 @@ import {
 import type { HistoryState } from "@tanstack/react-router";
 import { useLocation, useNavigate, useRouter } from "@tanstack/react-router";
 import { Fingerprint, MonitorSmartphone } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useEffectEvent,
+  useRef,
+  useState,
+} from "react";
 import {
   buildTotpUri,
   cancelPasskeyAuthentication,
   generateTotpSecret,
+  isPasskeyAutofillAvailable,
   isValidLoginPassword,
   isValidRecoveryCode,
   isValidTotpCode,
+  type PasskeyAssertion,
+  waitForPasskeyAutofill,
 } from "@/api/auth";
 import { describeError, isCancellation } from "@/api/errors";
 import {
+  passkeyAutofillMutationOptions,
   passkeyMutationOptions,
   passwordMutationOptions,
   recoveryMutationOptions,
@@ -151,6 +161,84 @@ function useLoginFlow(initialFailure?: LoginFailure) {
   return { control, finishing, failure, setFailure, finish, hold };
 }
 
+type LoginFlow = ReturnType<typeof useLoginFlow>;
+
+/**
+ * Offers passkeys in the username field's autofill while the first step is
+ * open, and signs in with the one the reader picks.
+ *
+ * Waiting reports nothing: the reader has pressed nothing, so autofill not
+ * appearing is the whole of a failure there, and it is not tried again. Once a
+ * passkey is picked, finishing takes the flow like the passkey button does and
+ * fails the same way; autofill is then offered again. The button calls
+ * `pause` before its own ceremony and `resume` after it, since the browser
+ * runs one ceremony at a time.
+ */
+function usePasskeyAutofill({
+  flow,
+  returnTo,
+}: {
+  flow: LoginFlow;
+  returnTo?: string;
+}) {
+  const completion = useMutation(passkeyAutofillMutationOptions(returnTo));
+  // Each value starts a new wait; null while the button's ceremony runs.
+  const [run, setRun] = useState<number | null>(0);
+  const waiting = useRef<AbortController>(undefined);
+  const restart = useCallback(
+    () => setRun((current) => (current === null ? null : current + 1)),
+    [],
+  );
+  const signIn = useEffectEvent(async (assertion: PasskeyAssertion) => {
+    if (!flow.control.acquire()) {
+      restart();
+      return;
+    }
+    let signedIn = false;
+    try {
+      const result = await completion.mutateAsync(assertion);
+      if (flow.control.isActive()) await flow.finish(result.redirect);
+      signedIn = true;
+    } catch (error) {
+      if (flow.control.isActive() && !isCancellation(error))
+        flow.setFailure({ message: describeError(error) });
+    } finally {
+      completion.reset();
+      flow.control.release();
+      if (!signedIn) restart();
+    }
+  });
+  useEffect(() => {
+    if (run === null) return;
+    const controller = new AbortController();
+    waiting.current = controller;
+    const { signal } = controller;
+    void (async () => {
+      let assertion: PasskeyAssertion;
+      try {
+        if (!(await isPasskeyAutofillAvailable())) return;
+        assertion = await waitForPasskeyAutofill(signal);
+      } catch {
+        return;
+      }
+      if (!signal.aborted) await signIn(assertion);
+    })();
+    return () => {
+      controller.abort();
+      if (waiting.current === controller) waiting.current = undefined;
+    };
+  }, [run]);
+  const pause = useCallback(() => {
+    waiting.current?.abort();
+    setRun(null);
+  }, []);
+  const resume = useCallback(
+    () => setRun((current) => (current === null ? 0 : current)),
+    [],
+  );
+  return { pause, resume };
+}
+
 /** Sends a factor route opened without a password result back to the first step. */
 function usePasswordResult(token: string | undefined): boolean {
   const navigate = useNavigate();
@@ -224,7 +312,7 @@ function PasswordForm({
             {(field) => (
               <field.FormField
                 label={<Trans id="login.username">Username</Trans>}
-                autoComplete="username"
+                autoComplete="username webauthn"
                 autoCapitalize="none"
                 spellCheck={false}
                 isDisabled={control.busy}
@@ -491,6 +579,7 @@ export function PasswordPage() {
     },
     [resetPasskey],
   );
+  const autofill = usePasskeyAutofill({ flow, returnTo });
   const supported = window.isSecureContext && browserSupportsWebAuthn();
   return (
     <LoginShell step="password" busy={flow.control.busy} failure={flow.failure}>
@@ -501,6 +590,7 @@ export function PasswordPage() {
         isDisabled={!supported || (flow.control.busy && !passkey.isPending)}
         onPress={() => {
           if (!flow.control.acquire()) return;
+          autofill.pause();
           void (async () => {
             try {
               const result = await passkey.mutateAsync();
@@ -511,6 +601,7 @@ export function PasswordPage() {
             } finally {
               passkey.reset();
               flow.control.release();
+              autofill.resume();
             }
           })();
         }}

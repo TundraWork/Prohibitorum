@@ -306,7 +306,7 @@ export interface RawPaths {
   "/api/prohibitorum/auth/login/begin": {
     post: {
       parameters: {
-        query?: never;
+        query?: { mediation?: "conditional" };
         header?: never;
         path?: never;
         cookie?: never;
@@ -324,7 +324,7 @@ export interface RawPaths {
   "/api/prohibitorum/auth/login/complete": {
     post: {
       parameters: {
-        query?: { return_to?: string };
+        query?: { mediation?: "conditional"; return_to?: string };
         header?: never;
         path?: never;
         cookie?: never;
