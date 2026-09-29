@@ -77,7 +77,7 @@ func (s *mockState) routes() http.Handler {
 	mux.HandleFunc("POST /api/1/auth/twofactorauth/totp/verify", s.verify("totp"))
 	mux.HandleFunc("POST /api/1/auth/twofactorauth/emailotp/verify", s.verify("emailOtp"))
 	mux.HandleFunc("POST /api/1/auth/twofactorauth/otp/verify", s.verify("otp"))
-	mux.HandleFunc("GET /api/1/users/{id}", s.publicUser)
+	mux.HandleFunc("GET /api/1/profile/{id}", s.publicUser)
 	mux.HandleFunc("GET /control/ready", s.controlOnly(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) }))
 	mux.HandleFunc("POST /control/state", s.controlOnly(s.setState))
 	mux.HandleFunc("GET /control/requests", s.controlOnly(s.getRecords))
@@ -199,7 +199,7 @@ func (s *mockState) publicUser(w http.ResponseWriter, r *http.Request) {
 	if f.BioLinks == nil {
 		f.BioLinks = []string{}
 	}
-	writeJSON(w, map[string]any{"id": f.PublicUserID, "displayName": f.DisplayName, "bioLinks": f.BioLinks, "currentAvatarThumbnailImageUrl": f.AvatarURL})
+	writeJSON(w, map[string]any{"id": f.PublicUserID, "displayName": f.DisplayName, "bioLinks": f.BioLinks, "iconUrl": f.AvatarURL})
 }
 
 func (s *mockState) controlOnly(next http.HandlerFunc) http.HandlerFunc {

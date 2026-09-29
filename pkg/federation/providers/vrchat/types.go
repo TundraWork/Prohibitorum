@@ -12,11 +12,13 @@ type CurrentUser struct {
 	RequiresTwoFactorAuth []string
 }
 
+// PublicUser is the part of a VRChat profile (GET /profile/{id}) used for
+// proof. IconURL is empty when the profile has no icon.
 type PublicUser struct {
-	ID                             string
-	DisplayName                    string
-	BioLinks                       []string
-	CurrentAvatarThumbnailImageURL string
+	ID          string
+	DisplayName string
+	BioLinks    []string
+	IconURL     string
 }
 
 type currentUserWire struct {
@@ -26,10 +28,10 @@ type currentUserWire struct {
 }
 
 type publicUserWire struct {
-	ID                             *string         `json:"id"`
-	DisplayName                    *string         `json:"displayName"`
-	BioLinks                       json.RawMessage `json:"bioLinks"`
-	CurrentAvatarThumbnailImageURL *string         `json:"currentAvatarThumbnailImageUrl"`
+	ID          *string         `json:"id"`
+	DisplayName *string         `json:"displayName"`
+	BioLinks    json.RawMessage `json:"bioLinks"`
+	IconURL     string          `json:"iconUrl"`
 }
 
 type verifyResultWire struct {

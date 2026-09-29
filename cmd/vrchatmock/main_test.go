@@ -92,7 +92,7 @@ func TestMockControlMutatesPublicUserAndErrorModes(t *testing.T) {
 	}
 	_ = response.Body.Close()
 
-	public, err := http.Get(server.URL + "/api/1/users/" + fixture.PublicUserID)
+	public, err := http.Get(server.URL + "/api/1/profile/" + fixture.PublicUserID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -106,7 +106,7 @@ func TestMockControlMutatesPublicUserAndErrorModes(t *testing.T) {
 	body, _ = json.Marshal(fixture)
 	response, _ = http.Post(server.URL+"/control/state", "application/json", strings.NewReader(string(body)))
 	_ = response.Body.Close()
-	publicRequest, _ := http.NewRequest(http.MethodGet, server.URL+"/api/1/users/"+fixture.PublicUserID, nil)
+	publicRequest, _ := http.NewRequest(http.MethodGet, server.URL+"/api/1/profile/"+fixture.PublicUserID, nil)
 	publicRequest.AddCookie(&http.Cookie{Name: "auth", Value: fixture.AuthCookieValue})
 	public, _ = http.DefaultClient.Do(publicRequest)
 	malformed, _ := io.ReadAll(public.Body)
