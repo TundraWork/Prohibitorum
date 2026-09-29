@@ -159,7 +159,6 @@ type OidcClient struct {
 	AccessRestricted            bool               `json:"accessRestricted"`
 	ForwardAuthEnabled          bool               `json:"forwardAuthEnabled"`
 	ForwardAuthHost             pgtype.Text        `json:"forwardAuthHost"`
-	ForwardAuthScopes           []byte             `json:"forwardAuthScopes"`
 	LaunchUrl                   pgtype.Text        `json:"launchUrl"`
 	PrincipalSource             string             `json:"principalSource"`
 	ClaimAliases                []byte             `json:"claimAliases"`
@@ -199,12 +198,16 @@ type PersonalAccessToken struct {
 	Name       string             `json:"name"`
 	TokenHash  []byte             `json:"tokenHash"`
 	TokenHint  string             `json:"tokenHint"`
-	AllApps    bool               `json:"allApps"`
-	AppGrants  []byte             `json:"appGrants"`
 	CreatedAt  pgtype.Timestamptz `json:"createdAt"`
 	ExpiresAt  pgtype.Timestamptz `json:"expiresAt"`
 	LastUsedAt pgtype.Timestamptz `json:"lastUsedAt"`
 	RevokedAt  pgtype.Timestamptz `json:"revokedAt"`
+	Access     string             `json:"access"`
+}
+
+type PersonalAccessTokenApp struct {
+	PatID    int32  `json:"patId"`
+	ClientID string `json:"clientId"`
 }
 
 type RecoveryCode struct {

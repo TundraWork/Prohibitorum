@@ -511,7 +511,6 @@ SELECT
   client_id,
   display_name,
   forward_auth_host,
-  forward_auth_scopes,
   access_restricted
 FROM oidc_client
 WHERE NOT disabled

@@ -12,7 +12,7 @@ import (
 )
 
 const getPATByID = `-- name: GetPATByID :one
-SELECT id, account_id, name, token_hash, token_hint, all_apps, app_grants, created_at, expires_at, last_used_at, revoked_at FROM personal_access_token WHERE id = $1
+SELECT id, account_id, name, token_hash, token_hint, created_at, expires_at, last_used_at, revoked_at, access FROM personal_access_token WHERE id = $1
 `
 
 func (q *Queries) GetPATByID(ctx context.Context, id int32) (PersonalAccessToken, error) {
@@ -24,18 +24,17 @@ func (q *Queries) GetPATByID(ctx context.Context, id int32) (PersonalAccessToken
 		&i.Name,
 		&i.TokenHash,
 		&i.TokenHint,
-		&i.AllApps,
-		&i.AppGrants,
 		&i.CreatedAt,
 		&i.ExpiresAt,
 		&i.LastUsedAt,
 		&i.RevokedAt,
+		&i.Access,
 	)
 	return i, err
 }
 
 const getPATByTokenHash = `-- name: GetPATByTokenHash :one
-SELECT id, account_id, name, token_hash, token_hint, all_apps, app_grants, created_at, expires_at, last_used_at, revoked_at FROM personal_access_token
+SELECT id, account_id, name, token_hash, token_hint, created_at, expires_at, last_used_at, revoked_at, access FROM personal_access_token
 WHERE token_hash = $1
   AND revoked_at IS NULL
   AND (expires_at IS NULL OR expires_at > now())
@@ -50,21 +49,20 @@ func (q *Queries) GetPATByTokenHash(ctx context.Context, tokenHash []byte) (Pers
 		&i.Name,
 		&i.TokenHash,
 		&i.TokenHint,
-		&i.AllApps,
-		&i.AppGrants,
 		&i.CreatedAt,
 		&i.ExpiresAt,
 		&i.LastUsedAt,
 		&i.RevokedAt,
+		&i.Access,
 	)
 	return i, err
 }
 
 const insertPAT = `-- name: InsertPAT :one
 INSERT INTO personal_access_token (
-  account_id, name, token_hash, token_hint, all_apps, app_grants, expires_at
-) VALUES ($1, $2, $3, $4, $5, $6, $7)
-RETURNING id, account_id, name, token_hash, token_hint, all_apps, app_grants, created_at, expires_at, last_used_at, revoked_at
+  account_id, name, token_hash, token_hint, access, expires_at
+) VALUES ($1, $2, $3, $4, $5, $6)
+RETURNING id, account_id, name, token_hash, token_hint, created_at, expires_at, last_used_at, revoked_at, access
 `
 
 type InsertPATParams struct {
@@ -72,8 +70,7 @@ type InsertPATParams struct {
 	Name      string             `json:"name"`
 	TokenHash []byte             `json:"tokenHash"`
 	TokenHint string             `json:"tokenHint"`
-	AllApps   bool               `json:"allApps"`
-	AppGrants []byte             `json:"appGrants"`
+	Access    string             `json:"access"`
 	ExpiresAt pgtype.Timestamptz `json:"expiresAt"`
 }
 
@@ -83,8 +80,7 @@ func (q *Queries) InsertPAT(ctx context.Context, arg InsertPATParams) (PersonalA
 		arg.Name,
 		arg.TokenHash,
 		arg.TokenHint,
-		arg.AllApps,
-		arg.AppGrants,
+		arg.Access,
 		arg.ExpiresAt,
 	)
 	var i PersonalAccessToken
@@ -94,18 +90,65 @@ func (q *Queries) InsertPAT(ctx context.Context, arg InsertPATParams) (PersonalA
 		&i.Name,
 		&i.TokenHash,
 		&i.TokenHint,
-		&i.AllApps,
-		&i.AppGrants,
 		&i.CreatedAt,
 		&i.ExpiresAt,
 		&i.LastUsedAt,
 		&i.RevokedAt,
+		&i.Access,
 	)
 	return i, err
 }
 
+const insertPATApp = `-- name: InsertPATApp :exec
+INSERT INTO personal_access_token_app (pat_id, client_id) VALUES ($1, $2)
+`
+
+type InsertPATAppParams struct {
+	PatID    int32  `json:"patId"`
+	ClientID string `json:"clientId"`
+}
+
+func (q *Queries) InsertPATApp(ctx context.Context, arg InsertPATAppParams) error {
+	_, err := q.db.Exec(ctx, insertPATApp, arg.PatID, arg.ClientID)
+	return err
+}
+
+const listPATAppsByPATIDs = `-- name: ListPATAppsByPATIDs :many
+SELECT a.pat_id, a.client_id, c.display_name
+FROM personal_access_token_app a
+JOIN oidc_client c ON c.client_id = a.client_id
+WHERE a.pat_id = ANY($1::int[])
+ORDER BY c.display_name, c.client_id
+`
+
+type ListPATAppsByPATIDsRow struct {
+	PatID       int32  `json:"patId"`
+	ClientID    string `json:"clientId"`
+	DisplayName string `json:"displayName"`
+}
+
+func (q *Queries) ListPATAppsByPATIDs(ctx context.Context, patIds []int32) ([]ListPATAppsByPATIDsRow, error) {
+	rows, err := q.db.Query(ctx, listPATAppsByPATIDs, patIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListPATAppsByPATIDsRow
+	for rows.Next() {
+		var i ListPATAppsByPATIDsRow
+		if err := rows.Scan(&i.PatID, &i.ClientID, &i.DisplayName); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listPATsByAccount = `-- name: ListPATsByAccount :many
-SELECT id, account_id, name, token_hash, token_hint, all_apps, app_grants, created_at, expires_at, last_used_at, revoked_at FROM personal_access_token
+SELECT id, account_id, name, token_hash, token_hint, created_at, expires_at, last_used_at, revoked_at, access FROM personal_access_token
 WHERE account_id = $1 AND revoked_at IS NULL
 ORDER BY created_at DESC
 `
@@ -125,12 +168,11 @@ func (q *Queries) ListPATsByAccount(ctx context.Context, accountID int32) ([]Per
 			&i.Name,
 			&i.TokenHash,
 			&i.TokenHint,
-			&i.AllApps,
-			&i.AppGrants,
 			&i.CreatedAt,
 			&i.ExpiresAt,
 			&i.LastUsedAt,
 			&i.RevokedAt,
+			&i.Access,
 		); err != nil {
 			return nil, err
 		}
@@ -143,7 +185,7 @@ func (q *Queries) ListPATsByAccount(ctx context.Context, accountID int32) ([]Per
 }
 
 const listPATsByAccountPage = `-- name: ListPATsByAccountPage :many
-SELECT id, account_id, name, token_hash, token_hint, all_apps, app_grants, created_at, expires_at, last_used_at, revoked_at FROM personal_access_token
+SELECT id, account_id, name, token_hash, token_hint, created_at, expires_at, last_used_at, revoked_at, access FROM personal_access_token
 WHERE account_id = $1 AND revoked_at IS NULL
   AND ($2::timestamptz IS NULL OR (created_at, id) < ($2, $3::integer))
 ORDER BY created_at DESC, id DESC
@@ -179,12 +221,11 @@ func (q *Queries) ListPATsByAccountPage(ctx context.Context, arg ListPATsByAccou
 			&i.Name,
 			&i.TokenHash,
 			&i.TokenHint,
-			&i.AllApps,
-			&i.AppGrants,
 			&i.CreatedAt,
 			&i.ExpiresAt,
 			&i.LastUsedAt,
 			&i.RevokedAt,
+			&i.Access,
 		); err != nil {
 			return nil, err
 		}
@@ -194,6 +235,25 @@ func (q *Queries) ListPATsByAccountPage(ctx context.Context, arg ListPATsByAccou
 		return nil, err
 	}
 	return items, nil
+}
+
+const pATGrantsApp = `-- name: PATGrantsApp :one
+SELECT EXISTS (
+  SELECT 1 FROM personal_access_token_app
+  WHERE pat_id = $1 AND client_id = $2
+)
+`
+
+type PATGrantsAppParams struct {
+	PatID    int32  `json:"patId"`
+	ClientID string `json:"clientId"`
+}
+
+func (q *Queries) PATGrantsApp(ctx context.Context, arg PATGrantsAppParams) (bool, error) {
+	row := q.db.QueryRow(ctx, pATGrantsApp, arg.PatID, arg.ClientID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
 }
 
 const revokePAT = `-- name: RevokePAT :execrows

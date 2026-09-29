@@ -682,7 +682,6 @@ SELECT
   client_id,
   display_name,
   forward_auth_host,
-  forward_auth_scopes,
   access_restricted
 FROM oidc_client
 WHERE NOT disabled
@@ -692,11 +691,10 @@ ORDER BY display_name ASC, client_id ASC
 `
 
 type ListForwardAuthAccessCandidatesRow struct {
-	ClientID          string      `json:"clientId"`
-	DisplayName       string      `json:"displayName"`
-	ForwardAuthHost   pgtype.Text `json:"forwardAuthHost"`
-	ForwardAuthScopes []byte      `json:"forwardAuthScopes"`
-	AccessRestricted  bool        `json:"accessRestricted"`
+	ClientID         string      `json:"clientId"`
+	DisplayName      string      `json:"displayName"`
+	ForwardAuthHost  pgtype.Text `json:"forwardAuthHost"`
+	AccessRestricted bool        `json:"accessRestricted"`
 }
 
 func (q *Queries) ListForwardAuthAccessCandidates(ctx context.Context) ([]ListForwardAuthAccessCandidatesRow, error) {
@@ -712,7 +710,6 @@ func (q *Queries) ListForwardAuthAccessCandidates(ctx context.Context) ([]ListFo
 			&i.ClientID,
 			&i.DisplayName,
 			&i.ForwardAuthHost,
-			&i.ForwardAuthScopes,
 			&i.AccessRestricted,
 		); err != nil {
 			return nil, err
@@ -1562,7 +1559,7 @@ const setOIDCClientAccessRestricted = `-- name: SetOIDCClientAccessRestricted :o
 UPDATE oidc_client
 SET access_restricted = $1
 WHERE client_id = $2
-RETURNING client_id, display_name, client_secret_hash, redirect_uris, post_logout_redirect_uris, allowed_scopes, require_pkce, allowed_code_challenge_methods, client_auth_method, subject_type, logo_uri, tos_uri, policy_uri, disabled, require_consent, created_at, access_restricted, forward_auth_enabled, forward_auth_host, forward_auth_scopes, launch_url, principal_source, claim_aliases
+RETURNING client_id, display_name, client_secret_hash, redirect_uris, post_logout_redirect_uris, allowed_scopes, require_pkce, allowed_code_challenge_methods, client_auth_method, subject_type, logo_uri, tos_uri, policy_uri, disabled, require_consent, created_at, access_restricted, forward_auth_enabled, forward_auth_host, launch_url, principal_source, claim_aliases
 `
 
 type SetOIDCClientAccessRestrictedParams struct {
@@ -1593,7 +1590,6 @@ func (q *Queries) SetOIDCClientAccessRestricted(ctx context.Context, arg SetOIDC
 		&i.AccessRestricted,
 		&i.ForwardAuthEnabled,
 		&i.ForwardAuthHost,
-		&i.ForwardAuthScopes,
 		&i.LaunchUrl,
 		&i.PrincipalSource,
 		&i.ClaimAliases,
