@@ -2,6 +2,7 @@ package webauthn
 
 import (
 	"testing"
+	"time"
 
 	"github.com/go-webauthn/webauthn/protocol"
 )
@@ -30,5 +31,21 @@ func TestRegistrationOptionsRequireUserVerification(t *testing.T) {
 	}
 	if cc.AuthenticatorSelection.UserVerification != protocol.VerificationRequired {
 		t.Fatalf("RegistrationOptions UserVerification = %q, want %q", cc.AuthenticatorSelection.UserVerification, protocol.VerificationRequired)
+	}
+}
+
+// TestConditionalLoginOptionsKeepUVAndSetTimeout pins the autofill ceremony to
+// the same UV=Required policy as the modal one, with the given lifetime as the
+// timeout the browser and go-webauthn's Expires both use.
+func TestConditionalLoginOptionsKeepUVAndSetTimeout(t *testing.T) {
+	opts := &protocol.PublicKeyCredentialRequestOptions{}
+	for _, apply := range ConditionalLoginOptions(5 * time.Minute) {
+		apply(opts)
+	}
+	if opts.UserVerification != protocol.VerificationRequired {
+		t.Fatalf("UserVerification = %q, want %q", opts.UserVerification, protocol.VerificationRequired)
+	}
+	if opts.Timeout != 300000 {
+		t.Fatalf("Timeout = %d, want 300000", opts.Timeout)
 	}
 }

@@ -32,6 +32,54 @@ import (
 // ceremonyTTL is how long a /begin's KV stash survives before /complete must claim it.
 const ceremonyTTL = 5 * time.Minute
 
+// loginMediation is how the browser was asked to run a login ceremony, taken
+// from the optional ?mediation= query on /auth/login/begin and /complete.
+type loginMediation int
+
+const (
+	// mediationModal is the button-started ceremony (no query parameter): a
+	// browser dialog that the go-webauthn login timeout (60 s) bounds.
+	mediationModal loginMediation = iota
+	// mediationConditional is the username-field autofill ceremony
+	// (?mediation=conditional): the request stays pending while the page is
+	// open, so it lives for ceremonyTTL.
+	mediationConditional
+)
+
+// parseLoginMediation reads ?mediation=. An absent key is modal; exactly one
+// value "conditional" is conditional; anything else (empty, other values,
+// repeated) is a bad request, so a typo never silently falls back to the
+// short-lived modal ceremony.
+func parseLoginMediation(r *http.Request) (loginMediation, error) {
+	values, ok := r.URL.Query()["mediation"]
+	if !ok {
+		return mediationModal, nil
+	}
+	if len(values) == 1 && values[0] == "conditional" {
+		return mediationConditional, nil
+	}
+	return mediationModal, authn.ErrBadRequest()
+}
+
+// cookieName is the ceremony cookie this mediation uses. Each mediation has
+// its own cookie so an autofill begin and a button begin in flight together
+// cannot overwrite each other's ceremony.
+func (m loginMediation) cookieName() string {
+	if m == mediationConditional {
+		return sessstore.ConditionalCeremonyCookieName
+	}
+	return sessstore.CeremonyCookieName
+}
+
+// Sentinels the discoverable-login handler records in lookupErr so
+// /auth/login/complete can tell a credential this site does not hold (which
+// the client relays to the password manager) from a mismatched user handle
+// or a database failure.
+var (
+	errUnknownCredential       = errors.New("unknown credential")
+	errCredentialOwnerMismatch = errors.New("credential owner mismatch")
+)
+
 // newCeremonyToken returns a URL-safe random token for the ceremony cookie.
 func newCeremonyToken() (string, error) {
 	b := make([]byte, 16)
@@ -314,6 +362,11 @@ func (s *Server) handleLoginBeginHTTP(w http.ResponseWriter, r *http.Request) {
 	if s.rateLimit(w, r, "login:ip:"+s.clientIP.IP(r), loginIPLimit, authIPWindow) {
 		return
 	}
+	mediation, err := parseLoginMediation(r)
+	if err != nil {
+		writeAuthErr(w, err)
+		return
+	}
 
 	bootstrapped, err := s.queries.HasAnyActiveAdmin(r.Context())
 	if err != nil {
@@ -325,7 +378,11 @@ func (s *Server) handleLoginBeginHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	assertion, sessionData, err := s.webauthn.BeginDiscoverableLogin(webauthnauth.LoginOptions()...)
+	opts := webauthnauth.LoginOptions()
+	if mediation == mediationConditional {
+		opts = webauthnauth.ConditionalLoginOptions(ceremonyTTL)
+	}
+	assertion, sessionData, err := s.webauthn.BeginDiscoverableLogin(opts...)
 	if err != nil {
 		writeAuthErr(w, webauthnauth.MapLoginCeremonyError(r.Context(), err))
 		return
@@ -346,7 +403,7 @@ func (s *Server) handleLoginBeginHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	http.SetCookie(w, sessstore.CeremonyCookie(s.config, r, token))
+	http.SetCookie(w, sessstore.CeremonyCookie(s.config, r, mediation.cookieName(), token))
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(assertion.Response)
 }
@@ -360,8 +417,13 @@ func (s *Server) handleLoginCompleteHTTP(w http.ResponseWriter, r *http.Request)
 	if s.rateLimit(w, r, "login:ip:"+s.clientIP.IP(r), loginIPLimit, authIPWindow) {
 		return
 	}
+	mediation, err := parseLoginMediation(r)
+	if err != nil {
+		writeAuthErr(w, err)
+		return
+	}
 
-	cer, err := r.Cookie(sessstore.CeremonyCookieName)
+	cer, err := r.Cookie(mediation.cookieName())
 	if err != nil || cer.Value == "" {
 		writeAuthErr(w, authn.ErrCeremonyMissing())
 		return
@@ -408,20 +470,34 @@ func (s *Server) handleLoginCompleteHTTP(w http.ResponseWriter, r *http.Request)
 	}
 
 	// FinishPasskeyLogin resolves the user via our handler and verifies the
-	// assertion. The handler is called with (rawID, userHandle); we look up
-	// the account by webauthn_user_handle and return a WebAuthnAccount adapter.
+	// assertion. The handler is called with (rawID, userHandle): it looks up
+	// the credential by ID first, so "this site holds no such passkey" is
+	// known exactly, then checks the user handle names the credential's owner.
+	// Its failure is kept in lookupErr because go-webauthn wraps it in a
+	// protocol error.
 	var resolvedAccount db.Account
 	var resolvedCreds []db.WebauthnCredential
-	handler := func(_ /*rawID*/, userHandle []byte) (webauthn.User, error) {
-		a, err := s.queries.GetAccountByWebauthnUserHandle(r.Context(), userHandle)
+	var lookupErr error
+	handler := func(rawID, userHandle []byte) (webauthn.User, error) {
+		cred, err := s.queries.GetCredentialByCredentialID(r.Context(), rawID)
+		if errors.Is(err, pgx.ErrNoRows) {
+			err = errUnknownCredential
+		}
 		if err != nil {
-			if errors.Is(err, pgx.ErrNoRows) {
-				return nil, fmt.Errorf("unknown user handle")
-			}
+			lookupErr = err
+			return nil, err
+		}
+		a, err := s.queries.GetAccountByWebauthnUserHandle(r.Context(), userHandle)
+		if errors.Is(err, pgx.ErrNoRows) || (err == nil && a.ID != cred.AccountID) {
+			err = errCredentialOwnerMismatch
+		}
+		if err != nil {
+			lookupErr = err
 			return nil, err
 		}
 		creds, err := s.queries.ListCredentialsByAccount(r.Context(), a.ID)
 		if err != nil {
+			lookupErr = err
 			return nil, err
 		}
 		resolvedAccount = a
@@ -431,26 +507,24 @@ func (s *Server) handleLoginCompleteHTTP(w http.ResponseWriter, r *http.Request)
 
 	_, credential, err := s.webauthn.FinishPasskeyLogin(handler, sessionData, r)
 	if err != nil {
-		audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
-			Factor: audit.FactorWebAuthn,
-			Event:  audit.EventFail,
-			Detail: map[string]any{"reason": "finish_failed"},
-		})
-		writeAuthErr(w, webauthnauth.MapLoginCeremonyError(r.Context(), err))
-		return
-	}
-	if resolvedAccount.ID == 0 {
-		logx.WithContext(r.Context()).WithFields(logrus.Fields{
-			"event":     "auth.login_failure",
-			"reason":    "no_account",
-			"client_ip": s.clientIP.IP(r),
-		}).Warn("auth")
-		audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
-			Factor: audit.FactorWebAuthn,
-			Event:  audit.EventFail,
-			Detail: map[string]any{"reason": "no_account"},
-		})
-		writeAuthErr(w, authn.ErrLoginAccountNotFound())
+		switch {
+		case errors.Is(lookupErr, errUnknownCredential):
+			s.recordPasskeyLoginFailure(r, "unknown_credential")
+			writeAuthErr(w, authn.ErrLoginCredentialUnknown())
+		case errors.Is(lookupErr, errCredentialOwnerMismatch):
+			s.recordPasskeyLoginFailure(r, "credential_owner_mismatch")
+			writeAuthErr(w, authn.ErrLoginVerificationFailed())
+		case lookupErr != nil:
+			s.recordPasskeyLoginFailure(r, "lookup_failed")
+			writeAuthErrForCode(w, "database_unavailable", fmt.Errorf("login/complete lookup: %w", lookupErr))
+		default:
+			audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
+				Factor: audit.FactorWebAuthn,
+				Event:  audit.EventFail,
+				Detail: map[string]any{"reason": "finish_failed"},
+			})
+			writeAuthErr(w, webauthnauth.MapLoginCeremonyError(r.Context(), err))
+		}
 		return
 	}
 	if resolvedAccount.Disabled {
@@ -512,7 +586,7 @@ func (s *Server) handleLoginCompleteHTTP(w http.ResponseWriter, r *http.Request)
 		})
 	}
 	// Ceremony stash was Popped atomically above; no Del needed here.
-	http.SetCookie(w, sessstore.ClearedCeremonyCookie(s.config, r))
+	http.SetCookie(w, sessstore.ClearedCeremonyCookie(s.config, r, mediation.cookieName()))
 
 	ip := s.clientIP.IP(r)
 	token, _, err := s.sessionStore.Issue(r.Context(), resolvedAccount.ID, ip, r.UserAgent(), []string{"hwk"}, nil)
@@ -552,6 +626,21 @@ func (s *Server) handleLoginCompleteHTTP(w http.ResponseWriter, r *http.Request)
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(contract.LoginResult{
 		Redirect: validateReturnTo(r.URL.Query().Get("return_to"), s.config),
+	})
+}
+
+// recordPasskeyLoginFailure logs and audits a passkey login that failed while
+// resolving the asserted credential, before any account is known.
+func (s *Server) recordPasskeyLoginFailure(r *http.Request, reason string) {
+	logx.WithContext(r.Context()).WithFields(logrus.Fields{
+		"event":     "auth.login_failure",
+		"reason":    reason,
+		"client_ip": s.clientIP.IP(r),
+	}).Warn("auth")
+	audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
+		Factor: audit.FactorWebAuthn,
+		Event:  audit.EventFail,
+		Detail: map[string]any{"reason": reason},
 	})
 }
 
