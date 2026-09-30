@@ -33,10 +33,12 @@ describe("TokenAccessSummary", () => {
   });
 
   it("says the level for the others", () => {
+    // A sudo token reads as full access: its badge says what sets it apart,
+    // and the row would otherwise say it twice.
     for (const [access, text] of [
       ["all_apps", "Every application"],
       ["full", "Full access"],
-      ["sudo", "Full access, no identity checks"],
+      ["sudo", "Full access"],
     ] as const) {
       const { unmount } = summary(access);
       expect(screen.getByText(text)).toBeInTheDocument();
@@ -61,7 +63,7 @@ describe("TokenAccessBadge", () => {
         <TokenAccessBadge token={{ access: "sudo" }} />
       </I18nProvider>,
     );
-    expect(screen.getByText("Skips identity checks")).toBeInTheDocument();
+    expect(screen.getByText("Skips confirming it is you")).toBeInTheDocument();
     for (const access of ["selected_apps", "all_apps", "full"] as const) {
       rerender(
         <I18nProvider i18n={i18n}>

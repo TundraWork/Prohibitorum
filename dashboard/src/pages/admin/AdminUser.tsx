@@ -694,15 +694,16 @@ function TokensBlock({ accountId }: { accountId: number }) {
         {(tokens.data?.items ?? []).map((token) => {
           const expires = format(token.expiresAt);
           const lastUsed = token.lastUsedAt;
+          const name = token.name;
           return (
             <ItemListRow
               key={token.id}
               icon={<Ticket size={18} aria-hidden="true" />}
-              title={token.name}
+              title={name}
               badges={<TokenAccessBadge token={token} />}
               details={[
                 <span key="hint" className="font-mono">
-                  …{token.tokenHint}
+                  {token.tokenHint}
                 </span>,
                 <TokenAccessSummary key="access" token={token} />,
                 expires === null ? (
@@ -728,6 +729,10 @@ function TokensBlock({ accountId }: { accountId: number }) {
                 <DangerZone
                   size="sm"
                   label={<Trans id="admin.user.tokens.revoke">Revoke</Trans>}
+                  accessibleLabel={t({
+                    id: "admin.user.tokens.revoke.named",
+                    message: `Revoke ${name}`,
+                  })}
                   title={
                     <Trans id="admin.user.tokens.revoke.title">
                       Revoke this token?

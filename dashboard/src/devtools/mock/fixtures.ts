@@ -322,6 +322,22 @@ function identityList(count: number): Identity[] {
   }));
 }
 
+/**
+ * A plaintext token shaped like the server's: its fixed prefix, then 32 random
+ * bytes as unpadded base64url, 43 characters.
+ */
+function mockTokenPlaintext(): string {
+  const alphabet =
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+  const bytes = crypto.getRandomValues(new Uint8Array(43));
+  return `prohibitorum_pat_${Array.from(bytes, (byte) => alphabet[byte % 64]).join("")}`;
+}
+
+/** The list's hint for a token, as the server writes it: prefix, then the last four. */
+function mockTokenHint(last: string): string {
+  return `prohibitorum_pat_…${last.slice(-4)}`;
+}
+
 /** Tokens cycle through the four access levels, so a list shows each one. */
 function tokenList(count: number): Token[] {
   return range(count).map((index) => {
@@ -331,7 +347,7 @@ function tokenList(count: number): Token[] {
     return {
       id: index + 1,
       name: `Mock token ${index + 1}`,
-      tokenHint: `phb_mock${index + 1}`,
+      tokenHint: mockTokenHint(`m${String(index + 1).padStart(3, "0")}`),
       access,
       apps:
         access === "selected_apps"
@@ -2014,13 +2030,14 @@ function writeReply(
         tokenAccessLevels.find(
           (level) => level === stringField(body, "access"),
         ) ?? "all_apps";
+      const token = mockTokenPlaintext();
       return json(
         {
-          token: `phb_mock_${id}_${name}`,
+          token,
           pat: {
             id,
             name,
-            tokenHint: `phb_mock${id}`,
+            tokenHint: mockTokenHint(token),
             access,
             apps: (access === "selected_apps"
               ? stringListField(body, "appClientIds")

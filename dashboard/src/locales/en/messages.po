@@ -90,12 +90,12 @@ msgstr "{name} and its certificates are removed, and anyone who signs in through
 #. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/ForwardAuthDangerSection.tsx
 msgid "admin.forward-auth-apps.delete.confirm.groups"
-msgstr "{name} is removed along with its token scopes, its icon and its access policy — including its selection of {count} user groups. Requests through its router are turned away immediately. This cannot be undone."
+msgstr "{name} is removed along with its icon and its access policy — including its selection of {count} user groups. Requests through its router are turned away immediately. This cannot be undone."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/ForwardAuthDangerSection.tsx
 msgid "admin.forward-auth-apps.delete.confirm.open"
-msgstr "{name} is removed along with its token scopes, its icon and its access policy. Requests through its router are turned away immediately. This cannot be undone."
+msgstr "{name} is removed along with its icon and its access policy. Requests through its router are turned away immediately. This cannot be undone."
 
 #. js-lingui-explicit-id
 #: src/pages/public/Maintenance.tsx
@@ -719,6 +719,11 @@ msgstr "Any provider"
 
 #. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
+msgid "security.tokens.sudo.confirm.body"
+msgstr "Anyone with this token can change your password, passkeys and authenticator without being asked to confirm it is you."
+
+#. js-lingui-explicit-id
+#: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.revoke.body"
 msgstr "Anything using this token stops working immediately. This cannot be undone."
 
@@ -805,7 +810,7 @@ msgstr "Applications"
 #. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.access.full.hint"
-msgstr "Applications and your account. Actions that ask you to verify your identity again are refused."
+msgstr "Applications and your account. Anything that asks you to confirm it is you is refused."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
@@ -821,6 +826,11 @@ msgstr "Applications identify this account by this value. It never changes."
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.access.selected_apps"
 msgstr "Applications you choose"
+
+#. js-lingui-explicit-id
+#: src/pages/security/TokensPanel.tsx
+msgid "security.tokens.access.full.hint.admin"
+msgstr "Applications, your account and what you manage as an administrator. Anything that asks you to confirm it is you is refused."
 
 #. js-lingui-explicit-id
 #: src/api/success-messages.ts
@@ -2000,6 +2010,11 @@ msgid "security.tokens.create.open"
 msgstr "Create a token"
 
 #. js-lingui-explicit-id
+#: src/pages/security/TokensPanel.tsx
+msgid "security.tokens.sudo.confirm.title"
+msgstr "Create a token that skips confirming it is you?"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
 msgid "admin.saml-apps.new.submit"
 msgstr "Create application"
@@ -2027,6 +2042,11 @@ msgstr "Create invitation"
 #. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.create.action"
+msgstr "Create token"
+
+#. js-lingui-explicit-id
+#: src/pages/security/TokensPanel.tsx
+msgid "security.tokens.sudo.confirm.action"
 msgstr "Create token"
 
 #. js-lingui-explicit-id
@@ -2984,7 +3004,7 @@ msgstr "Every recovery code you have now stops working."
 #. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/ForwardAuthDangerSection.tsx
 msgid "admin.forward-auth-apps.disable.note"
-msgstr "Every request through its router is turned away, including ones from people who are signed in. The record, its token scopes and its access policy are kept."
+msgstr "Every request through its router is turned away, including ones from people who are signed in. The record and its access policy are kept."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/SamlDangerSection.tsx
@@ -2994,7 +3014,12 @@ msgstr "Everyone is turned away at the service provider until it is enabled agai
 #. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.access.sudo.hint"
-msgstr "Everything, including changing how you sign in, without asking you to verify your identity again."
+msgstr "Everything, including changing how you sign in, without being asked to confirm it is you."
+
+#. js-lingui-explicit-id
+#: src/pages/security/TokensPanel.tsx
+msgid "security.tokens.access.sudo.hint.admin"
+msgstr "Everything, including what you manage as an administrator and changing how you sign in, without being asked to confirm it is you."
 
 #. js-lingui-explicit-id
 #: src/components/custom/RouteFeedback.tsx
@@ -3104,14 +3129,9 @@ msgid "token.access.full"
 msgstr "Full access"
 
 #. js-lingui-explicit-id
-#: src/components/custom/TokenAccess.tsx
-msgid "token.access.sudo"
-msgstr "Full access, no identity checks"
-
-#. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.access.sudo"
-msgstr "Full access, skipping identity checks"
+msgstr "Full access, without confirming it is you"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/SamlGeneralSection.tsx
@@ -5087,7 +5107,7 @@ msgstr "Removes the account and everything it owns: passkeys, sessions, access t
 #. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/ForwardAuthDangerSection.tsx
 msgid "admin.forward-auth-apps.delete.note"
-msgstr "Removes the application, its token scopes, its icon and its access policy. Accounts are not affected."
+msgstr "Removes the application, its icon and its access policy. Accounts are not affected."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/DangerSection.tsx
@@ -5316,11 +5336,6 @@ msgstr "Retiring"
 
 #. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
-msgid "security.tokens.revoke"
-msgstr "Revoke"
-
-#. js-lingui-explicit-id
-#: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.revoke.action"
 msgstr "Revoke"
 
@@ -5333,6 +5348,16 @@ msgstr "Revoke"
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.tokens.revoke"
 msgstr "Revoke"
+
+#. js-lingui-explicit-id
+#: src/pages/security/TokensPanel.tsx
+msgid "security.tokens.revoke"
+msgstr "Revoke {name}"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.tokens.revoke.named"
+msgstr "Revoke {name}"
 
 #. js-lingui-explicit-id
 #: src/pages/devices/PairDeviceDialog.tsx
@@ -5652,6 +5677,11 @@ msgstr "Select user groups"
 #: src/pages/admin/saml-applications/AttributeMapField.tsx
 msgid "admin.saml-apps.mapping.multi"
 msgstr "Send every value"
+
+#. js-lingui-explicit-id
+#: src/components/custom/secret-reveal-copy.ts
+msgid "security.tokens.reveal.usage"
+msgstr "Send it in the X-Prohibitorum-PAT header."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-options.ts
@@ -6034,7 +6064,7 @@ msgstr "Skipped"
 #. js-lingui-explicit-id
 #: src/components/custom/TokenAccess.tsx
 msgid "token.access.sudo.badge"
-msgstr "Skips identity checks"
+msgstr "Skips confirming it is you"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminGroups.tsx
@@ -7806,7 +7836,7 @@ msgstr "You have already approved this pairing. The new device is finishing sign
 #. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.no_forward_auth"
-msgstr "You have no applications available to grant."
+msgstr "You have no applications to choose from."
 
 #. js-lingui-explicit-id
 #: src/pages/profile/AvatarPanel.tsx

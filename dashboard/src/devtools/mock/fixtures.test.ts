@@ -806,7 +806,12 @@ describe("mocked writes", () => {
         ],
       },
     });
-    expect((bodyOf(reply) as { token: string }).token).toMatch(/^phb_mock_/);
+    // Shaped like a real token, so the reveal shows what a reader will copy.
+    const token = (bodyOf(reply) as { token: string }).token;
+    expect(token).toMatch(/^prohibitorum_pat_[A-Za-z0-9_-]{43}$/);
+    expect(bodyOf(reply)).toMatchObject({
+      pat: { tokenHint: `prohibitorum_pat_…${token.slice(-4)}` },
+    });
     expect(
       bodyOf(read("/api/prohibitorum/me/tokens", applied(reply, current))),
     ).toHaveLength(2);

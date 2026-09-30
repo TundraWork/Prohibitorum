@@ -20,6 +20,7 @@ import { ConfirmDialog } from "@/components/custom/ConfirmDialog";
  */
 export function DangerZone({
   label,
+  accessibleLabel,
   description,
   confirmLabel,
   title,
@@ -31,6 +32,12 @@ export function DangerZone({
   onConfirm,
 }: {
   label: ReactNode;
+  /**
+   * The trigger's accessible name, for a row where the visible label alone
+   * does not say which record it acts on ("Revoke" beside each of several
+   * tokens). It starts with the visible label, so speech input still finds it.
+   */
+  accessibleLabel?: string;
   description?: ReactNode;
   /** Short text on the trigger's confirmation dialog heading. */
   title: ReactNode;
@@ -50,6 +57,7 @@ export function DangerZone({
     <Button
       size={size}
       variant="danger-soft"
+      aria-label={accessibleLabel}
       isDisabled={disabled || isPending}
       isPending={isPending}
       onPress={() => dialog.setOpen(true)}

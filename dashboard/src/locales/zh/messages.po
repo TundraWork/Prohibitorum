@@ -90,12 +90,12 @@ msgstr "{name} 及其证书会被删除，通过它登录的人都会被拒之�
 #. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/ForwardAuthDangerSection.tsx
 msgid "admin.forward-auth-apps.delete.confirm.groups"
-msgstr "{name} 会被删除，同时删除它的令牌作用域、图标和访问策略，包括其中选定的 {count} 个用户组。经它路由的请求会立即被拒绝。此操作无法撤销。"
+msgstr "{name} 会被删除，同时删除它的图标和访问策略，包括其中选定的 {count} 个用户组。经它路由的请求会立即被拒绝。此操作无法撤销。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/ForwardAuthDangerSection.tsx
 msgid "admin.forward-auth-apps.delete.confirm.open"
-msgstr "{name} 会被删除，同时删除它的令牌作用域、图标和访问策略。经它路由的请求会立即被拒绝。此操作无法撤销。"
+msgstr "{name} 会被删除，同时删除它的图标和访问策略。经它路由的请求会立即被拒绝。此操作无法撤销。"
 
 #. js-lingui-explicit-id
 #: src/pages/public/Maintenance.tsx
@@ -719,6 +719,11 @@ msgstr "任意提供商"
 
 #. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
+msgid "security.tokens.sudo.confirm.body"
+msgstr "任何持有此令牌的人都能更改你的密码、通行密钥和身份验证器，且无需验证你的身份。"
+
+#. js-lingui-explicit-id
+#: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.revoke.body"
 msgstr "所有使用此令牌的服务会立即失效，且无法恢复。"
 
@@ -805,7 +810,7 @@ msgstr "应用"
 #. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.access.full.hint"
-msgstr "可用于应用和你的账户。需要再次验证身份的操作会被拒绝。"
+msgstr "可用于应用和你的账号。要求验证你的身份的操作会被拒绝。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
@@ -821,6 +826,11 @@ msgstr "应用用这个值识别该账号。它永不改变。"
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.access.selected_apps"
 msgstr "你选择的应用"
+
+#. js-lingui-explicit-id
+#: src/pages/security/TokensPanel.tsx
+msgid "security.tokens.access.full.hint.admin"
+msgstr "可用于应用、你的账号，以及你作为管理员管理的内容。要求验证你的身份的操作会被拒绝。"
 
 #. js-lingui-explicit-id
 #: src/api/success-messages.ts
@@ -2000,6 +2010,11 @@ msgid "security.tokens.create.open"
 msgstr "创建令牌"
 
 #. js-lingui-explicit-id
+#: src/pages/security/TokensPanel.tsx
+msgid "security.tokens.sudo.confirm.title"
+msgstr "创建无需验证你的身份的令牌？"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
 msgid "admin.saml-apps.new.submit"
 msgstr "创建应用"
@@ -2027,6 +2042,11 @@ msgstr "创建邀请"
 #. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.create.action"
+msgstr "创建令牌"
+
+#. js-lingui-explicit-id
+#: src/pages/security/TokensPanel.tsx
+msgid "security.tokens.sudo.confirm.action"
 msgstr "创建令牌"
 
 #. js-lingui-explicit-id
@@ -2984,7 +3004,7 @@ msgstr "你现有的恢复码会全部失效。"
 #. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/ForwardAuthDangerSection.tsx
 msgid "admin.forward-auth-apps.disable.note"
-msgstr "经它路由的请求都会被拒绝，包括已登录账号发出的请求。记录、令牌作用域和访问策略都会保留。"
+msgstr "经它路由的请求都会被拒绝，包括已登录账号发出的请求。记录和访问策略都会保留。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/SamlDangerSection.tsx
@@ -2994,7 +3014,12 @@ msgstr "在重新启用之前，所有人在服务提供商那里都会被拒之
 #. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.access.sudo.hint"
-msgstr "包括更改登录方式在内的所有操作，都不会再要求验证身份。"
+msgstr "包括更改登录方式在内的所有操作，都无需验证你的身份。"
+
+#. js-lingui-explicit-id
+#: src/pages/security/TokensPanel.tsx
+msgid "security.tokens.access.sudo.hint.admin"
+msgstr "包括你作为管理员管理的内容和更改登录方式在内的所有操作，都无需验证你的身份。"
 
 #. js-lingui-explicit-id
 #: src/components/custom/RouteFeedback.tsx
@@ -3104,14 +3129,9 @@ msgid "token.access.full"
 msgstr "完全访问"
 
 #. js-lingui-explicit-id
-#: src/components/custom/TokenAccess.tsx
-msgid "token.access.sudo"
-msgstr "完全访问，跳过身份验证"
-
-#. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.access.sudo"
-msgstr "完全访问，跳过身份验证"
+msgstr "完全访问，无需验证你的身份"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/SamlGeneralSection.tsx
@@ -5087,7 +5107,7 @@ msgstr "删除该账号及其拥有的一切：通行密钥、会话、访问令
 #. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/ForwardAuthDangerSection.tsx
 msgid "admin.forward-auth-apps.delete.note"
-msgstr "删除应用及其令牌作用域、图标和访问策略。账号不受影响。"
+msgstr "删除应用及其图标和访问策略。账号不受影响。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/DangerSection.tsx
@@ -5316,11 +5336,6 @@ msgstr "退役中"
 
 #. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
-msgid "security.tokens.revoke"
-msgstr "撤销"
-
-#. js-lingui-explicit-id
-#: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.revoke.action"
 msgstr "撤销"
 
@@ -5333,6 +5348,16 @@ msgstr "吊销"
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.tokens.revoke"
 msgstr "吊销"
+
+#. js-lingui-explicit-id
+#: src/pages/security/TokensPanel.tsx
+msgid "security.tokens.revoke"
+msgstr "撤销 {name}"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminUser.tsx
+msgid "admin.user.tokens.revoke.named"
+msgstr "吊销 {name}"
 
 #. js-lingui-explicit-id
 #: src/pages/devices/PairDeviceDialog.tsx
@@ -5652,6 +5677,11 @@ msgstr "选择用户组"
 #: src/pages/admin/saml-applications/AttributeMapField.tsx
 msgid "admin.saml-apps.mapping.multi"
 msgstr "发送每个值"
+
+#. js-lingui-explicit-id
+#: src/components/custom/secret-reveal-copy.ts
+msgid "security.tokens.reveal.usage"
+msgstr "请在 X-Prohibitorum-PAT 请求头中发送它。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-options.ts
@@ -6034,7 +6064,7 @@ msgstr "跳过"
 #. js-lingui-explicit-id
 #: src/components/custom/TokenAccess.tsx
 msgid "token.access.sudo.badge"
-msgstr "跳过身份验证"
+msgstr "无需验证你的身份"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminGroups.tsx
@@ -7806,7 +7836,7 @@ msgstr "你已经批准过这次配对，新设备正在完成登录。"
 #. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.no_forward_auth"
-msgstr "没有可授权的应用。"
+msgstr "你没有可选择的应用。"
 
 #. js-lingui-explicit-id
 #: src/pages/profile/AvatarPanel.tsx

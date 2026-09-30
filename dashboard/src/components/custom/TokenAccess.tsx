@@ -9,8 +9,10 @@ type Token = components["schemas"]["PersonalAccessTokenView"];
  *
  * A token has one access level, and the levels include one another: the
  * applications chosen, every application, full access, and full access that
- * also skips identity checks. Only the first names anything, so it lists the
- * applications in the language of the page; the others say the level.
+ * also skips confirming it is you. Only the first names anything, so it lists
+ * the applications in the language of the page; the others say the level. The
+ * last reads as full access here because `TokenAccessBadge` already marks what
+ * sets it apart, and the row would otherwise say it twice.
  */
 export function TokenAccessSummary({
   token,
@@ -40,24 +42,21 @@ export function TokenAccessSummary({
     case "all_apps":
       return <Trans id="token.access.all_apps">Every application</Trans>;
     case "full":
-      return <Trans id="token.access.full">Full access</Trans>;
     case "sudo":
-      return (
-        <Trans id="token.access.sudo">Full access, no identity checks</Trans>
-      );
+      return <Trans id="token.access.full">Full access</Trans>;
   }
 }
 
 /**
- * The mark on a token that skips identity checks. Only that level gets one:
- * it is the one a reader should notice in a list, and the other levels are the
- * ordinary case.
+ * The mark on a token that skips confirming it is you. Only that level gets
+ * one: it is the one a reader should notice in a list, and the other levels
+ * are the ordinary case.
  */
 export function TokenAccessBadge({ token }: { token: Pick<Token, "access"> }) {
   if (token.access !== "sudo") return null;
   return (
     <Chip color="warning" size="sm" variant="soft">
-      <Trans id="token.access.sudo.badge">Skips identity checks</Trans>
+      <Trans id="token.access.sudo.badge">Skips confirming it is you</Trans>
     </Chip>
   );
 }

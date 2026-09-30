@@ -1,6 +1,7 @@
 import {
   Alert,
   Checkbox,
+  Description,
   Label,
   Modal,
   TextArea,
@@ -59,6 +60,9 @@ export function SecretReveal({
   const [downloadFailed, setDownloadFailed] = useState(false);
   const [pending, setPending] = useState(false);
   const continuing = useRef(false);
+  // One row per line where the browser cannot size the field to its text; a
+  // token or a link on one long line wraps inside a dialog, and sizing to the
+  // content keeps the wrapped part in view rather than behind a scroll.
   const rows = text.split("\n").length;
   useBlocker({
     shouldBlockFn: () =>
@@ -117,8 +121,9 @@ export function SecretReveal({
           variant={surface ? "secondary" : "primary"}
           autoComplete="off"
           spellCheck={false}
-          className="font-mono"
+          className="font-mono break-all field-sizing-content"
         />
+        {copy.usage !== undefined && <Description>{t(copy.usage)}</Description>}
       </TextField>
       <div className="flex flex-wrap gap-2">
         <Button
