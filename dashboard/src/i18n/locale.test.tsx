@@ -1,6 +1,7 @@
 import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { defaultLoginAppearance } from "@/components/custom/login-appearance/appearance";
 
 let stopLocaleSync: (() => void) | undefined;
 
@@ -41,9 +42,8 @@ const config = {
   iconEtag: "",
   maintenanceMode: false,
   maintenanceMessage: "",
-  hasCustomBackground: false,
-  backgroundUrl: "/branding/background",
-  backgroundEtag: "",
+  loginAppearance: defaultLoginAppearance,
+  loginImages: [],
   totp: { issuer: "Prohibitorum", algorithm: "SHA1", digits: 6, period: 30 },
 };
 

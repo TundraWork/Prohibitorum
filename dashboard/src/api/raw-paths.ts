@@ -13,15 +13,84 @@ export interface PublicConfig {
   iconEtag: string;
   maintenanceMode: boolean;
   maintenanceMessage: string;
-  hasCustomBackground: boolean;
-  backgroundUrl: string;
-  backgroundEtag: string;
+  loginAppearance: LoginAppearance;
+  /** The uploaded sign-in backgrounds in upload order, whichever source is chosen. */
+  loginImages: LoginImage[];
   totp: {
     issuer: string;
     algorithm: string;
     digits: number;
     period: number;
   };
+}
+
+export type LoginBackgroundSource =
+  | "none"
+  | "color"
+  | "gradient"
+  | "bing"
+  | "unsplash"
+  | "images";
+
+export type LoginGradient =
+  | "dawn"
+  | "lagoon"
+  | "aurora"
+  | "dusk"
+  | "mist"
+  | "ember";
+
+export type LoginImageOrder = "random" | "carousel";
+
+/** How the sign-in card or the toolbar capsules sit over the background. */
+export interface LoginSurface {
+  translucent: boolean;
+  /** 0–100, applied only while translucent. */
+  opacity: number;
+  blur: boolean;
+}
+
+/**
+ * The sign-in page's look. Every field is always present, whichever source is
+ * selected, so switching source keeps the others' settings. The server rejects
+ * a document with a field missing or added.
+ */
+export interface LoginAppearance {
+  background: {
+    source: LoginBackgroundSource;
+    /** Lowercase `#rrggbb`. */
+    color: string;
+    gradient: LoginGradient;
+    bing: { market: string; showCaption: boolean };
+    /** 0–64 characters, no surrounding whitespace. */
+    unsplash: { query: string };
+    /** `intervalSeconds` is 5–3600. */
+    images: { order: LoginImageOrder; intervalSeconds: number };
+  };
+  card: LoginSurface;
+  capsules: LoginSurface;
+}
+
+export interface LoginImage {
+  id: number;
+  url: string;
+  etag: string;
+}
+
+/**
+ * `GET /branding/wallpaper`: a picture the browser loads straight from Bing or
+ * Unsplash, with its credit. Bing's title and copyright are left out when the
+ * caption is hidden; Unsplash's credit is always there.
+ */
+export interface Wallpaper {
+  source: "bing" | "unsplash";
+  imageUrl: string;
+  title?: string;
+  copyright?: string;
+  copyrightUrl?: string;
+  photographer?: string;
+  photographerUrl?: string;
+  photoUrl?: string;
 }
 
 export interface PasswordRequest {
@@ -235,6 +304,20 @@ export interface FederationFlow {
 }
 
 export interface RawPaths {
+  "/branding/wallpaper": {
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        200: { content: { "application/json": Wallpaper } };
+      };
+    };
+  };
   "/api/prohibitorum/config": {
     get: {
       parameters: {

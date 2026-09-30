@@ -382,6 +382,42 @@ const errorMessages: Readonly<Record<string, MessageDescriptor>> = {
     id: "error.invalid_group_rule",
     message: "The server did not accept this rule.",
   }),
+  login_images_full: msg({
+    id: "error.login_images_full",
+    message:
+      "The sign-in page already has 10 images. Remove one to add another.",
+  }),
+  login_image_not_found: msg({
+    id: "error.login_image_not_found",
+    message: "That image has already been removed.",
+  }),
+  unsplash_key_required: msg({
+    id: "error.unsplash_key_required",
+    message: "Enter an Unsplash access key to use Unsplash photos.",
+  }),
+  unsplash_key_invalid: msg({
+    id: "error.unsplash_key_invalid",
+    message:
+      "Unsplash did not accept this access key. Check it and enter it again.",
+  }),
+  unsplash_unreachable: msg({
+    id: "error.unsplash_unreachable",
+    message:
+      "Unsplash could not be reached, so the access key was not checked or saved.",
+  }),
+  unsplash_key_in_use: msg({
+    id: "error.unsplash_key_in_use",
+    message:
+      "The sign-in page still uses Unsplash. Switch the background to another source and save before removing the key.",
+  }),
+  wallpaper_not_configured: msg({
+    id: "error.wallpaper_not_configured",
+    message: "The sign-in page does not use a Bing or Unsplash picture.",
+  }),
+  wallpaper_unavailable: msg({
+    id: "error.wallpaper_unavailable",
+    message: "The picture is not available right now.",
+  }),
   active_key_no_replacement: msg({
     id: "error.active_key_no_replacement",
     message: "Activate another key first, then retire this one.",

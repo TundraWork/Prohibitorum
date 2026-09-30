@@ -32,6 +32,7 @@ import type { PublicConfig } from "@/api/raw-paths";
 import { loadDocument } from "@/app/load-document";
 import { createQueryClient } from "@/app/query-client";
 import { searchSerialization } from "@/app/search-params";
+import { defaultLoginAppearance } from "@/components/custom/login-appearance/appearance";
 import { RecoveryCodes } from "@/components/custom/RecoveryCodes";
 import { i18n } from "@/i18n";
 import { PasswordPage, RecoveryPage, TotpPage } from "@/pages/Login";
@@ -48,9 +49,8 @@ const config: PublicConfig = {
   iconEtag: "",
   maintenanceMode: false,
   maintenanceMessage: "",
-  hasCustomBackground: false,
-  backgroundUrl: "",
-  backgroundEtag: "",
+  loginAppearance: defaultLoginAppearance,
+  loginImages: [],
   totp: { issuer: "Test", algorithm: "SHA1", digits: 6, period: 30 },
 };
 let queryClient: QueryClient;

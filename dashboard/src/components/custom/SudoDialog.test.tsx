@@ -9,6 +9,7 @@ import { ApiError } from "@/api/errors";
 import type { SudoMethod } from "@/api/raw-paths";
 import { isSudoCancelled, resetSudo, runWithSudo } from "@/api/sudo";
 import { createQueryClient } from "@/app/query-client";
+import { defaultLoginAppearance } from "@/components/custom/login-appearance/appearance";
 import { SudoDialog } from "@/components/custom/SudoDialog";
 import { i18n } from "@/i18n";
 
@@ -38,9 +39,8 @@ function publicConfig(digits: number) {
     iconEtag: "",
     maintenanceMode: false,
     maintenanceMessage: "",
-    hasCustomBackground: false,
-    backgroundUrl: "",
-    backgroundEtag: "",
+    loginAppearance: defaultLoginAppearance,
+    loginImages: [],
     totp: { issuer: "Prohibitorum", algorithm: "SHA1", digits, period: 30 },
   };
 }

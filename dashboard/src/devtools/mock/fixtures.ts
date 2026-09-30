@@ -13,9 +13,12 @@ import type {
   DevicePairing,
   FederationConfirm,
   FederationFlow,
+  LoginAppearance,
+  LoginImage,
   PublicConfig,
   SamlConsentRequest,
   SudoMethod,
+  Wallpaper,
 } from "@/api/raw-paths";
 import {
   clampAdminCount,
@@ -25,6 +28,7 @@ import {
   type MockConfig,
   mockAdminListMax,
   mockListMax,
+  mockLoginImagesMax,
   mockPageSize,
 } from "@/devtools/mock/model";
 
@@ -202,9 +206,13 @@ function mockIconUrl(config: MockConfig): string {
   );
 }
 
-/** A soft gradient standing in for an uploaded sign-in background. */
-function mockBackgroundUrl(config: MockConfig): string {
-  const hue = (config.instance.imageRevision * 67 + 180) % 360;
+/**
+ * A soft gradient standing in for uploaded sign-in image `id`. Its colours move
+ * with the id and with every image write, so a carousel visibly changes and a
+ * new upload is a new picture.
+ */
+function mockLoginImageUrl(config: MockConfig, id: number): string {
+  const hue = (config.instance.imageRevision * 67 + id * 53 + 180) % 360;
   return svgUrl(
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="hsl(${hue} 45% 70%)"/><stop offset="1" stop-color="hsl(${(hue + 60) % 360} 45% 35%)"/></linearGradient></defs><rect width="1600" height="900" fill="url(#g)"/></svg>`,
   );
@@ -221,19 +229,63 @@ function publicConfig(config: MockConfig): PublicConfig {
     iconEtag: `icon-${revision}`,
     maintenanceMode: config.instance.maintenance,
     maintenanceMessage: config.instance.maintenanceMessage,
-    hasCustomBackground: config.instance.customBackground,
-    backgroundUrl: config.instance.customBackground
-      ? mockBackgroundUrl(config)
-      : "",
-    backgroundEtag: config.instance.customBackground
-      ? `background-${revision}`
-      : "",
+    loginAppearance: config.instance.loginAppearance,
+    loginImages: mockLoginImages(config),
     totp: {
       issuer: "Prohibitorum (mock)",
       algorithm: "SHA1",
       digits: 6,
       period: 30,
     },
+  };
+}
+
+/** The uploaded images are ids 1…n; removing one renumbers the rest. */
+function mockLoginImages(config: MockConfig): LoginImage[] {
+  const revision = config.instance.imageRevision;
+  return Array.from({ length: config.instance.loginImageCount }, (_, i) => ({
+    id: i + 1,
+    url: mockLoginImageUrl(config, i + 1),
+    etag: `login-image-${i + 1}-${revision}`,
+  }));
+}
+
+/**
+ * Bing's picture of the day or an Unsplash photo, as `/branding/wallpaper`
+ * would describe it, with a `data:` picture so nothing is fetched. `caption`
+ * leaves Bing's title and copyright out, as the public endpoint does when the
+ * caption is hidden.
+ */
+function mockWallpaper(
+  source: "bing" | "unsplash",
+  detail: string,
+  caption: boolean,
+): Wallpaper {
+  const hue = source === "bing" ? 28 : 150;
+  const imageUrl = svgUrl(
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice"><defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="hsl(${hue + 180} 45% 62%)"/><stop offset=".62" stop-color="hsl(${hue} 70% 72%)"/><stop offset="1" stop-color="hsl(${hue - 20} 35% 28%)"/></linearGradient></defs><rect width="1600" height="900" fill="url(#g)"/><path d="M0 700 L380 470 L640 640 L980 380 L1600 720 V900 H0z" fill="hsl(${hue - 20} 30% 20%)" fill-opacity=".7"/></svg>`,
+  );
+  if (source === "unsplash") {
+    return {
+      source,
+      imageUrl,
+      photographer: detail === "" ? "Mock Photographer" : `Mock ${detail}`,
+      photographerUrl:
+        "https://unsplash.com/?utm_source=prohibitorum&utm_medium=referral",
+      photoUrl:
+        "https://unsplash.com/?utm_source=prohibitorum&utm_medium=referral",
+    };
+  }
+  return {
+    source,
+    imageUrl,
+    ...(caption
+      ? {
+          title: `Mock picture of the day (${detail})`,
+          copyright: "A ridge at dusk, somewhere quiet (© Mock Photographer)",
+          copyrightUrl: "https://www.bing.com/",
+        }
+      : {}),
   };
 }
 
@@ -1808,6 +1860,47 @@ function readReply(
         }),
       );
     }
+    case "/branding/wallpaper": {
+      const background = config.instance.loginAppearance.background;
+      if (background.source === "bing") {
+        return json(
+          mockWallpaper(
+            "bing",
+            background.bing.market,
+            background.bing.showCaption,
+          ),
+        );
+      }
+      if (background.source === "unsplash") {
+        return json(mockWallpaper("unsplash", background.unsplash.query, true));
+      }
+      return { kind: "error", status: 404, code: "wallpaper_not_configured" };
+    }
+    case "/api/prohibitorum/admin/settings/login-appearance":
+      return guarded(config, () =>
+        json({
+          appearance: config.instance.loginAppearance,
+          hasUnsplashKey: config.instance.hasUnsplashKey,
+        }),
+      );
+    case "/api/prohibitorum/admin/settings/login-appearance/wallpaper": {
+      const params = new URL(request.url).searchParams;
+      const source = params.get("source");
+      if (source === "bing") {
+        return guarded(config, () =>
+          json(mockWallpaper("bing", params.get("market") ?? "", true)),
+        );
+      }
+      if (source === "unsplash") {
+        if (!config.instance.hasUnsplashKey) {
+          return { kind: "error", status: 400, code: "unsplash_key_required" };
+        }
+        return guarded(config, () =>
+          json(mockWallpaper("unsplash", params.get("query") ?? "", true)),
+        );
+      }
+      return { kind: "error", status: 400, code: "bad_request" };
+    }
     case "/api/prohibitorum/admin/settings/client-ip":
       return guarded(config, () =>
         json({
@@ -2247,12 +2340,81 @@ function writeReply(
         draft.instance.imageRevision += 1;
       });
 
-    case "/api/prohibitorum/admin/settings/background":
-      if (method !== "PUT" && method !== "DELETE") return undefined;
+    case "/api/prohibitorum/admin/settings/login-appearance": {
+      if (method !== "PUT") return undefined;
+      const appearance = field(body, "appearance") as
+        | LoginAppearance
+        | undefined;
+      const key = stringField(body, "unsplashAccessKey");
+      if (appearance === undefined) {
+        return { kind: "error", status: 400, code: "bad_request" };
+      }
+      // A key starting with "bad" stands for one Unsplash refuses.
+      if (key?.startsWith("bad")) {
+        return { kind: "error", status: 400, code: "unsplash_key_invalid" };
+      }
+      if (
+        appearance.background.source === "unsplash" &&
+        key === undefined &&
+        !config.instance.hasUnsplashKey
+      ) {
+        return { kind: "error", status: 400, code: "unsplash_key_required" };
+      }
       return empty(204, (draft) => {
-        draft.instance.customBackground = method === "PUT";
+        draft.instance.loginAppearance = structuredClone(appearance);
+        if (key !== undefined) draft.instance.hasUnsplashKey = true;
+      });
+    }
+
+    case "/api/prohibitorum/admin/settings/login-appearance/unsplash-key":
+      if (method !== "DELETE") return undefined;
+      if (config.instance.loginAppearance.background.source === "unsplash") {
+        return { kind: "error", status: 409, code: "unsplash_key_in_use" };
+      }
+      return empty(204, (draft) => {
+        draft.instance.hasUnsplashKey = false;
+      });
+
+    case "/api/prohibitorum/admin/settings/login-images": {
+      if (method !== "POST") return undefined;
+      const count = config.instance.loginImageCount;
+      if (count >= mockLoginImagesMax) {
+        return { kind: "error", status: 409, code: "login_images_full" };
+      }
+      const revision = config.instance.imageRevision + 1;
+      const id = count + 1;
+      return {
+        kind: "json",
+        status: 201,
+        body: {
+          id,
+          url: mockLoginImageUrl(
+            {
+              ...config,
+              instance: { ...config.instance, imageRevision: revision },
+            },
+            id,
+          ),
+          etag: `login-image-${id}-${revision}`,
+        } satisfies LoginImage,
+        effect: (draft) => {
+          draft.instance.loginImageCount = id;
+          draft.instance.imageRevision = revision;
+        },
+      };
+    }
+
+    case "/api/prohibitorum/admin/settings/login-images/{id}": {
+      if (method !== "DELETE") return undefined;
+      const id = pathTail(request);
+      if (id < 1 || id > config.instance.loginImageCount) {
+        return { kind: "error", status: 404, code: "login_image_not_found" };
+      }
+      return empty(204, (draft) => {
+        draft.instance.loginImageCount -= 1;
         draft.instance.imageRevision += 1;
       });
+    }
 
     case "/api/prohibitorum/admin/settings/client-ip": {
       if (method !== "PUT") return undefined;

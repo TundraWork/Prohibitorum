@@ -117,9 +117,9 @@ export const sudoReason = {
     id: "sudo.reason.update-instance-icon",
     message: "Confirm it is you to change the instance icon.",
   }),
-  updateSignInBackground: msg({
-    id: "sudo.reason.update-sign-in-background",
-    message: "Confirm it is you to change the sign-in background.",
+  updateSignInPage: msg({
+    id: "sudo.reason.update-sign-in-page",
+    message: "Confirm it is you to change the sign-in page.",
   }),
   updateClientIp: msg({
     id: "sudo.reason.update-client-ip",

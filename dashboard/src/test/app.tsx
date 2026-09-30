@@ -6,6 +6,7 @@ import { vi } from "vitest";
 import type { components } from "@/api/generated/schema";
 import type { PublicConfig } from "@/api/raw-paths";
 import { createAppRouter } from "@/app/router";
+import { defaultLoginAppearance } from "@/components/custom/login-appearance/appearance";
 import { i18n } from "@/i18n";
 
 export const testConfig: PublicConfig = {
@@ -15,9 +16,8 @@ export const testConfig: PublicConfig = {
   iconEtag: "",
   maintenanceMode: false,
   maintenanceMessage: "",
-  hasCustomBackground: false,
-  backgroundUrl: "",
-  backgroundEtag: "",
+  loginAppearance: defaultLoginAppearance,
+  loginImages: [],
   totp: { issuer: "Test", algorithm: "SHA1", digits: 6, period: 30 },
 };
 

@@ -1,11 +1,11 @@
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { publicConfigQueryOptions } from "@/api/queries";
-import type { PublicConfig } from "@/api/raw-paths";
+import type { LoginAppearance, PublicConfig } from "@/api/raw-paths";
 
 /**
  * What the instance calls itself and how it looks, as every surface draws it:
- * the console's sidebar and header, the public toolbar, the sign-in background
- * and the document title.
+ * the console's sidebar and header, the public toolbar, the sign-in page's
+ * background and surfaces, and the document title.
  *
  * All of it comes from `GET /config`, which reports the effective values — an
  * override saved in the settings, else the deployment's configuration — so a
@@ -16,8 +16,9 @@ import type { PublicConfig } from "@/api/raw-paths";
 export interface InstanceBranding {
   name: string;
   iconUrl: string;
-  /** Set only when a custom sign-in background has been uploaded. */
-  backgroundUrl?: string;
+  loginAppearance: LoginAppearance;
+  /** The uploaded sign-in backgrounds in upload order, each URL versioned by its ETag. */
+  loginImages: { id: number; url: string }[];
 }
 
 const fallbackName = "Prohibitorum";
@@ -38,14 +39,11 @@ export function instanceBranding(config: PublicConfig): InstanceBranding {
   return {
     name: config.instanceName || fallbackName,
     iconUrl: versionedUrl(config.iconUrl || "/branding/icon", config.iconEtag),
-    ...(config.hasCustomBackground
-      ? {
-          backgroundUrl: versionedUrl(
-            config.backgroundUrl || "/branding/background",
-            config.backgroundEtag,
-          ),
-        }
-      : {}),
+    loginAppearance: config.loginAppearance,
+    loginImages: config.loginImages.map((image) => ({
+      id: image.id,
+      url: versionedUrl(image.url, image.etag),
+    })),
   };
 }
 

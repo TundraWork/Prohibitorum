@@ -7,14 +7,46 @@ import { client, requireJsonData } from "@/api/client";
 import { readEnrollmentPreview } from "@/api/enrollment";
 import { ApiError } from "@/api/errors";
 import { readFederationFlow } from "@/api/federation";
-import type { ManagedApplicationKind } from "@/api/raw-admin-paths";
-import type { FederationConfirm, PairingStatus } from "@/api/raw-paths";
+import type {
+  ManagedApplicationKind,
+  WallpaperPreviewQuery,
+} from "@/api/raw-admin-paths";
+import type {
+  FederationConfirm,
+  LoginAppearance,
+  PairingStatus,
+} from "@/api/raw-paths";
 
 export function publicConfigQueryOptions() {
   return queryOptions({
     queryKey: ["public", "config"],
     queryFn: ({ signal }) =>
       requireJsonData(client.GET("/api/prohibitorum/config", { signal })),
+  });
+}
+
+/**
+ * The Bing or Unsplash picture behind the sign-in page. Read once per visit —
+ * the page keeps the picture it opened with — and a failure is not reported:
+ * the page simply keeps its own background. The server answers for the saved
+ * source; the key carries it, so a newly saved source is a new read rather
+ * than the old source's picture.
+ */
+export function loginWallpaperQueryOptions(
+  background: LoginAppearance["background"],
+) {
+  const params =
+    background.source === "bing"
+      ? [background.source, background.bing.market]
+      : [background.source, background.unsplash.query];
+  return queryOptions({
+    queryKey: ["public", "login-wallpaper", ...params],
+    staleTime: Number.POSITIVE_INFINITY,
+    refetchOnWindowFocus: false,
+    retry: false,
+    meta: { quiet: true },
+    queryFn: ({ signal }) =>
+      requireJsonData(client.GET("/branding/wallpaper", { signal })),
   });
 }
 
@@ -853,6 +885,41 @@ export function signingKeysListOptions() {
 }
 
 /** The stored client-IP policy; the only instance setting `/config` omits. */
+export function loginAppearanceQueryOptions() {
+  return queryOptions({
+    queryKey: ["admin", "settings", "login-appearance"] as const,
+    queryFn: ({ signal }) =>
+      requireJsonData(
+        client.GET("/api/prohibitorum/admin/settings/login-appearance", {
+          signal,
+        }),
+      ),
+  });
+}
+
+/**
+ * The picture the settings preview shows for the draft's region or keyword,
+ * before it is saved. A failure is the preview's own note, not a toast.
+ */
+export function loginWallpaperPreviewQueryOptions(
+  params: WallpaperPreviewQuery,
+) {
+  return queryOptions({
+    queryKey: ["admin", "settings", "login-wallpaper", params] as const,
+    staleTime: 5 * 60_000,
+    refetchOnWindowFocus: false,
+    retry: false,
+    meta: { quiet: true },
+    queryFn: ({ signal }) =>
+      requireJsonData(
+        client.GET(
+          "/api/prohibitorum/admin/settings/login-appearance/wallpaper",
+          { params: { query: params }, signal },
+        ),
+      ),
+  });
+}
+
 export function clientIpQueryOptions() {
   return queryOptions({
     queryKey: ["admin", "settings", "client-ip"] as const,
