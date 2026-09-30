@@ -53,30 +53,36 @@ export function WallpaperCredit({
   }
 
   const name = wallpaper.photographer ?? "";
-  // One run of inline text rather than flex items: a gap between items would
-  // put spaces into the Chinese sentence.
+  // One run of inline text inside a single flex item, which centres it in the
+  // capsule's minimum height: separate items would put a gap between the words,
+  // and spaces into the Chinese sentence.
   return (
-    <p className={`inline-block text-muted ${capsule}`} style={surface.style}>
-      <Trans id="login.wallpaper.unsplash-credit">
-        Photo by{" "}
-        <Link
-          href={wallpaper.photographerUrl}
-          target="_blank"
-          rel="noreferrer"
-          className="text-xs font-medium text-foreground"
-        >
-          {name}
-        </Link>{" "}
-        on{" "}
-        <Link
-          href={wallpaper.photoUrl}
-          target="_blank"
-          rel="noreferrer"
-          className="text-xs font-medium text-foreground"
-        >
-          Unsplash
-        </Link>
-      </Trans>
+    <p
+      className={`inline-flex items-center text-muted ${capsule}`}
+      style={surface.style}
+    >
+      <span>
+        <Trans id="login.wallpaper.unsplash-credit">
+          Photo by{" "}
+          <Link
+            href={wallpaper.photographerUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="text-xs font-medium text-foreground"
+          >
+            {name}
+          </Link>{" "}
+          on{" "}
+          <Link
+            href={wallpaper.photoUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="text-xs font-medium text-foreground"
+          >
+            Unsplash
+          </Link>
+        </Trans>
+      </span>
     </p>
   );
 }

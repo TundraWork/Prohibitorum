@@ -27,7 +27,7 @@ import { useInstanceBranding } from "@/components/custom/instance-branding";
 import { LoginBackdrop } from "@/components/custom/login-appearance/LoginBackdrop";
 import {
   capsuleSurfaceStyle,
-  surfaceStyle,
+  cardSurfaceStyle,
 } from "@/components/custom/login-appearance/surface-style";
 import { WallpaperCredit } from "@/components/custom/login-appearance/WallpaperCredit";
 
@@ -152,7 +152,7 @@ export function LoginPreview({
           })
       : undefined;
 
-  const card = surfaceStyle(appearance.card);
+  const card = cardSurfaceStyle(appearance.card);
   const capsule = capsuleSurfaceStyle(appearance.capsules);
   const capsuleClass = `flex h-10 items-center rounded-full shadow-surface [--field-radius:100%] [--radius:100%] ${capsule.className}`;
 

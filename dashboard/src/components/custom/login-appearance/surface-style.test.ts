@@ -1,6 +1,7 @@
 import { expect, it } from "vitest";
 import {
   capsuleSurfaceStyle,
+  cardSurfaceStyle,
   surfaceStyle,
 } from "@/components/custom/login-appearance/surface-style";
 
@@ -31,4 +32,18 @@ it("fills an opaque capsule with the surface colour", () => {
   expect(
     capsuleSurfaceStyle({ translucent: false, opacity: 70, blur: true }),
   ).toEqual({ className: "bg-surface" });
+});
+
+it("gives a translucent card's controls see-through fills, and an opaque card nothing", () => {
+  const glass = cardSurfaceStyle({
+    translucent: true,
+    opacity: 60,
+    blur: false,
+  });
+  expect(glass.className).toContain("[--field-background:");
+  expect(glass.className).toContain("[--default-hover:");
+  expect(glass.style).toEqual({ "--surface-alpha": "60%" });
+  expect(
+    cardSurfaceStyle({ translucent: false, opacity: 60, blur: false }),
+  ).toEqual({ className: "" });
 });
