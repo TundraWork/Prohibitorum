@@ -63,6 +63,21 @@ msgid "security.recovery.remaining"
 msgstr "{count, plural, other {剩余 # 个}}"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/LoginImagesControl.tsx
+msgid "settings.sign-in.images.skipped.too_large"
+msgstr "{count, plural, other {有 # 个文件超过 5 MiB，没有上传。}}"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/LoginImagesControl.tsx
+msgid "settings.sign-in.images.skipped.wrong_type"
+msgstr "{count, plural, other {有 # 个文件不是 PNG、JPEG 或 WebP，没有上传。}}"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/LoginImagesControl.tsx
+msgid "settings.sign-in.images.skipped.full"
+msgstr "{count, plural, other {已达到 10 张上限，有 # 个文件没有上传。}}"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
 msgid "admin.federation.diagnostics.stage.duration"
 msgstr "{duration} 毫秒"
@@ -158,6 +173,11 @@ msgid "security.tokens.expiry.365"
 msgstr "1 年"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/LoginImagesControl.tsx
+msgid "settings.sign-in.images.full"
+msgstr "10 / 10 · 移除一张后才能继续添加"
+
+#. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.expiry.30"
 msgstr "30 天"
@@ -235,6 +255,11 @@ msgid "admin.federation.auth.public-needs-s256"
 msgstr "公共客户端必须使用 S256 PKCE，但这个提供商设置的是其他 PKCE 方式。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/SignInPagePanel.tsx
+msgid "settings.sign-in.images.order.random"
+msgstr "每次访问随机一张"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/oidc-validation.ts
 msgid "admin.oidc-apps.scope.offline-access"
 msgstr "刷新令牌，让客户端保持登录。"
@@ -278,6 +303,21 @@ msgstr "已清除访问决定"
 #: src/pages/admin/audit-vocabulary.ts
 msgid "audit.event.access_denied"
 msgstr "访问被拒绝"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/SignInPagePanel.tsx
+msgid "settings.sign-in.unsplash.key"
+msgstr "Access Key"
+
+#. js-lingui-explicit-id
+#: src/api/success-messages.ts
+msgid "success.unsplash-key.removed"
+msgstr "Access Key 已移除"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/SignInPagePanel.tsx
+msgid "settings.sign-in.unsplash.key.saved"
+msgstr "Access Key 已保存"
 
 #. js-lingui-explicit-id
 #: src/api/success-messages.ts
@@ -531,6 +571,11 @@ msgid "admin.group.rule.addGroup"
 msgstr "添加条件组"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/LoginImagesControl.tsx
+msgid "settings.sign-in.images.add"
+msgstr "添加图片"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
 msgid "admin.federation.new.submit"
 msgstr "添加提供商"
@@ -651,6 +696,11 @@ msgstr "已在列表中。"
 #: src/components/custom/AppAccessPanel.tsx
 msgid "app.managers.candidate.assigned"
 msgstr "已在管理这个应用"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/sign-in-page-form.ts
+msgid "settings.sign-in.unsplash.key.invalid"
+msgstr "Access Key 只包含字母、数字、连字符和下划线，最多 128 个字符。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
@@ -929,6 +979,11 @@ msgid "admin.logs.table"
 msgstr "审计事件"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/SignInPageControls.tsx
+msgid "settings.sign-in.gradient.aurora"
+msgstr "极光"
+
+#. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
 msgid "security.factor.authenticator"
 msgstr "身份验证器"
@@ -1039,6 +1094,16 @@ msgid "route.back_to_sign_in"
 msgstr "返回登录"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/SignInPagePanel.tsx
+msgid "settings.sign-in.background"
+msgstr "背景"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/SignInPageControls.tsx
+msgid "settings.sign-in.source"
+msgstr "背景来源"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AttributeMapField.tsx
 msgid "admin.saml-apps.mapping.name-format.placeholder"
 msgstr "basic"
@@ -1090,6 +1155,11 @@ msgid "confirm.cancel"
 msgstr "取消"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/SignInPagePanel.tsx
+msgid "settings.sign-in.images.order.carousel"
+msgstr "轮播"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminLogs.tsx
 msgid "admin.logs.column.factor"
 msgstr "类别"
@@ -1123,6 +1193,11 @@ msgstr "更改并保存"
 #: src/pages/admin/forward-auth-apps/ForwardAuthHeadersSection.tsx
 msgid "admin.forward-auth-apps.headers.confirm.action"
 msgstr "更换并保存"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/SignInPagePanel.tsx
+msgid "settings.sign-in.images.interval"
+msgstr "切换间隔"
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
@@ -1233,6 +1308,11 @@ msgstr "请选择不超过 {limitMiB} MiB 的图片。"
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.apps.required"
 msgstr "请至少选择一个应用，或换一种访问级别。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/sign-in-page-form.ts
+msgid "settings.sign-in.images.interval.range"
+msgstr "请选择 5 到 3600 秒之间的间隔。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminInvitationForm.tsx
@@ -1424,6 +1504,16 @@ msgid "security.setup.code"
 msgstr "身份验证器中的验证码"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/SignInPageControls.tsx
+msgid "settings.sign-in.source.color"
+msgstr "纯色"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/SignInPageControls.tsx
+msgid "settings.sign-in.color"
+msgstr "颜色"
+
+#. js-lingui-explicit-id
 #: src/pages/public/FederationFlow.tsx
 msgid "federation_flow.proof.step.verify"
 msgstr "回到这里按“验证”。"
@@ -1501,8 +1591,8 @@ msgstr "请确认是你本人要修改实例图标。"
 
 #. js-lingui-explicit-id
 #: src/api/sudo-reasons.ts
-msgid "sudo.reason.update-sign-in-background"
-msgstr "请确认是你本人要修改登录页背景。"
+msgid "sudo.reason.update-sign-in-page"
+msgstr "请确认身份后再修改登录页。"
 
 #. js-lingui-explicit-id
 #: src/api/sudo-reasons.ts
@@ -1805,6 +1895,11 @@ msgid "login.password.next"
 msgstr "使用密码继续"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/LoginPreview.tsx
+msgid "settings.sign-in.preview.continue"
+msgstr "使用密码继续"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/settings/SigningKeysPanel.tsx
 msgid "settings.keys.kid.copied"
 msgstr "已复制"
@@ -2000,6 +2095,16 @@ msgid "copy-value.failed"
 msgstr "无法复制。请选中上面的值，手动复制。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/LoginPreview.tsx
+msgid "settings.sign-in.preview.unsplash_failed"
+msgstr "无法从 Unsplash 获取照片。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/LoginPreview.tsx
+msgid "settings.sign-in.preview.bing_failed"
+msgstr "无法从 Bing 获取图片。"
+
+#. js-lingui-explicit-id
 #: src/pages/public/Enroll.tsx
 msgid "enroll.passkey"
 msgstr "创建通行密钥"
@@ -2125,6 +2230,11 @@ msgid "admin.forward-auth-apps.danger"
 msgstr "危险操作"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/LoginPreview.tsx
+msgid "settings.sign-in.preview.dark"
+msgstr "深色"
+
+#. js-lingui-explicit-id
 #: src/components/custom/ThemeSelect.tsx
 msgid "theme.dark"
 msgstr "夜间模式"
@@ -2135,9 +2245,19 @@ msgid "admin.logs.range.dates"
 msgstr "日期"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/SignInPageControls.tsx
+msgid "settings.sign-in.gradient.dawn"
+msgstr "晨曦"
+
+#. js-lingui-explicit-id
 #: src/pages/devices/PairDeviceDialog.tsx
 msgid "devices.decline"
 msgstr "拒绝"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/SignInPageControls.tsx
+msgid "settings.sign-in.source.none"
+msgstr "默认"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AcsRowFields.tsx
@@ -2527,6 +2647,16 @@ msgid "security.tokens.reveal.download"
 msgstr "下载令牌"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/LoginImagesControl.tsx
+msgid "settings.sign-in.images.drop"
+msgstr "将图片拖到这里，或选择文件"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/SignInPageControls.tsx
+msgid "settings.sign-in.gradient.dusk"
+msgstr "暮色"
+
+#. js-lingui-explicit-id
 #: src/components/custom/principal-sources.ts
 msgid "principal-source.username.hint"
 msgstr "易读，管理员可以修改。"
@@ -2576,6 +2706,11 @@ msgstr "邮箱验证码"
 #: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.diagnostics.identity.email-verified"
 msgstr "邮箱已验证"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/SignInPageControls.tsx
+msgid "settings.sign-in.gradient.ember"
+msgstr "余烬"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
@@ -2715,6 +2850,11 @@ msgid "login.totp.invalid"
 msgstr "请输入符合配置位数的验证码，仅使用数字 0–9。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/sign-in-page-form.ts
+msgid "settings.sign-in.color.invalid"
+msgstr "请输入以 # 开头、后跟六位十六进制数字的颜色。"
+
+#. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.invalid_display_name"
 msgstr "请输入 1–128 个字符的显示名称，不含控制字符。"
@@ -2810,6 +2950,11 @@ msgid "admin.federation.new.slug.required"
 msgstr "请填写标识符。"
 
 #. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.unsplash_key_required"
+msgstr "使用 Unsplash 照片需要填写 Unsplash Access Key。"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/settings/client-ip-form.ts
 msgid "settings.network.proxies.required"
 msgstr "请至少填写一个可信代理，否则这个方式不起作用。"
@@ -2829,6 +2974,11 @@ msgstr "手工填写"
 #: src/pages/Login.tsx
 msgid "login.totp.digits"
 msgstr "请输入身份验证器中的 {0} 位验证码。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/sign-in-page-form.ts
+msgid "settings.sign-in.unsplash.key.required"
+msgstr "请填写 Unsplash 应用的 Access Key。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-validation.ts
@@ -3119,6 +3269,16 @@ msgid "admin.saml-apps.mapping.friendly-name"
 msgstr "友好名称"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/SignInPagePanel.tsx
+msgid "settings.sign-in.unsplash.key.hint"
+msgstr "在 <0>unsplash.com/developers</0> 的应用页面获取。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/SignInPageControls.tsx
+msgid "settings.sign-in.surface.blur"
+msgstr "毛玻璃"
+
+#. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.access.full"
 msgstr "完全访问"
@@ -3209,6 +3369,16 @@ msgid "admin.federation.protocol.oidc.hint"
 msgstr "Google、Microsoft Entra ID、Keycloak 等支持 OpenID Connect 的提供商。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/SignInPageControls.tsx
+msgid "settings.sign-in.source.gradient"
+msgstr "渐变"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/SignInPageControls.tsx
+msgid "settings.sign-in.gradient"
+msgstr "渐变"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/settings/NetworkPanel.tsx
 msgid "settings.network.header"
 msgstr "请求头名称"
@@ -3217,6 +3387,11 @@ msgstr "请求头名称"
 #: src/pages/admin/forward-auth-apps/ForwardAuthHeadersSection.tsx
 msgid "admin.forward-auth-apps.headers"
 msgstr "发送给服务的请求头"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/SignInPageControls.tsx
+msgid "settings.sign-in.color.hex"
+msgstr "十六进制值"
 
 #. js-lingui-explicit-id
 #: src/components/custom/DataTable.tsx
@@ -3248,6 +3423,11 @@ msgstr "应用的注册方式"
 #: src/pages/admin/saml-applications/AcsRowFields.tsx
 msgid "admin.saml-apps.acs.location.placeholder"
 msgstr "https://sp.example.com/saml/acs"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/SignInPageControls.tsx
+msgid "settings.sign-in.color.hue"
+msgstr "色相"
 
 #. js-lingui-explicit-id
 #: src/components/custom/secret-reveal-copy.ts
@@ -3379,6 +3559,26 @@ msgstr "身份验证"
 #: src/pages/public/VrchatProof.tsx
 msgid "vrchat_proof.owner"
 msgstr "如果这是你的资料：回到 {instance} 按“验证”。验证完成后，把链接从简介里删掉。"
+
+#. js-lingui-explicit-id
+#: src/api/success-messages.ts
+msgid "success.sign-in-image.added"
+msgstr "图片已添加"
+
+#. js-lingui-explicit-id
+#: src/api/success-messages.ts
+msgid "success.sign-in-image.removed"
+msgstr "图片已移除"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/LoginImagesControl.tsx
+msgid "settings.sign-in.images"
+msgstr "图片"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/SignInPageControls.tsx
+msgid "settings.sign-in.source.images"
+msgstr "图片"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
@@ -3556,6 +3756,11 @@ msgid "settings.keys.column.kid"
 msgstr "Key ID"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/SignInPagePanel.tsx
+msgid "settings.sign-in.unsplash.query"
+msgstr "关键词"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminGroups.tsx
 msgid "admin.groups.column.kind"
 msgstr "类型"
@@ -3564,6 +3769,11 @@ msgstr "类型"
 #: src/pages/public/consent/scopes.ts
 msgid "consent.scope.openid.description"
 msgstr "知道你在 {instance} 的账号"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/SignInPageControls.tsx
+msgid "settings.sign-in.gradient.lagoon"
+msgstr "泻湖"
 
 #. js-lingui-explicit-id
 #: src/components/custom/LanguageMenu.tsx
@@ -3621,6 +3831,11 @@ msgid "admin.oidc-apps.field.launch"
 msgstr "启动地址"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/SignInPagePanel.tsx
+msgid "settings.sign-in.unsplash.query.hint"
+msgstr "留空则不限主题。"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
 msgid "admin.federation.claims.domains.hint"
 msgstr "留空则接受所有域名。"
@@ -3669,6 +3884,11 @@ msgstr "允许人们从这个实例开始登录，而不是从服务提供商开
 #: src/pages/devices/PairDeviceDialog.tsx
 msgid "devices.review.title"
 msgstr "允许这台设备登录？"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/LoginPreview.tsx
+msgid "settings.sign-in.preview.light"
+msgstr "浅色"
 
 #. js-lingui-explicit-id
 #: src/components/custom/ThemeSelect.tsx
@@ -3865,6 +4085,11 @@ msgstr "元数据 XML"
 #: src/pages/admin/saml-applications/SamlMetadataSection.tsx
 msgid "admin.saml-apps.metadata.dialog.field"
 msgstr "元数据 XML"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/SignInPageControls.tsx
+msgid "settings.sign-in.gradient.mist"
+msgstr "薄雾"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AttributeMapField.tsx
@@ -4426,6 +4651,11 @@ msgid "admin.saml-apps.acs.default.duplicate"
 msgstr "只能有一个端点作为默认端点。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/SignInPageControls.tsx
+msgid "settings.sign-in.surface.opacity"
+msgstr "不透明度"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AdminSamlApplications.tsx
 msgid "admin.saml-apps.open"
 msgstr "打开 {name}"
@@ -4509,6 +4739,11 @@ msgstr "或"
 #: src/pages/public/Pair.tsx
 msgid "pair.qr_hint"
 msgstr "也可以用那台设备扫码直接打开。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/SignInPagePanel.tsx
+msgid "settings.sign-in.images.order"
+msgstr "显示方式"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-options.ts
@@ -4622,6 +4857,11 @@ msgid "audit.factor.password"
 msgstr "密码"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/LoginPreview.tsx
+msgid "settings.sign-in.preview.password"
+msgstr "密码"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderOperatorSection.tsx
 msgid "admin.federation.operator.password"
 msgstr "密码"
@@ -4662,6 +4902,11 @@ msgid "admin.federation.diagnostics.stage-status.pending"
 msgstr "未执行"
 
 #. js-lingui-explicit-id
+#: src/components/custom/login-appearance/WallpaperCredit.tsx
+msgid "login.wallpaper.unsplash-credit"
+msgstr "照片：<0>{name}</0>，来自 <1>Unsplash</1>"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-options.ts
 #: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
 msgid "admin.federation.claims.picture"
@@ -4683,9 +4928,9 @@ msgid "admin.federation.effective.pkce"
 msgstr "PKCE"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/GeneralPanel.tsx
-msgid "settings.general.background.hint"
-msgstr "支持 PNG、JPEG 与 WebP，最大 5 MiB。"
+#: src/pages/admin/settings/LoginImagesControl.tsx
+msgid "settings.sign-in.images.hint"
+msgstr "PNG、JPEG 或 WebP，每张不超过 5 MiB · {count} / 10"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/GeneralPanel.tsx
@@ -4716,6 +4961,11 @@ msgstr "登出后重定向 URI"
 #: src/pages/admin/identity-providers/provider-validation.ts
 msgid "admin.federation.tags.draft-pending"
 msgstr "按回车添加，或清空输入框。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/LoginPreview.tsx
+msgid "settings.sign-in.preview"
+msgstr "预览"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/ForwardAuthHeadersSection.tsx
@@ -4935,6 +5185,11 @@ msgid "security.recovery.regenerate"
 msgstr "重新生成"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/SignInPageControls.tsx
+msgid "settings.sign-in.bing.region"
+msgstr "地区"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
 msgid "admin.federation.diagnostics.callback.hint"
 msgstr "运行连接测试前，请在提供商处登记这个地址。"
@@ -4980,6 +5235,11 @@ msgid "admin.user.passkeys.revoke"
 msgstr "移除"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/SignInPagePanel.tsx
+msgid "settings.sign-in.unsplash.key.remove"
+msgstr "移除"
+
+#. js-lingui-explicit-id
 #: src/components/custom/AppAccessPanel.tsx
 msgid "app.managers.confirm.action"
 msgstr "移除"
@@ -5020,11 +5280,6 @@ msgid "admin.oidc-apps.scopes.remove.action"
 msgstr "移除并保存"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/GeneralPanel.tsx
-msgid "settings.general.background.remove"
-msgstr "移除背景"
-
-#. js-lingui-explicit-id
 #: src/pages/Profile.tsx
 msgid "profile.display-name.control"
 msgstr "请去掉名称中的控制字符。"
@@ -5038,6 +5293,11 @@ msgstr "移除图标"
 #: src/components/custom/EntityIconCard.tsx
 msgid "entity.icon.remove"
 msgstr "移除图标"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/LoginImagesControl.tsx
+msgid "settings.sign-in.images.remove"
+msgstr "移除第 {position} 张图片"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
@@ -5068,6 +5328,16 @@ msgstr "请删除首尾的空格。"
 #: src/pages/admin/identity-providers/provider-validation.ts
 msgid "admin.federation.value.spaces"
 msgstr "去掉两端的空格。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/sign-in-page-form.ts
+msgid "settings.sign-in.unsplash.query.spaces"
+msgstr "请去掉开头或结尾的空格。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/sign-in-page-form.ts
+msgid "settings.sign-in.unsplash.query.control"
+msgstr "请去掉其中的制表符或换行。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-validation.ts
@@ -5135,6 +5405,11 @@ msgid "security.totp.replace.open"
 msgstr "更换"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/SignInPagePanel.tsx
+msgid "settings.sign-in.unsplash.key.replace"
+msgstr "替换"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderDangerSection.tsx
 msgid "admin.federation.danger.secret.replace-action"
 msgstr "更换"
@@ -5153,11 +5428,6 @@ msgstr "更换身份验证器"
 #: src/pages/security/PasswordTotpPanel.tsx
 msgid "security.totp.replace.action"
 msgstr "更换身份验证器"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/settings/GeneralPanel.tsx
-msgid "settings.general.background.replace"
-msgstr "替换背景"
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
@@ -5505,6 +5775,11 @@ msgid "settings.network.save"
 msgstr "保存"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/SignInPagePanel.tsx
+msgid "settings.sign-in.save"
+msgstr "保存"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/SamlGeneralSection.tsx
 msgid "admin.saml-apps.general.save"
 msgstr "保存"
@@ -5556,6 +5831,11 @@ msgstr "保存"
 #: src/components/custom/AppAccessPanel.tsx
 msgid "app.groups.dialog.save"
 msgstr "保存"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/LoginPreview.tsx
+msgid "settings.sign-in.preview.unsplash_key"
+msgstr "保存 Access Key 后可预览 Unsplash 图片。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
@@ -5804,6 +6084,11 @@ msgid "table.row.expand"
 msgstr "展开详情"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/SignInPagePanel.tsx
+msgid "settings.sign-in.bing.caption"
+msgstr "显示图片标题和版权信息"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/settings/MaintenancePanel.tsx
 msgid "settings.maintenance.notice.hint"
 msgstr "维护模式开启期间显示在登录页上。"
@@ -5817,6 +6102,11 @@ msgstr "登录"
 #: src/pages/public/ErrorLanding.tsx
 msgid "error_page.sign_in"
 msgstr "去登录"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/LoginPreview.tsx
+msgid "settings.sign-in.preview.sign_in"
+msgstr "登录"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderOperatorSection.tsx
@@ -5894,6 +6184,11 @@ msgid "login.passkey"
 msgstr "使用通行密钥登录"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/LoginPreview.tsx
+msgid "settings.sign-in.preview.passkey"
+msgstr "使用通行密钥登录"
+
+#. js-lingui-explicit-id
 #: src/pages/Login.tsx
 msgid "login.password.form"
 msgstr "使用密码登录"
@@ -5946,19 +6241,25 @@ msgid "settings.keys.activate.title"
 msgstr "用这个密钥签名？"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/GeneralPanel.tsx
-msgid "settings.general.background.title"
-msgstr "登录页背景"
+#: src/pages/admin/settings/SignInPagePanel.tsx
+msgid "settings.sign-in.card"
+msgstr "登录卡片"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminSettings.tsx
+#: src/pages/admin/settings/SignInPagePanel.tsx
+msgid "settings.sign-in.title"
+msgstr "登录页"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/SignInPagePanel.tsx
+msgid "settings.sign-in.form"
+msgstr "登录页"
 
 #. js-lingui-explicit-id
 #: src/api/success-messages.ts
-msgid "success.sign-in-background.removed"
-msgstr "登录页背景已移除"
-
-#. js-lingui-explicit-id
-#: src/api/success-messages.ts
-msgid "success.sign-in-background.updated"
-msgstr "登录页背景已更新"
+msgid "success.sign-in-page.saved"
+msgstr "登录页已保存"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/SignInRulesSection.tsx
@@ -6159,6 +6460,16 @@ msgid "forms.submitting"
 msgstr "正在提交…"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/SignInPageControls.tsx
+msgid "settings.sign-in.color.suggested"
+msgstr "推荐颜色"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/SignInPagePanel.tsx
+msgid "settings.sign-in.unsplash.key.in_use"
+msgstr "先把背景换成其他来源并保存，再移除 Key。"
+
+#. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
 msgid "security.passkeys.synced"
 msgstr "已同步"
@@ -6262,6 +6573,11 @@ msgstr "不支持该条件组类型。"
 #: src/api/errors.ts
 msgid "error.upstream_idp_already_exists"
 msgstr "该标识已被另一个提供商使用。"
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.login_image_not_found"
+msgstr "这张图片已经被移除。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -6536,6 +6852,11 @@ msgid "admin.federation.scope.openid-required"
 msgstr "需要 openid 作用域。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/SignInPagePanel.tsx
+msgid "settings.sign-in.none.hint"
+msgstr "使用页面自身的底色，随浅色和深色模式变化。"
+
+#. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.login_verification_failed"
 msgstr "无法验证通行密钥，可以改用密码。"
@@ -6554,6 +6875,11 @@ msgstr "无法验证本次通行密钥登录。"
 #: src/api/errors.ts
 msgid "error.ceremony_expired"
 msgstr "本次通行密钥登录已过期。"
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.wallpaper_unavailable"
+msgstr "图片暂时无法获取。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderDangerSection.tsx
@@ -6637,6 +6963,21 @@ msgid "login.maintenance.admin_only"
 msgstr "服务正在维护，只有管理员可以登录。"
 
 #. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.login_images_full"
+msgstr "登录页已有 10 张图片。移除一张后才能继续添加。"
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.wallpaper_not_configured"
+msgstr "登录页没有使用 Bing 或 Unsplash 图片。"
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.unsplash_key_in_use"
+msgstr "登录页仍在使用 Unsplash。请先把背景换成其他来源并保存，再移除 Key。"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminLogs.tsx
 msgid "admin.logs.range.reversed"
 msgstr "开始日期晚于结束日期"
@@ -6670,6 +7011,11 @@ msgstr "可信代理列表中有服务器不接受的条目。请选择 X-Forwar
 #: src/forms/password-totp-rules.ts
 msgid "security.password.mismatch"
 msgstr "两次输入的密码不一致。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/SignInPagePanel.tsx
+msgid "settings.sign-in.unsplash.query.hidden_invalid"
+msgstr "Unsplash 关键词无法使用。请选择 Unsplash 进行修改。"
 
 #. js-lingui-explicit-id
 #: src/components/custom/AppAccessPanel.tsx
@@ -7102,9 +7448,19 @@ msgid "error.factor_locked"
 msgstr "验证尝试次数过多，请稍候。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/SignInPagePanel.tsx
+msgid "settings.sign-in.toolbar"
+msgstr "工具栏"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/ForwardAuthProxySection.tsx
 msgid "admin.forward-auth-apps.traefik"
 msgstr "Traefik 配置"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/SignInPageControls.tsx
+msgid "settings.sign-in.surface.translucent"
+msgstr "半透明"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/NetworkPanel.tsx
@@ -7227,9 +7583,14 @@ msgid "admin.user.passkeys.unnamed"
 msgstr "未命名通行密钥"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/GeneralPanel.tsx
-msgid "settings.general.background.upload"
-msgstr "上传背景"
+#: src/api/errors.ts
+msgid "error.unsplash_unreachable"
+msgstr "无法连接 Unsplash，Access Key 没有经过检查，也没有保存。"
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.unsplash_key_invalid"
+msgstr "Unsplash 不接受这个 Access Key。请检查后重新填写。"
 
 #. js-lingui-explicit-id
 #: src/pages/profile/AvatarPanel.tsx
@@ -7290,6 +7651,11 @@ msgstr "请使用不超过 60 个字符。"
 #: src/pages/admin/settings/GeneralPanel.tsx
 msgid "settings.general.name.too_long"
 msgstr "最多 64 个字符。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/sign-in-page-form.ts
+msgid "settings.sign-in.unsplash.query.too_long"
+msgstr "请使用不超过 64 个字符。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-validation.ts
@@ -7544,6 +7910,11 @@ msgstr "用户名"
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminUsers.tsx
 msgid "admin.users.column.username"
+msgstr "用户名"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/LoginPreview.tsx
+msgid "settings.sign-in.preview.username"
 msgstr "用户名"
 
 #. js-lingui-explicit-id

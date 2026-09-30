@@ -4,6 +4,7 @@ import {
   instanceBranding,
   versionedUrl,
 } from "@/components/custom/instance-branding";
+import { defaultLoginAppearance } from "@/components/custom/login-appearance/appearance";
 
 const config: PublicConfig = {
   instanceName: "Home",
@@ -12,9 +13,8 @@ const config: PublicConfig = {
   iconEtag: 'W/"abc"',
   maintenanceMode: false,
   maintenanceMessage: "",
-  hasCustomBackground: false,
-  backgroundUrl: "/branding/background",
-  backgroundEtag: "",
+  loginAppearance: defaultLoginAppearance,
+  loginImages: [],
   totp: { issuer: "Home", algorithm: "SHA1", digits: 6, period: 30 },
 };
 
@@ -23,17 +23,24 @@ describe("instance branding", () => {
     expect(instanceBranding(config)).toEqual({
       name: "Home",
       iconUrl: `/branding/icon?v=${encodeURIComponent('W/"abc"')}`,
+      loginAppearance: defaultLoginAppearance,
+      loginImages: [],
     });
   });
 
-  it("offers a background only once one has been uploaded", () => {
+  it("versions each sign-in image by its ETag and keeps their order", () => {
     expect(
       instanceBranding({
         ...config,
-        hasCustomBackground: true,
-        backgroundEtag: "bg1",
-      }).backgroundUrl,
-    ).toBe("/branding/background?v=bg1");
+        loginImages: [
+          { id: 7, url: "/branding/login-images/7", etag: "e7" },
+          { id: 3, url: "/branding/login-images/3", etag: "e3" },
+        ],
+      }).loginImages,
+    ).toEqual([
+      { id: 7, url: "/branding/login-images/7?v=e7" },
+      { id: 3, url: "/branding/login-images/3?v=e3" },
+    ]);
   });
 
   it("leaves a URL without an ETag, or one that carries its own content, as it is", () => {

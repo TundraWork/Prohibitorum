@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
+
+	"prohibitorum/pkg/branding"
 )
 
 // AuthKind discriminates the AuthRequirement variants.
@@ -195,13 +197,45 @@ type PublicConfig struct {
 	// is the optional admin-authored note shown on that screen.
 	MaintenanceMode    bool   `json:"maintenanceMode"`
 	MaintenanceMessage string `json:"maintenanceMessage"`
-	// Login-page background: served verbatim (no re-encode) from BackgroundURL when
-	// an admin uploaded one. HasCustomBackground=false → the SPA uses its build-time
-	// asset / gradient fallback.
-	HasCustomBackground bool             `json:"hasCustomBackground"`
-	BackgroundURL       string           `json:"backgroundUrl"`
-	BackgroundEtag      string           `json:"backgroundEtag"`
-	TOTP                PublicTOTPConfig `json:"totp"`
+	// LoginAppearance is the sign-in page's background and surface style;
+	// LoginImages are the uploaded backgrounds in upload (carousel) order,
+	// listed whichever source is selected.
+	LoginAppearance LoginAppearance  `json:"loginAppearance"`
+	LoginImages     []LoginImage     `json:"loginImages"`
+	TOTP            PublicTOTPConfig `json:"totp"`
+}
+
+// LoginAppearance is the sign-in page appearance document; pkg/branding owns
+// its structure and validation.
+type LoginAppearance = branding.Appearance
+
+// LoginImage is one uploaded sign-in background, served verbatim from URL.
+type LoginImage struct {
+	ID   int64  `json:"id"`
+	URL  string `json:"url"`
+	Etag string `json:"etag"`
+}
+
+// Wallpaper is GET /branding/wallpaper: the picture the browser loads straight
+// from Bing or Unsplash, and its credit. Bing fills title, copyright and
+// copyrightUrl (omitted when the caption is hidden); Unsplash fills the
+// photographer and photo links, which are always shown.
+type Wallpaper struct {
+	Source          string `json:"source"`
+	ImageURL        string `json:"imageUrl"`
+	Title           string `json:"title,omitempty"`
+	Copyright       string `json:"copyright,omitempty"`
+	CopyrightURL    string `json:"copyrightUrl,omitempty"`
+	Photographer    string `json:"photographer,omitempty"`
+	PhotographerURL string `json:"photographerUrl,omitempty"`
+	PhotoURL        string `json:"photoUrl,omitempty"`
+}
+
+// AdminLoginAppearance is GET /admin/settings/login-appearance. The Unsplash
+// key itself is never returned.
+type AdminLoginAppearance struct {
+	Appearance     LoginAppearance `json:"appearance"`
+	HasUnsplashKey bool            `json:"hasUnsplashKey"`
 }
 
 // EnrollmentURLResponse is returned by reissue-enrollment. Reveal-once: the URL

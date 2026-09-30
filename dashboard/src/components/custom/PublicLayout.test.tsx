@@ -9,9 +9,13 @@ import {
 } from "@tanstack/react-router";
 import { render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { publicConfigQueryOptions } from "@/api/queries";
-import type { PublicConfig } from "@/api/raw-paths";
+import {
+  loginWallpaperQueryOptions,
+  publicConfigQueryOptions,
+} from "@/api/queries";
+import type { LoginAppearance, PublicConfig } from "@/api/raw-paths";
 import { createQueryClient } from "@/app/query-client";
+import { defaultLoginAppearance } from "@/components/custom/login-appearance/appearance";
 import { PublicLayout } from "@/components/custom/PublicLayout";
 import { i18n } from "@/i18n";
 
@@ -22,12 +26,12 @@ const config: PublicConfig = {
   iconEtag: "abc",
   maintenanceMode: false,
   maintenanceMessage: "",
-  hasCustomBackground: false,
-  backgroundUrl: "",
-  backgroundEtag: "",
+  loginAppearance: defaultLoginAppearance,
+  loginImages: [],
   totp: { issuer: "Test", algorithm: "SHA1", digits: 6, period: 30 },
 };
 let queryClient: QueryClient;
+let notifyError: ReturnType<typeof vi.fn<(error: unknown) => void>>;
 
 /**
  * jsdom never loads an image, and the avatar draws its image only once the
@@ -42,9 +46,19 @@ class LoadedImage extends EventTarget {
 beforeEach(() => {
   vi.stubGlobal("Image", LoadedImage);
   i18n.activate("en");
-  queryClient = createQueryClient(() => {});
+  notifyError = vi.fn<(error: unknown) => void>();
+  queryClient = createQueryClient(notifyError);
   queryClient.setQueryData(publicConfigQueryOptions().queryKey, config);
 });
+
+function withAppearance(edit: (appearance: LoginAppearance) => void) {
+  const appearance = structuredClone(defaultLoginAppearance);
+  edit(appearance);
+  queryClient.setQueryData(publicConfigQueryOptions().queryKey, {
+    ...config,
+    loginAppearance: appearance,
+  });
+}
 afterEach(() => {
   queryClient.clear();
   vi.unstubAllGlobals();
@@ -93,4 +107,116 @@ it("puts the page on the card below the toolbar", async () => {
   expect(
     banner.compareDocumentPosition(main) & Node.DOCUMENT_POSITION_FOLLOWING,
   ).toBeTruthy();
+});
+
+it("rounds every control inside the toolbar's capsules and draws them translucent and frosted by default", async () => {
+  const banner = await mount();
+  const capsules = banner.querySelectorAll<HTMLElement>(
+    "[data-toolbar-capsule]",
+  );
+  expect(capsules).toHaveLength(2);
+  for (const capsule of capsules) {
+    expect(capsule).toHaveClass("[--field-radius:100%]", "[--radius:100%]");
+    expect(capsule.style.getPropertyValue("--surface-alpha")).toBe("70%");
+    expect(capsule).toHaveClass("backdrop-blur-xl");
+  }
+});
+
+it("draws an opaque toolbar on the surface colour", async () => {
+  withAppearance((appearance) => {
+    appearance.capsules.translucent = false;
+  });
+  const banner = await mount();
+  for (const capsule of banner.querySelectorAll<HTMLElement>(
+    "[data-toolbar-capsule]",
+  )) {
+    expect(capsule).toHaveClass("bg-surface");
+    expect(capsule.style.getPropertyValue("--surface-alpha")).toBe("");
+    expect(capsule).not.toHaveClass("backdrop-blur-xl");
+  }
+});
+
+it("makes the card translucent only when the settings say so", async () => {
+  await mount();
+  const opaque = screen.getByRole("main").querySelector<HTMLElement>(".card");
+  expect(opaque?.style.getPropertyValue("--surface-alpha")).toBe("");
+
+  queryClient.clear();
+  withAppearance((appearance) => {
+    appearance.card = { translucent: true, opacity: 60, blur: false };
+  });
+  document.body.innerHTML = "";
+  await mount();
+  const card = screen.getByRole("main").querySelector<HTMLElement>(".card");
+  expect(card?.style.getPropertyValue("--surface-alpha")).toBe("60%");
+  expect(card).not.toHaveClass("backdrop-blur-xl");
+});
+
+it("keeps its own background and says nothing when the wallpaper cannot be read", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(
+      async () =>
+        new Response(JSON.stringify({ code: "wallpaper_unavailable" }), {
+          status: 503,
+          headers: { "Content-Type": "application/json" },
+        }),
+    ),
+  );
+  withAppearance((appearance) => {
+    appearance.background.source = "bing";
+  });
+  await mount();
+  await vi.waitFor(() =>
+    expect(
+      queryClient.getQueryState(
+        loginWallpaperQueryOptions(
+          (
+            queryClient.getQueryData(
+              publicConfigQueryOptions().queryKey,
+            ) as PublicConfig
+          ).loginAppearance.background,
+        ).queryKey,
+      )?.status,
+    ).toBe("error"),
+  );
+  expect(document.querySelector("[data-login-backdrop]")).toBeNull();
+  expect(notifyError).not.toHaveBeenCalled();
+});
+
+it("shows the Bing picture and its caption once the wallpaper arrives", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            source: "bing",
+            imageUrl: "https://www.bing.com/th?id=OHR.X_UHD.jpg&w=2560",
+            title: "A quiet ridge",
+            copyright: "Somewhere (© Someone)",
+            copyrightUrl: "https://www.bing.com/search?q=x",
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+    ),
+  );
+  withAppearance((appearance) => {
+    appearance.background.source = "bing";
+  });
+  await mount();
+  const photo = await vi.waitFor(() => {
+    const img = document.querySelector('[data-login-backdrop="photo"]');
+    if (!img) throw new Error("no photo yet");
+    return img;
+  });
+  expect(photo).toHaveAttribute(
+    "src",
+    "https://www.bing.com/th?id=OHR.X_UHD.jpg&w=2560",
+  );
+  expect(photo).toHaveAttribute("alt", "");
+  expect(screen.getAllByText("A quiet ridge").length).toBeGreaterThan(0);
+  expect(
+    screen.getAllByRole("link", { name: "Somewhere (© Someone)" })[0],
+  ).toHaveAttribute("href", "https://www.bing.com/search?q=x");
 });

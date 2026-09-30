@@ -10,7 +10,9 @@ import type {
   FederationConfirm,
   PairingStart,
   PairingStatus,
+  PublicConfig,
   SamlConsentRequest,
+  Wallpaper,
 } from "@/api/raw-paths";
 import { buildMockReply, type MockReply } from "@/devtools/mock/fixtures";
 import {
@@ -550,7 +552,6 @@ describe("mocked logs, settings and signing keys", () => {
         { maintenanceMode: true, maintenanceMessage: "Back soon" },
       ],
       ["PUT", "/api/prohibitorum/admin/settings/icon", undefined],
-      ["PUT", "/api/prohibitorum/admin/settings/background", undefined],
     ] as const) {
       current = applied(call(method, path, current, body), current);
     }
@@ -559,7 +560,6 @@ describe("mocked logs, settings and signing keys", () => {
       maintenanceMode: boolean;
       maintenanceMessage: string;
       hasCustomIcon: boolean;
-      hasCustomBackground: boolean;
       iconEtag: string;
     };
     expect(saved).toMatchObject({
@@ -567,7 +567,6 @@ describe("mocked logs, settings and signing keys", () => {
       maintenanceMode: true,
       maintenanceMessage: "Back soon",
       hasCustomIcon: true,
-      hasCustomBackground: true,
     });
 
     // Clearing the override falls back to the configured name, and removing
@@ -591,6 +590,135 @@ describe("mocked logs, settings and signing keys", () => {
     expect(cleared.instanceName).toBe("Prohibitorum (mock)");
     expect(cleared.hasCustomIcon).toBe(false);
     expect(cleared.iconEtag).not.toBe(before);
+  });
+
+  it("keeps the sign-in page's appearance, images and key in step with /config", () => {
+    let current = writes();
+    const configOf = (at: MockConfig) =>
+      bodyOf(read("/api/prohibitorum/config", at)) as PublicConfig;
+    expect(configOf(current).loginImages).toEqual([]);
+
+    const upload = call(
+      "POST",
+      "/api/prohibitorum/admin/settings/login-images",
+      current,
+    );
+    expect(upload).toMatchObject({ kind: "json", status: 201 });
+    current = applied(upload, current);
+    current = applied(
+      call("POST", "/api/prohibitorum/admin/settings/login-images", current),
+      current,
+    );
+    const images = configOf(current).loginImages;
+    expect(images.map((image) => image.id)).toEqual([1, 2]);
+    expect(images[0]?.url.startsWith("data:image/svg+xml")).toBe(true);
+
+    const full = config((draft) => {
+      draft.writes = true;
+      draft.instance.loginImageCount = 10;
+    });
+    expect(
+      call("POST", "/api/prohibitorum/admin/settings/login-images", full),
+    ).toMatchObject({ kind: "error", status: 409, code: "login_images_full" });
+
+    const appearance = structuredClone(
+      defaultMockConfig.instance.loginAppearance,
+    );
+    appearance.background.source = "unsplash";
+    expect(
+      call(
+        "PUT",
+        "/api/prohibitorum/admin/settings/login-appearance",
+        current,
+        {
+          appearance,
+        },
+      ),
+    ).toMatchObject({ kind: "error", code: "unsplash_key_required" });
+    current = applied(
+      call(
+        "PUT",
+        "/api/prohibitorum/admin/settings/login-appearance",
+        current,
+        {
+          appearance,
+          unsplashAccessKey: "good-key",
+        },
+      ),
+      current,
+    );
+    expect(configOf(current).loginAppearance.background.source).toBe(
+      "unsplash",
+    );
+    expect(
+      bodyOf(
+        read("/api/prohibitorum/admin/settings/login-appearance", current),
+      ),
+    ).toMatchObject({ hasUnsplashKey: true });
+    expect(bodyOf(read("/branding/wallpaper", current))).toMatchObject({
+      source: "unsplash",
+      photographer: "Mock Photographer",
+    });
+    expect(
+      call(
+        "DELETE",
+        "/api/prohibitorum/admin/settings/login-appearance/unsplash-key",
+        current,
+      ),
+    ).toMatchObject({
+      kind: "error",
+      status: 409,
+      code: "unsplash_key_in_use",
+    });
+
+    current = applied(
+      call(
+        "DELETE",
+        "/api/prohibitorum/admin/settings/login-images/{id}",
+        current,
+        {
+          id: 1,
+        },
+      ),
+      current,
+    );
+    expect(configOf(current).loginImages).toHaveLength(1);
+    expect(
+      call(
+        "DELETE",
+        "/api/prohibitorum/admin/settings/login-images/{id}",
+        current,
+        {
+          id: 9,
+        },
+      ),
+    ).toMatchObject({
+      kind: "error",
+      status: 404,
+      code: "login_image_not_found",
+    });
+  });
+
+  it("describes a Bing wallpaper with or without its caption", () => {
+    const bing = config((draft) => {
+      draft.instance.loginAppearance.background.source = "bing";
+      draft.instance.loginAppearance.background.bing.showCaption = false;
+    });
+    const hidden = bodyOf(read("/branding/wallpaper", bing)) as Wallpaper;
+    expect(hidden.source).toBe("bing");
+    expect(hidden.title).toBeUndefined();
+    const preview = bodyOf(
+      read(
+        "/api/prohibitorum/admin/settings/login-appearance/wallpaper",
+        bing,
+        "http://localhost/api/prohibitorum/admin/settings/login-appearance/wallpaper?source=bing&market=en-US",
+      ),
+    ) as Wallpaper;
+    expect(preview.title).toContain("en-US");
+    expect(read("/branding/wallpaper", config())).toMatchObject({
+      kind: "error",
+      code: "wallpaper_not_configured",
+    });
   });
 
   it("stores the client-IP policy it was sent", () => {

@@ -271,6 +271,41 @@ The publish set for `/oauth/jwks` and `/saml/metadata` is `status IN ('pending',
 
 ---
 
+## Sign-in page
+
+The sign-in page's look is one **appearance** document, returned whole by `/config` and the admin GET and replaced whole by the PUT. Every field is always present, whichever background source is selected, so switching source keeps the other sources' settings. It is decoded strictly: an unknown field, a missing field or an out-of-range value is `400 bad_request`.
+
+```jsonc
+{
+  "background": {
+    "source": "none" | "color" | "gradient" | "bing" | "unsplash" | "images",
+    "color": "#1f6f8b",                              // lowercase #rrggbb
+    "gradient": "dawn" | "lagoon" | "aurora" | "dusk" | "mist" | "ember",
+    "bing": { "market": "zh-CN", "showCaption": true }, // de-DE en-AU en-CA en-GB en-IN en-US es-ES fr-CA fr-FR it-IT ja-JP pt-BR zh-CN
+    "unsplash": { "query": "" },                     // 0–64 characters, no surrounding whitespace or control characters
+    "images": { "order": "random" | "carousel", "intervalSeconds": 10 } // 5–3600
+  },
+  "card":     { "translucent": false, "opacity": 80, "blur": true },    // opacity 0–100 (%)
+  "capsules": { "translucent": true,  "opacity": 70, "blur": true }
+}
+```
+
+An instance that never saved one gets the default above (`source: "none"`). Bing and Unsplash pictures are loaded by the browser from `https://www.bing.com` and `https://images.unsplash.com`; the server only fetches their metadata (cached for an hour; a failed refresh keeps serving the previous answer).
+
+| Method | Path | Gate | Notes |
+|--------|------|------|-------|
+| GET | `/api/prohibitorum/config` | public | The boot payload also carries `loginAppearance` (the document above) and `loginImages: [{id, url, etag}]` in upload order, listed whichever source is selected. |
+| GET | `/branding/login-images/{id}` | public | An uploaded image, byte-for-byte as uploaded, with `ETag`/304 and `Cache-Control: public, max-age=300`; the type is sniffed. 404 for an unknown or non-positive id. A matching `If-None-Match` is answered without reading the image. |
+| GET | `/branding/wallpaper` | public | The picture for the saved source, `Cache-Control: no-store`, reachable during maintenance. Bing: `{source, imageUrl, title, copyright, copyrightUrl}` (the last three left out while `showCaption` is off). Unsplash: `{source, imageUrl, photographer, photographerUrl, photoUrl}`, links tagged `utm_source=prohibitorum&utm_medium=referral`. 404 `wallpaper_not_configured` for any other source; 503 `wallpaper_unavailable` when the upstream fails with nothing cached or rejects the key. |
+| GET | `/api/prohibitorum/admin/settings/login-appearance` | 🔓 | `{appearance, hasUnsplashKey}`. The Unsplash access key is never returned. |
+| PUT | `/api/prohibitorum/admin/settings/login-appearance` | 🔐 | `{appearance, unsplashAccessKey?}` → 204. Leaving `unsplashAccessKey` out keeps the saved key; a new one (1–128 of `[A-Za-z0-9_-]`) is checked with Unsplash, then sealed with the current data encryption key. 400 `unsplash_key_required` when the source is `unsplash` and no key is given or saved; 400 `unsplash_key_invalid` when Unsplash rejects the key; 502 `unsplash_unreachable` when it cannot be asked. Audit reason `login_appearance_updated`. |
+| DELETE | `/api/prohibitorum/admin/settings/login-appearance/unsplash-key` | 🔐 | → 204, also when no key was saved. 409 `unsplash_key_in_use` while the saved source is `unsplash`. Audit reason `unsplash_key_removed`. |
+| GET | `/api/prohibitorum/admin/settings/login-appearance/wallpaper` | 🔓 | The settings preview's picture for draft parameters: `?source=bing&market=…` (always with the caption) or `?source=unsplash&query=…` (with the saved key). 400 `bad_request` for a value the appearance would refuse; 400 `unsplash_key_required` with no saved key; 503 `wallpaper_unavailable` when the upstream fails. |
+| POST | `/api/prohibitorum/admin/settings/login-images` | 🔓 + in-handler fresh sudo | Raw PNG, JPEG or WebP bytes, ≤ 5 MiB, each side 1–10000 px; stored and served unmodified. 201 `{id, url, etag}`. 400 `avatar_too_large` / `avatar_invalid_image`; 409 `login_images_full` at 10 images. Audit reason `login_image_added` with `imageId`. |
+| DELETE | `/api/prohibitorum/admin/settings/login-images/{id}` | 🔐 | → 204. 404 `login_image_not_found`. Removing the last image is allowed while the source is `images`; the page then shows its own background. Audit reason `login_image_removed` with `imageId`. |
+
+The single-image endpoints `PUT`/`DELETE /api/prohibitorum/admin/settings/background` and `GET /branding/background` are gone; migration 045 moves an existing background into the image list and selects `images` with `random` order.
+
 ## Audit events
 
 | Method | Path | Gate | Notes |

@@ -114,13 +114,21 @@ export const successMessage = {
     id: "success.instance-icon.removed",
     message: "Icon removed",
   }),
-  updateSignInBackground: msg({
-    id: "success.sign-in-background.updated",
-    message: "Sign-in background updated",
+  saveSignInPage: msg({
+    id: "success.sign-in-page.saved",
+    message: "Sign-in page saved",
   }),
-  removeSignInBackground: msg({
-    id: "success.sign-in-background.removed",
-    message: "Sign-in background removed",
+  addSignInImage: msg({
+    id: "success.sign-in-image.added",
+    message: "Image added",
+  }),
+  removeSignInImage: msg({
+    id: "success.sign-in-image.removed",
+    message: "Image removed",
+  }),
+  removeUnsplashKey: msg({
+    id: "success.unsplash-key.removed",
+    message: "Access key removed",
   }),
   saveClientIp: msg({
     id: "success.client-ip.saved",

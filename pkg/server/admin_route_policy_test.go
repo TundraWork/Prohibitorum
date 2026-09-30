@@ -96,11 +96,14 @@ var sudoGatedRoutes = []sudoRoute{
 	{method: "POST", path: "/api/prohibitorum/accounts/reissue-enrollment", body: `{"id":1}`},
 	{method: "POST", path: "/api/prohibitorum/invitations", body: `{"role":"user"}`},
 
-	// Instance-branding settings (name PUT, icon DELETE, background DELETE,
-	// maintenance PUT, client-ip PUT — all sudo-gated)
+	// Instance-branding settings (name PUT, icon DELETE, maintenance PUT,
+	// client-ip PUT, sign-in page appearance PUT, Unsplash key DELETE, sign-in
+	// image DELETE — all sudo-gated)
 	{method: "PUT", path: "/api/prohibitorum/admin/settings", body: `{"instanceName":"x"}`},
 	{method: "DELETE", path: "/api/prohibitorum/admin/settings/icon", body: ``},
-	{method: "DELETE", path: "/api/prohibitorum/admin/settings/background", body: ``},
+	{method: "PUT", path: "/api/prohibitorum/admin/settings/login-appearance", body: `{}`},
+	{method: "DELETE", path: "/api/prohibitorum/admin/settings/login-appearance/unsplash-key", body: ``},
+	{method: "DELETE", path: "/api/prohibitorum/admin/settings/login-images/1", body: ``},
 	{method: "PUT", path: "/api/prohibitorum/admin/settings/maintenance", body: `{"maintenanceMode":true}`},
 	{method: "PUT", path: "/api/prohibitorum/admin/settings/client-ip", body: `{"trustedHeader":"X-Forwarded-For"}`},
 

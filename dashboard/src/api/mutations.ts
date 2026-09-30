@@ -32,6 +32,7 @@ import type {
   DeleteAccountCredentialRequest,
   DiagnosticResultView,
   DiagnosticStartView,
+  LoginAppearanceWrite,
   MaintenanceSettings,
   ManagedApplicationKind,
   ManualDecisionView,
@@ -1190,7 +1191,7 @@ export function revokeInvitationMutationOptions(queryClient: QueryClient) {
 
 /**
  * Every instance setting `/config` publishes — the name, the maintenance notice,
- * the icon and the sign-in background — is read from that one query, by the
+ * the icon and the sign-in page's look — is read from that one query, by the
  * sidebar, the header, the document title and the sign-in page alike. A write
  * therefore refreshes it and nothing else.
  */
@@ -1236,70 +1237,127 @@ export function updateMaintenanceMutationOptions(queryClient: QueryClient) {
   });
 }
 
-/** The two instance images, which share their endpoints' shape and limits. */
-export type InstanceImageKind = "icon" | "background";
-
-const instanceImagePath = {
-  icon: "/api/prohibitorum/admin/settings/icon",
-  background: "/api/prohibitorum/admin/settings/background",
-} as const;
-
 /**
  * Uploads raw bytes, not a multipart form. The handler checks sudo itself rather
  * than through the JSON-only wrapper, and answers `sudo_required` the same way,
  * so `runWithSudo` covers it like any other guarded write.
  */
-export function uploadInstanceImageMutationOptions(
-  queryClient: QueryClient,
-  kind: InstanceImageKind,
-) {
+export function uploadInstanceIconMutationOptions(queryClient: QueryClient) {
   return mutationOptions({
-    meta: {
-      success:
-        kind === "icon"
-          ? successMessage.updateInstanceIcon
-          : successMessage.updateSignInBackground,
-    },
+    meta: { success: successMessage.updateInstanceIcon },
     retry: false,
     mutationFn: async (file: File) => {
       await runWithSudo(
         () =>
-          client.PUT(instanceImagePath[kind], {
+          client.PUT("/api/prohibitorum/admin/settings/icon", {
             body: file,
             // openapi-fetch serialises JSON by default; the endpoint wants the
             // bytes as they are.
             bodySerializer: (value) => value as BodyInit,
           }),
-        kind === "icon"
-          ? sudoReason.updateInstanceIcon
-          : sudoReason.updateSignInBackground,
+        sudoReason.updateInstanceIcon,
       );
     },
     onSuccess: () => invalidatePublicConfig(queryClient),
   });
 }
 
-export function removeInstanceImageMutationOptions(
-  queryClient: QueryClient,
-  kind: InstanceImageKind,
-) {
+export function removeInstanceIconMutationOptions(queryClient: QueryClient) {
   return mutationOptions({
-    meta: {
-      success:
-        kind === "icon"
-          ? successMessage.removeInstanceIcon
-          : successMessage.removeSignInBackground,
-    },
+    meta: { success: successMessage.removeInstanceIcon },
     retry: false,
     mutationFn: async () => {
       await runWithSudo(
-        () => client.DELETE(instanceImagePath[kind]),
-        kind === "icon"
-          ? sudoReason.updateInstanceIcon
-          : sudoReason.updateSignInBackground,
+        () => client.DELETE("/api/prohibitorum/admin/settings/icon"),
+        sudoReason.updateInstanceIcon,
       );
     },
     onSuccess: () => invalidatePublicConfig(queryClient),
+  });
+}
+
+/**
+ * The sign-in page's settings are read by the settings panel and, through
+ * `/config`, by every public page; a write refreshes both.
+ */
+function invalidateSignInPage(queryClient: QueryClient) {
+  return Promise.all([
+    invalidatePublicConfig(queryClient),
+    queryClient.invalidateQueries({
+      queryKey: ["admin", "settings", "login-appearance"],
+    }),
+  ]);
+}
+
+/** Saves the whole appearance, and the Unsplash key when one was typed. */
+export function updateLoginAppearanceMutationOptions(queryClient: QueryClient) {
+  return mutationOptions({
+    meta: { success: successMessage.saveSignInPage },
+    retry: false,
+    mutationFn: async (body: LoginAppearanceWrite) => {
+      await runWithSudo(
+        () =>
+          client.PUT("/api/prohibitorum/admin/settings/login-appearance", {
+            body,
+          }),
+        sudoReason.updateSignInPage,
+      );
+    },
+    onSuccess: () => invalidateSignInPage(queryClient),
+  });
+}
+
+export function removeUnsplashKeyMutationOptions(queryClient: QueryClient) {
+  return mutationOptions({
+    meta: { success: successMessage.removeUnsplashKey },
+    retry: false,
+    mutationFn: async () => {
+      await runWithSudo(
+        () =>
+          client.DELETE(
+            "/api/prohibitorum/admin/settings/login-appearance/unsplash-key",
+          ),
+        sudoReason.updateSignInPage,
+      );
+    },
+    onSuccess: () => invalidateSignInPage(queryClient),
+  });
+}
+
+/** Uploads one image as raw bytes; the handler checks sudo itself, like the icon's. */
+export function uploadLoginImageMutationOptions(queryClient: QueryClient) {
+  return mutationOptions({
+    meta: { success: successMessage.addSignInImage },
+    retry: false,
+    mutationFn: (file: File) =>
+      runWithSudo(
+        () =>
+          requireJsonData(
+            client.POST("/api/prohibitorum/admin/settings/login-images", {
+              body: file,
+              bodySerializer: (value) => value as BodyInit,
+            }),
+          ),
+        sudoReason.updateSignInPage,
+      ),
+    onSuccess: () => invalidateSignInPage(queryClient),
+  });
+}
+
+export function removeLoginImageMutationOptions(queryClient: QueryClient) {
+  return mutationOptions({
+    meta: { success: successMessage.removeSignInImage },
+    retry: false,
+    mutationFn: async (id: number) => {
+      await runWithSudo(
+        () =>
+          client.DELETE("/api/prohibitorum/admin/settings/login-images/{id}", {
+            params: { path: { id } },
+          }),
+        sudoReason.updateSignInPage,
+      );
+    },
+    onSuccess: () => invalidateSignInPage(queryClient),
   });
 }
 

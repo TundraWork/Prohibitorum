@@ -19,6 +19,7 @@ import type { PublicConfig } from "@/api/raw-paths";
 import { createQueryClient } from "@/app/query-client";
 import { searchSerialization } from "@/app/search-params";
 import { ConsoleLayout } from "@/components/custom/ConsoleLayout";
+import { defaultLoginAppearance } from "@/components/custom/login-appearance/appearance";
 import { i18n } from "@/i18n";
 
 const fetchBoundary = vi.fn<(request: Request) => Promise<Response>>();
@@ -46,9 +47,8 @@ const config: PublicConfig = {
   iconEtag: "",
   maintenanceMode: false,
   maintenanceMessage: "",
-  hasCustomBackground: false,
-  backgroundUrl: "",
-  backgroundEtag: "",
+  loginAppearance: defaultLoginAppearance,
+  loginImages: [],
   totp: { issuer: "Prohibitorum", algorithm: "SHA1", digits: 6, period: 30 },
 };
 

@@ -74,6 +74,26 @@ func OpenTemporary(dek []byte, secret SealedSecret, providerID int64, challenge 
 	return openSecret(dek, secret, temporaryAAD(providerID, secret.KeyVersion, challenge))
 }
 
+// SealInstanceSecret seals an instance-wide secret stored in instance_settings,
+// such as the Unsplash access key. name binds the ciphertext to its column.
+func SealInstanceSecret(dek, plaintext []byte, name string, keyVersion int32) (*SealedSecret, error) {
+	if name == "" {
+		return nil, fmt.Errorf("federation: empty instance secret name")
+	}
+	return sealSecret(dek, plaintext, keyVersion, instanceAAD(name, keyVersion))
+}
+
+func OpenInstanceSecret(dek []byte, secret SealedSecret, name string) ([]byte, error) {
+	if name == "" {
+		return nil, fmt.Errorf("federation: empty instance secret name")
+	}
+	return openSecret(dek, secret, instanceAAD(name, secret.KeyVersion))
+}
+
+func instanceAAD(name string, keyVersion int32) []byte {
+	return []byte("instance_settings:" + name + ":" + strconv.Itoa(int(keyVersion)))
+}
+
 func providerAAD(providerID int64, keyVersion int32) []byte {
 	return []byte("upstream_idp:" + strconv.FormatInt(providerID, 10) + ":" + strconv.Itoa(int(keyVersion)))
 }

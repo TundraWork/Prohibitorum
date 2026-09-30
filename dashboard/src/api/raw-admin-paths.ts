@@ -1,4 +1,5 @@
 import type { components } from "@/api/generated/schema";
+import type { LoginAppearance, LoginImage, Wallpaper } from "@/api/raw-paths";
 
 /**
  * Management writes and the whole user-group resource, hand-written because the
@@ -215,6 +216,27 @@ export interface ClientIpSettings {
   header: string;
   trustedProxies: string[];
 }
+
+/** `GET /admin/settings/login-appearance`. The Unsplash key itself is never returned. */
+export interface AdminLoginAppearance {
+  appearance: LoginAppearance;
+  hasUnsplashKey: boolean;
+}
+
+/**
+ * `PUT /admin/settings/login-appearance`. Leaving `unsplashAccessKey` out keeps
+ * the saved key; a new one is 1–128 of `[A-Za-z0-9_-]` and is checked with
+ * Unsplash before it is kept.
+ */
+export interface LoginAppearanceWrite {
+  appearance: LoginAppearance;
+  unsplashAccessKey?: string;
+}
+
+/** The draft parameters the settings preview asks a wallpaper for. */
+export type WallpaperPreviewQuery =
+  | { source: "bing"; market: string }
+  | { source: "unsplash"; query: string };
 
 /** `PUT /admin/settings/maintenance`. The message is at most 500 characters. */
 export interface MaintenanceSettings {
@@ -902,14 +924,55 @@ export interface RawAdminPaths {
       responses: { 204: { content?: never } };
     };
   };
-  "/api/prohibitorum/admin/settings/background": {
+  "/api/prohibitorum/admin/settings/login-appearance": {
+    get: {
+      parameters: NoParameters;
+      requestBody?: never;
+      responses: {
+        200: { content: { "application/json": AdminLoginAppearance } };
+      };
+    };
     put: {
       parameters: NoParameters;
-      requestBody: { content: { "application/octet-stream": Blob } };
+      requestBody: { content: { "application/json": LoginAppearanceWrite } };
       responses: { 204: { content?: never } };
     };
+  };
+  "/api/prohibitorum/admin/settings/login-appearance/unsplash-key": {
     delete: {
       parameters: NoParameters;
+      requestBody?: never;
+      responses: { 204: { content?: never } };
+    };
+  };
+  "/api/prohibitorum/admin/settings/login-appearance/wallpaper": {
+    get: {
+      parameters: {
+        query: WallpaperPreviewQuery;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: { 200: { content: { "application/json": Wallpaper } } };
+    };
+  };
+  /** Raw image bytes, like the icon upload; the handler checks sudo itself. */
+  "/api/prohibitorum/admin/settings/login-images": {
+    post: {
+      parameters: NoParameters;
+      requestBody: { content: { "application/octet-stream": Blob } };
+      responses: { 201: { content: { "application/json": LoginImage } } };
+    };
+  };
+  "/api/prohibitorum/admin/settings/login-images/{id}": {
+    delete: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: { id: number };
+        cookie?: never;
+      };
       requestBody?: never;
       responses: { 204: { content?: never } };
     };

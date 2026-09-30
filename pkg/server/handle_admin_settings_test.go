@@ -34,12 +34,10 @@ type settingsBrandingStore struct {
 	cleared     bool
 	maint       bool
 	maintMsg    *string
-	loginBG     []byte
-	loginBGEtag *string
 }
 
 func (f *settingsBrandingStore) Get(context.Context) (branding.Settings, error) {
-	return branding.Settings{Name: f.name, IconPNG: f.icon, IconEtag: f.etag, Maintenance: f.maint, MaintenanceMessage: f.maintMsg, LoginBG: f.loginBG, LoginBGEtag: f.loginBGEtag}, nil
+	return branding.Settings{Name: f.name, IconPNG: f.icon, IconEtag: f.etag, Maintenance: f.maint, MaintenanceMessage: f.maintMsg}, nil
 }
 func (f *settingsBrandingStore) SetMaintenance(_ context.Context, on bool, msg *string) error {
 	f.maint, f.maintMsg = on, msg
@@ -61,15 +59,16 @@ func (f *settingsBrandingStore) ClearIcon(_ context.Context) error {
 	f.etag = nil
 	return nil
 }
-func (f *settingsBrandingStore) SetLoginBG(_ context.Context, raw []byte, etag string) error {
-	e := etag
-	f.loginBG, f.loginBGEtag = raw, &e
+func (f *settingsBrandingStore) SetAppearance(context.Context, branding.Appearance, *branding.SealedKey) error {
 	return nil
 }
-func (f *settingsBrandingStore) ClearLoginBG(_ context.Context) error {
-	f.cleared = true
-	f.loginBG, f.loginBGEtag = nil, nil
-	return nil
+func (f *settingsBrandingStore) ClearUnsplashKey(context.Context) error { return nil }
+func (f *settingsBrandingStore) AddImage(context.Context, []byte, string) (branding.ImageRef, error) {
+	return branding.ImageRef{}, nil
+}
+func (f *settingsBrandingStore) DeleteImage(context.Context, int64) error { return nil }
+func (f *settingsBrandingStore) ImageData(context.Context, int64) ([]byte, string, error) {
+	return nil, "", branding.ErrImageNotFound
 }
 
 // TestAdminSettings_PutName verifies that a valid instanceName JSON body sets
@@ -157,50 +156,4 @@ func pngFixture(t *testing.T) []byte {
 		t.Fatalf("encode png: %v", err)
 	}
 	return buf.Bytes()
-}
-
-func TestAdminSettings_PutAndServeBackground_Verbatim(t *testing.T) {
-	t.Parallel()
-
-	st := &settingsBrandingStore{}
-	s := &Server{branding: branding.NewWithStore("TestDefault", st), Audit: noopAuditWriter{}}
-
-	raw := pngFixture(t)
-	sess := adminSession(time.Now().Add(time.Hour)) // fresh sudo
-	req := reqWithSession("PUT", "/api/prohibitorum/admin/settings/background", string(raw), "image/png", sess)
-	rr := httptest.NewRecorder()
-	s.handlePutInstanceBackgroundHTTP(rr, req)
-	if rr.Code != http.StatusNoContent {
-		t.Fatalf("PUT status = %d, want 204; body: %s", rr.Code, rr.Body.String())
-	}
-
-	// Serve MUST return the exact uploaded bytes (no postprocess).
-	grr := httptest.NewRecorder()
-	s.handleGetBrandingBackgroundHTTP(grr, httptest.NewRequest("GET", "/branding/background", nil))
-	if grr.Code != http.StatusOK {
-		t.Fatalf("GET status = %d, want 200", grr.Code)
-	}
-	if !bytes.Equal(grr.Body.Bytes(), raw) {
-		t.Fatalf("served %d bytes != uploaded %d bytes — background must be verbatim", grr.Body.Len(), len(raw))
-	}
-}
-
-func TestAdminSettings_DeleteBackground(t *testing.T) {
-	t.Parallel()
-
-	raw := pngFixture(t)
-	etag := "abc123"
-	st := &settingsBrandingStore{loginBG: raw, loginBGEtag: &etag}
-	s := &Server{branding: branding.NewWithStore("TestDefault", st), Audit: noopAuditWriter{}}
-
-	sess := adminSession(time.Now().Add(time.Hour))
-	req := reqWithSession("DELETE", "/api/prohibitorum/admin/settings/background", "", "", sess)
-	rr := httptest.NewRecorder()
-	s.handleDeleteInstanceBackgroundHTTP(rr, req)
-	if rr.Code != http.StatusNoContent {
-		t.Fatalf("status = %d, want 204; body: %s", rr.Code, rr.Body.String())
-	}
-	if !st.cleared {
-		t.Error("store.ClearLoginBG was not called")
-	}
 }

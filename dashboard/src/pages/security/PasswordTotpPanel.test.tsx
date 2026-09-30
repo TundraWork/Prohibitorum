@@ -17,6 +17,7 @@ import { factorsQueryOptions, sessionQueryOptions } from "@/api/queries";
 import { configureSudo, resetSudo, type SudoRequest } from "@/api/sudo";
 import { createQueryClient } from "@/app/query-client";
 import { searchSerialization } from "@/app/search-params";
+import { defaultLoginAppearance } from "@/components/custom/login-appearance/appearance";
 import { i18n } from "@/i18n";
 import { PasswordTotpPanel } from "@/pages/security/PasswordTotpPanel";
 
@@ -49,9 +50,8 @@ beforeEach(() => {
     iconEtag: "",
     maintenanceMode: false,
     maintenanceMessage: "",
-    hasCustomBackground: false,
-    backgroundUrl: "",
-    backgroundEtag: "",
+    loginAppearance: defaultLoginAppearance,
+    loginImages: [],
     totp: { issuer: "Prohibitorum", algorithm: "SHA1", digits: 6, period: 30 },
   });
 });

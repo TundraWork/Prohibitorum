@@ -1,3 +1,6 @@
+import type { LoginAppearance } from "@/api/raw-paths";
+import { defaultLoginAppearance } from "@/components/custom/login-appearance/appearance";
+
 /**
  * What the console should believe about the account, independent of the server.
  *
@@ -174,7 +177,11 @@ export interface MockConfig {
     /** The saved name override; empty means the configured name. */
     name: string;
     customIcon: boolean;
-    customBackground: boolean;
+    /** The saved sign-in page look, as `/config` and the settings report it. */
+    loginAppearance: LoginAppearance;
+    /** How many sign-in background images are uploaded, 0–10. */
+    loginImageCount: number;
+    hasUnsplashKey: boolean;
     /** Bumped by every image write, so `/config` reports a new ETag. */
     imageRevision: number;
     clientIpStrategy: "direct" | "forwarded" | "header";
@@ -285,7 +292,9 @@ export const defaultMockConfig: MockConfig = {
     bootstrapped: true,
     name: "",
     customIcon: false,
-    customBackground: false,
+    loginAppearance: structuredClone(defaultLoginAppearance),
+    loginImageCount: 0,
+    hasUnsplashKey: false,
     imageRevision: 0,
     clientIpStrategy: "direct",
     clientIpHeader: "",
@@ -384,6 +393,9 @@ export function clampCount(value: number): number {
   if (!Number.isFinite(value)) return 0;
   return Math.max(0, Math.min(mockListMax, Math.floor(value)));
 }
+
+/** The server keeps at most ten sign-in background images. */
+export const mockLoginImagesMax = 10;
 
 export function clampAdminCount(value: number): number {
   if (!Number.isFinite(value)) return 0;

@@ -44,6 +44,7 @@ import (
 	oidcop "prohibitorum/pkg/protocol/oidc"
 	samlidp "prohibitorum/pkg/protocol/saml"
 	sessstore "prohibitorum/pkg/session"
+	"prohibitorum/pkg/wallpaper"
 	"prohibitorum/pkg/weberr"
 	"prohibitorum/pkg/webui"
 )
@@ -151,6 +152,9 @@ type Server struct {
 	// config → built-in precedence. Admin mutation handlers call Invalidate()
 	// after writes so changes propagate immediately.
 	branding *branding.Resolver
+	// wallpaper fetches the sign-in page's Bing and Unsplash wallpapers. Tests
+	// inject a fake; nil in NewHuma.
+	wallpaper wallpaperService
 	// clientIP resolves the effective client IP under the DB-stored, peer-validated
 	// policy. Admin PUT handlers call Invalidate() after writes.
 	clientIP *clientip.Resolver
@@ -372,6 +376,7 @@ func NewServer(ctx context.Context) (*Server, error) {
 		vrchatOperatorService: vrchatOperator,
 		Audit:                 auditWriter,
 		branding:              brandingResolver,
+		wallpaper:             wallpaper.New(wallpaper.Options{Client: federation.NewOutboundHTTPClient(false, 1<<20)}),
 		clientIP:              clientIPResolver,
 		diagStore:             diagStore,
 		cursorCodec:           cursorCodec,
@@ -614,7 +619,8 @@ func (s *Server) registerOperations() {
 	// Public branding: SPA boot config + icon image.
 	registerOpHTTP(s.router, "GET", "/api/prohibitorum/config", publicReq, s.handleGetPublicConfigHTTP)
 	registerOpHTTP(s.router, "GET", "/branding/icon", publicReq, s.handleGetBrandingIconHTTP)
-	registerOpHTTP(s.router, "GET", "/branding/background", publicReq, s.handleGetBrandingBackgroundHTTP)
+	registerOpHTTP(s.router, "GET", "/branding/login-images/{id}", publicReq, s.handleGetLoginImageHTTP)
+	registerOpHTTP(s.router, "GET", "/branding/wallpaper", publicReq, s.handleGetWallpaperHTTP)
 	registerOpHTTP(s.router, "GET", "/icon/{kind}/{id}", publicReq, s.handleGetEntityIconHTTP)
 
 	// Native Traefik ForwardAuth (see docs/forward-auth.md). The verify endpoint
@@ -693,8 +699,13 @@ func (s *Server) registerOperations() {
 	s.registerSudoOpHTTP(s.router, "PUT", "/api/prohibitorum/admin/settings/maintenance", admin, s.handlePutMaintenanceHTTP)
 	registerOpHTTP(s.router, "PUT", "/api/prohibitorum/admin/settings/icon", admin, s.handlePutInstanceIconHTTP)
 	s.registerSudoOpHTTP(s.router, "DELETE", "/api/prohibitorum/admin/settings/icon", admin, s.handleDeleteInstanceIconHTTP)
-	registerOpHTTP(s.router, "PUT", "/api/prohibitorum/admin/settings/background", admin, s.handlePutInstanceBackgroundHTTP)
-	s.registerSudoOpHTTP(s.router, "DELETE", "/api/prohibitorum/admin/settings/background", admin, s.handleDeleteInstanceBackgroundHTTP)
+	// Admin: sign-in page appearance, Unsplash key, preview wallpaper, background images
+	registerOpHTTP(s.router, "GET", "/api/prohibitorum/admin/settings/login-appearance", admin, s.handleGetLoginAppearanceHTTP)
+	s.registerSudoOpHTTP(s.router, "PUT", "/api/prohibitorum/admin/settings/login-appearance", admin, s.handlePutLoginAppearanceHTTP)
+	s.registerSudoOpHTTP(s.router, "DELETE", "/api/prohibitorum/admin/settings/login-appearance/unsplash-key", admin, s.handleDeleteUnsplashKeyHTTP)
+	registerOpHTTP(s.router, "GET", "/api/prohibitorum/admin/settings/login-appearance/wallpaper", admin, s.handleGetWallpaperPreviewHTTP)
+	registerOpHTTP(s.router, "POST", "/api/prohibitorum/admin/settings/login-images", admin, s.handlePostLoginImageHTTP)
+	s.registerSudoOpHTTP(s.router, "DELETE", "/api/prohibitorum/admin/settings/login-images/{id}", admin, s.handleDeleteLoginImageHTTP)
 	registerOpHTTP(s.router, "GET", "/api/prohibitorum/admin/settings/client-ip", admin, s.handleGetClientIPHTTP)
 	s.registerSudoOpHTTP(s.router, "PUT", "/api/prohibitorum/admin/settings/client-ip", admin, s.handlePutClientIPHTTP)
 

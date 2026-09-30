@@ -1,4 +1,5 @@
 import { type ReactNode, useSyncExternalStore } from "react";
+import type { LoginBackgroundSource } from "@/api/raw-paths";
 import {
   clampAdminCount,
   clampCount,
@@ -10,6 +11,7 @@ import {
   mockDelayMax,
   mockEnrollmentProvidersMax,
   mockListMax,
+  mockLoginImagesMax,
   mockPairingExpiryMax,
   mockPairingExpiryMin,
   resetMockConfig,
@@ -128,6 +130,45 @@ function Choose<T extends string>({
     </fieldset>
   );
 }
+
+/** One labelled choice out of several, as a native select. */
+function Pick<T extends string>({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: T;
+  options: readonly T[];
+  onChange: (next: T) => void;
+}) {
+  return (
+    <label className="flex items-center gap-2 py-1">
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value as T)}
+        className={controlClass}
+      >
+        {options.map((option) => (
+          <option key={option} value={option}>
+            {option}
+          </option>
+        ))}
+      </select>
+      <span className="min-w-0">{label}</span>
+    </label>
+  );
+}
+
+const loginSources = [
+  "none",
+  "color",
+  "gradient",
+  "bing",
+  "unsplash",
+  "images",
+] as const satisfies readonly LoginBackgroundSource[];
 
 function Text({
   label,
@@ -878,13 +919,33 @@ export function MockPanel() {
               })
             }
           />
-          <Toggle
-            label="Custom sign-in background"
-            checked={config.instance.customBackground}
+          <Pick
+            label="Sign-in background source"
+            value={config.instance.loginAppearance.background.source}
+            options={loginSources}
             onChange={(next) =>
               updateMockConfig((draft) => {
-                draft.instance.customBackground = next;
+                draft.instance.loginAppearance.background.source = next;
+              })
+            }
+          />
+          <Count
+            label="Sign-in images"
+            value={config.instance.loginImageCount}
+            max={mockLoginImagesMax}
+            onChange={(next) =>
+              updateMockConfig((draft) => {
+                draft.instance.loginImageCount = next;
                 draft.instance.imageRevision += 1;
+              })
+            }
+          />
+          <Toggle
+            label="Unsplash access key saved"
+            checked={config.instance.hasUnsplashKey}
+            onChange={(next) =>
+              updateMockConfig((draft) => {
+                draft.instance.hasUnsplashKey = next;
               })
             }
           />
