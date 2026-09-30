@@ -106,10 +106,14 @@ cosign verify ghcr.io/tundrawork/prohibitorum:<tag> \
 [`jdx/mise-action@v3`](https://github.com/jdx/mise-action) (or the [step-security hardened fork](https://github.com/step-security/mise-action)) runs the same tasks humans run. With `mise.lock` present the action auto-applies `--locked`. `.github/workflows/ci.yml` runs:
 
 - **gate** runs `mise run ci:api-types` before `mise run ci:go` (`go vet ./...` → `go build -tags nodynamic ./...` → `go test ./...`) and `mise run ci:frontend` (`pnpm install --frozen-lockfile` → `pnpm run check` → `pnpm run i18n:check` → `pnpm run test` → `pnpm run build`). The build script typechecks before Vite.
-- **smoke** runs `mise run ci:smoke` (`scripts/db.sh start` → throwaway `prohibitorum_smoke` DB → server → `cmd/smoke`). Pins `PROHIBITORUM_COMPOSE=docker compose` for determinism on the runner.
+- **smoke** runs `mise run ci:smoke` (`scripts/db.sh start` → throwaway `prohibitorum_smoke` DB → server → `cmd/smoke`). It stops at once if something already answers on port 8080, such as a local `dev:server`. Pins `PROHIBITORUM_COMPOSE=docker compose` for determinism on the runner.
 - **release-check** runs `mise run ci:release-check` (`goreleaser check`) + `mise run ci:lint-actions` (`actionlint` schema/shellcheck + `zizmor` supply-chain audit over `.github/workflows`) on every PR. A broken release config or workflow fails here, not on the first tag push.
 
 `.github/workflows/release-dryrun.yml` runs `mise run ci:release-snapshot` (full multi-arch GoReleaser+ko build, no publish, `--skip=sign`) — path-filtered to changes that affect the release (`.goreleaser.yaml`, `mise.toml`, `mise.lock`, `go.*`, `cmd/**`, `pkg/**`, `dashboard/**`, the release workflow itself) plus `workflow_dispatch`. This catches build breakage without needing a real tag.
+
+### Step statistics (PHB-105)
+
+Every check step inside the `ci:*` tasks runs through `scripts/gate.sh <gate> <command>`, which passes the step's exit code through and, on a local run, adds one to `<gate>.pass` or `<gate>.fail` in the stats card's `gate-stats` metadata. The counts show which steps ever stop a change, so the ones that never do can be removed. Increments are compare-and-set, so parallel runs in several worktrees keep every count. Counting is skipped in GitHub Actions, without `todou` or `jq`, or with `PROHIBITORUM_GATE_STATS=0`; `PROHIBITORUM_GATE_STATS_CARD` changes the card (default `PHB-105`). A failed write prints one line and never changes the step's result. Read the counts with `todou metadata get PHB-105 --namespace gate-stats`.
 
 ## Embedded `dist`
 
