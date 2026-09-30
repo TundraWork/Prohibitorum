@@ -113,6 +113,8 @@ description = "DB: local Postgres lifecycle via compose.yaml — `mise run db st
 run = "scripts/db.sh"
 
 # ---- ci: the checks GitHub Actions runs (also runnable locally) -------------
+# scripts/gate.sh wraps each check step and counts its outcome on a todou card
+# for local runs (PHB-105); see TOOLING.md "Step statistics".
 
 [tasks.ci]
 description = "CI: API declaration drift, Go and frontend checks — the same task the CI gate job runs."
@@ -123,7 +125,7 @@ description = "CI: regenerate dashboard API declarations and reject drift before
 run = """
 set -e
 pnpm --dir dashboard install --frozen-lockfile
-sh scripts/api-types.sh check
+scripts/gate.sh api-types sh scripts/api-types.sh check
 """
 
 [tasks."ci:go"]
@@ -132,9 +134,9 @@ depends = ["build:web"]
 description = "CI (internal): Go vet + build (-tags nodynamic) + full test suite."
 run = """
 set -e
-go vet ./...
-go build -tags nodynamic ./...
-go test ./...
+scripts/gate.sh go-vet go vet ./...
+scripts/gate.sh go-build go build -tags nodynamic ./...
+scripts/gate.sh go-test go test ./...
 """
 
 [tasks."ci:frontend"]
@@ -144,10 +146,10 @@ run = """
 set -e
 cd dashboard
 pnpm install --frozen-lockfile
-pnpm run check
-pnpm run i18n:check
-pnpm run test
-pnpm run build
+../scripts/gate.sh frontend-biome pnpm run check
+../scripts/gate.sh frontend-i18n pnpm run i18n:check
+../scripts/gate.sh frontend-test pnpm run test
+../scripts/gate.sh frontend-build pnpm run build
 cd ..
 # Vite empties dist, including the tracked go:embed placeholder.
 touch pkg/webui/dist/.gitkeep
@@ -158,6 +160,13 @@ depends = ["build:web"]
 description = "CI: end-to-end smoke — start the compose Postgres, (re)create a throwaway prohibitorum_smoke DB, then run the server + cmd/smoke against it (expects exit 0). The CI `smoke` job; also runnable locally WITHOUT touching prohibitorum_dev."
 run = """
 set -eu
+# The smoke server listens on :8080 behind the TLS proxy. Anything already
+# answering there (usually `mise run dev:server`) takes its traffic and fails
+# the smoke for a reason that says nothing about the change.
+if curl -s -o /dev/null http://127.0.0.1:8080/; then
+  echo "Port 8080 is already in use, probably by mise run dev:server. Stop it, then run the smoke again." >&2
+  exit 1
+fi
 # The smoke bootstraps an admin + registers OIDC/SAML clients, so it needs a
 # clean throwaway database, never prohibitorum_dev.
 # Worktrees must address the repository's canonical compose project rather than
@@ -232,10 +241,10 @@ done
 
 # Exercise PostgreSQL-only filtering/migration contracts in the same database.
 export PROHIBITORUM_TEST_DATABASE_URL="$PROHIBITORUM_DATABASE_URL"
-go test ./db/migrations ./pkg/server \
+scripts/gate.sh smoke-postgres go test ./db/migrations ./pkg/server \
   -run '^(TestUpstreamOIDCEndpointsMigrationPostgres|TestOIDCSubjectClaimMigrationPostgres|TestOIDCClientAuthMethodMigrationPostgres|TestOIDCIdentityProjectionMigrationPostgres|TestPATAccessLevelsMigrationPostgres|TestLoginAppearanceMigrationMovesBackgroundPostgres|TestLoginAppearanceMigrationWithoutBackgroundPostgres|TestLoginAppearanceMigrationDownPostgres|TestLoginLayoutMigrationPostgres|TestLoginLayoutMigrationWithoutAppearancePostgres|TestAccountIdentityFilteringMigrationPostgres|TestAccountFilterSchemaPostgres|TestListAccountsIdentityFiltersPostgres|TestListCredentialEventsAccountUsernamePostgres)$' \
   -count=1
-go run ./cmd/smoke \
+scripts/gate.sh smoke-e2e go run ./cmd/smoke \
   --base-url https://127.0.0.1:18443 \
   --vrchat-control-origin https://127.0.0.1:18100 \
   --vrchat-ca-file "$TMP_DIR/ca.pem" \
@@ -245,19 +254,19 @@ go run ./cmd/smoke \
 
 [tasks."ci:release-check"]
 description = "CI: validate the GoReleaser release config (`goreleaser check`) — cheap, catches a broken .goreleaser.yaml before a tag is cut."
-run = "goreleaser check"
+run = "scripts/gate.sh release-check goreleaser check"
 
 [tasks."ci:lint-actions"]
 description = "CI: lint GitHub Actions workflows — actionlint (schema/shellcheck) + zizmor (supply-chain security audit)."
 run = """
 set -e
-actionlint
-zizmor .github/workflows
+scripts/gate.sh actionlint actionlint
+scripts/gate.sh zizmor zizmor .github/workflows
 """
 
 [tasks."ci:release-snapshot"]
 description = "CI: full GoReleaser+ko build with NO publish and NO signing (release dry-run) — proves the release still builds. The release-dryrun job runs this; needs a container runtime for ko."
-run = "goreleaser release --snapshot --clean --skip=sign"
+run = "scripts/gate.sh release-snapshot goreleaser release --snapshot --clean --skip=sign"
 
 # ---- build: SPA bundle (hidden — shared by dev:server, prod:build, release) --
 
