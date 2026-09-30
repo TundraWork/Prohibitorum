@@ -137,7 +137,9 @@ The capsules' and the card's surfaces are the administrator's choice, set
 separately on the sign-in page settings. A translucent surface keeps HeroUI's
 classes and lowers only the fill, through `--surface-alpha` in a
 `color-mix()` with `--surface`; frosted glass adds `backdrop-blur-xl` and
-`backdrop-saturate-150`. An opaque card is the library's card unchanged, an
+`backdrop-saturate-150`. On a translucent card the fields, secondary buttons
+and separators drawn on it are tints of the foreground at half the card's
+opacity, so the picture reads through them as well; the settings preview does the same, and so do the buttons on a translucent capsule. An opaque card is the library's card unchanged, an
 opaque capsule `bg-surface`. By default the capsules are translucent at 70%
 and frosted, and the card is opaque.
 

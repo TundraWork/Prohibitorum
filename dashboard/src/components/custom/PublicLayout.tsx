@@ -5,7 +5,7 @@ import { AppToolbar } from "@/components/custom/AppToolbar";
 import { InstanceIdentity } from "@/components/custom/InstanceIdentity";
 import { useInstanceBranding } from "@/components/custom/instance-branding";
 import { LoginBackdrop } from "@/components/custom/login-appearance/LoginBackdrop";
-import { surfaceStyle } from "@/components/custom/login-appearance/surface-style";
+import { cardSurfaceStyle } from "@/components/custom/login-appearance/surface-style";
 import { WallpaperCredit } from "@/components/custom/login-appearance/WallpaperCredit";
 import { PublicCard } from "@/components/custom/PublicCard";
 import { RouteLayoutContext } from "@/components/custom/RouteFeedback";
@@ -45,7 +45,7 @@ export function PublicLayout() {
       </AppToolbar>
       <PublicCard
         belowToolbar
-        surface={surfaceStyle(appearance.card)}
+        surface={cardSurfaceStyle(appearance.card)}
         after={
           shownWallpaper !== undefined && (
             <div className="mt-4 flex justify-center lg:hidden">{credit}</div>
