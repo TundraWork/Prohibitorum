@@ -24,7 +24,8 @@ SELECT p.id, g.key
 FROM personal_access_token p
 CROSS JOIN LATERAL jsonb_object_keys(p.app_grants) AS g(key)
 JOIN oidc_client c ON c.client_id = g.key
-WHERE p.access = 'selected_apps';
+WHERE p.access = 'selected_apps'
+  AND jsonb_typeof(p.app_grants) = 'object';
 
 ALTER TABLE personal_access_token
   DROP COLUMN all_apps,

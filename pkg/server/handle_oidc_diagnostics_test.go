@@ -15,6 +15,7 @@ import (
 	"prohibitorum/pkg/authn"
 	"prohibitorum/pkg/configx"
 	"prohibitorum/pkg/contract"
+	"prohibitorum/pkg/credential/pat"
 	"prohibitorum/pkg/db"
 	"prohibitorum/pkg/kv"
 )
@@ -121,6 +122,15 @@ func TestOIDCDiagnosticHandlersRoundTripWithoutAccountsOrSessions(t *testing.T) 
 	}
 	if discoveries.Load() != 2 {
 		t.Fatal("effective config did not fetch again")
+	}
+	// The effective configuration is a plain admin read, so a full-access PAT
+	// reaches it; the connection tests stay bound to the browser session.
+	patReq := httptest.NewRequest("GET", "/api/prohibitorum/identity-providers/corp/effective-config", nil)
+	patReq = patReq.WithContext(authn.WithPATSession(patReq.Context(), &authn.Session{Account: &db.Account{ID: 7, Role: "admin"}, PAT: &authn.PATPrincipal{ID: 3, Access: pat.AccessFull}}))
+	patRec := httptest.NewRecorder()
+	router.ServeHTTP(patRec, patReq)
+	if patRec.Code != 200 {
+		t.Fatalf("effective config via PAT %d: %s", patRec.Code, patRec.Body.String())
 	}
 	discoveryFailure.Store(true)
 	for _, requestInfo := range []struct{ method, path string }{{"GET", "/effective-config"}, {"POST", "/tests"}} {

@@ -988,6 +988,21 @@ func TestForwardAuthVerify_PAT_Invalid_401(t *testing.T) {
 	}
 }
 
+// A database failure is not an invalid token: the client should keep it.
+func TestForwardAuthVerify_PAT_LookupFailure_503(t *testing.T) {
+	for name, q := range map[string]*fakeFAQueries{
+		"token": {faClient: db.GetForwardAuthClientByHostRow{ClientID: "svc"}, patErr: context.DeadlineExceeded},
+		"owner": {faClient: db.GetForwardAuthClientByHostRow{ClientID: "svc"}, pat: db.PersonalAccessToken{ID: 7, AccountID: 42}, acctErr: context.DeadlineExceeded},
+	} {
+		p, _ := newFAProvider(q)
+		rec := httptest.NewRecorder()
+		p.HandleForwardAuthVerify(rec, faPATRequest("app.acme.io", "prohibitorum_pat_x", nil))
+		if rec.Code != http.StatusServiceUnavailable {
+			t.Errorf("%s: want 503, got %d", name, rec.Code)
+		}
+	}
+}
+
 func TestForwardAuthVerify_PAT_DisabledOwner_401(t *testing.T) {
 	q := &fakeFAQueries{
 		faClient: db.GetForwardAuthClientByHostRow{ClientID: "svc"},

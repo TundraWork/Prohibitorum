@@ -20,6 +20,7 @@ import (
 	"prohibitorum/pkg/contract"
 	"prohibitorum/pkg/credential/pat"
 	"prohibitorum/pkg/db"
+	"prohibitorum/pkg/diagnostic"
 	sessstore "prohibitorum/pkg/session"
 )
 
@@ -34,12 +35,18 @@ type fakePATAuthQ struct {
 	noAcct  bool
 	touched []int32
 	lookups int
+	// lookupErr / acctErr stand in for a database failure (not a missing row).
+	lookupErr error
+	acctErr   error
 }
 
 func (f *fakePATAuthQ) GetPATByTokenHash(_ context.Context, hash []byte) (db.PersonalAccessToken, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.lookups++
+	if f.lookupErr != nil {
+		return db.PersonalAccessToken{}, f.lookupErr
+	}
 	if f.missing || string(hash) != string(pat.HashToken(testPATToken)) {
 		return db.PersonalAccessToken{}, pgx.ErrNoRows
 	}
@@ -47,6 +54,9 @@ func (f *fakePATAuthQ) GetPATByTokenHash(_ context.Context, hash []byte) (db.Per
 }
 
 func (f *fakePATAuthQ) GetAccountByID(_ context.Context, _ int32) (db.Account, error) {
+	if f.acctErr != nil {
+		return db.Account{}, f.acctErr
+	}
 	if f.noAcct {
 		return db.Account{}, pgx.ErrNoRows
 	}
@@ -71,6 +81,19 @@ func (r *recordingAudit) Record(ctx context.Context, rec audit.Record) error {
 	defer r.mu.Unlock()
 	r.recs = append(r.recs, rec)
 	r.ctxs = append(r.ctxs, ctx)
+	return nil
+}
+
+// recordingDiag keeps the diagnostic records the capture middleware writes.
+type recordingDiag struct {
+	mu   sync.Mutex
+	recs []diagnostic.Record
+}
+
+func (d *recordingDiag) Record(_ context.Context, rec diagnostic.Record) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.recs = append(d.recs, rec)
 	return nil
 }
 
@@ -100,18 +123,19 @@ type patTestRouter struct {
 	sawPrincipal *authn.Session // PrincipalFromContext in the public handler
 	handled      []string
 	fresh        func(*authn.Session) bool
+	diag         *recordingDiag
 }
 
 func newPATTestRouter(q patAuthQueries, w audit.Writer) *patTestRouter {
-	r := &patTestRouter{Mux: chi.NewMux()}
+	r := &patTestRouter{Mux: chi.NewMux(), diag: &recordingDiag{}}
 	r.Use(func(next http.Handler) http.Handler { // request id, as in production
 		return next
 	})
-	r.Use(patAuthMW(q, w))
 	// A cookie session, when the test sets X-Test-Cookie, so fallback is visible.
+	// Like LoadSession it runs first and leaves PAT requests alone.
 	r.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
-			if req.Header.Get("X-Test-Cookie") != "" && !authn.HasPATPrincipal(req.Context()) {
+			if req.Header.Get("X-Test-Cookie") != "" && !pat.SelectsManagementAuth(req) {
 				req = req.WithContext(authn.WithSession(req.Context(), &authn.Session{
 					Account: &db.Account{ID: 99, Role: "admin"}, Token: "t", Data: &authn.SessionData{SessionID: "sid"},
 				}))
@@ -119,6 +143,8 @@ func newPATTestRouter(q patAuthQueries, w audit.Writer) *patTestRouter {
 			next.ServeHTTP(rw, req)
 		})
 	})
+	r.Use(diagnosticCaptureMW(r.diag))
+	r.Use(patAuthMW(q, w))
 	api := humachi.New(r.Mux, humaConfig())
 	registerSecurityScheme(api, sessstore.SessionCookieName)
 	mgmt := huma.NewGroup(api, "/api/prohibitorum")
@@ -372,6 +398,92 @@ func TestPATSession_ReachesRawAndTypedHandlers(t *testing.T) {
 	r := newPATTestRouter(q, nil)
 	if rr := r.do("GET", "/api/prohibitorum/raw", patHdr(testPATToken)); rr.Code != http.StatusNoContent {
 		t.Errorf("raw handler: %d", rr.Code)
+	}
+	if rr := r.do("GET", "/api/prohibitorum/me", patHdr(testPATToken)); rr.Code != http.StatusOK || !strings.Contains(rr.Body.String(), `"viaPat":true`) {
+		t.Errorf("typed handler: %d %s", rr.Code, rr.Body.String())
+	}
+}
+
+// A database failure is a server error, not a verdict on the token.
+func TestPATAuthMW_LookupFailureIsServerError(t *testing.T) {
+	for name, set := range map[string]func(*fakePATAuthQ){
+		"token lookup": func(q *fakePATAuthQ) { q.lookupErr = context.DeadlineExceeded },
+		"owner lookup": func(q *fakePATAuthQ) { q.acctErr = context.DeadlineExceeded },
+	} {
+		q := newFakePATAuthQ(pat.AccessFull, "user")
+		set(q)
+		w := &recordingAudit{}
+		r := newPATTestRouter(q, w)
+		rr := r.do("GET", "/api/prohibitorum/me", patHdr(testPATToken))
+		if rr.Code != http.StatusInternalServerError || codeOf(t, rr) != "server_error" {
+			t.Errorf("%s: %d %s", name, rr.Code, rr.Body.String())
+		}
+		if len(w.recs) != 0 {
+			t.Errorf("%s: audited %+v", name, w.recs)
+		}
+	}
+}
+
+// Missing and disabled owners are audited on the API as at the gateway.
+func TestPATAuthMW_OwnerRefusalsAreAudited(t *testing.T) {
+	for reason, set := range map[string]func(*fakePATAuthQ){
+		"account_missing":  func(q *fakePATAuthQ) { q.noAcct = true },
+		"account_disabled": func(q *fakePATAuthQ) { q.acct.Disabled = true },
+	} {
+		q := newFakePATAuthQ(pat.AccessFull, "user")
+		set(q)
+		w := &recordingAudit{}
+		r := newPATTestRouter(q, w)
+		r.do("GET", "/api/prohibitorum/me", patHdr(testPATToken))
+		if len(w.recs) != 1 || w.recs[0].Detail["reason"] != reason || w.recs[0].AccountID == nil || *w.recs[0].AccountID != 5 {
+			t.Errorf("%s: audit = %+v", reason, w.recs)
+		}
+	}
+}
+
+// last_used_at counts requests the route served, not ones it refused.
+func TestPATAuthMW_LastUsedOnlyOnServedRequests(t *testing.T) {
+	q := newFakePATAuthQ(pat.AccessFull, "user")
+	r := newPATTestRouter(q, nil)
+	for _, path := range []string{"/api/prohibitorum/adm", "/api/prohibitorum/brw"} {
+		if rr := r.do("GET", path, patHdr(testPATToken)); rr.Code != http.StatusForbidden {
+			t.Fatalf("%s: %d %s", path, rr.Code, rr.Body.String())
+		}
+	}
+	if rr := r.do("POST", "/api/prohibitorum/sudo", patHdr(testPATToken)); rr.Code != http.StatusUnauthorized {
+		t.Fatalf("sudo: %d %s", rr.Code, rr.Body.String())
+	}
+	if len(q.touched) != 0 {
+		t.Errorf("refused requests touched the token: %v", q.touched)
+	}
+	if rr := r.do("GET", "/api/prohibitorum/me", patHdr(testPATToken)); rr.Code != http.StatusOK {
+		t.Fatalf("me: %d", rr.Code)
+	}
+	if len(q.touched) != 1 {
+		t.Errorf("served request touches = %v", q.touched)
+	}
+}
+
+// PAT refusals reach the diagnostic capture, with the owner once it is known.
+func TestPATAuthMW_RefusalsAreCapturedForDiagnostics(t *testing.T) {
+	q := newFakePATAuthQ(pat.AccessFull, "user")
+	r := newPATTestRouter(q, nil)
+	r.do("GET", "/api/prohibitorum/me", patHdr("not-a-token"))
+	q.row.Access = string(pat.AccessAllApps)
+	r.do("GET", "/api/prohibitorum/me", patHdr(testPATToken))
+	q.row.Access = string(pat.AccessFull)
+	r.do("GET", "/api/prohibitorum/adm", patHdr(testPATToken))
+	if len(r.diag.recs) != 3 {
+		t.Fatalf("diagnostic records = %+v", r.diag.recs)
+	}
+	for i, want := range []struct {
+		code    string
+		account bool
+	}{{"pat_invalid", false}, {"pat_api_not_allowed", true}, {"not_admin", true}} {
+		rec := r.diag.recs[i]
+		if rec.Code != want.code || (rec.AccountID != nil) != want.account || (want.account && *rec.AccountID != 5) {
+			t.Errorf("record %d = code %q account %v, want %q account=%v", i, rec.Code, rec.AccountID, want.code, want.account)
+		}
 	}
 }
 

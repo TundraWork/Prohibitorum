@@ -6,12 +6,14 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"prohibitorum/pkg/audit"
@@ -488,6 +490,12 @@ func accountEmail(a db.Account) string {
 func (p *Provider) verifyForwardAuthPAT(w http.ResponseWriter, r *http.Request, raw string, client db.GetForwardAuthClientByHostRow) {
 	ctx := r.Context()
 	row, err := p.queries.GetPATByTokenHash(ctx, pat.HashToken(raw))
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		// A database failure says nothing about the token; do not report it as
+		// invalid, which would prompt a client to discard a good credential.
+		http.Error(w, "token lookup unavailable", http.StatusServiceUnavailable)
+		return
+	}
 	if err != nil {
 		audit.RecordOrLog(ctx, p.audit, audit.Record{
 			Factor: audit.FactorPAT,
@@ -498,6 +506,10 @@ func (p *Provider) verifyForwardAuthPAT(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 	acct, err := p.queries.GetAccountByID(ctx, row.AccountID)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		http.Error(w, "token lookup unavailable", http.StatusServiceUnavailable)
+		return
+	}
 	if err != nil || acct.Disabled {
 		acctID := row.AccountID
 		audit.RecordOrLog(ctx, p.audit, audit.Record{

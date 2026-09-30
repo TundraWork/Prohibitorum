@@ -219,15 +219,16 @@ func (s *Server) handleCreateMyToken(ctx context.Context, in *createMyTokenIn) (
 			return nil, fmt.Errorf("handleCreateMyToken: insert app: %w", err)
 		}
 	}
+	// Read the view back inside the transaction: a failure here rolls the token
+	// back rather than committing one whose plaintext the caller never receives.
+	views, err := patViews(ctx, q, []db.PersonalAccessToken{row})
+	if err != nil {
+		return nil, fmt.Errorf("handleCreateMyToken: %w", err)
+	}
 	if tx != nil {
 		if err := tx.Commit(ctx); err != nil {
 			return nil, fmt.Errorf("handleCreateMyToken: commit: %w", err)
 		}
-	}
-	// q may be bound to the finished transaction; read back through the pool.
-	views, err := patViews(ctx, s.patQueriesFn(), []db.PersonalAccessToken{row})
-	if err != nil {
-		return nil, fmt.Errorf("handleCreateMyToken: %w", err)
 	}
 	credRef := int64(row.ID)
 	audit.RecordOrLog(ctx, s.Audit, audit.Record{

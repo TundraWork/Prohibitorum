@@ -7,6 +7,7 @@ import (
 
 	"prohibitorum/pkg/authn"
 	"prohibitorum/pkg/configx"
+	"prohibitorum/pkg/credential/pat"
 	"prohibitorum/pkg/db"
 )
 
@@ -67,9 +68,9 @@ func SessionCookieNameFor(cfg *configx.Config) string {
 func LoadSession(cfg *configx.Config, q db.Querier, store *SessionStore, ipOf func(*http.Request) string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// A PAT-authenticated request has its one principal already; the
-			// cookie is not consulted.
-			if authn.HasPATPrincipal(r.Context()) {
+			// A management API request carrying a PAT is authenticated by the
+			// token alone (see patAuthMW); the cookie is not consulted.
+			if pat.SelectsManagementAuth(r) {
 				next.ServeHTTP(w, r)
 				return
 			}

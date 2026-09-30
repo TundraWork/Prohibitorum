@@ -74,6 +74,10 @@ func TestPATAccessLevelsMigrationPostgres(t *testing.T) {
 SELECT id, 'all', decode('aa','hex'), 'h', true, '{}' FROM account WHERE username = 'owner'`)
 	mustExec(`INSERT INTO personal_access_token (account_id, name, token_hash, token_hint, all_apps, app_grants)
 SELECT id, 'some', decode('bb','hex'), 'h', false, '{"fa_a":["read"],"fa_gone":["x"]}' FROM account WHERE username = 'owner'`)
+	// A hand-edited grant that is not an object migrates to an empty list
+	// instead of aborting the migration.
+	mustExec(`INSERT INTO personal_access_token (account_id, name, token_hash, token_hint, all_apps, app_grants)
+SELECT id, 'odd', decode('cc','hex'), 'h', false, '["fa_a"]' FROM account WHERE username = 'owner'`)
 
 	if err := goose.UpTo(conn, ".", 44); err != nil {
 		t.Fatal(err)
@@ -102,6 +106,12 @@ SELECT id, 'some', decode('bb','hex'), 'h', false, '{"fa_a":["read"],"fa_gone":[
 	var n int
 	if err := conn.QueryRowContext(ctx, "SELECT count(*) FROM personal_access_token_app a JOIN personal_access_token p ON p.id = a.pat_id WHERE p.name = 'all'").Scan(&n); err != nil || n != 0 {
 		t.Fatalf("all_apps token has %d app rows, err %v", n, err)
+	}
+	if got := access("odd"); got != "selected_apps" {
+		t.Fatalf("odd: access = %q", got)
+	}
+	if err := conn.QueryRowContext(ctx, "SELECT count(*) FROM personal_access_token_app a JOIN personal_access_token p ON p.id = a.pat_id WHERE p.name = 'odd'").Scan(&n); err != nil || n != 0 {
+		t.Fatalf("non-object grant produced %d app rows, err %v", n, err)
 	}
 	if _, err := conn.ExecContext(ctx, "UPDATE personal_access_token SET access = 'bogus'"); err == nil {
 		t.Fatal("access check constraint accepted an unknown level")

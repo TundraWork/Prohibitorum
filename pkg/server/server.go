@@ -286,9 +286,11 @@ func NewServer(ctx context.Context) (*Server, error) {
 	// X-Request-ID. Inbound values are never trusted as the server ID.
 	router.Use(weberr.RequestID)
 	router.Use(requestMetaMW(clientIPResolver.IP))
-	router.Use(patAuthMW(queries, audit.NewWriter(queries)))
 	router.Use(sessstore.LoadSession(config, queries, sessionStore, clientIPResolver.IP))
 	router.Use(diagnosticCaptureMW(diagStore))
+	// Inside the diagnostic capture so PAT refusals can be looked up by request
+	// ID; LoadSession leaves the cookie unread for these requests.
+	router.Use(patAuthMW(queries, audit.NewWriter(queries)))
 	router.Use(maintenanceGateMW(brandingResolver))
 	api := humachi.New(router, humaConfig())
 	registerSecurityScheme(api, sessstore.SessionCookieNameFor(config))
