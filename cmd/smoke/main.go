@@ -5617,7 +5617,7 @@ func main() {
 		surface := func(translucent bool, opacity int, blur bool) map[string]any {
 			return map[string]any{"translucent": translucent, "opacity": opacity, "blur": blur}
 		}
-		appearance := func(source, order string, interval int, card, capsules map[string]any) map[string]any {
+		appearance := func(source, order string, interval int, card, capsules map[string]any, cardPosition, theme string) map[string]any {
 			return map[string]any{
 				"background": map[string]any{
 					"source":   source,
@@ -5627,8 +5627,10 @@ func main() {
 					"unsplash": map[string]any{"query": ""},
 					"images":   map[string]any{"order": order, "intervalSeconds": interval},
 				},
-				"card":     card,
-				"capsules": capsules,
+				"card":         card,
+				"capsules":     capsules,
+				"cardPosition": cardPosition,
+				"theme":        theme,
 			}
 		}
 
@@ -5682,8 +5684,8 @@ func main() {
 		}
 		log.Printf("  both images byte-for-byte identical; /config lists them in upload order ✓")
 
-		step(fmt.Sprintf("look %d/%d — PUT appearance (images/carousel/15s, card 60%%, opaque capsules) round-trips", 3, nLook))
-		want := appearance("images", "carousel", 15, surface(true, 60, true), surface(false, 70, true))
+		step(fmt.Sprintf("look %d/%d — PUT appearance (images/carousel/15s, card 60%% on the left, opaque capsules, always dark) round-trips", 3, nLook))
+		want := appearance("images", "carousel", 15, surface(true, 60, true), surface(false, 70, true), "left", "dark")
 		if status, body := putAppearance(map[string]any{"appearance": want}); status != http.StatusNoContent {
 			log.Fatalf("look: PUT appearance: want 204, got %d — %s", status, firstN(body, 300))
 		}
@@ -5714,7 +5716,7 @@ func main() {
 			log.Fatalf("look: PUT unknown field: want 400 bad_request, got %d — %s", status, firstN(body, 300))
 		}
 		if !admin.HasUnsplashKey {
-			unsplash := appearance("unsplash", "random", 10, surface(false, 80, true), surface(true, 70, true))
+			unsplash := appearance("unsplash", "random", 10, surface(false, 80, true), surface(true, 70, true), "center", "switchable")
 			if status, body := putAppearance(map[string]any{"appearance": unsplash}); status != http.StatusBadRequest || !strings.Contains(body, `"unsplash_key_required"`) {
 				log.Fatalf("look: PUT unsplash without key: want 400 unsplash_key_required, got %d — %s", status, firstN(body, 300))
 			}
@@ -5741,7 +5743,7 @@ func main() {
 		if status, body := rawRequest(http.MethodDelete, imagePath, nil, ""); status != http.StatusNoContent {
 			log.Fatalf("look: DELETE second image: want 204, got %d — %s", status, firstN(string(body), 300))
 		}
-		reset := appearance("none", "random", 10, surface(false, 80, true), surface(true, 70, true))
+		reset := appearance("none", "random", 10, surface(false, 80, true), surface(true, 70, true), "center", "switchable")
 		if status, body := putAppearance(map[string]any{"appearance": reset}); status != http.StatusNoContent {
 			log.Fatalf("look: PUT reset: want 204, got %d — %s", status, firstN(body, 300))
 		}
@@ -6028,7 +6030,7 @@ func main() {
 	if err := smokeOIDCDiagnostics(c, *baseURL, opSrv); err != nil {
 		log.Fatalf("OIDC diagnostics: %v", err)
 	}
-	fmt.Println("✓ smoke OK — core (webauthn enroll/login + password/TOTP/recovery + sudo + throttle + destructive revoke) + federation (upstream OIDC login/link/unlink incl. invite_only) + oidc (OIDC OP code+PKCE flow: userinfo/introspect/refresh-rotation+reuse/revoke/logout) + saml (SAML IdP SSO/SLO + signed metadata + require_signed/bad-ACS/replay negatives) + hardening (forced re-auth / PKCE+introspect policy / NameIDPolicy / POST AuthnRequest / signed metadata / IdP-initiated) + consent (Login+Consent UI backend: consent ticket round-trip + federation-providers list) + admin (OIDC client CRUD reveal-once + signing-key generate→activate JWKS grace lifecycle + audit-events viewer + admin credential listing) + Tier-1 (PUT /me round-trip, GET /me/factors, admin sessions, SAML attr_map round-trip) + sudo-multiuse (single elevation covers multiple gated actions until expiry) + avatar (PUT /me/avatar upload, public GET /avatar/{sub} image/webp+ETag, /me.avatarUrl, userinfo.picture claim) + avatar-fed (federated first-login inherit + no-clobber on re-login + UserInfo fallback + dual-source selection/previews + avatar_source_unavailable negative) + delegated-access (admin assigns one active account; cross-app/config denials; app-bound manual + OR rule groups; manual deny/allow precedence; live avatar eligibility; three exposed OIDC group claims; refresh eligibility re-check and family revocation; assignment/policy audit lifecycle) + error-redirect (federation access_denied + SAML malformed request → 302 /error) + pat (Personal Access Token access levels: selected_apps → only its apps at the gateway, API 403 pat_api_not_allowed; all_apps → any app; full → management API as owner, sudo routes 401 sudo_required, browser-only routes 403; sudo → creates PATs without a browser sudo step; bad header → 401 pat_invalid without cookie fallback; no Remote-Scopes header; admin GET /accounts/{id}/tokens lists access + apps; DB access/app rows; pat_id on audit events; revoked PAT → 401) + maintenance (admin enables maintenance via sudo PUT → public /config maintenanceMode+message round-trip; admin stays exempt /me 200; disable restores; non-admin dashboard+gateway blocking unit-tested) + client-ip (admin sudo PUT header strategy + GET round-trip; invalid CIDR rejected 400; reset to direct) + login-appearance (admin sudo POST two sign-in images → public GET /branding/login-images/{id} byte-for-byte verbatim, /config lists them in order; sudo PUT appearance images/carousel/15s round-trips through /config and the admin GET; unknown field → 400; unsplash without key → unsplash_key_required; sudo DELETE image → 404) + steam (Steam OpenID 2.0 login arc: admin create protocol=steam provider; mock Steam OP redirect; callback → /welcome confirm → session; DB account+identity rows) + audit-remediation (new event types: webauthn:use, session:session_start/end, webauthn:sudo_granted, settings:update, PAT register/revoke/fail; ctx-carried IP non-empty on session_start events) + pwd-totp-enroll (password+TOTP enrollment ceremony: plain-invite begin→verify sets password+confirmed-TOTP+10 recovery codes and issues a session, password→TOTP login works, bootstrap rejects password+TOTP as passkey-only) + DB-state assertions passed against",
+	fmt.Println("✓ smoke OK — core (webauthn enroll/login + password/TOTP/recovery + sudo + throttle + destructive revoke) + federation (upstream OIDC login/link/unlink incl. invite_only) + oidc (OIDC OP code+PKCE flow: userinfo/introspect/refresh-rotation+reuse/revoke/logout) + saml (SAML IdP SSO/SLO + signed metadata + require_signed/bad-ACS/replay negatives) + hardening (forced re-auth / PKCE+introspect policy / NameIDPolicy / POST AuthnRequest / signed metadata / IdP-initiated) + consent (Login+Consent UI backend: consent ticket round-trip + federation-providers list) + admin (OIDC client CRUD reveal-once + signing-key generate→activate JWKS grace lifecycle + audit-events viewer + admin credential listing) + Tier-1 (PUT /me round-trip, GET /me/factors, admin sessions, SAML attr_map round-trip) + sudo-multiuse (single elevation covers multiple gated actions until expiry) + avatar (PUT /me/avatar upload, public GET /avatar/{sub} image/webp+ETag, /me.avatarUrl, userinfo.picture claim) + avatar-fed (federated first-login inherit + no-clobber on re-login + UserInfo fallback + dual-source selection/previews + avatar_source_unavailable negative) + delegated-access (admin assigns one active account; cross-app/config denials; app-bound manual + OR rule groups; manual deny/allow precedence; live avatar eligibility; three exposed OIDC group claims; refresh eligibility re-check and family revocation; assignment/policy audit lifecycle) + error-redirect (federation access_denied + SAML malformed request → 302 /error) + pat (Personal Access Token access levels: selected_apps → only its apps at the gateway, API 403 pat_api_not_allowed; all_apps → any app; full → management API as owner, sudo routes 401 sudo_required, browser-only routes 403; sudo → creates PATs without a browser sudo step; bad header → 401 pat_invalid without cookie fallback; no Remote-Scopes header; admin GET /accounts/{id}/tokens lists access + apps; DB access/app rows; pat_id on audit events; revoked PAT → 401) + maintenance (admin enables maintenance via sudo PUT → public /config maintenanceMode+message round-trip; admin stays exempt /me 200; disable restores; non-admin dashboard+gateway blocking unit-tested) + client-ip (admin sudo PUT header strategy + GET round-trip; invalid CIDR rejected 400; reset to direct) + login-appearance (admin sudo POST two sign-in images → public GET /branding/login-images/{id} byte-for-byte verbatim, /config lists them in order; sudo PUT appearance images/carousel/15s + card left + always dark round-trips through /config and the admin GET; unknown field → 400; unsplash without key → unsplash_key_required; sudo DELETE image → 404) + steam (Steam OpenID 2.0 login arc: admin create protocol=steam provider; mock Steam OP redirect; callback → /welcome confirm → session; DB account+identity rows) + audit-remediation (new event types: webauthn:use, session:session_start/end, webauthn:sudo_granted, settings:update, PAT register/revoke/fail; ctx-carried IP non-empty on session_start events) + pwd-totp-enroll (password+TOTP enrollment ceremony: plain-invite begin→verify sets password+confirmed-TOTP+10 recovery codes and issues a session, password→TOTP login works, bootstrap rejects password+TOTP as passkey-only) + DB-state assertions passed against",
 		*baseURL)
 	fmt.Println("  VRChat: fixed link_only operator setup + browser-bound profile proof, sessionless federated registration, recovery that names its account, with passkey replacement/session revocation, authenticated linking, filtering, safe negative paths, and secret non-disclosure ✓")
 }
