@@ -2,10 +2,13 @@ package server
 
 import (
 	"context"
+	"net/http"
 	"testing"
+	"time"
 
 	"prohibitorum/pkg/authn"
 	"prohibitorum/pkg/configx"
+	"prohibitorum/pkg/credential/pat"
 	"prohibitorum/pkg/db"
 	"prohibitorum/pkg/weberr"
 )
@@ -82,8 +85,40 @@ func updateAccountInput(role string) *updateAccountIn {
 	return in
 }
 
+// accountUpdateContext is an admin browser session without a sudo grant.
 func accountUpdateContext() context.Context {
-	return authn.WithSession(context.Background(), &authn.Session{Account: &db.Account{ID: 1, Role: "admin"}})
+	return authn.WithSession(context.Background(), &authn.Session{
+		Account: &db.Account{ID: 1, Role: "admin"},
+		Data:    &authn.SessionData{},
+	})
+}
+
+// accountUpdateSudoContext is an admin browser session inside its sudo window.
+func accountUpdateSudoContext() context.Context {
+	return authn.WithSession(context.Background(), &authn.Session{
+		Account: &db.Account{ID: 1, Role: "admin"},
+		Data:    &authn.SessionData{SudoUntil: time.Now().Add(time.Minute)},
+	})
+}
+
+// accountUpdatePATContext mirrors what registerOp puts in the context for a
+// request authenticated by an access token.
+func accountUpdatePATContext(access pat.Access) context.Context {
+	return authn.WithSession(context.Background(), &authn.Session{
+		Account: &db.Account{ID: 1, Role: "admin"},
+		PAT:     &authn.PATPrincipal{ID: 3, Access: access},
+	})
+}
+
+func assertSudoRequired(t *testing.T, err error) {
+	t.Helper()
+	publicErr := weberr.AsPublic(err)
+	if publicErr == nil || publicErr.Code != "sudo_required" {
+		t.Fatalf("handleUpdateAccount error = %v, want sudo_required", err)
+	}
+	if publicErr.GetStatus() != http.StatusUnauthorized {
+		t.Fatalf("sudo_required status = %d, want 401", publicErr.GetStatus())
+	}
 }
 
 func TestHandleUpdateAccountRejectsRemovedAppManagerRole(t *testing.T) {
@@ -103,7 +138,7 @@ func TestHandleUpdateAccountPreservesAssignmentsAcrossRoleChanges(t *testing.T) 
 	tx := &accountUpdateTestTx{current: db.Account{ID: 7, Role: "admin"}}
 	s := newAccountUpdateTestServer(tx)
 
-	if _, err := s.handleUpdateAccount(accountUpdateContext(), updateAccountInput("user")); err != nil {
+	if _, err := s.handleUpdateAccount(accountUpdateSudoContext(), updateAccountInput("user")); err != nil {
 		t.Fatalf("handleUpdateAccount: %v", err)
 	}
 	wantOrder := []string{"begin", "lock", "count_active_admins", "update", "commit"}
@@ -115,4 +150,84 @@ func TestHandleUpdateAccountPreservesAssignmentsAcrossRoleChanges(t *testing.T) 
 			t.Fatalf("transaction order = %#v, want %#v", tx.order, wantOrder)
 		}
 	}
+}
+
+func TestHandleUpdateAccountProfileEditNeedsNoSudo(t *testing.T) {
+	tx := &accountUpdateTestTx{current: db.Account{ID: 7, Role: "user", DisplayName: "Old Name"}}
+	s := newAccountUpdateTestServer(tx)
+
+	out, err := s.handleUpdateAccount(accountUpdateContext(), updateAccountInput("user"))
+	if err != nil {
+		t.Fatalf("handleUpdateAccount: %v", err)
+	}
+	if len(tx.updateCalls) != 1 || tx.updateCalls[0].DisplayName != "Managed Account" || !tx.committed {
+		t.Fatalf("profile edit not stored: calls=%#v committed=%v", tx.updateCalls, tx.committed)
+	}
+	if out.Body.DisplayName != "Managed Account" {
+		t.Fatalf("response displayName = %q, want Managed Account", out.Body.DisplayName)
+	}
+}
+
+func TestHandleUpdateAccountRoleChangeWithoutSudoChangesNothing(t *testing.T) {
+	tx := &accountUpdateTestTx{current: db.Account{ID: 7, Role: "user", DisplayName: "Old Name"}}
+	s := newAccountUpdateTestServer(tx)
+
+	_, err := s.handleUpdateAccount(accountUpdateContext(), updateAccountInput("admin"))
+	assertSudoRequired(t, err)
+	if len(tx.updateCalls) != 0 || tx.committed || !tx.rolledBack {
+		t.Fatalf("denied role change touched the account: calls=%#v committed=%v rolledBack=%v", tx.updateCalls, tx.committed, tx.rolledBack)
+	}
+	wantOrder := []string{"begin", "lock", "rollback"}
+	if len(tx.order) != len(wantOrder) {
+		t.Fatalf("transaction order = %#v, want %#v", tx.order, wantOrder)
+	}
+	for i := range wantOrder {
+		if tx.order[i] != wantOrder[i] {
+			t.Fatalf("transaction order = %#v, want %#v", tx.order, wantOrder)
+		}
+	}
+}
+
+func TestHandleUpdateAccountRoleChangeWithSudo(t *testing.T) {
+	tx := &accountUpdateTestTx{current: db.Account{ID: 7, Role: "user"}}
+	s := newAccountUpdateTestServer(tx)
+
+	if _, err := s.handleUpdateAccount(accountUpdateSudoContext(), updateAccountInput("admin")); err != nil {
+		t.Fatalf("handleUpdateAccount: %v", err)
+	}
+	if len(tx.updateCalls) != 1 || tx.updateCalls[0].Role != "admin" || !tx.committed {
+		t.Fatalf("role change not stored: calls=%#v committed=%v", tx.updateCalls, tx.committed)
+	}
+}
+
+func TestHandleUpdateAccountRoleChangeByAccessToken(t *testing.T) {
+	t.Run("full", func(t *testing.T) {
+		tx := &accountUpdateTestTx{current: db.Account{ID: 7, Role: "user"}}
+		s := newAccountUpdateTestServer(tx)
+		_, err := s.handleUpdateAccount(accountUpdatePATContext(pat.AccessFull), updateAccountInput("admin"))
+		assertSudoRequired(t, err)
+		if len(tx.updateCalls) != 0 || tx.committed {
+			t.Fatalf("full token changed the role: calls=%#v committed=%v", tx.updateCalls, tx.committed)
+		}
+	})
+	t.Run("sudo", func(t *testing.T) {
+		tx := &accountUpdateTestTx{current: db.Account{ID: 7, Role: "user"}}
+		s := newAccountUpdateTestServer(tx)
+		if _, err := s.handleUpdateAccount(accountUpdatePATContext(pat.AccessSudo), updateAccountInput("admin")); err != nil {
+			t.Fatalf("handleUpdateAccount: %v", err)
+		}
+		if len(tx.updateCalls) != 1 || tx.updateCalls[0].Role != "admin" || !tx.committed {
+			t.Fatalf("sudo token role change not stored: calls=%#v committed=%v", tx.updateCalls, tx.committed)
+		}
+	})
+	t.Run("full profile edit", func(t *testing.T) {
+		tx := &accountUpdateTestTx{current: db.Account{ID: 7, Role: "user"}}
+		s := newAccountUpdateTestServer(tx)
+		if _, err := s.handleUpdateAccount(accountUpdatePATContext(pat.AccessFull), updateAccountInput("user")); err != nil {
+			t.Fatalf("handleUpdateAccount: %v", err)
+		}
+		if len(tx.updateCalls) != 1 || !tx.committed {
+			t.Fatalf("full token profile edit not stored: calls=%#v committed=%v", tx.updateCalls, tx.committed)
+		}
+	})
 }

@@ -2,9 +2,10 @@
 //
 // Admin settings for the sign-in page: its appearance (background source and
 // surface style), the Unsplash access key, the draft wallpaper preview and the
-// uploaded background images. JSON writes go through registerSudoOpHTTP; the
-// image upload uses registerOpHTTP(admin) with an in-handler fresh-sudo gate,
-// like the icon upload, because the sudo wrapper only accepts small JSON bodies.
+// uploaded background images. JSON writes go through registerAdminBodyOpHTTP;
+// the image upload uses plain registerOpHTTP(admin), like the icon upload,
+// because the admin body controls only accept small JSON bodies. None of these
+// need sudo.
 package server
 
 import (
@@ -168,10 +169,6 @@ func (s *Server) handleGetWallpaperPreviewHTTP(w http.ResponseWriter, r *http.Re
 // POST /api/prohibitorum/admin/settings/login-images  (raw image body, up to 5 MiB)
 // The image is validated but stored and served byte-for-byte.
 func (s *Server) handlePostLoginImageHTTP(w http.ResponseWriter, r *http.Request) {
-	sess := authn.SessionFromContext(r.Context())
-	if s.requireFreshSudo(r.Context(), w, sess) {
-		return
-	}
 	raw, err := io.ReadAll(io.LimitReader(r.Body, maxIconRead))
 	if err != nil {
 		writeAuthErr(w, authn.ErrBadRequest())

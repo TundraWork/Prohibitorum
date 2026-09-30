@@ -4,8 +4,8 @@
 //
 //	GET /api/prohibitorum/diagnostics/{requestId}
 //
-// Requires admin + fresh sudo (enforced by registerSudoOpHTTP at route
-// registration), enforces a per-account rate limit, emits an audit event,
+// Requires admin (enforced by registerOpHTTP at route registration),
+// enforces a per-account rate limit, emits an audit event,
 // and performs exact-ID lookup only — no enumeration. Expired or absent
 // records return 404.
 //
@@ -53,8 +53,8 @@ type diagnosticView struct {
 }
 
 // handleAdminDiagnosticLookupHTTP handles exact-ID diagnostic record lookup.
-// The route is registered via registerSudoOpHTTP (admin + fresh sudo gate)
-// and additionally enforces a per-account rate limit before the DB lookup.
+// The route is registered via registerOpHTTP (admin) and additionally
+// enforces a per-account rate limit before the DB lookup.
 //
 // No list/bulk endpoint exists — this is the only diagnostic access path.
 func (s *Server) handleAdminDiagnosticLookupHTTP(w http.ResponseWriter, r *http.Request) {

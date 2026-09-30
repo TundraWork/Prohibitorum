@@ -273,25 +273,15 @@ func sameStringSet(a, b []string) bool {
 	return true
 }
 
-func TestVRChatOperatorRoutesUseSudoAndBodyGate(t *testing.T) {
+func TestVRChatOperatorRoutesUseBodyGate(t *testing.T) {
 	router := chi.NewRouter()
 	s := &Server{}
-	s.registerSudoOpHTTP(router, http.MethodPost, "/api/prohibitorum/identity-providers/{slug}/operator-session/start", contract.AuthRequirement{Kind: contract.AuthAdmin}, s.handleVRChatOperatorStartHTTP)
-	for name, request := range map[string]*http.Request{"no sudo": vrchatAdminRequest(t, http.MethodPost, "/api/prohibitorum/identity-providers/social/operator-session/start", `{"username":"u","password":"p"}`), "oversize": vrchatAdminRequest(t, http.MethodPost, "/api/prohibitorum/identity-providers/social/operator-session/start", `{"username":"`+strings.Repeat("x", 70<<10)+`","password":"p"}`)} {
-		t.Run(name, func(t *testing.T) {
-			request.Header.Set("Content-Type", "application/json")
-			if name == "no sudo" {
-				sess := authn.SessionFromContext(request.Context())
-				sess.Data.SudoUntil = time.Time{}
-			}
-			w := httptest.NewRecorder()
-			router.ServeHTTP(w, request)
-			if name == "no sudo" && w.Code != 401 {
-				t.Fatalf("status=%d", w.Code)
-			}
-			if name == "oversize" && w.Code != http.StatusRequestEntityTooLarge {
-				t.Fatalf("status=%d", w.Code)
-			}
-		})
+	s.registerAdminBodyOpHTTP(router, http.MethodPost, "/api/prohibitorum/identity-providers/{slug}/operator-session/start", contract.AuthRequirement{Kind: contract.AuthAdmin}, s.handleVRChatOperatorStartHTTP)
+	request := vrchatAdminRequest(t, http.MethodPost, "/api/prohibitorum/identity-providers/social/operator-session/start", `{"username":"`+strings.Repeat("x", 70<<10)+`","password":"p"}`)
+	request.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, request)
+	if w.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("status=%d", w.Code)
 	}
 }

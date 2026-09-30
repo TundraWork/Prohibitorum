@@ -4690,10 +4690,9 @@ func main() {
 		}
 
 		step(fmt.Sprintf("delegated %d/%d — admin invitations create distinct manager and member passkey accounts", 1, nDelegated))
-		if err := sudoWebAuthn(c, auth, *baseURL); err != nil {
-			log.Fatalf("delegated: sudo before manager invitation: %v", err)
-		}
-		managerClient, managerAuth, managerMe, err := invitedPasskeyAccount(c, *baseURL, "smoke-manager", "Smoke Manager")
+		// Invitations, app managers, app configuration and groups are ordinary
+		// admin actions: this arc runs them without a sudo step.
+		managerClient, _, managerMe, err := invitedPasskeyAccount(c, *baseURL, "smoke-manager", "Smoke Manager")
 		if err != nil {
 			log.Fatalf("delegated: create manager account: %v", err)
 		}
@@ -4757,9 +4756,6 @@ func main() {
 		if err := managerClient.get(managedOIDCPath, &managedOIDC); err != nil {
 			log.Fatalf("delegated: assigned protocol configuration read: %v", err)
 		}
-		if err := sudoWebAuthn(managerClient, managerAuth, *baseURL); err != nil {
-			log.Fatalf("delegated: manager sudo before configuration update: %v", err)
-		}
 		managedOIDC.DisplayName = "Smoke managed RP updated"
 		if err := managerClient.putJSON(managedOIDCPath, map[string]any{
 			"displayName": managedOIDC.DisplayName, "redirectUris": managedOIDC.RedirectURIs,
@@ -4768,7 +4764,7 @@ func main() {
 		}, &managedOIDC); err != nil {
 			log.Fatalf("delegated: assigned protocol configuration update: %v", err)
 		}
-		log.Printf("  unassigned app → 404; assigned OIDC detail + sudo-gated update succeeded ✓")
+		log.Printf("  unassigned app → 404; assigned OIDC detail + update without sudo succeeded ✓")
 
 		step(fmt.Sprintf("delegated %d/%d — admin prepares manager-owned and existing app groups; manager selects their union", 4, nDelegated))
 		type appGroup struct {
@@ -4776,9 +4772,6 @@ func main() {
 			Kind                string `json:"kind"`
 			Slug                string `json:"slug"`
 			ExposedToDownstream bool   `json:"exposedToDownstream"`
-		}
-		if err := sudoWebAuthn(c, auth, *baseURL); err != nil {
-			log.Fatalf("delegated: admin sudo before global groups: %v", err)
 		}
 		createGroup := func(body map[string]any) appGroup {
 			var group appGroup
@@ -5135,10 +5128,10 @@ func main() {
 	// all. Routes bound to a browser session reject PATs. A bogus or revoked
 	// credential → 401. Admins may list and revoke any account's PATs.
 	//
-	// All sudo-gated mutations below (2 FA-app creates + 4 PAT creates + 1 admin
-	// revoke) ride a SINGLE fresh sudo elevation: SudoTTL is 15m and sudo is
-	// multi-use until expiry, so one /me/sudo/begin stays well within the
-	// 10/min per-session rate limit.
+	// The sudo-gated mutations below (4 PAT creates) ride a SINGLE fresh sudo
+	// elevation: SudoTTL is 15m and sudo is multi-use until expiry, so one
+	// /me/sudo/begin stays well within the 10/min per-session rate limit. The
+	// forward-auth app writes, the icon upload and the admin revoke need no sudo.
 	// =====================================================================
 	{
 		const (
@@ -5181,8 +5174,7 @@ func main() {
 		checkForwardAuthLoginContext(*baseURL, faHost1, "Smoke FA")
 		log.Printf("  forward-auth apps registered: %s (host=%s), %s (host=%s) ✓", faClient, faHost1, faClient2, faHost2)
 		// Regression (PHB-4): upload an icon for faClient, then require the FA PUT response itself to
-		// carry iconUrl (pre-fix it is absent). The icon PUT enforces fresh sudo
-		// in-handler; this block's elevation covers it.
+		// carry iconUrl (pre-fix it is absent).
 		faIconBuf := bytes.Buffer{}
 		if err := png.Encode(&faIconBuf, image.NewRGBA(image.Rect(0, 0, 12, 8))); err != nil {
 			log.Fatalf("pat: encode FA icon PNG: %v", err)
@@ -5299,7 +5291,7 @@ func main() {
 		expectAPI("all_apps on API", "GET", "/api/prohibitorum/me", allApps.Token, nil, http.StatusForbidden, "pat_api_not_allowed")
 		log.Printf("  all_apps PAT id=%d: %s 200, API 403 ✓", allApps.PAT.ID, faHost2)
 
-		step(fmt.Sprintf("pat %d/%d — full PAT: GET /me → 200, sudo route → 401 sudo_required, browser-only route → 403, verify → 200", 4, nPAT))
+		step(fmt.Sprintf("pat %d/%d — full PAT: GET /me → 200, sudo routes → 401 sudo_required, ordinary admin route → no sudo, browser-only route → 403, verify → 200", 4, nPAT))
 		full := createPAT("smoke-full", "full", nil)
 		{
 			status, resp := apiWithPAT("GET", "/api/prohibitorum/me", full.Token, nil)
@@ -5309,9 +5301,14 @@ func main() {
 		}
 		expectAPI("full create token", "POST", "/api/prohibitorum/me/tokens", full.Token,
 			map[string]any{"name": "nope", "access": "all_apps"}, http.StatusUnauthorized, "sudo_required")
+		expectAPI("full revoke token", "POST", "/api/prohibitorum/me/tokens/revoke", full.Token,
+			map[string]any{"id": allApps.PAT.ID}, http.StatusUnauthorized, "sudo_required")
+		// The diagnostic lookup is an ordinary admin read: a full token reaches the
+		// handler, which answers 404 for an unknown request ID.
+		expectAPI("full diagnostic lookup", "GET", "/api/prohibitorum/diagnostics/smoke-no-such-request", full.Token, nil, http.StatusNotFound, "diagnostic_not_found")
 		expectAPI("full sudo methods", "GET", "/api/prohibitorum/me/sudo/methods", full.Token, nil, http.StatusForbidden, "pat_browser_session_required")
 		expectVerify("full app2", faHost2, full.Token, http.StatusOK)
-		log.Printf("  full PAT id=%d: /me 200, POST /me/tokens 401 sudo_required, /me/sudo/methods 403 pat_browser_session_required, verify 200 ✓", full.PAT.ID)
+		log.Printf("  full PAT id=%d: /me 200, POST /me/tokens + /me/tokens/revoke 401 sudo_required, GET /diagnostics/{unknown} 404 diagnostic_not_found, /me/sudo/methods 403 pat_browser_session_required, verify 200 ✓", full.PAT.ID)
 
 		step(fmt.Sprintf("pat %d/%d — sudo PAT creates a further PAT without a browser sudo step", 5, nPAT))
 		sudoPAT := createPAT("smoke-sudo", "sudo", nil)
@@ -5444,10 +5441,7 @@ func main() {
 		const nMaint = 3
 		const maintMsg = "Smoke maintenance window — back shortly"
 
-		step(fmt.Sprintf("maintenance %d/%d — admin enables maintenance (sudo PUT) → /config maintenanceMode=true", 1, nMaint))
-		if err := sudoWebAuthn(c, auth, *baseURL); err != nil {
-			log.Fatalf("maintenance: sudo (enable): %v", err)
-		}
+		step(fmt.Sprintf("maintenance %d/%d — admin enables maintenance (PUT, no sudo) → /config maintenanceMode=true", 1, nMaint))
 		if resp, err := c.putJSONRaw("/api/prohibitorum/admin/settings/maintenance", map[string]any{
 			"maintenanceMode": true, "maintenanceMessage": maintMsg,
 		}); err != nil {
@@ -5478,9 +5472,6 @@ func main() {
 		log.Printf("  admin GET /me 200 during maintenance (not locked out) ✓")
 
 		step(fmt.Sprintf("maintenance %d/%d — admin disables maintenance → /config maintenanceMode=false", 3, nMaint))
-		if err := sudoWebAuthn(c, auth, *baseURL); err != nil {
-			log.Fatalf("maintenance: sudo (disable): %v", err)
-		}
 		if resp, err := c.putJSONRaw("/api/prohibitorum/admin/settings/maintenance", map[string]any{
 			"maintenanceMode": false, "maintenanceMessage": "",
 		}); err != nil {
@@ -5506,19 +5497,15 @@ func main() {
 
 	// =====================================================================
 	//  CLIENT IP / PROXY — admin sets the client-IP resolution policy via the
-	//  sudo-gated PUT, reads it back, and a bad CIDR is rejected. The IP
+	//  admin PUT (no sudo), reads it back, and a bad CIDR is rejected. The IP
 	//  EXTRACTION logic (direct/header/forwarded, peer-validation, spoof
 	//  resistance) is exhaustively unit-tested in pkg/clientip; this block proves
-	//  the live admin config API + persistence + sudo gate through the real stack.
-	//  Sudo window is REUSED from the maintenance block's last sudoWebAuthn call
-	//  (SudoTTL=15m, multi-use). No new begin call here: /me/sudo/begin+complete
-	//  BOTH count against the same 10/min per-session bucket, so each
-	//  sudoWebAuthn consumes 2 units; 5 calls = 10 units = budget exhausted.
+	//  the live admin config API + persistence through the real stack.
 	// =====================================================================
 	{
 		const nCip = 3
 
-		step(fmt.Sprintf("client-ip %d/%d — admin sets header strategy (sudo PUT) → 204, GET echoes it", 1, nCip))
+		step(fmt.Sprintf("client-ip %d/%d — admin sets header strategy (PUT) → 204, GET echoes it", 1, nCip))
 		if resp, err := c.putJSONRaw("/api/prohibitorum/admin/settings/client-ip", map[string]any{
 			"strategy": "header", "header": "CF-Connecting-IP", "trustedProxies": []string{"127.0.0.1/32"},
 		}); err != nil {
@@ -5643,10 +5630,7 @@ func main() {
 			pictures = append(pictures, buf.Bytes())
 		}
 
-		step(fmt.Sprintf("look %d/%d — admin uploads two sign-in images (sudo POST raw PNG) → 201", 1, nLook))
-		if err := sudoWebAuthn(c, auth, *baseURL); err != nil {
-			log.Fatalf("look: sudo: %v", err)
-		}
+		step(fmt.Sprintf("look %d/%d — admin uploads two sign-in images (POST raw PNG, no sudo) → 201", 1, nLook))
 		var uploaded []loginImage
 		for i, pic := range pictures {
 			status, body := rawRequest(http.MethodPost, "/api/prohibitorum/admin/settings/login-images", pic, "image/png")
@@ -5723,7 +5707,7 @@ func main() {
 		}
 		log.Printf("  strict decoding and the Unsplash key requirement hold ✓")
 
-		step(fmt.Sprintf("look %d/%d — admin removes the first image (sudo DELETE) → GET 404", 5, nLook))
+		step(fmt.Sprintf("look %d/%d — admin removes the first image (DELETE) → GET 404", 5, nLook))
 		imagePath := fmt.Sprintf("/api/prohibitorum/admin/settings/login-images/%d", uploaded[0].ID)
 		if status, body := rawRequest(http.MethodDelete, imagePath, nil, ""); status != http.StatusNoContent {
 			log.Fatalf("look: DELETE image: want 204, got %d — %s", status, firstN(string(body), 300))
@@ -5754,7 +5738,7 @@ func main() {
 	// STEAM FEDERATION ARC — admin creates a protocol=steam upstream IdP; a
 	// fresh browser-client drives the full login arc against the cmd/steammock
 	// process started by the mise ci:smoke task. Asserts:
-	//   1. POST /identity-providers (sudo, steam) → 201 + protocol=steam echoed
+	//   1. POST /identity-providers (steam) → 201 + protocol=steam echoed
 	//   2. GET  /identity-providers (list) → slug present
 	//   3. login → mock Steam redirect → callback → 302 /welcome (first-time)
 	//   4. confirm GET + confirm POST → session issued + /me username=steam_<id>
@@ -5769,11 +5753,7 @@ func main() {
 		const steamUsername = "steam_" + steamSteamID
 		const steamDisplayName = "SmokeGaben"
 
-		step(fmt.Sprintf("steam %d/%d — admin: POST /identity-providers (protocol=steam, sudo) → 201", 1, nSteam))
-		// Sudo window reused from the bg arc's last sudoWebAuthn (bg 4/4, SudoTTL=15m,
-		// multi-use). No new begin+complete call here: each sudoWebAuthn consumes 2
-		// units of the 10/min per-session rate-limit bucket; issuing another would push
-		// the total over the limit for this session.
+		step(fmt.Sprintf("steam %d/%d — admin: POST /identity-providers (protocol=steam) → 201", 1, nSteam))
 		{
 			var created struct {
 				Slug     string  `json:"slug"`
@@ -5807,7 +5787,6 @@ func main() {
 			}
 
 			// PHB-14: mutation responses must preserve the same icon as GET.
-			// Reuse this arc's existing sudo window for upload/save/disable/enable.
 			providerPath := "/api/prohibitorum/identity-providers/" + steamSlug
 			iconBuf := bytes.Buffer{}
 			if err := png.Encode(&iconBuf, image.NewRGBA(image.Rect(0, 0, 12, 8))); err != nil {
@@ -6030,7 +6009,7 @@ func main() {
 	if err := smokeOIDCDiagnostics(c, *baseURL, opSrv); err != nil {
 		log.Fatalf("OIDC diagnostics: %v", err)
 	}
-	fmt.Println("✓ smoke OK — core (webauthn enroll/login + password/TOTP/recovery + sudo + throttle + destructive revoke) + federation (upstream OIDC login/link/unlink incl. invite_only) + oidc (OIDC OP code+PKCE flow: userinfo/introspect/refresh-rotation+reuse/revoke/logout) + saml (SAML IdP SSO/SLO + signed metadata + require_signed/bad-ACS/replay negatives) + hardening (forced re-auth / PKCE+introspect policy / NameIDPolicy / POST AuthnRequest / signed metadata / IdP-initiated) + consent (Login+Consent UI backend: consent ticket round-trip + federation-providers list) + admin (OIDC client CRUD reveal-once + signing-key generate→activate JWKS grace lifecycle + audit-events viewer + admin credential listing) + Tier-1 (PUT /me round-trip, GET /me/factors, admin sessions, SAML attr_map round-trip) + sudo-multiuse (single elevation covers multiple gated actions until expiry) + avatar (PUT /me/avatar upload, public GET /avatar/{sub} image/webp+ETag, /me.avatarUrl, userinfo.picture claim) + avatar-fed (federated first-login inherit + no-clobber on re-login + UserInfo fallback + dual-source selection/previews + avatar_source_unavailable negative) + delegated-access (admin assigns one active account; cross-app/config denials; app-bound manual + OR rule groups; manual deny/allow precedence; live avatar eligibility; three exposed OIDC group claims; refresh eligibility re-check and family revocation; assignment/policy audit lifecycle) + error-redirect (federation access_denied + SAML malformed request → 302 /error) + pat (Personal Access Token access levels: selected_apps → only its apps at the gateway, API 403 pat_api_not_allowed; all_apps → any app; full → management API as owner, sudo routes 401 sudo_required, browser-only routes 403; sudo → creates PATs without a browser sudo step; bad header → 401 pat_invalid without cookie fallback; no Remote-Scopes header; admin GET /accounts/{id}/tokens lists access + apps; DB access/app rows; pat_id on audit events; revoked PAT → 401) + maintenance (admin enables maintenance via sudo PUT → public /config maintenanceMode+message round-trip; admin stays exempt /me 200; disable restores; non-admin dashboard+gateway blocking unit-tested) + client-ip (admin sudo PUT header strategy + GET round-trip; invalid CIDR rejected 400; reset to direct) + login-appearance (admin sudo POST two sign-in images → public GET /branding/login-images/{id} byte-for-byte verbatim, /config lists them in order; sudo PUT appearance images/carousel/15s + card left + always dark round-trips through /config and the admin GET; unknown field → 400; unsplash without key → unsplash_key_required; sudo DELETE image → 404) + steam (Steam OpenID 2.0 login arc: admin create protocol=steam provider; mock Steam OP redirect; callback → /welcome confirm → session; DB account+identity rows) + audit-remediation (new event types: webauthn:use, session:session_start/end, webauthn:sudo_granted, settings:update, PAT register/revoke/fail; ctx-carried IP non-empty on session_start events) + pwd-totp-enroll (password+TOTP enrollment ceremony: plain-invite begin→verify sets password+confirmed-TOTP+10 recovery codes and issues a session, password→TOTP login works, bootstrap rejects password+TOTP as passkey-only) + DB-state assertions passed against",
+	fmt.Println("✓ smoke OK — core (webauthn enroll/login + password/TOTP/recovery + sudo + throttle + destructive revoke) + federation (upstream OIDC login/link/unlink incl. invite_only) + oidc (OIDC OP code+PKCE flow: userinfo/introspect/refresh-rotation+reuse/revoke/logout) + saml (SAML IdP SSO/SLO + signed metadata + require_signed/bad-ACS/replay negatives) + hardening (forced re-auth / PKCE+introspect policy / NameIDPolicy / POST AuthnRequest / signed metadata / IdP-initiated) + consent (Login+Consent UI backend: consent ticket round-trip + federation-providers list) + admin (OIDC client CRUD reveal-once + signing-key generate→activate JWKS grace lifecycle + audit-events viewer + admin credential listing) + Tier-1 (PUT /me round-trip, GET /me/factors, admin sessions, SAML attr_map round-trip) + sudo-multiuse (single elevation covers multiple gated actions until expiry) + avatar (PUT /me/avatar upload, public GET /avatar/{sub} image/webp+ETag, /me.avatarUrl, userinfo.picture claim) + avatar-fed (federated first-login inherit + no-clobber on re-login + UserInfo fallback + dual-source selection/previews + avatar_source_unavailable negative) + delegated-access (admin assigns one active account; cross-app/config denials; app-bound manual + OR rule groups; manual deny/allow precedence; live avatar eligibility; three exposed OIDC group claims; refresh eligibility re-check and family revocation; assignment/policy audit lifecycle) + error-redirect (federation access_denied + SAML malformed request → 302 /error) + pat (Personal Access Token access levels: selected_apps → only its apps at the gateway, API 403 pat_api_not_allowed; all_apps → any app; full → management API as owner incl. ordinary admin routes (diagnostic lookup 404), sudo routes (create/revoke own PAT) 401 sudo_required, browser-only routes 403; sudo → creates PATs without a browser sudo step; bad header → 401 pat_invalid without cookie fallback; no Remote-Scopes header; admin GET /accounts/{id}/tokens lists access + apps; DB access/app rows; pat_id on audit events; revoked PAT → 401) + maintenance (admin enables maintenance via PUT without sudo → public /config maintenanceMode+message round-trip; admin stays exempt /me 200; disable restores; non-admin dashboard+gateway blocking unit-tested) + client-ip (admin PUT header strategy + GET round-trip; invalid CIDR rejected 400; reset to direct) + login-appearance (admin POSTs two sign-in images without sudo → public GET /branding/login-images/{id} byte-for-byte verbatim, /config lists them in order; PUT appearance images/carousel/15s + card left + always dark round-trips through /config and the admin GET; unknown field → 400; unsplash without key → unsplash_key_required; DELETE image → 404) + steam (Steam OpenID 2.0 login arc: admin create protocol=steam provider; mock Steam OP redirect; callback → /welcome confirm → session; DB account+identity rows) + audit-remediation (new event types: webauthn:use, session:session_start/end, webauthn:sudo_granted, settings:update, PAT register/revoke/fail; ctx-carried IP non-empty on session_start events) + pwd-totp-enroll (password+TOTP enrollment ceremony: plain-invite begin→verify sets password+confirmed-TOTP+10 recovery codes and issues a session, password→TOTP login works, bootstrap rejects password+TOTP as passkey-only) + DB-state assertions passed against",
 		*baseURL)
 	fmt.Println("  VRChat: fixed link_only operator setup + browser-bound profile proof, sessionless federated registration, recovery that names its account, with passkey replacement/session revocation, authenticated linking, filtering, safe negative paths, and secret non-disclosure ✓")
 }

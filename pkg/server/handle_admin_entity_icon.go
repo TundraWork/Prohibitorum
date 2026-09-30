@@ -2,9 +2,9 @@
 //
 // Admin per-entity icon upload/remove for OIDC apps, SAML apps, and upstream
 // IdPs. Mirrors the instance-icon pattern (handle_admin_settings.go): the raw
-// image PUT is registered via registerOpHTTP(admin) with an in-handler
-// requireFreshSudo (the sudo wrapper rejects non-JSON content-types + caps at
-// 64 KiB); the DELETE is registered via registerSudoOpHTTP (admin + sudo).
+// image PUT is registered via plain registerOpHTTP (the admin body controls
+// reject non-JSON content-types + cap at 64 KiB); the DELETE is registered via
+// registerAdminBodyOpHTTP. Neither needs sudo.
 // Icons are processed by branding.ProcessIcon (center-crop → PNG 256²) and
 // stored in entity_icon keyed by (owner_kind, owner_id).
 package server
@@ -30,14 +30,9 @@ import (
 // payloads before handing off to ProcessIcon (which re-checks internally).
 const maxEntityIconRead = 5<<20 + 1
 
-// putEntityIcon is the shared upload helper: validates fresh sudo, reads the
-// raw body, processes it through branding.ProcessIcon, and persists the result
+// putEntityIcon is the shared upload helper: reads the raw body, processes it through branding.ProcessIcon, and persists the result
 // as (owner_kind, owner_id) in entity_icon.
 func (s *Server) putEntityIcon(w http.ResponseWriter, r *http.Request, kind, id string, factor audit.Factor) {
-	sess := authn.SessionFromContext(r.Context())
-	if s.requireFreshSudo(r.Context(), w, sess) {
-		return
-	}
 	raw, err := io.ReadAll(io.LimitReader(r.Body, maxEntityIconRead))
 	if err != nil {
 		writeAuthErr(w, authn.ErrBadRequest())
@@ -137,7 +132,7 @@ func (s *Server) handleDeleteForwardAuthAppIconHTTP(w http.ResponseWriter, r *ht
 // ----- SAML application icon -----------------------------------------------
 
 // PUT /api/prohibitorum/saml-applications/{id}/icon
-// Registered via plain registerOpHTTP(admin) — fresh-sudo enforced in-handler.
+// Registered via plain registerOpHTTP (session; manager check in-handler).
 func (s *Server) handlePutSAMLAppIconHTTP(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
@@ -153,7 +148,7 @@ func (s *Server) handlePutSAMLAppIconHTTP(w http.ResponseWriter, r *http.Request
 }
 
 // DELETE /api/prohibitorum/saml-applications/{id}/icon
-// Registered via registerSudoOpHTTP — admin + fresh sudo via wrapper.
+// Registered via registerAdminBodyOpHTTP (session; manager check in-handler).
 func (s *Server) handleDeleteSAMLAppIconHTTP(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
@@ -171,7 +166,7 @@ func (s *Server) handleDeleteSAMLAppIconHTTP(w http.ResponseWriter, r *http.Requ
 // ----- Upstream IdP icon ---------------------------------------------------
 
 // PUT /api/prohibitorum/identity-providers/{slug}/icon
-// Registered via plain registerOpHTTP(admin) — fresh-sudo enforced in-handler.
+// Registered via plain registerOpHTTP(admin).
 func (s *Server) handlePutIdentityProviderIconHTTP(w http.ResponseWriter, r *http.Request) {
 	slug := chi.URLParam(r, "slug")
 	if _, err := s.queries.GetUpstreamIDPBySlugAny(r.Context(), slug); err != nil {
@@ -186,7 +181,7 @@ func (s *Server) handlePutIdentityProviderIconHTTP(w http.ResponseWriter, r *htt
 }
 
 // DELETE /api/prohibitorum/identity-providers/{slug}/icon
-// Registered via registerSudoOpHTTP — admin + fresh sudo via wrapper.
+// Registered via registerAdminBodyOpHTTP(admin).
 func (s *Server) handleDeleteIdentityProviderIconHTTP(w http.ResponseWriter, r *http.Request) {
 	s.deleteEntityIcon(w, r, "upstream_idp", chi.URLParam(r, "slug"), audit.FactorUpstreamIDP)
 }

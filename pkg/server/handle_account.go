@@ -399,6 +399,12 @@ func (s *Server) handleUpdateAccount(ctx context.Context, in *updateAccountIn) (
 		return nil, fmt.Errorf("handleUpdateAccount: load: %w", err)
 	}
 
+	// Changing the role needs fresh sudo; other profile edits do not. Checked
+	// before anything else reads or writes, so a denied request changes nothing.
+	if current.Role != in.Body.Role && !s.hasFreshSudo(authn.SessionFromContext(ctx)) {
+		return nil, authErrToHuma(authn.ErrSudoRequired())
+	}
+
 	// If this account currently contributes to the active-admin count and the
 	// update would remove that contribution, enforce the last-admin invariant.
 	demoting := current.Role == "admin" && in.Body.Role != "admin"
@@ -497,7 +503,7 @@ func (s *Server) handleUpdateAccount(ctx context.Context, in *updateAccountIn) (
 	return &accountOut{Body: accountViewFromAccount(&updated, nil, s.config.PublicOrigins[0])}, nil
 }
 
-// ----- POST /accounts/set-disabled (raw, sudo-gated) -------------------------
+// ----- POST /accounts/set-disabled (raw, admin) ------------------------------
 
 type setAccountDisabledBody struct {
 	ID       int32 `json:"id"`
@@ -715,8 +721,8 @@ func (s *Server) handleDeleteAccountCredential(ctx context.Context, in *deleteAc
 }
 
 // handleDeleteAccountCredentialHTTP is the raw http.HandlerFunc wrapper used by
-// registerSudoOpHTTP. It mirrors handleDeleteAccountCredential but operates on
-// the raw net/http layer (sudo gating is performed by the wrapper, not here).
+// registerAdminBodyOpHTTP. It mirrors handleDeleteAccountCredential but operates
+// on the raw net/http layer.
 func (s *Server) handleDeleteAccountCredentialHTTP(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		AccountID    int32 `json:"accountId"`
@@ -1153,7 +1159,7 @@ func sessionRecordToItem(r sessstore.SessionRecord) contract.SessionListItem {
 	}
 }
 
-// ----- POST /accounts/{id}/sessions/revoke (raw sudo) ------------------------
+// ----- POST /accounts/{id}/sessions/revoke (raw, admin) ----------------------
 
 func (s *Server) handleRevokeAccountSessionHTTP(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")

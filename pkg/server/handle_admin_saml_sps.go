@@ -6,16 +6,16 @@
 //   POST /saml-applications              — create SP + ACS + keys in one tx (admin, no sudo)
 //   PUT  /saml-applications/{id}         — update mutable SP flags/fields (admin, no sudo)
 //   POST /saml-applications/{id}/reingest-metadata — replace ACS + keys from fresh metadata (admin, no sudo)
-//   POST /saml-applications/delete       — hard-delete SP + children in one tx (admin, no sudo)
+//   POST /saml-applications/delete       — hard-delete SP + children in one tx (admin or manager + sudo)
 //
 // Raw certificate PEM is NEVER returned — callers get SAMLKeyView{Use, NotAfter}
 // summaries only. SPs have only public certificates (signing certs from metadata)
 // so there is no private-key material to protect, but we keep the boundary clean.
 //
-// Mutations are registered via s.registerAdminBodyOpHTTP — content-type check
-// and body-size limit are enforced by the wrapper (no sudo gate; SAML CRUD is
-// reversible and lower-impact per api.md). Handlers must NOT call
-// requireFreshSudo themselves.
+// Delete is registered via s.registerSudoOpHTTP, like the OIDC and forward-auth
+// deletes; the other mutations via s.registerAdminBodyOpHTTP (no sudo). Either
+// way the content-type check and body-size limit are enforced by the wrapper.
+// Handlers must NOT call requireFreshSudo themselves.
 //
 // Create and reingest use saml.BuildSPParams (the same ingest path as the CLI)
 // and execute their inserts inside a single pgx transaction.
@@ -229,7 +229,7 @@ func (s *Server) handleGetSAMLApplication(ctx context.Context, in *getSAMLApplic
 	return &getSAMLApplicationOut{Body: view}, nil
 }
 
-// ----- POST /saml-applications (raw, sudo-gated) --------------------------------
+// ----- POST /saml-applications (raw) --------------------------------------------
 
 type createSAMLApplicationBody struct {
 	AccessRestricted bool `json:"accessRestricted"`
@@ -373,7 +373,7 @@ func (s *Server) handleCreateSAMLApplicationHTTP(w http.ResponseWriter, r *http.
 	_ = json.NewEncoder(w).Encode(samlApplicationView(sp, spACS, spKeys))
 }
 
-// ----- PUT /saml-applications/{id} (raw, sudo-gated) ----------------------------
+// ----- PUT /saml-applications/{id} (raw) ----------------------------------------
 
 type updateSAMLApplicationBody struct {
 	DisplayName               string          `json:"displayName"`
@@ -464,7 +464,7 @@ func (s *Server) handleUpdateSAMLApplicationHTTP(w http.ResponseWriter, r *http.
 	writeJSON(w, view)
 }
 
-// ----- POST /saml-applications/{id}/reingest-metadata (raw, sudo-gated) ---------
+// ----- POST /saml-applications/{id}/reingest-metadata (raw) ---------------------
 
 type reingestSAMLApplicationBody struct {
 	MetadataXML string `json:"metadataXml"`
@@ -652,7 +652,7 @@ func (s *Server) handleDeleteSAMLApplicationHTTP(w http.ResponseWriter, r *http.
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// ----- POST /saml-applications/set-disabled (raw, sudo-gated) -------------------
+// ----- POST /saml-applications/set-disabled (raw) -------------------------------
 
 type setSAMLApplicationDisabledBody struct {
 	ID       int64 `json:"id"`

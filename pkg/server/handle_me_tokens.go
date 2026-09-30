@@ -266,7 +266,7 @@ func (s *Server) handleListMyForwardAuthApps(ctx context.Context, _ *struct{}) (
 	return &listMyFAAppsOut{Body: out}, nil
 }
 
-// ----- POST /me/tokens/revoke --------------------------------------------
+// ----- POST /me/tokens/revoke (sudo) -------------------------------------
 
 type revokeMyTokenIn struct {
 	Body struct {

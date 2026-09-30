@@ -513,7 +513,7 @@ func (s *Server) handleRenameMyCredential(ctx context.Context, in *renameMyCrede
 	return &struct{}{}, nil
 }
 
-// ----- POST /me/credentials/delete ---------------------------------------
+// ----- POST /me/credentials/delete (sudo) --------------------------------
 
 type deleteMyCredentialIn struct {
 	Body struct {

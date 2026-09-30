@@ -2,7 +2,7 @@
 //
 // Admin read/write of the client-IP resolution policy (how the effective remote/user
 // IP is extracted behind a CDN/reverse proxy). GET is a plain admin read; PUT goes
-// through registerSudoOpHTTP (admin role + fresh sudo enforced by the wrapper).
+// through registerAdminBodyOpHTTP (admin role + JSON body controls, no sudo).
 package server
 
 import (
@@ -29,7 +29,7 @@ func (s *Server) handleGetClientIPHTTP(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// PUT /api/prohibitorum/admin/settings/client-ip — registerSudoOpHTTP (admin + sudo).
+// PUT /api/prohibitorum/admin/settings/client-ip — registerAdminBodyOpHTTP (admin).
 func (s *Server) handlePutClientIPHTTP(w http.ResponseWriter, r *http.Request) {
 	var body clientIPBody
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {

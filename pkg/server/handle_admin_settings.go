@@ -1,9 +1,9 @@
 // Package server — handle_admin_settings.go
 //
 // Admin instance-branding overrides (name + icon). Name PUT + icon DELETE go
-// through registerSudoOpHTTP (JSON / no body). The icon UPLOAD uses
-// registerOpHTTP(admin) + an in-handler fresh-sudo gate because the sudo
-// wrapper rejects non-JSON content-types and caps bodies at 64 KiB.
+// through registerAdminBodyOpHTTP (JSON / no body). The icon UPLOAD uses plain
+// registerOpHTTP(admin) because the admin body controls reject non-JSON
+// content-types and cap bodies at 64 KiB. None of these need sudo.
 package server
 
 import (
@@ -22,7 +22,7 @@ import (
 const maxIconRead = 5<<20 + 1
 
 // PUT /api/prohibitorum/admin/settings  {"instanceName":"..."}
-// Registered via registerSudoOpHTTP — admin role + fresh sudo enforced by wrapper.
+// Registered via registerAdminBodyOpHTTP — admin role enforced by the route.
 func (s *Server) handlePutInstanceNameHTTP(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		InstanceName string `json:"instanceName"`
@@ -44,13 +44,9 @@ func (s *Server) handlePutInstanceNameHTTP(w http.ResponseWriter, r *http.Reques
 }
 
 // PUT /api/prohibitorum/admin/settings/icon  (raw image body, up to 5 MiB)
-// Registered via plain registerOpHTTP(admin) — fresh-sudo enforced in-handler
-// because the sudo wrapper rejects non-JSON content-types and caps bodies.
+// Registered via plain registerOpHTTP(admin) because the admin body controls
+// reject non-JSON content-types and cap bodies.
 func (s *Server) handlePutInstanceIconHTTP(w http.ResponseWriter, r *http.Request) {
-	sess := authn.SessionFromContext(r.Context())
-	if s.requireFreshSudo(r.Context(), w, sess) {
-		return
-	}
 	raw, err := io.ReadAll(io.LimitReader(r.Body, maxIconRead))
 	if err != nil {
 		writeAuthErr(w, authn.ErrBadRequest())
@@ -73,9 +69,8 @@ func (s *Server) handlePutInstanceIconHTTP(w http.ResponseWriter, r *http.Reques
 //	{"maintenanceMode": true, "maintenanceMessage": "..."}
 //
 // Toggles maintenance mode, which denies all non-admin access (login, dashboard,
-// OIDC/SAML SSO, forward-auth gateway). Registered via registerSudoOpHTTP — admin
-// role + fresh sudo enforced by the wrapper, so an admin can't be locked out and
-// the toggle itself is a re-authenticated action.
+// OIDC/SAML SSO, forward-auth gateway). Registered via registerAdminBodyOpHTTP —
+// admin role enforced by the route, so an admin can't be locked out.
 func (s *Server) handlePutMaintenanceHTTP(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		MaintenanceMode    bool   `json:"maintenanceMode"`
@@ -102,7 +97,7 @@ func (s *Server) handlePutMaintenanceHTTP(w http.ResponseWriter, r *http.Request
 }
 
 // DELETE /api/prohibitorum/admin/settings/icon
-// Registered via registerSudoOpHTTP — admin role + fresh sudo enforced by wrapper.
+// Registered via registerAdminBodyOpHTTP — admin role enforced by the route.
 func (s *Server) handleDeleteInstanceIconHTTP(w http.ResponseWriter, r *http.Request) {
 	if err := s.branding.ClearIcon(r.Context()); err != nil {
 		writeAuthErr(w, err)

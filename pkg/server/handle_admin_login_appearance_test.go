@@ -386,14 +386,14 @@ func TestLoginImages_UploadServeDelete(t *testing.T) {
 	wantCode(t, h.anonymous("GET", "/branding/login-images/x", nil), http.StatusNotFound, "")
 }
 
-func TestLoginImages_UploadNeedsFreshSudo(t *testing.T) {
+func TestLoginImages_UploadNeedsNoSudo(t *testing.T) {
 	h := newLoginAppearanceHarness(t)
 	rr := httptest.NewRecorder()
 	h.router.ServeHTTP(rr, reqWithSession("POST", "/api/prohibitorum/admin/settings/login-images",
 		string(pngOfSize(t, 8)), "image/png", adminSession(time.Time{})))
-	wantCode(t, rr, http.StatusUnauthorized, "sudo_required")
-	if len(h.store.images) != 0 {
-		t.Fatal("upload without sudo was stored")
+	wantCode(t, rr, http.StatusCreated, "")
+	if len(h.store.images) != 1 {
+		t.Fatalf("upload without sudo stored %d images, want 1", len(h.store.images))
 	}
 }
 

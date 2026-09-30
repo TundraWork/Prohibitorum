@@ -4,7 +4,7 @@
 //
 //	GET /api/prohibitorum/diagnostics/{requestId}
 //
-// The route requires admin + fresh sudo, enforces a per-account rate limit,
+// The route requires admin, enforces a per-account rate limit,
 // emits an audit event, and performs exact-ID lookup only — no enumeration.
 // Expired or absent records return 404.
 package server
@@ -23,7 +23,6 @@ import (
 	"prohibitorum/pkg/audit"
 	"prohibitorum/pkg/authn"
 	"prohibitorum/pkg/configx"
-	"prohibitorum/pkg/contract"
 	"prohibitorum/pkg/db"
 	"prohibitorum/pkg/diagnostic"
 	"prohibitorum/pkg/weberr"
@@ -124,27 +123,26 @@ func TestDiagnosticLookup_NoSession_Returns401(t *testing.T) {
 	}
 }
 
-func TestDiagnosticLookup_NoFreshSudo_Returns401(t *testing.T) {
-	// Use the real router so registerSudoOpHTTP's withFreshSudo gate fires.
-	router := chi.NewMux()
-	s := &Server{
-		config:      &configx.Config{},
-		rateLimiter: authn.NewRateLimiter(),
-		clientIP:    newDirectResolver(),
-		diagStore:   newFakeDiagStore(),
-	}
-	s.registerSudoOpHTTP(router, "GET", "/api/prohibitorum/diagnostics/{requestId}",
-		contract.AuthRequirement{Kind: contract.AuthAdmin}, s.handleAdminDiagnosticLookupHTTP)
+// TestDiagnosticLookup_NoSudoNeeded serves the lookup through the real
+// router with an admin session that has no sudo grant: the handler runs and
+// answers 404 for an unknown ID instead of asking for sudo.
+func TestDiagnosticLookup_NoSudoNeeded(t *testing.T) {
+	router, s := realAdminOnlyRouter(t)
+	s.config = &configx.Config{}
+	s.rateLimiter = authn.NewRateLimiter()
+	s.clientIP = newDirectResolver()
+	s.Audit = &captureAuditWriter{}
+	s.diagStore = newFakeDiagStore()
 
-	sess := adminSession(time.Time{}) // zero SudoUntil = no fresh sudo
-	req := reqWithSession(http.MethodGet, "/api/prohibitorum/diagnostics/rid", "", "", sess)
+	sess := &authn.Session{Account: &db.Account{ID: 1, Role: "admin"}, Token: "tok", Data: &authn.SessionData{}}
+	req := reqWithSession(http.MethodGet, "/api/prohibitorum/diagnostics/rid-missing", "", "", sess)
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
-	if rec.Code != http.StatusUnauthorized {
-		t.Fatalf("status = %d, want 401 (sudo_required)", rec.Code)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404; body: %s", rec.Code, rec.Body.String())
 	}
-	if !strings.Contains(rec.Body.String(), "sudo_required") {
-		t.Fatalf("body = %q, want sudo_required", rec.Body.String())
+	if !strings.Contains(rec.Body.String(), "diagnostic_not_found") {
+		t.Fatalf("body = %q, want diagnostic_not_found", rec.Body.String())
 	}
 }
 
@@ -290,15 +288,20 @@ func TestDiagnosticLookup_ResponseContainsNoRawErrorOrSecret(t *testing.T) {
 // TestDiagnosticLookup_NoBulkRouteRegistered verifies that only the exact-ID
 // GET route exists — no list/bulk/enumeration endpoint is registered.
 func TestDiagnosticLookup_NoBulkRouteRegistered(t *testing.T) {
-	router, _ := realAdminOnlyRouter(t)
-	// The exact-ID route must be registered.
-	req := reqWithSession(http.MethodGet, "/api/prohibitorum/diagnostics/rid", "", "", adminSession(time.Time{}))
+	router, s := realAdminOnlyRouter(t)
+	s.config = &configx.Config{}
+	s.rateLimiter = authn.NewRateLimiter()
+	s.clientIP = newDirectResolver()
+	s.Audit = &captureAuditWriter{}
+	store := newFakeDiagStore()
+	store.addRow("rid", "invalid_grant")
+	s.diagStore = store
+	// The exact-ID route must be registered: a known ID answers 200.
+	req := reqWithSession(http.MethodGet, "/api/prohibitorum/diagnostics/rid", "", "", adminSudoSession())
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
-	// Should be 401 (sudo_required) — not 404 — proving the route is registered
-	// and the sudo gate fires. A 404 means the route was never registered.
-	if rec.Code == http.StatusNotFound {
-		t.Fatalf("exact-ID diagnostic route not registered (got 404)")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("exact-ID diagnostic route status = %d, want 200", rec.Code)
 	}
 
 	// A bulk/list route must NOT exist.

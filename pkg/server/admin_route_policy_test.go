@@ -1,21 +1,24 @@
 package server
 
 // TestAdminMutationRoutesRequireSudo is a cross-cutting security regression
-// test. It asserts that EVERY admin mutation route — whether registered via the
-// raw-HTTP registerSudoOpHTTP or the typed-Huma registerSudoOp — returns HTTP
+// test. It asserts that EVERY sudo-gated mutation route — whether registered via
+// the raw-HTTP registerSudoOpHTTP or the typed-Huma registerSudoOp — returns HTTP
 // 401 with body containing "sudo_required" when served with an admin session
 // that carries no fresh sudo grant, confirming the sudo gate fires BEFORE any
 // handler logic. Both styles route through the same hasFreshSudo chokepoint.
 //
+// Sudo covers writes to this site's credentials and keys and irreversible
+// operations with serious impact; every other admin write is an ordinary action.
+//
 // GUARD: every route registered via s.registerSudoOpHTTP OR registerSudoOp MUST
-// appear in sudoGatedRoutes below. Adding a 🔐 admin mutation without adding it
+// appear in sudoGatedRoutes below. Adding a 🔐 mutation without adding it
 // here is a security bug — the test will not catch an un-gated route it doesn't
 // know about.
 //
 // TestTrimmedAdminRoutesAreAdminOnlyNotSudo complements the above by asserting
-// that a representative sample of routes that were REMOVED from the sudo tier
-// (now admin-only 🔓) do NOT return sudo_required — confirming the gate was
-// genuinely removed and not just accidentally absent from sudoGatedRoutes.
+// that every admin write outside the sudo tier (🔓) does NOT return
+// sudo_required — confirming the gate is genuinely absent and not just missing
+// from sudoGatedRoutes.
 
 import (
 	"net/http"
@@ -31,14 +34,17 @@ import (
 	sessstore "prohibitorum/pkg/session"
 )
 
-// sudoRoute is one entry in the table of sudo-gated admin mutations.
+// sudoRoute is one entry in a table of mutation routes.
 type sudoRoute struct {
 	method string
 	path   string
 	body   string
+	// noBodyControls marks routes without the shared JSON body controls: typed
+	// Huma operations, raw image uploads and GETs.
+	noBodyControls bool
 }
 
-// sudoGatedRoutes is the canonical list of every 🔐 admin mutation route.
+// sudoGatedRoutes is the canonical list of every 🔐 mutation route.
 // Maintain this list whenever registerSudoOpHTTP or registerSudoOp gains a new
 // entry.
 //
@@ -47,85 +53,94 @@ type sudoRoute struct {
 // missing entry it doesn't know about. Cross-check against server.go
 // registerOperations() when adding routes.
 var sudoGatedRoutes = []sudoRoute{
-	{method: "POST", path: "/api/prohibitorum/groups", body: `{}`},
-	{method: "PUT", path: "/api/prohibitorum/groups/1", body: `{}`},
-	{method: "POST", path: "/api/prohibitorum/groups/1/delete", body: `{}`},
-	{method: "POST", path: "/api/prohibitorum/groups/1/decisions", body: `{}`},
-	{method: "POST", path: "/api/prohibitorum/groups/1/decisions/clear", body: `{}`},
+	// The account's own credentials — typed Huma ops via registerSudoOp.
+	{method: "POST", path: "/api/prohibitorum/me/credentials/delete", body: `{"id":1}`},
+	{method: "POST", path: "/api/prohibitorum/me/tokens", body: `{"name":"x","access":"full"}`},
+	{method: "POST", path: "/api/prohibitorum/me/tokens/revoke", body: `{"id":1}`},
+
 	// Signing-key lifecycle
 	{method: "POST", path: "/api/prohibitorum/signing-keys/generate", body: `{}`},
 	{method: "POST", path: "/api/prohibitorum/signing-keys/abc/activate", body: `{}`},
 	{method: "POST", path: "/api/prohibitorum/signing-keys/abc/retire", body: `{}`},
 
-	// OIDC application management (create/update/rotate-secret/delete — NOT set-disabled)
-	{method: "POST", path: "/api/prohibitorum/oidc-applications", body: `{"clientId":"x"}`},
-	{method: "PUT", path: "/api/prohibitorum/oidc-applications/x", body: `{}`},
+	// Application secrets and deletion
 	{method: "POST", path: "/api/prohibitorum/oidc-applications/rotate-secret", body: `{"clientId":"x"}`},
 	{method: "POST", path: "/api/prohibitorum/oidc-applications/delete", body: `{"clientId":"x"}`},
+	{method: "POST", path: "/api/prohibitorum/forward-auth-apps/delete", body: `{}`},
+	{method: "POST", path: "/api/prohibitorum/saml-applications/delete", body: `{"id":1}`},
+
+	// Identity provider deletion
+	{method: "POST", path: "/api/prohibitorum/identity-providers/delete", body: `{"slug":"x"}`},
+
+	// Account deletion and enrollment reissue — typed Huma ops via
+	// registerSudoOp. A role change through PUT /accounts/{id} is gated inside
+	// the handler; see handle_account_test.go.
+	{method: "POST", path: "/api/prohibitorum/accounts/delete", body: `{"id":1}`},
+	{method: "POST", path: "/api/prohibitorum/accounts/reissue-enrollment", body: `{"id":1}`},
+}
+
+// droppedSudoRoutes lists every admin write that is outside the sudo tier
+// (🔓). Each entry must NOT return sudo_required when called with a valid admin
+// session that has no fresh sudo grant.
+var droppedSudoRoutes = []sudoRoute{
+	// Accounts and invitations
+	{method: "PUT", path: "/api/prohibitorum/accounts/1", body: `{"displayName":"x","role":"user"}`, noBodyControls: true},
+	{method: "POST", path: "/api/prohibitorum/accounts/set-disabled", body: `{"id":1,"disabled":true}`},
+	{method: "POST", path: "/api/prohibitorum/accounts/credentials/delete", body: `{"accountId":1,"credentialId":1}`},
+	{method: "POST", path: "/api/prohibitorum/accounts/tokens/revoke", body: `{"id":1}`},
+	{method: "POST", path: "/api/prohibitorum/invitations", body: `{"role":"user"}`, noBodyControls: true},
+
+	// Instance settings
+	{method: "PUT", path: "/api/prohibitorum/admin/settings", body: `{"instanceName":"x"}`},
+	{method: "PUT", path: "/api/prohibitorum/admin/settings/maintenance", body: `{"maintenanceMode":true}`},
+	{method: "PUT", path: "/api/prohibitorum/admin/settings/icon", body: `x`, noBodyControls: true},
+	{method: "DELETE", path: "/api/prohibitorum/admin/settings/icon", body: ``},
+	{method: "PUT", path: "/api/prohibitorum/admin/settings/login-appearance", body: `{}`},
+	{method: "DELETE", path: "/api/prohibitorum/admin/settings/login-appearance/unsplash-key", body: ``},
+	{method: "POST", path: "/api/prohibitorum/admin/settings/login-images", body: `x`, noBodyControls: true},
+	{method: "DELETE", path: "/api/prohibitorum/admin/settings/login-images/1", body: ``},
+	{method: "PUT", path: "/api/prohibitorum/admin/settings/client-ip", body: `{"trustedHeader":"X-Forwarded-For"}`},
+
+	// Application create/edit and managers
+	{method: "POST", path: "/api/prohibitorum/oidc-applications", body: `{"clientId":"x"}`},
+	{method: "PUT", path: "/api/prohibitorum/oidc-applications/x", body: `{}`},
 	{method: "POST", path: "/api/prohibitorum/oidc-applications/test-client/managers", body: `{"accountId":1}`},
 	{method: "POST", path: "/api/prohibitorum/oidc-applications/test-client/managers/remove", body: `{"accountId":1}`},
-
-	// Forward-auth application lifecycle (Phase 2)
 	{method: "POST", path: "/api/prohibitorum/forward-auth-apps", body: `{}`},
 	{method: "PUT", path: "/api/prohibitorum/forward-auth-apps/test-client", body: `{}`},
-	{method: "POST", path: "/api/prohibitorum/forward-auth-apps/delete", body: `{}`},
 	{method: "POST", path: "/api/prohibitorum/forward-auth-apps/test-client/managers", body: `{"accountId":1}`},
 	{method: "POST", path: "/api/prohibitorum/forward-auth-apps/test-client/managers/remove", body: `{"accountId":1}`},
+	{method: "POST", path: "/api/prohibitorum/saml-applications", body: `{}`},
+	{method: "POST", path: "/api/prohibitorum/saml-applications/1/managers", body: `{"accountId":1}`},
+	{method: "POST", path: "/api/prohibitorum/saml-applications/1/managers/remove", body: `{"accountId":1}`},
 
-	// Identity provider management (create/update/rotate-secret/delete — NOT set-disabled)
+	// Identity providers
 	{method: "POST", path: "/api/prohibitorum/identity-providers", body: `{}`},
 	{method: "PUT", path: "/api/prohibitorum/identity-providers/x", body: `{}`},
 	{method: "POST", path: "/api/prohibitorum/identity-providers/rotate-secret", body: `{"slug":"x"}`},
-	{method: "POST", path: "/api/prohibitorum/identity-providers/delete", body: `{"slug":"x"}`},
 	{method: "POST", path: "/api/prohibitorum/identity-providers/social/operator-session/start", body: `{"username":"u","password":"p"}`},
 	{method: "POST", path: "/api/prohibitorum/identity-providers/social/operator-session/verify", body: `{"challenge":"c","method":"totp","code":"1"}`},
 	{method: "POST", path: "/api/prohibitorum/identity-providers/social/operator-session/validate", body: ``},
 
-	// Account credential revoke — high-impact, sudo-gated
-	{method: "POST", path: "/api/prohibitorum/accounts/credentials/delete", body: `{"accountId":1,"credentialId":1}`},
-
-	// Admin PAT revoke — RevokePATByID has no ownership guard, so this admin+sudo
-	// route is the sole protection; the gate must never silently demote.
-	{method: "POST", path: "/api/prohibitorum/accounts/tokens/revoke", body: `{"id":1}`},
-
-	// Account/invitation lifecycle mutations — fresh-sudo via registerSudoOp
-	// (typed Huma ops). UpdateAccount can escalate user→admin, so step-up matters.
-	{method: "PUT", path: "/api/prohibitorum/accounts/1", body: `{"displayName":"x","role":"user"}`},
-	{method: "POST", path: "/api/prohibitorum/accounts/delete", body: `{"id":1}`},
-	{method: "POST", path: "/api/prohibitorum/accounts/set-disabled", body: `{"id":1,"disabled":true}`},
-	{method: "POST", path: "/api/prohibitorum/accounts/reissue-enrollment", body: `{"id":1}`},
-	{method: "POST", path: "/api/prohibitorum/invitations", body: `{"role":"user"}`},
-
-	// Instance-branding settings (name PUT, icon DELETE, maintenance PUT,
-	// client-ip PUT, sign-in page appearance PUT, Unsplash key DELETE, sign-in
-	// image DELETE — all sudo-gated)
-	{method: "PUT", path: "/api/prohibitorum/admin/settings", body: `{"instanceName":"x"}`},
-	{method: "DELETE", path: "/api/prohibitorum/admin/settings/icon", body: ``},
-	{method: "PUT", path: "/api/prohibitorum/admin/settings/login-appearance", body: `{}`},
-	{method: "DELETE", path: "/api/prohibitorum/admin/settings/login-appearance/unsplash-key", body: ``},
-	{method: "DELETE", path: "/api/prohibitorum/admin/settings/login-images/1", body: ``},
-	{method: "PUT", path: "/api/prohibitorum/admin/settings/maintenance", body: `{"maintenanceMode":true}`},
-	{method: "PUT", path: "/api/prohibitorum/admin/settings/client-ip", body: `{"trustedHeader":"X-Forwarded-For"}`},
-
-	// Entity icon removal (app & provider icons)
+	// Entity icons (app & provider icons)
+	{method: "PUT", path: "/api/prohibitorum/oidc-applications/test-client/icon", body: `x`, noBodyControls: true},
 	{method: "DELETE", path: "/api/prohibitorum/oidc-applications/test-client/icon", body: `{}`},
+	{method: "PUT", path: "/api/prohibitorum/forward-auth-apps/test-client/icon", body: `x`, noBodyControls: true},
 	{method: "DELETE", path: "/api/prohibitorum/forward-auth-apps/test-client/icon", body: `{}`},
+	{method: "PUT", path: "/api/prohibitorum/saml-applications/1/icon", body: `x`, noBodyControls: true},
 	{method: "DELETE", path: "/api/prohibitorum/saml-applications/1/icon", body: `{}`},
+	{method: "PUT", path: "/api/prohibitorum/identity-providers/test-idp/icon", body: `x`, noBodyControls: true},
 	{method: "DELETE", path: "/api/prohibitorum/identity-providers/test-idp/icon", body: `{}`},
 
-	// Admin request-diagnostic lookup — exact-ID, fresh-sudo gated
-	{method: "GET", path: "/api/prohibitorum/diagnostics/rid", body: ``},
-	// Scoped SAML manager assignment lifecycle
-	{method: "POST", path: "/api/prohibitorum/saml-applications/1/managers", body: `{"accountId":1}`},
-	{method: "POST", path: "/api/prohibitorum/saml-applications/1/managers/remove", body: `{"accountId":1}`},
-}
+	// User groups
+	{method: "POST", path: "/api/prohibitorum/groups", body: `{}`},
+	{method: "PUT", path: "/api/prohibitorum/groups/1", body: `{}`},
+	{method: "POST", path: "/api/prohibitorum/groups/1/delete", body: `{}`},
+	{method: "POST", path: "/api/prohibitorum/groups/1/decisions", body: `{}`},
+	{method: "POST", path: "/api/prohibitorum/groups/1/decisions/clear", body: `{}`},
 
-// droppedSudoRoutes is a representative sample of routes that were removed from
-// the sudo tier (now admin-only 🔓). Each entry must NOT return sudo_required
-// when called with a valid admin session that has no fresh sudo grant.
-var droppedSudoRoutes = []sudoRoute{
-	// SAML application CRUD — admin-only, no step-up
-	{method: "POST", path: "/api/prohibitorum/saml-applications", body: `{}`},
+	// Request-diagnostic lookup — exact-ID, read-only
+	{method: "GET", path: "/api/prohibitorum/diagnostics/rid", body: ``, noBodyControls: true},
 }
 
 // TestTrimmedAdminRoutesAreAdminOnlyNotSudo builds the REAL router and asserts
@@ -239,7 +254,6 @@ var adminBodyControlRoutes = []sudoRoute{
 	{method: "PUT", path: "/api/prohibitorum/saml-applications/1", body: `{}`},
 	{method: "POST", path: "/api/prohibitorum/saml-applications/1/reingest-metadata", body: `{}`},
 	{method: "POST", path: "/api/prohibitorum/saml-applications/set-disabled", body: `{}`},
-	{method: "POST", path: "/api/prohibitorum/saml-applications/delete", body: `{}`},
 	// Identity compatibility settings use app-manager authorization and do not
 	// require fresh sudo.
 	{method: "PUT", path: "/api/prohibitorum/oidc-applications/x/identity-projection", body: `{}`},
@@ -324,7 +338,13 @@ func TestAdminMutationBodyControls_NoSudoRequired(t *testing.T) {
 	router, _ := realAdminOnlyRouter(t)
 	sess := adminSession(time.Time{})
 
-	for _, sr := range adminBodyControlRoutes {
+	routes := append([]sudoRoute{}, adminBodyControlRoutes...)
+	for _, sr := range droppedSudoRoutes {
+		if !sr.noBodyControls && sr.body != "" {
+			routes = append(routes, sr)
+		}
+	}
+	for _, sr := range routes {
 		sr := sr
 		t.Run(sr.method+" "+sr.path, func(t *testing.T) {
 			defer func() {
@@ -345,9 +365,9 @@ func TestAdminMutationBodyControls_NoSudoRequired(t *testing.T) {
 					sr.method, sr.path, rr.Body.String())
 			}
 			// A 400 bad_request from the content-type check is the expected
-			// short-circuit; a panic-recover also satisfies the invariant.
-			if rr.Code == 400 && !strings.Contains(rr.Body.String(), "bad_request") {
-				t.Errorf("%s %s: 400 without bad_request code; body: %s", sr.method, sr.path, rr.Body.String())
+			// short-circuit: it proves the body controls run on this route.
+			if rr.Code != 400 || !strings.Contains(rr.Body.String(), "bad_request") {
+				t.Errorf("%s %s: status %d, want 400 bad_request from the body controls; body: %s", sr.method, sr.path, rr.Code, rr.Body.String())
 			}
 		})
 	}
