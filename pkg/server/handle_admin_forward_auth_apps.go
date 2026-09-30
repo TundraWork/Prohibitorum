@@ -6,10 +6,10 @@
 // Application policy management is available only through the managed
 // application workspace, which binds every policy group to its app.
 //
-// Reads are typed (registerOp); mutations are raw and sudo-gated via
-// registerSudoOpHTTP (create/update/delete) — except set-disabled which mirrors
-// the OIDC set-disabled (admin-only, no sudo). Handlers must NOT call
-// requireFreshSudo themselves.
+// Reads are typed (registerOp); mutations are raw. Delete is sudo-gated via
+// registerSudoOpHTTP; create, update and set-disabled go through
+// registerAdminBodyOpHTTP (no sudo), mirroring the OIDC routes. Handlers must
+// NOT call requireFreshSudo themselves.
 package server
 
 import (
@@ -143,7 +143,7 @@ func (s *Server) handleGetForwardAuthApp(ctx context.Context, in *getForwardAuth
 	return &forwardAuthAppOut{Body: view}, nil
 }
 
-// ----- POST /forward-auth-apps (raw, sudo-gated) -----------------------------
+// ----- POST /forward-auth-apps (raw) -----------------------------------------
 
 type createForwardAuthAppBody struct {
 	AccessRestricted bool   `json:"accessRestricted"`
@@ -222,7 +222,7 @@ func (s *Server) handleCreateForwardAuthAppHTTP(w http.ResponseWriter, r *http.R
 	_ = json.NewEncoder(w).Encode(view)
 }
 
-// ----- PUT /forward-auth-apps/{clientId} (raw, sudo-gated) -------------------
+// ----- PUT /forward-auth-apps/{clientId} (raw) -------------------------------
 
 type updateForwardAuthAppBody struct {
 	DisplayName string `json:"displayName"`

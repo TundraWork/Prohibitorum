@@ -3,18 +3,19 @@
 // Admin OIDC application endpoints:
 //   GET  /oidc-applications              — list all applications (admin role, no sudo)
 //   GET  /oidc-applications/{clientId}   — get one application (admin role, no sudo)
-//   POST /oidc-applications              — create a new application (admin + sudo)
-//   PUT  /oidc-applications/{clientId}   — replace mutable fields (admin + sudo, full config required)
-//   POST /oidc-applications/rotate-secret — rotate the client secret (admin + sudo)
-//   POST /oidc-applications/delete        — hard-delete an application (admin + sudo)
+//   POST /oidc-applications              — create a new application (admin, no sudo)
+//   PUT  /oidc-applications/{clientId}   — replace mutable fields (admin or manager, no sudo, full config required)
+//   POST /oidc-applications/rotate-secret — rotate the client secret (admin or manager + sudo)
+//   POST /oidc-applications/delete        — hard-delete an application (admin or manager + sudo)
 //
 // client_secret_hash is NEVER serialized or included in any response or audit
 // detail. The cleartext secret is revealed exactly once: in the create and
 // rotate-secret responses. Reads never return any secret material.
 //
-// Mutations are registered via s.registerSudoOpHTTP, so the sudo gate,
-// content-type check, and body-size limit are all enforced by the wrapper —
-// handlers must NOT call requireFreshSudo themselves.
+// Rotate-secret and delete are registered via s.registerSudoOpHTTP; the other
+// mutations via s.registerAdminBodyOpHTTP. Either way the content-type check
+// and body-size limit (and, for the first two, the sudo gate) are enforced by
+// the wrapper — handlers must NOT call requireFreshSudo themselves.
 //
 // PUT uses a full-replace model: the caller must supply the complete desired
 // configuration (displayName, redirectUris, postLogoutRedirectUris,
@@ -197,7 +198,7 @@ func (s *Server) handleGetOIDCApplication(ctx context.Context, in *getOIDCApplic
 	return &oidcApplicationOut{Body: view}, nil
 }
 
-// ----- POST /oidc-applications (raw, sudo-gated) -----------------------------------
+// ----- POST /oidc-applications (raw) ----------------------------------------------
 type createOIDCApplicationBody struct {
 	AccessRestricted       bool     `json:"accessRestricted"`
 	ClientID               string   `json:"clientId"`
@@ -410,7 +411,7 @@ func (s *Server) handleUpdateOIDCApplicationHTTP(w http.ResponseWriter, r *http.
 	writeJSON(w, view)
 }
 
-// ----- POST /oidc-applications/set-disabled (raw, sudo-gated) ---------------------
+// ----- POST /oidc-applications/set-disabled (raw) ---------------------------------
 
 type setOIDCApplicationDisabledBody struct {
 	ClientID string `json:"clientId"`

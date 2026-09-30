@@ -1581,73 +1581,13 @@ msgstr "Confirm it is you to add a passkey to this account."
 
 #. js-lingui-explicit-id
 #: src/api/sudo-reasons.ts
-msgid "sudo.reason.create-application"
-msgstr "Confirm it is you to add this application."
-
-#. js-lingui-explicit-id
-#: src/api/sudo-reasons.ts
-msgid "sudo.reason.create-identity-provider"
-msgstr "Confirm it is you to add this identity provider."
-
-#. js-lingui-explicit-id
-#: src/api/sudo-reasons.ts
 msgid "sudo.reason.approve-device"
 msgstr "Confirm it is you to approve this device."
 
 #. js-lingui-explicit-id
 #: src/api/sudo-reasons.ts
-msgid "sudo.reason.update-client-ip"
-msgstr "Confirm it is you to change how client addresses are read."
-
-#. js-lingui-explicit-id
-#: src/api/sudo-reasons.ts
-msgid "sudo.reason.update-maintenance"
-msgstr "Confirm it is you to change maintenance mode."
-
-#. js-lingui-explicit-id
-#: src/api/sudo-reasons.ts
-msgid "sudo.reason.update-instance-icon"
-msgstr "Confirm it is you to change the instance icon."
-
-#. js-lingui-explicit-id
-#: src/api/sudo-reasons.ts
-msgid "sudo.reason.update-sign-in-page"
-msgstr "Confirm it is you to change the sign-in page."
-
-#. js-lingui-explicit-id
-#: src/api/sudo-reasons.ts
-msgid "sudo.reason.update-account"
-msgstr "Confirm it is you to change this account."
-
-#. js-lingui-explicit-id
-#: src/api/sudo-reasons.ts
-msgid "sudo.reason.save-application"
-msgstr "Confirm it is you to change this application."
-
-#. js-lingui-explicit-id
-#: src/api/sudo-reasons.ts
-msgid "sudo.reason.update-group"
-msgstr "Confirm it is you to change this group."
-
-#. js-lingui-explicit-id
-#: src/api/sudo-reasons.ts
-msgid "sudo.reason.update-entity-icon"
-msgstr "Confirm it is you to change this icon."
-
-#. js-lingui-explicit-id
-#: src/api/sudo-reasons.ts
-msgid "sudo.reason.save-identity-provider"
-msgstr "Confirm it is you to change this identity provider."
-
-#. js-lingui-explicit-id
-#: src/api/sudo-reasons.ts
-msgid "sudo.reason.set-account-disabled"
-msgstr "Confirm it is you to change whether this account can sign in."
-
-#. js-lingui-explicit-id
-#: src/api/sudo-reasons.ts
-msgid "sudo.reason.group-decision"
-msgstr "Confirm it is you to change who this group allows."
+msgid "sudo.reason.change-account-role"
+msgstr "Confirm it is you to change this account's role."
 
 #. js-lingui-explicit-id
 #: src/api/sudo-reasons.ts
@@ -1661,16 +1601,6 @@ msgstr "Confirm it is you to create this access token."
 
 #. js-lingui-explicit-id
 #: src/api/sudo-reasons.ts
-msgid "sudo.reason.create-group"
-msgstr "Confirm it is you to create this group."
-
-#. js-lingui-explicit-id
-#: src/api/sudo-reasons.ts
-msgid "sudo.reason.create-invitation"
-msgstr "Confirm it is you to create this invitation."
-
-#. js-lingui-explicit-id
-#: src/api/sudo-reasons.ts
 msgid "sudo.reason.delete-account"
 msgstr "Confirm it is you to delete this account. This cannot be undone."
 
@@ -1678,11 +1608,6 @@ msgstr "Confirm it is you to delete this account. This cannot be undone."
 #: src/api/sudo-reasons.ts
 msgid "sudo.reason.delete-application"
 msgstr "Confirm it is you to delete this application."
-
-#. js-lingui-explicit-id
-#: src/api/sudo-reasons.ts
-msgid "sudo.reason.delete-group"
-msgstr "Confirm it is you to delete this group. This cannot be undone."
 
 #. js-lingui-explicit-id
 #: src/api/sudo-reasons.ts
@@ -1701,28 +1626,13 @@ msgstr "Confirm it is you to issue a new registration link."
 
 #. js-lingui-explicit-id
 #: src/api/sudo-reasons.ts
-msgid "sudo.reason.assign-app-manager"
-msgstr "Confirm it is you to let this account manage the application."
-
-#. js-lingui-explicit-id
-#: src/api/sudo-reasons.ts
 msgid "sudo.reason.link-identity"
 msgstr "Confirm it is you to link this identity."
 
 #. js-lingui-explicit-id
 #: src/api/sudo-reasons.ts
-msgid "sudo.reason.remove-app-manager"
-msgstr "Confirm it is you to remove this account as a manager."
-
-#. js-lingui-explicit-id
-#: src/api/sudo-reasons.ts
-msgid "sudo.reason.remove-entity-icon"
-msgstr "Confirm it is you to remove this icon."
-
-#. js-lingui-explicit-id
-#: src/api/sudo-reasons.ts
-msgid "sudo.reason.update-instance-name"
-msgstr "Confirm it is you to rename this instance."
+msgid "sudo.reason.delete-passkey"
+msgstr "Confirm it is you to remove this passkey."
 
 #. js-lingui-explicit-id
 #: src/api/sudo-reasons.ts
@@ -1746,38 +1656,13 @@ msgstr "Confirm it is you to retire this signing key."
 
 #. js-lingui-explicit-id
 #: src/api/sudo-reasons.ts
-msgid "sudo.reason.revoke-account-token"
+msgid "sudo.reason.revoke-token"
 msgstr "Confirm it is you to revoke this access token."
-
-#. js-lingui-explicit-id
-#: src/api/sudo-reasons.ts
-msgid "sudo.reason.revoke-invitation"
-msgstr "Confirm it is you to revoke this invitation."
-
-#. js-lingui-explicit-id
-#: src/api/sudo-reasons.ts
-msgid "sudo.reason.revoke-account-credential"
-msgstr "Confirm it is you to revoke this passkey."
-
-#. js-lingui-explicit-id
-#: src/api/sudo-reasons.ts
-msgid "sudo.reason.set-identity-provider-secret"
-msgstr "Confirm it is you to set this provider's secret."
 
 #. js-lingui-explicit-id
 #: src/api/sudo-reasons.ts
 msgid "sudo.reason.set-password-totp"
 msgstr "Confirm it is you to set up a password and authenticator on this account."
-
-#. js-lingui-explicit-id
-#: src/api/sudo-reasons.ts
-msgid "sudo.reason.operator-session"
-msgstr "Confirm it is you to sign in as the VRChat operator."
-
-#. js-lingui-explicit-id
-#: src/api/sudo-reasons.ts
-msgid "sudo.reason.revoke-account-sessions"
-msgstr "Confirm it is you to sign this account out everywhere."
 
 #. js-lingui-explicit-id
 #: src/api/sudo-reasons.ts

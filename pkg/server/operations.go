@@ -188,7 +188,8 @@ func registerOp[I, O any](
 }
 
 // registerSudoOp is registerOp plus a fresh-sudo gate. It is for typed Huma
-// admin MUTATIONS (account/invitation lifecycle) that would otherwise need a
+// mutations that sudo protects — the account's own passkeys and access tokens,
+// account deletion and enrollment reissue — and that would otherwise need a
 // raw-HTTP rewrite to reach registerSudoOpHTTP — this keeps their typed I/O +
 // OpenAPI docs while still requiring step-up auth. The sudo check runs as an
 // operation middleware AFTER the auth check and routes through
@@ -372,19 +373,22 @@ func (s *Server) withFreshSudo(h http.HandlerFunc) http.HandlerFunc {
 }
 
 // registerSudoOpHTTP = registerOpHTTP (admin auth check) + withFreshSudo
-// (content-type, body-size, fresh-sudo gate). Every sudo-gated admin mutation
-// route MUST use this instead of the bare registerOpHTTP so the sudo policy
-// cannot drift per-handler.
+// (content-type, body-size, fresh-sudo gate). Sudo covers only writes to this
+// site's credentials and keys and irreversible operations with serious impact:
+// signing-key lifecycle, OIDC secret rotation, and deleting applications and
+// identity providers. Every such raw JSON route MUST use this instead of the
+// bare registerOpHTTP so the sudo policy cannot drift per-handler.
 func (s *Server) registerSudoOpHTTP(router chiRouter, method, path string, req contract.AuthRequirement, h http.HandlerFunc) {
 	registerOpHTTP(router, method, path, req, s.withFreshSudo(h))
 }
 
 // registerAdminBodyOpHTTP = registerOpHTTP (the supplied auth check) +
-// withAdminBodyControls (content-type, body-size). This is for intentional
-// raw-JSON mutations that do NOT require fresh sudo, including SAML CRUD and
-// reversible managed-application policy changes. Using this helper ensures the
-// body + content-type controls cannot drift per-handler, mirroring the
-// registerSudoOpHTTP guarantee for the non-sudo tier.
+// withAdminBodyControls (content-type, body-size). This is for raw-JSON
+// mutations that do NOT require fresh sudo — every admin write outside the
+// registerSudoOpHTTP list, such as instance settings, groups, application
+// create/edit, managers, icons and identity-provider configuration. Using this
+// helper ensures the body + content-type controls cannot drift per-handler,
+// mirroring the registerSudoOpHTTP guarantee for the non-sudo tier.
 func (s *Server) registerAdminBodyOpHTTP(router chiRouter, method, path string, req contract.AuthRequirement, h http.HandlerFunc) {
 	registerOpHTTP(router, method, path, req, withAdminBodyControls(h))
 }

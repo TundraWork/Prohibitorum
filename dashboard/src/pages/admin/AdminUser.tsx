@@ -196,7 +196,11 @@ function ProfilePanel({ account }: { account: Account }) {
         ...(email === "" ? {} : { email }),
       };
       try {
-        await update.mutateAsync({ id: account.id, body });
+        await update.mutateAsync({
+          id: account.id,
+          body,
+          previousRole: account.role,
+        });
       } catch (error) {
         applyServerError(form, error, {
           locations: {

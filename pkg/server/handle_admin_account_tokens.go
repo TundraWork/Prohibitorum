@@ -3,11 +3,11 @@
 // Admin endpoints for inspecting and revoking a user's personal access tokens.
 //
 //	GET  /accounts/{id}/tokens        admin (typed, via registerOp)
-//	POST /accounts/tokens/revoke      admin + sudo (raw, via registerSudoOpHTTP)
+//	POST /accounts/tokens/revoke      admin (raw, via registerAdminBodyOpHTTP)
 //
 // The revoke SQL (RevokePATByID) has NO account-ownership guard — it revokes any
-// PAT by id. The route-level admin+sudo gate is therefore the ONLY protection and
-// must never be relaxed. See Task 4 in the plan.
+// PAT by id. The route-level admin gate is therefore the ONLY protection and
+// must never be relaxed to a plain session check.
 package server
 
 import (
@@ -24,14 +24,14 @@ import (
 
 // ----- GET /accounts/{id}/tokens — paginated in handle_nested_pagination.go ----
 
-// ----- POST /accounts/tokens/revoke (admin + sudo, raw) ----------------------
+// ----- POST /accounts/tokens/revoke (admin, raw) -----------------------------
 
 type revokeAccountTokenBody struct {
 	ID int32 `json:"id"`
 }
 
 // handleRevokeAccountTokenHTTP revokes a PAT by its numeric id. The SQL has no
-// account-ownership check so the admin+sudo route gate is the sole protection.
+// account-ownership check so the admin route gate is the sole protection.
 // Returns 404 when the id is unknown or already revoked.
 func (s *Server) handleRevokeAccountTokenHTTP(w http.ResponseWriter, r *http.Request) {
 	var body revokeAccountTokenBody

@@ -208,14 +208,14 @@ func newManagerAssignmentTestServer() (*Server, *fakeManagerAssignmentQueries, *
 	}
 	admin := contract.AuthRequirement{Kind: contract.AuthAdmin}
 	registerOpHTTP(router, http.MethodGet, "/api/prohibitorum/oidc-applications/{clientId}/managers", admin, s.handleListOIDCApplicationManagersHTTP)
-	s.registerSudoOpHTTP(router, http.MethodPost, "/api/prohibitorum/oidc-applications/{clientId}/managers", admin, s.handleAssignOIDCApplicationManagerHTTP)
-	s.registerSudoOpHTTP(router, http.MethodPost, "/api/prohibitorum/oidc-applications/{clientId}/managers/remove", admin, s.handleRemoveOIDCApplicationManagerHTTP)
+	s.registerAdminBodyOpHTTP(router, http.MethodPost, "/api/prohibitorum/oidc-applications/{clientId}/managers", admin, s.handleAssignOIDCApplicationManagerHTTP)
+	s.registerAdminBodyOpHTTP(router, http.MethodPost, "/api/prohibitorum/oidc-applications/{clientId}/managers/remove", admin, s.handleRemoveOIDCApplicationManagerHTTP)
 	registerOpHTTP(router, http.MethodGet, "/api/prohibitorum/forward-auth-apps/{clientId}/managers", admin, s.handleListForwardAuthAppManagersHTTP)
-	s.registerSudoOpHTTP(router, http.MethodPost, "/api/prohibitorum/forward-auth-apps/{clientId}/managers", admin, s.handleAssignForwardAuthAppManagerHTTP)
-	s.registerSudoOpHTTP(router, http.MethodPost, "/api/prohibitorum/forward-auth-apps/{clientId}/managers/remove", admin, s.handleRemoveForwardAuthAppManagerHTTP)
+	s.registerAdminBodyOpHTTP(router, http.MethodPost, "/api/prohibitorum/forward-auth-apps/{clientId}/managers", admin, s.handleAssignForwardAuthAppManagerHTTP)
+	s.registerAdminBodyOpHTTP(router, http.MethodPost, "/api/prohibitorum/forward-auth-apps/{clientId}/managers/remove", admin, s.handleRemoveForwardAuthAppManagerHTTP)
 	registerOpHTTP(router, http.MethodGet, "/api/prohibitorum/saml-applications/{id}/managers", admin, s.handleListSAMLApplicationManagersHTTP)
-	s.registerSudoOpHTTP(router, http.MethodPost, "/api/prohibitorum/saml-applications/{id}/managers", admin, s.handleAssignSAMLApplicationManagerHTTP)
-	s.registerSudoOpHTTP(router, http.MethodPost, "/api/prohibitorum/saml-applications/{id}/managers/remove", admin, s.handleRemoveSAMLApplicationManagerHTTP)
+	s.registerAdminBodyOpHTTP(router, http.MethodPost, "/api/prohibitorum/saml-applications/{id}/managers", admin, s.handleAssignSAMLApplicationManagerHTTP)
+	s.registerAdminBodyOpHTTP(router, http.MethodPost, "/api/prohibitorum/saml-applications/{id}/managers/remove", admin, s.handleRemoveSAMLApplicationManagerHTTP)
 	return s, queries, auditCapture
 }
 
@@ -286,7 +286,7 @@ func TestListOIDCManagerAssignments(t *testing.T) {
 	}
 }
 
-func TestManagerAssignmentsRequireAdminAndFreshSudo(t *testing.T) {
+func TestManagerAssignmentsRequireAdminNotSudo(t *testing.T) {
 	s, queries, _ := newManagerAssignmentTestServer()
 	seedManagerAssignmentFixtures(queries)
 
@@ -295,12 +295,17 @@ func TestManagerAssignmentsRequireAdminAndFreshSudo(t *testing.T) {
 	s.router.ServeHTTP(userRecorder, reqWithSession(http.MethodGet, "/api/prohibitorum/oidc-applications/wiki/managers", "", "", userSession))
 	assertManagerAPIError(t, userRecorder, http.StatusForbidden, "not_admin")
 
+	// An admin without a sudo grant can assign and remove managers.
 	assignRecorder := runManagerRequest(t, s, http.MethodPost, "/api/prohibitorum/oidc-applications/wiki/managers", `{"accountId":7}`, time.Time{})
-	assertManagerAPIError(t, assignRecorder, http.StatusUnauthorized, "sudo_required")
+	if assignRecorder.Code != http.StatusNoContent {
+		t.Fatalf("assign status = %d, want 204; body: %s", assignRecorder.Code, assignRecorder.Body.String())
+	}
 	removeRecorder := runManagerRequest(t, s, http.MethodPost, "/api/prohibitorum/oidc-applications/wiki/managers/remove", `{"accountId":7}`, time.Time{})
-	assertManagerAPIError(t, removeRecorder, http.StatusUnauthorized, "sudo_required")
-	if queries.assignOIDCCalls != 0 || queries.removeOIDCCalls != 0 {
-		t.Fatalf("mutation ran before sudo: assign=%d remove=%d", queries.assignOIDCCalls, queries.removeOIDCCalls)
+	if removeRecorder.Code != http.StatusNoContent {
+		t.Fatalf("remove status = %d, want 204; body: %s", removeRecorder.Code, removeRecorder.Body.String())
+	}
+	if queries.assignOIDCCalls != 1 || queries.removeOIDCCalls != 1 {
+		t.Fatalf("mutation calls: assign=%d remove=%d, want 1 each", queries.assignOIDCCalls, queries.removeOIDCCalls)
 	}
 }
 

@@ -25,16 +25,16 @@ func (s *Server) registerGlobalGroupRoutes(router chiRouter) {
 	admin := contract.AuthRequirement{Kind: contract.AuthAdmin}
 	sessionReq := contract.AuthRequirement{Kind: contract.AuthSession}
 	registerOpHTTP(router, http.MethodGet, base, sessionReq, s.handleListGlobalGroupsHTTP)
-	s.registerSudoOpHTTP(router, http.MethodPost, base, admin, s.handleCreateGlobalGroupHTTP)
+	s.registerAdminBodyOpHTTP(router, http.MethodPost, base, admin, s.handleCreateGlobalGroupHTTP)
 	registerOpHTTP(router, http.MethodGet, base+"/providers", admin, s.handleListGlobalGroupProvidersHTTP)
 	s.registerAdminBodyOpHTTP(router, http.MethodPost, base+"/rule-preview", admin, s.handlePreviewGlobalRuleHTTP)
 	registerOpHTTP(router, http.MethodGet, base+"/{groupId}", admin, s.handleGetGlobalGroupHTTP)
 	registerOpHTTP(router, http.MethodGet, base+"/{groupId}/applications", admin, s.handleListGlobalGroupApplicationsHTTP)
-	s.registerSudoOpHTTP(router, http.MethodPut, base+"/{groupId}", admin, s.handleUpdateGlobalGroupHTTP)
-	s.registerSudoOpHTTP(router, http.MethodPost, base+"/{groupId}/delete", admin, s.handleDeleteGlobalGroupHTTP)
+	s.registerAdminBodyOpHTTP(router, http.MethodPut, base+"/{groupId}", admin, s.handleUpdateGlobalGroupHTTP)
+	s.registerAdminBodyOpHTTP(router, http.MethodPost, base+"/{groupId}/delete", admin, s.handleDeleteGlobalGroupHTTP)
 	registerOpHTTP(router, http.MethodGet, base+"/{groupId}/decisions", admin, s.handleListGlobalGroupDecisionsHTTP)
-	s.registerSudoOpHTTP(router, http.MethodPost, base+"/{groupId}/decisions", admin, s.handleUpsertGlobalGroupDecisionHTTP)
-	s.registerSudoOpHTTP(router, http.MethodPost, base+"/{groupId}/decisions/clear", admin, s.handleClearGlobalGroupDecisionHTTP)
+	s.registerAdminBodyOpHTTP(router, http.MethodPost, base+"/{groupId}/decisions", admin, s.handleUpsertGlobalGroupDecisionHTTP)
+	s.registerAdminBodyOpHTTP(router, http.MethodPost, base+"/{groupId}/decisions/clear", admin, s.handleClearGlobalGroupDecisionHTTP)
 	registerOpHTTP(router, http.MethodGet, base+"/{groupId}/preview", admin, s.handlePreviewGlobalGroupHTTP)
 	registerOpHTTP(router, http.MethodGet, base+"/{groupId}/explain/{accountId}", admin, s.handleExplainGlobalGroupHTTP)
 }

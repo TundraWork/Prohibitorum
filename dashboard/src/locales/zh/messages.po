@@ -1581,73 +1581,13 @@ msgstr "请验证身份，以向此账号添加通行密钥。"
 
 #. js-lingui-explicit-id
 #: src/api/sudo-reasons.ts
-msgid "sudo.reason.create-application"
-msgstr "验证是你本人后即可添加这个应用。"
-
-#. js-lingui-explicit-id
-#: src/api/sudo-reasons.ts
-msgid "sudo.reason.create-identity-provider"
-msgstr "验证是你本人后即可添加这个身份提供商。"
-
-#. js-lingui-explicit-id
-#: src/api/sudo-reasons.ts
 msgid "sudo.reason.approve-device"
 msgstr "请验证身份，以批准此设备。"
 
 #. js-lingui-explicit-id
 #: src/api/sudo-reasons.ts
-msgid "sudo.reason.update-client-ip"
-msgstr "请确认是你本人要修改客户端地址的获取方式。"
-
-#. js-lingui-explicit-id
-#: src/api/sudo-reasons.ts
-msgid "sudo.reason.update-maintenance"
-msgstr "请确认是你本人要修改维护模式。"
-
-#. js-lingui-explicit-id
-#: src/api/sudo-reasons.ts
-msgid "sudo.reason.update-instance-icon"
-msgstr "请确认是你本人要修改实例图标。"
-
-#. js-lingui-explicit-id
-#: src/api/sudo-reasons.ts
-msgid "sudo.reason.update-sign-in-page"
-msgstr "请确认身份后再修改登录页。"
-
-#. js-lingui-explicit-id
-#: src/api/sudo-reasons.ts
-msgid "sudo.reason.update-account"
-msgstr "请确认是你本人要更改该账号。"
-
-#. js-lingui-explicit-id
-#: src/api/sudo-reasons.ts
-msgid "sudo.reason.save-application"
-msgstr "验证是你本人后即可修改这个应用。"
-
-#. js-lingui-explicit-id
-#: src/api/sudo-reasons.ts
-msgid "sudo.reason.update-group"
-msgstr "请确认是你本人要更改该用户组。"
-
-#. js-lingui-explicit-id
-#: src/api/sudo-reasons.ts
-msgid "sudo.reason.update-entity-icon"
-msgstr "验证是你本人后即可更换这个图标。"
-
-#. js-lingui-explicit-id
-#: src/api/sudo-reasons.ts
-msgid "sudo.reason.save-identity-provider"
-msgstr "验证是你本人后即可修改这个身份提供商。"
-
-#. js-lingui-explicit-id
-#: src/api/sudo-reasons.ts
-msgid "sudo.reason.set-account-disabled"
-msgstr "请确认是你本人要更改该账号能否登录。"
-
-#. js-lingui-explicit-id
-#: src/api/sudo-reasons.ts
-msgid "sudo.reason.group-decision"
-msgstr "请确认是你本人要更改本组允许的对象。"
+msgid "sudo.reason.change-account-role"
+msgstr "请验证身份，以更改此账号的角色。"
 
 #. js-lingui-explicit-id
 #: src/api/sudo-reasons.ts
@@ -1661,16 +1601,6 @@ msgstr "请验证身份，以创建此访问令牌。"
 
 #. js-lingui-explicit-id
 #: src/api/sudo-reasons.ts
-msgid "sudo.reason.create-group"
-msgstr "请确认是你本人要创建该用户组。"
-
-#. js-lingui-explicit-id
-#: src/api/sudo-reasons.ts
-msgid "sudo.reason.create-invitation"
-msgstr "请确认是你本人要创建该邀请。"
-
-#. js-lingui-explicit-id
-#: src/api/sudo-reasons.ts
 msgid "sudo.reason.delete-account"
 msgstr "请确认是你本人要删除该账号。此操作无法撤销。"
 
@@ -1678,11 +1608,6 @@ msgstr "请确认是你本人要删除该账号。此操作无法撤销。"
 #: src/api/sudo-reasons.ts
 msgid "sudo.reason.delete-application"
 msgstr "验证是你本人后即可删除这个应用。"
-
-#. js-lingui-explicit-id
-#: src/api/sudo-reasons.ts
-msgid "sudo.reason.delete-group"
-msgstr "请确认是你本人要删除该用户组。此操作无法撤销。"
 
 #. js-lingui-explicit-id
 #: src/api/sudo-reasons.ts
@@ -1701,28 +1626,13 @@ msgstr "请确认是你本人要签发新的注册链接。"
 
 #. js-lingui-explicit-id
 #: src/api/sudo-reasons.ts
-msgid "sudo.reason.assign-app-manager"
-msgstr "验证是你本人后即可让这个账号管理该应用。"
-
-#. js-lingui-explicit-id
-#: src/api/sudo-reasons.ts
 msgid "sudo.reason.link-identity"
 msgstr "请验证身份，以绑定此身份。"
 
 #. js-lingui-explicit-id
 #: src/api/sudo-reasons.ts
-msgid "sudo.reason.remove-app-manager"
-msgstr "验证是你本人后即可取消这个账号的管理者身份。"
-
-#. js-lingui-explicit-id
-#: src/api/sudo-reasons.ts
-msgid "sudo.reason.remove-entity-icon"
-msgstr "验证是你本人后即可移除这个图标。"
-
-#. js-lingui-explicit-id
-#: src/api/sudo-reasons.ts
-msgid "sudo.reason.update-instance-name"
-msgstr "请确认是你本人要修改实例名称。"
+msgid "sudo.reason.delete-passkey"
+msgstr "请验证身份，以移除此通行密钥。"
 
 #. js-lingui-explicit-id
 #: src/api/sudo-reasons.ts
@@ -1746,38 +1656,13 @@ msgstr "请确认是你本人要退役这个签名密钥。"
 
 #. js-lingui-explicit-id
 #: src/api/sudo-reasons.ts
-msgid "sudo.reason.revoke-account-token"
-msgstr "请确认是你本人要吊销该访问令牌。"
-
-#. js-lingui-explicit-id
-#: src/api/sudo-reasons.ts
-msgid "sudo.reason.revoke-invitation"
-msgstr "请确认是你本人要吊销该邀请。"
-
-#. js-lingui-explicit-id
-#: src/api/sudo-reasons.ts
-msgid "sudo.reason.revoke-account-credential"
-msgstr "请确认是你本人要吊销该通行密钥。"
-
-#. js-lingui-explicit-id
-#: src/api/sudo-reasons.ts
-msgid "sudo.reason.set-identity-provider-secret"
-msgstr "验证是你本人后即可设置这个提供商的密钥。"
+msgid "sudo.reason.revoke-token"
+msgstr "请验证身份，以撤销此访问令牌。"
 
 #. js-lingui-explicit-id
 #: src/api/sudo-reasons.ts
 msgid "sudo.reason.set-password-totp"
 msgstr "请验证身份，以为此账号设置密码与身份验证器。"
-
-#. js-lingui-explicit-id
-#: src/api/sudo-reasons.ts
-msgid "sudo.reason.operator-session"
-msgstr "验证是你本人后即以 VRChat 运维账号登录。"
-
-#. js-lingui-explicit-id
-#: src/api/sudo-reasons.ts
-msgid "sudo.reason.revoke-account-sessions"
-msgstr "请确认是你本人要将该账号在所有设备上登出。"
 
 #. js-lingui-explicit-id
 #: src/api/sudo-reasons.ts
