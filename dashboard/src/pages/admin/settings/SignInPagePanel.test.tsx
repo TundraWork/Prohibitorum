@@ -8,7 +8,6 @@ import {
   publicConfigQueryOptions,
 } from "@/api/queries";
 import type { LoginAppearance } from "@/api/raw-paths";
-import { configureSudo, resetSudo } from "@/api/sudo";
 import { createQueryClient } from "@/app/query-client";
 import { defaultLoginAppearance } from "@/components/custom/login-appearance/appearance";
 import { i18n } from "@/i18n";
@@ -75,24 +74,17 @@ beforeEach(() => {
   i18n.activate("en");
   uploadedFiles.length = 0;
   api = fakeApi({
-    "GET /api/prohibitorum/me/sudo/methods": () =>
-      Response.json({ methods: ["password_totp"], fresh: true }),
     "PUT /api/prohibitorum/admin/settings/login-appearance": () =>
       new Response(null, { status: 204 }),
     "GET /api/prohibitorum/admin/settings/login-appearance/wallpaper": () =>
       apiError("wallpaper_unavailable", 503),
   });
+  // No sudo runner is configured: saving the sign-in page must not ask for
+  // one, and `runWithSudo` would throw if it did.
   queryClient = createQueryClient(vi.fn());
-  configureSudo({
-    queryClient,
-    set: () => {},
-    setFresh: () => {},
-    getFresh: () => true,
-  });
 });
 
 afterEach(() => {
-  resetSudo();
   queryClient.clear();
   vi.unstubAllGlobals();
 });

@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { validateOperatorSessionMutationOptions } from "@/api/mutations";
-import { configureSudo, resetSudo, sudoMethodsQueryOptions } from "@/api/sudo";
 import { createQueryClient } from "@/app/query-client";
 
 const fetchBoundary = vi.fn<(request: Request) => Promise<Response>>();
@@ -9,20 +8,9 @@ const queryClient = createQueryClient(() => undefined);
 beforeEach(() => {
   fetchBoundary.mockReset();
   vi.stubGlobal("fetch", fetchBoundary);
-  queryClient.setQueryData(sudoMethodsQueryOptions().queryKey, {
-    methods: ["password_totp"],
-    fresh: true,
-  });
-  configureSudo({
-    queryClient,
-    set: () => undefined,
-    setFresh: () => undefined,
-    getFresh: () => true,
-  });
 });
 
 afterEach(() => {
-  resetSudo();
   queryClient.clear();
   vi.unstubAllGlobals();
 });

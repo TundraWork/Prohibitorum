@@ -518,9 +518,13 @@ export function deleteCredentialMutationOptions(queryClient: QueryClient) {
     meta: { success: successMessage.removePasskey },
     retry: false,
     mutationFn: async (id: number) => {
-      await client.POST("/api/prohibitorum/me/credentials/delete", {
-        body: { id },
-      });
+      await runWithSudo(
+        () =>
+          client.POST("/api/prohibitorum/me/credentials/delete", {
+            body: { id },
+          }),
+        sudoReason.deletePasskey,
+      );
     },
     onSuccess: () =>
       queryClient.invalidateQueries({ queryKey: ["session", "credentials"] }),
@@ -686,7 +690,11 @@ export function revokeTokenMutationOptions(queryClient: QueryClient) {
     meta: { success: successMessage.revokeToken },
     retry: false,
     mutationFn: async (id: number) => {
-      await client.POST("/api/prohibitorum/me/tokens/revoke", { body: { id } });
+      await runWithSudo(
+        () =>
+          client.POST("/api/prohibitorum/me/tokens/revoke", { body: { id } }),
+        sudoReason.revokeToken,
+      );
     },
     onSuccess: () =>
       queryClient.invalidateQueries({ queryKey: ["session", "tokens"] }),
@@ -817,9 +825,13 @@ export function cancelDeviceMutationOptions(
 /* ------------------------------------------------------------ admin -- */
 
 /**
- * Management mutations. Each guarded write wraps *its own* call in
- * `runWithSudo` rather than pushing the ceremony up to the caller, so a page
- * calls `mutate` and gets the step-up prompt as part of the mutation itself.
+ * Management mutations. Sudo guards only the writes that remove something for
+ * good or hand out a credential — deleting an account, a new registration
+ * link, a change of role, and on the application pages deleting an
+ * application or provider, a new client secret and the signing keys. Each of
+ * those wraps *its own* call in `runWithSudo` rather than pushing the ceremony
+ * up to the caller, so a page calls `mutate` and gets the step-up prompt as
+ * part of the mutation itself; every other write calls the client directly.
  *
  * Every one of them invalidates by the `["admin", ...]` prefix rather than a
  * fully-qualified key, because the account list's key carries its filters: a
@@ -838,7 +850,11 @@ function invalidateAccount(queryClient: QueryClient, id: number) {
 export type UpdateAccountInput =
   paths["/api/prohibitorum/accounts/{id}"]["put"]["requestBody"]["content"]["application/json"];
 
-/** Replaces the whole account record: an omitted `attributes` clears them. */
+/**
+ * Replaces the whole account record: an omitted `attributes` clears them. Only
+ * a change of role needs a fresh verification, so the caller passes the role
+ * the account has now and a profile edit goes straight through.
+ */
 export function updateAccountMutationOptions(queryClient: QueryClient) {
   return mutationOptions({
     meta: { success: successMessage.saveAccount },
@@ -846,20 +862,23 @@ export function updateAccountMutationOptions(queryClient: QueryClient) {
     mutationFn: async ({
       id,
       body,
+      previousRole,
     }: {
       id: number;
       body: UpdateAccountInput;
-    }): Promise<AccountView> =>
-      runWithSudo(
-        () =>
-          requireJsonData(
-            client.PUT("/api/prohibitorum/accounts/{id}", {
-              params: { path: { id } },
-              body,
-            }),
-          ),
-        sudoReason.updateAccount,
-      ),
+      previousRole: UpdateAccountInput["role"];
+    }): Promise<AccountView> => {
+      const save = () =>
+        requireJsonData(
+          client.PUT("/api/prohibitorum/accounts/{id}", {
+            params: { path: { id } },
+            body,
+          }),
+        );
+      return body.role === previousRole
+        ? save()
+        : runWithSudo(save, sudoReason.changeAccountRole);
+    },
     onSuccess: (_account, { id }) => invalidateAccount(queryClient, id),
   });
 }
@@ -879,12 +898,8 @@ export function setAccountDisabledMutationOptions(queryClient: QueryClient) {
     },
     retry: false,
     mutationFn: async (body: SetAccountDisabledRequest): Promise<AccountView> =>
-      runWithSudo(
-        () =>
-          requireJsonData(
-            client.POST("/api/prohibitorum/accounts/set-disabled", { body }),
-          ),
-        sudoReason.setAccountDisabled,
+      requireJsonData(
+        client.POST("/api/prohibitorum/accounts/set-disabled", { body }),
       ),
     onSuccess: (_account, { id }) => invalidateAccount(queryClient, id),
   });
@@ -930,13 +945,9 @@ export function deleteAccountCredentialMutationOptions(
     meta: { success: successMessage.removePasskey },
     retry: false,
     mutationFn: async (body: DeleteAccountCredentialRequest) => {
-      await runWithSudo(
-        () =>
-          client.POST("/api/prohibitorum/accounts/credentials/delete", {
-            body,
-          }),
-        sudoReason.revokeAccountCredential,
-      );
+      await client.POST("/api/prohibitorum/accounts/credentials/delete", {
+        body,
+      });
     },
     onSuccess: (_result, { accountId }) =>
       queryClient.invalidateQueries({
@@ -953,10 +964,7 @@ export function revokeAccountTokenMutationOptions(queryClient: QueryClient) {
       accountId,
       ...body
     }: { accountId: number } & RevokeAccountTokenRequest) => {
-      await runWithSudo(
-        () => client.POST("/api/prohibitorum/accounts/tokens/revoke", { body }),
-        sudoReason.revokeAccountToken,
-      );
+      await client.POST("/api/prohibitorum/accounts/tokens/revoke", { body });
     },
     onSuccess: (_result, { accountId }) =>
       queryClient.invalidateQueries({
@@ -965,7 +973,7 @@ export function revokeAccountTokenMutationOptions(queryClient: QueryClient) {
   });
 }
 
-/** Ending one session is reversible housekeeping, so it is not sudo-guarded. */
+/** Ending one session is reversible housekeeping. */
 export function revokeAccountSessionMutationOptions(queryClient: QueryClient) {
   return mutationOptions({
     meta: { success: successMessage.endSession },
@@ -991,14 +999,10 @@ export function revokeAccountSessionsMutationOptions(queryClient: QueryClient) {
     meta: { success: successMessage.endAllSessions },
     retry: false,
     mutationFn: async (id: number): Promise<RevokeAccountSessionsResult> =>
-      runWithSudo(
-        () =>
-          requireJsonData(
-            client.POST("/api/prohibitorum/accounts/revoke-sessions", {
-              body: { id },
-            }),
-          ),
-        sudoReason.revokeAccountSessions,
+      requireJsonData(
+        client.POST("/api/prohibitorum/accounts/revoke-sessions", {
+          body: { id },
+        }),
       ),
     onSuccess: (_result, id) =>
       queryClient.invalidateQueries({
@@ -1021,11 +1025,7 @@ export function createGroupMutationOptions(queryClient: QueryClient) {
     meta: { success: successMessage.createGroup },
     retry: false,
     mutationFn: async (body: CreateGroupRequest): Promise<AppGroupView> =>
-      runWithSudo(
-        () =>
-          requireJsonData(client.POST("/api/prohibitorum/groups", { body })),
-        sudoReason.createGroup,
-      ),
+      requireJsonData(client.POST("/api/prohibitorum/groups", { body })),
     onSuccess: () =>
       queryClient.invalidateQueries({ queryKey: ["admin", "groups"] }),
   });
@@ -1042,15 +1042,11 @@ export function updateGroupMutationOptions(queryClient: QueryClient) {
       groupId: number;
       body: UpdateGroupRequest;
     }): Promise<AppGroupView> =>
-      runWithSudo(
-        () =>
-          requireJsonData(
-            client.PUT("/api/prohibitorum/groups/{groupId}", {
-              params: { path: { groupId } },
-              body,
-            }),
-          ),
-        sudoReason.updateGroup,
+      requireJsonData(
+        client.PUT("/api/prohibitorum/groups/{groupId}", {
+          params: { path: { groupId } },
+          body,
+        }),
       ),
     onSuccess: (_group, { groupId }) => invalidateGroup(queryClient, groupId),
   });
@@ -1066,13 +1062,9 @@ export function deleteGroupMutationOptions(queryClient: QueryClient) {
     meta: { success: successMessage.deleteGroup },
     retry: false,
     mutationFn: async (groupId: number) => {
-      await runWithSudo(
-        () =>
-          client.POST("/api/prohibitorum/groups/{groupId}/delete", {
-            params: { path: { groupId } },
-          }),
-        sudoReason.deleteGroup,
-      );
+      await client.POST("/api/prohibitorum/groups/{groupId}/delete", {
+        params: { path: { groupId } },
+      });
     },
     onSuccess: () =>
       queryClient.invalidateQueries({ queryKey: ["admin", "groups"] }),
@@ -1089,15 +1081,11 @@ export function upsertDecisionMutationOptions(queryClient: QueryClient) {
       groupId: number;
       body: UpsertDecisionRequest;
     }): Promise<ManualDecisionView> =>
-      runWithSudo(
-        () =>
-          requireJsonData(
-            client.POST("/api/prohibitorum/groups/{groupId}/decisions", {
-              params: { path: { groupId } },
-              body,
-            }),
-          ),
-        sudoReason.groupDecision,
+      requireJsonData(
+        client.POST("/api/prohibitorum/groups/{groupId}/decisions", {
+          params: { path: { groupId } },
+          body,
+        }),
       ),
     onSuccess: (_decision, { groupId }) =>
       queryClient.invalidateQueries({
@@ -1116,14 +1104,10 @@ export function clearDecisionMutationOptions(queryClient: QueryClient) {
       groupId: number;
       body: ClearDecisionRequest;
     }) => {
-      await runWithSudo(
-        () =>
-          client.POST("/api/prohibitorum/groups/{groupId}/decisions/clear", {
-            params: { path: { groupId } },
-            body,
-          }),
-        sudoReason.groupDecision,
-      );
+      await client.POST("/api/prohibitorum/groups/{groupId}/decisions/clear", {
+        params: { path: { groupId } },
+        body,
+      });
     },
     onSuccess: (_result, { groupId }) =>
       queryClient.invalidateQueries({
@@ -1156,13 +1140,7 @@ export function createInvitationMutationOptions(queryClient: QueryClient) {
     mutationFn: async (
       body: CreateInvitationRequest,
     ): Promise<components["schemas"]["InvitationResponse"]> =>
-      runWithSudo(
-        () =>
-          requireJsonData(
-            client.POST("/api/prohibitorum/invitations", { body }),
-          ),
-        sudoReason.createInvitation,
-      ),
+      requireJsonData(client.POST("/api/prohibitorum/invitations", { body })),
     onSuccess: () =>
       queryClient.invalidateQueries({ queryKey: ["admin", "invitations"] }),
   });
@@ -1174,13 +1152,9 @@ export function revokeInvitationMutationOptions(queryClient: QueryClient) {
     meta: { success: successMessage.revokeInvitation },
     retry: false,
     mutationFn: async (token: string) => {
-      await runWithSudo(
-        () =>
-          client.POST("/api/prohibitorum/invitations/revoke", {
-            body: { token },
-          }),
-        sudoReason.revokeInvitation,
-      );
+      await client.POST("/api/prohibitorum/invitations/revoke", {
+        body: { token },
+      });
     },
     onSuccess: () =>
       queryClient.invalidateQueries({ queryKey: ["admin", "invitations"] }),
@@ -1205,13 +1179,9 @@ export function updateInstanceNameMutationOptions(queryClient: QueryClient) {
     meta: { success: successMessage.saveInstanceName },
     retry: false,
     mutationFn: async (instanceName: string) => {
-      await runWithSudo(
-        () =>
-          client.PUT("/api/prohibitorum/admin/settings", {
-            body: { instanceName },
-          }),
-        sudoReason.updateInstanceName,
-      );
+      await client.PUT("/api/prohibitorum/admin/settings", {
+        body: { instanceName },
+      });
     },
     onSuccess: () => invalidatePublicConfig(queryClient),
   });
@@ -1227,36 +1197,26 @@ export function updateMaintenanceMutationOptions(queryClient: QueryClient) {
     },
     retry: false,
     mutationFn: async (body: MaintenanceSettings) => {
-      await runWithSudo(
-        () =>
-          client.PUT("/api/prohibitorum/admin/settings/maintenance", { body }),
-        sudoReason.updateMaintenance,
-      );
+      await client.PUT("/api/prohibitorum/admin/settings/maintenance", {
+        body,
+      });
     },
     onSuccess: () => invalidatePublicConfig(queryClient),
   });
 }
 
-/**
- * Uploads raw bytes, not a multipart form. The handler checks sudo itself rather
- * than through the JSON-only wrapper, and answers `sudo_required` the same way,
- * so `runWithSudo` covers it like any other guarded write.
- */
+/** Uploads raw bytes, not a multipart form. */
 export function uploadInstanceIconMutationOptions(queryClient: QueryClient) {
   return mutationOptions({
     meta: { success: successMessage.updateInstanceIcon },
     retry: false,
     mutationFn: async (file: File) => {
-      await runWithSudo(
-        () =>
-          client.PUT("/api/prohibitorum/admin/settings/icon", {
-            body: file,
-            // openapi-fetch serialises JSON by default; the endpoint wants the
-            // bytes as they are.
-            bodySerializer: (value) => value as BodyInit,
-          }),
-        sudoReason.updateInstanceIcon,
-      );
+      await client.PUT("/api/prohibitorum/admin/settings/icon", {
+        body: file,
+        // openapi-fetch serialises JSON by default; the endpoint wants the
+        // bytes as they are.
+        bodySerializer: (value) => value as BodyInit,
+      });
     },
     onSuccess: () => invalidatePublicConfig(queryClient),
   });
@@ -1267,10 +1227,7 @@ export function removeInstanceIconMutationOptions(queryClient: QueryClient) {
     meta: { success: successMessage.removeInstanceIcon },
     retry: false,
     mutationFn: async () => {
-      await runWithSudo(
-        () => client.DELETE("/api/prohibitorum/admin/settings/icon"),
-        sudoReason.updateInstanceIcon,
-      );
+      await client.DELETE("/api/prohibitorum/admin/settings/icon");
     },
     onSuccess: () => invalidatePublicConfig(queryClient),
   });
@@ -1295,13 +1252,9 @@ export function updateLoginAppearanceMutationOptions(queryClient: QueryClient) {
     meta: { success: successMessage.saveSignInPage },
     retry: false,
     mutationFn: async (body: LoginAppearanceWrite) => {
-      await runWithSudo(
-        () =>
-          client.PUT("/api/prohibitorum/admin/settings/login-appearance", {
-            body,
-          }),
-        sudoReason.updateSignInPage,
-      );
+      await client.PUT("/api/prohibitorum/admin/settings/login-appearance", {
+        body,
+      });
     },
     onSuccess: () => invalidateSignInPage(queryClient),
   });
@@ -1312,33 +1265,25 @@ export function removeUnsplashKeyMutationOptions(queryClient: QueryClient) {
     meta: { success: successMessage.removeUnsplashKey },
     retry: false,
     mutationFn: async () => {
-      await runWithSudo(
-        () =>
-          client.DELETE(
-            "/api/prohibitorum/admin/settings/login-appearance/unsplash-key",
-          ),
-        sudoReason.updateSignInPage,
+      await client.DELETE(
+        "/api/prohibitorum/admin/settings/login-appearance/unsplash-key",
       );
     },
     onSuccess: () => invalidateSignInPage(queryClient),
   });
 }
 
-/** Uploads one image as raw bytes; the handler checks sudo itself, like the icon's. */
+/** Uploads one image as raw bytes, like the icon. */
 export function uploadLoginImageMutationOptions(queryClient: QueryClient) {
   return mutationOptions({
     meta: { success: successMessage.addSignInImage },
     retry: false,
     mutationFn: (file: File) =>
-      runWithSudo(
-        () =>
-          requireJsonData(
-            client.POST("/api/prohibitorum/admin/settings/login-images", {
-              body: file,
-              bodySerializer: (value) => value as BodyInit,
-            }),
-          ),
-        sudoReason.updateSignInPage,
+      requireJsonData(
+        client.POST("/api/prohibitorum/admin/settings/login-images", {
+          body: file,
+          bodySerializer: (value) => value as BodyInit,
+        }),
       ),
     onSuccess: () => invalidateSignInPage(queryClient),
   });
@@ -1349,12 +1294,11 @@ export function removeLoginImageMutationOptions(queryClient: QueryClient) {
     meta: { success: successMessage.removeSignInImage },
     retry: false,
     mutationFn: async (id: number) => {
-      await runWithSudo(
-        () =>
-          client.DELETE("/api/prohibitorum/admin/settings/login-images/{id}", {
-            params: { path: { id } },
-          }),
-        sudoReason.updateSignInPage,
+      await client.DELETE(
+        "/api/prohibitorum/admin/settings/login-images/{id}",
+        {
+          params: { path: { id } },
+        },
       );
     },
     onSuccess: () => invalidateSignInPage(queryClient),
@@ -1367,11 +1311,7 @@ export function updateClientIpMutationOptions(queryClient: QueryClient) {
     meta: { success: successMessage.saveClientIp },
     retry: false,
     mutationFn: async (body: ClientIpSettings) => {
-      await runWithSudo(
-        () =>
-          client.PUT("/api/prohibitorum/admin/settings/client-ip", { body }),
-        sudoReason.updateClientIp,
-      );
+      await client.PUT("/api/prohibitorum/admin/settings/client-ip", { body });
     },
     onSuccess: () =>
       queryClient.invalidateQueries({
@@ -1451,12 +1391,8 @@ export function createIdentityProviderMutationOptions(
     meta: { success: successMessage.createIdentityProvider },
     retry: false,
     mutationFn: async (body: ProviderWriteBody) =>
-      runWithSudo(
-        () =>
-          requireJsonData(
-            client.POST("/api/prohibitorum/identity-providers", { body }),
-          ),
-        sudoReason.createIdentityProvider,
+      requireJsonData(
+        client.POST("/api/prohibitorum/identity-providers", { body }),
       ),
     onSuccess: () => invalidateIdentityProviders(queryClient),
   });
@@ -1475,15 +1411,11 @@ export function updateIdentityProviderMutationOptions(
       slug: string;
       body: ProviderWriteBody;
     }) =>
-      runWithSudo(
-        () =>
-          requireJsonData(
-            client.PUT("/api/prohibitorum/identity-providers/{slug}", {
-              params: { path: { slug } },
-              body,
-            }),
-          ),
-        sudoReason.saveIdentityProvider,
+      requireJsonData(
+        client.PUT("/api/prohibitorum/identity-providers/{slug}", {
+          params: { path: { slug } },
+          body,
+        }),
       ),
     onSuccess: () => invalidateIdentityProviders(queryClient),
   });
@@ -1497,13 +1429,9 @@ export function setIdentityProviderSecretMutationOptions(
     meta: { success: successMessage.setIdentityProviderSecret },
     retry: false,
     mutationFn: async ({ slug, secret }: { slug: string; secret: string }) => {
-      await runWithSudo(
-        () =>
-          client.POST("/api/prohibitorum/identity-providers/rotate-secret", {
-            body: { slug, secret },
-          }),
-        sudoReason.setIdentityProviderSecret,
-      );
+      await client.POST("/api/prohibitorum/identity-providers/rotate-secret", {
+        body: { slug, secret },
+      });
     },
     onSuccess: () => invalidateIdentityProviders(queryClient),
   });
@@ -1560,9 +1488,8 @@ export function deleteIdentityProviderMutationOptions(
 }
 
 /**
- * The entity icons all share one shape: raw bytes on PUT, nothing on DELETE, and
- * sudo checked inside the handler. Either way the entity's own queries are
- * invalidated, because its iconUrl — and the cache-buster in it — just changed.
+ * The entity icons all share one shape: raw bytes on PUT and nothing on DELETE.
+ * Either way the entity's own queries are invalidated, because its iconUrl — and the cache-buster in it — just changed.
  */
 export type EntityIconTarget =
   | { kind: "identity-provider"; slug: string }
@@ -1616,32 +1543,33 @@ export function uploadEntityIconMutationOptions(
         body: file,
         bodySerializer: (value: Blob) => value as BodyInit,
       };
-      await runWithSudo(() => {
-        if (target.kind === "identity-provider") {
-          return client.PUT(
-            "/api/prohibitorum/identity-providers/{slug}/icon",
-            {
-              params: { path: { slug: target.slug } },
-              ...options,
-            },
-          );
-        }
-        if (target.kind === "saml") {
-          return client.PUT("/api/prohibitorum/saml-applications/{id}/icon", {
-            params: { path: { id: Number(target.appId) } },
+      if (target.kind === "identity-provider") {
+        await client.PUT("/api/prohibitorum/identity-providers/{slug}/icon", {
+          params: { path: { slug: target.slug } },
+          ...options,
+        });
+      } else if (target.kind === "saml") {
+        await client.PUT("/api/prohibitorum/saml-applications/{id}/icon", {
+          params: { path: { id: Number(target.appId) } },
+          ...options,
+        });
+      } else if (target.kind === "oidc") {
+        await client.PUT(
+          "/api/prohibitorum/oidc-applications/{clientId}/icon",
+          {
+            params: { path: { clientId: target.appId } },
             ...options,
-          });
-        }
-        return target.kind === "oidc"
-          ? client.PUT("/api/prohibitorum/oidc-applications/{clientId}/icon", {
-              params: { path: { clientId: target.appId } },
-              ...options,
-            })
-          : client.PUT("/api/prohibitorum/forward-auth-apps/{clientId}/icon", {
-              params: { path: { clientId: target.appId } },
-              ...options,
-            });
-      }, sudoReason.updateEntityIcon);
+          },
+        );
+      } else {
+        await client.PUT(
+          "/api/prohibitorum/forward-auth-apps/{clientId}/icon",
+          {
+            params: { path: { clientId: target.appId } },
+            ...options,
+          },
+        );
+      }
     },
     onSuccess: () => invalidateEntityIcon(queryClient, target),
   });
@@ -1655,33 +1583,30 @@ export function removeEntityIconMutationOptions(
     meta: { success: successMessage.removeEntityIcon },
     retry: false,
     mutationFn: async () => {
-      await runWithSudo(() => {
-        if (target.kind === "identity-provider") {
-          return client.DELETE(
-            "/api/prohibitorum/identity-providers/{slug}/icon",
-            { params: { path: { slug: target.slug } } },
-          );
-        }
-        if (target.kind === "saml") {
-          return client.DELETE(
-            "/api/prohibitorum/saml-applications/{id}/icon",
-            {
-              params: { path: { id: Number(target.appId) } },
-            },
-          );
-        }
-        return target.kind === "oidc"
-          ? client.DELETE(
-              "/api/prohibitorum/oidc-applications/{clientId}/icon",
-              {
-                params: { path: { clientId: target.appId } },
-              },
-            )
-          : client.DELETE(
-              "/api/prohibitorum/forward-auth-apps/{clientId}/icon",
-              { params: { path: { clientId: target.appId } } },
-            );
-      }, sudoReason.removeEntityIcon);
+      if (target.kind === "identity-provider") {
+        await client.DELETE(
+          "/api/prohibitorum/identity-providers/{slug}/icon",
+          {
+            params: { path: { slug: target.slug } },
+          },
+        );
+      } else if (target.kind === "saml") {
+        await client.DELETE("/api/prohibitorum/saml-applications/{id}/icon", {
+          params: { path: { id: Number(target.appId) } },
+        });
+      } else if (target.kind === "oidc") {
+        await client.DELETE(
+          "/api/prohibitorum/oidc-applications/{clientId}/icon",
+          { params: { path: { clientId: target.appId } } },
+        );
+      } else {
+        await client.DELETE(
+          "/api/prohibitorum/forward-auth-apps/{clientId}/icon",
+          {
+            params: { path: { clientId: target.appId } },
+          },
+        );
+      }
     },
     onSuccess: () => invalidateEntityIcon(queryClient, target),
   });
@@ -1762,15 +1687,11 @@ export function startOperatorSessionMutationOptions(queryClient: QueryClient) {
       slug: string;
       body: OperatorSessionStartRequest;
     }): Promise<OperatorSessionView> =>
-      runWithSudo(
-        () =>
-          requireJsonData(
-            client.POST(
-              "/api/prohibitorum/identity-providers/{slug}/operator-session/start",
-              { params: { path: { slug } }, body },
-            ),
-          ),
-        sudoReason.operatorSession,
+      requireJsonData(
+        client.POST(
+          "/api/prohibitorum/identity-providers/{slug}/operator-session/start",
+          { params: { path: { slug } }, body },
+        ),
       ),
     onSuccess: () => invalidateIdentityProviders(queryClient),
   });
@@ -1786,15 +1707,11 @@ export function verifyOperatorSessionMutationOptions(queryClient: QueryClient) {
       slug: string;
       body: OperatorSessionVerifyRequest;
     }): Promise<OperatorSessionView> =>
-      runWithSudo(
-        () =>
-          requireJsonData(
-            client.POST(
-              "/api/prohibitorum/identity-providers/{slug}/operator-session/verify",
-              { params: { path: { slug } }, body },
-            ),
-          ),
-        sudoReason.operatorSession,
+      requireJsonData(
+        client.POST(
+          "/api/prohibitorum/identity-providers/{slug}/operator-session/verify",
+          { params: { path: { slug } }, body },
+        ),
       ),
     onSuccess: () => invalidateIdentityProviders(queryClient),
   });
@@ -1807,15 +1724,11 @@ export function validateOperatorSessionMutationOptions(
     meta: { success: successMessage.validateOperatorSession },
     retry: false,
     mutationFn: async (slug: string): Promise<OperatorSessionView> =>
-      runWithSudo(
-        () =>
-          requireJsonData(
-            client.POST(
-              "/api/prohibitorum/identity-providers/{slug}/operator-session/validate",
-              { params: { path: { slug } } },
-            ),
-          ),
-        sudoReason.operatorSession,
+      requireJsonData(
+        client.POST(
+          "/api/prohibitorum/identity-providers/{slug}/operator-session/validate",
+          { params: { path: { slug } } },
+        ),
       ),
     onSuccess: () => invalidateIdentityProviders(queryClient),
   });
@@ -1855,12 +1768,8 @@ export function createOidcAppMutationOptions() {
     mutationFn: async (
       body: CreateOidcAppRequest,
     ): Promise<CreateOidcAppResponse> =>
-      runWithSudo(
-        () =>
-          requireJsonData(
-            client.POST("/api/prohibitorum/oidc-applications", { body }),
-          ),
-        sudoReason.createApplication,
+      requireJsonData(
+        client.POST("/api/prohibitorum/oidc-applications", { body }),
       ),
   });
 }
@@ -1876,15 +1785,11 @@ export function updateOidcAppMutationOptions(queryClient: QueryClient) {
       clientId: string;
       body: UpdateOidcAppRequest;
     }) =>
-      runWithSudo(
-        () =>
-          requireJsonData(
-            client.PUT("/api/prohibitorum/oidc-applications/{clientId}", {
-              params: { path: { clientId } },
-              body,
-            }),
-          ),
-        sudoReason.saveApplication,
+      requireJsonData(
+        client.PUT("/api/prohibitorum/oidc-applications/{clientId}", {
+          params: { path: { clientId } },
+          body,
+        }),
       ),
     onSuccess: (_view, { clientId }) =>
       invalidateApplication(queryClient, "oidc", clientId),
@@ -1957,12 +1862,8 @@ export function createForwardAuthAppMutationOptions() {
   return mutationOptions({
     retry: false,
     mutationFn: async (body: CreateForwardAuthAppRequest) =>
-      runWithSudo(
-        () =>
-          requireJsonData(
-            client.POST("/api/prohibitorum/forward-auth-apps", { body }),
-          ),
-        sudoReason.createApplication,
+      requireJsonData(
+        client.POST("/api/prohibitorum/forward-auth-apps", { body }),
       ),
   });
 }
@@ -1978,15 +1879,11 @@ export function updateForwardAuthAppMutationOptions(queryClient: QueryClient) {
       clientId: string;
       body: UpdateForwardAuthAppRequest;
     }) =>
-      runWithSudo(
-        () =>
-          requireJsonData(
-            client.PUT("/api/prohibitorum/forward-auth-apps/{clientId}", {
-              params: { path: { clientId } },
-              body,
-            }),
-          ),
-        sudoReason.saveApplication,
+      requireJsonData(
+        client.PUT("/api/prohibitorum/forward-auth-apps/{clientId}", {
+          params: { path: { clientId } },
+          body,
+        }),
       ),
     onSuccess: (_view, { clientId }) =>
       invalidateApplication(queryClient, "forward_auth", clientId),
@@ -2110,9 +2007,13 @@ export function deleteSamlAppMutationOptions(queryClient: QueryClient) {
     meta: { success: successMessage.deleteApp },
     retry: false,
     mutationFn: async (id: number) => {
-      await client.POST("/api/prohibitorum/saml-applications/delete", {
-        body: { id },
-      });
+      await runWithSudo(
+        () =>
+          client.POST("/api/prohibitorum/saml-applications/delete", {
+            body: { id },
+          }),
+        sudoReason.deleteApplication,
+      );
     },
     onSuccess: () =>
       queryClient.invalidateQueries({ queryKey: applicationQueryPrefix.saml }),
@@ -2236,7 +2137,7 @@ export function replaceAppGroupsMutationOptions(
 /* ------------------------------------------------------------- managers -- */
 
 /**
- * Assigning and removing are admin-only and sudo-gated. The manager list is not
+ * Assigning and removing are admin-only. The manager list is not
  * paged and is only ever read by an admin, so invalidating it is enough — the
  * application's own queries do not carry it.
  */
@@ -2254,30 +2155,26 @@ export function assignAppManagerMutationOptions(
       appId: string;
       accountId: number;
     }) => {
-      await runWithSudo(
-        () =>
-          kind === "saml"
-            ? client.POST("/api/prohibitorum/saml-applications/{id}/managers", {
-                params: { path: { id: Number(appId) } },
+      (await kind) === "saml"
+        ? client.POST("/api/prohibitorum/saml-applications/{id}/managers", {
+            params: { path: { id: Number(appId) } },
+            body: { accountId },
+          })
+        : kind === "oidc"
+          ? client.POST(
+              "/api/prohibitorum/oidc-applications/{clientId}/managers",
+              {
+                params: { path: { clientId: appId } },
                 body: { accountId },
-              })
-            : kind === "oidc"
-              ? client.POST(
-                  "/api/prohibitorum/oidc-applications/{clientId}/managers",
-                  {
-                    params: { path: { clientId: appId } },
-                    body: { accountId },
-                  },
-                )
-              : client.POST(
-                  "/api/prohibitorum/forward-auth-apps/{clientId}/managers",
-                  {
-                    params: { path: { clientId: appId } },
-                    body: { accountId },
-                  },
-                ),
-        sudoReason.assignAppManager,
-      );
+              },
+            )
+          : client.POST(
+              "/api/prohibitorum/forward-auth-apps/{clientId}/managers",
+              {
+                params: { path: { clientId: appId } },
+                body: { accountId },
+              },
+            );
     },
     onSuccess: (_result, { appId }) =>
       queryClient.invalidateQueries({
@@ -2300,33 +2197,29 @@ export function removeAppManagerMutationOptions(
       appId: string;
       accountId: number;
     }) => {
-      await runWithSudo(
-        () =>
-          kind === "saml"
-            ? client.POST(
-                "/api/prohibitorum/saml-applications/{id}/managers/remove",
-                {
-                  params: { path: { id: Number(appId) } },
-                  body: { accountId },
-                },
-              )
-            : kind === "oidc"
-              ? client.POST(
-                  "/api/prohibitorum/oidc-applications/{clientId}/managers/remove",
-                  {
-                    params: { path: { clientId: appId } },
-                    body: { accountId },
-                  },
-                )
-              : client.POST(
-                  "/api/prohibitorum/forward-auth-apps/{clientId}/managers/remove",
-                  {
-                    params: { path: { clientId: appId } },
-                    body: { accountId },
-                  },
-                ),
-        sudoReason.removeAppManager,
-      );
+      (await kind) === "saml"
+        ? client.POST(
+            "/api/prohibitorum/saml-applications/{id}/managers/remove",
+            {
+              params: { path: { id: Number(appId) } },
+              body: { accountId },
+            },
+          )
+        : kind === "oidc"
+          ? client.POST(
+              "/api/prohibitorum/oidc-applications/{clientId}/managers/remove",
+              {
+                params: { path: { clientId: appId } },
+                body: { accountId },
+              },
+            )
+          : client.POST(
+              "/api/prohibitorum/forward-auth-apps/{clientId}/managers/remove",
+              {
+                params: { path: { clientId: appId } },
+                body: { accountId },
+              },
+            );
     },
     onSuccess: (_result, { appId }) =>
       queryClient.invalidateQueries({
