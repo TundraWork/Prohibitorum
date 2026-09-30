@@ -1,73 +1,46 @@
 import { describe, expect, it } from "vitest";
-import type { components } from "@/api/generated/schema";
-import {
-  buildTokenRequest,
-  isOfferedScope,
-} from "@/pages/security/TokensPanel";
-
-type ForwardAuthApp = components["schemas"]["MyForwardAuthApp"];
-
-const apps: ForwardAuthApp[] = [
-  {
-    clientId: "wiki",
-    displayName: "Wiki",
-    scopes: [{ name: "read", description: "Read pages" }, { name: "write" }],
-  },
-  { clientId: "bare", displayName: "Bare", scopes: [] },
-];
+import { buildTokenRequest } from "@/pages/security/TokensPanel";
 
 describe("token request body", () => {
-  it("drops the grants when every application is allowed", () => {
-    // The server rejects a body that carries both, so the grants must not be
-    // sent even though the user picked some before flipping the switch.
-    const body = buildTokenRequest({
+  it("sends the chosen applications only for a selected_apps token", () => {
+    expect(
+      buildTokenRequest({
+        name: "ci",
+        access: "selected_apps",
+        appClientIds: ["wiki", "grafana"],
+        expiresInDays: "0",
+      }),
+    ).toEqual({
       name: "ci",
-      allApps: true,
-      grants: { wiki: ["read"] },
-      expiresInDays: "30",
-    });
-    expect(body).toEqual({
-      name: "ci",
-      allApps: true,
-      appGrants: {},
-      expiresInDays: 30,
+      access: "selected_apps",
+      appClientIds: ["wiki", "grafana"],
     });
   });
 
-  it("sends the grants when the token is limited to chosen applications", () => {
-    const body = buildTokenRequest({
-      name: "ci",
-      allApps: false,
-      grants: { wiki: ["read", "write"] },
-      expiresInDays: "0",
-    });
-    expect(body).toEqual({
-      name: "ci",
-      allApps: false,
-      appGrants: { wiki: ["read", "write"] },
-    });
-    // Zero days means no expiry, which the server reads as the field's absence.
-    expect("expiresInDays" in body).toBe(false);
+  it("drops the applications on every other level, even an empty list", () => {
+    // The server refuses appClientIds on these levels, so a pick made before
+    // the level changed must not travel.
+    for (const access of ["all_apps", "full", "sudo"] as const) {
+      const body = buildTokenRequest({
+        name: "ci",
+        access,
+        appClientIds: ["wiki"],
+        expiresInDays: "30",
+      });
+      expect(body).toEqual({ name: "ci", access, expiresInDays: 30 });
+      expect("appClientIds" in body).toBe(false);
+    }
   });
 
-  it("omits a non-integer or negative day count instead of sending it", () => {
+  it("omits a zero, non-integer or negative day count instead of sending it", () => {
     for (const expiresInDays of ["0", "-5", "1.5", "", "abc"]) {
       const body = buildTokenRequest({
         name: "ci",
-        allApps: true,
-        grants: {},
+        access: "full",
+        appClientIds: [],
         expiresInDays,
       });
       expect("expiresInDays" in body).toBe(false);
     }
-  });
-});
-
-describe("scope vocabulary", () => {
-  it("accepts only scopes the chosen application publishes", () => {
-    expect(isOfferedScope(apps, "wiki", "read")).toBe(true);
-    expect(isOfferedScope(apps, "wiki", "admin")).toBe(false);
-    expect(isOfferedScope(apps, "bare", "read")).toBe(false);
-    expect(isOfferedScope(apps, "unknown", "read")).toBe(false);
   });
 });

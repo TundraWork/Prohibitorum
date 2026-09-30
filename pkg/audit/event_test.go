@@ -193,3 +193,44 @@ func TestWriter_PgtypeInt8ZeroIsNull(t *testing.T) {
 		t.Fatal("pgtype.Int8 zero value unexpectedly Valid; test assumptions broken")
 	}
 }
+
+func TestWriter_RecordAddsPATID(t *testing.T) {
+	ctx := WithPATActor(context.Background(), 12)
+	for name, detail := range map[string]map[string]any{
+		"nil detail":   nil,
+		"other detail": {"reason": "ok"},
+	} {
+		cap := &captureQ{}
+		if err := NewWriter(cap).Record(ctx, Record{Factor: FactorPassword, Event: EventUse, Detail: detail}); err != nil {
+			t.Fatal(err)
+		}
+		var got map[string]any
+		if err := json.Unmarshal(cap.got.Detail, &got); err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		if got["pat_id"] != float64(12) {
+			t.Errorf("%s: pat_id = %v", name, got["pat_id"])
+		}
+		if detail != nil {
+			if _, mutated := detail["pat_id"]; mutated {
+				t.Errorf("%s: caller's map was mutated", name)
+			}
+		}
+	}
+
+	cap := &captureQ{}
+	if err := NewWriter(cap).Record(ctx, Record{Factor: FactorPassword, Event: EventUse, Detail: map[string]any{"pat_id": 99}}); err != nil {
+		t.Fatal(err)
+	}
+	var got map[string]any
+	_ = json.Unmarshal(cap.got.Detail, &got)
+	if got["pat_id"] != float64(99) {
+		t.Errorf("explicit pat_id overwritten: %v", got["pat_id"])
+	}
+
+	cap = &captureQ{}
+	_ = NewWriter(cap).Record(context.Background(), Record{Factor: FactorPassword, Event: EventUse})
+	if cap.got.Detail != nil {
+		t.Errorf("no PAT actor should leave Detail alone, got %s", cap.got.Detail)
+	}
+}

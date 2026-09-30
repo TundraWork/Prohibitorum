@@ -327,47 +327,21 @@ func seedSAMLSP(ctx context.Context, q *db.Queries) {
 	fmt.Printf("    inserted SAML SP %q (Example SAML App (dev))\n", entityID)
 }
 
-// faScope is one entry in a forward-auth app's admin-defined scope vocabulary,
-// matching the JSONB shape stored in oidc_client.forward_auth_scopes.
-type faScope struct {
-	Name        string `json:"name"`
-	Description string `json:"description"`
-}
-
 // faApp describes a forward-auth demo app: a normal oidc_client flagged for
-// forward-auth, carrying a scope vocabulary. access_restricted stays false so
-// every account can target it when minting a PAT.
+// forward-auth. access_restricted stays false so every account can target it
+// when minting a PAT.
 type faApp struct {
 	clientID    string
 	host        string
 	displayName string
-	scopes      []faScope
 }
 
 // seedForwardAuthApps registers a couple of forward-auth demo apps so the PAT
-// scope picker and the admin forward-auth scope-vocabulary editor render with
-// data. Skips any client_id that already exists.
+// app picker renders with data. Skips any client_id that already exists.
 func seedForwardAuthApps(ctx context.Context, q *db.Queries) {
 	apps := []faApp{
-		{
-			clientID:    "dev-grafana",
-			host:        "grafana.localhost",
-			displayName: "Grafana (dev)",
-			scopes: []faScope{
-				{"read", "View dashboards and metrics"},
-				{"write", "Create and edit dashboards"},
-				{"admin", "Manage organisation settings"},
-			},
-		},
-		{
-			clientID:    "dev-prometheus",
-			host:        "prometheus.localhost",
-			displayName: "Prometheus (dev)",
-			scopes: []faScope{
-				{"read", "Query metrics"},
-				{"admin", "Manage alerting rules"},
-			},
-		},
+		{clientID: "dev-grafana", host: "grafana.localhost", displayName: "Grafana (dev)"},
+		{clientID: "dev-prometheus", host: "prometheus.localhost", displayName: "Prometheus (dev)"},
 	}
 	for _, a := range apps {
 		_, err := q.GetOIDCClient(ctx, a.clientID)
@@ -381,17 +355,7 @@ func seedForwardAuthApps(ctx context.Context, q *db.Queries) {
 		if _, err := oidc.RegisterForwardAuthApp(ctx, q, a.clientID, a.host, a.displayName); err != nil {
 			log.Fatalf("register forward-auth app %q: %v", a.clientID, err)
 		}
-		scopesJSON, err := json.Marshal(a.scopes)
-		if err != nil {
-			log.Fatalf("marshal scopes for %q: %v", a.clientID, err)
-		}
-		if err := q.SetForwardAuthScopes(ctx, db.SetForwardAuthScopesParams{
-			ClientID:          a.clientID,
-			ForwardAuthScopes: scopesJSON,
-		}); err != nil {
-			log.Fatalf("set forward-auth scopes for %q: %v", a.clientID, err)
-		}
-		fmt.Printf("    inserted forward-auth app %q (%s, host=%s, %d scopes)\n", a.clientID, a.displayName, a.host, len(a.scopes))
+		fmt.Printf("    inserted forward-auth app %q (%s, host=%s)\n", a.clientID, a.displayName, a.host)
 	}
 }
 
@@ -418,40 +382,43 @@ func seedTokens(ctx context.Context, q *db.Queries) {
 	}
 
 	type patSpec struct {
-		name      string
-		allApps   bool
-		appGrants map[string][]string
-		expires   bool
+		name    string
+		access  pat.Access
+		apps    []string
+		expires bool
 	}
 	specs := []patSpec{
-		{name: "ci-deploy", allApps: false, appGrants: map[string][]string{"dev-grafana": {"read", "write"}}, expires: true},
-		{name: "metrics-readonly", allApps: true, appGrants: map[string][]string{}, expires: false},
+		{name: "ci-deploy", access: pat.AccessSelectedApps, apps: []string{"dev-grafana"}, expires: true},
+		{name: "metrics-readonly", access: pat.AccessAllApps},
+		{name: "admin-cli", access: pat.AccessFull, expires: true},
+		{name: "break-glass", access: pat.AccessSudo, expires: true},
 	}
 	for _, s := range specs {
 		_, hash, hint, err := pat.Generate()
 		if err != nil {
 			log.Fatalf("generate PAT %q: %v", s.name, err)
 		}
-		grantsJSON, err := json.Marshal(s.appGrants)
-		if err != nil {
-			log.Fatalf("marshal app_grants for PAT %q: %v", s.name, err)
-		}
 		var expires pgtype.Timestamptz
 		if s.expires {
 			expires = pgtype.Timestamptz{Time: time.Now().AddDate(0, 0, 90), Valid: true}
 		}
-		if _, err := q.InsertPAT(ctx, db.InsertPATParams{
+		row, err := q.InsertPAT(ctx, db.InsertPATParams{
 			AccountID: alice.ID,
 			Name:      s.name,
 			TokenHash: hash,
 			TokenHint: hint,
-			AllApps:   s.allApps,
-			AppGrants: grantsJSON,
+			Access:    string(s.access),
 			ExpiresAt: expires,
-		}); err != nil {
+		})
+		if err != nil {
 			log.Fatalf("insert PAT %q: %v", s.name, err)
 		}
-		fmt.Printf("    inserted PAT %q for alice (allApps=%v)\n", s.name, s.allApps)
+		for _, cid := range s.apps {
+			if err := q.InsertPATApp(ctx, db.InsertPATAppParams{PatID: row.ID, ClientID: cid}); err != nil {
+				log.Fatalf("insert PAT app %q for %q: %v", cid, s.name, err)
+			}
+		}
+		fmt.Printf("    inserted PAT %q for alice (access=%s)\n", s.name, s.access)
 	}
 }
 

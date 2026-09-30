@@ -116,7 +116,7 @@ func (s *Server) handleUpdateForwardAuthIdentityProjectionHTTP(w http.ResponseWr
 		AccountID: faActorID(r.Context()), Factor: audit.FactorOIDCClient, Event: audit.EventUpdate,
 		Detail: map[string]any{"client_id": clientID, "forward_auth": true, "principal_source": body.RemoteUserSource},
 	})
-	view := forwardAuthAppView(updated.ClientID, updated.DisplayName, updated.ForwardAuthHost, updated.ForwardAuthScopes, updated.AccessRestricted, updated.Disabled, updated.CreatedAt, updated.PrincipalSource)
+	view := forwardAuthAppView(updated.ClientID, updated.DisplayName, updated.ForwardAuthHost, updated.AccessRestricted, updated.Disabled, updated.CreatedAt, updated.PrincipalSource)
 	view.IconURL = s.enrichIconURL(r.Context(), "oidc_client", clientID)
 	writeJSON(w, view)
 }

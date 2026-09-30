@@ -29,6 +29,10 @@ var diagnosticHTTPMethods = [...]string{
 type diagnosticCapture struct {
 	code   string
 	fields map[string]any
+	// accountID is the owner of a PAT-authenticated request. patAuthMW runs
+	// inside the capture, so its principal never reaches the capture's own
+	// context; it reports the owner here instead.
+	accountID *int32
 }
 
 func (c *diagnosticCapture) observe(code string, fields map[string]any) {
@@ -53,6 +57,14 @@ func (w *diagnosticResponseWriter) Unwrap() http.ResponseWriter { return w.Respo
 
 func (w *diagnosticResponseWriter) ObservePublicError(code string, fields map[string]any) {
 	w.capture.observe(code, fields)
+}
+
+// observeDiagnosticAccount records the account a request acts for when that
+// account is not on the capture's context (a PAT-authenticated request).
+func observeDiagnosticAccount(ctx context.Context, accountID int32) {
+	if capture, ok := ctx.Value(diagnosticCaptureKey{}).(*diagnosticCapture); ok {
+		capture.accountID = &accountID
+	}
 }
 
 func observeDiagnostic(ctx context.Context, code string, fields map[string]any) {
@@ -112,7 +124,9 @@ func diagnosticCaptureMW(store diagnostic.StoreWriter) func(http.Handler) http.H
 				Retryable: def.Retryable,
 				Fields:    capture.fields,
 			}
-			if session := authn.SessionFromContext(r.Context()); session != nil && session.Account != nil {
+			if capture.accountID != nil {
+				record.AccountID = capture.accountID
+			} else if session := authn.SessionFromContext(r.Context()); session != nil && session.Account != nil {
 				record.AccountID = &session.Account.ID
 			}
 			writeCtx := context.WithoutCancel(r.Context())

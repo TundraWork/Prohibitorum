@@ -455,15 +455,12 @@ export interface CreateForwardAuthAppRequest {
   clientId: string;
   host: string;
   displayName?: string;
-  scopes?: { name: string; description?: string }[];
   accessRestricted?: boolean;
 }
 
 export interface UpdateForwardAuthAppRequest {
   displayName: string;
   host: string;
-  /** The whole vocabulary; omitting it clears it. */
-  scopes: { name: string; description?: string }[];
 }
 
 export interface SamlAcsEndpointRequest {

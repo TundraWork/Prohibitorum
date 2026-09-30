@@ -471,7 +471,13 @@ func sudoMethodFactor(method string) audit.Factor {
 // With SudoTTL == 0 (the zero-config &Server{} used by unit tests) the
 // recent-auth clause is always false, so the gate falls back to SudoUntil only —
 // preserving the existing "no fresh sudo → deny" test semantics.
+//
+// A PAT session has no time window: its access level decides, so sudo-level
+// tokens always pass and full-level tokens never do.
 func (s *Server) hasFreshSudo(sess *authn.Session) bool {
+	if sess != nil && sess.PAT != nil {
+		return sess.PAT.Access.BypassesSudo()
+	}
 	if sess == nil || sess.Data == nil {
 		return false
 	}

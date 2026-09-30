@@ -23,6 +23,10 @@ const (
 // auth.Check(session, requirement) before invoking the handler.
 type AuthRequirement struct {
 	Kind AuthKind
+	// BrowserOnly rejects Personal Access Token callers: the route depends on
+	// the browser session (its cookie token or session id) or issues browser
+	// credentials.
+	BrowserOnly bool
 }
 
 // View types --------------------------------------------------------------------
@@ -100,22 +104,24 @@ type CredentialView struct {
 	LastUsedAt         *time.Time `json:"lastUsedAt,omitempty"`
 }
 
-// ForwardAuthScope is one admin-defined scope label for a forward-auth app.
-type ForwardAuthScope struct {
-	Name        string `json:"name"`
-	Description string `json:"description,omitempty"`
+// PersonalAccessTokenApp is one forward-auth application a selected_apps token
+// may use.
+type PersonalAccessTokenApp struct {
+	ClientID    string `json:"clientId"`
+	DisplayName string `json:"displayName"`
 }
 
-// PersonalAccessTokenView is a row in /me/tokens. No secret; per-app grants.
+// PersonalAccessTokenView is a row in /me/tokens. No secret. Access is one of
+// selected_apps, all_apps, full, sudo; Apps is non-empty only for selected_apps.
 type PersonalAccessTokenView struct {
-	ID         int32               `json:"id"`
-	Name       string              `json:"name"`
-	TokenHint  string              `json:"tokenHint"`
-	AllApps    bool                `json:"allApps"`
-	AppGrants  map[string][]string `json:"appGrants"` // client_id -> scopes
-	CreatedAt  time.Time           `json:"createdAt"`
-	ExpiresAt  *time.Time          `json:"expiresAt,omitempty"`
-	LastUsedAt *time.Time          `json:"lastUsedAt,omitempty"`
+	ID         int32                    `json:"id"`
+	Name       string                   `json:"name"`
+	TokenHint  string                   `json:"tokenHint"`
+	Access     string                   `json:"access" enum:"selected_apps,all_apps,full,sudo"`
+	Apps       []PersonalAccessTokenApp `json:"apps"`
+	CreatedAt  time.Time                `json:"createdAt"`
+	ExpiresAt  *time.Time               `json:"expiresAt,omitempty"`
+	LastUsedAt *time.Time               `json:"lastUsedAt,omitempty"`
 }
 
 // PersonalAccessTokenCreated reveals the plaintext exactly once.
@@ -124,12 +130,11 @@ type PersonalAccessTokenCreated struct {
 	PAT   PersonalAccessTokenView `json:"pat"`
 }
 
-// MyForwardAuthApp is one forward-auth app the caller may use, with its scope
-// vocabulary — the candidate list for the PAT create picker.
+// MyForwardAuthApp is one forward-auth app the caller may grant to a PAT — the
+// candidate list for the PAT create picker.
 type MyForwardAuthApp struct {
-	ClientID    string             `json:"clientId"`
-	DisplayName string             `json:"displayName"`
-	Scopes      []ForwardAuthScope `json:"scopes"`
+	ClientID    string `json:"clientId"`
+	DisplayName string `json:"displayName"`
 }
 
 // EnrollmentTarget is the public-safe identity of the target account for invite/reset.
@@ -352,7 +357,7 @@ var OperationListMyForwardAuthApps = huma.Operation{
 	OperationID: "listMyForwardAuthApps",
 	Method:      http.MethodGet,
 	Path:        "/me/forward-auth-apps",
-	Summary:     "List the forward-auth apps the caller may use, with each app's scope vocabulary.",
+	Summary:     "List the forward-auth apps the caller can grant to a personal access token.",
 }
 
 var OperationPreviewEnrollment = huma.Operation{
@@ -620,15 +625,14 @@ var OperationGetOIDCApplication = huma.Operation{
 // clients are public (PKCE) and carry no secret, so there is no secret material
 // to leak.
 type ForwardAuthAppView struct {
-	ClientID         string             `json:"clientId"`
-	DisplayName      string             `json:"displayName"`
-	IconURL          *string            `json:"iconUrl,omitempty"`
-	ForwardAuthHost  string             `json:"forwardAuthHost"`
-	Scopes           []ForwardAuthScope `json:"scopes"`
-	AccessRestricted bool               `json:"accessRestricted"`
-	Disabled         bool               `json:"disabled"`
-	RemoteUserSource string             `json:"remoteUserSource"`
-	CreatedAt        time.Time          `json:"createdAt"`
+	ClientID         string    `json:"clientId"`
+	DisplayName      string    `json:"displayName"`
+	IconURL          *string   `json:"iconUrl,omitempty"`
+	ForwardAuthHost  string    `json:"forwardAuthHost"`
+	AccessRestricted bool      `json:"accessRestricted"`
+	Disabled         bool      `json:"disabled"`
+	RemoteUserSource string    `json:"remoteUserSource"`
+	CreatedAt        time.Time `json:"createdAt"`
 }
 
 var OperationListForwardAuthApps = huma.Operation{

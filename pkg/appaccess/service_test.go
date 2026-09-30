@@ -357,7 +357,7 @@ func TestServiceListAllowedAppsUsesOneFactSnapshotAndOmitsDenied(t *testing.T) {
 			{ClientID: "open", DisplayName: "Open", LaunchUrl: pgtype.Text{String: "https://open.example", Valid: true}, RedirectUris: []string{"https://open.example/callback"}},
 		},
 		forwardCandidates: []db.ListForwardAuthAccessCandidatesRow{
-			{ClientID: "svc", DisplayName: "Service", ForwardAuthHost: pgtype.Text{String: "svc.example", Valid: true}, ForwardAuthScopes: []byte(`[{"name":"read","description":"Read data"}]`), AccessRestricted: true},
+			{ClientID: "svc", DisplayName: "Service", ForwardAuthHost: pgtype.Text{String: "svc.example", Valid: true}, AccessRestricted: true},
 		},
 		samlCandidates: []db.ListSAMLAccessCandidatesRow{
 			{ID: 9, EntityID: "https://saml.example/sp", DisplayName: "SAML", AccessRestricted: true},
@@ -384,7 +384,7 @@ func TestServiceListAllowedAppsUsesOneFactSnapshotAndOmitsDenied(t *testing.T) {
 	if got[0].Ref != (AppRef{Kind: KindOIDC, OIDCClientID: "open"}) || got[0].LaunchURL != "https://open.example" {
 		t.Fatalf("OIDC summary = %#v", got[0])
 	}
-	if got[1].Ref != (AppRef{Kind: KindForwardAuth, OIDCClientID: "svc"}) || got[1].ForwardAuthHost != "svc.example" || !reflect.DeepEqual(got[1].ForwardAuthScopes, []Scope{{Name: "read", Description: "Read data"}}) {
+	if got[1].Ref != (AppRef{Kind: KindForwardAuth, OIDCClientID: "svc"}) || got[1].ForwardAuthHost != "svc.example" {
 		t.Fatalf("forward-auth summary = %#v", got[1])
 	}
 }

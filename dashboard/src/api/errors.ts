@@ -115,6 +115,20 @@ const errorMessages: Readonly<Record<string, MessageDescriptor>> = {
     id: "error.sudo_required",
     message: "Verify your identity again to continue.",
   }),
+  pat_invalid: msg({
+    id: "error.pat_invalid",
+    message:
+      "This access token is not valid. It may have expired or been revoked.",
+  }),
+  pat_api_not_allowed: msg({
+    id: "error.pat_api_not_allowed",
+    message:
+      "This access token can only be used for applications, not for the account.",
+  }),
+  pat_browser_session_required: msg({
+    id: "error.pat_browser_session_required",
+    message: "Sign in with a browser to do this. An access token cannot.",
+  }),
   sudo_method_unavailable: msg({
     id: "error.sudo_method_unavailable",
     message: "That verification method is not available. Choose another one.",

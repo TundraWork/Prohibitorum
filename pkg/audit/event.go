@@ -117,6 +117,17 @@ func (w *dbWriter) Record(ctx context.Context, r Record) error {
 		r.UserAgent = uaFromCtx(ctx)
 	}
 
+	if id, ok := patFromCtx(ctx); ok {
+		if _, set := r.Detail["pat_id"]; !set {
+			d := make(map[string]any, len(r.Detail)+1)
+			for k, v := range r.Detail {
+				d[k] = v
+			}
+			d["pat_id"] = id
+			r.Detail = d
+		}
+	}
+
 	var detail []byte
 	if r.Detail != nil {
 		b, err := json.Marshal(r.Detail)

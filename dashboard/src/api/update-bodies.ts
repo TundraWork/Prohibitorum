@@ -107,10 +107,9 @@ export function oidcAppUpdateBody(
 export interface ForwardAuthAppPatch {
   displayName?: string;
   host?: string;
-  scopes?: { name: string; description?: string }[];
 }
 
-/** `PUT /forward-auth-apps/{clientId}`. `scopes` carries the whole vocabulary. */
+/** `PUT /forward-auth-apps/{clientId}`. */
 export function forwardAuthAppUpdateBody(
   view: ForwardAuthAppView,
   patch: ForwardAuthAppPatch = {},
@@ -118,14 +117,6 @@ export function forwardAuthAppUpdateBody(
   return {
     displayName: patch.displayName ?? view.displayName,
     host: patch.host ?? view.forwardAuthHost,
-    scopes:
-      patch.scopes ??
-      (view.scopes ?? []).map((scope) => ({
-        name: scope.name,
-        ...(scope.description === undefined
-          ? {}
-          : { description: scope.description }),
-      })),
   };
 }
 

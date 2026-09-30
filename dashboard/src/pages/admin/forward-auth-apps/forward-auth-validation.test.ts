@@ -1,22 +1,12 @@
 import { describe, expect, it } from "vitest";
-import {
-  hostProblem,
-  removedScopeNames,
-  scopeDescriptionTooLong,
-  scopeListProblem,
-  scopeNameDuplicate,
-  scopeNameProblem,
-} from "@/pages/admin/forward-auth-apps/forward-auth-validation";
-import { scopeSummary } from "@/pages/admin/forward-auth-apps/scope-summary";
+import { hostProblem } from "@/pages/admin/forward-auth-apps/forward-auth-validation";
 
 /**
- * These rules are the only check any of these values gets.
+ * These rules are the only check the hostname gets.
  *
- * The server stores the hostname as given and trims a scope name before
- * validating it, so a mistake here is a deployment that protects nothing or a
- * vocabulary that reads back differently from what was typed. The cases below
- * are the ones where "nearly right" is the failure mode: a scheme left on a
- * hostname, a scope name pasted with a space, two rows that differ only by case.
+ * The server stores it as given, so a mistake here is a deployment that
+ * protects nothing. The cases below are the ones where "nearly right" is the
+ * failure mode: a scheme or a port left on the hostname.
  */
 describe("hostname", () => {
   it("accepts a hostname Traefik can match", () => {
@@ -42,127 +32,5 @@ describe("hostname", () => {
     const long = `${"a".repeat(60)}.`.repeat(5);
     expect(hostProblem(long)).toBeDefined();
     expect(hostProblem("")).toBeDefined();
-  });
-});
-
-describe("scope vocabulary", () => {
-  it("accepts the names the server accepts", () => {
-    expect(scopeNameProblem("read")).toBeUndefined();
-    expect(scopeNameProblem("admin:users")).toBeUndefined();
-    expect(scopeNameProblem("a.b_c-d")).toBeUndefined();
-  });
-
-  it("refuses a name with whitespace at either end rather than trimming it", () => {
-    // The server would trim and store "read", so accepting this would save
-    // something other than what the reader typed.
-    expect(scopeNameProblem(" read")).toBeDefined();
-    expect(scopeNameProblem("read ")).toBeDefined();
-    expect(scopeNameProblem(" ")).toBeDefined();
-  });
-
-  it("refuses a name that is too long or wrongly shaped", () => {
-    expect(scopeNameProblem("a".repeat(64))).toBeUndefined();
-    expect(scopeNameProblem("a".repeat(65))).toBeDefined();
-    expect(scopeNameProblem(":read")).toBeDefined();
-    expect(scopeNameProblem("read:")).toBeDefined();
-    expect(scopeNameProblem("")).toBeDefined();
-  });
-
-  it("refuses a duplicate, which the server would too", () => {
-    // The later of the two rows is the one named.
-    expect(
-      scopeListProblem([{ name: "read" }, { name: "write" }, { name: "read" }]),
-    ).toEqual({ index: 2, field: "name", message: scopeNameDuplicate });
-    // Distinct names that merely look alike are fine.
-    expect(
-      scopeListProblem([{ name: "read" }, { name: "Read" }]),
-    ).toBeUndefined();
-  });
-
-  it("refuses a description past the limit", () => {
-    expect(
-      scopeListProblem([{ name: "read", description: "a".repeat(256) }]),
-    ).toBeUndefined();
-    expect(
-      scopeListProblem([
-        { name: "read" },
-        { name: "write", description: "a".repeat(257) },
-      ]),
-    ).toEqual({
-      index: 1,
-      field: "description",
-      message: scopeDescriptionTooLong,
-    });
-  });
-
-  it("accepts an empty vocabulary, which the server also allows", () => {
-    expect(scopeListProblem([])).toBeUndefined();
-  });
-
-  it("names the row and the input of a bad name", () => {
-    expect(scopeListProblem([{ name: "read" }, { name: " write" }])).toEqual({
-      index: 1,
-      field: "name",
-      message: scopeNameProblem(" write"),
-    });
-  });
-});
-
-describe("removed scopes", () => {
-  const saved = [{ name: "read" }, { name: "write" }, { name: "admin" }];
-
-  it("lists the saved names the new list drops, in saved order", () => {
-    expect(removedScopeNames(saved, [{ name: "write" }])).toEqual([
-      "read",
-      "admin",
-    ]);
-  });
-
-  it("lists every name when the whole vocabulary is removed", () => {
-    expect(removedScopeNames(saved, [])).toEqual(["read", "write", "admin"]);
-  });
-
-  it("is empty when only descriptions change or scopes are added", () => {
-    expect(
-      removedScopeNames(saved, [
-        { name: "read" },
-        { name: "write" },
-        { name: "admin" },
-        { name: "export" },
-      ]),
-    ).toEqual([]);
-  });
-
-  it("counts a rename as a removal", () => {
-    expect(
-      removedScopeNames(saved, [
-        { name: "read" },
-        { name: "write" },
-        { name: "administer" },
-      ]),
-    ).toEqual(["admin"]);
-  });
-});
-
-describe("scope list cell", () => {
-  it("names the scopes while there are few, and counts the rest", () => {
-    expect(scopeSummary([])).toBe("—");
-    expect(scopeSummary(null)).toBe("—");
-    expect(scopeSummary([{ name: "read" }])).toBe("read");
-    expect(scopeSummary([{ name: "read" }, { name: "write" }])).toBe(
-      "read, write",
-    );
-    expect(
-      scopeSummary([{ name: "read" }, { name: "write" }, { name: "admin" }]),
-    ).toBe("read, write, admin");
-    expect(
-      scopeSummary([
-        { name: "read" },
-        { name: "write" },
-        { name: "admin" },
-        { name: "billing" },
-        { name: "export" },
-      ]),
-    ).toBe("read, write, admin +2");
   });
 });

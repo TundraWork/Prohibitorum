@@ -16,22 +16,15 @@ type AppManagerView struct {
 // application. AppID is the route identifier: an OIDC client ID for oidc and
 // forward_auth, or the decimal SAML SP ID for saml.
 type AppSummaryView struct {
-	IconURL           *string        `json:"iconUrl,omitempty"`
-	Kind              string         `json:"kind"`
-	AppID             string         `json:"appId"`
-	DisplayName       string         `json:"displayName"`
-	LaunchURL         string         `json:"launchUrl,omitempty"`
-	RedirectURIs      []string       `json:"redirectUris,omitempty"`
-	EntityID          string         `json:"entityId,omitempty"`
-	ForwardAuthHost   string         `json:"forwardAuthHost,omitempty"`
-	ForwardAuthScopes []AppScopeView `json:"forwardAuthScopes,omitempty"`
-	AccessRestricted  bool           `json:"accessRestricted"`
-}
-
-// AppScopeView is one safe forward-auth scope advertised by an application.
-type AppScopeView struct {
-	Name        string `json:"name"`
-	Description string `json:"description"`
+	IconURL          *string  `json:"iconUrl,omitempty"`
+	Kind             string   `json:"kind"`
+	AppID            string   `json:"appId"`
+	DisplayName      string   `json:"displayName"`
+	LaunchURL        string   `json:"launchUrl,omitempty"`
+	RedirectURIs     []string `json:"redirectUris,omitempty"`
+	EntityID         string   `json:"entityId,omitempty"`
+	ForwardAuthHost  string   `json:"forwardAuthHost,omitempty"`
+	AccessRestricted bool     `json:"accessRestricted"`
 }
 
 // ProviderDescriptorView is the safe policy-authoring identity of one known

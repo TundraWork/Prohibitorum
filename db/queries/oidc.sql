@@ -121,7 +121,7 @@ SET forward_auth_enabled = $2,
 WHERE client_id = $1;
 
 -- name: ListForwardAuthClients :many
-SELECT client_id, display_name, forward_auth_host, forward_auth_scopes, access_restricted, disabled, created_at, principal_source
+SELECT client_id, display_name, forward_auth_host, access_restricted, disabled, created_at, principal_source
 FROM oidc_client
 WHERE forward_auth_enabled = true
   AND (
@@ -137,19 +137,15 @@ ORDER BY created_at DESC, client_id DESC
 LIMIT sqlc.arg('limit');
 
 -- name: GetForwardAuthAppByID :one
-SELECT client_id, display_name, forward_auth_host, forward_auth_scopes, access_restricted, disabled, created_at, principal_source
+SELECT client_id, display_name, forward_auth_host, access_restricted, disabled, created_at, principal_source
 FROM oidc_client
 WHERE client_id = $1 AND forward_auth_enabled = true;
 
 -- name: UpdateForwardAuthApp :one
 UPDATE oidc_client
-SET display_name = $2, redirect_uris = $3, forward_auth_host = $4, forward_auth_scopes = $5
+SET display_name = $2, redirect_uris = $3, forward_auth_host = $4
 WHERE client_id = $1 AND forward_auth_enabled = true
-RETURNING client_id, display_name, forward_auth_host, forward_auth_scopes, access_restricted, disabled, created_at, principal_source;
-
--- name: SetForwardAuthScopes :exec
-UPDATE oidc_client SET forward_auth_scopes = $2
-WHERE client_id = $1 AND forward_auth_enabled = true;
+RETURNING client_id, display_name, forward_auth_host, access_restricted, disabled, created_at, principal_source;
 
 -- name: ListNonForwardAuthOIDCClients :many
 SELECT client_id, display_name, redirect_uris, allowed_scopes,

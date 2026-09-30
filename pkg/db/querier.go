@@ -149,6 +149,7 @@ type Querier interface {
 	InsertFederatedRegistrationEnrollment(ctx context.Context, arg InsertFederatedRegistrationEnrollmentParams) (Enrollment, error)
 	InsertOIDCClient(ctx context.Context, arg InsertOIDCClientParams) (OidcClient, error)
 	InsertPAT(ctx context.Context, arg InsertPATParams) (PersonalAccessToken, error)
+	InsertPATApp(ctx context.Context, arg InsertPATAppParams) error
 	InsertPendingSigningKey(ctx context.Context, arg InsertPendingSigningKeyParams) (SigningKey, error)
 	InsertProviderRecoveryEnrollment(ctx context.Context, arg InsertProviderRecoveryEnrollmentParams) (Enrollment, error)
 	InsertRecoveryCode(ctx context.Context, arg InsertRecoveryCodeParams) (RecoveryCode, error)
@@ -204,6 +205,7 @@ type Querier interface {
 	ListOIDCAppRuleGroups(ctx context.Context, oidcClientID string) ([]UserGroup, error)
 	ListOIDCClientManagers(ctx context.Context, clientID string) ([]ListOIDCClientManagersRow, error)
 	ListOIDCClients(ctx context.Context) ([]ListOIDCClientsRow, error)
+	ListPATAppsByPATIDs(ctx context.Context, patIds []int32) ([]ListPATAppsByPATIDsRow, error)
 	ListPATsByAccount(ctx context.Context, accountID int32) ([]PersonalAccessToken, error)
 	// Keyset-paginated non-revoked PATs for an account, ordered by (created_at DESC, id DESC).
 	// NULL after_created_at starts a new page. LIMIT is limit+1 for next-page detection.
@@ -233,6 +235,7 @@ type Querier interface {
 	ListSAMLSessionsBySession(ctx context.Context, sessionID string) ([]SamlSession, error)
 	ListSessionsByAccount(ctx context.Context, accountID int32) ([]Session, error)
 	ListUpstreamIDPs(ctx context.Context) ([]UpstreamIdp, error)
+	PATGrantsApp(ctx context.Context, arg PATGrantsAppParams) (bool, error)
 	PromoteSigningKey(ctx context.Context, kid string) (SigningKey, error)
 	PruneExpiredRevokedJTI(ctx context.Context) error
 	ReconcileRetiredSigningKeys(ctx context.Context) (int64, error)
@@ -260,7 +263,6 @@ type Querier interface {
 	SetEntityIcon(ctx context.Context, arg SetEntityIconParams) error
 	SetEntityIconAccent(ctx context.Context, arg SetEntityIconAccentParams) error
 	SetForwardAuthConfig(ctx context.Context, arg SetForwardAuthConfigParams) error
-	SetForwardAuthScopes(ctx context.Context, arg SetForwardAuthScopesParams) error
 	SetOIDCClientAccessRestricted(ctx context.Context, arg SetOIDCClientAccessRestrictedParams) (OidcClient, error)
 	SetOIDCClientDisabled(ctx context.Context, arg SetOIDCClientDisabledParams) (OidcClient, error)
 	SetOIDCClientLaunchURL(ctx context.Context, arg SetOIDCClientLaunchURLParams) error

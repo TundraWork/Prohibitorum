@@ -1,4 +1,3 @@
-import { Link } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useStore } from "@tanstack/react-form";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -14,7 +13,6 @@ import { principalSourceLabel } from "@/components/custom/principal-sources";
 import { Section } from "@/components/custom/Section";
 import { applyServerError } from "@/forms/server-errors";
 import { useAppForm } from "@/forms/use-app-form";
-import { tokenScopesAnchor } from "@/pages/admin/forward-auth-apps/ForwardAuthScopesSection";
 
 type ForwardAuthApp = components["schemas"]["ForwardAuthAppView"];
 
@@ -23,10 +21,9 @@ type ForwardAuthApp = components["schemas"]["ForwardAuthAppView"];
  * through, laid out as the headers themselves.
  *
  * The page is about that request, so this section is where the account's
- * identity meets it: five headers, one line each, and only `Remote-User` is a
+ * identity meets it: four headers, one line each, and only `Remote-User` is a
  * choice. The others are stated rather than configured — the name, the primary
- * email, the application's exposed groups — and `Remote-Scopes` points at the
- * token scopes below, which is where its values come from.
+ * email, the application's exposed groups.
  *
  * `Remote-User` is the identifier the service keys its users on, so a change is
  * confirmed when it is saved: the select moves freely, the save button turns to
@@ -118,12 +115,6 @@ export function ForwardAuthHeadersSection({ app }: { app: ForwardAuthApp }) {
               <HeaderRow name="Remote-Groups">
                 <Trans id="admin.forward-auth-apps.headers.groups">
                   User groups this application exposes
-                </Trans>
-              </HeaderRow>
-              <HeaderRow name="Remote-Scopes">
-                <Trans id="admin.forward-auth-apps.headers.scopes">
-                  Scopes granted by the token; empty for browser sign-ins.{" "}
-                  <Link href={`#${tokenScopesAnchor}`}>Token scopes</Link>
                 </Trans>
               </HeaderRow>
             </HeaderTable>

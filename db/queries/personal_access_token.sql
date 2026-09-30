@@ -1,8 +1,24 @@
 -- name: InsertPAT :one
 INSERT INTO personal_access_token (
-  account_id, name, token_hash, token_hint, all_apps, app_grants, expires_at
-) VALUES ($1, $2, $3, $4, $5, $6, $7)
+  account_id, name, token_hash, token_hint, access, expires_at
+) VALUES ($1, $2, $3, $4, $5, $6)
 RETURNING *;
+
+-- name: InsertPATApp :exec
+INSERT INTO personal_access_token_app (pat_id, client_id) VALUES ($1, $2);
+
+-- name: PATGrantsApp :one
+SELECT EXISTS (
+  SELECT 1 FROM personal_access_token_app
+  WHERE pat_id = $1 AND client_id = $2
+);
+
+-- name: ListPATAppsByPATIDs :many
+SELECT a.pat_id, a.client_id, c.display_name
+FROM personal_access_token_app a
+JOIN oidc_client c ON c.client_id = a.client_id
+WHERE a.pat_id = ANY(sqlc.arg(pat_ids)::int[])
+ORDER BY c.display_name, c.client_id;
 
 -- name: GetPATByID :one
 SELECT * FROM personal_access_token WHERE id = $1;

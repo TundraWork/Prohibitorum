@@ -281,6 +281,9 @@ func (f *fakeNestedQ) ListPATsByAccountPage(_ context.Context, arg db.ListPATsBy
 	return out, nil
 }
 
+func (f *fakeNestedQ) ListPATAppsByPATIDs(context.Context, []int32) ([]db.ListPATAppsByPATIDsRow, error) {
+	return nil, nil
+}
 
 // noopSessionQueriesForServer is a no-op SessionQueries for server tests.
 type noopSessionQueriesForServer struct{}
@@ -576,9 +579,9 @@ func TestHandleListAccountTokens_PageShape(t *testing.T) {
 
 	now := time.Now().UTC().Truncate(time.Second)
 	pats := []db.PersonalAccessToken{
-		{ID: 1, AccountID: 42, Name: "t1", TokenHint: "a...z", AllApps: false, AppGrants: []byte(`{}`), CreatedAt: pgtype.Timestamptz{Time: now, Valid: true}},
-		{ID: 2, AccountID: 42, Name: "t2", TokenHint: "b...y", AllApps: true, AppGrants: []byte(`{}`), CreatedAt: pgtype.Timestamptz{Time: now.Add(time.Second), Valid: true}},
-		{ID: 3, AccountID: 42, Name: "t3", TokenHint: "c...x", AllApps: false, AppGrants: []byte(`{}`), CreatedAt: pgtype.Timestamptz{Time: now.Add(2 * time.Second), Valid: true}},
+		{ID: 1, AccountID: 42, Name: "t1", TokenHint: "a...z", Access: "all_apps", CreatedAt: pgtype.Timestamptz{Time: now, Valid: true}},
+		{ID: 2, AccountID: 42, Name: "t2", TokenHint: "b...y", Access: "all_apps", CreatedAt: pgtype.Timestamptz{Time: now.Add(time.Second), Valid: true}},
+		{ID: 3, AccountID: 42, Name: "t3", TokenHint: "c...x", Access: "all_apps", CreatedAt: pgtype.Timestamptz{Time: now.Add(2 * time.Second), Valid: true}},
 	}
 	fakeQ := &fakeNestedQ{pats: pats}
 	s := &Server{

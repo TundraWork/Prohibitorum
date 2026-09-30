@@ -86,12 +86,11 @@ func writeDiagnosticError(w http.ResponseWriter, err error) {
 }
 func (s *Server) handleOIDCEffectiveConfigHTTP(w http.ResponseWriter, r *http.Request) {
 	diagnosticHeaders(w)
-	actor, err := diagnosticActor(r)
-	if err != nil {
-		writeAuthErr(w, err)
-		return
-	}
-	if s.rateLimit(w, r, "oidc-effective:"+strconv.Itoa(int(actor.AccountID)), 20, time.Minute) {
+	// The admin route gate has already admitted the caller (a browser session
+	// or a PAT); this read needs only the account for its rate limit, unlike
+	// the connection tests, which bind to the browser session.
+	sess := authn.SessionFromContext(r.Context())
+	if s.rateLimit(w, r, "oidc-effective:"+strconv.Itoa(int(sess.Account.ID)), 20, time.Minute) {
 		return
 	}
 	provider, err := s.oidcDiagnosticProvider(r)

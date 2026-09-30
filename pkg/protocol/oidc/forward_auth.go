@@ -6,12 +6,14 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"prohibitorum/pkg/audit"
@@ -230,14 +232,12 @@ func faCookie(secure bool, token string) *http.Cookie {
 // writeIdentityHeaders sets the Traefik/nginx ForwardAuth identity headers on w.
 // ALL headers are emitted unconditionally — even when empty — so a downstream
 // Traefik authResponseHeaders config overwrites (or clears) any client-supplied
-// copy, preventing identity/scope spoofing. scopes carries a PAT's chosen
-// per-app scopes for THIS app (nil for cookie/browser sessions or all_apps).
-func writeIdentityHeaders(w http.ResponseWriter, user, name, email string, groups, scopes []string) {
+// copy, preventing identity spoofing.
+func writeIdentityHeaders(w http.ResponseWriter, user, name, email string, groups []string) {
 	w.Header().Set("Remote-User", user)
 	w.Header().Set("Remote-Name", name)
 	w.Header().Set("Remote-Email", email)
 	w.Header().Set("Remote-Groups", strings.Join(groups, ","))
-	w.Header().Set("Remote-Scopes", strings.Join(scopes, ","))
 }
 
 // HandleForwardAuthVerify is the Traefik ForwardAuth target. Traefik forwards
@@ -261,12 +261,13 @@ func (p *Provider) HandleForwardAuthVerify(w http.ResponseWriter, r *http.Reques
 	// Authorization belongs to the protected application. Only the dedicated
 	// PAT header selects API mode, including an empty or malformed header:
 	// those requests must never fall back to a browser cookie or login redirect.
-	if values, present := r.Header[http.CanonicalHeaderKey("X-Prohibitorum-PAT")]; present {
-		if len(values) != 1 || strings.TrimSpace(values[0]) == "" || strings.ContainsAny(strings.TrimSpace(values[0]), " ,\t\r\n") {
+	if values, present := r.Header[http.CanonicalHeaderKey(pat.HeaderName)]; present {
+		raw, perr := pat.ParseHeader(values)
+		if perr != nil {
 			writeBearerError(w, r, http.StatusUnauthorized, "invalid token")
 			return
 		}
-		p.verifyForwardAuthPAT(w, r, strings.TrimSpace(values[0]), client)
+		p.verifyForwardAuthPAT(w, r, raw, client)
 		return
 	}
 
@@ -300,7 +301,7 @@ func (p *Provider) HandleForwardAuthVerify(w http.ResponseWriter, r *http.Reques
 					if renewed {
 						http.SetCookie(w, faCookie(secure, c.Value))
 					}
-					writeIdentityHeaders(w, remoteUser, acct.DisplayName, accountEmail(acct), decision.ExposedGroupSlugs(), nil)
+					writeIdentityHeaders(w, remoteUser, acct.DisplayName, accountEmail(acct), decision.ExposedGroupSlugs())
 					w.WriteHeader(http.StatusOK)
 					return
 				}
@@ -482,12 +483,19 @@ func accountEmail(a db.Account) string {
 }
 
 // verifyForwardAuthPAT authenticates a forward-auth request by Personal Access
-// Token, with per-app scope isolation. Terminal: always writes a response.
-// 401 = unresolvable/disabled owner; 403 = owner not granted this app (or RBAC).
-// On success Remote-Scopes carries only THIS app's chosen scopes.
+// Token. A selected_apps token reaches only its listed applications; every
+// other level reaches whatever the owner can. Terminal: always writes a
+// response. 401 = unresolvable/disabled owner; 403 = token not granted this app
+// (or RBAC).
 func (p *Provider) verifyForwardAuthPAT(w http.ResponseWriter, r *http.Request, raw string, client db.GetForwardAuthClientByHostRow) {
 	ctx := r.Context()
 	row, err := p.queries.GetPATByTokenHash(ctx, pat.HashToken(raw))
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		// A database failure says nothing about the token; do not report it as
+		// invalid, which would prompt a client to discard a good credential.
+		http.Error(w, "token lookup unavailable", http.StatusServiceUnavailable)
+		return
+	}
 	if err != nil {
 		audit.RecordOrLog(ctx, p.audit, audit.Record{
 			Factor: audit.FactorPAT,
@@ -498,6 +506,10 @@ func (p *Provider) verifyForwardAuthPAT(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 	acct, err := p.queries.GetAccountByID(ctx, row.AccountID)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		http.Error(w, "token lookup unavailable", http.StatusServiceUnavailable)
+		return
+	}
 	if err != nil || acct.Disabled {
 		acctID := row.AccountID
 		audit.RecordOrLog(ctx, p.audit, audit.Record{
@@ -520,24 +532,9 @@ func (p *Provider) verifyForwardAuthPAT(w http.ResponseWriter, r *http.Request, 
 		http.Error(w, "service under maintenance", http.StatusServiceUnavailable)
 		return
 	}
-	var scopes []string
-	if !row.AllApps {
-		grants := map[string][]string{}
-		if len(row.AppGrants) > 0 {
-			if jerr := json.Unmarshal(row.AppGrants, &grants); jerr != nil {
-				acctID := acct.ID
-				audit.RecordOrLog(ctx, p.audit, audit.Record{
-					AccountID: &acctID,
-					Factor:    audit.FactorPAT,
-					Event:     audit.EventFail,
-					Detail:    map[string]any{"reason": "pat_grant_corrupt", "client_id": client.ClientID},
-				})
-				http.Error(w, "forbidden", http.StatusForbidden) // corrupt grant → fail closed
-				return
-			}
-		}
-		s, ok := grants[client.ClientID]
-		if !ok {
+	if !pat.Access(row.Access).AllowsAllApps() {
+		granted, gerr := p.queries.PATGrantsApp(ctx, db.PATGrantsAppParams{PatID: row.ID, ClientID: client.ClientID})
+		if gerr != nil || !granted {
 			acctID := acct.ID
 			audit.RecordOrLog(ctx, p.audit, audit.Record{
 				AccountID: &acctID,
@@ -545,10 +542,9 @@ func (p *Provider) verifyForwardAuthPAT(w http.ResponseWriter, r *http.Request, 
 				Event:     audit.EventFail,
 				Detail:    map[string]any{"reason": "pat_app_not_granted", "client_id": client.ClientID},
 			})
-			http.Error(w, "forbidden", http.StatusForbidden) // PAT not granted for this app
+			http.Error(w, "forbidden", http.StatusForbidden) // PAT not granted for this app (or lookup failed: fail closed)
 			return
 		}
-		scopes = s
 	}
 	decision, accessErr := p.evaluateOIDCAccess(ctx, acct.ID, client.ClientID)
 	if accessErr != nil || !decision.Allowed {
@@ -580,7 +576,7 @@ func (p *Provider) verifyForwardAuthPAT(w http.ResponseWriter, r *http.Request, 
 		http.Error(w, "forbidden", http.StatusForbidden)
 		return
 	}
-	writeIdentityHeaders(w, remoteUser, acct.DisplayName, accountEmail(acct), decision.ExposedGroupSlugs(), scopes)
+	writeIdentityHeaders(w, remoteUser, acct.DisplayName, accountEmail(acct), decision.ExposedGroupSlugs())
 	_ = p.queries.TouchPATLastUsed(ctx, row.ID)
 	w.WriteHeader(http.StatusOK)
 }

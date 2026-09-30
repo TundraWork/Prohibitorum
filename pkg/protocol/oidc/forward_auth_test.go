@@ -2,6 +2,7 @@ package oidc
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -79,18 +80,20 @@ func TestForwardAuth_Cookie_HostOnly(t *testing.T) {
 
 func TestForwardAuth_IdentityHeaders(t *testing.T) {
 	rec := httptest.NewRecorder()
-	writeIdentityHeaders(rec, "alice", "Alice A", "alice@example.com", []string{"admins", "staff"}, []string{"repo:read"})
+	writeIdentityHeaders(rec, "alice", "Alice A", "alice@example.com", []string{"admins", "staff"})
 	h := rec.Header()
 	if h.Get("Remote-User") != "alice" || h.Get("Remote-Name") != "Alice A" ||
-		h.Get("Remote-Email") != "alice@example.com" || h.Get("Remote-Groups") != "admins,staff" ||
-		h.Get("Remote-Scopes") != "repo:read" {
+		h.Get("Remote-Email") != "alice@example.com" || h.Get("Remote-Groups") != "admins,staff" {
 		t.Fatalf("headers: %v", h)
 	}
-	// All five are emitted unconditionally (even empty) so Traefik overwrites
+	if _, ok := h["Remote-Scopes"]; ok {
+		t.Errorf("Remote-Scopes must not be emitted: %v", h)
+	}
+	// All four are emitted unconditionally (even empty) so Traefik overwrites
 	// any client-supplied copy.
 	rec2 := httptest.NewRecorder()
-	writeIdentityHeaders(rec2, "bob", "Bob", "", nil, nil)
-	for _, k := range []string{"Remote-Email", "Remote-Groups", "Remote-Scopes"} {
+	writeIdentityHeaders(rec2, "bob", "Bob", "", nil)
+	for _, k := range []string{"Remote-Email", "Remote-Groups"} {
 		if _, ok := rec2.Header()[k]; !ok {
 			t.Errorf("%s must be emitted even when empty", k)
 		}
@@ -123,6 +126,8 @@ type fakeFAQueries struct {
 	patErr     error
 	patLookups int
 	patTouches int
+	// patGrants lists "patID/clientID" pairs PATGrantsApp reports as granted.
+	patGrants  map[string]bool
 	emailCount *int64
 	// Captured params for RegisterForwardAuthApp tests.
 	insertParams   *db.InsertOIDCClientParams
@@ -162,6 +167,10 @@ func (f *fakeFAQueries) GetPATByTokenHash(_ context.Context, _ []byte) (db.Perso
 		return db.PersonalAccessToken{}, f.patErr
 	}
 	return f.pat, nil
+}
+
+func (f *fakeFAQueries) PATGrantsApp(_ context.Context, arg db.PATGrantsAppParams) (bool, error) {
+	return f.patGrants[fmt.Sprintf("%d/%s", arg.PatID, arg.ClientID)], nil
 }
 
 func (f *fakeFAQueries) TouchPATLastUsed(_ context.Context, _ int32) error {
@@ -249,7 +258,7 @@ func TestForwardAuthVerify_PAT_Maintenance(t *testing.T) {
 		return &fakeFAQueries{
 			faClient:   db.GetForwardAuthClientByHostRow{ClientID: "svc", Disabled: false},
 			authorized: true,
-			pat:        db.PersonalAccessToken{ID: 1, AccountID: 7, AllApps: true},
+			pat:        db.PersonalAccessToken{ID: 1, AccountID: 7, Access: "all_apps"},
 			acct:       db.Account{ID: 7, Username: "bob", Role: role},
 		}
 	}
@@ -885,19 +894,23 @@ func faPATRequest(host, raw string, cookie *http.Cookie) *http.Request {
 	return req
 }
 
-func TestForwardAuthVerify_PAT_GrantedApp_200WithScopes(t *testing.T) {
+func TestForwardAuthVerify_PAT_GrantedApp_200(t *testing.T) {
 	q := &fakeFAQueries{
 		faClient:   db.GetForwardAuthClientByHostRow{ClientID: "svc"},
 		authorized: true,
 		acct:       db.Account{ID: 42, Username: "alice", DisplayName: "Alice"},
 		groups:     []string{"staff"},
-		pat:        db.PersonalAccessToken{ID: 7, AccountID: 42, AppGrants: []byte(`{"svc":["repo:read"]}`)},
+		pat:        db.PersonalAccessToken{ID: 7, AccountID: 42, Access: "selected_apps"},
+		patGrants:  map[string]bool{"7/svc": true},
 	}
 	p, _ := newFAProvider(q)
 	rec := httptest.NewRecorder()
 	p.HandleForwardAuthVerify(rec, faPATRequest("app.acme.io", "prohibitorum_pat_x", nil))
-	if rec.Code != http.StatusOK || rec.Header().Get("Remote-Scopes") != "repo:read" {
-		t.Fatalf("code=%d scopes=%q", rec.Code, rec.Header().Get("Remote-Scopes"))
+	if rec.Code != http.StatusOK || rec.Header().Get("Remote-User") == "" {
+		t.Fatalf("code=%d user=%q", rec.Code, rec.Header().Get("Remote-User"))
+	}
+	if _, ok := rec.Header()["Remote-Scopes"]; ok {
+		t.Errorf("Remote-Scopes must not be emitted")
 	}
 }
 
@@ -907,7 +920,7 @@ func TestForwardAuthVerify_PATUnavailablePrincipalFailsWithoutIdentityHeadersOrT
 		faClient:   db.GetForwardAuthClientByHostRow{ClientID: "svc", PrincipalSource: PrincipalSourceVerifiedEmail},
 		authorized: true,
 		acct:       db.Account{ID: 42, Username: "alice", Email: pgtype.Text{String: "shared@example.test", Valid: true}, EmailVerified: true},
-		pat:        db.PersonalAccessToken{ID: 7, AccountID: 42, AllApps: true},
+		pat:        db.PersonalAccessToken{ID: 7, AccountID: 42, Access: "all_apps"},
 		emailCount: &count,
 	}
 	p, _ := newFAProvider(q)
@@ -916,7 +929,7 @@ func TestForwardAuthVerify_PATUnavailablePrincipalFailsWithoutIdentityHeadersOrT
 	if rec.Code != http.StatusForbidden {
 		t.Fatalf("status = %d, want 403", rec.Code)
 	}
-	for _, name := range []string{"Remote-User", "Remote-Name", "Remote-Email", "Remote-Groups", "Remote-Scopes"} {
+	for _, name := range []string{"Remote-User", "Remote-Name", "Remote-Email", "Remote-Groups"} {
 		if _, present := rec.Header()[name]; present {
 			t.Errorf("%s was emitted on failed projection", name)
 		}
@@ -926,25 +939,33 @@ func TestForwardAuthVerify_PATUnavailablePrincipalFailsWithoutIdentityHeadersOrT
 	}
 }
 
-func TestForwardAuthVerify_PAT_AllApps_200NoScopes(t *testing.T) {
-	q := &fakeFAQueries{
-		faClient: db.GetForwardAuthClientByHostRow{ClientID: "svc"}, authorized: true,
-		acct: db.Account{ID: 42, Username: "alice"},
-		pat:  db.PersonalAccessToken{ID: 7, AccountID: 42, AllApps: true},
-	}
-	p, _ := newFAProvider(q)
-	rec := httptest.NewRecorder()
-	p.HandleForwardAuthVerify(rec, faPATRequest("app.acme.io", "prohibitorum_pat_x", nil))
-	if rec.Code != http.StatusOK || rec.Header().Get("Remote-Scopes") != "" {
-		t.Fatalf("code=%d scopes=%q", rec.Code, rec.Header().Get("Remote-Scopes"))
+// Every level above selected_apps reaches any application the owner can use,
+// without consulting the token's application list.
+func TestForwardAuthVerify_PAT_AllAccessLevels_200(t *testing.T) {
+	for _, access := range []string{"all_apps", "full", "sudo"} {
+		q := &fakeFAQueries{
+			faClient: db.GetForwardAuthClientByHostRow{ClientID: "svc"}, authorized: true,
+			acct: db.Account{ID: 42, Username: "alice"},
+			pat:  db.PersonalAccessToken{ID: 7, AccountID: 42, Access: access},
+		}
+		p, _ := newFAProvider(q)
+		rec := httptest.NewRecorder()
+		p.HandleForwardAuthVerify(rec, faPATRequest("app.acme.io", "prohibitorum_pat_x", nil))
+		if rec.Code != http.StatusOK {
+			t.Fatalf("%s: code=%d", access, rec.Code)
+		}
+		if _, ok := rec.Header()["Remote-Scopes"]; ok {
+			t.Errorf("%s: Remote-Scopes must not be emitted", access)
+		}
 	}
 }
 
 func TestForwardAuthVerify_PAT_NotGrantedApp_403(t *testing.T) {
 	q := &fakeFAQueries{
 		faClient: db.GetForwardAuthClientByHostRow{ClientID: "svc"}, authorized: true,
-		acct: db.Account{ID: 42, Username: "alice"},
-		pat:  db.PersonalAccessToken{ID: 7, AccountID: 42, AppGrants: []byte(`{"other":["x"]}`)},
+		acct:      db.Account{ID: 42, Username: "alice"},
+		pat:       db.PersonalAccessToken{ID: 7, AccountID: 42, Access: "selected_apps"},
+		patGrants: map[string]bool{"7/other": true},
 	}
 	p, _ := newFAProvider(q)
 	rec := httptest.NewRecorder()
@@ -967,6 +988,21 @@ func TestForwardAuthVerify_PAT_Invalid_401(t *testing.T) {
 	}
 }
 
+// A database failure is not an invalid token: the client should keep it.
+func TestForwardAuthVerify_PAT_LookupFailure_503(t *testing.T) {
+	for name, q := range map[string]*fakeFAQueries{
+		"token": {faClient: db.GetForwardAuthClientByHostRow{ClientID: "svc"}, patErr: context.DeadlineExceeded},
+		"owner": {faClient: db.GetForwardAuthClientByHostRow{ClientID: "svc"}, pat: db.PersonalAccessToken{ID: 7, AccountID: 42}, acctErr: context.DeadlineExceeded},
+	} {
+		p, _ := newFAProvider(q)
+		rec := httptest.NewRecorder()
+		p.HandleForwardAuthVerify(rec, faPATRequest("app.acme.io", "prohibitorum_pat_x", nil))
+		if rec.Code != http.StatusServiceUnavailable {
+			t.Errorf("%s: want 503, got %d", name, rec.Code)
+		}
+	}
+}
+
 func TestForwardAuthVerify_PAT_DisabledOwner_401(t *testing.T) {
 	q := &fakeFAQueries{
 		faClient: db.GetForwardAuthClientByHostRow{ClientID: "svc"},
@@ -986,7 +1022,8 @@ func TestForwardAuthVerify_PAT_RBACDenies_403(t *testing.T) {
 		faClient:   db.GetForwardAuthClientByHostRow{ClientID: "svc"},
 		authorized: false,
 		acct:       db.Account{ID: 42, Username: "alice"},
-		pat:        db.PersonalAccessToken{ID: 7, AccountID: 42, AppGrants: []byte(`{"svc":[]}`)},
+		pat:        db.PersonalAccessToken{ID: 7, AccountID: 42, Access: "selected_apps"},
+		patGrants:  map[string]bool{"7/svc": true},
 	}
 	p, _ := newFAProvider(q)
 	rec := httptest.NewRecorder()
@@ -1037,7 +1074,7 @@ func TestForwardAuthVerify_ApplicationAuthorizationDoesNotSelectPAT(t *testing.T
 }
 
 func TestForwardAuthVerify_MalformedPATHeaderNeverFallsBack(t *testing.T) {
-	for _, values := range [][]string{{""}, {" "}, {"Bearer token"}, {"one,two"}, {"one", "two"}} {
+	for _, values := range [][]string{{""}, {" "}, {"Bearer token"}, {"one,two"}, {"one", "two"}, {" prohibitorum_pat_x"}, {"prohibitorum_pat_x "}} {
 		q := &fakeFAQueries{faClient: db.GetForwardAuthClientByHostRow{ClientID: "svc"}, authorized: true, acct: db.Account{ID: 42}}
 		p, store := newFAProvider(q)
 		token, err := mintFASession(context.Background(), store, faSession{AccountID: 42, ClientID: "svc"}, time.Hour)
@@ -1076,7 +1113,7 @@ func TestForwardAuthAudit_PAT_RBACDenied(t *testing.T) {
 		faClient:   db.GetForwardAuthClientByHostRow{ClientID: "svc"},
 		authorized: false,
 		acct:       db.Account{ID: acctID, Username: "alice"},
-		pat:        db.PersonalAccessToken{ID: 7, AccountID: acctID, AllApps: true},
+		pat:        db.PersonalAccessToken{ID: 7, AccountID: acctID, Access: "all_apps"},
 	}
 	p, _, ra := newFAProviderAudit(q)
 

@@ -97,12 +97,19 @@ function booleanField(source: unknown, key: string): boolean | undefined {
   return typeof value === "boolean" ? value : undefined;
 }
 
-function grantsField(source: unknown): Record<string, string[] | null> {
-  const value = field(source, "appGrants");
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-    ? (value as Record<string, string[] | null>)
-    : {};
+function stringListField(source: unknown, key: string): string[] {
+  const value = field(source, key);
+  return Array.isArray(value)
+    ? value.filter((entry): entry is string => typeof entry === "string")
+    : [];
 }
+
+const tokenAccessLevels: Token["access"][] = [
+  "selected_apps",
+  "all_apps",
+  "full",
+  "sudo",
+];
 
 /** Codes in the `XXXX-XXXX-XXXX-XXXX` shape the console validates against. */
 function freshRecoveryCodes(): string[] {
@@ -315,24 +322,57 @@ function identityList(count: number): Identity[] {
   }));
 }
 
+/**
+ * A plaintext token shaped like the server's: its fixed prefix, then 32 random
+ * bytes as unpadded base64url, 43 characters.
+ */
+function mockTokenPlaintext(): string {
+  const alphabet =
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+  const bytes = crypto.getRandomValues(new Uint8Array(43));
+  return `prohibitorum_pat_${Array.from(bytes, (byte) => alphabet[byte % 64]).join("")}`;
+}
+
+/** The list's hint for a token, as the server writes it: prefix, then the last four. */
+function mockTokenHint(last: string): string {
+  return `prohibitorum_pat_…${last.slice(-4)}`;
+}
+
+/** Tokens cycle through the four access levels, so a list shows each one. */
 function tokenList(count: number): Token[] {
-  return range(count).map((index) => ({
-    id: index + 1,
-    name: `Mock token ${index + 1}`,
-    tokenHint: `phb_mock${index + 1}`,
-    allApps: index % 2 === 0,
-    appGrants: {},
-    createdAt: iso(-day * (index + 2)),
-    expiresAt: iso(day * 90),
-    ...(index === 0 ? { lastUsedAt: iso(-day) } : {}),
-  }));
+  return range(count).map((index) => {
+    const access = tokenAccessLevels[
+      index % tokenAccessLevels.length
+    ] as Token["access"];
+    return {
+      id: index + 1,
+      name: `Mock token ${index + 1}`,
+      tokenHint: mockTokenHint(`m${String(index + 1).padStart(3, "0")}`),
+      access,
+      apps:
+        access === "selected_apps"
+          ? [
+              {
+                clientId: "forward-auth-1",
+                displayName: "Protected service 1",
+              },
+              {
+                clientId: "forward-auth-2",
+                displayName: "Protected service 2",
+              },
+            ]
+          : [],
+      createdAt: iso(-day * (index + 2)),
+      expiresAt: iso(day * 90),
+      ...(index === 0 ? { lastUsedAt: iso(-day) } : {}),
+    };
+  });
 }
 
 function forwardAuthAppList(config: MockConfig): ForwardAuthApp[] {
   return range(config.lists.forwardAuthApps).map((index) => ({
     clientId: `forward-auth-${index + 1}`,
     displayName: `Protected service ${index + 1}`,
-    scopes: [{ name: "profile", description: "Read your profile" }],
   }));
 }
 
@@ -807,8 +847,9 @@ function accountSessions(index: number): SessionListItem[] {
   }));
 }
 
+/** Accounts with an even id have none; the others have one of each level. */
 function accountTokens(index: number): Token[] {
-  return tokenList(index % 2).map((token, position) => ({
+  return tokenList((index % 2) * 4).map((token, position) => ({
     ...token,
     id: index * 10 + position + 1,
     name: `Mock token ${position + 1}`,
@@ -1150,7 +1191,7 @@ function samlApplications(
   });
 }
 
-/** Forward-auth applications, with a scope vocabulary of varying length. */
+/** Forward-auth applications. */
 function forwardAuthApplications(
   config: MockConfig,
 ): components["schemas"]["ForwardAuthAppView"][] {
@@ -1158,10 +1199,6 @@ function forwardAuthApplications(
     clientId: `mock-forward-auth-${index + 1}`,
     displayName: `Protected service ${index + 1}`,
     forwardAuthHost: `service${index + 1}.example.test`,
-    scopes: range((index % 5) + 1).map((scope) => ({
-      name: `scope${scope + 1}`,
-      ...(scope % 2 === 0 ? { description: `Scope number ${scope + 1}` } : {}),
-    })),
     accessRestricted: index % 3 === 1,
     disabled: index % 4 === 1,
     remoteUserSource: index % 2 === 0 ? "username" : "verified_email",
@@ -1530,8 +1567,14 @@ function readReply(
       return guarded(config, () => json(accountSessions(id - 1)));
     }
     case "/api/prohibitorum/accounts/{id}/tokens": {
-      const id = pathTail(request);
-      return guarded(config, () => json(accountTokens(id - 1)));
+      // The id is the segment before `tokens`, and the list is a page.
+      const id = Number(new URL(request.url).pathname.split("/").at(-2));
+      return guarded(config, () =>
+        json({
+          items: accountTokens(Number.isFinite(id) ? id - 1 : 0),
+          nextCursor: "",
+        }),
+      );
     }
     case "/api/prohibitorum/invitations": {
       const all = Array.from(
@@ -1983,15 +2026,29 @@ function writeReply(
       if (method !== "POST") return undefined;
       const id = clampCount(config.lists.tokens) + 1;
       const name = stringField(body, "name") ?? `Mock token ${id}`;
+      const access =
+        tokenAccessLevels.find(
+          (level) => level === stringField(body, "access"),
+        ) ?? "all_apps";
+      const token = mockTokenPlaintext();
       return json(
         {
-          token: `phb_mock_${id}_${name}`,
+          token,
           pat: {
             id,
             name,
-            tokenHint: `phb_mock${id}`,
-            allApps: booleanField(body, "allApps") ?? true,
-            appGrants: grantsField(body),
+            tokenHint: mockTokenHint(token),
+            access,
+            apps: (access === "selected_apps"
+              ? stringListField(body, "appClientIds")
+              : []
+            ).map((clientId) => ({
+              clientId,
+              displayName:
+                forwardAuthAppList(config).find(
+                  (app) => app.clientId === clientId,
+                )?.displayName ?? clientId,
+            })),
             createdAt: iso(0),
           },
         },
@@ -2494,7 +2551,6 @@ function writeReply(
           clientId,
           displayName: stringField(body, "displayName") ?? "",
           forwardAuthHost: stringField(body, "host") ?? "",
-          scopes: field(body, "scopes") ?? [],
           accessRestricted: booleanField(body, "accessRestricted") ?? false,
           disabled: false,
           remoteUserSource: "username",
@@ -2515,7 +2571,6 @@ function writeReply(
         ...found,
         displayName: stringField(body, "displayName") ?? found.displayName,
         forwardAuthHost: stringField(body, "host") ?? found.forwardAuthHost,
-        scopes: field(body, "scopes") ?? [],
       });
     }
 

@@ -95,8 +95,8 @@ export function ForwardAuthDangerSection({ app }: { app: ForwardAuthApp }) {
             ) : (
               <Trans key="note" id="admin.forward-auth-apps.disable.note">
                 Every request through its router is turned away, including ones
-                from people who are signed in. The record, its token scopes and
-                its access policy are kept.
+                from people who are signed in. The record and its access policy
+                are kept.
               </Trans>
             ),
           ]}
@@ -127,8 +127,8 @@ export function ForwardAuthDangerSection({ app }: { app: ForwardAuthApp }) {
           }
           details={[
             <Trans key="note" id="admin.forward-auth-apps.delete.note">
-              Removes the application, its token scopes, its icon and its access
-              policy. Accounts are not affected.
+              Removes the application, its icon and its access policy. Accounts
+              are not affected.
             </Trans>,
           ]}
           actions={
@@ -214,16 +214,15 @@ export function ForwardAuthDangerSection({ app }: { app: ForwardAuthApp }) {
           <p>
             {groups.length === 0 ? (
               <Trans id="admin.forward-auth-apps.delete.confirm.open">
-                {name} is removed along with its token scopes, its icon and its
-                access policy. Requests through its router are turned away
-                immediately. This cannot be undone.
+                {name} is removed along with its icon and its access policy.
+                Requests through its router are turned away immediately. This
+                cannot be undone.
               </Trans>
             ) : (
               <Trans id="admin.forward-auth-apps.delete.confirm.groups">
-                {name} is removed along with its token scopes, its icon and its
-                access policy — including its selection of {count} user groups.
-                Requests through its router are turned away immediately. This
-                cannot be undone.
+                {name} is removed along with its icon and its access policy —
+                including its selection of {count} user groups. Requests through
+                its router are turned away immediately. This cannot be undone.
               </Trans>
             )}
           </p>

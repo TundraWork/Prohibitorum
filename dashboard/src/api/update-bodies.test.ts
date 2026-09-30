@@ -90,33 +90,27 @@ describe("forward-auth application update body", () => {
     clientId: "fa-1",
     displayName: "Service",
     forwardAuthHost: "service.example.test",
-    scopes: [{ name: "read", description: "Read things" }],
     accessRestricted: false,
     disabled: false,
     remoteUserSource: "username",
     createdAt: "2026-01-01T00:00:00Z",
   };
 
-  it("carries the whole scope vocabulary when a form edits the name", () => {
-    expect(
-      forwardAuthAppUpdateBody(app, { displayName: "Renamed" }).scopes,
-    ).toEqual([{ name: "read", description: "Read things" }]);
-  });
-
-  it("carries the host when a form edits the vocabulary", () => {
-    // The vocabulary field is the one an edit clears wholesale, so the host has
-    // to travel with it or the application would lose its hostname too.
-    const body = forwardAuthAppUpdateBody(app, { scopes: [] });
-    expect(body.host).toBe("service.example.test");
-    expect(body.scopes).toEqual([]);
-  });
-
-  it("drops an empty scope description rather than sending one", () => {
-    const body = forwardAuthAppUpdateBody({
-      ...app,
-      scopes: [{ name: "read" }],
+  it("carries the saved name and host when a form edits one of them", () => {
+    expect(forwardAuthAppUpdateBody(app, { displayName: "Renamed" })).toEqual({
+      displayName: "Renamed",
+      host: "service.example.test",
     });
-    expect(body.scopes).toEqual([{ name: "read" }]);
+    expect(forwardAuthAppUpdateBody(app, { host: "new.example.test" })).toEqual(
+      {
+        displayName: "Service",
+        host: "new.example.test",
+      },
+    );
+  });
+
+  it("no longer sends a scope vocabulary", () => {
+    expect(forwardAuthAppUpdateBody(app)).not.toHaveProperty("scopes");
   });
 });
 

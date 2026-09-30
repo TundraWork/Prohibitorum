@@ -10,6 +10,8 @@ export interface SecretRevealCopy {
   title: MessageDescriptor;
   once: MessageDescriptor;
   label: MessageDescriptor;
+  /** How the secret is used, for one whose use is not obvious from its name. */
+  usage?: MessageDescriptor;
   copy: MessageDescriptor;
   download: MessageDescriptor;
   copyFailed: MessageDescriptor;
@@ -131,6 +133,10 @@ export const accessTokenCopy: SecretRevealCopy = {
   label: msg({
     id: "security.tokens.reveal.label",
     message: "New access token",
+  }),
+  usage: msg({
+    id: "security.tokens.reveal.usage",
+    message: "Send it in the X-Prohibitorum-PAT header.",
   }),
   copy: msg({ id: "security.tokens.reveal.copy", message: "Copy token" }),
   download: msg({

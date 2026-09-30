@@ -13,7 +13,6 @@ import { DataTable, type TableColumn } from "@/components/custom/DataTable";
 import { EntityCell } from "@/components/custom/EntityCell";
 import { CodeValue, PrincipalSourceCell } from "@/components/custom/ListCells";
 import { TableEmptyState } from "@/components/custom/TableEmptyState";
-import { scopeSummary } from "@/pages/admin/forward-auth-apps/scope-summary";
 
 type ForwardAuthApp = components["schemas"]["ForwardAuthAppView"];
 
@@ -26,18 +25,14 @@ const openAppMessage = msg({
  * The forward-auth applications Traefik asks this instance about.
  *
  * A row is read for three things: which service it is, which host it protects,
- * and what a token may ask for there. The first two are the identity cell and a
- * column; the state — whether it is enabled, whether access is restricted — gets
+ * and which identity it passes on. The first is the identity cell, the others
+ * columns; the state — whether it is enabled, whether access is restricted — gets
  * no column of its own, riding on that cell's icon and a padlock after the name,
  * so only the rows that need attention carry a mark (`AGENTS.md`, "Tables and
  * lists").
  *
- * The scope column names at most three declared scopes and counts the rest: the
- * vocabulary is a list of labels the upstream service interprets, and a row of
- * twenty names would say less about the row than `+17` does.
- *
  * The row's only control opens the application. Every change worth making —
- * the host, the vocabulary, the identity projection, the access policy, whether
+ * the host, the identity projection, the access policy, whether
  * it is enabled — wants the record in front of the reader.
  *
  * A delegated manager sees this page too, with exactly the rows the server gives
@@ -99,13 +94,6 @@ export function AdminForwardAuthApps() {
       // and reports nothing for a value it cannot read (see `api/federation`),
       // rather than printing the raw enum at the reader.
       cell: (app) => <PrincipalSourceCell value={app.remoteUserSource} />,
-    },
-    {
-      id: "scopes",
-      header: <Trans id="admin.forward-auth-apps.column.scopes">Scopes</Trans>,
-      cell: (app) => (
-        <span className="text-muted">{scopeSummary(app.scopes)}</span>
-      ),
     },
     {
       align: "end",
