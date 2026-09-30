@@ -50,4 +50,8 @@ func TestSecurityHeaders_StyleSrcElem(t *testing.T) {
 	if len(styles) != 2 || styles[0] != "'self'" || styles[1] != allowedHash {
 		t.Errorf("styles must allow same-origin resources and the React Aria pressable rule only: %s", csp)
 	}
+	images := strings.Join(directives["img-src"], " ")
+	if images != "'self' data: blob: https://www.bing.com https://images.unsplash.com" {
+		t.Errorf("images must allow same-origin, data:, blob: and the two wallpaper hosts only: %s", csp)
+	}
 }

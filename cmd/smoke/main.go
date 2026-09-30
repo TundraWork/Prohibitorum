@@ -42,6 +42,7 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"reflect"
 	"slices"
 	"strconv"
 	"strings"
@@ -5572,99 +5573,179 @@ func main() {
 	}
 
 	// =====================================================================
-	//  LOGIN BACKGROUND — admin uploads a custom login-page background; verify
-	//  it is served BYTE-FOR-BYTE (no postprocess), /config reflects it, and
-	//  removal restores the 404 (frontend then falls back to its build-time asset).
+	//  LOGIN APPEARANCE — admin uploads two sign-in background images and
+	//  saves an appearance; verify the images are served BYTE-FOR-BYTE (no
+	//  postprocess) in upload order, the appearance round-trips through /config
+	//  and the admin GET, strict decoding and the Unsplash key requirement
+	//  reject bad saves, and a removed image 404s. Never reaches Bing/Unsplash.
 	// =====================================================================
 	{
-		const nBg = 4
-
-		var bgBuf bytes.Buffer
-		if err := png.Encode(&bgBuf, image.NewRGBA(image.Rect(0, 0, 12, 8))); err != nil {
-			log.Fatalf("bg: encode PNG: %v", err)
+		const nLook = 6
+		type loginImage struct {
+			ID   int64  `json:"id"`
+			URL  string `json:"url"`
+			Etag string `json:"etag"`
 		}
-		bgBytes := bgBuf.Bytes()
-
-		step(fmt.Sprintf("bg %d/%d — admin uploads login background (sudo PUT raw PNG) → 204", 1, nBg))
-		if err := sudoWebAuthn(c, auth, *baseURL); err != nil {
-			log.Fatalf("bg: sudo (upload): %v", err)
-		}
-		{
-			req, err := http.NewRequest(http.MethodPut, *baseURL+"/api/prohibitorum/admin/settings/background", bytes.NewReader(bgBytes))
+		rawRequest := func(method, path string, body []byte, contentType string) (int, []byte) {
+			req, err := http.NewRequest(method, *baseURL+path, bytes.NewReader(body))
 			if err != nil {
-				log.Fatalf("bg: build PUT: %v", err)
+				log.Fatalf("look: build %s %s: %v", method, path, err)
 			}
-			req.Header.Set("Content-Type", "image/png")
+			if contentType != "" {
+				req.Header.Set("Content-Type", contentType)
+			}
 			for _, ck := range c.cookies() {
 				req.AddCookie(ck)
 			}
 			resp, err := c.hc.Do(req)
 			if err != nil {
-				log.Fatalf("bg: PUT background: %v", err)
+				log.Fatalf("look: %s %s: %v", method, path, err)
 			}
-			body, _ := io.ReadAll(resp.Body)
-			resp.Body.Close()
-			if resp.StatusCode != http.StatusNoContent {
-				log.Fatalf("bg: PUT background: want 204, got %d — %s", resp.StatusCode, firstN(string(body), 300))
+			defer resp.Body.Close()
+			out, _ := io.ReadAll(resp.Body)
+			return resp.StatusCode, out
+		}
+		putAppearance := func(body any) (int, string) {
+			resp, err := c.putJSONRaw("/api/prohibitorum/admin/settings/login-appearance", body)
+			if err != nil {
+				log.Fatalf("look: PUT appearance: %v", err)
+			}
+			defer resp.Body.Close()
+			out, _ := io.ReadAll(resp.Body)
+			return resp.StatusCode, string(out)
+		}
+		surface := func(translucent bool, opacity int, blur bool) map[string]any {
+			return map[string]any{"translucent": translucent, "opacity": opacity, "blur": blur}
+		}
+		appearance := func(source, order string, interval int, card, capsules map[string]any) map[string]any {
+			return map[string]any{
+				"background": map[string]any{
+					"source":   source,
+					"color":    "#1f6f8b",
+					"gradient": "lagoon",
+					"bing":     map[string]any{"market": "zh-CN", "showCaption": true},
+					"unsplash": map[string]any{"query": ""},
+					"images":   map[string]any{"order": order, "intervalSeconds": interval},
+				},
+				"card":     card,
+				"capsules": capsules,
 			}
 		}
-		log.Printf("  PUT /admin/settings/background → 204 ✓")
 
-		step(fmt.Sprintf("bg %d/%d — public GET /branding/background returns the EXACT uploaded bytes", 2, nBg))
-		got, err := c.getBytes("/branding/background")
-		if err != nil {
-			log.Fatalf("bg: GET /branding/background: %v", err)
+		var pictures [][]byte
+		for _, w := range []int{12, 20} {
+			var buf bytes.Buffer
+			if err := png.Encode(&buf, image.NewRGBA(image.Rect(0, 0, w, 8))); err != nil {
+				log.Fatalf("look: encode PNG: %v", err)
+			}
+			pictures = append(pictures, buf.Bytes())
 		}
-		if !bytes.Equal(got, bgBytes) {
-			log.Fatalf("bg: served %d bytes != uploaded %d bytes — background must be verbatim (no postprocess)", len(got), len(bgBytes))
-		}
-		log.Printf("  GET /branding/background = %d bytes, byte-for-byte identical ✓", len(got))
 
-		step(fmt.Sprintf("bg %d/%d — /config reflects hasCustomBackground=true", 3, nBg))
+		step(fmt.Sprintf("look %d/%d — admin uploads two sign-in images (sudo POST raw PNG) → 201", 1, nLook))
+		if err := sudoWebAuthn(c, auth, *baseURL); err != nil {
+			log.Fatalf("look: sudo: %v", err)
+		}
+		var uploaded []loginImage
+		for i, pic := range pictures {
+			status, body := rawRequest(http.MethodPost, "/api/prohibitorum/admin/settings/login-images", pic, "image/png")
+			if status != http.StatusCreated {
+				log.Fatalf("look: POST image %d: want 201, got %d — %s", i+1, status, firstN(string(body), 300))
+			}
+			var img loginImage
+			if err := json.Unmarshal(body, &img); err != nil || img.ID == 0 || img.Etag == "" {
+				log.Fatalf("look: POST image %d: body %s err %v", i+1, firstN(string(body), 300), err)
+			}
+			uploaded = append(uploaded, img)
+		}
+		log.Printf("  POST /admin/settings/login-images ×2 → 201 (ids %d, %d) ✓", uploaded[0].ID, uploaded[1].ID)
+
+		step(fmt.Sprintf("look %d/%d — public GET /branding/login-images/{id} returns the EXACT uploaded bytes; /config lists both in order", 2, nLook))
+		for i, img := range uploaded {
+			got, err := c.getBytes(img.URL)
+			if err != nil {
+				log.Fatalf("look: GET %s: %v", img.URL, err)
+			}
+			if !bytes.Equal(got, pictures[i]) {
+				log.Fatalf("look: %s served %d bytes != uploaded %d bytes — images must be verbatim", img.URL, len(got), len(pictures[i]))
+			}
+		}
 		var cfg struct {
-			HasCustomBackground bool   `json:"hasCustomBackground"`
-			BackgroundURL       string `json:"backgroundUrl"`
-			BackgroundEtag      string `json:"backgroundEtag"`
+			LoginAppearance json.RawMessage `json:"loginAppearance"`
+			LoginImages     []loginImage    `json:"loginImages"`
 		}
 		if err := c.get("/api/prohibitorum/config", &cfg); err != nil {
-			log.Fatalf("bg: GET /config: %v", err)
+			log.Fatalf("look: GET /config: %v", err)
 		}
-		if !cfg.HasCustomBackground || cfg.BackgroundURL != "/branding/background" || cfg.BackgroundEtag == "" {
-			log.Fatalf("bg: /config = %+v, want hasCustomBackground=true + backgroundUrl=/branding/background + non-empty etag", cfg)
+		n := len(cfg.LoginImages)
+		if n < 2 || cfg.LoginImages[n-2] != uploaded[0] || cfg.LoginImages[n-1] != uploaded[1] {
+			log.Fatalf("look: /config loginImages = %+v, want %+v last and in upload order", cfg.LoginImages, uploaded)
 		}
-		log.Printf("  /config hasCustomBackground=true etag=%s… ✓", firstN(cfg.BackgroundEtag, 8))
+		log.Printf("  both images byte-for-byte identical; /config lists them in upload order ✓")
 
-		step(fmt.Sprintf("bg %d/%d — admin removes background (sudo DELETE) → GET 404", 4, nBg))
-		if err := sudoWebAuthn(c, auth, *baseURL); err != nil {
-			log.Fatalf("bg: sudo (remove): %v", err)
+		step(fmt.Sprintf("look %d/%d — PUT appearance (images/carousel/15s, card 60%%, opaque capsules) round-trips", 3, nLook))
+		want := appearance("images", "carousel", 15, surface(true, 60, true), surface(false, 70, true))
+		if status, body := putAppearance(map[string]any{"appearance": want}); status != http.StatusNoContent {
+			log.Fatalf("look: PUT appearance: want 204, got %d — %s", status, firstN(body, 300))
 		}
-		{
-			req, err := http.NewRequest(http.MethodDelete, *baseURL+"/api/prohibitorum/admin/settings/background", nil)
-			if err != nil {
-				log.Fatalf("bg: build DELETE: %v", err)
-			}
-			for _, ck := range c.cookies() {
-				req.AddCookie(ck)
-			}
-			resp, err := c.hc.Do(req)
-			if err != nil {
-				log.Fatalf("bg: DELETE background: %v", err)
-			}
-			body, _ := io.ReadAll(resp.Body)
-			resp.Body.Close()
-			if resp.StatusCode != http.StatusNoContent {
-				log.Fatalf("bg: DELETE background: want 204, got %d — %s", resp.StatusCode, firstN(string(body), 300))
+		wantJSON, _ := json.Marshal(want)
+		sameJSON := func(label string, got json.RawMessage) {
+			var a, b any
+			_ = json.Unmarshal(wantJSON, &a)
+			if err := json.Unmarshal(got, &b); err != nil || !reflect.DeepEqual(a, b) {
+				log.Fatalf("look: %s appearance = %s, want %s", label, got, wantJSON)
 			}
 		}
-		if resp, err := c.getRaw("/branding/background"); err != nil {
-			log.Fatalf("bg: GET after delete: %v", err)
+		if err := c.get("/api/prohibitorum/config", &cfg); err != nil {
+			log.Fatalf("look: GET /config: %v", err)
+		}
+		sameJSON("/config", cfg.LoginAppearance)
+		var admin struct {
+			Appearance     json.RawMessage `json:"appearance"`
+			HasUnsplashKey bool            `json:"hasUnsplashKey"`
+		}
+		if err := c.get("/api/prohibitorum/admin/settings/login-appearance", &admin); err != nil {
+			log.Fatalf("look: admin GET: %v", err)
+		}
+		sameJSON("admin GET", admin.Appearance)
+		log.Printf("  /config and admin GET both return the saved appearance ✓")
+
+		step(fmt.Sprintf("look %d/%d — PUT with an unknown field → 400; unsplash without a key → unsplash_key_required", 4, nLook))
+		if status, body := putAppearance(map[string]any{"appearance": want, "extra": true}); status != http.StatusBadRequest || !strings.Contains(body, `"bad_request"`) {
+			log.Fatalf("look: PUT unknown field: want 400 bad_request, got %d — %s", status, firstN(body, 300))
+		}
+		if !admin.HasUnsplashKey {
+			unsplash := appearance("unsplash", "random", 10, surface(false, 80, true), surface(true, 70, true))
+			if status, body := putAppearance(map[string]any{"appearance": unsplash}); status != http.StatusBadRequest || !strings.Contains(body, `"unsplash_key_required"`) {
+				log.Fatalf("look: PUT unsplash without key: want 400 unsplash_key_required, got %d — %s", status, firstN(body, 300))
+			}
+		}
+		log.Printf("  strict decoding and the Unsplash key requirement hold ✓")
+
+		step(fmt.Sprintf("look %d/%d — admin removes the first image (sudo DELETE) → GET 404", 5, nLook))
+		imagePath := fmt.Sprintf("/api/prohibitorum/admin/settings/login-images/%d", uploaded[0].ID)
+		if status, body := rawRequest(http.MethodDelete, imagePath, nil, ""); status != http.StatusNoContent {
+			log.Fatalf("look: DELETE image: want 204, got %d — %s", status, firstN(string(body), 300))
+		}
+		if resp, err := c.getRaw(uploaded[0].URL); err != nil {
+			log.Fatalf("look: GET after delete: %v", err)
 		} else {
 			resp.Body.Close()
 			if resp.StatusCode != http.StatusNotFound {
-				log.Fatalf("bg: GET /branding/background after delete: want 404, got %d", resp.StatusCode)
+				log.Fatalf("look: GET %s after delete: want 404, got %d", uploaded[0].URL, resp.StatusCode)
 			}
 		}
-		log.Printf("  DELETE background → GET /branding/background 404 ✓")
+		log.Printf("  DELETE image → GET %s 404 ✓", uploaded[0].URL)
+
+		step(fmt.Sprintf("look %d/%d — restore the default sign-in page", 6, nLook))
+		imagePath = fmt.Sprintf("/api/prohibitorum/admin/settings/login-images/%d", uploaded[1].ID)
+		if status, body := rawRequest(http.MethodDelete, imagePath, nil, ""); status != http.StatusNoContent {
+			log.Fatalf("look: DELETE second image: want 204, got %d — %s", status, firstN(string(body), 300))
+		}
+		reset := appearance("none", "random", 10, surface(false, 80, true), surface(true, 70, true))
+		if status, body := putAppearance(map[string]any{"appearance": reset}); status != http.StatusNoContent {
+			log.Fatalf("look: PUT reset: want 204, got %d — %s", status, firstN(body, 300))
+		}
+		log.Printf("  images removed, appearance back to the default ✓")
 	}
 
 	// =========================================================================
@@ -5947,7 +6028,7 @@ func main() {
 	if err := smokeOIDCDiagnostics(c, *baseURL, opSrv); err != nil {
 		log.Fatalf("OIDC diagnostics: %v", err)
 	}
-	fmt.Println("✓ smoke OK — core (webauthn enroll/login + password/TOTP/recovery + sudo + throttle + destructive revoke) + federation (upstream OIDC login/link/unlink incl. invite_only) + oidc (OIDC OP code+PKCE flow: userinfo/introspect/refresh-rotation+reuse/revoke/logout) + saml (SAML IdP SSO/SLO + signed metadata + require_signed/bad-ACS/replay negatives) + hardening (forced re-auth / PKCE+introspect policy / NameIDPolicy / POST AuthnRequest / signed metadata / IdP-initiated) + consent (Login+Consent UI backend: consent ticket round-trip + federation-providers list) + admin (OIDC client CRUD reveal-once + signing-key generate→activate JWKS grace lifecycle + audit-events viewer + admin credential listing) + Tier-1 (PUT /me round-trip, GET /me/factors, admin sessions, SAML attr_map round-trip) + sudo-multiuse (single elevation covers multiple gated actions until expiry) + avatar (PUT /me/avatar upload, public GET /avatar/{sub} image/webp+ETag, /me.avatarUrl, userinfo.picture claim) + avatar-fed (federated first-login inherit + no-clobber on re-login + UserInfo fallback + dual-source selection/previews + avatar_source_unavailable negative) + delegated-access (admin assigns one active account; cross-app/config denials; app-bound manual + OR rule groups; manual deny/allow precedence; live avatar eligibility; three exposed OIDC group claims; refresh eligibility re-check and family revocation; assignment/policy audit lifecycle) + error-redirect (federation access_denied + SAML malformed request → 302 /error) + pat (Personal Access Token access levels: selected_apps → only its apps at the gateway, API 403 pat_api_not_allowed; all_apps → any app; full → management API as owner, sudo routes 401 sudo_required, browser-only routes 403; sudo → creates PATs without a browser sudo step; bad header → 401 pat_invalid without cookie fallback; no Remote-Scopes header; admin GET /accounts/{id}/tokens lists access + apps; DB access/app rows; pat_id on audit events; revoked PAT → 401) + maintenance (admin enables maintenance via sudo PUT → public /config maintenanceMode+message round-trip; admin stays exempt /me 200; disable restores; non-admin dashboard+gateway blocking unit-tested) + client-ip (admin sudo PUT header strategy + GET round-trip; invalid CIDR rejected 400; reset to direct) + login-background (admin sudo PUT custom login-page background → public GET /branding/background byte-for-byte verbatim; /config hasCustomBackground round-trip; sudo DELETE → 404) + steam (Steam OpenID 2.0 login arc: admin create protocol=steam provider; mock Steam OP redirect; callback → /welcome confirm → session; DB account+identity rows) + audit-remediation (new event types: webauthn:use, session:session_start/end, webauthn:sudo_granted, settings:update, PAT register/revoke/fail; ctx-carried IP non-empty on session_start events) + pwd-totp-enroll (password+TOTP enrollment ceremony: plain-invite begin→verify sets password+confirmed-TOTP+10 recovery codes and issues a session, password→TOTP login works, bootstrap rejects password+TOTP as passkey-only) + DB-state assertions passed against",
+	fmt.Println("✓ smoke OK — core (webauthn enroll/login + password/TOTP/recovery + sudo + throttle + destructive revoke) + federation (upstream OIDC login/link/unlink incl. invite_only) + oidc (OIDC OP code+PKCE flow: userinfo/introspect/refresh-rotation+reuse/revoke/logout) + saml (SAML IdP SSO/SLO + signed metadata + require_signed/bad-ACS/replay negatives) + hardening (forced re-auth / PKCE+introspect policy / NameIDPolicy / POST AuthnRequest / signed metadata / IdP-initiated) + consent (Login+Consent UI backend: consent ticket round-trip + federation-providers list) + admin (OIDC client CRUD reveal-once + signing-key generate→activate JWKS grace lifecycle + audit-events viewer + admin credential listing) + Tier-1 (PUT /me round-trip, GET /me/factors, admin sessions, SAML attr_map round-trip) + sudo-multiuse (single elevation covers multiple gated actions until expiry) + avatar (PUT /me/avatar upload, public GET /avatar/{sub} image/webp+ETag, /me.avatarUrl, userinfo.picture claim) + avatar-fed (federated first-login inherit + no-clobber on re-login + UserInfo fallback + dual-source selection/previews + avatar_source_unavailable negative) + delegated-access (admin assigns one active account; cross-app/config denials; app-bound manual + OR rule groups; manual deny/allow precedence; live avatar eligibility; three exposed OIDC group claims; refresh eligibility re-check and family revocation; assignment/policy audit lifecycle) + error-redirect (federation access_denied + SAML malformed request → 302 /error) + pat (Personal Access Token access levels: selected_apps → only its apps at the gateway, API 403 pat_api_not_allowed; all_apps → any app; full → management API as owner, sudo routes 401 sudo_required, browser-only routes 403; sudo → creates PATs without a browser sudo step; bad header → 401 pat_invalid without cookie fallback; no Remote-Scopes header; admin GET /accounts/{id}/tokens lists access + apps; DB access/app rows; pat_id on audit events; revoked PAT → 401) + maintenance (admin enables maintenance via sudo PUT → public /config maintenanceMode+message round-trip; admin stays exempt /me 200; disable restores; non-admin dashboard+gateway blocking unit-tested) + client-ip (admin sudo PUT header strategy + GET round-trip; invalid CIDR rejected 400; reset to direct) + login-appearance (admin sudo POST two sign-in images → public GET /branding/login-images/{id} byte-for-byte verbatim, /config lists them in order; sudo PUT appearance images/carousel/15s round-trips through /config and the admin GET; unknown field → 400; unsplash without key → unsplash_key_required; sudo DELETE image → 404) + steam (Steam OpenID 2.0 login arc: admin create protocol=steam provider; mock Steam OP redirect; callback → /welcome confirm → session; DB account+identity rows) + audit-remediation (new event types: webauthn:use, session:session_start/end, webauthn:sudo_granted, settings:update, PAT register/revoke/fail; ctx-carried IP non-empty on session_start events) + pwd-totp-enroll (password+TOTP enrollment ceremony: plain-invite begin→verify sets password+confirmed-TOTP+10 recovery codes and issues a session, password→TOTP login works, bootstrap rejects password+TOTP as passkey-only) + DB-state assertions passed against",
 		*baseURL)
 	fmt.Println("  VRChat: fixed link_only operator setup + browser-bound profile proof, sessionless federated registration, recovery that names its account, with passkey replacement/session revocation, authenticated linking, filtering, safe negative paths, and secret non-disclosure ✓")
 }

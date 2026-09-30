@@ -49,6 +49,8 @@ func TestMaintenanceGate(t *testing.T) {
 		{"non-admin logout allowlisted", true, sessionForRole("user"), "POST", "/api/prohibitorum/auth/logout", http.StatusOK},
 		{"non-admin static shell passes", true, sessionForRole("user"), "GET", "/security", http.StatusOK},
 		{"non-admin avatar allowlisted", true, sessionForRole("user"), "GET", "/avatar/abc", http.StatusOK},
+		{"non-admin sign-in wallpaper allowlisted", true, sessionForRole("user"), "GET", "/branding/wallpaper", http.StatusOK},
+		{"anonymous sign-in image allowlisted", true, nil, "GET", "/branding/login-images/1", http.StatusOK},
 		{"non-admin OIDC authorize redirects", true, sessionForRole("user"), "GET", "/oauth/authorize", http.StatusFound},
 		{"non-admin SAML SSO redirects", true, sessionForRole("user"), "POST", "/saml/sso", http.StatusFound},
 	}

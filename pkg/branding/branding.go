@@ -1,11 +1,13 @@
 // Package branding resolves the effective instance name + icon with
-// DB-override → config-default → built-in precedence, and processes uploaded
-// icons to a square PNG. The resolver caches the DB row; admin mutations call
-// Invalidate() so changes apply immediately.
+// DB-override → config-default → built-in precedence, processes uploaded icons
+// to a square PNG, and holds the sign-in page's appearance and background
+// images. The resolver caches the DB row; admin mutations call Invalidate() so
+// changes apply immediately.
 package branding
 
 import (
 	"context"
+	"errors"
 	"os"
 	"sync"
 
@@ -29,8 +31,25 @@ type Settings struct {
 	IconEtag           *string
 	Maintenance        bool
 	MaintenanceMessage *string
-	LoginBG            []byte
-	LoginBGEtag        *string
+	// Appearance is the saved sign-in page look; nil means DefaultAppearance.
+	Appearance *Appearance
+	// Images are the uploaded sign-in backgrounds in upload order, without bytes.
+	Images []ImageRef
+	// UnsplashKey is the sealed Unsplash access key, nil when none is saved.
+	UnsplashKey *SealedKey
+}
+
+// ImageRef identifies an uploaded sign-in background.
+type ImageRef struct {
+	ID   int64
+	Etag string
+}
+
+// SealedKey is an AES-GCM sealed secret as stored in instance_settings.
+type SealedKey struct {
+	Ciphertext []byte
+	Nonce      []byte
+	KeyVersion int32
 }
 
 // Store is the persistence seam (real impl in store_pg.go; fakes in tests).
@@ -40,9 +59,27 @@ type Store interface {
 	SetIcon(ctx context.Context, png []byte, etag string) error
 	ClearIcon(ctx context.Context) error
 	SetMaintenance(ctx context.Context, on bool, message *string) error
-	SetLoginBG(ctx context.Context, raw []byte, etag string) error
-	ClearLoginBG(ctx context.Context) error
+	// SetAppearance saves a and, when key is non-nil, the Unsplash key in the
+	// same transaction. It returns ErrUnsplashKeyRequired when a selects
+	// Unsplash and neither key nor a saved key exists.
+	SetAppearance(ctx context.Context, a Appearance, key *SealedKey) error
+	// ClearUnsplashKey returns ErrUnsplashKeyInUse while the saved source is Unsplash.
+	ClearUnsplashKey(ctx context.Context) error
+	// AddImage returns ErrImageLimit once MaxLoginImages are stored.
+	AddImage(ctx context.Context, data []byte, etag string) (ImageRef, error)
+	// DeleteImage returns ErrImageNotFound for an unknown id.
+	DeleteImage(ctx context.Context, id int64) error
+	// ImageData returns ErrImageNotFound for an unknown id.
+	ImageData(ctx context.Context, id int64) ([]byte, string, error)
 }
+
+// Sign-in page store errors.
+var (
+	ErrImageLimit          = errors.New("branding: sign-in background image limit reached")
+	ErrImageNotFound       = errors.New("branding: sign-in background image not found")
+	ErrUnsplashKeyRequired = errors.New("branding: Unsplash source needs an access key")
+	ErrUnsplashKeyInUse    = errors.New("branding: Unsplash access key is in use")
+)
 
 // Resolver resolves the effective instance name and icon with DB → config →
 // built-in precedence. The DB row is cached after the first load; call
@@ -200,49 +237,69 @@ func (r *Resolver) ClearIcon(ctx context.Context) error {
 	return nil
 }
 
-// Background returns the DB login-page background bytes + etag, and whether one
-// is set (custom=true). Unlike Icon there is no config-file or built-in default:
-// with no DB override this returns (nil, "", false) and the frontend falls back
-// to its build-time asset / gradient. Bytes are served verbatim — never processed.
-func (r *Resolver) Background(ctx context.Context) (data []byte, etag string, custom bool) {
-	s := r.load(ctx)
-	if len(s.LoginBG) == 0 {
-		return nil, "", false
+// Appearance returns the saved sign-in page look, or DefaultAppearance.
+func (r *Resolver) Appearance(ctx context.Context) Appearance {
+	if s := r.load(ctx); s.Appearance != nil {
+		return *s.Appearance
 	}
-	if s.LoginBGEtag != nil {
-		etag = *s.LoginBGEtag
-	}
-	return s.LoginBG, etag, true
+	return DefaultAppearance()
 }
 
-// HasCustomBackground reports whether a DB login-page background is set.
-func (r *Resolver) HasCustomBackground(ctx context.Context) bool {
-	_, _, custom := r.Background(ctx)
-	return custom
+// LoginImages lists the uploaded sign-in backgrounds in upload order.
+func (r *Resolver) LoginImages(ctx context.Context) []ImageRef {
+	return r.load(ctx).Images
 }
 
-// SetLoginBackground validates raw (size, format, dimensions) WITHOUT modifying
-// it and stores the exact bytes as the DB override, then invalidates the cache.
-// The stored bytes are what the public serve endpoint returns byte-for-byte.
-func (r *Resolver) SetLoginBackground(ctx context.Context, raw []byte) error {
+// LoginImageEtag returns the cached etag of image id, without reading its bytes.
+func (r *Resolver) LoginImageEtag(ctx context.Context, id int64) (string, bool) {
+	for _, img := range r.LoginImages(ctx) {
+		if img.ID == id {
+			return img.Etag, true
+		}
+	}
+	return "", false
+}
+
+// LoginImage reads the bytes of image id, verbatim as uploaded.
+func (r *Resolver) LoginImage(ctx context.Context, id int64) ([]byte, string, error) {
+	return r.st.ImageData(ctx, id)
+}
+
+// UnsplashKey returns the sealed Unsplash access key, or nil when none is saved.
+func (r *Resolver) UnsplashKey(ctx context.Context) *SealedKey {
+	return r.load(ctx).UnsplashKey
+}
+
+// SetAppearance validates and saves a, together with key when it is non-nil.
+func (r *Resolver) SetAppearance(ctx context.Context, a Appearance, key *SealedKey) error {
+	if err := ValidateAppearance(a); err != nil {
+		return err
+	}
+	defer r.Invalidate()
+	return r.st.SetAppearance(ctx, a, key)
+}
+
+// ClearUnsplashKey removes the saved Unsplash key unless it is in use.
+func (r *Resolver) ClearUnsplashKey(ctx context.Context) error {
+	defer r.Invalidate()
+	return r.st.ClearUnsplashKey(ctx)
+}
+
+// AddLoginImage validates raw (size, format, dimensions) without modifying it
+// and stores the exact bytes; the public endpoint serves them byte-for-byte.
+func (r *Resolver) AddLoginImage(ctx context.Context, raw []byte) (ImageRef, error) {
 	etag, err := imageutil.ValidateRaw(raw)
 	if err != nil {
-		return err
+		return ImageRef{}, err
 	}
-	if err := r.st.SetLoginBG(ctx, raw, etag); err != nil {
-		return err
-	}
-	r.Invalidate()
-	return nil
+	defer r.Invalidate()
+	return r.st.AddImage(ctx, raw, etag)
 }
 
-// ClearLoginBackground removes the DB login-page background override.
-func (r *Resolver) ClearLoginBackground(ctx context.Context) error {
-	if err := r.st.ClearLoginBG(ctx); err != nil {
-		return err
-	}
-	r.Invalidate()
-	return nil
+// DeleteLoginImage removes image id.
+func (r *Resolver) DeleteLoginImage(ctx context.Context, id int64) error {
+	defer r.Invalidate()
+	return r.st.DeleteImage(ctx, id)
 }
 
 // ProcessIcon normalizes raw to a 512×512 lossless WebP + sha256 etag, sharing

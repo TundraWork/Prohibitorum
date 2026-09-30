@@ -31,6 +31,7 @@ type Querier interface {
 	BumpAuthThrottle(ctx context.Context, arg BumpAuthThrottleParams) (BumpAuthThrottleRow, error)
 	ClearActiveAvatar(ctx context.Context, arg ClearActiveAvatarParams) error
 	ClearManualDecision(ctx context.Context, arg ClearManualDecisionParams) (int64, error)
+	ClearUnsplashKey(ctx context.Context) error
 	ConfirmAccountIdentity(ctx context.Context, id int64) error
 	ConfirmTOTPCredential(ctx context.Context, accountID int32) error
 	// Atomic single-use consume. Returns the row only if it was unconsumed and unexpired.
@@ -53,6 +54,7 @@ type Querier interface {
 	CountAccountsLinkedToUpstreamIDPs(ctx context.Context, upstreamIdpIds []int64) ([]CountAccountsLinkedToUpstreamIDPsRow, error)
 	CountActiveAdminsForUpdate(ctx context.Context) (int64, error)
 	CountCredentialsByAccount(ctx context.Context, accountID int32) (int64, error)
+	CountLoginBackgroundImages(ctx context.Context) (int64, error)
 	// Linked identities the account can actually sign in / step up with: the
 	// upstream IdP must still exist, be enabled, and provide direct sign-in.
 	// VRChat is link-only. ListAccountIdentitiesByAccount intentionally returns
@@ -84,6 +86,7 @@ type Querier interface {
 	DeleteExpiredDiagnosticEvents(ctx context.Context) (int64, error)
 	DeleteExpiredSAMLSessions(ctx context.Context) (int64, error)
 	DeleteGlobalGroup(ctx context.Context, groupID int32) (int64, error)
+	DeleteLoginBackgroundImage(ctx context.Context, id int64) (int64, error)
 	DeleteOIDCAppGroup(ctx context.Context, arg DeleteOIDCAppGroupParams) (int64, error)
 	DeleteOIDCClient(ctx context.Context, clientID string) (int64, error)
 	DeletePasswordCredential(ctx context.Context, accountID int32) error
@@ -119,6 +122,8 @@ type Querier interface {
 	GetForwardAuthAppByID(ctx context.Context, clientID string) (GetForwardAuthAppByIDRow, error)
 	GetForwardAuthClientByHost(ctx context.Context, forwardAuthHost pgtype.Text) (GetForwardAuthClientByHostRow, error)
 	GetGlobalGroup(ctx context.Context, groupID int32) (UserGroup, error)
+	GetLoginAppearance(ctx context.Context) (GetLoginAppearanceRow, error)
+	GetLoginBackgroundImage(ctx context.Context, id int64) (GetLoginBackgroundImageRow, error)
 	GetOIDCAppGroup(ctx context.Context, arg GetOIDCAppGroupParams) (UserGroup, error)
 	GetOIDCClient(ctx context.Context, clientID string) (OidcClient, error)
 	GetOIDCClientAny(ctx context.Context, clientID string) (OidcClient, error)
@@ -147,6 +152,7 @@ type Querier interface {
 	InsertDiagnosticEvent(ctx context.Context, arg InsertDiagnosticEventParams) error
 	InsertEnrollment(ctx context.Context, arg InsertEnrollmentParams) (Enrollment, error)
 	InsertFederatedRegistrationEnrollment(ctx context.Context, arg InsertFederatedRegistrationEnrollmentParams) (Enrollment, error)
+	InsertLoginBackgroundImage(ctx context.Context, arg InsertLoginBackgroundImageParams) (int64, error)
 	InsertOIDCClient(ctx context.Context, arg InsertOIDCClientParams) (OidcClient, error)
 	InsertPAT(ctx context.Context, arg InsertPATParams) (PersonalAccessToken, error)
 	InsertPATApp(ctx context.Context, arg InsertPATAppParams) error
@@ -196,6 +202,7 @@ type Querier interface {
 	ListInvitationGroups(ctx context.Context, groupIds []int32) ([]ListInvitationGroupsRow, error)
 	ListKnownUpstreamIDPDescriptors(ctx context.Context) ([]ListKnownUpstreamIDPDescriptorsRow, error)
 	ListKnownUpstreamIDPSlugs(ctx context.Context) ([]string, error)
+	ListLoginBackgroundImages(ctx context.Context) ([]ListLoginBackgroundImagesRow, error)
 	ListManualDecisionsForOIDCApp(ctx context.Context, arg ListManualDecisionsForOIDCAppParams) ([]GroupManualDecision, error)
 	ListManualDecisionsForSAMLApp(ctx context.Context, arg ListManualDecisionsForSAMLAppParams) ([]GroupManualDecision, error)
 	ListManualDecisionsPage(ctx context.Context, arg ListManualDecisionsPageParams) ([]ListManualDecisionsPageRow, error)
@@ -235,6 +242,7 @@ type Querier interface {
 	ListSAMLSessionsBySession(ctx context.Context, sessionID string) ([]SamlSession, error)
 	ListSessionsByAccount(ctx context.Context, accountID int32) ([]Session, error)
 	ListUpstreamIDPs(ctx context.Context) ([]UpstreamIdp, error)
+	LockInstanceSettings(ctx context.Context) (int16, error)
 	PATGrantsApp(ctx context.Context, arg PATGrantsAppParams) (bool, error)
 	PromoteSigningKey(ctx context.Context, kid string) (SigningKey, error)
 	PruneExpiredRevokedJTI(ctx context.Context) error
@@ -263,11 +271,13 @@ type Querier interface {
 	SetEntityIcon(ctx context.Context, arg SetEntityIconParams) error
 	SetEntityIconAccent(ctx context.Context, arg SetEntityIconAccentParams) error
 	SetForwardAuthConfig(ctx context.Context, arg SetForwardAuthConfigParams) error
+	SetLoginAppearance(ctx context.Context, loginAppearance []byte) error
 	SetOIDCClientAccessRestricted(ctx context.Context, arg SetOIDCClientAccessRestrictedParams) (OidcClient, error)
 	SetOIDCClientDisabled(ctx context.Context, arg SetOIDCClientDisabledParams) (OidcClient, error)
 	SetOIDCClientLaunchURL(ctx context.Context, arg SetOIDCClientLaunchURLParams) error
 	SetSAMLSPAccessRestricted(ctx context.Context, arg SetSAMLSPAccessRestrictedParams) (SamlSp, error)
 	SetSAMLSPDisabled(ctx context.Context, arg SetSAMLSPDisabledParams) (SamlSp, error)
+	SetUnsplashKey(ctx context.Context, arg SetUnsplashKeyParams) error
 	SetUpstreamIDPDisabled(ctx context.Context, arg SetUpstreamIDPDisabledParams) (UpstreamIdp, error)
 	TouchPATLastUsed(ctx context.Context, id int32) error
 	UpdateAccount(ctx context.Context, arg UpdateAccountParams) (Account, error)

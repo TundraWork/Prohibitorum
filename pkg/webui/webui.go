@@ -56,8 +56,10 @@ func Handler(instanceName string) http.Handler {
 func setSecurityHeaders(w http.ResponseWriter) {
 	// React Aria injects a fixed pressable touch-action rule; allow only its hash.
 	// Inline style attributes support positioning; scripts remain same-origin.
+	// The sign-in page's Bing and Unsplash wallpapers load straight from their
+	// image hosts.
 	w.Header().Set("Content-Security-Policy",
-		"default-src 'self'; script-src 'self'; style-src-elem 'self' 'sha256-38RhXrc7EdReTKsOm23ZPOCUgniTUUcjky8QOOrQx6o='; style-src-attr 'unsafe-inline'; connect-src 'self' blob:; img-src 'self' data: blob:; font-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; frame-ancestors 'none'")
+		"default-src 'self'; script-src 'self'; style-src-elem 'self' 'sha256-38RhXrc7EdReTKsOm23ZPOCUgniTUUcjky8QOOrQx6o='; style-src-attr 'unsafe-inline'; connect-src 'self' blob:; img-src 'self' data: blob: https://www.bing.com https://images.unsplash.com; font-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; frame-ancestors 'none'")
 	w.Header().Set("X-Frame-Options", "DENY")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 }

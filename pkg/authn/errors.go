@@ -100,6 +100,14 @@ func init() {
 		{Code: "group_in_use", Status: http.StatusConflict, LocaleKey: "errors.group_in_use", DiagnosticKind: "policy"},
 		{Code: "group_slug_conflict", Status: http.StatusConflict, LocaleKey: "errors.group_slug_conflict", DiagnosticKind: "validation"},
 		{Code: "manual_group_exists", Status: http.StatusConflict, LocaleKey: "errors.manual_group_exists", DiagnosticKind: "policy"},
+		{Code: "login_images_full", Status: http.StatusConflict, LocaleKey: "errors.login_images_full", DiagnosticKind: "policy"},
+		{Code: "login_image_not_found", Status: http.StatusNotFound, LocaleKey: "errors.login_image_not_found", DiagnosticKind: "resource"},
+		{Code: "unsplash_key_required", Status: http.StatusBadRequest, LocaleKey: "errors.unsplash_key_required", DiagnosticKind: "validation", Recovery: "fix_input"},
+		{Code: "unsplash_key_invalid", Status: http.StatusBadRequest, LocaleKey: "errors.unsplash_key_invalid", DiagnosticKind: "validation", Recovery: "fix_input"},
+		{Code: "unsplash_unreachable", Status: http.StatusBadGateway, LocaleKey: "errors.unsplash_unreachable", DiagnosticKind: "system", Retryable: true, Recovery: "retry"},
+		{Code: "unsplash_key_in_use", Status: http.StatusConflict, LocaleKey: "errors.unsplash_key_in_use", DiagnosticKind: "policy"},
+		{Code: "wallpaper_not_configured", Status: http.StatusNotFound, LocaleKey: "errors.wallpaper_not_configured", DiagnosticKind: "resource"},
+		{Code: "wallpaper_unavailable", Status: http.StatusServiceUnavailable, LocaleKey: "errors.wallpaper_unavailable", DiagnosticKind: "system", Retryable: true, Recovery: "retry"},
 		{Code: "invalid_group_rule", Status: http.StatusBadRequest, LocaleKey: "errors.invalid_group_rule", DiagnosticKind: "validation", DetailKeys: map[string]struct{}{"path": {}, "reason": {}}},
 	}
 	if err := weberr.Register(defs); err != nil {
@@ -709,6 +717,52 @@ func ErrGroupSlugConflict() *AuthError {
 // permitted manual policy group. Status 409.
 func ErrManualGroupExists() *AuthError {
 	return newErr(http.StatusConflict, "manual_group_exists", "This application already has a manual group.")
+}
+
+// ErrLoginImagesFull is returned when the sign-in page already has
+// branding.MaxLoginImages background images. Status 409.
+func ErrLoginImagesFull() *AuthError {
+	return newErr(http.StatusConflict, "login_images_full", "The sign-in page already has 10 background images.")
+}
+
+// ErrLoginImageNotFound is returned for an unknown sign-in background image. Status 404.
+func ErrLoginImageNotFound() *AuthError {
+	return newErr(http.StatusNotFound, "login_image_not_found", "Sign-in background image not found.")
+}
+
+// ErrUnsplashKeyRequired is returned when the Unsplash source is selected with
+// no access key given or saved. Status 400.
+func ErrUnsplashKeyRequired() *AuthError {
+	return newErr(http.StatusBadRequest, "unsplash_key_required", "The Unsplash background needs an access key.")
+}
+
+// ErrUnsplashKeyInvalid is returned when Unsplash rejects an access key. Status 400.
+func ErrUnsplashKeyInvalid() *AuthError {
+	return newErr(http.StatusBadRequest, "unsplash_key_invalid", "Unsplash did not accept this access key.")
+}
+
+// ErrUnsplashUnreachable is returned when a key cannot be checked because
+// Unsplash did not answer. Status 502.
+func ErrUnsplashUnreachable() *AuthError {
+	return newErr(http.StatusBadGateway, "unsplash_unreachable", "Unsplash could not be reached to check the access key.")
+}
+
+// ErrUnsplashKeyInUse prevents removing the key while the saved background is
+// Unsplash. Status 409.
+func ErrUnsplashKeyInUse() *AuthError {
+	return newErr(http.StatusConflict, "unsplash_key_in_use", "Switch the background away from Unsplash before removing its key.")
+}
+
+// ErrWallpaperNotConfigured is returned by the wallpaper endpoint when the
+// background source is neither Bing nor Unsplash. Status 404.
+func ErrWallpaperNotConfigured() *AuthError {
+	return newErr(http.StatusNotFound, "wallpaper_not_configured", "The sign-in page does not use a Bing or Unsplash wallpaper.")
+}
+
+// ErrWallpaperUnavailable is returned when the wallpaper upstream failed and
+// nothing is cached. Status 503.
+func ErrWallpaperUnavailable() *AuthError {
+	return newErr(http.StatusServiceUnavailable, "wallpaper_unavailable", "The wallpaper is not available right now.")
 }
 
 // ErrInvalidGroupRule returns a curated parser/validator failure. Only the

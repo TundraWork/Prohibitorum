@@ -132,11 +132,20 @@ type InstanceSetting struct {
 	UpdatedAt              pgtype.Timestamptz `json:"updatedAt"`
 	MaintenanceMode        bool               `json:"maintenanceMode"`
 	MaintenanceMessage     pgtype.Text        `json:"maintenanceMessage"`
-	LoginBg                []byte             `json:"loginBg"`
-	LoginBgEtag            pgtype.Text        `json:"loginBgEtag"`
 	ClientIpStrategy       string             `json:"clientIpStrategy"`
 	ClientIpHeader         string             `json:"clientIpHeader"`
 	ClientIpTrustedProxies []string           `json:"clientIpTrustedProxies"`
+	LoginAppearance        []byte             `json:"loginAppearance"`
+	UnsplashKeyEnc         []byte             `json:"unsplashKeyEnc"`
+	UnsplashKeyNonce       []byte             `json:"unsplashKeyNonce"`
+	UnsplashKeyVersion     pgtype.Int4        `json:"unsplashKeyVersion"`
+}
+
+type LoginBackgroundImage struct {
+	ID        int64              `json:"id"`
+	Data      []byte             `json:"data"`
+	Etag      string             `json:"etag"`
+	CreatedAt pgtype.Timestamptz `json:"createdAt"`
 }
 
 type OidcClient struct {

@@ -46,3 +46,18 @@ func TestSecretStoreSelectsKeyVersion(t *testing.T) {
 	sealed.KeyVersion = 4
 	if _, err := store.OpenProviderSecret(*sealed, 9); err == nil { t.Fatal("unknown key version accepted") }
 }
+
+func TestInstanceSecretRoundTripAndAAD(t *testing.T) {
+	dek := bytes.Repeat([]byte{0x33}, 32)
+	sealed, err := SealInstanceSecret(dek, []byte("access-key"), "unsplash_access_key", 2)
+	if err != nil { t.Fatal(err) }
+	got, err := OpenInstanceSecret(dek, *sealed, "unsplash_access_key")
+	if err != nil { t.Fatal(err) }
+	if string(got) != "access-key" { t.Fatalf("plaintext = %q", got) }
+	if _, err := OpenInstanceSecret(dek, *sealed, "other_secret"); err == nil { t.Fatal("secret opened under another name") }
+	bumped := *sealed
+	bumped.KeyVersion = 3
+	if _, err := OpenInstanceSecret(dek, bumped, "unsplash_access_key"); err == nil { t.Fatal("secret opened under another key version") }
+	if _, err := OpenProviderSecret(dek, *sealed, 2); err == nil { t.Fatal("instance secret opened as provider secret") }
+	if _, err := SealInstanceSecret(dek, []byte("x"), "", 2); err == nil { t.Fatal("empty name accepted") }
+}
