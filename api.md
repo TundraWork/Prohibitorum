@@ -286,11 +286,13 @@ The sign-in page's look is one **appearance** document, returned whole by `/conf
     "images": { "order": "random" | "carousel", "intervalSeconds": 10 } // 5–3600
   },
   "card":     { "translucent": false, "opacity": 80, "blur": true },    // opacity 0–100 (%)
-  "capsules": { "translucent": true,  "opacity": 70, "blur": true }
+  "capsules": { "translucent": true,  "opacity": 70, "blur": true },
+  "cardPosition": "left" | "center" | "right",     // default "center"; applies from 1024px wide, narrower windows centre the card
+  "theme": "switchable" | "light" | "dark"          // default "switchable"; light or dark fixes the public pages' theme and hides their theme switch; the console is unaffected
 }
 ```
 
-An instance that never saved one gets the default above (`source: "none"`). Bing and Unsplash pictures are loaded by the browser from `https://www.bing.com` and `https://images.unsplash.com`; the server only fetches their metadata (cached for an hour; a failed refresh keeps serving the previous answer).
+An instance that never saved one gets the default above (`source: "none"`, `cardPosition: "center"`, `theme: "switchable"`). Values are case-sensitive; `"Left"`, `"system"` or `null` are `400 bad_request` like any other value outside its set. Bing and Unsplash pictures are loaded by the browser from `https://www.bing.com` and `https://images.unsplash.com`; the server only fetches their metadata (cached for an hour; a failed refresh keeps serving the previous answer).
 
 | Method | Path | Gate | Notes |
 |--------|------|------|-------|
