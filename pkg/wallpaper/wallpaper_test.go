@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -185,13 +186,13 @@ func TestUnsplashRequestAndCredit(t *testing.T) {
 	if r.Header.Get("Authorization") != "Client-ID key-1" || r.Header.Get("Accept-Version") != "v1" {
 		t.Fatalf("headers = %v", r.Header)
 	}
-	want := Picture{
+	want := []Picture{{
 		ImageURL:        "https://images.unsplash.com/photo-0?ixid=abc&w=2560&q=80&auto=format",
 		Photographer:    "Person 0",
 		PhotographerURL: "https://unsplash.com/@person0?utm_source=prohibitorum&utm_medium=referral",
 		PhotoURL:        "https://unsplash.com/photos/p0?utm_source=prohibitorum&utm_medium=referral",
-	}
-	if got != want {
+	}}
+	if !slices.Equal(got, want) {
 		t.Fatalf("Unsplash() = %+v, want %+v", got, want)
 	}
 
@@ -203,22 +204,27 @@ func TestUnsplashRequestAndCredit(t *testing.T) {
 	}
 }
 
-func TestUnsplashBatchIsCachedAndShuffled(t *testing.T) {
+func TestUnsplashReturnsTheCachedBatchInOrder(t *testing.T) {
 	up := newUpstream(t, respond(http.StatusOK, unsplashBody(30)))
 	s := newService(&clock{t: time.Unix(1_700_000_000, 0)}, nil, up)
-	seen := map[string]bool{}
-	for range 50 {
-		p, err := s.Unsplash(context.Background(), "key-1", "")
+	for range 3 {
+		batch, err := s.Unsplash(context.Background(), "key-1", "")
 		if err != nil {
 			t.Fatal(err)
 		}
-		seen[p.ImageURL] = true
+		if len(batch) != 30 {
+			t.Fatalf("batch has %d photos, want all 30", len(batch))
+		}
+		for i, p := range batch {
+			if want := fmt.Sprintf("https://images.unsplash.com/photo-%d?", i); !strings.HasPrefix(p.ImageURL, want) {
+				t.Fatalf("batch[%d] = %s, want the upstream order", i, p.ImageURL)
+			}
+		}
+		// The caller's copy is its own: changing it leaves the cache alone.
+		batch[0].ImageURL = ""
 	}
 	if up.hits.Load() != 1 {
 		t.Fatalf("hits = %d, want one batch fetch", up.hits.Load())
-	}
-	if len(seen) < 2 {
-		t.Fatalf("50 requests returned %d distinct photos, want a random pick from the batch", len(seen))
 	}
 	// A different key has its own batch.
 	if _, err := s.Unsplash(context.Background(), "key-2", ""); err != nil || up.hits.Load() != 2 {
@@ -280,7 +286,7 @@ func TestUnsplashSkipsForeignAddresses(t *testing.T) {
 }
 
 func TestUnsplashServesStaleOnError(t *testing.T) {
-	up := newUpstream(t, respond(http.StatusOK, unsplashBody(1)))
+	up := newUpstream(t, respond(http.StatusOK, unsplashBody(3)))
 	c := &clock{t: time.Unix(1_700_000_000, 0)}
 	s := newService(c, nil, up)
 	first, err := s.Unsplash(context.Background(), "key", "")
@@ -289,7 +295,7 @@ func TestUnsplashServesStaleOnError(t *testing.T) {
 	}
 	up.set(respond(http.StatusInternalServerError, ``))
 	c.advance(2 * time.Hour)
-	if got, err := s.Unsplash(context.Background(), "key", ""); err != nil || got != first {
-		t.Fatalf("got %+v, err %v; want the stale photo", got, err)
+	if got, err := s.Unsplash(context.Background(), "key", ""); err != nil || !slices.Equal(got, first) {
+		t.Fatalf("got %+v, err %v; want the stale batch", got, err)
 	}
 }

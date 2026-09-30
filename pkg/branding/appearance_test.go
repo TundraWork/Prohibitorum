@@ -70,6 +70,12 @@ func TestDecodeAppearance(t *testing.T) {
 		{"interval 4", set(4, "background", "images", "intervalSeconds"), false},
 		{"interval 3601", set(3601, "background", "images", "intervalSeconds"), false},
 		{"fractional interval", set(7.5, "background", "images", "intervalSeconds"), false},
+		{"unsplash carousel", set("carousel", "background", "unsplash", "order"), true},
+		{"unknown unsplash order", set("shuffle", "background", "unsplash", "order"), false},
+		{"unsplash interval 5", set(5, "background", "unsplash", "intervalSeconds"), true},
+		{"unsplash interval 3600", set(3600, "background", "unsplash", "intervalSeconds"), true},
+		{"unsplash interval 4", set(4, "background", "unsplash", "intervalSeconds"), false},
+		{"unsplash interval 3601", set(3601, "background", "unsplash", "intervalSeconds"), false},
 		{"opacity 0", set(0, "card", "opacity"), true},
 		{"opacity 100", set(100, "capsules", "opacity"), true},
 		{"opacity -1", set(-1, "card", "opacity"), false},
@@ -83,6 +89,8 @@ func TestDecodeAppearance(t *testing.T) {
 		{"missing images", drop("background", "images"), false},
 		{"missing showCaption", drop("background", "bing", "showCaption"), false},
 		{"missing query", drop("background", "unsplash", "query"), false},
+		{"missing unsplash order", drop("background", "unsplash", "order"), false},
+		{"missing unsplash interval", drop("background", "unsplash", "intervalSeconds"), false},
 		{"card on the left", set("left", "cardPosition"), true},
 		{"card on the right", set("right", "cardPosition"), true},
 		{"unknown card position", set("middle", "cardPosition"), false},
@@ -122,6 +130,7 @@ func TestDecodeAppearanceRoundTrip(t *testing.T) {
 	want := DefaultAppearance()
 	want.Background.Source = SourceBing
 	want.Background.Bing = BingOptions{Market: "ja-JP", ShowCaption: false}
+	want.Background.Unsplash = UnsplashOptions{Query: "sea", Order: "carousel", IntervalSeconds: 15}
 	want.Capsules = Surface{Translucent: false, Opacity: 35, Blur: false}
 	want.CardPosition = CardRight
 	want.Theme = ThemeDark
@@ -138,5 +147,22 @@ func TestDecodeAppearanceRoundTrip(t *testing.T) {
 	}
 	if _, err := DecodeAppearance(append(raw, []byte(`{}`)...)); !errors.Is(err, ErrInvalidAppearance) {
 		t.Fatalf("trailing data: err = %v, want ErrInvalidAppearance", err)
+	}
+}
+
+func TestDefaultAppearanceRoundTrip(t *testing.T) {
+	raw, err := json.Marshal(DefaultAppearance())
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := DecodeAppearance(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := DefaultAppearance(); got != want {
+		t.Fatalf("round trip = %+v, want %+v", got, want)
+	}
+	if got.Background.Unsplash.Order != "random" || got.Background.Unsplash.IntervalSeconds != 10 {
+		t.Fatalf("unsplash defaults = %+v, want random every 10 seconds", got.Background.Unsplash)
 	}
 }

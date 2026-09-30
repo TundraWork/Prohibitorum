@@ -216,12 +216,19 @@ type LoginImage struct {
 	Etag string `json:"etag"`
 }
 
-// Wallpaper is GET /branding/wallpaper: the picture the browser loads straight
-// from Bing or Unsplash, and its credit. Bing fills title, copyright and
-// copyrightUrl (omitted when the caption is hidden); Unsplash fills the
-// photographer and photo links, which are always shown.
+// Wallpaper is GET /branding/wallpaper: the pictures the browser loads straight
+// from Bing or Unsplash, with their credits. Bing sends today's picture alone;
+// Unsplash sends the whole cached batch in its order, and the browser shows one
+// at random or rotates through them.
 type Wallpaper struct {
-	Source          string `json:"source"`
+	Source   string             `json:"source"`
+	Pictures []WallpaperPicture `json:"pictures"`
+}
+
+// WallpaperPicture is one picture and its credit. Bing fills title, copyright
+// and copyrightUrl (omitted when the caption is hidden); Unsplash fills the
+// photographer and photo links, which are always shown.
+type WallpaperPicture struct {
 	ImageURL        string `json:"imageUrl"`
 	Title           string `json:"title,omitempty"`
 	Copyright       string `json:"copyright,omitempty"`

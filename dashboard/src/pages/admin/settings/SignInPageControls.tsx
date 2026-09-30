@@ -9,6 +9,7 @@ import {
   Fieldset,
   Label,
   ListBox,
+  NumberField,
   parseColor,
   Radio,
   RadioGroup,
@@ -31,9 +32,11 @@ import type {
   LoginBackgroundSource,
   LoginCardPosition,
   LoginGradient,
+  LoginImageOrder,
   LoginSurface,
   LoginTheme,
 } from "@/api/raw-paths";
+import { FormMessages } from "@/components/custom/FormMessages";
 import {
   gradientBackground,
   loginGradients,
@@ -41,6 +44,8 @@ import {
 import {
   backgroundSources,
   bingMarkets,
+  maxIntervalSeconds,
+  minIntervalSeconds,
   suggestedColors,
 } from "@/pages/admin/settings/sign-in-page-form";
 
@@ -520,5 +525,106 @@ export function ThemeControls({
         },
       ]}
     />
+  );
+}
+
+/**
+ * How a source with several pictures shows them: one at random per visit, or
+ * a carousel, whose interval field is passed as `children` and shown only
+ * while the carousel is chosen. Uploaded images and Unsplash share it.
+ */
+export function RotationControls({
+  order,
+  isDisabled,
+  onOrder,
+  children,
+}: {
+  order: LoginImageOrder;
+  isDisabled: boolean;
+  onOrder: (order: LoginImageOrder) => void;
+  children: ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-3">
+      <RadioGroup
+        variant="secondary"
+        value={order}
+        isDisabled={isDisabled}
+        onChange={(next) => onOrder(next as LoginImageOrder)}
+      >
+        <Label>
+          <Trans id="settings.sign-in.order">Order</Trans>
+        </Label>
+        <Radio value="random">
+          <Radio.Content>
+            <Radio.Control>
+              <Radio.Indicator />
+            </Radio.Control>
+            <Trans id="settings.sign-in.order.random">
+              A random one each visit
+            </Trans>
+          </Radio.Content>
+        </Radio>
+        <Radio value="carousel">
+          <Radio.Content>
+            <Radio.Control>
+              <Radio.Indicator />
+            </Radio.Control>
+            <Trans id="settings.sign-in.order.carousel">Carousel</Trans>
+          </Radio.Content>
+        </Radio>
+      </RadioGroup>
+      {order === "carousel" && children}
+    </div>
+  );
+}
+
+/** The carousel's interval; `errors` are the form field's, shown under it. */
+export function IntervalField({
+  value,
+  isDisabled,
+  errors,
+  onChange,
+}: {
+  value: number;
+  isDisabled: boolean;
+  errors: readonly unknown[];
+  onChange: (seconds: number) => void;
+}) {
+  const { i18n } = useLingui();
+  return (
+    <NumberField
+      variant="secondary"
+      // Wide enough for "3600 seconds" between the two buttons; the Chinese
+      // "3600秒" is shorter.
+      className="w-56"
+      minValue={minIntervalSeconds}
+      maxValue={maxIntervalSeconds}
+      step={5}
+      value={value}
+      isDisabled={isDisabled}
+      isInvalid={errors.length > 0}
+      onChange={onChange}
+      // Intl's long Chinese unit is "秒钟"; the short one reads "10秒".
+      formatOptions={{
+        style: "unit",
+        unit: "second",
+        unitDisplay: i18n.locale === "zh" ? "short" : "long",
+      }}
+    >
+      <Label>
+        <Trans id="settings.sign-in.interval">Change every</Trans>
+      </Label>
+      <NumberField.Group>
+        <NumberField.DecrementButton />
+        <NumberField.Input className="text-center" />
+        <NumberField.IncrementButton />
+      </NumberField.Group>
+      {errors.length > 0 && (
+        <span className="text-sm text-danger">
+          <FormMessages errors={errors} />
+        </span>
+      )}
+    </NumberField>
   );
 }

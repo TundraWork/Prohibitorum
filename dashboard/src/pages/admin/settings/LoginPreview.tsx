@@ -33,6 +33,7 @@ import {
   capsuleSurfaceStyle,
   cardSurfaceStyle,
 } from "@/components/custom/login-appearance/surface-style";
+import { useLoginBackground } from "@/components/custom/login-appearance/use-login-background";
 import { WallpaperCredit } from "@/components/custom/login-appearance/WallpaperCredit";
 
 /** The sign-in page is laid out at this size, then scaled to the preview's width. */
@@ -136,13 +137,16 @@ export function LoginPreview({
     enabled:
       params !== undefined && params.source === background.source && !needsKey,
   });
-  const shownWallpaper =
-    params?.source === background.source ? wallpaper.data : undefined;
+  const shown = useLoginBackground(
+    appearance,
+    images,
+    params?.source === background.source ? wallpaper.data : undefined,
+  );
   const loading =
     (background.source === "bing" || background.source === "unsplash") &&
     !needsKey &&
     !wallpaper.isError &&
-    shownWallpaper === undefined;
+    shown.wallpaperPicture === undefined;
 
   const note = needsKey
     ? t({
@@ -184,12 +188,7 @@ export function LoginPreview({
             transform: `scale(${scale})`,
           }}
         >
-          <LoginBackdrop
-            contained
-            appearance={appearance}
-            images={images}
-            wallpaper={shownWallpaper}
-          />
+          <LoginBackdrop contained appearance={appearance} background={shown} />
           <header className="relative flex h-16 items-center justify-between px-6">
             <div
               className={`${capsuleClass} gap-3 pr-4 pl-1.5`}
@@ -258,7 +257,7 @@ export function LoginPreview({
             >
               <WallpaperCredit
                 appearance={appearance}
-                wallpaper={shownWallpaper}
+                picture={shown.wallpaperPicture}
               />
             </div>
           </footer>

@@ -255,8 +255,8 @@ msgid "admin.federation.auth.public-needs-s256"
 msgstr "A public client needs S256 PKCE, and this provider is set to use a different PKCE method."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/SignInPagePanel.tsx
-msgid "settings.sign-in.images.order.random"
+#: src/pages/admin/settings/SignInPageControls.tsx
+msgid "settings.sign-in.order.random"
 msgstr "A random one each visit"
 
 #. js-lingui-explicit-id
@@ -1170,8 +1170,8 @@ msgid "settings.sign-in.position"
 msgstr "Card position"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/SignInPagePanel.tsx
-msgid "settings.sign-in.images.order.carousel"
+#: src/pages/admin/settings/SignInPageControls.tsx
+msgid "settings.sign-in.order.carousel"
 msgstr "Carousel"
 
 #. js-lingui-explicit-id
@@ -1215,8 +1215,8 @@ msgid "admin.forward-auth-apps.headers.confirm.action"
 msgstr "Change and save"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/SignInPagePanel.tsx
-msgid "settings.sign-in.images.interval"
+#: src/pages/admin/settings/SignInPageControls.tsx
+msgid "settings.sign-in.interval"
 msgstr "Change every"
 
 #. js-lingui-explicit-id
@@ -1331,7 +1331,7 @@ msgstr "Choose at least one application, or pick another level of access."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/sign-in-page-form.ts
-msgid "settings.sign-in.images.interval.range"
+msgid "settings.sign-in.interval.range"
 msgstr "Choose between 5 and 3600 seconds."
 
 #. js-lingui-explicit-id
@@ -4651,8 +4651,8 @@ msgid "pair.qr_hint"
 msgstr "Or scan it with that device to open it there."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/SignInPagePanel.tsx
-msgid "settings.sign-in.images.order"
+#: src/pages/admin/settings/SignInPageControls.tsx
+msgid "settings.sign-in.order"
 msgstr "Order"
 
 #. js-lingui-explicit-id

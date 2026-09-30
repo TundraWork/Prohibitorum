@@ -1,13 +1,4 @@
-import {
-  Description,
-  Label,
-  Link,
-  NumberField,
-  Radio,
-  RadioGroup,
-  Separator,
-  Tooltip,
-} from "@heroui/react";
+import { Description, Label, Link, Separator, Tooltip } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useStore } from "@tanstack/react-form";
 import {
@@ -16,7 +7,7 @@ import {
   useSuspenseQuery,
 } from "@tanstack/react-query";
 import { KeyRound } from "lucide-react";
-import { type ReactNode, useState } from "react";
+import { useState } from "react";
 import { ApiError, isCancellation } from "@/api/errors";
 import {
   removeUnsplashKeyMutationOptions,
@@ -24,7 +15,7 @@ import {
 } from "@/api/mutations";
 import { loginAppearanceQueryOptions } from "@/api/queries";
 import type { AdminLoginAppearance } from "@/api/raw-admin-paths";
-import type { LoginAppearance, LoginImageOrder } from "@/api/raw-paths";
+import type { LoginAppearance } from "@/api/raw-paths";
 import { Button } from "@/components/custom/Button";
 import { ConsoleCard } from "@/components/custom/ConsoleCard";
 import { useInstanceBranding } from "@/components/custom/instance-branding";
@@ -38,7 +29,9 @@ import {
   ColorControls,
   FieldGroup,
   GradientControls,
+  IntervalField,
   MarketSelect,
+  RotationControls,
   SourceTiles,
   SurfaceControls,
   ThemeControls,
@@ -47,8 +40,6 @@ import {
   colorError,
   intervalError,
   keyError,
-  maxIntervalSeconds,
-  minIntervalSeconds,
   queryError,
   type SignInPageValues,
   signInPageBody,
@@ -328,6 +319,33 @@ function SignInPageCard({ saved }: { saved: AdminLoginAppearance }) {
                         />
                       )}
                     </form.AppField>
+                    {/* Always offered: how many photos a batch holds is not
+                        known before it is saved. */}
+                    <RotationControls
+                      order={background.unsplash.order}
+                      isDisabled={submitting}
+                      onOrder={(order) =>
+                        setAppearance((draft) => {
+                          draft.background.unsplash.order = order;
+                        })
+                      }
+                    >
+                      <form.Field
+                        name="appearance.background.unsplash.intervalSeconds"
+                        validators={{
+                          onSubmit: ({ value }) => intervalError(value),
+                        }}
+                      >
+                        {(field) => (
+                          <IntervalField
+                            value={field.state.value}
+                            isDisabled={submitting}
+                            errors={field.state.meta.errors}
+                            onChange={(seconds) => field.handleChange(seconds)}
+                          />
+                        )}
+                      </form.Field>
+                    </RotationControls>
                   </>
                 )}
 
@@ -335,7 +353,7 @@ function SignInPageCard({ saved }: { saved: AdminLoginAppearance }) {
                   <>
                     <LoginImagesControl images={loginImages} />
                     {loginImages.length > 1 && (
-                      <ImageOrderControls
+                      <RotationControls
                         order={background.images.order}
                         isDisabled={submitting}
                         onOrder={(order) =>
@@ -354,14 +372,14 @@ function SignInPageCard({ saved }: { saved: AdminLoginAppearance }) {
                             <IntervalField
                               value={field.state.value}
                               isDisabled={submitting}
-                              isInvalid={field.state.meta.errors.length > 0}
+                              errors={field.state.meta.errors}
                               onChange={(seconds) =>
                                 field.handleChange(seconds)
                               }
                             />
                           )}
                         </form.Field>
-                      </ImageOrderControls>
+                      </RotationControls>
                     )}
                   </>
                 )}
@@ -499,88 +517,5 @@ function SavedKeyRow({
         </div>
       </div>
     </div>
-  );
-}
-
-function ImageOrderControls({
-  order,
-  isDisabled,
-  onOrder,
-  children,
-}: {
-  order: LoginImageOrder;
-  isDisabled: boolean;
-  onOrder: (order: LoginImageOrder) => void;
-  children: ReactNode;
-}) {
-  return (
-    <div className="flex flex-col gap-3">
-      <RadioGroup
-        variant="secondary"
-        value={order}
-        isDisabled={isDisabled}
-        onChange={(next) => onOrder(next as LoginImageOrder)}
-      >
-        <Label>
-          <Trans id="settings.sign-in.images.order">Order</Trans>
-        </Label>
-        <Radio value="random">
-          <Radio.Content>
-            <Radio.Control>
-              <Radio.Indicator />
-            </Radio.Control>
-            <Trans id="settings.sign-in.images.order.random">
-              A random one each visit
-            </Trans>
-          </Radio.Content>
-        </Radio>
-        <Radio value="carousel">
-          <Radio.Content>
-            <Radio.Control>
-              <Radio.Indicator />
-            </Radio.Control>
-            <Trans id="settings.sign-in.images.order.carousel">Carousel</Trans>
-          </Radio.Content>
-        </Radio>
-      </RadioGroup>
-      {order === "carousel" && children}
-    </div>
-  );
-}
-
-function IntervalField({
-  value,
-  isDisabled,
-  isInvalid,
-  onChange,
-}: {
-  value: number;
-  isDisabled: boolean;
-  isInvalid: boolean;
-  onChange: (seconds: number) => void;
-}) {
-  return (
-    <NumberField
-      variant="secondary"
-      // Wide enough for "3600 seconds" between the two buttons.
-      className="w-56"
-      minValue={minIntervalSeconds}
-      maxValue={maxIntervalSeconds}
-      step={5}
-      value={value}
-      isDisabled={isDisabled}
-      isInvalid={isInvalid}
-      onChange={onChange}
-      formatOptions={{ style: "unit", unit: "second", unitDisplay: "long" }}
-    >
-      <Label>
-        <Trans id="settings.sign-in.images.interval">Change every</Trans>
-      </Label>
-      <NumberField.Group>
-        <NumberField.DecrementButton />
-        <NumberField.Input />
-        <NumberField.IncrementButton />
-      </NumberField.Group>
-    </NumberField>
   );
 }

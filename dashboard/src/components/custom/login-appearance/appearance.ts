@@ -11,7 +11,7 @@ export const defaultLoginAppearance: LoginAppearance = {
     color: "#1f6f8b",
     gradient: "lagoon",
     bing: { market: "zh-CN", showCaption: true },
-    unsplash: { query: "" },
+    unsplash: { query: "", order: "random", intervalSeconds: 10 },
     images: { order: "random", intervalSeconds: 10 },
   },
   card: { translucent: false, opacity: 80, blur: true },

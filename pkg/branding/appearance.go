@@ -83,7 +83,9 @@ type BingOptions struct {
 }
 
 type UnsplashOptions struct {
-	Query string `json:"query"`
+	Query           string `json:"query"`
+	Order           string `json:"order"`
+	IntervalSeconds int    `json:"intervalSeconds"`
 }
 
 type ImageOptions struct {
@@ -109,7 +111,7 @@ func DefaultAppearance() Appearance {
 			Color:    "#1f6f8b",
 			Gradient: "lagoon",
 			Bing:     BingOptions{Market: "zh-CN", ShowCaption: true},
-			Unsplash: UnsplashOptions{Query: ""},
+			Unsplash: UnsplashOptions{Query: "", Order: "random", IntervalSeconds: 10},
 			Images:   ImageOptions{Order: "random", IntervalSeconds: 10},
 		},
 		Card:         Surface{Translucent: false, Opacity: 80, Blur: true},
@@ -134,7 +136,9 @@ type wireAppearance struct {
 			ShowCaption *bool   `json:"showCaption"`
 		} `json:"bing"`
 		Unsplash *struct {
-			Query *string `json:"query"`
+			Query           *string `json:"query"`
+			Order           *string `json:"order"`
+			IntervalSeconds *int    `json:"intervalSeconds"`
 		} `json:"unsplash"`
 		Images *struct {
 			Order           *string `json:"order"`
@@ -180,6 +184,7 @@ func (w wireAppearance) complete() (Appearance, bool) {
 	if b == nil || b.Source == nil || b.Color == nil || b.Gradient == nil ||
 		b.Bing == nil || b.Bing.Market == nil || b.Bing.ShowCaption == nil ||
 		b.Unsplash == nil || b.Unsplash.Query == nil ||
+		b.Unsplash.Order == nil || b.Unsplash.IntervalSeconds == nil ||
 		b.Images == nil || b.Images.Order == nil || b.Images.IntervalSeconds == nil ||
 		w.CardPosition == nil || w.Theme == nil {
 		return Appearance{}, false
@@ -198,7 +203,11 @@ func (w wireAppearance) complete() (Appearance, bool) {
 			Color:    *b.Color,
 			Gradient: *b.Gradient,
 			Bing:     BingOptions{Market: *b.Bing.Market, ShowCaption: *b.Bing.ShowCaption},
-			Unsplash: UnsplashOptions{Query: *b.Unsplash.Query},
+			Unsplash: UnsplashOptions{
+				Query:           *b.Unsplash.Query,
+				Order:           *b.Unsplash.Order,
+				IntervalSeconds: *b.Unsplash.IntervalSeconds,
+			},
 			Images:   ImageOptions{Order: *b.Images.Order, IntervalSeconds: *b.Images.IntervalSeconds},
 		},
 		Card:         card,
@@ -229,10 +238,6 @@ func ValidateAppearance(a Appearance) error {
 		return fmt.Errorf("%w: market", ErrInvalidAppearance)
 	case !ValidUnsplashQuery(b.Unsplash.Query):
 		return fmt.Errorf("%w: query", ErrInvalidAppearance)
-	case b.Images.Order != "random" && b.Images.Order != "carousel":
-		return fmt.Errorf("%w: order", ErrInvalidAppearance)
-	case b.Images.IntervalSeconds < 5 || b.Images.IntervalSeconds > 3600:
-		return fmt.Errorf("%w: interval", ErrInvalidAppearance)
 	case !validSurface(a.Card) || !validSurface(a.Capsules):
 		return fmt.Errorf("%w: opacity", ErrInvalidAppearance)
 	case !slices.Contains(cardPositions, a.CardPosition):
@@ -240,7 +245,26 @@ func ValidateAppearance(a Appearance) error {
 	case !slices.Contains(themes, a.Theme):
 		return fmt.Errorf("%w: theme", ErrInvalidAppearance)
 	}
+	if field, ok := validRotation(b.Images.Order, b.Images.IntervalSeconds); !ok {
+		return fmt.Errorf("%w: %s", ErrInvalidAppearance, field)
+	}
+	if field, ok := validRotation(b.Unsplash.Order, b.Unsplash.IntervalSeconds); !ok {
+		return fmt.Errorf("%w: %s", ErrInvalidAppearance, field)
+	}
 	return nil
+}
+
+// validRotation checks how a source with several pictures shows them: one at
+// random per visit, or a carousel changing every 5–3600 seconds. It names the
+// field at fault.
+func validRotation(order string, interval int) (field string, ok bool) {
+	switch {
+	case order != "random" && order != "carousel":
+		return "order", false
+	case interval < 5 || interval > 3600:
+		return "interval", false
+	}
+	return "", true
 }
 
 func validSurface(s Surface) bool { return s.Opacity >= 0 && s.Opacity <= 100 }

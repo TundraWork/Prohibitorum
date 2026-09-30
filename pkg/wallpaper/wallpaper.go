@@ -1,5 +1,5 @@
-// Package wallpaper fetches the sign-in page's daily wallpapers: Bing's picture
-// of the day and random Unsplash photos. It only returns picture addresses and
+// Package wallpaper fetches the sign-in page's wallpapers: Bing's picture of the
+// day and a batch of random Unsplash photos. It only returns picture addresses and
 // credits — the browser loads the pictures straight from Bing and Unsplash, so
 // the server never downloads an image.
 //
@@ -15,9 +15,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"math/rand/v2"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -122,16 +122,18 @@ func (s *Service) Bing(ctx context.Context, market string) (Picture, error) {
 	})
 }
 
-// Unsplash returns a random photo from the cached batch for key and query.
-func (s *Service) Unsplash(ctx context.Context, key, query string) (Picture, error) {
+// Unsplash returns the cached batch of photos for key and query, in the order
+// Unsplash sent them. Picking one at random or rotating through them is left
+// to the browser.
+func (s *Service) Unsplash(ctx context.Context, key, query string) ([]Picture, error) {
 	sum := sha256.Sum256([]byte(key))
 	batch, err := cached(s, s.unsplash, "unsplash:"+hex.EncodeToString(sum[:])+":"+query, func() ([]Picture, error) {
 		return s.fetchUnsplash(context.WithoutCancel(ctx), key, query, unsplashBatch)
 	})
 	if err != nil {
-		return Picture{}, err
+		return nil, err
 	}
-	return batch[rand.IntN(len(batch))], nil
+	return slices.Clone(batch), nil
 }
 
 // Verify asks Unsplash for one photo with key, to check the key before it is

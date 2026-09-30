@@ -23,7 +23,7 @@ import (
 // can answer without reaching Bing or Unsplash.
 type wallpaperService interface {
 	Bing(ctx context.Context, market string) (wallpaper.Picture, error)
-	Unsplash(ctx context.Context, key, query string) (wallpaper.Picture, error)
+	Unsplash(ctx context.Context, key, query string) ([]wallpaper.Picture, error)
 	Verify(ctx context.Context, key string) error
 	Forget()
 }
@@ -113,8 +113,8 @@ func (s *Server) handleGetLoginImageHTTP(w http.ResponseWriter, r *http.Request)
 	writeIconResponse(w, r, data, etag)
 }
 
-// GET /branding/wallpaper (public) — the Bing or Unsplash wallpaper for the
-// saved background source.
+// GET /branding/wallpaper (public) — the Bing picture or the Unsplash batch for
+// the saved background source.
 func (s *Server) handleGetWallpaperHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	bg := s.branding.Appearance(ctx).Background
@@ -147,11 +147,11 @@ func (s *Server) bingWallpaper(ctx context.Context, market string, caption bool)
 	if err != nil {
 		return contract.Wallpaper{}, authn.ErrWallpaperUnavailable()
 	}
-	out := contract.Wallpaper{Source: branding.SourceBing, ImageURL: pic.ImageURL}
+	out := contract.WallpaperPicture{ImageURL: pic.ImageURL}
 	if caption {
 		out.Title, out.Copyright, out.CopyrightURL = pic.Title, pic.Copyright, pic.CopyrightURL
 	}
-	return out, nil
+	return contract.Wallpaper{Source: branding.SourceBing, Pictures: []contract.WallpaperPicture{out}}, nil
 }
 
 // unsplashWallpaper uses the saved key and reports it as required when none is
@@ -164,17 +164,20 @@ func (s *Server) unsplashWallpaper(ctx context.Context, query string) (contract.
 	if !ok {
 		return contract.Wallpaper{}, authn.ErrUnsplashKeyRequired()
 	}
-	pic, err := s.wallpaper.Unsplash(ctx, key, query)
+	batch, err := s.wallpaper.Unsplash(ctx, key, query)
 	if err != nil {
 		return contract.Wallpaper{}, authn.ErrWallpaperUnavailable()
 	}
-	return contract.Wallpaper{
-		Source:          branding.SourceUnsplash,
-		ImageURL:        pic.ImageURL,
-		Photographer:    pic.Photographer,
-		PhotographerURL: pic.PhotographerURL,
-		PhotoURL:        pic.PhotoURL,
-	}, nil
+	out := contract.Wallpaper{Source: branding.SourceUnsplash, Pictures: make([]contract.WallpaperPicture, len(batch))}
+	for i, pic := range batch {
+		out.Pictures[i] = contract.WallpaperPicture{
+			ImageURL:        pic.ImageURL,
+			Photographer:    pic.Photographer,
+			PhotographerURL: pic.PhotographerURL,
+			PhotoURL:        pic.PhotoURL,
+		}
+	}
+	return out, nil
 }
 
 // openUnsplashKey decrypts the saved Unsplash key; ok is false when none is saved.

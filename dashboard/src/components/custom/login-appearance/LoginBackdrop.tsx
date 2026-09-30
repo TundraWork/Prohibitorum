@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from "react";
-import type { LoginAppearance, Wallpaper } from "@/api/raw-paths";
+import { useEffect, useState } from "react";
+import type { LoginAppearance } from "@/api/raw-paths";
 import { gradientBackground } from "@/components/custom/login-appearance/gradients";
+import type { LoginBackground } from "@/components/custom/login-appearance/use-login-background";
 import { useReducedMotion } from "@/components/custom/login-appearance/use-reduced-motion";
 
 /**
@@ -8,20 +9,18 @@ import { useReducedMotion } from "@/components/custom/login-appearance/use-reduc
  * the nearest positioned ancestor (the settings preview); otherwise it covers
  * the window behind everything.
  *
- * Bing and Unsplash take the `wallpaper` the caller read; until it arrives, or
- * when it could not be read, nothing is drawn and the page keeps its own
- * background. Every picture is decoration: empty `alt`, hidden from readers.
+ * Uploaded images, Bing and Unsplash draw the pictures `useLoginBackground`
+ * chose; until a wallpaper arrives, or when it could not be read, nothing is
+ * drawn and the page keeps its own background. Every picture is decoration:
+ * empty `alt`, hidden from readers.
  */
 export function LoginBackdrop({
   appearance,
-  images,
-  wallpaper,
+  background: shown,
   contained = false,
 }: {
   appearance: LoginAppearance;
-  /** The uploaded images' URLs, in upload order. */
-  images: string[];
-  wallpaper?: Wallpaper;
+  background: LoginBackground;
   contained?: boolean;
 }) {
   const background = appearance.background;
@@ -51,24 +50,17 @@ export function LoginBackdrop({
       );
     case "bing":
     case "unsplash":
-      if (wallpaper === undefined || wallpaper.source !== background.source) {
-        return null;
-      }
-      return (
-        <Photo
-          key={wallpaper.imageUrl}
-          className={position}
-          src={wallpaper.imageUrl}
-        />
-      );
     case "images":
-      if (images.length === 0) return null;
+      if (shown.pictures.length === 0) return null;
       return (
-        <ImageRotation
+        <Pictures
           className={position}
-          images={images}
-          carousel={background.images.order === "carousel"}
-          intervalSeconds={background.images.intervalSeconds}
+          current={shown.pictures[shown.current] as string}
+          previous={
+            shown.previous === undefined
+              ? undefined
+              : shown.pictures[shown.previous]
+          }
         />
       );
     default:
@@ -76,82 +68,30 @@ export function LoginBackdrop({
   }
 }
 
-/** A photo fades in once it has loaded, so a slow picture never paints in bands. */
-function Photo({ src, className }: { src: string; className: string }) {
-  const reduced = useReducedMotion();
-  const [loaded, setLoaded] = useState(false);
-  return (
-    <img
-      src={src}
-      alt=""
-      aria-hidden="true"
-      data-login-backdrop="photo"
-      onLoad={() => setLoaded(true)}
-      className={`${className} size-full object-cover ${reduced ? "" : "transition-opacity duration-700 ease-out"} ${loaded ? "opacity-100" : "opacity-0"}`}
-    />
-  );
-}
-
 /**
- * Uploaded images. `random` picks one when the page opens and keeps it for the
- * visit. `carousel` moves to the next every interval: the next picture is
- * decoded first, then drawn over the current one and faded in over a second,
- * so the change never shows a half-loaded image. With reduced motion it swaps
- * in place.
+ * The picture on screen, faded in once it has loaded so a slow one never
+ * paints in bands: the first over 700ms, a change over a second with the one
+ * before underneath until the new one covers it. With reduced motion it
+ * appears, and swaps, in place.
  */
-function ImageRotation({
-  images,
-  carousel,
-  intervalSeconds,
+function Pictures({
+  current,
+  previous,
   className,
 }: {
-  images: string[];
-  carousel: boolean;
-  intervalSeconds: number;
+  current: string;
+  previous: string | undefined;
   className: string;
 }) {
   const reduced = useReducedMotion();
-  const [index, setIndex] = useState(() =>
-    Math.floor(Math.random() * images.length),
-  );
-  const [previous, setPrevious] = useState<string | undefined>(undefined);
-  const count = images.length;
-  const current = images[index % count] as string;
-  // The list is rebuilt on every render; the timer restarts only when its
-  // contents change.
-  const imagesRef = useRef(images);
-  imagesRef.current = images;
-  const listKey = images.join("\n");
-
-  useEffect(() => {
-    if (!carousel || count < 2 || listKey === "") return;
-    let cancelled = false;
-    const timer = window.setInterval(() => {
-      const list = imagesRef.current;
-      const next = (index + 1) % list.length;
-      const url = list[next] as string;
-      const picture = new Image();
-      picture.src = url;
-      // A picture that will not decode is shown anyway; the browser draws
-      // what it has rather than stalling the rotation.
-      void picture
-        .decode()
-        .catch(() => undefined)
-        .then(() => {
-          if (cancelled) return;
-          setPrevious(list[index % list.length]);
-          setIndex(next);
-        });
-    }, intervalSeconds * 1000);
-    return () => {
-      cancelled = true;
-      window.clearInterval(timer);
-    };
-  }, [carousel, count, listKey, index, intervalSeconds]);
-
+  const changed = previous !== undefined && previous !== current;
   return (
-    <div aria-hidden="true" data-login-backdrop="images" className={className}>
-      {previous !== undefined && previous !== current && !reduced && (
+    <div
+      aria-hidden="true"
+      data-login-backdrop="pictures"
+      className={className}
+    >
+      {changed && !reduced && (
         <img
           key={`previous-${previous}`}
           src={previous}
@@ -162,26 +102,37 @@ function ImageRotation({
       <FadingImage
         key={current}
         src={current}
-        animate={!reduced && previous !== undefined}
+        fade={reduced ? undefined : changed ? "duration-1000" : "duration-700"}
       />
     </div>
   );
 }
 
-function FadingImage({ src, animate }: { src: string; animate: boolean }) {
-  const [shown, setShown] = useState(!animate);
+function FadingImage({
+  src,
+  fade,
+}: {
+  src: string;
+  /** The fade's duration class; none draws the picture as soon as it loads. */
+  fade: "duration-700" | "duration-1000" | undefined;
+}) {
+  const animate = fade !== undefined;
+  const [loaded, setLoaded] = useState(false);
+  const [shown, setShown] = useState(false);
   useEffect(() => {
-    if (!animate) return;
-    // One frame at zero opacity, so the transition has a start to run from.
+    if (!loaded || !animate) return;
+    // One frame at zero opacity, so the transition has a start to run from
+    // even when the picture was already decoded.
     const frame = window.requestAnimationFrame(() => setShown(true));
     return () => window.cancelAnimationFrame(frame);
-  }, [animate]);
+  }, [loaded, animate]);
   return (
     <img
       src={src}
       alt=""
       data-current=""
-      className={`absolute inset-0 size-full object-cover ${animate ? "transition-opacity duration-1000 ease-out" : ""} ${shown ? "opacity-100" : "opacity-0"}`}
+      onLoad={() => setLoaded(true)}
+      className={`absolute inset-0 size-full object-cover ${animate ? `transition-opacity ${fade} ease-out` : ""} ${(animate ? shown : loaded) ? "opacity-100" : "opacity-0"}`}
     />
   );
 }

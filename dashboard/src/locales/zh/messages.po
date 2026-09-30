@@ -255,8 +255,8 @@ msgid "admin.federation.auth.public-needs-s256"
 msgstr "公共客户端必须使用 S256 PKCE，但这个提供商设置的是其他 PKCE 方式。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/SignInPagePanel.tsx
-msgid "settings.sign-in.images.order.random"
+#: src/pages/admin/settings/SignInPageControls.tsx
+msgid "settings.sign-in.order.random"
 msgstr "每次访问随机一张"
 
 #. js-lingui-explicit-id
@@ -1170,8 +1170,8 @@ msgid "settings.sign-in.position"
 msgstr "卡片位置"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/SignInPagePanel.tsx
-msgid "settings.sign-in.images.order.carousel"
+#: src/pages/admin/settings/SignInPageControls.tsx
+msgid "settings.sign-in.order.carousel"
 msgstr "轮播"
 
 #. js-lingui-explicit-id
@@ -1215,8 +1215,8 @@ msgid "admin.forward-auth-apps.headers.confirm.action"
 msgstr "更换并保存"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/SignInPagePanel.tsx
-msgid "settings.sign-in.images.interval"
+#: src/pages/admin/settings/SignInPageControls.tsx
+msgid "settings.sign-in.interval"
 msgstr "切换间隔"
 
 #. js-lingui-explicit-id
@@ -1331,7 +1331,7 @@ msgstr "请至少选择一个应用，或换一种访问级别。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/sign-in-page-form.ts
-msgid "settings.sign-in.images.interval.range"
+msgid "settings.sign-in.interval.range"
 msgstr "请选择 5 到 3600 秒之间的间隔。"
 
 #. js-lingui-explicit-id
@@ -4651,8 +4651,8 @@ msgid "pair.qr_hint"
 msgstr "也可以用那台设备扫码直接打开。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/SignInPagePanel.tsx
-msgid "settings.sign-in.images.order"
+#: src/pages/admin/settings/SignInPageControls.tsx
+msgid "settings.sign-in.order"
 msgstr "显示方式"
 
 #. js-lingui-explicit-id

@@ -251,42 +251,55 @@ function mockLoginImages(config: MockConfig): LoginImage[] {
 }
 
 /**
- * Bing's picture of the day or an Unsplash photo, as `/branding/wallpaper`
- * would describe it, with a `data:` picture so nothing is fetched. `caption`
- * leaves Bing's title and copyright out, as the public endpoint does when the
- * caption is hidden.
+ * Bing's picture of the day or a batch of five Unsplash photos, as
+ * `/branding/wallpaper` would describe them, with `data:` pictures so nothing
+ * is fetched. The Unsplash photos differ in hue and photographer, so the
+ * carousel and its credit can be followed. `caption` leaves Bing's title and
+ * copyright out, as the public endpoint does when the caption is hidden.
  */
 function mockWallpaper(
   source: "bing" | "unsplash",
   detail: string,
   caption: boolean,
 ): Wallpaper {
-  const hue = source === "bing" ? 28 : 150;
-  const imageUrl = svgUrl(
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice"><defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="hsl(${hue + 180} 45% 62%)"/><stop offset=".62" stop-color="hsl(${hue} 70% 72%)"/><stop offset="1" stop-color="hsl(${hue - 20} 35% 28%)"/></linearGradient></defs><rect width="1600" height="900" fill="url(#g)"/><path d="M0 700 L380 470 L640 640 L980 380 L1600 720 V900 H0z" fill="hsl(${hue - 20} 30% 20%)" fill-opacity=".7"/></svg>`,
-  );
   if (source === "unsplash") {
     return {
       source,
-      imageUrl,
-      photographer: detail === "" ? "Mock Photographer" : `Mock ${detail}`,
-      photographerUrl:
-        "https://unsplash.com/?utm_source=prohibitorum&utm_medium=referral",
-      photoUrl:
-        "https://unsplash.com/?utm_source=prohibitorum&utm_medium=referral",
+      pictures: Array.from({ length: 5 }, (_, i) => ({
+        imageUrl: mockWallpaperUrl(150 + i * 50),
+        photographer:
+          detail === ""
+            ? `Mock Photographer ${i + 1}`
+            : `Mock ${detail} ${i + 1}`,
+        photographerUrl:
+          "https://unsplash.com/?utm_source=prohibitorum&utm_medium=referral",
+        photoUrl:
+          "https://unsplash.com/?utm_source=prohibitorum&utm_medium=referral",
+      })),
     };
   }
   return {
     source,
-    imageUrl,
-    ...(caption
-      ? {
-          title: `Mock picture of the day (${detail})`,
-          copyright: "A ridge at dusk, somewhere quiet (© Mock Photographer)",
-          copyrightUrl: "https://www.bing.com/",
-        }
-      : {}),
+    pictures: [
+      {
+        imageUrl: mockWallpaperUrl(28),
+        ...(caption
+          ? {
+              title: `Mock picture of the day (${detail})`,
+              copyright:
+                "A ridge at dusk, somewhere quiet (© Mock Photographer)",
+              copyrightUrl: "https://www.bing.com/",
+            }
+          : {}),
+      },
+    ],
   };
+}
+
+function mockWallpaperUrl(hue: number): string {
+  return svgUrl(
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice"><defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="hsl(${hue + 180} 45% 62%)"/><stop offset=".62" stop-color="hsl(${hue} 70% 72%)"/><stop offset="1" stop-color="hsl(${hue - 20} 35% 28%)"/></linearGradient></defs><rect width="1600" height="900" fill="url(#g)"/><path d="M0 700 L380 470 L640 640 L980 380 L1600 720 V900 H0z" fill="hsl(${hue - 20} 30% 20%)" fill-opacity=".7"/></svg>`,
+  );
 }
 
 function sessionView(config: MockConfig): Session {

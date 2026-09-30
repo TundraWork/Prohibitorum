@@ -118,10 +118,14 @@ function bingWallpaper() {
         new Response(
           JSON.stringify({
             source: "bing",
-            imageUrl: "https://www.bing.com/th?id=OHR.X_UHD.jpg&w=2560",
-            title: "A quiet ridge",
-            copyright: "Somewhere (© Someone)",
-            copyrightUrl: "https://www.bing.com/search?q=x",
+            pictures: [
+              {
+                imageUrl: "https://www.bing.com/th?id=OHR.X_UHD.jpg&w=2560",
+                title: "A quiet ridge",
+                copyright: "Somewhere (© Someone)",
+                copyrightUrl: "https://www.bing.com/search?q=x",
+              },
+            ],
           }),
           { status: 200, headers: { "Content-Type": "application/json" } },
         ),
@@ -247,10 +251,14 @@ it("shows the Bing picture and its caption once the wallpaper arrives", async ()
         new Response(
           JSON.stringify({
             source: "bing",
-            imageUrl: "https://www.bing.com/th?id=OHR.X_UHD.jpg&w=2560",
-            title: "A quiet ridge",
-            copyright: "Somewhere (© Someone)",
-            copyrightUrl: "https://www.bing.com/search?q=x",
+            pictures: [
+              {
+                imageUrl: "https://www.bing.com/th?id=OHR.X_UHD.jpg&w=2560",
+                title: "A quiet ridge",
+                copyright: "Somewhere (© Someone)",
+                copyrightUrl: "https://www.bing.com/search?q=x",
+              },
+            ],
           }),
           { status: 200, headers: { "Content-Type": "application/json" } },
         ),
@@ -261,7 +269,9 @@ it("shows the Bing picture and its caption once the wallpaper arrives", async ()
   });
   await mount();
   const photo = await vi.waitFor(() => {
-    const img = document.querySelector('[data-login-backdrop="photo"]');
+    const img = document.querySelector(
+      '[data-login-backdrop="pictures"] img[data-current]',
+    );
     if (!img) throw new Error("no photo yet");
     return img;
   });

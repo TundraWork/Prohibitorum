@@ -101,7 +101,7 @@ export const signInPageMessages = {
       "An access key has only letters, digits, hyphens and underscores, up to 128 of them.",
   }),
   intervalRange: msg({
-    id: "settings.sign-in.images.interval.range",
+    id: "settings.sign-in.interval.range",
     message: "Choose between 5 and 3600 seconds.",
   }),
 } as const;

@@ -2,6 +2,7 @@ import { I18nProvider } from "@lingui/react";
 import { type QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { I18nProvider as AriaI18nProvider } from "react-aria";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   loginAppearanceQueryOptions,
@@ -89,15 +90,18 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-function mount() {
+function mount(name = "Sign-in page") {
   render(
     <I18nProvider i18n={i18n}>
-      <QueryClientProvider client={queryClient}>
-        <SignInPagePanel />
-      </QueryClientProvider>
+      {/* As AppEnvironment does, so numbers are formatted in the locale. */}
+      <AriaI18nProvider locale={i18n.locale === "zh" ? "zh-CN" : "en"}>
+        <QueryClientProvider client={queryClient}>
+          <SignInPagePanel />
+        </QueryClientProvider>
+      </AriaI18nProvider>
     </I18nProvider>,
   );
-  return screen.getByRole("form", { name: "Sign-in page" });
+  return screen.getByRole("form", { name });
 }
 
 function sources() {
@@ -388,5 +392,104 @@ describe("sign-in page settings", () => {
     expect(names.every((name) => name)).toBe(true);
     expect(names).toHaveLength(8);
     expect(new Set(names).size).toBe(8);
+  });
+
+  it("offers Unsplash a random photo or a carousel, and saves the interval with it", async () => {
+    setUp({
+      appearance: withAppearance((a) => {
+        a.background.source = "unsplash";
+      }),
+      hasUnsplashKey: true,
+    });
+    const user = userEvent.setup();
+    const form = mount();
+    const order = within(form).getByRole("radiogroup", { name: "Order" });
+    expect(
+      within(order).getByRole("radio", { name: "A random one each visit" }),
+    ).toBeChecked();
+    expect(within(form).queryByLabelText("Change every")).toBeNull();
+
+    await user.click(within(order).getByText("Carousel"));
+    const interval = within(form).getByRole("textbox", {
+      name: "Change every",
+    });
+    expect(interval).toHaveValue("10 seconds");
+    expect(interval).toHaveClass("text-center");
+    await user.clear(interval);
+    await user.type(interval, "25");
+    await user.tab();
+
+    await user.click(within(form).getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(savedBody()).toBeDefined());
+    expect(savedBody()?.appearance.background.unsplash).toEqual({
+      query: "",
+      order: "carousel",
+      intervalSeconds: 25,
+    });
+    // The uploaded images keep their own setting.
+    expect(savedBody()?.appearance.background.images).toEqual(
+      defaultLoginAppearance.background.images,
+    );
+  });
+
+  it("writes the interval as 10秒 in Chinese", () => {
+    i18n.activate("zh");
+    setUp({
+      appearance: withAppearance((a) => {
+        a.background.source = "unsplash";
+        a.background.unsplash.order = "carousel";
+      }),
+      hasUnsplashKey: true,
+    });
+    const form = mount("登录页");
+    const interval = within(form).getByRole("textbox", { name: "切换间隔" });
+    expect(interval).toHaveValue("10秒");
+    expect(interval).toHaveClass("text-center");
+  });
+
+  it("offers uploaded images the same controls", () => {
+    setUp({
+      appearance: withAppearance((a) => {
+        a.background.source = "images";
+        a.background.images = { order: "carousel", intervalSeconds: 3600 };
+      }),
+      imageCount: 2,
+    });
+    const form = mount();
+    expect(
+      within(form).getByRole("textbox", { name: "Change every" }),
+    ).toHaveValue("3,600 seconds");
+  });
+
+  it("refuses to save without an interval and says what it takes", async () => {
+    setUp({
+      appearance: withAppearance((a) => {
+        a.background.source = "unsplash";
+        a.background.unsplash.order = "carousel";
+      }),
+      hasUnsplashKey: true,
+    });
+    const user = userEvent.setup();
+    const form = mount();
+    const interval = within(form).getByRole("textbox", {
+      name: "Change every",
+    });
+    await user.clear(interval);
+    await user.tab();
+    await user.click(within(form).getByRole("button", { name: "Save" }));
+    expect(
+      await screen.findByText("Choose between 5 and 3600 seconds."),
+    ).toBeInTheDocument();
+    expect(interval).toHaveAttribute("aria-invalid", "true");
+    expect(savedBody()).toBeUndefined();
+
+    await user.type(interval, "30");
+    await user.tab();
+    await user.click(within(form).getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(savedBody()).toBeDefined());
+    expect(savedBody()?.appearance.background.unsplash.intervalSeconds).toBe(
+      30,
+    );
+    expect(screen.queryByText("Choose between 5 and 3600 seconds.")).toBeNull();
   });
 });

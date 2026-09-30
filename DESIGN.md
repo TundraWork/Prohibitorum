@@ -147,11 +147,12 @@ opaque capsule `bg-surface`. By default the capsules are translucent at 70%
 and frosted, and the card is opaque.
 
 The background is the page's own `background`, a colour, one of six grained
-gradient presets, Bing's picture of the day, an Unsplash photo, or the uploaded
-images at random or as a one-second crossfade carousel. A picture fades in over
-700ms once it has loaded; with reduced motion it appears, and a carousel swaps,
-without a fade. A Bing or Unsplash picture is credited on a small capsule drawn
-like the toolbar's. From 1024px it is fixed at the window's bottom corner away
+gradient presets, Bing's picture of the day, Unsplash photos, or the uploaded
+images. Unsplash photos and uploaded images are shown at random or as a
+one-second crossfade carousel. A picture fades in over 700ms once it has
+loaded; with reduced motion it appears, and a carousel swaps, without a fade.
+A Bing or Unsplash picture is credited on a small capsule drawn like the
+toolbar's, and an Unsplash credit changes with its photo. From 1024px it is fixed at the window's bottom corner away
 from the card, 1.5rem from the edges, and stops 1.5rem short of the card: at
 the bottom-left no wider than `calc(50vw - 17rem)` while the card is centred
 and `calc(100vw - 32.5rem)` while it is on the right; at the bottom-right, no

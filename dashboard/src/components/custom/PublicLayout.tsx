@@ -9,6 +9,7 @@ import { useInstanceBranding } from "@/components/custom/instance-branding";
 import { publicCreditPlacement } from "@/components/custom/login-appearance/card-position";
 import { LoginBackdrop } from "@/components/custom/login-appearance/LoginBackdrop";
 import { cardSurfaceStyle } from "@/components/custom/login-appearance/surface-style";
+import { useLoginBackground } from "@/components/custom/login-appearance/use-login-background";
 import { WallpaperCredit } from "@/components/custom/login-appearance/WallpaperCredit";
 import { PublicCard } from "@/components/custom/PublicCard";
 import { RouteLayoutContext } from "@/components/custom/RouteFeedback";
@@ -45,18 +46,19 @@ export function PublicLayout() {
     ...loginWallpaperQueryOptions(background),
     enabled: usesWallpaper,
   });
-  const shownWallpaper = usesWallpaper ? wallpaper : undefined;
+  const shown = useLoginBackground(
+    appearance,
+    loginImages.map((image) => image.url),
+    usesWallpaper ? wallpaper : undefined,
+  );
+  const hasCredit = shown.wallpaperPicture !== undefined;
   const credit = (
-    <WallpaperCredit appearance={appearance} wallpaper={shownWallpaper} />
+    <WallpaperCredit appearance={appearance} picture={shown.wallpaperPicture} />
   );
 
   return (
     <>
-      <LoginBackdrop
-        appearance={appearance}
-        images={loginImages.map((image) => image.url)}
-        wallpaper={shownWallpaper}
-      />
+      <LoginBackdrop appearance={appearance} background={shown} />
       <AppToolbar
         surface={appearance.capsules}
         showThemeSelect={appearance.theme === "switchable"}
@@ -68,7 +70,7 @@ export function PublicLayout() {
         surface={cardSurfaceStyle(appearance.card)}
         position={appearance.cardPosition}
         after={
-          shownWallpaper !== undefined && (
+          hasCredit && (
             <div className="mt-4 flex justify-center lg:hidden">{credit}</div>
           )
         }
@@ -77,7 +79,7 @@ export function PublicLayout() {
           <Outlet />
         </RouteLayoutContext>
       </PublicCard>
-      {shownWallpaper !== undefined && (
+      {hasCredit && (
         <div
           className={publicCreditPlacement({
             position: appearance.cardPosition,

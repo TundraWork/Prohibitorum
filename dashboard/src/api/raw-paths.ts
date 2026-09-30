@@ -68,8 +68,15 @@ export interface LoginAppearance {
     color: string;
     gradient: LoginGradient;
     bing: { market: string; showCaption: boolean };
-    /** 0–64 characters, no surrounding whitespace. */
-    unsplash: { query: string };
+    /**
+     * `query` is 0–64 characters, no surrounding whitespace; `intervalSeconds`
+     * is 5–3600, as for uploaded images.
+     */
+    unsplash: {
+      query: string;
+      order: LoginImageOrder;
+      intervalSeconds: number;
+    };
     /** `intervalSeconds` is 5–3600. */
     images: { order: LoginImageOrder; intervalSeconds: number };
   };
@@ -87,12 +94,21 @@ export interface LoginImage {
 }
 
 /**
- * `GET /branding/wallpaper`: a picture the browser loads straight from Bing or
- * Unsplash, with its credit. Bing's title and copyright are left out when the
- * caption is hidden; Unsplash's credit is always there.
+ * `GET /branding/wallpaper`: the pictures the browser loads straight from Bing
+ * or Unsplash, never empty. Bing sends today's picture alone; Unsplash sends
+ * the server's cached batch in its order, for the page to show one at random
+ * or rotate through.
  */
 export interface Wallpaper {
   source: "bing" | "unsplash";
+  pictures: WallpaperPicture[];
+}
+
+/**
+ * One wallpaper and its credit. Bing's title and copyright are left out when
+ * the caption is hidden; Unsplash's credit is always there.
+ */
+export interface WallpaperPicture {
   imageUrl: string;
   title?: string;
   copyright?: string;

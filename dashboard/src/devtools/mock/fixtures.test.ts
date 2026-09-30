@@ -655,10 +655,16 @@ describe("mocked logs, settings and signing keys", () => {
         read("/api/prohibitorum/admin/settings/login-appearance", current),
       ),
     ).toMatchObject({ hasUnsplashKey: true });
-    expect(bodyOf(read("/branding/wallpaper", current))).toMatchObject({
-      source: "unsplash",
-      photographer: "Mock Photographer",
-    });
+    const unsplash = bodyOf(read("/branding/wallpaper", current)) as Wallpaper;
+    expect(unsplash.source).toBe("unsplash");
+    expect(unsplash.pictures.map((picture) => picture.photographer)).toEqual([
+      "Mock Photographer 1",
+      "Mock Photographer 2",
+      "Mock Photographer 3",
+      "Mock Photographer 4",
+      "Mock Photographer 5",
+    ]);
+    expect(new Set(unsplash.pictures.map((p) => p.imageUrl)).size).toBe(5);
     expect(
       call(
         "DELETE",
@@ -706,7 +712,8 @@ describe("mocked logs, settings and signing keys", () => {
     });
     const hidden = bodyOf(read("/branding/wallpaper", bing)) as Wallpaper;
     expect(hidden.source).toBe("bing");
-    expect(hidden.title).toBeUndefined();
+    expect(hidden.pictures).toHaveLength(1);
+    expect(hidden.pictures[0]?.title).toBeUndefined();
     const preview = bodyOf(
       read(
         "/api/prohibitorum/admin/settings/login-appearance/wallpaper",
@@ -714,7 +721,7 @@ describe("mocked logs, settings and signing keys", () => {
         "http://localhost/api/prohibitorum/admin/settings/login-appearance/wallpaper?source=bing&market=en-US",
       ),
     ) as Wallpaper;
-    expect(preview.title).toContain("en-US");
+    expect(preview.pictures[0]?.title).toContain("en-US");
     expect(read("/branding/wallpaper", config())).toMatchObject({
       kind: "error",
       code: "wallpaper_not_configured",

@@ -22,6 +22,7 @@ import (
 
 	"prohibitorum/pkg/branding"
 	"prohibitorum/pkg/configx"
+	"prohibitorum/pkg/contract"
 	"prohibitorum/pkg/federation"
 	"prohibitorum/pkg/wallpaper"
 )
@@ -98,7 +99,7 @@ func (f *appearanceStore) ImageData(_ context.Context, id int64) ([]byte, string
 type fakeWallpaper struct {
 	bing        wallpaper.Picture
 	bingErr     error
-	unsplash    wallpaper.Picture
+	unsplash    []wallpaper.Picture
 	unsplashErr error
 	verifyErr   error
 	forgot      int
@@ -112,7 +113,7 @@ func (f *fakeWallpaper) Bing(_ context.Context, market string) (wallpaper.Pictur
 	return f.bing, f.bingErr
 }
 
-func (f *fakeWallpaper) Unsplash(_ context.Context, key, query string) (wallpaper.Picture, error) {
+func (f *fakeWallpaper) Unsplash(_ context.Context, key, query string) ([]wallpaper.Picture, error) {
 	f.lastKey, f.lastQuery = key, query
 	return f.unsplash, f.unsplashErr
 }
@@ -144,11 +145,15 @@ func newLoginAppearanceHarness(t *testing.T) *loginAppearanceHarness {
 				ImageURL: "https://www.bing.com/th?id=OHR.X_UHD.jpg&w=2560", Title: "Title",
 				Copyright: "Copyright", CopyrightURL: "https://www.bing.com/search?q=x",
 			},
-			unsplash: wallpaper.Picture{
+			unsplash: []wallpaper.Picture{{
 				ImageURL: "https://images.unsplash.com/photo-1?w=2560", Photographer: "Jane",
 				PhotographerURL: "https://unsplash.com/@jane?utm_source=prohibitorum&utm_medium=referral",
 				PhotoURL:        "https://unsplash.com/photos/1?utm_source=prohibitorum&utm_medium=referral",
-			},
+			}, {
+				ImageURL: "https://images.unsplash.com/photo-2?w=2560", Photographer: "Kai",
+				PhotographerURL: "https://unsplash.com/@kai?utm_source=prohibitorum&utm_medium=referral",
+				PhotoURL:        "https://unsplash.com/photos/2?utm_source=prohibitorum&utm_medium=referral",
+			}},
 		},
 	}
 	h.resolver = branding.NewWithStore("TestCo", h.store)
@@ -187,6 +192,34 @@ func appearanceBody(t *testing.T, a branding.Appearance, key *string) string {
 		t.Fatal(err)
 	}
 	return string(raw)
+}
+
+func decodeWallpaper(t *testing.T, rr *httptest.ResponseRecorder) contract.Wallpaper {
+	t.Helper()
+	wantCode(t, rr, http.StatusOK, "")
+	var out contract.Wallpaper
+	if err := json.Unmarshal(rr.Body.Bytes(), &out); err != nil {
+		t.Fatal(err)
+	}
+	return out
+}
+
+// wantUnsplashBatch checks that got carries every photo of the fake's batch,
+// in order, each with its credit.
+func (h *loginAppearanceHarness) wantUnsplashBatch(t *testing.T, got contract.Wallpaper) {
+	t.Helper()
+	if got.Source != branding.SourceUnsplash || len(got.Pictures) != len(h.wp.unsplash) {
+		t.Fatalf("unsplash wallpaper = %+v, want all %d photos", got, len(h.wp.unsplash))
+	}
+	for i, pic := range h.wp.unsplash {
+		want := contract.WallpaperPicture{
+			ImageURL: pic.ImageURL, Photographer: pic.Photographer,
+			PhotographerURL: pic.PhotographerURL, PhotoURL: pic.PhotoURL,
+		}
+		if got.Pictures[i] != want {
+			t.Fatalf("pictures[%d] = %+v, want %+v", i, got.Pictures[i], want)
+		}
+	}
 }
 
 func wantCode(t *testing.T, rr *httptest.ResponseRecorder, status int, code string) {
@@ -230,6 +263,7 @@ func TestLoginAppearance_PutStrictDecoding(t *testing.T) {
 	a := branding.DefaultAppearance()
 	a.Background.Source = branding.SourceImages
 	a.Background.Images = branding.ImageOptions{Order: "carousel", IntervalSeconds: 15}
+	a.Background.Unsplash = branding.UnsplashOptions{Query: "sea", Order: "carousel", IntervalSeconds: 15}
 	a.Card = branding.Surface{Translucent: true, Opacity: 60, Blur: true}
 	a.CardPosition = branding.CardLeft
 	a.Theme = branding.ThemeDark
@@ -245,6 +279,9 @@ func TestLoginAppearance_PutStrictDecoding(t *testing.T) {
 		t.Fatalf("body %s has no theme to drop", saved)
 	}
 	wantCode(t, h.do("PUT", appearancePath, missingTheme, ""), http.StatusBadRequest, "bad_request")
+	longInterval := a
+	longInterval.Background.Unsplash.IntervalSeconds = 3601
+	wantCode(t, h.do("PUT", appearancePath, appearanceBody(t, longInterval, nil), ""), http.StatusBadRequest, "bad_request")
 	if *h.store.appearance != a {
 		t.Fatalf("stored = %+v after a rejected PUT, want %+v", *h.store.appearance, a)
 	}
@@ -451,11 +488,10 @@ func TestPublicWallpaper(t *testing.T) {
 		a.Background.Source = branding.SourceBing
 		a.Background.Bing = branding.BingOptions{Market: "ja-JP", ShowCaption: true}
 	})
-	rr = h.anonymous("GET", "/branding/wallpaper", nil)
-	wantCode(t, rr, http.StatusOK, "")
-	if h.wp.lastMarket != "ja-JP" || !strings.Contains(rr.Body.String(), `"title":"Title"`) ||
-		!strings.Contains(rr.Body.String(), `"source":"bing"`) {
-		t.Fatalf("bing wallpaper = %s (market %s)", rr.Body.String(), h.wp.lastMarket)
+	bing := decodeWallpaper(t, h.anonymous("GET", "/branding/wallpaper", nil))
+	if h.wp.lastMarket != "ja-JP" || bing.Source != branding.SourceBing || len(bing.Pictures) != 1 ||
+		bing.Pictures[0].ImageURL != h.wp.bing.ImageURL || bing.Pictures[0].Title != "Title" {
+		t.Fatalf("bing wallpaper = %+v (market %s), want today's picture alone", bing, h.wp.lastMarket)
 	}
 
 	h.save(t, func(a *branding.Appearance) {
@@ -476,10 +512,9 @@ func TestPublicWallpaper(t *testing.T) {
 		a.Background.Source = branding.SourceUnsplash
 		a.Background.Unsplash.Query = "sea"
 	})
-	rr = h.anonymous("GET", "/branding/wallpaper", nil)
-	wantCode(t, rr, http.StatusOK, "")
-	if h.wp.lastKey != "saved-key" || h.wp.lastQuery != "sea" || !strings.Contains(rr.Body.String(), `"photographer":"Jane"`) {
-		t.Fatalf("unsplash wallpaper = %s (key %q query %q)", rr.Body.String(), h.wp.lastKey, h.wp.lastQuery)
+	h.wantUnsplashBatch(t, decodeWallpaper(t, h.anonymous("GET", "/branding/wallpaper", nil)))
+	if h.wp.lastKey != "saved-key" || h.wp.lastQuery != "sea" {
+		t.Fatalf("unsplash wallpaper asked with key %q query %q", h.wp.lastKey, h.wp.lastQuery)
 	}
 	h.wp.unsplashErr = wallpaper.ErrKeyRejected
 	wantCode(t, h.anonymous("GET", "/branding/wallpaper", nil), http.StatusServiceUnavailable, "wallpaper_unavailable")
@@ -506,8 +541,7 @@ func TestWallpaperPreview(t *testing.T) {
 	h.dropKey()
 	wantCode(t, h.do("GET", previewPath+"?source=unsplash&query=sea", "", ""), http.StatusBadRequest, "unsplash_key_required")
 	h.save(t, func(a *branding.Appearance) { a.Background.Source = branding.SourceUnsplash })
-	rr = h.do("GET", previewPath+"?source=unsplash&query=forest", "", "")
-	wantCode(t, rr, http.StatusOK, "")
+	h.wantUnsplashBatch(t, decodeWallpaper(t, h.do("GET", previewPath+"?source=unsplash&query=forest", "", "")))
 	if h.wp.lastQuery != "forest" {
 		t.Fatalf("preview query = %q, want the draft's", h.wp.lastQuery)
 	}
