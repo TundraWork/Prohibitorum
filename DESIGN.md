@@ -123,14 +123,33 @@ Every public page — sign-in, consent, a stopped flow, maintenance — sits on 
 30rem card under the public toolbar, with 16px horizontal padding around it.
 The card's padding is 24px, and 32px from 640px.
 
-The public toolbar is 64px high and has no fill, so a custom background runs
-from the top of the window to the bottom behind it. What it carries sits on two
-40px capsules, one at each end: `rounded-full`, `bg-surface/70` with
-`backdrop-blur-md` and the surface shadow, so it reads on any picture and looks
-the same without one. The left capsule holds the instance's `InstanceIdentity`
-and gives way on a narrow screen, truncating the name; the right one holds the
-language menu and the theme switch. The toolbar scrolls with the page rather
-than staying fixed, so the card never passes underneath it.
+The public toolbar is 64px high and has no fill, so the sign-in page's
+background runs from the top of the window to the bottom behind it. What it
+carries sits on two 40px capsules, one at each end: `rounded-full` with the
+surface shadow, and `--field-radius` and `--radius` set to 100% so the
+instance avatar, the language button and the theme switch inside are fully
+round too. The left capsule holds the instance's `InstanceIdentity` and gives
+way on a narrow screen, truncating the name; the right one holds the language
+menu and the theme switch. The toolbar scrolls with the page rather than
+staying fixed, so the card never passes underneath it.
+
+The capsules' and the card's surfaces are the administrator's choice, set
+separately on the sign-in page settings. A translucent surface keeps HeroUI's
+classes and lowers only the fill, through `--surface-alpha` in a
+`color-mix()` with `--surface`; frosted glass adds `backdrop-blur-xl` and
+`backdrop-saturate-150`. An opaque card is the library's card unchanged, an
+opaque capsule `bg-surface`. By default the capsules are translucent at 70%
+and frosted, and the card is opaque.
+
+The background is the page's own `background`, a colour, one of six grained
+gradient presets, Bing's picture of the day, an Unsplash photo, or the uploaded
+images at random or as a one-second crossfade carousel. A picture fades in over
+700ms once it has loaded; with reduced motion it appears, and a carousel swaps,
+without a fade. A Bing or Unsplash picture is credited on a small capsule drawn
+like the toolbar's: fixed at the window's bottom-left from 1024px, no wider
+than `calc(50vw - 17rem)` so it never reaches the card, and under the card,
+centred, below that. The Unsplash credit is one run of inline text, so no gap
+lands between its words in Chinese.
 
 The card is centred in the window below the toolbar: from 640px the space under
 the card matches the toolbar's height, which puts the card at the window's
@@ -239,6 +258,20 @@ columns — both halves are claim names — with the name input and the source
 select in monospace at the library's own control height. The select's trigger
 draws the claim name as plain text rather than a copy of the option, whose
 hidden check mark would make it a pixel taller than the input beside it.
+
+The sign-in page settings are one `wide` card that lays itself out by its own
+width: from 50rem a form column and a 24rem preview column 40px apart, the
+preview sticky below the console header; below that one column with the
+preview first, not sticky. The preview is the sign-in page itself, laid out at
+1280×800 and scaled to its 16:10 frame, inert and hidden from screen readers,
+with its own light and dark switch that starts from the console's theme. The
+background sources are a 3×2 grid of radio tiles (64px, icon over label; the
+selected tile is `bg-accent-soft` with a 1px inset accent ring and medium
+weight, so selection is not colour alone), the gradient presets a 3×2 grid of
+16:10 swatches, and the uploaded images a three-column grid of 16:9 thumbnails
+with a dashed add tile that is also the drop target. The card's and the
+toolbar's surface settings sit side by side from 26rem; opacity and frosted
+glass appear only while translucent is on.
 
 A card holding several blocks names each one with an `ItemList` title. Three
 unlabelled cards stacked under one section heading read as one undifferentiated
