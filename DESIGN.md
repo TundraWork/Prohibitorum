@@ -130,8 +130,11 @@ surface shadow, and `--field-radius` and `--radius` set to 100% so the
 instance avatar, the language button and the theme switch inside are fully
 round too. The left capsule holds the instance's `InstanceIdentity` and gives
 way on a narrow screen, truncating the name; the right one holds the language
-menu and the theme switch. The toolbar scrolls with the page rather than
-staying fixed, so the card never passes underneath it.
+menu and the theme switch. When the sign-in page settings fix the theme to
+light or dark, the public pages use that theme — popovers and toasts included —
+and the right capsule holds only the language menu; the console keeps the
+visitor's own choice. The toolbar scrolls with the page rather than staying
+fixed, so the card never passes underneath it.
 
 The capsules' and the card's surfaces are the administrator's choice, set
 separately on the sign-in page settings. A translucent surface keeps HeroUI's
@@ -148,14 +151,21 @@ gradient presets, Bing's picture of the day, an Unsplash photo, or the uploaded
 images at random or as a one-second crossfade carousel. A picture fades in over
 700ms once it has loaded; with reduced motion it appears, and a carousel swaps,
 without a fade. A Bing or Unsplash picture is credited on a small capsule drawn
-like the toolbar's: fixed at the window's bottom-left from 1024px, no wider
-than `calc(50vw - 17rem)` so it never reaches the card, and under the card,
-centred, below that. The Unsplash credit is one run of inline text, so no gap
+like the toolbar's. From 1024px it is fixed at the window's bottom corner away
+from the card, 1.5rem from the edges, and stops 1.5rem short of the card: at
+the bottom-left no wider than `calc(50vw - 17rem)` while the card is centred
+and `calc(100vw - 32.5rem)` while it is on the right; at the bottom-right, no
+wider than `calc(100vw - 32.5rem)`, while the card is on the left. Below
+1024px it sits under the card, centred. The Unsplash credit is one run of inline text, so no gap
 lands between its words in Chinese.
 
 The card is centred in the window below the toolbar: from 640px the space under
 the card matches the toolbar's height, which puts the card at the window's
-centre. A card taller than the window scrolls with the page.
+centre. A card taller than the window scrolls with the page. From 1024px the
+sign-in page settings can put it on the left or the right instead; its outer
+edge then lines up with the toolbar capsule's, 1.5rem from the window. Below
+1024px it is always centred, and a page that fails before any layout draws
+keeps it centred too.
 
 The console uses a separate responsive navigation composition. Preserve its
 existing layout and permission behavior when refining shared components.
@@ -271,9 +281,16 @@ background sources are a 3×2 grid of radio tiles (64px, icon over label; the
 selected tile is `bg-accent-soft` with a 1px inset accent ring and medium
 weight, so selection is not colour alone), the gradient presets a 3×2 grid of
 16:10 swatches, and the uploaded images a three-column grid of 16:9 thumbnails
-with a dashed add tile that is also the drop target. The card's and the
-toolbar's surface settings sit side by side from 26rem; opacity and frosted
-glass appear only while translucent is on.
+with a dashed add tile that is also the drop target. Between the background
+and the surfaces, with a separator above and below, a row holds the card's
+position (left, centre, right, in that order) and the theme (visitor's choice,
+always light, always dark) as secondary radio groups. That row and the card's
+and the toolbar's surface settings each sit side by side from 26rem; opacity
+and frosted glass appear only while translucent is on. The preview places the
+card and the credit as the draft does; a draft that fixes the theme shows it
+there and hides both the preview's light and dark switch and the theme icon
+drawn in its toolbar, and leaving the theme to visitors brings back the
+preview theme the administrator had picked.
 
 A card holding several blocks names each one with an `ItemList` title. Three
 unlabelled cards stacked under one section heading read as one undifferentiated

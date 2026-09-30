@@ -34,12 +34,14 @@ import { useAppForm } from "@/forms/use-app-form";
 import { LoginImagesControl } from "@/pages/admin/settings/LoginImagesControl";
 import { LoginPreview } from "@/pages/admin/settings/LoginPreview";
 import {
+  CardPositionControls,
   ColorControls,
   FieldGroup,
   GradientControls,
   MarketSelect,
   SourceTiles,
   SurfaceControls,
+  ThemeControls,
 } from "@/pages/admin/settings/SignInPageControls";
 import {
   colorError,
@@ -56,12 +58,14 @@ import {
 const keyErrorCodes = ["unsplash_key_invalid", "unsplash_key_required"];
 
 /**
- * How the sign-in page looks: its background and the surfaces of its card and
- * toolbar, with the page itself previewed beside the form.
+ * How the sign-in page looks: its background, where its card sits, its theme,
+ * and the surfaces of its card and toolbar, with the page itself previewed
+ * beside the form.
  *
- * One Save sends the background source, its settings and the surfaces, and a
- * new Unsplash key if one was typed. Adding or removing an image and removing
- * the key happen at once, without waiting for Save.
+ * One Save sends the background source, its settings, the card's position, the
+ * theme and the surfaces, and a new Unsplash key if one was typed. Adding or
+ * removing an image and removing the key happen at once, without waiting for
+ * Save.
  */
 export function SignInPagePanel() {
   const { data } = useSuspenseQuery(loginAppearanceQueryOptions());
@@ -362,6 +366,31 @@ function SignInPageCard({ saved }: { saved: AdminLoginAppearance }) {
                   </>
                 )}
               </FieldGroup>
+
+              <Separator />
+
+              <div className="@container/surfaces">
+                <div className="grid gap-8 @[26rem]/surfaces:grid-cols-2 @[26rem]/surfaces:gap-6">
+                  <CardPositionControls
+                    value={appearance.cardPosition}
+                    isDisabled={submitting}
+                    onChange={(position) =>
+                      setAppearance((draft) => {
+                        draft.cardPosition = position;
+                      })
+                    }
+                  />
+                  <ThemeControls
+                    value={appearance.theme}
+                    isDisabled={submitting}
+                    onChange={(theme) =>
+                      setAppearance((draft) => {
+                        draft.theme = theme;
+                      })
+                    }
+                  />
+                </div>
+              </div>
 
               <Separator />
 

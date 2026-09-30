@@ -24,6 +24,10 @@ import type { WallpaperPreviewQuery } from "@/api/raw-admin-paths";
 import type { LoginAppearance } from "@/api/raw-paths";
 import { Button } from "@/components/custom/Button";
 import { useInstanceBranding } from "@/components/custom/instance-branding";
+import {
+  previewCardPlacement,
+  previewCreditPlacement,
+} from "@/components/custom/login-appearance/card-position";
 import { LoginBackdrop } from "@/components/custom/login-appearance/LoginBackdrop";
 import {
   capsuleSurfaceStyle,
@@ -76,8 +80,11 @@ function useDebouncedValue<T>(value: T, delayMs: number): T {
 /**
  * The sign-in page itself at a fraction of its size: laid out at 1280×800 and
  * scaled to the preview's width, so the capsules, the card and the credit keep
- * their real proportions. It draws the form's draft, so every change shows at
- * once. It follows the console's theme until the administrator picks one.
+ * their real proportions, and the card sits where the draft places it on a
+ * wide window. It draws the form's draft, so every change shows at once. It
+ * follows the console's theme until the administrator picks one; a draft that
+ * forces a theme shows that one and hides the choice, which comes back as it
+ * was when the draft leaves the theme to visitors.
  *
  * A Bing or Unsplash picture is read for the draft's region or keyword a moment
  * after they stop changing; while it loads the background shimmers, and when
@@ -96,7 +103,9 @@ export function LoginPreview({
   const branding = useInstanceBranding();
   const consoleTheme = useConsoleTheme();
   const [chosenTheme, setChosenTheme] = useState<Theme | undefined>(undefined);
-  const theme = chosenTheme ?? consoleTheme;
+  const forcedTheme =
+    appearance.theme === "switchable" ? undefined : appearance.theme;
+  const theme = forcedTheme ?? chosenTheme ?? consoleTheme;
 
   const frame = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(0.3);
@@ -197,12 +206,16 @@ export function LoginPreview({
               <span className={toolbarIcon}>
                 <Languages size={18} aria-hidden="true" />
               </span>
-              <span className={toolbarIcon}>
-                <Sun size={18} aria-hidden="true" />
-              </span>
+              {forcedTheme === undefined && (
+                <span className={toolbarIcon}>
+                  <Sun size={18} aria-hidden="true" />
+                </span>
+              )}
             </div>
           </header>
-          <main className="relative mx-auto flex w-[30rem] flex-1 flex-col justify-center px-4 pb-16">
+          <main
+            className={`relative flex w-[30rem] flex-1 flex-col justify-center px-4 pb-16 ${previewCardPlacement({ position: appearance.cardPosition })}`}
+          >
             <Card className={`w-full p-8 ${card.className}`} style={card.style}>
               <Card.Content className="flex flex-col gap-4">
                 <p className="text-xl font-semibold">
@@ -238,10 +251,16 @@ export function LoginPreview({
             </Card>
           </main>
           <footer className="relative flex px-6 pb-5">
-            <WallpaperCredit
-              appearance={appearance}
-              wallpaper={shownWallpaper}
-            />
+            <div
+              className={previewCreditPlacement({
+                position: appearance.cardPosition,
+              })}
+            >
+              <WallpaperCredit
+                appearance={appearance}
+                wallpaper={shownWallpaper}
+              />
+            </div>
           </footer>
         </div>
       </div>
@@ -249,37 +268,39 @@ export function LoginPreview({
         <span className="text-xs text-muted">
           {note ?? <Trans id="settings.sign-in.preview">Preview</Trans>}
         </span>
-        <ToggleButtonGroup
-          size="sm"
-          selectionMode="single"
-          disallowEmptySelection
-          selectedKeys={[theme]}
-          onSelectionChange={(keys) => {
-            const [key] = [...keys];
-            if (key === "light" || key === "dark") setChosenTheme(key);
-          }}
-        >
-          <ToggleButton
-            id="light"
-            isIconOnly
-            aria-label={t({
-              id: "settings.sign-in.preview.light",
-              message: "Light",
-            })}
+        {forcedTheme === undefined && (
+          <ToggleButtonGroup
+            size="sm"
+            selectionMode="single"
+            disallowEmptySelection
+            selectedKeys={[theme]}
+            onSelectionChange={(keys) => {
+              const [key] = [...keys];
+              if (key === "light" || key === "dark") setChosenTheme(key);
+            }}
           >
-            <Sun size={14} aria-hidden="true" />
-          </ToggleButton>
-          <ToggleButton
-            id="dark"
-            isIconOnly
-            aria-label={t({
-              id: "settings.sign-in.preview.dark",
-              message: "Dark",
-            })}
-          >
-            <Moon size={14} aria-hidden="true" />
-          </ToggleButton>
-        </ToggleButtonGroup>
+            <ToggleButton
+              id="light"
+              isIconOnly
+              aria-label={t({
+                id: "settings.sign-in.preview.light",
+                message: "Light",
+              })}
+            >
+              <Sun size={14} aria-hidden="true" />
+            </ToggleButton>
+            <ToggleButton
+              id="dark"
+              isIconOnly
+              aria-label={t({
+                id: "settings.sign-in.preview.dark",
+                message: "Dark",
+              })}
+            >
+              <Moon size={14} aria-hidden="true" />
+            </ToggleButton>
+          </ToggleButtonGroup>
+        )}
       </figcaption>
     </figure>
   );

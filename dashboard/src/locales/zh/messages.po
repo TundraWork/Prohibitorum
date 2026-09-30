@@ -698,6 +698,16 @@ msgid "app.managers.candidate.assigned"
 msgstr "已在管理这个应用"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/SignInPageControls.tsx
+msgid "settings.sign-in.theme.dark"
+msgstr "始终夜间模式"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/SignInPageControls.tsx
+msgid "settings.sign-in.theme.light"
+msgstr "始终日间模式"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/settings/sign-in-page-form.ts
 msgid "settings.sign-in.unsplash.key.invalid"
 msgstr "Access Key 只包含字母、数字、连字符和下划线，最多 128 个字符。"
@@ -1155,6 +1165,11 @@ msgid "confirm.cancel"
 msgstr "取消"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/SignInPageControls.tsx
+msgid "settings.sign-in.position"
+msgstr "卡片位置"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/settings/SignInPagePanel.tsx
 msgid "settings.sign-in.images.order.carousel"
 msgstr "轮播"
@@ -1168,6 +1183,11 @@ msgstr "类别"
 #: src/pages/admin/AdminLogs.tsx
 msgid "admin.logs.filter.factor"
 msgstr "类别"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/SignInPageControls.tsx
+msgid "settings.sign-in.position.center"
+msgstr "居中"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AdminSamlApplications.tsx
@@ -3871,6 +3891,11 @@ msgid "security.tokens.reveal.leave"
 msgstr "尚未保存就离开？此令牌无法再次显示。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/SignInPageControls.tsx
+msgid "settings.sign-in.position.left"
+msgstr "靠左"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
 msgid "admin.saml-apps.field.idp-initiated.hint"
 msgstr "允许人们从这个实例开始登录，而不是从服务提供商开始。"
@@ -5660,6 +5685,11 @@ msgid "audit.event.revoke"
 msgstr "已撤销"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/SignInPageControls.tsx
+msgid "settings.sign-in.position.right"
+msgstr "靠右"
+
+#. js-lingui-explicit-id
 #: src/pages/public/SetupSignin.tsx
 msgid "setup_signin.description"
 msgstr "现在你只能通过 {providers} 登录。再添加一种方式，{providers} 不可用时也能进入账号。"
@@ -7033,6 +7063,11 @@ msgid "federation_flow.proof.expires"
 msgstr "验证链接 {until} 前有效。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/SignInPageControls.tsx
+msgid "settings.sign-in.theme"
+msgstr "主题"
+
+#. js-lingui-explicit-id
 #: src/components/custom/ThemeSelect.tsx
 msgid "theme.label"
 msgstr "主题"
@@ -8067,6 +8102,11 @@ msgstr "验证你的资料"
 #: src/pages/admin/settings/SigningKeysPanel.tsx
 msgid "settings.keys.view"
 msgstr "查看公钥"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/SignInPageControls.tsx
+msgid "settings.sign-in.theme.switchable"
+msgstr "访客可切换"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-options.ts

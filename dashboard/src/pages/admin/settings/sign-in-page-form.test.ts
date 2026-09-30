@@ -87,6 +87,17 @@ describe("the save body", () => {
       unsplashAccessKey: "Abc_123",
     });
   });
+
+  it("carries the card's position and the theme as they were chosen", () => {
+    const appearance = {
+      ...defaultLoginAppearance,
+      cardPosition: "right" as const,
+      theme: "dark" as const,
+    };
+    const body = signInPageBody({ appearance, unsplashAccessKey: "" });
+    expect(body.appearance.cardPosition).toBe("right");
+    expect(body.appearance.theme).toBe("dark");
+  });
 });
 
 describe("the suggested colours", () => {

@@ -83,6 +83,21 @@ func TestDecodeAppearance(t *testing.T) {
 		{"missing images", drop("background", "images"), false},
 		{"missing showCaption", drop("background", "bing", "showCaption"), false},
 		{"missing query", drop("background", "unsplash", "query"), false},
+		{"card on the left", set("left", "cardPosition"), true},
+		{"card on the right", set("right", "cardPosition"), true},
+		{"unknown card position", set("middle", "cardPosition"), false},
+		{"capitalised card position", set("Left", "cardPosition"), false},
+		{"empty card position", set("", "cardPosition"), false},
+		{"null card position", set(nil, "cardPosition"), false},
+		{"numeric card position", set(1, "cardPosition"), false},
+		{"missing card position", drop("cardPosition"), false},
+		{"always light", set("light", "theme"), true},
+		{"always dark", set("dark", "theme"), true},
+		{"system theme", set("system", "theme"), false},
+		{"capitalised theme", set("Dark", "theme"), false},
+		{"empty theme", set("", "theme"), false},
+		{"null theme", set(nil, "theme"), false},
+		{"missing theme", drop("theme"), false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -108,6 +123,8 @@ func TestDecodeAppearanceRoundTrip(t *testing.T) {
 	want.Background.Source = SourceBing
 	want.Background.Bing = BingOptions{Market: "ja-JP", ShowCaption: false}
 	want.Capsules = Surface{Translucent: false, Opacity: 35, Blur: false}
+	want.CardPosition = CardRight
+	want.Theme = ThemeDark
 	raw, err := json.Marshal(want)
 	if err != nil {
 		t.Fatal(err)

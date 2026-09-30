@@ -1,19 +1,26 @@
 import { useLingui } from "@lingui/react/macro";
 import { useAtomValue } from "jotai";
-import { type ReactNode, useEffect } from "react";
+import { type ReactNode, useLayoutEffect } from "react";
 import { I18nProvider as AriaI18nProvider } from "react-aria";
 import { PageScrollArea } from "@/components/custom/PageScrollArea";
-import { themeAtom } from "@/components/custom/ThemeSelect";
+import { publicThemeAtom, themeAtom } from "@/components/custom/ThemeSelect";
 
 /**
  * What every screen needs whether or not a route drew: the theme, the locale
  * React Aria formats with, and the page's scrollbar. It sits outside the
  * router, so a root route that fails still draws its error in them.
+ *
+ * The theme is the one the public pages force, if any, or else the visitor's.
+ * It is written on `<html>` before the browser paints, so moving between the
+ * console and a public page never shows a frame in the other theme, and popups
+ * rendered under `body` follow it too.
  */
 export function AppEnvironment({ children }: { children: ReactNode }) {
   const { i18n } = useLingui();
-  const theme = useAtomValue(themeAtom);
-  useEffect(() => {
+  const chosen = useAtomValue(themeAtom);
+  const forced = useAtomValue(publicThemeAtom);
+  const theme = forced ?? chosen;
+  useLayoutEffect(() => {
     if (theme !== "system") {
       document.documentElement.dataset.theme = theme;
       return;

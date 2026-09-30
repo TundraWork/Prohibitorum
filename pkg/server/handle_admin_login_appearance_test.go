@@ -231,9 +231,22 @@ func TestLoginAppearance_PutStrictDecoding(t *testing.T) {
 	a.Background.Source = branding.SourceImages
 	a.Background.Images = branding.ImageOptions{Order: "carousel", IntervalSeconds: 15}
 	a.Card = branding.Surface{Translucent: true, Opacity: 60, Blur: true}
-	wantCode(t, h.do("PUT", appearancePath, appearanceBody(t, a, nil), ""), http.StatusNoContent, "")
+	a.CardPosition = branding.CardLeft
+	a.Theme = branding.ThemeDark
+	saved := appearanceBody(t, a, nil)
+	wantCode(t, h.do("PUT", appearancePath, saved, ""), http.StatusNoContent, "")
 	if h.wp.forgot != 1 {
 		t.Fatalf("Forget called %d times, want 1", h.wp.forgot)
+	}
+
+	// A document without a theme is refused and the saved one stays.
+	missingTheme := strings.Replace(saved, `,"theme":"dark"`, ``, 1)
+	if missingTheme == saved {
+		t.Fatalf("body %s has no theme to drop", saved)
+	}
+	wantCode(t, h.do("PUT", appearancePath, missingTheme, ""), http.StatusBadRequest, "bad_request")
+	if *h.store.appearance != a {
+		t.Fatalf("stored = %+v after a rejected PUT, want %+v", *h.store.appearance, a)
 	}
 
 	rr := h.do("GET", appearancePath, "", "")
@@ -247,6 +260,16 @@ func TestLoginAppearance_PutStrictDecoding(t *testing.T) {
 	}
 	if got.Appearance != a || got.HasUnsplashKey {
 		t.Fatalf("GET = %+v, want the saved appearance and no key", got)
+	}
+
+	var cfg struct {
+		LoginAppearance branding.Appearance `json:"loginAppearance"`
+	}
+	if err := json.Unmarshal(h.anonymous("GET", "/api/prohibitorum/config", nil).Body.Bytes(), &cfg); err != nil {
+		t.Fatal(err)
+	}
+	if cfg.LoginAppearance != a {
+		t.Fatalf("/config appearance = %+v, want %+v", cfg.LoginAppearance, a)
 	}
 }
 

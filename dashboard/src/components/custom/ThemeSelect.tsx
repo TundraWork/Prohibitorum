@@ -3,7 +3,15 @@ import { useLingui } from "@lingui/react/macro";
 import { atom, useAtom } from "jotai";
 import { Monitor, Moon, Sun } from "lucide-react";
 
+/** The visitor's choice, which the console and the public pages share. */
 export const themeAtom = atom<"light" | "dark" | "system">("system");
+
+/**
+ * The theme the sign-in page's settings force on the public pages, or nothing
+ * when the visitor chooses. Only `PublicLayout` writes it, while it is mounted;
+ * `themeAtom` is left alone, so the console keeps the visitor's choice.
+ */
+export const publicThemeAtom = atom<"light" | "dark" | undefined>(undefined);
 
 export function ThemeSelect() {
   const [theme, setTheme] = useAtom(themeAtom);

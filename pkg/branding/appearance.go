@@ -33,7 +33,26 @@ var BingMarkets = []string{
 	"fr-CA", "fr-FR", "it-IT", "ja-JP", "pt-BR", "zh-CN",
 }
 
+// Horizontal positions of the sign-in card on wide windows.
+const (
+	CardLeft   = "left"
+	CardCenter = "center"
+	CardRight  = "right"
+)
+
+// Themes for the public pages: the visitor's choice, or always light or dark.
+const (
+	ThemeSwitchable = "switchable"
+	ThemeLight      = "light"
+	ThemeDark       = "dark"
+)
+
 var sources = []string{SourceNone, SourceColor, SourceGradient, SourceBing, SourceUnsplash, SourceImages}
+
+var (
+	cardPositions = []string{CardLeft, CardCenter, CardRight}
+	themes        = []string{ThemeSwitchable, ThemeLight, ThemeDark}
+)
 
 var hexColor = regexp.MustCompile(`^#[0-9a-f]{6}$`)
 
@@ -43,6 +62,10 @@ type Appearance struct {
 	Background Background `json:"background"`
 	Card       Surface    `json:"card"`
 	Capsules   Surface    `json:"capsules"`
+	// CardPosition places the card on wide windows; narrow ones centre it.
+	CardPosition string `json:"cardPosition"`
+	// Theme applies to the public pages only, never to the console.
+	Theme string `json:"theme"`
 }
 
 type Background struct {
@@ -77,7 +100,8 @@ type Surface struct {
 }
 
 // DefaultAppearance is the look of an instance that has never saved one: the
-// page's own background, an opaque card, and translucent frosted capsules.
+// page's own background, an opaque centred card, translucent frosted capsules,
+// and the theme left to the visitor.
 func DefaultAppearance() Appearance {
 	return Appearance{
 		Background: Background{
@@ -88,8 +112,10 @@ func DefaultAppearance() Appearance {
 			Unsplash: UnsplashOptions{Query: ""},
 			Images:   ImageOptions{Order: "random", IntervalSeconds: 10},
 		},
-		Card:     Surface{Translucent: false, Opacity: 80, Blur: true},
-		Capsules: Surface{Translucent: true, Opacity: 70, Blur: true},
+		Card:         Surface{Translucent: false, Opacity: 80, Blur: true},
+		Capsules:     Surface{Translucent: true, Opacity: 70, Blur: true},
+		CardPosition: CardCenter,
+		Theme:        ThemeSwitchable,
 	}
 }
 
@@ -115,8 +141,10 @@ type wireAppearance struct {
 			IntervalSeconds *int    `json:"intervalSeconds"`
 		} `json:"images"`
 	} `json:"background"`
-	Card     *wireSurface `json:"card"`
-	Capsules *wireSurface `json:"capsules"`
+	Card         *wireSurface `json:"card"`
+	Capsules     *wireSurface `json:"capsules"`
+	CardPosition *string      `json:"cardPosition"`
+	Theme        *string      `json:"theme"`
 }
 
 type wireSurface struct {
@@ -152,7 +180,8 @@ func (w wireAppearance) complete() (Appearance, bool) {
 	if b == nil || b.Source == nil || b.Color == nil || b.Gradient == nil ||
 		b.Bing == nil || b.Bing.Market == nil || b.Bing.ShowCaption == nil ||
 		b.Unsplash == nil || b.Unsplash.Query == nil ||
-		b.Images == nil || b.Images.Order == nil || b.Images.IntervalSeconds == nil {
+		b.Images == nil || b.Images.Order == nil || b.Images.IntervalSeconds == nil ||
+		w.CardPosition == nil || w.Theme == nil {
 		return Appearance{}, false
 	}
 	card, ok := w.Card.complete()
@@ -172,8 +201,10 @@ func (w wireAppearance) complete() (Appearance, bool) {
 			Unsplash: UnsplashOptions{Query: *b.Unsplash.Query},
 			Images:   ImageOptions{Order: *b.Images.Order, IntervalSeconds: *b.Images.IntervalSeconds},
 		},
-		Card:     card,
-		Capsules: capsules,
+		Card:         card,
+		Capsules:     capsules,
+		CardPosition: *w.CardPosition,
+		Theme:        *w.Theme,
 	}, true
 }
 
@@ -204,6 +235,10 @@ func ValidateAppearance(a Appearance) error {
 		return fmt.Errorf("%w: interval", ErrInvalidAppearance)
 	case !validSurface(a.Card) || !validSurface(a.Capsules):
 		return fmt.Errorf("%w: opacity", ErrInvalidAppearance)
+	case !slices.Contains(cardPositions, a.CardPosition):
+		return fmt.Errorf("%w: card position", ErrInvalidAppearance)
+	case !slices.Contains(themes, a.Theme):
+		return fmt.Errorf("%w: theme", ErrInvalidAppearance)
 	}
 	return nil
 }
