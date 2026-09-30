@@ -256,17 +256,20 @@ manager assignments. Global-admin handlers are under `/api/prohibitorum`;
 separate delegated policy routes are available only for an assigned app
 manager's apps and never expose app configuration.
 
-High-impact global mutations (secrets, PKI, credentials, destructive actions,
-and manager assignment changes) are fresh-sudo gated through a single
-chokepoint enforcing admin auth, the 64 KiB body limit, and JSON content type.
-Reversible app-policy mutations use the same body controls without fresh sudo.
+Writes to this site's credentials and keys and irreversible operations with
+serious impact (application and identity-provider deletion, OIDC secret
+rotation, the signing-key lifecycle, account deletion, registration-link
+reissue and role changes) are fresh-sudo gated through a single chokepoint
+enforcing admin auth, the 64 KiB body limit, and JSON content type. Every other
+management write, manager assignment changes included, uses the same body
+controls without fresh sudo.
 
 - OIDC client CRUD: create (secret revealed once, argon2id hash stored), update, rotate-secret (new secret once), delete. Reads never expose the hash/cleartext.
 - SAML SP CRUD: create (optional metadata XML ingestion), update, reingest-metadata, delete.
 - Upstream IdP CRUD: create (AES-GCM seal after insert; a crash mid-create leaves a fail-closed row), update (excludes secret), rotate-secret, delete. Reads never expose encrypted bytes.
 - Signing-key lifecycle: generate (→ `pending`), activate (demotes the prior `active` → `decommissioning`, promotes the target), retire. `status` ∈ {pending, active, decommissioning, retired}, with a partial unique index allowing one active key per use. The publish set for JWKS + SAML metadata is pending+active+decommissioning, so prior-key tokens still verify during the grace period. A background reconcile loop advances decommissioning → retired once `retire_after` passes.
 - Audit-events viewer: `GET /audit-events` with `factor`/`event`/`accountId`/`since`/`until` filters + keyset pagination. Every mutation writes a `credential_event` without secret/key material in `detail`.
-- Account credentials admin view: `GET /accounts/{id}/credentials` returns the passkey list with only the last-4 suffix of the credential ID; `POST /accounts/credentials/delete` force-revokes a passkey (sudo-gated).
+- Account credentials admin view: `GET /accounts/{id}/credentials` returns the passkey list with only the last-4 suffix of the credential ID; `POST /accounts/credentials/delete` force-revokes a passkey (admin, no sudo).
 - CLI parity: `signing-key {generate,activate,retire}`, `oidc-client {update,rotate-secret,delete}`, `saml-sp {update,delete}`, `forward-auth-app`, and `upstream-idp {create,list,update,rotate-secret,delete}` share the same domain paths as the HTTP handlers. App policy is nested beneath its app-kind command rather than a global command.
 - API documentation in `api.md`: full route table, gate notation, reveal-once semantics, signing-key lifecycle states, and known caveats.
 
@@ -354,7 +357,7 @@ the downstream protocols and app listings.
 - **Roles and delegation:** accounts have either the `user` or `admin` role. Any
   active account can manage an assigned OIDC, forward-auth, or SAML app. An
   assignment never authorizes the account to use that app. Only an admin can add
-  or remove assignments, and both mutations require fresh sudo. Disablement ends
+  or remove assignments; neither needs fresh sudo. Disablement ends
   delegated authority immediately, and account/app deletion removes assignments
   by cascade.
 - **App-bound groups:** every group has one immutable app binding. An app has

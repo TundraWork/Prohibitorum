@@ -207,7 +207,7 @@ Prohibitorum is not a resource-permission engine: downstream applications remain
 - `user` has self-service and downstream-authentication capabilities, plus management authority for exactly the apps assigned to that account.
 - `admin` has global instance authority and may manage every application's policy. No role bypasses downstream app admission.
 
-Only an admin may add or remove an assignment, and both mutations require fresh sudo. The target may be any enabled account, including an admin. A non-admin assignee cannot promote or edit accounts, change assignments, inspect credentials or secrets, manage providers, view global audit records, or change instance settings. Assignment grants management authority only; it never makes the assignee eligible to use that app.
+Only an admin may add or remove an assignment; neither needs fresh sudo. The target may be any enabled account, including an admin. A non-admin assignee cannot promote or edit accounts, change assignments, inspect credentials or secrets, manage providers, view global audit records, or change instance settings. Assignment grants management authority only; it never makes the assignee eligible to use that app.
 
 Assignments are FK-backed: OIDC and forward-auth applications use the backing OIDC client assignment, while SAML applications use an SP assignment. An account can have many assignments and an app can have many assignees. The route kind is checked as well as the backing ID, so an OIDC management path cannot expose a forward-auth app or vice versa. Sessions reload the account on authenticated requests; disablement or deletion takes effect immediately, while changing between `user` and `admin` preserves assignments.
 
@@ -253,7 +253,7 @@ This model is a destructive schema migration, not a compatibility layer. It dele
 
 ## Management API boundaries
 
-All management and delegated routes use the `/api/prohibitorum` prefix. Admin-only routes require an `admin` session. Fresh sudo is required for secrets, irreversible operations, and manager assignment changes; its wrapper also enforces JSON content type and a 64 KiB body limit. Reversible policy mutations use the same content-type/body-size controls but do not require sudo. `api.md` defines the complete wire surface.
+All management and delegated routes use the `/api/prohibitorum` prefix. Admin-only routes require an `admin` session. Fresh sudo protects writes to this site's credentials and keys and irreversible operations with serious impact: the Security page's credential writes, approving a new device, deleting an application or identity provider, rotating an OIDC client secret, the signing-key lifecycle, and deleting an account, reissuing its registration link or changing its role (`PUT /accounts/{id}` checks sudo only when the role changes). Its wrapper also enforces JSON content type and a 64 KiB body limit. Every other write — instance settings, groups, invitations, application create/edit and managers, icons, identity-provider configuration and secrets, disabling accounts and revoking another account's credentials — uses the same content-type/body-size controls without sudo. `api.md` defines the complete wire surface.
 
 ### Application configuration and assignments
 

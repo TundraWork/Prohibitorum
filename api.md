@@ -11,7 +11,7 @@ Route-to-source cross-reference:
 - 🔐 = the route's base gate plus a **fresh sudo grant** (valid for configured `sudo_ttl`, default 15 min; covers multiple gated actions until expiry).
 - `assigned` = active session with an exact assignment for the application addressed by the route, or an admin session.
 
-`registerSudoOpHTTP` centralises auth, JSON content type, 64 KiB body limit, and fresh-sudo enforcement. `registerAdminBodyOpHTTP` applies the same JSON/body controls without sudo; it is also used for reversible assigned-app policy mutations, with the `assigned` requirement instead of an admin requirement. A route-policy test asserts that each 🔐 mutation returns `sudo_required` (HTTP 401) without a fresh sudo grant.
+`registerSudoOpHTTP` centralises auth, JSON content type, 64 KiB body limit, and fresh-sudo enforcement. `registerAdminBodyOpHTTP` applies the same JSON/body controls without sudo; it carries every other JSON write, including reversible assigned-app policy mutations, with the `assigned` requirement instead of an admin requirement. Which actions need sudo is summarised under [Sudo grace period](#sudo-grace-period). A route-policy test asserts that each 🔐 mutation returns `sudo_required` (HTTP 401) without a fresh sudo grant.
 
 All management and delegated routes use the `/api/prohibitorum` prefix. Administrative resource names are `oidc-applications`, `forward-auth-apps`, `saml-applications`, and `identity-providers`; CLI verbs are `oidc-client`, `forward-auth-app`, `saml-sp`, and `upstream-idp`.
 
@@ -23,15 +23,15 @@ All management and delegated routes use the `/api/prohibitorum` prefix. Administ
 |--------|------|------|-------|
 | GET | `/api/prohibitorum/oidc-applications` | assigned | List all clients for admins, or assigned clients for other accounts. `client_secret_hash` never returned. |
 | GET | `/api/prohibitorum/oidc-applications/{clientId}` | assigned | Get one assigned client. Same no-secret guarantee. |
-| POST | `/api/prohibitorum/oidc-applications` | 🔐 | Create a client. Confidential clients (`public: false`): generates a 32-byte `crypto/rand` secret, returns it in `secret` **once only** — only the argon2id hash is persisted. Public clients return no secret. |
-| PUT | `/api/prohibitorum/oidc-applications/{clientId}` | assigned + 🔐 | Full replacement of mutable config fields (display name, redirect URIs, scopes, etc). Does not touch the client secret. |
+| POST | `/api/prohibitorum/oidc-applications` | 🔓 | Create a client. Confidential clients (`public: false`): generates a 32-byte `crypto/rand` secret, returns it in `secret` **once only** — only the argon2id hash is persisted. Public clients return no secret. |
+| PUT | `/api/prohibitorum/oidc-applications/{clientId}` | assigned | Full replacement of mutable config fields (display name, redirect URIs, scopes, etc). Does not touch the client secret. |
 | PUT | `/api/prohibitorum/oidc-applications/{clientId}/identity-projection` | assigned | Replace the current subject source and claim aliases without sudo. Body: `{"subjectSource":"sub|username|verified_email","claimAliases":{"output":"name|preferred_username|email|picture"}}`. Use an empty object to clear aliases. |
 | POST | `/api/prohibitorum/oidc-applications/rotate-secret` | assigned + 🔐 | Body: `{"clientId": "..."}`. Generates and stores a new secret; returns new cleartext in `secret` **once only**. Guaranteed ≠ previous secret. |
 | POST | `/api/prohibitorum/oidc-applications/delete` | assigned + 🔐 | Body: `{"clientId": "..."}`. Hard-deletes the client row. |
 | POST | `/api/prohibitorum/oidc-applications/set-disabled` | assigned | Body: `{"clientId":"...","disabled":<boolean>}`. Reversibly disables or enables an OIDC application. |
 | GET | `/api/prohibitorum/oidc-applications/{clientId}/managers` | 🔓 | List only safe manager-assignment views. |
-| POST | `/api/prohibitorum/oidc-applications/{clientId}/managers` | 🔐 | Body: `{"accountId":<integer>}`. Assign any enabled account. Returns 204. |
-| POST | `/api/prohibitorum/oidc-applications/{clientId}/managers/remove` | 🔐 | Body: `{"accountId":<integer>}`. Remove the assignment. Returns 204. |
+| POST | `/api/prohibitorum/oidc-applications/{clientId}/managers` | 🔓 | Body: `{"accountId":<integer>}`. Assign any enabled account. Returns 204. |
+| POST | `/api/prohibitorum/oidc-applications/{clientId}/managers/remove` | 🔓 | Body: `{"accountId":<integer>}`. Remove the assignment. Returns 204. |
 
 ## Forward-auth applications
 
@@ -41,14 +41,14 @@ Forward-auth applications are distinct from normal OIDC application administrati
 |--------|------|------|-------|
 | GET | `/api/prohibitorum/forward-auth-apps` | assigned | List all apps for admins, or assigned apps for other accounts. |
 | GET | `/api/prohibitorum/forward-auth-apps/{clientId}` | assigned | Get one assigned app. |
-| POST | `/api/prohibitorum/forward-auth-apps` | 🔐 | Create an app and its fixed OIDC-client configuration. |
-| PUT | `/api/prohibitorum/forward-auth-apps/{clientId}` | assigned + 🔐 | Replace mutable forward-auth configuration (`displayName`, `host`). |
+| POST | `/api/prohibitorum/forward-auth-apps` | 🔓 | Create an app and its fixed OIDC-client configuration. |
+| PUT | `/api/prohibitorum/forward-auth-apps/{clientId}` | assigned | Replace mutable forward-auth configuration (`displayName`, `host`). |
 | PUT | `/api/prohibitorum/forward-auth-apps/{clientId}/identity-projection` | assigned | Replace the current `Remote-User` source without sudo. Body: `{"remoteUserSource":"sub|username|verified_email"}`. |
 | POST | `/api/prohibitorum/forward-auth-apps/set-disabled` | assigned | Body: `{"clientId":"...","disabled":<boolean>}`. |
 | POST | `/api/prohibitorum/forward-auth-apps/delete` | assigned + 🔐 | Body: `{"clientId":"..."}`. Hard-delete the app. |
 | GET | `/api/prohibitorum/forward-auth-apps/{clientId}/managers` | 🔓 | List manager assignments. |
-| POST | `/api/prohibitorum/forward-auth-apps/{clientId}/managers` | 🔐 | Body: `{"accountId":<integer>}`. Assign any enabled account; returns 204. |
-| POST | `/api/prohibitorum/forward-auth-apps/{clientId}/managers/remove` | 🔐 | Body: `{"accountId":<integer>}`. Remove assignment; returns 204. |
+| POST | `/api/prohibitorum/forward-auth-apps/{clientId}/managers` | 🔓 | Body: `{"accountId":<integer>}`. Assign any enabled account; returns 204. |
+| POST | `/api/prohibitorum/forward-auth-apps/{clientId}/managers/remove` | 🔓 | Body: `{"accountId":<integer>}`. Remove assignment; returns 204. |
 
 ---
 ## SAML applications (downstream service providers)
@@ -60,17 +60,17 @@ Forward-auth applications are distinct from normal OIDC application administrati
 | POST | `/api/prohibitorum/saml-applications` | 🔓 | Register a new SP. Accepts optional raw SAML metadata XML in `metadataXml` for ACS + cert ingestion (same path as `saml-sp create --metadata-file`). |
 | PUT | `/api/prohibitorum/saml-applications/{id}` | assigned | Update SP config (display name, attribute map, session lifetime, etc). |
 | POST | `/api/prohibitorum/saml-applications/{id}/reingest-metadata` | assigned | Re-parse fresh SAML metadata XML for an existing SP (updates ACS endpoints + signing certs). |
-| POST | `/api/prohibitorum/saml-applications/delete` | assigned | Body: `{"id": <int>}`. Hard-deletes the SP row and child rows (`saml_sp_acs`, `saml_sp_key`). |
+| POST | `/api/prohibitorum/saml-applications/delete` | assigned + 🔐 | Body: `{"id": <int>}`. Hard-deletes the SP row and child rows (`saml_sp_acs`, `saml_sp_key`). |
 | POST | `/api/prohibitorum/saml-applications/set-disabled` | assigned | Body: `{"id":<integer>,"disabled":<boolean>}`. Reversibly disables or enables an SP. |
 | GET | `/api/prohibitorum/saml-applications/{id}/managers` | 🔓 | List manager assignments. |
-| POST | `/api/prohibitorum/saml-applications/{id}/managers` | 🔐 | Body: `{"accountId":<integer>}`. Assign any enabled account; returns 204. |
-| POST | `/api/prohibitorum/saml-applications/{id}/managers/remove` | 🔐 | Body: `{"accountId":<integer>}`. Remove assignment; returns 204. |
+| POST | `/api/prohibitorum/saml-applications/{id}/managers` | 🔓 | Body: `{"accountId":<integer>}`. Assign any enabled account; returns 204. |
+| POST | `/api/prohibitorum/saml-applications/{id}/managers/remove` | 🔓 | Body: `{"accountId":<integer>}`. Remove assignment; returns 204. |
 
 ---
 
 ## Application assignments
 
-Only an admin can create or remove an assignment, and both operations require fresh sudo. The assignment target may be any enabled account; a disabled target returns `invalid_manager_role` (400) for compatibility. Reads are admin-only. Every assignment list returns:
+Only an admin can create or remove an assignment; neither needs fresh sudo. The assignment target may be any enabled account; a disabled target returns `invalid_manager_role` (400) for compatibility. Reads are admin-only. Every assignment list returns:
 
 ```json
 [
@@ -196,14 +196,14 @@ The earlier policy cutover deleted legacy group membership and direct applicatio
 |--------|------|------|-------|
 | GET | `/api/prohibitorum/identity-providers` | 🔓 | List providers with protocol, readiness, secret status, operator support, and searchable fields. Sealed secrets are never returned. |
 | GET | `/api/prohibitorum/identity-providers/{slug}` | 🔓 | Get one provider. Same no-secret guarantee. |
-| POST | `/api/prohibitorum/identity-providers` | 🔐 | Create a provider with `protocol` (`oidc`, `steam`, or `vrchat`), provider-specific `config`, optional sealed material, and a mode. VRChat accepts only fixed `link_only`; OIDC/Steam retain their supported modes. |
-| PUT | `/api/prohibitorum/identity-providers/{slug}` | 🔐 | Replace mutable display name, mode, and provider-specific config without replacing sealed material. A VRChat update must remain `link_only`. |
-| POST | `/api/prohibitorum/identity-providers/rotate-secret` | 🔐 | Replace and seal OIDC/Steam secret material, including a secret stored for later use by a public OIDC client. |
+| POST | `/api/prohibitorum/identity-providers` | 🔓 | Create a provider with `protocol` (`oidc`, `steam`, or `vrchat`), provider-specific `config`, optional sealed material, and a mode. VRChat accepts only fixed `link_only`; OIDC/Steam retain their supported modes. |
+| PUT | `/api/prohibitorum/identity-providers/{slug}` | 🔓 | Replace mutable display name, mode, and provider-specific config without replacing sealed material. A VRChat update must remain `link_only`. |
+| POST | `/api/prohibitorum/identity-providers/rotate-secret` | 🔓 | Replace and seal OIDC/Steam secret material, including a secret stored for later use by a public OIDC client. |
 | POST | `/api/prohibitorum/identity-providers/set-disabled` | 🔓 | Reversibly hide a provider from sign-in and block all new flows. |
 | POST | `/api/prohibitorum/identity-providers/delete` | 🔐 | Hard-delete a provider and its linked `account_identity` rows. |
-| POST | `/api/prohibitorum/identity-providers/{slug}/operator-session/start` | 🔐 | VRChat only. Transient Basic-auth login; returns a bounded 2FA challenge when required. Credentials are not retained. |
-| POST | `/api/prohibitorum/identity-providers/{slug}/operator-session/verify` | 🔐 | VRChat only. Verify the challenge with an allowlisted 2FA method/code, seal the resulting cookie jar, and mark the provider ready. |
-| POST | `/api/prohibitorum/identity-providers/{slug}/operator-session/validate` | 🔐 | VRChat only. Validate the sealed operator session without accepting credentials. The request carries no body. |
+| POST | `/api/prohibitorum/identity-providers/{slug}/operator-session/start` | 🔓 | VRChat only. Transient Basic-auth login; returns a bounded 2FA challenge when required. Credentials are not retained. |
+| POST | `/api/prohibitorum/identity-providers/{slug}/operator-session/verify` | 🔓 | VRChat only. Verify the challenge with an allowlisted 2FA method/code, seal the resulting cookie jar, and mark the provider ready. |
+| POST | `/api/prohibitorum/identity-providers/{slug}/operator-session/validate` | 🔓 | VRChat only. Validate the sealed operator session without accepting credentials. The request carries no body. |
 
 Public federation flows retain the protocol-neutral entry points. VRChat uses
 the browser-bound flow API as profile proof, not OAuth/OIDC or direct sign-in:
@@ -300,11 +300,11 @@ An instance that never saved one gets the default above (`source: "none"`, `card
 | GET | `/branding/login-images/{id}` | public | An uploaded image, byte-for-byte as uploaded, with `ETag`/304 and `Cache-Control: public, max-age=300`; the type is sniffed. 404 for an unknown or non-positive id. A matching `If-None-Match` is answered without reading the image. |
 | GET | `/branding/wallpaper` | public | The picture for the saved source, `Cache-Control: no-store`, reachable during maintenance. Bing: `{source, imageUrl, title, copyright, copyrightUrl}` (the last three left out while `showCaption` is off). Unsplash: `{source, imageUrl, photographer, photographerUrl, photoUrl}`, links tagged `utm_source=prohibitorum&utm_medium=referral`. 404 `wallpaper_not_configured` for any other source; 503 `wallpaper_unavailable` when the upstream fails with nothing cached or rejects the key. |
 | GET | `/api/prohibitorum/admin/settings/login-appearance` | 🔓 | `{appearance, hasUnsplashKey}`. The Unsplash access key is never returned. |
-| PUT | `/api/prohibitorum/admin/settings/login-appearance` | 🔐 | `{appearance, unsplashAccessKey?}` → 204. Leaving `unsplashAccessKey` out keeps the saved key; a new one (1–128 of `[A-Za-z0-9_-]`) is checked with Unsplash, then sealed with the current data encryption key. 400 `unsplash_key_required` when the source is `unsplash` and no key is given or saved; 400 `unsplash_key_invalid` when Unsplash rejects the key; 502 `unsplash_unreachable` when it cannot be asked. Audit reason `login_appearance_updated`. |
-| DELETE | `/api/prohibitorum/admin/settings/login-appearance/unsplash-key` | 🔐 | → 204, also when no key was saved. 409 `unsplash_key_in_use` while the saved source is `unsplash`. Audit reason `unsplash_key_removed`. |
+| PUT | `/api/prohibitorum/admin/settings/login-appearance` | 🔓 | `{appearance, unsplashAccessKey?}` → 204. Leaving `unsplashAccessKey` out keeps the saved key; a new one (1–128 of `[A-Za-z0-9_-]`) is checked with Unsplash, then sealed with the current data encryption key. 400 `unsplash_key_required` when the source is `unsplash` and no key is given or saved; 400 `unsplash_key_invalid` when Unsplash rejects the key; 502 `unsplash_unreachable` when it cannot be asked. Audit reason `login_appearance_updated`. |
+| DELETE | `/api/prohibitorum/admin/settings/login-appearance/unsplash-key` | 🔓 | → 204, also when no key was saved. 409 `unsplash_key_in_use` while the saved source is `unsplash`. Audit reason `unsplash_key_removed`. |
 | GET | `/api/prohibitorum/admin/settings/login-appearance/wallpaper` | 🔓 | The settings preview's picture for draft parameters: `?source=bing&market=…` (always with the caption) or `?source=unsplash&query=…` (with the saved key). 400 `bad_request` for a value the appearance would refuse; 400 `unsplash_key_required` with no saved key; 503 `wallpaper_unavailable` when the upstream fails. |
-| POST | `/api/prohibitorum/admin/settings/login-images` | 🔓 + in-handler fresh sudo | Raw PNG, JPEG or WebP bytes, ≤ 5 MiB, each side 1–10000 px; stored and served unmodified. 201 `{id, url, etag}`. 400 `avatar_too_large` / `avatar_invalid_image`; 409 `login_images_full` at 10 images. Audit reason `login_image_added` with `imageId`. |
-| DELETE | `/api/prohibitorum/admin/settings/login-images/{id}` | 🔐 | → 204. 404 `login_image_not_found`. Removing the last image is allowed while the source is `images`; the page then shows its own background. Audit reason `login_image_removed` with `imageId`. |
+| POST | `/api/prohibitorum/admin/settings/login-images` | 🔓 | Raw PNG, JPEG or WebP bytes, ≤ 5 MiB, each side 1–10000 px; stored and served unmodified. 201 `{id, url, etag}`. 400 `avatar_too_large` / `avatar_invalid_image`; 409 `login_images_full` at 10 images. Audit reason `login_image_added` with `imageId`. |
+| DELETE | `/api/prohibitorum/admin/settings/login-images/{id}` | 🔓 | → 204. 404 `login_image_not_found`. Removing the last image is allowed while the source is `images`; the page then shows its own background. Audit reason `login_image_removed` with `imageId`. |
 
 The single-image endpoints `PUT`/`DELETE /api/prohibitorum/admin/settings/background` and `GET /branding/background` are gone; migration 045 moves an existing background into the image list and selects `images` with `random` order.
 
@@ -329,7 +329,7 @@ Policy records identify the actor, app kind/ID, group ID, action, and target acc
 | Method | Path | Gate | Notes |
 |--------|------|------|-------|
 | GET | `/api/prohibitorum/accounts/{id}/credentials` | 🔓 | List WebAuthn credentials for any account. Returns `id`, `credentialIdSuffix` (last 4 characters only), `nickname`, `lastUsedAt`, `cloneWarningAt`, `createdAt`. |
-| POST | `/api/prohibitorum/accounts/credentials/delete` | 🔐 | Body: `{"accountId": <int>, "credentialId": <int>}`. Admin force-revokes a passkey. |
+| POST | `/api/prohibitorum/accounts/credentials/delete` | 🔓 | Body: `{"accountId": <int>, "credentialId": <int>}`. Admin force-revokes a passkey. |
 
 ---
 
@@ -357,7 +357,7 @@ Gate notation for this section:
 |--------|------|------|-------|
 | GET | `/api/prohibitorum/me/tokens` | 🔓 | List the calling user's PATs. Each row (`PersonalAccessTokenView`): `id`, `name`, `tokenHint` (non-secret display aid = token prefix + last 4 chars, e.g. `prohibitorum_pat_…a1b2`), `access` (`selected_apps`, `all_apps`, `full` or `sudo`), `apps` (`[{clientId, displayName}]`, always present; non-empty only for `selected_apps`, ordered by display name), `createdAt`, `expiresAt` (omitted when no expiry), `lastUsedAt` (omitted until first use). The raw token secret is **never returned** here. |
 | POST | `/api/prohibitorum/me/tokens` | 🔐 | Create a new PAT. Body: `{name, expiresInDays?, access, appClientIds?}`. `name` is required (1–128 chars). `expiresInDays` is an **integer number of days** (not a timestamp): omitted or `0` = no expiry; valid range 1–3650; a negative value or one above 3650 is rejected (`bad_request`). `access` is required and one of `selected_apps`, `all_apps`, `full`, `sudo`; any other value, and the removed `allApps` / `appGrants` fields, fail schema validation (`validation_failed`, 422). `selected_apps` needs a non-empty `appClientIds` with no duplicates, every entry a forward-auth app the caller may currently use; the other three levels must not carry `appClientIds` at all (an empty array counts) — violations are `bad_request`. The token row and its app list are written in one transaction. Generates a cryptographically random token; the response is `{token, pat}` where `token` is the plaintext, revealed **once only** — only the hash is persisted. Creating any PAT needs a fresh sudo grant, which a `sudo` PAT satisfies, so a `sudo` PAT can mint further PATs. |
-| POST | `/api/prohibitorum/me/tokens/revoke` | 🔓 | Body: `{"id": <int>}`. Revokes the specified PAT. The caller must own the token; revoking another user's token returns 404. |
+| POST | `/api/prohibitorum/me/tokens/revoke` | 🔐 | Body: `{"id": <int>}`. Revokes the specified PAT. The caller must own the token; revoking another user's token returns 404. A `full` PAT gets `401 sudo_required`; a `sudo` PAT or a browser session inside its sudo window may revoke. |
 | GET | `/api/prohibitorum/me/forward-auth-apps` | 🔓 | List the forward-auth apps the calling user can currently grant to a PAT. Each entry: `clientId`, `displayName`. The live app-bound policy, not manager assignment, determines this list. |
 
 ### PAT access levels
@@ -368,7 +368,7 @@ A PAT carries exactly one `access` level; each includes the ones before it. No l
 |----------|----------------------|----------------|-------------|
 | `selected_apps` | only the apps listed on the token (others → 403) | `403 pat_api_not_allowed` | — |
 | `all_apps` | every app the owner can use | `403 pat_api_not_allowed` | — |
-| `full` | every app the owner can use | as the owner | fail with `401 sudo_required` |
+| `full` | every app the owner can use | as the owner, including every admin write outside the sudo list | fail with `401 sudo_required` |
 | `sudo` | every app the owner can use | as the owner | always pass |
 
 ### Calling the management API with a PAT
@@ -396,7 +396,7 @@ Admin routes for inspecting and revoking any user's PATs. Gate notation follows 
 | Method | Path | Gate | Notes |
 |--------|------|------|-------|
 | GET | `/api/prohibitorum/accounts/{id}/tokens` | 🔓 | List all PATs belonging to account `{id}`. Returns the same `PersonalAccessTokenView` shape as `GET /me/tokens` (`id`, `name`, `tokenHint`, `access`, `apps`, `createdAt`, `expiresAt?`, `lastUsedAt?`). Raw token secret is **never returned**. |
-| POST | `/api/prohibitorum/accounts/tokens/revoke` | 🔐 | Body: `{"id": <int>}`. Admin force-revoke of any PAT by its numeric ID. Requires a fresh sudo grant. Returns 404 if the token does not exist. |
+| POST | `/api/prohibitorum/accounts/tokens/revoke` | 🔓 | Body: `{"id": <int>}`. Admin force-revoke of any PAT by its numeric ID. Returns 404 if the token does not exist. |
 
 ---
 
@@ -448,6 +448,35 @@ remain authoritative). Reading the status does not extend that window.
 `fresh` to avoid requesting another step-up while a grant is still valid.
 Every protected endpoint continues to check the grant server-side; the status
 response is not a credential and is not cached as one.
+
+### Which actions need sudo
+
+Sudo protects writes to this site's credentials and keys, and irreversible
+operations with serious impact. Everything else is checked only for the
+caller's session and role. Without a grant these return
+`401 {"code":"sudo_required"}` and change nothing:
+
+- Security page: adding (`/me/credentials/register/begin`) or removing
+  (`/me/credentials/delete`) a passkey; setting, replacing or removing the
+  password and authenticator (`/me/password/set`, `/me/totp/verify`,
+  `/me/password-totp/verify`, `/me/auth/revoke-password-totp`); replacing
+  recovery codes (`/me/recovery-codes/regenerate`); linking or unlinking a
+  federated identity; creating or revoking a PAT (`/me/tokens`,
+  `/me/tokens/revoke`).
+- Approving a new device (`/me/devices/pair/approve`).
+- Deleting an OIDC, forward-auth or SAML application; rotating an OIDC client
+  secret; deleting an identity provider.
+- Generating, activating or retiring a signing key.
+- Deleting an account, reissuing its registration link, and changing its role:
+  `PUT /accounts/{id}` asks for sudo only when `role` differs from the
+  account's current role, so a profile edit with the same role needs none.
+
+Renaming a passkey, ending your own sessions and revoking consent stay ordinary.
+Disabling an account, revoking another account's passkeys, PATs or sessions,
+invitations, instance settings, groups, application create/edit and managers,
+icons, identity-provider configuration and secrets, the VRChat operator
+session, and the request-diagnostic lookup need no sudo, so a `full` PAT can
+call them within the owner's role.
 
 ### Upstream OIDC endpoint configuration
 
