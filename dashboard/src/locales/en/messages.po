@@ -698,6 +698,16 @@ msgid "app.managers.candidate.assigned"
 msgstr "Already manages this application"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/SignInPageControls.tsx
+msgid "settings.sign-in.theme.dark"
+msgstr "Always dark"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/SignInPageControls.tsx
+msgid "settings.sign-in.theme.light"
+msgstr "Always light"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/settings/sign-in-page-form.ts
 msgid "settings.sign-in.unsplash.key.invalid"
 msgstr "An access key has only letters, digits, hyphens and underscores, up to 128 of them."
@@ -1155,6 +1165,11 @@ msgid "confirm.cancel"
 msgstr "Cancel"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/SignInPageControls.tsx
+msgid "settings.sign-in.position"
+msgstr "Card position"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/settings/SignInPagePanel.tsx
 msgid "settings.sign-in.images.order.carousel"
 msgstr "Carousel"
@@ -1168,6 +1183,11 @@ msgstr "Category"
 #: src/pages/admin/AdminLogs.tsx
 msgid "admin.logs.filter.factor"
 msgstr "Category"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/SignInPageControls.tsx
+msgid "settings.sign-in.position.center"
+msgstr "Center"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AdminSamlApplications.tsx
@@ -3871,6 +3891,11 @@ msgid "security.tokens.reveal.leave"
 msgstr "Leave without saving? This token cannot be shown again."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/SignInPageControls.tsx
+msgid "settings.sign-in.position.left"
+msgstr "Left"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
 msgid "admin.saml-apps.field.idp-initiated.hint"
 msgstr "Let people start at this instance instead of at the service provider."
@@ -5660,6 +5685,11 @@ msgid "audit.event.revoke"
 msgstr "Revoked"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/SignInPageControls.tsx
+msgid "settings.sign-in.position.right"
+msgstr "Right"
+
+#. js-lingui-explicit-id
 #: src/pages/public/SetupSignin.tsx
 msgid "setup_signin.description"
 msgstr "Right now you can only sign in through {providers}. Add another way to sign in, so losing access to {providers} doesn't lock you out."
@@ -7033,6 +7063,11 @@ msgid "federation_flow.proof.expires"
 msgstr "The verification link works until {until}."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/SignInPageControls.tsx
+msgid "settings.sign-in.theme"
+msgstr "Theme"
+
+#. js-lingui-explicit-id
 #: src/components/custom/ThemeSelect.tsx
 msgid "theme.label"
 msgstr "Theme"
@@ -8067,6 +8102,11 @@ msgstr "Verify your profile"
 #: src/pages/admin/settings/SigningKeysPanel.tsx
 msgid "settings.keys.view"
 msgstr "View public key"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/SignInPageControls.tsx
+msgid "settings.sign-in.theme.switchable"
+msgstr "Visitor's choice"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-options.ts

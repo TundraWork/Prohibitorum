@@ -7,17 +7,24 @@ import {
   createRouter,
   RouterProvider,
 } from "@tanstack/react-router";
-import { render, screen, within } from "@testing-library/react";
+import { act, render, screen, within } from "@testing-library/react";
+import { createStore, Provider } from "jotai";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import {
   loginWallpaperQueryOptions,
   publicConfigQueryOptions,
 } from "@/api/queries";
 import type { LoginAppearance, PublicConfig } from "@/api/raw-paths";
+import { AppEnvironment } from "@/app/AppEnvironment";
 import { createQueryClient } from "@/app/query-client";
 import { defaultLoginAppearance } from "@/components/custom/login-appearance/appearance";
 import { PublicLayout } from "@/components/custom/PublicLayout";
+import { themeAtom } from "@/components/custom/ThemeSelect";
 import { i18n } from "@/i18n";
+
+vi.mock("@/components/custom/PageScrollArea", () => ({
+  PageScrollArea: () => null,
+}));
 
 const config: PublicConfig = {
   instanceName: "Test instance",
@@ -31,6 +38,7 @@ const config: PublicConfig = {
   totp: { issuer: "Test", algorithm: "SHA1", digits: 6, period: 30 },
 };
 let queryClient: QueryClient;
+let store: ReturnType<typeof createStore>;
 let notifyError: ReturnType<typeof vi.fn<(error: unknown) => void>>;
 
 /**
@@ -48,6 +56,7 @@ beforeEach(() => {
   i18n.activate("en");
   notifyError = vi.fn<(error: unknown) => void>();
   queryClient = createQueryClient(notifyError);
+  store = createStore();
   queryClient.setQueryData(publicConfigQueryOptions().queryKey, config);
 });
 
@@ -62,28 +71,74 @@ function withAppearance(edit: (appearance: LoginAppearance) => void) {
 afterEach(() => {
   queryClient.clear();
   vi.unstubAllGlobals();
+  delete document.documentElement.dataset.theme;
 });
 
 async function mount() {
-  const root = createRootRoute({ component: PublicLayout });
-  const page = createRoute({
+  const root = createRootRoute();
+  const layout = createRoute({
     getParentRoute: () => root,
+    id: "public",
+    component: PublicLayout,
+  });
+  const page = createRoute({
+    getParentRoute: () => layout,
     path: "/",
     component: () => <h1>Page</h1>,
   });
+  const consoleRoute = createRoute({
+    getParentRoute: () => root,
+    path: "/console",
+    component: () => <h1>Console</h1>,
+  });
   const router = createRouter({
-    routeTree: root.addChildren([page]),
+    routeTree: root.addChildren([layout.addChildren([page]), consoleRoute]),
     history: createMemoryHistory({ initialEntries: ["/"] }),
   });
   render(
     <I18nProvider i18n={i18n}>
-      <QueryClientProvider client={queryClient}>
-        <RouterProvider router={router} />
-      </QueryClientProvider>
+      <Provider store={store}>
+        <AppEnvironment>
+          <QueryClientProvider client={queryClient}>
+            <RouterProvider router={router} />
+          </QueryClientProvider>
+        </AppEnvironment>
+      </Provider>
     </I18nProvider>,
   );
   await screen.findByRole("heading", { name: "Page" });
-  return screen.getByRole("banner");
+  return Object.assign(screen.getByRole("banner"), { router });
+}
+
+function bingWallpaper() {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            source: "bing",
+            imageUrl: "https://www.bing.com/th?id=OHR.X_UHD.jpg&w=2560",
+            title: "A quiet ridge",
+            copyright: "Somewhere (© Someone)",
+            copyrightUrl: "https://www.bing.com/search?q=x",
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+    ),
+  );
+}
+
+/** The credit's container from `lg`, fixed to a bottom corner of the window. */
+async function wideCredit() {
+  return vi.waitFor(() => {
+    const credit = screen
+      .getAllByText("A quiet ridge")
+      .map((text) => text.closest<HTMLElement>(".fixed"))
+      .find((container) => container !== null);
+    if (!credit) throw new Error("no credit yet");
+    return credit;
+  });
 }
 
 it("names the instance with its icon in the toolbar, beside the language and theme controls", async () => {
@@ -219,4 +274,62 @@ it("shows the Bing picture and its caption once the wallpaper arrives", async ()
   expect(
     screen.getAllByRole("link", { name: "Somewhere (© Someone)" })[0],
   ).toHaveAttribute("href", "https://www.bing.com/search?q=x");
+});
+
+it("centres the card and offers the theme control by default", async () => {
+  const banner = await mount();
+  const main = screen.getByRole("main");
+  expect(main).toHaveClass("mx-auto");
+  expect(main).not.toHaveClass("lg:ml-2");
+  expect(main).not.toHaveClass("lg:mr-2");
+  expect(
+    within(banner).getByRole("radiogroup", { name: "Theme" }),
+  ).toBeVisible();
+});
+
+it("puts the card on the left from lg and the credit at the bottom right", async () => {
+  bingWallpaper();
+  withAppearance((appearance) => {
+    appearance.background.source = "bing";
+    appearance.cardPosition = "left";
+  });
+  await mount();
+  expect(screen.getByRole("main")).toHaveClass("mx-auto", "lg:ml-2");
+  const credit = await wideCredit();
+  expect(credit).toHaveClass("right-6", "max-w-[calc(100vw-32.5rem)]");
+  expect(credit).not.toHaveClass("left-6");
+});
+
+it("puts the card on the right from lg and the credit at the bottom left", async () => {
+  bingWallpaper();
+  withAppearance((appearance) => {
+    appearance.background.source = "bing";
+    appearance.cardPosition = "right";
+  });
+  await mount();
+  expect(screen.getByRole("main")).toHaveClass("mx-auto", "lg:mr-2");
+  const credit = await wideCredit();
+  expect(credit).toHaveClass("left-6", "max-w-[calc(100vw-32.5rem)]");
+  expect(credit).not.toHaveClass("right-6");
+});
+
+it("forces the settings' theme on the page without changing the visitor's choice", async () => {
+  store.set(themeAtom, "light");
+  withAppearance((appearance) => {
+    appearance.theme = "dark";
+  });
+  const banner = await mount();
+  expect(document.documentElement.dataset.theme).toBe("dark");
+  expect(store.get(themeAtom)).toBe("light");
+  expect(
+    within(banner).queryByRole("radiogroup", { name: "Theme" }),
+  ).toBeNull();
+  expect(
+    within(banner).getByRole("button", { name: "Language" }),
+  ).toBeVisible();
+
+  // The test's own tree, which the app's typed routes do not know.
+  await act(async () => banner.router.history.push("/console"));
+  await screen.findByRole("heading", { name: "Console" });
+  expect(document.documentElement.dataset.theme).toBe("light");
 });

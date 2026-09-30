@@ -183,6 +183,12 @@ function allowedValues(path: string): readonly string[] | undefined {
   if (path === "instance.loginAppearance.background.images.order") {
     return ["random", "carousel"];
   }
+  if (path === "instance.loginAppearance.cardPosition") {
+    return ["left", "center", "right"];
+  }
+  if (path === "instance.loginAppearance.theme") {
+    return ["switchable", "light", "dark"];
+  }
   return undefined;
 }
 

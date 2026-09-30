@@ -42,6 +42,12 @@ export type LoginGradient =
 
 export type LoginImageOrder = "random" | "carousel";
 
+/** Where the sign-in card sits on a window at least 1024px wide. */
+export type LoginCardPosition = "left" | "center" | "right";
+
+/** The public pages' theme: the visitor's choice, or always light or dark. */
+export type LoginTheme = "switchable" | "light" | "dark";
+
 /** How the sign-in card or the toolbar capsules sit over the background. */
 export interface LoginSurface {
   translucent: boolean;
@@ -69,6 +75,9 @@ export interface LoginAppearance {
   };
   card: LoginSurface;
   capsules: LoginSurface;
+  cardPosition: LoginCardPosition;
+  /** Applies to the public pages only, never to the console. */
+  theme: LoginTheme;
 }
 
 export interface LoginImage {

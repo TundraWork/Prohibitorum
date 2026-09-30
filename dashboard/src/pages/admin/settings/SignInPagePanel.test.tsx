@@ -181,6 +181,63 @@ describe("sign-in page settings", () => {
     ).toHaveAttribute("data-gradient", "ember");
   });
 
+  it("saves the card's position and a forced theme with the rest", async () => {
+    setUp();
+    const user = userEvent.setup();
+    const form = mount();
+
+    const position = screen.getByRole("radiogroup", { name: "Card position" });
+    expect(
+      within(position).getByRole("radio", { name: "Center" }),
+    ).toBeChecked();
+    await user.click(within(position).getByText("Right"));
+    const theme = screen.getByRole("radiogroup", { name: "Theme" });
+    expect(
+      within(theme).getByRole("radio", { name: "Visitor's choice" }),
+    ).toBeChecked();
+    await user.click(within(theme).getByText("Always dark"));
+
+    await user.click(within(form).getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(savedBody()).toBeDefined());
+    expect(savedBody()?.appearance).toEqual(
+      withAppearance((a) => {
+        a.cardPosition = "right";
+        a.theme = "dark";
+      }),
+    );
+  });
+
+  it("places the preview's card as the draft does and locks its theme while one is forced", async () => {
+    setUp();
+    const user = userEvent.setup();
+    mount();
+    const preview = document.querySelector<HTMLElement>("[data-login-preview]");
+    const previewCard = () => preview?.querySelector("main");
+    const previewThemes = () =>
+      screen.queryByRole("radio", { name: "Dark" }) ??
+      screen.queryByRole("button", { name: "Dark" });
+    expect(previewCard()).toHaveClass("mx-auto");
+
+    const position = screen.getByRole("radiogroup", { name: "Card position" });
+    await user.click(within(position).getByText("Left"));
+    expect(previewCard()).toHaveClass("ml-2", "mr-auto");
+    await user.click(within(position).getByText("Right"));
+    expect(previewCard()).toHaveClass("mr-2", "ml-auto");
+
+    const chosen = previewThemes();
+    expect(chosen).not.toBeNull();
+    if (chosen) await user.click(chosen);
+    expect(preview).toHaveAttribute("data-theme", "dark");
+    const theme = screen.getByRole("radiogroup", { name: "Theme" });
+    await user.click(within(theme).getByText("Always light"));
+    expect(preview).toHaveAttribute("data-theme", "light");
+    expect(previewThemes()).toBeNull();
+
+    await user.click(within(theme).getByText("Visitor's choice"));
+    expect(previewThemes()).not.toBeNull();
+    expect(preview).toHaveAttribute("data-theme", "dark");
+  });
+
   it("shows opacity and frosted glass only while translucent, and keeps their values", async () => {
     setUp({
       appearance: withAppearance((a) => {

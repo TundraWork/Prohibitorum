@@ -10,14 +10,17 @@ import { ThemeSelect } from "@/components/custom/ThemeSelect";
  * sits on two capsules, drawn as the sign-in page's settings say (translucent
  * and frosted by default), which keep it readable on any picture. Inside a
  * capsule every field and button is fully rounded. It scrolls with the page,
- * so the card never passes underneath it.
+ * so the card never passes underneath it. The theme control is left out when
+ * the settings force a theme on the public pages.
  */
 export function AppToolbar({
   children,
   surface,
+  showThemeSelect,
 }: {
   children: ReactNode;
   surface: LoginSurface;
+  showThemeSelect: boolean;
 }) {
   return (
     <header className="flex h-16 min-w-0 shrink-0 items-center justify-between gap-3 px-4 sm:px-6">
@@ -26,7 +29,7 @@ export function AppToolbar({
       </Capsule>
       <Capsule surface={surface} className="shrink-0 gap-1 px-1">
         <LanguageMenu />
-        <ThemeSelect />
+        {showThemeSelect && <ThemeSelect />}
       </Capsule>
     </header>
   );

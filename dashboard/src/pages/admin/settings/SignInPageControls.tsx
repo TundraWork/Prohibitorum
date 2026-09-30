@@ -29,8 +29,10 @@ import {
 import { type ReactNode, useMemo } from "react";
 import type {
   LoginBackgroundSource,
+  LoginCardPosition,
   LoginGradient,
   LoginSurface,
+  LoginTheme,
 } from "@/api/raw-paths";
 import {
   gradientBackground,
@@ -398,5 +400,125 @@ export function SurfaceControls({
         </>
       )}
     </FieldGroup>
+  );
+}
+
+/** A short list of choices under a group legend, which also names the radios. */
+function ChoiceGroup<T extends string>({
+  legend,
+  value,
+  options,
+  isDisabled,
+  onChange,
+}: {
+  legend: string;
+  value: T;
+  options: { value: T; label: string }[];
+  isDisabled: boolean;
+  onChange: (value: T) => void;
+}) {
+  return (
+    <FieldGroup legend={legend} className="flex flex-col gap-3">
+      <RadioGroup
+        aria-label={legend}
+        variant="secondary"
+        value={value}
+        isDisabled={isDisabled}
+        onChange={(next) => onChange(next as T)}
+      >
+        {options.map((option) => (
+          <Radio key={option.value} value={option.value}>
+            <Radio.Content>
+              <Radio.Control>
+                <Radio.Indicator />
+              </Radio.Control>
+              {option.label}
+            </Radio.Content>
+          </Radio>
+        ))}
+      </RadioGroup>
+    </FieldGroup>
+  );
+}
+
+/** Where the card sits on a wide window, in the order the places appear. */
+export function CardPositionControls({
+  value,
+  isDisabled,
+  onChange,
+}: {
+  value: LoginCardPosition;
+  isDisabled: boolean;
+  onChange: (position: LoginCardPosition) => void;
+}) {
+  const { t } = useLingui();
+  return (
+    <ChoiceGroup
+      legend={t({ id: "settings.sign-in.position", message: "Card position" })}
+      value={value}
+      isDisabled={isDisabled}
+      onChange={onChange}
+      options={[
+        {
+          value: "left",
+          label: t({ id: "settings.sign-in.position.left", message: "Left" }),
+        },
+        {
+          value: "center",
+          label: t({
+            id: "settings.sign-in.position.center",
+            message: "Center",
+          }),
+        },
+        {
+          value: "right",
+          label: t({ id: "settings.sign-in.position.right", message: "Right" }),
+        },
+      ]}
+    />
+  );
+}
+
+/** Whether visitors choose the public pages' theme or it is always one. */
+export function ThemeControls({
+  value,
+  isDisabled,
+  onChange,
+}: {
+  value: LoginTheme;
+  isDisabled: boolean;
+  onChange: (theme: LoginTheme) => void;
+}) {
+  const { t } = useLingui();
+  return (
+    <ChoiceGroup
+      legend={t({ id: "settings.sign-in.theme", message: "Theme" })}
+      value={value}
+      isDisabled={isDisabled}
+      onChange={onChange}
+      options={[
+        {
+          value: "switchable",
+          label: t({
+            id: "settings.sign-in.theme.switchable",
+            message: "Visitor's choice",
+          }),
+        },
+        {
+          value: "light",
+          label: t({
+            id: "settings.sign-in.theme.light",
+            message: "Always light",
+          }),
+        },
+        {
+          value: "dark",
+          label: t({
+            id: "settings.sign-in.theme.dark",
+            message: "Always dark",
+          }),
+        },
+      ]}
+    />
   );
 }

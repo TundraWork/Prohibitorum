@@ -141,6 +141,18 @@ describe("mock URL control", () => {
     expect(getMockConfig().session.role).toBe("member");
   });
 
+  it("lays out the sign-in page from the address, refusing a theme the settings do not offer", () => {
+    applyMockQuery(
+      "?mock.instance.loginAppearance.cardPosition=left&mock.instance.loginAppearance.theme=dark",
+    );
+    const appearance = getMockConfig().instance.loginAppearance;
+    expect(appearance.cardPosition).toBe("left");
+    expect(appearance.theme).toBe("dark");
+
+    applyMockQuery("?mock.instance.loginAppearance.theme=system");
+    expect(getMockConfig().instance.loginAppearance.theme).toBe("dark");
+  });
+
   it("sets a nested count without disturbing its siblings", () => {
     applyMockQuery("?mock.session.managedApps.oidc=3");
     const config = getMockConfig();
