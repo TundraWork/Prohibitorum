@@ -342,6 +342,8 @@ function sessionView(config: MockConfig): Session {
   return {
     id: 1,
     username: config.session.username,
+    // The directory's first row is this account, with the same subject.
+    oidcSubject: "mock-oidc-1",
     displayName: config.session.displayName,
     role: config.session.role,
     avatarSource: active?.source ?? "none",

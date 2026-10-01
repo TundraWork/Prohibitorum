@@ -8,7 +8,7 @@ import {
 import { updateProfileMutationOptions } from "@/api/mutations";
 import { sessionQueryOptions } from "@/api/queries";
 import { ConsoleCard } from "@/components/custom/ConsoleCard";
-import { ReadOnlyField } from "@/components/custom/FormFields";
+import { CopyValue } from "@/components/custom/CopyValue";
 import { Section } from "@/components/custom/Section";
 import { applyServerError } from "@/forms/server-errors";
 import { useAppForm } from "@/forms/use-app-form";
@@ -35,29 +35,37 @@ const hasControl = msg({
 });
 
 /**
- * The name others see, which the account may change, and the username it
- * signs in with, which it may not. Both come from the session the console
+ * The name others see, which the account may change, and the two identifiers
+ * it may not: the username it signs in with and the subject applications know
+ * it by. Both identifiers are copied with a click, for quoting to an
+ * application's administrator. Everything comes from the session the console
  * shell has already loaded.
  */
-export function NamePanel() {
+export function AccountPanel() {
   const { data: session } = useSuspenseQuery({
     ...sessionQueryOptions(),
     refetchOnMount: false,
   });
   if (session === null) return null;
   return (
-    <Section title={<Trans id="profile.name.title">Name</Trans>}>
-      <NameForm displayName={session.displayName} username={session.username} />
+    <Section title={<Trans id="profile.account.title">Account</Trans>}>
+      <AccountForm
+        displayName={session.displayName}
+        username={session.username}
+        subject={session.oidcSubject}
+      />
     </Section>
   );
 }
 
-function NameForm({
+function AccountForm({
   displayName,
   username,
+  subject,
 }: {
   displayName: string;
   username: string;
+  subject: string;
 }) {
   const { t } = useLingui();
   const queryClient = useQueryClient();
@@ -105,10 +113,18 @@ function NameForm({
               />
             )}
           </form.AppField>
-          <ReadOnlyField
+          <CopyValue
             label={<Trans id="console.username">Username</Trans>}
             value={username}
-            variant="secondary"
+          />
+          <CopyValue
+            label={<Trans id="profile.oidc-subject">OIDC subject</Trans>}
+            value={subject}
+            description={
+              <Trans id="profile.oidc-subject.hint">
+                Applications identify you by this value. It never changes.
+              </Trans>
+            }
           />
           <form.SubmitButton>
             <Trans id="profile.display-name.save">Save</Trans>

@@ -370,6 +370,11 @@ msgid "admin.user.tokens.table"
 msgstr "个人访问令牌"
 
 #. js-lingui-explicit-id
+#: src/pages/profile/AccountPanel.tsx
+msgid "profile.account.title"
+msgstr "账号"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminLogs.tsx
 msgid "admin.logs.column.account"
 msgstr "账号"
@@ -881,6 +886,11 @@ msgstr "应用可以把本组用于它们授予的访问权限。"
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.oidcSubject.hint"
 msgstr "应用用这个值识别该账号。它永不改变。"
+
+#. js-lingui-explicit-id
+#: src/pages/profile/AccountPanel.tsx
+msgid "profile.oidc-subject.hint"
+msgstr "应用通过这个值识别你，它不会改变。"
 
 #. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
@@ -2481,12 +2491,12 @@ msgid "enroll.display_name"
 msgstr "显示名称"
 
 #. js-lingui-explicit-id
-#: src/pages/profile/NamePanel.tsx
+#: src/pages/profile/AccountPanel.tsx
 msgid "profile.display-name.form"
 msgstr "显示名称"
 
 #. js-lingui-explicit-id
-#: src/pages/profile/NamePanel.tsx
+#: src/pages/profile/AccountPanel.tsx
 msgid "profile.display-name.label"
 msgstr "显示名称"
 
@@ -4022,11 +4032,6 @@ msgid "security.tokens.name"
 msgstr "名称"
 
 #. js-lingui-explicit-id
-#: src/pages/profile/NamePanel.tsx
-msgid "profile.name.title"
-msgstr "名称"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
 msgid "admin.group.display-name"
 msgstr "名称"
@@ -4489,6 +4494,11 @@ msgstr "OIDC 应用"
 #: src/components/custom/ConsoleLayout.tsx
 msgid "console.admin.oidc-applications"
 msgstr "OIDC 应用"
+
+#. js-lingui-explicit-id
+#: src/pages/profile/AccountPanel.tsx
+msgid "profile.oidc-subject"
+msgstr "OIDC 主体"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
@@ -5195,7 +5205,7 @@ msgid "admin.oidc-apps.scopes.remove.action"
 msgstr "移除并保存"
 
 #. js-lingui-explicit-id
-#: src/pages/profile/NamePanel.tsx
+#: src/pages/profile/AccountPanel.tsx
 msgid "profile.display-name.control"
 msgstr "请去掉名称中的控制字符。"
 
@@ -5680,7 +5690,7 @@ msgid "console.admin.saml-applications"
 msgstr "SAML 应用"
 
 #. js-lingui-explicit-id
-#: src/pages/profile/NamePanel.tsx
+#: src/pages/profile/AccountPanel.tsx
 msgid "profile.display-name.save"
 msgstr "保存"
 
@@ -7583,7 +7593,7 @@ msgid "settings.maintenance.notice.too_long"
 msgstr "最多 500 个字符。"
 
 #. js-lingui-explicit-id
-#: src/pages/profile/NamePanel.tsx
+#: src/pages/profile/AccountPanel.tsx
 msgid "profile.display-name.too_long"
 msgstr "请使用不超过 60 个字符。"
 
@@ -7833,7 +7843,7 @@ msgstr "未请求 UserInfo。"
 
 #. js-lingui-explicit-id
 #: src/pages/Console.tsx
-#: src/pages/profile/NamePanel.tsx
+#: src/pages/profile/AccountPanel.tsx
 msgid "console.username"
 msgstr "用户名"
 

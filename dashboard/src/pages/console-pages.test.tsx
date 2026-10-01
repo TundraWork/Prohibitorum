@@ -35,6 +35,7 @@ type Session = components["schemas"]["SessionView"];
 const session: Session = {
   id: 1,
   username: "alice",
+  oidcSubject: "00000000-0000-4000-8000-000000000001",
   displayName: "Alice",
   role: "user",
   avatarSource: "user",
@@ -99,21 +100,26 @@ describe("profile", () => {
     history.push("/profile");
     mount("/profile", Profile);
 
-    // Both blocks are on the page as it opens: the avatar, then the name.
+    // Both blocks are on the page as it opens: the avatar, then the account.
     expect(
       await screen.findByRole("heading", { name: "Avatar" }),
     ).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Name" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Account" }),
+    ).toBeInTheDocument();
     expect(screen.queryByRole("tab")).not.toBeInTheDocument();
   });
 
-  it("keeps the username, which the page reports rather than lets a reader edit", async () => {
+  it("shows the username and the subject as values to copy, not to edit", async () => {
     history.push("/profile");
     mount("/profile", Profile);
 
     const username = await screen.findByRole("textbox", { name: "Username" });
     expect(username).toHaveValue("alice");
     expect(username).toHaveAttribute("readonly");
+    const subject = screen.getByRole("textbox", { name: "OIDC subject" });
+    expect(subject).toHaveValue("00000000-0000-4000-8000-000000000001");
+    expect(subject).toHaveAttribute("readonly");
   });
 });
 

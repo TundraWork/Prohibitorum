@@ -197,18 +197,15 @@ export function ReadOnlyField({
   label,
   value,
   description,
-  variant,
 }: {
   label: ReactNode;
   value: string;
   description?: ReactNode;
-  /** HeroUI input variant. Use `secondary` when the field sits on a surface. */
-  variant?: ComponentProps<typeof Input>["variant"];
 }) {
   return (
     <TextField isReadOnly value={value}>
       <Label>{label}</Label>
-      <Input readOnly variant={variant} />
+      <Input readOnly />
       {description !== undefined && <Description>{description}</Description>}
     </TextField>
   );

@@ -297,7 +297,7 @@ there and hides both the preview's light and dark switch and the theme icon
 drawn in its toolbar, and leaving the theme to visitors brings back the
 preview theme the administrator had picked.
 
-The profile page is two sections, the avatar and then the name. The avatar is
+The profile page is two sections, the avatar and then the account. The avatar is
 a `wide` card holding a gallery: a grid of tiles at least 6rem wide
 (`repeat(auto-fill, minmax(6rem, 1fr))`, three to a row at 375px), each a
 `ChoiceTile` with `layout="media"` — the picture at 56px in the sidebar's
@@ -314,8 +314,9 @@ there is an upload, a small `danger-soft` "Remove uploaded picture" button on
 the trailing edge, which wraps under the hint on a narrow card and asks through
 a `danger` `ConfirmDialog` first. A file of the wrong type or size is a warning
 `SurfaceAlert` under that row and is never sent; a failed request is the error
-toast. The name card is the reading measure: the display name field, the
-username as a read-only field, and Save.
+toast. The account card is the reading measure: the display name field, then
+the username and the OIDC subject as `CopyValue` fields (the subject with a
+one-line hint that applications identify the account by it), and Save.
 
 A card holding several blocks names each one with an `ItemList` title. Three
 unlabelled cards stacked under one section heading read as one undifferentiated

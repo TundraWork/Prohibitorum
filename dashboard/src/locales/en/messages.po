@@ -370,6 +370,11 @@ msgid "admin.user.tokens.table"
 msgstr "Access tokens"
 
 #. js-lingui-explicit-id
+#: src/pages/profile/AccountPanel.tsx
+msgid "profile.account.title"
+msgstr "Account"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminLogs.tsx
 msgid "admin.logs.column.account"
 msgstr "Account"
@@ -881,6 +886,11 @@ msgstr "Applications can select this group for the access they grant."
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.oidcSubject.hint"
 msgstr "Applications identify this account by this value. It never changes."
+
+#. js-lingui-explicit-id
+#: src/pages/profile/AccountPanel.tsx
+msgid "profile.oidc-subject.hint"
+msgstr "Applications identify you by this value. It never changes."
 
 #. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
@@ -2481,12 +2491,12 @@ msgid "enroll.display_name"
 msgstr "Display name"
 
 #. js-lingui-explicit-id
-#: src/pages/profile/NamePanel.tsx
+#: src/pages/profile/AccountPanel.tsx
 msgid "profile.display-name.form"
 msgstr "Display name"
 
 #. js-lingui-explicit-id
-#: src/pages/profile/NamePanel.tsx
+#: src/pages/profile/AccountPanel.tsx
 msgid "profile.display-name.label"
 msgstr "Display name"
 
@@ -4022,11 +4032,6 @@ msgid "security.tokens.name"
 msgstr "Name"
 
 #. js-lingui-explicit-id
-#: src/pages/profile/NamePanel.tsx
-msgid "profile.name.title"
-msgstr "Name"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
 msgid "admin.group.display-name"
 msgstr "Name"
@@ -4489,6 +4494,11 @@ msgstr "OIDC applications"
 #: src/components/custom/ConsoleLayout.tsx
 msgid "console.admin.oidc-applications"
 msgstr "OIDC applications"
+
+#. js-lingui-explicit-id
+#: src/pages/profile/AccountPanel.tsx
+msgid "profile.oidc-subject"
+msgstr "OIDC subject"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
@@ -5195,7 +5205,7 @@ msgid "admin.oidc-apps.scopes.remove.action"
 msgstr "Remove and save"
 
 #. js-lingui-explicit-id
-#: src/pages/profile/NamePanel.tsx
+#: src/pages/profile/AccountPanel.tsx
 msgid "profile.display-name.control"
 msgstr "Remove control characters from the name."
 
@@ -5680,7 +5690,7 @@ msgid "console.admin.saml-applications"
 msgstr "SAML applications"
 
 #. js-lingui-explicit-id
-#: src/pages/profile/NamePanel.tsx
+#: src/pages/profile/AccountPanel.tsx
 msgid "profile.display-name.save"
 msgstr "Save"
 
@@ -7583,7 +7593,7 @@ msgid "settings.maintenance.notice.too_long"
 msgstr "Use 500 characters or fewer."
 
 #. js-lingui-explicit-id
-#: src/pages/profile/NamePanel.tsx
+#: src/pages/profile/AccountPanel.tsx
 msgid "profile.display-name.too_long"
 msgstr "Use 60 characters or fewer."
 
@@ -7833,7 +7843,7 @@ msgstr "UserInfo was not requested."
 
 #. js-lingui-explicit-id
 #: src/pages/Console.tsx
-#: src/pages/profile/NamePanel.tsx
+#: src/pages/profile/AccountPanel.tsx
 msgid "console.username"
 msgstr "Username"
 

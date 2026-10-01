@@ -399,6 +399,7 @@ it("keeps new recovery codes visible across session changes and blocks leaving w
     const session: components["schemas"]["SessionView"] = {
       id: 1,
       username: "alice",
+      oidcSubject: "00000000-0000-4000-8000-000000000001",
       displayName: "Alice",
       role: "user",
     };
