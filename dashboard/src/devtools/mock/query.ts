@@ -1,11 +1,13 @@
 import {
   clampAdminCount,
+  clampAvatarUpstreams,
   clampCount,
   clampDelay,
   clampEnrollmentProviders,
   clampPairingExpiry,
   defaultMockConfig,
   getMockConfig,
+  mockAvatarUpstreamsMax,
   updateMockConfig,
 } from "@/devtools/mock/model";
 
@@ -149,6 +151,7 @@ function clampFor(path: string, value: number): number {
   if (path === "publicFlows.enrollment.providers") {
     return clampEnrollmentProviders(value);
   }
+  if (path === "avatar.upstreams") return clampAvatarUpstreams(value);
   if (path === "admin.diagnosticOutcome") return value;
   if (path.endsWith(".opacity"))
     return Math.max(0, Math.min(100, Math.round(value)));
@@ -167,8 +170,15 @@ function allowedValues(path: string): readonly string[] | undefined {
   if (path === "publicFlows.enrollment.intent") {
     return ["bootstrap", "invite", "federated_register", "reset"];
   }
-  if (path === "publicFlows.welcome.avatarPending") {
-    return ["off", "resolves", "never"];
+  if (path === "avatar.active") {
+    return [
+      "user",
+      "none",
+      ...Array.from(
+        { length: mockAvatarUpstreamsMax },
+        (_, index) => `upstream:provider-${index + 1}`,
+      ),
+    ];
   }
   if (path === "publicFlows.flow.intent") {
     return ["login", "link", "enroll", "invite"];

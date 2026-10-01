@@ -36,6 +36,7 @@ import type {
   LoginSurface,
   LoginTheme,
 } from "@/api/raw-paths";
+import { ChoiceTile } from "@/components/custom/ChoiceTile";
 import { FormMessages } from "@/components/custom/FormMessages";
 import {
   gradientBackground,
@@ -115,17 +116,20 @@ export function SourceTiles({
       {backgroundSources.map((source) => {
         const Icon = sourceIcons[source];
         return (
-          <Radio key={source} value={source} className="m-0">
-            <Radio.Content className="group flex h-16 w-full cursor-pointer flex-col items-center justify-center gap-1.5 rounded-[0.375rem] bg-default/70 px-2 text-sm text-foreground/80 outline-none ring-accent transition-[background-color,box-shadow,color,scale] duration-150 ease-out data-[hovered=true]:bg-default data-[focus-visible=true]:ring-2 data-[focus-visible=true]:ring-focus data-[selected=true]:bg-accent-soft data-[selected=true]:font-medium data-[selected=true]:text-accent-soft-foreground data-[selected=true]:ring-1 data-[selected=true]:ring-inset data-[pressed=true]:scale-[0.98]">
+          <ChoiceTile
+            key={source}
+            value={source}
+            layout="compact"
+            media={
               <Icon
                 size={18}
                 strokeWidth={1.75}
                 aria-hidden="true"
                 className="opacity-80 group-data-[selected=true]:opacity-100"
               />
-              <span className="max-w-full truncate">{names[source]}</span>
-            </Radio.Content>
-          </Radio>
+            }
+            label={names[source]}
+          />
         );
       })}
     </RadioGroup>

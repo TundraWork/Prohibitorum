@@ -2,7 +2,6 @@ import type { QueryClient } from "@tanstack/react-query";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { federationConfirmQueryOptions } from "@/api/queries";
 import type { FederationConfirm } from "@/api/raw-paths";
 import { loadDocument } from "@/app/load-document";
 import { createQueryClient } from "@/app/query-client";
@@ -18,7 +17,6 @@ import {
 vi.mock("@/app/load-document", () => ({ loadDocument: vi.fn() }));
 
 const confirmPath = "/api/prohibitorum/auth/federation/confirm";
-const key = federationConfirmQueryOptions().queryKey;
 
 function account(
   overrides: Partial<FederationConfirm> = {},
@@ -28,7 +26,6 @@ function account(
     displayName: "Alice Liddell",
     username: "alice",
     email: "alice@example.com",
-    avatarPending: false,
     ...overrides,
   };
 }
@@ -56,10 +53,6 @@ function welcomeApi(
   });
 }
 
-function skeleton() {
-  return document.querySelector(".skeleton");
-}
-
 describe("the account a first federated sign-in prepared", () => {
   it("shows the account and where it came from", async () => {
     welcomeApi();
@@ -75,49 +68,14 @@ describe("the account a first federated sign-in prepared", () => {
     expect(screen.getByText("Alice Liddell")).toBeVisible();
     expect(screen.getByText("@alice")).toBeVisible();
     expect(screen.getByText("alice@example.com")).toBeVisible();
-    expect(skeleton()).toBeNull();
   });
 
-  it("polls every 1.5 seconds while the picture is pending, for 20 reads after the first", () => {
-    const interval = federationConfirmQueryOptions().refetchInterval as (
-      query: unknown,
-    ) => number | false;
-    const at = (data: FederationConfirm, dataUpdateCount: number) =>
-      interval({ state: { data, dataUpdateCount } });
-    const pending = account({ avatarPending: true });
-    expect(at(pending, 1)).toBe(1500);
-    expect(at(pending, 20)).toBe(1500);
-    expect(at(pending, 21)).toBe(false);
-    expect(at(account(), 2)).toBe(false);
-  });
-
-  it("holds the picture's place until it is ready", async () => {
-    welcomeApi(account({ avatarPending: true }));
+  it("shows the initial when the account has no picture", async () => {
+    welcomeApi(account());
     renderApp("/welcome", queryClient);
     await screen.findByRole("heading", { name: "Is this your account?" });
-    expect(skeleton()).not.toBeNull();
-    queryClient.setQueryData(
-      key,
-      account({ avatarUrl: "https://id.example/avatar.png" }),
-    );
-    await waitFor(() => expect(skeleton()).toBeNull());
     expect(screen.getByText("A")).toBeInTheDocument();
-  });
-
-  it("stops waiting after the last read and shows the initial", async () => {
-    welcomeApi(account({ avatarPending: true }));
-    renderApp("/welcome", queryClient);
-    await screen.findByRole("heading", { name: "Is this your account?" });
-    // Every read after the first, the way the poll would land them.
-    const reads = () => queryClient.getQueryState(key)?.dataUpdateCount ?? 0;
-    while (reads() < 20) {
-      queryClient.setQueryData(key, account({ avatarPending: true }));
-    }
-    await waitFor(() => expect(reads()).toBe(20));
-    expect(skeleton()).not.toBeNull();
-    queryClient.setQueryData(key, account({ avatarPending: true }));
-    await waitFor(() => expect(skeleton()).toBeNull());
-    expect(screen.getByText("A")).toBeInTheDocument();
+    expect(document.querySelector("img")).toBeNull();
   });
 
   it("offers a local sign-in when the server asks for it", async () => {

@@ -22,9 +22,6 @@ export function tabSearch<const T extends readonly [string, ...string[]]>(
   return z.object({ tab: searchChoice(tabs, tabs[0]) });
 }
 
-export const profileTabs = ["display-name", "avatar"] as const;
-export type ProfileTab = (typeof profileTabs)[number];
-
 /**
  * Sections of one account in the management area. The profile form stands
  * alone, the per-account actions each own a block, and everything read-only

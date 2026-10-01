@@ -1059,7 +1059,7 @@ msgid "entity.restricted"
 msgstr "仅所选用户组可用"
 
 #. js-lingui-explicit-id
-#: src/pages/Profile.tsx
+#: src/pages/profile/AvatarPanel.tsx
 msgid "profile.avatar.title"
 msgstr "头像"
 
@@ -2476,18 +2476,18 @@ msgid "console.display-name"
 msgstr "显示名称"
 
 #. js-lingui-explicit-id
-#: src/pages/Profile.tsx
-msgid "profile.display-name.title"
+#: src/pages/public/Enroll.tsx
+msgid "enroll.display_name"
 msgstr "显示名称"
 
 #. js-lingui-explicit-id
-#: src/pages/Profile.tsx
+#: src/pages/profile/NamePanel.tsx
 msgid "profile.display-name.form"
 msgstr "显示名称"
 
 #. js-lingui-explicit-id
-#: src/pages/public/Enroll.tsx
-msgid "enroll.display_name"
+#: src/pages/profile/NamePanel.tsx
+msgid "profile.display-name.label"
 msgstr "显示名称"
 
 #. js-lingui-explicit-id
@@ -2550,6 +2550,11 @@ msgstr "下载密钥"
 #: src/components/custom/secret-reveal-copy.ts
 msgid "security.tokens.reveal.download"
 msgstr "下载令牌"
+
+#. js-lingui-explicit-id
+#: src/pages/profile/AvatarPanel.tsx
+msgid "profile.avatar.drop"
+msgstr "拖入图片，或选择文件"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/LoginImagesControl.tsx
@@ -4007,16 +4012,6 @@ msgid "admin.saml-apps.mapping.multi.column"
 msgstr "多值"
 
 #. js-lingui-explicit-id
-#: src/pages/profile/AvatarPanel.tsx
-msgid "profile.avatar.source.user"
-msgstr "我上传的头像"
-
-#. js-lingui-explicit-id
-#: src/pages/Profile.tsx
-msgid "profile.display-name.label"
-msgstr "名称"
-
-#. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
 msgid "security.passkeys.rename.label"
 msgstr "昵称"
@@ -4024,6 +4019,11 @@ msgstr "昵称"
 #. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.name"
+msgstr "名称"
+
+#. js-lingui-explicit-id
+#: src/pages/profile/NamePanel.tsx
+msgid "profile.name.title"
 msgstr "名称"
 
 #. js-lingui-explicit-id
@@ -4825,12 +4825,12 @@ msgstr "头像"
 #. js-lingui-explicit-id
 #: src/pages/profile/AvatarPanel.tsx
 msgid "profile.avatar.source"
-msgstr "显示哪张头像"
+msgstr "显示的头像"
 
 #. js-lingui-explicit-id
-#: src/pages/profile/AvatarPanel.tsx
-msgid "profile.avatar.source.label"
-msgstr "显示哪张头像"
+#: src/api/success-messages.ts
+msgid "success.avatar.uploaded"
+msgstr "头像已上传。选中它即可显示。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-options.ts
@@ -4855,7 +4855,7 @@ msgstr "PNG、JPEG、WebP 或 GIF，最大 5 MiB。"
 #. js-lingui-explicit-id
 #: src/pages/profile/AvatarPanel.tsx
 msgid "profile.avatar.hint"
-msgstr "支持 PNG、JPEG、WebP、GIF 与 AVIF，最大 5 MiB。过大的图片会被缩小。"
+msgstr "PNG、JPEG、WebP、GIF 或 AVIF，最大 5 MiB。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts
@@ -5140,6 +5140,11 @@ msgid "security.passkeys.delete.confirm"
 msgstr "移除"
 
 #. js-lingui-explicit-id
+#: src/pages/profile/AvatarPanel.tsx
+msgid "profile.avatar.remove.confirm"
+msgstr "删除"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.passkeys.revoke"
 msgstr "移除"
@@ -5190,7 +5195,7 @@ msgid "admin.oidc-apps.scopes.remove.action"
 msgstr "移除并保存"
 
 #. js-lingui-explicit-id
-#: src/pages/Profile.tsx
+#: src/pages/profile/NamePanel.tsx
 msgid "profile.display-name.control"
 msgstr "请去掉名称中的控制字符。"
 
@@ -5250,6 +5255,11 @@ msgid "settings.sign-in.unsplash.query.control"
 msgstr "请去掉其中的制表符或换行。"
 
 #. js-lingui-explicit-id
+#: src/pages/profile/AvatarPanel.tsx
+msgid "profile.avatar.remove.title"
+msgstr "删除上传的头像？"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-validation.ts
 msgid "admin.federation.url.userinfo"
 msgstr "去掉地址里的用户名和密码。"
@@ -5277,7 +5287,7 @@ msgstr "要移除该通行密钥吗？"
 #. js-lingui-explicit-id
 #: src/pages/profile/AvatarPanel.tsx
 msgid "profile.avatar.remove"
-msgstr "移除上传"
+msgstr "删除上传的头像"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
@@ -5313,6 +5323,11 @@ msgstr "再次输入新密码"
 #: src/pages/security/PasswordTotpPanel.tsx
 msgid "security.totp.replace.open"
 msgstr "更换"
+
+#. js-lingui-explicit-id
+#: src/pages/profile/AvatarPanel.tsx
+msgid "profile.avatar.replace"
+msgstr "替换"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/SignInPagePanel.tsx
@@ -5358,11 +5373,6 @@ msgstr "更换图标"
 #: src/pages/admin/identity-providers/ProviderDangerSection.tsx
 msgid "admin.federation.danger.replace-secret"
 msgstr "更换密钥"
-
-#. js-lingui-explicit-id
-#: src/pages/profile/AvatarPanel.tsx
-msgid "profile.avatar.replace"
-msgstr "替换上传"
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
@@ -5670,7 +5680,7 @@ msgid "console.admin.saml-applications"
 msgstr "SAML 应用"
 
 #. js-lingui-explicit-id
-#: src/pages/Profile.tsx
+#: src/pages/profile/NamePanel.tsx
 msgid "profile.display-name.save"
 msgstr "保存"
 
@@ -7043,6 +7053,11 @@ msgid "sudo.passkey.unsupported"
 msgstr "此浏览器或连接无法使用通行密钥。"
 
 #. js-lingui-explicit-id
+#: src/pages/profile/AvatarPanel.tsx
+msgid "profile.avatar.remove.description"
+msgstr "删除后无法恢复。"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
 msgid "admin.group.rule.reason.invalid_shape"
 msgstr "该条件混用了不属于一起的字段。"
@@ -7515,7 +7530,7 @@ msgstr "Unsplash 不接受这个 Access Key。请检查后重新填写。"
 #. js-lingui-explicit-id
 #: src/pages/profile/AvatarPanel.tsx
 msgid "profile.avatar.upload"
-msgstr "上传头像"
+msgstr "上传"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/GeneralPanel.tsx
@@ -7526,6 +7541,11 @@ msgstr "上传图标"
 #: src/components/custom/EntityIconCard.tsx
 msgid "entity.icon.upload"
 msgstr "上传图标"
+
+#. js-lingui-explicit-id
+#: src/pages/profile/AvatarPanel.tsx
+msgid "profile.avatar.source.user"
+msgstr "上传的头像"
 
 #. js-lingui-explicit-id
 #: src/api/success-messages.ts
@@ -7563,7 +7583,7 @@ msgid "settings.maintenance.notice.too_long"
 msgstr "最多 500 个字符。"
 
 #. js-lingui-explicit-id
-#: src/pages/Profile.tsx
+#: src/pages/profile/NamePanel.tsx
 msgid "profile.display-name.too_long"
 msgstr "请使用不超过 60 个字符。"
 
@@ -7813,7 +7833,7 @@ msgstr "未请求 UserInfo。"
 
 #. js-lingui-explicit-id
 #: src/pages/Console.tsx
-#: src/pages/Profile.tsx
+#: src/pages/profile/NamePanel.tsx
 msgid "console.username"
 msgstr "用户名"
 
@@ -8135,11 +8155,6 @@ msgid "security.tokens.no_forward_auth"
 msgstr "你没有可选择的应用。"
 
 #. js-lingui-explicit-id
-#: src/pages/profile/AvatarPanel.tsx
-msgid "profile.avatar.no_upload"
-msgstr "你还没有上传头像。"
-
-#. js-lingui-explicit-id
 #: src/pages/public/SamlConsent.tsx
 msgid "saml_consent.footnote"
 msgstr "该确认只需要一次。你可以随时在「<0>已连接应用</0>」中撤销。"
@@ -8200,11 +8215,6 @@ msgid "security.revoke.confirm.body"
 msgstr "你的密码、身份验证器与全部恢复码会立即失效。"
 
 #. js-lingui-explicit-id
-#: src/pages/profile/AvatarPanel.tsx
-msgid "profile.avatar.pending"
-msgstr "来自上游的头像仍在同步，同步完成后会显示在这里。"
-
-#. js-lingui-explicit-id
 #: src/pages/public/consent/scopes.ts
 msgid "consent.scope.profile"
 msgstr "个人资料"
@@ -8213,11 +8223,6 @@ msgstr "个人资料"
 #: src/pages/Console.tsx
 msgid "console.availability"
 msgstr "你的个人资料、安全设置、已连接应用与设备都在侧栏列出的页面中。管理页面尚未开放。"
-
-#. js-lingui-explicit-id
-#: src/pages/Profile.tsx
-msgid "profile.username.note"
-msgstr "用户名用于登录识别，不可修改。"
 
 #. js-lingui-explicit-id
 #: src/pages/public/FederationFlow.tsx

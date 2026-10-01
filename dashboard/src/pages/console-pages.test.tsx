@@ -11,7 +11,11 @@ import {
 import { render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { components } from "@/api/generated/schema";
-import { consentQueryOptions, sessionQueryOptions } from "@/api/queries";
+import {
+  consentQueryOptions,
+  myAvatarQueryOptions,
+  sessionQueryOptions,
+} from "@/api/queries";
 import { createQueryClient } from "@/app/query-client";
 import { searchSerialization } from "@/app/search-params";
 import { i18n } from "@/i18n";
@@ -43,6 +47,10 @@ beforeEach(() => {
   queryClient = createQueryClient(() => undefined);
   queryClient.setQueryData(sessionQueryOptions().queryKey, session);
   queryClient.setQueryData(consentQueryOptions().queryKey, []);
+  queryClient.setQueryData(myAvatarQueryOptions().queryKey, {
+    activeSource: "none",
+    sources: [],
+  });
 });
 
 afterEach(() => {
@@ -91,12 +99,11 @@ describe("profile", () => {
     history.push("/profile");
     mount("/profile", Profile);
 
-    // Both blocks are on the page as it opens: the display name a reader came
-    // to change, and the avatar beside it.
+    // Both blocks are on the page as it opens: the avatar, then the name.
     expect(
-      await screen.findByRole("heading", { name: "Display name" }),
+      await screen.findByRole("heading", { name: "Avatar" }),
     ).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Avatar" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Name" })).toBeInTheDocument();
     expect(screen.queryByRole("tab")).not.toBeInTheDocument();
   });
 
@@ -104,7 +111,9 @@ describe("profile", () => {
     history.push("/profile");
     mount("/profile", Profile);
 
-    expect(await screen.findByText("alice")).toBeInTheDocument();
+    const username = await screen.findByRole("textbox", { name: "Username" });
+    expect(username).toHaveValue("alice");
+    expect(username).toHaveAttribute("readonly");
   });
 });
 

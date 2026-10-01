@@ -280,9 +280,13 @@ preview first, not sticky. The preview is the sign-in page itself, laid out at
 with its own light and dark switch that starts from the console's theme. The
 background sources are a 3×2 grid of radio tiles (64px, icon over label; the
 selected tile is `bg-accent-soft` with a 1px inset accent ring and medium
-weight, so selection is not colour alone), the gradient presets a 3×2 grid of
+weight, so selection is not colour alone; keyboard focus adds the 2px focus ring
+outside it, so a focused tile that is also selected still shows focus), the gradient presets a 3×2 grid of
 16:10 swatches, and the uploaded images a three-column grid of 16:9 thumbnails
-with a dashed add tile that is also the drop target. Between the background
+with a dashed add tile that is also the drop target. The source tiles are
+`ChoiceTile` (`layout="compact"`) and the add tile `ImageDropTile`, both in
+`dashboard/src/components/custom`, which the profile page's avatar gallery
+shares. Between the background
 and the surfaces, with a separator above and below, a row holds the card's
 position (left, centre, right, in that order) and the theme (visitor's choice,
 always light, always dark) as secondary radio groups. That row and the card's
@@ -292,6 +296,26 @@ card and the credit as the draft does; a draft that fixes the theme shows it
 there and hides both the preview's light and dark switch and the theme icon
 drawn in its toolbar, and leaving the theme to visitors brings back the
 preview theme the administrator had picked.
+
+The profile page is two sections, the avatar and then the name. The avatar is
+a `wide` card holding a gallery: a grid of tiles at least 6rem wide
+(`repeat(auto-fill, minmax(6rem, 1fr))`, three to a row at 375px), each a
+`ChoiceTile` with `layout="media"` — the picture at 56px in the sidebar's
+field-radius shape over its name, up to two lines and cut short with the whole
+name as its title. The tiles are the stored pictures, the upload first and then
+each provider's, then "No picture" with the sidebar's fallback icon. The
+selected tile is the avatar in use, so there is no separate preview; it carries
+the tile's selected treatment and a small accent `Badge` with a check at the
+picture's bottom-right corner, which becomes a `Spinner` while a choice is
+being saved. The gallery ends with an `ImageDropTile` the same size as the
+tiles, "Upload" or "Replace" over an upload icon; it takes one file, chosen or
+dropped. Under the grid, the formats hint sits on the leading edge and, while
+there is an upload, a small `danger-soft` "Remove uploaded picture" button on
+the trailing edge, which wraps under the hint on a narrow card and asks through
+a `danger` `ConfirmDialog` first. A file of the wrong type or size is a warning
+`SurfaceAlert` under that row and is never sent; a failed request is the error
+toast. The name card is the reading measure: the display name field, the
+username as a read-only field, and Save.
 
 A card holding several blocks names each one with an `ItemList` title. Three
 unlabelled cards stacked under one section heading read as one undifferentiated
@@ -490,8 +514,8 @@ The first two have a back button and share one form; the codes step has none.
 
 `/welcome` shows the account a first federated sign-in prepared as a
 `Surface variant="secondary"` block: a large avatar, the display name at medium
-weight, and a muted line with the username and email. While the provider's
-picture is on its way the avatar's place is a `Skeleton` of the same shape.
+weight, and a muted line with the username and email. Without a picture from
+the provider the avatar shows the name's first letter.
 The VRChat verification lists its instructions as a numbered `text-sm` list
 with muted numbers, and gives the verification link as a `CopyValue`.
 

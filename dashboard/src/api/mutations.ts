@@ -17,7 +17,7 @@ import { client, requireJsonData } from "@/api/client";
 import { ApiError } from "@/api/errors";
 import { readFederationFlow } from "@/api/federation";
 import type { components, paths } from "@/api/generated/schema";
-import { clearSessionQueries } from "@/api/queries";
+import { clearSessionQueries, myAvatarQueryOptions } from "@/api/queries";
 import type {
   AppGroupView,
   AppSummaryView,
@@ -75,6 +75,7 @@ import { runWithSudo, sudoMethodsQueryOptions, sudoQueryKey } from "@/api/sudo";
 import { sudoReason } from "@/api/sudo-reasons";
 
 type AccountView = components["schemas"]["AccountView"];
+type MyAvatarView = components["schemas"]["MyAvatarView"];
 
 export type RenameCredentialInput =
   paths["/api/prohibitorum/me/credentials/rename"]["post"]["requestBody"]["content"]["application/json"];
@@ -401,6 +402,79 @@ export function updateProfileMutationOptions(queryClient: QueryClient) {
       // One identity source: the sidebar and every page head read this cache.
       queryClient.setQueryData(["session", "me"], session);
     },
+  });
+}
+
+/**
+ * Every avatar write changes both the list of pictures and the session: the
+ * sidebar draws the session's `avatarUrl`, which already carries a fresh query
+ * string per version.
+ */
+export function invalidateAvatar(queryClient: QueryClient) {
+  return Promise.all([
+    queryClient.invalidateQueries({
+      queryKey: myAvatarQueryOptions().queryKey,
+    }),
+    queryClient.invalidateQueries({ queryKey: ["session", "me"] }),
+  ]);
+}
+
+/** Shows `user`, `none` or `upstream:<slug>`. */
+export function selectAvatarMutationOptions(queryClient: QueryClient) {
+  return mutationOptions({
+    meta: { success: successMessage.updateAvatar },
+    retry: false,
+    mutationFn: async (source: string) => {
+      await client.PUT("/api/prohibitorum/me/avatar/selection", {
+        body: { source },
+      });
+    },
+    // A failed choice refreshes too: a source the server no longer has
+    // (`avatar_source_unavailable`) drops out of the list.
+    onSettled: () => invalidateAvatar(queryClient),
+  });
+}
+
+/**
+ * Uploads raw bytes, not a multipart form. The server shows the upload at once
+ * only for an account that has never chosen a picture, so the pictures are
+ * read again before the write counts as done, and the toast says which way it
+ * went from that read.
+ */
+export function uploadAvatarMutationOptions(queryClient: QueryClient) {
+  return mutationOptions({
+    meta: {
+      success: (_file, avatar) =>
+        (avatar as MyAvatarView).activeSource === "user"
+          ? successMessage.updateAvatar
+          : successMessage.uploadAvatar,
+    },
+    retry: false,
+    mutationFn: async (file: File) => {
+      await client.PUT("/api/prohibitorum/me/avatar", {
+        body: file,
+        // openapi-fetch serialises JSON by default; the endpoint wants the
+        // bytes as they are.
+        bodySerializer: (value) => value as BodyInit,
+      });
+      const [avatar] = await Promise.all([
+        queryClient.fetchQuery({ ...myAvatarQueryOptions(), staleTime: 0 }),
+        queryClient.invalidateQueries({ queryKey: ["session", "me"] }),
+      ]);
+      return avatar;
+    },
+  });
+}
+
+/** Where the picture in use falls back to is the server's decision. */
+export function removeAvatarUploadMutationOptions(queryClient: QueryClient) {
+  return mutationOptions({
+    meta: { success: successMessage.removeAvatarUpload },
+    retry: false,
+    mutationFn: async () => {
+      await client.DELETE("/api/prohibitorum/me/avatar");
+    },
+    onSuccess: () => invalidateAvatar(queryClient),
   });
 }
 

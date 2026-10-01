@@ -34,6 +34,8 @@ import {
 
 type Credential = components["schemas"]["CredentialView"];
 type Session = components["schemas"]["SessionView"];
+type MyAvatar = components["schemas"]["MyAvatarView"];
+type MyAvatarSource = components["schemas"]["MyAvatarSourceView"];
 type SessionListItem = components["schemas"]["SessionListItem"];
 type Identity = components["schemas"]["AccountIdentityView"];
 type Token = components["schemas"]["PersonalAccessTokenView"];
@@ -302,14 +304,48 @@ function mockWallpaperUrl(hue: number): string {
   );
 }
 
+/** A square portrait in one hue, so each stored picture looks different. */
+function avatarPictureUrl(hue: number): string {
+  return svgUrl(
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" fill="hsl(${hue} 42% 42%)"/><circle cx="32" cy="25" r="11" fill="hsl(${hue} 50% 92%)"/><path d="M10 64a22 22 0 0 1 44 0z" fill="hsl(${hue} 50% 92%)"/></svg>`,
+  );
+}
+
+/** The stored pictures as the server lists them: the upload, then each provider's. */
+function avatarSources(config: MockConfig): MyAvatarSource[] {
+  const upstreams = range(config.avatar.upstreams).map((index) => ({
+    source: `upstream:provider-${index + 1}`,
+    label: `Example IdP ${index + 1}`,
+    url: avatarPictureUrl(30 + index * 110),
+  }));
+  return config.avatar.upload
+    ? [{ source: "user", url: avatarPictureUrl(200) }, ...upstreams]
+    : upstreams;
+}
+
+/** The picture in use; a source that is no longer stored reads as none. */
+function activeAvatar(config: MockConfig): MyAvatarSource | undefined {
+  return avatarSources(config).find(
+    (entry) => entry.source === config.avatar.active,
+  );
+}
+
+export function myAvatarView(config: MockConfig): MyAvatar {
+  return {
+    activeSource: activeAvatar(config)?.source ?? "none",
+    sources: avatarSources(config),
+  };
+}
+
 function sessionView(config: MockConfig): Session {
+  const active = activeAvatar(config);
   return {
     id: 1,
     username: config.session.username,
     displayName: config.session.displayName,
     role: config.session.role,
-    avatarUrl: mockAvatarUrl,
-    avatarSource: "user",
+    avatarSource: active?.source ?? "none",
+    ...(active ? { avatarUrl: active.url } : {}),
   };
 }
 
@@ -656,28 +692,17 @@ function enrollPasswordTotp(config: MockConfig, body: unknown): MockReply {
   );
 }
 
-/**
- * Reads of the prepared account since it was last answered. The picture that
- * `resolves` arrives on the third read, which is what a walkthrough needs to
- * see the placeholder give way to it.
- */
-let welcomeReads = 0;
-
 function expiredSignIn(): MockReply {
   return { kind: "error", status: 401, code: "federation_state_invalid" };
 }
 
 export function federationConfirm(config: MockConfig): FederationConfirm {
-  const mode = config.publicFlows.welcome.avatarPending;
-  welcomeReads += 1;
-  const pending = mode === "never" || (mode === "resolves" && welcomeReads < 3);
   return {
     idpDisplayName: "GitLab",
     displayName: "Alice Liddell",
     username: "alice",
     email: "alice@example.com",
-    ...(pending ? {} : { avatarUrl: mockAvatarUrl }),
-    avatarPending: pending,
+    ...(config.publicFlows.welcome.avatar ? { avatarUrl: mockAvatarUrl } : {}),
   };
 }
 
@@ -1551,10 +1576,8 @@ function readReply(
       return guarded(config, () => json(forwardAuthAppList(config)));
     case "/api/prohibitorum/me/consent":
       return guarded(config, () => json(consentedAppList(config)));
-    case "/api/prohibitorum/me/avatar/status":
-      return guarded(config, () =>
-        json({ pending: config.session.avatarPending }),
-      );
+    case "/api/prohibitorum/me/avatar":
+      return guarded(config, () => json(myAvatarView(config)));
     case "/api/prohibitorum/auth/federation":
       return json(providerList(config));
     case "/api/prohibitorum/me/sudo/methods":
@@ -2007,7 +2030,6 @@ function writeReply(
 
     case "/api/prohibitorum/auth/federation/confirm": {
       if (!config.publicFlows.welcome.valid) return expiredSignIn();
-      welcomeReads = 0;
       return json(
         {
           redirect: "/",
@@ -2020,7 +2042,6 @@ function writeReply(
     }
 
     case "/api/prohibitorum/auth/federation/confirm/decline":
-      welcomeReads = 0;
       return empty();
 
     case "/api/prohibitorum/auth/federation/flows/{flow}/prepare":
@@ -2182,13 +2203,45 @@ function writeReply(
     case "/api/prohibitorum/me/devices/pair/cancel":
       return empty();
 
-    case "/api/prohibitorum/me/avatar/selection":
+    // Choosing records that the account has chosen, so a later upload no
+    // longer takes over; a source that is not stored is refused.
+    case "/api/prohibitorum/me/avatar/selection": {
+      const source = stringField(body, "source") ?? "";
+      const stored =
+        source === "none" ||
+        avatarSources(config).some((entry) => entry.source === source);
+      if (!stored) {
+        return {
+          kind: "error",
+          status: 400,
+          code: "avatar_source_unavailable",
+        };
+      }
       return empty(204, (draft) => {
-        draft.session.avatarPending = false;
+        draft.avatar.active = source;
+        draft.avatar.selected = true;
       });
+    }
 
+    // An upload is shown at once only by an account that has never chosen;
+    // removing the picture in use falls back to the first provider's.
     case "/api/prohibitorum/me/avatar":
-      return method === "PUT" || method === "DELETE" ? empty() : undefined;
+      if (method === "PUT") {
+        return empty(204, (draft) => {
+          draft.avatar.upload = true;
+          if (!draft.avatar.selected) draft.avatar.active = "user";
+        });
+      }
+      if (method === "DELETE") {
+        return empty(204, (draft) => {
+          draft.avatar.upload = false;
+          if (draft.avatar.active === "user") {
+            draft.avatar.active =
+              draft.avatar.upstreams > 0 ? "upstream:provider-1" : "none";
+          }
+        });
+      }
+      return undefined;
 
     case "/api/prohibitorum/me/sudo/begin":
       // A passkey assertion cannot come from a fabricated challenge, so only

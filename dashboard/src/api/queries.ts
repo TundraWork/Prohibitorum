@@ -148,36 +148,16 @@ export function enrollmentQueryOptions(token: string) {
   });
 }
 
-/** How many reads after the first wait for the provider's picture: about 30 seconds. */
-const avatarPendingReads = 20;
-
-/**
- * Whether the prepared account is still waiting for the provider's picture:
- * the picture is pending, and the reads have not run out.
- */
-export function awaitingAvatar(state: {
-  data?: FederationConfirm;
-  dataUpdateCount: number;
-}): boolean {
-  return (
-    state.data?.avatarPending === true &&
-    state.dataUpdateCount <= avatarPendingReads
-  );
-}
-
 /**
  * The account a first sign-in through a provider has prepared, read from the
- * browser's federation cookie. While the provider's picture is still being
- * fetched it is read again every 1.5 seconds, `avatarPendingReads` times at
- * most. Confirming uses the grant up, so it is not read again on focus.
+ * browser's federation cookie. Confirming uses the grant up, so it is not read
+ * again on focus.
  */
 export function federationConfirmQueryOptions() {
   return queryOptions({
     queryKey: ["public", "federation-confirm"],
     staleTime: 0,
     refetchOnWindowFocus: false,
-    refetchInterval: (query: Query<FederationConfirm, Error>) =>
-      awaitingAvatar(query.state) ? 1500 : false,
     queryFn: ({ signal }): Promise<FederationConfirm> =>
       requireJsonData(
         client.GET("/api/prohibitorum/auth/federation/confirm", { signal }),
@@ -246,6 +226,20 @@ export function publicFederationProvidersQueryOptions() {
       (await requireJsonData(
         client.GET("/api/prohibitorum/auth/federation", { signal }),
       )) ?? [],
+  });
+}
+
+/**
+ * The pictures the account can show and the one it shows: its own upload
+ * first, then each provider's, as the server stores them. The sidebar reads the
+ * picture in use from the session instead, so a write refreshes both.
+ */
+export function myAvatarQueryOptions() {
+  return queryOptions({
+    queryKey: ["session", "avatar"],
+    meta: { requiresSession: true },
+    queryFn: ({ signal }) =>
+      requireJsonData(client.GET("/api/prohibitorum/me/avatar", { signal })),
   });
 }
 

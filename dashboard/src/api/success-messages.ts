@@ -27,6 +27,10 @@ export const successMessage = {
     id: "success.avatar.updated",
     message: "Avatar updated",
   }),
+  uploadAvatar: msg({
+    id: "success.avatar.uploaded",
+    message: "Picture uploaded. Select it to show it.",
+  }),
   removeAvatarUpload: msg({
     id: "success.avatar.upload-removed",
     message: "Uploaded picture removed",
