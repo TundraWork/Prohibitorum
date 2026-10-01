@@ -784,8 +784,8 @@ func (s *Server) handleEnrollmentCompleteHTTP(w http.ResponseWriter, r *http.Req
 		writeAuthErr(w, fmt.Errorf("enrollment/complete: commit: %w", err))
 		return
 	}
-	if federatedProvider != nil && federatedAvatar != "" && s.enrollmentAvatarOverride != nil {
-		_ = s.enrollmentAvatarOverride(acct.ID, *federatedProvider, federation.AvatarDelivery{URL: federatedAvatar})
+	if federatedProvider != nil && federatedAvatar != "" && s.enrollmentAvatarRefresh != nil {
+		s.enrollmentAvatarRefresh(r.Context(), acct.ID, *federatedProvider, federation.AvatarDelivery{URL: federatedAvatar})
 	}
 
 	logx.WithContext(r.Context()).WithFields(logrus.Fields{

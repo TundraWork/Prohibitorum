@@ -347,6 +347,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/prohibitorum/me/avatar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List the caller's stored avatars and the one in effect. */
+        get: operations["getMyAvatar"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/prohibitorum/me/consent": {
         parameters: {
             query?: never;
@@ -833,6 +850,15 @@ export interface components {
             recoveryCodesRemaining: number;
             totpEnrolled: boolean;
         };
+        MyAvatarSourceView: {
+            label?: string;
+            source: string;
+            url: string;
+        };
+        MyAvatarView: {
+            activeSource: string;
+            sources: components["schemas"]["MyAvatarSourceView"][] | null;
+        };
         MyForwardAuthApp: {
             clientId: string;
             displayName: string;
@@ -1008,14 +1034,7 @@ export interface components {
             attributes?: {
                 [key: string]: unknown;
             };
-            avatarPending?: boolean;
             avatarSource?: string;
-            avatarSourceLabels?: {
-                [key: string]: string;
-            };
-            avatarSourceUrls?: {
-                [key: string]: string;
-            };
             avatarUrl?: string;
             displayName: string;
             /** Format: int32 */
@@ -1811,6 +1830,35 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LaunchpadApp"][] | null;
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicError"];
+                };
+            };
+        };
+    };
+    getMyAvatar: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyAvatarView"];
                 };
             };
             /** @description Error */

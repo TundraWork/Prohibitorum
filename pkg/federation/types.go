@@ -110,8 +110,8 @@ type AdvanceResult struct {
 	Avatar    *AvatarDelivery
 }
 
-// AvatarDelivery carries avatar-only data from a terminal adapter result to the
-// detached inheritance worker. Opaque is never passed to identity resolution or
+// AvatarDelivery carries avatar-only data from a terminal adapter result to
+// AvatarManager.Refresh. Opaque is never passed to identity resolution or
 // persisted in flow state.
 type AvatarDelivery struct {
 	URL                 string
@@ -119,8 +119,8 @@ type AvatarDelivery struct {
 	AllowPrivateNetwork bool
 }
 
-// AvatarResolver is an optional adapter capability used only by the detached
-// avatar inheritance path when the verified identity has no direct avatar URL.
+// AvatarResolver is an optional adapter capability used only by
+// AvatarManager.Refresh when the verified identity has no direct avatar URL.
 type AvatarResolver interface {
 	ResolveAvatar(context.Context, Provider, AvatarDelivery) (string, error)
 }

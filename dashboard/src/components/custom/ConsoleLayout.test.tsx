@@ -34,8 +34,6 @@ const admin: Session = {
   displayName: "Alice",
   role: "admin",
   avatarSource: "user",
-  avatarSourceLabels: {},
-  avatarSourceUrls: {},
 };
 
 const member: Session = { ...admin, role: "user" };

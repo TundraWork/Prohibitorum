@@ -455,15 +455,11 @@ type serverAvatarRecorder struct {
 	url      string
 }
 
-func (r *serverAvatarRecorder) Inherit(accountID int32, provider fedoidc.Provider, delivery fedoidc.AvatarDelivery, _ fedoidc.AvatarResolver) {
+func (r *serverAvatarRecorder) Refresh(_ context.Context, accountID int32, provider fedoidc.Provider, delivery fedoidc.AvatarDelivery, _ fedoidc.AvatarResolver) {
 	r.calls++
 	r.account = accountID
 	r.provider = provider
 	r.url = delivery.URL
-}
-
-func (*serverAvatarRecorder) Pending(context.Context, int32) bool {
-	return false
 }
 
 func newTestFederationService(t *testing.T, q *fakeFedQueries, store kv.Store, writer audit.Writer, deks map[int][]byte, origin string, ttl time.Duration) *fedoidc.Service {
@@ -483,7 +479,7 @@ func newTestFederationService(t *testing.T, q *fakeFedQueries, store kv.Store, w
 		t.Fatal(err)
 	}
 	service := fedoidc.NewService(registry, fedoidc.NewProviderStore(q), store, fedoidc.NewResolver(q, writer, nil), nil, fedoidc.ServiceConfig{StateTTL: ttl, PublicOrigin: origin, Audit: writer})
-	service.SetAvatarManager(fedoidc.NewAvatarManager(q, store))
+	service.SetAvatarManager(fedoidc.NewAvatarManager(q))
 	return service
 }
 

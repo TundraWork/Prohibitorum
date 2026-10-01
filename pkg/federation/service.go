@@ -76,9 +76,8 @@ type AdvanceRequest struct {
 	Input         ActionInput
 }
 
-type avatarInheritor interface {
-	Inherit(int32, Provider, AvatarDelivery, AvatarResolver)
-	Pending(context.Context, int32) bool
+type avatarRefresher interface {
+	Refresh(context.Context, int32, Provider, AvatarDelivery, AvatarResolver)
 }
 
 type Service struct {
@@ -87,7 +86,7 @@ type Service struct {
 	kv        kv.Store
 	resolver  IdentityResolver
 	issuer    EnrollmentIssuer
-	avatar    avatarInheritor
+	avatar    avatarRefresher
 	audit     audit.Writer
 	config    ServiceConfig
 	now       func() time.Time
@@ -118,7 +117,7 @@ func NewService(registry *Registry, providers ProviderLoader, store kv.Store, re
 	return &Service{registry: registry, providers: providers, kv: store, resolver: resolver, issuer: issuer, audit: config.Audit, config: config, now: time.Now}
 }
 
-func (s *Service) SetAvatarManager(manager avatarInheritor) {
+func (s *Service) SetAvatarManager(manager avatarRefresher) {
 	s.avatar = manager
 }
 
@@ -399,13 +398,15 @@ func (s *Service) VerifyFlow(ctx context.Context, request AdvanceRequest) (*Comp
 		Confirmed: outcome.Confirmed, AvatarURL: result.Identity.AvatarURL,
 		OfferLocalSignin: outcome.OfferLocalSignin,
 	}
-	if s.avatar != nil && state.Intent != IntentLink {
+	// The flow is already consumed and the lease keeps renewing, so the fetch
+	// can take its time without affecting the flow.
+	if s.avatar != nil && outcome.AccountID > 0 {
 		delivery := AvatarDelivery{URL: result.Identity.AvatarURL}
 		if result.Avatar != nil {
 			delivery = *result.Avatar
 		}
 		avatarResolver, _ := adapter.(AvatarResolver)
-		s.avatar.Inherit(outcome.AccountID, provider, delivery, avatarResolver)
+		s.avatar.Refresh(operationCtx, outcome.AccountID, provider, delivery, avatarResolver)
 	}
 	return completion, nil
 }
@@ -457,10 +458,6 @@ func (s *Service) PeekConfirmGrant(ctx context.Context, token, browserToken stri
 		return nil, authn.ErrFederationStateInvalid()
 	}
 	return grant, nil
-}
-
-func (s *Service) AvatarPending(ctx context.Context, accountID int32) bool {
-	return s.avatar != nil && s.avatar.Pending(ctx, accountID)
 }
 
 func (s *Service) loadForAdvance(ctx context.Context, request AdvanceRequest) (string, *FlowState, Provider, Adapter, error) {

@@ -38,9 +38,6 @@ func (s *Server) handleGetMe(ctx context.Context, _ *struct{}) (*meOut, error) {
 		return nil, authErrToHuma(authn.ErrNoSession())
 	}
 	v := s.sessionView(sess.Account)
-	if s.federationService != nil {
-		v.AvatarPending = s.federationService.AvatarPending(ctx, sess.Account.ID)
-	}
 	return &meOut{Body: v}, nil
 }
 
@@ -89,9 +86,6 @@ func (s *Server) handleUpdateMe(ctx context.Context, in *updateMeIn) (*meOut, er
 	})
 	sess.Account.DisplayName = in.Body.DisplayName
 	v := s.sessionView(sess.Account)
-	if s.federationService != nil {
-		v.AvatarPending = s.federationService.AvatarPending(ctx, sess.Account.ID)
-	}
 	return &meOut{Body: v}, nil
 }
 

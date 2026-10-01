@@ -915,8 +915,8 @@ func main() {
 	if view.DisplayName != "Ext User" {
 		log.Fatalf("confirm GET displayName: got %q want %q", view.DisplayName, "Ext User")
 	}
-	log.Printf("  confirm GET: idp=%q username=%s displayName=%s avatarPending=%v ✓",
-		view.IDPDisplayName, view.Username, view.DisplayName, view.AvatarPending)
+	log.Printf("  confirm GET: idp=%q username=%s displayName=%s ✓",
+		view.IDPDisplayName, view.Username, view.DisplayName)
 
 	step(fmt.Sprintf("federation %d/%d — POST /auth/federation/confirm → {redirect:/me} + session", 6, nFederation))
 	if redirect, err := extClient.confirmPost(); err != nil {
@@ -1583,24 +1583,30 @@ func main() {
 	}
 
 	// =========================================================================
-	// Upstream avatar inheritance over federation (Tasks 1–10): a first-time
-	// federated login now inherits the upstream `picture` into the account
-	// avatar via a BACKGROUND goroutine, unless the user uploaded their own.
-	// Three cases, all against the auto_provision `mockop` IdP seeded earlier:
+	// Upstream avatar inheritance over federation: a federated sign-in or link
+	// fetches the upstream `picture` while the callback runs, so it is stored
+	// by the time the redirect lands. A picture URL equal to the one already
+	// stored is not downloaded again. An upload or an upstream picture only
+	// takes effect on its own until the user picks an avatar. All cases run
+	// against the auto_provision `mockop` IdP seeded earlier:
 	//
-	//   avatar-fed 1 — picture in the id_token → inherited (poll until stored).
-	//   avatar-fed 2 — no-clobber: a user upload survives an upstream re-login.
-	//   avatar-fed 4 — dual-source selection: with BOTH a user upload AND an
-	//                  upstream row stored, switch the active pointer between
-	//                  user/upstream/none and verify ?source previews + active GET.
-	//   avatar-fed 3 — userinfo fallback: picture only in /userinfo → inherited.
+	//   avatar-fed 1 — picture in the id_token → stored and active at once.
+	//   avatar-fed 2 — an upload takes effect (no pick yet); a re-login with
+	//                  the same picture URL neither downloads nor clobbers.
+	//   avatar-fed 3 — a re-login with a new picture URL downloads it again;
+	//                  the upload stays active.
+	//   avatar-fed 4 — dual-source selection: GET /me/avatar lists both, the
+	//                  active pointer switches across user/upstream/none, and
+	//                  after a pick a new upload no longer takes effect.
+	//   avatar-fed 5 — userinfo fallback: picture only in /userinfo → stored.
+	//   avatar-fed 6 — linking mockop to a local account stores its picture.
 	//
-	// The avatar fetch hits the mockop /avatar.png image endpoint (Part B) and
-	// is SSRF-allowed because mockop is on 127.0.0.1 and seeded with
+	// The avatar fetch hits the mockop /avatar.png image endpoint and is
+	// SSRF-allowed because mockop is on 127.0.0.1 and seeded with
 	// allow_private_network=true (per-IdP seedUpstreamIDP policy).
 	// =========================================================================
 
-	step("avatar-fed 1/4 — federated first login inherits upstream id_token picture")
+	step("avatar-fed 1/6 — federated first login stores the upstream id_token picture")
 	{
 		const avSub = "ext-avatar-1"
 		opSrv.SetClaims(avSub, "ext-avatar-1@example.com", true, "extavatar1", "Ext Avatar One")
@@ -1613,8 +1619,10 @@ func main() {
 		if err := driveFederationToWelcome(avClient, *baseURL, "mockop"); err != nil {
 			log.Fatalf("avatar-fed: drive to /welcome: %v", err)
 		}
-		if _, err := avClient.confirmGet(); err != nil {
+		if view, err := avClient.confirmGet(); err != nil {
 			log.Fatalf("avatar-fed: confirm GET: %v", err)
+		} else if view.AvatarURL == nil {
+			log.Fatalf("avatar-fed: confirm GET avatarUrl is null — the callback did not store the picture")
 		}
 		if redirect, err := avClient.confirmPost(); err != nil {
 			log.Fatalf("avatar-fed: confirm POST: %v", err)
@@ -1629,15 +1637,17 @@ func main() {
 		if err != nil {
 			log.Fatalf("avatar-fed: oidc_subject: %v", err)
 		}
-		// The avatar fetch is a background goroutine — poll the public endpoint
-		// until the WebP appears (never assume it's instant).
-		n, etag, err := pollAvatarInherited(*baseURL, avSubject, 10*time.Second)
+		n, etag, err := getPublicAvatar(*baseURL, avSubject)
 		if err != nil {
 			log.Fatalf("avatar-fed: %v", err)
 		}
-		log.Printf("  GET /avatar/%s → 200 image/webp etag=%s body=%d bytes (inherited from upstream) ✓",
+		log.Printf("  GET /avatar/%s → 200 image/webp etag=%s body=%d bytes right after sign-in ✓",
 			avSubject, etag, n)
-		// Bonus: /me should now surface a non-null avatarUrl.
+		if mine, err := getMyAvatar(avClient); err != nil {
+			log.Fatalf("avatar-fed: GET /me/avatar: %v", err)
+		} else if mine.ActiveSource != "upstream:mockop" || !mine.has("upstream:mockop") {
+			log.Fatalf("avatar-fed: GET /me/avatar want upstream:mockop listed and active, got %+v", mine)
+		}
 		avMe2, err := avClient.getMe()
 		if err != nil {
 			log.Fatalf("avatar-fed: /me post-inherit: %v", err)
@@ -1645,39 +1655,14 @@ func main() {
 		if avMe2.AvatarURL == nil {
 			log.Fatalf("avatar-fed: /me.avatarUrl is null after upstream inherit")
 		}
-		log.Printf("  /me.avatarUrl=%q ✓", *avMe2.AvatarURL)
+		log.Printf("  GET /me/avatar activeSource=upstream:mockop; /me.avatarUrl=%q ✓", *avMe2.AvatarURL)
 
-		// avatar-fed 2/4 — no-clobber: a user upload must survive an upstream
-		// re-login with a different picture. Re-use this confirmed account.
-		step("avatar-fed 2/4 — user upload survives an upstream re-login (no clobber)")
-		var pngBuf bytes.Buffer
-		{
-			img := image.NewRGBA(image.Rect(0, 0, 8, 8))
-			if err := png.Encode(&pngBuf, img); err != nil {
-				log.Fatalf("avatar-fed: encode user PNG: %v", err)
-			}
+		// avatar-fed 2/6 — the account has never picked an avatar, so an upload
+		// takes effect. Re-use this confirmed account.
+		step("avatar-fed 2/6 — upload takes effect; same-URL re-login neither downloads nor clobbers")
+		if err := putAvatarPNG(avClient, *baseURL); err != nil {
+			log.Fatalf("avatar-fed: %v", err)
 		}
-		{
-			req, err := http.NewRequest(http.MethodPut,
-				*baseURL+"/api/prohibitorum/me/avatar", bytes.NewReader(pngBuf.Bytes()))
-			if err != nil {
-				log.Fatalf("avatar-fed: build PUT: %v", err)
-			}
-			req.Header.Set("Content-Type", "image/png")
-			for _, ck := range avClient.cookies() {
-				req.AddCookie(ck)
-			}
-			resp, err := avClient.hc.Do(req)
-			if err != nil {
-				log.Fatalf("avatar-fed: PUT /me/avatar: %v", err)
-			}
-			body, _ := io.ReadAll(resp.Body)
-			resp.Body.Close()
-			if resp.StatusCode != http.StatusNoContent {
-				log.Fatalf("avatar-fed: PUT /me/avatar: want 204, got %d (%s)", resp.StatusCode, body)
-			}
-		}
-		// Snapshot avatar_source/etag after the user upload.
 		srcAfterUpload, etagAfterUpload, err := getAvatarSourceEtag(avMe.ID)
 		if err != nil {
 			log.Fatalf("avatar-fed: read source/etag post-upload: %v", err)
@@ -1687,29 +1672,21 @@ func main() {
 		}
 		log.Printf("  user upload set avatar_source=user etag=%s", etagAfterUpload)
 
-		// Log out, change the upstream picture, re-login (confirmed → straight to
-		// /me, no /welcome), then give the background job a chance to run.
+		// Log out and re-login (confirmed → straight to /me, no /welcome) with
+		// the same picture URL. The fetch is synchronous, so the state is final
+		// once the login returns.
 		if err := avClient.logout(); err != nil {
 			log.Fatalf("avatar-fed: logout pre-reclaim: %v", err)
 		}
+		hitsBefore := opSrv.AvatarHits()
 		opSrv.SetClaims(avSub, "ext-avatar-1@example.com", true, "extavatar1", "Ext Avatar One")
 		opSrv.SetPicture(opSrv.PictureURL())
 		if err := driveFederationLogin(avClient, *baseURL, "mockop", "/me"); err != nil {
 			log.Fatalf("avatar-fed: re-login (confirmed) failed: %v", err)
 		}
-		// Poll the avatar status until the background job (if it ran) settles, then
-		// assert the user avatar is UNCHANGED.
-		for i := 0; i < 25; i++ {
-			var st struct {
-				Pending bool `json:"pending"`
-			}
-			if err := avClient.get("/api/prohibitorum/me/avatar/status", &st); err == nil && !st.Pending {
-				break
-			}
-			time.Sleep(200 * time.Millisecond)
+		if hits := opSrv.AvatarHits(); hits != hitsBefore {
+			log.Fatalf("avatar-fed: same-URL re-login downloaded the picture again (%d → %d hits)", hitsBefore, hits)
 		}
-		// A short settle so any (incorrect) clobber would have landed.
-		time.Sleep(500 * time.Millisecond)
 		srcAfter, etagAfter, err := getAvatarSourceEtag(avMe.ID)
 		if err != nil {
 			log.Fatalf("avatar-fed: read source/etag post-relogin: %v", err)
@@ -1721,44 +1698,56 @@ func main() {
 			log.Fatalf("avatar-fed: NO-CLOBBER VIOLATED — avatar_etag changed (%q → %q) after upstream re-login",
 				etagAfterUpload, etagAfter)
 		}
-		log.Printf("  avatar_source still 'user', etag unchanged (%s) after upstream re-login ✓", etagAfter)
+		log.Printf("  no download (%d hits); avatar_source still 'user', etag unchanged (%s) ✓", hitsBefore, etagAfter)
 
-		// avatar-fed 4/4 — dual-source selection. After avatar-fed 2 this account
-		// is in the IDEAL dual-source state: avatar_source='user' (active) AND an
-		// 'upstream' row also stored (Task 3 upserts upstream on every federated
-		// login without activating it). Exercise the active-pointer switch across
-		// user/upstream/none and the per-source ?source= previews.
-		//
-		// Race note: avatar-fed 2's re-login may have left a background inherit
-		// goroutine in flight. It cannot corrupt these assertions: runAvatarInherit
-		// re-reads avatar_source from the DB after its slow I/O and only calls
-		// SetActiveAvatar when that fresh read is NULL or 'upstream' — so it can
-		// neither override the explicit 'user'/'none' we set below nor write a value
-		// different from the 'upstream' a switch-to-upstream already wrote.
-		step("avatar-fed 4/4 — dual-source selection + ?source previews")
+		step("avatar-fed 3/6 — re-login with a new picture URL downloads it again; upload stays active")
+		if err := avClient.logout(); err != nil {
+			log.Fatalf("avatar-fed: logout pre-URL-change: %v", err)
+		}
+		hitsBefore = opSrv.AvatarHits()
+		opSrv.SetClaims(avSub, "ext-avatar-1@example.com", true, "extavatar1", "Ext Avatar One")
+		opSrv.SetPicture(opSrv.PictureURLWithVersion("2"))
+		if err := driveFederationLogin(avClient, *baseURL, "mockop", "/me"); err != nil {
+			log.Fatalf("avatar-fed: re-login (new URL) failed: %v", err)
+		}
+		if hits := opSrv.AvatarHits(); hits != hitsBefore+1 {
+			log.Fatalf("avatar-fed: new picture URL want exactly one download, got %d → %d hits", hitsBefore, hits)
+		}
+		if src, _, err := getAvatarSourceEtag(avMe.ID); err != nil {
+			log.Fatalf("avatar-fed: read source post-URL-change: %v", err)
+		} else if src != "user" {
+			log.Fatalf("avatar-fed: avatar_source after new picture URL want 'user', got %q", src)
+		}
+		log.Printf("  new URL fetched once (%d → %d hits); avatar_source still 'user' ✓", hitsBefore, hitsBefore+1)
+
+		// avatar-fed 4/6 — dual-source selection. This account now has an
+		// upload (active) and an upstream:mockop row. Exercise the per-source
+		// listing, the active-pointer switch across user/upstream/none and the
+		// ?source= previews.
+		step("avatar-fed 4/6 — dual-source selection + ?source previews")
 		const selPath = "/api/prohibitorum/me/avatar/selection"
 
-		// (a) /me reports the active source AND both per-source preview URLs.
-		dsMe, err := avClient.getMe()
+		// (a) GET /me/avatar lists the upload first, then the upstream labeled
+		// with the IdP display name (the live LEFT JOIN account_avatar→upstream_idp).
+		mine, err := getMyAvatar(avClient)
 		if err != nil {
-			log.Fatalf("avatar-fed dual: /me: %v", err)
+			log.Fatalf("avatar-fed dual: GET /me/avatar: %v", err)
 		}
-		if dsMe.AvatarSource == nil || *dsMe.AvatarSource != "user" {
-			log.Fatalf("avatar-fed dual: /me.avatarSource want 'user', got %v", dsMe.AvatarSource)
+		if mine.ActiveSource != "user" {
+			log.Fatalf("avatar-fed dual: activeSource want 'user', got %q", mine.ActiveSource)
 		}
-		if _, ok := dsMe.AvatarSourceUrls["user"]; !ok {
-			log.Fatalf("avatar-fed dual: /me.avatarSourceUrls missing 'user' key (got %v)", dsMe.AvatarSourceUrls)
+		if len(mine.Sources) != 2 || mine.Sources[0].Source != "user" || mine.Sources[1].Source != "upstream:mockop" {
+			log.Fatalf("avatar-fed dual: sources want [user upstream:mockop], got %+v", mine.Sources)
 		}
-		if _, ok := dsMe.AvatarSourceUrls["upstream:mockop"]; !ok {
-			log.Fatalf("avatar-fed dual: /me.avatarSourceUrls missing 'upstream:mockop' key — coexistence not proven (got %v)", dsMe.AvatarSourceUrls)
+		if mine.Sources[1].Label != "Mock OP" {
+			log.Fatalf("avatar-fed dual: upstream:mockop label want 'Mock OP', got %q", mine.Sources[1].Label)
 		}
-		// The per-upstream source must be labeled with the IdP display name
-		// (exercises the live LEFT JOIN account_avatar→upstream_idp end-to-end).
-		if dsMe.AvatarSourceLabels["upstream:mockop"] != "Mock OP" {
-			log.Fatalf("avatar-fed dual: /me.avatarSourceLabels['upstream:mockop'] want 'Mock OP', got %q (labels=%v)",
-				dsMe.AvatarSourceLabels["upstream:mockop"], dsMe.AvatarSourceLabels)
+		for _, s := range mine.Sources {
+			if s.URL == "" {
+				log.Fatalf("avatar-fed dual: source %s has no preview URL", s.Source)
+			}
 		}
-		log.Printf("  /me.avatarSource=%q avatarSourceUrls has user+upstream:mockop keys; label='Mock OP' ✓", *dsMe.AvatarSource)
+		log.Printf("  GET /me/avatar activeSource=user sources=[user upstream:mockop]; label='Mock OP' ✓")
 
 		// (b) ?source previews both resolve to a non-empty image/webp regardless of
 		// which source is active (a 200 carrying a JSON error envelope would be a bug).
@@ -1805,6 +1794,18 @@ func main() {
 			}
 		}
 		log.Printf("  selection→upstream: 204, avatar_source='upstream:mockop', active GET 200 ✓")
+
+		// (c2) The user has picked now, so a new upload is stored but does not
+		// take effect.
+		if err := putAvatarPNG(avClient, *baseURL); err != nil {
+			log.Fatalf("avatar-fed dual: %v", err)
+		}
+		if mine, err := getMyAvatar(avClient); err != nil {
+			log.Fatalf("avatar-fed dual: GET /me/avatar post-upload: %v", err)
+		} else if mine.ActiveSource != "upstream:mockop" {
+			log.Fatalf("avatar-fed dual: upload after a pick changed activeSource to %q", mine.ActiveSource)
+		}
+		log.Printf("  upload after picking upstream: 204, activeSource stays 'upstream:mockop' ✓")
 
 		// (d) Switch active → none. 204; pointer='none'; active GET 404; /me.avatarUrl nil.
 		if resp, err := avClient.putJSONRaw(selPath, map[string]string{"source": "none"}); err != nil {
@@ -1862,7 +1863,7 @@ func main() {
 		log.Printf("  selection→user: 204, avatar_source='user', active GET 200 (final state restored) ✓")
 	}
 
-	step("avatar-fed 3/4 — userinfo fallback: picture only in /userinfo is still inherited")
+	step("avatar-fed 5/6 — userinfo fallback: picture only in /userinfo is still stored")
 	{
 		const avSub = "ext-avatar-ui-1"
 		opSrv.SetClaims(avSub, "ext-avatar-ui-1@example.com", true, "extavatarui1", "Ext Avatar UI")
@@ -1892,11 +1893,11 @@ func main() {
 		if err != nil {
 			log.Fatalf("avatar-fed ui: oidc_subject: %v", err)
 		}
-		n, etag, err := pollAvatarInherited(*baseURL, uiSubject, 10*time.Second)
+		n, etag, err := getPublicAvatar(*baseURL, uiSubject)
 		if err != nil {
 			log.Fatalf("avatar-fed ui: %v (proves the UserInfo fallback did NOT run)", err)
 		}
-		log.Printf("  GET /avatar/%s → 200 image/webp etag=%s body=%d bytes (inherited via UserInfo fallback) ✓",
+		log.Printf("  GET /avatar/%s → 200 image/webp etag=%s body=%d bytes (stored via UserInfo fallback) ✓",
 			uiSubject, etag, n)
 
 		// Negative: this account has ONLY an upstream row (no user upload), so
@@ -1923,6 +1924,54 @@ func main() {
 					env.Code, body)
 			}
 			log.Printf("  selection→user with no stored user row → 400 avatar_source_unavailable ✓")
+		}
+	}
+
+	step("avatar-fed 6/6 — linking mockop to a local account stores its picture")
+	{
+		// c is smoke-admin's passkey session; its mockop identity from
+		// federation 18 was unlinked in federation 21, and c still has
+		// redirects disabled from that step.
+		if err := sudoWebAuthn(c, auth, *baseURL); err != nil {
+			log.Fatalf("avatar-fed link: sudo: %v", err)
+		}
+		opSrv.SetClaims("admin-avatar-link", "admin@example.com", true, *username, *display)
+		opSrv.SetPicture(opSrv.PictureURL())
+		authorizeLink, err := c.getRedirect("/api/prohibitorum/me/identities/link/mockop/begin?return_to=/me")
+		if err != nil {
+			log.Fatalf("avatar-fed link: begin: %v", err)
+		}
+		linkCallbackURL, err := followMockOPAuthorize(authorizeLink)
+		if err != nil {
+			log.Fatalf("avatar-fed link: mock OP /authorize: %v", err)
+		}
+		if loc, err := c.getRedirectAbs(linkCallbackURL); err != nil {
+			log.Fatalf("avatar-fed link: callback: %v", err)
+		} else if loc != "/security" {
+			log.Fatalf("avatar-fed link: callback want /security, got %q", loc)
+		}
+		mine, err := getMyAvatar(c)
+		if err != nil {
+			log.Fatalf("avatar-fed link: GET /me/avatar: %v", err)
+		}
+		if !mine.has("upstream:mockop") {
+			log.Fatalf("avatar-fed link: GET /me/avatar right after link has no upstream:mockop (got %+v)", mine.Sources)
+		}
+		log.Printf("  link/callback → /security; GET /me/avatar lists upstream:mockop (activeSource=%s) ✓", mine.ActiveSource)
+
+		// Unlink again so the later steps see smoke-admin as before.
+		identities, err := c.listMyIdentities()
+		if err != nil {
+			log.Fatalf("avatar-fed link: /me/identities: %v", err)
+		}
+		if len(identities) != 1 || identities[0].IdpSlug != "mockop" {
+			log.Fatalf("avatar-fed link: want 1 mockop identity, got %+v", identities)
+		}
+		if err := sudoWebAuthn(c, auth, *baseURL); err != nil {
+			log.Fatalf("avatar-fed link: sudo pre-unlink: %v", err)
+		}
+		if err := c.postJSON(fmt.Sprintf("/api/prohibitorum/me/identities/%d/unlink", identities[0].ID), map[string]any{}, nil); err != nil {
+			log.Fatalf("avatar-fed link: unlink: %v", err)
 		}
 
 		// Reset the picture knobs so they don't bleed into later mockop uses.
@@ -6009,7 +6058,7 @@ func main() {
 	if err := smokeOIDCDiagnostics(c, *baseURL, opSrv); err != nil {
 		log.Fatalf("OIDC diagnostics: %v", err)
 	}
-	fmt.Println("✓ smoke OK — core (webauthn enroll/login + password/TOTP/recovery + sudo + throttle + destructive revoke) + federation (upstream OIDC login/link/unlink incl. invite_only) + oidc (OIDC OP code+PKCE flow: userinfo/introspect/refresh-rotation+reuse/revoke/logout) + saml (SAML IdP SSO/SLO + signed metadata + require_signed/bad-ACS/replay negatives) + hardening (forced re-auth / PKCE+introspect policy / NameIDPolicy / POST AuthnRequest / signed metadata / IdP-initiated) + consent (Login+Consent UI backend: consent ticket round-trip + federation-providers list) + admin (OIDC client CRUD reveal-once + signing-key generate→activate JWKS grace lifecycle + audit-events viewer + admin credential listing) + Tier-1 (PUT /me round-trip, GET /me/factors, admin sessions, SAML attr_map round-trip) + sudo-multiuse (single elevation covers multiple gated actions until expiry) + avatar (PUT /me/avatar upload, public GET /avatar/{sub} image/webp+ETag, /me.avatarUrl, userinfo.picture claim) + avatar-fed (federated first-login inherit + no-clobber on re-login + UserInfo fallback + dual-source selection/previews + avatar_source_unavailable negative) + delegated-access (admin assigns one active account; cross-app/config denials; app-bound manual + OR rule groups; manual deny/allow precedence; live avatar eligibility; three exposed OIDC group claims; refresh eligibility re-check and family revocation; assignment/policy audit lifecycle) + error-redirect (federation access_denied + SAML malformed request → 302 /error) + pat (Personal Access Token access levels: selected_apps → only its apps at the gateway, API 403 pat_api_not_allowed; all_apps → any app; full → management API as owner incl. ordinary admin routes (diagnostic lookup 404), sudo routes (create/revoke own PAT) 401 sudo_required, browser-only routes 403; sudo → creates PATs without a browser sudo step; bad header → 401 pat_invalid without cookie fallback; no Remote-Scopes header; admin GET /accounts/{id}/tokens lists access + apps; DB access/app rows; pat_id on audit events; revoked PAT → 401) + maintenance (admin enables maintenance via PUT without sudo → public /config maintenanceMode+message round-trip; admin stays exempt /me 200; disable restores; non-admin dashboard+gateway blocking unit-tested) + client-ip (admin PUT header strategy + GET round-trip; invalid CIDR rejected 400; reset to direct) + login-appearance (admin POSTs two sign-in images without sudo → public GET /branding/login-images/{id} byte-for-byte verbatim, /config lists them in order; PUT appearance images/carousel/15s + card left + always dark round-trips through /config and the admin GET; unknown field → 400; unsplash without key → unsplash_key_required; DELETE image → 404) + steam (Steam OpenID 2.0 login arc: admin create protocol=steam provider; mock Steam OP redirect; callback → /welcome confirm → session; DB account+identity rows) + audit-remediation (new event types: webauthn:use, session:session_start/end, webauthn:sudo_granted, settings:update, PAT register/revoke/fail; ctx-carried IP non-empty on session_start events) + pwd-totp-enroll (password+TOTP enrollment ceremony: plain-invite begin→verify sets password+confirmed-TOTP+10 recovery codes and issues a session, password→TOTP login works, bootstrap rejects password+TOTP as passkey-only) + DB-state assertions passed against",
+	fmt.Println("✓ smoke OK — core (webauthn enroll/login + password/TOTP/recovery + sudo + throttle + destructive revoke) + federation (upstream OIDC login/link/unlink incl. invite_only) + oidc (OIDC OP code+PKCE flow: userinfo/introspect/refresh-rotation+reuse/revoke/logout) + saml (SAML IdP SSO/SLO + signed metadata + require_signed/bad-ACS/replay negatives) + hardening (forced re-auth / PKCE+introspect policy / NameIDPolicy / POST AuthnRequest / signed metadata / IdP-initiated) + consent (Login+Consent UI backend: consent ticket round-trip + federation-providers list) + admin (OIDC client CRUD reveal-once + signing-key generate→activate JWKS grace lifecycle + audit-events viewer + admin credential listing) + Tier-1 (PUT /me round-trip, GET /me/factors, admin sessions, SAML attr_map round-trip) + sudo-multiuse (single elevation covers multiple gated actions until expiry) + avatar (PUT /me/avatar upload, public GET /avatar/{sub} image/webp+ETag, /me.avatarUrl, userinfo.picture claim) + avatar-fed (federated first-login stores the picture before the redirect + upload takes effect until a pick + same-URL re-login skips the download + new URL downloads again + GET /me/avatar listing + dual-source selection/previews + avatar_source_unavailable negative + link stores the picture) + delegated-access (admin assigns one active account; cross-app/config denials; app-bound manual + OR rule groups; manual deny/allow precedence; live avatar eligibility; three exposed OIDC group claims; refresh eligibility re-check and family revocation; assignment/policy audit lifecycle) + error-redirect (federation access_denied + SAML malformed request → 302 /error) + pat (Personal Access Token access levels: selected_apps → only its apps at the gateway, API 403 pat_api_not_allowed; all_apps → any app; full → management API as owner incl. ordinary admin routes (diagnostic lookup 404), sudo routes (create/revoke own PAT) 401 sudo_required, browser-only routes 403; sudo → creates PATs without a browser sudo step; bad header → 401 pat_invalid without cookie fallback; no Remote-Scopes header; admin GET /accounts/{id}/tokens lists access + apps; DB access/app rows; pat_id on audit events; revoked PAT → 401) + maintenance (admin enables maintenance via PUT without sudo → public /config maintenanceMode+message round-trip; admin stays exempt /me 200; disable restores; non-admin dashboard+gateway blocking unit-tested) + client-ip (admin PUT header strategy + GET round-trip; invalid CIDR rejected 400; reset to direct) + login-appearance (admin POSTs two sign-in images without sudo → public GET /branding/login-images/{id} byte-for-byte verbatim, /config lists them in order; PUT appearance images/carousel/15s + card left + always dark round-trips through /config and the admin GET; unknown field → 400; unsplash without key → unsplash_key_required; DELETE image → 404) + steam (Steam OpenID 2.0 login arc: admin create protocol=steam provider; mock Steam OP redirect; callback → /welcome confirm → session; DB account+identity rows) + audit-remediation (new event types: webauthn:use, session:session_start/end, webauthn:sudo_granted, settings:update, PAT register/revoke/fail; ctx-carried IP non-empty on session_start events) + pwd-totp-enroll (password+TOTP enrollment ceremony: plain-invite begin→verify sets password+confirmed-TOTP+10 recovery codes and issues a session, password→TOTP login works, bootstrap rejects password+TOTP as passkey-only) + DB-state assertions passed against",
 		*baseURL)
 	fmt.Println("  VRChat: fixed link_only operator setup + browser-bound profile proof, sessionless federated registration, recovery that names its account, with passkey replacement/session revocation, authenticated linking, filtering, safe negative paths, and secret non-disclosure ✓")
 }
@@ -6427,14 +6476,32 @@ func clientDataJSON(typ string, challenge []byte, origin string) []byte {
 // ---------- Prohibitorum REST shapes ----------
 
 type meResponse struct {
-	ID                 int32             `json:"id"`
-	Username           string            `json:"username"`
-	DisplayName        string            `json:"displayName"`
-	Role               string            `json:"role"`
-	AvatarURL          *string           `json:"avatarUrl,omitempty"`
-	AvatarSource       *string           `json:"avatarSource,omitempty"`
-	AvatarSourceUrls   map[string]string `json:"avatarSourceUrls,omitempty"`
-	AvatarSourceLabels map[string]string `json:"avatarSourceLabels,omitempty"`
+	ID           int32   `json:"id"`
+	Username     string  `json:"username"`
+	DisplayName  string  `json:"displayName"`
+	Role         string  `json:"role"`
+	AvatarURL    *string `json:"avatarUrl,omitempty"`
+	AvatarSource *string `json:"avatarSource,omitempty"`
+}
+
+// myAvatarResponse mirrors contract.MyAvatarView — GET /me/avatar.
+type myAvatarResponse struct {
+	ActiveSource string `json:"activeSource"`
+	Sources      []struct {
+		Source string `json:"source"`
+		Label  string `json:"label,omitempty"`
+		URL    string `json:"url"`
+	} `json:"sources"`
+}
+
+// has reports whether source is among the stored avatars.
+func (r myAvatarResponse) has(source string) bool {
+	for _, s := range r.Sources {
+		if s.Source == source {
+			return true
+		}
+	}
+	return false
 }
 
 // invitedPasskeyAccount exercises the administrator invitation endpoint and
@@ -7607,7 +7674,6 @@ type federationConfirmView struct {
 	Username       string  `json:"username"`
 	Email          string  `json:"email"`
 	AvatarURL      *string `json:"avatarUrl,omitempty"`
-	AvatarPending  bool    `json:"avatarPending"`
 }
 
 // confirmGet drives GET /api/prohibitorum/auth/federation/confirm — the
@@ -7841,30 +7907,55 @@ func getAvatarSourceEtag(accountID int32) (source, etag string, err error) {
 	return source, etag, nil
 }
 
-// pollAvatarInherited polls GET /avatar/{subject} until it returns 200 with a
-// Content-Type of image/webp (the background avatar-inherit goroutine has
-// stored the upstream image) or the timeout elapses. Returns the response body
-// length + ETag on success.
-func pollAvatarInherited(baseURL, subject string, timeout time.Duration) (int, string, error) {
-	deadline := time.Now().Add(timeout)
-	var lastStatus int
-	var lastCT string
-	for time.Now().Before(deadline) {
-		resp, err := http.Get(baseURL + "/avatar/" + subject)
-		if err != nil {
-			return 0, "", err
-		}
-		body, _ := io.ReadAll(resp.Body)
-		resp.Body.Close()
-		lastStatus = resp.StatusCode
-		lastCT = resp.Header.Get("Content-Type")
-		if resp.StatusCode == http.StatusOK && strings.HasPrefix(lastCT, "image/webp") && len(body) > 0 {
-			return len(body), resp.Header.Get("ETag"), nil
-		}
-		time.Sleep(200 * time.Millisecond)
+// getPublicAvatar fetches GET /avatar/{subject} once and requires a non-empty
+// image/webp: the sign-in fetches the upstream picture before it redirects, so
+// it must already be stored. Returns the body length + ETag.
+func getPublicAvatar(baseURL, subject string) (int, string, error) {
+	resp, err := http.Get(baseURL + "/avatar/" + subject)
+	if err != nil {
+		return 0, "", err
 	}
-	return 0, "", fmt.Errorf("avatar never appeared for subject %s within %s (last status=%d ct=%q)",
-		subject, timeout, lastStatus, lastCT)
+	body, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	ct := resp.Header.Get("Content-Type")
+	if resp.StatusCode != http.StatusOK || !strings.HasPrefix(ct, "image/webp") || len(body) == 0 {
+		return 0, "", fmt.Errorf("avatar for subject %s not stored after sign-in (status=%d ct=%q bytes=%d)",
+			subject, resp.StatusCode, ct, len(body))
+	}
+	return len(body), resp.Header.Get("ETag"), nil
+}
+
+// getMyAvatar reads GET /api/prohibitorum/me/avatar for c's session.
+func getMyAvatar(c *client) (myAvatarResponse, error) {
+	var out myAvatarResponse
+	err := c.get("/api/prohibitorum/me/avatar", &out)
+	return out, err
+}
+
+// putAvatarPNG uploads a tiny 8×8 PNG as c's avatar and requires a 204.
+func putAvatarPNG(c *client, baseURL string) error {
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, image.NewRGBA(image.Rect(0, 0, 8, 8))); err != nil {
+		return fmt.Errorf("encode user PNG: %w", err)
+	}
+	req, err := http.NewRequest(http.MethodPut, baseURL+"/api/prohibitorum/me/avatar", bytes.NewReader(buf.Bytes()))
+	if err != nil {
+		return fmt.Errorf("build PUT /me/avatar: %w", err)
+	}
+	req.Header.Set("Content-Type", "image/png")
+	for _, ck := range c.cookies() {
+		req.AddCookie(ck)
+	}
+	resp, err := c.hc.Do(req)
+	if err != nil {
+		return fmt.Errorf("PUT /me/avatar: %w", err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusNoContent {
+		return fmt.Errorf("PUT /me/avatar: want 204, got %d (%s)", resp.StatusCode, body)
+	}
+	return nil
 }
 
 // verifyFederationAuditEvents asserts credential_event has lower-bound

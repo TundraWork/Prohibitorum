@@ -1173,12 +1173,15 @@ func TestFederatedRegistrationConcurrentCompletionHasOneWinner(t *testing.T) {
 	}
 }
 
-func TestFederatedRegistrationAvatarFailureAfterCommitDoesNotAlterSuccess(t *testing.T) {
-	e := federatedRegistrationEnrollment("avatar-failure-registration")
+func TestFederatedRegistrationRefreshesAvatarAfterCommit(t *testing.T) {
+	e := federatedRegistrationEnrollment("avatar-refresh-registration")
 	s, q := newAtomicVRChatEnrollmentServer(t, e, nil)
 	calls := 0
-	s.enrollmentAvatarOverride = func(accountID int32, provider federation.Provider, delivery federation.AvatarDelivery) error {
+	s.enrollmentAvatarRefresh = func(ctx context.Context, accountID int32, provider federation.Provider, delivery federation.AvatarDelivery) {
 		calls++
+		if ctx == nil {
+			t.Fatal("avatar refresh got no request context")
+		}
 		if accountID == 0 || provider.ID != e.FederatedUpstreamIdpID.Int64 || delivery.URL != e.FederatedAvatarUrl.String {
 			t.Fatalf("avatar inheritance args = account=%d provider=%+v delivery=%+v", accountID, provider, delivery)
 		}
@@ -1188,7 +1191,6 @@ func TestFederatedRegistrationAvatarFailureAfterCommitDoesNotAlterSuccess(t *tes
 		if !committed {
 			t.Fatal("avatar inheritance ran before account transaction commit")
 		}
-		return errors.New("avatar fetch failed")
 	}
 	beginFederatedRegistration(t, s, e, "avatar-user", "Avatar User")
 
@@ -1203,7 +1205,7 @@ func TestFederatedRegistrationAvatarFailureAfterCommitDoesNotAlterSuccess(t *tes
 	q.mu.Lock()
 	defer q.mu.Unlock()
 	if len(q.accounts) != 1 || !q.enrollments[e.Token].ConsumedAt.Valid {
-		t.Fatalf("avatar failure changed committed result: accounts=%d consumed=%v", len(q.accounts), q.enrollments[e.Token].ConsumedAt.Valid)
+		t.Fatalf("avatar refresh changed committed result: accounts=%d consumed=%v", len(q.accounts), q.enrollments[e.Token].ConsumedAt.Valid)
 	}
 }
 

@@ -1,7 +1,8 @@
 // Package server — handle_avatar_test.go
 //
 // Unit tests for the dual-source avatar handlers:
-//   PUT  /api/prohibitorum/me/avatar           — upload → user source + active=user
+//   GET  /api/prohibitorum/me/avatar           — stored sources + active source
+//   PUT  /api/prohibitorum/me/avatar           — upload → user source, active=user until a pick
 //   PUT  /api/prohibitorum/me/avatar/selection — change active source
 //   DELETE /api/prohibitorum/me/avatar         — delete user upload + fallback
 //   GET  /avatar/{subject}                     — public; active or ?source= specific
@@ -20,6 +21,7 @@ import (
 	"image/png"
 	"net/http"
 	"net/http/httptest"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -31,9 +33,10 @@ import (
 	_ "github.com/gen2brain/webp" // register webp decoder for image.DecodeConfig
 
 	"prohibitorum/pkg/authn"
+	"prohibitorum/pkg/avatar"
+	"prohibitorum/pkg/configx"
+	"prohibitorum/pkg/contract"
 	"prohibitorum/pkg/db"
-	fedoidc "prohibitorum/pkg/federation"
-	"prohibitorum/pkg/kv"
 )
 
 // ---------------------------------------------------------------------------
@@ -56,6 +59,12 @@ type fakeAvatarQueries struct {
 	store map[sourceKey]avatarRow
 	// per-account active source pointer (mirrors account.avatar_source)
 	activeSource map[int32]string // "" means never set / NULL
+	// per-account "user picked an avatar" flag (mirrors account.avatar_selected_at)
+	selected map[int32]bool
+	// MarkAvatarSelected calls, for asserting the selection endpoint records a pick
+	marks int
+	// source → upstream display name returned by ListAvatarSourcesByAccount
+	labels map[string]string
 	// subject → accountID for GET queries
 	subjectMap map[string]int32
 	disabled   map[int32]bool
@@ -65,9 +74,28 @@ func newFakeAvatarQ() *fakeAvatarQueries {
 	return &fakeAvatarQueries{
 		store:        make(map[sourceKey]avatarRow),
 		activeSource: make(map[int32]string),
+		selected:     make(map[int32]bool),
+		labels:       make(map[string]string),
 		subjectMap:   make(map[string]int32),
 		disabled:     make(map[int32]bool),
 	}
+}
+
+func (f *fakeAvatarQueries) GetAccountByID(_ context.Context, id int32) (db.Account, error) {
+	acct := db.Account{ID: id}
+	if active := f.activeSource[id]; active != "" {
+		acct.AvatarSource = pgtype.Text{String: active, Valid: true}
+	}
+	if f.selected[id] {
+		acct.AvatarSelectedAt = pgtype.Timestamptz{Time: time.Now(), Valid: true}
+	}
+	return acct, nil
+}
+
+func (f *fakeAvatarQueries) MarkAvatarSelected(_ context.Context, id int32) error {
+	f.marks++
+	f.selected[id] = true
+	return nil
 }
 
 func (f *fakeAvatarQueries) UpsertAvatarSource(_ context.Context, arg db.UpsertAvatarSourceParams) error {
@@ -139,11 +167,19 @@ func (f *fakeAvatarQueries) ListAvatarSourcesByAccount(_ context.Context, accoun
 	for k, v := range f.store {
 		if k.accountID == accountID {
 			rows = append(rows, db.ListAvatarSourcesByAccountRow{
-				Source: k.source,
-				Etag:   v.etag,
+				Source:         k.source,
+				Etag:           v.etag,
+				IdpDisplayName: f.labels[k.source],
 			})
 		}
 	}
+	// Same order as the query: the upload first, then upstreams by source key.
+	sort.Slice(rows, func(i, j int) bool {
+		if (rows[i].Source == "user") != (rows[j].Source == "user") {
+			return rows[i].Source == "user"
+		}
+		return rows[i].Source < rows[j].Source
+	})
 	return rows, nil
 }
 
@@ -284,9 +320,10 @@ func seedUpstreamAvatar(q *fakeAvatarQueries, accountID int32, etag string) {
 // PUT /me/avatar tests
 // ---------------------------------------------------------------------------
 
-// TestPutAvatar_ValidPNG_Stores204 verifies that uploading a valid PNG produces
-// a 204, stores a 'user' source row, sets active=user, and refreshes the session.
-func TestPutAvatar_ValidPNG_Stores204(t *testing.T) {
+// TestPutAvatar_NeverSelected_ActivatesUser verifies that uploading a valid PNG
+// produces a 204, stores a 'user' source row and, because the user never
+// picked an avatar, sets active=user and refreshes the session.
+func TestPutAvatar_NeverSelected_ActivatesUser(t *testing.T) {
 	q := newFakeAvatarQ()
 	s := newAvatarServer(t, q)
 	sess := avatarSession(testSubject)
@@ -319,6 +356,39 @@ func TestPutAvatar_ValidPNG_Stores204(t *testing.T) {
 	}
 	if sess.Account.AvatarSource.String != "user" {
 		t.Errorf("sess.Account.AvatarSource: want user, got %q", sess.Account.AvatarSource.String)
+	}
+	if q.marks != 0 {
+		t.Errorf("upload recorded a pick %d times, want 0", q.marks)
+	}
+}
+
+// TestPutAvatar_Selected_KeepsActiveSource verifies that once the user has
+// picked an avatar, an upload is stored but the active source stays.
+func TestPutAvatar_Selected_KeepsActiveSource(t *testing.T) {
+	q := newFakeAvatarQ()
+	s := newAvatarServer(t, q)
+	sess := avatarSession(testSubject)
+	seedUpstreamAvatar(q, testAccountID, "upstream-etag-abcdef")
+	q.activeSource[testAccountID] = "upstream:mockop"
+	q.selected[testAccountID] = true
+	sess.Account.AvatarSource = pgtype.Text{String: "upstream:mockop", Valid: true}
+	sess.Account.AvatarEtag = pgtype.Text{String: "upstream-etag-abcdef", Valid: true}
+
+	r := putAvatarReq(t, smallPNG(t), sess)
+	w := httptest.NewRecorder()
+	s.handlePutAvatarHTTP(w, r)
+
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("status: want 204, got %d; body=%s", w.Code, w.Body.String())
+	}
+	if _, ok := q.store[sourceKey{testAccountID, "user"}]; !ok {
+		t.Error("upload must still be stored as the user source")
+	}
+	if q.activeSource[testAccountID] != "upstream:mockop" {
+		t.Errorf("active source: want upstream:mockop (unchanged), got %q", q.activeSource[testAccountID])
+	}
+	if sess.Account.AvatarSource.String != "upstream:mockop" || sess.Account.AvatarEtag.String != "upstream-etag-abcdef" {
+		t.Errorf("session avatar changed: source=%q etag=%q", sess.Account.AvatarSource.String, sess.Account.AvatarEtag.String)
 	}
 }
 
@@ -426,6 +496,9 @@ func TestPutAvatarSelection_SwitchToUpstream_204(t *testing.T) {
 	if sess.Account.AvatarSource.String != "upstream:mockop" {
 		t.Errorf("sess AvatarSource: want upstream, got %q", sess.Account.AvatarSource.String)
 	}
+	if q.marks != 1 || !sess.Account.AvatarSelectedAt.Valid {
+		t.Errorf("pick not recorded: marks=%d sess selected=%v", q.marks, sess.Account.AvatarSelectedAt.Valid)
+	}
 }
 
 // TestPutAvatarSelection_UpstreamMissing_400 verifies that selecting "upstream:mockop"
@@ -446,6 +519,9 @@ func TestPutAvatarSelection_UpstreamMissing_400(t *testing.T) {
 	}
 	if code := decodeAvatarErrCode(t, w.Body.String()); code != "avatar_source_unavailable" {
 		t.Errorf("code: want avatar_source_unavailable, got %q", code)
+	}
+	if q.marks != 0 {
+		t.Errorf("failed selection recorded a pick %d times", q.marks)
 	}
 }
 
@@ -493,6 +569,9 @@ func TestPutAvatarSelection_None_204(t *testing.T) {
 	}
 	if sess.Account.AvatarEtag.Valid {
 		t.Error("sess AvatarEtag must be cleared when source=none")
+	}
+	if q.marks != 1 || !sess.Account.AvatarSelectedAt.Valid {
+		t.Errorf("pick not recorded: marks=%d sess selected=%v", q.marks, sess.Account.AvatarSelectedAt.Valid)
 	}
 }
 
@@ -852,98 +931,94 @@ func TestDeleteAvatar_UpstreamActive_DeleteUser_StaysUpstream(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// GET /me/avatar/status — pending / not-pending
+// GET /me/avatar
 // ---------------------------------------------------------------------------
 
-// newAvatarStatusTestServer builds a minimal *Server with a real Federator backed
-// by a memory KV, suitable for testing handleAvatarStatusHTTP.
-func newAvatarStatusTestServer(t *testing.T) (*Server, kv.Store) {
+func getMyAvatar(t *testing.T, s *Server, sess *authn.Session) contract.MyAvatarView {
 	t.Helper()
-	kvStore := kv.NewMemoryStore()
-	t.Cleanup(func() { _ = kvStore.Close() })
-
-	fq := newFakeFedQueries()
-	service := fedoidc.NewService(nil, nil, kvStore, nil, nil, fedoidc.ServiceConfig{StateTTL: 5 * time.Minute})
-	service.SetAvatarManager(fedoidc.NewAvatarManager(fq, kvStore))
-
-	s := &Server{
-		federationService: service,
+	out, err := s.handleGetMyAvatar(authn.WithSession(context.Background(), sess), nil)
+	if err != nil {
+		t.Fatalf("handleGetMyAvatar: %v", err)
 	}
-	return s, kvStore
+	return out.Body
 }
 
-// statusReq builds a GET request for /me/avatar/status attached to the given session.
-func statusReq(sess *authn.Session) *http.Request {
-	r := httptest.NewRequest("GET", "/api/prohibitorum/me/avatar/status", nil)
-	if sess != nil {
-		r = r.WithContext(authn.WithSession(r.Context(), sess))
+// TestGetMyAvatar_NoSources verifies an account without any stored avatar
+// reports activeSource none and an empty (not null) list.
+func TestGetMyAvatar_NoSources(t *testing.T) {
+	q := newFakeAvatarQ()
+	s := newAvatarServer(t, q)
+	s.config = &configx.Config{PublicOrigins: []string{"https://id.example.com"}}
+
+	view := getMyAvatar(t, s, avatarSession(testSubject))
+
+	if view.ActiveSource != "none" {
+		t.Errorf("activeSource = %q, want none", view.ActiveSource)
 	}
-	return r
+	if view.Sources == nil || len(view.Sources) != 0 {
+		t.Errorf("sources = %#v, want empty list", view.Sources)
+	}
+	raw, err := json.Marshal(view)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(raw), `"sources":[]`) {
+		t.Errorf("body = %s, want sources []", raw)
+	}
 }
 
-// TestAvatarStatus_PendingTrue verifies that when the AvatarFetchKey is present
-// in KV the status endpoint returns {"pending":true}.
-func TestAvatarStatus_PendingTrue(t *testing.T) {
-	s, kvStore := newAvatarStatusTestServer(t)
+// TestGetMyAvatar_ListsUploadThenUpstreams verifies the upload comes first,
+// upstreams follow by source key with their display names, and every source
+// carries its preview URL.
+func TestGetMyAvatar_ListsUploadThenUpstreams(t *testing.T) {
+	q := newFakeAvatarQ()
+	s := newAvatarServer(t, q)
+	s.config = &configx.Config{PublicOrigins: []string{"https://id.example.com"}}
 	sess := avatarSession(testSubject)
-
-	if err := kvStore.SetEx(context.Background(), fedoidc.AvatarFetchKey(testAccountID, 1), "1", time.Minute); err != nil {
-		t.Fatalf("seed KV key: %v", err)
+	userETag := seedUserAvatar(t, s, q, sess)
+	seedUpstreamAvatar(q, testAccountID, "9f8e7d6c5b4a")
+	q.store[sourceKey{testAccountID, "upstream:github"}] = avatarRow{
+		bytes: []byte("gh"), etag: pgtype.Text{String: "1a2b3c4d5e6f", Valid: true},
+		contentType: pgtype.Text{String: "image/webp", Valid: true},
 	}
+	q.labels["upstream:mockop"] = "Mock OP"
+	q.labels["upstream:github"] = "GitHub"
+	sess.Account.AvatarSource = pgtype.Text{String: "upstream:github", Valid: true}
 
-	w := httptest.NewRecorder()
-	s.handleAvatarStatusHTTP(w, statusReq(sess))
+	view := getMyAvatar(t, s, sess)
 
-	if w.Code != http.StatusOK {
-		t.Fatalf("status: want 200, got %d; body=%s", w.Code, w.Body.String())
+	if view.ActiveSource != "upstream:github" {
+		t.Errorf("activeSource = %q, want upstream:github", view.ActiveSource)
 	}
-	var out map[string]bool
-	if err := json.NewDecoder(w.Body).Decode(&out); err != nil {
-		t.Fatalf("decode body: %v", err)
+	want := []contract.MyAvatarSourceView{
+		{Source: "user", URL: avatar.SourceURL(testSubject, "user", userETag, "https://id.example.com")},
+		{Source: "upstream:github", Label: "GitHub", URL: "https://id.example.com/avatar/" + testSubject + "?source=upstream%3Agithub&v=1a2b3c4d"},
+		{Source: "upstream:mockop", Label: "Mock OP", URL: "https://id.example.com/avatar/" + testSubject + "?source=upstream%3Amockop&v=9f8e7d6c"},
 	}
-	if !out["pending"] {
-		t.Errorf("pending: want true, got false")
+	if len(view.Sources) != len(want) {
+		t.Fatalf("sources = %+v, want %+v", view.Sources, want)
 	}
-}
-
-// TestAvatarStatus_PendingFalse verifies that when the AvatarFetchKey is absent
-// the status endpoint returns {"pending":false}.
-func TestAvatarStatus_PendingFalse(t *testing.T) {
-	s, _ := newAvatarStatusTestServer(t)
-	sess := avatarSession(testSubject)
-
-	w := httptest.NewRecorder()
-	s.handleAvatarStatusHTTP(w, statusReq(sess))
-
-	if w.Code != http.StatusOK {
-		t.Fatalf("status: want 200, got %d; body=%s", w.Code, w.Body.String())
-	}
-	var out map[string]bool
-	if err := json.NewDecoder(w.Body).Decode(&out); err != nil {
-		t.Fatalf("decode body: %v", err)
-	}
-	if out["pending"] {
-		t.Errorf("pending: want false, got true")
+	for i := range want {
+		if view.Sources[i] != want[i] {
+			t.Errorf("sources[%d] = %+v, want %+v", i, view.Sources[i], want[i])
+		}
 	}
 }
 
-// TestAvatarStatus_NilFederator verifies that the status endpoint returns
-// {"pending":false} safely when s.federator is nil.
-func TestAvatarStatus_NilFederator(t *testing.T) {
-	s := &Server{} // no federator
-	sess := avatarSession(testSubject)
+// TestGetMyAvatar_NeverSetReportsNone verifies a NULL avatar_source (never
+// set) reports none even when an upstream avatar is stored.
+func TestGetMyAvatar_NeverSetReportsNone(t *testing.T) {
+	q := newFakeAvatarQ()
+	s := newAvatarServer(t, q)
+	s.config = &configx.Config{PublicOrigins: []string{"https://id.example.com"}}
+	seedUpstreamAvatar(q, testAccountID, "upstream-etag-abcdef")
 
-	w := httptest.NewRecorder()
-	s.handleAvatarStatusHTTP(w, statusReq(sess))
+	view := getMyAvatar(t, s, avatarSession(testSubject))
 
-	if w.Code != http.StatusOK {
-		t.Fatalf("status: want 200, got %d; body=%s", w.Code, w.Body.String())
+	if view.ActiveSource != "none" {
+		t.Errorf("activeSource = %q, want none", view.ActiveSource)
 	}
-	var out map[string]bool
-	if err := json.NewDecoder(w.Body).Decode(&out); err != nil {
-		t.Fatalf("decode body: %v", err)
-	}
-	if out["pending"] {
-		t.Errorf("pending: want false when federator is nil, got true")
+	if len(view.Sources) != 1 || view.Sources[0].Source != "upstream:mockop" {
+		t.Errorf("sources = %+v, want the stored upstream", view.Sources)
 	}
 }

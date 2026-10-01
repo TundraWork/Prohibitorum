@@ -26,6 +26,7 @@ type Account struct {
 	AvatarContentType  pgtype.Text        `json:"avatarContentType"`
 	AvatarEtag         pgtype.Text        `json:"avatarEtag"`
 	AvatarSource       pgtype.Text        `json:"avatarSource"`
+	AvatarSelectedAt   pgtype.Timestamptz `json:"avatarSelectedAt"`
 }
 
 type AccountAvatar struct {
@@ -35,6 +36,7 @@ type AccountAvatar struct {
 	ContentType pgtype.Text `json:"contentType"`
 	Etag        pgtype.Text `json:"etag"`
 	IdpID       *int64      `json:"idpId"`
+	UpstreamUrl pgtype.Text `json:"upstreamUrl"`
 }
 
 type AccountIdentity struct {

@@ -109,15 +109,15 @@ func rejectingEnrollmentIssuer() EnrollmentIssuer {
 }
 
 type serviceFakeAvatar struct {
-	calls int
+	calls    int
+	accounts []int32
+	delivery AvatarDelivery
 }
 
-func (a *serviceFakeAvatar) Inherit(int32, Provider, AvatarDelivery, AvatarResolver) {
+func (a *serviceFakeAvatar) Refresh(_ context.Context, accountID int32, _ Provider, delivery AvatarDelivery, _ AvatarResolver) {
 	a.calls++
-}
-
-func (*serviceFakeAvatar) Pending(context.Context, int32) bool {
-	return false
+	a.accounts = append(a.accounts, accountID)
+	a.delivery = delivery
 }
 
 type serviceRecordingAudit struct {
@@ -1218,30 +1218,79 @@ func TestServiceKnownAtPrepareBecomingUnknownRestoresUsernamePromptOnly(t *testi
 	}
 }
 
-func TestServiceLinkCompletionDoesNotInheritAvatar(t *testing.T) {
-	service, adapter, _, _ := newServiceHarness(t)
-	avatars := &serviceFakeAvatar{}
-	service.SetAvatarManager(avatars)
-	adapter.advance = func(_ json.RawMessage, _ ActionInput) (AdvanceResult, error) {
-		return AdvanceResult{Identity: &VerifiedIdentity{
-			Issuer: "iss", Subject: "sub", AvatarURL: "https://cdn.test/avatar.png",
-		}}, nil
+func TestServiceCompletionRefreshesAvatar(t *testing.T) {
+	tests := []struct {
+		name    string
+		begin   func(*Service) (*BeginResult, error)
+		request func(*BeginResult) AdvanceRequest
+	}{
+		{
+			name: "login",
+			begin: func(service *Service) (*BeginResult, error) {
+				return service.BeginPublic(context.Background(), "corp", "/")
+			},
+			request: func(begin *BeginResult) AdvanceRequest {
+				return AdvanceRequest{
+					FlowID: begin.FlowID, BrowserToken: begin.BrowserToken,
+					ProviderSlug: "corp", Protocol: "fake", CallbackRoute: CallbackRoutePublic,
+					Input: ActionInput{Kind: ActionRedirect},
+				}
+			},
+		},
+		{
+			name: "link",
+			begin: func(service *Service) (*BeginResult, error) {
+				return service.BeginLink(context.Background(), "corp", "/identities", 9, "session-1")
+			},
+			request: func(begin *BeginResult) AdvanceRequest {
+				return AdvanceRequest{
+					FlowID: begin.FlowID, BrowserToken: begin.BrowserToken,
+					ProviderSlug: "corp", Protocol: "fake", CallbackRoute: CallbackRouteLink,
+					AccountID: new(int32(9)), SessionID: "session-1",
+					Input: ActionInput{Kind: ActionRedirect},
+				}
+			},
+		},
+		{
+			name: "invite",
+			begin: func(service *Service) (*BeginResult, error) {
+				return service.BeginInvite(context.Background(), "invite-token", "", "/")
+			},
+			request: func(begin *BeginResult) AdvanceRequest {
+				return AdvanceRequest{
+					FlowID: begin.FlowID, BrowserToken: begin.BrowserToken,
+					ProviderSlug: "corp", Protocol: "fake", CallbackRoute: CallbackRoutePublic,
+					Input: ActionInput{Kind: ActionRedirect},
+				}
+			},
+		},
 	}
-	begin, err := service.BeginLink(context.Background(), "corp", "/identities", 9, "session-1")
-	if err != nil {
-		t.Fatal(err)
-	}
-	_, err = service.VerifyFlow(context.Background(), AdvanceRequest{
-		FlowID: begin.FlowID, BrowserToken: begin.BrowserToken,
-		ProviderSlug: "corp", Protocol: "fake", CallbackRoute: CallbackRouteLink,
-		AccountID: new(int32(9)), SessionID: "session-1",
-		Input: ActionInput{Kind: ActionRedirect},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if avatars.calls != 0 {
-		t.Fatalf("link completion inherited avatar %d times", avatars.calls)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			service, adapter, resolver, _ := newServiceHarness(t)
+			resolver.outcome.AccountID = 9
+			avatars := &serviceFakeAvatar{}
+			service.SetAvatarManager(avatars)
+			adapter.advance = func(_ json.RawMessage, _ ActionInput) (AdvanceResult, error) {
+				return AdvanceResult{Identity: &VerifiedIdentity{
+					Issuer: "iss", Subject: "sub", AvatarURL: "https://cdn.test/avatar.png",
+				}}, nil
+			}
+			begin, err := test.begin(service)
+			if err != nil {
+				t.Fatal(err)
+			}
+			completion, err := service.VerifyFlow(context.Background(), test.request(begin))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if avatars.calls != 1 || len(avatars.accounts) != 1 || avatars.accounts[0] != completion.AccountID {
+				t.Fatalf("avatar refreshes = %d for accounts %v, want one for account %d", avatars.calls, avatars.accounts, completion.AccountID)
+			}
+			if avatars.delivery.URL != "https://cdn.test/avatar.png" {
+				t.Fatalf("avatar delivery = %+v, want the verified identity's URL", avatars.delivery)
+			}
+		})
 	}
 }
 

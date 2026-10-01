@@ -189,11 +189,14 @@ UPDATE account SET display_name = $2, updated_at = now() WHERE id = $1;
 -- name: UpsertAvatarSource :exec
 -- idp_id records the source upstream for an inherited avatar (NULL for a user
 -- upload); source carries the upstream slug ("upstream:<slug>") so the
--- (account_id, source) PK yields one row per (account, upstream).
-INSERT INTO account_avatar (account_id, source, bytes, content_type, etag, idp_id)
-VALUES ($1, $2, $3, $4, $5, $6)
+-- (account_id, source) PK yields one row per (account, upstream). upstream_url
+-- is the URL an upstream avatar was fetched from (NULL for a user upload), so a
+-- later sign-in that hands out the same URL can skip the download.
+INSERT INTO account_avatar (account_id, source, bytes, content_type, etag, idp_id, upstream_url)
+VALUES ($1, $2, $3, $4, $5, $6, sqlc.narg(upstream_url))
 ON CONFLICT (account_id, source) DO UPDATE
-  SET bytes = EXCLUDED.bytes, content_type = EXCLUDED.content_type, etag = EXCLUDED.etag, idp_id = EXCLUDED.idp_id;
+  SET bytes = EXCLUDED.bytes, content_type = EXCLUDED.content_type, etag = EXCLUDED.etag,
+      idp_id = EXCLUDED.idp_id, upstream_url = EXCLUDED.upstream_url;
 
 -- name: SetActiveAvatar :exec
 -- source is forced non-null text (the column is nullable, but this query only
@@ -225,8 +228,14 @@ WHERE a.oidc_subject = $1 AND av.source = sqlc.arg(source);
 -- name: ListAvatarSourcesByAccount :many
 -- LEFT JOIN so the 'user' row (NULL idp_id) is kept with an empty label; the
 -- join is by id (unconditional) so even a disabled upstream's inherited avatar
--- still resolves its display name.
-SELECT av.source, av.etag, COALESCE(i.display_name, '') AS idp_display_name
+-- still resolves its display name. The upload comes first, then the upstreams
+-- by source key.
+SELECT av.source, av.etag, COALESCE(i.display_name, '') AS idp_display_name, av.upstream_url
 FROM account_avatar av
 LEFT JOIN upstream_idp i ON i.id = av.idp_id
-WHERE av.account_id = $1;
+WHERE av.account_id = $1
+ORDER BY (av.source <> 'user'), av.source;
+
+-- name: MarkAvatarSelected :exec
+-- Records the first time the user picked an avatar; later picks keep it.
+UPDATE account SET avatar_selected_at = COALESCE(avatar_selected_at, now()), updated_at = now() WHERE id = $1;

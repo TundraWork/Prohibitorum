@@ -12,7 +12,6 @@ import (
 	"errors"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -20,7 +19,6 @@ import (
 	"prohibitorum/pkg/authn"
 	"prohibitorum/pkg/configx"
 	"prohibitorum/pkg/db"
-	fedoidc "prohibitorum/pkg/federation"
 	"prohibitorum/pkg/weberr"
 )
 
@@ -356,81 +354,13 @@ func TestHandleGetMyFactors_PasskeyCountDBError(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// GET /me avatarPending
+// GET /me avatarSource
 // ---------------------------------------------------------------------------
 
-// getMeCtxWithSession returns a context with a minimal session for accountID.
-func getMeCtxWithSession(accountID int32) context.Context {
-	acct := &db.Account{ID: accountID, Username: "carol", DisplayName: "Carol"}
-	sess := &authn.Session{Account: acct}
-	return authn.WithSession(context.Background(), sess)
-}
-
-// TestHandleGetMe_AvatarPendingTrue verifies that handleGetMe returns
-// avatarPending:true when the KV marker is present.
-func TestHandleGetMe_AvatarPendingTrue(t *testing.T) {
-	const acctID int32 = 55
-
-	// Build a Server with a real Federator backed by a memory KV.
-	s, kvStore := newAvatarStatusTestServer(t)
-
-	// Seed the KV marker.
-	if err := kvStore.SetEx(context.Background(), fedoidc.AvatarFetchKey(acctID, 1), "1", time.Minute); err != nil {
-		t.Fatalf("seed KV key: %v", err)
-	}
-
-	ctx := getMeCtxWithSession(acctID)
-	out, err := s.handleGetMe(ctx, nil)
-	if err != nil {
-		t.Fatalf("handleGetMe: %v", err)
-	}
-	if !out.Body.AvatarPending {
-		t.Error("avatarPending: want true, got false")
-	}
-}
-
-// TestHandleGetMe_AvatarPendingFalse verifies that handleGetMe omits/false
-// avatarPending when the KV marker is absent.
-func TestHandleGetMe_AvatarPendingFalse(t *testing.T) {
-	const acctID int32 = 56
-
-	s, _ := newAvatarStatusTestServer(t)
-
-	// No KV marker seeded.
-	ctx := getMeCtxWithSession(acctID)
-	out, err := s.handleGetMe(ctx, nil)
-	if err != nil {
-		t.Fatalf("handleGetMe: %v", err)
-	}
-	if out.Body.AvatarPending {
-		t.Error("avatarPending: want false, got true")
-	}
-}
-
-// TestHandleGetMe_AvatarPendingNilFederator verifies that handleGetMe with a nil
-// federator returns avatarPending:false safely (nil-guard).
-func TestHandleGetMe_AvatarPendingNilFederator(t *testing.T) {
-	const acctID int32 = 57
-
-	s := &Server{} // no federator, no config
-	ctx := getMeCtxWithSession(acctID)
-	out, err := s.handleGetMe(ctx, nil)
-	if err != nil {
-		t.Fatalf("handleGetMe: %v", err)
-	}
-	if out.Body.AvatarPending {
-		t.Error("avatarPending: want false when federator nil, got true")
-	}
-}
-
-// ---------------------------------------------------------------------------
-// GET /me avatarSource + avatarSourceUrls
-// ---------------------------------------------------------------------------
-
-// TestHandleGetMe_AvatarSourceAndUrls verifies that /me returns avatarSource (the
-// active pointer) and avatarSourceUrls (one entry per existing source row) when the
-// account has both an upstream and a user avatar row and active is set to "user".
-func TestHandleGetMe_AvatarSourceAndUrls(t *testing.T) {
+// TestHandleGetMe_AvatarSource verifies that /me returns avatarSource (the
+// active pointer) when the account has both an upstream and a user avatar row
+// and active is set to "user".
+func TestHandleGetMe_AvatarSource(t *testing.T) {
 	const acctID int32 = 60
 	const sub = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
 
@@ -485,27 +415,11 @@ func TestHandleGetMe_AvatarSourceAndUrls(t *testing.T) {
 	if *v.AvatarSource != "user" {
 		t.Errorf("avatarSource: want \"user\", got %q", *v.AvatarSource)
 	}
-
-	// avatarSourceUrls must contain both "upstream" and "user" keys.
-	if v.AvatarSourceUrls == nil {
-		t.Fatal("avatarSourceUrls: want non-nil map, got nil")
-	}
-	for _, src := range []string{"upstream", "user"} {
-		u, ok := v.AvatarSourceUrls[src]
-		if !ok {
-			t.Errorf("avatarSourceUrls[%q]: key missing", src)
-		} else if u == "" {
-			t.Errorf("avatarSourceUrls[%q]: URL must be non-empty", src)
-		}
-	}
-	if len(v.AvatarSourceUrls) != 2 {
-		t.Errorf("avatarSourceUrls: want 2 entries, got %d: %v", len(v.AvatarSourceUrls), v.AvatarSourceUrls)
-	}
 }
 
 // A NULL active source (an upstream avatar inherited-but-not-yet-activated) must
-// omit avatarSource from /me while still exposing the source's preview URL.
-func TestHandleGetMe_AvatarSourceNullStillListsUrls(t *testing.T) {
+// omit avatarSource from /me.
+func TestHandleGetMe_AvatarSourceNullOmitted(t *testing.T) {
 	const acctID int32 = 61
 	const sub = "11111111-2222-3333-4444-555555555555"
 
@@ -533,8 +447,5 @@ func TestHandleGetMe_AvatarSourceNullStillListsUrls(t *testing.T) {
 	}
 	if out.Body.AvatarSource != nil {
 		t.Errorf("avatarSource: want nil (omitted) for NULL active source, got %q", *out.Body.AvatarSource)
-	}
-	if u, ok := out.Body.AvatarSourceUrls["upstream"]; !ok || u == "" {
-		t.Errorf("avatarSourceUrls[upstream]: want non-empty even when active is NULL, got %q (present=%v)", u, ok)
 	}
 }

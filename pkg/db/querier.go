@@ -180,7 +180,8 @@ type Querier interface {
 	ListAllUpstreamIDPs(ctx context.Context, arg ListAllUpstreamIDPsParams) ([]UpstreamIdp, error)
 	// LEFT JOIN so the 'user' row (NULL idp_id) is kept with an empty label; the
 	// join is by id (unconditional) so even a disabled upstream's inherited avatar
-	// still resolves its display name.
+	// still resolves its display name. The upload comes first, then the upstreams
+	// by source key.
 	ListAvatarSourcesByAccount(ctx context.Context, accountID int32) ([]ListAvatarSourcesByAccountRow, error)
 	ListConsentsByAccount(ctx context.Context, accountID int32) ([]ListConsentsByAccountRow, error)
 	ListCredentialEvents(ctx context.Context, arg ListCredentialEventsParams) ([]ListCredentialEventsRow, error)
@@ -243,6 +244,8 @@ type Querier interface {
 	ListSessionsByAccount(ctx context.Context, accountID int32) ([]Session, error)
 	ListUpstreamIDPs(ctx context.Context) ([]UpstreamIdp, error)
 	LockInstanceSettings(ctx context.Context) (int16, error)
+	// Records the first time the user picked an avatar; later picks keep it.
+	MarkAvatarSelected(ctx context.Context, id int32) error
 	PATGrantsApp(ctx context.Context, arg PATGrantsAppParams) (bool, error)
 	PromoteSigningKey(ctx context.Context, kid string) (SigningKey, error)
 	PruneExpiredRevokedJTI(ctx context.Context) error
@@ -317,7 +320,9 @@ type Querier interface {
 	UpdateVRChatOperatorSecret(ctx context.Context, arg UpdateVRChatOperatorSecretParams) (UpstreamIdp, error)
 	// idp_id records the source upstream for an inherited avatar (NULL for a user
 	// upload); source carries the upstream slug ("upstream:<slug>") so the
-	// (account_id, source) PK yields one row per (account, upstream).
+	// (account_id, source) PK yields one row per (account, upstream). upstream_url
+	// is the URL an upstream avatar was fetched from (NULL for a user upload), so a
+	// later sign-in that hands out the same URL can skip the download.
 	UpsertAvatarSource(ctx context.Context, arg UpsertAvatarSourceParams) error
 	UpsertConsent(ctx context.Context, arg UpsertConsentParams) error
 	UpsertManualDecision(ctx context.Context, arg UpsertManualDecisionParams) (GroupManualDecision, error)

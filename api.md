@@ -345,6 +345,24 @@ consent grant and has no revoke action there, including when an older grant stil
 exists. Apps requiring consent keep the existing connect/revoke behavior. This
 display policy does not bypass the server's app access controls.
 
+## Avatars (self-service)
+
+An account can store an uploaded avatar (source `user`) and one avatar per connected upstream (source `upstream:<slug>`). One of them, or `none`, is in effect.
+
+In this section 🔓 means an active session of any user; the routes act on the caller's own account.
+
+| Method | Path | Gate | Notes |
+|--------|------|------|-------|
+| GET | `/api/prohibitorum/me/avatar` | 🔓 | `{activeSource, sources}`. `activeSource` is `user`, `upstream:<slug>` or `none`; an account that never had an avatar reports `none`. `sources` lists the stored avatars, the upload first and then the upstreams by source key, each as `{source, label?, url}`: `label` is the upstream's display name and is omitted for the upload, `url` is the preview address. An upstream that has not supplied a picture is not listed. Empty account: `sources: []`. |
+| PUT | `/api/prohibitorum/me/avatar` | 🔓 | Raw image bytes, ≤ 5 MiB, re-encoded to WebP and stored as `user`. The upload takes effect only if the user has never picked an avatar; otherwise the current choice stays. 204. 400 `avatar_too_large` / `avatar_invalid_image`. Audit reason `avatar_upload` with `activated`. |
+| PUT | `/api/prohibitorum/me/avatar/selection` | 🔓 | Body `{"source": "user" \| "none" \| "upstream:<slug>"}`. Makes that source the active avatar and records that the user has picked one. 204. 400 `avatar_source_unavailable` when the source has no stored image. |
+| DELETE | `/api/prohibitorum/me/avatar` | 🔓 | Deletes the upload. If it was in effect, the first stored upstream avatar takes its place, or `none` when there is none. This does not count as a pick. 204. |
+| GET | `/avatar/{subject}` | public | Serves the active avatar, or the source given by `?source=`, with an `ETag`; 404 when there is none or the account is disabled. |
+
+Upstream avatars are fetched while a sign-in, a connection or an invitation registration through that upstream completes, so the picture is stored by the time the browser is redirected. If the upstream hands out the same picture URL as last time, nothing is downloaded. A failed or timed-out fetch (10 seconds) is logged and does not stop the sign-in; the stored avatar stays and the next sign-in tries again. If the upstream gives no picture URL, the stored avatar is kept.
+
+Until the user picks an avatar through the selection endpoint (including `none`), an upload or an upstream avatar may take effect on its own: an upload always does, and an upstream avatar does when no avatar is in effect. After the first pick, only the user changes the active avatar. In both cases a new picture from the upstream that is already in effect replaces the one shown.
+
 ## Personal access tokens (self-service)
 
 Self-service PAT management routes. These are **not** admin-gated — any enrolled user may call them on their own account.

@@ -90,6 +90,10 @@ type Server struct {
 	// picture so the RP must fall back to UserInfo to discover the avatar.
 	userinfoPicture string
 
+	// avatarHits counts requests to /avatar.png, so a test can tell whether the
+	// RP downloaded the picture again.
+	avatarHits int
+
 	// Per-code state, keyed by the authorization code.
 	codes map[string]codeState
 }
@@ -185,6 +189,19 @@ func (s *Server) PictureURL() string {
 	return s.base + "/avatar.png"
 }
 
+// PictureURLWithVersion returns PictureURL with ?v=<v> appended. The same
+// image is served, but the RP sees a different URL and fetches it again.
+func (s *Server) PictureURLWithVersion(v string) string {
+	return s.PictureURL() + "?v=" + url.QueryEscape(v)
+}
+
+// AvatarHits returns how many times /avatar.png has been requested.
+func (s *Server) AvatarHits() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.avatarHits
+}
+
 // SetAMR sets the amr claim added to the next ID token. Passing nil clears
 // it (no amr claim emitted). Persists across calls.
 func (s *Server) SetAMR(amr []string) {
@@ -265,8 +282,8 @@ func (s *Server) handleJWKS(w http.ResponseWriter, r *http.Request) {
 // The mock OP issues opaque (non-introspectable) access tokens, so this endpoint
 // does not validate the Bearer token; it simply mirrors the latest SetClaims
 // snapshot. The "sub" MUST equal the id_token subject (the RP's UserInfo client
-// rejects a sub mismatch), which holds because the avatar-inherit fetch races
-// ahead of the next SetClaims call. The "picture" field reflects whichever
+// rejects a sub mismatch), which holds because the RP fetches it during the
+// callback, before the next SetClaims call. The "picture" field reflects whichever
 // picture knob is active: SetPicture (also in id_token) or SetPictureUserInfoOnly
 // (userinfo only).
 func (s *Server) handleUserinfo(w http.ResponseWriter, r *http.Request) {
@@ -297,6 +314,9 @@ func (s *Server) handleUserinfo(w http.ResponseWriter, r *http.Request) {
 // pkg/avatar.Process (which re-encodes to a 512 WebP) — the exact pixels don't
 // matter, only that the bytes decode as a real image.
 func (s *Server) handleAvatarPNG(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
+	s.avatarHits++
+	s.mu.Unlock()
 	img := image.NewRGBA(image.Rect(0, 0, 16, 16))
 	for y := 0; y < 16; y++ {
 		for x := 0; x < 16; x++ {

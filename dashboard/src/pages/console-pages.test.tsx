@@ -34,8 +34,6 @@ const session: Session = {
   displayName: "Alice",
   role: "user",
   avatarSource: "user",
-  avatarSourceLabels: { "upstream:github": "GitHub" },
-  avatarSourceUrls: { user: "/api/x/avatar?v=1", "upstream:github": "/u.jpg" },
 };
 
 beforeEach(() => {

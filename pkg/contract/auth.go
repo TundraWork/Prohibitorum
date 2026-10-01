@@ -35,18 +35,13 @@ type AuthRequirement struct {
 
 // SessionView is the response body of GET /me — the public face of the current session.
 type SessionView struct {
-	ID               int32             `json:"id"`
-	Username         string            `json:"username"`
-	DisplayName      string            `json:"displayName"`
-	Role             string            `json:"role"`
-	Attributes       map[string]any    `json:"attributes,omitempty"`
-	AvatarURL        *string           `json:"avatarUrl,omitempty"`
-	AvatarPending    bool              `json:"avatarPending,omitempty"`
-	AvatarSource     *string           `json:"avatarSource,omitempty"`
-	AvatarSourceUrls map[string]string `json:"avatarSourceUrls,omitempty"`
-	// AvatarSourceLabels maps a source key to a human label (the upstream IdP
-	// display name for "upstream:<slug>" sources); 'user' has no label.
-	AvatarSourceLabels map[string]string `json:"avatarSourceLabels,omitempty"`
+	ID           int32          `json:"id"`
+	Username     string         `json:"username"`
+	DisplayName  string         `json:"displayName"`
+	Role         string         `json:"role"`
+	Attributes   map[string]any `json:"attributes,omitempty"`
+	AvatarURL    *string        `json:"avatarUrl,omitempty"`
+	AvatarSource *string        `json:"avatarSource,omitempty"`
 }
 
 // AccountIdentityView is the common secret-free projection used by admin and
@@ -299,6 +294,33 @@ var OperationGetMe = huma.Operation{
 	Method:      http.MethodGet,
 	Path:        "/me",
 	Summary:     "Return the authenticated session view.",
+}
+
+// MyAvatarView is the response body of GET /me/avatar — every avatar stored for
+// the caller and the one in effect.
+type MyAvatarView struct {
+	// ActiveSource is "user", "upstream:<slug>", or "none" when no avatar is in
+	// effect (including an account that never had one).
+	ActiveSource string `json:"activeSource"`
+	// Sources lists the stored avatars: the upload first, then the upstreams
+	// by source key. An upstream that has not supplied a picture is absent.
+	Sources []MyAvatarSourceView `json:"sources"`
+}
+
+// MyAvatarSourceView is one stored avatar. Source is the key accepted by
+// PUT /me/avatar/selection; Label is the upstream's display name and is
+// omitted for the upload; URL previews this source.
+type MyAvatarSourceView struct {
+	Source string `json:"source"`
+	Label  string `json:"label,omitempty"`
+	URL    string `json:"url"`
+}
+
+var OperationGetMyAvatar = huma.Operation{
+	OperationID: "getMyAvatar",
+	Method:      http.MethodGet,
+	Path:        "/me/avatar",
+	Summary:     "List the caller's stored avatars and the one in effect.",
 }
 
 // MeFactorsView is the response body of GET /me/factors — the caller's
@@ -589,15 +611,14 @@ type FederationProvider struct {
 // GET /api/prohibitorum/auth/federation/confirm. It surfaces the pending
 // identity (resolved via a single-use, browser-bound confirmation grant) so the
 // user can confirm or decline a first-time federated sign-in. AvatarURL is the
-// already-stored avatar (nil while still fetching); AvatarPending reports
-// whether the background upstream-avatar inherit is still in flight.
+// account's active avatar, which the sign-in already fetched; nil when there is
+// none.
 type FederationConfirmView struct {
 	IDPDisplayName string  `json:"idpDisplayName"`
 	DisplayName    string  `json:"displayName"`
 	Username       string  `json:"username"`
 	Email          string  `json:"email"`
 	AvatarURL      *string `json:"avatarUrl,omitempty"`
-	AvatarPending  bool    `json:"avatarPending"`
 }
 
 // SigningKeyView is the admin-facing projection of a signing_key row.

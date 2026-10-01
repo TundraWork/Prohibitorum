@@ -16,6 +16,9 @@ type ExtendedPathKey =
   | "/api/prohibitorum/saml-applications"
   | "/api/prohibitorum/saml-applications/{id}";
 
+/** The self-service counterpart: Huma documents the read, the writes are raw HTTP. */
+type ExtendedSelfPathKey = "/api/prohibitorum/me/avatar";
+
 /**
  * Folds the hand-written methods into their generated path entries.
  *
@@ -35,8 +38,9 @@ type WithExtraMethods<Base, Extra> = {
  * The hand-written paths for operations Huma does not document at all — the
  * raw-HTTP admin mutations, login and logout, and the federation and application
  * writes — layered over the generated schema. A path that does not appear in
- * `ExtendedPathKey` is only ever declared on one side, so a plain union is
- * enough; those eight are declared on both and go through `WithExtraMethods`.
+ * `ExtendedPathKey` or `ExtendedSelfPathKey` is only ever declared on one side,
+ * so a plain union is enough; those are declared on both and go through
+ * `WithExtraMethods`.
  *
  * The generated side also used to be dropped for `/invitations`, `/audit-events`
  * and `/signing-keys`, because Huma left the shared `PageInput` out of the schema
@@ -44,9 +48,12 @@ type WithExtraMethods<Base, Extra> = {
  * exported now, those parameters are documented, and the three hand-written GET
  * declarations have been deleted.
  */
-type AdminPaths = RawPaths &
+type AdminPaths = Omit<RawPaths, ExtendedSelfPathKey> &
   Omit<RawAdminPaths, ExtendedPathKey> &
-  WithExtraMethods<paths, Pick<RawAdminPaths, ExtendedPathKey>>;
+  WithExtraMethods<
+    paths,
+    Pick<RawAdminPaths, ExtendedPathKey> & Pick<RawPaths, ExtendedSelfPathKey>
+  >;
 
 export const client = createClient<AdminPaths>({
   baseUrl: window.location.origin,

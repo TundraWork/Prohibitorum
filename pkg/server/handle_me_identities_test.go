@@ -1048,8 +1048,8 @@ func TestMeIdentities_SteamLinkHTTPFlow(t *testing.T) {
 	if len(h.q.sessions) != sessionsBefore {
 		t.Fatalf("Steam link inserted %d sessions", len(h.q.sessions)-sessionsBefore)
 	}
-	if avatars.calls != 0 {
-		t.Fatalf("Steam link inherited avatar %d times", avatars.calls)
+	if avatars.calls != 1 || avatars.account != h.linkAccountID {
+		t.Fatalf("Steam link refreshed avatar %d times for account %d, want once for %d", avatars.calls, avatars.account, h.linkAccountID)
 	}
 }
 

@@ -309,10 +309,7 @@ function sessionView(config: MockConfig): Session {
     displayName: config.session.displayName,
     role: config.session.role,
     avatarUrl: mockAvatarUrl,
-    avatarPending: config.session.avatarPending,
     avatarSource: "user",
-    avatarSourceLabels: { user: "My uploaded picture" },
-    avatarSourceUrls: { user: mockAvatarUrl },
   };
 }
 

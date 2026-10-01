@@ -83,7 +83,7 @@ type Server struct {
 	enrollmentQueriesOverride  db.Querier
 	enrollmentWebAuthnOverride enrollmentWebAuthn
 	enrollmentTxRunnerOverride enrollmentTxRunner
-	enrollmentAvatarOverride   func(int32, federation.Provider, federation.AvatarDelivery) error
+	enrollmentAvatarRefresh    func(context.Context, int32, federation.Provider, federation.AvatarDelivery)
 	// meTOTPFlowOverride lets tests inject a fake meTOTPFlowQueries for the
 	// /me/totp/* conditional-sudo branch (which reads totp_credential.
 	// ConfirmedAt directly). Nil in production — handlers fall back to
@@ -324,7 +324,7 @@ func NewServer(ctx context.Context) (*Server, error) {
 		federation.NewVRChatEnrollmentIssuer(queries, auditWriter),
 		federation.ServiceConfig{StateTTL: config.Federation.StateTTL, PublicOrigin: publicOrigin, Audit: auditWriter},
 	)
-	avatarManager := federation.NewAvatarManager(queries, kvStore)
+	avatarManager := federation.NewAvatarManager(queries)
 	federationService.SetAvatarManager(avatarManager)
 
 	// Build the admin pagination cursor codec from the configured DEK set.
@@ -369,9 +369,8 @@ func NewServer(ctx context.Context) (*Server, error) {
 		federationService:     federationService,
 		federationOIDCAdapter: oidcAdapter,
 		federationRegistry:    federationRegistry,
-		enrollmentAvatarOverride: func(accountID int32, provider federation.Provider, delivery federation.AvatarDelivery) error {
-			avatarManager.Inherit(accountID, provider, delivery, nil)
-			return nil
+		enrollmentAvatarRefresh: func(ctx context.Context, accountID int32, provider federation.Provider, delivery federation.AvatarDelivery) {
+			avatarManager.Refresh(ctx, accountID, provider, delivery, nil)
 		},
 		vrchatOperatorService: vrchatOperator,
 		Audit:                 auditWriter,
@@ -635,11 +634,11 @@ func (s *Server) registerOperations() {
 	s.router.Get(oidcop.ForwardAuthPathPrefix+"/sign_out", s.oidcOP.HandleForwardAuthSignOut)
 	registerOpHTTP(s.router, "GET", "/api/prohibitorum/forward-auth/sso-logout", publicReq, s.handleForwardAuthSSOLogoutHTTP)
 
-	// Avatar upload/delete (self), source selection, status, and public fetch.
+	// Avatar list, upload/delete (self), source selection, and public fetch.
+	registerOp(mgmt, contract.OperationGetMyAvatar, s.handleGetMyAvatar, sessionReq)
 	registerOpHTTP(s.router, "PUT", "/api/prohibitorum/me/avatar", sessionReq, s.handlePutAvatarHTTP)
 	registerOpHTTP(s.router, "PUT", "/api/prohibitorum/me/avatar/selection", sessionReq, s.handlePutAvatarSelectionHTTP)
 	registerOpHTTP(s.router, "DELETE", "/api/prohibitorum/me/avatar", sessionReq, s.handleDeleteAvatarHTTP)
-	registerOpHTTP(s.router, "GET", "/api/prohibitorum/me/avatar/status", sessionReq, s.handleAvatarStatusHTTP)
 	registerOpHTTP(s.router, "GET", "/avatar/{subject}", contract.AuthRequirement{Kind: contract.AuthPublic}, s.handleGetAvatarHTTP)
 
 	// /me sensitive endpoints.

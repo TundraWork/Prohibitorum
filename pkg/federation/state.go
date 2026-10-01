@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strconv"
 	"strings"
 	"time"
 )
@@ -142,14 +141,6 @@ func validateAdapterState(state json.RawMessage) error {
 func FlowKey(token string) string { return "federation:flow:" + token }
 func FlowLockKey(token string) string { return "federation:flow:" + token + ":lock" }
 func ConfirmKey(token string) string { return "federation:confirm:" + token }
-
-func AvatarFetchKey(accountID int32, providerID int64) string {
-	return "federation:avatar:" + strconv.Itoa(int(accountID)) + ":" + strconv.FormatInt(providerID, 10)
-}
-
-func AvatarFetchPattern(accountID int32) string {
-	return "federation:avatar:" + strconv.Itoa(int(accountID)) + ":*"
-}
 
 func BrowserDigest(token string) string {
 	digest := sha256.Sum256([]byte(token))

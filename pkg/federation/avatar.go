@@ -1,5 +1,5 @@
 // Package federation owns protocol-neutral avatar inheritance from verified
-// upstream identities. Avatar fetches use the shared hardened outbound policy,
+// upstream identities, fetched while the sign-in, link or enrollment completes. Avatar fetches use the shared hardened outbound policy,
 // reject non-image responses, and cap bodies to the avatar processor's input
 // limit.
 package federation
@@ -20,7 +20,6 @@ import (
 
 	avatarpkg "prohibitorum/pkg/avatar"
 	"prohibitorum/pkg/db"
-	"prohibitorum/pkg/kv"
 )
 
 const maxAvatarFetchBytes = 5 << 20 // 5 MiB, matches pkg/avatar input cap.
@@ -113,52 +112,28 @@ type AvatarQueries interface {
 
 type AvatarManager struct {
 	queries AvatarQueries
-	kv      kv.Store
 	fetch   func(context.Context, string, bool) ([]byte, error)
+	timeout time.Duration
 	logger  *slog.Logger
 }
 
-func NewAvatarManager(queries AvatarQueries, store kv.Store) *AvatarManager {
-	return &AvatarManager{queries: queries, kv: store, fetch: fetchUpstreamAvatar, logger: slog.Default()}
+func NewAvatarManager(queries AvatarQueries) *AvatarManager {
+	return &AvatarManager{queries: queries, fetch: fetchUpstreamAvatar, timeout: 10 * time.Second, logger: slog.Default()}
 }
 
-func (m *AvatarManager) Inherit(accountID int32, provider Provider, delivery AvatarDelivery, resolver AvatarResolver) {
-	if delivery.URL == "" && (resolver == nil || delivery.Opaque == nil) {
-		return
-	}
-	go m.run(context.Background(), accountID, provider, delivery, resolver)
-}
-
-func (m *AvatarManager) Pending(ctx context.Context, accountID int32) bool {
-	pattern := AvatarFetchPattern(accountID)
-	var cursor uint64
-	for {
-		result, err := m.kv.ScanEntries(ctx, pattern, cursor, 64)
-		if err != nil {
-			return false
-		}
-		if len(result.Entries) > 0 {
-			return true
-		}
-		if result.NextCursor == 0 {
-			return false
-		}
-		cursor = result.NextCursor
-	}
-}
-
-func (m *AvatarManager) run(parent context.Context, accountID int32, provider Provider, delivery AvatarDelivery, resolver AvatarResolver) {
-	ctx, cancel := context.WithTimeout(parent, 30*time.Second)
+// Refresh fetches the avatar the provider currently hands out and applies it to
+// the account under the activation rules in shouldActivate. A URL equal to the
+// one the stored avatar was fetched from is not downloaded again. Failures are
+// logged and not returned, so the sign-in, link or enrollment that called it
+// completes either way; a failed fetch keeps the stored avatar and leaves the
+// URL unrecorded so the next sign-in tries again.
+func (m *AvatarManager) Refresh(ctx context.Context, accountID int32, provider Provider, delivery AvatarDelivery, resolver AvatarResolver) {
+	ctx, cancel := context.WithTimeout(ctx, m.timeout)
 	defer cancel()
-	key := AvatarFetchKey(accountID, provider.ID)
-	locked, err := m.kv.SetNX(ctx, key, "1", time.Minute)
-	if err != nil || !locked {
-		return
-	}
-	defer func() { _ = m.kv.Del(ctx, key) }()
 
 	avatarURL := delivery.URL
-	if avatarURL == "" {
+	if avatarURL == "" && resolver != nil && delivery.Opaque != nil {
+		var err error
 		avatarURL, err = resolver.ResolveAvatar(ctx, provider, delivery)
 		if err != nil {
 			m.logger.WarnContext(ctx, "federation: upstream avatar resolution failed", "account_id", accountID, "err", err)
@@ -168,51 +143,68 @@ func (m *AvatarManager) run(parent context.Context, accountID int32, provider Pr
 	if avatarURL == "" {
 		return
 	}
-	raw, err := m.fetch(ctx, avatarURL, delivery.AllowPrivateNetwork)
-	if err != nil {
-		m.logger.WarnContext(ctx, "federation: upstream avatar fetch failed", "account_id", accountID, "err", err)
-		return
-	}
-	processed, etag, err := avatarpkg.Process(raw)
-	if err != nil {
-		m.logger.WarnContext(ctx, "federation: upstream avatar process failed", "account_id", accountID, "err", err)
-		return
-	}
-	account, err := m.queries.GetAccountByID(ctx, accountID)
-	if err != nil {
-		m.logPersistenceFailure(ctx, "account lookup failed", accountID, provider, err)
-		return
-	}
 	sources, err := m.queries.ListAvatarSourcesByAccount(ctx, accountID)
 	if err != nil {
 		m.logPersistenceFailure(ctx, "source list failed", accountID, provider, err)
 		return
 	}
 	source := "upstream:" + provider.Slug
-	var oldETag string
-	for _, existing := range sources {
-		if existing.Source == source && existing.Etag.Valid {
-			oldETag = existing.Etag.String
+	var stored *db.ListAvatarSourcesByAccountRow
+	for i := range sources {
+		if sources[i].Source == source {
+			stored = &sources[i]
 			break
 		}
 	}
-	changed := oldETag != etag
-	if changed {
+	changed := false
+	if stored == nil || !stored.UpstreamUrl.Valid || stored.UpstreamUrl.String != avatarURL {
+		raw, err := m.fetch(ctx, avatarURL, delivery.AllowPrivateNetwork)
+		if err != nil {
+			m.logger.WarnContext(ctx, "federation: upstream avatar fetch failed", "account_id", accountID, "err", err)
+			return
+		}
+		processed, etag, err := avatarpkg.Process(raw)
+		if err != nil {
+			m.logger.WarnContext(ctx, "federation: upstream avatar process failed", "account_id", accountID, "err", err)
+			return
+		}
 		providerID := provider.ID
 		if err := m.queries.UpsertAvatarSource(ctx, db.UpsertAvatarSourceParams{
 			AccountID: accountID, Source: source, Bytes: processed,
 			ContentType: pgtype.Text{String: "image/webp", Valid: true},
 			Etag:        pgtype.Text{String: etag, Valid: true}, IdpID: &providerID,
+			UpstreamUrl: pgtype.Text{String: avatarURL, Valid: true},
 		}); err != nil {
 			m.logPersistenceFailure(ctx, "source upsert failed", accountID, provider, err)
 			return
 		}
+		changed = stored == nil || !stored.Etag.Valid || stored.Etag.String != etag
 	}
-	if (!account.AvatarSource.Valid || account.AvatarSource.String == source) && (changed || !account.AvatarSource.Valid) {
-		if err := m.queries.SetActiveAvatar(ctx, db.SetActiveAvatarParams{Source: source, AccountID: accountID}); err != nil {
-			m.logPersistenceFailure(ctx, "activation failed", accountID, provider, err)
-		}
+	account, err := m.queries.GetAccountByID(ctx, accountID)
+	if err != nil {
+		m.logPersistenceFailure(ctx, "account lookup failed", accountID, provider, err)
+		return
 	}
+	if !shouldActivate(account, source, changed) {
+		return
+	}
+	if err := m.queries.SetActiveAvatar(ctx, db.SetActiveAvatarParams{Source: source, AccountID: accountID}); err != nil {
+		m.logPersistenceFailure(ctx, "activation failed", accountID, provider, err)
+	}
+}
+
+// shouldActivate reports whether the stored upstream avatar under source should
+// be made (or kept, with a fresh etag) the account's active avatar. A new
+// picture for the active source always refreshes it. Otherwise an upstream
+// avatar only fills an empty slot (never set, or "none") on an account whose
+// user has never picked an avatar; it never replaces another source.
+func shouldActivate(account db.Account, source string, contentChanged bool) bool {
+	active := account.AvatarSource
+	if active.Valid && active.String == source {
+		return contentChanged
+	}
+	empty := !active.Valid || active.String == "none"
+	return empty && !account.AvatarSelectedAt.Valid
 }
 
 func (m *AvatarManager) logPersistenceFailure(ctx context.Context, operation string, accountID int32, provider Provider, err error) {

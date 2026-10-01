@@ -18,7 +18,6 @@ import (
 
 	avatarpkg "prohibitorum/pkg/avatar"
 	"prohibitorum/pkg/db"
-	"prohibitorum/pkg/kv"
 )
 
 func TestAvatarFetch_RejectsNonHTTPS(t *testing.T) {
@@ -103,9 +102,7 @@ func (failingAvatarTransport) RoundTrip(*http.Request) (*http.Response, error) {
 
 func TestAvatarManagerSanitizesNetworkFailureLogs(t *testing.T) {
 	const rawURL = "https://avatar-user:avatar-password@cdn.example/avatar.png?signed=query-sentinel#fragment-sentinel"
-	store := kv.NewMemoryStore()
-	t.Cleanup(func() { _ = store.Close() })
-	manager := NewAvatarManager(&avatarManagerQueries{}, store)
+	manager := NewAvatarManager(&avatarManagerQueries{})
 	var logs bytes.Buffer
 	manager.logger = slog.New(slog.NewJSONHandler(&logs, nil))
 	client := &http.Client{Transport: failingAvatarTransport{}}
@@ -115,7 +112,7 @@ func TestAvatarManagerSanitizesNetworkFailureLogs(t *testing.T) {
 		return nil, fetchErr
 	}
 
-	manager.run(context.Background(), 7, Provider{
+	manager.Refresh(context.Background(), 7, Provider{
 		ID: 11, Slug: "corp", Config: json.RawMessage(`{}`),
 	}, AvatarDelivery{URL: rawURL}, nil)
 	if fetchErr == nil {
@@ -147,13 +144,11 @@ func TestAvatarManagerSanitizesNetworkFailureLogs(t *testing.T) {
 
 func TestAvatarManagerSanitizesMalformedURLLogs(t *testing.T) {
 	const rawURL = "https://userinfo-sentinel:password-sentinel@raw-url-sentinel.example/%zz?query=query-sentinel&transport=nested-transport-sentinel#fragment-sentinel"
-	store := kv.NewMemoryStore()
-	t.Cleanup(func() { _ = store.Close() })
-	manager := NewAvatarManager(&avatarManagerQueries{}, store)
+	manager := NewAvatarManager(&avatarManagerQueries{})
 	var logs bytes.Buffer
 	manager.logger = slog.New(slog.NewJSONHandler(&logs, nil))
 
-	manager.run(context.Background(), 7, Provider{
+	manager.Refresh(context.Background(), 7, Provider{
 		ID: 11, Slug: "corp", Config: json.RawMessage(`{}`),
 	}, AvatarDelivery{URL: rawURL}, nil)
 
@@ -201,6 +196,7 @@ func TestAvatarFetch_ReturnsImageBytes(t *testing.T) {
 type avatarManagerQueries struct {
 	account     db.Account
 	sources     []db.ListAvatarSourcesByAccountRow
+	lists       int
 	upserts     []db.UpsertAvatarSourceParams
 	activations []db.SetActiveAvatarParams
 	getErr      error
@@ -214,6 +210,7 @@ func (q *avatarManagerQueries) GetAccountByID(context.Context, int32) (db.Accoun
 }
 
 func (q *avatarManagerQueries) ListAvatarSourcesByAccount(context.Context, int32) ([]db.ListAvatarSourcesByAccountRow, error) {
+	q.lists++
 	return q.sources, q.listErr
 }
 
@@ -248,47 +245,9 @@ func (r *avatarFallbackResolver) ResolveAvatar(_ context.Context, _ Provider, de
 	return "https://cdn.test/fallback.png", nil
 }
 
-type blockingAvatarResolver struct {
-	started chan struct{}
-	release chan struct{}
-}
-
-func (r *blockingAvatarResolver) ResolveAvatar(context.Context, Provider, AvatarDelivery) (string, error) {
-	close(r.started)
-	<-r.release
-	return "", nil
-}
-
-func TestAvatarManagerInheritDoesNotWaitForFallback(t *testing.T) {
-	store := kv.NewMemoryStore()
-	t.Cleanup(func() { _ = store.Close() })
-	manager := NewAvatarManager(&avatarManagerQueries{}, store)
-	resolver := &blockingAvatarResolver{started: make(chan struct{}), release: make(chan struct{})}
-	returned := make(chan struct{})
-
-	go func() {
-		manager.Inherit(7, Provider{ID: 11, Slug: "corp"}, AvatarDelivery{Opaque: new(int)}, resolver)
-		close(returned)
-	}()
-	select {
-	case <-resolver.started:
-	case <-time.After(time.Second):
-		t.Fatal("detached fallback did not start")
-	}
-	select {
-	case <-returned:
-	case <-time.After(time.Second):
-		close(resolver.release)
-		t.Fatal("Inherit synchronously waited for avatar fallback")
-	}
-	close(resolver.release)
-}
-
-func TestAvatarManagerResolvesFallbackInsideInheritanceWorker(t *testing.T) {
+func TestAvatarManagerResolvesFallbackDuringRefresh(t *testing.T) {
 	queries := &avatarManagerQueries{account: db.Account{ID: 7}}
-	store := kv.NewMemoryStore()
-	t.Cleanup(func() { _ = store.Close() })
-	manager := NewAvatarManager(queries, store)
+	manager := NewAvatarManager(queries)
 	resolver := &avatarFallbackResolver{}
 	var fetchedURL string
 	manager.fetch = func(_ context.Context, rawURL string, _ bool) ([]byte, error) {
@@ -298,7 +257,7 @@ func TestAvatarManagerResolvesFallbackInsideInheritanceWorker(t *testing.T) {
 	opaque := &struct{ accessToken string }{accessToken: "opaque"}
 	delivery := AvatarDelivery{Opaque: opaque}
 
-	manager.run(context.Background(), 7, Provider{
+	manager.Refresh(context.Background(), 7, Provider{
 		ID: 11, Slug: "corp", Config: json.RawMessage(`{}`),
 	}, delivery, resolver)
 
@@ -306,12 +265,12 @@ func TestAvatarManagerResolvesFallbackInsideInheritanceWorker(t *testing.T) {
 		resolver.delivery.Opaque != opaque {
 		t.Fatalf("resolver calls=%d fetched=%q delivery=%v", resolver.calls, fetchedURL, resolver.delivery.Opaque)
 	}
-	if len(queries.upserts) != 1 {
-		t.Fatalf("fallback delivery upserts = %d, want 1", len(queries.upserts))
+	if len(queries.upserts) != 1 || queries.upserts[0].UpstreamUrl.String != "https://cdn.test/fallback.png" {
+		t.Fatalf("fallback delivery upserts = %+v, want one with the resolved URL", queries.upserts)
 	}
 }
 
-func TestAvatarManagerInheritanceSelectionPolicy(t *testing.T) {
+func TestAvatarManagerRefreshSelectionPolicy(t *testing.T) {
 	const accountID int32 = 7
 	const source = "upstream:corp"
 	pngBytes := avatarManagerPNG(t)
@@ -319,64 +278,94 @@ func TestAvatarManagerInheritanceSelectionPolicy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	selected := pgtype.Timestamptz{Time: time.Now(), Valid: true}
 	tests := []struct {
 		name           string
 		active         pgtype.Text
+		selectedAt     pgtype.Timestamptz
 		existingETag   string
-		wantUpsert     bool
 		wantActivation bool
 	}{
-		{name: "null selects upstream", wantUpsert: true, wantActivation: true},
-		{name: "user remains selected", active: pgtype.Text{String: "user", Valid: true}, wantUpsert: true},
-		{name: "none remains selected", active: pgtype.Text{String: "none", Valid: true}, wantUpsert: true},
-		{name: "changed current upstream refreshes selection", active: pgtype.Text{String: source, Valid: true}, existingETag: "old-etag", wantUpsert: true, wantActivation: true},
-		{name: "different upstream does not steal selection", active: pgtype.Text{String: "upstream:other", Valid: true}, wantUpsert: true},
+		{name: "null selects upstream", wantActivation: true},
+		{name: "none selects upstream before any choice", active: pgtype.Text{String: "none", Valid: true}, wantActivation: true},
+		{name: "chosen none remains selected", active: pgtype.Text{String: "none", Valid: true}, selectedAt: selected},
+		{name: "user remains selected", active: pgtype.Text{String: "user", Valid: true}},
+		{name: "changed current upstream refreshes selection", active: pgtype.Text{String: source, Valid: true}, existingETag: "old-etag", wantActivation: true},
+		{name: "changed chosen upstream refreshes selection", active: pgtype.Text{String: source, Valid: true}, selectedAt: selected, existingETag: "old-etag", wantActivation: true},
+		{name: "different upstream does not steal selection", active: pgtype.Text{String: "upstream:other", Valid: true}},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			queries := &avatarManagerQueries{account: db.Account{ID: accountID, AvatarSource: test.active}}
+			queries := &avatarManagerQueries{account: db.Account{ID: accountID, AvatarSource: test.active, AvatarSelectedAt: test.selectedAt}}
 			if test.existingETag != "" {
 				queries.sources = []db.ListAvatarSourcesByAccountRow{{
-					Source: source,
-					Etag:   pgtype.Text{String: test.existingETag, Valid: true},
+					Source:      source,
+					Etag:        pgtype.Text{String: test.existingETag, Valid: true},
+					UpstreamUrl: pgtype.Text{String: "https://cdn.test/old.png", Valid: true},
 				}}
 			}
-			store := kv.NewMemoryStore()
-			t.Cleanup(func() { _ = store.Close() })
-			manager := NewAvatarManager(queries, store)
+			manager := NewAvatarManager(queries)
 			manager.fetch = func(context.Context, string, bool) ([]byte, error) {
 				return pngBytes, nil
 			}
 			provider := Provider{ID: 11, Slug: "corp"}
 
-			manager.run(context.Background(), accountID, provider, AvatarDelivery{URL: "https://cdn.test/avatar.png"}, nil)
+			manager.Refresh(context.Background(), accountID, provider, AvatarDelivery{URL: "https://cdn.test/avatar.png"}, nil)
 
-			if got := len(queries.upserts); got != boolCount(test.wantUpsert) {
-				t.Fatalf("upserts = %d, want %d", got, boolCount(test.wantUpsert))
+			if got := len(queries.upserts); got != 1 {
+				t.Fatalf("upserts = %d, want 1", got)
+			}
+			upsert := queries.upserts[0]
+			if upsert.Source != source || upsert.IdpID == nil || *upsert.IdpID != provider.ID {
+				t.Fatalf("upsert = %+v, want source %q and provider %d", upsert, source, provider.ID)
+			}
+			if !upsert.Etag.Valid || upsert.Etag.String != expectedETag {
+				t.Fatalf("upsert etag = %+v, want %q", upsert.Etag, expectedETag)
 			}
 			if got := len(queries.activations); got != boolCount(test.wantActivation) {
 				t.Fatalf("activations = %d, want %d", got, boolCount(test.wantActivation))
 			}
-			if test.wantUpsert {
-				upsert := queries.upserts[0]
-				if upsert.Source != source || upsert.IdpID == nil || *upsert.IdpID != provider.ID {
-					t.Fatalf("upsert = %+v, want source %q and provider %d", upsert, source, provider.ID)
-				}
-				if !upsert.Etag.Valid || upsert.Etag.String != expectedETag {
-					t.Fatalf("upsert etag = %+v, want %q", upsert.Etag, expectedETag)
-				}
-			}
 			if test.wantActivation && queries.activations[0].Source != source {
 				t.Fatalf("activation source = %q, want %q", queries.activations[0].Source, source)
-			}
-			if _, err := store.Get(context.Background(), AvatarFetchKey(accountID, provider.ID)); err == nil {
-				t.Fatal("completed inheritance left dedupe key behind")
 			}
 		})
 	}
 }
 
-func TestAvatarManagerSkipsUnchangedETagRefresh(t *testing.T) {
+func TestShouldActivate(t *testing.T) {
+	const source = "upstream:corp"
+	text := func(value string) pgtype.Text { return pgtype.Text{String: value, Valid: true} }
+	selected := pgtype.Timestamptz{Time: time.Now(), Valid: true}
+	tests := []struct {
+		name       string
+		active     pgtype.Text
+		selectedAt pgtype.Timestamptz
+		changed    bool
+		want       bool
+	}{
+		{name: "never set, never chosen, new picture", changed: true, want: true},
+		{name: "never set, never chosen, stored picture", want: true},
+		{name: "none, never chosen", active: text("none"), want: true},
+		{name: "none, chosen", active: text("none"), selectedAt: selected, changed: true},
+		{name: "never set, chosen", selectedAt: selected, changed: true},
+		{name: "upload active, never chosen", active: text("user"), changed: true},
+		{name: "upload active, chosen", active: text("user"), selectedAt: selected, changed: true},
+		{name: "other upstream active", active: text("upstream:other"), changed: true},
+		{name: "this upstream active, picture changed", active: text(source), changed: true, want: true},
+		{name: "this upstream chosen, picture changed", active: text(source), selectedAt: selected, changed: true, want: true},
+		{name: "this upstream active, picture unchanged", active: text(source)},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			account := db.Account{AvatarSource: test.active, AvatarSelectedAt: test.selectedAt}
+			if got := shouldActivate(account, source, test.changed); got != test.want {
+				t.Fatalf("shouldActivate = %v, want %v", got, test.want)
+			}
+		})
+	}
+}
+
+func TestAvatarManagerRecordsURLWhenETagUnchanged(t *testing.T) {
 	const accountID int32 = 7
 	const source = "upstream:corp"
 	pngBytes := avatarManagerPNG(t)
@@ -391,20 +380,159 @@ func TestAvatarManagerSkipsUnchangedETagRefresh(t *testing.T) {
 			Etag:   pgtype.Text{String: etag, Valid: true},
 		}},
 	}
-	store := kv.NewMemoryStore()
-	t.Cleanup(func() { _ = store.Close() })
-	manager := NewAvatarManager(queries, store)
+	manager := NewAvatarManager(queries)
 	manager.fetch = func(context.Context, string, bool) ([]byte, error) {
 		return pngBytes, nil
 	}
 
-	manager.run(context.Background(), accountID, Provider{ID: 11, Slug: "corp", Config: json.RawMessage(`{}`)}, AvatarDelivery{URL: "https://cdn.test/avatar.png"}, nil)
+	manager.Refresh(context.Background(), accountID, Provider{ID: 11, Slug: "corp", Config: json.RawMessage(`{}`)}, AvatarDelivery{URL: "https://cdn.test/avatar.png"}, nil)
 
-	if len(queries.upserts) != 0 {
-		t.Fatalf("unchanged avatar caused %d upserts", len(queries.upserts))
+	if len(queries.upserts) != 1 || queries.upserts[0].UpstreamUrl.String != "https://cdn.test/avatar.png" {
+		t.Fatalf("upserts = %+v, want one recording the URL", queries.upserts)
 	}
 	if len(queries.activations) != 0 {
 		t.Fatalf("unchanged avatar caused %d activations", len(queries.activations))
+	}
+}
+
+func TestAvatarManagerSkipsFetchForStoredURL(t *testing.T) {
+	const source = "upstream:corp"
+	tests := []struct {
+		name           string
+		account        db.Account
+		wantActivation bool
+	}{
+		{name: "active source unchanged", account: db.Account{ID: 7, AvatarSource: pgtype.Text{String: source, Valid: true}}},
+		{name: "stored picture fills empty slot", account: db.Account{ID: 7}, wantActivation: true},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			queries := &avatarManagerQueries{
+				account: test.account,
+				sources: []db.ListAvatarSourcesByAccountRow{{
+					Source:      source,
+					Etag:        pgtype.Text{String: "etag", Valid: true},
+					UpstreamUrl: pgtype.Text{String: "https://cdn.test/avatar.png", Valid: true},
+				}},
+			}
+			manager := NewAvatarManager(queries)
+			fetched := false
+			manager.fetch = func(context.Context, string, bool) ([]byte, error) {
+				fetched = true
+				return avatarManagerPNG(t), nil
+			}
+
+			manager.Refresh(context.Background(), 7, Provider{ID: 11, Slug: "corp"}, AvatarDelivery{URL: "https://cdn.test/avatar.png"}, nil)
+
+			if fetched {
+				t.Fatal("stored URL was fetched again")
+			}
+			if len(queries.upserts) != 0 {
+				t.Fatalf("stored URL caused %d upserts", len(queries.upserts))
+			}
+			if got := len(queries.activations); got != boolCount(test.wantActivation) {
+				t.Fatalf("activations = %d, want %d", got, boolCount(test.wantActivation))
+			}
+		})
+	}
+}
+
+func TestAvatarManagerFetchesChangedURL(t *testing.T) {
+	const source = "upstream:corp"
+	queries := &avatarManagerQueries{
+		account: db.Account{ID: 7, AvatarSource: pgtype.Text{String: "user", Valid: true}},
+		sources: []db.ListAvatarSourcesByAccountRow{{
+			Source:      source,
+			Etag:        pgtype.Text{String: "old-etag", Valid: true},
+			UpstreamUrl: pgtype.Text{String: "https://cdn.test/avatar.png?v=1", Valid: true},
+		}},
+	}
+	manager := NewAvatarManager(queries)
+	var fetchedURL string
+	manager.fetch = func(_ context.Context, rawURL string, _ bool) ([]byte, error) {
+		fetchedURL = rawURL
+		return avatarManagerPNG(t), nil
+	}
+
+	manager.Refresh(context.Background(), 7, Provider{ID: 11, Slug: "corp"}, AvatarDelivery{URL: "https://cdn.test/avatar.png?v=2"}, nil)
+
+	if fetchedURL != "https://cdn.test/avatar.png?v=2" {
+		t.Fatalf("fetched %q, want the new URL", fetchedURL)
+	}
+	if len(queries.upserts) != 1 || queries.upserts[0].UpstreamUrl.String != "https://cdn.test/avatar.png?v=2" {
+		t.Fatalf("upserts = %+v, want one recording the new URL", queries.upserts)
+	}
+	if len(queries.activations) != 0 {
+		t.Fatalf("activations = %d, want the upload to stay active", len(queries.activations))
+	}
+}
+
+func TestAvatarManagerKeepsStoredAvatarWithoutURL(t *testing.T) {
+	queries := &avatarManagerQueries{account: db.Account{ID: 7}}
+	manager := NewAvatarManager(queries)
+	fetched := false
+	manager.fetch = func(context.Context, string, bool) ([]byte, error) {
+		fetched = true
+		return nil, nil
+	}
+
+	manager.Refresh(context.Background(), 7, Provider{ID: 11, Slug: "corp"}, AvatarDelivery{}, nil)
+
+	if fetched || queries.lists != 0 || len(queries.upserts) != 0 || len(queries.activations) != 0 {
+		t.Fatalf("empty URL touched avatar state: fetched=%v lists=%d upserts=%d activations=%d",
+			fetched, queries.lists, len(queries.upserts), len(queries.activations))
+	}
+}
+
+func TestAvatarManagerFetchFailureKeepsStoredAvatar(t *testing.T) {
+	const source = "upstream:corp"
+	queries := &avatarManagerQueries{
+		account: db.Account{ID: 7},
+		sources: []db.ListAvatarSourcesByAccountRow{{
+			Source:      source,
+			Etag:        pgtype.Text{String: "etag", Valid: true},
+			UpstreamUrl: pgtype.Text{String: "https://cdn.test/avatar.png?v=1", Valid: true},
+		}},
+	}
+	manager := NewAvatarManager(queries)
+	manager.logger = slog.New(slog.NewJSONHandler(&bytes.Buffer{}, nil))
+	manager.fetch = func(context.Context, string, bool) ([]byte, error) {
+		return nil, errors.New("upstream unavailable")
+	}
+
+	manager.Refresh(context.Background(), 7, Provider{ID: 11, Slug: "corp"}, AvatarDelivery{URL: "https://cdn.test/avatar.png?v=2"}, nil)
+
+	if len(queries.upserts) != 0 || len(queries.activations) != 0 {
+		t.Fatalf("failed fetch mutated avatar state: upserts=%d activations=%d", len(queries.upserts), len(queries.activations))
+	}
+}
+
+func TestAvatarManagerRefreshReturnsAfterTimeout(t *testing.T) {
+	queries := &avatarManagerQueries{account: db.Account{ID: 7}}
+	manager := NewAvatarManager(queries)
+	manager.timeout = 20 * time.Millisecond
+	var logs bytes.Buffer
+	manager.logger = slog.New(slog.NewJSONHandler(&logs, nil))
+	manager.fetch = func(ctx context.Context, _ string, _ bool) ([]byte, error) {
+		<-ctx.Done()
+		return nil, sanitizeAvatarFetchError(ctx.Err())
+	}
+	returned := make(chan struct{})
+
+	go func() {
+		manager.Refresh(context.Background(), 7, Provider{ID: 11, Slug: "corp"}, AvatarDelivery{URL: "https://cdn.test/avatar.png"}, nil)
+		close(returned)
+	}()
+	select {
+	case <-returned:
+	case <-time.After(5 * time.Second):
+		t.Fatal("Refresh did not return after its timeout")
+	}
+	if len(queries.upserts) != 0 || len(queries.activations) != 0 {
+		t.Fatalf("timed-out fetch mutated avatar state: upserts=%d activations=%d", len(queries.upserts), len(queries.activations))
+	}
+	if !strings.Contains(logs.String(), "avatar fetch timeout") {
+		t.Fatalf("log = %q, want a timeout warning", logs.String())
 	}
 }
 
@@ -439,16 +567,14 @@ func TestAvatarManagerLogsPersistenceFailuresWithSafeContext(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			queries := &avatarManagerQueries{account: db.Account{ID: 7}}
 			test.configure(queries)
-			store := kv.NewMemoryStore()
-			t.Cleanup(func() { _ = store.Close() })
-			manager := NewAvatarManager(queries, store)
+			manager := NewAvatarManager(queries)
 			var logs bytes.Buffer
 			manager.logger = slog.New(slog.NewJSONHandler(&logs, nil))
 			manager.fetch = func(context.Context, string, bool) ([]byte, error) {
 				return avatarManagerPNG(t), nil
 			}
 
-			manager.run(context.Background(), 7, Provider{
+			manager.Refresh(context.Background(), 7, Provider{
 				ID: 11, Slug: "corp", Config: json.RawMessage(`{}`),
 			}, AvatarDelivery{URL: "https://private.example/avatar.png"}, nil)
 
@@ -467,47 +593,17 @@ func TestAvatarManagerLogsPersistenceFailuresWithSafeContext(t *testing.T) {
 	}
 }
 
-func TestAvatarManagerDedupesConcurrentProviderRefresh(t *testing.T) {
-	const accountID int32 = 7
-	provider := Provider{ID: 11, Slug: "corp", Config: json.RawMessage(`{}`)}
-	queries := &avatarManagerQueries{account: db.Account{ID: accountID}}
-	store := kv.NewMemoryStore()
-	t.Cleanup(func() { _ = store.Close() })
-	if ok, err := store.SetNX(context.Background(), AvatarFetchKey(accountID, provider.ID), "1", time.Minute); err != nil || !ok {
-		t.Fatalf("seed dedupe key: ok=%v err=%v", ok, err)
-	}
-	manager := NewAvatarManager(queries, store)
-	fetched := false
-	manager.fetch = func(context.Context, string, bool) ([]byte, error) {
-		fetched = true
-		return avatarManagerPNG(t), nil
-	}
-
-	manager.run(context.Background(), accountID, provider, AvatarDelivery{URL: "https://cdn.test/avatar.png"}, nil)
-
-	if fetched {
-		t.Fatal("deduped refresh fetched the avatar")
-	}
-	if len(queries.upserts) != 0 || len(queries.activations) != 0 {
-		t.Fatalf("deduped refresh mutated avatar state: upserts=%d activations=%d", len(queries.upserts), len(queries.activations))
-	}
-	if _, err := store.Get(context.Background(), AvatarFetchKey(accountID, provider.ID)); err != nil {
-		t.Fatalf("deduped refresh removed another worker's key: %v", err)
-	}
-}
-
 func TestAvatarManagerUsesAdapterPrivateNetworkPolicy(t *testing.T) {
 	queries := &avatarManagerQueries{account: db.Account{ID: 7}}
-	store := kv.NewMemoryStore()
-	t.Cleanup(func() { _ = store.Close() })
-	manager := NewAvatarManager(queries, store)
+	manager := NewAvatarManager(queries)
+	manager.logger = slog.New(slog.NewJSONHandler(&bytes.Buffer{}, nil))
 	var got bool
 	manager.fetch = func(_ context.Context, _ string, allowPrivate bool) ([]byte, error) {
 		got = allowPrivate
 		return nil, nil
 	}
 
-	manager.run(context.Background(), 7, Provider{
+	manager.Refresh(context.Background(), 7, Provider{
 		ID: 11, Slug: "corp",
 	}, AvatarDelivery{URL: "https://cdn.test/avatar.png", AllowPrivateNetwork: true}, nil)
 

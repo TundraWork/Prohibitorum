@@ -21,7 +21,6 @@ import (
 	"net/url"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
 
@@ -215,10 +214,6 @@ const confirmDeclinePath = "/api/prohibitorum/auth/federation/confirm/decline"
 func TestFederationConfirmGet_ValidGrant(t *testing.T) {
 	h := newFederationTestServer(t)
 	fx := seedConfirmGrant(t, h)
-	// Mark the avatar fetch in flight so avatarPending must be true.
-	if err := h.s.kvStore.SetEx(context.Background(), fedoidc.AvatarFetchKey(fx.accountID, 1), "1", time.Minute); err != nil {
-		t.Fatalf("seed avatar key: %v", err)
-	}
 
 	resp := doConfirm(t, fx, http.MethodGet, confirmPath, fx.cookie)
 	if resp.StatusCode != http.StatusOK {
@@ -240,9 +235,6 @@ func TestFederationConfirmGet_ValidGrant(t *testing.T) {
 	}
 	if view.Email != "newbie@example.com" {
 		t.Errorf("email: want %q, got %q", "newbie@example.com", view.Email)
-	}
-	if !view.AvatarPending {
-		t.Error("avatarPending: want true (fetch key present)")
 	}
 }
 
