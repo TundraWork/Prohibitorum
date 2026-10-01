@@ -35,8 +35,12 @@ type AuthRequirement struct {
 
 // SessionView is the response body of GET /me — the public face of the current session.
 type SessionView struct {
-	ID           int32          `json:"id"`
-	Username     string         `json:"username"`
+	ID       int32  `json:"id"`
+	Username string `json:"username"`
+	// OIDCSubject is the account's `sub` claim, the identifier downstream
+	// applications key the account on. The profile page shows it so a user can
+	// quote it to an application's administrator.
+	OIDCSubject  string         `json:"oidcSubject"`
 	DisplayName  string         `json:"displayName"`
 	Role         string         `json:"role"`
 	Attributes   map[string]any `json:"attributes,omitempty"`

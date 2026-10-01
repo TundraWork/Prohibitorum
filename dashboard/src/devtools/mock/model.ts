@@ -18,7 +18,6 @@ export interface MockConfig {
     signedIn: boolean;
     displayName: string;
     username: string;
-    avatarPending: boolean;
     /**
      * The role the sign-in carries, which is also the management area's gate:
      * the sidebar hides it and `_protected.admin` redirects away from it unless
@@ -34,6 +33,17 @@ export interface MockConfig {
      * with only the assigned rows.
      */
     managedApps: { oidc: number; saml: number; forwardAuth: number };
+  };
+  /** The pictures `GET /me/avatar` lists and the one the session shows. */
+  avatar: {
+    /** Whether the account has uploaded a picture of its own. */
+    upload: boolean;
+    /** How many upstream pictures are stored, 0–3 (`mockAvatarUpstreamsMax`). */
+    upstreams: number;
+    /** The source in use: `user`, `none` or `upstream:provider-N`. */
+    active: string;
+    /** Whether the account has picked an avatar itself. */
+    selected: boolean;
   };
   factors: {
     passwordSet: boolean;
@@ -140,11 +150,8 @@ export interface MockConfig {
     };
     /** The account a first federated sign-in prepared, on `/welcome`. */
     welcome: {
-      /**
-       * `off` has the picture already; `resolves` has it arrive on the third
-       * read; `never` keeps it pending, so the page stops waiting.
-       */
-      avatarPending: "off" | "resolves" | "never";
+      /** Whether the prepared account has a picture from the provider. */
+      avatar: boolean;
       /** Whether confirming goes on to offer a local sign-in. */
       offerLocalSignin: boolean;
       /** Off answers as an expired sign-in. */
@@ -222,10 +229,10 @@ export const defaultMockConfig: MockConfig = {
     signedIn: true,
     displayName: "Mock Member",
     username: "mock",
-    avatarPending: false,
     role: "admin",
     managedApps: { oidc: 0, saml: 0, forwardAuth: 0 },
   },
+  avatar: { upload: true, upstreams: 2, active: "user", selected: false },
   factors: {
     passwordSet: true,
     totpEnrolled: true,
@@ -274,7 +281,7 @@ export const defaultMockConfig: MockConfig = {
       valid: true,
     },
     welcome: {
-      avatarPending: "resolves",
+      avatar: true,
       offerLocalSignin: true,
       valid: true,
     },
@@ -405,6 +412,14 @@ export function clampAdminCount(value: number): number {
 export function clampDelay(value: number): number {
   if (!Number.isFinite(value)) return 0;
   return Math.max(0, Math.min(mockDelayMax, Math.round(value)));
+}
+
+/** The most upstream pictures the avatar gallery lists. */
+export const mockAvatarUpstreamsMax = 3;
+
+export function clampAvatarUpstreams(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  return Math.max(0, Math.min(mockAvatarUpstreamsMax, Math.floor(value)));
 }
 
 /** The most providers an enrollment preview offers. */

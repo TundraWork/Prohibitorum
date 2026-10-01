@@ -1,4 +1,4 @@
-import { Avatar, Skeleton, Surface } from "@heroui/react";
+import { Avatar, Surface } from "@heroui/react";
 import { Trans } from "@lingui/react/macro";
 import {
   useMutation,
@@ -12,7 +12,6 @@ import {
   federationDeclineMutationOptions,
 } from "@/api/mutations";
 import {
-  awaitingAvatar,
   clearSessionQueries,
   federationConfirmQueryOptions,
 } from "@/api/queries";
@@ -29,23 +28,14 @@ type Answer = "confirm" | "decline";
  * reader to accept before the session is issued, or to turn down.
  *
  * Both answers use the prepared sign-in up, so once one is pressed the other
- * is disabled, the pressed one stays pending until the page has gone, and
- * the account is no longer read while the provider's picture is awaited.
+ * is disabled and the pressed one stays pending until the page has gone.
  */
 export function WelcomePage() {
   const [answer, setAnswer] = useState<Answer>();
   const base = federationConfirmQueryOptions();
-  const { data: account, dataUpdatedAt } = useSuspenseQuery({
-    ...base,
-    refetchInterval: answer === undefined ? base.refetchInterval : false,
-  });
+  const { data: account } = useSuspenseQuery(base);
   const { name: instance } = useInstanceBranding();
   const queryClient = useQueryClient();
-  // `dataUpdatedAt` moves on every read, even one that returns the same
-  // account, so reading it re-renders the page when the wait runs out.
-  const state = queryClient.getQueryState(base.queryKey);
-  const waiting =
-    dataUpdatedAt > 0 && state !== undefined && awaitingAvatar(state);
   const router = useRouter();
   const navigate = useNavigate();
   const confirm = useMutation(federationConfirmMutationOptions());
@@ -106,37 +96,26 @@ export function WelcomePage() {
         </PublicStep.Actions>
       }
     >
-      <AccountPreview account={account} waiting={waiting} />
+      <AccountPreview account={account} />
     </PublicStep>
   );
 }
 
 /**
- * The prepared account as the reader will see it. While the provider's
- * picture is still on its way its place holds a placeholder of the same
- * shape; once the page stops waiting, the initial stands in.
+ * The prepared account as the reader will see it. The provider's picture is
+ * fetched during the sign-in, so it is either here already or the initial
+ * stands in.
  */
-function AccountPreview({
-  account,
-  waiting,
-}: {
-  account: FederationConfirm;
-  waiting: boolean;
-}) {
-  const picture = account.avatarPending ? undefined : account.avatarUrl;
+function AccountPreview({ account }: { account: FederationConfirm }) {
   return (
     <Surface
       variant="secondary"
       className="flex min-w-0 items-center gap-3 rounded-lg p-3"
     >
-      {waiting ? (
-        <Skeleton className="size-12 shrink-0 rounded-[calc(var(--radius)*3)]" />
-      ) : (
-        <Avatar size="lg" aria-hidden="true">
-          {picture && <Avatar.Image src={picture} alt="" />}
-          <Avatar.Fallback>{account.displayName.slice(0, 1)}</Avatar.Fallback>
-        </Avatar>
-      )}
+      <Avatar size="lg" aria-hidden="true">
+        {account.avatarUrl && <Avatar.Image src={account.avatarUrl} alt="" />}
+        <Avatar.Fallback>{account.displayName.slice(0, 1)}</Avatar.Fallback>
+      </Avatar>
       <div className="flex min-w-0 flex-col">
         <span className="font-medium wrap-anywhere">{account.displayName}</span>
         <span className="flex flex-wrap gap-x-1 text-sm text-muted">

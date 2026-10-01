@@ -185,10 +185,6 @@ export interface RecoveryCodesResult {
   recovery_codes: string[];
 }
 
-export interface AvatarStatus {
-  pending: boolean;
-}
-
 export interface DevicePairing {
   pairingId: string;
   displayCode: string;
@@ -301,8 +297,6 @@ export interface FederationConfirm {
   username: string;
   email: string;
   avatarUrl?: string;
-  /** The picture is still being fetched from the provider. */
-  avatarPending: boolean;
 }
 
 /** `POST /auth/federation/confirm`: where to go, and whether to offer a local sign-in. */
@@ -539,20 +533,6 @@ export interface RawPaths {
       };
       requestBody: { content: { "application/json": { source: string } } };
       responses: { 204: { content?: never } };
-    };
-  };
-  "/api/prohibitorum/me/avatar/status": {
-    get: {
-      parameters: {
-        query?: never;
-        header?: never;
-        path?: never;
-        cookie?: never;
-      };
-      requestBody?: never;
-      responses: {
-        200: { content: { "application/json": AvatarStatus } };
-      };
     };
   };
   "/api/prohibitorum/me/credentials/register/begin": {

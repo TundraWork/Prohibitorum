@@ -95,6 +95,7 @@ func (s *Server) sessionView(a *db.Account) contract.SessionView {
 	v := contract.SessionView{
 		ID:          a.ID,
 		Username:    a.Username,
+		OIDCSubject: a.OidcSubject.String(),
 		DisplayName: a.DisplayName,
 		Role:        a.Role,
 		Attributes:  decodeAttributes(a.Attributes),

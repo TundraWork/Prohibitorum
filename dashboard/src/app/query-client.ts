@@ -17,9 +17,12 @@ declare module "@tanstack/react-query" {
     mutationMeta: {
       /**
        * What the toast says once the write succeeds. A write whose outcome
-       * depends on what was sent passes a function of its variables.
+       * depends on what was sent, or on what came back, passes a function of
+       * its variables and its result.
        */
-      success?: MessageDescriptor | ((variables: unknown) => MessageDescriptor);
+      success?:
+        | MessageDescriptor
+        | ((variables: unknown, data: unknown) => MessageDescriptor);
       /**
        * Where the write was made, for an error code whose wording depends on
        * it; see `describeError`.
@@ -70,11 +73,11 @@ export function createQueryClient(
       // A write that changes something says so. It is announced from the cache
       // rather than the page, so the toast still arrives when the dialog that
       // started the write has already closed.
-      onSuccess: (_data, variables, _context, mutation) => {
+      onSuccess: (data, variables, _context, mutation) => {
         const success = mutation.meta?.success;
         if (success === undefined) return;
         notifySuccess(
-          typeof success === "function" ? success(variables) : success,
+          typeof success === "function" ? success(variables, data) : success,
         );
       },
     }),

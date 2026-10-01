@@ -41,7 +41,13 @@ beforeEach(() => {
   queryClient = createQueryClient(() => undefined, notifySuccess);
   queryClient.setQueryData<components["schemas"]["SessionView"]>(
     sessionQueryOptions().queryKey,
-    { id: 1, username: "alice", displayName: "Alice", role: "user" },
+    {
+      id: 1,
+      username: "alice",
+      oidcSubject: "00000000-0000-4000-8000-000000000001",
+      displayName: "Alice",
+      role: "user",
+    },
   );
   queryClient.setQueryData(["public", "config"], {
     instanceName: "Prohibitorum",

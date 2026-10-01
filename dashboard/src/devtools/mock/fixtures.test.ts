@@ -23,6 +23,7 @@ import {
 } from "@/devtools/mock/model";
 
 type SessionListItem = components["schemas"]["SessionListItem"];
+type Session = components["schemas"]["SessionView"];
 
 function config(overrides: (draft: MockConfig) => void = () => {}): MockConfig {
   const draft = structuredClone(defaultMockConfig);
@@ -482,6 +483,90 @@ describe("mocked management directory", () => {
     expect(
       bodyOf(read("/api/prohibitorum/me", applied(reply, current))),
     ).toMatchObject({ role: "member" });
+  });
+});
+
+describe("mocked avatar", () => {
+  const avatarPath = "/api/prohibitorum/me/avatar";
+  const selection = "/api/prohibitorum/me/avatar/selection";
+  type MyAvatar = components["schemas"]["MyAvatarView"];
+  const avatarOf = (current: MockConfig) =>
+    bodyOf(read(avatarPath, current)) as MyAvatar;
+  const sessionOf = (current: MockConfig) =>
+    bodyOf(read("/api/prohibitorum/me", current)) as Session;
+
+  it("lists the upload first, then each provider's picture, and the session agrees", () => {
+    const current = writes();
+    const avatar = avatarOf(current);
+    expect(avatar.activeSource).toBe("user");
+    expect(avatar.sources?.map((entry) => entry.source)).toEqual([
+      "user",
+      "upstream:provider-1",
+      "upstream:provider-2",
+    ]);
+    expect(avatar.sources?.[1]?.label).toBe("Example IdP 1");
+    expect(sessionOf(current)).toMatchObject({
+      avatarSource: "user",
+      avatarUrl: avatar.sources?.[0]?.url,
+    });
+  });
+
+  it("shows an upload at once for an account that has never chosen", () => {
+    const current = config((draft) => {
+      draft.writes = true;
+      draft.avatar.upload = false;
+      draft.avatar.active = "upstream:provider-1";
+    });
+    const next = applied(call("PUT", avatarPath, current), current);
+    expect(avatarOf(next).activeSource).toBe("user");
+  });
+
+  it("keeps the chosen picture when an account that has chosen uploads", () => {
+    const current = config((draft) => {
+      draft.writes = true;
+      draft.avatar.upload = false;
+      draft.avatar.active = "upstream:provider-2";
+      draft.avatar.selected = true;
+    });
+    const next = applied(call("PUT", avatarPath, current), current);
+    expect(avatarOf(next).activeSource).toBe("upstream:provider-2");
+    expect(avatarOf(next).sources?.[0]?.source).toBe("user");
+  });
+
+  it("falls back to the first provider's picture when the upload in use is removed", () => {
+    const current = writes();
+    const next = applied(call("DELETE", avatarPath, current), current);
+    expect(avatarOf(next).activeSource).toBe("upstream:provider-1");
+    expect(avatarOf(next).sources?.some((e) => e.source === "user")).toBe(
+      false,
+    );
+  });
+
+  it("falls back to no picture when there is no provider's picture", () => {
+    const current = config((draft) => {
+      draft.writes = true;
+      draft.avatar.upstreams = 0;
+    });
+    const next = applied(call("DELETE", avatarPath, current), current);
+    expect(avatarOf(next)).toEqual({ activeSource: "none", sources: [] });
+    expect(sessionOf(next).avatarUrl).toBeUndefined();
+  });
+
+  it("records a choice, and refuses a source that is not stored", () => {
+    const current = writes();
+    const next = applied(
+      call("PUT", selection, current, { source: "upstream:provider-2" }),
+      current,
+    );
+    expect(avatarOf(next).activeSource).toBe("upstream:provider-2");
+    expect(next.avatar.selected).toBe(true);
+    expect(
+      call("PUT", selection, current, { source: "upstream:provider-3" }),
+    ).toMatchObject({
+      kind: "error",
+      status: 400,
+      code: "avatar_source_unavailable",
+    });
   });
 });
 
@@ -1299,21 +1384,18 @@ describe("mocked enrollment and federation pages", () => {
     ).toMatchObject({ kind: "error", code: "mock_unmocked" });
   });
 
-  it("brings the prepared account's picture on the third read, and confirms with the offer the panel sets", () => {
+  it("shows the prepared account's picture as the panel sets it, and confirms with the offer the panel sets", () => {
     const confirm = "/api/prohibitorum/auth/federation/confirm";
     const current = writes();
-    // Answering resets the count, so this starts from a first read.
-    call("POST", `${confirm}/decline`, current);
-    const pending = () =>
-      (bodyOf(read(confirm, current)) as FederationConfirm).avatarPending;
-    expect([pending(), pending(), pending()]).toEqual([true, true, false]);
-
-    const never = config((draft) => {
-      draft.publicFlows.welcome.avatarPending = "never";
+    expect(
+      (bodyOf(read(confirm, current)) as FederationConfirm).avatarUrl,
+    ).toMatch(/^data:image\/svg\+xml/);
+    const without = config((draft) => {
+      draft.publicFlows.welcome.avatar = false;
     });
-    expect((bodyOf(read(confirm, never)) as FederationConfirm).avatarUrl).toBe(
-      undefined,
-    );
+    expect(
+      (bodyOf(read(confirm, without)) as FederationConfirm).avatarUrl,
+    ).toBeUndefined();
 
     const reply = call("POST", confirm, current, {});
     expect(bodyOf(reply)).toEqual({ redirect: "/", offerLocalSignin: true });

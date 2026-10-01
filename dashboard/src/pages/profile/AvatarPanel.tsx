@@ -1,13 +1,29 @@
-import { Avatar, Description, Label, Radio, RadioGroup } from "@heroui/react";
+import { Avatar, Badge, Description, RadioGroup, Spinner } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { UserRound } from "lucide-react";
+import {
+  useMutation,
+  useQueryClient,
+  useSuspenseQuery,
+} from "@tanstack/react-query";
+import { Check, Upload, UserRound } from "lucide-react";
 import { useState } from "react";
-import { client } from "@/api/client";
-import { successMessage } from "@/api/success-messages";
-import { notifySuccess } from "@/components/custom/AppNotifications";
+import {
+  removeAvatarUploadMutationOptions,
+  selectAvatarMutationOptions,
+  uploadAvatarMutationOptions,
+} from "@/api/mutations";
+import { myAvatarQueryOptions } from "@/api/queries";
+import { Button } from "@/components/custom/Button";
+import { ChoiceTile } from "@/components/custom/ChoiceTile";
+import { ConfirmDialog } from "@/components/custom/ConfirmDialog";
 import { ConsoleCard } from "@/components/custom/ConsoleCard";
-import { ImageUploadControl } from "@/components/custom/ImageUploadControl";
+import { ImageDropTile } from "@/components/custom/ImageDropTile";
+import {
+  ImageRejectedAlert,
+  maxImageBytes,
+  rejectImage,
+} from "@/components/custom/ImageUploadControl";
+import { AsyncSection, Section } from "@/components/custom/Section";
 
 /** What `PUT /me/avatar` decodes; the file picker offers the same list. */
 export const avatarTypes = [
@@ -18,189 +34,226 @@ export const avatarTypes = [
   "image/avif",
 ] as const;
 
-type Session = {
-  avatarUrl?: string;
-  avatarPending?: boolean;
-  avatarSource?: string;
-  avatarSourceUrls?: Record<string, string>;
-  avatarSourceLabels?: Record<string, string>;
-};
-
-/** The source the account is currently displaying, as a picker value. */
-function activeSource(session: Session): string {
-  return session.avatarSource ?? "none";
+/**
+ * The avatar section: every picture the account can show, side by side, with
+ * the one in use selected. The section keeps its heading while the pictures
+ * load, and a failed read stays inside it.
+ */
+export function AvatarPanel() {
+  return (
+    <AsyncSection
+      resetKey="avatar"
+      title={<Trans id="profile.avatar.title">Avatar</Trans>}
+    >
+      <AvatarGallery />
+    </AsyncSection>
+  );
 }
 
 /**
- * The avatar as it stands, and the three ways to change it.
+ * One tile per picture, then "No picture", then the tile that uploads. The
+ * selected tile is the avatar in use, so there is no separate preview to say
+ * the same thing twice.
  *
- * The card carries no heading of its own: the section above it names the block,
- * and a second heading inside the card would sit below the section's in the
- * outline without adding anything to it.
+ * An upload is only stored: the server shows it at once only for an account
+ * that has never chosen a picture, and otherwise it waits in the first tile to
+ * be chosen. One write runs at a time, and a failed one is the error toast's.
  */
-export function AvatarPanel({ current }: { current: Session }) {
+function AvatarGallery() {
   const { t } = useLingui();
   const queryClient = useQueryClient();
-  const [failure, setFailure] = useState<unknown>(null);
-  const [pending, setPending] = useState(false);
+  const { data: avatar } = useSuspenseQuery(myAvatarQueryOptions());
+  const select = useMutation(selectAvatarMutationOptions(queryClient));
+  const upload = useMutation(uploadAvatarMutationOptions(queryClient));
+  const remove = useMutation(removeAvatarUploadMutationOptions(queryClient));
+  const [rejected, setRejected] = useState<"too_large" | "wrong_type" | null>(
+    null,
+  );
+  const [confirmingRemove, setConfirmingRemove] = useState(false);
 
-  // Every avatar write changes `SessionView`: the source, the URL and the
-  // pending flag all come from there, so the session cache is the one thing to
-  // refresh. `avatarUrl` already carries a fresh query string per version, so
-  // `Avatar.Image` needs no extra cache-busting.
-  const refreshSession = async () => {
-    await queryClient.invalidateQueries({ queryKey: ["session", "me"] });
+  const sources = avatar.sources ?? [];
+  const hasUpload = sources.some((entry) => entry.source === "user");
+  const writing = upload.isPending || remove.isPending;
+  const busy = writing || select.isPending;
+  // The tile just pressed shows as chosen until the server's answer lands.
+  const value = select.isPending ? select.variables : avatar.activeSource;
+
+  const choose = (files: File[]) => {
+    const file = files[0];
+    if (file === undefined) return;
+    const reason = rejectImage(file, {
+      types: avatarTypes,
+      maxBytes: maxImageBytes,
+    });
+    setRejected(reason);
+    if (reason === null) upload.mutate(file);
   };
 
-  const select = useMutation({
-    retry: false,
-    meta: { success: successMessage.updateAvatar },
-    mutationFn: async (source: string) => {
-      await client.PUT("/api/prohibitorum/me/avatar/selection", {
-        body: { source },
-      });
-    },
-    onSuccess: refreshSession,
-    onError: setFailure,
-  });
-
-  const remove = useMutation({
-    retry: false,
-    meta: { success: successMessage.removeAvatarUpload },
-    mutationFn: async () => {
-      await client.DELETE("/api/prohibitorum/me/avatar");
-    },
-    onSuccess: refreshSession,
-    onError: setFailure,
-  });
-
-  /**
-   * Uploads raw bytes, not a multipart form: the server caps the body at 5 MiB
-   * and re-encodes to webp, so the control's checks only save a doomed round
-   * trip.
-   */
-  async function upload(file: File) {
-    setFailure(null);
-    setPending(true);
-    try {
-      // Through the shared client, so an error arrives as an `ApiError` with
-      // the server's code rather than a bare status.
-      await client.PUT("/api/prohibitorum/me/avatar", {
-        body: file,
-        // openapi-fetch serialises JSON by default; the endpoint wants the raw
-        // bytes, and the declared content type is already a binary one.
-        bodySerializer: (value) => value as BodyInit,
-      });
-      await refreshSession();
-      // A direct request rather than a mutation, so it announces itself.
-      notifySuccess(successMessage.updateAvatar);
-    } catch (error) {
-      setFailure(error);
-    } finally {
-      setPending(false);
-    }
-  }
-
-  // Sources come from the session, and the account's own upload arrives as the
-  // `user` entry already; the fixed entries are folded in through a set so a
-  // server that reports them anyway cannot produce a duplicate option.
-  const sources = Object.keys(current.avatarSourceUrls ?? {});
-  const value = activeSource(current);
-  const options = [...new Set(["user", ...sources, "none"])];
-  const hasUpload = sources.includes("user");
-  const busy = pending || select.isPending || remove.isPending;
+  const tile = (source: string, url: string | undefined, label: string) => (
+    <ChoiceTile
+      key={source}
+      value={source}
+      layout="media"
+      title={label}
+      label={label}
+      media={
+        <Preview
+          url={url}
+          state={
+            select.isPending && select.variables === source
+              ? "pending"
+              : value === source
+                ? "selected"
+                : "idle"
+          }
+        />
+      }
+    />
+  );
 
   return (
-    <ConsoleCard>
-      <div className="flex flex-col gap-6">
-        <div className="flex items-center gap-4">
-          <Avatar className="size-16 shrink-0">
-            {current.avatarUrl && (
-              <Avatar.Image src={current.avatarUrl} alt="" />
+    <Section title={<Trans id="profile.avatar.title">Avatar</Trans>}>
+      <ConsoleCard wide contentClassName="flex flex-col gap-3">
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(6rem,1fr))] gap-2">
+          {/* The group's own box steps aside so its tiles and the upload
+              tile share one grid; the upload is not one of the choices. */}
+          <RadioGroup
+            aria-label={t({
+              id: "profile.avatar.source",
+              message: "Picture to show",
+            })}
+            variant="secondary"
+            className="contents"
+            value={value}
+            // Read-only rather than disabled while a choice is saved, so the
+            // tile keeps keyboard focus.
+            isReadOnly={select.isPending}
+            isDisabled={writing}
+            onChange={(next) => {
+              setRejected(null);
+              select.mutate(next);
+            }}
+          >
+            {sources.map((entry) =>
+              tile(
+                entry.source,
+                entry.url,
+                entry.source === "user"
+                  ? t({
+                      id: "profile.avatar.source.user",
+                      message: "Uploaded picture",
+                    })
+                  : (entry.label ?? entry.source),
+              ),
             )}
-            <Avatar.Fallback>
-              <UserRound size={28} aria-hidden="true" />
-            </Avatar.Fallback>
-          </Avatar>
-          {current.avatarPending && (
-            <p className="text-sm text-muted">
-              <Trans id="profile.avatar.pending">
-                Your picture from the upstream provider is still syncing. It
-                will appear here once it arrives.
-              </Trans>
-            </p>
-          )}
+            {tile(
+              "none",
+              undefined,
+              t({ id: "profile.avatar.source.none", message: "No picture" }),
+            )}
+          </RadioGroup>
+          <ImageDropTile
+            ariaLabel={t({
+              id: "profile.avatar.drop",
+              message: "Drop a picture here, or choose a file",
+            })}
+            label={
+              hasUpload ? (
+                <Trans id="profile.avatar.replace">Replace</Trans>
+              ) : (
+                <Trans id="profile.avatar.upload">Upload</Trans>
+              )
+            }
+            icon={Upload}
+            acceptedFileTypes={avatarTypes}
+            isPending={upload.isPending}
+            isDisabled={select.isPending || remove.isPending}
+            onFiles={choose}
+          />
         </div>
-
-        <ImageUploadControl
-          types={avatarTypes}
-          hasImage={hasUpload}
-          uploadLabel={
-            <Trans id="profile.avatar.upload">Upload a picture</Trans>
-          }
-          replaceLabel={
-            <Trans id="profile.avatar.replace">Replace upload</Trans>
-          }
-          removeLabel={<Trans id="profile.avatar.remove">Remove upload</Trans>}
-          hint={
-            <Trans id="profile.avatar.hint">
-              PNG, JPEG, WebP, GIF or AVIF, up to 5 MiB. Larger pictures are
-              scaled down.
-            </Trans>
-          }
-          isUploading={pending}
-          isRemoving={remove.isPending}
-          isDisabled={select.isPending}
-          failure={failure}
-          onUpload={(file) => void upload(file)}
-          onRemove={() => {
-            setFailure(null);
-            remove.mutate();
-          }}
-        />
-
-        <RadioGroup
-          aria-label={t({
-            id: "profile.avatar.source",
-            message: "Picture to show",
-          })}
-          value={value}
-          onChange={(next) => {
-            setFailure(null);
-            select.mutate(String(next));
-          }}
-          isDisabled={busy}
-        >
-          <Label>
-            <Trans id="profile.avatar.source.label">Picture to show</Trans>
-          </Label>
-          {options.map((source) => (
-            <Radio key={source} value={source}>
-              <Radio.Content>
-                <Radio.Control>
-                  <Radio.Indicator />
-                </Radio.Control>
-                {source === "user" ? (
-                  <Trans id="profile.avatar.source.user">
-                    My uploaded picture
-                  </Trans>
-                ) : source === "none" ? (
-                  <Trans id="profile.avatar.source.none">No picture</Trans>
-                ) : (
-                  (current.avatarSourceLabels?.[source] ?? source)
-                )}
-              </Radio.Content>
-            </Radio>
-          ))}
-        </RadioGroup>
-        {!hasUpload && (
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
           <Description>
-            <Trans id="profile.avatar.no_upload">
-              You have not uploaded a picture yet.
+            <Trans id="profile.avatar.hint">
+              PNG, JPEG, WebP, GIF or AVIF, up to 5 MiB.
             </Trans>
           </Description>
-        )}
-      </div>
-    </ConsoleCard>
+          {hasUpload && (
+            <Button
+              variant="danger-soft"
+              size="sm"
+              isDisabled={busy}
+              onPress={() => {
+                setRejected(null);
+                setConfirmingRemove(true);
+              }}
+            >
+              <Trans id="profile.avatar.remove">Remove uploaded picture</Trans>
+            </Button>
+          )}
+        </div>
+        {rejected !== null && <ImageRejectedAlert reason={rejected} />}
+      </ConsoleCard>
+      <ConfirmDialog
+        isOpen={confirmingRemove}
+        onOpenChange={setConfirmingRemove}
+        status="danger"
+        title={
+          <Trans id="profile.avatar.remove.title">
+            Remove the uploaded picture?
+          </Trans>
+        }
+        body={
+          <Trans id="profile.avatar.remove.description">
+            This can't be undone.
+          </Trans>
+        }
+        confirmLabel={<Trans id="profile.avatar.remove.confirm">Remove</Trans>}
+        isPending={remove.isPending}
+        onConfirm={() =>
+          remove.mutate(undefined, {
+            onSettled: () => setConfirmingRemove(false),
+          })
+        }
+      />
+    </Section>
+  );
+}
+
+/**
+ * A tile's picture, the shape the sidebar draws the account in, so the tile
+ * shows what the sidebar will. The chosen one carries a check, or a spinner
+ * while it is being saved.
+ */
+function Preview({
+  url,
+  state,
+}: {
+  url: string | undefined;
+  state: "idle" | "selected" | "pending";
+}) {
+  return (
+    <Badge.Anchor>
+      <Avatar className="size-14 rounded-field">
+        {url && <Avatar.Image src={url} alt="" />}
+        <Avatar.Fallback className="rounded-field">
+          <UserRound size={24} aria-hidden="true" />
+        </Avatar.Fallback>
+      </Avatar>
+      {state === "selected" && (
+        <Badge color="accent" size="sm" placement="bottom-right">
+          <Check className="size-2.5" strokeWidth={3} aria-hidden="true" />
+        </Badge>
+      )}
+      {state === "pending" && (
+        <Badge size="sm" placement="bottom-right">
+          <Spinner
+            size="sm"
+            color="current"
+            className="size-3"
+            aria-hidden="true"
+          />
+        </Badge>
+      )}
+    </Badge.Anchor>
   );
 }

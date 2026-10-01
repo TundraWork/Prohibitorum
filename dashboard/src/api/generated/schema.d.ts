@@ -1039,6 +1039,7 @@ export interface components {
             displayName: string;
             /** Format: int32 */
             id: number;
+            oidcSubject: string;
             role: string;
             username: string;
         };

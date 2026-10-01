@@ -31,6 +31,7 @@ type Session = components["schemas"]["SessionView"];
 const admin: Session = {
   id: 1,
   username: "alice",
+  oidcSubject: "00000000-0000-4000-8000-000000000001",
   displayName: "Alice",
   role: "admin",
   avatarSource: "user",

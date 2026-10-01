@@ -370,6 +370,11 @@ msgid "admin.user.tokens.table"
 msgstr "Access tokens"
 
 #. js-lingui-explicit-id
+#: src/pages/profile/AccountPanel.tsx
+msgid "profile.account.title"
+msgstr "Account"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminLogs.tsx
 msgid "admin.logs.column.account"
 msgstr "Account"
@@ -883,6 +888,11 @@ msgid "admin.user.oidcSubject.hint"
 msgstr "Applications identify this account by this value. It never changes."
 
 #. js-lingui-explicit-id
+#: src/pages/profile/AccountPanel.tsx
+msgid "profile.oidc-subject.hint"
+msgstr "Applications identify you by this value. It never changes."
+
+#. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.access.selected_apps"
 msgstr "Applications you choose"
@@ -1059,7 +1069,7 @@ msgid "entity.restricted"
 msgstr "Available only to the selected user groups"
 
 #. js-lingui-explicit-id
-#: src/pages/Profile.tsx
+#: src/pages/profile/AvatarPanel.tsx
 msgid "profile.avatar.title"
 msgstr "Avatar"
 
@@ -2476,18 +2486,18 @@ msgid "console.display-name"
 msgstr "Display name"
 
 #. js-lingui-explicit-id
-#: src/pages/Profile.tsx
-msgid "profile.display-name.title"
+#: src/pages/public/Enroll.tsx
+msgid "enroll.display_name"
 msgstr "Display name"
 
 #. js-lingui-explicit-id
-#: src/pages/Profile.tsx
+#: src/pages/profile/AccountPanel.tsx
 msgid "profile.display-name.form"
 msgstr "Display name"
 
 #. js-lingui-explicit-id
-#: src/pages/public/Enroll.tsx
-msgid "enroll.display_name"
+#: src/pages/profile/AccountPanel.tsx
+msgid "profile.display-name.label"
 msgstr "Display name"
 
 #. js-lingui-explicit-id
@@ -2550,6 +2560,11 @@ msgstr "Download secret"
 #: src/components/custom/secret-reveal-copy.ts
 msgid "security.tokens.reveal.download"
 msgstr "Download token"
+
+#. js-lingui-explicit-id
+#: src/pages/profile/AvatarPanel.tsx
+msgid "profile.avatar.drop"
+msgstr "Drop a picture here, or choose a file"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/LoginImagesControl.tsx
@@ -4007,16 +4022,6 @@ msgid "admin.saml-apps.mapping.multi.column"
 msgstr "Multi"
 
 #. js-lingui-explicit-id
-#: src/pages/profile/AvatarPanel.tsx
-msgid "profile.avatar.source.user"
-msgstr "My uploaded picture"
-
-#. js-lingui-explicit-id
-#: src/pages/Profile.tsx
-msgid "profile.display-name.label"
-msgstr "Name"
-
-#. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
 msgid "security.passkeys.rename.label"
 msgstr "Name"
@@ -4491,6 +4496,11 @@ msgid "console.admin.oidc-applications"
 msgstr "OIDC applications"
 
 #. js-lingui-explicit-id
+#: src/pages/profile/AccountPanel.tsx
+msgid "profile.oidc-subject"
+msgstr "OIDC subject"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.oidcSubject"
 msgstr "OIDC subject"
@@ -4828,9 +4838,9 @@ msgid "profile.avatar.source"
 msgstr "Picture to show"
 
 #. js-lingui-explicit-id
-#: src/pages/profile/AvatarPanel.tsx
-msgid "profile.avatar.source.label"
-msgstr "Picture to show"
+#: src/api/success-messages.ts
+msgid "success.avatar.uploaded"
+msgstr "Picture uploaded. Select it to show it."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-options.ts
@@ -4855,7 +4865,7 @@ msgstr "PNG, JPEG, WebP or GIF, up to 5 MiB."
 #. js-lingui-explicit-id
 #: src/pages/profile/AvatarPanel.tsx
 msgid "profile.avatar.hint"
-msgstr "PNG, JPEG, WebP, GIF or AVIF, up to 5 MiB. Larger pictures are scaled down."
+msgstr "PNG, JPEG, WebP, GIF or AVIF, up to 5 MiB."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts
@@ -5140,6 +5150,11 @@ msgid "security.passkeys.delete.confirm"
 msgstr "Remove"
 
 #. js-lingui-explicit-id
+#: src/pages/profile/AvatarPanel.tsx
+msgid "profile.avatar.remove.confirm"
+msgstr "Remove"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.passkeys.revoke"
 msgstr "Remove"
@@ -5190,7 +5205,7 @@ msgid "admin.oidc-apps.scopes.remove.action"
 msgstr "Remove and save"
 
 #. js-lingui-explicit-id
-#: src/pages/Profile.tsx
+#: src/pages/profile/AccountPanel.tsx
 msgid "profile.display-name.control"
 msgstr "Remove control characters from the name."
 
@@ -5250,6 +5265,11 @@ msgid "settings.sign-in.unsplash.query.control"
 msgstr "Remove the tab or line break."
 
 #. js-lingui-explicit-id
+#: src/pages/profile/AvatarPanel.tsx
+msgid "profile.avatar.remove.title"
+msgstr "Remove the uploaded picture?"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-validation.ts
 msgid "admin.federation.url.userinfo"
 msgstr "Remove the user name and password from the address."
@@ -5277,7 +5297,7 @@ msgstr "Remove this passkey?"
 #. js-lingui-explicit-id
 #: src/pages/profile/AvatarPanel.tsx
 msgid "profile.avatar.remove"
-msgstr "Remove upload"
+msgstr "Remove uploaded picture"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
@@ -5312,6 +5332,11 @@ msgstr "Repeat new password"
 #. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
 msgid "security.totp.replace.open"
+msgstr "Replace"
+
+#. js-lingui-explicit-id
+#: src/pages/profile/AvatarPanel.tsx
+msgid "profile.avatar.replace"
 msgstr "Replace"
 
 #. js-lingui-explicit-id
@@ -5358,11 +5383,6 @@ msgstr "Replace icon"
 #: src/pages/admin/identity-providers/ProviderDangerSection.tsx
 msgid "admin.federation.danger.replace-secret"
 msgstr "Replace the secret"
-
-#. js-lingui-explicit-id
-#: src/pages/profile/AvatarPanel.tsx
-msgid "profile.avatar.replace"
-msgstr "Replace upload"
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
@@ -5670,7 +5690,7 @@ msgid "console.admin.saml-applications"
 msgstr "SAML applications"
 
 #. js-lingui-explicit-id
-#: src/pages/Profile.tsx
+#: src/pages/profile/AccountPanel.tsx
 msgid "profile.display-name.save"
 msgstr "Save"
 
@@ -7043,6 +7063,11 @@ msgid "sudo.passkey.unsupported"
 msgstr "This browser or connection cannot use passkeys."
 
 #. js-lingui-explicit-id
+#: src/pages/profile/AvatarPanel.tsx
+msgid "profile.avatar.remove.description"
+msgstr "This can't be undone."
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
 msgid "admin.group.rule.reason.invalid_shape"
 msgstr "This condition mixes fields that do not belong together."
@@ -7515,7 +7540,7 @@ msgstr "Unsplash did not accept this access key. Check it and enter it again."
 #. js-lingui-explicit-id
 #: src/pages/profile/AvatarPanel.tsx
 msgid "profile.avatar.upload"
-msgstr "Upload a picture"
+msgstr "Upload"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/GeneralPanel.tsx
@@ -7526,6 +7551,11 @@ msgstr "Upload an icon"
 #: src/components/custom/EntityIconCard.tsx
 msgid "entity.icon.upload"
 msgstr "Upload an icon"
+
+#. js-lingui-explicit-id
+#: src/pages/profile/AvatarPanel.tsx
+msgid "profile.avatar.source.user"
+msgstr "Uploaded picture"
 
 #. js-lingui-explicit-id
 #: src/api/success-messages.ts
@@ -7563,7 +7593,7 @@ msgid "settings.maintenance.notice.too_long"
 msgstr "Use 500 characters or fewer."
 
 #. js-lingui-explicit-id
-#: src/pages/Profile.tsx
+#: src/pages/profile/AccountPanel.tsx
 msgid "profile.display-name.too_long"
 msgstr "Use 60 characters or fewer."
 
@@ -7813,7 +7843,7 @@ msgstr "UserInfo was not requested."
 
 #. js-lingui-explicit-id
 #: src/pages/Console.tsx
-#: src/pages/Profile.tsx
+#: src/pages/profile/AccountPanel.tsx
 msgid "console.username"
 msgstr "Username"
 
@@ -8135,11 +8165,6 @@ msgid "security.tokens.no_forward_auth"
 msgstr "You have no applications to choose from."
 
 #. js-lingui-explicit-id
-#: src/pages/profile/AvatarPanel.tsx
-msgid "profile.avatar.no_upload"
-msgstr "You have not uploaded a picture yet."
-
-#. js-lingui-explicit-id
 #: src/pages/public/SamlConsent.tsx
 msgid "saml_consent.footnote"
 msgstr "You only need to confirm this once. You can revoke it at any time in <0>Connected applications</0>."
@@ -8200,11 +8225,6 @@ msgid "security.revoke.confirm.body"
 msgstr "Your password, your authenticator and all recovery codes stop working immediately."
 
 #. js-lingui-explicit-id
-#: src/pages/profile/AvatarPanel.tsx
-msgid "profile.avatar.pending"
-msgstr "Your picture from the upstream provider is still syncing. It will appear here once it arrives."
-
-#. js-lingui-explicit-id
 #: src/pages/public/consent/scopes.ts
 msgid "consent.scope.profile"
 msgstr "Your profile"
@@ -8213,11 +8233,6 @@ msgstr "Your profile"
 #: src/pages/Console.tsx
 msgid "console.availability"
 msgstr "Your profile, security settings, connected applications and devices are on the pages listed in the sidebar. Administrative pages are still to come."
-
-#. js-lingui-explicit-id
-#: src/pages/Profile.tsx
-msgid "profile.username.note"
-msgstr "Your username identifies you at sign-in and cannot be changed."
 
 #. js-lingui-explicit-id
 #: src/pages/public/FederationFlow.tsx

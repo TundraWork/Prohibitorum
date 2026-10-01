@@ -4,13 +4,13 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ImagePlus, X } from "lucide-react";
 import { useState } from "react";
-import { DropZone, FileTrigger } from "react-aria-components";
 import { ApiError } from "@/api/errors";
 import {
   removeLoginImageMutationOptions,
   uploadLoginImageMutationOptions,
 } from "@/api/mutations";
 import { Button } from "@/components/custom/Button";
+import { ImageDropTile } from "@/components/custom/ImageDropTile";
 import {
   maxImageBytes,
   rejectImage,
@@ -99,48 +99,26 @@ export function LoginImagesControl({
 
   const empty = count === 0 && queued === 0;
   const addTile = (
-    <DropZone
-      aria-label={t({
+    <ImageDropTile
+      ariaLabel={t({
         id: "settings.sign-in.images.drop",
         message: "Drop images here, or choose files",
       })}
-      onDrop={async (event) => {
-        const files = await Promise.all(
-          event.items
-            .filter((item) => item.kind === "file")
-            .map((item) => item.getFile()),
-        );
-        void add(files);
-      }}
-      className={`group flex rounded-[0.375rem] border border-dashed border-border text-sm text-muted outline-none transition-colors duration-150 data-[drop-target]:border-accent data-[drop-target]:bg-accent-soft data-[focus-visible]:ring-2 data-[focus-visible]:ring-focus ${
-        empty ? "aspect-[3/1]" : "aspect-video"
-      }`}
-    >
-      <FileTrigger
-        allowsMultiple
-        acceptedFileTypes={loginImageTypes}
-        onSelect={(list) => {
-          if (list) void add(Array.from(list));
-        }}
-      >
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-full w-full flex-col gap-1.5 text-muted"
-        >
-          <ImagePlus size={20} strokeWidth={1.75} aria-hidden="true" />
-          <span>
-            {empty ? (
-              <Trans id="settings.sign-in.images.drop">
-                Drop images here, or choose files
-              </Trans>
-            ) : (
-              <Trans id="settings.sign-in.images.add">Add images</Trans>
-            )}
-          </span>
-        </Button>
-      </FileTrigger>
-    </DropZone>
+      label={
+        empty ? (
+          <Trans id="settings.sign-in.images.drop">
+            Drop images here, or choose files
+          </Trans>
+        ) : (
+          <Trans id="settings.sign-in.images.add">Add images</Trans>
+        )
+      }
+      icon={ImagePlus}
+      acceptedFileTypes={loginImageTypes}
+      allowsMultiple
+      onFiles={(files) => void add(files)}
+      className={empty ? "aspect-[3/1]" : "aspect-video"}
+    />
   );
 
   return (

@@ -25,15 +25,50 @@ export function rejectImage(
 }
 
 /**
- * Choosing, replacing and removing one image: the avatar on the profile page,
- * the instance icon and the sign-in background in the settings.
+ * Why a chosen file was not sent, as a warning on the card's surface. The type
+ * message points at the formats hint, which callers draw above it.
+ */
+export function ImageRejectedAlert({
+  reason,
+  maxBytes = maxImageBytes,
+}: {
+  reason: "too_large" | "wrong_type";
+  maxBytes?: number;
+}) {
+  const limitMiB = Math.round(maxBytes / (1024 * 1024));
+  return (
+    <SurfaceAlert status="warning" role="alert">
+      <SurfaceAlert.Indicator />
+      <SurfaceAlert.Content>
+        <SurfaceAlert.Title>
+          {reason === "too_large" ? (
+            <Trans id="image-upload.too_large">
+              Choose an image no larger than {limitMiB} MiB.
+            </Trans>
+          ) : (
+            <Trans id="image-upload.wrong_type">
+              This file type is not supported. Choose one of the formats listed
+              above.
+            </Trans>
+          )}
+        </SurfaceAlert.Title>
+      </SurfaceAlert.Content>
+    </SurfaceAlert>
+  );
+}
+
+/**
+ * Choosing, replacing and removing one image: the instance icon in the
+ * settings and an entity's icon on its detail page. The profile page's avatar
+ * gallery checks files the same way, with `rejectImage` and
+ * `ImageRejectedAlert`.
  *
  * The file input is hidden behind the upload button, which reads "Replace"
  * once there is an image to replace, and the remove button appears only then.
  * The size and type are checked here before anything is sent; the message for
  * a rejected file, and for a failure the caller passes back, is drawn below
- * the buttons on the card's surface. The preview is the caller's, since an
- * avatar, an icon and a background are each shown their own way.
+ * the buttons on the card's surface. The preview is the caller's, since each
+ * kind of icon is shown its own way.
  */
 export function ImageUploadControl({
   types,
@@ -75,7 +110,6 @@ export function ImageUploadControl({
     null,
   );
   const busy = isDisabled || isUploading || isRemoving;
-  const limitMiB = Math.round(maxBytes / (1024 * 1024));
 
   return (
     <div className="flex flex-col gap-2">
@@ -127,23 +161,7 @@ export function ImageUploadControl({
       <Description>{hint}</Description>
 
       {rejected !== null && (
-        <SurfaceAlert status="warning" role="alert">
-          <SurfaceAlert.Indicator />
-          <SurfaceAlert.Content>
-            <SurfaceAlert.Title>
-              {rejected === "too_large" ? (
-                <Trans id="image-upload.too_large">
-                  Choose an image no larger than {limitMiB} MiB.
-                </Trans>
-              ) : (
-                <Trans id="image-upload.wrong_type">
-                  This file type is not supported. Choose one of the formats
-                  listed above.
-                </Trans>
-              )}
-            </SurfaceAlert.Title>
-          </SurfaceAlert.Content>
-        </SurfaceAlert>
+        <ImageRejectedAlert reason={rejected} maxBytes={maxBytes} />
       )}
 
       {/* A dismissed identity check is the admin backing out, not a failure. */}

@@ -11,7 +11,11 @@ import {
 import { render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { components } from "@/api/generated/schema";
-import { consentQueryOptions, sessionQueryOptions } from "@/api/queries";
+import {
+  consentQueryOptions,
+  myAvatarQueryOptions,
+  sessionQueryOptions,
+} from "@/api/queries";
 import { createQueryClient } from "@/app/query-client";
 import { searchSerialization } from "@/app/search-params";
 import { i18n } from "@/i18n";
@@ -31,6 +35,7 @@ type Session = components["schemas"]["SessionView"];
 const session: Session = {
   id: 1,
   username: "alice",
+  oidcSubject: "00000000-0000-4000-8000-000000000001",
   displayName: "Alice",
   role: "user",
   avatarSource: "user",
@@ -43,6 +48,10 @@ beforeEach(() => {
   queryClient = createQueryClient(() => undefined);
   queryClient.setQueryData(sessionQueryOptions().queryKey, session);
   queryClient.setQueryData(consentQueryOptions().queryKey, []);
+  queryClient.setQueryData(myAvatarQueryOptions().queryKey, {
+    activeSource: "none",
+    sources: [],
+  });
 });
 
 afterEach(() => {
@@ -91,20 +100,26 @@ describe("profile", () => {
     history.push("/profile");
     mount("/profile", Profile);
 
-    // Both blocks are on the page as it opens: the display name a reader came
-    // to change, and the avatar beside it.
+    // Both blocks are on the page as it opens: the avatar, then the account.
     expect(
-      await screen.findByRole("heading", { name: "Display name" }),
+      await screen.findByRole("heading", { name: "Avatar" }),
     ).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Avatar" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Account" }),
+    ).toBeInTheDocument();
     expect(screen.queryByRole("tab")).not.toBeInTheDocument();
   });
 
-  it("keeps the username, which the page reports rather than lets a reader edit", async () => {
+  it("shows the username and the subject as values to copy, not to edit", async () => {
     history.push("/profile");
     mount("/profile", Profile);
 
-    expect(await screen.findByText("alice")).toBeInTheDocument();
+    const username = await screen.findByRole("textbox", { name: "Username" });
+    expect(username).toHaveValue("alice");
+    expect(username).toHaveAttribute("readonly");
+    const subject = screen.getByRole("textbox", { name: "OIDC subject" });
+    expect(subject).toHaveValue("00000000-0000-4000-8000-000000000001");
+    expect(subject).toHaveAttribute("readonly");
   });
 });
 

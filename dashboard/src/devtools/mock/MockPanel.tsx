@@ -2,12 +2,14 @@ import { type ReactNode, useSyncExternalStore } from "react";
 import type { LoginBackgroundSource } from "@/api/raw-paths";
 import {
   clampAdminCount,
+  clampAvatarUpstreams,
   clampCount,
   clampDelay,
   clampEnrollmentProviders,
   clampPairingExpiry,
   getMockConfig,
   mockAdminListMax,
+  mockAvatarUpstreamsMax,
   mockDelayMax,
   mockEnrollmentProvidersMax,
   mockListMax,
@@ -331,15 +333,6 @@ export function MockPanel() {
               })
             }
           />
-          <Toggle
-            label="Avatar syncing"
-            checked={config.session.avatarPending}
-            onChange={(next) =>
-              updateMockConfig((draft) => {
-                draft.session.avatarPending = next;
-              })
-            }
-          />
           <Choose
             label="Role"
             value={config.session.role}
@@ -373,6 +366,36 @@ export function MockPanel() {
           />
         </Section>
 
+        <Section title="Avatar">
+          <Toggle
+            label="Uploaded picture"
+            checked={config.avatar.upload}
+            onChange={(next) =>
+              updateMockConfig((draft) => {
+                draft.avatar.upload = next;
+              })
+            }
+          />
+          <Count
+            label="Upstream pictures"
+            value={config.avatar.upstreams}
+            max={mockAvatarUpstreamsMax}
+            onChange={(next) =>
+              updateMockConfig((draft) => {
+                draft.avatar.upstreams = clampAvatarUpstreams(next);
+              })
+            }
+          />
+          <Toggle
+            label="Picked before"
+            checked={config.avatar.selected}
+            onChange={(next) =>
+              updateMockConfig((draft) => {
+                draft.avatar.selected = next;
+              })
+            }
+          />
+        </Section>
         <Section title="Sign-in methods">
           <Toggle
             label="Password set"
@@ -792,17 +815,12 @@ export function MockPanel() {
               })
             }
           />
-          <Choose
-            label="Welcome picture"
-            value={config.publicFlows.welcome.avatarPending}
-            options={[
-              { value: "off", label: "Ready" },
-              { value: "resolves", label: "Arrives" },
-              { value: "never", label: "Never" },
-            ]}
+          <Toggle
+            label="Welcome account has a picture"
+            checked={config.publicFlows.welcome.avatar}
             onChange={(next) =>
               updateMockConfig((draft) => {
-                draft.publicFlows.welcome.avatarPending = next;
+                draft.publicFlows.welcome.avatar = next;
               })
             }
           />

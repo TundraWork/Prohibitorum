@@ -43,19 +43,32 @@ describe("mock URL control", () => {
   it("sets up the enrollment, welcome and VRChat pages, within the panel's choices", () => {
     applyMockQuery(
       "?mock.publicFlows.enrollment.intent=reset&mock.publicFlows.enrollment.providers=9" +
-        "&mock.publicFlows.welcome.avatarPending=never&mock.publicFlows.flow.step=proof" +
+        "&mock.publicFlows.welcome.avatar=0&mock.publicFlows.flow.step=proof" +
         "&mock.publicFlows.flow.intent=link",
     );
     const flows = getMockConfig().publicFlows;
     expect(flows.enrollment.intent).toBe("reset");
     expect(flows.enrollment.providers).toBe(3);
-    expect(flows.welcome.avatarPending).toBe("never");
+    expect(flows.welcome.avatar).toBe(false);
     expect(flows.flow).toMatchObject({ step: "proof", intent: "link" });
     applyMockQuery(
       "?mock.publicFlows.enrollment.intent=signup&mock.publicFlows.flow.step=done",
     );
     expect(getMockConfig().publicFlows.enrollment.intent).toBe("reset");
     expect(getMockConfig().publicFlows.flow.step).toBe("proof");
+  });
+
+  it("sets up the avatar gallery, within the panel's bounds", () => {
+    applyMockQuery(
+      "?mock.avatar.upstreams=9&mock.avatar.upload=0&mock.avatar.active=upstream:provider-3",
+    );
+    expect(getMockConfig().avatar).toMatchObject({
+      upstreams: 3,
+      upload: false,
+      active: "upstream:provider-3",
+    });
+    applyMockQuery("?mock.avatar.active=upstream:elsewhere");
+    expect(getMockConfig().avatar.active).toBe("upstream:provider-3");
   });
 
   it("ignores a URL that names nothing the mock knows", () => {
