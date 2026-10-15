@@ -1144,6 +1144,11 @@ msgid "admin.federation.diagnostics.stage.callback"
 msgstr "回调"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/CallbackPreview.tsx
+msgid "admin.federation.callback.title"
+msgstr "回调地址"
+
+#. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
 #: src/pages/security/PasswordTotpPanel.tsx
 #: src/pages/security/TokensPanel.tsx
@@ -3837,6 +3842,11 @@ msgid "settings.network.proxies.spaces"
 msgstr "第 {line} 行：去掉地址两侧的空格。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/CallbackPreview.tsx
+msgid "admin.federation.callback.link"
+msgstr "绑定账号"
+
+#. js-lingui-explicit-id
 #: src/pages/security/IdentitiesPanel.tsx
 msgid "security.identities.link.title"
 msgstr "绑定其它身份"
@@ -6177,6 +6187,11 @@ msgid "settings.keys.activate.title"
 msgstr "用这个密钥签名？"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/CallbackPreview.tsx
+msgid "admin.federation.callback.login"
+msgstr "登录"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/settings/SignInPagePanel.tsx
 msgid "settings.sign-in.card"
 msgstr "登录卡片"
@@ -6429,6 +6444,11 @@ msgstr "team"
 #: src/pages/public/Consent.tsx
 msgid "consent.terms"
 msgstr "服务条款"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/CallbackPreview.tsx
+msgid "admin.federation.callback.test"
+msgstr "测试"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx

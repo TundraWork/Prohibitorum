@@ -1144,6 +1144,11 @@ msgid "admin.federation.diagnostics.stage.callback"
 msgstr "Callback"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/CallbackPreview.tsx
+msgid "admin.federation.callback.title"
+msgstr "Callback addresses"
+
+#. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
 #: src/pages/security/PasswordTotpPanel.tsx
 #: src/pages/security/TokensPanel.tsx
@@ -3837,6 +3842,11 @@ msgid "settings.network.proxies.spaces"
 msgstr "Line {line}: remove the spaces around the address."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/CallbackPreview.tsx
+msgid "admin.federation.callback.link"
+msgstr "Link an account"
+
+#. js-lingui-explicit-id
 #: src/pages/security/IdentitiesPanel.tsx
 msgid "security.identities.link.title"
 msgstr "Link another identity"
@@ -6177,6 +6187,11 @@ msgid "settings.keys.activate.title"
 msgstr "Sign with this key?"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/CallbackPreview.tsx
+msgid "admin.federation.callback.login"
+msgstr "Sign-in"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/settings/SignInPagePanel.tsx
 msgid "settings.sign-in.card"
 msgstr "Sign-in card"
@@ -6429,6 +6444,11 @@ msgstr "team"
 #: src/pages/public/Consent.tsx
 msgid "consent.terms"
 msgstr "Terms of service"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/CallbackPreview.tsx
+msgid "admin.federation.callback.test"
+msgstr "Test"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx

@@ -19,6 +19,7 @@ import { ConsoleCard } from "@/components/custom/ConsoleCard";
 import { TagListField } from "@/components/custom/TagListField";
 import { applyServerError } from "@/forms/server-errors";
 import { useAppForm } from "@/forms/use-app-form";
+import { CallbackPreview } from "@/pages/admin/identity-providers/CallbackPreview";
 import { ClientAuthMethodField } from "@/pages/admin/identity-providers/ClientAuthMethodField";
 import { ProvisioningModeField } from "@/pages/admin/identity-providers/ProvisioningModeField";
 import {
@@ -37,6 +38,12 @@ import {
 /** `^[a-z0-9](-?[a-z0-9])*$`, at most 64 characters. */
 const slugPattern = /^[a-z0-9](-?[a-z0-9])*$/;
 
+/** Whether the server will accept `value`, once trimmed, as an identifier. */
+function slugAccepted(value: string): boolean {
+  const trimmed = value.trim();
+  return slugPattern.test(trimmed) && trimmed.length <= 64;
+}
+
 const slugInvalid = msg({
   id: "admin.federation.new.slug.invalid",
   message:
@@ -50,6 +57,11 @@ const slugInvalid = msg({
  * credential. It is fixed once the provider exists — the identifier, the
  * callback address and every linked account hang off it — so it is chosen here,
  * each option with a line saying what it is for, and never edited afterwards.
+ *
+ * The identifier is followed by the callback addresses it will produce, so
+ * the provider's own registration page can be filled in beside this one. They
+ * appear only once the identifier is one the server accepts: an address built
+ * from anything else would be registered upstream and never be called.
  *
  * Only what the provider cannot work without is asked for, with the same
  * fields the detail page uses. Everything else — allowed domains, claim
@@ -125,6 +137,7 @@ export function AdminIdentityProviderNew() {
   });
 
   const protocol = useStore(form.store, (state) => state.values.protocol);
+  const slug = useStore(form.store, (state) => state.values.slug);
   const method = useStore(form.store, (state) => state.values.tokenAuthMethod);
   const submitting = useStore(form.store, (state) => state.isSubmitting);
 
@@ -198,7 +211,7 @@ export function AdminIdentityProviderNew() {
                       id: "admin.federation.new.slug.required",
                       message: "Enter an identifier.",
                     })
-                  : !slugPattern.test(value.trim()) || value.trim().length > 64
+                  : !slugAccepted(value)
                     ? slugInvalid
                     : undefined,
             }}
@@ -219,6 +232,10 @@ export function AdminIdentityProviderNew() {
               />
             )}
           </form.AppField>
+
+          {slugAccepted(slug) && (
+            <CallbackPreview slug={slug.trim()} protocol={protocol} />
+          )}
 
           <form.AppField name="mode">
             {() => <ProvisioningModeField isFixed={protocol === "vrchat"} />}
