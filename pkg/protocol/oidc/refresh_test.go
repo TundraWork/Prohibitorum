@@ -1235,7 +1235,7 @@ func sessionTestHarness(t *testing.T) *tokenHarness {
 	h := newTokenHarness(t)
 	store := kv.NewMemoryStore()
 	t.Cleanup(func() { _ = store.Close() })
-	h.p.sessions = sessstore.NewSessionStore(store, noopSessionQueriesStub{}, time.Hour)
+	h.p.sessions = sessstore.NewSessionStore(store, noopSessionQueriesStub{}, time.Hour, time.Hour)
 	return h
 }
 
@@ -1422,7 +1422,7 @@ func TestTokenRefreshRevokedSessionRejectsAndRevokes(t *testing.T) {
 	ctx := context.Background()
 
 	// Issue a real session so IsSessionIDLive can find it.
-	token, data, err := h.p.sessions.Issue(ctx, 42, "127.0.0.1", "", []string{"hwk"}, nil)
+	token, data, err := h.p.sessions.Issue(ctx, 42, "127.0.0.1", "", []string{"hwk"}, nil, false)
 	if err != nil {
 		t.Fatalf("session.Issue: %v", err)
 	}
@@ -1484,7 +1484,7 @@ func TestTokenRefreshRevokeAllSessionsRejectsRefresh(t *testing.T) {
 	h := sessionTestHarness(t)
 	ctx := context.Background()
 
-	token, data, err := h.p.sessions.Issue(ctx, 42, "127.0.0.1", "", []string{"hwk"}, nil)
+	token, data, err := h.p.sessions.Issue(ctx, 42, "127.0.0.1", "", []string{"hwk"}, nil, false)
 	if err != nil {
 		t.Fatalf("session.Issue: %v", err)
 	}
@@ -1536,7 +1536,7 @@ func TestTokenRefreshDisabledAccountAuditReason(t *testing.T) {
 	ctx := context.Background()
 
 	// Issue a live session so the session check passes.
-	_, data, _ := h.p.sessions.Issue(ctx, 42, "127.0.0.1", "", []string{"hwk"}, nil)
+	_, data, _ := h.p.sessions.Issue(ctx, 42, "127.0.0.1", "", []string{"hwk"}, nil, false)
 	fam := grantFamily()
 	fam.SessionID = data.SessionID
 	presented, _, err := issueRefresh(ctx, h.p.kv, fam, RefreshTokenTTL, RefreshTokenTTL)
@@ -1579,7 +1579,7 @@ func TestTokenRefreshDeletedAccountAuditReason(t *testing.T) {
 	h := sessionTestHarness(t)
 	ctx := context.Background()
 
-	_, data, _ := h.p.sessions.Issue(ctx, 42, "127.0.0.1", "", []string{"hwk"}, nil)
+	_, data, _ := h.p.sessions.Issue(ctx, 42, "127.0.0.1", "", []string{"hwk"}, nil, false)
 	fam := grantFamily()
 	fam.SessionID = data.SessionID
 	presented, _, err := issueRefresh(ctx, h.p.kv, fam, RefreshTokenTTL, RefreshTokenTTL)

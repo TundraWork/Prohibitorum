@@ -89,7 +89,7 @@ sensitive `/me` operations behind a fresh credential proof.
 - Password credential: argon2id PHC at rest with OWASP defaults (`m=64 MiB`, `t=3`, `p=1`); auto re-hash on verify when hash params advance. A package-init dummy hash defeats username enumeration on step 1.
 - TOTP: RFC 6238 (SHA-1 / 6-digit / 30s, ±1-step drift); `last_step` defeats same-step replay. Secrets AES-256-GCM with a versioned DEK, AAD bound to `'totp:'||account_id||':'||key_version`. Recovery codes (10/account, 80-bit, `XXXX-XXXX-XXXX-XXXX`, argon2id-hashed) minted at confirmation, regenerable.
 - Throttling: exponential backoff per `(account_id, factor)`; a locked row returns `429` + `Retry-After` without running the crypto check, and resets on success.
-- Two-step login: `POST /auth/password/begin` returns a single-use 5-min partial-session token; `POST /auth/totp/verify` consumes it and issues a session with `amr=["pwd","otp","mfa"]`. Disabled accounts are rejected after a dummy verify (no timing oracle).
+- Two-step login: `POST /auth/password/begin` returns a single-use 5-min partial-session token; `POST /auth/totp/verify` consumes it and issues a session with `amr=["pwd","otp","mfa"]`. Disabled accounts are rejected after a dummy verify (no timing oracle). An optional `remember` flag on `/begin` carries the login page's "keep me signed in" choice through to the issued session and its cookie.
 - Client-generated setup: the browser creates the TOTP secret from public issuer/algorithm/digits/period settings. First setup submits password, secret, and code together; `/me/totp/verify` is reset-only.
 - Recovery: `/auth/recovery-code/verify` either issues a session directly or atomically replaces TOTP and recovery codes when the request includes a browser-generated secret and code.
 - Sudo step-up: per-account sudo factors enumerated in priority order (`webauthn` → `password_totp`); `recovery_code` is deliberately not a sudo method. `/me/sudo/{begin,complete}` take a `method` discriminator.
@@ -136,7 +136,7 @@ Not implemented: upstream refresh-token storage/refresh — federated accounts r
 
 | Method | Path | Notes |
 |---|---|---|
-| GET | `/api/prohibitorum/auth/federation/{slug}/login` | public; 302 to upstream `/authorize` |
+| GET | `/api/prohibitorum/auth/federation/{slug}/login` | public; 302 to upstream `/authorize`; optional `remember=true` query carries "keep me signed in" through the flow state to the issued session |
 | GET | `/api/prohibitorum/auth/federation/{slug}/callback` | public; handles `?error=`; issues session |
 | GET | `/api/prohibitorum/enrollments/{token}/start-federation` | public (token-bearing); validates invite, 302 upstream; `Referrer-Policy: no-referrer` so the token doesn't leak upstream |
 | GET | `/api/prohibitorum/me/identities` | session; `[{id, idpSlug, idpDisplayName, upstreamEmail, linkedAt}]` |

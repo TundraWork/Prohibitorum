@@ -191,10 +191,59 @@ func main() {
 	log.Printf("  signature len=%d (ASN.1 DER)", len(signed.signature))
 
 	step(fmt.Sprintf("core %d/%d — POST /auth/login/complete", 10, nCore))
-	if err := c.completeLogin(auth, signed); err != nil {
+	loginResp, err := c.completeLoginRaw(auth, signed, "")
+	if err != nil {
 		log.Fatalf("login/complete: %v", err)
 	}
+	_ = loginResp.Body.Close()
 	log.Printf("  session cookie restored")
+
+	// Remember-me (PHB-78): no remember flag → the session cookie carries
+	// no Max-Age (a browser-session cookie).
+	if maxAge := sessionCookieMaxAge(loginResp); maxAge != "" {
+		log.Fatalf("plain login/complete cookie Max-Age = %q, want absent", maxAge)
+	}
+	log.Printf("  session cookie has no Max-Age (browser-session) ✓")
+
+	// ?remember=true → Max-Age ≈ rememberTTL (default 336h).
+	step(fmt.Sprintf("core %d/%d — remembered login/complete sets Max-Age", 10, nCore))
+	cRem, err := newClient(*baseURL)
+	if err != nil {
+		log.Fatalf("remember client: %v", err)
+	}
+	remAssertion, err := cRem.beginLogin()
+	if err != nil {
+		log.Fatalf("remember login/begin: %v", err)
+	}
+	remSigned, err := auth.signAssertion(remAssertion.Challenge, *baseURL)
+	if err != nil {
+		log.Fatalf("sign remember assertion: %v", err)
+	}
+	remResp, err := cRem.completeLoginRaw(auth, remSigned, "?remember=true")
+	if err != nil {
+		log.Fatalf("remember login/complete: %v", err)
+	}
+	_ = remResp.Body.Close()
+	maxAge := sessionCookieMaxAge(remResp)
+	if maxAge == "" {
+		log.Fatal("remember login/complete cookie has no Max-Age")
+	}
+	secs, err := strconv.Atoi(maxAge)
+	if err != nil {
+		log.Fatalf("remember Max-Age %q not numeric: %v", maxAge, err)
+	}
+	// Default rememberTTL is 336h; smoke keeps defaults. A generous lower
+	// bound avoids coupling smoke to the exact default — unit tests pin it.
+	if secs < int((7 * 24 * time.Hour).Seconds()) {
+		log.Fatalf("remember Max-Age = %ds, want ≥ 7d", secs)
+	}
+	if _, err := cRem.getMe(); err != nil {
+		log.Fatalf("remember /me: %v", err)
+	}
+	if err := cRem.logout(); err != nil {
+		log.Fatalf("remember logout: %v", err)
+	}
+	log.Printf("  remember login cookie Max-Age=%ds ✓", secs)
 
 	step(fmt.Sprintf("core %d/%d — GET /me (post-login)", 11, nCore))
 	me2, err := c.getMe()
@@ -6230,6 +6279,7 @@ func (c *client) cookies() []*http.Cookie {
 	return c.jar.Cookies(u)
 }
 
+
 func (c *client) postJSON(path string, body any, out any) error {
 	var buf bytes.Buffer
 	if body != nil {
@@ -6735,6 +6785,26 @@ func (c *client) completeLoginWith(a *authenticator, sig *assertionResult, query
 // caller can assert a failure status and code.
 func (c *client) completeLoginRaw(a *authenticator, sig *assertionResult, query string) (*http.Response, error) {
 	return c.postJSONRaw("/api/prohibitorum/auth/login/complete"+query, loginAssertionPayload(a, sig))
+}
+
+// sessionCookieMaxAge reads the session cookie's Max-Age from a login
+// response's Set-Cookie headers, matching plain and __Host- names. Returns
+// "" when the cookie carries none (the not-remembered shape).
+func sessionCookieMaxAge(resp *http.Response) string {
+	const nameSuffix = "prohibitorum_session="
+	for _, sc := range resp.Header.Values("Set-Cookie") {
+		if !strings.Contains(sc, nameSuffix) {
+			continue
+		}
+		for _, part := range strings.Split(sc, ";") {
+			part = strings.TrimSpace(part)
+			if v, ok := strings.CutPrefix(part, "Max-Age="); ok {
+				return v
+			}
+		}
+		return ""
+	}
+	return ""
 }
 
 // loginAssertionPayload is the PublicKeyCredential JSON a browser posts to

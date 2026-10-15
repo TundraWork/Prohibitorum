@@ -163,6 +163,9 @@ type CompletionResult struct {
 	ProviderID   int64
 	ProviderSlug string
 	ReturnTo     string
+	// Remember carries the login page's "keep me signed in" choice from the
+	// flow state to the session-issuing handlers.
+	Remember     bool
 	AMR          []string
 	IsNew        bool
 	Confirmed    bool

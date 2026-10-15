@@ -3687,6 +3687,11 @@ msgid "security.keep"
 msgstr "保留"
 
 #. js-lingui-explicit-id
+#: src/components/custom/RememberCheckbox.tsx
+msgid "login.remember"
+msgstr "保持登录"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/settings/SigningKeysPanel.tsx
 msgid "settings.keys.column.kid"
 msgstr "Key ID"

@@ -173,7 +173,7 @@ func newSLOHarness(t *testing.T, sp db.SamlSp) *sloHarness {
 	}
 
 	memKV := kv.NewMemoryStore()
-	store := session.NewSessionStore(memKV, fakeSessionQueries{}, time.Hour)
+	store := session.NewSessionStore(memKV, fakeSessionQueries{}, time.Hour, time.Hour)
 
 	cfg := &configx.Config{PublicOrigins: []string{testIdPOrigin}}
 	idp := &IdP{
@@ -193,7 +193,7 @@ func newSLOHarness(t *testing.T, sp db.SamlSp) *sloHarness {
 // matching saml_session + pg session rows. Returns the live SessionID.
 func (h *sloHarness) seedSession(t *testing.T, accountID int32, nameID, sessionIndex string) string {
 	t.Helper()
-	_, data, err := h.store.Issue(context.Background(), accountID, "203.0.113.9", "ua/1.0", []string{"pwd", "otp", "mfa"}, nil)
+	_, data, err := h.store.Issue(context.Background(), accountID, "203.0.113.9", "ua/1.0", []string{"pwd", "otp", "mfa"}, nil, false)
 	if err != nil {
 		t.Fatalf("seed session: %v", err)
 	}

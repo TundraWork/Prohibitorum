@@ -203,7 +203,7 @@ func newLocalFlowHarnessWithStore(t *testing.T, store kv.Store) *localFlowHarnes
 	})
 	cfg := &configx.Config{SessionTTL: time.Hour}
 	s := &Server{
-		config: cfg, kvStore: store, sessionStore: sessstore.NewSessionStore(store, q, time.Hour),
+		config: cfg, kvStore: store, sessionStore: sessstore.NewSessionStore(store, q, time.Hour, time.Hour),
 		federationService: service, Audit: writer, clientIP: clientip.NewResolver(directIPStore{}),
 	}
 	router := chi.NewRouter()
@@ -808,6 +808,45 @@ func TestFederationCompletionConfirmedLoginJSON(t *testing.T) {
 	}
 	if !cleared || !session {
 		t.Fatalf("completion cookies = %+v", rr.Result().Cookies())
+	}
+}
+
+// TestFederationCompletionRememberCookieMaxAge pins the remember flow on
+// the confirmed-login completion path: CompletionResult.Remember drives the
+// session cookie's Max-Age.
+func TestFederationCompletionRememberCookieMaxAge(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		remember   bool
+		wantMaxAge int
+	}{{"remembered", true, int((24 * time.Hour).Seconds())}, {"not remembered", false, 0}} {
+		t.Run(tc.name, func(t *testing.T) {
+			h := newLocalFlowHarness(t)
+			h.s.sessionStore = sessstore.NewSessionStore(h.s.kvStore, h.q, time.Hour, 24*time.Hour)
+			rr := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodPost, "/complete", nil)
+			h.s.writeFederationCompletion(rr, req, &federation.CompletionResult{
+				Intent: federation.IntentLogin, AccountID: 99, IdentityID: 88,
+				ProviderID: 77, ProviderSlug: localProviderSlug, ReturnTo: "/after",
+				Confirmed: true, Remember: tc.remember,
+			}, federationCompletionJSON)
+			if rr.Code != http.StatusOK {
+				t.Fatalf("status = %d body=%s", rr.Code, rr.Body.String())
+			}
+			var sessCookie *http.Cookie
+			for _, c := range rr.Result().Cookies() {
+				if c.Name == sessstore.SessionCookieName && c.Value != "" {
+					sessCookie = c
+					break
+				}
+			}
+			if sessCookie == nil {
+				t.Fatal("no session cookie")
+			}
+			if sessCookie.MaxAge != tc.wantMaxAge {
+				t.Errorf("MaxAge = %d, want %d", sessCookie.MaxAge, tc.wantMaxAge)
+			}
+		})
 	}
 }
 

@@ -65,7 +65,7 @@ func (s *Server) handleFederationLoginHTTP(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	req, err := s.federationService.BeginPublic(r.Context(), slug, returnTo)
+	req, err := s.federationService.BeginPublic(r.Context(), slug, returnTo, r.URL.Query().Get("remember") == "true")
 	if err != nil {
 		// returnTo is validated + same-origin — forward it so the /error
 		// "go back" link can resume where the user started.
@@ -193,7 +193,7 @@ func (s *Server) writeFederationCompletion(w http.ResponseWriter, r *http.Reques
 	if !result.Confirmed {
 		token, antiForgery, err := s.federationService.CreateConfirmGrant(
 			r.Context(), result.AccountID, result.IdentityID, result.ProviderID,
-			result.ProviderSlug, result.ReturnTo, result.AMR, result.OfferLocalSignin,
+			result.ProviderSlug, result.ReturnTo, result.AMR, result.OfferLocalSignin, result.Remember,
 		)
 		if err != nil {
 			s.writeFederationCompletionError(w, r, err, mode)
@@ -218,12 +218,12 @@ func (s *Server) writeFederationCompletion(w http.ResponseWriter, r *http.Reques
 		ip = s.clientIP.IP(r)
 	}
 	idpID := result.ProviderID
-	token, _, err := s.sessionStore.Issue(r.Context(), result.AccountID, ip, r.UserAgent(), amr, &idpID)
+	token, data, err := s.sessionStore.Issue(r.Context(), result.AccountID, ip, r.UserAgent(), amr, &idpID, result.Remember)
 	if err != nil {
 		s.writeFederationCompletionError(w, r, err, mode)
 		return
 	}
-	http.SetCookie(w, sessstore.FreshSessionCookie(s.config, r, result.AccountID, token, s.config.SessionTTL))
+	http.SetCookie(w, s.sessionStore.SessionCookie(s.config, r, result.AccountID, token, data))
 	s.writeFederationCompletionDestination(w, r, result.ReturnTo, mode)
 }
 

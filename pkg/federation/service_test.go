@@ -294,7 +294,7 @@ func TestVRChatProofAuditTransitionsContainOnlyAllowlistedDetail(t *testing.T) {
 	resolver := &serviceFakeResolver{outcome: ResolveOutcome{AccountID: 5, IdentityID: 8, ProviderID: 7, AMR: []string{"vrchat_profile"}, Confirmed: true}}
 	provider := Provider{ID: 7, Slug: "social", Protocol: "vrchat", Mode: ModeLinkOnly}
 	service := NewService(registry, fakeProviderLoader{provider: provider}, kv.NewMemoryStore(), resolver, &serviceFakeEnrollmentIssuer{grant: EnrollmentGrant{Token: "opaque-token"}}, ServiceConfig{StateTTL: time.Minute, PublicOrigin: "https://login.example.com", Audit: writer})
-	begin, err := service.BeginPublic(context.Background(), provider.Slug, "/")
+	begin, err := service.BeginPublic(context.Background(), provider.Slug, "/", false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -340,7 +340,7 @@ func newVRChatFailureAuditHarness(t *testing.T, issuerErr error) (*Service, Adva
 	provider := Provider{ID: 7, Slug: "social", Protocol: "vrchat", Mode: ModeLinkOnly}
 	store := kv.NewMemoryStore()
 	service := NewService(registry, fakeProviderLoader{provider: provider}, store, resolver, issuer, ServiceConfig{StateTTL: time.Minute, PublicOrigin: "https://login.example.com", Audit: writer})
-	begin, err := service.BeginPublic(context.Background(), provider.Slug, "/")
+	begin, err := service.BeginPublic(context.Background(), provider.Slug, "/", false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -448,7 +448,7 @@ func TestServiceBeginPublicDispatchesProtocolIntent(t *testing.T) {
 			store := kv.NewMemoryStore()
 			service := NewService(registry, fakeProviderLoader{provider: provider}, store, &serviceFakeResolver{}, rejectingEnrollmentIssuer(), ServiceConfig{StateTTL: time.Minute, PublicOrigin: "https://idp.test"})
 
-			begin, err := service.BeginPublic(context.Background(), provider.Slug, "/return")
+			begin, err := service.BeginPublic(context.Background(), provider.Slug, "/return", false)
 			if test.wantErr {
 				if err == nil {
 					t.Fatal("BeginPublic succeeded")
@@ -474,6 +474,106 @@ func TestServiceBeginPublicDispatchesProtocolIntent(t *testing.T) {
 			}
 			if len(adapter.beginContexts) != 1 || adapter.beginContexts[0].Intent != test.wantIntent {
 				t.Fatalf("adapter begin contexts = %+v", adapter.beginContexts)
+			}
+		})
+	}
+}
+
+func TestServiceBeginPublicRememberReachesCompletion(t *testing.T) {
+	registry := NewRegistry()
+	if err := registry.RegisterDefinition(fakeDefinition{protocol: "oidc", descriptor: descriptor("oidc")}); err != nil {
+		t.Fatal(err)
+	}
+	adapter := &serviceFakeAdapter{
+		protocol: "oidc", beginState: json.RawMessage(`{"step":1}`),
+		beginAction: NextAction{Kind: ActionRedirect, URL: "https://upstream.test"},
+		advance: func(json.RawMessage, ActionInput) (AdvanceResult, error) {
+			return AdvanceResult{Identity: &VerifiedIdentity{Issuer: "https://upstream.test", Subject: "sub-1", AMR: []string{"federated"}}}, nil
+		},
+	}
+	if err := registry.RegisterAdapter(adapter); err != nil {
+		t.Fatal(err)
+	}
+	provider := Provider{ID: 7, Slug: "corp", Protocol: "oidc", Mode: ModeAutoProvision}
+	store := kv.NewMemoryStore()
+	resolver := &serviceFakeResolver{outcome: ResolveOutcome{AccountID: 9, IdentityID: 8, Confirmed: true}}
+	service := NewService(registry, fakeProviderLoader{provider: provider}, store, resolver, rejectingEnrollmentIssuer(), ServiceConfig{StateTTL: time.Minute, PublicOrigin: "https://idp.test"})
+
+	for _, remember := range []bool{true, false} {
+		begin, err := service.BeginPublic(context.Background(), provider.Slug, "/return", remember)
+		if err != nil {
+			t.Fatal(err)
+		}
+		raw, err := store.Get(context.Background(), FlowKey(begin.FlowID))
+		if err != nil {
+			t.Fatal(err)
+		}
+		state, err := DecodeFlowState(raw)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if state.Remember != remember {
+			t.Fatalf("state.Remember = %v, want %v", state.Remember, remember)
+		}
+		completion, err := service.VerifyFlow(context.Background(), AdvanceRequest{
+			FlowID: begin.FlowID, BrowserToken: begin.BrowserToken,
+			ProviderSlug: provider.Slug, Protocol: provider.Protocol,
+			CallbackRoute: CallbackRoutePublic,
+			Input:         ActionInput{Kind: ActionRedirect, Code: "c"},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if completion.Remember != remember {
+			t.Fatalf("completion.Remember = %v, want %v", completion.Remember, remember)
+		}
+	}
+}
+
+func TestServiceBeginLinkAndInviteNeverRemember(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		begin func(*Service, string) error
+	}{
+		{"link", func(s *Service, slug string) error {
+			_, err := s.BeginLink(context.Background(), slug, "/return", 9, "sess")
+			return err
+		}},
+		{"invite", func(s *Service, slug string) error {
+			_, err := s.BeginInvite(context.Background(), "enroll-token", slug, "/return")
+			return err
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			registry := NewRegistry()
+			if err := registry.RegisterDefinition(fakeDefinition{protocol: "oidc", descriptor: descriptor("oidc")}); err != nil {
+				t.Fatal(err)
+			}
+			adapter := &serviceFakeAdapter{
+				protocol: "oidc", beginState: json.RawMessage(`{"step":1}`),
+				beginAction: NextAction{Kind: ActionRedirect, URL: "https://upstream.test"},
+			}
+			if err := registry.RegisterAdapter(adapter); err != nil {
+				t.Fatal(err)
+			}
+			provider := Provider{ID: 7, Slug: "corp", Protocol: "oidc", Mode: ModeInviteOnly}
+			store := kv.NewMemoryStore()
+			loader := fakeProviderLoader{provider: provider}
+			service := NewService(registry, loader, store, &serviceFakeResolver{}, rejectingEnrollmentIssuer(), ServiceConfig{StateTTL: time.Minute, PublicOrigin: "https://idp.test"})
+			if err := tc.begin(service, provider.Slug); err != nil {
+				t.Fatal(err)
+			}
+			// The single stashed flow must carry Remember=false.
+			entries, err := store.ScanEntries(context.Background(), "federation:flow:*", 0, 10)
+			if err != nil || len(entries.Entries) != 1 {
+				t.Fatalf("scan flows: %d err %v", len(entries.Entries), err)
+			}
+			state, err := DecodeFlowState(entries.Entries[0].Value)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if state.Remember {
+				t.Fatal("non-login begin stored Remember=true")
 			}
 		})
 	}
@@ -534,7 +634,7 @@ func TestServiceIntentEnrollIssuesGrantWithoutResolverOrAvatar(t *testing.T) {
 	service := NewService(registry, fakeProviderLoader{provider: provider}, store, resolver, issuer, ServiceConfig{StateTTL: time.Minute, PublicOrigin: "https://idp.test"})
 	service.SetAvatarManager(avatar)
 
-	begin, err := service.BeginPublic(context.Background(), provider.Slug, "/return")
+	begin, err := service.BeginPublic(context.Background(), provider.Slug, "/return", false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -587,7 +687,7 @@ func TestServiceIntentEnrollFailsClosedWithoutIssuerOrOnWrongRoute(t *testing.T)
 	provider := Provider{ID: 7, Slug: "vrchat", Protocol: "vrchat", Mode: ModeLinkOnly}
 	store := kv.NewMemoryStore()
 	withoutIssuer := NewService(registry, fakeProviderLoader{provider: provider}, store, &serviceFakeResolver{}, nil, ServiceConfig{StateTTL: time.Minute})
-	if _, err := withoutIssuer.BeginPublic(context.Background(), provider.Slug, "/"); err == nil {
+	if _, err := withoutIssuer.BeginPublic(context.Background(), provider.Slug, "/", false); err == nil {
 		t.Fatal("IntentEnroll began without an issuer")
 	}
 	if adapter.calls != 0 {
@@ -596,7 +696,7 @@ func TestServiceIntentEnrollFailsClosedWithoutIssuerOrOnWrongRoute(t *testing.T)
 
 	issuer := &serviceFakeEnrollmentIssuer{grant: EnrollmentGrant{Token: "opaque-token"}}
 	service := NewService(registry, fakeProviderLoader{provider: provider}, kv.NewMemoryStore(), &serviceFakeResolver{}, issuer, ServiceConfig{StateTTL: time.Minute})
-	begin, err := service.BeginPublic(context.Background(), provider.Slug, "/")
+	begin, err := service.BeginPublic(context.Background(), provider.Slug, "/", false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -626,7 +726,7 @@ func TestServiceBeginStoresExactBindings(t *testing.T) {
 		{
 			name: "login", intent: IntentLogin, returnTo: "/me",
 			begin: func(service *Service) (*BeginResult, error) {
-				return service.BeginPublic(context.Background(), "corp", "/me")
+				return service.BeginPublic(context.Background(), "corp", "/me", false)
 			},
 		},
 		{
@@ -689,7 +789,7 @@ func TestServiceBeginStoresExactBindings(t *testing.T) {
 func TestServiceReadFlowProjectsPersistedLocalActionAfterBindings(t *testing.T) {
 	service, adapter, _, store := newServiceHarness(t)
 	adapter.beginAction = NextAction{Kind: ActionCollectIdentity, Public: map[string]any{"prompt": "handle"}}
-	begin, err := service.BeginPublic(context.Background(), "corp", "/")
+	begin, err := service.BeginPublic(context.Background(), "corp", "/", false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -781,7 +881,7 @@ func TestServiceNonTerminalAdvanceReplacesStateAndAction(t *testing.T) {
 	adapter.advance = func(_ json.RawMessage, _ ActionInput) (AdvanceResult, error) {
 		return AdvanceResult{State: json.RawMessage(`{"step":2}`), Next: &NextAction{Kind: ActionPublishProof, Public: map[string]any{"proof": "abc"}}, Candidate: &IdentityKey{Issuer: "iss", Subject: "unknown"}}, nil
 	}
-	begin, err := service.BeginPublic(context.Background(), "corp", "/")
+	begin, err := service.BeginPublic(context.Background(), "corp", "/", false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -809,7 +909,7 @@ func TestServiceCandidateUsernameRequirementMatrix(t *testing.T) {
 		{
 			name: "known login", known: true,
 			begin: func(service *Service) (*BeginResult, error) {
-				return service.BeginPublic(context.Background(), "corp", "/")
+				return service.BeginPublic(context.Background(), "corp", "/", false)
 			},
 			request: func(begin *BeginResult) AdvanceRequest {
 				return AdvanceRequest{
@@ -884,7 +984,7 @@ func TestServiceTerminalFailureRestoresAndCommitConsumes(t *testing.T) {
 	adapter.advance = func(_ json.RawMessage, _ ActionInput) (AdvanceResult, error) {
 		return AdvanceResult{}, errors.New("upstream temporary")
 	}
-	begin, err := service.BeginPublic(context.Background(), "corp", "/")
+	begin, err := service.BeginPublic(context.Background(), "corp", "/", false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -936,7 +1036,7 @@ func TestServiceTerminalFailureRestoresAndCommitConsumes(t *testing.T) {
 
 func TestServicePrepareFailuresPreserveExactFlow(t *testing.T) {
 	service, adapter, resolver, store := newServiceHarness(t)
-	begin, err := service.BeginPublic(context.Background(), "corp", "/")
+	begin, err := service.BeginPublic(context.Background(), "corp", "/", false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -990,7 +1090,7 @@ func TestServiceResolverFailureRestoresExactFlow(t *testing.T) {
 		return AdvanceResult{Identity: &VerifiedIdentity{Issuer: "iss", Subject: "sub"}}, nil
 	}
 	resolver.err = errors.New("transaction rolled back")
-	begin, err := service.BeginPublic(context.Background(), "corp", "/")
+	begin, err := service.BeginPublic(context.Background(), "corp", "/", false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1021,7 +1121,7 @@ func TestServiceRedirectLocalUsernameErrorRestoresOriginalAction(t *testing.T) {
 		return AdvanceResult{Identity: &VerifiedIdentity{Issuer: "iss", Subject: "sub"}}, nil
 	}
 	resolver.err = ErrLocalUsernameRequired
-	begin, err := service.BeginPublic(context.Background(), "corp", "/")
+	begin, err := service.BeginPublic(context.Background(), "corp", "/", false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1066,7 +1166,7 @@ func TestServiceRestoreFailureReturnsKVUnavailableAndConsumesFlow(t *testing.T) 
 	adapter.advance = func(_ json.RawMessage, _ ActionInput) (AdvanceResult, error) {
 		return AdvanceResult{}, errors.New("adapter failed")
 	}
-	begin, err := service.BeginPublic(context.Background(), "corp", "/")
+	begin, err := service.BeginPublic(context.Background(), "corp", "/", false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1124,7 +1224,7 @@ func TestServiceRejectsUnavailableProvidersBeforeAdapterCall(t *testing.T) {
 				t.Fatal(err)
 			}
 			service := NewService(registry, test.loader, kv.NewMemoryStore(), &serviceFakeResolver{}, rejectingEnrollmentIssuer(), ServiceConfig{})
-			if _, err := service.BeginPublic(context.Background(), "corp", "/"); err == nil {
+			if _, err := service.BeginPublic(context.Background(), "corp", "/", false); err == nil {
 				t.Fatal("unavailable provider began a flow")
 			}
 			if adapter.calls != 0 {
@@ -1140,7 +1240,7 @@ func TestServiceDisabledInviteOnlyProviderStaysOpaqueBeforeModeGate(t *testing.T
 		ID: 7, Slug: "corp", Protocol: "fake", Mode: ModeInviteOnly, Disabled: true,
 	}}
 
-	_, err := service.BeginPublic(context.Background(), "corp", "/")
+	_, err := service.BeginPublic(context.Background(), "corp", "/", false)
 	if !errors.Is(err, ErrUnknownProvider) {
 		t.Fatalf("BeginPublic error = %v, want opaque ErrUnknownProvider", err)
 	}
@@ -1162,7 +1262,7 @@ func TestServiceKnownAtPrepareBecomingUnknownRestoresUsernamePromptOnly(t *testi
 		}
 		return AdvanceResult{Identity: &VerifiedIdentity{Issuer: "iss", Subject: "sub"}}, nil
 	}
-	begin, err := service.BeginPublic(context.Background(), "corp", "/")
+	begin, err := service.BeginPublic(context.Background(), "corp", "/", false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1227,7 +1327,7 @@ func TestServiceCompletionRefreshesAvatar(t *testing.T) {
 		{
 			name: "login",
 			begin: func(service *Service) (*BeginResult, error) {
-				return service.BeginPublic(context.Background(), "corp", "/")
+				return service.BeginPublic(context.Background(), "corp", "/", false)
 			},
 			request: func(begin *BeginResult) AdvanceRequest {
 				return AdvanceRequest{
@@ -1323,7 +1423,7 @@ func TestServiceAuditsBrowserAndProviderFailures(t *testing.T) {
 			service, _, _, _ := newServiceHarness(t)
 			writer := &serviceRecordingAudit{}
 			service.audit = writer
-			begin, err := service.BeginPublic(context.Background(), "corp", "/")
+			begin, err := service.BeginPublic(context.Background(), "corp", "/", false)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1356,7 +1456,7 @@ func TestServiceAuditsAllowlistedAdapterFailuresForEveryIntent(t *testing.T) {
 		{
 			name: "login",
 			begin: func(service *Service) (*BeginResult, error) {
-				return service.BeginPublic(context.Background(), "corp", "/")
+				return service.BeginPublic(context.Background(), "corp", "/", false)
 			},
 			request: func(begin *BeginResult) AdvanceRequest {
 				return AdvanceRequest{FlowID: begin.FlowID, BrowserToken: begin.BrowserToken, ProviderSlug: "corp", Protocol: "fake", CallbackRoute: CallbackRoutePublic, Input: ActionInput{Kind: ActionRedirect}}
@@ -1501,7 +1601,7 @@ func TestServiceEnforcesCallbackRouteIntent(t *testing.T) {
 		{
 			name: "login state on link route",
 			begin: func(service *Service) (*BeginResult, error) {
-				return service.BeginPublic(context.Background(), "corp", "/")
+				return service.BeginPublic(context.Background(), "corp", "/", false)
 			},
 			route: CallbackRouteLink, accountID: new(int32(9)), sessionID: "session-1",
 			wantAccountID: new(int32(9)),
@@ -1576,7 +1676,7 @@ func TestServicePublicCallbackAcceptsLoginAndInvite(t *testing.T) {
 		{
 			name: "login",
 			begin: func(service *Service) (*BeginResult, error) {
-				return service.BeginPublic(context.Background(), "corp", "/")
+				return service.BeginPublic(context.Background(), "corp", "/", false)
 			},
 		},
 		{
@@ -1751,7 +1851,7 @@ func TestServiceRenewsLeaseDuringLongAdapterOperation(t *testing.T) {
 			return AdvanceResult{}, ctx.Err()
 		}
 	}
-	begin, err := service.BeginPublic(context.Background(), "corp", "/")
+	begin, err := service.BeginPublic(context.Background(), "corp", "/", false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1806,7 +1906,7 @@ func TestServiceCancellationKeepsLeaseUntilBlockedNonTerminalAdapterReturns(t *t
 		<-unblock
 		return AdvanceResult{}, ctx.Err()
 	}
-	begin, err := service.BeginPublic(context.Background(), "corp", "/")
+	begin, err := service.BeginPublic(context.Background(), "corp", "/", false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1865,7 +1965,7 @@ func TestServiceTerminalCancellationRestoresFlowWithDetachedContext(t *testing.T
 		<-ctx.Done()
 		return AdvanceResult{}, ctx.Err()
 	}
-	begin, err := service.BeginPublic(context.Background(), "corp", "/")
+	begin, err := service.BeginPublic(context.Background(), "corp", "/", false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1926,7 +2026,7 @@ func TestServiceLeaseLossCancelsAdapterOperationContext(t *testing.T) {
 		close(canceled)
 		return AdvanceResult{}, ctx.Err()
 	}
-	begin, err := service.BeginPublic(context.Background(), "corp", "/")
+	begin, err := service.BeginPublic(context.Background(), "corp", "/", false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1989,7 +2089,7 @@ func TestServiceNonVRFlowFailureAuditedWhenRestoreFails(t *testing.T) {
 			baseStore := kv.NewMemoryStore()
 			provider := Provider{ID: 7, Slug: "corp", Protocol: protocol, Mode: ModeAutoProvision}
 			service := NewService(registry, fakeProviderLoader{provider: provider}, baseStore, &serviceFakeResolver{}, rejectingEnrollmentIssuer(), ServiceConfig{StateTTL: time.Minute, PublicOrigin: "https://idp.test", Audit: writer})
-			begin, err := service.BeginPublic(context.Background(), "corp", "/")
+			begin, err := service.BeginPublic(context.Background(), "corp", "/", false)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -2019,7 +2119,7 @@ func TestServiceConcurrentVerifyCallsAdapterOnceAndDoesNotResurrectFlow(t *testi
 		<-proceed
 		return AdvanceResult{Identity: &VerifiedIdentity{Issuer: "iss", Subject: "sub"}}, nil
 	}
-	begin, err := service.BeginPublic(context.Background(), "corp", "/")
+	begin, err := service.BeginPublic(context.Background(), "corp", "/", false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2074,7 +2174,7 @@ func TestServiceStaleVerifyFenceCannotResurrectOrOverwrite(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			service, adapter, _, baseStore := newServiceHarness(t)
-			begin, err := service.BeginPublic(context.Background(), "corp", "/")
+			begin, err := service.BeginPublic(context.Background(), "corp", "/", false)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -2128,7 +2228,7 @@ func TestServiceStaleVerifyFenceCannotResurrectOrOverwrite(t *testing.T) {
 
 func TestServiceFencedConsumeBackendFailureDoesNotReinsert(t *testing.T) {
 	service, adapter, _, baseStore := newServiceHarness(t)
-	begin, err := service.BeginPublic(context.Background(), "corp", "/")
+	begin, err := service.BeginPublic(context.Background(), "corp", "/", false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2232,7 +2332,7 @@ func TestServiceResolverErrorsCarryProviderName(t *testing.T) {
 				return AdvanceResult{Identity: &VerifiedIdentity{Issuer: "iss", Subject: "sub"}}, nil
 			}
 			resolver.err = test.err
-			begin, err := service.BeginPublic(context.Background(), "corp", "/")
+			begin, err := service.BeginPublic(context.Background(), "corp", "/", false)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -2253,7 +2353,7 @@ func TestServiceResolverErrorsCarryProviderName(t *testing.T) {
 			return AdvanceResult{Identity: &VerifiedIdentity{Issuer: "iss", Subject: "sub"}}, nil
 		}
 		resolver.err = authn.ErrFederationIdentityConflict("Resolver Name")
-		begin, err := service.BeginPublic(context.Background(), "corp", "/")
+		begin, err := service.BeginPublic(context.Background(), "corp", "/", false)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -2304,7 +2404,7 @@ func TestServiceUnknownOrDisabledProviderStaysUnnamed(t *testing.T) {
 	for _, change := range []string{"unknown", "disabled"} {
 		t.Run(change, func(t *testing.T) {
 			service, _, _, loader := newNamedServiceHarness(t, "fake", true)
-			begin, err := service.BeginPublic(context.Background(), "corp", "/")
+			begin, err := service.BeginPublic(context.Background(), "corp", "/", false)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -2326,7 +2426,7 @@ func TestServiceUnknownOrDisabledProviderStaysUnnamed(t *testing.T) {
 
 	service, _, _, loader := newNamedServiceHarness(t, "fake", true)
 	loader.bySlugErr = ErrUnknownProvider
-	if _, err := service.BeginPublic(context.Background(), "missing", "/"); !errors.Is(err, ErrUnknownProvider) {
+	if _, err := service.BeginPublic(context.Background(), "missing", "/", false); !errors.Is(err, ErrUnknownProvider) {
 		t.Fatalf("unknown slug error = %v", err)
 	}
 }

@@ -31,6 +31,23 @@ func TestFlowStateRoundTripAndKeys(t *testing.T) {
 	if !strings.HasPrefix(FlowLockKey("abc"), "federation:flow:") { t.Fatalf("FlowLockKey = %q", FlowLockKey("abc")) }
 }
 
+func TestFlowStateRememberRoundTrip(t *testing.T) {
+	s := validFlowState()
+	s.Remember = true
+	raw, err := s.Encode()
+	if err != nil { t.Fatal(err) }
+	got, err := DecodeFlowState(raw)
+	if err != nil { t.Fatal(err) }
+	if !got.Remember { t.Fatal("Remember lost in encode/decode") }
+	// Pre-remember states carry no field and must keep decoding.
+	legacy := validFlowState()
+	legacyRaw, err := legacy.Encode()
+	if err != nil { t.Fatal(err) }
+	legacyGot, err := DecodeFlowState(legacyRaw)
+	if err != nil { t.Fatal(err) }
+	if legacyGot.Remember { t.Fatal("legacy state decoded as remembered") }
+}
+
 func TestIntentEnrollFlowStateRoundTripRejectsUnrelatedBindings(t *testing.T) {
 	s := validFlowState()
 	s.Protocol = "vrchat"

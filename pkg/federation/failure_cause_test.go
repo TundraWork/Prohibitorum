@@ -113,7 +113,7 @@ func TestVerifyFlowLogsUpstreamCause(t *testing.T) {
 	adapter.advance = func(json.RawMessage, ActionInput) (AdvanceResult, error) {
 		return AdvanceResult{}, NewFailureWithCause(FailureCodeExchange, nil, upstream)
 	}
-	begin, err := service.BeginPublic(context.Background(), "corp", "/")
+	begin, err := service.BeginPublic(context.Background(), "corp", "/", false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -162,7 +162,7 @@ func TestVerifyFlowLogsOnlyUserInfoFallbackSuccess(t *testing.T) {
 					Issuer: "iss", Subject: "sub", UserInfoFallback: test.fallback,
 				}}, nil
 			}
-			begin, err := service.BeginPublic(context.Background(), "corp", "/")
+			begin, err := service.BeginPublic(context.Background(), "corp", "/", false)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -234,7 +234,7 @@ func TestVRChatRestoreAfterFailureLogsUpstreamCause(t *testing.T) {
 	resolver := &serviceFakeResolver{}
 	service := NewService(registry, fakeProviderLoader{provider: Provider{ID: 7, Slug: "social", Protocol: "vrchat", Mode: ModeLinkOnly}},
 		kv.NewMemoryStore(), resolver, rejectingEnrollmentIssuer(), ServiceConfig{StateTTL: time.Minute, PublicOrigin: "https://login.example.com"})
-	begin, err := service.BeginPublic(context.Background(), "social", "/")
+	begin, err := service.BeginPublic(context.Background(), "social", "/", false)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -211,7 +211,7 @@ the browser-bound flow API as profile proof, not OAuth/OIDC or direct sign-in:
 | Method | Path | Notes |
 |--------|------|-------|
 | GET | `/api/prohibitorum/auth/federation` | List enabled, ready entry providers. A listed VRChat provider starts proof-backed local enrollment, not direct sign-in. |
-| GET | `/api/prohibitorum/auth/federation/{slug}/login` | Redirect externally for OIDC/Steam or to the local VRChat proof UI. |
+| GET | `/api/prohibitorum/auth/federation/{slug}/login` | Redirect externally for OIDC/Steam or to the local VRChat proof UI. Optional `remember=true` query parameter carries "keep me signed in" through the flow state to the issued session. |
 | GET | `/api/prohibitorum/auth/federation/{slug}/callback` | Complete external OIDC/Steam callbacks. |
 | GET | `/api/prohibitorum/auth/federation/flows/{flow}` | Return the browser-safe local step projection. |
 | POST | `/api/prohibitorum/auth/federation/flows/{flow}/prepare` | Submit the requested VRChat profile identity and obtain a fresh proof instruction. |

@@ -566,12 +566,13 @@ func (s *Server) handleLoginCompleteHTTP(w http.ResponseWriter, r *http.Request)
 	http.SetCookie(w, sessstore.ClearedCeremonyCookie(s.config, r, mediation.cookieName()))
 
 	ip := s.clientIP.IP(r)
-	token, _, err := s.sessionStore.Issue(r.Context(), resolvedAccount.ID, ip, r.UserAgent(), []string{"hwk"}, nil)
+	remember := r.URL.Query().Get("remember") == "true"
+	token, data, err := s.sessionStore.Issue(r.Context(), resolvedAccount.ID, ip, r.UserAgent(), []string{"hwk"}, nil, remember)
 	if err != nil {
 		writeAuthErrForCode(w, "ceremony_internal_error", fmt.Errorf("session issue: %w", err))
 		return
 	}
-	http.SetCookie(w, sessstore.FreshSessionCookie(s.config, r, resolvedAccount.ID, token, s.config.SessionTTL))
+	http.SetCookie(w, s.sessionStore.SessionCookie(s.config, r, resolvedAccount.ID, token, data))
 
 	logx.WithContext(r.Context()).WithFields(logrus.Fields{
 		"event":      "auth.login_success",

@@ -238,9 +238,28 @@ describe("signing in with another device", () => {
       await screen.findByRole("heading", { name: "This device is signed in" }),
     ).toHaveFocus();
     const [complete] = api.sent("POST", completePath);
-    expect(complete?.body).toEqual({ pairingId: "pairing-1" });
+    expect(complete?.body).toEqual({ pairingId: "pairing-1", remember: true });
     expect(complete?.url.searchParams.get("return_to")).toBe(target);
     expect(api.sent("POST", completePath)).toHaveLength(1);
+  });
+
+  it("sends the keep-me-signed-in choice as it stands when approval arrives", async () => {
+    let status: PairingStatus = { status: "pending" };
+    const api = pairApi({ status: () => status });
+    const user = userEvent.setup();
+    renderApp("/pair", queryClient);
+    await waiting();
+
+    await user.click(
+      await screen.findByRole("checkbox", { name: "Keep me signed in" }),
+    );
+    status = { status: "approved" };
+    await poll();
+    expect(
+      await screen.findByRole("heading", { name: "This device is signed in" }),
+    ).toHaveFocus();
+    const [complete] = api.sent("POST", completePath);
+    expect(complete?.body).toEqual({ pairingId: "pairing-1", remember: false });
   });
 
   it("offers to try again when signing in fails, and does not retry by itself", async () => {

@@ -232,10 +232,46 @@ it("signs in with the passkey picked from autofill", async () => {
   ).toBeVisible();
   expect(loginCalls()).toEqual([
     "/login/begin?mediation=conditional",
-    "/login/complete?mediation=conditional",
+    "/login/complete?mediation=conditional&remember=true",
   ]);
   const complete = fetchBoundary.mock.calls[1]?.[0];
   expect(await complete?.json()).toEqual(picked);
+});
+
+it("carries the current keep-me-signed-in choice when autofill completes", async () => {
+  let pickNow!: (value: unknown) => void;
+  const pickedLater = new Promise<unknown>((resolve) => {
+    pickNow = resolve;
+  });
+  browser({ pick: pickedLater });
+  mount();
+  // Uncheck while the ceremony still waits; the completion must read the
+  // choice then, without the toggle having restarted the wait.
+  await userEvent
+    .setup()
+    .click(await screen.findByRole("checkbox", { name: "Keep me signed in" }));
+  pickNow(picked);
+  expect(
+    await screen.findByRole("heading", { name: "Destination" }),
+  ).toBeVisible();
+  expect(loginCalls()).toEqual([
+    "/login/begin?mediation=conditional",
+    "/login/complete?mediation=conditional",
+  ]);
+  const complete = fetchBoundary.mock.calls[1]?.[0];
+  expect(complete).toBeDefined();
+  expect(new URL(complete!.url).searchParams.get("remember")).toBeNull();
+});
+
+it("sends remember=true from autofill while the box stays checked", async () => {
+  browser({ pick: Promise.resolve(picked) });
+  mount();
+  expect(
+    await screen.findByRole("heading", { name: "Destination" }),
+  ).toBeVisible();
+  const complete = fetchBoundary.mock.calls[1]?.[0];
+  expect(complete).toBeDefined();
+  expect(new URL(complete!.url).searchParams.get("remember")).toBe("true");
 });
 
 it("reports a failed completion like the passkey button, then offers autofill again", async () => {
@@ -253,7 +289,7 @@ it("reports a failed completion like the passkey button, then offers autofill ag
   await waitFor(() =>
     expect(loginCalls()).toEqual([
       "/login/begin?mediation=conditional",
-      "/login/complete?mediation=conditional",
+      "/login/complete?mediation=conditional&remember=true",
       "/login/begin?mediation=conditional",
     ]),
   );

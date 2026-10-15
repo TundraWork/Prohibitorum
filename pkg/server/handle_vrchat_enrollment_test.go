@@ -739,7 +739,7 @@ func newAtomicVRChatEnrollmentServer(t *testing.T, e db.Enrollment, account *db.
 	s := &Server{
 		config:                     cfg,
 		kvStore:                    store,
-		sessionStore:               sessstore.NewSessionStore(store, q, cfg.SessionTTL),
+		sessionStore:               sessstore.NewSessionStore(store, q, cfg.SessionTTL, cfg.SessionTTL),
 		clientIP:                   newDirectResolver(),
 		Audit:                      noopAuditWriter{},
 		enrollmentQueriesOverride:  q,
@@ -966,10 +966,10 @@ func TestProviderRecoveryCompletionAtomicallyReplacesCredentialsAndSessions(t *t
 	audits := &enrollmentAuditCapture{}
 	s.Audit = audits
 	q.credentials[account.ID] = []db.WebauthnCredential{{ID: 8, AccountID: account.ID, CredentialID: []byte("old-credential")}}
-	if _, _, err := s.sessionStore.Issue(context.Background(), account.ID, "127.0.0.1", "old-one", []string{"hwk"}, nil); err != nil {
+	if _, _, err := s.sessionStore.Issue(context.Background(), account.ID, "127.0.0.1", "old-one", []string{"hwk"}, nil, false); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := s.sessionStore.Issue(context.Background(), account.ID, "127.0.0.1", "old-two", []string{"hwk"}, nil); err != nil {
+	if _, _, err := s.sessionStore.Issue(context.Background(), account.ID, "127.0.0.1", "old-two", []string{"hwk"}, nil, false); err != nil {
 		t.Fatal(err)
 	}
 	q.mu.Lock()
@@ -1031,9 +1031,9 @@ func TestProviderRecoveryCompletionFailsClosedWhenSessionRevocationFails(t *test
 	e.RecoverySourceUpstreamIdpID = pgtype.Int8{Int64: 41, Valid: true}
 	s, q := newAtomicVRChatEnrollmentServer(t, e, &account)
 	failingStore := &failingSessionRevocationStore{Store: s.kvStore}
-	s.sessionStore = sessstore.NewSessionStore(failingStore, q, s.config.SessionTTL)
+	s.sessionStore = sessstore.NewSessionStore(failingStore, q, s.config.SessionTTL, s.config.SessionTTL)
 	q.credentials[account.ID] = []db.WebauthnCredential{{ID: 8, AccountID: account.ID, CredentialID: []byte("old-credential")}}
-	if _, _, err := s.sessionStore.Issue(context.Background(), account.ID, "127.0.0.1", "old-session", []string{"hwk"}, nil); err != nil {
+	if _, _, err := s.sessionStore.Issue(context.Background(), account.ID, "127.0.0.1", "old-session", []string{"hwk"}, nil, false); err != nil {
 		t.Fatal(err)
 	}
 

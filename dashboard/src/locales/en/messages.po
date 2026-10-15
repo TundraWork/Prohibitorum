@@ -3687,6 +3687,11 @@ msgid "security.keep"
 msgstr "Keep it"
 
 #. js-lingui-explicit-id
+#: src/components/custom/RememberCheckbox.tsx
+msgid "login.remember"
+msgstr "Keep me signed in"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/settings/SigningKeysPanel.tsx
 msgid "settings.keys.column.kid"
 msgstr "Key ID"

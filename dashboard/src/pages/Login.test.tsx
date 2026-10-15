@@ -257,9 +257,9 @@ describe("single-use password verification", () => {
     await user.click(screen.getByRole("button", { name: "Sign in" }));
     await screen.findByLabelText("Password");
     expect(bodies).toEqual([
-      { username: " alice ", password: " password " },
+      { username: " alice ", password: " password ", remember: true },
       { partial_session_token: "partial-1", code: "012345" },
-      { username: " alice ", password: " password " },
+      { username: " alice ", password: " password ", remember: true },
       { partial_session_token: "partial-2", code: "012345" },
     ]);
   });
@@ -296,6 +296,97 @@ describe("single-use password verification", () => {
     });
     await screen.findByLabelText("Password");
     expect(fetch).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("keep me signed in", () => {
+  const gitlab = { slug: "gitlab", displayName: "GitLab", protocol: "oidc" };
+
+  beforeEach(() => {
+    queryClient.setQueryData(publicFederationProvidersQueryOptions().queryKey, [
+      gitlab,
+    ]);
+  });
+
+  function checkbox() {
+    return screen.getByRole("checkbox", { name: "Keep me signed in" });
+  }
+
+  it("is checked by default and the password begin carries it", async () => {
+    const bodies: unknown[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof globalThis.fetch>().mockImplementation(async (input) => {
+        const request = input as Request;
+        bodies.push(await request.json());
+        return Response.json({ partial_session_token: "remembered" });
+      }),
+    );
+    const user = userEvent.setup();
+    mount();
+    expect(
+      await screen.findByRole("checkbox", { name: "Keep me signed in" }),
+    ).toBeChecked();
+    await user.type(
+      await screen.findByRole("textbox", { name: "Username" }),
+      "alice",
+    );
+    await user.type(screen.getByLabelText("Password"), "password");
+    await user.click(
+      screen.getByRole("button", { name: "Continue with password" }),
+    );
+    await screen.findByRole("textbox", { name: "Authenticator code" });
+    expect(bodies[0]).toEqual({
+      username: "alice",
+      password: "password",
+      remember: true,
+    });
+  });
+
+  it("unchecked sends remember false with the password begin", async () => {
+    const bodies: unknown[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof globalThis.fetch>().mockImplementation(async (input) => {
+        const request = input as Request;
+        bodies.push(await request.json());
+        return Response.json({ partial_session_token: "plain" });
+      }),
+    );
+    const user = userEvent.setup();
+    mount();
+    await user.click(
+      await screen.findByRole("checkbox", { name: "Keep me signed in" }),
+    );
+    expect(checkbox()).not.toBeChecked();
+    await user.type(
+      await screen.findByRole("textbox", { name: "Username" }),
+      "alice",
+    );
+    await user.type(screen.getByLabelText("Password"), "password");
+    await user.click(
+      screen.getByRole("button", { name: "Continue with password" }),
+    );
+    await screen.findByRole("textbox", { name: "Authenticator code" });
+    expect(bodies[0]).toEqual({
+      username: "alice",
+      password: "password",
+      remember: false,
+    });
+  });
+
+  it("unchecked drops remember from the provider link", async () => {
+    const user = userEvent.setup();
+    mount();
+    await user.click(
+      await screen.findByRole("checkbox", { name: "Keep me signed in" }),
+    );
+    await user.click(
+      await screen.findByRole("button", { name: "Continue with GitLab" }),
+    );
+    expect(loadDocument).toHaveBeenCalledExactlyOnceWith(
+      "/api/prohibitorum/auth/federation/gitlab/login",
+    );
   });
 });
 
@@ -576,7 +667,7 @@ describe("upstream providers", () => {
     expect(screen.getAllByText("or")).toHaveLength(2);
     await user.click(button);
     expect(loadDocument).toHaveBeenCalledExactlyOnceWith(
-      "/api/prohibitorum/auth/federation/gitlab/login?return_to=%2Foauth%2Fauthorize%3Fclient_id%3Dwiki",
+      "/api/prohibitorum/auth/federation/gitlab/login?return_to=%2Foauth%2Fauthorize%3Fclient_id%3Dwiki&remember=true",
     );
   });
 
@@ -587,7 +678,7 @@ describe("upstream providers", () => {
       await screen.findByRole("button", { name: "Continue with GitLab" }),
     );
     expect(loadDocument).toHaveBeenCalledExactlyOnceWith(
-      "/api/prohibitorum/auth/federation/gitlab/login",
+      "/api/prohibitorum/auth/federation/gitlab/login?remember=true",
     );
   });
 

@@ -23,7 +23,6 @@ import (
 	"prohibitorum/pkg/db"
 	"prohibitorum/pkg/federation"
 	"prohibitorum/pkg/logx"
-	sessstore "prohibitorum/pkg/session"
 )
 
 const (
@@ -419,7 +418,7 @@ func (s *Server) handleEnrollmentPasswordTOTPVerifyHTTP(w http.ResponseWriter, r
 		return
 	}
 	ip := s.clientIP.IP(r)
-	sessionToken, _, err := s.sessionStore.Issue(r.Context(), acct.ID, ip, r.UserAgent(), []string{"pwd", "otp", "mfa"}, nil)
+	sessionToken, data, err := s.sessionStore.Issue(r.Context(), acct.ID, ip, r.UserAgent(), []string{"pwd", "otp", "mfa"}, nil, false)
 	if err != nil {
 		writeAuthErr(w, fmt.Errorf("enrollment/password-totp/verify: session issue: %w", err))
 		return
@@ -430,7 +429,7 @@ func (s *Server) handleEnrollmentPasswordTOTPVerifyHTTP(w http.ResponseWriter, r
 		Event:     audit.EventSessionStart,
 		Detail:    map[string]any{"via": "enrollment"},
 	})
-	http.SetCookie(w, sessstore.FreshSessionCookie(s.config, r, acct.ID, sessionToken, s.config.SessionTTL))
+	http.SetCookie(w, s.sessionStore.SessionCookie(s.config, r, acct.ID, sessionToken, data))
 
 	type resp struct {
 		Session       contract.SessionView `json:"session"`

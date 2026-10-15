@@ -29,6 +29,10 @@ type Config struct {
 
 	PublicOrigins []string      `mapstructure:"public_origin"`
 	SessionTTL    time.Duration `mapstructure:"session_ttl"`
+	// SessionRememberTTL is the sliding lifetime for sessions issued with
+	// "keep me signed in"; SessionTTL applies otherwise. Both slide on
+	// activity with no absolute cap.
+	SessionRememberTTL time.Duration `mapstructure:"session_remember_ttl"`
 
 	KV                 KVConfig           `mapstructure:"kv"`
 	OIDC               OIDCConfig         `mapstructure:"oidc"`
@@ -198,6 +202,9 @@ func Parse() (*Config, error) {
 	viper.SetDefault("kv.redis_tls", false)
 	viper.SetDefault("public_origin", "http://localhost:8080")
 	viper.SetDefault("session_ttl", 8*time.Hour)
+	// "Keep me signed in" sessions slide for 14 days by default; the
+	// session_ttl above is the not-remembered lifetime.
+	viper.SetDefault("session_remember_ttl", 14*24*time.Hour)
 
 	// OIDC defaults — short access tokens, longer refresh tokens, very
 	// short authorization codes (single-use anyway).
@@ -327,6 +334,10 @@ func Parse() (*Config, error) {
 
 	if config.ForwardAuth.SessionTTL <= 0 {
 		config.ForwardAuth.SessionTTL = time.Hour
+	}
+
+	if config.SessionRememberTTL <= 0 {
+		config.SessionRememberTTL = 14 * 24 * time.Hour
 	}
 
 	keys, err := loadDataEncryptionKeys(os.Environ())

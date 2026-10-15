@@ -345,7 +345,7 @@ func newFederationTestServer(t *testing.T) *fedTestHarness {
 	cfg := &configx.Config{
 		SessionTTL: time.Hour,
 	}
-	sessionStore := sessstore.NewSessionStore(kvStore, q, cfg.SessionTTL)
+	sessionStore := sessstore.NewSessionStore(kvStore, q, cfg.SessionTTL, cfg.SessionTTL)
 
 	fedCfg := configx.FederationConfig{StateTTL: 5 * time.Minute}
 	deks := map[int][]byte{1: fedTestDEK}

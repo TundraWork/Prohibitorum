@@ -32,6 +32,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"prohibitorum/pkg/audit"
@@ -416,7 +417,7 @@ func newTestServer(t *testing.T) (*Server, *fakeAuthQueries, []byte) {
 	totpStore := totp.NewStore(f, &totpTestTxRunner{q: f}, deks, totpCfg, throttle, auditWriter)
 
 	kvStore := kv.NewMemoryStore()
-	sessionStore := sessstore.NewSessionStore(kvStore, f, cfg.SessionTTL)
+	sessionStore := sessstore.NewSessionStore(kvStore, f, cfg.SessionTTL, cfg.SessionTTL)
 
 	s := &Server{
 		config:                     cfg,
@@ -620,6 +621,126 @@ func TestTOTPVerify_Success(t *testing.T) {
 	}
 }
 
+// TestTOTPVerify_RememberCookieMaxAge proves the "keep me signed in"
+// choice made at /password/begin flows through the partial session to the
+// issued cookie: remembered → Max-Age = rememberTTL; not remembered → no
+// Max-Age at all (browser-session cookie). The test config's store uses
+// ttl = SessionTTL and rememberTTL = 24h.
+func TestTOTPVerify_RememberCookieMaxAge(t *testing.T) {
+	cases := []struct {
+		name        string
+		remember    bool
+		wantMaxAge  int
+	}{
+		{"remembered", true, int((24 * time.Hour).Seconds())},
+		{"not remembered", false, 0},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			s, f, dek := newTestServer(t)
+			// Distinct remember TTL from the plain one so the cookie
+			// distinguishes them.
+			s.sessionStore = sessstore.NewSessionStore(s.kvStore, f, time.Hour, 24*time.Hour)
+			const accountID int32 = 42
+			_ = seedConfirmedTOTP(t, s, f, dek, accountID)
+
+			token := mustToken(t)
+			stashPartialSessionOpt(t, s, token, accountID, tc.remember)
+			at := (time.Now().Unix()/30+1)*30 + 15
+			code := totp.ComputeCodeForTesting(decryptTOTPSecret(t, dek, *f.totpRow, accountID), at, 6)
+			bodyJSON := fmt.Sprintf(`{"partial_session_token":%q,"code":%q}`, token, code)
+			req := httptest.NewRequest(http.MethodPost, "/api/prohibitorum/auth/totp/verify", strings.NewReader(bodyJSON))
+			req.RemoteAddr = "127.0.0.1:5555"
+			w := httptest.NewRecorder()
+			s.handleTOTPVerifyHTTP(w, req)
+			if w.Code != http.StatusOK {
+				t.Fatalf("status: want 200, got %d (body=%s)", w.Code, w.Body.String())
+			}
+			var sessCookie *http.Cookie
+			for _, c := range w.Result().Cookies() {
+				if c.Name == sessstore.SessionCookieName {
+					sessCookie = c
+					break
+				}
+			}
+			if sessCookie == nil {
+				t.Fatalf("no session cookie")
+			}
+			if sessCookie.MaxAge != tc.wantMaxAge {
+				t.Errorf("MaxAge = %d, want %d", sessCookie.MaxAge, tc.wantMaxAge)
+			}
+			// KV session data carries the remember flag.
+			scan, err := s.kvStore.ScanEntries(context.Background(), fmt.Sprintf("session:%d:*", accountID), 0, 10)
+			if err != nil || len(scan.Entries) != 1 {
+				t.Fatalf("scan sessions: %d entries, err %v", len(scan.Entries), err)
+			}
+			if strings.Contains(scan.Entries[0].Value, `"remember":true`) != tc.remember {
+				t.Errorf("KV remember flag = %v, want %v", !tc.remember, tc.remember)
+			}
+		})
+	}
+}
+
+// TestPasswordBegin_RememberStoredInPartialSession covers /password/begin's
+// request-body remember: the partial session records it for step 2. The
+// username lookup runs through db.New over a stub DBTX returning one canned
+// account row; the password verify runs against the sudo-test password
+// store (which uses the fake query surface, not s.queries).
+func TestPasswordBegin_RememberStoredInPartialSession(t *testing.T) {
+	s, _, _ := newSudoTestServer(t)
+	const accountID int32 = 42
+	s.queries = db.New(usernameRowDBTX{accountID: accountID})
+	if err := s.passwordStore.Set(context.Background(), accountID, "correct horse battery staple"); err != nil {
+		t.Fatalf("passwordStore.Set: %v", err)
+	}
+
+	body := `{"username":"alice","password":"correct horse battery staple","remember":true}`
+	req := httptest.NewRequest(http.MethodPost, "/auth/password/begin", strings.NewReader(body))
+	req.RemoteAddr = "127.0.0.1:5555"
+	w := httptest.NewRecorder()
+	s.handlePasswordBeginHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status: want 200, got %d (body=%s)", w.Code, w.Body.String())
+	}
+	var resp struct {
+		PartialSessionToken string `json:"partial_session_token"`
+	}
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := s.kvStore.Get(context.Background(), partialSessionKey(resp.PartialSessionToken))
+	if err != nil {
+		t.Fatalf("partial session missing: %v", err)
+	}
+	if !strings.Contains(raw, `"remember":true`) {
+		t.Errorf("partial session %s does not record remember", raw)
+	}
+}
+
+// usernameRowDBTX answers GetAccountByUsername's row scan for the single
+// account the begin test seeds; the password store's own reads go through
+// the fake, not this stub.
+type usernameRowDBTX struct{ accountID int32 }
+
+func (usernameRowDBTX) Exec(_ context.Context, _ string, _ ...interface{}) (pgconn.CommandTag, error) {
+	return pgconn.CommandTag{}, nil
+}
+func (usernameRowDBTX) Query(_ context.Context, _ string, _ ...interface{}) (pgx.Rows, error) {
+	return nil, pgx.ErrNoRows
+}
+func (d usernameRowDBTX) QueryRow(_ context.Context, _ string, _ ...interface{}) pgx.Row {
+	return usernameRow{accountID: d.accountID}
+}
+
+type usernameRow struct{ accountID int32 }
+
+func (r usernameRow) Scan(dest ...interface{}) error {
+	if id, ok := dest[0].(*int32); ok {
+		*id = r.accountID
+	}
+	return nil
+}
+
 // TestTOTPVerify_RedirectValidation proves that validateReturnTo runs at
 // completion: a same-origin relative path is kept verbatim, and a
 // cross-origin URL is collapsed to "/". Cases are issuer-independent so
@@ -771,6 +892,42 @@ func TestRecoveryCodeVerify_WithoutResetConsumesOnlyOneCode(t *testing.T) {
 	}
 	if !slices.Equal(f.totpRow.SecretEnc, oldTOTP.SecretEnc) {
 		t.Fatal("TOTP changed without reset")
+	}
+}
+
+// TestRecoveryCodeVerify_RememberCookieMaxAge mirrors the TOTP variant on
+// the recovery-code completion path: the partial session's remember flag
+// drives the issued cookie's Max-Age.
+func TestRecoveryCodeVerify_RememberCookieMaxAge(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		remember   bool
+		wantMaxAge int
+	}{{"remembered", true, int((24 * time.Hour).Seconds())}, {"not remembered", false, 0}} {
+		t.Run(tc.name, func(t *testing.T) {
+			s, f, dek := newTestServer(t)
+			s.sessionStore = sessstore.NewSessionStore(s.kvStore, f, time.Hour, 24*time.Hour)
+			codes := seedConfirmedTOTP(t, s, f, dek, 42)
+			token := mustToken(t)
+			stashPartialSessionOpt(t, s, token, 42, tc.remember)
+			w := recoveryCodeVerify(t, s, token, codes[0], false, "", "")
+			if w.Code != http.StatusOK {
+				t.Fatalf("status = %d: %s", w.Code, w.Body.String())
+			}
+			var sessCookie *http.Cookie
+			for _, c := range w.Result().Cookies() {
+				if c.Name == sessstore.SessionCookieName {
+					sessCookie = c
+					break
+				}
+			}
+			if sessCookie == nil {
+				t.Fatal("no session cookie")
+			}
+			if sessCookie.MaxAge != tc.wantMaxAge {
+				t.Errorf("MaxAge = %d, want %d", sessCookie.MaxAge, tc.wantMaxAge)
+			}
+		})
 	}
 }
 
@@ -961,11 +1118,16 @@ func mustToken(t *testing.T) string {
 }
 
 func stashPartialSession(t *testing.T, s *Server, token string, accountID int32) {
+	stashPartialSessionOpt(t, s, token, accountID, false)
+}
+
+func stashPartialSessionOpt(t *testing.T, s *Server, token string, accountID int32, remember bool) {
 	t.Helper()
 	payload, _ := json.Marshal(partialSession{
 		AccountID:       accountID,
 		FactorCompleted: "password",
 		IssuedAt:        time.Now().UTC(),
+		Remember:        remember,
 	})
 	if err := s.kvStore.SetEx(context.Background(), partialSessionKey(token), string(payload), s.config.Auth.PartialSessionTTL); err != nil {
 		t.Fatal(err)
