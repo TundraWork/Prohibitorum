@@ -435,7 +435,7 @@ English and Chinese translations cover all new labels, instructions, warnings, a
 
 - VRChat API origin and paths are constants.
 - User profile URLs are parsed only to extract a validated `usr_…` ID; they are never requested.
-- VRChat avatar inheritance uses only `iconUrl` from the verified profile response (no avatar when it is empty) and the existing bounded/SSRF-screened avatar pipeline.
+- VRChat avatar inheritance uses only `iconUrl` from the verified profile response (no avatar when it is empty) and the existing bounded/SSRF-screened avatar pipeline. The icon download sends the same identifying User-Agent, because VRChat's firewall answers 403 to a request without one.
 - JSON bodies and metadata are size bounded before decoding/persistence.
 
 ### Rate limiting

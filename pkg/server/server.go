@@ -83,6 +83,7 @@ type Server struct {
 	enrollmentWebAuthnOverride enrollmentWebAuthn
 	enrollmentTxRunnerOverride enrollmentTxRunner
 	enrollmentAvatarRefresh    func(context.Context, int32, federation.Provider, federation.AvatarDelivery)
+	vrchatUserAgent            string
 	// meTOTPFlowOverride lets tests inject a fake meTOTPFlowQueries for the
 	// /me/totp/* conditional-sudo branch (which reads totp_credential.
 	// ConfirmedAt directly). Nil in production — handlers fall back to
@@ -217,6 +218,17 @@ func newFederationRegistry(oidcAdapter, steamAdapter, vrchatAdapter federation.A
 		}
 	}
 	return registry, nil
+}
+
+// federatedAvatarDelivery builds the avatar fetch for an account registered
+// through an upstream identity. A VRChat icon download needs the VRChat
+// client's User-Agent; without it VRChat's firewall answers 403.
+func (s *Server) federatedAvatarDelivery(provider federation.Provider, avatarURL string) federation.AvatarDelivery {
+	delivery := federation.AvatarDelivery{URL: avatarURL}
+	if provider.Protocol == federationvrchat.Protocol {
+		delivery.UserAgent = s.vrchatUserAgent
+	}
+	return delivery
 }
 
 func NewServer(ctx context.Context) (*Server, error) {
@@ -374,6 +386,7 @@ func NewServer(ctx context.Context) (*Server, error) {
 		enrollmentAvatarRefresh: func(ctx context.Context, accountID int32, provider federation.Provider, delivery federation.AvatarDelivery) {
 			avatarManager.Refresh(ctx, accountID, provider, delivery, nil)
 		},
+		vrchatUserAgent:       vrchatClient.UserAgent(),
 		vrchatOperatorService: vrchatOperator,
 		Audit:                 auditWriter,
 		branding:              brandingResolver,

@@ -33,6 +33,7 @@ const (
 type proofClient interface {
 	PublicUser(context.Context, string, []http.Cookie) (PublicUser, []http.Cookie, error)
 	DecodeCookies([]byte, time.Time) ([]http.Cookie, error)
+	UserAgent() string
 }
 
 type proofSecretStore interface {
@@ -195,7 +196,7 @@ func (a *Adapter) publishProof(ctx context.Context, provider federationcore.Prov
 		EmailVerificationSupported: false, AMR: []string{"vrchat_profile"}, AvatarURL: user.IconURL,
 		UpstreamData: map[string]string{"userId": state.UserID, "displayName": user.DisplayName, "profileUrl": profileURL},
 	}
-	return federationcore.AdvanceResult{Identity: identity, Avatar: &federationcore.AvatarDelivery{URL: user.IconURL}}, nil
+	return federationcore.AdvanceResult{Identity: identity, Avatar: &federationcore.AvatarDelivery{URL: user.IconURL, UserAgent: a.client.UserAgent()}}, nil
 }
 
 func providerBackoffKey(providerID int64) string {

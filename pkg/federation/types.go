@@ -112,11 +112,14 @@ type AdvanceResult struct {
 
 // AvatarDelivery carries avatar-only data from a terminal adapter result to
 // AvatarManager.Refresh. Opaque is never passed to identity resolution or
-// persisted in flow state.
+// persisted in flow state. UserAgent, when set, replaces Go's default on the
+// fetch: VRChat's firewall answers 403 to a request that does not name its
+// application and contact, including requests for profile icons.
 type AvatarDelivery struct {
 	URL                 string
 	Opaque              any
 	AllowPrivateNetwork bool
+	UserAgent           string
 }
 
 // AvatarResolver is an optional adapter capability used only by

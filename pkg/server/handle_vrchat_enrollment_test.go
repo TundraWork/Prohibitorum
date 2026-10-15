@@ -1176,13 +1176,14 @@ func TestFederatedRegistrationConcurrentCompletionHasOneWinner(t *testing.T) {
 func TestFederatedRegistrationRefreshesAvatarAfterCommit(t *testing.T) {
 	e := federatedRegistrationEnrollment("avatar-refresh-registration")
 	s, q := newAtomicVRChatEnrollmentServer(t, e, nil)
+	s.vrchatUserAgent = "Prohibitorum/test https://login.example.com"
 	calls := 0
 	s.enrollmentAvatarRefresh = func(ctx context.Context, accountID int32, provider federation.Provider, delivery federation.AvatarDelivery) {
 		calls++
 		if ctx == nil {
 			t.Fatal("avatar refresh got no request context")
 		}
-		if accountID == 0 || provider.ID != e.FederatedUpstreamIdpID.Int64 || delivery.URL != e.FederatedAvatarUrl.String {
+		if accountID == 0 || provider.ID != e.FederatedUpstreamIdpID.Int64 || delivery.URL != e.FederatedAvatarUrl.String || delivery.UserAgent != s.vrchatUserAgent {
 			t.Fatalf("avatar inheritance args = account=%d provider=%+v delivery=%+v", accountID, provider, delivery)
 		}
 		q.mu.Lock()
@@ -1206,6 +1207,17 @@ func TestFederatedRegistrationRefreshesAvatarAfterCommit(t *testing.T) {
 	defer q.mu.Unlock()
 	if len(q.accounts) != 1 || !q.enrollments[e.Token].ConsumedAt.Valid {
 		t.Fatalf("avatar refresh changed committed result: accounts=%d consumed=%v", len(q.accounts), q.enrollments[e.Token].ConsumedAt.Valid)
+	}
+}
+
+func TestFederatedAvatarDeliveryIdentifiesOnlyVRChat(t *testing.T) {
+	s := &Server{vrchatUserAgent: "Prohibitorum/test https://login.example.com"}
+	vrchat := s.federatedAvatarDelivery(federation.Provider{Protocol: "vrchat"}, "https://api.vrchat.cloud/api/1/file/icon/1/file")
+	if vrchat.URL != "https://api.vrchat.cloud/api/1/file/icon/1/file" || vrchat.UserAgent != s.vrchatUserAgent {
+		t.Fatalf("vrchat delivery = %+v", vrchat)
+	}
+	if oidc := s.federatedAvatarDelivery(federation.Provider{Protocol: "oidc"}, "https://idp.example.com/a.png"); oidc.UserAgent != "" {
+		t.Fatalf("oidc delivery carries a User-Agent: %+v", oidc)
 	}
 }
 

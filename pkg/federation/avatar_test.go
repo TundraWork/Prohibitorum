@@ -65,7 +65,7 @@ func TestAvatarFetchSanitizesURLFailureErrors(t *testing.T) {
 			name:   "request construction",
 			rawURL: "https://userinfo-sentinel:password-sentinel@raw-url-sentinel.example/avatar.png?query=query-sentinel#fragment-sentinel",
 			fetch: func(rawURL string) error {
-				_, err := fetchUpstreamAvatarWithClient(nil, rawURL, http.DefaultClient, false)
+				_, err := fetchUpstreamAvatarWithClient(nil, rawURL, http.DefaultClient, false, "")
 				return err
 			},
 			want: "avatar fetch request error",
@@ -107,8 +107,8 @@ func TestAvatarManagerSanitizesNetworkFailureLogs(t *testing.T) {
 	manager.logger = slog.New(slog.NewJSONHandler(&logs, nil))
 	client := &http.Client{Transport: failingAvatarTransport{}}
 	var fetchErr error
-	manager.fetch = func(ctx context.Context, avatarURL string, allowPrivate bool) ([]byte, error) {
-		_, fetchErr = fetchUpstreamAvatarWithClient(ctx, avatarURL, client, allowPrivate)
+	manager.fetch = func(ctx context.Context, avatarURL string, delivery AvatarDelivery) ([]byte, error) {
+		_, fetchErr = fetchUpstreamAvatarWithClient(ctx, avatarURL, client, delivery.AllowPrivateNetwork, delivery.UserAgent)
 		return nil, fetchErr
 	}
 
@@ -176,7 +176,7 @@ func TestAvatarFetch_RejectsNonImage(t *testing.T) {
 		_, _ = w.Write([]byte("<html>"))
 	}))
 	defer srv.Close()
-	if _, err := fetchUpstreamAvatarWithClient(context.Background(), srv.URL, srv.Client(), false); err == nil || !strings.Contains(err.Error(), "content-type") {
+	if _, err := fetchUpstreamAvatarWithClient(context.Background(), srv.URL, srv.Client(), false, ""); err == nil || !strings.Contains(err.Error(), "content-type") {
 		t.Fatalf("want content-type rejection, got %v", err)
 	}
 }
@@ -187,9 +187,53 @@ func TestAvatarFetch_ReturnsImageBytes(t *testing.T) {
 		_, _ = w.Write([]byte("\x89PNG\r\n\x1a\n"))
 	}))
 	defer srv.Close()
-	b, err := fetchUpstreamAvatarWithClient(context.Background(), srv.URL, srv.Client(), false)
+	b, err := fetchUpstreamAvatarWithClient(context.Background(), srv.URL, srv.Client(), false, "")
 	if err != nil || len(b) == 0 {
 		t.Fatalf("want bytes, got len=%d err=%v", len(b), err)
+	}
+}
+
+func TestAvatarFetch_SendsDeliveryUserAgentThroughRedirect(t *testing.T) {
+	const userAgent = "Prohibitorum/dev https://login.example.com"
+	var seen []string
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seen = append(seen, r.URL.Path+" "+r.UserAgent())
+		if r.UserAgent() != userAgent {
+			http.Error(w, "identify yourself", http.StatusForbidden)
+			return
+		}
+		if r.URL.Path == "/api/1/file/icon/1/file" {
+			http.Redirect(w, r, "/signed/icon.png", http.StatusFound)
+			return
+		}
+		w.Header().Set("Content-Type", "image/png")
+		_, _ = w.Write([]byte("\x89PNG\r\n\x1a\n"))
+	}))
+	defer srv.Close()
+
+	b, err := fetchUpstreamAvatarWithClient(context.Background(), srv.URL+"/api/1/file/icon/1/file", srv.Client(), false, userAgent)
+	if err != nil || len(b) == 0 {
+		t.Fatalf("want bytes, got len=%d err=%v (requests %q)", len(b), err, seen)
+	}
+	if len(seen) != 2 {
+		t.Fatalf("want the icon request and its redirect, got %q", seen)
+	}
+}
+
+func TestAvatarManagerPassesDeliveryUserAgentToFetch(t *testing.T) {
+	manager := NewAvatarManager(&avatarManagerQueries{})
+	manager.logger = slog.New(slog.NewJSONHandler(&bytes.Buffer{}, nil))
+	var got string
+	manager.fetch = func(_ context.Context, _ string, delivery AvatarDelivery) ([]byte, error) {
+		got = delivery.UserAgent
+		return nil, errors.New("stop after fetch")
+	}
+
+	manager.Refresh(context.Background(), 7, Provider{ID: 11, Slug: "vrchat"},
+		AvatarDelivery{URL: "https://api.vrchat.cloud/api/1/file/icon/1/file", UserAgent: "Prohibitorum/dev https://login.example.com"}, nil)
+
+	if got != "Prohibitorum/dev https://login.example.com" {
+		t.Fatalf("fetch user agent = %q", got)
 	}
 }
 
@@ -250,7 +294,7 @@ func TestAvatarManagerResolvesFallbackDuringRefresh(t *testing.T) {
 	manager := NewAvatarManager(queries)
 	resolver := &avatarFallbackResolver{}
 	var fetchedURL string
-	manager.fetch = func(_ context.Context, rawURL string, _ bool) ([]byte, error) {
+	manager.fetch = func(_ context.Context, rawURL string, _ AvatarDelivery) ([]byte, error) {
 		fetchedURL = rawURL
 		return avatarManagerPNG(t), nil
 	}
@@ -305,7 +349,7 @@ func TestAvatarManagerRefreshSelectionPolicy(t *testing.T) {
 				}}
 			}
 			manager := NewAvatarManager(queries)
-			manager.fetch = func(context.Context, string, bool) ([]byte, error) {
+			manager.fetch = func(context.Context, string, AvatarDelivery) ([]byte, error) {
 				return pngBytes, nil
 			}
 			provider := Provider{ID: 11, Slug: "corp"}
@@ -381,7 +425,7 @@ func TestAvatarManagerRecordsURLWhenETagUnchanged(t *testing.T) {
 		}},
 	}
 	manager := NewAvatarManager(queries)
-	manager.fetch = func(context.Context, string, bool) ([]byte, error) {
+	manager.fetch = func(context.Context, string, AvatarDelivery) ([]byte, error) {
 		return pngBytes, nil
 	}
 
@@ -417,7 +461,7 @@ func TestAvatarManagerSkipsFetchForStoredURL(t *testing.T) {
 			}
 			manager := NewAvatarManager(queries)
 			fetched := false
-			manager.fetch = func(context.Context, string, bool) ([]byte, error) {
+			manager.fetch = func(context.Context, string, AvatarDelivery) ([]byte, error) {
 				fetched = true
 				return avatarManagerPNG(t), nil
 			}
@@ -449,7 +493,7 @@ func TestAvatarManagerFetchesChangedURL(t *testing.T) {
 	}
 	manager := NewAvatarManager(queries)
 	var fetchedURL string
-	manager.fetch = func(_ context.Context, rawURL string, _ bool) ([]byte, error) {
+	manager.fetch = func(_ context.Context, rawURL string, _ AvatarDelivery) ([]byte, error) {
 		fetchedURL = rawURL
 		return avatarManagerPNG(t), nil
 	}
@@ -471,7 +515,7 @@ func TestAvatarManagerKeepsStoredAvatarWithoutURL(t *testing.T) {
 	queries := &avatarManagerQueries{account: db.Account{ID: 7}}
 	manager := NewAvatarManager(queries)
 	fetched := false
-	manager.fetch = func(context.Context, string, bool) ([]byte, error) {
+	manager.fetch = func(context.Context, string, AvatarDelivery) ([]byte, error) {
 		fetched = true
 		return nil, nil
 	}
@@ -496,7 +540,7 @@ func TestAvatarManagerFetchFailureKeepsStoredAvatar(t *testing.T) {
 	}
 	manager := NewAvatarManager(queries)
 	manager.logger = slog.New(slog.NewJSONHandler(&bytes.Buffer{}, nil))
-	manager.fetch = func(context.Context, string, bool) ([]byte, error) {
+	manager.fetch = func(context.Context, string, AvatarDelivery) ([]byte, error) {
 		return nil, errors.New("upstream unavailable")
 	}
 
@@ -513,7 +557,7 @@ func TestAvatarManagerRefreshReturnsAfterTimeout(t *testing.T) {
 	manager.timeout = 20 * time.Millisecond
 	var logs bytes.Buffer
 	manager.logger = slog.New(slog.NewJSONHandler(&logs, nil))
-	manager.fetch = func(ctx context.Context, _ string, _ bool) ([]byte, error) {
+	manager.fetch = func(ctx context.Context, _ string, _ AvatarDelivery) ([]byte, error) {
 		<-ctx.Done()
 		return nil, sanitizeAvatarFetchError(ctx.Err())
 	}
@@ -570,7 +614,7 @@ func TestAvatarManagerLogsPersistenceFailuresWithSafeContext(t *testing.T) {
 			manager := NewAvatarManager(queries)
 			var logs bytes.Buffer
 			manager.logger = slog.New(slog.NewJSONHandler(&logs, nil))
-			manager.fetch = func(context.Context, string, bool) ([]byte, error) {
+			manager.fetch = func(context.Context, string, AvatarDelivery) ([]byte, error) {
 				return avatarManagerPNG(t), nil
 			}
 
@@ -598,8 +642,8 @@ func TestAvatarManagerUsesAdapterPrivateNetworkPolicy(t *testing.T) {
 	manager := NewAvatarManager(queries)
 	manager.logger = slog.New(slog.NewJSONHandler(&bytes.Buffer{}, nil))
 	var got bool
-	manager.fetch = func(_ context.Context, _ string, allowPrivate bool) ([]byte, error) {
-		got = allowPrivate
+	manager.fetch = func(_ context.Context, _ string, delivery AvatarDelivery) ([]byte, error) {
+		got = delivery.AllowPrivateNetwork
 		return nil, nil
 	}
 

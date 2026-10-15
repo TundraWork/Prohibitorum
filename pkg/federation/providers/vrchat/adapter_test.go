@@ -45,6 +45,7 @@ func (c *proofClientStub) DecodeCookies(_ []byte, now time.Time) ([]http.Cookie,
 	}
 	return []http.Cookie{{Name: "auth", Value: "cookie", Path: "/", Secure: true, HttpOnly: true, Expires: now.Add(time.Hour)}}, nil
 }
+func (*proofClientStub) UserAgent() string { return "Prohibitorum/test https://login.example.com" }
 
 type proofSecretsStub struct{ plaintext []byte }
 
@@ -211,6 +212,9 @@ func TestVRChatAdapterPublishProofExactIdentity(t *testing.T) {
 	identity := result.Identity
 	if identity == nil || identity.Issuer != issuerURL || identity.Subject != testUserID || identity.Username != "" || identity.DisplayName != "Display" || identity.AvatarURL != "https://api.vrchat.cloud/avatar.png" {
 		t.Fatalf("Identity = %+v", identity)
+	}
+	if result.Avatar == nil || result.Avatar.URL != "https://api.vrchat.cloud/avatar.png" || result.Avatar.UserAgent != "Prohibitorum/test https://login.example.com" {
+		t.Fatalf("Avatar = %+v", result.Avatar)
 	}
 	if len(identity.AMR) != 1 || identity.AMR[0] != "vrchat_profile" {
 		t.Errorf("AMR = %#v", identity.AMR)

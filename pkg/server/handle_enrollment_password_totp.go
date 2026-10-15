@@ -371,7 +371,7 @@ func (s *Server) handleEnrollmentPasswordTOTPVerifyHTTP(w http.ResponseWriter, r
 
 	// Federated_register inherits the upstream avatar (mirror the passkey path).
 	if federatedProvider != nil && federatedAvatar != "" && s.enrollmentAvatarRefresh != nil {
-		s.enrollmentAvatarRefresh(r.Context(), acct.ID, *federatedProvider, federation.AvatarDelivery{URL: federatedAvatar})
+		s.enrollmentAvatarRefresh(r.Context(), acct.ID, *federatedProvider, s.federatedAvatarDelivery(*federatedProvider, federatedAvatar))
 	}
 
 	logx.WithContext(r.Context()).WithFields(logrus.Fields{

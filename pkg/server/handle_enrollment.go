@@ -785,7 +785,7 @@ func (s *Server) handleEnrollmentCompleteHTTP(w http.ResponseWriter, r *http.Req
 		return
 	}
 	if federatedProvider != nil && federatedAvatar != "" && s.enrollmentAvatarRefresh != nil {
-		s.enrollmentAvatarRefresh(r.Context(), acct.ID, *federatedProvider, federation.AvatarDelivery{URL: federatedAvatar})
+		s.enrollmentAvatarRefresh(r.Context(), acct.ID, *federatedProvider, s.federatedAvatarDelivery(*federatedProvider, federatedAvatar))
 	}
 
 	logx.WithContext(r.Context()).WithFields(logrus.Fields{

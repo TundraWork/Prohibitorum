@@ -27,14 +27,15 @@ const maxAvatarFetchBytes = 5 << 20 // 5 MiB, matches pkg/avatar input cap.
 // fetchUpstreamAvatar GETs an upstream picture URL through the same SSRF-hardened
 // dial-screen as the rest of federation, capped to 5 MiB. https-only; rejects
 // non-image responses. Returns raw bytes for pkg/avatar.Process.
-func fetchUpstreamAvatar(ctx context.Context, rawURL string, allowPrivate bool) ([]byte, error) {
+func fetchUpstreamAvatar(ctx context.Context, rawURL string, delivery AvatarDelivery) ([]byte, error) {
+	allowPrivate := delivery.AllowPrivateNetwork
 	// https-only in production. allowPrivate (trusted-internal-IdP deployments +
 	// loopback-OP tests; the same flag that disables the dial-time IP screen)
 	// additionally permits http so a plaintext loopback OP can serve the picture.
 	if err := validateAvatarURL(rawURL, allowPrivate); err != nil {
 		return nil, err
 	}
-	return fetchUpstreamAvatarWithClient(ctx, rawURL, hardenedHTTPClient(allowPrivate, maxAvatarFetchBytes), allowPrivate)
+	return fetchUpstreamAvatarWithClient(ctx, rawURL, hardenedHTTPClient(allowPrivate, maxAvatarFetchBytes), allowPrivate, delivery.UserAgent)
 }
 
 func validateAvatarURL(rawURL string, allowPrivate bool) error {
@@ -77,13 +78,16 @@ func sanitizeAvatarFetchError(err error) error {
 	return &avatarFetchError{category: category}
 }
 
-func fetchUpstreamAvatarWithClient(ctx context.Context, rawURL string, client *http.Client, allowPrivate bool) ([]byte, error) {
+func fetchUpstreamAvatarWithClient(ctx context.Context, rawURL string, client *http.Client, allowPrivate bool, userAgent string) ([]byte, error) {
 	if err := validateAvatarURL(rawURL, allowPrivate); err != nil {
 		return nil, err
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
 	if err != nil {
 		return nil, &avatarFetchError{category: "request error"}
+	}
+	if userAgent != "" {
+		req.Header.Set("User-Agent", userAgent)
 	}
 	resp, err := client.Do(req)
 	if err != nil {
@@ -112,7 +116,7 @@ type AvatarQueries interface {
 
 type AvatarManager struct {
 	queries AvatarQueries
-	fetch   func(context.Context, string, bool) ([]byte, error)
+	fetch   func(context.Context, string, AvatarDelivery) ([]byte, error)
 	timeout time.Duration
 	logger  *slog.Logger
 }
@@ -158,7 +162,7 @@ func (m *AvatarManager) Refresh(ctx context.Context, accountID int32, provider P
 	}
 	changed := false
 	if stored == nil || !stored.UpstreamUrl.Valid || stored.UpstreamUrl.String != avatarURL {
-		raw, err := m.fetch(ctx, avatarURL, delivery.AllowPrivateNetwork)
+		raw, err := m.fetch(ctx, avatarURL, delivery)
 		if err != nil {
 			m.logger.WarnContext(ctx, "federation: upstream avatar fetch failed", "account_id", accountID, "err", err)
 			return

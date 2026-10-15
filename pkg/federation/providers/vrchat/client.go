@@ -65,6 +65,10 @@ func newClient(buildVersion, publicOrigin string, origin originConfig) (*Client,
 	}, nil
 }
 
+// UserAgent is the identification VRChat requires on every request, including
+// the profile icon downloads that avatar inheritance makes outside this client.
+func (c *Client) UserAgent() string { return c.userAgent }
+
 func (c *Client) Authenticate(ctx context.Context, username, password string) (CurrentUser, []http.Cookie, error) {
 	auth := "Basic " + base64.StdEncoding.EncodeToString([]byte(url.QueryEscape(username)+":"+url.QueryEscape(password)))
 	return c.currentUser(ctx, nil, auth)

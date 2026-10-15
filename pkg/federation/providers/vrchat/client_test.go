@@ -59,6 +59,9 @@ func TestClientAuthenticateAuthorizationAndUserAgent(t *testing.T) {
 	if user.ID == "" || user.DisplayName != "Name" || len(user.RequiresTwoFactorAuth) != 0 || len(cookies) != 0 {
 		t.Fatalf("unexpected result: %#v %#v", user, cookies)
 	}
+	if got, want := client.UserAgent(), "Prohibitorum/dev https://example.test"; got != want {
+		t.Fatalf("UserAgent() = %q, want %q", got, want)
+	}
 }
 
 func TestClientEveryRequestHasUserAgentAndFixedPaths(t *testing.T) {
