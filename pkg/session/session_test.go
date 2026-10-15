@@ -781,31 +781,51 @@ func rewriteSessionExpiryForTest(t *testing.T, store kv.Store, accountID int32, 
 }
 
 func TestSession_RememberIssueUsesRememberTTL(t *testing.T) {
-	mem := kv.NewMemoryStore()
-	t.Cleanup(func() { _ = mem.Close() })
-	s := NewSessionStore(mem, noopSessionQueries{}, time.Hour, 24*time.Hour)
-	ctx := context.Background()
-	before := time.Now()
-	token, data, err := s.Issue(ctx, 42, "", "", []string{"hwk"}, nil, true)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !data.Remember {
-		t.Error("data.Remember = false, want true")
-	}
-	if got := data.ExpiresAt.Sub(before); got < 23*time.Hour || got > 25*time.Hour {
-		t.Errorf("remembered ExpiresAt delta = %v, want ≈24h", got)
-	}
-	raw, err := mem.Get(ctx, sessionKey(42, token))
-	if err != nil {
-		t.Fatal(err)
-	}
-	var stored authn.SessionData
-	if err := json.Unmarshal([]byte(raw), &stored); err != nil {
-		t.Fatal(err)
-	}
-	if !stored.Remember {
-		t.Error("stored Remember = false, want true")
+	for _, tc := range []struct {
+		name     string
+		remember bool
+		want     time.Duration
+	}{
+		{"remembered", true, 24 * time.Hour},
+		{"not remembered", false, time.Hour},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			mem := kv.NewMemoryStore()
+			t.Cleanup(func() { _ = mem.Close() })
+			s := NewSessionStore(mem, noopSessionQueries{}, time.Hour, 24*time.Hour)
+			ctx := context.Background()
+			before := time.Now()
+			token, data, err := s.Issue(ctx, 42, "", "", []string{"hwk"}, nil, tc.remember)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if data.Remember != tc.remember {
+				t.Errorf("data.Remember = %v, want %v", data.Remember, tc.remember)
+			}
+			if got := data.ExpiresAt.Sub(before); got < tc.want-time.Minute || got > tc.want+time.Minute {
+				t.Errorf("ExpiresAt delta = %v, want ≈%v", got, tc.want)
+			}
+			// The KV entry must live as long as ExpiresAt says, or a
+			// remembered session vanishes while its cookie is still valid.
+			secs, err := mem.TTL(ctx, sessionKey(42, token))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := time.Duration(secs) * time.Second; got < tc.want-time.Minute || got > tc.want+time.Minute {
+				t.Errorf("KV TTL = %v, want ≈%v", got, tc.want)
+			}
+			raw, err := mem.Get(ctx, sessionKey(42, token))
+			if err != nil {
+				t.Fatal(err)
+			}
+			var stored authn.SessionData
+			if err := json.Unmarshal([]byte(raw), &stored); err != nil {
+				t.Fatal(err)
+			}
+			if stored.Remember != tc.remember {
+				t.Errorf("stored Remember = %v, want %v", stored.Remember, tc.remember)
+			}
+		})
 	}
 }
 

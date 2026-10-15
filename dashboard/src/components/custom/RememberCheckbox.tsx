@@ -3,7 +3,8 @@ import { Trans } from "@lingui/react/macro";
 
 /** The login page's "keep me signed in" choice, shared by the password and
  * pairing pages. Controlled by the caller; every sign-in method on the page
- * reads the current state at submit time. */
+ * reads the current state at submit time. Both pages draw it on the public
+ * Card, so it takes the surface treatment (`secondary`). */
 export function RememberCheckbox({
   isSelected,
   onChange,
@@ -15,6 +16,7 @@ export function RememberCheckbox({
 }) {
   return (
     <Checkbox
+      variant="secondary"
       isSelected={isSelected}
       isDisabled={isDisabled}
       onChange={onChange}

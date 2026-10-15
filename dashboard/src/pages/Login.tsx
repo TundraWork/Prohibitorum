@@ -182,7 +182,12 @@ function usePasskeyAutofill({
 }: {
   flow: LoginFlow;
   returnTo?: string;
-  /** Read at pick time; a ref so toggling the checkbox never restarts the wait. */
+  /**
+   * Read on each render into the completion's options, so a pick uses the
+   * choice as of the latest render. It is a ref rather than a value only so
+   * that toggling the checkbox is not a dependency of the wait and never
+   * restarts it.
+   */
   remember: { current: boolean };
 }) {
   const completion = useMutation(
@@ -486,6 +491,7 @@ function FactorForm({
         {mode === "recovery" && (
           <>
             <Checkbox
+              variant="secondary"
               isSelected={setup !== undefined}
               isDisabled={control.busy}
               onChange={(selected) => {

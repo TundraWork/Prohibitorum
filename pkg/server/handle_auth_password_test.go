@@ -682,10 +682,11 @@ func TestTOTPVerify_RememberCookieMaxAge(t *testing.T) {
 }
 
 // TestPasswordBegin_RememberStoredInPartialSession covers /password/begin's
-// request-body remember: the partial session records it for step 2. The
-// username lookup runs through db.New over a stub DBTX returning one canned
-// account row; the password verify runs against the sudo-test password
-// store (which uses the fake query surface, not s.queries).
+// request-body remember: the partial session records it for step 2, and
+// only when the body says true. The username lookup runs through db.New over
+// a stub DBTX returning one canned account row; the password verify runs
+// against the sudo-test password store (which uses the fake query surface,
+// not s.queries).
 func TestPasswordBegin_RememberStoredInPartialSession(t *testing.T) {
 	s, _, _ := newSudoTestServer(t)
 	const accountID int32 = 42
@@ -694,26 +695,38 @@ func TestPasswordBegin_RememberStoredInPartialSession(t *testing.T) {
 		t.Fatalf("passwordStore.Set: %v", err)
 	}
 
-	body := `{"username":"alice","password":"correct horse battery staple","remember":true}`
-	req := httptest.NewRequest(http.MethodPost, "/auth/password/begin", strings.NewReader(body))
-	req.RemoteAddr = "127.0.0.1:5555"
-	w := httptest.NewRecorder()
-	s.handlePasswordBeginHTTP(w, req)
-	if w.Code != http.StatusOK {
-		t.Fatalf("status: want 200, got %d (body=%s)", w.Code, w.Body.String())
-	}
-	var resp struct {
-		PartialSessionToken string `json:"partial_session_token"`
-	}
-	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
-		t.Fatal(err)
-	}
-	raw, err := s.kvStore.Get(context.Background(), partialSessionKey(resp.PartialSessionToken))
-	if err != nil {
-		t.Fatalf("partial session missing: %v", err)
-	}
-	if !strings.Contains(raw, `"remember":true`) {
-		t.Errorf("partial session %s does not record remember", raw)
+	for _, tc := range []struct {
+		name     string
+		extra    string
+		remember bool
+	}{
+		{"remember true", `,"remember":true`, true},
+		{"remember false", `,"remember":false`, false},
+		{"field absent", ``, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			body := `{"username":"alice","password":"correct horse battery staple"` + tc.extra + `}`
+			req := httptest.NewRequest(http.MethodPost, "/auth/password/begin", strings.NewReader(body))
+			req.RemoteAddr = "127.0.0.1:5555"
+			w := httptest.NewRecorder()
+			s.handlePasswordBeginHTTP(w, req)
+			if w.Code != http.StatusOK {
+				t.Fatalf("status: want 200, got %d (body=%s)", w.Code, w.Body.String())
+			}
+			var resp struct {
+				PartialSessionToken string `json:"partial_session_token"`
+			}
+			if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+				t.Fatal(err)
+			}
+			raw, err := s.kvStore.Get(context.Background(), partialSessionKey(resp.PartialSessionToken))
+			if err != nil {
+				t.Fatalf("partial session missing: %v", err)
+			}
+			if got := strings.Contains(raw, `"remember":true`); got != tc.remember {
+				t.Errorf("partial session %s: remember recorded = %v, want %v", raw, got, tc.remember)
+			}
+		})
 	}
 }
 
