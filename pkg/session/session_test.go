@@ -53,7 +53,9 @@ func (q *blockingRevokeAllQueries) RevokeAllSessionsByAccount(ctx context.Contex
 
 func newTestStore(t *testing.T, ttl time.Duration) *SessionStore {
 	t.Helper()
-	return NewSessionStore(kv.NewMemoryStore(), noopSessionQueries{}, ttl)
+	// Remembered and plain sessions share the TTL in these tests; the
+	// remember-specific behaviour is covered by the Remember tests below.
+	return NewSessionStore(kv.NewMemoryStore(), noopSessionQueries{}, ttl, ttl)
 }
 
 type pauseAfterSessionReadStore struct {
@@ -100,8 +102,8 @@ func TestSession_RevokeAllFencesPausedLoadMutation(t *testing.T) {
 			base := kv.NewMemoryStore()
 			t.Cleanup(func() { _ = base.Close() })
 			const ttl = 8 * time.Hour
-			issuer := NewSessionStore(base, noopSessionQueries{}, ttl)
-			token, _, err := issuer.Issue(ctx, 42, "", "", []string{"hwk"}, nil)
+			issuer := NewSessionStore(base, noopSessionQueries{}, ttl, ttl)
+			token, _, err := issuer.Issue(ctx, 42, "", "", []string{"hwk"}, nil, false)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -129,7 +131,7 @@ func TestSession_RevokeAllFencesPausedLoadMutation(t *testing.T) {
 				read:   make(chan struct{}),
 				resume: make(chan struct{}),
 			}
-			store := NewSessionStore(gated, noopSessionQueries{}, ttl)
+			store := NewSessionStore(gated, noopSessionQueries{}, ttl, ttl)
 			loadDone := make(chan error, 1)
 			go func() {
 				_, _, err := store.Load(ctx, 42, token, "", "current-agent")
@@ -244,7 +246,7 @@ func TestSession_RevokeAllFailsIfLeaseOwnershipIsLostDuringPGRevocation(t *testi
 		entered: make(chan struct{}),
 		proceed: make(chan struct{}),
 	}
-	store := NewSessionStore(base, queries, time.Hour)
+	store := NewSessionStore(base, queries, time.Hour, time.Hour)
 	result := make(chan error, 1)
 	go func() {
 		_, err := store.RevokeAllForAccount(ctx, 42)
@@ -273,7 +275,7 @@ func TestSession_MutationLeaseFailuresFailClosedAndPreserveOwnership(t *testing.
 		ctx := context.Background()
 		base := kv.NewMemoryStore()
 		t.Cleanup(func() { _ = base.Close() })
-		store := NewSessionStore(base, noopSessionQueries{}, time.Hour)
+		store := NewSessionStore(base, noopSessionQueries{}, time.Hour, time.Hour)
 		leaseKey := sessionMutationLeaseKey(42)
 		if acquired, err := base.SetNX(ctx, leaseKey, "competing-owner", time.Minute); err != nil || !acquired {
 			t.Fatalf("seed competing lease: acquired=%v err=%v", acquired, err)
@@ -289,7 +291,7 @@ func TestSession_MutationLeaseFailuresFailClosedAndPreserveOwnership(t *testing.
 	t.Run("canceled revoke-all does not acquire a lease", func(t *testing.T) {
 		base := kv.NewMemoryStore()
 		t.Cleanup(func() { _ = base.Close() })
-		store := NewSessionStore(base, noopSessionQueries{}, time.Hour)
+		store := NewSessionStore(base, noopSessionQueries{}, time.Hour, time.Hour)
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
 		if _, err := store.RevokeAllForAccount(ctx, 42); !errors.Is(err, context.Canceled) {
@@ -310,7 +312,7 @@ func TestSession_MutationLeaseFailuresFailClosedAndPreserveOwnership(t *testing.
 			Store:       base,
 			leaseKey:    leaseKey,
 			replacement: replacement,
-		}, noopSessionQueries{}, time.Hour)
+		}, noopSessionQueries{}, time.Hour, time.Hour)
 		if _, err := store.RevokeAllForAccount(ctx, 42); !errors.Is(err, errSessionMutationLeaseUnavailable) {
 			t.Fatalf("RevokeAllForAccount error = %v, want lost lease", err)
 		}
@@ -323,7 +325,7 @@ func TestSession_MutationLeaseFailuresFailClosedAndPreserveOwnership(t *testing.
 		ctx := context.Background()
 		base := kv.NewMemoryStore()
 		t.Cleanup(func() { _ = base.Close() })
-		store := NewSessionStore(&scanErrorStore{Store: base, err: errors.New("scan unavailable")}, noopSessionQueries{}, time.Hour)
+		store := NewSessionStore(&scanErrorStore{Store: base, err: errors.New("scan unavailable")}, noopSessionQueries{}, time.Hour, time.Hour)
 		if _, err := store.RevokeAllForAccount(ctx, 42); err == nil {
 			t.Fatal("RevokeAllForAccount succeeded after scan failure")
 		}
@@ -337,13 +339,13 @@ func TestSession_MutationLeaseFailuresFailClosedAndPreserveOwnership(t *testing.
 		base := kv.NewMemoryStore()
 		t.Cleanup(func() { _ = base.Close() })
 		const ttl = 10 * time.Second
-		issuer := NewSessionStore(base, noopSessionQueries{}, ttl)
-		token, _, err := issuer.Issue(ctx, 42, "", "", []string{"hwk"}, nil)
+		issuer := NewSessionStore(base, noopSessionQueries{}, ttl, ttl)
+		token, _, err := issuer.Issue(ctx, 42, "", "", []string{"hwk"}, nil, false)
 		if err != nil {
 			t.Fatal(err)
 		}
 		before := rewriteSessionExpiry(t, base, 42, token, time.Now().Add(time.Second))
-		store := NewSessionStore(&fenceResultStore{Store: base, err: errors.New("fence unavailable")}, noopSessionQueries{}, ttl)
+		store := NewSessionStore(&fenceResultStore{Store: base, err: errors.New("fence unavailable")}, noopSessionQueries{}, ttl, ttl)
 		if _, refreshed, err := store.Load(ctx, 42, token, "", ""); err != nil || refreshed {
 			t.Fatalf("Load = refreshed %v, err %v; want valid without refresh", refreshed, err)
 		}
@@ -358,14 +360,14 @@ func TestSession_MutationLeaseFailuresFailClosedAndPreserveOwnership(t *testing.
 		base := kv.NewMemoryStore()
 		t.Cleanup(func() { _ = base.Close() })
 		const ttl = 10 * time.Second
-		issuer := NewSessionStore(base, noopSessionQueries{}, ttl)
-		token, _, err := issuer.Issue(ctx, 42, "", "", []string{"hwk"}, nil)
+		issuer := NewSessionStore(base, noopSessionQueries{}, ttl, ttl)
+		token, _, err := issuer.Issue(ctx, 42, "", "", []string{"hwk"}, nil, false)
 		if err != nil {
 			t.Fatal(err)
 		}
 		rewriteSessionExpiry(t, base, 42, token, time.Now().Add(time.Second))
 		const replacement = "replacement-owner"
-		store := NewSessionStore(&replaceLeaseBeforeReleaseStore{Store: base, replacement: replacement}, noopSessionQueries{}, ttl)
+		store := NewSessionStore(&replaceLeaseBeforeReleaseStore{Store: base, replacement: replacement}, noopSessionQueries{}, ttl, ttl)
 		if _, refreshed, err := store.Load(ctx, 42, token, "", ""); err != nil || !refreshed {
 			t.Fatalf("Load = refreshed %v, err %v; want successful refresh", refreshed, err)
 		}
@@ -380,8 +382,8 @@ func TestSession_SuccessfulFencedRefreshRestoresFullTTL(t *testing.T) {
 	base := kv.NewMemoryStore()
 	t.Cleanup(func() { _ = base.Close() })
 	const ttl = 10 * time.Second
-	store := NewSessionStore(base, noopSessionQueries{}, ttl)
-	token, _, err := store.Issue(ctx, 42, "", "", []string{"hwk"}, nil)
+	store := NewSessionStore(base, noopSessionQueries{}, ttl, ttl)
+	token, _, err := store.Issue(ctx, 42, "", "", []string{"hwk"}, nil, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -399,7 +401,7 @@ func TestSession_IssueAndLoad(t *testing.T) {
 	s := newTestStore(t, time.Hour)
 	ctx := context.Background()
 
-	token, data, err := s.Issue(ctx, 42, "127.0.0.1", "", []string{"hwk"}, nil)
+	token, data, err := s.Issue(ctx, 42, "127.0.0.1", "", []string{"hwk"}, nil, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -428,10 +430,10 @@ func TestSession_IssueAndLoad(t *testing.T) {
 // the raw token.
 func TestSession_KVKeyHidesRawToken(t *testing.T) {
 	mem := kv.NewMemoryStore()
-	s := NewSessionStore(mem, noopSessionQueries{}, time.Hour)
+	s := NewSessionStore(mem, noopSessionQueries{}, time.Hour, time.Hour)
 	ctx := context.Background()
 
-	token, _, err := s.Issue(ctx, 42, "", "", []string{"hwk"}, nil)
+	token, _, err := s.Issue(ctx, 42, "", "", []string{"hwk"}, nil, false)
 	if err != nil {
 		t.Fatalf("Issue: %v", err)
 	}
@@ -472,7 +474,7 @@ func TestSession_LoadMissingReturnsNoSession(t *testing.T) {
 func TestSession_LoadWrongAccountReturnsNoSession(t *testing.T) {
 	s := newTestStore(t, time.Hour)
 	ctx := context.Background()
-	token, _, _ := s.Issue(ctx, 42, "", "", []string{"hwk"}, nil)
+	token, _, _ := s.Issue(ctx, 42, "", "", []string{"hwk"}, nil, false)
 	_, _, err := s.Load(ctx, 99, token, "", "") // wrong account id
 	if err == nil {
 		t.Fatal("loading with wrong account id should fail")
@@ -485,7 +487,7 @@ func TestSession_LoadWrongAccountReturnsNoSession(t *testing.T) {
 func TestSession_Revoke(t *testing.T) {
 	s := newTestStore(t, time.Hour)
 	ctx := context.Background()
-	token, _, _ := s.Issue(ctx, 42, "", "", []string{"hwk"}, nil)
+	token, _, _ := s.Issue(ctx, 42, "", "", []string{"hwk"}, nil, false)
 	if err := s.Revoke(ctx, 42, token); err != nil {
 		t.Fatal(err)
 	}
@@ -500,11 +502,11 @@ func TestSession_RevokeAllForAccount(t *testing.T) {
 	ctx := context.Background()
 	// 3 sessions for account 42, 1 for account 99
 	for i := 0; i < 3; i++ {
-		if _, _, err := s.Issue(ctx, 42, "", "", []string{"hwk"}, nil); err != nil {
+		if _, _, err := s.Issue(ctx, 42, "", "", []string{"hwk"}, nil, false); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if _, _, err := s.Issue(ctx, 99, "", "", []string{"hwk"}, nil); err != nil {
+	if _, _, err := s.Issue(ctx, 99, "", "", []string{"hwk"}, nil, false); err != nil {
 		t.Fatal(err)
 	}
 
@@ -528,9 +530,9 @@ func TestSession_RevokeAllForAccount(t *testing.T) {
 
 func TestSession_RefreshTriggersInLastQuarter(t *testing.T) {
 	// 100ms TTL means refresh threshold = 25ms. Sleep 80ms => 20ms remaining => refresh fires.
-	s := NewSessionStore(kv.NewMemoryStore(), noopSessionQueries{}, 100*time.Millisecond)
+	s := NewSessionStore(kv.NewMemoryStore(), noopSessionQueries{}, 100*time.Millisecond, 100*time.Millisecond)
 	ctx := context.Background()
-	token, _, _ := s.Issue(ctx, 42, "", "", []string{"hwk"}, nil)
+	token, _, _ := s.Issue(ctx, 42, "", "", []string{"hwk"}, nil, false)
 	time.Sleep(80 * time.Millisecond)
 	_, refreshed, err := s.Load(ctx, 42, token, "192.168.1.1", "")
 	if err != nil {
@@ -542,9 +544,9 @@ func TestSession_RefreshTriggersInLastQuarter(t *testing.T) {
 }
 
 func TestSession_NoRefreshEarlyInLifetime(t *testing.T) {
-	s := NewSessionStore(kv.NewMemoryStore(), noopSessionQueries{}, 1*time.Second)
+	s := NewSessionStore(kv.NewMemoryStore(), noopSessionQueries{}, 1*time.Second, 1*time.Second)
 	ctx := context.Background()
-	token, _, _ := s.Issue(ctx, 42, "", "", []string{"hwk"}, nil)
+	token, _, _ := s.Issue(ctx, 42, "", "", []string{"hwk"}, nil, false)
 	// Load immediately — far from expiry, should not refresh.
 	_, refreshed, err := s.Load(ctx, 42, token, "", "")
 	if err != nil {
@@ -557,9 +559,9 @@ func TestSession_NoRefreshEarlyInLifetime(t *testing.T) {
 
 func TestSession_ExpiredEntryReturnsNoSession(t *testing.T) {
 	// Very short TTL — write, sleep past expiry, expect ErrNoSession.
-	s := NewSessionStore(kv.NewMemoryStore(), noopSessionQueries{}, 20*time.Millisecond)
+	s := NewSessionStore(kv.NewMemoryStore(), noopSessionQueries{}, 20*time.Millisecond, 20*time.Millisecond)
 	ctx := context.Background()
-	token, _, _ := s.Issue(ctx, 42, "", "", []string{"hwk"}, nil)
+	token, _, _ := s.Issue(ctx, 42, "", "", []string{"hwk"}, nil, false)
 	time.Sleep(40 * time.Millisecond)
 	_, _, err := s.Load(ctx, 42, token, "", "")
 	if err == nil {
@@ -589,10 +591,10 @@ func TestCookieValue_Roundtrip(t *testing.T) {
 
 func TestSession_IssueRollsBackKVWhenPGInsertFails(t *testing.T) {
 	mem := kv.NewMemoryStore()
-	s := NewSessionStore(mem, failingSessionQueries{}, time.Hour)
+	s := NewSessionStore(mem, failingSessionQueries{}, time.Hour, time.Hour)
 	ctx := context.Background()
 
-	_, _, err := s.Issue(ctx, 42, "127.0.0.1", "", []string{"hwk"}, nil)
+	_, _, err := s.Issue(ctx, 42, "127.0.0.1", "", []string{"hwk"}, nil, false)
 	if err == nil {
 		t.Fatal("Issue should return error when InsertSession fails")
 	}
@@ -626,9 +628,9 @@ func (r *recordingSessionQueries) InsertSession(_ context.Context, arg db.Insert
 func TestSession_IssueStampsUpstreamIDPID(t *testing.T) {
 	t.Run("federated", func(t *testing.T) {
 		rec := &recordingSessionQueries{}
-		s := NewSessionStore(kv.NewMemoryStore(), rec, time.Hour)
+		s := NewSessionStore(kv.NewMemoryStore(), rec, time.Hour, time.Hour)
 		var idpID int64 = 42
-		if _, _, err := s.Issue(context.Background(), 1, "", "", []string{"federated"}, &idpID); err != nil {
+		if _, _, err := s.Issue(context.Background(), 1, "", "", []string{"federated"}, &idpID, false); err != nil {
 			t.Fatalf("Issue: %v", err)
 		}
 		if rec.last.UpstreamIdpID == nil || *rec.last.UpstreamIdpID != 42 {
@@ -638,8 +640,8 @@ func TestSession_IssueStampsUpstreamIDPID(t *testing.T) {
 
 	t.Run("local-pwd-totp", func(t *testing.T) {
 		rec := &recordingSessionQueries{}
-		s := NewSessionStore(kv.NewMemoryStore(), rec, time.Hour)
-		if _, _, err := s.Issue(context.Background(), 1, "", "", []string{"pwd", "otp", "mfa"}, nil); err != nil {
+		s := NewSessionStore(kv.NewMemoryStore(), rec, time.Hour, time.Hour)
+		if _, _, err := s.Issue(context.Background(), 1, "", "", []string{"pwd", "otp", "mfa"}, nil, false); err != nil {
 			t.Fatalf("Issue: %v", err)
 		}
 		if rec.last.UpstreamIdpID != nil {
@@ -650,7 +652,7 @@ func TestSession_IssueStampsUpstreamIDPID(t *testing.T) {
 
 func TestSession_IssueRejectsEmptyAMR(t *testing.T) {
 	s := newTestStore(t, time.Hour)
-	_, _, err := s.Issue(context.Background(), 42, "", "", nil, nil)
+	_, _, err := s.Issue(context.Background(), 42, "", "", nil, nil, false)
 	if err == nil {
 		t.Fatal("Issue should reject empty amr")
 	}
@@ -683,7 +685,7 @@ func TestSession_IsSessionIDLive(t *testing.T) {
 	s := newTestStore(t, time.Hour)
 	ctx := context.Background()
 
-	token, data, err := s.Issue(ctx, 42, "", "", []string{"hwk"}, nil)
+	token, data, err := s.Issue(ctx, 42, "", "", []string{"hwk"}, nil, false)
 	if err != nil {
 		t.Fatalf("Issue: %v", err)
 	}
@@ -731,8 +733,8 @@ func TestSession_IsSessionIDLiveAfterRevokeAll(t *testing.T) {
 	s := newTestStore(t, time.Hour)
 	ctx := context.Background()
 
-	token1, data1, _ := s.Issue(ctx, 42, "", "", []string{"hwk"}, nil)
-	_, data2, _ := s.Issue(ctx, 42, "", "", []string{"hwk"}, nil)
+	token1, data1, _ := s.Issue(ctx, 42, "", "", []string{"hwk"}, nil, false)
+	_, data2, _ := s.Issue(ctx, 42, "", "", []string{"hwk"}, nil, false)
 
 	// Both live.
 	if live, _ := s.IsSessionIDLive(ctx, 42, data1.SessionID); !live {
@@ -753,4 +755,166 @@ func TestSession_IsSessionIDLiveAfterRevokeAll(t *testing.T) {
 		t.Error("data2 should be dead after revoke-all")
 	}
 	_ = token1
+}
+
+// rewriteSessionExpiryForTest rewrites a live session's ExpiresAt in KV so
+// refresh-threshold tests can simulate elapsed time without sleeping.
+func rewriteSessionExpiryForTest(t *testing.T, store kv.Store, accountID int32, token string, expiresAt time.Time) {
+	t.Helper()
+	raw, err := store.Get(context.Background(), sessionKey(accountID, token))
+	if err != nil {
+		t.Fatalf("get session: %v", err)
+	}
+	var data authn.SessionData
+	if err := json.Unmarshal([]byte(raw), &data); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	data.ExpiresAt = expiresAt
+	payload, _ := json.Marshal(&data)
+	remaining := time.Until(expiresAt)
+	if remaining <= 0 {
+		remaining = time.Second
+	}
+	if err := store.SetEx(context.Background(), sessionKey(accountID, token), string(payload), remaining); err != nil {
+		t.Fatalf("setex: %v", err)
+	}
+}
+
+func TestSession_RememberIssueUsesRememberTTL(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		remember bool
+		want     time.Duration
+	}{
+		{"remembered", true, 24 * time.Hour},
+		{"not remembered", false, time.Hour},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			mem := kv.NewMemoryStore()
+			t.Cleanup(func() { _ = mem.Close() })
+			s := NewSessionStore(mem, noopSessionQueries{}, time.Hour, 24*time.Hour)
+			ctx := context.Background()
+			before := time.Now()
+			token, data, err := s.Issue(ctx, 42, "", "", []string{"hwk"}, nil, tc.remember)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if data.Remember != tc.remember {
+				t.Errorf("data.Remember = %v, want %v", data.Remember, tc.remember)
+			}
+			if got := data.ExpiresAt.Sub(before); got < tc.want-time.Minute || got > tc.want+time.Minute {
+				t.Errorf("ExpiresAt delta = %v, want ≈%v", got, tc.want)
+			}
+			// The KV entry must live as long as ExpiresAt says, or a
+			// remembered session vanishes while its cookie is still valid.
+			secs, err := mem.TTL(ctx, sessionKey(42, token))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := time.Duration(secs) * time.Second; got < tc.want-time.Minute || got > tc.want+time.Minute {
+				t.Errorf("KV TTL = %v, want ≈%v", got, tc.want)
+			}
+			raw, err := mem.Get(ctx, sessionKey(42, token))
+			if err != nil {
+				t.Fatal(err)
+			}
+			var stored authn.SessionData
+			if err := json.Unmarshal([]byte(raw), &stored); err != nil {
+				t.Fatal(err)
+			}
+			if stored.Remember != tc.remember {
+				t.Errorf("stored Remember = %v, want %v", stored.Remember, tc.remember)
+			}
+		})
+	}
+}
+
+func TestSession_RememberRefreshStep(t *testing.T) {
+	mem := kv.NewMemoryStore()
+	t.Cleanup(func() { _ = mem.Close() })
+	store := NewSessionStore(mem, noopSessionQueries{}, 8*time.Hour, 24*time.Hour)
+	ctx := context.Background()
+	now := time.Now()
+
+	token, _, err := store.Issue(ctx, 42, "", "", []string{"hwk"}, nil, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rewriteSessionExpiryForTest(t, mem, 42, token, now.Add(8*time.Hour).Add(-(2*time.Hour - time.Minute)))
+	if _, refreshed, err := store.Load(ctx, 42, token, "", ""); err != nil || refreshed {
+		t.Errorf("plain 1h59m elapsed: refreshed=%v err=%v; want no refresh", refreshed, err)
+	}
+	rewriteSessionExpiryForTest(t, mem, 42, token, now.Add(8*time.Hour).Add(-2*time.Hour-time.Minute))
+	if _, refreshed, err := store.Load(ctx, 42, token, "", ""); err != nil || !refreshed {
+		t.Errorf("plain 2h1m elapsed: refreshed=%v err=%v; want refresh", refreshed, err)
+	}
+
+	remToken, _, err := store.Issue(ctx, 43, "", "", []string{"hwk"}, nil, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rewriteSessionExpiryForTest(t, mem, 43, remToken, now.Add(24*time.Hour).Add(-(6*time.Hour - time.Minute)))
+	if _, refreshed, err := store.Load(ctx, 43, remToken, "", ""); err != nil || refreshed {
+		t.Errorf("remembered 5h59m elapsed: refreshed=%v err=%v; want no refresh", refreshed, err)
+	}
+	rewriteSessionExpiryForTest(t, mem, 43, remToken, now.Add(24*time.Hour).Add(-6*time.Hour-time.Minute))
+	data, refreshed, err := store.Load(ctx, 43, remToken, "", "")
+	if err != nil || !refreshed {
+		t.Fatalf("remembered 6h1m elapsed: refreshed=%v err=%v; want refresh", refreshed, err)
+	}
+	if !data.Remember {
+		t.Error("refresh dropped Remember flag")
+	}
+	if got := data.ExpiresAt.Sub(now); got < 23*time.Hour {
+		t.Errorf("refreshed expiry delta = %v, want ≈24h", got)
+	}
+}
+
+func TestSession_Remember24hStepCap(t *testing.T) {
+	mem := kv.NewMemoryStore()
+	t.Cleanup(func() { _ = mem.Close() })
+	const ttl = 14 * 24 * time.Hour
+	store := NewSessionStore(mem, noopSessionQueries{}, time.Hour, ttl)
+	ctx := context.Background()
+	now := time.Now()
+	token, _, err := store.Issue(ctx, 42, "", "", []string{"hwk"}, nil, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rewriteSessionExpiryForTest(t, mem, 42, token, now.Add(ttl).Add(-(24*time.Hour - time.Minute)))
+	if _, refreshed, err := store.Load(ctx, 42, token, "", ""); err != nil || refreshed {
+		t.Errorf("23h59m elapsed: refreshed=%v err=%v; want no refresh", refreshed, err)
+	}
+	rewriteSessionExpiryForTest(t, mem, 42, token, now.Add(ttl).Add(-24*time.Hour-time.Minute))
+	if _, refreshed, err := store.Load(ctx, 42, token, "", ""); err != nil || !refreshed {
+		t.Errorf("24h1m elapsed: refreshed=%v err=%v; want refresh", refreshed, err)
+	}
+}
+
+func TestSession_LegacyJSONWithoutRememberLoads(t *testing.T) {
+	mem := kv.NewMemoryStore()
+	t.Cleanup(func() { _ = mem.Close() })
+	store := NewSessionStore(mem, noopSessionQueries{}, time.Hour, 24*time.Hour)
+	ctx := context.Background()
+	legacy, err := json.Marshal(map[string]any{
+		"session_id":   "legacy",
+		"account_id":   42,
+		"issued_at":    time.Now().Add(-time.Minute).Format(time.RFC3339Nano),
+		"expires_at":   time.Now().Add(time.Hour).Format(time.RFC3339Nano),
+		"last_seen_ip": "",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	token := "legacy-token"
+	if err := mem.SetEx(ctx, sessionKey(42, token), string(legacy), time.Hour); err != nil {
+		t.Fatal(err)
+	}
+	data, _, err := store.Load(ctx, 42, token, "", "")
+	if err != nil {
+		t.Fatalf("legacy session load: %v", err)
+	}
+	if data.Remember {
+		t.Error("legacy session decoded as remembered")
+	}
 }

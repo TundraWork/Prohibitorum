@@ -115,7 +115,7 @@ func (s *Server) handleFederationConfirmPost(w http.ResponseWriter, r *http.Requ
 	}
 	// H1-sch: stamp the upstream IdP onto the session row (federated discriminator).
 	idpID := grant.ProviderID
-	sess, _, err := s.sessionStore.Issue(r.Context(), grant.AccountID, ip, r.UserAgent(), amr, &idpID)
+	sess, data, err := s.sessionStore.Issue(r.Context(), grant.AccountID, ip, r.UserAgent(), amr, &idpID, grant.Remember)
 	if err != nil {
 		writeAuthErr(w, err)
 		return
@@ -133,7 +133,7 @@ func (s *Server) handleFederationConfirmPost(w http.ResponseWriter, r *http.Requ
 		Event:     audit.EventSessionStart,
 		Detail:    map[string]any{"via": "federation"},
 	})
-	http.SetCookie(w, sessstore.FreshSessionCookie(s.config, r, grant.AccountID, sess, s.config.SessionTTL))
+	http.SetCookie(w, s.sessionStore.SessionCookie(s.config, r, grant.AccountID, sess, data))
 	writeJSON(w, map[string]any{"redirect": grant.ReturnTo, "offerLocalSignin": grant.OfferLocalSignin})
 }
 

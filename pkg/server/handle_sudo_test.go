@@ -65,6 +65,9 @@ type fakeSudoQueries struct {
 	throttle  map[string]db.AuthThrottle
 	events    []db.InsertCredentialEventParams
 	sessions  []db.Session
+	// accountByUsername backs handlePasswordBeginHTTP's username lookup in
+	// the remember-me begin test; nil map → ErrNoRows for every name.
+	accountByUsername map[string]db.Account
 }
 
 func newFakeSudoQueries() *fakeSudoQueries {
@@ -89,6 +92,16 @@ func (f *fakeSudoQueries) GetPasswordCredential(_ context.Context, accountID int
 		return db.PasswordCredential{}, pgx.ErrNoRows
 	}
 	return *f.passwordRow, nil
+}
+
+func (f *fakeSudoQueries) GetAccountByUsername(_ context.Context, username string) (db.Account, error) {
+	if f.accountByUsername == nil {
+		return db.Account{}, pgx.ErrNoRows
+	}
+	if a, ok := f.accountByUsername[username]; ok {
+		return a, nil
+	}
+	return db.Account{}, pgx.ErrNoRows
 }
 
 func (f *fakeSudoQueries) GetAccountByIDForUpdate(_ context.Context, accountID int32) (db.Account, error) {
@@ -327,7 +340,7 @@ func newSudoTestServer(t *testing.T) (*Server, *fakeSudoQueries, []byte) {
 	totpStore := totp.NewStore(f, &totpTestTxRunner{q: f}, deks, totpCfg, throttle, auditWriter)
 
 	kvStore := kv.NewMemoryStore()
-	sessionStore := sessstore.NewSessionStore(kvStore, f, cfg.SessionTTL)
+	sessionStore := sessstore.NewSessionStore(kvStore, f, cfg.SessionTTL, cfg.SessionTTL)
 
 	s := &Server{
 		config:           cfg,
@@ -349,7 +362,7 @@ func newSudoTestServer(t *testing.T) (*Server, *fakeSudoQueries, []byte) {
 // stampSudoUntil can Load+Save it back.
 func issueSudoTestSession(t *testing.T, s *Server, accountID int32) (token string, sess *authn.Session) {
 	t.Helper()
-	token, data, err := s.sessionStore.Issue(context.Background(), accountID, "127.0.0.1", "ua/test", []string{"hwk"}, nil)
+	token, data, err := s.sessionStore.Issue(context.Background(), accountID, "127.0.0.1", "ua/test", []string{"hwk"}, nil, false)
 	if err != nil {
 		t.Fatalf("sessionStore.Issue: %v", err)
 	}

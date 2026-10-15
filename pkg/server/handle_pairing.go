@@ -36,7 +36,6 @@ import (
 	"prohibitorum/pkg/contract"
 	"prohibitorum/pkg/credential/pairing"
 	"prohibitorum/pkg/logx"
-	sessstore "prohibitorum/pkg/session"
 )
 
 // ----- POST /auth/devices/pair/begin (anonymous) ---------------------------
@@ -124,6 +123,9 @@ func (s *Server) handlePairStatusHTTP(w http.ResponseWriter, r *http.Request) {
 
 type pairCompleteReq struct {
 	PairingID string `json:"pairingId"`
+	// Remember is the pairing page's "keep me signed in" choice; absent
+	// decodes as false.
+	Remember bool `json:"remember"`
 }
 
 type pairCompleteResp struct {
@@ -172,7 +174,7 @@ func (s *Server) handlePairCompleteHTTP(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	ip := s.clientIP.IP(r)
-	sessionToken, _, err := s.sessionStore.Issue(r.Context(), acct.ID, ip, r.UserAgent(), []string{"hwk"}, nil)
+	sessionToken, data, err := s.sessionStore.Issue(r.Context(), acct.ID, ip, r.UserAgent(), []string{"hwk"}, nil, body.Remember)
 	if err != nil {
 		// Session issuance failed after the pairing was consumed. Do NOT
 		// resurrect the consumed state — that would reopen the race. The
@@ -180,7 +182,7 @@ func (s *Server) handlePairCompleteHTTP(w http.ResponseWriter, r *http.Request) 
 		writeAuthErr(w, err)
 		return
 	}
-	http.SetCookie(w, sessstore.FreshSessionCookie(s.config, r, acct.ID, sessionToken, s.config.SessionTTL))
+	http.SetCookie(w, s.sessionStore.SessionCookie(s.config, r, acct.ID, sessionToken, data))
 
 	logx.WithContext(r.Context()).WithFields(logrus.Fields{
 		"event":      "auth.pairing_completed",

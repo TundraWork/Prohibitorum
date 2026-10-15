@@ -345,7 +345,7 @@ func newFederationTestServer(t *testing.T) *fedTestHarness {
 	cfg := &configx.Config{
 		SessionTTL: time.Hour,
 	}
-	sessionStore := sessstore.NewSessionStore(kvStore, q, cfg.SessionTTL)
+	sessionStore := sessstore.NewSessionStore(kvStore, q, cfg.SessionTTL, cfg.SessionTTL)
 
 	fedCfg := configx.FederationConfig{StateTTL: 5 * time.Minute}
 	deks := map[int][]byte{1: fedTestDEK}
@@ -664,6 +664,48 @@ func TestFederationLogin_EmptyReturnToDefaultsToSlash(t *testing.T) {
 	}
 	if fs.ReturnTo != "/" {
 		t.Errorf("ReturnTo: want %q, got %q", "/", fs.ReturnTo)
+	}
+}
+
+// The login page's "keep me signed in" reaches the flow state only through
+// the literal remember=true query parameter.
+func TestFederationLogin_RememberQueryReachesFlowState(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		query string
+		want  bool
+	}{
+		{"absent", "", false},
+		{"true", "&remember=true", true},
+		{"other value", "&remember=1", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			h := newFederationTestServer(t)
+			u := h.srvTS.URL + "/api/prohibitorum/auth/federation/mockop/login?return_to=%2Fme" + tc.query
+			resp, err := h.client.Get(u)
+			if err != nil {
+				t.Fatalf("GET %s: %v", u, err)
+			}
+			_ = resp.Body.Close()
+			if resp.StatusCode != http.StatusFound {
+				t.Fatalf("status: want 302, got %d", resp.StatusCode)
+			}
+			authorizeURL, err := url.Parse(resp.Header.Get("Location"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			blob, err := h.s.kvStore.Get(context.Background(), fedoidc.FlowKey(authorizeURL.Query().Get("state")))
+			if err != nil {
+				t.Fatalf("state not in KV: %v", err)
+			}
+			fs, err := fedoidc.DecodeFlowState(blob)
+			if err != nil {
+				t.Fatalf("DecodeFlowState: %v", err)
+			}
+			if fs.Remember != tc.want {
+				t.Errorf("FlowState.Remember = %v, want %v", fs.Remember, tc.want)
+			}
+		})
 	}
 }
 

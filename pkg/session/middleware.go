@@ -117,7 +117,7 @@ func LoadSession(cfg *configx.Config, q db.Querier, store *SessionStore, ipOf fu
 				return
 			}
 			if refreshed {
-				http.SetCookie(w, FreshSessionCookie(cfg, r, accountID, token, store.TTL()))
+				http.SetCookie(w, store.SessionCookie(cfg, r, accountID, token, data))
 			}
 			ctx := authn.WithSession(r.Context(), &authn.Session{Account: &account, Token: token, Data: data})
 			next.ServeHTTP(w, r.WithContext(ctx))
@@ -134,7 +134,10 @@ func LoadSession(cfg *configx.Config, q db.Querier, store *SessionStore, ipOf fu
 // do. Name + Secure derive from the deployment scheme (see secureCookies).
 // The *http.Request is no longer needed (Secure comes from cfg) but is kept
 // for signature stability with the call sites.
-func FreshSessionCookie(cfg *configx.Config, _ *http.Request, accountID int32, token string, ttl time.Duration) *http.Cookie {
+//
+// maxAge == 0 writes no Max-Age, making the cookie a browser-session cookie
+// (the "don't keep me signed in" behaviour); a positive maxAge persists it.
+func FreshSessionCookie(cfg *configx.Config, _ *http.Request, accountID int32, token string, maxAge time.Duration) *http.Cookie {
 	return &http.Cookie{
 		Name:     SessionCookieNameFor(cfg),
 		Value:    CookieValue(accountID, token),
@@ -142,8 +145,20 @@ func FreshSessionCookie(cfg *configx.Config, _ *http.Request, accountID int32, t
 		HttpOnly: true,
 		Secure:   secureCookies(cfg),
 		SameSite: http.SameSiteLaxMode,
-		MaxAge:   int(ttl.Seconds()),
+		MaxAge:   int(maxAge.Seconds()),
 	}
+}
+
+// SessionCookie picks the cookie persistence for a session: remembered
+// sessions carry Max-Age = rememberTTL so they survive a browser restart;
+// the rest get 0 (no Max-Age written), so they die with the browser session.
+// LoadSession re-emits this on refresh, which keeps the browser's expiry in
+// step with the server-side sliding window.
+func (s *SessionStore) SessionCookie(cfg *configx.Config, r *http.Request, accountID int32, token string, data *authn.SessionData) *http.Cookie {
+	if data != nil && data.Remember {
+		return FreshSessionCookie(cfg, r, accountID, token, s.rememberTTL)
+	}
+	return FreshSessionCookie(cfg, r, accountID, token, 0)
 }
 
 // ClearedSessionCookie expires the session cookie. Name + Path + attributes

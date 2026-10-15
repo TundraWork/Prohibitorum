@@ -21,6 +21,7 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
 
@@ -178,7 +179,7 @@ func seedConfirmGrant(t *testing.T, h *fedTestHarness) confirmFixture {
 	// h.idp is already seeded under slug "mockop" by the harness.
 
 	token, anti, err := h.s.federationService.CreateConfirmGrant(
-		context.Background(), accountID, identityID, h.idp.ID, h.idp.Slug, "/me", nil, false,
+		context.Background(), accountID, identityID, h.idp.ID, h.idp.Slug, "/me", nil, false, false,
 	)
 	if err != nil {
 		t.Fatalf("CreateConfirmGrant: %v", err)
@@ -188,6 +189,56 @@ func seedConfirmGrant(t *testing.T, h *fedTestHarness) confirmFixture {
 		accountID:  accountID,
 		identityID: identityID,
 		cookie:     token + "." + anti,
+	}
+}
+
+// seedConfirmGrantRemember is seedConfirmGrant with the remember flag, so
+// the confirm POST's session cookie carries the Max-Age it implies.
+func seedConfirmGrantRemember(t *testing.T, h *fedTestHarness, remember bool) confirmFixture {
+	t.Helper()
+	const accountID int32 = 321
+	const identityID int64 = 654
+	h.q.accountByIDResults[accountID] = db.Account{ID: accountID, Username: "newbie"}
+	token, anti, err := h.s.federationService.CreateConfirmGrant(
+		context.Background(), accountID, identityID, h.idp.ID, h.idp.Slug, "/me", nil, false, remember,
+	)
+	if err != nil {
+		t.Fatalf("CreateConfirmGrant: %v", err)
+	}
+	return confirmFixture{h: h, accountID: accountID, identityID: identityID, cookie: token + "." + anti}
+}
+
+// TestFederationConfirmPost_RememberCookieMaxAge pins the remember flow on
+// the /welcome confirm path: grant.Remember drives the issued cookie.
+func TestFederationConfirmPost_RememberCookieMaxAge(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		remember   bool
+		wantMaxAge int
+	}{{"remembered", true, int((24 * time.Hour).Seconds())}, {"not remembered", false, 0}} {
+		t.Run(tc.name, func(t *testing.T) {
+			h := newFederationTestServer(t)
+			h.s.sessionStore = sessstore.NewSessionStore(h.s.kvStore, h.q, time.Hour, 24*time.Hour)
+			fx := seedConfirmGrantRemember(t, h, tc.remember)
+			resp := doConfirm(t, fx, http.MethodPost, confirmPath, fx.cookie)
+			if resp.StatusCode != http.StatusOK {
+				body, _ := readAll(resp.Body)
+				t.Fatalf("POST confirm: want 200, got %d (body=%s)", resp.StatusCode, body)
+			}
+			var sessCookie *http.Cookie
+			for _, c := range resp.Cookies() {
+				if c.Name == sessstore.SessionCookieName && c.Value != "" {
+					sessCookie = c
+					break
+				}
+			}
+			if sessCookie == nil {
+				t.Fatal("no session cookie")
+			}
+			if sessCookie.MaxAge != tc.wantMaxAge {
+				t.Errorf("MaxAge = %d, want %d", sessCookie.MaxAge, tc.wantMaxAge)
+			}
+		})
 	}
 }
 

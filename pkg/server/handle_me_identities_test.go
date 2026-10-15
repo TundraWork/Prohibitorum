@@ -230,7 +230,7 @@ func newIdentitiesTestServer(t *testing.T) (*Server, *fakeIdentitiesQueries) {
 	t.Cleanup(func() { _ = kvStore.Close() })
 
 	auditWriter := audit.NewWriter(q)
-	sessionStore := sessstore.NewSessionStore(kvStore, q, cfg.SessionTTL)
+	sessionStore := sessstore.NewSessionStore(kvStore, q, cfg.SessionTTL, cfg.SessionTTL)
 
 	s := &Server{
 		config:             cfg,
@@ -245,7 +245,7 @@ func newIdentitiesTestServer(t *testing.T) (*Server, *fakeIdentitiesQueries) {
 
 func issueIdentitiesTestSession(t *testing.T, s *Server, accountID int32) (string, *authn.Session) {
 	t.Helper()
-	token, data, err := s.sessionStore.Issue(context.Background(), accountID, "127.0.0.1", "ua/test", []string{"hwk"}, nil)
+	token, data, err := s.sessionStore.Issue(context.Background(), accountID, "127.0.0.1", "ua/test", []string{"hwk"}, nil, false)
 	if err != nil {
 		t.Fatalf("sessionStore.Issue: %v", err)
 	}
@@ -809,7 +809,7 @@ func newLinkTestHarness(t *testing.T) *fedTestHarness {
 	h := newFederationTestServer(t)
 	// Plant a session for accountID=900.
 	const accountID int32 = 900
-	token, _, err := h.s.sessionStore.Issue(context.Background(), accountID, "127.0.0.1", "ua/test", []string{"hwk"}, nil)
+	token, _, err := h.s.sessionStore.Issue(context.Background(), accountID, "127.0.0.1", "ua/test", []string{"hwk"}, nil, false)
 	if err != nil {
 		t.Fatalf("sessionStore.Issue: %v", err)
 	}
@@ -1070,7 +1070,7 @@ func TestMeIdentities_LinkCallback_SessionSwap(t *testing.T) {
 	// → state.LinkingAccountID != currentAccountID, federator emits
 	// session_swap audit row + ErrFederationStateInvalid.
 	const otherAccountID int32 = 901
-	otherToken, _, err := h.s.sessionStore.Issue(context.Background(), otherAccountID, "127.0.0.1", "ua/test", []string{"hwk"}, nil)
+	otherToken, _, err := h.s.sessionStore.Issue(context.Background(), otherAccountID, "127.0.0.1", "ua/test", []string{"hwk"}, nil, false)
 	if err != nil {
 		t.Fatalf("session issue (other): %v", err)
 	}

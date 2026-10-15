@@ -11,7 +11,8 @@
 | `PROHIBITORUM_PUBLIC_ORIGIN` | `http://localhost:8080` | Comma-separated public origin(s). Seeds the OIDC issuer, SAML EntityID + endpoints, and the WebAuthn RP ID/origins when those aren't set explicitly. |
 | `PROHIBITORUM_HOST` | `""` (all interfaces) | Bind interface; set `127.0.0.1` to listen loopback-only behind a reverse proxy. |
 | `PROHIBITORUM_PORT` | `8080` | Bind port. |
-| `PROHIBITORUM_SESSION_TTL` | `8h` | Session lifetime (cookie + KV). |
+| `PROHIBITORUM_SESSION_TTL` | `8h` | Sliding session lifetime when "keep me signed in" is not chosen; the cookie is a browser-session cookie. |
+| `PROHIBITORUM_SESSION_REMEMBER_TTL` | `336h` | Sliding session lifetime (and cookie `Max-Age`) when "keep me signed in" is chosen. No absolute cap; `≤0` falls back to the default. |
 
 ## KV store
 

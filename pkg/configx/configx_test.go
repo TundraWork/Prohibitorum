@@ -114,6 +114,41 @@ func TestParse_TOTPIssuerExplicitOverride(t *testing.T) {
 	}
 }
 
+// TestParse_SessionRememberTTL covers the "keep me signed in" session
+// lifetime: 14d default, PROHIBITORUM_SESSION_REMEMBER_TTL override, and the
+// ≤0 fallback that restores the default instead of disabling remembered
+// sessions.
+func TestParse_SessionRememberTTL(t *testing.T) {
+	resetViper(t)
+	cfg, err := Parse()
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	if cfg.SessionRememberTTL != 14*24*time.Hour {
+		t.Errorf("SessionRememberTTL default: want %v, got %v", 14*24*time.Hour, cfg.SessionRememberTTL)
+	}
+
+	resetViper(t)
+	t.Setenv("PROHIBITORUM_SESSION_REMEMBER_TTL", "720h")
+	cfg, err = Parse()
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	if cfg.SessionRememberTTL != 720*time.Hour {
+		t.Errorf("SessionRememberTTL override: want 720h, got %v", cfg.SessionRememberTTL)
+	}
+
+	resetViper(t)
+	t.Setenv("PROHIBITORUM_SESSION_REMEMBER_TTL", "-1h")
+	cfg, err = Parse()
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	if cfg.SessionRememberTTL != 14*24*time.Hour {
+		t.Errorf("SessionRememberTTL ≤0 must fall back to default: want %v, got %v", 14*24*time.Hour, cfg.SessionRememberTTL)
+	}
+}
+
 // TestParse_RejectsShortDEK asserts that a base64-valid but cryptographically
 // undersized data-encryption key is rejected at Parse startup. A 4-byte key
 // decodes cleanly from base64 but is far too short for AES-256, so the failure

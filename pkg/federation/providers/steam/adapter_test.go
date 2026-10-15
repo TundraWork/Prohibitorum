@@ -231,7 +231,7 @@ func TestSteamHTTPFlowThroughFederationService(t *testing.T) {
 		nil,
 		federationcore.ServiceConfig{PublicOrigin: "https://idp.test"},
 	)
-	begin, err := service.BeginPublic(context.Background(), providerSlug, "/me")
+	begin, err := service.BeginPublic(context.Background(), providerSlug, "/me", false)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -121,6 +121,8 @@ export interface WallpaperPicture {
 export interface PasswordRequest {
   username: string;
   password: string;
+  /** "Keep me signed in"; omitted by older clients, same as false. */
+  remember?: boolean;
 }
 
 export interface PasswordResult {
@@ -426,7 +428,11 @@ export interface RawPaths {
   "/api/prohibitorum/auth/login/complete": {
     post: {
       parameters: {
-        query?: { mediation?: "conditional"; return_to?: string };
+        query?: {
+          mediation?: "conditional";
+          return_to?: string;
+          remember?: "true";
+        };
         header?: never;
         path?: never;
         cookie?: never;
@@ -753,7 +759,11 @@ export interface RawPaths {
         path?: never;
         cookie?: never;
       };
-      requestBody: { content: { "application/json": { pairingId: string } } };
+      requestBody: {
+        content: {
+          "application/json": { pairingId: string; remember?: boolean };
+        };
+      };
       responses: {
         200: { content: { "application/json": PairingComplete } };
       };

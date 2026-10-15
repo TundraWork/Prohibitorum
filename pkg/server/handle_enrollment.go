@@ -26,7 +26,6 @@ import (
 	"prohibitorum/pkg/db"
 	"prohibitorum/pkg/federation"
 	"prohibitorum/pkg/logx"
-	sessstore "prohibitorum/pkg/session"
 )
 
 // enrollCeremonyKey derives the WebAuthn-ceremony KV key from a SHA-256 of the
@@ -832,7 +831,7 @@ func (s *Server) handleEnrollmentCompleteHTTP(w http.ResponseWriter, r *http.Req
 	}
 	// Issue session for the (new or existing) account.
 	ip := s.clientIP.IP(r)
-	sessionToken, _, err := s.sessionStore.Issue(r.Context(), acct.ID, ip, r.UserAgent(), []string{"hwk"}, nil)
+	sessionToken, data, err := s.sessionStore.Issue(r.Context(), acct.ID, ip, r.UserAgent(), []string{"hwk"}, nil, false)
 	if err != nil {
 		writeAuthErr(w, fmt.Errorf("enrollment/complete: session issue: %w", err))
 		return
@@ -843,7 +842,7 @@ func (s *Server) handleEnrollmentCompleteHTTP(w http.ResponseWriter, r *http.Req
 		Event:     audit.EventSessionStart,
 		Detail:    map[string]any{"via": "enrollment"},
 	})
-	http.SetCookie(w, sessstore.FreshSessionCookie(s.config, r, acct.ID, sessionToken, s.config.SessionTTL))
+	http.SetCookie(w, s.sessionStore.SessionCookie(s.config, r, acct.ID, sessionToken, data))
 
 	// Capture the new credential's id so the FE can offer a "name your passkey"
 	// prompt without a separate fetch.

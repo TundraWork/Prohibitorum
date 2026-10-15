@@ -5,12 +5,12 @@ import {
 } from "@simplewebauthn/browser";
 import { type QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createMemoryHistory, RouterProvider } from "@tanstack/react-router";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import QRCode from "qrcode";
 import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { pairingStatusQueryOptions } from "@/api/queries";
+import { pairingPollMs, pairingStatusQueryOptions } from "@/api/queries";
 import type { PairingStart, PairingStatus } from "@/api/raw-paths";
 import { loadDocument } from "@/app/load-document";
 import { createQueryClient } from "@/app/query-client";
@@ -65,6 +65,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   queryClient.clear();
   vi.unstubAllGlobals();
   vi.mocked(loadDocument).mockReset();
@@ -206,6 +207,11 @@ describe("signing in with another device", () => {
   });
 
   it("marks the code expired when its time runs out, and stops asking", async () => {
+    // The countdown and the status poll run on intervals; faking only those
+    // (and the clock they read) lets the test step past the expiry inside
+    // act(), so the effect that disables the poll has run before the reads
+    // are counted. setTimeout stays real for findBy and the query notifier.
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval", "Date"] });
     const api = pairApi({
       start: () =>
         Response.json(
@@ -214,16 +220,19 @@ describe("signing in with another device", () => {
     });
     renderApp("/pair", queryClient);
     await screen.findByText("K7QM-4XTB");
+    await waiting();
+    expect(api.sent("GET", statusPath)).toHaveLength(1);
+
+    await act(() => vi.advanceTimersByTimeAsync(3000));
     expect(
-      await screen.findByRole(
-        "button",
-        { name: "Get a new code" },
-        { timeout: 6000 },
-      ),
+      screen.getByRole("button", { name: "Get a new code" }),
     ).toBeVisible();
-    const reads = api.sent("GET", statusPath).length;
+    // The first read on arrival and one poll at 2.5 seconds.
+    expect(api.sent("GET", statusPath)).toHaveLength(2);
+
+    await act(() => vi.advanceTimersByTimeAsync(10 * pairingPollMs));
     await poll();
-    expect(api.sent("GET", statusPath)).toHaveLength(reads);
+    expect(api.sent("GET", statusPath)).toHaveLength(2);
   });
 
   it("signs in as soon as it is approved, keeping where the sign-in was headed", async () => {
@@ -238,9 +247,28 @@ describe("signing in with another device", () => {
       await screen.findByRole("heading", { name: "This device is signed in" }),
     ).toHaveFocus();
     const [complete] = api.sent("POST", completePath);
-    expect(complete?.body).toEqual({ pairingId: "pairing-1" });
+    expect(complete?.body).toEqual({ pairingId: "pairing-1", remember: true });
     expect(complete?.url.searchParams.get("return_to")).toBe(target);
     expect(api.sent("POST", completePath)).toHaveLength(1);
+  });
+
+  it("sends the keep-me-signed-in choice as it stands when approval arrives", async () => {
+    let status: PairingStatus = { status: "pending" };
+    const api = pairApi({ status: () => status });
+    const user = userEvent.setup();
+    renderApp("/pair", queryClient);
+    await waiting();
+
+    await user.click(
+      await screen.findByRole("checkbox", { name: "Keep me signed in" }),
+    );
+    status = { status: "approved" };
+    await poll();
+    expect(
+      await screen.findByRole("heading", { name: "This device is signed in" }),
+    ).toHaveFocus();
+    const [complete] = api.sent("POST", completePath);
+    expect(complete?.body).toEqual({ pairingId: "pairing-1", remember: false });
   });
 
   it("offers to try again when signing in fails, and does not retry by itself", async () => {

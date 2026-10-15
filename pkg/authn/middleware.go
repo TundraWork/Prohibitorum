@@ -32,6 +32,11 @@ type SessionData struct {
 	// means the step-up gate is satisfied. The window check lives in the server
 	// gate (hasFreshSudo), which has the configured SudoTTL.
 	SudoUntil time.Time `json:"sudo_until,omitempty"`
+	// Remember records that the session was issued with "keep me signed in".
+	// Renewal and the cookie's Max-Age follow it — not the issuing entry
+	// point — so a remembered session stays remembered while it slides.
+	// Absent (pre-existing sessions) decodes as false.
+	Remember bool `json:"remember,omitempty"`
 }
 
 // HasFreshSudo returns true when the session's SudoUntil is in the future.

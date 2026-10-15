@@ -40,11 +40,11 @@ func TestSessionListPageByAccount_BoundedScanRespectsLimit(t *testing.T) {
 	t.Parallel()
 
 	mem := kv.NewMemoryStore()
-	store := sessstore.NewSessionStore(mem, noopSessionQueriesForServer{}, time.Hour)
+	store := sessstore.NewSessionStore(mem, noopSessionQueriesForServer{}, time.Hour, time.Hour)
 	ctx := context.Background()
 	// Issue 5 sessions.
 	for i := 0; i < 5; i++ {
-		if _, _, err := store.Issue(ctx, 42, "127.0.0.1", "ua", []string{"hwk"}, nil); err != nil {
+		if _, _, err := store.Issue(ctx, 42, "127.0.0.1", "ua", []string{"hwk"}, nil, false); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -90,12 +90,12 @@ func TestSessionListPageByAccount_CursorAdvancesPages(t *testing.T) {
 	t.Parallel()
 
 	mem := kv.NewMemoryStore()
-	store := sessstore.NewSessionStore(mem, noopSessionQueriesForServer{}, time.Hour)
+	store := sessstore.NewSessionStore(mem, noopSessionQueriesForServer{}, time.Hour, time.Hour)
 	ctx := context.Background()
 
 	// Issue 4 sessions.
 	for i := 0; i < 4; i++ {
-		if _, _, err := store.Issue(ctx, 42, "127.0.0.1", "", []string{"hwk"}, nil); err != nil {
+		if _, _, err := store.Issue(ctx, 42, "127.0.0.1", "", []string{"hwk"}, nil, false); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -140,12 +140,12 @@ func TestSessionListPageByAccount_StableOrdering(t *testing.T) {
 	t.Parallel()
 
 	mem := kv.NewMemoryStore()
-	store := sessstore.NewSessionStore(mem, noopSessionQueriesForServer{}, time.Hour)
+	store := sessstore.NewSessionStore(mem, noopSessionQueriesForServer{}, time.Hour, time.Hour)
 	ctx := context.Background()
 
 	// Issue 3 sessions.
 	for i := 0; i < 3; i++ {
-		if _, _, err := store.Issue(ctx, 42, "", "", []string{"hwk"}, nil); err != nil {
+		if _, _, err := store.Issue(ctx, 42, "", "", []string{"hwk"}, nil, false); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -169,14 +169,14 @@ func TestSessionListPageByAccount_AccountIsolation(t *testing.T) {
 	t.Parallel()
 
 	mem := kv.NewMemoryStore()
-	store := sessstore.NewSessionStore(mem, noopSessionQueriesForServer{}, time.Hour)
+	store := sessstore.NewSessionStore(mem, noopSessionQueriesForServer{}, time.Hour, time.Hour)
 	ctx := context.Background()
 
 	// Issue sessions for two accounts.
-	if _, _, err := store.Issue(ctx, 42, "", "", []string{"hwk"}, nil); err != nil {
+	if _, _, err := store.Issue(ctx, 42, "", "", []string{"hwk"}, nil, false); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := store.Issue(ctx, 99, "", "", []string{"hwk"}, nil); err != nil {
+	if _, _, err := store.Issue(ctx, 99, "", "", []string{"hwk"}, nil, false); err != nil {
 		t.Fatal(err)
 	}
 
@@ -195,7 +195,7 @@ func TestSessionListPageByAccount_EmptyAccount(t *testing.T) {
 	t.Parallel()
 
 	mem := kv.NewMemoryStore()
-	store := sessstore.NewSessionStore(mem, noopSessionQueriesForServer{}, time.Hour)
+	store := sessstore.NewSessionStore(mem, noopSessionQueriesForServer{}, time.Hour, time.Hour)
 	ctx := context.Background()
 
 	page, hasMore, err := store.ListPageByAccount(ctx, 42, nil, 10)
@@ -511,11 +511,11 @@ func TestHandleListAccountSessions_PageShape(t *testing.T) {
 	t.Parallel()
 
 	mem := kv.NewMemoryStore()
-	store := sessstore.NewSessionStore(mem, noopSessionQueriesForServer{}, time.Hour)
+	store := sessstore.NewSessionStore(mem, noopSessionQueriesForServer{}, time.Hour, time.Hour)
 	ctx := context.Background()
 
 	for i := 0; i < 3; i++ {
-		if _, _, err := store.Issue(ctx, 42, "127.0.0.1", "", []string{"hwk"}, nil); err != nil {
+		if _, _, err := store.Issue(ctx, 42, "127.0.0.1", "", []string{"hwk"}, nil, false); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -547,7 +547,7 @@ func TestHandleListAccountSessions_ParentNotFound404(t *testing.T) {
 	t.Parallel()
 
 	mem := kv.NewMemoryStore()
-	store := sessstore.NewSessionStore(mem, noopSessionQueriesForServer{}, time.Hour)
+	store := sessstore.NewSessionStore(mem, noopSessionQueriesForServer{}, time.Hour, time.Hour)
 
 	fakeQ := &fakeNestedQ{accountMissing: true}
 	s := &Server{

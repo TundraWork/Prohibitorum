@@ -232,11 +232,75 @@ it("signs in with the passkey picked from autofill", async () => {
   ).toBeVisible();
   expect(loginCalls()).toEqual([
     "/login/begin?mediation=conditional",
-    "/login/complete?mediation=conditional",
+    "/login/complete?mediation=conditional&remember=true",
   ]);
   const complete = fetchBoundary.mock.calls[1]?.[0];
   expect(await complete?.json()).toEqual(picked);
 });
+
+it("carries the current keep-me-signed-in choice when autofill completes", async () => {
+  let pickNow!: (value: unknown) => void;
+  const pickedLater = new Promise<unknown>((resolve) => {
+    pickNow = resolve;
+  });
+  browser({ pick: pickedLater });
+  mount();
+  // Uncheck while the ceremony still waits; the completion must read the
+  // choice then, without the toggle having restarted the wait.
+  await userEvent
+    .setup()
+    .click(await screen.findByRole("checkbox", { name: "Keep me signed in" }));
+  pickNow(picked);
+  expect(
+    await screen.findByRole("heading", { name: "Destination" }),
+  ).toBeVisible();
+  expect(loginCalls()).toEqual([
+    "/login/begin?mediation=conditional",
+    "/login/complete?mediation=conditional",
+  ]);
+  const complete = fetchBoundary.mock.calls[1]?.[0]?.url;
+  expect(complete).toBeDefined();
+  expect(new URL(complete ?? "").searchParams.get("remember")).toBeNull();
+});
+
+it("sends remember=true from autofill while the box stays checked", async () => {
+  browser({ pick: Promise.resolve(picked) });
+  mount();
+  expect(
+    await screen.findByRole("heading", { name: "Destination" }),
+  ).toBeVisible();
+  const complete = fetchBoundary.mock.calls[1]?.[0]?.url;
+  expect(complete).toBeDefined();
+  expect(new URL(complete ?? "").searchParams.get("remember")).toBe("true");
+});
+
+it.each([
+  { uncheck: false, remember: "true" },
+  { uncheck: true, remember: null },
+])(
+  "sends the keep-me-signed-in choice from the passkey button (unchecked: $uncheck)",
+  async ({ uncheck, remember }) => {
+    browser({ modal: async () => picked });
+    const user = userEvent.setup();
+    mount();
+    await waitFor(() => expect(startAuthentication).toHaveBeenCalledTimes(1));
+    if (uncheck)
+      await user.click(
+        screen.getByRole("checkbox", { name: "Keep me signed in" }),
+      );
+    await user.click(
+      screen.getByRole("button", { name: "Sign in with a passkey" }),
+    );
+    expect(
+      await screen.findByRole("heading", { name: "Destination" }),
+    ).toBeVisible();
+    const complete = fetchBoundary.mock.calls
+      .map(([request]) => new URL(request.url))
+      .find((url) => url.pathname.endsWith("/auth/login/complete"));
+    expect(complete?.searchParams.get("mediation")).toBeNull();
+    expect(complete?.searchParams.get("remember")).toBe(remember);
+  },
+);
 
 it("reports a failed completion like the passkey button, then offers autofill again", async () => {
   completeAnswer = () =>
@@ -253,7 +317,7 @@ it("reports a failed completion like the passkey button, then offers autofill ag
   await waitFor(() =>
     expect(loginCalls()).toEqual([
       "/login/begin?mediation=conditional",
-      "/login/complete?mediation=conditional",
+      "/login/complete?mediation=conditional&remember=true",
       "/login/begin?mediation=conditional",
     ]),
   );

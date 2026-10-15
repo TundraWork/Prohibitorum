@@ -136,7 +136,7 @@ func (s *Service) EnabledProviderName(ctx context.Context, slug string) string {
 	return provider.DisplayName
 }
 
-func (s *Service) BeginPublic(ctx context.Context, providerSlug, returnTo string) (*BeginResult, error) {
+func (s *Service) BeginPublic(ctx context.Context, providerSlug, returnTo string, remember bool) (*BeginResult, error) {
 	provider, err := s.providers.BySlug(ctx, providerSlug)
 	if err != nil {
 		return nil, err
@@ -150,15 +150,17 @@ func (s *Service) BeginPublic(ctx context.Context, providerSlug, returnTo string
 			return nil, authn.ErrFederationStateInvalid()
 		}
 		intent = IntentEnroll
+		// Enrollments issue no login session, so remember never applies.
+		remember = false
 	}
-	return s.begin(ctx, provider, intent, returnTo, nil, "", "")
+	return s.begin(ctx, provider, intent, returnTo, nil, "", "", remember)
 }
 
 func (s *Service) BeginLink(ctx context.Context, providerSlug, returnTo string, accountID int32, sessionID string) (*BeginResult, error) {
 	if accountID <= 0 || sessionID == "" {
 		return nil, authn.ErrFederationStateInvalid()
 	}
-	return s.beginBySlug(ctx, providerSlug, IntentLink, returnTo, new(accountID), sessionID, "")
+	return s.beginBySlug(ctx, providerSlug, IntentLink, returnTo, new(accountID), sessionID, "", false)
 }
 
 func (s *Service) BeginInvite(ctx context.Context, enrollmentToken, selectedSlug, returnTo string) (*BeginResult, error) {
@@ -169,18 +171,18 @@ func (s *Service) BeginInvite(ctx context.Context, enrollmentToken, selectedSlug
 		}
 		return nil, authn.ErrInviteRequired()
 	}
-	return s.begin(ctx, provider, IntentInvite, returnTo, nil, "", enrollmentToken)
+	return s.begin(ctx, provider, IntentInvite, returnTo, nil, "", enrollmentToken, false)
 }
 
-func (s *Service) beginBySlug(ctx context.Context, providerSlug string, intent Intent, returnTo string, accountID *int32, sessionID, enrollmentToken string) (*BeginResult, error) {
+func (s *Service) beginBySlug(ctx context.Context, providerSlug string, intent Intent, returnTo string, accountID *int32, sessionID, enrollmentToken string, remember bool) (*BeginResult, error) {
 	provider, err := s.providers.BySlug(ctx, providerSlug)
 	if err != nil {
 		return nil, err
 	}
-	return s.begin(ctx, provider, intent, returnTo, accountID, sessionID, enrollmentToken)
+	return s.begin(ctx, provider, intent, returnTo, accountID, sessionID, enrollmentToken, remember)
 }
 
-func (s *Service) begin(ctx context.Context, provider Provider, intent Intent, returnTo string, accountID *int32, sessionID, enrollmentToken string) (*BeginResult, error) {
+func (s *Service) begin(ctx context.Context, provider Provider, intent Intent, returnTo string, accountID *int32, sessionID, enrollmentToken string, remember bool) (*BeginResult, error) {
 	definition, adapter, err := s.flowProvider(provider)
 	if err != nil {
 		return nil, err
@@ -216,7 +218,7 @@ func (s *Service) begin(ctx context.Context, provider Provider, intent Intent, r
 	expiresAt := s.now().Add(s.config.StateTTL).UTC()
 	state := FlowState{
 		ProviderID: provider.ID, ProviderSlug: provider.Slug, Protocol: provider.Protocol,
-		Intent: intent, ReturnTo: returnTo, BrowserDigest: BrowserDigest(browserToken),
+		Intent: intent, ReturnTo: returnTo, Remember: remember, BrowserDigest: BrowserDigest(browserToken),
 		LinkAccountID: accountID, LinkSessionID: sessionID, EnrollmentToken: enrollmentToken,
 		ExpiresAt: expiresAt, AdapterState: append(json.RawMessage(nil), adapterState...), CurrentAction: cloneAction(action),
 	}
@@ -394,7 +396,8 @@ func (s *Service) VerifyFlow(ctx context.Context, request AdvanceRequest) (*Comp
 	completion := &CompletionResult{
 		Intent: state.Intent, AccountID: outcome.AccountID, IdentityID: outcome.IdentityID,
 		ProviderID: provider.ID, ProviderSlug: provider.Slug, ReturnTo: state.ReturnTo,
-		AMR: append([]string(nil), outcome.AMR...), IsNew: outcome.IsNew,
+		Remember: state.Remember,
+		AMR:      append([]string(nil), outcome.AMR...), IsNew: outcome.IsNew,
 		Confirmed: outcome.Confirmed, AvatarURL: result.Identity.AvatarURL,
 		OfferLocalSignin: outcome.OfferLocalSignin,
 	}
@@ -411,7 +414,7 @@ func (s *Service) VerifyFlow(ctx context.Context, request AdvanceRequest) (*Comp
 	return completion, nil
 }
 
-func (s *Service) CreateConfirmGrant(ctx context.Context, accountID int32, identityID, providerID int64, providerSlug, returnTo string, amr []string, offerLocalSignin bool) (token, browserToken string, err error) {
+func (s *Service) CreateConfirmGrant(ctx context.Context, accountID int32, identityID, providerID int64, providerSlug, returnTo string, amr []string, offerLocalSignin, remember bool) (token, browserToken string, err error) {
 	token, err = randomToken()
 	if err != nil {
 		return "", "", err
@@ -423,8 +426,7 @@ func (s *Service) CreateConfirmGrant(ctx context.Context, accountID int32, ident
 	grant := ConfirmGrant{
 		AccountID: accountID, IdentityID: identityID, ProviderID: providerID,
 		ProviderSlug: providerSlug, ReturnTo: returnTo, BrowserDigest: BrowserDigest(browserToken),
-		AMR:              append([]string(nil), amr...),
-		OfferLocalSignin: offerLocalSignin,
+		AMR: append([]string(nil), amr...), OfferLocalSignin: offerLocalSignin, Remember: remember,
 	}
 	raw, err := grant.Encode()
 	if err != nil {

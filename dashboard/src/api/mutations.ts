@@ -369,21 +369,29 @@ export function recoveryMutationOptions(returnTo?: string) {
   });
 }
 
-export function passkeyMutationOptions(returnTo?: string) {
+export function passkeyMutationOptions(returnTo?: string, remember?: boolean) {
   return mutationOptions({
     retry: false,
     gcTime: 0,
-    mutationFn: () => authenticateWithPasskey(returnTo),
+    mutationFn: () => authenticateWithPasskey(returnTo, remember),
   });
 }
 
 /** Finishes signing in with a passkey picked from the username autofill. */
-export function passkeyAutofillMutationOptions(returnTo?: string) {
+export function passkeyAutofillMutationOptions(
+  returnTo?: string,
+  remember?: boolean,
+) {
   return mutationOptions({
     retry: false,
     gcTime: 0,
     mutationFn: (assertion: PasskeyAssertion) =>
-      completePasskeyLogin({ assertion, mediation: "conditional", returnTo }),
+      completePasskeyLogin({
+        assertion,
+        mediation: "conditional",
+        returnTo,
+        remember,
+      }),
   });
 }
 
@@ -808,7 +816,13 @@ export function pairingCompleteMutationOptions(returnTo: string | undefined) {
   return mutationOptions({
     retry: false,
     gcTime: 0,
-    mutationFn: async (pairingId: string): Promise<PairingCompletion> => {
+    mutationFn: async ({
+      pairingId,
+      remember,
+    }: {
+      pairingId: string;
+      remember: boolean;
+    }): Promise<PairingCompletion> => {
       try {
         const { redirect } = validateLoginResult(
           await requireJsonData(
@@ -816,7 +830,7 @@ export function pairingCompleteMutationOptions(returnTo: string | undefined) {
               params: {
                 query: returnTo === undefined ? {} : { return_to: returnTo },
               },
-              body: { pairingId },
+              body: { pairingId, remember },
             }),
           ),
         );

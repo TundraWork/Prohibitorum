@@ -17,6 +17,7 @@ import { Button } from "@/components/custom/Button";
 import { useInstanceBranding } from "@/components/custom/instance-branding";
 import { PublicStep } from "@/components/custom/PublicStep";
 import { QrCode } from "@/components/custom/QrCode";
+import { RememberCheckbox } from "@/components/custom/RememberCheckbox";
 import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
 import { PasskeyButton } from "@/pages/public/enroll/PasskeyButton";
 import { Route } from "@/routes/_public.pair";
@@ -144,6 +145,11 @@ function PairingStep({
   const [claimed, setClaimed] = useState(false);
   // `gone` once completing found the pairing used up or run out.
   const [gone, setGone] = useState(false);
+  // "Keep me signed in", read at completion time through the ref so the
+  // automatic finish never depends on a re-render.
+  const [remember, setRemember] = useState(true);
+  const rememberRef = useRef(remember);
+  rememberRef.current = remember;
   const outOfTime = secondsLeft === 0;
   const status = useQuery({
     ...pairingStatusQueryOptions(pairing?.pairingId ?? ""),
@@ -151,14 +157,12 @@ function PairingStep({
   });
   const complete = useMutation(pairingCompleteMutationOptions(returnTo));
 
-  const approved = (claimed || status.data?.status === "approved") && !gone;
-  const expired =
-    pairing !== undefined &&
-    (gone || (!approved && (outOfTime || status.data?.status === "expired")));
-
   const finish = async (pairingId: string) => {
     try {
-      const result = await complete.mutateAsync(pairingId);
+      const result = await complete.mutateAsync({
+        pairingId,
+        remember: rememberRef.current,
+      });
       if (result.outcome === "expired") {
         setGone(true);
         return;
@@ -169,6 +173,11 @@ function PairingStep({
       // The toast has reported it; the page offers to try again.
     }
   };
+
+  const approved = (claimed || status.data?.status === "approved") && !gone;
+  const expired =
+    pairing !== undefined &&
+    (gone || (!approved && (outOfTime || status.data?.status === "expired")));
 
   // Completed once, the moment the approval is seen. A failure waits for the
   // reader's retry rather than trying again on the next read.
@@ -272,6 +281,13 @@ function PairingStep({
           </>
         )}
       </div>
+      {!expired && (
+        <RememberCheckbox
+          isSelected={remember}
+          onChange={setRemember}
+          isDisabled={claimed}
+        />
+      )}
       {expired ? (
         <SurfaceAlert status="warning">
           <SurfaceAlert.Indicator />

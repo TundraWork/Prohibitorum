@@ -10,10 +10,12 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"prohibitorum/pkg/credential/pairing"
 	"prohibitorum/pkg/db"
 	"prohibitorum/pkg/kv"
+	sessstore "prohibitorum/pkg/session"
 )
 
 // newPairingTestServer builds a Server wired for the pairing-complete
@@ -191,6 +193,56 @@ func TestHandlePairComplete_HappyPath(t *testing.T) {
 	}
 	if consumed.Status != pairing.PairingConsumed {
 		t.Fatalf("status after happy path = %q, want %q", consumed.Status, pairing.PairingConsumed)
+	}
+}
+
+// TestHandlePairComplete_RememberCookieMaxAge pins the pairing page's
+// remember choice: body remember=true → cookie Max-Age = rememberTTL;
+// absent → no Max-Age (browser-session cookie).
+func TestHandlePairComplete_RememberCookieMaxAge(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		remember   bool
+		wantMaxAge int
+	}{{"remembered", true, int((24 * time.Hour).Seconds())}, {"not remembered", false, 0}} {
+		t.Run(tc.name, func(t *testing.T) {
+			s, f := newPairingTestServer(t)
+			s.sessionStore = sessstore.NewSessionStore(s.kvStore, f, time.Hour, 24*time.Hour)
+			ctx := context.Background()
+			const accountID = int32(7)
+			f.accounts[accountID] = db.Account{ID: accountID, Username: "bob"}
+			p, err := s.pairingStore.New(ctx, "ua/test", "127.0.0.1")
+			if err != nil {
+				t.Fatal(err)
+			}
+			loaded, err := s.pairingStore.LookupByCode(ctx, p.Code)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := s.pairingStore.Approve(ctx, loaded, accountID); err != nil {
+				t.Fatal(err)
+			}
+			body, _ := json.Marshal(map[string]any{"pairingId": p.ID, "remember": tc.remember})
+			req := httptest.NewRequest(http.MethodPost, "/api/prohibitorum/auth/devices/pair/complete", bytes.NewReader(body))
+			w := httptest.NewRecorder()
+			s.handlePairCompleteHTTP(w, req)
+			if w.Code != http.StatusOK {
+				t.Fatalf("status = %d, body=%s", w.Code, w.Body.String())
+			}
+			var sessCookie *http.Cookie
+			for _, c := range w.Result().Cookies() {
+				if c.Name == sessstore.SessionCookieName {
+					sessCookie = c
+					break
+				}
+			}
+			if sessCookie == nil {
+				t.Fatal("no session cookie")
+			}
+			if sessCookie.MaxAge != tc.wantMaxAge {
+				t.Errorf("MaxAge = %d, want %d", sessCookie.MaxAge, tc.wantMaxAge)
+			}
+		})
 	}
 }
 

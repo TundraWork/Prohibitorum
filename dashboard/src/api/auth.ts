@@ -130,6 +130,7 @@ export function cancelPasskeyAuthentication(): void {
 
 export async function authenticateWithPasskey(
   returnTo?: string,
+  remember?: boolean,
 ): Promise<LoginResult> {
   if (!window.isSecureContext || !browserSupportsWebAuthn()) {
     throw new ApiError({ kind: "local", code: "passkey_unsupported" });
@@ -165,6 +166,7 @@ export async function authenticateWithPasskey(
     const result = await completePasskeyLogin({
       assertion: { rpId, response },
       returnTo,
+      remember,
       signal,
     });
     signal.throwIfAborted();
@@ -282,11 +284,14 @@ export async function completePasskeyLogin({
   assertion,
   mediation,
   returnTo,
+  remember,
   signal,
 }: {
   assertion: PasskeyAssertion;
   mediation?: "conditional";
   returnTo?: string;
+  /** "Keep me signed in" — sent only when chosen, so absence stays absent. */
+  remember?: boolean;
   signal?: AbortSignal;
 }): Promise<LoginResult> {
   try {
@@ -298,6 +303,7 @@ export async function completePasskeyLogin({
           query: {
             ...(mediation === undefined ? {} : { mediation }),
             ...(returnTo === undefined ? {} : { return_to: returnTo }),
+            ...(remember ? { remember: "true" as const } : {}),
           },
         },
       }),

@@ -54,6 +54,7 @@ import { OrSeparator } from "@/components/custom/OrSeparator";
 import { OtpField } from "@/components/custom/OtpField";
 import { ProviderButtons } from "@/components/custom/ProviderButtons";
 import { RecoveryCodes } from "@/components/custom/RecoveryCodes";
+import { RememberCheckbox } from "@/components/custom/RememberCheckbox";
 import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
 import { TotpSetup } from "@/components/custom/TotpSetup";
 import { applyServerError } from "@/forms/server-errors";
@@ -177,11 +178,21 @@ type LoginFlow = ReturnType<typeof useLoginFlow>;
 function usePasskeyAutofill({
   flow,
   returnTo,
+  remember,
 }: {
   flow: LoginFlow;
   returnTo?: string;
+  /**
+   * Read on each render into the completion's options, so a pick uses the
+   * choice as of the latest render. It is a ref rather than a value only so
+   * that toggling the checkbox is not a dependency of the wait and never
+   * restarts it.
+   */
+  remember: { current: boolean };
 }) {
-  const completion = useMutation(passkeyAutofillMutationOptions(returnTo));
+  const completion = useMutation(
+    passkeyAutofillMutationOptions(returnTo, remember.current),
+  );
   // Each value starts a new wait; null while the button's ceremony runs.
   const [run, setRun] = useState<number | null>(0);
   const waiting = useRef<AbortController>(undefined);
@@ -255,12 +266,15 @@ function PasswordForm({
   control,
   username,
   submitVariant,
+  remember,
   onSuccess,
   onFailure,
 }: {
   control: FlowControl;
   username: string;
   submitVariant: "primary" | "secondary";
+  /** "Keep me signed in", sent with /password/begin for step 2 to honor. */
+  remember: boolean;
   onSuccess: (username: string, token: string) => void | Promise<void>;
   onFailure: (error: unknown) => void;
 }) {
@@ -271,7 +285,7 @@ function PasswordForm({
     onSubmit: async ({ value, formApi }) => {
       if (!control.acquire()) return;
       try {
-        const result = await mutation.mutateAsync(value);
+        const result = await mutation.mutateAsync({ ...value, remember });
         formApi.setFieldValue("password", "");
         if (control.isActive())
           await onSuccess(value.username, result.partial_session_token);
@@ -477,6 +491,7 @@ function FactorForm({
         {mode === "recovery" && (
           <>
             <Checkbox
+              variant="secondary"
               isSelected={setup !== undefined}
               isDisabled={control.busy}
               onChange={(selected) => {
@@ -570,7 +585,10 @@ export function PasswordPage() {
   const flow = useLoginFlow(failure);
   const navigate = useNavigate();
   const router = useRouter();
-  const passkey = useMutation(passkeyMutationOptions(returnTo));
+  const [remember, setRemember] = useState(true);
+  const rememberRef = useRef(remember);
+  rememberRef.current = remember;
+  const passkey = useMutation(passkeyMutationOptions(returnTo, remember));
   const resetPasskey = passkey.reset;
   useEffect(
     () => () => {
@@ -579,7 +597,11 @@ export function PasswordPage() {
     },
     [resetPasskey],
   );
-  const autofill = usePasskeyAutofill({ flow, returnTo });
+  const autofill = usePasskeyAutofill({
+    flow,
+    returnTo,
+    remember: rememberRef,
+  });
   const supported = window.isSecureContext && browserSupportsWebAuthn();
   return (
     <LoginShell step="password" busy={flow.control.busy} failure={flow.failure}>
@@ -622,6 +644,7 @@ export function PasswordPage() {
         control={flow.control}
         username={username ?? ""}
         submitVariant={supported ? "secondary" : "primary"}
+        remember={remember}
         onSuccess={async (username, token) => {
           flow.setFailure(undefined);
           await withRouterSkipLoading(router, () =>
@@ -636,8 +659,16 @@ export function PasswordPage() {
           flow.setFailure({ message: describeError(error) })
         }
       />
+      {/* One choice for every sign-in method this page offers; it is not part
+       * of the password form so it also covers the passkey and providers. */}
+      <RememberCheckbox
+        isSelected={remember}
+        onChange={setRemember}
+        isDisabled={flow.control.busy}
+      />
       <OtherSignIns
         returnTo={returnTo}
+        remember={remember}
         busy={flow.control.busy}
         onLeavingChange={flow.hold}
       />
@@ -658,10 +689,13 @@ export function PasswordPage() {
  */
 function OtherSignIns({
   returnTo,
+  remember,
   busy,
   onLeavingChange,
 }: {
   returnTo?: string;
+  /** Appends remember=true to provider links when chosen. */
+  remember: boolean;
   busy: boolean;
   onLeavingChange: (leaving: boolean) => void;
 }) {
@@ -698,9 +732,11 @@ function OtherSignIns({
           onLeavingChange={onLeavingChange}
           href={(provider) => {
             const address = `/api/prohibitorum/auth/federation/${encodeURIComponent(provider.slug)}/login`;
-            return returnTo === undefined
-              ? address
-              : `${address}?${new URLSearchParams({ return_to: returnTo })}`;
+            const params = new URLSearchParams();
+            if (returnTo !== undefined) params.set("return_to", returnTo);
+            if (remember) params.set("remember", "true");
+            const query = params.toString();
+            return query === "" ? address : `${address}?${query}`;
           }}
         />
       </div>

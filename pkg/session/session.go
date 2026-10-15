@@ -39,10 +39,13 @@ type SessionQueries interface {
 }
 
 type SessionStore struct {
-	kv      kv.Store
-	q       SessionQueries // PG-persisted session metadata (auth_time, amr, acr, sid)
-	ttl     time.Duration
-	refresh time.Duration // sliding-refresh threshold; default ttl/4
+	kv  kv.Store
+	q   SessionQueries // PG-persisted session metadata (auth_time, amr, acr, sid)
+	ttl time.Duration  // sliding lifetime, sessions issued without "remember"
+	// rememberTTL is the sliding lifetime for sessions issued with
+	// "remember". The refresh threshold is computed per session as
+	// min(ttlFor/4, 24h) — see Load.
+	rememberTTL time.Duration
 }
 
 const (
@@ -86,18 +89,26 @@ func (s *SessionStore) releaseMutationLease(ctx context.Context, lease sessionMu
 	_, _ = s.kv.CompareAndDelete(releaseCtx, lease.key, lease.owner)
 }
 
-// NewSessionStore constructs a store with the given session TTL.
-// Sessions refresh themselves on Load when remaining time < ttl/4.
+// NewSessionStore constructs a store. ttl is the sliding lifetime for
+// sessions issued without "keep me signed in"; rememberTTL for those issued
+// with it. Each session refreshes on Load once ttlFor(data) minus its
+// remaining time reaches min(ttlFor(data)/4, 24h).
 //
 // q persists the immutable authentication facts (auth_time, amr, acr) per
 // session ID so OIDC ID tokens can carry sid/amr/acr claims, and
 // SAML SLO can enumerate active SP sessions.
-func NewSessionStore(store kv.Store, q SessionQueries, ttl time.Duration) *SessionStore {
-	return &SessionStore{kv: store, q: q, ttl: ttl, refresh: ttl / 4}
+func NewSessionStore(store kv.Store, q SessionQueries, ttl, rememberTTL time.Duration) *SessionStore {
+	return &SessionStore{kv: store, q: q, ttl: ttl, rememberTTL: rememberTTL}
 }
 
-// TTL returns the configured session lifetime (handler/middleware use it for cookie MaxAge).
-func (s *SessionStore) TTL() time.Duration { return s.ttl }
+// ttlFor returns the configured sliding lifetime for a session, chosen by
+// the session's own Remember flag rather than the issuing entry point.
+func (s *SessionStore) ttlFor(data *authn.SessionData) time.Duration {
+	if data != nil && data.Remember {
+		return s.rememberTTL
+	}
+	return s.ttl
+}
 
 // newToken produces 32 random bytes encoded as URL-safe base64 (43 chars, no padding).
 func newToken() (string, error) {
@@ -162,7 +173,7 @@ func sessionKeyHashed(accountID int32, hashed string) string {
 //
 // If the PG insert fails, the KV entry is rolled back so the two stores stay
 // consistent.
-func (s *SessionStore) Issue(ctx context.Context, accountID int32, ip, ua string, amr []string, upstreamIDPID *int64) (string, *authn.SessionData, error) {
+func (s *SessionStore) Issue(ctx context.Context, accountID int32, ip, ua string, amr []string, upstreamIDPID *int64, remember bool) (string, *authn.SessionData, error) {
 	if len(amr) == 0 {
 		return "", nil, errors.New("session: Issue requires non-empty amr")
 	}
@@ -176,18 +187,20 @@ func (s *SessionStore) Issue(ctx context.Context, accountID int32, ip, ua string
 	}
 	now := time.Now()
 	data := &authn.SessionData{
-		SessionID:  sessionID,
-		AccountID:  accountID,
-		IssuedAt:   now,
-		ExpiresAt:  now.Add(s.ttl),
+		SessionID: sessionID,
+		AccountID: accountID,
+		IssuedAt:  now,
+		// remember picks ttlFor now and on every later renewal.
+		ExpiresAt:  now.Add(s.ttlFor(&authn.SessionData{Remember: remember})),
 		LastSeenIP: ip,
 		UserAgent:  ua,
+		Remember:   remember,
 	}
 	payload, err := json.Marshal(data)
 	if err != nil {
 		return "", nil, fmt.Errorf("session: marshal: %w", err)
 	}
-	if err := s.kv.SetEx(ctx, sessionKey(accountID, token), string(payload), s.ttl); err != nil {
+	if err := s.kv.SetEx(ctx, sessionKey(accountID, token), string(payload), s.ttlFor(data)); err != nil {
 		return "", nil, fmt.Errorf("session: setex: %w", err)
 	}
 	if _, err := s.q.InsertSession(ctx, db.InsertSessionParams{
@@ -241,12 +254,18 @@ func (s *SessionStore) Load(ctx context.Context, accountID int32, token, ip, ua 
 		backfilled = true
 	}
 	refreshed := false
-	if data.ExpiresAt.Sub(now) < s.refresh {
-		data.ExpiresAt = now.Add(s.ttl)
+	// Per-session sliding refresh: extend back to the full ttlFor once
+	// ttlFor minus the remaining time reaches min(ttlFor/4, 24h). An 8h
+	// session steps every 2h; a 14d one every 24h, so a remembered session
+	// is written at most once a day while an active one never expires.
+	ttl := s.ttlFor(&data)
+	step := min(ttl/4, 24*time.Hour)
+	if ttl-data.ExpiresAt.Sub(now) >= step {
+		data.ExpiresAt = now.Add(ttl)
 		data.LastSeenIP = ip
 		if payload, marshalErr := json.Marshal(&data); marshalErr == nil {
 			if lease, leaseErr := s.acquireMutationLease(ctx, accountID); leaseErr == nil {
-				swapped, _ := s.kv.FencedCompareAndSwap(ctx, lease.key, lease.owner, key, raw, string(payload), s.ttl)
+				swapped, _ := s.kv.FencedCompareAndSwap(ctx, lease.key, lease.owner, key, raw, string(payload), ttl)
 				s.releaseMutationLease(ctx, lease)
 				refreshed = swapped
 			}
@@ -361,6 +380,7 @@ func (s *SessionStore) ListByAccount(ctx context.Context, accountID int32) ([]Se
 	}
 	return out, nil
 }
+
 // SessionPageCursor is the keyset position for session pagination. It encodes
 // the (IssuedAt, SessionID) tuple of the last session returned on a page. The
 // cursor is carried inside the authenticated pagination.CursorPayload.Keys as

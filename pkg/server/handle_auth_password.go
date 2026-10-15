@@ -38,13 +38,15 @@ import (
 	"prohibitorum/pkg/contract"
 	"prohibitorum/pkg/credential/password"
 	"prohibitorum/pkg/credential/totp"
-	sessstore "prohibitorum/pkg/session"
 )
 
 type partialSession struct {
 	AccountID       int32     `json:"account_id"`
 	FactorCompleted string    `json:"factor_completed"`
 	IssuedAt        time.Time `json:"issued_at"`
+	// Remember carries the login page's "keep me signed in" choice from
+	// step 1 to the session issued at step 2.
+	Remember bool `json:"remember,omitempty"`
 }
 
 func partialSessionKey(token string) string { return "partial_session:" + token }
@@ -62,6 +64,9 @@ func (s *Server) handlePasswordBeginHTTP(w http.ResponseWriter, r *http.Request)
 	var body struct {
 		Username string `json:"username"`
 		Password string `json:"password"`
+		// Remember is the login page's "keep me signed in" choice;
+		// absent (older clients) decodes as false.
+		Remember bool `json:"remember"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Username == "" || body.Password == "" {
 		writeAuthErr(w, authn.ErrBadCredentials())
@@ -132,6 +137,7 @@ func (s *Server) handlePasswordBeginHTTP(w http.ResponseWriter, r *http.Request)
 		AccountID:       acct.ID,
 		FactorCompleted: "password",
 		IssuedAt:        time.Now().UTC(),
+		Remember:        body.Remember,
 	})
 	if err := s.kvStore.SetEx(r.Context(), partialSessionKey(token), string(payload), s.config.Auth.PartialSessionTTL); err != nil {
 		writeAuthErr(w, err)
@@ -188,7 +194,7 @@ func (s *Server) handleTOTPVerifyHTTP(w http.ResponseWriter, r *http.Request) {
 		writeAuthErr(w, authn.ErrBadCredentials())
 		return
 	}
-	s.issueSessionAndSetCookie(w, r, partial.AccountID, []string{"pwd", "otp", "mfa"})
+	s.issueSessionAndSetCookie(w, r, partial.AccountID, []string{"pwd", "otp", "mfa"}, partial.Remember)
 }
 
 // POST /api/prohibitorum/auth/recovery-code/verify
@@ -306,12 +312,12 @@ func (s *Server) handleRecoveryCodeVerifyHTTP(w http.ResponseWriter, r *http.Req
 		amr = []string{"pwd", "otp", "mfa"}
 	}
 	ip := s.clientIP.IP(r)
-	token, _, err := s.sessionStore.Issue(r.Context(), acct.ID, ip, r.UserAgent(), amr, nil)
+	token, data, err := s.sessionStore.Issue(r.Context(), acct.ID, ip, r.UserAgent(), amr, nil, partial.Remember)
 	if err != nil {
 		writeAuthErr(w, err)
 		return
 	}
-	http.SetCookie(w, sessstore.FreshSessionCookie(s.config, r, acct.ID, token, s.config.SessionTTL))
+	http.SetCookie(w, s.sessionStore.SessionCookie(s.config, r, acct.ID, token, data))
 	audit.RecordOrLog(r.Context(), s.Audit, audit.Record{AccountID: &acct.ID, Factor: audit.FactorSession, Event: audit.EventSessionStart, Detail: map[string]any{"via": "recovery"}})
 	redirect := validateReturnTo(r.URL.Query().Get("return_to"), s.config)
 	w.Header().Set("Content-Type", "application/json")
@@ -356,19 +362,19 @@ func (s *Server) accountLookupQ() accountLookupQueries {
 // consent), so the SPA navigates to a server-owned redirect rather than a
 // client-supplied one. The redirect is validated from the "return_to" query
 // parameter via validateReturnTo; unsafe or absent values fall back to "/".
-func (s *Server) issueSessionAndSetCookie(w http.ResponseWriter, r *http.Request, accountID int32, amr []string) {
+func (s *Server) issueSessionAndSetCookie(w http.ResponseWriter, r *http.Request, accountID int32, amr []string, remember bool) {
 	if me := s.maintenanceLockout(r.Context(), accountID); me != nil {
 		writeAuthErr(w, me)
 		return
 	}
 	ip := s.clientIP.IP(r)
 	ua := r.UserAgent()
-	token, _, err := s.sessionStore.Issue(r.Context(), accountID, ip, ua, amr, nil)
+	token, data, err := s.sessionStore.Issue(r.Context(), accountID, ip, ua, amr, nil, remember)
 	if err != nil {
 		writeAuthErr(w, err)
 		return
 	}
-	http.SetCookie(w, sessstore.FreshSessionCookie(s.config, r, accountID, token, s.config.SessionTTL))
+	http.SetCookie(w, s.sessionStore.SessionCookie(s.config, r, accountID, token, data))
 	audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
 		AccountID: &accountID,
 		Factor:    audit.FactorSession,

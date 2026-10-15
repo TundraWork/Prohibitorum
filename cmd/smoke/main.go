@@ -191,10 +191,70 @@ func main() {
 	log.Printf("  signature len=%d (ASN.1 DER)", len(signed.signature))
 
 	step(fmt.Sprintf("core %d/%d — POST /auth/login/complete", 10, nCore))
-	if err := c.completeLogin(auth, signed); err != nil {
+	loginResp, err := c.completeLoginRaw(auth, signed, "")
+	if err != nil {
 		log.Fatalf("login/complete: %v", err)
 	}
+	_ = loginResp.Body.Close()
+	if loginResp.StatusCode != http.StatusOK {
+		log.Fatalf("login/complete: status %d", loginResp.StatusCode)
+	}
 	log.Printf("  session cookie restored")
+
+	// Remember-me (PHB-78): no remember flag → the session cookie carries
+	// no Max-Age (a browser-session cookie).
+	if maxAge, found := sessionCookieMaxAge(loginResp); !found {
+		log.Fatal("plain login/complete set no session cookie")
+	} else if maxAge != "" {
+		log.Fatalf("plain login/complete cookie Max-Age = %q, want absent", maxAge)
+	}
+	log.Printf("  session cookie has no Max-Age (browser-session) ✓")
+
+	// ?remember=true → Max-Age ≈ rememberTTL (default 336h).
+	step("remember 1/1 — remembered login/complete sets Max-Age")
+	cRem, err := newClient(*baseURL)
+	if err != nil {
+		log.Fatalf("remember client: %v", err)
+	}
+	remAssertion, err := cRem.beginLogin()
+	if err != nil {
+		log.Fatalf("remember login/begin: %v", err)
+	}
+	remSigned, err := auth.signAssertion(remAssertion.Challenge, *baseURL)
+	if err != nil {
+		log.Fatalf("sign remember assertion: %v", err)
+	}
+	remResp, err := cRem.completeLoginRaw(auth, remSigned, "?remember=true")
+	if err != nil {
+		log.Fatalf("remember login/complete: %v", err)
+	}
+	_ = remResp.Body.Close()
+	if remResp.StatusCode != http.StatusOK {
+		log.Fatalf("remember login/complete: status %d", remResp.StatusCode)
+	}
+	maxAge, found := sessionCookieMaxAge(remResp)
+	if !found {
+		log.Fatal("remember login/complete set no session cookie")
+	}
+	if maxAge == "" {
+		log.Fatal("remember login/complete cookie has no Max-Age")
+	}
+	secs, err := strconv.Atoi(maxAge)
+	if err != nil {
+		log.Fatalf("remember Max-Age %q not numeric: %v", maxAge, err)
+	}
+	// Default rememberTTL is 336h; smoke keeps defaults. A generous lower
+	// bound avoids coupling smoke to the exact default — unit tests pin it.
+	if secs < int((7 * 24 * time.Hour).Seconds()) {
+		log.Fatalf("remember Max-Age = %ds, want ≥ 7d", secs)
+	}
+	if _, err := cRem.getMe(); err != nil {
+		log.Fatalf("remember /me: %v", err)
+	}
+	if err := cRem.logout(); err != nil {
+		log.Fatalf("remember logout: %v", err)
+	}
+	log.Printf("  remember login cookie Max-Age=%ds ✓", secs)
 
 	step(fmt.Sprintf("core %d/%d — GET /me (post-login)", 11, nCore))
 	me2, err := c.getMe()
@@ -6737,6 +6797,27 @@ func (c *client) completeLoginRaw(a *authenticator, sig *assertionResult, query 
 	return c.postJSONRaw("/api/prohibitorum/auth/login/complete"+query, loginAssertionPayload(a, sig))
 }
 
+// sessionCookieMaxAge reads the session cookie's Max-Age from a response's
+// Set-Cookie headers, matching plain and __Host- names. found is false when
+// no session cookie came back at all; value is "" when the cookie carries no
+// Max-Age (the not-remembered shape).
+func sessionCookieMaxAge(resp *http.Response) (value string, found bool) {
+	const nameSuffix = "prohibitorum_session="
+	for _, sc := range resp.Header.Values("Set-Cookie") {
+		if !strings.Contains(sc, nameSuffix) {
+			continue
+		}
+		for _, part := range strings.Split(sc, ";") {
+			part = strings.TrimSpace(part)
+			if v, ok := strings.CutPrefix(part, "Max-Age="); ok {
+				return v, true
+			}
+		}
+		return "", true
+	}
+	return "", false
+}
+
 // loginAssertionPayload is the PublicKeyCredential JSON a browser posts to
 // /auth/login/complete.
 func loginAssertionPayload(a *authenticator, sig *assertionResult) map[string]any {
@@ -8248,19 +8329,35 @@ func runPasswordTOTPEnrollmentSmoke(baseURL string) error {
 	var verify struct {
 		RecoveryCodes []string `json:"recoveryCodes"`
 	}
-	if err := ec.postEnrollmentJSON(token, "password-totp/verify", map[string]string{
+	verifyResp, err := ec.postJSONRaw("/api/prohibitorum/enrollments/"+url.PathEscape(token)+"/password-totp/verify", map[string]string{
 		"username":      username,
 		"displayName":   display,
 		"password":      password,
 		"secret_base32": secretBase32,
 		"code":          totppkg.ComputeCodeForTesting(secret, time.Now().Unix(), 6),
-	}, &verify); err != nil {
+	})
+	if err != nil {
 		return fmt.Errorf("password-totp/verify: %w", err)
+	}
+	verifyBody, _ := io.ReadAll(verifyResp.Body)
+	_ = verifyResp.Body.Close()
+	if verifyResp.StatusCode != http.StatusOK {
+		return fmt.Errorf("password-totp/verify: status %d", verifyResp.StatusCode)
+	}
+	if err := json.Unmarshal(verifyBody, &verify); err != nil {
+		return fmt.Errorf("password-totp/verify: invalid JSON response")
 	}
 	if len(verify.RecoveryCodes) != 10 {
 		return fmt.Errorf("recovery codes = %d, want 10", len(verify.RecoveryCodes))
 	}
-	log.Printf("  verify → session + %d recovery codes ✓", len(verify.RecoveryCodes))
+	// Enrollment offers no "keep me signed in", so its session cookie ends
+	// with the browser (PHB-78).
+	if maxAge, found := sessionCookieMaxAge(verifyResp); !found {
+		return fmt.Errorf("password-totp/verify: no session cookie")
+	} else if maxAge != "" {
+		return fmt.Errorf("password-totp/verify: session cookie Max-Age = %q, want absent", maxAge)
+	}
+	log.Printf("  verify → browser-session cookie (no Max-Age) + %d recovery codes ✓", len(verify.RecoveryCodes))
 
 	step("pwd-totp-enroll 4/6 — GET /me on the enrolled session → username/role")
 	me, err := ec.getMe()

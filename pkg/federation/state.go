@@ -17,11 +17,14 @@ const (
 )
 
 type FlowState struct {
-	ProviderID      int64           `json:"provider_id"`
-	ProviderSlug    string          `json:"provider_slug"`
-	Protocol        string          `json:"protocol"`
-	Intent          Intent          `json:"intent"`
-	ReturnTo        string          `json:"return_to"`
+	ProviderID   int64  `json:"provider_id"`
+	ProviderSlug string `json:"provider_slug"`
+	Protocol     string `json:"protocol"`
+	Intent       Intent `json:"intent"`
+	ReturnTo     string `json:"return_to"`
+	// Remember carries the login page's "keep me signed in" choice to the
+	// session issued at callback completion.
+	Remember        bool            `json:"remember,omitempty"`
 	BrowserDigest   string          `json:"browser_digest"`
 	LinkAccountID   *int32          `json:"link_account_id,omitempty"`
 	LinkSessionID   string          `json:"link_session_id,omitempty"`
@@ -138,9 +141,9 @@ func validateAdapterState(state json.RawMessage) error {
 	return nil
 }
 
-func FlowKey(token string) string { return "federation:flow:" + token }
+func FlowKey(token string) string     { return "federation:flow:" + token }
 func FlowLockKey(token string) string { return "federation:flow:" + token + ":lock" }
-func ConfirmKey(token string) string { return "federation:confirm:" + token }
+func ConfirmKey(token string) string  { return "federation:confirm:" + token }
 
 func BrowserDigest(token string) string {
 	digest := sha256.Sum256([]byte(token))
@@ -156,13 +159,16 @@ func BrowserBindingOK(expectedDigest, browserToken string) bool {
 }
 
 type ConfirmGrant struct {
-	AccountID      int32    `json:"account_id"`
-	IdentityID     int64    `json:"identity_id"`
-	ProviderID     int64    `json:"provider_id"`
-	ProviderSlug   string   `json:"provider_slug"`
-	ReturnTo       string   `json:"return_to"`
-	BrowserDigest  string   `json:"browser_digest"`
-	AMR            []string `json:"amr,omitempty"`
+	AccountID    int32  `json:"account_id"`
+	IdentityID   int64  `json:"identity_id"`
+	ProviderID   int64  `json:"provider_id"`
+	ProviderSlug string `json:"provider_slug"`
+	ReturnTo     string `json:"return_to"`
+	// Remember carries the login page's "keep me signed in" choice to the
+	// session issued when the grant is confirmed.
+	Remember      bool     `json:"remember,omitempty"`
+	BrowserDigest string   `json:"browser_digest"`
+	AMR           []string `json:"amr,omitempty"`
 	// OfferLocalSignin marks an account minted through an invite + provider:
 	// the confirm response then points /welcome at the one-time
 	// "add local sign-in" step instead of straight at return_to.
@@ -190,4 +196,3 @@ func DecodeConfirmGrant(raw string) (*ConfirmGrant, error) {
 	}
 	return &grant, nil
 }
-

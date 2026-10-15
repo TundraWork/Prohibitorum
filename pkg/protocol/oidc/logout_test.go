@@ -31,9 +31,9 @@ func (fakeSessionQueries) RevokeAllSessionsByAccount(context.Context, int32) err
 // its session ID so a test can mint an id_token_hint carrying that sid.
 func (h *endpointHarness) withSessions(t *testing.T) string {
 	t.Helper()
-	store := session.NewSessionStore(h.p.kv, fakeSessionQueries{}, time.Hour)
+	store := session.NewSessionStore(h.p.kv, fakeSessionQueries{}, time.Hour, time.Hour)
 	h.p.sessions = store
-	_, data, err := store.Issue(context.Background(), 7, "127.0.0.1", "test-agent", []string{"pwd"}, nil)
+	_, data, err := store.Issue(context.Background(), 7, "127.0.0.1", "test-agent", []string{"pwd"}, nil, false)
 	if err != nil {
 		t.Fatalf("issue session: %v", err)
 	}
