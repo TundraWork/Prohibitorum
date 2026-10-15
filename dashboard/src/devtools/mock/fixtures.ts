@@ -1075,14 +1075,19 @@ function identityProviders(config: MockConfig): IdentityProvider[] {
   const protocols: readonly string[] = ["oidc", "steam", "vrchat"];
   return range(config.admin.identityProviders).map((index) => {
     const protocol = protocols[index % protocols.length] ?? "oidc";
-    // Every third row is disabled, every fourth is not ready, and the two can
-    // coincide — the list shows "not ready" then, which is the precedence the
-    // cell documents.
+    // Every third row is disabled; every fourth is a public OIDC client when
+    // the protocol cycle lands one there and not ready otherwise, so a
+    // walkthrough sees both the amber dot and the public-client edit page.
     const disabled = index % 3 === 1;
-    const ready = index % 4 !== 3;
+    // The fourth row is the public OIDC client: a saved "none" method with no
+    // secret, which the server counts as ready, so it takes the place the
+    // every-fourth "not ready" row otherwise would.
+    const publicClient = protocol === "oidc" && index % 4 === 3;
+    const ready = publicClient || index % 4 !== 3;
     // For VRChat the "secret" is the operator session, so an even row has a
-    // checked session and an odd one has none, and both states can be seen.
-    const configured = index % 2 === 0;
+    // checked session and an odd one has none, and both states can be seen. A
+    // public client holds none by design.
+    const configured = !publicClient && index % 2 === 0;
     return {
       slug: `provider-${index + 1}`,
       displayName: `Example ${protocol.toUpperCase()} ${index + 1}`,
@@ -1115,11 +1120,16 @@ function identityProviders(config: MockConfig): IdentityProvider[] {
   });
 }
 
-/** A complete OIDC config for the rows that carry one, `{}` for the rest. */
+/**
+ * A complete OIDC config for the rows that carry one, `{}` for the rest. Every
+ * fourth row is a public client: it names no endpoints, because discovery is
+ * the mode that reports them, and no secret.
+ */
 function config0(protocol: string, index: number): unknown {
   if (protocol !== "oidc") return {};
   const issuer = `https://idp${index + 1}.example.test`;
-  const manual = index % 2 !== 0;
+  const publicClient = index % 4 === 3;
+  const manual = index % 2 !== 0 && !publicClient;
   return {
     issuerUrl: issuer,
     clientId: `client-${index + 1}`,
@@ -1132,9 +1142,9 @@ function config0(protocol: string, index: number): unknown {
     emailClaim: "email",
     pictureClaim: "picture",
     subjectClaim: "sub",
-    configurationMode: manual ? "manual" : "discovery",
     // A manual configuration names its endpoints and its token auth method,
     // as the server requires; a discovered one overrides nothing.
+    configurationMode: manual ? "manual" : "discovery",
     endpoints: manual
       ? {
           authorization: `${issuer}/authorize`,
@@ -1143,7 +1153,11 @@ function config0(protocol: string, index: number): unknown {
           jwks: `${issuer}/jwks`,
         }
       : { authorization: null, token: null, userinfo: null, jwks: null },
-    tokenAuthMethod: manual ? "client_secret_post" : "discovery",
+    tokenAuthMethod: publicClient
+      ? "none"
+      : manual
+        ? "client_secret_post"
+        : "discovery",
     pkceMethod: "S256",
   };
 }

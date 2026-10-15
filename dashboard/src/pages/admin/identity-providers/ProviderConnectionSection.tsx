@@ -7,7 +7,10 @@ import {
   readOidcProviderConfig,
 } from "@/api/federation";
 import type { components } from "@/api/generated/schema";
-import { updateIdentityProviderMutationOptions } from "@/api/mutations";
+import {
+  setIdentityProviderSecretQuietlyMutationOptions,
+  updateIdentityProviderMutationOptions,
+} from "@/api/mutations";
 import { identityProviderUpdateBody } from "@/api/update-bodies";
 import { ConsoleCard } from "@/components/custom/ConsoleCard";
 import { Section } from "@/components/custom/Section";
@@ -23,6 +26,7 @@ import {
 import {
   clientAuthMethodProblem,
   clientIdProblem,
+  clientSecretRequired,
   endpointProblems,
   endpointsBody,
   endpointsValue,
@@ -48,6 +52,13 @@ type Provider = components["schemas"]["IdentityProviderView"];
  * be the one the server could not reach. The PKCE method and the private-network
  * switch are not on this page; they are read from the saved configuration and
  * sent back as they are.
+ *
+ * The client secret is write-only, so it is asked for only when the chosen
+ * method sends one the provider does not hold: switching away from a public
+ * client draws the field, and saving sends it before the rest of the form. The
+ * server takes a secret on its own endpoint only and refuses a configuration
+ * that authenticates with a secret it does not have, so the pair cannot land
+ * in one request, or in the other order.
  */
 export function ProviderConnectionSection({
   provider,
@@ -59,6 +70,9 @@ export function ProviderConnectionSection({
   const update = useMutation(
     updateIdentityProviderMutationOptions(queryClient),
   );
+  const setSecret = useMutation(
+    setIdentityProviderSecretQuietlyMutationOptions(),
+  );
 
   const saved =
     readOidcProviderConfig(provider.config) ?? defaultOidcProviderConfig();
@@ -68,10 +82,32 @@ export function ProviderConnectionSection({
       issuerUrl: saved.issuerUrl,
       clientId: saved.clientId,
       tokenAuthMethod: saved.tokenAuthMethod as ClientAuthMethod,
+      clientSecret: "",
       scopes: tagListValue(saved.scopes),
       endpoints: endpointsValue(saved),
     },
     onSubmit: async ({ value }) => {
+      // The secret goes first, while the stored configuration still names the
+      // old method: the rotation endpoint checks the secret against it, and a
+      // public client accepts a secret being added ahead of the switch.
+      if (
+        clientAuthNeedsSecret(value.tokenAuthMethod) &&
+        !provider.secretConfigured
+      ) {
+        try {
+          await setSecret.mutateAsync({
+            slug: provider.slug,
+            secret: value.clientSecret,
+          });
+        } catch (error) {
+          if (isCancellation(error)) return;
+          applyServerError(form, error, {
+            codes: { bad_request: "clientSecret" },
+            locations: {},
+          });
+          return;
+        }
+      }
       try {
         await update.mutateAsync({
           slug: provider.slug,
@@ -168,20 +204,37 @@ export function ProviderConnectionSection({
                   ),
               }}
             >
-              {() => (
-                <ClientAuthMethodField
-                  isDiscoveryUnavailable={manual}
-                  secretHint={
-                    clientAuthNeedsSecret(method) &&
-                    !provider.secretConfigured ? (
-                      <Trans id="admin.federation.connection.secret-missing">
-                        No client secret is set yet. Set one in the danger zone.
-                      </Trans>
-                    ) : undefined
-                  }
-                />
-              )}
+              {() => <ClientAuthMethodField isDiscoveryUnavailable={manual} />}
             </form.AppField>
+
+            {clientAuthNeedsSecret(method) && !provider.secretConfigured && (
+              <form.AppField
+                name="clientSecret"
+                validators={{
+                  onSubmit: ({ value }) =>
+                    value.trim() === "" ? clientSecretRequired : undefined,
+                }}
+              >
+                {(field) => (
+                  <field.FormField
+                    label={
+                      <Trans id="admin.federation.new.secret">
+                        Client secret
+                      </Trans>
+                    }
+                    description={
+                      <Trans id="admin.federation.connection.secret.hint">
+                        The method chosen sends this to the provider; it is
+                        stored encrypted and never shown again.
+                      </Trans>
+                    }
+                    type="password"
+                    autoComplete="new-password"
+                    variant="secondary"
+                  />
+                )}
+              </form.AppField>
+            )}
 
             <form.AppField
               name="scopes"

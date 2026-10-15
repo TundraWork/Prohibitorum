@@ -347,6 +347,12 @@ export function clientIdProblem(value: string): MessageDescriptor | undefined {
   return undefined;
 }
 
+/** Why the connection form's client secret field cannot be left empty. */
+export const clientSecretRequired = msg({
+  id: "admin.federation.connection.secret.required",
+  message: "Enter the client secret.",
+});
+
 const authNeedsExplicit = msg({
   id: "admin.federation.auth.manual-needs-method",
   message: "With endpoints entered by hand, choose a specific method.",

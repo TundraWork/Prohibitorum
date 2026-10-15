@@ -35,13 +35,27 @@ export function apiError(code: string, status: number): Response {
 
 type Handler = (request: Request) => Response | Promise<Response>;
 
+/** One request `fakeApi` recorded, with its body already read. */
+export interface RecordedRequest {
+  method: string;
+  url: URL;
+  body: unknown;
+}
+
+/** What `fakeApi` hands back: the routes it answers, and what was sent. */
+export interface FakeApi {
+  routes: Record<string, Handler>;
+  /** The requests made to one path, in order. */
+  sent: (method: string, path: string) => RecordedRequest[];
+}
+
 /**
  * Stands in for the API: `"METHOD /path"` answers from the table, anything
  * else is a 404. Every request is kept, with its body already read, so a test
  * can say what was sent.
  */
-export function fakeApi(routes: Record<string, Handler>) {
-  const requests: { method: string; url: URL; body: unknown }[] = [];
+export function fakeApi(routes: Record<string, Handler>): FakeApi {
+  const requests: RecordedRequest[] = [];
   const fetch = vi.fn(async (request: Request) => {
     const url = new URL(request.url);
     const text = await request.clone().text();

@@ -1,5 +1,4 @@
 import { Trans } from "@lingui/react/macro";
-import type { ReactNode } from "react";
 import { OptionSelectField } from "@/components/custom/OptionSelectField";
 import {
   type ClientAuthMethod,
@@ -13,15 +12,13 @@ import {
  * "Use what discovery reports" has nothing to report when the endpoints are
  * entered by hand, and the server refuses it there, so it is disabled in that
  * mode. A saved value of it is not changed for the reader; the submit check
- * asks them to pick one instead. `secretHint` is the line under the field when
- * the method sends a secret the provider does not have yet.
+ * asks them to pick one instead. The client secret a method sends is entered
+ * in the field the connection form draws beside this one, not here.
  */
 export function ClientAuthMethodField({
   isDiscoveryUnavailable = false,
-  secretHint,
 }: {
   isDiscoveryUnavailable?: boolean;
-  secretHint?: ReactNode;
 }) {
   return (
     <OptionSelectField<ClientAuthMethod>
@@ -32,7 +29,6 @@ export function ClientAuthMethodField({
       }
       options={clientAuthMethods}
       disabledKeys={isDiscoveryUnavailable ? ["discovery"] : undefined}
-      description={secretHint}
     />
   );
 }

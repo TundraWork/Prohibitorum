@@ -1444,6 +1444,7 @@ msgstr "Client secret"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
+#: src/pages/admin/identity-providers/ProviderConnectionSection.tsx
 #: src/pages/admin/identity-providers/ProviderDangerSection.tsx
 msgid "admin.federation.new.secret"
 msgstr "Client secret"
@@ -2931,6 +2932,11 @@ msgid "admin.federation.new.secret.required"
 msgstr "Enter the client secret."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-validation.ts
+msgid "admin.federation.connection.secret.required"
+msgstr "Enter the client secret."
+
+#. js-lingui-explicit-id
 #: src/forms/password-totp-rules.ts
 msgid "security.totp.invalid"
 msgstr "Enter the code your authenticator shows, using only 0–9."
@@ -4254,11 +4260,6 @@ msgstr "No approved applications yet"
 #: src/pages/admin/saml-applications/SamlMetadataSection.tsx
 msgid "admin.saml-apps.keys.empty"
 msgstr "No certificates are published for this application."
-
-#. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderConnectionSection.tsx
-msgid "admin.federation.connection.secret-missing"
-msgstr "No client secret is set yet. Set one in the danger zone."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
@@ -6780,6 +6781,11 @@ msgstr "The log could not be loaded."
 #: src/pages/admin/AdminInvitationForm.tsx
 msgid "admin.invitations.new.groups.hint"
 msgstr "The manual groups the new account joins when it registers."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderConnectionSection.tsx
+msgid "admin.federation.connection.secret.hint"
+msgstr "The method chosen sends this to the provider; it is stored encrypted and never shown again."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-validation.ts

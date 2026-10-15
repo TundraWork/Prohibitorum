@@ -1444,6 +1444,7 @@ msgstr "客户密钥"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
+#: src/pages/admin/identity-providers/ProviderConnectionSection.tsx
 #: src/pages/admin/identity-providers/ProviderDangerSection.tsx
 msgid "admin.federation.new.secret"
 msgstr "客户端密钥"
@@ -2931,6 +2932,11 @@ msgid "admin.federation.new.secret.required"
 msgstr "请填写客户端密钥。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-validation.ts
+msgid "admin.federation.connection.secret.required"
+msgstr "请填写客户端密钥。"
+
+#. js-lingui-explicit-id
 #: src/forms/password-totp-rules.ts
 msgid "security.totp.invalid"
 msgstr "请输入身份验证器显示的验证码，只能包含 0–9。"
@@ -4254,11 +4260,6 @@ msgstr "还没有已批准的应用"
 #: src/pages/admin/saml-applications/SamlMetadataSection.tsx
 msgid "admin.saml-apps.keys.empty"
 msgstr "这个应用没有发布证书。"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderConnectionSection.tsx
-msgid "admin.federation.connection.secret-missing"
-msgstr "还没有设置客户端密钥，请在“危险操作”中设置。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
@@ -6780,6 +6781,11 @@ msgstr "无法加载日志。"
 #: src/pages/admin/AdminInvitationForm.tsx
 msgid "admin.invitations.new.groups.hint"
 msgstr "新账号注册后加入的手工用户组。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderConnectionSection.tsx
+msgid "admin.federation.connection.secret.hint"
+msgstr "所选的认证方式会把这个密钥发送给提供方；密钥加密存储，不会再次显示。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-validation.ts

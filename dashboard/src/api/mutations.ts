@@ -1510,6 +1510,22 @@ export function setIdentityProviderSecretMutationOptions(
     onSuccess: () => invalidateIdentityProviders(queryClient),
   });
 }
+/**
+ * The connection form's own secret write, chained before its save. It carries
+ * no success line and does not invalidate: the save that follows announces the
+ * whole submit and refetches the provider, and a second toast — or a refetch
+ * landing between the two writes — would read as two things having happened.
+ */
+export function setIdentityProviderSecretQuietlyMutationOptions() {
+  return mutationOptions({
+    retry: false,
+    mutationFn: async ({ slug, secret }: { slug: string; secret: string }) => {
+      await client.POST("/api/prohibitorum/identity-providers/rotate-secret", {
+        body: { slug, secret },
+      });
+    },
+  });
+}
 
 /**
  * No fixed `meta.success`: which line the reader gets depends on the direction
