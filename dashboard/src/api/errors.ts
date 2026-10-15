@@ -125,6 +125,11 @@ const errorMessages: Readonly<Record<string, MessageDescriptor>> = {
     message:
       "This access token can only be used for applications, not for the account.",
   }),
+  cross_origin_request: msg({
+    id: "error.cross_origin_request",
+    message:
+      "This request came from another website, so it was refused. Start again from a page on this site.",
+  }),
   pat_browser_session_required: msg({
     id: "error.pat_browser_session_required",
     message: "Sign in with a browser to do this. An access token cannot.",

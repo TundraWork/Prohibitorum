@@ -158,7 +158,7 @@ Access tokens are signed JWTs with `typ: at+jwt`; resource servers MUST reject a
 - Go RP: `github.com/zitadel/oidc/v3/pkg/client`. (Any conformant OIDC client library works.)
 - Node RP: `openid-client`.
 - Python RP: `authlib`.
-- Browser-only SPA: don't. Always have a thin back-end that holds the refresh token.
+- Browser SPA: supported. Use a **public client** (no secret) with PKCE; the OP's machine endpoints accept cross-origin requests from any origin (see "Browser apps and CORS" below). Keeping the refresh token in the browser is the app's own risk to carry — when a back-end exists, holding the refresh token there is still recommended.
 
 ### Discovery
 
@@ -167,6 +167,25 @@ GET /.well-known/openid-configuration
 ```
 
 Returns endpoint URLs, supported algorithms/scopes, and `authorization_response_iss_parameter_supported=true`. Your client library reads this once at startup and caches it.
+
+---
+
+### Browser apps and CORS
+
+The OP's machine endpoints are callable directly from JavaScript running on any origin. They never read the session cookie — every request carries its own credential (client credentials, PKCE, or bearer token) — so the responses are readable cross-origin without `Access-Control-Allow-Credentials`:
+
+| Endpoint | Methods | Preflight |
+|---|---|---|
+| `/.well-known/openid-configuration` | GET | 204 |
+| `/oauth/jwks` | GET | 204 |
+| `/oauth/token` | POST | 204 |
+| `/oauth/revoke` | POST | 204 |
+| `/oauth/introspect` | POST | 204 |
+| `/oauth/userinfo` | GET, POST | 204 |
+
+Actual responses (including errors and 429s) carry `Access-Control-Allow-Origin: *` and expose `WWW-Authenticate` and `Retry-After` to scripts. Preflights answer 204 with the endpoint's methods, `Authorization, Content-Type` as allowed headers, and `Max-Age: 600`. `/oauth/authorize` and `/oidc/logout` are full-page redirects and carry no CORS headers.
+
+The management API under `/api/prohibitorum` is **not** CORS-open: it authenticates by session cookie, so cross-origin writes are refused with `403 cross_origin_request` (see `api.md`). Pages on the Prohibitorum origin itself (and any configured `public_origin`) and non-browser clients (CLI, PAT, server-to-server) are unaffected; pages on other sites, including sibling subdomains, are refused.
 
 ---
 

@@ -67,7 +67,7 @@ const (
 	nFederation = 34
 	nOIDC       = 18
 	nSAML       = 14
-	nHardening  = 13
+	nHardening  = 14
 	nConsent    = 2
 	nAdmin      = 8
 	nPAT        = 8
@@ -3608,6 +3608,125 @@ func main() {
 		log.Fatalf("hardening SAML audit DB assert: %v", err)
 	}
 
+	step(fmt.Sprintf("hardening %d/%d — CORS: OPTIONS /oauth/token preflight → 204 with Allow-Origin *; cross-site POST /oauth/token (public client, bogus code) → 400 invalid_grant with Allow-Origin *; discovery carries Allow-Origin *; cross-site write to /api/prohibitorum → 403 cross_origin_request, same request without the header still reaches the API", 14, nHardening))
+	{
+		const spaOrigin = "https://spa.example.com"
+
+		// (1) Preflight for a browser SPA: OPTIONS /oauth/token.
+		pfReq, _ := http.NewRequest(http.MethodOptions, *baseURL+"/oauth/token", nil)
+		pfReq.Header.Set("Origin", spaOrigin)
+		pfReq.Header.Set("Access-Control-Request-Method", "POST")
+		pfReq.Header.Set("Access-Control-Request-Headers", "content-type")
+		pfResp, err := (&http.Client{Timeout: 10 * time.Second}).Do(pfReq)
+		if err != nil {
+			log.Fatalf("OPTIONS /oauth/token: %v", err)
+		}
+		pfBody, _ := io.ReadAll(pfResp.Body)
+		pfResp.Body.Close()
+		if pfResp.StatusCode != http.StatusNoContent {
+			log.Fatalf("OPTIONS /oauth/token: want 204, got %d (body=%s)", pfResp.StatusCode, firstN(string(pfBody), 200))
+		}
+		if ao := pfResp.Header.Get("Access-Control-Allow-Origin"); ao != "*" {
+			log.Fatalf("OPTIONS /oauth/token: Access-Control-Allow-Origin want *, got %q", ao)
+		}
+		if am := pfResp.Header.Get("Access-Control-Allow-Methods"); am != "POST" {
+			log.Fatalf("OPTIONS /oauth/token: Access-Control-Allow-Methods want POST, got %q", am)
+		}
+		log.Printf("  OPTIONS /oauth/token (Origin %s) → 204, Allow-Origin *, Allow-Methods POST ✓", spaOrigin)
+
+		// (2) Actual cross-site token request from the public client: the
+		// bypass lets it through and CORS headers ride the error response.
+		csReq, _ := http.NewRequest(http.MethodPost, *baseURL+"/oauth/token",
+			strings.NewReader(url.Values{
+				"grant_type":    {"authorization_code"},
+				"client_id":     {"smoke-rp-public"},
+				"code":          {"bogus-code-cross-origin"},
+				"redirect_uri":  {*baseURL + "/rp-public/callback"},
+				"code_verifier": {"not-the-verifier"},
+			}.Encode()))
+		csReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		csReq.Header.Set("Origin", spaOrigin)
+		csReq.Header.Set("Sec-Fetch-Site", "cross-site")
+		csResp, err := (&http.Client{Timeout: 10 * time.Second}).Do(csReq)
+		if err != nil {
+			log.Fatalf("cross-site POST /oauth/token: %v", err)
+		}
+		csBody, _ := io.ReadAll(csResp.Body)
+		csResp.Body.Close()
+		if csResp.StatusCode != http.StatusBadRequest {
+			log.Fatalf("cross-site POST /oauth/token: want 400 invalid_grant, got %d (body=%s)", csResp.StatusCode, firstN(string(csBody), 200))
+		}
+		if !strings.Contains(string(csBody), "invalid_grant") {
+			log.Fatalf("cross-site POST /oauth/token: want invalid_grant error, got %s", firstN(string(csBody), 200))
+		}
+		if ao := csResp.Header.Get("Access-Control-Allow-Origin"); ao != "*" {
+			log.Fatalf("cross-site POST /oauth/token: Access-Control-Allow-Origin want *, got %q", ao)
+		}
+		log.Printf("  cross-site POST /oauth/token → 400 invalid_grant with Allow-Origin * ✓")
+
+		// (3) Discovery is CORS-readable from any origin.
+		dcReq, _ := http.NewRequest(http.MethodGet, *baseURL+"/.well-known/openid-configuration", nil)
+		dcReq.Header.Set("Origin", spaOrigin)
+		dcResp, err := (&http.Client{Timeout: 10 * time.Second}).Do(dcReq)
+		if err != nil {
+			log.Fatalf("GET /.well-known/openid-configuration: %v", err)
+		}
+		dcResp.Body.Close()
+		if ao := dcResp.Header.Get("Access-Control-Allow-Origin"); ao != "*" {
+			log.Fatalf("GET discovery: Access-Control-Allow-Origin want *, got %q", ao)
+		}
+		log.Printf("  GET /.well-known/openid-configuration (Origin %s) → Allow-Origin * ✓", spaOrigin)
+
+		// (4) A cross-site write to the cookie-authenticated management API is
+		// refused before any session work, with the shared JSON error shape.
+		// PUT /me/avatar/selection re-applying the CURRENT selection is an
+		// idempotent write, so the no-header control run can repeat it safely.
+		mine, err := getMyAvatar(c)
+		if err != nil {
+			log.Fatalf("cross-site write probe: GET /me/avatar: %v", err)
+		}
+		selection := map[string]string{"source": mine.ActiveSource}
+		selBody, _ := json.Marshal(selection)
+		selectionURL, _ := url.Parse(*baseURL)
+		sendSelection := func(secFetchSite string) (*http.Response, string) {
+			req, _ := http.NewRequest(http.MethodPut, *baseURL+"/api/prohibitorum/me/avatar/selection", bytes.NewReader(selBody))
+			req.Header.Set("Content-Type", "application/json")
+			if secFetchSite != "" {
+				req.Header.Set("Sec-Fetch-Site", secFetchSite)
+			}
+			for _, ck := range c.jar.Cookies(selectionURL) {
+				if ck.Name == "prohibitorum_session" || ck.Name == "__Host-prohibitorum_session" {
+					req.AddCookie(ck)
+				}
+			}
+			resp, err := (&http.Client{Timeout: 10 * time.Second}).Do(req)
+			if err != nil {
+				log.Fatalf("PUT /me/avatar/selection (Sec-Fetch-Site=%q): %v", secFetchSite, err)
+			}
+			out, _ := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			return resp, string(out)
+		}
+		xoResp, xoBody := sendSelection("cross-site")
+		if xoResp.StatusCode != http.StatusForbidden || !strings.Contains(xoBody, "cross_origin_request") {
+			log.Fatalf("cross-site PUT /me/avatar/selection: want 403 cross_origin_request, got %d (body=%s)",
+				xoResp.StatusCode, firstN(xoBody, 200))
+		}
+		if xoResp.Header.Get("X-Request-ID") == "" {
+			log.Fatalf("cross-site PUT /me/avatar/selection: response missing X-Request-ID")
+		}
+		log.Printf("  cross-site PUT /api/prohibitorum/me/avatar/selection → 403 cross_origin_request (X-Request-ID present) ✓")
+
+		// The identical request without the fetch-metadata header (CLI/PAT
+		// shape) reaches the handler and gets its normal response.
+		okResp, okBody := sendSelection("")
+		if okResp.StatusCode >= 400 {
+			log.Fatalf("PUT /me/avatar/selection without Sec-Fetch-Site: want the handler's normal response, got %d (body=%s)",
+				okResp.StatusCode, firstN(okBody, 200))
+		}
+		log.Printf("  identical PUT /me/avatar/selection without Sec-Fetch-Site → reached the handler as before ✓")
+	}
+
 	// =========================================================================
 	// Login + Consent UI backend: the consent ticket round-trip and the public
 	// federation-providers list. A confidential client registered with
@@ -5660,7 +5779,7 @@ func main() {
 					"color":    "#1f6f8b",
 					"gradient": "lagoon",
 					"bing":     map[string]any{"market": "zh-CN", "showCaption": true},
-					"unsplash": map[string]any{"query": ""},
+					"unsplash": map[string]any{"query": "", "order": "random", "intervalSeconds": 10},
 					"images":   map[string]any{"order": order, "intervalSeconds": interval},
 				},
 				"card":         card,
@@ -6058,7 +6177,7 @@ func main() {
 	if err := smokeOIDCDiagnostics(c, *baseURL, opSrv); err != nil {
 		log.Fatalf("OIDC diagnostics: %v", err)
 	}
-	fmt.Println("✓ smoke OK — core (webauthn enroll/login + password/TOTP/recovery + sudo + throttle + destructive revoke) + federation (upstream OIDC login/link/unlink incl. invite_only) + oidc (OIDC OP code+PKCE flow: userinfo/introspect/refresh-rotation+reuse/revoke/logout) + saml (SAML IdP SSO/SLO + signed metadata + require_signed/bad-ACS/replay negatives) + hardening (forced re-auth / PKCE+introspect policy / NameIDPolicy / POST AuthnRequest / signed metadata / IdP-initiated) + consent (Login+Consent UI backend: consent ticket round-trip + federation-providers list) + admin (OIDC client CRUD reveal-once + signing-key generate→activate JWKS grace lifecycle + audit-events viewer + admin credential listing) + Tier-1 (PUT /me round-trip, GET /me/factors, admin sessions, SAML attr_map round-trip) + sudo-multiuse (single elevation covers multiple gated actions until expiry) + avatar (PUT /me/avatar upload, public GET /avatar/{sub} image/webp+ETag, /me.avatarUrl, userinfo.picture claim) + avatar-fed (federated first-login stores the picture before the redirect + upload takes effect until a pick + same-URL re-login skips the download + new URL downloads again + GET /me/avatar listing + dual-source selection/previews + avatar_source_unavailable negative + link stores the picture) + delegated-access (admin assigns one active account; cross-app/config denials; app-bound manual + OR rule groups; manual deny/allow precedence; live avatar eligibility; three exposed OIDC group claims; refresh eligibility re-check and family revocation; assignment/policy audit lifecycle) + error-redirect (federation access_denied + SAML malformed request → 302 /error) + pat (Personal Access Token access levels: selected_apps → only its apps at the gateway, API 403 pat_api_not_allowed; all_apps → any app; full → management API as owner incl. ordinary admin routes (diagnostic lookup 404), sudo routes (create/revoke own PAT) 401 sudo_required, browser-only routes 403; sudo → creates PATs without a browser sudo step; bad header → 401 pat_invalid without cookie fallback; no Remote-Scopes header; admin GET /accounts/{id}/tokens lists access + apps; DB access/app rows; pat_id on audit events; revoked PAT → 401) + maintenance (admin enables maintenance via PUT without sudo → public /config maintenanceMode+message round-trip; admin stays exempt /me 200; disable restores; non-admin dashboard+gateway blocking unit-tested) + client-ip (admin PUT header strategy + GET round-trip; invalid CIDR rejected 400; reset to direct) + login-appearance (admin POSTs two sign-in images without sudo → public GET /branding/login-images/{id} byte-for-byte verbatim, /config lists them in order; PUT appearance images/carousel/15s + card left + always dark round-trips through /config and the admin GET; unknown field → 400; unsplash without key → unsplash_key_required; DELETE image → 404) + steam (Steam OpenID 2.0 login arc: admin create protocol=steam provider; mock Steam OP redirect; callback → /welcome confirm → session; DB account+identity rows) + audit-remediation (new event types: webauthn:use, session:session_start/end, webauthn:sudo_granted, settings:update, PAT register/revoke/fail; ctx-carried IP non-empty on session_start events) + pwd-totp-enroll (password+TOTP enrollment ceremony: plain-invite begin→verify sets password+confirmed-TOTP+10 recovery codes and issues a session, password→TOTP login works, bootstrap rejects password+TOTP as passkey-only) + DB-state assertions passed against",
+	fmt.Println("✓ smoke OK — core (webauthn enroll/login + password/TOTP/recovery + sudo + throttle + destructive revoke) + federation (upstream OIDC login/link/unlink incl. invite_only) + oidc (OIDC OP code+PKCE flow: userinfo/introspect/refresh-rotation+reuse/revoke/logout) + saml (SAML IdP SSO/SLO + signed metadata + require_signed/bad-ACS/replay negatives) + hardening (forced re-auth / PKCE+introspect policy / NameIDPolicy / POST AuthnRequest / signed metadata / IdP-initiated / OP machine-endpoint CORS + cross-origin management-write refusal) + consent (Login+Consent UI backend: consent ticket round-trip + federation-providers list) + admin (OIDC client CRUD reveal-once + signing-key generate→activate JWKS grace lifecycle + audit-events viewer + admin credential listing) + Tier-1 (PUT /me round-trip, GET /me/factors, admin sessions, SAML attr_map round-trip) + sudo-multiuse (single elevation covers multiple gated actions until expiry) + avatar (PUT /me/avatar upload, public GET /avatar/{sub} image/webp+ETag, /me.avatarUrl, userinfo.picture claim) + avatar-fed (federated first-login stores the picture before the redirect + upload takes effect until a pick + same-URL re-login skips the download + new URL downloads again + GET /me/avatar listing + dual-source selection/previews + avatar_source_unavailable negative + link stores the picture) + delegated-access (admin assigns one active account; cross-app/config denials; app-bound manual + OR rule groups; manual deny/allow precedence; live avatar eligibility; three exposed OIDC group claims; refresh eligibility re-check and family revocation; assignment/policy audit lifecycle) + error-redirect (federation access_denied + SAML malformed request → 302 /error) + pat (Personal Access Token access levels: selected_apps → only its apps at the gateway, API 403 pat_api_not_allowed; all_apps → any app; full → management API as owner incl. ordinary admin routes (diagnostic lookup 404), sudo routes (create/revoke own PAT) 401 sudo_required, browser-only routes 403; sudo → creates PATs without a browser sudo step; bad header → 401 pat_invalid without cookie fallback; no Remote-Scopes header; admin GET /accounts/{id}/tokens lists access + apps; DB access/app rows; pat_id on audit events; revoked PAT → 401) + maintenance (admin enables maintenance via PUT without sudo → public /config maintenanceMode+message round-trip; admin stays exempt /me 200; disable restores; non-admin dashboard+gateway blocking unit-tested) + client-ip (admin PUT header strategy + GET round-trip; invalid CIDR rejected 400; reset to direct) + login-appearance (admin POSTs two sign-in images without sudo → public GET /branding/login-images/{id} byte-for-byte verbatim, /config lists them in order; PUT appearance images/carousel/15s + card left + always dark round-trips through /config and the admin GET; unknown field → 400; unsplash without key → unsplash_key_required; DELETE image → 404) + steam (Steam OpenID 2.0 login arc: admin create protocol=steam provider; mock Steam OP redirect; callback → /welcome confirm → session; DB account+identity rows) + audit-remediation (new event types: webauthn:use, session:session_start/end, webauthn:sudo_granted, settings:update, PAT register/revoke/fail; ctx-carried IP non-empty on session_start events) + pwd-totp-enroll (password+TOTP enrollment ceremony: plain-invite begin→verify sets password+confirmed-TOTP+10 recovery codes and issues a session, password→TOTP login works, bootstrap rejects password+TOTP as passkey-only) + DB-state assertions passed against",
 		*baseURL)
 	fmt.Println("  VRChat: fixed link_only operator setup + browser-bound profile proof, sessionless federated registration, recovery that names its account, with passkey replacement/session revocation, authenticated linking, filtering, safe negative paths, and secret non-disclosure ✓")
 }

@@ -7275,6 +7275,11 @@ msgstr "该提供商尚未就绪。请先完成凭据设置，再启用它。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
+msgid "error.cross_origin_request"
+msgstr "该请求来自其他网站，已被拒绝。请从本站页面重新操作。"
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
 msgid "error.not_admin"
 msgstr "需要管理员权限。"
 

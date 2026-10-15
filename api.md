@@ -405,6 +405,18 @@ Public routes and the OIDC/SAML protocol endpoints never see the PAT principal. 
 
 The verify endpoint no longer emits `Remote-Scopes`.
 
+### Cross-origin write requests
+
+Every non-safe-method request to the site is checked by the global
+cross-origin protection middleware: requests whose `Sec-Fetch-Site` (or, for
+older browsers, `Origin`) marks them as coming from another site are refused
+with `403 {"code":"cross_origin_request"}` before any session or body
+processing. Requests without either header — CLI, PAT, and server-to-server
+callers — are unaffected, and each configured `public_origin` is accepted as
+a trusted origin. The machine endpoints that intentionally accept cross-site
+POSTs (`/oauth/token`, `/oauth/revoke`, `/oauth/introspect`,
+`/oauth/userinfo`, `/saml/sso`, `/saml/slo`) are exempt.
+
 ---
 
 ## Personal access tokens (admin oversight)
@@ -513,7 +525,7 @@ Migration 038 fills existing OIDC configs with discovery mode, null endpoint ove
 
 ### Administrator OIDC diagnostics
 
-These OIDC-only endpoints require the original administrator session, except for the browser callback. Responses use no-store. POSTs require an empty body and same-origin requests.
+These OIDC-only endpoints require the original administrator session, except for the browser callback. Responses use no-store. POSTs require an empty body; cross-origin writes are refused by the global protection described above.
 
 | Method | Path | Behavior |
 |---|---|---|

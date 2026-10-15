@@ -42,24 +42,6 @@ func TestOIDCDiagnosticRoutesRejectNonAdmins(t *testing.T) {
 	}
 }
 
-func TestOIDCDiagnosticPOSTRejectsCrossOrigin(t *testing.T) {
-	for _, suffix := range []string{"/tests", "/tests/id/complete"} {
-		router := chi.NewRouter()
-		s := &Server{router: router}
-		s.api = humachi.New(router, humaConfig())
-		s.registerOperations()
-		req := httptest.NewRequest("POST", "https://rp.example/api/prohibitorum/identity-providers/corp"+suffix, nil)
-		req.Header.Set("Origin", "https://attacker.example")
-		req.Header.Set("Sec-Fetch-Site", "cross-site")
-		req = req.WithContext(authn.WithSession(req.Context(), &authn.Session{Account: &db.Account{ID: 7, Role: "admin"}, Data: &authn.SessionData{AccountID: 7, SessionID: "session"}}))
-		rec := httptest.NewRecorder()
-		router.ServeHTTP(rec, req)
-		if rec.Code != 403 {
-			t.Fatalf("cross-origin %s status=%d", suffix, rec.Code)
-		}
-	}
-}
-
 func TestOIDCDiagnosticHandlersRoundTripWithoutAccountsOrSessions(t *testing.T) {
 	op, err := mockop.New("")
 	if err != nil {

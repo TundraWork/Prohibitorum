@@ -22,11 +22,6 @@ import (
 
 const oidcTestCookieName = "prohibitorum_oidc_test"
 
-func diagnosticSameOrigin(handler http.HandlerFunc) http.HandlerFunc {
-	protection := http.NewCrossOriginProtection()
-	return protection.Handler(handler).ServeHTTP
-}
-
 func (s *Server) oidcDiagnostics() *federationoidc.Diagnostics {
 	return federationoidc.NewDiagnostics(s.kvStore, federation.NewSecretStore(s.config.DataEncryptionKeys))
 }

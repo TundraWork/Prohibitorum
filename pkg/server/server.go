@@ -45,7 +45,6 @@ import (
 	samlidp "prohibitorum/pkg/protocol/saml"
 	sessstore "prohibitorum/pkg/session"
 	"prohibitorum/pkg/wallpaper"
-	"prohibitorum/pkg/weberr"
 	"prohibitorum/pkg/webui"
 )
 
@@ -286,9 +285,12 @@ func NewServer(ctx context.Context) (*Server, error) {
 
 	router := chi.NewMux()
 	// Request ID middleware runs first so every response — including auth
-	// rejections and maintenance-gate 503s — carries a server-generated
-	// X-Request-ID. Inbound values are never trusted as the server ID.
-	router.Use(weberr.RequestID)
+	// rejections, cross-origin 403s, and maintenance-gate 503s — carries a
+	// server-generated X-Request-ID. Inbound values are never trusted as the
+	// server ID. Cross-origin write protection runs next: a rejected request
+	// carries the request ID but never reaches session loading or body
+	// processing.
+	installRequestGuardChain(router, config.PublicOrigins)
 	router.Use(requestMetaMW(clientIPResolver.IP))
 	router.Use(sessstore.LoadSession(config, queries, sessionStore, clientIPResolver.IP))
 	router.Use(diagnosticCaptureMW(diagStore))
@@ -394,16 +396,33 @@ func NewServer(ctx context.Context) (*Server, error) {
 	return s, nil
 }
 
-// NewHuma returns a bare huma.API for the openapi subcommand to emit specs
-// without running migrations / connecting to the DB.
-func NewHuma() huma.API {
+// newRouteTable builds the shared route-table skeleton: the request guard
+// chain (RequestID, then cross-origin write protection), a huma API over a
+// fresh chi.Mux, and every registered operation. NewHuma uses it for spec
+// emission and the route-wiring test uses it to assert the production
+// ordering, so the two cannot drift. NewServer keeps its longer serving
+// chain (request metadata, session, PAT, maintenance) but installs the same
+// guard prefix via installRequestGuardChain.
+func newRouteTable(publicOrigins []string, oidcQueries db.Querier) (*chi.Mux, *Server) {
 	router := chi.NewMux()
+	installRequestGuardChain(router, publicOrigins)
 	s := &Server{
-		router: router,
-		api:    humachi.New(router, humaConfig()),
+		router:      router,
+		api:         humachi.New(router, humaConfig()),
+		rateLimiter: authn.NewRateLimiter(),
+	}
+	if oidcQueries != nil {
+		s.oidcOP = oidcop.New(&configx.Config{}, oidcQueries, kv.NewMemoryStore(), nil, nil, s.rateLimiter, func(*http.Request) string { return "" }, nil)
 	}
 	registerSecurityScheme(s.api, sessstore.SessionCookieName)
 	s.registerOperations()
+	return router, s
+}
+
+// NewHuma returns a bare huma.API for the openapi subcommand to emit specs
+// without running migrations / connecting to the DB.
+func NewHuma() huma.API {
+	_, s := newRouteTable(nil, nil)
 	return s.api
 }
 
@@ -747,9 +766,9 @@ func (s *Server) registerOperations() {
 	registerOp(mgmt, contract.OperationListIdentityProviders, s.handleListIdentityProviders, admin)
 	registerOp(mgmt, contract.OperationGetIdentityProvider, s.handleGetIdentityProvider, admin)
 	registerOpHTTP(s.router, "GET", "/api/prohibitorum/identity-providers/{slug}/effective-config", admin, s.handleOIDCEffectiveConfigHTTP)
-	s.registerAdminBodyOpHTTP(s.router, "POST", "/api/prohibitorum/identity-providers/{slug}/tests", adminBrowserReq, diagnosticSameOrigin(s.handleOIDCTestStartHTTP))
+	s.registerAdminBodyOpHTTP(s.router, "POST", "/api/prohibitorum/identity-providers/{slug}/tests", adminBrowserReq, s.handleOIDCTestStartHTTP)
 	registerOpHTTP(s.router, "GET", "/api/prohibitorum/identity-providers/{slug}/tests/{id}", adminBrowserReq, s.handleOIDCTestGetHTTP)
-	s.registerAdminBodyOpHTTP(s.router, "POST", "/api/prohibitorum/identity-providers/{slug}/tests/{id}/complete", adminBrowserReq, diagnosticSameOrigin(s.handleOIDCTestCompleteHTTP))
+	s.registerAdminBodyOpHTTP(s.router, "POST", "/api/prohibitorum/identity-providers/{slug}/tests/{id}/complete", adminBrowserReq, s.handleOIDCTestCompleteHTTP)
 	s.registerAdminBodyOpHTTP(s.router, "POST", "/api/prohibitorum/identity-providers", admin, s.handleCreateIdentityProviderHTTP)
 	s.registerAdminBodyOpHTTP(s.router, "PUT", "/api/prohibitorum/identity-providers/{slug}", admin, s.handleUpdateIdentityProviderHTTP)
 	s.registerAdminBodyOpHTTP(s.router, "POST", "/api/prohibitorum/identity-providers/rotate-secret", admin, s.handleRotateIdentityProviderSecretHTTP)
@@ -795,14 +814,26 @@ func (s *Server) registerOperations() {
 	// the router) so that authn.SessionFromContext works inside the handler.
 	// Token, userinfo (GET+POST per OIDC spec), introspect, revoke, and
 	// logout are public endpoints that perform their own bearer/client auth.
-	s.router.Get("/.well-known/openid-configuration", s.oidcOP.HandleDiscovery)
-	s.router.Get("/oauth/jwks", s.oidcOP.HandleJWKS)
+	// The machine endpoints (discovery, JWKS, token, revoke, introspect,
+	// userinfo) never read the session cookie — each authenticates via client
+	// credentials, PKCE, or a bearer token carried in the request — so they
+	// carry permissive CORS headers for browser apps and answer preflights.
+	// Authorize, logout, forward-auth and SAML are full-page browser
+	// redirects/form posts, not fetch targets, and stay without CORS.
+	s.router.Get("/.well-known/openid-configuration", oidcop.CORS(s.oidcOP.HandleDiscovery))
+	s.router.Options("/.well-known/openid-configuration", oidcop.Preflight("GET"))
+	s.router.Get("/oauth/jwks", oidcop.CORS(s.oidcOP.HandleJWKS))
+	s.router.Options("/oauth/jwks", oidcop.Preflight("GET"))
 	s.router.Get("/oauth/authorize", s.oidcOP.HandleAuthorize)
-	s.router.Post("/oauth/token", s.oidcOP.HandleToken)
-	s.router.Get("/oauth/userinfo", s.oidcOP.HandleUserinfo)
-	s.router.Post("/oauth/userinfo", s.oidcOP.HandleUserinfo)
-	s.router.Post("/oauth/introspect", s.oidcOP.HandleIntrospect)
-	s.router.Post("/oauth/revoke", s.oidcOP.HandleRevoke)
+	s.router.Post("/oauth/token", oidcop.CORS(s.oidcOP.HandleToken))
+	s.router.Options("/oauth/token", oidcop.Preflight("POST"))
+	s.router.Get("/oauth/userinfo", oidcop.CORS(s.oidcOP.HandleUserinfo))
+	s.router.Post("/oauth/userinfo", oidcop.CORS(s.oidcOP.HandleUserinfo))
+	s.router.Options("/oauth/userinfo", oidcop.Preflight("GET, POST"))
+	s.router.Post("/oauth/introspect", oidcop.CORS(s.oidcOP.HandleIntrospect))
+	s.router.Options("/oauth/introspect", oidcop.Preflight("POST"))
+	s.router.Post("/oauth/revoke", oidcop.CORS(s.oidcOP.HandleRevoke))
+	s.router.Options("/oauth/revoke", oidcop.Preflight("POST"))
 	s.router.Get("/oidc/logout", s.oidcOP.HandleLogout)
 	s.router.Get("/saml/metadata", s.samlIdP.HandleMetadata)
 	// SSO-in accepts both bindings — HandleSSO/parseAuthnRequest dispatches on

@@ -7275,6 +7275,11 @@ msgstr "This provider is not ready yet. Finish setting up its credentials before
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
+msgid "error.cross_origin_request"
+msgstr "This request came from another website, so it was refused. Start again from a page on this site."
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
 msgid "error.not_admin"
 msgstr "This requires an administrator."
 

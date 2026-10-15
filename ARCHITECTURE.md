@@ -185,6 +185,7 @@ Authorization Code + PKCE only. Implicit / ROPC / Hybrid are not registered as a
 - **Authorization codes:** atomically consumed and kept as a replay marker for their TTL. Replay revokes the refresh-token family minted by that code and writes a `credential_event` with `event=fail`, `factor=oidc_client`, and `reason=code_replay` (RFC 9700 §4.5, §4.14.2).
 - **Revocation (RFC 7009):** writes to `revoked_jti` for self-contained access tokens; `/oauth/introspect` returns `active: false`.
 - **RP-Initiated Logout:** `post_logout_redirect_uri` exact-matched against `oidc_client.post_logout_redirect_uris`.
+- **Browser-facing machine endpoints and cross-origin policy:** discovery, JWKS, token, revoke, introspect, and userinfo never read the session cookie (each request carries client credentials, PKCE, or a bearer token), so their responses are CORS-open to any origin without `Access-Control-Allow-Credentials`. Every other non-safe-method request to the site passes a global `http.CrossOriginProtection` middleware (after request-ID assignment, before session loading): cross-site writes are refused with `403 cross_origin_request`, each configured `public_origin` is trusted, and the cookie-free `/oauth/*` machine endpoints plus the SAML POST-binding endpoints are exempt.
 
 ### SAML IdP
 

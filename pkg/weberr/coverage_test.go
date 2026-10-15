@@ -102,6 +102,7 @@ func TestAuthErrToHumaProducesPublicError(t *testing.T) {
 		{"sudo_required", authn.ErrSudoRequired(), "sudo_required"},
 		{"pat_invalid", authn.ErrPATInvalid(), "pat_invalid"},
 		{"pat_api_not_allowed", authn.ErrPATAPINotAllowed(), "pat_api_not_allowed"},
+		{"cross_origin_request", authn.ErrCrossOriginRequest(), "cross_origin_request"},
 		{"pat_browser_session_required", authn.ErrPATBrowserSessionRequired(), "pat_browser_session_required"},
 		{"last_admin", authn.ErrLastAdmin(), "last_admin"},
 		{"bad_request", authn.ErrBadRequest(), "bad_request"},

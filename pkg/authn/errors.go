@@ -65,6 +65,7 @@ func init() {
 		{Code: "factor_locked", Status: http.StatusTooManyRequests, LocaleKey: "errors.factor_locked", DiagnosticKind: "throttle", Retryable: true, Recovery: "retry", DetailKeys: map[string]struct{}{"retryAfterSeconds": {}}},
 		{Code: "pat_invalid", Status: http.StatusUnauthorized, LocaleKey: "errors.pat_invalid", DiagnosticKind: "auth"},
 		{Code: "pat_api_not_allowed", Status: http.StatusForbidden, LocaleKey: "errors.pat_api_not_allowed", DiagnosticKind: "auth"},
+		{Code: "cross_origin_request", Status: http.StatusForbidden, LocaleKey: "errors.cross_origin_request", DiagnosticKind: "auth"},
 		{Code: "pat_browser_session_required", Status: http.StatusForbidden, LocaleKey: "errors.pat_browser_session_required", DiagnosticKind: "auth"},
 		{Code: "sudo_required", Status: http.StatusUnauthorized, LocaleKey: "errors.sudo_required", DiagnosticKind: "auth", Recovery: "reauth"},
 		{Code: "sudo_method_unavailable", Status: http.StatusBadRequest, LocaleKey: "errors.sudo_method_unavailable", DiagnosticKind: "auth"},
@@ -472,6 +473,13 @@ func ErrPATInvalid() *AuthError {
 // applications calls the management API.
 func ErrPATAPINotAllowed() *AuthError {
 	return newErr(http.StatusForbidden, "pat_api_not_allowed", "该访问令牌不能用于账户 API")
+}
+
+// ErrCrossOriginRequest is returned by the global cross-origin protection
+// middleware when a non-safe-method request arrives from another site — the
+// session-cookie-writing management API is same-origin only.
+func ErrCrossOriginRequest() *AuthError {
+	return newErr(http.StatusForbidden, "cross_origin_request", "该请求来自其他网站，已被拒绝。请从本站页面重新操作。")
 }
 
 // ErrPATBrowserSessionRequired is returned when a PAT calls a route that needs
