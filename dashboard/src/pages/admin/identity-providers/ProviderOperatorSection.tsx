@@ -138,9 +138,11 @@ export function ProviderOperatorSection({ provider }: { provider: Provider }) {
 
       {/* The sign-in is a dialog rather than a section of its own: it is a
           two-step exchange with another service, and leaving it open on the page
-          would invite filling in a password and walking away. */}
+          would invite filling in a password and walking away. It closes only
+          through its own controls: the exchange hides a half-finished login
+          behind one stray backdrop click, and a stray Escape is as easy. */}
       <Modal isOpen={signingIn} onOpenChange={(open) => !open && closeSignIn()}>
-        <Modal.Backdrop>
+        <Modal.Backdrop isDismissable={false} isKeyboardDismissDisabled>
           <Modal.Container placement="center" size="md">
             <Modal.Dialog>
               <Modal.Header>
