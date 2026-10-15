@@ -65,7 +65,7 @@ func (s *Server) handleFederationLoginHTTP(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	req, err := s.federationService.BeginPublic(r.Context(), slug, returnTo, r.URL.Query().Get("remember") == "true")
+	req, err := s.federationService.BeginPublic(r.Context(), slug, returnTo, rememberRequested(r))
 	if err != nil {
 		// returnTo is validated + same-origin — forward it so the /error
 		// "go back" link can resume where the user started.

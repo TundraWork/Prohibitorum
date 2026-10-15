@@ -258,9 +258,9 @@ it("carries the current keep-me-signed-in choice when autofill completes", async
     "/login/begin?mediation=conditional",
     "/login/complete?mediation=conditional",
   ]);
-  const complete = fetchBoundary.mock.calls[1]?.[0];
+  const complete = fetchBoundary.mock.calls[1]?.[0]?.url;
   expect(complete).toBeDefined();
-  expect(new URL(complete!.url).searchParams.get("remember")).toBeNull();
+  expect(new URL(complete ?? "").searchParams.get("remember")).toBeNull();
 });
 
 it("sends remember=true from autofill while the box stays checked", async () => {
@@ -269,10 +269,38 @@ it("sends remember=true from autofill while the box stays checked", async () => 
   expect(
     await screen.findByRole("heading", { name: "Destination" }),
   ).toBeVisible();
-  const complete = fetchBoundary.mock.calls[1]?.[0];
+  const complete = fetchBoundary.mock.calls[1]?.[0]?.url;
   expect(complete).toBeDefined();
-  expect(new URL(complete!.url).searchParams.get("remember")).toBe("true");
+  expect(new URL(complete ?? "").searchParams.get("remember")).toBe("true");
 });
+
+it.each([
+  { uncheck: false, remember: "true" },
+  { uncheck: true, remember: null },
+])(
+  "sends the keep-me-signed-in choice from the passkey button (unchecked: $uncheck)",
+  async ({ uncheck, remember }) => {
+    browser({ modal: async () => picked });
+    const user = userEvent.setup();
+    mount();
+    await waitFor(() => expect(startAuthentication).toHaveBeenCalledTimes(1));
+    if (uncheck)
+      await user.click(
+        screen.getByRole("checkbox", { name: "Keep me signed in" }),
+      );
+    await user.click(
+      screen.getByRole("button", { name: "Sign in with a passkey" }),
+    );
+    expect(
+      await screen.findByRole("heading", { name: "Destination" }),
+    ).toBeVisible();
+    const complete = fetchBoundary.mock.calls
+      .map(([request]) => new URL(request.url))
+      .find((url) => url.pathname.endsWith("/auth/login/complete"));
+    expect(complete?.searchParams.get("mediation")).toBeNull();
+    expect(complete?.searchParams.get("remember")).toBe(remember);
+  },
+);
 
 it("reports a failed completion like the passkey button, then offers autofill again", async () => {
   completeAnswer = () =>

@@ -820,6 +820,32 @@ func TestFederatedRegistrationCompletionCommitsAccountCredentialIdentityAndSessi
 	}
 }
 
+// Enrollment has no "keep me signed in" choice, so the session it issues
+// lives only as long as the browser does.
+func TestEnrollmentCompletionIssuesBrowserSessionCookie(t *testing.T) {
+	e := federatedRegistrationEnrollment("complete-session-cookie")
+	s, _ := newAtomicVRChatEnrollmentServer(t, e, nil)
+	beginFederatedRegistration(t, s, e, "local-cookie", "Local Cookie")
+
+	w := httptest.NewRecorder()
+	s.handleEnrollmentCompleteHTTP(w, completeEnrollmentRequest(e.Token))
+	if w.Code != http.StatusOK {
+		t.Fatalf("complete status = %d body=%s", w.Code, w.Body.String())
+	}
+	var session *http.Cookie
+	for _, c := range w.Result().Cookies() {
+		if strings.HasSuffix(c.Name, "prohibitorum_session") {
+			session = c
+		}
+	}
+	if session == nil {
+		t.Fatalf("no session cookie in %q", w.Header().Values("Set-Cookie"))
+	}
+	if session.MaxAge != 0 || strings.Contains(session.Raw, "Max-Age") {
+		t.Fatalf("enrollment session cookie = %q, want no Max-Age", session.Raw)
+	}
+}
+
 func TestFederatedRegistrationCompletionRollsBackConflictsProviderChangesAndBadStash(t *testing.T) {
 	tests := map[string]struct {
 		mutate   func(*testing.T, *Server, *vrchatEnrollmentQueries, db.Enrollment)

@@ -240,11 +240,11 @@ type serviceDefinition struct {
 	ready bool
 }
 
-func (serviceDefinition) Protocol() string                     { return "fake" }
-func (serviceDefinition) Descriptor() Descriptor               { return descriptor("fake") }
-func (serviceDefinition) ValidateConfig(json.RawMessage) error { return nil }
-func (serviceDefinition) ValidateSecret(json.RawMessage, []byte) error          { return nil }
-func (d serviceDefinition) Ready(Provider) bool                { return d.ready }
+func (serviceDefinition) Protocol() string                             { return "fake" }
+func (serviceDefinition) Descriptor() Descriptor                       { return descriptor("fake") }
+func (serviceDefinition) ValidateConfig(json.RawMessage) error         { return nil }
+func (serviceDefinition) ValidateSecret(json.RawMessage, []byte) error { return nil }
+func (d serviceDefinition) Ready(Provider) bool                        { return d.ready }
 
 func newServiceHarness(t *testing.T) (*Service, *serviceFakeAdapter, *serviceFakeResolver, kv.Store) {
 	t.Helper()
@@ -532,7 +532,7 @@ func TestServiceBeginPublicRememberReachesCompletion(t *testing.T) {
 
 func TestServiceBeginLinkAndInviteNeverRemember(t *testing.T) {
 	for _, tc := range []struct {
-		name string
+		name  string
 		begin func(*Service, string) error
 	}{
 		{"link", func(s *Service, slug string) error {

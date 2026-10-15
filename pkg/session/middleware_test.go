@@ -128,7 +128,7 @@ func TestSessionCookie_RemembersMaxAge(t *testing.T) {
 
 	remembered := store.SessionCookie(devCfg(), r, 42, "tok", &authn.SessionData{Remember: true})
 	if remembered.MaxAge != int((24 * time.Hour).Seconds()) {
-		t.Errorf("remembered MaxAge = %d, want %d", remembered.MaxAge, int((24*time.Hour).Seconds()))
+		t.Errorf("remembered MaxAge = %d, want %d", remembered.MaxAge, int((24 * time.Hour).Seconds()))
 	}
 	if s := remembered.String(); !strings.Contains(s, "Max-Age=86400") {
 		t.Errorf("remembered Set-Cookie %q missing Max-Age", s)

@@ -628,9 +628,9 @@ func TestTOTPVerify_Success(t *testing.T) {
 // ttl = SessionTTL and rememberTTL = 24h.
 func TestTOTPVerify_RememberCookieMaxAge(t *testing.T) {
 	cases := []struct {
-		name        string
-		remember    bool
-		wantMaxAge  int
+		name       string
+		remember   bool
+		wantMaxAge int
 	}{
 		{"remembered", true, int((24 * time.Hour).Seconds())},
 		{"not remembered", false, 0},

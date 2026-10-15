@@ -196,6 +196,9 @@ func main() {
 		log.Fatalf("login/complete: %v", err)
 	}
 	_ = loginResp.Body.Close()
+	if loginResp.StatusCode != http.StatusOK {
+		log.Fatalf("login/complete: status %d", loginResp.StatusCode)
+	}
 	log.Printf("  session cookie restored")
 
 	// Remember-me (PHB-78): no remember flag → the session cookie carries
@@ -224,6 +227,9 @@ func main() {
 		log.Fatalf("remember login/complete: %v", err)
 	}
 	_ = remResp.Body.Close()
+	if remResp.StatusCode != http.StatusOK {
+		log.Fatalf("remember login/complete: status %d", remResp.StatusCode)
+	}
 	maxAge := sessionCookieMaxAge(remResp)
 	if maxAge == "" {
 		log.Fatal("remember login/complete cookie has no Max-Age")
@@ -6278,7 +6284,6 @@ func (c *client) cookies() []*http.Cookie {
 	u, _ := url.Parse(c.base)
 	return c.jar.Cookies(u)
 }
-
 
 func (c *client) postJSON(path string, body any, out any) error {
 	var buf bytes.Buffer

@@ -165,11 +165,11 @@ type CompletionResult struct {
 	ReturnTo     string
 	// Remember carries the login page's "keep me signed in" choice from the
 	// flow state to the session-issuing handlers.
-	Remember     bool
-	AMR          []string
-	IsNew        bool
-	Confirmed    bool
-	AvatarURL    string
+	Remember  bool
+	AMR       []string
+	IsNew     bool
+	Confirmed bool
+	AvatarURL string
 	// OfferLocalSignin marks an invite+provider provisioning: after /welcome
 	// confirmation the SPA offers the one-time "add local sign-in" step.
 	OfferLocalSignin bool

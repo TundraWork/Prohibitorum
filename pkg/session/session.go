@@ -41,7 +41,7 @@ type SessionQueries interface {
 type SessionStore struct {
 	kv  kv.Store
 	q   SessionQueries // PG-persisted session metadata (auth_time, amr, acr, sid)
-	ttl time.Duration // sliding lifetime, sessions issued without "remember"
+	ttl time.Duration  // sliding lifetime, sessions issued without "remember"
 	// rememberTTL is the sliding lifetime for sessions issued with
 	// "remember". The refresh threshold is computed per session as
 	// min(ttlFor/4, 24h) — see Load.
@@ -109,7 +109,6 @@ func (s *SessionStore) ttlFor(data *authn.SessionData) time.Duration {
 	}
 	return s.ttl
 }
-
 
 // newToken produces 32 random bytes encoded as URL-safe base64 (43 chars, no padding).
 func newToken() (string, error) {
@@ -192,10 +191,10 @@ func (s *SessionStore) Issue(ctx context.Context, accountID int32, ip, ua string
 		AccountID: accountID,
 		IssuedAt:  now,
 		// remember picks ttlFor now and on every later renewal.
-		ExpiresAt:   now.Add(s.ttlFor(&authn.SessionData{Remember: remember})),
-		LastSeenIP:  ip,
-		UserAgent:   ua,
-		Remember:    remember,
+		ExpiresAt:  now.Add(s.ttlFor(&authn.SessionData{Remember: remember})),
+		LastSeenIP: ip,
+		UserAgent:  ua,
+		Remember:   remember,
 	}
 	payload, err := json.Marshal(data)
 	if err != nil {
@@ -381,6 +380,7 @@ func (s *SessionStore) ListByAccount(ctx context.Context, accountID int32) ([]Se
 	}
 	return out, nil
 }
+
 // SessionPageCursor is the keyset position for session pagination. It encodes
 // the (IssuedAt, SessionID) tuple of the last session returned on a page. The
 // cursor is carried inside the authenticated pagination.CursorPayload.Keys as

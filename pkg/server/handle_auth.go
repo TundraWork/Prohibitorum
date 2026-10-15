@@ -566,8 +566,7 @@ func (s *Server) handleLoginCompleteHTTP(w http.ResponseWriter, r *http.Request)
 	http.SetCookie(w, sessstore.ClearedCeremonyCookie(s.config, r, mediation.cookieName()))
 
 	ip := s.clientIP.IP(r)
-	remember := r.URL.Query().Get("remember") == "true"
-	token, data, err := s.sessionStore.Issue(r.Context(), resolvedAccount.ID, ip, r.UserAgent(), []string{"hwk"}, nil, remember)
+	token, data, err := s.sessionStore.Issue(r.Context(), resolvedAccount.ID, ip, r.UserAgent(), []string{"hwk"}, nil, rememberRequested(r))
 	if err != nil {
 		writeAuthErrForCode(w, "ceremony_internal_error", fmt.Errorf("session issue: %w", err))
 		return

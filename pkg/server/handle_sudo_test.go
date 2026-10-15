@@ -70,7 +70,6 @@ type fakeSudoQueries struct {
 	accountByUsername map[string]db.Account
 }
 
-
 func newFakeSudoQueries() *fakeSudoQueries {
 	return &fakeSudoQueries{
 		throttle:  map[string]db.AuthThrottle{},
