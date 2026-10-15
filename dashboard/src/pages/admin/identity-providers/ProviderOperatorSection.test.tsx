@@ -51,10 +51,11 @@ describe("provider operator sign-in dialog", () => {
     await user.click(backdrop);
     expect(screen.getByRole("dialog")).toBeInTheDocument();
 
+    // The backdrop click leaves focus outside the dialog, where Escape does
+    // nothing; a focused field is where a reader's stray Escape actually lands.
+    await user.click(within(dialog).getByRole("textbox", { name: "Username" }));
     await user.keyboard("{Escape}");
-    expect(
-      within(dialog).getByRole("heading", { name: "Sign in to VRChat" }),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
   });
 
   it("closes from its own Cancel button", async () => {
