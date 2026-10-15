@@ -1741,6 +1741,11 @@ msgid "admin.federation.connection.title"
 msgstr "连接"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/CallbackPreview.tsx
+msgid "admin.federation.callback.test"
+msgstr "连接测试"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
 msgid "admin.federation.diagnostics.test"
 msgstr "连接测试"
@@ -5121,6 +5126,11 @@ msgid "settings.sign-in.bing.region"
 msgstr "地区"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/CallbackPreview.tsx
+msgid "admin.federation.callback.hint"
+msgstr "请在提供商处登记这些地址。"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
 msgid "admin.federation.diagnostics.callback.hint"
 msgstr "运行连接测试前，请在提供商处登记这个地址。"
@@ -6444,11 +6454,6 @@ msgstr "team"
 #: src/pages/public/Consent.tsx
 msgid "consent.terms"
 msgstr "服务条款"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/CallbackPreview.tsx
-msgid "admin.federation.callback.test"
-msgstr "测试"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx

@@ -58,10 +58,11 @@ const slugInvalid = msg({
  * callback address and every linked account hang off it — so it is chosen here,
  * each option with a line saying what it is for, and never edited afterwards.
  *
- * The identifier is followed by the callback addresses it will produce, so
- * the provider's own registration page can be filled in beside this one. They
- * appear only once the identifier is one the server accepts: an address built
- * from anything else would be registered upstream and never be called.
+ * For OIDC, the identifier is followed by the callback addresses it will
+ * produce, so the provider's own registration page can be filled in beside
+ * this one. They appear only once the identifier is one the server accepts: an
+ * address built from anything else would be registered upstream and never be
+ * called.
  *
  * Only what the provider cannot work without is asked for, with the same
  * fields the detail page uses. Everything else — allowed domains, claim
@@ -221,7 +222,8 @@ export function AdminIdentityProviderNew() {
                 label={<Trans id="admin.federation.new.slug">Identifier</Trans>}
                 description={
                   <Trans id="admin.federation.new.slug.hint">
-                    Appears in the callback address and cannot be changed later.
+                    Appears in the callback addresses and cannot be changed
+                    later.
                   </Trans>
                 }
                 isMonospace
@@ -233,8 +235,8 @@ export function AdminIdentityProviderNew() {
             )}
           </form.AppField>
 
-          {slugAccepted(slug) && (
-            <CallbackPreview slug={slug.trim()} protocol={protocol} />
+          {protocol === "oidc" && slugAccepted(slug) && (
+            <CallbackPreview slug={slug.trim()} />
           )}
 
           <form.AppField name="mode">

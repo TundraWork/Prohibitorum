@@ -805,7 +805,7 @@ msgstr "Appearance"
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
 msgid "admin.federation.new.slug.hint"
-msgstr "Appears in the callback address and cannot be changed later."
+msgstr "Appears in the callback addresses and cannot be changed later."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AdminSamlApplications.tsx
@@ -1739,6 +1739,11 @@ msgstr "Connected identities"
 #: src/pages/admin/identity-providers/ProviderConnectionSection.tsx
 msgid "admin.federation.connection.title"
 msgstr "Connection"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/CallbackPreview.tsx
+msgid "admin.federation.callback.test"
+msgstr "Connection test"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
@@ -5121,6 +5126,11 @@ msgid "settings.sign-in.bing.region"
 msgstr "Region"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/CallbackPreview.tsx
+msgid "admin.federation.callback.hint"
+msgstr "Register these addresses with the provider."
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
 msgid "admin.federation.diagnostics.callback.hint"
 msgstr "Register this address with the provider before running a connection test."
@@ -6444,11 +6454,6 @@ msgstr "team"
 #: src/pages/public/Consent.tsx
 msgid "consent.terms"
 msgstr "Terms of service"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/CallbackPreview.tsx
-msgid "admin.federation.callback.test"
-msgstr "Test"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
