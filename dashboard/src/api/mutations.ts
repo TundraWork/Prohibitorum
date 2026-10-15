@@ -1449,8 +1449,12 @@ export function activateSigningKeyMutationOptions(queryClient: QueryClient) {
 
 /* ------------------------------------------------------ identity providers -- */
 
-/** The list and the detail both live under this prefix, so one call covers both. */
-function invalidateIdentityProviders(queryClient: QueryClient) {
+/**
+ * The list and the detail both live under this prefix, so one call covers both.
+ * Also called directly by a form whose own write failed after a secret landed:
+ * the page must re-read the provider, or it keeps offering what is now stored.
+ */
+export function invalidateIdentityProviders(queryClient: QueryClient) {
   // One call: a second, for the detail's own key, would cancel the detail's
   // refetch this one has just started, and the page reading it would fail.
   return queryClient.invalidateQueries({

@@ -8,6 +8,7 @@ import {
 } from "@/api/federation";
 import type { components } from "@/api/generated/schema";
 import {
+  invalidateIdentityProviders,
   setIdentityProviderSecretQuietlyMutationOptions,
   updateIdentityProviderMutationOptions,
 } from "@/api/mutations";
@@ -90,6 +91,7 @@ export function ProviderConnectionSection({
       // The secret goes first, while the stored configuration still names the
       // old method: the rotation endpoint checks the secret against it, and a
       // public client accepts a secret being added ahead of the switch.
+      let secretStored = false;
       if (
         clientAuthNeedsSecret(value.tokenAuthMethod) &&
         !provider.secretConfigured
@@ -99,6 +101,7 @@ export function ProviderConnectionSection({
             slug: provider.slug,
             secret: value.clientSecret,
           });
+          secretStored = true;
         } catch (error) {
           if (isCancellation(error)) return;
           applyServerError(form, error, {
@@ -124,6 +127,12 @@ export function ProviderConnectionSection({
         });
       } catch (error) {
         if (isCancellation(error)) return;
+        // A secret that landed before the failed save stays on the server.
+        // The page must re-read the provider, or it keeps asking for what is
+        // now stored — the field here, the "Set the secret" row below.
+        if (secretStored) {
+          await invalidateIdentityProviders(queryClient);
+        }
         applyServerError(form, error, {
           codes: { bad_request: "issuerUrl" },
           locations: {},
