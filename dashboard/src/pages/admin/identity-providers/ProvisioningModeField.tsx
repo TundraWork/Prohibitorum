@@ -12,7 +12,11 @@ import { providerModesForSignIn } from "@/pages/admin/identity-providers/provide
  * With sign-in off, "creates accounts" disappears: that mode exists to back a
  * sign-in button, so offering it would be a promise the provider cannot keep.
  */
-export function ProvisioningModeField({ allowSignIn }: { allowSignIn: boolean }) {
+export function ProvisioningModeField({
+  allowSignIn,
+}: {
+  allowSignIn: boolean;
+}) {
   return (
     <OptionSelectField<ProviderMode>
       label={<Trans id="admin.federation.general.mode">Provisioning</Trans>}

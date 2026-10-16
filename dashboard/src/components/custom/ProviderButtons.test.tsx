@@ -9,8 +9,18 @@ import { i18n } from "@/i18n";
 vi.mock("@/app/load-document", () => ({ loadDocument: vi.fn() }));
 
 const providers = [
-  { slug: "gitlab", displayName: "GitLab", protocol: "oidc", allowSignIn: true },
-  { slug: "vrchat", displayName: "VRChat", protocol: "vrchat", allowSignIn: true },
+  {
+    slug: "gitlab",
+    displayName: "GitLab",
+    protocol: "oidc",
+    allowSignIn: true,
+  },
+  {
+    slug: "vrchat",
+    displayName: "VRChat",
+    protocol: "vrchat",
+    allowSignIn: true,
+  },
 ];
 
 function setup(list = providers) {

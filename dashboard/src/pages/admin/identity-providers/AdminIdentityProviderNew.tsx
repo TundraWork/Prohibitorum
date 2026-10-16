@@ -271,14 +271,14 @@ export function AdminIdentityProviderNew() {
                     <Trans id="admin.federation.general.sign_in.vrchat_hint">
                       VRChat proves a profile through a link in its bio, which
                       is weaker than an OIDC sign-in. Once this is on, anyone
-                      who can edit the profile can sign in to the account
-                      linked to it.
+                      who can edit the profile can sign in to the account linked
+                      to it.
                     </Trans>
                   ) : (
                     <Trans id="admin.federation.general.sign_in.hint">
-                      When this is off, this provider can't be used to sign
-                      in. People can only link it from their account, or use
-                      it to accept an invitation.
+                      When this is off, this provider can't be used to sign in.
+                      People can only link it from their account, or use it to
+                      accept an invitation.
                     </Trans>
                   )
                 }

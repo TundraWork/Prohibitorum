@@ -111,7 +111,8 @@ export function EnrollPage() {
   const reset = preview.intent === "reset";
   // A verified snapshot replaces the provider step; the account fields stay
   // unless the invite fixed a username.
-  const asksNames = !reset && (verified !== undefined || boundProvider === undefined);
+  const asksNames =
+    !reset && (verified !== undefined || boundProvider === undefined);
   const supported = window.isSecureContext && browserSupportsWebAuthn();
   const allowsPasswordTotp = preview.allowedMethods.includes("password_totp");
 
@@ -473,8 +474,8 @@ function EnrollDescription({
       if (preview.verifiedIdentity) {
         return (
           <Trans id="enroll.description.verified">
-            Your identity is verified. Choose your account name, then set up
-            how you'll sign in.
+            Your identity is verified. Choose your account name, then set up how
+            you'll sign in.
           </Trans>
         );
       }

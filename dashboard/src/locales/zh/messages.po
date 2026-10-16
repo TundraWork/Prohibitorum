@@ -8115,7 +8115,7 @@ msgstr "验证未完成，可以改用密码。"
 #. placeholder {1}: verified.providerDisplayName
 #: src/pages/public/Enroll.tsx
 msgid "enroll.verified_identity"
-msgstr "已通过 {providerDisplayName} 验证为 {displayName}。"
+msgstr "已通过 {1} 验证为 {0}。"
 
 #. js-lingui-explicit-id
 #: src/components/custom/principal-sources.ts

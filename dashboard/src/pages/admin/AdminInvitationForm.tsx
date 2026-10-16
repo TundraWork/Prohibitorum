@@ -264,8 +264,8 @@ export function AdminInvitationForm() {
                       description={
                         <Trans id="admin.invitations.new.require_local.hint">
                           After verifying with a provider, the invitee also sets
-                          up a passkey or a password and an authenticator
-                          before the account is created.
+                          up a passkey or a password and an authenticator before
+                          the account is created.
                         </Trans>
                       }
                       isDisabled={locked}
