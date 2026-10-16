@@ -64,7 +64,7 @@ import (
 // later arc is added, unlike a single global counter.
 const (
 	nCore       = 54
-	nFederation = 36
+	nFederation = 38
 	nOIDC       = 18
 	nSAML       = 14
 	nHardening  = 14
@@ -1737,7 +1737,138 @@ func main() {
 		log.Printf("  relay page served, implicit id_token verified, 0 token endpoint calls, account confirmed ✓")
 	}
 
-	step(fmt.Sprintf("federation %d/%d — claim names as gjson paths: nested claims fill the account (PHB-121)", 36, nFederation))
+	step(fmt.Sprintf("federation %d/%d — sign-in off: /login is refused with federation_sign_in_disabled", 36, nFederation))
+	{
+		const offSlug = "mockop-nosignin"
+		if _, err := seedUpstreamIDP(dek, offSlug, "Mock OP (sign-in off)", opTS.URL, "test-client", "unused-secret", "invite_only", nil, true, true); err != nil {
+			log.Fatalf("seed %s: %v", offSlug, err)
+		}
+		if err := adminSetProviderSignIn(c, offSlug, false); err != nil {
+			log.Fatalf("disable sign-in for %s: %v", offSlug, err)
+		}
+		offClient, err := newFederationClient(*baseURL)
+		if err != nil {
+			log.Fatal(err)
+		}
+		if err := expectFederationLoginError(offClient, *baseURL, offSlug, opTS.URL, "federation_sign_in_disabled"); err != nil {
+			log.Fatalf("sign-in off login: %v", err)
+		}
+		// The public list still carries the provider (linked identities use
+		// it), marked allowSignIn=false.
+		var providers []map[string]any
+		if err := offClient.get("/api/prohibitorum/auth/federation", &providers); err != nil {
+			log.Fatalf("public federation list: %v", err)
+		}
+		found := false
+		for _, provider := range providers {
+			if provider["slug"] == offSlug {
+				found = true
+				if allow, _ := provider["allowSignIn"].(bool); allow {
+					log.Fatalf("public list allowSignIn for %s = true, want false", offSlug)
+				}
+			}
+		}
+		if !found {
+			log.Fatalf("public federation list lacks %s", offSlug)
+		}
+	}
+
+	step(fmt.Sprintf("federation %d/%d — requireLocalCredential invite verifies first, then completes with password+TOTP", 37, nFederation))
+	{
+		const requireLocalSlug = "mockop-requirelocal"
+		if _, err := seedUpstreamIDP(dek, requireLocalSlug, "Mock OP (require local)", opTS.URL, "test-client", "unused-secret", "invite_only", nil, true, true); err != nil {
+			log.Fatalf("seed %s: %v", requireLocalSlug, err)
+		}
+		var created struct {
+			URL                    string `json:"url"`
+			RequireLocalCredential bool   `json:"requireLocalCredential"`
+		}
+		if err := c.postJSON("/api/prohibitorum/invitations", map[string]any{"role": "user", "expectedUpstreamIdpSlug": requireLocalSlug, "requireLocalCredential": true}, &created); err != nil {
+			log.Fatalf("create requireLocal invite: %v", err)
+		}
+		if !created.RequireLocalCredential {
+			log.Fatalf("requireLocal invite response = %+v", created)
+		}
+		tokenStart := strings.LastIndex(created.URL, "/enroll/")
+		if tokenStart < 0 {
+			log.Fatalf("invitation URL = %q", created.URL)
+		}
+		requireLocalToken := created.URL[tokenStart+len("/enroll/"):]
+		opSrv.SetClaims("requirelocal-sub-001", "requirelocal@example.com", true, "requirelocal", "Require Local")
+		rlClient, err := newFederationClient(*baseURL)
+		if err != nil {
+			log.Fatal(err)
+		}
+		rlAuthorize, err := rlClient.getRedirect(fmt.Sprintf("/api/prohibitorum/enrollments/%s/start-federation?return_to=/me", requireLocalToken))
+		if err != nil {
+			log.Fatalf("requireLocal start-federation: %v", err)
+		}
+		rlCallback, err := followMockOPAuthorize(rlAuthorize)
+		if err != nil {
+			log.Fatalf("requireLocal authorize: %v", err)
+		}
+		rlLoc, err := rlClient.getRedirectAbs(rlCallback)
+		if err != nil {
+			log.Fatalf("requireLocal callback: %v", err)
+		}
+		if want := "/enroll/" + requireLocalToken; rlLoc != want {
+			log.Fatalf("requireLocal callback redirect = %q, want %q", rlLoc, want)
+		}
+		if status, err := getStatus(rlClient, "/api/prohibitorum/me"); err != nil || status != http.StatusUnauthorized {
+			log.Fatalf("requireLocal callback /me status=%d err=%v; want 401 (no session yet)", status, err)
+		}
+		var rlPreview struct {
+			Intent                 string `json:"intent"`
+			RequireLocalCredential bool   `json:"requireLocalCredential"`
+			VerifiedIdentity       *struct {
+				ProviderSlug string `json:"providerSlug"`
+				DisplayName  string `json:"displayName"`
+			} `json:"verifiedIdentity"`
+		}
+		if err := rlClient.get(fmt.Sprintf("/api/prohibitorum/enrollments/%s", requireLocalToken), &rlPreview); err != nil {
+			log.Fatalf("requireLocal preview: %v", err)
+		}
+		if rlPreview.Intent != "invite" || !rlPreview.RequireLocalCredential || rlPreview.VerifiedIdentity == nil ||
+			rlPreview.VerifiedIdentity.ProviderSlug != requireLocalSlug || rlPreview.VerifiedIdentity.DisplayName != "Require Local" {
+			log.Fatalf("requireLocal preview = %+v", rlPreview)
+		}
+		rlSecret, rlSecretBase32, err := newTOTPSecret()
+		if err != nil {
+			log.Fatalf("requireLocal totp secret: %v", err)
+		}
+		var rlFinish struct {
+			RecoveryCodes []string `json:"recoveryCodes"`
+		}
+		if err := rlClient.postEnrollmentJSON(requireLocalToken, "password-totp/verify", map[string]string{
+			"username":      "requirelocal",
+			"displayName":   "Require Local",
+			"password":      "require-local-smoke-1",
+			"secret_base32": rlSecretBase32,
+			"code":          totppkg.ComputeCodeForTesting(rlSecret, time.Now().Unix(), 6),
+		}, &rlFinish); err != nil {
+			log.Fatalf("requireLocal password-totp/verify: %v", err)
+		}
+		if len(rlFinish.RecoveryCodes) == 0 {
+			log.Fatalf("requireLocal completion recovery codes = %d", len(rlFinish.RecoveryCodes))
+		}
+		rlMe, err := rlClient.getMe()
+		if err != nil || rlMe.Username != "requirelocal" {
+			log.Fatalf("requireLocal completion = %+v err=%v", rlMe, err)
+		}
+		if !hasSessionCookie(rlClient.cookies()) {
+			log.Fatalf("requireLocal completion issued no session")
+		}
+		var rlIdentities []map[string]any
+		if err := rlClient.get("/api/prohibitorum/me/identities", &rlIdentities); err != nil || len(rlIdentities) != 1 {
+			log.Fatalf("requireLocal identities = %+v err=%v", rlIdentities, err)
+		}
+		if slug, _ := rlIdentities[0]["idpSlug"].(string); slug != requireLocalSlug {
+			log.Fatalf("requireLocal identity slug = %q, want %q", slug, requireLocalSlug)
+		}
+
+	}
+
+	step(fmt.Sprintf("federation %d/%d — claim names as gjson paths: nested claims fill the account (PHB-121)", 38, nFederation))
 	{
 		const pathSlug = "mockop-path"
 		// Every mapping is a path into a nested claim shape; none of the
@@ -1831,6 +1962,7 @@ func main() {
 		// "ignored-flat", so reading "pathuser" proves the path did.
 		opSrv.SetExtraClaims(nil)
 		log.Printf("  nested claims mapped via gjson paths: username/displayName/email/avatar all read from inside objects ✓")
+
 	}
 
 	// =========================================================================
@@ -7428,6 +7560,33 @@ func (c *client) totpStepTwoVerify(partialToken, code string) error {
 
 // newTOTPSecret mirrors the browser enrollment contract: 20 random bytes,
 // RFC 4648 uppercase base32, and no padding.
+// adminSetProviderSignIn flips a provider's allow_sign_in through the admin
+// API, mirroring what the console switch sends.
+func adminSetProviderSignIn(c *client, slug string, allow bool) error {
+	body := map[string]any{
+		"displayName": "smoke",
+		"mode":        "invite_only",
+		"allowSignIn": allow,
+		"config":      map[string]any{},
+	}
+	// The display name is not part of what this helper promises to keep; read
+	// the provider first so the update carries its real fields.
+	var current map[string]any
+	if err := c.get("/api/prohibitorum/identity-providers/"+slug, &current); err != nil {
+		return err
+	}
+	if name, _ := current["displayName"].(string); name != "" {
+		body["displayName"] = name
+	}
+	if mode, _ := current["mode"].(string); mode != "" {
+		body["mode"] = mode
+	}
+	if config, ok := current["config"].(map[string]any); ok {
+		body["config"] = config
+	}
+	return c.putJSON("/api/prohibitorum/identity-providers/"+slug, body, nil)
+}
+
 func newTOTPSecret() ([]byte, string, error) {
 	secret := make([]byte, 20)
 	if _, err := rand.Read(secret); err != nil {
@@ -8225,6 +8384,7 @@ func seedUpstreamIDP(dek []byte, slug, displayName, issuer, clientID, clientSecr
 	}
 	ctx := context.Background()
 	conn, err := pgx.Connect(ctx, dburl)
+
 	if err != nil {
 		return 0, fmt.Errorf("pgx connect: %w", err)
 	}

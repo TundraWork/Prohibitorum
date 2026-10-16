@@ -58,6 +58,7 @@ type vrchatFlowView struct {
 
 type vrchatProviderView struct {
 	Slug, Protocol, Mode, SecretStatus string
+	AllowSignIn                        bool
 	Disabled, Ready, SecretConfigured  bool
 }
 
@@ -74,11 +75,16 @@ type vrchatError struct {
 }
 
 type vrchatEnrollmentPreview struct {
-	Intent               string          `json:"intent"`
-	Target               json.RawMessage `json:"target,omitempty"`
-	ExpiresAt            time.Time       `json:"expiresAt"`
-	SuggestedDisplayName string          `json:"suggestedDisplayName,omitempty"`
-	AllowedMethods       []string        `json:"allowedMethods"`
+	Intent                 string          `json:"intent"`
+	Target                 json.RawMessage `json:"target,omitempty"`
+	ExpiresAt              time.Time       `json:"expiresAt"`
+	RequireLocalCredential bool            `json:"requireLocalCredential"`
+	VerifiedIdentity       *struct {
+		ProviderSlug        string `json:"providerSlug"`
+		ProviderDisplayName string `json:"providerDisplayName"`
+		DisplayName         string `json:"displayName"`
+	} `json:"verifiedIdentity,omitempty"`
+	AllowedMethods []string `json:"allowedMethods"`
 }
 
 type vrchatSmoke struct {
@@ -146,6 +152,11 @@ func (v *vrchatSmoke) begin(c *client, path string) (string, error) {
 		return "", fmt.Errorf("flow destination = %q", location)
 	}
 	return strings.TrimPrefix(location, prefix), nil
+}
+
+func (v *vrchatSmoke) beginInvite(c *client, token, slug string) (string, error) {
+	path := "/api/prohibitorum/enrollments/" + url.PathEscape(token) + "/start-federation?provider=" + url.QueryEscape(slug) + "&return_to=/me"
+	return v.begin(c, path)
 }
 
 func (v *vrchatSmoke) prepare(c *client, flow, userID string) (vrchatFlowView, error) {
@@ -394,13 +405,26 @@ func runVRChatSmoke(admin *client, base, control, caFile, serverLog, mockLog str
 		return err
 	}
 
-	step(fmt.Sprintf("vrchat %d/%d — create disabled, unconfigured fixed link_only provider", 1, nVRChat))
+	step(fmt.Sprintf("vrchat %d/%d — create disabled invite_only provider with sign-in off", 1, nVRChat))
 	var provider vrchatProviderView
-	if err := admin.postJSON("/api/prohibitorum/identity-providers", map[string]any{"slug": vrchatSlug, "displayName": vrchatName, "protocol": "vrchat", "mode": "link_only", "config": map[string]any{}}, &provider); err != nil {
+	if err := admin.postJSON("/api/prohibitorum/identity-providers", map[string]any{"slug": vrchatSlug, "displayName": vrchatName, "protocol": "vrchat", "mode": "invite_only", "config": map[string]any{}}, &provider); err != nil {
 		return err
 	}
-	if provider.Slug != vrchatSlug || provider.Protocol != "vrchat" || provider.Mode != "link_only" || !provider.Disabled || provider.Ready || provider.SecretConfigured || provider.SecretStatus != "unconfigured" {
+	if provider.Slug != vrchatSlug || provider.Protocol != "vrchat" || provider.Mode != "invite_only" || provider.AllowSignIn || !provider.Disabled || provider.Ready || provider.SecretConfigured || provider.SecretStatus != "unconfigured" {
 		return fmt.Errorf("VRChat create projection = %+v", provider)
+	}
+
+	// A provider with sign-in off cannot take "creates accounts"; one with it
+	// on can switch to invitation-only.
+	if err := admin.postJSON("/api/prohibitorum/identity-providers", map[string]any{"slug": "vrchat-bad", "displayName": "VRChat Bad", "protocol": "vrchat", "mode": "auto_provision", "config": map[string]any{}}, &provider); err == nil || !strings.Contains(err.Error(), "bad_request") {
+		return fmt.Errorf("VRChat create with sign-in off + auto_provision accepted: %v", err)
+	}
+	var updated vrchatProviderView
+	if err := admin.putJSON("/api/prohibitorum/identity-providers/"+vrchatSlug, map[string]any{"displayName": vrchatName, "mode": "invite_only", "allowSignIn": true, "config": map[string]any{}}, &updated); err != nil || updated.Mode != "invite_only" || !updated.AllowSignIn {
+		return fmt.Errorf("VRChat sign-in update = %+v err=%w", updated, err)
+	}
+	if err := admin.putJSON("/api/prohibitorum/identity-providers/"+vrchatSlug, map[string]any{"displayName": vrchatName, "mode": "invite_only", "allowSignIn": false, "config": map[string]any{}}, &updated); err != nil || updated.AllowSignIn {
+		return fmt.Errorf("VRChat sign-in revert = %+v err=%w", updated, err)
 	}
 
 	step(fmt.Sprintf("vrchat %d/%d — operator Basic auth issues TOTP challenge", 2, nVRChat))
@@ -412,7 +436,7 @@ func runVRChatSmoke(admin *client, base, control, caFile, serverLog, mockLog str
 		return fmt.Errorf("operator start = %+v", started)
 	}
 
-	step(fmt.Sprintf("vrchat %d/%d — verify TOTP, validate ready, enable link_only provider", 3, nVRChat))
+	step(fmt.Sprintf("vrchat %d/%d — verify TOTP, validate ready, enable provider", 3, nVRChat))
 	var verified vrchatOperatorResult
 	if err := admin.postJSON("/api/prohibitorum/identity-providers/"+vrchatSlug+"/operator-session/verify", map[string]string{"challenge": started.Challenge, "method": "totp", "code": vrchatCode}, &verified); err != nil || verified.Status != "valid" {
 		return fmt.Errorf("operator verify status=%q err=%w", verified.Status, err)
@@ -442,188 +466,144 @@ func runVRChatSmoke(admin *client, base, control, caFile, serverLog, mockLog str
 		return fmt.Errorf("operator cookie reuse record = %+v", last)
 	}
 
-	step(fmt.Sprintf("vrchat %d/%d — registration proof returns enrollment; no session cookie and /me stays 401", 5, nVRChat))
-	registration, _ := newFederationClient(base)
-	registrationFlow, err := v.begin(registration, "/api/prohibitorum/auth/federation/"+vrchatSlug+"/login?return_to=/me")
+	step(fmt.Sprintf("vrchat %d/%d — sign-in disabled: /login redirects to /error with federation_sign_in_disabled", 5, nVRChat))
+	respBlocked, err := blockedLoginRedirect(base, vrchatSlug)
 	if err != nil {
 		return err
 	}
-	registrationView, err := v.prepare(registration, registrationFlow, vrchatUserA)
-	if err != nil || registrationView.Step != "proof" || registrationView.RequiresLocalUsername {
-		return fmt.Errorf("registration prepare = %+v err=%w", registrationView, err)
+	if !strings.Contains(respBlocked, "error=federation_sign_in_disabled") {
+		return fmt.Errorf("sign-in-disabled redirect = %q", respBlocked)
 	}
-	proofA, err := v.publish(registrationView)
+
+	step(fmt.Sprintf("vrchat %d/%d — admin invitation bound to VRChat stores requireLocalCredential", 6, nVRChat))
+	var invitation struct {
+		URL                    string `json:"url"`
+		RequireLocalCredential bool   `json:"requireLocalCredential"`
+	}
+	if err := admin.postJSON("/api/prohibitorum/invitations", map[string]any{"role": "user", "expectedUpstreamIdpSlug": vrchatSlug}, &invitation); err != nil {
+		return err
+	}
+	if !invitation.RequireLocalCredential {
+		return fmt.Errorf("invitation requireLocalCredential = false, want forced true for a sign-in-off provider")
+	}
+	invitationToken := invitationURLToken(invitation.URL)
+
+	step(fmt.Sprintf("vrchat %d/%d — invitation proof attaches the snapshot and redirects to /enroll/{token}", 7, nVRChat))
+	invitee, _ := newFederationClient(base)
+	flowID, err := v.beginInvite(invitee, invitationToken, vrchatSlug)
 	if err != nil {
 		return err
 	}
-	reloaded, err := v.reload(registration, registrationFlow)
-	if err != nil || reloaded.ProofURL != registrationView.ProofURL {
-		return fmt.Errorf("prepared registration flow reload proof mismatch")
+	inviteeView, err := v.prepare(invitee, flowID, vrchatUserA)
+	if err != nil || inviteeView.Step != "proof" || inviteeView.RequiresLocalUsername {
+		return fmt.Errorf("invitation prepare = %+v err=%w", inviteeView, err)
 	}
-	resp, body, err := v.verify(registration, registrationFlow, "")
+	proofA, err := v.publish(inviteeView)
+	if err != nil {
+		return err
+	}
+	reloaded, err := v.reload(invitee, flowID)
+	if err != nil || reloaded.ProofURL != inviteeView.ProofURL {
+		return fmt.Errorf("prepared invitation flow reload proof mismatch")
+	}
+	resp, body, err := v.verify(invitee, flowID, "")
 	if err != nil || statusOf(resp) != http.StatusOK {
-		return fmt.Errorf("registration proof status=%v err=%w", statusOf(resp), err)
+		return fmt.Errorf("invitation proof status=%v err=%w", statusOf(resp), err)
 	}
-	registrationToken, err := enrollmentTokenFromCompletion(body)
+	redirectedToken, err := redirectToken(body)
 	if err != nil {
 		return err
 	}
-	if hasSessionCookie(resp.Cookies()) || hasSessionCookie(registration.cookies()) {
-		return fmt.Errorf("registration proof set a normal session cookie")
+	if redirectedToken != invitationToken {
+		return fmt.Errorf("invitation redirect token = %q, want the invitation token", redirectedToken)
 	}
-	if status, err := getStatus(registration, "/api/prohibitorum/me"); err != nil || status != http.StatusUnauthorized {
-		return fmt.Errorf("registration proof /me status=%d err=%w; want 401", status, err)
+	if hasSessionCookie(resp.Cookies()) || hasSessionCookie(invitee.cookies()) {
+		return fmt.Errorf("invitation proof set a normal session cookie")
 	}
-
-	step(fmt.Sprintf("vrchat %d/%d — registration preview is federated_register with display suggestion only", 6, nVRChat))
-	registrationPreview, registrationFields, err := v.preview(registration, registrationToken)
-	if err != nil {
-		return err
-	}
-	if registrationPreview.Intent != "federated_register" || registrationPreview.SuggestedDisplayName != "VRChat Smoke Alpha" || len(registrationPreview.Target) != 0 || registrationPreview.ExpiresAt.IsZero() {
-		return fmt.Errorf("registration preview shape = %+v", registrationPreview)
-	}
-	// VRChat federated registration offers passkey OR password+TOTP.
-	if strings.Join(registrationPreview.AllowedMethods, ",") != "passkey,password_totp" {
-		return fmt.Errorf("registration preview allowedMethods = %v, want [passkey password_totp]", registrationPreview.AllowedMethods)
-	}
-	for field := range registrationFields {
-		if field != "intent" && field != "expiresAt" && field != "suggestedDisplayName" && field != "allowedMethods" {
-			return fmt.Errorf("registration preview exposed unexpected field %q", field)
-		}
-	}
-
-	step(fmt.Sprintf("vrchat %d/%d — registration proof replay is rejected without a session", 7, nVRChat))
-	resp, body, _ = v.verify(registration, registrationFlow, "")
-	if err := v.expectError(resp, body, http.StatusUnauthorized, "federation_state_invalid"); err != nil {
-		return err
-	}
-	if hasSessionCookie(resp.Cookies()) || hasSessionCookie(registration.cookies()) {
-		return fmt.Errorf("registration proof replay issued a normal session")
-	}
-	if status, err := getStatus(registration, "/api/prohibitorum/me"); err != nil || status != http.StatusUnauthorized {
-		return fmt.Errorf("registration proof replay /me status=%d err=%w; want 401", status, err)
+	if status, err := getStatus(invitee, "/api/prohibitorum/me"); err != nil || status != http.StatusUnauthorized {
+		return fmt.Errorf("invitation proof /me status=%d err=%w; want 401", status, err)
 	}
 	if err := assertNoVRChatIdentity(admin, vrchatSlug, vrchatUserA); err != nil {
 		return err
 	}
 
-	step(fmt.Sprintf("vrchat %d/%d — registration WebAuthn ceremony creates identity and first session", 8, nVRChat))
-	registrationAuth, err := registerVRChatEnrollment(registration, base, registrationToken, "vrchat-smoke-alpha", "VRChat Smoke Alpha", "vrchat-primary")
+	step(fmt.Sprintf("vrchat %d/%d — invitation preview carries verifiedIdentity and no account exists yet", 8, nVRChat))
+	inviteePreview, inviteeFields, err := v.preview(invitee, invitationToken)
 	if err != nil {
 		return err
 	}
-	if !hasSessionCookie(registration.cookies()) {
-		return fmt.Errorf("registration completion did not establish a normal session")
+	if inviteePreview.Intent != "invite" || !inviteePreview.RequireLocalCredential ||
+		inviteePreview.VerifiedIdentity == nil ||
+		inviteePreview.VerifiedIdentity.ProviderSlug != vrchatSlug ||
+		inviteePreview.VerifiedIdentity.DisplayName != "VRChat Smoke Alpha" {
+		return fmt.Errorf("invitation preview = %+v", inviteePreview)
 	}
-	registrationMe, err := registration.getMe()
+	if strings.Join(inviteePreview.AllowedMethods, ",") != "passkey,password_totp" {
+		return fmt.Errorf("invitation preview allowedMethods = %v", inviteePreview.AllowedMethods)
+	}
+	for field := range inviteeFields {
+		if field != "intent" && field != "expiresAt" && field != "requireLocalCredential" && field != "verifiedIdentity" && field != "allowedMethods" {
+			return fmt.Errorf("invitation preview exposed unexpected field %q", field)
+		}
+	}
+	if err := assertNoVRChatIdentity(admin, vrchatSlug, vrchatUserA); err != nil {
+		return err
+	}
+
+	step(fmt.Sprintf("vrchat %d/%d — passkey completion creates the account with a confirmed identity", 9, nVRChat))
+	if _, err := registerVRChatEnrollment(invitee, base, invitationToken, "vrchat-smoke-alpha", "VRChat Smoke Alpha", "vrchat-primary"); err != nil {
+		return err
+	}
+	if !hasSessionCookie(invitee.cookies()) {
+		return fmt.Errorf("invitation completion did not establish a normal session")
+	}
+	registrationMe, err := invitee.getMe()
 	if err != nil || registrationMe.Username != "vrchat-smoke-alpha" || registrationMe.DisplayName != "VRChat Smoke Alpha" {
-		return fmt.Errorf("registration session = %+v err=%w", registrationMe, err)
+		return fmt.Errorf("invitation session = %+v err=%w", registrationMe, err)
 	}
-	registrationSessions, err := registration.listMySessions()
-	if err != nil || len(registrationSessions) != 1 || !registrationSessions[0].IsCurrent {
-		return fmt.Errorf("registration sessions = %+v err=%w", registrationSessions, err)
-	}
-	oldSessionID := registrationSessions[0].ID
-	identities, err := registration.listMyIdentities()
+	identities, err := invitee.listMyIdentities()
 	if err != nil || len(identities) != 1 {
-		return fmt.Errorf("registration identities = %+v err=%w", identities, err)
+		return fmt.Errorf("invitation identities = %+v err=%w", identities, err)
 	}
 	identity := identities[0]
 	if identity.IdpSlug != vrchatSlug || identity.Protocol != "vrchat" || identity.Subject != vrchatUserA ||
 		identity.Data["userId"] != vrchatUserA || identity.Data["displayName"] != "VRChat Smoke Alpha" ||
 		identity.Data["profileUrl"] != "https://vrchat.com/home/user/"+vrchatUserA || len(identity.Data) != 3 {
-		return fmt.Errorf("registration identity metadata projection is incomplete or uncurated")
+		return fmt.Errorf("invitation identity metadata projection is incomplete or uncurated")
 	}
 
-	step(fmt.Sprintf("vrchat %d/%d — recovery proof returns a reset naming its account and no session", 9, nVRChat))
+	step(fmt.Sprintf("vrchat %d/%d — sign-in on: a new client logs straight in with a session", 10, nVRChat))
 	v.fixture.DisplayName = "VRChat Smoke Alpha Refreshed"
 	v.fixture.AvatarURL = "https://api.vrchat.cloud/avatar-alpha-refreshed.png"
 	v.fixture.BioLinks = nil
 	if err := v.setFixture(); err != nil {
 		return err
 	}
-	recovery, _ := newFederationClient(base)
-	recoveryFlow, err := v.begin(recovery, "/api/prohibitorum/auth/federation/"+vrchatSlug+"/login?return_to=/me")
+	if err := admin.putJSON("/api/prohibitorum/identity-providers/"+vrchatSlug, map[string]any{"displayName": vrchatName, "mode": "invite_only", "allowSignIn": true, "config": map[string]any{}}, &provider); err != nil || !provider.AllowSignIn {
+		return fmt.Errorf("VRChat sign-in enable = %+v err=%w", provider, err)
+	}
+	signIn, _ := newFederationClient(base)
+	signInFlow, err := v.begin(signIn, "/api/prohibitorum/auth/federation/"+vrchatSlug+"/login?return_to=/me")
 	if err != nil {
 		return err
 	}
-	recoveryView, err := v.prepare(recovery, recoveryFlow, vrchatUserA)
-	if err != nil || recoveryView.Step != "proof" || recoveryView.RequiresLocalUsername {
-		return fmt.Errorf("recovery prepare = %+v err=%w", recoveryView, err)
-	}
-	proofRecovery, err := v.publish(recoveryView)
-	if err != nil || proofRecovery == proofA {
-		return fmt.Errorf("recovery proof was not fresh")
-	}
-	resp, body, err = v.verify(recovery, recoveryFlow, "")
-	if err != nil || statusOf(resp) != http.StatusOK {
-		return fmt.Errorf("recovery proof status=%v err=%w", statusOf(resp), err)
-	}
-	recoveryToken, err := enrollmentTokenFromCompletion(body)
+	signInView, err := v.prepare(signIn, signInFlow, vrchatUserA)
 	if err != nil {
 		return err
 	}
-	if hasSessionCookie(resp.Cookies()) || hasSessionCookie(recovery.cookies()) {
-		return fmt.Errorf("recovery proof set a normal session cookie")
-	}
-	if status, err := getStatus(recovery, "/api/prohibitorum/me"); err != nil || status != http.StatusUnauthorized {
-		return fmt.Errorf("recovery proof /me status=%d err=%w; want 401", status, err)
-	}
-	recoveryPreview, recoveryFields, err := v.preview(recovery, recoveryToken)
-	if err != nil {
+	if _, err := v.publish(signInView); err != nil {
 		return err
 	}
-	// Provider recovery names the account it resets, like an admin reset.
-	var recoveryTarget struct {
-		Username    string `json:"username"`
-		DisplayName string `json:"displayName"`
+	resp, body, err = v.verify(signIn, signInFlow, "")
+	if err != nil || statusOf(resp) != http.StatusOK || !bytes.Contains(body, []byte(`"redirect":"/me"`)) {
+		return fmt.Errorf("sign-in verify status=%v err=%w", statusOf(resp), err)
 	}
-	if err := json.Unmarshal(recoveryPreview.Target, &recoveryTarget); err != nil ||
-		recoveryTarget.Username != registrationMe.Username || recoveryTarget.DisplayName != registrationMe.DisplayName {
-		return fmt.Errorf("provider-backed reset preview target = %s, want %s", recoveryPreview.Target, registrationMe.Username)
+	if !hasSessionCookie(signIn.cookies()) {
+		return fmt.Errorf("VRChat sign-in did not issue a session")
 	}
-	if recoveryPreview.Intent != "reset" || recoveryPreview.SuggestedDisplayName != "" || recoveryPreview.ExpiresAt.IsZero() {
-		return fmt.Errorf("provider-backed reset preview = %+v", recoveryPreview)
-	}
-	// VRChat provider-recovery reset offers passkey OR password+TOTP.
-	if strings.Join(recoveryPreview.AllowedMethods, ",") != "passkey,password_totp" {
-		return fmt.Errorf("provider-backed reset preview allowedMethods = %v, want [passkey password_totp]", recoveryPreview.AllowedMethods)
-	}
-	for field := range recoveryFields {
-		if field != "intent" && field != "target" && field != "expiresAt" && field != "allowedMethods" {
-			return fmt.Errorf("provider-backed reset preview exposed unexpected field %q", field)
-		}
-	}
-
-	step(fmt.Sprintf("vrchat %d/%d — recovery replacement revokes old session and issues exactly one fresh session", 10, nVRChat))
-	if status, err := getStatus(registration, "/api/prohibitorum/me"); err != nil || status != http.StatusOK {
-		return fmt.Errorf("proof-only recovery changed original session /me status=%d err=%w; want 200", status, err)
-	}
-	if _, err := registerVRChatEnrollment(recovery, base, recoveryToken, "", "", "vrchat-replacement"); err != nil {
-		return err
-	}
-	if status, err := getStatus(registration, "/api/prohibitorum/me"); err != nil || status != http.StatusUnauthorized {
-		return fmt.Errorf("pre-recovery session /me status=%d err=%w; want 401", status, err)
-	}
-	recoveryMe, err := recovery.getMe()
-	if err != nil || recoveryMe.ID != registrationMe.ID {
-		return fmt.Errorf("replacement session = %+v err=%w", recoveryMe, err)
-	}
-	recoverySessions, err := recovery.listMySessions()
-	if err != nil || len(recoverySessions) != 1 || !recoverySessions[0].IsCurrent || recoverySessions[0].ID == oldSessionID {
-		return fmt.Errorf("replacement sessions did not contain exactly one fresh current session")
-	}
-	replacementCredentials, err := recovery.listMyCredentials()
-	if err != nil || len(replacementCredentials) != 1 || replacementCredentials[0].Nickname != "vrchat-replacement" {
-		return fmt.Errorf("replacement credential list = %+v err=%w", replacementCredentials, err)
-	}
-	oldCredentialClient, _ := newClient(base)
-	if status, err := loginWithAuthenticatorStatus(oldCredentialClient, registrationAuth, base); err != nil || status != http.StatusUnauthorized {
-		return fmt.Errorf("replaced credential login status=%d err=%w; want 401", status, err)
-	}
-	if hasSessionCookie(oldCredentialClient.cookies()) {
-		return fmt.Errorf("replaced credential login issued a session")
+	signInMe, err := signIn.getMe()
+	if err != nil || signInMe.ID != registrationMe.ID {
+		return fmt.Errorf("VRChat sign-in session = %+v err=%w", signInMe, err)
 	}
 
 	step(fmt.Sprintf("vrchat %d/%d — wrong public user is rejected safely", 11, nVRChat))
@@ -801,8 +781,8 @@ func runVRChatSmoke(admin *client, base, control, caFile, serverLog, mockLog str
 	if err := v.expectError(resp, body, http.StatusUnauthorized, "bad_credentials"); err != nil || hasSessionCookie(resp.Cookies()) {
 		return fmt.Errorf("disabled account proof: %w", err)
 	}
-	if status, err := getStatus(recovery, "/api/prohibitorum/me"); err != nil || status != http.StatusUnauthorized {
-		return fmt.Errorf("disabled-account replacement session /me status=%d err=%w; want 401", status, err)
+	if status, err := getStatus(signIn, "/api/prohibitorum/me"); err != nil || status != http.StatusOK {
+		return fmt.Errorf("surviving sign-in session /me status=%d err=%w; want 200", status, err)
 	}
 	if err := admin.postJSON("/api/prohibitorum/accounts/set-disabled", map[string]any{"id": registrationMe.ID, "disabled": false}, nil); err != nil {
 		return err
@@ -815,7 +795,7 @@ func runVRChatSmoke(admin *client, base, control, caFile, serverLog, mockLog str
 
 	step(fmt.Sprintf("vrchat %d/%d — public proof page is token-invariant and no-store", 21, nVRChat))
 	var shell []byte
-	for _, proof := range []string{proofA, proofRecovery, "invalid-public-proof"} {
+	for _, proof := range []string{proofA, "invalid-public-proof"} {
 		resp, err := http.Get(base + "/verify/vrchat/" + proof)
 		if err != nil {
 			return err
@@ -837,12 +817,12 @@ func runVRChatSmoke(admin *client, base, control, caFile, serverLog, mockLog str
 		return err
 	}
 
-	step(fmt.Sprintf("vrchat %d/%d — registration, recovery, link, replay, and disabled paths observed", 23, nVRChat))
+	step(fmt.Sprintf("vrchat %d/%d — invitation, sign-in, link, replay, and disabled paths observed", 23, nVRChat))
 	if _, err := admin.getMe(); err != nil {
 		return err
 	}
 
-	step(fmt.Sprintf("vrchat %d/%d — complete proof-backed registration and recovery lifecycle", 24, nVRChat))
+	step(fmt.Sprintf("vrchat %d/%d — complete the invitation and sign-in lifecycle", 24, nVRChat))
 	return nil
 }
 
@@ -916,6 +896,51 @@ func (v *vrchatSmoke) verifyNoSecrets(admin *client, logFiles ...string) error {
 		}
 	}
 	return nil
+}
+
+// blockedLoginRedirect GETs the provider's /login and returns the Location it
+// was redirected to (the /error address when sign-in is off).
+func blockedLoginRedirect(base, slug string) (string, error) {
+	noFollow := &http.Client{
+		Timeout: 10 * time.Second,
+		CheckRedirect: func(*http.Request, []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+	resp, err := noFollow.Get(base + "/api/prohibitorum/auth/federation/" + slug + "/login?return_to=/me")
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusFound {
+		body, _ := io.ReadAll(resp.Body)
+		return "", fmt.Errorf("sign-in-off /login status=%d body=%s", resp.StatusCode, string(body))
+	}
+	return resp.Header.Get("Location"), nil
+}
+
+// invitationURLToken extracts the token from an invitation's /enroll/ URL.
+func invitationURLToken(url string) string {
+	if index := strings.LastIndex(url, "/enroll/"); index >= 0 {
+		return url[index+len("/enroll/"):]
+	}
+	return ""
+}
+
+// redirectToken reads the /enroll/{token} destination out of a JSON verify
+// response.
+func redirectToken(body []byte) (string, error) {
+	var parsed struct {
+		Redirect string `json:"redirect"`
+	}
+	if err := json.Unmarshal(body, &parsed); err != nil {
+		return "", err
+	}
+	prefix := "/enroll/"
+	if !strings.HasPrefix(parsed.Redirect, prefix) {
+		return "", fmt.Errorf("verify redirect = %q, want /enroll/{token}", parsed.Redirect)
+	}
+	return strings.TrimPrefix(parsed.Redirect, prefix), nil
 }
 
 func assertNoVRChatIdentity(admin *client, slug, userID string) error {
