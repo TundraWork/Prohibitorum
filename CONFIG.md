@@ -8,7 +8,7 @@
 |----------|---------|---------|
 | `PROHIBITORUM_DATA_ENCRYPTION_KEY_V<n>` | — (**required**) | base64-encoded AES-256 key (32 bytes). Highest `<n>` used for new writes; lower versions remain for decryption. Set at least one (e.g. `_V1`). |
 | `PROHIBITORUM_DATABASE_URL` | — | Postgres connection string. Required for the server and every DB-backed CLI command. |
-| `PROHIBITORUM_PUBLIC_ORIGIN` | `http://localhost:8080` | Comma-separated public origin(s). Seeds the OIDC issuer, SAML EntityID + endpoints, and the WebAuthn RP ID/origins when those aren't set explicitly. |
+| `PROHIBITORUM_PUBLIC_ORIGIN` | `http://localhost:8080` | Comma-separated public origin(s), each `scheme://host[:port]` with no path or trailing `/`; the server refuses to start otherwise. Seeds the OIDC issuer, SAML EntityID + endpoints, and the WebAuthn RP ID/origins when those aren't set explicitly. |
 | `PROHIBITORUM_HOST` | `""` (all interfaces) | Bind interface; set `127.0.0.1` to listen loopback-only behind a reverse proxy. |
 | `PROHIBITORUM_PORT` | `8080` | Bind port. |
 | `PROHIBITORUM_SESSION_TTL` | `8h` | Sliding session lifetime when "keep me signed in" is not chosen; the cookie is a browser-session cookie. |

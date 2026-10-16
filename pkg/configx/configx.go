@@ -308,6 +308,11 @@ func Parse() (*Config, error) {
 			}
 		}
 	}
+	for _, origin := range config.PublicOrigins {
+		if err := validatePublicOrigin(origin); err != nil {
+			return nil, err
+		}
+	}
 	if config.WebAuthn.RPID == "" && len(config.PublicOrigins) > 0 {
 		if u, err := url.Parse(config.PublicOrigins[0]); err == nil && u.Hostname() != "" {
 			config.WebAuthn.RPID = u.Hostname()
@@ -401,6 +406,23 @@ func bindEnvs(iface interface{}, parts ...string) {
 			_ = viper.BindEnv(strings.Join(append(parts, tv), "."))
 		}
 	}
+}
+
+// validatePublicOrigin checks that a public_origin entry is a bare origin,
+// the form browsers send in the Origin header and the cross-origin protection
+// accepts. A malformed entry is reported here, naming the setting, rather than
+// as a panic while the router is built.
+func validatePublicOrigin(origin string) error {
+	u, err := url.Parse(origin)
+	switch {
+	case err != nil, u.Scheme != "http" && u.Scheme != "https", u.Host == "", u.User != nil, u.Opaque != "":
+		return fmt.Errorf("public_origin (PROHIBITORUM_PUBLIC_ORIGIN) entry %q must be scheme://host[:port], for example https://id.example.com", origin)
+	case u.Path == "/" && u.RawQuery == "" && !u.ForceQuery && u.Fragment == "":
+		return fmt.Errorf("public_origin (PROHIBITORUM_PUBLIC_ORIGIN) entry %q must not end with \"/\"; use %q", origin, strings.TrimSuffix(origin, "/"))
+	case u.Path != "" || u.RawQuery != "" || u.ForceQuery || u.Fragment != "":
+		return fmt.Errorf("public_origin (PROHIBITORUM_PUBLIC_ORIGIN) entry %q must be scheme://host[:port], with no path, query or fragment", origin)
+	}
+	return nil
 }
 
 // validateRefreshTTLs checks the refresh-token inactivity and absolute lifetime
