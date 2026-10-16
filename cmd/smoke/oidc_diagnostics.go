@@ -158,3 +158,63 @@ func smokeOIDCDiagnostics(admin *client, base string, op *mockop.Server) error {
 	log.Printf("  effective config + separate callback + exchange + repeat/read: no account/identity writes, admin session unchanged ✓")
 	return nil
 }
+
+// smokeOIDCDiagnosticsErrorCallback delivers the mock OP's front-channel
+// error redirect (error + error_description) to the test callback and checks
+// that the stored result quotes the description to the administrator.
+func smokeOIDCDiagnosticsErrorCallback(admin *client, base string, op *mockop.Server) error {
+	const path = "/api/prohibitorum/identity-providers/mockop"
+	var start struct{ ID, AuthorizationURL string }
+	if err := admin.postJSON(path+"/tests", nil, &start); err != nil {
+		return err
+	}
+	// The mock OP's single-shot failure hook: the authorize redirect carries
+	// error/error_description instead of a code, exactly as Microsoft's
+	// AADSTS redirects do.
+	op.FailWithError("invalid_request", "AADSTS9002346: Application 'mock-client' is configured for use by Microsoft Account users only.")
+	callback, err := followMockOPAuthorize(start.AuthorizationURL)
+	if err != nil {
+		return err
+	}
+	destination, err := admin.getRedirectAbs(callback)
+	if err != nil {
+		return err
+	}
+	u, err := url.Parse(destination)
+	if err != nil {
+		return err
+	}
+	if u.Query().Get("test") != start.ID || strings.Contains(destination, "error_description") {
+		return fmt.Errorf("error callback redirect carried more than the test id: %s", destination)
+	}
+	var result struct {
+		Status string
+		Stages []struct {
+			Name             string
+			Status           string
+			ErrorDescription string `json:"errorDescription"`
+		}
+	}
+	readReq, _ := http.NewRequest(http.MethodGet, base+path+"/tests/"+start.ID, nil)
+	if err := admin.do(readReq, &result); err != nil {
+		return err
+	}
+	if result.Status != "failed" || len(result.Stages) == 0 {
+		return fmt.Errorf("error result: status=%s stages=%d", result.Status, len(result.Stages))
+	}
+	var failedStage *struct {
+		Name             string
+		Status           string
+		ErrorDescription string `json:"errorDescription"`
+	}
+	for i := range result.Stages {
+		if result.Stages[i].Name == "callback" {
+			failedStage = &result.Stages[i]
+		}
+	}
+	if failedStage == nil || failedStage.Status != "failed" || !strings.HasPrefix(failedStage.ErrorDescription, "AADSTS9002346:") {
+		return fmt.Errorf("callback stage lost the provider's error_description: %+v", failedStage)
+	}
+	log.Printf("  error callback kept the provider's error_description for the admin ✓")
+	return nil
+}

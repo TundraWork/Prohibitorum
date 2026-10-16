@@ -1151,6 +1151,14 @@ describe("identity provider diagnostics", () => {
     expect(failed.identity).toBeUndefined();
     expect(failed.idToken).toBeUndefined();
     expect(failed.userinfo).toBeUndefined();
+    // The failure is the provider refusing the authorization: the callback
+    // stage carries the front-channel error and its description, and no
+    // stage runs after it.
+    const callback = failed.stages?.find((s) => s.name === "callback");
+    expect(callback?.status).toBe("failed");
+    expect(callback?.errorCode).toBe("invalid_request");
+    expect(callback?.errorDescription).toContain("AADSTS");
+    expect(failed.stages?.some((s) => s.name === "token_exchange")).toBe(false);
   });
 
   it("starts and completes a test without a request body", () => {

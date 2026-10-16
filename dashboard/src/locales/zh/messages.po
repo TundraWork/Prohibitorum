@@ -5019,6 +5019,11 @@ msgid "success.identity-provider.enabled"
 msgstr "提供商已启用"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+msgid "admin.federation.diagnostics.stage.provider-message"
+msgstr "提供商返回的信息："
+
+#. js-lingui-explicit-id
 #: src/api/success-messages.ts
 msgid "success.identity-provider.saved"
 msgstr "提供商已保存"

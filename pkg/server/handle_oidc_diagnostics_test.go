@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -207,5 +208,70 @@ func oidcDiagnosticRoundTrip(t *testing.T, responseType string) {
 	rec = request("GET", callback.RequestURI()+"&state=duplicate", "", false)
 	if rec.Code != 400 {
 		t.Fatal("duplicate state accepted")
+	}
+}
+
+// TestOIDCDiagnosticErrorCallbackKeepsDescription starts a second test and
+// delivers the provider's error redirect to the public callback; the result
+// the dashboard reads carries the provider's error_description, while the
+// management-page redirect still exposes only the opaque test ID.
+func TestOIDCDiagnosticErrorCallbackKeepsDescription(t *testing.T) {
+	op, err := mockop.New("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	upstream := httptest.NewServer(op.Routes())
+	defer upstream.Close()
+	op.SetBase(upstream.URL)
+	raw := strings.Replace(exactOIDCConfig, "https://issuer.example", upstream.URL, 1)
+	raw = strings.Replace(raw, `"allowPrivateNetwork":false`, `"allowPrivateNetwork":true`, 1)
+	raw = strings.Replace(raw, `"tokenAuthMethod":"discovery"`, `"tokenAuthMethod":"none"`, 1)
+	query := &fakeProviderStateQueries{row: db.UpstreamIdp{ID: 7, Slug: "corp", Protocol: "oidc", ProviderConfig: []byte(raw), SecretStatus: "unconfigured"}}
+	s := &Server{config: &configx.Config{PublicOrigins: []string{"https://rp.example"}}, kvStore: kv.NewMemoryStore(), rateLimiter: authn.NewRateLimiter(), providerStateQueriesOverride: query}
+	router := chi.NewRouter()
+	admin := contract.AuthRequirement{Kind: contract.AuthAdmin}
+	s.registerAdminBodyOpHTTP(router, "POST", "/api/prohibitorum/identity-providers/{slug}/tests", admin, s.handleOIDCTestStartHTTP)
+	registerOpHTTP(router, "GET", "/api/prohibitorum/auth/federation/{slug}/test/callback", contract.AuthRequirement{Kind: contract.AuthPublic}, s.handleOIDCTestCallbackHTTP)
+	registerOpHTTP(router, "GET", "/api/prohibitorum/identity-providers/{slug}/tests/{id}", admin, s.handleOIDCTestGetHTTP)
+	session := authn.WithSession(context.Background(), &authn.Session{Account: &db.Account{ID: 7, Role: "admin"}, Data: &authn.SessionData{AccountID: 7, SessionID: "admin-session"}})
+	req := httptest.NewRequest("POST", "/api/prohibitorum/identity-providers/corp/tests", nil).WithContext(session)
+	rec0 := httptest.NewRecorder()
+	router.ServeHTTP(rec0, req)
+	var start struct{ ID string }
+	if err := json.Unmarshal(rec0.Body.Bytes(), &start); err != nil {
+		t.Fatal(err)
+	}
+	cookie := rec0.Result().Cookies()[0]
+	description := "AADSTS9002346: Application 'mock-client' is configured for use by Microsoft Account users only."
+	failing := httptest.NewRequest("GET", "/api/prohibitorum/auth/federation/corp/test/callback?error=invalid_request&error_description="+url.QueryEscape(description)+"&state="+start.ID, nil)
+	failing.AddCookie(cookie)
+	rec1 := httptest.NewRecorder()
+	router.ServeHTTP(rec1, failing)
+	if rec1.Code != 302 {
+		t.Fatalf("error callback %d: %s", rec1.Code, rec1.Body.String())
+	}
+	if loc := rec1.Header().Get("Location"); !strings.HasPrefix(loc, "/admin/identity-providers/corp?test=") || strings.Contains(loc, "error") {
+		t.Fatalf("redirect %s", loc)
+	}
+	read := httptest.NewRequest("GET", "/api/prohibitorum/identity-providers/corp/tests/"+start.ID, nil).WithContext(session)
+	read.AddCookie(cookie)
+	rec2 := httptest.NewRecorder()
+	router.ServeHTTP(rec2, read)
+	if rec2.Code != 200 || !strings.Contains(rec2.Body.String(), `"status":"failed"`) || !strings.Contains(rec2.Body.String(), `"errorCode":"invalid_request"`) || !strings.Contains(rec2.Body.String(), `"errorDescription":"`+description[:20]) {
+		t.Fatalf("result %d: %s", rec2.Code, rec2.Body.String())
+	}
+}
+
+// TestOIDCDiagnosticErrorCallbackRejectsRepeatedDescription checks the
+// at-most-once rule now covers error_description: a parameter-smuggling
+// callback with two values is a 400 before anything is read.
+func TestOIDCDiagnosticErrorCallbackRejectsRepeatedDescription(t *testing.T) {
+	s := &Server{config: &configx.Config{PublicOrigins: []string{"https://rp.example"}}, kvStore: kv.NewMemoryStore(), rateLimiter: authn.NewRateLimiter()}
+	router := chi.NewRouter()
+	registerOpHTTP(router, "GET", "/api/prohibitorum/auth/federation/{slug}/test/callback", contract.AuthRequirement{Kind: contract.AuthPublic}, s.handleOIDCTestCallbackHTTP)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, httptest.NewRequest("GET", "/api/prohibitorum/auth/federation/corp/test/callback?error=access_denied&error_description=one&error_description=two&state=whatever", nil))
+	if rec.Code != 400 {
+		t.Fatalf("repeated error_description accepted: %d %s", rec.Code, rec.Body.String())
 	}
 }

@@ -3033,20 +3033,23 @@ export function diagnosticResult(
   ];
   const endpoint = "https://idp1.example.test";
   if (outcome === "failed") {
+    // The failure mirrors what the server can honestly report: the provider
+    // refused the authorization, so the callback stage carries the
+    // front-channel error code and description and nothing runs after it.
     return {
       status: "failed",
       expiresAt: iso(600_000),
       stages: [
-        ...before,
+        { name: "discovery", status: "succeeded", durationMs: 42 },
+        { name: "authorize", status: "succeeded", durationMs: 12 },
         {
-          name: "token_exchange",
+          name: "callback",
           status: "failed",
-          durationMs: 55,
-          endpoint: `${endpoint}/token`,
-          errorCode: "invalid_client",
-          httpStatus: 401,
+          durationMs: 8,
+          errorCode: "invalid_request",
+          errorDescription:
+            "AADSTS9002346: Application 'mock-client-1' is configured for use by Microsoft Account users only. Please use the /consumers endpoint to serve this request.",
         },
-        { name: "id_token", status: "skipped" },
       ],
     };
   }

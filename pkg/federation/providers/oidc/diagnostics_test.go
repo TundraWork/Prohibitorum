@@ -201,7 +201,7 @@ func (h *diagnosticHarness) start(t *testing.T) DiagnosticStart {
 func (h *diagnosticHarness) callback(t *testing.T, s DiagnosticStart) string {
 	t.Helper()
 	code, iss := authorize(t, s.AuthorizationURL)
-	if err := h.service.Callback(context.Background(), s.ID, h.provider.Slug, h.browser, code, "", iss, "", "request-callback"); err != nil {
+	if err := h.service.Callback(context.Background(), s.ID, h.provider.Slug, h.browser, code, "", "", iss, "", "request-callback"); err != nil {
 		t.Fatal(err)
 	}
 	return code
@@ -218,7 +218,7 @@ func TestDiagnosticsCompleteUsesDedicatedCallbackAndDoesNotReplay(t *testing.T) 
 	if h.tokenCalls.Load() != 0 {
 		t.Fatal("callback exchanged code")
 	}
-	if err := h.service.Callback(context.Background(), s.ID, h.provider.Slug, h.browser, code, "", "", "", "replay"); err == nil {
+	if err := h.service.Callback(context.Background(), s.ID, h.provider.Slug, h.browser, code, "", "", "", "", "replay"); err == nil {
 		t.Fatal("callback replay accepted")
 	}
 	result, err := h.service.Complete(context.Background(), s.ID, h.provider, h.browser, h.actor, "request-complete")
@@ -305,7 +305,7 @@ func TestDiagnosticsImplicitFlowForPublicClient(t *testing.T) {
 	if idToken == "" {
 		t.Fatalf("fragment carries no id_token: %s", loc)
 	}
-	if err := h.service.Callback(context.Background(), s.ID, h.provider.Slug, h.browser, "", "", fragment.Get("iss"), idToken, "request-callback"); err != nil {
+	if err := h.service.Callback(context.Background(), s.ID, h.provider.Slug, h.browser, "", "", "", fragment.Get("iss"), idToken, "request-callback"); err != nil {
 		t.Fatal(err)
 	}
 	result, err := h.service.Complete(context.Background(), s.ID, h.provider, h.browser, h.actor, "request-complete")
@@ -412,11 +412,11 @@ func TestDiagnosticsFailureStagesAreRedacted(t *testing.T) {
 			s := h.start(t)
 			switch scenario {
 			case "denied":
-				if err := h.service.Callback(context.Background(), s.ID, h.provider.Slug, h.browser, "", "access_denied", "", "", "callback"); err != nil {
+				if err := h.service.Callback(context.Background(), s.ID, h.provider.Slug, h.browser, "", "access_denied", "", "", "", "callback"); err != nil {
 					t.Fatal(err)
 				}
 			case "callback issuer":
-				if err := h.service.Callback(context.Background(), s.ID, h.provider.Slug, h.browser, "code", "", "https://other.example", "", "callback"); err != nil {
+				if err := h.service.Callback(context.Background(), s.ID, h.provider.Slug, h.browser, "code", "", "", "https://other.example", "", "callback"); err != nil {
 					t.Fatal(err)
 				}
 			default:
@@ -424,7 +424,7 @@ func TestDiagnosticsFailureStagesAreRedacted(t *testing.T) {
 					h.op.OverrideIssuer("https://wrong.example")
 				}
 				code, _ := authorize(t, s.AuthorizationURL)
-				if err := h.service.Callback(context.Background(), s.ID, h.provider.Slug, h.browser, code, "", "", "", "callback"); err != nil {
+				if err := h.service.Callback(context.Background(), s.ID, h.provider.Slug, h.browser, code, "", "", "", "", "callback"); err != nil {
 					t.Fatal(err)
 				}
 				h.tokenFailure.Store(scenario == "token")
@@ -459,7 +459,7 @@ func TestDiagnosticsCallbackIssuerIsCheckedByAdvance(t *testing.T) {
 	h := newDiagnosticHarness(t)
 	s := h.start(t)
 	code, _ := authorize(t, s.AuthorizationURL)
-	if err := h.service.Callback(context.Background(), s.ID, h.provider.Slug, h.browser, code, "", "https://other.example", "", "callback"); err != nil {
+	if err := h.service.Callback(context.Background(), s.ID, h.provider.Slug, h.browser, code, "", "", "https://other.example", "", "callback"); err != nil {
 		t.Fatal(err)
 	}
 	result, err := h.service.Complete(context.Background(), s.ID, h.provider, h.browser, h.actor, "complete")
@@ -633,5 +633,60 @@ func TestDiagnosticsDiscoveryFailure(t *testing.T) {
 	var resolution *DiagnosticResolutionError
 	if !errors.As(err, &resolution) || resolution.Stage.ErrorCode != "discovery_failed" || resolution.Stage.RequestID != "request-start" {
 		t.Fatalf("err=%v", err)
+	}
+}
+
+func TestDiagnosticsCallbackErrorDescription(t *testing.T) {
+	h := newDiagnosticHarness(t)
+	s := h.start(t)
+	description := "AADSTS9002346: Application 'mock-client' is configured for Microsoft Account users only."
+	if err := h.service.Callback(context.Background(), s.ID, h.provider.Slug, h.browser, "", "invalid_request", description, "", "", "callback"); err != nil {
+		t.Fatal(err)
+	}
+	result, err := h.service.Get(context.Background(), s.ID, h.provider.Slug, h.browser, h.actor)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Status != "failed" {
+		t.Fatalf("result=%+v", result)
+	}
+	stage := stageOf(result, "callback")
+	if stage.Status != "failed" || stage.ErrorCode != "invalid_request" || stage.ErrorDescription != description {
+		t.Fatalf("stage=%+v", stage)
+	}
+	// Oversized descriptions are dropped whole rather than truncated: a cut
+	// mid-code would mislead more than an absent description.
+	s = h.start(t)
+	if err := h.service.Callback(context.Background(), s.ID, h.provider.Slug, h.browser, "", "access_denied", strings.Repeat("x", 8193), "", "", "callback"); err != nil {
+		t.Fatal(err)
+	}
+	result, err = h.service.Get(context.Background(), s.ID, h.provider.Slug, h.browser, h.actor)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stage := stageOf(result, "callback"); stage.Status != "failed" || stage.ErrorCode != "access_denied" || stage.ErrorDescription != "" {
+		t.Fatalf("oversized stage=%+v", stage)
+	}
+}
+
+// TestDiagnosticsUpstreamErrorDescriptionFromExchangeIsNotShown pins the
+// boundary: the front-channel description from the authorize redirect is kept,
+// while a description in the token endpoint's response body — text the admin
+// has never seen — stays redacted.
+func TestDiagnosticsUpstreamErrorDescriptionFromExchangeIsNotShown(t *testing.T) {
+	h := newDiagnosticHarness(t)
+	s := h.start(t)
+	code, _ := authorize(t, s.AuthorizationURL)
+	if err := h.service.Callback(context.Background(), s.ID, h.provider.Slug, h.browser, code, "", "", "", "", "callback"); err != nil {
+		t.Fatal(err)
+	}
+	h.tokenFailure.Store(true)
+	result, err := h.service.Complete(context.Background(), s.ID, h.provider, h.browser, h.actor, "complete")
+	if err != nil {
+		t.Fatal(err)
+	}
+	stage := stageOf(result, "token_exchange")
+	if stage.Status != "failed" || stage.ErrorCode != "invalid_client" || stage.ErrorDescription != "" {
+		t.Fatalf("stage=%+v", stage)
 	}
 }

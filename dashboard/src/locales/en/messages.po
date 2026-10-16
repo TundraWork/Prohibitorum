@@ -5019,6 +5019,11 @@ msgid "success.identity-provider.enabled"
 msgstr "Provider enabled"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+msgid "admin.federation.diagnostics.stage.provider-message"
+msgstr "Provider message:"
+
+#. js-lingui-explicit-id
 #: src/api/success-messages.ts
 msgid "success.identity-provider.saved"
 msgstr "Provider saved"

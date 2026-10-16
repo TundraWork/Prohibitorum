@@ -351,6 +351,8 @@ export interface DiagnosticStageView {
   endpoint?: string;
   httpStatus?: number;
   errorCode?: string;
+  /** The provider's front-channel error_description from the authorize redirect. */
+  errorDescription?: string;
   requestId?: string;
 }
 
