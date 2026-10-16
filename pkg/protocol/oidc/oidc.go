@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"slices"
 	"time"
 
 	"prohibitorum/pkg/appaccess"
@@ -157,6 +158,27 @@ func (p *Provider) jwksCacheControl() string {
 	return fmt.Sprintf("public, max-age=%d", int(p.jwksCacheMaxAge().Seconds()))
 }
 
+// discoveryScopes lists SupportedScopes plus identity:<slug> for every enabled
+// provider, by slug. A failed provider read leaves only the fixed scopes, so
+// discovery itself never fails on it.
+func (p *Provider) discoveryScopes(ctx context.Context) []string {
+	scopes := SupportedScopes()
+	providers, err := p.queries.ListUpstreamIDPs(ctx)
+	if err != nil {
+		slog.Warn("oidc discovery: list providers for identity scopes", "err", err)
+		return scopes
+	}
+	var identity []string
+	for _, provider := range providers {
+		scope := IdentityScopePrefix + provider.Slug
+		if IsSupportedScope(scope) {
+			identity = append(identity, scope)
+		}
+	}
+	slices.Sort(identity)
+	return append(scopes, identity...)
+}
+
 // HandleDiscovery serves the OP metadata document — RFC 8414 / OIDC
 // Discovery 1.0 — at /.well-known/openid-configuration. It advertises the
 // full OP surface (token introspection/revocation, RFC 9207 iss param).
@@ -183,7 +205,7 @@ func (p *Provider) HandleDiscovery(w http.ResponseWriter, r *http.Request) {
 		"revocation_endpoint":    issuer + "/oauth/revoke",
 		"end_session_endpoint":   issuer + "/oidc/logout",
 
-		"scopes_supported":                      SupportedScopes(),
+		"scopes_supported":                      p.discoveryScopes(r.Context()),
 		"response_types_supported":              []string{"code"},
 		"grant_types_supported":                 []string{"authorization_code", "refresh_token"},
 		"id_token_signing_alg_values_supported": []string{"RS256"},
@@ -205,7 +227,7 @@ func (p *Provider) HandleDiscovery(w http.ResponseWriter, r *http.Request) {
 			"sub", "iss", "aud", "exp", "iat", "nonce",
 			"auth_time", "amr", "acr", "sid", "at_hash",
 			"username", "displayName", "role", "attributes",
-			"email", "email_verified",
+			"email", "email_verified", "identities",
 		},
 	}
 	w.Header().Set("Content-Type", "application/json")

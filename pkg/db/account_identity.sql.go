@@ -257,6 +257,50 @@ func (q *Queries) ListAccountIdentitiesByAccount(ctx context.Context, accountID 
 	return items, nil
 }
 
+const listConfirmedIdentitiesForProviders = `-- name: ListConfirmedIdentitiesForProviders :many
+SELECT ip.slug AS idp_slug, ai.upstream_sub, ai.upstream_data
+FROM account_identity ai
+JOIN upstream_idp ip ON ip.id = ai.upstream_idp_id
+WHERE ai.account_id = $1
+  AND ai.confirmed_at IS NOT NULL
+  AND NOT ip.disabled
+  AND ip.slug = ANY($2::text[])
+ORDER BY ai.linked_at, ai.id
+`
+
+type ListConfirmedIdentitiesForProvidersParams struct {
+	AccountID int32    `json:"accountId"`
+	Slugs     []string `json:"slugs"`
+}
+
+type ListConfirmedIdentitiesForProvidersRow struct {
+	IdpSlug      string `json:"idpSlug"`
+	UpstreamSub  string `json:"upstreamSub"`
+	UpstreamData []byte `json:"upstreamData"`
+}
+
+// The confirmed links an account holds at the given enabled providers, for the
+// identities claim of an identity:<slug> scope.
+func (q *Queries) ListConfirmedIdentitiesForProviders(ctx context.Context, arg ListConfirmedIdentitiesForProvidersParams) ([]ListConfirmedIdentitiesForProvidersRow, error) {
+	rows, err := q.db.Query(ctx, listConfirmedIdentitiesForProviders, arg.AccountID, arg.Slugs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListConfirmedIdentitiesForProvidersRow
+	for rows.Next() {
+		var i ListConfirmedIdentitiesForProvidersRow
+		if err := rows.Scan(&i.IdpSlug, &i.UpstreamSub, &i.UpstreamData); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const updateAccountIdentityVerifiedData = `-- name: UpdateAccountIdentityVerifiedData :exec
 UPDATE account_identity
 SET upstream_email = $2, upstream_data = $3

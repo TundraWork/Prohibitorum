@@ -13,7 +13,7 @@ import { applyServerError } from "@/forms/server-errors";
 import { useAppForm } from "@/forms/use-app-form";
 import { OidcScopesField } from "@/pages/admin/oidc-applications/OidcScopesField";
 import {
-  type OidcScope,
+  type AllowedScope,
   uriListProblem,
 } from "@/pages/admin/oidc-applications/oidc-validation";
 import { clientSecretCopy } from "@/pages/admin/oidc-applications/secret-copy";
@@ -84,7 +84,7 @@ export function AdminOidcApplicationNew() {
       // One row to fill: a client signs in through at least one of these, so
       // the last row cannot be removed.
       redirectUris: [""],
-      scopes: ["openid", "profile", "email"] as OidcScope[],
+      scopes: ["openid", "profile", "email"] as AllowedScope[],
       requireConsent: false,
       requirePkce: true,
       accessRestricted: false,

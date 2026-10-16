@@ -262,6 +262,7 @@ export const reservedAliasNames: readonly string[] = [
   "acr",
   "at_hash",
   "azp",
+  "identities",
 ];
 
 const flowIntents: readonly FederationFlowIntent[] = [

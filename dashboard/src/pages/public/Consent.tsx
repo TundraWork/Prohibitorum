@@ -34,17 +34,22 @@ export function ConsentPage() {
   const asked = incremental
     ? request.scopes.filter((scope) => !granted.includes(scope))
     : request.scopes;
+  const providers = request.providers ?? {};
   const scopeName = (scope: string) => {
-    const { name } = describeScope(scope);
-    return name ? i18n._(name) : scope;
+    const { name, values } = describeScope(scope, providers);
+    return name ? i18n._({ ...name, values }) : scope;
   };
   const facts: ConsentFact[] = asked.map((scope) => {
-    const { icon, name, description } = describeScope(scope);
+    const { icon, name, description, values } = describeScope(scope, providers);
     return {
       key: scope,
       icon,
-      name: name ? i18n._(name) : <span className="font-mono">{scope}</span>,
-      description: i18n._({ ...description, values: { instance } }),
+      name: name ? (
+        i18n._({ ...name, values })
+      ) : (
+        <span className="font-mono">{scope}</span>
+      ),
+      description: i18n._({ ...description, values: { ...values, instance } }),
     };
   });
   const allowed = new Intl.ListFormat(i18n.locale === "zh" ? "zh-CN" : "en", {

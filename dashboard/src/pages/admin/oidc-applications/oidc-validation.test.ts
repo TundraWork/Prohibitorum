@@ -38,6 +38,17 @@ describe("scope form value", () => {
       "groups",
     ]);
   });
+
+  it("keeps saved provider identity scopes after the fixed ones, even for a provider that is gone", () => {
+    expect(
+      scopeFormValue([
+        "identity:vrchat",
+        "groups",
+        "identity:gone",
+        "identity:",
+      ]),
+    ).toEqual(["openid", "groups", "identity:vrchat", "identity:gone"]);
+  });
 });
 
 describe("removed scopes", () => {

@@ -30,6 +30,7 @@ var reservedClaimNames = map[string]struct{}{
 	"iss": {}, "sub": {}, "aud": {}, "exp": {}, "iat": {},
 	"auth_time": {}, "sid": {}, "amr": {}, "nonce": {},
 	"acr": {}, "at_hash": {}, "azp": {}, internalAccountIDClaim: {},
+	"identities": {},
 }
 
 var aliasSources = map[string]struct{}{

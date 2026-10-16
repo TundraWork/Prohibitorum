@@ -363,6 +363,10 @@ func (p *Provider) mintAccessAndIDTokens(ctx context.Context, acct db.Account, c
 	if len(p.cfg.PublicOrigins) > 0 {
 		avatarOrigin = p.cfg.PublicOrigins[0]
 	}
+	identities, err := p.identitiesForScopes(ctx, acct.ID, scope)
+	if err != nil {
+		return "", "", err
+	}
 	idClaims := idTokenClaims(acct, idTokenInput{
 		Issuer:       issuer,
 		AvatarOrigin: avatarOrigin,
@@ -377,6 +381,7 @@ func (p *Provider) mintAccessAndIDTokens(ctx context.Context, acct db.Account, c
 		AccessToken:  accessToken,
 		Scope:        scope,
 		Groups:       groups,
+		Identities:   identities,
 		IssuedAt:     now,
 		Expiry:       now.Add(p.idTokenTTL()),
 		AuthTime:     authTime,

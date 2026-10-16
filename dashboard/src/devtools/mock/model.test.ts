@@ -74,7 +74,8 @@ describe("mock config", () => {
   it("starts the public flows on a first-time consent with an app-defined scope", () => {
     expect(defaultMockConfig.publicFlows.consent).toEqual({
       grant: "first",
-      scopes: "openid profile email groups offline_access wiki:write",
+      scopes:
+        "openid profile email groups offline_access identity:provider-1 wiki:write",
       logo: true,
       policy: true,
       terms: true,

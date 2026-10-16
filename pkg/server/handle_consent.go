@@ -14,6 +14,7 @@ import (
 	"prohibitorum/pkg/avatar"
 	"prohibitorum/pkg/contract"
 	"prohibitorum/pkg/db"
+	oidc "prohibitorum/pkg/protocol/oidc"
 )
 
 // consentUser projects the session account into the consent screens' user view,
@@ -38,6 +39,7 @@ func (s *Server) consentUser(a *db.Account) contract.ConsentUser {
 type oidcConsentQueries interface {
 	GetOIDCClient(ctx context.Context, clientID string) (db.OidcClient, error)
 	GetConsent(ctx context.Context, arg db.GetConsentParams) ([]string, error)
+	GetUpstreamIDPBySlugAny(ctx context.Context, slug string) (db.UpstreamIdp, error)
 }
 
 func (s *Server) getOIDCConsentQueries() oidcConsentQueries {
@@ -79,6 +81,24 @@ func (s *Server) handleConsentContextHTTP(w http.ResponseWriter, r *http.Request
 		},
 		Account: s.consentUser(sess.Account),
 		Scopes:  ticket.Scopes,
+	}
+	for _, scope := range ticket.Scopes {
+		slug, ok := oidc.IdentityScopeSlug(scope)
+		if !ok {
+			continue
+		}
+		provider, err := q.GetUpstreamIDPBySlugAny(r.Context(), slug)
+		if errors.Is(err, pgx.ErrNoRows) {
+			continue
+		}
+		if err != nil {
+			writeAuthErr(w, err)
+			return
+		}
+		if out.Providers == nil {
+			out.Providers = map[string]string{}
+		}
+		out.Providers[slug] = provider.DisplayName
 	}
 	granted, gerr := q.GetConsent(r.Context(), db.GetConsentParams{
 		AccountID: sess.Data.AccountID, ClientID: ticket.ClientID,

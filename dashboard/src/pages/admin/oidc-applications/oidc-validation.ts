@@ -70,17 +70,46 @@ export const oidcScopes: readonly {
 ];
 
 /**
- * The saved scopes as the scope checkboxes hold them: only the ones the
- * instance knows, always with `openid`, in the vocabulary's order.
+ * A provider identity scope, `identity:<slug>`: the user's linked identities
+ * at that upstream provider. The provider list is the instance's own, so these
+ * are not part of the fixed vocabulary above.
+ */
+export type IdentityScope = `identity:${string}`;
+
+/** A scope the scope field can hold. */
+export type AllowedScope = OidcScope | IdentityScope;
+
+const identityScopePrefix = "identity:";
+
+export function identityScope(slug: string): IdentityScope {
+  return `${identityScopePrefix}${slug}`;
+}
+
+export function isIdentityScope(scope: string): scope is IdentityScope {
+  return (
+    scope.startsWith(identityScopePrefix) &&
+    scope.length > identityScopePrefix.length
+  );
+}
+
+/**
+ * The saved scopes as the scope checkboxes hold them: the fixed ones the
+ * instance knows, always with `openid`, in the vocabulary's order, then the
+ * saved provider identity scopes in their saved order. An identity scope is
+ * kept even when its provider is gone, so the field can show it and the reader
+ * can clear it, rather than the save dropping it unannounced.
  *
  * `/authorize` refuses a request without `openid`, so a record saved without
  * it is a client that cannot sign in; saving the form once puts it back.
  */
-export function scopeFormValue(saved: readonly string[]): OidcScope[] {
+export function scopeFormValue(saved: readonly string[]): AllowedScope[] {
   const held = new Set(saved);
-  return oidcScopes
-    .map((scope) => scope.value)
-    .filter((scope) => scope === "openid" || held.has(scope));
+  return [
+    ...oidcScopes
+      .map((scope) => scope.value)
+      .filter((scope) => scope === "openid" || held.has(scope)),
+    ...saved.filter(isIdentityScope),
+  ];
 }
 
 /**

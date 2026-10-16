@@ -5019,6 +5019,11 @@ msgid "success.identity-provider.enabled"
 msgstr "Provider enabled"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/OidcScopesField.tsx
+msgid "admin.oidc-apps.field.scopes.identities"
+msgstr "Provider identities"
+
+#. js-lingui-explicit-id
 #: src/api/success-messages.ts
 msgid "success.identity-provider.saved"
 msgstr "Provider saved"
@@ -7039,6 +7044,11 @@ msgid "app.access.open.kept"
 msgstr "The user groups below are kept and apply again when you restrict this application."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/OidcScopesField.tsx
+msgid "admin.oidc-apps.scope.identity"
+msgstr "The user's linked {provider} identities."
+
+#. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.vrchat_proof_missing"
 msgstr "The verification link isn't in your bio yet. Save your profile, wait a moment, then verify."
@@ -7347,6 +7357,11 @@ msgstr "This passkey will stop working for sign-in right away. Any other way you
 #: src/api/errors.ts
 msgid "error.provider_not_ready"
 msgstr "This provider is not ready yet. Finish setting up its credentials before enabling it."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/OidcScopesField.tsx
+msgid "admin.oidc-apps.scope.identity.unavailable"
+msgstr "This provider is turned off or no longer exists. Clear it to stop allowing it."
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -8269,6 +8284,16 @@ msgstr "You're signing in through {idp} for the first time, and {instance} has p
 #: src/pages/public/Enroll.tsx
 msgid "enroll.description.invite"
 msgstr "You've been invited to {instance}. This link works until {expires}."
+
+#. js-lingui-explicit-id
+#: src/pages/public/consent/scopes.ts
+msgid "consent.scope.identity.description"
+msgstr "Your {provider} ID, display name and profile link"
+
+#. js-lingui-explicit-id
+#: src/pages/public/consent/scopes.ts
+msgid "consent.scope.identity"
+msgstr "Your {provider} identity"
 
 #. js-lingui-explicit-id
 #: src/components/custom/ConsoleLayout.tsx

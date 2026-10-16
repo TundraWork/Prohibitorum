@@ -301,6 +301,7 @@ Authorization header or in the request body — both channels are accepted.`,
 			if err != nil {
 				log.Fatalf("build client params: %v", err)
 			}
+			mustKnownIdentityScopes(ctx, q, params.AllowedScopes, "oidc-client create")
 
 			if _, err := q.InsertOIDCClient(ctx, params); err != nil {
 				log.Fatalf("insert oidc client: %v", err)
@@ -318,7 +319,7 @@ Authorization header or in the request body — both channels are accepted.`,
 	createClientCmd.Flags().StringVar(&clientDisplayName, "display-name", "", "Human-readable client name.")
 	createClientCmd.Flags().StringArrayVar(&clientRedirectURIs, "redirect-uri", nil, "Allowed redirect URI (repeatable, at least one required).")
 	createClientCmd.Flags().StringArrayVar(&clientPostLogoutURIs, "post-logout-redirect-uri", nil, "Allowed post-logout redirect URI (repeatable).")
-	createClientCmd.Flags().StringArrayVar(&clientScopes, "scope", nil, "Allowed scope (repeatable; defaults to openid,profile).")
+	createClientCmd.Flags().StringArrayVar(&clientScopes, "scope", nil, "Allowed scope (repeatable; defaults to openid,profile). identity:<provider slug> reads the account's identities at that provider.")
 	createClientCmd.Flags().BoolVar(&clientPublic, "public", false, "Register a public client with no secret (auth method none).")
 	createClientCmd.Flags().BoolVar(&clientRequireConsent, "require-consent", false, "Require a consent screen for this client.")
 	createClientCmd.Flags().BoolVar(&clientRequirePKCE, "require-pkce", true, "Require PKCE for this client (default true). Pass --require-pkce=false to let a confidential client authorize without a code_challenge. Refused together with --public.")
@@ -418,6 +419,7 @@ To keep a confidential client relaxed across updates, pass
 			if err := oidc.ValidateAllowedScopes(scopes); err != nil {
 				log.Fatalf("oidc-client update: %v", err)
 			}
+			mustKnownIdentityScopes(ctx, q, scopes, "oidc-client update")
 			updated, err := q.UpdateOIDCClient(ctx, db.UpdateOIDCClientParams{
 				ClientID:               updClientID,
 				DisplayName:            updClientDisplayName,
@@ -443,7 +445,7 @@ To keep a confidential client relaxed across updates, pass
 	updateClientCmd.Flags().StringVar(&updClientDisplayName, "display-name", "", "New human-readable client name.")
 	updateClientCmd.Flags().StringArrayVar(&updClientRedirectURIs, "redirect-uri", nil, "Allowed redirect URI (repeatable, at least one required).")
 	updateClientCmd.Flags().StringArrayVar(&updClientPostLogout, "post-logout-redirect-uri", nil, "Allowed post-logout redirect URI (repeatable).")
-	updateClientCmd.Flags().StringArrayVar(&updClientScopes, "scope", nil, "Allowed scope (repeatable; defaults to openid,profile).")
+	updateClientCmd.Flags().StringArrayVar(&updClientScopes, "scope", nil, "Allowed scope (repeatable; defaults to openid,profile). identity:<provider slug> reads the account's identities at that provider.")
 	updateClientCmd.Flags().BoolVar(&updClientReqConsent, "require-consent", false, "Require a consent screen for this client.")
 	updateClientCmd.Flags().BoolVar(&updClientDisabled, "disabled", false, "Disable the client (refuse new authorizations).")
 	oidcClientCmd.AddCommand(updateClientCmd)
@@ -1309,4 +1311,21 @@ Then configure Traefik ForwardAuth per docs/forward-auth.md.`,
 
 	addAppPolicyCommands(faAppCmd, appPolicyCLI{kind: appaccess.KindForwardAuth, flag: "client-id", targetName: "ForwardAuth client ID"})
 	root.AddCommand(faAppCmd)
+}
+
+// mustKnownIdentityScopes exits when an identity:<slug> scope names a provider
+// that does not exist, matching the admin API's write check.
+func mustKnownIdentityScopes(ctx context.Context, q *db.Queries, scopes []string, command string) {
+	for _, scope := range scopes {
+		slug, ok := oidc.IdentityScopeSlug(scope)
+		if !ok {
+			continue
+		}
+		if _, err := q.GetUpstreamIDPBySlugAny(ctx, slug); err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				log.Fatalf("%s: scope %q names no upstream identity provider", command, scope)
+			}
+			log.Fatalf("%s: look up provider for scope %q: %v", command, scope, err)
+		}
+	}
 }

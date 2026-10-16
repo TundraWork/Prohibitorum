@@ -1193,8 +1193,10 @@ describe("mocked public flows", () => {
       "email",
       "groups",
       "offline_access",
+      "identity:provider-1",
       "wiki:write",
     ]);
+    expect(body.providers).toEqual({ "provider-1": "Example IdP 1" });
     expect(body.alreadyGranted).toBeUndefined();
     expect(body.account.displayName).toBe(
       defaultMockConfig.session.displayName,

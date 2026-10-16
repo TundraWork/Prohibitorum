@@ -1,6 +1,7 @@
 import type { MessageDescriptor } from "@lingui/core";
 import { msg } from "@lingui/core/macro";
 import {
+  BadgeCheck,
   IdCard,
   KeyRound,
   type LucideIcon,
@@ -20,6 +21,8 @@ export interface ScopeDescription {
   /** The scope's name; `undefined` for one the app defined, shown as written. */
   name?: MessageDescriptor;
   description: MessageDescriptor;
+  /** Values for the name and description, such as `{provider}`. */
+  values?: Readonly<Record<string, string>>;
 }
 
 const knownScopes: Readonly<Record<string, ScopeDescription>> = {
@@ -76,7 +79,37 @@ const customScope: ScopeDescription = {
   }),
 };
 
-export function describeScope(scope: string): ScopeDescription {
+/** `identity:<slug>`: the account's linked identities at one provider. */
+const identityScopePrefix = "identity:";
+
+const identityScope = {
+  icon: BadgeCheck,
+  name: msg({
+    id: "consent.scope.identity",
+    message: "Your {provider} identity",
+  }),
+  description: msg({
+    id: "consent.scope.identity.description",
+    message: "Your {provider} ID, display name and profile link",
+  }),
+};
+
+/**
+ * `providers` names the provider of each `identity:<slug>` scope; a slug it
+ * does not name is shown as written.
+ */
+export function describeScope(
+  scope: string,
+  providers: Readonly<Record<string, string>> = {},
+): ScopeDescription {
+  if (scope.startsWith(identityScopePrefix)) {
+    const slug = scope.slice(identityScopePrefix.length);
+    // An own-property check, so a slug such as "constructor" never reads an
+    // inherited member of the object.
+    const named = Object.hasOwn(providers, slug) ? providers[slug] : undefined;
+    const provider = named ?? slug;
+    return { ...identityScope, values: { provider } };
+  }
   return (
     (Object.hasOwn(knownScopes, scope) && knownScopes[scope]) || customScope
   );

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -46,6 +47,24 @@ type fakeEndpointQueries struct {
 	revokedJTIs map[string]bool
 	inserted    []db.InsertRevokedJTIParams
 	groupsErr   error
+
+	identities    []db.ListConfirmedIdentitiesForProvidersRow
+	identitiesErr error
+	identityCalls []db.ListConfirmedIdentitiesForProvidersParams
+}
+
+func (f *fakeEndpointQueries) ListConfirmedIdentitiesForProviders(_ context.Context, arg db.ListConfirmedIdentitiesForProvidersParams) ([]db.ListConfirmedIdentitiesForProvidersRow, error) {
+	f.identityCalls = append(f.identityCalls, arg)
+	if f.identitiesErr != nil {
+		return nil, f.identitiesErr
+	}
+	var rows []db.ListConfirmedIdentitiesForProvidersRow
+	for _, row := range f.identities {
+		if slices.Contains(arg.Slugs, row.IdpSlug) {
+			rows = append(rows, row)
+		}
+	}
+	return rows, nil
 }
 
 func (f *fakeEndpointQueries) GetOIDCClient(_ context.Context, clientID string) (db.OidcClient, error) {

@@ -183,6 +183,9 @@ type Querier interface {
 	// still resolves its display name. The upload comes first, then the upstreams
 	// by source key.
 	ListAvatarSourcesByAccount(ctx context.Context, accountID int32) ([]ListAvatarSourcesByAccountRow, error)
+	// The confirmed links an account holds at the given enabled providers, for the
+	// identities claim of an identity:<slug> scope.
+	ListConfirmedIdentitiesForProviders(ctx context.Context, arg ListConfirmedIdentitiesForProvidersParams) ([]ListConfirmedIdentitiesForProvidersRow, error)
 	ListConsentsByAccount(ctx context.Context, accountID int32) ([]ListConsentsByAccountRow, error)
 	ListCredentialEvents(ctx context.Context, arg ListCredentialEventsParams) ([]ListCredentialEventsRow, error)
 	ListCredentialEventsByAccount(ctx context.Context, arg ListCredentialEventsByAccountParams) ([]CredentialEvent, error)
