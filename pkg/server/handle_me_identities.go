@@ -325,6 +325,7 @@ func (s *Server) handleMeIdentitiesLinkCallbackHTTP(w http.ResponseWriter, r *ht
 	state := q.Get("state")
 	code := q.Get("code")
 	iss := q.Get("iss")
+	idToken := q.Get("id_token")
 
 	if upstreamErr != "" {
 		// The user is already authenticated, so we know the account_id —
@@ -348,11 +349,16 @@ func (s *Server) handleMeIdentitiesLinkCallbackHTTP(w http.ResponseWriter, r *ht
 		return
 	}
 
+	// An implicit-flow response arrives with its parameters in the fragment;
+	// see handleFederationCallbackHTTP.
+	if r.URL.RawQuery == "" {
+		writeFragmentRelay(w)
+		return
+	}
 	// OpenID 2.0 callbacks (Steam) carry no code — detect them by openid.mode
-	// before applying the OIDC-style code guard. Mirrors the same pattern in
-	// handle_federation.go handleFederationLoginCallbackHTTP.
+	// before applying the OIDC-style code guard.
 	isSteamCallback := code == "" && q.Get("openid.mode") == "id_res"
-	if state == "" || (code == "" && !isSteamCallback) {
+	if state == "" || (code == "" && idToken == "" && !isSteamCallback) {
 		// Stray callbacks have no flow to attribute. Reject them without an
 		// audit row; nonempty malformed or replayed state reaches the service,
 		// which records the account-attributed structured failure.
@@ -368,7 +374,7 @@ func (s *Server) handleMeIdentitiesLinkCallbackHTTP(w http.ResponseWriter, r *ht
 		FlowID: state, BrowserToken: browserToken, ProviderSlug: chi.URLParam(r, "slug"),
 		CallbackRoute: federation.CallbackRouteLink,
 		AccountID:     new(sess.Account.ID), SessionID: sess.Data.SessionID,
-		Input: federation.ActionInput{Kind: federation.ActionRedirect, Code: code, Issuer: iss, Params: r.URL.Query()},
+		Input: federation.ActionInput{Kind: federation.ActionRedirect, Code: code, Issuer: iss, IDToken: idToken, Params: r.URL.Query()},
 	})
 	if err != nil {
 		// The federation service already emitted a fail audit row for each

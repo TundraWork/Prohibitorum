@@ -294,6 +294,11 @@ func TestMockOP_TokenExchange_PKCEHappyPath(t *testing.T) {
 	if tok.TokenType != "Bearer" {
 		t.Errorf("token_type = %q, want Bearer", tok.TokenType)
 	}
+	// The implicit-flow tests read this counter as proof that /token was
+	// never reached, so it has to count a real exchange.
+	if h.s.TokenCalls() != 1 {
+		t.Errorf("TokenCalls = %d after one exchange, want 1", h.s.TokenCalls())
+	}
 
 	hdr, claims := decodeJWT(t, tok.IDToken)
 	if hdr["alg"] != "ES256" {
@@ -399,6 +404,83 @@ func TestMockOP_AuthorizeWithErrorOverride(t *testing.T) {
 	}
 	if q2.Get("code") == "" {
 		t.Error("second authorize missing code")
+	}
+}
+
+// TestMockOP_AuthorizeImplicitIDToken drives response_type=id_token: the
+// redirect carries the id_token, state and iss in the fragment, the query
+// stays empty, and /token is never called.
+func TestMockOP_AuthorizeImplicitIDToken(t *testing.T) {
+	h := newHarness(t)
+	h.s.SetClaims("sub-imp", "imp@example.com", true, "impuser", "Imp User")
+
+	authURL := h.ts.URL + "/authorize?" + url.Values{
+		"response_type": {"id_token"},
+		"client_id":     {"client-1"},
+		"redirect_uri":  {"https://rp.example/cb"},
+		"state":         {"state-imp"},
+		"nonce":         {"nonce-imp"},
+		"scope":         {"openid profile email"},
+	}.Encode()
+	resp, err := noRedirectClient().Get(authURL)
+	if err != nil {
+		t.Fatalf("GET /authorize: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusFound {
+		t.Fatalf("authorize status = %d, want 302", resp.StatusCode)
+	}
+	loc, err := resp.Location()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if loc.Scheme+"://"+loc.Host+loc.Path != "https://rp.example/cb" {
+		t.Fatalf("implicit redirect went to %s", loc)
+	}
+	if loc.RawQuery != "" {
+		t.Fatalf("implicit redirect must keep the query empty; got %q", loc.RawQuery)
+	}
+	fragment, err := url.ParseQuery(loc.Fragment)
+	if err != nil {
+		t.Fatalf("fragment parse: %v", err)
+	}
+	if fragment.Get("state") != "state-imp" || fragment.Get("iss") != h.ts.URL {
+		t.Fatalf("fragment state/iss = %q/%q", fragment.Get("state"), fragment.Get("iss"))
+	}
+	idToken := fragment.Get("id_token")
+	if idToken == "" {
+		t.Fatal("fragment carries no id_token")
+	}
+	_, claims := decodeJWT(t, idToken)
+	if claims["sub"] != "sub-imp" || claims["nonce"] != "nonce-imp" || claims["aud"] != "client-1" {
+		t.Fatalf("implicit id_token claims = %v", claims)
+	}
+	if h.s.TokenCalls() != 0 {
+		t.Fatalf("implicit authorize hit /token %d times", h.s.TokenCalls())
+	}
+}
+
+// TestMockOP_AuthorizeImplicitRejectsPKCE pins that PKCE parameters
+// alongside response_type=id_token are rejected: the implicit flow has no
+// code to bind a verifier to.
+func TestMockOP_AuthorizeImplicitRejectsPKCE(t *testing.T) {
+	h := newHarness(t)
+	authURL := h.ts.URL + "/authorize?" + url.Values{
+		"response_type":         {"id_token"},
+		"client_id":             {"client-1"},
+		"redirect_uri":          {"https://rp.example/cb"},
+		"state":                 {"st"},
+		"nonce":                 {"nc"},
+		"code_challenge":        {"challenge"},
+		"code_challenge_method": {"S256"},
+	}.Encode()
+	resp, err := noRedirectClient().Get(authURL)
+	if err != nil {
+		t.Fatalf("GET /authorize: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("authorize with PKCE status = %d, want 400", resp.StatusCode)
 	}
 }
 

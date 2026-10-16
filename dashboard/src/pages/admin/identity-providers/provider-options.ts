@@ -167,7 +167,43 @@ export const clientAuthMethods: readonly (ProviderOption<ClientAuthMethod> & {
     label: msg({ id: "admin.federation.auth.none", message: "Public client" }),
     description: msg({
       id: "admin.federation.auth.none.hint",
-      message: "Uses no client secret; sign-in always uses PKCE.",
+      message:
+        "Uses no client secret; sign-in with an authorization code always uses PKCE.",
+    }),
+  },
+];
+
+export type ResponseType = NonNullable<OidcProviderConfig["responseType"]>;
+
+/**
+ * What the provider sends back after someone signs in. The code flow is the
+ * default because most providers allow only that; ID token only exists for
+ * public clients whose provider will not let a server redeem the code, such
+ * as an app registered for personal Microsoft accounts.
+ */
+export const responseTypes: readonly ProviderOption<ResponseType>[] = [
+  {
+    value: "code",
+    label: msg({
+      id: "admin.federation.response.code",
+      message: "Authorization code",
+    }),
+    description: msg({
+      id: "admin.federation.response.code.hint",
+      message:
+        "Exchanges the code at the token endpoint, with PKCE when it is on. Most providers allow only this.",
+    }),
+  },
+  {
+    value: "id_token",
+    label: msg({
+      id: "admin.federation.response.id-token",
+      message: "ID token only",
+    }),
+    description: msg({
+      id: "admin.federation.response.id-token.hint",
+      message:
+        "Reads the ID token sent back to the callback, without a token request or UserInfo.",
     }),
   },
 ];
@@ -271,6 +307,13 @@ export const effectiveConfigFields: readonly {
   {
     key: "pkceMethod",
     label: msg({ id: "admin.federation.effective.pkce", message: "PKCE" }),
+  },
+  {
+    key: "responseType",
+    label: msg({
+      id: "admin.federation.effective.response",
+      message: "Sign-in response",
+    }),
   },
   {
     key: "scopes",

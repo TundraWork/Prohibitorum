@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -38,6 +39,31 @@ type Config struct {
 	Endpoints            Endpoints `json:"endpoints"`
 	TokenAuthMethod      string    `json:"tokenAuthMethod"`
 	PKCEMethod           string    `json:"pkceMethod"`
+	// ResponseType is optional so configurations saved before it existed
+	// still decode; absent means responseTypeCode.
+	ResponseType string `json:"responseType,omitempty"`
+}
+
+// The sign-in responses a provider can ask for. The implicit flow is an
+// opt-in because many upstreams (Keycloak, Authelia, Dex, ZITADEL, Okta) only
+// allow the code flow by default, while some public clients, such as an app
+// registered for personal Microsoft accounts, cannot redeem a code from a
+// server at all.
+const (
+	responseTypeCode    = "code"
+	responseTypeIDToken = "id_token"
+)
+
+// jwksNone is the JWKS endpoint value that turns ID token verification off.
+const jwksNone = "none"
+
+// responseType returns the configured sign-in response, reading an unset
+// field as the code flow.
+func (c Config) responseType() string {
+	if c.ResponseType == "" {
+		return responseTypeCode
+	}
+	return c.ResponseType
 }
 
 // ResolvedConfig is a credential-free snapshot shared by login and diagnostics.
@@ -49,13 +75,15 @@ type ResolvedConfig struct {
 	JWKSEndpoint          string            `json:"jwksEndpoint"`
 	TokenAuthMethod       string            `json:"tokenAuthMethod"`
 	PKCEMethod            string            `json:"pkceMethod"`
+	ResponseType          string            `json:"responseType,omitempty"`
 	Scopes                []string          `json:"scopes"`
 	FetchedAt             time.Time         `json:"fetchedAt"`
 	Sources               map[string]string `json:"sources"`
 }
 
 // exactObject rejects duplicate, missing and unknown fields before unmarshalling.
-func exactObject(raw []byte, keys []string, nullable bool) (map[string]json.RawMessage, error) {
+// A key in optional may be absent.
+func exactObject(raw []byte, keys, optional []string, nullable bool) (map[string]json.RawMessage, error) {
 	d := json.NewDecoder(bytes.NewReader(raw))
 	tok, err := d.Token()
 	if err != nil || tok != json.Delim('{') {
@@ -89,23 +117,25 @@ func exactObject(raw []byte, keys []string, nullable bool) (map[string]json.RawM
 	if _, err := d.Token(); err != io.EOF {
 		return nil, errors.New("unexpected trailing config data")
 	}
-	if len(fields) != len(keys) {
-		return nil, errors.New("federation/oidc: config fields do not match schema")
-	}
 	for _, key := range keys {
 		if _, ok := fields[key]; !ok {
 			return nil, fmt.Errorf("missing config field %q", key)
+		}
+	}
+	for key := range fields {
+		if !slices.Contains(keys, key) && !slices.Contains(optional, key) {
+			return nil, errors.New("federation/oidc: config fields do not match schema")
 		}
 	}
 	return fields, nil
 }
 
 func decodeConfig(raw json.RawMessage) (Config, error) {
-	fields, err := exactObject(raw, []string{"issuerUrl", "clientId", "scopes", "allowedDomains", "usernameClaim", "displayNameClaim", "emailClaim", "pictureClaim", "subjectClaim", "requireVerifiedEmail", "allowPrivateNetwork", "configurationMode", "endpoints", "tokenAuthMethod", "pkceMethod"}, false)
+	fields, err := exactObject(raw, []string{"issuerUrl", "clientId", "scopes", "allowedDomains", "usernameClaim", "displayNameClaim", "emailClaim", "pictureClaim", "subjectClaim", "requireVerifiedEmail", "allowPrivateNetwork", "configurationMode", "endpoints", "tokenAuthMethod", "pkceMethod"}, []string{"responseType"}, false)
 	if err != nil {
 		return Config{}, err
 	}
-	if _, err := exactObject(fields["endpoints"], []string{"authorization", "token", "userinfo", "jwks"}, true); err != nil {
+	if _, err := exactObject(fields["endpoints"], []string{"authorization", "token", "userinfo", "jwks"}, nil, true); err != nil {
 		return Config{}, err
 	}
 	var config Config
@@ -158,6 +188,22 @@ func validateConfig(c Config) error {
 	if c.TokenAuthMethod == "none" && c.PKCEMethod != "S256" {
 		return errors.New("federation/oidc: public clients require S256")
 	}
+	// Both checks name a setting the ID token needs: the upstream issues one
+	// only for the openid scope, and JWKS none leaves nothing to verify it
+	// with. They run before the endpoint URLs so the JWKS value is not
+	// reported as a bad URL instead.
+	switch c.responseType() {
+	case responseTypeCode:
+	case responseTypeIDToken:
+		if !slices.Contains(c.Scopes, "openid") {
+			return errors.New("federation/oidc: ID token only sign-in requires the openid scope")
+		}
+		if c.Endpoints.JWKS != nil && *c.Endpoints.JWKS == jwksNone {
+			return errors.New("federation/oidc: ID token only sign-in cannot use JWKS none")
+		}
+	default:
+		return errors.New("federation/oidc: invalid response type")
+	}
 	for name, endpoint := range map[string]*string{"authorization": c.Endpoints.Authorization, "token": c.Endpoints.Token, "userinfo": c.Endpoints.UserInfo, "jwks": c.Endpoints.JWKS} {
 		if endpoint == nil {
 			if c.ConfigurationMode == "manual" && name != "userinfo" {
@@ -178,7 +224,7 @@ func ResolveConfig(ctx context.Context, c Config) (ResolvedConfig, error) {
 	if err := validateConfig(c); err != nil {
 		return ResolvedConfig{}, err
 	}
-	r := ResolvedConfig{Issuer: c.IssuerURL, TokenAuthMethod: c.TokenAuthMethod, PKCEMethod: c.PKCEMethod, Scopes: append([]string(nil), c.Scopes...), Sources: map[string]string{"issuer": "manual", "scopes": "manual", "pkceMethod": "manual", "tokenAuthMethod": "manual"}}
+	r := ResolvedConfig{Issuer: c.IssuerURL, TokenAuthMethod: c.TokenAuthMethod, PKCEMethod: c.PKCEMethod, ResponseType: c.responseType(), Scopes: append([]string(nil), c.Scopes...), Sources: map[string]string{"issuer": "manual", "scopes": "manual", "pkceMethod": "manual", "responseType": "manual", "tokenAuthMethod": "manual"}}
 	if c.ConfigurationMode == "discovery" {
 		d, err := oidcclient.Discover(ctx, c.IssuerURL, federationcore.NewOutboundHTTPClient(c.AllowPrivateNetwork, 2<<20))
 		if err != nil {

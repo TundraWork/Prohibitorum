@@ -64,7 +64,7 @@ import (
 // later arc is added, unlike a single global counter.
 const (
 	nCore       = 54
-	nFederation = 34
+	nFederation = 35
 	nOIDC       = 18
 	nSAML       = 14
 	nHardening  = 14
@@ -1640,6 +1640,84 @@ func main() {
 	step(fmt.Sprintf("federation %d/%d — DB assert: credential_event covers federation lifecycle", 34, nFederation))
 	if err := verifyFederationAuditEvents(); err != nil {
 		log.Fatalf("federation audit DB assert: %v", err)
+	}
+
+	step(fmt.Sprintf("federation %d/%d — public client opted into ID token only: id_token in the fragment, no code exchange", 35, nFederation))
+	{
+		const pubSlug = "mockop-public"
+		if _, err := seedUpstreamIDP(dek, pubSlug, "Mock OP (public)", opTS.URL, "test-client", "unused-secret", "auto_provision", nil, true, true); err != nil {
+			log.Fatalf("seed %s: %v", pubSlug, err)
+		}
+		pubRaw, err := oidcSeedProviderConfig(opTS.URL, "test-client", nil, true, true)
+		if err != nil {
+			log.Fatal(err)
+		}
+		var pubConfig map[string]any
+		if err := json.Unmarshal(pubRaw, &pubConfig); err != nil {
+			log.Fatal(err)
+		}
+		pubConfig["tokenAuthMethod"] = "none"
+		pubConfig["responseType"] = "id_token"
+		pubRaw, err = json.Marshal(pubConfig)
+		if err != nil {
+			log.Fatal(err)
+		}
+		pubDB, err := pgx.Connect(context.Background(), os.Getenv("PROHIBITORUM_DATABASE_URL"))
+		if err != nil {
+			log.Fatal(err)
+		}
+		if _, err := pubDB.Exec(context.Background(), "UPDATE upstream_idp SET provider_config=$1, secret_enc=NULL, secret_nonce=NULL, key_version=NULL, secret_status='unconfigured' WHERE slug=$2", pubRaw, pubSlug); err != nil {
+			log.Fatal(err)
+		}
+		if err := pubDB.Close(context.Background()); err != nil {
+			log.Fatal(err)
+		}
+		opSrv.SetClaims("pub-implicit-1", "pub-implicit@example.com", true, "pubimplicit", "Pub Implicit")
+		pubClient, err := newFederationClient(*baseURL)
+		if err != nil {
+			log.Fatalf("public client: %v", err)
+		}
+		tokenCallsBefore := opSrv.TokenCalls()
+		pubLogin := fmt.Sprintf("/api/prohibitorum/auth/federation/%s/login?return_to=/me", pubSlug)
+		pubAuthorize, err := pubClient.getRedirect(pubLogin)
+		if err != nil {
+			log.Fatalf("public login: %v", err)
+		}
+		if !strings.Contains(pubAuthorize, "response_type=id_token") {
+			log.Fatalf("public login is not the implicit flow: %q", pubAuthorize)
+		}
+		pubCallback, err := followMockOPAuthorize(pubAuthorize)
+		if err != nil {
+			log.Fatalf("public authorize: %v", err)
+		}
+		if !strings.Contains(pubCallback, "#") || !strings.Contains(pubCallback, "id_token=") {
+			log.Fatalf("implicit callback carries no id_token fragment: %s", pubCallback)
+		}
+		pubRedirectURL, err := pubClient.relayFragment(pubCallback)
+		if err != nil {
+			log.Fatalf("implicit relay: %v", err)
+		}
+		loc, err := pubClient.getRedirectAbs(pubRedirectURL)
+		if err != nil {
+			log.Fatalf("implicit callback: %v", err)
+		}
+		if loc != "/welcome" {
+			log.Fatalf("implicit callback: want /welcome, got %q", loc)
+		}
+		if got := opSrv.TokenCalls() - tokenCallsBefore; got != 0 {
+			log.Fatalf("implicit login made %d token endpoint calls", got)
+		}
+		if _, err := pubClient.confirmPost(); err != nil {
+			log.Fatalf("public confirm: %v", err)
+		}
+		pubMe, err := pubClient.getMe()
+		if err != nil {
+			log.Fatalf("public /me: %v", err)
+		}
+		if pubMe.Username != "pubimplicit" {
+			log.Fatalf("public account username = %q", pubMe.Username)
+		}
+		log.Printf("  relay page served, implicit id_token verified, 0 token endpoint calls, account confirmed ✓")
 	}
 
 	// =========================================================================
@@ -7754,6 +7832,34 @@ func (c *client) getRedirectAbs(absURL string) (string, error) {
 	return loc, nil
 }
 
+// relayFragment stands in for the browser on an implicit-flow callback,
+// whose parameters arrive in the URI fragment: it requests the callback
+// without the fragment, checks that the server answers with the relay page,
+// and returns the URL that page loads next, with the fragment as the query.
+// A callback URL without a fragment is returned unchanged.
+func (c *client) relayFragment(callbackURL string) (string, error) {
+	u, err := url.Parse(callbackURL)
+	if err != nil || u.Fragment == "" {
+		return callbackURL, err
+	}
+	params, err := url.ParseQuery(u.Fragment)
+	if err != nil {
+		return "", fmt.Errorf("callback fragment: %w", err)
+	}
+	u.Fragment = ""
+	resp, err := c.hc.Get(u.String())
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK || !strings.Contains(string(body), "location.hash") || !strings.Contains(resp.Header.Get("Content-Security-Policy"), "script-src 'sha256-") {
+		return "", fmt.Errorf("GET %s: want the relay page, got %d (%s)", u, resp.StatusCode, body)
+	}
+	u.RawQuery = params.Encode()
+	return u.String(), nil
+}
+
 // followMockOPAuthorize GETs the upstream OP /authorize URL with a no-cookie
 // throwaway client (the OP does not need session cookies; it just records
 // per-code state and 302s back to the RP /callback). Returns the absolute
@@ -7800,6 +7906,9 @@ func driveFederationLogin(c *client, baseURL, slug, returnTo string) error {
 	if err != nil {
 		return fmt.Errorf("authorize: %w", err)
 	}
+	if callbackURL, err = c.relayFragment(callbackURL); err != nil {
+		return fmt.Errorf("relay: %w", err)
+	}
 	loc, err := c.getRedirectAbs(callbackURL)
 	if err != nil {
 		return fmt.Errorf("callback: %w", err)
@@ -7828,6 +7937,9 @@ func expectFederationCallbackError(c *client, baseURL, slug string, wantCode, wa
 	callbackURL, err := followMockOPAuthorize(authorizeURL)
 	if err != nil {
 		return fmt.Errorf("authorize: %w", err)
+	}
+	if callbackURL, err = c.relayFragment(callbackURL); err != nil {
+		return fmt.Errorf("relay: %w", err)
 	}
 	// Issue the callback request with a non-following client to capture the
 	// 302 Location header (the error redirect to /error?error=<code>).
@@ -7916,6 +8028,9 @@ func driveFederationToWelcome(c *client, baseURL, slug string) error {
 	callbackURL, err := followMockOPAuthorize(authorizeURL)
 	if err != nil {
 		return fmt.Errorf("authorize: %w", err)
+	}
+	if callbackURL, err = c.relayFragment(callbackURL); err != nil {
+		return fmt.Errorf("relay: %w", err)
 	}
 	loc, err := c.getRedirectAbs(callbackURL)
 	if err != nil {

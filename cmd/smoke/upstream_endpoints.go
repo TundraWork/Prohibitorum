@@ -59,8 +59,14 @@ func smokeUpstreamEndpoints(base, issuer string, op *mockop.Server, dek []byte) 
 		if err != nil {
 			return err
 		}
+		// Every mode here leaves the sign-in response unset, so each one,
+		// the public client included, must redeem its code at /token.
+		tokenCalls := op.TokenCalls()
 		if err := driveFederationToWelcome(browser, base, slug); err != nil {
 			return fmt.Errorf("%s %s %s: %w", mode.configuration, mode.auth, mode.pkce, err)
+		}
+		if op.TokenCalls() == tokenCalls {
+			return fmt.Errorf("%s %s %s: sign-in made no token request", mode.configuration, mode.auth, mode.pkce)
 		}
 		if _, err := browser.confirmPost(); err != nil {
 			return err
@@ -75,7 +81,7 @@ func smokeUpstreamEndpoints(base, issuer string, op *mockop.Server, dek []byte) 
 		if err := driveFederationLogin(browser, base, slug, "/me"); err != nil {
 			return err
 		}
-		log.Printf("  %s %s %s → confirmed account, session and repeat login ✓", mode.configuration, mode.auth, mode.pkce)
+		log.Printf("  %s %s %s → code redeemed at /token, confirmed account, session and repeat login ✓", mode.configuration, mode.auth, mode.pkce)
 	}
 	return nil
 }

@@ -125,7 +125,9 @@ export function readOidcProviderConfig(
       "client_secret_post",
       "none",
     ] as const) ||
-    !isOneOf(value.pkceMethod, ["S256", "plain", "off"] as const)
+    !isOneOf(value.pkceMethod, ["S256", "plain", "off"] as const) ||
+    (value.responseType !== undefined &&
+      !isOneOf(value.responseType, ["code", "id_token"] as const))
   ) {
     return null;
   }
@@ -159,6 +161,7 @@ export function readOidcProviderConfig(
     endpoints: { authorization, token, userinfo, jwks },
     tokenAuthMethod: value.tokenAuthMethod,
     pkceMethod: value.pkceMethod,
+    responseType: value.responseType ?? "code",
   };
 }
 
@@ -184,6 +187,7 @@ export function defaultOidcProviderConfig(): OidcProviderConfig {
     endpoints: { authorization: null, token: null, userinfo: null, jwks: null },
     tokenAuthMethod: "discovery",
     pkceMethod: "S256",
+    responseType: "code",
   };
 }
 

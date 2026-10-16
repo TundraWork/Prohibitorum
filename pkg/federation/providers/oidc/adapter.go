@@ -56,9 +56,11 @@ func (d Definition) Ready(provider federationcore.Provider) bool {
 type clientAPI interface {
 	Issuer() string
 	TokenEndpoint() string
-	AuthURL(string, string, string) string
-	Exchange(context.Context, string, string, string, string) (*Tokens, error)
-	UserInfo(context.Context, string, string) (map[string]any, error)
+	AuthURL(state, nonce, challenge string) string
+	ImplicitAuthURL(state, nonce string) string
+	Exchange(ctx context.Context, code, verifier, issuer, nonce string) (*Tokens, error)
+	VerifyImplicit(ctx context.Context, idToken, issuer, nonce string) (*Tokens, error)
+	UserInfo(ctx context.Context, accessToken, subject string) (map[string]any, error)
 	UserInfoRaw(ctx context.Context, accessToken, tokenType string) (map[string]any, error)
 }
 
@@ -69,8 +71,14 @@ func (c clientWrapper) TokenEndpoint() string { return c.client.TokenEndpoint() 
 func (c clientWrapper) AuthURL(state, nonce, challenge string) string {
 	return c.client.AuthURL(state, nonce, challenge)
 }
+func (c clientWrapper) ImplicitAuthURL(state, nonce string) string {
+	return c.client.ImplicitAuthURL(state, nonce)
+}
 func (c clientWrapper) Exchange(ctx context.Context, code, verifier, issuer, nonce string) (*Tokens, error) {
 	return c.client.Exchange(ctx, code, verifier, issuer, nonce)
+}
+func (c clientWrapper) VerifyImplicit(ctx context.Context, idToken, issuer, nonce string) (*Tokens, error) {
+	return c.client.VerifyImplicit(ctx, idToken, issuer, nonce)
 }
 func (c clientWrapper) UserInfo(ctx context.Context, accessToken, subject string) (map[string]any, error) {
 	return c.client.UserInfo(ctx, accessToken, subject)
@@ -122,6 +130,11 @@ type adapterState struct {
 	TokenURL     string         `json:"tokenEndpoint"`
 	Nonce        string         `json:"nonce"`
 	CodeVerifier string         `json:"codeVerifier,omitempty"`
+	// Implicit marks a public-client flow (response_type=id_token) whose
+	// front-channel id_token is the whole identity: no code exchange, no
+	// userinfo, no access token. It also relaxes the Advance-time token
+	// endpoint drift check — the flow never dials the token endpoint.
+	Implicit bool `json:"implicit,omitempty"`
 }
 
 type avatarReference struct {
@@ -136,16 +149,26 @@ func (a *Adapter) Begin(ctx context.Context, provider federationcore.Provider, b
 	if err != nil {
 		return nil, federationcore.NextAction{}, err
 	}
+	nonce, err := randomB64(16)
+	if err != nil {
+		return nil, federationcore.NextAction{}, err
+	}
+	// A provider set to ID token only runs the implicit flow: the id_token
+	// arrives on the front channel, so there is no code, no PKCE and no token
+	// endpoint round-trip.
+	if resolved.implicitFlow() {
+		state, err := json.Marshal(adapterState{Identity: providerIdentity(provider), Resolved: resolved, CallbackURL: begin.CallbackURL, ExpectedIss: client.Issuer(), TokenURL: client.TokenEndpoint(), Nonce: nonce, Implicit: true})
+		if err != nil {
+			return nil, federationcore.NextAction{}, err
+		}
+		return state, federationcore.NextAction{Kind: federationcore.ActionRedirect, URL: client.ImplicitAuthURL(begin.FlowID, nonce)}, nil
+	}
 	var verifier string
 	if config.PKCEMethod != "off" {
 		verifier, err = randomB64(32)
 		if err != nil {
 			return nil, federationcore.NextAction{}, err
 		}
-	}
-	nonce, err := randomB64(16)
-	if err != nil {
-		return nil, federationcore.NextAction{}, err
 	}
 	state, err := json.Marshal(adapterState{Identity: providerIdentity(provider), Resolved: resolved, CallbackURL: begin.CallbackURL, ExpectedIss: client.Issuer(), TokenURL: client.TokenEndpoint(), Nonce: nonce, CodeVerifier: verifier})
 	if err != nil {
@@ -162,6 +185,13 @@ func (a *Adapter) Begin(ctx context.Context, provider federationcore.Provider, b
 	return state, federationcore.NextAction{Kind: federationcore.ActionRedirect, URL: client.AuthURL(begin.FlowID, nonce, challenge)}, nil
 }
 
+// implicitFlow reports whether this provider authenticates through a
+// front-channel id_token instead of a code exchange. A snapshot written
+// before the setting existed has no response type and keeps the code flow.
+func (r ResolvedConfig) implicitFlow() bool {
+	return r.ResponseType == responseTypeIDToken
+}
+
 func (a *Adapter) Advance(ctx context.Context, provider federationcore.Provider, raw json.RawMessage, input federationcore.ActionInput) (federationcore.AdvanceResult, error) {
 	if input.Kind != federationcore.ActionRedirect {
 		return federationcore.AdvanceResult{}, federationcore.NewFailure(federationcore.FailureStateInvalid, nil)
@@ -170,7 +200,7 @@ func (a *Adapter) Advance(ctx context.Context, provider federationcore.Provider,
 	if err := json.Unmarshal(raw, &state); err != nil {
 		return federationcore.AdvanceResult{}, federationcore.NewFailure(federationcore.FailureStateInvalid, nil)
 	}
-	if state.CallbackURL == "" || state.ExpectedIss == "" || state.Nonce == "" || state.Identity == "" || (state.Resolved.PKCEMethod != "off" && state.CodeVerifier == "") {
+	if state.CallbackURL == "" || state.ExpectedIss == "" || state.Nonce == "" || state.Identity == "" || (!state.Implicit && state.Resolved.PKCEMethod != "off" && state.CodeVerifier == "") {
 		return federationcore.AdvanceResult{}, federationcore.NewFailure(federationcore.FailureStateInvalid, nil)
 	}
 	if input.Issuer != "" && input.Issuer != state.ExpectedIss {
@@ -192,21 +222,37 @@ func (a *Adapter) Advance(ctx context.Context, provider federationcore.Provider,
 			"got_iss":      client.Issuer(),
 		})
 	}
-	if client.TokenEndpoint() != state.TokenURL {
+	// The implicit flow never dials the token endpoint, so its drift check
+	// is meaningless; the issuer snapshot comparison above is the binding.
+	if !state.Implicit && client.TokenEndpoint() != state.TokenURL {
 		return federationcore.AdvanceResult{}, federationcore.NewFailure(federationcore.FailureTokenEndpointDrift, map[string]any{
 			"expected": state.TokenURL,
 			"got":      client.TokenEndpoint(),
 		})
 	}
-	tokens, err := client.Exchange(ctx, input.Code, state.CodeVerifier, state.ExpectedIss, state.Nonce)
-	if err != nil {
-		// A form-encoded or unparseable token response means the upstream
-		// gave back no usable identity at all; the raw text stays in the
-		// operator log via the cause.
-		if errors.Is(err, errUpstreamIdentityParse) {
-			return federationcore.AdvanceResult{}, federationcore.NewFailureWithCause(federationcore.FailureUpstreamNoIdentity, nil, err)
+	// The implicit flow's verified id_token takes the same identity path as
+	// one from a token response; with no access token there is no userinfo
+	// fallback and no deferred avatar fetch.
+	var tokens *Tokens
+	if state.Implicit {
+		if input.IDToken == "" {
+			return federationcore.AdvanceResult{}, federationcore.NewFailureWithCause(federationcore.FailureCodeExchange, nil, errors.New("federation/oidc: implicit callback carries no id_token"))
 		}
-		return federationcore.AdvanceResult{}, federationcore.NewFailureWithCause(federationcore.FailureCodeExchange, nil, err)
+		tokens, err = client.VerifyImplicit(ctx, input.IDToken, state.ExpectedIss, state.Nonce)
+		if err != nil {
+			return federationcore.AdvanceResult{}, federationcore.NewFailureWithCause(federationcore.FailureCodeExchange, nil, err)
+		}
+	} else {
+		tokens, err = client.Exchange(ctx, input.Code, state.CodeVerifier, state.ExpectedIss, state.Nonce)
+		if err != nil {
+			// A form-encoded or unparseable token response means the upstream
+			// gave back no usable identity at all; the raw text stays in the
+			// operator log via the cause.
+			if errors.Is(err, errUpstreamIdentityParse) {
+				return federationcore.AdvanceResult{}, federationcore.NewFailureWithCause(federationcore.FailureUpstreamNoIdentity, nil, err)
+			}
+			return federationcore.AdvanceResult{}, federationcore.NewFailureWithCause(federationcore.FailureCodeExchange, nil, err)
+		}
 	}
 	usernameClaim, displayClaim, emailClaim, pictureClaim := config.profileClaims()
 	emailValue := ClaimString(tokens.Raw, emailClaim)

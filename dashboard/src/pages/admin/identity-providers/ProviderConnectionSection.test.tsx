@@ -231,3 +231,34 @@ describe("the connection form's client secret", () => {
     );
   });
 });
+
+describe("the connection form's sign-in response", () => {
+  it("shows a provider saved without the setting as the authorization code, and sends the choice", async () => {
+    const provider = publicProvider();
+    api = fakeApi({
+      "PUT /api/prohibitorum/identity-providers/public-idp": () =>
+        Response.json(provider),
+    });
+    mount(provider);
+    const user = userEvent.setup();
+
+    const trigger = screen.getByRole("button", { name: /Sign-in response/ });
+    expect(trigger).toHaveTextContent("Authorization code");
+
+    await user.click(trigger);
+    const listbox = await screen.findByRole("listbox");
+    await user.click(within(listbox).getByText("ID token only"));
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() =>
+      expect(
+        api.sent("PUT", "/api/prohibitorum/identity-providers/public-idp"),
+      ).toHaveLength(1),
+    );
+    const body = api.sent(
+      "PUT",
+      "/api/prohibitorum/identity-providers/public-idp",
+    )[0]?.body as { config: { responseType?: string } };
+    expect(body.config.responseType).toBe("id_token");
+  });
+});

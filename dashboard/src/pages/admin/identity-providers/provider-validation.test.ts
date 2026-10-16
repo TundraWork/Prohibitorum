@@ -11,6 +11,7 @@ import {
   endpointsValue,
   endpointUrlProblem,
   openidRequired,
+  responseTypeProblem,
   scopeProblem,
   scopesProblem,
   subjectChanged,
@@ -26,6 +27,7 @@ function connection(
     issuerUrl: "https://idp.example.com",
     clientId: "client",
     tokenAuthMethod: "discovery",
+    responseType: "code",
     scopes: { tags: ["openid", "profile"], draft: "" },
     endpoints: { mode: "discovery", values: blankEndpoints, overridden: [] },
     ...overrides,
@@ -250,5 +252,52 @@ describe("the connection form", () => {
     expect(problems.clientId).toBeDefined();
     expect(problems.scopes).toBe(openidRequired);
     expect(problems.endpoints).toHaveLength(3);
+  });
+});
+
+describe("sign-in response", () => {
+  const openid = { tags: ["openid"], draft: "" };
+  const manual = (jwks: string): EndpointsValue => ({
+    mode: "manual",
+    values: { ...blankEndpoints, jwks },
+    overridden: [],
+  });
+
+  it("lets the authorization code go with any scopes and JWKS", () => {
+    expect(
+      responseTypeProblem(
+        "code",
+        { tags: ["profile"], draft: "" },
+        manual("none"),
+      ),
+    ).toBeUndefined();
+  });
+
+  it("refuses ID token only without openid or with JWKS none, as the server does", () => {
+    expect(responseTypeProblem("id_token", openid)).toBeUndefined();
+    expect(
+      responseTypeProblem(
+        "id_token",
+        openid,
+        manual("https://idp.example.com/keys"),
+      ),
+    ).toBeUndefined();
+    expect(
+      responseTypeProblem("id_token", { tags: ["profile"], draft: "" }),
+    ).toBeDefined();
+    expect(
+      responseTypeProblem("id_token", openid, manual("none")),
+    ).toBeDefined();
+  });
+
+  it("reports the pair under the response field of the connection form", () => {
+    const problems = connectionProblems(
+      connection({
+        responseType: "id_token",
+        endpoints: manual("none"),
+      }),
+      saved,
+    );
+    expect(problems.responseType).toBeDefined();
   });
 });

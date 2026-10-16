@@ -94,6 +94,10 @@ type Server struct {
 	// RP downloaded the picture again.
 	avatarHits int
 
+	// tokenCalls counts requests to /token, so a test can prove the implicit
+	// flow never reached the token endpoint.
+	tokenCalls int
+
 	// Per-code state, keyed by the authorization code.
 	codes map[string]codeState
 }
@@ -202,6 +206,13 @@ func (s *Server) AvatarHits() int {
 	return s.avatarHits
 }
 
+// TokenCalls returns how many times /token has been requested.
+func (s *Server) TokenCalls() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.tokenCalls
+}
+
 // SetAMR sets the amr claim added to the next ID token. Passing nil clears
 // it (no amr claim emitted). Persists across calls.
 func (s *Server) SetAMR(amr []string) {
@@ -251,7 +262,7 @@ func (s *Server) handleDiscovery(w http.ResponseWriter, r *http.Request) {
 		"token_endpoint":                        base + "/token",
 		"jwks_uri":                              base + "/jwks",
 		"userinfo_endpoint":                     base + "/userinfo",
-		"response_types_supported":              []string{"code"},
+		"response_types_supported":              []string{"code", "id_token"},
 		"subject_types_supported":               []string{"public"},
 		"id_token_signing_alg_values_supported": []string{"ES256"},
 		"scopes_supported":                      []string{"openid", "profile", "email"},
@@ -340,6 +351,10 @@ func (s *Server) handleAuthorize(w http.ResponseWriter, r *http.Request) {
 	nonce := q.Get("nonce")
 	codeChallenge := q.Get("code_challenge")
 	challengeMethod := q.Get("code_challenge_method")
+	responseType := q.Get("response_type")
+	if responseType == "" {
+		responseType = "code"
+	}
 
 	// Basic param presence validation. This isn't a security boundary
 	// (this is a test fixture, not a real OP) — but missing params would
@@ -347,6 +362,14 @@ func (s *Server) handleAuthorize(w http.ResponseWriter, r *http.Request) {
 	if clientID == "" || redirectURI == "" || state == "" || nonce == "" ||
 		(challengeMethod != "S256" && challengeMethod != "plain" && challengeMethod != "") ||
 		(challengeMethod != "" && codeChallenge == "") || (challengeMethod == "" && codeChallenge != "") {
+		http.Error(w, `{"error":"invalid_request"}`, http.StatusBadRequest)
+		return
+	}
+	// The implicit response carries the id_token in the fragment; PKCE has
+	// no code to bind, so challenge parameters alongside response_type=id_token
+	// mean the RP built the request wrong.
+	if responseType != "code" && responseType != "id_token" ||
+		responseType == "id_token" && challengeMethod != "" {
 		http.Error(w, `{"error":"invalid_request"}`, http.StatusBadRequest)
 		return
 	}
@@ -372,23 +395,17 @@ func (s *Server) handleAuthorize(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, u.String(), http.StatusFound)
 		return
 	}
-
-	code := genRand(16)
 	iss := s.base
 	if s.issuerOverride != "" {
 		iss = s.issuerOverride
 	}
-	s.codes[code] = codeState{
-		clientID:        clientID,
-		redirectURI:     redirectURI,
-		nonce:           nonce,
-		codeChallenge:   codeChallenge,
-		challengeMethod: challengeMethod,
-		claims:          s.nextClaims,
-		amr:             s.nextAMR,
-		authTime:        s.nextAuthTime,
-		iss:             iss,
-		expiresAt:       time.Now().Add(5 * time.Minute),
+	snapshot := codeState{
+		clientID: clientID,
+		nonce:    nonce,
+		claims:   s.nextClaims,
+		amr:      s.nextAMR,
+		authTime: s.nextAuthTime,
+		iss:      iss,
 	}
 	s.mu.Unlock()
 
@@ -398,14 +415,42 @@ func (s *Server) handleAuthorize(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	rq := u.Query()
-	rq.Set("code", code)
 	rq.Set("state", state)
 	rq.Set("iss", iss)
+	if responseType == "id_token" {
+		idToken, err := s.mintIDToken(snapshot)
+		if err != nil {
+			http.Error(w, `{"error":"server_error"}`, http.StatusInternalServerError)
+			return
+		}
+		// Implicit flow (OIDC Core §3.2.2.1): the id_token is returned in the
+		// redirect URI fragment, which browsers never send to the server —
+		// the RP's callback page relays it into the query.
+		fragment := url.Values{"id_token": {idToken}}
+		for _, key := range []string{"state", "iss"} {
+			fragment.Set(key, rq.Get(key))
+		}
+		u.RawQuery = ""
+		u.Fragment = fragment.Encode()
+		http.Redirect(w, r, u.String(), http.StatusFound)
+		return
+	}
+	code := genRand(16)
+	snapshot.codeChallenge = codeChallenge
+	snapshot.challengeMethod = challengeMethod
+	snapshot.expiresAt = time.Now().Add(5 * time.Minute)
+	s.mu.Lock()
+	s.codes[code] = snapshot
+	s.mu.Unlock()
+	rq.Set("code", code)
 	u.RawQuery = rq.Encode()
 	http.Redirect(w, r, u.String(), http.StatusFound)
 }
 
 func (s *Server) handleToken(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
+	s.tokenCalls++
+	s.mu.Unlock()
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, `{"error":"invalid_request"}`, http.StatusBadRequest)
 		return
@@ -436,9 +481,29 @@ func (s *Server) handleToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Mint ID token. Claims are snapshotted from codeState (captured at
-	// authorize time) so concurrent /authorize calls with different
-	// SetClaims values don't cross-contaminate.
+	idToken, err := s.mintIDToken(st)
+	if err != nil {
+		http.Error(w, `{"error":"server_error"}`, http.StatusInternalServerError)
+		return
+	}
+
+	resp := map[string]any{
+		"access_token": genRand(24),
+		"token_type":   "Bearer",
+		"expires_in":   300,
+		"id_token":     idToken,
+		"scope":        "openid profile email",
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(resp)
+}
+
+// mintIDToken signs the claims snapshot captured at authorize time. Shared by
+// the code flow (/token) and the implicit flow (/authorize).
+func (s *Server) mintIDToken(st codeState) (string, error) {
+	// Claims are snapshotted from codeState (captured at authorize time) so
+	// concurrent /authorize calls with different SetClaims values don't
+	// cross-contaminate.
 	now := time.Now()
 	idClaims := map[string]any{
 		"iss":                st.iss,
@@ -461,21 +526,7 @@ func (s *Server) handleToken(w http.ResponseWriter, r *http.Request) {
 	if !st.authTime.IsZero() {
 		idClaims["auth_time"] = st.authTime.Unix()
 	}
-	idToken, err := s.signES256(idClaims)
-	if err != nil {
-		http.Error(w, `{"error":"server_error"}`, http.StatusInternalServerError)
-		return
-	}
-
-	resp := map[string]any{
-		"access_token": genRand(24),
-		"token_type":   "Bearer",
-		"expires_in":   300,
-		"id_token":     idToken,
-		"scope":        "openid profile email",
-	}
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(resp)
+	return s.signES256(idClaims)
 }
 
 // --- Helpers ------------------------------------------------------------

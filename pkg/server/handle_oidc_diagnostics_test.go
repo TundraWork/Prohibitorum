@@ -43,6 +43,16 @@ func TestOIDCDiagnosticRoutesRejectNonAdmins(t *testing.T) {
 }
 
 func TestOIDCDiagnosticHandlersRoundTripWithoutAccountsOrSessions(t *testing.T) {
+	for _, responseType := range []string{"code", "id_token"} {
+		t.Run(responseType, func(t *testing.T) { oidcDiagnosticRoundTrip(t, responseType) })
+	}
+}
+
+// oidcDiagnosticRoundTrip runs one public client's connection test end to
+// end. With id_token the upstream answers in the fragment, so the callback is
+// reached through the relay page and no token request is made.
+func oidcDiagnosticRoundTrip(t *testing.T, responseType string) {
+	implicit := responseType == "id_token"
 	op, err := mockop.New("")
 	if err != nil {
 		t.Fatal(err)
@@ -68,7 +78,7 @@ func TestOIDCDiagnosticHandlersRoundTripWithoutAccountsOrSessions(t *testing.T) 
 	op.SetClaims("subject", "upstream@example.com", true, "upstream", "Upstream")
 	raw := strings.Replace(exactOIDCConfig, "https://issuer.example", upstream.URL, 1)
 	raw = strings.Replace(raw, `"allowPrivateNetwork":false`, `"allowPrivateNetwork":true`, 1)
-	raw = strings.Replace(raw, `"tokenAuthMethod":"discovery"`, `"tokenAuthMethod":"none"`, 1)
+	raw = strings.Replace(raw, `"tokenAuthMethod":"discovery"`, `"tokenAuthMethod":"none","responseType":"`+responseType+`"`, 1)
 	query := &fakeProviderStateQueries{row: db.UpstreamIdp{ID: 7, Slug: "corp", Protocol: "oidc", ProviderConfig: []byte(raw), SecretStatus: "unconfigured"}}
 	s := &Server{config: &configx.Config{PublicOrigins: []string{"https://rp.example"}}, kvStore: kv.NewMemoryStore(), rateLimiter: authn.NewRateLimiter(), providerStateQueriesOverride: query}
 	router := chi.NewRouter()
@@ -98,7 +108,7 @@ func TestOIDCDiagnosticHandlersRoundTripWithoutAccountsOrSessions(t *testing.T) 
 	}
 	for i := 0; i < 2; i++ {
 		rec := request("GET", "/api/prohibitorum/identity-providers/corp/effective-config", "", true)
-		if rec.Code != 200 || rec.Header().Get("Cache-Control") != "no-store" {
+		if rec.Code != 200 || rec.Header().Get("Cache-Control") != "no-store" || !strings.Contains(rec.Body.String(), `"responseType":{"source":"manual","value":"`+responseType+`"}`) {
 			t.Fatalf("effective %d: %s", rec.Code, rec.Body.String())
 		}
 	}
@@ -149,6 +159,20 @@ func TestOIDCDiagnosticHandlersRoundTripWithoutAccountsOrSessions(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
+	if implicit {
+		// The browser's first request has no fragment and so no query; the
+		// relay page then loads the callback with the fragment as the query.
+		fragment, err := url.ParseQuery(callback.Fragment)
+		if err != nil || fragment.Get("id_token") == "" || callback.RawQuery != "" {
+			t.Fatalf("implicit callback = %s", callback)
+		}
+		callback.Fragment = ""
+		rec = request("GET", callback.RequestURI(), "", false)
+		if rec.Code != 200 || !strings.Contains(rec.Body.String(), "location.hash") {
+			t.Fatalf("fragment callback %d: %s", rec.Code, rec.Body.String())
+		}
+		callback.RawQuery = fragment.Encode()
+	}
 	// Parameters the provider adds on its own must not fail the callback.
 	rec = request("GET", callback.RequestURI()+"&scope=openid+email&authuser=0&prompt=consent", "", false)
 	if rec.Code != 302 || tokenCalls.Load() != 0 {
@@ -158,8 +182,8 @@ func TestOIDCDiagnosticHandlersRoundTripWithoutAccountsOrSessions(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(destination.Query()) != 1 || destination.Query().Get("test") != start.ID || strings.Contains(destination.String(), "code=") {
-		t.Fatal("callback exposed code")
+	if len(destination.Query()) != 1 || destination.Query().Get("test") != start.ID || strings.Contains(destination.String(), "code=") || strings.Contains(destination.String(), "id_token=") {
+		t.Fatal("callback exposed code or id_token")
 	}
 	rec = request("POST", "/api/prohibitorum/identity-providers/corp/tests/"+start.ID+"/complete", "", true)
 	if rec.Code != 200 || !strings.Contains(rec.Body.String(), `"status":"succeeded"`) {
@@ -168,8 +192,12 @@ func TestOIDCDiagnosticHandlersRoundTripWithoutAccountsOrSessions(t *testing.T) 
 	if len(rec.Result().Cookies()) != 0 {
 		t.Fatal("test issued local session")
 	}
+	wantTokenCalls := int32(1)
+	if implicit {
+		wantTokenCalls = 0
+	}
 	rec = request("POST", "/api/prohibitorum/identity-providers/corp/tests/"+start.ID+"/complete", "", true)
-	if rec.Code != 200 || tokenCalls.Load() != 1 {
+	if rec.Code != 200 || tokenCalls.Load() != wantTokenCalls {
 		t.Fatal("complete replayed exchange")
 	}
 	rec = request("GET", callback.RequestURI(), "", false)

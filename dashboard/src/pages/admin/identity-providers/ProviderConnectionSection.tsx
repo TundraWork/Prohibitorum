@@ -23,6 +23,7 @@ import { EndpointsField } from "@/pages/admin/identity-providers/EndpointsField"
 import {
   type ClientAuthMethod,
   clientAuthNeedsSecret,
+  type ResponseType,
 } from "@/pages/admin/identity-providers/provider-options";
 import {
   clientAuthMethodProblem,
@@ -32,10 +33,12 @@ import {
   endpointsBody,
   endpointsValue,
   issuerProblem,
+  responseTypeProblem,
   scopeProblem,
   scopesProblem,
   tagListValue,
 } from "@/pages/admin/identity-providers/provider-validation";
+import { ResponseTypeField } from "@/pages/admin/identity-providers/ResponseTypeField";
 
 type Provider = components["schemas"]["IdentityProviderView"];
 
@@ -43,8 +46,8 @@ type Provider = components["schemas"]["IdentityProviderView"];
  * Where the provider signs people in, and how this instance talks to it.
  *
  * Read top to bottom in the order the provider's own console lists them: the
- * issuer and client ID to match, how the token request authenticates, the
- * scopes it asks for, and where the endpoints come from. Discovery is the usual
+ * issuer and client ID to match, how the token request authenticates, what the
+ * provider sends back, the scopes it asks for, and where the endpoints come from. Discovery is the usual
  * case, so the endpoints stay out of the way until the reader overrides one.
  *
  * Every check runs before the save because the server answers each of them with
@@ -83,6 +86,7 @@ export function ProviderConnectionSection({
       issuerUrl: saved.issuerUrl,
       clientId: saved.clientId,
       tokenAuthMethod: saved.tokenAuthMethod as ClientAuthMethod,
+      responseType: (saved.responseType ?? "code") as ResponseType,
       clientSecret: "",
       scopes: tagListValue(saved.scopes),
       endpoints: endpointsValue(saved),
@@ -120,6 +124,7 @@ export function ProviderConnectionSection({
               issuerUrl: value.issuerUrl,
               clientId: value.clientId,
               tokenAuthMethod: value.tokenAuthMethod,
+              responseType: value.responseType,
               scopes: value.scopes.tags,
               ...endpointsBody(value.endpoints),
             },
@@ -244,6 +249,20 @@ export function ProviderConnectionSection({
                 )}
               </form.AppField>
             )}
+
+            <form.AppField
+              name="responseType"
+              validators={{
+                onSubmit: ({ value, fieldApi }) =>
+                  responseTypeProblem(
+                    value,
+                    fieldApi.form.getFieldValue("scopes"),
+                    fieldApi.form.getFieldValue("endpoints"),
+                  ),
+              }}
+            >
+              {() => <ResponseTypeField />}
+            </form.AppField>
 
             <form.AppField
               name="scopes"

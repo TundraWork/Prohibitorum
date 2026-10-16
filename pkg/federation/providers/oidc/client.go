@@ -272,6 +272,44 @@ func (c *Client) AuthURL(state, nonce, codeChallenge string, extra ...oauth2.Aut
 	return rp.AuthURL(state, c.rp, opts...)
 }
 
+// ImplicitAuthURL builds the OIDC implicit-flow authorization request
+// (response_type=id_token) used by public clients. The nonce is the flow's
+// only front-channel binding — no code, no PKCE — so it must be unguessable
+// and stored server-side in the flow state, exactly as Begin does.
+func (c *Client) ImplicitAuthURL(state, nonce string) string {
+	return rp.AuthURL(state, c.rp,
+		authURLOpt(oauth2.SetAuthURLParam("response_type", "id_token")),
+		authURLOpt(oauth2.SetAuthURLParam("nonce", nonce)))
+}
+
+// VerifyImplicit verifies a front-channel id_token from the implicit flow
+// (response_type=id_token) and projects it into Tokens exactly as Exchange
+// treats a token-response id_token: full signature, issuer, audience, expiry,
+// nonce and alg checks, with IDToken set and the OAuth2 token fields empty.
+// expectedIss and expectedNonce are the values snapshotted in the flow state.
+func (c *Client) VerifyImplicit(ctx context.Context, idToken, expectedIss, expectedNonce string) (*Tokens, error) {
+	ctx = context.WithValue(ctx, nonceCtxKey{}, expectedNonce)
+	claims, err := rp.VerifyIDToken[*oidclib.IDTokenClaims](ctx, idToken, c.rp.IDTokenVerifier())
+	if err != nil {
+		return nil, fmt.Errorf("federation/oidc: implicit id_token: %w", err)
+	}
+	if claims == nil {
+		return nil, errors.New("federation/oidc: implicit id_token returned no claims")
+	}
+	if claims.Issuer != expectedIss {
+		return nil, fmt.Errorf("federation/oidc: issuer mismatch: id_token iss=%q, expected %q", claims.Issuer, expectedIss)
+	}
+	if claims.Nonce != expectedNonce {
+		return nil, errors.New("federation/oidc: nonce mismatch in id_token")
+	}
+	if alg := string(claims.GetSignatureAlgorithm()); alg != "" && !algInAllowlist(alg, c.allowedAlgs()) {
+		return nil, fmt.Errorf("federation/oidc: id_token signed with disallowed alg %q", alg)
+	}
+	result := tokensFromIDTokenClaims(idToken, "", claims)
+	recorderFrom(ctx).exchanged(c, result)
+	return result, nil
+}
+
 // authURLOpt is a convenience adapter so we can drop a single
 // oauth2.AuthCodeOption (e.g. SetAuthURLParam("nonce", n)) into the
 // variadic rp.AuthURL call without writing a one-off rp.AuthURLOpt
@@ -371,25 +409,31 @@ func (c *Client) Exchange(
 	}
 
 	// Build a unified Raw view of the id_token claims so per-IdP claim-name
-	// overrides (username_claim, display_name_claim, email_claim) can read
-	// either an "extra" claim shipped by the OP (e.g. Entra ID's "upn",
-	// available in claims.Claims) OR the typed OIDC standard claim shipped
-	// under its JSON-tag key (e.g. "preferred_username", which the library
-	// parses into the typed field and DROPS from claims.Claims).
-	//
-	// Both code paths converge on a single map[string]any so ClaimString can
-	// uniformly serve either an "Entra-style" OP (sets "upn") or an
-	// "OIDC-default" OP (sets "preferred_username") without duplicating
-	// extraction logic in the caller.
+	// overrides can read either an "extra" claim or the typed OIDC standard
+	// claim under its JSON-tag key. See tokensFromIDTokenClaims.
+	result := tokensFromIDTokenClaims(tokens.IDToken, tokens.AccessToken, claims)
+	result.TokenType = tokens.TokenType
+	recorderFrom(ctx).exchanged(c, result)
+	return result, nil
+}
+
+// tokensFromIDTokenClaims projects verified IDTokenClaims into the project
+// Tokens shape shared by the code flow (Exchange) and the implicit flow
+// (VerifyImplicit). accessToken/tokenType carry the OAuth2 fields only the
+// code flow has; the implicit flow passes them empty.
+//
+// Raw is a unified view of all id_token claims (extras merged with the
+// OIDC-typed standard claims hoisted under their JSON-tag keys). It is
+// the source of truth for the per-IdP claim-name overrides — admins can
+// point upstream_idp.{username,display_name,email}_claim at non-default
+// keys like Entra ID's "upn", and the adapter reads those through
+// ClaimString. Empty strings are skipped so "claim genuinely absent" stays
+// distinguishable from an empty override target.
+func tokensFromIDTokenClaims(idToken, accessToken string, claims *oidclib.IDTokenClaims) *Tokens {
 	raw := make(map[string]any, len(claims.Claims)+8)
 	for k, v := range claims.Claims {
 		raw[k] = v
 	}
-	// Hoist typed standard claims under their JSON-tag keys. Empty strings
-	// are skipped so ClaimString(...) of an unconfigured field stays "" —
-	// otherwise an override pointing at "name" would resolve to "" but
-	// override pointing at "missing" would also resolve to "", and we'd
-	// lose the "claim genuinely absent" signal.
 	if claims.PreferredUsername != "" {
 		raw["preferred_username"] = claims.PreferredUsername
 	}
@@ -411,11 +455,9 @@ func (c *Client) Exchange(
 	if claims.Picture != "" {
 		raw["picture"] = claims.Picture
 	}
-
-	result := &Tokens{
-		TokenType:         tokens.TokenType,
-		IDToken:           tokens.IDToken,
-		AccessToken:       tokens.AccessToken,
+	return &Tokens{
+		IDToken:           idToken,
+		AccessToken:       accessToken,
 		Subject:           claims.Subject,
 		Issuer:            claims.Issuer,
 		Nonce:             claims.Nonce,
@@ -430,8 +472,6 @@ func (c *Client) Exchange(
 		AuthTime: claims.AuthTime.AsTime(),
 		Raw:      raw,
 	}
-	recorderFrom(ctx).exchanged(c, result)
-	return result, nil
 }
 
 // allowedAlgs returns the alg allowlist configured on the underlying

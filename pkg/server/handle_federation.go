@@ -24,8 +24,11 @@ package server
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/base64"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 
@@ -112,6 +115,7 @@ func (s *Server) handleFederationCallbackHTTP(w http.ResponseWriter, r *http.Req
 	state := q.Get("state")
 	code := q.Get("code")
 	iss := q.Get("iss")
+	idToken := q.Get("id_token")
 
 	if upstreamErr != "" {
 		// Upstream OP refused the user. Emit an audit row (no account_id — we
@@ -134,12 +138,21 @@ func (s *Server) handleFederationCallbackHTTP(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	// A valid callback carries either an OAuth2 authorization code (OIDC) or an
-	// OpenID 2.0 id_res response (Steam). Both require a non-empty state token.
-	// Stray requests (back-button replay, link previews) have neither — reject
-	// them before touching the KV store. No audit: these are benign hits.
+	// An implicit-flow response (public-client OIDC) puts every parameter in
+	// the URI fragment, which the browser never sends, so it arrives with an
+	// empty query. The relay page moves the fragment into the query and
+	// requests this URL again.
+	if r.URL.RawQuery == "" {
+		writeFragmentRelay(w)
+		return
+	}
+	// A valid callback carries an OAuth2 authorization code (OIDC), a relayed
+	// id_token (implicit flow), or an OpenID 2.0 id_res response (Steam). All
+	// require a non-empty state token. Stray requests (back-button replay,
+	// link previews) have none — reject them before touching the KV store.
+	// No audit: these are benign hits.
 	isSteamCallback := code == "" && q.Get("openid.mode") == "id_res"
-	if state == "" || (code == "" && !isSteamCallback) {
+	if state == "" || (code == "" && idToken == "" && !isSteamCallback) {
 		redirectAuthErrToError(w, r, authn.ErrFederationStateInvalid())
 		return
 	}
@@ -154,7 +167,7 @@ func (s *Server) handleFederationCallbackHTTP(w http.ResponseWriter, r *http.Req
 	result, err := s.federationService.AdvanceCallback(r.Context(), federation.AdvanceRequest{
 		FlowID: state, BrowserToken: browserToken, ProviderSlug: chi.URLParam(r, "slug"),
 		CallbackRoute: federation.CallbackRoutePublic,
-		Input:         federation.ActionInput{Kind: federation.ActionRedirect, Code: code, Issuer: iss, Params: r.URL.Query()},
+		Input:         federation.ActionInput{Kind: federation.ActionRedirect, Code: code, Issuer: iss, IDToken: idToken, Params: r.URL.Query()},
 	})
 	if err != nil {
 		// HandleCallback returns structured *authn.AuthError for every
@@ -166,6 +179,44 @@ func (s *Server) handleFederationCallbackHTTP(w http.ResponseWriter, r *http.Req
 	}
 
 	s.writeFederationCompletion(w, r, result, federationCompletionRedirect)
+}
+
+// fragmentRelayScript copies the fragment into the query and loads the URL
+// again. An empty fragment becomes relay=empty, so the second request has a
+// query and fails the callback's own checks instead of serving this page in
+// a loop.
+//
+// The relayed id_token then travels in the query string, so a reverse proxy
+// that logs request URLs records it, with the email and name claims it
+// carries. It cannot be replayed: the nonce belongs to a flow state that the
+// first callback consumes, and the token expires within minutes. Keeping it
+// out of URLs altogether needs response_mode=form_post, which arrives as a
+// cross-site POST that carries no SameSite=Lax federation cookie, so the
+// callback would have to accept POST and re-post same-site before it can
+// check the browser binding.
+const fragmentRelayScript = `var p = new URLSearchParams(location.hash.slice(1));
+if (!p.toString()) p.set("relay", "empty");
+var t = new URL(location.href);
+t.hash = "";
+t.search = "?" + p.toString();
+location.replace(t.href);`
+
+// fragmentRelayCSP admits only the relay script, so the page stays inert even
+// where no proxy adds a policy for API routes.
+var fragmentRelayCSP = func() string {
+	sum := sha256.Sum256([]byte(fragmentRelayScript))
+	return "default-src 'none'; script-src 'sha256-" + base64.StdEncoding.EncodeToString(sum[:]) + "'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+}()
+
+// writeFragmentRelay serves the page an implicit-flow callback lands on before
+// its parameters reach the server.
+func writeFragmentRelay(w http.ResponseWriter) {
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Referrer-Policy", "no-referrer")
+	w.Header().Set("Content-Security-Policy", fragmentRelayCSP)
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	_, _ = io.WriteString(w, `<!doctype html><meta charset="utf-8"><title>Signing in</title><script>`+fragmentRelayScript+`</script><noscript><p>Turn on JavaScript in this browser, then sign in again.</p></noscript>`)
 }
 
 type federationCompletionMode uint8

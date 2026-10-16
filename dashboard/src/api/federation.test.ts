@@ -43,6 +43,7 @@ const fullConfig = {
   },
   tokenAuthMethod: "client_secret_basic",
   pkceMethod: "S256",
+  responseType: "id_token",
 };
 
 describe("reading an OIDC provider config", () => {
@@ -85,8 +86,17 @@ describe("reading an OIDC provider config", () => {
       }),
     ],
     ["an unknown pkce method", () => ({ ...fullConfig, pkceMethod: "s256" })],
+    [
+      "an unknown response type",
+      () => ({ ...fullConfig, responseType: "code id_token" }),
+    ],
   ])("returns null for %s", (_name, build) => {
     expect(readOidcProviderConfig(build())).toBeNull();
+  });
+
+  it("reads a config saved before the response type as the code flow", () => {
+    const { responseType: _dropped, ...older } = fullConfig;
+    expect(readOidcProviderConfig(older)?.responseType).toBe("code");
   });
 
   it("keeps a null endpoint, which means no override", () => {

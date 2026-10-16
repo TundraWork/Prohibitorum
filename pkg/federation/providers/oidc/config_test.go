@@ -39,6 +39,9 @@ func TestConfigRejectsInvalidSchemaAndCombinations(t *testing.T) {
 		}},
 		{"unknown endpoint", func(c map[string]any) { c["endpoints"].(map[string]any)["extra"] = nil }},
 		{"missing field", func(c map[string]any) { delete(c, "pkceMethod") }},
+		{"unknown field", func(c map[string]any) { c["responseMode"] = "form_post" }},
+		{"unknown response type", func(c map[string]any) { c["responseType"] = "code id_token" }},
+		{"null response type", func(c map[string]any) { c["responseType"] = nil }},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			var c map[string]any
@@ -54,6 +57,57 @@ func TestConfigRejectsInvalidSchemaAndCombinations(t *testing.T) {
 		if err := (Definition{}).ValidateConfig([]byte(raw)); err == nil {
 			t.Fatal("accepted duplicate field")
 		}
+	}
+}
+
+// TestConfigResponseTypeRules pins which sign-in responses a configuration
+// may carry: the setting may be absent, and ID token only is refused where no
+// ID token can be issued (no openid scope) or verified (JWKS none).
+func TestConfigResponseTypeRules(t *testing.T) {
+	edit := func(f func(map[string]any)) []byte {
+		var c map[string]any
+		_ = json.Unmarshal([]byte(validDefinitionConfig), &c)
+		f(c)
+		raw, _ := json.Marshal(c)
+		return raw
+	}
+	for _, value := range []any{nil, "code", "id_token"} {
+		raw := edit(func(c map[string]any) {
+			if value != nil {
+				c["responseType"] = value
+			}
+		})
+		if err := (Definition{}).ValidateConfig(raw); err != nil {
+			t.Fatalf("responseType %v refused: %v", value, err)
+		}
+	}
+	for _, tc := range []struct {
+		name, want string
+		edit       func(map[string]any)
+	}{
+		{"id_token without openid", "requires the openid scope", func(c map[string]any) {
+			c["responseType"] = "id_token"
+			c["scopes"] = []string{"profile"}
+		}},
+		{"id_token with jwks none", "cannot use JWKS none", func(c map[string]any) {
+			c["responseType"] = "id_token"
+			c["endpoints"].(map[string]any)["jwks"] = "none"
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			err := (Definition{}).ValidateConfig(edit(tc.edit))
+			if err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("ValidateConfig = %v, want an error naming %q", err, tc.want)
+			}
+		})
+	}
+	// The code flow does not need an ID token, so the same scopes stay valid
+	// there.
+	if err := (Definition{}).ValidateConfig(edit(func(c map[string]any) {
+		c["responseType"] = "code"
+		c["scopes"] = []string{"profile"}
+	})); err != nil {
+		t.Fatalf("code flow without openid refused: %v", err)
 	}
 }
 

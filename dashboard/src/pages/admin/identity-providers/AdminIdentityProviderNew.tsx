@@ -26,14 +26,17 @@ import {
   type ClientAuthMethod,
   clientAuthNeedsSecret,
   providerProtocolOptions,
+  type ResponseType,
 } from "@/pages/admin/identity-providers/provider-options";
 import {
   clientIdProblem,
   issuerProblem,
+  responseTypeProblem,
   scopeProblem,
   scopesProblem,
   tagListValue,
 } from "@/pages/admin/identity-providers/provider-validation";
+import { ResponseTypeField } from "@/pages/admin/identity-providers/ResponseTypeField";
 
 /** `^[a-z0-9](-?[a-z0-9])*$`, at most 64 characters. */
 const slugPattern = /^[a-z0-9](-?[a-z0-9])*$/;
@@ -87,6 +90,7 @@ export function AdminIdentityProviderNew() {
       issuerUrl: "",
       clientId: "",
       tokenAuthMethod: "discovery" as ClientAuthMethod,
+      responseType: "code" as ResponseType,
       clientSecret: "",
       scopes: tagListValue(defaultOidcProviderConfig().scopes),
       webApiKey: "",
@@ -107,6 +111,7 @@ export function AdminIdentityProviderNew() {
               clientId: value.clientId,
               scopes: value.scopes.tags,
               tokenAuthMethod: value.tokenAuthMethod,
+              responseType: value.responseType,
             }
           : {},
         // The server rejects a secret it did not expect: a VRChat provider has
@@ -316,6 +321,19 @@ export function AdminIdentityProviderNew() {
                   )}
                 </form.AppField>
               )}
+
+              <form.AppField
+                name="responseType"
+                validators={{
+                  onSubmit: ({ value, fieldApi }) =>
+                    responseTypeProblem(
+                      value,
+                      fieldApi.form.getFieldValue("scopes"),
+                    ),
+                }}
+              >
+                {() => <ResponseTypeField />}
+              </form.AppField>
 
               <form.AppField
                 name="scopes"

@@ -4,6 +4,7 @@ import type { OidcProviderConfig } from "@/api/raw-admin-paths";
 import type {
   ClientAuthMethod,
   EndpointName,
+  ResponseType,
 } from "@/pages/admin/identity-providers/provider-options";
 import { endpointNames } from "@/pages/admin/identity-providers/provider-options";
 
@@ -379,11 +380,46 @@ export function clientAuthMethodProblem(
   return undefined;
 }
 
+const idTokenNeedsOpenid = msg({
+  id: "admin.federation.response.needs-openid",
+  message:
+    "ID token only needs the openid scope. Add openid, or choose the authorization code.",
+});
+
+const idTokenNeedsJwks = msg({
+  id: "admin.federation.response.needs-jwks",
+  message:
+    "ID token only needs a JWKS endpoint to check the token. Enter one, or choose the authorization code.",
+});
+
+/**
+ * Why a sign-in response cannot be saved with these scopes and endpoints. The
+ * server refuses the same pairs: without openid the provider issues no ID
+ * token, and with JWKS `none` there is nothing to check one with.
+ */
+export function responseTypeProblem(
+  responseType: ResponseType,
+  scopes: TagListValue,
+  endpoints?: EndpointsValue,
+): MessageDescriptor | undefined {
+  if (responseType !== "id_token") return undefined;
+  if (!scopes.tags.includes("openid")) return idTokenNeedsOpenid;
+  if (
+    endpoints !== undefined &&
+    shownEndpoints(endpoints).includes("jwks") &&
+    endpoints.values.jwks === "none"
+  ) {
+    return idTokenNeedsJwks;
+  }
+  return undefined;
+}
+
 /** The connection form, as the detail page holds it. */
 export interface ConnectionValues {
   issuerUrl: string;
   clientId: string;
   tokenAuthMethod: ClientAuthMethod;
+  responseType: ResponseType;
   scopes: TagListValue;
   endpoints: EndpointsValue;
 }
@@ -400,6 +436,7 @@ export function connectionProblems(
   issuerUrl?: MessageDescriptor;
   clientId?: MessageDescriptor;
   tokenAuthMethod?: MessageDescriptor;
+  responseType?: MessageDescriptor;
   scopes?: MessageDescriptor;
   endpoints: EndpointProblem[];
 } {
@@ -410,6 +447,11 @@ export function connectionProblems(
       values.tokenAuthMethod,
       values.endpoints.mode,
       saved.pkceMethod,
+    ),
+    responseType: responseTypeProblem(
+      values.responseType,
+      values.scopes,
+      values.endpoints,
     ),
     scopes: scopesProblem(values.scopes),
     endpoints: endpointProblems(values.endpoints, saved.allowPrivateNetwork),

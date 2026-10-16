@@ -79,6 +79,154 @@ func driveAuthorize(t *testing.T, authURL string) string {
 	return code
 }
 
+// driveImplicitAuthorize hits /authorize with response_type=id_token and
+// returns the redirect Location (whose fragment carries the id_token).
+func driveImplicitAuthorize(t *testing.T, authURL string) *url.URL {
+	t.Helper()
+	resp, err := noRedirectClient().Get(authURL)
+	if err != nil {
+		t.Fatalf("GET /authorize: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusFound {
+		body, _ := io.ReadAll(resp.Body)
+		t.Fatalf("authorize status = %d, want 302; body=%s", resp.StatusCode, body)
+	}
+	loc, err := resp.Location()
+	if err != nil {
+		t.Fatalf("authorize Location: %v", err)
+	}
+	return loc
+}
+
+// fragmentParams parses a redirect URI's fragment as query parameters — the
+// shape an implicit-flow response arrives in, and what the callback relay
+// page hands the server.
+func fragmentParams(t *testing.T, loc *url.URL) url.Values {
+	t.Helper()
+	values, err := url.ParseQuery(loc.Fragment)
+	if err != nil {
+		t.Fatalf("fragment parse: %v", err)
+	}
+	return values
+}
+
+// TestClient_ImplicitFlowAgainstMockOP drives the public-client implicit
+// flow end to end: the authorization request carries response_type=id_token
+// and a nonce but no PKCE, the id_token comes back in the fragment, and
+// VerifyImplicit verifies it without any token endpoint call.
+func TestClient_ImplicitFlowAgainstMockOP(t *testing.T) {
+	ts, op := newMockOP(t)
+	op.SetClaims("implicit-sub-1", "implicit@example.test", true, "implicit-user", "Implicit User")
+
+	resolved, err := federationoidc.ResolveConfig(context.Background(), federationoidc.Config{
+		IssuerURL: ts.URL, ClientID: "public-client", Scopes: []string{"openid", "profile", "email"},
+		UsernameClaim: "preferred_username", DisplayNameClaim: "name", EmailClaim: "email",
+		PictureClaim: "picture", SubjectClaim: "sub",
+		ConfigurationMode: "discovery", TokenAuthMethod: "none", PKCEMethod: "S256",
+		AllowPrivateNetwork: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	c, err := federationoidc.NewClient(context.Background(), "public-client", "", "https://rp.example.test/callback", resolved, nil, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	authURL := c.ImplicitAuthURL("implicit-state", "implicit-nonce")
+	parsed, err := url.Parse(authURL)
+	if err != nil {
+		t.Fatalf("parse ImplicitAuthURL: %v", err)
+	}
+	q := parsed.Query()
+	if q.Get("response_type") != "id_token" {
+		t.Errorf("response_type = %q, want id_token", q.Get("response_type"))
+	}
+	if q.Get("nonce") != "implicit-nonce" {
+		t.Errorf("nonce = %q, want implicit-nonce", q.Get("nonce"))
+	}
+	if q.Get("state") != "implicit-state" {
+		t.Errorf("state = %q, want implicit-state", q.Get("state"))
+	}
+	if q.Has("code_challenge") || q.Has("code_challenge_method") {
+		t.Errorf("implicit request must not carry PKCE parameters: %v", q)
+	}
+
+	loc := driveImplicitAuthorize(t, authURL)
+	fragment := fragmentParams(t, loc)
+	idToken := fragment.Get("id_token")
+	if idToken == "" {
+		t.Fatalf("fragment carries no id_token: %s", loc.String())
+	}
+	if fragment.Get("state") != "implicit-state" {
+		t.Errorf("fragment state = %q, want implicit-state", fragment.Get("state"))
+	}
+
+	toks, err := c.VerifyImplicit(context.Background(), idToken, ts.URL, "implicit-nonce")
+	if err != nil {
+		t.Fatalf("VerifyImplicit: %v", err)
+	}
+	if toks.Subject != "implicit-sub-1" || toks.Issuer != ts.URL {
+		t.Errorf("subject/issuer = %q/%q", toks.Subject, toks.Issuer)
+	}
+	if toks.PreferredUsername != "implicit-user" {
+		t.Errorf("preferred_username = %q, want implicit-user", toks.PreferredUsername)
+	}
+	if op.TokenCalls() != 0 {
+		t.Fatalf("implicit flow hit the token endpoint %d times", op.TokenCalls())
+	}
+}
+
+// TestClient_VerifyImplicitRejectsBadNonce pins the nonce binding: an
+// id_token minted for one nonce must not verify against another.
+func TestClient_VerifyImplicitRejectsBadNonce(t *testing.T) {
+	ts, _ := newMockOP(t)
+	resolved, err := federationoidc.ResolveConfig(context.Background(), federationoidc.Config{
+		IssuerURL: ts.URL, ClientID: "public-client", Scopes: []string{"openid"},
+		UsernameClaim: "preferred_username", DisplayNameClaim: "name", EmailClaim: "email",
+		PictureClaim: "picture", SubjectClaim: "sub",
+		ConfigurationMode: "discovery", TokenAuthMethod: "none",
+		PKCEMethod: "S256", AllowPrivateNetwork: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	c, err := federationoidc.NewClient(context.Background(), "public-client", "", "https://rp.example.test/callback", resolved, nil, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	loc := driveImplicitAuthorize(t, c.ImplicitAuthURL("state", "minted-nonce"))
+	idToken := fragmentParams(t, loc).Get("id_token")
+	if _, err := c.VerifyImplicit(context.Background(), idToken, ts.URL, "other-nonce"); err == nil {
+		t.Fatal("VerifyImplicit accepted a token minted for a different nonce")
+	}
+}
+
+// TestClient_VerifyImplicitRejectsWrongIssuer pins the issuer binding.
+func TestClient_VerifyImplicitRejectsWrongIssuer(t *testing.T) {
+	ts, _ := newMockOP(t)
+	resolved, err := federationoidc.ResolveConfig(context.Background(), federationoidc.Config{
+		IssuerURL: ts.URL, ClientID: "public-client", Scopes: []string{"openid"},
+		UsernameClaim: "preferred_username", DisplayNameClaim: "name", EmailClaim: "email",
+		PictureClaim: "picture", SubjectClaim: "sub",
+		ConfigurationMode: "discovery", TokenAuthMethod: "none",
+		PKCEMethod: "S256", AllowPrivateNetwork: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	c, err := federationoidc.NewClient(context.Background(), "public-client", "", "https://rp.example.test/callback", resolved, nil, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	loc := driveImplicitAuthorize(t, c.ImplicitAuthURL("state", "nonce"))
+	idToken := fragmentParams(t, loc).Get("id_token")
+	if _, err := c.VerifyImplicit(context.Background(), idToken, "https://attacker.example", "nonce"); err == nil {
+		t.Fatal("VerifyImplicit accepted a token under the wrong issuer")
+	}
+}
+
 // newClient constructs a Client against the given mock OP with the
 // canonical test scopes and a redirect URI that doesn't need to be a
 // real server (the mock OP redirects to it but our tests use

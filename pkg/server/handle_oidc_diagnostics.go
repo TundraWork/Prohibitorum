@@ -105,7 +105,7 @@ func (s *Server) handleOIDCEffectiveConfigHTTP(w http.ResponseWriter, r *http.Re
 		writeDiagnosticError(w, &federationoidc.DiagnosticResolutionError{Stage: federationoidc.DiagnosticStage{Name: "discovery", Status: "failed", DurationMS: time.Since(begin).Milliseconds(), Endpoint: federationoidc.DiagnosticEndpoint(config.IssuerURL), ErrorCode: "discovery_failed", RequestID: weberr.RequestIDFromContext(r.Context())}})
 		return
 	}
-	values := map[string]any{"issuer": resolved.Issuer, "authorizationEndpoint": resolved.AuthorizationEndpoint, "tokenEndpoint": resolved.TokenEndpoint, "userinfoEndpoint": resolved.UserInfoEndpoint, "jwksEndpoint": resolved.JWKSEndpoint, "tokenAuthMethod": resolved.TokenAuthMethod, "pkceMethod": resolved.PKCEMethod, "scopes": resolved.Scopes}
+	values := map[string]any{"issuer": resolved.Issuer, "authorizationEndpoint": resolved.AuthorizationEndpoint, "tokenEndpoint": resolved.TokenEndpoint, "userinfoEndpoint": resolved.UserInfoEndpoint, "jwksEndpoint": resolved.JWKSEndpoint, "tokenAuthMethod": resolved.TokenAuthMethod, "pkceMethod": resolved.PKCEMethod, "responseType": resolved.ResponseType, "scopes": resolved.Scopes}
 	fields := map[string]any{}
 	for name, value := range values {
 		fields[name] = map[string]any{"value": value, "source": resolved.Sources[name]}
@@ -153,6 +153,12 @@ func (s *Server) handleOIDCTestStartHTTP(w http.ResponseWriter, r *http.Request)
 }
 func (s *Server) handleOIDCTestCallbackHTTP(w http.ResponseWriter, r *http.Request) {
 	diagnosticHeaders(w)
+	// An implicit-flow response arrives with its parameters in the fragment;
+	// see handleFederationCallbackHTTP.
+	if r.URL.RawQuery == "" {
+		writeFragmentRelay(w)
+		return
+	}
 	q, err := url.ParseQuery(r.URL.RawQuery)
 	if err != nil {
 		writeAuthErr(w, authn.ErrBadRequest())
@@ -160,19 +166,19 @@ func (s *Server) handleOIDCTestCallbackHTTP(w http.ResponseWriter, r *http.Reque
 	}
 	// Providers append their own parameters (Google adds scope, authuser and
 	// prompt), so only the parameters read here must appear at most once.
-	for _, key := range []string{"state", "code", "error", "iss"} {
+	for _, key := range []string{"state", "code", "error", "iss", "id_token"} {
 		if len(q[key]) > 1 {
 			writeAuthErr(w, authn.ErrBadRequest())
 			return
 		}
 	}
-	if (q.Get("code") == "") == (q.Get("error") == "") {
+	if (q.Get("code") == "" && q.Get("id_token") == "") == (q.Get("error") == "") {
 		writeAuthErr(w, authn.ErrBadRequest())
 		return
 	}
 	id := q.Get("state")
 	slug := chi.URLParam(r, "slug")
-	if err := s.oidcDiagnostics().Callback(r.Context(), id, slug, diagnosticBrowser(r), q.Get("code"), q.Get("error"), q.Get("iss"), weberr.RequestIDFromContext(r.Context())); err != nil {
+	if err := s.oidcDiagnostics().Callback(r.Context(), id, slug, diagnosticBrowser(r), q.Get("code"), q.Get("error"), q.Get("iss"), q.Get("id_token"), weberr.RequestIDFromContext(r.Context())); err != nil {
 		writeDiagnosticError(w, err)
 		return
 	}

@@ -19,15 +19,18 @@ import (
 )
 
 type adapterFakeClient struct {
-	tokens        *Tokens
-	tokenEndpoint string
-	exchanges     *int
-	userInfo      map[string]any
-	userInfoCalls int
-	userInfoErr   error
-	rawUserInfo   map[string]any
-	rawUserErr    error
-	exchangeErr   error
+	tokens         *Tokens
+	implicitTokens *Tokens
+	tokenEndpoint  string
+	exchanges      *int
+	verifies       *int
+	userInfo       map[string]any
+	userInfoCalls  int
+	userInfoErr    error
+	rawUserInfo    map[string]any
+	rawUserErr     error
+	exchangeErr    error
+	implicitErr    error
 }
 
 func (c *adapterFakeClient) Issuer() string { return "https://issuer.test" }
@@ -38,13 +41,25 @@ func (c *adapterFakeClient) TokenEndpoint() string {
 	return "https://issuer.test/token"
 }
 func (c *adapterFakeClient) AuthURL(state, nonce, challenge string) string {
-	return "https://issuer.test/auth?state=" + state + "&nonce=" + nonce + "&challenge=" + challenge
+	return "https://issuer.test/auth?response_type=code&state=" + state + "&nonce=" + nonce + "&challenge=" + challenge
+}
+func (c *adapterFakeClient) ImplicitAuthURL(state, nonce string) string {
+	return "https://issuer.test/auth?response_type=id_token&state=" + state + "&nonce=" + nonce
 }
 func (c *adapterFakeClient) Exchange(context.Context, string, string, string, string) (*Tokens, error) {
 	if c.exchanges != nil {
 		*c.exchanges = *c.exchanges + 1
 	}
 	return c.tokens, c.exchangeErr
+}
+func (c *adapterFakeClient) VerifyImplicit(_ context.Context, _, _, _ string) (*Tokens, error) {
+	if c.verifies != nil {
+		*c.verifies = *c.verifies + 1
+	}
+	if c.implicitErr != nil {
+		return nil, c.implicitErr
+	}
+	return c.implicitTokens, nil
 }
 func (c *adapterFakeClient) UserInfo(context.Context, string, string) (map[string]any, error) {
 	c.userInfoCalls++
@@ -64,6 +79,154 @@ func adapterTestConfig(issuer string, allowPrivate bool) json.RawMessage {
 		RequireVerifiedEmail: true, AllowPrivateNetwork: allowPrivate,
 	})
 	return raw
+}
+
+// adapterPublicConfig is a public client with the openid scope, set to the
+// given sign-in response; "" leaves the setting out of the saved JSON.
+func adapterPublicConfig(issuer, responseType string) json.RawMessage {
+	raw, _ := json.Marshal(Config{
+		ConfigurationMode: "discovery", TokenAuthMethod: "none", PKCEMethod: "S256",
+		IssuerURL: issuer, ClientID: "client", Scopes: []string{"openid", "profile"},
+		AllowedDomains: []string{}, UsernameClaim: "preferred_username",
+		DisplayNameClaim: "name", EmailClaim: "email", PictureClaim: "picture",
+		SubjectClaim: "sub", RequireVerifiedEmail: true, ResponseType: responseType,
+	})
+	return raw
+}
+
+// responseTypeHarness runs Begin and Advance against a fake client that
+// counts code exchanges and id_token verifications separately, so a test can
+// tell which path a callback took.
+type responseTypeHarness struct {
+	adapter              *Adapter
+	provider             federationcore.Provider
+	exchanges, verifies  int
+	codeTokens, idTokens *Tokens
+}
+
+func newResponseTypeHarness(responseType string) *responseTypeHarness {
+	h := &responseTypeHarness{
+		provider:   federationcore.Provider{ID: 7, Slug: "public", Protocol: Protocol, Config: adapterPublicConfig("https://issuer.test", responseType)},
+		codeTokens: &Tokens{IDToken: "back-channel-jwt", AccessToken: "at", Issuer: "https://issuer.test", Subject: "sub-code", Raw: map[string]any{"preferred_username": "coder"}},
+		idTokens:   &Tokens{IDToken: "front-channel-jwt", Issuer: "https://issuer.test", Subject: "sub-implicit", EmailVerified: true, Raw: map[string]any{"preferred_username": "imp", "name": "Imp User"}},
+	}
+	h.adapter = NewAdapter(federationcore.NewSecretStore(map[int][]byte{1: make([]byte, 32)}))
+	h.adapter.resolveConfig = func(_ context.Context, c Config) (ResolvedConfig, error) {
+		return ResolvedConfig{Issuer: c.IssuerURL, AuthorizationEndpoint: c.IssuerURL + "/auth", TokenEndpoint: c.IssuerURL + "/token", JWKSEndpoint: c.IssuerURL + "/keys", PKCEMethod: c.PKCEMethod, TokenAuthMethod: "none", ResponseType: c.responseType(), Scopes: c.Scopes}, nil
+	}
+	h.adapter.newClient = func(context.Context, Config, ResolvedConfig, string, string) (clientAPI, error) {
+		return &adapterFakeClient{tokens: h.codeTokens, implicitTokens: h.idTokens, exchanges: &h.exchanges, verifies: &h.verifies, userInfo: map[string]any{"sub": "sub-code"}}, nil
+	}
+	return h
+}
+
+func (h *responseTypeHarness) begin(t *testing.T) (json.RawMessage, adapterState, string) {
+	t.Helper()
+	raw, action, err := h.adapter.Begin(context.Background(), h.provider, federationcore.BeginContext{Intent: federationcore.IntentLogin, FlowID: "flow", CallbackURL: "https://idp.test/callback"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var state adapterState
+	if err := json.Unmarshal(raw, &state); err != nil {
+		t.Fatal(err)
+	}
+	return raw, state, action.URL
+}
+
+// TestAdapterIDTokenOnlyFlow drives a provider set to ID token only through
+// Begin and Advance: the redirect asks for response_type=id_token without
+// PKCE, the callback's front-channel id_token becomes the identity, and no
+// code exchange happens.
+func TestAdapterIDTokenOnlyFlow(t *testing.T) {
+	h := newResponseTypeHarness(responseTypeIDToken)
+	raw, state, authURL := h.begin(t)
+	if !strings.Contains(authURL, "response_type=id_token") || strings.Contains(authURL, "challenge") {
+		t.Fatalf("authorization URL = %s, want the implicit request without PKCE", authURL)
+	}
+	if !state.Implicit || state.CodeVerifier != "" {
+		t.Fatalf("state = %+v, want implicit with no code verifier", state)
+	}
+	result, err := h.adapter.Advance(context.Background(), h.provider, raw, federationcore.ActionInput{Kind: federationcore.ActionRedirect, IDToken: "front-channel-jwt"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Identity == nil || result.Identity.Subject != "sub-implicit" || result.Identity.Username != "imp" {
+		t.Fatalf("identity = %+v", result.Identity)
+	}
+	if h.verifies != 1 || h.exchanges != 0 {
+		t.Fatalf("verifies/exchanges = %d/%d, want 1/0", h.verifies, h.exchanges)
+	}
+}
+
+// TestAdapterResponseTypeDefaultsToCode pins that a configuration without the
+// setting keeps the code flow with PKCE, even for a public client with the
+// openid scope: providers saved before the setting existed do not change.
+func TestAdapterResponseTypeDefaultsToCode(t *testing.T) {
+	if strings.Contains(string(adapterPublicConfig("https://issuer.test", "")), "responseType") {
+		t.Fatal("fixture still carries responseType")
+	}
+	config, err := decodeConfig(adapterPublicConfig("https://issuer.test", ""))
+	if err != nil {
+		t.Fatalf("a configuration without responseType must still decode: %v", err)
+	}
+	if config.responseType() != responseTypeCode {
+		t.Fatalf("unset response type reads as %q", config.responseType())
+	}
+	h := newResponseTypeHarness("")
+	raw, state, authURL := h.begin(t)
+	if !strings.Contains(authURL, "response_type=code") || !strings.Contains(authURL, "challenge=") {
+		t.Fatalf("authorization URL = %s, want the code request with PKCE", authURL)
+	}
+	if state.Implicit || state.CodeVerifier == "" || state.Resolved.ResponseType != responseTypeCode {
+		t.Fatalf("state = %+v, want the code flow with a verifier", state)
+	}
+	if _, err := h.adapter.Advance(context.Background(), h.provider, raw, federationcore.ActionInput{Kind: federationcore.ActionRedirect, Code: "code"}); err != nil {
+		t.Fatal(err)
+	}
+	if h.exchanges != 1 || h.verifies != 0 {
+		t.Fatalf("exchanges/verifies = %d/%d, want 1/0", h.exchanges, h.verifies)
+	}
+}
+
+// TestAdapterCodeFlowIgnoresInjectedIDToken pins that an id_token added to a
+// code-flow callback is never verified as the identity: the flow state, not
+// the callback, decides the path, so the implicit flow cannot be forced onto
+// a provider that did not opt in.
+func TestAdapterCodeFlowIgnoresInjectedIDToken(t *testing.T) {
+	h := newResponseTypeHarness(responseTypeCode)
+	raw, _, _ := h.begin(t)
+	result, err := h.adapter.Advance(context.Background(), h.provider, raw, federationcore.ActionInput{Kind: federationcore.ActionRedirect, Code: "code", IDToken: "front-channel-jwt"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if h.verifies != 0 || h.exchanges != 1 {
+		t.Fatalf("verifies/exchanges = %d/%d, want 0/1", h.verifies, h.exchanges)
+	}
+	if result.Identity == nil || result.Identity.Subject != "sub-code" {
+		t.Fatalf("identity = %+v, want the exchanged one", result.Identity)
+	}
+}
+
+// TestAdapterImplicitFlowIgnoresCode pins the other direction: a code on an
+// implicit callback is never exchanged, and without an id_token the callback
+// fails.
+func TestAdapterImplicitFlowIgnoresCode(t *testing.T) {
+	h := newResponseTypeHarness(responseTypeIDToken)
+	raw, _, _ := h.begin(t)
+	_, err := h.adapter.Advance(context.Background(), h.provider, raw, federationcore.ActionInput{Kind: federationcore.ActionRedirect, Code: "code"})
+	if reason, ok := federationcore.FailureReasonOf(err); !ok || reason != federationcore.FailureCodeExchange {
+		t.Fatalf("Advance error = %v, want code_exchange_failed", err)
+	}
+	if h.exchanges != 0 || h.verifies != 0 {
+		t.Fatalf("exchanges/verifies = %d/%d, want 0/0", h.exchanges, h.verifies)
+	}
+	result, err := h.adapter.Advance(context.Background(), h.provider, raw, federationcore.ActionInput{Kind: federationcore.ActionRedirect, Code: "code", IDToken: "front-channel-jwt"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if h.exchanges != 0 || h.verifies != 1 || result.Identity == nil || result.Identity.Subject != "sub-implicit" {
+		t.Fatalf("exchanges/verifies = %d/%d, identity = %+v", h.exchanges, h.verifies, result.Identity)
+	}
 }
 
 func TestAdapterBeginAndAdvanceVerifiedIdentity(t *testing.T) {

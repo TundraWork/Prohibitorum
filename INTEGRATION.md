@@ -608,6 +608,21 @@ Some upstreams (GitHub OAuth Apps, most plain OAuth 2.0 servers) return no `id_t
 - If the provider requires verified email (`requireVerifiedEmail=true`) and the upstream does not supply `email_verified`, the upstream's address counts as unverified and sign-in is rejected with `email_not_verified`. Providers like GitHub therefore need `requireVerifiedEmail=false` (or an adapter that always provides `email_verified`).
 - GitHub discovery at `https://github.com/login/oauth` publishes no `userinfo_endpoint` and its `claims_supported` lists neither username nor email: a GitHub provider additionally needs the manual `endpoints.userinfo` override pointing at `https://api.github.com/user` to be usable.
 
+### Sign-in response: ID token only (implicit flow)
+
+Each OIDC provider has a **Sign-in response** setting (`responseType` in its config). It defaults to **Authorization code** (`code`), and a provider saved before the setting existed keeps that. **ID token only** (`id_token`) is an opt-in for upstreams that will not let a server redeem a code for a public client: an app registered for personal Microsoft accounts (Microsoft Live) as a SPA or public client is one. Most other upstreams (Keycloak, Authelia, Dex, ZITADEL, Okta) allow only the code flow by default, so leave them on Authorization code.
+
+With ID token only:
+
+- The authorization request sends `response_type=id_token` with a `nonce`, and no PKCE and no `code_challenge` (there is no code to bind a verifier to).
+- The upstream client must allow that response type. Keycloak calls the switch **Implicit Flow Enabled**; the Microsoft identity platform lists it as **ID tokens** under implicit grant in the app registration's Authentication page. Without it the upstream refuses the sign-in.
+- The id_token comes back in the redirect URI **fragment**, so the browser's first request to the callback has an empty query. For that request the callback serves a small relay page (its only script is pinned by a `Content-Security-Policy` hash) that moves the fragment parameters into the query and loads the same URL again; only then does the callback carry `id_token` + `state` the server can read. An empty fragment is relayed as `relay=empty` and ends on the error page rather than looping. Without JavaScript the sign-in cannot complete.
+- The relayed id_token travels in that second request's query string. A reverse proxy that logs request URLs therefore records the token, with the email and name claims it carries. It cannot be replayed — its nonce belongs to a flow state the first callback consumes, and it expires within minutes — but treat such access logs as holding personal data, or drop the query string from the callback path in them.
+- Prohibitorum verifies the id_token exactly as it would one from a token response — signature against the provider's JWKS, `iss` against the expected issuer snapshotted at login start, `aud` against the client ID, expiry, nonce, and the signing-alg allowlist — and maps the claims (`usernameClaim`, `displayNameClaim`, `emailClaim`, `pictureClaim`, `email_verified`) straight from the token. No code exchange, no access token, and no userinfo request happen.
+- The flow is fixed when sign-in starts. A callback for a code-flow sign-in ignores an `id_token` parameter, and one for an ID-token sign-in never exchanges a `code`, so neither path can be switched from the callback URL.
+
+Saving is refused when ID token only cannot work: without `openid` in the scopes the upstream issues no id_token, and with a JWKS endpoint of `none` there is nothing to verify one with.
+
 ### Login flow
 
 ```bash

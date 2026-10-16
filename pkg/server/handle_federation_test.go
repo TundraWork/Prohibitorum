@@ -561,6 +561,132 @@ func decodeErrBody(t *testing.T, resp *http.Response) errBody {
 
 // --- tests ----------------------------------------------------------------
 
+// driveImplicitLogin seeds a second IdP row configured as a public client set
+// to ID token only (responseType=id_token) and drives /login → /authorize with
+// response_type=id_token. It returns the redirect Location whose fragment
+// carries the id_token, exactly as a real OP hands it to the browser.
+func (h *fedTestHarness) driveImplicitLogin(t *testing.T, slug string) *url.URL {
+	t.Helper()
+	publicConfig, err := json.Marshal(federationoidc.Config{
+		ConfigurationMode: "discovery", TokenAuthMethod: "none", PKCEMethod: "S256", ResponseType: "id_token",
+		IssuerURL: h.opTS.URL, ClientID: "test-client", Scopes: []string{"openid", "profile", "email"},
+		AllowedDomains: []string{}, UsernameClaim: "preferred_username", DisplayNameClaim: "name",
+		EmailClaim: "email", PictureClaim: "picture", RequireVerifiedEmail: true,
+		AllowPrivateNetwork: true, SubjectClaim: "sub",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.q.idpBySlug[slug] = db.UpstreamIdp{
+		ID: 99, Slug: slug, DisplayName: "Public OP", Mode: fedoidc.ModeAutoProvision,
+		Protocol: federationoidc.Protocol, ProviderConfig: publicConfig, SecretStatus: "unconfigured",
+	}
+	h.op.SetClaims("pub-sub-1", "pub@example.com", true, "pubuser", "Pub User")
+	authorizeURL, resp := h.driveLogin(t, slug, "/me")
+	if resp.StatusCode != http.StatusFound {
+		t.Fatalf("login status = %d", resp.StatusCode)
+	}
+	if !strings.Contains(authorizeURL, "response_type=id_token") {
+		t.Fatalf("authorization URL is not implicit: %s", authorizeURL)
+	}
+	noFollowResp, err := noFollow().Get(authorizeURL)
+	if err != nil {
+		t.Fatalf("GET /authorize: %v", err)
+	}
+	defer noFollowResp.Body.Close()
+	loc, err := noFollowResp.Location()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if loc.Fragment == "" {
+		t.Fatalf("implicit redirect carries no fragment: %s", loc)
+	}
+	return loc
+}
+
+// TestFederationImplicitCallbackRelaysFragment drives a public client's
+// implicit login end to end: the fragment-only callback (what the OP's 302
+// makes the browser request first) serves the relay page, and the relayed
+// id_token+state completes the sign-in without any token endpoint call.
+func TestFederationImplicitCallbackRelaysFragment(t *testing.T) {
+	h := newFederationTestServer(t)
+	loc := h.driveImplicitLogin(t, "mockop-public")
+
+	// First hit: fragment stripped, as a real browser's request arrives.
+	fragmentless := *loc
+	fragmentless.Fragment = ""
+	fragmentless.RawQuery = ""
+	resp, err := h.client.Get(fragmentless.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("fragment callback status = %d, want 200 (relay page)", resp.StatusCode)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	if !strings.Contains(string(body), "location.hash") {
+		t.Fatalf("relay page missing its script: %s", body)
+	}
+	if h.op.TokenCalls() != 0 {
+		t.Fatalf("relay page hit the token endpoint %d times", h.op.TokenCalls())
+	}
+
+	// Second hit: the relay page's target — fragment params as query.
+	fragment, err := url.ParseQuery(loc.Fragment)
+	if err != nil {
+		t.Fatal(err)
+	}
+	relayURL := fragmentless.String() + "?" + fragment.Encode()
+	resp2, err := h.client.Get(relayURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp2.Body.Close()
+	if resp2.StatusCode != http.StatusFound {
+		body2, _ := io.ReadAll(resp2.Body)
+		t.Fatalf("relayed callback status = %d, want 302; body=%s", resp2.StatusCode, body2)
+	}
+	if h.op.TokenCalls() != 0 {
+		t.Fatalf("implicit login hit the token endpoint %d times", h.op.TokenCalls())
+	}
+	if destination := resp2.Header.Get("Location"); !strings.HasPrefix(destination, "/welcome") && destination != "/me" {
+		t.Fatalf("relayed callback destination = %q", destination)
+	}
+}
+
+// TestFederationCallbackRelayPage pins the relay page's headers and that its
+// empty-fragment fallback ends on the error page instead of relaying again.
+func TestFederationCallbackRelayPage(t *testing.T) {
+	h := newFederationTestServer(t)
+	resp, err := h.client.Get(h.srvTS.URL + "/api/prohibitorum/auth/federation/mockop/callback")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("empty callback status = %d, want 200 (relay page)", resp.StatusCode)
+	}
+	if csp := resp.Header.Get("Content-Security-Policy"); !strings.Contains(csp, "script-src 'sha256-") || !strings.Contains(csp, "default-src 'none'") {
+		t.Fatalf("relay page CSP = %q", csp)
+	}
+	if resp.Header.Get("Referrer-Policy") != "no-referrer" || resp.Header.Get("Cache-Control") != "no-store" {
+		t.Fatalf("relay page headers = %v", resp.Header)
+	}
+
+	q := url.Values{}
+	q.Set("relay", "empty")
+	fallback := h.hitCallback(t, "mockop", q)
+	if fallback.StatusCode != http.StatusFound || !strings.HasPrefix(fallback.Header.Get("Location"), "/error?error=federation_state_invalid&ref=") {
+		t.Fatalf("empty relay: status %d, Location %q", fallback.StatusCode, fallback.Header.Get("Location"))
+	}
+	for _, ev := range h.q.events {
+		if ev.Event == audit.EventFail {
+			t.Errorf("unexpected fail audit row on empty relay: %+v", ev)
+		}
+	}
+}
+
 func TestFederationLogin_RedirectsToUpstream(t *testing.T) {
 	h := newFederationTestServer(t)
 

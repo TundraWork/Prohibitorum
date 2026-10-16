@@ -210,9 +210,11 @@ describe("identity provider update body", () => {
   };
 
   it("carries the config when a form edits the name", () => {
+    // The fixture predates the sign-in response, so it comes back written out
+    // as the code flow it already meant.
     expect(
       identityProviderUpdateBody(provider, { displayName: "Renamed" }).config,
-    ).toEqual(config);
+    ).toEqual({ ...config, responseType: "code" });
   });
 
   it("carries the name when a form edits the config", () => {

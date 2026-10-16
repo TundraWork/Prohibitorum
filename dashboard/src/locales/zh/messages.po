@@ -1050,6 +1050,11 @@ msgstr "授权"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-options.ts
+msgid "admin.federation.response.code"
+msgstr "授权码"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.connection.authorization"
 msgstr "授权端点"
 
@@ -3113,6 +3118,11 @@ msgid "route.error.exception"
 msgstr "异常信息"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-options.ts
+msgid "admin.federation.response.code.hint"
+msgstr "在令牌端点用授权码换取令牌，PKCE 开启时一并使用。多数提供商只允许这种方式。"
+
+#. js-lingui-explicit-id
 #: src/components/custom/ListCells.tsx
 msgid "list.diagnostics.certificate.expired"
 msgstr "已过期"
@@ -3435,6 +3445,26 @@ msgstr "图标已更新"
 #: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
 msgid "admin.federation.diagnostics.stage.id-token"
 msgstr "ID token"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-options.ts
+msgid "admin.federation.response.id-token"
+msgstr "仅 ID token"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-validation.ts
+msgid "admin.federation.response.needs-jwks"
+msgstr "「仅 ID token」需要 JWKS 端点来校验令牌。请填写 JWKS 端点，或改用授权码。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-validation.ts
+msgid "admin.federation.response.needs-openid"
+msgstr "「仅 ID token」需要 openid 作用域。请加上 openid，或改用授权码。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ResponseTypeField.tsx
+msgid "admin.federation.response.description"
+msgstr "只有当提供商那边的客户端允许 response_type=id_token 时，「仅 ID token」才能使用。Keycloak 里这项叫 Implicit Flow Enabled；Microsoft identity platform 里是隐式授权（implicit grant）下的 ID tokens。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
@@ -5075,6 +5105,11 @@ msgid "admin.federation.connection.mode.discovery.hint"
 msgstr "从 Issuer 的发现文档读取端点。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-options.ts
+msgid "admin.federation.response.id-token.hint"
+msgstr "直接读取回调收到的 ID token，不请求令牌端点，也不读取 UserInfo。"
+
+#. js-lingui-explicit-id
 #: src/pages/Login.tsx
 msgid "login.recovery.code"
 msgstr "恢复码"
@@ -6226,6 +6261,16 @@ msgstr "登录页"
 #: src/api/success-messages.ts
 msgid "success.sign-in-page.saved"
 msgstr "登录页已保存"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ResponseTypeField.tsx
+msgid "admin.federation.response.label"
+msgstr "登录响应"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-options.ts
+msgid "admin.federation.effective.response"
+msgstr "登录响应"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/SignInRulesSection.tsx
@@ -7952,7 +7997,7 @@ msgstr "用户"
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.auth.none.hint"
-msgstr "不使用客户端密钥，登录时一律使用 PKCE。"
+msgstr "不使用客户端密钥；用授权码登录时一律使用 PKCE。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-options.ts

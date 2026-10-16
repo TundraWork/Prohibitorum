@@ -91,6 +91,10 @@ type diagnosticFlow struct {
 	AdapterState json.RawMessage `json:"adapterState,omitempty"`
 	Code         string          `json:"code,omitempty"`
 	Issuer       string          `json:"issuer,omitempty"`
+	// CallbackIDToken holds the front-channel id_token of an implicit-flow
+	// callback (public client) until Complete consumes it. The code-flow
+	// fields above stay empty there.
+	CallbackIDToken string `json:"callbackIdToken,omitempty"`
 }
 
 type Diagnostics struct {
@@ -203,9 +207,10 @@ func clearDiagnosticSecrets(flow *diagnosticFlow) {
 	flow.AdapterState = nil
 	flow.Code = ""
 	flow.Issuer = ""
+	flow.CallbackIDToken = ""
 }
 
-func (d *Diagnostics) Callback(ctx context.Context, id, slug, browser, code, upstreamError, issuer, requestID string) error {
+func (d *Diagnostics) Callback(ctx context.Context, id, slug, browser, code, upstreamError, issuer, idToken, requestID string) error {
 	flow, raw, err := d.read(ctx, id, slug, browser, nil)
 	if err != nil {
 		return err
@@ -215,10 +220,18 @@ func (d *Diagnostics) Callback(ctx context.Context, id, slug, browser, code, ups
 	}
 	stage := DiagnosticStage{Name: "callback", Status: "succeeded", RequestID: requestID}
 	flow.Stages[1].Status = "succeeded"
+	implicit := flow.Resolved.implicitFlow()
 	if upstreamError != "" {
 		stage.Status = "failed"
 		stage.ErrorCode = safeOAuthError(upstreamError)
 		flow.Stages[1].Status = "failed"
+	} else if implicit {
+		// The implicit response's only credential is the front-channel
+		// id_token; size-bound it like the code.
+		if idToken == "" || len(idToken) > 65536 {
+			stage.Status = "failed"
+			stage.ErrorCode = "invalid_callback"
+		}
 	} else if code == "" || len(code) > 8192 {
 		stage.Status = "failed"
 		stage.ErrorCode = "invalid_callback"
@@ -230,7 +243,7 @@ func (d *Diagnostics) Callback(ctx context.Context, id, slug, browser, code, ups
 	} else {
 		// Adapter.Advance checks iss, exactly as it does for login.
 		flow.Status = "ready"
-		flow.Code, flow.Issuer = code, issuer
+		flow.Code, flow.Issuer, flow.CallbackIDToken = code, issuer, idToken
 	}
 	ok, err := d.replace(ctx, id, raw, flow)
 	if err != nil {
@@ -283,7 +296,8 @@ func (d *Diagnostics) Complete(ctx context.Context, id string, provider federati
 		}
 		return flow.DiagnosticResult, nil
 	}
-	state, input := flow.AdapterState, federationcore.ActionInput{Kind: federationcore.ActionRedirect, Code: flow.Code, Issuer: flow.Issuer}
+	implicit := flow.Resolved.implicitFlow()
+	state, input := flow.AdapterState, federationcore.ActionInput{Kind: federationcore.ActionRedirect, Code: flow.Code, Issuer: flow.Issuer, IDToken: flow.CallbackIDToken}
 	flow.Status = "running"
 	clearDiagnosticSecrets(&flow)
 	ok, err := d.replace(ctx, id, raw, flow)
@@ -317,7 +331,7 @@ func (d *Diagnostics) Complete(ctx context.Context, id string, provider federati
 		}
 	}
 
-	flow.Stages = append(flow.Stages, diagnosticStages(recorder, flow.Resolved, advanceErr, avatarErr, advancedAt, requestID)...)
+	flow.Stages = append(flow.Stages, diagnosticStages(recorder, flow.Resolved, advanceErr, avatarErr, advancedAt, requestID, implicit)...)
 	flow.Status = "succeeded"
 	for _, stage := range flow.Stages {
 		if stage.Status == "failed" {
@@ -345,13 +359,23 @@ func (d *Diagnostics) Complete(ctx context.Context, id string, provider federati
 
 // diagnosticStages reads the token_exchange, id_token and userinfo stages
 // from the Advance outcome and the recorded requests.
-func diagnosticStages(recorder *diagnosticRecorder, resolved ResolvedConfig, advanceErr, avatarErr error, advancedAt time.Time, requestID string) []DiagnosticStage {
+func diagnosticStages(recorder *diagnosticRecorder, resolved ResolvedConfig, advanceErr, avatarErr error, advancedAt time.Time, requestID string, implicit bool) []DiagnosticStage {
 	token := recorder.call(upstreamToken)
-	exchange := DiagnosticStage{Name: "token_exchange", Status: "succeeded", Endpoint: DiagnosticEndpoint(resolved.TokenEndpoint), HTTPStatus: token.status, DurationMS: token.duration.Milliseconds(), RequestID: requestID}
+	exchange := DiagnosticStage{Name: "token_exchange", Status: "succeeded", Endpoint: DiagnosticEndpoint(resolved.TokenEndpoint), RequestID: requestID}
 	verification := DiagnosticStage{Name: "id_token", Status: "succeeded", RequestID: requestID}
-	userinfo := DiagnosticStage{Name: "userinfo", Status: "skipped", Endpoint: DiagnosticEndpoint(resolved.UserInfoEndpoint), RequestID: requestID}
-	if call := recorder.call(upstreamUserInfo); call.count > 0 {
-		userinfo.Status, userinfo.HTTPStatus, userinfo.DurationMS = "succeeded", call.status, call.duration.Milliseconds()
+	userinfo := DiagnosticStage{Name: "userinfo", Status: "skipped", RequestID: requestID}
+	if implicit {
+		// The implicit flow authenticates from the front-channel id_token;
+		// there is no token endpoint call and no userinfo fetch, so both
+		// stages carry neither endpoint nor timing.
+		exchange.Status = "skipped"
+	} else {
+		exchange.HTTPStatus = token.status
+		exchange.DurationMS = token.duration.Milliseconds()
+		userinfo.Endpoint = DiagnosticEndpoint(resolved.UserInfoEndpoint)
+		if call := recorder.call(upstreamUserInfo); call.count > 0 {
+			userinfo.Status, userinfo.HTTPStatus, userinfo.DurationMS = "succeeded", call.status, call.duration.Milliseconds()
+		}
 	}
 	fail := func(stage *DiagnosticStage, code string) { stage.Status, stage.ErrorCode = "failed", code }
 

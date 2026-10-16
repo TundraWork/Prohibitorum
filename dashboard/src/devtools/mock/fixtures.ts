@@ -1159,6 +1159,9 @@ function config0(protocol: string, index: number): unknown {
         ? "client_secret_post"
         : "discovery",
     pkceMethod: "S256",
+    // The other providers leave it out, as a provider saved before the
+    // setting existed does.
+    ...(publicClient ? { responseType: "id_token" as const } : {}),
   };
 }
 
@@ -1750,6 +1753,7 @@ function readReply(
             source: "discovery",
           },
           pkceMethod: { value: "S256", source: "manual" },
+          responseType: { value: "code", source: "manual" },
           scopes: { value: ["openid", "profile", "email"], source: "manual" },
         },
       });

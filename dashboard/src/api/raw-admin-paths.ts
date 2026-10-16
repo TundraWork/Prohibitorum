@@ -308,6 +308,11 @@ export interface OidcProviderConfig {
     | "none";
   /** A public client (`none`) must keep this at `S256`. */
   pkceMethod: "S256" | "plain" | "off";
+  /**
+   * The sign-in response. Absent on providers saved before the setting
+   * existed, and the server reads that as `code`.
+   */
+  responseType?: "code" | "id_token";
 }
 
 /**

@@ -95,6 +95,10 @@ type ActionInput struct {
 	Params        url.Values
 	Identity      string
 	LocalUsername string
+	// IDToken carries a front-channel id_token for OIDC flows that return one
+	// without a code exchange (the implicit flow public clients use). The
+	// adapter verifies it exactly as it would one from a token response.
+	IDToken string
 }
 
 type IdentityKey struct {

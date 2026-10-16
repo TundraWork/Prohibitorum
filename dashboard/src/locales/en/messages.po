@@ -1050,6 +1050,11 @@ msgstr "Authorization"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-options.ts
+msgid "admin.federation.response.code"
+msgstr "Authorization code"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.connection.authorization"
 msgstr "Authorization endpoint"
 
@@ -3113,6 +3118,11 @@ msgid "route.error.exception"
 msgstr "Exception"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-options.ts
+msgid "admin.federation.response.code.hint"
+msgstr "Exchanges the code at the token endpoint, with PKCE when it is on. Most providers allow only this."
+
+#. js-lingui-explicit-id
 #: src/components/custom/ListCells.tsx
 msgid "list.diagnostics.certificate.expired"
 msgstr "Expired"
@@ -3435,6 +3445,26 @@ msgstr "Icon updated"
 #: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
 msgid "admin.federation.diagnostics.stage.id-token"
 msgstr "ID token"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-options.ts
+msgid "admin.federation.response.id-token"
+msgstr "ID token only"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-validation.ts
+msgid "admin.federation.response.needs-jwks"
+msgstr "ID token only needs a JWKS endpoint to check the token. Enter one, or choose the authorization code."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-validation.ts
+msgid "admin.federation.response.needs-openid"
+msgstr "ID token only needs the openid scope. Add openid, or choose the authorization code."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ResponseTypeField.tsx
+msgid "admin.federation.response.description"
+msgstr "ID token only works when the provider's client allows response_type=id_token. Keycloak calls this Implicit Flow Enabled; the Microsoft identity platform lists it as ID tokens under implicit grant."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
@@ -5075,6 +5105,11 @@ msgid "admin.federation.connection.mode.discovery.hint"
 msgstr "Reads the endpoints from the issuer's discovery document."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-options.ts
+msgid "admin.federation.response.id-token.hint"
+msgstr "Reads the ID token sent back to the callback, without a token request or UserInfo."
+
+#. js-lingui-explicit-id
 #: src/pages/Login.tsx
 msgid "login.recovery.code"
 msgstr "Recovery code"
@@ -6226,6 +6261,16 @@ msgstr "Sign-in page"
 #: src/api/success-messages.ts
 msgid "success.sign-in-page.saved"
 msgstr "Sign-in page saved"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ResponseTypeField.tsx
+msgid "admin.federation.response.label"
+msgstr "Sign-in response"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-options.ts
+msgid "admin.federation.effective.response"
+msgstr "Sign-in response"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/SignInRulesSection.tsx
@@ -7952,7 +7997,7 @@ msgstr "Users"
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.auth.none.hint"
-msgstr "Uses no client secret; sign-in always uses PKCE."
+msgstr "Uses no client secret; sign-in with an authorization code always uses PKCE."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-options.ts

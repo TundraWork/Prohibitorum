@@ -42,7 +42,8 @@ func smokeOIDCDiagnostics(admin *client, base string, op *mockop.Server) error {
 		return err
 	}
 	expectedCallback := base + "/api/prohibitorum/auth/federation/mockop/test/callback"
-	if effective.CallbackURL != expectedCallback || len(effective.Fields) != 8 {
+	responseType, _ := effective.Fields["responseType"].(map[string]any)
+	if effective.CallbackURL != expectedCallback || len(effective.Fields) != 9 || responseType["value"] != "code" {
 		return fmt.Errorf("unexpected effective config")
 	}
 	var start struct{ ID, AuthorizationURL string }
