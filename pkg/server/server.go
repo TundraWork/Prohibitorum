@@ -231,6 +231,22 @@ func (s *Server) federatedAvatarDelivery(provider federation.Provider, avatarURL
 	return delivery
 }
 
+// identifyOutbound wires the federation outbound client's User-Agent to the
+// same `Prohibitorum/<version> <public origin>` identification the VRChat
+// client sends (bgm.tv and similar APIs answer library-default UAs with 403).
+func identifyOutbound(publicOrigin string) (*federationvrchat.Client, error) {
+	buildVersion := "(devel)"
+	if buildInfo, ok := debug.ReadBuildInfo(); ok && buildInfo.Main.Version != "" {
+		buildVersion = buildInfo.Main.Version
+	}
+	vrchatClient, err := federationvrchat.NewClient(buildVersion, publicOrigin)
+	if err != nil {
+		return nil, err
+	}
+	federation.SetOutboundUserAgent(vrchatClient.UserAgent())
+	return vrchatClient, nil
+}
+
 func NewServer(ctx context.Context) (*Server, error) {
 	config, err := configx.Parse()
 	if err != nil {
@@ -241,11 +257,7 @@ func NewServer(ctx context.Context) (*Server, error) {
 	if len(config.PublicOrigins) > 0 {
 		publicOrigin = config.PublicOrigins[0]
 	}
-	buildVersion := "(devel)"
-	if buildInfo, ok := debug.ReadBuildInfo(); ok && buildInfo.Main.Version != "" {
-		buildVersion = buildInfo.Main.Version
-	}
-	vrchatClient, err := federationvrchat.NewClient(buildVersion, publicOrigin)
+	vrchatClient, err := identifyOutbound(publicOrigin)
 	if err != nil {
 		return nil, fmt.Errorf("vrchat client: %w", err)
 	}

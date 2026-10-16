@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"net/netip"
 	"net/url"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -25,7 +26,13 @@ import (
 // rather than copying dial-screen code.
 func hardenedHTTPClientWithTLS(allowPrivate bool, maxBytes int64, tlsConf *tls.Config) *http.Client {
 	c := hardenedHTTPClient(allowPrivate, maxBytes)
-	if tr, ok := c.Transport.(cappingTransport); ok {
+	// Peel the UA layer the same way hardenedHTTPClient builds it, so the
+	// test seam keeps reaching the *http.Transport it must reconfigure.
+	ua, ok := c.Transport.(userAgentTransport)
+	if !ok {
+		panic("federation: outbound transport is not userAgentTransport")
+	}
+	if tr, ok := ua.base.(cappingTransport); ok {
 		if ht, ok := tr.base.(*http.Transport); ok {
 			ht.TLSClientConfig = tlsConf
 		}
@@ -728,5 +735,88 @@ func TestAvatarFetch_PrivateModeBlocksMetadata(t *testing.T) {
 	}
 	if errors.Is(err, errScreenedDialBaseReached) {
 		t.Fatal("screen let the metadata avatar target through to the base dialer")
+	}
+}
+
+// TestHardenedClient_SendsDefaultUserAgent pins the bgm.tv 403 regression:
+// the outbound client must identify itself on every request instead of letting
+// net/http send its library-default User-Agent, which UA-gating APIs answer
+// with 403. An explicitly-set User-Agent still wins, and redirect hops keep
+// carrying the identification.
+func TestHardenedClient_SendsDefaultUserAgent(t *testing.T) {
+	// The server sets this from the VRChat client's UA at boot; example.com
+	// stands in for the deployment's public origin. Restored for the tests
+	// that follow, which run on the build-info fallback.
+	previous := currentOutboundUserAgent()
+	t.Cleanup(func() { SetOutboundUserAgent(previous) })
+	SetOutboundUserAgent("Prohibitorum/test https://example.com")
+
+	var gotUAs []string
+	hop := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/redirect":
+			gotUAs = append(gotUAs, r.URL.Path+" "+r.UserAgent())
+			http.Redirect(w, r, "/final", http.StatusFound)
+		default:
+			gotUAs = append(gotUAs, r.URL.Path+" "+r.UserAgent())
+		}
+	}))
+	defer hop.Close()
+
+	client := hardenedHTTPClient(true, 1<<20)
+
+	// No explicit UA: the default must be stamped on the initial request and
+	// again on the followed redirect.
+	resp, err := client.Get(hop.URL + "/redirect")
+	if err != nil {
+		t.Fatalf("Get redirect: %v", err)
+	}
+	_ = resp.Body.Close()
+
+	// Explicit UA: passed through untouched.
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, hop.URL+"/explicit", nil)
+	if err != nil {
+		t.Fatalf("new request: %v", err)
+	}
+	req.Header.Set("User-Agent", "custom-agent/1")
+	resp, err = client.Do(req)
+	if err != nil {
+		t.Fatalf("Do explicit: %v", err)
+	}
+	_ = resp.Body.Close()
+
+	want := []string{
+		"/redirect Prohibitorum/test https://example.com",
+		"/final Prohibitorum/test https://example.com",
+		"/explicit custom-agent/1",
+	}
+	if !slices.Equal(gotUAs, want) {
+		t.Errorf("observed requests = %v, want %v", gotUAs, want)
+	}
+}
+
+// TestSetOutboundUserAgent guards the override itself: header-unsafe values
+// are refused rather than corrupting every outbound request, and the fallback
+// is a bare `Prohibitorum/<version>` with no origin (the CLI shape).
+func TestSetOutboundUserAgent(t *testing.T) {
+	previous := currentOutboundUserAgent()
+	t.Cleanup(func() { SetOutboundUserAgent(previous) })
+
+	SetOutboundUserAgent("injected\r\nUser-Agent: evil")
+	if got := currentOutboundUserAgent(); got != previous {
+		t.Errorf("UA after header-unsafe set = %q, want unchanged %q", got, previous)
+	}
+	SetOutboundUserAgent("   ")
+	if got := currentOutboundUserAgent(); got != previous {
+		t.Errorf("UA after empty set = %q, want unchanged %q", got, previous)
+	}
+
+	outboundUserAgent.Store(nil)
+	fallback := currentOutboundUserAgent()
+	if !strings.HasPrefix(fallback, "Prohibitorum/") || strings.Contains(fallback, "http") {
+		t.Errorf("fallback UA = %q, want Prohibitorum/<version> with no origin", fallback)
+	}
+	if fallback == "Prohibitorum/" {
+		t.Errorf("fallback UA = %q, want a version after the slash", fallback)
 	}
 }

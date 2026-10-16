@@ -17,6 +17,9 @@ import (
 	"net/http"
 	"net/netip"
 	"net/url"
+	"runtime/debug"
+	"strings"
+	"sync/atomic"
 	"syscall"
 	"time"
 )
@@ -36,6 +39,44 @@ const (
 	// dialer, so this is a belt-and-suspenders bound, not the security boundary.
 	maxFederationRedirects = 5
 )
+
+// outboundUserAgent is the User-Agent stamped on every federation outbound
+// request that carries none of its own. Some upstream APIs (bgm.tv) answer
+// library-default or missing UAs with 403. The server sets it at boot to the
+// same `Prohibitorum/<version> <public origin>` identification the VRChat
+// client sends (SetOutboundUserAgent); before that — and in CLI processes,
+// which have no public origin — it falls back to `Prohibitorum/<version>`
+// read from the build info.
+var outboundUserAgent atomic.Pointer[string]
+
+// SetOutboundUserAgent sets the outbound identification. Empty or
+// header-unsafe values are ignored, leaving the previous value in place.
+func SetOutboundUserAgent(userAgent string) {
+	userAgent = strings.TrimSpace(userAgent)
+	if userAgent == "" || strings.ContainsAny(userAgent, "\r\n") {
+		return
+	}
+	outboundUserAgent.Store(&userAgent)
+}
+
+// CurrentOutboundUserAgent returns the identification the outbound client
+// currently sends, deriving the build-info fallback if none was set.
+func CurrentOutboundUserAgent() string { return currentOutboundUserAgent() }
+
+// currentOutboundUserAgent returns the configured identification, deriving
+// `Prohibitorum/<version>` from the build info the first time it is needed.
+func currentOutboundUserAgent() string {
+	if ua := outboundUserAgent.Load(); ua != nil {
+		return *ua
+	}
+	version := "dev"
+	if buildInfo, ok := debug.ReadBuildInfo(); ok && buildInfo.Main.Version != "" && buildInfo.Main.Version != "(devel)" {
+		version = buildInfo.Main.Version
+	}
+	ua := "Prohibitorum/" + version
+	outboundUserAgent.Store(&ua)
+	return ua
+}
 
 var (
 	// errBlockedDialTarget is returned by the dialer's Control hook when a
@@ -325,13 +366,37 @@ func (b *cappedBody) Read(p []byte) (int, error) {
 
 func (b *cappedBody) Close() error { return b.c.Close() }
 
+// userAgentTransport stamps the outbound User-Agent on requests that carry no
+// User-Agent of their own, leaving an explicit one (e.g. the VRChat avatar
+// delivery's UA) untouched. Wrapping at the transport layer keeps the default
+// on every request through the client, including redirect hops and the
+// library-issued requests no caller sees (net/http preserves a set
+// User-Agent across redirects, so the stamp matters for requests built
+// without one, not for hop-to-hop copying).
+type userAgentTransport struct {
+	base http.RoundTripper
+}
+
+func (t userAgentTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	if ua := currentOutboundUserAgent(); ua != "" && req.Header.Get("User-Agent") == "" {
+		req = req.Clone(req.Context())
+		req.Header.Set("User-Agent", ua)
+	}
+	base := t.base
+	if base == nil {
+		base = http.DefaultTransport
+	}
+	return base.RoundTrip(req)
+}
+
 // hardenedHTTPClient builds an SSRF-aware, size-capped client. Callers retain
 // and reuse returned clients for each network policy; http.Transport is safe
 // for concurrent use and owns a connection pool. When allowPrivate is true,
 // the dial screen permits RFC1918/ULA private destinations for trusted internal
 // providers and tests, while link-local/metadata, multicast, unspecified,
 // documentation, benchmark, reserved, and CGNAT ranges remain blocked.
-// maxBytes caps every response body.
+// maxBytes caps every response body. Every request carries the outbound
+// User-Agent unless the caller set one.
 func hardenedHTTPClient(allowPrivate bool, maxBytes int64) *http.Client {
 	dialer := &net.Dialer{
 		Timeout:   10 * time.Second,
@@ -351,7 +416,7 @@ func hardenedHTTPClient(allowPrivate bool, maxBytes int64) *http.Client {
 		ExpectContinueTimeout: 1 * time.Second,
 	}
 	return &http.Client{
-		Transport: cappingTransport{base: transport, max: maxBytes},
+		Transport: userAgentTransport{base: cappingTransport{base: transport, max: maxBytes}},
 		Timeout:   federationHTTPTimeout,
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			if len(via) >= maxFederationRedirects {

@@ -13,6 +13,7 @@ import (
 	"sync"
 	"testing"
 
+	federationcore "prohibitorum/pkg/federation"
 	federationoidc "prohibitorum/pkg/federation/providers/oidc"
 
 	"prohibitorum/cmd/smoke/mockop"
@@ -564,6 +565,7 @@ type fallbackOP struct {
 	tokenRequests    int
 	userinfoRequests int
 	userinfoAuth     string
+	userinfoUA       string
 }
 
 func newFallbackOP(t *testing.T) (*httptest.Server, *fallbackOP) {
@@ -606,6 +608,7 @@ func (op *fallbackOP) serve(w http.ResponseWriter, r *http.Request) {
 		op.mu.Lock()
 		op.userinfoRequests++
 		op.userinfoAuth = r.Header.Get("Authorization")
+		op.userinfoUA = r.UserAgent()
 		location := ""
 		if op.userinfoRedirect != nil {
 			location = op.userinfoRedirect(op.base)
@@ -786,6 +789,27 @@ func TestClient_UserInfoRawWithoutEndpoint(t *testing.T) {
 	}
 	if _, requests := op.userinfoStats(); requests != 0 {
 		t.Errorf("userinfo requests = %d, want 0", requests)
+	}
+}
+
+// TestClient_UserInfoSendsDefaultUserAgent pins the bgm.tv 403 regression at
+// the RP layer: the userinfo fetch must reach the upstream carrying the
+// outbound User-Agent even though the OIDC client re-wraps the hardened
+// transport (recorder + Accept header) on top of it. UA-gating APIs answer
+// library-default UAs with 403.
+func TestClient_UserInfoSendsDefaultUserAgent(t *testing.T) {
+	previous := federationcore.CurrentOutboundUserAgent()
+	t.Cleanup(func() { federationcore.SetOutboundUserAgent(previous) })
+	federationcore.SetOutboundUserAgent("Prohibitorum/test https://example.com")
+
+	ts, op := newFallbackOP(t)
+	c := newFallbackClient(t, ts)
+
+	if _, err := c.UserInfoRaw(context.Background(), "at_fallback", "Bearer"); err != nil {
+		t.Fatalf("UserInfoRaw: %v", err)
+	}
+	if got := op.userinfoUA; got != "Prohibitorum/test https://example.com" {
+		t.Errorf("userinfo User-Agent = %q, want the outbound UA, not a library default", got)
 	}
 }
 
