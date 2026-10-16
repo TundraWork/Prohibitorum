@@ -62,6 +62,10 @@ export const auditEvents = {
     message: "Possible clone",
   }),
   link: msg({ id: "audit.event.link", message: "Linked" }),
+  identity_verified: msg({
+    id: "audit.event.identity_verified",
+    message: "Identity verified",
+  }),
   unlink: msg({ id: "audit.event.unlink", message: "Unlinked" }),
   enrollment_issued: msg({
     id: "audit.event.enrollment_issued",

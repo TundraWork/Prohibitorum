@@ -68,8 +68,9 @@ web dashboard. It serves a single small organization.
 - Deployment uses PostgreSQL and either a Redis-compatible store or the
   in-process memory driver. Build and development commands are in `TOOLING.md`.
 - Recovery uses recovery codes or admin-issued enrollment; there is no email
-  channel. VRChat profile proof can authorize local enrollment or recovery,
-  followed by a local passkey ceremony; it never directly signs a member in.
+  channel. A provider with sign-in off verifies identity only — for an
+  invitation or a linked account — and never directly signs a member in;
+  VRChat starts with sign-in off, and an administrator may turn it on.
 - English and Chinese locale entries stay in sync. The dashboard supports
   browser use on desktop and mobile.
 - The dashboard is being rewritten. The workflows above describe product

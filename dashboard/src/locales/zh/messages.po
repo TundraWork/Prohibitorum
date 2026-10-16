@@ -3543,6 +3543,11 @@ msgid "sudo.form.label"
 msgstr "身份验证"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/audit-vocabulary.ts
+msgid "audit.event.identity_verified"
+msgstr "身份已验证"
+
+#. js-lingui-explicit-id
 #: src/pages/public/VrchatProof.tsx
 msgid "vrchat_proof.owner"
 msgstr "如果这是你的资料：回到 {instance} 按“验证”。验证完成后，把链接从简介里删掉。"

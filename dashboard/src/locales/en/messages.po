@@ -3543,6 +3543,11 @@ msgid "sudo.form.label"
 msgstr "Identity verification"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/audit-vocabulary.ts
+msgid "audit.event.identity_verified"
+msgstr "Identity verified"
+
+#. js-lingui-explicit-id
 #: src/pages/public/VrchatProof.tsx
 msgid "vrchat_proof.owner"
 msgstr "If this is your profile, go back to {instance} and press Verify. Once it's verified, remove the link from your bio."
