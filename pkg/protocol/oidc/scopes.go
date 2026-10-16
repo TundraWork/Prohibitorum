@@ -39,8 +39,10 @@ import (
 const IdentityScopePrefix = "identity:"
 
 // identityScopeSlugRE bounds the slug part of an identity scope to characters
-// that are safe in a space-separated scope string and in a claim key.
-var identityScopeSlugRE = regexp.MustCompile(`^[a-z0-9-]+$`)
+// that are safe in a space-separated scope string and in a claim key, and that
+// provider slugs are written with (the admin form's letters, digits and
+// hyphens, plus the "_" and "." a CLI-made slug may carry).
+var identityScopeSlugRE = regexp.MustCompile(`^[a-z0-9._-]+$`)
 
 // SupportedScopes returns the OP's closed scope vocabulary, in discovery order.
 // A function (not a var) so the set cannot be mutated process-wide by a caller

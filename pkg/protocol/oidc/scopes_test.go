@@ -43,6 +43,8 @@ func TestIdentityScopeSlug(t *testing.T) {
 		"identity:corp-sso": "corp-sso",
 		"identity:steam2":   "steam2",
 		"identity:a--b":     "a--b",
+		"identity:corp_sso": "corp_sso",
+		"identity:my.idp":   "my.idp",
 	} {
 		if got, ok := IdentityScopeSlug(scope); !ok || got != want {
 			t.Errorf("IdentityScopeSlug(%q) = %q, %v; want %q, true", scope, got, ok, want)
@@ -51,7 +53,7 @@ func TestIdentityScopeSlug(t *testing.T) {
 			t.Errorf("IsSupportedScope(%q) = false, want true", scope)
 		}
 	}
-	for _, scope := range []string{"identity:", "identity:-", "identity:VRChat", "identity:a/b", "identity:a b", "identity:a_b", "identities", "identity", "vrchat"} {
+	for _, scope := range []string{"identity:", "identity:-", "identity:VRChat", "identity:a/b", "identity:a b", "identity:a:b", "identities", "identity", "vrchat"} {
 		if _, ok := IdentityScopeSlug(scope); ok {
 			t.Errorf("IdentityScopeSlug(%q) ok = true, want false", scope)
 		}

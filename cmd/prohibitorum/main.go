@@ -1192,10 +1192,30 @@ func addUpstreamIDPCommands(root *cobra.Command) {
 				}
 				log.Fatalf("upstream-idp delete: lookup: %v", err)
 			}
-			if err := q.DeleteUpstreamIDP(ctx, row.ID); err != nil {
+			// The provider and the identity:<slug> scopes granted for it go
+			// together, so a later provider with the same slug inherits nothing.
+			tx, err := conn.Begin(ctx)
+			if err != nil {
+				log.Fatalf("upstream-idp delete: begin: %v", err)
+			}
+			defer tx.Rollback(ctx) //nolint:errcheck
+			qtx := q.WithTx(tx)
+			if err := qtx.DeleteUpstreamIDP(ctx, row.ID); err != nil {
 				log.Fatalf("upstream-idp delete: %v", err)
 			}
-			fmt.Printf("Deleted upstream IdP %q (id=%d)\n", dSlug, row.ID)
+			identityScope := oidc.IdentityScopePrefix + row.Slug
+			clients, err := qtx.RemoveScopeFromOIDCClients(ctx, identityScope)
+			if err != nil {
+				log.Fatalf("upstream-idp delete: remove client scope: %v", err)
+			}
+			consents, err := qtx.RemoveScopeFromConsents(ctx, identityScope)
+			if err != nil {
+				log.Fatalf("upstream-idp delete: remove consent scope: %v", err)
+			}
+			if err := tx.Commit(ctx); err != nil {
+				log.Fatalf("upstream-idp delete: commit: %v", err)
+			}
+			fmt.Printf("Deleted upstream IdP %q (id=%d); removed %s from %d client(s) and %d consent(s)\n", dSlug, row.ID, identityScope, clients, consents)
 		},
 	}
 	deleteUpstreamCmd.Flags().StringVar(&dSlug, "slug", "", "Slug of the IdP to delete (required).")
@@ -1316,16 +1336,28 @@ Then configure Traefik ForwardAuth per docs/forward-auth.md.`,
 // mustKnownIdentityScopes exits when an identity:<slug> scope names a provider
 // that does not exist, matching the admin API's write check.
 func mustKnownIdentityScopes(ctx context.Context, q *db.Queries, scopes []string, command string) {
+	if err := checkIdentityScopes(ctx, q, scopes); err != nil {
+		log.Fatalf("%s: %v", command, err)
+	}
+}
+
+// identityProviderLookup is the one query checkIdentityScopes needs.
+type identityProviderLookup interface {
+	GetUpstreamIDPBySlugAny(ctx context.Context, slug string) (db.UpstreamIdp, error)
+}
+
+func checkIdentityScopes(ctx context.Context, providers identityProviderLookup, scopes []string) error {
 	for _, scope := range scopes {
 		slug, ok := oidc.IdentityScopeSlug(scope)
 		if !ok {
 			continue
 		}
-		if _, err := q.GetUpstreamIDPBySlugAny(ctx, slug); err != nil {
+		if _, err := providers.GetUpstreamIDPBySlugAny(ctx, slug); err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
-				log.Fatalf("%s: scope %q names no upstream identity provider", command, scope)
+				return fmt.Errorf("scope %q names no upstream identity provider", scope)
 			}
-			log.Fatalf("%s: look up provider for scope %q: %v", command, scope, err)
+			return fmt.Errorf("look up provider for scope %q: %w", scope, err)
 		}
 	}
+	return nil
 }

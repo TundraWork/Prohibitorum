@@ -3,6 +3,7 @@ import {
   absoluteHttpUrlProblem,
   addressInvalid,
   aliasListProblem,
+  isIdentityScopeSlug,
   removedScopes,
   scopeFormValue,
   uriListProblem,
@@ -173,5 +174,16 @@ describe("claim aliases", () => {
       index: 1,
       message: { id: "admin.oidc-apps.alias.name.duplicate" },
     });
+  });
+});
+
+describe("identity scope slugs", () => {
+  it("accepts the slugs the server accepts, and nothing else", () => {
+    for (const slug of ["vrchat", "corp-sso", "corp_sso", "my.idp"]) {
+      expect(isIdentityScopeSlug(slug)).toBe(true);
+    }
+    for (const slug of ["", "-", "VRChat", "a/b", "a b", "a:b"]) {
+      expect(isIdentityScopeSlug(slug)).toBe(false);
+    }
   });
 });

@@ -250,6 +250,38 @@ func TestAuthorize_ScopeNotSubset_Redirect(t *testing.T) {
 	}
 }
 
+// Any well-formed identity:<slug> is a supported scope, so the client's
+// allow-list is what keeps an application from reading identities it was
+// never given.
+func TestAuthorize_IdentityScopeNeedsAllowList(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		allowed []string
+		wantErr string
+	}{
+		{name: "not allowed", allowed: []string{"openid", "profile", "offline_access"}, wantErr: errCodeInvalidScope},
+		{name: "another provider allowed", allowed: []string{"openid", "identity:steam"}, wantErr: errCodeInvalidScope},
+		{name: "allowed", allowed: []string{"openid", "identity:vrchat"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c := validClient()
+			c.AllowedScopes = tc.allowed
+			p := newProvider(&fakeAuthzQueries{client: c, session: validSession()}, &recordingAudit{})
+			v := baseParams()
+			v.Set("scope", "openid identity:vrchat")
+			rec := httptest.NewRecorder()
+			p.HandleAuthorize(rec, authedReq(v))
+			loc := redirectQuery(t, rec)
+			if got := loc.Get("error"); got != tc.wantErr {
+				t.Fatalf("error = %q, want %q (loc %v)", got, tc.wantErr, loc)
+			}
+			if tc.wantErr == "" && loc.Get("code") == "" {
+				t.Fatalf("expected an authorization code, got %v", loc)
+			}
+		})
+	}
+}
+
 func TestAuthorize_MissingCodeChallenge_Redirect(t *testing.T) {
 	q := &fakeAuthzQueries{client: validClient(), session: validSession()}
 	p := newProvider(q, &recordingAudit{})

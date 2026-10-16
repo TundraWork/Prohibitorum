@@ -873,6 +873,11 @@ msgid "console.group.applications"
 msgstr "应用"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderDangerSection.tsx
+msgid "admin.federation.danger.delete.confirm.scope"
+msgstr "允许了 <0>{identityScope}</0> 的应用会失去这个作用域，用户对它的同意也会清除，之后用相同标识符新建的提供商需要重新授权。"
+
+#. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.access.full.hint"
 msgstr "可用于应用和你的账号。要求验证你的身份的操作会被拒绝。"

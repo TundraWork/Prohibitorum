@@ -17,3 +17,9 @@ FROM oidc_consent c
 JOIN oidc_client oc ON oc.client_id = c.client_id
 WHERE c.account_id = $1
 ORDER BY oc.display_name;
+
+-- name: RemoveScopeFromConsents :execrows
+-- Drops one scope from every stored consent; see RemoveScopeFromOIDCClients.
+UPDATE oidc_consent
+SET granted_scopes = array_remove(granted_scopes, sqlc.arg(scope)::text)
+WHERE sqlc.arg(scope)::text = ANY(granted_scopes);

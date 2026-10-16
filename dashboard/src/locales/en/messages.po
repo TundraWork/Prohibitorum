@@ -873,6 +873,11 @@ msgid "console.group.applications"
 msgstr "Applications"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderDangerSection.tsx
+msgid "admin.federation.danger.delete.confirm.scope"
+msgstr "Applications allowed <0>{identityScope}</0> lose that scope, and what users agreed to for it is cleared, so a provider added later with the same identifier starts fresh."
+
+#. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.access.full.hint"
 msgstr "Applications and your account. Anything that asks you to confirm it is you is refused."

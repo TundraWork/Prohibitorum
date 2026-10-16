@@ -63,6 +63,7 @@ export function ProviderDangerSection({ provider }: { provider: Provider }) {
   const cannotEnable = provider.disabled && !provider.ready;
   // Named, so the confirmation carries it as `{count}` in both catalogs.
   const count = provider.linkedAccountCount ?? 0;
+  const identityScope = `identity:${provider.slug}`;
 
   const toggle = (
     <Button
@@ -244,25 +245,35 @@ export function ProviderDangerSection({ provider }: { provider: Provider }) {
           </Trans>
         }
         body={
-          count > 0 ? (
+          <>
+            {count > 0 ? (
+              <p>
+                <Trans id="admin.federation.danger.delete.confirm.linked">
+                  <Plural
+                    value={count}
+                    one="# account loses"
+                    other="# accounts lose"
+                  />{" "}
+                  the way they sign in with it. An account that can only sign in
+                  this way needs a new registration link from you.
+                </Trans>
+              </p>
+            ) : (
+              <p>
+                <Trans id="admin.federation.danger.delete.confirm.empty">
+                  The provider and its icon are removed.
+                </Trans>
+              </p>
+            )}
             <p>
-              <Trans id="admin.federation.danger.delete.confirm.linked">
-                <Plural
-                  value={count}
-                  one="# account loses"
-                  other="# accounts lose"
-                />{" "}
-                the way they sign in with it. An account that can only sign in
-                this way needs a new registration link from you.
+              <Trans id="admin.federation.danger.delete.confirm.scope">
+                Applications allowed{" "}
+                <span className="font-mono">{identityScope}</span> lose that
+                scope, and what users agreed to for it is cleared, so a provider
+                added later with the same identifier starts fresh.
               </Trans>
             </p>
-          ) : (
-            <p>
-              <Trans id="admin.federation.danger.delete.confirm.empty">
-                The provider and its icon are removed.
-              </Trans>
-            </p>
-          )
+          </>
         }
         confirmLabel={
           <Trans id="admin.federation.danger.delete.confirm.action">

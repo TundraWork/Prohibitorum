@@ -20,6 +20,7 @@ import (
 	"prohibitorum/pkg/federation"
 	federationvrchat "prohibitorum/pkg/federation/providers/vrchat"
 	"prohibitorum/pkg/pagination"
+	oidc "prohibitorum/pkg/protocol/oidc"
 )
 
 const providerConfigLimit = 8 * 1024
@@ -573,6 +574,19 @@ func (s *Server) handleDeleteIdentityProviderHTTP(w http.ResponseWriter, r *http
 		writeAuthErr(w, fmt.Errorf("handleDeleteIdentityProvider: delete: %w", err))
 		return
 	}
+	// A provider created later with the same slug must not inherit what
+	// applications and users allowed for this one.
+	identityScope := oidc.IdentityScopePrefix + row.Slug
+	clientsChanged, err := qtx.RemoveScopeFromOIDCClients(r.Context(), identityScope)
+	if err != nil {
+		writeAuthErr(w, fmt.Errorf("handleDeleteIdentityProvider: remove client scope: %w", err))
+		return
+	}
+	consentsChanged, err := qtx.RemoveScopeFromConsents(r.Context(), identityScope)
+	if err != nil {
+		writeAuthErr(w, fmt.Errorf("handleDeleteIdentityProvider: remove consent scope: %w", err))
+		return
+	}
 	if err := tx.Commit(r.Context()); err != nil {
 		writeAuthErr(w, fmt.Errorf("handleDeleteIdentityProvider: commit: %w", err))
 		return
@@ -590,6 +604,9 @@ func (s *Server) handleDeleteIdentityProviderHTTP(w http.ResponseWriter, r *http
 			// rows themselves survive; this is what tells an operator how many
 			// people just lost a sign-in method.
 			"unlinked_accounts": len(unlinkedAccounts),
+			// Applications and consents that lost its identity:<slug> scope.
+			"removed_client_scopes":  clientsChanged,
+			"removed_consent_scopes": consentsChanged,
 		},
 	})
 	w.WriteHeader(http.StatusNoContent)

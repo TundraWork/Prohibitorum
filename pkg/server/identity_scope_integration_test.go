@@ -41,12 +41,20 @@ func TestListConfirmedIdentitiesForProvidersPostgres(t *testing.T) {
 	}
 	prefix := "idscope-" + hex.EncodeToString(nonce[:])
 
-	var accountID int32
-	if err := tx.QueryRow(ctx, `
-		INSERT INTO account (username, display_name, webauthn_user_handle)
-		VALUES ($1, 'Identity scope', $2) RETURNING id`, prefix, nonce[:]).Scan(&accountID); err != nil {
-		t.Fatalf("insert account: %v", err)
+	insertAccount := func(username string, handle []byte) int32 {
+		t.Helper()
+		var id int32
+		if err := tx.QueryRow(ctx, `
+			INSERT INTO account (username, display_name, webauthn_user_handle)
+			VALUES ($1, 'Identity scope', $2) RETURNING id`, username, handle).Scan(&id); err != nil {
+			t.Fatalf("insert account %s: %v", username, err)
+		}
+		return id
 	}
+	accountID := insertAccount(prefix, nonce[:])
+	// Another account linked at the same provider: its row must never be
+	// returned for accountID.
+	otherAccountID := insertAccount(prefix+"-other", append(append([]byte{}, nonce[:]...), 1))
 	providerIDs := map[string]int64{}
 	for _, provider := range []struct {
 		slug     string
@@ -64,14 +72,18 @@ func TestListConfirmedIdentitiesForProvidersPostgres(t *testing.T) {
 		}
 		providerIDs[provider.slug] = id
 	}
-	link := func(slug, sub string, confirmed bool, linkedAt time.Time) {
+	linkFor := func(account int32, slug, sub string, confirmed bool, linkedAt time.Time) {
 		t.Helper()
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO account_identity (account_id, upstream_idp_id, upstream_iss, upstream_sub, upstream_data, confirmed_at, linked_at)
 			VALUES ($1, $2, 'https://'||$3||'.example', $4, '{"personaName":"x"}'::jsonb, CASE WHEN $5 THEN now() END, $6)`,
-			accountID, providerIDs[slug], slug, sub, confirmed, linkedAt); err != nil {
+			account, providerIDs[slug], slug, sub, confirmed, linkedAt); err != nil {
 			t.Fatalf("insert identity %s: %v", sub, err)
 		}
+	}
+	link := func(slug, sub string, confirmed bool, linkedAt time.Time) {
+		t.Helper()
+		linkFor(accountID, slug, sub, confirmed, linkedAt)
 	}
 	day := func(d int) time.Time { return time.Date(2099, 6, d, 0, 0, 0, 0, time.UTC) }
 	link(prefix+"-a", "a-newer", true, day(2))
@@ -79,6 +91,7 @@ func TestListConfirmedIdentitiesForProvidersPostgres(t *testing.T) {
 	link(prefix+"-a", "a-unconfirmed", false, day(3))
 	link(prefix+"-b", "b-not-requested", true, day(1))
 	link(prefix+"-off", "off-disabled", true, day(1))
+	linkFor(otherAccountID, prefix+"-a", "a-other-account", true, day(1))
 
 	rows, err := queries.ListConfirmedIdentitiesForProviders(ctx, db.ListConfirmedIdentitiesForProvidersParams{
 		AccountID: accountID, Slugs: []string{prefix + "-a", prefix + "-off", prefix + "-missing"},

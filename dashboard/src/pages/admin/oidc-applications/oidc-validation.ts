@@ -93,6 +93,15 @@ export function isIdentityScope(scope: string): scope is IdentityScope {
 }
 
 /**
+ * The provider slugs an identity scope can name, as the server checks them
+ * (`IdentityScopeSlug` in `pkg/protocol/oidc/scopes.go`). A provider whose slug
+ * falls outside this cannot be offered: the server would refuse the scope.
+ */
+export function isIdentityScopeSlug(slug: string): boolean {
+  return slug !== "-" && /^[a-z0-9._-]+$/.test(slug);
+}
+
+/**
  * The saved scopes as the scope checkboxes hold them: the fixed ones the
  * instance knows, always with `openid`, in the vocabulary's order, then the
  * saved provider identity scopes in their saved order. An identity scope is

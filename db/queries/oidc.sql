@@ -166,3 +166,11 @@ LIMIT sqlc.arg('limit');
 
 -- name: SetOIDCClientLaunchURL :exec
 UPDATE oidc_client SET launch_url = $2 WHERE client_id = $1;
+
+-- name: RemoveScopeFromOIDCClients :execrows
+-- Drops one scope from every client that allows it; used when a provider is
+-- deleted so its identity:<slug> scope is not inherited by a later provider
+-- created with the same slug.
+UPDATE oidc_client
+SET allowed_scopes = array_remove(allowed_scopes, sqlc.arg(scope)::text)
+WHERE sqlc.arg(scope)::text = ANY(allowed_scopes);

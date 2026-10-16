@@ -284,3 +284,13 @@ it("keeps the saved identity scopes when another scope changes before the provid
     "identity:vrchat",
   ]);
 });
+
+it("tells an admin that deleting a provider clears its identity scope", async () => {
+  managementApi("admin", { providers: [provider("vrchat", "VRChat")] });
+  renderApp("/admin/identity-providers/vrchat", queryClient);
+  await userEvent.click(await screen.findByRole("button", { name: "Delete" }));
+  const dialog = await screen.findByRole("alertdialog");
+  expect(dialog).toHaveTextContent(
+    "Applications allowed identity:vrchat lose that scope, and what users agreed to for it is cleared, so a provider added later with the same identifier starts fresh.",
+  );
+});

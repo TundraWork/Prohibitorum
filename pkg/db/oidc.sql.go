@@ -742,6 +742,23 @@ func (q *Queries) ReconcileRetiredSigningKeys(ctx context.Context) (int64, error
 	return result.RowsAffected(), nil
 }
 
+const removeScopeFromOIDCClients = `-- name: RemoveScopeFromOIDCClients :execrows
+UPDATE oidc_client
+SET allowed_scopes = array_remove(allowed_scopes, $1::text)
+WHERE $1::text = ANY(allowed_scopes)
+`
+
+// Drops one scope from every client that allows it; used when a provider is
+// deleted so its identity:<slug> scope is not inherited by a later provider
+// created with the same slug.
+func (q *Queries) RemoveScopeFromOIDCClients(ctx context.Context, scope string) (int64, error) {
+	result, err := q.db.Exec(ctx, removeScopeFromOIDCClients, scope)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const retireSigningKey = `-- name: RetireSigningKey :one
 UPDATE signing_key
 SET status='decommissioning',

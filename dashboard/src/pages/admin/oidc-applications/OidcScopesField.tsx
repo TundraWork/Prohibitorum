@@ -12,6 +12,7 @@ import {
   type AllowedScope,
   identityScope,
   isIdentityScope,
+  isIdentityScopeSlug,
   oidcScopes,
 } from "@/pages/admin/oidc-applications/oidc-validation";
 
@@ -54,10 +55,12 @@ export function OidcScopesField() {
   // to another box must not drop them.
   const loaded = providers.isSuccess;
   const heldIdentities = field.state.value.filter(isIdentityScope);
-  const offered = (providers.data ?? []).map((provider) => ({
-    value: identityScope(provider.slug),
-    name: provider.displayName,
-  }));
+  const offered = (providers.data ?? [])
+    .filter((provider) => isIdentityScopeSlug(provider.slug))
+    .map((provider) => ({
+      value: identityScope(provider.slug),
+      name: provider.displayName,
+    }));
   const offeredValues = new Set<string>(offered.map(({ value }) => value));
   const unavailable = loaded
     ? heldIdentities.filter((scope) => !offeredValues.has(scope))
