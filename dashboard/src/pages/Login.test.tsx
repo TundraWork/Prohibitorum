@@ -300,7 +300,7 @@ describe("single-use password verification", () => {
 });
 
 describe("keep me signed in", () => {
-  const gitlab = { slug: "gitlab", displayName: "GitLab", protocol: "oidc" };
+  const gitlab = { slug: "gitlab", displayName: "GitLab", protocol: "oidc", allowSignIn: true };
 
   beforeEach(() => {
     queryClient.setQueryData(publicFederationProvidersQueryOptions().queryKey, [
@@ -638,7 +638,7 @@ describe("the sign-in link", () => {
 });
 
 describe("upstream providers", () => {
-  const gitlab = { slug: "gitlab", displayName: "GitLab", protocol: "oidc" };
+  const gitlab = { slug: "gitlab", displayName: "GitLab", protocol: "oidc", allowSignIn: true };
 
   function at(path: string) {
     history.destroy();
@@ -774,7 +774,7 @@ describe("signing in with another device", () => {
 });
 
 describe("the first step", () => {
-  const gitlab = { slug: "gitlab", displayName: "GitLab", protocol: "oidc" };
+  const gitlab = { slug: "gitlab", displayName: "GitLab", protocol: "oidc", allowSignIn: true };
 
   beforeEach(() => {
     queryClient.setQueryData(publicFederationProvidersQueryOptions().queryKey, [

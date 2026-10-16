@@ -265,12 +265,7 @@ export const reservedAliasNames: readonly string[] = [
   "identities",
 ];
 
-const flowIntents: readonly FederationFlowIntent[] = [
-  "login",
-  "link",
-  "invite",
-  "enroll",
-];
+const flowIntents: readonly FederationFlowIntent[] = ["login", "link", "invite"];
 
 const flowSteps: readonly FederationFlowStep[] = ["identify", "proof"];
 

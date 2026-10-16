@@ -20,6 +20,8 @@ export interface CreateInvitationRequest {
   expectedUpstreamIdpSlug?: string;
   username?: string;
   groupIds?: number[];
+  /** Stored true regardless of the request when the bound provider has sign-in off. */
+  requireLocalCredential?: boolean;
 }
 
 /** `POST /invitations/revoke` — by opaque bearer token, never by index. */
@@ -325,6 +327,8 @@ export interface ProviderWriteBody {
   displayName: string;
   protocol?: ProviderProtocol;
   mode: ProviderMode;
+  /** Omitted on POST: protocol default (vrchat off, others on); on PUT: keep current. */
+  allowSignIn?: boolean;
   config: OidcProviderConfig | Record<string, never>;
   /** Required for OIDC unless the client is public; required for Steam. */
   secret?: string;

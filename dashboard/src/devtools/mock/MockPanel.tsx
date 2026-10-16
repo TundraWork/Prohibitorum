@@ -759,7 +759,6 @@ export function MockPanel() {
             options={[
               { value: "bootstrap", label: "First admin" },
               { value: "invite", label: "Invite" },
-              { value: "federated_register", label: "VRChat" },
               { value: "reset", label: "Reset" },
             ]}
             onChange={(next) =>
@@ -807,6 +806,24 @@ export function MockPanel() {
             }
           />
           <Toggle
+            label="Invite requires a local sign-in method"
+            checked={config.publicFlows.enrollment.requireLocal}
+            onChange={(next) =>
+              updateMockConfig((draft) => {
+                draft.publicFlows.enrollment.requireLocal = next;
+              })
+            }
+          />
+          <Toggle
+            label="Invite already carries a verified identity"
+            checked={config.publicFlows.enrollment.verified}
+            onChange={(next) =>
+              updateMockConfig((draft) => {
+                draft.publicFlows.enrollment.verified = next;
+              })
+            }
+          />
+          <Toggle
             label="Enrollment link still valid"
             checked={config.publicFlows.enrollment.valid}
             onChange={(next) =>
@@ -848,7 +865,6 @@ export function MockPanel() {
             options={[
               { value: "login", label: "Sign in" },
               { value: "link", label: "Link" },
-              { value: "enroll", label: "Register" },
               { value: "invite", label: "Invite" },
             ]}
             onChange={(next) =>

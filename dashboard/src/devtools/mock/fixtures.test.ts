@@ -1298,12 +1298,7 @@ describe("mocked enrollment and federation pages", () => {
   }
 
   it("previews what the panel sets up, with a readable preview for every intent", () => {
-    for (const intent of [
-      "bootstrap",
-      "invite",
-      "federated_register",
-      "reset",
-    ] as const) {
+    for (const intent of ["bootstrap", "invite", "reset"] as const) {
       const body = preview((draft) => {
         draft.publicFlows.enrollment.intent = intent;
       });
@@ -1439,7 +1434,20 @@ describe("mocked enrollment and federation pages", () => {
     expect(
       bodyOf(call("POST", `${flow}/verify`, proof, { flow: "f" })),
     ).toEqual({
-      redirect: "/enroll/mock-federated",
+      redirect: "/",
+    });
+  });
+
+  it("walks a verify-then-create invite back to its enrollment", () => {
+    const verify = "/api/prohibitorum/auth/federation/flows/{flow}/verify";
+    const invite = config((draft) => {
+      draft.writes = true;
+      draft.publicFlows.flow.intent = "invite";
+      draft.publicFlows.flow.step = "proof";
+      draft.publicFlows.enrollment.requireLocal = true;
+    });
+    expect(bodyOf(call("POST", verify, invite, { flow: "f" }))).toEqual({
+      redirect: "/enroll/mock-invitation",
     });
   });
 

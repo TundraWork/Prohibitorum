@@ -148,11 +148,6 @@ msgid "error.federation.provider_not_ready"
 msgstr "{provider} isn't set up yet."
 
 #. js-lingui-explicit-id
-#: src/pages/public/FederationFlow.tsx
-msgid "federation_flow.description.enroll"
-msgstr "{provider} only proves the profile is yours; next you'll set up your own way to sign in. If you already have an account, link {provider} from Security instead."
-
-#. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.federation.upstream_error"
 msgstr "{provider} refused this sign-in."
@@ -647,6 +642,11 @@ msgid "settings.keys.retire.body"
 msgstr "After the grace period it is removed from the JWKS and the SAML metadata."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminInvitationForm.tsx
+msgid "admin.invitations.new.require_local.hint"
+msgstr "After verifying with a provider, the invitee also sets up a passkey or a password and an authenticator before the account is created."
+
+#. js-lingui-explicit-id
 #: src/pages/admin/settings/SigningKeysPanel.tsx
 msgid "settings.keys.column.algorithm"
 msgstr "Algorithm"
@@ -686,6 +686,12 @@ msgstr "Allow {app} to access your account?"
 #: src/pages/admin/saml-applications/SamlGeneralSection.tsx
 msgid "admin.saml-apps.field.idp-initiated"
 msgstr "Allow IdP-initiated sign-in"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
+#: src/pages/admin/identity-providers/ProviderGeneralSection.tsx
+msgid "admin.federation.general.sign_in"
+msgstr "Allow sign-in"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
@@ -786,6 +792,11 @@ msgstr "Any of these"
 #: src/pages/admin/AdminUsers.tsx
 msgid "admin.users.filter.provider"
 msgstr "Any provider"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderGeneralSection.tsx
+msgid "admin.federation.general.sign_in.confirm_body"
+msgstr "Anyone who signs in only through this provider will be locked out until an administrator sends them a reset link."
 
 #. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
@@ -5518,6 +5529,11 @@ msgid "admin.forward-auth-apps.enable.note"
 msgstr "Requests through its router are accepted again, under the access policy it already has."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminInvitationForm.tsx
+msgid "admin.invitations.new.require_local.label"
+msgstr "Require a local sign-in method"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
 #: src/pages/admin/saml-applications/SamlGeneralSection.tsx
 msgid "admin.saml-apps.field.signed-request"
@@ -5830,11 +5846,6 @@ msgstr "Save"
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderDangerSection.tsx
 msgid "admin.federation.danger.secret.save"
-msgstr "Save"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderGeneralSection.tsx
-msgid "admin.federation.general.save"
 msgstr "Save"
 
 #. js-lingui-explicit-id
@@ -7370,6 +7381,11 @@ msgstr "This passkey will stop working for sign-in right away. Any other way you
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
+msgid "error.federation.upstream_idp_link_only"
+msgstr "This provider can only be linked from an account, so it can't accept an invitation. Choose another provider, or set its provisioning to invitation-only."
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
 msgid "error.provider_not_ready"
 msgstr "This provider is not ready yet. Finish setting up its credentials before enabling it."
 
@@ -7569,6 +7585,16 @@ msgid "security.revoke.confirm.title"
 msgstr "Turn off password and authenticator?"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderGeneralSection.tsx
+msgid "admin.federation.general.sign_in.confirm"
+msgstr "Turn off sign-in"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderGeneralSection.tsx
+msgid "admin.federation.general.sign_in.confirm_title"
+msgstr "Turn off sign-in?"
+
+#. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
 msgid "security.setup.turn_on"
 msgstr "Turn on"
@@ -7722,6 +7748,11 @@ msgstr "Use 64 characters or fewer."
 #: src/pages/admin/settings/sign-in-page-form.ts
 msgid "settings.sign-in.unsplash.query.too_long"
 msgstr "Use 64 characters or fewer."
+
+#. js-lingui-explicit-id
+#: src/pages/public/Enroll.tsx
+msgid "enroll.change_profile"
+msgstr "Use a different profile"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-validation.ts
@@ -8075,6 +8106,13 @@ msgid "error.passkey_incomplete"
 msgstr "Verification was not completed. You can use your password instead."
 
 #. js-lingui-explicit-id
+#. placeholder {0}: verified.displayName
+#. placeholder {1}: verified.providerDisplayName
+#: src/pages/public/Enroll.tsx
+msgid "enroll.verified_identity"
+msgstr "Verified as {0} by {1}."
+
+#. js-lingui-explicit-id
 #: src/components/custom/principal-sources.ts
 msgid "principal-source.verified-email"
 msgstr "Verified email"
@@ -8145,11 +8183,6 @@ msgid "admin.federation.protocol.vrchat"
 msgstr "VRChat"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProvisioningModeField.tsx
-msgid "admin.federation.general.mode.vrchat"
-msgstr "VRChat accounts can only be linked, never created."
-
-#. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts
 msgid "audit.event.vrchat_operator_session_invalidated"
 msgstr "VRChat operator signed out"
@@ -8158,6 +8191,12 @@ msgstr "VRChat operator signed out"
 #: src/pages/public/FederationFlow.tsx
 msgid "federation_flow.identity"
 msgstr "VRChat profile address or user ID"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
+#: src/pages/admin/identity-providers/ProviderGeneralSection.tsx
+msgid "admin.federation.general.sign_in.vrchat_hint"
+msgstr "VRChat proves a profile through a link in its bio, which is weaker than an OIDC sign-in. Once this is on, anyone who can edit the profile can sign in to the account linked to it."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderOperatorSection.tsx
@@ -8199,6 +8238,12 @@ msgstr "What this group is called in the console."
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.name.hint"
 msgstr "What will use this token, so you know what to revoke later."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
+#: src/pages/admin/identity-providers/ProviderGeneralSection.tsx
+msgid "admin.federation.general.sign_in.hint"
+msgstr "When this is off, this provider can't be used to sign in. People can only link it from their account, or use it to accept an invitation."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/ClientConfigSection.tsx
@@ -8259,6 +8304,16 @@ msgstr "You can remove the verification link from your VRChat bio now."
 #: src/pages/public/Enroll.tsx
 msgid "enroll.description.reset"
 msgstr "You can sign in with it as soon as it's set up."
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.federation.federation_sign_in_disabled"
+msgstr "You can't sign in with {provider}. Sign in another way, then link it from your account."
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.landing.federation_sign_in_disabled"
+msgstr "You can't sign in with this provider. Sign in another way, then link it from your account."
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -8346,6 +8401,11 @@ msgid "consent.scope.groups"
 msgstr "Your groups"
 
 #. js-lingui-explicit-id
+#: src/pages/public/Enroll.tsx
+msgid "enroll.description.verified"
+msgstr "Your identity is verified. Choose your account name, then set up how you'll sign in."
+
+#. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
 msgid "security.revoke.confirm.body"
 msgstr "Your password, your authenticator and all recovery codes stop working immediately."
@@ -8364,8 +8424,3 @@ msgstr "Your profile, security settings, connected applications and devices are 
 #: src/pages/public/FederationFlow.tsx
 msgid "federation_flow.identify.form"
 msgstr "Your VRChat profile"
-
-#. js-lingui-explicit-id
-#: src/pages/public/Enroll.tsx
-msgid "enroll.description.federated"
-msgstr "Your VRChat profile is verified. Choose your account name, then set up how you'll sign in."

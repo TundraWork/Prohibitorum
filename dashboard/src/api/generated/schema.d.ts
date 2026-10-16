@@ -711,6 +711,7 @@ export interface components {
             };
             expectedUpstreamIdpSlug?: string;
             groupIds?: number[] | null;
+            requireLocalCredential?: boolean;
             role: string;
             username?: string;
         };
@@ -750,9 +751,10 @@ export interface components {
             expiresAt: string;
             intent: string;
             providers?: components["schemas"]["FederationProvider"][] | null;
-            suggestedDisplayName?: string;
+            requireLocalCredential?: boolean;
             target?: components["schemas"]["EnrollmentTarget"];
             username?: string;
+            verifiedIdentity?: components["schemas"]["EnrollmentVerifiedIdentity"];
         };
         EnrollmentTarget: {
             displayName: string;
@@ -763,7 +765,14 @@ export interface components {
             expiresAt: string;
             url: string;
         };
+        EnrollmentVerifiedIdentity: {
+            avatarUrl?: string;
+            displayName: string;
+            providerDisplayName: string;
+            providerSlug: string;
+        };
         FederationProvider: {
+            allowSignIn: boolean;
             displayName: string;
             iconUrl?: string;
             protocol: string;
@@ -781,6 +790,7 @@ export interface components {
             remoteUserSource: string;
         };
         IdentityProviderView: {
+            allowSignIn: boolean;
             config: unknown;
             /** Format: date-time */
             createdAt: string;
@@ -814,6 +824,7 @@ export interface components {
             /** Format: date-time */
             expiresAt: string;
             groupIds: number[] | null;
+            requireLocalCredential: boolean;
             url: string;
             username?: string;
         };

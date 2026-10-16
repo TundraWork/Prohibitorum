@@ -544,6 +544,16 @@ const scopedErrorMessages: Readonly<
       id: "error.federation.link_required",
       message: "Sign in first, then link {provider} from Security.",
     }),
+    federation_sign_in_disabled: msg({
+      id: "error.federation.federation_sign_in_disabled",
+      message:
+        "You can't sign in with {provider}. Sign in another way, then link it from your account.",
+    }),
+    upstream_idp_link_only: msg({
+      id: "error.federation.upstream_idp_link_only",
+      message:
+        "This provider can only be linked from an account, so it can't accept an invitation. Choose another provider, or set its provisioning to invitation-only.",
+    }),
     federation_identity_conflict: msg({
       id: "error.federation.federation_identity_conflict",
       message: "This {provider} identity is already linked to another account.",
@@ -695,6 +705,11 @@ const landingMessages: Readonly<Record<string, MessageDescriptor>> = {
   saml_idp_init_disabled: msg({
     id: "error.landing.saml_idp_init_disabled",
     message: "This app can't be opened directly from {instance}.",
+  }),
+  federation_sign_in_disabled: msg({
+    id: "error.landing.federation_sign_in_disabled",
+    message:
+      "You can't sign in with this provider. Sign in another way, then link it from your account.",
   }),
 };
 

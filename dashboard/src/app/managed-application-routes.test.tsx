@@ -67,6 +67,7 @@ function provider(slug: string, displayName: string): Provider {
     displayName,
     protocol: "steam",
     mode: "auto_provision",
+    allowSignIn: true,
     disabled: false,
     ready: true,
     secretConfigured: true,

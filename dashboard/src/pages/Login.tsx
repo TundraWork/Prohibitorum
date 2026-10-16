@@ -705,7 +705,10 @@ function OtherSignIns({
     publicFederationProvidersQueryOptions(),
   );
   const pairing = !config.maintenanceMode;
-  if (!pairing && providers.length === 0) return null;
+  // A provider with sign-in off never backs a button here; the shared list
+  // still carries it for the linked-identities page.
+  const signInProviders = providers.filter((provider) => provider.allowSignIn);
+  if (!pairing && signInProviders.length === 0) return null;
   return (
     <>
       <OrSeparator />
@@ -727,7 +730,7 @@ function OtherSignIns({
           </Button>
         )}
         <ProviderButtons
-          providers={providers}
+          providers={signInProviders}
           isDisabled={busy}
           onLeavingChange={onLeavingChange}
           href={(provider) => {

@@ -15,7 +15,7 @@ const address = "/federation/flow/f-1";
 
 const identify: FederationFlow = {
   provider: { slug: "vrchat", displayName: "VRChat", protocol: "vrchat" },
-  intent: "enroll",
+  intent: "invite",
   step: "identify",
   requiresLocalUsername: false,
   expiresAt: "2026-10-03T14:32:00Z",
@@ -67,7 +67,6 @@ describe("VRChat profile verification", () => {
     ["login", "Sign in through VRChat"],
     ["link", "Link your VRChat profile"],
     ["invite", "Verify your VRChat profile"],
-    ["enroll", "Verify your VRChat profile"],
   ] as const)("titles a %s flow", async (intent, title) => {
     flowApi({ ...identify, intent });
     renderApp(address, queryClient);
@@ -80,9 +79,6 @@ describe("VRChat profile verification", () => {
     const user = userEvent.setup();
     renderApp(address, queryClient);
     await screen.findByRole("heading", { name: "Verify your VRChat profile" });
-    expect(
-      screen.getByText(/VRChat only proves the profile is yours/),
-    ).toBeVisible();
     expect(screen.getByRole("link", { name: "vrchat.com" })).toHaveAttribute(
       "target",
       "_blank",

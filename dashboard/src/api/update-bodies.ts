@@ -40,6 +40,7 @@ type SAMLApplicationView = components["schemas"]["SAMLApplicationView"];
 export interface IdentityProviderPatch {
   displayName?: string;
   mode?: ProviderWriteBody["mode"];
+  allowSignIn?: boolean;
   config?: ProviderWriteBody["config"];
 }
 
@@ -61,6 +62,7 @@ export function identityProviderUpdateBody(
   return {
     displayName: patch.displayName ?? view.displayName,
     mode: patch.mode ?? readProviderMode(view.mode) ?? "invite_only",
+    allowSignIn: patch.allowSignIn ?? view.allowSignIn,
     config,
   };
 }

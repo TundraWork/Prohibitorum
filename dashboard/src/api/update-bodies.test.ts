@@ -198,6 +198,7 @@ describe("identity provider update body", () => {
     displayName: "IdP",
     protocol: "oidc",
     mode: "invite_only",
+    allowSignIn: true,
     config,
     disabled: false,
     secretConfigured: true,

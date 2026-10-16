@@ -136,7 +136,7 @@ export interface MockConfig {
     };
     /** What an enrollment link previews, whatever its token. */
     enrollment: {
-      intent: "bootstrap" | "invite" | "federated_register" | "reset";
+      intent: "bootstrap" | "invite" | "reset";
       /** Whether the link fixes the username, so the page shows it read-only. */
       fixedUsername: boolean;
       /** Whether a password and an authenticator are allowed besides a passkey. */
@@ -145,6 +145,10 @@ export interface MockConfig {
       providers: number;
       /** Whether the invitation must be accepted through the first provider. */
       bound: boolean;
+      /** Whether the invite must set a local sign-in method before the account exists. */
+      requireLocal: boolean;
+      /** Whether the invite already carries a verified provider identity. */
+      verified: boolean;
       /** Off answers every token as expired. */
       valid: boolean;
     };
@@ -159,7 +163,7 @@ export interface MockConfig {
     };
     /** A VRChat profile verification on `/federation/flow/$flow`. */
     flow: {
-      intent: "login" | "link" | "enroll" | "invite";
+      intent: "login" | "link" | "invite";
       step: "identify" | "proof";
       /** Whether verifying asks for the new account's username. */
       requiresLocalUsername: boolean;
@@ -279,6 +283,8 @@ export const defaultMockConfig: MockConfig = {
       passwordTotp: true,
       providers: 1,
       bound: false,
+      requireLocal: false,
+      verified: false,
       valid: true,
     },
     welcome: {
@@ -287,7 +293,7 @@ export const defaultMockConfig: MockConfig = {
       valid: true,
     },
     flow: {
-      intent: "enroll",
+      intent: "login",
       step: "identify",
       requiresLocalUsername: false,
       proofMissing: false,

@@ -28,6 +28,7 @@ function publicProvider(): Provider {
     slug: "public-idp",
     displayName: "Public IdP",
     protocol: "oidc",
+    allowSignIn: true,
     mode: "invite_only",
     disabled: false,
     ready: true,

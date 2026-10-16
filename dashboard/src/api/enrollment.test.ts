@@ -5,7 +5,12 @@ import type { components } from "@/api/generated/schema";
 
 type Raw = components["schemas"]["EnrollmentPreview"];
 
-const gitlab = { slug: "gitlab", displayName: "GitLab", protocol: "oidc" };
+const gitlab = {
+  slug: "gitlab",
+  displayName: "GitLab",
+  protocol: "oidc",
+  allowSignIn: true,
+};
 
 function raw(overrides: Partial<Raw> = {}): Raw {
   return {
@@ -34,7 +39,6 @@ describe("readEnrollmentPreview", () => {
           intent: "reset",
           target: { username: "alice", displayName: "Alice" },
           expectedUpstreamIdpSlug: "gitlab",
-          suggestedDisplayName: "Ali",
           username: "alice",
         }),
       ),
@@ -43,10 +47,34 @@ describe("readEnrollmentPreview", () => {
       username: "alice",
       target: { username: "alice", displayName: "Alice" },
       expiresAt: "2026-10-03T00:00:00Z",
-      suggestedDisplayName: "Ali",
+      requireLocalCredential: false,
       allowedMethods: ["passkey", "password_totp"],
       expectedUpstreamIdpSlug: "gitlab",
       providers: [gitlab],
+    });
+  });
+
+  it("reads the require-local flag and a verified identity", () => {
+    expect(
+      readEnrollmentPreview(
+        raw({
+          requireLocalCredential: true,
+          verifiedIdentity: {
+            providerSlug: "gitlab",
+            providerDisplayName: "GitLab",
+            displayName: "Jane Doe",
+            avatarUrl: "https://gitlab.example/jane.png",
+          },
+        }),
+      ),
+    ).toMatchObject({
+      requireLocalCredential: true,
+      verifiedIdentity: {
+        providerSlug: "gitlab",
+        providerDisplayName: "GitLab",
+        displayName: "Jane Doe",
+        avatarUrl: "https://gitlab.example/jane.png",
+      },
     });
   });
 

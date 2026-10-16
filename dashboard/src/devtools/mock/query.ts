@@ -168,7 +168,7 @@ function allowedValues(path: string): readonly string[] | undefined {
     return ["succeeded", "fallback", "failed"];
   if (path === "publicFlows.consent.grant") return ["first", "incremental"];
   if (path === "publicFlows.enrollment.intent") {
-    return ["bootstrap", "invite", "federated_register", "reset"];
+    return ["bootstrap", "invite", "reset"];
   }
   if (path === "avatar.active") {
     return [
@@ -181,7 +181,7 @@ function allowedValues(path: string): readonly string[] | undefined {
     ];
   }
   if (path === "publicFlows.flow.intent") {
-    return ["login", "link", "enroll", "invite"];
+    return ["login", "link", "invite"];
   }
   if (path === "publicFlows.flow.step") return ["identify", "proof"];
   if (path === "instance.loginAppearance.background.source") {

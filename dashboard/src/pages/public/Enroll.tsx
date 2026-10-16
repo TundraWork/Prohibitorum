@@ -107,18 +107,18 @@ export function EnrollPage() {
   const boundProvider = preview.providers.find(
     (provider) => provider.slug === bound,
   );
+  const verified = preview.verifiedIdentity;
   const reset = preview.intent === "reset";
-  const asksNames = !reset && boundProvider === undefined;
+  // A verified snapshot replaces the provider step; the account fields stay
+  // unless the invite fixed a username.
+  const asksNames = !reset && (verified !== undefined || boundProvider === undefined);
   const supported = window.isSecureContext && browserSupportsWebAuthn();
   const allowsPasswordTotp = preview.allowedMethods.includes("password_totp");
 
   const form = useAppForm({
     defaultValues: {
       username: preview.username ?? "",
-      displayName:
-        preview.intent === "federated_register"
-          ? (preview.suggestedDisplayName ?? "")
-          : "",
+      displayName: preview.verifiedIdentity?.displayName ?? "",
     },
     onSubmit: async ({ value }) => {
       // Without passkeys the password setup is the form's submit button.
@@ -236,7 +236,51 @@ export function EnrollPage() {
               }
               actions={
                 <PublicStep.Actions>
-                  {boundProvider ? (
+                  {verified ? (
+                    <>
+                      {/* Enter submits with the first enabled submit button,
+                          so without passkeys the password setup takes it. */}
+                      <PasskeyButton
+                        type={supported ? "submit" : "button"}
+                        supported={supported}
+                        isPending={passkeyPending}
+                        isDisabled={busy && !passkeyPending}
+                      >
+                        <Trans id="enroll.passkey">Create a passkey</Trans>
+                      </PasskeyButton>
+                      {allowsPasswordTotp && (
+                        <Button
+                          type={supported ? "button" : "submit"}
+                          variant="secondary"
+                          fullWidth
+                          onPress={
+                            supported
+                              ? () => void choosePasswordTotp()
+                              : undefined
+                          }
+                        >
+                          <Trans id="enroll.use_password_totp">
+                            Use a password and an authenticator instead
+                          </Trans>
+                        </Button>
+                      )}
+                      <Button
+                        variant="secondary"
+                        fullWidth
+                        isDisabled={busy}
+                        onPress={() => {
+                          window.location.href = enrollmentAddress(
+                            token,
+                            verified.providerSlug,
+                          );
+                        }}
+                      >
+                        <Trans id="enroll.change_profile">
+                          Use a different profile
+                        </Trans>
+                      </Button>
+                    </>
+                  ) : boundProvider ? (
                     <ProviderButtons
                       providers={[boundProvider]}
                       href={(provider) =>
@@ -291,11 +335,12 @@ export function EnrollPage() {
                 </PublicStep.Actions>
               }
             >
-              {boundProvider && (
+              {boundProvider && !verified && (
                 <p className="text-sm">
                   <BoundInvitation name={boundProvider.displayName} />
                 </p>
               )}
+              {verified && <VerifiedIdentitySummary preview={preview} />}
               {asksNames && (
                 <div ref={fieldsRef} className="flex flex-col gap-4">
                   {preview.username ? (
@@ -363,6 +408,28 @@ function BoundInvitation({ name }: { name: string }) {
   );
 }
 
+/** The verified-identity banner: who the invitee proved they are. */
+function VerifiedIdentitySummary({ preview }: { preview: EnrollmentPreview }) {
+  const verified = preview.verifiedIdentity;
+  if (verified === undefined) return null;
+  return (
+    <p className="flex items-center gap-3 text-sm">
+      {verified.avatarUrl && (
+        <img
+          src={verified.avatarUrl}
+          alt=""
+          className="size-8 rounded-full object-cover"
+        />
+      )}
+      <span>
+        <Trans id="enroll.verified_identity">
+          Verified as {verified.displayName} by {verified.providerDisplayName}.
+        </Trans>
+      </span>
+    </p>
+  );
+}
+
 /** The page's title, which also names its form. */
 function enrollTitle(
   preview: EnrollmentPreview,
@@ -403,16 +470,17 @@ function EnrollDescription({
         </Trans>
       );
     case "invite":
+      if (preview.verifiedIdentity) {
+        return (
+          <Trans id="enroll.description.verified">
+            Your identity is verified. Choose your account name, then set up
+            how you'll sign in.
+          </Trans>
+        );
+      }
       return (
         <Trans id="enroll.description.invite">
           You've been invited to {instance}. This link works until {expires}.
-        </Trans>
-      );
-    case "federated_register":
-      return (
-        <Trans id="enroll.description.federated">
-          Your VRChat profile is verified. Choose your account name, then set up
-          how you'll sign in.
         </Trans>
       );
     case "reset": {

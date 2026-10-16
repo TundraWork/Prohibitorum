@@ -68,12 +68,18 @@ export function AdminInvitationForm() {
     }));
 
   const providerOptions: EntityOption[] = (providers.data?.items ?? [])
-    .filter((provider) => !provider.disabled && provider.ready)
+    .filter(
+      (provider) =>
+        !provider.disabled && provider.ready && provider.mode !== "link_only",
+    )
     .map((provider) => ({
       id: provider.slug,
       label: provider.displayName,
       description: provider.protocol,
     }));
+  const providersById = new Map(
+    (providers.data?.items ?? []).map((provider) => [provider.slug, provider]),
+  );
 
   const form = useAppForm({
     defaultValues: {
@@ -81,6 +87,7 @@ export function AdminInvitationForm() {
       username: "",
       groupIds: [] as string[],
       expectedUpstreamIdpSlug: "",
+      requireLocalCredential: false,
     },
     onSubmit: async ({ value }) => {
       const username = value.username.trim();
@@ -92,11 +99,14 @@ export function AdminInvitationForm() {
         });
         return;
       }
+      const selected = providersById.get(provider);
       const body: CreateInvitationRequest = {
         role: value.role,
         groupIds: ids,
         ...(username === "" ? {} : { username }),
         ...(provider === "" ? {} : { expectedUpstreamIdpSlug: provider }),
+        requireLocalCredential:
+          value.requireLocalCredential || selected?.allowSignIn === false,
       };
       try {
         const created = await create.mutateAsync(body);
@@ -106,9 +116,10 @@ export function AdminInvitationForm() {
         applyServerError(form, failure, {
           locations: {
             username: "username",
-            expected_upstream_idp_slug: "expectedUpstreamIdpSlug",
           },
-          codes: {},
+          codes: {
+            upstream_idp_link_only: "expectedUpstreamIdpSlug",
+          },
         });
       }
     },
@@ -217,7 +228,7 @@ export function AdminInvitationForm() {
               <field.IdentityProviderPicker
                 description={
                   <Trans id="admin.invitations.new.provider.hint">
-                    Optional. Only providers that are enabled and ready are
+                    Optional. Only providers that can create accounts are
                     offered; the invited person must sign in through the one
                     chosen here.
                   </Trans>
@@ -232,6 +243,38 @@ export function AdminInvitationForm() {
               />
             )}
           </form.AppField>
+
+          <form.Subscribe
+            selector={(state) =>
+              [state.values.expectedUpstreamIdpSlug] as const
+            }
+          >
+            {([slug]) => {
+              const selected = providersById.get(slug.trim());
+              const locked = selected?.allowSignIn === false;
+              return (
+                <form.AppField name="requireLocalCredential">
+                  {(field) => (
+                    <field.FormField
+                      label={
+                        <Trans id="admin.invitations.new.require_local.label">
+                          Require a local sign-in method
+                        </Trans>
+                      }
+                      description={
+                        <Trans id="admin.invitations.new.require_local.hint">
+                          After verifying with a provider, the invitee also sets
+                          up a passkey or a password and an authenticator
+                          before the account is created.
+                        </Trans>
+                      }
+                      isDisabled={locked}
+                    />
+                  )}
+                </form.AppField>
+              );
+            }}
+          </form.Subscribe>
 
           <div className="flex flex-wrap gap-2">
             <Button

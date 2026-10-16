@@ -30,8 +30,18 @@ type Preview = components["schemas"]["EnrollmentPreview"];
 const token = "tok-1";
 const address = `/enroll/${token}`;
 const previewPath = `/api/prohibitorum/enrollments/${token}`;
-const gitlab = { slug: "gitlab", displayName: "GitLab", protocol: "oidc" };
-const github = { slug: "github", displayName: "GitHub", protocol: "oidc" };
+const gitlab = {
+  slug: "gitlab",
+  displayName: "GitLab",
+  protocol: "oidc",
+  allowSignIn: true,
+};
+const github = {
+  slug: "github",
+  displayName: "GitHub",
+  protocol: "oidc",
+  allowSignIn: true,
+};
 
 function preview(overrides: Partial<Preview> = {}): Preview {
   return {
@@ -148,22 +158,34 @@ describe("enrollment", () => {
     expect(screen.queryByText("or")).not.toBeInTheDocument();
   });
 
-  it("fills in the display name a VRChat registration suggests", async () => {
+  it("fills in the display name of a verified identity and offers the swap", async () => {
     enrollApi(
       preview({
-        intent: "federated_register",
-        suggestedDisplayName: "Alice VR",
+        intent: "invite",
+        requireLocalCredential: true,
+        verifiedIdentity: {
+          providerSlug: "gitlab",
+          providerDisplayName: "GitLab",
+          displayName: "Alice VR",
+        },
       }),
     );
     renderApp(address, queryClient);
     expect(
       await screen.findByText(
-        "Your VRChat profile is verified. Choose your account name, then set up how you'll sign in.",
+        "Your identity is verified. Choose your account name, then set up how you'll sign in.",
       ),
     ).toBeVisible();
+    expect(screen.getByText("Verified as Alice VR by GitLab.")).toBeVisible();
     expect(screen.getByRole("textbox", { name: "Display name" })).toHaveValue(
       "Alice VR",
     );
+    expect(
+      screen.getByRole("button", { name: "Use a different profile" }),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole("button", { name: "Continue with GitLab" }),
+    ).not.toBeInTheDocument();
   });
 
   it("names the account a reset is for and asks for no fields", async () => {
