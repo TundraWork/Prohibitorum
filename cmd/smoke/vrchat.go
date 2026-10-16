@@ -149,7 +149,7 @@ func (v *vrchatSmoke) begin(c *client, path string) (string, error) {
 }
 
 func (v *vrchatSmoke) prepare(c *client, flow, userID string) (vrchatFlowView, error) {
-	resp, err := c.postJSONRaw("/api/prohibitorum/auth/federation/flows/"+url.PathEscape(flow)+"/prepare", map[string]string{"identity": userID})
+	resp, err := c.postJSONRaw("/api/prohibitorum/auth/federation/-/flows/"+url.PathEscape(flow)+"/prepare", map[string]string{"identity": userID})
 	if err != nil {
 		return vrchatFlowView{}, err
 	}
@@ -157,7 +157,7 @@ func (v *vrchatSmoke) prepare(c *client, flow, userID string) (vrchatFlowView, e
 }
 
 func (v *vrchatSmoke) reload(c *client, flow string) (vrchatFlowView, error) {
-	req, _ := http.NewRequest(http.MethodGet, c.base+"/api/prohibitorum/auth/federation/flows/"+url.PathEscape(flow), nil)
+	req, _ := http.NewRequest(http.MethodGet, c.base+"/api/prohibitorum/auth/federation/-/flows/"+url.PathEscape(flow), nil)
 	resp, err := c.hc.Do(req)
 	if err != nil {
 		return vrchatFlowView{}, err
@@ -187,7 +187,7 @@ func (v *vrchatSmoke) verify(c *client, flow, username string) (*http.Response, 
 	if username != "" {
 		body["localUsername"] = username
 	}
-	resp, err := c.postJSONRaw("/api/prohibitorum/auth/federation/flows/"+url.PathEscape(flow)+"/verify", body)
+	resp, err := c.postJSONRaw("/api/prohibitorum/auth/federation/-/flows/"+url.PathEscape(flow)+"/verify", body)
 	if err != nil {
 		return nil, nil, err
 	}

@@ -16,7 +16,7 @@ import {
 
 vi.mock("@/app/load-document", () => ({ loadDocument: vi.fn() }));
 
-const confirmPath = "/api/prohibitorum/auth/federation/confirm";
+const confirmPath = "/api/prohibitorum/auth/federation/-/confirm";
 
 function account(
   overrides: Partial<FederationConfirm> = {},

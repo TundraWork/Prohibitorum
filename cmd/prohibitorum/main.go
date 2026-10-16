@@ -970,6 +970,9 @@ func addUpstreamIDPCommands(root *cobra.Command) {
 			if uSlug == "" || uDisplayName == "" || uClientSecret == "" || uMode == "" {
 				log.Fatalf("--slug, --display-name, --client-secret, --mode are all required")
 			}
+			if uSlug == federation.ReservedSlug {
+				log.Fatalf("--slug %q is reserved for built-in routes; choose another slug", uSlug)
+			}
 			configRaw, definition, err := upstreamCLIConfig(
 				uProtocol, uIssuerURL, uClientID, uScopes, uAllowedDomain,
 				uUsernameClaim, uDisplayClaim, uEmailClaim, uPictureClaim,

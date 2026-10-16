@@ -1609,11 +1609,11 @@ function readReply(
       return config.publicFlows.enrollment.valid
         ? json(enrollmentPreview(config))
         : expiredEnrollment();
-    case "/api/prohibitorum/auth/federation/confirm":
+    case "/api/prohibitorum/auth/federation/-/confirm":
       return config.publicFlows.welcome.valid
         ? json(federationConfirm(config))
         : expiredSignIn();
-    case "/api/prohibitorum/auth/federation/flows/{flow}":
+    case "/api/prohibitorum/auth/federation/-/flows/{flow}":
       return json(federationFlow(config, new URL(request.url).origin));
     case "/api/prohibitorum/auth/devices/pair/status":
       return pairingStatus(request, config);
@@ -2048,7 +2048,7 @@ function writeReply(
     case "/api/prohibitorum/enrollments/{token}/password-totp/verify":
       return enrollPasswordTotp(config, body);
 
-    case "/api/prohibitorum/auth/federation/confirm": {
+    case "/api/prohibitorum/auth/federation/-/confirm": {
       if (!config.publicFlows.welcome.valid) return expiredSignIn();
       return json(
         {
@@ -2061,10 +2061,10 @@ function writeReply(
       );
     }
 
-    case "/api/prohibitorum/auth/federation/confirm/decline":
+    case "/api/prohibitorum/auth/federation/-/confirm/decline":
       return empty();
 
-    case "/api/prohibitorum/auth/federation/flows/{flow}/prepare":
+    case "/api/prohibitorum/auth/federation/-/flows/{flow}/prepare":
       return json(
         federationFlow(
           {
@@ -2081,7 +2081,7 @@ function writeReply(
         },
       );
 
-    case "/api/prohibitorum/auth/federation/flows/{flow}/verify":
+    case "/api/prohibitorum/auth/federation/-/flows/{flow}/verify":
       return verifyFlow(config, body);
 
     case "/api/prohibitorum/auth/totp/verify":

@@ -194,7 +194,9 @@ export function federationConfirmMutationOptions() {
     meta: { errorScope: "federation" },
     mutationFn: async (): Promise<FederationConfirmResult> => {
       const result = await requireJsonData(
-        client.POST("/api/prohibitorum/auth/federation/confirm", { body: {} }),
+        client.POST("/api/prohibitorum/auth/federation/-/confirm", {
+          body: {},
+        }),
       );
       if (
         typeof result.redirect !== "string" ||
@@ -214,7 +216,7 @@ export function federationDeclineMutationOptions() {
     gcTime: 0,
     meta: { errorScope: "federation" },
     mutationFn: async () => {
-      await client.POST("/api/prohibitorum/auth/federation/confirm/decline");
+      await client.POST("/api/prohibitorum/auth/federation/-/confirm/decline");
     },
   });
 }
@@ -229,7 +231,7 @@ export function federationFlowPrepareMutationOptions(flow: string) {
       readFederationFlow(
         await requireJsonData(
           client.POST(
-            "/api/prohibitorum/auth/federation/flows/{flow}/prepare",
+            "/api/prohibitorum/auth/federation/-/flows/{flow}/prepare",
             {
               params: { path: { flow } },
               body: { identity },
@@ -248,7 +250,7 @@ export function federationFlowVerifyMutationOptions(flow: string) {
     meta: { errorScope: "federation" },
     mutationFn: (localUsername: string | undefined) =>
       requireJsonData(
-        client.POST("/api/prohibitorum/auth/federation/flows/{flow}/verify", {
+        client.POST("/api/prohibitorum/auth/federation/-/flows/{flow}/verify", {
           params: { path: { flow } },
           body: localUsername === undefined ? {} : { localUsername },
         }),

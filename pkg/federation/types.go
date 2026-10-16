@@ -17,6 +17,11 @@ const (
 	IntentEnroll Intent = "enroll"
 )
 
+// ReservedSlug is the path segment under /api/prohibitorum/auth/federation/
+// that holds the routes not keyed by a provider (flows, confirm). No provider
+// may take it as its slug, so those routes never shadow a provider's own.
+const ReservedSlug = "-"
+
 type CallbackRoute string
 
 const (

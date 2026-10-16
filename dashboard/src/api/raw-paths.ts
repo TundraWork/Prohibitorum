@@ -292,7 +292,7 @@ export interface EnrollmentPasswordTotpResult {
   recoveryCodes: string[];
 }
 
-/** `GET /auth/federation/confirm`: the account a first federated sign-in prepared. */
+/** `GET /auth/federation/-/confirm`: the account a first federated sign-in prepared. */
 export interface FederationConfirm {
   idpDisplayName: string;
   displayName: string;
@@ -301,7 +301,7 @@ export interface FederationConfirm {
   avatarUrl?: string;
 }
 
-/** `POST /auth/federation/confirm`: where to go, and whether to offer a local sign-in. */
+/** `POST /auth/federation/-/confirm`: where to go, and whether to offer a local sign-in. */
 export interface FederationConfirmResult {
   redirect: string;
   offerLocalSignin: boolean;
@@ -913,7 +913,7 @@ export interface RawPaths {
       };
     };
   };
-  "/api/prohibitorum/auth/federation/confirm": {
+  "/api/prohibitorum/auth/federation/-/confirm": {
     get: {
       parameters: {
         query?: never;
@@ -941,7 +941,7 @@ export interface RawPaths {
       };
     };
   };
-  "/api/prohibitorum/auth/federation/confirm/decline": {
+  "/api/prohibitorum/auth/federation/-/confirm/decline": {
     post: {
       parameters: {
         query?: never;
@@ -953,7 +953,7 @@ export interface RawPaths {
       responses: { 204: { content?: never } };
     };
   };
-  "/api/prohibitorum/auth/federation/flows/{flow}": {
+  "/api/prohibitorum/auth/federation/-/flows/{flow}": {
     get: {
       parameters: {
         query?: never;
@@ -968,7 +968,7 @@ export interface RawPaths {
       };
     };
   };
-  "/api/prohibitorum/auth/federation/flows/{flow}/prepare": {
+  "/api/prohibitorum/auth/federation/-/flows/{flow}/prepare": {
     post: {
       parameters: {
         query?: never;
@@ -982,7 +982,7 @@ export interface RawPaths {
       };
     };
   };
-  "/api/prohibitorum/auth/federation/flows/{flow}/verify": {
+  "/api/prohibitorum/auth/federation/-/flows/{flow}/verify": {
     post: {
       parameters: {
         query?: never;

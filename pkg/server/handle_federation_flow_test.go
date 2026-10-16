@@ -210,9 +210,9 @@ func newLocalFlowHarnessWithStore(t *testing.T, store kv.Store) *localFlowHarnes
 	router := chi.NewRouter()
 	router.Get("/api/prohibitorum/auth/federation/{slug}/login", s.handleFederationLoginHTTP)
 	router.Get("/api/prohibitorum/enrollments/{token}/start-federation", s.handleEnrollmentStartFederationHTTP)
-	router.Get("/api/prohibitorum/auth/federation/flows/{flow}", s.handleFederationFlowGetHTTP)
-	router.Post("/api/prohibitorum/auth/federation/flows/{flow}/prepare", withFederationFlowBodyControls(s.handleFederationFlowPrepareHTTP))
-	router.Post("/api/prohibitorum/auth/federation/flows/{flow}/verify", withFederationFlowBodyControls(s.handleFederationFlowVerifyHTTP))
+	router.Get("/api/prohibitorum/auth/federation/-/flows/{flow}", s.handleFederationFlowGetHTTP)
+	router.Post("/api/prohibitorum/auth/federation/-/flows/{flow}/prepare", withFederationFlowBodyControls(s.handleFederationFlowPrepareHTTP))
+	router.Post("/api/prohibitorum/auth/federation/-/flows/{flow}/verify", withFederationFlowBodyControls(s.handleFederationFlowVerifyHTTP))
 	ts := httptest.NewServer(router)
 	t.Cleanup(ts.Close)
 	cfg.PublicOrigins = []string{ts.URL}
@@ -300,7 +300,7 @@ func TestFederationFlowVRChatEnrollPrepareVerify(t *testing.T) {
 		t.Fatal("begin did not set browser-binding cookie")
 	}
 
-	response := h.request(t, http.MethodGet, "/api/prohibitorum/auth/federation/flows/"+url.PathEscape(flow), "")
+	response := h.request(t, http.MethodGet, "/api/prohibitorum/auth/federation/-/flows/"+url.PathEscape(flow), "")
 	if response.StatusCode != http.StatusOK || response.Header.Get("Cache-Control") != "no-store" {
 		t.Fatalf("GET = %d headers=%v", response.StatusCode, response.Header)
 	}
@@ -319,7 +319,7 @@ func TestFederationFlowVRChatEnrollPrepareVerify(t *testing.T) {
 		t.Fatalf("identify leaked state: %s", encoded)
 	}
 
-	response = h.request(t, http.MethodPost, "/api/prohibitorum/auth/federation/flows/"+flow+"/prepare", `{"identity":"`+localUserID+`"}`)
+	response = h.request(t, http.MethodPost, "/api/prohibitorum/auth/federation/-/flows/"+flow+"/prepare", `{"identity":"`+localUserID+`"}`)
 	if response.StatusCode != http.StatusOK || response.Header.Get("Cache-Control") != "no-store" {
 		body, _ := io.ReadAll(response.Body)
 		t.Fatalf("prepare = %d body=%s", response.StatusCode, body)
@@ -336,7 +336,7 @@ func TestFederationFlowVRChatEnrollPrepareVerify(t *testing.T) {
 		t.Fatalf("proof leaked private state: %s", encoded)
 	}
 
-	response = h.request(t, http.MethodPost, "/api/prohibitorum/auth/federation/flows/"+flow+"/verify", `{}`)
+	response = h.request(t, http.MethodPost, "/api/prohibitorum/auth/federation/-/flows/"+flow+"/verify", `{}`)
 	if response.StatusCode != http.StatusOK || response.Header.Get("Cache-Control") != "no-store" {
 		t.Fatalf("verify = %d", response.StatusCode)
 	}
@@ -365,7 +365,7 @@ func TestFederationFlowVRChatEnrollPrepareVerify(t *testing.T) {
 		t.Fatalf("issuer calls=%d provider=%+v identity=%+v", calls, provider, identity)
 	}
 
-	replay := h.request(t, http.MethodPost, "/api/prohibitorum/auth/federation/flows/"+flow+"/verify", `{}`)
+	replay := h.request(t, http.MethodPost, "/api/prohibitorum/auth/federation/-/flows/"+flow+"/verify", `{}`)
 	if replay.StatusCode != http.StatusUnauthorized {
 		t.Fatalf("replay status = %d", replay.StatusCode)
 	}
@@ -378,13 +378,13 @@ func TestFederationFlowVRChatVerifyAcceptsEmptyBody(t *testing.T) {
 	h := newLocalFlowHarness(t)
 	flow, _ := h.beginLogin(t)
 
-	prepare := h.request(t, http.MethodPost, "/api/prohibitorum/auth/federation/flows/"+flow+"/prepare", `{"identity":"`+localUserID+`"}`)
+	prepare := h.request(t, http.MethodPost, "/api/prohibitorum/auth/federation/-/flows/"+flow+"/prepare", `{"identity":"`+localUserID+`"}`)
 	if prepare.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(prepare.Body)
 		t.Fatalf("prepare = %d body=%s", prepare.StatusCode, body)
 	}
 
-	verify := h.request(t, http.MethodPost, "/api/prohibitorum/auth/federation/flows/"+flow+"/verify", "")
+	verify := h.request(t, http.MethodPost, "/api/prohibitorum/auth/federation/-/flows/"+flow+"/verify", "")
 	if verify.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(verify.Body)
 		t.Fatalf("verify = %d body=%s", verify.StatusCode, body)
@@ -424,7 +424,7 @@ func TestFederationFlowBodyControlFailuresAreNoStore(t *testing.T) {
 			for _, test := range tests {
 				t.Run(test.name, func(t *testing.T) {
 					h := newLocalFlowHarness(t)
-					response := h.rawRequest(t, "/api/prohibitorum/auth/federation/flows/opaque/"+endpoint, test.body, test.contentType, test.chunked)
+					response := h.rawRequest(t, "/api/prohibitorum/auth/federation/-/flows/opaque/"+endpoint, test.body, test.contentType, test.chunked)
 					if response.StatusCode != test.status {
 						t.Fatalf("status = %d, want %d", response.StatusCode, test.status)
 					}
@@ -453,9 +453,9 @@ func TestFederationFlowRejectsActionSkippingAndInvalidBodies(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			h := newLocalFlowHarness(t)
 			flow, _ := h.beginLogin(t)
-			path := "/api/prohibitorum/auth/federation/flows/" + flow + "/prepare"
+			path := "/api/prohibitorum/auth/federation/-/flows/" + flow + "/prepare"
 			if test.name == "action skip" {
-				path = "/api/prohibitorum/auth/federation/flows/" + flow + "/verify"
+				path = "/api/prohibitorum/auth/federation/-/flows/" + flow + "/verify"
 			}
 			response := h.request(t, http.MethodPost, path, test.body)
 			if response.StatusCode != test.wantStatus || response.Header.Get("Cache-Control") != "no-store" {
@@ -475,7 +475,7 @@ func TestFederationFlowRejectsActionSkippingAndInvalidBodies(t *testing.T) {
 
 	h := newLocalFlowHarness(t)
 	flow, _ := h.beginLogin(t)
-	response := h.request(t, http.MethodPost, "/api/prohibitorum/auth/federation/flows/"+flow+"/prepare", `{"identity":"`+strings.Repeat("x", maxAdminBody)+`"}`)
+	response := h.request(t, http.MethodPost, "/api/prohibitorum/auth/federation/-/flows/"+flow+"/prepare", `{"identity":"`+strings.Repeat("x", maxAdminBody)+`"}`)
 	if response.StatusCode != http.StatusRequestEntityTooLarge {
 		t.Fatalf("oversized = %d", response.StatusCode)
 	}
@@ -484,7 +484,7 @@ func TestFederationFlowRejectsActionSkippingAndInvalidBodies(t *testing.T) {
 func TestFederationFlowVRChatEnrollmentIssuerFailureIsTerminal(t *testing.T) {
 	h := newLocalFlowHarness(t)
 	flow, _ := h.beginLogin(t)
-	prepare := h.request(t, http.MethodPost, "/api/prohibitorum/auth/federation/flows/"+flow+"/prepare", `{"identity":"`+localUserID+`"}`)
+	prepare := h.request(t, http.MethodPost, "/api/prohibitorum/auth/federation/-/flows/"+flow+"/prepare", `{"identity":"`+localUserID+`"}`)
 	if prepare.StatusCode != http.StatusOK {
 		t.Fatalf("prepare = %d", prepare.StatusCode)
 	}
@@ -496,7 +496,7 @@ func TestFederationFlowVRChatEnrollmentIssuerFailureIsTerminal(t *testing.T) {
 		t.Fatal("IntentEnroll requested a local username")
 	}
 	h.issuer.setError(errors.New("issuance unavailable"))
-	verify := h.request(t, http.MethodPost, "/api/prohibitorum/auth/federation/flows/"+flow+"/verify", `{}`)
+	verify := h.request(t, http.MethodPost, "/api/prohibitorum/auth/federation/-/flows/"+flow+"/verify", `{}`)
 	if verify.StatusCode != http.StatusInternalServerError {
 		t.Fatalf("verify = %d", verify.StatusCode)
 	}
@@ -512,7 +512,7 @@ func TestFederationFlowVRChatEnrollmentIssuerFailureIsTerminal(t *testing.T) {
 	}
 
 	h.issuer.setError(nil)
-	retry := h.request(t, http.MethodPost, "/api/prohibitorum/auth/federation/flows/"+flow+"/verify", `{}`)
+	retry := h.request(t, http.MethodPost, "/api/prohibitorum/auth/federation/-/flows/"+flow+"/verify", `{}`)
 	if retry.StatusCode != http.StatusUnauthorized {
 		body, _ := io.ReadAll(retry.Body)
 		t.Fatalf("retry = %d body=%s", retry.StatusCode, body)
@@ -531,12 +531,12 @@ func TestFederationFlowVRChatEnrollmentIssuerFailureIsTerminal(t *testing.T) {
 func TestFederationFlowRateLimitSetsRetryAfter(t *testing.T) {
 	h := newLocalFlowHarness(t)
 	flow, _ := h.beginLogin(t)
-	if response := h.request(t, http.MethodPost, "/api/prohibitorum/auth/federation/flows/"+flow+"/prepare", `{"identity":"`+localUserID+`"}`); response.StatusCode != http.StatusOK {
+	if response := h.request(t, http.MethodPost, "/api/prohibitorum/auth/federation/-/flows/"+flow+"/prepare", `{"identity":"`+localUserID+`"}`); response.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(response.Body)
 		t.Fatalf("prepare = %d body=%s", response.StatusCode, body)
 	}
 	h.adapter.verifyErr = federation.NewRateLimitedFailure(17 * time.Second)
-	response := h.request(t, http.MethodPost, "/api/prohibitorum/auth/federation/flows/"+flow+"/verify", `{}`)
+	response := h.request(t, http.MethodPost, "/api/prohibitorum/auth/federation/-/flows/"+flow+"/verify", `{}`)
 	if response.StatusCode != http.StatusTooManyRequests || response.Header.Get("Retry-After") != "17" || response.Header.Get("Cache-Control") != "no-store" {
 		t.Fatalf("rate response = %d %#v", response.StatusCode, response.Header)
 	}
@@ -564,17 +564,17 @@ func TestFederationFlowUpstreamRateLimitNamesProvider(t *testing.T) {
 	h := newLocalFlowHarness(t)
 	flow, _ := h.beginLogin(t)
 	h.adapter.prepareErr = federation.NewRateLimitedFailure(17 * time.Second)
-	prepare := h.request(t, http.MethodPost, "/api/prohibitorum/auth/federation/flows/"+flow+"/prepare", `{"identity":"`+localUserID+`"}`)
+	prepare := h.request(t, http.MethodPost, "/api/prohibitorum/auth/federation/-/flows/"+flow+"/prepare", `{"identity":"`+localUserID+`"}`)
 	if details := decode(t, prepare); len(details) != 1 || details["federationName"] != "VRChat" {
 		t.Fatalf("prepare details = %#v", details)
 	}
 
 	h.adapter.prepareErr = nil
-	if response := h.request(t, http.MethodPost, "/api/prohibitorum/auth/federation/flows/"+flow+"/prepare", `{"identity":"`+localUserID+`"}`); response.StatusCode != http.StatusOK {
+	if response := h.request(t, http.MethodPost, "/api/prohibitorum/auth/federation/-/flows/"+flow+"/prepare", `{"identity":"`+localUserID+`"}`); response.StatusCode != http.StatusOK {
 		t.Fatalf("prepare = %d", response.StatusCode)
 	}
 	h.adapter.verifyErr = federation.NewRateLimitedFailure(17 * time.Second)
-	verify := h.request(t, http.MethodPost, "/api/prohibitorum/auth/federation/flows/"+flow+"/verify", `{}`)
+	verify := h.request(t, http.MethodPost, "/api/prohibitorum/auth/federation/-/flows/"+flow+"/verify", `{}`)
 	if details := decode(t, verify); len(details) != 1 || details["federationName"] != "VRChat" {
 		t.Fatalf("verify details = %#v", details)
 	}
@@ -583,13 +583,13 @@ func TestFederationFlowUpstreamRateLimitNamesProvider(t *testing.T) {
 func TestFederationFlowIdentityConflictIsGeneric(t *testing.T) {
 	h := newLocalFlowHarness(t)
 	flow, _ := h.beginLogin(t)
-	if response := h.request(t, http.MethodPost, "/api/prohibitorum/auth/federation/flows/"+flow+"/prepare", `{"identity":"`+localUserID+`"}`); response.StatusCode != http.StatusOK {
+	if response := h.request(t, http.MethodPost, "/api/prohibitorum/auth/federation/-/flows/"+flow+"/prepare", `{"identity":"`+localUserID+`"}`); response.StatusCode != http.StatusOK {
 		t.Fatalf("prepare = %d", response.StatusCode)
 	}
 	h.adapter.verifyErr = federation.NewFailure(federation.FailureLinkConflict, map[string]any{
 		"iss": "must-not-leak", "sub": "must-not-leak",
 	})
-	response := h.request(t, http.MethodPost, "/api/prohibitorum/auth/federation/flows/"+flow+"/verify", `{}`)
+	response := h.request(t, http.MethodPost, "/api/prohibitorum/auth/federation/-/flows/"+flow+"/verify", `{}`)
 	if response.StatusCode != http.StatusConflict {
 		t.Fatalf("status = %d body=%s", response.StatusCode, response.Body)
 	}
@@ -634,7 +634,7 @@ func TestFederationFlowProviderTamperingFailsBeforeAdapter(t *testing.T) {
 				t.Fatal(err)
 			}
 			before := len(h.adapter.snapshotInputs())
-			response := h.request(t, http.MethodPost, "/api/prohibitorum/auth/federation/flows/"+flow+"/prepare", `{"identity":"`+localUserID+`"}`)
+			response := h.request(t, http.MethodPost, "/api/prohibitorum/auth/federation/-/flows/"+flow+"/prepare", `{"identity":"`+localUserID+`"}`)
 			if response.StatusCode != http.StatusUnauthorized {
 				t.Fatalf("status = %d", response.StatusCode)
 			}
@@ -651,7 +651,7 @@ func TestFederationFlowProviderBecomingUnreadyReturnsStableError(t *testing.T) {
 	provider := h.q.idpBySlug[localProviderSlug]
 	provider.SecretStatus = "invalid"
 	h.q.idpBySlug[localProviderSlug] = provider
-	response := h.request(t, http.MethodGet, "/api/prohibitorum/auth/federation/flows/"+flow, "")
+	response := h.request(t, http.MethodGet, "/api/prohibitorum/auth/federation/-/flows/"+flow, "")
 	if response.StatusCode != http.StatusServiceUnavailable {
 		t.Fatalf("status = %d", response.StatusCode)
 	}
@@ -670,7 +670,7 @@ func TestFederationFlowReadRequiresBrowserCookie(t *testing.T) {
 	h := newLocalFlowHarness(t)
 	flow, _ := h.beginLogin(t)
 	client := &http.Client{}
-	response, err := client.Get(h.ts.URL + "/api/prohibitorum/auth/federation/flows/" + flow)
+	response, err := client.Get(h.ts.URL + "/api/prohibitorum/auth/federation/-/flows/" + flow)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -687,7 +687,7 @@ func TestFederationFlowLocalLinkUsesCurrentSessionAndNeverMintsSession(t *testin
 	if err != nil {
 		t.Fatal(err)
 	}
-	req := httptest.NewRequest(http.MethodGet, "/api/prohibitorum/auth/federation/flows/"+begin.FlowID, nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/prohibitorum/auth/federation/-/flows/"+begin.FlowID, nil)
 	req.AddCookie(&http.Cookie{Name: sessstore.FedStateCookieName, Value: begin.BrowserToken})
 	req = req.WithContext(authn.WithSession(req.Context(), &authn.Session{Account: &db.Account{ID: 99}, Data: &authn.SessionData{AccountID: 99, SessionID: "link-session"}}))
 	rctx := chi.NewRouteContext()
@@ -925,10 +925,10 @@ func TestFederationCompletionSessionDeliveryFailureReturns500(t *testing.T) {
 func TestFederationFlowVRChatEnrollmentBypassesConfirmationGrantStore(t *testing.T) {
 	h, _ := newLocalFlowHarnessWithConfirmFailure(t)
 	flow, _ := h.beginLogin(t)
-	if response := h.request(t, http.MethodPost, "/api/prohibitorum/auth/federation/flows/"+flow+"/prepare", `{"identity":"`+localUserID+`"}`); response.StatusCode != http.StatusOK {
+	if response := h.request(t, http.MethodPost, "/api/prohibitorum/auth/federation/-/flows/"+flow+"/prepare", `{"identity":"`+localUserID+`"}`); response.StatusCode != http.StatusOK {
 		t.Fatalf("prepare = %d", response.StatusCode)
 	}
-	delivered := h.request(t, http.MethodPost, "/api/prohibitorum/auth/federation/flows/"+flow+"/verify", `{}`)
+	delivered := h.request(t, http.MethodPost, "/api/prohibitorum/auth/federation/-/flows/"+flow+"/verify", `{}`)
 	if delivered.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(delivered.Body)
 		t.Fatalf("verify = %d body=%s", delivered.StatusCode, body)
@@ -946,7 +946,7 @@ func TestFederationFlowVRChatEnrollmentBypassesConfirmationGrantStore(t *testing
 	if len(h.q.insertedAccounts) != 0 || len(h.q.insertIdentitys) != 0 || len(h.q.sessions) != 0 {
 		t.Fatalf("enrollment mutated login state: accounts=%d identities=%d sessions=%d", len(h.q.insertedAccounts), len(h.q.insertIdentitys), len(h.q.sessions))
 	}
-	replay := h.request(t, http.MethodPost, "/api/prohibitorum/auth/federation/flows/"+flow+"/verify", `{}`)
+	replay := h.request(t, http.MethodPost, "/api/prohibitorum/auth/federation/-/flows/"+flow+"/verify", `{}`)
 	if replay.StatusCode != http.StatusUnauthorized {
 		t.Fatalf("replay = %d", replay.StatusCode)
 	}

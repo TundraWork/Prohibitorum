@@ -10,7 +10,7 @@ import { apiError, fakeApi, publicApi, renderApp } from "@/test/app";
 
 vi.mock("@/app/load-document", () => ({ loadDocument: vi.fn() }));
 
-const flowPath = "/api/prohibitorum/auth/federation/flows/f-1";
+const flowPath = "/api/prohibitorum/auth/federation/-/flows/f-1";
 const address = "/federation/flow/f-1";
 
 const identify: FederationFlow = {

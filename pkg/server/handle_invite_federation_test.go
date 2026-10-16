@@ -125,9 +125,9 @@ func newInviteTestServer(t *testing.T) *fedTestHarness {
 	r.Get("/api/prohibitorum/auth/federation/{slug}/login", h.s.handleFederationLoginHTTP)
 	r.Get("/api/prohibitorum/auth/federation/{slug}/callback", h.s.handleFederationCallbackHTTP)
 	r.Get("/api/prohibitorum/enrollments/{token}/start-federation", h.s.handleEnrollmentStartFederationHTTP)
-	r.Get("/api/prohibitorum/auth/federation/confirm", h.s.handleFederationConfirmGet)
-	r.Post("/api/prohibitorum/auth/federation/confirm", h.s.handleFederationConfirmPost)
-	r.Post("/api/prohibitorum/auth/federation/confirm/decline", h.s.handleFederationConfirmDecline)
+	r.Get("/api/prohibitorum/auth/federation/-/confirm", h.s.handleFederationConfirmGet)
+	r.Post("/api/prohibitorum/auth/federation/-/confirm", h.s.handleFederationConfirmPost)
+	r.Post("/api/prohibitorum/auth/federation/-/confirm/decline", h.s.handleFederationConfirmDecline)
 	h.srvTS.Config.Handler = r
 	return h
 }
@@ -691,7 +691,7 @@ func TestInviteProvisionConfirmPostOffersLocalSignin(t *testing.T) {
 	// Confirming the grant (YES) must stamp confirmed_at and answer with
 	// offerLocalSignin=true — the invite+provider account has no local
 	// credentials yet.
-	req, err := http.NewRequest(http.MethodPost, h.srvTS.URL+"/api/prohibitorum/auth/federation/confirm", nil)
+	req, err := http.NewRequest(http.MethodPost, h.srvTS.URL+"/api/prohibitorum/auth/federation/-/confirm", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
