@@ -17,7 +17,6 @@ func TestEnrollmentAllowedMethods(t *testing.T) {
 	}{
 		{enrollment.IntentBootstrap, []string{enrollMethodPasskey}},
 		{enrollment.IntentInvite, []string{enrollMethodPasskey, enrollMethodPasswordTOTP}},
-		{enrollment.IntentFederatedRegister, []string{enrollMethodPasskey, enrollMethodPasswordTOTP}},
 		{enrollment.IntentReset, []string{enrollMethodPasskey, enrollMethodPasswordTOTP}},
 	}
 	for _, tc := range cases {

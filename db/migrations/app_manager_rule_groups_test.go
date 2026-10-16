@@ -231,20 +231,35 @@ func TestAppManagerRuleGroupsMigrationPostgres(t *testing.T) {
 		)`, managerID, disabledProviderID); err != nil {
 		t.Fatal(err)
 	}
-	disabledProviderFacts, err := queries.GetAccountAccessFacts(ctx, managerID)
-	if err != nil {
+	// Sign-in usability at this schema version excludes by provider state
+	// without allow_sign_in (034 semantics); asserted with raw SQL because the
+	// generated GetAccountAccessFacts query follows the newer column.
+	var hasFederation bool
+	if err := conn.QueryRowContext(ctx, `
+		SELECT EXISTS (
+			SELECT 1
+			FROM account_identity ai
+			JOIN upstream_idp ip ON ip.id = ai.upstream_idp_id
+			WHERE ai.account_id = $1
+				AND ai.confirmed_at IS NOT NULL
+				AND NOT ip.disabled
+				AND ip.protocol <> 'vrchat'
+		)`, managerID).Scan(&hasFederation); err != nil {
 		t.Fatal(err)
 	}
-	if disabledProviderFacts.HasFederation {
+	if hasFederation {
 		t.Fatal("disabled provider unexpectedly counts as an active federation login method")
 	}
-	if len(disabledProviderFacts.ConfirmedProviderSlugs) != 1 ||
-		disabledProviderFacts.ConfirmedProviderSlugs[0] != "disabled-corp" {
-		t.Fatalf("confirmed provider slugs = %v, want [disabled-corp]", disabledProviderFacts.ConfirmedProviderSlugs)
+	var confirmedSlugs string
+	if err := conn.QueryRowContext(ctx, `
+		SELECT COALESCE(array_agg(DISTINCT ip.slug ORDER BY ip.slug)::text, '')
+		FROM account_identity ai
+		JOIN upstream_idp ip ON ip.id = ai.upstream_idp_id
+		WHERE ai.account_id = $1 AND ai.confirmed_at IS NOT NULL`, managerID).Scan(&confirmedSlugs); err != nil {
+		t.Fatal(err)
 	}
-	if len(disabledProviderFacts.ConfirmedProtocols) != 1 ||
-		disabledProviderFacts.ConfirmedProtocols[0] != "oidc" {
-		t.Fatalf("confirmed protocols = %v, want [oidc]", disabledProviderFacts.ConfirmedProtocols)
+	if confirmedSlugs != "{disabled-corp}" {
+		t.Fatalf("confirmed provider slugs = %v, want [disabled-corp]", confirmedSlugs)
 	}
 	updatedGroup, err := queries.UpdateAppGroup(ctx, dbgen.UpdateAppGroupParams{
 		Slug:                "passkeys-updated",

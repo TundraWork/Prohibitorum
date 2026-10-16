@@ -330,6 +330,7 @@ func newFederationTestServer(t *testing.T) *fedTestHarness {
 		SecretNonce:    sealed.Nonce,
 		KeyVersion:     pgtype.Int4{Int32: keyVersion, Valid: true},
 		Mode:           fedoidc.ModeAutoProvision,
+		AllowSignIn:    true,
 		Protocol:       federationoidc.Protocol,
 		ProviderConfig: providerConfig,
 		SecretStatus:   "valid",
@@ -478,7 +479,7 @@ func newTestFederationService(t *testing.T, q *fakeFedQueries, store kv.Store, w
 	if err := registry.RegisterAdapter(serverSteamAdapter{}); err != nil {
 		t.Fatal(err)
 	}
-	service := fedoidc.NewService(registry, fedoidc.NewProviderStore(q), store, fedoidc.NewResolver(q, writer, nil), nil, fedoidc.ServiceConfig{StateTTL: ttl, PublicOrigin: origin, Audit: writer})
+	service := fedoidc.NewService(registry, fedoidc.NewProviderStore(q), store, fedoidc.NewResolver(q, writer, nil), fedoidc.ServiceConfig{StateTTL: ttl, PublicOrigin: origin, Audit: writer})
 	service.SetAvatarManager(fedoidc.NewAvatarManager(q))
 	return service
 }
@@ -579,7 +580,7 @@ func (h *fedTestHarness) driveImplicitLogin(t *testing.T, slug string) *url.URL 
 	}
 	h.q.idpBySlug[slug] = db.UpstreamIdp{
 		ID: 99, Slug: slug, DisplayName: "Public OP", Mode: fedoidc.ModeAutoProvision,
-		Protocol: federationoidc.Protocol, ProviderConfig: publicConfig, SecretStatus: "unconfigured",
+		AllowSignIn: true, Protocol: federationoidc.Protocol, ProviderConfig: publicConfig, SecretStatus: "unconfigured",
 	}
 	h.op.SetClaims("pub-sub-1", "pub@example.com", true, "pubuser", "Pub User")
 	authorizeURL, resp := h.driveLogin(t, slug, "/me")
@@ -879,7 +880,7 @@ func seedSteamProvider(t *testing.T, h *fedTestHarness) db.UpstreamIdp {
 	}
 	provider := db.UpstreamIdp{
 		ID: providerID, Slug: "steam", DisplayName: "Steam",
-		Protocol: federationsteam.Protocol, Mode: fedoidc.ModeAutoProvision,
+		Protocol: federationsteam.Protocol, Mode: fedoidc.ModeAutoProvision, AllowSignIn: true,
 		SecretEnc: sealed.Ciphertext, SecretNonce: sealed.Nonce,
 		KeyVersion:     pgtype.Int4{Int32: 1, Valid: true},
 		ProviderConfig: []byte(`{}`), SecretStatus: "valid",

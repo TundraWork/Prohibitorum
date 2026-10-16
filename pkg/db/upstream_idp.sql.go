@@ -21,7 +21,7 @@ func (q *Queries) DeleteUpstreamIDP(ctx context.Context, id int64) error {
 }
 
 const getUpstreamIDPByIDAny = `-- name: GetUpstreamIDPByIDAny :one
-SELECT id, slug, display_name, secret_enc, secret_nonce, key_version, mode, disabled, created_at, protocol, provider_config, secret_status, secret_validated_at FROM upstream_idp WHERE id = $1
+SELECT id, slug, display_name, secret_enc, secret_nonce, key_version, mode, disabled, created_at, protocol, provider_config, secret_status, secret_validated_at, allow_sign_in FROM upstream_idp WHERE id = $1
 `
 
 func (q *Queries) GetUpstreamIDPByIDAny(ctx context.Context, id int64) (UpstreamIdp, error) {
@@ -41,12 +41,13 @@ func (q *Queries) GetUpstreamIDPByIDAny(ctx context.Context, id int64) (Upstream
 		&i.ProviderConfig,
 		&i.SecretStatus,
 		&i.SecretValidatedAt,
+		&i.AllowSignIn,
 	)
 	return i, err
 }
 
 const getUpstreamIDPByIDForUpdate = `-- name: GetUpstreamIDPByIDForUpdate :one
-SELECT id, slug, display_name, secret_enc, secret_nonce, key_version, mode, disabled, created_at, protocol, provider_config, secret_status, secret_validated_at FROM upstream_idp WHERE id = $1 FOR UPDATE
+SELECT id, slug, display_name, secret_enc, secret_nonce, key_version, mode, disabled, created_at, protocol, provider_config, secret_status, secret_validated_at, allow_sign_in FROM upstream_idp WHERE id = $1 FOR UPDATE
 `
 
 func (q *Queries) GetUpstreamIDPByIDForUpdate(ctx context.Context, id int64) (UpstreamIdp, error) {
@@ -66,12 +67,13 @@ func (q *Queries) GetUpstreamIDPByIDForUpdate(ctx context.Context, id int64) (Up
 		&i.ProviderConfig,
 		&i.SecretStatus,
 		&i.SecretValidatedAt,
+		&i.AllowSignIn,
 	)
 	return i, err
 }
 
 const getUpstreamIDPBySlug = `-- name: GetUpstreamIDPBySlug :one
-SELECT id, slug, display_name, secret_enc, secret_nonce, key_version, mode, disabled, created_at, protocol, provider_config, secret_status, secret_validated_at FROM upstream_idp WHERE slug = $1 AND NOT disabled
+SELECT id, slug, display_name, secret_enc, secret_nonce, key_version, mode, disabled, created_at, protocol, provider_config, secret_status, secret_validated_at, allow_sign_in FROM upstream_idp WHERE slug = $1 AND NOT disabled
 `
 
 func (q *Queries) GetUpstreamIDPBySlug(ctx context.Context, slug string) (UpstreamIdp, error) {
@@ -91,12 +93,13 @@ func (q *Queries) GetUpstreamIDPBySlug(ctx context.Context, slug string) (Upstre
 		&i.ProviderConfig,
 		&i.SecretStatus,
 		&i.SecretValidatedAt,
+		&i.AllowSignIn,
 	)
 	return i, err
 }
 
 const getUpstreamIDPBySlugAny = `-- name: GetUpstreamIDPBySlugAny :one
-SELECT id, slug, display_name, secret_enc, secret_nonce, key_version, mode, disabled, created_at, protocol, provider_config, secret_status, secret_validated_at FROM upstream_idp WHERE slug = $1
+SELECT id, slug, display_name, secret_enc, secret_nonce, key_version, mode, disabled, created_at, protocol, provider_config, secret_status, secret_validated_at, allow_sign_in FROM upstream_idp WHERE slug = $1
 `
 
 func (q *Queries) GetUpstreamIDPBySlugAny(ctx context.Context, slug string) (UpstreamIdp, error) {
@@ -116,6 +119,7 @@ func (q *Queries) GetUpstreamIDPBySlugAny(ctx context.Context, slug string) (Ups
 		&i.ProviderConfig,
 		&i.SecretStatus,
 		&i.SecretValidatedAt,
+		&i.AllowSignIn,
 	)
 	return i, err
 }
@@ -124,10 +128,10 @@ const insertUpstreamIDP = `-- name: InsertUpstreamIDP :one
 INSERT INTO upstream_idp (
   slug, display_name, protocol, mode, provider_config,
   secret_enc, secret_nonce, key_version, secret_status,
-  secret_validated_at, disabled
+  secret_validated_at, disabled, allow_sign_in
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-RETURNING id, slug, display_name, secret_enc, secret_nonce, key_version, mode, disabled, created_at, protocol, provider_config, secret_status, secret_validated_at
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+RETURNING id, slug, display_name, secret_enc, secret_nonce, key_version, mode, disabled, created_at, protocol, provider_config, secret_status, secret_validated_at, allow_sign_in
 `
 
 type InsertUpstreamIDPParams struct {
@@ -142,6 +146,7 @@ type InsertUpstreamIDPParams struct {
 	SecretStatus      string             `json:"secretStatus"`
 	SecretValidatedAt pgtype.Timestamptz `json:"secretValidatedAt"`
 	Disabled          bool               `json:"disabled"`
+	AllowSignIn       bool               `json:"allowSignIn"`
 }
 
 func (q *Queries) InsertUpstreamIDP(ctx context.Context, arg InsertUpstreamIDPParams) (UpstreamIdp, error) {
@@ -157,6 +162,7 @@ func (q *Queries) InsertUpstreamIDP(ctx context.Context, arg InsertUpstreamIDPPa
 		arg.SecretStatus,
 		arg.SecretValidatedAt,
 		arg.Disabled,
+		arg.AllowSignIn,
 	)
 	var i UpstreamIdp
 	err := row.Scan(
@@ -173,6 +179,7 @@ func (q *Queries) InsertUpstreamIDP(ctx context.Context, arg InsertUpstreamIDPPa
 		&i.ProviderConfig,
 		&i.SecretStatus,
 		&i.SecretValidatedAt,
+		&i.AllowSignIn,
 	)
 	return i, err
 }
@@ -185,7 +192,7 @@ WHERE id = $1
   AND secret_enc = $3
   AND secret_nonce = $4
   AND key_version = $5
-RETURNING id, slug, display_name, secret_enc, secret_nonce, key_version, mode, disabled, created_at, protocol, provider_config, secret_status, secret_validated_at
+RETURNING id, slug, display_name, secret_enc, secret_nonce, key_version, mode, disabled, created_at, protocol, provider_config, secret_status, secret_validated_at, allow_sign_in
 `
 
 type InvalidateVRChatOperatorSecretParams struct {
@@ -219,12 +226,13 @@ func (q *Queries) InvalidateVRChatOperatorSecret(ctx context.Context, arg Invali
 		&i.ProviderConfig,
 		&i.SecretStatus,
 		&i.SecretValidatedAt,
+		&i.AllowSignIn,
 	)
 	return i, err
 }
 
 const listAllUpstreamIDPs = `-- name: ListAllUpstreamIDPs :many
-SELECT id, slug, display_name, secret_enc, secret_nonce, key_version, mode, disabled, created_at, protocol, provider_config, secret_status, secret_validated_at FROM upstream_idp
+SELECT id, slug, display_name, secret_enc, secret_nonce, key_version, mode, disabled, created_at, protocol, provider_config, secret_status, secret_validated_at, allow_sign_in FROM upstream_idp
 WHERE ($1::timestamptz IS NULL OR (created_at, id) < ($1, $2::int8))
 ORDER BY created_at DESC, id DESC
 LIMIT $3
@@ -259,6 +267,7 @@ func (q *Queries) ListAllUpstreamIDPs(ctx context.Context, arg ListAllUpstreamID
 			&i.ProviderConfig,
 			&i.SecretStatus,
 			&i.SecretValidatedAt,
+			&i.AllowSignIn,
 		); err != nil {
 			return nil, err
 		}
@@ -324,7 +333,7 @@ func (q *Queries) ListKnownUpstreamIDPSlugs(ctx context.Context) ([]string, erro
 }
 
 const listUpstreamIDPs = `-- name: ListUpstreamIDPs :many
-SELECT id, slug, display_name, secret_enc, secret_nonce, key_version, mode, disabled, created_at, protocol, provider_config, secret_status, secret_validated_at FROM upstream_idp WHERE NOT disabled ORDER BY display_name
+SELECT id, slug, display_name, secret_enc, secret_nonce, key_version, mode, disabled, created_at, protocol, provider_config, secret_status, secret_validated_at, allow_sign_in FROM upstream_idp WHERE NOT disabled ORDER BY display_name
 `
 
 func (q *Queries) ListUpstreamIDPs(ctx context.Context) ([]UpstreamIdp, error) {
@@ -350,6 +359,7 @@ func (q *Queries) ListUpstreamIDPs(ctx context.Context) ([]UpstreamIdp, error) {
 			&i.ProviderConfig,
 			&i.SecretStatus,
 			&i.SecretValidatedAt,
+			&i.AllowSignIn,
 		); err != nil {
 			return nil, err
 		}
@@ -374,7 +384,7 @@ WHERE id = $5
   AND secret_enc = $7
   AND secret_nonce = $8
   AND key_version = $9
-RETURNING id, slug, display_name, secret_enc, secret_nonce, key_version, mode, disabled, created_at, protocol, provider_config, secret_status, secret_validated_at
+RETURNING id, slug, display_name, secret_enc, secret_nonce, key_version, mode, disabled, created_at, protocol, provider_config, secret_status, secret_validated_at, allow_sign_in
 `
 
 type RefreshVRChatOperatorSecretParams struct {
@@ -416,12 +426,13 @@ func (q *Queries) RefreshVRChatOperatorSecret(ctx context.Context, arg RefreshVR
 		&i.ProviderConfig,
 		&i.SecretStatus,
 		&i.SecretValidatedAt,
+		&i.AllowSignIn,
 	)
 	return i, err
 }
 
 const setUpstreamIDPDisabled = `-- name: SetUpstreamIDPDisabled :one
-UPDATE upstream_idp SET disabled = $2 WHERE slug = $1 RETURNING id, slug, display_name, secret_enc, secret_nonce, key_version, mode, disabled, created_at, protocol, provider_config, secret_status, secret_validated_at
+UPDATE upstream_idp SET disabled = $2 WHERE slug = $1 RETURNING id, slug, display_name, secret_enc, secret_nonce, key_version, mode, disabled, created_at, protocol, provider_config, secret_status, secret_validated_at, allow_sign_in
 `
 
 type SetUpstreamIDPDisabledParams struct {
@@ -446,15 +457,16 @@ func (q *Queries) SetUpstreamIDPDisabled(ctx context.Context, arg SetUpstreamIDP
 		&i.ProviderConfig,
 		&i.SecretStatus,
 		&i.SecretValidatedAt,
+		&i.AllowSignIn,
 	)
 	return i, err
 }
 
 const updateUpstreamIDPConfig = `-- name: UpdateUpstreamIDPConfig :one
 UPDATE upstream_idp SET
-  display_name = $2, mode = $3, provider_config = $4
+  display_name = $2, mode = $3, provider_config = $4, allow_sign_in = $5
 WHERE slug = $1
-RETURNING id, slug, display_name, secret_enc, secret_nonce, key_version, mode, disabled, created_at, protocol, provider_config, secret_status, secret_validated_at
+RETURNING id, slug, display_name, secret_enc, secret_nonce, key_version, mode, disabled, created_at, protocol, provider_config, secret_status, secret_validated_at, allow_sign_in
 `
 
 type UpdateUpstreamIDPConfigParams struct {
@@ -462,6 +474,7 @@ type UpdateUpstreamIDPConfigParams struct {
 	DisplayName    string `json:"displayName"`
 	Mode           string `json:"mode"`
 	ProviderConfig []byte `json:"providerConfig"`
+	AllowSignIn    bool   `json:"allowSignIn"`
 }
 
 func (q *Queries) UpdateUpstreamIDPConfig(ctx context.Context, arg UpdateUpstreamIDPConfigParams) (UpstreamIdp, error) {
@@ -470,6 +483,7 @@ func (q *Queries) UpdateUpstreamIDPConfig(ctx context.Context, arg UpdateUpstrea
 		arg.DisplayName,
 		arg.Mode,
 		arg.ProviderConfig,
+		arg.AllowSignIn,
 	)
 	var i UpstreamIdp
 	err := row.Scan(
@@ -486,6 +500,7 @@ func (q *Queries) UpdateUpstreamIDPConfig(ctx context.Context, arg UpdateUpstrea
 		&i.ProviderConfig,
 		&i.SecretStatus,
 		&i.SecretValidatedAt,
+		&i.AllowSignIn,
 	)
 	return i, err
 }
@@ -493,7 +508,7 @@ func (q *Queries) UpdateUpstreamIDPConfig(ctx context.Context, arg UpdateUpstrea
 const updateUpstreamIDPHealth = `-- name: UpdateUpstreamIDPHealth :one
 UPDATE upstream_idp SET secret_status = $2, secret_validated_at = $3
 WHERE slug = $1
-RETURNING id, slug, display_name, secret_enc, secret_nonce, key_version, mode, disabled, created_at, protocol, provider_config, secret_status, secret_validated_at
+RETURNING id, slug, display_name, secret_enc, secret_nonce, key_version, mode, disabled, created_at, protocol, provider_config, secret_status, secret_validated_at, allow_sign_in
 `
 
 type UpdateUpstreamIDPHealthParams struct {
@@ -519,6 +534,7 @@ func (q *Queries) UpdateUpstreamIDPHealth(ctx context.Context, arg UpdateUpstrea
 		&i.ProviderConfig,
 		&i.SecretStatus,
 		&i.SecretValidatedAt,
+		&i.AllowSignIn,
 	)
 	return i, err
 }
@@ -528,7 +544,7 @@ UPDATE upstream_idp SET
   secret_enc = $2, secret_nonce = $3, key_version = $4,
   secret_status = $5, secret_validated_at = $6
 WHERE slug = $1
-RETURNING id, slug, display_name, secret_enc, secret_nonce, key_version, mode, disabled, created_at, protocol, provider_config, secret_status, secret_validated_at
+RETURNING id, slug, display_name, secret_enc, secret_nonce, key_version, mode, disabled, created_at, protocol, provider_config, secret_status, secret_validated_at, allow_sign_in
 `
 
 type UpdateUpstreamIDPSecretParams struct {
@@ -564,6 +580,7 @@ func (q *Queries) UpdateUpstreamIDPSecret(ctx context.Context, arg UpdateUpstrea
 		&i.ProviderConfig,
 		&i.SecretStatus,
 		&i.SecretValidatedAt,
+		&i.AllowSignIn,
 	)
 	return i, err
 }
@@ -578,7 +595,7 @@ UPDATE upstream_idp SET
 WHERE id = $5
   AND slug = $6
   AND protocol = 'vrchat'
-RETURNING id, slug, display_name, secret_enc, secret_nonce, key_version, mode, disabled, created_at, protocol, provider_config, secret_status, secret_validated_at
+RETURNING id, slug, display_name, secret_enc, secret_nonce, key_version, mode, disabled, created_at, protocol, provider_config, secret_status, secret_validated_at, allow_sign_in
 `
 
 type UpdateVRChatOperatorSecretParams struct {
@@ -614,6 +631,7 @@ func (q *Queries) UpdateVRChatOperatorSecret(ctx context.Context, arg UpdateVRCh
 		&i.ProviderConfig,
 		&i.SecretStatus,
 		&i.SecretValidatedAt,
+		&i.AllowSignIn,
 	)
 	return i, err
 }

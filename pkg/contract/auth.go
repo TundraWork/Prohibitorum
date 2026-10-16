@@ -148,16 +148,24 @@ type EnrollmentTarget struct {
 // EnrollmentPreview is the response of GET /enrollments/{token} — what the
 // enroll page needs to render the right form before triggering the ceremony.
 type EnrollmentPreview struct {
-	Intent               string            `json:"intent"`
-	Username             string            `json:"username,omitempty"`
-	Target               *EnrollmentTarget `json:"target,omitempty"`
-	ExpiresAt            time.Time         `json:"expiresAt"`
-	SuggestedDisplayName string            `json:"suggestedDisplayName,omitempty"`
+	Intent    string            `json:"intent"`
+	Username  string            `json:"username,omitempty"`
+	Target    *EnrollmentTarget `json:"target,omitempty"`
+	ExpiresAt time.Time         `json:"expiresAt"`
 	// AllowedMethods lists the credential methods this enrollment permits the
 	// user to set up: "passkey" and/or "password_totp". Bootstrap (first admin)
 	// is passkey-only; every other intent offers both. The enroll page renders
 	// its method chooser from this list.
 	AllowedMethods []string `json:"allowedMethods"`
+
+	// RequireLocalCredential marks an invite that must be completed with a
+	// local sign-in method before the account is created
+	// (invite.require_local_credential, or the provider having sign-in off).
+	RequireLocalCredential bool `json:"requireLocalCredential,omitempty"`
+	// VerifiedIdentity is the provider identity snapshot already attached to
+	// this invite. Present only when the snapshot's provider is still enabled
+	// and not link_only; omitted otherwise.
+	VerifiedIdentity *EnrollmentVerifiedIdentity `json:"verifiedIdentity,omitempty"`
 
 	// Invite-only additions (invite intent only):
 	// ExpectedUpstreamIdpSlug is the provider this invite is bound to,
@@ -167,6 +175,15 @@ type EnrollmentPreview struct {
 	// link_only or disabled (the invite then cannot be redeemed at all).
 	ExpectedUpstreamIdpSlug string               `json:"expectedUpstreamIdpSlug,omitempty"`
 	Providers               []FederationProvider `json:"providers,omitempty"`
+}
+
+// EnrollmentVerifiedIdentity is the invite's stored identity snapshot for the
+// enroll page's "already verified" state.
+type EnrollmentVerifiedIdentity struct {
+	ProviderSlug        string  `json:"providerSlug"`
+	ProviderDisplayName string  `json:"providerDisplayName"`
+	DisplayName         string  `json:"displayName"`
+	AvatarURL           *string `json:"avatarUrl,omitempty"`
 }
 
 // AuthStatus is GET /auth/status — used by the dashboard LoginView to branch
@@ -260,6 +277,10 @@ type InvitationResponse struct {
 	ExpiresAt time.Time `json:"expiresAt"`
 	Username  *string   `json:"username,omitempty"`
 	GroupIDs  []int32   `json:"groupIds"`
+	// RequireLocalCredential reports the effective local-credential
+	// requirement stored on the invitation (request value, or forced true
+	// when the bound provider has sign-in off).
+	RequireLocalCredential bool `json:"requireLocalCredential"`
 }
 
 // Operations --------------------------------------------------------------------
@@ -612,6 +633,9 @@ type FederationProvider struct {
 	DisplayName string  `json:"displayName"`
 	Protocol    string  `json:"protocol"`
 	IconURL     *string `json:"iconUrl,omitempty"`
+	// AllowSignIn is false when this provider cannot back a login button. The
+	// login page filters on it; "linked identities" still lists the provider.
+	AllowSignIn bool `json:"allowSignIn"`
 }
 
 // FederationConfirmView is the /welcome confirmation-step projection returned by
@@ -764,11 +788,14 @@ type IdentitySearchFieldView struct {
 // IdentityProviderView is the secret-free admin projection of an upstream
 // identity provider and its registered definition.
 type IdentityProviderView struct {
-	Slug              string                    `json:"slug"`
-	DisplayName       string                    `json:"displayName"`
-	Protocol          string                    `json:"protocol"`
-	IconURL           *string                   `json:"iconUrl,omitempty"`
-	Mode              string                    `json:"mode"`
+	Slug        string  `json:"slug"`
+	DisplayName string  `json:"displayName"`
+	Protocol    string  `json:"protocol"`
+	IconURL     *string `json:"iconUrl,omitempty"`
+	Mode        string  `json:"mode"`
+	// AllowSignIn is false when the provider only verifies identities
+	// (invites, account linking) and never backs a sign-in button.
+	AllowSignIn       bool                      `json:"allowSignIn"`
 	Config            json.RawMessage           `json:"config"`
 	Disabled          bool                      `json:"disabled"`
 	SecretConfigured  bool                      `json:"secretConfigured"`

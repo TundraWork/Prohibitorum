@@ -347,7 +347,6 @@ func NewServer(ctx context.Context) (*Server, error) {
 		federation.NewProviderStore(queries),
 		kvStore,
 		federation.NewResolver(queries, auditWriter, conn),
-		federation.NewVRChatEnrollmentIssuer(queries, auditWriter),
 		federation.ServiceConfig{StateTTL: config.Federation.StateTTL, PublicOrigin: publicOrigin, Audit: auditWriter},
 	)
 	avatarManager := federation.NewAvatarManager(queries)

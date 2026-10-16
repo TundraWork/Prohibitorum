@@ -47,6 +47,28 @@ func (q *previewQueries) ListUpstreamIDPs(_ context.Context) ([]db.UpstreamIdp, 
 	return q.idps, nil
 }
 
+func (q *previewQueries) GetUpstreamIDPBySlug(_ context.Context, slug string) (db.UpstreamIdp, error) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	for _, idp := range q.idps {
+		if idp.Slug == slug {
+			return idp, nil
+		}
+	}
+	return db.UpstreamIdp{}, pgx.ErrNoRows
+}
+
+func (q *previewQueries) GetUpstreamIDPByIDForUpdate(_ context.Context, id int64) (db.UpstreamIdp, error) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	for _, idp := range q.idps {
+		if idp.ID == id {
+			return idp, nil
+		}
+	}
+	return db.UpstreamIdp{}, pgx.ErrNoRows
+}
+
 func (q *previewQueries) ListEntityIconEtags(_ context.Context, _ string) ([]db.ListEntityIconEtagsRow, error) {
 	return nil, nil
 }

@@ -75,6 +75,7 @@ func init() {
 		{Code: "username_collision", Status: http.StatusForbidden, LocaleKey: "errors.username_collision", DiagnosticKind: "federation"},
 		{Code: "invite_required", Status: http.StatusForbidden, LocaleKey: "errors.invite_required", DiagnosticKind: "federation", DetailKeys: map[string]struct{}{"federationName": {}}},
 		{Code: "link_required", Status: http.StatusForbidden, LocaleKey: "errors.link_required", DiagnosticKind: "federation", DetailKeys: map[string]struct{}{"federationName": {}}},
+		{Code: "federation_sign_in_disabled", Status: http.StatusForbidden, LocaleKey: "errors.federation_sign_in_disabled", DiagnosticKind: "federation", DetailKeys: map[string]struct{}{"federationName": {}}},
 		{Code: "federation_state_invalid", Status: http.StatusUnauthorized, LocaleKey: "errors.federation_state_invalid", DiagnosticKind: "federation", Recovery: "retry"},
 		{Code: "last_sign_in_method", Status: http.StatusBadRequest, LocaleKey: "errors.last_sign_in_method", DiagnosticKind: "policy"},
 		{Code: "invalid_return_to", Status: http.StatusBadRequest, LocaleKey: "errors.invalid_return_to", DiagnosticKind: "validation"},
@@ -94,6 +95,7 @@ func init() {
 		{Code: "federation_action_invalid", Status: http.StatusConflict, LocaleKey: "errors.federation_action_invalid", DiagnosticKind: "federation", Retryable: true, Recovery: "retry"},
 		{Code: "federation_identity_conflict", Status: http.StatusConflict, LocaleKey: "errors.federation_identity_conflict", DiagnosticKind: "federation", DetailKeys: map[string]struct{}{"federationName": {}}},
 		{Code: "federation_invite_provider_mismatch", Status: http.StatusConflict, LocaleKey: "errors.federation_invite_provider_mismatch", DiagnosticKind: "federation", DetailKeys: map[string]struct{}{"federationName": {}}},
+		{Code: "upstream_idp_link_only", Status: http.StatusBadRequest, LocaleKey: "errors.upstream_idp_link_only", DiagnosticKind: "federation", DetailKeys: map[string]struct{}{"expectedUpstreamIdpSlug": {}}},
 		{Code: "oidc_client_already_exists", Status: http.StatusConflict, LocaleKey: "errors.oidc_client_already_exists", DiagnosticKind: "validation"},
 		{Code: "upstream_idp_already_exists", Status: http.StatusConflict, LocaleKey: "errors.upstream_idp_already_exists", DiagnosticKind: "validation"},
 		{Code: "saml_application_already_exists", Status: http.StatusConflict, LocaleKey: "errors.saml_application_already_exists", DiagnosticKind: "validation"},
@@ -534,6 +536,19 @@ func ErrInviteRequired() *AuthError {
 // the "我的身份" page.
 func ErrLinkRequired() *AuthError {
 	return newErr(http.StatusForbidden, "link_required", "此身份源仅限已绑定账户使用，请先以其他方式登录后在「我的身份」中绑定")
+}
+
+// ErrFederationSignInDisabled is returned when a sign-in flow starts on or
+// verifies against a provider whose allow_sign_in is off. The identity can
+// still be used to accept an invitation or to link from a signed-in account.
+func ErrFederationSignInDisabled() *AuthError {
+	return newErr(http.StatusForbidden, "federation_sign_in_disabled", "此身份源不能用于登录，请用其他方式登录后在账号中绑定它")
+}
+
+// ErrUpstreamIDPLinkOnly is returned when an invitation is bound to a
+// link_only provider, which can never create an account.
+func ErrUpstreamIDPLinkOnly() *AuthError {
+	return newErr(http.StatusBadRequest, "upstream_idp_link_only", "此身份源仅限账号绑定，不能用来接受邀请")
 }
 
 // ErrFederationStateInvalid is returned by federation/oidc callback handlers

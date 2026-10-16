@@ -274,7 +274,7 @@ SELECT
     WHERE ai.account_id = a.id
       AND ai.confirmed_at IS NOT NULL
       AND NOT ip.disabled
-      AND ip.protocol <> 'vrchat'
+      AND ip.allow_sign_in
   ) AS has_federation,
   ARRAY(
     SELECT DISTINCT ip.slug
@@ -486,7 +486,7 @@ SELECT
     WHERE ai.account_id = a.id
       AND ai.confirmed_at IS NOT NULL
       AND NOT ip.disabled
-      AND ip.protocol <> 'vrchat'
+      AND ip.allow_sign_in
   ) AS has_federation,
   ARRAY(
     SELECT DISTINCT ip.slug
@@ -589,7 +589,7 @@ SELECT
     WHERE ai.account_id = a.id
       AND ai.confirmed_at IS NOT NULL
       AND NOT ip.disabled
-      AND ip.protocol <> 'vrchat'
+      AND ip.allow_sign_in
   ) AS has_federation,
   ARRAY(
     SELECT DISTINCT ip.slug

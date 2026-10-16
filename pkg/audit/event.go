@@ -53,6 +53,9 @@ const (
 	EventCloneWarning       = "clone_warning"
 	EventLink               = "link"
 	EventUnlink             = "unlink"
+	// EventIdentityVerified is emitted when a provider identity snapshot is
+	// attached to an invitation (verify-then-create), before any account exists.
+	EventIdentityVerified = "identity_verified"
 	EventEnrollmentIssued   = "enrollment_issued"
 	EventEnrollmentConsumed = "enrollment_consumed"
 	EventSessionStart       = "session_start"

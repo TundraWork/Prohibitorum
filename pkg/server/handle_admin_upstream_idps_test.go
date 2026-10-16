@@ -115,6 +115,7 @@ func readyOIDCRow(status string) db.UpstreamIdp {
 		DisplayName:    "Corporate",
 		Protocol:       federationoidc.Protocol,
 		Mode:           federation.ModeAutoProvision,
+		AllowSignIn:    true,
 		ProviderConfig: []byte(exactOIDCConfig),
 		SecretEnc:      []byte("ciphertext-must-not-leak"),
 		SecretNonce:    []byte("nonce-must-not-leak"),
@@ -138,6 +139,9 @@ func TestIdentityProviderViewUsesGenericConfigHealthAndDescriptor(t *testing.T) 
 	}
 	if string(view.Config) != exactOIDCConfig {
 		t.Fatalf("Config = %s, want raw validated config", view.Config)
+	}
+	if !view.AllowSignIn {
+		t.Fatal("AllowSignIn = false for a sign-in-capable provider row")
 	}
 	if !view.SecretConfigured || view.SecretStatus != "valid" || view.SecretValidatedAt == nil || !view.SecretValidatedAt.Equal(validatedAt) {
 		t.Fatalf("secret health = configured:%v status:%q validated:%v", view.SecretConfigured, view.SecretStatus, view.SecretValidatedAt)
@@ -227,16 +231,19 @@ func TestValidateProviderWrite(t *testing.T) {
 	}
 }
 
-func TestAdminUpstreamProviderVRChatModePolicy(t *testing.T) {
+func TestAdminUpstreamProviderSignInModePolicy(t *testing.T) {
 	t.Parallel()
 	s := newProviderAdminTestServer(t)
 	vrchatRow := db.UpstreamIdp{
 		Slug: "vrchat", DisplayName: "VRChat", Protocol: federationvrchat.Protocol,
-		Mode: federation.ModeLinkOnly, ProviderConfig: []byte(`{}`),
+		Mode: federation.ModeInviteOnly, AllowSignIn: false, ProviderConfig: []byte(`{}`),
 	}
-	newBody := func(protocol, mode string) providerWriteBody {
+	signInOff := false
+	signInOn := true
+	newBody := func(protocol, mode string, allowSignIn *bool) providerWriteBody {
 		body := providerWriteBody{
-			Slug: protocol, DisplayName: protocol, Protocol: protocol, Mode: mode, Config: json.RawMessage(`{}`),
+			Slug: protocol, DisplayName: protocol, Protocol: protocol, Mode: mode,
+			AllowSignIn: allowSignIn, Config: json.RawMessage(`{}`),
 		}
 		if protocol != federationvrchat.Protocol {
 			body.Secret = "provider-secret"
@@ -255,18 +262,18 @@ func TestAdminUpstreamProviderVRChatModePolicy(t *testing.T) {
 		creating bool
 		wantErr  bool
 	}{
-		{name: "create VRChat link only", body: newBody(federationvrchat.Protocol, federation.ModeLinkOnly), creating: true},
-		{name: "create VRChat auto provision", body: newBody(federationvrchat.Protocol, federation.ModeAutoProvision), creating: true, wantErr: true},
-		{name: "create VRChat invite only", body: newBody(federationvrchat.Protocol, federation.ModeInviteOnly), creating: true, wantErr: true},
-		{name: "create OIDC auto provision", body: newBody(federationoidc.Protocol, federation.ModeAutoProvision), creating: true},
-		{name: "create OIDC invite only", body: newBody(federationoidc.Protocol, federation.ModeInviteOnly), creating: true},
-		{name: "create OIDC link only", body: newBody(federationoidc.Protocol, federation.ModeLinkOnly), creating: true},
-		{name: "create Steam auto provision", body: newBody(federationsteam.Protocol, federation.ModeAutoProvision), creating: true},
-		{name: "create Steam invite only", body: newBody(federationsteam.Protocol, federation.ModeInviteOnly), creating: true},
-		{name: "create Steam link only", body: newBody(federationsteam.Protocol, federation.ModeLinkOnly), creating: true},
-		{name: "update migrated VRChat link only", body: providerWriteBody{DisplayName: "VRChat", Mode: federation.ModeLinkOnly, Config: json.RawMessage(`{}`)}, existing: &vrchatRow},
-		{name: "update migrated VRChat to auto provision", body: providerWriteBody{DisplayName: "VRChat", Mode: federation.ModeAutoProvision, Config: json.RawMessage(`{}`)}, existing: &vrchatRow, wantErr: true},
-		{name: "update migrated VRChat to invite only", body: providerWriteBody{DisplayName: "VRChat", Mode: federation.ModeInviteOnly, Config: json.RawMessage(`{}`)}, existing: &vrchatRow, wantErr: true},
+		{name: "create VRChat invite only with sign-in off", body: newBody(federationvrchat.Protocol, federation.ModeInviteOnly, &signInOff), creating: true},
+		{name: "create VRChat sign-in on with auto provision", body: newBody(federationvrchat.Protocol, federation.ModeAutoProvision, &signInOn), creating: true},
+		{name: "create VRChat sign-in off with auto provision", body: newBody(federationvrchat.Protocol, federation.ModeAutoProvision, &signInOff), creating: true, wantErr: true},
+		{name: "create OIDC auto provision", body: newBody(federationoidc.Protocol, federation.ModeAutoProvision, nil), creating: true},
+		{name: "create OIDC sign-in off with invite only", body: newBody(federationoidc.Protocol, federation.ModeInviteOnly, &signInOff), creating: true},
+		{name: "create OIDC sign-in off with auto provision", body: newBody(federationoidc.Protocol, federation.ModeAutoProvision, &signInOff), creating: true, wantErr: true},
+		{name: "create Steam link only", body: newBody(federationsteam.Protocol, federation.ModeLinkOnly, nil), creating: true},
+		{name: "update VRChat keeps stored sign-in off", body: providerWriteBody{DisplayName: "VRChat", Mode: federation.ModeInviteOnly, Config: json.RawMessage(`{}`)}, existing: &vrchatRow},
+		{name: "update VRChat mode only while sign-in off", body: providerWriteBody{DisplayName: "VRChat", Mode: federation.ModeLinkOnly, Config: json.RawMessage(`{}`)}, existing: &vrchatRow},
+		{name: "update VRChat to auto provision while sign-in off", body: providerWriteBody{DisplayName: "VRChat", Mode: federation.ModeAutoProvision, Config: json.RawMessage(`{}`)}, existing: &vrchatRow, wantErr: true},
+		{name: "update VRChat turns sign-in on with auto provision", body: providerWriteBody{DisplayName: "VRChat", Mode: federation.ModeAutoProvision, AllowSignIn: &signInOn, Config: json.RawMessage(`{}`)}, existing: &vrchatRow},
+		{name: "update VRChat sign-in off with auto provision", body: providerWriteBody{DisplayName: "VRChat", Mode: federation.ModeAutoProvision, AllowSignIn: &signInOff, Config: json.RawMessage(`{}`)}, existing: &vrchatRow, wantErr: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

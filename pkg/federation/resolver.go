@@ -37,6 +37,9 @@ type ModesQueries interface {
 	UpdateAccountEmail(ctx context.Context, arg db.UpdateAccountEmailParams) error
 	UpdateAccountIdentityVerifiedData(ctx context.Context, arg db.UpdateAccountIdentityVerifiedDataParams) error
 	ConsumeInviteEnrollment(ctx context.Context, token string) (db.Enrollment, error)
+	LockInviteEnrollmentForUpdate(ctx context.Context, token string) (db.Enrollment, error)
+	AttachInviteIdentity(ctx context.Context, arg db.AttachInviteIdentityParams) (db.Enrollment, error)
+	GetEnrollmentByToken(ctx context.Context, token string) (db.Enrollment, error)
 	ApplyInvitationGroups(ctx context.Context, arg db.ApplyInvitationGroupsParams) ([]int32, error)
 }
 
@@ -52,6 +55,10 @@ type ResolveOutcome struct {
 	// the freshly minted account has no local credentials, so after the
 	// /welcome confirmation the SPA offers the one-time setup step.
 	OfferLocalSignin bool
+	// Enrollment carries the invitation grant for the verify-then-create
+	// path: the snapshot landed on the invite, no account exists yet, and the
+	// browser is sent to /enroll/{token} to finish creating the account.
+	Enrollment *EnrollmentGrant
 }
 
 // Mode constants — must match upstream_idp.mode enum in the schema.
@@ -684,6 +691,98 @@ func applyInviteProvision(
 	})
 }
 
+// attachInviteIdentity implements the verify-then-create invite path: the
+// verified identity is written onto the invitation's federated_* columns, the
+// invite is NOT consumed, and no account is created. The browser is sent to
+// /enroll/{token} where the invitee finishes by setting a local credential;
+// completion creates account + credential + confirmed identity atomically.
+// A second verification overwrites the snapshot in place.
+func attachInviteIdentity(
+	ctx context.Context,
+	q ModesQueries,
+	w audit.Writer,
+	idp *resolverProvider,
+	identity *VerifiedIdentity,
+	enrollmentToken string,
+	upstreamData []byte,
+	pool *pgxpool.Pool,
+) (ResolveOutcome, error) {
+	return runProvisionTx(ctx, pool, q, w, func(qtx ModesQueries, txAudit audit.Writer) (ResolveOutcome, error) {
+		// Authoritative identity lookup inside the tx, same as
+		// applyInviteProvision: an (iss, sub) already bound to some account
+		// refuses here rather than silently walking the invite into it later.
+		if _, err := qtx.GetAccountIdentityByIssuerSub(ctx, db.GetAccountIdentityByIssuerSubParams{
+			UpstreamIss: identity.Issuer,
+			UpstreamSub: identity.Subject,
+		}); err == nil {
+			emitFail(ctx, w, idp, identity, "identity_conflict", nil)
+			return ResolveOutcome{}, authn.ErrFederationIdentityConflict(idp.DisplayName)
+		} else if !errors.Is(err, pgx.ErrNoRows) {
+			return ResolveOutcome{}, fmt.Errorf("federation: authoritative identity lookup: %w", err)
+		}
+
+		// Lock the unconsumed, unexpired invite; any "gone" branch collapses
+		// onto the same invite_required the consume path reports.
+		enr, err := qtx.LockInviteEnrollmentForUpdate(ctx, enrollmentToken)
+		if errors.Is(err, pgx.ErrNoRows) {
+			emitFail(ctx, w, idp, identity, "invite_consumed_or_expired", nil)
+			return ResolveOutcome{}, authn.ErrInviteRequired()
+		}
+		if err != nil {
+			return ResolveOutcome{}, fmt.Errorf("federation: lock invite enrollment: %w", err)
+		}
+
+		// Same binding re-check as applyInviteProvision: catches admin slug
+		// edits mid-flight and malformed flow state.
+		if bound := boundInviteSlug(enr); bound != "" && bound != idp.Slug {
+			emitFail(ctx, w, idp, identity, "invite_slug_mismatch", map[string]any{
+				"enrollment_expected_slug": bound,
+			})
+			return ResolveOutcome{}, authn.ErrFederationInviteProviderMismatch(idp.DisplayName)
+		}
+
+		avatarURL := pgtype.Text{}
+		if identity.AvatarURL != "" {
+			avatarURL = pgtype.Text{String: identity.AvatarURL, Valid: true}
+		}
+		if _, err := qtx.AttachInviteIdentity(ctx, db.AttachInviteIdentityParams{
+			Token:                    enrollmentToken,
+			FederatedUpstreamIdpID:   pgtype.Int8{Int64: idp.ID, Valid: true},
+			FederatedUpstreamIdpSlug: pgtype.Text{String: idp.Slug, Valid: true},
+			FederatedUpstreamIss:     pgtype.Text{String: identity.Issuer, Valid: true},
+			FederatedUpstreamSub:     pgtype.Text{String: identity.Subject, Valid: true},
+			FederatedDisplayName:     pgtype.Text{String: identity.DisplayName, Valid: true},
+			FederatedUpstreamData:    upstreamData,
+			FederatedAvatarUrl:       avatarURL,
+		}); err != nil {
+			return ResolveOutcome{}, fmt.Errorf("federation: attach invite identity: %w", err)
+		}
+
+		reason := "provider"
+		if enr.RequireLocalCredential {
+			reason = "invite"
+		}
+		audit.RecordOrLog(ctx, txAudit, audit.Record{
+			Factor: audit.FactorEnrollment,
+			Event:  audit.EventIdentityVerified,
+			Detail: map[string]any{
+				"idp_slug":             idp.Slug,
+				"upstream_iss":         identity.Issuer,
+				"upstream_sub":         identity.Subject,
+				"require_local_reason": reason,
+				"enrollment_token":     enrollmentToken,
+			},
+		})
+
+		grant := &EnrollmentGrant{
+			Token:     enrollmentToken,
+			Intent:    "invite",
+			ExpiresAt: enr.ExpiresAt.Time,
+		}
+		return ResolveOutcome{Enrollment: grant}, nil
+	})
+}
+
 // runProvisionTx is the transactional wrapper shared by applyInviteProvision
 // and applyAutoProvision (originally runInviteTx — both apply paths now
 // reuse the same wrapper because the shape is identical: collision
@@ -859,6 +958,15 @@ func (r *Resolver) ResolveIdentity(ctx context.Context, provider Provider, ident
 		}
 		return r.resolveLink(ctx, &row, &identity, *resolution.LinkAccountID, upstreamData)
 	case IntentInvite:
+		requireLocal := !provider.AllowSignIn
+		// The invitation itself can demand a local credential even when the
+		// provider allows sign-in; both triggers take the same path.
+		if enr, err := r.queries.GetEnrollmentByToken(ctx, resolution.EnrollmentToken); err == nil && enr.RequireLocalCredential {
+			requireLocal = true
+		}
+		if requireLocal {
+			return attachInviteIdentity(ctx, r.queries, r.audit, &row, &identity, resolution.EnrollmentToken, upstreamData, r.pool)
+		}
 		return applyInviteProvision(ctx, r.queries, r.audit, &row, &identity, resolution.EnrollmentToken, upstreamData, r.pool)
 	case IntentLogin:
 		username := resolution.LocalUsername

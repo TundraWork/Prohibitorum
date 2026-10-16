@@ -76,7 +76,9 @@ type adapterState struct {
 }
 
 func (*Adapter) Begin(_ context.Context, _ federationcore.Provider, begin federationcore.BeginContext) (json.RawMessage, federationcore.NextAction, error) {
-	if begin.Intent != federationcore.IntentEnroll && begin.Intent != federationcore.IntentLink {
+	switch begin.Intent {
+	case federationcore.IntentLogin, federationcore.IntentInvite, federationcore.IntentLink:
+	default:
 		return nil, federationcore.NextAction{}, federationcore.NewFailure(federationcore.FailureStateInvalid, nil)
 	}
 	state, err := json.Marshal(adapterState{Step: stepIdentify})

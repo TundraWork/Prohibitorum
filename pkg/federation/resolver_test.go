@@ -73,6 +73,14 @@ type fakeModesQueries struct {
 	applyGroupCalls         []db.ApplyInvitationGroupsParams
 	applyGroupResult        []int32
 	applyGroupErr           error
+
+	// Verify-then-create invite path (attachInviteIdentity) fakes.
+	enrollmentByToken    db.Enrollment
+	enrollmentByTokenErr error
+	lockInviteErr        error
+	lockedTokens         []string
+	attachCalls          []db.AttachInviteIdentityParams
+	attachErr            error
 }
 
 func newFakeModesQueries() *fakeModesQueries {
@@ -211,6 +219,38 @@ func (f *fakeModesQueries) ConsumeEnrollment(_ context.Context, token string) (d
 // invite_only federation arc, not by this canned fake (audit OIDCFED-2).
 func (f *fakeModesQueries) ConsumeInviteEnrollment(ctx context.Context, token string) (db.Enrollment, error) {
 	return f.ConsumeEnrollment(ctx, token)
+}
+
+func (f *fakeModesQueries) GetEnrollmentByToken(_ context.Context, token string) (db.Enrollment, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.enrollmentByTokenErr != nil {
+		return db.Enrollment{}, f.enrollmentByTokenErr
+	}
+	if f.enrollmentByToken.Token != "" {
+		return f.enrollmentByToken, nil
+	}
+	return db.Enrollment{Token: token, Intent: "invite"}, pgx.ErrNoRows
+}
+
+func (f *fakeModesQueries) LockInviteEnrollmentForUpdate(_ context.Context, token string) (db.Enrollment, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.lockedTokens = append(f.lockedTokens, token)
+	if f.lockInviteErr != nil {
+		return db.Enrollment{}, f.lockInviteErr
+	}
+	return f.enrollmentByToken, nil
+}
+
+func (f *fakeModesQueries) AttachInviteIdentity(_ context.Context, arg db.AttachInviteIdentityParams) (db.Enrollment, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.attachCalls = append(f.attachCalls, arg)
+	if f.attachErr != nil {
+		return db.Enrollment{}, f.attachErr
+	}
+	return f.enrollmentByToken, nil
 }
 
 func (f *fakeModesQueries) ApplyInvitationGroups(_ context.Context, arg db.ApplyInvitationGroupsParams) ([]int32, error) {
@@ -1527,14 +1567,14 @@ func TestResolverLinkAllowsIdentityWithoutVerifiedEmailCapability(t *testing.T) 
 		t.Fatalf("link outcome=%+v identity=%+v", outcome, q.insertedIdentity)
 	}
 }
-
 func genericProvider(mode string) federationoidc.Provider {
 	return federationoidc.Provider{
-		ID:       42,
-		Slug:     "test-idp",
-		Protocol: "oidc",
-		Mode:     mode,
-		Config:   []byte(`{"issuerUrl":"https://issuer.example/","clientId":"client","scopes":["openid"],"requireVerifiedEmail":true}`),
+		ID:          42,
+		Slug:        "test-idp",
+		Protocol:    "oidc",
+		Mode:        mode,
+		AllowSignIn: true,
+		Config:      []byte(`{"issuerUrl":"https://issuer.example/","clientId":"client","scopes":["openid"],"requireVerifiedEmail":true}`),
 	}
 }
 

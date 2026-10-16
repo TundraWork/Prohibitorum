@@ -15,8 +15,6 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pressly/goose/v3"
-
-	dbgen "prohibitorum/pkg/db"
 )
 
 func TestVRChatLinkOnlyEnrollmentMigrationPostgres(t *testing.T) {
@@ -241,12 +239,21 @@ func TestVRChatLinkOnlyEnrollmentMigrationPostgres(t *testing.T) {
 		INSERT INTO enrollment (token, intent, recovery_source_upstream_idp_id, expires_at)
 		VALUES ('reset-without-target', 'reset', $1, now() + interval '1 hour')`, vrchatID)
 
-	queryConn, err := pgx.Connect(ctx, schemaURL.String())
-	if err != nil {
-		t.Fatal(err)
+	// Sign-in usability at this schema version excludes VRChat by protocol
+	// (033 semantics); asserted with raw SQL because the generated
+	// CountUsableSignInFederation query follows the newer allow_sign_in column.
+	countUsable := func() int {
+		t.Helper()
+		var n int
+		if err := conn.QueryRowContext(ctx, `
+			SELECT count(*) FROM account_identity ai
+			JOIN upstream_idp ip ON ip.id = ai.upstream_idp_id
+			WHERE ai.account_id = $1 AND NOT ip.disabled AND ip.protocol <> 'vrchat'`,
+			accountID).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		return n
 	}
-	defer queryConn.Close(ctx) //nolint:errcheck
-	queries := dbgen.New(queryConn)
 	if _, err := conn.ExecContext(ctx, `
 		INSERT INTO account_identity (
 			account_id, upstream_idp_id, upstream_iss, upstream_sub, upstream_data
@@ -255,12 +262,8 @@ func TestVRChatLinkOnlyEnrollmentMigrationPostgres(t *testing.T) {
 		accountID, vrchatID); err != nil {
 		t.Fatal(err)
 	}
-	federationCount, err := queries.CountUsableSignInFederation(ctx, accountID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if federationCount != 0 {
-		t.Errorf("usable federation count with only VRChat identity = %d, want 0", federationCount)
+	if n := countUsable(); n != 0 {
+		t.Errorf("usable federation count with only VRChat identity = %d, want 0", n)
 	}
 	if _, err := conn.ExecContext(ctx, `
 		INSERT INTO account_identity (
@@ -270,12 +273,8 @@ func TestVRChatLinkOnlyEnrollmentMigrationPostgres(t *testing.T) {
 		accountID, oidcID); err != nil {
 		t.Fatal(err)
 	}
-	federationCount, err = queries.CountUsableSignInFederation(ctx, accountID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if federationCount != 1 {
-		t.Errorf("usable federation count with VRChat and OIDC identities = %d, want 1", federationCount)
+	if n := countUsable(); n != 1 {
+		t.Errorf("usable federation count with VRChat and OIDC identities = %d, want 1", n)
 	}
 	if _, err := conn.ExecContext(ctx, `
 		DELETE FROM account_identity WHERE upstream_idp_id = $1`, vrchatID); err != nil {

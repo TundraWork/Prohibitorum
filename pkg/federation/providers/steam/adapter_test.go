@@ -208,7 +208,7 @@ func TestSteamHTTPFlowThroughFederationService(t *testing.T) {
 		t.Fatal(err)
 	}
 	provider := federationcore.Provider{
-		ID: 7, Slug: providerSlug, Protocol: Protocol, Mode: federationcore.ModeAutoProvision,
+		ID: 7, Slug: providerSlug, Protocol: Protocol, Mode: federationcore.ModeAutoProvision, AllowSignIn: true,
 		Config: json.RawMessage(`{}`),
 		Secret: sealed, SecretStatus: "valid",
 	}
@@ -228,7 +228,6 @@ func TestSteamHTTPFlowThroughFederationService(t *testing.T) {
 		steamServiceProviders{provider: provider},
 		store,
 		resolver,
-		nil,
 		federationcore.ServiceConfig{PublicOrigin: "https://idp.test"},
 	)
 	begin, err := service.BeginPublic(context.Background(), providerSlug, "/me", false)

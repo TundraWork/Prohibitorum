@@ -14,9 +14,9 @@ SELECT slug, display_name FROM upstream_idp ORDER BY display_name, slug;
 INSERT INTO upstream_idp (
   slug, display_name, protocol, mode, provider_config,
   secret_enc, secret_nonce, key_version, secret_status,
-  secret_validated_at, disabled
+  secret_validated_at, disabled, allow_sign_in
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 RETURNING *;
 
 -- name: DeleteUpstreamIDP :exec
@@ -39,7 +39,7 @@ LIMIT sqlc.arg('limit');
 
 -- name: UpdateUpstreamIDPConfig :one
 UPDATE upstream_idp SET
-  display_name = $2, mode = $3, provider_config = $4
+  display_name = $2, mode = $3, provider_config = $4, allow_sign_in = $5
 WHERE slug = $1
 RETURNING *;
 

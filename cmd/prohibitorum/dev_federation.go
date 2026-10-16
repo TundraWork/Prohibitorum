@@ -247,6 +247,7 @@ func upsertUpstreamIDP(ctx context.Context, q *db.Queries, slug, displayName, mo
 	case err == nil:
 		if _, err := q.UpdateUpstreamIDPConfig(ctx, db.UpdateUpstreamIDPConfigParams{
 			Slug: slug, DisplayName: displayName, Mode: mode, ProviderConfig: configRaw,
+			AllowSignIn: existing.AllowSignIn,
 		}); err != nil {
 			log.Fatalf("dev-federation: update idp %q: %v", slug, err)
 		}
@@ -254,7 +255,7 @@ func upsertUpstreamIDP(ctx context.Context, q *db.Queries, slug, displayName, mo
 	case errors.Is(err, pgx.ErrNoRows):
 		row, err := q.InsertUpstreamIDP(ctx, db.InsertUpstreamIDPParams{
 			Slug: slug, DisplayName: displayName, Protocol: federationoidc.Protocol, Mode: mode,
-			ProviderConfig: configRaw, SecretStatus: "unconfigured",
+			ProviderConfig: configRaw, SecretStatus: "unconfigured", AllowSignIn: true,
 		})
 		if err != nil {
 			log.Fatalf("dev-federation: insert idp %q: %v", slug, err)
@@ -317,8 +318,8 @@ func printFederationSummary(upstreamOrigin, downstreamOrigin, fedSecret, upTestS
 	fmt.Printf("  fed client_id=%s  client_secret=%s\n", fedClientID, fedSecret)
 	fmt.Printf("  downstream IdP slugs: %q (auto_provision), %q (invite_only), %q (link_only)\n", slugAuto, slugInvite, slugLink)
 	fmt.Println()
-	fmt.Println("Invite-gated (invite_only) — NOT shown as a sign-in button; reachable only")
-	fmt.Println("  via the invite link below (a plain sign-in on it is rejected pre-auth):")
+	fmt.Println("Invite-gated (invite_only) — listed as a sign-in button; an unknown")
+	fmt.Println("  identity is rejected at resolve time; reachable for invites via:")
 	fmt.Printf("  %s/enroll/%s   (expires %s)\n", down, inviteToken, inviteExp.Format(time.RFC3339))
 	fmt.Println()
 	fmt.Println("Link-only (link_only) — shown as a sign-in button; a fresh sign-in is")

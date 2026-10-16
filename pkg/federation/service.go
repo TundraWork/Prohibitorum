@@ -85,7 +85,6 @@ type Service struct {
 	providers ProviderLoader
 	kv        kv.Store
 	resolver  IdentityResolver
-	issuer    EnrollmentIssuer
 	avatar    avatarRefresher
 	audit     audit.Writer
 	config    ServiceConfig
@@ -107,14 +106,14 @@ type flowLease struct {
 	releaseOnce       sync.Once
 }
 
-func NewService(registry *Registry, providers ProviderLoader, store kv.Store, resolver IdentityResolver, issuer EnrollmentIssuer, config ServiceConfig) *Service {
+func NewService(registry *Registry, providers ProviderLoader, store kv.Store, resolver IdentityResolver, config ServiceConfig) *Service {
 	if config.StateTTL <= 0 {
 		config.StateTTL = 10 * time.Minute
 	}
 	if config.LockTTL <= 0 {
 		config.LockTTL = 30 * time.Second
 	}
-	return &Service{registry: registry, providers: providers, kv: store, resolver: resolver, issuer: issuer, audit: config.Audit, config: config, now: time.Now}
+	return &Service{registry: registry, providers: providers, kv: store, resolver: resolver, audit: config.Audit, config: config, now: time.Now}
 }
 
 func (s *Service) SetAvatarManager(manager avatarRefresher) {
@@ -144,16 +143,12 @@ func (s *Service) BeginPublic(ctx context.Context, providerSlug, returnTo string
 	if provider.Disabled {
 		return nil, ErrUnknownProvider
 	}
-	intent := IntentLogin
-	if provider.Protocol == "vrchat" {
-		if provider.Mode != ModeLinkOnly || s.issuer == nil {
-			return nil, authn.ErrFederationStateInvalid()
-		}
-		intent = IntentEnroll
-		// Enrollments issue no login session, so remember never applies.
-		remember = false
+	if !provider.AllowSignIn {
+		return nil, s.recordFailure(ctx, nil, nil, provider.Slug, provider.DisplayName, NewFailure(FailureSignInDisabled, map[string]any{
+			"idp_slug": provider.Slug,
+		}))
 	}
-	return s.begin(ctx, provider, intent, returnTo, nil, "", "", remember)
+	return s.begin(ctx, provider, IntentLogin, returnTo, nil, "", "", remember)
 }
 
 func (s *Service) BeginLink(ctx context.Context, providerSlug, returnTo string, accountID int32, sessionID string) (*BeginResult, error) {
@@ -361,20 +356,12 @@ func (s *Service) VerifyFlow(ctx context.Context, request AdvanceRequest) (*Comp
 	if result.Identity == nil || result.Next != nil || len(result.State) != 0 || result.Candidate != nil {
 		return nil, s.restoreAfterFailure(operationCtx, request, provider.Slug, provider.DisplayName, state, raw, NewFailure(FailureStateInvalid, nil), false)
 	}
-	if state.Intent == IntentEnroll {
-		if state.Protocol != "vrchat" || provider.Protocol != "vrchat" || provider.Mode != ModeLinkOnly || s.issuer == nil {
-			return nil, s.restoreAfterFailure(operationCtx, request, provider.Slug, provider.DisplayName, state, raw, NewFailure(FailureStateInvalid, nil), false)
-		}
-		grant, issueErr := s.issuer.Issue(operationCtx, provider, *result.Identity)
-		if issueErr != nil {
-			return nil, s.recordFailure(operationCtx, state, &request, provider.Slug, provider.DisplayName, issueErr)
-		}
-		completion := &CompletionResult{Intent: IntentEnroll, Enrollment: &grant}
-		if validateErr := completion.Validate(); validateErr != nil {
-			return nil, s.recordFailure(operationCtx, state, &request, provider.Slug, provider.DisplayName, NewFailure(FailureStateInvalid, nil))
-		}
-		s.recordVRChatTransition(operationCtx, "vrchat_proof_verified", state, provider.Slug, "")
-		return completion, nil
+	// The sign-in switch may be flipped while the user sits at the upstream
+	// provider; IntentLogin re-reads it here.
+	if state.Intent == IntentLogin && !provider.AllowSignIn {
+		return nil, s.restoreAfterFailure(operationCtx, request, provider.Slug, provider.DisplayName, state, raw, NewFailure(FailureSignInDisabled, map[string]any{
+			"idp_slug": provider.Slug,
+		}), false)
 	}
 	requireLocalUsername := state.Intent == IntentLogin && state.CurrentAction.Kind != ActionRedirect
 	outcome, err := s.resolver.ResolveIdentity(operationCtx, provider, *result.Identity, ResolveContext{
@@ -869,7 +856,7 @@ func callbackRouteAllowsIntent(route CallbackRoute, intent Intent) bool {
 	case CallbackRouteLink:
 		return intent == IntentLink
 	case CallbackRouteLocal:
-		return intent == IntentLogin || intent == IntentInvite || intent == IntentLink || intent == IntentEnroll
+		return intent == IntentLogin || intent == IntentInvite || intent == IntentLink
 	default:
 		return false
 	}

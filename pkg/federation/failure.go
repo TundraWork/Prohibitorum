@@ -40,6 +40,7 @@ const (
 	FailureUpstreamRateLimited     FailureReason = "upstream_rate_limited"
 	FailureUpstreamUnavailable     FailureReason = "upstream_temporarily_unavailable"
 	FailureUpstreamNoIdentity      FailureReason = "upstream_identity_unavailable"
+	FailureSignInDisabled          FailureReason = "sign_in_disabled"
 )
 
 type failurePolicy struct {
@@ -102,6 +103,10 @@ var failurePolicies = map[FailureReason]failurePolicy{
 	FailureUpstreamRateLimited:    {public: func(map[string]any) error { return authn.ErrUpstreamRateLimited(0) }},
 	FailureUpstreamUnavailable:    {public: staticPublic(authn.ErrUpstreamTemporarilyUnavailable)},
 	FailureUpstreamNoIdentity:     {public: stateInvalid},
+	FailureSignInDisabled: {
+		public:     staticPublic(authn.ErrFederationSignInDisabled),
+		detailKeys: keys("idp_slug"),
+	},
 }
 
 func stateInvalid(_ map[string]any) error { return authn.ErrFederationStateInvalid() }

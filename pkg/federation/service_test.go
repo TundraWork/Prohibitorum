@@ -14,9 +14,10 @@ import (
 )
 
 type fakeProviderLoader struct {
-	provider  Provider
-	bySlugErr error
-	inviteErr error
+	provider          Provider
+	bySlugErr         error
+	inviteErr         error
+	byBindingProvider *Provider
 }
 
 func (s fakeProviderLoader) BySlug(context.Context, string) (Provider, error) {
@@ -27,10 +28,14 @@ func (s fakeProviderLoader) ByBinding(_ context.Context, id int64, slug, protoco
 	if s.bySlugErr != nil {
 		return Provider{}, s.bySlugErr
 	}
-	if s.provider.ID != id || s.provider.Slug != slug || s.provider.Protocol != protocol {
+	effective := s.provider
+	if s.byBindingProvider != nil {
+		effective = *s.byBindingProvider
+	}
+	if effective.ID != id || effective.Slug != slug || effective.Protocol != protocol {
 		return Provider{}, ErrUnknownProvider
 	}
-	return s.provider, nil
+	return effective, nil
 }
 
 func (s fakeProviderLoader) InviteProvider(context.Context, string, string) (Provider, error) {
@@ -104,7 +109,7 @@ func (i *serviceFakeEnrollmentIssuer) Issue(_ context.Context, provider Provider
 	return i.grant, i.err
 }
 
-func rejectingEnrollmentIssuer() EnrollmentIssuer {
+func rejectingEnrollmentIssuer() *serviceFakeEnrollmentIssuer {
 	return &serviceFakeEnrollmentIssuer{err: errors.New("unexpected enrollment issuance")}
 }
 
@@ -259,7 +264,7 @@ func newServiceHarness(t *testing.T) (*Service, *serviceFakeAdapter, *serviceFak
 	}
 	resolver := &serviceFakeResolver{outcome: ResolveOutcome{AccountID: 5, IdentityID: 8, ProviderID: 7, AMR: []string{"fake"}, Confirmed: true}}
 	store := kv.NewMemoryStore()
-	service := NewService(registry, fakeProviderLoader{provider: Provider{ID: 7, Slug: "corp", Protocol: "fake", Mode: ModeAutoProvision}}, store, resolver, rejectingEnrollmentIssuer(), ServiceConfig{StateTTL: time.Minute, PublicOrigin: "https://idp.test"})
+	service := NewService(registry, fakeProviderLoader{provider: Provider{ID: 7, Slug: "corp", Protocol: "fake", Mode: ModeAutoProvision, AllowSignIn: true}}, store, resolver, ServiceConfig{StateTTL: time.Minute, PublicOrigin: "https://idp.test"})
 	return service, adapter, resolver, store
 }
 
@@ -292,8 +297,8 @@ func TestVRChatProofAuditTransitionsContainOnlyAllowlistedDetail(t *testing.T) {
 	}
 	writer := &serviceRecordingAudit{}
 	resolver := &serviceFakeResolver{outcome: ResolveOutcome{AccountID: 5, IdentityID: 8, ProviderID: 7, AMR: []string{"vrchat_profile"}, Confirmed: true}}
-	provider := Provider{ID: 7, Slug: "social", Protocol: "vrchat", Mode: ModeLinkOnly}
-	service := NewService(registry, fakeProviderLoader{provider: provider}, kv.NewMemoryStore(), resolver, &serviceFakeEnrollmentIssuer{grant: EnrollmentGrant{Token: "opaque-token"}}, ServiceConfig{StateTTL: time.Minute, PublicOrigin: "https://login.example.com", Audit: writer})
+	provider := Provider{ID: 7, Slug: "social", Protocol: "vrchat", Mode: ModeInviteOnly, AllowSignIn: true}
+	service := NewService(registry, fakeProviderLoader{provider: provider}, kv.NewMemoryStore(), resolver, ServiceConfig{StateTTL: time.Minute, PublicOrigin: "https://login.example.com", Audit: writer})
 	begin, err := service.BeginPublic(context.Background(), provider.Slug, "/", false)
 	if err != nil {
 		t.Fatal(err)
@@ -311,13 +316,13 @@ func TestVRChatProofAuditTransitionsContainOnlyAllowlistedDetail(t *testing.T) {
 	}
 	for index, wantEvent := range []string{"vrchat_proof_prepared", "vrchat_proof_verified"} {
 		record := writer.records[index]
-		if record.Event != wantEvent || len(record.Detail) != 2 || record.Detail["provider_slug"] != "social" || record.Detail["intent"] != "enroll" {
+		if record.Event != wantEvent || len(record.Detail) != 2 || record.Detail["provider_slug"] != "social" || record.Detail["intent"] != "login" {
 			t.Fatalf("record %d = %#v", index, record)
 		}
 	}
 }
 
-func newVRChatFailureAuditHarness(t *testing.T, issuerErr error) (*Service, AdvanceRequest, *serviceRecordingAudit, kv.Store, *serviceFakeAdapter, *serviceFakeEnrollmentIssuer) {
+func newVRChatFailureAuditHarness(t *testing.T, resolveErr error) (*Service, AdvanceRequest, *serviceRecordingAudit, kv.Store, *serviceFakeAdapter, *serviceFakeResolver) {
 	t.Helper()
 	registry := NewRegistry()
 	if err := registry.RegisterDefinition(fakeDefinition{protocol: "vrchat", descriptor: descriptor("vrchat")}); err != nil {
@@ -335,34 +340,32 @@ func newVRChatFailureAuditHarness(t *testing.T, issuerErr error) (*Service, Adva
 		t.Fatal(err)
 	}
 	writer := &serviceRecordingAudit{}
-	resolver := &serviceFakeResolver{}
-	issuer := &serviceFakeEnrollmentIssuer{err: issuerErr}
-	provider := Provider{ID: 7, Slug: "social", Protocol: "vrchat", Mode: ModeLinkOnly}
+	resolver := &serviceFakeResolver{err: resolveErr}
+	provider := Provider{ID: 7, Slug: "social", Protocol: "vrchat", Mode: ModeInviteOnly, AllowSignIn: true}
 	store := kv.NewMemoryStore()
-	service := NewService(registry, fakeProviderLoader{provider: provider}, store, resolver, issuer, ServiceConfig{StateTTL: time.Minute, PublicOrigin: "https://login.example.com", Audit: writer})
+	service := NewService(registry, fakeProviderLoader{provider: provider}, store, resolver, ServiceConfig{StateTTL: time.Minute, PublicOrigin: "https://login.example.com", Audit: writer})
 	begin, err := service.BeginPublic(context.Background(), provider.Slug, "/", false)
 	if err != nil {
 		t.Fatal(err)
 	}
 	request := AdvanceRequest{FlowID: begin.FlowID, BrowserToken: begin.BrowserToken, CallbackRoute: CallbackRouteLocal, Input: ActionInput{Kind: ActionPublishProof}}
-	return service, request, writer, store, adapter, issuer
+	return service, request, writer, store, adapter, resolver
 }
 
-func TestVRChatProofIssuerFailuresAreTerminal(t *testing.T) {
+func TestVRChatProofResolverFailuresAreTerminal(t *testing.T) {
 	tests := []struct {
 		name         string
-		issuerErr    error
+		resolveErr   error
 		wantCategory string
 	}{
-		{name: "invalid enrollment binding", issuerErr: authn.ErrFederationStateInvalid(), wantCategory: "federation_state_invalid"},
-		{name: "disabled known account", issuerErr: authn.ErrBadCredentials(), wantCategory: "bad_credentials"},
-		{name: "unclassified issuance error", issuerErr: errors.New("issuer unavailable"), wantCategory: "resolution_failed"},
-		{name: "database error", issuerErr: &pgconn.PgError{Code: "08006"}, wantCategory: "database_unavailable"},
-		{name: "allowlisted flow failure once", issuerErr: NewFailure(FailureVRChatProofMissing, nil), wantCategory: "vrchat_proof_missing"},
+		{name: "disabled known account", resolveErr: authn.ErrBadCredentials(), wantCategory: "bad_credentials"},
+		{name: "unclassified resolution error", resolveErr: errors.New("resolver unavailable"), wantCategory: "resolution_failed"},
+		{name: "database error", resolveErr: &pgconn.PgError{Code: "08006"}, wantCategory: "database_unavailable"},
+		{name: "allowlisted flow failure once", resolveErr: NewFailure(FailureVRChatProofMissing, nil), wantCategory: "vrchat_proof_missing"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			service, request, writer, store, adapter, issuer := newVRChatFailureAuditHarness(t, test.issuerErr)
+			service, request, writer, store, adapter, resolver := newVRChatFailureAuditHarness(t, test.resolveErr)
 			if _, err := service.VerifyFlow(context.Background(), request); err == nil {
 				t.Fatal("VerifyFlow unexpectedly succeeded")
 			}
@@ -371,19 +374,22 @@ func TestVRChatProofIssuerFailuresAreTerminal(t *testing.T) {
 			}
 			record := writer.records[0]
 			if record.Event != "vrchat_proof_failed" || len(record.Detail) != 3 ||
-				record.Detail["provider_slug"] != "social" || record.Detail["intent"] != "enroll" ||
+				record.Detail["provider_slug"] != "social" || record.Detail["intent"] != "login" ||
 				record.Detail["category"] != test.wantCategory {
 				t.Fatalf("audit record = %#v", record)
 			}
-			if _, err := store.Get(context.Background(), FlowKey(request.FlowID)); err == nil {
-				t.Fatal("issuer failure restored consumed enrollment flow")
+			// Login flows restore the KV state so the user can retry after a
+			// transient resolution failure; only the enrollment path was
+			// terminal.
+			if _, err := store.Get(context.Background(), FlowKey(request.FlowID)); err != nil {
+				t.Fatalf("resolver failure discarded retryable login flow: %v", err)
 			}
 			adapterCalls := adapter.calls
 			if _, err := service.VerifyFlow(context.Background(), request); err == nil {
-				t.Fatal("retry unexpectedly succeeded")
+				t.Fatal("retry unexpectedly succeeded with the same resolver error")
 			}
-			if issuer.calls != 1 || adapter.calls != adapterCalls {
-				t.Fatalf("retry calls: issuer=%d adapter=%d (before retry %d)", issuer.calls, adapter.calls, adapterCalls)
+			if resolver.calls != 2 || adapter.calls != adapterCalls+1 {
+				t.Fatalf("retry calls: resolver=%d adapter=%d (before retry resolver=1 adapter=%d)", resolver.calls, adapter.calls, adapterCalls)
 			}
 		})
 	}
@@ -403,7 +409,7 @@ func TestVRChatProofWrongLocalActionAuditCategory(t *testing.T) {
 	}
 	record := writer.records[0]
 	if record.Event != "vrchat_proof_failed" || len(record.Detail) != 3 ||
-		record.Detail["provider_slug"] != "social" || record.Detail["intent"] != "enroll" ||
+		record.Detail["provider_slug"] != "social" || record.Detail["intent"] != "login" ||
 		record.Detail["category"] != "action_invalid" {
 		t.Fatalf("audit record = %#v", record)
 	}
@@ -414,19 +420,20 @@ func TestVRChatProofWrongLocalActionAuditCategory(t *testing.T) {
 	}
 }
 
-func TestServiceBeginPublicDispatchesProtocolIntent(t *testing.T) {
+func TestServiceBeginPublicDispatchesSignInIntent(t *testing.T) {
 	tests := []struct {
-		name       string
-		protocol   string
-		mode       string
-		wantIntent Intent
-		wantErr    bool
+		name        string
+		protocol    string
+		mode        string
+		allowSignIn bool
+		wantIntent  Intent
+		wantErr     bool
 	}{
-		{name: "OIDC remains login", protocol: "oidc", mode: ModeAutoProvision, wantIntent: IntentLogin},
-		{name: "Steam remains login", protocol: "steam", mode: ModeAutoProvision, wantIntent: IntentLogin},
-		{name: "VRChat enrolls", protocol: "vrchat", mode: ModeLinkOnly, wantIntent: IntentEnroll},
-		{name: "VRChat rejects auto provision", protocol: "vrchat", mode: ModeAutoProvision, wantErr: true},
-		{name: "VRChat rejects invite only", protocol: "vrchat", mode: ModeInviteOnly, wantErr: true},
+		{name: "OIDC remains login", protocol: "oidc", mode: ModeAutoProvision, allowSignIn: true, wantIntent: IntentLogin},
+		{name: "Steam remains login", protocol: "steam", mode: ModeAutoProvision, allowSignIn: true, wantIntent: IntentLogin},
+		{name: "VRChat with sign-in on logs in", protocol: "vrchat", mode: ModeInviteOnly, allowSignIn: true, wantIntent: IntentLogin},
+		{name: "sign-in off rejects login", protocol: "oidc", mode: ModeInviteOnly, allowSignIn: false, wantErr: true},
+		{name: "VRChat sign-in off rejects login", protocol: "vrchat", mode: ModeInviteOnly, allowSignIn: false, wantErr: true},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -444,14 +451,17 @@ func TestServiceBeginPublicDispatchesProtocolIntent(t *testing.T) {
 			if err := registry.RegisterAdapter(adapter); err != nil {
 				t.Fatal(err)
 			}
-			provider := Provider{ID: 7, Slug: "corp", Protocol: test.protocol, Mode: test.mode}
+			provider := Provider{ID: 7, Slug: "corp", Protocol: test.protocol, Mode: test.mode, AllowSignIn: test.allowSignIn}
 			store := kv.NewMemoryStore()
-			service := NewService(registry, fakeProviderLoader{provider: provider}, store, &serviceFakeResolver{}, rejectingEnrollmentIssuer(), ServiceConfig{StateTTL: time.Minute, PublicOrigin: "https://idp.test"})
+			service := NewService(registry, fakeProviderLoader{provider: provider}, store, &serviceFakeResolver{}, ServiceConfig{StateTTL: time.Minute, PublicOrigin: "https://idp.test"})
 
 			begin, err := service.BeginPublic(context.Background(), provider.Slug, "/return", false)
 			if test.wantErr {
 				if err == nil {
 					t.Fatal("BeginPublic succeeded")
+				}
+				if authn.AsAuthError(err).Code != "federation_sign_in_disabled" {
+					t.Fatalf("error = %v, want federation_sign_in_disabled", err)
 				}
 				if adapter.calls != 0 {
 					t.Fatalf("rejected provider reached adapter %d times", adapter.calls)
@@ -494,10 +504,10 @@ func TestServiceBeginPublicRememberReachesCompletion(t *testing.T) {
 	if err := registry.RegisterAdapter(adapter); err != nil {
 		t.Fatal(err)
 	}
-	provider := Provider{ID: 7, Slug: "corp", Protocol: "oidc", Mode: ModeAutoProvision}
+	provider := Provider{ID: 7, Slug: "corp", Protocol: "oidc", Mode: ModeAutoProvision, AllowSignIn: true}
 	store := kv.NewMemoryStore()
 	resolver := &serviceFakeResolver{outcome: ResolveOutcome{AccountID: 9, IdentityID: 8, Confirmed: true}}
-	service := NewService(registry, fakeProviderLoader{provider: provider}, store, resolver, rejectingEnrollmentIssuer(), ServiceConfig{StateTTL: time.Minute, PublicOrigin: "https://idp.test"})
+	service := NewService(registry, fakeProviderLoader{provider: provider}, store, resolver, ServiceConfig{StateTTL: time.Minute, PublicOrigin: "https://idp.test"})
 
 	for _, remember := range []bool{true, false} {
 		begin, err := service.BeginPublic(context.Background(), provider.Slug, "/return", remember)
@@ -556,10 +566,10 @@ func TestServiceBeginLinkAndInviteNeverRemember(t *testing.T) {
 			if err := registry.RegisterAdapter(adapter); err != nil {
 				t.Fatal(err)
 			}
-			provider := Provider{ID: 7, Slug: "corp", Protocol: "oidc", Mode: ModeInviteOnly}
+			provider := Provider{ID: 7, Slug: "corp", Protocol: "oidc", Mode: ModeInviteOnly, AllowSignIn: true}
 			store := kv.NewMemoryStore()
 			loader := fakeProviderLoader{provider: provider}
-			service := NewService(registry, loader, store, &serviceFakeResolver{}, rejectingEnrollmentIssuer(), ServiceConfig{StateTTL: time.Minute, PublicOrigin: "https://idp.test"})
+			service := NewService(registry, loader, store, &serviceFakeResolver{}, ServiceConfig{StateTTL: time.Minute, PublicOrigin: "https://idp.test"})
 			if err := tc.begin(service, provider.Slug); err != nil {
 				t.Fatal(err)
 			}
@@ -586,9 +596,9 @@ func TestCompletionVariantsAreMutuallyExclusive(t *testing.T) {
 		completion CompletionResult
 		wantErr    bool
 	}{
-		{name: "valid enrollment", completion: CompletionResult{Intent: IntentEnroll, Enrollment: &grant}},
-		{name: "enrollment missing grant", completion: CompletionResult{Intent: IntentEnroll}, wantErr: true},
-		{name: "enrollment with account", completion: CompletionResult{Intent: IntentEnroll, AccountID: 9, Enrollment: &grant}, wantErr: true},
+		{name: "valid invite enrollment grant", completion: CompletionResult{Intent: IntentInvite, Enrollment: &grant}},
+		{name: "invite enrollment missing token", completion: CompletionResult{Intent: IntentInvite, Enrollment: &EnrollmentGrant{}}, wantErr: true},
+		{name: "invite enrollment with account", completion: CompletionResult{Intent: IntentInvite, AccountID: 9, Enrollment: &grant}, wantErr: true},
 		{name: "login with enrollment", completion: CompletionResult{Intent: IntentLogin, AccountID: 9, Enrollment: &grant}, wantErr: true},
 		{name: "valid login", completion: CompletionResult{Intent: IntentLogin, AccountID: 9}},
 		{name: "unknown intent", completion: CompletionResult{Intent: "unknown", AccountID: 9}, wantErr: true},
@@ -606,7 +616,7 @@ func TestCompletionVariantsAreMutuallyExclusive(t *testing.T) {
 	}
 }
 
-func TestServiceIntentEnrollIssuesGrantWithoutResolverOrAvatar(t *testing.T) {
+func TestServiceVRChatLoginWithSignInIssuesSessionOutcome(t *testing.T) {
 	registry := NewRegistry()
 	if err := registry.RegisterDefinition(fakeDefinition{protocol: "vrchat", descriptor: descriptor("vrchat")}); err != nil {
 		t.Fatal(err)
@@ -626,12 +636,12 @@ func TestServiceIntentEnrollIssuesGrantWithoutResolverOrAvatar(t *testing.T) {
 	if err := registry.RegisterAdapter(adapter); err != nil {
 		t.Fatal(err)
 	}
-	provider := Provider{ID: 7, Slug: "vrchat", Protocol: "vrchat", Mode: ModeLinkOnly}
-	resolver := &serviceFakeResolver{}
-	issuer := &serviceFakeEnrollmentIssuer{grant: EnrollmentGrant{Token: "opaque-enrollment-token", Intent: "federated_registration", ExpiresAt: time.Now().Add(time.Hour)}}
+	provider := Provider{ID: 7, Slug: "vrchat", Protocol: "vrchat", Mode: ModeInviteOnly, AllowSignIn: true}
+	outcome := ResolveOutcome{AccountID: 5, IdentityID: 8, ProviderID: 7, AMR: []string{"vrchat_profile"}, Confirmed: true}
+	resolver := &serviceFakeResolver{outcome: outcome}
 	avatar := &serviceFakeAvatar{}
 	store := kv.NewMemoryStore()
-	service := NewService(registry, fakeProviderLoader{provider: provider}, store, resolver, issuer, ServiceConfig{StateTTL: time.Minute, PublicOrigin: "https://idp.test"})
+	service := NewService(registry, fakeProviderLoader{provider: provider}, store, resolver, ServiceConfig{StateTTL: time.Minute, PublicOrigin: "https://idp.test"})
 	service.SetAvatarManager(avatar)
 
 	begin, err := service.BeginPublic(context.Background(), provider.Slug, "/return", false)
@@ -646,30 +656,21 @@ func TestServiceIntentEnrollIssuesGrantWithoutResolverOrAvatar(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if completion.Intent != IntentEnroll || completion.Enrollment == nil || *completion.Enrollment != issuer.grant {
+	if completion.Intent != IntentLogin || completion.Enrollment != nil || completion.AccountID != outcome.AccountID || !completion.Confirmed {
 		t.Fatalf("completion = %+v", completion)
 	}
-	if completion.AccountID != 0 || completion.IdentityID != 0 || len(completion.AMR) != 0 || completion.Confirmed || completion.IsNew || completion.AvatarURL != "" {
-		t.Fatalf("enrollment completion mixed normal data: %+v", completion)
-	}
-	if issuer.calls != 1 || issuer.provider.ID != provider.ID || issuer.provider.Slug != provider.Slug ||
-		issuer.provider.Protocol != provider.Protocol || issuer.provider.Mode != provider.Mode ||
-		issuer.identity.Issuer != identity.Issuer || issuer.identity.Subject != identity.Subject ||
-		issuer.identity.DisplayName != identity.DisplayName {
-		t.Fatalf("issuer calls=%d provider=%+v identity=%+v", issuer.calls, issuer.provider, issuer.identity)
-	}
-	if resolver.calls != 0 || resolver.knownCalls != 0 || avatar.calls != 0 {
-		t.Fatalf("enrollment reached resolver/avatar: resolver=%d known=%d avatar=%d", resolver.calls, resolver.knownCalls, avatar.calls)
+	if resolver.calls != 1 || avatar.calls != 1 {
+		t.Fatalf("resolver=%d avatar=%d, want 1 each", resolver.calls, avatar.calls)
 	}
 	if _, err := service.VerifyFlow(context.Background(), request); err == nil {
-		t.Fatal("replayed enrollment verify succeeded")
+		t.Fatal("replayed verify succeeded")
 	}
-	if issuer.calls != 1 {
-		t.Fatalf("replay issued %d enrollments", issuer.calls)
+	if resolver.calls != 1 {
+		t.Fatalf("replay reached resolver %d times", resolver.calls)
 	}
 }
 
-func TestServiceIntentEnrollFailsClosedWithoutIssuerOrOnWrongRoute(t *testing.T) {
+func TestServiceVerifyFlowRejectsLoginWhenSignInDisabledMidFlight(t *testing.T) {
 	registry := NewRegistry()
 	if err := registry.RegisterDefinition(fakeDefinition{protocol: "vrchat", descriptor: descriptor("vrchat")}); err != nil {
 		t.Fatal(err)
@@ -684,32 +685,26 @@ func TestServiceIntentEnrollFailsClosedWithoutIssuerOrOnWrongRoute(t *testing.T)
 	if err := registry.RegisterAdapter(adapter); err != nil {
 		t.Fatal(err)
 	}
-	provider := Provider{ID: 7, Slug: "vrchat", Protocol: "vrchat", Mode: ModeLinkOnly}
+	// The loader answers allow_sign_in=false on the verification re-read: the
+	// switch flipped while the user sat at the provider.
+	provider := Provider{ID: 7, Slug: "vrchat", Protocol: "vrchat", Mode: ModeInviteOnly, AllowSignIn: true}
+	flipped := provider
+	flipped.AllowSignIn = false
+	loader := fakeProviderLoader{provider: provider}
+	loader.byBindingProvider = &flipped
 	store := kv.NewMemoryStore()
-	withoutIssuer := NewService(registry, fakeProviderLoader{provider: provider}, store, &serviceFakeResolver{}, nil, ServiceConfig{StateTTL: time.Minute})
-	if _, err := withoutIssuer.BeginPublic(context.Background(), provider.Slug, "/", false); err == nil {
-		t.Fatal("IntentEnroll began without an issuer")
-	}
-	if adapter.calls != 0 {
-		t.Fatalf("missing issuer reached adapter %d times", adapter.calls)
-	}
-
-	issuer := &serviceFakeEnrollmentIssuer{grant: EnrollmentGrant{Token: "opaque-token"}}
-	service := NewService(registry, fakeProviderLoader{provider: provider}, kv.NewMemoryStore(), &serviceFakeResolver{}, issuer, ServiceConfig{StateTTL: time.Minute})
+	service := NewService(registry, loader, store, &serviceFakeResolver{}, ServiceConfig{StateTTL: time.Minute, PublicOrigin: "https://idp.test"})
 	begin, err := service.BeginPublic(context.Background(), provider.Slug, "/", false)
 	if err != nil {
 		t.Fatal(err)
 	}
-	beginCalls := adapter.calls
-	_, err = service.VerifyFlow(context.Background(), AdvanceRequest{
-		FlowID: begin.FlowID, BrowserToken: begin.BrowserToken, ProviderSlug: provider.Slug, Protocol: provider.Protocol,
-		CallbackRoute: CallbackRoutePublic, Input: ActionInput{Kind: ActionPublishProof},
-	})
-	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "federation_state_invalid" {
-		t.Fatalf("wrong-route error = %v", err)
+	request := AdvanceRequest{
+		FlowID: begin.FlowID, BrowserToken: begin.BrowserToken,
+		CallbackRoute: CallbackRouteLocal, Input: ActionInput{Kind: ActionPublishProof},
 	}
-	if adapter.calls != beginCalls || issuer.calls != 0 {
-		t.Fatalf("wrong route reached adapter/issuer: adapter=%d issuer=%d", adapter.calls, issuer.calls)
+	_, err = service.VerifyFlow(context.Background(), request)
+	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "federation_sign_in_disabled" {
+		t.Fatalf("error = %v, want federation_sign_in_disabled", err)
 	}
 }
 
@@ -1184,7 +1179,7 @@ func TestServiceRestoreFailureReturnsKVUnavailableAndConsumesFlow(t *testing.T) 
 }
 
 func TestServiceRejectsUnavailableProvidersBeforeAdapterCall(t *testing.T) {
-	provider := Provider{ID: 7, Slug: "corp", Protocol: "fake", Mode: ModeAutoProvision}
+	provider := Provider{ID: 7, Slug: "corp", Protocol: "fake", Mode: ModeAutoProvision, AllowSignIn: true}
 	tests := []struct {
 		name       string
 		loader     fakeProviderLoader
@@ -1223,7 +1218,7 @@ func TestServiceRejectsUnavailableProvidersBeforeAdapterCall(t *testing.T) {
 			if err := registry.RegisterAdapter(adapter); err != nil {
 				t.Fatal(err)
 			}
-			service := NewService(registry, test.loader, kv.NewMemoryStore(), &serviceFakeResolver{}, rejectingEnrollmentIssuer(), ServiceConfig{})
+			service := NewService(registry, test.loader, kv.NewMemoryStore(), &serviceFakeResolver{}, ServiceConfig{})
 			if _, err := service.BeginPublic(context.Background(), "corp", "/", false); err == nil {
 				t.Fatal("unavailable provider began a flow")
 			}
@@ -1657,14 +1652,15 @@ func TestServiceEnforcesCallbackRouteIntent(t *testing.T) {
 	}
 }
 
-func TestIntentEnrollIsAcceptedOnlyOnLocalCallbackRoute(t *testing.T) {
-	if !callbackRouteAllowsIntent(CallbackRouteLocal, IntentEnroll) {
-		t.Fatal("local callback route rejected IntentEnroll")
+func TestIntentInviteIsAcceptedOnlyOnLocalAndPublicCallbackRoutes(t *testing.T) {
+	if !callbackRouteAllowsIntent(CallbackRouteLocal, IntentInvite) {
+		t.Fatal("local callback route rejected IntentInvite")
 	}
-	for _, route := range []CallbackRoute{CallbackRoutePublic, CallbackRouteLink} {
-		if callbackRouteAllowsIntent(route, IntentEnroll) {
-			t.Fatalf("%s callback route accepted IntentEnroll", route)
-		}
+	if !callbackRouteAllowsIntent(CallbackRoutePublic, IntentInvite) {
+		t.Fatal("public callback route rejected IntentInvite")
+	}
+	if callbackRouteAllowsIntent(CallbackRouteLink, IntentInvite) {
+		t.Fatal("link callback route accepted IntentInvite")
 	}
 }
 
@@ -2087,8 +2083,8 @@ func TestServiceNonVRFlowFailureAuditedWhenRestoreFails(t *testing.T) {
 			}
 			writer := &serviceRecordingAudit{}
 			baseStore := kv.NewMemoryStore()
-			provider := Provider{ID: 7, Slug: "corp", Protocol: protocol, Mode: ModeAutoProvision}
-			service := NewService(registry, fakeProviderLoader{provider: provider}, baseStore, &serviceFakeResolver{}, rejectingEnrollmentIssuer(), ServiceConfig{StateTTL: time.Minute, PublicOrigin: "https://idp.test", Audit: writer})
+			provider := Provider{ID: 7, Slug: "corp", Protocol: protocol, Mode: ModeAutoProvision, AllowSignIn: true}
+			service := NewService(registry, fakeProviderLoader{provider: provider}, baseStore, &serviceFakeResolver{}, ServiceConfig{StateTTL: time.Minute, PublicOrigin: "https://idp.test", Audit: writer})
 			begin, err := service.BeginPublic(context.Background(), "corp", "/", false)
 			if err != nil {
 				t.Fatal(err)
@@ -2289,8 +2285,8 @@ func newNamedServiceHarness(t *testing.T, protocol string, ready bool) (*Service
 		t.Fatal(err)
 	}
 	resolver := &serviceFakeResolver{outcome: ResolveOutcome{AccountID: 5, IdentityID: 8, ProviderID: 7, AMR: []string{"fake"}, Confirmed: true}}
-	loader := &fakeProviderLoader{provider: Provider{ID: 7, Slug: "corp", DisplayName: "Corporate SSO", Protocol: protocol, Mode: mode}}
-	service := NewService(registry, loader, kv.NewMemoryStore(), resolver, rejectingEnrollmentIssuer(), ServiceConfig{StateTTL: time.Minute, PublicOrigin: "https://idp.test"})
+	loader := &fakeProviderLoader{provider: Provider{ID: 7, Slug: "corp", DisplayName: "Corporate SSO", Protocol: protocol, Mode: mode, AllowSignIn: true}}
+	service := NewService(registry, loader, kv.NewMemoryStore(), resolver, ServiceConfig{StateTTL: time.Minute, PublicOrigin: "https://idp.test"})
 	return service, adapter, resolver, loader
 }
 

@@ -174,6 +174,7 @@ func providerFromRow(row db.UpstreamIdp) (Provider, error) {
 		Config:       append([]byte(nil), row.ProviderConfig...),
 		SecretStatus: row.SecretStatus,
 		Disabled:     row.Disabled,
+		AllowSignIn:  row.AllowSignIn,
 	}
 	if row.SecretValidatedAt.Valid {
 		validatedAt := row.SecretValidatedAt.Time
@@ -199,6 +200,7 @@ func providerRow(provider Provider) (db.UpstreamIdp, error) {
 		ProviderConfig: append([]byte(nil), provider.Config...),
 		SecretStatus:   provider.SecretStatus,
 		Disabled:       provider.Disabled,
+		AllowSignIn:    provider.AllowSignIn,
 	}
 	if provider.SecretValidatedAt != nil {
 		row.SecretValidatedAt = pgtype.Timestamptz{Time: *provider.SecretValidatedAt, Valid: true}

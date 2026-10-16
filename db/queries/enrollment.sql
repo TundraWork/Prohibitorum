@@ -5,35 +5,31 @@ SELECT * FROM enrollment WHERE token = $1;
 INSERT INTO enrollment (
   token, intent, target_account_id, expires_at,
   template_role, template_attributes, expected_upstream_idp_slug,
-  template_username, group_ids, created_by_account_id
+  template_username, group_ids, created_by_account_id,
+  require_local_credential
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 RETURNING *;
 
--- name: InsertFederatedRegistrationEnrollment :one
-INSERT INTO enrollment (
-  token, intent, expires_at,
-  federated_upstream_idp_id, federated_upstream_idp_slug,
-  federated_upstream_iss, federated_upstream_sub,
-  federated_display_name, federated_upstream_data, federated_avatar_url
-)
-VALUES (
-  sqlc.arg('token'), 'federated_register', sqlc.arg('expires_at'),
-  sqlc.arg('federated_upstream_idp_id'), sqlc.arg('federated_upstream_idp_slug'),
-  sqlc.arg('federated_upstream_iss'), sqlc.arg('federated_upstream_sub'),
-  sqlc.arg('federated_display_name'), sqlc.arg('federated_upstream_data'),
-  sqlc.narg('federated_avatar_url')
-)
-RETURNING *;
+-- name: LockInviteEnrollmentForUpdate :one
+-- Row lock for attachInviteIdentity: an unconsumed, unexpired invite only.
+-- pgx.ErrNoRows surfaces on any branch the invite path treats as gone.
+SELECT * FROM enrollment
+WHERE token = $1 AND intent = 'invite' AND consumed_at IS NULL AND expires_at > now()
+FOR UPDATE;
 
--- name: InsertProviderRecoveryEnrollment :one
-INSERT INTO enrollment (
-  token, intent, target_account_id, expires_at, recovery_source_upstream_idp_id
-)
-VALUES (
-  sqlc.arg('token'), 'reset', sqlc.arg('target_account_id'),
-  sqlc.arg('expires_at'), sqlc.arg('recovery_source_upstream_idp_id')
-)
+-- name: AttachInviteIdentity :one
+-- Writes (or overwrites) the verified-identity snapshot onto the invite.
+-- Never consumes the row; the same conditions as LockInviteEnrollmentForUpdate.
+UPDATE enrollment
+SET federated_upstream_idp_id = $2,
+    federated_upstream_idp_slug = $3,
+    federated_upstream_iss = $4,
+    federated_upstream_sub = $5,
+    federated_display_name = $6,
+    federated_upstream_data = $7,
+    federated_avatar_url = $8
+WHERE token = $1 AND intent = 'invite' AND consumed_at IS NULL AND expires_at > now()
 RETURNING *;
 
 -- name: ConsumeEnrollment :one
@@ -100,3 +96,4 @@ WITH requested AS (
   RETURNING group_id
 )
 SELECT group_id FROM applied ORDER BY group_id;
+

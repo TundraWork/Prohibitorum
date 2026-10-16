@@ -36,6 +36,7 @@ type providerWriteBody struct {
 	DisplayName string          `json:"displayName"`
 	Protocol    string          `json:"protocol,omitempty"`
 	Mode        string          `json:"mode"`
+	AllowSignIn *bool           `json:"allowSignIn,omitempty"`
 	Config      json.RawMessage `json:"config"`
 	Secret      string          `json:"secret,omitempty"`
 }
@@ -62,6 +63,7 @@ func providerFromDB(row db.UpstreamIdp) federation.Provider {
 		Config:       append(json.RawMessage(nil), row.ProviderConfig...),
 		SecretStatus: row.SecretStatus,
 		Disabled:     row.Disabled,
+		AllowSignIn:  row.AllowSignIn,
 	}
 	if row.SecretValidatedAt.Valid {
 		validatedAt := row.SecretValidatedAt.Time
@@ -100,6 +102,7 @@ func (s *Server) identityProviderView(row db.UpstreamIdp) (contract.IdentityProv
 		DisplayName:       row.DisplayName,
 		Protocol:          row.Protocol,
 		Mode:              row.Mode,
+		AllowSignIn:       row.AllowSignIn,
 		Config:            append(json.RawMessage(nil), row.ProviderConfig...),
 		Disabled:          row.Disabled,
 		SecretConfigured:  provider.Secret != nil,
@@ -149,7 +152,20 @@ func (s *Server) validateProviderWrite(body providerWriteBody, existing *db.Upst
 	if err != nil || definition.ValidateConfig(body.Config) != nil {
 		return nil, authn.ErrBadRequest()
 	}
-	if definition.Protocol() == federationvrchat.Protocol && body.Mode != federation.ModeLinkOnly {
+	// Resolved sign-in switch: omitted means per-protocol default on create,
+	// kept value on update. The DB CHECK enforces the same invariant.
+	allowSignIn := true
+	if creating {
+		if protocol == federationvrchat.Protocol {
+			allowSignIn = false
+		}
+	} else if existing != nil {
+		allowSignIn = existing.AllowSignIn
+	}
+	if body.AllowSignIn != nil {
+		allowSignIn = *body.AllowSignIn
+	}
+	if !allowSignIn && body.Mode == federation.ModeAutoProvision {
 		return nil, authn.ErrBadRequest()
 	}
 	if creating {
@@ -167,6 +183,13 @@ func (s *Server) validateProviderWrite(body providerWriteBody, existing *db.Upst
 }
 
 func providerInsertParams(body providerWriteBody) db.InsertUpstreamIDPParams {
+	allowSignIn := true
+	if body.Protocol == federationvrchat.Protocol {
+		allowSignIn = false
+	}
+	if body.AllowSignIn != nil {
+		allowSignIn = *body.AllowSignIn
+	}
 	return db.InsertUpstreamIDPParams{
 		Slug:           body.Slug,
 		DisplayName:    body.DisplayName,
@@ -175,6 +198,7 @@ func providerInsertParams(body providerWriteBody) db.InsertUpstreamIDPParams {
 		ProviderConfig: append([]byte(nil), body.Config...),
 		SecretStatus:   "unconfigured",
 		Disabled:       body.Protocol == "vrchat",
+		AllowSignIn:    allowSignIn,
 	}
 }
 
@@ -406,7 +430,8 @@ func (s *Server) handleUpdateIdentityProviderHTTP(w http.ResponseWriter, r *http
 		return
 	}
 	updated, err := s.queries.UpdateUpstreamIDPConfig(r.Context(), db.UpdateUpstreamIDPConfigParams{
-		Slug: slug, DisplayName: body.DisplayName, Mode: body.Mode, ProviderConfig: append([]byte(nil), body.Config...),
+		Slug: slug, DisplayName: body.DisplayName, Mode: body.Mode, ProviderConfig: append(json.RawMessage(nil), body.Config...),
+		AllowSignIn: existing.AllowSignIn || body.AllowSignIn == nil || *body.AllowSignIn,
 	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {

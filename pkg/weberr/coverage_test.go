@@ -326,3 +326,42 @@ func TestProviderNotReadyContract(t *testing.T) {
 		t.Fatalf("definition = %#v", definition)
 	}
 }
+
+// TestFederationSignInDisabledContract proves the sign-in-disabled code is
+// registered with the same status as link_required and allows the provider
+// name as a detail key.
+func TestFederationSignInDisabledContract(t *testing.T) {
+	err := authn.ErrFederationSignInDisabled()
+	if err.Status != http.StatusForbidden || err.Code != "federation_sign_in_disabled" {
+		t.Fatalf("error = status:%d code:%q", err.Status, err.Code)
+	}
+	definition, ok := weberr.DefinitionFor(err.Code)
+	if !ok {
+		t.Fatal("federation_sign_in_disabled is not registered")
+	}
+	if definition.Status != http.StatusForbidden || definition.DiagnosticKind != "federation" {
+		t.Fatalf("definition = %#v", definition)
+	}
+	if _, allowed := definition.DetailKeys["federationName"]; !allowed {
+		t.Fatalf("definition = %#v, want federationName detail key", definition)
+	}
+}
+
+// TestUpstreamIDPLinkOnlyContract proves the invitation link_only rejection
+// is registered as a 400 with the field location detail key.
+func TestUpstreamIDPLinkOnlyContract(t *testing.T) {
+	err := authn.ErrUpstreamIDPLinkOnly()
+	if err.Status != http.StatusBadRequest || err.Code != "upstream_idp_link_only" {
+		t.Fatalf("error = status:%d code:%q", err.Status, err.Code)
+	}
+	definition, ok := weberr.DefinitionFor(err.Code)
+	if !ok {
+		t.Fatal("upstream_idp_link_only is not registered")
+	}
+	if definition.Status != http.StatusBadRequest || definition.DiagnosticKind != "federation" {
+		t.Fatalf("definition = %#v", definition)
+	}
+	if _, allowed := definition.DetailKeys["expectedUpstreamIdpSlug"]; !allowed {
+		t.Fatalf("definition = %#v, want expectedUpstreamIdpSlug detail key", definition)
+	}
+}
