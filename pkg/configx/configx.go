@@ -415,12 +415,14 @@ func bindEnvs(iface interface{}, parts ...string) {
 func validatePublicOrigin(origin string) error {
 	u, err := url.Parse(origin)
 	switch {
-	case err != nil, u.Scheme != "http" && u.Scheme != "https", u.Host == "", u.User != nil, u.Opaque != "":
+	case err != nil, u.Scheme != "http" && u.Scheme != "https", u.Host == "", u.User != nil, u.Opaque != "", strings.HasSuffix(u.Host, ":"):
 		return fmt.Errorf("public_origin (PROHIBITORUM_PUBLIC_ORIGIN) entry %q must be scheme://host[:port], for example https://id.example.com", origin)
-	case u.Path == "/" && u.RawQuery == "" && !u.ForceQuery && u.Fragment == "":
-		return fmt.Errorf("public_origin (PROHIBITORUM_PUBLIC_ORIGIN) entry %q must not end with \"/\"; use %q", origin, strings.TrimSuffix(origin, "/"))
-	case u.Path != "" || u.RawQuery != "" || u.ForceQuery || u.Fragment != "":
+	// An empty query or fragment ("https://x?", "https://x#") leaves no trace
+	// in the parsed fields, so look for the delimiters themselves.
+	case strings.ContainsAny(origin, "?#"), u.Path != "" && u.Path != "/", u.RawPath != "":
 		return fmt.Errorf("public_origin (PROHIBITORUM_PUBLIC_ORIGIN) entry %q must be scheme://host[:port], with no path, query or fragment", origin)
+	case u.Path == "/":
+		return fmt.Errorf("public_origin (PROHIBITORUM_PUBLIC_ORIGIN) entry %q must not end with \"/\"; use %q", origin, strings.TrimSuffix(origin, "/"))
 	}
 	return nil
 }
