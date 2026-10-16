@@ -283,3 +283,35 @@ func TestParse_RefreshTTLValidation(t *testing.T) {
 		}
 	})
 }
+
+func TestParse_PublicOriginValidation(t *testing.T) {
+	for _, tc := range []struct {
+		value   string
+		wantErr string
+	}{
+		{value: "https://id.example.com"},
+		{value: "https://id.example.com:8443, http://localhost:8080"},
+		{value: "https://id.example.com/", wantErr: `must not end with "/"; use "https://id.example.com"`},
+		{value: "https://id.example.com/idp", wantErr: "with no path, query or fragment"},
+		{value: "https://id.example.com?x=1", wantErr: "with no path, query or fragment"},
+		{value: "https://id.example.com#top", wantErr: "with no path, query or fragment"},
+		{value: "id.example.com", wantErr: "must be scheme://host[:port]"},
+		{value: "ftp://id.example.com", wantErr: "must be scheme://host[:port]"},
+		{value: "https://user@id.example.com", wantErr: "must be scheme://host[:port]"},
+	} {
+		t.Run(tc.value, func(t *testing.T) {
+			resetViper(t)
+			t.Setenv("PROHIBITORUM_PUBLIC_ORIGIN", tc.value)
+			_, err := Parse()
+			if tc.wantErr == "" {
+				if err != nil {
+					t.Fatalf("Parse() error = %v, want nil", err)
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), tc.wantErr) || !strings.Contains(err.Error(), "PROHIBITORUM_PUBLIC_ORIGIN") {
+				t.Fatalf("Parse() error = %v, want one naming PROHIBITORUM_PUBLIC_ORIGIN and containing %q", err, tc.wantErr)
+			}
+		})
+	}
+}
