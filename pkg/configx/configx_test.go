@@ -298,6 +298,11 @@ func TestParse_PublicOriginValidation(t *testing.T) {
 		{value: "id.example.com", wantErr: "must be scheme://host[:port]"},
 		{value: "ftp://id.example.com", wantErr: "must be scheme://host[:port]"},
 		{value: "https://user@id.example.com", wantErr: "must be scheme://host[:port]"},
+		{value: "https://id.example.com:", wantErr: "must be scheme://host[:port]"},
+		{value: "https://id.example.com#", wantErr: "with no path, query or fragment"},
+		{value: "https://id.example.com?", wantErr: "with no path, query or fragment"},
+		{value: "https://id.example.com/#", wantErr: "with no path, query or fragment"},
+		{value: "https://id.example.com, https://other.example.com/", wantErr: `entry "https://other.example.com/" must not end with "/"`},
 	} {
 		t.Run(tc.value, func(t *testing.T) {
 			resetViper(t)
