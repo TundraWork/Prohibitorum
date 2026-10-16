@@ -126,7 +126,7 @@ func (s *Server) validateProviderWrite(body providerWriteBody, existing *db.Upst
 
 	protocol := body.Protocol
 	if creating {
-		if body.Slug == "" || body.Slug != normalizeProviderSlug(body.Slug) || protocol == "" {
+		if body.Slug == "" || body.Slug != normalizeProviderSlug(body.Slug) || body.Slug == federation.ReservedSlug || protocol == "" {
 			return nil, authn.ErrBadRequest()
 		}
 	} else {

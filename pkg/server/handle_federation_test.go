@@ -365,9 +365,9 @@ func newFederationTestServer(t *testing.T) *fedTestHarness {
 	r := chi.NewRouter()
 	r.Get("/api/prohibitorum/auth/federation/{slug}/login", s.handleFederationLoginHTTP)
 	r.Get("/api/prohibitorum/auth/federation/{slug}/callback", s.handleFederationCallbackHTTP)
-	r.Get("/api/prohibitorum/auth/federation/confirm", s.handleFederationConfirmGet)
-	r.Post("/api/prohibitorum/auth/federation/confirm", s.handleFederationConfirmPost)
-	r.Post("/api/prohibitorum/auth/federation/confirm/decline", s.handleFederationConfirmDecline)
+	r.Get("/api/prohibitorum/auth/federation/-/confirm", s.handleFederationConfirmGet)
+	r.Post("/api/prohibitorum/auth/federation/-/confirm", s.handleFederationConfirmPost)
+	r.Post("/api/prohibitorum/auth/federation/-/confirm/decline", s.handleFederationConfirmDecline)
 	srvTS := httptest.NewServer(r)
 	t.Cleanup(srvTS.Close)
 

@@ -1385,7 +1385,7 @@ describe("mocked enrollment and federation pages", () => {
   });
 
   it("shows the prepared account's picture as the panel sets it, and confirms with the offer the panel sets", () => {
-    const confirm = "/api/prohibitorum/auth/federation/confirm";
+    const confirm = "/api/prohibitorum/auth/federation/-/confirm";
     const current = writes();
     expect(
       (bodyOf(read(confirm, current)) as FederationConfirm).avatarUrl,
@@ -1411,7 +1411,7 @@ describe("mocked enrollment and federation pages", () => {
   });
 
   it("walks a VRChat flow from the profile to the proof and finishes it", () => {
-    const flow = "/api/prohibitorum/auth/federation/flows/{flow}";
+    const flow = "/api/prohibitorum/auth/federation/-/flows/{flow}";
     const current = writes();
     const first = readFederationFlow(bodyOf(read(flow, current)));
     expect(first.step).toBe("identify");
@@ -1434,7 +1434,7 @@ describe("mocked enrollment and federation pages", () => {
   });
 
   it("asks for the username and reports a missing proof when the panel says so", () => {
-    const verify = "/api/prohibitorum/auth/federation/flows/{flow}/verify";
+    const verify = "/api/prohibitorum/auth/federation/-/flows/{flow}/verify";
     const at = (change: (draft: MockConfig) => void) =>
       config((draft) => {
         draft.writes = true;

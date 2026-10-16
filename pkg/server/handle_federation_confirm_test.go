@@ -259,8 +259,8 @@ func doConfirm(t *testing.T, fx confirmFixture, method, path, cookie string) *ht
 	return resp
 }
 
-const confirmPath = "/api/prohibitorum/auth/federation/confirm"
-const confirmDeclinePath = "/api/prohibitorum/auth/federation/confirm/decline"
+const confirmPath = "/api/prohibitorum/auth/federation/-/confirm"
+const confirmDeclinePath = "/api/prohibitorum/auth/federation/-/confirm/decline"
 
 func TestFederationConfirmGet_ValidGrant(t *testing.T) {
 	h := newFederationTestServer(t)

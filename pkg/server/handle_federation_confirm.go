@@ -5,9 +5,9 @@
 // and instead mints a single-use, browser-bound confirmation grant (handled in
 // handle_federation.go). These three public endpoints drive the /welcome page:
 //
-//	GET  /api/prohibitorum/auth/federation/confirm          → pending identity + avatar status
-//	POST /api/prohibitorum/auth/federation/confirm          → YES: confirm + issue session
-//	POST /api/prohibitorum/auth/federation/confirm/decline  → NO: invalidate the grant
+//	GET  /api/prohibitorum/auth/federation/-/confirm          → pending identity + avatar status
+//	POST /api/prohibitorum/auth/federation/-/confirm          → YES: confirm + issue session
+//	POST /api/prohibitorum/auth/federation/-/confirm/decline  → NO: invalidate the grant
 //
 // The grant lives in KV (ConfirmKey); the fed-state cookie carries
 // "<grant-token>.<anti-forgery>". The GET peeks (non-consuming) so the page can
@@ -46,7 +46,7 @@ func (s *Server) confirmFedQ() confirmFedQueries {
 }
 
 // handleFederationConfirmGet serves
-// GET /api/prohibitorum/auth/federation/confirm — grant-scoped (fed-state
+// GET /api/prohibitorum/auth/federation/-/confirm — grant-scoped (fed-state
 // cookie), no session. Reads the pending identity for the /welcome page.
 func (s *Server) handleFederationConfirmGet(w http.ResponseWriter, r *http.Request) {
 	token, anti := splitConfirmCookie(cookieValue(r, sessstore.FedStateCookieName))
@@ -80,7 +80,7 @@ func (s *Server) handleFederationConfirmGet(w http.ResponseWriter, r *http.Reque
 }
 
 // handleFederationConfirmPost serves
-// POST /api/prohibitorum/auth/federation/confirm — YES: single-use-consume the
+// POST /api/prohibitorum/auth/federation/-/confirm — YES: single-use-consume the
 // grant, stamp confirmed_at, and issue the durable session. A second POST with
 // the same (now-popped) grant fails closed (federation_state_invalid).
 func (s *Server) handleFederationConfirmPost(w http.ResponseWriter, r *http.Request) {
@@ -138,7 +138,7 @@ func (s *Server) handleFederationConfirmPost(w http.ResponseWriter, r *http.Requ
 }
 
 // handleFederationConfirmDecline serves
-// POST /api/prohibitorum/auth/federation/confirm/decline — NO: invalidate the
+// POST /api/prohibitorum/auth/federation/-/confirm/decline — NO: invalidate the
 // grant (best-effort single-use consume) and clear the cookie. No session.
 func (s *Server) handleFederationConfirmDecline(w http.ResponseWriter, r *http.Request) {
 	token, anti := splitConfirmCookie(cookieValue(r, sessstore.FedStateCookieName))

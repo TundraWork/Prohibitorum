@@ -612,7 +612,7 @@ type FederationProvider struct {
 }
 
 // FederationConfirmView is the /welcome confirmation-step projection returned by
-// GET /api/prohibitorum/auth/federation/confirm. It surfaces the pending
+// GET /api/prohibitorum/auth/federation/-/confirm. It surfaces the pending
 // identity (resolved via a single-use, browser-bound confirmation grant) so the
 // user can confirm or decline a first-time federated sign-in. AvatarURL is the
 // account's active avatar, which the sign-in already fetched; nil when there is

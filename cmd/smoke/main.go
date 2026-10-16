@@ -964,7 +964,7 @@ func main() {
 	}
 	log.Printf("  302 to /welcome; no session cookie yet (post-callback /me 401) ✓")
 
-	step(fmt.Sprintf("federation %d/%d — GET /auth/federation/confirm → pending identity (grant-scoped)", 5, nFederation))
+	step(fmt.Sprintf("federation %d/%d — GET /auth/federation/-/confirm → pending identity (grant-scoped)", 5, nFederation))
 	view, err := extClient.confirmGet()
 	if err != nil {
 		log.Fatalf("federation/confirm GET: %v", err)
@@ -978,7 +978,7 @@ func main() {
 	log.Printf("  confirm GET: idp=%q username=%s displayName=%s ✓",
 		view.IDPDisplayName, view.Username, view.DisplayName)
 
-	step(fmt.Sprintf("federation %d/%d — POST /auth/federation/confirm → {redirect:/me} + session", 6, nFederation))
+	step(fmt.Sprintf("federation %d/%d — POST /auth/federation/-/confirm → {redirect:/me} + session", 6, nFederation))
 	if redirect, err := extClient.confirmPost(); err != nil {
 		log.Fatalf("federation/confirm POST: %v", err)
 	} else if redirect != "/me" {
@@ -1342,7 +1342,7 @@ func main() {
 		}
 		// “Not me” on the confirm page: POST decline pops the grant (204,
 		// cookie cleared) and issues no session.
-		if resp, err := declineClient.postJSONRaw("/api/prohibitorum/auth/federation/confirm/decline", map[string]any{}); err != nil {
+		if resp, err := declineClient.postJSONRaw("/api/prohibitorum/auth/federation/-/confirm/decline", map[string]any{}); err != nil {
 			log.Fatalf("confirm decline POST: %v", err)
 		} else {
 			resp.Body.Close()
@@ -7988,26 +7988,26 @@ type federationConfirmView struct {
 	AvatarURL      *string `json:"avatarUrl,omitempty"`
 }
 
-// confirmGet drives GET /api/prohibitorum/auth/federation/confirm — the
+// confirmGet drives GET /api/prohibitorum/auth/federation/-/confirm — the
 // grant-scoped peek the /welcome page makes to render the pending identity.
 // The fed-state (confirmation-grant) cookie must already be in c's jar (set by
 // the callback 302). No session is required or issued.
 func (c *client) confirmGet() (*federationConfirmView, error) {
 	var v federationConfirmView
-	if err := c.get("/api/prohibitorum/auth/federation/confirm", &v); err != nil {
+	if err := c.get("/api/prohibitorum/auth/federation/-/confirm", &v); err != nil {
 		return nil, err
 	}
 	return &v, nil
 }
 
-// confirmPost drives POST /api/prohibitorum/auth/federation/confirm — the YES
+// confirmPost drives POST /api/prohibitorum/auth/federation/-/confirm — the YES
 // click: single-use-consumes the grant, stamps confirmed_at, and issues the
 // durable session cookie. Returns the {redirect} the server hands back.
 func (c *client) confirmPost() (string, error) {
 	var out struct {
 		Redirect string `json:"redirect"`
 	}
-	if err := c.postJSON("/api/prohibitorum/auth/federation/confirm", map[string]any{}, &out); err != nil {
+	if err := c.postJSON("/api/prohibitorum/auth/federation/-/confirm", map[string]any{}, &out); err != nil {
 		return "", err
 	}
 	return out.Redirect, nil
@@ -8698,7 +8698,7 @@ func expectFederationLoginError(c *client, baseURL, slug, mockopBase, wantCode s
 	return nil
 }
 
-// confirmPostFull drives POST /auth/federation/confirm and returns
+// confirmPostFull drives POST /auth/federation/-/confirm and returns
 // (offerLocalSignin, redirect). The flag is set only for accounts provisioned
 // through an invite + provider (the grant carries it).
 func (c *client) confirmPostFull() (bool, string, error) {
@@ -8706,7 +8706,7 @@ func (c *client) confirmPostFull() (bool, string, error) {
 		Redirect         string `json:"redirect"`
 		OfferLocalSignin bool   `json:"offerLocalSignin"`
 	}
-	if err := c.postJSON("/api/prohibitorum/auth/federation/confirm", map[string]any{}, &out); err != nil {
+	if err := c.postJSON("/api/prohibitorum/auth/federation/-/confirm", map[string]any{}, &out); err != nil {
 		return false, "", err
 	}
 	return out.OfferLocalSignin, out.Redirect, nil

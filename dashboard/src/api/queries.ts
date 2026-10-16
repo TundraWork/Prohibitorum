@@ -160,7 +160,7 @@ export function federationConfirmQueryOptions() {
     refetchOnWindowFocus: false,
     queryFn: ({ signal }): Promise<FederationConfirm> =>
       requireJsonData(
-        client.GET("/api/prohibitorum/auth/federation/confirm", { signal }),
+        client.GET("/api/prohibitorum/auth/federation/-/confirm", { signal }),
       ),
   });
 }
@@ -206,7 +206,7 @@ export function federationFlowQueryOptions(flow: string) {
     queryFn: async ({ signal }) =>
       readFederationFlow(
         await requireJsonData(
-          client.GET("/api/prohibitorum/auth/federation/flows/{flow}", {
+          client.GET("/api/prohibitorum/auth/federation/-/flows/{flow}", {
             params: { path: { flow } },
             signal,
           }),

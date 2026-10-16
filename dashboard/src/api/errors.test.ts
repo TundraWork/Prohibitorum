@@ -126,7 +126,7 @@ describe("the enrollment and public federation codes", () => {
         details: { federationName: "VRChat" },
         exchange: {
           method: "POST",
-          path: "/api/prohibitorum/auth/federation/flows/f/verify",
+          path: "/api/prohibitorum/auth/federation/-/flows/f/verify",
           response: { status: 429, headers },
         },
       });
