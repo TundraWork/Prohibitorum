@@ -127,7 +127,11 @@ export function readOidcProviderConfig(
     ] as const) ||
     !isOneOf(value.pkceMethod, ["S256", "plain", "off"] as const) ||
     (value.responseType !== undefined &&
-      !isOneOf(value.responseType, ["code", "id_token"] as const)) ||
+      !isOneOf(value.responseType, [
+        "code",
+        "id_token",
+        "id_token token",
+      ] as const)) ||
     (value.authenticateAvatarFetch !== undefined &&
       typeof value.authenticateAvatarFetch !== "boolean")
   ) {

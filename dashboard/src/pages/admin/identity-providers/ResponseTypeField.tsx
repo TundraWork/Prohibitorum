@@ -8,9 +8,9 @@ import {
 /**
  * What the provider sends back after sign-in, as a form field.
  *
- * ID token only fails at the provider, not here, when its client does not
- * allow that response, and each console names the switch differently, so the
- * description names the two the reader is most likely to be looking at.
+ * The implicit responses fail at the provider, not here, when its client does
+ * not allow that response, and each console names the switch differently, so
+ * the description names the one the reader is most likely to be looking at.
  */
 export function ResponseTypeField() {
   return (
@@ -22,9 +22,10 @@ export function ResponseTypeField() {
       description={
         <Trans id="admin.federation.response.description">
           ID token only works when the provider's client allows
-          response_type=id_token. Keycloak calls this Implicit Flow Enabled; the
-          Microsoft identity platform lists it as ID tokens under implicit
-          grant.
+          response_type=id_token, and ID token + access token needs
+          response_type=id_token token. Keycloak calls this Implicit Flow
+          Enabled; the Microsoft identity platform lists them as ID tokens and
+          Access tokens under implicit grant.
         </Trans>
       }
     />

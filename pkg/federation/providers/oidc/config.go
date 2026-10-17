@@ -50,14 +50,17 @@ type Config struct {
 	AuthenticateAvatarFetch bool `json:"authenticateAvatarFetch,omitempty"`
 }
 
-// The sign-in responses a provider can ask for. The implicit flow is an
+// The sign-in responses a provider can ask for. Both implicit flows are an
 // opt-in because many upstreams (Keycloak, Authelia, Dex, ZITADEL, Okta) only
 // allow the code flow by default, while some public clients, such as an app
 // registered for personal Microsoft accounts, cannot redeem a code from a
-// server at all.
+// server at all. The token variant additionally asks the upstream for an
+// access token (Microsoft personal accounts allow it; the plain id_token
+// response does not carry one), so the avatar can come from UserInfo.
 const (
-	responseTypeCode    = "code"
-	responseTypeIDToken = "id_token"
+	responseTypeCode         = "code"
+	responseTypeIDToken      = "id_token"
+	responseTypeIDTokenToken = "id_token token"
 )
 
 // jwksNone is the JWKS endpoint value that turns ID token verification off.
@@ -200,7 +203,7 @@ func validateConfig(c Config) error {
 	// reported as a bad URL instead.
 	switch c.responseType() {
 	case responseTypeCode:
-	case responseTypeIDToken:
+	case responseTypeIDToken, responseTypeIDTokenToken:
 		if !slices.Contains(c.Scopes, "openid") {
 			return errors.New("federation/oidc: ID token only sign-in requires the openid scope")
 		}

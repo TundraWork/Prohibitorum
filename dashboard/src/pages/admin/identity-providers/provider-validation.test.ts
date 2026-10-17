@@ -337,6 +337,22 @@ describe("sign-in response", () => {
     ).toBeDefined();
   });
 
+  it("applies the same rules to ID token + access token", () => {
+    expect(
+      responseTypeProblem(
+        "id_token token",
+        openid,
+        manual("https://idp.example.com/keys"),
+      ),
+    ).toBeUndefined();
+    expect(
+      responseTypeProblem("id_token token", { tags: ["profile"], draft: "" }),
+    ).toBeDefined();
+    expect(
+      responseTypeProblem("id_token token", openid, manual("none")),
+    ).toBeDefined();
+  });
+
   it("reports the pair under the response field of the connection form", () => {
     const problems = connectionProblems(
       connection({

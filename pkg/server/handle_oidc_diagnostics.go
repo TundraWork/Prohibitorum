@@ -166,7 +166,10 @@ func (s *Server) handleOIDCTestCallbackHTTP(w http.ResponseWriter, r *http.Reque
 	}
 	// Providers append their own parameters (Google adds scope, authuser and
 	// prompt), so only the parameters read here must appear at most once.
-	for _, key := range []string{"state", "code", "error", "error_description", "iss", "id_token"} {
+	// access_token is read only to reject duplicates: the connection test
+	// keeps no front-channel token, so its userinfo stage cannot run for the
+	// id_token token response.
+	for _, key := range []string{"state", "code", "error", "error_description", "iss", "id_token", "access_token"} {
 		if len(q[key]) > 1 {
 			writeAuthErr(w, authn.ErrBadRequest())
 			return

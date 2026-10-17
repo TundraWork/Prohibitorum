@@ -64,7 +64,7 @@ import (
 // later arc is added, unlike a single global counter.
 const (
 	nCore       = 54
-	nFederation = 38
+	nFederation = 39
 	nOIDC       = 18
 	nSAML       = 14
 	nHardening  = 14
@@ -1749,7 +1749,99 @@ func main() {
 		log.Printf("  relay page served, implicit id_token verified, 0 token endpoint calls, account confirmed ✓")
 	}
 
-	step(fmt.Sprintf("federation %d/%d — sign-in off: /login is refused with federation_sign_in_disabled", 36, nFederation))
+	step(fmt.Sprintf("federation %d/%d — implicit id_token token: access token relays too, avatar comes from userinfo", 36, nFederation))
+	{
+		const tokSlug = "mockop-implicit-token"
+		if _, err := seedUpstreamIDP(dek, tokSlug, "Mock OP (implicit token)", opTS.URL, "test-client", "unused-secret", "auto_provision", nil, true, true); err != nil {
+			log.Fatalf("seed %s: %v", tokSlug, err)
+		}
+		tokRaw, err := oidcSeedProviderConfig(opTS.URL, "test-client", nil, true, true)
+		if err != nil {
+			log.Fatal(err)
+		}
+		var tokConfig map[string]any
+		if err := json.Unmarshal(tokRaw, &tokConfig); err != nil {
+			log.Fatal(err)
+		}
+		tokConfig["tokenAuthMethod"] = "none"
+		tokConfig["responseType"] = "id_token token"
+		tokConfig["authenticateAvatarFetch"] = true
+		tokRaw, err = json.Marshal(tokConfig)
+		if err != nil {
+			log.Fatal(err)
+		}
+		tokDB, err := pgx.Connect(context.Background(), os.Getenv("PROHIBITORUM_DATABASE_URL"))
+		if err != nil {
+			log.Fatal(err)
+		}
+		if _, err := tokDB.Exec(context.Background(), "UPDATE upstream_idp SET provider_config=$1, secret_enc=NULL, secret_nonce=NULL, key_version=NULL, secret_status='unconfigured' WHERE slug=$2", tokRaw, tokSlug); err != nil {
+			log.Fatal(err)
+		}
+		if err := tokDB.Close(context.Background()); err != nil {
+			log.Fatal(err)
+		}
+		// The picture lives only in userinfo, so the avatar proves the
+		// fragment's access token reached the userinfo call.
+		opSrv.SetClaims("pub-implicit-tok-1", "pub-implicit-tok@example.com", true, "pubimplicittok", "Pub Implicit Token")
+		opSrv.SetPictureUserInfoOnly(opSrv.PictureURL())
+		tokClient, err := newFederationClient(*baseURL)
+		if err != nil {
+			log.Fatalf("implicit token client: %v", err)
+		}
+		tokenCallsBefore := opSrv.TokenCalls()
+		userInfoCallsBefore := opSrv.UserInfoCalls()
+		tokLogin := fmt.Sprintf("/api/prohibitorum/auth/federation/%s/login?return_to=/me", tokSlug)
+		tokAuthorize, err := tokClient.getRedirect(tokLogin)
+		if err != nil {
+			log.Fatalf("implicit token login: %v", err)
+		}
+		if !strings.Contains(tokAuthorize, "response_type=id_token+token") && !strings.Contains(tokAuthorize, "response_type=id_token%20token") {
+			log.Fatalf("implicit token login is not the id_token token request: %q", tokAuthorize)
+		}
+		tokCallback, err := followMockOPAuthorize(tokAuthorize)
+		if err != nil {
+			log.Fatalf("implicit token authorize: %v", err)
+		}
+		if !strings.Contains(tokCallback, "access_token=") || !strings.Contains(tokCallback, "id_token=") {
+			log.Fatalf("implicit token callback fragment: %s", tokCallback)
+		}
+		tokRedirectURL, err := tokClient.relayFragment(tokCallback)
+		if err != nil {
+			log.Fatalf("implicit token relay: %v", err)
+		}
+		if strings.Contains(tokRedirectURL, "#") {
+			log.Fatalf("implicit token relay left a fragment: %s", tokRedirectURL)
+		}
+		if loc, err := tokClient.getRedirectAbs(tokRedirectURL); err != nil {
+			log.Fatalf("implicit token callback: %v", err)
+		} else if loc != "/welcome" {
+			log.Fatalf("implicit token callback: want /welcome, got %q", loc)
+		}
+		if got := opSrv.TokenCalls() - tokenCallsBefore; got != 0 {
+			log.Fatalf("implicit token login made %d token endpoint calls", got)
+		}
+		if view, err := tokClient.confirmGet(); err != nil {
+			log.Fatalf("implicit token confirm GET: %v", err)
+		} else if view.AvatarURL == nil {
+			log.Fatalf("implicit token confirm GET avatarUrl is nil — the userinfo avatar was never stored")
+		}
+		if _, err := tokClient.confirmPost(); err != nil {
+			log.Fatalf("implicit token confirm POST: %v", err)
+		}
+		tokMe, err := tokClient.getMe()
+		if err != nil {
+			log.Fatalf("implicit token /me: %v", err)
+		}
+		if tokMe.Username != "pubimplicittok" {
+			log.Fatalf("implicit token account username = %q", tokMe.Username)
+		}
+		if got := opSrv.UserInfoCalls() - userInfoCallsBefore; got < 1 {
+			log.Fatalf("implicit token login made %d userinfo calls, want at least 1", got)
+		}
+		log.Printf("  relayed access_token verified against at_hash, userinfo avatar stored, 0 token endpoint calls ✓")
+	}
+
+	step(fmt.Sprintf("federation %d/%d — sign-in off: /login is refused with federation_sign_in_disabled", 37, nFederation))
 	{
 		const offSlug = "mockop-nosignin"
 		if _, err := seedUpstreamIDP(dek, offSlug, "Mock OP (sign-in off)", opTS.URL, "test-client", "unused-secret", "invite_only", nil, true, true); err != nil {
@@ -1789,7 +1881,7 @@ func main() {
 		}
 	}
 
-	step(fmt.Sprintf("federation %d/%d — requireLocalCredential invite verifies first, then completes with password+TOTP", 37, nFederation))
+	step(fmt.Sprintf("federation %d/%d — requireLocalCredential invite verifies first, then completes with password+TOTP", 38, nFederation))
 	{
 		const requireLocalSlug = "mockop-requirelocal"
 		if _, err := seedUpstreamIDP(dek, requireLocalSlug, "Mock OP (require local)", opTS.URL, "test-client", "unused-secret", "invite_only", nil, true, true); err != nil {
@@ -1884,7 +1976,7 @@ func main() {
 
 	}
 
-	step(fmt.Sprintf("federation %d/%d — claim names as gjson paths: nested claims fill the account (PHB-121)", 38, nFederation))
+	step(fmt.Sprintf("federation %d/%d — claim names as gjson paths: nested claims fill the account (PHB-121)", 39, nFederation))
 	{
 		const pathSlug = "mockop-path"
 		// Every mapping is a path into a nested claim shape; none of the

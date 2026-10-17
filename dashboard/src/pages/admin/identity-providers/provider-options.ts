@@ -191,7 +191,9 @@ export type ResponseType = NonNullable<OidcProviderConfig["responseType"]>;
  * What the provider sends back after someone signs in. The code flow is the
  * default because most providers allow only that; ID token only exists for
  * public clients whose provider will not let a server redeem the code, such
- * as an app registered for personal Microsoft accounts.
+ * as an app registered for personal Microsoft accounts, and ID token +
+ * access token adds the token such a provider can hand out on the same
+ * response, so the avatar can come from UserInfo.
  */
 export const responseTypes: readonly ProviderOption<ResponseType>[] = [
   {
@@ -216,6 +218,18 @@ export const responseTypes: readonly ProviderOption<ResponseType>[] = [
       id: "admin.federation.response.id-token.hint",
       message:
         "Reads the ID token sent back to the callback, without a token request or UserInfo.",
+    }),
+  },
+  {
+    value: "id_token token",
+    label: msg({
+      id: "admin.federation.response.id-token-token",
+      message: "ID token + access token",
+    }),
+    description: msg({
+      id: "admin.federation.response.id-token-token.hint",
+      message:
+        "Also reads the access token sent back with the ID token, and uses it for UserInfo when the ID token has no picture.",
     }),
   },
 ];

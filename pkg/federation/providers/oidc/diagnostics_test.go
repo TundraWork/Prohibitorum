@@ -337,6 +337,76 @@ func TestDiagnosticsImplicitFlowForPublicClient(t *testing.T) {
 	}
 }
 
+// TestDiagnosticsImplicitTokenFlowForPublicClient runs the connection test
+// for the id_token token response: the verification covers the at_hash-bound
+// id_token, and userinfo stays skipped — the access token from the fragment
+// is never retained, so Complete cannot replay login's userinfo request.
+func TestDiagnosticsImplicitTokenFlowForPublicClient(t *testing.T) {
+	h := newDiagnosticHarness(t)
+	h.configure(func(c *Config) {
+		c.TokenAuthMethod = "none"
+		c.ResponseType = responseTypeIDTokenToken
+	})
+	h.provider.Secret = nil
+	h.provider.SecretStatus = "unconfigured"
+	s := h.start(t)
+	authorize, err := url.Parse(s.AuthorizationURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if authorize.Query().Get("response_type") != responseTypeIDTokenToken {
+		t.Fatalf("authorization response_type = %q, want %s", authorize.Query().Get("response_type"), responseTypeIDTokenToken)
+	}
+	browser := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	resp, err := browser.Get(s.AuthorizationURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	loc, err := resp.Location()
+	if err != nil {
+		t.Fatal(err)
+	}
+	fragment, err := url.ParseQuery(loc.Fragment)
+	if err != nil {
+		t.Fatal(err)
+	}
+	idToken, accessToken := fragment.Get("id_token"), fragment.Get("access_token")
+	if idToken == "" || accessToken == "" {
+		t.Fatalf("fragment tokens: %s", loc)
+	}
+	if err := h.service.Callback(context.Background(), s.ID, h.provider.Slug, h.browser, "", "", "", fragment.Get("iss"), idToken, "request-callback"); err != nil {
+		t.Fatal(err)
+	}
+	result, err := h.service.Complete(context.Background(), s.ID, h.provider, h.browser, h.actor, "request-complete")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Status != "succeeded" || result.Identity == nil {
+		t.Fatalf("result=%+v", result)
+	}
+	if stage := stageOf(result, "token_exchange"); stage.Status != "skipped" {
+		t.Fatalf("token_exchange stage = %+v, want skipped", stage)
+	}
+	if stage := stageOf(result, "id_token"); stage.Status != "succeeded" {
+		t.Fatalf("id_token stage = %+v", stage)
+	}
+	if stage := stageOf(result, "userinfo"); stage.Status != "skipped" || stage.ErrorCode != "implicit_no_token_retained" {
+		t.Fatalf("userinfo stage = %+v, want skipped with implicit_no_token_retained", stage)
+	}
+	if h.tokenCalls.Load() != 0 || h.userInfoCalls.Load() != 0 {
+		t.Fatalf("token/userinfo calls = %d/%d, want 0/0", h.tokenCalls.Load(), h.userInfoCalls.Load())
+	}
+	// Neither token may be retained after Complete.
+	raw, err := h.service.store.Get(context.Background(), diagnosticKey(s.ID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(raw, idToken) || strings.Contains(raw, accessToken) || strings.Contains(raw, "eyJ") {
+		t.Fatal("stored result retains a raw token")
+	}
+}
+
 func TestDiagnosticsConcurrentCompleteExchangesOnce(t *testing.T) {
 	h := newDiagnosticHarness(t)
 	s := h.start(t)

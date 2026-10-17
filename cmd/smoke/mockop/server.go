@@ -69,6 +69,7 @@ type codeState struct {
 	iss             string         // captured at authorize time (base or override)
 	extra           map[string]any // captured SetExtraClaims snapshot (nil = none)
 	expiresAt       time.Time
+	atHash          string // pre-computed at_hash for the id_token token response
 }
 
 // Server is the mock OP. All exported methods are safe for concurrent use.
@@ -114,6 +115,10 @@ type Server struct {
 	// tokenCalls counts requests to /token, so a test can prove the implicit
 	// flow never reached the token endpoint.
 	tokenCalls int
+
+	// userInfoCalls counts requests to /userinfo, so a test can prove the
+	// implicit id_token token flow used its access token there.
+	userInfoCalls int
 
 	// Per-code state, keyed by the authorization code.
 	codes map[string]codeState
@@ -241,6 +246,13 @@ func (s *Server) TokenCalls() int {
 	return s.tokenCalls
 }
 
+// UserInfoCalls returns how many times /userinfo has been requested.
+func (s *Server) UserInfoCalls() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.userInfoCalls
+}
+
 // SetAMR sets the amr claim added to the next ID token. Passing nil clears
 // it (no amr claim emitted). Persists across calls.
 func (s *Server) SetAMR(amr []string) {
@@ -290,7 +302,7 @@ func (s *Server) handleDiscovery(w http.ResponseWriter, r *http.Request) {
 		"token_endpoint":                        base + "/token",
 		"jwks_uri":                              base + "/jwks",
 		"userinfo_endpoint":                     base + "/userinfo",
-		"response_types_supported":              []string{"code", "id_token"},
+		"response_types_supported":              []string{"code", "id_token", "id_token token"},
 		"subject_types_supported":               []string{"public"},
 		"id_token_signing_alg_values_supported": []string{"ES256"},
 		"scopes_supported":                      []string{"openid", "profile", "email"},
@@ -327,6 +339,7 @@ func (s *Server) handleJWKS(w http.ResponseWriter, r *http.Request) {
 // (userinfo only).
 func (s *Server) handleUserinfo(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
+	s.userInfoCalls++
 	cl := s.nextClaims
 	uiPic := s.userinfoPicture
 	extra := s.nextExtraClaims
@@ -397,11 +410,11 @@ func (s *Server) handleAuthorize(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, `{"error":"invalid_request"}`, http.StatusBadRequest)
 		return
 	}
-	// The implicit response carries the id_token in the fragment; PKCE has
+	// The implicit responses carry the id_token in the fragment; PKCE has
 	// no code to bind, so challenge parameters alongside response_type=id_token
-	// mean the RP built the request wrong.
-	if responseType != "code" && responseType != "id_token" ||
-		responseType == "id_token" && challengeMethod != "" {
+	// or id_token token mean the RP built the request wrong.
+	if responseType != "code" && responseType != "id_token" && responseType != "id_token token" ||
+		responseType != "code" && challengeMethod != "" {
 		http.Error(w, `{"error":"invalid_request"}`, http.StatusBadRequest)
 		return
 	}
@@ -450,16 +463,33 @@ func (s *Server) handleAuthorize(w http.ResponseWriter, r *http.Request) {
 	rq := u.Query()
 	rq.Set("state", state)
 	rq.Set("iss", iss)
-	if responseType == "id_token" {
+	if responseType != "code" {
+		// The id_token token variant (§3.2.2.5) also returns an access
+		// token; the at_hash binding it into the signed id_token is
+		// base64url of the left half of SHA-256(access_token) for ES256.
+		accessToken := ""
+		if responseType == "id_token token" {
+			accessToken = genRand(24)
+			s.mu.Lock()
+			s.lastAccessToken = accessToken
+			s.mu.Unlock()
+			digest := sha256.Sum256([]byte(accessToken))
+			snapshot.atHash = base64.RawURLEncoding.EncodeToString(digest[:16])
+		}
 		idToken, err := s.mintIDToken(snapshot)
 		if err != nil {
 			http.Error(w, `{"error":"server_error"}`, http.StatusInternalServerError)
 			return
 		}
-		// Implicit flow (OIDC Core §3.2.2.1): the id_token is returned in the
-		// redirect URI fragment, which browsers never send to the server —
-		// the RP's callback page relays it into the query.
+		// Implicit flow (OIDC Core §3.2.2.1): the response parameters are
+		// returned in the redirect URI fragment, which browsers never send
+		// to the server — the RP's callback page relays them into the query.
 		fragment := url.Values{"id_token": {idToken}}
+		if accessToken != "" {
+			fragment.Set("access_token", accessToken)
+			fragment.Set("token_type", "Bearer")
+			fragment.Set("expires_in", "300")
+		}
 		for _, key := range []string{"state", "iss"} {
 			fragment.Set(key, rq.Get(key))
 		}
@@ -595,6 +625,9 @@ func (s *Server) mintIDToken(st codeState) (string, error) {
 	}
 	if len(st.amr) > 0 {
 		idClaims["amr"] = st.amr
+	}
+	if st.atHash != "" {
+		idClaims["at_hash"] = st.atHash
 	}
 	if !st.authTime.IsZero() {
 		idClaims["auth_time"] = st.authTime.Unix()

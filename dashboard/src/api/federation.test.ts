@@ -109,6 +109,15 @@ describe("reading an OIDC provider config", () => {
     expect(readOidcProviderConfig(older)?.responseType).toBe("code");
   });
 
+  it("reads the id_token token response type", () => {
+    expect(
+      readOidcProviderConfig({
+        ...fullConfig,
+        responseType: "id_token token",
+      })?.responseType,
+    ).toBe("id_token token");
+  });
+
   it("keeps a null endpoint, which means no override", () => {
     const read = readOidcProviderConfig(fullConfig);
     expect(read?.endpoints.userinfo).toBeNull();

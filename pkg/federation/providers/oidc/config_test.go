@@ -72,7 +72,7 @@ func TestConfigResponseTypeRules(t *testing.T) {
 		raw, _ := json.Marshal(c)
 		return raw
 	}
-	for _, value := range []any{nil, "code", "id_token"} {
+	for _, value := range []any{nil, "code", "id_token", "id_token token"} {
 		raw := edit(func(c map[string]any) {
 			if value != nil {
 				c["responseType"] = value
@@ -92,6 +92,14 @@ func TestConfigResponseTypeRules(t *testing.T) {
 		}},
 		{"id_token with jwks none", "cannot use JWKS none", func(c map[string]any) {
 			c["responseType"] = "id_token"
+			c["endpoints"].(map[string]any)["jwks"] = "none"
+		}},
+		{"id_token token without openid", "requires the openid scope", func(c map[string]any) {
+			c["responseType"] = "id_token token"
+			c["scopes"] = []string{"profile"}
+		}},
+		{"id_token token with jwks none", "cannot use JWKS none", func(c map[string]any) {
+			c["responseType"] = "id_token token"
 			c["endpoints"].(map[string]any)["jwks"] = "none"
 		}},
 	} {

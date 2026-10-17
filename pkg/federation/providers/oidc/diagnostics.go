@@ -329,9 +329,12 @@ func (d *Diagnostics) Complete(ctx context.Context, id string, provider federati
 	// Login resolves a missing avatar through userinfo after sign-in. The test
 	// makes that call now; when the id_token already has a picture it still
 	// asks userinfo once, through the same ResolveAvatar, only to show it.
+	// An implicit flow cannot: the connection test stores no front-channel
+	// access token, so Complete has nothing to send userinfo — the callback
+	// consumed the fragment and login keeps its token in memory only.
 	var avatarURL string
 	var avatarErr error
-	if advanceErr == nil && !result.Identity.UserInfoFallback {
+	if advanceErr == nil && !implicit && !result.Identity.UserInfoFallback {
 		if result.Avatar != nil && result.Avatar.Opaque != nil {
 			avatarURL, avatarErr = adapter.ResolveAvatar(runCtx, provider, *result.Avatar)
 		} else if client, tokens, _ := recorder.exchange(); client != nil && tokens.AccessToken != "" && flow.Resolved.UserInfoEndpoint != "" {
@@ -375,9 +378,13 @@ func diagnosticStages(recorder *diagnosticRecorder, resolved ResolvedConfig, adv
 	userinfo := DiagnosticStage{Name: "userinfo", Status: "skipped", RequestID: requestID}
 	if implicit {
 		// The implicit flow authenticates from the front-channel id_token;
-		// there is no token endpoint call and no userinfo fetch, so both
-		// stages carry neither endpoint nor timing.
+		// there is no token endpoint call, so that stage carries neither
+		// endpoint nor timing. UserInfo is skipped for a different reason:
+		// the plain id_token response carries no access token, and the
+		// id_token token response's token lives only in login's callback
+		// memory — the connection test stores none.
 		exchange.Status = "skipped"
+		userinfo.ErrorCode = "implicit_no_token_retained"
 	} else {
 		exchange.HTTPStatus = token.status
 		exchange.DurationMS = token.duration.Milliseconds()

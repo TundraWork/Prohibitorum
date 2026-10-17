@@ -397,14 +397,15 @@ const idTokenNeedsJwks = msg({
 /**
  * Why a sign-in response cannot be saved with these scopes and endpoints. The
  * server refuses the same pairs: without openid the provider issues no ID
- * token, and with JWKS `none` there is nothing to check one with.
+ * token, and with JWKS `none` there is nothing to check one with. Both
+ * implicit responses share the rules.
  */
 export function responseTypeProblem(
   responseType: ResponseType,
   scopes: TagListValue,
   endpoints?: EndpointsValue,
 ): MessageDescriptor | undefined {
-  if (responseType !== "id_token") return undefined;
+  if (responseType === "code") return undefined;
   if (!scopes.tags.includes("openid")) return idTokenNeedsOpenid;
   if (
     endpoints !== undefined &&

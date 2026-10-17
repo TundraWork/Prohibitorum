@@ -355,22 +355,29 @@ func (c *Client) AuthURL(state, nonce, codeChallenge string, extra ...oauth2.Aut
 	return rp.AuthURL(state, c.rp, opts...)
 }
 
-// ImplicitAuthURL builds the OIDC implicit-flow authorization request
-// (response_type=id_token) used by public clients. The nonce is the flow's
-// only front-channel binding — no code, no PKCE — so it must be unguessable
-// and stored server-side in the flow state, exactly as Begin does.
-func (c *Client) ImplicitAuthURL(state, nonce string) string {
+// ImplicitAuthURL builds an implicit-flow authorization request (OIDC Core
+// §3.2.2.1) — responseType is "id_token" or "id_token token", the latter
+// asking the upstream to also return an access token on the front channel,
+// as Microsoft personal accounts do. The nonce is the flow's only
+// front-channel binding — no code, no PKCE — so it must be unguessable and
+// stored server-side in the flow state, exactly as Begin does.
+func (c *Client) ImplicitAuthURL(state, nonce, responseType string) string {
 	return rp.AuthURL(state, c.rp,
-		authURLOpt(oauth2.SetAuthURLParam("response_type", "id_token")),
+		authURLOpt(oauth2.SetAuthURLParam("response_type", responseType)),
 		authURLOpt(oauth2.SetAuthURLParam("nonce", nonce)))
 }
 
-// VerifyImplicit verifies a front-channel id_token from the implicit flow
-// (response_type=id_token) and projects it into Tokens exactly as Exchange
-// treats a token-response id_token: full signature, issuer, audience, expiry,
-// nonce and alg checks, with IDToken set and the OAuth2 token fields empty.
-// expectedIss and expectedNonce are the values snapshotted in the flow state.
-func (c *Client) VerifyImplicit(ctx context.Context, idToken, expectedIss, expectedNonce string) (*Tokens, error) {
+// VerifyImplicit verifies a front-channel id_token from an implicit flow
+// (response_type id_token or id_token token) and projects it into Tokens
+// exactly as Exchange treats a token-response id_token: full signature,
+// issuer, audience, expiry, nonce and alg checks. accessToken is the
+// fragment's access_token for the id_token token response ("" for plain
+// id_token): when the id_token carries an at_hash the two must match (OIDC
+// Core §3.2.2.5 — that binding is what makes a substituted token detectable),
+// and the verified token is returned in Tokens for the avatar path, never
+// persisted. expectedIss and expectedNonce are the values snapshotted in the
+// flow state.
+func (c *Client) VerifyImplicit(ctx context.Context, idToken, accessToken, expectedIss, expectedNonce string) (*Tokens, error) {
 	// A JWKS-none provider builds no verifier; the save rule keeps the
 	// implicit flow off such a provider, and ResolveConfig rejects a
 	// discovery-supplied "none". This guard is the third lock on that door:
@@ -395,7 +402,12 @@ func (c *Client) VerifyImplicit(ctx context.Context, idToken, expectedIss, expec
 	if alg := string(claims.GetSignatureAlgorithm()); alg != "" && !algInAllowlist(alg, c.allowedAlgs()) {
 		return nil, fmt.Errorf("federation/oidc: id_token signed with disallowed alg %q", alg)
 	}
-	result := tokensFromIDTokenClaims(idToken, "", claims)
+	if accessToken != "" {
+		if err := rp.VerifyAccessToken(accessToken, claims.GetAccessTokenHash(), claims.GetSignatureAlgorithm()); err != nil {
+			return nil, fmt.Errorf("federation/oidc: implicit access token: %w", err)
+		}
+	}
+	result := tokensFromIDTokenClaims(idToken, accessToken, claims)
 	recorderFrom(ctx).exchanged(c, result)
 	return result, nil
 }
