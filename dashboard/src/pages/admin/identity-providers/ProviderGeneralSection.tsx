@@ -107,7 +107,7 @@ export function ProviderGeneralSection({ provider }: { provider: Provider }) {
 
             <form.AppField name="allowSignIn">
               {(field) => (
-                <field.FormField
+                <field.SwitchField
                   label={
                     <Trans id="admin.federation.general.sign_in">
                       Allow sign-in
@@ -144,6 +144,10 @@ export function ProviderGeneralSection({ provider }: { provider: Provider }) {
                 </form.Subscribe>
               )}
             </form.AppField>
+
+            <form.SubmitButton>
+              <Trans id="admin.federation.general.save">Save</Trans>
+            </form.SubmitButton>
             <ConfirmDialog
               isOpen={confirmingOff}
               onOpenChange={(open) => {

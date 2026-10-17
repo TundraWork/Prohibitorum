@@ -260,7 +260,7 @@ export function AdminIdentityProviderNew() {
 
           <form.AppField name="allowSignIn">
             {(field) => (
-              <field.FormField
+              <field.SwitchField
                 label={
                   <Trans id="admin.federation.general.sign_in">
                     Allow sign-in

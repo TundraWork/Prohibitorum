@@ -255,7 +255,7 @@ export function AdminInvitationForm() {
               return (
                 <form.AppField name="requireLocalCredential">
                   {(field) => (
-                    <field.FormField
+                    <field.SwitchField
                       label={
                         <Trans id="admin.invitations.new.require_local.label">
                           Require a local sign-in method

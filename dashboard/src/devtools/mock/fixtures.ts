@@ -1118,6 +1118,24 @@ function groupPreview(config: MockConfig): RulePreviewPageView {
  * dot). A walkthrough that only ever saw ready providers would never reach the
  * row treatments the list exists to show.
  */
+// The protocol default for the sign-in switch, overridden per row by the mask.
+function providerSignIn(
+  config: MockConfig,
+  index: number,
+  protocol: string,
+): boolean {
+  const letter = config.admin.providerSignInMask[index];
+  if (letter === "x") return false;
+  if (letter === "o") return true;
+  return protocol !== "vrchat";
+}
+
+function rowIndexOfSlug(config: MockConfig, slug: string): number {
+  return identityProviders(config).findIndex(
+    (provider) => provider.slug === slug,
+  );
+}
+
 function identityProviders(config: MockConfig): IdentityProvider[] {
   const protocols: readonly string[] = ["oidc", "steam", "vrchat"];
   return range(config.admin.identityProviders).map((index) => {
@@ -1140,7 +1158,8 @@ function identityProviders(config: MockConfig): IdentityProvider[] {
       displayName: `Example ${protocol.toUpperCase()} ${index + 1}`,
       protocol,
       // VRChat verifies identities by default; everyone else backs a button.
-      allowSignIn: protocol !== "vrchat" || index % 4 === 2,
+      // The mask records what the panel's write switch changed.
+      allowSignIn: providerSignIn(config, index, protocol),
       mode:
         protocol === "vrchat"
           ? "link_only"
@@ -2735,7 +2754,20 @@ function writeReply(
       if (disabled === false && !found.ready) {
         return { kind: "error", status: 503, code: "provider_not_ready" };
       }
-      return json(next);
+      // Record the sign-in switch in the mask so the change survives a reload.
+      const effect =
+        allowSignIn === undefined
+          ? undefined
+          : (draft: MockConfig) => {
+              const index = rowIndexOfSlug(config, slug);
+              if (index < 0) return;
+              const mask = draft.admin.providerSignInMask
+                .padEnd(config.admin.identityProviders, ".")
+                .split("");
+              mask[index] = allowSignIn ? "o" : "x";
+              draft.admin.providerSignInMask = mask.join("");
+            };
+      return json(next, effect);
     }
 
     case "/api/prohibitorum/identity-providers/delete":

@@ -79,6 +79,13 @@ export interface MockConfig {
      * one, a disabled one and one that is not ready.
      */
     identityProviders: number;
+    /**
+     * Which fixture providers have sign-in off, one letter per row: `.` keeps
+     * the protocol default (off for VRChat, on otherwise), `x` turns it off,
+     * `o` turns it on. A string rather than a list, so it survives the
+     * stored-config overlay. Rows past its length take `.`.
+     */
+    providerSignInMask: string;
     /** OIDC applications, paged; covers confidential and public, restricted and open. */
     oidcApps: number;
     /** SAML applications, paged. */
@@ -259,6 +266,7 @@ export const defaultMockConfig: MockConfig = {
     signingKeys: 4,
     signingKeyStates: "",
     identityProviders: 4,
+    providerSignInMask: "",
     oidcApps: 12,
     samlApps: 6,
     forwardAuthApps: 6,
