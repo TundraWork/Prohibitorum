@@ -141,7 +141,7 @@ func TestConfigJWKSNoneAndFreeScopes(t *testing.T) {
 		})
 	}
 	for name, raw := range map[string][]byte{
-		"manual":          manualNone(nil),
+		"manual": manualNone(nil),
 		"discovery override": edit(func(c map[string]any) {
 			c["endpoints"].(map[string]any)["jwks"] = "none"
 		}),

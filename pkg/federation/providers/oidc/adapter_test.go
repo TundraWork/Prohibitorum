@@ -879,7 +879,6 @@ func TestAdapterAdvanceJWKSNoneSignsInThroughUserinfo(t *testing.T) {
 	}
 }
 
-
 // TestAdapterAdvanceIDTokenNestedClaimPaths is the id_token-path twin: the
 // same path overrides read from Tokens.Raw, which the code flow fills with
 // extras plus hoisted standard claims. The deferred avatar reference keeps

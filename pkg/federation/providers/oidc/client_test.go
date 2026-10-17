@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -12,6 +13,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	federationcore "prohibitorum/pkg/federation"
 	federationoidc "prohibitorum/pkg/federation/providers/oidc"
@@ -944,7 +946,16 @@ func TestClient_VerifyImplicitWithoutVerifierErrors(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := c.VerifyImplicit(context.Background(), "any-id-token", ts.URL, "nonce"); err == nil {
+	// A well-formed token, not a junk string: a malformed JWT is rejected
+	// before the verifier is ever reached, which would make this test pass
+	// with the nil-verifier check deleted. This one carries an RS256 header
+	// and plausible iss/aud/nonce/exp claims with a junk signature, so it
+	// walks right up to key lookup — the step that panics without the check.
+	now := time.Now().UTC().Unix()
+	claims := fmt.Sprintf(`{"iss":%q,"sub":"subject","aud":"public-client","nonce":"nonce","exp":%d,"iat":%d}`, ts.URL, now+300, now)
+	header, payload, signature := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"RS256","typ":"JWT"}`)), base64.RawURLEncoding.EncodeToString([]byte(claims)), base64.RawURLEncoding.EncodeToString([]byte("junk-signature"))
+	idToken := header + "." + payload + "." + signature
+	if _, err := c.VerifyImplicit(context.Background(), idToken, ts.URL, "nonce"); err == nil {
 		t.Fatal("VerifyImplicit accepted a token with no key set to verify it against")
 	}
 }
