@@ -127,7 +127,9 @@ export function readOidcProviderConfig(
     ] as const) ||
     !isOneOf(value.pkceMethod, ["S256", "plain", "off"] as const) ||
     (value.responseType !== undefined &&
-      !isOneOf(value.responseType, ["code", "id_token"] as const))
+      !isOneOf(value.responseType, ["code", "id_token"] as const)) ||
+    (value.authenticateAvatarFetch !== undefined &&
+      typeof value.authenticateAvatarFetch !== "boolean")
   ) {
     return null;
   }
@@ -162,6 +164,7 @@ export function readOidcProviderConfig(
     tokenAuthMethod: value.tokenAuthMethod,
     pkceMethod: value.pkceMethod,
     responseType: value.responseType ?? "code",
+    authenticateAvatarFetch: value.authenticateAvatarFetch ?? false,
   };
 }
 
@@ -188,6 +191,7 @@ export function defaultOidcProviderConfig(): OidcProviderConfig {
     tokenAuthMethod: "discovery",
     pkceMethod: "S256",
     responseType: "code",
+    authenticateAvatarFetch: false,
   };
 }
 

@@ -42,6 +42,11 @@ type Config struct {
 	// ResponseType is optional so configurations saved before it existed
 	// still decode; absent means responseTypeCode.
 	ResponseType string `json:"responseType,omitempty"`
+	// AuthenticateAvatarFetch is optional so configurations saved before it
+	// existed still decode; absent means the avatar picture is fetched
+	// anonymously. When true, the access token accompanies the picture
+	// request to the provider's own origins (see the avatar delivery).
+	AuthenticateAvatarFetch bool `json:"authenticateAvatarFetch,omitempty"`
 }
 
 // The sign-in responses a provider can ask for. The implicit flow is an
@@ -131,7 +136,7 @@ func exactObject(raw []byte, keys, optional []string, nullable bool) (map[string
 }
 
 func decodeConfig(raw json.RawMessage) (Config, error) {
-	fields, err := exactObject(raw, []string{"issuerUrl", "clientId", "scopes", "allowedDomains", "usernameClaim", "displayNameClaim", "emailClaim", "pictureClaim", "subjectClaim", "requireVerifiedEmail", "allowPrivateNetwork", "configurationMode", "endpoints", "tokenAuthMethod", "pkceMethod"}, []string{"responseType"}, false)
+	fields, err := exactObject(raw, []string{"issuerUrl", "clientId", "scopes", "allowedDomains", "usernameClaim", "displayNameClaim", "emailClaim", "pictureClaim", "subjectClaim", "requireVerifiedEmail", "allowPrivateNetwork", "configurationMode", "endpoints", "tokenAuthMethod", "pkceMethod"}, []string{"responseType", "authenticateAvatarFetch"}, false)
 	if err != nil {
 		return Config{}, err
 	}

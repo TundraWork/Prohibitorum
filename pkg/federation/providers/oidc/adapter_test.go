@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -854,7 +855,61 @@ func TestAdapterAdvanceIDTokenNestedClaimPaths(t *testing.T) {
 	if result.Avatar == nil || result.Avatar.URL != "https://cdn.test/octo-large.png" {
 		t.Errorf("Avatar = %+v, want avatar.large URL from the id_token", result.Avatar)
 	}
-}
+	run := func(t *testing.T, authenticate bool, accessToken string) federationcore.AvatarDelivery {
+		t.Helper()
+		raw := adapterTestConfig("https://issuer.test", false)
+		if authenticate {
+			raw = json.RawMessage(strings.Replace(string(raw), `"pkceMethod":"S256"`, `"pkceMethod":"S256","authenticateAvatarFetch":true`, 1))
+		}
+		provider := federationcore.Provider{ID: 7, Slug: "corp", Protocol: Protocol, Config: raw, Secret: secret, SecretStatus: "valid"}
+		adapter := NewAdapter(store)
+		client := &adapterFakeClient{tokens: &Tokens{
+			IDToken: "fake-jwt", AccessToken: accessToken, TokenType: "Bearer",
+			Issuer: "https://issuer.test", Subject: "sub",
+			Raw: map[string]any{"picture": "https://issuer.test/avatar.png"},
+		}}
+		adapter.resolveConfig = func(_ context.Context, c Config) (ResolvedConfig, error) {
+			return ResolvedConfig{Issuer: c.IssuerURL, AuthorizationEndpoint: c.IssuerURL + "/auth", TokenEndpoint: "https://tokens.issuer.test/token", UserInfoEndpoint: "https://issuer.test/userinfo", JWKSEndpoint: c.IssuerURL + "/keys", PKCEMethod: c.PKCEMethod, TokenAuthMethod: "client_secret_basic", Scopes: c.Scopes}, nil
+		}
+		adapter.newClient = func(context.Context, Config, ResolvedConfig, string, string) (clientAPI, error) {
+			return client, nil
+		}
+		state, _, err := adapter.Begin(context.Background(), provider, federationcore.BeginContext{Intent: federationcore.IntentLogin, FlowID: "flow", CallbackURL: "https://idp.test/callback"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		result, err := adapter.Advance(context.Background(), provider, state, federationcore.ActionInput{Kind: federationcore.ActionRedirect, Code: "code"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if result.Avatar == nil {
+			t.Fatal("no avatar delivery")
+		}
+		return *result.Avatar
+	}
+
+	t.Run("flag on carries token and provider origins", func(t *testing.T) {
+		delivery := run(t, true, "at_avatar")
+		if delivery.BearerToken != "at_avatar" {
+			t.Fatalf("BearerToken = %q", delivery.BearerToken)
+		}
+		want := []string{"https://issuer.test", "https://tokens.issuer.test"}
+		if !reflect.DeepEqual(delivery.BearerOrigins, want) {
+			t.Fatalf("BearerOrigins = %v, want %v", delivery.BearerOrigins, want)
+		}
+	})
+	t.Run("flag off carries nothing", func(t *testing.T) {
+		delivery := run(t, false, "at_avatar")
+		if delivery.BearerToken != "" || delivery.BearerOrigins != nil {
+			t.Fatalf("delivery = %+v, want anonymous", delivery)
+		}
+	})
+	t.Run("flag on without access token carries nothing", func(t *testing.T) {
+		delivery := run(t, true, "")
+		if delivery.BearerToken != "" || delivery.BearerOrigins != nil {
+			t.Fatalf("delivery = %+v, want anonymous", delivery)
+		}
+	})
 
 // TestAdapterAdvanceUserinfoFallbackEmailVerifiedFromClaims pins the read of
 // email_verified out of userinfo claims: a true claim flows into EmailVerified

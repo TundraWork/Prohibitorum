@@ -625,6 +625,21 @@ Some upstreams (GitHub OAuth Apps, most plain OAuth 2.0 servers) return no `id_t
 - If the provider requires verified email (`requireVerifiedEmail=true`) and the upstream does not supply `email_verified`, the upstream's address counts as unverified and sign-in is rejected with `email_not_verified`. Providers like GitHub therefore need `requireVerifiedEmail=false` (or an adapter that always provides `email_verified`).
 - GitHub discovery at `https://github.com/login/oauth` publishes no `userinfo_endpoint` and its `claims_supported` lists neither username nor email: a GitHub provider additionally needs the manual `endpoints.userinfo` override pointing at `https://api.github.com/user` to be usable.
 
+### Avatar fetch authentication
+
+Providers that serve the `picture` URL only to authenticated clients (an API
+gateway in front of the OP, GitHub-style scoped endpoints) can set
+`authenticateAvatarFetch: true` — **Admin → Identity Providers → Connection →
+"Send the access token when fetching the avatar"**, or
+`--authenticate-avatar-fetch` on `upstream-idp create/update`. The sign-in's
+access token is then sent as `Authorization: Bearer …` when the callback
+downloads the picture. The header goes only to the provider's own origins —
+the issuer and the resolved authorization/token/userinfo/JWKS endpoints
+(scheme, host and port compared exactly, default ports normalized). A picture
+URL hosted anywhere else is fetched without the header, and a redirect that
+leaves the origin set loses it on that hop; a provider without the flag (or
+without an access token, as the implicit flow) always fetches anonymously.
+
 ### Sign-in response: ID token only (implicit flow)
 
 Each OIDC provider has a **Sign-in response** setting (`responseType` in its config). It defaults to **Authorization code** (`code`), and a provider saved before the setting existed keeps that. **ID token only** (`id_token`) is an opt-in for upstreams that will not let a server redeem a code for a public client: an app registered for personal Microsoft accounts (Microsoft Live) as a SPA or public client is one. Most other upstreams (Keycloak, Authelia, Dex, ZITADEL, Okta) allow only the code flow by default, so leave them on Authorization code.

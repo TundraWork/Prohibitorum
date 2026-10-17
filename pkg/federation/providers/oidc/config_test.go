@@ -111,6 +111,46 @@ func TestConfigResponseTypeRules(t *testing.T) {
 	}
 }
 
+// TestConfigAuthenticateAvatarFetch pins the avatar-authentication switch:
+// optional (absent means anonymous fetch), boolean, and covered by the
+// unknown-field screen like every other key.
+func TestConfigAuthenticateAvatarFetch(t *testing.T) {
+	edit := func(f func(map[string]any)) []byte {
+		var c map[string]any
+		_ = json.Unmarshal([]byte(validDefinitionConfig), &c)
+		f(c)
+		raw, _ := json.Marshal(c)
+		return raw
+	}
+	for _, tc := range []struct {
+		name  string
+		value any // nil leaves the key out entirely
+		want  bool
+	}{
+		{"absent", nil, false},
+		{"true", true, true},
+		{"false", false, false},
+	} {
+		raw := edit(func(c map[string]any) {
+			if tc.value != nil {
+				c["authenticateAvatarFetch"] = tc.value
+			}
+		})
+		config, err := decodeConfig(raw)
+		if err != nil {
+			t.Fatalf("authenticateAvatarFetch %s refused: %v", tc.name, err)
+		}
+		if config.AuthenticateAvatarFetch != tc.want {
+			t.Fatalf("authenticateAvatarFetch %s decoded as %v", tc.name, config.AuthenticateAvatarFetch)
+		}
+	}
+	for name, value := range map[string]any{"string": "true", "number": 1, "null": nil} {
+		if err := (Definition{}).ValidateConfig(edit(func(c map[string]any) { c["authenticateAvatarFetch"] = value })); err == nil {
+			t.Fatalf("accepted %s authenticateAvatarFetch", name)
+		}
+	}
+}
+
 func TestResolveConfigDiscoveryAndOverrides(t *testing.T) {
 	for _, tc := range []struct {
 		name    string

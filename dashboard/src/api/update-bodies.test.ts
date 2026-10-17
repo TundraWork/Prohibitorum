@@ -191,6 +191,7 @@ describe("identity provider update body", () => {
     endpoints: { authorization: null, token: null, userinfo: null, jwks: null },
     tokenAuthMethod: "discovery",
     pkceMethod: "S256",
+    authenticateAvatarFetch: false,
   };
 
   const provider: IdentityProviderView = {

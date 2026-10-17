@@ -880,7 +880,7 @@ func upstreamCLIConfig(
 	protocol, issuerURL, clientID string,
 	scopes, allowedDomains []string,
 	usernameClaim, displayNameClaim, emailClaim, pictureClaim string,
-	requireVerifiedEmail, allowPrivateNetwork bool,
+	requireVerifiedEmail, allowPrivateNetwork, authenticateAvatarFetch bool,
 ) (json.RawMessage, federation.Definition, error) {
 	definition, err := upstreamCLIDefinition(protocol)
 	if err != nil {
@@ -915,6 +915,7 @@ func upstreamCLIConfig(
 			UsernameClaim: usernameClaim, DisplayNameClaim: displayNameClaim, EmailClaim: emailClaim,
 			PictureClaim: pictureClaim, RequireVerifiedEmail: requireVerifiedEmail,
 			AllowPrivateNetwork: allowPrivateNetwork, SubjectClaim: "sub",
+			AuthenticateAvatarFetch: authenticateAvatarFetch,
 		})
 		if err != nil {
 			return nil, nil, err
@@ -926,7 +927,7 @@ func upstreamCLIConfig(
 	case federationsteam.Protocol:
 		if issuerURL != "" || clientID != "" || len(scopes) != 0 || len(allowedDomains) != 0 ||
 			usernameClaim != "" || displayNameClaim != "" || emailClaim != "" || pictureClaim != "" ||
-			requireVerifiedEmail || allowPrivateNetwork {
+			requireVerifiedEmail || allowPrivateNetwork || authenticateAvatarFetch {
 			return nil, nil, errors.New("OIDC configuration flags are not valid for Steam")
 		}
 		raw := json.RawMessage(`{}`)
@@ -949,22 +950,23 @@ func addUpstreamIDPCommands(root *cobra.Command) {
 
 	// create
 	var (
-		uSlug          string
-		uDisplayName   string
-		uProtocol      string
-		uIssuerURL     string
-		uClientID      string
-		uClientSecret  string
-		uScopes        []string
-		uMode          string
-		uAllowedDomain []string
-		uUsernameClaim string
-		uDisplayClaim  string
-		uEmailClaim    string
-		uPictureClaim  string
-		uRequireVerEml bool
-		uAllowPrivate  bool
-		uAllowSignIn   bool
+		uSlug            string
+		uDisplayName     string
+		uProtocol        string
+		uIssuerURL       string
+		uClientID        string
+		uClientSecret    string
+		uScopes          []string
+		uMode            string
+		uAllowedDomain   []string
+		uUsernameClaim   string
+		uDisplayClaim    string
+		uEmailClaim      string
+		uPictureClaim    string
+		uRequireVerEml   bool
+		uAllowPrivate    bool
+		uAuthAvatarFetch bool
+		uAllowSignIn     bool
 	)
 	createUpstreamCmd := &cobra.Command{
 		Use:   "create",
@@ -980,7 +982,7 @@ func addUpstreamIDPCommands(root *cobra.Command) {
 			configRaw, definition, err := upstreamCLIConfig(
 				uProtocol, uIssuerURL, uClientID, uScopes, uAllowedDomain,
 				uUsernameClaim, uDisplayClaim, uEmailClaim, uPictureClaim,
-				uRequireVerEml, uAllowPrivate,
+				uRequireVerEml, uAllowPrivate, uAuthAvatarFetch,
 			)
 			if err != nil {
 				log.Fatalf("upstream-idp create: config: %v", err)
@@ -1033,7 +1035,7 @@ func addUpstreamIDPCommands(root *cobra.Command) {
 	createUpstreamCmd.Flags().StringVar(&uEmailClaim, "email-claim", "", "Claim to map to email (default email).")
 	createUpstreamCmd.Flags().StringVar(&uPictureClaim, "picture-claim", "", "Claim to map to avatar picture URL (default picture).")
 	createUpstreamCmd.Flags().BoolVar(&uRequireVerEml, "require-verified-email", false, "Require email_verified=true from the upstream.")
-	createUpstreamCmd.Flags().BoolVar(&uAllowPrivate, "allow-private-network", false, "Allow private-network OIDC endpoints.")
+	createUpstreamCmd.Flags().BoolVar(&uAuthAvatarFetch, "authenticate-avatar-fetch", false, "Send the access token as a Bearer header to the upstream's own origins when fetching the avatar picture.")
 	upstreamCmd.AddCommand(createUpstreamCmd)
 
 	// list
@@ -1062,20 +1064,21 @@ func addUpstreamIDPCommands(root *cobra.Command) {
 
 	// update (config only; secret untouched — use rotate-secret)
 	var (
-		upSlug          string
-		upDisplayName   string
-		upIssuerURL     string
-		upClientID      string
-		upScopes        []string
-		upMode          string
-		upAllowedDomain []string
-		upUsernameClaim string
-		upDisplayClaim  string
-		upEmailClaim    string
-		upPictureClaim  string
-		upRequireVerEml bool
-		upAllowPrivate  bool
-		upAllowSignIn   bool
+		upSlug            string
+		upDisplayName     string
+		upIssuerURL       string
+		upClientID        string
+		upScopes          []string
+		upMode            string
+		upAllowedDomain   []string
+		upUsernameClaim   string
+		upDisplayClaim    string
+		upEmailClaim      string
+		upPictureClaim    string
+		upRequireVerEml   bool
+		upAllowPrivate    bool
+		upAuthAvatarFetch bool
+		upAllowSignIn     bool
 	)
 	updateUpstreamCmd := &cobra.Command{
 		Use:   "update",
@@ -1097,7 +1100,7 @@ func addUpstreamIDPCommands(root *cobra.Command) {
 			configRaw, _, err := upstreamCLIConfig(
 				existing.Protocol, upIssuerURL, upClientID, upScopes, upAllowedDomain,
 				upUsernameClaim, upDisplayClaim, upEmailClaim, upPictureClaim,
-				upRequireVerEml, upAllowPrivate,
+				upRequireVerEml, upAllowPrivate, upAuthAvatarFetch,
 			)
 			if err != nil {
 				log.Fatalf("upstream-idp update: config: %v", err)
@@ -1127,6 +1130,7 @@ func addUpstreamIDPCommands(root *cobra.Command) {
 	updateUpstreamCmd.Flags().StringVar(&upDisplayClaim, "display-name-claim", "", "Claim to map to display name (default name).")
 	updateUpstreamCmd.Flags().StringVar(&upEmailClaim, "email-claim", "", "Claim to map to email (default email).")
 	updateUpstreamCmd.Flags().StringVar(&upPictureClaim, "picture-claim", "", "Claim to map to avatar picture URL (default picture).")
+	updateUpstreamCmd.Flags().BoolVar(&upAuthAvatarFetch, "authenticate-avatar-fetch", false, "Send the access token as a Bearer header to the upstream's own origins when fetching the avatar picture.")
 	updateUpstreamCmd.Flags().BoolVar(&upRequireVerEml, "require-verified-email", false, "Require email_verified=true from the upstream.")
 	updateUpstreamCmd.Flags().BoolVar(&upAllowPrivate, "allow-private-network", false, "Allow private-network OIDC endpoints.")
 	upstreamCmd.AddCommand(updateUpstreamCmd)

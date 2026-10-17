@@ -126,11 +126,21 @@ type AdvanceResult struct {
 // persisted in flow state. UserAgent, when set, replaces Go's default on the
 // fetch: VRChat's firewall answers 403 to a request that does not name its
 // application and contact, including requests for profile icons.
+//
+// BearerToken, when an adapter sets it, is sent as `Authorization: Bearer …`
+// — but only to a URL whose origin (scheme, host, port) appears in
+// BearerOrigins, the provider's own endpoints. An access token is a
+// credential for the provider alone; handing it to whatever host the picture
+// URL names would leak it, so the header is withheld everywhere else,
+// including off-origin redirect hops. The token lives in callback memory
+// only, like Opaque.
 type AvatarDelivery struct {
 	URL                 string
 	Opaque              any
 	AllowPrivateNetwork bool
 	UserAgent           string
+	BearerToken         string
+	BearerOrigins       []string
 }
 
 // AvatarResolver is an optional adapter capability used only by

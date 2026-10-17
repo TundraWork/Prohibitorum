@@ -100,6 +100,17 @@ type Server struct {
 	// RP downloaded the picture again.
 	avatarHits int
 
+	// lastAccessToken is the most recent access token /token handed out. The
+	// mock OP issues opaque tokens, so /avatar-auth.png compares the Bearer
+	// header against this value: a request without the exact token 401s, which
+	// is how a test proves the RP sent (or did not send) the credential.
+	lastAccessToken string
+
+	// authAvatarHits counts requests to /avatar-auth.png split by whether the
+	// Bearer token matched, so a test can assert both directions at once.
+	authAvatarHits         int
+	unauthorizedAvatarHits int
+
 	// tokenCalls counts requests to /token, so a test can prove the implicit
 	// flow never reached the token endpoint.
 	tokenCalls int
@@ -139,6 +150,7 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("/jwks", s.handleJWKS)
 	mux.HandleFunc("/userinfo", s.handleUserinfo)
 	mux.HandleFunc("/avatar.png", s.handleAvatarPNG)
+	mux.HandleFunc("/avatar-auth.png", s.handleAuthAvatarPNG)
 	return mux
 }
 
@@ -508,8 +520,12 @@ func (s *Server) handleToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	accessToken := genRand(24)
+	s.mu.Lock()
+	s.lastAccessToken = accessToken
+	s.mu.Unlock()
 	resp := map[string]any{
-		"access_token": genRand(24),
+		"access_token": accessToken,
 		"token_type":   "Bearer",
 		"expires_in":   300,
 		"id_token":     idToken,
@@ -517,6 +533,42 @@ func (s *Server) handleToken(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(resp)
+}
+
+// handleAuthAvatarPNG serves the same PNG as /avatar.png but demands the
+// access token /token just issued: no Bearer header, or one that does not
+// match, gets 401. This is how the smoke proves the RP attaches the
+// credential to the picture fetch when the provider opts in — and that a
+// missing or wrong token is refused rather than silently served.
+func (s *Server) handleAuthAvatarPNG(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
+	token := s.lastAccessToken
+	if token != "" && r.Header.Get("Authorization") == "Bearer "+token {
+		s.authAvatarHits++
+		s.mu.Unlock()
+	} else {
+		s.unauthorizedAvatarHits++
+		s.mu.Unlock()
+		http.Error(w, "invalid_token", http.StatusUnauthorized)
+		return
+	}
+	s.handleAvatarPNG(w, r)
+}
+
+// AuthAvatarHits returns how many /avatar-auth.png requests carried the exact
+// access token, and how many did not.
+func (s *Server) AuthAvatarHits() (authorized, unauthorized int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.authAvatarHits, s.unauthorizedAvatarHits
+}
+
+// AuthPictureURL returns the absolute URL of the token-gated picture this
+// mock OP serves at /avatar-auth.png.
+func (s *Server) AuthPictureURL() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.base + "/avatar-auth.png"
 }
 
 // mintIDToken signs the claims snapshot captured at authorize time. Shared by

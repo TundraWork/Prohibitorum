@@ -1987,13 +1987,17 @@ func main() {
 	//                  after a pick a new upload no longer takes effect.
 	//   avatar-fed 5 — userinfo fallback: picture only in /userinfo → stored.
 	//   avatar-fed 6 — linking mockop to a local account stores its picture.
+	//   avatar-fed 7 — authenticateAvatarFetch: the token-gated picture is
+	//                  fetched with the access token when the IdP opts in,
+	//                  and anonymously (401, nothing stored) when it does
+	//                  not, without breaking the sign-in either way.
 	//
 	// The avatar fetch hits the mockop /avatar.png image endpoint and is
 	// SSRF-allowed because mockop is on 127.0.0.1 and seeded with
 	// allow_private_network=true (per-IdP seedUpstreamIDP policy).
 	// =========================================================================
 
-	step("avatar-fed 1/6 — federated first login stores the upstream id_token picture")
+	step("avatar-fed 1/7 — federated first login stores the upstream id_token picture")
 	{
 		const avSub = "ext-avatar-1"
 		opSrv.SetClaims(avSub, "ext-avatar-1@example.com", true, "extavatar1", "Ext Avatar One")
@@ -2044,9 +2048,9 @@ func main() {
 		}
 		log.Printf("  GET /me/avatar activeSource=upstream:mockop; /me.avatarUrl=%q ✓", *avMe2.AvatarURL)
 
-		// avatar-fed 2/6 — the account has never picked an avatar, so an upload
+		// avatar-fed 2/7 — the account has never picked an avatar, so an upload
 		// takes effect. Re-use this confirmed account.
-		step("avatar-fed 2/6 — upload takes effect; same-URL re-login neither downloads nor clobbers")
+		step("avatar-fed 2/7 — upload takes effect; same-URL re-login neither downloads nor clobbers")
 		if err := putAvatarPNG(avClient, *baseURL); err != nil {
 			log.Fatalf("avatar-fed: %v", err)
 		}
@@ -2087,7 +2091,7 @@ func main() {
 		}
 		log.Printf("  no download (%d hits); avatar_source still 'user', etag unchanged (%s) ✓", hitsBefore, etagAfter)
 
-		step("avatar-fed 3/6 — re-login with a new picture URL downloads it again; upload stays active")
+		step("avatar-fed 3/7 — re-login with a new picture URL downloads it again; upload stays active")
 		if err := avClient.logout(); err != nil {
 			log.Fatalf("avatar-fed: logout pre-URL-change: %v", err)
 		}
@@ -2107,11 +2111,11 @@ func main() {
 		}
 		log.Printf("  new URL fetched once (%d → %d hits); avatar_source still 'user' ✓", hitsBefore, hitsBefore+1)
 
-		// avatar-fed 4/6 — dual-source selection. This account now has an
+		// avatar-fed 4/7 — dual-source selection. This account now has an
 		// upload (active) and an upstream:mockop row. Exercise the per-source
 		// listing, the active-pointer switch across user/upstream/none and the
 		// ?source= previews.
-		step("avatar-fed 4/6 — dual-source selection + ?source previews")
+		step("avatar-fed 4/7 — dual-source selection + ?source previews")
 		const selPath = "/api/prohibitorum/me/avatar/selection"
 
 		// (a) GET /me/avatar lists the upload first, then the upstream labeled
@@ -2250,7 +2254,7 @@ func main() {
 		log.Printf("  selection→user: 204, avatar_source='user', active GET 200 (final state restored) ✓")
 	}
 
-	step("avatar-fed 5/6 — userinfo fallback: picture only in /userinfo is still stored")
+	step("avatar-fed 5/7 — userinfo fallback: picture only in /userinfo is still stored")
 	{
 		const avSub = "ext-avatar-ui-1"
 		opSrv.SetClaims(avSub, "ext-avatar-ui-1@example.com", true, "extavatarui1", "Ext Avatar UI")
@@ -2314,7 +2318,7 @@ func main() {
 		}
 	}
 
-	step("avatar-fed 6/6 — linking mockop to a local account stores its picture")
+	step("avatar-fed 6/7 — linking mockop to a local account stores its picture")
 	{
 		// c is smoke-admin's passkey session; its mockop identity from
 		// federation 18 was unlinked in federation 21, and c still has
@@ -2362,6 +2366,117 @@ func main() {
 		}
 
 		// Reset the picture knobs so they don't bleed into later mockop uses.
+		opSrv.SetPicture("")
+	}
+
+	step("avatar-fed 7/7 — authenticateAvatarFetch sends the access token to the provider's own origin")
+	{
+		// A provider with authenticateAvatarFetch=true gets the access token in
+		// the Authorization header when the callback downloads the picture;
+		// /avatar-auth.png serves an image only to that exact Bearer token. A
+		// provider without the flag fetches the same URL anonymously, gets 401,
+		// keeps no avatar, and the sign-in still completes.
+		authAvatarIDPID, err := seedUpstreamIDP(dek, "mockop-avatar-auth", "Mock OP (avatar auth)",
+			opTS.URL, "test-client", "test-client-secret", "auto_provision",
+			[]string{"example.com"}, true, true)
+		if err != nil {
+			log.Fatalf("seed mockop-avatar-auth: %v", err)
+		}
+		_ = authAvatarIDPID
+		authRaw, err := oidcSeedProviderConfig(opTS.URL, "test-client", []string{"example.com"}, true, true)
+		if err != nil {
+			log.Fatalf("seed mockop-avatar-auth: config: %v", err)
+		}
+		var authCfg map[string]any
+		if err := json.Unmarshal(authRaw, &authCfg); err != nil {
+			log.Fatalf("seed mockop-avatar-auth: decode: %v", err)
+		}
+		authCfg["authenticateAvatarFetch"] = true
+		authRaw, err = json.Marshal(authCfg)
+		if err != nil {
+			log.Fatalf("seed mockop-avatar-auth: encode: %v", err)
+		}
+		smokeDB, err := pgx.Connect(context.Background(), os.Getenv("PROHIBITORUM_DATABASE_URL"))
+		if err != nil {
+			log.Fatalf("seed mockop-avatar-auth: db: %v", err)
+		}
+		if _, err := smokeDB.Exec(context.Background(),
+			"UPDATE upstream_idp SET provider_config=$1 WHERE slug='mockop-avatar-auth'", authRaw); err != nil {
+			log.Fatalf("seed mockop-avatar-auth: update: %v", err)
+		}
+		if err := smokeDB.Close(context.Background()); err != nil {
+			log.Fatalf("seed mockop-avatar-auth: close: %v", err)
+		}
+
+		const authSub = "ext-avatar-auth-1"
+		opSrv.SetClaims(authSub, "ext-avatar-auth-1@example.com", true, "extavatarauth1", "Ext Avatar Auth")
+		opSrv.SetPicture(opSrv.AuthPictureURL())
+		authHits0, unauthHits0 := opSrv.AuthAvatarHits()
+		authClient, err := newFederationClient(*baseURL)
+		if err != nil {
+			log.Fatalf("avatar-fed auth: client: %v", err)
+		}
+		if err := driveFederationToWelcome(authClient, *baseURL, "mockop-avatar-auth"); err != nil {
+			log.Fatalf("avatar-fed auth: drive to /welcome: %v", err)
+		}
+		if view, err := authClient.confirmGet(); err != nil {
+			log.Fatalf("avatar-fed auth: confirm GET: %v", err)
+		} else if view.AvatarURL == nil {
+			log.Fatalf("avatar-fed auth: confirm GET avatarUrl is nil — the authed picture fetch did not store")
+		}
+		authHits, unauthHits := opSrv.AuthAvatarHits()
+		if authHits != authHits0+1 {
+			log.Fatalf("avatar-fed auth: authorized picture hits want %d, got %d", authHits0+1, authHits)
+		}
+		if unauthHits != unauthHits0 {
+			log.Fatalf("avatar-fed auth: %d unauthorized picture hits — the fetch went out without the token", unauthHits-unauthHits0)
+		}
+		if redirect, err := authClient.confirmPost(); err != nil {
+			log.Fatalf("avatar-fed auth: confirm POST: %v", err)
+		} else if redirect != "/me" {
+			log.Fatalf("avatar-fed auth: confirm redirect want /me, got %q", redirect)
+		}
+		log.Printf("  authenticateAvatarFetch=true: picture stored, %d authorized / %d unauthorized hits ✓",
+			authHits-authHits0, unauthHits-unauthHits0)
+
+		// The same token-gated URL on a provider WITHOUT the flag: the fetch is
+		// anonymous, gets 401, no avatar is stored, and the sign-in completes.
+		_, err = seedUpstreamIDP(dek, "mockop-avatar-anon", "Mock OP (avatar anon)",
+			opTS.URL, "test-client", "test-client-secret", "auto_provision",
+			[]string{"example.com"}, true, true)
+		if err != nil {
+			log.Fatalf("seed mockop-avatar-anon: %v", err)
+		}
+		const anonSub = "ext-avatar-anon-1"
+		opSrv.SetClaims(anonSub, "ext-avatar-anon-1@example.com", true, "extavataranon1", "Ext Avatar Anon")
+		// SetClaims replaces the whole claims snapshot, so point the picture
+		// back at the token-gated URL: this provider has no
+		// authenticateAvatarFetch, and the fetch must therefore go out
+		// anonymous and be refused with 401.
+		opSrv.SetPicture(opSrv.AuthPictureURL())
+		anonClient, err := newFederationClient(*baseURL)
+		if err != nil {
+			log.Fatalf("avatar-fed anon: client: %v", err)
+		}
+		if err := driveFederationToWelcome(anonClient, *baseURL, "mockop-avatar-anon"); err != nil {
+			log.Fatalf("avatar-fed anon: drive to /welcome: %v", err)
+		}
+		if view, err := anonClient.confirmGet(); err != nil {
+			log.Fatalf("avatar-fed anon: confirm GET: %v", err)
+		} else if view.AvatarURL != nil {
+			log.Fatalf("avatar-fed anon: avatarUrl is set — an anonymous 401 fetch should store nothing")
+		}
+		_, unauthHits2 := opSrv.AuthAvatarHits()
+		if unauthHits2 == unauthHits {
+			log.Fatalf("avatar-fed anon: no unauthorized hit recorded — the anonymous 401 fetch never reached /avatar-auth.png")
+		}
+		if redirect, err := anonClient.confirmPost(); err != nil {
+			log.Fatalf("avatar-fed anon: confirm POST: %v", err)
+		} else if redirect != "/me" {
+			log.Fatalf("avatar-fed anon: confirm redirect want /me, got %q", redirect)
+		}
+		log.Printf("  flag off: anonymous fetch 401s, no avatar stored, sign-in completes ✓")
+
 		opSrv.SetPicture("")
 	}
 

@@ -6006,6 +6006,11 @@ msgid "security.tokens.reveal.usage"
 msgstr "Send it in the X-Prohibitorum-PAT header."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderConnectionSection.tsx
+msgid "admin.federation.connection.avatar-auth"
+msgstr "Send the access token when fetching the avatar"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.auth.basic.hint"
 msgstr "Sends the client secret in the Authorization header."
@@ -6942,6 +6947,11 @@ msgstr "The passkey sign-in attempt has expired."
 #: src/api/errors.ts
 msgid "error.wallpaper_unavailable"
 msgstr "The picture is not available right now."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderConnectionSection.tsx
+msgid "admin.federation.connection.avatar-auth.hint"
+msgstr "The picture request carries Authorization: Bearer …, but only to the provider's own addresses; a picture hosted elsewhere is fetched without it."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderDangerSection.tsx

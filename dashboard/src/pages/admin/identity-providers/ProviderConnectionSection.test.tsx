@@ -264,3 +264,33 @@ describe("the connection form's sign-in response", () => {
     expect(body.config.responseType).toBe("id_token");
   });
 });
+
+describe("the connection form's avatar authentication", () => {
+  it("saves the switch on, and keeps it off for a provider saved without the setting", async () => {
+    const provider = publicProvider();
+    api = fakeApi({
+      "PUT /api/prohibitorum/identity-providers/public-idp": () =>
+        Response.json(provider),
+    });
+    mount(provider);
+    const user = userEvent.setup();
+
+    const label = "Send the access token when fetching the avatar";
+    const switchEl = screen.getByRole("switch", { name: label });
+    expect(switchEl).not.toBeChecked();
+
+    await user.click(switchEl);
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() =>
+      expect(
+        api.sent("PUT", "/api/prohibitorum/identity-providers/public-idp"),
+      ).toHaveLength(1),
+    );
+    const body = api.sent(
+      "PUT",
+      "/api/prohibitorum/identity-providers/public-idp",
+    )[0]?.body as { config: { authenticateAvatarFetch?: boolean } };
+    expect(body.config.authenticateAvatarFetch).toBe(true);
+  });
+});

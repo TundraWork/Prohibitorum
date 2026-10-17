@@ -191,7 +191,7 @@ func TestAvatarFetch_RejectsHTTPDowngrade(t *testing.T) {
 	defer origin.Close()
 
 	client := hardenedHTTPClientWithTLS(true, maxAvatarFetchBytes, &tls.Config{InsecureSkipVerify: true})
-	_, err := fetchUpstreamAvatarWithClient(context.Background(), origin.URL, client, true, "")
+	_, err := fetchUpstreamAvatarWithClient(context.Background(), origin.URL, client, true, "", "", nil)
 	if err == nil {
 		t.Fatalf("avatar fetch followed HTTPS→HTTP downgrade; want rejection")
 	}
@@ -729,7 +729,7 @@ func TestAvatarFetch_PrivateModeBlocksMetadata(t *testing.T) {
 		"meta.example.test": {"169.254.169.254"},
 	}}
 	client := newScreenedDialTestClient(t, true, maxAvatarFetchBytes, res)
-	_, err := fetchUpstreamAvatarWithClient(context.Background(), "https://meta.example.test/a.png", client, true, "")
+	_, err := fetchUpstreamAvatarWithClient(context.Background(), "https://meta.example.test/a.png", client, true, "", "", nil)
 	if err == nil {
 		t.Fatal("avatar fetch reached a metadata address in private mode; want dial-screen block")
 	}

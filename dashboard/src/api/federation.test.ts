@@ -44,6 +44,7 @@ const fullConfig = {
   tokenAuthMethod: "client_secret_basic",
   pkceMethod: "S256",
   responseType: "id_token",
+  authenticateAvatarFetch: true,
 };
 
 describe("reading an OIDC provider config", () => {
@@ -90,8 +91,17 @@ describe("reading an OIDC provider config", () => {
       "an unknown response type",
       () => ({ ...fullConfig, responseType: "code id_token" }),
     ],
+    [
+      "a non-boolean avatar-auth switch",
+      () => ({ ...fullConfig, authenticateAvatarFetch: "yes" }),
+    ],
   ])("returns null for %s", (_name, build) => {
     expect(readOidcProviderConfig(build())).toBeNull();
+  });
+
+  it("reads a config saved before the avatar switch as anonymous", () => {
+    const { authenticateAvatarFetch: _dropped, ...older } = fullConfig;
+    expect(readOidcProviderConfig(older)?.authenticateAvatarFetch).toBe(false);
   });
 
   it("reads a config saved before the response type as the code flow", () => {

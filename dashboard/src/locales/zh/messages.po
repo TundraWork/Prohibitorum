@@ -6006,6 +6006,11 @@ msgid "security.tokens.reveal.usage"
 msgstr "请在 X-Prohibitorum-PAT 请求头中发送它。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderConnectionSection.tsx
+msgid "admin.federation.connection.avatar-auth"
+msgstr "获取头像时携带 access token"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.auth.basic.hint"
 msgstr "在 Authorization 请求头里发送客户端密钥。"
@@ -6942,6 +6947,11 @@ msgstr "本次通行密钥登录已过期。"
 #: src/api/errors.ts
 msgid "error.wallpaper_unavailable"
 msgstr "图片暂时无法获取。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderConnectionSection.tsx
+msgid "admin.federation.connection.avatar-auth.hint"
+msgstr "头像请求会带 Authorization: Bearer …，但只发给提供商自己的地址；图片托管在别处时不带这个头。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderDangerSection.tsx

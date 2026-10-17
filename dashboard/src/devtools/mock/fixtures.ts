@@ -1236,6 +1236,7 @@ function config0(protocol: string, index: number): unknown {
     // The other providers leave it out, as a provider saved before the
     // setting existed does.
     ...(publicClient ? { responseType: "id_token" as const } : {}),
+    ...(index % 4 === 1 ? { authenticateAvatarFetch: true } : {}),
   };
 }
 

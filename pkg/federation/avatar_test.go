@@ -3,6 +3,8 @@ package federation
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"image"
@@ -65,7 +67,7 @@ func TestAvatarFetchSanitizesURLFailureErrors(t *testing.T) {
 			name:   "request construction",
 			rawURL: "https://userinfo-sentinel:password-sentinel@raw-url-sentinel.example/avatar.png?query=query-sentinel#fragment-sentinel",
 			fetch: func(rawURL string) error {
-				_, err := fetchUpstreamAvatarWithClient(nil, rawURL, http.DefaultClient, false, "")
+				_, err := fetchUpstreamAvatarWithClient(nil, rawURL, http.DefaultClient, false, "", "", nil)
 				return err
 			},
 			want: "avatar fetch request error",
@@ -108,7 +110,7 @@ func TestAvatarManagerSanitizesNetworkFailureLogs(t *testing.T) {
 	client := &http.Client{Transport: failingAvatarTransport{}}
 	var fetchErr error
 	manager.fetch = func(ctx context.Context, avatarURL string, delivery AvatarDelivery) ([]byte, error) {
-		_, fetchErr = fetchUpstreamAvatarWithClient(ctx, avatarURL, client, delivery.AllowPrivateNetwork, delivery.UserAgent)
+		_, fetchErr = fetchUpstreamAvatarWithClient(ctx, avatarURL, client, delivery.AllowPrivateNetwork, delivery.UserAgent, delivery.BearerToken, delivery.BearerOrigins)
 		return nil, fetchErr
 	}
 
@@ -176,7 +178,7 @@ func TestAvatarFetch_RejectsNonImage(t *testing.T) {
 		_, _ = w.Write([]byte("<html>"))
 	}))
 	defer srv.Close()
-	if _, err := fetchUpstreamAvatarWithClient(context.Background(), srv.URL, srv.Client(), false, ""); err == nil || !strings.Contains(err.Error(), "content-type") {
+	if _, err := fetchUpstreamAvatarWithClient(context.Background(), srv.URL, srv.Client(), false, "", "", nil); err == nil || !strings.Contains(err.Error(), "content-type") {
 		t.Fatalf("want content-type rejection, got %v", err)
 	}
 }
@@ -187,7 +189,7 @@ func TestAvatarFetch_ReturnsImageBytes(t *testing.T) {
 		_, _ = w.Write([]byte("\x89PNG\r\n\x1a\n"))
 	}))
 	defer srv.Close()
-	b, err := fetchUpstreamAvatarWithClient(context.Background(), srv.URL, srv.Client(), false, "")
+	b, err := fetchUpstreamAvatarWithClient(context.Background(), srv.URL, srv.Client(), false, "", "", nil)
 	if err != nil || len(b) == 0 {
 		t.Fatalf("want bytes, got len=%d err=%v", len(b), err)
 	}
@@ -211,7 +213,7 @@ func TestAvatarFetch_SendsDeliveryUserAgentThroughRedirect(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	b, err := fetchUpstreamAvatarWithClient(context.Background(), srv.URL+"/api/1/file/icon/1/file", srv.Client(), false, userAgent)
+	b, err := fetchUpstreamAvatarWithClient(context.Background(), srv.URL+"/api/1/file/icon/1/file", srv.Client(), false, userAgent, "", nil)
 	if err != nil || len(b) == 0 {
 		t.Fatalf("want bytes, got len=%d err=%v (requests %q)", len(b), err, seen)
 	}
@@ -653,6 +655,128 @@ func TestAvatarManagerUsesAdapterPrivateNetworkPolicy(t *testing.T) {
 
 	if !got {
 		t.Fatal("avatar fetch did not receive provider allowPrivateNetwork policy")
+	}
+}
+
+func TestAvatarFetchBearerOriginMatching(t *testing.T) {
+	origins := []string{"https://idp.example", "https://cdn.idp.example:8443"}
+	cases := []struct {
+		name string
+		url  string
+		want bool
+	}{
+		{"same origin", "https://idp.example/avatar.png", true},
+		{"same origin with path and query", "https://idp.example/a/b.png?v=1#f", true},
+		{"default https port normalized", "https://idp.example:443/avatar.png", true},
+		{"second allowed origin", "https://cdn.idp.example:8443/x.png", true},
+		{"different host", "https://evil.example/avatar.png", false},
+		{"subdomain of allowed host", "https://sub.idp.example/avatar.png", false},
+		{"port mismatch", "https://idp.example:8443/avatar.png", false},
+		{"scheme downgrade", "http://idp.example/avatar.png", false},
+		{"empty origins", "", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			list := origins
+			if tc.url == "" {
+				list = nil
+			}
+			if got := sameBearerOrigin(tc.url, list); got != tc.want {
+				t.Fatalf("sameBearerOrigin(%q) = %v, want %v", tc.url, got, tc.want)
+			}
+		})
+	}
+	// A malformed or host-less URL must never match, whatever the set holds.
+	for _, raw := range []string{"", "not a url", "https://", "/relative.png", "ftp://idp.example/a.png"} {
+		if sameBearerOrigin(raw, append([]string{"https://idp.example"}, origins...)) {
+			t.Fatalf("sameBearerOrigin(%q) matched", raw)
+		}
+	}
+}
+
+func TestAvatarFetchSendsBearerOnlyToAllowedOrigin(t *testing.T) {
+	const token = "token-sentinel"
+	var gotAuth string
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAuth = r.Header.Get("Authorization")
+		w.Header().Set("Content-Type", "image/png")
+		_, _ = w.Write([]byte("\x89PNG\r\n\x1a\n"))
+	}))
+	defer srv.Close()
+
+	// On-origin: the header carries the token.
+	gotAuth = ""
+	if _, err := fetchUpstreamAvatarWithClient(context.Background(), srv.URL+"/avatar.png", srv.Client(), false, "", token, []string{srv.URL}); err != nil {
+		t.Fatal(err)
+	}
+	if gotAuth != "Bearer "+token {
+		t.Fatalf("Authorization on allowed origin = %q", gotAuth)
+	}
+
+	// Off-origin: the token exists but the URL's origin is not in the set, so
+	// the request goes out anonymous.
+	gotAuth = "stale"
+	if _, err := fetchUpstreamAvatarWithClient(context.Background(), srv.URL+"/avatar.png", srv.Client(), false, "", token, []string{"https://other.example"}); err != nil {
+		t.Fatal(err)
+	}
+	if gotAuth != "" {
+		t.Fatalf("Authorization on foreign origin = %q, want empty", gotAuth)
+	}
+}
+
+func TestAvatarFetchStripsBearerAcrossOffOriginRedirect(t *testing.T) {
+	const token = "token-sentinel"
+	var secondHopAuth = "unset"
+	target := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		secondHopAuth = r.Header.Get("Authorization")
+		w.Header().Set("Content-Type", "image/png")
+		_, _ = w.Write([]byte("\x89PNG\r\n\x1a\n"))
+	}))
+	defer target.Close()
+	origin := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Location", target.URL+"/steal.png")
+		w.WriteHeader(http.StatusFound)
+	}))
+	defer origin.Close()
+
+	// The provider's origin redirects to a second host. Go's http.Client would
+	// keep Authorization on a same-host hop; the wrapper must drop it when the
+	// hop leaves the origin set, so the token cannot ride a redirect out.
+	// Both test servers are loopback with self-signed certificates. The
+	// fetch runs under the private-network policy a trusted-internal IdP
+	// would use, and the client pools both servers' test CAs so the redirect
+	// can actually be followed; the origin check under test is orthogonal to
+	// the dial screen.
+	transport := &http.Transport{TLSClientConfig: &tls.Config{RootCAs: x509.NewCertPool()}}
+	for _, srv := range []*httptest.Server{origin, target} {
+		transport.TLSClientConfig.RootCAs.AddCert(srv.Certificate())
+	}
+	client := clientWithBearerOriginCheck(&http.Client{Transport: transport}, []string{origin.URL})
+	client.Timeout = 10 * time.Second
+	if _, err := fetchUpstreamAvatarWithClient(context.Background(), origin.URL+"/avatar.png", client, true, "", token, []string{origin.URL}); err != nil {
+		t.Fatal(err)
+	}
+	if secondHopAuth != "" {
+		t.Fatalf("redirect target saw Authorization %q, want none", secondHopAuth)
+	}
+}
+
+func TestAvatarManagerPassesBearerDeliveryToFetch(t *testing.T) {
+	manager := NewAvatarManager(&avatarManagerQueries{})
+	manager.logger = slog.New(slog.NewJSONHandler(&bytes.Buffer{}, nil))
+	var gotToken string
+	var gotOrigins []string
+	manager.fetch = func(_ context.Context, _ string, delivery AvatarDelivery) ([]byte, error) {
+		gotToken = delivery.BearerToken
+		gotOrigins = delivery.BearerOrigins
+		return nil, errors.New("stop after fetch")
+	}
+
+	manager.Refresh(context.Background(), 7, Provider{ID: 11, Slug: "corp"},
+		AvatarDelivery{URL: "https://idp.example/a.png", BearerToken: "t", BearerOrigins: []string{"https://idp.example"}}, nil)
+
+	if gotToken != "t" || len(gotOrigins) != 1 || gotOrigins[0] != "https://idp.example" {
+		t.Fatalf("fetch delivery = token %q origins %v", gotToken, gotOrigins)
 	}
 }
 

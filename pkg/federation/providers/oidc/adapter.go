@@ -8,6 +8,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
+	"slices"
 	"sync"
 	"time"
 
@@ -290,10 +292,15 @@ func (a *Adapter) Advance(ctx context.Context, provider federationcore.Provider,
 			Username: ClaimString(claims, usernameClaim), DisplayName: ClaimString(claims, displayClaim),
 			AvatarURL: avatarURL, UserInfoFallback: true,
 		}
-		// Userinfo already returned the picture; no deferred avatar fetch.
+		avatarToken, avatarOrigins := avatarBearerDelivery(config, state.Resolved, tokens)
 		return federationcore.AdvanceResult{
 			Identity: identity,
-			Avatar:   &federationcore.AvatarDelivery{URL: avatarURL, AllowPrivateNetwork: config.AllowPrivateNetwork},
+			Avatar: &federationcore.AvatarDelivery{
+				URL:                 avatarURL,
+				AllowPrivateNetwork: config.AllowPrivateNetwork,
+				BearerToken:         avatarToken,
+				BearerOrigins:       avatarOrigins,
+			},
 		}, nil
 	}
 
@@ -303,11 +310,14 @@ func (a *Adapter) Advance(ctx context.Context, provider federationcore.Provider,
 		Username: ClaimString(tokens.Raw, usernameClaim), DisplayName: ClaimString(tokens.Raw, displayClaim),
 		AMR: append([]string(nil), tokens.AMR...), AvatarURL: avatarURL,
 	}
+	avatarToken, avatarOrigins := avatarBearerDelivery(config, state.Resolved, tokens)
 	result := federationcore.AdvanceResult{
 		Identity: identity,
 		Avatar: &federationcore.AvatarDelivery{
 			URL:                 avatarURL,
 			AllowPrivateNetwork: config.AllowPrivateNetwork,
+			BearerToken:         avatarToken,
+			BearerOrigins:       avatarOrigins,
 		},
 	}
 	if avatarURL == "" && tokens.AccessToken != "" {
@@ -353,9 +363,43 @@ func (a *Adapter) ResolveAvatar(ctx context.Context, _ federationcore.Provider, 
 	return ClaimString(userInfo, reference.pictureClaim), nil
 }
 
+// avatarBearerOrigins collects the origins the access token may be sent to:
+// the issuer and every resolved endpoint (including manual overrides), with
+// default ports normalized. An origin set larger than the issuer alone
+// covers providers that serve userinfo or pictures from another host or
+// port of their own infrastructure.
+func avatarBearerOrigins(c Config, r ResolvedConfig) []string {
+	endpoints := []string{c.IssuerURL, r.Issuer, r.AuthorizationEndpoint, r.TokenEndpoint, r.UserInfoEndpoint, r.JWKSEndpoint}
+	origins := make([]string, 0, len(endpoints))
+	for _, raw := range endpoints {
+		if raw == "" {
+			continue
+		}
+		u, err := url.Parse(raw)
+		if err != nil || u.Host == "" {
+			continue
+		}
+		origin := federationcore.URLOrigin(u)
+		if !slices.Contains(origins, origin) {
+			origins = append(origins, origin)
+		}
+	}
+	return origins
+}
+
+// avatarBearerDelivery returns the avatar delivery fields that carry the
+// access token when the provider opts into authenticating the picture fetch.
+// The token is only ever attached to the provider's own origins; a provider
+// without an access token (the implicit flow) gets nothing to send.
+func avatarBearerDelivery(config Config, resolved ResolvedConfig, tokens *Tokens) (token string, origins []string) {
+	if !config.AuthenticateAvatarFetch || tokens == nil || tokens.AccessToken == "" {
+		return "", nil
+	}
+	return tokens.AccessToken, avatarBearerOrigins(config, resolved)
+}
+
 // InvalidateClientCache evicts every cached client for slug. Administrative
 // provider updates call this after commit so policy/config changes take effect
-// on the next flow rather than after the bounded cache window.
 func (a *Adapter) InvalidateClientCache(slug string) {
 	a.clientCache.Range(func(key, _ any) bool {
 		if cacheKey, ok := key.(clientCacheKey); ok && cacheKey.slug == slug {

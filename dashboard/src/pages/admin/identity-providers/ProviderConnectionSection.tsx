@@ -87,6 +87,7 @@ export function ProviderConnectionSection({
       clientId: saved.clientId,
       tokenAuthMethod: saved.tokenAuthMethod as ClientAuthMethod,
       responseType: (saved.responseType ?? "code") as ResponseType,
+      authenticateAvatarFetch: saved.authenticateAvatarFetch,
       clientSecret: "",
       scopes: tagListValue(saved.scopes),
       endpoints: endpointsValue(saved),
@@ -125,6 +126,7 @@ export function ProviderConnectionSection({
               clientId: value.clientId,
               tokenAuthMethod: value.tokenAuthMethod,
               responseType: value.responseType,
+              authenticateAvatarFetch: value.authenticateAvatarFetch,
               scopes: value.scopes.tags,
               ...endpointsBody(value.endpoints),
             },
@@ -302,6 +304,24 @@ export function ProviderConnectionSection({
               {() => <EndpointsField />}
             </form.AppField>
 
+            <form.AppField name="authenticateAvatarFetch">
+              {(field) => (
+                <field.SwitchField
+                  label={
+                    <Trans id="admin.federation.connection.avatar-auth">
+                      Send the access token when fetching the avatar
+                    </Trans>
+                  }
+                  description={
+                    <Trans id="admin.federation.connection.avatar-auth.hint">
+                      The picture request carries Authorization: Bearer …, but
+                      only to the provider's own addresses; a picture hosted
+                      elsewhere is fetched without it.
+                    </Trans>
+                  }
+                />
+              )}
+            </form.AppField>
             <form.SubmitButton>
               <Trans id="admin.federation.connection.save">Save</Trans>
             </form.SubmitButton>

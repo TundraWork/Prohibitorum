@@ -40,6 +40,7 @@ func TestUpstreamCLIConfigUsesAdapterWireShape(t *testing.T) {
 		"",
 		true,
 		false,
+		false,
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -84,6 +85,7 @@ func TestUpstreamCLIConfigUsesEmptySteamConfig(t *testing.T) {
 		"",
 		"",
 		"",
+		false,
 		false,
 		false,
 	)

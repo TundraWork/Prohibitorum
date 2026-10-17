@@ -315,6 +315,12 @@ export interface OidcProviderConfig {
    * existed, and the server reads that as `code`.
    */
   responseType?: "code" | "id_token";
+  /**
+   * Send the access token as a Bearer header to the provider's own origins
+   * when fetching the avatar picture. Absent on providers saved before the
+   * setting existed, and the server reads that as `false`.
+   */
+  authenticateAvatarFetch?: boolean;
 }
 
 /**
