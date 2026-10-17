@@ -31,6 +31,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"regexp"
 
 	"github.com/go-chi/chi/v5"
 
@@ -241,7 +242,7 @@ func (s *Server) writeFederationCompletion(w http.ResponseWriter, r *http.Reques
 	}
 	if result.Intent == federation.IntentLink {
 		http.SetCookie(w, sessstore.ClearedFedStateCookie(s.config, r))
-		s.writeFederationCompletionDestination(w, r, "/security", mode)
+		s.writeFederationCompletionDestination(w, r, linkCompletionDestination(result.ReturnTo), mode)
 		return
 	}
 	if !result.Confirmed {
@@ -329,6 +330,21 @@ func (s *Server) handleListFederationProvidersHTTP(w http.ResponseWriter, r *htt
 		})
 	}
 	writeJSON(w, out)
+}
+
+// requireIdentityPagePattern is the in-between page an application's
+// require-identity request sends the browser to.
+var requireIdentityPagePattern = regexp.MustCompile(`^/require-identity/[A-Za-z0-9_-]+$`)
+
+// linkCompletionDestination is where a finished link returns: the
+// require-identity page that started it, or Security. Any other return_to the
+// flow carries is ignored, so a link never ends on a page of the starter's
+// choosing.
+func linkCompletionDestination(returnTo string) string {
+	if requireIdentityPagePattern.MatchString(returnTo) {
+		return returnTo
+	}
+	return "/security"
 }
 
 // validateFederationReturnTo is the fail-closed return_to policy for

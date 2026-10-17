@@ -43,8 +43,8 @@ func (localFlowDefinition) Protocol() string { return "vrchat" }
 func (localFlowDefinition) Descriptor() federation.Descriptor {
 	return federation.Descriptor{Protocol: "vrchat", RequiresSecret: true}
 }
-func (localFlowDefinition) ValidateConfig(json.RawMessage) error { return nil }
-func (localFlowDefinition) ValidateSecret(json.RawMessage, []byte) error          { return nil }
+func (localFlowDefinition) ValidateConfig(json.RawMessage) error         { return nil }
+func (localFlowDefinition) ValidateSecret(json.RawMessage, []byte) error { return nil }
 func (d localFlowDefinition) Ready(provider federation.Provider) bool {
 	return d.ready && provider.SecretStatus == "valid"
 }
@@ -99,7 +99,6 @@ func (a *localFlowAdapter) snapshotInputs() []federation.ActionInput {
 	defer a.mu.Unlock()
 	return append([]federation.ActionInput(nil), a.inputs...)
 }
-
 
 type directIPStore struct{}
 
@@ -860,6 +859,39 @@ func TestFederationCompletionLinkAlwaysSecurityWithoutSession(t *testing.T) {
 	}
 	if result.Redirect != "/security" {
 		t.Fatalf("redirect = %q", result.Redirect)
+	}
+}
+
+func TestLinkCompletionDestination(t *testing.T) {
+	for returnTo, want := range map[string]string{
+		"":                                  "/security",
+		"/security":                         "/security",
+		"/me/identities":                    "/security",
+		"/attacker-selected":                "/security",
+		"/require-identity/AbC_d-9":         "/require-identity/AbC_d-9",
+		"/require-identity/":                "/security",
+		"/require-identity/abc/../../admin": "/security",
+		"/require-identity/abc?x=1":         "/security",
+		"//evil.example/require-identity/a": "/security",
+	} {
+		if got := linkCompletionDestination(returnTo); got != want {
+			t.Errorf("linkCompletionDestination(%q) = %q, want %q", returnTo, got, want)
+		}
+	}
+}
+
+func TestFederationCompletionLinkReturnsToRequireIdentityPage(t *testing.T) {
+	h := newLocalFlowHarness(t)
+	rr := httptest.NewRecorder()
+	h.s.writeFederationCompletion(rr, httptest.NewRequest(http.MethodPost, "/complete", nil), &federation.CompletionResult{
+		Intent: federation.IntentLink, AccountID: 99, ProviderID: 77, ReturnTo: "/require-identity/ticket-1",
+	}, federationCompletionJSON)
+	var result contract.LoginResult
+	if err := json.NewDecoder(rr.Body).Decode(&result); err != nil {
+		t.Fatal(err)
+	}
+	if rr.Code != http.StatusOK || result.Redirect != "/require-identity/ticket-1" || len(h.q.sessions) != 0 {
+		t.Fatalf("status=%d redirect=%q sessions=%d", rr.Code, result.Redirect, len(h.q.sessions))
 	}
 }
 

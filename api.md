@@ -403,7 +403,7 @@ Send the raw token in `X-Prohibitorum-PAT: prohibitorum_pat_<43 chars>` (no `Bea
 
 Public routes and the OIDC/SAML protocol endpoints never see the PAT principal. The maintenance gate treats a non-admin PAT owner like a signed-in non-admin. In the OpenAPI document PAT-capable operations list both the `prohibitorumSession` and `prohibitorumPAT` security schemes; browser-only ones list only the session.
 
-**Browser-only routes** (they depend on the browser session or issue browser credentials): `/me/sudo/methods`, `/me/sudo/begin`, `/me/sudo/complete`; `/me/credentials/register/begin|complete`; `/consent` and `/saml-consent` (GET and POST); `/me/identities/link/{slug}/begin|callback`; `/identity-providers/{slug}/tests`, `/tests/{id}`, `/tests/{id}/complete`; `/identity-providers/{slug}/operator-session/start|verify|validate`; `/me/devices/pair/lookup|approve|cancel`. Under a PAT, `GET /me/sessions` reports `isCurrent: false` for every session.
+**Browser-only routes** (they depend on the browser session or issue browser credentials): `/me/sudo/methods`, `/me/sudo/begin`, `/me/sudo/complete`; `/me/credentials/register/begin|complete`; `/consent` and `/saml-consent` (GET and POST); `/me/identities/link/{slug}/begin|callback`; `/require-identity/{ticket}`; `/identity-providers/{slug}/tests`, `/tests/{id}`, `/tests/{id}/complete`; `/identity-providers/{slug}/operator-session/start|verify|validate`; `/me/devices/pair/lookup|approve|cancel`. Under a PAT, `GET /me/sessions` reports `isCurrent: false` for every session.
 
 The verify endpoint no longer emits `Remote-Scopes`.
 
@@ -431,6 +431,41 @@ Admin routes for inspecting and revoking any user's PATs. Gate notation follows 
 | POST | `/api/prohibitorum/accounts/tokens/revoke` | 🔓 | Body: `{"id": <int>}`. Admin force-revoke of any PAT by its numeric ID. Returns 404 if the token does not exist. |
 
 ---
+
+## Require identity
+
+GET /api/prohibitorum/require-identity is a browser navigation an application
+sends the user to when it needs an identity from one of its listed providers.
+Parameters: `client_id` (an enabled OIDC client), `redirect_uri` (exactly one of
+its registered redirect URIs), `providers` (repeatable provider slugs, 1–10 after
+duplicates collapse, each an enabled provider) and an optional `id_token_hint`
+(an ID token this instance issued for that client; it may be expired). It never
+returns JSON. In order:
+
+| Case | Response |
+|---|---|
+| Unknown or disabled client | 302 `/error?error=require_identity_invalid_client` |
+| `redirect_uri` missing or not registered | 302 `/error?error=require_identity_invalid_redirect_uri` |
+| No providers, more than 10, or one unknown or disabled | 302 `/error?error=require_identity_invalid_providers` |
+| `id_token_hint` unverifiable or for another client | 302 `/error?error=require_identity_invalid_id_token` |
+| No session | 302 `/login?return_to=<this request>` |
+| `id_token_hint` names another account | 302 `/require-identity/{ticket}`, a ticket marked as a mismatch |
+| No access to the application | 302 `/error?reason=app_access_denied&app=<name>`, audited `access_denied` |
+| A confirmed link at any listed provider | 302 to `redirect_uri` as registered, with no parameters |
+| Otherwise | 302 `/require-identity/{ticket}` |
+
+A ticket lives 30 minutes and only the session that created it can read it.
+
+GET /api/prohibitorum/require-identity/{ticket} (browser session) returns the
+in-between page's data: `{client:{displayName,iconUrl?}, redirectUri, entryUrl,
+mismatch, satisfied, providers:[{slug,displayName,iconUrl?}]}`. `providers` keeps
+the request's order and leaves out providers turned off since; `satisfied` is
+false for a mismatch. A ticket that is gone, expired, held by another session, or
+whose application was turned off returns 410 `require_identity_ticket_expired`.
+
+A link begun with `return_to=/require-identity/{ticket}` returns to that page
+when it completes (both the OIDC/Steam callback and the VRChat verify). Any other
+`return_to` still returns to `/security`.
 
 ## Forward-auth login context
 

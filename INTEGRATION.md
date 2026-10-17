@@ -153,6 +153,25 @@ An application can read the identities the user has linked at an upstream provid
 - Deleting a provider removes its `identity:<slug>` from every application's allowed scopes and from what users consented to, so a provider created later with the same slug starts with no grants.
 - The ID token reflects the links when it was issued (including on refresh). `/oauth/userinfo` reads them live, so after the user links a provider, calling it again with the current access token shows the new identity without a new authorization.
 
+### Asking the user to link a provider identity
+
+When your application needs an identity the user has not linked yet, for example their VRChat profile, send the browser to:
+
+```
+GET https://auth.example.com/api/prohibitorum/require-identity
+    ?client_id=<your client_id>
+    &redirect_uri=<one of your registered redirect URIs>
+    &providers=vrchat
+    [&providers=steam]
+    [&id_token_hint=<the ID token you already hold>]
+```
+
+- One linked identity at **any** listed provider is enough. If the user already has one, they come straight back to `redirect_uri`. To require several identities, send one request per provider.
+- Otherwise they see a page naming your application and the providers, link one (after confirming it is them), and come back to `redirect_uri`. They can also return without linking; your application decides what happens then.
+- `redirect_uri` comes back exactly as registered, with no parameters. Read the result yourself: call `/oauth/userinfo` with your current access token (the `identities` claim, requested with `identity:<slug>`, reflects new links at once), or start a new authorization with `prompt=none`.
+- With `id_token_hint`, a user signed in as a different account is offered to sign in as the right one; nothing is linked to the wrong account. Expired ID tokens are accepted, since the hint only names the account.
+- A request that is malformed or for an unregistered `redirect_uri` ends on Prohibitorum's error page and never returns to your application.
+
 ### Forced re-authentication: `prompt=login` / `max_age`
 
 - **`prompt=login`** — the IdP refuses to issue from the existing session and bounces the browser to login; the issued `id_token`'s `auth_time` reflects the fresh authentication. A stale session cannot satisfy it (the mechanism is a single-use freshness nonce keyed on the request).

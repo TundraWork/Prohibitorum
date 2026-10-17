@@ -754,6 +754,33 @@ export function MockPanel() {
             }
           />
           <Choose
+            label="Require identity"
+            value={config.publicFlows.requireIdentity.state}
+            options={[
+              { value: "pending", label: "Pending" },
+              { value: "mismatch", label: "Other account" },
+              { value: "satisfied", label: "Satisfied" },
+              { value: "expired", label: "Expired" },
+            ]}
+            onChange={(next) =>
+              updateMockConfig((draft) => {
+                draft.publicFlows.requireIdentity.state = next;
+              })
+            }
+          />
+          <Count
+            label="Required providers"
+            value={config.publicFlows.requireIdentity.providers}
+            onChange={(next) =>
+              updateMockConfig((draft) => {
+                draft.publicFlows.requireIdentity.providers = Math.max(
+                  1,
+                  Math.min(3, next),
+                );
+              })
+            }
+          />
+          <Choose
             label="Enrollment"
             value={config.publicFlows.enrollment.intent}
             options={[

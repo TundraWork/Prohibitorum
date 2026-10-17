@@ -29,6 +29,7 @@ import { Route as ProtectedAdminAdminRouteImport } from './routes/_protected.adm
 import { Route as PublicEnrollTokenRouteImport } from './routes/_public.enroll.$token'
 import { Route as PublicLoginRecoveryRouteImport } from './routes/_public.login_.recovery'
 import { Route as PublicLoginTotpRouteImport } from './routes/_public.login_.totp'
+import { Route as PublicRequireIdentityTicketRouteImport } from './routes/_public.require-identity.$ticket'
 import { Route as ProtectedAdminAdminIndexRouteImport } from './routes/_protected.admin._admin.index'
 import { Route as ProtectedAdminAdminInvitationsRouteImport } from './routes/_protected.admin._admin.invitations'
 import { Route as ProtectedAdminAdminLogsRouteImport } from './routes/_protected.admin._admin.logs'
@@ -151,6 +152,12 @@ const PublicLoginTotpRoute = PublicLoginTotpRouteImport.update({
   path: '/login/totp',
   getParentRoute: () => PublicRoute,
 } as any)
+const PublicRequireIdentityTicketRoute =
+  PublicRequireIdentityTicketRouteImport.update({
+    id: '/require-identity/$ticket',
+    path: '/require-identity/$ticket',
+    getParentRoute: () => PublicRoute,
+  } as any)
 const ProtectedAdminAdminIndexRoute =
   ProtectedAdminAdminIndexRouteImport.update({
     id: '/',
@@ -312,6 +319,7 @@ export interface FileRoutesByFullPath {
   '/enroll/$token': typeof PublicEnrollTokenRoute
   '/login/recovery': typeof PublicLoginRecoveryRoute
   '/login/totp': typeof PublicLoginTotpRoute
+  '/require-identity/$ticket': typeof PublicRequireIdentityTicketRoute
   '/admin/invitations': typeof ProtectedAdminAdminInvitationsRoute
   '/admin/logs': typeof ProtectedAdminAdminLogsRoute
   '/admin/settings': typeof ProtectedAdminAdminSettingsRoute
@@ -355,6 +363,7 @@ export interface FileRoutesByTo {
   '/enroll/$token': typeof PublicEnrollTokenRoute
   '/login/recovery': typeof PublicLoginRecoveryRoute
   '/login/totp': typeof PublicLoginTotpRoute
+  '/require-identity/$ticket': typeof PublicRequireIdentityTicketRoute
   '/admin/invitations': typeof ProtectedAdminAdminInvitationsRoute
   '/admin/logs': typeof ProtectedAdminAdminLogsRoute
   '/admin/settings': typeof ProtectedAdminAdminSettingsRoute
@@ -401,6 +410,7 @@ export interface FileRoutesById {
   '/_public/enroll/$token': typeof PublicEnrollTokenRoute
   '/_public/login_/recovery': typeof PublicLoginRecoveryRoute
   '/_public/login_/totp': typeof PublicLoginTotpRoute
+  '/_public/require-identity/$ticket': typeof PublicRequireIdentityTicketRoute
   '/_protected/admin/_admin/invitations': typeof ProtectedAdminAdminInvitationsRoute
   '/_protected/admin/_admin/logs': typeof ProtectedAdminAdminLogsRoute
   '/_protected/admin/_admin/settings': typeof ProtectedAdminAdminSettingsRoute
@@ -446,6 +456,7 @@ export interface FileRouteTypes {
     | '/enroll/$token'
     | '/login/recovery'
     | '/login/totp'
+    | '/require-identity/$ticket'
     | '/admin/invitations'
     | '/admin/logs'
     | '/admin/settings'
@@ -489,6 +500,7 @@ export interface FileRouteTypes {
     | '/enroll/$token'
     | '/login/recovery'
     | '/login/totp'
+    | '/require-identity/$ticket'
     | '/admin/invitations'
     | '/admin/logs'
     | '/admin/settings'
@@ -534,6 +546,7 @@ export interface FileRouteTypes {
     | '/_public/enroll/$token'
     | '/_public/login_/recovery'
     | '/_public/login_/totp'
+    | '/_public/require-identity/$ticket'
     | '/_protected/admin/_admin/invitations'
     | '/_protected/admin/_admin/logs'
     | '/_protected/admin/_admin/settings'
@@ -705,6 +718,13 @@ declare module '@tanstack/react-router' {
       path: '/login/totp'
       fullPath: '/login/totp'
       preLoaderRoute: typeof PublicLoginTotpRouteImport
+      parentRoute: typeof PublicRoute
+    }
+    '/_public/require-identity/$ticket': {
+      id: '/_public/require-identity/$ticket'
+      path: '/require-identity/$ticket'
+      fullPath: '/require-identity/$ticket'
+      preLoaderRoute: typeof PublicRequireIdentityTicketRouteImport
       parentRoute: typeof PublicRoute
     }
     '/_protected/admin/_admin/': {
@@ -988,6 +1008,7 @@ interface PublicRouteChildren {
   PublicEnrollTokenRoute: typeof PublicEnrollTokenRoute
   PublicLoginRecoveryRoute: typeof PublicLoginRecoveryRoute
   PublicLoginTotpRoute: typeof PublicLoginTotpRoute
+  PublicRequireIdentityTicketRoute: typeof PublicRequireIdentityTicketRoute
   PublicFederationFlowFlowRoute: typeof PublicFederationFlowFlowRoute
   PublicVerifyVrchatProofRoute: typeof PublicVerifyVrchatProofRoute
 }
@@ -1004,6 +1025,7 @@ const PublicRouteChildren: PublicRouteChildren = {
   PublicEnrollTokenRoute: PublicEnrollTokenRoute,
   PublicLoginRecoveryRoute: PublicLoginRecoveryRoute,
   PublicLoginTotpRoute: PublicLoginTotpRoute,
+  PublicRequireIdentityTicketRoute: PublicRequireIdentityTicketRoute,
   PublicFederationFlowFlowRoute: PublicFederationFlowFlowRoute,
   PublicVerifyVrchatProofRoute: PublicVerifyVrchatProofRoute,
 }

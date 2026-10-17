@@ -168,6 +168,17 @@ export interface MockConfig {
       /** Off answers as an expired sign-in. */
       valid: boolean;
     };
+    /** An application's require-identity request on `/require-identity/$ticket`. */
+    requireIdentity: {
+      /**
+       * `pending` lists the providers; `mismatch` is signed in as another
+       * account than the application's; `satisfied` returns at once;
+       * `expired` answers every ticket as gone.
+       */
+      state: "pending" | "mismatch" | "satisfied" | "expired";
+      /** How many providers the application lists (1–3). */
+      providers: number;
+    };
     /** A VRChat profile verification on `/federation/flow/$flow`. */
     flow: {
       intent: "login" | "link" | "invite";
@@ -307,6 +318,7 @@ export const defaultMockConfig: MockConfig = {
       proofMissing: false,
     },
     pairing: { approveAfterPolls: 3, expiresInSeconds: 300 },
+    requireIdentity: { state: "pending", providers: 2 },
   },
   instance: {
     maintenance: false,

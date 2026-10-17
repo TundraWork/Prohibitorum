@@ -151,6 +151,9 @@ function clampFor(path: string, value: number): number {
   if (path === "publicFlows.enrollment.providers") {
     return clampEnrollmentProviders(value);
   }
+  if (path === "publicFlows.requireIdentity.providers") {
+    return Math.max(1, clampEnrollmentProviders(value));
+  }
   if (path === "avatar.upstreams") return clampAvatarUpstreams(value);
   if (path === "admin.diagnosticOutcome") return value;
   if (path.endsWith(".opacity"))
@@ -184,6 +187,9 @@ function allowedValues(path: string): readonly string[] | undefined {
     return ["login", "link", "invite"];
   }
   if (path === "publicFlows.flow.step") return ["identify", "proof"];
+  if (path === "publicFlows.requireIdentity.state") {
+    return ["pending", "mismatch", "satisfied", "expired"];
+  }
   if (path === "instance.loginAppearance.background.source") {
     return ["none", "color", "gradient", "bing", "unsplash", "images"];
   }

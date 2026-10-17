@@ -161,6 +161,32 @@ func (q *Queries) GetAccountIdentityByIssuerSub(ctx context.Context, arg GetAcco
 	return i, err
 }
 
+const hasConfirmedIdentityForProviders = `-- name: HasConfirmedIdentityForProviders :one
+SELECT EXISTS (
+  SELECT 1
+  FROM account_identity ai
+  JOIN upstream_idp ip ON ip.id = ai.upstream_idp_id
+  WHERE ai.account_id = $1
+    AND ai.confirmed_at IS NOT NULL
+    AND NOT ip.disabled
+    AND ip.slug = ANY($2::text[])
+)
+`
+
+type HasConfirmedIdentityForProvidersParams struct {
+	AccountID int32    `json:"accountId"`
+	Slugs     []string `json:"slugs"`
+}
+
+// Whether the account holds a confirmed link at any of the given enabled
+// providers: what an application's require-identity request asks.
+func (q *Queries) HasConfirmedIdentityForProviders(ctx context.Context, arg HasConfirmedIdentityForProvidersParams) (bool, error) {
+	row := q.db.QueryRow(ctx, hasConfirmedIdentityForProviders, arg.AccountID, arg.Slugs)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const insertAccountIdentity = `-- name: InsertAccountIdentity :one
 INSERT INTO account_identity (
   account_id, upstream_idp_id, upstream_iss, upstream_sub, upstream_email, upstream_data

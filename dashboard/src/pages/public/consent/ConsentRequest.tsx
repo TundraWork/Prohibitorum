@@ -1,15 +1,12 @@
 import { Avatar, Link } from "@heroui/react";
 import { Trans } from "@lingui/react/macro";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
 import type { LucideIcon } from "lucide-react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
-import { logoutMutationOptions } from "@/api/mutations";
-import { clearSessionQueries } from "@/api/queries";
 import type { ConsentAccount } from "@/api/raw-paths";
 import { Button } from "@/components/custom/Button";
 import { EntityAvatar } from "@/components/custom/EntityAvatar";
 import { PublicStep } from "@/components/custom/PublicStep";
+import { useSwitchAccount } from "@/pages/public/consent/useSwitchAccount";
 
 export interface ConsentFact {
   key: string;
@@ -56,8 +53,6 @@ export function ConsentRequest({
   /** Where the sign-in page returns once another account has signed in. */
   switchAccountTo: string;
 }) {
-  const queryClient = useQueryClient();
-  const navigate = useNavigate();
   const [pending, setPending] = useState<ConsentChoice>();
   const mounted = useRef(true);
   useEffect(() => {
@@ -66,13 +61,7 @@ export function ConsentRequest({
       mounted.current = false;
     };
   }, []);
-  const switchAccount = useMutation({
-    ...logoutMutationOptions(queryClient),
-    onSuccess: async () => {
-      await clearSessionQueries(queryClient);
-      await navigate({ to: "/login", search: { return_to: switchAccountTo } });
-    },
-  });
+  const switchAccount = useSwitchAccount(switchAccountTo);
   const busy = pending !== undefined || switchAccount.isPending;
 
   const decide = async (choice: ConsentChoice) => {

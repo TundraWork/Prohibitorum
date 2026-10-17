@@ -2,6 +2,7 @@ package oidc
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/url"
 	"slices"
@@ -38,20 +39,8 @@ func (p *Provider) HandleLogout(w http.ResponseWriter, r *http.Request) {
 
 	var clientID string
 	if hint != "" {
-		// Signature + RS256 + kid only — NOT exp. Expiry tolerance is required:
-		// logout commonly happens after the ID token has expired.
-		claims, typ, err := p.verifyJWT(ctx, hint)
+		claims, err := p.verifyIDTokenHint(ctx, hint)
 		if err != nil {
-			p.redirectToErrorPage(w, r, errCodeInvalidRequest)
-			return
-		}
-		if typ == "at+jwt" {
-			// An access token is not a valid logout hint; an ID token carries
-			// JOSE typ "JWT" (or empty for some signers).
-			p.redirectToErrorPage(w, r, errCodeInvalidRequest)
-			return
-		}
-		if iss, _ := claims["iss"].(string); iss != p.cfg.OIDC.Issuer {
 			p.redirectToErrorPage(w, r, errCodeInvalidRequest)
 			return
 		}
@@ -120,4 +109,29 @@ func (p *Provider) auditLogout(ctx context.Context, r *http.Request, accountID i
 			"client_id": clientID,
 		},
 	})
+}
+
+// errInvalidIDTokenHint is any id_token_hint that is not an ID token this OP
+// issued.
+var errInvalidIDTokenHint = errors.New("oidc: invalid id_token_hint")
+
+// verifyIDTokenHint checks that hint is an ID token this OP signed: signature
+// and kid, not an access token, and this issuer. Expiry is deliberately not
+// checked: a hint names the account, and an application usually holds an ID
+// token that has long expired by the time it sends one (logout, a
+// require-identity request).
+func (p *Provider) verifyIDTokenHint(ctx context.Context, hint string) (map[string]any, error) {
+	claims, typ, err := p.verifyJWT(ctx, hint)
+	if err != nil {
+		return nil, errInvalidIDTokenHint
+	}
+	// An access token carries JOSE typ "at+jwt"; an ID token carries "JWT"
+	// (or nothing, for some signers).
+	if typ == "at+jwt" {
+		return nil, errInvalidIDTokenHint
+	}
+	if iss, _ := claims["iss"].(string); iss != p.cfg.OIDC.Issuer {
+		return nil, errInvalidIDTokenHint
+	}
+	return claims, nil
 }
