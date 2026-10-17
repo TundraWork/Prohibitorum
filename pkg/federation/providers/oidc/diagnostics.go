@@ -99,6 +99,15 @@ type diagnosticFlow struct {
 	// callback (public client) until Complete consumes it. The code-flow
 	// fields above stay empty there.
 	CallbackIDToken string `json:"callbackIdToken,omitempty"`
+	// CallbackAccessToken holds the id_token token response's front-channel
+	// access token until Complete consumes it, so the connection test can
+	// verify at_hash and fetch userinfo the way login does. This is the one
+	// place a front-channel credential is stored at all — only in this
+	// admin-initiated record, never in a sign-in flow state — bounded by the
+	// record's own TTL and cleared the moment Complete runs (success or
+	// failure). It never reaches the diagnostics result, the API response or
+	// any log.
+	CallbackAccessToken string `json:"callbackAccessToken,omitempty"`
 }
 
 type Diagnostics struct {
@@ -212,9 +221,10 @@ func clearDiagnosticSecrets(flow *diagnosticFlow) {
 	flow.Code = ""
 	flow.Issuer = ""
 	flow.CallbackIDToken = ""
+	flow.CallbackAccessToken = ""
 }
 
-func (d *Diagnostics) Callback(ctx context.Context, id, slug, browser, code, upstreamError, errorDescription, issuer, idToken, requestID string) error {
+func (d *Diagnostics) Callback(ctx context.Context, id, slug, browser, code, upstreamError, errorDescription, issuer, idToken, accessToken, requestID string) error {
 	flow, raw, err := d.read(ctx, id, slug, browser, nil)
 	if err != nil {
 		return err
@@ -225,6 +235,11 @@ func (d *Diagnostics) Callback(ctx context.Context, id, slug, browser, code, ups
 	stage := DiagnosticStage{Name: "callback", Status: "succeeded", RequestID: requestID}
 	flow.Stages[1].Status = "succeeded"
 	implicit := flow.Resolved.implicitFlow()
+	// Only the id_token token response may carry a front-channel access
+	// token; a plain id_token callback ignores one, exactly as login does.
+	if implicit && flow.Resolved.ResponseType != responseTypeIDTokenToken {
+		accessToken = ""
+	}
 	if upstreamError != "" {
 		stage.Status = "failed"
 		stage.ErrorCode = safeOAuthError(upstreamError)
@@ -235,9 +250,10 @@ func (d *Diagnostics) Callback(ctx context.Context, id, slug, browser, code, ups
 		}
 		flow.Stages[1].Status = "failed"
 	} else if implicit {
-		// The implicit response's only credential is the front-channel
-		// id_token; size-bound it like the code.
-		if idToken == "" || len(idToken) > 65536 {
+		// The implicit response's mandatory credential is the front-channel
+		// id_token; size-bound it like the code, and the access token like
+		// the credentials it substitutes for.
+		if idToken == "" || len(idToken) > 65536 || accessToken != "" && len(accessToken) > 8192 {
 			stage.Status = "failed"
 			stage.ErrorCode = "invalid_callback"
 		}
@@ -252,7 +268,7 @@ func (d *Diagnostics) Callback(ctx context.Context, id, slug, browser, code, ups
 	} else {
 		// Adapter.Advance checks iss, exactly as it does for login.
 		flow.Status = "ready"
-		flow.Code, flow.Issuer, flow.CallbackIDToken = code, issuer, idToken
+		flow.Code, flow.Issuer, flow.CallbackIDToken, flow.CallbackAccessToken = code, issuer, idToken, accessToken
 	}
 	ok, err := d.replace(ctx, id, raw, flow)
 	if err != nil {
@@ -306,7 +322,12 @@ func (d *Diagnostics) Complete(ctx context.Context, id string, provider federati
 		return flow.DiagnosticResult, nil
 	}
 	implicit := flow.Resolved.implicitFlow()
-	state, input := flow.AdapterState, federationcore.ActionInput{Kind: federationcore.ActionRedirect, Code: flow.Code, Issuer: flow.Issuer, IDToken: flow.CallbackIDToken}
+	// The stored front-channel access token (id_token token responses only)
+	// rides into Advance with the id_token, so the same at_hash check and
+	// the same userinfo avatar path run as in login. From here on the flow
+	// record carries no credential: the token lives only in this Complete
+	// call's memory, like a login callback's.
+	state, input := flow.AdapterState, federationcore.ActionInput{Kind: federationcore.ActionRedirect, Code: flow.Code, Issuer: flow.Issuer, IDToken: flow.CallbackIDToken, AccessToken: flow.CallbackAccessToken}
 	flow.Status = "running"
 	clearDiagnosticSecrets(&flow)
 	ok, err := d.replace(ctx, id, raw, flow)
@@ -329,9 +350,11 @@ func (d *Diagnostics) Complete(ctx context.Context, id string, provider federati
 	// Login resolves a missing avatar through userinfo after sign-in. The test
 	// makes that call now; when the id_token already has a picture it still
 	// asks userinfo once, through the same ResolveAvatar, only to show it.
+	// A plain id_token response cannot: it carries no access token anywhere,
+	// not even in this record.
 	var avatarURL string
 	var avatarErr error
-	if advanceErr == nil && !result.Identity.UserInfoFallback {
+	if advanceErr == nil && (!implicit || flow.Resolved.ResponseType == responseTypeIDTokenToken) && !result.Identity.UserInfoFallback {
 		if result.Avatar != nil && result.Avatar.Opaque != nil {
 			avatarURL, avatarErr = adapter.ResolveAvatar(runCtx, provider, *result.Avatar)
 		} else if client, tokens, _ := recorder.exchange(); client != nil && tokens.AccessToken != "" && flow.Resolved.UserInfoEndpoint != "" {
@@ -375,9 +398,19 @@ func diagnosticStages(recorder *diagnosticRecorder, resolved ResolvedConfig, adv
 	userinfo := DiagnosticStage{Name: "userinfo", Status: "skipped", RequestID: requestID}
 	if implicit {
 		// The implicit flow authenticates from the front-channel id_token;
-		// there is no token endpoint call and no userinfo fetch, so both
-		// stages carry neither endpoint nor timing.
+		// there is no token endpoint call, so that stage carries neither
+		// endpoint nor timing. A plain id_token response also skips UserInfo
+		// — it carries no access token anywhere. The id_token token response
+		// runs UserInfo with the token this record held until Complete.
 		exchange.Status = "skipped"
+		if resolved.ResponseType == responseTypeIDTokenToken {
+			userinfo.Endpoint = DiagnosticEndpoint(resolved.UserInfoEndpoint)
+			if call := recorder.call(upstreamUserInfo); call.count > 0 {
+				userinfo.Status, userinfo.HTTPStatus, userinfo.DurationMS = "succeeded", call.status, call.duration.Milliseconds()
+			}
+		} else {
+			userinfo.ErrorCode = "implicit_no_token_retained"
+		}
 	} else {
 		exchange.HTTPStatus = token.status
 		exchange.DurationMS = token.duration.Milliseconds()
@@ -402,7 +435,7 @@ func diagnosticStages(recorder *diagnosticRecorder, resolved ResolvedConfig, adv
 		fail(&exchange, "configuration_changed")
 	case reason == federationcore.FailureCodeExchange && errors.As(advanceErr, &retrieval):
 		fail(&exchange, safeOAuthError(retrieval.ErrorCode))
-	case reason == federationcore.FailureCodeExchange && (token.status < 200 || token.status >= 300):
+	case reason == federationcore.FailureCodeExchange && !implicit && (token.status < 200 || token.status >= 300):
 		fail(&exchange, "token_exchange_failed")
 	case reason == federationcore.FailureCodeExchange:
 		fail(&verification, diagnosticVerificationError(advanceErr))

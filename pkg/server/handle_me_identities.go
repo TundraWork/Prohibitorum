@@ -326,6 +326,7 @@ func (s *Server) handleMeIdentitiesLinkCallbackHTTP(w http.ResponseWriter, r *ht
 	code := q.Get("code")
 	iss := q.Get("iss")
 	idToken := q.Get("id_token")
+	accessToken := q.Get("access_token")
 
 	if upstreamErr != "" {
 		// The user is already authenticated, so we know the account_id —
@@ -374,7 +375,7 @@ func (s *Server) handleMeIdentitiesLinkCallbackHTTP(w http.ResponseWriter, r *ht
 		FlowID: state, BrowserToken: browserToken, ProviderSlug: chi.URLParam(r, "slug"),
 		CallbackRoute: federation.CallbackRouteLink,
 		AccountID:     new(sess.Account.ID), SessionID: sess.Data.SessionID,
-		Input: federation.ActionInput{Kind: federation.ActionRedirect, Code: code, Issuer: iss, IDToken: idToken, Params: r.URL.Query()},
+		Input: federation.ActionInput{Kind: federation.ActionRedirect, Code: code, Issuer: iss, IDToken: idToken, AccessToken: accessToken, Params: r.URL.Query()},
 	})
 	if err != nil {
 		// The federation service already emitted a fail audit row for each

@@ -166,7 +166,10 @@ func (s *Server) handleOIDCTestCallbackHTTP(w http.ResponseWriter, r *http.Reque
 	}
 	// Providers append their own parameters (Google adds scope, authuser and
 	// prompt), so only the parameters read here must appear at most once.
-	for _, key := range []string{"state", "code", "error", "error_description", "iss", "id_token"} {
+	// access_token is read only to reject duplicates: the connection test
+	// keeps no front-channel token, so its userinfo stage cannot run for the
+	// id_token token response.
+	for _, key := range []string{"state", "code", "error", "error_description", "iss", "id_token", "access_token"} {
 		if len(q[key]) > 1 {
 			writeAuthErr(w, authn.ErrBadRequest())
 			return
@@ -179,8 +182,10 @@ func (s *Server) handleOIDCTestCallbackHTTP(w http.ResponseWriter, r *http.Reque
 	id := q.Get("state")
 	slug := chi.URLParam(r, "slug")
 	// error_description is front-channel redirect text, not a token endpoint
-	// body; the diagnostics result may quote it to the administrator.
-	if err := s.oidcDiagnostics().Callback(r.Context(), id, slug, diagnosticBrowser(r), q.Get("code"), q.Get("error"), q.Get("error_description"), q.Get("iss"), q.Get("id_token"), weberr.RequestIDFromContext(r.Context())); err != nil {
+	// body; the diagnostics result may quote it to the administrator. The
+	// access token goes to the connection test only (held in its own bounded
+	// record until Complete); it is never echoed back.
+	if err := s.oidcDiagnostics().Callback(r.Context(), id, slug, diagnosticBrowser(r), q.Get("code"), q.Get("error"), q.Get("error_description"), q.Get("iss"), q.Get("id_token"), q.Get("access_token"), weberr.RequestIDFromContext(r.Context())); err != nil {
 		writeDiagnosticError(w, err)
 		return
 	}

@@ -108,6 +108,11 @@ type fakeFedQueries struct {
 
 	// iconEtags is used by fakeFedQueries.ListEntityIconEtags (see below).
 	iconEtags []db.ListEntityIconEtagsRow
+
+	// avatarSources/activeAvatar back the AvatarManager the federation
+	// service calls after a callback that resolved an upstream picture.
+	avatarSources map[int32]db.ListAvatarSourcesByAccountRow
+	activeAvatar  map[int32]string
 }
 
 func newFakeFedQueries() *fakeFedQueries {
@@ -119,6 +124,8 @@ func newFakeFedQueries() *fakeFedQueries {
 		usernameErr:        pgx.ErrNoRows,
 		nextAccountID:      100,
 		nextIdentityID:     200,
+		avatarSources:      map[int32]db.ListAvatarSourcesByAccountRow{},
+		activeAvatar:       map[int32]string{},
 	}
 }
 
@@ -258,6 +265,30 @@ func (f *fakeFedQueries) ListEntityIconEtags(_ context.Context, _ string) ([]db.
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.iconEtags, nil
+}
+
+func (f *fakeFedQueries) ListAvatarSourcesByAccount(_ context.Context, accountID int32) ([]db.ListAvatarSourcesByAccountRow, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	row, ok := f.avatarSources[accountID]
+	if !ok {
+		return nil, nil
+	}
+	return []db.ListAvatarSourcesByAccountRow{row}, nil
+}
+
+func (f *fakeFedQueries) UpsertAvatarSource(_ context.Context, arg db.UpsertAvatarSourceParams) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.avatarSources[arg.AccountID] = db.ListAvatarSourcesByAccountRow{Source: arg.Source, Etag: arg.Etag, UpstreamUrl: arg.UpstreamUrl}
+	return nil
+}
+
+func (f *fakeFedQueries) SetActiveAvatar(_ context.Context, arg db.SetActiveAvatarParams) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.activeAvatar[arg.AccountID] = arg.Source
+	return nil
 }
 
 // --- harness --------------------------------------------------------------
@@ -562,14 +593,14 @@ func decodeErrBody(t *testing.T, resp *http.Response) errBody {
 
 // --- tests ----------------------------------------------------------------
 
-// driveImplicitLogin seeds a second IdP row configured as a public client set
-// to ID token only (responseType=id_token) and drives /login → /authorize with
-// response_type=id_token. It returns the redirect Location whose fragment
-// carries the id_token, exactly as a real OP hands it to the browser.
-func (h *fedTestHarness) driveImplicitLogin(t *testing.T, slug string) *url.URL {
+// driveImplicitLogin seeds a second IdP row configured as a public client on
+// an implicit response type (id_token or id_token token) and drives /login →
+// /authorize. It returns the redirect Location whose fragment carries the
+// response tokens, exactly as a real OP hands it to the browser.
+func (h *fedTestHarness) driveImplicitLogin(t *testing.T, slug, responseType string) *url.URL {
 	t.Helper()
 	publicConfig, err := json.Marshal(federationoidc.Config{
-		ConfigurationMode: "discovery", TokenAuthMethod: "none", PKCEMethod: "S256", ResponseType: "id_token",
+		ConfigurationMode: "discovery", TokenAuthMethod: "none", PKCEMethod: "S256", ResponseType: responseType,
 		IssuerURL: h.opTS.URL, ClientID: "test-client", Scopes: []string{"openid", "profile", "email"},
 		AllowedDomains: []string{}, UsernameClaim: "preferred_username", DisplayNameClaim: "name",
 		EmailClaim: "email", PictureClaim: "picture", RequireVerifiedEmail: true,
@@ -587,8 +618,8 @@ func (h *fedTestHarness) driveImplicitLogin(t *testing.T, slug string) *url.URL 
 	if resp.StatusCode != http.StatusFound {
 		t.Fatalf("login status = %d", resp.StatusCode)
 	}
-	if !strings.Contains(authorizeURL, "response_type=id_token") {
-		t.Fatalf("authorization URL is not implicit: %s", authorizeURL)
+	if !strings.Contains(authorizeURL, "response_type="+responseType) && !strings.Contains(authorizeURL, "response_type="+url.QueryEscape(responseType)) {
+		t.Fatalf("authorization URL is not the implicit %s request: %s", responseType, authorizeURL)
 	}
 	noFollowResp, err := noFollow().Get(authorizeURL)
 	if err != nil {
@@ -611,7 +642,7 @@ func (h *fedTestHarness) driveImplicitLogin(t *testing.T, slug string) *url.URL 
 // id_token+state completes the sign-in without any token endpoint call.
 func TestFederationImplicitCallbackRelaysFragment(t *testing.T) {
 	h := newFederationTestServer(t)
-	loc := h.driveImplicitLogin(t, "mockop-public")
+	loc := h.driveImplicitLogin(t, "mockop-public", "id_token")
 
 	// First hit: fragment stripped, as a real browser's request arrives.
 	fragmentless := *loc
@@ -653,6 +684,95 @@ func TestFederationImplicitCallbackRelaysFragment(t *testing.T) {
 	}
 	if destination := resp2.Header.Get("Location"); !strings.HasPrefix(destination, "/welcome") && destination != "/me" {
 		t.Fatalf("relayed callback destination = %q", destination)
+	}
+}
+
+// TestFederationImplicitTokenCallbackRelaysFragment drives the id_token token
+// response the same way: the relayed access_token and id_token complete the
+// sign-in with no token endpoint call, and the userinfo endpoint is never
+// asked for the identity — the verified id_token stays the only source.
+func TestFederationImplicitTokenCallbackRelaysFragment(t *testing.T) {
+	h := newFederationTestServer(t)
+	// The picture lives only in userinfo, so a stored avatar proves the
+	// access token actually reached the deferred userinfo fetch.
+	h.op.SetClaims("pub-sub-1", "pub@example.com", true, "pubuser", "Pub User")
+	h.op.SetPictureUserInfoOnly(h.op.PictureURL())
+	loc := h.driveImplicitLogin(t, "mockop-public", "id_token token")
+	fragmentless := *loc
+	fragmentless.Fragment = ""
+	fragmentless.RawQuery = ""
+	resp, err := h.client.Get(fragmentless.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("fragment callback status = %d, want 200 (relay page)", resp.StatusCode)
+	}
+	fragment, err := url.ParseQuery(loc.Fragment)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fragment.Get("access_token") == "" {
+		t.Fatalf("fragment carries no access_token: %s", loc)
+	}
+	relayURL := fragmentless.String() + "?" + fragment.Encode()
+	resp2, err := h.client.Get(relayURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp2.Body.Close()
+	if resp2.StatusCode != http.StatusFound {
+		body2, _ := io.ReadAll(resp2.Body)
+		t.Fatalf("relayed callback status = %d, want 302; body=%s", resp2.StatusCode, body2)
+	}
+	if h.op.TokenCalls() != 0 {
+		t.Fatalf("implicit token login hit the token endpoint %d times", h.op.TokenCalls())
+	}
+	if destination := resp2.Header.Get("Location"); !strings.HasPrefix(destination, "/welcome") && destination != "/me" {
+		t.Fatalf("relayed callback destination = %q", destination)
+	}
+}
+
+// TestFederationImplicitCallbackIgnoresInjectedAccessToken probes the plain
+// id_token response with an access_token forged into the relayed query: the
+// response type snapshotted at Begin decides which front-channel token the
+// callback may carry, so the sign-in completes from the id_token alone and
+// userinfo is never asked for the avatar.
+func TestFederationImplicitCallbackIgnoresInjectedAccessToken(t *testing.T) {
+	h := newFederationTestServer(t)
+	h.op.SetClaims("pub-sub-1", "pub@example.com", true, "pubuser", "Pub User")
+	h.op.SetPictureUserInfoOnly(h.op.PictureURL())
+	loc := h.driveImplicitLogin(t, "mockop-public", "id_token")
+	fragment, err := url.ParseQuery(loc.Fragment)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fragment.Get("access_token") != "" {
+		t.Fatalf("plain id_token fragment carries an access token: %s", loc)
+	}
+	fragmentless := *loc
+	fragmentless.Fragment = ""
+	fragmentless.RawQuery = ""
+	fragment.Set("access_token", "injected-access-token")
+	relayURL := fragmentless.String() + "?" + fragment.Encode()
+	resp, err := h.client.Get(relayURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusFound {
+		body, _ := io.ReadAll(resp.Body)
+		t.Fatalf("relayed callback status = %d, want 302; body=%s", resp.StatusCode, body)
+	}
+	if destination := resp.Header.Get("Location"); !strings.HasPrefix(destination, "/welcome") && destination != "/me" {
+		t.Fatalf("relayed callback destination = %q", destination)
+	}
+	if got := h.op.UserInfoCalls(); got != 0 {
+		t.Fatalf("plain id_token sign-in made %d userinfo calls with an injected access token", got)
+	}
+	if h.op.TokenCalls() != 0 {
+		t.Fatalf("plain id_token sign-in hit the token endpoint %d times", h.op.TokenCalls())
 	}
 }
 

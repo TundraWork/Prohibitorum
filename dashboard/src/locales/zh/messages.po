@@ -729,6 +729,11 @@ msgid "app.managers.candidate.assigned"
 msgstr "已在管理这个应用"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-options.ts
+msgid "admin.federation.response.id-token-token.hint"
+msgstr "同时读取随 ID token 一起返回的 access token；ID token 里没有头像时，用它请求 UserInfo。"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/settings/SignInPageControls.tsx
 msgid "settings.sign-in.theme.dark"
 msgstr "始终夜间模式"
@@ -767,6 +772,16 @@ msgstr "管理员没有为你的账号开放这个应用。"
 #: src/api/errors.ts
 msgid "error.saml_application_already_exists"
 msgstr "已有应用使用该 Entity ID。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-validation.ts
+msgid "admin.federation.response.needs-jwks"
+msgstr "隐式 ID token 响应需要 JWKS 端点来校验令牌。请填写 JWKS 端点，或改用授权码。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-validation.ts
+msgid "admin.federation.response.needs-openid"
+msgstr "隐式 ID token 响应需要 openid 作用域。请加上 openid，或改用授权码。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/oidc-validation.ts
@@ -3494,23 +3509,18 @@ msgstr "ID token"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-options.ts
+msgid "admin.federation.response.id-token-token"
+msgstr "ID token + access token"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.response.id-token"
 msgstr "仅 ID token"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/provider-validation.ts
-msgid "admin.federation.response.needs-jwks"
-msgstr "「仅 ID token」需要 JWKS 端点来校验令牌。请填写 JWKS 端点，或改用授权码。"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/provider-validation.ts
-msgid "admin.federation.response.needs-openid"
-msgstr "「仅 ID token」需要 openid 作用域。请加上 openid，或改用授权码。"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ResponseTypeField.tsx
 msgid "admin.federation.response.description"
-msgstr "只有当提供商那边的客户端允许 response_type=id_token 时，「仅 ID token」才能使用。Keycloak 里这项叫 Implicit Flow Enabled；Microsoft identity platform 里是隐式授权（implicit grant）下的 ID tokens。"
+msgstr "只有当提供商那边的客户端允许 response_type=id_token 时，「仅 ID token」才能使用；「ID token + access token」则需要允许 response_type=id_token token。Keycloak 里这项叫 Implicit Flow Enabled；Microsoft identity platform 里是隐式授权（implicit grant）下的 ID tokens 和 Access tokens。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx

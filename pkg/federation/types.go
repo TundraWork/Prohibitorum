@@ -106,6 +106,12 @@ type ActionInput struct {
 	// without a code exchange (the implicit flow public clients use). The
 	// adapter verifies it exactly as it would one from a token response.
 	IDToken string
+	// AccessToken carries the front-channel access_token of the OIDC
+	// id_token token implicit response, relayed into the callback query next
+	// to the id_token. The adapter checks it against the verified id_token's
+	// at_hash and keeps it in callback memory only — it is never written to
+	// flow state, the KV store or the database.
+	AccessToken string
 }
 
 type IdentityKey struct {

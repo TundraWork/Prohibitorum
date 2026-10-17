@@ -137,7 +137,7 @@ func TestClient_ImplicitFlowAgainstMockOP(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	authURL := c.ImplicitAuthURL("implicit-state", "implicit-nonce")
+	authURL := c.ImplicitAuthURL("implicit-state", "implicit-nonce", "id_token")
 	parsed, err := url.Parse(authURL)
 	if err != nil {
 		t.Fatalf("parse ImplicitAuthURL: %v", err)
@@ -166,7 +166,7 @@ func TestClient_ImplicitFlowAgainstMockOP(t *testing.T) {
 		t.Errorf("fragment state = %q, want implicit-state", fragment.Get("state"))
 	}
 
-	toks, err := c.VerifyImplicit(context.Background(), idToken, ts.URL, "implicit-nonce")
+	toks, err := c.VerifyImplicit(context.Background(), idToken, "", ts.URL, "implicit-nonce")
 	if err != nil {
 		t.Fatalf("VerifyImplicit: %v", err)
 	}
@@ -199,9 +199,9 @@ func TestClient_VerifyImplicitRejectsBadNonce(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	loc := driveImplicitAuthorize(t, c.ImplicitAuthURL("state", "minted-nonce"))
+	loc := driveImplicitAuthorize(t, c.ImplicitAuthURL("state", "minted-nonce", "id_token"))
 	idToken := fragmentParams(t, loc).Get("id_token")
-	if _, err := c.VerifyImplicit(context.Background(), idToken, ts.URL, "other-nonce"); err == nil {
+	if _, err := c.VerifyImplicit(context.Background(), idToken, "", ts.URL, "other-nonce"); err == nil {
 		t.Fatal("VerifyImplicit accepted a token minted for a different nonce")
 	}
 }
@@ -223,10 +223,92 @@ func TestClient_VerifyImplicitRejectsWrongIssuer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	loc := driveImplicitAuthorize(t, c.ImplicitAuthURL("state", "nonce"))
+	loc := driveImplicitAuthorize(t, c.ImplicitAuthURL("state", "nonce", "id_token"))
 	idToken := fragmentParams(t, loc).Get("id_token")
-	if _, err := c.VerifyImplicit(context.Background(), idToken, "https://attacker.example", "nonce"); err == nil {
+	if _, err := c.VerifyImplicit(context.Background(), idToken, "", "https://attacker.example", "nonce"); err == nil {
 		t.Fatal("VerifyImplicit accepted a token under the wrong issuer")
+	}
+}
+
+// TestClient_ImplicitTokenFlowAgainstMockOP drives the id_token token
+// response end to end: the fragment carries the access token next to the
+// id_token, the id_token's at_hash binds the two, and VerifyImplicit returns
+// the token — with no token endpoint call. A mismatched access token is
+// refused by the at_hash check.
+func TestClient_ImplicitTokenFlowAgainstMockOP(t *testing.T) {
+	ts, op := newMockOP(t)
+	op.SetClaims("implicit-token-sub-1", "implicit-token@example.test", true, "implicit-token-user", "Implicit Token User")
+	resolved, err := federationoidc.ResolveConfig(context.Background(), federationoidc.Config{
+		IssuerURL: ts.URL, ClientID: "public-client", Scopes: []string{"openid", "profile", "email"},
+		UsernameClaim: "preferred_username", DisplayNameClaim: "name", EmailClaim: "email",
+		PictureClaim: "picture", SubjectClaim: "sub",
+		ConfigurationMode: "discovery", TokenAuthMethod: "none", PKCEMethod: "S256",
+		AllowPrivateNetwork: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	c, err := federationoidc.NewClient(context.Background(), "public-client", "", "https://rp.example.test/callback", resolved, nil, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	loc := driveImplicitAuthorize(t, c.ImplicitAuthURL("state", "nonce", "id_token token"))
+	fragment := fragmentParams(t, loc)
+	idToken, accessToken := fragment.Get("id_token"), fragment.Get("access_token")
+	if idToken == "" || accessToken == "" {
+		t.Fatalf("fragment carries no tokens: %s", loc)
+	}
+	toks, err := c.VerifyImplicit(context.Background(), idToken, accessToken, ts.URL, "nonce")
+	if err != nil {
+		t.Fatalf("VerifyImplicit: %v", err)
+	}
+	if toks.AccessToken != accessToken || toks.Subject != "implicit-token-sub-1" {
+		t.Fatalf("tokens = %+v", toks)
+	}
+	// The at_hash check: the right id_token with the wrong access token
+	// must not verify.
+	if _, err := c.VerifyImplicit(context.Background(), idToken, accessToken+"x", ts.URL, "nonce"); err == nil {
+		t.Fatal("VerifyImplicit accepted an access token that does not match at_hash")
+	}
+	if op.TokenCalls() != 0 {
+		t.Fatalf("implicit token flow hit the token endpoint %d times", op.TokenCalls())
+	}
+}
+
+// TestClient_VerifyImplicitRequiresAtHashForAccessToken pins OIDC Core
+// §3.2.2.10: an access token handed to VerifyImplicit must be bound by an
+// at_hash in the id_token. A token-less id_token (the plain id_token
+// response, or an upstream that wrongly omitted the claim) must not pass
+// with any access token — otherwise the front-channel pair could be
+// substituted.
+func TestClient_VerifyImplicitRequiresAtHashForAccessToken(t *testing.T) {
+	ts, op := newMockOP(t)
+	op.SetClaims("no-at-hash-sub", "no-at-hash@example.test", true, "no-at-hash", "No At Hash")
+	resolved, err := federationoidc.ResolveConfig(context.Background(), federationoidc.Config{
+		IssuerURL: ts.URL, ClientID: "public-client", Scopes: []string{"openid"},
+		UsernameClaim: "preferred_username", DisplayNameClaim: "name", EmailClaim: "email",
+		PictureClaim: "picture", SubjectClaim: "sub",
+		ConfigurationMode: "discovery", TokenAuthMethod: "none", PKCEMethod: "S256",
+		AllowPrivateNetwork: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	c, err := federationoidc.NewClient(context.Background(), "public-client", "", "https://rp.example.test/callback", resolved, nil, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The plain id_token response mints an id_token with no at_hash.
+	loc := driveImplicitAuthorize(t, c.ImplicitAuthURL("state", "nonce", "id_token"))
+	idToken := fragmentParams(t, loc).Get("id_token")
+	if idToken == "" {
+		t.Fatalf("fragment carries no id_token: %s", loc)
+	}
+	if _, err := c.VerifyImplicit(context.Background(), idToken, "", ts.URL, "nonce"); err != nil {
+		t.Fatalf("plain id_token without an access token must still verify: %v", err)
+	}
+	if _, err := c.VerifyImplicit(context.Background(), idToken, "injected-access-token", ts.URL, "nonce"); err == nil {
+		t.Fatal("VerifyImplicit accepted an access token against an id_token with no at_hash")
 	}
 }
 
@@ -955,7 +1037,7 @@ func TestClient_VerifyImplicitWithoutVerifierErrors(t *testing.T) {
 	claims := fmt.Sprintf(`{"iss":%q,"sub":"subject","aud":"public-client","nonce":"nonce","exp":%d,"iat":%d}`, ts.URL, now+300, now)
 	header, payload, signature := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"RS256","typ":"JWT"}`)), base64.RawURLEncoding.EncodeToString([]byte(claims)), base64.RawURLEncoding.EncodeToString([]byte("junk-signature"))
 	idToken := header + "." + payload + "." + signature
-	if _, err := c.VerifyImplicit(context.Background(), idToken, ts.URL, "nonce"); err == nil {
+	if _, err := c.VerifyImplicit(context.Background(), idToken, "", ts.URL, "nonce"); err == nil {
 		t.Fatal("VerifyImplicit accepted a token with no key set to verify it against")
 	}
 }

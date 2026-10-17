@@ -484,6 +484,51 @@ func TestMockOP_AuthorizeImplicitRejectsPKCE(t *testing.T) {
 	}
 }
 
+// TestMockOP_AuthorizeImplicitToken drives response_type=id_token token: the
+// fragment also carries the access token, and the id_token's at_hash is the
+// left half of SHA-256 of that access token, so an RP can bind the two.
+func TestMockOP_AuthorizeImplicitToken(t *testing.T) {
+	h := newHarness(t)
+	h.s.SetClaims("sub-imp-tok", "imp-tok@example.com", true, "imptok", "Imp Token")
+	authURL := h.ts.URL + "/authorize?" + url.Values{
+		"response_type": {"id_token token"},
+		"client_id":     {"client-1"},
+		"redirect_uri":  {"https://rp.example/cb"},
+		"state":         {"state-imp-tok"},
+		"nonce":         {"nonce-imp-tok"},
+		"scope":         {"openid profile email"},
+	}.Encode()
+	resp, err := noRedirectClient().Get(authURL)
+	if err != nil {
+		t.Fatalf("GET /authorize: %v", err)
+	}
+	defer resp.Body.Close()
+	loc, err := resp.Location()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if loc.RawQuery != "" {
+		t.Fatalf("implicit redirect must keep the query empty; got %q", loc.RawQuery)
+	}
+	fragment, err := url.ParseQuery(loc.Fragment)
+	if err != nil {
+		t.Fatalf("fragment parse: %v", err)
+	}
+	accessToken := fragment.Get("access_token")
+	if accessToken == "" || fragment.Get("token_type") != "Bearer" {
+		t.Fatalf("fragment access_token/token_type = %q/%q", accessToken, fragment.Get("token_type"))
+	}
+	_, claims := decodeJWT(t, fragment.Get("id_token"))
+	digest := sha256.Sum256([]byte(accessToken))
+	wantHash := base64.RawURLEncoding.EncodeToString(digest[:16])
+	if claims["at_hash"] != wantHash {
+		t.Fatalf("at_hash = %v, want %q", claims["at_hash"], wantHash)
+	}
+	if h.s.TokenCalls() != 0 {
+		t.Fatalf("implicit authorize hit /token %d times", h.s.TokenCalls())
+	}
+}
+
 func TestMockOP_OverrideIssuerEndsUpInIDToken(t *testing.T) {
 	h := newHarness(t)
 	const attackerIss = "https://attacker.example.com"

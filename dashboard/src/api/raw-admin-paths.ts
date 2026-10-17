@@ -314,7 +314,7 @@ export interface OidcProviderConfig {
    * The sign-in response. Absent on providers saved before the setting
    * existed, and the server reads that as `code`.
    */
-  responseType?: "code" | "id_token";
+  responseType?: "code" | "id_token" | "id_token token";
   /**
    * Send the access token as a Bearer header when fetching the avatar
    * picture, to whatever URL the provider returns. Absent on providers

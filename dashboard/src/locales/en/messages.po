@@ -729,6 +729,11 @@ msgid "app.managers.candidate.assigned"
 msgstr "Already manages this application"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-options.ts
+msgid "admin.federation.response.id-token-token.hint"
+msgstr "Also reads the access token sent back with the ID token, and uses it for UserInfo when the ID token has no picture."
+
+#. js-lingui-explicit-id
 #: src/pages/admin/settings/SignInPageControls.tsx
 msgid "settings.sign-in.theme.dark"
 msgstr "Always dark"
@@ -767,6 +772,16 @@ msgstr "An administrator hasn't given your account access to this app."
 #: src/api/errors.ts
 msgid "error.saml_application_already_exists"
 msgstr "An application with that Entity ID already exists."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-validation.ts
+msgid "admin.federation.response.needs-jwks"
+msgstr "An implicit ID token response needs a JWKS endpoint to check the token. Enter one, or choose the authorization code."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-validation.ts
+msgid "admin.federation.response.needs-openid"
+msgstr "An implicit ID token response needs the openid scope. Add openid, or choose the authorization code."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/oidc-validation.ts
@@ -3494,23 +3509,18 @@ msgstr "ID token"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-options.ts
+msgid "admin.federation.response.id-token-token"
+msgstr "ID token + access token"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.response.id-token"
 msgstr "ID token only"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/provider-validation.ts
-msgid "admin.federation.response.needs-jwks"
-msgstr "ID token only needs a JWKS endpoint to check the token. Enter one, or choose the authorization code."
-
-#. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/provider-validation.ts
-msgid "admin.federation.response.needs-openid"
-msgstr "ID token only needs the openid scope. Add openid, or choose the authorization code."
-
-#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ResponseTypeField.tsx
 msgid "admin.federation.response.description"
-msgstr "ID token only works when the provider's client allows response_type=id_token. Keycloak calls this Implicit Flow Enabled; the Microsoft identity platform lists it as ID tokens under implicit grant."
+msgstr "ID token only works when the provider's client allows response_type=id_token, and ID token + access token needs response_type=id_token token. Keycloak calls this Implicit Flow Enabled; the Microsoft identity platform lists them as ID tokens and Access tokens under implicit grant."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx

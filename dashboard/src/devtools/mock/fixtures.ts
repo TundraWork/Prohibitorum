@@ -1259,8 +1259,10 @@ function config0(protocol: string, index: number): unknown {
         : "discovery",
     pkceMethod: "S256",
     // The other providers leave it out, as a provider saved before the
-    // setting existed does.
-    ...(publicClient ? { responseType: "id_token" as const } : {}),
+    // setting existed does. The one public client the panel can show (its
+    // list caps at ten providers) carries the token variant, so both the
+    // third option and its hint can be reviewed without a backend.
+    ...(publicClient ? { responseType: "id_token token" as const } : {}),
     ...(index % 4 === 1 ? { authenticateAvatarFetch: true } : {}),
   };
   return base;

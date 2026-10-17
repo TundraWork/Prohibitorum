@@ -117,6 +117,7 @@ func (s *Server) handleFederationCallbackHTTP(w http.ResponseWriter, r *http.Req
 	code := q.Get("code")
 	iss := q.Get("iss")
 	idToken := q.Get("id_token")
+	accessToken := q.Get("access_token")
 
 	if upstreamErr != "" {
 		// Upstream OP refused the user. Emit an audit row (no account_id — we
@@ -168,7 +169,7 @@ func (s *Server) handleFederationCallbackHTTP(w http.ResponseWriter, r *http.Req
 	result, err := s.federationService.AdvanceCallback(r.Context(), federation.AdvanceRequest{
 		FlowID: state, BrowserToken: browserToken, ProviderSlug: chi.URLParam(r, "slug"),
 		CallbackRoute: federation.CallbackRoutePublic,
-		Input:         federation.ActionInput{Kind: federation.ActionRedirect, Code: code, Issuer: iss, IDToken: idToken, Params: r.URL.Query()},
+		Input:         federation.ActionInput{Kind: federation.ActionRedirect, Code: code, Issuer: iss, IDToken: idToken, AccessToken: accessToken, Params: r.URL.Query()},
 	})
 	if err != nil {
 		// HandleCallback returns structured *authn.AuthError for every

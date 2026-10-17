@@ -25,13 +25,16 @@ type adapterFakeClient struct {
 	tokenEndpoint  string
 	exchanges      *int
 	verifies       *int
-	userInfo       map[string]any
-	userInfoCalls  int
-	userInfoErr    error
-	rawUserInfo    map[string]any
-	rawUserErr     error
-	exchangeErr    error
-	implicitErr    error
+	// lastImplicitAccessToken records what the last VerifyImplicit call was
+	// handed as its front-channel access token.
+	lastImplicitAccessToken *string
+	userInfo                map[string]any
+	userInfoCalls           int
+	userInfoErr             error
+	rawUserInfo             map[string]any
+	rawUserErr              error
+	exchangeErr             error
+	implicitErr             error
 }
 
 func (c *adapterFakeClient) Issuer() string { return "https://issuer.test" }
@@ -44,8 +47,8 @@ func (c *adapterFakeClient) TokenEndpoint() string {
 func (c *adapterFakeClient) AuthURL(state, nonce, challenge string) string {
 	return "https://issuer.test/auth?response_type=code&state=" + state + "&nonce=" + nonce + "&challenge=" + challenge
 }
-func (c *adapterFakeClient) ImplicitAuthURL(state, nonce string) string {
-	return "https://issuer.test/auth?response_type=id_token&state=" + state + "&nonce=" + nonce
+func (c *adapterFakeClient) ImplicitAuthURL(state, nonce, responseType string) string {
+	return "https://issuer.test/auth?response_type=" + responseType + "&state=" + state + "&nonce=" + nonce
 }
 func (c *adapterFakeClient) Exchange(context.Context, string, string, string, string) (*Tokens, error) {
 	if c.exchanges != nil {
@@ -53,12 +56,20 @@ func (c *adapterFakeClient) Exchange(context.Context, string, string, string, st
 	}
 	return c.tokens, c.exchangeErr
 }
-func (c *adapterFakeClient) VerifyImplicit(_ context.Context, _, _, _ string) (*Tokens, error) {
+func (c *adapterFakeClient) VerifyImplicit(_ context.Context, _, accessToken, _, _ string) (*Tokens, error) {
 	if c.verifies != nil {
 		*c.verifies = *c.verifies + 1
 	}
+	if c.lastImplicitAccessToken != nil {
+		*c.lastImplicitAccessToken = accessToken
+	}
 	if c.implicitErr != nil {
 		return nil, c.implicitErr
+	}
+	if accessToken != "" {
+		token := *c.implicitTokens
+		token.AccessToken = accessToken
+		return &token, nil
 	}
 	return c.implicitTokens, nil
 }
@@ -102,6 +113,7 @@ type responseTypeHarness struct {
 	adapter              *Adapter
 	provider             federationcore.Provider
 	exchanges, verifies  int
+	implicitAccessToken  string
 	codeTokens, idTokens *Tokens
 }
 
@@ -116,7 +128,7 @@ func newResponseTypeHarness(responseType string) *responseTypeHarness {
 		return ResolvedConfig{Issuer: c.IssuerURL, AuthorizationEndpoint: c.IssuerURL + "/auth", TokenEndpoint: c.IssuerURL + "/token", JWKSEndpoint: c.IssuerURL + "/keys", PKCEMethod: c.PKCEMethod, TokenAuthMethod: "none", ResponseType: c.responseType(), Scopes: c.Scopes}, nil
 	}
 	h.adapter.newClient = func(context.Context, Config, ResolvedConfig, string, string) (clientAPI, error) {
-		return &adapterFakeClient{tokens: h.codeTokens, implicitTokens: h.idTokens, exchanges: &h.exchanges, verifies: &h.verifies, userInfo: map[string]any{"sub": "sub-code"}}, nil
+		return &adapterFakeClient{tokens: h.codeTokens, implicitTokens: h.idTokens, exchanges: &h.exchanges, verifies: &h.verifies, lastImplicitAccessToken: &h.implicitAccessToken, userInfo: map[string]any{"sub": "sub-code", "picture": "https://cdn.test/fallback.png"}}, nil
 	}
 	return h
 }
@@ -227,6 +239,69 @@ func TestAdapterImplicitFlowIgnoresCode(t *testing.T) {
 	}
 	if h.exchanges != 0 || h.verifies != 1 || result.Identity == nil || result.Identity.Subject != "sub-implicit" {
 		t.Fatalf("exchanges/verifies = %d/%d, identity = %+v", h.exchanges, h.verifies, result.Identity)
+	}
+}
+
+// TestAdapterIDTokenTokenFlow drives the id_token token response: the
+// redirect asks for both tokens, the callback's access token is checked
+// against the id_token (VerifyImplicit receives it), reaches the avatar
+// delivery, and still never exchanges a code.
+func TestAdapterIDTokenTokenFlow(t *testing.T) {
+	h := newResponseTypeHarness(responseTypeIDTokenToken)
+	raw, state, authURL := h.begin(t)
+	parsed, err := url.Parse(authURL)
+	if err != nil || parsed.Query().Get("response_type") != responseTypeIDTokenToken {
+		t.Fatalf("authorization URL = %s, want response_type=%s", authURL, responseTypeIDTokenToken)
+	}
+	if !state.Implicit {
+		t.Fatalf("state = %+v, want the implicit flow", state)
+	}
+	result, err := h.adapter.Advance(context.Background(), h.provider, raw, federationcore.ActionInput{Kind: federationcore.ActionRedirect, IDToken: "front-channel-jwt", AccessToken: "implicit-access"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if h.verifies != 1 || h.exchanges != 0 {
+		t.Fatalf("verifies/exchanges = %d/%d, want 1/0", h.verifies, h.exchanges)
+	}
+	if result.Identity == nil || result.Identity.Subject != "sub-implicit" {
+		t.Fatalf("identity = %+v", result.Identity)
+	}
+	// The implicit tokens carry no picture claim, so the access token
+	// becomes the deferred userinfo avatar reference, exactly as a
+	// code-flow access token would.
+	if result.Avatar == nil || result.Avatar.Opaque == nil {
+		t.Fatalf("avatar = %+v, want a deferred userinfo reference", result.Avatar)
+	}
+	if resolved, err := h.adapter.ResolveAvatar(context.Background(), h.provider, *result.Avatar); err != nil || resolved != "https://cdn.test/fallback.png" {
+		t.Fatalf("ResolveAvatar = %q, %v", resolved, err)
+	}
+	if h.codeTokens.AccessToken != "at" || h.idTokens.AccessToken != "" {
+		t.Fatal("harness fixtures changed; the implicit tokens must carry no access token of their own")
+	}
+}
+
+// TestAdapterIDTokenOnlyFlowIgnoresAccessToken pins that an access_token on a
+// plain id_token callback changes nothing: the response type snapshotted at
+// Begin decides which front-channel token the callback may carry, so the
+// verifier receives none and no userinfo avatar reference is built.
+func TestAdapterIDTokenOnlyFlowIgnoresAccessToken(t *testing.T) {
+	h := newResponseTypeHarness(responseTypeIDToken)
+	raw, _, _ := h.begin(t)
+	result, err := h.adapter.Advance(context.Background(), h.provider, raw, federationcore.ActionInput{Kind: federationcore.ActionRedirect, IDToken: "front-channel-jwt", AccessToken: "should-not-arrive"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if h.verifies != 1 || result.Identity == nil || result.Identity.Subject != "sub-implicit" {
+		t.Fatalf("verifies = %d, identity = %+v", h.verifies, result.Identity)
+	}
+	if h.implicitAccessToken != "" {
+		t.Fatalf("VerifyImplicit received access token %q; the plain id_token response must verify with none", h.implicitAccessToken)
+	}
+	if result.Avatar != nil && result.Avatar.Opaque != nil {
+		t.Fatal("plain id_token callback built a userinfo avatar reference from an injected access token")
+	}
+	if result.Avatar != nil && result.Avatar.BearerToken != "" {
+		t.Fatalf("bearer token = %q, want none for a plain id_token response", result.Avatar.BearerToken)
 	}
 }
 
