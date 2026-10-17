@@ -512,8 +512,6 @@ call them within the owner's role.
 
 OIDC provider config requires the existing issuer/client/scopes/claim and network settings, plus:
 
-Claim names (username/displayName/email/picture/subject) are matched against the claim keys as spelled first; when no claim carries that exact name, the name is evaluated as a [gjson](https://github.com/tidwall/gjson) path, so nested values are addressable (`avatar.large`, `emails.0.email`). A path ending on a number or boolean yields its text; one ending on an object, array or null reads as absent.
-
 | Field | Values and behavior |
 |---|---|
 | configurationMode | discovery reads issuer metadata; manual never requests discovery. |
@@ -521,6 +519,8 @@ Claim names (username/displayName/email/picture/subject) are matched against the
 | tokenAuthMethod | discovery, client_secret_basic, client_secret_post or none. discovery is only valid with discovery mode; it selects basic before post, defaults to basic when metadata omits supported methods, and rejects unsupported-only metadata. |
 | pkceMethod | S256, plain or off. Public clients (none) require S256. Off omits the challenge, method and verifier; nonce and state remain. |
 | responseType | Optional: code (the default, also when the field is absent) or id_token. code runs the authorization-code flow. id_token sends `response_type=id_token` with a nonce and no PKCE, and signs in from the verified ID token alone: no token request, no access token and no UserInfo. id_token requires `openid` in scopes and is rejected with a JWKS endpoint of `none`. The upstream client must allow that response type. |
+
+Claim names (username/displayName/email/picture/subject) are matched against the claim keys as spelled first; when no claim carries that exact name, the name is evaluated as a [gjson](https://github.com/tidwall/gjson) path, so nested values are addressable (`avatar.large`, `emails.0.email`). For the profile fields a path ending on a number or boolean yields its text; one ending on an object, array or null reads as absent. The subject claim only accepts a string or an exact integer — booleans and floats stay rejected.
 
 Public clients can be created without a secret. A stored secret is retained when switching to none, but is neither decrypted nor sent. Rotation can store a secret before switching back to a confidential method. An enabled confidential provider requires a configured secret. Secret material is never returned by reads. Invalid, unknown or duplicate config fields are rejected with bad_request.
 
