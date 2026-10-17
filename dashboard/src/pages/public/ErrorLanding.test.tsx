@@ -88,12 +88,48 @@ describe("the error landing page", () => {
   it("goes back to a page on this site", async () => {
     const user = userEvent.setup();
     const router = await open(
+      `/error?error=server_error&return_to=${encodeURIComponent("/security")}`,
+    );
+    await user.click(screen.getByRole("button", { name: "Go back" }));
+    await vi.waitFor(() =>
+      expect(router.state.location.pathname).toBe("/security"),
+    );
+  });
+
+  it("keeps offering to go back rather than retry an identity link", async () => {
+    const user = userEvent.setup();
+    const router = await open(
       `/error?error=federation_state_invalid&return_to=${encodeURIComponent("/security")}`,
     );
     await user.click(screen.getByRole("button", { name: "Go back" }));
     await vi.waitFor(() =>
       expect(router.state.location.pathname).toBe("/security"),
     );
+  });
+
+  it("starts the authorization again after a server error", async () => {
+    const user = userEvent.setup();
+    await open(
+      `/error?error=server_error&return_to=${encodeURIComponent("/oauth/authorize?client_id=wiki")}`,
+    );
+    await user.click(screen.getByRole("button", { name: "Try again" }));
+    await vi.waitFor(() =>
+      expect(loadDocument).toHaveBeenCalledWith(
+        "/oauth/authorize?client_id=wiki",
+      ),
+    );
+  });
+
+  it("does not turn a return address elsewhere into a retry", async () => {
+    await open(
+      `/error?error=server_error&return_to=${encodeURIComponent("%09//evil.example/pwn")}`,
+    );
+    expect(
+      screen.queryByRole("button", { name: "Try again" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Go back" }),
+    ).not.toBeInTheDocument();
   });
 
   it("starts the authorization again after a server error", async () => {

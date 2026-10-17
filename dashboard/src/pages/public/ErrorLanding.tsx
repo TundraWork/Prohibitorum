@@ -32,11 +32,15 @@ export function ErrorLandingPage() {
   });
   const app = search.app;
   const ref = search.ref;
-  // A server_error whose flow can be started again says so: its return_to is
-  // the authorization address the server itself built. Other codes keep the
-  // go-back link.
+  // A transient authorize failure carries the authorize URI as return_to, and
+  // re-running the request is the one remedy, so that address — and only that
+  // one — turns the way out into a retry. Every other code keeps the go-back
+  // link a server-validated return_to offers.
   const retryTo =
-    search.error === "server_error" ? sitePathOf(search.return_to) : undefined;
+    search.error === "server_error" &&
+    search.return_to?.startsWith("/oauth/authorize") === true
+      ? sitePathOf(search.return_to)
+      : undefined;
   const back =
     retryTo === undefined && isSitePath(search.return_to)
       ? search.return_to

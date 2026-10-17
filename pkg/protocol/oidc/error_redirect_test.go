@@ -31,9 +31,21 @@ func assertErrorPageRedirect(t *testing.T, rec *httptest.ResponseRecorder, wantC
 	}
 }
 
+// assertNoReturnTo asserts the /error redirect carries no return_to: these
+// failures are not worth running again, so the page is given no address.
+func assertNoReturnTo(t *testing.T, rec *httptest.ResponseRecorder) {
+	t.Helper()
+	loc := rec.Result().Header.Get("Location")
+	if u, err := url.Parse(loc); err == nil && u.Query().Get("return_to") != "" {
+		t.Fatalf("Location %q must not carry return_to", loc)
+	}
+}
+
 // TestAuthorize_UnknownClient_RedirectsToErrorPage: an unknown client_id
 // (maps to errInvalidClient via pgx.ErrNoRows) must redirect to
-// /error?error=invalid_request, not return JSON.
+// /error?error=invalid_request, not return JSON. A configuration error a
+// retry cannot fix carries no return_to: the error page has nothing to offer
+// to run again.
 func TestAuthorize_UnknownClient_RedirectsToErrorPage(t *testing.T) {
 	q := &fakeAuthzQueries{clientErr: pgx.ErrNoRows}
 	p := newProvider(q, &recordingAudit{})
@@ -42,6 +54,7 @@ func TestAuthorize_UnknownClient_RedirectsToErrorPage(t *testing.T) {
 	p.HandleAuthorize(rec, authedReq(baseParams()))
 
 	assertErrorPageRedirect(t, rec, errCodeInvalidRequest)
+	assertNoReturnTo(t, rec)
 }
 
 // TestAuthorize_TransientClientLoad_RedirectsToErrorPage: a non-ErrNoRows
@@ -70,7 +83,8 @@ func TestAuthorize_TransientClientLoad_RedirectsToErrorPage(t *testing.T) {
 
 // TestAuthorize_BadRedirectURI_RedirectsToErrorPage: a registered client but
 // an unregistered redirect_uri must redirect to /error?error=invalid_request
-// (still pre-validation; must NOT redirect to the untrusted URI).
+// (still pre-validation; must NOT redirect to the untrusted URI), and carries
+// no return_to for the same reason as the unknown-client case.
 func TestAuthorize_BadRedirectURI_RedirectsToErrorPage(t *testing.T) {
 	q := &fakeAuthzQueries{client: validClient()}
 	p := newProvider(q, &recordingAudit{})
@@ -81,6 +95,7 @@ func TestAuthorize_BadRedirectURI_RedirectsToErrorPage(t *testing.T) {
 	p.HandleAuthorize(rec, authedReq(v))
 
 	assertErrorPageRedirect(t, rec, errCodeInvalidRequest)
+	assertNoReturnTo(t, rec)
 	// Confirm we never touch the attacker URI.
 	if loc := rec.Result().Header.Get("Location"); strings.Contains(loc, "attacker.example.com") {
 		t.Fatalf("must not redirect to attacker URI; got Location=%q", loc)

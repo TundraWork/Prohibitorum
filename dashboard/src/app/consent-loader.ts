@@ -15,7 +15,7 @@ import type { RouterContext } from "@/routes/__root";
  * caught from the request itself.
  *
  * `retryTo` is the OIDC authorization address the consent page was sent from,
- * when there is one. An unusable ticket turns into a `ConsentExpiredError`
+ * when there is one. An unusable ticket then turns into a `ConsentExpiredError`
  * carrying it — the one way a consumed or expired ticket comes back is to
  * start the authorization again — and the card the error draws decides
  * whether that address is one this site can offer. The SAML page passes
@@ -38,8 +38,12 @@ export async function loadConsentRequest<T>(
     return await load(ticket);
   } catch (error) {
     if (error instanceof ApiError && error.code === "no_session") throw signIn;
-    if (error instanceof ApiError && error.code === "invalid_consent_ticket") {
-      throw new ConsentExpiredError(retryTo ?? "");
+    if (
+      retryTo !== undefined &&
+      error instanceof ApiError &&
+      error.code === "invalid_consent_ticket"
+    ) {
+      throw new ConsentExpiredError(retryTo);
     }
     throw error;
   }
