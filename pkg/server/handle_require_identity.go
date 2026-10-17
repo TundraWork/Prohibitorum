@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"slices"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5"
@@ -59,7 +60,9 @@ func (s *Server) handleRequireIdentityRequestHTTP(w http.ResponseWriter, r *http
 		writeAuthErr(w, err)
 		return
 	}
-	// The application may have been turned off since: its request is gone too.
+	// The application may have been turned off, or the address it asked to
+	// return to unregistered, since: its request is gone too, so the page never
+	// sends the browser somewhere the application no longer accepts.
 	client, err := q.GetOIDCClient(ctx, ticket.ClientID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		writeAuthErr(w, authn.ErrRequireIdentityTicketExpired())
@@ -67,6 +70,10 @@ func (s *Server) handleRequireIdentityRequestHTTP(w http.ResponseWriter, r *http
 	}
 	if err != nil {
 		writeAuthErr(w, err)
+		return
+	}
+	if !slices.Contains(client.RedirectUris, ticket.RedirectURI) {
+		writeAuthErr(w, authn.ErrRequireIdentityTicketExpired())
 		return
 	}
 

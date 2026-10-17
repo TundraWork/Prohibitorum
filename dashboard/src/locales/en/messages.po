@@ -4508,6 +4508,11 @@ msgid "saml_consent.decline"
 msgstr "Not now"
 
 #. js-lingui-explicit-id
+#: src/pages/public/RequireIdentity.tsx
+msgid "require-identity.not-now"
+msgstr "Not now, return to {app}"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
 msgid "admin.federation.diagnostics.identity.missing"
 msgstr "Not provided"

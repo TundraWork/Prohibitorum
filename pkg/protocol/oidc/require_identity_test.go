@@ -271,3 +271,27 @@ func TestAudienceIncludes(t *testing.T) {
 		}
 	}
 }
+
+// ttlRecordingKV notes the lifetime each SetEx asked for.
+type ttlRecordingKV struct {
+	kv.Store
+	ttls map[string]time.Duration
+}
+
+func (s *ttlRecordingKV) SetEx(ctx context.Context, key, value string, ttl time.Duration) error {
+	s.ttls[key] = ttl
+	return s.Store.SetEx(ctx, key, value, ttl)
+}
+
+func TestRequireIdentityTicketExpires(t *testing.T) {
+	h := newRequireIdentityHarness(t)
+	store := &ttlRecordingKV{Store: kv.NewMemoryStore(), ttls: map[string]time.Duration{}}
+	h.p.kv = store
+	id, ok := strings.CutPrefix(location(t, h.serve(requireIdentityParams(), true)), testIssuer+"/require-identity/")
+	if !ok {
+		t.Fatal("expected the require-identity page")
+	}
+	if got := store.ttls[requireIdentityKVPrefix+id]; got != 30*time.Minute {
+		t.Fatalf("ticket lifetime = %v, want 30m", got)
+	}
+}

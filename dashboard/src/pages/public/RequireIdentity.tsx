@@ -1,7 +1,7 @@
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { describeError, isCancellation } from "@/api/errors";
 import { identityLinkUrl } from "@/api/mutations";
 import { requireIdentityRequestQueryOptions } from "@/api/queries";
@@ -76,7 +76,7 @@ export function RequireIdentityPage() {
       />
     </div>
   );
-  const returnButton = (
+  const returnButton = (label: ReactNode) => (
     <Button
       variant="secondary"
       fullWidth
@@ -84,7 +84,7 @@ export function RequireIdentityPage() {
       isDisabled={switchAccount.isPending}
       onPress={returnToApp}
     >
-      <Trans id="require-identity.return">Return to {app}</Trans>
+      {label}
     </Button>
   );
 
@@ -115,7 +115,9 @@ export function RequireIdentityPage() {
                 Sign out and use another account
               </Trans>
             </Button>
-            {returnButton}
+            {returnButton(
+              <Trans id="require-identity.return">Return to {app}</Trans>,
+            )}
           </PublicStep.Actions>
         }
       />
@@ -147,7 +149,15 @@ export function RequireIdentityPage() {
             </Trans>
           ) : undefined
         }
-        actions={<PublicStep.Actions>{returnButton}</PublicStep.Actions>}
+        actions={
+          <PublicStep.Actions>
+            {returnButton(
+              <Trans id="require-identity.not-now">
+                Not now, return to {app}
+              </Trans>,
+            )}
+          </PublicStep.Actions>
+        }
       >
         {error !== null && (
           <SurfaceAlert status="danger" role="alert">

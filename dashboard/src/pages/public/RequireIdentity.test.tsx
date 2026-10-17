@@ -102,7 +102,7 @@ describe("require identity", () => {
     const user = userEvent.setup();
     renderApp(address, queryClient);
     await user.click(
-      await screen.findByRole("button", { name: "Return to Wiki" }),
+      await screen.findByRole("button", { name: "Not now, return to Wiki" }),
     );
     expect(loadDocument).toHaveBeenCalledWith(
       "https://wiki.example/after-verify",
@@ -142,6 +142,9 @@ describe("require identity", () => {
       screen.queryByRole("button", { name: /Verify with/ }),
     ).not.toBeInTheDocument();
     expect(loadDocument).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole("button", { name: "Return to Wiki" }),
+    ).toBeVisible();
     await user.click(
       screen.getByRole("button", { name: "Sign out and use another account" }),
     );
