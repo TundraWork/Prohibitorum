@@ -429,9 +429,13 @@ func (s *Server) handleUpdateIdentityProviderHTTP(w http.ResponseWriter, r *http
 		writeAuthErr(w, err)
 		return
 	}
+	resolvedAllowSignIn := existing.AllowSignIn
+	if body.AllowSignIn != nil {
+		resolvedAllowSignIn = *body.AllowSignIn
+	}
 	updated, err := s.queries.UpdateUpstreamIDPConfig(r.Context(), db.UpdateUpstreamIDPConfigParams{
 		Slug: slug, DisplayName: body.DisplayName, Mode: body.Mode, ProviderConfig: append(json.RawMessage(nil), body.Config...),
-		AllowSignIn: existing.AllowSignIn || body.AllowSignIn == nil || *body.AllowSignIn,
+		AllowSignIn: resolvedAllowSignIn,
 	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {

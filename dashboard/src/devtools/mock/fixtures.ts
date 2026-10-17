@@ -2716,16 +2716,18 @@ function writeReply(
         return { kind: "error", status: 404, code: "upstream_idp_not_found" };
       }
       const disabled = booleanField(body, "disabled");
+      const allowSignIn = booleanField(body, "allowSignIn");
       const next: IdentityProvider =
-        disabled === undefined
-          ? {
+        disabled !== undefined
+          ? { ...found, disabled }
+          : {
               ...found,
               displayName:
                 stringField(body, "displayName") ?? found.displayName,
               mode: stringField(body, "mode") ?? found.mode,
+              allowSignIn: allowSignIn ?? found.allowSignIn,
               config: field(body, "config") ?? found.config,
-            }
-          : { ...found, disabled };
+            };
       // Enabling a provider the server considers unready is refused, which is
       // the one branch of this endpoint a member view cannot produce.
       if (disabled === false && !found.ready) {
