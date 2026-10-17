@@ -1750,8 +1750,12 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
-		if err := expectFederationLoginError(offClient, *baseURL, offSlug, opTS.URL, "federation_sign_in_disabled"); err != nil {
+		offLocation, err := signOffLoginLocation(offClient, offSlug)
+		if err != nil {
 			log.Fatalf("sign-in off login: %v", err)
+		}
+		if !strings.HasPrefix(offLocation, "/error?error=federation_sign_in_disabled") {
+			log.Fatalf("sign-in off /login Location = %q, want /error?error=federation_sign_in_disabled", offLocation)
 		}
 		// The public list still carries the provider (linked identities use
 		// it), marked allowSignIn=false.
@@ -7585,6 +7589,28 @@ func adminSetProviderSignIn(c *client, slug string, allow bool) error {
 		body["config"] = config
 	}
 	return c.putJSON("/api/prohibitorum/identity-providers/"+slug, body, nil)
+}
+
+// signOffLoginLocation GETs /login for a sign-in-off provider and returns the
+// redirect target — the refusal happens before any upstream hop.
+func signOffLoginLocation(c *client, slug string) (string, error) {
+	noFollow := &http.Client{
+		Jar:     c.jar,
+		Timeout: 10 * time.Second,
+		CheckRedirect: func(*http.Request, []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+	resp, err := noFollow.Get(c.base + fmt.Sprintf("/api/prohibitorum/auth/federation/%s/login?return_to=/me", slug))
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusFound {
+		body, _ := io.ReadAll(resp.Body)
+		return "", fmt.Errorf("sign-in off /login status=%d body=%s", resp.StatusCode, string(body))
+	}
+	return resp.Header.Get("Location"), nil
 }
 
 func newTOTPSecret() ([]byte, string, error) {
