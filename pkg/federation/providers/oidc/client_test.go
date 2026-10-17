@@ -921,6 +921,34 @@ func TestClient_AuthURLEmptyScopesOmitScopeParameter(t *testing.T) {
 	}
 }
 
+// TestClient_VerifyImplicitWithoutVerifierErrors is defence in depth: the
+// save rule keeps ID-token-only off a JWKS-none provider and ResolveConfig
+// rejects a discovery-supplied "none", so a client should never reach the
+// implicit flow with no key set. If one ever does, the answer is an error,
+// not the nil-pointer panic zitadel's verifier would raise.
+func TestClient_VerifyImplicitWithoutVerifierErrors(t *testing.T) {
+	ts, _ := newMockOP(t)
+	none := "none"
+	resolved, err := federationoidc.ResolveConfig(context.Background(), federationoidc.Config{
+		IssuerURL: ts.URL, ClientID: "public-client", Scopes: []string{"openid"},
+		UsernameClaim: "preferred_username", DisplayNameClaim: "name", EmailClaim: "email",
+		PictureClaim: "picture", SubjectClaim: "sub",
+		ConfigurationMode: "discovery", TokenAuthMethod: "none",
+		PKCEMethod: "S256", AllowPrivateNetwork: true,
+		Endpoints: federationoidc.Endpoints{JWKS: &none, UserInfo: new(ts.URL + "/userinfo")},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	c, err := federationoidc.NewClient(context.Background(), "public-client", "", "https://rp.example.test/callback", resolved, nil, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.VerifyImplicit(context.Background(), "any-id-token", ts.URL, "nonce"); err == nil {
+		t.Fatal("VerifyImplicit accepted a token with no key set to verify it against")
+	}
+}
+
 // TestClient_UserInfoRawPreservesRedirectPolicy pins the outbound-policy
 // carryover: the hardened client's CheckRedirect (max 5 hops, https-only
 // redirect targets) must survive the accept-header re-wrap, so a userinfo

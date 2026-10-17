@@ -879,44 +879,6 @@ func TestAdapterAdvanceJWKSNoneSignsInThroughUserinfo(t *testing.T) {
 	}
 }
 
-// TestAdapterBeginEmptyScopesOmitScopeParameter pins the authorization request
-// of a provider with no scope configured: Begin's redirect carries no scope
-// parameter, which is what x/oauth2 does with an empty list.
-func TestAdapterBeginEmptyScopesOmitScopeParameter(t *testing.T) {
-	store := federationcore.NewSecretStore(map[int][]byte{1: make([]byte, 32)})
-	secret, err := store.SealProviderSecret([]byte("client-secret"), 7, 1)
-	if err != nil {
-		t.Fatal(err)
-	}
-	config := adapterTestConfig("https://issuer.test", false)
-	var edited Config
-	if err := json.Unmarshal(config, &edited); err != nil {
-		t.Fatal(err)
-	}
-	edited.Scopes = []string{}
-	raw, _ := json.Marshal(edited)
-	provider := federationcore.Provider{ID: 7, Slug: "corp", Protocol: Protocol, Config: raw, Secret: secret, SecretStatus: "valid"}
-	adapter := NewAdapter(store)
-	adapter.resolveConfig = func(_ context.Context, c Config) (ResolvedConfig, error) {
-		return ResolvedConfig{Issuer: c.IssuerURL, AuthorizationEndpoint: c.IssuerURL + "/auth", TokenEndpoint: c.IssuerURL + "/token", JWKSEndpoint: c.IssuerURL + "/keys", PKCEMethod: c.PKCEMethod, TokenAuthMethod: "client_secret_basic", Scopes: c.Scopes}, nil
-	}
-	adapter.newClient = func(context.Context, Config, ResolvedConfig, string, string) (clientAPI, error) {
-		return &adapterFakeClient{}, nil
-	}
-	_, action, err := adapter.Begin(context.Background(), provider, federationcore.BeginContext{
-		Intent: federationcore.IntentLogin, FlowID: "flow", CallbackURL: "https://idp.test/callback",
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	authorized, err := url.Parse(action.URL)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if authorized.Query().Has("scope") {
-		t.Errorf("scope = %q, want no scope parameter", authorized.Query().Get("scope"))
-	}
-}
 
 // TestAdapterAdvanceIDTokenNestedClaimPaths is the id_token-path twin: the
 // same path overrides read from Tokens.Raw, which the code flow fills with

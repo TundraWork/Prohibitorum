@@ -371,6 +371,13 @@ func (c *Client) ImplicitAuthURL(state, nonce string) string {
 // nonce and alg checks, with IDToken set and the OAuth2 token fields empty.
 // expectedIss and expectedNonce are the values snapshotted in the flow state.
 func (c *Client) VerifyImplicit(ctx context.Context, idToken, expectedIss, expectedNonce string) (*Tokens, error) {
+	// A JWKS-none provider builds no verifier; the save rule keeps the
+	// implicit flow off such a provider, and ResolveConfig rejects a
+	// discovery-supplied "none". This guard is the third lock on that door:
+	// zitadel panics on a nil verifier, so refuse here instead.
+	if c.rp.IDTokenVerifier() == nil {
+		return nil, errors.New("federation/oidc: implicit id_token verification has no key set")
+	}
 	ctx = context.WithValue(ctx, nonceCtxKey{}, expectedNonce)
 	claims, err := rp.VerifyIDToken[*oidclib.IDTokenClaims](ctx, idToken, c.rp.IDTokenVerifier())
 	if err != nil {

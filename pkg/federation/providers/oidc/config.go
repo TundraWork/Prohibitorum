@@ -285,9 +285,12 @@ func ResolveConfig(ctx context.Context, c Config) (ResolvedConfig, error) {
 		if *field.value == "" && field.name == "userinfoEndpoint" {
 			continue
 		}
-		// The JWKS sentinel is not an address, but still an override of what
-		// discovery found; everything else must validate as a URL.
-		if field.name == "jwksEndpoint" && *field.value == jwksNone {
+		// The JWKS sentinel is not an address — but only an admin can choose
+		// it, in manual mode or as an override. A discovery document that
+		// reports jwks_uri "none" is data, not configuration: it must fail
+		// URL validation rather than silently turn the provider OAuth2-only
+		// with source "discovery".
+		if field.name == "jwksEndpoint" && *field.value == jwksNone && field.override != nil {
 			continue
 		}
 		if err := validateEndpoint(*field.value, c.AllowPrivateNetwork); err != nil {

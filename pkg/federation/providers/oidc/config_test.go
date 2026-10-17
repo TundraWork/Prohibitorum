@@ -184,6 +184,9 @@ func TestConfigJWKSNoneAndFreeScopes(t *testing.T) {
 // discovery document without userinfo_endpoint is a resolution error because
 // userinfo is the only identity source such a provider has left.
 func TestResolveConfigJWKSNone(t *testing.T) {
+	// discovery serves no userinfo_endpoint: the override-only source of
+	// identity for a JWKS-none provider is missing until the config supplies
+	// a userinfo override.
 	doc := `{"issuer":"%s","authorization_endpoint":"%s/auth","token_endpoint":"%s/token","jwks_uri":"%s/keys"}`
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, _ = fmt.Fprintf(w, doc, r.Host, "http://"+r.Host, "http://"+r.Host, "http://"+r.Host)
@@ -210,6 +213,27 @@ func TestResolveConfigJWKSNone(t *testing.T) {
 	}
 	if resolved.JWKSEndpoint != "none" || resolved.Sources["jwksEndpoint"] != "override" || resolved.UserInfoEndpoint != discoveryIssuer+"/user" || len(resolved.Scopes) != 0 {
 		t.Fatalf("resolved = %+v", resolved)
+	}
+
+	// A discovery document that itself reports jwks_uri "none" is data, not
+	// configuration: the sentinel is an admin's choice, so resolution must
+	// refuse it as an invalid endpoint URL rather than turn the provider
+	// OAuth2-only with source "discovery" — which would also leave an
+	// ID-token-only provider with no verifier to check its front-channel
+	// token with.
+	discoveryNone := `{"issuer":"%s","authorization_endpoint":"%s/auth","token_endpoint":"%s/token","jwks_uri":"none","userinfo_endpoint":"%s/user"}`
+	ts2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = fmt.Fprintf(w, discoveryNone, "pending", "pending", "pending", "pending")
+	}))
+	defer ts2.Close()
+	ts2.Config.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = fmt.Fprintf(w, discoveryNone, ts2.URL, ts2.URL, ts2.URL, ts2.URL)
+	})
+	c2 := testConfig(t)
+	c2.IssuerURL = ts2.URL
+	c2.AllowPrivateNetwork = true
+	if r, err := ResolveConfig(context.Background(), c2); err == nil || !strings.Contains(err.Error(), "invalid endpoint URL") {
+		t.Fatalf("discovery jwks_uri none resolved to %+v, want an invalid-endpoint error (err %v)", r, err)
 	}
 }
 
