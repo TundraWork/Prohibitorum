@@ -1439,7 +1439,7 @@ describe("mocked enrollment and federation pages", () => {
   });
 
   it("walks a verify-then-create invite back to its enrollment", () => {
-    const verify = "/api/prohibitorum/auth/federation/flows/{flow}/verify";
+    const verify = "/api/prohibitorum/auth/federation/-/flows/{flow}/verify";
     const invite = config((draft) => {
       draft.writes = true;
       draft.publicFlows.flow.intent = "invite";
