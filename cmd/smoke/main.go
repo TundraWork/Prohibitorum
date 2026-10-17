@@ -1862,12 +1862,12 @@ func main() {
 		if !hasSessionCookie(rlClient.cookies()) {
 			log.Fatalf("requireLocal completion issued no session")
 		}
-		var rlIdentities []map[string]any
+		var rlIdentities []federationIdentity
 		if err := rlClient.get("/api/prohibitorum/me/identities", &rlIdentities); err != nil || len(rlIdentities) != 1 {
 			log.Fatalf("requireLocal identities = %+v err=%v", rlIdentities, err)
 		}
-		if slug, _ := rlIdentities[0]["idpSlug"].(string); slug != requireLocalSlug {
-			log.Fatalf("requireLocal identity slug = %q, want %q", slug, requireLocalSlug)
+		if rlIdentities[0].IdpSlug != requireLocalSlug {
+			log.Fatalf("requireLocal identity slug = %q, want %q", rlIdentities[0].IdpSlug, requireLocalSlug)
 		}
 
 	}

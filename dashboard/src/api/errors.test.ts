@@ -53,6 +53,18 @@ describe("the federation scope", () => {
     });
   });
 
+  it("names the provider on the sign-in-disabled wording", () => {
+    expect(
+      describeError(
+        federated("federation_sign_in_disabled", "GitLab"),
+        "federation",
+      ),
+    ).toMatchObject({
+      id: "error.federation.federation_sign_in_disabled",
+      values: { provider: "GitLab" },
+    });
+  });
+
   it.each([
     ["no name", undefined],
     ["an empty name", ""],
