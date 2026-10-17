@@ -713,6 +713,149 @@ func TestAdapterAdvanceUserinfoFallback(t *testing.T) {
 	}
 }
 
+// TestAdapterAdvanceUserinfoFallbackNestedClaimPaths drives the no-id_token
+// path with every profile claim configured as a gjson path (PHB-121):
+// username, display name, email and avatar read from inside nested objects,
+// and the subject from an array element, the way an admin would map a
+// bgm.tv-shaped or GitHub-shaped userinfo document without flat claims.
+func TestAdapterAdvanceUserinfoFallbackNestedClaimPaths(t *testing.T) {
+	store := federationcore.NewSecretStore(map[int][]byte{1: make([]byte, 32)})
+	secret, err := store.SealProviderSecret([]byte("client-secret"), 7, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Every claim override is a path; none of the names exist as flat keys.
+	provider := federationcore.Provider{
+		ID: 7, Slug: "corp", Protocol: Protocol,
+		Config: json.RawMessage(strings.NewReplacer(
+			`"subjectClaim":"sub"`, `"subjectClaim":"identities.0.id"`,
+			`"usernameClaim":"preferred_username"`, `"usernameClaim":"profile.login"`,
+			`"displayNameClaim":"name"`, `"displayNameClaim":"profile.display_name"`,
+			`"emailClaim":"email"`, `"emailClaim":"contacts.0.email"`,
+			`"pictureClaim":"picture"`, `"pictureClaim":"avatar.large"`,
+		).Replace(string(adapterTestConfig("https://issuer.test", false)))),
+		Secret: secret, SecretStatus: "valid",
+	}
+	adapter := NewAdapter(store)
+	client := &adapterFakeClient{
+		tokens: &Tokens{AccessToken: "at_fallback", TokenType: "Bearer"},
+		rawUserInfo: map[string]any{
+			"identities": []any{map[string]any{"id": json.Number("67890")}},
+			"profile": map[string]any{
+				"login": "octocat", "display_name": "Octo Cat",
+			},
+			"contacts": []any{
+				map[string]any{"email": "octo@example.test", "primary": true},
+			},
+			"avatar": map[string]any{
+				"large": "https://cdn.test/octo-large.png",
+			},
+		},
+	}
+	adapter.resolveConfig = func(_ context.Context, c Config) (ResolvedConfig, error) {
+		return ResolvedConfig{Issuer: c.IssuerURL, AuthorizationEndpoint: c.IssuerURL + "/auth", TokenEndpoint: c.IssuerURL + "/token", JWKSEndpoint: c.IssuerURL + "/keys", PKCEMethod: c.PKCEMethod, TokenAuthMethod: "client_secret_basic", Scopes: c.Scopes}, nil
+	}
+	adapter.newClient = func(context.Context, Config, ResolvedConfig, string, string) (clientAPI, error) {
+		return client, nil
+	}
+	state, _, err := adapter.Begin(context.Background(), provider, federationcore.BeginContext{
+		Intent: federationcore.IntentLogin, FlowID: "flow", CallbackURL: "https://idp.test/callback",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := adapter.Advance(context.Background(), provider, state, federationcore.ActionInput{
+		Kind: federationcore.ActionRedirect, Code: "code",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	identity := result.Identity
+	if identity == nil {
+		t.Fatal("Advance returned no identity")
+	}
+	if identity.Subject != "67890" {
+		t.Errorf("Subject = %q, want nested subjectClaim identities.0.id value 67890", identity.Subject)
+	}
+	if identity.Username != "octocat" || identity.DisplayName != "Octo Cat" {
+		t.Errorf("Username/DisplayName = %q/%q, want octocat/Octo Cat via profile.* paths", identity.Username, identity.DisplayName)
+	}
+	if identity.Email == nil || *identity.Email != "octo@example.test" {
+		t.Errorf("Email = %v, want octo@example.test via contacts.0.email", identity.Email)
+	}
+	if result.Avatar == nil || result.Avatar.URL != "https://cdn.test/octo-large.png" {
+		t.Errorf("Avatar = %+v, want avatar.large URL", result.Avatar)
+	}
+}
+
+// TestAdapterAdvanceIDTokenNestedClaimPaths is the id_token-path twin: the
+// same path overrides read from Tokens.Raw, which the code flow fills with
+// extras plus hoisted standard claims. The deferred avatar reference keeps
+// the pictureClaim path, and the diagnostics picture hint (below) relies on
+// the same lookup.
+func TestAdapterAdvanceIDTokenNestedClaimPaths(t *testing.T) {
+	store := federationcore.NewSecretStore(map[int][]byte{1: make([]byte, 32)})
+	secret, err := store.SealProviderSecret([]byte("client-secret"), 7, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	provider := federationcore.Provider{
+		ID: 7, Slug: "corp", Protocol: Protocol,
+		Config: json.RawMessage(strings.NewReplacer(
+			`"usernameClaim":"preferred_username"`, `"usernameClaim":"profile.login"`,
+			`"displayNameClaim":"name"`, `"displayNameClaim":"profile.display_name"`,
+			`"emailClaim":"email"`, `"emailClaim":"contacts.0.email"`,
+			`"pictureClaim":"picture"`, `"pictureClaim":"avatar.large"`,
+		).Replace(string(adapterTestConfig("https://issuer.test", false)))),
+		Secret: secret, SecretStatus: "valid",
+	}
+	adapter := NewAdapter(store)
+	client := &adapterFakeClient{
+		tokens: &Tokens{
+			IDToken: "jwt", AccessToken: "at", TokenType: "Bearer",
+			Subject: "sub-1", Issuer: "https://issuer.test",
+			Raw: map[string]any{
+				"profile": map[string]any{"login": "octocat", "display_name": "Octo Cat"},
+				"contacts": []any{
+					map[string]any{"email": "octo@example.test"},
+				},
+				"avatar": map[string]any{"large": "https://cdn.test/octo-large.png"},
+			},
+		},
+	}
+	adapter.resolveConfig = func(_ context.Context, c Config) (ResolvedConfig, error) {
+		return ResolvedConfig{Issuer: c.IssuerURL, AuthorizationEndpoint: c.IssuerURL + "/auth", TokenEndpoint: c.IssuerURL + "/token", JWKSEndpoint: c.IssuerURL + "/keys", PKCEMethod: c.PKCEMethod, TokenAuthMethod: "client_secret_basic", Scopes: c.Scopes}, nil
+	}
+	adapter.newClient = func(context.Context, Config, ResolvedConfig, string, string) (clientAPI, error) {
+		return client, nil
+	}
+	state, _, err := adapter.Begin(context.Background(), provider, federationcore.BeginContext{
+		Intent: federationcore.IntentLogin, FlowID: "flow", CallbackURL: "https://idp.test/callback",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := adapter.Advance(context.Background(), provider, state, federationcore.ActionInput{
+		Kind: federationcore.ActionRedirect, Code: "code",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	identity := result.Identity
+	if identity == nil {
+		t.Fatal("Advance returned no identity")
+	}
+	if identity.Username != "octocat" || identity.DisplayName != "Octo Cat" {
+		t.Errorf("Username/DisplayName = %q/%q, want octocat/Octo Cat via profile.* paths", identity.Username, identity.DisplayName)
+	}
+	if identity.Email == nil || *identity.Email != "octo@example.test" {
+		t.Errorf("Email = %v, want octo@example.test via contacts.0.email", identity.Email)
+	}
+	if result.Avatar == nil || result.Avatar.URL != "https://cdn.test/octo-large.png" {
+		t.Errorf("Avatar = %+v, want avatar.large URL from the id_token", result.Avatar)
+	}
+}
+
 // TestAdapterAdvanceUserinfoFallbackEmailVerifiedFromClaims pins the read of
 // email_verified out of userinfo claims: a true claim flows into EmailVerified
 // (which a requireVerifiedEmail resolver turns into a pass), a false claim and

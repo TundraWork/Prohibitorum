@@ -24,8 +24,10 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 
+	"github.com/tidwall/gjson"
 	"github.com/zitadel/oidc/v3/pkg/client/rp"
 	oidclib "github.com/zitadel/oidc/v3/pkg/oidc"
 	"golang.org/x/oauth2"
@@ -96,54 +98,126 @@ type Tokens struct {
 	Raw      map[string]any
 }
 
-// ClaimString returns the string value of the named claim, or "" if the
-// claim is absent or not a string. Used by mode policies and LinkCallback
+// ClaimString returns the value of the named claim as text, or "" when the
+// name resolves to nothing usable. Used by mode policies and LinkCallback
 // to honor the per-upstream_idp claim-name overrides (username_claim,
 // display_name_claim, email_claim) — admins can point at non-OIDC-default
-// names like Entra ID's "upn".
+// names like Entra ID's "upn", at a nested value through gjson path syntax
+// ("avatar.large", "emails.0.email", `annotations.email\.primary`), or at a
+// claim whose own name contains dots, which the exact-key lookup reads as
+// one literal key before any path splitting happens.
+//
+// Numbers and booleans stringify (a numeric GitHub id, a JSON true becoming
+// "true"); objects, arrays and null count as absent — an account field
+// needs one value, not a document, and guessing a member of a composite
+// would silently pick the wrong person's data.
 func ClaimString(raw map[string]any, name string) string {
 	if name == "" {
 		return ""
 	}
-	v, ok := raw[name]
-	if !ok {
+	return claimLeafText(claimLookup(raw, name))
+}
+
+// claimLookup resolves a claim name to one gjson result. An exact map key
+// wins: a dotted name such as Auth0's namespaced "https://example.com/roles"
+// is the literal claim key a provider configured before paths existed, and
+// must keep reading it rather than be split into segments. Only a miss is
+// evaluated as a gjson path, so "avatar.large" reaches into the nested
+// object because no top-level claim is spelled that way. A miss or an
+// unmarshalable document yields the zero Result, whose Null type every
+// reader treats as absent.
+func claimLookup(raw map[string]any, name string) gjson.Result {
+	if v, ok := raw[name]; ok {
+		return claimValue(v)
+	}
+	if raw == nil {
+		return gjson.Result{}
+	}
+	bytes, err := json.Marshal(raw)
+	if err != nil {
+		return gjson.Result{}
+	}
+	return gjson.GetBytes(bytes, name)
+}
+
+// claimValue types one decoded Go claim value the way gjson would have typed
+// it in the document, so a flat hit and a path hit share one set of leaf
+// rules. Scalars convert directly — a json.Number keeps its exact digits,
+// which a marshal round-trip would not guarantee for oddly-spelled numbers —
+// and composite values go through JSON, where anything unmarshalable reads
+// as absent.
+func claimValue(v any) gjson.Result {
+	switch v := v.(type) {
+	case nil:
+		return gjson.Result{Type: gjson.Null}
+	case string:
+		return gjson.Result{Type: gjson.String, Str: v}
+	case bool:
+		if v {
+			return gjson.Result{Type: gjson.True, Raw: "true"}
+		}
+		return gjson.Result{Type: gjson.False, Raw: "false"}
+	case json.Number:
+		return gjson.Result{Type: gjson.Number, Raw: v.String()}
+	default:
+		bytes, err := json.Marshal(v)
+		if err != nil {
+			return gjson.Result{}
+		}
+		return gjson.ParseBytes(bytes)
+	}
+}
+
+// claimLeafText renders a resolved leaf as account-field text: strings and
+// numbers keep their JSON encoding, booleans become "true"/"false", and
+// anything composite (objects, arrays, null, a multi-match wildcard) counts
+// as absent rather than guessing one of its members.
+func claimLeafText(result gjson.Result) string {
+	switch result.Type {
+	case gjson.String:
+		return result.String()
+	case gjson.Number, gjson.True, gjson.False:
+		return result.Raw
+	default:
 		return ""
 	}
-	s, _ := v.(string)
-	return s
 }
 
 // ClaimIdentifier returns the value of the named claim as an upstream subject
-// identifier: strings pass through, integers decoded as json.Number return as
-// their exact original text. Floats, booleans, objects, arrays and absent
-// claims all yield "" — the caller treats that as "no usable subject".
-//
-// Only meaningful on claims decoded with json.Decoder.UseNumber (UserInfoRaw);
-// ClaimString stays the reader for id_token-derived claims.
+// identifier: strings pass through, integers return their exact original
+// text. Floats, booleans, objects, arrays and absent claims all yield "" —
+// the caller treats that as "no usable subject". Like ClaimString the name
+// resolves an exact key first, then a gjson path, but only a string or
+// integer leaf can identify a subject.
 func ClaimIdentifier(raw map[string]any, name string) string {
 	if name == "" {
 		return ""
 	}
-	switch v := raw[name].(type) {
-	case string:
-		return v
-	case json.Number:
-		if _, err := v.Int64(); err != nil {
+	result := claimLookup(raw, name)
+	switch result.Type {
+	case gjson.String:
+		return result.String()
+	case gjson.Number:
+		// Large identifiers keep their exact digits only when the whole
+		// number fits an int64; a float — 1e3, 1.5 — is not an identifier.
+		if _, err := strconv.ParseInt(result.Raw, 10, 64); err != nil {
 			return ""
 		}
-		return v.String()
+		return result.Raw
 	default:
 		return ""
 	}
 }
 
 // ClaimBool returns the boolean value of the named claim, or false when the
-// claim is absent or not a bool. ClaimString cannot serve this role: it
-// type-asserts to string and "" (falsey) for JSON booleans, which would make
-// email_verified unreadable on the userinfo path.
+// claim is absent or not a bool. ClaimString cannot serve this role: its
+// number/string coercion would read a JSON 1 as email_verified=true, which
+// the upstream never said.
 func ClaimBool(raw map[string]any, name string) bool {
-	v, _ := raw[name].(bool)
-	return v
+	if name == "" {
+		return false
+	}
+	return claimLookup(raw, name).Type == gjson.True
 }
 
 // acceptHeaderTransport sets Accept: application/json on requests that carry

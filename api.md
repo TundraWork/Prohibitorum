@@ -512,6 +512,8 @@ call them within the owner's role.
 
 OIDC provider config requires the existing issuer/client/scopes/claim and network settings, plus:
 
+Claim names (username/displayName/email/picture/subject) are matched against the claim keys as spelled first; when no claim carries that exact name, the name is evaluated as a [gjson](https://github.com/tidwall/gjson) path, so nested values are addressable (`avatar.large`, `emails.0.email`). A path ending on a number or boolean yields its text; one ending on an object, array or null reads as absent.
+
 | Field | Values and behavior |
 |---|---|
 | configurationMode | discovery reads issuer metadata; manual never requests discovery. |

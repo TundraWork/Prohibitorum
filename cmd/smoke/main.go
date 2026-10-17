@@ -64,7 +64,7 @@ import (
 // later arc is added, unlike a single global counter.
 const (
 	nCore       = 54
-	nFederation = 35
+	nFederation = 36
 	nOIDC       = 18
 	nSAML       = 14
 	nHardening  = 14
@@ -1735,6 +1735,102 @@ func main() {
 			log.Fatalf("public account username = %q", pubMe.Username)
 		}
 		log.Printf("  relay page served, implicit id_token verified, 0 token endpoint calls, account confirmed ✓")
+	}
+
+	step(fmt.Sprintf("federation %d/%d — claim names as gjson paths: nested claims fill the account (PHB-121)", 36, nFederation))
+	{
+		const pathSlug = "mockop-path"
+		// Every mapping is a path into a nested claim shape; none of the
+		// default flat names exist in the claims below except "sub".
+		pathRaw, err := oidcSeedProviderConfig(opTS.URL, "test-client", nil, true, true)
+		if err != nil {
+			log.Fatal(err)
+		}
+		var pathConfig map[string]any
+		if err := json.Unmarshal(pathRaw, &pathConfig); err != nil {
+			log.Fatal(err)
+		}
+		// "ident", not "profile": zitadel/oidc decodes a set of standard
+		// claim names (profile, picture, name, …) as typed string fields, so
+		// a nested object under one of those keys cannot survive id_token
+		// decoding at all. The keys an admin can nest under are the
+		// non-standard ones, which is what this fixture uses.
+		pathConfig["usernameClaim"] = "ident.login"
+		pathConfig["displayNameClaim"] = "ident.display_name"
+		pathConfig["emailClaim"] = "contacts.0.email"
+		pathConfig["pictureClaim"] = "avatar.large"
+		if _, err := seedUpstreamIDP(dek, pathSlug, "Mock OP (claim paths)", opTS.URL, "test-client", "test-client-secret", "auto_provision", nil, true, true); err != nil {
+			log.Fatalf("seed %s: %v", pathSlug, err)
+		}
+		pathDB, err := pgx.Connect(context.Background(), os.Getenv("PROHIBITORUM_DATABASE_URL"))
+		if err != nil {
+			log.Fatal(err)
+		}
+		pathJSON, err := json.Marshal(pathConfig)
+		if err != nil {
+			log.Fatal(err)
+		}
+		if _, err := pathDB.Exec(context.Background(), "UPDATE upstream_idp SET provider_config=$1 WHERE slug=$2", pathJSON, pathSlug); err != nil {
+			log.Fatal(err)
+		}
+		if err := pathDB.Close(context.Background()); err != nil {
+			log.Fatal(err)
+		}
+		opSrv.SetClaims("path-user-1", "path@example.com", true, "ignored-flat", "Ignored Flat")
+		opSrv.SetExtraClaims(map[string]any{
+			"ident":    map[string]any{"login": "pathuser", "display_name": "Path User"},
+			"contacts": []any{map[string]any{"email": "path-nested@example.com"}},
+			"avatar":   map[string]any{"large": opSrv.PictureURLWithVersion("path")},
+		})
+		pathClient, err := newFederationClient(*baseURL)
+		if err != nil {
+			log.Fatalf("claim-path client: %v", err)
+		}
+		pathAuthorize, err := pathClient.getRedirect(fmt.Sprintf("/api/prohibitorum/auth/federation/%s/login?return_to=/me", pathSlug))
+		if err != nil {
+			log.Fatalf("claim-path login: %v", err)
+		}
+		pathCallback, err := followMockOPAuthorize(pathAuthorize)
+		if err != nil {
+			log.Fatalf("claim-path authorize: %v", err)
+		}
+		if loc, err := pathClient.getRedirectAbs(pathCallback); err != nil {
+			log.Fatalf("claim-path callback: %v", err)
+		} else if loc != "/welcome" {
+			log.Fatalf("claim-path callback: want /welcome, got %q", loc)
+		}
+		pathView, err := pathClient.confirmGet()
+		if err != nil {
+			log.Fatalf("claim-path confirm GET: %v", err)
+		}
+		if pathView.Username != "pathuser" || pathView.DisplayName != "Path User" {
+			log.Fatalf("claim-path identity = %q/%q, want pathuser/Path User from nested claims", pathView.Username, pathView.DisplayName)
+		}
+		if pathView.Email != "path-nested@example.com" {
+			log.Fatalf("claim-path email = %q, want path-nested@example.com from contacts.0.email", pathView.Email)
+		}
+		if _, err := pathClient.confirmPost(); err != nil {
+			log.Fatalf("claim-path confirm POST: %v", err)
+		}
+		pathMe, err := pathClient.getMe()
+		if err != nil {
+			log.Fatalf("claim-path /me: %v", err)
+		}
+		if pathMe.Username != "pathuser" {
+			log.Fatalf("claim-path account username = %q", pathMe.Username)
+		}
+		// /me.avatarUrl is the served /avatar/<subject> URL, not the upstream
+		// one; upstream inheritance is proven by the active source being this
+		// provider with the pictureClaim path having fed it.
+		if mine, err := getMyAvatar(pathClient); err != nil {
+			log.Fatalf("claim-path GET /me/avatar: %v", err)
+		} else if mine.ActiveSource != "upstream:"+pathSlug {
+			log.Fatalf("claim-path /me/avatar activeSource = %q, want upstream:%s", mine.ActiveSource, pathSlug)
+		}
+		// The seeded flat names must NOT win: the flat username claim is
+		// "ignored-flat", so reading "pathuser" proves the path did.
+		opSrv.SetExtraClaims(nil)
+		log.Printf("  nested claims mapped via gjson paths: username/displayName/email/avatar all read from inside objects ✓")
 	}
 
 	// =========================================================================

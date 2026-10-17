@@ -44,6 +44,13 @@ export function ClaimMappingTable({ children }: { children: ReactNode }) {
       >
         {children}
       </dl>
+      <p className="text-xs text-muted">
+        <Trans id="admin.federation.claims.mapping.path-hint">
+          A name with dots is read as the exact claim key first; only when no
+          claim is spelled that way is it read as a path into nested claims,
+          like avatar.large or emails.0.email.
+        </Trans>
+      </p>
     </div>
   );
 }

@@ -65,8 +65,9 @@ type codeState struct {
 	challengeMethod string
 	claims          Claims
 	amr             []string
-	authTime        time.Time // zero means omit auth_time from id_token
-	iss             string    // captured at authorize time (base or override)
+	authTime        time.Time      // zero means omit auth_time from id_token
+	iss             string         // captured at authorize time (base or override)
+	extra           map[string]any // captured SetExtraClaims snapshot (nil = none)
 	expiresAt       time.Time
 }
 
@@ -89,6 +90,11 @@ type Server struct {
 	// in the id_token). SetPictureUserInfoOnly sets it AND clears the id_token
 	// picture so the RP must fall back to UserInfo to discover the avatar.
 	userinfoPicture string
+
+	// nextExtraClaims are additional claims merged into every minted id_token
+	// and userinfo document (nested maps/arrays included), for exercising a
+	// configured claim path such as "avatar.large".
+	nextExtraClaims map[string]any
 
 	// avatarHits counts requests to /avatar.png, so a test can tell whether the
 	// RP downloaded the picture again.
@@ -182,6 +188,16 @@ func (s *Server) SetPictureUserInfoOnly(picture string) {
 	defer s.mu.Unlock()
 	s.nextClaims.Picture = ""
 	s.userinfoPicture = picture
+}
+
+// SetExtraClaims merges additional claims into every minted id_token and
+// userinfo document until replaced. Pass nil to clear. Values marshal as
+// JSON verbatim, so a nested map exercises a configured claim path such
+// as "avatar.large" end to end.
+func (s *Server) SetExtraClaims(extra map[string]any) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.nextExtraClaims = extra
 }
 
 // PictureURL returns the absolute URL of the small PNG this mock OP serves at
@@ -301,6 +317,7 @@ func (s *Server) handleUserinfo(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	cl := s.nextClaims
 	uiPic := s.userinfoPicture
+	extra := s.nextExtraClaims
 	s.mu.Unlock()
 
 	doc := map[string]any{
@@ -315,6 +332,9 @@ func (s *Server) handleUserinfo(w http.ResponseWriter, r *http.Request) {
 		doc["picture"] = uiPic
 	case cl.Picture != "":
 		doc["picture"] = cl.Picture
+	}
+	for k, v := range extra {
+		doc[k] = v
 	}
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(doc)
@@ -406,6 +426,7 @@ func (s *Server) handleAuthorize(w http.ResponseWriter, r *http.Request) {
 		amr:      s.nextAMR,
 		authTime: s.nextAuthTime,
 		iss:      iss,
+		extra:    s.nextExtraClaims,
 	}
 	s.mu.Unlock()
 
@@ -525,6 +546,9 @@ func (s *Server) mintIDToken(st codeState) (string, error) {
 	}
 	if !st.authTime.IsZero() {
 		idClaims["auth_time"] = st.authTime.Unix()
+	}
+	for k, v := range st.extra {
+		idClaims[k] = v
 	}
 	return s.signES256(idClaims)
 }

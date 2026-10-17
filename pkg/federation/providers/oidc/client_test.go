@@ -387,10 +387,148 @@ func TestClaimString_FallbackToEmpty(t *testing.T) {
 	}
 }
 
-func TestClaimString_NonStringValueYieldsEmpty(t *testing.T) {
-	raw := map[string]any{"upn": 42}
-	if got := federationoidc.ClaimString(raw, "upn"); got != "" {
-		t.Errorf("non-string value should yield empty: %q", got)
+func TestClaimString_NonStringScalarsStringify(t *testing.T) {
+	// The card decided numbers and booleans stringify; a failure here means
+	// the coercion regressed to the old "non-string yields empty" rule.
+	raw := map[string]any{"count": json.Number("42"), "exact": json.Number("9007199254740993"), "enabled": true, "off": false}
+	for path, want := range map[string]string{"count": "42", "exact": "9007199254740993", "enabled": "true", "off": "false"} {
+		if got := federationoidc.ClaimString(raw, path); got != want {
+			t.Errorf("ClaimString(%q) = %q, want %q", path, got, want)
+		}
+	}
+	// Composite leaves stay absent: one value per account field, never a
+	// document or a guessed member of one.
+	for _, path := range []string{"doc", "list", "nul"} {
+		raw := map[string]any{"doc": map[string]any{"k": "v"}, "list": []any{"a"}, "nul": nil}
+		if got := federationoidc.ClaimString(raw, path); got != "" {
+			t.Errorf("ClaimString(composite %q) = %q, want empty", path, got)
+		}
+	}
+}
+
+// TestClaimString_GjsonPathSyntax pins the claim-mapping path grammar
+// (PHB-121): a "." descends into nested objects, a numeric segment indexes
+// an array, and a backslash escapes a literal dot inside a key. These are
+// gjson's own semantics, adopted unchanged by card decision, so a failure
+// here means the lookup stopped honoring paths or gjson drifted.
+func TestClaimString_GjsonPathSyntax(t *testing.T) {
+	raw := map[string]any{
+		"avatar": map[string]any{
+			"large":  "https://cdn.test/a-large.png",
+			"medium": "https://cdn.test/a-medium.png",
+		},
+		"emails": []any{
+			map[string]any{"email": "first@example.test", "primary": false},
+			map[string]any{"email": "second@example.test", "primary": true},
+		},
+		"annotations": map[string]any{
+			"email.primary": "annotated@example.test",
+		},
+	}
+	tests := []struct {
+		path string
+		want string
+	}{
+		{"avatar.large", "https://cdn.test/a-large.png"},
+		{"avatar.medium", "https://cdn.test/a-medium.png"},
+		{"emails.0.email", "first@example.test"},
+		{"emails.1.email", "second@example.test"},
+		{`annotations.email\.primary`, "annotated@example.test"},
+		// A miss reads as absent rather than erroring: the admin sees a
+		// blank account field (or a server error when username is the
+		// claim that misses).
+		{"avatar.small", ""},
+		{"emails.2.email", ""},
+		{"emails.0.primary", "false"},
+	}
+	for _, tc := range tests {
+		if got := federationoidc.ClaimString(raw, tc.path); got != tc.want {
+			t.Errorf("ClaimString(%q) = %q, want %q", tc.path, got, tc.want)
+		}
+	}
+}
+
+// TestClaimString_DottedKeyStaysFlat guards the other direction of the
+// exact-key-first rule: a claim whose own name contains dots — Auth0's
+// namespaced claims, a URL-shaped subject claim — was addressable before
+// paths existed and must keep reading as one literal key, not be split
+// into path segments.
+func TestClaimString_DottedKeyStaysFlat(t *testing.T) {
+	const dotted = "https://example.com/roles"
+	raw := map[string]any{
+		dotted:                        "admin",
+		"https://example.com/profile": map[string]any{"nickname": "ali"},
+	}
+	if got := federationoidc.ClaimString(raw, dotted); got != "admin" {
+		t.Errorf("dotted flat key = %q, want admin", got)
+	}
+	if got := federationoidc.ClaimString(raw, `https://example\.com/profile.nickname`); got != "ali" {
+		t.Errorf("escaped path through dotted parent key = %q, want ali", got)
+	}
+	// The exact key wins even when a path with the same spelling could
+	// have descended into something else: no top-level "avatar.large"
+	// claim exists in either map, so each lookup must use the other rule.
+	shadow := map[string]any{"a.b": "flat", "a": map[string]any{"b": "nested"}}
+	if got := federationoidc.ClaimString(shadow, "a.b"); got != "flat" {
+		t.Errorf("shadowed spelling = %q, want flat (exact key wins)", got)
+	}
+}
+
+func TestClaimIdentifier_PathLookup(t *testing.T) {
+	raw := map[string]any{
+		"sub": "subject-1",
+		"id":  json.Number("67890"),
+		"big": json.Number("9007199254740993"),
+		"account": map[string]any{
+			"id": json.Number("13579"),
+		},
+	}
+	tests := []struct {
+		path string
+		want string
+	}{
+		{"sub", "subject-1"},
+		{"id", "67890"},
+		{"big", "9007199254740993"},
+		{"account.id", "13579"},
+		{"missing", ""},
+		{"account", ""},
+	}
+	for _, tc := range tests {
+		if got := federationoidc.ClaimIdentifier(raw, tc.path); got != tc.want {
+			t.Errorf("ClaimIdentifier(%q) = %q, want %q", tc.path, got, tc.want)
+		}
+	}
+	// Floats are not identifiers, whatever notation they arrive in.
+	floats := map[string]any{"f": json.Number("1.5"), "e": json.Number("1e3")}
+	for _, path := range []string{"f", "e"} {
+		if got := federationoidc.ClaimIdentifier(floats, path); got != "" {
+			t.Errorf("ClaimIdentifier(float %q) = %q, want empty", path, got)
+		}
+	}
+}
+
+func TestClaimBool_PathLookup(t *testing.T) {
+	raw := map[string]any{
+		"verified":   true,
+		"unverified": false,
+		"one":        json.Number("1"),
+		"emails": []any{
+			map[string]any{"email": "first@example.test", "primary": true},
+		},
+	}
+	if !federationoidc.ClaimBool(raw, "verified") {
+		t.Error("verified = false, want true")
+	}
+	if federationoidc.ClaimBool(raw, "unverified") {
+		t.Error("unverified = true, want false")
+	}
+	// A numeric 1 must not coerce to true: the upstream never said verified.
+	if federationoidc.ClaimBool(raw, "one") {
+		t.Error("numeric one read as true")
+	}
+	if !federationoidc.ClaimBool(raw, "emails.0.primary") {
+		t.Error("emails.0.primary = false, want true")
 	}
 }
 

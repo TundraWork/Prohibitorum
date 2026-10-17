@@ -830,7 +830,7 @@ Refuses (`400 last_sign_in_method`) when the identity being removed is the accou
 - **Refresh upstream tokens.** Prohibitorum does not store the upstream refresh token. Federated users re-authenticate by hitting `/login` again. There is no `/me/identities/{id}/refresh-profile` endpoint.
 - **Upstream sign-out propagation.** Logging out of Prohibitorum does not log the user out of the upstream OP. Back-channel logout is not implemented.
 
-Custom claim-name overrides (`username_claim` / `display_name_claim` / `email_claim` on `upstream_idp`) are honored end-to-end. Defaults are the OIDC standard names (`preferred_username` / `name` / `email`); override only when the upstream ships claims under non-standard keys (e.g. Microsoft Entra ID's `upn`).
+Custom claim-name overrides (`username_claim` / `display_name_claim` / `email_claim` on `upstream_idp`) are honored end-to-end. Defaults are the OIDC standard names (`preferred_username` / `name` / `email`); override only when the upstream ships claims under non-standard keys (e.g. Microsoft Entra ID's `upn`). A name is matched against the claim keys as spelled first; when no claim carries that exact name, it is evaluated as a [gjson](https://github.com/tidwall/gjson) path, so a value nested inside another claim is addressable (`avatar.large`, `emails.0.email`, `profile.name.given`). Numbers and booleans at the end of a path become text (`67890`, `true`); objects, arrays and null read as absent.
 
 ## OIDC OP
 

@@ -229,6 +229,11 @@ msgid "admin.user.attributes.hint"
 msgstr "随账号保存的 JSON 对象。保存时提交的就是这个框里的内容，所以在这里删掉的内容也会从账号上删掉。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ClaimMappingTable.tsx
+msgid "admin.federation.claims.mapping.path-hint"
+msgstr "带点的名称先按声明原文键匹配；只有没有同名声明时，才作为路径读取嵌套声明，如 avatar.large 或 emails.0.email。"
+
+#. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
 msgid "security.passkeys.rename.hint"
 msgstr "便于你识别的名字，例如它所在的设备。"

@@ -229,6 +229,11 @@ msgid "admin.user.attributes.hint"
 msgstr "A JSON object stored with the account. Saving sends whatever is in this box, so anything removed here is removed from the account."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ClaimMappingTable.tsx
+msgid "admin.federation.claims.mapping.path-hint"
+msgstr "A name with dots is read as the exact claim key first; only when no claim is spelled that way is it read as a path into nested claims, like avatar.large or emails.0.email."
+
+#. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
 msgid "security.passkeys.rename.hint"
 msgstr "A name you will recognise, such as the device it lives on."
