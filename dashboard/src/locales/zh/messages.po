@@ -6949,11 +6949,6 @@ msgid "error.wallpaper_unavailable"
 msgstr "图片暂时无法获取。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderConnectionSection.tsx
-msgid "admin.federation.connection.avatar-auth.hint"
-msgstr "头像请求会带 Authorization: Bearer …，但只发给提供商自己的地址；图片托管在别处时不带这个头。"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderDangerSection.tsx
 msgid "admin.federation.danger.delete.confirm.empty"
 msgstr "该提供商及其图标会被删除。"
@@ -6973,6 +6968,11 @@ msgstr "提供商必须支持这里的每个作用域。"
 #: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
 msgid "admin.federation.diagnostics.id-token.empty"
 msgstr "提供商没有返回 ID token。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderConnectionSection.tsx
+msgid "admin.federation.connection.avatar-auth.hint"
+msgstr "会把提供商的 access token 发给它返回的任何头像地址。仅在信任该提供商时开启。"
 
 #. js-lingui-explicit-id
 #: src/components/custom/TotpSetup.tsx

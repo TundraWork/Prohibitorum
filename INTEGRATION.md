@@ -633,12 +633,14 @@ gateway in front of the OP, GitHub-style scoped endpoints) can set
 "Send the access token when fetching the avatar"**, or
 `--authenticate-avatar-fetch` on `upstream-idp create/update`. The sign-in's
 access token is then sent as `Authorization: Bearer …` when the callback
-downloads the picture. The header goes only to the provider's own origins —
-the issuer and the resolved authorization/token/userinfo/JWKS endpoints
-(scheme, host and port compared exactly, default ports normalized). A picture
-URL hosted anywhere else is fetched without the header, and a redirect that
-leaves the origin set loses it on that hop; a provider without the flag (or
-without an access token, as the implicit flow) always fetches anonymously.
+downloads the picture, **to whatever avatar URL the provider returns**: the
+setting is the operator's explicit instruction to send this token, so enable
+it only for providers trusted with it. Go's client keeps the header on a
+same-host redirect and drops it when a redirect changes host. A provider
+without the setting (or without an access token, as the implicit flow) always
+fetches anonymously, and the first avatar fetch for a newly enrolled account
+carries no token either — the enrollment path builds its delivery without
+one, because the token only lives in callback memory.
 
 ### Sign-in response: ID token only (implicit flow)
 

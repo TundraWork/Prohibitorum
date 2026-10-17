@@ -26,7 +26,11 @@ const maxAvatarFetchBytes = 5 << 20 // 5 MiB, matches pkg/avatar input cap.
 
 // fetchUpstreamAvatar GETs an upstream picture URL through the same SSRF-hardened
 // dial-screen as the rest of federation, capped to 5 MiB. https-only; rejects
-// non-image responses. Returns raw bytes for pkg/avatar.Process.
+// non-image responses. Returns raw bytes for pkg/avatar.Process. A delivery
+// carrying BearerToken sends it as `Authorization: Bearer …` — to this URL,
+// whatever it is: the per-IdP authenticateAvatarFetch setting is the
+// operator's explicit decision to send the token. Go's http client keeps the
+// header on same-host redirects and drops it when a redirect changes host.
 func fetchUpstreamAvatar(ctx context.Context, rawURL string, delivery AvatarDelivery) ([]byte, error) {
 	allowPrivate := delivery.AllowPrivateNetwork
 	// https-only in production. allowPrivate (trusted-internal-IdP deployments +
@@ -35,73 +39,7 @@ func fetchUpstreamAvatar(ctx context.Context, rawURL string, delivery AvatarDeli
 	if err := validateAvatarURL(rawURL, allowPrivate); err != nil {
 		return nil, err
 	}
-	client := hardenedHTTPClient(allowPrivate, maxAvatarFetchBytes)
-	if delivery.BearerToken != "" {
-		client = clientWithBearerOriginCheck(client, delivery.BearerOrigins)
-	}
-	return fetchUpstreamAvatarWithClient(ctx, rawURL, client, allowPrivate, delivery.UserAgent, delivery.BearerToken, delivery.BearerOrigins)
-}
-
-// URLOrigin renders an absolute URL's origin as scheme://host:port with
-// default ports normalized away (https:443, http:80), the form two origins of
-// the same server share regardless of spelling.
-func URLOrigin(u *url.URL) string {
-	host := u.Hostname()
-	port := u.Port()
-	// An explicit default port (:443 on https, :80 on http) is the same
-	// origin as none at all; normalize it away so both spellings compare
-	// equal.
-	if (u.Scheme == "https" && port == "443") || (u.Scheme == "http" && port == "80") {
-		port = ""
-	}
-	if port == "" {
-		return u.Scheme + "://" + host
-	}
-	return u.Scheme + "://" + host + ":" + port
-}
-
-// sameBearerOrigin reports whether rawURL's origin appears in origins. An
-// unparseable URL or empty host never matches, so a malformed picture URL
-// cannot smuggle the token out by failing the comparison open.
-func sameBearerOrigin(rawURL string, origins []string) bool {
-	if len(origins) == 0 {
-		return false
-	}
-	u, err := url.Parse(rawURL)
-	if err != nil || u.Host == "" {
-		return false
-	}
-	origin := URLOrigin(u)
-	for _, allowed := range origins {
-		if origin == allowed {
-			return true
-		}
-	}
-	return false
-}
-
-// clientWithBearerOriginCheck clones an http.Client so every followed
-// redirect hop is re-checked: the Authorization header is present only on
-// hops whose origin the provider owns. http.Client copies sensitive headers
-// (Authorization) to same-host redirects by default but drops them across
-// hosts; the wrapper here makes that explicit and origin-set-based rather
-// than host-based, and also removes the header from the initial request
-// when its own origin is outside the set.
-func clientWithBearerOriginCheck(base *http.Client, origins []string) *http.Client {
-	cloned := *base
-	baseRedirect := cloned.CheckRedirect
-	cloned.CheckRedirect = func(req *http.Request, via []*http.Request) error {
-		if baseRedirect != nil {
-			if err := baseRedirect(req, via); err != nil {
-				return err
-			}
-		}
-		if !sameBearerOrigin(req.URL.String(), origins) {
-			req.Header.Del("Authorization")
-		}
-		return nil
-	}
-	return &cloned
+	return fetchUpstreamAvatarWithClient(ctx, rawURL, hardenedHTTPClient(allowPrivate, maxAvatarFetchBytes), allowPrivate, delivery.UserAgent, delivery.BearerToken)
 }
 
 func validateAvatarURL(rawURL string, allowPrivate bool) error {
@@ -144,7 +82,7 @@ func sanitizeAvatarFetchError(err error) error {
 	return &avatarFetchError{category: category}
 }
 
-func fetchUpstreamAvatarWithClient(ctx context.Context, rawURL string, client *http.Client, allowPrivate bool, userAgent string, bearerToken string, bearerOrigins []string) ([]byte, error) {
+func fetchUpstreamAvatarWithClient(ctx context.Context, rawURL string, client *http.Client, allowPrivate bool, userAgent string, bearerToken string) ([]byte, error) {
 	if err := validateAvatarURL(rawURL, allowPrivate); err != nil {
 		return nil, err
 	}
@@ -155,10 +93,10 @@ func fetchUpstreamAvatarWithClient(ctx context.Context, rawURL string, client *h
 	if userAgent != "" {
 		req.Header.Set("User-Agent", userAgent)
 	}
-	// The access token is a credential for the provider's own origins only.
-	// Off-origin targets — and any hop a redirect takes outside the set —
-	// get an anonymous request, never the Authorization header.
-	if bearerToken != "" && sameBearerOrigin(rawURL, bearerOrigins) {
+	// The operator opted this IdP into sending the token, so it goes to
+	// this URL as-is. Go's client drops Authorization on a redirect to a
+	// different host; a same-host redirect keeps it.
+	if bearerToken != "" {
 		req.Header.Set("Authorization", "Bearer "+bearerToken)
 	}
 	resp, err := client.Do(req)

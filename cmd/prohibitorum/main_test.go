@@ -5,6 +5,8 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/spf13/cobra"
+
 	federationoidc "prohibitorum/pkg/federation/providers/oidc"
 )
 
@@ -98,4 +100,37 @@ func TestUpstreamCLIConfigUsesEmptySteamConfig(t *testing.T) {
 	if string(raw) != "{}" {
 		t.Fatalf("config = %s, want {}", raw)
 	}
+}
+
+// TestUpstreamIDPFlags guards the flag registrations themselves: `create` and
+// `update` must both keep --allow-private-network while carrying the newer
+// --authenticate-avatar-fetch, or an invocation that names the older flag
+// dies with `unknown flag` long before any config validation runs.
+func TestUpstreamIDPFlags(t *testing.T) {
+	t.Parallel()
+
+	root := &cobra.Command{Use: "prohibitorum"}
+	addUpstreamIDPCommands(root)
+
+	for _, verb := range []string{"create", "update"} {
+		cmd := findSubcommand(t, root, "upstream-idp", verb)
+		for _, flag := range []string{"allow-private-network", "authenticate-avatar-fetch"} {
+			if cmd.Flags().Lookup(flag) == nil {
+				t.Errorf("upstream-idp %s is missing --%s", verb, flag)
+			}
+		}
+	}
+}
+
+func findSubcommand(t *testing.T, root *cobra.Command, path ...string) *cobra.Command {
+	t.Helper()
+	cmd := root
+	for _, name := range path {
+		next, _, err := cmd.Find([]string{name})
+		if err != nil || next == nil || next == cmd {
+			t.Fatalf("command %v not found under %q", path, cmd.Name())
+		}
+		cmd = next
+	}
+	return cmd
 }

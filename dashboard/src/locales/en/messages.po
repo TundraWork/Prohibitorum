@@ -6949,11 +6949,6 @@ msgid "error.wallpaper_unavailable"
 msgstr "The picture is not available right now."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderConnectionSection.tsx
-msgid "admin.federation.connection.avatar-auth.hint"
-msgstr "The picture request carries Authorization: Bearer …, but only to the provider's own addresses; a picture hosted elsewhere is fetched without it."
-
-#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderDangerSection.tsx
 msgid "admin.federation.danger.delete.confirm.empty"
 msgstr "The provider and its icon are removed."
@@ -6973,6 +6968,11 @@ msgstr "The provider must support every scope listed here."
 #: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
 msgid "admin.federation.diagnostics.id-token.empty"
 msgstr "The provider returned no ID token."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderConnectionSection.tsx
+msgid "admin.federation.connection.avatar-auth.hint"
+msgstr "The provider's access token is sent to whatever avatar URL it returns. Turn this on only if you trust the provider."
 
 #. js-lingui-explicit-id
 #: src/components/custom/TotpSetup.tsx

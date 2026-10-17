@@ -314,9 +314,8 @@ export function ProviderConnectionSection({
                   }
                   description={
                     <Trans id="admin.federation.connection.avatar-auth.hint">
-                      The picture request carries Authorization: Bearer …, but
-                      only to the provider's own addresses; a picture hosted
-                      elsewhere is fetched without it.
+                      The provider's access token is sent to whatever avatar URL
+                      it returns. Turn this on only if you trust the provider.
                     </Trans>
                   }
                 />

@@ -1035,7 +1035,8 @@ func addUpstreamIDPCommands(root *cobra.Command) {
 	createUpstreamCmd.Flags().StringVar(&uEmailClaim, "email-claim", "", "Claim to map to email (default email).")
 	createUpstreamCmd.Flags().StringVar(&uPictureClaim, "picture-claim", "", "Claim to map to avatar picture URL (default picture).")
 	createUpstreamCmd.Flags().BoolVar(&uRequireVerEml, "require-verified-email", false, "Require email_verified=true from the upstream.")
-	createUpstreamCmd.Flags().BoolVar(&uAuthAvatarFetch, "authenticate-avatar-fetch", false, "Send the access token as a Bearer header to the upstream's own origins when fetching the avatar picture.")
+	createUpstreamCmd.Flags().BoolVar(&uAllowPrivate, "allow-private-network", false, "Allow private-network OIDC endpoints.")
+	createUpstreamCmd.Flags().BoolVar(&uAuthAvatarFetch, "authenticate-avatar-fetch", false, "Send the access token as a Bearer header when fetching the avatar picture, to whatever URL the upstream returns.")
 	upstreamCmd.AddCommand(createUpstreamCmd)
 
 	// list
@@ -1130,7 +1131,7 @@ func addUpstreamIDPCommands(root *cobra.Command) {
 	updateUpstreamCmd.Flags().StringVar(&upDisplayClaim, "display-name-claim", "", "Claim to map to display name (default name).")
 	updateUpstreamCmd.Flags().StringVar(&upEmailClaim, "email-claim", "", "Claim to map to email (default email).")
 	updateUpstreamCmd.Flags().StringVar(&upPictureClaim, "picture-claim", "", "Claim to map to avatar picture URL (default picture).")
-	updateUpstreamCmd.Flags().BoolVar(&upAuthAvatarFetch, "authenticate-avatar-fetch", false, "Send the access token as a Bearer header to the upstream's own origins when fetching the avatar picture.")
+	updateUpstreamCmd.Flags().BoolVar(&upAuthAvatarFetch, "authenticate-avatar-fetch", false, "Send the access token as a Bearer header when fetching the avatar picture, to whatever URL the upstream returns.")
 	updateUpstreamCmd.Flags().BoolVar(&upRequireVerEml, "require-verified-email", false, "Require email_verified=true from the upstream.")
 	updateUpstreamCmd.Flags().BoolVar(&upAllowPrivate, "allow-private-network", false, "Allow private-network OIDC endpoints.")
 	upstreamCmd.AddCommand(updateUpstreamCmd)

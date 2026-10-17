@@ -2369,7 +2369,7 @@ func main() {
 		opSrv.SetPicture("")
 	}
 
-	step("avatar-fed 7/7 — authenticateAvatarFetch sends the access token to the provider's own origin")
+	step("avatar-fed 7/7 — authenticateAvatarFetch sends the access token on the picture fetch")
 	{
 		// A provider with authenticateAvatarFetch=true gets the access token in
 		// the Authorization header when the callback downloads the picture;

@@ -128,19 +128,17 @@ type AdvanceResult struct {
 // application and contact, including requests for profile icons.
 //
 // BearerToken, when an adapter sets it, is sent as `Authorization: Bearer …`
-// — but only to a URL whose origin (scheme, host, port) appears in
-// BearerOrigins, the provider's own endpoints. An access token is a
-// credential for the provider alone; handing it to whatever host the picture
-// URL names would leak it, so the header is withheld everywhere else,
-// including off-origin redirect hops. The token lives in callback memory
-// only, like Opaque.
+// on the picture fetch to whatever URL the provider returned — the
+// authenticateAvatarFetch setting is the operator's explicit instruction to
+// send the token, so no origin restriction is applied here. Go's http client
+// itself drops the Authorization header on a redirect to a different host.
+// The token lives in callback memory only, like Opaque.
 type AvatarDelivery struct {
 	URL                 string
 	Opaque              any
 	AllowPrivateNetwork bool
 	UserAgent           string
 	BearerToken         string
-	BearerOrigins       []string
 }
 
 // AvatarResolver is an optional adapter capability used only by

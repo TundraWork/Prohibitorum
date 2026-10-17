@@ -45,7 +45,8 @@ type Config struct {
 	// AuthenticateAvatarFetch is optional so configurations saved before it
 	// existed still decode; absent means the avatar picture is fetched
 	// anonymously. When true, the access token accompanies the picture
-	// request to the provider's own origins (see the avatar delivery).
+	// request — the operator's explicit instruction to send it, to whatever
+	// avatar URL the provider returns.
 	AuthenticateAvatarFetch bool `json:"authenticateAvatarFetch,omitempty"`
 }
 
