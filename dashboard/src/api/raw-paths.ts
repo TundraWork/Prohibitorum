@@ -254,6 +254,8 @@ export interface ConsentRequest {
   scopes: string[];
   /** The requested scopes this account has allowed before; absent the first time. */
   alreadyGranted?: string[];
+  /** Provider display names for the `identity:<slug>` scopes, by slug. */
+  providers?: Record<string, string>;
 }
 
 /** `GET /saml-consent`: the SAML sign-in waiting on the signed-in account. */

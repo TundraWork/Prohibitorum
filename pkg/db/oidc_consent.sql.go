@@ -82,6 +82,21 @@ func (q *Queries) ListConsentsByAccount(ctx context.Context, accountID int32) ([
 	return items, nil
 }
 
+const removeScopeFromConsents = `-- name: RemoveScopeFromConsents :execrows
+UPDATE oidc_consent
+SET granted_scopes = array_remove(granted_scopes, $1::text)
+WHERE $1::text = ANY(granted_scopes)
+`
+
+// Drops one scope from every stored consent; see RemoveScopeFromOIDCClients.
+func (q *Queries) RemoveScopeFromConsents(ctx context.Context, scope string) (int64, error) {
+	result, err := q.db.Exec(ctx, removeScopeFromConsents, scope)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const upsertConsent = `-- name: UpsertConsent :exec
 INSERT INTO oidc_consent (account_id, client_id, granted_scopes, created_at, updated_at)
 VALUES ($1, $2, $3, now(), now())

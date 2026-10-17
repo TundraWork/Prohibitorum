@@ -111,7 +111,7 @@ func TestErrorsRedirectErrorBadURI(t *testing.T) {
 func TestDiscoverySurface(t *testing.T) {
 	cfg := &configx.Config{}
 	cfg.OIDC.Issuer = "https://idp.example"
-	p := &Provider{cfg: cfg}
+	p := &Provider{cfg: cfg, queries: discoveryProviders{}}
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/.well-known/openid-configuration", nil)

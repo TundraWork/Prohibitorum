@@ -265,7 +265,8 @@ export const defaultMockConfig: MockConfig = {
   publicFlows: {
     consent: {
       grant: "first",
-      scopes: "openid profile email groups offline_access wiki:write",
+      scopes:
+        "openid profile email groups offline_access identity:provider-1 wiki:write",
       logo: true,
       policy: true,
       terms: true,

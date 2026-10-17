@@ -572,6 +572,9 @@ type ConsentContext struct {
 	// to (so the UI can mark the NEW scopes on an incremental re-consent). Empty
 	// on a first-time consent.
 	AlreadyGranted []string `json:"alreadyGranted,omitempty"`
+	// Providers names the provider of each identity:<slug> scope in Scopes
+	// (slug → display name). A slug with no provider is left out.
+	Providers map[string]string `json:"providers,omitempty"`
 }
 
 type ConsentClient struct {

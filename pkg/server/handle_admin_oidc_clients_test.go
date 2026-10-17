@@ -10,9 +10,12 @@
 package server
 
 import (
+	"context"
+	"errors"
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"prohibitorum/pkg/authn"
@@ -277,14 +280,36 @@ func TestAdminOIDCClients_ContractType_NoSecretHashField(t *testing.T) {
 // scopes the OP actually supports; unknown/typo scopes are rejected so they
 // can't be stored, requested, and consented while delivering nothing.
 func TestValidateOIDCScopes(t *testing.T) {
-	for _, ok := range [][]string{nil, {}, {"openid"}, {"openid", "profile", "email", "offline_access"}, {"groups"}, {"openid", "groups"}} {
-		if err := validateOIDCScopes(ok); err != nil {
+	ctx := context.Background()
+	providers := scopeProviderLookup{"vrchat": {}, "old-sso": {Disabled: true}}
+	for _, ok := range [][]string{nil, {}, {"openid"}, {"openid", "profile", "email", "offline_access"}, {"groups"}, {"openid", "groups"}, {"openid", "identity:vrchat"}, {"identity:old-sso"}} {
+		if err := validateOIDCScopes(ctx, providers, ok); err != nil {
 			t.Errorf("validateOIDCScopes(%v) = %v, want nil", ok, err)
 		}
 	}
-	for _, bad := range [][]string{{"openid", "email", "create"}, {"profilee"}, {"address"}} {
-		if err := validateOIDCScopes(bad); err == nil {
+	for _, bad := range [][]string{{"openid", "email", "create"}, {"profilee"}, {"address"}, {"openid", "identity:missing"}, {"identity:"}, {"identity:-"}} {
+		if err := validateOIDCScopes(ctx, providers, bad); err == nil {
 			t.Errorf("validateOIDCScopes(%v) = nil, want error", bad)
 		}
 	}
+	if err := validateOIDCScopes(ctx, failingProviderLookup{}, []string{"identity:vrchat"}); err == nil || errors.As(err, new(*authn.AuthError)) {
+		t.Errorf("validateOIDCScopes(lookup failure) = %v, want a non-AuthError (server error)", err)
+	}
+}
+
+type scopeProviderLookup map[string]db.UpstreamIdp
+
+func (l scopeProviderLookup) GetUpstreamIDPBySlugAny(_ context.Context, slug string) (db.UpstreamIdp, error) {
+	row, ok := l[slug]
+	if !ok {
+		return db.UpstreamIdp{}, pgx.ErrNoRows
+	}
+	row.Slug = slug
+	return row, nil
+}
+
+type failingProviderLookup struct{}
+
+func (failingProviderLookup) GetUpstreamIDPBySlugAny(context.Context, string) (db.UpstreamIdp, error) {
+	return db.UpstreamIdp{}, errors.New("database unavailable")
 }

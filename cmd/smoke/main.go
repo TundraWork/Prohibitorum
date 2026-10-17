@@ -1217,6 +1217,13 @@ func main() {
 	}
 	log.Printf("  smoke-admin has 1 federated identity (id=%d)", adminIdentities[0].ID)
 
+	step("identity-scope 1/2 — identity:mockop: unknown provider refused, discovery lists it, id_token + /userinfo carry the linked identity")
+	identityAccessToken, err := smokeIdentityScopes(c, *baseURL, "mockop", "admin-link-1")
+	if err != nil {
+		log.Fatalf("identity scope: %v", err)
+	}
+	log.Printf("  identities.mockop = [admin-link-1] in id_token and /userinfo ✓")
+
 	step(fmt.Sprintf("federation %d/%d — sudo (webauthn) + POST /me/identities/{id}/unlink", 21, nFederation))
 	if err := sudoWebAuthn(c, auth, *baseURL); err != nil {
 		log.Fatalf("admin sudo pre-unlink: %v", err)
@@ -1229,6 +1236,16 @@ func main() {
 		log.Fatalf("post-unlink DB assert: %v", err)
 	}
 	log.Printf("  /me/identities/%d/unlink → 204, row deleted ✓", adminIdentities[0].ID)
+
+	step("identity-scope 2/2 — /userinfo reads live: after the unlink identities.mockop is []")
+	afterUnlink, err := fetchUserinfo(*baseURL, identityAccessToken)
+	if err != nil {
+		log.Fatalf("identity scope after unlink: %v", err)
+	}
+	if subs, ok := identitySubs(afterUnlink, "mockop"); !ok || len(subs) != 0 {
+		log.Fatalf("identity scope after unlink: identities = %v, want mockop: []", afterUnlink["identities"])
+	}
+	log.Printf("  identities.mockop = [] after unlink ✓")
 
 	// --- invite + provider — the new unified registration path --------------
 	//

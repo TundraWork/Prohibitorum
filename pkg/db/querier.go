@@ -183,6 +183,9 @@ type Querier interface {
 	// still resolves its display name. The upload comes first, then the upstreams
 	// by source key.
 	ListAvatarSourcesByAccount(ctx context.Context, accountID int32) ([]ListAvatarSourcesByAccountRow, error)
+	// The confirmed links an account holds at the given enabled providers, for the
+	// identities claim of an identity:<slug> scope.
+	ListConfirmedIdentitiesForProviders(ctx context.Context, arg ListConfirmedIdentitiesForProvidersParams) ([]ListConfirmedIdentitiesForProvidersRow, error)
 	ListConsentsByAccount(ctx context.Context, accountID int32) ([]ListConsentsByAccountRow, error)
 	ListCredentialEvents(ctx context.Context, arg ListCredentialEventsParams) ([]ListCredentialEventsRow, error)
 	ListCredentialEventsByAccount(ctx context.Context, arg ListCredentialEventsByAccountParams) ([]CredentialEvent, error)
@@ -253,6 +256,12 @@ type Querier interface {
 	RefreshVRChatOperatorSecret(ctx context.Context, arg RefreshVRChatOperatorSecretParams) (UpstreamIdp, error)
 	RemoveOIDCClientManager(ctx context.Context, arg RemoveOIDCClientManagerParams) (int64, error)
 	RemoveSAMLSPManager(ctx context.Context, arg RemoveSAMLSPManagerParams) (int64, error)
+	// Drops one scope from every stored consent; see RemoveScopeFromOIDCClients.
+	RemoveScopeFromConsents(ctx context.Context, scope string) (int64, error)
+	// Drops one scope from every client that allows it; used when a provider is
+	// deleted so its identity:<slug> scope is not inherited by a later provider
+	// created with the same slug.
+	RemoveScopeFromOIDCClients(ctx context.Context, scope string) (int64, error)
 	ReplaceOIDCAppGroups(ctx context.Context, arg ReplaceOIDCAppGroupsParams) ([]UserGroup, error)
 	ReplaceSAMLAppGroups(ctx context.Context, arg ReplaceSAMLAppGroupsParams) ([]UserGroup, error)
 	ResetAuthThrottle(ctx context.Context, arg ResetAuthThrottleParams) error

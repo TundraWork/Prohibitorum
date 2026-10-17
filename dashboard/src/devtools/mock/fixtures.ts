@@ -523,6 +523,31 @@ function appLogoUrl(fill: string, letter: string): string {
   );
 }
 
+/**
+ * The server names the provider of each `identity:<slug>` scope it knows; a
+ * slug no provider has is left out, and the page shows it as written.
+ */
+function consentProviders(
+  config: MockConfig,
+  scopes: readonly string[],
+): Pick<ConsentRequest, "providers"> {
+  const names = new Map(
+    providerList(config).map((provider) => [
+      provider.slug,
+      provider.displayName,
+    ]),
+  );
+  const providers: Record<string, string> = {};
+  for (const scope of scopes) {
+    const slug = scope.startsWith("identity:")
+      ? scope.slice("identity:".length)
+      : "";
+    const name = names.get(slug);
+    if (name !== undefined) providers[slug] = name;
+  }
+  return Object.keys(providers).length > 0 ? { providers } : {};
+}
+
 export function consentRequest(config: MockConfig): ConsentRequest {
   const consent = config.publicFlows.consent;
   const scopes = consent.scopes.split(/\s+/).filter((scope) => scope !== "");
@@ -538,6 +563,7 @@ export function consentRequest(config: MockConfig): ConsentRequest {
     },
     account: consentAccount(config),
     scopes,
+    ...consentProviders(config, scopes),
     // The server reports only the requested scopes that were allowed before.
     ...(consent.grant === "incremental"
       ? {
@@ -1191,7 +1217,15 @@ function oidcApplications(
       postLogoutRedirectUris: [
         `https://app${index + 1}.example.test/signed-out`,
       ],
-      allowedScopes: ["openid", "profile", "email"],
+      // The first reads a provider's identities; the second still allows one
+      // for a provider that is gone, which the scope field draws to be cleared.
+      allowedScopes: [
+        "openid",
+        "profile",
+        "email",
+        ...(index === 0 ? ["identity:provider-1"] : []),
+        ...(index === 1 ? ["identity:retired-sso"] : []),
+      ],
       clientAuthMethod: index % 3 === 2 ? "none" : "client_secret",
       disabled: index % 4 === 1,
       accessRestricted: index % 3 === 1,

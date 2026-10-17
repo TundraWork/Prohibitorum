@@ -873,6 +873,11 @@ msgid "console.group.applications"
 msgstr "应用"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderDangerSection.tsx
+msgid "admin.federation.danger.delete.confirm.scope"
+msgstr "允许了 <0>{identityScope}</0> 的应用会失去这个作用域，用户对它的同意也会清除，之后用相同标识符新建的提供商需要重新授权。"
+
+#. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.access.full.hint"
 msgstr "可用于应用和你的账号。要求验证你的身份的操作会被拒绝。"
@@ -5019,6 +5024,11 @@ msgid "success.identity-provider.enabled"
 msgstr "提供商已启用"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/OidcScopesField.tsx
+msgid "admin.oidc-apps.field.scopes.identities"
+msgstr "提供商身份"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
 msgid "admin.federation.diagnostics.stage.provider-message"
 msgstr "提供商返回的信息："
@@ -7044,6 +7054,11 @@ msgid "app.access.open.kept"
 msgstr "下面的用户组已保留，重新限制后生效。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/OidcScopesField.tsx
+msgid "admin.oidc-apps.scope.identity"
+msgstr "用户关联的 {provider} 身份。"
+
+#. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.vrchat_proof_missing"
 msgstr "还没在你的简介里找到验证链接。保存资料后稍等片刻再验证。"
@@ -7352,6 +7367,11 @@ msgstr "这把通行密钥会立即无法用于登录。你其它的登录方式
 #: src/api/errors.ts
 msgid "error.provider_not_ready"
 msgstr "该提供商尚未就绪。请先完成凭据设置，再启用它。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/OidcScopesField.tsx
+msgid "admin.oidc-apps.scope.identity.unavailable"
+msgstr "这个提供商已停用或已不存在。取消勾选即可不再允许它。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -8274,6 +8294,16 @@ msgstr "你第一次通过 {idp} 登录，{instance} 为你准备了这个账号
 #: src/pages/public/Enroll.tsx
 msgid "enroll.description.invite"
 msgstr "你受邀加入 {instance}。链接 {expires} 前有效。"
+
+#. js-lingui-explicit-id
+#: src/pages/public/consent/scopes.ts
+msgid "consent.scope.identity.description"
+msgstr "你在 {provider} 的 ID、显示名称和资料链接"
+
+#. js-lingui-explicit-id
+#: src/pages/public/consent/scopes.ts
+msgid "consent.scope.identity"
+msgstr "你的 {provider} 身份"
 
 #. js-lingui-explicit-id
 #: src/components/custom/ConsoleLayout.tsx

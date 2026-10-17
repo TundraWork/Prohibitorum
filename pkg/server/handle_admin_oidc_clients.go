@@ -45,15 +45,32 @@ import (
 	oidc "prohibitorum/pkg/protocol/oidc"
 )
 
+// providerSlugLookup is the one query validateOIDCScopes needs.
+type providerSlugLookup interface {
+	GetUpstreamIDPBySlugAny(ctx context.Context, slug string) (db.UpstreamIdp, error)
+}
+
 // validateOIDCScopes rejects any allowed_scopes value the OP does not support,
 // mapping it to a 400. The supported set is the single source of truth in
-// pkg/protocol/oidc (oidc.SupportedScopes), shared with discovery, the CLI and
+// pkg/protocol/oidc (oidc.IsSupportedScope), shared with discovery, the CLI and
 // /authorize — so a dead or typo'd scope can't be stored, requested, and
-// consented while delivering nothing. Empty is allowed — the caller defaults it.
-func validateOIDCScopes(scopes []string) error {
+// consented while delivering nothing. An identity:<slug> scope must also name
+// a provider that exists (enabled or not). Empty is allowed — the caller
+// defaults it.
+func validateOIDCScopes(ctx context.Context, providers providerSlugLookup, scopes []string) error {
 	for _, sc := range scopes {
 		if !oidc.IsSupportedScope(sc) {
 			return authn.ErrBadRequest()
+		}
+		slug, ok := oidc.IdentityScopeSlug(sc)
+		if !ok {
+			continue
+		}
+		if _, err := providers.GetUpstreamIDPBySlugAny(ctx, slug); err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return authn.ErrBadRequest()
+			}
+			return fmt.Errorf("validate scope %q: %w", sc, err)
 		}
 	}
 	return nil
@@ -224,7 +241,7 @@ func (s *Server) handleCreateOIDCApplicationHTTP(w http.ResponseWriter, r *http.
 		writeAuthErr(w, authn.ErrBadRequest())
 		return
 	}
-	if err := validateOIDCScopes(body.Scopes); err != nil {
+	if err := validateOIDCScopes(r.Context(), s.queries, body.Scopes); err != nil {
 		writeAuthErr(w, err)
 		return
 	}
@@ -358,7 +375,7 @@ func (s *Server) handleUpdateOIDCApplicationHTTP(w http.ResponseWriter, r *http.
 	if postLogout == nil {
 		postLogout = []string{}
 	}
-	if err := validateOIDCScopes(body.AllowedScopes); err != nil {
+	if err := validateOIDCScopes(r.Context(), s.queries, body.AllowedScopes); err != nil {
 		writeAuthErr(w, err)
 		return
 	}

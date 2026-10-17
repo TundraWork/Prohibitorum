@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"testing"
 	"time"
 
@@ -30,6 +31,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"prohibitorum/pkg/contract"
+	"prohibitorum/pkg/db"
+	oidc "prohibitorum/pkg/protocol/oidc"
 )
 
 func writeFixSuffix(t *testing.T) string {
@@ -252,6 +255,36 @@ func TestDeleteIdentityProviderRemovesLinkedIdentitiesPostgres(t *testing.T) {
 		}
 	}
 
+	// An application allowed this provider's identity scope and an account
+	// consented to it; a second application allows another provider's. Deleting
+	// the provider must take its scope from both, and leave the other alone.
+	queries := db.New(base.pool)
+	insertClient := func(clientID string, scopes []string) {
+		t.Helper()
+		params, _, err := oidc.BuildClientParams(oidc.ClientOptions{
+			ClientID: clientID, DisplayName: clientID, RedirectURIs: []string{"https://rp.example.test/cb"},
+			Scopes: scopes, RequirePKCE: true,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := queries.InsertOIDCClient(ctx, params); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			_, _ = base.pool.Exec(context.Background(), `DELETE FROM oidc_client WHERE client_id = $1`, clientID)
+		})
+	}
+	identityScope := "identity:" + slug
+	otherScope := "identity:" + slug + "-other"
+	insertClient(slug+"-rp", []string{"openid", identityScope, "profile"})
+	insertClient(slug+"-other-rp", []string{"openid", otherScope})
+	if err := queries.UpsertConsent(ctx, db.UpsertConsentParams{
+		AccountID: accountIDs[0], ClientID: slug + "-rp", GrantedScopes: []string{"openid", identityScope},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
 	s := writeFixServer(base)
 
 	// The detail read reports two distinct accounts, not three identity rows.
@@ -292,6 +325,24 @@ func TestDeleteIdentityProviderRemovesLinkedIdentitiesPostgres(t *testing.T) {
 	if identityCount != 0 {
 		t.Errorf("%d identities survived the provider delete, want 0", identityCount)
 	}
+	scopesOf := func(query, key string) []string {
+		t.Helper()
+		var scopes []string
+		if err := base.pool.QueryRow(ctx, query, key).Scan(&scopes); err != nil {
+			t.Fatal(err)
+		}
+		return scopes
+	}
+	if got := scopesOf(`SELECT allowed_scopes FROM oidc_client WHERE client_id = $1`, slug+"-rp"); !slices.Equal(got, []string{"openid", "profile"}) {
+		t.Errorf("client scopes after delete = %v, want [openid profile]", got)
+	}
+	if got := scopesOf(`SELECT allowed_scopes FROM oidc_client WHERE client_id = $1`, slug+"-other-rp"); !slices.Equal(got, []string{"openid", otherScope}) {
+		t.Errorf("another provider's scope changed: %v", got)
+	}
+	if got := scopesOf(`SELECT granted_scopes FROM oidc_consent WHERE client_id = $1`, slug+"-rp"); !slices.Equal(got, []string{"openid"}) {
+		t.Errorf("consent scopes after delete = %v, want [openid]", got)
+	}
+
 	for _, id := range accountIDs {
 		var exists int
 		if err := base.pool.QueryRow(ctx, `SELECT COUNT(*) FROM account WHERE id = $1`, id).Scan(&exists); err != nil {

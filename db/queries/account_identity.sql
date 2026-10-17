@@ -60,3 +60,15 @@ WHERE ai.account_id = $1 AND NOT ip.disabled AND ip.protocol <> 'vrchat';
 
 -- name: ConfirmAccountIdentity :exec
 UPDATE account_identity SET confirmed_at = now() WHERE id = $1 AND confirmed_at IS NULL;
+
+-- name: ListConfirmedIdentitiesForProviders :many
+-- The confirmed links an account holds at the given enabled providers, for the
+-- identities claim of an identity:<slug> scope.
+SELECT ip.slug AS idp_slug, ai.upstream_sub, ai.upstream_data
+FROM account_identity ai
+JOIN upstream_idp ip ON ip.id = ai.upstream_idp_id
+WHERE ai.account_id = sqlc.arg(account_id)
+  AND ai.confirmed_at IS NOT NULL
+  AND NOT ip.disabled
+  AND ip.slug = ANY(sqlc.arg(slugs)::text[])
+ORDER BY ai.linked_at, ai.id;

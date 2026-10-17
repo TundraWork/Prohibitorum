@@ -201,5 +201,10 @@ func (p *Provider) HandleUserinfo(w http.ResponseWriter, r *http.Request) {
 		writeOIDCError(w, r, http.StatusInternalServerError, errCodeServerError, "internal error")
 		return
 	}
-	_ = json.NewEncoder(w).Encode(projectedUserinfoClaims(acct, currentSubject, scope, avatarOrigin, groups, aliases))
+	identities, err := p.identitiesForScopes(ctx, acct.ID, scope)
+	if err != nil {
+		writeOIDCError(w, r, http.StatusInternalServerError, errCodeServerError, "internal error")
+		return
+	}
+	_ = json.NewEncoder(w).Encode(projectedUserinfoClaims(acct, currentSubject, scope, avatarOrigin, groups, identities, aliases))
 }

@@ -85,13 +85,14 @@ type idTokenInput struct {
 	Subject      string // public subject computed from the client's current setting
 	AccountID    int32  // private local lookup key; never exposed by userinfo
 	ClaimAliases map[string]string
-	Nonce        string   // optional; claim omitted if ""
-	ACR          string   // optional; claim omitted if ""
-	SID          string   // session id
-	AMR          []string // authentication methods, e.g. ["webauthn"]
-	AccessToken  string   // to compute at_hash; at_hash omitted if ""
-	Scope        []string // granted scopes; gates the profile block
-	Groups       []string // exposed group slugs; emitted only when "groups" scope granted
+	Nonce        string                     // optional; claim omitted if ""
+	ACR          string                     // optional; claim omitted if ""
+	SID          string                     // session id
+	AMR          []string                   // authentication methods, e.g. ["webauthn"]
+	AccessToken  string                     // to compute at_hash; at_hash omitted if ""
+	Scope        []string                   // granted scopes; gates the profile block
+	Groups       []string                   // exposed group slugs; emitted only when "groups" scope granted
+	Identities   map[string][]identityClaim // emitted when any identity:<slug> scope was granted (nil otherwise)
 	IssuedAt     time.Time
 	Expiry       time.Time
 	AuthTime     time.Time
@@ -147,6 +148,9 @@ func idTokenClaims(a db.Account, in idTokenInput) map[string]any {
 	if hasScope(in.Scope, "groups") {
 		c["groups"] = nonNilSlugs(in.Groups)
 	}
+	if in.Identities != nil {
+		c["identities"] = in.Identities
+	}
 	applyClaimAliases(c, a, in.Scope, in.AvatarOrigin, in.ClaimAliases)
 
 	return c
@@ -160,10 +164,12 @@ func idTokenClaims(a db.Account, in idTokenInput) map[string]any {
 // picture URL. groups is the caller-supplied list of exposed group slugs
 // (nil when the groups scope was not granted).
 func userinfoClaims(a db.Account, scope []string, origin string, groups []string) map[string]any {
-	return projectedUserinfoClaims(a, subjectOf(a), scope, origin, groups, nil)
+	return projectedUserinfoClaims(a, subjectOf(a), scope, origin, groups, nil, nil)
 }
 
-func projectedUserinfoClaims(a db.Account, subject string, scope []string, origin string, groups []string, aliases map[string]string) map[string]any {
+// projectedUserinfoClaims adds identities when it is non-nil, i.e. when an
+// identity:<slug> scope was granted.
+func projectedUserinfoClaims(a db.Account, subject string, scope []string, origin string, groups []string, identities map[string][]identityClaim, aliases map[string]string) map[string]any {
 	c := map[string]any{
 		"sub": subject,
 	}
@@ -179,6 +185,9 @@ func projectedUserinfoClaims(a db.Account, subject string, scope []string, origi
 	}
 	if hasScope(scope, "groups") {
 		c["groups"] = nonNilSlugs(groups)
+	}
+	if identities != nil {
+		c["identities"] = identities
 	}
 	applyClaimAliases(c, a, scope, origin, aliases)
 	return c

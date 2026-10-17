@@ -134,7 +134,24 @@ RP ─────────────────────────�
 - `attributes` is an opaque, RP-defined map carried verbatim from `account.attributes`; Prohibitorum does not interpret it.
 - `amr` reflects the factors used: `hwk` (WebAuthn), `pwd`+`otp`+`mfa` (password+TOTP), `fed` (federated OIDC).
 - `auth_time` is the authentication moment; RPs that requested `max_age=N` must verify `now - auth_time <= N`.
-- **Scope-gated claims.** `username` / `displayName` / `role` / `attributes` emit only under the `profile` scope; `email` / `email_verified` only under `email`, and only when the account has an address (verified upstream → `email_verified:true`; admin-set → `false`). Both blocks appear identically at `/oauth/userinfo`. The OP advertises `openid`, `profile`, `email`, `offline_access` in `scopes_supported` and **rejects** any OIDC client whose `allowed_scopes` contains anything outside that set.
+- **Scope-gated claims.** `username` / `displayName` / `role` / `attributes` emit only under the `profile` scope; `email` / `email_verified` only under `email`, and only when the account has an address (verified upstream → `email_verified:true`; admin-set → `false`); `groups` only under `groups`; `identities` only under an `identity:<slug>` scope (below). Each block appears identically at `/oauth/userinfo`. The OP advertises `openid`, `profile`, `email`, `offline_access`, `groups` and one `identity:<slug>` per enabled provider in `scopes_supported`, and **rejects** any OIDC client whose `allowed_scopes` contains anything else, including an `identity:<slug>` for a provider that does not exist.
+### Linked provider identities: `identity:<slug>`
+
+An application can read the identities the user has linked at an upstream provider, for example their VRChat user ID, with one scope per provider: `identity:<slug>`, where `<slug>` is the provider's identifier. An administrator, or the application's manager, allows the scope on the application; it is then requested at `/authorize` like any other scope. When the application asks for consent, the consent screen names the provider.
+
+```json
+"identities": {
+  "vrchat": [
+    {"sub": "usr_12345678-1234-1234-1234-123456789abc", "name": "Neptune", "profile_url": "https://vrchat.com/home/user/usr_12345678-1234-1234-1234-123456789abc"}
+  ]
+}
+```
+
+- There is one key per granted `identity:<slug>` scope. `[]` means the user has no link there (or the provider is turned off); a missing key means the scope was not granted.
+- Each entry has `sub`, the user's identifier at the provider. VRChat and Steam also give `name` and `profile_url`; an OIDC provider gives only `sub`.
+- Only links the user has confirmed are listed, oldest first.
+- Deleting a provider removes its `identity:<slug>` from every application's allowed scopes and from what users consented to, so a provider created later with the same slug starts with no grants.
+- The ID token reflects the links when it was issued (including on refresh). `/oauth/userinfo` reads them live, so after the user links a provider, calling it again with the current access token shows the new identity without a new authorization.
 
 ### Forced re-authentication: `prompt=login` / `max_age`
 

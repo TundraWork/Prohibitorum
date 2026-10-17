@@ -21,8 +21,8 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"prohibitorum/pkg/authn"
-	"prohibitorum/pkg/contract"
 	"prohibitorum/pkg/configx"
+	"prohibitorum/pkg/contract"
 	"prohibitorum/pkg/db"
 	"prohibitorum/pkg/kv"
 )
@@ -32,8 +32,17 @@ import (
 type fakeOIDCConsentQ struct {
 	client        db.OidcClient
 	clientErr     error
-	grantedScopes []string // the stored grant GetConsent returns (when noGrant is false)
-	noGrant       bool     // when true, GetConsent returns pgx.ErrNoRows (no existing grant)
+	grantedScopes []string          // the stored grant GetConsent returns (when noGrant is false)
+	noGrant       bool              // when true, GetConsent returns pgx.ErrNoRows (no existing grant)
+	providers     map[string]string // slug → display name for GetUpstreamIDPBySlugAny
+}
+
+func (f *fakeOIDCConsentQ) GetUpstreamIDPBySlugAny(_ context.Context, slug string) (db.UpstreamIdp, error) {
+	name, ok := f.providers[slug]
+	if !ok {
+		return db.UpstreamIdp{}, pgx.ErrNoRows
+	}
+	return db.UpstreamIdp{Slug: slug, DisplayName: name}, nil
 }
 
 func (f *fakeOIDCConsentQ) GetOIDCClient(_ context.Context, _ string) (db.OidcClient, error) {
@@ -53,7 +62,7 @@ func newOIDCConsentTestServer(t *testing.T, fq *fakeOIDCConsentQ) (*Server, kv.S
 	t.Helper()
 	kvStore := kv.NewMemoryStore()
 	s := &Server{
-		kvStore:            kvStore,
+		kvStore:             kvStore,
 		oidcConsentOverride: fq,
 	}
 	return s, kvStore
@@ -94,7 +103,7 @@ func TestConsentContext_Incremental(t *testing.T) {
 	const clientID = "rp1"
 
 	fq := &fakeOIDCConsentQ{
-		client: db.OidcClient{ClientID: clientID, DisplayName: "My App"},
+		client:        db.OidcClient{ClientID: clientID, DisplayName: "My App"},
 		grantedScopes: []string{"openid"},
 	}
 	s, kvStore := newOIDCConsentTestServer(t, fq)
@@ -121,6 +130,34 @@ func TestConsentContext_Incremental(t *testing.T) {
 	}
 	if !reflect.DeepEqual(out.AlreadyGranted, []string{"openid"}) {
 		t.Errorf("AlreadyGranted: want [openid], got %v", out.AlreadyGranted)
+	}
+}
+
+// TestConsentContext_IdentityProviders: each identity:<slug> scope is named by
+// its provider; a slug with no provider is left for the page to show raw.
+func TestConsentContext_IdentityProviders(t *testing.T) {
+	const accountID int32 = 7
+	fq := &fakeOIDCConsentQ{
+		client:    db.OidcClient{ClientID: "rp1", DisplayName: "My App"},
+		noGrant:   true,
+		providers: map[string]string{"vrchat": "VRChat", "steam": "Steam"},
+	}
+	s, kvStore := newOIDCConsentTestServer(t, fq)
+	nonce := mintOIDCTicket(t, kvStore, authn.ConsentTicket{
+		AccountID: accountID, ClientID: "rp1",
+		Scopes: []string{"openid", "identity:vrchat", "identity:gone"}, RedirectURI: "https://rp/cb",
+	})
+	w := httptest.NewRecorder()
+	s.handleConsentContextHTTP(w, oidcConsentGETReq(t, newOIDCConsentSession(accountID), nonce))
+	if w.Code != http.StatusOK {
+		t.Fatalf("status: want 200, got %d (body=%s)", w.Code, w.Body.String())
+	}
+	var out contract.ConsentContext
+	if err := json.Unmarshal(w.Body.Bytes(), &out); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if want := map[string]string{"vrchat": "VRChat"}; !reflect.DeepEqual(out.Providers, want) {
+		t.Errorf("Providers: want %v (only requested slugs that exist), got %v", want, out.Providers)
 	}
 }
 
@@ -157,7 +194,6 @@ func TestConsentContext_FirstTime(t *testing.T) {
 		t.Errorf("AlreadyGranted: want empty, got %v", out.AlreadyGranted)
 	}
 }
-
 
 func TestUnionScopes(t *testing.T) {
 	cases := []struct {

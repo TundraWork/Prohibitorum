@@ -87,6 +87,52 @@ describe("OIDC consent", () => {
     expect(screen.queryByText(/Already allowed/)).not.toBeInTheDocument();
   });
 
+  it("names the provider of an identity scope, and shows an unknown one by its slug", async () => {
+    consentApi(
+      request({
+        scopes: [
+          "openid",
+          "identity:vrchat",
+          "identity:gone",
+          "identity:constructor",
+        ],
+        providers: { vrchat: "VRChat" },
+      }),
+    );
+    renderApp(address, queryClient);
+    await screen.findByRole("heading", {
+      name: "Allow Wiki to access your account?",
+    });
+    expect(factNames()).toEqual([
+      "Confirm who you are",
+      "Your VRChat identity",
+      "Your gone identity",
+      "Your constructor identity",
+    ]);
+    expect(
+      screen.getByText("Your VRChat ID, display name and profile link"),
+    ).toBeVisible();
+  });
+
+  it("names an identity scope in the line of scopes allowed before", async () => {
+    consentApi(
+      request({
+        scopes: ["openid", "identity:vrchat", "groups"],
+        alreadyGranted: ["openid", "identity:vrchat"],
+        providers: { vrchat: "VRChat" },
+      }),
+    );
+    renderApp(address, queryClient);
+    await screen.findByRole("heading", {
+      name: "Wiki is asking for more access",
+    });
+    expect(
+      screen.getByText(
+        "Already allowed: Confirm who you are and Your VRChat identity",
+      ),
+    ).toBeVisible();
+  });
+
   it("lists only the new scopes when some were allowed before", async () => {
     consentApi(
       request({

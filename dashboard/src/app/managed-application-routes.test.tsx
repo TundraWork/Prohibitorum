@@ -1,5 +1,6 @@
 import type { QueryClient } from "@tanstack/react-query";
 import { screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import type { components } from "@/api/generated/schema";
 import { createQueryClient } from "@/app/query-client";
@@ -215,4 +216,81 @@ it("keeps an OIDC application with Client ID `page` apart from the application l
     expect(router.state.location.pathname).toBe("/admin/oidc-applications"),
   );
   expect(await screen.findByText("Team wiki")).toBeVisible();
+});
+
+it("lets an application's manager allow a provider's identities, and clear one whose provider is gone", async () => {
+  const wiki = {
+    ...oidcApp("wiki", "Team wiki"),
+    allowedScopes: ["openid", "identity:vrchat", "identity:gone"],
+  };
+  const api = managementApi("user", { oidc: [wiki] });
+  api.routes["GET /api/prohibitorum/auth/federation"] = () =>
+    Response.json([
+      { slug: "vrchat", displayName: "VRChat", protocol: "vrchat" },
+      { slug: "steam", displayName: "Steam", protocol: "steam" },
+    ]);
+  renderApp("/admin/oidc-applications/wiki", queryClient);
+
+  // The provider list loads after the saved scopes, so wait for a box only it
+  // brings.
+  expect(
+    await screen.findByRole("checkbox", { name: "identity:steam" }),
+  ).not.toBeChecked();
+  expect(
+    screen.getByRole("checkbox", { name: "identity:vrchat" }),
+  ).toBeChecked();
+  expect(screen.getByRole("checkbox", { name: "identity:gone" })).toBeChecked();
+  expect(
+    screen.getByText("The user's linked VRChat identities."),
+  ).toBeVisible();
+  expect(
+    screen.getByText(
+      "This provider is turned off or no longer exists. Clear it to stop allowing it.",
+    ),
+  ).toBeVisible();
+});
+
+it("keeps the saved identity scopes when another scope changes before the provider list arrives", async () => {
+  const wiki = {
+    ...oidcApp("wiki", "Team wiki"),
+    allowedScopes: ["openid", "identity:vrchat"],
+  };
+  const api = managementApi("user", { oidc: [wiki] });
+  api.routes["GET /api/prohibitorum/auth/federation"] = () =>
+    new Promise<Response>(() => {});
+  api.routes["PUT /api/prohibitorum/oidc-applications/wiki"] = () =>
+    Response.json(wiki);
+  renderApp("/admin/oidc-applications/wiki", queryClient);
+
+  const groups = await screen.findByRole("checkbox", { name: "groups" });
+  expect(
+    screen.queryByRole("checkbox", { name: "identity:vrchat" }),
+  ).not.toBeInTheDocument();
+  await userEvent.click(groups);
+  const [save] = screen.getAllByRole("button", { name: "Save" });
+  if (!save) throw new Error("no Save button");
+  await userEvent.click(save);
+
+  await waitFor(() =>
+    expect(
+      api.sent("PUT", "/api/prohibitorum/oidc-applications/wiki"),
+    ).toHaveLength(1),
+  );
+  const [put] = api.sent("PUT", "/api/prohibitorum/oidc-applications/wiki");
+  if (!put) throw new Error("no PUT was sent");
+  expect((put.body as { allowedScopes?: string[] }).allowedScopes).toEqual([
+    "openid",
+    "groups",
+    "identity:vrchat",
+  ]);
+});
+
+it("tells an admin that deleting a provider clears its identity scope", async () => {
+  managementApi("admin", { providers: [provider("vrchat", "VRChat")] });
+  renderApp("/admin/identity-providers/vrchat", queryClient);
+  await userEvent.click(await screen.findByRole("button", { name: "Delete" }));
+  const dialog = await screen.findByRole("alertdialog");
+  expect(dialog).toHaveTextContent(
+    "Applications allowed identity:vrchat lose that scope, and what users agreed to for it is cleared, so a provider added later with the same identifier starts fresh.",
+  );
 });
