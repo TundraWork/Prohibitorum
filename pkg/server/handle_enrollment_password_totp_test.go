@@ -12,6 +12,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"prohibitorum/pkg/audit"
 	"prohibitorum/pkg/credential/enrollment"
 	"prohibitorum/pkg/db"
 )
@@ -47,16 +48,20 @@ func passwordTOTPVerifyRequest(token, username, password, secret, code string) *
 // TestPasswordTOTPInviteWithoutSnapshotRequiresFederation: a federation-bound
 // invite cannot finish with password+TOTP until the upstream identity is on
 // the enrollment. The gate is the same one /begin applies to passkeys; without
-// it the invite would create an account the operator never verified.
+// it the invite would create an account the operator never verified. The
+// request relies on the snapshot's FederatedDisplayName fallback, which a
+// snapshot-less invite lacks — the body here needs no display name, so a
+// removed gate fails by creating the account, not by an unrelated validation.
 func TestPasswordTOTPInviteWithoutSnapshotRequiresFederation(t *testing.T) {
 	e := verifiedInviteEnrollment("pwd-totp-federation-required")
-	e.FederatedUpstreamIdpID = pgtype.Int8{}   // snapshot absent
-	e.FederatedUpstreamIdpSlug = pgtype.Text{} // ...
-	e.FederatedUpstreamIss = pgtype.Text{}     // ...
-	e.FederatedUpstreamSub = pgtype.Text{}     // ...
-	e.FederatedDisplayName = pgtype.Text{}     // ...
-	e.FederatedUpstreamData = nil              // ...
-	e.FederatedAvatarUrl = pgtype.Text{}       // ...
+	// Snapshot gone, but the display name the account needs stays valid.
+	e.FederatedUpstreamIdpID = pgtype.Int8{}
+	e.FederatedUpstreamIdpSlug = pgtype.Text{}
+	e.FederatedUpstreamIss = pgtype.Text{}
+	e.FederatedUpstreamSub = pgtype.Text{}
+	e.FederatedDisplayName = pgtype.Text{String: "Snapshot-less Invitee", Valid: true}
+	e.FederatedUpstreamData = nil
+	e.FederatedAvatarUrl = pgtype.Text{}
 	s, q := newAtomicVRChatEnrollmentServer(t, e, nil)
 	secret, code := passwordTOTPCandidate(t, s)
 
@@ -82,6 +87,82 @@ func TestPasswordTOTPInviteWithoutSnapshotRequiresFederation(t *testing.T) {
 	}
 	if len(q.accounts) != 0 {
 		t.Fatal("rejected verify created an account")
+	}
+}
+
+// TestPasswordTOTPInviteSnapshotRemovedBeforeConsumeRequiresFederation drives
+// the re-check INSIDE the transaction: the request passes the pre-transaction
+// gate against a snapshot that is present, and the row loses the snapshot only
+// at consume time — the race the second gate exists to close. Without it the
+// account, its password and TOTP would be written off an unverified invite.
+func TestPasswordTOTPInviteSnapshotRemovedBeforeConsumeRequiresFederation(t *testing.T) {
+	e := verifiedInviteEnrollment("pwd-totp-in-tx-gate")
+	s, q := newAtomicVRChatEnrollmentServer(t, e, nil)
+	// The mutation happens on the clone the transaction sees, after the
+	// handler's pre-transaction read of the row.
+	q.mu.Lock()
+	q.consumeMutate = func(row *db.Enrollment) {
+		row.FederatedUpstreamIdpID = pgtype.Int8{}
+		row.FederatedUpstreamIdpSlug = pgtype.Text{}
+	}
+	q.mu.Unlock()
+	secret, code := passwordTOTPCandidate(t, s)
+
+	w := httptest.NewRecorder()
+	s.handleEnrollmentPasswordTOTPVerifyHTTP(w, passwordTOTPVerifyRequest(e.Token, "raced-user", "trustno1pass!", secret, code))
+	var public struct {
+		Code string `json:"code"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &public); err != nil {
+		t.Fatalf("decode response status=%d body=%s: %v", w.Code, w.Body.String(), err)
+	}
+	if w.Code != http.StatusBadRequest || public.Code != "enrollment_federation_required" {
+		t.Fatalf("status=%d code=%q, want enrollment_federation_required from the in-transaction gate", w.Code, public.Code)
+	}
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	if q.enrollments[e.Token].ConsumedAt.Valid {
+		t.Fatal("failed verify left the enrollment consumed")
+	}
+	if len(q.accounts) != 0 || len(q.passwords) != 0 || len(q.totp) != 0 || len(q.recovery) != 0 {
+		t.Fatalf("in-transaction gate ran after writes: accounts=%d passwords=%d totp=%d recovery=%d",
+			len(q.accounts), len(q.passwords), len(q.totp), len(q.recovery))
+	}
+}
+
+// TestPasswordTOTPVerifiedInviteWritesLinkAuditInsideTransaction: the
+// password+TOTP completion must write its identity-link audit row through the
+// transaction's writer, exactly like the passkey path — the shared pool writer
+// cannot see the uncommitted account, so the row's foreign key fails and it is
+// dropped, as the smoke review showed for the passkey path.
+func TestPasswordTOTPVerifiedInviteWritesLinkAuditInsideTransaction(t *testing.T) {
+	e := verifiedInviteEnrollment("pwd-totp-link-audit")
+	audits := &foreignKeyAuditCapture{}
+	s, q := newAtomicVRChatEnrollmentServerWithAudit(t, e, nil, audits)
+	secret, code := passwordTOTPCandidate(t, s)
+
+	w := httptest.NewRecorder()
+	s.handleEnrollmentPasswordTOTPVerifyHTTP(w, passwordTOTPVerifyRequest(e.Token, "audit-user", "trustno1pass!", secret, code))
+	if w.Code != http.StatusOK {
+		t.Fatalf("verify status = %d body=%s", w.Code, w.Body.String())
+	}
+
+	var linkRow *audit.Record
+	for i := range audits.records {
+		if audits.records[i].Event == audit.EventLink && audits.records[i].Factor == audit.FactorEnrollment {
+			linkRow = &audits.records[i]
+		}
+	}
+	if linkRow == nil {
+		t.Fatal("identity link audit row missing: the writer that cannot see the account dropped it")
+	}
+	q.mu.Lock()
+	var account db.Account
+	for _, account = range q.accounts {
+	}
+	q.mu.Unlock()
+	if linkRow.AccountID == nil || *linkRow.AccountID != account.ID {
+		t.Fatalf("identity link audit row = %+v, want account %d", linkRow, account.ID)
 	}
 }
 

@@ -976,7 +976,6 @@ func (s *Server) handleCreateInvitation(ctx context.Context, in *createInvitatio
 		if !idp.AllowSignIn {
 			requireLocal = true
 		}
-
 	}
 	tpl := &enrollment.EnrollmentTemplate{
 		Role:                    in.Body.Role,

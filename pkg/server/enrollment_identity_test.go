@@ -18,7 +18,6 @@ import (
 // against the production error, so a dropped leg fails by name.
 func TestRecheckInviteIdentityProvider(t *testing.T) {
 	base := validVRChatEnrollmentProvider()
-	row := verifiedInviteEnrollment("recheck")
 
 	cases := map[string]struct {
 		row      func(db.Enrollment) db.Enrollment //nolint:revive // constructor shorthand
@@ -36,8 +35,7 @@ func TestRecheckInviteIdentityProvider(t *testing.T) {
 			wantErr: true,
 		},
 		"provider deleted mid-flight": {
-			provider: func(p db.UpstreamIdp) db.UpstreamIdp { return p }, // replaced below
-			wantErr:  true,
+			wantErr: true,
 		},
 		"provider disabled mid-flight": {
 			provider: func(p db.UpstreamIdp) db.UpstreamIdp {
@@ -66,13 +64,15 @@ func TestRecheckInviteIdentityProvider(t *testing.T) {
 			q := &vrchatEnrollmentQueries{
 				providers: map[int64]db.UpstreamIdp{base.ID: base},
 			}
-			if tc.provider != nil {
-				if name == "provider deleted mid-flight" {
-					delete(q.providers, base.ID)
-				} else {
-					q.providers[base.ID] = tc.provider(base)
-				}
+			if name == "provider deleted mid-flight" {
+				delete(q.providers, base.ID)
+			} else if tc.provider != nil {
+				q.providers[base.ID] = tc.provider(base)
 			}
+			// A fresh row per subtest: one case mutates the row, and a
+			// shared variable would leak that mutation into whichever
+			// subtest the map iteration order runs after it.
+			row := verifiedInviteEnrollment("recheck")
 			if tc.row != nil {
 				row = tc.row(row)
 			}

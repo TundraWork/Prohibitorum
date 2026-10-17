@@ -89,10 +89,14 @@ func (s *failingSessionRevocationStore) ScanEntries(ctx context.Context, pattern
 
 type vrchatEnrollmentQueries struct {
 	db.Querier
-	mu                  sync.Mutex
-	enrollments         map[string]db.Enrollment
-	accounts            map[int32]db.Account
-	providers           map[int64]db.UpstreamIdp
+	mu          sync.Mutex
+	enrollments map[string]db.Enrollment
+	accounts    map[int32]db.Account
+	providers   map[int64]db.UpstreamIdp
+	// providerMu guards the provider map for slug reads that run while a
+	// transaction holds mu (the in-transaction re-check); see
+	// GetUpstreamIDPBySlugAny.
+	providerMu          sync.Mutex
 	providerErr         error
 	providerLockedCalls int
 	accountLockedCalls  int
@@ -110,8 +114,12 @@ type vrchatEnrollmentQueries struct {
 	insertHook        func(id int32)
 	insertAccountErr  error
 	insertIdentityErr error
-	revokeCalls       int
-	sessionOps        []string
+	// consumeMutate, when set, rewrites the enrollment row at consume time,
+	// after the handler's pre-transaction read — the mid-flight edit each
+	// in-transaction re-check guards against.
+	consumeMutate func(*db.Enrollment)
+	revokeCalls   int
+	sessionOps    []string
 }
 
 func (q *vrchatEnrollmentQueries) GetEnrollmentByToken(_ context.Context, token string) (db.Enrollment, error) {
@@ -190,8 +198,14 @@ func (q *vrchatEnrollmentQueries) GetUpstreamIDPByIDForUpdate(_ context.Context,
 }
 
 func (q *vrchatEnrollmentQueries) GetUpstreamIDPBySlugAny(_ context.Context, slug string) (db.UpstreamIdp, error) {
-	q.mu.Lock()
-	defer q.mu.Unlock()
+	// The in-transaction re-check reads the provider through the federation
+	// service while the transaction holds the root lock, so provider rows
+	// live under their own lock rather than reusing q.mu. Provider rows are
+	// immutable for the duration of one request in these tests; the separate
+	// lock is for mutual exclusion between concurrent slug scans, not against
+	// the enrollment maps.
+	q.providerMu.Lock()
+	defer q.providerMu.Unlock()
 	for _, provider := range q.providers {
 		if provider.Slug == slug {
 			return provider, nil
@@ -226,6 +240,11 @@ func (q *vrchatEnrollmentQueries) ConsumeEnrollment(_ context.Context, token str
 		return db.Enrollment{}, pgx.ErrNoRows
 	}
 	e.ConsumedAt = pgtype.Timestamptz{Time: time.Now(), Valid: true}
+	// A test can model the race the in-transaction re-check exists for: the
+	// enrollment row changes between the pre-transaction read and the consume.
+	if q.consumeMutate != nil {
+		q.consumeMutate(&e)
+	}
 	q.enrollments[token] = e
 	return e, nil
 }
@@ -468,6 +487,7 @@ func cloneEnrollmentQueries(q *vrchatEnrollmentQueries) *vrchatEnrollmentQueries
 		insertHook:          q.insertHook,
 		insertAccountErr:    q.insertAccountErr,
 		insertIdentityErr:   q.insertIdentityErr,
+		consumeMutate:       q.consumeMutate,
 	}
 	for token, row := range q.enrollments {
 		clone.enrollments[token] = row

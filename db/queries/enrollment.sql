@@ -98,9 +98,10 @@ WITH requested AS (
 SELECT group_id FROM applied ORDER BY group_id;
 
 -- name: CountPendingInvitationsByUpstreamIDP :many
--- Pending (unconsumed, unexpired) invitations whose verified snapshot or
--- stored binding points at this provider; deleting the provider cascades
--- them away. Providers with none are absent from the result and read as 0.
+-- Pending (unconsumed, unexpired) invitations whose verified snapshot
+-- (federated_upstream_idp_id) points at this provider; deleting the provider
+-- cascades them away. Providers with none are absent from the result and
+-- read as 0.
 SELECT federated_upstream_idp_id AS upstream_idp_id, count(*)::int AS pending_invitations
 FROM enrollment
 WHERE intent = 'invite'

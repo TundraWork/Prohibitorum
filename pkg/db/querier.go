@@ -58,9 +58,10 @@ type Querier interface {
 	CountActiveAdminsForUpdate(ctx context.Context) (int64, error)
 	CountCredentialsByAccount(ctx context.Context, accountID int32) (int64, error)
 	CountLoginBackgroundImages(ctx context.Context) (int64, error)
-	// Pending (unconsumed, unexpired) invitations whose verified snapshot or
-	// stored binding points at this provider; deleting the provider cascades
-	// them away. Providers with none are absent from the result and read as 0.
+	// Pending (unconsumed, unexpired) invitations whose verified snapshot
+	// (federated_upstream_idp_id) points at this provider; deleting the provider
+	// cascades them away. Providers with none are absent from the result and
+	// read as 0.
 	CountPendingInvitationsByUpstreamIDP(ctx context.Context) ([]CountPendingInvitationsByUpstreamIDPRow, error)
 	// Linked identities the account can actually sign in / step up with: the
 	// upstream IdP must still exist, be enabled, and allow sign-in.

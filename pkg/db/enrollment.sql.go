@@ -213,9 +213,10 @@ type CountPendingInvitationsByUpstreamIDPRow struct {
 	PendingInvitations int32       `json:"pendingInvitations"`
 }
 
-// Pending (unconsumed, unexpired) invitations whose verified snapshot or
-// stored binding points at this provider; deleting the provider cascades
-// them away. Providers with none are absent from the result and read as 0.
+// Pending (unconsumed, unexpired) invitations whose verified snapshot
+// (federated_upstream_idp_id) points at this provider; deleting the provider
+// cascades them away. Providers with none are absent from the result and
+// read as 0.
 func (q *Queries) CountPendingInvitationsByUpstreamIDP(ctx context.Context) ([]CountPendingInvitationsByUpstreamIDPRow, error) {
 	rows, err := q.db.Query(ctx, countPendingInvitationsByUpstreamIDP)
 	if err != nil {
