@@ -3,7 +3,7 @@ import { useSuspenseQuery } from "@tanstack/react-query";
 import { useNavigate, useRouter } from "@tanstack/react-router";
 import { describeErrorLanding } from "@/api/errors";
 import { sessionQueryOptions } from "@/api/queries";
-import { followRedirect, isSitePath } from "@/app/redirect";
+import { followRedirect, isSitePath, sitePathOf } from "@/app/redirect";
 import { Button } from "@/components/custom/Button";
 import { useInstanceBranding } from "@/components/custom/instance-branding";
 import { PublicStep } from "@/components/custom/PublicStep";
@@ -32,7 +32,19 @@ export function ErrorLandingPage() {
   });
   const app = search.app;
   const ref = search.ref;
-  const back = isSitePath(search.return_to) ? search.return_to : undefined;
+  // A transient authorize failure carries the authorize URI as return_to, and
+  // re-running the request is the one remedy, so that address — and only that
+  // one — turns the way out into a retry. Every other code keeps the go-back
+  // link a server-validated return_to offers.
+  const retryTo =
+    search.error === "server_error" &&
+    search.return_to?.startsWith("/oauth/authorize") === true
+      ? sitePathOf(search.return_to)
+      : undefined;
+  const back =
+    retryTo === undefined && isSitePath(search.return_to)
+      ? search.return_to
+      : undefined;
 
   return (
     <PublicStep
@@ -61,7 +73,15 @@ export function ErrorLandingPage() {
             </SurfaceAlert.Description>
           )}
           <div className="mt-3 flex flex-wrap gap-2">
-            {back ? (
+            {retryTo !== undefined ? (
+              <Button
+                size="sm"
+                variant="secondary"
+                onPress={() => void followRedirect(router, retryTo)}
+              >
+                <Trans id="route.retry">Try again</Trans>
+              </Button>
+            ) : back ? (
               <Button
                 size="sm"
                 variant="secondary"

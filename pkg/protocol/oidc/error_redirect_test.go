@@ -31,9 +31,26 @@ func assertErrorPageRedirect(t *testing.T, rec *httptest.ResponseRecorder, wantC
 	}
 }
 
+// assertNoReturnTo asserts the /error redirect parses and carries no
+// return_to: these failures are not worth running again, so the page is
+// given no address.
+func assertNoReturnTo(t *testing.T, rec *httptest.ResponseRecorder) {
+	t.Helper()
+	loc := rec.Result().Header.Get("Location")
+	u, err := url.Parse(loc)
+	if err != nil {
+		t.Fatalf("Location %q does not parse: %v", loc, err)
+	}
+	if u.Query().Get("return_to") != "" {
+		t.Fatalf("Location %q must not carry return_to", loc)
+	}
+}
+
 // TestAuthorize_UnknownClient_RedirectsToErrorPage: an unknown client_id
 // (maps to errInvalidClient via pgx.ErrNoRows) must redirect to
-// /error?error=invalid_request, not return JSON.
+// /error?error=invalid_request, not return JSON. A configuration error a
+// retry cannot fix carries no return_to: the error page has nothing to offer
+// to run again.
 func TestAuthorize_UnknownClient_RedirectsToErrorPage(t *testing.T) {
 	q := &fakeAuthzQueries{clientErr: pgx.ErrNoRows}
 	p := newProvider(q, &recordingAudit{})
@@ -42,24 +59,37 @@ func TestAuthorize_UnknownClient_RedirectsToErrorPage(t *testing.T) {
 	p.HandleAuthorize(rec, authedReq(baseParams()))
 
 	assertErrorPageRedirect(t, rec, errCodeInvalidRequest)
+	assertNoReturnTo(t, rec)
 }
 
 // TestAuthorize_TransientClientLoad_RedirectsToErrorPage: a non-ErrNoRows
 // client-load error (transient DB failure) must redirect to
-// /error?error=server_error.
+// /error?error=server_error, carrying the authorize URL as return_to so the
+// page can offer to run the request again.
 func TestAuthorize_TransientClientLoad_RedirectsToErrorPage(t *testing.T) {
 	q := &fakeAuthzQueries{clientErr: fmt.Errorf("db pool exhausted")}
 	p := newProvider(q, &recordingAudit{})
 
+	params := baseParams()
 	rec := httptest.NewRecorder()
-	p.HandleAuthorize(rec, authedReq(baseParams()))
+	p.HandleAuthorize(rec, authedReq(params))
 
 	assertErrorPageRedirect(t, rec, errCodeServerError)
+	loc := rec.Result().Header.Get("Location")
+	u, err := url.Parse(loc)
+	if err != nil {
+		t.Fatalf("Location %q does not parse: %v", loc, err)
+	}
+	want := "/oauth/authorize?" + params.Encode()
+	if got := u.Query().Get("return_to"); got != want {
+		t.Fatalf("return_to = %q, want the authorize URL %q", got, want)
+	}
 }
 
 // TestAuthorize_BadRedirectURI_RedirectsToErrorPage: a registered client but
 // an unregistered redirect_uri must redirect to /error?error=invalid_request
-// (still pre-validation; must NOT redirect to the untrusted URI).
+// (still pre-validation; must NOT redirect to the untrusted URI), and carries
+// no return_to for the same reason as the unknown-client case.
 func TestAuthorize_BadRedirectURI_RedirectsToErrorPage(t *testing.T) {
 	q := &fakeAuthzQueries{client: validClient()}
 	p := newProvider(q, &recordingAudit{})
@@ -70,6 +100,7 @@ func TestAuthorize_BadRedirectURI_RedirectsToErrorPage(t *testing.T) {
 	p.HandleAuthorize(rec, authedReq(v))
 
 	assertErrorPageRedirect(t, rec, errCodeInvalidRequest)
+	assertNoReturnTo(t, rec)
 	// Confirm we never touch the attacker URI.
 	if loc := rec.Result().Header.Get("Location"); strings.Contains(loc, "attacker.example.com") {
 		t.Fatalf("must not redirect to attacker URI; got Location=%q", loc)

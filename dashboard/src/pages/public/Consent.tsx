@@ -2,10 +2,13 @@ import { Link, linkVariants } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useMutation, useSuspenseQuery } from "@tanstack/react-query";
 import { Link as RouterLink, useRouter } from "@tanstack/react-router";
+import { useState } from "react";
+import { ApiError } from "@/api/errors";
 import { consentDecisionMutationOptions } from "@/api/mutations";
 import { consentRequestQueryOptions } from "@/api/queries";
 import { followRedirect } from "@/app/redirect";
 import { useInstanceBranding } from "@/components/custom/instance-branding";
+import { ConsentExpired } from "@/pages/public/consent/ConsentExpired";
 import {
   type ConsentFact,
   ConsentRequest,
@@ -27,7 +30,12 @@ export function ConsentPage() {
   const { name: instance } = useInstanceBranding();
   const router = useRouter();
   const decision = useMutation(consentDecisionMutationOptions());
+  const [expired, setExpired] = useState(false);
 
+  // The ticket is consumed by the answer itself, so a failed answer cannot be
+  // sent again: starting the authorization afresh is the one way on, offered
+  // by the same card the loader's expired ticket shows.
+  if (expired) return <ConsentExpired retryTo={returnTo} />;
   const app = request.client.displayName;
   const granted = request.alreadyGranted ?? [];
   const incremental = granted.length > 0;
@@ -123,14 +131,27 @@ export function ConsentPage() {
       decline={<Trans id="consent.deny">Deny</Trans>}
       approve={<Trans id="consent.allow">Allow</Trans>}
       onDecide={async (choice) => {
-        const { redirect } = await decision.mutateAsync({
-          ticket,
-          returnTo,
-          decision: choice === "approve" ? "approve" : "deny",
-        });
-        // Allowing resumes the authorization on the server; denying goes to
-        // the application's callback. Both leave the console.
-        await followRedirect(router, redirect);
+        try {
+          const { redirect } = await decision.mutateAsync({
+            ticket,
+            returnTo,
+            decision: choice === "approve" ? "approve" : "deny",
+          });
+          // Allowing resumes the authorization on the server; denying goes to
+          // the application's callback. Both leave the console.
+          await followRedirect(router, redirect);
+        } catch (error) {
+          // The ticket is single-use and was consumed by this answer, so
+          // sending it again can only fail — offer the restart instead.
+          if (
+            error instanceof ApiError &&
+            error.code === "invalid_consent_ticket"
+          ) {
+            setExpired(true);
+            return;
+          }
+          throw error;
+        }
       }}
       // The authorization is resumed from the start, so the next account is
       // asked about it afresh; the ticket belongs to this one.

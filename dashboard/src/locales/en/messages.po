@@ -7265,6 +7265,11 @@ msgid "apps.confirm.body"
 msgstr "This application will no longer read your profile. It will need to ask for permission again."
 
 #. js-lingui-explicit-id
+#: src/pages/public/consent/ConsentExpired.tsx
+msgid "consent.expired"
+msgstr "This authorization request has expired or was already used."
+
+#. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.invalid_consent_ticket"
 msgstr "This authorization request has expired or was already used. Go back to the app and sign in again."
@@ -7650,6 +7655,13 @@ msgid "settings.network.proxies"
 msgstr "Trusted proxies"
 
 #. js-lingui-explicit-id
+#: src/components/custom/RouteFeedback.tsx
+#: src/pages/public/consent/ConsentExpired.tsx
+#: src/pages/public/ErrorLanding.tsx
+msgid "route.retry"
+msgstr "Try again"
+
+#. js-lingui-explicit-id
 #: src/pages/public/Maintenance.tsx
 msgid "maintenance.retry"
 msgstr "Try again"
@@ -7657,11 +7669,6 @@ msgstr "Try again"
 #. js-lingui-explicit-id
 #: src/pages/public/Pair.tsx
 msgid "pair.retry"
-msgstr "Try again"
-
-#. js-lingui-explicit-id
-#: src/components/custom/RouteFeedback.tsx
-msgid "route.retry"
 msgstr "Try again"
 
 #. js-lingui-explicit-id
@@ -7725,6 +7732,7 @@ msgid "admin.oidc-apps.column.kind"
 msgstr "Type"
 
 #. js-lingui-explicit-id
+#: src/pages/public/consent/ConsentExpired.tsx
 #: src/pages/public/ErrorLanding.tsx
 msgid "error_page.title"
 msgstr "Unable to continue"

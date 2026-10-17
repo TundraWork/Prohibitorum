@@ -73,6 +73,16 @@ func (p *Provider) redirectToErrorPage(w http.ResponseWriter, r *http.Request, c
 	weberr.RedirectToError(w, r, code, ref)
 }
 
+// redirectToErrorPageWithReturn is redirectToErrorPage with a server-validated
+// same-origin returnTo, so the /error page can offer to restart the flow that
+// failed — the authorize URL itself after a transient load failure, whose only
+// remedy is to request it again.
+func (p *Provider) redirectToErrorPageWithReturn(w http.ResponseWriter, r *http.Request, code, returnTo string) {
+	ref := weberr.NewRef()
+	slog.Warn("oidc browser-facing flow error", "code", code, "ref", ref, "path", r.URL.Path)
+	weberr.RedirectToErrorWithReturn(w, r, code, ref, returnTo)
+}
+
 // redirectError 302-redirects to the client's redirect_uri with the OAuth
 // error encoded as query params (RFC 6749 §4.1.2.1). state is echoed only
 // when non-empty. iss is included when non-empty (RFC 9207 — the discovery

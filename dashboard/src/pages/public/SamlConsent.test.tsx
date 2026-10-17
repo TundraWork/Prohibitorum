@@ -6,7 +6,13 @@ import type { SamlConsentRequest } from "@/api/raw-paths";
 import { loadDocument } from "@/app/load-document";
 import { createQueryClient } from "@/app/query-client";
 import { i18n } from "@/i18n";
-import { fakeApi, publicApi, renderApp, testSession } from "@/test/app";
+import {
+  apiError,
+  fakeApi,
+  publicApi,
+  renderApp,
+  testSession,
+} from "@/test/app";
 
 vi.mock("@/app/load-document", () => ({ loadDocument: vi.fn() }));
 
@@ -87,4 +93,24 @@ it("declines with its own word", async () => {
     ticket: "s-1",
     decision: "decline",
   });
+});
+
+it("reports an expired ticket as a failed page, with no restart to offer", async () => {
+  fakeApi({
+    ...publicApi(testSession),
+    "GET /api/prohibitorum/saml-consent": () =>
+      apiError("invalid_consent_ticket", 400),
+  });
+  renderApp("/saml-consent?ticket=s-1", queryClient);
+  expect(
+    await screen.findByRole("heading", { name: "Unable to load this page" }),
+  ).toBeVisible();
+  expect(
+    screen.getByText(
+      "This authorization request has expired or was already used. Go back to the app and sign in again.",
+    ),
+  ).toBeVisible();
+  expect(
+    screen.queryByRole("button", { name: "Try again" }),
+  ).not.toBeInTheDocument();
 });
