@@ -630,8 +630,10 @@ func runVRChatSmoke(admin *client, base, control, caFile, serverLog, mockLog str
 	}
 	_, _ = v.publish(missingView)
 	resp, _, _ = v.verify(missing, missingFlow, "")
-	if statusOf(resp) != http.StatusOK || hasSessionCookie(resp.Cookies()) {
-		return fmt.Errorf("same-flow proof retry status=%d or issued session", statusOf(resp))
+	// Sign-in is on since step 10 and this identity is bound and confirmed, so
+	// the successful retry is a login: it must issue a session.
+	if statusOf(resp) != http.StatusOK || !hasSessionCookie(resp.Cookies()) {
+		return fmt.Errorf("same-flow proof retry status=%d, want a signed-in session", statusOf(resp))
 	}
 
 	step(fmt.Sprintf("vrchat %d/%d — browser cookie swap and expired state are rejected", 13, nVRChat))
