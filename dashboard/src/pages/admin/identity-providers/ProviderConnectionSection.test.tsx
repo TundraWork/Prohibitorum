@@ -265,6 +265,35 @@ describe("the connection form's sign-in response", () => {
   });
 });
 
+describe("the connection form's scopes", () => {
+  it("saves the scopes as typed without openid, and an empty list as []", async () => {
+    const provider = publicProvider();
+    api = fakeApi({
+      "PUT /api/prohibitorum/identity-providers/public-idp": () =>
+        Response.json(provider),
+    });
+    mount(provider);
+    const user = userEvent.setup();
+
+    // Remove both tags; openid is no longer locked or required.
+    for (const name of ["openid", "profile"]) {
+      await user.click(screen.getByRole("button", { name: `Remove ${name}` }));
+    }
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() =>
+      expect(
+        api.sent("PUT", "/api/prohibitorum/identity-providers/public-idp"),
+      ).toHaveLength(1),
+    );
+    const body = api.sent(
+      "PUT",
+      "/api/prohibitorum/identity-providers/public-idp",
+    )[0]?.body as { config: { scopes?: string[] } };
+    expect(body.config.scopes).toEqual([]);
+  });
+});
+
 describe("the connection form's avatar authentication", () => {
   it("saves the switch on, and keeps it off for a provider saved without the setting", async () => {
     const provider = publicProvider();

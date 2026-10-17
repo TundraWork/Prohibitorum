@@ -7,8 +7,8 @@ import { useAppForm } from "@/forms/use-app-form";
 import { i18n } from "@/i18n";
 import {
   scopeProblem,
-  scopesProblem,
   type TagListValue,
+  tagDraftProblem,
 } from "@/pages/admin/identity-providers/provider-validation";
 
 function Harness({
@@ -29,7 +29,7 @@ function Harness({
         <form.Form label="scopes">
           <form.AppField
             name="scopes"
-            validators={{ onSubmit: ({ value }) => scopesProblem(value) }}
+            validators={{ onSubmit: ({ value }) => tagDraftProblem(value) }}
           >
             {() => (
               <TagListField

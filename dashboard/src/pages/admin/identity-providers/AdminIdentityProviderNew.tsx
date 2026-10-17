@@ -33,7 +33,7 @@ import {
   issuerProblem,
   responseTypeProblem,
   scopeProblem,
-  scopesProblem,
+  tagDraftProblem,
   tagListValue,
 } from "@/pages/admin/identity-providers/provider-validation";
 import { ResponseTypeField } from "@/pages/admin/identity-providers/ResponseTypeField";
@@ -396,7 +396,7 @@ export function AdminIdentityProviderNew() {
 
               <form.AppField
                 name="scopes"
-                validators={{ onSubmit: ({ value }) => scopesProblem(value) }}
+                validators={{ onSubmit: ({ value }) => tagDraftProblem(value) }}
               >
                 {() => (
                   <TagListField
@@ -412,7 +412,6 @@ export function AdminIdentityProviderNew() {
                     placeholder="offline_access"
                     addLabel={<Trans id="form.tags.add">Add</Trans>}
                     check={scopeProblem}
-                    lockedTags={["openid"]}
                   />
                 )}
               </form.AppField>

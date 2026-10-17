@@ -311,7 +311,7 @@ function EffectiveConfigTable({
       {
         key,
         label: i18n._(label),
-        value: <EffectiveValue value={field.value} />,
+        value: <EffectiveValue field={key} value={field.value} />,
         source: source === undefined ? undefined : i18n._(source),
       },
     ];
@@ -319,7 +319,31 @@ function EffectiveConfigTable({
   return <SourcedList rows={rows} />;
 }
 
-function EffectiveValue({ value }: { value: string | string[] | null }) {
+export function EffectiveValue({
+  field,
+  value,
+}: {
+  field: string;
+  value: string | string[] | null;
+}) {
+  // The JWKS sentinel and an empty scope list are configured values with a
+  // meaning of their own; reading them as "not used" would say the opposite.
+  if (field === "jwksEndpoint" && value === "none") {
+    return (
+      <span className="text-sm text-muted">
+        <Trans id="admin.federation.diagnostics.jwks-none">
+          Not used — the ID token is skipped
+        </Trans>
+      </span>
+    );
+  }
+  if (field === "scopes" && Array.isArray(value) && value.length === 0) {
+    return (
+      <span className="text-sm text-muted">
+        <Trans id="admin.federation.diagnostics.scopes-none">None sent</Trans>
+      </span>
+    );
+  }
   const empty =
     value === null ||
     value === "" ||

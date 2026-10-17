@@ -262,7 +262,10 @@ type Client struct {
 }
 
 // resolvedRelyingParty retains the complete library RP contract while supplying
-// explicit OIDC endpoints and a verifier. IsOAuth2Only must remain false.
+// explicit OIDC endpoints and a verifier. IsOAuth2Only is true for a JWKS-none
+// provider: zitadel's verifyTokenResponse then returns the token without
+// reading the id_token, which is what keeps the plain-OAuth2 path in Exchange
+// from ever verifying one.
 type resolvedRelyingParty struct {
 	rp.RelyingParty
 	resolved ResolvedConfig
@@ -270,7 +273,7 @@ type resolvedRelyingParty struct {
 }
 
 func (r *resolvedRelyingParty) Issuer() string                       { return r.resolved.Issuer }
-func (r *resolvedRelyingParty) IsOAuth2Only() bool                   { return false }
+func (r *resolvedRelyingParty) IsOAuth2Only() bool                   { return r.resolved.JWKSEndpoint == jwksNone }
 func (r *resolvedRelyingParty) IsPKCE() bool                         { return r.resolved.PKCEMethod != "off" }
 func (r *resolvedRelyingParty) UserinfoEndpoint() string             { return r.resolved.UserInfoEndpoint }
 func (r *resolvedRelyingParty) IDTokenVerifier() *rp.IDTokenVerifier { return r.verifier }
@@ -309,7 +312,13 @@ func NewClient(_ context.Context, clientID, clientSecret, redirectURI string, re
 	if err != nil {
 		return nil, err
 	}
-	verifier := rp.NewIDTokenVerifier(resolved.Issuer, clientID, rp.NewRemoteKeySet(httpClient, resolved.JWKSEndpoint), rp.WithSupportedSigningAlgorithms(allowedAlgs...), rp.WithNonce(nonceFromCtx))
+	// A JWKS-none provider never verifies an id_token, so no key set is
+	// fetched or held: the verifier stays nil and IsOAuth2Only (above) keeps
+	// the library from reaching it during a code exchange.
+	var verifier *rp.IDTokenVerifier
+	if resolved.JWKSEndpoint != jwksNone {
+		verifier = rp.NewIDTokenVerifier(resolved.Issuer, clientID, rp.NewRemoteKeySet(httpClient, resolved.JWKSEndpoint), rp.WithSupportedSigningAlgorithms(allowedAlgs...), rp.WithNonce(nonceFromCtx))
+	}
 	configured := &resolvedRelyingParty{RelyingParty: base, resolved: resolved, verifier: verifier}
 	return &Client{rp: configured, issuer: resolved.Issuer, tokenEndpoint: resolved.TokenEndpoint, pkceMethod: resolved.PKCEMethod}, nil
 }
@@ -427,6 +436,13 @@ func (c *Client) Exchange(
 		opts = append(opts, rp.WithCodeVerifier(codeVerifier))
 	}
 	tokens, err := rp.CodeExchange[*oidclib.IDTokenClaims](ctx, code, c.rp, opts...)
+	// The two shapes that reach here without IDTokenClaims are one path: an
+	// upstream that returned no id_token (ErrMissingIDToken) and an OAuth2-only
+	// provider (IsOAuth2Only above), where the library returns the bare token
+	// with no error. Both continue below into the same fallback.
+	if err == nil && tokens != nil && tokens.IDTokenClaims == nil && tokens.AccessToken != "" {
+		err = rp.ErrMissingIDToken
+	}
 	if err != nil {
 		// Upstream returned no id_token but kept the access token usable:
 		// that is a result, not an error. Hand it back with IDToken empty and

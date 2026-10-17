@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -785,6 +786,135 @@ func TestAdapterAdvanceUserinfoFallbackNestedClaimPaths(t *testing.T) {
 	}
 	if result.Avatar == nil || result.Avatar.URL != "https://cdn.test/octo-large.png" {
 		t.Errorf("Avatar = %+v, want avatar.large URL", result.Avatar)
+	}
+}
+
+// TestAdapterAdvanceJWKSNoneSignsInThroughUserinfo pins the plain-OAuth-2.0
+// login: a JWKS-none provider whose token response carries an id_token still
+// identifies through the UserInfo document — Exchange dropped the token — with
+// the issuer from the flow-state snapshot and the subject from a numeric
+// subjectClaim, exactly as a provider that omits the id_token does.
+func TestAdapterAdvanceJWKSNoneSignsInThroughUserinfo(t *testing.T) {
+	op, err := mockop.New("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	jwksCalls := 0
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/jwks" {
+			jwksCalls++
+		}
+		op.Routes().ServeHTTP(w, r)
+	}))
+	defer ts.Close()
+	op.SetBase(ts.URL)
+	// A numeric id, as a plain OAuth 2.0 upstream's user document carries.
+	op.SetExtraClaims(map[string]any{"id": json.Number("67890"), "login": "octocat"})
+	op.SetClaims("sub-1", "octo@example.test", true, "octocat", "Octo Cat")
+	store := federationcore.NewSecretStore(map[int][]byte{1: make([]byte, 32)})
+	secret, err := store.SealProviderSecret([]byte("client-secret"), 7, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var config Config
+	if err := json.Unmarshal(adapterTestConfig(ts.URL, true), &config); err != nil {
+		t.Fatal(err)
+	}
+	config.SubjectClaim = "id"
+	config.Scopes = []string{}
+	config.ConfigurationMode = "manual"
+	config.TokenAuthMethod = "client_secret_post"
+	config.Endpoints = Endpoints{Authorization: new(ts.URL + "/authorize"), Token: new(ts.URL + "/token"), UserInfo: new(ts.URL + "/userinfo"), JWKS: new(jwksNone)}
+	raw, _ := json.Marshal(config)
+	provider := federationcore.Provider{ID: 7, Slug: "corp", Protocol: Protocol, Config: raw, Secret: secret, SecretStatus: "valid"}
+	adapter := NewAdapter(store)
+	state, next, err := adapter.Begin(context.Background(), provider, federationcore.BeginContext{
+		Intent: federationcore.IntentLogin, FlowID: "flow", CallbackURL: "https://idp.test/callback",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if u, _ := url.Parse(next.URL); u.Query().Has("scope") {
+		t.Errorf("authorization scope = %q, want none sent", u.Query().Get("scope"))
+	}
+	browser := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	response, err := browser.Get(next.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+	callback, err := response.Location()
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The mock OP mints an id_token with the exchange; the JWKS-none client
+	// must drop it, so the identity comes from userinfo instead.
+	result, err := adapter.Advance(context.Background(), provider, state, federationcore.ActionInput{
+		Kind: federationcore.ActionRedirect, Code: callback.Query().Get("code"), Issuer: callback.Query().Get("iss"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	identity := result.Identity
+	if identity == nil {
+		t.Fatal("Advance returned no identity")
+	}
+	if !identity.UserInfoFallback {
+		t.Error("UserInfoFallback = false, want true")
+	}
+	if identity.Issuer != ts.URL {
+		t.Errorf("Issuer = %q, want the flow state ExpectedIss %s", identity.Issuer, ts.URL)
+	}
+	if identity.Subject != "67890" {
+		t.Errorf("Subject = %q, want numeric subjectClaim value 67890", identity.Subject)
+	}
+	if identity.Username != "octocat" || identity.DisplayName != "Octo Cat" {
+		t.Errorf("Username/DisplayName = %q/%q, want octocat/Octo Cat", identity.Username, identity.DisplayName)
+	}
+	if identity.Email == nil || *identity.Email != "octo@example.test" {
+		t.Errorf("Email = %v, want octo@example.test", identity.Email)
+	}
+	if jwksCalls != 0 {
+		t.Errorf("JWKS requested %d times, want 0", jwksCalls)
+	}
+}
+
+// TestAdapterBeginEmptyScopesOmitScopeParameter pins the authorization request
+// of a provider with no scope configured: Begin's redirect carries no scope
+// parameter, which is what x/oauth2 does with an empty list.
+func TestAdapterBeginEmptyScopesOmitScopeParameter(t *testing.T) {
+	store := federationcore.NewSecretStore(map[int][]byte{1: make([]byte, 32)})
+	secret, err := store.SealProviderSecret([]byte("client-secret"), 7, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	config := adapterTestConfig("https://issuer.test", false)
+	var edited Config
+	if err := json.Unmarshal(config, &edited); err != nil {
+		t.Fatal(err)
+	}
+	edited.Scopes = []string{}
+	raw, _ := json.Marshal(edited)
+	provider := federationcore.Provider{ID: 7, Slug: "corp", Protocol: Protocol, Config: raw, Secret: secret, SecretStatus: "valid"}
+	adapter := NewAdapter(store)
+	adapter.resolveConfig = func(_ context.Context, c Config) (ResolvedConfig, error) {
+		return ResolvedConfig{Issuer: c.IssuerURL, AuthorizationEndpoint: c.IssuerURL + "/auth", TokenEndpoint: c.IssuerURL + "/token", JWKSEndpoint: c.IssuerURL + "/keys", PKCEMethod: c.PKCEMethod, TokenAuthMethod: "client_secret_basic", Scopes: c.Scopes}, nil
+	}
+	adapter.newClient = func(context.Context, Config, ResolvedConfig, string, string) (clientAPI, error) {
+		return &adapterFakeClient{}, nil
+	}
+	_, action, err := adapter.Begin(context.Background(), provider, federationcore.BeginContext{
+		Intent: federationcore.IntentLogin, FlowID: "flow", CallbackURL: "https://idp.test/callback",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	authorized, err := url.Parse(action.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if authorized.Query().Has("scope") {
+		t.Errorf("scope = %q, want no scope parameter", authorized.Query().Get("scope"))
 	}
 }
 

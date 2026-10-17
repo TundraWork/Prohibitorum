@@ -202,7 +202,12 @@ export function EndpointsField() {
           isDisabled={submitting}
           problem={problems.find((problem) => problem.endpoint === name)}
           description={
-            !discovery && name === "userinfo" ? (
+            name === "jwks" ? (
+              <Trans id="admin.federation.connection.jwks.hint">
+                Enter none to skip the ID token and identify people through the
+                UserInfo endpoint.
+              </Trans>
+            ) : !discovery && name === "userinfo" ? (
               <Trans id="admin.federation.connection.userinfo.hint">
                 Leave it empty to skip the UserInfo request.
               </Trans>

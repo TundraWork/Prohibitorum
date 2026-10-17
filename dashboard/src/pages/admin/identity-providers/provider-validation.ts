@@ -38,10 +38,9 @@ const scopeCharacters = msg({
   message: "A scope cannot contain spaces, quotes or backslashes.",
 });
 
-export const openidRequired = msg({
-  id: "admin.federation.scope.openid-required",
-  message: "The openid scope is required.",
-});
+// The JWKS endpoint's sentinel value: entering it skips the ID token and
+// identifies people through the UserInfo endpoint instead.
+const jwksNone = "none";
 
 const domainInvalid = msg({
   id: "admin.federation.claims.domains.invalid",
@@ -85,16 +84,6 @@ export function scopeProblem(
   if (/[\s"\\]/.test(value)) return scopeCharacters;
   if (tags.includes(value)) return duplicate;
   return undefined;
-}
-
-/** Everything a submit checks about the scopes list. */
-export function scopesProblem(
-  value: TagListValue,
-): MessageDescriptor | undefined {
-  return (
-    tagDraftProblem(value) ??
-    (value.tags.includes("openid") ? undefined : openidRequired)
-  );
 }
 
 /** A bare domain: labels of letters, digits and hyphens, at least one dot. */
@@ -290,9 +279,15 @@ const endpointRequired: Record<
   }),
   jwks: msg({
     id: "admin.federation.connection.jwks.required",
-    message: "Enter the JWKS endpoint.",
+    message: "Enter the JWKS endpoint, or none to skip the ID token.",
   }),
 };
+
+const userinfoNeededWithoutJwks = msg({
+  id: "admin.federation.connection.userinfo.required",
+  message:
+    "Enter the UserInfo endpoint. With JWKS set to none, people are identified through it.",
+});
 
 const overrideRequired = msg({
   id: "admin.federation.connection.override.required",
@@ -308,15 +303,22 @@ export function endpointProblems(
   for (const name of shownEndpoints(value)) {
     const text = value.values[name];
     if (text === "") {
-      // A manual configuration may leave UserInfo out; an override row that
-      // is empty overrides nothing and is a row to fill or remove.
+      // A manual configuration may leave UserInfo out — unless JWKS is none,
+      // because then the UserInfo endpoint is the only identity source. An
+      // override row that is empty overrides nothing and is a row to fill or
+      // remove.
       if (value.mode === "discovery") {
         problems.push({ endpoint: name, message: overrideRequired });
       } else if (name !== "userinfo") {
         problems.push({ endpoint: name, message: endpointRequired[name] });
+      } else if (value.values.jwks === jwksNone) {
+        problems.push({ endpoint: name, message: userinfoNeededWithoutJwks });
       }
       continue;
     }
+    // The JWKS sentinel is not an address; a near-miss still fails the URL
+    // check below, as it does on the server.
+    if (name === "jwks" && text === jwksNone) continue;
     const problem = endpointUrlProblem(text, allowPrivateNetwork);
     if (problem !== undefined)
       problems.push({ endpoint: name, message: problem });
@@ -453,7 +455,7 @@ export function connectionProblems(
       values.scopes,
       values.endpoints,
     ),
-    scopes: scopesProblem(values.scopes),
+    scopes: tagDraftProblem(values.scopes),
     endpoints: endpointProblems(values.endpoints, saved.allowPrivateNetwork),
   };
   return Object.fromEntries(

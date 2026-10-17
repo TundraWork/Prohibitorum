@@ -10,10 +10,8 @@ import {
   endpointsBody,
   endpointsValue,
   endpointUrlProblem,
-  openidRequired,
   responseTypeProblem,
   scopeProblem,
-  scopesProblem,
   subjectChanged,
   tagDraftProblem,
 } from "@/pages/admin/identity-providers/provider-validation";
@@ -53,13 +51,10 @@ describe("scopes", () => {
     expect(scopeProblem("OpenID", ["openid"])).toBeUndefined();
   });
 
-  it("requires openid and refuses text left in the input", () => {
-    expect(scopesProblem({ tags: ["openid"], draft: "" })).toBeUndefined();
-    expect(scopesProblem({ tags: ["profile"], draft: "" })).toBe(
-      openidRequired,
-    );
-    expect(scopesProblem({ tags: ["openid"], draft: "email" })).toBeDefined();
+  it("accepts an empty list and one without openid, and refuses text left in the input", () => {
     expect(tagDraftProblem({ tags: [], draft: "" })).toBeUndefined();
+    expect(tagDraftProblem({ tags: ["profile"], draft: "" })).toBeUndefined();
+    expect(tagDraftProblem({ tags: ["openid"], draft: "email" })).toBeDefined();
     expect(tagDraftProblem({ tags: [], draft: " " })).toBeDefined();
   });
 });
@@ -195,9 +190,61 @@ describe("endpoints", () => {
       ).map((problem) => problem.endpoint),
     ).toEqual(["token"]);
   });
-});
 
-describe("the connection form", () => {
+  it("accepts none on the JWKS row only, and requires UserInfo with it in manual mode", () => {
+    const manual = (values: Record<string, string>): EndpointsValue => ({
+      mode: "manual",
+      values: { ...blankEndpoints, ...values },
+      overridden: [],
+    });
+    // A full plain-OAuth-2.0 shape: JWKS none plus a UserInfo endpoint.
+    expect(
+      endpointProblems(
+        manual({
+          authorization: "https://idp.example.com/a",
+          token: "https://idp.example.com/t",
+          userinfo: "https://idp.example.com/u",
+          jwks: "none",
+        }),
+        false,
+      ),
+    ).toEqual([]);
+    // Manual JWKS none without UserInfo: the only identity source is gone.
+    expect(
+      endpointProblems(
+        manual({
+          authorization: "https://idp.example.com/a",
+          token: "https://idp.example.com/t",
+          jwks: "none",
+        }),
+        false,
+      ).map((problem) => problem.endpoint),
+    ).toEqual(["userinfo"]);
+    // Near-misses stay URL problems, and the sentinel is not a URL anywhere
+    // else.
+    expect(
+      endpointProblems(
+        manual({
+          authorization: "https://idp.example.com/a",
+          token: "https://idp.example.com/t",
+          userinfo: "https://idp.example.com/u",
+          jwks: "None",
+        }),
+        false,
+      ).map((problem) => problem.endpoint),
+    ).toEqual(["jwks"]);
+    expect(
+      endpointProblems(
+        {
+          mode: "discovery",
+          values: { ...blankEndpoints, token: "none" },
+          overridden: ["token"],
+        },
+        false,
+      ).map((problem) => problem.endpoint),
+    ).toEqual(["token"]);
+  });
+
   it("passes a valid discovery configuration", () => {
     expect(connectionProblems(connection(), saved)).toEqual({ endpoints: [] });
   });
@@ -237,7 +284,7 @@ describe("the connection form", () => {
     ).toBeUndefined();
   });
 
-  it("names the missing openid scope, issuer, client ID and endpoints", () => {
+  it("names the missing issuer, client ID and endpoints, and free scopes", () => {
     const problems = connectionProblems(
       connection({
         issuerUrl: "",
@@ -250,7 +297,7 @@ describe("the connection form", () => {
     );
     expect(problems.issuerUrl).toBeDefined();
     expect(problems.clientId).toBeDefined();
-    expect(problems.scopes).toBe(openidRequired);
+    expect(problems.scopes).toBeUndefined();
     expect(problems.endpoints).toHaveLength(3);
   });
 });

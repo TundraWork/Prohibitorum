@@ -1219,17 +1219,20 @@ function identityProviders(config: MockConfig): IdentityProvider[] {
 /**
  * A complete OIDC config for the rows that carry one, `{}` for the rest. Every
  * fourth row is a public client: it names no endpoints, because discovery is
- * the mode that reports them, and no secret.
+ * the mode that reports them, and no secret. Row 7 (index 6) is the plain
+ * OAuth 2.0 provider: manual endpoints with JWKS `none`, a UserInfo address
+ * and no scopes, so that shape can be reviewed without a backend.
  */
 function config0(protocol: string, index: number): unknown {
   if (protocol !== "oidc") return {};
   const issuer = `https://idp${index + 1}.example.test`;
   const publicClient = index % 4 === 3;
-  const manual = index % 2 !== 0 && !publicClient;
-  return {
+  const plainOAuth2 = index === 6;
+  const manual = (index % 2 !== 0 && !publicClient) || plainOAuth2;
+  const base = {
     issuerUrl: issuer,
     clientId: `client-${index + 1}`,
-    scopes: ["openid", "profile", "email"],
+    scopes: plainOAuth2 ? [] : ["openid", "profile", "email"],
     allowedDomains: [],
     requireVerifiedEmail: true,
     allowPrivateNetwork: false,
@@ -1237,7 +1240,7 @@ function config0(protocol: string, index: number): unknown {
     displayNameClaim: "name",
     emailClaim: "email",
     pictureClaim: "picture",
-    subjectClaim: "sub",
+    subjectClaim: plainOAuth2 ? "id" : "sub",
     // A manual configuration names its endpoints and its token auth method,
     // as the server requires; a discovered one overrides nothing.
     configurationMode: manual ? "manual" : "discovery",
@@ -1245,8 +1248,8 @@ function config0(protocol: string, index: number): unknown {
       ? {
           authorization: `${issuer}/authorize`,
           token: `${issuer}/token`,
-          userinfo: null,
-          jwks: `${issuer}/jwks`,
+          userinfo: plainOAuth2 ? `${issuer}/user` : null,
+          jwks: plainOAuth2 ? "none" : `${issuer}/jwks`,
         }
       : { authorization: null, token: null, userinfo: null, jwks: null },
     tokenAuthMethod: publicClient
@@ -1260,6 +1263,7 @@ function config0(protocol: string, index: number): unknown {
     ...(publicClient ? { responseType: "id_token" as const } : {}),
     ...(index % 4 === 1 ? { authenticateAvatarFetch: true } : {}),
   };
+  return base;
 }
 
 /**
@@ -1841,7 +1845,42 @@ function readReply(
     }
     // Both diagnostic reads are GETs, so they answer with the other reads
     // rather than waiting on the writes switch.
-    case "/api/prohibitorum/identity-providers/{slug}/effective-config":
+    case "/api/prohibitorum/identity-providers/{slug}/effective-config": {
+      const slug = new URL(request.url).pathname.split("/").at(-2) ?? "";
+      // The plain OAuth 2.0 row (see config0): everything manual, a UserInfo
+      // endpoint, the JWKS sentinel and no scopes, so the table's special
+      // values can be reviewed against it.
+      if (slug === "provider-7") {
+        return json({
+          mode: "manual",
+          fetchedAt: iso(0),
+          callbackUrl:
+            "http://localhost:8080/api/prohibitorum/auth/federation/provider-7/test/callback",
+          fields: {
+            issuer: { value: "https://idp7.example.test", source: "manual" },
+            authorizationEndpoint: {
+              value: "https://idp7.example.test/authorize",
+              source: "manual",
+            },
+            tokenEndpoint: {
+              value: "https://idp7.example.test/token",
+              source: "manual",
+            },
+            userinfoEndpoint: {
+              value: "https://idp7.example.test/user",
+              source: "manual",
+            },
+            jwksEndpoint: { value: "none", source: "manual" },
+            tokenAuthMethod: {
+              value: "client_secret_post",
+              source: "manual",
+            },
+            pkceMethod: { value: "S256", source: "manual" },
+            responseType: { value: "code", source: "manual" },
+            scopes: { value: [], source: "manual" },
+          },
+        });
+      }
       return json({
         mode: "discovery",
         fetchedAt: iso(0),
@@ -1872,6 +1911,7 @@ function readReply(
           scopes: { value: ["openid", "profile", "email"], source: "manual" },
         },
       });
+    }
 
     case "/api/prohibitorum/identity-providers/{slug}/tests/{id}":
       return json(diagnosticResult(config.admin.diagnosticOutcome));
