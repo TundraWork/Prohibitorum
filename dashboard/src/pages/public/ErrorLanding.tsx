@@ -3,7 +3,7 @@ import { useSuspenseQuery } from "@tanstack/react-query";
 import { useNavigate, useRouter } from "@tanstack/react-router";
 import { describeErrorLanding } from "@/api/errors";
 import { sessionQueryOptions } from "@/api/queries";
-import { followRedirect, isSitePath } from "@/app/redirect";
+import { followRedirect, isSitePath, sitePathOf } from "@/app/redirect";
 import { Button } from "@/components/custom/Button";
 import { useInstanceBranding } from "@/components/custom/instance-branding";
 import { PublicStep } from "@/components/custom/PublicStep";
@@ -32,7 +32,15 @@ export function ErrorLandingPage() {
   });
   const app = search.app;
   const ref = search.ref;
-  const back = isSitePath(search.return_to) ? search.return_to : undefined;
+  // A server_error whose flow can be started again says so: its return_to is
+  // the authorization address the server itself built. Other codes keep the
+  // go-back link.
+  const retryTo =
+    search.error === "server_error" ? sitePathOf(search.return_to) : undefined;
+  const back =
+    retryTo === undefined && isSitePath(search.return_to)
+      ? search.return_to
+      : undefined;
 
   return (
     <PublicStep
@@ -61,7 +69,15 @@ export function ErrorLandingPage() {
             </SurfaceAlert.Description>
           )}
           <div className="mt-3 flex flex-wrap gap-2">
-            {back ? (
+            {retryTo !== undefined ? (
+              <Button
+                size="sm"
+                variant="secondary"
+                onPress={() => void followRedirect(router, retryTo)}
+              >
+                <Trans id="route.retry">Try again</Trans>
+              </Button>
+            ) : back ? (
               <Button
                 size="sm"
                 variant="secondary"

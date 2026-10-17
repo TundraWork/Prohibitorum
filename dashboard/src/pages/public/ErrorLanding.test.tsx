@@ -2,11 +2,14 @@ import type { QueryClient } from "@tanstack/react-query";
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { loadDocument } from "@/app/load-document";
 import { createQueryClient } from "@/app/query-client";
 import { i18n } from "@/i18n";
 import { fakeApi, publicApi, renderApp, testSession } from "@/test/app";
 
 let queryClient: QueryClient;
+
+vi.mock("@/app/load-document", () => ({ loadDocument: vi.fn() }));
 
 beforeEach(() => {
   i18n.activate("en");
@@ -16,8 +19,8 @@ beforeEach(() => {
 afterEach(() => {
   queryClient.clear();
   vi.unstubAllGlobals();
+  vi.mocked(loadDocument).mockReset();
 });
-
 async function open(path: string, signedIn = true) {
   fakeApi(publicApi(signedIn ? testSession : null));
   const router = renderApp(path, queryClient);
@@ -85,11 +88,24 @@ describe("the error landing page", () => {
   it("goes back to a page on this site", async () => {
     const user = userEvent.setup();
     const router = await open(
-      `/error?error=server_error&return_to=${encodeURIComponent("/security")}`,
+      `/error?error=federation_state_invalid&return_to=${encodeURIComponent("/security")}`,
     );
     await user.click(screen.getByRole("button", { name: "Go back" }));
     await vi.waitFor(() =>
       expect(router.state.location.pathname).toBe("/security"),
+    );
+  });
+
+  it("starts the authorization again after a server error", async () => {
+    const user = userEvent.setup();
+    await open(
+      `/error?error=server_error&return_to=${encodeURIComponent("/oauth/authorize?client_id=wiki")}`,
+    );
+    await user.click(screen.getByRole("button", { name: "Try again" }));
+    await vi.waitFor(() =>
+      expect(loadDocument).toHaveBeenCalledWith(
+        "/oauth/authorize?client_id=wiki",
+      ),
     );
   });
 

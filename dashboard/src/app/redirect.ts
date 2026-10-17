@@ -14,6 +14,24 @@ export function isSitePath(value: string | undefined): value is string {
 }
 
 /**
+ * A path on this site, from a target that may also name this site's origin:
+ * a same-origin absolute URL resolves to its path, while anything off-site or
+ * unreadable is refused. The server's twin is `resolveReturnTo`.
+ */
+export function sitePathOf(value: string | undefined): string | undefined {
+  if (isSitePath(value)) return value;
+  if (value === undefined) return undefined;
+  let target: URL;
+  try {
+    target = new URL(value);
+  } catch {
+    return undefined;
+  }
+  if (target.origin !== window.location.origin) return undefined;
+  return target.pathname + target.search + target.hash;
+}
+
+/**
  * Follows a redirect target the server has already validated. A target that
  * matches a dashboard route navigates client-side; anything else — server
  * endpoints such as `/oauth/authorize` that must answer the request — loads

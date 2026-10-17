@@ -1,6 +1,7 @@
 import { redirect } from "@tanstack/react-router";
 import { ApiError } from "@/api/errors";
 import { sessionQueryOptions } from "@/api/queries";
+import { ConsentExpiredError } from "@/pages/public/consent/ConsentExpired";
 import type { RouterContext } from "@/routes/__root";
 
 /**
@@ -12,12 +13,20 @@ import type { RouterContext } from "@/routes/__root";
  * the authorization waited — goes to the sign-in page without a failed request
  * and its toast on the way. A session that ends between the two reads is
  * caught from the request itself.
+ *
+ * `retryTo` is the OIDC authorization address the consent page was sent from,
+ * when there is one. An unusable ticket turns into a `ConsentExpiredError`
+ * carrying it — the one way a consumed or expired ticket comes back is to
+ * start the authorization again — and the card the error draws decides
+ * whether that address is one this site can offer. The SAML page passes
+ * nothing and its failures stand as they are.
  */
 export async function loadConsentRequest<T>(
   { queryClient }: RouterContext,
   href: string,
   ticket: string | undefined,
   load: (ticket: string) => Promise<T>,
+  retryTo?: string,
 ): Promise<T> {
   if (ticket === undefined || ticket === "") {
     throw new ApiError({ kind: "local", code: "invalid_consent_ticket" });
@@ -29,6 +38,9 @@ export async function loadConsentRequest<T>(
     return await load(ticket);
   } catch (error) {
     if (error instanceof ApiError && error.code === "no_session") throw signIn;
+    if (error instanceof ApiError && error.code === "invalid_consent_ticket") {
+      throw new ConsentExpiredError(retryTo ?? "");
+    }
     throw error;
   }
 }

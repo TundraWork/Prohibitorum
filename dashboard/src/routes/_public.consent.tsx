@@ -3,7 +3,12 @@ import { z } from "zod";
 import { consentRequestQueryOptions } from "@/api/queries";
 import { loadConsentRequest } from "@/app/consent-loader";
 import { optionalSearchText } from "@/app/search-params";
+import { RouteError } from "@/components/custom/RouteFeedback";
 import { ConsentPage } from "@/pages/public/Consent";
+import {
+  ConsentExpired,
+  ConsentExpiredError,
+} from "@/pages/public/consent/ConsentExpired";
 
 /**
  * The OIDC authorization endpoint sends the browser here when an application
@@ -24,6 +29,16 @@ export const Route = createFileRoute("/_public/consent")({
       location.href,
       return_to ? ticket : undefined,
       (ticket) => context.queryClient.query(consentRequestQueryOptions(ticket)),
+      return_to,
+    ),
+  // An unusable ticket is not the page failing: it is the authorization
+  // needing to be started again, which the expired card offers. Everything
+  // else keeps the shared failure view.
+  errorComponent: (props) =>
+    props.error instanceof ConsentExpiredError ? (
+      <ConsentExpired retryTo={props.error.retryTo} />
+    ) : (
+      <RouteError {...props} />
     ),
   component: ConsentPage,
 });

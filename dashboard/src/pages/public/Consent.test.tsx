@@ -229,6 +229,57 @@ describe("OIDC consent", () => {
     });
   });
 
+  it("offers to start the authorization again when the ticket is no longer usable", async () => {
+    const api = consentApi();
+    api.routes["GET /api/prohibitorum/consent"] = () =>
+      apiError("invalid_consent_ticket", 400);
+    const user = userEvent.setup();
+    renderApp(address, queryClient);
+    expect(
+      await screen.findByRole("heading", { name: "Unable to continue" }),
+    ).toHaveFocus();
+    expect(
+      screen.getByText(
+        "This authorization request has expired or was already used.",
+      ),
+    ).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Try again" }));
+    expect(loadDocument).toHaveBeenCalledWith(authorize);
+  });
+
+  it("offers the same restart when the answer itself used up the ticket", async () => {
+    const api = consentApi();
+    api.routes["POST /api/prohibitorum/consent"] = () =>
+      apiError("invalid_consent_ticket", 400);
+    const user = userEvent.setup();
+    renderApp(address, queryClient);
+    await user.click(await screen.findByRole("button", { name: "Allow" }));
+    expect(
+      await screen.findByRole("heading", { name: "Unable to continue" }),
+    ).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Try again" }));
+    expect(loadDocument).toHaveBeenCalledWith(authorize);
+  });
+
+  it("explains an unusable ticket without a usable authorization address", async () => {
+    const api = fakeApi({
+      ...publicApi(testSession),
+      "GET /api/prohibitorum/consent": () =>
+        apiError("invalid_consent_ticket", 400),
+    });
+    renderApp(
+      `/consent?ticket=t-1&return_to=${encodeURIComponent("https://evil.example/authorize")}`,
+      queryClient,
+    );
+    expect(
+      await screen.findByRole("heading", { name: "Unable to continue" }),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole("button", { name: "Try again" }),
+    ).not.toBeInTheDocument();
+    expect(api.sent("GET", "/api/prohibitorum/consent")).toHaveLength(1);
+  });
+
   it("sends an anonymous reader to sign in and come back to this page", async () => {
     const api = fakeApi({
       ...publicApi(null),

@@ -7265,6 +7265,11 @@ msgid "apps.confirm.body"
 msgstr "该应用将无法再读取你的资料，下次使用时需要重新请求授权。"
 
 #. js-lingui-explicit-id
+#: src/pages/public/consent/ConsentExpired.tsx
+msgid "consent.expired"
+msgstr "该授权请求已过期或已使用。"
+
+#. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.invalid_consent_ticket"
 msgstr "授权请求已过期或已使用。请回到应用重新登录。"
@@ -7650,6 +7655,13 @@ msgid "settings.network.proxies"
 msgstr "可信代理"
 
 #. js-lingui-explicit-id
+#: src/components/custom/RouteFeedback.tsx
+#: src/pages/public/consent/ConsentExpired.tsx
+#: src/pages/public/ErrorLanding.tsx
+msgid "route.retry"
+msgstr "重试"
+
+#. js-lingui-explicit-id
 #: src/pages/public/Maintenance.tsx
 msgid "maintenance.retry"
 msgstr "重试"
@@ -7657,11 +7669,6 @@ msgstr "重试"
 #. js-lingui-explicit-id
 #: src/pages/public/Pair.tsx
 msgid "pair.retry"
-msgstr "重试"
-
-#. js-lingui-explicit-id
-#: src/components/custom/RouteFeedback.tsx
-msgid "route.retry"
 msgstr "重试"
 
 #. js-lingui-explicit-id
@@ -7725,6 +7732,7 @@ msgid "admin.oidc-apps.column.kind"
 msgstr "类型"
 
 #. js-lingui-explicit-id
+#: src/pages/public/consent/ConsentExpired.tsx
 #: src/pages/public/ErrorLanding.tsx
 msgid "error_page.title"
 msgstr "无法继续"

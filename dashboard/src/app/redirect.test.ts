@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isSitePath } from "@/app/redirect";
+import { isSitePath, sitePathOf } from "@/app/redirect";
 
 describe("isSitePath", () => {
   it("accepts a path on this site", () => {
@@ -11,6 +11,22 @@ describe("isSitePath", () => {
     "refuses %s",
     (value) => {
       expect(isSitePath(value)).toBe(false);
+    },
+  );
+});
+
+describe("sitePathOf", () => {
+  it("resolves a same-origin address to its path", () => {
+    const origin = window.location.origin;
+    expect(sitePathOf(`${origin}/oauth/authorize?client_id=1`)).toBe(
+      "/oauth/authorize?client_id=1",
+    );
+  });
+
+  it.each([undefined, "", "//x", "/\\x", "x", "https://evil.example/x"])(
+    "refuses %s",
+    (value) => {
+      expect(sitePathOf(value)).toBeUndefined();
     },
   );
 });
