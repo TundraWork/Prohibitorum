@@ -380,13 +380,18 @@ func (s *Service) VerifyFlow(ctx context.Context, request AdvanceRequest) (*Comp
 		s.recordVRChatTransition(operationCtx, "vrchat_proof_verified", state, provider.Slug, "")
 	}
 	logFlowSuccess(operationCtx, state, &request, provider.Slug, result.Identity.UserInfoFallback)
+	// The verify-then-create invite result carries only its enrollment grant;
+	// the account-shaped fields belong to the provisioned path.
 	completion := &CompletionResult{
 		Intent: state.Intent, AccountID: outcome.AccountID, IdentityID: outcome.IdentityID,
 		ProviderID: provider.ID, ProviderSlug: provider.Slug, ReturnTo: state.ReturnTo,
-		Remember: state.Remember,
-		AMR:      append([]string(nil), outcome.AMR...), IsNew: outcome.IsNew,
-		Confirmed: outcome.Confirmed, AvatarURL: result.Identity.AvatarURL,
+		Remember: state.Remember, Enrollment: outcome.Enrollment,
+		AMR: append([]string(nil), outcome.AMR...), IsNew: outcome.IsNew,
+		Confirmed: outcome.Confirmed,
 		OfferLocalSignin: outcome.OfferLocalSignin,
+	}
+	if outcome.Enrollment != nil {
+		return completion, nil
 	}
 	// The flow is already consumed and the lease keeps renewing, so the fetch
 	// can take its time without affecting the flow.

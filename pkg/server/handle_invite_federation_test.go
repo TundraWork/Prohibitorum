@@ -84,6 +84,38 @@ func (f *fakeFedQueries) ConsumeInviteEnrollment(ctx context.Context, token stri
 	return f.ConsumeEnrollment(ctx, token)
 }
 
+// LockInviteEnrollmentForUpdate mirrors the lock's conditions: an unconsumed,
+// unexpired invite row, without consuming it.
+func (f *fakeFedQueries) LockInviteEnrollmentForUpdate(_ context.Context, token string) (db.Enrollment, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	e, ok := f.enrollmentByToken[token]
+	if !ok || e.Intent != "invite" || e.ConsumedAt.Valid || !e.ExpiresAt.Valid || !e.ExpiresAt.Time.After(time.Now()) {
+		return db.Enrollment{}, pgx.ErrNoRows
+	}
+	return e, nil
+}
+
+// AttachInviteIdentity stores the snapshot on the seeded invite row; callers
+// assert the stored values through the returned row.
+func (f *fakeFedQueries) AttachInviteIdentity(_ context.Context, arg db.AttachInviteIdentityParams) (db.Enrollment, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	e, ok := f.enrollmentByToken[arg.Token]
+	if !ok || e.Intent != "invite" || e.ConsumedAt.Valid || !e.ExpiresAt.Valid || !e.ExpiresAt.Time.After(time.Now()) {
+		return db.Enrollment{}, pgx.ErrNoRows
+	}
+	e.FederatedUpstreamIdpID = arg.FederatedUpstreamIdpID
+	e.FederatedUpstreamIdpSlug = arg.FederatedUpstreamIdpSlug
+	e.FederatedUpstreamIss = arg.FederatedUpstreamIss
+	e.FederatedUpstreamSub = arg.FederatedUpstreamSub
+	e.FederatedDisplayName = arg.FederatedDisplayName
+	e.FederatedUpstreamData = arg.FederatedUpstreamData
+	e.FederatedAvatarUrl = arg.FederatedAvatarUrl
+	f.enrollmentByToken[arg.Token] = e
+	return e, nil
+}
+
 // --- helpers --------------------------------------------------------------
 
 // driveStartFederation hits /enrollments/{token}/start-federation and returns

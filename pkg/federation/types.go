@@ -194,8 +194,8 @@ func (r *CompletionResult) Validate() error {
 		if r.Enrollment.Token == "" {
 			return errors.New("federation: invalid enrollment completion")
 		}
-		if r.AccountID != 0 || r.IdentityID != 0 || r.ProviderID != 0 || r.ProviderSlug != "" ||
-			r.ReturnTo != "" || len(r.AMR) != 0 || r.IsNew || r.Confirmed || r.AvatarURL != "" || r.OfferLocalSignin {
+		if r.AccountID != 0 || r.IdentityID != 0 ||
+			len(r.AMR) != 0 || r.IsNew || r.Confirmed || r.AvatarURL != "" || r.OfferLocalSignin {
 			return errors.New("federation: mixed enrollment completion")
 		}
 		return nil
