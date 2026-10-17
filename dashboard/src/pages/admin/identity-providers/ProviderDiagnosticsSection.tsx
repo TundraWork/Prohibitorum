@@ -762,7 +762,7 @@ const stageIcon: Record<StageState, ReactNode> = {
  * endpoint, the request ID — are monospace so they can be matched against the
  * provider's own logs.
  */
-function StageRow({ stage }: { stage: DiagnosticStageView }) {
+export function StageRow({ stage }: { stage: DiagnosticStageView }) {
   const { i18n } = useLingui();
   const state = stageState(stage.status);
   const name = stageName(stage.name);
@@ -801,6 +801,12 @@ function StageRow({ stage }: { stage: DiagnosticStageView }) {
     ),
   ].filter((detail) => detail !== null);
 
+  // The provider's own description of the failure (e.g. Microsoft's AADSTS
+  // text) is a sentence, not a literal: it renders on its own line under a
+  // label, wrapped with break-words so a long URL inside it cannot push the
+  // stage list sideways.
+  const description = stage.errorDescription;
+
   return (
     <li className="grid grid-cols-[1rem_minmax(0,1fr)_auto] items-start gap-x-3 py-2.5 first:pt-0 last:pb-0">
       <span className="flex h-5 items-center">{stageIcon[state]}</span>
@@ -812,6 +818,14 @@ function StageRow({ stage }: { stage: DiagnosticStageView }) {
           <span className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted">
             {details}
           </span>
+        )}
+        {description !== undefined && (
+          <p className="text-xs text-muted">
+            <Trans id="admin.federation.diagnostics.stage.provider-message">
+              Provider message:
+            </Trans>{" "}
+            <span className="break-words">{description}</span>
+          </p>
         )}
       </div>
       <span

@@ -38,7 +38,11 @@ type DiagnosticStage struct {
 	Endpoint   string `json:"endpoint,omitempty"`
 	HTTPStatus int    `json:"httpStatus,omitempty"`
 	ErrorCode  string `json:"errorCode,omitempty"`
-	RequestID  string `json:"requestId,omitempty"`
+	// ErrorDescription is the front-channel error_description of the
+	// authorization redirect (what the provider already put in the admin's
+	// browser URL); back-channel upstream bodies are never stored here.
+	ErrorDescription string `json:"errorDescription,omitempty"`
+	RequestID        string `json:"requestId,omitempty"`
 }
 type DiagnosticResult struct {
 	Status    string              `json:"status"`
@@ -210,7 +214,7 @@ func clearDiagnosticSecrets(flow *diagnosticFlow) {
 	flow.CallbackIDToken = ""
 }
 
-func (d *Diagnostics) Callback(ctx context.Context, id, slug, browser, code, upstreamError, issuer, idToken, requestID string) error {
+func (d *Diagnostics) Callback(ctx context.Context, id, slug, browser, code, upstreamError, errorDescription, issuer, idToken, requestID string) error {
 	flow, raw, err := d.read(ctx, id, slug, browser, nil)
 	if err != nil {
 		return err
@@ -224,6 +228,11 @@ func (d *Diagnostics) Callback(ctx context.Context, id, slug, browser, code, ups
 	if upstreamError != "" {
 		stage.Status = "failed"
 		stage.ErrorCode = safeOAuthError(upstreamError)
+		// The description is front-channel text the provider already put in
+		// the admin's browser URL; keep it size-bounded and verbatim.
+		if errorDescription != "" && len(errorDescription) <= 8192 {
+			stage.ErrorDescription = errorDescription
+		}
 		flow.Stages[1].Status = "failed"
 	} else if implicit {
 		// The implicit response's only credential is the front-channel
