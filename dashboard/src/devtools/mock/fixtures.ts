@@ -491,7 +491,9 @@ function providerList(config: MockConfig): Provider[] {
     slug: `provider-${index + 1}`,
     displayName: `Example IdP ${index + 1}`,
     protocol: "oidc",
-    allowSignIn: true,
+    // Every fourth entry has sign-in off: the login page must drop it while
+    // the linked-identities page still lists it.
+    allowSignIn: index % 4 !== 3,
   }));
 }
 

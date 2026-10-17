@@ -542,7 +542,7 @@ func runVRChatSmoke(admin *client, base, control, caFile, serverLog, mockLog str
 		return fmt.Errorf("invitation preview allowedMethods = %v", inviteePreview.AllowedMethods)
 	}
 	for field := range inviteeFields {
-		if field != "intent" && field != "expiresAt" && field != "requireLocalCredential" && field != "verifiedIdentity" && field != "allowedMethods" && field != "expectedUpstreamIdpSlug" {
+		if field != "intent" && field != "expiresAt" && field != "requireLocalCredential" && field != "verifiedIdentity" && field != "allowedMethods" && field != "expectedUpstreamIdpSlug" && field != "providers" {
 			return fmt.Errorf("invitation preview exposed unexpected field %q", field)
 		}
 	}
