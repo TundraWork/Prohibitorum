@@ -3,6 +3,7 @@ package oidc
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -108,6 +109,131 @@ func TestConfigResponseTypeRules(t *testing.T) {
 		c["scopes"] = []string{"profile"}
 	})); err != nil {
 		t.Fatalf("code flow without openid refused: %v", err)
+	}
+}
+
+// TestConfigJWKSNoneAndFreeScopes pins the plain-OAuth-2.0 shape: the JWKS
+// sentinel is accepted exactly (lowercase, no surrounding space), a manual
+// JWKS-none provider must name a UserInfo endpoint because it is the only
+// source of identity left, and the scope list no longer needs openid — or any
+// entry at all.
+func TestConfigJWKSNoneAndFreeScopes(t *testing.T) {
+	edit := func(f func(map[string]any)) []byte {
+		var c map[string]any
+		_ = json.Unmarshal([]byte(validDefinitionConfig), &c)
+		f(c)
+		raw, _ := json.Marshal(c)
+		return raw
+	}
+	manualNone := func(f func(map[string]any)) []byte {
+		return edit(func(c map[string]any) {
+			c["configurationMode"] = "manual"
+			c["tokenAuthMethod"] = "client_secret_post"
+			c["endpoints"] = map[string]any{
+				"authorization": "https://idp.example/auth",
+				"token":         "https://idp.example/token",
+				"userinfo":      "https://idp.example/user",
+				"jwks":          "none",
+			}
+			if f != nil {
+				f(c)
+			}
+		})
+	}
+	for name, raw := range map[string][]byte{
+		"manual": manualNone(nil),
+		"discovery override": edit(func(c map[string]any) {
+			c["endpoints"].(map[string]any)["jwks"] = "none"
+		}),
+		"empty scopes": edit(func(c map[string]any) { c["scopes"] = []string{} }),
+		"scopes without openid": edit(func(c map[string]any) {
+			c["scopes"] = []string{"profile", "email"}
+		}),
+	} {
+		t.Run(name, func(t *testing.T) {
+			if err := (Definition{}).ValidateConfig(raw); err != nil {
+				t.Fatalf("refused: %v", err)
+			}
+		})
+	}
+	for _, tc := range []struct {
+		name, want string
+		raw        []byte
+	}{
+		{"capitalized None", "invalid endpoint URL", edit(func(c map[string]any) {
+			c["endpoints"].(map[string]any)["jwks"] = "None"
+		})},
+		{"padded none", "invalid endpoint URL", edit(func(c map[string]any) {
+			c["endpoints"].(map[string]any)["jwks"] = " none"
+		})},
+		{"manual without userinfo", "a userinfo endpoint is required when jwks is none", manualNone(func(c map[string]any) {
+			c["endpoints"].(map[string]any)["userinfo"] = nil
+		})},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			err := (Definition{}).ValidateConfig(tc.raw)
+			if err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("ValidateConfig = %v, want an error naming %q", err, tc.want)
+			}
+		})
+	}
+}
+
+// TestResolveConfigJWKSNone pins the resolution of a JWKS-none provider: the
+// sentinel survives as the resolved endpoint with the override source, and a
+// discovery document without userinfo_endpoint is a resolution error because
+// userinfo is the only identity source such a provider has left.
+func TestResolveConfigJWKSNone(t *testing.T) {
+	// discovery serves no userinfo_endpoint: the override-only source of
+	// identity for a JWKS-none provider is missing until the config supplies
+	// a userinfo override.
+	doc := `{"issuer":"%s","authorization_endpoint":"%s/auth","token_endpoint":"%s/token","jwks_uri":"%s/keys"}`
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = fmt.Fprintf(w, doc, r.Host, "http://"+r.Host, "http://"+r.Host, "http://"+r.Host)
+	}))
+	defer ts.Close()
+	// The discovery issuer must match the issuer URL, which the httptest
+	// listener makes http://127.0.0.:port; serve it verbatim.
+	discoveryIssuer := ts.URL
+	ts.Config.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = fmt.Fprintf(w, doc, discoveryIssuer, discoveryIssuer, discoveryIssuer, discoveryIssuer)
+	})
+	c := testConfig(t)
+	c.IssuerURL = ts.URL
+	c.AllowPrivateNetwork = true
+	c.Scopes = []string{}
+	c.Endpoints.JWKS = new("none")
+	if _, err := ResolveConfig(context.Background(), c); err == nil || !strings.Contains(err.Error(), "a userinfo endpoint is required when jwks is none") {
+		t.Fatalf("resolve without userinfo: %v", err)
+	}
+	c.Endpoints.UserInfo = new(discoveryIssuer + "/user")
+	resolved, err := ResolveConfig(context.Background(), c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resolved.JWKSEndpoint != "none" || resolved.Sources["jwksEndpoint"] != "override" || resolved.UserInfoEndpoint != discoveryIssuer+"/user" || len(resolved.Scopes) != 0 {
+		t.Fatalf("resolved = %+v", resolved)
+	}
+
+	// A discovery document that itself reports jwks_uri "none" is data, not
+	// configuration: the sentinel is an admin's choice, so resolution must
+	// refuse it as an invalid endpoint URL rather than turn the provider
+	// OAuth2-only with source "discovery" — which would also leave an
+	// ID-token-only provider with no verifier to check its front-channel
+	// token with.
+	discoveryNone := `{"issuer":"%s","authorization_endpoint":"%s/auth","token_endpoint":"%s/token","jwks_uri":"none","userinfo_endpoint":"%s/user"}`
+	ts2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = fmt.Fprintf(w, discoveryNone, "pending", "pending", "pending", "pending")
+	}))
+	defer ts2.Close()
+	ts2.Config.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = fmt.Fprintf(w, discoveryNone, ts2.URL, ts2.URL, ts2.URL, ts2.URL)
+	})
+	c2 := testConfig(t)
+	c2.IssuerURL = ts2.URL
+	c2.AllowPrivateNetwork = true
+	if r, err := ResolveConfig(context.Background(), c2); err == nil || !strings.Contains(err.Error(), "invalid endpoint URL") {
+		t.Fatalf("discovery jwks_uri none resolved to %+v, want an invalid-endpoint error (err %v)", r, err)
 	}
 }
 

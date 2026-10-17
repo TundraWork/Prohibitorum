@@ -3,7 +3,10 @@ import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 import type { DiagnosticStageView } from "@/api/raw-admin-paths";
 import { i18n } from "@/i18n";
-import { StageRow } from "@/pages/admin/identity-providers/ProviderDiagnosticsSection";
+import {
+  EffectiveValue,
+  StageRow,
+} from "@/pages/admin/identity-providers/ProviderDiagnosticsSection";
 
 function renderRow(stage: DiagnosticStageView) {
   return render(
@@ -50,5 +53,32 @@ describe("StageRow", () => {
     });
     expect(screen.queryByText(/Provider message/)).not.toBeInTheDocument();
     expect(container.querySelectorAll("p")).toHaveLength(0);
+  });
+});
+
+describe("EffectiveValue", () => {
+  it("spells out the JWKS sentinel and an empty scope list instead of not-used", () => {
+    const { rerender } = render(
+      <I18nProvider i18n={i18n}>
+        <EffectiveValue field="jwksEndpoint" value="none" />
+      </I18nProvider>,
+    );
+    expect(screen.getByText(/Not used — the ID token is skipped/)).toHaveClass(
+      "text-muted",
+    );
+    rerender(
+      <I18nProvider i18n={i18n}>
+        <EffectiveValue field="scopes" value={[]} />
+      </I18nProvider>,
+    );
+    expect(screen.getByText("None sent")).toHaveClass("text-muted");
+    // Every other empty value keeps today's wording, and the sentinel stays
+    // raw text only for other fields.
+    rerender(
+      <I18nProvider i18n={i18n}>
+        <EffectiveValue field="userinfoEndpoint" value="" />
+      </I18nProvider>,
+    );
+    expect(screen.getByText("Not used")).not.toHaveTextContent(/skipped/);
   });
 });

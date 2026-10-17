@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -12,6 +13,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	federationcore "prohibitorum/pkg/federation"
 	federationoidc "prohibitorum/pkg/federation/providers/oidc"
@@ -701,6 +703,7 @@ type fallbackOP struct {
 	mu               sync.Mutex
 	tokenAccept      string
 	tokenRequests    int
+	jwksRequests     int
 	userinfoRequests int
 	userinfoAuth     string
 	userinfoUA       string
@@ -759,6 +762,9 @@ func (op *fallbackOP) serve(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(op.userinfoBody))
 	case "/jwks":
+		op.mu.Lock()
+		op.jwksRequests++
+		op.mu.Unlock()
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(`{"keys":[]}`))
 	default:
@@ -772,6 +778,11 @@ func (op *fallbackOP) tokenStats() (accept string, requests int) {
 	return op.tokenAccept, op.tokenRequests
 }
 
+func (op *fallbackOP) jwksStats() int {
+	op.mu.Lock()
+	defer op.mu.Unlock()
+	return op.jwksRequests
+}
 func (op *fallbackOP) userinfoStats() (auth string, requests int) {
 	op.mu.Lock()
 	defer op.mu.Unlock()
@@ -836,6 +847,116 @@ func TestClient_ExchangeJSONWithoutIDTokenReturnsFallback(t *testing.T) {
 	accept, _ := op.tokenStats()
 	if accept != "application/json" {
 		t.Errorf("token request Accept = %q, want application/json", accept)
+	}
+}
+
+// newOAuth2OnlyClient resolves a JWKS-none provider against a fallbackOP:
+// the same discovery document, but with the JWKS endpoint overridden to the
+// sentinel, so no key set is built and no /jwks request can happen.
+func newOAuth2OnlyClient(t *testing.T, ts *httptest.Server) *federationoidc.Client {
+	t.Helper()
+	none := "none"
+	resolved, err := federationoidc.ResolveConfig(context.Background(), federationoidc.Config{IssuerURL: ts.URL, ClientID: "fallback-client", Scopes: []string{"profile"}, UsernameClaim: "login", DisplayNameClaim: "name", EmailClaim: "email", PictureClaim: "picture", SubjectClaim: "id", ConfigurationMode: "discovery", TokenAuthMethod: "client_secret_post", PKCEMethod: "S256", AllowPrivateNetwork: true, Endpoints: federationoidc.Endpoints{JWKS: &none}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	c, err := federationoidc.NewClient(context.Background(), "fallback-client", "secret", "https://rp.example.test/callback", resolved, nil, true)
+	if err != nil {
+		t.Fatalf("NewClient: %v", err)
+	}
+	return c
+}
+
+// TestClient_ExchangeOAuth2OnlyIgnoresIDToken pins the JWKS-none path: the
+// token response may carry an id_token, and Exchange still returns the
+// fallback shape — access token and token type, IDToken empty — without a
+// single JWKS request, because the provider identifies through userinfo.
+func TestClient_ExchangeOAuth2OnlyIgnoresIDToken(t *testing.T) {
+	ts, op := newFallbackOP(t)
+	// A well-formed-looking JWT as the id_token: if the client ever tried to
+	// verify it, the empty key set would fail the exchange.
+	op.tokenBody = `{"access_token":"at_oauth2","token_type":"Bearer","id_token":"eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJodHRwOi8vbG9jYWxob3N0Iiwic3ViIjoiMTIzNCJ9.c2ln"}`
+	c := newOAuth2OnlyClient(t, ts)
+
+	toks, err := c.Exchange(context.Background(), "code", "verifier", ts.URL, "nonce")
+	if err != nil {
+		t.Fatalf("Exchange: %v", err)
+	}
+	if toks.IDToken != "" {
+		t.Errorf("IDToken = %q, want empty on a JWKS-none provider", toks.IDToken)
+	}
+	if toks.AccessToken != "at_oauth2" || toks.TokenType != "Bearer" {
+		t.Errorf("tokens = %+v, want the OAuth2 token fields", toks)
+	}
+	if got := op.jwksStats(); got != 0 {
+		t.Errorf("JWKS requested %d times, want 0", got)
+	}
+}
+
+// TestClient_AuthURLEmptyScopesOmitScopeParameter pins the wire shape of an
+// empty scope list: golang.org/x/oauth2 omits the scope parameter entirely,
+// which is what a plain OAuth 2.0 server expects when no scope is configured.
+func TestClient_AuthURLEmptyScopesOmitScopeParameter(t *testing.T) {
+	ts, _ := newMockOP(t)
+	resolved, err := federationoidc.ResolveConfig(context.Background(), federationoidc.Config{IssuerURL: ts.URL, ClientID: "test-client", Scopes: []string{}, UsernameClaim: "login", DisplayNameClaim: "name", EmailClaim: "email", PictureClaim: "picture", SubjectClaim: "id", ConfigurationMode: "discovery", TokenAuthMethod: "client_secret_post", PKCEMethod: "S256", AllowPrivateNetwork: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	c, err := federationoidc.NewClient(context.Background(), "test-client", "secret", "https://rp.example.test/callback", resolved, nil, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	empty, err := url.Parse(c.AuthURL("state", "nonce", "challenge"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if q := empty.Query(); q.Has("scope") {
+		t.Errorf("scope = %q, want the parameter omitted", q.Get("scope"))
+	}
+	full := newClient(t, ts)
+	u, err := url.Parse(full.AuthURL("state", "nonce", "challenge"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if scope := u.Query().Get("scope"); !strings.Contains(scope, "openid") {
+		t.Errorf("scope = %q, want the configured scopes", scope)
+	}
+}
+
+// TestClient_VerifyImplicitWithoutVerifierErrors is defence in depth: the
+// save rule keeps ID-token-only off a JWKS-none provider and ResolveConfig
+// rejects a discovery-supplied "none", so a client should never reach the
+// implicit flow with no key set. If one ever does, the answer is an error,
+// not the nil-pointer panic zitadel's verifier would raise.
+func TestClient_VerifyImplicitWithoutVerifierErrors(t *testing.T) {
+	ts, _ := newMockOP(t)
+	none := "none"
+	resolved, err := federationoidc.ResolveConfig(context.Background(), federationoidc.Config{
+		IssuerURL: ts.URL, ClientID: "public-client", Scopes: []string{"openid"},
+		UsernameClaim: "preferred_username", DisplayNameClaim: "name", EmailClaim: "email",
+		PictureClaim: "picture", SubjectClaim: "sub",
+		ConfigurationMode: "discovery", TokenAuthMethod: "none",
+		PKCEMethod: "S256", AllowPrivateNetwork: true,
+		Endpoints: federationoidc.Endpoints{JWKS: &none, UserInfo: new(ts.URL + "/userinfo")},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	c, err := federationoidc.NewClient(context.Background(), "public-client", "", "https://rp.example.test/callback", resolved, nil, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A well-formed token, not a junk string: a malformed JWT is rejected
+	// before the verifier is ever reached, which would make this test pass
+	// with the nil-verifier check deleted. This one carries an RS256 header
+	// and plausible iss/aud/nonce/exp claims with a junk signature, so it
+	// walks right up to key lookup — the step that panics without the check.
+	now := time.Now().UTC().Unix()
+	claims := fmt.Sprintf(`{"iss":%q,"sub":"subject","aud":"public-client","nonce":"nonce","exp":%d,"iat":%d}`, ts.URL, now+300, now)
+	header, payload, signature := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"RS256","typ":"JWT"}`)), base64.RawURLEncoding.EncodeToString([]byte(claims)), base64.RawURLEncoding.EncodeToString([]byte("junk-signature"))
+	idToken := header + "." + payload + "." + signature
+	if _, err := c.VerifyImplicit(context.Background(), idToken, ts.URL, "nonce"); err == nil {
+		t.Fatal("VerifyImplicit accepted a token with no key set to verify it against")
 	}
 }
 

@@ -586,6 +586,57 @@ func TestDiagnosticsUserInfoFallback(t *testing.T) {
 	}
 }
 
+// TestDiagnosticsJWKSNoneSkipsIDTokenStage runs a whole connection test for
+// a plain OAuth 2.0 provider: JWKS overridden to none, no scopes, and a token
+// response that still carries an id_token. The client drops it, so the
+// id_token stage reads skipped with no idToken document, and every identity
+// field is labelled as read from userinfo.
+func TestDiagnosticsJWKSNoneSkipsIDTokenStage(t *testing.T) {
+	h := newDiagnosticHarness(t)
+	none := "none"
+	h.op.SetExtraClaims(map[string]any{"id": json.Number("9007199254740993"), "login": "octo"})
+	h.configure(func(c *Config) {
+		c.Endpoints.JWKS = &none
+		c.Scopes = []string{}
+		c.SubjectClaim = "id"
+		c.UsernameClaim = "login"
+	})
+	s := h.start(t)
+	if authorize, err := url.Parse(s.AuthorizationURL); err != nil || authorize.Query().Has("scope") {
+		t.Fatalf("authorization scope = %q, want none sent (err %v)", authorize.Query().Get("scope"), err)
+	}
+	h.callback(t, s)
+	result, err := h.service.Complete(context.Background(), s.ID, h.provider, h.browser, h.actor, "request-complete")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Status != "succeeded" {
+		t.Fatalf("result=%+v", result)
+	}
+	if stage := stageOf(result, "id_token"); stage.Status != "skipped" {
+		t.Fatalf("id_token stage = %+v, want skipped", stage)
+	}
+	if result.IDToken != nil {
+		t.Fatalf("id_token document=%+v, want none", result.IDToken)
+	}
+	if stage := stageOf(result, "userinfo"); stage.Status != "succeeded" {
+		t.Fatalf("userinfo stage = %+v, want succeeded", stage)
+	}
+	identity := result.Identity
+	if identity == nil || identity.Subject != (DiagnosticField{Value: "9007199254740993", Source: "userinfo", Claim: "id"}) {
+		t.Fatalf("subject=%+v identity=%+v", identity.Subject, identity)
+	}
+	if identity.Username != (DiagnosticField{Value: "octo", Source: "userinfo", Claim: "login"}) {
+		t.Fatalf("username=%+v", identity.Username)
+	}
+	if identity.Issuer != (DiagnosticField{Value: h.server.URL, Source: "configuration"}) {
+		t.Fatalf("issuer=%+v", identity.Issuer)
+	}
+	if result.UserInfo == nil || !strings.Contains(result.UserInfo.JSON, `"id":9007199254740993`) {
+		t.Fatalf("userinfo=%+v", result.UserInfo)
+	}
+}
+
 func TestDiagnosticsUserInfoFallbackFailures(t *testing.T) {
 	for _, scenario := range []struct{ name, code string }{{"no userinfo endpoint", "userinfo_required"}, {"no subject", "subject_missing"}} {
 		t.Run(scenario.name, func(t *testing.T) {

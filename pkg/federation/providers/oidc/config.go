@@ -166,8 +166,8 @@ func validateEndpoint(raw string, private bool) error {
 }
 
 func validateConfig(c Config) error {
-	if c.ClientID == "" || len(c.Scopes) == 0 || c.UsernameClaim == "" || c.DisplayNameClaim == "" || c.EmailClaim == "" || c.PictureClaim == "" || c.SubjectClaim == "" {
-		return errors.New("federation/oidc: client id, scopes and claim names are required")
+	if c.ClientID == "" || c.UsernameClaim == "" || c.DisplayNameClaim == "" || c.EmailClaim == "" || c.PictureClaim == "" || c.SubjectClaim == "" {
+		return errors.New("federation/oidc: client id and claim names are required")
 	}
 	if err := validateEndpoint(c.IssuerURL, c.AllowPrivateNetwork); err != nil {
 		return err
@@ -214,6 +214,14 @@ func validateConfig(c Config) error {
 		if endpoint == nil {
 			if c.ConfigurationMode == "manual" && name != "userinfo" {
 				return fmt.Errorf("federation/oidc: %s endpoint is required", name)
+			}
+			continue
+		}
+		// The JWKS sentinel is not an address; any other value, including a
+		// near-miss such as "None" or " none", goes through URL validation.
+		if name == "jwks" && *endpoint == jwksNone {
+			if c.ConfigurationMode == "manual" && c.Endpoints.UserInfo == nil {
+				return errors.New("federation/oidc: a userinfo endpoint is required when jwks is none")
 			}
 			continue
 		}
@@ -277,9 +285,23 @@ func ResolveConfig(ctx context.Context, c Config) (ResolvedConfig, error) {
 		if *field.value == "" && field.name == "userinfoEndpoint" {
 			continue
 		}
+		// The JWKS sentinel is not an address — but only an admin can choose
+		// it, in manual mode or as an override. A discovery document that
+		// reports jwks_uri "none" is data, not configuration: it must fail
+		// URL validation rather than silently turn the provider OAuth2-only
+		// with source "discovery".
+		if field.name == "jwksEndpoint" && *field.value == jwksNone && field.override != nil {
+			continue
+		}
 		if err := validateEndpoint(*field.value, c.AllowPrivateNetwork); err != nil {
 			return ResolvedConfig{}, fmt.Errorf("%s: %w", field.name, err)
 		}
+	}
+	// A JWKS-none provider has no id_token to fall back from, so userinfo is
+	// its only source of identity: a discovery document that offers none and
+	// no override means sign-in has nowhere to read the person from.
+	if r.JWKSEndpoint == jwksNone && r.UserInfoEndpoint == "" {
+		return ResolvedConfig{}, errors.New("federation/oidc: a userinfo endpoint is required when jwks is none")
 	}
 	r.FetchedAt = time.Now().UTC()
 	return r, nil
