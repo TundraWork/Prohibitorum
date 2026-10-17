@@ -665,8 +665,9 @@ func runVRChatSmoke(admin *client, base, control, caFile, serverLog, mockLog str
 	v.fixture.PublicStatus, v.fixture.RetryAfter = 0, ""
 	_ = v.setFixture()
 	resp, _, _ = v.verify(rate, rateFlow, "")
-	if statusOf(resp) != http.StatusOK || hasSessionCookie(resp.Cookies()) {
-		return fmt.Errorf("rate recovery status=%d or issued session", statusOf(resp))
+	// A bound identity with sign-in on: recovery completes as a login.
+	if statusOf(resp) != http.StatusOK || !hasSessionCookie(resp.Cookies()) {
+		return fmt.Errorf("rate recovery status=%d, want a signed-in session", statusOf(resp))
 	}
 
 	step(fmt.Sprintf("vrchat %d/%d — malformed, oversized, and temporary 5xx responses remain retryable", 15, nVRChat))
@@ -687,8 +688,9 @@ func runVRChatSmoke(admin *client, base, control, caFile, serverLog, mockLog str
 		v.fixture.PublicBodyMode, v.fixture.PublicStatus = "", 0
 		_ = v.setFixture()
 		resp, _, _ = v.verify(failureClient, failureFlow, "")
-		if statusOf(resp) != http.StatusOK || hasSessionCookie(resp.Cookies()) {
-			return fmt.Errorf("public failure recovery %q/%d status=%d or issued session", failure.mode, failure.status, statusOf(resp))
+		// Bound identity, sign-in on: recovery completes as a login.
+		if statusOf(resp) != http.StatusOK || !hasSessionCookie(resp.Cookies()) {
+			return fmt.Errorf("public failure recovery %q/%d status=%d, want a signed-in session", failure.mode, failure.status, statusOf(resp))
 		}
 	}
 
