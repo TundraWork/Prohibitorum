@@ -83,7 +83,7 @@ func readRequireIdentity(t *testing.T, s *Server, ticket string, sess *authn.Ses
 
 func requireIdentityFixture() (*fakeRequireIdentityQueries, fakeRequireIdentityTickets, *authn.Session) {
 	q := &fakeRequireIdentityQueries{
-		clients:   map[string]db.OidcClient{"rp-1": {ClientID: "rp-1", DisplayName: "Team wiki"}},
+		clients:   map[string]db.OidcClient{"rp-1": {ClientID: "rp-1", DisplayName: "Team wiki", RedirectUris: []string{"https://rp.example/after"}}},
 		providers: map[string]string{"vrchat": "VRChat", "steam": "Steam"},
 		icons:     map[string]string{"upstream_idp/vrchat": "etag-v"},
 	}
@@ -159,5 +159,17 @@ func TestRequireIdentityRequestGone(t *testing.T) {
 	}
 	if rec := readRequireIdentity(t, requireIdentityServer(q, tickets), "t-1", nil); rec.Code != http.StatusUnauthorized {
 		t.Errorf("no session: status = %d, want 401", rec.Code)
+	}
+}
+
+// The page never offers to return to an address the application has since
+// unregistered.
+func TestRequireIdentityRequestRedirectURIUnregistered(t *testing.T) {
+	q, tickets, sess := requireIdentityFixture()
+	c := q.clients["rp-1"]
+	c.RedirectUris = []string{"https://rp.example/other"}
+	q.clients["rp-1"] = c
+	if rec := readRequireIdentity(t, requireIdentityServer(q, tickets), "t-1", sess); rec.Code != http.StatusGone {
+		t.Fatalf("status = %d body %s, want 410", rec.Code, rec.Body)
 	}
 }
