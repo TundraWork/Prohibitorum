@@ -268,6 +268,10 @@ const errorMessages: Readonly<Record<string, MessageDescriptor>> = {
     message:
       "This authorization request has expired or was already used. Go back to the app and sign in again.",
   }),
+  require_identity_ticket_expired: msg({
+    id: "error.require_identity_ticket_expired",
+    message: "This request has expired. Go back to the app and start again.",
+  }),
   invalid_return_to: msg({
     id: "error.invalid_return_to",
     message: "Invalid return address.",
@@ -710,6 +714,24 @@ const landingMessages: Readonly<Record<string, MessageDescriptor>> = {
     id: "error.landing.federation_sign_in_disabled",
     message:
       "You can't sign in with this provider. Sign in another way, then link it from your account.",
+  }),
+  require_identity_invalid_client: msg({
+    id: "error.landing.require_identity_invalid_client",
+    message: "This app isn't registered with {instance}, or it's turned off.",
+  }),
+  require_identity_invalid_redirect_uri: msg({
+    id: "error.landing.require_identity_invalid_redirect_uri",
+    message:
+      "The app asked to come back to an address it hasn't registered with {instance}.",
+  }),
+  require_identity_invalid_providers: msg({
+    id: "error.landing.require_identity_invalid_providers",
+    message: "The app asked for a sign-in provider that isn't available.",
+  }),
+  require_identity_invalid_id_token: msg({
+    id: "error.landing.require_identity_invalid_id_token",
+    message:
+      "The app sent account details that couldn't be checked. Go back to the app and try again.",
   }),
 };
 

@@ -95,6 +95,25 @@ export async function clearSessionQueries(queryClient: QueryClient) {
  * the ticket; the decision is what uses it up. It is never served from cache,
  * because a ticket decided in another tab is gone.
  */
+/**
+ * The require-identity request a ticket names. It belongs to the session that
+ * opened it, and is read again each time the page comes back from a link.
+ */
+export function requireIdentityRequestQueryOptions(ticket: string) {
+  return queryOptions({
+    queryKey: ["require-identity", ticket],
+    staleTime: 0,
+    meta: { requiresSession: true },
+    queryFn: ({ signal }) =>
+      requireJsonData(
+        client.GET("/api/prohibitorum/require-identity/{ticket}", {
+          params: { path: { ticket } },
+          signal,
+        }),
+      ),
+  });
+}
+
 export function consentRequestQueryOptions(ticket: string) {
   return queryOptions({
     queryKey: ["consent-request", ticket],

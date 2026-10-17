@@ -28,6 +28,16 @@ msgid "consent.title.more"
 msgstr "{app} is asking for more access"
 
 #. js-lingui-explicit-id
+#: src/pages/public/RequireIdentity.tsx
+msgid "require-identity.mismatch.description"
+msgstr "{app} is using another account than the one signed in here. Sign in with that account to verify it, or go back to {app}."
+
+#. js-lingui-explicit-id
+#: src/pages/public/RequireIdentity.tsx
+msgid "require-identity.title"
+msgstr "{app} needs to verify your identity"
+
+#. js-lingui-explicit-id
 #: src/pages/public/Consent.tsx
 msgid "consent.facts"
 msgstr "{app} will be able to:"
@@ -5065,6 +5075,11 @@ msgid "success.identity-provider.saved"
 msgstr "Provider saved"
 
 #. js-lingui-explicit-id
+#: src/pages/public/RequireIdentity.tsx
+msgid "require-identity.providers"
+msgstr "Providers"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProvisioningModeField.tsx
 msgid "admin.federation.general.mode"
 msgstr "Provisioning"
@@ -5640,6 +5655,16 @@ msgstr "Retires"
 #: src/pages/admin/settings/SigningKeysPanel.tsx
 msgid "settings.keys.status.decommissioning"
 msgstr "Retiring"
+
+#. js-lingui-explicit-id
+#: src/pages/public/RequireIdentity.tsx
+msgid "require-identity.return"
+msgstr "Return to {app}"
+
+#. js-lingui-explicit-id
+#: src/pages/public/RequireIdentity.tsx
+msgid "require-identity.done"
+msgstr "Returning to {app}"
 
 #. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
@@ -6268,6 +6293,11 @@ msgid "console.logout"
 msgstr "Sign out"
 
 #. js-lingui-explicit-id
+#: src/pages/public/RequireIdentity.tsx
+msgid "require-identity.mismatch.switch"
+msgstr "Sign out and use another account"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.sessions.revoke_all"
 msgstr "Sign out everywhere"
@@ -6743,6 +6773,16 @@ msgstr "The addresses entered here replace what discovery finds."
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
+msgid "error.landing.require_identity_invalid_providers"
+msgstr "The app asked for a sign-in provider that isn't available."
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.landing.require_identity_invalid_redirect_uri"
+msgstr "The app asked to come back to an address it hasn't registered with {instance}."
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
 msgid "error.landing.invalid_request"
 msgstr "The app sent a request that can't be used."
 
@@ -6750,6 +6790,11 @@ msgstr "The app sent a request that can't be used."
 #: src/api/errors.ts
 msgid "error.landing.saml_request_invalid"
 msgstr "The app sent a sign-in request that can't be used."
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.landing.require_identity_invalid_id_token"
+msgstr "The app sent account details that couldn't be checked. Go back to the app and try again."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/SamlDangerSection.tsx
@@ -7181,6 +7226,11 @@ msgstr "This app can't be opened directly from {instance}."
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
+msgid "error.landing.require_identity_invalid_client"
+msgstr "This app isn't registered with {instance}, or it's turned off."
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
 msgid "error.landing.saml_sp_unknown"
 msgstr "This app isn't registered with {instance}."
 
@@ -7428,6 +7478,11 @@ msgstr "This provider is turned off or no longer exists. Clear it to stop allowi
 #: src/api/errors.ts
 msgid "error.cross_origin_request"
 msgstr "This request came from another website, so it was refused. Start again from a page on this site."
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.require_identity_ticket_expired"
+msgstr "This request has expired. Go back to the app and start again."
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -8153,6 +8208,11 @@ msgid "federation_flow.proof.verify"
 msgstr "Verify"
 
 #. js-lingui-explicit-id
+#: src/pages/public/RequireIdentity.tsx
+msgid "require-identity.verify"
+msgstr "Verify"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderOperatorSection.tsx
 msgid "admin.federation.operator.verify"
 msgstr "Verify"
@@ -8168,9 +8228,19 @@ msgid "enroll.password_totp.finish"
 msgstr "Verify and finish"
 
 #. js-lingui-explicit-id
+#: src/pages/public/RequireIdentity.tsx
+msgid "require-identity.verify.label"
+msgstr "Verify with {name}"
+
+#. js-lingui-explicit-id
 #: src/components/custom/SudoDialog.tsx
 msgid "sudo.use-passkey"
 msgstr "Verify with a passkey"
+
+#. js-lingui-explicit-id
+#: src/pages/public/RequireIdentity.tsx
+msgid "require-identity.any"
+msgstr "Verify with any one of these."
 
 #. js-lingui-explicit-id
 #: src/pages/public/FederationFlow.tsx
@@ -8374,6 +8444,11 @@ msgstr "You only need to confirm this once. You can revoke it at any time in <0>
 #: src/pages/security/IdentitiesPanel.tsx
 msgid "security.identities.unlink.body"
 msgstr "You will no longer be able to sign in through this provider. Your other sign-in methods are unaffected."
+
+#. js-lingui-explicit-id
+#: src/pages/public/RequireIdentity.tsx
+msgid "require-identity.mismatch.title"
+msgstr "You're signed in as a different account"
 
 #. js-lingui-explicit-id
 #: src/pages/public/Welcome.tsx

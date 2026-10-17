@@ -31,6 +31,11 @@ func init() {
 		{Code: "enrollment_method_not_allowed", Status: http.StatusBadRequest, LocaleKey: "errors.enrollment_method_not_allowed", DiagnosticKind: "enrollment"},
 		{Code: "bad_request", Status: http.StatusBadRequest, LocaleKey: "errors.bad_request", DiagnosticKind: "validation"},
 		{Code: "invalid_consent_ticket", Status: http.StatusBadRequest, LocaleKey: "errors.invalid_consent_ticket", DiagnosticKind: "validation"},
+		{Code: "require_identity_invalid_client", Status: http.StatusBadRequest, LocaleKey: "errors.require_identity_invalid_client", DiagnosticKind: "validation"},
+		{Code: "require_identity_invalid_redirect_uri", Status: http.StatusBadRequest, LocaleKey: "errors.require_identity_invalid_redirect_uri", DiagnosticKind: "validation"},
+		{Code: "require_identity_invalid_providers", Status: http.StatusBadRequest, LocaleKey: "errors.require_identity_invalid_providers", DiagnosticKind: "validation"},
+		{Code: "require_identity_invalid_id_token", Status: http.StatusBadRequest, LocaleKey: "errors.require_identity_invalid_id_token", DiagnosticKind: "validation"},
+		{Code: "require_identity_ticket_expired", Status: http.StatusGone, LocaleKey: "errors.require_identity_ticket_expired", DiagnosticKind: "validation"},
 		{Code: "invalid_role", Status: http.StatusBadRequest, LocaleKey: "errors.invalid_role", DiagnosticKind: "validation", DetailKeys: map[string]struct{}{"allowed": {}}},
 		{Code: "invalid_manager_role", Status: http.StatusBadRequest, LocaleKey: "errors.invalid_manager_role", DiagnosticKind: "validation"},
 		{Code: "invalid_username", Status: http.StatusBadRequest, LocaleKey: "errors.invalid_username", DiagnosticKind: "validation"},
@@ -254,6 +259,12 @@ func ErrBadRequest() *AuthError {
 // already used, or belongs to another account.
 func ErrInvalidConsentTicket() *AuthError {
 	return newErr(http.StatusBadRequest, "invalid_consent_ticket", "授权请求已失效，请重新发起登录")
+}
+
+// ErrRequireIdentityTicketExpired is the require-identity page's request that
+// is gone, expired, or belongs to another session.
+func ErrRequireIdentityTicketExpired() *AuthError {
+	return newErr(http.StatusGone, "require_identity_ticket_expired", "验证请求已失效，请回到应用重新开始")
 }
 
 // AllowedRoles is the complete account-role vocabulary accepted by admin

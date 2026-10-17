@@ -144,6 +144,11 @@ type Server struct {
 	// /api/prohibitorum/consent handlers without standing up *db.Queries.
 	// Nil in production — handlers fall back to s.queries.
 	oidcConsentOverride oidcConsentQueries
+	// requireIdentityOverride / requireIdentityTicketsOverride let tests drive
+	// GET /api/prohibitorum/require-identity/{ticket} without *db.Queries or
+	// a live OIDC provider. Nil in production.
+	requireIdentityOverride        requireIdentityQueries
+	requireIdentityTicketsOverride requireIdentityTickets
 	// patQueriesOverride lets tests inject a fake patQueries for the
 	// /me/tokens handlers without standing up *db.Queries. Nil in production —
 	// handlers fall back to s.queries.
@@ -670,6 +675,10 @@ func (s *Server) registerOperations() {
 	// protected domain to plant the per-domain forward-auth cookie. Both public.
 	registerOpHTTP(s.router, "GET", "/api/prohibitorum/forward-auth/verify", publicReq, s.oidcOP.HandleForwardAuthVerify)
 	registerOpHTTP(s.router, "GET", "/api/prohibitorum/forward-auth/login-context", publicReq, s.oidcOP.HandleForwardAuthLoginContext)
+	// An application sends the user here when it needs an identity from one of
+	// its listed providers (PHB-129). A browser navigation, not a JSON API.
+	registerOpHTTP(s.router, "GET", "/api/prohibitorum/require-identity", publicReq, s.oidcOP.HandleRequireIdentity)
+	registerOpHTTP(s.router, "GET", "/api/prohibitorum/require-identity/{ticket}", browserReq, s.handleRequireIdentityRequestHTTP)
 	s.router.Get(oidcop.ForwardAuthPathPrefix+"/callback", s.oidcOP.HandleForwardAuthCallback)
 	// Sign-out: the protected-domain sign_out clears the per-domain cookie + KV
 	// session, then bounces to the IdP-domain sso-logout (which terminates the

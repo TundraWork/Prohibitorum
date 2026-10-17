@@ -28,6 +28,16 @@ msgid "consent.title.more"
 msgstr "{app} 请求更多权限"
 
 #. js-lingui-explicit-id
+#: src/pages/public/RequireIdentity.tsx
+msgid "require-identity.mismatch.description"
+msgstr "{app} 使用的是另一个账号，和这里登录的不是同一个。请用那个账号登录后再验证，或者回到 {app}。"
+
+#. js-lingui-explicit-id
+#: src/pages/public/RequireIdentity.tsx
+msgid "require-identity.title"
+msgstr "{app} 需要验证你的身份"
+
+#. js-lingui-explicit-id
 #: src/pages/public/Consent.tsx
 msgid "consent.facts"
 msgstr "{app} 将能够："
@@ -5065,6 +5075,11 @@ msgid "success.identity-provider.saved"
 msgstr "提供商已保存"
 
 #. js-lingui-explicit-id
+#: src/pages/public/RequireIdentity.tsx
+msgid "require-identity.providers"
+msgstr "提供商"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProvisioningModeField.tsx
 msgid "admin.federation.general.mode"
 msgstr "账号创建"
@@ -5640,6 +5655,16 @@ msgstr "退役于"
 #: src/pages/admin/settings/SigningKeysPanel.tsx
 msgid "settings.keys.status.decommissioning"
 msgstr "退役中"
+
+#. js-lingui-explicit-id
+#: src/pages/public/RequireIdentity.tsx
+msgid "require-identity.return"
+msgstr "返回 {app}"
+
+#. js-lingui-explicit-id
+#: src/pages/public/RequireIdentity.tsx
+msgid "require-identity.done"
+msgstr "正在返回 {app}"
 
 #. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
@@ -6268,6 +6293,11 @@ msgid "console.logout"
 msgstr "退出登录"
 
 #. js-lingui-explicit-id
+#: src/pages/public/RequireIdentity.tsx
+msgid "require-identity.mismatch.switch"
+msgstr "退出并换个账号登录"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.sessions.revoke_all"
 msgstr "全部登出"
@@ -6743,6 +6773,16 @@ msgstr "这里填写的地址会替换发现结果。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
+msgid "error.landing.require_identity_invalid_providers"
+msgstr "应用请求的登录提供商不可用。"
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.landing.require_identity_invalid_redirect_uri"
+msgstr "应用要求返回的地址没有在 {instance} 登记。"
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
 msgid "error.landing.invalid_request"
 msgstr "应用发来的请求无效。"
 
@@ -6750,6 +6790,11 @@ msgstr "应用发来的请求无效。"
 #: src/api/errors.ts
 msgid "error.landing.saml_request_invalid"
 msgstr "应用发来的登录请求无效。"
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.landing.require_identity_invalid_id_token"
+msgstr "应用发来的账号信息无法核实。请回到应用重试。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/SamlDangerSection.tsx
@@ -7181,6 +7226,11 @@ msgstr "该应用不允许从 {instance} 直接打开。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
+msgid "error.landing.require_identity_invalid_client"
+msgstr "这个应用没有在 {instance} 登记，或者已被停用。"
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
 msgid "error.landing.saml_sp_unknown"
 msgstr "该应用没有在 {instance} 注册。"
 
@@ -7428,6 +7478,11 @@ msgstr "这个提供商已停用或已不存在。取消勾选即可不再允许
 #: src/api/errors.ts
 msgid "error.cross_origin_request"
 msgstr "该请求来自其他网站，已被拒绝。请从本站页面重新操作。"
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.require_identity_ticket_expired"
+msgstr "这次请求已失效。请回到应用重新开始。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -8153,6 +8208,11 @@ msgid "federation_flow.proof.verify"
 msgstr "验证"
 
 #. js-lingui-explicit-id
+#: src/pages/public/RequireIdentity.tsx
+msgid "require-identity.verify"
+msgstr "验证"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderOperatorSection.tsx
 msgid "admin.federation.operator.verify"
 msgstr "验证"
@@ -8168,9 +8228,19 @@ msgid "enroll.password_totp.finish"
 msgstr "验证并完成"
 
 #. js-lingui-explicit-id
+#: src/pages/public/RequireIdentity.tsx
+msgid "require-identity.verify.label"
+msgstr "用 {name} 验证"
+
+#. js-lingui-explicit-id
 #: src/components/custom/SudoDialog.tsx
 msgid "sudo.use-passkey"
 msgstr "使用通行密钥验证"
+
+#. js-lingui-explicit-id
+#: src/pages/public/RequireIdentity.tsx
+msgid "require-identity.any"
+msgstr "选择以下任一方式完成验证。"
 
 #. js-lingui-explicit-id
 #: src/pages/public/FederationFlow.tsx
@@ -8374,6 +8444,11 @@ msgstr "该确认只需要一次。你可以随时在「<0>已连接应用</0>�
 #: src/pages/security/IdentitiesPanel.tsx
 msgid "security.identities.unlink.body"
 msgstr "你将无法再通过该提供方登录。其它登录方式不受影响。"
+
+#. js-lingui-explicit-id
+#: src/pages/public/RequireIdentity.tsx
+msgid "require-identity.mismatch.title"
+msgstr "你登录的是另一个账号"
 
 #. js-lingui-explicit-id
 #: src/pages/public/Welcome.tsx

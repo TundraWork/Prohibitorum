@@ -152,6 +152,9 @@ type Querier interface {
 	GetUpstreamIDPBySlug(ctx context.Context, slug string) (UpstreamIdp, error)
 	GetUpstreamIDPBySlugAny(ctx context.Context, slug string) (UpstreamIdp, error)
 	HasAnyActiveAdmin(ctx context.Context) (bool, error)
+	// Whether the account holds a confirmed link at any of the given enabled
+	// providers: what an application's require-identity request asks.
+	HasConfirmedIdentityForProviders(ctx context.Context, arg HasConfirmedIdentityForProvidersParams) (bool, error)
 	HasSAMLConsent(ctx context.Context, arg HasSAMLConsentParams) (bool, error)
 	InsertAccount(ctx context.Context, arg InsertAccountParams) (Account, error)
 	InsertAccountIdentity(ctx context.Context, arg InsertAccountIdentityParams) (AccountIdentity, error)

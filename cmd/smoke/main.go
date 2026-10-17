@@ -1149,7 +1149,15 @@ func main() {
 	c.hc.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 		return http.ErrUseLastResponse
 	}
-	authorizeLink, err := c.getRedirect("/api/prohibitorum/me/identities/link/mockop/begin?return_to=/me")
+	// An application needs an identity at mockop that the admin does not
+	// have yet: the link below starts from its require-identity page and must
+	// return there (PHB-129).
+	requireIdentity, err := smokeRequireIdentityStart(c, *baseURL, "mockop")
+	if err != nil {
+		log.Fatalf("require-identity start: %v", err)
+	}
+	log.Printf("  require-identity entry → /require-identity/{ticket}, not satisfied yet ✓")
+	authorizeLink, err := c.getRedirect("/api/prohibitorum/me/identities/link/mockop/begin?return_to=" + url.QueryEscape("/require-identity/"+requireIdentity.ticket))
 	if err != nil {
 		log.Fatalf("link/begin: %v", err)
 	}
@@ -1182,9 +1190,13 @@ func main() {
 	}
 	if loc, err := c.getRedirectAbs(linkCallbackURL); err != nil {
 		log.Fatalf("link/callback: %v", err)
-	} else if loc != "/security" {
-		log.Fatalf("link/callback: want /security, got %q", loc)
+	} else if loc != "/require-identity/"+requireIdentity.ticket {
+		log.Fatalf("link/callback: want the require-identity page it started from, got %q", loc)
 	}
+	if err := smokeRequireIdentityFinish(c, requireIdentity); err != nil {
+		log.Fatalf("require-identity finish: %v", err)
+	}
+	log.Printf("  link returned to /require-identity/{ticket}; ticket satisfied; entry → bare redirect_uri; bad hint → /error ✓")
 	postSessions, err := c.listMySessions()
 	if err != nil {
 		log.Fatalf("post-link /me/sessions: %v", err)
@@ -1200,7 +1212,7 @@ func main() {
 		log.Fatalf("link/callback: session id changed (%s → %s) — link must not Issue a new session",
 			preSessID, postSessID)
 	}
-	log.Printf("  link/callback → 302 /security; session id unchanged (%s) ✓", preSessID)
+	log.Printf("  link/callback → 302 /require-identity/{ticket}; session id unchanged (%s) ✓", preSessID)
 
 	step(fmt.Sprintf("federation %d/%d — DB assert: account_identity for admin-link-1 owned by smoke-admin", 19, nFederation))
 	if err := verifyFederatedIdentityCreated(adminMe.ID, "admin-link-1", mockopIDPID); err != nil {

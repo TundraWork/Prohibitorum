@@ -599,6 +599,34 @@ type ConsentContext struct {
 	Providers map[string]string `json:"providers,omitempty"`
 }
 
+// RequireIdentityRequest is GET /api/prohibitorum/require-identity/{ticket}:
+// an application's request for an identity from one of its listed providers,
+// as the in-between page shows it.
+type RequireIdentityRequest struct {
+	Client      RequireIdentityClient `json:"client"`
+	RedirectURI string                `json:"redirectUri"`
+	// EntryURL is the request's own address, to come back to after signing in
+	// as another account.
+	EntryURL string `json:"entryUrl"`
+	// Mismatch: the application's ID token names another account than the one
+	// signed in.
+	Mismatch bool `json:"mismatch"`
+	// Satisfied: the account already holds an identity at one of the providers.
+	Satisfied bool                      `json:"satisfied"`
+	Providers []RequireIdentityProvider `json:"providers"`
+}
+
+type RequireIdentityClient struct {
+	DisplayName string `json:"displayName"`
+	IconURL     string `json:"iconUrl,omitempty"`
+}
+
+type RequireIdentityProvider struct {
+	Slug        string `json:"slug"`
+	DisplayName string `json:"displayName"`
+	IconURL     string `json:"iconUrl,omitempty"`
+}
+
 type ConsentClient struct {
 	ClientID    string `json:"clientId"`
 	DisplayName string `json:"displayName"`

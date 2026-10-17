@@ -16,6 +16,7 @@ import type {
   LoginAppearance,
   LoginImage,
   PublicConfig,
+  RequireIdentityRequest,
   SamlConsentRequest,
   SudoMethod,
   Wallpaper,
@@ -596,6 +597,27 @@ export function samlConsentRequest(config: MockConfig): SamlConsentRequest {
 
 function invalidConsentTicket(): MockReply {
   return { kind: "error", status: 400, code: "invalid_consent_ticket" };
+}
+
+/**
+ * The request a require-identity ticket names. Both addresses stay on this
+ * site, as the mock has no application to return to.
+ */
+export function requireIdentityRequest(
+  config: MockConfig,
+): RequireIdentityRequest {
+  const { state, providers } = config.publicFlows.requireIdentity;
+  return {
+    client: { displayName: "Wiki", iconUrl: appLogoUrl("#3b6e4f", "W") },
+    redirectUri: "/",
+    entryUrl: "/",
+    mismatch: state === "mismatch",
+    satisfied: state === "satisfied",
+    providers: range(Math.max(1, providers)).map((index) => ({
+      slug: `provider-${index + 1}`,
+      displayName: `Example IdP ${index + 1}`,
+    })),
+  };
 }
 
 /** A consent read: signed in, and a ticket the panel says is still good. */
@@ -1696,6 +1718,16 @@ function readReply(
       return config.publicFlows.welcome.valid
         ? json(federationConfirm(config))
         : expiredSignIn();
+    case "/api/prohibitorum/require-identity/{ticket}":
+      return guarded(config, () =>
+        config.publicFlows.requireIdentity.state === "expired"
+          ? {
+              kind: "error",
+              status: 410,
+              code: "require_identity_ticket_expired",
+            }
+          : json(requireIdentityRequest(config)),
+      );
     case "/api/prohibitorum/auth/federation/-/flows/{flow}":
       return json(federationFlow(config, new URL(request.url).origin));
     case "/api/prohibitorum/auth/devices/pair/status":

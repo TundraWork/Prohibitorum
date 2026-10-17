@@ -241,6 +241,23 @@ export interface ConsentAccount {
   avatarUrl?: string;
 }
 
+/**
+ * `GET /require-identity/{ticket}`: an application's request for an identity
+ * from one of its listed providers, as the in-between page shows it.
+ */
+export interface RequireIdentityRequest {
+  client: { displayName: string; iconUrl?: string };
+  /** Where the application wants the browser back, without parameters. */
+  redirectUri: string;
+  /** The request's own address, to return to after signing in again. */
+  entryUrl: string;
+  /** The application's ID token names another account than the signed-in one. */
+  mismatch: boolean;
+  /** The account already holds an identity at one of the providers. */
+  satisfied: boolean;
+  providers: { slug: string; displayName: string; iconUrl?: string }[];
+}
+
 /** `GET /consent`: the OIDC authorization waiting on the signed-in account. */
 export interface ConsentRequest {
   client: {
@@ -953,6 +970,20 @@ export interface RawPaths {
       };
       requestBody?: never;
       responses: { 204: { content?: never } };
+    };
+  };
+  "/api/prohibitorum/require-identity/{ticket}": {
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: { ticket: string };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        200: { content: { "application/json": RequireIdentityRequest } };
+      };
     };
   };
   "/api/prohibitorum/auth/federation/-/flows/{flow}": {

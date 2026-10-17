@@ -72,3 +72,16 @@ WHERE ai.account_id = sqlc.arg(account_id)
   AND NOT ip.disabled
   AND ip.slug = ANY(sqlc.arg(slugs)::text[])
 ORDER BY ai.linked_at, ai.id;
+
+-- name: HasConfirmedIdentityForProviders :one
+-- Whether the account holds a confirmed link at any of the given enabled
+-- providers: what an application's require-identity request asks.
+SELECT EXISTS (
+  SELECT 1
+  FROM account_identity ai
+  JOIN upstream_idp ip ON ip.id = ai.upstream_idp_id
+  WHERE ai.account_id = sqlc.arg(account_id)
+    AND ai.confirmed_at IS NOT NULL
+    AND NOT ip.disabled
+    AND ip.slug = ANY(sqlc.arg(slugs)::text[])
+);
