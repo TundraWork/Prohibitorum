@@ -46,15 +46,26 @@ func TestAuthorize_UnknownClient_RedirectsToErrorPage(t *testing.T) {
 
 // TestAuthorize_TransientClientLoad_RedirectsToErrorPage: a non-ErrNoRows
 // client-load error (transient DB failure) must redirect to
-// /error?error=server_error.
+// /error?error=server_error, carrying the authorize URL as return_to so the
+// page can offer to run the request again.
 func TestAuthorize_TransientClientLoad_RedirectsToErrorPage(t *testing.T) {
 	q := &fakeAuthzQueries{clientErr: fmt.Errorf("db pool exhausted")}
 	p := newProvider(q, &recordingAudit{})
 
+	params := baseParams()
 	rec := httptest.NewRecorder()
-	p.HandleAuthorize(rec, authedReq(baseParams()))
+	p.HandleAuthorize(rec, authedReq(params))
 
 	assertErrorPageRedirect(t, rec, errCodeServerError)
+	loc := rec.Result().Header.Get("Location")
+	u, err := url.Parse(loc)
+	if err != nil {
+		t.Fatalf("Location %q does not parse: %v", loc, err)
+	}
+	want := "/oauth/authorize?" + params.Encode()
+	if got := u.Query().Get("return_to"); got != want {
+		t.Fatalf("return_to = %q, want the authorize URL %q", got, want)
+	}
 }
 
 // TestAuthorize_BadRedirectURI_RedirectsToErrorPage: a registered client but

@@ -54,7 +54,11 @@ func (p *Provider) HandleAuthorize(w http.ResponseWriter, r *http.Request) {
 		if errors.Is(err, errInvalidClient) {
 			p.redirectToErrorPage(w, r, errCodeInvalidRequest)
 		} else {
-			p.redirectToErrorPage(w, r, errCodeServerError)
+			// Transient (e.g. the DB is down): re-running the request is the
+			// only remedy, so carry the authorize URI (server-built, relative —
+			// same form validateFederationReturnTo produces) as return_to and
+			// the /error page offers to load it again.
+			p.redirectToErrorPageWithReturn(w, r, errCodeServerError, r.URL.RequestURI())
 		}
 		return
 	}
