@@ -1,6 +1,6 @@
 import { I18nProvider } from "@lingui/react";
-import { QueryClientProvider, useSuspenseQuery } from "@tanstack/react-query";
 import type { QueryClient } from "@tanstack/react-query";
+import { QueryClientProvider, useSuspenseQuery } from "@tanstack/react-query";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Suspense } from "react";
@@ -125,9 +125,9 @@ describe("the provider general form's sign-in switch", () => {
     await waitFor(() => {
       expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
     });
-    expect(api.sent("PUT", "/api/prohibitorum/identity-providers/corp")).toEqual(
-      [],
-    );
+    expect(
+      api.sent("PUT", "/api/prohibitorum/identity-providers/corp"),
+    ).toEqual([]);
   });
 
   it("saves with allowSignIn false after the dialog is confirmed", async () => {
@@ -196,7 +196,9 @@ describe("the provider general form's sign-in switch", () => {
     mount(provider());
     await user.click(screen.getByRole("button", { name: "Save" }));
     await waitFor(() => {
-      expect(api.sent("PUT", "/api/prohibitorum/identity-providers/corp")).toHaveLength(1);
+      expect(
+        api.sent("PUT", "/api/prohibitorum/identity-providers/corp"),
+      ).toHaveLength(1);
     });
     expect(screen.getByLabelText("Name")).toHaveValue("Corporate SSO");
   });

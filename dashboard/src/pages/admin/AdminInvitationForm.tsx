@@ -1,6 +1,7 @@
 import { Label, ListBox, Select } from "@heroui/react";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
+import { useStore } from "@tanstack/react-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useRef, useState } from "react";
@@ -125,6 +126,27 @@ export function AdminInvitationForm() {
     },
   });
 
+  // A sign-in-off provider enforces the local-credential requirement no
+  // matter what the request said: the switch is driven on and locked while one
+  // is selected. Moving to a provider that does not enforce releases it again —
+  // the on state was the provider's doing, not the operator's choice.
+  const enforcedSlug = useStore(
+    form.store,
+    (state) => state.values.expectedUpstreamIdpSlug,
+  );
+  const enforced =
+    providersById.get(enforcedSlug.trim())?.allowSignIn === false;
+  const wasEnforced = useRef(false);
+  if (enforced !== wasEnforced.current) {
+    wasEnforced.current = enforced;
+    if (enforced) {
+      form.setFieldValue("requireLocalCredential", true, {
+        dontUpdateMeta: true,
+      });
+    } else {
+      form.resetField("requireLocalCredential");
+    }
+  }
   if (link !== null) {
     return (
       <SecretReveal
@@ -251,22 +273,9 @@ export function AdminInvitationForm() {
           >
             {([slug]) => {
               const selected = providersById.get(slug.trim());
-              // A sign-in-off provider enforces the requirement regardless of
-              // the request; show the enforced state, locked on. Moving to a
-              // provider that does not enforce releases the switch again: the
-              // on state was the provider's doing, not the operator's choice.
+              // The value sync happens above the render; here the switch only
+              // shows the enforced state, locked on.
               const enforced = selected?.allowSignIn === false;
-              const wasEnforced = useRef(false);
-              if (enforced !== wasEnforced.current) {
-                wasEnforced.current = enforced;
-                if (enforced) {
-                  form.setFieldValue("requireLocalCredential", true, {
-                    dontUpdateMeta: true,
-                  });
-                } else {
-                  form.resetField("requireLocalCredential");
-                }
-              }
               return (
                 <form.AppField name="requireLocalCredential">
                   {(field) => (
@@ -285,8 +294,8 @@ export function AdminInvitationForm() {
                         ) : (
                           <Trans id="admin.invitations.new.require_local.hint">
                             After verifying with a provider, the invitee also
-                            sets up a passkey or a password and an
-                            authenticator before the account is created.
+                            sets up a passkey or a password and an authenticator
+                            before the account is created.
                           </Trans>
                         )
                       }

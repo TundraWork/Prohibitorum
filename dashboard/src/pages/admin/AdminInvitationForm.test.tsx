@@ -1,21 +1,30 @@
 import { I18nProvider } from "@lingui/react";
-import { QueryClientProvider } from "@tanstack/react-query";
 import type { QueryClient } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
+import {
+  createMemoryHistory,
+  createRootRoute,
+  createRoute,
+  createRouter,
+  Outlet,
+  RouterProvider,
+} from "@tanstack/react-router";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { I18nProvider as AriaI18nProvider } from "react-aria";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { searchSerialization } from "@/app/search-params";
 
 // OverlayScrollbars measures computed styles jsdom cannot resolve; the list's
 // scroll area is layout only, so a plain box stands in for it.
 vi.mock("@/components/custom/ScrollArea", () => ({
   scrollAreaTheme: "os-theme-app",
   ScrollArea: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-}))
+}));
 
-import { createQueryClient } from "@/app/query-client";
 import type { components } from "@/api/generated/schema";
+import { createQueryClient } from "@/app/query-client";
 import { i18n } from "@/i18n";
 import { AdminInvitationForm } from "@/pages/admin/AdminInvitationForm";
 import { apiError, type FakeApi, fakeApi } from "@/test/app";
@@ -54,17 +63,32 @@ function provider(
   };
 }
 
-function mount() {
+async function mount() {
   queryClient = createQueryClient(vi.fn());
+  // A successful create swaps the form for the secret reveal, whose leave
+  // guard is the router's; the form needs one mounted.
+  const root = createRootRoute({ component: Outlet });
+  const page = createRoute({
+    getParentRoute: () => root,
+    path: "/",
+    component: AdminInvitationForm,
+  });
+  const router = createRouter({
+    ...searchSerialization,
+    routeTree: root.addChildren([page]),
+    history: createMemoryHistory({ initialEntries: ["/"] }),
+  });
   render(
     <I18nProvider i18n={i18n}>
       <AriaI18nProvider>
         <QueryClientProvider client={queryClient}>
-          <AdminInvitationForm />
+          <RouterProvider router={router} />
         </QueryClientProvider>
       </AriaI18nProvider>
     </I18nProvider>,
   );
+  // The router commits its first route asynchronously.
+  await screen.findByRole("form", { name: "New invitation" });
 }
 
 /** The provider autocomplete announces its current value plus its label. */
@@ -72,9 +96,7 @@ async function pickProvider(
   user: ReturnType<typeof userEvent.setup>,
   label: string,
 ) {
-  await user.click(
-    screen.getByRole("button", { name: /Upstream provider/ }),
-  );
+  await user.click(screen.getByRole("button", { name: /Upstream provider/ }));
   const listbox = await screen.findByRole("listbox");
   await user.click(within(listbox).getByText(label));
 }
@@ -95,7 +117,7 @@ describe("the invitation form's local sign-in requirement", () => {
           ],
         }),
     });
-    mount();
+    await mount();
 
     const switchEl = screen.getByRole("switch", {
       name: "Require a local sign-in method",
@@ -130,11 +152,9 @@ describe("the invitation form's local sign-in requirement", () => {
           ],
         }),
     });
-    mount();
+    await mount();
 
-    await user.click(
-    screen.getByRole("button", { name: /Upstream provider/ }),
-  );
+    await user.click(screen.getByRole("button", { name: /Upstream provider/ }));
     const listbox = await screen.findByRole("listbox");
     // Disabled, unready and link_only rows never appear; a sign-in-off
     // provider is offered because an invitation can still be verified with it.
@@ -159,7 +179,7 @@ describe("the invitation form's local sign-in requirement", () => {
           requireLocalCredential: true,
         }),
     });
-    mount();
+    await mount();
 
     await pickProvider(user, "CORP");
     await user.click(
@@ -170,8 +190,9 @@ describe("the invitation form's local sign-in requirement", () => {
     await waitFor(() => {
       expect(api.sent("POST", "/api/prohibitorum/invitations")).toHaveLength(1);
     });
-    const body = api.sent("POST", "/api/prohibitorum/invitations")[0]
-      ?.body as { requireLocalCredential?: boolean };
+    const body = api.sent("POST", "/api/prohibitorum/invitations")[0]?.body as {
+      requireLocalCredential?: boolean;
+    };
     expect(body.requireLocalCredential).toBe(true);
   });
 
@@ -184,7 +205,7 @@ describe("the invitation form's local sign-in requirement", () => {
         apiError("upstream_idp_link_only", 400),
     });
     const user = userEvent.setup();
-    mount();
+    await mount();
 
     await pickProvider(user, "CORP");
     await user.click(screen.getByRole("button", { name: "Create invitation" }));
@@ -194,9 +215,9 @@ describe("the invitation form's local sign-in requirement", () => {
     // back at the provider they chose.
     await waitFor(() => {
       expect(
-        screen.getByRole("button", { name: /Upstream provider/ }).closest(
-          "[data-slot='autocomplete']",
-        ),
+        screen
+          .getByRole("button", { name: /Upstream provider/ })
+          .closest("[data-slot='autocomplete']"),
       ).toHaveAttribute("data-invalid", "true");
     });
   });
