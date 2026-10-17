@@ -31,12 +31,17 @@ func assertErrorPageRedirect(t *testing.T, rec *httptest.ResponseRecorder, wantC
 	}
 }
 
-// assertNoReturnTo asserts the /error redirect carries no return_to: these
-// failures are not worth running again, so the page is given no address.
+// assertNoReturnTo asserts the /error redirect parses and carries no
+// return_to: these failures are not worth running again, so the page is
+// given no address.
 func assertNoReturnTo(t *testing.T, rec *httptest.ResponseRecorder) {
 	t.Helper()
 	loc := rec.Result().Header.Get("Location")
-	if u, err := url.Parse(loc); err == nil && u.Query().Get("return_to") != "" {
+	u, err := url.Parse(loc)
+	if err != nil {
+		t.Fatalf("Location %q does not parse: %v", loc, err)
+	}
+	if u.Query().Get("return_to") != "" {
 		t.Fatalf("Location %q must not carry return_to", loc)
 	}
 }

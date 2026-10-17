@@ -120,9 +120,9 @@ describe("the error landing page", () => {
     );
   });
 
-  it("does not turn a return address elsewhere into a retry", async () => {
+  it("does not turn a smuggled bypass inside an authorize address into a retry", async () => {
     await open(
-      `/error?error=server_error&return_to=${encodeURIComponent("%09//evil.example/pwn")}`,
+      `/error?error=server_error&return_to=${encodeURIComponent("/oauth/authorize?next=%2509//evil.example")}`,
     );
     expect(
       screen.queryByRole("button", { name: "Try again" }),
@@ -132,17 +132,14 @@ describe("the error landing page", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("starts the authorization again after a server error", async () => {
-    const user = userEvent.setup();
+  it("does not offer a retry when the code is not a server error", async () => {
     await open(
-      `/error?error=server_error&return_to=${encodeURIComponent("/oauth/authorize?client_id=wiki")}`,
+      `/error?error=federation_state_invalid&return_to=${encodeURIComponent("/oauth/authorize?client_id=wiki")}`,
     );
-    await user.click(screen.getByRole("button", { name: "Try again" }));
-    await vi.waitFor(() =>
-      expect(loadDocument).toHaveBeenCalledWith(
-        "/oauth/authorize?client_id=wiki",
-      ),
-    );
+    expect(
+      screen.queryByRole("button", { name: "Try again" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Go back" })).toBeVisible();
   });
 
   it.each(["//evil.example", "/\\evil.example", "https://evil.example"])(

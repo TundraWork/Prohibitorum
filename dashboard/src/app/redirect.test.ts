@@ -14,14 +14,22 @@ describe("isSitePath", () => {
     "/\\x",
     "https://x",
     "x",
+    "/x\t/y",
+    "/x\n/y",
+    "/x\r/y",
     "/%09/example.org",
     "/%0A/example.org",
     "/%0D/example.org",
     "/%0d/x",
     "/%0a/x",
-    "/x\t/y",
-    "/x\n/y",
-    "/x\r/y",
+    "/%2509/host",
+    "/%250A/host",
+    "/%00/host",
+    "/%5C/host",
+    "/%255C/host",
+    "/x\\y",
+    "/%u0000/x",
+    "/\0/x",
   ])("refuses %s", (value) => {
     expect(isSitePath(value)).toBe(false);
   });
@@ -39,6 +47,10 @@ describe("sitePathOf", () => {
     );
   });
 
+  it("resolves a same-origin address with an empty path to the root", () => {
+    expect(sitePathOf(window.location.origin)).toBe("/");
+  });
+
   it.each([
     undefined,
     "",
@@ -51,13 +63,16 @@ describe("sitePathOf", () => {
     `https://user@${window.location.host}//evil.example/pwn`,
     "/%09/example.org",
     "/%0A/example.org",
+    "/%2509/host",
+    "/%250A/host",
+    "/%5C/host",
+    "/%255C/host",
+    "/%00/host",
     `${window.location.origin}/%09/example.org`,
     `${window.location.origin}/oauth/authorize?next=%0A//evil.example`,
+    `${window.location.origin}/oauth/authorize?next=%2509//evil.example`,
+    `${window.location.origin}/oauth/authorize?next=%255C%252509//evil.example`,
   ])("refuses %s", (value) => {
     expect(sitePathOf(value)).toBeUndefined();
-  });
-
-  it("resolves a same-origin address with an empty path to the root", () => {
-    expect(sitePathOf(window.location.origin)).toBe("/");
   });
 });
