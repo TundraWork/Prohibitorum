@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"prohibitorum/pkg/audit"
 	"slices"
 	"strings"
 	"testing"
@@ -54,6 +55,8 @@ type fakePwdTOTPTx struct {
 }
 
 func (tx *fakePwdTOTPTx) Queries() db.Querier { return tx.q }
+
+func (tx *fakePwdTOTPTx) AuditWriter() audit.Writer { return noopAuditWriter{} }
 func (tx *fakePwdTOTPTx) Commit(context.Context) error {
 	if tx.commitErr != nil {
 		return tx.commitErr

@@ -976,6 +976,7 @@ func (s *Server) handleCreateInvitation(ctx context.Context, in *createInvitatio
 		if !idp.AllowSignIn {
 			requireLocal = true
 		}
+
 	}
 	tpl := &enrollment.EnrollmentTemplate{
 		Role:                    in.Body.Role,
@@ -1078,14 +1079,15 @@ func (s *Server) handleListInvitations(ctx context.Context, in *listInvitationsI
 		}
 		attrs := enrollment.DecodeTemplateAttributes(r.TemplateAttributes)
 		view := contract.InvitationView{
-			Token:      r.Token,
-			URL:        s.config.PublicOrigins[0] + "/enroll/" + r.Token,
-			Role:       role,
-			Attributes: attrs,
-			CreatedAt:  r.CreatedAt.Time,
-			ExpiresAt:  r.ExpiresAt.Time,
-			GroupIDs:   append([]int32(nil), r.GroupIds...),
-			Groups:     []contract.InvitationGroupView{},
+			Token:                  r.Token,
+			URL:                    s.config.PublicOrigins[0] + "/enroll/" + r.Token,
+			Role:                   role,
+			Attributes:             attrs,
+			RequireLocalCredential: r.RequireLocalCredential,
+			CreatedAt:              r.CreatedAt.Time,
+			ExpiresAt:              r.ExpiresAt.Time,
+			GroupIDs:               append([]int32(nil), r.GroupIds...),
+			Groups:                 []contract.InvitationGroupView{},
 		}
 		if r.TemplateUsername.Valid {
 			username := r.TemplateUsername.String

@@ -554,6 +554,7 @@ type InvitationView struct {
 	Role                    string                `json:"role"`
 	Attributes              map[string]any        `json:"attributes,omitempty"`
 	ExpectedUpstreamIdpSlug *string               `json:"expectedUpstreamIdpSlug,omitempty"`
+	RequireLocalCredential  bool                  `json:"requireLocalCredential"`
 	Username                *string               `json:"username,omitempty"`
 	GroupIDs                []int32               `json:"groupIds"`
 	Groups                  []InvitationGroupView `json:"groups"`
@@ -811,6 +812,11 @@ type IdentityProviderView struct {
 	// column, using one batched count for the whole page. A provider with no
 	// linked accounts reports 0 rather than omitting the field.
 	LinkedAccountCount *int32 `json:"linkedAccountCount,omitempty"`
+	// PendingInvitationCount is the number of unconsumed, unexpired
+	// invitations whose verified identity came from this provider; deleting
+	// the provider deletes them with it. Always set, 0 included, so the delete
+	// confirmation can state the consequence precisely.
+	PendingInvitationCount *int32 `json:"pendingInvitationCount"`
 }
 
 var OperationListIdentityProviders = huma.Operation{

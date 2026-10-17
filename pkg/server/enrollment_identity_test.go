@@ -1,0 +1,95 @@
+package server
+
+import (
+	"context"
+	"testing"
+
+	"github.com/jackc/pgx/v5/pgtype"
+
+	"prohibitorum/pkg/authn"
+	"prohibitorum/pkg/db"
+	"prohibitorum/pkg/federation"
+)
+
+// recheckInviteIdentityProvider is the last line of defence before an invite
+// completion writes its verified identity: whatever the operator did to the
+// provider between verification and completion, the write only happens for a
+// provider that could still accept it. Each case pins one leg of that check
+// against the production error, so a dropped leg fails by name.
+func TestRecheckInviteIdentityProvider(t *testing.T) {
+	base := validVRChatEnrollmentProvider()
+	row := verifiedInviteEnrollment("recheck")
+
+	cases := map[string]struct {
+		row      func(db.Enrollment) db.Enrollment //nolint:revive // constructor shorthand
+		provider func(db.UpstreamIdp) db.UpstreamIdp
+		wantErr  bool
+	}{
+		"healthy provider passes": {
+			wantErr: false,
+		},
+		"missing snapshot id": {
+			row: func(e db.Enrollment) db.Enrollment {
+				e.FederatedUpstreamIdpID = pgtype.Int8{}
+				return e
+			},
+			wantErr: true,
+		},
+		"provider deleted mid-flight": {
+			provider: func(p db.UpstreamIdp) db.UpstreamIdp { return p }, // replaced below
+			wantErr:  true,
+		},
+		"provider disabled mid-flight": {
+			provider: func(p db.UpstreamIdp) db.UpstreamIdp {
+				p.Disabled = true
+				return p
+			},
+			wantErr: true,
+		},
+		"provider switched to link_only": {
+			provider: func(p db.UpstreamIdp) db.UpstreamIdp {
+				p.Mode = federation.ModeLinkOnly
+				return p
+			},
+			wantErr: true,
+		},
+		"provider slug renamed mid-flight": {
+			provider: func(p db.UpstreamIdp) db.UpstreamIdp {
+				p.Slug = "renamed"
+				return p
+			},
+			wantErr: true,
+		},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			q := &vrchatEnrollmentQueries{
+				providers: map[int64]db.UpstreamIdp{base.ID: base},
+			}
+			if tc.provider != nil {
+				if name == "provider deleted mid-flight" {
+					delete(q.providers, base.ID)
+				} else {
+					q.providers[base.ID] = tc.provider(base)
+				}
+			}
+			if tc.row != nil {
+				row = tc.row(row)
+			}
+			provider, err := recheckInviteIdentityProvider(context.Background(), q, row)
+			if tc.wantErr {
+				ae := authn.AsAuthError(err)
+				if ae == nil || ae.Code != "provider_not_ready" {
+					t.Fatalf("error = %v, want provider_not_ready", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("healthy recheck failed: %v", err)
+			}
+			if provider.Slug != base.Slug || provider.ID != base.ID {
+				t.Fatalf("provider = %+v, want %+v", provider, base)
+			}
+		})
+	}
+}

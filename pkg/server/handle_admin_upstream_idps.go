@@ -258,6 +258,10 @@ func (s *Server) handleListIdentityProviders(ctx context.Context, in *listIdenti
 	if err != nil {
 		return nil, fmt.Errorf("handleListIdentityProviders: linked account counts: %w", err)
 	}
+	pendingCounts, err := s.pendingInvitationCounts(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("handleListIdentityProviders: pending invitation counts: %w", err)
+	}
 	iconURLs := s.listIconURLs(ctx, "upstream_idp")
 	views := make([]contract.IdentityProviderView, 0, len(rows))
 	for _, row := range rows {
@@ -268,6 +272,8 @@ func (s *Server) handleListIdentityProviders(ctx context.Context, in *listIdenti
 		view.IconURL = iconURLFor(iconURLs, row.Slug)
 		count := linkedCounts[row.ID]
 		view.LinkedAccountCount = &count
+		pending := pendingCounts[row.ID]
+		view.PendingInvitationCount = &pending
 		views = append(views, view)
 	}
 	var nextCursor string
@@ -304,6 +310,24 @@ func (s *Server) linkedAccountCounts(ctx context.Context, rows []db.UpstreamIdp)
 	return counts, nil
 }
 
+// pendingInvitationCounts counts the unconsumed invitations whose verified
+// snapshot points at each provider, in one statement. Deleting a provider
+// cascades those invitations away, so the delete confirmation reads this to
+// state how many disappear. Providers with none are absent and read as 0.
+func (s *Server) pendingInvitationCounts(ctx context.Context) (map[int64]int32, error) {
+	rows, err := s.listQ().CountPendingInvitationsByUpstreamIDP(ctx)
+	if err != nil {
+		return nil, err
+	}
+	counts := make(map[int64]int32, len(rows))
+	for _, row := range rows {
+		if row.UpstreamIdpID.Valid {
+			counts[row.UpstreamIdpID.Int64] = row.PendingInvitations
+		}
+	}
+	return counts, nil
+}
+
 type getIdentityProviderIn struct {
 	Slug string `path:"slug"`
 }
@@ -334,6 +358,14 @@ func (s *Server) handleGetIdentityProvider(ctx context.Context, in *getIdentityP
 	}
 	linkedCount := int32(linked)
 	view.LinkedAccountCount = &linkedCount
+	// The delete confirmation also states how many pending invitations go with
+	// the provider: their verified snapshot cascades on provider delete.
+	pendingCounts, err := s.pendingInvitationCounts(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("handleGetIdentityProvider: count pending invitations: %w", err)
+	}
+	pendingCount := pendingCounts[row.ID]
+	view.PendingInvitationCount = &pendingCount
 	return &identityProviderOut{Body: view}, nil
 }
 
@@ -594,6 +626,15 @@ func (s *Server) handleDeleteIdentityProviderHTTP(w http.ResponseWriter, r *http
 	defer tx.Rollback(r.Context()) //nolint:errcheck
 	qtx := s.queries.WithTx(tx)
 
+	// Pending invitations whose verified snapshot points here die with the
+	// provider (the snapshot FK cascades). Counted before the delete so the
+	// audit row records what disappeared.
+	pendingCounts, err := qtx.CountPendingInvitationsByUpstreamIDP(r.Context())
+	if err != nil {
+		writeAuthErr(w, fmt.Errorf("handleDeleteIdentityProvider: count pending invitations: %w", err))
+		return
+	}
+	deletedInvitations := pendingCounts[row.ID]
 	unlinkedAccounts, err := qtx.DeleteAccountIdentitiesByUpstreamIDP(r.Context(), row.ID)
 	if err != nil {
 		writeAuthErr(w, fmt.Errorf("handleDeleteIdentityProvider: delete identities: %w", err))
@@ -636,6 +677,9 @@ func (s *Server) handleDeleteIdentityProviderHTTP(w http.ResponseWriter, r *http
 			// Applications and consents that lost its identity:<slug> scope.
 			"removed_client_scopes":  clientsChanged,
 			"removed_consent_scopes": consentsChanged,
+			// How many pending invitations were deleted with the provider:
+			// their verified snapshot pointed at it.
+			"deleted_pending_invitations": deletedInvitations,
 		},
 	})
 	w.WriteHeader(http.StatusNoContent)

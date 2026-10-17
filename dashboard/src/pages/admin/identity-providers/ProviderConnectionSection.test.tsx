@@ -29,6 +29,7 @@ function publicProvider(): Provider {
     displayName: "Public IdP",
     protocol: "oidc",
     allowSignIn: true,
+    pendingInvitationCount: null,
     mode: "invite_only",
     disabled: false,
     ready: true,

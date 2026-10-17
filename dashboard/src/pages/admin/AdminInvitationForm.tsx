@@ -3,7 +3,7 @@ import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { isCancellation } from "@/api/errors";
 import { createInvitationMutationOptions } from "@/api/mutations";
 import {
@@ -251,7 +251,22 @@ export function AdminInvitationForm() {
           >
             {([slug]) => {
               const selected = providersById.get(slug.trim());
-              const locked = selected?.allowSignIn === false;
+              // A sign-in-off provider enforces the requirement regardless of
+              // the request; show the enforced state, locked on. Moving to a
+              // provider that does not enforce releases the switch again: the
+              // on state was the provider's doing, not the operator's choice.
+              const enforced = selected?.allowSignIn === false;
+              const wasEnforced = useRef(false);
+              if (enforced !== wasEnforced.current) {
+                wasEnforced.current = enforced;
+                if (enforced) {
+                  form.setFieldValue("requireLocalCredential", true, {
+                    dontUpdateMeta: true,
+                  });
+                } else {
+                  form.resetField("requireLocalCredential");
+                }
+              }
               return (
                 <form.AppField name="requireLocalCredential">
                   {(field) => (
@@ -262,13 +277,20 @@ export function AdminInvitationForm() {
                         </Trans>
                       }
                       description={
-                        <Trans id="admin.invitations.new.require_local.hint">
-                          After verifying with a provider, the invitee also sets
-                          up a passkey or a password and an authenticator before
-                          the account is created.
-                        </Trans>
+                        enforced ? (
+                          <Trans id="admin.invitations.new.require_local.enforced">
+                            This provider can't be used to sign in, so a local
+                            sign-in method is always required.
+                          </Trans>
+                        ) : (
+                          <Trans id="admin.invitations.new.require_local.hint">
+                            After verifying with a provider, the invitee also
+                            sets up a passkey or a password and an
+                            authenticator before the account is created.
+                          </Trans>
+                        )
                       }
-                      isDisabled={locked}
+                      isDisabled={enforced}
                     />
                   )}
                 </form.AppField>

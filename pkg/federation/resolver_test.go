@@ -230,7 +230,9 @@ func (f *fakeModesQueries) GetEnrollmentByToken(_ context.Context, token string)
 	if f.enrollmentByToken.Token != "" {
 		return f.enrollmentByToken, nil
 	}
-	return db.Enrollment{Token: token, Intent: "invite"}, pgx.ErrNoRows
+	// No stored row: answer a plain invite so the requirement pre-read
+	// succeeds with "not required" — the consume path fakes the rest.
+	return db.Enrollment{Token: token, Intent: "invite"}, nil
 }
 
 func (f *fakeModesQueries) LockInviteEnrollmentForUpdate(_ context.Context, token string) (db.Enrollment, error) {
@@ -1985,6 +1987,44 @@ func TestResolverAttachInviteIdentityWhenProviderSignInOff(t *testing.T) {
 	}
 }
 
+// An (iss, sub) already bound to an account must refuse the snapshot write:
+// attaching anyway would walk the invitee into someone else's account at
+// completion.
+func TestResolverAttachInviteIdentityConflictRefuses(t *testing.T) {
+	q := newFakeModesQueries()
+	invite := makeInviteEnrollment("test-idp", "user", nil)
+	invite.RequireLocalCredential = true
+	q.enrollmentByToken = invite
+	q.identityErr = nil
+	q.identityResult = db.AccountIdentity{
+		ID: 300, AccountID: 9, UpstreamIdpID: 42,
+		UpstreamIss: "https://issuer.example/", UpstreamSub: "sub-1",
+		ConfirmedAt: pgtype.Timestamptz{Time: time.Now(), Valid: true},
+	}
+	a := &recordingAudit{}
+	resolver := federationoidc.NewResolver(q, a, nil)
+
+	_, err := resolver.ResolveIdentity(
+		context.Background(),
+		genericProvider(federationoidc.ModeInviteOnly),
+		*goodTokens(),
+		federationoidc.ResolveContext{Intent: federationoidc.IntentInvite, EnrollmentToken: invite.Token},
+	)
+	ae := authn.AsAuthError(err)
+	if ae == nil || ae.Code != "federation_identity_conflict" {
+		t.Fatalf("ResolveIdentity error = %v, want federation_identity_conflict", err)
+	}
+	if len(q.attachCalls) != 0 {
+		t.Fatalf("conflict attached snapshot anyway: %+v", q.attachCalls)
+	}
+	if len(q.consumedTokens) != 0 {
+		t.Fatalf("conflict consumed tokens = %v", q.consumedTokens)
+	}
+	if !a.hasFail("identity_conflict") {
+		t.Fatalf("audit records = %+v, want identity_conflict fail", a.snapshot())
+	}
+}
+
 func TestResolverInviteWithoutRequireLocalStillProvisions(t *testing.T) {
 	// Neither trigger: the classic immediate-provision path runs.
 	q := newFakeModesQueries()
@@ -2006,6 +2046,29 @@ func TestResolverInviteWithoutRequireLocalStillProvisions(t *testing.T) {
 	}
 	if len(q.attachCalls) != 0 || len(q.consumedTokens) != 1 {
 		t.Fatalf("attach=%d consumed=%v, want 0/1", len(q.attachCalls), q.consumedTokens)
+	}
+}
+
+// A failed requirement pre-read must fail closed: guessing "not required"
+// would provision the account with no local credential — exactly what the
+// requirement exists to prevent.
+func TestResolverInviteRequirementReadFailsClosed(t *testing.T) {
+	q := newFakeModesQueries()
+	q.enrollmentByToken = makeInviteEnrollment("test-idp", "user", nil)
+	q.enrollmentByTokenErr = errors.New("database unavailable")
+	resolver := federationoidc.NewResolver(q, &recordingAudit{}, nil)
+
+	_, err := resolver.ResolveIdentity(
+		context.Background(),
+		genericProvider(federationoidc.ModeInviteOnly),
+		*goodTokens(),
+		federationoidc.ResolveContext{Intent: federationoidc.IntentInvite, EnrollmentToken: q.enrollmentByToken.Token},
+	)
+	if err == nil {
+		t.Fatal("ResolveIdentity succeeded with an unreadable requirement")
+	}
+	if len(q.consumedTokens) != 0 || len(q.insertedAccounts) != 0 {
+		t.Fatalf("failed pre-read mutated storage: consumed=%v accounts=%d", q.consumedTokens, len(q.insertedAccounts))
 	}
 }
 

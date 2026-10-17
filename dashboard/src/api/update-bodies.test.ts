@@ -199,6 +199,7 @@ describe("identity provider update body", () => {
     protocol: "oidc",
     mode: "invite_only",
     allowSignIn: true,
+    pendingInvitationCount: null,
     config,
     disabled: false,
     secretConfigured: true,
@@ -236,6 +237,17 @@ describe("identity provider update body", () => {
     expect(
       "secret" in identityProviderUpdateBody(provider, { displayName: "x" }),
     ).toBe(false);
+  });
+
+  it("carries the sign-in switch when the form flips it", () => {
+    // The switch is the point of the page; a body that dropped it would
+    // silently save the provider still able to sign people in.
+    const body = identityProviderUpdateBody(provider, {
+      allowSignIn: false,
+      mode: "invite_only",
+    });
+    expect(body.allowSignIn).toBe(false);
+    expect(body.mode).toBe("invite_only");
   });
 
   it("falls back to a mode the server accepts", () => {

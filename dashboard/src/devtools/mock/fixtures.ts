@@ -1014,6 +1014,9 @@ function invitationAt(index: number, config: MockConfig): Invitation {
     groupIds: groups.map((group) => group.id),
     groups,
     attributes: {},
+    // One invitation in three carries a verified snapshot, so the provider
+    // delete confirmation can show a nonzero pending count.
+    requireLocalCredential: index % 3 === 0,
   };
 }
 
@@ -1160,6 +1163,9 @@ function identityProviders(config: MockConfig): IdentityProvider[] {
       // VRChat verifies identities by default; everyone else backs a button.
       // The mask records what the panel's write switch changed.
       allowSignIn: providerSignIn(config, index, protocol),
+      // One row in three has pending invitations riding on it, so the delete
+      // confirmation can show a nonzero count.
+      pendingInvitationCount: index % 3 === 0 ? 2 : 0,
       mode:
         protocol === "vrchat"
           ? "link_only"
@@ -2694,6 +2700,8 @@ function writeReply(
           (body as { allowSignIn?: boolean }).allowSignIn ??
           protocol !== "vrchat",
         mode: stringField(body, "mode") ?? "invite_only",
+        // Nothing can have verified through a provider created this moment.
+        pendingInvitationCount: 0,
         disabled: false,
         ready: false,
         secretConfigured: stringField(body, "secret") !== undefined,

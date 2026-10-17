@@ -267,20 +267,21 @@ export function AdminIdentityProviderNew() {
                   </Trans>
                 }
                 description={
-                  protocol === "vrchat" ? (
-                    <Trans id="admin.federation.general.sign_in.vrchat_hint">
-                      VRChat proves a profile through a link in its bio, which
-                      is weaker than an OIDC sign-in. Once this is on, anyone
-                      who can edit the profile can sign in to the account linked
-                      to it.
-                    </Trans>
-                  ) : (
+                  <>
+                    {protocol === "vrchat" && (
+                      <Trans id="admin.federation.general.sign_in.vrchat_hint">
+                        VRChat proves a profile through a link in its bio, which
+                        is weaker than an OIDC sign-in. Once this is on, anyone
+                        who can edit the profile can sign in to the account
+                        linked to it.
+                      </Trans>
+                    )}
                     <Trans id="admin.federation.general.sign_in.hint">
                       When this is off, this provider can't be used to sign in.
                       People can only link it from their account, or use it to
                       accept an invitation.
                     </Trans>
-                  )
+                  </>
                 }
               />
             )}
@@ -289,10 +290,18 @@ export function AdminIdentityProviderNew() {
           <form.AppField name="mode">
             {() => (
               <form.Subscribe
-                selector={(state) => [state.values.allowSignIn] as const}
+                selector={(state) =>
+                  [state.values.allowSignIn, state.values.mode] as const
+                }
               >
-                {([allowSignIn]) => (
-                  <ProvisioningModeField allowSignIn={allowSignIn} />
+                {([allowSignIn, mode]) => (
+                  <ProvisioningModeField
+                    allowSignIn={allowSignIn}
+                    autoProvisionSelected={mode === "auto_provision"}
+                    onAutoProvisionInvalid={() => {
+                      form.setFieldValue("mode", "invite_only");
+                    }}
+                  />
                 )}
               </form.Subscribe>
             )}

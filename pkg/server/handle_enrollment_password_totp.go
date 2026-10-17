@@ -195,7 +195,7 @@ func (s *Server) handleEnrollmentPasswordTOTPVerifyHTTP(w http.ResponseWriter, r
 		if consumed.FederatedUpstreamIdpID.Valid {
 			// Same shared identity-write as the passkey path; any failure rolls
 			// the consume back.
-			if _, ierr := insertInviteIdentityTx(r.Context(), qtx, s.Audit, acct.ID, *consumed); ierr != nil {
+			if _, ierr := insertInviteIdentityTx(r.Context(), qtx, tx.AuditWriter(), acct.ID, *consumed); ierr != nil {
 				writeAuthErr(w, ierr)
 				return
 			}

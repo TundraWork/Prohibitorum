@@ -959,8 +959,14 @@ func (r *Resolver) ResolveIdentity(ctx context.Context, provider Provider, ident
 	case IntentInvite:
 		requireLocal := !provider.AllowSignIn
 		// The invitation itself can demand a local credential even when the
-		// provider allows sign-in; both triggers take the same path.
-		if enr, err := r.queries.GetEnrollmentByToken(ctx, resolution.EnrollmentToken); err == nil && enr.RequireLocalCredential {
+		// provider allows sign-in; both triggers take the same path. A failed
+		// read must fail closed: guessing "no requirement" would provision the
+		// account with no local credential, exactly what the flag prevents.
+		enr, err := r.queries.GetEnrollmentByToken(ctx, resolution.EnrollmentToken)
+		if err != nil {
+			return ResolveOutcome{}, fmt.Errorf("federation: read invite requirement: %w", err)
+		}
+		if enr.RequireLocalCredential {
 			requireLocal = true
 		}
 		if requireLocal {

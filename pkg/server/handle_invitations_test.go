@@ -50,15 +50,21 @@ type fakeInvitationQ struct {
 	// idpMissing makes GetUpstreamIDPBySlug return pgx.ErrNoRows (the slug is
 	// unknown or disabled), exercising the invite slug-validation reject path.
 	idpMissing bool
+
+	// idpMode and idpAllowSignIn shape the provider row the slug lookup
+	// returns, for the link_only reject and the forced local-credential paths.
+	idpMode        string
+	idpAllowSignIn bool
 }
 
 // GetUpstreamIDPBySlug validates a federated-invite slug binding. Returns a
-// minimal row by default; pgx.ErrNoRows when idpMissing is set.
+// row shaped by idpMode/idpAllowSignIn by default; pgx.ErrNoRows when
+// idpMissing is set.
 func (f *fakeInvitationQ) GetUpstreamIDPBySlug(_ context.Context, slug string) (db.UpstreamIdp, error) {
 	if f.idpMissing {
 		return db.UpstreamIdp{}, pgx.ErrNoRows
 	}
-	return db.UpstreamIdp{Slug: slug}, nil
+	return db.UpstreamIdp{Slug: slug, Mode: f.idpMode, AllowSignIn: f.idpAllowSignIn}, nil
 }
 
 func (f *fakeInvitationQ) InsertEnrollment(_ context.Context, p db.InsertEnrollmentParams) (db.Enrollment, error) {
@@ -287,6 +293,61 @@ func TestCreateInvitation_UnknownSlugRejected(t *testing.T) {
 	// No enrollment should have been issued.
 	if len(q.inserted) != 0 {
 		t.Errorf("InsertEnrollment must not be called when slug is invalid; got %d", len(q.inserted))
+	}
+}
+
+// TestCreateInvitation_LinkOnlySlugRejected: a link_only provider can never
+// back an invitation (its identities exist only to bind to existing
+// accounts), so binding one would mint an invite no redemption path accepts.
+func TestCreateInvitation_LinkOnlySlugRejected(t *testing.T) {
+	t.Parallel()
+
+	slug := "linkage"
+	q := &fakeInvitationQ{idpMode: "link_only", idpAllowSignIn: true}
+	s := minimalServerForInvitations(q)
+
+	in := &createInvitationIn{}
+	in.Body.Role = "user"
+	in.Body.ExpectedUpstreamIdpSlug = &slug
+
+	_, err := s.handleCreateInvitation(context.Background(), in)
+	se, ok := err.(huma.StatusError)
+	if !ok || se.GetStatus() != http.StatusBadRequest {
+		t.Fatalf("want 400 huma StatusError (upstream_idp_link_only), got %T %v", err, err)
+	}
+	if len(q.inserted) != 0 {
+		t.Fatalf("link_only slug issued %d enrollments", len(q.inserted))
+	}
+}
+
+// TestCreateInvitation_SignInOffForcesLocalCredential: a sign-in-off provider
+// verifies identities but cannot end a sign-in, so the invite must insist on
+// a local credential even when the request leaves it off.
+func TestCreateInvitation_SignInOffForcesLocalCredential(t *testing.T) {
+	t.Parallel()
+
+	slug := "verify-only"
+	off := false
+	q := &fakeInvitationQ{idpMode: "invite_only", idpAllowSignIn: false}
+	s := minimalServerForInvitations(q)
+
+	in := &createInvitationIn{}
+	in.Body.Role = "user"
+	in.Body.ExpectedUpstreamIdpSlug = &slug
+	in.Body.RequireLocalCredential = &off
+
+	out, err := s.handleCreateInvitation(context.Background(), in)
+	if err != nil {
+		t.Fatalf("handleCreateInvitation: %v", err)
+	}
+	if !out.Body.RequireLocalCredential {
+		t.Fatal("response did not force requireLocalCredential for a sign-in-off provider")
+	}
+	if len(q.inserted) != 1 {
+		t.Fatalf("InsertEnrollment call count: want 1, got %d", len(q.inserted))
+	}
+	if !q.inserted[0].RequireLocalCredential {
+		t.Fatal("stored enrollment did not force requireLocalCredential for a sign-in-off provider")
 	}
 }
 

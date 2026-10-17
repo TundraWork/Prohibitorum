@@ -69,6 +69,7 @@ type topLevelQueries interface {
 	// return every matching row tagged with its parent, so a page costs two
 	// queries rather than two per row.
 	CountAccountsLinkedToUpstreamIDPs(ctx context.Context, upstreamIdpIds []int64) ([]db.CountAccountsLinkedToUpstreamIDPsRow, error)
+	CountPendingInvitationsByUpstreamIDP(ctx context.Context) ([]db.CountPendingInvitationsByUpstreamIDPRow, error)
 	ListSAMLSPACSEndpointsBySPIDs(ctx context.Context, spIds []int64) ([]db.SamlSpAc, error)
 	ListSAMLSPKeysBySPIDs(ctx context.Context, arg db.ListSAMLSPKeysBySPIDsParams) ([]db.SamlSpKey, error)
 }

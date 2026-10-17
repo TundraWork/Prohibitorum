@@ -133,6 +133,11 @@ msgid "app.managers.confirm.body"
 msgstr "{name} 将不能再修改这个应用。其账号不受影响。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderDangerSection.tsx
+msgid "admin.federation.danger.delete.confirm.pending"
+msgstr "通过它完成身份验证的 {pending, plural, one {# 份未完成的邀请} other {# 份未完成的邀请}}将随提供商一起删除。"
+
+#. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.federation.upstream_rate_limited.seconds"
 msgstr "{provider} 要求放慢请求。请等待 {seconds, plural, other {# 秒}}。"
@@ -7393,6 +7398,11 @@ msgstr "这把通行密钥会立即无法用于登录。你其它的登录方式
 #: src/api/errors.ts
 msgid "error.federation.upstream_idp_link_only"
 msgstr "这个提供商只能在账号中绑定，不能用来接受邀请。请选择其他提供商，或把它的账号创建方式改为「仅限邀请」。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminInvitationForm.tsx
+msgid "admin.invitations.new.require_local.enforced"
+msgstr "这个提供商不能用于登录，因此始终要求设置本地登录方式。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts

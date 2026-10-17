@@ -198,6 +198,44 @@ func (q *Queries) ConsumeInviteEnrollment(ctx context.Context, token string) (En
 	return i, err
 }
 
+const countPendingInvitationsByUpstreamIDP = `-- name: CountPendingInvitationsByUpstreamIDP :many
+SELECT federated_upstream_idp_id AS upstream_idp_id, count(*)::int AS pending_invitations
+FROM enrollment
+WHERE intent = 'invite'
+  AND consumed_at IS NULL
+  AND expires_at > now()
+  AND federated_upstream_idp_id IS NOT NULL
+GROUP BY federated_upstream_idp_id
+`
+
+type CountPendingInvitationsByUpstreamIDPRow struct {
+	UpstreamIdpID      pgtype.Int8 `json:"upstreamIdpId"`
+	PendingInvitations int32       `json:"pendingInvitations"`
+}
+
+// Pending (unconsumed, unexpired) invitations whose verified snapshot or
+// stored binding points at this provider; deleting the provider cascades
+// them away. Providers with none are absent from the result and read as 0.
+func (q *Queries) CountPendingInvitationsByUpstreamIDP(ctx context.Context) ([]CountPendingInvitationsByUpstreamIDPRow, error) {
+	rows, err := q.db.Query(ctx, countPendingInvitationsByUpstreamIDP)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CountPendingInvitationsByUpstreamIDPRow
+	for rows.Next() {
+		var i CountPendingInvitationsByUpstreamIDPRow
+		if err := rows.Scan(&i.UpstreamIdpID, &i.PendingInvitations); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getEnrollmentByToken = `-- name: GetEnrollmentByToken :one
 SELECT token, intent, target_account_id, template_role, template_attributes, expected_upstream_idp_slug, created_at, expires_at, consumed_at, federated_upstream_idp_id, federated_upstream_idp_slug, federated_upstream_iss, federated_upstream_sub, federated_display_name, federated_upstream_data, federated_avatar_url, template_username, group_ids, created_by_account_id, require_local_credential FROM enrollment WHERE token = $1
 `

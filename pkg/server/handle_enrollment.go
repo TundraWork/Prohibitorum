@@ -111,6 +111,10 @@ func (s *Server) enrollmentWebAuthn() enrollmentWebAuthn {
 
 type enrollmentTx interface {
 	Queries() db.Querier
+	// AuditWriter writes through the open transaction, so audit rows
+	// referencing the just-inserted account resolve their foreign key and
+	// roll back with the transaction if it fails.
+	AuditWriter() audit.Writer
 	Commit(context.Context) error
 	Rollback(context.Context) error
 }
@@ -125,6 +129,8 @@ type pgEnrollmentTx struct {
 }
 
 func (tx *pgEnrollmentTx) Queries() db.Querier { return tx.queries }
+
+func (tx *pgEnrollmentTx) AuditWriter() audit.Writer { return audit.NewWriter(tx.queries) }
 
 func (s *Server) beginEnrollmentTx(ctx context.Context) (enrollmentTx, error) {
 	if s.enrollmentTxRunnerOverride != nil {
@@ -587,7 +593,7 @@ func (s *Server) handleEnrollmentCompleteHTTP(w http.ResponseWriter, r *http.Req
 		if consumed.FederatedUpstreamIdpID.Valid {
 			// The verified-identity snapshot: same tx as the account and the
 			// credential, so any failure rolls the consume back too.
-			if _, err := insertInviteIdentityTx(r.Context(), qtx, s.Audit, a.ID, *consumed); err != nil {
+			if _, err := insertInviteIdentityTx(r.Context(), qtx, tx.AuditWriter(), a.ID, *consumed); err != nil {
 				writeAuthErr(w, err)
 				return
 			}

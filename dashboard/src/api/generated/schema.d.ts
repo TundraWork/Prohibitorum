@@ -800,6 +800,8 @@ export interface components {
             /** Format: int32 */
             linkedAccountCount?: number;
             mode: string;
+            /** Format: int32 */
+            pendingInvitationCount: number | null;
             protocol: string;
             ready: boolean;
             searchFields: components["schemas"]["IdentitySearchFieldView"][] | null;
@@ -839,6 +841,7 @@ export interface components {
             expiresAt: string;
             groupIds: number[] | null;
             groups: components["schemas"]["InvitationGroupView"][] | null;
+            requireLocalCredential: boolean;
             role: string;
             token: string;
             url: string;

@@ -3,8 +3,10 @@ package server
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -23,6 +25,8 @@ import (
 	"prohibitorum/pkg/authn"
 	"prohibitorum/pkg/configx"
 	"prohibitorum/pkg/credential/enrollment"
+	"prohibitorum/pkg/credential/password"
+	"prohibitorum/pkg/credential/totp"
 	"prohibitorum/pkg/db"
 	"prohibitorum/pkg/federation"
 	federationvrchat "prohibitorum/pkg/federation/providers/vrchat"
@@ -37,6 +41,38 @@ type enrollmentAuditCapture struct {
 func (c *enrollmentAuditCapture) Record(_ context.Context, record audit.Record) error {
 	c.records = append(c.records, record)
 	return nil
+}
+
+// foreignKeyAuditCapture stands in for the real database: an audit row that
+// references an account the caller's writer cannot see fails the same way the
+// credential_event.account_id foreign key does. insertInviteIdentityTx must
+// therefore pass the transaction's writer, not the server's shared one.
+type foreignKeyAuditCapture struct {
+	enrollmentAuditCapture
+	// txVisible is the transaction writer's view; the shared writer (the
+	// capture itself) never sees the transaction's inserts.
+	txVisible map[int32]bool
+}
+
+func (c *foreignKeyAuditCapture) Record(ctx context.Context, record audit.Record) error {
+	if record.AccountID != nil {
+		return fmt.Errorf("pg mock: credential_event_account_id_fkey violated for account %d", *record.AccountID)
+	}
+	return c.enrollmentAuditCapture.Record(ctx, record)
+}
+
+// txWriter is what enrollmentTx.AuditWriter returns: the same record log, but
+// with the transaction's own view of which accounts exist.
+type txWriter struct {
+	c       *foreignKeyAuditCapture
+	visible map[int32]bool
+}
+
+func (w txWriter) Record(ctx context.Context, record audit.Record) error {
+	if record.AccountID != nil && !w.visible[*record.AccountID] {
+		return fmt.Errorf("pg mock: credential_event_account_id_fkey violated for account %d", *record.AccountID)
+	}
+	return w.c.enrollmentAuditCapture.Record(ctx, record)
 }
 
 type failingSessionRevocationStore struct {
@@ -63,13 +99,19 @@ type vrchatEnrollmentQueries struct {
 	credentials         map[int32][]db.WebauthnCredential
 	identities          []db.AccountIdentity
 	sessions            []db.Session
+	passwords           map[int32]string
+	totp                map[int32]db.TotpCredential
+	recovery            map[int32][]db.RecoveryCode
 	nextAccountID       int32
 	nextCredentialID    int32
 	nextIdentityID      int64
-	insertAccountErr    error
-	insertIdentityErr   error
-	revokeCalls         int
-	sessionOps          []string
+	// insertHook fires after InsertAccount so the FK-aware audit fake can mark
+	// the new account visible to this transaction's writer.
+	insertHook        func(id int32)
+	insertAccountErr  error
+	insertIdentityErr error
+	revokeCalls       int
+	sessionOps        []string
 }
 
 func (q *vrchatEnrollmentQueries) GetEnrollmentByToken(_ context.Context, token string) (db.Enrollment, error) {
@@ -213,6 +255,9 @@ func (q *vrchatEnrollmentQueries) InsertAccount(_ context.Context, p db.InsertAc
 		Disabled:           p.Disabled,
 	}
 	q.accounts[account.ID] = account
+	if q.insertHook != nil {
+		q.insertHook(account.ID)
+	}
 	return account, nil
 }
 
@@ -328,53 +373,184 @@ func (q *vrchatEnrollmentQueries) RevokeAllSessionsByAccount(_ context.Context, 
 	return nil
 }
 
+func (q *vrchatEnrollmentQueries) UpsertPasswordCredential(_ context.Context, p db.UpsertPasswordCredentialParams) error {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	if q.passwords == nil {
+		q.passwords = map[int32]string{}
+	}
+	q.passwords[p.AccountID] = p.Hash
+	return nil
+}
+
+func (q *vrchatEnrollmentQueries) GetPasswordCredential(_ context.Context, accountID int32) (db.PasswordCredential, error) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	if hash, ok := q.passwords[accountID]; ok {
+		return db.PasswordCredential{AccountID: accountID, Hash: hash}, nil
+	}
+	return db.PasswordCredential{}, pgx.ErrNoRows
+}
+
+func (q *vrchatEnrollmentQueries) DeleteTOTPCredential(_ context.Context, accountID int32) error {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	delete(q.totp, accountID)
+	return nil
+}
+
+func (q *vrchatEnrollmentQueries) InsertTOTPCredential(_ context.Context, p db.InsertTOTPCredentialParams) (db.TotpCredential, error) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	if q.totp == nil {
+		q.totp = map[int32]db.TotpCredential{}
+	}
+	row := db.TotpCredential{AccountID: p.AccountID, SecretEnc: p.SecretEnc, SecretNonce: p.SecretNonce, KeyVersion: p.KeyVersion, Period: p.Period, Digits: p.Digits, Algorithm: p.Algorithm}
+	q.totp[p.AccountID] = row
+	return row, nil
+}
+
+func (q *vrchatEnrollmentQueries) ConfirmTOTPCredential(_ context.Context, accountID int32) error {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	if row, ok := q.totp[accountID]; ok {
+		row.ConfirmedAt = pgtype.Timestamptz{Time: time.Now(), Valid: true}
+		q.totp[accountID] = row
+	}
+	return nil
+}
+
+func (q *vrchatEnrollmentQueries) UpdateTOTPLastStep(_ context.Context, p db.UpdateTOTPLastStepParams) (int64, error) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	if row, ok := q.totp[p.AccountID]; ok {
+		row.LastStep = p.LastStep
+		q.totp[p.AccountID] = row
+	}
+	return 1, nil
+}
+
+func (q *vrchatEnrollmentQueries) DeleteAllRecoveryCodesByAccount(_ context.Context, accountID int32) error {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	delete(q.recovery, accountID)
+	return nil
+}
+
+func (q *vrchatEnrollmentQueries) InsertRecoveryCode(_ context.Context, p db.InsertRecoveryCodeParams) (db.RecoveryCode, error) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	if q.recovery == nil {
+		q.recovery = map[int32][]db.RecoveryCode{}
+	}
+	row := db.RecoveryCode{ID: int32(len(q.recovery[p.AccountID]) + 1), AccountID: p.AccountID, Hash: p.Hash}
+	q.recovery[p.AccountID] = append(q.recovery[p.AccountID], row)
+	return row, nil
+}
+
 func cloneEnrollmentQueries(q *vrchatEnrollmentQueries) *vrchatEnrollmentQueries {
 	clone := &vrchatEnrollmentQueries{
 		enrollments:         make(map[string]db.Enrollment, len(q.enrollments)),
-		accounts:            make(map[int32]db.Account, len(q.accounts)),
 		providers:           make(map[int64]db.UpstreamIdp, len(q.providers)),
+		accounts:            make(map[int32]db.Account, len(q.accounts)),
+		credentials:         make(map[int32][]db.WebauthnCredential, len(q.credentials)),
 		providerErr:         q.providerErr,
 		providerLockedCalls: q.providerLockedCalls,
 		accountLockedCalls:  q.accountLockedCalls,
-		credentials:         make(map[int32][]db.WebauthnCredential, len(q.credentials)),
 		identities:          append([]db.AccountIdentity(nil), q.identities...),
 		sessions:            append([]db.Session(nil), q.sessions...),
+		passwords:           cloneStringMap(q.passwords),
+		totp:                cloneTotpMap(q.totp),
+		recovery:            cloneRecoveryMap(q.recovery),
 		nextAccountID:       q.nextAccountID,
 		nextCredentialID:    q.nextCredentialID,
 		nextIdentityID:      q.nextIdentityID,
+		insertHook:          q.insertHook,
 		insertAccountErr:    q.insertAccountErr,
 		insertIdentityErr:   q.insertIdentityErr,
-		revokeCalls:         q.revokeCalls,
 	}
-	for token, e := range q.enrollments {
-		clone.enrollments[token] = e
+	for token, row := range q.enrollments {
+		clone.enrollments[token] = row
 	}
-	for id, account := range q.accounts {
-		clone.accounts[id] = account
+	for id, row := range q.accounts {
+		clone.accounts[id] = row
 	}
-	for id, provider := range q.providers {
-		clone.providers[id] = provider
+	for id, row := range q.providers {
+		clone.providers[id] = row
 	}
-	for accountID, credentials := range q.credentials {
-		clone.credentials[accountID] = append([]db.WebauthnCredential(nil), credentials...)
+	for id, rows := range q.credentials {
+		clone.credentials[id] = append([]db.WebauthnCredential(nil), rows...)
 	}
 	return clone
 }
 
-type memoryEnrollmentTxRunner struct{ root *vrchatEnrollmentQueries }
+func cloneStringMap(m map[int32]string) map[int32]string {
+	if m == nil {
+		return nil
+	}
+	out := make(map[int32]string, len(m))
+	for k, v := range m {
+		out[k] = v
+	}
+	return out
+}
+
+func cloneTotpMap(m map[int32]db.TotpCredential) map[int32]db.TotpCredential {
+	if m == nil {
+		return nil
+	}
+	out := make(map[int32]db.TotpCredential, len(m))
+	for k, v := range m {
+		out[k] = v
+	}
+	return out
+}
+
+func cloneRecoveryMap(m map[int32][]db.RecoveryCode) map[int32][]db.RecoveryCode {
+	if m == nil {
+		return nil
+	}
+	out := make(map[int32][]db.RecoveryCode, len(m))
+	for k, v := range m {
+		out[k] = append([]db.RecoveryCode(nil), v...)
+	}
+	return out
+}
+
+type memoryEnrollmentTxRunner struct {
+	root  *vrchatEnrollmentQueries
+	audit audit.Writer
+}
 
 func (r *memoryEnrollmentTxRunner) BeginEnrollmentTx(context.Context) (enrollmentTx, error) {
 	r.root.mu.Lock()
-	return &memoryEnrollmentTx{root: r.root, q: cloneEnrollmentQueries(r.root), active: true}, nil
+	tx := &memoryEnrollmentTx{root: r.root, q: cloneEnrollmentQueries(r.root), audit: r.audit, active: true}
+	if _, ok := r.audit.(*foreignKeyAuditCapture); ok {
+		// The transaction's writer sees every account this transaction inserts.
+		tx.fkView = map[int32]bool{}
+		tx.q.insertHook = func(id int32) { tx.fkView[id] = true }
+	}
+	return tx, nil
 }
 
 type memoryEnrollmentTx struct {
 	root   *vrchatEnrollmentQueries
 	q      *vrchatEnrollmentQueries
+	audit  audit.Writer
+	fkView map[int32]bool
 	active bool
 }
 
 func (tx *memoryEnrollmentTx) Queries() db.Querier { return tx.q }
+
+func (tx *memoryEnrollmentTx) AuditWriter() audit.Writer {
+	if tx.fkView != nil {
+		if fk, ok := tx.audit.(*foreignKeyAuditCapture); ok {
+			return txWriter{c: fk, visible: tx.fkView}
+		}
+	}
+	return tx.audit
+}
 
 func (tx *memoryEnrollmentTx) Commit(context.Context) error {
 	if !tx.active {
@@ -387,6 +563,9 @@ func (tx *memoryEnrollmentTx) Commit(context.Context) error {
 	tx.root.accountLockedCalls = tx.q.accountLockedCalls
 	tx.root.credentials = tx.q.credentials
 	tx.root.identities = tx.q.identities
+	tx.root.passwords = tx.q.passwords
+	tx.root.totp = tx.q.totp
+	tx.root.recovery = tx.q.recovery
 	tx.root.nextAccountID = tx.q.nextAccountID
 	tx.root.nextCredentialID = tx.q.nextCredentialID
 	tx.root.nextIdentityID = tx.q.nextIdentityID
@@ -729,6 +908,10 @@ func completeEnrollmentRequest(token string) *http.Request {
 }
 
 func newAtomicVRChatEnrollmentServer(t *testing.T, e db.Enrollment, account *db.Account) (*Server, *vrchatEnrollmentQueries) {
+	return newAtomicVRChatEnrollmentServerWithAudit(t, e, account, noopAuditWriter{})
+}
+
+func newAtomicVRChatEnrollmentServerWithAudit(t *testing.T, e db.Enrollment, account *db.Account, writer audit.Writer) (*Server, *vrchatEnrollmentQueries) {
 	t.Helper()
 	provider := validVRChatEnrollmentProvider()
 	accounts := make(map[int32]db.Account)
@@ -750,16 +933,34 @@ func newAtomicVRChatEnrollmentServer(t *testing.T, e db.Enrollment, account *db.
 		Transport: []protocol.AuthenticatorTransport{protocol.USB},
 		Flags:     webauthn.CredentialFlags{UserVerified: true},
 	}
+	dek := make([]byte, 32)
+	if _, err := rand.Read(dek); err != nil {
+		t.Fatal(err)
+	}
+	// The tx-scoped writer is the caller's writer itself; the FK-aware fake
+	// and the plain capture both flow through unchanged.
+	capture := writer
+	if capture == nil {
+		capture = noopAuditWriter{}
+	}
+	// Password/TOTP stores so the password-totp verify path runs end to end
+	// against the same fake; argon2 params stay minimal for test speed.
+	cfg.TOTP = configx.TOTPConfig{DefaultPeriod: 30, DefaultDigits: 6, DefaultAlgorithm: "SHA1", DriftSteps: 1, RecoveryCodeCount: 10}
+	cfg.PasswordHashParams = configx.PasswordHashParams{MemoryKiB: 8 * 1024, Iterations: 1, Parallelism: 1}
+	auditWriter := audit.NewWriter(q)
 	s := &Server{
 		config:                     cfg,
 		kvStore:                    store,
 		sessionStore:               sessstore.NewSessionStore(store, q, cfg.SessionTTL, cfg.SessionTTL),
 		clientIP:                   newDirectResolver(),
-		Audit:                      noopAuditWriter{},
+		Audit:                      writer,
+		passwordStore:              password.NewStore(q, cfg.PasswordHashParams, nil, auditWriter),
+		totpStore:                  totp.NewStore(q, &totpTestTxRunner{q: q}, map[int][]byte{1: dek}, cfg.TOTP, nil, auditWriter),
 		enrollmentQueriesOverride:  q,
-		enrollmentTxRunnerOverride: &memoryEnrollmentTxRunner{root: q},
+		enrollmentTxRunnerOverride: &memoryEnrollmentTxRunner{root: q, audit: capture},
 		enrollmentWebAuthnOverride: &recordingEnrollmentWebAuthn{credential: credential},
 		federationRegistry:         vrchatEnrollmentRegistry(t),
+		federationService:          federation.NewService(vrchatEnrollmentRegistry(t), federation.NewProviderStore(q), nil, nil, federation.ServiceConfig{}),
 	}
 	return s, q
 }
@@ -793,7 +994,8 @@ func beginVerifiedInvite(t *testing.T, s *Server, e db.Enrollment, username, dis
 
 func TestVerifiedInviteCompletionCommitsAccountCredentialIdentityAndSession(t *testing.T) {
 	e := verifiedInviteEnrollment("complete-registration")
-	s, q := newAtomicVRChatEnrollmentServer(t, e, nil)
+	audits := &enrollmentAuditCapture{}
+	s, q := newAtomicVRChatEnrollmentServerWithAudit(t, e, nil, audits)
 	beginVerifiedInvite(t, s, e, "local-choice", "Edited Local Display")
 
 	w := httptest.NewRecorder()
@@ -829,6 +1031,21 @@ func TestVerifiedInviteCompletionCommitsAccountCredentialIdentityAndSession(t *t
 	if !q.enrollments[e.Token].ConsumedAt.Valid {
 		t.Fatal("enrollment was not consumed")
 	}
+	// The identity link audit row must exist on the tx-scoped writer — the
+	// shared writer would drop it against the uncommitted account row.
+	var linkRow *audit.Record
+	for i := range audits.records {
+		if audits.records[i].Event == audit.EventLink && audits.records[i].Factor == audit.FactorEnrollment {
+			linkRow = &audits.records[i]
+		}
+	}
+	if linkRow == nil {
+		t.Fatalf("audit records = %+v, want an enrollment/link row", audits.records)
+	}
+	if linkRow.AccountID == nil || *linkRow.AccountID != account.ID ||
+		linkRow.Detail["idp_slug"] != "vrchat-main" || linkRow.Detail["upstream_sub"] != e.FederatedUpstreamSub.String {
+		t.Fatalf("identity link audit row = %+v", linkRow)
+	}
 	activeSessions := 0
 	for _, session := range q.sessions {
 		if !session.RevokedAt.Valid {
@@ -837,6 +1054,41 @@ func TestVerifiedInviteCompletionCommitsAccountCredentialIdentityAndSession(t *t
 	}
 	if activeSessions != 1 {
 		t.Fatalf("active sessions = %d, want 1", activeSessions)
+	}
+}
+
+// The identity link audit row must go through the transaction's writer: the
+// shared writer cannot see the uncommitted account and the row would fail the
+// credential_event.account_id foreign key and be dropped, as the real database
+// showed in the smoke review.
+func TestVerifiedInviteCompletionWritesLinkAuditInsideTransaction(t *testing.T) {
+	e := verifiedInviteEnrollment("complete-registration-fk")
+	audits := &foreignKeyAuditCapture{}
+	s, q := newAtomicVRChatEnrollmentServerWithAudit(t, e, nil, audits)
+	beginVerifiedInvite(t, s, e, "local-choice", "Edited Local Display")
+
+	w := httptest.NewRecorder()
+	s.handleEnrollmentCompleteHTTP(w, completeEnrollmentRequest(e.Token))
+	if w.Code != http.StatusOK {
+		t.Fatalf("complete status = %d body=%s", w.Code, w.Body.String())
+	}
+
+	var linkRow *audit.Record
+	for i := range audits.records {
+		if audits.records[i].Event == audit.EventLink && audits.records[i].Factor == audit.FactorEnrollment {
+			linkRow = &audits.records[i]
+		}
+	}
+	if linkRow == nil {
+		t.Fatal("identity link audit row missing: the writer that cannot see the account dropped it")
+	}
+	var account db.Account
+	q.mu.Lock()
+	for _, account = range q.accounts {
+	}
+	q.mu.Unlock()
+	if linkRow.AccountID == nil || *linkRow.AccountID != account.ID {
+		t.Fatalf("identity link audit row = %+v, want account %d", linkRow, account.ID)
 	}
 }
 

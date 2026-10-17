@@ -103,6 +103,8 @@ type fakeListQ struct {
 	linkedCounts   map[int64]int64
 	linkedCountIds []int64
 	linkedCalls    int
+	pendingCounts  map[int64]int32
+	pendingCalls   int
 	acsRows        []db.SamlSpAc
 	acsIds         []int64
 	acsCalls       int
@@ -189,6 +191,20 @@ func (f *fakeListQ) CountAccountsLinkedToUpstreamIDPs(_ context.Context, upstrea
 			continue
 		}
 		rows = append(rows, db.CountAccountsLinkedToUpstreamIDPsRow{UpstreamIdpID: id, LinkedAccountCount: count})
+	}
+	return rows, nil
+}
+
+// CountPendingInvitationsByUpstreamIDP answers the identity-provider list's
+// batched pending-invitation count, seeded the same way as linkedCounts.
+func (f *fakeListQ) CountPendingInvitationsByUpstreamIDP(_ context.Context) ([]db.CountPendingInvitationsByUpstreamIDPRow, error) {
+	f.pendingCalls++
+	rows := make([]db.CountPendingInvitationsByUpstreamIDPRow, 0, len(f.pendingCounts))
+	for id, count := range f.pendingCounts {
+		rows = append(rows, db.CountPendingInvitationsByUpstreamIDPRow{
+			UpstreamIdpID:      pgtype.Int8{Int64: id, Valid: true},
+			PendingInvitations: count,
+		})
 	}
 	return rows, nil
 }

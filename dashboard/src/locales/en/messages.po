@@ -133,6 +133,11 @@ msgid "app.managers.confirm.body"
 msgstr "{name} will no longer be able to change this application. Their account is not affected."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderDangerSection.tsx
+msgid "admin.federation.danger.delete.confirm.pending"
+msgstr "{pending, plural, one {# unfinished invitation whose identity was verified} other {# unfinished invitations whose identities were verified}} through it is deleted with the provider."
+
+#. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.federation.upstream_rate_limited.seconds"
 msgstr "{provider} is asking us to slow down. Wait {seconds, plural, one {# second} other {# seconds}}."
@@ -7393,6 +7398,11 @@ msgstr "This passkey will stop working for sign-in right away. Any other way you
 #: src/api/errors.ts
 msgid "error.federation.upstream_idp_link_only"
 msgstr "This provider can only be linked from an account, so it can't accept an invitation. Choose another provider, or set its provisioning to invitation-only."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminInvitationForm.tsx
+msgid "admin.invitations.new.require_local.enforced"
+msgstr "This provider can't be used to sign in, so a local sign-in method is always required."
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts

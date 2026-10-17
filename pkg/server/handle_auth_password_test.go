@@ -359,6 +359,8 @@ type fakeAuthEnrollmentTx struct {
 }
 
 func (tx *fakeAuthEnrollmentTx) Queries() db.Querier { return tx.q }
+
+func (tx *fakeAuthEnrollmentTx) AuditWriter() audit.Writer { return noopAuditWriter{} }
 func (tx *fakeAuthEnrollmentTx) Commit(context.Context) error {
 	if tx.commitErr != nil {
 		return tx.commitErr
