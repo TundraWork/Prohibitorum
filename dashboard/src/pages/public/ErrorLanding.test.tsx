@@ -122,7 +122,7 @@ describe("the error landing page", () => {
 
   it("does not turn a smuggled bypass inside an authorize address into a retry", async () => {
     await open(
-      `/error?error=server_error&return_to=${encodeURIComponent("/oauth/authorize?next=%2509//evil.example")}`,
+      `/error?error=server_error&return_to=${encodeURIComponent("/oauth/authorize%2509//evil.example")}`,
     );
     expect(
       screen.queryByRole("button", { name: "Try again" }),
@@ -130,6 +130,19 @@ describe("the error landing page", () => {
     expect(
       screen.queryByRole("button", { name: "Go back" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("keeps the retry for an authorize address whose state carries data characters", async () => {
+    const user = userEvent.setup();
+    await open(
+      `/error?error=server_error&return_to=${encodeURIComponent("/oauth/authorize?client_id=wiki&state=100%25")}`,
+    );
+    await user.click(screen.getByRole("button", { name: "Try again" }));
+    await vi.waitFor(() =>
+      expect(loadDocument).toHaveBeenCalledWith(
+        "/oauth/authorize?client_id=wiki&state=100%25",
+      ),
+    );
   });
 
   it("does not offer a retry when the code is not a server error", async () => {

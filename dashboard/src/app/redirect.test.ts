@@ -24,6 +24,9 @@ describe("isSitePath", () => {
     "/%0a/x",
     "/%2509/host",
     "/%250A/host",
+    "/%252509/host",
+    "/%25250A/host",
+    "/%25255C/host",
     "/%00/host",
     "/%5C/host",
     "/%255C/host",
@@ -36,6 +39,18 @@ describe("isSitePath", () => {
 
   it("keeps a percent-encoded letter of the alphabet", () => {
     expect(isSitePath("/%41")).toBe(true);
+  });
+
+  it("leaves the query out of the decision", () => {
+    // A state value is data the endpoint receives, not a way off the site:
+    // a literal percent, an encoded backslash or newline, and an incomplete
+    // UTF-8 sequence all stay usable as query values.
+    expect(isSitePath("/oauth/authorize?state=100%25")).toBe(true);
+    expect(isSitePath("/oauth/authorize?state=a%25b")).toBe(true);
+    expect(isSitePath("/oauth/authorize?state=x%5Cy")).toBe(true);
+    expect(isSitePath("/oauth/authorize?state=x%0Ay")).toBe(true);
+    expect(isSitePath("/oauth/authorize?state=%E4")).toBe(true);
+    expect(isSitePath("/oauth/authorize?next=%2509//evil.example")).toBe(true);
   });
 });
 
@@ -65,14 +80,30 @@ describe("sitePathOf", () => {
     "/%0A/example.org",
     "/%2509/host",
     "/%250A/host",
+    "/%252509/host",
+    "/%25250A/host",
+    "/%25255C/host",
     "/%5C/host",
     "/%255C/host",
     "/%00/host",
     `${window.location.origin}/%09/example.org`,
-    `${window.location.origin}/oauth/authorize?next=%0A//evil.example`,
-    `${window.location.origin}/oauth/authorize?next=%2509//evil.example`,
-    `${window.location.origin}/oauth/authorize?next=%255C%252509//evil.example`,
+    `${window.location.origin}/oauth%2509//evil.example`,
+    `${window.location.origin}/oauth%255C%252509//evil.example`,
+    "/oauth/authorize%2509//evil.example",
+    "/oauth/authorize%25255C/host",
   ])("refuses %s", (value) => {
     expect(sitePathOf(value)).toBeUndefined();
+  });
+
+  it("keeps a return address whose query carries data characters", () => {
+    expect(sitePathOf("/oauth/authorize?state=100%25")).toBe(
+      "/oauth/authorize?state=100%25",
+    );
+    expect(sitePathOf("/oauth/authorize?state=%E4")).toBe(
+      "/oauth/authorize?state=%E4",
+    );
+    expect(
+      sitePathOf(`${window.location.origin}/oauth/authorize?state=a%25b`),
+    ).toBe("/oauth/authorize?state=a%25b");
   });
 });

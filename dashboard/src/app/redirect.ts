@@ -7,13 +7,16 @@ import { loadDocument } from "@/app/load-document";
 // the router and the character again at the next decode, so the value is
 // decoded until it stops changing and the fully decoded form is what gets
 // checked. A backslash is refused anywhere in the path for the same reason
-// (a browser normalises \ to /), and a NUL with it.
+// (a browser normalises \ to /), and a NUL with it. Only the path is
+// examined: a query stays at the endpoint this origin serves, so a state
+// value carrying %, %5C or %0A is data, not a way off the site.
 const unsafeAfterDecoding = /[\t\n\r\0\\]|%0[9ad]|%5c|%00/i;
 const decodeLimit = 8;
 
-/** The value decoded repeatedly, until it stops changing. */
-function fullyDecoded(value: string): string {
-  let current = value;
+/** The path portion (everything before '?'), decoded until it stops changing. */
+function fullyDecodedPath(value: string): string {
+  const end = value.indexOf("?");
+  let current = end === -1 ? value : value.slice(0, end);
   for (let i = 0; i < decodeLimit; i += 1) {
     const next = decodeURIComponent(current);
     if (next === current) return current;
@@ -22,20 +25,27 @@ function fullyDecoded(value: string): string {
   return current;
 }
 
+/** The path portion (everything before '?') as written. */
+function pathPortion(value: string): string {
+  const end = value.indexOf("?");
+  return end === -1 ? value : value.slice(0, end);
+}
+
 /**
  * A path on this site. A value starting with `//` or `/\` is read by the
  * browser as another host, and a path carrying a tab, CR, LF, NUL or
  * backslash — including percent-encoded, however many layers deep —
- * collapses into one, so none of them is a path on this site.
+ * collapses into one, so none of them is a path on this site. Only the path
+ * portion before '?' is examined, for the reason above.
  */
 export function isSitePath(value: string | undefined): value is string {
   if (value?.startsWith("/") !== true) return false;
   if (value.startsWith("//") || value.startsWith("/\\")) return false;
-  if (unsafeAfterDecoding.test(value)) return false;
+  if (unsafeAfterDecoding.test(pathPortion(value))) return false;
   try {
-    return !unsafeAfterDecoding.test(fullyDecoded(value));
+    return !unsafeAfterDecoding.test(fullyDecodedPath(value));
   } catch {
-    // A value that cannot be decoded is malformed, not a path on this site.
+    // A path that cannot be decoded is malformed, not a path on this site.
     return false;
   }
 }
