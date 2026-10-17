@@ -629,12 +629,17 @@ func (s *Server) handleDeleteIdentityProviderHTTP(w http.ResponseWriter, r *http
 	// Pending invitations whose verified snapshot points here die with the
 	// provider (the snapshot FK cascades). Counted before the delete so the
 	// audit row records what disappeared.
-	pendingCounts, err := qtx.CountPendingInvitationsByUpstreamIDP(r.Context())
+	pendingRows, err := qtx.CountPendingInvitationsByUpstreamIDP(r.Context())
 	if err != nil {
 		writeAuthErr(w, fmt.Errorf("handleDeleteIdentityProvider: count pending invitations: %w", err))
 		return
 	}
-	deletedInvitations := pendingCounts[row.ID]
+	var deletedInvitations int32
+	for _, pending := range pendingRows {
+		if pending.UpstreamIdpID.Valid && pending.UpstreamIdpID.Int64 == row.ID {
+			deletedInvitations = pending.PendingInvitations
+		}
+	}
 	unlinkedAccounts, err := qtx.DeleteAccountIdentitiesByUpstreamIDP(r.Context(), row.ID)
 	if err != nil {
 		writeAuthErr(w, fmt.Errorf("handleDeleteIdentityProvider: delete identities: %w", err))
