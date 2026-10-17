@@ -785,8 +785,9 @@ func runVRChatSmoke(admin *client, base, control, caFile, serverLog, mockLog str
 	if err := v.expectError(resp, body, http.StatusUnauthorized, "bad_credentials"); err != nil || hasSessionCookie(resp.Cookies()) {
 		return fmt.Errorf("disabled account proof: %w", err)
 	}
-	if status, err := getStatus(signIn, "/api/prohibitorum/me"); err != nil || status != http.StatusOK {
-		return fmt.Errorf("surviving sign-in session /me status=%d err=%w; want 200", status, err)
+	// Disabling the account revokes every session, the sign-in one included.
+	if status, err := getStatus(signIn, "/api/prohibitorum/me"); err != nil || status != http.StatusUnauthorized {
+		return fmt.Errorf("sign-in session /me status=%d err=%w; want 401 (revoked with the account)", status, err)
 	}
 	if err := admin.postJSON("/api/prohibitorum/accounts/set-disabled", map[string]any{"id": registrationMe.ID, "disabled": false}, nil); err != nil {
 		return err
