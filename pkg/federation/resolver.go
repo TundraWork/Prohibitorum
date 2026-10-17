@@ -770,7 +770,6 @@ func attachInviteIdentity(
 				"upstream_iss":         identity.Issuer,
 				"upstream_sub":         identity.Subject,
 				"require_local_reason": reason,
-				"enrollment_token":     enrollmentToken,
 			},
 		})
 
