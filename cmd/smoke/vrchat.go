@@ -446,7 +446,7 @@ func runVRChatSmoke(admin *client, base, control, caFile, serverLog, mockLog str
 		return fmt.Errorf("operator validate = %+v err=%w", validated, err)
 	}
 	provider = *validated.Provider
-	if err := admin.postJSON("/api/prohibitorum/identity-providers/set-disabled", map[string]any{"slug": vrchatSlug, "disabled": false}, &provider); err != nil || provider.Disabled || !provider.Ready || provider.Mode != "link_only" {
+	if err := admin.postJSON("/api/prohibitorum/identity-providers/set-disabled", map[string]any{"slug": vrchatSlug, "disabled": false}, &provider); err != nil || provider.Disabled || !provider.Ready || provider.Mode != "invite_only" || provider.AllowSignIn {
 		return fmt.Errorf("provider enable = %+v err=%w", provider, err)
 	}
 
