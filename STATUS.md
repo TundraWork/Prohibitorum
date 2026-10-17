@@ -6,6 +6,24 @@ proof-backed local registration/recovery. It provides OIDC OP, SAML 2.0 IdP,
 and forward-auth downstream access, plus app-bound policy, delegated
 application management. This file records capabilities by version and the roadmap.
 
+## Unreleased — PHB-101 provider sign-in switch
+
+Every identity provider carries an "allow sign-in" switch. VRChat starts with
+it off: a provider with sign-in off backs no login button, never issues a
+session from its proof, and cannot take "creates accounts" as its mode — it
+verifies identities for invitations and linked accounts. Turning it on makes
+a provider sign in like any other. All protocol-based VRChat special cases
+are gone: the self-service `federated_register` registration and the
+provider-initiated account reset no longer exist, and migration 049 deletes
+their pending enrollments.
+
+Invitations gain the matching option: an invitation bound to a sign-in-off
+provider, or one that asks for it, verifies the provider identity first and
+requires a local sign-in method (passkey, or password plus authenticator)
+before the account is created — account, credential, and confirmed identity
+land in one transaction, and the invitation stays unconsumed until then.
+Invitations can no longer be bound to a link-only provider.
+
 ## Unreleased — PHB-91 consent, error and maintenance pages
 
 OIDC and SAML consent run in the dashboard again. `/consent` lists what an application
@@ -327,16 +345,20 @@ enrollment share the same browser-binding and single-use state machinery.
   The member places that exact URL in VRChat `bioLinks`; the adapter reads the
   canonical public profile and accepts only the exact requested `usr_…`
   subject. The UI instructs the member to remove the link after verification.
-- VRChat providers are fixed `link_only`. VRChat proof never logs a member in
-  directly and never issues a normal session cookie. An unknown verified
-  profile receives a short-lived `federated_register` enrollment; an existing
-  linked profile receives a target-hidden `reset` enrollment. The shared local
-  WebAuthn ceremony creates or replaces the authoritative credential. Recovery
-  revokes prior sessions before issuing exactly one fresh session.
-- The `federated_register` public preview exposes intent, expiry, and a safe
-  display-name suggestion. Provider-backed `reset` previews expose intent and
-  expiry but omit `target`. Internal enrollment snapshots and all proof,
-  enrollment, operator-cookie, credential, and 2FA values remain opaque.
+- Every provider carries an "allow sign-in" switch; VRChat providers start
+  with it off, and an administrator may turn it on. With sign-in off a
+  provider backs no login button: it verifies identities for invitations and
+  linked accounts only, and `auto_provision` cannot be selected for it. With
+  sign-in on, a verified VRChat profile signs in directly, exactly like an
+  OIDC identity.
+- An invitation accepted through a provider that has sign-in off (or one that
+  demands a local credential) verifies first: the identity snapshot is stored
+  on the invitation, no account exists yet, and completion creates the
+  account, its local credential, and the confirmed identity in one
+  transaction. The public preview exposes `requireLocalCredential` and, once
+  verified, a `verifiedIdentity` with a safe display name. Internal
+  enrollment snapshots and all proof, enrollment, operator-cookie,
+  credential, and 2FA values remain opaque.
 - Authenticated Connected Accounts linking remains direct and session-bound:
   it persists the verified identity without issuing or changing the session.
   Verified VRChat identity metadata stores only `userId`, `displayName`, and

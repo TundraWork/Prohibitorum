@@ -78,7 +78,10 @@ func (s *Server) handleEnrollmentPasswordTOTPVerifyHTTP(w http.ResponseWriter, r
 	var proposal *newAccountCeremony
 	switch e.Intent {
 	case enrollment.IntentInvite:
-		if e.ExpectedUpstreamIdpSlug.Valid && e.ExpectedUpstreamIdpSlug.String != "" {
+		// A federation-bound invite needs its identity snapshot first (unless
+		// it is already there, mirroring the passkey /begin gate).
+		if e.ExpectedUpstreamIdpSlug.Valid && e.ExpectedUpstreamIdpSlug.String != "" &&
+			!(e.FederatedUpstreamIdpID.Valid && e.FederatedUpstreamIdpSlug.Valid && e.FederatedUpstreamIdpSlug.String == e.ExpectedUpstreamIdpSlug.String) {
 			audit.RecordOrLog(r.Context(), s.Audit, audit.Record{Factor: audit.FactorEnrollment, Event: audit.EventFail, Detail: map[string]any{"reason": "federation_required"}})
 			writeAuthErr(w, authn.WithFederationName(authn.ErrEnrollmentFederationRequired(), s.enabledFederationName(r.Context(), e.ExpectedUpstreamIdpSlug.String)))
 			return
@@ -92,22 +95,10 @@ func (s *Server) handleEnrollmentPasswordTOTPVerifyHTTP(w http.ResponseWriter, r
 			writeAuthErr(w, err)
 			return
 		}
+		if inviteBody.DisplayName == "" && e.FederatedDisplayName.Valid {
+			inviteBody.DisplayName = e.FederatedDisplayName.String
+		}
 		_, proposal, err = prepareNewEnrollmentAccount(r.Context(), q, inviteBody, role, "enrollment/password-totp/verify invite")
-		if err != nil {
-			writeAuthErr(w, err)
-			return
-		}
-
-	case enrollment.IntentFederatedRegister:
-		if !e.FederatedUpstreamIdpID.Valid {
-			writeAuthErr(w, authn.ErrProviderNotReady())
-			return
-		}
-		if _, err := s.recheckVRChatEnrollmentProvider(r.Context(), q, e.FederatedUpstreamIdpID.Int64); err != nil {
-			writeAuthErr(w, err)
-			return
-		}
-		_, proposal, err = prepareNewEnrollmentAccount(r.Context(), q, enrollBeginBody{Username: body.Username, DisplayName: body.DisplayName}, "user", "enrollment/password-totp/verify federated")
 		if err != nil {
 			writeAuthErr(w, err)
 			return
@@ -122,12 +113,6 @@ func (s *Server) handleEnrollmentPasswordTOTPVerifyHTTP(w http.ResponseWriter, r
 			writeAuthErr(w, authn.ErrEnrollmentConsumed())
 			return
 		}
-		if e.RecoverySourceUpstreamIdpID.Valid {
-			if _, err := s.recheckVRChatEnrollmentProvider(r.Context(), q, e.RecoverySourceUpstreamIdpID.Int64); err != nil {
-				writeAuthErr(w, err)
-				return
-			}
-		}
 		a, err := q.GetAccountByID(r.Context(), e.TargetAccountID.Int32)
 		if err != nil || a.Disabled {
 			writeAuthErr(w, authn.ErrEnrollmentConsumed())
@@ -138,6 +123,7 @@ func (s *Server) handleEnrollmentPasswordTOTPVerifyHTTP(w http.ResponseWriter, r
 		writeAuthErr(w, authn.ErrEnrollmentConsumed())
 		return
 	}
+
 
 	tx, err := s.beginEnrollmentTx(r.Context())
 	if err != nil {
@@ -167,7 +153,8 @@ func (s *Server) handleEnrollmentPasswordTOTPVerifyHTTP(w http.ResponseWriter, r
 
 	switch consumed.Intent {
 	case enrollment.IntentInvite:
-		if consumed.ExpectedUpstreamIdpSlug.Valid && consumed.ExpectedUpstreamIdpSlug.String != "" {
+		if consumed.ExpectedUpstreamIdpSlug.Valid && consumed.ExpectedUpstreamIdpSlug.String != "" &&
+			!(consumed.FederatedUpstreamIdpID.Valid && consumed.FederatedUpstreamIdpSlug.Valid && consumed.FederatedUpstreamIdpSlug.String == consumed.ExpectedUpstreamIdpSlug.String) {
 			audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
 				Factor: audit.FactorEnrollment,
 				Event:  audit.EventFail,
@@ -205,105 +192,23 @@ func (s *Server) handleEnrollmentPasswordTOTPVerifyHTTP(w http.ResponseWriter, r
 			return
 		}
 		acct = a
-
-	case enrollment.IntentFederatedRegister:
-		if proposal.Username == "" {
-			writeAuthErr(w, authn.ErrCeremonyState())
-			return
-		}
-		if !consumed.FederatedUpstreamIdpID.Valid || !consumed.FederatedUpstreamIss.Valid ||
-			!consumed.FederatedUpstreamSub.Valid || len(consumed.FederatedUpstreamData) == 0 {
-			writeAuthErr(w, authn.ErrCeremonyState())
-			return
-		}
-		provider, perr := s.recheckVRChatEnrollmentProvider(r.Context(), qtx, consumed.FederatedUpstreamIdpID.Int64)
-		if perr != nil {
-			audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
-				Factor: audit.FactorEnrollment,
-				Event:  audit.EventFail,
-				Detail: map[string]any{"reason": "provider_unavailable"},
-			})
-			writeAuthErr(w, perr)
-			return
-		}
-		a, aerr := qtx.InsertAccount(r.Context(), db.InsertAccountParams{
-			Username:           proposal.Username,
-			DisplayName:        proposal.DisplayName,
-			WebauthnUserHandle: proposal.WebauthnUserHandle,
-			Role:               "user",
-			Attributes:         []byte("{}"),
-			Disabled:           false,
-		})
-		if aerr != nil {
-			if isUniqueViolation(aerr) {
-				audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
-					Factor: audit.FactorEnrollment,
-					Event:  audit.EventFail,
-					Detail: map[string]any{"reason": "username_collision"},
-				})
-				writeAuthErr(w, authn.ErrUsernameTaken())
+		if consumed.FederatedUpstreamIdpID.Valid {
+			// Same shared identity-write as the passkey path; any failure rolls
+			// the consume back.
+			if _, ierr := insertInviteIdentityTx(r.Context(), qtx, tx.AuditWriter(), acct.ID, *consumed); ierr != nil {
+				writeAuthErr(w, ierr)
 				return
 			}
-			writeAuthErr(w, fmt.Errorf("enrollment/password-totp/verify federated: insert account: %w", aerr))
-			return
-		}
-		acct = a
-		if _, ierr := qtx.GetAccountIdentityByIssuerSub(r.Context(), db.GetAccountIdentityByIssuerSubParams{
-			UpstreamIss: consumed.FederatedUpstreamIss.String,
-			UpstreamSub: consumed.FederatedUpstreamSub.String,
-		}); ierr == nil {
-			audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
-				Factor: audit.FactorEnrollment,
-				Event:  audit.EventFail,
-				Detail: map[string]any{"reason": "identity_conflict"},
-			})
-			writeAuthErr(w, authn.ErrFederationIdentityConflict(provider.DisplayName))
-			return
-		} else if !errors.Is(ierr, pgx.ErrNoRows) {
-			writeAuthErr(w, fmt.Errorf("enrollment/password-totp/verify federated: check identity: %w", ierr))
-			return
-		}
-		identity, ierr := qtx.InsertAccountIdentity(r.Context(), db.InsertAccountIdentityParams{
-			AccountID:     a.ID,
-			UpstreamIdpID: provider.ID,
-			UpstreamIss:   consumed.FederatedUpstreamIss.String,
-			UpstreamSub:   consumed.FederatedUpstreamSub.String,
-			UpstreamData:  append([]byte(nil), consumed.FederatedUpstreamData...),
-		})
-		if ierr != nil {
-			if isUniqueViolation(ierr) {
-				audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
-					Factor: audit.FactorEnrollment,
-					Event:  audit.EventFail,
-					Detail: map[string]any{"reason": "identity_conflict"},
-				})
-				writeAuthErr(w, authn.ErrFederationIdentityConflict(provider.DisplayName))
-				return
-			}
-			writeAuthErr(w, fmt.Errorf("enrollment/password-totp/verify federated: insert identity: %w", ierr))
-			return
-		}
-		if cerr := qtx.ConfirmAccountIdentity(r.Context(), identity.ID); cerr != nil {
-			writeAuthErr(w, fmt.Errorf("enrollment/password-totp/verify federated: confirm identity: %w", cerr))
-			return
-		}
-		federatedProvider = &provider
-		if consumed.FederatedAvatarUrl.Valid {
-			federatedAvatar = consumed.FederatedAvatarUrl.String
-		}
-
-	case enrollment.IntentReset:
-		if consumed.RecoverySourceUpstreamIdpID.Valid {
-			if _, perr := s.recheckVRChatEnrollmentProvider(r.Context(), qtx, consumed.RecoverySourceUpstreamIdpID.Int64); perr != nil {
-				audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
-					Factor: audit.FactorEnrollment,
-					Event:  audit.EventFail,
-					Detail: map[string]any{"reason": "provider_unavailable"},
-				})
+			provider, perr := recheckInviteIdentityProvider(r.Context(), qtx, *consumed)
+			if perr != nil {
 				writeAuthErr(w, perr)
 				return
 			}
+			federatedProvider = &provider
+			federatedAvatar = inviteSnapshotAvatar(*consumed)
 		}
+
+	case enrollment.IntentReset:
 		if !consumed.TargetAccountID.Valid {
 			writeAuthErr(w, authn.ErrEnrollmentConsumed())
 			return
@@ -392,9 +297,6 @@ func (s *Server) handleEnrollmentPasswordTOTPVerifyHTTP(w http.ResponseWriter, r
 		auditDetail["fixed_username"] = consumed.TemplateUsername.Valid
 		auditDetail["group_ids"] = append([]int32(nil), consumed.GroupIds...)
 	}
-	if consumed.Intent == enrollment.IntentReset && consumed.RecoverySourceUpstreamIdpID.Valid {
-		auditDetail["source"] = "vrchat"
-	}
 	audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
 		AccountID: &acct.ID,
 		Factor:    audit.FactorEnrollment,
@@ -403,14 +305,10 @@ func (s *Server) handleEnrollmentPasswordTOTPVerifyHTTP(w http.ResponseWriter, r
 	})
 
 	if consumed.Intent == enrollment.IntentReset {
-		_, revokeErr := s.sessionStore.RevokeAllForAccount(r.Context(), acct.ID)
-		if revokeErr != nil && consumed.RecoverySourceUpstreamIdpID.Valid {
-			// Credential replacement + enrollment consumption already committed.
-			// Fail closed rather than issue a fresh session while a compromised
-			// old session may still be live.
-			writeAuthErr(w, fmt.Errorf("enrollment/password-totp/verify: revoke sessions: %w", revokeErr))
-			return
-		}
+		// Best-effort revocation: an admin-issued reset token is single-use
+		// and consumed here; failing the response after commit would strand
+		// the user without credentials or guidance.
+		_, _ = s.sessionStore.RevokeAllForAccount(r.Context(), acct.ID)
 	}
 
 	if me := s.maintenanceLockout(r.Context(), acct.ID); me != nil {

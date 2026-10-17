@@ -100,34 +100,6 @@ func (a *localFlowAdapter) snapshotInputs() []federation.ActionInput {
 	return append([]federation.ActionInput(nil), a.inputs...)
 }
 
-type localEnrollmentIssuer struct {
-	mu       sync.Mutex
-	calls    int
-	provider federation.Provider
-	identity federation.VerifiedIdentity
-	grant    federation.EnrollmentGrant
-	err      error
-}
-
-func (i *localEnrollmentIssuer) Issue(_ context.Context, provider federation.Provider, identity federation.VerifiedIdentity) (federation.EnrollmentGrant, error) {
-	i.mu.Lock()
-	defer i.mu.Unlock()
-	i.calls++
-	i.provider = provider
-	i.identity = identity
-	return i.grant, i.err
-}
-
-func (i *localEnrollmentIssuer) snapshot() (int, federation.Provider, federation.VerifiedIdentity) {
-	i.mu.Lock()
-	defer i.mu.Unlock()
-	return i.calls, i.provider, i.identity
-}
-func (i *localEnrollmentIssuer) setError(err error) {
-	i.mu.Lock()
-	defer i.mu.Unlock()
-	i.err = err
-}
 
 type directIPStore struct{}
 
@@ -154,7 +126,6 @@ type localFlowHarness struct {
 	q       *fakeFedQueries
 	store   kv.Store
 	adapter *localFlowAdapter
-	issuer  *localEnrollmentIssuer
 	ts      *httptest.Server
 	client  *http.Client
 }
@@ -179,7 +150,7 @@ func newLocalFlowHarnessWithStore(t *testing.T, store kv.Store) *localFlowHarnes
 	q := newFakeFedQueries()
 	provider := db.UpstreamIdp{
 		ID: 77, Slug: localProviderSlug, DisplayName: "VRChat", Protocol: "vrchat",
-		Mode: federation.ModeLinkOnly, ProviderConfig: json.RawMessage(`{}`), SecretStatus: "valid",
+		Mode: federation.ModeInviteOnly, AllowSignIn: true, ProviderConfig: json.RawMessage(`{}`), SecretStatus: "valid",
 	}
 	q.idpBySlug[provider.Slug] = provider
 	q.identityErr = nil
@@ -198,8 +169,7 @@ func newLocalFlowHarnessWithStore(t *testing.T, store kv.Store) *localFlowHarnes
 	if err := registry.RegisterAdapter(adapter); err != nil {
 		t.Fatal(err)
 	}
-	issuer := &localEnrollmentIssuer{grant: federation.EnrollmentGrant{Token: "opaque/token with space", Intent: "federated_registration", ExpiresAt: time.Now().Add(time.Hour)}}
-	service := federation.NewService(registry, federation.NewProviderStore(q), store, federation.NewResolver(q, writer, nil), issuer, federation.ServiceConfig{
+	service := federation.NewService(registry, federation.NewProviderStore(q), store, federation.NewResolver(q, writer, nil), federation.ServiceConfig{
 		StateTTL: 5 * time.Minute, PublicOrigin: "https://id.example.test", Audit: writer,
 	})
 	cfg := &configx.Config{SessionTTL: time.Hour}
@@ -221,7 +191,7 @@ func newLocalFlowHarnessWithStore(t *testing.T, store kv.Store) *localFlowHarnes
 		t.Fatal(err)
 	}
 	client := &http.Client{Jar: jar, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
-	return &localFlowHarness{t: t, s: s, q: q, store: store, adapter: adapter, issuer: issuer, ts: ts, client: client}
+	return &localFlowHarness{t: t, s: s, q: q, store: store, adapter: adapter, ts: ts, client: client}
 }
 
 func (h *localFlowHarness) beginLogin(t *testing.T) (flow string, response *http.Response) {
@@ -244,6 +214,9 @@ func TestFederationFlowInviteBeginWithLinkOnlyProviderRejected(t *testing.T) {
 	// redeemed through one — the selection is refused at begin, before any
 	// upstream hop.
 	h := newLocalFlowHarness(t)
+	linkOnly := h.q.idpBySlug[localProviderSlug]
+	linkOnly.Mode = federation.ModeLinkOnly
+	h.q.idpBySlug[localProviderSlug] = linkOnly
 	h.q.seedEnrollment(validInvite("local-invite", localProviderSlug))
 	response := h.request(t, http.MethodGet, "/api/prohibitorum/enrollments/local-invite/start-federation?return_to=%2Fafter", "")
 	if response.StatusCode != http.StatusFound || !strings.HasPrefix(response.Header.Get("Location"), "/error?error=invite_required") {
@@ -293,7 +266,7 @@ func (h *localFlowHarness) rawRequest(t *testing.T, path, body, contentType stri
 	return response
 }
 
-func TestFederationFlowVRChatEnrollPrepareVerify(t *testing.T) {
+func TestFederationFlowVRChatLoginPrepareVerify(t *testing.T) {
 	h := newLocalFlowHarness(t)
 	flow, beginResponse := h.beginLogin(t)
 	if len(beginResponse.Cookies()) == 0 {
@@ -308,7 +281,7 @@ func TestFederationFlowVRChatEnrollPrepareVerify(t *testing.T) {
 	if err := json.NewDecoder(response.Body).Decode(&identify); err != nil {
 		t.Fatal(err)
 	}
-	if identify["intent"] != "enroll" || identify["step"] != "identify" || identify["requiresLocalUsername"] != false {
+	if identify["intent"] != "login" || identify["step"] != "identify" || identify["requiresLocalUsername"] != false {
 		t.Fatalf("identify view = %#v", identify)
 	}
 	if provider, ok := identify["provider"].(map[string]any); !ok || provider["slug"] != "vrchat" || provider["displayName"] != "VRChat" || provider["protocol"] != "vrchat" {
@@ -344,33 +317,23 @@ func TestFederationFlowVRChatEnrollPrepareVerify(t *testing.T) {
 	if err := json.NewDecoder(response.Body).Decode(&result); err != nil {
 		t.Fatal(err)
 	}
-	if result.Redirect != "/enroll/opaque%2Ftoken%20with%20space" {
+	if result.Redirect != "/after" {
 		t.Fatalf("redirect = %q", result.Redirect)
 	}
-	if len(h.q.sessions) != 0 || h.q.identityLookupCalls != 0 {
-		t.Fatalf("enrollment touched session/resolver: sessions=%d resolver=%d", len(h.q.sessions), h.q.identityLookupCalls)
-	}
-	for _, cookie := range response.Cookies() {
-		if cookie.Name == sessstore.SessionCookieName && cookie.Value != "" {
-			t.Fatalf("enrollment set session cookie: %+v", cookie)
-		}
+	if len(h.q.sessions) != 1 {
+		t.Fatalf("login issued %d sessions, want 1", len(h.q.sessions))
 	}
 	inputs := h.adapter.snapshotInputs()
 	if len(inputs) != 2 || inputs[0].Kind != federation.ActionCollectIdentity || inputs[0].Identity != localUserID || inputs[0].LocalUsername != "" || inputs[1].Kind != federation.ActionPublishProof || inputs[1].Identity != "" {
 		t.Fatalf("adapter inputs = %+v", inputs)
-	}
-	calls, provider, identity := h.issuer.snapshot()
-	if calls != 1 || provider.ID != 77 || provider.Slug != localProviderSlug || provider.Protocol != "vrchat" ||
-		identity.Issuer != localIssuer || identity.Subject != localUserID || identity.DisplayName != "VRChat User" {
-		t.Fatalf("issuer calls=%d provider=%+v identity=%+v", calls, provider, identity)
 	}
 
 	replay := h.request(t, http.MethodPost, "/api/prohibitorum/auth/federation/-/flows/"+flow+"/verify", `{}`)
 	if replay.StatusCode != http.StatusUnauthorized {
 		t.Fatalf("replay status = %d", replay.StatusCode)
 	}
-	if calls, _, _ := h.issuer.snapshot(); calls != 1 {
-		t.Fatalf("replay issued %d enrollments", calls)
+	if len(h.q.sessions) != 1 {
+		t.Fatalf("replay issued another session")
 	}
 }
 
@@ -393,15 +356,15 @@ func TestFederationFlowVRChatVerifyAcceptsEmptyBody(t *testing.T) {
 	if err := json.NewDecoder(verify.Body).Decode(&result); err != nil {
 		t.Fatal(err)
 	}
-	if result.Redirect != "/enroll/opaque%2Ftoken%20with%20space" {
+	if result.Redirect != "/after" {
 		t.Fatalf("redirect = %q", result.Redirect)
 	}
 	inputs := h.adapter.snapshotInputs()
 	if len(inputs) != 2 || inputs[1].Kind != federation.ActionPublishProof || inputs[1].LocalUsername != "" {
 		t.Fatalf("adapter inputs = %+v", inputs)
 	}
-	if calls, _, _ := h.issuer.snapshot(); calls != 1 {
-		t.Fatalf("issuer calls = %d", calls)
+	if len(h.q.sessions) != 1 {
+		t.Fatalf("login issued %d sessions, want 1", len(h.q.sessions))
 	}
 }
 
@@ -481,7 +444,7 @@ func TestFederationFlowRejectsActionSkippingAndInvalidBodies(t *testing.T) {
 	}
 }
 
-func TestFederationFlowVRChatEnrollmentIssuerFailureIsTerminal(t *testing.T) {
+func TestFederationFlowVRChatResolverFailureIsRetryable(t *testing.T) {
 	h := newLocalFlowHarness(t)
 	flow, _ := h.beginLogin(t)
 	prepare := h.request(t, http.MethodPost, "/api/prohibitorum/auth/federation/-/flows/"+flow+"/prepare", `{"identity":"`+localUserID+`"}`)
@@ -493,38 +456,34 @@ func TestFederationFlowVRChatEnrollmentIssuerFailureIsTerminal(t *testing.T) {
 		t.Fatal(err)
 	}
 	if proof.RequiresLocalUsername {
-		t.Fatal("IntentEnroll requested a local username")
+		t.Fatal("login requested a local username")
 	}
-	h.issuer.setError(errors.New("issuance unavailable"))
+	h.q.identityErr = errors.New("resolution unavailable")
 	verify := h.request(t, http.MethodPost, "/api/prohibitorum/auth/federation/-/flows/"+flow+"/verify", `{}`)
 	if verify.StatusCode != http.StatusInternalServerError {
 		t.Fatalf("verify = %d", verify.StatusCode)
 	}
-	if _, err := h.store.Get(context.Background(), federation.FlowKey(flow)); err == nil {
-		t.Fatal("failed issuance restored consumed flow")
-	}
-	if calls, _, _ := h.issuer.snapshot(); calls != 1 {
-		t.Fatalf("issuer calls after failure = %d", calls)
+	// Login flows restore the KV state so a transient resolution failure can
+	// be retried.
+	if _, err := h.store.Get(context.Background(), federation.FlowKey(flow)); err != nil {
+		t.Fatalf("failed resolution discarded retryable flow: %v", err)
 	}
 	inputs := h.adapter.snapshotInputs()
 	if len(inputs) != 2 {
 		t.Fatalf("adapter calls after failure = %d", len(inputs))
 	}
 
-	h.issuer.setError(nil)
+	h.q.identityErr = nil
 	retry := h.request(t, http.MethodPost, "/api/prohibitorum/auth/federation/-/flows/"+flow+"/verify", `{}`)
-	if retry.StatusCode != http.StatusUnauthorized {
+	if retry.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(retry.Body)
 		t.Fatalf("retry = %d body=%s", retry.StatusCode, body)
 	}
-	if calls, _, _ := h.issuer.snapshot(); calls != 1 {
-		t.Fatalf("retry issued %d enrollments", calls)
+	if got := len(h.adapter.snapshotInputs()); got != len(inputs)+1 {
+		t.Fatalf("retry did not re-run the adapter: calls=%d want %d", got, len(inputs)+1)
 	}
-	if got := len(h.adapter.snapshotInputs()); got != len(inputs) {
-		t.Fatalf("retry invoked adapter: calls=%d", got)
-	}
-	if len(h.q.sessions) != 0 || h.q.identityLookupCalls != 0 {
-		t.Fatalf("retry touched session/resolver: sessions=%d resolver=%d", len(h.q.sessions), h.q.identityLookupCalls)
+	if len(h.q.sessions) != 1 {
+		t.Fatalf("retry issued %d sessions, want 1", len(h.q.sessions))
 	}
 }
 
@@ -721,9 +680,6 @@ func TestFederationFlowLocalLinkUsesCurrentSessionAndNeverMintsSession(t *testin
 	if completion.Intent != federation.IntentLink || completion.AccountID != 99 {
 		t.Fatalf("link completion = %+v", completion)
 	}
-	if calls, _, _ := h.issuer.snapshot(); calls != 0 {
-		t.Fatalf("link issued %d enrollments", calls)
-	}
 	rr = httptest.NewRecorder()
 	h.s.writeFederationCompletion(rr, httptest.NewRequest(http.MethodPost, "/complete", nil), completion, federationCompletionJSON)
 	if rr.Code != http.StatusOK || len(h.q.sessions) != 0 {
@@ -742,13 +698,13 @@ func TestFederationFlowLocalLinkUsesCurrentSessionAndNeverMintsSession(t *testin
 	}
 }
 
-func TestFederationCompletionVRChatEnrollRedirectMode(t *testing.T) {
+func TestFederationCompletionInviteEnrollRedirectMode(t *testing.T) {
 	h := newLocalFlowHarness(t)
 	rr := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/complete", nil)
 	grant := &federation.EnrollmentGrant{Token: "opaque/token with space"}
 	h.s.writeFederationCompletion(rr, req, &federation.CompletionResult{
-		Intent: federation.IntentEnroll, Enrollment: grant,
+		Intent: federation.IntentInvite, Enrollment: grant,
 	}, federationCompletionRedirect)
 	if rr.Code != http.StatusFound || rr.Header().Get("Location") != "/enroll/opaque%2Ftoken%20with%20space" {
 		t.Fatalf("status/location = %d %q", rr.Code, rr.Header().Get("Location"))
@@ -763,13 +719,13 @@ func TestFederationCompletionVRChatEnrollRedirectMode(t *testing.T) {
 	}
 }
 
-func TestFederationCompletionVRChatEnrollRejectsMixedSessionData(t *testing.T) {
+func TestFederationCompletionInviteEnrollRejectsMixedSessionData(t *testing.T) {
 	h := newLocalFlowHarness(t)
 	rr := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/complete", nil)
 	const secretToken = "must-not-appear"
 	h.s.writeFederationCompletion(rr, req, &federation.CompletionResult{
-		Intent: federation.IntentEnroll, Enrollment: &federation.EnrollmentGrant{Token: secretToken},
+		Intent: federation.IntentInvite, Enrollment: &federation.EnrollmentGrant{Token: secretToken},
 		AccountID: 99, Confirmed: true,
 	}, federationCompletionJSON)
 	if rr.Code != http.StatusInternalServerError {
@@ -922,7 +878,7 @@ func TestFederationCompletionSessionDeliveryFailureReturns500(t *testing.T) {
 	}
 }
 
-func TestFederationFlowVRChatEnrollmentBypassesConfirmationGrantStore(t *testing.T) {
+func TestFederationFlowVRChatConfirmedLoginBypassesConfirmationGrantStore(t *testing.T) {
 	h, _ := newLocalFlowHarnessWithConfirmFailure(t)
 	flow, _ := h.beginLogin(t)
 	if response := h.request(t, http.MethodPost, "/api/prohibitorum/auth/federation/-/flows/"+flow+"/prepare", `{"identity":"`+localUserID+`"}`); response.StatusCode != http.StatusOK {
@@ -937,20 +893,20 @@ func TestFederationFlowVRChatEnrollmentBypassesConfirmationGrantStore(t *testing
 	if err := json.NewDecoder(delivered.Body).Decode(&result); err != nil {
 		t.Fatal(err)
 	}
-	if result.Redirect != "/enroll/opaque%2Ftoken%20with%20space" {
+	if result.Redirect != "/after" {
 		t.Fatalf("redirect = %q", result.Redirect)
 	}
 	if _, err := h.store.Get(context.Background(), federation.FlowKey(flow)); !errors.Is(err, kv.ErrKeyNotFound) {
-		t.Fatalf("completed enrollment flow survived: %v", err)
+		t.Fatalf("completed login flow survived: %v", err)
 	}
-	if len(h.q.insertedAccounts) != 0 || len(h.q.insertIdentitys) != 0 || len(h.q.sessions) != 0 {
-		t.Fatalf("enrollment mutated login state: accounts=%d identities=%d sessions=%d", len(h.q.insertedAccounts), len(h.q.insertIdentitys), len(h.q.sessions))
+	if len(h.q.sessions) != 1 {
+		t.Fatalf("confirmed login issued %d sessions, want 1", len(h.q.sessions))
 	}
 	replay := h.request(t, http.MethodPost, "/api/prohibitorum/auth/federation/-/flows/"+flow+"/verify", `{}`)
 	if replay.StatusCode != http.StatusUnauthorized {
 		t.Fatalf("replay = %d", replay.StatusCode)
 	}
-	if calls, _, _ := h.issuer.snapshot(); calls != 1 {
-		t.Fatalf("replay issued %d enrollments", calls)
+	if len(h.q.sessions) != 1 {
+		t.Fatalf("replay issued another session")
 	}
 }

@@ -133,6 +133,11 @@ msgid "app.managers.confirm.body"
 msgstr "{name} 将不能再修改这个应用。其账号不受影响。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderDangerSection.tsx
+msgid "admin.federation.danger.delete.confirm.pending"
+msgstr "通过它完成身份验证的 {pending, plural, one {# 份未完成的邀请} other {# 份未完成的邀请}}将随提供商一起删除。"
+
+#. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.federation.upstream_rate_limited.seconds"
 msgstr "{provider} 要求放慢请求。请等待 {seconds, plural, other {# 秒}}。"
@@ -146,11 +151,6 @@ msgstr "{provider} 要求放慢请求。请稍等片刻。"
 #: src/api/errors.ts
 msgid "error.federation.provider_not_ready"
 msgstr "{provider} 尚未配置完成。"
-
-#. js-lingui-explicit-id
-#: src/pages/public/FederationFlow.tsx
-msgid "federation_flow.description.enroll"
-msgstr "{provider} 只用来证明资料属于你，之后你会创建自己的登录方式。已有账号请在「安全」中绑定 {provider}。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -647,6 +647,11 @@ msgid "settings.keys.retire.body"
 msgstr "宽限期结束后，它会从 JWKS 和 SAML 元数据中移除。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/AdminInvitationForm.tsx
+msgid "admin.invitations.new.require_local.hint"
+msgstr "通过提供商验证后，受邀人还需设置通行密钥或密码和验证器，账号才会创建。"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/settings/SigningKeysPanel.tsx
 msgid "settings.keys.column.algorithm"
 msgstr "算法"
@@ -686,6 +691,12 @@ msgstr "允许 {app} 访问你的账号？"
 #: src/pages/admin/saml-applications/SamlGeneralSection.tsx
 msgid "admin.saml-apps.field.idp-initiated"
 msgstr "允许 IdP 发起登录"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
+#: src/pages/admin/identity-providers/ProviderGeneralSection.tsx
+msgid "admin.federation.general.sign_in"
+msgstr "允许用于登录"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
@@ -786,6 +797,11 @@ msgstr "以下任一"
 #: src/pages/admin/AdminUsers.tsx
 msgid "admin.users.filter.provider"
 msgstr "任意提供商"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderGeneralSection.tsx
+msgid "admin.federation.general.sign_in.confirm_body"
+msgstr "只通过这个提供商登录的人，在管理员给他们发送重置链接前将无法登录。"
 
 #. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
@@ -3532,6 +3548,11 @@ msgid "sudo.form.label"
 msgstr "身份验证"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/audit-vocabulary.ts
+msgid "audit.event.identity_verified"
+msgstr "身份已验证"
+
+#. js-lingui-explicit-id
 #: src/pages/public/VrchatProof.tsx
 msgid "vrchat_proof.owner"
 msgstr "如果这是你的资料：回到 {instance} 按“验证”。验证完成后，把链接从简介里删掉。"
@@ -4704,7 +4725,7 @@ msgstr "可选。留空则不保存邮箱地址。"
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminInvitationForm.tsx
 msgid "admin.invitations.new.provider.hint"
-msgstr "可选。只提供已启用且就绪的提供商；被邀请人必须通过这里选定的提供商登录。"
+msgstr "可选。只列出能创建账号的提供商；受邀人必须通过此处选择的提供商登录。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
@@ -5516,6 +5537,11 @@ msgstr "发起时间"
 #: src/pages/admin/forward-auth-apps/ForwardAuthDangerSection.tsx
 msgid "admin.forward-auth-apps.enable.note"
 msgstr "经它路由的请求会被重新接受，仍按现有的访问策略处理。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminInvitationForm.tsx
+msgid "admin.invitations.new.require_local.label"
+msgstr "要求设置本地登录方式"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
@@ -7370,6 +7396,16 @@ msgstr "这把通行密钥会立即无法用于登录。你其它的登录方式
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
+msgid "error.federation.upstream_idp_link_only"
+msgstr "这个提供商只能在账号中绑定，不能用来接受邀请。请选择其他提供商，或把它的账号创建方式改为「仅限邀请」。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/AdminInvitationForm.tsx
+msgid "admin.invitations.new.require_local.enforced"
+msgstr "这个提供商不能用于登录，因此始终要求设置本地登录方式。"
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
 msgid "error.provider_not_ready"
 msgstr "该提供商尚未就绪。请先完成凭据设置，再启用它。"
 
@@ -7569,6 +7605,16 @@ msgid "security.revoke.confirm.title"
 msgstr "关闭密码与身份验证器？"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderGeneralSection.tsx
+msgid "admin.federation.general.sign_in.confirm"
+msgstr "关闭登录"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderGeneralSection.tsx
+msgid "admin.federation.general.sign_in.confirm_title"
+msgstr "关闭登录？"
+
+#. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
 msgid "security.setup.turn_on"
 msgstr "启用"
@@ -7722,6 +7768,11 @@ msgstr "最多 64 个字符。"
 #: src/pages/admin/settings/sign-in-page-form.ts
 msgid "settings.sign-in.unsplash.query.too_long"
 msgstr "请使用不超过 64 个字符。"
+
+#. js-lingui-explicit-id
+#: src/pages/public/Enroll.tsx
+msgid "enroll.change_profile"
+msgstr "换一个资料"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-validation.ts
@@ -8075,6 +8126,13 @@ msgid "error.passkey_incomplete"
 msgstr "验证未完成，可以改用密码。"
 
 #. js-lingui-explicit-id
+#. placeholder {0}: verified.displayName
+#. placeholder {1}: verified.providerDisplayName
+#: src/pages/public/Enroll.tsx
+msgid "enroll.verified_identity"
+msgstr "已通过 {1} 验证为 {0}。"
+
+#. js-lingui-explicit-id
 #: src/components/custom/principal-sources.ts
 msgid "principal-source.verified-email"
 msgstr "已验证邮箱"
@@ -8145,11 +8203,6 @@ msgid "admin.federation.protocol.vrchat"
 msgstr "VRChat"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProvisioningModeField.tsx
-msgid "admin.federation.general.mode.vrchat"
-msgstr "VRChat 账号只能绑定，不能创建。"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts
 msgid "audit.event.vrchat_operator_session_invalidated"
 msgstr "VRChat 操作员会话已失效"
@@ -8158,6 +8211,12 @@ msgstr "VRChat 操作员会话已失效"
 #: src/pages/public/FederationFlow.tsx
 msgid "federation_flow.identity"
 msgstr "VRChat 资料地址或用户 ID"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
+#: src/pages/admin/identity-providers/ProviderGeneralSection.tsx
+msgid "admin.federation.general.sign_in.vrchat_hint"
+msgstr "VRChat 通过资料简介里的链接证明身份，比 OIDC 登录弱。打开后，任何能编辑这份资料的人都能登录绑定它的账号。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderOperatorSection.tsx
@@ -8199,6 +8258,12 @@ msgstr "本用户组在控制台中显示的名称。"
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.name.hint"
 msgstr "用它做什么，便于日后知道该撤销哪个。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
+#: src/pages/admin/identity-providers/ProviderGeneralSection.tsx
+msgid "admin.federation.general.sign_in.hint"
+msgstr "关闭后，不能用这个提供商登录，只能在账号中绑定，或用它接受邀请。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/ClientConfigSection.tsx
@@ -8259,6 +8324,16 @@ msgstr "现在可以把验证链接从 VRChat 简介里删掉了。"
 #: src/pages/public/Enroll.tsx
 msgid "enroll.description.reset"
 msgstr "设置完成后即可用它登录。"
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.federation.federation_sign_in_disabled"
+msgstr "不能用{provider}登录。请用其他方式登录后，在账号中绑定它。"
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.landing.federation_sign_in_disabled"
+msgstr "不能用这个提供商登录。请用其他方式登录后，在账号中绑定它。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -8346,6 +8421,11 @@ msgid "consent.scope.groups"
 msgstr "用户组"
 
 #. js-lingui-explicit-id
+#: src/pages/public/Enroll.tsx
+msgid "enroll.description.verified"
+msgstr "你的身份已验证。请选择账号名，然后设置登录方式。"
+
+#. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
 msgid "security.revoke.confirm.body"
 msgstr "你的密码、身份验证器与全部恢复码会立即失效。"
@@ -8364,8 +8444,3 @@ msgstr "你的个人资料、安全设置、已连接应用与设备都在侧栏
 #: src/pages/public/FederationFlow.tsx
 msgid "federation_flow.identify.form"
 msgstr "你的 VRChat 资料"
-
-#. js-lingui-explicit-id
-#: src/pages/public/Enroll.tsx
-msgid "enroll.description.federated"
-msgstr "你的 VRChat 资料已验证。选好账号名称，再设置登录方式。"

@@ -111,6 +111,10 @@ func (s *Server) enrollmentWebAuthn() enrollmentWebAuthn {
 
 type enrollmentTx interface {
 	Queries() db.Querier
+	// AuditWriter writes through the open transaction, so audit rows
+	// referencing the just-inserted account resolve their foreign key and
+	// roll back with the transaction if it fails.
+	AuditWriter() audit.Writer
 	Commit(context.Context) error
 	Rollback(context.Context) error
 }
@@ -126,6 +130,8 @@ type pgEnrollmentTx struct {
 
 func (tx *pgEnrollmentTx) Queries() db.Querier { return tx.queries }
 
+func (tx *pgEnrollmentTx) AuditWriter() audit.Writer { return audit.NewWriter(tx.queries) }
+
 func (s *Server) beginEnrollmentTx(ctx context.Context) (enrollmentTx, error) {
 	if s.enrollmentTxRunnerOverride != nil {
 		return s.enrollmentTxRunnerOverride.BeginEnrollmentTx(ctx)
@@ -135,25 +141,6 @@ func (s *Server) beginEnrollmentTx(ctx context.Context) (enrollmentTx, error) {
 		return nil, err
 	}
 	return &pgEnrollmentTx{Tx: tx, queries: s.queries.WithTx(tx)}, nil
-}
-
-// recheckVRChatEnrollmentProvider is the single provider-binding gate for
-// public VRChat registration and recovery. Every invalid, unavailable, or
-// changed provider state is intentionally projected to one safe public error.
-func (s *Server) recheckVRChatEnrollmentProvider(ctx context.Context, q db.Querier, providerID int64) (federation.Provider, error) {
-	if providerID <= 0 || s.federationRegistry == nil {
-		return federation.Provider{}, authn.ErrProviderNotReady()
-	}
-	provider, err := federation.NewProviderStore(q).ByIDForEnrollmentGate(ctx, providerID)
-	if err != nil || provider.ID != providerID || provider.Protocol != "vrchat" ||
-		provider.Mode != federation.ModeLinkOnly || provider.Disabled {
-		return federation.Provider{}, authn.ErrProviderNotReady()
-	}
-	definition, err := s.federationRegistry.Definition("vrchat")
-	if err != nil || !definition.Ready(provider) {
-		return federation.Provider{}, authn.ErrProviderNotReady()
-	}
-	return provider, nil
 }
 
 // ----- preview (typed) -----------------------------------------------------
@@ -191,19 +178,41 @@ func (s *Server) handlePreviewEnrollment(ctx context.Context, in *previewIn) (*p
 		if e.TemplateUsername.Valid {
 			out.Username = e.TemplateUsername.String
 		}
+		out.RequireLocalCredential = e.RequireLocalCredential
+		if e.FederatedUpstreamIdpID.Valid {
+			// The snapshot's provider must still be usable; when it is, the
+			// page can skip the provider buttons entirely.
+			if provider, err := recheckInviteIdentityProvider(ctx, q, *e); err == nil {
+				identity := &contract.EnrollmentVerifiedIdentity{
+					ProviderSlug:        provider.Slug,
+					ProviderDisplayName: provider.DisplayName,
+				}
+				if e.FederatedDisplayName.Valid {
+					identity.DisplayName = e.FederatedDisplayName.String
+				}
+				if e.FederatedAvatarUrl.Valid {
+					avatar := e.FederatedAvatarUrl.String
+					identity.AvatarURL = &avatar
+				}
+				out.VerifiedIdentity = identity
+			}
+			// A snapshot provider that is gone leaves VerifiedIdentity unset:
+			// the page shows the unverified state, and completion re-checks
+			// and refuses.
+		} else {
+			// No snapshot yet: a bound provider with sign-in off still forces
+			// the local credential, so reflect that in the preview.
+			if out.ExpectedUpstreamIdpSlug != "" {
+				if provider, err := q.GetUpstreamIDPBySlug(ctx, out.ExpectedUpstreamIdpSlug); err == nil && !provider.AllowSignIn {
+					out.RequireLocalCredential = true
+				}
+			}
+		}
 		out.Providers = s.inviteRedeemableProviders(ctx, out.ExpectedUpstreamIdpSlug)
-	case enrollment.IntentFederatedRegister:
-		if !e.FederatedUpstreamIdpID.Valid || !e.FederatedDisplayName.Valid {
-			return nil, authErrToHuma(authn.ErrProviderNotReady())
-		}
-		if _, err := s.recheckVRChatEnrollmentProvider(ctx, q, e.FederatedUpstreamIdpID.Int64); err != nil {
-			return nil, authErrToHuma(err)
-		}
-		out.SuggestedDisplayName = e.FederatedDisplayName.String
 	case enrollment.IntentReset:
-		// Admin resets and provider recovery both name the account the new
-		// sign-in method is for. A reset without a readable target fails the
-		// preview rather than leaving the page to guess whose account it is.
+		// A reset names the account the new sign-in method is for. A reset
+		// without a readable target fails the preview rather than leaving the
+		// page to guess whose account it is.
 		if !e.TargetAccountID.Valid {
 			return nil, authErrToHuma(errors.New("handlePreviewEnrollment: reset has no target account"))
 		}
@@ -324,8 +333,11 @@ func (s *Server) handleEnrollmentBeginHTTP(w http.ResponseWriter, r *http.Reques
 		}
 
 	case enrollment.IntentInvite:
-		// Federation-bound invites MUST be redeemed via /enrollments/{token}/start-federation.
-		if e.ExpectedUpstreamIdpSlug.Valid && e.ExpectedUpstreamIdpSlug.String != "" {
+		// Federation-bound invites must verify their identity through
+		// /enrollments/{token}/start-federation first — unless that snapshot
+		// already sits on this invite.
+		if e.ExpectedUpstreamIdpSlug.Valid && e.ExpectedUpstreamIdpSlug.String != "" &&
+			!(e.FederatedUpstreamIdpID.Valid && e.FederatedUpstreamIdpSlug.Valid && e.FederatedUpstreamIdpSlug.String == e.ExpectedUpstreamIdpSlug.String) {
 			audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
 				Factor: audit.FactorEnrollment,
 				Event:  audit.EventFail,
@@ -342,26 +354,17 @@ func (s *Server) handleEnrollmentBeginHTTP(w http.ResponseWriter, r *http.Reques
 			writeAuthErr(w, err)
 			return
 		}
+		// A verified snapshot's display name is the default; the invitee can
+		// still edit it before completion.
+		if body.DisplayName == "" && e.FederatedDisplayName.Valid {
+			body.DisplayName = e.FederatedDisplayName.String
+		}
 		wu, stash.Invite, err = prepareNewEnrollmentAccount(r.Context(), q, body, role, "enrollment/begin invite")
 		if err != nil {
 			writeAuthErr(w, err)
 			return
 		}
 
-	case enrollment.IntentFederatedRegister:
-		if !e.FederatedUpstreamIdpID.Valid {
-			writeAuthErr(w, authn.ErrProviderNotReady())
-			return
-		}
-		if _, err := s.recheckVRChatEnrollmentProvider(r.Context(), q, e.FederatedUpstreamIdpID.Int64); err != nil {
-			writeAuthErr(w, err)
-			return
-		}
-		wu, stash.Federated, err = prepareNewEnrollmentAccount(r.Context(), q, body, "user", "enrollment/begin federated")
-		if err != nil {
-			writeAuthErr(w, err)
-			return
-		}
 
 	case enrollment.IntentReset:
 		if err := acctpkg.ValidateNickname(&body.Nickname); err != nil {
@@ -371,13 +374,6 @@ func (s *Server) handleEnrollmentBeginHTTP(w http.ResponseWriter, r *http.Reques
 		if !e.TargetAccountID.Valid {
 			writeAuthErr(w, authn.ErrEnrollmentConsumed())
 			return
-		}
-		providerRecovery := e.RecoverySourceUpstreamIdpID.Valid
-		if providerRecovery {
-			if _, err := s.recheckVRChatEnrollmentProvider(r.Context(), q, e.RecoverySourceUpstreamIdpID.Int64); err != nil {
-				writeAuthErr(w, err)
-				return
-			}
 		}
 		a, err := q.GetAccountByID(r.Context(), e.TargetAccountID.Int32)
 		if err != nil {
@@ -394,19 +390,10 @@ func (s *Server) handleEnrollmentBeginHTTP(w http.ResponseWriter, r *http.Reques
 			writeAuthErr(w, authn.ErrEnrollmentConsumed())
 			return
 		}
-		if providerRecovery {
-			// Public recovery keeps only the opaque WebAuthn user handle. Public
-			// labels are deliberately neutral and existing credential IDs are not
-			// supplied as exclusions.
-			neutral := a
-			neutral.Username = "account"
-			neutral.DisplayName = "account"
-			wu = &webauthnauth.WebAuthnAccount{Account: &neutral}
-		} else {
-			creds, _ := q.ListCredentialsByAccount(r.Context(), a.ID)
-			wu = &webauthnauth.WebAuthnAccount{Account: &a, Credentials: creds}
-		}
+		creds, _ := q.ListCredentialsByAccount(r.Context(), a.ID)
+		wu = &webauthnauth.WebAuthnAccount{Account: &a, Credentials: creds}
 		stash.Reset = &resetCeremony{Nickname: body.Nickname}
+
 
 	default:
 		writeAuthErr(w, authn.ErrEnrollmentConsumed())
@@ -535,12 +522,12 @@ func (s *Server) handleEnrollmentCompleteHTTP(w http.ResponseWriter, r *http.Req
 		}
 
 	case enrollment.IntentInvite:
-		// Belt-and-suspenders for the M1-int audit gate at /begin: even if
-		// the /begin guard was bypassed (e.g., a stale stash on a freshly
-		// federation-bound invite), reject here too. The tx rolls back the
-		// already-consumed enrollment so the invitee can retry via the
-		// correct /enrollments/{token}/start-federation entrypoint.
-		if consumed.ExpectedUpstreamIdpSlug.Valid && consumed.ExpectedUpstreamIdpSlug.String != "" {
+		// Belt-and-suspenders for the /begin gate: a federation-bound invite
+		// without its identity snapshot is still rejected here. The tx rolls
+		// back the already-consumed enrollment so the invitee can retry via
+		// the correct /enrollments/{token}/start-federation entrypoint.
+		if consumed.ExpectedUpstreamIdpSlug.Valid && consumed.ExpectedUpstreamIdpSlug.String != "" &&
+			!(consumed.FederatedUpstreamIdpID.Valid && consumed.FederatedUpstreamIdpSlug.Valid && consumed.FederatedUpstreamIdpSlug.String == consumed.ExpectedUpstreamIdpSlug.String) {
 			// Use the outer writer: this error rolls back the tx, so a
 			// tx-scoped audit row would disappear with it.
 			audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
@@ -603,127 +590,24 @@ func (s *Server) handleEnrollmentCompleteHTTP(w http.ResponseWriter, r *http.Req
 			writeAuthErr(w, err)
 			return
 		}
-
-	case enrollment.IntentFederatedRegister:
-		if stash.Federated == nil {
-			audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
-				Factor: audit.FactorEnrollment,
-				Event:  audit.EventFail,
-				Detail: map[string]any{"reason": "ceremony_state"},
-			})
-			writeAuthErr(w, authn.ErrCeremonyState())
-			return
-		}
-		if !consumed.FederatedUpstreamIdpID.Valid || !consumed.FederatedUpstreamIss.Valid ||
-			!consumed.FederatedUpstreamSub.Valid || len(consumed.FederatedUpstreamData) == 0 {
-			writeAuthErr(w, authn.ErrCeremonyState())
-			return
-		}
-		provider, err := s.recheckVRChatEnrollmentProvider(r.Context(), qtx, consumed.FederatedUpstreamIdpID.Int64)
-		if err != nil {
-			audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
-				Factor: audit.FactorEnrollment,
-				Event:  audit.EventFail,
-				Detail: map[string]any{"reason": "provider_unavailable"},
-			})
-			writeAuthErr(w, err)
-			return
-		}
-		wu := &webauthnauth.WebAuthnAccount{Account: &db.Account{
-			Username:           stash.Federated.Username,
-			DisplayName:        stash.Federated.DisplayName,
-			WebauthnUserHandle: stash.Federated.WebauthnUserHandle,
-		}}
-		cred, err := s.enrollmentWebAuthn().CreateCredential(wu, stash.Data, parsed)
-		if err != nil {
-			writeAuthErr(w, webauthnauth.MapRegisterCeremonyError(r.Context(), err))
-			return
-		}
-		a, err := qtx.InsertAccount(r.Context(), db.InsertAccountParams{
-			Username:           stash.Federated.Username,
-			DisplayName:        stash.Federated.DisplayName,
-			WebauthnUserHandle: stash.Federated.WebauthnUserHandle,
-			Role:               "user",
-			Attributes:         []byte("{}"),
-			Disabled:           false,
-		})
-		if err != nil {
-			if isUniqueViolation(err) {
-				audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
-					Factor: audit.FactorEnrollment,
-					Event:  audit.EventFail,
-					Detail: map[string]any{"reason": "username_collision"},
-				})
-				writeAuthErr(w, authn.ErrUsernameTaken())
-				return
-			}
-			writeAuthErr(w, fmt.Errorf("enrollment/complete federated: insert account: %w", err))
-			return
-		}
-		acct = a
-		credID, err = insertCredentialForTx(qtx, r.Context(), a.ID, stash.Federated.WebauthnUserHandle, cred, acctpkg.NormalizeNickname(&stash.Federated.Nickname))
-		if err != nil {
-			writeAuthErr(w, fmt.Errorf("enrollment/complete federated: insert credential: %w", err))
-			return
-		}
-		_, err = qtx.GetAccountIdentityByIssuerSub(r.Context(), db.GetAccountIdentityByIssuerSubParams{
-			UpstreamIss: consumed.FederatedUpstreamIss.String,
-			UpstreamSub: consumed.FederatedUpstreamSub.String,
-		})
-		if err == nil {
-			audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
-				Factor: audit.FactorEnrollment,
-				Event:  audit.EventFail,
-				Detail: map[string]any{"reason": "identity_conflict"},
-			})
-			writeAuthErr(w, authn.ErrFederationIdentityConflict(provider.DisplayName))
-			return
-		}
-		if !errors.Is(err, pgx.ErrNoRows) {
-			writeAuthErr(w, fmt.Errorf("enrollment/complete federated: check identity: %w", err))
-			return
-		}
-		identity, err := qtx.InsertAccountIdentity(r.Context(), db.InsertAccountIdentityParams{
-			AccountID:     a.ID,
-			UpstreamIdpID: provider.ID,
-			UpstreamIss:   consumed.FederatedUpstreamIss.String,
-			UpstreamSub:   consumed.FederatedUpstreamSub.String,
-			UpstreamData:  append([]byte(nil), consumed.FederatedUpstreamData...),
-		})
-		if err != nil {
-			if isUniqueViolation(err) {
-				audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
-					Factor: audit.FactorEnrollment,
-					Event:  audit.EventFail,
-					Detail: map[string]any{"reason": "identity_conflict"},
-				})
-				writeAuthErr(w, authn.ErrFederationIdentityConflict(provider.DisplayName))
-				return
-			}
-			writeAuthErr(w, fmt.Errorf("enrollment/complete federated: insert identity: %w", err))
-			return
-		}
-		if err := qtx.ConfirmAccountIdentity(r.Context(), identity.ID); err != nil {
-			writeAuthErr(w, fmt.Errorf("enrollment/complete federated: confirm identity: %w", err))
-			return
-		}
-		federatedProvider = &provider
-		if consumed.FederatedAvatarUrl.Valid {
-			federatedAvatar = consumed.FederatedAvatarUrl.String
-		}
-
-	case enrollment.IntentReset:
-		if consumed.RecoverySourceUpstreamIdpID.Valid {
-			if _, err := s.recheckVRChatEnrollmentProvider(r.Context(), qtx, consumed.RecoverySourceUpstreamIdpID.Int64); err != nil {
-				audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
-					Factor: audit.FactorEnrollment,
-					Event:  audit.EventFail,
-					Detail: map[string]any{"reason": "provider_unavailable"},
-				})
+		if consumed.FederatedUpstreamIdpID.Valid {
+			// The verified-identity snapshot: same tx as the account and the
+			// credential, so any failure rolls the consume back too.
+			if _, err := insertInviteIdentityTx(r.Context(), qtx, tx.AuditWriter(), a.ID, *consumed); err != nil {
 				writeAuthErr(w, err)
 				return
 			}
+			provider, err := recheckInviteIdentityProvider(r.Context(), qtx, *consumed)
+			if err != nil {
+				writeAuthErr(w, err)
+				return
+			}
+			federatedProvider = &provider
+			federatedAvatar = inviteSnapshotAvatar(*consumed)
 		}
+
+
+	case enrollment.IntentReset:
 		if !consumed.TargetAccountID.Valid {
 			writeAuthErr(w, authn.ErrEnrollmentConsumed())
 			return
@@ -802,9 +686,6 @@ func (s *Server) handleEnrollmentCompleteHTTP(w http.ResponseWriter, r *http.Req
 		auditDetail["fixed_username"] = consumed.TemplateUsername.Valid
 		auditDetail["group_ids"] = append([]int32(nil), consumed.GroupIds...)
 	}
-	if consumed.Intent == enrollment.IntentReset && consumed.RecoverySourceUpstreamIdpID.Valid {
-		auditDetail["source"] = "vrchat"
-	}
 	audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
 		AccountID: &acct.ID,
 		Factor:    audit.FactorEnrollment,
@@ -815,14 +696,10 @@ func (s *Server) handleEnrollmentCompleteHTTP(w http.ResponseWriter, r *http.Req
 	// Ceremony-state cleanup is best-effort after the enrollment transaction commits.
 	_ = s.kvStore.Del(r.Context(), enrollCeremonyKey(token))
 	if consumed.Intent == enrollment.IntentReset {
-		_, revokeErr := s.sessionStore.RevokeAllForAccount(r.Context(), acct.ID)
-		if revokeErr != nil && consumed.RecoverySourceUpstreamIdpID.Valid {
-			// Credential replacement and enrollment consumption have already
-			// committed. Fail closed rather than issue a fresh session while a
-			// compromised old session may still be live.
-			writeAuthErr(w, fmt.Errorf("enrollment/complete: revoke sessions: %w", revokeErr))
-			return
-		}
+		// Best-effort revocation: an admin-issued reset token is single-use
+		// and consumed here; failing the response after commit would strand
+		// the invitee without credentials or guidance.
+		_, _ = s.sessionStore.RevokeAllForAccount(r.Context(), acct.ID)
 	}
 
 	if me := s.maintenanceLockout(r.Context(), acct.ID); me != nil {

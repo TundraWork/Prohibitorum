@@ -185,7 +185,7 @@ func seedProviders(ctx context.Context, q *db.Queries) {
 	providers := []db.InsertUpstreamIDPParams{
 		{
 			Slug: "google", DisplayName: "Google", Protocol: federationoidc.Protocol,
-			Mode: "auto_provision", SecretStatus: "unconfigured", Disabled: true,
+			Mode: "auto_provision", SecretStatus: "unconfigured", Disabled: true, AllowSignIn: true,
 			ProviderConfig: oidcConfig(
 				"https://accounts.google.com", "dev-google", []string{"openid", "email", "profile"},
 				[]string{"example.com"}, "email", true,
@@ -193,7 +193,7 @@ func seedProviders(ctx context.Context, q *db.Queries) {
 		},
 		{
 			Slug: "github", DisplayName: "GitHub", Protocol: federationoidc.Protocol,
-			Mode: "link_only", SecretStatus: "unconfigured", Disabled: true,
+			Mode: "link_only", SecretStatus: "unconfigured", Disabled: true, AllowSignIn: true,
 			ProviderConfig: oidcConfig(
 				"https://github.com/login/oauth", "dev-github", []string{"openid", "email"},
 				[]string{"example.com"}, "preferred_username", false,
@@ -201,7 +201,7 @@ func seedProviders(ctx context.Context, q *db.Queries) {
 		},
 		{
 			Slug: "microsoft", DisplayName: "Microsoft", Protocol: federationoidc.Protocol,
-			Mode: "invite_only", SecretStatus: "unconfigured", Disabled: true,
+			Mode: "invite_only", SecretStatus: "unconfigured", Disabled: true, AllowSignIn: true,
 			ProviderConfig: oidcConfig(
 				"https://login.microsoftonline.com/common/v2.0", "dev-microsoft",
 				[]string{"openid", "email", "profile"}, []string{"example.com"}, "email", false,

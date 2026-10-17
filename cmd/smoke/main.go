@@ -64,7 +64,7 @@ import (
 // later arc is added, unlike a single global counter.
 const (
 	nCore       = 54
-	nFederation = 36
+	nFederation = 38
 	nOIDC       = 18
 	nSAML       = 14
 	nHardening  = 14
@@ -1737,7 +1737,142 @@ func main() {
 		log.Printf("  relay page served, implicit id_token verified, 0 token endpoint calls, account confirmed ✓")
 	}
 
-	step(fmt.Sprintf("federation %d/%d — claim names as gjson paths: nested claims fill the account (PHB-121)", 36, nFederation))
+	step(fmt.Sprintf("federation %d/%d — sign-in off: /login is refused with federation_sign_in_disabled", 36, nFederation))
+	{
+		const offSlug = "mockop-nosignin"
+		if _, err := seedUpstreamIDP(dek, offSlug, "Mock OP (sign-in off)", opTS.URL, "test-client", "unused-secret", "invite_only", nil, true, true); err != nil {
+			log.Fatalf("seed %s: %v", offSlug, err)
+		}
+		if err := adminSetProviderSignIn(c, offSlug, false); err != nil {
+			log.Fatalf("disable sign-in for %s: %v", offSlug, err)
+		}
+		offClient, err := newFederationClient(*baseURL)
+		if err != nil {
+			log.Fatal(err)
+		}
+		offLocation, err := signOffLoginLocation(offClient, offSlug)
+		if err != nil {
+			log.Fatalf("sign-in off login: %v", err)
+		}
+		if !strings.HasPrefix(offLocation, "/error?error=federation_sign_in_disabled") {
+			log.Fatalf("sign-in off /login Location = %q, want /error?error=federation_sign_in_disabled", offLocation)
+		}
+		// The public list still carries the provider (linked identities use
+		// it), marked allowSignIn=false.
+		var providers []map[string]any
+		if err := offClient.get("/api/prohibitorum/auth/federation", &providers); err != nil {
+			log.Fatalf("public federation list: %v", err)
+		}
+		found := false
+		for _, provider := range providers {
+			if provider["slug"] == offSlug {
+				found = true
+				if allow, _ := provider["allowSignIn"].(bool); allow {
+					log.Fatalf("public list allowSignIn for %s = true, want false", offSlug)
+				}
+			}
+		}
+		if !found {
+			log.Fatalf("public federation list lacks %s", offSlug)
+		}
+	}
+
+	step(fmt.Sprintf("federation %d/%d — requireLocalCredential invite verifies first, then completes with password+TOTP", 37, nFederation))
+	{
+		const requireLocalSlug = "mockop-requirelocal"
+		if _, err := seedUpstreamIDP(dek, requireLocalSlug, "Mock OP (require local)", opTS.URL, "test-client", "unused-secret", "invite_only", nil, true, true); err != nil {
+			log.Fatalf("seed %s: %v", requireLocalSlug, err)
+		}
+		var created struct {
+			URL                    string `json:"url"`
+			RequireLocalCredential bool   `json:"requireLocalCredential"`
+		}
+		if err := c.postJSON("/api/prohibitorum/invitations", map[string]any{"role": "user", "expectedUpstreamIdpSlug": requireLocalSlug, "requireLocalCredential": true}, &created); err != nil {
+			log.Fatalf("create requireLocal invite: %v", err)
+		}
+		if !created.RequireLocalCredential {
+			log.Fatalf("requireLocal invite response = %+v", created)
+		}
+		tokenStart := strings.LastIndex(created.URL, "/enroll/")
+		if tokenStart < 0 {
+			log.Fatalf("invitation URL = %q", created.URL)
+		}
+		requireLocalToken := created.URL[tokenStart+len("/enroll/"):]
+		opSrv.SetClaims("requirelocal-sub-001", "requirelocal@example.com", true, "requirelocal", "Require Local")
+		rlClient, err := newFederationClient(*baseURL)
+		if err != nil {
+			log.Fatal(err)
+		}
+		rlAuthorize, err := rlClient.getRedirect(fmt.Sprintf("/api/prohibitorum/enrollments/%s/start-federation?return_to=/me", requireLocalToken))
+		if err != nil {
+			log.Fatalf("requireLocal start-federation: %v", err)
+		}
+		rlCallback, err := followMockOPAuthorize(rlAuthorize)
+		if err != nil {
+			log.Fatalf("requireLocal authorize: %v", err)
+		}
+		rlLoc, err := rlClient.getRedirectAbs(rlCallback)
+		if err != nil {
+			log.Fatalf("requireLocal callback: %v", err)
+		}
+		if want := "/enroll/" + requireLocalToken; rlLoc != want {
+			log.Fatalf("requireLocal callback redirect = %q, want %q", rlLoc, want)
+		}
+		if status, err := getStatus(rlClient, "/api/prohibitorum/me"); err != nil || status != http.StatusUnauthorized {
+			log.Fatalf("requireLocal callback /me status=%d err=%v; want 401 (no session yet)", status, err)
+		}
+		var rlPreview struct {
+			Intent                 string `json:"intent"`
+			RequireLocalCredential bool   `json:"requireLocalCredential"`
+			VerifiedIdentity       *struct {
+				ProviderSlug string `json:"providerSlug"`
+				DisplayName  string `json:"displayName"`
+			} `json:"verifiedIdentity"`
+		}
+		if err := rlClient.get(fmt.Sprintf("/api/prohibitorum/enrollments/%s", requireLocalToken), &rlPreview); err != nil {
+			log.Fatalf("requireLocal preview: %v", err)
+		}
+		if rlPreview.Intent != "invite" || !rlPreview.RequireLocalCredential || rlPreview.VerifiedIdentity == nil ||
+			rlPreview.VerifiedIdentity.ProviderSlug != requireLocalSlug || rlPreview.VerifiedIdentity.DisplayName != "Require Local" {
+			log.Fatalf("requireLocal preview = %+v", rlPreview)
+		}
+		rlSecret, rlSecretBase32, err := newTOTPSecret()
+		if err != nil {
+			log.Fatalf("requireLocal totp secret: %v", err)
+		}
+		var rlFinish struct {
+			RecoveryCodes []string `json:"recoveryCodes"`
+		}
+		if err := rlClient.postEnrollmentJSON(requireLocalToken, "password-totp/verify", map[string]string{
+			"username":      "requirelocal",
+			"displayName":   "Require Local",
+			"password":      "require-local-smoke-1",
+			"secret_base32": rlSecretBase32,
+			"code":          totppkg.ComputeCodeForTesting(rlSecret, time.Now().Unix(), 6),
+		}, &rlFinish); err != nil {
+			log.Fatalf("requireLocal password-totp/verify: %v", err)
+		}
+		if len(rlFinish.RecoveryCodes) == 0 {
+			log.Fatalf("requireLocal completion recovery codes = %d", len(rlFinish.RecoveryCodes))
+		}
+		rlMe, err := rlClient.getMe()
+		if err != nil || rlMe.Username != "requirelocal" {
+			log.Fatalf("requireLocal completion = %+v err=%v", rlMe, err)
+		}
+		if !hasSessionCookie(rlClient.cookies()) {
+			log.Fatalf("requireLocal completion issued no session")
+		}
+		var rlIdentities []federationIdentity
+		if err := rlClient.get("/api/prohibitorum/me/identities", &rlIdentities); err != nil || len(rlIdentities) != 1 {
+			log.Fatalf("requireLocal identities = %+v err=%v", rlIdentities, err)
+		}
+		if rlIdentities[0].IdpSlug != requireLocalSlug {
+			log.Fatalf("requireLocal identity slug = %q, want %q", rlIdentities[0].IdpSlug, requireLocalSlug)
+		}
+
+	}
+
+	step(fmt.Sprintf("federation %d/%d — claim names as gjson paths: nested claims fill the account (PHB-121)", 38, nFederation))
 	{
 		const pathSlug = "mockop-path"
 		// Every mapping is a path into a nested claim shape; none of the
@@ -1831,6 +1966,7 @@ func main() {
 		// "ignored-flat", so reading "pathuser" proves the path did.
 		opSrv.SetExtraClaims(nil)
 		log.Printf("  nested claims mapped via gjson paths: username/displayName/email/avatar all read from inside objects ✓")
+
 	}
 
 	// =========================================================================
@@ -6435,7 +6571,7 @@ func main() {
 	}
 	fmt.Println("✓ smoke OK — core (webauthn enroll/login + password/TOTP/recovery + sudo + throttle + destructive revoke) + federation (upstream OIDC login/link/unlink incl. invite_only) + oidc (OIDC OP code+PKCE flow: userinfo/introspect/refresh-rotation+reuse/revoke/logout) + saml (SAML IdP SSO/SLO + signed metadata + require_signed/bad-ACS/replay negatives) + hardening (forced re-auth / PKCE+introspect policy / NameIDPolicy / POST AuthnRequest / signed metadata / IdP-initiated / OP machine-endpoint CORS + cross-origin management-write refusal) + consent (Login+Consent UI backend: consent ticket round-trip + federation-providers list) + admin (OIDC client CRUD reveal-once + signing-key generate→activate JWKS grace lifecycle + audit-events viewer + admin credential listing) + Tier-1 (PUT /me round-trip, GET /me/factors, admin sessions, SAML attr_map round-trip) + sudo-multiuse (single elevation covers multiple gated actions until expiry) + avatar (PUT /me/avatar upload, public GET /avatar/{sub} image/webp+ETag, /me.avatarUrl, userinfo.picture claim) + avatar-fed (federated first-login stores the picture before the redirect + upload takes effect until a pick + same-URL re-login skips the download + new URL downloads again + GET /me/avatar listing + dual-source selection/previews + avatar_source_unavailable negative + link stores the picture) + delegated-access (admin assigns one active account; cross-app/config denials; app-bound manual + OR rule groups; manual deny/allow precedence; live avatar eligibility; three exposed OIDC group claims; refresh eligibility re-check and family revocation; assignment/policy audit lifecycle) + error-redirect (federation access_denied + SAML malformed request → 302 /error) + pat (Personal Access Token access levels: selected_apps → only its apps at the gateway, API 403 pat_api_not_allowed; all_apps → any app; full → management API as owner incl. ordinary admin routes (diagnostic lookup 404), sudo routes (create/revoke own PAT) 401 sudo_required, browser-only routes 403; sudo → creates PATs without a browser sudo step; bad header → 401 pat_invalid without cookie fallback; no Remote-Scopes header; admin GET /accounts/{id}/tokens lists access + apps; DB access/app rows; pat_id on audit events; revoked PAT → 401) + maintenance (admin enables maintenance via PUT without sudo → public /config maintenanceMode+message round-trip; admin stays exempt /me 200; disable restores; non-admin dashboard+gateway blocking unit-tested) + client-ip (admin PUT header strategy + GET round-trip; invalid CIDR rejected 400; reset to direct) + login-appearance (admin POSTs two sign-in images without sudo → public GET /branding/login-images/{id} byte-for-byte verbatim, /config lists them in order; PUT appearance images/carousel/15s + card left + always dark round-trips through /config and the admin GET; unknown field → 400; unsplash without key → unsplash_key_required; DELETE image → 404) + steam (Steam OpenID 2.0 login arc: admin create protocol=steam provider; mock Steam OP redirect; callback → /welcome confirm → session; DB account+identity rows) + audit-remediation (new event types: webauthn:use, session:session_start/end, webauthn:sudo_granted, settings:update, PAT register/revoke/fail; ctx-carried IP non-empty on session_start events) + pwd-totp-enroll (password+TOTP enrollment ceremony: plain-invite begin→verify sets password+confirmed-TOTP+10 recovery codes and issues a session, password→TOTP login works, bootstrap rejects password+TOTP as passkey-only) + DB-state assertions passed against",
 		*baseURL)
-	fmt.Println("  VRChat: fixed link_only operator setup + browser-bound profile proof, sessionless federated registration, recovery that names its account, with passkey replacement/session revocation, authenticated linking, filtering, safe negative paths, and secret non-disclosure ✓")
+	fmt.Println("  VRChat: invite_only operator setup with sign-in off + browser-bound profile proof, sign-in-disabled refusal, verify-then-create invitation (snapshot → /enroll/{token} → passkey completion), direct sign-in once enabled, authenticated linking, filtering, safe negative paths, and secret non-disclosure ✓")
 }
 
 func step(msg string) {
@@ -7428,6 +7564,55 @@ func (c *client) totpStepTwoVerify(partialToken, code string) error {
 
 // newTOTPSecret mirrors the browser enrollment contract: 20 random bytes,
 // RFC 4648 uppercase base32, and no padding.
+// adminSetProviderSignIn flips a provider's allow_sign_in through the admin
+// API, mirroring what the console switch sends.
+func adminSetProviderSignIn(c *client, slug string, allow bool) error {
+	body := map[string]any{
+		"displayName": "smoke",
+		"mode":        "invite_only",
+		"allowSignIn": allow,
+		"config":      map[string]any{},
+	}
+	// The display name is not part of what this helper promises to keep; read
+	// the provider first so the update carries its real fields.
+	var current map[string]any
+	if err := c.get("/api/prohibitorum/identity-providers/"+slug, &current); err != nil {
+		return err
+	}
+	if name, _ := current["displayName"].(string); name != "" {
+		body["displayName"] = name
+	}
+	if mode, _ := current["mode"].(string); mode != "" {
+		body["mode"] = mode
+	}
+	if config, ok := current["config"].(map[string]any); ok {
+		body["config"] = config
+	}
+	return c.putJSON("/api/prohibitorum/identity-providers/"+slug, body, nil)
+}
+
+// signOffLoginLocation GETs /login for a sign-in-off provider and returns the
+// redirect target — the refusal happens before any upstream hop.
+func signOffLoginLocation(c *client, slug string) (string, error) {
+	noFollow := &http.Client{
+		Jar:     c.jar,
+		Timeout: 10 * time.Second,
+		CheckRedirect: func(*http.Request, []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+	resp, err := noFollow.Get(c.base + fmt.Sprintf("/api/prohibitorum/auth/federation/%s/login?return_to=/me", slug))
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusFound {
+		body, _ := io.ReadAll(resp.Body)
+		return "", fmt.Errorf("sign-in off /login status=%d body=%s", resp.StatusCode, string(body))
+	}
+	return resp.Header.Get("Location"), nil
+}
+
 func newTOTPSecret() ([]byte, string, error) {
 	secret := make([]byte, 20)
 	if _, err := rand.Read(secret); err != nil {
@@ -8225,6 +8410,7 @@ func seedUpstreamIDP(dek []byte, slug, displayName, issuer, clientID, clientSecr
 	}
 	ctx := context.Background()
 	conn, err := pgx.Connect(ctx, dburl)
+
 	if err != nil {
 		return 0, fmt.Errorf("pgx connect: %w", err)
 	}

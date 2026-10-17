@@ -73,13 +73,13 @@ func (q *Queries) CountAccountsLinkedToUpstreamIDPs(ctx context.Context, upstrea
 const countUsableSignInFederation = `-- name: CountUsableSignInFederation :one
 SELECT COUNT(*) FROM account_identity ai
 JOIN upstream_idp ip ON ip.id = ai.upstream_idp_id
-WHERE ai.account_id = $1 AND NOT ip.disabled AND ip.protocol <> 'vrchat'
+WHERE ai.account_id = $1 AND NOT ip.disabled AND ip.allow_sign_in
 `
 
 // Linked identities the account can actually sign in / step up with: the
-// upstream IdP must still exist, be enabled, and provide direct sign-in.
-// VRChat is link-only. ListAccountIdentitiesByAccount intentionally returns
-// all links, including disabled and VRChat providers, for display/unlink.
+// upstream IdP must still exist, be enabled, and allow sign-in.
+// ListAccountIdentitiesByAccount intentionally returns all links, including
+// disabled and sign-in-disabled providers, for display/unlink.
 func (q *Queries) CountUsableSignInFederation(ctx context.Context, accountID int32) (int64, error) {
 	row := q.db.QueryRow(ctx, countUsableSignInFederation, accountID)
 	var count int64

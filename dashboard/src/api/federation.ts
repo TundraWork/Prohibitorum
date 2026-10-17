@@ -269,7 +269,6 @@ const flowIntents: readonly FederationFlowIntent[] = [
   "login",
   "link",
   "invite",
-  "enroll",
 ];
 
 const flowSteps: readonly FederationFlowStep[] = ["identify", "proof"];

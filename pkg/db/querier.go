@@ -14,6 +14,9 @@ type Querier interface {
 	ApplyInvitationGroups(ctx context.Context, arg ApplyInvitationGroupsParams) ([]int32, error)
 	AssignOIDCClientManager(ctx context.Context, arg AssignOIDCClientManagerParams) error
 	AssignSAMLSPManager(ctx context.Context, arg AssignSAMLSPManagerParams) error
+	// Writes (or overwrites) the verified-identity snapshot onto the invite.
+	// Never consumes the row; the same conditions as LockInviteEnrollmentForUpdate.
+	AttachInviteIdentity(ctx context.Context, arg AttachInviteIdentityParams) (Enrollment, error)
 	//
 	// Atomic increment + lockout-from-just-incremented-count. The previous
 	// read-then-UPSERT path lost increments under K-way concurrency (K callers
@@ -55,10 +58,15 @@ type Querier interface {
 	CountActiveAdminsForUpdate(ctx context.Context) (int64, error)
 	CountCredentialsByAccount(ctx context.Context, accountID int32) (int64, error)
 	CountLoginBackgroundImages(ctx context.Context) (int64, error)
+	// Pending (unconsumed, unexpired) invitations whose verified snapshot
+	// (federated_upstream_idp_id) points at this provider; deleting the provider
+	// cascades them away. Providers with none are absent from the result and
+	// read as 0.
+	CountPendingInvitationsByUpstreamIDP(ctx context.Context) ([]CountPendingInvitationsByUpstreamIDPRow, error)
 	// Linked identities the account can actually sign in / step up with: the
-	// upstream IdP must still exist, be enabled, and provide direct sign-in.
-	// VRChat is link-only. ListAccountIdentitiesByAccount intentionally returns
-	// all links, including disabled and VRChat providers, for display/unlink.
+	// upstream IdP must still exist, be enabled, and allow sign-in.
+	// ListAccountIdentitiesByAccount intentionally returns all links, including
+	// disabled and sign-in-disabled providers, for display/unlink.
 	CountUsableSignInFederation(ctx context.Context, accountID int32) (int64, error)
 	CountVerifiedAccountsByEmail(ctx context.Context, lower string) (int64, error)
 	CreateGlobalGroup(ctx context.Context, arg CreateGlobalGroupParams) (UserGroup, error)
@@ -151,13 +159,11 @@ type Querier interface {
 	InsertCredentialEvent(ctx context.Context, arg InsertCredentialEventParams) error
 	InsertDiagnosticEvent(ctx context.Context, arg InsertDiagnosticEventParams) error
 	InsertEnrollment(ctx context.Context, arg InsertEnrollmentParams) (Enrollment, error)
-	InsertFederatedRegistrationEnrollment(ctx context.Context, arg InsertFederatedRegistrationEnrollmentParams) (Enrollment, error)
 	InsertLoginBackgroundImage(ctx context.Context, arg InsertLoginBackgroundImageParams) (int64, error)
 	InsertOIDCClient(ctx context.Context, arg InsertOIDCClientParams) (OidcClient, error)
 	InsertPAT(ctx context.Context, arg InsertPATParams) (PersonalAccessToken, error)
 	InsertPATApp(ctx context.Context, arg InsertPATAppParams) error
 	InsertPendingSigningKey(ctx context.Context, arg InsertPendingSigningKeyParams) (SigningKey, error)
-	InsertProviderRecoveryEnrollment(ctx context.Context, arg InsertProviderRecoveryEnrollmentParams) (Enrollment, error)
 	InsertRecoveryCode(ctx context.Context, arg InsertRecoveryCodeParams) (RecoveryCode, error)
 	InsertRevokedJTI(ctx context.Context, arg InsertRevokedJTIParams) error
 	InsertSAMLSP(ctx context.Context, arg InsertSAMLSPParams) (SamlSp, error)
@@ -247,6 +253,9 @@ type Querier interface {
 	ListSessionsByAccount(ctx context.Context, accountID int32) ([]Session, error)
 	ListUpstreamIDPs(ctx context.Context) ([]UpstreamIdp, error)
 	LockInstanceSettings(ctx context.Context) (int16, error)
+	// Row lock for attachInviteIdentity: an unconsumed, unexpired invite only.
+	// pgx.ErrNoRows surfaces on any branch the invite path treats as gone.
+	LockInviteEnrollmentForUpdate(ctx context.Context, token string) (Enrollment, error)
 	// Records the first time the user picked an avatar; later picks keep it.
 	MarkAvatarSelected(ctx context.Context, id int32) error
 	PATGrantsApp(ctx context.Context, arg PATGrantsAppParams) (bool, error)

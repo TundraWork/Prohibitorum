@@ -63,7 +63,7 @@ func validateFlowState(state FlowState) error {
 		return errors.New("federation: missing provider binding")
 	}
 	switch state.Intent {
-	case IntentLogin, IntentLink, IntentInvite, IntentEnroll:
+	case IntentLogin, IntentLink, IntentInvite:
 	default:
 		return errors.New("federation: invalid flow intent")
 	}

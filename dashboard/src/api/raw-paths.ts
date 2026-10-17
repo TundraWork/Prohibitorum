@@ -309,7 +309,7 @@ export interface FederationConfirmResult {
   offerLocalSignin: boolean;
 }
 
-export type FederationFlowIntent = "login" | "link" | "invite" | "enroll";
+export type FederationFlowIntent = "login" | "link" | "invite";
 export type FederationFlowStep = "identify" | "proof";
 
 /**

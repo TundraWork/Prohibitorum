@@ -3,11 +3,7 @@ import type { components } from "@/api/generated/schema";
 
 type FederationProvider = components["schemas"]["FederationProvider"];
 
-export type EnrollmentIntent =
-  | "bootstrap"
-  | "invite"
-  | "federated_register"
-  | "reset";
+export type EnrollmentIntent = "bootstrap" | "invite" | "reset";
 
 export type EnrollmentMethod = "passkey" | "password_totp";
 
@@ -19,19 +15,22 @@ export interface EnrollmentPreview {
   /** The account a reset sets up a new sign-in for; always there for a reset. */
   target?: { username: string; displayName: string };
   expiresAt: string;
-  suggestedDisplayName?: string;
   allowedMethods: EnrollmentMethod[];
+  /** The invite cannot complete until a local sign-in method is set. */
+  requireLocalCredential: boolean;
+  /** The provider identity already verified onto this invite, when present. */
+  verifiedIdentity?: {
+    providerSlug: string;
+    providerDisplayName: string;
+    displayName: string;
+    avatarUrl?: string;
+  };
   /** An invitation that must be accepted through this provider. */
   expectedUpstreamIdpSlug?: string;
   providers: FederationProvider[];
 }
 
-const intents: readonly EnrollmentIntent[] = [
-  "bootstrap",
-  "invite",
-  "federated_register",
-  "reset",
-];
+const intents: readonly EnrollmentIntent[] = ["bootstrap", "invite", "reset"];
 
 const methods: readonly EnrollmentMethod[] = ["passkey", "password_totp"];
 
@@ -73,15 +72,24 @@ export function readEnrollmentPreview(
   ) {
     throw invalid();
   }
+  const verified = raw.verifiedIdentity;
   return {
     intent: raw.intent,
     ...(raw.username ? { username: raw.username } : {}),
     ...(raw.target ? { target: raw.target } : {}),
     expiresAt: raw.expiresAt,
-    ...(raw.suggestedDisplayName
-      ? { suggestedDisplayName: raw.suggestedDisplayName }
-      : {}),
     allowedMethods,
+    requireLocalCredential: raw.requireLocalCredential ?? false,
+    ...(verified
+      ? {
+          verifiedIdentity: {
+            providerSlug: verified.providerSlug,
+            providerDisplayName: verified.providerDisplayName,
+            displayName: verified.displayName,
+            ...(verified.avatarUrl ? { avatarUrl: verified.avatarUrl } : {}),
+          },
+        }
+      : {}),
     ...(bound ? { expectedUpstreamIdpSlug: bound } : {}),
     providers,
   };

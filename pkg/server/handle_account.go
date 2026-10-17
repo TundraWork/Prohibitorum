@@ -23,6 +23,7 @@ import (
 	"prohibitorum/pkg/contract"
 	"prohibitorum/pkg/credential/enrollment"
 	"prohibitorum/pkg/db"
+	"prohibitorum/pkg/federation"
 	"prohibitorum/pkg/logx"
 	"prohibitorum/pkg/pagination"
 	sessstore "prohibitorum/pkg/session"
@@ -927,6 +928,7 @@ type createInvitationIn struct {
 		ExpectedUpstreamIdpSlug *string        `json:"expectedUpstreamIdpSlug,omitempty"`
 		Username                string         `json:"username,omitempty"`
 		GroupIDs                []int32        `json:"groupIds,omitempty"`
+		RequireLocalCredential  *bool          `json:"requireLocalCredential,omitempty"`
 	}
 }
 
@@ -957,12 +959,22 @@ func (s *Server) handleCreateInvitation(ctx context.Context, in *createInvitatio
 	// A federated invite bound to a non-existent or disabled IdP slug is
 	// permanently un-redeemable. Validate it at create (GetUpstreamIDPBySlug
 	// filters WHERE NOT disabled, so this also rejects a disabled slug). T3.4.
+	// A link_only provider can never create an account, and one with sign-in
+	// off forces the local-credential requirement regardless of the request.
+	requireLocal := in.Body.RequireLocalCredential != nil && *in.Body.RequireLocalCredential
 	if slug := in.Body.ExpectedUpstreamIdpSlug; slug != nil && *slug != "" {
-		if _, err := s.invitationQ().GetUpstreamIDPBySlug(ctx, *slug); err != nil {
+		idp, err := s.invitationQ().GetUpstreamIDPBySlug(ctx, *slug)
+		if err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
 				return nil, authErrToHuma(authn.ErrUpstreamIDPNotFound())
 			}
 			return nil, fmt.Errorf("handleCreateInvitation: validate slug: %w", err)
+		}
+		if idp.Mode == federation.ModeLinkOnly {
+			return nil, authErrToHuma(authn.ErrUpstreamIDPLinkOnly())
+		}
+		if !idp.AllowSignIn {
+			requireLocal = true
 		}
 	}
 	tpl := &enrollment.EnrollmentTemplate{
@@ -972,6 +984,7 @@ func (s *Server) handleCreateInvitation(ctx context.Context, in *createInvitatio
 		Username:                fixedUsername,
 		GroupIDs:                groupIDs,
 		CreatedByAccountID:      creatorID,
+		RequireLocalCredential:  requireLocal,
 	}
 	token, expiresAt, err := enrollment.IssueEnrollment(ctx, s.invitationQ(), enrollment.IntentInvite, nil, 0, tpl)
 	if err != nil {
@@ -997,10 +1010,11 @@ func (s *Server) handleCreateInvitation(ctx context.Context, in *createInvitatio
 	url := s.config.PublicOrigins[0] + "/enroll/" + token
 	return &invitationOut{
 		Body: contract.InvitationResponse{
-			URL:       url,
-			ExpiresAt: expiresAt,
-			Username:  fixedUsername,
-			GroupIDs:  groupIDs,
+			URL:                    url,
+			ExpiresAt:              expiresAt,
+			Username:               fixedUsername,
+			GroupIDs:               groupIDs,
+			RequireLocalCredential: requireLocal,
 		},
 	}, nil
 }
@@ -1064,14 +1078,15 @@ func (s *Server) handleListInvitations(ctx context.Context, in *listInvitationsI
 		}
 		attrs := enrollment.DecodeTemplateAttributes(r.TemplateAttributes)
 		view := contract.InvitationView{
-			Token:      r.Token,
-			URL:        s.config.PublicOrigins[0] + "/enroll/" + r.Token,
-			Role:       role,
-			Attributes: attrs,
-			CreatedAt:  r.CreatedAt.Time,
-			ExpiresAt:  r.ExpiresAt.Time,
-			GroupIDs:   append([]int32(nil), r.GroupIds...),
-			Groups:     []contract.InvitationGroupView{},
+			Token:                  r.Token,
+			URL:                    s.config.PublicOrigins[0] + "/enroll/" + r.Token,
+			Role:                   role,
+			Attributes:             attrs,
+			RequireLocalCredential: r.RequireLocalCredential,
+			CreatedAt:              r.CreatedAt.Time,
+			ExpiresAt:              r.ExpiresAt.Time,
+			GroupIDs:               append([]int32(nil), r.GroupIds...),
+			Groups:                 []contract.InvitationGroupView{},
 		}
 		if r.TemplateUsername.Valid {
 			username := r.TemplateUsername.String

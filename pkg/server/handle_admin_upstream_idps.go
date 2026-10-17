@@ -36,6 +36,7 @@ type providerWriteBody struct {
 	DisplayName string          `json:"displayName"`
 	Protocol    string          `json:"protocol,omitempty"`
 	Mode        string          `json:"mode"`
+	AllowSignIn *bool           `json:"allowSignIn,omitempty"`
 	Config      json.RawMessage `json:"config"`
 	Secret      string          `json:"secret,omitempty"`
 }
@@ -62,6 +63,7 @@ func providerFromDB(row db.UpstreamIdp) federation.Provider {
 		Config:       append(json.RawMessage(nil), row.ProviderConfig...),
 		SecretStatus: row.SecretStatus,
 		Disabled:     row.Disabled,
+		AllowSignIn:  row.AllowSignIn,
 	}
 	if row.SecretValidatedAt.Valid {
 		validatedAt := row.SecretValidatedAt.Time
@@ -100,6 +102,7 @@ func (s *Server) identityProviderView(row db.UpstreamIdp) (contract.IdentityProv
 		DisplayName:       row.DisplayName,
 		Protocol:          row.Protocol,
 		Mode:              row.Mode,
+		AllowSignIn:       row.AllowSignIn,
 		Config:            append(json.RawMessage(nil), row.ProviderConfig...),
 		Disabled:          row.Disabled,
 		SecretConfigured:  provider.Secret != nil,
@@ -149,7 +152,20 @@ func (s *Server) validateProviderWrite(body providerWriteBody, existing *db.Upst
 	if err != nil || definition.ValidateConfig(body.Config) != nil {
 		return nil, authn.ErrBadRequest()
 	}
-	if definition.Protocol() == federationvrchat.Protocol && body.Mode != federation.ModeLinkOnly {
+	// Resolved sign-in switch: omitted means per-protocol default on create,
+	// kept value on update. The DB CHECK enforces the same invariant.
+	allowSignIn := true
+	if creating {
+		if protocol == federationvrchat.Protocol {
+			allowSignIn = false
+		}
+	} else if existing != nil {
+		allowSignIn = existing.AllowSignIn
+	}
+	if body.AllowSignIn != nil {
+		allowSignIn = *body.AllowSignIn
+	}
+	if !allowSignIn && body.Mode == federation.ModeAutoProvision {
 		return nil, authn.ErrBadRequest()
 	}
 	if creating {
@@ -167,6 +183,13 @@ func (s *Server) validateProviderWrite(body providerWriteBody, existing *db.Upst
 }
 
 func providerInsertParams(body providerWriteBody) db.InsertUpstreamIDPParams {
+	allowSignIn := true
+	if body.Protocol == federationvrchat.Protocol {
+		allowSignIn = false
+	}
+	if body.AllowSignIn != nil {
+		allowSignIn = *body.AllowSignIn
+	}
 	return db.InsertUpstreamIDPParams{
 		Slug:           body.Slug,
 		DisplayName:    body.DisplayName,
@@ -175,6 +198,7 @@ func providerInsertParams(body providerWriteBody) db.InsertUpstreamIDPParams {
 		ProviderConfig: append([]byte(nil), body.Config...),
 		SecretStatus:   "unconfigured",
 		Disabled:       body.Protocol == "vrchat",
+		AllowSignIn:    allowSignIn,
 	}
 }
 
@@ -234,6 +258,10 @@ func (s *Server) handleListIdentityProviders(ctx context.Context, in *listIdenti
 	if err != nil {
 		return nil, fmt.Errorf("handleListIdentityProviders: linked account counts: %w", err)
 	}
+	pendingCounts, err := s.pendingInvitationCounts(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("handleListIdentityProviders: pending invitation counts: %w", err)
+	}
 	iconURLs := s.listIconURLs(ctx, "upstream_idp")
 	views := make([]contract.IdentityProviderView, 0, len(rows))
 	for _, row := range rows {
@@ -244,6 +272,8 @@ func (s *Server) handleListIdentityProviders(ctx context.Context, in *listIdenti
 		view.IconURL = iconURLFor(iconURLs, row.Slug)
 		count := linkedCounts[row.ID]
 		view.LinkedAccountCount = &count
+		pending := pendingCounts[row.ID]
+		view.PendingInvitationCount = &pending
 		views = append(views, view)
 	}
 	var nextCursor string
@@ -280,6 +310,24 @@ func (s *Server) linkedAccountCounts(ctx context.Context, rows []db.UpstreamIdp)
 	return counts, nil
 }
 
+// pendingInvitationCounts counts the unconsumed invitations whose verified
+// snapshot points at each provider, in one statement. Deleting a provider
+// cascades those invitations away, so the delete confirmation reads this to
+// state how many disappear. Providers with none are absent and read as 0.
+func (s *Server) pendingInvitationCounts(ctx context.Context) (map[int64]int32, error) {
+	rows, err := s.listQ().CountPendingInvitationsByUpstreamIDP(ctx)
+	if err != nil {
+		return nil, err
+	}
+	counts := make(map[int64]int32, len(rows))
+	for _, row := range rows {
+		if row.UpstreamIdpID.Valid {
+			counts[row.UpstreamIdpID.Int64] = row.PendingInvitations
+		}
+	}
+	return counts, nil
+}
+
 type getIdentityProviderIn struct {
 	Slug string `path:"slug"`
 }
@@ -310,6 +358,14 @@ func (s *Server) handleGetIdentityProvider(ctx context.Context, in *getIdentityP
 	}
 	linkedCount := int32(linked)
 	view.LinkedAccountCount = &linkedCount
+	// The delete confirmation also states how many pending invitations go with
+	// the provider: their verified snapshot cascades on provider delete.
+	pendingCounts, err := s.pendingInvitationCounts(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("handleGetIdentityProvider: count pending invitations: %w", err)
+	}
+	pendingCount := pendingCounts[row.ID]
+	view.PendingInvitationCount = &pendingCount
 	return &identityProviderOut{Body: view}, nil
 }
 
@@ -405,8 +461,13 @@ func (s *Server) handleUpdateIdentityProviderHTTP(w http.ResponseWriter, r *http
 		writeAuthErr(w, err)
 		return
 	}
+	resolvedAllowSignIn := existing.AllowSignIn
+	if body.AllowSignIn != nil {
+		resolvedAllowSignIn = *body.AllowSignIn
+	}
 	updated, err := s.queries.UpdateUpstreamIDPConfig(r.Context(), db.UpdateUpstreamIDPConfigParams{
-		Slug: slug, DisplayName: body.DisplayName, Mode: body.Mode, ProviderConfig: append([]byte(nil), body.Config...),
+		Slug: slug, DisplayName: body.DisplayName, Mode: body.Mode, ProviderConfig: append(json.RawMessage(nil), body.Config...),
+		AllowSignIn: resolvedAllowSignIn,
 	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -565,6 +626,20 @@ func (s *Server) handleDeleteIdentityProviderHTTP(w http.ResponseWriter, r *http
 	defer tx.Rollback(r.Context()) //nolint:errcheck
 	qtx := s.queries.WithTx(tx)
 
+	// Pending invitations whose verified snapshot points here die with the
+	// provider (the snapshot FK cascades). Counted before the delete so the
+	// audit row records what disappeared.
+	pendingRows, err := qtx.CountPendingInvitationsByUpstreamIDP(r.Context())
+	if err != nil {
+		writeAuthErr(w, fmt.Errorf("handleDeleteIdentityProvider: count pending invitations: %w", err))
+		return
+	}
+	var deletedInvitations int32
+	for _, pending := range pendingRows {
+		if pending.UpstreamIdpID.Valid && pending.UpstreamIdpID.Int64 == row.ID {
+			deletedInvitations = pending.PendingInvitations
+		}
+	}
 	unlinkedAccounts, err := qtx.DeleteAccountIdentitiesByUpstreamIDP(r.Context(), row.ID)
 	if err != nil {
 		writeAuthErr(w, fmt.Errorf("handleDeleteIdentityProvider: delete identities: %w", err))
@@ -607,6 +682,9 @@ func (s *Server) handleDeleteIdentityProviderHTTP(w http.ResponseWriter, r *http
 			// Applications and consents that lost its identity:<slug> scope.
 			"removed_client_scopes":  clientsChanged,
 			"removed_consent_scopes": consentsChanged,
+			// How many pending invitations were deleted with the provider:
+			// their verified snapshot pointed at it.
+			"deleted_pending_invitations": deletedInvitations,
 		},
 	})
 	w.WriteHeader(http.StatusNoContent)

@@ -3,8 +3,10 @@ package server
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -23,6 +25,8 @@ import (
 	"prohibitorum/pkg/authn"
 	"prohibitorum/pkg/configx"
 	"prohibitorum/pkg/credential/enrollment"
+	"prohibitorum/pkg/credential/password"
+	"prohibitorum/pkg/credential/totp"
 	"prohibitorum/pkg/db"
 	"prohibitorum/pkg/federation"
 	federationvrchat "prohibitorum/pkg/federation/providers/vrchat"
@@ -39,6 +43,38 @@ func (c *enrollmentAuditCapture) Record(_ context.Context, record audit.Record) 
 	return nil
 }
 
+// foreignKeyAuditCapture stands in for the real database: an audit row that
+// references an account the caller's writer cannot see fails the same way the
+// credential_event.account_id foreign key does. insertInviteIdentityTx must
+// therefore pass the transaction's writer, not the server's shared one.
+type foreignKeyAuditCapture struct {
+	enrollmentAuditCapture
+	// txVisible is the transaction writer's view; the shared writer (the
+	// capture itself) never sees the transaction's inserts.
+	txVisible map[int32]bool
+}
+
+func (c *foreignKeyAuditCapture) Record(ctx context.Context, record audit.Record) error {
+	if record.AccountID != nil {
+		return fmt.Errorf("pg mock: credential_event_account_id_fkey violated for account %d", *record.AccountID)
+	}
+	return c.enrollmentAuditCapture.Record(ctx, record)
+}
+
+// txWriter is what enrollmentTx.AuditWriter returns: the same record log, but
+// with the transaction's own view of which accounts exist.
+type txWriter struct {
+	c       *foreignKeyAuditCapture
+	visible map[int32]bool
+}
+
+func (w txWriter) Record(ctx context.Context, record audit.Record) error {
+	if record.AccountID != nil && !w.visible[*record.AccountID] {
+		return fmt.Errorf("pg mock: credential_event_account_id_fkey violated for account %d", *record.AccountID)
+	}
+	return w.c.enrollmentAuditCapture.Record(ctx, record)
+}
+
 type failingSessionRevocationStore struct {
 	kv.Store
 	scanErr error
@@ -53,23 +89,37 @@ func (s *failingSessionRevocationStore) ScanEntries(ctx context.Context, pattern
 
 type vrchatEnrollmentQueries struct {
 	db.Querier
-	mu                  sync.Mutex
-	enrollments         map[string]db.Enrollment
-	accounts            map[int32]db.Account
-	providers           map[int64]db.UpstreamIdp
+	mu          sync.Mutex
+	enrollments map[string]db.Enrollment
+	accounts    map[int32]db.Account
+	providers   map[int64]db.UpstreamIdp
+	// providerMu guards the provider map for slug reads that run while a
+	// transaction holds mu (the in-transaction re-check); see
+	// GetUpstreamIDPBySlugAny.
+	providerMu          sync.Mutex
 	providerErr         error
 	providerLockedCalls int
 	accountLockedCalls  int
 	credentials         map[int32][]db.WebauthnCredential
 	identities          []db.AccountIdentity
 	sessions            []db.Session
+	passwords           map[int32]string
+	totp                map[int32]db.TotpCredential
+	recovery            map[int32][]db.RecoveryCode
 	nextAccountID       int32
 	nextCredentialID    int32
 	nextIdentityID      int64
-	insertAccountErr    error
-	insertIdentityErr   error
-	revokeCalls         int
-	sessionOps          []string
+	// insertHook fires after InsertAccount so the FK-aware audit fake can mark
+	// the new account visible to this transaction's writer.
+	insertHook        func(id int32)
+	insertAccountErr  error
+	insertIdentityErr error
+	// consumeMutate, when set, rewrites the enrollment row at consume time,
+	// after the handler's pre-transaction read — the mid-flight edit each
+	// in-transaction re-check guards against.
+	consumeMutate func(*db.Enrollment)
+	revokeCalls   int
+	sessionOps    []string
 }
 
 func (q *vrchatEnrollmentQueries) GetEnrollmentByToken(_ context.Context, token string) (db.Enrollment, error) {
@@ -148,14 +198,38 @@ func (q *vrchatEnrollmentQueries) GetUpstreamIDPByIDForUpdate(_ context.Context,
 }
 
 func (q *vrchatEnrollmentQueries) GetUpstreamIDPBySlugAny(_ context.Context, slug string) (db.UpstreamIdp, error) {
-	q.mu.Lock()
-	defer q.mu.Unlock()
+	// The in-transaction re-check reads the provider through the federation
+	// service while the transaction holds the root lock, so provider rows
+	// live under their own lock rather than reusing q.mu. Provider rows are
+	// immutable for the duration of one request in these tests; the separate
+	// lock is for mutual exclusion between concurrent slug scans, not against
+	// the enrollment maps.
+	q.providerMu.Lock()
+	defer q.providerMu.Unlock()
 	for _, provider := range q.providers {
 		if provider.Slug == slug {
 			return provider, nil
 		}
 	}
 	return db.UpstreamIdp{}, pgx.ErrNoRows
+}
+
+func (q *vrchatEnrollmentQueries) GetUpstreamIDPBySlug(ctx context.Context, slug string) (db.UpstreamIdp, error) {
+	return q.GetUpstreamIDPBySlugAny(ctx, slug)
+}
+
+func (q *vrchatEnrollmentQueries) ListUpstreamIDPs(_ context.Context) ([]db.UpstreamIdp, error) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	out := make([]db.UpstreamIdp, 0, len(q.providers))
+	for _, provider := range q.providers {
+		out = append(out, provider)
+	}
+	return out, nil
+}
+
+func (q *vrchatEnrollmentQueries) ListEntityIconEtags(_ context.Context, _ string) ([]db.ListEntityIconEtagsRow, error) {
+	return nil, nil
 }
 
 func (q *vrchatEnrollmentQueries) ConsumeEnrollment(_ context.Context, token string) (db.Enrollment, error) {
@@ -166,6 +240,11 @@ func (q *vrchatEnrollmentQueries) ConsumeEnrollment(_ context.Context, token str
 		return db.Enrollment{}, pgx.ErrNoRows
 	}
 	e.ConsumedAt = pgtype.Timestamptz{Time: time.Now(), Valid: true}
+	// A test can model the race the in-transaction re-check exists for: the
+	// enrollment row changes between the pre-transaction read and the consume.
+	if q.consumeMutate != nil {
+		q.consumeMutate(&e)
+	}
 	q.enrollments[token] = e
 	return e, nil
 }
@@ -195,6 +274,9 @@ func (q *vrchatEnrollmentQueries) InsertAccount(_ context.Context, p db.InsertAc
 		Disabled:           p.Disabled,
 	}
 	q.accounts[account.ID] = account
+	if q.insertHook != nil {
+		q.insertHook(account.ID)
+	}
 	return account, nil
 }
 
@@ -310,53 +392,185 @@ func (q *vrchatEnrollmentQueries) RevokeAllSessionsByAccount(_ context.Context, 
 	return nil
 }
 
+func (q *vrchatEnrollmentQueries) UpsertPasswordCredential(_ context.Context, p db.UpsertPasswordCredentialParams) error {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	if q.passwords == nil {
+		q.passwords = map[int32]string{}
+	}
+	q.passwords[p.AccountID] = p.Hash
+	return nil
+}
+
+func (q *vrchatEnrollmentQueries) GetPasswordCredential(_ context.Context, accountID int32) (db.PasswordCredential, error) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	if hash, ok := q.passwords[accountID]; ok {
+		return db.PasswordCredential{AccountID: accountID, Hash: hash}, nil
+	}
+	return db.PasswordCredential{}, pgx.ErrNoRows
+}
+
+func (q *vrchatEnrollmentQueries) DeleteTOTPCredential(_ context.Context, accountID int32) error {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	delete(q.totp, accountID)
+	return nil
+}
+
+func (q *vrchatEnrollmentQueries) InsertTOTPCredential(_ context.Context, p db.InsertTOTPCredentialParams) (db.TotpCredential, error) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	if q.totp == nil {
+		q.totp = map[int32]db.TotpCredential{}
+	}
+	row := db.TotpCredential{AccountID: p.AccountID, SecretEnc: p.SecretEnc, SecretNonce: p.SecretNonce, KeyVersion: p.KeyVersion, Period: p.Period, Digits: p.Digits, Algorithm: p.Algorithm}
+	q.totp[p.AccountID] = row
+	return row, nil
+}
+
+func (q *vrchatEnrollmentQueries) ConfirmTOTPCredential(_ context.Context, accountID int32) error {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	if row, ok := q.totp[accountID]; ok {
+		row.ConfirmedAt = pgtype.Timestamptz{Time: time.Now(), Valid: true}
+		q.totp[accountID] = row
+	}
+	return nil
+}
+
+func (q *vrchatEnrollmentQueries) UpdateTOTPLastStep(_ context.Context, p db.UpdateTOTPLastStepParams) (int64, error) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	if row, ok := q.totp[p.AccountID]; ok {
+		row.LastStep = p.LastStep
+		q.totp[p.AccountID] = row
+	}
+	return 1, nil
+}
+
+func (q *vrchatEnrollmentQueries) DeleteAllRecoveryCodesByAccount(_ context.Context, accountID int32) error {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	delete(q.recovery, accountID)
+	return nil
+}
+
+func (q *vrchatEnrollmentQueries) InsertRecoveryCode(_ context.Context, p db.InsertRecoveryCodeParams) (db.RecoveryCode, error) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	if q.recovery == nil {
+		q.recovery = map[int32][]db.RecoveryCode{}
+	}
+	row := db.RecoveryCode{ID: int32(len(q.recovery[p.AccountID]) + 1), AccountID: p.AccountID, Hash: p.Hash}
+	q.recovery[p.AccountID] = append(q.recovery[p.AccountID], row)
+	return row, nil
+}
+
 func cloneEnrollmentQueries(q *vrchatEnrollmentQueries) *vrchatEnrollmentQueries {
 	clone := &vrchatEnrollmentQueries{
 		enrollments:         make(map[string]db.Enrollment, len(q.enrollments)),
-		accounts:            make(map[int32]db.Account, len(q.accounts)),
 		providers:           make(map[int64]db.UpstreamIdp, len(q.providers)),
+		accounts:            make(map[int32]db.Account, len(q.accounts)),
+		credentials:         make(map[int32][]db.WebauthnCredential, len(q.credentials)),
 		providerErr:         q.providerErr,
 		providerLockedCalls: q.providerLockedCalls,
 		accountLockedCalls:  q.accountLockedCalls,
-		credentials:         make(map[int32][]db.WebauthnCredential, len(q.credentials)),
 		identities:          append([]db.AccountIdentity(nil), q.identities...),
 		sessions:            append([]db.Session(nil), q.sessions...),
+		passwords:           cloneStringMap(q.passwords),
+		totp:                cloneTotpMap(q.totp),
+		recovery:            cloneRecoveryMap(q.recovery),
 		nextAccountID:       q.nextAccountID,
 		nextCredentialID:    q.nextCredentialID,
 		nextIdentityID:      q.nextIdentityID,
+		insertHook:          q.insertHook,
 		insertAccountErr:    q.insertAccountErr,
 		insertIdentityErr:   q.insertIdentityErr,
-		revokeCalls:         q.revokeCalls,
+		consumeMutate:       q.consumeMutate,
 	}
-	for token, e := range q.enrollments {
-		clone.enrollments[token] = e
+	for token, row := range q.enrollments {
+		clone.enrollments[token] = row
 	}
-	for id, account := range q.accounts {
-		clone.accounts[id] = account
+	for id, row := range q.accounts {
+		clone.accounts[id] = row
 	}
-	for id, provider := range q.providers {
-		clone.providers[id] = provider
+	for id, row := range q.providers {
+		clone.providers[id] = row
 	}
-	for accountID, credentials := range q.credentials {
-		clone.credentials[accountID] = append([]db.WebauthnCredential(nil), credentials...)
+	for id, rows := range q.credentials {
+		clone.credentials[id] = append([]db.WebauthnCredential(nil), rows...)
 	}
 	return clone
 }
 
-type memoryEnrollmentTxRunner struct{ root *vrchatEnrollmentQueries }
+func cloneStringMap(m map[int32]string) map[int32]string {
+	if m == nil {
+		return nil
+	}
+	out := make(map[int32]string, len(m))
+	for k, v := range m {
+		out[k] = v
+	}
+	return out
+}
+
+func cloneTotpMap(m map[int32]db.TotpCredential) map[int32]db.TotpCredential {
+	if m == nil {
+		return nil
+	}
+	out := make(map[int32]db.TotpCredential, len(m))
+	for k, v := range m {
+		out[k] = v
+	}
+	return out
+}
+
+func cloneRecoveryMap(m map[int32][]db.RecoveryCode) map[int32][]db.RecoveryCode {
+	if m == nil {
+		return nil
+	}
+	out := make(map[int32][]db.RecoveryCode, len(m))
+	for k, v := range m {
+		out[k] = append([]db.RecoveryCode(nil), v...)
+	}
+	return out
+}
+
+type memoryEnrollmentTxRunner struct {
+	root  *vrchatEnrollmentQueries
+	audit audit.Writer
+}
 
 func (r *memoryEnrollmentTxRunner) BeginEnrollmentTx(context.Context) (enrollmentTx, error) {
 	r.root.mu.Lock()
-	return &memoryEnrollmentTx{root: r.root, q: cloneEnrollmentQueries(r.root), active: true}, nil
+	tx := &memoryEnrollmentTx{root: r.root, q: cloneEnrollmentQueries(r.root), audit: r.audit, active: true}
+	if _, ok := r.audit.(*foreignKeyAuditCapture); ok {
+		// The transaction's writer sees every account this transaction inserts.
+		tx.fkView = map[int32]bool{}
+		tx.q.insertHook = func(id int32) { tx.fkView[id] = true }
+	}
+	return tx, nil
 }
 
 type memoryEnrollmentTx struct {
 	root   *vrchatEnrollmentQueries
 	q      *vrchatEnrollmentQueries
+	audit  audit.Writer
+	fkView map[int32]bool
 	active bool
 }
 
 func (tx *memoryEnrollmentTx) Queries() db.Querier { return tx.q }
+
+func (tx *memoryEnrollmentTx) AuditWriter() audit.Writer {
+	if tx.fkView != nil {
+		if fk, ok := tx.audit.(*foreignKeyAuditCapture); ok {
+			return txWriter{c: fk, visible: tx.fkView}
+		}
+	}
+	return tx.audit
+}
 
 func (tx *memoryEnrollmentTx) Commit(context.Context) error {
 	if !tx.active {
@@ -369,6 +583,9 @@ func (tx *memoryEnrollmentTx) Commit(context.Context) error {
 	tx.root.accountLockedCalls = tx.q.accountLockedCalls
 	tx.root.credentials = tx.q.credentials
 	tx.root.identities = tx.q.identities
+	tx.root.passwords = tx.q.passwords
+	tx.root.totp = tx.q.totp
+	tx.root.recovery = tx.q.recovery
 	tx.root.nextAccountID = tx.q.nextAccountID
 	tx.root.nextCredentialID = tx.q.nextCredentialID
 	tx.root.nextIdentityID = tx.q.nextIdentityID
@@ -423,7 +640,8 @@ func validVRChatEnrollmentProvider() db.UpstreamIdp {
 		Slug:           "vrchat-main",
 		DisplayName:    "VRChat",
 		Protocol:       "vrchat",
-		Mode:           federation.ModeLinkOnly,
+		Mode:           federation.ModeInviteOnly,
+		AllowSignIn:    false,
 		ProviderConfig: []byte(`{}`),
 		SecretEnc:      []byte{1},
 		SecretNonce:    []byte{2},
@@ -449,14 +667,16 @@ func pendingEnrollment(token, intent string) db.Enrollment {
 	}
 }
 
-func TestEnrollmentPreviewFederatedRegistrationReturnsOnlySafeSuggestion(t *testing.T) {
+func TestEnrollmentPreviewInviteWithSnapshotReturnsVerifiedIdentity(t *testing.T) {
 	provider := validVRChatEnrollmentProvider()
-	e := pendingEnrollment("federated", enrollment.IntentFederatedRegister)
+	e := pendingEnrollment("verified-invite", enrollment.IntentInvite)
+	e.ExpectedUpstreamIdpSlug = pgtype.Text{String: provider.Slug, Valid: true}
+	e.RequireLocalCredential = true
 	e.FederatedUpstreamIdpID = pgtype.Int8{Int64: provider.ID, Valid: true}
 	e.FederatedUpstreamIdpSlug = pgtype.Text{String: provider.Slug, Valid: true}
 	e.FederatedUpstreamIss = pgtype.Text{String: "https://secret-issuer.example", Valid: true}
 	e.FederatedUpstreamSub = pgtype.Text{String: "secret-subject", Valid: true}
-	e.FederatedDisplayName = pgtype.Text{String: "Suggested VRChat Name", Valid: true}
+	e.FederatedDisplayName = pgtype.Text{String: "VRChat Suggested", Valid: true}
 	e.FederatedUpstreamData = []byte(`{"userId":"secret-metadata"}`)
 	e.FederatedAvatarUrl = pgtype.Text{String: "https://secret-avatar.example/image.png", Valid: true}
 	q := &vrchatEnrollmentQueries{
@@ -469,51 +689,78 @@ func TestEnrollmentPreviewFederatedRegistrationReturnsOnlySafeSuggestion(t *test
 	if err != nil {
 		t.Fatalf("preview: %v", err)
 	}
-	if out.Body.Intent != enrollment.IntentFederatedRegister || out.Body.ExpiresAt != e.ExpiresAt.Time || out.Body.SuggestedDisplayName != e.FederatedDisplayName.String {
+	if out.Body.Intent != enrollment.IntentInvite || out.Body.ExpiresAt != e.ExpiresAt.Time || !out.Body.RequireLocalCredential {
 		t.Fatalf("preview = %+v", out.Body)
 	}
+	if out.Body.VerifiedIdentity == nil ||
+		out.Body.VerifiedIdentity.ProviderSlug != provider.Slug ||
+		out.Body.VerifiedIdentity.ProviderDisplayName != provider.DisplayName ||
+		out.Body.VerifiedIdentity.DisplayName != "VRChat Suggested" ||
+		out.Body.VerifiedIdentity.AvatarURL == nil || *out.Body.VerifiedIdentity.AvatarURL != "https://secret-avatar.example/image.png" {
+		t.Fatalf("verified identity = %+v", out.Body.VerifiedIdentity)
+	}
 	if out.Body.Target != nil {
-		t.Fatalf("federated preview exposed target %+v", out.Body.Target)
+		t.Fatalf("invite preview exposed target %+v", out.Body.Target)
 	}
 	raw, err := json.Marshal(out.Body)
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, secret := range []string{"secret-issuer", "secret-subject", "secret-metadata", "secret-avatar", provider.Slug, `providerId`, `providerSlug`, `issuer`, `subject`, `metadata`, `avatarUrl`} {
+	for _, secret := range []string{"secret-issuer", "secret-subject", "secret-metadata"} {
 		if bytes.Contains(raw, []byte(secret)) {
 			t.Fatalf("preview leaked %q: %s", secret, raw)
 		}
 	}
 }
 
+func TestEnrollmentPreviewInviteSnapshotOmittedWhenProviderUnusable(t *testing.T) {
+	provider := validVRChatEnrollmentProvider()
+	provider.Disabled = true
+	e := pendingEnrollment("stale-snapshot-invite", enrollment.IntentInvite)
+	e.ExpectedUpstreamIdpSlug = pgtype.Text{String: provider.Slug, Valid: true}
+	e.FederatedUpstreamIdpID = pgtype.Int8{Int64: provider.ID, Valid: true}
+	e.FederatedUpstreamIdpSlug = pgtype.Text{String: provider.Slug, Valid: true}
+	e.FederatedUpstreamIss = pgtype.Text{String: "https://secret-issuer.example", Valid: true}
+	e.FederatedUpstreamSub = pgtype.Text{String: "secret-subject", Valid: true}
+	e.FederatedDisplayName = pgtype.Text{String: "Suggested", Valid: true}
+	e.FederatedUpstreamData = []byte(`{"userId":"secret-metadata"}`)
+	q := &vrchatEnrollmentQueries{
+		enrollments: map[string]db.Enrollment{e.Token: e},
+		providers:   map[int64]db.UpstreamIdp{provider.ID: provider},
+	}
+	s := &Server{enrollmentQueriesOverride: q, federationRegistry: vrchatEnrollmentRegistry(t)}
+
+	out, err := s.handlePreviewEnrollment(context.Background(), &previewIn{Token: e.Token})
+	if err != nil {
+		t.Fatalf("preview: %v", err)
+	}
+	if out.Body.VerifiedIdentity != nil {
+		t.Fatalf("stale snapshot exposed verified identity: %+v", out.Body.VerifiedIdentity)
+	}
+}
+
 func TestEnrollmentPreviewResetShowsTarget(t *testing.T) {
 	account := db.Account{ID: 73, Username: "private-user", DisplayName: "Private Name"}
-	providerRecovery := pendingEnrollment("provider-reset", enrollment.IntentReset)
-	providerRecovery.TargetAccountID = pgtype.Int4{Int32: account.ID, Valid: true}
-	providerRecovery.RecoverySourceUpstreamIdpID = pgtype.Int8{Int64: 41, Valid: true}
 	adminReset := pendingEnrollment("admin-reset", enrollment.IntentReset)
-	adminReset.TargetAccountID = providerRecovery.TargetAccountID
+	adminReset.TargetAccountID = pgtype.Int4{Int32: account.ID, Valid: true}
 	q := &vrchatEnrollmentQueries{
-		enrollments: map[string]db.Enrollment{providerRecovery.Token: providerRecovery, adminReset.Token: adminReset},
+		enrollments: map[string]db.Enrollment{adminReset.Token: adminReset},
 		accounts:    map[int32]db.Account{account.ID: account},
 	}
 	s := &Server{enrollmentQueriesOverride: q}
 
-	for _, token := range []string{providerRecovery.Token, adminReset.Token} {
-		out, err := s.handlePreviewEnrollment(context.Background(), &previewIn{Token: token})
-		if err != nil {
-			t.Fatalf("%s preview: %v", token, err)
-		}
-		if out.Body.Target == nil || out.Body.Target.Username != account.Username || out.Body.Target.DisplayName != account.DisplayName {
-			t.Fatalf("%s target = %+v", token, out.Body.Target)
-		}
+	out, err := s.handlePreviewEnrollment(context.Background(), &previewIn{Token: adminReset.Token})
+	if err != nil {
+		t.Fatalf("preview: %v", err)
+	}
+	if out.Body.Target == nil || out.Body.Target.Username != account.Username || out.Body.Target.DisplayName != account.DisplayName {
+		t.Fatalf("target = %+v", out.Body.Target)
 	}
 }
 
 func TestEnrollmentPreviewResetFailsWithoutReadableTarget(t *testing.T) {
 	missing := pendingEnrollment("missing-target", enrollment.IntentReset)
 	missing.TargetAccountID = pgtype.Int4{Int32: 404, Valid: true}
-	missing.RecoverySourceUpstreamIdpID = pgtype.Int8{Int64: 41, Valid: true}
 	unset := pendingEnrollment("unset-target", enrollment.IntentReset)
 	q := &vrchatEnrollmentQueries{
 		enrollments: map[string]db.Enrollment{missing.Token: missing, unset.Token: unset},
@@ -532,73 +779,54 @@ func TestEnrollmentPreviewResetFailsWithoutReadableTarget(t *testing.T) {
 	}
 }
 
-func TestEnrollmentBeginFederatedAndProviderRecoveryRejectChangedProvider(t *testing.T) {
+func TestEnrollmentPreviewInviteSnapshotRejectsUnusableProvider(t *testing.T) {
 	baseProvider := validVRChatEnrollmentProvider()
 	cases := map[string]struct {
 		mutate  func(*db.UpstreamIdp)
 		missing bool
-		err     error
 	}{
-		"disabled":       {mutate: func(p *db.UpstreamIdp) { p.Disabled = true }},
-		"deleted":        {missing: true},
-		"unready":        {mutate: func(p *db.UpstreamIdp) { p.SecretStatus = "invalid" }},
-		"wrong protocol": {mutate: func(p *db.UpstreamIdp) { p.Protocol = "oidc" }},
-		"wrong mode":     {mutate: func(p *db.UpstreamIdp) { p.Mode = federation.ModeAutoProvision }},
-		"lookup failure": {err: errors.New("database unavailable")},
+		"disabled":    {mutate: func(p *db.UpstreamIdp) { p.Disabled = true }},
+		"deleted":     {missing: true},
+		"wrong mode":  {mutate: func(p *db.UpstreamIdp) { p.Mode = federation.ModeLinkOnly }},
+		"slug change": {mutate: func(p *db.UpstreamIdp) { p.Slug = "renamed" }},
 	}
-	for _, intent := range []string{enrollment.IntentFederatedRegister, enrollment.IntentReset} {
-		for name, tc := range cases {
-			t.Run(intent+"/"+name, func(t *testing.T) {
-				provider := baseProvider
-				if tc.mutate != nil {
-					tc.mutate(&provider)
-				}
-				e := pendingEnrollment("token", intent)
-				if intent == enrollment.IntentFederatedRegister {
-					e.FederatedUpstreamIdpID = pgtype.Int8{Int64: baseProvider.ID, Valid: true}
-					e.FederatedDisplayName = pgtype.Text{String: "VRChat User", Valid: true}
-				} else {
-					e.TargetAccountID = pgtype.Int4{Int32: 73, Valid: true}
-					e.RecoverySourceUpstreamIdpID = pgtype.Int8{Int64: baseProvider.ID, Valid: true}
-				}
-				providers := map[int64]db.UpstreamIdp{provider.ID: provider}
-				if tc.missing {
-					providers = map[int64]db.UpstreamIdp{}
-				}
-				q := &vrchatEnrollmentQueries{
-					enrollments: map[string]db.Enrollment{e.Token: e},
-					accounts:    map[int32]db.Account{73: {ID: 73, WebauthnUserHandle: []byte("opaque-handle")}},
-					providers:   providers,
-					providerErr: tc.err,
-				}
-				s := &Server{enrollmentQueriesOverride: q, federationRegistry: vrchatEnrollmentRegistry(t)}
-				body := strings.NewReader(`{"username":"local-user","displayName":"Local Name"}`)
-				req := httptest.NewRequest(http.MethodPost, "/api/prohibitorum/enrollments/token/register/begin", body)
-				rctx := chi.NewRouteContext()
-				rctx.URLParams.Add("token", e.Token)
-				req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
-				w := httptest.NewRecorder()
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			provider := baseProvider
+			if tc.mutate != nil {
+				tc.mutate(&provider)
+			}
+			e := pendingEnrollment("token", enrollment.IntentInvite)
+			e.ExpectedUpstreamIdpSlug = pgtype.Text{String: baseProvider.Slug, Valid: true}
+			e.FederatedUpstreamIdpID = pgtype.Int8{Int64: baseProvider.ID, Valid: true}
+			e.FederatedUpstreamIdpSlug = pgtype.Text{String: baseProvider.Slug, Valid: true}
+			e.FederatedUpstreamIss = pgtype.Text{String: "https://issuer.example", Valid: true}
+			e.FederatedUpstreamSub = pgtype.Text{String: "subject", Valid: true}
+			e.FederatedDisplayName = pgtype.Text{String: "VRChat User", Valid: true}
+			e.FederatedUpstreamData = []byte(`{"userId":"subject"}`)
+			providers := map[int64]db.UpstreamIdp{provider.ID: provider}
+			if tc.missing {
+				providers = map[int64]db.UpstreamIdp{}
+			}
+			q := &vrchatEnrollmentQueries{
+				enrollments: map[string]db.Enrollment{e.Token: e},
+				accounts:    map[int32]db.Account{},
+				providers:   providers,
+			}
+			s := &Server{enrollmentQueriesOverride: q, federationRegistry: vrchatEnrollmentRegistry(t)}
 
-				s.handleEnrollmentBeginHTTP(w, req)
-
-				if w.Code != http.StatusServiceUnavailable {
-					t.Fatalf("status = %d body=%s, want 503", w.Code, w.Body.String())
-				}
-				var public struct {
-					Code string `json:"code"`
-				}
-				if err := json.Unmarshal(w.Body.Bytes(), &public); err != nil {
-					t.Fatal(err)
-				}
-				if public.Code != authn.ErrProviderNotReady().Code {
-					t.Fatalf("code = %q, want provider_not_ready", public.Code)
-				}
-			})
-		}
+			out, err := s.handlePreviewEnrollment(context.Background(), &previewIn{Token: e.Token})
+			if err != nil {
+				t.Fatalf("preview: %v", err)
+			}
+			if out.Body.VerifiedIdentity != nil {
+				t.Fatalf("unusable provider exposed verified identity: %+v", out.Body.VerifiedIdentity)
+			}
+		})
 	}
 }
 
-func TestEnrollmentBeginFederatedAndProviderRecoveryUsePublicSafeWebAuthnOptions(t *testing.T) {
+func TestEnrollmentBeginVerifiedInviteAndAdminResetUsePublicSafeWebAuthnOptions(t *testing.T) {
 	provider := validVRChatEnrollmentProvider()
 	account := db.Account{
 		ID:                 73,
@@ -606,22 +834,21 @@ func TestEnrollmentBeginFederatedAndProviderRecoveryUsePublicSafeWebAuthnOptions
 		DisplayName:        "Private Display",
 		WebauthnUserHandle: []byte("opaque-account-handle"),
 	}
-	federated := pendingEnrollment("federated-begin", enrollment.IntentFederatedRegister)
-	federated.FederatedUpstreamIdpID = pgtype.Int8{Int64: provider.ID, Valid: true}
-	federated.FederatedUpstreamIss = pgtype.Text{String: "https://secret-issuer.example", Valid: true}
-	federated.FederatedUpstreamSub = pgtype.Text{String: "secret-subject", Valid: true}
-	federated.FederatedUpstreamData = []byte(`{"userId":"secret-metadata"}`)
-	federated.FederatedAvatarUrl = pgtype.Text{String: "https://secret-avatar.example/image.png", Valid: true}
-	providerReset := pendingEnrollment("provider-reset-begin", enrollment.IntentReset)
-	providerReset.TargetAccountID = pgtype.Int4{Int32: account.ID, Valid: true}
-	providerReset.RecoverySourceUpstreamIdpID = pgtype.Int8{Int64: provider.ID, Valid: true}
+	verifiedInvite := pendingEnrollment("verified-invite-begin", enrollment.IntentInvite)
+	verifiedInvite.ExpectedUpstreamIdpSlug = pgtype.Text{String: provider.Slug, Valid: true}
+	verifiedInvite.FederatedUpstreamIdpID = pgtype.Int8{Int64: provider.ID, Valid: true}
+	verifiedInvite.FederatedUpstreamIdpSlug = pgtype.Text{String: provider.Slug, Valid: true}
+	verifiedInvite.FederatedUpstreamIss = pgtype.Text{String: "https://secret-issuer.example", Valid: true}
+	verifiedInvite.FederatedUpstreamSub = pgtype.Text{String: "secret-subject", Valid: true}
+	verifiedInvite.FederatedDisplayName = pgtype.Text{String: "Suggested Display", Valid: true}
+	verifiedInvite.FederatedUpstreamData = []byte(`{"userId":"secret-metadata"}`)
+	verifiedInvite.FederatedAvatarUrl = pgtype.Text{String: "https://secret-avatar.example/image.png", Valid: true}
 	adminReset := pendingEnrollment("admin-reset-begin", enrollment.IntentReset)
-	adminReset.TargetAccountID = providerReset.TargetAccountID
+	adminReset.TargetAccountID = pgtype.Int4{Int32: account.ID, Valid: true}
 	q := &vrchatEnrollmentQueries{
 		enrollments: map[string]db.Enrollment{
-			federated.Token:     federated,
-			providerReset.Token: providerReset,
-			adminReset.Token:    adminReset,
+			verifiedInvite.Token: verifiedInvite,
+			adminReset.Token:     adminReset,
 		},
 		accounts:  map[int32]db.Account{account.ID: account},
 		providers: map[int64]db.UpstreamIdp{provider.ID: provider},
@@ -640,17 +867,17 @@ func TestEnrollmentBeginFederatedAndProviderRecoveryUsePublicSafeWebAuthnOptions
 	}
 
 	w := httptest.NewRecorder()
-	s.handleEnrollmentBeginHTTP(w, beginEnrollmentRequest(federated.Token, `{"username":"chosen-user","displayName":"Edited Local Name","nickname":"key"}`))
+	s.handleEnrollmentBeginHTTP(w, beginEnrollmentRequest(verifiedInvite.Token, `{"username":"chosen-user","displayName":"Edited Local Name","nickname":"key"}`))
 	if w.Code != http.StatusOK {
-		t.Fatalf("federated begin status = %d body=%s", w.Code, w.Body.String())
+		t.Fatalf("verified invite begin status = %d body=%s", w.Code, w.Body.String())
 	}
 	if recorder.user.WebAuthnName() != "chosen-user" || recorder.user.WebAuthnDisplayName() != "Edited Local Name" {
-		t.Fatalf("federated public labels = (%q, %q)", recorder.user.WebAuthnName(), recorder.user.WebAuthnDisplayName())
+		t.Fatalf("verified invite public labels = (%q, %q)", recorder.user.WebAuthnName(), recorder.user.WebAuthnDisplayName())
 	}
 	if len(recorder.options.CredentialExcludeList) != 0 {
-		t.Fatalf("federated exclusions = %v", recorder.options.CredentialExcludeList)
+		t.Fatalf("verified invite exclusions = %v", recorder.options.CredentialExcludeList)
 	}
-	raw, err := store.Get(context.Background(), enrollCeremonyKey(federated.Token))
+	raw, err := store.Get(context.Background(), enrollCeremonyKey(verifiedInvite.Token))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -663,23 +890,9 @@ func TestEnrollmentBeginFederatedAndProviderRecoveryUsePublicSafeWebAuthnOptions
 	if err := json.Unmarshal([]byte(raw), &stash); err != nil {
 		t.Fatal(err)
 	}
-	if stash.Federated == nil || stash.Federated.Username != "chosen-user" || stash.Federated.DisplayName != "Edited Local Name" ||
-		string(stash.Federated.WebauthnUserHandle) == "" || stash.Federated.Nickname != "key" {
-		t.Fatalf("federated stash = %+v", stash.Federated)
-	}
-
-	recorder.options = protocol.PublicKeyCredentialCreationOptions{}
-	w = httptest.NewRecorder()
-	s.handleEnrollmentBeginHTTP(w, beginEnrollmentRequest(providerReset.Token, `{}`))
-	if w.Code != http.StatusOK {
-		t.Fatalf("provider recovery begin status = %d body=%s", w.Code, w.Body.String())
-	}
-	if recorder.user.WebAuthnName() != "account" || recorder.user.WebAuthnDisplayName() != "account" ||
-		!bytes.Equal(recorder.user.WebAuthnID(), account.WebauthnUserHandle) {
-		t.Fatalf("provider recovery user labels/id = (%q, %q, %q)", recorder.user.WebAuthnName(), recorder.user.WebAuthnDisplayName(), recorder.user.WebAuthnID())
-	}
-	if len(recorder.options.CredentialExcludeList) != 0 {
-		t.Fatalf("provider recovery exposed credential descriptors: %v", recorder.options.CredentialExcludeList)
+	if stash.Invite == nil || stash.Invite.Username != "chosen-user" || stash.Invite.DisplayName != "Edited Local Name" ||
+		string(stash.Invite.WebauthnUserHandle) == "" || stash.Invite.Nickname != "key" {
+		t.Fatalf("verified invite stash = %+v", stash.Invite)
 	}
 
 	recorder.options = protocol.PublicKeyCredentialCreationOptions{}
@@ -715,6 +928,10 @@ func completeEnrollmentRequest(token string) *http.Request {
 }
 
 func newAtomicVRChatEnrollmentServer(t *testing.T, e db.Enrollment, account *db.Account) (*Server, *vrchatEnrollmentQueries) {
+	return newAtomicVRChatEnrollmentServerWithAudit(t, e, account, noopAuditWriter{})
+}
+
+func newAtomicVRChatEnrollmentServerWithAudit(t *testing.T, e db.Enrollment, account *db.Account, writer audit.Writer) (*Server, *vrchatEnrollmentQueries) {
 	t.Helper()
 	provider := validVRChatEnrollmentProvider()
 	accounts := make(map[int32]db.Account)
@@ -736,22 +953,42 @@ func newAtomicVRChatEnrollmentServer(t *testing.T, e db.Enrollment, account *db.
 		Transport: []protocol.AuthenticatorTransport{protocol.USB},
 		Flags:     webauthn.CredentialFlags{UserVerified: true},
 	}
+	dek := make([]byte, 32)
+	if _, err := rand.Read(dek); err != nil {
+		t.Fatal(err)
+	}
+	// The tx-scoped writer is the caller's writer itself; the FK-aware fake
+	// and the plain capture both flow through unchanged.
+	capture := writer
+	if capture == nil {
+		capture = noopAuditWriter{}
+	}
+	// Password/TOTP stores so the password-totp verify path runs end to end
+	// against the same fake; argon2 params stay minimal for test speed.
+	cfg.TOTP = configx.TOTPConfig{DefaultPeriod: 30, DefaultDigits: 6, DefaultAlgorithm: "SHA1", DriftSteps: 1, RecoveryCodeCount: 10}
+	cfg.PasswordHashParams = configx.PasswordHashParams{MemoryKiB: 8 * 1024, Iterations: 1, Parallelism: 1}
+	auditWriter := audit.NewWriter(q)
 	s := &Server{
 		config:                     cfg,
 		kvStore:                    store,
 		sessionStore:               sessstore.NewSessionStore(store, q, cfg.SessionTTL, cfg.SessionTTL),
 		clientIP:                   newDirectResolver(),
-		Audit:                      noopAuditWriter{},
+		Audit:                      writer,
+		passwordStore:              password.NewStore(q, cfg.PasswordHashParams, nil, auditWriter),
+		totpStore:                  totp.NewStore(q, &totpTestTxRunner{q: q}, map[int][]byte{1: dek}, cfg.TOTP, nil, auditWriter),
 		enrollmentQueriesOverride:  q,
-		enrollmentTxRunnerOverride: &memoryEnrollmentTxRunner{root: q},
+		enrollmentTxRunnerOverride: &memoryEnrollmentTxRunner{root: q, audit: capture},
 		enrollmentWebAuthnOverride: &recordingEnrollmentWebAuthn{credential: credential},
 		federationRegistry:         vrchatEnrollmentRegistry(t),
+		federationService:          federation.NewService(vrchatEnrollmentRegistry(t), federation.NewProviderStore(q), nil, nil, federation.ServiceConfig{}),
 	}
 	return s, q
 }
 
-func federatedRegistrationEnrollment(token string) db.Enrollment {
-	e := pendingEnrollment(token, enrollment.IntentFederatedRegister)
+func verifiedInviteEnrollment(token string) db.Enrollment {
+	e := pendingEnrollment(token, enrollment.IntentInvite)
+	e.ExpectedUpstreamIdpSlug = pgtype.Text{String: "vrchat-main", Valid: true}
+	e.RequireLocalCredential = true
 	e.FederatedUpstreamIdpID = pgtype.Int8{Int64: 41, Valid: true}
 	e.FederatedUpstreamIdpSlug = pgtype.Text{String: "vrchat-main", Valid: true}
 	e.FederatedUpstreamIss = pgtype.Text{String: "https://api.vrchat.cloud/api/1", Valid: true}
@@ -762,19 +999,24 @@ func federatedRegistrationEnrollment(token string) db.Enrollment {
 	return e
 }
 
-func beginFederatedRegistration(t *testing.T, s *Server, e db.Enrollment, username, displayName string) {
+func beginVerifiedInvite(t *testing.T, s *Server, e db.Enrollment, username, displayName string) {
 	t.Helper()
+	body := `{"username":"` + username + `","displayName":"` + displayName + `"}`
+	if displayName == "" {
+		body = `{"username":"` + username + `"}`
+	}
 	w := httptest.NewRecorder()
-	s.handleEnrollmentBeginHTTP(w, beginEnrollmentRequest(e.Token, `{"username":"`+username+`","displayName":"`+displayName+`"}`))
+	s.handleEnrollmentBeginHTTP(w, beginEnrollmentRequest(e.Token, body))
 	if w.Code != http.StatusOK {
 		t.Fatalf("begin status = %d body=%s", w.Code, w.Body.String())
 	}
 }
 
-func TestFederatedRegistrationCompletionCommitsAccountCredentialIdentityAndSession(t *testing.T) {
-	e := federatedRegistrationEnrollment("complete-registration")
-	s, q := newAtomicVRChatEnrollmentServer(t, e, nil)
-	beginFederatedRegistration(t, s, e, "local-choice", "Edited Local Display")
+func TestVerifiedInviteCompletionCommitsAccountCredentialIdentityAndSession(t *testing.T) {
+	e := verifiedInviteEnrollment("complete-registration")
+	audits := &enrollmentAuditCapture{}
+	s, q := newAtomicVRChatEnrollmentServerWithAudit(t, e, nil, audits)
+	beginVerifiedInvite(t, s, e, "local-choice", "Edited Local Display")
 
 	w := httptest.NewRecorder()
 	s.handleEnrollmentCompleteHTTP(w, completeEnrollmentRequest(e.Token))
@@ -809,6 +1051,21 @@ func TestFederatedRegistrationCompletionCommitsAccountCredentialIdentityAndSessi
 	if !q.enrollments[e.Token].ConsumedAt.Valid {
 		t.Fatal("enrollment was not consumed")
 	}
+	// The identity link audit row must exist on the tx-scoped writer — the
+	// shared writer would drop it against the uncommitted account row.
+	var linkRow *audit.Record
+	for i := range audits.records {
+		if audits.records[i].Event == audit.EventLink && audits.records[i].Factor == audit.FactorEnrollment {
+			linkRow = &audits.records[i]
+		}
+	}
+	if linkRow == nil {
+		t.Fatalf("audit records = %+v, want an enrollment/link row", audits.records)
+	}
+	if linkRow.AccountID == nil || *linkRow.AccountID != account.ID ||
+		linkRow.Detail["idp_slug"] != "vrchat-main" || linkRow.Detail["upstream_sub"] != e.FederatedUpstreamSub.String {
+		t.Fatalf("identity link audit row = %+v", linkRow)
+	}
 	activeSessions := 0
 	for _, session := range q.sessions {
 		if !session.RevokedAt.Valid {
@@ -820,12 +1077,47 @@ func TestFederatedRegistrationCompletionCommitsAccountCredentialIdentityAndSessi
 	}
 }
 
+// The identity link audit row must go through the transaction's writer: the
+// shared writer cannot see the uncommitted account and the row would fail the
+// credential_event.account_id foreign key and be dropped, as the real database
+// showed in the smoke review.
+func TestVerifiedInviteCompletionWritesLinkAuditInsideTransaction(t *testing.T) {
+	e := verifiedInviteEnrollment("complete-registration-fk")
+	audits := &foreignKeyAuditCapture{}
+	s, q := newAtomicVRChatEnrollmentServerWithAudit(t, e, nil, audits)
+	beginVerifiedInvite(t, s, e, "local-choice", "Edited Local Display")
+
+	w := httptest.NewRecorder()
+	s.handleEnrollmentCompleteHTTP(w, completeEnrollmentRequest(e.Token))
+	if w.Code != http.StatusOK {
+		t.Fatalf("complete status = %d body=%s", w.Code, w.Body.String())
+	}
+
+	var linkRow *audit.Record
+	for i := range audits.records {
+		if audits.records[i].Event == audit.EventLink && audits.records[i].Factor == audit.FactorEnrollment {
+			linkRow = &audits.records[i]
+		}
+	}
+	if linkRow == nil {
+		t.Fatal("identity link audit row missing: the writer that cannot see the account dropped it")
+	}
+	var account db.Account
+	q.mu.Lock()
+	for _, account = range q.accounts {
+	}
+	q.mu.Unlock()
+	if linkRow.AccountID == nil || *linkRow.AccountID != account.ID {
+		t.Fatalf("identity link audit row = %+v, want account %d", linkRow, account.ID)
+	}
+}
+
 // Enrollment has no "keep me signed in" choice, so the session it issues
 // lives only as long as the browser does.
 func TestEnrollmentCompletionIssuesBrowserSessionCookie(t *testing.T) {
-	e := federatedRegistrationEnrollment("complete-session-cookie")
+	e := verifiedInviteEnrollment("complete-session-cookie")
 	s, _ := newAtomicVRChatEnrollmentServer(t, e, nil)
-	beginFederatedRegistration(t, s, e, "local-cookie", "Local Cookie")
+	beginVerifiedInvite(t, s, e, "local-cookie", "Local Cookie")
 
 	w := httptest.NewRecorder()
 	s.handleEnrollmentCompleteHTTP(w, completeEnrollmentRequest(e.Token))
@@ -846,7 +1138,7 @@ func TestEnrollmentCompletionIssuesBrowserSessionCookie(t *testing.T) {
 	}
 }
 
-func TestFederatedRegistrationCompletionRollsBackConflictsProviderChangesAndBadStash(t *testing.T) {
+func TestVerifiedInviteCompletionRollsBackConflictsProviderChangesAndBadStash(t *testing.T) {
 	tests := map[string]struct {
 		mutate   func(*testing.T, *Server, *vrchatEnrollmentQueries, db.Enrollment)
 		wantCode string
@@ -881,27 +1173,17 @@ func TestFederatedRegistrationCompletionRollsBackConflictsProviderChangesAndBadS
 			mutate: func(_ *testing.T, _ *Server, q *vrchatEnrollmentQueries, _ db.Enrollment) {
 				q.mu.Lock()
 				provider := q.providers[41]
-				provider.Mode = federation.ModeAutoProvision
+				provider.Mode = federation.ModeLinkOnly
 				q.providers[41] = provider
 				q.mu.Unlock()
 			},
 			wantCode: "provider_not_ready",
 		},
-		"provider became unready after begin": {
+		"provider slug renamed after begin": {
 			mutate: func(_ *testing.T, _ *Server, q *vrchatEnrollmentQueries, _ db.Enrollment) {
 				q.mu.Lock()
 				provider := q.providers[41]
-				provider.SecretStatus = "invalid"
-				q.providers[41] = provider
-				q.mu.Unlock()
-			},
-			wantCode: "provider_not_ready",
-		},
-		"provider protocol changed after begin": {
-			mutate: func(_ *testing.T, _ *Server, q *vrchatEnrollmentQueries, _ db.Enrollment) {
-				q.mu.Lock()
-				provider := q.providers[41]
-				provider.Protocol = "oidc"
+				provider.Slug = "renamed"
 				q.providers[41] = provider
 				q.mu.Unlock()
 			},
@@ -931,13 +1213,13 @@ func TestFederatedRegistrationCompletionRollsBackConflictsProviderChangesAndBadS
 	}
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			e := federatedRegistrationEnrollment("rollback-" + strings.ReplaceAll(name, " ", "-"))
+			e := verifiedInviteEnrollment("rollback-" + strings.ReplaceAll(name, " ", "-"))
 			s, q := newAtomicVRChatEnrollmentServer(t, e, nil)
 			username := "available-user"
 			if name == "username race" {
 				username = "racing-user"
 			}
-			beginFederatedRegistration(t, s, e, username, "Local Display")
+			beginVerifiedInvite(t, s, e, username, "Local Display")
 			test.mutate(t, s, q, e)
 
 			w := httptest.NewRecorder()
@@ -983,19 +1265,13 @@ func TestFederatedRegistrationCompletionRollsBackConflictsProviderChangesAndBadS
 	}
 }
 
-func TestProviderRecoveryCompletionAtomicallyReplacesCredentialsAndSessions(t *testing.T) {
+func TestAdminResetCompletionReplacesCredentialsAndRevokesSessions(t *testing.T) {
 	account := db.Account{ID: 73, Username: "private-user", DisplayName: "Private Name", WebauthnUserHandle: []byte("opaque-handle")}
-	e := pendingEnrollment("provider-recovery-complete", enrollment.IntentReset)
+	e := pendingEnrollment("admin-reset-complete", enrollment.IntentReset)
 	e.TargetAccountID = pgtype.Int4{Int32: account.ID, Valid: true}
-	e.RecoverySourceUpstreamIdpID = pgtype.Int8{Int64: 41, Valid: true}
 	s, q := newAtomicVRChatEnrollmentServer(t, e, &account)
-	audits := &enrollmentAuditCapture{}
-	s.Audit = audits
 	q.credentials[account.ID] = []db.WebauthnCredential{{ID: 8, AccountID: account.ID, CredentialID: []byte("old-credential")}}
 	if _, _, err := s.sessionStore.Issue(context.Background(), account.ID, "127.0.0.1", "old-one", []string{"hwk"}, nil, false); err != nil {
-		t.Fatal(err)
-	}
-	if _, _, err := s.sessionStore.Issue(context.Background(), account.ID, "127.0.0.1", "old-two", []string{"hwk"}, nil, false); err != nil {
 		t.Fatal(err)
 	}
 	q.mu.Lock()
@@ -1017,15 +1293,6 @@ func TestProviderRecoveryCompletionAtomicallyReplacesCredentialsAndSessions(t *t
 	if credentials := q.credentials[account.ID]; len(credentials) != 1 || !bytes.Equal(credentials[0].CredentialID, []byte("new-credential")) {
 		t.Fatalf("credentials = %+v", credentials)
 	}
-	if q.revokeCalls != 1 {
-		t.Fatalf("revoke calls = %d, want 1", q.revokeCalls)
-	}
-	if q.providerLockedCalls != 2 {
-		t.Fatalf("provider locked calls = %d, want begin and completion gates", q.providerLockedCalls)
-	}
-	if q.accountLockedCalls != 1 {
-		t.Fatalf("account locked calls = %d, want completion gate", q.accountLockedCalls)
-	}
 	if got := strings.Join(q.sessionOps, ","); got != "revoke,issue" {
 		t.Fatalf("session operations = %q, want revoke,issue", got)
 	}
@@ -1038,138 +1305,51 @@ func TestProviderRecoveryCompletionAtomicallyReplacesCredentialsAndSessions(t *t
 	if active != 1 {
 		t.Fatalf("active sessions = %d, want exactly fresh session", active)
 	}
-	var consumedAudit *audit.Record
-	for i := range audits.records {
-		if audits.records[i].Event == audit.EventEnrollmentConsumed {
-			consumedAudit = &audits.records[i]
-		}
-	}
-	if consumedAudit == nil || len(consumedAudit.Detail) != 2 ||
-		consumedAudit.Detail["intent"] != enrollment.IntentReset || consumedAudit.Detail["source"] != "vrchat" {
-		t.Fatalf("provider recovery audit = %+v", consumedAudit)
-	}
 }
 
-func TestProviderRecoveryCompletionFailsClosedWhenSessionRevocationFails(t *testing.T) {
-	account := db.Account{ID: 74, Username: "private-user", DisplayName: "Private Name", WebauthnUserHandle: []byte("opaque-handle")}
-	e := pendingEnrollment("provider-recovery-revocation-failure", enrollment.IntentReset)
+func TestAdminResetCompletionRejectsDisabledTargetBeforeDeletion(t *testing.T) {
+	account := db.Account{ID: 73, Username: "private-user", DisplayName: "Private Name", WebauthnUserHandle: []byte("opaque-handle")}
+	e := pendingEnrollment("admin-reset-disabled-target", enrollment.IntentReset)
 	e.TargetAccountID = pgtype.Int4{Int32: account.ID, Valid: true}
-	e.RecoverySourceUpstreamIdpID = pgtype.Int8{Int64: 41, Valid: true}
 	s, q := newAtomicVRChatEnrollmentServer(t, e, &account)
-	failingStore := &failingSessionRevocationStore{Store: s.kvStore}
-	s.sessionStore = sessstore.NewSessionStore(failingStore, q, s.config.SessionTTL, s.config.SessionTTL)
 	q.credentials[account.ID] = []db.WebauthnCredential{{ID: 8, AccountID: account.ID, CredentialID: []byte("old-credential")}}
-	if _, _, err := s.sessionStore.Issue(context.Background(), account.ID, "127.0.0.1", "old-session", []string{"hwk"}, nil, false); err != nil {
-		t.Fatal(err)
-	}
-
 	w := httptest.NewRecorder()
 	s.handleEnrollmentBeginHTTP(w, beginEnrollmentRequest(e.Token, `{}`))
 	if w.Code != http.StatusOK {
 		t.Fatalf("begin status=%d body=%s", w.Code, w.Body.String())
 	}
-	failingStore.scanErr = errors.New("revocation backend secret provider=41 account=74 token=compromised")
+	q.mu.Lock()
+	disabled := q.accounts[account.ID]
+	disabled.Disabled = true
+	q.accounts[account.ID] = disabled
+	q.mu.Unlock()
 
 	w = httptest.NewRecorder()
 	s.handleEnrollmentCompleteHTTP(w, completeEnrollmentRequest(e.Token))
-	if w.Code != http.StatusInternalServerError {
-		t.Fatalf("complete status=%d body=%s, want 500", w.Code, w.Body.String())
+	var public struct {
+		Code string `json:"code"`
 	}
-	var public map[string]any
 	if err := json.Unmarshal(w.Body.Bytes(), &public); err != nil {
-		t.Fatalf("decode safe response: %v; body=%s", err, w.Body.String())
+		t.Fatal(err)
 	}
-	if len(public) != 2 || public["code"] != "server_error" {
-		t.Fatalf("public response = %#v, want safe server_error envelope", public)
+	if public.Code != "enrollment_consumed" {
+		t.Fatalf("code=%q status=%d, want enrollment_consumed", public.Code, w.Code)
 	}
-	if strings.Contains(w.Body.String(), "provider") || strings.Contains(w.Body.String(), "account") ||
-		strings.Contains(w.Body.String(), "token") || strings.Contains(w.Body.String(), account.Username) {
-		t.Fatalf("public response leaked revocation context: %s", w.Body.String())
-	}
-	if cookies := w.Header().Values("Set-Cookie"); len(cookies) != 0 {
-		t.Fatalf("failure issued session cookie: %v", cookies)
-	}
-
 	q.mu.Lock()
 	defer q.mu.Unlock()
-	if len(q.sessions) != 1 {
-		t.Fatalf("session rows = %d, want no fresh issuance after revocation failure", len(q.sessions))
+	if q.enrollments[e.Token].ConsumedAt.Valid {
+		t.Fatal("failed reset consumed enrollment")
 	}
-	if !q.enrollments[e.Token].ConsumedAt.Valid {
-		t.Fatal("response concealed that committed enrollment consumption already occurred")
-	}
-	if credentials := q.credentials[account.ID]; len(credentials) != 1 || !bytes.Equal(credentials[0].CredentialID, []byte("new-credential")) {
-		t.Fatalf("committed credential replacement = %+v", credentials)
+	credentials := q.credentials[account.ID]
+	if len(credentials) != 1 || !bytes.Equal(credentials[0].CredentialID, []byte("old-credential")) {
+		t.Fatalf("failed reset changed credentials: %+v", credentials)
 	}
 }
 
-func TestProviderRecoveryCompletionRejectsChangedProviderOrDisabledTargetBeforeDeletion(t *testing.T) {
-	tests := map[string]struct {
-		mutate   func(*vrchatEnrollmentQueries, int32)
-		wantCode string
-	}{
-		"provider changed": {
-			mutate: func(q *vrchatEnrollmentQueries, _ int32) {
-				provider := q.providers[41]
-				provider.Mode = federation.ModeAutoProvision
-				q.providers[41] = provider
-			},
-			wantCode: "provider_not_ready",
-		},
-		"target disabled": {
-			mutate: func(q *vrchatEnrollmentQueries, accountID int32) {
-				account := q.accounts[accountID]
-				account.Disabled = true
-				q.accounts[accountID] = account
-			},
-			wantCode: "enrollment_consumed",
-		},
-	}
-	for name, test := range tests {
-		t.Run(name, func(t *testing.T) {
-			account := db.Account{ID: 73, Username: "private-user", DisplayName: "Private Name", WebauthnUserHandle: []byte("opaque-handle")}
-			e := pendingEnrollment("provider-recovery-reject-"+strings.ReplaceAll(name, " ", "-"), enrollment.IntentReset)
-			e.TargetAccountID = pgtype.Int4{Int32: account.ID, Valid: true}
-			e.RecoverySourceUpstreamIdpID = pgtype.Int8{Int64: 41, Valid: true}
-			s, q := newAtomicVRChatEnrollmentServer(t, e, &account)
-			q.credentials[account.ID] = []db.WebauthnCredential{{ID: 8, AccountID: account.ID, CredentialID: []byte("old-credential")}}
-			w := httptest.NewRecorder()
-			s.handleEnrollmentBeginHTTP(w, beginEnrollmentRequest(e.Token, `{}`))
-			if w.Code != http.StatusOK {
-				t.Fatalf("begin status=%d body=%s", w.Code, w.Body.String())
-			}
-			q.mu.Lock()
-			test.mutate(q, account.ID)
-			q.mu.Unlock()
-
-			w = httptest.NewRecorder()
-			s.handleEnrollmentCompleteHTTP(w, completeEnrollmentRequest(e.Token))
-			var public struct {
-				Code string `json:"code"`
-			}
-			if err := json.Unmarshal(w.Body.Bytes(), &public); err != nil {
-				t.Fatal(err)
-			}
-			if public.Code != test.wantCode {
-				t.Fatalf("code=%q status=%d body=%s, want %q", public.Code, w.Code, w.Body.String(), test.wantCode)
-			}
-			q.mu.Lock()
-			defer q.mu.Unlock()
-			if q.enrollments[e.Token].ConsumedAt.Valid {
-				t.Fatal("failed recovery consumed enrollment")
-			}
-			credentials := q.credentials[account.ID]
-			if len(credentials) != 1 || !bytes.Equal(credentials[0].CredentialID, []byte("old-credential")) {
-				t.Fatalf("failed recovery changed credentials: %+v", credentials)
-			}
-		})
-	}
-}
-
-func TestFederatedRegistrationConcurrentCompletionHasOneWinner(t *testing.T) {
-	e := federatedRegistrationEnrollment("concurrent-registration")
+func TestVerifiedInviteConcurrentCompletionHasOneWinner(t *testing.T) {
+	e := verifiedInviteEnrollment("concurrent-registration")
 	s, q := newAtomicVRChatEnrollmentServer(t, e, nil)
-	beginFederatedRegistration(t, s, e, "concurrent-user", "Concurrent User")
+	beginVerifiedInvite(t, s, e, "concurrent-user", "Concurrent User")
 
 	start := make(chan struct{})
 	statuses := make(chan int, 2)
@@ -1199,8 +1379,8 @@ func TestFederatedRegistrationConcurrentCompletionHasOneWinner(t *testing.T) {
 	}
 }
 
-func TestFederatedRegistrationRefreshesAvatarAfterCommit(t *testing.T) {
-	e := federatedRegistrationEnrollment("avatar-refresh-registration")
+func TestVerifiedInviteRefreshesAvatarAfterCommit(t *testing.T) {
+	e := verifiedInviteEnrollment("avatar-refresh-registration")
 	s, q := newAtomicVRChatEnrollmentServer(t, e, nil)
 	s.vrchatUserAgent = "Prohibitorum/test https://login.example.com"
 	calls := 0
@@ -1219,7 +1399,7 @@ func TestFederatedRegistrationRefreshesAvatarAfterCommit(t *testing.T) {
 			t.Fatal("avatar inheritance ran before account transaction commit")
 		}
 	}
-	beginFederatedRegistration(t, s, e, "avatar-user", "Avatar User")
+	beginVerifiedInvite(t, s, e, "avatar-user", "Avatar User")
 
 	w := httptest.NewRecorder()
 	s.handleEnrollmentCompleteHTTP(w, completeEnrollmentRequest(e.Token))
@@ -1269,7 +1449,7 @@ func TestEnrollmentBeginFederationBoundInviteNamesEnabledProvider(t *testing.T) 
 			s := &Server{
 				enrollmentQueriesOverride: q,
 				Audit:                     noopAuditWriter{},
-				federationService:         federation.NewService(federation.NewRegistry(), federation.NewProviderStore(q), nil, nil, nil, federation.ServiceConfig{}),
+				federationService:         federation.NewService(federation.NewRegistry(), federation.NewProviderStore(q), nil, nil, federation.ServiceConfig{}),
 			}
 
 			w := httptest.NewRecorder()

@@ -19,6 +19,7 @@ import (
 	"prohibitorum/pkg/federation"
 	federationoidc "prohibitorum/pkg/federation/providers/oidc"
 	federationsteam "prohibitorum/pkg/federation/providers/steam"
+	federationvrchat "prohibitorum/pkg/federation/providers/vrchat"
 	"prohibitorum/pkg/logx"
 	"prohibitorum/pkg/protocol/oidc"
 	"prohibitorum/pkg/protocol/saml"
@@ -963,11 +964,12 @@ func addUpstreamIDPCommands(root *cobra.Command) {
 		uPictureClaim  string
 		uRequireVerEml bool
 		uAllowPrivate  bool
+		uAllowSignIn   bool
 	)
 	createUpstreamCmd := &cobra.Command{
 		Use:   "create",
 		Short: "Register a new upstream identity provider (secret is AES-GCM sealed at rest)",
-		Run: func(_ *cobra.Command, _ []string) {
+		Run: func(cmd *cobra.Command, _ []string) {
 			ctx := context.Background()
 			if uSlug == "" || uDisplayName == "" || uClientSecret == "" || uMode == "" {
 				log.Fatalf("--slug, --display-name, --client-secret, --mode are all required")
@@ -990,9 +992,13 @@ func addUpstreamIDPCommands(root *cobra.Command) {
 			q, conn := mustOpenDB(ctx)
 			defer conn.Close()
 
+			allowSignIn := uProtocol != federationvrchat.Protocol
+			if cmd.Flags().Changed("allow-sign-in") {
+				allowSignIn = uAllowSignIn
+			}
 			row, err := q.InsertUpstreamIDP(ctx, db.InsertUpstreamIDPParams{
 				Slug: uSlug, DisplayName: uDisplayName, Protocol: uProtocol, Mode: uMode,
-				ProviderConfig: configRaw, SecretStatus: "unconfigured",
+				ProviderConfig: configRaw, SecretStatus: "unconfigured", AllowSignIn: allowSignIn,
 			})
 			if err != nil {
 				log.Fatalf("upstream-idp create: insert: %v", err)
@@ -1019,7 +1025,8 @@ func addUpstreamIDPCommands(root *cobra.Command) {
 	createUpstreamCmd.Flags().StringVar(&uClientID, "client-id", "", "OAuth client_id at the upstream (required).")
 	createUpstreamCmd.Flags().StringVar(&uClientSecret, "client-secret", "", "OAuth client secret at the upstream (required; sealed at rest).")
 	createUpstreamCmd.Flags().StringArrayVar(&uScopes, "scope", nil, "Requested scope (repeatable; defaults to openid,email,profile).")
-	createUpstreamCmd.Flags().StringVar(&uMode, "mode", "", "Provisioning mode: auto_provision or link_only (required).")
+	createUpstreamCmd.Flags().StringVar(&uMode, "mode", "", "Provisioning mode: auto_provision, invite_only or link_only (required).")
+	createUpstreamCmd.Flags().BoolVar(&uAllowSignIn, "allow-sign-in", true, "Whether this provider can back a login button (default: on; off for vrchat).")
 	createUpstreamCmd.Flags().StringArrayVar(&uAllowedDomain, "allowed-domain", nil, "Restrict to these email domains (repeatable).")
 	createUpstreamCmd.Flags().StringVar(&uUsernameClaim, "username-claim", "", "Claim to map to username (default preferred_username).")
 	createUpstreamCmd.Flags().StringVar(&uDisplayClaim, "display-name-claim", "", "Claim to map to display name (default name).")
@@ -1068,11 +1075,12 @@ func addUpstreamIDPCommands(root *cobra.Command) {
 		upPictureClaim  string
 		upRequireVerEml bool
 		upAllowPrivate  bool
+		upAllowSignIn   bool
 	)
 	updateUpstreamCmd := &cobra.Command{
 		Use:   "update",
 		Short: "Update an upstream IdP's config (full-replace; secret untouched)",
-		Run: func(_ *cobra.Command, _ []string) {
+		Run: func(cmd *cobra.Command, _ []string) {
 			ctx := context.Background()
 			if upSlug == "" || upDisplayName == "" || upMode == "" {
 				log.Fatalf("--slug, --display-name, --mode are required (full-replace update)")
@@ -1094,8 +1102,12 @@ func addUpstreamIDPCommands(root *cobra.Command) {
 			if err != nil {
 				log.Fatalf("upstream-idp update: config: %v", err)
 			}
+			allowSignIn := existing.AllowSignIn
+			if cmd.Flags().Changed("allow-sign-in") {
+				allowSignIn = upAllowSignIn
+			}
 			updated, err := q.UpdateUpstreamIDPConfig(ctx, db.UpdateUpstreamIDPConfigParams{
-				Slug: upSlug, DisplayName: upDisplayName, Mode: upMode, ProviderConfig: configRaw,
+				Slug: upSlug, DisplayName: upDisplayName, Mode: upMode, ProviderConfig: configRaw, AllowSignIn: allowSignIn,
 			})
 			if err != nil {
 				log.Fatalf("upstream-idp update: %v", err)
@@ -1108,7 +1120,8 @@ func addUpstreamIDPCommands(root *cobra.Command) {
 	updateUpstreamCmd.Flags().StringVar(&upIssuerURL, "issuer-url", "", "OIDC issuer URL (required).")
 	updateUpstreamCmd.Flags().StringVar(&upClientID, "client-id", "", "OAuth client_id at the upstream (required).")
 	updateUpstreamCmd.Flags().StringArrayVar(&upScopes, "scope", nil, "Requested scope (repeatable; defaults to openid,email,profile).")
-	updateUpstreamCmd.Flags().StringVar(&upMode, "mode", "", "Provisioning mode: auto_provision or link_only (required).")
+	updateUpstreamCmd.Flags().StringVar(&upMode, "mode", "", "Provisioning mode: auto_provision, invite_only or link_only (required).")
+	updateUpstreamCmd.Flags().BoolVar(&upAllowSignIn, "allow-sign-in", true, "Whether this provider can back a login button (default: keep current value).")
 	updateUpstreamCmd.Flags().StringArrayVar(&upAllowedDomain, "allowed-domain", nil, "Restrict to these email domains (repeatable).")
 	updateUpstreamCmd.Flags().StringVar(&upUsernameClaim, "username-claim", "", "Claim to map to username (default preferred_username).")
 	updateUpstreamCmd.Flags().StringVar(&upDisplayClaim, "display-name-claim", "", "Claim to map to display name (default name).")

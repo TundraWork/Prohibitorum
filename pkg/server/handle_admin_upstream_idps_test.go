@@ -3,12 +3,14 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
@@ -115,6 +117,7 @@ func readyOIDCRow(status string) db.UpstreamIdp {
 		DisplayName:    "Corporate",
 		Protocol:       federationoidc.Protocol,
 		Mode:           federation.ModeAutoProvision,
+		AllowSignIn:    true,
 		ProviderConfig: []byte(exactOIDCConfig),
 		SecretEnc:      []byte("ciphertext-must-not-leak"),
 		SecretNonce:    []byte("nonce-must-not-leak"),
@@ -138,6 +141,9 @@ func TestIdentityProviderViewUsesGenericConfigHealthAndDescriptor(t *testing.T) 
 	}
 	if string(view.Config) != exactOIDCConfig {
 		t.Fatalf("Config = %s, want raw validated config", view.Config)
+	}
+	if !view.AllowSignIn {
+		t.Fatal("AllowSignIn = false for a sign-in-capable provider row")
 	}
 	if !view.SecretConfigured || view.SecretStatus != "valid" || view.SecretValidatedAt == nil || !view.SecretValidatedAt.Equal(validatedAt) {
 		t.Fatalf("secret health = configured:%v status:%q validated:%v", view.SecretConfigured, view.SecretStatus, view.SecretValidatedAt)
@@ -227,16 +233,19 @@ func TestValidateProviderWrite(t *testing.T) {
 	}
 }
 
-func TestAdminUpstreamProviderVRChatModePolicy(t *testing.T) {
+func TestAdminUpstreamProviderSignInModePolicy(t *testing.T) {
 	t.Parallel()
 	s := newProviderAdminTestServer(t)
 	vrchatRow := db.UpstreamIdp{
 		Slug: "vrchat", DisplayName: "VRChat", Protocol: federationvrchat.Protocol,
-		Mode: federation.ModeLinkOnly, ProviderConfig: []byte(`{}`),
+		Mode: federation.ModeInviteOnly, AllowSignIn: false, ProviderConfig: []byte(`{}`),
 	}
-	newBody := func(protocol, mode string) providerWriteBody {
+	signInOff := false
+	signInOn := true
+	newBody := func(protocol, mode string, allowSignIn *bool) providerWriteBody {
 		body := providerWriteBody{
-			Slug: protocol, DisplayName: protocol, Protocol: protocol, Mode: mode, Config: json.RawMessage(`{}`),
+			Slug: protocol, DisplayName: protocol, Protocol: protocol, Mode: mode,
+			AllowSignIn: allowSignIn, Config: json.RawMessage(`{}`),
 		}
 		if protocol != federationvrchat.Protocol {
 			body.Secret = "provider-secret"
@@ -255,18 +264,18 @@ func TestAdminUpstreamProviderVRChatModePolicy(t *testing.T) {
 		creating bool
 		wantErr  bool
 	}{
-		{name: "create VRChat link only", body: newBody(federationvrchat.Protocol, federation.ModeLinkOnly), creating: true},
-		{name: "create VRChat auto provision", body: newBody(federationvrchat.Protocol, federation.ModeAutoProvision), creating: true, wantErr: true},
-		{name: "create VRChat invite only", body: newBody(federationvrchat.Protocol, federation.ModeInviteOnly), creating: true, wantErr: true},
-		{name: "create OIDC auto provision", body: newBody(federationoidc.Protocol, federation.ModeAutoProvision), creating: true},
-		{name: "create OIDC invite only", body: newBody(federationoidc.Protocol, federation.ModeInviteOnly), creating: true},
-		{name: "create OIDC link only", body: newBody(federationoidc.Protocol, federation.ModeLinkOnly), creating: true},
-		{name: "create Steam auto provision", body: newBody(federationsteam.Protocol, federation.ModeAutoProvision), creating: true},
-		{name: "create Steam invite only", body: newBody(federationsteam.Protocol, federation.ModeInviteOnly), creating: true},
-		{name: "create Steam link only", body: newBody(federationsteam.Protocol, federation.ModeLinkOnly), creating: true},
-		{name: "update migrated VRChat link only", body: providerWriteBody{DisplayName: "VRChat", Mode: federation.ModeLinkOnly, Config: json.RawMessage(`{}`)}, existing: &vrchatRow},
-		{name: "update migrated VRChat to auto provision", body: providerWriteBody{DisplayName: "VRChat", Mode: federation.ModeAutoProvision, Config: json.RawMessage(`{}`)}, existing: &vrchatRow, wantErr: true},
-		{name: "update migrated VRChat to invite only", body: providerWriteBody{DisplayName: "VRChat", Mode: federation.ModeInviteOnly, Config: json.RawMessage(`{}`)}, existing: &vrchatRow, wantErr: true},
+		{name: "create VRChat invite only with sign-in off", body: newBody(federationvrchat.Protocol, federation.ModeInviteOnly, &signInOff), creating: true},
+		{name: "create VRChat sign-in on with auto provision", body: newBody(federationvrchat.Protocol, federation.ModeAutoProvision, &signInOn), creating: true},
+		{name: "create VRChat sign-in off with auto provision", body: newBody(federationvrchat.Protocol, federation.ModeAutoProvision, &signInOff), creating: true, wantErr: true},
+		{name: "create OIDC auto provision", body: newBody(federationoidc.Protocol, federation.ModeAutoProvision, nil), creating: true},
+		{name: "create OIDC sign-in off with invite only", body: newBody(federationoidc.Protocol, federation.ModeInviteOnly, &signInOff), creating: true},
+		{name: "create OIDC sign-in off with auto provision", body: newBody(federationoidc.Protocol, federation.ModeAutoProvision, &signInOff), creating: true, wantErr: true},
+		{name: "create Steam link only", body: newBody(federationsteam.Protocol, federation.ModeLinkOnly, nil), creating: true},
+		{name: "update VRChat keeps stored sign-in off", body: providerWriteBody{DisplayName: "VRChat", Mode: federation.ModeInviteOnly, Config: json.RawMessage(`{}`)}, existing: &vrchatRow},
+		{name: "update VRChat mode only while sign-in off", body: providerWriteBody{DisplayName: "VRChat", Mode: federation.ModeLinkOnly, Config: json.RawMessage(`{}`)}, existing: &vrchatRow},
+		{name: "update VRChat to auto provision while sign-in off", body: providerWriteBody{DisplayName: "VRChat", Mode: federation.ModeAutoProvision, Config: json.RawMessage(`{}`)}, existing: &vrchatRow, wantErr: true},
+		{name: "update VRChat turns sign-in on with auto provision", body: providerWriteBody{DisplayName: "VRChat", Mode: federation.ModeAutoProvision, AllowSignIn: &signInOn, Config: json.RawMessage(`{}`)}, existing: &vrchatRow},
+		{name: "update VRChat sign-in off with auto provision", body: providerWriteBody{DisplayName: "VRChat", Mode: federation.ModeAutoProvision, AllowSignIn: &signInOff, Config: json.RawMessage(`{}`)}, existing: &vrchatRow, wantErr: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -424,6 +433,186 @@ func TestVRChatProviderEnableRequiresValidOperatorSession(t *testing.T) {
 			s.handleSetIdentityProviderDisabledHTTP(w, req)
 			if w.Code != test.wantStatus || queries.setCalls != test.wantSets {
 				t.Fatalf("status=%d body=%s set_calls=%d", w.Code, w.Body.String(), queries.setCalls)
+			}
+		})
+	}
+}
+
+// fakeProviderUpdateDB records what the update handler wrote, answering the
+// lookup with a stored row. Only the queries the handler issues exist.
+type fakeProviderUpdateDB struct {
+	db.DBTX
+	existing db.UpstreamIdp
+	updated  db.UpdateUpstreamIDPConfigParams
+	calls    int
+}
+
+func (f *fakeProviderUpdateDB) QueryRow(_ context.Context, sql string, args ...any) pgx.Row {
+	if strings.Contains(sql, "UPDATE upstream_idp SET") {
+		f.calls++
+		if len(args) != 5 {
+			return errRow{fmt.Errorf("unexpected update arg count: %d", len(args))}
+		}
+		slug, _ := args[0].(string)
+		displayName, _ := args[1].(string)
+		mode, _ := args[2].(string)
+		config, _ := args[3].([]byte)
+		allowSignIn, _ := args[4].(bool)
+		f.updated = db.UpdateUpstreamIDPConfigParams{
+			Slug: slug, DisplayName: displayName, Mode: mode,
+			ProviderConfig: config, AllowSignIn: allowSignIn,
+		}
+		row := f.existing
+		row.DisplayName = displayName
+		row.Mode = mode
+		row.ProviderConfig = config
+		row.AllowSignIn = allowSignIn
+		return rowRow{row}
+	}
+	if strings.Contains(sql, "FROM upstream_idp WHERE slug") {
+		return rowRow{f.existing}
+	}
+	return errRow{fmt.Errorf("unexpected query: %s", sql)}
+}
+
+type rowRow struct{ row db.UpstreamIdp }
+
+func (r rowRow) Scan(dest ...any) error {
+	if len(dest) != 14 {
+		return fmt.Errorf("rowRow: %d destinations", len(dest))
+	}
+	if _, err := scanInt64(dest[0], r.row.ID); err != nil {
+		return err
+	}
+	if _, err := scanString(dest[1], r.row.Slug); err != nil {
+		return err
+	}
+	if _, err := scanString(dest[2], r.row.DisplayName); err != nil {
+		return err
+	}
+	if _, err := scanBytes(dest[3], r.row.SecretEnc); err != nil {
+		return err
+	}
+	if _, err := scanBytes(dest[4], r.row.SecretNonce); err != nil {
+		return err
+	}
+	if _, err := scanValue(dest[5], r.row.KeyVersion); err != nil {
+		return err
+	}
+	if _, err := scanString(dest[6], r.row.Mode); err != nil {
+		return err
+	}
+	if _, err := scanValue(dest[7], r.row.Disabled); err != nil {
+		return err
+	}
+	if _, err := scanValue(dest[8], r.row.CreatedAt); err != nil {
+		return err
+	}
+	if _, err := scanString(dest[9], r.row.Protocol); err != nil {
+		return err
+	}
+	if _, err := scanBytes(dest[10], r.row.ProviderConfig); err != nil {
+		return err
+	}
+	if _, err := scanString(dest[11], r.row.SecretStatus); err != nil {
+		return err
+	}
+	if _, err := scanValue(dest[12], r.row.SecretValidatedAt); err != nil {
+		return err
+	}
+	if _, err := scanValue(dest[13], r.row.AllowSignIn); err != nil {
+		return err
+	}
+	return nil
+}
+
+func scanString(dest any, value string) (bool, error) {
+	target, ok := dest.(*string)
+	if !ok {
+		return false, fmt.Errorf("scanString: %T", dest)
+	}
+	*target = value
+	return true, nil
+}
+
+func scanBytes(dest any, value []byte) (bool, error) {
+	target, ok := dest.(*[]byte)
+	if !ok {
+		return false, fmt.Errorf("scanBytes: %T", dest)
+	}
+	*target = value
+	return true, nil
+}
+
+func scanInt64(dest any, value int64) (bool, error) {
+	target, ok := dest.(*int64)
+	if !ok {
+		return false, fmt.Errorf("scanInt64: %T", dest)
+	}
+	*target = value
+	return true, nil
+}
+
+func scanValue(dest any, value any) (bool, error) {
+	switch target := dest.(type) {
+	case *pgtype.Int4:
+		*target = value.(pgtype.Int4)
+	case *bool:
+		*target = value.(bool)
+	case *pgtype.Timestamptz:
+		*target = value.(pgtype.Timestamptz)
+	default:
+		return false, fmt.Errorf("scanValue: %T", dest)
+	}
+	return true, nil
+}
+
+type errRow struct{ err error }
+
+func (e errRow) Scan(_ ...any) error { return e.err }
+
+// TestUpdateIdentityProviderPersistsExplicitSignInOff pins the HTTP handler's
+// persistence rule: an explicit allowSignIn=false must reach the UPDATE, and
+// an omitted field must carry the stored value through.
+func TestUpdateIdentityProviderPersistsExplicitSignInOff(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		body       string
+		wantSignIn bool
+	}{
+		{name: "explicit off persisted", body: `{"displayName":"Corporate","mode":"invite_only","allowSignIn":false,"config":` + exactOIDCConfig + `}`, wantSignIn: false},
+		{name: "explicit on persisted", body: `{"displayName":"Corporate","mode":"invite_only","allowSignIn":true,"config":` + exactOIDCConfig + `}`, wantSignIn: true},
+		{name: "omitted keeps stored off", body: `{"displayName":"Corporate","mode":"invite_only","config":` + exactOIDCConfig + `}`, wantSignIn: false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s := newProviderAdminTestServer(t)
+			existing := readyOIDCRow("valid")
+			existing.Disabled = false
+			existing.AllowSignIn = false
+			fake := &fakeProviderUpdateDB{existing: existing}
+			s.queries = db.New(fake)
+			req := httptest.NewRequest(http.MethodPut, "/api/prohibitorum/identity-providers/corp", strings.NewReader(tc.body))
+			rctx := chi.NewRouteContext()
+			rctx.URLParams.Add("slug", "corp")
+			req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+			w := httptest.NewRecorder()
+
+			s.handleUpdateIdentityProviderHTTP(w, req)
+
+			if w.Code != http.StatusOK {
+				t.Fatalf("status = %d body=%s", w.Code, w.Body.String())
+			}
+			if fake.calls != 1 || fake.updated.AllowSignIn != tc.wantSignIn {
+				t.Fatalf("update calls=%d allowSignIn=%v, want 1 call with %v", fake.calls, fake.updated.AllowSignIn, tc.wantSignIn)
+			}
+			var body struct {
+				AllowSignIn bool `json:"allowSignIn"`
+			}
+			if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+				t.Fatal(err)
+			}
+			if body.AllowSignIn != tc.wantSignIn {
+				t.Fatalf("response allowSignIn = %v, want %v", body.AllowSignIn, tc.wantSignIn)
 			}
 		})
 	}

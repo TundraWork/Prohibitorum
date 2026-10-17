@@ -112,19 +112,12 @@ func TestVRChatAdapterIntentPolicy(t *testing.T) {
 	provider := readyVRChatProvider()
 	provider.Mode = federation.ModeLinkOnly
 
-	for _, intent := range []federation.Intent{federation.IntentEnroll, federation.IntentLink} {
+	for _, intent := range []federation.Intent{federation.IntentLogin, federation.IntentInvite, federation.IntentLink} {
 		t.Run("accepts_"+string(intent), func(t *testing.T) {
 			if _, action, err := adapter.Begin(context.Background(), provider, federation.BeginContext{Intent: intent}); err != nil {
 				t.Fatalf("Begin(%q): %v", intent, err)
 			} else if action.Kind != federation.ActionCollectIdentity || action.Public != nil {
 				t.Fatalf("Begin(%q) action = %+v", intent, action)
-			}
-		})
-	}
-	for _, intent := range []federation.Intent{federation.IntentLogin, federation.IntentInvite} {
-		t.Run("rejects_"+string(intent), func(t *testing.T) {
-			if _, _, err := adapter.Begin(context.Background(), provider, federation.BeginContext{Intent: intent}); err == nil {
-				t.Fatalf("Begin(%q) succeeded", intent)
 			}
 		})
 	}
@@ -135,7 +128,7 @@ func TestVRChatAdapterBeginAndCollectIdentity(t *testing.T) {
 	adapter.random = bytes.NewReader(bytes.Repeat([]byte{0x2a}, 32))
 	provider := readyVRChatProvider()
 	provider.Mode = federation.ModeLinkOnly
-	state, action, err := adapter.Begin(context.Background(), provider, federation.BeginContext{Intent: federation.IntentEnroll})
+	state, action, err := adapter.Begin(context.Background(), provider, federation.BeginContext{Intent: federation.IntentLogin})
 	if err != nil || action.Kind != federation.ActionCollectIdentity || action.Public != nil {
 		t.Fatalf("Begin = %s, %+v, %v", state, action, err)
 	}

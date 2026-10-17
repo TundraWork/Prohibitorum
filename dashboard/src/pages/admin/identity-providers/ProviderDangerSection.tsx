@@ -64,6 +64,8 @@ export function ProviderDangerSection({ provider }: { provider: Provider }) {
   // Named, so the confirmation carries it as `{count}` in both catalogs.
   const count = provider.linkedAccountCount ?? 0;
   const identityScope = `identity:${provider.slug}`;
+  // Pending invitations whose verified snapshot dies with the provider.
+  const pending = provider.pendingInvitationCount ?? 0;
 
   const toggle = (
     <Button
@@ -246,7 +248,7 @@ export function ProviderDangerSection({ provider }: { provider: Provider }) {
         }
         body={
           <>
-            {count > 0 ? (
+            {count > 0 && (
               <p>
                 <Trans id="admin.federation.danger.delete.confirm.linked">
                   <Plural
@@ -258,7 +260,20 @@ export function ProviderDangerSection({ provider }: { provider: Provider }) {
                   this way needs a new registration link from you.
                 </Trans>
               </p>
-            ) : (
+            )}
+            {pending > 0 && (
+              <p>
+                <Trans id="admin.federation.danger.delete.confirm.pending">
+                  <Plural
+                    value={pending}
+                    one="# unfinished invitation whose identity was verified"
+                    other="# unfinished invitations whose identities were verified"
+                  />{" "}
+                  through it is deleted with the provider.
+                </Trans>
+              </p>
+            )}
+            {count === 0 && pending === 0 && (
               <p>
                 <Trans id="admin.federation.danger.delete.confirm.empty">
                   The provider and its icon are removed.

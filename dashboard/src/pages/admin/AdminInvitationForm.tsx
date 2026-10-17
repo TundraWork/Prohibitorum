@@ -1,9 +1,10 @@
 import { Label, ListBox, Select } from "@heroui/react";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
+import { useStore } from "@tanstack/react-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { isCancellation } from "@/api/errors";
 import { createInvitationMutationOptions } from "@/api/mutations";
 import {
@@ -68,12 +69,18 @@ export function AdminInvitationForm() {
     }));
 
   const providerOptions: EntityOption[] = (providers.data?.items ?? [])
-    .filter((provider) => !provider.disabled && provider.ready)
+    .filter(
+      (provider) =>
+        !provider.disabled && provider.ready && provider.mode !== "link_only",
+    )
     .map((provider) => ({
       id: provider.slug,
       label: provider.displayName,
       description: provider.protocol,
     }));
+  const providersById = new Map(
+    (providers.data?.items ?? []).map((provider) => [provider.slug, provider]),
+  );
 
   const form = useAppForm({
     defaultValues: {
@@ -81,6 +88,7 @@ export function AdminInvitationForm() {
       username: "",
       groupIds: [] as string[],
       expectedUpstreamIdpSlug: "",
+      requireLocalCredential: false,
     },
     onSubmit: async ({ value }) => {
       const username = value.username.trim();
@@ -92,11 +100,14 @@ export function AdminInvitationForm() {
         });
         return;
       }
+      const selected = providersById.get(provider);
       const body: CreateInvitationRequest = {
         role: value.role,
         groupIds: ids,
         ...(username === "" ? {} : { username }),
         ...(provider === "" ? {} : { expectedUpstreamIdpSlug: provider }),
+        requireLocalCredential:
+          value.requireLocalCredential || selected?.allowSignIn === false,
       };
       try {
         const created = await create.mutateAsync(body);
@@ -106,14 +117,36 @@ export function AdminInvitationForm() {
         applyServerError(form, failure, {
           locations: {
             username: "username",
-            expected_upstream_idp_slug: "expectedUpstreamIdpSlug",
           },
-          codes: {},
+          codes: {
+            upstream_idp_link_only: "expectedUpstreamIdpSlug",
+          },
         });
       }
     },
   });
 
+  // A sign-in-off provider enforces the local-credential requirement no
+  // matter what the request said: the switch is driven on and locked while one
+  // is selected. Moving to a provider that does not enforce releases it again —
+  // the on state was the provider's doing, not the operator's choice.
+  const enforcedSlug = useStore(
+    form.store,
+    (state) => state.values.expectedUpstreamIdpSlug,
+  );
+  const enforced =
+    providersById.get(enforcedSlug.trim())?.allowSignIn === false;
+  const wasEnforced = useRef(false);
+  if (enforced !== wasEnforced.current) {
+    wasEnforced.current = enforced;
+    if (enforced) {
+      form.setFieldValue("requireLocalCredential", true, {
+        dontUpdateMeta: true,
+      });
+    } else {
+      form.resetField("requireLocalCredential");
+    }
+  }
   if (link !== null) {
     return (
       <SecretReveal
@@ -217,7 +250,7 @@ export function AdminInvitationForm() {
               <field.IdentityProviderPicker
                 description={
                   <Trans id="admin.invitations.new.provider.hint">
-                    Optional. Only providers that are enabled and ready are
+                    Optional. Only providers that can create accounts are
                     offered; the invited person must sign in through the one
                     chosen here.
                   </Trans>
@@ -232,6 +265,47 @@ export function AdminInvitationForm() {
               />
             )}
           </form.AppField>
+
+          <form.Subscribe
+            selector={(state) =>
+              [state.values.expectedUpstreamIdpSlug] as const
+            }
+          >
+            {([slug]) => {
+              const selected = providersById.get(slug.trim());
+              // The value sync happens above the render; here the switch only
+              // shows the enforced state, locked on.
+              const enforced = selected?.allowSignIn === false;
+              return (
+                <form.AppField name="requireLocalCredential">
+                  {(field) => (
+                    <field.SwitchField
+                      label={
+                        <Trans id="admin.invitations.new.require_local.label">
+                          Require a local sign-in method
+                        </Trans>
+                      }
+                      description={
+                        enforced ? (
+                          <Trans id="admin.invitations.new.require_local.enforced">
+                            This provider can't be used to sign in, so a local
+                            sign-in method is always required.
+                          </Trans>
+                        ) : (
+                          <Trans id="admin.invitations.new.require_local.hint">
+                            After verifying with a provider, the invitee also
+                            sets up a passkey or a password and an authenticator
+                            before the account is created.
+                          </Trans>
+                        )
+                      }
+                      isDisabled={enforced}
+                    />
+                  )}
+                </form.AppField>
+              );
+            }}
+          </form.Subscribe>
 
           <div className="flex flex-wrap gap-2">
             <Button

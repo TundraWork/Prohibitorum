@@ -87,6 +87,8 @@ export function AdminIdentityProviderNew() {
       displayName: "",
       slug: "",
       mode: "auto_provision" as ProviderMode,
+      // VRChat verifies identities by default; everyone else backs a button.
+      allowSignIn: true,
       issuerUrl: "",
       clientId: "",
       tokenAuthMethod: "discovery" as ClientAuthMethod,
@@ -101,9 +103,13 @@ export function AdminIdentityProviderNew() {
         slug: value.slug.trim(),
         displayName: value.displayName.trim(),
         protocol: value.protocol,
-        // VRChat links existing accounts and cannot do anything else; the
-        // server rejects any other mode for it.
-        mode: value.protocol === "vrchat" ? "link_only" : value.mode,
+        // With sign-in off, "creates accounts" cannot be sent: the server
+        // rejects the pair and the field no longer offers it.
+        mode:
+          !value.allowSignIn && value.mode === "auto_provision"
+            ? "invite_only"
+            : value.mode,
+        allowSignIn: value.allowSignIn,
         config: oidc
           ? {
               ...defaultOidcProviderConfig(),
@@ -167,7 +173,15 @@ export function AdminIdentityProviderNew() {
                 isDisabled={submitting}
                 onChange={(next) => {
                   const chosen = readProviderProtocol(next);
-                  if (chosen !== undefined) field.handleChange(chosen);
+                  if (chosen === undefined) return;
+                  field.handleChange(chosen);
+                  // Each protocol carries its own default for the switch:
+                  // VRChat verifies identities, the rest back a button.
+                  form.setFieldValue("allowSignIn", chosen !== "vrchat");
+                  form.setFieldValue(
+                    "mode",
+                    chosen === "vrchat" ? "invite_only" : "auto_provision",
+                  );
                 }}
               >
                 <Label>
@@ -244,8 +258,53 @@ export function AdminIdentityProviderNew() {
             <CallbackPreview slug={slug.trim()} />
           )}
 
+          <form.AppField name="allowSignIn">
+            {(field) => (
+              <field.SwitchField
+                label={
+                  <Trans id="admin.federation.general.sign_in">
+                    Allow sign-in
+                  </Trans>
+                }
+                description={
+                  <>
+                    {protocol === "vrchat" && (
+                      <Trans id="admin.federation.general.sign_in.vrchat_hint">
+                        VRChat proves a profile through a link in its bio, which
+                        is weaker than an OIDC sign-in. Once this is on, anyone
+                        who can edit the profile can sign in to the account
+                        linked to it.
+                      </Trans>
+                    )}
+                    <Trans id="admin.federation.general.sign_in.hint">
+                      When this is off, this provider can't be used to sign in.
+                      People can only link it from their account, or use it to
+                      accept an invitation.
+                    </Trans>
+                  </>
+                }
+              />
+            )}
+          </form.AppField>
+
           <form.AppField name="mode">
-            {() => <ProvisioningModeField isFixed={protocol === "vrchat"} />}
+            {() => (
+              <form.Subscribe
+                selector={(state) =>
+                  [state.values.allowSignIn, state.values.mode] as const
+                }
+              >
+                {([allowSignIn, mode]) => (
+                  <ProvisioningModeField
+                    allowSignIn={allowSignIn}
+                    autoProvisionSelected={mode === "auto_provision"}
+                    onAutoProvisionInvalid={() => {
+                      form.setFieldValue("mode", "invite_only");
+                    }}
+                  />
+                )}
+              </form.Subscribe>
+            )}
           </form.AppField>
 
           {protocol === "oidc" && (

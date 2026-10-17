@@ -101,14 +101,6 @@ export function FederationFlowPage() {
 
   const step = {
     title: <FlowTitle intent={flow.intent} provider={provider} />,
-    description:
-      flow.intent === "enroll" ? (
-        <Trans id="federation_flow.description.enroll">
-          {provider} only proves the profile is yours; next you'll set up your
-          own way to sign in. If you already have an account, link {provider}{" "}
-          from Security instead.
-        </Trans>
-      ) : undefined,
   };
 
   return flow.step === "identify" ? (

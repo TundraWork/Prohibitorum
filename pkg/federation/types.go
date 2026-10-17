@@ -14,7 +14,6 @@ const (
 	IntentLogin  Intent = "login"
 	IntentLink   Intent = "link"
 	IntentInvite Intent = "invite"
-	IntentEnroll Intent = "enroll"
 )
 
 // ReservedSlug is the path segment under /api/prohibitorum/auth/federation/
@@ -65,14 +64,17 @@ type SealedSecret struct {
 }
 
 type Provider struct {
-	ID                int64
-	Slug              string
-	DisplayName       string
-	Protocol          string
-	Mode              string
-	Config            json.RawMessage
-	Secret            *SealedSecret
-	SecretStatus      string
+	ID           int64
+	Slug         string
+	DisplayName  string
+	Protocol     string
+	Mode         string
+	Config       json.RawMessage
+	Secret       *SealedSecret
+	SecretStatus string
+	// AllowSignIn is false when the provider may only verify identities
+	// (invites, account linking) and never backs a sign-in button.
+	AllowSignIn       bool
 	SecretValidatedAt *time.Time
 	Disabled          bool
 }
@@ -160,9 +162,6 @@ type EnrollmentGrant struct {
 	ExpiresAt time.Time
 }
 
-type EnrollmentIssuer interface {
-	Issue(context.Context, Provider, VerifiedIdentity) (EnrollmentGrant, error)
-}
 
 type CompletionResult struct {
 	Intent       Intent
@@ -188,12 +187,15 @@ func (r *CompletionResult) Validate() error {
 	if r == nil {
 		return errors.New("federation: missing completion result")
 	}
-	if r.Intent == IntentEnroll {
-		if r.Enrollment == nil || r.Enrollment.Token == "" {
+	if r.Intent == IntentInvite && r.Enrollment != nil {
+		// The verify-then-create invite path: the identity snapshot is stored
+		// on the invitation, no account exists yet, and the browser goes to
+		// /enroll/{token}.
+		if r.Enrollment.Token == "" {
 			return errors.New("federation: invalid enrollment completion")
 		}
-		if r.AccountID != 0 || r.IdentityID != 0 || r.ProviderID != 0 || r.ProviderSlug != "" ||
-			r.ReturnTo != "" || len(r.AMR) != 0 || r.IsNew || r.Confirmed || r.AvatarURL != "" {
+		if r.AccountID != 0 || r.IdentityID != 0 ||
+			len(r.AMR) != 0 || r.IsNew || r.Confirmed || r.AvatarURL != "" || r.OfferLocalSignin {
 			return errors.New("federation: mixed enrollment completion")
 		}
 		return nil

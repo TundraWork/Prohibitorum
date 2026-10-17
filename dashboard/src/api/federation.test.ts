@@ -170,7 +170,7 @@ describe("reading claim aliases", () => {
 describe("readFederationFlow", () => {
   const identify = {
     provider: { slug: "vrchat", displayName: "VRChat", protocol: "vrchat" },
-    intent: "enroll",
+    intent: "login",
     step: "identify",
     requiresLocalUsername: false,
     expiresAt: "2026-10-03T00:00:00Z",

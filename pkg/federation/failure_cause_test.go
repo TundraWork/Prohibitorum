@@ -232,8 +232,8 @@ func TestVRChatRestoreAfterFailureLogsUpstreamCause(t *testing.T) {
 		t.Fatal(err)
 	}
 	resolver := &serviceFakeResolver{}
-	service := NewService(registry, fakeProviderLoader{provider: Provider{ID: 7, Slug: "social", Protocol: "vrchat", Mode: ModeLinkOnly}},
-		kv.NewMemoryStore(), resolver, rejectingEnrollmentIssuer(), ServiceConfig{StateTTL: time.Minute, PublicOrigin: "https://login.example.com"})
+	service := NewService(registry, fakeProviderLoader{provider: Provider{ID: 7, Slug: "social", Protocol: "vrchat", Mode: ModeInviteOnly, AllowSignIn: true}},
+		kv.NewMemoryStore(), resolver, ServiceConfig{StateTTL: time.Minute, PublicOrigin: "https://login.example.com"})
 	begin, err := service.BeginPublic(context.Background(), "social", "/", false)
 	if err != nil {
 		t.Fatal(err)

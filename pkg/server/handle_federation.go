@@ -231,7 +231,10 @@ func (s *Server) writeFederationCompletion(w http.ResponseWriter, r *http.Reques
 		s.writeFederationCompletionError(w, r, err, mode)
 		return
 	}
-	if result.Intent == federation.IntentEnroll {
+	if result.Enrollment != nil {
+		// Verify-then-create invite: the snapshot landed on the invitation,
+		// no account exists yet; clear the fed-state cookie and continue at
+		// the enrollment page.
 		http.SetCookie(w, sessstore.ClearedFedStateCookie(s.config, r))
 		s.writeFederationCompletionDestination(w, r, "/enroll/"+url.PathEscape(result.Enrollment.Token), mode)
 		return
@@ -314,12 +317,15 @@ func (s *Server) handleListFederationProvidersHTTP(w http.ResponseWriter, r *htt
 	for _, idp := range idps {
 		// invite_only IdPs are listed like any other: an unknown identity
 		// hitting one is rejected at resolve time (no_account_invite_only),
-		// while existing users sign in through it directly.
+		// while existing users sign in through it directly. The login page
+		// filters on allowSignIn; "linked identities" reads the same list
+		// unfiltered.
 		out = append(out, contract.FederationProvider{
 			Slug:        idp.Slug,
 			DisplayName: idp.DisplayName,
 			Protocol:    idp.Protocol,
 			IconURL:     entityIconURLPtr("upstream_idp", idp.Slug, etagBySlug[idp.Slug]),
+			AllowSignIn: idp.AllowSignIn,
 		})
 	}
 	writeJSON(w, out)

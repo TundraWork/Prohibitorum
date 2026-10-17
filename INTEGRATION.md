@@ -491,7 +491,7 @@ curl -X POST http://localhost:8080/api/prohibitorum/me/password-totp/verify \
 # }
 ```
 
-The server verifies the password and candidate TOTP before persisting both factors and recovery codes in one transaction. Invitation, federated-registration, and reset enrollments use the same combined fields at `POST /enrollments/{token}/password-totp/verify`.
+The server verifies the password and candidate TOTP before persisting both factors and recovery codes in one transaction. Invitation and reset enrollments use the same combined fields at `POST /enrollments/{token}/password-totp/verify`; an invitation that requires a local credential completes here too.
 
 `POST /me/totp/verify` is reserved for replacing an existing confirmed authenticator. It requires fresh sudo and accepts `{"secret_base32":"...","code":"123456"}`. A successful reset replaces TOTP and recovery codes atomically.
 
@@ -756,9 +756,10 @@ Notes:
 
 - The provisioning path skips `RequireVerifiedEmail` + `AllowedDomains` by design — the admin minting the invite for this user IS the authorization decision.
 - `account.username` and `display_name` come from the upstream `username_claim`/display-name claims. A missing claim surfaces as a server error (provider misconfiguration); an invalid or already-taken username shows the `invalid_username`/`username_collision` error page with the invite still intact — an admin must resolve the cause.
-- A provider-bound invite must be redeemed through that provider. A provider-less invite lets the invitee choose any enabled `auto_provision` or `invite_only` IdP; `link_only` IdPs never create accounts and are rejected (`link_only_provision_denied`).
+- A provider-bound invite must be redeemed through that provider. A provider-less invite lets the invitee choose any enabled `auto_provision` or `invite_only` IdP; `link_only` IdPs never create accounts and are rejected (`link_only_provision_denied`), and invitation creation refuses to bind one at all (`upstream_idp_link_only`).
 - `expected_upstream_idp_slug` is optional. An `intent='invite'` enrollment without it can also be redeemed through the local-credential enrollment flow, and `/start-federation` without `provider` rejects it as `invite_not_federated`.
-- Conversely, a provider-bound invite (i.e. `expected_upstream_idp_slug` set) CANNOT be redeemed via the local-credential enrollment path: both `/enrollments/{token}/register/begin` and `/register/complete` reject with `403 enrollment_federation_required`, forcing the invitee through `/start-federation`.
+- Conversely, a provider-bound invite (i.e. `expected_upstream_idp_slug` set) CANNOT be redeemed via the local-credential enrollment path until the provider identity is verified: both `/enrollments/{token}/register/begin` and `/register/complete` reject with `403 enrollment_federation_required` while no verified snapshot sits on the invite.
+- When the invite requires a local credential (`require_local_credential`, or the bound provider has sign-in off), verification stores the identity snapshot on the invite and returns `{"redirect":"/enroll/<token>"}` (302 for OIDC/Steam callbacks, JSON for the VRChat flow verify) — no account, no session. The invitee then completes with a passkey or password+TOTP; that transaction creates the account, the credential, and the confirmed identity together, consuming the invite only then.
 
 ### Listing linked identities
 

@@ -68,10 +68,11 @@ func TestFlowStateRememberRoundTrip(t *testing.T) {
 	}
 }
 
-func TestIntentEnrollFlowStateRoundTripRejectsUnrelatedBindings(t *testing.T) {
+func TestIntentInviteFlowStateRoundTripRejectsUnrelatedBindings(t *testing.T) {
 	s := validFlowState()
 	s.Protocol = "vrchat"
-	s.Intent = IntentEnroll
+	s.Intent = IntentInvite
+	s.EnrollmentToken = "invite-token"
 	s.CurrentAction = NextAction{Kind: ActionCollectIdentity}
 
 	raw, err := s.Encode()
@@ -82,8 +83,8 @@ func TestIntentEnrollFlowStateRoundTripRejectsUnrelatedBindings(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.Intent != IntentEnroll {
-		t.Fatalf("Intent = %q, want %q", got.Intent, IntentEnroll)
+	if got.Intent != IntentInvite {
+		t.Fatalf("Intent = %q, want %q", got.Intent, IntentInvite)
 	}
 
 	accountID := int32(9)
@@ -93,14 +94,13 @@ func TestIntentEnrollFlowStateRoundTripRejectsUnrelatedBindings(t *testing.T) {
 	}{
 		{"link account", func(state *FlowState) { state.LinkAccountID = &accountID }},
 		{"link session", func(state *FlowState) { state.LinkSessionID = "session-1" }},
-		{"invitation token", func(state *FlowState) { state.EnrollmentToken = "invite-token" }},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			invalid := s
 			test.mutate(&invalid)
 			if _, err := invalid.Encode(); err == nil {
-				t.Fatal("IntentEnroll accepted an unrelated binding")
+				t.Fatal("IntentInvite accepted an unrelated binding")
 			}
 		})
 	}

@@ -491,6 +491,9 @@ function providerList(config: MockConfig): Provider[] {
     slug: `provider-${index + 1}`,
     displayName: `Example IdP ${index + 1}`,
     protocol: "oidc",
+    // Every fourth entry has sign-in off: the login page must drop it while
+    // the linked-identities page still lists it.
+    allowSignIn: index % 4 !== 3,
   }));
 }
 
@@ -632,6 +635,7 @@ function enrollmentProviders(config: MockConfig): Provider[] {
       slug: displayName.toLowerCase(),
       displayName,
       protocol,
+      allowSignIn: true,
     }));
 }
 
@@ -645,6 +649,17 @@ export function enrollmentPreview(config: MockConfig): EnrollmentPreview {
   const bootstrap = enrollment.intent === "bootstrap";
   const providers = bootstrap ? [] : enrollmentProviders(config);
   const bound = enrollment.bound ? providers[0]?.slug : undefined;
+  const verified =
+    enrollment.intent === "invite" &&
+    enrollment.verified &&
+    providers[0] !== undefined
+      ? {
+          providerSlug: providers[0].slug,
+          providerDisplayName: providers[0].displayName,
+          displayName: "Alice Liddell",
+          ...(enrollment.bound ? {} : { avatarUrl: mockAvatarUrl }),
+        }
+      : undefined;
   return {
     intent: enrollment.intent,
     ...(enrollment.fixedUsername && enrollment.intent !== "reset"
@@ -659,14 +674,15 @@ export function enrollmentPreview(config: MockConfig): EnrollmentPreview {
         }
       : {}),
     expiresAt: iso(day * 5),
-    ...(enrollment.intent === "federated_register"
-      ? { suggestedDisplayName: "Alice Liddell" }
+    ...(enrollment.intent === "invite" && enrollment.requireLocal
+      ? { requireLocalCredential: true }
       : {}),
+    ...(verified ? { verifiedIdentity: verified } : {}),
     allowedMethods:
       enrollment.passwordTotp && !bootstrap
         ? ["passkey", "password_totp"]
         : ["passkey"],
-    ...(bound ? { expectedUpstreamIdpSlug: bound } : {}),
+    ...(bound && !verified ? { expectedUpstreamIdpSlug: bound } : {}),
     // The server leaves the key out when there is nothing to offer.
     ...(providers.length > 0 ? { providers } : {}),
   };
@@ -757,11 +773,16 @@ export function federationFlow(
   };
 }
 
-/** Where a verified flow goes: home, Security for a link, or the new account's enrollment. */
-function flowTarget(intent: MockConfig["publicFlows"]["flow"]["intent"]) {
+/** Where a verified flow goes: home, Security for a link, or back to the invite. */
+function flowTarget(config: MockConfig) {
+  const intent = config.publicFlows.flow.intent;
   if (intent === "link") return "/security";
   if (intent === "login") return "/";
-  return "/enroll/mock-federated";
+  // A verify-then-create invite returns to the enrollment page; without the
+  // local-credential requirement the account exists and the flow lands home.
+  return config.publicFlows.enrollment.requireLocal
+    ? "/enroll/mock-invitation"
+    : "/";
 }
 
 function verifyFlow(config: MockConfig, body: unknown): MockReply {
@@ -775,7 +796,7 @@ function verifyFlow(config: MockConfig, body: unknown): MockReply {
   if (flow.requiresLocalUsername && !stringField(body, "localUsername")) {
     return { kind: "error", status: 409, code: "local_username_required" };
   }
-  return json({ redirect: flowTarget(flow.intent) }, (draft) => {
+  return json({ redirect: flowTarget(config) }, (draft) => {
     if (flow.intent === "login") draft.session.signedIn = true;
     // The next walkthrough starts from the beginning of a flow again.
     draft.publicFlows.flow.step = "identify";
@@ -993,6 +1014,9 @@ function invitationAt(index: number, config: MockConfig): Invitation {
     groupIds: groups.map((group) => group.id),
     groups,
     attributes: {},
+    // One invitation in three carries a verified snapshot, so the provider
+    // delete confirmation can show a nonzero pending count.
+    requireLocalCredential: index % 3 === 0,
   };
 }
 
@@ -1097,6 +1121,24 @@ function groupPreview(config: MockConfig): RulePreviewPageView {
  * dot). A walkthrough that only ever saw ready providers would never reach the
  * row treatments the list exists to show.
  */
+// The protocol default for the sign-in switch, overridden per row by the mask.
+function providerSignIn(
+  config: MockConfig,
+  index: number,
+  protocol: string,
+): boolean {
+  const letter = config.admin.providerSignInMask[index];
+  if (letter === "x") return false;
+  if (letter === "o") return true;
+  return protocol !== "vrchat";
+}
+
+function rowIndexOfSlug(config: MockConfig, slug: string): number {
+  return identityProviders(config).findIndex(
+    (provider) => provider.slug === slug,
+  );
+}
+
 function identityProviders(config: MockConfig): IdentityProvider[] {
   const protocols: readonly string[] = ["oidc", "steam", "vrchat"];
   return range(config.admin.identityProviders).map((index) => {
@@ -1118,6 +1160,12 @@ function identityProviders(config: MockConfig): IdentityProvider[] {
       slug: `provider-${index + 1}`,
       displayName: `Example ${protocol.toUpperCase()} ${index + 1}`,
       protocol,
+      // VRChat verifies identities by default; everyone else backs a button.
+      // The mask records what the panel's write switch changed.
+      allowSignIn: providerSignIn(config, index, protocol),
+      // One row in three has pending invitations riding on it, so the delete
+      // confirmation can show a nonzero count.
+      pendingInvitationCount: index % 3 === 0 ? 2 : 0,
       mode:
         protocol === "vrchat"
           ? "link_only"
@@ -2369,12 +2417,36 @@ function writeReply(
     case "/api/prohibitorum/invitations": {
       if (method !== "POST") return undefined;
       const id = clampAdminCount(config.admin.invitations) + 1;
+      const slug = stringField(body, "expectedUpstreamIdpSlug");
+      if (slug !== undefined && slug !== "") {
+        const bound = identityProviders(config).find(
+          (provider) => provider.slug === slug,
+        );
+        if (bound === undefined) {
+          return { kind: "error", status: 404, code: "upstream_idp_not_found" };
+        }
+        if (bound.mode === "link_only") {
+          return {
+            kind: "error",
+            status: 400,
+            code: "upstream_idp_link_only",
+          };
+        }
+      }
+      const forcedLocal =
+        booleanField(body, "requireLocalCredential") === true ||
+        (slug !== undefined &&
+          slug !== "" &&
+          !identityProviders(config).some(
+            (provider) => provider.slug === slug && provider.allowSignIn,
+          ));
       return json(
         {
           url: `http://localhost:8080/enroll/mock-invitation-${id}`,
           expiresAt: iso(day * 7),
           groupIds: (field(body, "groupIds") as number[] | undefined) ?? null,
           username: stringField(body, "username") ?? "",
+          requireLocalCredential: forcedLocal,
         },
         (draft) => {
           draft.admin.invitations = clampAdminCount(
@@ -2624,7 +2696,12 @@ function writeReply(
         slug,
         displayName: stringField(body, "displayName") ?? slug,
         protocol,
+        allowSignIn:
+          (body as { allowSignIn?: boolean }).allowSignIn ??
+          protocol !== "vrchat",
         mode: stringField(body, "mode") ?? "invite_only",
+        // Nothing can have verified through a provider created this moment.
+        pendingInvitationCount: 0,
         disabled: false,
         ready: false,
         secretConfigured: stringField(body, "secret") !== undefined,
@@ -2668,22 +2745,37 @@ function writeReply(
         return { kind: "error", status: 404, code: "upstream_idp_not_found" };
       }
       const disabled = booleanField(body, "disabled");
+      const allowSignIn = booleanField(body, "allowSignIn");
       const next: IdentityProvider =
-        disabled === undefined
-          ? {
+        disabled !== undefined
+          ? { ...found, disabled }
+          : {
               ...found,
               displayName:
                 stringField(body, "displayName") ?? found.displayName,
               mode: stringField(body, "mode") ?? found.mode,
+              allowSignIn: allowSignIn ?? found.allowSignIn,
               config: field(body, "config") ?? found.config,
-            }
-          : { ...found, disabled };
+            };
       // Enabling a provider the server considers unready is refused, which is
       // the one branch of this endpoint a member view cannot produce.
       if (disabled === false && !found.ready) {
         return { kind: "error", status: 503, code: "provider_not_ready" };
       }
-      return json(next);
+      // Record the sign-in switch in the mask so the change survives a reload.
+      const effect =
+        allowSignIn === undefined
+          ? undefined
+          : (draft: MockConfig) => {
+              const index = rowIndexOfSlug(config, slug);
+              if (index < 0) return;
+              const mask = draft.admin.providerSignInMask
+                .padEnd(config.admin.identityProviders, ".")
+                .split("");
+              mask[index] = allowSignIn ? "o" : "x";
+              draft.admin.providerSignInMask = mask.join("");
+            };
+      return json(next, effect);
     }
 
     case "/api/prohibitorum/identity-providers/delete":

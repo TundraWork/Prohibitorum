@@ -85,26 +85,26 @@ type DiagnosticEvent struct {
 }
 
 type Enrollment struct {
-	Token                       string             `json:"token"`
-	Intent                      string             `json:"intent"`
-	TargetAccountID             pgtype.Int4        `json:"targetAccountId"`
-	TemplateRole                pgtype.Text        `json:"templateRole"`
-	TemplateAttributes          []byte             `json:"templateAttributes"`
-	ExpectedUpstreamIdpSlug     pgtype.Text        `json:"expectedUpstreamIdpSlug"`
-	CreatedAt                   pgtype.Timestamptz `json:"createdAt"`
-	ExpiresAt                   pgtype.Timestamptz `json:"expiresAt"`
-	ConsumedAt                  pgtype.Timestamptz `json:"consumedAt"`
-	FederatedUpstreamIdpID      pgtype.Int8        `json:"federatedUpstreamIdpId"`
-	FederatedUpstreamIdpSlug    pgtype.Text        `json:"federatedUpstreamIdpSlug"`
-	FederatedUpstreamIss        pgtype.Text        `json:"federatedUpstreamIss"`
-	FederatedUpstreamSub        pgtype.Text        `json:"federatedUpstreamSub"`
-	FederatedDisplayName        pgtype.Text        `json:"federatedDisplayName"`
-	FederatedUpstreamData       []byte             `json:"federatedUpstreamData"`
-	FederatedAvatarUrl          pgtype.Text        `json:"federatedAvatarUrl"`
-	RecoverySourceUpstreamIdpID pgtype.Int8        `json:"recoverySourceUpstreamIdpId"`
-	TemplateUsername            pgtype.Text        `json:"templateUsername"`
-	GroupIds                    []int32            `json:"groupIds"`
-	CreatedByAccountID          pgtype.Int4        `json:"createdByAccountId"`
+	Token                    string             `json:"token"`
+	Intent                   string             `json:"intent"`
+	TargetAccountID          pgtype.Int4        `json:"targetAccountId"`
+	TemplateRole             pgtype.Text        `json:"templateRole"`
+	TemplateAttributes       []byte             `json:"templateAttributes"`
+	ExpectedUpstreamIdpSlug  pgtype.Text        `json:"expectedUpstreamIdpSlug"`
+	CreatedAt                pgtype.Timestamptz `json:"createdAt"`
+	ExpiresAt                pgtype.Timestamptz `json:"expiresAt"`
+	ConsumedAt               pgtype.Timestamptz `json:"consumedAt"`
+	FederatedUpstreamIdpID   pgtype.Int8        `json:"federatedUpstreamIdpId"`
+	FederatedUpstreamIdpSlug pgtype.Text        `json:"federatedUpstreamIdpSlug"`
+	FederatedUpstreamIss     pgtype.Text        `json:"federatedUpstreamIss"`
+	FederatedUpstreamSub     pgtype.Text        `json:"federatedUpstreamSub"`
+	FederatedDisplayName     pgtype.Text        `json:"federatedDisplayName"`
+	FederatedUpstreamData    []byte             `json:"federatedUpstreamData"`
+	FederatedAvatarUrl       pgtype.Text        `json:"federatedAvatarUrl"`
+	TemplateUsername         pgtype.Text        `json:"templateUsername"`
+	GroupIds                 []int32            `json:"groupIds"`
+	CreatedByAccountID       pgtype.Int4        `json:"createdByAccountId"`
+	RequireLocalCredential   bool               `json:"requireLocalCredential"`
 }
 
 type EntityIcon struct {
@@ -366,6 +366,7 @@ type UpstreamIdp struct {
 	ProviderConfig    []byte             `json:"providerConfig"`
 	SecretStatus      string             `json:"secretStatus"`
 	SecretValidatedAt pgtype.Timestamptz `json:"secretValidatedAt"`
+	AllowSignIn       bool               `json:"allowSignIn"`
 }
 
 type UserGroup struct {

@@ -3,6 +3,7 @@ import {
   documentSourceLabel,
   identityFields,
   identityValue,
+  providerModesForSignIn,
 } from "@/pages/admin/identity-providers/provider-options";
 
 describe("identityFields", () => {
@@ -50,5 +51,22 @@ describe("documentSourceLabel", () => {
       "admin.federation.diagnostics.source.configuration",
     );
     expect(documentSourceLabel("discovery")).toBeUndefined();
+  });
+});
+
+describe("providerModesForSignIn", () => {
+  it("offers every mode while sign-in is on", () => {
+    expect(providerModesForSignIn(true).map((o) => o.value)).toEqual([
+      "auto_provision",
+      "invite_only",
+      "link_only",
+    ]);
+  });
+
+  it("drops auto_provision while sign-in is off", () => {
+    expect(providerModesForSignIn(false).map((o) => o.value)).toEqual([
+      "invite_only",
+      "link_only",
+    ]);
   });
 });

@@ -64,6 +64,18 @@ export const providerModes: readonly ProviderOption<ProviderMode>[] = [
   },
 ];
 
+/**
+ * The modes a provider can take given its sign-in switch: with sign-in off,
+ * `auto_provision` cannot be offered (it exists to back a sign-in button), so
+ * `invite_only` and `link_only` remain.
+ */
+export function providerModesForSignIn(
+  allowSignIn: boolean,
+): readonly ProviderOption<ProviderMode>[] {
+  if (allowSignIn) return providerModes;
+  return providerModes.filter((option) => option.value !== "auto_provision");
+}
+
 /** A mode's name, for a trigger, a cell or a read-only value. */
 export function providerModeLabel(mode: ProviderMode): MessageDescriptor {
   const option = providerModes.find((candidate) => candidate.value === mode);
