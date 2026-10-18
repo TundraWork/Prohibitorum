@@ -1,6 +1,13 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { PressResponder } from "react-aria/private/interactions/PressResponder";
+import {
+  Dialog,
+  DialogTrigger,
+  Menu,
+  MenuItem,
+  MenuTrigger,
+  Popover,
+} from "react-aria-components";
 import { describe, expect, it, vi } from "vitest";
 import { Button } from "@/components/custom/Button";
 
@@ -131,39 +138,87 @@ describe("Button", () => {
     expect(button).toHaveAttribute("type", "submit");
   });
 
-  it("presses a surrounding react-aria trigger once, alongside its own onPress", async () => {
-    const triggerPress = vi.fn();
+  it("fires onPress and onClick once each for click, Enter and Space", async () => {
     const onPress = vi.fn();
+    const onClick = vi.fn();
     const user = userEvent.setup();
     render(
-      <PressResponder onPress={triggerPress}>
-        <Button onPress={onPress}>Go</Button>
-      </PressResponder>,
+      <Button onPress={onPress} onClick={onClick}>
+        Go
+      </Button>,
     );
     const button = screen.getByRole("button", { name: "Go" });
     await user.click(button);
-    expect(triggerPress).toHaveBeenCalledTimes(1);
     expect(onPress).toHaveBeenCalledTimes(1);
+    expect(onClick).toHaveBeenCalledTimes(1);
     button.focus();
     await user.keyboard("{Enter}");
     expect(onPress).toHaveBeenCalledTimes(2);
+    expect(onClick).toHaveBeenCalledTimes(2);
     await user.keyboard(" ");
     expect(onPress).toHaveBeenCalledTimes(3);
-    expect(triggerPress).toHaveBeenCalledTimes(3);
+    expect(onClick).toHaveBeenCalledTimes(3);
   });
 
-  it("presses neither a surrounding trigger nor onPress when disabled", async () => {
-    const triggerPress = vi.fn();
-    const onPress = vi.fn();
-    render(
-      <PressResponder onPress={triggerPress}>
-        <Button isDisabled onPress={onPress}>
-          Go
-        </Button>
-      </PressResponder>,
+  describe("inside react-aria triggers", () => {
+    const menu = (button: React.ReactElement) => (
+      <MenuTrigger>
+        {button}
+        <Popover>
+          <Menu>
+            <MenuItem id="a">Alpha</MenuItem>
+          </Menu>
+        </Popover>
+      </MenuTrigger>
     );
-    await userEvent.click(screen.getByRole("button", { name: "Go" }));
-    expect(triggerPress).not.toHaveBeenCalled();
-    expect(onPress).not.toHaveBeenCalled();
+
+    it("opens a menu on click and marks the trigger expanded", async () => {
+      render(menu(<Button>Menu</Button>));
+      const trigger = screen.getByRole("button", { name: "Menu" });
+      expect(trigger).toHaveAttribute("aria-expanded", "false");
+      await userEvent.click(trigger);
+      expect(
+        await screen.findByRole("menuitem", { name: "Alpha" }),
+      ).toBeTruthy();
+      expect(trigger).toHaveAttribute("aria-expanded", "true");
+    });
+
+    it("opens a menu with ArrowDown on the focused trigger", async () => {
+      const user = userEvent.setup();
+      render(menu(<Button>Menu</Button>));
+      const trigger = screen.getByRole("button", { name: "Menu" });
+      trigger.focus();
+      await user.keyboard("{ArrowDown}");
+      expect(
+        await screen.findByRole("menuitem", { name: "Alpha" }),
+      ).toBeTruthy();
+      expect(trigger).toHaveAttribute("aria-expanded", "true");
+    });
+
+    it("opens a popover and marks the trigger expanded", async () => {
+      render(
+        <DialogTrigger>
+          <Button>Info</Button>
+          <Popover>
+            <Dialog aria-label="Details">Body</Dialog>
+          </Popover>
+        </DialogTrigger>,
+      );
+      const trigger = screen.getByRole("button", { name: "Info" });
+      await userEvent.click(trigger);
+      expect(
+        await screen.findByRole("dialog", { name: "Details" }),
+      ).toBeTruthy();
+      expect(trigger).toHaveAttribute("aria-expanded", "true");
+    });
+
+    it.each([
+      ["disabled", { isDisabled: true }],
+      ["pending", { isPending: true }],
+    ])("does not open a menu when %s", async (_name, props) => {
+      render(menu(<Button {...props}>Menu</Button>));
+      await userEvent.click(screen.getByRole("button", { name: "Menu" }));
+      expect(screen.queryByRole("menuitem")).toBeNull();
+    });
   });
 });

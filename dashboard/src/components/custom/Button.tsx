@@ -1,7 +1,6 @@
-import { mergeProps } from "@base-ui/react/merge-props";
-import type * as React from "react";
-import { usePress } from "react-aria";
-import { Button as CossButton } from "@/components/ui/button";
+import * as React from "react";
+import { Button as AriaButton } from "react-aria-components";
+import { buttonVariants, Button as CossButton } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 
@@ -22,7 +21,10 @@ type CossVariant = NonNullable<
 >;
 
 export interface ButtonProps
-  extends Omit<React.ComponentProps<"button">, "onClick" | "disabled"> {
+  extends Omit<
+    React.ComponentProps<"button">,
+    "onClick" | "disabled" | "slot"
+  > {
   variant?: ButtonVariant;
   size?: ButtonSize;
   isIconOnly?: boolean;
@@ -32,6 +34,8 @@ export interface ButtonProps
   onPress?: (event: React.MouseEvent<HTMLButtonElement>) => void;
   onClick?: (event: React.MouseEvent<HTMLButtonElement>) => void;
   render?: React.ReactElement;
+  /** Names the react-aria slot a parent (e.g. a table) assigns this button to. */
+  slot?: string | null;
 }
 
 // `warning` keeps the primary look: the consequence of a save is stated by the
@@ -69,35 +73,77 @@ export function Button({
   fullWidth = false,
   onPress,
   onClick,
+  render,
+  slot,
+  ref,
   className,
   children,
   ...props
 }: ButtonProps): React.ReactElement {
-  // react-aria triggers (Dropdown, Popover, FileTrigger) attach through the
-  // press-responder context, which only usePress reads.
-  const { pressProps } = usePress({ isDisabled: isDisabled || isPending });
-  // Keys stay native so Enter and Space reach onClick (and the trigger, via
-  // usePress's click handler) exactly once.
-  const { onKeyDown: _down, onKeyUp: _up, ...pointerPressProps } = pressProps;
-  return (
-    <CossButton
-      {...mergeProps(props, pointerPressProps, {
-        onClick: (event: React.MouseEvent<HTMLButtonElement>) => {
-          onClick?.(event);
-          onPress?.(event);
-        },
-      })}
-      variant={cossVariant[variant]}
-      size={cossSize[size][isIconOnly ? "icon" : "text"]}
-      loading={false}
-      disabled={isDisabled || isPending}
-      aria-busy={isPending || undefined}
-      data-variant={variant}
-      data-size={size}
-      className={cn(fullWidth && "w-full", className)}
-    >
+  const common = {
+    variant: cossVariant[variant],
+    size: cossSize[size][isIconOnly ? "icon" : "text"],
+  } as const;
+  const content = (
+    <>
       {isPending && <Spinner aria-hidden="true" data-slot="spinner" />}
       {isPending && isIconOnly ? null : children}
-    </CossButton>
+    </>
+  );
+  const handleClick = (event: React.MouseEvent) => {
+    const e = event as React.MouseEvent<HTMLButtonElement>;
+    onClick?.(e);
+    onPress?.(e);
+  };
+  const inner = React.useRef<HTMLButtonElement>(null);
+  // react-aria's button drops aria-busy from its props, so set it directly.
+  React.useLayoutEffect(() => {
+    if (isPending) inner.current?.setAttribute("aria-busy", "true");
+    else inner.current?.removeAttribute("aria-busy");
+  }, [isPending]);
+  const marks = {
+    "data-variant": variant,
+    "data-size": size,
+  };
+
+  // Links are never trigger children, so they keep the coss element.
+  if (render) {
+    return (
+      <CossButton
+        {...props}
+        {...common}
+        render={render}
+        ref={ref}
+        aria-busy={isPending || undefined}
+        onClick={handleClick}
+        loading={false}
+        disabled={isDisabled || isPending}
+        className={cn(fullWidth && "w-full", className)}
+        {...marks}
+      >
+        {content}
+      </CossButton>
+    );
+  }
+
+  // react-aria triggers attach to their child through react-aria contexts, so
+  // the button is a react-aria button until those triggers are gone.
+  return (
+    <AriaButton
+      {...(props as React.ComponentProps<typeof AriaButton>)}
+      ref={(node) => {
+        inner.current = node;
+        if (typeof ref === "function") ref(node);
+        else if (ref) ref.current = node;
+      }}
+      slot={slot}
+      onClick={handleClick}
+      isDisabled={isDisabled || isPending}
+      className={cn(buttonVariants(common), fullWidth && "w-full", className)}
+      data-slot="button"
+      {...marks}
+    >
+      {content}
+    </AriaButton>
   );
 }
