@@ -44,7 +44,13 @@ export function AvatarPanel() {
   return (
     <AsyncSection
       resetKey="avatar"
+      icon={<UserRound />}
       title={<Trans id="profile.avatar.title">Picture</Trans>}
+      description={
+        <Trans id="profile.avatar.description">
+          What others see next to your name.
+        </Trans>
+      }
     >
       <AvatarGallery />
     </AsyncSection>

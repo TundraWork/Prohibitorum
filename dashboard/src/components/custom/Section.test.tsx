@@ -7,7 +7,7 @@ import {
 } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { useEffect, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ConsoleCard } from "@/components/custom/ConsoleCard";
 import { ItemList } from "@/components/custom/ItemList";
@@ -26,7 +26,13 @@ function Slow({ read }: { read: () => Promise<string> }) {
 function mount(
   read: () => Promise<string>,
   title?: string,
-  sectionProps: { id?: string; footer?: string; dirty?: boolean } = {},
+  sectionProps: {
+    id?: string;
+    footer?: string;
+    dirty?: boolean;
+    icon?: ReactNode;
+    description?: string;
+  } = {},
 ): ReturnType<typeof render> {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -96,6 +102,28 @@ describe("AsyncSection", () => {
     expect(section).toHaveAttribute("id", "sessions-block");
     expect(section).toHaveAttribute("data-dirty", "true");
     expect(screen.getByText("Footer note")).toBeInTheDocument();
+    vi.restoreAllMocks();
+  });
+
+  it("draws the icon and description in the loading and error states", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const props = {
+      icon: <svg data-testid="probe-icon" />,
+      description: "What this block is for.",
+    };
+    const { unmount } = mount(
+      () => new Promise<string>(() => undefined),
+      "Sessions",
+      props,
+    );
+    expect(screen.getByText("What this block is for.")).toBeInTheDocument();
+    expect(screen.getByTestId("probe-icon")).toBeInTheDocument();
+    unmount();
+
+    mount(() => Promise.reject(new Error("offline")), "Sessions", props);
+    await screen.findByText("This section could not be loaded");
+    expect(screen.getByText("What this block is for.")).toBeInTheDocument();
+    expect(screen.getByTestId("probe-icon")).toBeInTheDocument();
     vi.restoreAllMocks();
   });
 

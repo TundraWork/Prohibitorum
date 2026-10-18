@@ -1,4 +1,5 @@
 import { Trans } from "@lingui/react/macro";
+import { useInstanceBranding } from "@/components/custom/instance-branding";
 import { PageBody } from "@/components/custom/PageBody";
 import { PageHeader } from "@/components/custom/PageHeader";
 import { IdentitiesPanel } from "@/pages/security/IdentitiesPanel";
@@ -23,13 +24,14 @@ import { TokensPanel } from "@/pages/security/TokensPanel";
  * them.
  */
 export function Security() {
+  const { name } = useInstanceBranding();
   return (
     <PageBody>
       <PageHeader
         title={<Trans id="security.page.title">Security</Trans>}
         description={
           <Trans id="security.page.description">
-            How you sign in, and what can act on your behalf.
+            How you sign in to {name}.
           </Trans>
         }
       />

@@ -3515,7 +3515,7 @@ msgstr "How the application is registered"
 #. js-lingui-explicit-id
 #: src/pages/Security.tsx
 msgid "security.page.description"
-msgstr "How you sign in, and what can act on your behalf."
+msgstr "How you sign in to {name}."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AcsRowFields.tsx
@@ -3935,11 +3935,6 @@ msgid "admin.users.column.lastSignIn"
 msgstr "Last signed in"
 
 #. js-lingui-explicit-id
-#: src/pages/security/PasskeysPanel.tsx
-msgid "security.passkeys.detail.lastUsed"
-msgstr "Last used <0/>"
-
-#. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.detail.lastUsed"
 msgstr "Last used <0/>"
@@ -4234,6 +4229,11 @@ msgstr "Metadata XML"
 #: src/pages/admin/settings/SignInPageControls.tsx
 msgid "settings.sign-in.gradient.mist"
 msgstr "Mist"
+
+#. js-lingui-explicit-id
+#: src/pages/security/PasskeysPanel.tsx
+msgid "security.passkeys.more"
+msgstr "More actions for {name}"
 
 #. js-lingui-explicit-id
 #: src/components/custom/ProviderGrid.tsx
@@ -5455,12 +5455,12 @@ msgstr "Remote user"
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
-msgid "security.passkeys.delete"
+msgid "security.passkeys.delete.confirm"
 msgstr "Remove"
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
-msgid "security.passkeys.delete.confirm"
+msgid "security.passkeys.delete"
 msgstr "Remove"
 
 #. js-lingui-explicit-id
@@ -7390,6 +7390,11 @@ msgid "federation_flow.proof.expires"
 msgstr "The verification link works until {until}."
 
 #. js-lingui-explicit-id
+#: src/pages/security/PasskeysPanel.tsx
+msgid "security.passkeys.description"
+msgstr "The way in. Your device keeps the key, so there's nothing to type or leak."
+
+#. js-lingui-explicit-id
 #: src/pages/admin/settings/SignInPageControls.tsx
 msgid "settings.sign-in.theme"
 msgstr "Theme"
@@ -7594,11 +7599,6 @@ msgstr "This is the only administrator. Make another account an administrator fi
 #: src/api/errors.ts
 msgid "error.cannot_revoke_current_session"
 msgstr "This is the session you are using. Sign out instead."
-
-#. js-lingui-explicit-id
-#: src/pages/security/PasskeysPanel.tsx
-msgid "security.passkeys.last_one_tooltip"
-msgstr "This is your only passkey, so it cannot be removed."
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -8211,6 +8211,11 @@ msgid "audit.event.use"
 msgstr "Used"
 
 #. js-lingui-explicit-id
+#: src/pages/security/PasskeysPanel.tsx
+msgid "security.passkeys.meta.used"
+msgstr "Used <0/>"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminInvitationForm.tsx
 #: src/pages/admin/AdminInvitations.tsx
 msgid "admin.invitations.role.user"
@@ -8789,6 +8794,11 @@ msgstr "Your identity is verified. Choose your account name, then set up how you
 #: src/pages/profile/AccountPanel.tsx
 msgid "profile.account.description"
 msgstr "Your name is shown to others; the identifiers below are fixed."
+
+#. js-lingui-explicit-id
+#: src/pages/security/PasskeysPanel.tsx
+msgid "security.passkeys.only_one"
+msgstr "Your only passkey"
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx

@@ -209,6 +209,8 @@ export function Section({
 export function AsyncSection({
   resetKey,
   title,
+  icon,
+  description,
   id,
   footer,
   dirty,
@@ -222,13 +224,16 @@ export function AsyncSection({
    * names the block.
    */
   title?: ReactNode;
+  /** The section's icon and description, drawn with the heading in every state so it does not change when the content lands. */
+  icon?: ReactNode;
+  description?: ReactNode;
   /** Passed to the `Section` drawn in every state. */
   id?: string;
   footer?: ReactNode;
   dirty?: boolean;
   children: ReactNode;
 }) {
-  const sectionProps = { id, footer, dirty };
+  const sectionProps = { id, icon, description, footer, dirty };
   const pending =
     title === undefined ? (
       <Frame>
@@ -289,7 +294,13 @@ function SectionError({
   onRetry,
 }: {
   title: ReactNode;
-  sectionProps: { id?: string; footer?: ReactNode; dirty?: boolean };
+  sectionProps: {
+    id?: string;
+    icon?: ReactNode;
+    description?: ReactNode;
+    footer?: ReactNode;
+    dirty?: boolean;
+  };
   error: unknown;
   onRetry: () => void;
 }) {

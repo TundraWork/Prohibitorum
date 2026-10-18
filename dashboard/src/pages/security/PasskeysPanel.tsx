@@ -1,16 +1,19 @@
-import {
-  AlertDialog,
-  Chip,
-  Description,
-  Input,
-  Label,
-  TextField,
-  Tooltip,
-} from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Fingerprint, KeyRound, Pencil, Trash2 } from "lucide-react";
-import { useState } from "react";
+import {
+  useMutation,
+  useQueryClient,
+  useSuspenseQuery,
+} from "@tanstack/react-query";
+import {
+  Fingerprint,
+  KeyRound,
+  Laptop,
+  Pencil,
+  Plus,
+  Smartphone,
+  Trash2,
+} from "lucide-react";
+import { type ReactNode, useState } from "react";
 import { describeError, isCancellation } from "@/api/errors";
 import type { components } from "@/api/generated/schema";
 import {
@@ -19,117 +22,119 @@ import {
   renameCredentialMutationOptions,
 } from "@/api/mutations";
 import { credentialsQueryOptions } from "@/api/queries";
+import { withInlineReport } from "@/app/query-client";
 import { Button } from "@/components/custom/Button";
 import { ConfirmDialog } from "@/components/custom/ConfirmDialog";
 import { ItemList, ItemListRow } from "@/components/custom/ItemList";
 import { RelativeTime } from "@/components/custom/RelativeTime";
-import { Section } from "@/components/custom/Section";
+import { RowMenu } from "@/components/custom/RowMenu";
+import { AsyncSection, Section } from "@/components/custom/Section";
 import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
 import { TableEmptyState } from "@/components/custom/TableEmptyState";
+import { getTopLayerContainer } from "@/components/custom/top-layer";
+import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogFooter,
+  DialogHeader,
+  DialogPanel,
+  DialogPopup,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { MenuItem } from "@/components/ui/menu";
 
 type Credential = components["schemas"]["CredentialView"];
+
+/**
+ * What the transports say about where the key lives: a phone for `hybrid`, the
+ * device itself for `internal`, and a key otherwise. The server cannot tell a
+ * laptop from a desktop, so the icon only separates the three.
+ */
+function CredentialIcon({ transports }: { transports: string[] | null }) {
+  if (transports?.includes("hybrid")) return <Smartphone />;
+  if (transports?.includes("internal")) return <Laptop />;
+  return <KeyRound />;
+}
 
 /**
  * Passkeys on the account. Adding one runs the full WebAuthn registration
  * ceremony, which the server refuses without a fresh sudo window, so the sudo
  * prompt appears first — the user should understand why the browser is about to
  * ask for a passkey before it does.
+ *
+ * The heading, icon and description are the boundary's too, so they stay put
+ * while the list loads.
  */
 export function PasskeysPanel() {
+  return (
+    <AsyncSection
+      resetKey="passkeys"
+      icon={<Fingerprint />}
+      title={<Trans id="security.section.passkeys">Passkeys</Trans>}
+      description={<PasskeysDescription />}
+    >
+      <PasskeyList />
+    </AsyncSection>
+  );
+}
+
+function PasskeysDescription() {
+  return (
+    <Trans id="security.passkeys.description">
+      The way in. Your device keeps the key, so there's nothing to type or leak.
+    </Trans>
+  );
+}
+
+function PasskeyList() {
   const { t } = useLingui();
   const queryClient = useQueryClient();
-  const credentials = useQuery(credentialsQueryOptions());
+  const { data } = useSuspenseQuery(credentialsQueryOptions());
   const [error, setError] = useState<unknown>(null);
-  const [renaming, setRenaming] = useState<{
-    credential: Credential;
-    nickname: string;
-  } | null>(null);
+  const [renaming, setRenaming] = useState<Credential | null>(null);
   const [deleting, setDeleting] = useState<Credential | null>(null);
 
-  const add = useMutation(addCredentialMutationOptions(queryClient));
-  const rename = useMutation(renameCredentialMutationOptions(queryClient));
-  const remove = useMutation(deleteCredentialMutationOptions(queryClient));
+  // Each failure is drawn in this section, so the toast stays silent.
+  const add = useMutation(
+    withInlineReport(addCredentialMutationOptions(queryClient), true),
+  );
+  const remove = useMutation(
+    withInlineReport(deleteCredentialMutationOptions(queryClient), true),
+  );
 
-  // The header action and the empty state both start the same registration.
-  const startAdd = () => {
-    setError(null);
-    add.mutate(undefined, {
-      onError: (failure) => {
-        // A browser-level cancellation is a decision, not a failure:
-        // there is nothing to report and nothing was changed.
-        if (!isCancellation(failure)) setError(failure);
-      },
-    });
+  // A browser or sudo cancellation is a decision, not a failure: nothing was
+  // changed and there is nothing to report.
+  const report = (failure: unknown) => {
+    if (!isCancellation(failure)) setError(failure);
   };
 
-  const rows = credentials.data ?? [];
-  // The server rejects removing the last passkey; disable it here so the
-  // reason is visible before the attempt, rather than only as an error.
-  const lastOne = rows.length <= 1;
-
-  const actions = (credential: Credential) => {
-    const removeButton = (
-      <Button
-        aria-label={t({
-          id: "security.passkeys.delete",
-          message: "Remove",
-        })}
-        disabled={lastOne}
-        onClick={() => setDeleting(credential)}
-        variant="destructive-outline"
-        size="icon-sm"
-      >
-        <Trash2 size={16} aria-hidden="true" />
-      </Button>
-    );
-    return (
-      <>
-        <Button
-          aria-label={t({
-            id: "security.passkeys.rename",
-            message: "Rename",
-          })}
-          onClick={() =>
-            setRenaming({
-              credential,
-              nickname: credential.nickname ?? "",
-            })
-          }
-          variant="ghost"
-          size="icon-sm"
-        >
-          <Pencil size={16} aria-hidden="true" />
-        </Button>
-        {/* A disabled button emits no hover or focus, so the tooltip
-            listens on the trigger wrapper instead. */}
-        {lastOne ? (
-          <Tooltip delay={0}>
-            <Tooltip.Trigger>{removeButton}</Tooltip.Trigger>
-            <Tooltip.Content>
-              <Trans id="security.passkeys.last_one_tooltip">
-                This is your only passkey, so it cannot be removed.
-              </Trans>
-            </Tooltip.Content>
-          </Tooltip>
-        ) : (
-          removeButton
-        )}
-      </>
-    );
-  };
+  const rows = data ?? [];
+  // The server rejects removing the last passkey; saying so in the row and
+  // disabling the item shows the reason before the attempt.
+  const onlyOne = rows.length === 1;
 
   return (
     <>
       <Section
+        icon={<Fingerprint />}
         title={<Trans id="security.section.passkeys">Passkeys</Trans>}
+        description={<PasskeysDescription />}
         action={
-          <Button pending={add.isPending} onClick={startAdd}>
+          <Button
+            size="sm"
+            pending={add.isPending}
+            onClick={() => {
+              setError(null);
+              add.mutate(undefined, { onError: report });
+            }}
+          >
+            <Plus />
             <Trans id="security.passkeys.add">Add a passkey</Trans>
           </Button>
         }
       >
-        {/* A failed action is reported here rather than inside a boundary:
-            its retry would reload the list, not repeat the write. */}
         {error !== null && (
           <SurfaceAlert status="danger" role="alert">
             <SurfaceAlert.Indicator />
@@ -138,10 +143,8 @@ export function PasskeysPanel() {
             </SurfaceAlert.Content>
           </SurfaceAlert>
         )}
-
         <ItemList
           label={t({ id: "security.passkeys.table", message: "Passkeys" })}
-          loading={credentials.isPending}
           empty={
             <TableEmptyState
               icon={
@@ -155,55 +158,26 @@ export function PasskeysPanel() {
             />
           }
         >
-          {rows.map((credential) => {
-            const lastUsed = credential.lastUsedAt;
-            return (
-              <ItemListRow
-                key={credential.id}
-                icon={<KeyRound size={18} aria-hidden="true" />}
-                title={
-                  credential.nickname || (
-                    <span className="text-muted">
-                      <Trans id="security.passkeys.unnamed">
-                        Unnamed passkey
-                      </Trans>
-                    </span>
-                  )
-                }
-                badges={
-                  <Chip size="sm" variant="soft">
-                    {credential.backupState ? (
-                      <Trans id="security.passkeys.synced">Synced</Trans>
-                    ) : (
-                      <Trans id="security.passkeys.device_bound">
-                        This device only
-                      </Trans>
-                    )}
-                  </Chip>
-                }
-                details={[
-                  <Trans key="added" id="security.passkeys.detail.added">
-                    Added <RelativeTime value={credential.createdAt} />
-                  </Trans>,
-                  lastUsed === undefined ? (
-                    <Trans key="used" id="security.passkeys.never_used">
-                      Not used yet
-                    </Trans>
-                  ) : (
-                    <Trans key="used" id="security.passkeys.detail.lastUsed">
-                      Last used <RelativeTime value={lastUsed} />
-                    </Trans>
-                  ),
-                  <span key="suffix" className="font-mono">
-                    …{credential.credentialIdSuffix}
-                  </span>,
-                ]}
-                actions={actions(credential)}
-              />
-            );
-          })}
+          {rows.map((credential) => (
+            <PasskeyRow
+              key={credential.id}
+              credential={credential}
+              onlyOne={onlyOne}
+              onRename={() => setRenaming(credential)}
+              onRemove={() => setDeleting(credential)}
+            />
+          ))}
         </ItemList>
       </Section>
+
+      <RenameDialog
+        credential={renaming}
+        onClose={() => setRenaming(null)}
+        onFailed={(failure) => {
+          report(failure);
+          setRenaming(null);
+        }}
+      />
 
       <ConfirmDialog
         isOpen={deleting !== null}
@@ -232,81 +206,201 @@ export function PasskeysPanel() {
           remove.mutate(deleting.id, {
             onSuccess: () => setDeleting(null),
             onError: (failure) => {
-              setError(failure);
+              // Backing out of the sudo prompt returns to this question.
+              if (isCancellation(failure)) return;
+              report(failure);
               setDeleting(null);
             },
           });
         }}
       />
-
-      <AlertDialog
-        isOpen={renaming !== null}
-        onOpenChange={(open) => !open && setRenaming(null)}
-      >
-        <AlertDialog.Backdrop>
-          <AlertDialog.Container placement="center" size="md">
-            <AlertDialog.Dialog>
-              <AlertDialog.Header>
-                <AlertDialog.Heading>
-                  <Trans id="security.passkeys.rename.title">
-                    Rename this passkey
-                  </Trans>
-                </AlertDialog.Heading>
-              </AlertDialog.Header>
-              <AlertDialog.Body>
-                <TextField
-                  value={renaming?.nickname ?? ""}
-                  onChange={(value) =>
-                    setRenaming((current) =>
-                      current ? { ...current, nickname: value } : current,
-                    )
-                  }
-                >
-                  <Label>
-                    <Trans id="security.passkeys.rename.label">Name</Trans>
-                  </Label>
-                  <Input autoComplete="off" variant="secondary" />
-                  <Description>
-                    <Trans id="security.passkeys.rename.hint">
-                      A name you will recognise, such as the device it lives on.
-                    </Trans>
-                  </Description>
-                </TextField>
-              </AlertDialog.Body>
-              <AlertDialog.Footer>
-                <Button
-                  onClick={() => setRenaming(null)}
-                  disabled={rename.isPending}
-                  variant="outline"
-                >
-                  <Trans id="security.cancel">Cancel</Trans>
-                </Button>
-                <Button
-                  pending={rename.isPending}
-                  onClick={() => {
-                    if (!renaming) return;
-                    rename.mutate(
-                      {
-                        id: renaming.credential.id,
-                        nickname: renaming.nickname,
-                      },
-                      {
-                        onSuccess: () => setRenaming(null),
-                        onError: (failure) => {
-                          setError(failure);
-                          setRenaming(null);
-                        },
-                      },
-                    );
-                  }}
-                >
-                  <Trans id="security.passkeys.rename.save">Save name</Trans>
-                </Button>
-              </AlertDialog.Footer>
-            </AlertDialog.Dialog>
-          </AlertDialog.Container>
-        </AlertDialog.Backdrop>
-      </AlertDialog>
     </>
+  );
+}
+
+function PasskeyRow({
+  credential,
+  onlyOne,
+  onRename,
+  onRemove,
+}: {
+  credential: Credential;
+  onlyOne: boolean;
+  onRename: () => void;
+  onRemove: () => void;
+}) {
+  const { t } = useLingui();
+  const unnamed = t({
+    id: "security.passkeys.unnamed",
+    message: "Unnamed passkey",
+  });
+  const name = credential.nickname || unnamed;
+  const lastUsed = credential.lastUsedAt;
+  const details: ReactNode[] = [
+    <Trans key="added" id="security.passkeys.detail.added">
+      Added <RelativeTime value={credential.createdAt} />
+    </Trans>,
+  ];
+  if (onlyOne) {
+    details.push(
+      <Trans key="only" id="security.passkeys.only_one">
+        Your only passkey
+      </Trans>,
+    );
+  }
+  details.push(
+    <span key="suffix" className="font-mono">
+      …{credential.credentialIdSuffix}
+    </span>,
+  );
+
+  return (
+    <ItemListRow
+      icon={<CredentialIcon transports={credential.transports} />}
+      title={
+        credential.nickname || (
+          <span className="text-muted-foreground">{unnamed}</span>
+        )
+      }
+      badge={
+        credential.backupState ? (
+          <Badge variant="success">
+            <Trans id="security.passkeys.synced">Synced</Trans>
+          </Badge>
+        ) : (
+          <Badge variant="outline">
+            <Trans id="security.passkeys.device_bound">This device only</Trans>
+          </Badge>
+        )
+      }
+      meta={
+        lastUsed === undefined ? (
+          <Trans id="security.passkeys.never_used">Not used yet</Trans>
+        ) : (
+          <Trans id="security.passkeys.meta.used">
+            Used <RelativeTime value={lastUsed} />
+          </Trans>
+        )
+      }
+      details={details}
+      actions={
+        <RowMenu
+          label={t({
+            id: "security.passkeys.more",
+            message: `More actions for ${name}`,
+          })}
+        >
+          <MenuItem onClick={onRename}>
+            <Pencil />
+            <Trans id="security.passkeys.rename">Rename</Trans>
+          </MenuItem>
+          <MenuItem variant="destructive" disabled={onlyOne} onClick={onRemove}>
+            <Trash2 />
+            <Trans id="security.passkeys.delete">Remove</Trans>
+          </MenuItem>
+        </RowMenu>
+      }
+    />
+  );
+}
+
+/**
+ * The name field for one passkey. It holds its own draft, remounted per
+ * passkey, so the draft never outlives the dialog that asked for it.
+ */
+function RenameDialog({
+  credential,
+  onClose,
+  onFailed,
+}: {
+  credential: Credential | null;
+  onClose: () => void;
+  onFailed: (failure: unknown) => void;
+}) {
+  return (
+    <Dialog
+      open={credential !== null}
+      onOpenChange={(open) => !open && onClose()}
+    >
+      <DialogPopup
+        className="sm:max-w-md"
+        portalProps={{ container: getTopLayerContainer() }}
+      >
+        {credential && (
+          <RenameForm
+            key={credential.id}
+            credential={credential}
+            onClose={onClose}
+            onFailed={onFailed}
+          />
+        )}
+      </DialogPopup>
+    </Dialog>
+  );
+}
+
+function RenameForm({
+  credential,
+  onClose,
+  onFailed,
+}: {
+  credential: Credential;
+  onClose: () => void;
+  onFailed: (failure: unknown) => void;
+}) {
+  const { t } = useLingui();
+  const queryClient = useQueryClient();
+  const [nickname, setNickname] = useState(credential.nickname ?? "");
+  const rename = useMutation(
+    withInlineReport(renameCredentialMutationOptions(queryClient), true),
+  );
+
+  return (
+    <form
+      className="flex min-h-0 flex-1 flex-col"
+      aria-label={t({
+        id: "security.passkeys.rename.title",
+        message: "Rename this passkey",
+      })}
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (rename.isPending) return;
+        rename.mutate(
+          { id: credential.id, nickname },
+          { onSuccess: onClose, onError: onFailed },
+        );
+      }}
+    >
+      <DialogHeader>
+        <DialogTitle>
+          <Trans id="security.passkeys.rename.title">Rename this passkey</Trans>
+        </DialogTitle>
+      </DialogHeader>
+      <DialogPanel>
+        <Field>
+          <FieldLabel>
+            <Trans id="security.passkeys.rename.label">Name</Trans>
+          </FieldLabel>
+          <Input
+            autoComplete="off"
+            value={nickname}
+            onValueChange={setNickname}
+          />
+          <FieldDescription>
+            <Trans id="security.passkeys.rename.hint">
+              A name you will recognise, such as the device it lives on.
+            </Trans>
+          </FieldDescription>
+        </Field>
+      </DialogPanel>
+      <DialogFooter>
+        <Button variant="ghost" disabled={rename.isPending} onClick={onClose}>
+          <Trans id="security.cancel">Cancel</Trans>
+        </Button>
+        <Button type="submit" pending={rename.isPending}>
+          <Trans id="security.passkeys.rename.save">Save name</Trans>
+        </Button>
+      </DialogFooter>
+    </form>
   );
 }

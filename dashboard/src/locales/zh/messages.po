@@ -3515,7 +3515,7 @@ msgstr "应用的注册方式"
 #. js-lingui-explicit-id
 #: src/pages/Security.tsx
 msgid "security.page.description"
-msgstr "你如何登录，以及哪些内容可以代表你操作。"
+msgstr "你如何登录 {name}。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AcsRowFields.tsx
@@ -3935,11 +3935,6 @@ msgid "admin.users.column.lastSignIn"
 msgstr "最近登录"
 
 #. js-lingui-explicit-id
-#: src/pages/security/PasskeysPanel.tsx
-msgid "security.passkeys.detail.lastUsed"
-msgstr "<0/>使用过"
-
-#. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.detail.lastUsed"
 msgstr "<0/>使用过"
@@ -4234,6 +4229,11 @@ msgstr "元数据 XML"
 #: src/pages/admin/settings/SignInPageControls.tsx
 msgid "settings.sign-in.gradient.mist"
 msgstr "薄雾"
+
+#. js-lingui-explicit-id
+#: src/pages/security/PasskeysPanel.tsx
+msgid "security.passkeys.more"
+msgstr "{name} 的更多操作"
 
 #. js-lingui-explicit-id
 #: src/components/custom/ProviderGrid.tsx
@@ -5455,12 +5455,12 @@ msgstr "上游身份"
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
-msgid "security.passkeys.delete"
+msgid "security.passkeys.delete.confirm"
 msgstr "移除"
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
-msgid "security.passkeys.delete.confirm"
+msgid "security.passkeys.delete"
 msgstr "移除"
 
 #. js-lingui-explicit-id
@@ -7390,6 +7390,11 @@ msgid "federation_flow.proof.expires"
 msgstr "验证链接 {until} 前有效。"
 
 #. js-lingui-explicit-id
+#: src/pages/security/PasskeysPanel.tsx
+msgid "security.passkeys.description"
+msgstr "登录的入口。密钥保存在你的设备上，无需输入，也不会泄露。"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/settings/SignInPageControls.tsx
 msgid "settings.sign-in.theme"
 msgstr "主题"
@@ -7594,11 +7599,6 @@ msgstr "这是唯一的管理员。请先把另一个账号设为管理员。"
 #: src/api/errors.ts
 msgid "error.cannot_revoke_current_session"
 msgstr "这是你正在使用的会话，请改用退出登录。"
-
-#. js-lingui-explicit-id
-#: src/pages/security/PasskeysPanel.tsx
-msgid "security.passkeys.last_one_tooltip"
-msgstr "这是你唯一的通行密钥，无法移除。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -8211,6 +8211,11 @@ msgid "audit.event.use"
 msgstr "使用"
 
 #. js-lingui-explicit-id
+#: src/pages/security/PasskeysPanel.tsx
+msgid "security.passkeys.meta.used"
+msgstr "<0/>使用过"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminInvitationForm.tsx
 #: src/pages/admin/AdminInvitations.tsx
 msgid "admin.invitations.role.user"
@@ -8789,6 +8794,11 @@ msgstr "你的身份已验证。请选择账号名，然后设置登录方式。
 #: src/pages/profile/AccountPanel.tsx
 msgid "profile.account.description"
 msgstr "你的名称会显示给他人；下面的标识符不可更改。"
+
+#. js-lingui-explicit-id
+#: src/pages/security/PasskeysPanel.tsx
+msgid "security.passkeys.only_one"
+msgstr "这是你唯一的通行密钥"
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
