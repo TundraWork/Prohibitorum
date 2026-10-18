@@ -15,7 +15,6 @@ import {
   useRouter,
   useRouterState,
 } from "@tanstack/react-router";
-import { useAtom } from "jotai";
 import {
   AppWindow,
   Blocks,
@@ -55,7 +54,7 @@ import { LanguageMenuItems } from "@/components/custom/LanguageMenu";
 import { RouteLayoutContext } from "@/components/custom/RouteFeedback";
 import { SectionRegistryProvider } from "@/components/custom/SectionRegistry";
 import { SudoDialog } from "@/components/custom/SudoDialog";
-import { themeAtom, useThemeOptions } from "@/components/custom/ThemeSelect";
+import { ThemeMenuItems } from "@/components/custom/ThemeSelect";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Breadcrumb,
@@ -76,8 +75,6 @@ import {
   MenuItem,
   MenuLinkItem,
   MenuPopup,
-  MenuRadioGroup,
-  MenuRadioItem,
   MenuSeparator,
   MenuSub,
   MenuSubPopup,
@@ -438,29 +435,6 @@ function ConsoleIdentity() {
         </div>
       </div>
     </SidebarHeader>
-  );
-}
-
-/** The theme choice as radio items, for the account menu's submenu. */
-function ThemeMenuItems() {
-  const [theme, setTheme] = useAtom(themeAtom);
-  const { t } = useLingui();
-  return (
-    <MenuRadioGroup
-      aria-label={t({ id: "theme.label", message: "Theme" })}
-      value={theme}
-      onValueChange={(value) => {
-        if (value === "light" || value === "dark" || value === "system") {
-          setTheme(value);
-        }
-      }}
-    >
-      {useThemeOptions().map(({ value, label }) => (
-        <MenuRadioItem key={value} value={value}>
-          {label}
-        </MenuRadioItem>
-      ))}
-    </MenuRadioGroup>
   );
 }
 

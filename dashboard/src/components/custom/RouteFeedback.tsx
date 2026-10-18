@@ -1,4 +1,3 @@
-import { Spinner } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import {
   useMutation,
@@ -24,16 +23,18 @@ import type { RequestExchange } from "@/api/exchange";
 import { logoutMutationOptions } from "@/api/mutations";
 import { clearSessionQueries } from "@/api/queries";
 import { Button } from "@/components/custom/Button";
-import { PageHeading } from "@/components/custom/PageHeading";
+import { PublicStage } from "@/components/custom/PublicStage";
+import { PublicStep } from "@/components/custom/PublicStep";
 import { RequestDetailsDialog } from "@/components/custom/RequestDetailsDialog";
 import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
 import { Frame, FramePanel } from "@/components/ui/frame";
+import { Spinner } from "@/components/ui/spinner";
 
 /** Pending state for public routes: the layout supplies the card, this only centers a spinner inside it. */
 export function PublicPending() {
   return (
     <div className="flex justify-center py-16">
-      <Spinner size="lg" />
+      <Spinner className="size-6 text-muted-foreground" />
     </div>
   );
 }
@@ -109,15 +110,14 @@ export function AppRouteError({ error }: ErrorComponentProps) {
   const { i18n } = useLingui();
   const route = useRouteFailure(error);
   return (
-    <WindowFrame>
-      <PageHeading>
-        <Trans id="route.failed">Unable to load this page</Trans>
-      </PageHeading>
-      <p className="mt-1 text-muted-foreground text-sm">
-        {i18n._(route.failure.message)}
-      </p>
-      <FailureBody route={route} leave={appLeave} />
-    </WindowFrame>
+    <WindowStage>
+      <PublicStep
+        title={<Trans id="route.failed">Unable to load this page</Trans>}
+        description={i18n._(route.failure.message)}
+      >
+        <FailureBody route={route} leave={appLeave} />
+      </PublicStep>
+    </WindowStage>
   );
 }
 
@@ -137,14 +137,15 @@ export function ConsoleRouteNotFound() {
   );
 }
 
-/** One framed panel centred in the window, for a failure outside any layout. */
-function WindowFrame({ children }: { children: ReactNode }) {
+/**
+ * A plain stage with no toolbar for a failure outside any layout, kept below
+ * the toolbar's height so the card lands where the public pages' does.
+ */
+function WindowStage({ children }: { children: ReactNode }) {
   return (
-    <main className="grid min-h-svh place-items-center p-6">
-      <Frame className="w-full max-w-md">
-        <FramePanel>{children}</FramePanel>
-      </Frame>
-    </main>
+    <div className="pt-16">
+      <PublicStage frame="plain">{children}</PublicStage>
+    </div>
   );
 }
 
@@ -154,14 +155,9 @@ export function PublicRouteNotFound() {
 
 export function AppRouteNotFound() {
   return (
-    <WindowFrame>
-      <PageHeading>
-        <Trans id="route.not-found">Page not found</Trans>
-      </PageHeading>
-      <div className="mt-4 empty:hidden">
-        <LeaveButton to={appLeave.to}>{appLeave.label}</LeaveButton>
-      </div>
-    </WindowFrame>
+    <WindowStage>
+      <MissingPage leave={appLeave} />
+    </WindowStage>
   );
 }
 
@@ -169,33 +165,29 @@ function FailedPage({ error, leave }: { error: unknown; leave: Leave }) {
   const { i18n } = useLingui();
   const route = useRouteFailure(error);
   return (
-    <div className="flex flex-col gap-4">
-      <PageHeading>
-        <Trans id="route.failed">Unable to load this page</Trans>
-      </PageHeading>
+    <PublicStep
+      title={<Trans id="route.failed">Unable to load this page</Trans>}
+    >
       <SurfaceAlert status="danger">
         <SurfaceAlert.Indicator />
         <SurfaceAlert.Content>
           <SurfaceAlert.Title>
             {i18n._(route.failure.message)}
           </SurfaceAlert.Title>
-          <FailureBody route={route} leave={leave} />
         </SurfaceAlert.Content>
       </SurfaceAlert>
-    </div>
+      <FailureBody route={route} leave={leave} />
+    </PublicStep>
   );
 }
 
 function MissingPage({ leave }: { leave: Leave }) {
   return (
-    <div className="flex flex-col gap-4">
-      <PageHeading>
-        <Trans id="route.not-found">Page not found</Trans>
-      </PageHeading>
-      <div>
+    <PublicStep title={<Trans id="route.not-found">Page not found</Trans>}>
+      <div className="empty:hidden">
         <LeaveButton to={leave.to}>{leave.label}</LeaveButton>
       </div>
-    </div>
+    </PublicStep>
   );
 }
 

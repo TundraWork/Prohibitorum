@@ -150,28 +150,28 @@ it("names the instance with its icon in the toolbar, beside the language and the
   expect(
     within(banner).getByRole("button", { name: "Language" }),
   ).toBeVisible();
-  expect(
-    within(banner).getByRole("radiogroup", { name: "Theme" }),
-  ).toBeVisible();
+  expect(within(banner).getByRole("button", { name: "Theme" })).toBeVisible();
 });
 
-it("puts the page on the card below the toolbar", async () => {
+it("puts the page on the stage's card below the toolbar", async () => {
   const banner = await mount();
   const main = screen.getByRole("main");
-  expect(within(main).getByRole("heading", { name: "Page" })).toBeVisible();
+  expect(main.querySelector('[data-slot="stage-card"]')).toContainElement(
+    within(main).getByRole("heading", { name: "Page" }),
+  );
   expect(
     banner.compareDocumentPosition(main) & Node.DOCUMENT_POSITION_FOLLOWING,
   ).toBeTruthy();
 });
 
-it("rounds every control inside the toolbar's capsules and draws them translucent and frosted by default", async () => {
+it("draws the toolbar's capsules translucent and frosted by default", async () => {
   const banner = await mount();
   const capsules = banner.querySelectorAll<HTMLElement>(
     "[data-toolbar-capsule]",
   );
   expect(capsules).toHaveLength(2);
   for (const capsule of capsules) {
-    expect(capsule).toHaveClass("[--field-radius:100%]", "[--radius:100%]");
+    expect(capsule).toHaveClass("rounded-xl");
     expect(capsule.style.getPropertyValue("--card-alpha")).toBe("70%");
     expect(capsule).toHaveClass("backdrop-blur-xl");
   }
@@ -193,7 +193,9 @@ it("draws an opaque toolbar on the surface colour", async () => {
 
 it("makes the card translucent only when the settings say so", async () => {
   await mount();
-  const opaque = screen.getByRole("main").querySelector<HTMLElement>(".card");
+  const opaque = screen
+    .getByRole("main")
+    .querySelector<HTMLElement>('[data-slot="stage-card"]');
   expect(opaque?.style.getPropertyValue("--card-alpha")).toBe("");
 
   queryClient.clear();
@@ -202,7 +204,9 @@ it("makes the card translucent only when the settings say so", async () => {
   });
   document.body.innerHTML = "";
   await mount();
-  const card = screen.getByRole("main").querySelector<HTMLElement>(".card");
+  const card = screen
+    .getByRole("main")
+    .querySelector<HTMLElement>('[data-slot="stage-card"]');
   expect(card?.style.getPropertyValue("--card-alpha")).toBe("60%");
   expect(card).not.toHaveClass("backdrop-blur-xl");
 });
@@ -282,41 +286,61 @@ it("shows the Bing picture and its caption once the wallpaper arrives", async ()
   ).toHaveAttribute("href", "https://www.bing.com/search?q=x");
 });
 
-it("centres the card and offers the theme control by default", async () => {
+it("centres the stage and offers the theme control by default", async () => {
   const banner = await mount();
   const main = screen.getByRole("main");
-  expect(main).toHaveClass("mx-auto");
-  expect(main).not.toHaveClass("lg:ml-2");
-  expect(main).not.toHaveClass("lg:mr-2");
-  expect(
-    within(banner).getByRole("radiogroup", { name: "Theme" }),
-  ).toBeVisible();
+  expect(main).toHaveAttribute("data-position", "center");
+  expect(main).not.toHaveClass("lg:justify-start");
+  expect(main).not.toHaveClass("lg:justify-end");
+  expect(within(banner).getByRole("button", { name: "Theme" })).toBeVisible();
 });
 
-it("puts the card on the left from lg and the credit at the bottom right", async () => {
+it("puts the stage on the left from lg and the credit at the bottom right", async () => {
   bingWallpaper();
   withAppearance((appearance) => {
     appearance.background.source = "bing";
     appearance.cardPosition = "left";
   });
   await mount();
-  expect(screen.getByRole("main")).toHaveClass("mx-auto", "lg:ml-2");
+  expect(screen.getByRole("main")).toHaveClass("lg:justify-start");
   const credit = await wideCredit();
-  expect(credit).toHaveClass("right-6", "max-w-[calc(100vw-32.5rem)]");
-  expect(credit).not.toHaveClass("left-6");
+  expect(credit).toHaveClass("right-5", "max-w-[calc(100vw-34rem)]");
+  expect(credit).not.toHaveClass("left-5");
 });
 
-it("puts the card on the right from lg and the credit at the bottom left", async () => {
+it("puts the stage on the right from lg and the credit at the bottom left", async () => {
   bingWallpaper();
   withAppearance((appearance) => {
     appearance.background.source = "bing";
     appearance.cardPosition = "right";
   });
   await mount();
-  expect(screen.getByRole("main")).toHaveClass("mx-auto", "lg:mr-2");
+  expect(screen.getByRole("main")).toHaveClass("lg:justify-end");
   const credit = await wideCredit();
-  expect(credit).toHaveClass("left-6", "max-w-[calc(100vw-32.5rem)]");
-  expect(credit).not.toHaveClass("right-6");
+  expect(credit).toHaveClass("left-5", "max-w-[calc(100vw-34rem)]");
+  expect(credit).not.toHaveClass("right-5");
+});
+
+it("frames the stage plain over the page's own background and frosted over a picture", async () => {
+  await mount();
+  expect(screen.getByRole("main")).toHaveAttribute("data-frame", "plain");
+
+  queryClient.clear();
+  withAppearance((appearance) => {
+    appearance.background.source = "gradient";
+  });
+  document.body.innerHTML = "";
+  await mount();
+  expect(screen.getByRole("main")).toHaveAttribute("data-frame", "frosted");
+});
+
+it("shows the wallpaper credit only for Bing and Unsplash", async () => {
+  withAppearance((appearance) => {
+    appearance.background.source = "color";
+  });
+  await mount();
+  expect(document.querySelector(".fixed.bottom-5")).toBeNull();
+  expect(document.querySelector("main ~ .lg\\:hidden")).toBeNull();
 });
 
 it("forces the settings' theme on the page without changing the visitor's choice", async () => {
@@ -327,9 +351,7 @@ it("forces the settings' theme on the page without changing the visitor's choice
   const banner = await mount();
   expect(document.documentElement.dataset.theme).toBe("dark");
   expect(store.get(themeAtom)).toBe("light");
-  expect(
-    within(banner).queryByRole("radiogroup", { name: "Theme" }),
-  ).toBeNull();
+  expect(within(banner).queryByRole("button", { name: "Theme" })).toBeNull();
   expect(
     within(banner).getByRole("button", { name: "Language" }),
   ).toBeVisible();

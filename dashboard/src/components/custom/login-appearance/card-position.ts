@@ -1,20 +1,20 @@
 import { cva } from "class-variance-authority";
 
 /**
- * Where the sign-in card and the wallpaper credit sit for each card position.
- * The public pages apply it from `lg`; a narrower window centres the card and
+ * Where the sign-in stage and the wallpaper credit sit for each card position.
+ * The public pages apply it from `lg`; a narrower window centres the stage and
  * puts the credit under it. The settings preview is laid out 1280px wide, so it
- * applies it at every width.
+ * applies its own rules at every width.
  *
- * On the left or the right, the card's outer edge lines up with the toolbar
- * capsule's, 1.5rem from the window: `PublicCard`'s `main` is padded by 1rem,
- * so the margin on that side becomes 0.5rem. The credit takes the bottom corner
- * away from the card and stops 1.5rem short of it: 1.5rem to the window, 1.5rem
- * of gap, the 28rem card and its own 1.5rem to the far edge add up to 32.5rem.
+ * On the left or the right, the stage's outer edge lines up with the toolbar
+ * capsule's, 1.25rem from the window. The credit takes the bottom corner away
+ * from the stage and stops 1.5rem short of it, whichever width the stage takes:
+ * 1.25rem to the window, 1.5rem of gap, the 30rem wide stage and its own 1.25rem
+ * to the far edge add up to 34rem.
  */
 export const publicCardPlacement = cva("", {
   variants: {
-    position: { left: "lg:ml-2", center: "", right: "lg:mr-2" },
+    position: { left: "lg:justify-start", center: "", right: "lg:justify-end" },
   },
 });
 
@@ -22,9 +22,9 @@ export const publicCardPlacement = cva("", {
 export const publicCreditPlacement = cva("fixed bottom-5 hidden lg:flex", {
   variants: {
     position: {
-      left: "right-6 max-w-[calc(100vw-32.5rem)]",
-      center: "left-6 max-w-[calc(50vw-17rem)]",
-      right: "left-6 max-w-[calc(100vw-32.5rem)]",
+      left: "right-5 max-w-[calc(100vw-34rem)]",
+      center: "left-5 max-w-[calc(50vw-17.75rem)]",
+      right: "left-5 max-w-[calc(100vw-34rem)]",
     },
   },
 });

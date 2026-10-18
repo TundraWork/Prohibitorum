@@ -21,6 +21,7 @@ import { ApiError } from "@/api/errors";
 import type { RequestExchange } from "@/api/exchange";
 import { createQueryClient } from "@/app/query-client";
 import { searchSerialization } from "@/app/search-params";
+import { PublicStage } from "@/components/custom/PublicStage";
 import {
   AppRouteError,
   AppRouteNotFound,
@@ -98,7 +99,9 @@ function mount(path: string) {
     notFoundComponent: PublicRouteNotFound,
     component: () => (
       <RouteLayoutContext value="public">
-        <Outlet />
+        <PublicStage frame="plain">
+          <Outlet />
+        </PublicStage>
       </RouteLayoutContext>
     ),
   });
@@ -297,6 +300,27 @@ describe("public pages", () => {
     expect(router.state.location.pathname).toBe("/login");
   });
 
+  it("draws the failure, its one way out and Details inside the stage card", async () => {
+    behaviour.loginOther = () => {
+      throw http(503, "server_error", { exchange });
+    };
+    mount("/login/other");
+
+    const heading = await screen.findByRole("heading", {
+      name: "Unable to load this page",
+    });
+    const card = heading.closest<HTMLElement>('[data-slot="stage-card"]');
+    if (!card) throw new Error("not on the stage card");
+    expect(
+      within(card).getByText("The server could not complete the request."),
+    ).toBeInTheDocument();
+    expect(
+      within(card)
+        .getAllByRole("button")
+        .map((b) => b.textContent),
+    ).toEqual(["Try again", "Details"]);
+  });
+
   it("offers no way back on the sign-in page itself", async () => {
     behaviour.login = () => {
       throw http(400, "bad_request");
@@ -377,7 +401,7 @@ describe("whole-window failures", () => {
       name: "Unable to load this page",
     });
     expect(heading).toHaveFocus();
-    expect(heading.closest('[data-slot="frame"]')).not.toBeNull();
+    expect(heading.closest('[data-slot="stage-card"]')).not.toBeNull();
     expect(
       screen.getByText("Something went wrong on this page."),
     ).toBeInTheDocument();
@@ -420,7 +444,7 @@ describe("addresses with no page", () => {
       name: "Page not found",
     });
     expect(heading).toHaveFocus();
-    expect(heading.closest('[data-slot="frame"]')).not.toBeNull();
+    expect(heading.closest('[data-slot="stage-card"]')).not.toBeNull();
     await user.click(screen.getByRole("button", { name: "Go home" }));
     expect(await screen.findByText("Console home page")).toBeInTheDocument();
     expect(router.state.location.pathname).toBe("/");

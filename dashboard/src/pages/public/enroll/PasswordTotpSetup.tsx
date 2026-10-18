@@ -173,8 +173,8 @@ export function PasswordTotpSetup({
           titleKey={step}
           back={{
             label: t({ id: "enroll.password_totp.back", message: "Back" }),
-            isDisabled: submitting,
-            onPress: step === "password" ? onBack : () => go("password"),
+            disabled: submitting,
+            onClick: step === "password" ? onBack : () => go("password"),
           }}
           title={
             step === "password" ? (

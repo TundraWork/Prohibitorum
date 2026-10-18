@@ -34,17 +34,17 @@ it("takes focus again when the title's key changes", () => {
 });
 
 it("names its back button", async () => {
-  const onPress = vi.fn();
+  const onClick = vi.fn();
   render(
     <PublicStep
       title="Signing in"
-      back={{ label: "Back to password", onPress }}
+      back={{ label: "Back to password", onClick }}
     />,
   );
   await userEvent.click(
     screen.getByRole("button", { name: "Back to password" }),
   );
-  expect(onPress).toHaveBeenCalledOnce();
+  expect(onClick).toHaveBeenCalledOnce();
 });
 
 it("puts the answer that goes ahead on the right of a decision", () => {

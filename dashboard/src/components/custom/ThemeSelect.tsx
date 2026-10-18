@@ -1,14 +1,14 @@
 import { useLingui } from "@lingui/react/macro";
-import { atom, useAtom } from "jotai";
+import { atom, useAtom, useAtomValue } from "jotai";
 import { MonitorIcon, MoonIcon, SunIcon } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import {
-  RadioGroupPrimitive,
-  RadioPrimitive,
-} from "@/components/ui/radio-group";
-import {
-  segmentedControlItemVariants,
-  segmentedControlRootClassName,
-} from "@/lib/segmented-control";
+  Menu,
+  MenuPopup,
+  MenuRadioGroup,
+  MenuRadioItem,
+  MenuTrigger,
+} from "@/components/ui/menu";
 
 /** The visitor's choice, which the console and the public pages share. */
 export const themeAtom = atom<"light" | "dark" | "system">("system");
@@ -19,12 +19,6 @@ export const themeAtom = atom<"light" | "dark" | "system">("system");
  * `themeAtom` is left alone, so the console keeps the visitor's choice.
  */
 export const publicThemeAtom = atom<"light" | "dark" | undefined>(undefined);
-
-const themeItem = segmentedControlItemVariants({
-  size: "sm",
-  state: "checked",
-  className: "w-8 px-0",
-});
 
 export function useThemeOptions() {
   const { t } = useLingui();
@@ -47,15 +41,13 @@ export function useThemeOptions() {
   ] as const;
 }
 
-export function ThemeSelect() {
+/** The theme choice as radio items, for any menu that offers it. */
+export function ThemeMenuItems() {
   const [theme, setTheme] = useAtom(themeAtom);
   const { t } = useLingui();
-  const options = useThemeOptions();
-
   return (
-    <RadioGroupPrimitive
+    <MenuRadioGroup
       aria-label={t({ id: "theme.label", message: "Theme" })}
-      className={segmentedControlRootClassName}
       value={theme}
       onValueChange={(value) => {
         if (value === "light" || value === "dark" || value === "system") {
@@ -63,16 +55,36 @@ export function ThemeSelect() {
         }
       }}
     >
-      {options.map(({ value, label, icon: Icon }) => (
-        <RadioPrimitive.Root
-          key={value}
-          aria-label={label}
-          className={themeItem}
-          value={value}
-        >
-          <Icon aria-hidden="true" />
-        </RadioPrimitive.Root>
+      {useThemeOptions().map(({ value, label }) => (
+        <MenuRadioItem key={value} value={value}>
+          {label}
+        </MenuRadioItem>
       ))}
-    </RadioGroupPrimitive>
+    </MenuRadioGroup>
+  );
+}
+
+/** An icon button, showing the current theme, that opens the theme choice. */
+export function ThemeMenu() {
+  const theme = useAtomValue(themeAtom);
+  const { t } = useLingui();
+  const Icon = useThemeOptions().find(({ value }) => value === theme)?.icon;
+  return (
+    <Menu>
+      <MenuTrigger
+        render={
+          <Button
+            aria-label={t({ id: "theme.label", message: "Theme" })}
+            size="icon-sm"
+            variant="ghost"
+          />
+        }
+      >
+        {Icon && <Icon aria-hidden="true" />}
+      </MenuTrigger>
+      <MenuPopup align="end">
+        <ThemeMenuItems />
+      </MenuPopup>
+    </Menu>
   );
 }

@@ -1,0 +1,121 @@
+import { cva } from "class-variance-authority";
+import { createContext, type ReactNode, use, useMemo, useState } from "react";
+import type { LoginCardPosition } from "@/api/raw-paths";
+import { publicCardPlacement } from "@/components/custom/login-appearance/card-position";
+import type { SurfaceStyle } from "@/components/custom/login-appearance/surface-style";
+import { cn } from "@/lib/utils";
+
+type StageWidth = "default" | "wide";
+
+type StageSlots = {
+  strip: HTMLElement | null;
+  footer: HTMLElement | null;
+  setWidth: (width: StageWidth) => void;
+  /** False outside a stage, where a step draws its strip and footer in place. */
+  inStage: boolean;
+};
+
+const StageSlotsContext = createContext<StageSlots | null>(null);
+
+const noStage: StageSlots = {
+  strip: null,
+  footer: null,
+  setWidth: () => undefined,
+  inStage: false,
+};
+
+/**
+ * Where a step puts what belongs around its card: the strip above it, the
+ * footer under it and a request for the wide width. Outside a stage there is
+ * nowhere to put them, which `inStage` says.
+ */
+export function useStageSlots(): StageSlots {
+  return use(StageSlotsContext) ?? noStage;
+}
+
+const placement =
+  "flex min-h-[calc(var(--app-viewport-height)-4rem)] w-full items-center justify-center px-2 py-4 sm:px-5";
+
+const frameStyle = cva(
+  "relative flex w-full flex-col rounded-[28px] p-1.5 max-sm:max-w-none",
+  {
+    variants: {
+      frame: {
+        frosted:
+          "bg-background/60 shadow-2xl shadow-black/30 ring-1 ring-white/40 backdrop-blur-2xl",
+        plain: "bg-muted/72 shadow-xs/5 ring-1 ring-border",
+      },
+      width: {
+        default: "sm:w-[440px]",
+        wide: "sm:w-[480px]",
+      },
+    },
+  },
+);
+
+/**
+ * The stage every public page sits on: a frame whose arcs are concentric with
+ * the card inside it, a strip above the card and a footer under it for what a
+ * step wants beside its body. It is centred in the window under the toolbar
+ * and grows with its content, so a tall page scrolls with the window. Frosted
+ * over a picture, gradient or colour; plain when the page's own background
+ * shows through.
+ */
+export function PublicStage({
+  width = "default",
+  position = "center",
+  frame,
+  card,
+  children,
+}: {
+  width?: StageWidth;
+  position?: LoginCardPosition;
+  frame: "frosted" | "plain";
+  card?: SurfaceStyle;
+  children: ReactNode;
+}) {
+  const [strip, setStrip] = useState<HTMLElement | null>(null);
+  const [footer, setFooter] = useState<HTMLElement | null>(null);
+  const [wanted, setWanted] = useState<StageWidth>("default");
+  const slots = useMemo<StageSlots>(
+    () => ({ strip, footer, setWidth: setWanted, inStage: true }),
+    [strip, footer],
+  );
+  const shown = wanted === "wide" ? "wide" : width;
+
+  return (
+    <main
+      data-slot="stage"
+      data-width={shown}
+      data-frame={frame}
+      data-position={position}
+      className={cn(placement, publicCardPlacement({ position }))}
+    >
+      <section
+        data-slot="stage-frame"
+        className={frameStyle({ frame, width: shown })}
+      >
+        <div
+          ref={setStrip}
+          data-slot="stage-strip"
+          className="flex items-center gap-3 px-3 pt-1.5 pb-3 empty:hidden"
+        />
+        <div
+          data-slot="stage-card"
+          style={card?.style}
+          className={cn(
+            "relative flex min-w-0 flex-col rounded-[22px] border bg-clip-padding p-7 shadow-xs/5 before:pointer-events-none before:absolute before:inset-0 before:rounded-[21px] before:shadow-[0_1px_--theme(--color-black/4%)] max-sm:p-5",
+            card?.className ?? "bg-background",
+          )}
+        >
+          <StageSlotsContext value={slots}>{children}</StageSlotsContext>
+        </div>
+        <div
+          ref={setFooter}
+          data-slot="stage-footer"
+          className="flex items-center gap-3 px-3 pt-2.5 pb-1.5 text-sm empty:hidden"
+        />
+      </section>
+    </main>
+  );
+}

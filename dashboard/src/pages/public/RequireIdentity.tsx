@@ -91,7 +91,7 @@ export function RequireIdentityPage() {
   if (request.mismatch) {
     return (
       <PublicStep
-        media={media}
+        strip={media}
         title={
           <Trans id="require-identity.mismatch.title">
             You're signed in as a different account
@@ -127,7 +127,7 @@ export function RequireIdentityPage() {
   if (request.satisfied) {
     return (
       <PublicStep
-        media={media}
+        strip={media}
         title={<Trans id="require-identity.done">Returning to {app}</Trans>}
       />
     );
@@ -136,7 +136,7 @@ export function RequireIdentityPage() {
   return (
     <>
       <PublicStep
-        media={media}
+        strip={media}
         title={
           <Trans id="require-identity.title">
             {app} needs to verify your identity

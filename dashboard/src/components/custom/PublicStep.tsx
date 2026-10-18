@@ -1,8 +1,10 @@
 import { cva } from "class-variance-authority";
 import { ArrowLeft } from "lucide-react";
-import type { ReactNode } from "react";
+import { type ReactNode, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { Button } from "@/components/custom/Button";
 import { PageHeading } from "@/components/custom/PageHeading";
+import { useStageSlots } from "@/components/custom/PublicStage";
 
 /**
  * One page on the public card: what it is about, its question as the title,
@@ -11,36 +13,52 @@ import { PageHeading } from "@/components/custom/PageHeading";
  * heading, its focus and the spacing are the same on all of them.
  */
 function PublicStepRoot({
-  media,
   title,
   titleKey,
   back,
   description,
+  strip,
+  footer,
+  wide = false,
   children,
   actions,
 }: {
-  /** The entity the page is about, above the title: an application's icon. */
-  media?: ReactNode;
   title: ReactNode;
   /** A new value remounts the title, which takes focus again. */
   titleKey?: string;
-  back?: { label: string; onPress: () => void; isDisabled?: boolean };
+  back?: { label: string; onClick: () => void; disabled?: boolean };
   description?: ReactNode;
+  /** Drawn in the stage's strip above the card: who is asking. */
+  strip?: ReactNode;
+  /** Drawn in the stage's footer under the card: a choice or the decision. */
+  footer?: ReactNode;
+  /** Asks the stage for its wider card while this page is shown. */
+  wide?: boolean;
   children?: ReactNode;
   /** The page's buttons, as a `PublicStep.Actions`. */
   actions?: ReactNode;
 }) {
+  const slots = useStageSlots();
+  const { setWidth } = slots;
+  useEffect(() => {
+    if (!wide) return;
+    setWidth("wide");
+    return () => setWidth("default");
+  }, [wide, setWidth]);
+
   return (
     <div className="flex flex-col gap-4">
-      {media}
+      <Around slot={slots.strip} inStage={slots.inStage}>
+        {strip}
+      </Around>
       <div className="flex flex-col gap-1">
         <div className="flex items-center gap-2">
           {back && (
             <Button
               type="button"
               aria-label={back.label}
-              disabled={back.isDisabled}
-              onClick={back.onPress}
+              disabled={back.disabled}
+              onClick={back.onClick}
               variant="ghost"
               size="icon-sm"
               className="shrink-0"
@@ -50,12 +68,36 @@ function PublicStepRoot({
           )}
           <PageHeading key={titleKey}>{title}</PageHeading>
         </div>
-        {description && <p className="text-sm text-muted">{description}</p>}
+        {description && (
+          <p className="text-muted-foreground text-sm">{description}</p>
+        )}
       </div>
       {children}
       {actions}
+      <Around slot={slots.footer} inStage={slots.inStage}>
+        {footer}
+      </Around>
     </div>
   );
+}
+
+/**
+ * Puts content into one of the stage's regions around the card. Outside a
+ * stage there is no region, so it is drawn in place; inside one, it waits for
+ * the region to mount.
+ */
+function Around({
+  slot,
+  inStage,
+  children,
+}: {
+  slot: HTMLElement | null;
+  inStage: boolean;
+  children: ReactNode;
+}) {
+  if (!children) return null;
+  if (!inStage) return <>{children}</>;
+  return slot ? createPortal(children, slot) : null;
 }
 
 const actionsLayout = cva("", {

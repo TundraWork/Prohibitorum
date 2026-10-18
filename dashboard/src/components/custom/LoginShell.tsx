@@ -174,8 +174,8 @@ export function LoginShell({
                           message: "Use an authenticator code",
                         })
                       : t({ id: "login.back", message: "Back to password" }),
-                  onPress: onBack,
-                  isDisabled: busy,
+                  onClick: onBack,
+                  disabled: busy,
                 }
               : undefined
           }

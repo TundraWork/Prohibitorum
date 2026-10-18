@@ -79,7 +79,7 @@ export function ConsentRequest({
     <PublicStep
       // The icons only picture who is named beside them, so a screen reader
       // is not read their fallback letters.
-      media={
+      strip={
         <div aria-hidden="true" className="flex">
           <EntityAvatar
             className="size-12"
