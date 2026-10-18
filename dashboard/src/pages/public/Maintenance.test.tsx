@@ -64,7 +64,7 @@ describe("the maintenance page", () => {
     await user.click(adminSignIn);
     // The administrators' way in is let through while maintenance is on.
     expect(
-      await screen.findByRole("heading", { name: "Sign in" }),
+      await screen.findByRole("heading", { name: /^Sign in with / }),
     ).toBeVisible();
     expect(router.state.location.pathname).toBe("/login");
     expect(router.state.location.searchStr).toBe("?admin=1");
@@ -108,7 +108,7 @@ describe("the maintenance page", () => {
     fakeApi(publicApi(null));
     const router = renderApp("/maintenance", queryClient);
     expect(
-      await screen.findByRole("heading", { name: "Sign in" }),
+      await screen.findByRole("heading", { name: /^Sign in with / }),
     ).toBeVisible();
     expect(router.state.location.pathname).toBe("/login");
   });

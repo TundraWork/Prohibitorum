@@ -33,6 +33,7 @@ import { loadDocument } from "@/app/load-document";
 import { createQueryClient } from "@/app/query-client";
 import { searchSerialization } from "@/app/search-params";
 import { defaultLoginAppearance } from "@/components/custom/login-appearance/appearance";
+import { PublicStage } from "@/components/custom/PublicStage";
 import { RecoveryCodes } from "@/components/custom/RecoveryCodes";
 import { i18n } from "@/i18n";
 import { PasswordPage, RecoveryPage, TotpPage } from "@/pages/Login";
@@ -78,6 +79,14 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+function OnStage() {
+  return (
+    <PublicStage frame="plain">
+      <Outlet />
+    </PublicStage>
+  );
+}
+
 function mountRouter(routeTree: AnyRoute) {
   const router = createRouter({ ...searchSerialization, routeTree, history });
   render(
@@ -91,7 +100,7 @@ function mountRouter(routeTree: AnyRoute) {
 }
 
 function mount() {
-  const root = createRootRoute({ component: Outlet });
+  const root = createRootRoute({ component: OnStage });
   const password = createRoute({
     getParentRoute: () => root,
     path: "/login",
@@ -137,9 +146,7 @@ async function password(user: UserEvent) {
   if (!(username as HTMLInputElement).value)
     await user.type(username, " alice ");
   await user.type(screen.getByLabelText("Password"), " password ");
-  await user.click(
-    screen.getByRole("button", { name: "Continue with password" }),
-  );
+  await user.click(screen.getByRole("button", { name: "Continue" }));
   await findFirstOtpSlot("Authenticator code");
 }
 
@@ -193,9 +200,9 @@ it("replaces the shared login error when alternating password and passkey failur
   );
   await user.type(screen.getByLabelText("Password"), " password ");
   for (const [button, code] of [
-    ["Continue with password", "bad_credentials"],
+    ["Continue", "bad_credentials"],
     ["Sign in with a passkey", "server_error"],
-    ["Continue with password", "rate_limited"],
+    ["Continue", "rate_limited"],
   ]) {
     await user.click(screen.getByRole("button", { name: button }));
     await waitFor(() => {
@@ -246,9 +253,7 @@ describe("single-use password verification", () => {
     expect(
       screen.queryByRole("textbox", { name: "Authenticator code" }),
     ).not.toBeInTheDocument();
-    await user.click(
-      screen.getByRole("button", { name: "Continue with password" }),
-    );
+    await user.click(screen.getByRole("button", { name: "Continue" }));
     expect(authCalls(fetch)).toHaveLength(2);
     await password(user);
     await user.type(firstOtpSlot("Authenticator code"), "012345");
@@ -312,8 +317,21 @@ describe("keep me signed in", () => {
   });
 
   function checkbox() {
-    return screen.getByRole("checkbox", { name: "Keep me signed in" });
+    return screen.getByRole("checkbox", {
+      name: "Stay signed in on this device",
+    });
   }
+
+  it("sits in the stage footer, under the card", async () => {
+    mount();
+    const box = await screen.findByRole("checkbox", {
+      name: "Stay signed in on this device",
+    });
+    await waitFor(() =>
+      expect(box.closest('[data-slot="stage-footer"]')).not.toBeNull(),
+    );
+    expect(box.closest('[data-slot="stage-card"]')).toBeNull();
+  });
 
   it("is checked by default and the password begin carries it", async () => {
     const bodies: unknown[] = [];
@@ -328,16 +346,16 @@ describe("keep me signed in", () => {
     const user = userEvent.setup();
     mount();
     expect(
-      await screen.findByRole("checkbox", { name: "Keep me signed in" }),
+      await screen.findByRole("checkbox", {
+        name: "Stay signed in on this device",
+      }),
     ).toBeChecked();
     await user.type(
       await screen.findByRole("textbox", { name: "Username" }),
       "alice",
     );
     await user.type(screen.getByLabelText("Password"), "password");
-    await user.click(
-      screen.getByRole("button", { name: "Continue with password" }),
-    );
+    await user.click(screen.getByRole("button", { name: "Continue" }));
     await findFirstOtpSlot("Authenticator code");
     expect(bodies[0]).toEqual({
       username: "alice",
@@ -359,7 +377,9 @@ describe("keep me signed in", () => {
     const user = userEvent.setup();
     mount();
     await user.click(
-      await screen.findByRole("checkbox", { name: "Keep me signed in" }),
+      await screen.findByRole("checkbox", {
+        name: "Stay signed in on this device",
+      }),
     );
     expect(checkbox()).not.toBeChecked();
     await user.type(
@@ -367,9 +387,7 @@ describe("keep me signed in", () => {
       "alice",
     );
     await user.type(screen.getByLabelText("Password"), "password");
-    await user.click(
-      screen.getByRole("button", { name: "Continue with password" }),
-    );
+    await user.click(screen.getByRole("button", { name: "Continue" }));
     await findFirstOtpSlot("Authenticator code");
     expect(bodies[0]).toEqual({
       username: "alice",
@@ -382,7 +400,9 @@ describe("keep me signed in", () => {
     const user = userEvent.setup();
     mount();
     await user.click(
-      await screen.findByRole("checkbox", { name: "Keep me signed in" }),
+      await screen.findByRole("checkbox", {
+        name: "Stay signed in on this device",
+      }),
     );
     await user.click(
       await screen.findByRole("button", { name: "Continue with GitLab" }),
@@ -569,17 +589,29 @@ describe("the application the sign-in link targets", () => {
         `${window.location.origin}/oauth/authorize?client_id=wiki`,
       )}`,
     );
-    const fetch = contextFetch(200, { application: { label: "Wiki" } });
+    const fetch = contextFetch(200, {
+      application: { label: "Wiki", host: "wiki.example.test" },
+    });
     vi.stubGlobal("fetch", fetch);
     mount();
+    const strip = await waitFor(() => {
+      const element = document.querySelector('[data-slot="stage-strip"]');
+      expect(element).toHaveTextContent("Wiki");
+      return element as HTMLElement;
+    });
+    expect(strip).toHaveTextContent("You're signing in to");
+    expect(strip).toHaveTextContent("wiki.example.test");
     expect(
-      await screen.findByRole("heading", {
-        name: "Sign in to continue to Wiki",
-      }),
+      screen.getByRole("heading", { name: "Sign in with Test instance" }),
+    ).toBeVisible();
+    expect(
+      screen.getByText(
+        "Wiki uses your Test instance account. You'll go back to it after signing in.",
+      ),
     ).toBeVisible();
   });
 
-  it("keeps the plain title when there is no context", async () => {
+  it("shows no application when there is no context", async () => {
     at(
       `/login?return_to=${encodeURIComponent(
         `${window.location.origin}/oauth/authorize?client_id=wiki`,
@@ -589,14 +621,16 @@ describe("the application the sign-in link targets", () => {
     vi.stubGlobal("fetch", fetch);
     mount();
     expect(
-      await screen.findByRole("heading", { name: "Sign in" }),
+      await screen.findByRole("heading", {
+        name: "Sign in with Test instance",
+      }),
     ).toBeVisible();
     await waitFor(() => {
       expect(fetch).toHaveBeenCalled();
     });
   });
 
-  it("keeps the plain title when the context read fails", async () => {
+  it("shows no application when the context read fails", async () => {
     at(
       `/login?return_to=${encodeURIComponent(
         `${window.location.origin}/saml/sso?SAMLRequest=abc`,
@@ -606,7 +640,9 @@ describe("the application the sign-in link targets", () => {
     vi.stubGlobal("fetch", fetch);
     mount();
     expect(
-      await screen.findByRole("heading", { name: "Sign in" }),
+      await screen.findByRole("heading", {
+        name: "Sign in with Test instance",
+      }),
     ).toBeVisible();
     await waitFor(() => {
       expect(fetch).toHaveBeenCalled();
@@ -618,10 +654,11 @@ describe("the application the sign-in link targets", () => {
     const fetch = contextFetch(200, { application: { label: "Wiki" } });
     vi.stubGlobal("fetch", fetch);
     mount();
-    await screen.findByRole("heading", { name: "Sign in" });
+    await screen.findByRole("heading", { name: "Sign in with Test instance" });
     expect(
-      screen.queryByRole("heading", { name: "Sign in to continue to Wiki" }),
-    ).toBeNull();
+      document.querySelector('[data-slot="stage-strip"]'),
+    ).toBeEmptyDOMElement();
+    expect(screen.queryByText(/uses your Test instance account/)).toBeNull();
     expect(fetch).not.toHaveBeenCalled();
   });
 });
@@ -741,7 +778,7 @@ describe("upstream providers", () => {
       name: "Continue with GitLab",
     });
     // One separator before the password form, one before the other ways.
-    expect(screen.getAllByText("or")).toHaveLength(2);
+    expect(screen.getAllByText(/^or /)).toHaveLength(2);
     await user.click(button);
     expect(loadDocument).toHaveBeenCalledExactlyOnceWith(
       "/api/prohibitorum/auth/federation/gitlab/login?return_to=%2Foauth%2Fauthorize%3Fclient_id%3Dwiki&remember=true",
@@ -775,7 +812,7 @@ describe("upstream providers", () => {
     expect(
       screen.queryByRole("button", { name: "Continue with GitLab" }),
     ).not.toBeInTheDocument();
-    expect(screen.queryByText("or")).not.toBeInTheDocument();
+    expect(screen.queryByText(/^or /)).not.toBeInTheDocument();
   });
 
   it("are not offered before the instance is initialized", async () => {
@@ -793,7 +830,7 @@ describe("upstream providers", () => {
 });
 
 describe("signing in with another device", () => {
-  const name = "Sign in with another device";
+  const name = "Sign in with your phone or another device";
 
   function at(path: string) {
     history.destroy();
@@ -843,10 +880,10 @@ describe("signing in with another device", () => {
       maintenanceMode: true,
     });
     mount();
-    await screen.findByRole("button", { name: "Continue with password" });
+    await screen.findByRole("button", { name: "Continue" });
     expect(screen.queryByRole("button", { name })).not.toBeInTheDocument();
     // With no provider either, the second separator goes with it.
-    expect(screen.getAllByText("or")).toHaveLength(1);
+    expect(screen.getAllByText(/^or /)).toHaveLength(1);
   });
 });
 
@@ -885,9 +922,9 @@ describe("the first step", () => {
       button("Sign in with a passkey"),
       screen.getByRole("textbox", { name: "Username" }),
       screen.getByLabelText("Password"),
-      button("Continue with password"),
-      button("Sign in with another device"),
+      button("Continue"),
       button("Continue with GitLab"),
+      button("Sign in with your phone or another device"),
     ];
     order.reduce((previous, element) => {
       expect(
@@ -906,10 +943,7 @@ describe("the first step", () => {
     });
     expect(passkey).toHaveAttribute("data-variant", "default");
     expect(passkey).toBeEnabled();
-    expect(button("Continue with password")).toHaveAttribute(
-      "data-variant",
-      "outline",
-    );
+    expect(button("Continue")).toHaveAttribute("data-variant", "outline");
     expect(
       screen.queryByText(/Passkeys are unavailable/),
     ).not.toBeInTheDocument();
@@ -922,10 +956,7 @@ describe("the first step", () => {
     });
     expect(passkey).toHaveAttribute("data-variant", "outline");
     expect(passkey).toBeDisabled();
-    expect(button("Continue with password")).toHaveAttribute(
-      "data-variant",
-      "default",
-    );
+    expect(button("Continue")).toHaveAttribute("data-variant", "default");
     expect(screen.getByText(/Passkeys are unavailable/)).toBeVisible();
   });
 
@@ -942,9 +973,11 @@ describe("the first step", () => {
       "alice",
     );
     await user.type(screen.getByLabelText("Password"), "password");
-    await user.click(button("Continue with password"));
+    await user.click(button("Continue"));
     await waitFor(() =>
-      expect(button("Sign in with another device")).toBeDisabled(),
+      expect(
+        button("Sign in with your phone or another device"),
+      ).toBeDisabled(),
     );
     expect(button("Continue with GitLab")).toBeDisabled();
     expect(button("Sign in with a passkey")).toBeDisabled();
@@ -958,7 +991,9 @@ describe("the first step", () => {
       await screen.findByRole("button", { name: "Continue with GitLab" }),
     );
     await waitFor(() =>
-      expect(button("Sign in with another device")).toBeDisabled(),
+      expect(
+        button("Sign in with your phone or another device"),
+      ).toBeDisabled(),
     );
     expect(button("Sign in with a passkey")).toBeDisabled();
     expect(screen.getByRole("textbox", { name: "Username" })).toBeDisabled();
@@ -969,7 +1004,7 @@ describe("the first step", () => {
       );
     });
     await waitFor(() =>
-      expect(button("Sign in with another device")).toBeEnabled(),
+      expect(button("Sign in with your phone or another device")).toBeEnabled(),
     );
     expect(button("Sign in with a passkey")).toBeEnabled();
     expect(button("Continue with GitLab")).toBeEnabled();

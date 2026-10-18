@@ -25,12 +25,15 @@ export function SubmitButton({
   tone = "default",
   disabled = false,
   variant = "default",
+  size = "default",
 }: {
   children: ReactNode;
   fullWidth?: boolean;
   tone?: "default" | "warning";
   disabled?: boolean;
   variant?: "default" | "outline";
+  /** `lg` for a page whose form is its main event, as the sign-in steps are. */
+  size?: "default" | "lg";
 }) {
   const form = useFormContext();
   const submitting = useStore(form.store, (state) => state.isSubmitting);
@@ -42,6 +45,7 @@ export function SubmitButton({
         pending={submitting}
         disabled={disabled}
         variant={tone === "warning" ? "default" : variant}
+        size={size}
       >
         {submitting ? (
           <Trans id="forms.submitting">Submitting…</Trans>

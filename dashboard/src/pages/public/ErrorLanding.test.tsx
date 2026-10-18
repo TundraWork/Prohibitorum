@@ -250,7 +250,7 @@ describe("the error landing page", () => {
     const router = await open("/error?error=server_error", false);
     await user.click(screen.getByRole("button", { name: "Sign in" }));
     expect(
-      await screen.findByRole("heading", { name: "Sign in" }),
+      await screen.findByRole("heading", { name: /^Sign in with / }),
     ).toBeVisible();
     expect(router.state.location.pathname).toBe("/login");
   });

@@ -10,7 +10,9 @@ import {
   loginContextQueryOptions,
   publicConfigQueryOptions,
 } from "@/api/queries";
+import { AppStrip } from "@/components/custom/AppStrip";
 import { FormMessages } from "@/components/custom/FormMessages";
+import { useInstanceBranding } from "@/components/custom/instance-branding";
 import { PublicStep } from "@/components/custom/PublicStep";
 import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
 
@@ -25,8 +27,9 @@ export type LoginFailure = {
 /**
  * Instance config, bootstrap state and the validated return target the sign-in
  * pages share. When the link points at this instance's own authorize or SSO
- * endpoints, `application` names the registered app the sign-in continues to;
- * it stays undefined while that read is in flight or has nothing to say, so
+ * endpoints, `application` is the registered app the sign-in continues to
+ * (its label, and its host and icon when the server knows them); it stays
+ * undefined while that read is in flight or has nothing to say, so
  * the pages never wait on it.
  */
 export function useLoginContext() {
@@ -56,9 +59,7 @@ export function useLoginContext() {
     ...loginContextQueryOptions(contextTarget ?? ""),
     enabled: contextTarget !== undefined,
   });
-  const application = context.data?.application
-    ? context.data.application.label
-    : undefined;
+  const application = context.data?.application ?? undefined;
   return {
     config,
     bootstrapped: status.bootstrapped,
@@ -103,6 +104,7 @@ export function LoginShell({
   failure,
   complete = false,
   onBack,
+  footer,
   children,
 }: {
   step: LoginStep;
@@ -111,12 +113,16 @@ export function LoginShell({
   failure?: LoginFailure;
   complete?: boolean;
   onBack?: () => void;
+  /** Drawn under the card on the stage: a choice every method on the step shares. */
+  footer?: ReactNode;
   children: ReactNode;
 }) {
   const { t } = useLingui();
   const { config, bootstrapped, linkError, application } = useLoginContext();
+  const { name: instance } = useInstanceBranding();
+  const label = application?.label;
   return (
-    <div className="mx-auto flex w-full max-w-[30rem] flex-col gap-4">
+    <div className="flex flex-col gap-4">
       {config.maintenanceMode && (
         <SurfaceAlert status="warning">
           <SurfaceAlert.Indicator />
@@ -164,6 +170,19 @@ export function LoginShell({
       ) : (
         <PublicStep
           titleKey={`${step}-${complete}-${Boolean(failure)}`}
+          strip={
+            application && (
+              <AppStrip
+                lead={
+                  <Trans id="login.signing_in_to">You're signing in to</Trans>
+                }
+                name={application.label}
+                host={application.host}
+                iconUrl={application.iconUrl}
+              />
+            )
+          }
+          footer={footer}
           back={
             step !== "password" && !complete && onBack
               ? {
@@ -183,16 +202,18 @@ export function LoginShell({
             complete ? (
               <Trans id="login.complete">Authenticator reset complete</Trans>
             ) : step === "password" ? (
-              application === undefined ? (
-                <Trans id="login.title">Sign in</Trans>
-              ) : (
-                <Trans id="login.title.application">
-                  Sign in to continue to {application}
-                </Trans>
-              )
+              <Trans id="login.title.instance">Sign in with {instance}</Trans>
             ) : (
               <Trans id="login.factor.account">Signing in as {username}</Trans>
             )
+          }
+          description={
+            step === "password" && !complete && label !== undefined ? (
+              <Trans id="login.description.application">
+                {label} uses your {instance} account. You'll go back to it after
+                signing in.
+              </Trans>
+            ) : undefined
           }
         >
           {failure && (

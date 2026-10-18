@@ -247,9 +247,11 @@ it("carries the current keep-me-signed-in choice when autofill completes", async
   mount();
   // Uncheck while the ceremony still waits; the completion must read the
   // choice then, without the toggle having restarted the wait.
-  await userEvent
-    .setup()
-    .click(await screen.findByRole("checkbox", { name: "Keep me signed in" }));
+  await userEvent.setup().click(
+    await screen.findByRole("checkbox", {
+      name: "Stay signed in on this device",
+    }),
+  );
   pickNow(picked);
   expect(
     await screen.findByRole("heading", { name: "Destination" }),
@@ -286,7 +288,7 @@ it.each([
     await waitFor(() => expect(startAuthentication).toHaveBeenCalledTimes(1));
     if (uncheck)
       await user.click(
-        screen.getByRole("checkbox", { name: "Keep me signed in" }),
+        screen.getByRole("checkbox", { name: "Stay signed in on this device" }),
       );
     await user.click(
       screen.getByRole("button", { name: "Sign in with a passkey" }),

@@ -95,7 +95,7 @@ msgstr "{count, plural, other {已达到 10 张上限，有 # 个文件没有上
 #. js-lingui-explicit-id
 #: src/components/custom/ProviderGrid.tsx
 msgid "federation.more_providers_count"
-msgstr "另外 {count} 个提供商"
+msgstr "更多提供商（另有 {count} 个）"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
@@ -111,6 +111,11 @@ msgstr "{ip} · 与本设备相同"
 #: src/pages/admin/oidc-applications/UriListField.tsx
 msgid "admin.oidc-apps.uri.row"
 msgstr "{label} {row}"
+
+#. js-lingui-explicit-id
+#: src/components/custom/LoginShell.tsx
+msgid "login.description.application"
+msgstr "{label} 使用你的 {instance} 账号。登录后你会回到该应用。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
@@ -1851,6 +1856,11 @@ msgid "console.navigation"
 msgstr "控制台导航"
 
 #. js-lingui-explicit-id
+#: src/pages/Login.tsx
+msgid "login.password.next"
+msgstr "继续"
+
+#. js-lingui-explicit-id
 #: src/pages/public/FederationFlow.tsx
 msgid "federation_flow.continue"
 msgstr "继续"
@@ -1904,11 +1914,6 @@ msgstr "继续登录 {sp}？"
 #: src/components/custom/ProviderGrid.tsx
 msgid "federation.continue_with"
 msgstr "使用 {name} 继续"
-
-#. js-lingui-explicit-id
-#: src/pages/Login.tsx
-msgid "login.password.next"
-msgstr "使用密码继续"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/LoginPreview.tsx
@@ -3849,11 +3854,6 @@ msgid "security.keep"
 msgstr "保留"
 
 #. js-lingui-explicit-id
-#: src/components/custom/RememberCheckbox.tsx
-msgid "login.remember"
-msgstr "保持登录"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/settings/SigningKeysPanel.tsx
 msgid "settings.keys.column.kid"
 msgstr "Key ID"
@@ -4880,9 +4880,19 @@ msgid "common.or"
 msgstr "或"
 
 #. js-lingui-explicit-id
+#: src/pages/Login.tsx
+msgid "login.or_continue"
+msgstr "或使用以下方式继续"
+
+#. js-lingui-explicit-id
 #: src/pages/public/Pair.tsx
 msgid "pair.qr_hint"
 msgstr "也可以用那台设备扫码直接打开。"
+
+#. js-lingui-explicit-id
+#: src/pages/Login.tsx
+msgid "login.or_password"
+msgstr "或使用密码"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/SignInPageControls.tsx
@@ -6323,11 +6333,6 @@ msgid "admin.federation.operator.submit"
 msgstr "登录"
 
 #. js-lingui-explicit-id
-#: src/components/custom/LoginShell.tsx
-msgid "login.title"
-msgstr "登录"
-
-#. js-lingui-explicit-id
 #: src/components/custom/RouteFeedback.tsx
 msgid "route.sign_in"
 msgstr "登录"
@@ -6368,11 +6373,6 @@ msgid "federation_flow.title.login"
 msgstr "通过 {provider} 登录"
 
 #. js-lingui-explicit-id
-#: src/components/custom/LoginShell.tsx
-msgid "login.title.application"
-msgstr "登录以继续访问 {application}"
-
-#. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.no_session"
 msgstr "请登录后继续。"
@@ -6381,6 +6381,11 @@ msgstr "请登录后继续。"
 #: src/pages/admin/identity-providers/ProviderOperatorSection.tsx
 msgid "admin.federation.operator.sign-in-title"
 msgstr "登录 VRChat"
+
+#. js-lingui-explicit-id
+#: src/components/custom/LoginShell.tsx
+msgid "login.title.instance"
+msgstr "使用 {instance} 登录"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -6413,14 +6418,14 @@ msgid "admin.federation.protocol.steam.hint"
 msgstr "用 Steam 账号登录，需要 Steam Web API 密钥。"
 
 #. js-lingui-explicit-id
-#: src/pages/Login.tsx
-msgid "login.other_device"
-msgstr "用另一台设备登录"
-
-#. js-lingui-explicit-id
 #: src/pages/public/Pair.tsx
 msgid "pair.title"
 msgstr "用另一台设备登录"
+
+#. js-lingui-explicit-id
+#: src/pages/Login.tsx
+msgid "login.other_device"
+msgstr "用手机或其他设备登录"
 
 #. js-lingui-explicit-id
 #: src/components/custom/ConsoleLayout.tsx
@@ -6676,6 +6681,11 @@ msgstr "状态码"
 #: src/pages/public/consent/scopes.ts
 msgid "consent.scope.offline_access"
 msgstr "保持访问"
+
+#. js-lingui-explicit-id
+#: src/components/custom/RememberCheckbox.tsx
+msgid "login.remember"
+msgstr "在这台设备上保持登录"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-options.ts
@@ -8625,6 +8635,11 @@ msgstr "你登录的是另一个账号"
 #: src/pages/public/Welcome.tsx
 msgid "welcome.description"
 msgstr "你第一次通过 {idp} 登录，{instance} 为你准备了这个账号。"
+
+#. js-lingui-explicit-id
+#: src/components/custom/LoginShell.tsx
+msgid "login.signing_in_to"
+msgstr "你正在登录"
 
 #. js-lingui-explicit-id
 #: src/pages/public/Enroll.tsx

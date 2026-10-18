@@ -1689,7 +1689,8 @@ function readReply(
     case "/api/prohibitorum/auth/status":
       return json({ bootstrapped: config.instance.bootstrapped });
     // The sign-in link's target app, answered like the server would: a label
-    // only for this origin's authorize/SSO URLs, no context otherwise.
+    // and host (no icon, so the initials tile shows) for this origin's
+    // authorize/SSO URLs, no context otherwise.
     case "/api/prohibitorum/forward-auth/login-context": {
       const origin = new URL(request.url).origin;
       const raw = new URL(request.url).searchParams.get("return_to") ?? "";
@@ -1707,7 +1708,10 @@ function readReply(
           target.pathname === "/saml/sso/init")
           ? consentRequest(config).client.displayName
           : null;
-      return json({ application: label === null ? null : { label } });
+      return json({
+        application:
+          label === null ? null : { label, host: "wiki.example.test" },
+      });
     }
     case "/api/prohibitorum/me":
       return guarded(config, () => json(sessionView(config)));

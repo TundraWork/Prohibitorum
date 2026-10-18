@@ -287,7 +287,7 @@ describe("OIDC consent", () => {
     });
     const router = renderApp(address, queryClient);
     expect(
-      await screen.findByRole("heading", { name: "Sign in" }),
+      await screen.findByRole("heading", { name: /^Sign in with / }),
     ).toBeVisible();
     expect(router.state.location.pathname).toBe("/login");
     expect(
@@ -335,7 +335,7 @@ describe("OIDC consent", () => {
       await screen.findByRole("link", { name: "Use another account" }),
     );
     expect(
-      await screen.findByRole("heading", { name: "Sign in" }),
+      await screen.findByRole("heading", { name: /^Sign in with / }),
     ).toBeVisible();
     expect(api.sent("POST", "/api/prohibitorum/auth/logout")).toHaveLength(1);
     expect(router.state.location.pathname).toBe("/login");

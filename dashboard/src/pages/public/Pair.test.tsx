@@ -260,7 +260,9 @@ describe("signing in with another device", () => {
     await waiting();
 
     await user.click(
-      await screen.findByRole("checkbox", { name: "Keep me signed in" }),
+      await screen.findByRole("checkbox", {
+        name: "Stay signed in on this device",
+      }),
     );
     status = { status: "approved" };
     await poll();

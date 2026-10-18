@@ -28,6 +28,7 @@ export function FormField({
   isDisabled = false,
   isMonospace = false,
   autoFocus = false,
+  size,
   className,
 }: {
   label: ReactNode;
@@ -52,6 +53,8 @@ export function FormField({
   autoFocus?: boolean;
   /** Accepted for compatibility; see `FieldVariant`. */
   variant?: FieldVariant;
+  /** The input's height; `lg` is for a page whose controls are the main event. */
+  size?: ComponentProps<typeof Input>["size"];
   /**
    * Layout classes for the field. A field in a grid column takes its reading
    * width here rather than stretching to the column, which is wider than a
@@ -70,6 +73,7 @@ export function FormField({
     >
       <FieldLabel>{label}</FieldLabel>
       <Input
+        size={size}
         className={cn(isMonospace && "font-mono")}
         value={field.state.value}
         onValueChange={onChange}

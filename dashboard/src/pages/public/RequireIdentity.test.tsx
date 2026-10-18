@@ -149,7 +149,7 @@ describe("require identity", () => {
       screen.getByRole("button", { name: "Sign out and use another account" }),
     );
     expect(
-      await screen.findByRole("heading", { name: "Sign in" }),
+      await screen.findByRole("heading", { name: /^Sign in with / }),
     ).toBeVisible();
     expect(router.state.location.pathname).toBe("/login");
     expect(
@@ -170,7 +170,7 @@ describe("require identity", () => {
   it("sends a signed-out reader to sign in and back", async () => {
     const api = fakeApi({ ...publicApi(null) });
     const router = renderApp(address, queryClient);
-    await screen.findByRole("heading", { name: "Sign in" });
+    await screen.findByRole("heading", { name: /^Sign in with / });
     expect(
       new URLSearchParams(router.state.location.searchStr).get("return_to"),
     ).toContain("/require-identity/t-1");

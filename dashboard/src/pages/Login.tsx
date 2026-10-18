@@ -1,4 +1,3 @@
-import { Checkbox } from "@heroui/react";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { browserSupportsWebAuthn } from "@simplewebauthn/browser";
@@ -9,7 +8,7 @@ import {
 } from "@tanstack/react-query";
 import type { HistoryState } from "@tanstack/react-router";
 import { useLocation, useNavigate, useRouter } from "@tanstack/react-router";
-import { Fingerprint, MonitorSmartphone } from "lucide-react";
+import { ArrowRight, Fingerprint, QrCode } from "lucide-react";
 import {
   useCallback,
   useEffect,
@@ -57,6 +56,8 @@ import { RecoveryCodes } from "@/components/custom/RecoveryCodes";
 import { RememberCheckbox } from "@/components/custom/RememberCheckbox";
 import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
 import { TotpSetup } from "@/components/custom/TotpSetup";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import { applyServerError } from "@/forms/server-errors";
 import { useAppForm } from "@/forms/use-app-form";
 
@@ -311,6 +312,7 @@ function PasswordForm({
         className="min-w-0"
       >
         <form.Form
+          className="flex flex-col gap-3"
           label={t({
             id: "login.password.form",
             message: "Sign in with a password",
@@ -330,7 +332,7 @@ function PasswordForm({
                 autoCapitalize="none"
                 spellCheck={false}
                 isDisabled={control.busy}
-                variant="secondary"
+                size="lg"
               />
             )}
           </form.AppField>
@@ -347,12 +349,13 @@ function PasswordForm({
                 type="password"
                 autoComplete="current-password"
                 isDisabled={control.busy}
-                variant="secondary"
+                size="lg"
               />
             )}
           </form.AppField>
-          <form.SubmitButton fullWidth variant={submitVariant}>
-            <Trans id="login.password.next">Continue with password</Trans>
+          <form.SubmitButton fullWidth size="lg" variant={submitVariant}>
+            <Trans id="login.password.next">Continue</Trans>
+            <ArrowRight aria-hidden="true" />
           </form.SubmitButton>
         </form.Form>
       </fieldset>
@@ -467,7 +470,6 @@ function FactorForm({
             mode === "totp" ? (
               <OtpField
                 digits={config.totp.digits}
-                variant="secondary"
                 label={<Trans id="login.totp.code">Authenticator code</Trans>}
                 description={
                   <Trans id="login.totp.digits">
@@ -483,42 +485,36 @@ function FactorForm({
                 autoComplete="off"
                 autoCapitalize="none"
                 spellCheck={false}
-                variant="secondary"
               />
             )
           }
         </form.AppField>
         {mode === "recovery" && (
           <>
-            <Checkbox
-              variant="secondary"
-              isSelected={setup !== undefined}
-              isDisabled={control.busy}
-              onChange={(selected) => {
-                if (control.busy) return;
-                form.resetField("totpCode");
-                if (!selected) {
-                  setSetup(undefined);
-                  return;
-                }
-                try {
-                  const secret = generateTotpSecret();
-                  setSetup({
-                    secret,
-                    uri: buildTotpUri(secret, username, config.totp),
-                  });
-                } catch (error) {
-                  applyServerError(form, error, noFields);
-                }
-              }}
-            >
-              <Checkbox.Content>
-                <Checkbox.Control>
-                  <Checkbox.Indicator />
-                </Checkbox.Control>
-                <Trans id="login.reset.toggle">Reset my authenticator</Trans>
-              </Checkbox.Content>
-            </Checkbox>
+            <Label className="w-fit">
+              <Checkbox
+                checked={setup !== undefined}
+                disabled={control.busy}
+                onCheckedChange={(selected) => {
+                  if (control.busy) return;
+                  form.resetField("totpCode");
+                  if (!selected) {
+                    setSetup(undefined);
+                    return;
+                  }
+                  try {
+                    const secret = generateTotpSecret();
+                    setSetup({
+                      secret,
+                      uri: buildTotpUri(secret, username, config.totp),
+                    });
+                  } catch (error) {
+                    applyServerError(form, error, noFields);
+                  }
+                }}
+              />
+              <Trans id="login.reset.toggle">Reset my authenticator</Trans>
+            </Label>
             {setup && (
               <>
                 <SurfaceAlert status="warning">
@@ -532,7 +528,7 @@ function FactorForm({
                     </SurfaceAlert.Title>
                   </SurfaceAlert.Content>
                 </SurfaceAlert>
-                <TotpSetup secret={setup.secret} uri={setup.uri} onSurface />
+                <TotpSetup secret={setup.secret} uri={setup.uri} />
                 <form.AppField
                   name="totpCode"
                   validators={{
@@ -545,7 +541,6 @@ function FactorForm({
                   {() => (
                     <OtpField
                       digits={config.totp.digits}
-                      variant="secondary"
                       label={
                         <Trans id="login.reset.code">
                           New authenticator code
@@ -604,74 +599,90 @@ export function PasswordPage() {
   });
   const supported = window.isSecureContext && browserSupportsWebAuthn();
   return (
-    <LoginShell step="password" busy={flow.control.busy} failure={flow.failure}>
-      <Button
-        pending={passkey.isPending}
-        disabled={!supported || (flow.control.busy && !passkey.isPending)}
-        onClick={() => {
-          if (!flow.control.acquire()) return;
-          autofill.pause();
-          void (async () => {
-            try {
-              const result = await passkey.mutateAsync();
-              if (flow.control.isActive()) await flow.finish(result.redirect);
-            } catch (error) {
-              if (flow.control.isActive() && !isCancellation(error))
-                flow.setFailure({ message: describeError(error) });
-            } finally {
-              passkey.reset();
-              flow.control.release();
-              autofill.resume();
-            }
-          })();
-        }}
-        variant={supported ? "default" : "outline"}
-        className="w-full"
-      >
-        <Fingerprint size={16} aria-hidden="true" />
-        <Trans id="login.passkey">Sign in with a passkey</Trans>
-      </Button>
-      {!supported && (
-        <p className="text-sm text-muted">
-          <Trans id="login.passkey.unsupported">
-            Passkeys are unavailable in this browser or connection. Use your
-            password instead.
-          </Trans>
-        </p>
-      )}
-      <OrSeparator />
-      <PasswordForm
-        control={flow.control}
-        username={username ?? ""}
-        submitVariant={supported ? "outline" : "default"}
-        remember={remember}
-        onSuccess={async (username, token) => {
-          flow.setFailure(undefined);
-          await withRouterSkipLoading(router, () =>
-            navigate({
-              to: "/login/totp",
-              search: true,
-              state: loginState({ username, token }),
-            }),
-          );
-        }}
-        onFailure={(error) =>
-          flow.setFailure({ message: describeError(error) })
-        }
-      />
-      {/* One choice for every sign-in method this page offers; it is not part
-       * of the password form so it also covers the passkey and providers. */}
-      <RememberCheckbox
-        isSelected={remember}
-        onChange={setRemember}
-        isDisabled={flow.control.busy}
-      />
-      <OtherSignIns
-        returnTo={returnTo}
-        remember={remember}
-        busy={flow.control.busy}
-        onLeavingChange={flow.hold}
-      />
+    <LoginShell
+      step="password"
+      busy={flow.control.busy}
+      failure={flow.failure}
+      // One choice for every sign-in method this page offers; it is not part
+      // of the password form so it also covers the passkey and providers.
+      footer={
+        <RememberCheckbox
+          isSelected={remember}
+          onChange={setRemember}
+          isDisabled={flow.control.busy}
+        />
+      }
+    >
+      <div className="flex flex-col gap-5 pt-2">
+        <div className="flex flex-col gap-2">
+          <Button
+            pending={passkey.isPending}
+            disabled={!supported || (flow.control.busy && !passkey.isPending)}
+            onClick={() => {
+              if (!flow.control.acquire()) return;
+              autofill.pause();
+              void (async () => {
+                try {
+                  const result = await passkey.mutateAsync();
+                  if (flow.control.isActive())
+                    await flow.finish(result.redirect);
+                } catch (error) {
+                  if (flow.control.isActive() && !isCancellation(error))
+                    flow.setFailure({ message: describeError(error) });
+                } finally {
+                  passkey.reset();
+                  flow.control.release();
+                  autofill.resume();
+                }
+              })();
+            }}
+            variant={supported ? "default" : "outline"}
+            size="xl"
+            className="h-12 w-full justify-start gap-3 ps-2 sm:h-12"
+          >
+            <span className="flex size-8 items-center justify-center rounded-md bg-primary-foreground/12 ring-1 ring-primary-foreground/16">
+              <Fingerprint className="size-5" aria-hidden="true" />
+            </span>
+            <Trans id="login.passkey">Sign in with a passkey</Trans>
+          </Button>
+          {!supported && (
+            <p className="text-muted-foreground text-sm">
+              <Trans id="login.passkey.unsupported">
+                Passkeys are unavailable in this browser or connection. Use your
+                password instead.
+              </Trans>
+            </p>
+          )}
+        </div>
+        <OrSeparator
+          label={<Trans id="login.or_password">or with your password</Trans>}
+        />
+        <PasswordForm
+          control={flow.control}
+          username={username ?? ""}
+          submitVariant={supported ? "outline" : "default"}
+          remember={remember}
+          onSuccess={async (username, token) => {
+            flow.setFailure(undefined);
+            await withRouterSkipLoading(router, () =>
+              navigate({
+                to: "/login/totp",
+                search: true,
+                state: loginState({ username, token }),
+              }),
+            );
+          }}
+          onFailure={(error) =>
+            flow.setFailure({ message: describeError(error) })
+          }
+        />
+        <OtherSignIns
+          returnTo={returnTo}
+          remember={remember}
+          busy={flow.control.busy}
+          onLeavingChange={flow.hold}
+        />
+      </div>
     </LoginShell>
   );
 }
@@ -711,24 +722,10 @@ function OtherSignIns({
   if (!pairing && signInProviders.length === 0) return null;
   return (
     <>
-      <OrSeparator />
-      <div className="flex flex-col gap-2">
-        {pairing && (
-          <Button
-            disabled={busy}
-            onClick={() =>
-              void navigate({
-                to: "/pair",
-                search: returnTo === undefined ? {} : { return_to: returnTo },
-              })
-            }
-            variant="outline"
-            className="w-full"
-          >
-            <MonitorSmartphone size={16} aria-hidden="true" />
-            <Trans id="login.other_device">Sign in with another device</Trans>
-          </Button>
-        )}
+      <OrSeparator
+        label={<Trans id="login.or_continue">or continue with</Trans>}
+      />
+      <div className="-mt-2 flex flex-col gap-3">
         <ProviderGrid
           providers={signInProviders}
           disabled={busy}
@@ -742,6 +739,24 @@ function OtherSignIns({
             return query === "" ? address : `${address}?${query}`;
           }}
         />
+        {pairing && (
+          <Button
+            disabled={busy}
+            onClick={() =>
+              void navigate({
+                to: "/pair",
+                search: returnTo === undefined ? {} : { return_to: returnTo },
+              })
+            }
+            variant="ghost"
+            className="-ms-2.5 h-auto justify-start self-start whitespace-normal py-1.5 text-start text-muted-foreground"
+          >
+            <QrCode aria-hidden="true" />
+            <Trans id="login.other_device">
+              Sign in with your phone or another device
+            </Trans>
+          </Button>
+        )}
       </div>
     </>
   );
@@ -842,7 +857,6 @@ export function RecoveryPage() {
         <RecoveryCodes
           codes={savedCodes.codes}
           onContinue={() => flow.finish(savedCodes.redirect)}
-          onSurface
         />
       ) : (
         <FactorForm

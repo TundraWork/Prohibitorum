@@ -2,9 +2,9 @@ import { Trans } from "@lingui/react/macro";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 
-/** The login page's "keep me signed in" choice, shared by the password and
- * pairing pages. Controlled by the caller; every sign-in method on the page
- * reads the current state at submit time. */
+/** The "stay signed in" choice shared by the sign-in and pairing pages.
+ * Controlled by the caller; every sign-in method on the page reads the current
+ * state at submit time. */
 export function RememberCheckbox({
   isSelected,
   onChange,
@@ -21,7 +21,7 @@ export function RememberCheckbox({
         disabled={isDisabled}
         onCheckedChange={onChange}
       />
-      <Trans id="login.remember">Keep me signed in</Trans>
+      <Trans id="login.remember">Stay signed in on this device</Trans>
     </Label>
   );
 }

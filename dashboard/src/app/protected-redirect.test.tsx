@@ -20,7 +20,9 @@ afterEach(() => {
 it("sends an anonymous reader to sign in and back to the console page they opened", async () => {
   fakeApi(publicApi(null));
   const router = renderApp("/security?tab=x", queryClient);
-  expect(await screen.findByRole("heading", { name: "Sign in" })).toBeVisible();
+  expect(
+    await screen.findByRole("heading", { name: /^Sign in with / }),
+  ).toBeVisible();
   expect(router.state.location.pathname).toBe("/login");
   expect(router.state.location.searchStr).toBe(
     "?return_to=%2Fsecurity%3Ftab%3Dx",
