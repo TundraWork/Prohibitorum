@@ -5,6 +5,7 @@ import { principalSourceLabel } from "@/components/custom/principal-sources";
 import { SrDescription } from "@/components/custom/SrDescription";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "@/components/ui/tooltip";
+import { i18n } from "@/i18n";
 
 /**
  * The cells the four federation lists share.
@@ -107,6 +108,11 @@ export function RedirectCell({ uris }: { uris: readonly string[] }) {
 
 function RedirectHosts({ hosts }: { hosts: readonly string[] }) {
   const describedBy = useId();
+  const count = hosts.length;
+  // Joined in the console's language rather than the browser's.
+  const hostList = new Intl.ListFormat(i18n.locale, {
+    type: "conjunction",
+  }).format(hosts);
   return (
     <>
       <Tooltip>
@@ -138,9 +144,10 @@ function RedirectHosts({ hosts }: { hosts: readonly string[] }) {
         </TooltipPopup>
       </Tooltip>
       <SrDescription id={describedBy}>
-        <Plural value={hosts.length} one="# address" other="# addresses" />
-        {": "}
-        {hosts.join(", ")}
+        <Trans id="list.diagnostics.redirect.description">
+          <Plural value={count} one="# address" other="# addresses" />:{" "}
+          {hostList}
+        </Trans>
       </SrDescription>
     </>
   );

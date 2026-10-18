@@ -94,7 +94,7 @@ describe("EntityPicker", () => {
   it("opens its list inside the dialog that hosts it", async () => {
     const user = userEvent.setup();
     render(
-      <div role="dialog" aria-label="Host">
+      <div role="dialog" data-rac="" aria-label="Host">
         <Harness options={accounts} />
       </div>,
     );

@@ -19,3 +19,14 @@ it("caps the textarea's own height at maxRows lines and types it in monospace", 
   expect(field.style.maxBlockSize).toBe("12lh");
   expect(field.parentElement).toHaveClass("*:font-mono", "*:overflow-y-auto");
 });
+
+it("leaves the height uncapped when maxRows is not finite", () => {
+  render(
+    <I18nProvider i18n={i18n}>
+      <ReadOnlyText label="Body" value="a" maxRows={Number.POSITIVE_INFINITY} />
+    </I18nProvider>,
+  );
+  expect(screen.getByRole("textbox", { name: "Body" }).style.maxBlockSize).toBe(
+    "",
+  );
+});

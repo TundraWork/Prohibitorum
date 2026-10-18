@@ -68,6 +68,11 @@ msgid "admin.federation.danger.delete.confirm.linked"
 msgstr "{count, plural, one {# account loses} other {# accounts lose}} the way they sign in with it. An account that can only sign in this way needs a new registration link from you."
 
 #. js-lingui-explicit-id
+#: src/components/custom/ListCells.tsx
+msgid "list.diagnostics.redirect.description"
+msgstr "{count, plural, one {# address} other {# addresses}}: {hostList}"
+
+#. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
 msgid "security.recovery.remaining"
 msgstr "{count, plural, one {# code left} other {# codes left}}"

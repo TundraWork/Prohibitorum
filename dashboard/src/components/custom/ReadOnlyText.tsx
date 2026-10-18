@@ -24,7 +24,11 @@ export function ReadOnlyText({
       <Textarea
         readOnly
         value={value}
-        style={{ maxBlockSize: `${maxRows}lh` }}
+        style={
+          Number.isFinite(maxRows)
+            ? { maxBlockSize: `${maxRows}lh` }
+            : undefined
+        }
         autoComplete="off"
         spellCheck={false}
         // coss sizes the box to its content (field-sizing), so `rows` does nothing;

@@ -13,11 +13,20 @@ function Probe() {
 describe("useHostOverlayContainer", () => {
   it("returns the hosting dialog element", () => {
     const { getByRole } = render(
-      <div role="dialog" aria-label="host">
+      <div role="dialog" data-rac="" aria-label="host">
         <Probe />
       </div>,
     );
     expect(seen).toBe(getByRole("dialog"));
+  });
+
+  it("ignores a dialog that is not a react-aria overlay", () => {
+    render(
+      <div role="dialog" aria-label="coss">
+        <Probe />
+      </div>,
+    );
+    expect(seen).toBeUndefined();
   });
 
   it("returns undefined outside any dialog", () => {

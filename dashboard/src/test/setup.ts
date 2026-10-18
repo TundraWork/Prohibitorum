@@ -35,6 +35,9 @@ Object.defineProperty(window, "matchMedia", {
 
 HTMLElement.prototype.scrollIntoView = vi.fn();
 
+// Router scroll restoration calls scrollTo, which jsdom only logs as not implemented.
+window.scrollTo = vi.fn();
+
 // react-aria inspects CSS transitions on shared-element updates; jsdom has no
 // animations, so an empty list is the honest answer.
 HTMLElement.prototype.getAnimations = () => [];

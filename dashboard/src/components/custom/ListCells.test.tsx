@@ -38,7 +38,17 @@ describe("RedirectCell", () => {
     );
     const trigger = screen.getByText("a.example").closest("[aria-describedby]");
     expect(trigger).toHaveAccessibleDescription(
-      /2 addresses.*a\.example.*b\.example/,
+      "2 addresses: a.example and b.example",
     );
+  });
+
+  it("reads the address list in Chinese under the zh locale", () => {
+    i18n.activate("zh");
+    mount(
+      <RedirectCell uris={["https://a.example/cb", "https://b.example/cb"]} />,
+    );
+    const trigger = screen.getByText("a.example").closest("[aria-describedby]");
+    expect(trigger).toHaveAccessibleDescription(/a\.example.*b\.example/);
+    expect(trigger).not.toHaveAccessibleDescription(/ and /);
   });
 });

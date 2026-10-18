@@ -159,6 +159,17 @@ describe("the other field shapes", () => {
     );
   });
 
+  it("shows a number without grouping separators after blur", async () => {
+    const user = userEvent.setup();
+    render(<Shapes onValues={vi.fn()} />);
+    const input = screen.getByRole("textbox", { name: "Lifetime" });
+
+    await user.type(input, "1440");
+    await user.tab();
+
+    expect(input).toHaveValue("1440");
+  });
+
   it("splits a six-digit code after the third digit and refuses letters", async () => {
     const user = userEvent.setup();
     const onValues = vi.fn();

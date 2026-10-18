@@ -155,6 +155,8 @@ export function NumberField({
       <FieldLabel>{label}</FieldLabel>
       <CossNumberField
         value={parseNumber(field.state.value)}
+        // Durations and lifetimes read oddly as "1,440".
+        format={{ useGrouping: false }}
         onValueChange={(value) => onChange(value === null ? "" : String(value))}
       >
         <NumberFieldGroup>

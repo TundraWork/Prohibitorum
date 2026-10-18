@@ -68,6 +68,11 @@ msgid "admin.federation.danger.delete.confirm.linked"
 msgstr "{count, plural, other {# 个账号}}将失去用它登录的方式。如果某个账号只能用这种方式登录，需要由你重新签发注册链接。"
 
 #. js-lingui-explicit-id
+#: src/components/custom/ListCells.tsx
+msgid "list.diagnostics.redirect.description"
+msgstr "{count, plural, other {# 个地址}}：{hostList}"
+
+#. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
 msgid "security.recovery.remaining"
 msgstr "{count, plural, other {剩余 # 个}}"
