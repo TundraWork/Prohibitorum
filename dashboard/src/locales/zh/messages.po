@@ -1099,6 +1099,11 @@ msgid "security.factor.authenticator"
 msgstr "身份验证器"
 
 #. js-lingui-explicit-id
+#: src/pages/public/enroll/PasswordTotpSetup.tsx
+msgid "enroll.password_totp.steps.authenticator"
+msgstr "验证器"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts
 msgid "audit.factor.totp"
 msgstr "验证器"
@@ -1660,6 +1665,11 @@ msgid "federation_flow.proof.step.verify"
 msgstr "回到这里按“验证”。"
 
 #. js-lingui-explicit-id
+#: src/components/custom/StepHeader.tsx
+msgid "step-header.done"
+msgstr "已完成"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
 msgid "admin.group.rule.fact"
 msgstr "条件"
@@ -2183,6 +2193,11 @@ msgid "admin.invitations.new.submit"
 msgstr "创建邀请"
 
 #. js-lingui-explicit-id
+#: src/pages/public/Enroll.tsx
+msgid "enroll.title.bootstrap"
+msgstr "创建管理员账号"
+
+#. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.create.action"
 msgstr "创建令牌"
@@ -2191,6 +2206,11 @@ msgstr "创建令牌"
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.sudo.confirm.action"
 msgstr "创建令牌"
+
+#. js-lingui-explicit-id
+#: src/pages/public/Enroll.tsx
+msgid "enroll.title.create"
+msgstr "创建你的账号"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts
@@ -4900,6 +4920,11 @@ msgid "login.or_continue"
 msgstr "或使用以下方式继续"
 
 #. js-lingui-explicit-id
+#: src/pages/public/Enroll.tsx
+msgid "enroll.or_continue"
+msgstr "或使用以下方式继续"
+
+#. js-lingui-explicit-id
 #: src/pages/public/Pair.tsx
 msgid "pair.qr_hint"
 msgstr "也可以用那台设备扫码直接打开。"
@@ -5013,6 +5038,11 @@ msgstr "密码"
 #. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
 msgid "security.factor.password"
+msgstr "密码"
+
+#. js-lingui-explicit-id
+#: src/pages/public/enroll/PasswordTotpSetup.tsx
+msgid "enroll.password_totp.steps.password"
 msgstr "密码"
 
 #. js-lingui-explicit-id
@@ -5335,6 +5365,11 @@ msgstr "恢复码"
 #. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
 msgid "security.recovery.title"
+msgstr "恢复码"
+
+#. js-lingui-explicit-id
+#: src/pages/public/enroll/PasswordTotpSetup.tsx
+msgid "enroll.password_totp.steps.codes"
 msgstr "恢复码"
 
 #. js-lingui-explicit-id
@@ -6268,6 +6303,11 @@ msgid "admin.federation.danger.not-ready.steam"
 msgstr "先设置 Web API 密钥才能启用。"
 
 #. js-lingui-explicit-id
+#: src/pages/public/Enroll.tsx
+msgid "enroll.title.reset"
+msgstr "为 {displayName} 设置新的登录方式"
+
+#. js-lingui-explicit-id
 #: src/pages/public/enroll/PasswordTotpSetup.tsx
 msgid "enroll.password_totp.form"
 msgstr "设置密码和验证器"
@@ -6524,6 +6564,11 @@ msgstr "登录响应"
 #: src/pages/admin/oidc-applications/SignInRulesSection.tsx
 msgid "admin.oidc-apps.sign-in"
 msgstr "登录规则"
+
+#. js-lingui-explicit-id
+#: src/pages/public/enroll/PasswordTotpSetup.tsx
+msgid "enroll.password_totp.steps"
+msgstr "登录方式设置步骤"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts
@@ -8391,7 +8436,7 @@ msgstr "验证未完成，可以改用密码。"
 #. placeholder {1}: verified.providerDisplayName
 #: src/pages/public/Enroll.tsx
 msgid "enroll.verified_identity"
-msgstr "已通过 {1} 验证为 {0}。"
+msgstr "已通过 {1} 验证为 {0}"
 
 #. js-lingui-explicit-id
 #: src/components/custom/principal-sources.ts

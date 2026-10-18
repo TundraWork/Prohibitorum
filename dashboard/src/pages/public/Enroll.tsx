@@ -18,6 +18,7 @@ import {
 import { clearSessionQueries, enrollmentQueryOptions } from "@/api/queries";
 import type { EnrollmentAccountFields } from "@/api/raw-paths";
 import { Button } from "@/components/custom/Button";
+import { EntityAvatar } from "@/components/custom/EntityAvatar";
 import { ReadOnlyField } from "@/components/custom/FormFields";
 import { useInstanceBranding } from "@/components/custom/instance-branding";
 import { OrSeparator } from "@/components/custom/OrSeparator";
@@ -152,6 +153,29 @@ export function EnrollPage() {
     return true;
   }
 
+  /** The page's title, which also names its form. */
+  function enrollTitle(): string {
+    switch (preview.intent) {
+      case "bootstrap":
+        return t({
+          id: "enroll.title.bootstrap",
+          message: "Create the administrator account",
+        });
+      case "reset": {
+        const displayName = preview.target?.displayName ?? "";
+        return t({
+          id: "enroll.title.reset",
+          message: `Set up a new sign-in for ${displayName}`,
+        });
+      }
+      default:
+        return t({
+          id: "enroll.title.create",
+          message: "Create your account",
+        });
+    }
+  }
+
   async function finish() {
     setLeaving(true);
     await clearSessionQueries(queryClient);
@@ -194,7 +218,7 @@ export function EnrollPage() {
     : form.state.values.username;
   const passkeyPending = passkey.isPending || leaving;
   const busy = passkeyPending || federating;
-  const title = enrollTitle(preview, t);
+  const title = enrollTitle();
 
   return (
     <>
@@ -236,63 +260,17 @@ export function EnrollPage() {
                 />
               }
               actions={
-                <PublicStep.Actions>
-                  {verified ? (
-                    <>
+                boundProvider && !verified ? (
+                  <ProviderGrid
+                    providers={[boundProvider]}
+                    href={(provider) => enrollmentAddress(token, provider.slug)}
+                    onLeavingChange={setFederating}
+                  />
+                ) : (
+                  <div className="flex flex-col gap-5">
+                    <PublicStep.Actions>
                       {/* Enter submits with the first enabled submit button,
-                          so without passkeys the password setup takes it. */}
-                      <PasskeyButton
-                        type={supported ? "submit" : "button"}
-                        supported={supported}
-                        isPending={passkeyPending}
-                        isDisabled={busy && !passkeyPending}
-                      >
-                        <Trans id="enroll.passkey">Create a passkey</Trans>
-                      </PasskeyButton>
-                      {allowsPasswordTotp && (
-                        <Button
-                          type={supported ? "button" : "submit"}
-                          onClick={
-                            supported
-                              ? () => void choosePasswordTotp()
-                              : undefined
-                          }
-                          variant="outline"
-                          className="w-full"
-                        >
-                          <Trans id="enroll.use_password_totp">
-                            Use a password and an authenticator instead
-                          </Trans>
-                        </Button>
-                      )}
-                      <Button
-                        disabled={busy}
-                        onClick={() => {
-                          window.location.href = enrollmentAddress(
-                            token,
-                            verified.providerSlug,
-                          );
-                        }}
-                        variant="outline"
-                        className="w-full"
-                      >
-                        <Trans id="enroll.change_profile">
-                          Use a different profile
-                        </Trans>
-                      </Button>
-                    </>
-                  ) : boundProvider ? (
-                    <ProviderGrid
-                      providers={[boundProvider]}
-                      href={(provider) =>
-                        enrollmentAddress(token, provider.slug)
-                      }
-                      onLeavingChange={setFederating}
-                    />
-                  ) : (
-                    <>
-                      {/* Enter submits with the first enabled submit button,
-                          so without passkeys the password setup takes it. */}
+                            so without passkeys the password setup takes it. */}
                       <PasskeyButton
                         type={supported ? "submit" : "button"}
                         supported={supported}
@@ -311,6 +289,7 @@ export function EnrollPage() {
                               : undefined
                           }
                           variant="outline"
+                          size="lg"
                           className="w-full"
                         >
                           <Trans id="enroll.use_password_totp">
@@ -318,22 +297,46 @@ export function EnrollPage() {
                           </Trans>
                         </Button>
                       )}
-                      {preview.providers.length > 0 && (
-                        <>
-                          <OrSeparator />
-                          <ProviderGrid
-                            providers={preview.providers}
-                            href={(provider) =>
-                              enrollmentAddress(token, provider.slug)
-                            }
-                            disabled={passkeyPending}
-                            onLeavingChange={setFederating}
-                          />
-                        </>
+                      {verified && (
+                        <Button
+                          disabled={busy}
+                          onClick={() => {
+                            window.location.href = enrollmentAddress(
+                              token,
+                              verified.providerSlug,
+                            );
+                          }}
+                          variant="ghost"
+                          size="lg"
+                          className="w-full"
+                        >
+                          <Trans id="enroll.change_profile">
+                            Use a different profile
+                          </Trans>
+                        </Button>
                       )}
-                    </>
-                  )}
-                </PublicStep.Actions>
+                    </PublicStep.Actions>
+                    {!verified && preview.providers.length > 0 && (
+                      <div className="flex flex-col gap-3">
+                        <OrSeparator
+                          label={
+                            <Trans id="enroll.or_continue">
+                              or continue with
+                            </Trans>
+                          }
+                        />
+                        <ProviderGrid
+                          providers={preview.providers}
+                          href={(provider) =>
+                            enrollmentAddress(token, provider.slug)
+                          }
+                          disabled={passkeyPending}
+                          onLeavingChange={setFederating}
+                        />
+                      </div>
+                    )}
+                  </div>
+                )
               }
             >
               {boundProvider && !verified && (
@@ -343,11 +346,13 @@ export function EnrollPage() {
               )}
               {verified && <VerifiedIdentitySummary preview={preview} />}
               {asksNames && (
-                <div ref={fieldsRef} className="flex flex-col gap-4">
+                <div ref={fieldsRef} className="flex flex-col gap-3">
                   {preview.username ? (
                     <ReadOnlyField
                       label={<Trans id="enroll.username">Username</Trans>}
                       value={preview.username}
+                      isMonospace
+                      size="lg"
                     />
                   ) : (
                     <form.AppField
@@ -364,7 +369,7 @@ export function EnrollPage() {
                           autoCapitalize="none"
                           spellCheck={false}
                           isDisabled={busy}
-                          variant="secondary"
+                          size="lg"
                         />
                       )}
                     </form.AppField>
@@ -387,7 +392,7 @@ export function EnrollPage() {
                         }
                         autoComplete="name"
                         isDisabled={busy}
-                        variant="secondary"
+                        size="lg"
                       />
                     )}
                   </form.AppField>
@@ -409,49 +414,25 @@ function BoundInvitation({ name }: { name: string }) {
   );
 }
 
-/** The verified-identity banner: who the invitee proved they are. */
+/** The verified-identity bar: who the invitee proved they are, and to whom. */
 function VerifiedIdentitySummary({ preview }: { preview: EnrollmentPreview }) {
   const verified = preview.verifiedIdentity;
   if (verified === undefined) return null;
   return (
-    <p className="flex items-center gap-3 text-sm">
-      {verified.avatarUrl && (
-        <img
-          src={verified.avatarUrl}
-          alt=""
-          className="size-8 rounded-full object-cover"
-        />
-      )}
-      <span>
+    <p className="flex items-center gap-3 rounded-lg bg-muted px-3 py-2 text-sm">
+      <EntityAvatar
+        size="md"
+        shape="round"
+        iconUrl={verified.avatarUrl}
+        name={verified.displayName}
+      />
+      <span className="min-w-0">
         <Trans id="enroll.verified_identity">
-          Verified as {verified.displayName} by {verified.providerDisplayName}.
+          Verified as {verified.displayName} by {verified.providerDisplayName}
         </Trans>
       </span>
     </p>
   );
-}
-
-/** The page's title, which also names its form. */
-function enrollTitle(
-  preview: EnrollmentPreview,
-  t: ReturnType<typeof useLingui>["t"],
-): string {
-  switch (preview.intent) {
-    case "bootstrap":
-      return t({
-        id: "enroll.title.bootstrap",
-        message: "Create the administrator account",
-      });
-    case "reset": {
-      const displayName = preview.target?.displayName ?? "";
-      return t({
-        id: "enroll.title.reset",
-        message: `Set up a new sign-in for ${displayName}`,
-      });
-    }
-    default:
-      return t({ id: "enroll.title.create", message: "Create your account" });
-  }
 }
 
 function EnrollDescription({

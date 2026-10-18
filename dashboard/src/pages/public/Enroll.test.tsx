@@ -127,7 +127,7 @@ describe("enrollment", () => {
         name: "Use a password and an authenticator instead",
       }),
     ).toBeVisible();
-    expect(screen.getByText("or")).toBeVisible();
+    expect(screen.getByText("or continue with")).toBeVisible();
     expect(
       screen.getByRole("button", { name: "Continue with GitLab" }),
     ).toBeVisible();
@@ -153,7 +153,7 @@ describe("enrollment", () => {
         name: "Use a password and an authenticator instead",
       }),
     ).not.toBeInTheDocument();
-    expect(screen.queryByText("or")).not.toBeInTheDocument();
+    expect(screen.queryByText("or continue with")).not.toBeInTheDocument();
   });
 
   it("fills in the display name of a verified identity and offers the swap", async () => {
@@ -174,7 +174,7 @@ describe("enrollment", () => {
         "Your identity is verified. Choose your account name, then set up how you'll sign in.",
       ),
     ).toBeVisible();
-    expect(screen.getByText("Verified as Alice VR by GitLab.")).toBeVisible();
+    expect(screen.getByText("Verified as Alice VR by GitLab")).toBeVisible();
     expect(screen.getByRole("textbox", { name: "Display name" })).toHaveValue(
       "Alice VR",
     );
@@ -285,7 +285,7 @@ describe("enrollment", () => {
     const buttons = within(screen.getByRole("main")).getAllByRole("button");
     expect(buttons).toHaveLength(1);
     expect(buttons[0]).toHaveAccessibleName("Continue with GitLab");
-    expect(screen.queryByText("or")).not.toBeInTheDocument();
+    expect(screen.queryByText("or continue with")).not.toBeInTheDocument();
     expect(
       screen.queryByRole("textbox", { name: "Username" }),
     ).not.toBeInTheDocument();
@@ -297,11 +297,55 @@ describe("enrollment", () => {
     );
   });
 
-  it("disables the passkey button where passkeys are unavailable", async () => {
+  it("disables the passkey button and says why beneath it where passkeys are unavailable", async () => {
     enrollApi();
     renderApp(address, queryClient);
     await screen.findByRole("heading", { name: "Create your account" });
     expect(passkeyButton()).toBeDisabled();
+    expect(
+      screen.getByText(
+        "Passkeys aren't available in this browser or connection.",
+      ),
+    ).toBeVisible();
+  });
+
+  it("says nothing about passkeys where they work", async () => {
+    withPasskeys();
+    enrollApi();
+    renderApp(address, queryClient);
+    await screen.findByRole("heading", { name: "Create your account" });
+    expect(passkeyButton()).toBeEnabled();
+    expect(
+      screen.queryByText(
+        "Passkeys aren't available in this browser or connection.",
+      ),
+    ).not.toBeInTheDocument();
+  });
+
+  it("puts the header of the password setup steps above the title", async () => {
+    enrollApi();
+    const user = userEvent.setup();
+    renderApp(address, queryClient);
+    await user.type(
+      await screen.findByRole("textbox", { name: "Username" }),
+      "alice",
+    );
+    await user.type(
+      screen.getByRole("textbox", { name: "Display name" }),
+      "Alice",
+    );
+    await user.click(
+      screen.getByRole("button", {
+        name: "Use a password and an authenticator instead",
+      }),
+    );
+    const steps = await screen.findByRole("list", {
+      name: "Sign-in setup steps",
+    });
+    expect(within(steps).getAllByRole("listitem")).toHaveLength(3);
+    expect(
+      within(steps).getByText("Password").closest("[aria-current=step]"),
+    ).not.toBeNull();
   });
 
   it.each([

@@ -1,14 +1,13 @@
-import { Tooltip } from "@heroui/react";
 import { Trans } from "@lingui/react/macro";
 import { Fingerprint } from "lucide-react";
-import type { ReactNode } from "react";
+import { type ReactNode, useId } from "react";
 import { Button } from "@/components/custom/Button";
 
 /**
  * The first way to set up a sign-in on the enrollment page and on the page
  * that adds one after a first federated sign-in. A browser or connection
- * without passkeys disables it and says why in its tooltip; a disabled button
- * emits no hover or focus, so the tooltip listens on the trigger around it.
+ * without passkeys disables it and says why in a line beneath it, where a
+ * reader on a touch screen can see it too.
  */
 export function PasskeyButton({
   supported,
@@ -26,28 +25,29 @@ export function PasskeyButton({
   onPress?: () => void;
   children: ReactNode;
 }) {
-  const button = (
-    <Button
-      type={type}
-      pending={supported && isPending}
-      disabled={!supported || isDisabled}
-      onClick={onPress}
-      className="w-full"
-    >
-      {/* The spinner takes the icon's place while it runs. */}
-      {!(supported && isPending) && <Fingerprint aria-hidden="true" />}
-      {children}
-    </Button>
-  );
-  if (supported) return button;
+  const noteId = useId();
   return (
-    <Tooltip delay={0}>
-      <Tooltip.Trigger className="w-full">{button}</Tooltip.Trigger>
-      <Tooltip.Content>
-        <Trans id="enroll.passkey.unsupported">
-          Passkeys aren't available in this browser or connection.
-        </Trans>
-      </Tooltip.Content>
-    </Tooltip>
+    <div className="flex flex-col gap-2">
+      <Button
+        type={type}
+        pending={supported && isPending}
+        disabled={!supported || isDisabled}
+        onClick={onPress}
+        size="lg"
+        className="w-full"
+        aria-describedby={supported ? undefined : noteId}
+      >
+        {/* The spinner takes the icon's place while it runs. */}
+        {!(supported && isPending) && <Fingerprint aria-hidden="true" />}
+        {children}
+      </Button>
+      {!supported && (
+        <p id={noteId} className="text-muted-foreground text-sm">
+          <Trans id="enroll.passkey.unsupported">
+            Passkeys aren't available in this browser or connection.
+          </Trans>
+        </p>
+      )}
+    </div>
   );
 }

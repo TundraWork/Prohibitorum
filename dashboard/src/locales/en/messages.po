@@ -1099,6 +1099,11 @@ msgid "security.factor.authenticator"
 msgstr "Authenticator"
 
 #. js-lingui-explicit-id
+#: src/pages/public/enroll/PasswordTotpSetup.tsx
+msgid "enroll.password_totp.steps.authenticator"
+msgstr "Authenticator"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts
 msgid "audit.factor.totp"
 msgstr "Authenticator"
@@ -1660,6 +1665,11 @@ msgid "federation_flow.proof.step.verify"
 msgstr "Come back here and press Verify."
 
 #. js-lingui-explicit-id
+#: src/components/custom/StepHeader.tsx
+msgid "step-header.done"
+msgstr "Completed"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
 msgid "admin.group.rule.fact"
 msgstr "Condition"
@@ -2183,6 +2193,11 @@ msgid "admin.invitations.new.submit"
 msgstr "Create invitation"
 
 #. js-lingui-explicit-id
+#: src/pages/public/Enroll.tsx
+msgid "enroll.title.bootstrap"
+msgstr "Create the administrator account"
+
+#. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.create.action"
 msgstr "Create token"
@@ -2191,6 +2206,11 @@ msgstr "Create token"
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.sudo.confirm.action"
 msgstr "Create token"
+
+#. js-lingui-explicit-id
+#: src/pages/public/Enroll.tsx
+msgid "enroll.title.create"
+msgstr "Create your account"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts
@@ -4900,6 +4920,11 @@ msgid "login.or_continue"
 msgstr "or continue with"
 
 #. js-lingui-explicit-id
+#: src/pages/public/Enroll.tsx
+msgid "enroll.or_continue"
+msgstr "or continue with"
+
+#. js-lingui-explicit-id
 #: src/pages/public/Pair.tsx
 msgid "pair.qr_hint"
 msgstr "Or scan it with that device to open it there."
@@ -5013,6 +5038,11 @@ msgstr "Password"
 #. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
 msgid "security.factor.password"
+msgstr "Password"
+
+#. js-lingui-explicit-id
+#: src/pages/public/enroll/PasswordTotpSetup.tsx
+msgid "enroll.password_totp.steps.password"
 msgstr "Password"
 
 #. js-lingui-explicit-id
@@ -5335,6 +5365,11 @@ msgstr "Recovery code"
 #. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
 msgid "security.recovery.title"
+msgstr "Recovery codes"
+
+#. js-lingui-explicit-id
+#: src/pages/public/enroll/PasswordTotpSetup.tsx
+msgid "enroll.password_totp.steps.codes"
 msgstr "Recovery codes"
 
 #. js-lingui-explicit-id
@@ -6268,6 +6303,11 @@ msgid "admin.federation.danger.not-ready.steam"
 msgstr "Set the Web API key before enabling it."
 
 #. js-lingui-explicit-id
+#: src/pages/public/Enroll.tsx
+msgid "enroll.title.reset"
+msgstr "Set up a new sign-in for {displayName}"
+
+#. js-lingui-explicit-id
 #: src/pages/public/enroll/PasswordTotpSetup.tsx
 msgid "enroll.password_totp.form"
 msgstr "Set up a password and an authenticator"
@@ -6524,6 +6564,11 @@ msgstr "Sign-in response"
 #: src/pages/admin/oidc-applications/SignInRulesSection.tsx
 msgid "admin.oidc-apps.sign-in"
 msgstr "Sign-in rules"
+
+#. js-lingui-explicit-id
+#: src/pages/public/enroll/PasswordTotpSetup.tsx
+msgid "enroll.password_totp.steps"
+msgstr "Sign-in setup steps"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts
@@ -8391,7 +8436,7 @@ msgstr "Verification was not completed. You can use your password instead."
 #. placeholder {1}: verified.providerDisplayName
 #: src/pages/public/Enroll.tsx
 msgid "enroll.verified_identity"
-msgstr "Verified as {0} by {1}."
+msgstr "Verified as {0} by {1}"
 
 #. js-lingui-explicit-id
 #: src/components/custom/principal-sources.ts

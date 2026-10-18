@@ -1,5 +1,5 @@
 import { useLingui } from "@lingui/react/macro";
-import type { ReactNode } from "react";
+import type { ComponentProps, ReactNode } from "react";
 import type { FieldVariant } from "@/components/custom/FormField";
 import { FormMessages } from "@/components/custom/FormMessages";
 import { useFieldBinding } from "@/components/custom/use-field-binding";
@@ -189,15 +189,26 @@ export function ReadOnlyField({
   label,
   value,
   description,
+  isMonospace = false,
+  size,
 }: {
   label: ReactNode;
   value: string;
   description?: ReactNode;
+  /** For a literal value the reader may have to type somewhere else. */
+  isMonospace?: boolean;
+  /** Matches the height of the editable fields beside it. */
+  size?: ComponentProps<typeof Input>["size"];
 }) {
   return (
     <Field>
       <FieldLabel>{label}</FieldLabel>
-      <Input readOnly value={value} />
+      <Input
+        readOnly
+        size={size}
+        value={value}
+        className={isMonospace ? "font-mono" : undefined}
+      />
       {description !== undefined && (
         <FieldDescription>{description}</FieldDescription>
       )}

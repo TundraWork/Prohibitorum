@@ -8,7 +8,7 @@ import {
   Outlet,
   RouterProvider,
 } from "@tanstack/react-router";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent, { type UserEvent } from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@/api/errors";
@@ -76,6 +76,15 @@ function mount({
   return { submit, onBack, onDone };
 }
 
+/** The name of the step the header marks as current. */
+function currentStep() {
+  const steps = screen.getByRole("list", { name: "Sign-in setup steps" });
+  const current = within(steps)
+    .getAllByRole("listitem")
+    .find((item) => item.getAttribute("aria-current") === "step");
+  return current?.textContent;
+}
+
 function codeInput() {
   return firstOtpSlot("Authenticator code");
 }
@@ -105,6 +114,19 @@ function refused(code: string, details?: Record<string, unknown>) {
 }
 
 describe("PasswordTotpSetup", () => {
+  it("marks the step it is on in the header", async () => {
+    const user = userEvent.setup();
+    mount();
+    await screen.findByRole("heading", { name: "Set a password" });
+    expect(currentStep()).toContain("Password");
+    await toAuthenticator(user);
+    expect(currentStep()).toContain("Authenticator");
+    await user.type(codeInput(), "123456");
+    await user.click(screen.getByRole("button", { name: "Verify and finish" }));
+    await screen.findByRole("heading", { name: "Save your recovery codes" });
+    expect(currentStep()).toContain("Recovery codes");
+  });
+
   it("goes from the password to the authenticator to the codes, focusing each step's first field", async () => {
     const user = userEvent.setup();
     const { submit, onDone } = mount();

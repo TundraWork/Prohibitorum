@@ -7,6 +7,7 @@ import { ApiError, isCancellation } from "@/api/errors";
 import { publicConfigQueryOptions } from "@/api/queries";
 import { PublicStep } from "@/components/custom/PublicStep";
 import { RecoveryCodes } from "@/components/custom/RecoveryCodes";
+import { StepHeader } from "@/components/custom/StepHeader";
 import { firstRecoveryCodesCopy } from "@/components/custom/secret-reveal-copy";
 import { TotpSetup } from "@/components/custom/TotpSetup";
 import {
@@ -145,28 +146,54 @@ export function PasswordTotpSetup({
     target?.focus();
   }, [step, submitting]);
 
+  const progress = (current: number) => (
+    <StepHeader
+      label={t({
+        id: "enroll.password_totp.steps",
+        message: "Sign-in setup steps",
+      })}
+      current={current}
+      steps={[
+        t({ id: "enroll.password_totp.steps.password", message: "Password" }),
+        t({
+          id: "enroll.password_totp.steps.authenticator",
+          message: "Authenticator",
+        }),
+        t({
+          id: "enroll.password_totp.steps.codes",
+          message: "Recovery codes",
+        }),
+      ]}
+    />
+  );
+
   if (codes) {
     return (
-      <PublicStep title={t(firstRecoveryCodesCopy.title)}>
-        <RecoveryCodes
-          codes={codes}
-          onContinue={onDone}
-          onSurface
-          firstIssue
-          titled={false}
-        />
-      </PublicStep>
+      <div className="flex flex-col gap-5">
+        {progress(2)}
+        <PublicStep title={t(firstRecoveryCodesCopy.title)}>
+          <RecoveryCodes
+            codes={codes}
+            onContinue={onDone}
+            onSurface
+            firstIssue
+            titled={false}
+          />
+        </PublicStep>
+      </div>
     );
   }
 
   return (
     <form.AppForm>
       <form.Form
+        className="flex flex-col gap-5"
         label={t({
           id: "enroll.password_totp.form",
           message: "Set up a password and an authenticator",
         })}
       >
+        {progress(step === "password" ? 0 : 1)}
         <PublicStep
           // A new title is announced as the step changes; focus then goes on
           // to the step's first field.
@@ -189,7 +216,7 @@ export function PasswordTotpSetup({
           }
           actions={
             <PublicStep.Actions>
-              <form.SubmitButton fullWidth>
+              <form.SubmitButton fullWidth size="lg">
                 {step === "password" ? (
                   <Trans id="enroll.password_totp.next">Continue</Trans>
                 ) : (
@@ -219,7 +246,7 @@ export function PasswordTotpSetup({
                   }
                   type="password"
                   autoComplete="new-password"
-                  variant="secondary"
+                  size="lg"
                 />
               )}
             </form.AppField>
@@ -242,7 +269,7 @@ export function PasswordTotpSetup({
                   }
                   type="password"
                   autoComplete="new-password"
-                  variant="secondary"
+                  size="lg"
                 />
               )}
             </form.AppField>
@@ -271,7 +298,7 @@ export function PasswordTotpSetup({
                     </Trans>
                   }
                   digits={config.totp.digits}
-                  variant="secondary"
+                  size="lg"
                 />
               )}
             </form.AppField>

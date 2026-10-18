@@ -58,6 +58,7 @@ export function TotpSetup({
       <CopyValue
         value={secret}
         label={<Trans id="login.reset.secret">Setup key</Trans>}
+        wrap
       />
     </div>
   );

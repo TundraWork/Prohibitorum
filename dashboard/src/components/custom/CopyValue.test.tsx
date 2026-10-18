@@ -118,4 +118,24 @@ describe("CopyValue", () => {
 
     expect(screen.getByRole("status")).toHaveTextContent("Copied");
   });
+
+  it("keeps a wrapped value whole in a read-only field that is still copied", async () => {
+    const key = "DZZCIDZBGB7SH6NKUX7P2ZPFUTVQRXLA";
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    const actor = user();
+    render(
+      <I18nProvider i18n={i18n}>
+        <CopyValue value={key} label="Setup key" wrap />
+      </I18nProvider>,
+    );
+    vi.spyOn(navigator.clipboard, "writeText").mockImplementation(writeText);
+    const field = screen.getByRole<HTMLTextAreaElement>("textbox", {
+      name: "Setup key",
+    });
+    expect(field).toBeInstanceOf(HTMLTextAreaElement);
+    expect(field).toHaveValue(key);
+    expect(field).toHaveAttribute("readonly");
+    await actor.click(screen.getByRole("button", { name: "Copy" }));
+    expect(writeText).toHaveBeenCalledWith(key);
+  });
 });
