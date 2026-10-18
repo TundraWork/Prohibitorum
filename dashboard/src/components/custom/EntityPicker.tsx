@@ -1,7 +1,8 @@
 import { Trans, useLingui } from "@lingui/react/macro";
 import { SearchIcon, XIcon } from "lucide-react";
-import { type ReactNode, useId } from "react";
+import { type ReactNode, useId, useRef } from "react";
 import { FormMessages } from "@/components/custom/FormMessages";
+import { useHostOverlayContainer } from "@/components/custom/host-overlay-container";
 import { useFieldBinding } from "@/components/custom/use-field-binding";
 import {
   Combobox,
@@ -83,6 +84,8 @@ export function EntityPicker({
   isDisabled = false,
   isInvalid = false,
   errorMessage,
+  // Kept so callers compile; coss fields read correctly on any surface.
+  variant: _variant,
 }: {
   label: ReactNode;
   description?: ReactNode;
@@ -98,9 +101,12 @@ export function EntityPicker({
   isDisabled?: boolean;
   isInvalid?: boolean;
   errorMessage?: ReactNode;
+  variant?: "primary" | "secondary";
 }) {
   const { i18n, t } = useLingui();
   const searchId = useId();
+  const anchor = useRef<HTMLDivElement>(null);
+  const container = useHostOverlayContainer(anchor);
   // A selection the latest result did not return still has to render, or the
   // control would silently look empty while holding a value.
   const known = new Set(options.map((option) => option.id));
@@ -119,7 +125,12 @@ export function EntityPicker({
   const selection = multiple ? selected : (selected[0] ?? null);
 
   return (
-    <Field className="w-full" disabled={isDisabled} invalid={isInvalid}>
+    <Field
+      ref={anchor}
+      className="w-full"
+      disabled={isDisabled}
+      invalid={isInvalid}
+    >
       <FieldLabel>{label}</FieldLabel>
       <Combobox<EntityOption, boolean>
         items={items}
@@ -132,7 +143,9 @@ export function EntityPicker({
         // the default match against each label applies.
         filter={onSearch === undefined ? undefined : null}
         onInputValueChange={(query, details) => {
-          if (details.reason === "input-change") onSearch?.(query);
+          // Base UI clears the input on item press and close; the list must
+          // follow, or it stays narrowed by a query no longer shown.
+          if (details.reason !== "none") onSearch?.(query);
         }}
         onValueChange={(next) => {
           if (Array.isArray(next)) onValueChange(next.map((item) => item.id));
@@ -166,7 +179,7 @@ export function EntityPicker({
             </ComboboxClear>
           )}
         </div>
-        <ComboboxPopup>
+        <ComboboxPopup portalProps={{ container }}>
           <div className="relative border-b p-2">
             {/* The field's label would otherwise name this input too, since
                 it is the combobox's control; the search box has its own. */}

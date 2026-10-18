@@ -56,13 +56,6 @@ function Harness({ disabledKeys }: { disabledKeys?: Mode[] }) {
   );
 }
 
-/** The field's own description, apart from the list's per-option lines. */
-function description() {
-  const found = document.querySelector('[data-slot="field-description"]');
-  if (found === null) throw new Error("no field description");
-  return found;
-}
-
 describe("OptionSelectField", () => {
   it("shows the chosen option's name and explanation before it is opened", () => {
     render(<Harness />);
@@ -71,7 +64,9 @@ describe("OptionSelectField", () => {
       "Alpha",
     );
     expect(screen.getByRole("combobox")).not.toHaveTextContent("Does alpha.");
-    expect(description()).toHaveTextContent("Does alpha.");
+    expect(screen.getByRole("combobox")).toHaveAccessibleDescription(
+      /Does alpha\./,
+    );
   });
 
   it("lists every option with its explanation when opened", async () => {
@@ -105,8 +100,12 @@ describe("OptionSelectField", () => {
     );
     expect(screen.getByLabelText("form value")).toHaveTextContent("b");
     expect(screen.getByRole("combobox")).toHaveTextContent("Beta");
-    expect(description()).toHaveTextContent("Does beta.");
-    expect(description()).not.toHaveTextContent("Does alpha.");
+    expect(screen.getByRole("combobox")).toHaveAccessibleDescription(
+      /Does beta\./,
+    );
+    expect(screen.getByRole("combobox")).not.toHaveAccessibleDescription(
+      /Does alpha\./,
+    );
   });
 
   it("chooses with the arrow keys and Enter", async () => {

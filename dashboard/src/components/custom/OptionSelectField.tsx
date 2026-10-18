@@ -1,7 +1,8 @@
 import type { MessageDescriptor } from "@lingui/core";
 import { useLingui } from "@lingui/react/macro";
-import type { ReactNode } from "react";
+import { type ReactNode, useRef } from "react";
 import { FormMessages } from "@/components/custom/FormMessages";
+import { useHostOverlayContainer } from "@/components/custom/host-overlay-container";
 import { useFieldBinding } from "@/components/custom/use-field-binding";
 import {
   Field,
@@ -68,10 +69,13 @@ export function OptionSelectField<T extends string>({
   const { i18n } = useLingui();
   const { field, errors, invalid, disabled, onChange } =
     useFieldBinding<T>(false);
+  const anchor = useRef<HTMLDivElement>(null);
+  const container = useHostOverlayContainer(anchor);
   const selected = options.find((option) => option.value === field.state.value);
 
   return (
     <Field
+      ref={anchor}
       className={className}
       disabled={disabled}
       invalid={invalid}
@@ -100,7 +104,7 @@ export function OptionSelectField<T extends string>({
             }
           </SelectValue>
         </SelectTrigger>
-        <SelectPopup alignItemWithTrigger={false}>
+        <SelectPopup alignItemWithTrigger={false} portalProps={{ container }}>
           {options.map((option) => (
             <SelectItem
               key={option.value}

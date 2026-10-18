@@ -537,6 +537,7 @@ function AccessSectionBody({
                             })}
                             options={groupOptions}
                             loading={groups.isPending}
+                            variant="secondary"
                           />
                         )}
                       </form.AppField>
@@ -795,6 +796,7 @@ function AssignManagerDialog({
                           options={accountOptions}
                           loading={candidates.isFetching}
                           onSearch={setAccountSearch}
+                          variant="secondary"
                         />
                       )}
                     </form.AppField>

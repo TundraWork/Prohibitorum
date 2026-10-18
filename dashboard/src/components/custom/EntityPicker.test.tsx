@@ -164,6 +164,21 @@ describe("EntityPicker", () => {
     expect(within(listbox).getAllByRole("option")).toHaveLength(2);
   });
 
+  it("searches for everything again once a pick clears the query", async () => {
+    const user = userEvent.setup();
+    const onSearch = vi.fn();
+    render(<Harness options={accounts} onSearch={onSearch} />);
+
+    const listbox = await open(user);
+    await user.keyboard("zzz");
+    await user.click(within(listbox).getAllByRole("option")[0] as HTMLElement);
+    onSearch.mockClear();
+    await open(user);
+
+    expect(onSearch).not.toHaveBeenCalledWith("zzz");
+    expect(onSearch).toHaveBeenLastCalledWith("");
+  });
+
   it("lists an unavailable option with its reason and refuses it", async () => {
     const user = userEvent.setup();
     const onValueChange = vi.fn();
