@@ -12,7 +12,8 @@ import {
 } from "lucide-react";
 
 /**
- * What an OIDC scope lets an application do, as the consent page and the connected applications list put it.
+ * What an OIDC scope lets an application do, as the consent page and the
+ * connected applications list put it.
  * The server names the scopes and leaves the wording to the console.
  * `{instance}` in a description is the instance's name.
  */

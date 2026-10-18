@@ -96,7 +96,7 @@ describe("profile", () => {
 
     // Both blocks are on the page as it opens: the avatar, then the account.
     expect(
-      await screen.findByRole("heading", { name: "Avatar" }),
+      await screen.findByRole("heading", { name: "Picture" }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("heading", { name: "Account" }),

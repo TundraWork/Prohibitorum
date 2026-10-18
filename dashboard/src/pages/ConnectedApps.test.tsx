@@ -57,6 +57,16 @@ function mount(
     if (canned) return canned;
     const path = new URL(request.url).pathname;
     if (path.endsWith("/me/consent")) return Response.json(apps);
+    if (path.endsWith("/auth/federation")) {
+      return Response.json([
+        {
+          slug: "google",
+          displayName: "Google",
+          protocol: "oidc",
+          allowSignIn: true,
+        },
+      ]);
+    }
     return new Response(null, { status: 204 });
   });
   render(
@@ -131,17 +141,24 @@ describe("the connected application rows", () => {
     expect(details).not.toHaveTextContent("openid");
   });
 
-  it("shows a scope the app defined as written, and a provider scope by name", async () => {
-    mount([
-      {
-        ...wiki,
-        scopes: ["identity:google", "wiki:write"],
-      },
-    ]);
+  it("shows a scope the app defined as written, and a provider scope by its display name", async () => {
+    mount([{ ...wiki, scopes: ["identity:google", "wiki:write"] }]);
 
     const [row] = (await rows()) as [HTMLElement];
     const details = row.querySelector("[data-slot='item-details']");
-    expect(details).toHaveTextContent("Your google identity and wiki:write");
+    await waitFor(() =>
+      expect(details).toHaveTextContent("Your Google identity and wiki:write"),
+    );
+    expect(notifyError).not.toHaveBeenCalled();
+  });
+
+  it("keeps the slug of a provider the instance does not list", async () => {
+    mount([{ ...wiki, scopes: ["identity:okta"] }]);
+
+    const [row] = (await rows()) as [HTMLElement];
+    expect(row.querySelector("[data-slot='item-details']")).toHaveTextContent(
+      "Your okta identity",
+    );
   });
 
   it("says basic profile when the grant carries no scopes", async () => {
@@ -215,7 +232,10 @@ describe("removing access", () => {
     const user = userEvent.setup();
     mount([wiki], (request) =>
       new URL(request.url).pathname.endsWith("/me/consent/revoke")
-        ? Response.json({ error: "rate_limited" }, { status: 429 })
+        ? Response.json(
+            { code: "rate_limited", requestId: "r1" },
+            { status: 429 },
+          )
         : undefined,
     );
 
@@ -228,8 +248,10 @@ describe("removing access", () => {
       within(dialog).getByRole("button", { name: "Remove access" }),
     );
 
-    expect(await screen.findByRole("alert")).toBeVisible();
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Too many requests. Wait a moment.");
     expect(screen.getAllByRole("alert")).toHaveLength(1);
+    expect(screen.getByText("Outline wiki")).toBeInTheDocument();
     expect(notifyError).not.toHaveBeenCalled();
     expect(notifySuccess).not.toHaveBeenCalled();
     await waitFor(() =>

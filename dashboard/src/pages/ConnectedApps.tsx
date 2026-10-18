@@ -1,6 +1,7 @@
 import { Trans, useLingui } from "@lingui/react/macro";
 import {
   useMutation,
+  useQuery,
   useQueryClient,
   useSuspenseQuery,
 } from "@tanstack/react-query";
@@ -9,7 +10,10 @@ import { useState } from "react";
 import { describeError, isCancellation } from "@/api/errors";
 import type { components } from "@/api/generated/schema";
 import { revokeConsentMutationOptions } from "@/api/mutations";
-import { consentQueryOptions } from "@/api/queries";
+import {
+  consentQueryOptions,
+  federationProvidersQueryOptions,
+} from "@/api/queries";
 import { withInlineReport } from "@/app/query-client";
 import { Button } from "@/components/custom/Button";
 import { ConfirmDialog } from "@/components/custom/ConfirmDialog";
@@ -54,6 +58,15 @@ function ConnectedAppList() {
   const { t } = useLingui();
   const queryClient = useQueryClient();
   const { data } = useSuspenseQuery(consentQueryOptions());
+  // Names the provider behind an `identity:<slug>` scope. A cosmetic lookup:
+  // until it arrives, or if it fails, the slug stands in and nothing is reported.
+  const providers = useQuery({
+    ...federationProvidersQueryOptions(),
+    meta: { requiresSession: true, quiet: true },
+  });
+  const providerNames = Object.fromEntries(
+    (providers.data ?? []).map((p) => [p.slug, p.displayName]),
+  );
   const [target, setTarget] = useState<ConsentedApp | null>(null);
   const [error, setError] = useState<unknown>(null);
 
@@ -106,7 +119,13 @@ function ConnectedAppList() {
                 Allowed <RelativeTime value={app.grantedAt} />
               </Trans>
             }
-            details={[<GrantedScopes key="scopes" scopes={app.scopes} />]}
+            details={[
+              <GrantedScopes
+                key="scopes"
+                scopes={app.scopes}
+                providers={providerNames}
+              />,
+            ]}
             actions={
               <Button
                 aria-label={t({ id: "apps.remove", message: "Remove access" })}
@@ -162,13 +181,19 @@ function ConnectedAppList() {
  * What the application may read, named as the consent page named it. A scope
  * the application defined has no wording of ours and stays as written.
  */
-function GrantedScopes({ scopes }: { scopes: string[] | null }) {
+function GrantedScopes({
+  scopes,
+  providers,
+}: {
+  scopes: string[] | null;
+  providers: Readonly<Record<string, string>>;
+}) {
   const { i18n } = useLingui();
   if (scopes === null || scopes.length === 0) {
     return <Trans id="apps.scopes.none">Basic profile</Trans>;
   }
   const names = scopes.map((scope) => {
-    const { name, values } = describeScope(scope);
+    const { name, values } = describeScope(scope, providers);
     return name ? i18n._({ ...name, values }) : scope;
   });
   return new Intl.ListFormat(i18n.locale, {

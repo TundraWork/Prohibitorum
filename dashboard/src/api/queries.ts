@@ -344,7 +344,7 @@ export function forwardAuthAppsQueryOptions() {
   });
 }
 
-/** Read quietly: the page that lists it shows the failure with a retry. */
+/** Read quietly: the page that lists it shows a failed first load with a retry. */
 export function consentQueryOptions() {
   return queryOptions({
     queryKey: ["session", "consent"],
