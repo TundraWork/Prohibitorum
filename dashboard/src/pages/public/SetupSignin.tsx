@@ -10,6 +10,7 @@ import {
   setupPasswordTotpMutationOptions,
 } from "@/api/mutations";
 import { identitiesQueryOptions, sessionQueryOptions } from "@/api/queries";
+import { withInlineReport } from "@/app/query-client";
 import { followRedirect } from "@/app/redirect";
 import { Button } from "@/components/custom/Button";
 import { PublicStep } from "@/components/custom/PublicStep";
@@ -41,20 +42,15 @@ export function SetupSigninPage() {
   const { data: identities } = useSuspenseQuery(identitiesQueryOptions());
   const { i18n } = useLingui();
   const router = useRouter();
-  const passkeyOptions = setupPasskeyMutationOptions();
-  const passkey = useMutation({
-    ...passkeyOptions,
-    meta: { ...passkeyOptions.meta, reportsInline: timedOut },
-  });
-  const passwordTotpOptions = setupPasswordTotpMutationOptions();
-  const passwordTotp = useMutation({
-    ...passwordTotpOptions,
-    meta: {
-      ...passwordTotpOptions.meta,
-      reportsInline: (error) =>
-        timedOut(error) || failedField(error) !== undefined,
-    },
-  });
+  const passkey = useMutation(
+    withInlineReport(setupPasskeyMutationOptions(), timedOut),
+  );
+  const passwordTotp = useMutation(
+    withInlineReport(
+      setupPasswordTotpMutationOptions(),
+      (error) => timedOut(error) || failedField(error) !== undefined,
+    ),
+  );
   const [mode, setMode] = useState<"choose" | "password-totp">("choose");
   const [expired, setExpired] = useState(false);
   // Which control is taking the page on, so that one alone shows it.

@@ -6,6 +6,7 @@ import { useState } from "react";
 import { ApiError } from "@/api/errors";
 import { consentDecisionMutationOptions } from "@/api/mutations";
 import { consentRequestQueryOptions } from "@/api/queries";
+import { withInlineReport } from "@/app/query-client";
 import { followRedirect } from "@/app/redirect";
 import { inlineLinkClass } from "@/components/custom/inline-link";
 import { useInstanceBranding } from "@/components/custom/instance-branding";
@@ -26,6 +27,10 @@ import { Route } from "@/routes/_public.consent";
  * the application asked for; when the account has allowed some of it before,
  * it lists only what is new and folds the rest away under one heading.
  */
+function ticketConsumed(error: unknown): boolean {
+  return error instanceof ApiError && error.code === "invalid_consent_ticket";
+}
+
 export function ConsentPage() {
   const { ticket = "", return_to: returnTo = "" } = Route.useSearch();
   const { data: request } = useSuspenseQuery(
@@ -34,15 +39,9 @@ export function ConsentPage() {
   const { i18n } = useLingui();
   const { name: instance } = useInstanceBranding();
   const router = useRouter();
-  const decisionOptions = consentDecisionMutationOptions();
-  const decision = useMutation({
-    ...decisionOptions,
-    meta: {
-      ...decisionOptions.meta,
-      reportsInline: (error) =>
-        error instanceof ApiError && error.code === "invalid_consent_ticket",
-    },
-  });
+  const decision = useMutation(
+    withInlineReport(consentDecisionMutationOptions(), ticketConsumed),
+  );
   const [expired, setExpired] = useState(false);
 
   // The ticket is consumed by the answer itself, so a failed answer cannot be
@@ -187,10 +186,7 @@ export function ConsentPage() {
         } catch (error) {
           // The ticket is single-use and was consumed by this answer, so
           // sending it again can only fail — offer the restart instead.
-          if (
-            error instanceof ApiError &&
-            error.code === "invalid_consent_ticket"
-          ) {
+          if (ticketConsumed(error)) {
             setExpired(true);
             return;
           }

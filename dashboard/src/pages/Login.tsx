@@ -44,6 +44,7 @@ import type {
   RecoveryRequest,
   RecoveryResult,
 } from "@/api/raw-paths";
+import { withInlineReport } from "@/app/query-client";
 import { followRedirect } from "@/app/redirect";
 import { withRouterSkipLoading } from "@/app/router";
 import { Button } from "@/components/custom/Button";
@@ -192,7 +193,10 @@ function usePasskeyAutofill({
   remember: { current: boolean };
 }) {
   const completion = useMutation(
-    passkeyAutofillMutationOptions(returnTo, remember.current),
+    withInlineReport(
+      passkeyAutofillMutationOptions(returnTo, remember.current),
+      true,
+    ),
   );
   // Each value starts a new wait; null while the button's ceremony runs.
   const [run, setRun] = useState<number | null>(0);
@@ -280,7 +284,9 @@ function PasswordForm({
   onFailure: (error: unknown) => void;
 }) {
   const { t } = useLingui();
-  const mutation = useMutation(passwordMutationOptions());
+  const mutation = useMutation(
+    withInlineReport(passwordMutationOptions(), true),
+  );
   const form = useAppForm({
     defaultValues: { username, password: "" },
     onSubmit: async ({ value, formApi }) => {
@@ -385,8 +391,12 @@ function FactorForm({
   onSwitch?: () => void;
 }) {
   const { t } = useLingui();
-  const totp = useMutation(totpMutationOptions(returnTo));
-  const recovery = useMutation(recoveryMutationOptions(returnTo));
+  const totp = useMutation(
+    withInlineReport(totpMutationOptions(returnTo), true),
+  );
+  const recovery = useMutation(
+    withInlineReport(recoveryMutationOptions(returnTo), true),
+  );
   const [setup, setSetup] = useState<{ secret: string; uri: string }>();
   const form = useAppForm({
     defaultValues: { code: "", totpCode: "" },
@@ -588,7 +598,9 @@ export function PasswordPage() {
   const [remember, setRemember] = useState(true);
   const rememberRef = useRef(remember);
   rememberRef.current = remember;
-  const passkey = useMutation(passkeyMutationOptions(returnTo, remember));
+  const passkey = useMutation(
+    withInlineReport(passkeyMutationOptions(returnTo, remember), true),
+  );
   const resetPasskey = passkey.reset;
   useEffect(
     () => () => {

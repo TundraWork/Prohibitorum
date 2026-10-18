@@ -110,3 +110,11 @@ export function createQueryClient(
   });
   return queryClient;
 }
+
+/** Marks a write as one whose failure the page shows itself; see `reportsInline`. */
+export function withInlineReport<O extends { meta?: Record<string, unknown> }>(
+  options: O,
+  reportsInline: boolean | ((error: unknown) => boolean),
+): O {
+  return { ...options, meta: { ...options.meta, reportsInline } };
+}

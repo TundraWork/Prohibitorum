@@ -17,6 +17,7 @@ import {
 } from "@/api/mutations";
 import { clearSessionQueries, enrollmentQueryOptions } from "@/api/queries";
 import type { EnrollmentAccountFields } from "@/api/raw-paths";
+import { withInlineReport } from "@/app/query-client";
 import { Button } from "@/components/custom/Button";
 import { EntityAvatar } from "@/components/custom/EntityAvatar";
 import { ReadOnlyField } from "@/components/custom/FormFields";
@@ -93,24 +94,20 @@ export function EnrollPage() {
   const { name: instance } = useInstanceBranding();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const passkeyOptions = enrollPasskeyMutationOptions(token);
-  const passkey = useMutation({
-    ...passkeyOptions,
-    meta: {
-      ...passkeyOptions.meta,
-      reportsInline: (error) => accountFieldFor(error) !== undefined,
-    },
-  });
-  const passwordTotpOptions = enrollPasswordTotpMutationOptions(token);
-  const passwordTotp = useMutation({
-    ...passwordTotpOptions,
-    meta: {
-      ...passwordTotpOptions.meta,
-      reportsInline: (error) =>
+  const passkey = useMutation(
+    withInlineReport(
+      enrollPasskeyMutationOptions(token),
+      (error) => accountFieldFor(error) !== undefined,
+    ),
+  );
+  const passwordTotp = useMutation(
+    withInlineReport(
+      enrollPasswordTotpMutationOptions(token),
+      (error) =>
         accountFieldFor(error) !== undefined ||
         failedField(error) !== undefined,
-    },
-  });
+    ),
+  );
   const [mode, setMode] = useState<"choose" | "password-totp">("choose");
   // Kept across leaving and coming back to the password setup, so the
   // authenticator the reader already added still matches.

@@ -14,6 +14,7 @@ import {
 } from "@/api/mutations";
 import { federationFlowQueryOptions } from "@/api/queries";
 import type { FederationFlow } from "@/api/raw-paths";
+import { withInlineReport } from "@/app/query-client";
 import { followRedirect } from "@/app/redirect";
 import { Button } from "@/components/custom/Button";
 import { CopyValue } from "@/components/custom/CopyValue";
@@ -176,14 +177,11 @@ function IdentifyStep({
 }) {
   const { t } = useLingui();
   const queryClient = useQueryClient();
-  const prepareOptions = federationFlowPrepareMutationOptions(id);
-  const prepare = useMutation({
-    ...prepareOptions,
-    meta: {
-      ...prepareOptions.meta,
-      reportsInline: (error) => failedWith(error, "vrchat_identity_invalid"),
-    },
-  });
+  const prepare = useMutation(
+    withInlineReport(federationFlowPrepareMutationOptions(id), (error) =>
+      failedWith(error, "vrchat_identity_invalid"),
+    ),
+  );
   const form = useAppForm({
     defaultValues: { identity: "" },
     onSubmit: async ({ value }) => {
