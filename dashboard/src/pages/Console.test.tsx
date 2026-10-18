@@ -130,8 +130,8 @@ describe("console home", () => {
     mount();
 
     // Each section is replaced when its read lands, so wait for a value first.
-    await screen.findByRole("link", { name: "2 passkeys" });
-    await screen.findByRole("link", { name: "3 signed-in devices" });
+    await screen.findByRole("link", { name: /2 passkeys/ });
+    await screen.findByRole("link", { name: /3 signed-in devices/ });
     const section = (title: string) =>
       within(
         screen
@@ -139,13 +139,17 @@ describe("console home", () => {
           .closest("section") as HTMLElement,
       );
     expect(
-      section("Sign-in").getByRole("link", { name: "On" }),
+      section("Sign-in").getByRole("link", {
+        name: /Password and authenticator.*On/,
+      }),
     ).toBeInTheDocument();
     expect(
-      section("Sign-in").getByRole("link", { name: "8 left" }),
+      section("Sign-in").getByRole("link", {
+        name: /Recovery codes.*8 codes left/,
+      }),
     ).toBeInTheDocument();
     expect(
-      section("Devices").getByRole("link", { name: "3 signed-in devices" }),
+      section("Devices").getByRole("link", { name: /3 signed-in devices/ }),
     ).toBeInTheDocument();
   });
 
@@ -159,10 +163,10 @@ describe("console home", () => {
     mount();
 
     expect(
-      await screen.findByRole("link", { name: "No passkeys yet" }),
+      await screen.findByRole("link", { name: /No passkeys yet/ }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("link", { name: "Not set up" }),
+      screen.getByRole("link", { name: /Not set up/ }),
     ).toBeInTheDocument();
     expect(screen.queryByText("Recovery codes")).not.toBeInTheDocument();
   });
@@ -172,49 +176,73 @@ describe("console home", () => {
     mount();
 
     expect(
-      await screen.findByRole("link", { name: "1 passkey" }),
+      await screen.findByRole("link", { name: /1 passkey/ }),
     ).toBeInTheDocument();
     expect(
-      await screen.findByRole("link", { name: "1 signed-in device" }),
+      await screen.findByRole("link", { name: /1 signed-in device/ }),
     ).toBeInTheDocument();
   });
 
-  it("marks recovery codes that are running low and ones that are all used", async () => {
+  it("flags recovery codes running low at three, and not at four", async () => {
     serve({ ...allSet, recoveryCodesRemaining: 3 });
     mount();
-    const low = await screen.findByRole("link", { name: "3 left" });
-    expect(low).toHaveAttribute("data-tone", "warning");
-    expect(screen.getByText("Running low")).toBeInTheDocument();
+    const low = await screen.findByRole("link", { name: /Recovery codes/ });
+    expect(within(low).getByText("Running low")).toBeInTheDocument();
+    expect(within(low).getByText("3 codes left")).toBeInTheDocument();
   });
 
-  it("marks recovery codes that are all used as destructive", async () => {
+  it("leaves four recovery codes unflagged", async () => {
+    serve({ ...allSet, recoveryCodesRemaining: 4 });
+    mount();
+    const row = await screen.findByRole("link", { name: /Recovery codes/ });
+    expect(within(row).getByText("4 codes left")).toBeInTheDocument();
+    expect(within(row).queryByText("Running low")).not.toBeInTheDocument();
+  });
+
+  it("flags recovery codes that are all used", async () => {
     serve({ ...allSet, recoveryCodesRemaining: 0 });
     mount();
-    const used = await screen.findByRole("link", { name: "0 left" });
-    expect(used).toHaveAttribute("data-tone", "destructive");
-    expect(screen.getByText("All used")).toBeInTheDocument();
+    const row = await screen.findByRole("link", { name: /Recovery codes/ });
+    expect(within(row).getByText("All used")).toBeInTheDocument();
   });
 
-  it("leaves plenty of recovery codes unmarked", async () => {
+  it("leaves plenty of recovery codes unflagged", async () => {
     serve(allSet);
     mount();
-    const plenty = await screen.findByRole("link", { name: "8 left" });
-    expect(plenty).not.toHaveAttribute("data-tone");
-    expect(screen.queryByText("Running low")).not.toBeInTheDocument();
+    const row = await screen.findByRole("link", { name: /Recovery codes/ });
+    expect(within(row).getByText("8 codes left")).toBeInTheDocument();
+    expect(within(row).queryByText("Running low")).not.toBeInTheDocument();
+    expect(within(row).queryByText("All used")).not.toBeInTheDocument();
+  });
+
+  it("says a password without an authenticator is not set up, and offers no recovery codes", async () => {
+    serve({ ...allSet, totpEnrolled: false });
+    mount();
+    const row = await screen.findByRole("link", {
+      name: /Password and authenticator/,
+    });
+    expect(within(row).getByText("Not set up")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: /Recovery codes/ }),
+    ).not.toBeInTheDocument();
   });
 
   it("links the sign-in rows to Security and the devices row to Devices", async () => {
     serve(allSet);
     mount();
 
-    for (const name of ["2 passkeys", "On", "8 left"]) {
+    for (const name of [
+      /Passkeys.*2 passkeys/,
+      /Password and authenticator.*On/,
+      /Recovery codes.*8 codes left/,
+    ]) {
       expect(await screen.findByRole("link", { name })).toHaveAttribute(
         "href",
         "/security",
       );
     }
     expect(
-      await screen.findByRole("link", { name: "2 signed-in devices" }),
+      await screen.findByRole("link", { name: /2 signed-in devices/ }),
     ).toHaveAttribute("href", "/devices");
   });
 
@@ -223,11 +251,12 @@ describe("console home", () => {
     mount();
 
     expect(
-      await screen.findByRole("link", { name: "2 signed-in devices" }),
+      await screen.findByRole("link", { name: /2 signed-in devices/ }),
     ).toBeInTheDocument();
     expect(
       await screen.findByText("This section could not be loaded"),
     ).toBeInTheDocument();
+    expect(notifyError).not.toHaveBeenCalled();
     expect(
       screen.getByRole("heading", { name: "Welcome, Alice Liddell" }),
     ).toBeInTheDocument();

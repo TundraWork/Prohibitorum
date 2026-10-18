@@ -337,6 +337,22 @@ describe("password and authenticator rows", () => {
     expect(await screen.findByText("Recovery codes")).toBeInTheDocument();
   });
 
+  it("reports a failed factors read once, in the section and not as a toast", async () => {
+    mount(bothSet, (path) =>
+      path.endsWith("/me/factors")
+        ? Response.json(
+            { code: "internal_error", requestId: "panel-test" },
+            { status: 500 },
+          )
+        : undefined,
+    );
+
+    expect(
+      await screen.findByText("This section could not be loaded"),
+    ).toBeInTheDocument();
+    expect(notifyError).not.toHaveBeenCalled();
+  });
+
   it("reports a failed turn-off in the section when it is refused", async () => {
     mount(bothSet, (path) =>
       path.endsWith("/me/auth/revoke-password-totp")

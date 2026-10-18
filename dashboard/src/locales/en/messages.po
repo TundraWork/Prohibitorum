@@ -78,6 +78,7 @@ msgid "list.diagnostics.redirect.description"
 msgstr "{count, plural, one {# address} other {# addresses}}: {hostList}"
 
 #. js-lingui-explicit-id
+#: src/pages/Console.tsx
 #: src/pages/security/PasswordTotpPanel.tsx
 msgid "security.recovery.remaining"
 msgstr "{count, plural, one {# code left} other {# codes left}}"
@@ -101,11 +102,6 @@ msgstr "{count, plural, one {# file wasn't uploaded because the 10-image limit w
 #: src/pages/Console.tsx
 msgid "console.devices.count"
 msgstr "{count, plural, one {# signed-in device} other {# signed-in devices}}"
-
-#. js-lingui-explicit-id
-#: src/pages/Console.tsx
-msgid "console.recovery.remaining"
-msgstr "{count} left"
 
 #. js-lingui-explicit-id
 #: src/components/custom/ProviderGrid.tsx
@@ -732,10 +728,6 @@ msgstr "All time"
 
 #. js-lingui-explicit-id
 #: src/pages/Console.tsx
-msgid "console.recovery.used_up"
-msgstr "All used"
-
-#. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
 msgid "security.recovery.used_up"
 msgstr "All used"
@@ -2477,10 +2469,6 @@ msgstr "Device pairing"
 
 #. js-lingui-explicit-id
 #: src/pages/Console.tsx
-msgid "console.devices.title"
-msgstr "Devices"
-
-#. js-lingui-explicit-id
 #: src/pages/Devices.tsx
 msgid "devices.page.title"
 msgstr "Devices"
@@ -2489,6 +2477,11 @@ msgstr "Devices"
 #: src/components/custom/ConsoleLayout.tsx
 msgid "console.devices"
 msgstr "Devices"
+
+#. js-lingui-explicit-id
+#: src/pages/Console.tsx
+msgid "console.devices.list"
+msgstr "Devices summary"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts
@@ -4604,10 +4597,6 @@ msgstr "No passkeys"
 
 #. js-lingui-explicit-id
 #: src/pages/Console.tsx
-msgid "console.passkeys.none"
-msgstr "No passkeys yet"
-
-#. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
 msgid "security.passkeys.empty.title"
 msgstr "No passkeys yet"
@@ -5075,10 +5064,6 @@ msgstr "Passkey sign-in failed. You can use your password instead."
 
 #. js-lingui-explicit-id
 #: src/pages/Console.tsx
-msgid "console.passkeys.title"
-msgstr "Passkeys"
-
-#. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
 msgid "security.section.passkeys"
 msgstr "Passkeys"
@@ -5150,10 +5135,6 @@ msgstr "Password"
 
 #. js-lingui-explicit-id
 #: src/pages/Console.tsx
-msgid "console.password.title"
-msgstr "Password and authenticator"
-
-#. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
 msgid "security.section.password"
 msgstr "Password and authenticator"
@@ -5462,10 +5443,6 @@ msgstr "Recovery code"
 
 #. js-lingui-explicit-id
 #: src/pages/Console.tsx
-msgid "console.recovery.title"
-msgstr "Recovery codes"
-
-#. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
 msgid "security.recovery.title"
 msgstr "Recovery codes"
@@ -6098,10 +6075,6 @@ msgstr "Rule editor"
 
 #. js-lingui-explicit-id
 #: src/pages/Console.tsx
-msgid "console.recovery.low"
-msgstr "Running low"
-
-#. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
 msgid "security.recovery.low"
 msgstr "Running low"
@@ -6692,6 +6665,11 @@ msgstr "Sign-in rules"
 #: src/components/custom/PasswordTotpStepHeader.tsx
 msgid "enroll.password_totp.steps"
 msgstr "Sign-in setup steps"
+
+#. js-lingui-explicit-id
+#: src/pages/Console.tsx
+msgid "console.signin.list"
+msgstr "Sign-in summary"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts

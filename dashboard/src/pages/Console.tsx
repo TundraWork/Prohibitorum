@@ -1,20 +1,25 @@
-import { Plural, Trans } from "@lingui/react/macro";
+import { Plural, Trans, useLingui } from "@lingui/react/macro";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { ChevronRight, Fingerprint, Laptop } from "lucide-react";
+import {
+  Fingerprint,
+  LifeBuoy,
+  MonitorSmartphone,
+  RectangleEllipsis,
+  ShieldCheck,
+} from "lucide-react";
 import type { ReactNode } from "react";
 import {
   factorsQueryOptions,
   sessionQueryOptions,
   sessionsQueryOptions,
 } from "@/api/queries";
-import { Button } from "@/components/custom/Button";
+import { ItemList, ItemListRow } from "@/components/custom/ItemList";
 import { useInstanceBranding } from "@/components/custom/instance-branding";
 import { PageBody } from "@/components/custom/PageBody";
 import { PageHeader } from "@/components/custom/PageHeader";
 import { AsyncSection, Section } from "@/components/custom/Section";
-import { SettingRow } from "@/components/custom/SettingRow";
-import { cn } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
 
 /** Codes this few or fewer are worth a mark on the row. */
 const lowRecoveryCodes = 3;
@@ -46,40 +51,24 @@ export function Console() {
 }
 
 const signInTitle = <Trans id="console.signin.title">Sign-in</Trans>;
-const devicesTitle = <Trans id="console.devices.title">Devices</Trans>;
+const devicesTitle = <Trans id="devices.page.title">Devices</Trans>;
 
-/** The row's value as a link to the page behind it. */
-function ValueLink({
-  to,
-  tone,
-  children,
-}: {
-  to: "/security" | "/devices";
-  tone?: "warning" | "destructive";
-  children: ReactNode;
-}) {
-  return (
-    <Button
-      variant="ghost"
-      size="sm"
-      className={cn(
-        "max-sm:-ms-2.5 justify-self-start sm:justify-self-end",
-        tone === "warning" && "text-warning-foreground",
-        tone === "destructive" && "text-destructive-foreground",
-      )}
-      render={<Link to={to} data-tone={tone} />}
-    >
-      {children}
-      <ChevronRight aria-hidden="true" />
-    </Button>
-  );
-}
+/**
+ * Both reads are drawn in their own section if they fail, so the toast stays
+ * silent and the failure is reported once.
+ */
+const quiet = <T extends { meta?: Record<string, unknown> }>(
+  options: T,
+): T => ({
+  ...options,
+  meta: { ...options.meta, quiet: true },
+});
 
 function SignInSummary() {
   return (
     <AsyncSection
       resetKey="console-sign-in"
-      icon={<Fingerprint />}
+      icon={<ShieldCheck />}
       title={signInTitle}
     >
       <SignInRows />
@@ -88,70 +77,116 @@ function SignInSummary() {
 }
 
 function SignInRows() {
-  const { data } = useSuspenseQuery(factorsQueryOptions());
+  const { t } = useLingui();
+  const { data } = useSuspenseQuery(quiet(factorsQueryOptions()));
   const { passkeyCount, passwordSet, totpEnrolled } = data;
   // The plural's placeholder takes its name from this variable.
   const count = data.recoveryCodesRemaining;
-  const tone =
-    count === 0
-      ? "destructive"
-      : count <= lowRecoveryCodes
-        ? "warning"
-        : undefined;
   return (
-    <Section title={signInTitle} icon={<Fingerprint />}>
-      <SettingRow title={<Trans id="console.passkeys.title">Passkeys</Trans>}>
-        <ValueLink to="/security">
-          {passkeyCount === 0 ? (
-            <Trans id="console.passkeys.none">No passkeys yet</Trans>
-          ) : (
-            <Plural
-              id="console.passkeys.count"
-              value={passkeyCount}
-              one="# passkey"
-              other="# passkeys"
-            />
-          )}
-        </ValueLink>
-      </SettingRow>
-      <SettingRow
-        title={
-          <Trans id="console.password.title">Password and authenticator</Trans>
-        }
+    <Section title={signInTitle} icon={<ShieldCheck />}>
+      <ItemList
+        label={t({
+          id: "console.signin.list",
+          message: "Sign-in summary",
+        })}
+        empty={null}
       >
-        <ValueLink to="/security">
-          {passwordSet && totpEnrolled ? (
-            <Trans id="console.password.on">On</Trans>
-          ) : (
-            <Trans id="console.password.off">Not set up</Trans>
-          )}
-        </ValueLink>
-      </SettingRow>
-      {totpEnrolled && (
-        <SettingRow
-          title={<Trans id="console.recovery.title">Recovery codes</Trans>}
-          description={
-            tone === "destructive" ? (
-              <Trans id="console.recovery.used_up">All used</Trans>
-            ) : tone === "warning" ? (
-              <Trans id="console.recovery.low">Running low</Trans>
-            ) : undefined
+        <ItemListRow
+          key="passkeys"
+          icon={<Fingerprint />}
+          title={<Trans id="security.section.passkeys">Passkeys</Trans>}
+          meta={
+            passkeyCount === 0 ? (
+              <Trans id="security.passkeys.empty.title">No passkeys yet</Trans>
+            ) : (
+              <Plural
+                id="console.passkeys.count"
+                value={passkeyCount}
+                one="# passkey"
+                other="# passkeys"
+              />
+            )
           }
-        >
-          <ValueLink to="/security" tone={tone}>
-            <Trans id="console.recovery.remaining">{count} left</Trans>
-          </ValueLink>
-        </SettingRow>
-      )}
+          link={securityLink}
+        />
+        <ItemListRow
+          key="password"
+          icon={<RectangleEllipsis />}
+          title={
+            <Trans id="security.section.password">
+              Password and authenticator
+            </Trans>
+          }
+          meta={
+            passwordSet && totpEnrolled ? (
+              <Trans id="console.password.on">On</Trans>
+            ) : (
+              <Trans id="console.password.off">Not set up</Trans>
+            )
+          }
+          link={securityLink}
+        />
+        {totpEnrolled && (
+          <ItemListRow
+            key="recovery-codes"
+            icon={<LifeBuoy />}
+            title={<Trans id="security.recovery.title">Recovery codes</Trans>}
+            badge={
+              count === 0 ? (
+                <Badge variant="destructive">
+                  <Trans id="security.recovery.used_up">All used</Trans>
+                </Badge>
+              ) : count <= lowRecoveryCodes ? (
+                <Badge variant="warning">
+                  <Trans id="security.recovery.low">Running low</Trans>
+                </Badge>
+              ) : undefined
+            }
+            meta={
+              <Plural
+                id="security.recovery.remaining"
+                value={count}
+                one="# code left"
+                other="# codes left"
+              />
+            }
+            link={securityLink}
+          />
+        )}
+      </ItemList>
     </Section>
   );
 }
+
+const securityLink = ({
+  className,
+  children,
+}: {
+  className: string;
+  children: ReactNode;
+}) => (
+  <Link to="/security" className={className}>
+    {children}
+  </Link>
+);
+
+const devicesLink = ({
+  className,
+  children,
+}: {
+  className: string;
+  children: ReactNode;
+}) => (
+  <Link to="/devices" className={className}>
+    {children}
+  </Link>
+);
 
 function DevicesSummary() {
   return (
     <AsyncSection
       resetKey="console-devices"
-      icon={<Laptop />}
+      icon={<MonitorSmartphone />}
       title={devicesTitle}
     >
       <DevicesRow />
@@ -160,22 +195,34 @@ function DevicesSummary() {
 }
 
 function DevicesRow() {
-  const { data } = useSuspenseQuery(sessionsQueryOptions());
+  const { t } = useLingui();
+  const { data } = useSuspenseQuery(quiet(sessionsQueryOptions()));
   const count = data.length;
   return (
-    <Section title={devicesTitle} icon={<Laptop />}>
-      <SettingRow
-        title={<Trans id="console.devices.row">Where you are signed in</Trans>}
+    <Section title={devicesTitle} icon={<MonitorSmartphone />}>
+      <ItemList
+        label={t({
+          id: "console.devices.list",
+          message: "Devices summary",
+        })}
+        empty={null}
       >
-        <ValueLink to="/devices">
-          <Plural
-            id="console.devices.count"
-            value={count}
-            one="# signed-in device"
-            other="# signed-in devices"
-          />
-        </ValueLink>
-      </SettingRow>
+        <ItemListRow
+          icon={<MonitorSmartphone />}
+          title={
+            <Trans id="console.devices.row">Where you are signed in</Trans>
+          }
+          meta={
+            <Plural
+              id="console.devices.count"
+              value={count}
+              one="# signed-in device"
+              other="# signed-in devices"
+            />
+          }
+          link={devicesLink}
+        />
+      </ItemList>
     </Section>
   );
 }

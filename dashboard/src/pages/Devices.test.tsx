@@ -243,6 +243,23 @@ describe("signed-in devices", () => {
   });
 });
 
+describe("a failed read of the signed-in devices", () => {
+  it("is reported once, in the section and not as a toast", async () => {
+    fetchBoundary.mockImplementation(async () =>
+      Response.json(
+        { code: "internal_error", requestId: "devices-test" },
+        { status: 500 },
+      ),
+    );
+    mount();
+
+    expect(
+      await screen.findByText("This section could not be loaded"),
+    ).toBeInTheDocument();
+    expect(notifyError).not.toHaveBeenCalled();
+  });
+});
+
 describe("signing in a new device", () => {
   it("opens the pairing dialog from the page's action", async () => {
     serve(() => Response.json(pairing()));

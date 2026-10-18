@@ -78,6 +78,7 @@ msgid "list.diagnostics.redirect.description"
 msgstr "{count, plural, other {# 个地址}}：{hostList}"
 
 #. js-lingui-explicit-id
+#: src/pages/Console.tsx
 #: src/pages/security/PasswordTotpPanel.tsx
 msgid "security.recovery.remaining"
 msgstr "{count, plural, other {剩余 # 个}}"
@@ -101,11 +102,6 @@ msgstr "{count, plural, other {已达到 10 张上限，有 # 个文件没有上
 #: src/pages/Console.tsx
 msgid "console.devices.count"
 msgstr "{count, plural, other {# 台已登录设备}}"
-
-#. js-lingui-explicit-id
-#: src/pages/Console.tsx
-msgid "console.recovery.remaining"
-msgstr "剩余 {count} 个"
 
 #. js-lingui-explicit-id
 #: src/components/custom/ProviderGrid.tsx
@@ -732,10 +728,6 @@ msgstr "全部"
 
 #. js-lingui-explicit-id
 #: src/pages/Console.tsx
-msgid "console.recovery.used_up"
-msgstr "已用完"
-
-#. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
 msgid "security.recovery.used_up"
 msgstr "已用完"
@@ -2477,10 +2469,6 @@ msgstr "设备配对"
 
 #. js-lingui-explicit-id
 #: src/pages/Console.tsx
-msgid "console.devices.title"
-msgstr "设备"
-
-#. js-lingui-explicit-id
 #: src/pages/Devices.tsx
 msgid "devices.page.title"
 msgstr "设备"
@@ -2489,6 +2477,11 @@ msgstr "设备"
 #: src/components/custom/ConsoleLayout.tsx
 msgid "console.devices"
 msgstr "设备"
+
+#. js-lingui-explicit-id
+#: src/pages/Console.tsx
+msgid "console.devices.list"
+msgstr "设备概览"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts
@@ -4604,10 +4597,6 @@ msgstr "暂无通行密钥"
 
 #. js-lingui-explicit-id
 #: src/pages/Console.tsx
-msgid "console.passkeys.none"
-msgstr "尚无通行密钥"
-
-#. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
 msgid "security.passkeys.empty.title"
 msgstr "还没有通行密钥"
@@ -5075,10 +5064,6 @@ msgstr "通行密钥登录失败，可以改用密码。"
 
 #. js-lingui-explicit-id
 #: src/pages/Console.tsx
-msgid "console.passkeys.title"
-msgstr "通行密钥"
-
-#. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
 msgid "security.section.passkeys"
 msgstr "通行密钥"
@@ -5150,10 +5135,6 @@ msgstr "密码"
 
 #. js-lingui-explicit-id
 #: src/pages/Console.tsx
-msgid "console.password.title"
-msgstr "密码与身份验证器"
-
-#. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
 msgid "security.section.password"
 msgstr "密码与身份验证器"
@@ -5462,10 +5443,6 @@ msgstr "恢复码"
 
 #. js-lingui-explicit-id
 #: src/pages/Console.tsx
-msgid "console.recovery.title"
-msgstr "恢复码"
-
-#. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
 msgid "security.recovery.title"
 msgstr "恢复码"
@@ -6098,10 +6075,6 @@ msgstr "规则编辑器"
 
 #. js-lingui-explicit-id
 #: src/pages/Console.tsx
-msgid "console.recovery.low"
-msgstr "即将用完"
-
-#. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
 msgid "security.recovery.low"
 msgstr "即将用完"
@@ -6692,6 +6665,11 @@ msgstr "登录规则"
 #: src/components/custom/PasswordTotpStepHeader.tsx
 msgid "enroll.password_totp.steps"
 msgstr "登录方式设置步骤"
+
+#. js-lingui-explicit-id
+#: src/pages/Console.tsx
+msgid "console.signin.list"
+msgstr "登录概览"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts

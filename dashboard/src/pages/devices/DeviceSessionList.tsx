@@ -55,6 +55,8 @@ export function DeviceSessionList({
   const queryClient = useQueryClient();
   const { data } = useSuspenseQuery({
     ...sessionsQueryOptions(),
+    // A failed read is drawn by the section's own error, so no toast too.
+    meta: { requiresSession: true, quiet: true },
     refetchInterval: (query) => {
       if (watchUntil === null) return false;
       const arrived = (query.state.data?.length ?? 0) > watchUntil.count;
