@@ -68,7 +68,7 @@
   Reuse styles through React components in `dashboard/src/components/custom`,
   using `class-variance-authority` for shared variants.
 - HTML mockups describe wireframes and interaction flows only. Implement visual
-  details according to HeroUI rather than copying mockup styling.
+  details with the coss components rather than copying mockup styling.
 - `dashboard-old` is a reference-only archive. Keep it outside imports, builds,
   tests and lint scopes; do not restore its routes or vendored UI into the app.
 - The public flows, the console and the management pages are available.
