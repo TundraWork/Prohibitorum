@@ -1,4 +1,4 @@
-import { Avatar, Badge, Description, RadioGroup, Spinner } from "@heroui/react";
+import { Avatar, Badge, Description, Spinner } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import {
   useMutation,
@@ -24,6 +24,7 @@ import {
   rejectImage,
 } from "@/components/custom/ImageUploadControl";
 import { AsyncSection, Section } from "@/components/custom/Section";
+import { RadioGroup } from "@/components/ui/radio-group";
 
 /** What `PUT /me/avatar` decodes; the file picker offers the same list. */
 export const avatarTypes = [
@@ -122,14 +123,13 @@ function AvatarGallery() {
               id: "profile.avatar.source",
               message: "Picture to show",
             })}
-            variant="secondary"
             className="contents"
             value={value}
             // Read-only rather than disabled while a choice is saved, so the
             // tile keeps keyboard focus.
-            isReadOnly={select.isPending}
-            isDisabled={writing}
-            onChange={(next) => {
+            readOnly={select.isPending}
+            disabled={writing}
+            onValueChange={(next) => {
               setRejected(null);
               select.mutate(next);
             }}

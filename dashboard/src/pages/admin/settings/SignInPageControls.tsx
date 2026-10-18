@@ -42,6 +42,7 @@ import {
   gradientBackground,
   loginGradients,
 } from "@/components/custom/login-appearance/gradients";
+import { RadioGroup as SourceRadioGroup } from "@/components/ui/radio-group";
 import {
   backgroundSources,
   bingMarkets,
@@ -102,15 +103,14 @@ export function SourceTiles({
     images: t({ id: "settings.sign-in.source.images", message: "Images" }),
   };
   return (
-    <RadioGroup
+    <SourceRadioGroup
       aria-label={t({
         id: "settings.sign-in.source",
         message: "Background source",
       })}
-      variant="secondary"
       value={value}
-      isDisabled={isDisabled}
-      onChange={(next) => onChange(next as LoginBackgroundSource)}
+      disabled={isDisabled}
+      onValueChange={(next) => onChange(next as LoginBackgroundSource)}
       className="grid grid-cols-3 gap-2"
     >
       {backgroundSources.map((source) => {
@@ -125,14 +125,14 @@ export function SourceTiles({
                 size={18}
                 strokeWidth={1.75}
                 aria-hidden="true"
-                className="opacity-80 group-data-[selected=true]:opacity-100"
+                className="opacity-80 group-has-data-checked:opacity-100"
               />
             }
             label={names[source]}
           />
         );
       })}
-    </RadioGroup>
+    </SourceRadioGroup>
   );
 }
 

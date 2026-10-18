@@ -1451,6 +1451,11 @@ msgid "admin.logs.filter.clear"
 msgstr "清除筛选"
 
 #. js-lingui-explicit-id
+#: src/components/custom/EntityPicker.tsx
+msgid "admin.picker.clear"
+msgstr "清除所选项"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminUsers.tsx
 msgid "admin.users.filter.clear"
 msgstr "清除筛选"
@@ -4011,6 +4016,11 @@ msgstr "只能绑定到已有账号，不会创建新账号，邀请链接也不
 #: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.protocol.vrchat.hint"
 msgstr "把 VRChat 身份绑定到已有账号，需要一个 VRChat 运营账号。"
+
+#. js-lingui-explicit-id
+#: src/components/custom/EntityPicker.tsx
+msgid "admin.picker.loading"
+msgstr "加载中"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts

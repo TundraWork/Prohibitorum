@@ -578,7 +578,6 @@ function AuditFilters({
             id: "admin.logs.filter.account.any",
             message: "Any account",
           })}
-          variant="secondary"
           value={search.account === undefined ? [] : [search.account]}
           onValueChange={(next) => onChange({ account: next[0] })}
           onSearch={setAccountSearch}

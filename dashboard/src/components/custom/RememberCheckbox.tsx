@@ -1,10 +1,10 @@
-import { Checkbox } from "@heroui/react";
 import { Trans } from "@lingui/react/macro";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 
 /** The login page's "keep me signed in" choice, shared by the password and
  * pairing pages. Controlled by the caller; every sign-in method on the page
- * reads the current state at submit time. Both pages draw it on the public
- * Card, so it takes the surface treatment (`secondary`). */
+ * reads the current state at submit time. */
 export function RememberCheckbox({
   isSelected,
   onChange,
@@ -15,18 +15,13 @@ export function RememberCheckbox({
   isDisabled?: boolean;
 }) {
   return (
-    <Checkbox
-      variant="secondary"
-      isSelected={isSelected}
-      isDisabled={isDisabled}
-      onChange={onChange}
-    >
-      <Checkbox.Content>
-        <Checkbox.Control>
-          <Checkbox.Indicator />
-        </Checkbox.Control>
-        <Trans id="login.remember">Keep me signed in</Trans>
-      </Checkbox.Content>
-    </Checkbox>
+    <Label className="w-fit">
+      <Checkbox
+        checked={isSelected}
+        disabled={isDisabled}
+        onCheckedChange={onChange}
+      />
+      <Trans id="login.remember">Keep me signed in</Trans>
+    </Label>
   );
 }

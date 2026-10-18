@@ -1,19 +1,27 @@
-import {
-  Autocomplete,
-  EmptyState,
-  Label,
-  ListBox,
-  SearchField,
-  Spinner,
-  useFilter,
-} from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { useStore } from "@tanstack/react-form";
-import type { ComponentProps, ReactNode } from "react";
+import { SearchIcon, XIcon } from "lucide-react";
+import { type ReactNode, useId } from "react";
 import { FormMessages } from "@/components/custom/FormMessages";
-import { ScrollArea } from "@/components/custom/ScrollArea";
-import { useFieldContext, useFormContext } from "@/forms/context";
-import { withoutServerErrors } from "@/forms/server-errors";
+import { useFieldBinding } from "@/components/custom/use-field-binding";
+import {
+  Combobox,
+  ComboboxClear,
+  ComboboxEmpty,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxList,
+  ComboboxPopup,
+  ComboboxTrigger,
+  ComboboxValue,
+} from "@/components/ui/combobox";
+import {
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldLabel,
+} from "@/components/ui/field";
+import { SelectButton } from "@/components/ui/select";
+import { Spinner } from "@/components/ui/spinner";
 
 /**
  * Search for one entity and select it.
@@ -58,8 +66,8 @@ export interface EntityOption {
 }
 
 /**
- * Presentational core: a controlled autocomplete over a fixed `options` list
- * with the pending and empty states both drawn.
+ * Presentational core: a controlled select-with-search over a fixed `options`
+ * list, with the pending and empty states both drawn.
  */
 export function EntityPicker({
   label,
@@ -75,14 +83,10 @@ export function EntityPicker({
   isDisabled = false,
   isInvalid = false,
   errorMessage,
-  variant,
 }: {
   label: ReactNode;
   description?: ReactNode;
-  /**
-   * Required: without one HeroUI falls back to its own English "Select an
-   * item", whatever the console's language.
-   */
+  /** Shown while nothing is selected, and as the search box's hint. */
   placeholder: string;
   searchLabel: string;
   value: readonly string[];
@@ -94,10 +98,9 @@ export function EntityPicker({
   isDisabled?: boolean;
   isInvalid?: boolean;
   errorMessage?: ReactNode;
-  variant?: ComponentProps<typeof Autocomplete>["variant"];
 }) {
-  const { i18n } = useLingui();
-  const { contains } = useFilter({ sensitivity: "base" });
+  const { i18n, t } = useLingui();
+  const searchId = useId();
   // A selection the latest result did not return still has to render, or the
   // control would silently look empty while holding a value.
   const known = new Set(options.map((option) => option.id));
@@ -105,115 +108,126 @@ export function EntityPicker({
     ...options,
     ...value.filter((id) => !known.has(id)).map((id) => ({ id, label: id })),
   ];
-  const labels = new Map(items.map((item) => [item.id, item.label]));
-  // Joined in the console's language rather than the browser's, which is what
-  // HeroUI's own `selectedText` would follow.
+  const selected = value.flatMap((id) => {
+    const item = items.find((candidate) => candidate.id === id);
+    return item === undefined ? [] : [item];
+  });
+  // Joined in the console's language rather than the browser's.
   const selectedText = new Intl.ListFormat(i18n.locale, {
     type: "conjunction",
-  }).format(value.map((id) => labels.get(id) ?? id));
+  }).format(selected.map((item) => item.label));
+  const selection = multiple ? selected : (selected[0] ?? null);
 
   return (
-    <Autocomplete
-      allowsEmptyCollection
-      className="w-full"
-      disabledKeys={items
-        .filter((item) => item.unavailableReason !== undefined)
-        .map((item) => item.id)}
-      isDisabled={isDisabled}
-      isInvalid={isInvalid}
-      placeholder={placeholder}
-      selectionMode={multiple ? "multiple" : "single"}
-      value={multiple ? [...value] : (value[0] ?? null)}
-      variant={variant}
-      onChange={(next) => {
-        if (Array.isArray(next)) onValueChange(next.map(String));
-        else onValueChange(next === null ? [] : [String(next)]);
-      }}
-    >
-      <Label>{label}</Label>
-      <Autocomplete.Trigger>
-        <Autocomplete.Value className="min-w-0 truncate">
-          {({ isPlaceholder, defaultChildren }) =>
-            isPlaceholder ? defaultChildren : selectedText
-          }
-        </Autocomplete.Value>
-        <Autocomplete.ClearButton />
-        <Autocomplete.Indicator />
-      </Autocomplete.Trigger>
-      {description !== undefined && (
-        <span className="text-xs text-muted">{description}</span>
-      )}
-      <Autocomplete.Popover>
-        <Autocomplete.Filter
-          filter={onSearch === undefined ? contains : undefined}
-          onInputChange={(next) => onSearch?.(next)}
-        >
-          <SearchField
-            aria-label={searchLabel}
-            autoFocus
-            className="sticky top-0 z-10"
-            name="search"
-            variant="secondary"
+    <Field className="w-full" disabled={isDisabled} invalid={isInvalid}>
+      <FieldLabel>{label}</FieldLabel>
+      <Combobox<EntityOption, boolean>
+        items={items}
+        multiple={multiple}
+        value={selection}
+        disabled={isDisabled}
+        itemToStringLabel={(item) => item.label}
+        isItemEqualToValue={(item, picked) => item.id === picked.id}
+        // The server did the narrowing when the caller searches; otherwise
+        // the default match against each label applies.
+        filter={onSearch === undefined ? undefined : null}
+        onInputValueChange={(query, details) => {
+          if (details.reason === "input-change") onSearch?.(query);
+        }}
+        onValueChange={(next) => {
+          if (Array.isArray(next)) onValueChange(next.map((item) => item.id));
+          else onValueChange(next === null ? [] : [(next as EntityOption).id]);
+        }}
+      >
+        <div className="relative w-full">
+          <ComboboxTrigger
+            aria-invalid={isInvalid || undefined}
+            render={<SelectButton />}
           >
-            <SearchField.Group>
-              <SearchField.SearchIcon />
-              <SearchField.Input placeholder={placeholder} />
-              {/* Mounted only while a lookup runs: a spinner faded out but
-                  left in place is still a "Loading" status to a screen
-                  reader. It sits over the field, so nothing shifts. */}
-              {loading && (
-                <Spinner
-                  size="sm"
-                  className="absolute end-2 top-1/2 -translate-y-1/2"
-                />
-              )}
-            </SearchField.Group>
-          </SearchField>
-          {/*
-            The candidate list is the picker's scroll area. `max-h` sits on the
-            `ScrollArea` host so it keeps the 420px ceiling, and the list itself
-            drops its own `overflow-y-auto`: a utility class would out-rank the
-            rule OverlayScrollbars writes on the generated viewport, leaving two
-            nested scrollers. HeroUI's own `max-h-[320px]` on the same slot is a
-            component-layer rule, so the utility here still wins over it.
-          */}
-          <ScrollArea className="max-h-[420px]">
-            <ListBox
-              items={items}
-              renderEmptyState={() => (
-                <EmptyState>
-                  <Trans id="admin.picker.empty">No matches</Trans>
-                </EmptyState>
-              )}
+            <ComboboxValue>
+              {() =>
+                selected.length === 0 ? (
+                  <span className="text-muted-foreground">{placeholder}</span>
+                ) : (
+                  selectedText
+                )
+              }
+            </ComboboxValue>
+          </ComboboxTrigger>
+          {!multiple && selected.length > 0 && !isDisabled && (
+            <ComboboxClear
+              aria-label={t({
+                id: "admin.picker.clear",
+                message: "Clear selection",
+              })}
+              className="absolute end-8 top-1/2 inline-flex size-6 -translate-y-1/2 cursor-pointer items-center justify-center rounded-md opacity-80 outline-none hover:opacity-100 focus-visible:ring-2 focus-visible:ring-ring"
             >
-              {(item: EntityOption) => {
-                const note = [item.description, item.unavailableReason]
-                  .filter(Boolean)
-                  .join(" · ");
-                return (
-                  <ListBox.Item id={item.id} textValue={item.label}>
-                    <span className="flex min-w-0 flex-col">
-                      <span className="truncate">{item.label}</span>
-                      {note && (
-                        <span className="truncate text-xs text-muted">
-                          {note}
-                        </span>
-                      )}
-                    </span>
-                    <ListBox.ItemIndicator />
-                  </ListBox.Item>
-                );
-              }}
-            </ListBox>
-          </ScrollArea>
-        </Autocomplete.Filter>
-      </Autocomplete.Popover>
-      {isInvalid && errorMessage !== undefined && (
-        <span className="text-sm text-danger" role="alert">
-          {errorMessage}
-        </span>
+              <XIcon className="size-4" />
+            </ComboboxClear>
+          )}
+        </div>
+        <ComboboxPopup>
+          <div className="relative border-b p-2">
+            {/* The field's label would otherwise name this input too, since
+                it is the combobox's control; the search box has its own. */}
+            <span id={searchId} className="sr-only">
+              {searchLabel}
+            </span>
+            <ComboboxInput
+              aria-labelledby={searchId}
+              autoFocus
+              placeholder={placeholder}
+              showTrigger={false}
+              startAddon={<SearchIcon />}
+            />
+            {/* Mounted only while a lookup runs: a spinner faded out but left
+                in place is still a "Loading" status to a screen reader. It
+                sits over the input, so nothing shifts. */}
+            {loading && (
+              <Spinner
+                aria-label={t({
+                  id: "admin.picker.loading",
+                  message: "Loading",
+                })}
+                className="absolute end-4 top-1/2 size-4 -translate-y-1/2"
+              />
+            )}
+          </div>
+          <ComboboxEmpty>
+            <Trans id="admin.picker.empty">No matches</Trans>
+          </ComboboxEmpty>
+          <ComboboxList>
+            {(item: EntityOption) => {
+              const note = [item.description, item.unavailableReason]
+                .filter(Boolean)
+                .join(" · ");
+              return (
+                <ComboboxItem
+                  key={item.id}
+                  value={item}
+                  disabled={item.unavailableReason !== undefined}
+                >
+                  <span className="flex min-w-0 flex-col">
+                    <span className="truncate">{item.label}</span>
+                    {note && (
+                      <span className="truncate text-muted-foreground text-xs">
+                        {note}
+                      </span>
+                    )}
+                  </span>
+                </ComboboxItem>
+              );
+            }}
+          </ComboboxList>
+        </ComboboxPopup>
+      </Combobox>
+      {description !== undefined && (
+        <FieldDescription>{description}</FieldDescription>
       )}
-    </Autocomplete>
+      {isInvalid && errorMessage !== undefined && (
+        <FieldError match>{errorMessage}</FieldError>
+      )}
+    </Field>
   );
 }
 
@@ -228,10 +242,9 @@ function FieldEntityPicker(
     "value" | "onValueChange" | "isDisabled" | "isInvalid" | "errorMessage"
   > & { multiple: boolean },
 ) {
-  const field = useFieldContext<string | string[]>();
-  const form = useFormContext();
-  const submitting = useStore(form.store, (state) => state.isSubmitting);
-  const errors: unknown[] = field.state.meta.errors.flat(Infinity);
+  const { field, errors, invalid, disabled, onChange } = useFieldBinding<
+    string | string[]
+  >(false);
   const selected = props.multiple
     ? ((field.state.value as string[]) ?? [])
     : field.state.value
@@ -242,16 +255,12 @@ function FieldEntityPicker(
     <EntityPicker
       {...props}
       errorMessage={<FormMessages errors={errors} />}
-      isDisabled={submitting}
-      isInvalid={errors.length > 0}
+      isDisabled={disabled}
+      isInvalid={invalid}
       value={selected}
-      onValueChange={(next) => {
-        field.setErrorMap({
-          onSubmit: withoutServerErrors(field.state.meta.errorMap.onSubmit),
-        });
-        if (props.multiple) field.handleChange(next);
-        else field.handleChange(next[0] ?? "");
-      }}
+      onValueChange={(next) =>
+        onChange(props.multiple ? next : (next[0] ?? ""))
+      }
     />
   );
 }

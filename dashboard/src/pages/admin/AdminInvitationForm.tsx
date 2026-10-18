@@ -236,7 +236,6 @@ export function AdminInvitationForm() {
                 }
                 loading={groups.isPending}
                 options={groupOptions}
-                variant="secondary"
                 placeholder={t({
                   id: "admin.invitations.new.groups.placeholder",
                   message: "Search user groups",
@@ -257,7 +256,6 @@ export function AdminInvitationForm() {
                 }
                 loading={providers.isPending}
                 options={providerOptions}
-                variant="secondary"
                 placeholder={t({
                   id: "admin.invitations.new.provider.placeholder",
                   message: "Search providers",

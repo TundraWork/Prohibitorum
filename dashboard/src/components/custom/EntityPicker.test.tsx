@@ -70,13 +70,11 @@ function Harness({
 
 /** The selection as the trigger shows it, beside the button that opens it. */
 function shown() {
-  const value = document.querySelector('[data-slot="autocomplete-value"]');
-  if (value === null) throw new Error("no autocomplete value");
-  return value;
+  return screen.getByRole("combobox", { name: /Picker/ });
 }
 
 async function open(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(screen.getByRole("button", { name: /Picker/ }));
+  await user.click(shown());
   return screen.findByRole("listbox");
 }
 
@@ -130,6 +128,17 @@ describe("EntityPicker", () => {
     expect(shown()).toHaveTextContent("Engineering and Support");
     expect(shown()).not.toHaveTextContent("engineering");
     expect(shown()).not.toHaveTextContent("support");
+  });
+
+  it("says so when nothing matches the search", async () => {
+    const user = userEvent.setup();
+    render(<Harness options={groups} multiple />);
+
+    await open(user);
+    await user.keyboard("zzz");
+
+    expect(await screen.findByText("No matches")).toBeVisible();
+    expect(screen.queryAllByRole("option")).toHaveLength(0);
   });
 
   it("filters the options itself when nothing searches the server", async () => {

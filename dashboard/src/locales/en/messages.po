@@ -1451,6 +1451,11 @@ msgid "admin.logs.filter.clear"
 msgstr "Clear filters"
 
 #. js-lingui-explicit-id
+#: src/components/custom/EntityPicker.tsx
+msgid "admin.picker.clear"
+msgstr "Clear selection"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminUsers.tsx
 msgid "admin.users.filter.clear"
 msgstr "Clear the filter"
@@ -4011,6 +4016,11 @@ msgstr "Links to existing accounts only. Never creates one, not even from an inv
 #: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.protocol.vrchat.hint"
 msgstr "Links VRChat identities to existing accounts. Needs a VRChat operator account."
+
+#. js-lingui-explicit-id
+#: src/components/custom/EntityPicker.tsx
+msgid "admin.picker.loading"
+msgstr "Loading"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts

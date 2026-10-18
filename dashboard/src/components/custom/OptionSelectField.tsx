@@ -1,11 +1,22 @@
-import { Description, FieldError, Label, ListBox, Select } from "@heroui/react";
 import type { MessageDescriptor } from "@lingui/core";
 import { useLingui } from "@lingui/react/macro";
-import { useStore } from "@tanstack/react-form";
 import type { ReactNode } from "react";
 import { FormMessages } from "@/components/custom/FormMessages";
-import { useFieldContext, useFormContext } from "@/forms/context";
-import { withoutServerErrors } from "@/forms/server-errors";
+import { useFieldBinding } from "@/components/custom/use-field-binding";
+import {
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldLabel,
+} from "@/components/ui/field";
+import {
+  Select,
+  SelectItem,
+  SelectPopup,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { cn } from "@/lib/utils";
 
 /** One choice: its name, and a line saying what picking it does. */
 export interface SelectOption<T extends string> {
@@ -21,14 +32,15 @@ export interface SelectOption<T extends string> {
 
 /**
  * A closed set of choices as a form field, each option two lines tall: its
- * name, then what picking it does, the choices whose cost the reader has to weigh before picking — which
- * account fact an application knows someone by, how a provider treats someone
- * new, how this instance proves itself to it.
+ * name, then what picking it does. These are the choices whose cost the reader
+ * has to weigh before picking: which account fact an application knows someone
+ * by, how a provider treats someone new, how this instance proves itself to it.
  *
- * The trigger shows the name alone. The description is for choosing, and a
- * trigger that repeated it would be two lines tall on every visit. An option
- * that cannot be picked in the form's current state is `disabledKeys`; the
- * caller says why in `description` or in its submit check.
+ * The trigger shows the name alone, and the chosen option's explanation sits
+ * under the field as its description, so a trigger that repeated it would not
+ * be two lines tall on every visit. An option that cannot be picked in the
+ * form's current state is `disabledKeys`; the caller says why in `description`
+ * or in its submit check.
  */
 export function OptionSelectField<T extends string>({
   label,
@@ -54,73 +66,70 @@ export function OptionSelectField<T extends string>({
   className?: string;
 }) {
   const { i18n } = useLingui();
-  const field = useFieldContext<T>();
-  const form = useFormContext();
-  const submitting = useStore(form.store, (state) => state.isSubmitting);
-  const errors: unknown[] = field.state.meta.errors.flat(Infinity);
-  const invalid = errors.length > 0;
+  const { field, errors, invalid, disabled, onChange } =
+    useFieldBinding<T>(false);
   const selected = options.find((option) => option.value === field.state.value);
 
   return (
-    <Select
+    <Field
       className={className}
-      variant="secondary"
+      disabled={disabled}
+      invalid={invalid}
       name={field.name}
-      value={field.state.value}
-      disabledKeys={disabledKeys}
-      isDisabled={submitting}
-      isInvalid={invalid}
-      onChange={(key) => {
-        const option = options.find((candidate) => candidate.value === key);
-        if (option === undefined || form.state.isSubmitting) return;
-        field.setErrorMap({
-          onSubmit: withoutServerErrors(field.state.meta.errorMap.onSubmit),
-        });
-        field.handleChange(option.value);
-      }}
     >
-      <Label className={isLabelHidden ? "sr-only" : undefined}>{label}</Label>
-      <Select.Trigger>
-        <Select.Value>
-          {({ isPlaceholder }) =>
-            isPlaceholder || selected === undefined ? null : (
-              <span className={selected.literal ? "font-mono" : undefined}>
-                {i18n._(selected.label)}
-              </span>
-            )
+      <FieldLabel className={isLabelHidden ? "sr-only" : undefined}>
+        {label}
+      </FieldLabel>
+      <Select
+        value={field.state.value}
+        disabled={disabled}
+        onValueChange={(next) => {
+          if (options.some((option) => option.value === next)) {
+            onChange(next as T);
           }
-        </Select.Value>
-        <Select.Indicator />
-      </Select.Trigger>
-      {description !== undefined && <Description>{description}</Description>}
+        }}
+      >
+        <SelectTrigger aria-invalid={invalid || undefined}>
+          <SelectValue>
+            {() =>
+              selected === undefined ? null : (
+                <span className={cn(selected.literal && "font-mono")}>
+                  {i18n._(selected.label)}
+                </span>
+              )
+            }
+          </SelectValue>
+        </SelectTrigger>
+        <SelectPopup alignItemWithTrigger={false}>
+          {options.map((option) => (
+            <SelectItem
+              key={option.value}
+              value={option.value}
+              disabled={disabledKeys?.includes(option.value)}
+            >
+              <div className="flex min-w-0 flex-col">
+                <span className={cn(option.literal && "font-mono")}>
+                  {i18n._(option.label)}
+                </span>
+                <span className="text-pretty text-muted-foreground text-xs">
+                  {i18n._(option.description)}
+                </span>
+              </div>
+            </SelectItem>
+          ))}
+        </SelectPopup>
+      </Select>
+      {description !== undefined && (
+        <FieldDescription>{description}</FieldDescription>
+      )}
+      {selected !== undefined && (
+        <FieldDescription>{i18n._(selected.description)}</FieldDescription>
+      )}
       {invalid && (
-        <FieldError>
+        <FieldError match>
           <FormMessages errors={errors} />
         </FieldError>
       )}
-      {/* Held to the trigger's width, so each description wraps under its
-          name instead of widening the list past the field it opened from. */}
-      <Select.Popover className="w-(--trigger-width)">
-        <ListBox>
-          {options.map((option) => (
-            <ListBox.Item
-              id={option.value}
-              key={option.value}
-              textValue={i18n._(option.label)}
-            >
-              <div className="flex min-w-0 flex-col">
-                <Label className={option.literal ? "font-mono" : undefined}>
-                  {i18n._(option.label)}
-                </Label>
-                <Description className="text-pretty">
-                  {i18n._(option.description)}
-                </Description>
-              </div>
-              <ListBox.ItemIndicator />
-            </ListBox.Item>
-          ))}
-        </ListBox>
-      </Select.Popover>
-    </Select>
+    </Field>
   );
 }
