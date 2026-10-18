@@ -56,8 +56,8 @@ function mount() {
 }
 
 function modeTrigger(): HTMLElement {
-  return screen.getByRole("button", {
-    name: /Creates accounts|Invitation only|Links existing accounts/,
+  return screen.getByRole("combobox", {
+    name: /Provisioning/,
   });
 }
 
@@ -132,7 +132,7 @@ describe("the new provider form's sign-in switch", () => {
     // A public client needs no secret, so the body this test inspects is the
     // switch's, not the credential's.
     await user.click(
-      screen.getByRole("button", { name: /Client authentication/ }),
+      screen.getByRole("combobox", { name: /Client authentication/ }),
     );
     const authMethods = await screen.findByRole("listbox");
     await user.click(within(authMethods).getByText("Public client"));

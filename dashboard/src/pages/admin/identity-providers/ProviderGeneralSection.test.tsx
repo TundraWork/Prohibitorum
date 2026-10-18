@@ -69,10 +69,10 @@ function ProviderObserver({ slug }: { slug: string }) {
   return null;
 }
 
-/** The provisioning select announces its selected value, not its label. */
+/** The provisioning select, named by its label; its text is the selection. */
 function modeTrigger(): HTMLElement {
-  return screen.getByRole("button", {
-    name: /Creates accounts|Invitation only|Links existing accounts/,
+  return screen.getByRole("combobox", {
+    name: /Provisioning/,
   });
 }
 

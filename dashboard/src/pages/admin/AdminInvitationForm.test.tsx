@@ -91,12 +91,12 @@ async function mount() {
   await screen.findByRole("form", { name: "New invitation" });
 }
 
-/** The provider autocomplete announces its current value plus its label. */
+/** The provider picker is a combobox named by its label. */
 async function pickProvider(
   user: ReturnType<typeof userEvent.setup>,
   label: string,
 ) {
-  await user.click(screen.getByRole("button", { name: /Upstream provider/ }));
+  await user.click(screen.getByRole("combobox", { name: /Upstream provider/ }));
   const listbox = await screen.findByRole("listbox");
   await user.click(within(listbox).getByText(label));
 }
@@ -154,7 +154,9 @@ describe("the invitation form's local sign-in requirement", () => {
     });
     await mount();
 
-    await user.click(screen.getByRole("button", { name: /Upstream provider/ }));
+    await user.click(
+      screen.getByRole("combobox", { name: /Upstream provider/ }),
+    );
     const listbox = await screen.findByRole("listbox");
     // Disabled, unready and link_only rows never appear; a sign-in-off
     // provider is offered because an invitation can still be verified with it.
@@ -215,10 +217,8 @@ describe("the invitation form's local sign-in requirement", () => {
     // back at the provider they chose.
     await waitFor(() => {
       expect(
-        screen
-          .getByRole("button", { name: /Upstream provider/ })
-          .closest("[data-slot='autocomplete']"),
-      ).toHaveAttribute("data-invalid", "true");
+        screen.getByRole("combobox", { name: /Upstream provider/ }),
+      ).toHaveAttribute("aria-invalid", "true");
     });
   });
 });

@@ -100,7 +100,7 @@ async function chooseMethod(
   name: string,
 ) {
   await user.click(
-    screen.getByRole("button", { name: /Client authentication/ }),
+    screen.getByRole("combobox", { name: /Client authentication/ }),
   );
   const listbox = await screen.findByRole("listbox");
   await user.click(within(listbox).getByText(name));
@@ -244,7 +244,7 @@ describe("the connection form's sign-in response", () => {
     mount(provider);
     const user = userEvent.setup();
 
-    const trigger = screen.getByRole("button", { name: /Sign-in response/ });
+    const trigger = screen.getByRole("combobox", { name: /Sign-in response/ });
     expect(trigger).toHaveTextContent("Authorization code");
 
     await user.click(trigger);
