@@ -72,12 +72,16 @@ export function PasskeysPanel() {
     <AsyncSection
       resetKey="passkeys"
       icon={<Fingerprint />}
-      title={<Trans id="security.section.passkeys">Passkeys</Trans>}
+      title={<PasskeysTitle />}
       description={<PasskeysDescription />}
     >
       <PasskeyList />
     </AsyncSection>
   );
+}
+
+function PasskeysTitle() {
+  return <Trans id="security.section.passkeys">Passkeys</Trans>;
 }
 
 function PasskeysDescription() {
@@ -103,6 +107,11 @@ function PasskeyList() {
   const remove = useMutation(
     withInlineReport(deleteCredentialMutationOptions(queryClient), true),
   );
+  // Held here, not in the dialog: dismissing the dialog mid-save must not
+  // drop the failure, and only a mounted mutation runs its callbacks.
+  const rename = useMutation(
+    withInlineReport(renameCredentialMutationOptions(queryClient), true),
+  );
 
   // A browser or sudo cancellation is a decision, not a failure: nothing was
   // changed and there is nothing to report.
@@ -110,7 +119,7 @@ function PasskeyList() {
     if (!isCancellation(failure)) setError(failure);
   };
 
-  const rows = data ?? [];
+  const rows = data;
   // The server rejects removing the last passkey; saying so in the row and
   // disabling the item shows the reason before the attempt.
   const onlyOne = rows.length === 1;
@@ -119,7 +128,7 @@ function PasskeyList() {
     <>
       <Section
         icon={<Fingerprint />}
-        title={<Trans id="security.section.passkeys">Passkeys</Trans>}
+        title={<PasskeysTitle />}
         description={<PasskeysDescription />}
         action={
           <Button
@@ -172,10 +181,20 @@ function PasskeyList() {
 
       <RenameDialog
         credential={renaming}
+        pending={rename.isPending}
         onClose={() => setRenaming(null)}
-        onFailed={(failure) => {
-          report(failure);
-          setRenaming(null);
+        onSave={(nickname) => {
+          if (!renaming) return;
+          rename.mutate(
+            { id: renaming.id, nickname },
+            {
+              onSuccess: () => setRenaming(null),
+              onError: (failure) => {
+                report(failure);
+                setRenaming(null);
+              },
+            },
+          );
         }}
       />
 
@@ -294,7 +313,12 @@ function PasskeyRow({
             <Pencil />
             <Trans id="security.passkeys.rename">Rename</Trans>
           </MenuItem>
-          <MenuItem variant="destructive" disabled={onlyOne} onClick={onRemove}>
+          <MenuItem
+            variant="destructive"
+            disabled={onlyOne}
+            onClick={onRemove}
+            className="data-disabled:data-[variant=destructive]:text-muted-foreground"
+          >
             <Trash2 />
             <Trans id="security.passkeys.delete">Remove</Trans>
           </MenuItem>
@@ -310,12 +334,14 @@ function PasskeyRow({
  */
 function RenameDialog({
   credential,
+  pending,
   onClose,
-  onFailed,
+  onSave,
 }: {
   credential: Credential | null;
+  pending: boolean;
   onClose: () => void;
-  onFailed: (failure: unknown) => void;
+  onSave: (nickname: string) => void;
 }) {
   return (
     <Dialog
@@ -330,8 +356,9 @@ function RenameDialog({
           <RenameForm
             key={credential.id}
             credential={credential}
+            pending={pending}
             onClose={onClose}
-            onFailed={onFailed}
+            onSave={onSave}
           />
         )}
       </DialogPopup>
@@ -341,19 +368,17 @@ function RenameDialog({
 
 function RenameForm({
   credential,
+  pending,
   onClose,
-  onFailed,
+  onSave,
 }: {
   credential: Credential;
+  pending: boolean;
   onClose: () => void;
-  onFailed: (failure: unknown) => void;
+  onSave: (nickname: string) => void;
 }) {
   const { t } = useLingui();
-  const queryClient = useQueryClient();
   const [nickname, setNickname] = useState(credential.nickname ?? "");
-  const rename = useMutation(
-    withInlineReport(renameCredentialMutationOptions(queryClient), true),
-  );
 
   return (
     <form
@@ -364,11 +389,7 @@ function RenameForm({
       })}
       onSubmit={(event) => {
         event.preventDefault();
-        if (rename.isPending) return;
-        rename.mutate(
-          { id: credential.id, nickname },
-          { onSuccess: onClose, onError: onFailed },
-        );
+        if (!pending) onSave(nickname);
       }}
     >
       <DialogHeader>
@@ -394,10 +415,10 @@ function RenameForm({
         </Field>
       </DialogPanel>
       <DialogFooter>
-        <Button variant="ghost" disabled={rename.isPending} onClick={onClose}>
+        <Button variant="ghost" disabled={pending} onClick={onClose}>
           <Trans id="security.cancel">Cancel</Trans>
         </Button>
-        <Button type="submit" pending={rename.isPending}>
+        <Button type="submit" pending={pending}>
           <Trans id="security.passkeys.rename.save">Save name</Trans>
         </Button>
       </DialogFooter>

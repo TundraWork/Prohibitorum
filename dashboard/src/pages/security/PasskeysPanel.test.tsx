@@ -335,7 +335,54 @@ describe("renaming a passkey", () => {
     });
     await user.click(within(dialog).getByRole("button", { name: "Save name" }));
 
-    await waitFor(() => expect(screen.getAllByRole("alert")).toHaveLength(1));
+    expect(
+      await screen.findByText("Too many requests. Wait a moment."),
+    ).toBeVisible();
+    expect(screen.getAllByRole("alert")).toHaveLength(1);
+    expect(
+      screen.queryByRole("dialog", { name: "Rename this passkey" }),
+    ).not.toBeInTheDocument();
+    expect(notifyError).not.toHaveBeenCalled();
+  });
+
+  it("still reports a failed save once when the dialog is dismissed while it is pending", async () => {
+    const user = userEvent.setup();
+    let fail: () => void = () => undefined;
+    mount([macbook, yubikey]);
+    const base = fetchBoundary.getMockImplementation();
+    fetchBoundary.mockImplementation(async (request) => {
+      if (new URL(request.url).pathname.endsWith("/credentials/rename")) {
+        await new Promise<void>((resolve) => {
+          fail = resolve;
+        });
+        return Response.json(
+          { code: "rate_limited", requestId: "r3" },
+          { status: 429 },
+        );
+      }
+      return base ? base(request) : new Response(null, { status: 404 });
+    });
+
+    const [first] = await rows();
+    await openMenu(user, first as HTMLElement);
+    await user.click(screen.getByRole("menuitem", { name: "Rename" }));
+    const dialog = await screen.findByRole("dialog", {
+      name: "Rename this passkey",
+    });
+    await user.click(within(dialog).getByRole("button", { name: "Save name" }));
+    await waitFor(() => expect(writes("/credentials/rename")).toHaveLength(1));
+    await user.keyboard("{Escape}");
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("dialog", { name: "Rename this passkey" }),
+      ).not.toBeInTheDocument(),
+    );
+    fail();
+
+    expect(
+      await screen.findByText("Too many requests. Wait a moment."),
+    ).toBeVisible();
+    expect(screen.getAllByRole("alert")).toHaveLength(1);
     expect(notifyError).not.toHaveBeenCalled();
   });
 });
