@@ -409,6 +409,7 @@ describe("signing in with another device", () => {
       name: "Get a new code",
     });
     expect(notifyError).toHaveBeenCalledTimes(1);
+    expect(document.querySelector('[data-slot="pairing-code"]')).toBeNull();
     fail = false;
     await user.click(again);
     expect(await screen.findByText("K7QM-4XTB")).toBeVisible();

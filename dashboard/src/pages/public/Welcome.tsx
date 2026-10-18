@@ -105,8 +105,8 @@ export function WelcomePage() {
 
 /**
  * The prepared account as the reader will see it. The provider's picture is
- * fetched during the sign-in, so it is either here already or the initial
- * stands in.
+ * fetched during the sign-in, so it is either here already or the two-letter
+ * initials stand in.
  */
 function AccountPreview({ account }: { account: FederationConfirm }) {
   return (

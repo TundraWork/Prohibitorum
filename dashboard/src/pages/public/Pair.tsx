@@ -222,6 +222,8 @@ function PairingStep({
     );
   }
 
+  const showBack = !approved || complete.isError;
+
   return (
     <PublicStep
       title={<Trans id="pair.title">Sign in with another device</Trans>}
@@ -241,61 +243,69 @@ function PairingStep({
         )
       }
       actions={
-        <PublicStep.Actions>
-          {actions}
-          {(!approved || complete.isError) && (
-            <Button
-              render={
-                <RouterLink
-                  to="/login"
-                  search={returnTo === undefined ? {} : { return_to: returnTo }}
-                />
-              }
-              variant="ghost"
-              size="lg"
-              className="w-full"
-            >
-              <ArrowLeft aria-hidden="true" />
-              <Trans id="pair.back">Back to sign in</Trans>
-            </Button>
-          )}
-        </PublicStep.Actions>
+        (actions !== undefined || showBack) && (
+          <PublicStep.Actions>
+            {actions}
+            {showBack && (
+              <Button
+                render={
+                  <RouterLink
+                    to="/login"
+                    search={
+                      returnTo === undefined ? {} : { return_to: returnTo }
+                    }
+                  />
+                }
+                variant="ghost"
+                size="lg"
+                className="w-full"
+              >
+                <ArrowLeft aria-hidden="true" />
+                <Trans id="pair.back">Back to sign in</Trans>
+              </Button>
+            )}
+          </PublicStep.Actions>
+        )
       }
     >
       <p className="sr-only" role="status">
         {announcement}
       </p>
-      <div
-        className={cn(
-          "flex flex-col items-center gap-4 rounded-xl bg-muted/60 p-4 ring-1 ring-border/60",
-          expired && "opacity-50",
-        )}
-      >
-        {pairing === undefined ? (
-          starting && (
+      {(pairing !== undefined || starting) && (
+        <div
+          data-slot="pairing-code"
+          className={cn(
+            "flex flex-col items-center gap-4 rounded-xl bg-muted/60 p-4 ring-1 ring-border/60",
+            expired && "opacity-50",
+          )}
+        >
+          {pairing === undefined ? (
+            starting && (
+              <>
+                <Skeleton className="h-9 w-48 rounded-lg" />
+                {/* The QR code's own size, `qrSize`. */}
+                <Skeleton className="size-[200px] max-w-full rounded-lg" />
+              </>
+            )
+          ) : (
             <>
-              <Skeleton className="h-9 w-48 rounded-lg" />
-              {/* The QR code's own size, `qrSize`. */}
-              <Skeleton className="size-[200px] max-w-full rounded-lg" />
+              <p className="font-mono text-3xl font-semibold tracking-widest whitespace-nowrap tabular-nums">
+                <span className="sr-only">{[...pairing.code].join(" ")}</span>
+                <span aria-hidden="true">{pairing.displayCode}</span>
+              </p>
+              <QrCode
+                value={`${window.location.origin}/devices?${new URLSearchParams({ code: pairing.code })}`}
+                label={t({
+                  id: "pair.qr",
+                  message:
+                    "QR code that opens this pairing on the other device",
+                })}
+                size={qrSize}
+              />
             </>
-          )
-        ) : (
-          <>
-            <p className="font-mono text-3xl font-semibold tracking-widest whitespace-nowrap tabular-nums">
-              <span className="sr-only">{[...pairing.code].join(" ")}</span>
-              <span aria-hidden="true">{pairing.displayCode}</span>
-            </p>
-            <QrCode
-              value={`${window.location.origin}/devices?${new URLSearchParams({ code: pairing.code })}`}
-              label={t({
-                id: "pair.qr",
-                message: "QR code that opens this pairing on the other device",
-              })}
-              size={qrSize}
-            />
-          </>
-        )}
-      </div>
+          )}
+        </div>
+      )}
       {pairing !== undefined && !expired && (
         <p className="text-center text-muted-foreground text-sm">
           <Trans id="pair.qr_hint">
