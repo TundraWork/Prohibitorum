@@ -92,13 +92,13 @@
 
 - [ ] **Step 1: Write failing tests** (replace class assertions in `Button.test.tsx`):
   - `maps each variant` — for each `ButtonVariant`, renders a button with `data-variant` equal to it. Fails: attribute absent.
-  - `pending keeps the label beside the spinner` — `isPending` with text: the accessible name still contains the text, `aria-busy="true"`, the button is disabled, a `role="status"` or `data-slot="spinner"` element is present. Icon-only + pending: the icon is not rendered, the spinner is.
+  - `pending keeps the label beside the spinner` — `isPending` with text: the accessible name still contains the text, `aria-busy="true"` and `aria-disabled="true"`, presses are ignored and focus stays on the button, a `role="status"` or `data-slot="spinner"` element is present. Icon-only + pending: the icon is not rendered, the spinner is.
   - `isDisabled disables and onPress does not fire`.
   - `onPress fires on click and on Enter/Space` (native button semantics).
   - `render renders the given element` — `render={<a href="/x" />}` produces a link with the button's classes and `data-variant`.
   - In `SudoDialog.test.tsx` and `Login.test.tsx`, replace `toHaveClass("button--primary")` style assertions with `toHaveAttribute("data-variant", "primary")` (and `secondary` respectively).
 - [ ] **Step 2: Run them; they fail on the missing attributes.** `pnpm exec vitest run src/components/custom/Button.test.tsx src/components/custom/SudoDialog.test.tsx src/pages/Login.test.tsx`
-- [ ] **Step 3: Implement** the interface on top of coss `Button`. Pending uses coss `loading` (which already draws `Spinner` and hides the label visually) except that this project's rule is "a button with text keeps that text beside the spinner": pass `loading={false}`, render `<Spinner />` before the children when `isPending`, set `disabled` and `aria-busy`. `fullWidth` adds `w-full`.
+- [ ] **Step 3: Implement** the interface on top of coss `Button`. Pending uses coss `loading` (which already draws `Spinner` and hides the label visually) except that this project's rule is "a button with text keeps that text beside the spinner": pass `loading={false}`, render `<Spinner />` before the children when `isPending`, set `aria-disabled` and `aria-busy` (not native `disabled`, which drops focus to the body on every submit). `fullWidth` adds `w-full`.
 - [ ] **Step 4: Run the three test files, Biome, `tsc`, then `mise run ci:frontend`.**
 - [ ] **Step 5: Commit** — `feat(dashboard): rebuild Button on coss`
 
