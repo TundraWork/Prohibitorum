@@ -469,23 +469,14 @@ describe("passkey autofill", () => {
     ).toBe("second");
   });
 
-  it("offers autofill again after a refusal and gives up after three in a row", async () => {
+  it("does not offer autofill again after a refusal", async () => {
     fetchBoundary.mockImplementation(async () => options("c"));
-    vi.mocked(startAuthentication)
-      .mockRejectedValueOnce(refused())
-      .mockRejectedValueOnce(refused())
-      .mockResolvedValueOnce(picked as never);
+    vi.mocked(startAuthentication).mockRejectedValueOnce(refused());
     await expect(
       waitForPasskeyAutofill(new AbortController().signal),
-    ).resolves.toMatchObject({ response: picked });
-    expect(fetchBoundary).toHaveBeenCalledTimes(3);
-
-    fetchBoundary.mockClear();
-    vi.mocked(startAuthentication).mockRejectedValue(refused());
-    await expect(
-      waitForPasskeyAutofill(new AbortController().signal),
-    ).rejects.toBeInstanceOf(ApiError);
-    expect(fetchBoundary).toHaveBeenCalledTimes(3);
+    ).rejects.toMatchObject({ code: "passkey_incomplete" });
+    expect(fetchBoundary).toHaveBeenCalledTimes(1);
+    expect(startAuthentication).toHaveBeenCalledTimes(1);
   });
 
   it("becomes a cancellation when its signal aborts or another ceremony takes over", async () => {

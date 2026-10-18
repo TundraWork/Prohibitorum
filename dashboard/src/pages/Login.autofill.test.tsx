@@ -339,6 +339,23 @@ it("says nothing and does not retry when the autofill ceremony cannot begin", as
   expect(startAuthentication).not.toHaveBeenCalled();
 });
 
+it("says nothing and does not offer autofill again after the browser refuses", async () => {
+  let refuse!: (error: unknown) => void;
+  browser({
+    pick: new Promise((_, reject) => {
+      refuse = reject;
+    }),
+  });
+  mount();
+  await waitFor(() => expect(startAuthentication).toHaveBeenCalledTimes(1));
+  refuse(new DOMException("private browser details", "NotAllowedError"));
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  expect(loginCalls()).toEqual(["/login/begin?mediation=conditional"]);
+  expect(startAuthentication).toHaveBeenCalledTimes(1);
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  expect(notices).not.toHaveBeenCalled();
+});
+
 it("pauses autofill for the passkey button and offers it again afterwards", async () => {
   let refuse!: (error: unknown) => void;
   browser({
