@@ -3911,7 +3911,7 @@ msgstr "Key ID"
 #. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.description"
-msgstr "供脚本和工具以你的身份操作的密钥。每个密钥只在创建时显示一次。"
+msgstr "供脚本和工具以你的身份操作的令牌。每个令牌只在创建时显示一次。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/SignInPagePanel.tsx
@@ -8870,6 +8870,11 @@ msgstr "你的 {provider} 身份"
 #: src/components/custom/ConsoleLayout.tsx
 msgid "console.account"
 msgstr "你的账号"
+
+#. js-lingui-explicit-id
+#: src/pages/security/TokensPanel.tsx
+msgid "security.tokens.apps_failed"
+msgstr "无法加载你的应用。请关闭后重试。"
 
 #. js-lingui-explicit-id
 #: src/pages/public/SamlConsent.tsx

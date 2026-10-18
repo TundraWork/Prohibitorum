@@ -12,7 +12,7 @@ import {
   Smartphone,
 } from "lucide-react";
 import { type ReactNode, useEffect, useId, useRef, useState } from "react";
-import { describeError, isCancellation } from "@/api/errors";
+import { isCancellation } from "@/api/errors";
 import {
   passwordTotpMutationOptions,
   regenerateRecoveryCodesMutationOptions,
@@ -24,10 +24,13 @@ import { factorsQueryOptions } from "@/api/queries";
 import { withInlineReport } from "@/app/query-client";
 import { Button } from "@/components/custom/Button";
 import { ConfirmDialog } from "@/components/custom/ConfirmDialog";
+import {
+  InlineFailure,
+  useInlineFailure,
+} from "@/components/custom/InlineFailure";
 import { ItemList, ItemListRow } from "@/components/custom/ItemList";
 import { RecoveryCodes } from "@/components/custom/RecoveryCodes";
 import { AsyncSection, Section } from "@/components/custom/Section";
-import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
 import { Badge } from "@/components/ui/badge";
 import { ChangePasswordDialog } from "@/pages/security/ChangePasswordDialog";
 import { ReplaceAuthenticatorDialog } from "@/pages/security/ReplaceAuthenticatorDialog";
@@ -96,7 +99,7 @@ function PasswordTotpFactors() {
   // The plural's placeholder takes its name from this variable.
   const count = recoveryCodesRemaining;
 
-  const [error, setError] = useState<unknown>(null);
+  const { error, clear, report } = useInlineFailure();
   const [dialogCodes, setDialogCodes] = useState<string[] | null>(null);
   const [setupOpen, setSetupOpen] = useState(false);
   const [setupAttempt, setSetupAttempt] = useState(0);
@@ -158,7 +161,7 @@ function PasswordTotpFactors() {
   // check returns to it.
   const settle = (close: () => void) => (failure: unknown) => {
     if (isCancellation(failure)) return;
-    setError(failure);
+    report(failure);
     close();
   };
 
@@ -187,20 +190,14 @@ function PasswordTotpFactors() {
         )
       }
     >
-      {error !== null && (
-        <SurfaceAlert status="danger" role="alert">
-          <SurfaceAlert.Indicator />
-          <SurfaceAlert.Content>
-            <SurfaceAlert.Title>{t(describeError(error))}</SurfaceAlert.Title>
-          </SurfaceAlert.Content>
-        </SurfaceAlert>
-      )}
+      <InlineFailure error={error} />
       <ItemList
         label={t({
           id: "security.password.list",
           message: "Password and authenticator",
         })}
         empty={null}
+        columns={{ actions: true }}
       >
         <FactorRow
           key="password"
@@ -295,7 +292,7 @@ function PasswordTotpFactors() {
         submit={setup}
         onClose={() => setSetupOpen(false)}
         onResult={(codes) => {
-          setError(null);
+          clear();
           setSetupResult({ codes, firstIssue: setupBefore.firstIssue });
         }}
         onDone={async () => {
@@ -307,7 +304,7 @@ function PasswordTotpFactors() {
         open={changing}
         change={change}
         onClose={() => {
-          setError(null);
+          clear();
           setChanging(false);
         }}
       />
@@ -316,7 +313,7 @@ function PasswordTotpFactors() {
         replace={replace}
         onClose={() => setReplacing(false)}
         onCodes={(codes) => {
-          setError(null);
+          clear();
           setDialogCodes(codes);
         }}
       />
@@ -349,10 +346,10 @@ function PasswordTotpFactors() {
         }
         isPending={regenerate.isPending}
         onConfirm={() => {
-          setError(null);
+          clear();
           regenerate.mutate(undefined, {
             onSuccess: (result) => {
-              setError(null);
+              clear();
               setRegenerating(false);
               setDialogCodes(result.recovery_codes);
             },
@@ -382,10 +379,10 @@ function PasswordTotpFactors() {
         }
         isPending={revoke.isPending}
         onConfirm={() => {
-          setError(null);
+          clear();
           revoke.mutate(undefined, {
             onSuccess: () => {
-              setError(null);
+              clear();
               setRevoking(false);
             },
             onError: settle(() => setRevoking(false)),

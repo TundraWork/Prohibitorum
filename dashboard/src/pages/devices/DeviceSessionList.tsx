@@ -6,7 +6,6 @@ import {
 } from "@tanstack/react-query";
 import { LogOut, MonitorSmartphone } from "lucide-react";
 import { type ReactNode, useEffect, useState } from "react";
-import { describeError, isCancellation } from "@/api/errors";
 import type { components } from "@/api/generated/schema";
 import { revokeSessionMutationOptions } from "@/api/mutations";
 import { sessionsQueryOptions } from "@/api/queries";
@@ -18,9 +17,12 @@ import {
   DeviceName,
   describeDevice,
 } from "@/components/custom/DeviceName";
+import {
+  InlineFailure,
+  useInlineFailure,
+} from "@/components/custom/InlineFailure";
 import { ItemList, ItemListRow } from "@/components/custom/ItemList";
 import { RelativeTime } from "@/components/custom/RelativeTime";
-import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
 import { TableEmptyState } from "@/components/custom/TableEmptyState";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
@@ -62,7 +64,7 @@ export function DeviceSessionList({
     },
   });
   const [target, setTarget] = useState<Session | null>(null);
-  const [error, setError] = useState<unknown>(null);
+  const { error, clear, report } = useInlineFailure();
 
   // The failure is drawn on this page, so the toast stays silent.
   const revoke = useMutation(
@@ -73,14 +75,7 @@ export function DeviceSessionList({
 
   return (
     <div className="flex flex-col gap-4">
-      {error !== null && (
-        <SurfaceAlert status="danger" role="alert">
-          <SurfaceAlert.Indicator />
-          <SurfaceAlert.Content>
-            <SurfaceAlert.Title>{t(describeError(error))}</SurfaceAlert.Title>
-          </SurfaceAlert.Content>
-        </SurfaceAlert>
-      )}
+      <InlineFailure error={error} />
 
       {/* The region stays mounted so the line is announced when it appears. */}
       <div aria-live="polite" className="empty:hidden">
@@ -178,11 +173,11 @@ export function DeviceSessionList({
         isPending={revoke.isPending}
         onConfirm={() => {
           if (!target) return;
-          setError(null);
+          clear();
           revoke.mutate(target.id, {
             onSuccess: () => setTarget(null),
             onError: (failure) => {
-              if (!isCancellation(failure)) setError(failure);
+              report(failure);
               setTarget(null);
             },
           });

@@ -485,3 +485,25 @@ describe("removing a passkey", () => {
     expect(notifyError).not.toHaveBeenCalled();
   });
 });
+
+describe("when the passkeys cannot be loaded", () => {
+  it("reports it once, in the section, and offers Try again", async () => {
+    const user = userEvent.setup();
+    let failing = true;
+    mount([macbook], (request) =>
+      failing && new URL(request.url).pathname.endsWith("/me/credentials")
+        ? new Response(null, { status: 500 })
+        : undefined,
+    );
+
+    const retry = await screen.findByRole("button", { name: "Try again" });
+    expect(screen.getAllByRole("alert")).toHaveLength(1);
+    expect(notifyError).not.toHaveBeenCalled();
+
+    failing = false;
+    await user.click(retry);
+
+    expect(await screen.findByText("MacBook Pro")).toBeVisible();
+    expect(notifyError).not.toHaveBeenCalled();
+  });
+});

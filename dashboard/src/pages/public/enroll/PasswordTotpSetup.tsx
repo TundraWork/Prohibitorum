@@ -213,7 +213,7 @@ export function PasswordTotpSetup({
             hidden={step !== "authenticator"}
             className="flex flex-col gap-4"
           >
-            <TotpSetup secret={secret} uri={uri} onSurface />
+            <TotpSetup secret={secret} uri={uri} />
             <form.AppField
               name="code"
               validators={{

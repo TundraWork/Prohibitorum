@@ -14,7 +14,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { type ReactNode, useState } from "react";
-import { describeError, isCancellation } from "@/api/errors";
+import { isCancellation } from "@/api/errors";
 import type { components } from "@/api/generated/schema";
 import {
   addCredentialMutationOptions,
@@ -22,14 +22,17 @@ import {
   renameCredentialMutationOptions,
 } from "@/api/mutations";
 import { credentialsQueryOptions } from "@/api/queries";
-import { withInlineReport } from "@/app/query-client";
+import { quietQuery, withInlineReport } from "@/app/query-client";
 import { Button } from "@/components/custom/Button";
 import { ConfirmDialog } from "@/components/custom/ConfirmDialog";
+import {
+  InlineFailure,
+  useInlineFailure,
+} from "@/components/custom/InlineFailure";
 import { ItemList, ItemListRow } from "@/components/custom/ItemList";
 import { RelativeTime } from "@/components/custom/RelativeTime";
 import { RowMenu } from "@/components/custom/RowMenu";
 import { AsyncSection, Section } from "@/components/custom/Section";
-import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
 import { TableEmptyState } from "@/components/custom/TableEmptyState";
 import { getTopLayerContainer } from "@/components/custom/top-layer";
 import { Badge } from "@/components/ui/badge";
@@ -95,8 +98,8 @@ function PasskeysDescription() {
 function PasskeyList() {
   const { t } = useLingui();
   const queryClient = useQueryClient();
-  const { data } = useSuspenseQuery(credentialsQueryOptions());
-  const [error, setError] = useState<unknown>(null);
+  const { data } = useSuspenseQuery(quietQuery(credentialsQueryOptions()));
+  const { error, clear, report } = useInlineFailure();
   const [renaming, setRenaming] = useState<Credential | null>(null);
   const [deleting, setDeleting] = useState<Credential | null>(null);
 
@@ -112,12 +115,6 @@ function PasskeyList() {
   const rename = useMutation(
     withInlineReport(renameCredentialMutationOptions(queryClient), true),
   );
-
-  // A browser or sudo cancellation is a decision, not a failure: nothing was
-  // changed and there is nothing to report.
-  const report = (failure: unknown) => {
-    if (!isCancellation(failure)) setError(failure);
-  };
 
   const rows = data;
   // The server rejects removing the last passkey; saying so in the row and
@@ -135,7 +132,7 @@ function PasskeyList() {
             size="sm"
             pending={add.isPending}
             onClick={() => {
-              setError(null);
+              clear();
               add.mutate(undefined, { onError: report });
             }}
           >
@@ -144,14 +141,7 @@ function PasskeyList() {
           </Button>
         }
       >
-        {error !== null && (
-          <SurfaceAlert status="danger" role="alert">
-            <SurfaceAlert.Indicator />
-            <SurfaceAlert.Content>
-              <SurfaceAlert.Title>{t(describeError(error))}</SurfaceAlert.Title>
-            </SurfaceAlert.Content>
-          </SurfaceAlert>
-        )}
+        <InlineFailure error={error} />
         <ItemList
           label={t({ id: "security.passkeys.table", message: "Passkeys" })}
           empty={

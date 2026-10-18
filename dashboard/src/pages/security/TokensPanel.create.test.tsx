@@ -56,12 +56,15 @@ function mount({
   role = "user",
   tokens = [],
   createFailure,
+  failRead,
 }: {
   apps?: App[];
   role?: Session["role"];
   tokens?: Token[];
   /** Answers the create request instead of making a token. */
   createFailure?: Response;
+  /** Paths whose read answers with a server error. */
+  failRead?: string[];
 } = {}) {
   const session: Session = {
     id: 1,
@@ -72,6 +75,9 @@ function mount({
   };
   fetchBoundary.mockImplementation(async (request) => {
     const path = new URL(request.url).pathname;
+    if (failRead?.some((suffix) => path.endsWith(suffix))) {
+      return new Response(null, { status: 500 });
+    }
     if (path.endsWith("/me")) return Response.json(session);
     if (path.endsWith("/me/forward-auth-apps")) return Response.json(apps);
     if (path.endsWith("/me/sudo/methods")) {
@@ -554,5 +560,50 @@ describe("the token list", () => {
     await user.click(within(dialog).getByRole("button", { name: "Revoke" }));
     await waitFor(() => expect(revokes()).toHaveLength(1));
     expect(await revokes()[0]?.[0].json()).toEqual({ id: 7 });
+  });
+});
+
+describe("the token list read", () => {
+  it("reports a failed read once, in the section, with no false empty state", async () => {
+    mount({ failRead: ["/me/tokens"] });
+
+    expect(
+      await screen.findByRole("button", { name: "Try again" }),
+    ).toBeVisible();
+    expect(screen.getAllByRole("alert")).toHaveLength(1);
+    expect(screen.queryByText("No access tokens yet")).not.toBeInTheDocument();
+    expect(notifyError).not.toHaveBeenCalled();
+  });
+
+  it("says the applications could not be loaded instead of claiming there are none", async () => {
+    const user = userEvent.setup();
+    mount({ failRead: ["/me/forward-auth-apps"] });
+    const dialog = await openDialog(user);
+
+    expect(
+      await within(dialog).findByText(
+        "Your applications could not be loaded. Close this and try again.",
+      ),
+    ).toBeVisible();
+    expect(
+      within(dialog).queryByText("You have no applications to choose from."),
+    ).not.toBeInTheDocument();
+    expect(notifyError).not.toHaveBeenCalled();
+  });
+
+  it("gives focus back to the button that opened the dialog on Cancel and on Escape", async () => {
+    const user = userEvent.setup();
+    mount();
+    const opener = await screen.findByRole("button", {
+      name: "Create a token",
+    });
+
+    const dialog = await openDialog(user);
+    await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(opener).toHaveFocus());
+
+    await openDialog(user);
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(opener).toHaveFocus());
   });
 });

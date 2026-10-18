@@ -286,3 +286,46 @@ describe("unlinking an identity", () => {
     );
   });
 });
+
+describe("when the identities cannot be loaded", () => {
+  it("reports it once, in the section, with no false empty state", async () => {
+    const user = userEvent.setup();
+    let failing = true;
+    mount([github], providers, (request) =>
+      failing && new URL(request.url).pathname.endsWith("/me/identities")
+        ? new Response(null, { status: 500 })
+        : undefined,
+    );
+
+    const retry = await screen.findByRole("button", { name: "Try again" });
+    expect(screen.getAllByRole("alert")).toHaveLength(1);
+    expect(
+      screen.queryByText("No other identities linked yet"),
+    ).not.toBeInTheDocument();
+    expect(notifyError).not.toHaveBeenCalled();
+
+    failing = false;
+    await user.click(retry);
+
+    expect(await rows()).toHaveLength(1);
+    expect(notifyError).not.toHaveBeenCalled();
+  });
+
+  it("keeps the rows and reports nothing when only the provider lookup fails", async () => {
+    mount([github], providers, (request) =>
+      new URL(request.url).pathname.endsWith("/auth/federation")
+        ? new Response(null, { status: 500 })
+        : undefined,
+    );
+
+    expect(await rows()).toHaveLength(1);
+    await waitFor(() =>
+      expect(
+        fetchBoundary.mock.calls.some(([request]) =>
+          new URL(request.url).pathname.endsWith("/auth/federation"),
+        ),
+      ).toBe(true),
+    );
+    expect(notifyError).not.toHaveBeenCalled();
+  });
+});

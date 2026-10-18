@@ -17,6 +17,7 @@ const selectionPath = "/api/prohibitorum/me/avatar/selection";
 
 const fetchBoundary = vi.fn<(request: Request) => Promise<Response>>();
 const notifySuccess = vi.fn<(message: MessageDescriptor) => void>();
+const notifyError = vi.fn<(error: unknown) => void>();
 let queryClient: QueryClient;
 /** What `GET /me/avatar` answers; a write's handler may move it. */
 let avatar: MyAvatar;
@@ -57,6 +58,7 @@ beforeEach(() => {
   i18n.activate("en");
   fetchBoundary.mockReset();
   notifySuccess.mockReset();
+  notifyError.mockReset();
   avatar = {
     activeSource: "user",
     sources: [picture("user"), picture("upstream:provider-1", "Example IdP 1")],
@@ -80,7 +82,7 @@ beforeEach(() => {
     return new Response(null, { status: 204 });
   });
   vi.stubGlobal("fetch", fetchBoundary);
-  queryClient = createQueryClient(() => undefined, notifySuccess);
+  queryClient = createQueryClient(notifyError, notifySuccess);
 });
 
 afterEach(() => {
@@ -245,5 +247,30 @@ describe("the avatar gallery", () => {
     expect(
       screen.queryByRole("button", { name: "Remove uploaded picture" }),
     ).not.toBeInTheDocument();
+  });
+});
+
+describe("when the avatar cannot be loaded", () => {
+  it("reports it once, in the section, and offers Try again", async () => {
+    const user = userEvent.setup();
+    let failing = true;
+    fetchBoundary.mockImplementation(async (request) =>
+      failing && new URL(request.url).pathname === avatarPath
+        ? new Response(null, { status: 500 })
+        : Response.json(avatar),
+    );
+    mount();
+
+    const retry = await screen.findByRole("button", { name: "Try again" });
+    expect(screen.getAllByRole("alert")).toHaveLength(1);
+    expect(notifyError).not.toHaveBeenCalled();
+
+    failing = false;
+    await user.click(retry);
+
+    expect(
+      await screen.findByRole("radiogroup", { name: "Picture to show" }),
+    ).toBeVisible();
+    expect(notifyError).not.toHaveBeenCalled();
   });
 });

@@ -7,23 +7,25 @@ import {
 } from "@tanstack/react-query";
 import { AppWindow, Trash2 } from "lucide-react";
 import { useState } from "react";
-import { describeError, isCancellation } from "@/api/errors";
 import type { components } from "@/api/generated/schema";
 import { revokeConsentMutationOptions } from "@/api/mutations";
 import {
   consentQueryOptions,
   federationProvidersQueryOptions,
 } from "@/api/queries";
-import { withInlineReport } from "@/app/query-client";
+import { quietQuery, withInlineReport } from "@/app/query-client";
 import { Button } from "@/components/custom/Button";
 import { ConfirmDialog } from "@/components/custom/ConfirmDialog";
 import { EntityAvatar } from "@/components/custom/EntityAvatar";
+import {
+  InlineFailure,
+  useInlineFailure,
+} from "@/components/custom/InlineFailure";
 import { ItemList, ItemListRow } from "@/components/custom/ItemList";
 import { PageBody } from "@/components/custom/PageBody";
 import { PageHeader } from "@/components/custom/PageHeader";
 import { RelativeTime } from "@/components/custom/RelativeTime";
 import { AsyncSection } from "@/components/custom/Section";
-import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
 import { TableEmptyState } from "@/components/custom/TableEmptyState";
 import { Badge } from "@/components/ui/badge";
 import { describeScope } from "@/lib/scopes";
@@ -60,15 +62,12 @@ function ConnectedAppList() {
   const { data } = useSuspenseQuery(consentQueryOptions());
   // Names the provider behind an `identity:<slug>` scope. A cosmetic lookup:
   // until it arrives, or if it fails, the slug stands in and nothing is reported.
-  const providers = useQuery({
-    ...federationProvidersQueryOptions(),
-    meta: { requiresSession: true, quiet: true },
-  });
+  const providers = useQuery(quietQuery(federationProvidersQueryOptions()));
   const providerNames = Object.fromEntries(
     (providers.data ?? []).map((p) => [p.slug, p.displayName]),
   );
   const [target, setTarget] = useState<ConsentedApp | null>(null);
-  const [error, setError] = useState<unknown>(null);
+  const { error, clear, report } = useInlineFailure();
 
   // The failure is drawn on this page, so the toast stays silent.
   const revoke = useMutation(
@@ -77,14 +76,7 @@ function ConnectedAppList() {
 
   return (
     <div className="flex flex-col gap-4">
-      {error !== null && (
-        <SurfaceAlert status="danger" role="alert">
-          <SurfaceAlert.Indicator />
-          <SurfaceAlert.Content>
-            <SurfaceAlert.Title>{t(describeError(error))}</SurfaceAlert.Title>
-          </SurfaceAlert.Content>
-        </SurfaceAlert>
-      )}
+      <InlineFailure error={error} />
 
       <ItemList
         label={t({
@@ -158,7 +150,7 @@ function ConnectedAppList() {
         isPending={revoke.isPending}
         onConfirm={() => {
           if (!target) return;
-          setError(null);
+          clear();
           // `kind` is echoed exactly as listed: the server uses it to tell an
           // OIDC client id from a SAML entity id.
           revoke.mutate(
@@ -166,7 +158,7 @@ function ConnectedAppList() {
             {
               onSuccess: () => setTarget(null),
               onError: (failure) => {
-                if (!isCancellation(failure)) setError(failure);
+                report(failure);
                 setTarget(null);
               },
             },

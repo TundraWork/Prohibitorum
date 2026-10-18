@@ -183,7 +183,7 @@ describe("console home", () => {
     ).toBeInTheDocument();
   });
 
-  it("flags recovery codes running low at three, and not at four", async () => {
+  it("flags recovery codes running low at three", async () => {
     serve({ ...allSet, recoveryCodesRemaining: 3 });
     mount();
     const low = await screen.findByRole("link", { name: /Recovery codes/ });

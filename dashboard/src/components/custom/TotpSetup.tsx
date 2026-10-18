@@ -10,10 +10,6 @@ import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
  * It says nothing about what the new authenticator replaces: a first setup
  * replaces nothing, so a caller that does replace one — the sign-in reset, the
  * console's replace dialog — draws that warning itself.
- *
- * `onSurface` is kept so a caller can say where it draws the setup; coss's
- * alert and fields read the same on a page, a card and a dialog, so it no
- * longer changes the look.
  */
 export function TotpSetup({
   secret,
@@ -22,8 +18,6 @@ export function TotpSetup({
 }: {
   secret: string;
   uri: string;
-  /** Accepted for compatibility; see above. */
-  onSurface?: boolean;
   /** Puts the QR code beside the setup key from `sm`, for a wide surface such as a dialog. */
   split?: boolean;
 }) {

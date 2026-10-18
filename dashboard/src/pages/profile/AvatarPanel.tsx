@@ -12,6 +12,7 @@ import {
   uploadAvatarMutationOptions,
 } from "@/api/mutations";
 import { myAvatarQueryOptions } from "@/api/queries";
+import { quietQuery } from "@/app/query-client";
 import { Button } from "@/components/custom/Button";
 import { ChoiceTile } from "@/components/custom/ChoiceTile";
 import { ConfirmDialog } from "@/components/custom/ConfirmDialog";
@@ -69,7 +70,7 @@ export function AvatarPanel() {
 function AvatarGallery() {
   const { t } = useLingui();
   const queryClient = useQueryClient();
-  const { data: avatar } = useSuspenseQuery(myAvatarQueryOptions());
+  const { data: avatar } = useSuspenseQuery(quietQuery(myAvatarQueryOptions()));
   const select = useMutation(selectAvatarMutationOptions(queryClient));
   const upload = useMutation(uploadAvatarMutationOptions(queryClient));
   const remove = useMutation(removeAvatarUploadMutationOptions(queryClient));

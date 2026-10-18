@@ -1,8 +1,13 @@
 import { Trans, useLingui } from "@lingui/react/macro";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useMutation,
+  useQuery,
+  useQueryClient,
+  useSuspenseQuery,
+} from "@tanstack/react-query";
 import { Link2, Unlink } from "lucide-react";
 import { useState } from "react";
-import { describeError, isCancellation } from "@/api/errors";
+import { isCancellation } from "@/api/errors";
 import type { components } from "@/api/generated/schema";
 import {
   identityLinkUrl,
@@ -15,15 +20,18 @@ import {
 import { runWithSudo } from "@/api/sudo";
 import { sudoReason } from "@/api/sudo-reasons";
 import { loadDocument } from "@/app/load-document";
-import { withInlineReport } from "@/app/query-client";
+import { quietQuery, withInlineReport } from "@/app/query-client";
 import { usePageRestore } from "@/app/use-page-restore";
 import { Button } from "@/components/custom/Button";
 import { ConfirmDialog } from "@/components/custom/ConfirmDialog";
 import { EntityAvatar } from "@/components/custom/EntityAvatar";
+import {
+  InlineFailure,
+  useInlineFailure,
+} from "@/components/custom/InlineFailure";
 import { ItemList, ItemListRow } from "@/components/custom/ItemList";
 import { RelativeTime } from "@/components/custom/RelativeTime";
-import { Section } from "@/components/custom/Section";
-import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
+import { AsyncSection, Section } from "@/components/custom/Section";
 import { TableEmptyState } from "@/components/custom/TableEmptyState";
 import { getTopLayerContainer } from "@/components/custom/top-layer";
 import { Badge } from "@/components/ui/badge";
@@ -46,12 +54,42 @@ type Provider = components["schemas"]["FederationProvider"];
  * panel one list of what is actually linked.
  */
 export function IdentitiesPanel() {
+  return (
+    <AsyncSection
+      resetKey="identities"
+      icon={<Link2 />}
+      title={<IdentitiesTitle />}
+      description={<IdentitiesDescription />}
+    >
+      <IdentityList />
+    </AsyncSection>
+  );
+}
+
+function IdentitiesTitle() {
+  return <Trans id="security.section.identities">Linked identities</Trans>;
+}
+
+function IdentitiesDescription() {
+  return (
+    <Trans id="security.identities.description">
+      Other accounts you can sign in with. Unlinking one leaves your other ways
+      in as they are.
+    </Trans>
+  );
+}
+
+function IdentityList() {
   const { t } = useLingui();
   const queryClient = useQueryClient();
-  const identities = useQuery(identitiesQueryOptions());
-  const providers = useQuery(federationProvidersQueryOptions());
+  const { data: identities } = useSuspenseQuery(
+    quietQuery(identitiesQueryOptions()),
+  );
+  // Only supplies the marks and the link menu: until it arrives, or if it
+  // fails, the rows still stand and nothing is reported.
+  const providers = useQuery(quietQuery(federationProvidersQueryOptions()));
   const [target, setTarget] = useState<Identity | null>(null);
-  const [error, setError] = useState<unknown>(null);
+  const { error, clear, report } = useInlineFailure();
   const [linking, setLinking] = useState<string | null>(null);
 
   // The failure is drawn in this section, so the toast stays silent.
@@ -61,14 +99,14 @@ export function IdentitiesPanel() {
 
   const available = providers.data ?? [];
   const linkedSlugs = new Set(
-    (identities.data ?? []).map((identity) => identity.providerSlug),
+    identities.map((identity) => identity.providerSlug),
   );
 
   // A press leaves the page and stays pending until it is gone or restored.
   usePageRestore(() => setLinking(null));
 
   const startLink = (slug: string) => {
-    setError(null);
+    clear();
     setLinking(slug);
     runWithSudo(async () => {
       // A full-page load: the response is a redirect the browser has to
@@ -76,7 +114,7 @@ export function IdentitiesPanel() {
       loadDocument(identityLinkUrl(slug));
     }, sudoReason.linkIdentity).catch((failure: unknown) => {
       setLinking(null);
-      if (!isCancellation(failure)) setError(failure);
+      report(failure);
     });
   };
 
@@ -84,15 +122,8 @@ export function IdentitiesPanel() {
     <>
       <Section
         icon={<Link2 />}
-        title={
-          <Trans id="security.section.identities">Linked identities</Trans>
-        }
-        description={
-          <Trans id="security.identities.description">
-            Other accounts you can sign in with. Unlinking one leaves your other
-            ways in as they are.
-          </Trans>
-        }
+        title={<IdentitiesTitle />}
+        description={<IdentitiesDescription />}
         action={
           <LinkIdentityMenu
             providers={available}
@@ -102,21 +133,13 @@ export function IdentitiesPanel() {
           />
         }
       >
-        {error !== null && (
-          <SurfaceAlert status="danger" role="alert">
-            <SurfaceAlert.Indicator />
-            <SurfaceAlert.Content>
-              <SurfaceAlert.Title>{t(describeError(error))}</SurfaceAlert.Title>
-            </SurfaceAlert.Content>
-          </SurfaceAlert>
-        )}
+        <InlineFailure error={error} />
 
         <ItemList
           label={t({
             id: "security.identities.table",
             message: "Linked identities",
           })}
-          loading={identities.isPending}
           empty={
             <TableEmptyState
               icon={<Link2 size={18} strokeWidth={1.75} aria-hidden="true" />}
@@ -128,7 +151,7 @@ export function IdentitiesPanel() {
             />
           }
         >
-          {(identities.data ?? []).map((identity) => (
+          {identities.map((identity) => (
             <ItemListRow
               key={identity.id}
               icon={
@@ -200,13 +223,13 @@ export function IdentitiesPanel() {
         isPending={unlink.isPending}
         onConfirm={() => {
           if (!target) return;
-          setError(null);
+          clear();
           unlink.mutate(target.id, {
             onSuccess: () => setTarget(null),
             onError: (failure) => {
               // Backing out of the sudo prompt returns to this question.
               if (isCancellation(failure)) return;
-              setError(failure);
+              report(failure);
               setTarget(null);
             },
           });

@@ -7,6 +7,7 @@ import {
   useMutation,
   useQuery,
   useQueryClient,
+  useSuspenseQuery,
 } from "@tanstack/react-query";
 import { Ban, KeyRound, Ticket } from "lucide-react";
 import { Fragment, useId, useRef, useState } from "react";
@@ -24,7 +25,7 @@ import {
 } from "@/api/queries";
 import { runWithSudo } from "@/api/sudo";
 import { sudoReason } from "@/api/sudo-reasons";
-import { withInlineReport } from "@/app/query-client";
+import { quietQuery, withInlineReport } from "@/app/query-client";
 import { Button } from "@/components/custom/Button";
 import { ChoiceTile } from "@/components/custom/ChoiceTile";
 import { ConfirmDialog } from "@/components/custom/ConfirmDialog";
@@ -32,7 +33,7 @@ import { FormMessages } from "@/components/custom/FormMessages";
 import { ItemList, ItemListRow } from "@/components/custom/ItemList";
 import { RelativeTime } from "@/components/custom/RelativeTime";
 import { SecretRevealDialog } from "@/components/custom/SecretReveal";
-import { Section } from "@/components/custom/Section";
+import { AsyncSection, Section } from "@/components/custom/Section";
 import { accessTokenCopy } from "@/components/custom/secret-reveal-copy";
 import { TableEmptyState } from "@/components/custom/TableEmptyState";
 import {
@@ -74,6 +75,10 @@ const nameRequired = msg({
 const chooseApp = msg({
   id: "security.tokens.apps.required",
   message: "Choose at least one application, or pick another level of access.",
+});
+const appsFailedMessage = msg({
+  id: "security.tokens.apps_failed",
+  message: "Your applications could not be loaded. Close this and try again.",
 });
 const noApps = msg({
   id: "security.tokens.no_forward_auth",
@@ -161,10 +166,37 @@ const accessOptions: {
  * client raises for every mutation; a failed create is drawn in its dialog.
  */
 export function TokensPanel() {
+  return (
+    <AsyncSection
+      resetKey="tokens"
+      icon={<KeyRound />}
+      title={<TokensTitle />}
+      description={<TokensDescription />}
+    >
+      <TokenList />
+    </AsyncSection>
+  );
+}
+
+function TokensTitle() {
+  return <Trans id="security.section.tokens">Access tokens</Trans>;
+}
+
+function TokensDescription() {
+  return (
+    <Trans id="security.tokens.description">
+      Keys for scripts and tools that act as you. Each is shown once, when you
+      create it.
+    </Trans>
+  );
+}
+
+function TokenList() {
   const { t, i18n } = useLingui();
   const queryClient = useQueryClient();
-  const tokens = useQuery(tokensQueryOptions());
-  const apps = useQuery(forwardAuthAppsQueryOptions());
+  const { data: tokens } = useSuspenseQuery(quietQuery(tokensQueryOptions()));
+  // Only fills the create dialog: a failed read is told there, not as a toast.
+  const apps = useQuery(quietQuery(forwardAuthAppsQueryOptions()));
   const session = useQuery(sessionQueryOptions());
   const [plaintext, setPlaintext] = useState<string | null>(null);
   const [target, setTarget] = useState<Token | null>(null);
@@ -181,13 +213,8 @@ export function TokensPanel() {
     <>
       <Section
         icon={<KeyRound />}
-        title={<Trans id="security.section.tokens">Access tokens</Trans>}
-        description={
-          <Trans id="security.tokens.description">
-            Keys for scripts and tools that act as you. Each is shown once, when
-            you create it.
-          </Trans>
-        }
+        title={<TokensTitle />}
+        description={<TokensDescription />}
         action={
           <Button
             ref={createButton}
@@ -201,7 +228,6 @@ export function TokensPanel() {
       >
         <ItemList
           label={t({ id: "security.tokens.table", message: "Access tokens" })}
-          loading={tokens.isPending}
           empty={
             <TableEmptyState
               icon={<Ticket size={18} strokeWidth={1.75} aria-hidden="true" />}
@@ -211,7 +237,7 @@ export function TokensPanel() {
             />
           }
         >
-          {(tokens.data ?? []).map((token) => {
+          {tokens.map((token) => {
             const expiry =
               token.expiresAt === undefined ? null : new Date(token.expiresAt);
             const expired = expiry !== null && expiry.getTime() <= Date.now();
@@ -276,6 +302,7 @@ export function TokensPanel() {
 
       <CreateTokenDialog
         apps={apps.data}
+        appsFailed={apps.isError}
         isAdmin={session.data?.role === "admin"}
         isOpen={creating}
         onOpenChange={setCreating}
@@ -369,6 +396,7 @@ type CreateToken = UseMutationResult<
  */
 function CreateTokenDialog({
   apps,
+  appsFailed,
   isAdmin,
   isOpen,
   onOpenChange,
@@ -376,6 +404,8 @@ function CreateTokenDialog({
 }: {
   /** Undefined while the list is still being read. */
   apps: ForwardAuthApp[] | undefined;
+  /** The read failed, so the list is not known to be empty or full. */
+  appsFailed: boolean;
   isAdmin: boolean;
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
@@ -397,6 +427,7 @@ function CreateTokenDialog({
       >
         <CreateTokenForm
           apps={apps}
+          appsFailed={appsFailed}
           isAdmin={isAdmin}
           create={create}
           onCancel={() => onOpenChange(false)}
@@ -418,12 +449,14 @@ function CreateTokenDialog({
  */
 function CreateTokenForm({
   apps,
+  appsFailed,
   isAdmin,
   create,
   onCancel,
   onCreated,
 }: {
   apps: ForwardAuthApp[] | undefined;
+  appsFailed: boolean;
   isAdmin: boolean;
   create: CreateToken;
   onCancel: () => void;
@@ -441,6 +474,8 @@ function CreateTokenForm({
   // Only a list that has been read and is empty rules the level out; one still
   // on its way leaves it open.
   const noneAvailable = apps !== undefined && apps.length === 0;
+  // A failed read says so rather than claiming there is nothing to choose.
+  const cannotChoose = noneAvailable || appsFailed;
 
   // The values are the day counts `buildTokenRequest` reads; zero means the
   // server stores no expiry at all.
@@ -617,7 +652,6 @@ function CreateTokenForm({
                   </Trans>
                 }
                 autoComplete="off"
-                autoFocus
               />
             )}
           </form.AppField>
@@ -676,9 +710,11 @@ function CreateTokenForm({
                 >
                   {accessOptions.map((option) => {
                     const unavailable =
-                      option.value === "selected_apps" && noneAvailable;
+                      option.value === "selected_apps" && cannotChoose;
                     const description = unavailable
-                      ? noApps
+                      ? appsFailed
+                        ? appsFailedMessage
+                        : noApps
                       : isAdmin && option.adminDescription !== undefined
                         ? option.adminDescription
                         : option.description;

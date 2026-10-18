@@ -172,6 +172,6 @@ describe("CopyValue", () => {
       </I18nProvider>,
     );
     expect(field()).toHaveAccessibleDescription("Quote this to support.");
-    expect(screen.getByText("Client ID")).toHaveClass("sr-only");
+    expect(field()).toHaveAccessibleName("Client ID");
   });
 });

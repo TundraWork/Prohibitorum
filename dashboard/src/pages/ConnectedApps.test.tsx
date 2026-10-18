@@ -152,6 +152,27 @@ describe("the connected application rows", () => {
     expect(notifyError).not.toHaveBeenCalled();
   });
 
+  it("keeps the slug and reports nothing when the provider lookup fails", async () => {
+    mount([{ ...wiki, scopes: ["identity:google"] }], (request) =>
+      new URL(request.url).pathname.endsWith("/auth/federation")
+        ? new Response(null, { status: 500 })
+        : undefined,
+    );
+
+    const [row] = (await rows()) as [HTMLElement];
+    await waitFor(() =>
+      expect(
+        fetchBoundary.mock.calls.some(([request]) =>
+          new URL(request.url).pathname.endsWith("/auth/federation"),
+        ),
+      ).toBe(true),
+    );
+    expect(row.querySelector("[data-slot='item-details']")).toHaveTextContent(
+      "Your google identity",
+    );
+    expect(notifyError).not.toHaveBeenCalled();
+  });
+
   it("keeps the slug of a provider the instance does not list", async () => {
     mount([{ ...wiki, scopes: ["identity:okta"] }]);
 

@@ -15,6 +15,7 @@ import {
 import { sessionsQueryOptions } from "@/api/queries";
 import type { DevicePairing } from "@/api/raw-paths";
 import { successMessage } from "@/api/success-messages";
+import { quietQuery } from "@/app/query-client";
 import { Button } from "@/components/custom/Button";
 import { Detail } from "@/components/custom/Detail";
 import { DeviceName } from "@/components/custom/DeviceName";
@@ -246,7 +247,7 @@ function ReviewStep({
   onApproved: (pairing: DevicePairing) => void;
 }) {
   const { approve, decline, revoke, busy } = writes;
-  const sessions = useQuery(sessionsQueryOptions());
+  const sessions = useQuery(quietQuery(sessionsQueryOptions()));
   const { code, pairing } = request;
   const expiresAt = Date.parse(pairing.expiresAt);
   const [expired, setExpired] = useState(() => Date.now() >= expiresAt);
