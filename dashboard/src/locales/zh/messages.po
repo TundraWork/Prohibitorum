@@ -164,7 +164,7 @@ msgid "admin.oidc-apps.delete.body"
 msgstr "删除后 {name} 无法再让任何人登录，其图标、密钥和访问策略也会一并删除。此操作无法撤销。"
 
 #. js-lingui-explicit-id
-#: src/components/custom/AppAccessPanel.tsx
+#: src/components/custom/AppManagersSection.tsx
 msgid "app.managers.confirm.body"
 msgstr "{name} 将不能再修改这个应用。其账号不受影响。"
 
@@ -336,6 +336,11 @@ msgid "admin.user.tab.access"
 msgstr "访问"
 
 #. js-lingui-explicit-id
+#: src/components/custom/AppAccessSection.tsx
+msgid "app.access.title"
+msgstr "访问权限"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts
 msgid "audit.event.access_granted"
 msgstr "已允许访问"
@@ -384,11 +389,6 @@ msgstr "已移除授权"
 #: src/api/success-messages.ts
 msgid "success.app.access-restricted"
 msgstr "访问已限制为所选用户组"
-
-#. js-lingui-explicit-id
-#: src/components/custom/AppAccessPanel.tsx
-msgid "app.access.restriction.label"
-msgstr "访问限制"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts
@@ -552,6 +552,11 @@ msgstr "在线会话"
 #: src/components/custom/ValueSet.tsx
 msgid "form.tags.add"
 msgstr "添加"
+
+#. js-lingui-explicit-id
+#: src/components/custom/AppAccessSection.tsx
+msgid "app.groups.add"
+msgstr "添加用户组"
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
@@ -760,6 +765,11 @@ msgid "apps.meta.allowed"
 msgstr "<0/>允许"
 
 #. js-lingui-explicit-id
+#: src/components/custom/AppAccessSection.tsx
+msgid "app.access.order.allowed"
+msgstr "手动允许"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
 msgid "admin.federation.claims.domains"
 msgstr "允许的邮箱域名"
@@ -775,7 +785,7 @@ msgid "admin.federation.value.duplicate"
 msgstr "已在列表中。"
 
 #. js-lingui-explicit-id
-#: src/components/custom/AppAccessPanel.tsx
+#: src/components/custom/AppManagersSection.tsx
 msgid "app.managers.candidate.assigned"
 msgstr "已在管理这个应用"
 
@@ -1056,22 +1066,22 @@ msgid "admin.saml-apps.acs.title"
 msgstr "ACS 端点"
 
 #. js-lingui-explicit-id
-#: src/components/custom/AppAccessPanel.tsx
+#: src/components/custom/AppManagersSection.tsx
 msgid "app.managers.dialog.save"
 msgstr "指派"
 
 #. js-lingui-explicit-id
-#: src/components/custom/AppAccessPanel.tsx
+#: src/components/custom/AppManagersSection.tsx
 msgid "app.managers.assign"
 msgstr "指派应用管理员"
 
 #. js-lingui-explicit-id
-#: src/components/custom/AppAccessPanel.tsx
+#: src/components/custom/AppManagersSection.tsx
 msgid "app.managers.dialog.title"
 msgstr "指派应用管理员"
 
 #. js-lingui-explicit-id
-#: src/components/custom/AppAccessPanel.tsx
+#: src/components/custom/AppManagersSection.tsx
 msgid "app.managers.assigned"
 msgstr "已指派 <0/>"
 
@@ -1176,11 +1186,6 @@ msgid "admin.federation.connection.authorization"
 msgstr "授权端点"
 
 #. js-lingui-explicit-id
-#: src/components/custom/AppAccessPanel.tsx
-msgid "app.access.restricted"
-msgstr "仅所选用户组可用"
-
-#. js-lingui-explicit-id
 #: src/components/custom/EntityCell.tsx
 msgid "entity.restricted"
 msgstr "仅所选用户组可用"
@@ -1266,6 +1271,11 @@ msgid "admin.federation.callback.title"
 msgstr "回调地址"
 
 #. js-lingui-explicit-id
+#: src/components/custom/AppAccessSection.tsx
+msgid "app.access.order.rest.result"
+msgstr "无法登录"
+
+#. js-lingui-explicit-id
 #: src/pages/security/ChangePasswordDialog.tsx
 #: src/pages/security/PasskeysPanel.tsx
 #: src/pages/security/ReplaceAuthenticatorDialog.tsx
@@ -1285,7 +1295,8 @@ msgid "admin.group.cancel"
 msgstr "取消"
 
 #. js-lingui-explicit-id
-#: src/components/custom/AppAccessPanel.tsx
+#: src/components/custom/AppAccessSection.tsx
+#: src/components/custom/AppManagersSection.tsx
 #: src/pages/admin/AdminInvitationForm.tsx
 #: src/pages/admin/saml-applications/SamlMetadataSection.tsx
 msgid "admin.cancel"
@@ -1409,6 +1420,11 @@ msgid "admin.federation.operator.validated"
 msgstr "检查于 <0/>"
 
 #. js-lingui-explicit-id
+#: src/components/custom/AppAccessSection.tsx
+msgid "app.access.order.description"
+msgstr "按此顺序检查，第一个匹配的步骤决定结果。"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.diagnostics.run.checking"
 msgstr "正在检查"
@@ -1454,7 +1470,7 @@ msgid "error.local_username_required"
 msgstr "请为新账号选择用户名。"
 
 #. js-lingui-explicit-id
-#: src/components/custom/AppAccessPanel.tsx
+#: src/components/custom/AppManagersSection.tsx
 msgid "app.managers.dialog.required"
 msgstr "选择要指派的账号。"
 
@@ -1487,6 +1503,11 @@ msgstr "请选择 HTTP POST 或 HTTP Redirect 绑定。"
 #: src/pages/admin/saml-applications/saml-projection.ts
 msgid "admin.saml-apps.mapping.source.unknown"
 msgstr "请选择这个属性从哪里读取。"
+
+#. js-lingui-explicit-id
+#: src/components/custom/AppAccessSection.tsx
+msgid "app.groups.kind.manual"
+msgstr "手动选择"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/AliasTableField.tsx
@@ -2126,12 +2147,12 @@ msgid "security.tokens.reveal.download_failed"
 msgstr "无法下载令牌。请复制或手动保存。"
 
 #. js-lingui-explicit-id
-#: src/components/custom/AppAccessPanel.tsx
+#: src/components/custom/AppAccessSection.tsx
 msgid "app.access.load_failed"
 msgstr "无法加载访问策略。"
 
 #. js-lingui-explicit-id
-#: src/components/custom/AppAccessPanel.tsx
+#: src/components/custom/AppManagersSection.tsx
 msgid "app.managers.load_failed"
 msgstr "无法加载应用管理员。"
 
@@ -2427,6 +2448,11 @@ msgid "admin.federation.danger.delete.confirm.title"
 msgstr "要删除该提供商吗？"
 
 #. js-lingui-explicit-id
+#: src/components/custom/AppAccessSection.tsx
+msgid "app.access.order.denied"
+msgstr "手动拒绝"
+
+#. js-lingui-explicit-id
 #: src/pages/public/Consent.tsx
 msgid "consent.deny"
 msgstr "拒绝"
@@ -2614,7 +2640,7 @@ msgid "object.status.disabled"
 msgstr "已停用"
 
 #. js-lingui-explicit-id
-#: src/components/custom/AppAccessPanel.tsx
+#: src/components/custom/AppManagersSection.tsx
 msgid "app.managers.candidate.disabled"
 msgstr "账号已停用"
 
@@ -3205,12 +3231,12 @@ msgid "admin.logs.filter.event"
 msgstr "事件"
 
 #. js-lingui-explicit-id
-#: src/components/custom/AppAccessPanel.tsx
+#: src/components/custom/AppAccessSection.tsx
 msgid "app.access.open"
 msgstr "所有账号都可以使用"
 
 #. js-lingui-explicit-id
-#: src/components/custom/AppAccessPanel.tsx
+#: src/components/custom/AppAccessSection.tsx
 msgid "app.access.open.body"
 msgstr "本实例上的所有账号都可以使用这个应用。已选定的用户组会保留，需要再次限制时可直接使用。"
 
@@ -3258,6 +3284,11 @@ msgstr "你现有的恢复码会全部失效。"
 #: src/pages/admin/forward-auth-apps/ForwardAuthDangerSection.tsx
 msgid "admin.forward-auth-apps.disable.note"
 msgstr "经它路由的请求都会被拒绝，包括已登录账号发出的请求。记录和访问策略都会保留。"
+
+#. js-lingui-explicit-id
+#: src/components/custom/AppAccessSection.tsx
+msgid "app.access.order.rest"
+msgstr "其他所有人"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/SamlDangerSection.tsx
@@ -4191,7 +4222,7 @@ msgid "success.maintenance.saved"
 msgstr "维护设置已保存"
 
 #. js-lingui-explicit-id
-#: src/components/custom/AppAccessPanel.tsx
+#: src/components/custom/AppManagersSection.tsx
 msgid "app.managers.dialog.label"
 msgstr "应用管理员"
 
@@ -4216,9 +4247,14 @@ msgid "success.app.manager-removed"
 msgstr "已移除管理者"
 
 #. js-lingui-explicit-id
-#: src/components/custom/AppAccessPanel.tsx
+#: src/components/custom/AppManagersSection.tsx
 msgid "app.managers.label"
 msgstr "应用管理员"
+
+#. js-lingui-explicit-id
+#: src/components/custom/AppManagersSection.tsx
+msgid "app.managers.description"
+msgstr "应用管理员可以修改本页的所有内容，但不能修改谁来管理这个应用。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
@@ -4259,6 +4295,11 @@ msgstr "匹配方式"
 #: src/pages/admin/AdminGroupForm.tsx
 msgid "admin.group.rule.not.hint"
 msgstr "匹配不符合该条件的账号。"
+
+#. js-lingui-explicit-id
+#: src/components/custom/AppAccessSection.tsx
+msgid "app.access.order.rule"
+msgstr "符合规则"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/SamlMetadataSection.tsx
@@ -4576,7 +4617,7 @@ msgid "admin.invitations.empty"
 msgstr "暂无邀请"
 
 #. js-lingui-explicit-id
-#: src/components/custom/AppAccessPanel.tsx
+#: src/components/custom/AppManagersSection.tsx
 msgid "app.managers.empty"
 msgstr "还没有指派应用管理员"
 
@@ -4642,7 +4683,7 @@ msgid "settings.keys.empty"
 msgstr "没有签名密钥"
 
 #. js-lingui-explicit-id
-#: src/components/custom/AppAccessPanel.tsx
+#: src/components/custom/AppAccessSection.tsx
 msgid "app.access.restricted.none"
 msgstr "还没有选择用户组，选择之前没有人能使用这个应用。"
 
@@ -4660,6 +4701,11 @@ msgstr "没有匹配的用户"
 #: src/pages/admin/identity-providers/ProviderDangerSection.tsx
 msgid "admin.federation.danger.disable.hint"
 msgstr "停用期间，任何人都无法用它登录。"
+
+#. js-lingui-explicit-id
+#: src/components/custom/AppAccessSection.tsx
+msgid "app.groups.last.body"
+msgstr "在你选定新的用户组之前，没有人可以使用 {appName}。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
@@ -4685,6 +4731,11 @@ msgstr "除管理员外，所有人都无法登录或使用应用，直到关闭
 #: src/components/custom/ListCells.tsx
 msgid "list.diagnostics.redirect.none"
 msgstr "无"
+
+#. js-lingui-explicit-id
+#: src/components/custom/AppAccessSection.tsx
+msgid "app.access.order.none"
+msgstr "未选择"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
@@ -4877,7 +4928,7 @@ msgid "admin.federation.claims.verified.hint"
 msgstr "只接受提供商标记为已验证的邮箱地址。"
 
 #. js-lingui-explicit-id
-#: src/components/custom/AppAccessPanel.tsx
+#: src/components/custom/AppAccessSection.tsx
 msgid "app.access.restrict.body"
 msgstr "只有你选定的用户组中的账号可以使用这个应用。在你选定之前，没有人可以使用。"
 
@@ -4937,12 +4988,12 @@ msgid "federation_flow.proof.open_profile"
 msgstr "打开资料"
 
 #. js-lingui-explicit-id
-#: src/components/custom/AppAccessPanel.tsx
+#: src/components/custom/AppAccessSection.tsx
 msgid "app.access.open.title"
 msgstr "开放这个应用给所有人？"
 
 #. js-lingui-explicit-id
-#: src/components/custom/AppAccessPanel.tsx
+#: src/components/custom/AppAccessSection.tsx
 msgid "app.access.open.confirm"
 msgstr "开放给所有人"
 
@@ -5005,6 +5056,11 @@ msgstr "或使用密码"
 #: src/pages/admin/settings/SignInPageControls.tsx
 msgid "settings.sign-in.order"
 msgstr "显示方式"
+
+#. js-lingui-explicit-id
+#: src/components/custom/AppAccessSection.tsx
+msgid "app.access.order.label"
+msgstr "检查顺序"
 
 #. js-lingui-explicit-id
 #: src/pages/security/IdentitiesPanel.tsx
@@ -5559,17 +5615,22 @@ msgid "settings.sign-in.unsplash.key.remove"
 msgstr "移除"
 
 #. js-lingui-explicit-id
-#: src/components/custom/AppAccessPanel.tsx
+#: src/components/custom/AppAccessSection.tsx
+msgid "app.groups.last.confirm"
+msgstr "移除"
+
+#. js-lingui-explicit-id
+#: src/components/custom/AppManagersSection.tsx
 msgid "app.managers.confirm.action"
 msgstr "移除"
 
 #. js-lingui-explicit-id
-#: src/components/custom/AppAccessPanel.tsx
+#: src/components/custom/AppAccessSection.tsx
 msgid "app.groups.remove"
 msgstr "移除 {group}"
 
 #. js-lingui-explicit-id
-#: src/components/custom/AppAccessPanel.tsx
+#: src/components/custom/AppManagersSection.tsx
 msgid "app.managers.remove"
 msgstr "移除 {name}"
 
@@ -5634,6 +5695,11 @@ msgid "admin.federation.endpoints.remove"
 msgstr "移除{endpoint}的覆盖"
 
 #. js-lingui-explicit-id
+#: src/components/custom/AppAccessSection.tsx
+msgid "app.groups.last.title"
+msgstr "移除最后一个用户组？"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-validation.ts
 msgid "admin.federation.url.fragment"
 msgstr "去掉 # 及其后面的部分。"
@@ -5674,7 +5740,7 @@ msgid "admin.group.rule.remove"
 msgstr "移除此条件"
 
 #. js-lingui-explicit-id
-#: src/components/custom/AppAccessPanel.tsx
+#: src/components/custom/AppManagersSection.tsx
 msgid "app.managers.confirm.title"
 msgstr "移除这个应用管理员？"
 
@@ -5879,7 +5945,7 @@ msgid "request_details.response_headers"
 msgstr "响应头"
 
 #. js-lingui-explicit-id
-#: src/components/custom/AppAccessPanel.tsx
+#: src/components/custom/AppAccessSection.tsx
 msgid "app.access.restrict.confirm"
 msgstr "限制"
 
@@ -5899,9 +5965,14 @@ msgid "admin.forward-auth-apps.field.restricted"
 msgstr "限制访问"
 
 #. js-lingui-explicit-id
-#: src/components/custom/AppAccessPanel.tsx
+#: src/components/custom/AppAccessSection.tsx
 msgid "app.access.restrict.title"
 msgstr "限制这个应用的访问？"
+
+#. js-lingui-explicit-id
+#: src/components/custom/AppAccessSection.tsx
+msgid "app.access.restricted.switch"
+msgstr "受限"
 
 #. js-lingui-explicit-id
 #: src/components/custom/ObjectHeader.tsx
@@ -6069,6 +6140,11 @@ msgid "admin.groups.kind.rule"
 msgstr "规则"
 
 #. js-lingui-explicit-id
+#: src/components/custom/AppAccessSection.tsx
+msgid "app.groups.kind.rule"
+msgstr "规则"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
 msgid "admin.group.rule.json.label"
 msgstr "规则文档"
@@ -6183,7 +6259,7 @@ msgid "admin.forward-auth-apps.save"
 msgstr "保存"
 
 #. js-lingui-explicit-id
-#: src/components/custom/AppAccessPanel.tsx
+#: src/components/custom/AppAccessSection.tsx
 msgid "app.groups.dialog.save"
 msgstr "保存"
 
@@ -6239,13 +6315,15 @@ msgid "admin.federation.effective.scopes"
 msgstr "作用域"
 
 #. js-lingui-explicit-id
-#: src/components/custom/ConsoleLayout.tsx
-msgid "console.search"
+#: src/components/custom/AppAccessSection.tsx
+#: src/components/custom/AppManagersSection.tsx
+#: src/components/custom/EntityPicker.tsx
+msgid "admin.picker.search"
 msgstr "搜索"
 
 #. js-lingui-explicit-id
-#: src/components/custom/EntityPicker.tsx
-msgid "admin.picker.search"
+#: src/components/custom/ConsoleLayout.tsx
+msgid "console.search"
 msgstr "搜索"
 
 #. js-lingui-explicit-id
@@ -6254,7 +6332,7 @@ msgid "admin.logs.filter.account.search"
 msgstr "搜索账号"
 
 #. js-lingui-explicit-id
-#: src/components/custom/AppAccessPanel.tsx
+#: src/components/custom/AppManagersSection.tsx
 msgid "app.managers.dialog.placeholder"
 msgstr "搜索账号"
 
@@ -6269,7 +6347,7 @@ msgid "admin.invitations.new.groups.placeholder"
 msgstr "搜索用户组"
 
 #. js-lingui-explicit-id
-#: src/components/custom/AppAccessPanel.tsx
+#: src/components/custom/AppAccessSection.tsx
 msgid "app.groups.dialog.placeholder"
 msgstr "搜索用户组"
 
@@ -6299,14 +6377,14 @@ msgid "console.security"
 msgstr "安全"
 
 #. js-lingui-explicit-id
-#: src/components/custom/AppAccessPanel.tsx
-msgid "app.groups.select"
+#: src/components/custom/AppAccessSection.tsx
+msgid "app.groups.dialog.title"
 msgstr "选择用户组"
 
 #. js-lingui-explicit-id
-#: src/components/custom/AppAccessPanel.tsx
-msgid "app.groups.dialog.title"
-msgstr "选择用户组"
+#: src/components/custom/AppAccessSection.tsx
+msgid "app.groups.list"
+msgstr "已选用户组"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AttributeMapField.tsx
@@ -7387,7 +7465,7 @@ msgid "login.reset.uncertain"
 msgstr "重设可能已经完成。请尝试新身份验证器或通行密钥。再次尝试验证码前，请重新输入密码；旧恢复码可能已失效。"
 
 #. js-lingui-explicit-id
-#: src/components/custom/AppAccessPanel.tsx
+#: src/components/custom/AppAccessSection.tsx
 msgid "app.groups.dialog.hint"
 msgstr "保存会替换当前的选择。只有所选用户组中的账号可以使用这个应用。"
 
@@ -7477,7 +7555,7 @@ msgid "settings.sign-in.unsplash.query.hidden_invalid"
 msgstr "Unsplash 关键词无法使用。请选择 Unsplash 进行修改。"
 
 #. js-lingui-explicit-id
-#: src/components/custom/AppAccessPanel.tsx
+#: src/components/custom/AppAccessSection.tsx
 msgid "app.access.open.kept"
 msgstr "下面的用户组已保留，重新限制后生效。"
 
@@ -8384,7 +8462,7 @@ msgid "admin.saml-apps.source.groups"
 msgstr "用户组"
 
 #. js-lingui-explicit-id
-#: src/components/custom/AppAccessPanel.tsx
+#: src/components/custom/AppAccessSection.tsx
 msgid "app.groups.dialog.label"
 msgstr "用户组"
 
@@ -8834,6 +8912,11 @@ msgstr "你已经批准过这次配对，新设备正在完成登录。"
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.no_forward_auth"
 msgstr "你没有可选择的应用。"
+
+#. js-lingui-explicit-id
+#: src/components/custom/AppManagersSection.tsx
+msgid "app.managers.self"
+msgstr "你是这个应用的管理员。"
 
 #. js-lingui-explicit-id
 #: src/pages/public/SamlConsent.tsx

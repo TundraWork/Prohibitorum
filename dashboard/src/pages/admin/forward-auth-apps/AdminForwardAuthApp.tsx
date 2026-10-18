@@ -1,6 +1,7 @@
 import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { forwardAuthAppQueryOptions, sessionQueryOptions } from "@/api/queries";
-import { AppAccess, AppManagers } from "@/components/custom/AppAccessPanel";
+import { AppAccessSection } from "@/components/custom/AppAccessSection";
+import { AppManagersSection } from "@/components/custom/AppManagersSection";
 import { ForwardAuthDangerSection } from "@/pages/admin/forward-auth-apps/ForwardAuthDangerSection";
 import {
   ForwardAuthGeneralSection,
@@ -44,13 +45,13 @@ export function AdminForwardAuthApp() {
       <ForwardAuthIconSection app={app} />
       <ForwardAuthHeadersSection app={app} />
       <ForwardAuthProxySection app={app} />
-      <AppAccess
+      <AppAccessSection
         kind="forward_auth"
         appId={app.clientId}
         isAdmin={session.data?.role === "admin"}
       />
 
-      <AppManagers
+      <AppManagersSection
         kind="forward_auth"
         appId={app.clientId}
         isAdmin={session.data?.role === "admin"}

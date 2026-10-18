@@ -164,7 +164,7 @@ msgid "admin.oidc-apps.delete.body"
 msgstr "{name} stops being able to sign anyone in, and its icon, secret and access policy go with it. This cannot be undone."
 
 #. js-lingui-explicit-id
-#: src/components/custom/AppAccessPanel.tsx
+#: src/components/custom/AppManagersSection.tsx
 msgid "app.managers.confirm.body"
 msgstr "{name} will no longer be able to change this application. Their account is not affected."
 
@@ -336,6 +336,11 @@ msgid "admin.user.tab.access"
 msgstr "Access"
 
 #. js-lingui-explicit-id
+#: src/components/custom/AppAccessSection.tsx
+msgid "app.access.title"
+msgstr "Access"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts
 msgid "audit.event.access_granted"
 msgstr "Access allowed"
@@ -384,11 +389,6 @@ msgstr "Access removed"
 #: src/api/success-messages.ts
 msgid "success.app.access-restricted"
 msgstr "Access restricted to the selected user groups"
-
-#. js-lingui-explicit-id
-#: src/components/custom/AppAccessPanel.tsx
-msgid "app.access.restriction.label"
-msgstr "Access restriction"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts
@@ -552,6 +552,11 @@ msgstr "Active sessions"
 #: src/components/custom/ValueSet.tsx
 msgid "form.tags.add"
 msgstr "Add"
+
+#. js-lingui-explicit-id
+#: src/components/custom/AppAccessSection.tsx
+msgid "app.groups.add"
+msgstr "Add a group"
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
@@ -760,6 +765,11 @@ msgid "apps.meta.allowed"
 msgstr "Allowed <0/>"
 
 #. js-lingui-explicit-id
+#: src/components/custom/AppAccessSection.tsx
+msgid "app.access.order.allowed"
+msgstr "Allowed by hand"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
 msgid "admin.federation.claims.domains"
 msgstr "Allowed email domains"
@@ -775,7 +785,7 @@ msgid "admin.federation.value.duplicate"
 msgstr "Already in the list."
 
 #. js-lingui-explicit-id
-#: src/components/custom/AppAccessPanel.tsx
+#: src/components/custom/AppManagersSection.tsx
 msgid "app.managers.candidate.assigned"
 msgstr "Already manages this application"
 
@@ -1056,22 +1066,22 @@ msgid "admin.saml-apps.acs.title"
 msgstr "Assertion Consumer Service endpoints"
 
 #. js-lingui-explicit-id
-#: src/components/custom/AppAccessPanel.tsx
+#: src/components/custom/AppManagersSection.tsx
 msgid "app.managers.dialog.save"
 msgstr "Assign"
 
 #. js-lingui-explicit-id
-#: src/components/custom/AppAccessPanel.tsx
+#: src/components/custom/AppManagersSection.tsx
 msgid "app.managers.assign"
 msgstr "Assign a manager"
 
 #. js-lingui-explicit-id
-#: src/components/custom/AppAccessPanel.tsx
+#: src/components/custom/AppManagersSection.tsx
 msgid "app.managers.dialog.title"
 msgstr "Assign a manager"
 
 #. js-lingui-explicit-id
-#: src/components/custom/AppAccessPanel.tsx
+#: src/components/custom/AppManagersSection.tsx
 msgid "app.managers.assigned"
 msgstr "Assigned <0/>"
 
@@ -1176,11 +1186,6 @@ msgid "admin.federation.connection.authorization"
 msgstr "Authorization endpoint"
 
 #. js-lingui-explicit-id
-#: src/components/custom/AppAccessPanel.tsx
-msgid "app.access.restricted"
-msgstr "Available only to the selected user groups"
-
-#. js-lingui-explicit-id
 #: src/components/custom/EntityCell.tsx
 msgid "entity.restricted"
 msgstr "Available only to the selected user groups"
@@ -1266,6 +1271,11 @@ msgid "admin.federation.callback.title"
 msgstr "Callback addresses"
 
 #. js-lingui-explicit-id
+#: src/components/custom/AppAccessSection.tsx
+msgid "app.access.order.rest.result"
+msgstr "Can't sign in"
+
+#. js-lingui-explicit-id
 #: src/pages/security/ChangePasswordDialog.tsx
 #: src/pages/security/PasskeysPanel.tsx
 #: src/pages/security/ReplaceAuthenticatorDialog.tsx
@@ -1285,7 +1295,8 @@ msgid "admin.group.cancel"
 msgstr "Cancel"
 
 #. js-lingui-explicit-id
-#: src/components/custom/AppAccessPanel.tsx
+#: src/components/custom/AppAccessSection.tsx
+#: src/components/custom/AppManagersSection.tsx
 #: src/pages/admin/AdminInvitationForm.tsx
 #: src/pages/admin/saml-applications/SamlMetadataSection.tsx
 msgid "admin.cancel"
@@ -1409,6 +1420,11 @@ msgid "admin.federation.operator.validated"
 msgstr "Checked <0/>"
 
 #. js-lingui-explicit-id
+#: src/components/custom/AppAccessSection.tsx
+msgid "app.access.order.description"
+msgstr "Checked in this order. The first step that matches someone decides."
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.diagnostics.run.checking"
 msgstr "Checking"
@@ -1454,7 +1470,7 @@ msgid "error.local_username_required"
 msgstr "Choose a username for your new account."
 
 #. js-lingui-explicit-id
-#: src/components/custom/AppAccessPanel.tsx
+#: src/components/custom/AppManagersSection.tsx
 msgid "app.managers.dialog.required"
 msgstr "Choose an account to assign."
 
@@ -1487,6 +1503,11 @@ msgstr "Choose the HTTP POST or the HTTP Redirect binding."
 #: src/pages/admin/saml-applications/saml-projection.ts
 msgid "admin.saml-apps.mapping.source.unknown"
 msgstr "Choose where this attribute reads from."
+
+#. js-lingui-explicit-id
+#: src/components/custom/AppAccessSection.tsx
+msgid "app.groups.kind.manual"
+msgstr "Chosen by hand"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/AliasTableField.tsx
@@ -2126,12 +2147,12 @@ msgid "security.tokens.reveal.download_failed"
 msgstr "Could not download the token. Copy it or save it manually."
 
 #. js-lingui-explicit-id
-#: src/components/custom/AppAccessPanel.tsx
+#: src/components/custom/AppAccessSection.tsx
 msgid "app.access.load_failed"
 msgstr "Could not load the access policy."
 
 #. js-lingui-explicit-id
-#: src/components/custom/AppAccessPanel.tsx
+#: src/components/custom/AppManagersSection.tsx
 msgid "app.managers.load_failed"
 msgstr "Could not load the managers."
 
@@ -2427,6 +2448,11 @@ msgid "admin.federation.danger.delete.confirm.title"
 msgstr "Delete this provider?"
 
 #. js-lingui-explicit-id
+#: src/components/custom/AppAccessSection.tsx
+msgid "app.access.order.denied"
+msgstr "Denied by hand"
+
+#. js-lingui-explicit-id
 #: src/pages/public/Consent.tsx
 msgid "consent.deny"
 msgstr "Deny"
@@ -2614,7 +2640,7 @@ msgid "object.status.disabled"
 msgstr "Disabled"
 
 #. js-lingui-explicit-id
-#: src/components/custom/AppAccessPanel.tsx
+#: src/components/custom/AppManagersSection.tsx
 msgid "app.managers.candidate.disabled"
 msgstr "Disabled account"
 
@@ -3205,12 +3231,12 @@ msgid "admin.logs.filter.event"
 msgstr "Event"
 
 #. js-lingui-explicit-id
-#: src/components/custom/AppAccessPanel.tsx
+#: src/components/custom/AppAccessSection.tsx
 msgid "app.access.open"
 msgstr "Every account can use this"
 
 #. js-lingui-explicit-id
-#: src/components/custom/AppAccessPanel.tsx
+#: src/components/custom/AppAccessSection.tsx
 msgid "app.access.open.body"
 msgstr "Every account on this instance can use this application. The selected user groups stay where they are, ready if you restrict it again."
 
@@ -3258,6 +3284,11 @@ msgstr "Every recovery code you have now stops working."
 #: src/pages/admin/forward-auth-apps/ForwardAuthDangerSection.tsx
 msgid "admin.forward-auth-apps.disable.note"
 msgstr "Every request through its router is turned away, including ones from people who are signed in. The record and its access policy are kept."
+
+#. js-lingui-explicit-id
+#: src/components/custom/AppAccessSection.tsx
+msgid "app.access.order.rest"
+msgstr "Everyone else"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/SamlDangerSection.tsx
@@ -4191,7 +4222,7 @@ msgid "success.maintenance.saved"
 msgstr "Maintenance settings saved"
 
 #. js-lingui-explicit-id
-#: src/components/custom/AppAccessPanel.tsx
+#: src/components/custom/AppManagersSection.tsx
 msgid "app.managers.dialog.label"
 msgstr "Manager"
 
@@ -4216,9 +4247,14 @@ msgid "success.app.manager-removed"
 msgstr "Manager removed"
 
 #. js-lingui-explicit-id
-#: src/components/custom/AppAccessPanel.tsx
+#: src/components/custom/AppManagersSection.tsx
 msgid "app.managers.label"
 msgstr "Managers"
+
+#. js-lingui-explicit-id
+#: src/components/custom/AppManagersSection.tsx
+msgid "app.managers.description"
+msgstr "Managers can change everything on this page except who manages it."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
@@ -4259,6 +4295,11 @@ msgstr "Match"
 #: src/pages/admin/AdminGroupForm.tsx
 msgid "admin.group.rule.not.hint"
 msgstr "Match accounts this condition does not describe."
+
+#. js-lingui-explicit-id
+#: src/components/custom/AppAccessSection.tsx
+msgid "app.access.order.rule"
+msgstr "Matches a rule"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/SamlMetadataSection.tsx
@@ -4576,7 +4617,7 @@ msgid "admin.invitations.empty"
 msgstr "No invitations yet"
 
 #. js-lingui-explicit-id
-#: src/components/custom/AppAccessPanel.tsx
+#: src/components/custom/AppManagersSection.tsx
 msgid "app.managers.empty"
 msgstr "No managers assigned yet"
 
@@ -4642,7 +4683,7 @@ msgid "settings.keys.empty"
 msgstr "No signing keys"
 
 #. js-lingui-explicit-id
-#: src/components/custom/AppAccessPanel.tsx
+#: src/components/custom/AppAccessSection.tsx
 msgid "app.access.restricted.none"
 msgstr "No user groups selected yet. Nobody can use this application until you select one."
 
@@ -4660,6 +4701,11 @@ msgstr "No users match"
 #: src/pages/admin/identity-providers/ProviderDangerSection.tsx
 msgid "admin.federation.danger.disable.hint"
 msgstr "Nobody can sign in with it while it is disabled."
+
+#. js-lingui-explicit-id
+#: src/components/custom/AppAccessSection.tsx
+msgid "app.groups.last.body"
+msgstr "Nobody can use {appName} until you select one."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
@@ -4685,6 +4731,11 @@ msgstr "Nobody except administrators can sign in or use applications until it is
 #: src/components/custom/ListCells.tsx
 msgid "list.diagnostics.redirect.none"
 msgstr "None"
+
+#. js-lingui-explicit-id
+#: src/components/custom/AppAccessSection.tsx
+msgid "app.access.order.none"
+msgstr "None selected"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
@@ -4877,7 +4928,7 @@ msgid "admin.federation.claims.verified.hint"
 msgstr "Only accepts addresses the provider marks as verified."
 
 #. js-lingui-explicit-id
-#: src/components/custom/AppAccessPanel.tsx
+#: src/components/custom/AppAccessSection.tsx
 msgid "app.access.restrict.body"
 msgstr "Only accounts in the user groups you select can use this application. Until you select one, nobody can."
 
@@ -4937,12 +4988,12 @@ msgid "federation_flow.proof.open_profile"
 msgstr "Open profile"
 
 #. js-lingui-explicit-id
-#: src/components/custom/AppAccessPanel.tsx
+#: src/components/custom/AppAccessSection.tsx
 msgid "app.access.open.title"
 msgstr "Open this application to everyone?"
 
 #. js-lingui-explicit-id
-#: src/components/custom/AppAccessPanel.tsx
+#: src/components/custom/AppAccessSection.tsx
 msgid "app.access.open.confirm"
 msgstr "Open to everyone"
 
@@ -5005,6 +5056,11 @@ msgstr "or with your password"
 #: src/pages/admin/settings/SignInPageControls.tsx
 msgid "settings.sign-in.order"
 msgstr "Order"
+
+#. js-lingui-explicit-id
+#: src/components/custom/AppAccessSection.tsx
+msgid "app.access.order.label"
+msgstr "Order of checks"
 
 #. js-lingui-explicit-id
 #: src/pages/security/IdentitiesPanel.tsx
@@ -5559,17 +5615,22 @@ msgid "settings.sign-in.unsplash.key.remove"
 msgstr "Remove"
 
 #. js-lingui-explicit-id
-#: src/components/custom/AppAccessPanel.tsx
+#: src/components/custom/AppAccessSection.tsx
+msgid "app.groups.last.confirm"
+msgstr "Remove"
+
+#. js-lingui-explicit-id
+#: src/components/custom/AppManagersSection.tsx
 msgid "app.managers.confirm.action"
 msgstr "Remove"
 
 #. js-lingui-explicit-id
-#: src/components/custom/AppAccessPanel.tsx
+#: src/components/custom/AppAccessSection.tsx
 msgid "app.groups.remove"
 msgstr "Remove {group}"
 
 #. js-lingui-explicit-id
-#: src/components/custom/AppAccessPanel.tsx
+#: src/components/custom/AppManagersSection.tsx
 msgid "app.managers.remove"
 msgstr "Remove {name}"
 
@@ -5634,6 +5695,11 @@ msgid "admin.federation.endpoints.remove"
 msgstr "Remove the {endpoint} override"
 
 #. js-lingui-explicit-id
+#: src/components/custom/AppAccessSection.tsx
+msgid "app.groups.last.title"
+msgstr "Remove the last group?"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-validation.ts
 msgid "admin.federation.url.fragment"
 msgstr "Remove the part from # onwards."
@@ -5674,7 +5740,7 @@ msgid "admin.group.rule.remove"
 msgstr "Remove this condition"
 
 #. js-lingui-explicit-id
-#: src/components/custom/AppAccessPanel.tsx
+#: src/components/custom/AppManagersSection.tsx
 msgid "app.managers.confirm.title"
 msgstr "Remove this manager?"
 
@@ -5879,7 +5945,7 @@ msgid "request_details.response_headers"
 msgstr "Response headers"
 
 #. js-lingui-explicit-id
-#: src/components/custom/AppAccessPanel.tsx
+#: src/components/custom/AppAccessSection.tsx
 msgid "app.access.restrict.confirm"
 msgstr "Restrict"
 
@@ -5899,9 +5965,14 @@ msgid "admin.forward-auth-apps.field.restricted"
 msgstr "Restrict access"
 
 #. js-lingui-explicit-id
-#: src/components/custom/AppAccessPanel.tsx
+#: src/components/custom/AppAccessSection.tsx
 msgid "app.access.restrict.title"
 msgstr "Restrict this application?"
+
+#. js-lingui-explicit-id
+#: src/components/custom/AppAccessSection.tsx
+msgid "app.access.restricted.switch"
+msgstr "Restricted"
 
 #. js-lingui-explicit-id
 #: src/components/custom/ObjectHeader.tsx
@@ -6069,6 +6140,11 @@ msgid "admin.groups.kind.rule"
 msgstr "Rule"
 
 #. js-lingui-explicit-id
+#: src/components/custom/AppAccessSection.tsx
+msgid "app.groups.kind.rule"
+msgstr "Rule"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
 msgid "admin.group.rule.json.label"
 msgstr "Rule document"
@@ -6183,7 +6259,7 @@ msgid "admin.forward-auth-apps.save"
 msgstr "Save"
 
 #. js-lingui-explicit-id
-#: src/components/custom/AppAccessPanel.tsx
+#: src/components/custom/AppAccessSection.tsx
 msgid "app.groups.dialog.save"
 msgstr "Save"
 
@@ -6239,13 +6315,15 @@ msgid "admin.federation.effective.scopes"
 msgstr "Scopes"
 
 #. js-lingui-explicit-id
-#: src/components/custom/ConsoleLayout.tsx
-msgid "console.search"
+#: src/components/custom/AppAccessSection.tsx
+#: src/components/custom/AppManagersSection.tsx
+#: src/components/custom/EntityPicker.tsx
+msgid "admin.picker.search"
 msgstr "Search"
 
 #. js-lingui-explicit-id
-#: src/components/custom/EntityPicker.tsx
-msgid "admin.picker.search"
+#: src/components/custom/ConsoleLayout.tsx
+msgid "console.search"
 msgstr "Search"
 
 #. js-lingui-explicit-id
@@ -6254,7 +6332,7 @@ msgid "admin.logs.filter.account.search"
 msgstr "Search accounts"
 
 #. js-lingui-explicit-id
-#: src/components/custom/AppAccessPanel.tsx
+#: src/components/custom/AppManagersSection.tsx
 msgid "app.managers.dialog.placeholder"
 msgstr "Search accounts"
 
@@ -6269,7 +6347,7 @@ msgid "admin.invitations.new.groups.placeholder"
 msgstr "Search user groups"
 
 #. js-lingui-explicit-id
-#: src/components/custom/AppAccessPanel.tsx
+#: src/components/custom/AppAccessSection.tsx
 msgid "app.groups.dialog.placeholder"
 msgstr "Search user groups"
 
@@ -6299,14 +6377,14 @@ msgid "console.security"
 msgstr "Security"
 
 #. js-lingui-explicit-id
-#: src/components/custom/AppAccessPanel.tsx
-msgid "app.groups.select"
+#: src/components/custom/AppAccessSection.tsx
+msgid "app.groups.dialog.title"
 msgstr "Select user groups"
 
 #. js-lingui-explicit-id
-#: src/components/custom/AppAccessPanel.tsx
-msgid "app.groups.dialog.title"
-msgstr "Select user groups"
+#: src/components/custom/AppAccessSection.tsx
+msgid "app.groups.list"
+msgstr "Selected groups"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AttributeMapField.tsx
@@ -7387,7 +7465,7 @@ msgid "login.reset.uncertain"
 msgstr "The reset may already have completed. Try your new authenticator or a passkey. Enter your password again before another code attempt; your old codes may no longer work."
 
 #. js-lingui-explicit-id
-#: src/components/custom/AppAccessPanel.tsx
+#: src/components/custom/AppAccessSection.tsx
 msgid "app.groups.dialog.hint"
 msgstr "The selection replaces the current one. Only accounts in the groups you choose can use this application."
 
@@ -7477,7 +7555,7 @@ msgid "settings.sign-in.unsplash.query.hidden_invalid"
 msgstr "The Unsplash keyword can't be used. Choose Unsplash to correct it."
 
 #. js-lingui-explicit-id
-#: src/components/custom/AppAccessPanel.tsx
+#: src/components/custom/AppAccessSection.tsx
 msgid "app.access.open.kept"
 msgstr "The user groups below are kept and apply again when you restrict this application."
 
@@ -8384,7 +8462,7 @@ msgid "admin.saml-apps.source.groups"
 msgstr "User groups"
 
 #. js-lingui-explicit-id
-#: src/components/custom/AppAccessPanel.tsx
+#: src/components/custom/AppAccessSection.tsx
 msgid "app.groups.dialog.label"
 msgstr "User groups"
 
@@ -8834,6 +8912,11 @@ msgstr "You have already approved this pairing. The new device is finishing sign
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.no_forward_auth"
 msgstr "You have no applications to choose from."
+
+#. js-lingui-explicit-id
+#: src/components/custom/AppManagersSection.tsx
+msgid "app.managers.self"
+msgstr "You manage this application."
 
 #. js-lingui-explicit-id
 #: src/pages/public/SamlConsent.tsx

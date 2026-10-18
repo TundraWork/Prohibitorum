@@ -2265,7 +2265,7 @@ export function assignAppManagerMutationOptions(
       appId: string;
       accountId: number;
     }) => {
-      (await kind) === "saml"
+      await (kind === "saml"
         ? client.POST("/api/prohibitorum/saml-applications/{id}/managers", {
             params: { path: { id: Number(appId) } },
             body: { accountId },
@@ -2284,7 +2284,7 @@ export function assignAppManagerMutationOptions(
                 params: { path: { clientId: appId } },
                 body: { accountId },
               },
-            );
+            ));
     },
     onSuccess: (_result, { appId }) =>
       queryClient.invalidateQueries({
@@ -2307,7 +2307,7 @@ export function removeAppManagerMutationOptions(
       appId: string;
       accountId: number;
     }) => {
-      (await kind) === "saml"
+      await (kind === "saml"
         ? client.POST(
             "/api/prohibitorum/saml-applications/{id}/managers/remove",
             {
@@ -2329,7 +2329,7 @@ export function removeAppManagerMutationOptions(
                 params: { path: { clientId: appId } },
                 body: { accountId },
               },
-            );
+            ));
     },
     onSuccess: (_result, { appId }) =>
       queryClient.invalidateQueries({

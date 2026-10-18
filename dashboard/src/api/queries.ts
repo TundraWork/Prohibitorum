@@ -707,7 +707,7 @@ export function appAccessQueryOptions(
 
 /**
  * Who may manage this application. The endpoint is admin-only, so a non-admin
- * manager must not call it at all — `AppAccessPanel` decides whether to render
+ * manager must not call it at all — the managers section decides whether to render
  * the managers block, and this factory is only reached when it does.
  */
 export function appManagersQueryOptions(

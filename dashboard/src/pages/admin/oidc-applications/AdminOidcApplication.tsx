@@ -1,6 +1,7 @@
 import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { oidcAppQueryOptions, sessionQueryOptions } from "@/api/queries";
-import { AppAccess, AppManagers } from "@/components/custom/AppAccessPanel";
+import { AppAccessSection } from "@/components/custom/AppAccessSection";
+import { AppManagersSection } from "@/components/custom/AppManagersSection";
 import {
   AppearanceSection,
   OidcIconSection,
@@ -53,13 +54,13 @@ export function AdminOidcApplication() {
 
       <IdentityProjectionSection app={app} />
 
-      <AppAccess
+      <AppAccessSection
         kind="oidc"
         appId={app.clientId}
         isAdmin={session.data?.role === "admin"}
       />
 
-      <AppManagers
+      <AppManagersSection
         kind="oidc"
         appId={app.clientId}
         isAdmin={session.data?.role === "admin"}
