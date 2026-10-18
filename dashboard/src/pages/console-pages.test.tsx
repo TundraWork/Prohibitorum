@@ -11,15 +11,10 @@ import {
 import { render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { components } from "@/api/generated/schema";
-import {
-  consentQueryOptions,
-  myAvatarQueryOptions,
-  sessionQueryOptions,
-} from "@/api/queries";
+import { myAvatarQueryOptions, sessionQueryOptions } from "@/api/queries";
 import { createQueryClient } from "@/app/query-client";
 import { searchSerialization } from "@/app/search-params";
 import { i18n } from "@/i18n";
-import { ConnectedApps } from "@/pages/ConnectedApps";
 import { Profile } from "@/pages/Profile";
 
 vi.mock("qrcode", () => ({
@@ -47,7 +42,6 @@ beforeEach(() => {
   vi.stubGlobal("fetch", fetchBoundary);
   queryClient = createQueryClient(() => undefined);
   queryClient.setQueryData(sessionQueryOptions().queryKey, session);
-  queryClient.setQueryData(consentQueryOptions().queryKey, []);
   queryClient.setQueryData(myAvatarQueryOptions().queryKey, {
     activeSource: "none",
     sources: [],
@@ -120,35 +114,5 @@ describe("profile", () => {
     const subject = screen.getByRole("textbox", { name: "OIDC subject" });
     expect(subject).toHaveValue("00000000-0000-4000-8000-000000000001");
     expect(subject).toHaveAttribute("readonly");
-  });
-});
-
-describe("connected applications", () => {
-  it("says so plainly when nothing has been approved", async () => {
-    history.push("/apps");
-    mount("/apps", ConnectedApps);
-
-    expect(
-      await screen.findByText("No approved applications yet"),
-    ).toBeInTheDocument();
-  });
-
-  it("lists an approval with the kind the server reported", async () => {
-    queryClient.setQueryData(consentQueryOptions().queryKey, [
-      {
-        clientId: "gh",
-        kind: "saml",
-        name: "GitHub Enterprise",
-        grantedAt: "2026-01-02T03:04:05Z",
-        scopes: ["read"],
-      },
-    ]);
-    history.push("/apps");
-    mount("/apps", ConnectedApps);
-
-    expect(await screen.findByText("GitHub Enterprise")).toBeInTheDocument();
-    expect(screen.getByText("SAML")).toBeInTheDocument();
-    // `kind` is echoed, not derived from the client id.
-    expect(screen.getByText("read")).toBeInTheDocument();
   });
 });

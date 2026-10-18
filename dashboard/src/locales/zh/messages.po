@@ -274,7 +274,7 @@ msgid "admin.group.rule.reason.not_requires_fact"
 msgstr "取反的一条必须放一个条件，不能放另一个条件组。"
 
 #. js-lingui-explicit-id
-#: src/pages/public/consent/scopes.ts
+#: src/lib/scopes.ts
 msgid "consent.scope.custom.description"
 msgstr "由应用定义的权限"
 
@@ -743,6 +743,11 @@ msgid "admin.federation.general.sign_in"
 msgstr "允许用于登录"
 
 #. js-lingui-explicit-id
+#: src/pages/ConnectedApps.tsx
+msgid "apps.meta.allowed"
+msgstr "<0/>允许"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
 msgid "admin.federation.claims.domains"
 msgstr "允许的邮箱域名"
@@ -978,6 +983,11 @@ msgid "profile.oidc-subject.hint"
 msgstr "应用通过这个值识别你，它不会改变。"
 
 #. js-lingui-explicit-id
+#: src/pages/ConnectedApps.tsx
+msgid "apps.page.description"
+msgstr "你允许其用于登录的应用。移除某个应用后，它下次会重新征求你的许可。"
+
+#. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.access.selected_apps"
 msgstr "你选择的应用"
@@ -1152,11 +1162,6 @@ msgstr "授权码"
 #: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.connection.authorization"
 msgstr "授权端点"
-
-#. js-lingui-explicit-id
-#: src/pages/ConnectedApps.tsx
-msgid "apps.detail.granted"
-msgstr "<0/>授权"
 
 #. js-lingui-explicit-id
 #: src/components/custom/AppAccessPanel.tsx
@@ -1818,9 +1823,14 @@ msgid "enroll.password_totp.confirm"
 msgstr "确认密码"
 
 #. js-lingui-explicit-id
-#: src/pages/public/consent/scopes.ts
+#: src/lib/scopes.ts
 msgid "consent.scope.openid"
 msgstr "确认你的身份"
+
+#. js-lingui-explicit-id
+#: src/pages/ConnectedApps.tsx
+msgid "apps.page.title"
+msgstr "已连接应用"
 
 #. js-lingui-explicit-id
 #: src/pages/ConnectedApps.tsx
@@ -2112,11 +2122,6 @@ msgstr "无法加载访问策略。"
 #: src/components/custom/AppAccessPanel.tsx
 msgid "app.managers.load_failed"
 msgstr "无法加载应用管理员。"
-
-#. js-lingui-explicit-id
-#: src/pages/ConnectedApps.tsx
-msgid "apps.load_failed"
-msgstr "无法加载已连接应用。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -3871,7 +3876,7 @@ msgid "apps.confirm.cancel"
 msgstr "保留授权"
 
 #. js-lingui-explicit-id
-#: src/pages/public/consent/scopes.ts
+#: src/lib/scopes.ts
 msgid "consent.scope.offline_access.description"
 msgstr "你不在时也能继续访问，直到你撤销"
 
@@ -3906,7 +3911,7 @@ msgid "admin.groups.column.kind"
 msgstr "类型"
 
 #. js-lingui-explicit-id
-#: src/pages/public/consent/scopes.ts
+#: src/lib/scopes.ts
 msgid "consent.scope.openid.description"
 msgstr "知道你在 {instance} 的账号"
 
@@ -6790,7 +6795,7 @@ msgid "request_details.status"
 msgstr "状态码"
 
 #. js-lingui-explicit-id
-#: src/pages/public/consent/scopes.ts
+#: src/lib/scopes.ts
 msgid "consent.scope.offline_access"
 msgstr "保持访问"
 
@@ -7156,7 +7161,7 @@ msgid "admin.forward-auth-apps.enable.confirm.body"
 msgstr "网关会重新接受经这个应用的请求，仍按现有的访问策略处理。"
 
 #. js-lingui-explicit-id
-#: src/pages/public/consent/scopes.ts
+#: src/lib/scopes.ts
 msgid "consent.scope.groups.description"
 msgstr "你在这个应用里所属的组"
 
@@ -8790,12 +8795,12 @@ msgid "enroll.description.invite"
 msgstr "你受邀加入 {instance}。链接{expires}前有效。"
 
 #. js-lingui-explicit-id
-#: src/pages/public/consent/scopes.ts
+#: src/lib/scopes.ts
 msgid "consent.scope.identity.description"
 msgstr "你在 {provider} 的 ID、显示名称和资料链接"
 
 #. js-lingui-explicit-id
-#: src/pages/public/consent/scopes.ts
+#: src/lib/scopes.ts
 msgid "consent.scope.identity"
 msgstr "你的 {provider} 身份"
 
@@ -8815,22 +8820,22 @@ msgid "security.totp.replace.note"
 msgstr "更换成功后，当前身份验证器与全部已有恢复码会立即失效。"
 
 #. js-lingui-explicit-id
-#: src/pages/public/consent/scopes.ts
+#: src/lib/scopes.ts
 msgid "consent.scope.profile.description"
 msgstr "你的显示名称、用户名和头像"
 
 #. js-lingui-explicit-id
-#: src/pages/public/consent/scopes.ts
+#: src/lib/scopes.ts
 msgid "consent.scope.email"
 msgstr "邮箱地址"
 
 #. js-lingui-explicit-id
-#: src/pages/public/consent/scopes.ts
+#: src/lib/scopes.ts
 msgid "consent.scope.email.description"
 msgstr "你的邮箱地址及其是否已验证"
 
 #. js-lingui-explicit-id
-#: src/pages/public/consent/scopes.ts
+#: src/lib/scopes.ts
 msgid "consent.scope.groups"
 msgstr "用户组"
 
@@ -8855,7 +8860,7 @@ msgid "security.revoke.confirm.body"
 msgstr "你的密码、身份验证器与全部恢复码会立即失效。"
 
 #. js-lingui-explicit-id
-#: src/pages/public/consent/scopes.ts
+#: src/lib/scopes.ts
 msgid "consent.scope.profile"
 msgstr "个人资料"
 

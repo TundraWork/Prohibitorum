@@ -274,7 +274,7 @@ msgid "admin.group.rule.reason.not_requires_fact"
 msgstr "A negated row must hold one condition, not another group."
 
 #. js-lingui-explicit-id
-#: src/pages/public/consent/scopes.ts
+#: src/lib/scopes.ts
 msgid "consent.scope.custom.description"
 msgstr "A permission defined by the app"
 
@@ -743,6 +743,11 @@ msgid "admin.federation.general.sign_in"
 msgstr "Allow sign-in"
 
 #. js-lingui-explicit-id
+#: src/pages/ConnectedApps.tsx
+msgid "apps.meta.allowed"
+msgstr "Allowed <0/>"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
 msgid "admin.federation.claims.domains"
 msgstr "Allowed email domains"
@@ -978,6 +983,11 @@ msgid "profile.oidc-subject.hint"
 msgstr "Applications identify you by this value. It never changes."
 
 #. js-lingui-explicit-id
+#: src/pages/ConnectedApps.tsx
+msgid "apps.page.description"
+msgstr "Applications you allowed to sign you in. Removing one makes it ask again next time."
+
+#. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.access.selected_apps"
 msgstr "Applications you choose"
@@ -1152,11 +1162,6 @@ msgstr "Authorization code"
 #: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.connection.authorization"
 msgstr "Authorization endpoint"
-
-#. js-lingui-explicit-id
-#: src/pages/ConnectedApps.tsx
-msgid "apps.detail.granted"
-msgstr "Authorized <0/>"
 
 #. js-lingui-explicit-id
 #: src/components/custom/AppAccessPanel.tsx
@@ -1818,9 +1823,14 @@ msgid "enroll.password_totp.confirm"
 msgstr "Confirm password"
 
 #. js-lingui-explicit-id
-#: src/pages/public/consent/scopes.ts
+#: src/lib/scopes.ts
 msgid "consent.scope.openid"
 msgstr "Confirm who you are"
+
+#. js-lingui-explicit-id
+#: src/pages/ConnectedApps.tsx
+msgid "apps.page.title"
+msgstr "Connected applications"
 
 #. js-lingui-explicit-id
 #: src/pages/ConnectedApps.tsx
@@ -2112,11 +2122,6 @@ msgstr "Could not load the access policy."
 #: src/components/custom/AppAccessPanel.tsx
 msgid "app.managers.load_failed"
 msgstr "Could not load the managers."
-
-#. js-lingui-explicit-id
-#: src/pages/ConnectedApps.tsx
-msgid "apps.load_failed"
-msgstr "Could not load your connected applications."
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -3871,7 +3876,7 @@ msgid "apps.confirm.cancel"
 msgstr "Keep access"
 
 #. js-lingui-explicit-id
-#: src/pages/public/consent/scopes.ts
+#: src/lib/scopes.ts
 msgid "consent.scope.offline_access.description"
 msgstr "Keep access while you're away, until you revoke it"
 
@@ -3906,7 +3911,7 @@ msgid "admin.groups.column.kind"
 msgstr "Kind"
 
 #. js-lingui-explicit-id
-#: src/pages/public/consent/scopes.ts
+#: src/lib/scopes.ts
 msgid "consent.scope.openid.description"
 msgstr "Know which {instance} account is yours"
 
@@ -6790,7 +6795,7 @@ msgid "request_details.status"
 msgstr "Status"
 
 #. js-lingui-explicit-id
-#: src/pages/public/consent/scopes.ts
+#: src/lib/scopes.ts
 msgid "consent.scope.offline_access"
 msgstr "Stay connected"
 
@@ -7156,7 +7161,7 @@ msgid "admin.forward-auth-apps.enable.confirm.body"
 msgstr "The gateway starts accepting requests through this application again, under the access policy it already has."
 
 #. js-lingui-explicit-id
-#: src/pages/public/consent/scopes.ts
+#: src/lib/scopes.ts
 msgid "consent.scope.groups.description"
 msgstr "The groups you belong to for this app"
 
@@ -8790,12 +8795,12 @@ msgid "enroll.description.invite"
 msgstr "You've been invited to {instance}. This link works until {expires}."
 
 #. js-lingui-explicit-id
-#: src/pages/public/consent/scopes.ts
+#: src/lib/scopes.ts
 msgid "consent.scope.identity.description"
 msgstr "Your {provider} ID, display name and profile link"
 
 #. js-lingui-explicit-id
-#: src/pages/public/consent/scopes.ts
+#: src/lib/scopes.ts
 msgid "consent.scope.identity"
 msgstr "Your {provider} identity"
 
@@ -8815,22 +8820,22 @@ msgid "security.totp.replace.note"
 msgstr "Your current authenticator and every existing recovery code stop working as soon as this succeeds."
 
 #. js-lingui-explicit-id
-#: src/pages/public/consent/scopes.ts
+#: src/lib/scopes.ts
 msgid "consent.scope.profile.description"
 msgstr "Your display name, username and avatar"
 
 #. js-lingui-explicit-id
-#: src/pages/public/consent/scopes.ts
+#: src/lib/scopes.ts
 msgid "consent.scope.email"
 msgstr "Your email address"
 
 #. js-lingui-explicit-id
-#: src/pages/public/consent/scopes.ts
+#: src/lib/scopes.ts
 msgid "consent.scope.email.description"
 msgstr "Your email address and whether it is verified"
 
 #. js-lingui-explicit-id
-#: src/pages/public/consent/scopes.ts
+#: src/lib/scopes.ts
 msgid "consent.scope.groups"
 msgstr "Your groups"
 
@@ -8855,7 +8860,7 @@ msgid "security.revoke.confirm.body"
 msgstr "Your password, your authenticator and all recovery codes stop working immediately."
 
 #. js-lingui-explicit-id
-#: src/pages/public/consent/scopes.ts
+#: src/lib/scopes.ts
 msgid "consent.scope.profile"
 msgstr "Your profile"
 

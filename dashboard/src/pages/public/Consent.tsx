@@ -17,9 +17,9 @@ import {
   CollapsiblePanel,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import { describeScope } from "@/lib/scopes";
 import { ConsentExpired } from "@/pages/public/consent/ConsentExpired";
 import { ConsentRequest } from "@/pages/public/consent/ConsentRequest";
-import { describeScope } from "@/pages/public/consent/scopes";
 import { Route } from "@/routes/_public.consent";
 
 function ticketConsumed(error: unknown): boolean {

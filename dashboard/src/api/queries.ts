@@ -344,10 +344,11 @@ export function forwardAuthAppsQueryOptions() {
   });
 }
 
+/** Read quietly: the page that lists it shows the failure with a retry. */
 export function consentQueryOptions() {
   return queryOptions({
     queryKey: ["session", "consent"],
-    meta: { requiresSession: true },
+    meta: { requiresSession: true, quiet: true },
     queryFn: ({ signal }) =>
       requireJsonData(client.GET("/api/prohibitorum/me/consent", { signal })),
   });

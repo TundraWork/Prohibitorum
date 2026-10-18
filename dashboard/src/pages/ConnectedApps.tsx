@@ -1,24 +1,30 @@
-import { Alert, Avatar, Chip } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useMutation,
+  useQueryClient,
+  useSuspenseQuery,
+} from "@tanstack/react-query";
 import { AppWindow, Trash2 } from "lucide-react";
 import { useState } from "react";
+import { describeError, isCancellation } from "@/api/errors";
+import type { components } from "@/api/generated/schema";
 import { revokeConsentMutationOptions } from "@/api/mutations";
 import { consentQueryOptions } from "@/api/queries";
+import { withInlineReport } from "@/app/query-client";
 import { Button } from "@/components/custom/Button";
 import { ConfirmDialog } from "@/components/custom/ConfirmDialog";
+import { EntityAvatar } from "@/components/custom/EntityAvatar";
 import { ItemList, ItemListRow } from "@/components/custom/ItemList";
+import { PageBody } from "@/components/custom/PageBody";
+import { PageHeader } from "@/components/custom/PageHeader";
 import { RelativeTime } from "@/components/custom/RelativeTime";
+import { AsyncSection } from "@/components/custom/Section";
+import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
 import { TableEmptyState } from "@/components/custom/TableEmptyState";
+import { Badge } from "@/components/ui/badge";
+import { describeScope } from "@/lib/scopes";
 
-type ConsentedApp = {
-  clientId: string;
-  kind: string;
-  name: string;
-  iconUrl?: string;
-  grantedAt: string;
-  scopes: string[] | null;
-};
+type ConsentedApp = components["schemas"]["ConsentedApp"];
 
 /**
  * Applications the account has granted access to. This is revocation only: the
@@ -26,28 +32,45 @@ type ConsentedApp = {
  * of this page.
  */
 export function ConnectedApps() {
+  return (
+    <PageBody>
+      <PageHeader
+        title={<Trans id="apps.page.title">Connected applications</Trans>}
+        description={
+          <Trans id="apps.page.description">
+            Applications you allowed to sign you in. Removing one makes it ask
+            again next time.
+          </Trans>
+        }
+      />
+      <AsyncSection resetKey="connected-apps">
+        <ConnectedAppList />
+      </AsyncSection>
+    </PageBody>
+  );
+}
+
+function ConnectedAppList() {
   const { t } = useLingui();
   const queryClient = useQueryClient();
-  const consent = useQuery(consentQueryOptions());
+  const { data } = useSuspenseQuery(consentQueryOptions());
   const [target, setTarget] = useState<ConsentedApp | null>(null);
-  const [confirming, setConfirming] = useState(false);
+  const [error, setError] = useState<unknown>(null);
 
-  const revoke = useMutation(revokeConsentMutationOptions(queryClient));
+  // The failure is drawn on this page, so the toast stays silent.
+  const revoke = useMutation(
+    withInlineReport(revokeConsentMutationOptions(queryClient), true),
+  );
 
   return (
-    <>
-      {consent.isError && (
-        <Alert status="danger" role="alert">
-          <Alert.Indicator />
-          <Alert.Content>
-            <Alert.Title>
-              {t({
-                id: "apps.load_failed",
-                message: "Could not load your connected applications.",
-              })}
-            </Alert.Title>
-          </Alert.Content>
-        </Alert>
+    <div className="flex flex-col gap-4">
+      {error !== null && (
+        <SurfaceAlert status="danger" role="alert">
+          <SurfaceAlert.Indicator />
+          <SurfaceAlert.Content>
+            <SurfaceAlert.Title>{t(describeError(error))}</SurfaceAlert.Title>
+          </SurfaceAlert.Content>
+        </SurfaceAlert>
       )}
 
       <ItemList
@@ -55,7 +78,6 @@ export function ConnectedApps() {
           id: "apps.table.label",
           message: "Connected applications",
         })}
-        loading={consent.isPending}
         empty={
           <TableEmptyState
             icon={<AppWindow size={18} strokeWidth={1.75} aria-hidden="true" />}
@@ -63,50 +85,36 @@ export function ConnectedApps() {
           />
         }
       >
-        {(consent.data ?? []).map((app) => (
+        {data.map((app) => (
           <ItemListRow
             key={`${app.kind}:${app.clientId}`}
             icon={
-              <Avatar className="size-9 rounded-[0.375rem]">
-                {app.iconUrl && <Avatar.Image src={app.iconUrl} alt="" />}
-                <Avatar.Fallback className="rounded-[0.375rem]">
-                  <AppWindow size={18} aria-hidden="true" />
-                </Avatar.Fallback>
-              </Avatar>
+              <EntityAvatar size="md" name={app.name} iconUrl={app.iconUrl} />
             }
             title={app.name}
-            badges={
-              <Chip size="sm" variant="soft">
+            badge={
+              <Badge variant="outline">
                 {app.kind === "saml" ? (
                   <Trans id="apps.kind.saml">SAML</Trans>
                 ) : (
                   <Trans id="apps.kind.oidc">OpenID Connect</Trans>
                 )}
-              </Chip>
+              </Badge>
             }
-            details={[
-              <Trans key="granted" id="apps.detail.granted">
-                Authorized <RelativeTime value={app.grantedAt} />
-              </Trans>,
-              app.scopes && app.scopes.length > 0 ? (
-                app.scopes.join(", ")
-              ) : (
-                <Trans key="scopes" id="apps.scopes.none">
-                  Basic profile
-                </Trans>
-              ),
-            ]}
+            meta={
+              <Trans id="apps.meta.allowed">
+                Allowed <RelativeTime value={app.grantedAt} />
+              </Trans>
+            }
+            details={[<GrantedScopes key="scopes" scopes={app.scopes} />]}
             actions={
               <Button
                 aria-label={t({ id: "apps.remove", message: "Remove access" })}
-                onClick={() => {
-                  setTarget(app);
-                  setConfirming(true);
-                }}
+                onClick={() => setTarget(app)}
                 variant="destructive-outline"
                 size="icon-sm"
               >
-                <Trash2 size={16} aria-hidden="true" />
+                <Trash2 aria-hidden="true" />
               </Button>
             }
           />
@@ -114,8 +122,8 @@ export function ConnectedApps() {
       </ItemList>
 
       <ConfirmDialog
-        isOpen={confirming}
-        onOpenChange={setConfirming}
+        isOpen={target !== null}
+        onOpenChange={(open) => !open && setTarget(null)}
         status="danger"
         title={<Trans id="apps.confirm.title">Remove access?</Trans>}
         body={
@@ -131,21 +139,40 @@ export function ConnectedApps() {
         isPending={revoke.isPending}
         onConfirm={() => {
           if (!target) return;
+          setError(null);
           // `kind` is echoed exactly as listed: the server uses it to tell an
           // OIDC client id from a SAML entity id.
           revoke.mutate(
             { clientId: target.clientId, kind: target.kind },
             {
-              onSuccess: () => {
-                setConfirming(false);
+              onSuccess: () => setTarget(null),
+              onError: (failure) => {
+                if (!isCancellation(failure)) setError(failure);
                 setTarget(null);
               },
-              // The global toast reports what went wrong.
-              onError: () => setConfirming(false),
             },
           );
         }}
       />
-    </>
+    </div>
   );
+}
+
+/**
+ * What the application may read, named as the consent page named it. A scope
+ * the application defined has no wording of ours and stays as written.
+ */
+function GrantedScopes({ scopes }: { scopes: string[] | null }) {
+  const { i18n } = useLingui();
+  if (scopes === null || scopes.length === 0) {
+    return <Trans id="apps.scopes.none">Basic profile</Trans>;
+  }
+  const names = scopes.map((scope) => {
+    const { name, values } = describeScope(scope);
+    return name ? i18n._({ ...name, values }) : scope;
+  });
+  return new Intl.ListFormat(i18n.locale, {
+    style: "long",
+    type: "conjunction",
+  }).format(names);
 }
