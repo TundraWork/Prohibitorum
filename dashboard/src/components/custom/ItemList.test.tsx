@@ -43,6 +43,22 @@ describe("ItemList", () => {
     ).not.toBeNull();
   });
 
+  it("hides a reserved but empty badge slot on a narrow screen so it adds no gap", () => {
+    render(
+      <ItemList label="Factors" empty={null}>
+        <ItemListRow key="a" title="Codes" badge={<span>Low</span>} meta="2" />
+        <ItemListRow key="b" title="Passkeys" meta="3" />
+      </ItemList>,
+    );
+
+    const [withBadge, without] = screen.getAllByRole("listitem");
+    const slot = (item: HTMLElement | undefined) =>
+      item?.querySelector("[data-slot='item-badge']");
+    expect(slot(withBadge)).toHaveTextContent("Low");
+    expect(slot(without)).toBeEmptyDOMElement();
+    expect(slot(without)).toHaveClass("max-sm:empty:hidden");
+  });
+
   it("shows the empty state instead of a list when there are no rows", () => {
     render(<ItemList label="Passkeys" empty={<p>Nothing here</p>} />);
 

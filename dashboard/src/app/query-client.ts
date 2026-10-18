@@ -111,6 +111,13 @@ export function createQueryClient(
   return queryClient;
 }
 
+/** Marks a read as one whose failure the page draws itself, so no toast repeats it. */
+export function quietQuery<O extends { meta?: Record<string, unknown> }>(
+  options: O,
+): O {
+  return { ...options, meta: { ...options.meta, quiet: true } };
+}
+
 /** Marks a write as one whose failure the page shows itself; see `reportsInline`. */
 export function withInlineReport<O extends { meta?: Record<string, unknown> }>(
   options: O,

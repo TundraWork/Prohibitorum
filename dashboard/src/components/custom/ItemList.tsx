@@ -250,7 +250,7 @@ export function ItemListRow({
           {wantBadge && (
             <div
               data-slot="item-badge"
-              className="flex items-center sm:justify-self-start"
+              className="flex items-center max-sm:empty:hidden sm:justify-self-start"
             >
               {badge}
             </div>

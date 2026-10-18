@@ -246,7 +246,7 @@ describe("console home", () => {
     ).toHaveAttribute("href", "/devices");
   });
 
-  it("keeps the rest of the page when one read fails, and says so in its section", async () => {
+  it("reports a failed read once, in its own section, and keeps the other section and the heading", async () => {
     serve(Response.json({ code: "internal" }, { status: 500 }));
     mount();
 

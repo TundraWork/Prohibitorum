@@ -89,11 +89,7 @@ function PanelTitle() {
 function PasswordTotpFactors() {
   const { t } = useLingui();
   const queryClient = useQueryClient();
-  const { data } = useSuspenseQuery({
-    ...factorsQueryOptions(),
-    // A failed read is drawn by the section's own error, so no toast too.
-    meta: { requiresSession: true, quiet: true },
-  });
+  const { data } = useSuspenseQuery(factorsQueryOptions());
   const { passwordSet, totpEnrolled, passkeyCount, recoveryCodesRemaining } =
     data;
   const bothSet = passwordSet && totpEnrolled;

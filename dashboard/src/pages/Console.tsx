@@ -14,6 +14,7 @@ import {
   sessionQueryOptions,
   sessionsQueryOptions,
 } from "@/api/queries";
+import { quietQuery } from "@/app/query-client";
 import { ItemList, ItemListRow } from "@/components/custom/ItemList";
 import { useInstanceBranding } from "@/components/custom/instance-branding";
 import { PageBody } from "@/components/custom/PageBody";
@@ -53,17 +54,6 @@ export function Console() {
 const signInTitle = <Trans id="console.signin.title">Sign-in</Trans>;
 const devicesTitle = <Trans id="devices.page.title">Devices</Trans>;
 
-/**
- * Both reads are drawn in their own section if they fail, so the toast stays
- * silent and the failure is reported once.
- */
-const quiet = <T extends { meta?: Record<string, unknown> }>(
-  options: T,
-): T => ({
-  ...options,
-  meta: { ...options.meta, quiet: true },
-});
-
 function SignInSummary() {
   return (
     <AsyncSection
@@ -78,7 +68,7 @@ function SignInSummary() {
 
 function SignInRows() {
   const { t } = useLingui();
-  const { data } = useSuspenseQuery(quiet(factorsQueryOptions()));
+  const { data } = useSuspenseQuery(factorsQueryOptions());
   const { passkeyCount, passwordSet, totpEnrolled } = data;
   // The plural's placeholder takes its name from this variable.
   const count = data.recoveryCodesRemaining;
@@ -196,7 +186,7 @@ function DevicesSummary() {
 
 function DevicesRow() {
   const { t } = useLingui();
-  const { data } = useSuspenseQuery(quiet(sessionsQueryOptions()));
+  const { data } = useSuspenseQuery(quietQuery(sessionsQueryOptions()));
   const count = data.length;
   return (
     <Section title={devicesTitle} icon={<MonitorSmartphone />}>

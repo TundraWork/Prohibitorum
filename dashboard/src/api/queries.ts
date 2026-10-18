@@ -298,7 +298,8 @@ export function credentialsQueryOptions() {
 export function factorsQueryOptions() {
   return queryOptions({
     queryKey: ["session", "factors"],
-    meta: { requiresSession: true },
+    // Every reader draws a failed read itself (a section's error), so no toast.
+    meta: { requiresSession: true, quiet: true },
     queryFn: ({ signal }) =>
       requireJsonData(client.GET("/api/prohibitorum/me/factors", { signal })),
   });

@@ -10,7 +10,7 @@ import { describeError, isCancellation } from "@/api/errors";
 import type { components } from "@/api/generated/schema";
 import { revokeSessionMutationOptions } from "@/api/mutations";
 import { sessionsQueryOptions } from "@/api/queries";
-import { withInlineReport } from "@/app/query-client";
+import { quietQuery, withInlineReport } from "@/app/query-client";
 import { Button } from "@/components/custom/Button";
 import { ConfirmDialog } from "@/components/custom/ConfirmDialog";
 import {
@@ -54,9 +54,7 @@ export function DeviceSessionList({
   const { t } = useLingui();
   const queryClient = useQueryClient();
   const { data } = useSuspenseQuery({
-    ...sessionsQueryOptions(),
-    // A failed read is drawn by the section's own error, so no toast too.
-    meta: { requiresSession: true, quiet: true },
+    ...quietQuery(sessionsQueryOptions()),
     refetchInterval: (query) => {
       if (watchUntil === null) return false;
       const arrived = (query.state.data?.length ?? 0) > watchUntil.count;
