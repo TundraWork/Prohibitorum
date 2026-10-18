@@ -4,9 +4,11 @@ import { useNavigate, useRouter } from "@tanstack/react-router";
 import { describeErrorLanding } from "@/api/errors";
 import { sessionQueryOptions } from "@/api/queries";
 import { followRedirect, isSitePath, sitePathOf } from "@/app/redirect";
+import { AppStrip } from "@/components/custom/AppStrip";
 import { Button } from "@/components/custom/Button";
 import { useInstanceBranding } from "@/components/custom/instance-branding";
 import { PublicStep } from "@/components/custom/PublicStep";
+import { ReferenceLine } from "@/components/custom/ReferenceLine";
 import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
 import { Route } from "@/routes/_public.error";
 
@@ -48,6 +50,14 @@ export function ErrorLandingPage() {
 
   return (
     <PublicStep
+      strip={
+        app ? (
+          <AppStrip
+            lead={<Trans id="error_page.strip.lead">Signing in to</Trans>}
+            name={app}
+          />
+        ) : undefined
+      }
       title={
         search.reason === "app_access_denied" && app ? (
           <Trans id="error_page.title.denied">
@@ -56,6 +66,43 @@ export function ErrorLandingPage() {
         ) : (
           <Trans id="error_page.title">Unable to continue</Trans>
         )
+      }
+      actions={
+        <PublicStep.Actions>
+          {retryTo !== undefined ? (
+            <Button
+              onClick={() => void followRedirect(router, retryTo)}
+              variant="outline"
+              size="lg"
+            >
+              <Trans id="route.retry">Try again</Trans>
+            </Button>
+          ) : back ? (
+            <Button
+              onClick={() => followRedirect(router, back)}
+              variant="outline"
+              size="lg"
+            >
+              <Trans id="error_page.back">Go back</Trans>
+            </Button>
+          ) : session ? (
+            <Button
+              onClick={() => navigate({ to: "/" })}
+              variant="outline"
+              size="lg"
+            >
+              <Trans id="error_page.account">Go to my account</Trans>
+            </Button>
+          ) : (
+            <Button
+              onClick={() => navigate({ to: "/login" })}
+              variant="outline"
+              size="lg"
+            >
+              <Trans id="error_page.sign_in">Sign in</Trans>
+            </Button>
+          )}
+        </PublicStep.Actions>
       }
     >
       <SurfaceAlert status="danger">
@@ -70,53 +117,9 @@ export function ErrorLandingPage() {
               </Trans>
             </SurfaceAlert.Description>
           )}
-          {ref && (
-            <SurfaceAlert.Description>
-              <Trans id="error_page.reference">
-                Reference{" "}
-                <span className="select-all font-mono wrap-anywhere">
-                  {ref}
-                </span>
-              </Trans>
-            </SurfaceAlert.Description>
-          )}
-          <div className="mt-3 flex flex-wrap gap-2">
-            {retryTo !== undefined ? (
-              <Button
-                onClick={() => void followRedirect(router, retryTo)}
-                variant="outline"
-                size="sm"
-              >
-                <Trans id="route.retry">Try again</Trans>
-              </Button>
-            ) : back ? (
-              <Button
-                onClick={() => followRedirect(router, back)}
-                variant="outline"
-                size="sm"
-              >
-                <Trans id="error_page.back">Go back</Trans>
-              </Button>
-            ) : session ? (
-              <Button
-                onClick={() => navigate({ to: "/" })}
-                variant="outline"
-                size="sm"
-              >
-                <Trans id="error_page.account">Go to my account</Trans>
-              </Button>
-            ) : (
-              <Button
-                onClick={() => navigate({ to: "/login" })}
-                variant="outline"
-                size="sm"
-              >
-                <Trans id="error_page.sign_in">Sign in</Trans>
-              </Button>
-            )}
-          </div>
         </SurfaceAlert.Content>
       </SurfaceAlert>
+      {ref && <ReferenceLine reference={ref} />}
     </PublicStep>
   );
 }

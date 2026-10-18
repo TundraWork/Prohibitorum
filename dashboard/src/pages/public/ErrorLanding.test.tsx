@@ -41,6 +41,17 @@ describe("the error landing page", () => {
     ).toBeVisible();
   });
 
+  it("draws the application strip only when the link names an app", async () => {
+    await open("/error?reason=app_access_denied&app=Wiki");
+    expect(screen.getByText("Signing in to")).toBeVisible();
+    expect(screen.getAllByText("Wiki").length).toBeGreaterThan(0);
+  });
+
+  it("draws no strip for a failure that names no app", async () => {
+    await open("/error?error=server_error");
+    expect(screen.queryByText("Signing in to")).not.toBeInTheDocument();
+  });
+
   it("describes a code only a redirect carries, with the instance's name", async () => {
     await open("/error?error=saml_sp_unknown");
     expect(

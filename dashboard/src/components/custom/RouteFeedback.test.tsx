@@ -163,7 +163,7 @@ const spinnerIn = (element: HTMLElement) =>
   element.querySelector('[data-slot="spinner"]');
 
 describe("console pages", () => {
-  it("draws a failed page under the header with its facts and a retry", async () => {
+  it("draws a failed page under the header with its reference and a retry", async () => {
     const user = userEvent.setup();
     const second = deferred();
     let calls = 0;
@@ -184,19 +184,15 @@ describe("console pages", () => {
     expect(title.closest('[data-slot="frame"]')).not.toBeNull();
     expect(screen.queryByRole("heading", { level: 1 })).not.toBeInTheDocument();
 
-    const facts = document.querySelector("dl");
-    if (!facts) throw new Error("no facts");
-    const terms = [...facts.querySelectorAll("dt")].map((dt) => dt.textContent);
-    const values = [...facts.querySelectorAll("dd")].map(
-      (dd) => dd.textContent,
-    );
-    expect(terms).toEqual(["Request", "Status", "Error code", "Request ID"]);
-    expect(values).toEqual([
-      "GET /api/prohibitorum/admin/accounts/42",
-      "503",
-      "server_error",
-      "req-abc123",
-    ]);
+    // Only the reference stays on the card; the request, status and code
+    // belong to the details dialog.
+    expect(screen.getByText("req-abc123")).toHaveClass("font-mono");
+    expect(screen.getByText(/^Reference/)).toBeVisible();
+    expect(screen.queryByText("server_error")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("GET /api/prohibitorum/admin/accounts/42"),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("503")).not.toBeInTheDocument();
 
     const retry = screen.getByRole("button", { name: "Try again" });
     await user.click(retry);

@@ -10,14 +10,7 @@ import {
   useRouter,
   useRouterState,
 } from "@tanstack/react-router";
-import {
-  createContext,
-  Fragment,
-  type ReactNode,
-  use,
-  useEffect,
-  useState,
-} from "react";
+import { createContext, type ReactNode, use, useEffect, useState } from "react";
 import { describeRouteFailure, type RouteFailure } from "@/api/errors";
 import type { RequestExchange } from "@/api/exchange";
 import { logoutMutationOptions } from "@/api/mutations";
@@ -25,6 +18,7 @@ import { clearSessionQueries } from "@/api/queries";
 import { Button } from "@/components/custom/Button";
 import { PublicStage } from "@/components/custom/PublicStage";
 import { PublicStep } from "@/components/custom/PublicStep";
+import { ReferenceLine } from "@/components/custom/ReferenceLine";
 import { RequestDetailsDialog } from "@/components/custom/RequestDetailsDialog";
 import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
 import { Frame, FramePanel } from "@/components/ui/frame";
@@ -115,7 +109,7 @@ export function AppRouteError({ error }: ErrorComponentProps) {
         title={<Trans id="route.failed">Unable to load this page</Trans>}
         description={i18n._(route.failure.message)}
       >
-        <FailureBody route={route} leave={appLeave} />
+        <FailureBody route={route} leave={appLeave} onStage />
       </PublicStep>
     </WindowStage>
   );
@@ -176,7 +170,7 @@ function FailedPage({ error, leave }: { error: unknown; leave: Leave }) {
           </SurfaceAlert.Title>
         </SurfaceAlert.Content>
       </SurfaceAlert>
-      <FailureBody route={route} leave={leave} />
+      <FailureBody route={route} leave={leave} onStage />
     </PublicStep>
   );
 }
@@ -185,7 +179,9 @@ function MissingPage({ leave }: { leave: Leave }) {
   return (
     <PublicStep title={<Trans id="route.not-found">Page not found</Trans>}>
       <div className="empty:hidden">
-        <LeaveButton to={leave.to}>{leave.label}</LeaveButton>
+        <LeaveButton to={leave.to} size="lg" fill>
+          {leave.label}
+        </LeaveButton>
       </div>
     </PublicStep>
   );
@@ -238,31 +234,46 @@ function useRouteFailure(error: unknown) {
   return { failure, retrying, retry, signIn, signOut, details, setDetails };
 }
 
-/** The facts under the failure's title, then its buttons. */
+/**
+ * What a failure leaves under its message: the request's reference, then the
+ * one way out and, for a request that failed, Details. The request, status and
+ * error code live in the details dialog rather than on the page. `onStage`
+ * draws the buttons the way the public pages do.
+ */
 function FailureBody({
   route,
   leave,
+  onStage = false,
 }: {
   route: RouteFailureState;
   leave: Leave;
+  onStage?: boolean;
 }) {
   const { failure, details, setDetails } = route;
   const exchange = failure.exchange;
+  const size = onStage ? "lg" : "sm";
+  const buttons = (
+    <>
+      <RecoveryButton route={route} leave={leave} size={size} />
+      {exchange && (
+        <Button
+          onClick={() => setDetails(exchange)}
+          variant="ghost"
+          size={size}
+        >
+          <Trans id="notification.details">Details</Trans>
+        </Button>
+      )}
+    </>
+  );
   return (
     <>
-      <RouteFacts facts={failure.facts} />
-      <div className="mt-3 flex flex-wrap gap-2 empty:hidden">
-        <RecoveryButton route={route} leave={leave} />
-        {exchange && (
-          <Button
-            onClick={() => setDetails(exchange)}
-            variant="ghost"
-            size="sm"
-          >
-            <Trans id="notification.details">Details</Trans>
-          </Button>
-        )}
-      </div>
+      <FailureReference facts={failure.facts} />
+      {onStage ? (
+        <PublicStep.Actions>{buttons}</PublicStep.Actions>
+      ) : (
+        <div className="mt-3 flex flex-wrap gap-2 empty:hidden">{buttons}</div>
+      )}
       <RequestDetailsDialog
         exchange={details}
         onClose={() => setDetails(null)}
@@ -274,9 +285,11 @@ function FailureBody({
 function RecoveryButton({
   route,
   leave,
+  size,
 }: {
   route: RouteFailureState;
   leave: Leave;
+  size: "sm" | "lg";
 }) {
   switch (route.failure.recovery) {
     case "retry":
@@ -285,7 +298,7 @@ function RecoveryButton({
           pending={route.retrying}
           onClick={() => void route.retry()}
           variant="destructive"
-          size="sm"
+          size={size}
         >
           <Trans id="route.retry">Try again</Trans>
         </Button>
@@ -295,14 +308,18 @@ function RecoveryButton({
         <Button
           onClick={() => window.location.reload()}
           variant="destructive"
-          size="sm"
+          size={size}
         >
           <Trans id="route.reload">Reload</Trans>
         </Button>
       );
     case "sign-in":
       return (
-        <Button onClick={() => void route.signIn()} variant="outline" size="sm">
+        <Button
+          onClick={() => void route.signIn()}
+          variant="outline"
+          size={size}
+        >
           <Trans id="route.sign_in">Sign in</Trans>
         </Button>
       );
@@ -312,85 +329,60 @@ function RecoveryButton({
           pending={route.signOut.isPending}
           onClick={() => route.signOut.mutate()}
           variant="outline"
-          size="sm"
+          size={size}
         >
           <Trans id="console.logout">Sign out</Trans>
         </Button>
       );
     case "none":
-      return <LeaveButton to={leave.to}>{leave.label}</LeaveButton>;
+      return (
+        <LeaveButton to={leave.to} size={size}>
+          {leave.label}
+        </LeaveButton>
+      );
   }
 }
 
 /**
- * The failure's facts, one per row: label beside value from `sm`, stacked
- * below it. A fact the failure does not have is left out.
+ * The reference an administrator can look up, as the error landing shows it.
+ * A page that broke rather than a request that failed has no reference, so its
+ * exception is shown instead: nothing else says what broke.
  */
-function RouteFacts({ facts }: { facts: RouteFailure["facts"] }) {
-  const rows: {
-    key: keyof RouteFailure["facts"];
-    label: ReactNode;
-    mono: boolean;
-  }[] = [
-    {
-      key: "request",
-      label: <Trans id="request_details.request">Request</Trans>,
-      mono: true,
-    },
-    {
-      key: "status",
-      label: <Trans id="request_details.status">Status</Trans>,
-      mono: false,
-    },
-    {
-      key: "code",
-      label: <Trans id="route.error.code">Error code</Trans>,
-      mono: true,
-    },
-    {
-      key: "requestId",
-      label: <Trans id="route.error.request_id">Request ID</Trans>,
-      mono: true,
-    },
-    {
-      key: "exception",
-      label: <Trans id="route.error.exception">Exception</Trans>,
-      mono: true,
-    },
-  ];
-  const shown = rows.filter(
-    ({ key }) => facts[key] !== undefined && facts[key] !== "",
-  );
-  if (shown.length === 0) return null;
-  return (
-    <dl className="mt-2 grid gap-x-4 gap-y-1 text-sm sm:grid-cols-[max-content_minmax(0,1fr)]">
-      {shown.map(({ key, label, mono }) => (
-        <Fragment key={key}>
-          <dt className="text-muted-foreground">{label}</dt>
-          <dd
-            className={`min-w-0 wrap-anywhere text-foreground max-sm:not-last:mb-1 ${mono ? "font-mono" : ""}`}
-          >
-            {facts[key]}
-          </dd>
-        </Fragment>
-      ))}
-    </dl>
-  );
+function FailureReference({ facts }: { facts: RouteFailure["facts"] }) {
+  if (facts.requestId) return <ReferenceLine reference={facts.requestId} />;
+  if (facts.exception) {
+    return (
+      <p className="font-mono text-muted-foreground text-sm wrap-anywhere">
+        {facts.exception}
+      </p>
+    );
+  }
+  return null;
 }
 
 /** Leaves for `to`; drawn only when the page is somewhere else. */
 function LeaveButton({
   to,
+  size = "sm",
+  fill = false,
   children,
 }: {
   to: Leave["to"];
+  size?: "sm" | "lg";
+  /** Spans the card, as the stacked buttons of a public page do. */
+  fill?: boolean;
   children: ReactNode;
 }) {
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   if (pathname === to) return null;
   return (
-    <Button onClick={() => void navigate({ to })} variant="outline" size="sm">
+    <Button
+      onClick={() => void navigate({ to })}
+      variant="outline"
+      size={size}
+      className={fill ? "w-full" : undefined}
+    >
       {children}
     </Button>
   );

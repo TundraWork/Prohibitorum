@@ -3,6 +3,10 @@ import { CheckIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
+/** The numbered dot of a step that is not yet reached. */
+export const stepDotClass =
+  "flex size-5 shrink-0 items-center justify-center rounded-full bg-muted font-medium text-muted-foreground text-xs tabular-nums";
+
 /**
  * Where the reader is in a short run of steps: a numbered dot and a name for
  * each, a check once a step is done, and the current one ringed. The steps
@@ -38,10 +42,10 @@ export function StepHeader({
               <span
                 aria-hidden="true"
                 className={cn(
-                  "flex size-5 shrink-0 items-center justify-center rounded-full font-medium tabular-nums",
+                  stepDotClass,
                   done && "bg-primary text-primary-foreground",
-                  active && "text-foreground ring-1 ring-primary",
-                  !done && !active && "bg-muted text-muted-foreground",
+                  active &&
+                    "bg-transparent text-foreground ring-1 ring-primary",
                 )}
               >
                 {done ? <CheckIcon className="size-3" /> : index + 1}

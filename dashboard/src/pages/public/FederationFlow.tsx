@@ -20,6 +20,7 @@ import { CopyValue } from "@/components/custom/CopyValue";
 import { inlineLinkClass } from "@/components/custom/inline-link";
 import { useInstanceBranding } from "@/components/custom/instance-branding";
 import { PublicStep } from "@/components/custom/PublicStep";
+import { stepDotClass } from "@/components/custom/StepHeader";
 import { applyServerError } from "@/forms/server-errors";
 import { useAppForm } from "@/forms/use-app-form";
 import { Route } from "@/routes/_public.federation.flow.$flow";
@@ -156,10 +157,7 @@ function Steps({ children }: { children: ReactNode }) {
 function Step({ number, children }: { number: number; children: ReactNode }) {
   return (
     <li className="flex items-start gap-3">
-      <span
-        aria-hidden="true"
-        className="flex size-5 shrink-0 items-center justify-center rounded-full bg-muted font-medium text-muted-foreground text-xs tabular-nums"
-      >
+      <span aria-hidden="true" className={stepDotClass}>
         {number}
       </span>
       <div className="min-w-0 flex-1">{children}</div>
@@ -373,6 +371,7 @@ function ProofStep({
           )}
           <CopyValue
             value={flow.proofUrl ?? ""}
+            wrap
             label={
               <Trans id="federation_flow.proof.link">Verification link</Trans>
             }

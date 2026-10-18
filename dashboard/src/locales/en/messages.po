@@ -3180,11 +3180,6 @@ msgid "admin.saml-apps.field.entity-id"
 msgstr "Entity ID"
 
 #. js-lingui-explicit-id
-#: src/components/custom/RouteFeedback.tsx
-msgid "route.error.code"
-msgstr "Error code"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/AdminLogs.tsx
 msgid "admin.logs.column.event"
 msgstr "Event"
@@ -3263,11 +3258,6 @@ msgstr "Everything, including changing how you sign in, without being asked to c
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.access.sudo.hint.admin"
 msgstr "Everything, including what you manage as an administrator and changing how you sign in, without being asked to confirm it is you."
-
-#. js-lingui-explicit-id
-#: src/components/custom/RouteFeedback.tsx
-msgid "route.error.exception"
-msgstr "Exception"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-options.ts
@@ -5384,7 +5374,7 @@ msgid "admin.oidc-apps.column.redirect"
 msgstr "Redirects"
 
 #. js-lingui-explicit-id
-#: src/pages/public/ErrorLanding.tsx
+#: src/components/custom/ReferenceLine.tsx
 msgid "error_page.reference"
 msgstr "Reference <0>{ref}</0>"
 
@@ -5705,7 +5695,6 @@ msgstr "Replaces the endpoints and certificates below. The Entity ID and the nam
 
 #. js-lingui-explicit-id
 #: src/components/custom/RequestDetailsDialog.tsx
-#: src/components/custom/RouteFeedback.tsx
 msgid "request_details.request"
 msgstr "Request"
 
@@ -5718,11 +5707,6 @@ msgstr "Request body"
 #: src/components/custom/RequestDetailsDialog.tsx
 msgid "request_details.title"
 msgstr "Request details"
-
-#. js-lingui-explicit-id
-#: src/components/custom/RouteFeedback.tsx
-msgid "route.error.request_id"
-msgstr "Request ID"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
@@ -6631,6 +6615,11 @@ msgid "login.factor.account"
 msgstr "Signing in as {username}"
 
 #. js-lingui-explicit-id
+#: src/pages/public/ErrorLanding.tsx
+msgid "error_page.strip.lead"
+msgstr "Signing in to"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts
 msgid "audit.factor.signing_key"
 msgstr "Signing key"
@@ -6738,7 +6727,6 @@ msgstr "Status"
 
 #. js-lingui-explicit-id
 #: src/components/custom/RequestDetailsDialog.tsx
-#: src/components/custom/RouteFeedback.tsx
 msgid "request_details.status"
 msgstr "Status"
 

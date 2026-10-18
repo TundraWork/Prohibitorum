@@ -3180,11 +3180,6 @@ msgid "admin.saml-apps.field.entity-id"
 msgstr "Entity ID"
 
 #. js-lingui-explicit-id
-#: src/components/custom/RouteFeedback.tsx
-msgid "route.error.code"
-msgstr "错误码"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/AdminLogs.tsx
 msgid "admin.logs.column.event"
 msgstr "事件"
@@ -3263,11 +3258,6 @@ msgstr "包括更改登录方式在内的所有操作，都无需验证你的身
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.access.sudo.hint.admin"
 msgstr "包括你作为管理员管理的内容和更改登录方式在内的所有操作，都无需验证你的身份。"
-
-#. js-lingui-explicit-id
-#: src/components/custom/RouteFeedback.tsx
-msgid "route.error.exception"
-msgstr "异常信息"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-options.ts
@@ -5384,7 +5374,7 @@ msgid "admin.oidc-apps.column.redirect"
 msgstr "回调地址"
 
 #. js-lingui-explicit-id
-#: src/pages/public/ErrorLanding.tsx
+#: src/components/custom/ReferenceLine.tsx
 msgid "error_page.reference"
 msgstr "参考编号 <0>{ref}</0>"
 
@@ -5705,7 +5695,6 @@ msgstr "会替换下面的端点和证书。Entity ID 和名称保持不变。"
 
 #. js-lingui-explicit-id
 #: src/components/custom/RequestDetailsDialog.tsx
-#: src/components/custom/RouteFeedback.tsx
 msgid "request_details.request"
 msgstr "请求"
 
@@ -5718,11 +5707,6 @@ msgstr "请求体"
 #: src/components/custom/RequestDetailsDialog.tsx
 msgid "request_details.title"
 msgstr "请求详情"
-
-#. js-lingui-explicit-id
-#: src/components/custom/RouteFeedback.tsx
-msgid "route.error.request_id"
-msgstr "请求编号"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
@@ -6631,6 +6615,11 @@ msgid "login.factor.account"
 msgstr "正在登录 {username}"
 
 #. js-lingui-explicit-id
+#: src/pages/public/ErrorLanding.tsx
+msgid "error_page.strip.lead"
+msgstr "正在登录"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts
 msgid "audit.factor.signing_key"
 msgstr "签名密钥"
@@ -6738,7 +6727,6 @@ msgstr "状态"
 
 #. js-lingui-explicit-id
 #: src/components/custom/RequestDetailsDialog.tsx
-#: src/components/custom/RouteFeedback.tsx
 msgid "request_details.status"
 msgstr "状态码"
 

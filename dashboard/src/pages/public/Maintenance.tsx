@@ -70,7 +70,7 @@ export function MaintenancePage() {
                 setRetrying(false);
               }
             }}
-            className="w-full"
+            size="lg"
           >
             <Trans id="maintenance.retry">Try again</Trans>
           </Button>
@@ -79,7 +79,7 @@ export function MaintenancePage() {
               pending={signOut.isPending}
               onClick={() => signOut.mutate()}
               variant="ghost"
-              className="w-full"
+              size="lg"
             >
               <Trans id="console.logout">Sign out</Trans>
             </Button>
@@ -87,7 +87,7 @@ export function MaintenancePage() {
             <Button
               onClick={() => navigate({ to: "/login", search: { admin: "1" } })}
               variant="ghost"
-              className="w-full"
+              size="lg"
             >
               <Trans id="maintenance.admin_sign_in">
                 Administrator sign-in
