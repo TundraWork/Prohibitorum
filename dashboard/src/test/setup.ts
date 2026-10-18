@@ -1,6 +1,9 @@
 import "@testing-library/jest-dom/vitest";
-import { cleanup } from "@testing-library/react";
+import { cleanup, configure } from "@testing-library/react";
 import { afterEach, beforeEach, vi } from "vitest";
+
+// CI and dev hosts run under load; waits still resolve as soon as their condition holds.
+configure({ asyncUtilTimeout: 3000 });
 
 beforeEach(() => {
   vi.stubGlobal(

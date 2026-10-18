@@ -1,5 +1,5 @@
 import { I18nProvider } from "@lingui/react";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { type ReactNode, useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -186,10 +186,12 @@ describe("EntityPicker", () => {
     const listbox = await open(user);
     await user.keyboard("zzz");
     await user.click(within(listbox).getAllByRole("option")[0] as HTMLElement);
-    onSearch.mockClear();
+    await waitFor(() => expect(onSearch).toHaveBeenLastCalledWith(""));
     await open(user);
 
-    expect(onSearch).not.toHaveBeenCalledWith("zzz");
+    expect(screen.getByLabelText("Search", { selector: "input" })).toHaveValue(
+      "",
+    );
     expect(onSearch).toHaveBeenLastCalledWith("");
   });
 

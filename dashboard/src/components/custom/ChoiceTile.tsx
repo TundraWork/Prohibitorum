@@ -14,7 +14,7 @@ const tile = cva(
         compact: "h-16 justify-center gap-1",
         // A picture over a name of up to two lines. Every tile in the row
         // takes the tallest one's height, so the pictures line up.
-        media: "flex-1 justify-start gap-2 pt-3 pb-2.5",
+        media: "flex-1 justify-start gap-2 pt-8 pb-2.5",
       },
     },
     defaultVariants: { layout: "compact" },
@@ -25,7 +25,7 @@ const name = cva("min-w-0 max-w-full", {
   variants: {
     layout: {
       compact: "truncate",
-      media: "line-clamp-2 text-center wrap-anywhere",
+      media: "line-clamp-2 text-center wrap-break-word",
     },
   },
   defaultVariants: { layout: "compact" },
@@ -33,9 +33,10 @@ const name = cva("min-w-0 max-w-full", {
 
 /**
  * One choice in a `RadioGroup` drawn as a card: the card is the label of its
- * radio, whose dot sits before the name, in a row under the media of a `media`
- * tile and under the icon of a `compact` one. Selection is a primary border, a soft fill, a heavier name
- * and the checked dot, so it does not rest on colour alone.
+ * radio. The dot sits before the name under the icon of a `compact` tile, and
+ * in the top-start corner of a `media` tile, which reserves that corner so the
+ * name keeps the full width. Selection is a primary border, a soft fill, a
+ * heavier name and the checked dot, so it does not rest on colour alone.
  *
  * The sign-in page's background source uses the `compact` tile, an icon over
  * a name; the profile page's avatar gallery uses `media`, a picture over a
@@ -65,11 +66,9 @@ export function ChoiceTile({
     <Label className={tile({ layout })}>
       {layout === "media" ? (
         <>
+          <Radio value={value} className="absolute start-2 top-2" />
           {media}
-          <span className="flex max-w-full min-w-0 items-start gap-1.5">
-            <Radio value={value} className="mt-0.5 shrink-0" />
-            {text}
-          </span>
+          {text}
         </>
       ) : (
         <>
