@@ -20,6 +20,7 @@ import { searchSerialization } from "@/app/search-params";
 import { defaultLoginAppearance } from "@/components/custom/login-appearance/appearance";
 import { i18n } from "@/i18n";
 import { PasswordTotpPanel } from "@/pages/security/PasswordTotpPanel";
+import { findFirstOtpSlot, firstOtpSlot } from "@/test/otp";
 
 vi.mock("qrcode", () => ({
   default: { toCanvas: vi.fn().mockResolvedValue(undefined) },
@@ -379,12 +380,12 @@ describe("setting up both", () => {
     // The control that moved on is gone, so the step starts at its code.
     await waitFor(() =>
       expect(
-        within(dialog).getByLabelText("Code from your authenticator"),
+        firstOtpSlot("Code from your authenticator", within(dialog)),
       ).toHaveFocus(),
     );
 
     await user.type(
-      within(dialog).getByLabelText("Code from your authenticator"),
+      firstOtpSlot("Code from your authenticator", within(dialog)),
       "123456",
     );
     await user.click(within(dialog).getByRole("button", { name: "Turn on" }));
@@ -474,7 +475,7 @@ describe("setting up both", () => {
     );
     await user.click(within(dialog).getByRole("button", { name: "Next" }));
     await user.type(
-      await within(dialog).findByLabelText("Code from your authenticator"),
+      await findFirstOtpSlot("Code from your authenticator", within(dialog)),
       "123456",
     );
     await user.click(within(dialog).getByRole("button", { name: "Turn on" }));

@@ -1932,6 +1932,11 @@ msgid "admin.forward-auth-apps.traefik.copy"
 msgstr "复制"
 
 #. js-lingui-explicit-id
+#: src/components/custom/CopyValue.tsx
+msgid "copy-value.copy"
+msgstr "复制"
+
+#. js-lingui-explicit-id
 #: src/components/custom/JsonBlock.tsx
 msgid "json-block.copy"
 msgstr "复制"
@@ -2240,6 +2245,11 @@ msgstr "晨曦"
 #: src/pages/devices/PairDeviceDialog.tsx
 msgid "devices.decline"
 msgstr "拒绝"
+
+#. js-lingui-explicit-id
+#: src/components/custom/FormFields.tsx
+msgid "number-field.decrease"
+msgstr "减少"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/SignInPageControls.tsx
@@ -3626,6 +3636,11 @@ msgstr "以分钟为单位。留空则不限制会话时长。"
 #: src/pages/public/FederationFlow.tsx
 msgid "federation_flow.proof.step.bio"
 msgstr "在 VRChat 把它加到个人简介的链接里并保存。"
+
+#. js-lingui-explicit-id
+#: src/components/custom/FormFields.tsx
+msgid "number-field.increase"
+msgstr "增加"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AcsRowFields.tsx

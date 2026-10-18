@@ -48,15 +48,16 @@ describe("CopyValue", () => {
     expect(field()).toHaveAttribute("readonly");
   });
 
-  it("draws the field with the surface variant and no button", () => {
+  it("describes the value and offers one copy button", () => {
     setup();
-    expect(field().closest(".input-group")).toHaveClass(
-      "input-group--secondary",
-    );
-    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    expect(
+      screen.getByText("The client is configured with this value."),
+    ).toBeVisible();
+    expect(screen.getAllByRole("button")).toHaveLength(1);
+    expect(screen.getByRole("button", { name: "Copy" })).toBeVisible();
   });
 
-  it("copies the whole value on a click, confirms it, and resets after two seconds", async () => {
+  it("copies the whole value from the button, confirms it, and resets after two seconds", async () => {
     vi.useFakeTimers({
       toFake: ["setTimeout", "clearTimeout"],
       shouldAdvanceTime: true,
@@ -67,20 +68,20 @@ describe("CopyValue", () => {
       .mockResolvedValue(undefined);
     setup();
 
-    await ue.click(field());
+    await ue.click(screen.getByRole("button", { name: "Copy" }));
 
     expect(writeText).toHaveBeenCalledWith(value);
     expect(field().selectionStart).toBe(0);
     expect(field().selectionEnd).toBe(value.length);
+    expect(screen.getByRole("button", { name: "Copied" })).toBeVisible();
     expect(screen.getByRole("status")).toHaveTextContent("Copied");
-    expect(screen.getByRole("tooltip")).toHaveTextContent("Copied");
 
     act(() => {
       vi.advanceTimersByTime(2000);
     });
 
+    expect(screen.getByRole("button", { name: "Copy" })).toBeVisible();
     expect(screen.getByRole("status")).toBeEmptyDOMElement();
-    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
   });
 
   it("warns when the clipboard refuses, and clears once a copy succeeds", async () => {
@@ -90,15 +91,15 @@ describe("CopyValue", () => {
       .mockRejectedValueOnce(new DOMException("Denied", "NotAllowedError"));
     setup();
 
-    await ue.click(field());
+    await ue.click(screen.getByRole("button", { name: "Copy" }));
 
     expect(screen.getByRole("alert")).toHaveTextContent(
       "Couldn't copy. Select the value above and copy it yourself.",
     );
-    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Copy" })).toBeVisible();
 
     writeText.mockResolvedValueOnce(undefined);
-    await ue.click(field());
+    await ue.click(screen.getByRole("button", { name: "Copy" }));
 
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });

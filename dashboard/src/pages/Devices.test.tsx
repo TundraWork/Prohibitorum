@@ -11,6 +11,7 @@ import { createQueryClient } from "@/app/query-client";
 import { i18n } from "@/i18n";
 import { Devices } from "@/pages/Devices";
 import { devicesSearch } from "@/pages/devices/pairing-code";
+import { firstOtpSlot, otpValue } from "@/test/otp";
 
 type Session = components["schemas"]["SessionListItem"];
 
@@ -119,7 +120,7 @@ async function enterCode(user: User, code: string) {
   const dialog = await openPairing(user);
   if (code !== "") {
     await user.type(
-      within(dialog).getByLabelText("Pairing code shown on the new device"),
+      firstOtpSlot("Pairing code shown on the new device", within(dialog)),
       code,
     );
   }
@@ -159,7 +160,7 @@ describe("signing in a new device", () => {
 
     const dialog = await openPairing(user);
     expect(
-      within(dialog).getByLabelText("Pairing code shown on the new device"),
+      firstOtpSlot("Pairing code shown on the new device", within(dialog)),
     ).toBeInTheDocument();
   });
 
@@ -176,7 +177,7 @@ describe("signing in a new device", () => {
     ).toBeInTheDocument();
 
     await user.type(
-      within(dialog).getByLabelText("Pairing code shown on the new device"),
+      firstOtpSlot("Pairing code shown on the new device", within(dialog)),
       "ABCD23",
     );
     await user.click(within(dialog).getByRole("button", { name: "Continue" }));
@@ -194,13 +195,14 @@ describe("signing in a new device", () => {
     mount();
 
     const dialog = await openPairing(user);
-    const field = within(dialog).getByLabelText(
+    const field = firstOtpSlot(
       "Pairing code shown on the new device",
+      within(dialog),
     );
     // 0, 1, I, L and O are not in the alphabet, so those keystrokes are
     // refused and the rest stays as typed.
     await user.type(field, "ab0cd1");
-    expect(field).toHaveValue("abcd");
+    expect(otpValue("Pairing code shown on the new device")).toBe("abcd");
   });
 
   it("puts an unknown or expired code on the field and stays on the first step", async () => {
@@ -216,7 +218,7 @@ describe("signing in a new device", () => {
     const dialog = await enterCode(user, "ABCD2345");
     await waitFor(() =>
       expect(
-        within(dialog).getByLabelText("Pairing code shown on the new device"),
+        firstOtpSlot("Pairing code shown on the new device", within(dialog)),
       ).toHaveAttribute("aria-invalid", "true"),
     );
     expect(
@@ -413,7 +415,7 @@ describe("signing in a new device", () => {
 
     const again = await openPairing(user);
     expect(
-      within(again).getByLabelText("Pairing code shown on the new device"),
+      firstOtpSlot("Pairing code shown on the new device", within(again)),
     ).toHaveValue("");
   });
 
@@ -426,8 +428,8 @@ describe("signing in a new device", () => {
       name: "Sign in a new device",
     });
     expect(
-      within(dialog).getByLabelText("Pairing code shown on the new device"),
-    ).toHaveValue("ABCD2345");
+      otpValue("Pairing code shown on the new device", within(dialog)),
+    ).toBe("ABCD2345");
     expect(requests("/pair/lookup")).toHaveLength(0);
 
     await user.click(within(dialog).getByRole("button", { name: "Continue" }));
@@ -454,7 +456,7 @@ describe("signing in a new device", () => {
     );
     const again = await openPairing(user);
     expect(
-      within(again).getByLabelText("Pairing code shown on the new device"),
+      firstOtpSlot("Pairing code shown on the new device", within(again)),
     ).toHaveValue("");
   });
 });

@@ -1,37 +1,41 @@
-import {
-  Description,
-  Input,
-  Label,
-  Switch,
-  TextArea,
-  TextField,
-} from "@heroui/react";
-import { useStore } from "@tanstack/react-form";
-import { type ComponentProps, type ReactNode, useId } from "react";
+import { useLingui } from "@lingui/react/macro";
+import type { ReactNode } from "react";
+import type { FieldVariant } from "@/components/custom/FormField";
 import { FormMessages } from "@/components/custom/FormMessages";
-import { useFieldContext, useFormContext } from "@/forms/context";
-import { withoutServerErrors } from "@/forms/server-errors";
+import { useFieldBinding } from "@/components/custom/use-field-binding";
+import {
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldLabel,
+} from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import {
+  NumberField as CossNumberField,
+  NumberFieldDecrement,
+  NumberFieldGroup,
+  NumberFieldIncrement,
+  NumberFieldInput,
+} from "@/components/ui/number-field";
+import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 
 /**
  * The handful of field shapes the management forms need beyond `FormField`:
- * a multi-line text field, a switch, and a text area whose value is a JSON
- * document rather than prose.
+ * a multi-line text field, a switch, a number, and a read-only value.
  *
  * They live with the other form field components rather than in the pages that
  * needed them first, so a second page gets the same label and error wiring
  * instead of drawing its own.
  */
 
-const errorClass = "text-sm text-danger";
-
-/** A `TextArea` wrapped like `FormField`, for values too long to sit on one line. */
+/** A `Textarea` wrapped like `FormField`, for values too long to sit on one line. */
 export function TextAreaField({
   label,
   description,
   rows = 3,
   isDisabled = false,
   spellCheck = true,
-  variant,
   className,
 }: {
   label: ReactNode;
@@ -39,56 +43,45 @@ export function TextAreaField({
   rows?: number;
   isDisabled?: boolean;
   spellCheck?: boolean;
-  variant?: ComponentProps<typeof TextArea>["variant"];
+  /** Accepted for compatibility; see `FieldVariant`. */
+  variant?: FieldVariant;
   className?: string;
 }) {
-  const field = useFieldContext<string>();
-  const form = useFormContext();
-  const submitting = useStore(form.store, (state) => state.isSubmitting);
-  const id = useId();
-  const errors: unknown[] = field.state.meta.errors.flat(Infinity);
-  const invalid = errors.length > 0;
+  const { field, errors, invalid, disabled, onBlur, onChange } =
+    useFieldBinding<string>(isDisabled);
 
   return (
-    <TextField
+    <Field
       className={className}
-      isDisabled={submitting || isDisabled}
-      isInvalid={invalid}
+      disabled={disabled}
+      invalid={invalid}
       name={field.name}
-      validationBehavior="aria"
-      value={field.state.value}
-      onBlur={() => {
-        if (!form.state.isSubmitting && !isDisabled) field.handleBlur();
-      }}
-      onChange={(value) => {
-        if (form.state.isSubmitting || isDisabled) return;
-        field.setErrorMap({
-          onSubmit: withoutServerErrors(field.state.meta.errorMap.onSubmit),
-        });
-        field.handleChange(value);
-      }}
     >
-      <Label htmlFor={id}>{label}</Label>
-      <TextArea
-        className={className}
-        id={id}
+      <FieldLabel>{label}</FieldLabel>
+      <Textarea
         rows={rows}
         spellCheck={spellCheck}
-        variant={variant}
+        value={field.state.value}
+        onChange={(event) => onChange(event.target.value)}
+        onBlur={onBlur}
+        aria-invalid={invalid || undefined}
       />
-      {description !== undefined && <Description>{description}</Description>}
-      {invalid && (
-        <span className={errorClass}>
-          <FormMessages errors={errors} />
-        </span>
+      {description !== undefined && (
+        <FieldDescription>{description}</FieldDescription>
       )}
-    </TextField>
+      {invalid && (
+        <FieldError match>
+          <FormMessages errors={errors} />
+        </FieldError>
+      )}
+    </Field>
   );
 }
 
 /**
- * A boolean field. HeroUI's `Switch` is checked rather than typed, so the
- * errors it can carry are only the ones the server sends back for it.
+ * A boolean field: the label and its description on the left, the switch on
+ * the right. A switch is toggled rather than typed, so the errors it can carry
+ * are only the ones the server sends back for it.
  */
 export function SwitchField({
   label,
@@ -99,96 +92,93 @@ export function SwitchField({
   description?: ReactNode;
   isDisabled?: boolean;
 }) {
-  const field = useFieldContext<boolean>();
-  const form = useFormContext();
-  const submitting = useStore(form.store, (state) => state.isSubmitting);
-  const errors: unknown[] = field.state.meta.errors.flat(Infinity);
-  const invalid = errors.length > 0;
+  const { field, errors, invalid, disabled, onChange } =
+    useFieldBinding<boolean>(isDisabled);
 
   return (
-    <div className="flex flex-col gap-1">
-      <Switch
-        isDisabled={submitting || isDisabled}
-        isInvalid={invalid}
-        isSelected={field.state.value}
-        name={field.name}
-        onChange={(selected) => {
-          if (form.state.isSubmitting || isDisabled) return;
-          field.setErrorMap({
-            onSubmit: withoutServerErrors(field.state.meta.errorMap.onSubmit),
-          });
-          field.handleChange(selected);
-        }}
-      >
-        <Switch.Content>
-          <Switch.Control>
-            <Switch.Thumb />
-          </Switch.Control>
-          {label}
-        </Switch.Content>
-      </Switch>
-      {description !== undefined && (
-        <Description className="text-xs text-muted">{description}</Description>
-      )}
+    <Field disabled={disabled} invalid={invalid} name={field.name}>
+      <div className="flex w-full items-center justify-between gap-4">
+        <div className="flex min-w-0 flex-col gap-0.5">
+          <FieldLabel>{label}</FieldLabel>
+          {description !== undefined && (
+            <FieldDescription>{description}</FieldDescription>
+          )}
+        </div>
+        <Switch
+          checked={field.state.value}
+          onCheckedChange={onChange}
+          aria-invalid={invalid || undefined}
+        />
+      </div>
       {invalid && (
-        <span className={errorClass}>
+        <FieldError match>
           <FormMessages errors={errors} />
-        </span>
+        </FieldError>
       )}
-    </div>
+    </Field>
   );
 }
 
-/** A single-line field whose value is a number, kept as text while editing. */
+/** The number a text value holds, or null while it holds none. */
+function parseNumber(text: string): number | null {
+  if (text.trim() === "") return null;
+  const value = Number(text);
+  return Number.isFinite(value) ? value : null;
+}
+
+/** A single-line field whose value is a number, kept as text in the form. */
 export function NumberField({
   label,
   description,
   isDisabled = false,
-  variant,
   className,
 }: {
   label: ReactNode;
   description?: ReactNode;
   isDisabled?: boolean;
-  variant?: ComponentProps<typeof Input>["variant"];
+  /** Accepted for compatibility; see `FieldVariant`. */
+  variant?: FieldVariant;
   /** Layout classes for the field; see `FormField`'s `className`. */
   className?: string;
 }) {
-  const field = useFieldContext<string>();
-  const form = useFormContext();
-  const submitting = useStore(form.store, (state) => state.isSubmitting);
-  const id = useId();
-  const errors: unknown[] = field.state.meta.errors.flat(Infinity);
-  const invalid = errors.length > 0;
+  const { t } = useLingui();
+  const { field, errors, invalid, disabled, onBlur, onChange } =
+    useFieldBinding<string>(isDisabled);
 
   return (
-    <TextField
+    <Field
       className={className}
-      isDisabled={submitting || isDisabled}
-      isInvalid={invalid}
+      disabled={disabled}
+      invalid={invalid}
       name={field.name}
-      validationBehavior="aria"
-      value={field.state.value}
-      onBlur={() => {
-        if (!form.state.isSubmitting && !isDisabled) field.handleBlur();
-      }}
-      onChange={(value) => {
-        if (form.state.isSubmitting || isDisabled) return;
-        field.setErrorMap({
-          onSubmit: withoutServerErrors(field.state.meta.errorMap.onSubmit),
-        });
-        field.handleChange(value);
-      }}
     >
-      <Label htmlFor={id}>{label}</Label>
-      <Input id={id} inputMode="numeric" variant={variant} />
-      {description !== undefined && <Description>{description}</Description>}
-      {invalid && (
-        <span className={errorClass}>
-          <FormMessages errors={errors} />
-        </span>
+      <FieldLabel>{label}</FieldLabel>
+      <CossNumberField
+        value={parseNumber(field.state.value)}
+        onValueChange={(value) => onChange(value === null ? "" : String(value))}
+      >
+        <NumberFieldGroup>
+          <NumberFieldDecrement
+            aria-label={t({ id: "number-field.decrease", message: "Decrease" })}
+          />
+          <NumberFieldInput
+            onBlur={onBlur}
+            aria-invalid={invalid || undefined}
+          />
+          <NumberFieldIncrement
+            aria-label={t({ id: "number-field.increase", message: "Increase" })}
+          />
+        </NumberFieldGroup>
+      </CossNumberField>
+      {description !== undefined && (
+        <FieldDescription>{description}</FieldDescription>
       )}
-    </TextField>
+      {invalid && (
+        <FieldError match>
+          <FormMessages errors={errors} />
+        </FieldError>
+      )}
+    </Field>
   );
 }
 
@@ -203,10 +193,12 @@ export function ReadOnlyField({
   description?: ReactNode;
 }) {
   return (
-    <TextField isReadOnly value={value}>
-      <Label>{label}</Label>
-      <Input readOnly />
-      {description !== undefined && <Description>{description}</Description>}
-    </TextField>
+    <Field>
+      <FieldLabel>{label}</FieldLabel>
+      <Input readOnly value={value} />
+      {description !== undefined && (
+        <FieldDescription>{description}</FieldDescription>
+      )}
+    </Field>
   );
 }

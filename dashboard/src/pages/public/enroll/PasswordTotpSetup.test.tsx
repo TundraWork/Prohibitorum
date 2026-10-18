@@ -21,6 +21,7 @@ import {
   type PasswordTotpSubmission,
 } from "@/pages/public/enroll/PasswordTotpSetup";
 import { testConfig } from "@/test/app";
+import { firstOtpSlot, otpValue } from "@/test/otp";
 
 vi.mock("qrcode", () => ({
   default: { toCanvas: vi.fn().mockResolvedValue(undefined) },
@@ -76,7 +77,7 @@ function mount({
 }
 
 function codeInput() {
-  return screen.getByRole("textbox", { name: "Authenticator code" });
+  return firstOtpSlot("Authenticator code");
 }
 
 function setupKey() {
@@ -227,6 +228,6 @@ describe("PasswordTotpSetup", () => {
       expect(onSubmitError).toHaveBeenCalledExactlyOnceWith(error),
     );
     expect(codeInput()).not.toHaveAttribute("aria-invalid", "true");
-    expect(codeInput()).toHaveValue("123456");
+    expect(otpValue("Authenticator code")).toBe("123456");
   });
 });

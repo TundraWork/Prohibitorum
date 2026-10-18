@@ -126,7 +126,7 @@ describe("the invitation form's local sign-in requirement", () => {
 
     await pickProvider(user, "VERIFY-ONLY");
     expect(switchEl).toBeChecked();
-    expect(switchEl).toBeDisabled();
+    expect(switchEl).toHaveAttribute("aria-disabled", "true");
     expect(
       screen.getByText(/can't be used to sign in, so a local/),
     ).toBeInTheDocument();

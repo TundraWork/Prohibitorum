@@ -14,6 +14,7 @@ import {
   renderApp,
   testSession,
 } from "@/test/app";
+import { firstOtpSlot } from "@/test/otp";
 
 vi.mock("@/app/load-document", () => ({ loadDocument: vi.fn() }));
 vi.mock("qrcode", () => ({
@@ -102,10 +103,7 @@ async function passwordTotp(user: UserEvent) {
   await user.type(screen.getByLabelText("Confirm password"), "correct horse");
   await user.click(screen.getByRole("button", { name: "Continue" }));
   await screen.findByRole("heading", { name: "Set up an authenticator" });
-  await user.type(
-    screen.getByRole("textbox", { name: "Authenticator code" }),
-    "123456",
-  );
+  await user.type(firstOtpSlot("Authenticator code"), "123456");
   await user.click(screen.getByRole("button", { name: "Verify and finish" }));
 }
 

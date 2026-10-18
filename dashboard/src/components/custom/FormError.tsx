@@ -1,8 +1,9 @@
 import { Trans } from "@lingui/react/macro";
 import { useStore } from "@tanstack/react-form";
+import { CircleAlertIcon } from "lucide-react";
 import { useId } from "react";
 import { FormMessages } from "@/components/custom/FormMessages";
-import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useFormContext } from "@/forms/context";
 
 export function FormError() {
@@ -11,25 +12,21 @@ export function FormError() {
   const headingId = useId();
   if (!errors.length) return null;
   return (
-    <SurfaceAlert
-      status="danger"
+    <Alert
+      variant="error"
       data-form-error-summary
       tabIndex={-1}
-      role="alert"
       aria-labelledby={headingId}
     >
-      <SurfaceAlert.Indicator />
-      <SurfaceAlert.Content>
-        <SurfaceAlert.Title
-          id={headingId}
-          render={(props) => <h3 {...props} />}
-        >
+      <CircleAlertIcon aria-hidden="true" />
+      <AlertTitle>
+        <h3 id={headingId}>
           <Trans id="forms.error.title">Unable to submit</Trans>
-        </SurfaceAlert.Title>
-        <SurfaceAlert.Description>
-          <FormMessages errors={errors.flat(Infinity)} />
-        </SurfaceAlert.Description>
-      </SurfaceAlert.Content>
-    </SurfaceAlert>
+        </h3>
+      </AlertTitle>
+      <AlertDescription>
+        <FormMessages errors={errors.flat(Infinity)} />
+      </AlertDescription>
+    </Alert>
   );
 }

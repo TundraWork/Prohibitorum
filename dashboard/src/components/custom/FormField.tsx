@@ -1,15 +1,20 @@
-import {
-  Description,
-  FieldError,
-  Input,
-  Label,
-  TextField,
-} from "@heroui/react";
-import { useStore } from "@tanstack/react-form";
-import { type ComponentProps, type ReactNode, useId } from "react";
+import type { ComponentProps, ReactNode } from "react";
 import { FormMessages } from "@/components/custom/FormMessages";
-import { useFieldContext, useFormContext } from "@/forms/context";
-import { withoutServerErrors } from "@/forms/server-errors";
+import { useFieldBinding } from "@/components/custom/use-field-binding";
+import {
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldLabel,
+} from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
+
+/**
+ * Kept so a field can still be told which surface it sits on. coss inputs read
+ * the same on a page and on a card, so it no longer changes anything.
+ */
+export type FieldVariant = "primary" | "secondary";
 
 export function FormField({
   label,
@@ -23,7 +28,6 @@ export function FormField({
   isDisabled = false,
   isMonospace = false,
   autoFocus = false,
-  variant,
   className,
 }: {
   label: ReactNode;
@@ -46,8 +50,8 @@ export function FormField({
    * finished without reaching for the pointer.
    */
   autoFocus?: boolean;
-  /** HeroUI input variant. Use `secondary` when the field sits on a surface. */
-  variant?: ComponentProps<typeof Input>["variant"];
+  /** Accepted for compatibility; see `FieldVariant`. */
+  variant?: FieldVariant;
   /**
    * Layout classes for the field. A field in a grid column takes its reading
    * width here rather than stretching to the column, which is wider than a
@@ -55,37 +59,21 @@ export function FormField({
    */
   className?: string;
 }) {
-  const field = useFieldContext<string>();
-  const form = useFormContext();
-  const submitting = useStore(form.store, (state) => state.isSubmitting);
-  const id = useId();
-  const errors: unknown[] = field.state.meta.errors.flat(Infinity);
-  const invalid = errors.length > 0;
-  const descriptionId = `${id}-description`;
-  const errorId = `${id}-error`;
+  const { field, errors, invalid, disabled, onBlur, onChange } =
+    useFieldBinding<string>(isDisabled);
   return (
-    <TextField
+    <Field
       className={className}
+      disabled={disabled}
+      invalid={invalid}
       name={field.name}
-      value={field.state.value}
-      isDisabled={submitting || isDisabled}
-      isInvalid={invalid}
-      validationBehavior="aria"
-      onBlur={() => {
-        if (!form.state.isSubmitting && !isDisabled) field.handleBlur();
-      }}
-      onChange={(value) => {
-        if (form.state.isSubmitting || isDisabled) return;
-        field.setErrorMap({
-          onSubmit: withoutServerErrors(field.state.meta.errorMap.onSubmit),
-        });
-        field.handleChange(value);
-      }}
     >
-      <Label htmlFor={id}>{label}</Label>
+      <FieldLabel>{label}</FieldLabel>
       <Input
-        id={id}
-        className={isMonospace ? "font-mono" : undefined}
+        className={cn(isMonospace && "font-mono")}
+        value={field.state.value}
+        onValueChange={onChange}
+        onBlur={onBlur}
         inputMode={inputMode}
         type={type}
         autoComplete={autoComplete}
@@ -93,22 +81,14 @@ export function FormField({
         spellCheck={spellCheck}
         placeholder={placeholder}
         autoFocus={autoFocus}
-        variant={variant}
         aria-invalid={invalid || undefined}
-        aria-describedby={
-          [description && descriptionId, invalid && errorId]
-            .filter(Boolean)
-            .join(" ") || undefined
-        }
       />
-      {description && (
-        <Description id={descriptionId}>{description}</Description>
-      )}
+      {description && <FieldDescription>{description}</FieldDescription>}
       {invalid && (
-        <FieldError id={errorId}>
+        <FieldError match>
           <FormMessages errors={errors} />
         </FieldError>
       )}
-    </TextField>
+    </Field>
   );
 }

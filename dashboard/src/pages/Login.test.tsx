@@ -36,6 +36,7 @@ import { defaultLoginAppearance } from "@/components/custom/login-appearance/app
 import { RecoveryCodes } from "@/components/custom/RecoveryCodes";
 import { i18n } from "@/i18n";
 import { PasswordPage, RecoveryPage, TotpPage } from "@/pages/Login";
+import { findFirstOtpSlot, firstOtpSlot } from "@/test/otp";
 
 vi.mock("@/app/load-document", () => ({ loadDocument: vi.fn() }));
 vi.mock("qrcode", () => ({
@@ -139,7 +140,7 @@ async function password(user: UserEvent) {
   await user.click(
     screen.getByRole("button", { name: "Continue with password" }),
   );
-  await screen.findByRole("textbox", { name: "Authenticator code" });
+  await findFirstOtpSlot("Authenticator code");
 }
 
 /**
@@ -229,7 +230,7 @@ describe("single-use password verification", () => {
     const user = userEvent.setup();
     mount();
     await password(user);
-    const code = screen.getByRole("textbox", { name: "Authenticator code" });
+    const code = firstOtpSlot("Authenticator code");
     await user.type(code, "１２３４５６");
     await user.click(screen.getByRole("button", { name: "Sign in" }));
     expect(authCalls(fetch)).toHaveLength(1);
@@ -250,10 +251,7 @@ describe("single-use password verification", () => {
     );
     expect(authCalls(fetch)).toHaveLength(2);
     await password(user);
-    await user.type(
-      screen.getByRole("textbox", { name: "Authenticator code" }),
-      "012345",
-    );
+    await user.type(firstOtpSlot("Authenticator code"), "012345");
     await user.click(screen.getByRole("button", { name: "Sign in" }));
     await screen.findByLabelText("Password");
     expect(bodies).toEqual([
@@ -279,7 +277,7 @@ describe("single-use password verification", () => {
     const user = userEvent.setup();
     mount();
     await password(user);
-    const code = screen.getByRole("textbox", { name: "Authenticator code" });
+    const code = firstOtpSlot("Authenticator code");
     await user.type(code, "012345");
     const form = screen.getByRole("form", {
       name: "Verify your authenticator",
@@ -340,7 +338,7 @@ describe("keep me signed in", () => {
     await user.click(
       screen.getByRole("button", { name: "Continue with password" }),
     );
-    await screen.findByRole("textbox", { name: "Authenticator code" });
+    await findFirstOtpSlot("Authenticator code");
     expect(bodies[0]).toEqual({
       username: "alice",
       password: "password",
@@ -372,7 +370,7 @@ describe("keep me signed in", () => {
     await user.click(
       screen.getByRole("button", { name: "Continue with password" }),
     );
-    await screen.findByRole("textbox", { name: "Authenticator code" });
+    await findFirstOtpSlot("Authenticator code");
     expect(bodies[0]).toEqual({
       username: "alice",
       password: "password",
@@ -418,9 +416,7 @@ it("rejects noncanonical recovery codes and discards canceled authenticator rese
     name: "Reset my authenticator",
   });
   await user.click(reset);
-  const newCode = screen.getByRole("textbox", {
-    name: "New authenticator code",
-  });
+  const newCode = firstOtpSlot("New authenticator code");
   await user.type(newCode, "1");
   await user.click(screen.getByRole("button", { name: "Sign in" }));
   expect(newCode).toHaveAttribute("aria-invalid", "true");
@@ -449,10 +445,7 @@ it("navigates client-side when the sign-in redirect targets a dashboard route", 
   const user = userEvent.setup();
   const router = mount();
   await password(user);
-  await user.type(
-    screen.getByRole("textbox", { name: "Authenticator code" }),
-    "012345",
-  );
+  await user.type(firstOtpSlot("Authenticator code"), "012345");
   await user.click(screen.getByRole("button", { name: "Sign in" }));
   expect(
     await screen.findByRole("heading", { name: "Destination" }),
@@ -482,10 +475,7 @@ it("keeps new recovery codes visible across session changes and blocks leaving w
   await user.click(
     screen.getByRole("checkbox", { name: "Reset my authenticator" }),
   );
-  await user.type(
-    screen.getByRole("textbox", { name: "New authenticator code" }),
-    "012345",
-  );
+  await user.type(firstOtpSlot("New authenticator code"), "012345");
   await user.click(screen.getByRole("button", { name: "Sign in" }));
   const display = await screen.findByRole("textbox", {
     name: "New recovery codes",
@@ -672,10 +662,7 @@ describe("the sign-in link", () => {
     await user.click(
       screen.getByRole("button", { name: "Use an authenticator code" }),
     );
-    await user.type(
-      await screen.findByRole("textbox", { name: "Authenticator code" }),
-      "012345",
-    );
+    await user.type(await findFirstOtpSlot("Authenticator code"), "012345");
     expect(query(router)).toEqual(kept);
     await user.click(screen.getByRole("button", { name: "Sign in" }));
 

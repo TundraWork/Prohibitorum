@@ -13,6 +13,7 @@ import {
   renderApp,
   testSession,
 } from "@/test/app";
+import { findFirstOtpSlot } from "@/test/otp";
 
 vi.mock("@/app/load-document", () => ({ loadDocument: vi.fn() }));
 vi.mock("qrcode", () => ({
@@ -122,10 +123,7 @@ describe("adding a sign-in after a first federated one", () => {
     await user.type(screen.getByLabelText("Password"), "correct horse");
     await user.type(screen.getByLabelText("Confirm password"), "correct horse");
     await user.click(screen.getByRole("button", { name: "Continue" }));
-    await user.type(
-      await screen.findByRole("textbox", { name: "Authenticator code" }),
-      "123456",
-    );
+    await user.type(await findFirstOtpSlot("Authenticator code"), "123456");
     await user.click(screen.getByRole("button", { name: "Verify and finish" }));
     expect(
       await screen.findByRole("heading", { name: "Add a way to sign in" }),

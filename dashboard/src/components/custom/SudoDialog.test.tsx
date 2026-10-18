@@ -12,6 +12,7 @@ import { createQueryClient } from "@/app/query-client";
 import { defaultLoginAppearance } from "@/components/custom/login-appearance/appearance";
 import { SudoDialog } from "@/components/custom/SudoDialog";
 import { i18n } from "@/i18n";
+import { firstOtpSlot } from "@/test/otp";
 
 const startAuthentication = vi.fn();
 const browserSupportsWebAuthn = vi.fn(() => true);
@@ -134,10 +135,7 @@ function requestsTo(suffix: string) {
 
 async function fillPasswordForm(user: UserEvent, dialog: HTMLElement) {
   await user.type(within(dialog).getByLabelText("Current password"), "secret");
-  await user.type(
-    within(dialog).getByLabelText("Authenticator code"),
-    "123456",
-  );
+  await user.type(firstOtpSlot("Authenticator code", within(dialog)), "123456");
 }
 
 describe("sudo dialog", () => {
@@ -158,7 +156,7 @@ describe("sudo dialog", () => {
     ).toBeInTheDocument();
     expect(within(dialog).getByText("or")).toBeInTheDocument();
     expect(within(dialog).getByLabelText("Current password")).toBeVisible();
-    expect(within(dialog).getByLabelText("Authenticator code")).toBeVisible();
+    expect(firstOtpSlot("Authenticator code", within(dialog))).toBeVisible();
     expect(
       within(dialog).getByRole("button", { name: "Verify and continue" }),
     ).toBeInTheDocument();
@@ -467,7 +465,7 @@ describe("sudo dialog", () => {
     const { dialog } = await intercept(async () => "done");
 
     expect(
-      dialog.querySelectorAll('[data-slot="input-otp-slot"]'),
+      within(dialog).getAllByRole("textbox", { name: "Authenticator code" }),
     ).toHaveLength(8);
   });
 
@@ -483,7 +481,7 @@ describe("sudo dialog", () => {
       ),
     ).toBeInTheDocument();
 
-    await user.type(within(dialog).getByLabelText("Authenticator code"), "123");
+    await user.type(firstOtpSlot("Authenticator code", within(dialog)), "123");
     await user.tab();
     expect(
       await within(dialog).findByText(

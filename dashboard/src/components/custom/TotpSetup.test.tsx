@@ -74,7 +74,8 @@ describe("TotpSetup", () => {
     const key = screen.getByRole("textbox", { name: "Setup key" });
     expect(key).toHaveValue("AAAA");
     expect(key).toHaveAttribute("readonly");
-    expect(key).toHaveClass("font-mono");
+    // The font is set on the field box, which the value inherits it from.
+    expect(key.closest("[data-slot=input-control]")).toHaveClass("font-mono");
     // A first setup replaces nothing; a caller that does replace warns itself.
     expect(screen.queryByText(/stop working/i)).not.toBeInTheDocument();
   });

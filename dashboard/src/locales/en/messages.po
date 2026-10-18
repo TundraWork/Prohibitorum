@@ -1932,6 +1932,11 @@ msgid "admin.forward-auth-apps.traefik.copy"
 msgstr "Copy"
 
 #. js-lingui-explicit-id
+#: src/components/custom/CopyValue.tsx
+msgid "copy-value.copy"
+msgstr "Copy"
+
+#. js-lingui-explicit-id
 #: src/components/custom/JsonBlock.tsx
 msgid "json-block.copy"
 msgstr "Copy"
@@ -2240,6 +2245,11 @@ msgstr "Dawn"
 #: src/pages/devices/PairDeviceDialog.tsx
 msgid "devices.decline"
 msgstr "Decline"
+
+#. js-lingui-explicit-id
+#: src/components/custom/FormFields.tsx
+msgid "number-field.decrease"
+msgstr "Decrease"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/SignInPageControls.tsx
@@ -3626,6 +3636,11 @@ msgstr "In minutes. Leave it empty to set no limit on how long a session lasts."
 #: src/pages/public/FederationFlow.tsx
 msgid "federation_flow.proof.step.bio"
 msgstr "In VRChat, add it to the links in your bio and save."
+
+#. js-lingui-explicit-id
+#: src/components/custom/FormFields.tsx
+msgid "number-field.increase"
+msgstr "Increase"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AcsRowFields.tsx
