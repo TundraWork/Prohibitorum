@@ -1606,7 +1606,7 @@ msgstr "客户端可以立即重新登录。停用期间登录过的账号不受
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/DangerSection.tsx
 msgid "admin.oidc-apps.enable.note"
-msgstr "客户端可以重新登录，应用其它设置不变。"
+msgstr "客户端可以重新登录，应用其他设置不变。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/ClientConfigSection.tsx
@@ -4072,7 +4072,7 @@ msgstr "绑定账号"
 #. js-lingui-explicit-id
 #: src/pages/security/IdentitiesPanel.tsx
 msgid "security.identities.link.title"
-msgstr "绑定其它身份"
+msgstr "绑定其他身份"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts
@@ -4092,7 +4092,7 @@ msgstr "绑定 {provider} 资料"
 #. js-lingui-explicit-id
 #: src/pages/security/IdentitiesPanel.tsx
 msgid "security.identities.link.linked"
-msgstr "已关联"
+msgstr "已绑定"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts
@@ -4102,17 +4102,17 @@ msgstr "已关联"
 #. js-lingui-explicit-id
 #: src/pages/security/IdentitiesPanel.tsx
 msgid "security.identities.meta.linked"
-msgstr "<0/>关联"
+msgstr "<0/>绑定"
 
 #. js-lingui-explicit-id
 #: src/pages/security/IdentitiesPanel.tsx
 msgid "security.section.identities"
-msgstr "已关联的身份"
+msgstr "已绑定的身份"
 
 #. js-lingui-explicit-id
 #: src/pages/security/IdentitiesPanel.tsx
 msgid "security.identities.table"
-msgstr "已关联的身份"
+msgstr "已绑定的身份"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-options.ts
@@ -4588,7 +4588,7 @@ msgstr "还没有 OIDC 应用"
 #. js-lingui-explicit-id
 #: src/pages/security/IdentitiesPanel.tsx
 msgid "security.identities.empty"
-msgstr "还没有绑定其它身份"
+msgstr "还没有绑定其他身份"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
@@ -5004,7 +5004,7 @@ msgstr "显示方式"
 #. js-lingui-explicit-id
 #: src/pages/security/IdentitiesPanel.tsx
 msgid "security.identities.description"
-msgstr "你可以用来登录的其他账号。解除关联不会影响你的其他登录方式。"
+msgstr "你可以用来登录的其他账号。解绑不会影响你的其他登录方式。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-options.ts
@@ -5208,17 +5208,17 @@ msgstr "PNG、JPEG 或 WebP，每张不超过 5 MiB · {count} / 10"
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/GeneralPanel.tsx
 msgid "settings.general.icon.hint"
-msgstr "支持 PNG、JPEG、WebP 与 GIF，最大 5 MiB。"
+msgstr "支持 PNG、JPEG、WebP 与 GIF，最大 5 MiB。"
 
 #. js-lingui-explicit-id
 #: src/components/custom/EntityIconCard.tsx
 msgid "entity.icon.hint"
-msgstr "PNG、JPEG、WebP 或 GIF，最大 5 MiB。"
+msgstr "PNG、JPEG、WebP 或 GIF，最大 5 MiB。"
 
 #. js-lingui-explicit-id
 #: src/pages/profile/AvatarPanel.tsx
 msgid "profile.avatar.hint"
-msgstr "PNG、JPEG、WebP、GIF 或 AVIF，最大 5 MiB。"
+msgstr "PNG、JPEG、WebP、GIF 或 AVIF，最大 5 MiB。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts
@@ -6808,6 +6808,11 @@ msgid "admin.federation.diagnostics.start"
 msgstr "开始测试"
 
 #. js-lingui-explicit-id
+#: src/pages/devices/PairDeviceDialog.tsx
+msgid "devices.review.expired"
+msgstr "请在新设备上重新开始。"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/oidc-validation.ts
 msgid "admin.oidc-apps.alias.name.invalid"
 msgstr "以字母或下划线开头，之后可包含字母、数字或下划线，最多 64 个字符。"
@@ -7026,7 +7031,7 @@ msgstr "该图片超过 5 MiB，请选择更小的图片。"
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.avatar_source_unavailable"
-msgstr "该头像已不可用，请选择其它来源。"
+msgstr "该头像已不可用，请选择其他来源。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
@@ -7081,7 +7086,7 @@ msgstr "该用户名的格式不被本实例接受。"
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.sudo_method_unavailable"
-msgstr "该验证方式当前不可用，请选择其它方式。"
+msgstr "该验证方式当前不可用，请选择其他方式。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
@@ -7700,12 +7705,12 @@ msgstr "这是你正在使用的会话，请改用退出登录。"
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.last_sign_in_method"
-msgstr "这是你唯一的登录方式，不能移除。请先添加其它方式。"
+msgstr "这是你唯一的登录方式，不能移除。请先添加其他方式。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.would_remove_last_factor"
-msgstr "这是你唯一的登录方式，不能移除。请先添加其它方式。"
+msgstr "这是你唯一的登录方式，不能移除。请先添加其他方式。"
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
@@ -7753,14 +7758,14 @@ msgid "error.federation_action_invalid"
 msgstr "该页面已失效。"
 
 #. js-lingui-explicit-id
+#: src/pages/devices/PairDeviceDialog.tsx
+msgid "devices.review.expired_title"
+msgstr "此配对码已过期"
+
+#. js-lingui-explicit-id
 #: src/pages/public/Pair.tsx
 msgid "pair.expired"
 msgstr "配对码已过期。"
-
-#. js-lingui-explicit-id
-#: src/pages/devices/PairDeviceDialog.tsx
-msgid "devices.review.expired"
-msgstr "配对码已过期。请在新设备上重新开始。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -7795,7 +7800,7 @@ msgstr "该通行密钥会立即失效。如果它是该账号唯一的登录方
 #. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
 msgid "security.passkeys.delete.body"
-msgstr "这把通行密钥会立即无法用于登录。你其它的登录方式不受影响。"
+msgstr "这把通行密钥会立即无法用于登录。你其他的登录方式不受影响。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -8833,7 +8838,7 @@ msgstr "该确认只需要一次。你可以随时在「<0>已连接应用</0>�
 #. js-lingui-explicit-id
 #: src/pages/security/IdentitiesPanel.tsx
 msgid "security.identities.unlink.body"
-msgstr "你将无法再通过该提供方登录。其它登录方式不受影响。"
+msgstr "你将无法再通过该提供方登录。其他登录方式不受影响。"
 
 #. js-lingui-explicit-id
 #: src/pages/public/RequireIdentity.tsx

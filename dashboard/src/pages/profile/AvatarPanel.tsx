@@ -126,7 +126,7 @@ function AvatarGallery() {
         <div className="flex w-full flex-wrap items-center justify-between gap-x-4 gap-y-2">
           <span>
             <Trans id="profile.avatar.hint">
-              PNG, JPEG, WebP, GIF or AVIF, up to 5 MiB.
+              PNG, JPEG, WebP, GIF or AVIF, up to 5 MiB.
             </Trans>
           </span>
           {hasUpload && (

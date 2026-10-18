@@ -136,7 +136,7 @@ describe("the connected application rows", () => {
     const [row] = (await rows()) as [HTMLElement];
     const details = row.querySelector("[data-slot='item-details']");
     expect(details).toHaveTextContent(
-      "Confirm who you are, Your profile, and Your email address",
+      "Confirm who you are, your profile, and your email address",
     );
     expect(details).not.toHaveTextContent("openid");
   });

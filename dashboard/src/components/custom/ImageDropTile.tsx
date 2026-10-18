@@ -85,7 +85,7 @@ export function ImageDropTile({
         take(event.dataTransfer?.files);
       }}
       className={cn(
-        "flex rounded-lg border border-dashed text-muted-foreground text-sm transition-colors duration-150 data-[drop-target]:border-primary data-[drop-target]:bg-primary/8",
+        "flex rounded-lg border border-dashed dark:border-white/30 text-muted-foreground text-sm transition-colors duration-150 data-[drop-target]:border-primary data-[drop-target]:bg-primary/8",
         className,
       )}
     >

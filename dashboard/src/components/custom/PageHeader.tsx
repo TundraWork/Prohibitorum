@@ -19,7 +19,10 @@ export function PageHeader({
       <div className="flex min-w-0 flex-col gap-1">
         <h1 className="font-semibold text-2xl tracking-tight">{title}</h1>
         {description !== undefined && (
-          <p data-slot="page-description" className="text-muted-foreground">
+          <p
+            data-slot="page-description"
+            className="text-pretty text-muted-foreground"
+          >
             {description}
           </p>
         )}

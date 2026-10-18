@@ -5208,17 +5208,17 @@ msgstr "PNG, JPEG or WebP, up to 5 MiB each · {count} of 10"
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/GeneralPanel.tsx
 msgid "settings.general.icon.hint"
-msgstr "PNG, JPEG, WebP or GIF, up to 5 MiB."
+msgstr "PNG, JPEG, WebP or GIF, up to 5 MiB."
 
 #. js-lingui-explicit-id
 #: src/components/custom/EntityIconCard.tsx
 msgid "entity.icon.hint"
-msgstr "PNG, JPEG, WebP or GIF, up to 5 MiB."
+msgstr "PNG, JPEG, WebP or GIF, up to 5 MiB."
 
 #. js-lingui-explicit-id
 #: src/pages/profile/AvatarPanel.tsx
 msgid "profile.avatar.hint"
-msgstr "PNG, JPEG, WebP, GIF or AVIF, up to 5 MiB."
+msgstr "PNG, JPEG, WebP, GIF or AVIF, up to 5 MiB."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts
@@ -6808,6 +6808,11 @@ msgid "admin.federation.diagnostics.start"
 msgstr "Start a test"
 
 #. js-lingui-explicit-id
+#: src/pages/devices/PairDeviceDialog.tsx
+msgid "devices.review.expired"
+msgstr "Start again on the new device."
+
+#. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/oidc-validation.ts
 msgid "admin.oidc-apps.alias.name.invalid"
 msgstr "Start with a letter or an underscore, then letters, digits or underscores, up to 64 characters."
@@ -7753,14 +7758,14 @@ msgid "error.federation_action_invalid"
 msgstr "This page is no longer valid."
 
 #. js-lingui-explicit-id
+#: src/pages/devices/PairDeviceDialog.tsx
+msgid "devices.review.expired_title"
+msgstr "This pairing code has expired"
+
+#. js-lingui-explicit-id
 #: src/pages/public/Pair.tsx
 msgid "pair.expired"
 msgstr "This pairing code has expired."
-
-#. js-lingui-explicit-id
-#: src/pages/devices/PairDeviceDialog.tsx
-msgid "devices.review.expired"
-msgstr "This pairing code has expired. Start again on the new device."
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts

@@ -382,10 +382,9 @@ describe("signing in a new device", () => {
     await waitFor(() => expect(approve()).toBeDisabled());
     // The reason is on the page, not only in a tooltip on the disabled button.
     expect(
-      within(dialog).getByText(
-        "This pairing code has expired. Start again on the new device.",
-      ),
+      within(dialog).getByText("Start again on the new device."),
     ).toBeVisible();
+    expect(dialog).toHaveAccessibleName("This pairing code has expired");
   });
 
   it("approves, closes with a toast, and watches the list until the device arrives", async () => {

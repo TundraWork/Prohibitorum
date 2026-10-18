@@ -184,9 +184,15 @@ function GrantedScopes({
   if (scopes === null || scopes.length === 0) {
     return <Trans id="apps.scopes.none">Basic profile</Trans>;
   }
-  const names = scopes.map((scope) => {
+  // Joined into a sentence, so every wording after the first starts in lower
+  // case; a scope the application defined is shown as written.
+  const names = scopes.map((scope, index) => {
     const { name, values } = describeScope(scope, providers);
-    return name ? i18n._({ ...name, values }) : scope;
+    if (!name) return scope;
+    const text = i18n._({ ...name, values });
+    return index === 0
+      ? text
+      : text.charAt(0).toLocaleLowerCase(i18n.locale) + text.slice(1);
   });
   return new Intl.ListFormat(i18n.locale, {
     style: "long",

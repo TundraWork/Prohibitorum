@@ -287,6 +287,10 @@ function ReviewStep({
             <Trans id="devices.review.approved_title">
               Device already approved
             </Trans>
+          ) : expired ? (
+            <Trans id="devices.review.expired_title">
+              This pairing code has expired
+            </Trans>
           ) : (
             <Trans id="devices.review.title">Let this device sign in?</Trans>
           )}
@@ -312,8 +316,7 @@ function ReviewStep({
               <SurfaceAlert.Content>
                 <SurfaceAlert.Title>
                   <Trans id="devices.review.expired">
-                    This pairing code has expired. Start again on the new
-                    device.
+                    Start again on the new device.
                   </Trans>
                 </SurfaceAlert.Title>
               </SurfaceAlert.Content>
@@ -346,9 +349,11 @@ function ReviewStep({
           <Detail label={<Trans id="devices.field.created">Requested</Trans>}>
             <RelativeTime value={pairing.createdAt} />
           </Detail>
-          <Detail label={<Trans id="devices.field.expires">Expires</Trans>}>
-            <RelativeTime value={pairing.expiresAt} />
-          </Detail>
+          {!expired && (
+            <Detail label={<Trans id="devices.field.expires">Expires</Trans>}>
+              <RelativeTime value={pairing.expiresAt} />
+            </Detail>
+          )}
         </dl>
         {!pairing.alreadyBound && !expired && (
           <p className="text-sm">
@@ -361,7 +366,7 @@ function ReviewStep({
       <DialogFooter>
         {pairing.alreadyBound ? (
           <>
-            <Button disabled={busy} onClick={onClose} variant="outline">
+            <Button disabled={busy} onClick={onClose} variant="ghost">
               <Trans id="devices.close">Close</Trans>
             </Button>
             <Button
@@ -379,7 +384,7 @@ function ReviewStep({
               disabled={busy}
               pending={decline.isPending}
               onClick={() => decline.mutate(code, { onSuccess: onClose })}
-              variant="outline"
+              variant="ghost"
             >
               <Trans id="devices.decline">Decline</Trans>
             </Button>

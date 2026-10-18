@@ -64,6 +64,9 @@ export function OtpField({
       return (
         <OTPFieldInput
           key={index}
+          // The focus ring marks the slot; the browser's selection colour
+          // behind the character only reads as a glitch.
+          className="selection:bg-transparent"
           // The first slot is named by the field label; the rest need a name
           // of their own so each one announces its position.
           aria-label={

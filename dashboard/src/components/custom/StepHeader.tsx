@@ -46,9 +46,8 @@ export function StepHeader({
                 aria-hidden="true"
                 className={cn(
                   stepDotClass,
-                  done && "bg-primary text-primary-foreground",
-                  active &&
-                    "bg-transparent text-foreground ring-1 ring-primary",
+                  done && "bg-muted text-muted-foreground",
+                  active && "bg-primary text-primary-foreground",
                 )}
               >
                 {done ? <CheckIcon className="size-3" /> : index + 1}
