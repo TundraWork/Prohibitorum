@@ -325,7 +325,11 @@ describe("public pages", () => {
 
     await screen.findByRole("heading", { name: "Unable to load this page" });
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
-    expect(document.querySelector('[data-slot="step-actions"]')).toBeNull();
+    // jsdom has no stylesheet: an empty container carrying empty:hidden is the
+    // one that takes no space.
+    const actions = document.querySelector('[data-slot="step-actions"]');
+    expect(actions).toBeEmptyDOMElement();
+    expect(actions).toHaveClass("empty:hidden");
   });
 });
 

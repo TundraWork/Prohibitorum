@@ -100,7 +100,7 @@ function Around({
   return slot ? createPortal(children, slot) : null;
 }
 
-const actionsLayout = cva("", {
+const actionsLayout = cva("empty:hidden", {
   variants: {
     layout: {
       // One way forward, then the lesser ones under it, all full width. A

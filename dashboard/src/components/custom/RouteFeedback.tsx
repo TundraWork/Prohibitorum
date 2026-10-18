@@ -178,11 +178,11 @@ function FailedPage({ error, leave }: { error: unknown; leave: Leave }) {
 function MissingPage({ leave }: { leave: Leave }) {
   return (
     <PublicStep title={<Trans id="route.not-found">Page not found</Trans>}>
-      <div className="empty:hidden">
-        <LeaveButton to={leave.to} size="lg" fill>
+      <PublicStep.Actions>
+        <LeaveButton to={leave.to} size="lg">
           {leave.label}
         </LeaveButton>
-      </div>
+      </PublicStep.Actions>
     </PublicStep>
   );
 }
@@ -252,9 +252,6 @@ function FailureBody({
   const { failure, details, setDetails } = route;
   const exchange = failure.exchange;
   const size = onStage ? "lg" : "sm";
-  const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const hasButtons =
-    failure.recovery !== "none" || !!exchange || pathname !== leave.to;
   const buttons = (
     <>
       <RecoveryButton route={route} leave={leave} size={size} />
@@ -273,7 +270,7 @@ function FailureBody({
     <>
       <FailureReference facts={failure.facts} />
       {onStage ? (
-        hasButtons && <PublicStep.Actions>{buttons}</PublicStep.Actions>
+        <PublicStep.Actions>{buttons}</PublicStep.Actions>
       ) : (
         <div className="mt-3 flex flex-wrap gap-2 empty:hidden">{buttons}</div>
       )}
@@ -367,25 +364,17 @@ function FailureReference({ facts }: { facts: RouteFailure["facts"] }) {
 function LeaveButton({
   to,
   size = "sm",
-  fill = false,
   children,
 }: {
   to: Leave["to"];
   size?: "sm" | "lg";
-  /** Spans the card, as the stacked buttons of a public page do. */
-  fill?: boolean;
   children: ReactNode;
 }) {
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   if (pathname === to) return null;
   return (
-    <Button
-      onClick={() => void navigate({ to })}
-      variant="outline"
-      size={size}
-      className={fill ? "w-full" : undefined}
-    >
+    <Button onClick={() => void navigate({ to })} variant="outline" size={size}>
       {children}
     </Button>
   );

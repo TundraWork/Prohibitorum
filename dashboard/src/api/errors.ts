@@ -788,7 +788,7 @@ export interface RouteFailure {
   /** What happened; the same line the toast shows. */
   message: MessageDescriptor;
   recovery: RouteRecovery;
-  /** The reference shown under the message; a missing one is not drawn. */
+  /** Shown under the message: the request's reference, or a crash's exception. */
   facts: {
     requestId?: string;
     exception?: string;
