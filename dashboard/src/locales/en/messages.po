@@ -1591,6 +1591,11 @@ msgid "console.close-menu"
 msgstr "Close navigation"
 
 #. js-lingui-explicit-id
+#: src/components/custom/NotificationToasts.tsx
+msgid "notification.close"
+msgstr "Close notification"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderOperatorSection.tsx
 msgid "admin.federation.operator.method.otp"
 msgstr "Code"
@@ -4621,6 +4626,11 @@ msgstr "Not used yet"
 #: src/pages/admin/settings/MaintenancePanel.tsx
 msgid "settings.maintenance.notice"
 msgstr "Notice"
+
+#. js-lingui-explicit-id
+#: src/components/custom/NotificationToasts.tsx
+msgid "notification.region"
+msgstr "Notifications"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx

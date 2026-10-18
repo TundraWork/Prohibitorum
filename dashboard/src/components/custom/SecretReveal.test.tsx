@@ -1,8 +1,8 @@
-import { Modal } from "@heroui/react";
 import { I18nProvider } from "@lingui/react";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
+import { Dialog, Heading, Modal, ModalOverlay } from "react-aria-components";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SecretReveal } from "@/components/custom/SecretReveal";
 import { recoveryCodesCopy } from "@/components/custom/secret-reveal-copy";
@@ -65,19 +65,25 @@ describe("SecretReveal", () => {
 
   it("downloads the secret as a text file", async () => {
     const { user } = mount();
-    const create = vi.fn(() => "blob:codes");
-    vi.stubGlobal("URL", Object.assign(URL, { createObjectURL: create }));
-    vi.stubGlobal(
-      "URL",
-      Object.assign(URL, { revokeObjectURL: () => undefined }),
-    );
+    let blob: Blob | undefined;
+    const create = vi
+      .spyOn(URL, "createObjectURL")
+      .mockImplementation((object) => {
+        blob = object as Blob;
+        return "blob:codes";
+      });
+    vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined);
+    let filename: string | undefined;
     const click = vi
       .spyOn(HTMLAnchorElement.prototype, "click")
-      .mockImplementation(() => undefined);
+      .mockImplementation(function (this: HTMLAnchorElement) {
+        filename = this.download;
+      });
     await user.click(screen.getByRole("button", { name: "Download codes" }));
     expect(create).toHaveBeenCalledTimes(1);
     expect(click).toHaveBeenCalledTimes(1);
-    vi.unstubAllGlobals();
+    expect(filename).toBe("codes.txt");
+    expect(await blob?.text()).toBe(`${secret}\n`);
   });
 
   it("holds continue until the secret is confirmed saved", async () => {
@@ -98,24 +104,25 @@ function InModal() {
   const [open, setOpen] = useState(true);
   return (
     <I18nProvider i18n={i18n}>
-      <Modal isOpen={open} onOpenChange={setOpen}>
-        <Modal.Backdrop isDismissable={false} isKeyboardDismissDisabled>
-          <Modal.Container>
-            <Modal.Dialog>
-              <Modal.Header>
-                <Modal.Heading>Save codes</Modal.Heading>
-              </Modal.Header>
-              <SecretReveal
-                text={secret}
-                filename="codes.txt"
-                copy={recoveryCodesCopy}
-                onContinue={async () => setOpen(false)}
-                inDialog
-              />
-            </Modal.Dialog>
-          </Modal.Container>
-        </Modal.Backdrop>
-      </Modal>
+      <ModalOverlay
+        isOpen={open}
+        onOpenChange={setOpen}
+        isDismissable={false}
+        isKeyboardDismissDisabled
+      >
+        <Modal>
+          <Dialog aria-label="Save codes">
+            <Heading slot="title">Save codes</Heading>
+            <SecretReveal
+              text={secret}
+              filename="codes.txt"
+              copy={recoveryCodesCopy}
+              onContinue={async () => setOpen(false)}
+              inDialog
+            />
+          </Dialog>
+        </Modal>
+      </ModalOverlay>
     </I18nProvider>
   );
 }

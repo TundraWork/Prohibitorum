@@ -47,9 +47,9 @@ it("keeps independent errors visible and translates queued descriptions when loc
   expect(screen.getByText("Sign in for this request")).toBeVisible();
   expect(screen.getByText("Verify this action")).toBeVisible();
   expect(
-    document.querySelectorAll(
-      "[data-slot='toast-viewport'] > [data-type='error']",
-    ),
+    screen
+      .getAllByRole("dialog")
+      .filter((toast) => toast.getAttribute("data-type") === "error"),
   ).toHaveLength(2);
 
   act(() => i18n.activate("zh"));
@@ -98,6 +98,7 @@ const detailsMessages = {
   "error.invalid_response": "Invalid response",
   "notification.region": "Notifications",
   "notification.close": "Close notification",
+  "success.passkey.added": "Passkey added",
   "notification.details": "Details",
   "notification.request_id": "Request ID: {0}",
   "request_details.title": "Request details",
@@ -225,7 +226,7 @@ it("shows only the request of a network failure", async () => {
   ).not.toBeInTheDocument();
 });
 
-it("closes an error on its own", async () => {
+it("keeps an error up until it is dismissed", async () => {
   vi.useFakeTimers();
   renderNotifications();
 
@@ -234,8 +235,39 @@ it("closes an error on its own", async () => {
       new ApiError({ kind: "http", status: 401, code: "rate_limited" }),
     ),
   );
+  await act(() => vi.advanceTimersByTimeAsync(30_000));
   expect(screen.getByText("Too many requests")).toBeVisible();
 
-  await act(() => vi.advanceTimersByTimeAsync(10_000));
+  // Fake timers stall userEvent, so the press is a plain click event.
+  act(() => screen.getByRole("button", { name: "Close notification" }).click());
+  await act(() => vi.advanceTimersByTimeAsync(2_000));
   expect(screen.queryByText("Too many requests")).not.toBeInTheDocument();
+});
+
+it("closes a success on its own after five seconds", async () => {
+  vi.useFakeTimers();
+  renderNotifications();
+
+  act(() => notifySuccess({ id: "success.passkey.added" }));
+  expect(screen.getByText("Passkey added")).toBeVisible();
+
+  await act(() => vi.advanceTimersByTimeAsync(4_000));
+  expect(screen.getByText("Passkey added")).toBeVisible();
+  await act(() => vi.advanceTimersByTimeAsync(2_000));
+  expect(screen.queryByText("Passkey added")).not.toBeInTheDocument();
+});
+
+it("names the notification region in the active language", () => {
+  const i18n = setupI18n({
+    locale: "zh",
+    messages: { zh: { "notification.region": "通知" } },
+  });
+  render(
+    <I18nProvider i18n={i18n}>
+      <AppNotifications />
+    </I18nProvider>,
+  );
+  expect(
+    document.querySelector("[data-slot='toast-viewport']"),
+  ).toHaveAccessibleName("通知");
 });

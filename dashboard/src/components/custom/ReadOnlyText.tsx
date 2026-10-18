@@ -24,10 +24,12 @@ export function ReadOnlyText({
       <Textarea
         readOnly
         value={value}
-        rows={Math.min(value.split("\n").length, maxRows)}
+        style={{ maxBlockSize: `${maxRows}lh` }}
         autoComplete="off"
         spellCheck={false}
-        className="font-mono text-xs break-all"
+        // coss sizes the box to its content (field-sizing), so `rows` does nothing;
+        // the cap is a max height, and the type applies to the textarea itself.
+        className="*:overflow-y-auto *:font-mono *:text-xs *:break-all"
       />
       {description !== undefined && (
         <FieldDescription>{description}</FieldDescription>

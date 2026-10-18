@@ -9,9 +9,10 @@ import {
   isCancellation,
 } from "@/api/errors";
 import type { RequestExchange } from "@/api/exchange";
+import { NotificationToasts } from "@/components/custom/NotificationToasts";
 import { RequestDetailsDialog } from "@/components/custom/RequestDetailsDialog";
 import { getTopLayerContainer } from "@/components/custom/top-layer";
-import { ToastProvider, toastManager } from "@/components/ui/toast";
+import { toastManager } from "@/components/ui/toast";
 
 type Notification =
   | { title: ReactNode; error?: never; exchange?: never; success?: never }
@@ -29,9 +30,9 @@ type Notification =
     };
 
 /**
- * How long a success stays up. An error closes after the library's default.
- * Either one holds while the pointer or focus is on it, which is the time to
- * open an error's details.
+ * How long a success stays up. An error never times out: on a public page it
+ * is the only report of a failed action, so it stays until dismissed. Either
+ * one holds while the pointer or focus is on it.
  */
 const successTimeout = 5000;
 
@@ -62,7 +63,7 @@ function describe(content: Notification, timeout?: number) {
             onClick: () => openDetails?.(exchange),
           }
         : undefined,
-      timeout,
+      timeout: 0,
     };
   }
   if (content.success) {
@@ -78,7 +79,12 @@ function describe(content: Notification, timeout?: number) {
 /** The toast queue the rest of the console adds to, over coss's toast manager. */
 export const notificationQueue = {
   add(content: Notification, options?: { timeout?: number }) {
-    const id = toastManager.add(describe(content, options?.timeout));
+    const id: string = toastManager.add({
+      ...describe(content, options?.timeout),
+      // Forget the id once the toast closes, so the set does not grow forever.
+      onClose: () => shown.delete(id),
+      onRemove: () => shown.delete(id),
+    });
     shown.add(id);
     return id;
   },
@@ -117,10 +123,7 @@ export function AppNotifications() {
 
   return (
     <>
-      <ToastProvider
-        position="bottom-right"
-        portalProps={{ container: getTopLayerContainer() }}
-      />
+      <NotificationToasts container={getTopLayerContainer()} />
       <RequestDetailsDialog
         exchange={details}
         onClose={() => setDetails(null)}

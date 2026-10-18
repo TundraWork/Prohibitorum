@@ -1591,6 +1591,11 @@ msgid "console.close-menu"
 msgstr "关闭导航"
 
 #. js-lingui-explicit-id
+#: src/components/custom/NotificationToasts.tsx
+msgid "notification.close"
+msgstr "关闭通知"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderOperatorSection.tsx
 msgid "admin.federation.operator.method.otp"
 msgstr "验证码"
@@ -4621,6 +4626,11 @@ msgstr "尚未使用"
 #: src/pages/admin/settings/MaintenancePanel.tsx
 msgid "settings.maintenance.notice"
 msgstr "公告"
+
+#. js-lingui-explicit-id
+#: src/components/custom/NotificationToasts.tsx
+msgid "notification.region"
+msgstr "通知"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx

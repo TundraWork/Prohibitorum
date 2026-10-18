@@ -160,9 +160,9 @@ function publicError(code: string, location?: string) {
 
 /** The error toasts on screen. */
 const errorToasts = () =>
-  document.querySelectorAll(
-    "[data-slot='toast-viewport'] > [data-type='error']",
-  );
+  screen
+    .queryAllByRole("dialog")
+    .filter((toast) => toast.getAttribute("data-type") === "error");
 
 describe("mutation form feedback", () => {
   it("freezes a submission, reports the field and toast, then keeps editable values for retry", async () => {
