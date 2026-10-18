@@ -86,10 +86,13 @@ describe("UriList", () => {
     ).toBeNull();
   });
 
-  it("keeps the last required row and says why it cannot go", () => {
+  it("keeps the last required row and says why it cannot go, in the page", () => {
     render(<Harness initial={["https://a.example/cb"]} />);
     const remove = screen.getByRole("button", { name: "Remove row 1" });
     expect(remove).toBeDisabled();
+    expect(
+      screen.getByText("A client needs at least one redirect URI."),
+    ).toBeVisible();
     expect(remove).toHaveAccessibleDescription(
       "A client needs at least one redirect URI.",
     );

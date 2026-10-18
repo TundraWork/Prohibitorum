@@ -27,3 +27,9 @@ export function lineProblemMessage(problem: LineProblem): MessageDescriptor {
     values: { line: problem.line },
   } as MessageDescriptor;
 }
+
+/** Where in a list the first problem is, and what it is. */
+export interface ListProblem {
+  index: number;
+  message: MessageDescriptor;
+}

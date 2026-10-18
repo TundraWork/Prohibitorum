@@ -56,7 +56,7 @@ export function OutlineRail({
   return (
     <aside
       className={cn(
-        "sticky top-[calc(var(--app-sticky-offset)+1.5rem)] grid gap-0.5 text-sm",
+        "sticky top-[calc(var(--app-sticky-offset)+5rem)] grid gap-0.5 text-sm",
         className,
       )}
     >

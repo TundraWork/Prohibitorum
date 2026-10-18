@@ -1,6 +1,7 @@
 import type { MessageDescriptor } from "@lingui/core";
 import { msg } from "@lingui/core/macro";
 import { reservedAliasNames } from "@/api/federation";
+import type { ListProblem } from "@/forms/lines";
 
 /**
  * The rules for the values an OIDC application carries that the server does
@@ -184,12 +185,6 @@ export function absoluteHttpUrlProblem(
     return addressInvalid;
   }
   return undefined;
-}
-
-/** Where in a list the first problem is, and what it is. */
-export interface ListProblem {
-  index: number;
-  message: MessageDescriptor;
 }
 
 /**

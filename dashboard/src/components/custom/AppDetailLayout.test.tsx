@@ -20,10 +20,10 @@ function Page({ dirty = false }: { dirty?: boolean }) {
         <Section title="Sign-in" dirty={dirty}>
           sign-in body
         </Section>
-        <Section title="Access">access body</Section>
         <Section title="Disable or delete" tone="danger">
           danger body
         </Section>
+        <Section title="Access">access body</Section>
       </AppDetailLayout>
     </I18nProvider>
   );
@@ -42,7 +42,7 @@ describe("AppDetailLayout", () => {
     const titles = screen
       .getAllByRole("heading", { level: 2 })
       .map((heading) => heading.textContent);
-    expect(titles).toEqual(["Sign-in", "Access", "Disable or delete"]);
+    expect(titles).toEqual(["Sign-in", "Disable or delete", "Access"]);
   });
 
   it("lists every section in the rail, the danger one last", () => {
@@ -69,8 +69,16 @@ describe("AppDetailLayout", () => {
     ).toBeInTheDocument();
   });
 
+  it("also shows the facts outside the rail, for widths without one", () => {
+    render(<Page />);
+    expect(screen.getAllByText("id.example.test")).toHaveLength(2);
+  });
+
   it("shows the facts under the outline", () => {
     render(<Page />);
-    expect(screen.getByText("id.example.test")).toBeInTheDocument();
+    const rail = screen.getByRole("navigation", { name: "On this page" });
+    expect(
+      within(rail.parentElement as HTMLElement).getByText("id.example.test"),
+    ).toBeInTheDocument();
   });
 });

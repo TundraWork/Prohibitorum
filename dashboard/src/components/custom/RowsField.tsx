@@ -5,9 +5,6 @@ import { Plus, Trash2 } from "lucide-react";
 import { type ReactNode, useId, useRef } from "react";
 import { Button } from "@/components/custom/Button";
 import { FormMessages } from "@/components/custom/FormMessages";
-import { useHostOverlayContainer } from "@/components/custom/host-overlay-container";
-import { SrDescription } from "@/components/custom/SrDescription";
-import { Tooltip, TooltipPopup, TooltipTrigger } from "@/components/ui/tooltip";
 import { useFieldContext, useFormContext } from "@/forms/context";
 import { type LineProblem, lineProblemMessage } from "@/forms/lines";
 import { withoutServerErrors } from "@/forms/server-errors";
@@ -47,8 +44,8 @@ export function RowsField<T>({
   /** Rows are never removed below this count. */
   minRows = 0,
   /**
-   * Why a row cannot be removed once the list is down to `minRows`, shown in
-   * a tooltip on the disabled button.
+   * Why a row cannot be removed once the list is down to `minRows`, shown
+   * under the rows and describing the disabled remove buttons.
    */
   minRowsReason,
   /**
@@ -113,9 +110,6 @@ export function RowsField<T>({
   const { i18n } = useLingui();
   const submitting = useStore(form.store, (state) => state.isSubmitting);
   const id = useId();
-  // A list drawn inside a dialog keeps its tooltip inside it, where it stays live.
-  const root = useRef<HTMLDivElement>(null);
-  const tooltipContainer = useHostOverlayContainer(root);
 
   // One stable key per row. The form owns the row values; these are ours. A key
   // derived from the row's own text would change on every keystroke and remount
@@ -158,54 +152,37 @@ export function RowsField<T>({
 
   const atMinimum = field.state.value.length <= minRows;
 
-  const removeButton = (index: number) => {
-    const reasonId = `${id}-min-rows-${index}`;
-    const reasoned = atMinimum && minRowsReason !== undefined;
-    const button = (
-      <Button
-        size="icon-sm"
-        variant="ghost"
-        // On a row drawn on one line the button matches the inputs' own
-        // height; on a tall row it would otherwise sink to the bottom of
-        // the last line, beside whatever control happens to be there.
-        className={
-          removePlacement === "beside" && align === "top" ? "mt-6" : undefined
-        }
-        disabled={submitting || isDisabled || atMinimum}
-        aria-describedby={reasoned ? reasonId : undefined}
-        aria-label={i18n._({
-          ...removeRowMessage,
-          values: { row: index + 1 },
-        })}
-        onClick={() => {
-          changeRows(field.state.value.filter((_, at) => at !== index));
-        }}
-      >
-        <Trash2 size={16} aria-hidden="true" />
-      </Button>
-    );
-    if (!reasoned) return button;
-    // A disabled button emits no hover or focus for a tooltip to answer, so
-    // the tooltip listens on the trigger wrapper instead.
-    return (
-      <>
-        <Tooltip>
-          <TooltipTrigger delay={0} render={<span className="inline-flex" />}>
-            {button}
-          </TooltipTrigger>
-          <TooltipPopup portalProps={{ container: tooltipContainer }}>
-            {minRowsReason}
-          </TooltipPopup>
-        </Tooltip>
-        <SrDescription id={reasonId}>{minRowsReason}</SrDescription>
-      </>
-    );
-  };
+  const reasonId = `${id}-min-rows`;
+  const reasoned = atMinimum && minRowsReason !== undefined;
+
+  const removeButton = (index: number) => (
+    <Button
+      size="icon-sm"
+      variant="ghost"
+      // On a row drawn on one line the button matches the inputs' own
+      // height; on a tall row it would otherwise sink to the bottom of
+      // the last line, beside whatever control happens to be there.
+      className={
+        removePlacement === "beside" && align === "top" ? "mt-6" : undefined
+      }
+      disabled={submitting || isDisabled || atMinimum}
+      aria-describedby={reasoned ? reasonId : undefined}
+      aria-label={i18n._({
+        ...removeRowMessage,
+        values: { row: index + 1 },
+      })}
+      onClick={() => {
+        changeRows(field.state.value.filter((_, at) => at !== index));
+      }}
+    >
+      <Trash2 size={16} aria-hidden="true" />
+    </Button>
+  );
 
   const hasHeader = field.state.value.length > 0 && header !== undefined;
 
   return (
-    <div ref={root} className="flex flex-col gap-3">
+    <div className="flex flex-col gap-3">
       <div className="flex flex-col gap-1.5">
         <span
           id={id}
@@ -276,6 +253,14 @@ export function RowsField<T>({
           ),
         )}
       </ul>
+
+      {/* Said in the page, not in a tooltip: a disabled button takes no
+          hover or focus, so the reason would otherwise be unreachable. */}
+      {reasoned && (
+        <p id={reasonId} className="text-muted-foreground text-xs">
+          {minRowsReason}
+        </p>
+      )}
 
       <div>
         <Button

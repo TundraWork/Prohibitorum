@@ -9,7 +9,8 @@ import { UnsavedBar } from "@/components/custom/UnsavedBar";
  *
  * Every `Section` among the children registers itself here, which is what the
  * rail's links and the unsaved-changes bar are drawn from. Below `lg` the rail
- * is left out and the sections keep the whole width.
+ * is left out, its `facts` move under the header, and the sections keep the
+ * whole width.
  */
 export function AppDetailLayout({
   header,
@@ -26,6 +27,11 @@ export function AppDetailLayout({
   return (
     <SectionRegistryProvider>
       {header}
+      {facts !== undefined && (
+        <div className="mt-4 text-muted-foreground text-sm lg:hidden">
+          {facts}
+        </div>
+      )}
       <div className="mt-8 grid items-start gap-10 lg:grid-cols-[minmax(0,1fr)_200px]">
         <div className="flex min-w-0 flex-col gap-6">{children}</div>
         <OutlineRail facts={facts} className="hidden lg:grid" />

@@ -27,7 +27,7 @@ export function ConsequenceFooter({
 }): React.ReactElement {
   return (
     <div className="flex w-full flex-wrap items-center gap-x-3 gap-y-3">
-      {consequence !== undefined && (
+      {consequence != null && (
         <>
           <TriangleAlertIcon
             aria-hidden="true"
@@ -42,13 +42,12 @@ export function ConsequenceFooter({
         <Button
           type="button"
           variant="ghost"
-          size="sm"
           disabled={pending}
           onClick={onDiscard}
         >
           <Trans id="consequence-footer.discard">Discard</Trans>
         </Button>
-        <Button type="submit" size="sm" pending={pending} disabled={disabled}>
+        <Button type="submit" pending={pending} disabled={disabled}>
           {actionLabel}
         </Button>
       </div>

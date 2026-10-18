@@ -6,8 +6,8 @@ import { FormMessages } from "@/components/custom/FormMessages";
 import { RowsField, rowProblem } from "@/components/custom/RowsField";
 import { Input } from "@/components/ui/input";
 import { useFieldContext, useFormContext } from "@/forms/context";
+import type { ListProblem } from "@/forms/lines";
 import { withoutServerErrors } from "@/forms/server-errors";
-import type { ListProblem } from "@/pages/admin/oidc-applications/oidc-validation";
 
 const rowLabelMessage = msg({
   id: "admin.oidc-apps.uri.row",
