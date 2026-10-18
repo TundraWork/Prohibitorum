@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { PressResponder } from "react-aria/private/interactions/PressResponder";
 import { describe, expect, it, vi } from "vitest";
 import { Button } from "@/components/custom/Button";
 
@@ -40,7 +41,7 @@ describe("Button", () => {
 
   it("keeps the label beside the spinner while pending", () => {
     render(<Button isPending>Save</Button>);
-    const button = screen.getByRole("button", { name: /Save/ });
+    const button = screen.getByRole("button", { name: "Save" });
     expect(button).toHaveAttribute("aria-busy", "true");
     expect(button).toBeDisabled();
     expect(spinner()).not.toBeNull();
@@ -110,7 +111,7 @@ describe("Button", () => {
     const link = screen.getByRole("link", { name: "Open" });
     expect(link).toHaveAttribute("href", "/x");
     expect(link).toHaveAttribute("data-variant", "secondary");
-    expect(link.className).toContain("inline-flex");
+    expect(link).toHaveAttribute("data-slot", "button");
   });
 
   it("forwards a ref to the DOM button", () => {
@@ -128,5 +129,41 @@ describe("Button", () => {
     const button = screen.getByRole("button");
     expect(button.className).toContain("w-full");
     expect(button).toHaveAttribute("type", "submit");
+  });
+
+  it("presses a surrounding react-aria trigger once, alongside its own onPress", async () => {
+    const triggerPress = vi.fn();
+    const onPress = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <PressResponder onPress={triggerPress}>
+        <Button onPress={onPress}>Go</Button>
+      </PressResponder>,
+    );
+    const button = screen.getByRole("button", { name: "Go" });
+    await user.click(button);
+    expect(triggerPress).toHaveBeenCalledTimes(1);
+    expect(onPress).toHaveBeenCalledTimes(1);
+    button.focus();
+    await user.keyboard("{Enter}");
+    expect(onPress).toHaveBeenCalledTimes(2);
+    await user.keyboard(" ");
+    expect(onPress).toHaveBeenCalledTimes(3);
+    expect(triggerPress).toHaveBeenCalledTimes(3);
+  });
+
+  it("presses neither a surrounding trigger nor onPress when disabled", async () => {
+    const triggerPress = vi.fn();
+    const onPress = vi.fn();
+    render(
+      <PressResponder onPress={triggerPress}>
+        <Button isDisabled onPress={onPress}>
+          Go
+        </Button>
+      </PressResponder>,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Go" }));
+    expect(triggerPress).not.toHaveBeenCalled();
+    expect(onPress).not.toHaveBeenCalled();
   });
 });

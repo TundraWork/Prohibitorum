@@ -1,4 +1,6 @@
+import { mergeProps } from "@base-ui/react/merge-props";
 import type * as React from "react";
+import { usePress } from "react-aria";
 import { Button as CossButton } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
@@ -71,9 +73,20 @@ export function Button({
   children,
   ...props
 }: ButtonProps): React.ReactElement {
+  // react-aria triggers (Dropdown, Popover, FileTrigger) attach through the
+  // press-responder context, which only usePress reads.
+  const { pressProps } = usePress({ isDisabled: isDisabled || isPending });
+  // Keys stay native so Enter and Space reach onClick (and the trigger, via
+  // usePress's click handler) exactly once.
+  const { onKeyDown: _down, onKeyUp: _up, ...pointerPressProps } = pressProps;
   return (
     <CossButton
-      {...props}
+      {...mergeProps(props, pointerPressProps, {
+        onClick: (event: React.MouseEvent<HTMLButtonElement>) => {
+          onClick?.(event);
+          onPress?.(event);
+        },
+      })}
       variant={cossVariant[variant]}
       size={cossSize[size][isIconOnly ? "icon" : "text"]}
       loading={false}
@@ -82,10 +95,6 @@ export function Button({
       data-variant={variant}
       data-size={size}
       className={cn(fullWidth && "w-full", className)}
-      onClick={(event: React.MouseEvent<HTMLButtonElement>) => {
-        onClick?.(event);
-        onPress?.(event);
-      }}
     >
       {isPending && <Spinner aria-hidden="true" data-slot="spinner" />}
       {isPending && isIconOnly ? null : children}

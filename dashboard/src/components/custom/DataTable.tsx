@@ -27,6 +27,7 @@ import {
   TableActionColumn,
 } from "@/components/custom/TableActionCell";
 import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 /**
  * One feature set for the whole console: every table here sorts the same way,
@@ -316,9 +317,16 @@ export function DataTable<T extends RowData>({
                           {({ hasChildItems, isExpanded, isTreeColumn }) => (
                             <span className="flex items-center gap-1">
                               {hasChildItems && isTreeColumn && (
+                                // The expand toggle must be a react-aria Button: the table assigns it through its button slot.
                                 <RowToggle
                                   slot="chevron"
-                                  className={`${buttonVariants({ variant: "ghost", size: "icon-sm" })} -ms-2`}
+                                  className={cn(
+                                    buttonVariants({
+                                      variant: "ghost",
+                                      size: "icon-sm",
+                                    }),
+                                    "-ms-2",
+                                  )}
                                   aria-label={
                                     isExpanded
                                       ? t({
