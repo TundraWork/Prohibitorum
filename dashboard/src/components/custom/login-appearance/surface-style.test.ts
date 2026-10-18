@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { expect, it } from "vitest";
 import {
   capsuleSurfaceStyle,
@@ -5,17 +6,13 @@ import {
   surfaceStyle,
 } from "@/components/custom/login-appearance/surface-style";
 
-const heroUiTokens = [
-  "--surface",
-  "--field-background",
-  "--default",
-  "--separator",
-  "--surface-secondary",
-];
+// Vitest blanks CSS imports, so the stylesheet is read as text (cwd is dashboard/).
+const css = readFileSync("src/styles/index.css", "utf8");
 
-function expectNoHeroUiTokens(s: { className: string; style?: object }) {
-  const text = JSON.stringify(s);
-  for (const token of heroUiTokens) expect(text).not.toContain(token);
+function rule(selector: string): string {
+  const start = css.indexOf(`${selector} {`);
+  expect(start, `no rule for ${selector}`).toBeGreaterThan(-1);
+  return css.slice(start, css.indexOf("\n  }", start));
 }
 
 it("draws an opaque card with the background colour and nothing else", () => {
@@ -24,15 +21,21 @@ it("draws an opaque card with the background colour and nothing else", () => {
   );
 });
 
-it("fills a translucent card from the colour constants at the chosen opacity", () => {
+it("fills a translucent card through a rule that exists in the stylesheet", () => {
   const s = surfaceStyle({ translucent: true, opacity: 50, blur: false });
   expect(s.style).toEqual({ "--card-alpha": "50%" });
-  expect(s.className).toContain("var(--color-white)_var(--card-alpha)");
-  expect(s.className).toContain("dark:bg-[");
-  // The fill must not read --background, which the card redefines for its controls.
-  expect(s.className).not.toMatch(/bg-\[[^\]]*var\(--background\)/);
-  expect(s.className).not.toContain("bg-background");
-  expectNoHeroUiTokens(s);
+  expect(s.className.split(" ")).toEqual(["surface-glass"]);
+  expect(rule(".surface-glass")).toMatch(
+    /background-color:\s*color-mix\([\s\S]*?var\(--card-alpha\)/,
+  );
+  expect(rule(".dark .surface-glass")).toContain("--glass-base");
+});
+
+it("keeps the fill from reading --background, which the card redefines", () => {
+  expect(rule(".surface-glass")).not.toMatch(
+    /background-color:[^;]*var\(--background\)/,
+  );
+  expect(rule(".surface-glass")).toContain("--glass-base: var(--color-white)");
 });
 
 it("adds the blur only to a translucent surface with frosted glass on", () => {
@@ -60,7 +63,7 @@ it("gives a translucent capsule the card's fill rule with its own settings", () 
     blur: false,
   });
   expect(capsule.style).toEqual({ "--card-alpha": "30%" });
-  expect(capsule.className).toContain("var(--color-white)_var(--card-alpha)");
+  expect(capsule.className).toContain("surface-glass");
 });
 
 it("redefines only the opaque fill tokens inside a translucent card, and an opaque card nothing", () => {
@@ -69,14 +72,16 @@ it("redefines only the opaque fill tokens inside a translucent card, and an opaq
     opacity: 60,
     blur: false,
   });
-  expect(glass.className).toContain("[--background:");
-  expect(glass.className).toContain("dark:[--background:");
-  expect(glass.className).toContain("not-dark:[--popover:");
-  for (const token of ["border", "input", "muted", "accent"]) {
-    expect(glass.className).not.toContain(`[--${token}:`);
-  }
+  expect(glass.className.split(" ")).toContain("surface-glass-controls");
   expect(glass.style).toEqual({ "--card-alpha": "60%" });
-  expectNoHeroUiTokens(glass);
+  const controls = rule(".surface-glass-controls");
+  expect(controls).toMatch(/--background:\s*color-mix\([\s\S]*?--card-alpha/);
+  for (const token of ["border", "input", "muted", "accent"]) {
+    expect(controls).not.toContain(`--${token}:`);
+  }
+  expect(rule("html:not(.dark) .surface-glass-controls")).toContain(
+    "--popover:",
+  );
   expect(
     cardSurfaceStyle({ translucent: false, opacity: 60, blur: false }),
   ).toEqual({ className: "bg-background" });

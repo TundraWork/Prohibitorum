@@ -34,6 +34,44 @@
 }
 
 /*
+ * A translucent public surface: the card and the toolbar capsules. `--card-alpha`
+ * is set inline. The fill is built from the colours coss.css makes
+ * `--background` from, because the card redefines `--background` for the
+ * controls inside it: only the opaque fill tokens become see-through, at half
+ * the card's opacity.
+ */
+@layer components {
+  .surface-glass {
+    --glass-base: var(--color-white);
+    background-color: color-mix(
+      in srgb,
+      var(--glass-base) var(--card-alpha),
+      transparent
+    );
+  }
+
+  .dark .surface-glass {
+    --glass-base: color-mix(
+      in srgb,
+      var(--color-neutral-950) 96%,
+      var(--color-white)
+    );
+  }
+
+  .surface-glass-controls {
+    --background: color-mix(
+      in srgb,
+      var(--glass-base) calc(var(--card-alpha) * 0.5),
+      transparent
+    );
+  }
+
+  html:not(.dark) .surface-glass-controls {
+    --popover: var(--background);
+  }
+}
+
+/*
  * The OverlayScrollbars theme the app uses (`ScrollArea` passes the name to the
  * `scrollbars.theme` option). The library's own `os-theme-light`/`os-theme-dark`
  * are hard-coded greys; this one derives the handle from the coss
