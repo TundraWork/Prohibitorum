@@ -127,15 +127,14 @@ From the research (`.impeccable/research/admin.md` §9, `member.md`, `public.md`
 
 ## Migration strategy
 
-HeroUI and coss define the same CSS custom properties (`--background`, `--accent`, …), so they cannot be styled side by side. The migration therefore:
+HeroUI and coss define the same CSS custom properties (`--background`, `--accent`, …), so they cannot be styled side by side. Nobody uses the dashboard while the branch is being migrated (owner decision, 2026-10-19), so intermediate states only need to compile, not to work:
 
-1. **Foundation.** Add Base UI and the coss registry, the coss stylesheet and fonts; remove `@heroui/styles`, the HeroUI theme and Inter. HeroUI components keep working unstyled, so behaviour and tests stay green.
-2. **Shared layer.** Rebuild `src/components/custom` (Button, forms, Section, DataTable, dialogs, toasts, RouteFeedback, layouts) on coss. Most pages consume HeroUI only through this layer.
-3. **Shell, then pages by area**: public flows, member pages, admin applications, identity providers, groups, users/invitations/logs, settings.
-4. **Removal.** Delete `@heroui/react`, `react-aria-components`, `react-aria`, `overlayscrollbars*`, `tailwind-variants` once nothing imports them; rewrite conventions docs; regenerate `DESIGN.md`.
+1. **Foundation** (done). Base UI, the coss registry, stylesheet and fonts; the shared layer in `src/components/custom` rebuilt on coss; the console shell.
+2. **Pages by area**: public flows, member pages, admin applications, identity providers, groups, users/invitations/logs, settings. A page is rewritten directly on coss components. Shared components may change their API to coss's own vocabulary (`onClick`, `disabled`, coss variant names); callers are updated mechanically in the same task so `tsc` stays green. No new compatibility layer between HeroUI and coss is added; an unmigrated page may render or behave wrongly until its phase.
+3. **Removal.** Delete `@heroui/react`, `react-aria-components`, `react-aria`, `overlayscrollbars*`, `tailwind-variants` and the interim bridges from the foundation phase (host-overlay container, react-aria top layer); rewrite conventions docs; regenerate `DESIGN.md`.
 
-Each task keeps `mise run ci:frontend` green (Biome, Lingui strict, Vitest, `tsc`, build). Tests that assert HeroUI class names (≈60 assertions, listed in the plan) are rewritten to assert roles, names and `data-*` state instead. `origin/develop` is merged into `develop-coss` at each phase boundary; conflicts in page files are resolved by porting the incoming behaviour change into the coss version.
+`origin/develop` is merged into `develop-coss` at each phase boundary; conflicts in page files are resolved by porting the incoming behaviour change into the coss version.
 
 ## Verification
 
-Per task: `mise run ci:frontend`; a Playwright pass against the devtools mock (`?mock`) at 1440×900, 1920×1080 and 390×844, light and dark, `en` and `zh`, reviewed at 2× for every changed screen; the Impeccable detector on changed files. Per phase: the same across all migrated routes, and `mise run ci:smoke` once the shell and public flows are migrated.
+Per task: `pnpm exec tsc --noEmit`, Biome on touched files, the touched and new test files, `pnpm run i18n:check` when strings change, and for a visual change a Playwright pass against the devtools mock (`?mock`) at 1440×900 light `en` and 390×844 dark `zh`, reviewed at 2×. Tests are written for the migrated component's behaviour, not for interim states. Per phase: `mise run ci:frontend` once, and the browser pass at 1440×900, 1920×1080 and 390×844, light and dark, `en` and `zh`, across the phase's routes. `mise run ci:smoke` and the full gate run at the end of the migration.
