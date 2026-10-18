@@ -1,12 +1,13 @@
 import type { MessageDescriptor } from "@lingui/core";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { useSuspenseQuery } from "@tanstack/react-query";
+import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { useSearch } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import { readReturnTo } from "@/api/auth";
 import { describeError } from "@/api/errors";
 import {
   authStatusQueryOptions,
+  loginContextQueryOptions,
   publicConfigQueryOptions,
 } from "@/api/queries";
 import { FormMessages } from "@/components/custom/FormMessages";
@@ -21,7 +22,13 @@ export type LoginFailure = {
   reset?: boolean;
 };
 
-/** Instance config, bootstrap state and the validated return target the sign-in pages share. */
+/**
+ * Instance config, bootstrap state and the validated return target the sign-in
+ * pages share. When the link points at this instance's own authorize or SSO
+ * endpoints, `application` names the registered app the sign-in continues to;
+ * it stays undefined while that read is in flight or has nothing to say, so
+ * the pages never wait on it.
+ */
 export function useLoginContext() {
   const { data: config } = useSuspenseQuery(publicConfigQueryOptions());
   const { data: status } = useSuspenseQuery(authStatusQueryOptions());
@@ -37,7 +44,51 @@ export function useLoginContext() {
   } catch (error) {
     linkError = describeError(error);
   }
-  return { config, bootstrapped: status.bootstrapped, returnTo, linkError };
+  // A protocol's login bounce always carries this origin's absolute
+  // /oauth/authorize, /saml/sso or /saml/sso/init URL, and the server answers
+  // anything else with 400 — so anything else is not asked, keeping the
+  // request for the links that can actually name an application.
+  const contextTarget =
+    returnTo !== undefined && !linkError
+      ? loginContextTarget(returnTo, window.location.origin)
+      : undefined;
+  const context = useQuery({
+    ...loginContextQueryOptions(contextTarget ?? ""),
+    enabled: contextTarget !== undefined,
+  });
+  const application = context.data?.application
+    ? context.data.application.label
+    : undefined;
+  return {
+    config,
+    bootstrapped: status.bootstrapped,
+    returnTo,
+    linkError,
+    application,
+  };
+}
+
+/**
+ * The return_to the login-context endpoint is asked about, or undefined when
+ * it cannot name an application: the target must be this origin's authorize or
+ * SAML endpoint. An unparsable value is left to the server's 400.
+ */
+export function loginContextTarget(returnTo: string, origin: string) {
+  let target: URL | null = null;
+  try {
+    target = new URL(returnTo);
+  } catch {
+    return undefined;
+  }
+  if (
+    target.origin !== origin ||
+    (target.pathname !== "/oauth/authorize" &&
+      target.pathname !== "/saml/sso" &&
+      target.pathname !== "/saml/sso/init")
+  ) {
+    return undefined;
+  }
+  return returnTo;
 }
 
 /**
@@ -63,7 +114,7 @@ export function LoginShell({
   children: ReactNode;
 }) {
   const { t } = useLingui();
-  const { config, bootstrapped, linkError } = useLoginContext();
+  const { config, bootstrapped, linkError, application } = useLoginContext();
   return (
     <div className="mx-auto flex w-full max-w-[30rem] flex-col gap-4">
       {config.maintenanceMode && (
@@ -132,7 +183,13 @@ export function LoginShell({
             complete ? (
               <Trans id="login.complete">Authenticator reset complete</Trans>
             ) : step === "password" ? (
-              <Trans id="login.title">Sign in</Trans>
+              application === undefined ? (
+                <Trans id="login.title">Sign in</Trans>
+              ) : (
+                <Trans id="login.title.application">
+                  Sign in to continue to {application}
+                </Trans>
+              )
             ) : (
               <Trans id="login.factor.account">Signing in as {username}</Trans>
             )

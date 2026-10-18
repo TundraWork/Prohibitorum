@@ -6271,6 +6271,11 @@ msgid "federation_flow.title.login"
 msgstr "Sign in through {provider}"
 
 #. js-lingui-explicit-id
+#: src/components/custom/LoginShell.tsx
+msgid "login.title.application"
+msgstr "Sign in to continue to {application}"
+
+#. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.no_session"
 msgstr "Sign in to continue."

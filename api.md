@@ -468,22 +468,36 @@ when it completes (both the OIDC/Steam callback and the VRChat verify). Any othe
 `return_to` still returns to `/security`.
 
 ## Forward-auth login context
+## Sign-in login context
 
-GET /api/prohibitorum/forward-auth/login-context?return_to=<encoded authorize URL>
-is public, read-only and no-store. It returns {"application":{"label":"App"}}
-only when the same-origin /oauth/authorize URL matches a registered, enabled
-forward-auth client, its exact callback URI, and a live gateway state with the
-same client, original host and S256 verifier. The label is the registered display
-name, or registered host (including port) when the name is empty.
-It returns {"application":null} for ordinary OIDC or missing/mismatched context.
-It never consumes state or renews its five-minute lifetime.
+GET /api/prohibitorum/forward-auth/login-context?return_to=<encoded URL>
+is public, read-only and no-store. It names the application the sign-in page
+is headed to, for every protocol's login bounce: {"application":{"label":"App"}}
+when the same-origin return_to matches a registered, enabled application,
+{"application":null} when it does not. It never authorizes a request, never
+consumes state, and never renews a gateway state's five-minute lifetime.
 
-Missing/repeated return_to, malformed query encoding, a noncanonical authorize
-URL, duplicate security parameters, missing client_id/redirect_uri/response_type,
-or a query over 16 KiB returns 400 bad_request. State and PKCE are optional for
-ordinary OIDC; their absence returns no context. Storage failures return
-503 database_unavailable or kv_unavailable. Errors contain no input URL or
-credential. Login remains available when this optional explanation cannot load.
+- Forward auth: the /oauth/authorize URL must match a registered, enabled
+  forward-auth client, its exact callback URI, and a live gateway state with
+  the same client, original host and S256 verifier. The label is the
+  registered display name, or the registered host (including port) when the
+  name is empty.
+- Ordinary OIDC: the /oauth/authorize URL's client must be registered and
+  enabled with the exact redirect_uri among its registered list. The label is
+  the client's display name, or the host of its first registered redirect URI
+  when the name is empty.
+- SAML: the return_to may be /saml/sso (the AuthnRequest is re-parsed,
+  signature included, without consuming its single-use ID) or /saml/sso/init
+  (sp must name a registered, enabled SP opted into IdP-initiated SSO). The
+  label is the SP's display name, or its entity_id when the name is empty.
+
+Missing/repeated return_to, malformed query encoding, an origin other than the
+issuer's, a path other than /oauth/authorize, /saml/sso or /saml/sso/init,
+userinfo/fragments, duplicate security parameters, missing
+client_id/redirect_uri/response_type (OIDC URLs), or a query over 16 KiB
+returns 400 bad_request. Storage failures return 503 database_unavailable or
+kv_unavailable. Errors contain no input URL or credential. Login remains
+available when this optional explanation cannot load.
 
 ## Forward-auth verify endpoint
 

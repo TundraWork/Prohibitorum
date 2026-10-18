@@ -41,6 +41,7 @@ type fakeSSOQueries struct {
 	db.Querier
 
 	sp        db.SamlSp
+	spErr     error
 	acs       []db.SamlSpAc
 	spKeys    []db.SamlSpKey
 	idpKeys   []db.SigningKey
@@ -94,6 +95,9 @@ func (f *fakeSAMLAuthorizer) EvaluateSAML(_ context.Context, _ int32, _ int64) (
 var errStubPredicate = errors.New("saml: injected predicate error")
 
 func (f *fakeSSOQueries) GetSAMLSPByEntityID(_ context.Context, entityID string) (db.SamlSp, error) {
+	if f.spErr != nil {
+		return db.SamlSp{}, f.spErr
+	}
 	if entityID == f.sp.EntityID {
 		return f.sp, nil
 	}

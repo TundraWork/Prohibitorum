@@ -66,7 +66,7 @@ const (
 	nCore       = 54
 	nFederation = 39
 	nOIDC       = 18
-	nSAML       = 14
+	nSAML       = 15
 	nHardening  = 14
 	nConsent    = 2
 	nAdmin      = 8
@@ -3518,6 +3518,8 @@ func main() {
 	if err := verifySAMLAuditEvents(); err != nil {
 		log.Fatalf("saml audit DB assert: %v", err)
 	}
+	step(fmt.Sprintf("saml %d/%d — login-context label for OIDC + SAML bounces (entity-id fallback)", 15, nSAML))
+	checkLoginContextProtocols(*baseURL, rpClientID, rpRedirectURI, mockSPEntityID, mockSPACSURL, sp)
 
 	// =========================================================================
 	// hardening surface: protocol-completeness gate. Forced re-authentication
@@ -10603,4 +10605,58 @@ func checkForwardAuthLoginContext(base, host, label string) {
 		}
 	}
 	log.Printf("  forward-auth login context: registered label, public route and repeated read verified ✓")
+}
+
+// Prove the login-context route answers ordinary OIDC and SAML bounces with
+// the registered label, and a plain in-site path with no context. The OIDC
+// authorize URL is the one /oauth/authorize would redirect an anonymous
+// browser to; the SAML URL is the /saml/sso?SAMLRequest=… bounce the mock SP's
+// redirect binding builds, re-signed through the same helper the SSO steps
+// use (its display name is empty, so the entity id is the expected label).
+func checkLoginContextProtocols(base, rpClientID, rpRedirectURI, spEntityID, spACSURL string, sp *mockSP) {
+	read := func(returnTo string) (label string, ok bool) {
+		hc := &http.Client{Timeout: 10 * time.Second}
+		res, err := hc.Get(base + "/api/prohibitorum/forward-auth/login-context?return_to=" + url.QueryEscape(returnTo))
+		if err != nil {
+			log.Fatalf("login-context read failed: %v", err)
+		}
+		defer res.Body.Close()
+		var view struct {
+			Application *struct {
+				Label string `json:"label"`
+			} `json:"application"`
+		}
+		if err := json.NewDecoder(res.Body).Decode(&view); err != nil || res.StatusCode != http.StatusOK {
+			log.Fatalf("login-context: status %d err %v", res.StatusCode, err)
+		}
+		if view.Application == nil {
+			return "", false
+		}
+		return view.Application.Label, true
+	}
+
+	authorize := base + "/oauth/authorize?response_type=code&client_id=" + url.QueryEscape(rpClientID) +
+		"&redirect_uri=" + url.QueryEscape(rpRedirectURI) + "&scope=openid&state=st"
+	if label, ok := read(authorize); !ok || label != "Smoke RP" {
+		log.Fatalf("login-context ordinary OIDC: label=%q ok=%v, want Smoke RP", label, ok)
+	}
+
+	query, _, err := sp.authnRequestRedirect(base+"/saml/sso", spACSURL, true)
+	if err != nil {
+		log.Fatalf("login-context SAML redirect build failed: %v", err)
+	}
+	if label, ok := read(base + "/saml/sso?" + query); !ok || label != spEntityID {
+		log.Fatalf("login-context SAML: label=%q ok=%v, want entity id %q", label, ok, spEntityID)
+	}
+
+	hc := &http.Client{Timeout: 10 * time.Second}
+	res, err := hc.Get(base + "/api/prohibitorum/forward-auth/login-context?return_to=" + url.QueryEscape(base+"/apps"))
+	if err != nil {
+		log.Fatalf("login-context non-protocol read failed: %v", err)
+	}
+	res.Body.Close()
+	if res.StatusCode != http.StatusBadRequest {
+		log.Fatalf("login-context non-protocol path: status %d, want 400", res.StatusCode)
+	}
+	log.Printf("  login context: ordinary OIDC label, SAML entity-id fallback and non-protocol 400 verified ✓")
 }

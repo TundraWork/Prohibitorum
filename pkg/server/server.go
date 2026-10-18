@@ -419,6 +419,9 @@ func NewServer(ctx context.Context) (*Server, error) {
 		on, _ := brandingResolver.Maintenance(ctx)
 		return on
 	})
+	// The login-context endpoint answers every protocol's sign-in bounce, so
+	// it needs the SAML IdP's read-only resolver alongside its own OIDC views.
+	s.oidcOP.SetSAMLContextResolver(s.samlIdP.LoginContextLabel)
 	s.registerOperations()
 	s.router.NotFound(s.webUIHandler.ServeHTTP)
 	logx.WithContext(ctx).Info("registered operations")

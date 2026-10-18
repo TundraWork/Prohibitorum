@@ -58,6 +58,28 @@ export function authStatusQueryOptions() {
   });
 }
 
+/**
+ * The application a sign-in link targets, as the login page's title names
+ * it. Asked only while a `return_to` the page trusts is present; a failure
+ * or a null answer just leaves the plain title, so the read is quiet and
+ * never retried.
+ */
+export function loginContextQueryOptions(returnTo: string) {
+  return queryOptions({
+    queryKey: ["public", "login-context", returnTo],
+    meta: { quiet: true },
+    retry: false,
+    staleTime: Number.POSITIVE_INFINITY,
+    queryFn: ({ signal }) =>
+      requireJsonData(
+        client.GET("/api/prohibitorum/forward-auth/login-context", {
+          params: { query: { return_to: returnTo } },
+          signal,
+        }),
+      ),
+  });
+}
+
 export function sessionQueryOptions() {
   return queryOptions({
     queryKey: ["session", "me"],

@@ -33,6 +33,144 @@ func (q *contextQueries) GetOIDCClientAny(_ context.Context, id string) (db.Oidc
 	return q.client, nil
 }
 
+func ordinaryAuthorizeURL(redirectURI string, mutations ...func(url.Values)) string {
+	v := url.Values{}
+	v.Set("client_id", "svc")
+	v.Set("redirect_uri", redirectURI)
+	v.Set("response_type", "code")
+	v.Set("scope", "openid")
+	for _, mutate := range mutations {
+		mutate(v)
+	}
+	return testIssuer + "/oauth/authorize?" + v.Encode()
+}
+
+func decodeContext(t *testing.T, rec *httptest.ResponseRecorder) forwardAuthLoginContext {
+	t.Helper()
+	var body forwardAuthLoginContext
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	return body
+}
+
+func TestForwardAuthContext_OrdinaryOIDC(t *testing.T) {
+	cases := []struct {
+		name   string
+		client db.OidcClient
+		label  string
+	}{
+		{"named client", db.OidcClient{ClientID: "svc", DisplayName: "Wiki", RedirectUris: []string{"https://rp.example.test/callback"}}, "Wiki"},
+		{"empty name falls back to first redirect host", db.OidcClient{ClientID: "svc", RedirectUris: []string{"https://rp.example.test/callback", "https://other.example.test/cb"}}, "rp.example.test"},
+		{"host includes port", db.OidcClient{ClientID: "svc", RedirectUris: []string{"https://rp.example.test:8443/callback"}}, "rp.example.test:8443"},
+		{"name kept as registered, not trimmed", db.OidcClient{ClientID: "svc", DisplayName: "  spaced  ", RedirectUris: []string{"https://rp.example.test/callback"}}, "  spaced  "},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			p, q, _, _ := contextFixture(t)
+			q.client = tc.client
+			// Without state/PKCE, and with them: a non-forward-auth client
+			// takes the ordinary branch either way.
+			requests := []string{ordinaryAuthorizeURL(tc.client.RedirectUris[0]), ordinaryAuthorizeURL(tc.client.RedirectUris[0], func(v url.Values) {
+				v.Set("state", "st")
+				v.Set("code_challenge", "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM")
+				v.Set("code_challenge_method", "S256")
+			})}
+			for _, raw := range requests {
+				rec := readContext(p, raw)
+				if rec.Code != 200 {
+					t.Fatalf("response %d %s", rec.Code, rec.Body.String())
+				}
+				body := decodeContext(t, rec)
+				if body.Application == nil || body.Application.Label != tc.label {
+					t.Fatalf("context %+v, want label %q", body, tc.label)
+				}
+			}
+		})
+	}
+}
+
+func TestForwardAuthContext_OrdinaryOIDCNoMisleadingLabel(t *testing.T) {
+	cases := []struct {
+		name   string
+		mutate func(*contextQueries, url.Values)
+		code   int
+		body   string
+	}{
+		{"unknown client", func(_ *contextQueries, v url.Values) { v.Set("client_id", "nobody") }, 200, `{"application":null}`},
+		{"unregistered redirect", func(_ *contextQueries, v url.Values) { v.Set("redirect_uri", "https://evil.example.test/cb") }, 200, `{"application":null}`},
+		{"disabled client", func(q *contextQueries, _ url.Values) { q.client.Disabled = true }, 200, `{"application":null}`},
+		{"unsupported response type", func(_ *contextQueries, v url.Values) { v.Set("response_type", "token") }, 200, `{"application":null}`},
+		{"database failure", func(q *contextQueries, _ url.Values) { q.err = errors.New("down") }, 503, ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			p, q, _, _ := contextFixture(t)
+			q.client = db.OidcClient{ClientID: "svc", DisplayName: "Wiki", RedirectUris: []string{"https://rp.example.test/callback"}}
+			request, err := url.Parse(ordinaryAuthorizeURL(q.client.RedirectUris[0]))
+			if err != nil {
+				t.Fatal(err)
+			}
+			query := request.Query()
+			tc.mutate(q, query)
+			request.RawQuery = query.Encode()
+			rec := readContext(p, request.String())
+			if rec.Code != tc.code {
+				t.Fatalf("response %d %s", rec.Code, rec.Body.String())
+			}
+			if tc.body != "" && strings.TrimSpace(rec.Body.String()) != tc.body {
+				t.Fatalf("body %s, want %s", rec.Body.String(), tc.body)
+			}
+			if tc.code == 503 && !strings.Contains(rec.Body.String(), "database_unavailable") {
+				t.Fatalf("body %s", rec.Body.String())
+			}
+		})
+	}
+}
+
+func TestForwardAuthContext_SAMLDelegates(t *testing.T) {
+	for _, path := range []string{"/saml/sso?SAMLRequest=abc", "/saml/sso/init?sp=https%3A%2F%2Fsp.example.test"} {
+		t.Run(path, func(t *testing.T) {
+			p, _, _, _ := contextFixture(t)
+			var seen string
+			p.samlContext = func(_ context.Context, u *url.URL) (string, bool, error) {
+				seen = u.EscapedPath()
+				return "Smoke SP", true, nil
+			}
+			rec := readContext(p, testIssuer+path)
+			if rec.Code != 200 {
+				t.Fatalf("response %d %s", rec.Code, rec.Body.String())
+			}
+			body := decodeContext(t, rec)
+			if body.Application == nil || body.Application.Label != "Smoke SP" {
+				t.Fatalf("context %+v", body)
+			}
+			if seen == "" {
+				t.Fatal("resolver was not consulted")
+			}
+		})
+	}
+	// No resolver wired (bare provider): no context, not an error.
+	t.Run("no resolver", func(t *testing.T) {
+		p, _, _, _ := contextFixture(t)
+		rec := readContext(p, testIssuer+"/saml/sso?SAMLRequest=abc")
+		if rec.Code != 200 || strings.TrimSpace(rec.Body.String()) != `{"application":null}` {
+			t.Fatalf("response %d %s", rec.Code, rec.Body.String())
+		}
+	})
+}
+
+func TestForwardAuthContext_SAMLStorageFailure(t *testing.T) {
+	p, _, _, _ := contextFixture(t)
+	p.samlContext = func(context.Context, *url.URL) (string, bool, error) {
+		return "", false, errors.New("database down")
+	}
+	rec := readContext(p, testIssuer+"/saml/sso?SAMLRequest=abc")
+	if rec.Code != 503 || !strings.Contains(rec.Body.String(), "database_unavailable") {
+		t.Fatalf("response %d %s", rec.Code, rec.Body.String())
+	}
+}
+
 // Exposes reads only: embedding a nil Store makes every mutation panic.
 type contextReadStore struct {
 	kv.Store
@@ -121,7 +259,11 @@ func TestForwardAuthContext_GatewayStateRemainsUsable(t *testing.T) {
 	}
 }
 func TestForwardAuthContext_NoMisleadingApplication(t *testing.T) {
-	cases := []string{"ordinary", "no-state", "no-pkce", "unknown", "disabled", "not-forward-auth", "wrong-callback", "unregistered-callback", "wrong-challenge", "wrong-method", "missing-state", "expired-state", "wrong-client-state", "wrong-host-state", "malformed-state"}
+	// The "ordinary"/"no-state"/"no-pkce"/"not-forward-auth"/"wrong-method"
+	// shapes are ordinary OIDC requests now, which earn the registered
+	// client's label (TestForwardAuthContext_OrdinaryOIDC); what remains are
+	// forward-auth failures that must never leak a label.
+	cases := []string{"unknown", "disabled", "wrong-callback", "unregistered-callback", "wrong-challenge", "missing-state", "expired-state", "wrong-client-state", "wrong-host-state", "malformed-state"}
 	for _, name := range cases {
 		t.Run(name, func(t *testing.T) {
 			p, q, store, u := contextFixture(t)

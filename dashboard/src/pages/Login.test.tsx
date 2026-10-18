@@ -556,6 +556,86 @@ it("requires saved confirmation and does not report a rejected clipboard write a
   expect(onContinue).toHaveBeenCalledOnce();
 });
 
+describe("the application the sign-in link targets", () => {
+  function at(path: string) {
+    history.destroy();
+    window.history.replaceState(null, "", path);
+    history = createBrowserHistory();
+  }
+
+  function contextFetch(status: number, body: unknown) {
+    return vi.fn<typeof globalThis.fetch>().mockImplementation((input) => {
+      const url = new URL((input as Request).url);
+      if (url.pathname.endsWith("/forward-auth/login-context")) {
+        return Promise.resolve(Response.json(body, { status }));
+      }
+      return Promise.resolve(Response.json({}));
+    });
+  }
+
+  it("names the application once the context read answers", async () => {
+    at(
+      `/login?return_to=${encodeURIComponent(
+        `${window.location.origin}/oauth/authorize?client_id=wiki`,
+      )}`,
+    );
+    const fetch = contextFetch(200, { application: { label: "Wiki" } });
+    vi.stubGlobal("fetch", fetch);
+    mount();
+    expect(
+      await screen.findByRole("heading", {
+        name: "Sign in to continue to Wiki",
+      }),
+    ).toBeVisible();
+  });
+
+  it("keeps the plain title when there is no context", async () => {
+    at(
+      `/login?return_to=${encodeURIComponent(
+        `${window.location.origin}/oauth/authorize?client_id=wiki`,
+      )}`,
+    );
+    const fetch = contextFetch(200, { application: null });
+    vi.stubGlobal("fetch", fetch);
+    mount();
+    expect(
+      await screen.findByRole("heading", { name: "Sign in" }),
+    ).toBeVisible();
+    await waitFor(() => {
+      expect(fetch).toHaveBeenCalled();
+    });
+  });
+
+  it("keeps the plain title when the context read fails", async () => {
+    at(
+      `/login?return_to=${encodeURIComponent(
+        `${window.location.origin}/saml/sso?SAMLRequest=abc`,
+      )}`,
+    );
+    const fetch = contextFetch(503, { code: "database_unavailable" });
+    vi.stubGlobal("fetch", fetch);
+    mount();
+    expect(
+      await screen.findByRole("heading", { name: "Sign in" }),
+    ).toBeVisible();
+    await waitFor(() => {
+      expect(fetch).toHaveBeenCalled();
+    });
+  });
+
+  it("asks only while a return_to is present", async () => {
+    at("/login");
+    const fetch = contextFetch(200, { application: { label: "Wiki" } });
+    vi.stubGlobal("fetch", fetch);
+    mount();
+    await screen.findByRole("heading", { name: "Sign in" });
+    expect(
+      screen.queryByRole("heading", { name: "Sign in to continue to Wiki" }),
+    ).toBeNull();
+    expect(fetch).not.toHaveBeenCalled();
+  });
+});
+
 describe("the sign-in link", () => {
   function at(path: string) {
     history.destroy();

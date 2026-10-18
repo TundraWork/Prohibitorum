@@ -288,6 +288,11 @@ export interface ConsentDecision {
   redirect: string;
 }
 
+/** `GET /forward-auth/login-context`: the application a sign-in link targets. */
+export interface LoginContext {
+  application: { label: string } | null;
+}
+
 type SessionView = components["schemas"]["SessionView"];
 
 /** The account fields an enrollment sends with its first request. */
@@ -369,6 +374,20 @@ export interface RawPaths {
       requestBody?: never;
       responses: {
         200: { content: { "application/json": PublicConfig } };
+      };
+    };
+  };
+  "/api/prohibitorum/forward-auth/login-context": {
+    get: {
+      parameters: {
+        query: { return_to: string };
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        200: { content: { "application/json": LoginContext } };
       };
     };
   };

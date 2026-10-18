@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"slices"
 	"time"
 
@@ -48,6 +49,9 @@ type Provider struct {
 	// unit tests, where auditIP falls back to the request peer.
 	clientIP func(*http.Request) string
 	access   appaccess.OIDCAuthorizer
+	// samlContext resolves a SAML return_to's application label for the
+	// login-context endpoint. nil (tests, bare wiring) answers no context.
+	samlContext func(context.Context, *url.URL) (string, bool, error)
 }
 
 // SetMaintenanceChecker injects a callback reporting whether maintenance mode is
@@ -56,6 +60,14 @@ type Provider struct {
 // middleware that enforces maintenance everywhere else. nil leaves the gateway
 // unaffected (the default for tests).
 func (p *Provider) SetMaintenanceChecker(fn func(context.Context) bool) { p.maintenance = fn }
+
+// SetSAMLContextResolver injects the SAML IdP's read-only label resolver, so
+// the login-context endpoint answers every protocol's sign-in bounce from one
+// URL. The SAML package cannot be imported here (it would be an import
+// cycle), so the server hands the bound method across.
+func (p *Provider) SetSAMLContextResolver(fn func(context.Context, *url.URL) (string, bool, error)) {
+	p.samlContext = fn
+}
 
 // New constructs a Provider, building the signing-key cache from queries and
 // retaining every dependency the handlers attach to.
