@@ -1,8 +1,9 @@
 import { Trans, useLingui } from "@lingui/react/macro";
 import { SearchIcon } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type { components } from "@/api/generated/schema";
 import { loadDocument } from "@/app/load-document";
+import { usePageRestore } from "@/app/use-page-restore";
 import { Button } from "@/components/custom/Button";
 import { EntityAvatar } from "@/components/custom/EntityAvatar";
 import {
@@ -46,15 +47,10 @@ export function ProviderGrid({
     message: "Find a provider",
   });
 
-  useEffect(() => {
-    const restore = (event: PageTransitionEvent) => {
-      if (!event.persisted) return;
-      setLeaving(undefined);
-      onLeavingChange?.(false);
-    };
-    window.addEventListener("pageshow", restore);
-    return () => window.removeEventListener("pageshow", restore);
-  }, [onLeavingChange]);
+  usePageRestore(() => {
+    setLeaving(undefined);
+    onLeavingChange?.(false);
+  });
 
   if (providers.length === 0) return null;
 

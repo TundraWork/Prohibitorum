@@ -454,6 +454,25 @@ describe("the token list", () => {
     expect(row).toHaveTextContent("Full access");
   });
 
+  it("says when a token was last used, or that it has not been", async () => {
+    mount({
+      tokens: [
+        {
+          ...base,
+          id: 1,
+          name: "Used",
+          access: "full",
+          lastUsedAt: new Date(Date.now() - 2 * 3_600_000).toISOString(),
+        },
+        { ...base, id: 2, name: "Fresh", access: "full" },
+      ],
+    });
+
+    const [used, fresh] = (await rows()) as [HTMLElement, HTMLElement];
+    expect(used).toHaveTextContent("Last used 2 hours ago");
+    expect(fresh).toHaveTextContent("Not used yet");
+  });
+
   it("says when a token expires, or that it never does", async () => {
     mount({
       tokens: [

@@ -3947,6 +3947,11 @@ msgid "admin.users.column.lastSignIn"
 msgstr "Last signed in"
 
 #. js-lingui-explicit-id
+#: src/pages/security/TokensPanel.tsx
+msgid "security.tokens.detail.lastUsed"
+msgstr "Last used <0/>"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.passkeys.detail.lastUsed"
 msgstr "Last used <0/>"
@@ -4715,6 +4720,11 @@ msgstr "Not used — the ID token is skipped"
 #. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
 msgid "security.passkeys.never_used"
+msgstr "Not used yet"
+
+#. js-lingui-explicit-id
+#: src/pages/security/TokensPanel.tsx
+msgid "security.tokens.never_used"
 msgstr "Not used yet"
 
 #. js-lingui-explicit-id

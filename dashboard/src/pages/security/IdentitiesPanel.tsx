@@ -1,7 +1,7 @@
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link2, Unlink } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { describeError, isCancellation } from "@/api/errors";
 import type { components } from "@/api/generated/schema";
 import {
@@ -16,6 +16,7 @@ import { runWithSudo } from "@/api/sudo";
 import { sudoReason } from "@/api/sudo-reasons";
 import { loadDocument } from "@/app/load-document";
 import { withInlineReport } from "@/app/query-client";
+import { usePageRestore } from "@/app/use-page-restore";
 import { Button } from "@/components/custom/Button";
 import { ConfirmDialog } from "@/components/custom/ConfirmDialog";
 import { EntityAvatar } from "@/components/custom/EntityAvatar";
@@ -63,15 +64,8 @@ export function IdentitiesPanel() {
     (identities.data ?? []).map((identity) => identity.providerSlug),
   );
 
-  // A press leaves the page and stays pending until it is gone; the browser
-  // can show this page again from the back-forward cache with the state kept.
-  useEffect(() => {
-    const restore = (event: PageTransitionEvent) => {
-      if (event.persisted) setLinking(null);
-    };
-    window.addEventListener("pageshow", restore);
-    return () => window.removeEventListener("pageshow", restore);
-  }, []);
+  // A press leaves the page and stays pending until it is gone or restored.
+  usePageRestore(() => setLinking(null));
 
   const startLink = (slug: string) => {
     setError(null);

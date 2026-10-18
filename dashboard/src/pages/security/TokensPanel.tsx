@@ -30,6 +30,7 @@ import { ChoiceTile } from "@/components/custom/ChoiceTile";
 import { ConfirmDialog } from "@/components/custom/ConfirmDialog";
 import { FormMessages } from "@/components/custom/FormMessages";
 import { ItemList, ItemListRow } from "@/components/custom/ItemList";
+import { RelativeTime } from "@/components/custom/RelativeTime";
 import { SecretRevealDialog } from "@/components/custom/SecretReveal";
 import { Section } from "@/components/custom/Section";
 import { accessTokenCopy } from "@/components/custom/secret-reveal-copy";
@@ -244,6 +245,15 @@ export function TokensPanel() {
                     {token.tokenHint}
                   </span>,
                   <TokenAccessSummary key="access" token={token} />,
+                  token.lastUsedAt === undefined ? (
+                    <Trans key="used" id="security.tokens.never_used">
+                      Not used yet
+                    </Trans>
+                  ) : (
+                    <Trans key="used" id="security.tokens.detail.lastUsed">
+                      Last used <RelativeTime value={token.lastUsedAt} />
+                    </Trans>
+                  ),
                 ]}
                 actions={
                   <Button
@@ -421,6 +431,7 @@ function CreateTokenForm({
 }) {
   const { t, i18n } = useLingui();
   const levelId = useId();
+  const errorId = useId();
   // The request the sudo confirmation is about. It outlives the dialog's
   // closing so the dialog does not change while it fades out.
   const [request, setRequest] = useState<CreateTokenInput | null>(null);
@@ -525,7 +536,7 @@ function CreateTokenForm({
         return (
           // biome-ignore lint/a11y/noStaticElementInteractions: only stops the radio group's arrow keys from reaching the checkboxes.
           <div
-            className="ms-7 rounded-lg border bg-muted/48 p-3"
+            className="ms-7 rounded-xl bg-muted/60 p-3 ring-1 ring-border/60"
             onKeyDown={(event) => {
               if (event.key.startsWith("Arrow")) event.stopPropagation();
             }}
@@ -538,6 +549,7 @@ function CreateTokenForm({
               value={field.state.value}
               disabled={busy}
               onValueChange={(next) => field.handleChange(next)}
+              aria-describedby={invalid ? errorId : undefined}
               className="gap-2"
             >
               {/* About eight rows show before the list scrolls in place. */}
@@ -553,7 +565,10 @@ function CreateTokenForm({
                 ))}
               </div>
               {invalid && (
-                <div className="text-destructive-foreground text-xs">
+                <div
+                  id={errorId}
+                  className="text-destructive-foreground text-xs"
+                >
                   <FormMessages errors={errors} />
                 </div>
               )}
@@ -694,6 +709,7 @@ function CreateTokenForm({
             <Trans id="security.cancel">Cancel</Trans>
           </Button>
           <form.SubmitButton
+            fullWidth
             tone={access === "sudo" ? "destructive" : "default"}
           >
             <Trans id="security.tokens.create.action">Create token</Trans>

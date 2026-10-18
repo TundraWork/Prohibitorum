@@ -3947,6 +3947,11 @@ msgid "admin.users.column.lastSignIn"
 msgstr "最近登录"
 
 #. js-lingui-explicit-id
+#: src/pages/security/TokensPanel.tsx
+msgid "security.tokens.detail.lastUsed"
+msgstr "<0/>使用过"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.passkeys.detail.lastUsed"
 msgstr "<0/>使用过"
@@ -4715,6 +4720,11 @@ msgstr "未使用——ID 令牌已被跳过"
 #. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
 msgid "security.passkeys.never_used"
+msgstr "尚未使用"
+
+#. js-lingui-explicit-id
+#: src/pages/security/TokensPanel.tsx
+msgid "security.tokens.never_used"
 msgstr "尚未使用"
 
 #. js-lingui-explicit-id
