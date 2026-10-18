@@ -70,7 +70,10 @@ describe("ProviderGrid", () => {
     setup(make(4));
     const buttons = screen.getAllByRole("button");
     expect(buttons).toHaveLength(4);
-    expect(buttons[0]?.parentElement).toHaveClass("grid", "grid-cols-2");
+    expect(buttons[0]?.parentElement).toHaveAttribute(
+      "data-slot",
+      "provider-grid",
+    );
     for (const name of names.slice(0, 4)) {
       expect(
         screen.getByRole("button", { name: `Continue with ${name}` }),

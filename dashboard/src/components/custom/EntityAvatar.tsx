@@ -35,6 +35,7 @@ export function EntityAvatar({
   size = "md",
   shape = "tile",
   className,
+  fallbackClassName,
 }: {
   iconUrl?: string | undefined;
   /** Source of the placeholder letters when there is no icon. */
@@ -46,6 +47,8 @@ export function EntityAvatar({
   shape?: "tile" | "round";
   /** Overrides the size where a call site needs a step the scale lacks. */
   className?: string;
+  /** Extra classes for the placeholder tile. */
+  fallbackClassName?: string;
 }) {
   const initials = name === undefined ? "" : initialsOf(name);
   const rounding = shape === "round" ? "rounded-full" : "rounded-lg";
@@ -54,7 +57,7 @@ export function EntityAvatar({
       {iconUrl !== undefined && iconUrl !== "" && (
         <AvatarImage src={iconUrl} alt="" />
       )}
-      <AvatarFallback className={rounding}>
+      <AvatarFallback className={cn(rounding, fallbackClassName)}>
         {fallback ??
           (initials === "" ? (
             <AppWindow className="size-4" aria-hidden="true" />

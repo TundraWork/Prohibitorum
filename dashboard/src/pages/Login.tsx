@@ -469,6 +469,7 @@ function FactorForm({
           {(field) =>
             mode === "totp" ? (
               <OtpField
+                size="lg"
                 digits={config.totp.digits}
                 label={<Trans id="login.totp.code">Authenticator code</Trans>}
                 description={
@@ -480,6 +481,8 @@ function FactorForm({
               />
             ) : (
               <field.FormField
+                size="lg"
+                isMonospace
                 label={<Trans id="login.recovery.code">Recovery code</Trans>}
                 inputMode="text"
                 autoComplete="off"
@@ -540,6 +543,7 @@ function FactorForm({
                 >
                   {() => (
                     <OtpField
+                      size="lg"
                       digits={config.totp.digits}
                       label={
                         <Trans id="login.reset.code">
@@ -554,7 +558,7 @@ function FactorForm({
           </>
         )}
         <div className="flex flex-col gap-2 [&_button]:h-auto [&_button]:min-h-10 [&_button]:whitespace-normal [&_button]:py-2 md:[&_button]:min-h-9">
-          <form.SubmitButton fullWidth>
+          <form.SubmitButton fullWidth size="lg">
             <Trans id="login.verify">Sign in</Trans>
           </form.SubmitButton>
           {mode === "totp" && onSwitch && (
@@ -563,6 +567,7 @@ function FactorForm({
               disabled={control.busy}
               onClick={onSwitch}
               variant="ghost"
+              size="lg"
               className="w-full"
             >
               <Trans id="login.use_recovery">Use a recovery code</Trans>

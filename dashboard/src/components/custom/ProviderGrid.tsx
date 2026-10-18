@@ -113,7 +113,10 @@ export function ProviderGrid({
   );
 
   return (
-    <div className="grid grid-cols-2 gap-2">
+    <div
+      data-slot="provider-grid"
+      className="grid grid-cols-1 min-[420px]:grid-cols-2 gap-2"
+    >
       {shown.map((provider) => {
         const name = provider.displayName;
         return (
@@ -129,7 +132,9 @@ export function ProviderGrid({
             })}
           >
             {tile(provider)}
-            <span className="truncate">{name}</span>
+            <span className="truncate" title={name}>
+              {name}
+            </span>
           </Button>
         );
       })}
@@ -191,7 +196,9 @@ export function ProviderGrid({
                 className="w-full justify-start"
               >
                 {tile(provider)}
-                <span className="truncate">{provider.displayName}</span>
+                <span className="truncate" title={provider.displayName}>
+                  {provider.displayName}
+                </span>
               </Button>
             ))}
           </PopoverPopup>

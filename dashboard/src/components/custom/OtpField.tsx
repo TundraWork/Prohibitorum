@@ -30,6 +30,7 @@ export function OtpField({
   isDisabled = false,
   pattern = digitsOnly,
   inputMode = "numeric",
+  size,
 }: {
   label: ReactNode;
   description?: ReactNode;
@@ -44,6 +45,7 @@ export function OtpField({
   pattern?: string;
   /** Soft-keyboard hint; keep it in step with `pattern`. */
   inputMode?: "numeric" | "text";
+  size?: "default" | "lg";
 }) {
   const { t } = useLingui();
   const length = Math.max(1, Math.trunc(digits));
@@ -78,6 +80,7 @@ export function OtpField({
       <FieldLabel>{label}</FieldLabel>
       <OTPField
         length={count}
+        size={size}
         value={field.state.value}
         onValueChange={onChange}
         validationType="none"

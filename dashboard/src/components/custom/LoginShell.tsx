@@ -160,10 +160,16 @@ export function LoginShell({
               </Trans>
             </SurfaceAlert.Title>
             <SurfaceAlert.Description>
-              <Trans id="login.enroll_instruction">
-                Ask the operator to run <code>prohibitorum enroll-admin</code>{" "}
-                on the server before signing in.
-              </Trans>
+              <p>
+                {" "}
+                <Trans id="login.enroll_instruction">
+                  Ask the operator to run{" "}
+                  <code className="rounded bg-muted px-1 font-mono text-[0.9em]">
+                    prohibitorum enroll-admin
+                  </code>{" "}
+                  on the server before signing in.
+                </Trans>
+              </p>
             </SurfaceAlert.Description>
           </SurfaceAlert.Content>
         </SurfaceAlert>

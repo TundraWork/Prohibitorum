@@ -24,7 +24,8 @@ export function AppStrip({
       <EntityAvatar
         iconUrl={iconUrl}
         name={name}
-        className="size-10 rounded-xl text-base"
+        className="size-10 rounded-xl bg-background text-base shadow-xs/5 ring-1 ring-black/8 dark:ring-white/10"
+        fallbackClassName="bg-background"
       />
       <div className="min-w-0 leading-tight">
         <div className="text-muted-foreground text-xs">{lead}</div>
