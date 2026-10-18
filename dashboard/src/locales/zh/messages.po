@@ -13,6 +13,11 @@ msgstr ""
 "Plural-Forms: \n"
 
 #. js-lingui-explicit-id
+#: src/pages/public/Consent.tsx
+msgid "consent.count_separator"
+msgstr "，"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminInvitations.tsx
 msgid "admin.invitations.groups.missing"
 msgstr "（部分用户组已不存在）"

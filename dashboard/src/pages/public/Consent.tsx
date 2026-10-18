@@ -85,6 +85,9 @@ export function ConsentPage() {
         incremental ? (
           <>
             <Trans id="consent.new_for">New for {app}</Trans>
+            <span className="sr-only">
+              <Trans id="consent.count_separator">,</Trans>
+            </span>{" "}
             <Badge variant="info">{asked.length}</Badge>
           </>
         ) : (
@@ -104,6 +107,9 @@ export function ConsentPage() {
                 className="size-4 transition-transform"
               />
               <Trans id="consent.already_allowed">Already allowed</Trans>
+              <span className="sr-only">
+                <Trans id="consent.count_separator">,</Trans>
+              </span>{" "}
               <Badge variant="outline">{granted.length}</Badge>
             </CollapsibleTrigger>
             <CollapsiblePanel>

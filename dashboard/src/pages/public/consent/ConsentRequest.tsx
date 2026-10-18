@@ -113,7 +113,7 @@ export function ConsentRequest({
           {account.avatarUrl && <AvatarImage src={account.avatarUrl} alt="" />}
           <AvatarFallback>{displayName.slice(0, 1)}</AvatarFallback>
         </Avatar>
-        <p className="min-w-0 wrap-anywhere">
+        <p className="min-w-0 break-keep wrap-anywhere">
           <Trans id="consent.account">
             Signed in as <b className="font-medium">{displayName}</b>
           </Trans>

@@ -40,9 +40,19 @@ export function ScopeRows({
             {row.icon}
           </span>
           <div className={cn("min-w-0", !row.detail && "self-center")}>
-            <div className="font-medium text-sm wrap-anywhere">{row.title}</div>
+            <div
+              data-slot="scope-row-title"
+              className="font-medium text-sm wrap-anywhere"
+            >
+              {row.title}
+            </div>
             {row.detail && (
-              <div className="text-muted-foreground text-xs">{row.detail}</div>
+              <div
+                data-slot="scope-row-detail"
+                className="text-muted-foreground text-xs"
+              >
+                {row.detail}
+              </div>
             )}
           </div>
         </li>

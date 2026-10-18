@@ -56,7 +56,10 @@ function consentApi(body: ConsentRequest = request()) {
 function rowTitles(list: HTMLElement) {
   return within(list)
     .getAllByRole("listitem")
-    .map((item) => item.querySelector(".font-medium")?.textContent);
+    .map(
+      (item) =>
+        item.querySelector('[data-slot="scope-row-title"]')?.textContent,
+    );
 }
 
 function factNames() {
@@ -161,12 +164,11 @@ describe("OIDC consent", () => {
         name: "Wiki is asking for more access",
       }),
     ).toBeVisible();
-    const label = screen.getByText("New for Wiki");
-    expect(label).toHaveTextContent("New for Wiki2");
+    expect(screen.getByRole("list", { name: "New for Wiki, 2" })).toBeVisible();
     expect(
       rowTitles(screen.getByRole("list", { name: /New for Wiki/ })),
     ).toEqual(["Your groups", "wiki:write"]);
-    const trigger = screen.getByRole("button", { name: /Already allowed/ });
+    const trigger = screen.getByRole("button", { name: "Already allowed, 3" });
     expect(trigger).toHaveAttribute("aria-expanded", "false");
     expect(trigger).toHaveTextContent("3");
     await user.click(trigger);
@@ -216,6 +218,7 @@ describe("OIDC consent", () => {
     const user = userEvent.setup();
     renderApp(address, queryClient);
     await screen.findByRole("heading", { name: /^Allow Wiki/ });
+    expect(inStageFooter("Deny")).toBeEnabled();
     await user.click(inStageFooter("Allow"));
     await waitFor(() =>
       expect(api.sent("POST", "/api/prohibitorum/consent")).toHaveLength(1),
