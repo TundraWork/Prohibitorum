@@ -52,7 +52,7 @@ import type { LoginFailure } from "@/components/custom/LoginShell";
 import { LoginShell, useLoginContext } from "@/components/custom/LoginShell";
 import { OrSeparator } from "@/components/custom/OrSeparator";
 import { OtpField } from "@/components/custom/OtpField";
-import { ProviderButtons } from "@/components/custom/ProviderButtons";
+import { ProviderGrid } from "@/components/custom/ProviderGrid";
 import { RecoveryCodes } from "@/components/custom/RecoveryCodes";
 import { RememberCheckbox } from "@/components/custom/RememberCheckbox";
 import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
@@ -729,9 +729,9 @@ function OtherSignIns({
             <Trans id="login.other_device">Sign in with another device</Trans>
           </Button>
         )}
-        <ProviderButtons
+        <ProviderGrid
           providers={signInProviders}
-          isDisabled={busy}
+          disabled={busy}
           onLeavingChange={onLeavingChange}
           href={(provider) => {
             const address = `/api/prohibitorum/auth/federation/${encodeURIComponent(provider.slug)}/login`;

@@ -1896,7 +1896,7 @@ msgid "saml_consent.title"
 msgstr "Continue to {sp}?"
 
 #. js-lingui-explicit-id
-#: src/components/custom/ProviderButtons.tsx
+#: src/components/custom/ProviderGrid.tsx
 msgid "federation.continue_with"
 msgstr "Continue with {name}"
 
@@ -3302,6 +3302,11 @@ msgid "admin.logs.filter"
 msgstr "Filter"
 
 #. js-lingui-explicit-id
+#: src/components/custom/ProviderGrid.tsx
+msgid "federation.find_provider"
+msgstr "Find a provider"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/EndpointsField.tsx
 msgid "admin.federation.connection.mode.manual.hint"
 msgstr "For a provider that does not publish discovery."
@@ -4201,6 +4206,11 @@ msgid "settings.sign-in.gradient.mist"
 msgstr "Mist"
 
 #. js-lingui-explicit-id
+#: src/components/custom/ProviderGrid.tsx
+msgid "federation.more_providers"
+msgstr "More providers"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AttributeMapField.tsx
 msgid "admin.saml-apps.mapping.multi.column"
 msgstr "Multi"
@@ -4508,6 +4518,11 @@ msgstr "No passkeys yet"
 #: src/pages/profile/AvatarPanel.tsx
 msgid "profile.avatar.source.none"
 msgstr "No picture"
+
+#. js-lingui-explicit-id
+#: src/components/custom/ProviderGrid.tsx
+msgid "federation.no_provider_match"
+msgstr "No provider matches"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/AdminIdentityProviders.tsx

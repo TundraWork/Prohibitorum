@@ -21,7 +21,7 @@ import { Button } from "@/components/custom/Button";
 import { ReadOnlyField } from "@/components/custom/FormFields";
 import { useInstanceBranding } from "@/components/custom/instance-branding";
 import { OrSeparator } from "@/components/custom/OrSeparator";
-import { ProviderButtons } from "@/components/custom/ProviderButtons";
+import { ProviderGrid } from "@/components/custom/ProviderGrid";
 import { PublicStep } from "@/components/custom/PublicStep";
 import { applyServerError, type ServerFieldMap } from "@/forms/server-errors";
 import { useAppForm } from "@/forms/use-app-form";
@@ -282,7 +282,7 @@ export function EnrollPage() {
                       </Button>
                     </>
                   ) : boundProvider ? (
-                    <ProviderButtons
+                    <ProviderGrid
                       providers={[boundProvider]}
                       href={(provider) =>
                         enrollmentAddress(token, provider.slug)
@@ -321,12 +321,12 @@ export function EnrollPage() {
                       {preview.providers.length > 0 && (
                         <>
                           <OrSeparator />
-                          <ProviderButtons
+                          <ProviderGrid
                             providers={preview.providers}
                             href={(provider) =>
                               enrollmentAddress(token, provider.slug)
                             }
-                            isDisabled={passkeyPending}
+                            disabled={passkeyPending}
                             onLeavingChange={setFederating}
                           />
                         </>

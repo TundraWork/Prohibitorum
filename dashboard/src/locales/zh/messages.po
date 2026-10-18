@@ -1896,7 +1896,7 @@ msgid "saml_consent.title"
 msgstr "继续登录 {sp}？"
 
 #. js-lingui-explicit-id
-#: src/components/custom/ProviderButtons.tsx
+#: src/components/custom/ProviderGrid.tsx
 msgid "federation.continue_with"
 msgstr "使用 {name} 继续"
 
@@ -3302,6 +3302,11 @@ msgid "admin.logs.filter"
 msgstr "筛选"
 
 #. js-lingui-explicit-id
+#: src/components/custom/ProviderGrid.tsx
+msgid "federation.find_provider"
+msgstr "查找提供商"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/EndpointsField.tsx
 msgid "admin.federation.connection.mode.manual.hint"
 msgstr "提供商不支持发现时使用。"
@@ -4201,6 +4206,11 @@ msgid "settings.sign-in.gradient.mist"
 msgstr "薄雾"
 
 #. js-lingui-explicit-id
+#: src/components/custom/ProviderGrid.tsx
+msgid "federation.more_providers"
+msgstr "更多提供商"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AttributeMapField.tsx
 msgid "admin.saml-apps.mapping.multi.column"
 msgstr "多值"
@@ -4508,6 +4518,11 @@ msgstr "还没有通行密钥"
 #: src/pages/profile/AvatarPanel.tsx
 msgid "profile.avatar.source.none"
 msgstr "不显示头像"
+
+#. js-lingui-explicit-id
+#: src/components/custom/ProviderGrid.tsx
+msgid "federation.no_provider_match"
+msgstr "没有匹配的提供商"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/AdminIdentityProviders.tsx
