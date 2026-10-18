@@ -28,6 +28,21 @@ describe("ItemList", () => {
     expect(screen.queryByText("Nothing here")).not.toBeInTheDocument();
   });
 
+  it("renders its rows in one divided panel, and its details as secondary text", () => {
+    const { container } = render(
+      <ItemList label="Passkeys" empty={null}>
+        <ItemListRow key="a" title="Laptop" details={["Added today"]} />
+      </ItemList>,
+    );
+
+    const panels = container.querySelectorAll("[data-slot='frame-panel']");
+    expect(panels).toHaveLength(1);
+    expect(panels[0]).toContainElement(screen.getByRole("list"));
+    expect(
+      screen.getByText("Added today").closest("[data-slot='item-details']"),
+    ).not.toBeNull();
+  });
+
   it("shows the empty state instead of a list when there are no rows", () => {
     render(<ItemList label="Passkeys" empty={<p>Nothing here</p>} />);
 
@@ -79,8 +94,8 @@ describe("ItemList", () => {
       </ItemList>,
     );
 
-    expect(screen.getByText("Kept")).toHaveClass("text-muted");
-    expect(screen.getByText("Active")).toHaveClass("text-foreground");
+    expect(screen.getByText("Kept")).toHaveAttribute("data-dimmed", "true");
+    expect(screen.getByText("Active")).not.toHaveAttribute("data-dimmed");
     // Nothing in the row is faded by opacity, the action included.
     expect(document.querySelector("[class*='opacity-']")).toBeNull();
   });

@@ -10,8 +10,8 @@ import {
 } from "@/api/mutations";
 import { Button } from "@/components/custom/Button";
 import { ConfirmDialog } from "@/components/custom/ConfirmDialog";
+import { DangerZoneFrame } from "@/components/custom/DangerZone";
 import { ItemList, ItemListRow } from "@/components/custom/ItemList";
-import { Section } from "@/components/custom/Section";
 import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
 
 type SamlApp = components["schemas"]["SAMLApplicationView"];
@@ -46,7 +46,9 @@ export function SamlDangerSection({ app }: { app: SamlApp }) {
 
   return (
     <>
-      <Section title={<Trans id="admin.saml-apps.danger">Danger zone</Trans>}>
+      <DangerZoneFrame
+        title={<Trans id="admin.saml-apps.danger">Danger zone</Trans>}
+      >
         <ItemList
           label={t({
             id: "admin.saml-apps.danger",
@@ -145,7 +147,7 @@ export function SamlDangerSection({ app }: { app: SamlApp }) {
             }
           />
         </ItemList>
-      </Section>
+      </DangerZoneFrame>
 
       <ConfirmDialog
         isOpen={confirming === "disable"}

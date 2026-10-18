@@ -13,9 +13,9 @@ import {
 } from "@/api/mutations";
 import { Button } from "@/components/custom/Button";
 import { ConfirmDialog } from "@/components/custom/ConfirmDialog";
+import { DangerZoneFrame } from "@/components/custom/DangerZone";
 import { ItemList, ItemListRow } from "@/components/custom/ItemList";
 import { SecretReveal } from "@/components/custom/SecretReveal";
-import { Section } from "@/components/custom/Section";
 import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
 import { clientSecretCopy } from "@/pages/admin/oidc-applications/secret-copy";
 
@@ -60,7 +60,9 @@ export function DangerSection({ app }: { app: OidcApp }) {
   const failure = rotate.error ?? remove.error ?? setDisabled.error;
 
   return (
-    <Section title={<Trans id="admin.oidc-apps.danger">Danger zone</Trans>}>
+    <DangerZoneFrame
+      title={<Trans id="admin.oidc-apps.danger">Danger zone</Trans>}
+    >
       <ItemList
         label={t({ id: "admin.oidc-apps.danger", message: "Danger zone" })}
         empty={null}
@@ -310,6 +312,6 @@ export function DangerSection({ app }: { app: OidcApp }) {
           </Modal.Backdrop>
         </Modal>
       )}
-    </Section>
+    </DangerZoneFrame>
   );
 }

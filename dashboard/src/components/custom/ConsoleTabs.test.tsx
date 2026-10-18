@@ -49,6 +49,39 @@ function mount(read: () => Promise<string>) {
 }
 
 describe("ConsoleTabs", () => {
+  it("reports the chosen tab and marks only it selected", async () => {
+    const onSelectionChange = vi.fn();
+    const queryClient = new QueryClient();
+    render(
+      <I18nProvider i18n={i18n}>
+        <QueryClientProvider client={queryClient}>
+          <ConsoleTabs
+            label="Sections"
+            selected="first"
+            onSelectionChange={onSelectionChange}
+            tabs={[
+              { id: "first", title: "First", panel: () => <p>First panel</p> },
+              { id: "second", title: "Second", panel: () => <p>Second</p> },
+            ]}
+          />
+        </QueryClientProvider>
+      </I18nProvider>,
+    );
+    const user = userEvent.setup();
+
+    expect(screen.getByRole("tab", { name: "First" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    await user.click(screen.getByRole("tab", { name: "Second" }));
+    expect(onSelectionChange).toHaveBeenCalledWith("second");
+    // The page owns the URL: the strip is controlled and does not move alone.
+    expect(screen.getByRole("tab", { name: "Second" })).toHaveAttribute(
+      "aria-selected",
+      "false",
+    );
+  });
+
   it("waits for a panel's data inside the panel, with the tabs still on screen", async () => {
     let resolve: (value: string) => void = () => undefined;
     mount(() => new Promise<string>((done) => (resolve = done)));

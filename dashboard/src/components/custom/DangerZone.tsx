@@ -1,7 +1,8 @@
-import { Description, Label, Tooltip, useOverlayState } from "@heroui/react";
+import { Description, Tooltip, useOverlayState } from "@heroui/react";
 import type { ReactNode } from "react";
 import { Button } from "@/components/custom/Button";
 import { ConfirmDialog } from "@/components/custom/ConfirmDialog";
+import { Section } from "@/components/custom/Section";
 
 /**
  * One irreversible action on the console, with its confirmation and its
@@ -99,9 +100,22 @@ export function DangerZone({
   );
 }
 
-/** A heading for a block of dangerous actions; the label is the block's title. */
-export function DangerZoneTitle({ children }: { children: ReactNode }) {
+/**
+ * A block of dangerous actions as a destructive-tinted frame: each row is a
+ * title, its consequence and its action, on one panel.
+ *
+ * Rows are an `ItemList` of `ItemListRow`s, so the frame's panel is the list's.
+ */
+export function DangerZoneFrame({
+  title,
+  children,
+}: {
+  title: ReactNode;
+  children: ReactNode;
+}) {
   return (
-    <Label className="text-sm font-medium text-foreground">{children}</Label>
+    <Section title={title} tone="danger">
+      {children}
+    </Section>
   );
 }

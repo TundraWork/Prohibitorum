@@ -13,8 +13,8 @@ import {
 import { appAccessQueryOptions } from "@/api/queries";
 import { Button } from "@/components/custom/Button";
 import { ConfirmDialog } from "@/components/custom/ConfirmDialog";
+import { DangerZoneFrame } from "@/components/custom/DangerZone";
 import { ItemList, ItemListRow } from "@/components/custom/ItemList";
-import { Section } from "@/components/custom/Section";
 
 type ForwardAuthApp = components["schemas"]["ForwardAuthAppView"];
 
@@ -63,7 +63,7 @@ export function ForwardAuthDangerSection({ app }: { app: ForwardAuthApp }) {
   const confirmingEnable = confirming === "enable";
 
   return (
-    <Section
+    <DangerZoneFrame
       title={<Trans id="admin.forward-auth-apps.danger">Danger zone</Trans>}
     >
       <ItemList
@@ -241,6 +241,6 @@ export function ForwardAuthDangerSection({ app }: { app: ForwardAuthApp }) {
           });
         }}
       />
-    </Section>
+    </DangerZoneFrame>
   );
 }

@@ -1,60 +1,143 @@
-import { Card, Skeleton } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { QueryErrorResetBoundary } from "@tanstack/react-query";
 import { CatchBoundary } from "@tanstack/react-router";
-import { type ReactNode, Suspense } from "react";
+import {
+  createContext,
+  type ReactNode,
+  Suspense,
+  useCallback,
+  useContext,
+  useLayoutEffect,
+  useState,
+} from "react";
 import { describeError } from "@/api/errors";
 import { Button } from "@/components/custom/Button";
 import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
+import {
+  Frame,
+  FrameDescription,
+  FrameFooter,
+  FrameHeader,
+  FramePanel,
+  FrameTitle,
+} from "@/components/ui/frame";
+import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
+
+const slugOf = (title: ReactNode): string | undefined =>
+  typeof title === "string"
+    ? title
+        .toLowerCase()
+        .replace(/[^\p{L}\p{N}]+/gu, "-")
+        .replace(/^-+|-+$/g, "") || undefined
+    : undefined;
 
 /**
- * One titled block on a console page: the heading, whatever the heading row
- * carries on its trailing edge, and the block.
+ * Lets a panel inside a `Section` say it is the section's panel. Absent
+ * outside a section, where the same components draw their own frame.
+ */
+const SectionFrameContext = createContext<(() => () => void) | null>(null);
+
+/**
+ * Whether the caller sits in a `Section`, registering it as a panel there.
  *
- * The heading is drawn here rather than by a `Card`s own header for two
- * reasons. `Card.Title` renders an `h3` and takes no prop to change that, so a
- * card-owned heading would put the page's sections a level below the `h1` the
- * console header supplies. And the heading row carries an action, which
- * `Card.Header` — a plain `flex flex-col` — has no slot for.
+ * A `ConsoleCard` or `ItemList` that reads `true` renders a bare `FramePanel`
+ * and the section supplies the frame around it.
+ */
+export function useSectionPanel(): boolean {
+  const register = useContext(SectionFrameContext);
+  useLayoutEffect(() => register?.(), [register]);
+  return register !== null;
+}
+
+/**
+ * One titled block on a console page, drawn as a coss `Frame`: a muted band
+ * carrying the title, an optional description and the block's primary action,
+ * the content on a white panel, and an optional footer band.
  *
- * The heading sits on the page background, outside the card: a section that has
- * both a heading row and a list is one block, and giving it two surfaces would
- * make the list read as nested inside a second container.
+ * The title is an `h2`, a level under the console header's `h1`. A
+ * `ConsoleCard` or `ItemList` in the content is the panel itself; anything else
+ * is put on one panel here, so a section never holds a card inside a card.
  */
 export function Section({
   id,
   title,
+  description,
   action,
+  footer,
+  tone = "default",
+  dirty = false,
   children,
 }: {
-  /** An anchor, for a link elsewhere on the page that points at the block. */
+  /** Anchor for a link to the block; defaults to a slug of a text `title`. */
   id?: string;
   title: ReactNode;
-  /**
-   * The block's primary action, on the trailing edge of the heading row. Most
-   * sections have one; a section that is purely a list has none.
-   */
+  description?: ReactNode;
+  /** The block's primary action, on the trailing edge of the header. */
   action?: ReactNode;
+  /** Rendered on the muted band under the panel. */
+  footer?: ReactNode;
+  /** `danger` tints the frame for destructive actions. */
+  tone?: "default" | "danger";
+  /** Marks unsaved edits to the section; the section draws nothing for it. */
+  dirty?: boolean;
   children: ReactNode;
 }) {
+  const [panels, setPanels] = useState(0);
+  const register = useCallback(() => {
+    setPanels((count) => count + 1);
+    return () => setPanels((count) => count - 1);
+  }, []);
+  const ownPanel = panels === 0;
+
   return (
-    <section
-      id={id}
-      // Clear of the sticky console header when a link scrolls here.
-      className="flex scroll-mt-[calc(var(--app-sticky-offset)+5rem)] flex-col gap-3"
-    >
-      {/* The row is a button's height so a heading with an action and one
-          without line up across sections: left to the text, the row would be
-          half the height and its heading would sit higher than its
-          neighbours'. */}
-      <div className="flex min-h-9 items-center justify-between gap-4">
-        <h2 className="text-[0.9375rem] font-semibold tracking-[-0.005em] text-foreground">
-          {title}
-        </h2>
-        {action}
-      </div>
-      {children}
-    </section>
+    <SectionFrameContext.Provider value={register}>
+      <section
+        id={id ?? slugOf(title)}
+        data-dirty={dirty ? "true" : undefined}
+        // Clear of the sticky console header when a link scrolls here.
+        className="scroll-mt-[calc(var(--app-sticky-offset)+5rem)]"
+      >
+        <Frame
+          data-tone={tone === "danger" ? "danger" : undefined}
+          className={tone === "danger" ? "bg-destructive/6" : undefined}
+        >
+          <FrameHeader className="min-h-9 flex-row items-center justify-between gap-4">
+            <div className="flex min-w-0 flex-col gap-1">
+              <FrameTitle
+                className={
+                  tone === "danger" ? "text-destructive-foreground" : undefined
+                }
+              >
+                <h2>{title}</h2>
+              </FrameTitle>
+              {description !== undefined && (
+                <FrameDescription>{description}</FrameDescription>
+              )}
+            </div>
+            {action}
+          </FrameHeader>
+          {/* One element whether or not a child brought its own panel, so the
+              content keeps its state when the children register; its look
+              flips between a panel and a plain stack. */}
+          <FramePanel
+            data-slot={ownPanel ? "frame-panel" : "section-body"}
+            className={cn(
+              !ownPanel &&
+                "flex flex-col gap-1 border-0 bg-transparent p-0 shadow-none before:hidden",
+              ownPanel && "flex flex-col gap-3",
+            )}
+          >
+            {children}
+          </FramePanel>
+          {footer !== undefined && (
+            <FrameFooter className="text-muted-foreground text-sm">
+              {footer}
+            </FrameFooter>
+          )}
+        </Frame>
+      </section>
+    </SectionFrameContext.Provider>
   );
 }
 
@@ -94,8 +177,18 @@ export function AsyncSection({
   title?: ReactNode;
   children: ReactNode;
 }) {
-  const wrap = (content: ReactNode) =>
-    title === undefined ? content : <Section title={title}>{content}</Section>;
+  const pending =
+    title === undefined ? (
+      <Frame>
+        <FramePanel>
+          <SectionPending />
+        </FramePanel>
+      </Frame>
+    ) : (
+      <Section title={title}>
+        <SectionPending />
+      </Section>
+    );
 
   return (
     <QueryErrorResetBoundary>
@@ -113,7 +206,7 @@ export function AsyncSection({
             />
           )}
         >
-          <Suspense fallback={wrap(<SectionPending />)}>{children}</Suspense>
+          <Suspense fallback={pending}>{children}</Suspense>
         </CatchBoundary>
       )}
     </QueryErrorResetBoundary>
@@ -121,28 +214,18 @@ export function AsyncSection({
 }
 
 /**
- * The block's own shape while its read is in flight: a card the height of a
- * short one, drawn as the rows that are about to arrive rather than as a
- * spinner. The page then settles where the content will land instead of
- * collapsing to nothing and growing again, and the wait says what is coming.
+ * The block's own shape while its read is in flight: rows about to arrive
+ * rather than a spinner, so the page settles where the content will land.
  *
- * The lines are `aria-hidden` and unmounted from the accessibility tree by the
- * container: HeroUI's spinner carried a status role, but a set of placeholder
- * bars has nothing to announce. A reader waiting on a section hears the page
- * arrive when it does.
+ * The bars are `aria-hidden`: placeholders have nothing to announce.
  */
 function SectionPending() {
   return (
-    <Card className="gap-0 p-0">
-      <div
-        aria-hidden="true"
-        className="skeleton--shimmer relative flex flex-col gap-3 overflow-hidden p-4"
-      >
-        <Skeleton animationType="none" className="h-4 w-2/5" />
-        <Skeleton animationType="none" className="h-4 w-full" />
-        <Skeleton animationType="none" className="h-4 w-4/5" />
-      </div>
-    </Card>
+    <div aria-hidden="true" className="flex flex-col gap-3">
+      <Skeleton className="h-4 w-2/5" />
+      <Skeleton className="h-4 w-full" />
+      <Skeleton className="h-4 w-4/5" />
+    </div>
   );
 }
 

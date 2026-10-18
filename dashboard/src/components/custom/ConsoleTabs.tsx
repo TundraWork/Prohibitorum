@@ -1,6 +1,6 @@
-import { Tabs } from "@heroui/react";
 import type { ReactNode } from "react";
 import { AsyncSection } from "@/components/custom/Section";
+import { Tabs, TabsList, TabsPanel, TabsTab } from "@/components/ui/tabs";
 
 export interface ConsoleTab<T extends string> {
   id: T;
@@ -36,25 +36,22 @@ export function ConsoleTabs<T extends string>({
 }) {
   return (
     <Tabs
-      selectedKey={selected}
-      onSelectionChange={(key) => onSelectionChange(key as T)}
+      value={selected}
+      onValueChange={(value) => onSelectionChange(value as T)}
     >
-      <Tabs.ListContainer className="ml-2 w-fit max-w-full">
-        <Tabs.List aria-label={label}>
-          {tabs.map((tab) => (
-            <Tabs.Tab key={tab.id} className="whitespace-nowrap" id={tab.id}>
-              {tab.title}
-              <Tabs.Indicator />
-            </Tabs.Tab>
-          ))}
-        </Tabs.List>
-      </Tabs.ListContainer>
+      <TabsList variant="underline" aria-label={label} className="max-w-full">
+        {tabs.map((tab) => (
+          <TabsTab key={tab.id} value={tab.id}>
+            {tab.title}
+          </TabsTab>
+        ))}
+      </TabsList>
       {tabs.map((tab) => (
-        <Tabs.Panel key={tab.id} id={tab.id} className="pt-4">
+        <TabsPanel key={tab.id} value={tab.id} className="pt-2">
           {tab.id === selected && (
             <AsyncSection resetKey={tab.id}>{tab.panel()}</AsyncSection>
           )}
-        </Tabs.Panel>
+        </TabsPanel>
       ))}
     </Tabs>
   );

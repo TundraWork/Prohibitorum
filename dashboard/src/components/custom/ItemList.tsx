@@ -1,11 +1,13 @@
-import { Card } from "@heroui/react";
 import { ChevronRight } from "lucide-react";
 import { Children, type ReactNode } from "react";
 import { ListSkeleton } from "@/components/custom/ListSkeleton";
+import { useSectionPanel } from "@/components/custom/Section";
+import { Frame, FramePanel } from "@/components/ui/frame";
 
 /**
- * The console's list: one HeroUI `Card` holding a row per record, with a rule
- * between rows. It is for the short lists a reader goes through one record at
+ * The console's list: one panel holding a row per record, with a rule between
+ * rows. Under a `Section` it is the section's panel; alone it draws its own
+ * frame. It is for the short lists a reader goes through one record at
  * a time — an account's passkeys, sessions, tokens — where column headers
  * would only repeat what each value already says. A directory an admin scans
  * down a column stays a `DataTable`.
@@ -14,7 +16,7 @@ import { ListSkeleton } from "@/components/custom/ListSkeleton";
  * keeps its actions at the trailing edge. The row wraps its detail line rather
  * than scrolling, so the list reads the same at every width.
  *
- * While `loading` holds, the card stands in with a spinner; an empty list shows
+ * While `loading` holds, the panel stands in with skeleton rows; an empty list shows
  * `empty` in its place. `footer` sits under the last row, for an action over
  * the whole list.
  */
@@ -40,37 +42,32 @@ export function ItemList({
   children?: ReactNode;
 }) {
   const rows = Children.toArray(children);
-  return (
-    <Card className="gap-0 p-0">
+  const inSection = useSectionPanel();
+  const panel = (
+    <FramePanel className="divide-y overflow-hidden p-0">
       {title !== undefined && (
-        <Card.Header className="border-b border-separator px-4 py-3">
-          <Card.Title render={(props) => <h2 {...props} />}>{title}</Card.Title>
-        </Card.Header>
+        <div className="px-4 py-3">
+          <h2 className="font-semibold text-sm">{title}</h2>
+        </div>
       )}
       {loading && rows.length === 0 ? (
         <ListSkeleton />
       ) : rows.length === 0 ? (
         empty
       ) : (
-        <ul aria-label={label} className="flex flex-col">
+        <ul aria-label={label} className="flex flex-col divide-y">
           {rows.map((row, index) => (
-            <li
-              // `Children.toArray` has already keyed each row.
-              key={(row as { key?: string }).key ?? index}
-              className={index > 0 ? "border-t border-separator" : undefined}
-            >
-              {row}
-            </li>
+            // `Children.toArray` has already keyed each row.
+            <li key={(row as { key?: string }).key ?? index}>{row}</li>
           ))}
         </ul>
       )}
       {footer !== undefined && (
-        <div className="flex justify-center border-t border-separator p-3">
-          {footer}
-        </div>
+        <div className="flex justify-center p-3">{footer}</div>
       )}
-    </Card>
+    </FramePanel>
   );
+  return inSection ? panel : <Frame>{panel}</Frame>;
 }
 
 /**
@@ -126,7 +123,7 @@ export function ItemListRow({
   const body = (
     <>
       {icon !== undefined && (
-        <span className="grid size-9 shrink-0 place-items-center rounded-[0.375rem] bg-default text-muted">
+        <span className="grid size-9 shrink-0 place-items-center rounded-md bg-muted text-muted-foreground">
           {icon}
         </span>
       )}
@@ -135,7 +132,8 @@ export function ItemListRow({
       <div className="flex min-w-40 flex-1 flex-col gap-0.5">
         <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
           <span
-            className={`min-w-0 wrap-anywhere text-sm font-medium ${dimmed ? "text-muted" : "text-foreground"}`}
+            data-dimmed={dimmed ? "true" : undefined}
+            className="min-w-0 wrap-anywhere text-sm font-medium data-dimmed:text-muted-foreground"
           >
             {title}
           </span>
@@ -144,7 +142,10 @@ export function ItemListRow({
         {shown.length > 0 && (
           // On a narrow screen the details stack one to a line: a wrapped
           // line would start with a stray separator.
-          <p className="flex flex-wrap gap-x-1.5 text-xs text-muted max-sm:flex-col">
+          <p
+            data-slot="item-details"
+            className="flex flex-wrap gap-x-1.5 text-muted-foreground text-xs max-sm:flex-col"
+          >
             {shown.map((detail, index) => (
               // Details are positional and never reordered.
               // biome-ignore lint/suspicious/noArrayIndexKey: see above
@@ -173,7 +174,7 @@ export function ItemListRow({
         <ChevronRight
           size={16}
           aria-hidden="true"
-          className="shrink-0 text-muted"
+          className="shrink-0 text-muted-foreground"
         />
       )}
     </>
@@ -181,7 +182,7 @@ export function ItemListRow({
   const rowClass = "flex flex-wrap items-center gap-3 px-4 py-3";
   return link !== undefined ? (
     link({
-      className: `${rowClass} outline-none transition-colors hover:bg-default/40 focus-visible:bg-default/40`,
+      className: `${rowClass} outline-none transition-colors hover:bg-accent/50 focus-visible:bg-accent/50`,
       children: body,
     })
   ) : (

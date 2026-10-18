@@ -1,25 +1,22 @@
-import { Card } from "@heroui/react";
 import type { ReactNode } from "react";
+import { useSectionPanel } from "@/components/custom/Section";
+import {
+  Frame,
+  FrameHeader,
+  FramePanel,
+  FrameTitle,
+} from "@/components/ui/frame";
+import { cn } from "@/lib/utils";
 
 /**
- * The console's standard card: an optional heading naming the block, then the
- * block, capped at the console's content measure. Heading level and measure
- * live here rather than at each call site.
+ * The console's standard card, capped at the console's content measure.
  *
- * A card under a `Section` passes no title: the section above it names the
- * block on the page background, and a heading here would sit a level below the
- * section's while saying the same thing. A card that stands on its own — a
- * dialog's content, or a page whose block has no section — names itself.
+ * Under a `Section` it is the section's panel and takes no title: the section
+ * names the block. A titled card stands alone, as a frame with its own header,
+ * for a dialog's content or a page block that has no section.
  *
- * ## Why the measure is a choice and not a constant
- *
- * The default suits a form read top to bottom: one value per line, and a line
- * short enough to scan without moving the head. Two kinds of block do not fit
- * that shape and are worse for being held to it — one that lays a record out in
- * columns the eye compares down the page (a table's worth of small fields), and
- * one whose rows have to line up with each other. Both are `wide`, which hands
- * the block the whole column the lists beside it already take, so a page does
- * not show two content widths side by side.
+ * The measure is a choice: the default suits a form read line by line, and
+ * `wide` gives content laid out in columns the whole panel.
  */
 export function ConsoleCard({
   title,
@@ -29,32 +26,32 @@ export function ConsoleCard({
 }: {
   /** Omitted under a `Section`, which supplies the heading. */
   title?: ReactNode;
-  /**
-   * Let the block use the card's full measure instead of the reading column,
-   * for content laid out in columns rather than read as lines.
-   */
+  /** Let the content use the panel's full width instead of the reading column. */
   wide?: boolean;
   /** Layout classes for the content column, such as its gap. */
   contentClassName?: string;
   children: ReactNode;
 }) {
-  const measure = wide ? "max-w-none" : "max-w-lg";
-  const content = (
-    <Card.Content
-      className={contentClassName ? `${measure} ${contentClassName}` : measure}
-    >
-      {children}
-    </Card.Content>
+  const inSection = useSectionPanel();
+  const panel = (
+    <FramePanel>
+      <div className={cn(wide ? "max-w-none" : "max-w-lg", contentClassName)}>
+        {children}
+      </div>
+    </FramePanel>
   );
 
-  if (title === undefined) return <Card>{content}</Card>;
+  if (title === undefined && inSection) return panel;
+  if (title === undefined) return <Frame>{panel}</Frame>;
 
   return (
-    <Card>
-      <Card.Header>
-        <Card.Title render={(props) => <h2 {...props} />}>{title}</Card.Title>
-      </Card.Header>
-      {content}
-    </Card>
+    <Frame>
+      <FrameHeader>
+        <FrameTitle>
+          <h2>{title}</h2>
+        </FrameTitle>
+      </FrameHeader>
+      {panel}
+    </Frame>
   );
 }

@@ -14,8 +14,8 @@ import {
 } from "@/api/mutations";
 import { Button } from "@/components/custom/Button";
 import { ConfirmDialog } from "@/components/custom/ConfirmDialog";
+import { DangerZoneFrame } from "@/components/custom/DangerZone";
 import { ItemList, ItemListRow } from "@/components/custom/ItemList";
-import { Section } from "@/components/custom/Section";
 import { useAppForm } from "@/forms/use-app-form";
 
 type Provider = components["schemas"]["IdentityProviderView"];
@@ -90,7 +90,7 @@ export function ProviderDangerSection({ provider }: { provider: Provider }) {
   );
 
   return (
-    <Section
+    <DangerZoneFrame
       title={<Trans id="admin.federation.danger.title">Danger zone</Trans>}
     >
       <ItemList
@@ -338,7 +338,7 @@ export function ProviderDangerSection({ provider }: { provider: Provider }) {
           )
         }
       />
-    </Section>
+    </DangerZoneFrame>
   );
 }
 
