@@ -9,6 +9,7 @@ import { createOidcAppMutationOptions } from "@/api/mutations";
 import type { CreateOidcAppResponse } from "@/api/raw-admin-paths";
 import { ConsoleCard } from "@/components/custom/ConsoleCard";
 import { SecretRevealDialog } from "@/components/custom/SecretReveal";
+import { UriList, uriRowProblem } from "@/components/custom/UriList";
 import { applyServerError } from "@/forms/server-errors";
 import { useAppForm } from "@/forms/use-app-form";
 import { OidcScopesField } from "@/pages/admin/oidc-applications/OidcScopesField";
@@ -17,10 +18,6 @@ import {
   uriListProblem,
 } from "@/pages/admin/oidc-applications/oidc-validation";
 import { clientSecretCopy } from "@/pages/admin/oidc-applications/secret-copy";
-import {
-  UriListField,
-  uriRowProblem,
-} from "@/pages/admin/oidc-applications/UriListField";
 
 /**
  * The Client ID rule the server enforces, tightened by the console.
@@ -224,7 +221,7 @@ export function AdminOidcApplicationNew() {
 
             <form.AppField name="redirectUris">
               {() => (
-                <UriListField
+                <UriList
                   label={t({
                     id: "admin.oidc-apps.field.redirects",
                     message: "Redirect URIs",

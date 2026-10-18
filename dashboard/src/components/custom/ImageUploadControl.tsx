@@ -1,4 +1,3 @@
-import { Description } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Upload } from "lucide-react";
 import { type ReactNode, useRef, useState } from "react";
@@ -154,7 +153,7 @@ export function ImageUploadControl({
           </Button>
         )}
       </div>
-      <Description>{hint}</Description>
+      <p className="text-muted-foreground text-xs">{hint}</p>
 
       {rejected !== null && (
         <ImageRejectedAlert reason={rejected} maxBytes={maxBytes} />

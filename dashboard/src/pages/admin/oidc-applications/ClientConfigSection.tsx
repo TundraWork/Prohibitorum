@@ -11,6 +11,7 @@ import { ConfirmDialog } from "@/components/custom/ConfirmDialog";
 import { ConsoleCard } from "@/components/custom/ConsoleCard";
 import { CopyValue } from "@/components/custom/CopyValue";
 import { Section } from "@/components/custom/Section";
+import { UriList, uriRowProblem } from "@/components/custom/UriList";
 import { applyServerError } from "@/forms/server-errors";
 import { useAppForm } from "@/forms/use-app-form";
 import { OidcScopesField } from "@/pages/admin/oidc-applications/OidcScopesField";
@@ -19,10 +20,6 @@ import {
   scopeFormValue,
   uriListProblem,
 } from "@/pages/admin/oidc-applications/oidc-validation";
-import {
-  UriListField,
-  uriRowProblem,
-} from "@/pages/admin/oidc-applications/UriListField";
 
 type OidcApp = components["schemas"]["OIDCApplicationView"];
 
@@ -140,7 +137,7 @@ export function ClientConfigSection({ app }: { app: OidcApp }) {
 
             <form.AppField name="redirectUris">
               {() => (
-                <UriListField
+                <UriList
                   label={t({
                     id: "admin.oidc-apps.field.redirects",
                     message: "Redirect URIs",
@@ -161,7 +158,7 @@ export function ClientConfigSection({ app }: { app: OidcApp }) {
 
             <form.AppField name="postLogoutRedirectUris">
               {() => (
-                <UriListField
+                <UriList
                   label={t({
                     id: "admin.oidc-apps.field.post-logout",
                     message: "Post-logout redirect URIs",

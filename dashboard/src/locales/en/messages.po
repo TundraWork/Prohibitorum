@@ -114,7 +114,7 @@ msgid "admin.federation.diagnostics.stage.duration"
 msgstr "{duration} ms"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/UriListField.tsx
+#: src/components/custom/UriList.tsx
 msgid "admin.oidc-apps.uri.row"
 msgstr "{label} {row}"
 
@@ -2631,6 +2631,11 @@ msgstr "Disabling turns everyone away at the service provider. It can be undone.
 #. js-lingui-explicit-id
 #: src/pages/profile/AccountPanel.tsx
 msgid "profile.display-name.discard"
+msgstr "Discard"
+
+#. js-lingui-explicit-id
+#: src/components/custom/ConsequenceFooter.tsx
+msgid "consequence-footer.discard"
 msgstr "Discard"
 
 #. js-lingui-explicit-id

@@ -45,7 +45,7 @@ export function UnsavedBar(): React.ReactElement | null {
   return (
     <div
       role="status"
-      className="fixed bottom-6 left-1/2 z-20 flex -translate-x-1/2 items-center gap-2 rounded-xl bg-popover p-1.5 ps-3.5 text-popover-foreground text-sm shadow-lg/10 ring-1 ring-border"
+      className="fixed bottom-6 left-1/2 z-20 flex w-max max-w-[calc(100vw-2rem)] -translate-x-1/2 items-center gap-2 rounded-xl bg-popover p-1.5 ps-3.5 text-popover-foreground text-sm shadow-lg/10 ring-1 ring-border"
     >
       <span aria-hidden="true" className="size-1.5 rounded-full bg-warning" />
       <Trans id="unsaved-bar.message">Unsaved changes in {title}</Trans>

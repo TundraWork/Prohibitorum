@@ -1,10 +1,10 @@
-import { Input, Label, TextField } from "@heroui/react";
 import { msg } from "@lingui/core/macro";
 import { useLingui } from "@lingui/react/macro";
 import { useStore } from "@tanstack/react-form";
-import type { ReactNode } from "react";
+import { type ReactNode, useId } from "react";
 import { FormMessages } from "@/components/custom/FormMessages";
 import { RowsField, rowProblem } from "@/components/custom/RowsField";
+import { Input } from "@/components/ui/input";
 import { useFieldContext, useFormContext } from "@/forms/context";
 import { withoutServerErrors } from "@/forms/server-errors";
 import type { ListProblem } from "@/pages/admin/oidc-applications/oidc-validation";
@@ -33,7 +33,7 @@ export function uriRowProblem(problem: ListProblem) {
  * under the row so it never pushes the button out of line. The value is kept
  * exactly as typed and saved in the order shown.
  */
-export function UriListField({
+export function UriList({
   label,
   description,
   addLabel,
@@ -98,6 +98,7 @@ function UriRow({
   const field = useFieldContext<string[]>();
   const form = useFormContext();
   const submitting = useStore(form.store, (state) => state.isSubmitting);
+  const errorId = useId();
 
   const value = field.state.value[index];
   if (value === undefined) return null;
@@ -116,36 +117,35 @@ function UriRow({
     );
   };
 
+  const hasError = error !== undefined && error !== null;
+
   return (
     <div className="flex flex-col gap-1.5">
-      <div className="grid grid-cols-[minmax(0,1fr)_2rem] items-center gap-x-2">
-        <TextField
-          className="min-w-0"
+      <div className="flex items-center gap-2">
+        {/* Monospace: the address has to match the client's own copy
+            exactly, and a stray space or a look-alike letter has to show. */}
+        <Input
+          className="font-mono *:text-[13px]"
           value={value}
-          isDisabled={submitting}
-          isInvalid={isInvalid}
-          onChange={update}
-        >
-          <Label className="sr-only">
-            {i18n._({ ...rowLabelMessage, values: { label, row: index + 1 } })}
-          </Label>
-          {/* Monospace: the address has to match the client's own copy
-              exactly, and a stray space or a look-alike letter has to show. */}
-          <Input
-            className="font-mono"
-            inputMode="url"
-            autoComplete="off"
-            spellCheck={false}
-            placeholder={placeholder}
-            variant="secondary"
-          />
-        </TextField>
-        <div className="flex justify-end">{remove}</div>
+          disabled={submitting}
+          aria-label={i18n._({
+            ...rowLabelMessage,
+            values: { label, row: index + 1 },
+          })}
+          aria-invalid={isInvalid || undefined}
+          aria-describedby={hasError ? errorId : undefined}
+          inputMode="url"
+          autoComplete="off"
+          spellCheck={false}
+          placeholder={placeholder}
+          onChange={(event) => update(event.target.value)}
+        />
+        {remove}
       </div>
-      {error !== undefined && error !== null && (
-        <span className="text-sm text-danger">
+      {hasError && (
+        <p id={errorId} className="text-destructive-foreground text-xs">
           <FormMessages errors={[error]} />
-        </span>
+        </p>
       )}
     </div>
   );

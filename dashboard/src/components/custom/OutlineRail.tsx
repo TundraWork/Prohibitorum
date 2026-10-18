@@ -38,8 +38,11 @@ function useCurrentSection(sections: RegisteredSection[]): string | undefined {
  */
 export function OutlineRail({
   facts,
+  className,
 }: {
   facts?: ReactNode;
+  /** Layout classes for the rail, such as where it is hidden. */
+  className?: string;
 }): React.ReactElement {
   const { t } = useLingui();
   const sections = useRegisteredSections();
@@ -51,7 +54,12 @@ export function OutlineRail({
   const current = useCurrentSection(ordered);
 
   return (
-    <aside className="sticky top-[calc(var(--app-sticky-offset)+1.5rem)] grid gap-0.5 text-sm">
+    <aside
+      className={cn(
+        "sticky top-[calc(var(--app-sticky-offset)+1.5rem)] grid gap-0.5 text-sm",
+        className,
+      )}
+    >
       <nav
         aria-label={t({ id: "outline.label", message: "On this page" })}
         className="grid gap-0.5"

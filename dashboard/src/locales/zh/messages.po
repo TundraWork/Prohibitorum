@@ -114,7 +114,7 @@ msgid "admin.federation.diagnostics.stage.duration"
 msgstr "{duration} 毫秒"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/UriListField.tsx
+#: src/components/custom/UriList.tsx
 msgid "admin.oidc-apps.uri.row"
 msgstr "{label} {row}"
 
@@ -2631,6 +2631,11 @@ msgstr "停用后，所有人在服务提供商那里都会被拒之门外。此
 #. js-lingui-explicit-id
 #: src/pages/profile/AccountPanel.tsx
 msgid "profile.display-name.discard"
+msgstr "放弃修改"
+
+#. js-lingui-explicit-id
+#: src/components/custom/ConsequenceFooter.tsx
+msgid "consequence-footer.discard"
 msgstr "放弃修改"
 
 #. js-lingui-explicit-id
