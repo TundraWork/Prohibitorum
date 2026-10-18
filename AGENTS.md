@@ -41,29 +41,25 @@
 
 ## Dashboard and generated assets
 
-- New and migrated UI uses the coss components in `dashboard/src/components/ui`
-  (vendored, updated only by re-copying) composed per
-  `docs/superpowers/specs/2026-10-18-coss-dashboard-redesign-design.md`. Files
-  not yet migrated may still import HeroUI until the removal phase.
-- For an Alert with a single message, use `Alert.Title` alone inside
-  `Alert.Content`. Add `Alert.Description` only for supplementary text.
-- A Card or a Dialog is a surface. Fields and notices drawn directly on one take
-  the surface treatment — `SurfaceAlert` for notices, `variant="secondary"` for
-  `Input` and `TextArea` — because the library's own field and alert styling
-  carries a background and a shadow that read as a raised block on top of the
-  surface. `SecretReveal` and `TotpSetup` expose this as `onSurface`, which is
-  passed from a Card and left off on the page background; `SecretReveal` also
-  takes `inDialog`, which brings the surface treatment with it and moves its
-  title into the caller's `Modal.Header` and its continue control into
-  `Modal.Footer`, where HeroUI keeps dialog actions. `DESIGN.md` holds the same
-  rule under Components.
+- Shared components in `dashboard/src/components/custom` are built on the coss
+  components in `dashboard/src/components/ui` (vendored, updated only by
+  re-copying). New dialogs, alerts and one-time-code fields use the coss
+  primitives through those shared components. The console is layered: canvas,
+  inset panel, then `Frame`/`FramePanel` for blocks; no gradients or decoration;
+  keep the `data-slot` hooks when restyling. Files not yet migrated may still
+  import HeroUI until the removal phase.
+- A notice is `SurfaceAlert` (a coss `Alert` with `AlertTitle`, and
+  `AlertDescription` only for supplementary text). A dialog is
+  `@/components/ui/dialog` (`DialogHeader`, `DialogPanel`, `DialogFooter`).
+  `variant="secondary"` and `onSurface` are still accepted by the shared
+  components but do nothing; new code omits them.
 - Buttons in the app come from `Button` in
-  `dashboard/src/components/custom/Button.tsx`. It wraps HeroUI's `Button` and
-  draws the spinner itself while `isPending` is set: a button with text keeps
-  that text beside the spinner, and an icon-only button shows the spinner in
-  place of its icon. Mark work in flight with `isPending` and do not put a
-  `Spinner` inside a button. Forms keep using `form.SubmitButton`, which builds
-  on the same wrapper.
+  `dashboard/src/components/custom/Button.tsx`, which draws the spinner itself
+  while `isPending` is set: a button with text keeps that text beside the
+  spinner, and an icon-only button shows the spinner in place of its icon. A
+  pending button stays focusable and is `aria-disabled`. Mark work in flight with
+  `isPending` and do not put a `Spinner` inside a button. Forms keep using
+  `form.SubmitButton`, which builds on the same wrapper.
 - Write custom layout and styling as Tailwind classes directly in JSX.
   Reuse styles through React components in `dashboard/src/components/custom`,
   using `class-variance-authority` for shared variants.

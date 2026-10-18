@@ -14,8 +14,20 @@ imports (`@/registry/default/ui|lib|hooks` to `@/components/ui`, `@/lib`,
 pnpm exec biome check --write src/components/ui src/lib src/hooks
 ```
 
-(biome reorders imports and export specifiers and reformats). Do not edit these
-files by hand.
+(biome reorders imports and export specifiers and reformats). Then refresh the
+stylesheet: copy `packages/ui/src/styles/globals.css` to `src/styles/coss.css`
+and replace its `@source` lines with `@source "../**/*.{ts,tsx}";` (the app's
+sources, not the upstream docs site's). Do not edit these files by hand, except
+for the local patches below, which a re-copy must re-apply.
+
+## Local patches
+
+- `sidebar.tsx`: `Sidebar` takes `mobileTitle` (default `"Sidebar"`) and
+  `mobileDescription` (default the upstream English text; `null` omits it) and
+  renders them in the mobile sheet's `SheetTitle`/`SheetDescription`. Upstream
+  hard-codes English, so without the patch the sheet is named "Sidebar" in every
+  locale. `ConsoleLayout.test.tsx` asserts the Chinese sheet name and fails if
+  the patch is lost.
 
 ## Licences
 

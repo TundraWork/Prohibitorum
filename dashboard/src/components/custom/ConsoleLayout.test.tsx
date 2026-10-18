@@ -391,4 +391,18 @@ describe("console shell on a narrow screen", () => {
       within(sheet).getByRole("navigation", { name: "Console navigation" }),
     ).toBeVisible();
   });
+
+  it("names the sheet in the active language", async () => {
+    i18n.activate("zh");
+    const user = userEvent.setup();
+    renderShell("/", member);
+
+    await user.click(
+      await screen.findByRole("button", { name: /Toggle sidebar|侧边栏/ }),
+    );
+
+    expect(
+      await screen.findByRole("dialog", { name: "控制台导航" }),
+    ).toBeVisible();
+  });
 });
