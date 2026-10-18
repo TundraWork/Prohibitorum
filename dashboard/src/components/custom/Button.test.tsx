@@ -6,6 +6,13 @@ import { Button } from "@/components/custom/Button";
 const spinner = () => document.querySelector('[data-slot="spinner"]');
 
 describe("Button", () => {
+  it("reports the default variant and size when unconfigured", () => {
+    render(<Button>Save</Button>);
+    const button = screen.getByRole("button");
+    expect(button).toHaveAttribute("data-variant", "default");
+    expect(button).toHaveAttribute("data-size", "default");
+  });
+
   it("draws no spinner while idle", () => {
     render(<Button>Save</Button>);
     expect(spinner()).toBeNull();

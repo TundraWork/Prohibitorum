@@ -57,7 +57,7 @@ export function DangerZone({
   const trigger = (
     <Button
       aria-label={accessibleLabel}
-      disabled={disabled || isPending}
+      disabled={disabled}
       pending={isPending}
       onClick={() => setOpen(true)}
       variant="destructive-outline"

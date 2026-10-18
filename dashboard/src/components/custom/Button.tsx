@@ -24,7 +24,8 @@ export interface ButtonProps extends React.ComponentProps<"button"> {
  */
 export function Button({
   pending = false,
-  size,
+  variant = "default",
+  size = "default",
   onClick,
   children,
   ...props
@@ -33,7 +34,10 @@ export function Button({
   return (
     <CossButton
       {...props}
+      variant={variant}
       size={size}
+      data-variant={variant}
+      data-size={size}
       aria-busy={pending || undefined}
       aria-disabled={pending || props["aria-disabled"]}
       onClick={(event) => {

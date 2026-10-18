@@ -175,10 +175,10 @@ describe("sudo dialog", () => {
     ).toHaveFocus();
     expect(
       within(dialog).getByRole("button", { name: "Verify with a passkey" }),
-    ).toHaveClass("bg-primary");
+    ).toHaveAttribute("data-variant", "default");
     expect(
       within(dialog).getByRole("button", { name: "Verify and continue" }),
-    ).toHaveClass("border-input");
+    ).toHaveAttribute("data-variant", "outline");
   });
 
   it("shows only the form when the account has no passkey", async () => {
@@ -188,7 +188,7 @@ describe("sudo dialog", () => {
     expect(within(dialog).getByLabelText("Current password")).toHaveFocus();
     expect(
       within(dialog).getByRole("button", { name: "Verify and continue" }),
-    ).toHaveClass("bg-primary");
+    ).toHaveAttribute("data-variant", "default");
     expect(
       within(dialog).queryByRole("button", { name: "Verify with a passkey" }),
     ).not.toBeInTheDocument();
@@ -201,7 +201,7 @@ describe("sudo dialog", () => {
 
     expect(
       within(dialog).getByRole("button", { name: "Verify with a passkey" }),
-    ).toHaveClass("bg-primary");
+    ).toHaveAttribute("data-variant", "default");
     expect(
       within(dialog).queryByLabelText("Current password"),
     ).not.toBeInTheDocument();
@@ -453,10 +453,10 @@ describe("sudo dialog", () => {
       .find((element) => element.tagName === "BUTTON");
     expect(passkey).toBeDisabled();
     // The password is then the way through, so it leads instead.
-    expect(passkey).toHaveClass("border-input");
+    expect(passkey).toHaveAttribute("data-variant", "outline");
     expect(
       within(dialog).getByRole("button", { name: "Verify and continue" }),
-    ).toHaveClass("bg-primary");
+    ).toHaveAttribute("data-variant", "default");
     expect(within(dialog).getByLabelText("Current password")).toHaveFocus();
   });
 

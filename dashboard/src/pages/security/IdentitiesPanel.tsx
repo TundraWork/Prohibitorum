@@ -208,7 +208,7 @@ function LinkIdentityMenu({
 
   return (
     <Dropdown>
-      <Button pending={isPending} disabled={isPending}>
+      <Button pending={isPending}>
         <Trans id="security.identities.link.title">Link another identity</Trans>
       </Button>
       <Dropdown.Popover placement="bottom start">
