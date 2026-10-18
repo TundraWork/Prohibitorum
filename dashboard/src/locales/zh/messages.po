@@ -1169,11 +1169,6 @@ msgid "entity.restricted"
 msgstr "仅所选用户组可用"
 
 #. js-lingui-explicit-id
-#: src/pages/profile/AvatarPanel.tsx
-msgid "profile.avatar.title"
-msgstr "头像"
-
-#. js-lingui-explicit-id
 #: src/api/success-messages.ts
 msgid "success.avatar.updated"
 msgstr "头像已更新"
@@ -2617,6 +2612,11 @@ msgstr "停用会阻止该账号登录，除此之外不会有别的变化。管
 #: src/pages/admin/saml-applications/SamlDangerSection.tsx
 msgid "admin.saml-apps.danger.enabled-note"
 msgstr "停用后，所有人在服务提供商那里都会被拒之门外。此操作可以撤销。"
+
+#. js-lingui-explicit-id
+#: src/pages/profile/AccountPanel.tsx
+msgid "profile.display-name.discard"
+msgstr "放弃修改"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/EndpointsField.tsx
@@ -5101,6 +5101,11 @@ msgid "login.wallpaper.unsplash-credit"
 msgstr "照片：<0>{name}</0>，来自 <1>Unsplash</1>"
 
 #. js-lingui-explicit-id
+#: src/pages/profile/AvatarPanel.tsx
+msgid "profile.avatar.title"
+msgstr "头像"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-options.ts
 #: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
 msgid "admin.federation.claims.picture"
@@ -5165,6 +5170,11 @@ msgstr "预览"
 #: src/pages/admin/forward-auth-apps/ForwardAuthHeadersSection.tsx
 msgid "admin.forward-auth-apps.headers.email"
 msgstr "主邮箱"
+
+#. js-lingui-explicit-id
+#: src/pages/Profile.tsx
+msgid "profile.page.title"
+msgstr "个人资料"
 
 #. js-lingui-explicit-id
 #: src/pages/public/FederationFlow.tsx
@@ -7209,6 +7219,11 @@ msgid "error.ceremony_expired"
 msgstr "本次通行密钥登录已过期。"
 
 #. js-lingui-explicit-id
+#: src/pages/Profile.tsx
+msgid "profile.page.description"
+msgstr "你在各处登录时显示的头像和名称。"
+
+#. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.wallpaper_unavailable"
 msgstr "图片暂时无法获取。"
@@ -8574,6 +8589,11 @@ msgid "security.tokens.scope"
 msgstr "可访问范围"
 
 #. js-lingui-explicit-id
+#: src/pages/profile/AvatarPanel.tsx
+msgid "profile.avatar.description"
+msgstr "别人在你的名字旁看到的图片。"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
 msgid "admin.group.display-name.hint"
 msgstr "本用户组在控制台中显示的名称。"
@@ -8582,6 +8602,11 @@ msgstr "本用户组在控制台中显示的名称。"
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.name.hint"
 msgstr "用它做什么，便于日后知道该撤销哪个。"
+
+#. js-lingui-explicit-id
+#: src/pages/profile/AccountPanel.tsx
+msgid "profile.username.hint"
+msgstr "登录时输入的名称。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
@@ -8759,6 +8784,11 @@ msgstr "用户组"
 #: src/pages/public/Enroll.tsx
 msgid "enroll.description.verified"
 msgstr "你的身份已验证。请选择账号名，然后设置登录方式。"
+
+#. js-lingui-explicit-id
+#: src/pages/profile/AccountPanel.tsx
+msgid "profile.account.description"
+msgstr "你的名称会显示给他人；下面的标识符不可更改。"
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx

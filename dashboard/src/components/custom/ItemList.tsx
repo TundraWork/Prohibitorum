@@ -20,7 +20,9 @@ import { cn } from "@/lib/utils";
 type ListColumns = { badge?: boolean; meta?: boolean };
 
 /** Whether a badge or meta prop is set: `null` counts as absent. */
-const given = (value: unknown) => value !== undefined && value !== null;
+// `false` is absent too, so `badge={cond && <Badge />}` reserves no column.
+const given = (value: unknown) =>
+  value !== undefined && value !== null && value !== false;
 
 const ListColumnsContext = createContext<ListColumns>({});
 

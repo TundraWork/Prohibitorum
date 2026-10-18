@@ -1,15 +1,19 @@
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
+import { useStore } from "@tanstack/react-form";
 import {
   useMutation,
   useQueryClient,
   useSuspenseQuery,
 } from "@tanstack/react-query";
+import { IdCard } from "lucide-react";
 import { updateProfileMutationOptions } from "@/api/mutations";
 import { sessionQueryOptions } from "@/api/queries";
-import { ConsoleCard } from "@/components/custom/ConsoleCard";
+import { Button } from "@/components/custom/Button";
 import { CopyValue } from "@/components/custom/CopyValue";
 import { Section } from "@/components/custom/Section";
+import { SettingRow } from "@/components/custom/SettingRow";
+import { Separator } from "@/components/ui/separator";
 import { applyServerError } from "@/forms/server-errors";
 import { useAppForm } from "@/forms/use-app-form";
 
@@ -48,16 +52,18 @@ export function AccountPanel() {
   });
   if (session === null) return null;
   return (
-    <Section title={<Trans id="profile.account.title">Account</Trans>}>
-      <AccountForm
-        displayName={session.displayName}
-        username={session.username}
-        subject={session.oidcSubject}
-      />
-    </Section>
+    <AccountForm
+      displayName={session.displayName}
+      username={session.username}
+      subject={session.oidcSubject}
+    />
   );
 }
 
+/**
+ * The section sits inside the form so its footer's Save is a real submit
+ * button. Save and Discard appear only while the name differs from the saved one.
+ */
 function AccountForm({
   displayName,
   username,
@@ -75,21 +81,51 @@ function AccountForm({
     defaultValues: { displayName },
     onSubmit: async ({ value }) => {
       try {
-        await update.mutateAsync({ displayName: value.displayName });
+        const saved = await update.mutateAsync({
+          displayName: value.displayName,
+        });
+        // The saved name (the server trims it) becomes the baseline to compare with.
+        form.reset({ displayName: saved.displayName });
       } catch (error) {
         applyServerError(form, error, { locations: {}, codes: {} });
       }
     },
   });
+  const dirty = useStore(form.store, (state) => !state.isDefaultValue);
 
   return (
-    <ConsoleCard>
-      <form.AppForm>
-        <form.Form
-          label={t({
-            id: "profile.display-name.form",
-            message: "Display name",
-          })}
+    <form.AppForm>
+      <form.Form
+        label={t({
+          id: "profile.display-name.form",
+          message: "Display name",
+        })}
+      >
+        <Section
+          icon={<IdCard />}
+          title={<Trans id="profile.account.title">Account</Trans>}
+          description={
+            <Trans id="profile.account.description">
+              Your name is shown to others; the identifiers below are fixed.
+            </Trans>
+          }
+          dirty={dirty}
+          footer={
+            dirty ? (
+              <div className="flex w-full items-center justify-end gap-2">
+                <Button
+                  variant="ghost"
+                  onClick={() => form.reset()}
+                  disabled={form.state.isSubmitting}
+                >
+                  <Trans id="profile.display-name.discard">Discard</Trans>
+                </Button>
+                <form.SubmitButton>
+                  <Trans id="profile.display-name.save">Save</Trans>
+                </form.SubmitButton>
+              </div>
+            ) : undefined
+          }
         >
           <form.FormError />
           <form.AppField
@@ -113,24 +149,49 @@ function AccountForm({
               />
             )}
           </form.AppField>
-          <CopyValue
-            label={<Trans id="console.username">Username</Trans>}
-            value={username}
-          />
-          <CopyValue
-            label={<Trans id="profile.oidc-subject">OIDC subject</Trans>}
-            value={subject}
-            description={
-              <Trans id="profile.oidc-subject.hint">
-                Applications identify you by this value. It never changes.
-              </Trans>
-            }
-          />
-          <form.SubmitButton>
-            <Trans id="profile.display-name.save">Save</Trans>
-          </form.SubmitButton>
-        </form.Form>
-      </form.AppForm>
-    </ConsoleCard>
+          <Separator />
+          <div className="flex flex-col divide-y">
+            <SettingRow
+              title={<Trans id="console.username">Username</Trans>}
+              description={
+                <Trans id="profile.username.hint">
+                  What you type to sign in.
+                </Trans>
+              }
+            >
+              <div className="w-full sm:w-80">
+                <CopyValue
+                  label={
+                    <span className="sr-only">
+                      <Trans id="console.username">Username</Trans>
+                    </span>
+                  }
+                  value={username}
+                />
+              </div>
+            </SettingRow>
+            <SettingRow
+              title={<Trans id="profile.oidc-subject">OIDC subject</Trans>}
+              description={
+                <Trans id="profile.oidc-subject.hint">
+                  Applications identify you by this value. It never changes.
+                </Trans>
+              }
+            >
+              <div className="w-full sm:w-80">
+                <CopyValue
+                  label={
+                    <span className="sr-only">
+                      <Trans id="profile.oidc-subject">OIDC subject</Trans>
+                    </span>
+                  }
+                  value={subject}
+                />
+              </div>
+            </SettingRow>
+          </div>
+        </Section>
+      </form.Form>
+    </form.AppForm>
   );
 }

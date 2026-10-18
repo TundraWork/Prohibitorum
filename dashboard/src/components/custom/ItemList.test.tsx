@@ -213,4 +213,16 @@ describe("ItemList", () => {
     expect(screen.getByRole("list")).not.toHaveAttribute("data-columns");
     expect(document.querySelector("[data-slot='item-badge']")).toBeNull();
   });
+
+  it("treats a false badge or meta, as `cond && <Badge />` yields, as absent", () => {
+    render(
+      <ItemList label="Passkeys" empty={null}>
+        <ItemListRow key="a" title="Laptop" badge={false} meta={false} />
+      </ItemList>,
+    );
+
+    expect(screen.getByRole("list")).not.toHaveAttribute("data-columns");
+    expect(document.querySelector("[data-slot='item-badge']")).toBeNull();
+    expect(document.querySelector("[data-slot='item-meta']")).toBeNull();
+  });
 });

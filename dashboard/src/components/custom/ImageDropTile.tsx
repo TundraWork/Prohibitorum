@@ -92,7 +92,7 @@ export function ImageDropTile({
       <label
         className={cn(
           buttonVariants({ variant: "ghost", size: "sm" }),
-          "h-full w-full cursor-pointer flex-col gap-1.5 text-muted-foreground has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring has-[:focus-visible]:ring-offset-1 has-[:focus-visible]:ring-offset-background",
+          "h-auto flex-1 sm:h-auto cursor-pointer flex-col justify-center gap-1.5 text-muted-foreground has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring has-[:focus-visible]:ring-offset-1 has-[:focus-visible]:ring-offset-background",
           busy && "pointer-events-none opacity-64",
         )}
       >

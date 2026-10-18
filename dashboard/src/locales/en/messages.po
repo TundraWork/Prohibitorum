@@ -1169,11 +1169,6 @@ msgid "entity.restricted"
 msgstr "Available only to the selected user groups"
 
 #. js-lingui-explicit-id
-#: src/pages/profile/AvatarPanel.tsx
-msgid "profile.avatar.title"
-msgstr "Avatar"
-
-#. js-lingui-explicit-id
 #: src/api/success-messages.ts
 msgid "success.avatar.updated"
 msgstr "Avatar updated"
@@ -2617,6 +2612,11 @@ msgstr "Disabling stops this account signing in and ends nothing else. An admin 
 #: src/pages/admin/saml-applications/SamlDangerSection.tsx
 msgid "admin.saml-apps.danger.enabled-note"
 msgstr "Disabling turns everyone away at the service provider. It can be undone."
+
+#. js-lingui-explicit-id
+#: src/pages/profile/AccountPanel.tsx
+msgid "profile.display-name.discard"
+msgstr "Discard"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/EndpointsField.tsx
@@ -5101,6 +5101,11 @@ msgid "login.wallpaper.unsplash-credit"
 msgstr "Photo by <0>{name}</0> on <1>Unsplash</1>"
 
 #. js-lingui-explicit-id
+#: src/pages/profile/AvatarPanel.tsx
+msgid "profile.avatar.title"
+msgstr "Picture"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-options.ts
 #: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
 msgid "admin.federation.claims.picture"
@@ -5165,6 +5170,11 @@ msgstr "Preview"
 #: src/pages/admin/forward-auth-apps/ForwardAuthHeadersSection.tsx
 msgid "admin.forward-auth-apps.headers.email"
 msgstr "Primary email"
+
+#. js-lingui-explicit-id
+#: src/pages/Profile.tsx
+msgid "profile.page.title"
+msgstr "Profile"
 
 #. js-lingui-explicit-id
 #: src/pages/public/FederationFlow.tsx
@@ -7209,6 +7219,11 @@ msgid "error.ceremony_expired"
 msgstr "The passkey sign-in attempt has expired."
 
 #. js-lingui-explicit-id
+#: src/pages/Profile.tsx
+msgid "profile.page.description"
+msgstr "The picture and name shown wherever you sign in."
+
+#. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.wallpaper_unavailable"
 msgstr "The picture is not available right now."
@@ -8574,6 +8589,11 @@ msgid "security.tokens.scope"
 msgstr "What it may access"
 
 #. js-lingui-explicit-id
+#: src/pages/profile/AvatarPanel.tsx
+msgid "profile.avatar.description"
+msgstr "What others see next to your name."
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
 msgid "admin.group.display-name.hint"
 msgstr "What this group is called in the console."
@@ -8582,6 +8602,11 @@ msgstr "What this group is called in the console."
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.name.hint"
 msgstr "What will use this token, so you know what to revoke later."
+
+#. js-lingui-explicit-id
+#: src/pages/profile/AccountPanel.tsx
+msgid "profile.username.hint"
+msgstr "What you type to sign in."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
@@ -8759,6 +8784,11 @@ msgstr "Your groups"
 #: src/pages/public/Enroll.tsx
 msgid "enroll.description.verified"
 msgstr "Your identity is verified. Choose your account name, then set up how you'll sign in."
+
+#. js-lingui-explicit-id
+#: src/pages/profile/AccountPanel.tsx
+msgid "profile.account.description"
+msgstr "Your name is shown to others; the identifiers below are fixed."
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx

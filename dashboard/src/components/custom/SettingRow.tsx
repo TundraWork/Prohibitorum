@@ -1,6 +1,9 @@
 import type { ReactNode } from "react";
 
-/** One setting: its name and explanation on the left, its control at the end. */
+/**
+ * One setting: its name and explanation on the left, its control at the end.
+ * Below the `sm` breakpoint the control drops under the text instead.
+ */
 export function SettingRow({
   title,
   description,
@@ -11,7 +14,7 @@ export function SettingRow({
   children: ReactNode;
 }): React.ReactElement {
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 py-3.5 first:pt-0 last:pb-0">
+    <div className="grid grid-cols-1 items-center sm:grid-cols-[minmax(0,1fr)_auto] gap-4 py-3.5 first:pt-0 last:pb-0">
       <div>
         <div className="font-medium text-sm">{title}</div>
         {description !== undefined && (

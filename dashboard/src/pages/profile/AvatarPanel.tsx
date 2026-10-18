@@ -1,11 +1,10 @@
-import { Avatar, Badge, Description, Spinner } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import {
   useMutation,
   useQueryClient,
   useSuspenseQuery,
 } from "@tanstack/react-query";
-import { Check, Upload, UserRound } from "lucide-react";
+import { Upload, UserRound } from "lucide-react";
 import { useState } from "react";
 import {
   removeAvatarUploadMutationOptions,
@@ -16,7 +15,6 @@ import { myAvatarQueryOptions } from "@/api/queries";
 import { Button } from "@/components/custom/Button";
 import { ChoiceTile } from "@/components/custom/ChoiceTile";
 import { ConfirmDialog } from "@/components/custom/ConfirmDialog";
-import { ConsoleCard } from "@/components/custom/ConsoleCard";
 import { ImageDropTile } from "@/components/custom/ImageDropTile";
 import {
   ImageRejectedAlert,
@@ -24,7 +22,9 @@ import {
   rejectImage,
 } from "@/components/custom/ImageUploadControl";
 import { AsyncSection, Section } from "@/components/custom/Section";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { RadioGroup } from "@/components/ui/radio-group";
+import { Spinner } from "@/components/ui/spinner";
 
 /** What `PUT /me/avatar` decodes; the file picker offers the same list. */
 export const avatarTypes = [
@@ -36,7 +36,7 @@ export const avatarTypes = [
 ] as const;
 
 /**
- * The avatar section: every picture the account can show, side by side, with
+ * The picture section: every picture the account can show, side by side, with
  * the one in use selected. The section keeps its heading while the pictures
  * load, and a failed read stays inside it.
  */
@@ -44,7 +44,7 @@ export function AvatarPanel() {
   return (
     <AsyncSection
       resetKey="avatar"
-      title={<Trans id="profile.avatar.title">Avatar</Trans>}
+      title={<Trans id="profile.avatar.title">Picture</Trans>}
     >
       <AvatarGallery />
     </AsyncSection>
@@ -100,83 +100,28 @@ function AvatarGallery() {
       media={
         <Preview
           url={url}
-          state={
-            select.isPending && select.variables === source
-              ? "pending"
-              : value === source
-                ? "selected"
-                : "idle"
-          }
+          saving={select.isPending && select.variables === source}
         />
       }
     />
   );
 
   return (
-    <Section title={<Trans id="profile.avatar.title">Avatar</Trans>}>
-      <ConsoleCard wide contentClassName="flex flex-col gap-3">
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(6rem,1fr))] gap-2">
-          {/* The group's own box steps aside so its tiles and the upload
-              tile share one grid; the upload is not one of the choices. */}
-          <RadioGroup
-            aria-label={t({
-              id: "profile.avatar.source",
-              message: "Picture to show",
-            })}
-            className="contents"
-            value={value}
-            // Read-only rather than disabled while a choice is saved, so the
-            // tile keeps keyboard focus.
-            readOnly={select.isPending}
-            disabled={writing}
-            onValueChange={(next) => {
-              setRejected(null);
-              select.mutate(next);
-            }}
-          >
-            {sources.map((entry) =>
-              tile(
-                entry.source,
-                entry.url,
-                entry.source === "user"
-                  ? t({
-                      id: "profile.avatar.source.user",
-                      message: "Uploaded picture",
-                    })
-                  : (entry.label ?? entry.source),
-              ),
-            )}
-            {tile(
-              "none",
-              undefined,
-              t({ id: "profile.avatar.source.none", message: "No picture" }),
-            )}
-          </RadioGroup>
-          <ImageDropTile
-            ariaLabel={t({
-              id: "profile.avatar.drop",
-              message: "Drop a picture here, or choose a file",
-            })}
-            label={
-              hasUpload ? (
-                <Trans id="profile.avatar.replace">Replace</Trans>
-              ) : (
-                <Trans id="profile.avatar.upload">Upload</Trans>
-              )
-            }
-            icon={Upload}
-            acceptedFileTypes={avatarTypes}
-            isPending={upload.isPending}
-            isDisabled={select.isPending || remove.isPending}
-            onFiles={choose}
-          />
-        </div>
-        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-          <Description>
+    <Section
+      icon={<UserRound />}
+      title={<Trans id="profile.avatar.title">Picture</Trans>}
+      description={
+        <Trans id="profile.avatar.description">
+          What others see next to your name.
+        </Trans>
+      }
+      footer={
+        <div className="flex w-full flex-wrap items-center justify-between gap-x-4 gap-y-2">
+          <span>
             <Trans id="profile.avatar.hint">
               PNG, JPEG, WebP, GIF or AVIF, up to 5 MiB.
             </Trans>
-          </Description>
+          </span>
           {hasUpload && (
             <Button
               disabled={busy}
@@ -191,8 +136,65 @@ function AvatarGallery() {
             </Button>
           )}
         </div>
-        {rejected !== null && <ImageRejectedAlert reason={rejected} />}
-      </ConsoleCard>
+      }
+    >
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(6rem,1fr))] gap-2">
+        {/* The group's own box steps aside so its tiles and the upload
+            tile share one grid; the upload is not one of the choices. */}
+        <RadioGroup
+          aria-label={t({
+            id: "profile.avatar.source",
+            message: "Picture to show",
+          })}
+          className="contents"
+          value={value}
+          // Read-only rather than disabled while a choice is saved, so the
+          // tile keeps keyboard focus.
+          readOnly={select.isPending}
+          disabled={writing}
+          onValueChange={(next) => {
+            setRejected(null);
+            select.mutate(next);
+          }}
+        >
+          {sources.map((entry) =>
+            tile(
+              entry.source,
+              entry.url,
+              entry.source === "user"
+                ? t({
+                    id: "profile.avatar.source.user",
+                    message: "Uploaded picture",
+                  })
+                : (entry.label ?? entry.source),
+            ),
+          )}
+          {tile(
+            "none",
+            undefined,
+            t({ id: "profile.avatar.source.none", message: "No picture" }),
+          )}
+        </RadioGroup>
+        <ImageDropTile
+          ariaLabel={t({
+            id: "profile.avatar.drop",
+            message: "Drop a picture here, or choose a file",
+          })}
+          label={
+            hasUpload ? (
+              <Trans id="profile.avatar.replace">Replace</Trans>
+            ) : (
+              <Trans id="profile.avatar.upload">Upload</Trans>
+            )
+          }
+          icon={Upload}
+          acceptedFileTypes={avatarTypes}
+          isPending={upload.isPending}
+          isDisabled={select.isPending || remove.isPending}
+          onFiles={choose}
+        />
+      </div>
+      {rejected !== null && <ImageRejectedAlert reason={rejected} />}
       <ConfirmDialog
         isOpen={confirmingRemove}
         onOpenChange={setConfirmingRemove}
@@ -220,40 +222,30 @@ function AvatarGallery() {
 }
 
 /**
- * A tile's picture, the shape the sidebar draws the account in, so the tile
- * shows what the sidebar will. The chosen one carries a check, or a spinner
- * while it is being saved.
+ * A tile's picture, in the rounded square the sidebar draws the account in, so
+ * the tile shows what the sidebar will. The one being saved carries a spinner;
+ * the chosen one is marked by its tile, not here.
  */
 function Preview({
   url,
-  state,
+  saving,
 }: {
   url: string | undefined;
-  state: "idle" | "selected" | "pending";
+  saving: boolean;
 }) {
   return (
-    <Badge.Anchor>
-      <Avatar className="size-14 rounded-field">
-        {url && <Avatar.Image src={url} alt="" />}
-        <Avatar.Fallback className="rounded-field">
-          <UserRound size={24} aria-hidden="true" />
-        </Avatar.Fallback>
+    <span className="relative">
+      <Avatar className="size-14 rounded-lg">
+        {url && <AvatarImage src={url} alt="" />}
+        <AvatarFallback className="rounded-lg">
+          <UserRound className="size-6" aria-hidden="true" />
+        </AvatarFallback>
       </Avatar>
-      {state === "selected" && (
-        <Badge color="accent" size="sm" placement="bottom-right">
-          <Check className="size-2.5" strokeWidth={3} aria-hidden="true" />
-        </Badge>
+      {saving && (
+        <span className="absolute -end-1 -bottom-1 z-20 rounded-full bg-background p-0.5 shadow-xs ring-1 ring-border">
+          <Spinner className="size-3" aria-hidden="true" />
+        </span>
       )}
-      {state === "pending" && (
-        <Badge size="sm" placement="bottom-right">
-          <Spinner
-            size="sm"
-            color="current"
-            className="size-3"
-            aria-hidden="true"
-          />
-        </Badge>
-      )}
-    </Badge.Anchor>
+    </span>
   );
 }
