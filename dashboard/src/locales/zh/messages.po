@@ -93,6 +93,11 @@ msgid "settings.sign-in.images.skipped.full"
 msgstr "{count, plural, other {已达到 10 张上限，有 # 个文件没有上传。}}"
 
 #. js-lingui-explicit-id
+#: src/components/custom/ProviderGrid.tsx
+msgid "federation.more_providers_count"
+msgstr "另外 {count} 个提供商"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
 msgid "admin.federation.diagnostics.stage.duration"
 msgstr "{duration} 毫秒"

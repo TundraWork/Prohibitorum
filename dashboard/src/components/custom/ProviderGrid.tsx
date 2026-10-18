@@ -14,8 +14,8 @@ import { Popover, PopoverPopup, PopoverTrigger } from "@/components/ui/popover";
 
 type FederationProvider = components["schemas"]["FederationProvider"];
 
-/** Providers drawn as buttons before the rest fold into the popover. */
-const VISIBLE_LIMIT = 6;
+/** Cells in the grid when folded: five providers plus the "More" cell. */
+const FOLDED_CELLS = 6;
 
 /**
  * The upstream providers a reader can sign in or enroll with, drawn to scale
@@ -48,6 +48,10 @@ export function ProviderGrid({
   const { t } = useLingui();
   const [leaving, setLeaving] = useState<string>();
   const [query, setQuery] = useState("");
+  const findProvider = t({
+    id: "federation.find_provider",
+    message: "Find a provider",
+  });
 
   useEffect(() => {
     const restore = (event: PageTransitionEvent) => {
@@ -99,10 +103,11 @@ export function ProviderGrid({
     );
   }
 
-  const folded = providers.length >= VISIBLE_LIMIT + 1;
-  const shown = folded ? providers.slice(0, VISIBLE_LIMIT - 1) : providers;
-  const rest = folded ? providers.slice(VISIBLE_LIMIT - 1) : [];
+  const folded = providers.length >= FOLDED_CELLS + 1;
+  const shown = folded ? providers.slice(0, FOLDED_CELLS - 1) : providers;
+  const rest = folded ? providers.slice(FOLDED_CELLS - 1) : [];
   const needle = query.trim().toLocaleLowerCase();
+  const count = rest.length;
   const matches = rest.filter((provider) =>
     provider.displayName.toLocaleLowerCase().includes(needle),
   );
@@ -129,12 +134,16 @@ export function ProviderGrid({
         );
       })}
       {folded && (
-        <Popover>
+        <Popover onOpenChange={(open) => !open && setQuery("")}>
           <PopoverTrigger
             render={
               <Button
                 variant="outline"
                 disabled={disabled || leaving !== undefined}
+                aria-label={t({
+                  id: "federation.more_providers_count",
+                  message: `${count} more providers`,
+                })}
                 className="min-w-0 justify-start text-muted-foreground"
               />
             }
@@ -150,7 +159,11 @@ export function ProviderGrid({
               <Trans id="federation.more_providers">More providers</Trans>
             </span>
           </PopoverTrigger>
-          <PopoverPopup className="w-72 p-1.5" side="top" align="end">
+          <PopoverPopup
+            className="w-72 **:data-[slot=popover-viewport]:py-1.5 **:data-[slot=popover-viewport]:[--viewport-inline-padding:--spacing(1.5)]"
+            side="top"
+            align="end"
+          >
             <InputGroup className="mb-1.5">
               <InputGroupAddon>
                 <SearchIcon aria-hidden="true" />
@@ -158,14 +171,8 @@ export function ProviderGrid({
               <InputGroupInput
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder={t({
-                  id: "federation.find_provider",
-                  message: "Find a provider",
-                })}
-                aria-label={t({
-                  id: "federation.find_provider",
-                  message: "Find a provider",
-                })}
+                placeholder={findProvider}
+                aria-label={findProvider}
               />
             </InputGroup>
             {matches.length === 0 && (

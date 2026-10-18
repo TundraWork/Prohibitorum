@@ -95,7 +95,7 @@ describe("ProviderGrid", () => {
     const user = userEvent.setup();
     setup(make(9));
     expect(screen.getAllByRole("button")).toHaveLength(6);
-    const more = screen.getByRole("button", { name: /More providers/ });
+    const more = screen.getByRole("button", { name: "4 more providers" });
     expect(more).toHaveTextContent("+4");
 
     await user.click(more);
@@ -123,10 +123,26 @@ describe("ProviderGrid", () => {
     expect(within(popup).getByText("No provider matches")).toBeInTheDocument();
   });
 
+  it("starts the search over each time the popover opens", async () => {
+    const user = userEvent.setup();
+    setup(make(9));
+    const more = screen.getByRole("button", { name: "4 more providers" });
+    await user.click(more);
+    await user.type(
+      await screen.findByPlaceholderText("Find a provider"),
+      "ste",
+    );
+    await user.keyboard("{Escape}");
+    await user.click(more);
+    expect(await screen.findByPlaceholderText("Find a provider")).toHaveValue(
+      "",
+    );
+  });
+
   it("leaves from the popover too", async () => {
     const user = userEvent.setup();
     setup(make(9));
-    await user.click(screen.getByRole("button", { name: /More providers/ }));
+    await user.click(screen.getByRole("button", { name: /more providers/ }));
     const popup = await screen.findByRole("dialog");
     await user.click(within(popup).getByRole("button", { name: "Zulip" }));
     expect(loadDocument).toHaveBeenCalledExactlyOnceWith("/leave/zulip");
@@ -145,7 +161,7 @@ describe("ProviderGrid", () => {
       screen.getByRole("button", { name: "Continue with Discord" }),
     ).toBeDisabled();
     expect(
-      screen.getByRole("button", { name: /More providers/ }),
+      screen.getByRole("button", { name: /more providers/ }),
     ).toBeDisabled();
     await user.click(
       screen.getByRole("button", { name: "Continue with Discord" }),

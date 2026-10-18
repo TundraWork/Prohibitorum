@@ -93,6 +93,11 @@ msgid "settings.sign-in.images.skipped.full"
 msgstr "{count, plural, one {# file wasn't uploaded because the 10-image limit was reached.} other {# files weren't uploaded because the 10-image limit was reached.}}"
 
 #. js-lingui-explicit-id
+#: src/components/custom/ProviderGrid.tsx
+msgid "federation.more_providers_count"
+msgstr "{count} more providers"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
 msgid "admin.federation.diagnostics.stage.duration"
 msgstr "{duration} ms"
