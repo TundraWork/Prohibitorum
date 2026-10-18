@@ -1,4 +1,5 @@
 import { Trans } from "@lingui/react/macro";
+import { PageBody } from "@/components/custom/PageBody";
 import { PageHeader } from "@/components/custom/PageHeader";
 import { IdentitiesPanel } from "@/pages/security/IdentitiesPanel";
 import { PasskeysPanel } from "@/pages/security/PasskeysPanel";
@@ -23,7 +24,7 @@ import { TokensPanel } from "@/pages/security/TokensPanel";
  */
 export function Security() {
   return (
-    <div className="flex flex-col gap-8">
+    <PageBody>
       <PageHeader
         title={<Trans id="security.page.title">Security</Trans>}
         description={
@@ -36,6 +37,6 @@ export function Security() {
       <PasswordTotpPanel />
       <IdentitiesPanel />
       <TokensPanel />
-    </div>
+    </PageBody>
   );
 }

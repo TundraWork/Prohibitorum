@@ -104,4 +104,18 @@ describe("ImageDropTile", () => {
     fireEvent.dragLeave(tile, { dataTransfer: { types: ["Files"] } });
     expect(tile).not.toHaveAttribute("data-drop-target");
   });
+
+  it("keeps the mark while the drag moves between the tile and its children", () => {
+    mount();
+    const tile = screen.getByRole("group", { name: "Upload" });
+    const child = screen.getByText("Choose a file");
+    const dataTransfer = { types: ["Files"] };
+
+    fireEvent.dragEnter(tile, { dataTransfer });
+    fireEvent.dragEnter(child, { dataTransfer });
+    fireEvent.dragLeave(tile, { dataTransfer });
+    expect(tile).toHaveAttribute("data-drop-target", "true");
+    fireEvent.dragLeave(child, { dataTransfer });
+    expect(tile).not.toHaveAttribute("data-drop-target");
+  });
 });

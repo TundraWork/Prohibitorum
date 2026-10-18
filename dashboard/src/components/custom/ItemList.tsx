@@ -1,5 +1,12 @@
 import { ChevronRight } from "lucide-react";
-import { Children, type CSSProperties, type ReactNode } from "react";
+import {
+  Children,
+  type CSSProperties,
+  createContext,
+  isValidElement,
+  type ReactNode,
+  useContext,
+} from "react";
 import { ListSkeleton } from "@/components/custom/ListSkeleton";
 import { useSectionPanel } from "@/components/custom/Section";
 import {
@@ -8,6 +15,11 @@ import {
   FramePanel,
   FrameTitle,
 } from "@/components/ui/frame";
+import { cn } from "@/lib/utils";
+
+type ListColumns = { badge?: boolean; meta?: boolean };
+
+const ListColumnsContext = createContext<ListColumns>({});
 
 /**
  * The console's list: one panel holding a row per record, with a rule between
@@ -22,7 +34,9 @@ import {
  * than scrolling, so the list reads the same at every width.
  *
  * While `loading` holds, the panel stands in with skeleton rows; an empty list shows
- * `empty` in its place. `footer` sits under the last row, for an action over
+ * `empty` in its place. When any row has a `badge` or `meta`, every row of the
+ * list reserves that column, so the values line up down the list; `columns`
+ * sets it explicitly for rows that are not direct `ItemListRow` children. `footer` sits under the last row, for an action over
  * the whole list.
  */
 export function ItemList({
@@ -31,6 +45,7 @@ export function ItemList({
   loading = false,
   empty,
   footer,
+  columns,
   children,
 }: {
   /** Names the list for assistive technology. */
@@ -43,9 +58,26 @@ export function ItemList({
   loading?: boolean;
   empty: ReactNode;
   footer?: ReactNode;
+  /** Columns every row reserves; detected from the rows' props when unset. */
+  columns?: ListColumns;
   children?: ReactNode;
 }) {
   const rows = Children.toArray(children);
+  const has = (key: "badge" | "meta") =>
+    rows.some(
+      (row) =>
+        isValidElement<ListColumns & Record<string, unknown>>(row) &&
+        row.props[key] !== undefined &&
+        row.props[key] !== null,
+    );
+  const reserved: ListColumns = {
+    badge: columns?.badge ?? has("badge"),
+    meta: columns?.meta ?? has("meta"),
+  };
+  const columnsAttr =
+    [reserved.badge && "badge", reserved.meta && "meta"]
+      .filter(Boolean)
+      .join(" ") || undefined;
   const inSection = useSectionPanel(title === undefined);
   const panel = (
     <FramePanel className="divide-y overflow-hidden p-0">
@@ -54,12 +86,18 @@ export function ItemList({
       ) : rows.length === 0 ? (
         empty
       ) : (
-        <ul aria-label={label} className="flex flex-col divide-y">
-          {rows.map((row, index) => (
-            // `Children.toArray` has already keyed each row.
-            <li key={(row as { key?: string }).key ?? index}>{row}</li>
-          ))}
-        </ul>
+        <ListColumnsContext.Provider value={reserved}>
+          <ul
+            aria-label={label}
+            data-columns={columnsAttr}
+            className="flex flex-col divide-y"
+          >
+            {rows.map((row, index) => (
+              // `Children.toArray` has already keyed each row.
+              <li key={(row as { key?: string }).key ?? index}>{row}</li>
+            ))}
+          </ul>
+        </ListColumnsContext.Provider>
       )}
       {footer !== undefined && (
         <div className="flex justify-center p-3">{footer}</div>
@@ -92,7 +130,8 @@ export function ItemList({
  *
  * `badge` and `meta` are the row's own columns from `sm`, the badge for a state
  * worth seeing at a glance and the meta for a short fact such as when it was
- * last used. Below `sm` they drop under the name, where the details are.
+ * last used. They sit in fixed tracks (110px, 140px) shared by the whole list.
+ * Below `sm` they join the details under the name, in the text column.
  *
  * A row with `onOpen` and no actions is a way into the record: the whole row
  * is pressable and ends with a chevron, so there is no separate "edit" button
@@ -136,6 +175,11 @@ export function ItemListRow({
    */
   children?: ReactNode;
 }) {
+  const reserved = useContext(ListColumnsContext);
+  const hasBadge = badge !== undefined;
+  const hasMeta = meta !== undefined;
+  const wantBadge = hasBadge || reserved.badge === true;
+  const wantMeta = hasMeta || reserved.meta === true;
   const shown = (details ?? []).filter(
     (detail) => detail !== null && detail !== undefined && detail !== false,
   );
@@ -184,21 +228,38 @@ export function ItemListRow({
             leave, which otherwise lifts the text off the actions' centre. */}
         <div className="mt-2 flex flex-col gap-2 empty:hidden">{children}</div>
       </div>
-      {badge !== undefined && (
+      {(hasBadge || hasMeta) && (
         <div
-          data-slot="item-badge"
-          className="flex items-center max-sm:order-last sm:justify-self-start"
+          className={cn(
+            "max-sm:order-last max-sm:flex max-sm:basis-full max-sm:flex-wrap max-sm:items-center max-sm:gap-x-3 max-sm:gap-y-1 sm:contents",
+            icon !== undefined && "max-sm:ps-12",
+          )}
         >
-          {badge}
+          {wantBadge && (
+            <div
+              data-slot="item-badge"
+              className="flex items-center sm:justify-self-start"
+            >
+              {badge}
+            </div>
+          )}
+          {wantMeta && (
+            <span
+              data-slot="item-meta"
+              className="text-muted-foreground text-xs sm:whitespace-nowrap sm:text-sm"
+            >
+              {meta}
+            </span>
+          )}
         </div>
       )}
-      {meta !== undefined && (
-        <span
-          data-slot="item-meta"
-          className="text-muted-foreground text-sm max-sm:order-last max-sm:text-xs sm:whitespace-nowrap"
-        >
-          {meta}
-        </span>
+      {!(hasBadge || hasMeta) && (wantBadge || wantMeta) && (
+        <>
+          {wantBadge && (
+            <div data-slot="item-badge" className="max-sm:hidden" />
+          )}
+          {wantMeta && <span data-slot="item-meta" className="max-sm:hidden" />}
+        </>
       )}
       {actions !== undefined && (
         <div className="ms-auto flex shrink-0 items-center gap-1">
@@ -219,8 +280,8 @@ export function ItemListRow({
   const columns = [
     icon !== undefined && "auto",
     "minmax(0,1fr)",
-    badge !== undefined && "auto",
-    meta !== undefined && "auto",
+    wantBadge && "110px",
+    wantMeta && "140px",
     actions !== undefined && "auto",
     link !== undefined && "auto",
   ]

@@ -139,4 +139,67 @@ describe("ItemList", () => {
     expect(container.querySelector("[data-slot='item-badge']")).toBeNull();
     expect(container.querySelector("[data-slot='item-meta']")).toBeNull();
   });
+
+  it("reserves a column for every row when any row has one", () => {
+    render(
+      <ItemList label="Passkeys" empty={null}>
+        <ItemListRow key="a" title="Laptop" badge="Synced" meta="Used now" />
+        <ItemListRow key="b" title="Phone" />
+      </ItemList>,
+    );
+
+    expect(screen.getByRole("list")).toHaveAttribute(
+      "data-columns",
+      "badge meta",
+    );
+    for (const row of screen.getAllByRole("listitem")) {
+      expect(row.querySelector("[data-slot='item-badge']")).not.toBeNull();
+      expect(row.querySelector("[data-slot='item-meta']")).not.toBeNull();
+    }
+    const second = screen.getAllByRole("listitem")[1] as HTMLElement;
+    expect(
+      second.querySelector("[data-slot='item-badge']"),
+    ).toBeEmptyDOMElement();
+  });
+
+  it("sets no columns on a list without badges or meta", () => {
+    render(
+      <ItemList label="Passkeys" empty={null}>
+        <ItemListRow key="a" title="Laptop" />
+      </ItemList>,
+    );
+
+    expect(screen.getByRole("list")).not.toHaveAttribute("data-columns");
+  });
+
+  it("takes explicit columns for rows it cannot see", () => {
+    render(
+      <ItemList label="Passkeys" empty={null} columns={{ badge: true }}>
+        <ItemListRow key="a" title="Laptop" />
+      </ItemList>,
+    );
+
+    expect(screen.getByRole("list")).toHaveAttribute("data-columns", "badge");
+  });
+
+  it("groups badge and meta in one wrapper that joins the text column when narrow", () => {
+    render(
+      <ItemList label="Passkeys" empty={null}>
+        <ItemListRow
+          key="a"
+          icon={<i />}
+          title="Laptop"
+          badge="Synced"
+          meta="Used now"
+        />
+      </ItemList>,
+    );
+
+    const wrapper = screen
+      .getByText("Synced")
+      .closest("[data-slot='item-badge']")?.parentElement as HTMLElement;
+    expect(wrapper.className).toContain("max-sm:ps-12");
+    expect(wrapper.className).toContain("sm:contents");
+    expect(wrapper).toContainElement(screen.getByText("Used now"));
+  });
 });

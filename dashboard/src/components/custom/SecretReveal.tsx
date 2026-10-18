@@ -226,9 +226,10 @@ export function SecretReveal({
 
 /**
  * The same reveal in a dialog that is open exactly while the caller holds the
- * secret, so it cannot outlive it. Escape, a press outside and the close button
+ * secret, so it cannot outlive it. Escape and the close button
  * all do nothing until the secret is confirmed saved, because the server will
- * never show it again; after that, closing is the same as continuing.
+ * never show it again; after that, closing is the same as continuing. Pointer
+ * dismissal (a press outside) is disabled throughout.
  */
 export function SecretRevealDialog({
   text,

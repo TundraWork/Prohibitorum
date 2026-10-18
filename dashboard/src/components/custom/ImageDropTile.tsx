@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { type DragEvent, type ReactNode, useState } from "react";
+import { type DragEvent, type ReactNode, useRef, useState } from "react";
 import { buttonVariants } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
@@ -46,6 +46,9 @@ export function ImageDropTile({
 }) {
   const busy = isDisabled || isPending;
   const [over, setOver] = useState(false);
+  // dragenter/dragleave also fire for the children; count them so the tint
+  // holds until the drag has left the tile and everything inside it.
+  const depth = useRef(0);
 
   function take(files: ArrayLike<File> | null | undefined) {
     const list = Array.from(files ?? []);
@@ -62,6 +65,7 @@ export function ImageDropTile({
       onDragEnter={(event) => {
         if (busy || !carriesFiles(event)) return;
         event.preventDefault();
+        depth.current += 1;
         setOver(true);
       }}
       onDragOver={(event) => {
@@ -69,13 +73,13 @@ export function ImageDropTile({
         event.preventDefault();
       }}
       onDragLeave={(event) => {
-        if (event.currentTarget.contains(event.relatedTarget as Node | null)) {
-          return;
-        }
-        setOver(false);
+        if (busy || !carriesFiles(event)) return;
+        depth.current = Math.max(0, depth.current - 1);
+        if (depth.current === 0) setOver(false);
       }}
       onDrop={(event) => {
         event.preventDefault();
+        depth.current = 0;
         setOver(false);
         if (busy) return;
         take(event.dataTransfer?.files);
@@ -88,7 +92,7 @@ export function ImageDropTile({
       <label
         className={cn(
           buttonVariants({ variant: "ghost", size: "sm" }),
-          "h-full w-full cursor-pointer flex-col gap-1.5 text-muted-foreground has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring",
+          "h-full w-full cursor-pointer flex-col gap-1.5 text-muted-foreground has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring has-[:focus-visible]:ring-offset-1 has-[:focus-visible]:ring-offset-background",
           busy && "pointer-events-none opacity-64",
         )}
       >
