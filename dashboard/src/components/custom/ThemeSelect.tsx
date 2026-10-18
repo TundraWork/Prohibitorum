@@ -1,7 +1,14 @@
-import { ToggleButton, ToggleButtonGroup } from "@heroui/react";
 import { useLingui } from "@lingui/react/macro";
 import { atom, useAtom } from "jotai";
-import { Monitor, Moon, Sun } from "lucide-react";
+import { MonitorIcon, MoonIcon, SunIcon } from "lucide-react";
+import {
+  RadioGroupPrimitive,
+  RadioPrimitive,
+} from "@/components/ui/radio-group";
+import {
+  segmentedControlItemVariants,
+  segmentedControlRootClassName,
+} from "@/lib/segmented-control";
 
 /** The visitor's choice, which the console and the public pages share. */
 export const themeAtom = atom<"light" | "dark" | "system">("system");
@@ -13,48 +20,59 @@ export const themeAtom = atom<"light" | "dark" | "system">("system");
  */
 export const publicThemeAtom = atom<"light" | "dark" | undefined>(undefined);
 
-export function ThemeSelect() {
-  const [theme, setTheme] = useAtom(themeAtom);
+const themeItem = segmentedControlItemVariants({
+  size: "sm",
+  state: "checked",
+  className: "w-8 px-0",
+});
+
+export function useThemeOptions() {
   const { t } = useLingui();
-  const options = [
+  return [
     {
       value: "light",
       label: t({ id: "theme.light", message: "Light theme" }),
-      icon: Sun,
+      icon: SunIcon,
     },
     {
       value: "dark",
       label: t({ id: "theme.dark", message: "Dark theme" }),
-      icon: Moon,
+      icon: MoonIcon,
     },
     {
       value: "system",
       label: t({ id: "theme.system", message: "System theme" }),
-      icon: Monitor,
+      icon: MonitorIcon,
     },
   ] as const;
+}
+
+export function ThemeSelect() {
+  const [theme, setTheme] = useAtom(themeAtom);
+  const { t } = useLingui();
+  const options = useThemeOptions();
 
   return (
-    <ToggleButtonGroup
-      size="sm"
-      selectionMode="single"
-      disallowEmptySelection
-      selectedKeys={[theme]}
-      onSelectionChange={(keys) => {
-        const value = keys.values().next().value;
+    <RadioGroupPrimitive
+      aria-label={t({ id: "theme.label", message: "Theme" })}
+      className={segmentedControlRootClassName}
+      value={theme}
+      onValueChange={(value) => {
         if (value === "light" || value === "dark" || value === "system") {
           setTheme(value);
         }
       }}
-      aria-label={t({ id: "theme.label", message: "Theme" })}
     >
       {options.map(({ value, label, icon: Icon }) => (
-        <ToggleButton key={value} id={value} isIconOnly aria-label={label}>
-          <Icon size={16} aria-hidden="true">
-            <title>{label}</title>
-          </Icon>
-        </ToggleButton>
+        <RadioPrimitive.Root
+          key={value}
+          aria-label={label}
+          className={themeItem}
+          value={value}
+        >
+          <Icon aria-hidden="true" />
+        </RadioPrimitive.Root>
       ))}
-    </ToggleButtonGroup>
+    </RadioGroupPrimitive>
   );
 }

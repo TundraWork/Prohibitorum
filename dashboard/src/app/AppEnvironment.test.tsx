@@ -6,10 +6,6 @@ import { AppEnvironment } from "@/app/AppEnvironment";
 import { publicThemeAtom, themeAtom } from "@/components/custom/ThemeSelect";
 import { i18n } from "@/i18n";
 
-vi.mock("@/components/custom/PageScrollArea", () => ({
-  PageScrollArea: () => null,
-}));
-
 let store: ReturnType<typeof createStore>;
 let systemDark: boolean;
 let changeListeners: Array<() => void>;

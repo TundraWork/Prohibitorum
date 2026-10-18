@@ -174,9 +174,11 @@ describe("console pages", () => {
     mount("/admin");
 
     const title = await screen.findByRole("alert");
+    expect(title).toHaveTextContent("Unable to load this page");
     expect(title).toHaveTextContent(
       "The server could not complete the request.",
     );
+    expect(title.closest('[data-slot="frame"]')).not.toBeNull();
     expect(screen.queryByRole("heading", { level: 1 })).not.toBeInTheDocument();
 
     const facts = document.querySelector("dl");
@@ -370,12 +372,12 @@ describe("whole-window failures", () => {
     };
     mount("/admin");
 
-    expect(
-      await screen.findByRole("heading", {
-        level: 1,
-        name: "Unable to load this page",
-      }),
-    ).toHaveFocus();
+    const heading = await screen.findByRole("heading", {
+      level: 1,
+      name: "Unable to load this page",
+    });
+    expect(heading).toHaveFocus();
+    expect(heading.closest('[data-slot="frame"]')).not.toBeNull();
     expect(
       screen.getByText("Something went wrong on this page."),
     ).toBeInTheDocument();
@@ -413,9 +415,12 @@ describe("addresses with no page", () => {
     const user = userEvent.setup();
     const router = mount("/does-not-exist");
 
-    expect(
-      await screen.findByRole("heading", { level: 1, name: "Page not found" }),
-    ).toHaveFocus();
+    const heading = await screen.findByRole("heading", {
+      level: 1,
+      name: "Page not found",
+    });
+    expect(heading).toHaveFocus();
+    expect(heading.closest('[data-slot="frame"]')).not.toBeNull();
     await user.click(screen.getByRole("button", { name: "Go home" }));
     expect(await screen.findByText("Console home page")).toBeInTheDocument();
     expect(router.state.location.pathname).toBe("/");
@@ -424,9 +429,10 @@ describe("addresses with no page", () => {
   it("draws an address under the console inside the console", async () => {
     mount("/admin/nope");
 
-    expect(
-      await screen.findByRole("button", { name: "Back to console home" }),
-    ).toBeInTheDocument();
+    const leave = await screen.findByRole("button", {
+      name: "Back to console home",
+    });
+    expect(leave.closest('[data-slot="frame"]')).not.toBeNull();
     expect(screen.queryByRole("heading")).not.toBeInTheDocument();
     expect(screen.getAllByRole("button")).toHaveLength(1);
   });

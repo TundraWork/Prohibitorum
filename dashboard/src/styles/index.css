@@ -58,69 +58,6 @@
 }
 
 /*
- * The console rail's bar. The rail leaves an 8px gutter beside its entries, so
- * the app's 10px bar would lie over the edge of the selected and hovered rows.
- * Here the track is the gutter itself and the handle is drawn narrower than it:
- * 4px at rest against the rail's outer edge (a vertical handle sits at the end
- * of its track), 6px while the bar is hovered or dragged, so it always keeps
- * 2px clear of the rows. The interactive offset stretches the grab area back
- * over the whole gutter, so the thin handle is no harder to take hold of.
- */
-[data-console-rail] > .os-scrollbar-vertical {
-  --os-size: 8px;
-  --os-handle-perpendicular-size: 4px;
-  --os-handle-perpendicular-size-hover: 6px;
-  --os-handle-perpendicular-size-active: 6px;
-  --os-handle-interactive-area-offset: 4px;
-}
-
-/*
- * The page's scrollbars avoid the open devtools panel the same way the content
- * does.
- *
- * The panel is a fixed overlay on an edge of the viewport, and the dock narrows
- * the page by writing the `--app-gutter-*` properties. The page scrollbar is
- * fixed to the viewport rather than sized by the page, so it does not follow
- * that narrowing on its own: its track would run the full height underneath the
- * panel. These offsets pull the track clear of the panel, and because the
- * gutters are `0px` unless a panel is open — they are only ever written by
- * `src/devtools/dock`, which is development-only — a production build resolves
- * them to the library's own `0`.
- *
- * `body >` scopes this to the page scrollbar: a `ScrollArea` keeps its
- * scrollbars inside its own host, where the gutters do not apply.
- */
-body > .os-scrollbar.os-scrollbar-vertical.os-scrollbar-cornerless {
-  top: var(--app-gutter-top);
-  bottom: var(--app-gutter-bottom);
-}
-
-/*
- * The horizontal bar only ever sits at the foot of the viewport, so only a
- * bottom-docked panel can cover it: the gutter lifts it by the panel's height.
- * A top-docked panel leaves `--app-gutter-bottom` at `0px`.
- */
-body > .os-scrollbar.os-scrollbar-horizontal.os-scrollbar-cornerless {
-  bottom: var(--app-gutter-bottom);
-}
-
-/*
- * The page's own scroll host stays unpositioned.
- *
- * OverlayScrollbars marks `html` as the page's viewport and gives every host
- * `position: relative`. That makes `html` the containing block for overlays
- * portalled into `body`, and React Aria places an overlay above its trigger
- * with a `bottom` offset it measures from the viewport's height whenever the
- * container is `html`. Against a positioned `html` the browser measures it from
- * the whole document instead, so a tooltip on a long page lands far below its
- * trigger. Left static, `html` is the initial containing block React Aria
- * expects. The page scrollbars are `position: fixed` and do not depend on it.
- */
-html[data-overlayscrollbars] {
-  position: static;
-}
-
-/*
  * The space a page may fill. The devtools dock (`src/devtools/dock`) narrows the
  * viewport by the height of its open panel and adds the matching gutter, so the
  * panel covers empty space instead of the page. These defaults describe an
@@ -136,6 +73,10 @@ html[data-overlayscrollbars] {
 body {
   padding-top: var(--app-gutter-top);
   padding-bottom: var(--app-gutter-bottom);
+  /* The surface content sits on, which a pinned table header must repaint to
+     match the band around it. The console's inset panel and dialog popups
+     name their own. */
+  --surface: var(--sidebar);
 }
 
 :focus:not(:focus-visible) {
@@ -154,10 +95,10 @@ body {
  * The timeline has to be on the element that actually scrolls, which is the
  * table's own overflow container rather than the frame around it.
  */
-/* The frame band is translucent: a pinned header paints the page surface, then
-   the same band, so it is opaque and matches the other headers. */
+/* The frame band is translucent: a pinned header paints the surface beneath
+   it, then the same band, so it is opaque and matches the other headers. */
 .data-table [data-slot="table-head"][data-pinned] {
-  background-color: var(--sidebar);
+  background-color: var(--surface);
   background-image: linear-gradient(
     color-mix(in oklab, var(--muted) 72%, transparent),
     color-mix(in oklab, var(--muted) 72%, transparent)

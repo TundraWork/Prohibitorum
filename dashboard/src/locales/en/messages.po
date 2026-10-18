@@ -646,6 +646,11 @@ msgid "admin.users.role.admin"
 msgstr "Admin"
 
 #. js-lingui-explicit-id
+#: src/components/custom/ConsoleLayout.tsx
+msgid "console.role.admin"
+msgstr "Admin"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminHome.tsx
 msgid "admin.home.title"
 msgstr "Administration"
@@ -1204,6 +1209,11 @@ msgid "admin.saml-apps.acs.binding"
 msgstr "Binding"
 
 #. js-lingui-explicit-id
+#: src/components/custom/ConsoleLayout.tsx
+msgid "console.breadcrumb"
+msgstr "Breadcrumb"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.diagnostics.stage.callback"
 msgstr "Callback"
@@ -1588,11 +1598,6 @@ msgstr "Close"
 #: src/components/custom/SudoDialog.tsx
 msgid "sudo.close"
 msgstr "Close"
-
-#. js-lingui-explicit-id
-#: src/components/custom/ConsoleLayout.tsx
-msgid "console.close-menu"
-msgstr "Close navigation"
 
 #. js-lingui-explicit-id
 #: src/components/custom/NotificationToasts.tsx
@@ -3859,6 +3864,7 @@ msgid "settings.sign-in.gradient.lagoon"
 msgstr "Lagoon"
 
 #. js-lingui-explicit-id
+#: src/components/custom/ConsoleLayout.tsx
 #: src/components/custom/LanguageMenu.tsx
 msgid "language.label"
 msgstr "Language"
@@ -4797,11 +4803,6 @@ msgstr "Open {name}"
 #: src/pages/public/FederationFlow.tsx
 msgid "federation_flow.identify.step.open"
 msgstr "Open <0>vrchat.com</0> in your browser and go to your profile page."
-
-#. js-lingui-explicit-id
-#: src/components/custom/ConsoleLayout.tsx
-msgid "console.open-menu"
-msgstr "Open navigation"
 
 #. js-lingui-explicit-id
 #: src/pages/public/FederationFlow.tsx
@@ -6063,13 +6064,8 @@ msgstr "Scopes"
 
 #. js-lingui-explicit-id
 #: src/components/custom/ConsoleLayout.tsx
-msgid "console.scroll-down"
-msgstr "Scroll navigation down"
-
-#. js-lingui-explicit-id
-#: src/components/custom/ConsoleLayout.tsx
-msgid "console.scroll-up"
-msgstr "Scroll navigation up"
+msgid "console.search"
+msgstr "Search"
 
 #. js-lingui-explicit-id
 #: src/components/custom/EntityPicker.tsx
@@ -7286,6 +7282,7 @@ msgid "settings.sign-in.theme"
 msgstr "Theme"
 
 #. js-lingui-explicit-id
+#: src/components/custom/ConsoleLayout.tsx
 #: src/components/custom/ThemeSelect.tsx
 msgid "theme.label"
 msgstr "Theme"
@@ -8114,6 +8111,11 @@ msgstr "User"
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminUsers.tsx
 msgid "admin.users.role.user"
+msgstr "User"
+
+#. js-lingui-explicit-id
+#: src/components/custom/ConsoleLayout.tsx
+msgid "console.role.user"
 msgstr "User"
 
 #. js-lingui-explicit-id

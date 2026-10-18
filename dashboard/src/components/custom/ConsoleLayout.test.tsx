@@ -7,7 +7,8 @@ import {
   createRouter,
   RouterProvider,
 } from "@tanstack/react-router";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { components } from "@/api/generated/schema";
 import {
@@ -18,8 +19,14 @@ import {
 import type { PublicConfig } from "@/api/raw-paths";
 import { createQueryClient } from "@/app/query-client";
 import { searchSerialization } from "@/app/search-params";
-import { ConsoleLayout } from "@/components/custom/ConsoleLayout";
+import {
+  ConsoleLayout,
+  ConsoleNavigation,
+  visibleManagementSections,
+} from "@/components/custom/ConsoleLayout";
+import { useConsoleCrumb } from "@/components/custom/console-crumb";
 import { defaultLoginAppearance } from "@/components/custom/login-appearance/appearance";
+import { SidebarProvider } from "@/components/ui/sidebar";
 import { i18n } from "@/i18n";
 
 const fetchBoundary = vi.fn<(request: Request) => Promise<Response>>();
@@ -63,30 +70,40 @@ beforeEach(() => {
 afterEach(() => {
   queryClient.clear();
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
+
+type Managed = { oidc: boolean; saml: boolean; forwardAuth: boolean };
 
 /**
  * Mounts the shell at `path` with a page under it, the way the route tree
  * mounts it: the shell is the parent route and the page renders in its outlet.
  */
-async function mount(
+function renderShell(
   path: string,
   session: Session,
-  managed?: { oidc: boolean; saml: boolean; forwardAuth: boolean },
+  options: {
+    managed?: Managed;
+    page?: () => React.ReactElement;
+    onSearch?: () => void;
+  } = {},
 ) {
   queryClient.setQueryData(sessionQueryOptions().queryKey, session);
-  if (managed) {
+  if (options.managed) {
     queryClient.setQueryData(
       managedApplicationsQueryOptions().queryKey,
-      managed,
+      options.managed,
     );
   }
-  const root = createRootRoute({ component: ConsoleLayout });
+  const Page = options.page ?? (() => <p>page</p>);
+  const root = createRootRoute({
+    component: () => <ConsoleLayout onSearch={options.onSearch} />,
+  });
   const page = (routePath: string) =>
     createRoute({
       getParentRoute: () => root,
       path: routePath,
-      component: () => <p>page</p>,
+      component: Page,
     });
   const router = createRouter({
     ...searchSerialization,
@@ -94,6 +111,7 @@ async function mount(
       page("/"),
       page("/admin"),
       page("/profile"),
+      page("/security"),
       page("/admin/users"),
       page("/admin/users/$id"),
       page("/admin/saml-applications"),
@@ -108,6 +126,15 @@ async function mount(
       </QueryClientProvider>
     </I18nProvider>,
   );
+}
+
+async function mount(
+  path: string,
+  session: Session,
+  managed?: Managed,
+  options: Parameters<typeof renderShell>[2] = {},
+) {
+  renderShell(path, session, { ...options, managed });
   return screen.findByRole("navigation", { name: "Console navigation" });
 }
 
@@ -215,11 +242,151 @@ describe("console header", () => {
 describe("console sidebar", () => {
   it("names the instance above the navigation", async () => {
     const navigation = await mount("/", member);
-    const sidebar = screen.getByRole("complementary");
+    const sidebar = document.querySelector('[data-slot="sidebar"]');
+    if (!(sidebar instanceof HTMLElement)) throw new Error("no sidebar");
     const name = within(sidebar).getByText("Prohibitorum");
     expect(
       name.compareDocumentPosition(navigation) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
+  });
+
+  it("shows a count beside an entry as a badge", async () => {
+    const root = createRootRoute({
+      component: () => (
+        <SidebarProvider>
+          <ConsoleNavigation
+            managementSections={visibleManagementSections(true, undefined)}
+            counts={{ "/admin/users": 42 }}
+          />
+        </SidebarProvider>
+      ),
+    });
+    const router = createRouter({
+      ...searchSerialization,
+      routeTree: root.addChildren([]),
+      history,
+    });
+    history.push("/");
+    render(
+      <I18nProvider i18n={i18n}>
+        <RouterProvider router={router} />
+      </I18nProvider>,
+    );
+
+    const nav = await screen.findByRole("navigation", {
+      name: "Console navigation",
+    });
+    const badge = within(nav).getByText("42");
+    expect(badge).toHaveAttribute("data-slot", "sidebar-menu-badge");
+    expect(badge.closest("li")).toContainElement(
+      within(nav).getByRole("link", { name: "Users" }),
+    );
+    expect(within(nav).queryByText("0")).not.toBeInTheDocument();
+  });
+});
+
+describe("console account menu", () => {
+  it("offers the account's pages and signing out", async () => {
+    const user = userEvent.setup();
+    await mount("/", admin);
+
+    await user.click(screen.getByRole("button", { name: /Alice/ }));
+
+    expect(
+      await screen.findByRole("menuitem", { name: "Profile" }),
+    ).toHaveAttribute("href", "/profile");
+    expect(screen.getByRole("menuitem", { name: "Security" })).toHaveAttribute(
+      "href",
+      "/security",
+    );
+    expect(
+      screen.getByRole("menuitem", { name: "Sign out" }),
+    ).toBeInTheDocument();
+  });
+
+  it("names the account and its role in the footer", async () => {
+    await mount("/", member);
+
+    const trigger = screen.getByRole("button", { name: /Alice/ });
+    expect(trigger).toHaveTextContent("User");
+  });
+});
+
+describe("console header breadcrumb", () => {
+  it("ends on the section when a page names nothing more", async () => {
+    await mount("/admin/users", admin);
+
+    const crumbs = screen.getByRole("navigation", { name: "Breadcrumb" });
+    expect(within(crumbs).getByText("Users")).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
+      "Users",
+    );
+  });
+
+  it("ends on the record a page names, under a link back to its section", async () => {
+    function Record() {
+      useConsoleCrumb("Mei Tanaka");
+      return <p>page</p>;
+    }
+    await mount("/admin/users/5", admin, undefined, { page: Record });
+
+    const crumbs = screen.getByRole("navigation", { name: "Breadcrumb" });
+    await waitFor(() =>
+      expect(within(crumbs).getByText("Mei Tanaka")).toHaveAttribute(
+        "aria-current",
+        "page",
+      ),
+    );
+    expect(within(crumbs).getByRole("link", { name: "Users" })).toHaveAttribute(
+      "href",
+      "/admin/users",
+    );
+    expect(screen.queryByRole("heading", { level: 1 })).not.toBeInTheDocument();
+  });
+
+  it("draws the search field only when a search is wired", async () => {
+    await mount("/", admin);
+    expect(screen.queryByRole("searchbox")).not.toBeInTheDocument();
+  });
+
+  it("draws the search field with its shortcut when a search is wired", async () => {
+    await mount("/", admin, undefined, { onSearch: () => undefined });
+    expect(screen.getByRole("searchbox", { name: "Search" })).toBeVisible();
+    expect(screen.getByText("⌘K")).toBeVisible();
+  });
+});
+
+describe("console shell on a narrow screen", () => {
+  beforeEach(() => {
+    vi.spyOn(window, "matchMedia").mockImplementation(
+      (query: string) =>
+        ({
+          matches: query === "(max-width: 799px)",
+          media: query,
+          addEventListener: vi.fn(),
+          removeEventListener: vi.fn(),
+        }) as unknown as MediaQueryList,
+    );
+  });
+
+  it("opens the navigation as a sheet from the header trigger", async () => {
+    const user = userEvent.setup();
+    renderShell("/", member);
+
+    expect(
+      screen.queryByRole("navigation", { name: "Console navigation" }),
+    ).not.toBeInTheDocument();
+    await user.click(
+      await screen.findByRole("button", { name: "Toggle sidebar" }),
+    );
+
+    const sheet = await screen.findByRole("dialog");
+    expect(
+      within(sheet).getByRole("navigation", { name: "Console navigation" }),
+    ).toBeVisible();
   });
 });

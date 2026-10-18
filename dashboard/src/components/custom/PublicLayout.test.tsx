@@ -22,10 +22,6 @@ import { PublicLayout } from "@/components/custom/PublicLayout";
 import { themeAtom } from "@/components/custom/ThemeSelect";
 import { i18n } from "@/i18n";
 
-vi.mock("@/components/custom/PageScrollArea", () => ({
-  PageScrollArea: () => null,
-}));
-
 const config: PublicConfig = {
   instanceName: "Test instance",
   hasCustomIcon: true,

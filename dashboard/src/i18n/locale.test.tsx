@@ -101,7 +101,9 @@ describe("language preference", () => {
     const name = screen.getByRole("textbox", { name: "Username" });
     await user.type(name, "Unsubmitted edit");
     await user.click(screen.getByRole("button", { name: /Language/ }));
-    await user.click(screen.getByRole("menuitemradio", { name: "中文" }));
+    await user.click(
+      await screen.findByRole("menuitemradio", { name: "中文" }),
+    );
 
     expect(screen.getByRole("heading", { name: "登录" })).toBeVisible();
     expect(screen.getByRole("textbox", { name: "用户名" })).toHaveValue(

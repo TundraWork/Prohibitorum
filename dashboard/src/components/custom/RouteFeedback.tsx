@@ -1,4 +1,4 @@
-import { Alert, Spinner } from "@heroui/react";
+import { Spinner } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import {
   useMutation,
@@ -25,9 +25,9 @@ import { logoutMutationOptions } from "@/api/mutations";
 import { clearSessionQueries } from "@/api/queries";
 import { Button } from "@/components/custom/Button";
 import { PageHeading } from "@/components/custom/PageHeading";
-import { PublicCard } from "@/components/custom/PublicCard";
 import { RequestDetailsDialog } from "@/components/custom/RequestDetailsDialog";
 import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
+import { Frame, FramePanel } from "@/components/ui/frame";
 
 /** Pending state for public routes: the layout supplies the card, this only centers a spinner inside it. */
 export function PublicPending() {
@@ -75,18 +75,24 @@ export function RouteError(props: ErrorComponentProps) {
   return <AppRouteError {...props} />;
 }
 
-/** A console page that failed, in the page column under the header's title. */
+/** A console page that failed, in the page column under the header. */
 export function ConsoleRouteError({ error }: ErrorComponentProps) {
   const { i18n } = useLingui();
   const route = useRouteFailure(error);
   return (
-    <Alert status="danger">
-      <Alert.Indicator />
-      <Alert.Content>
-        <Alert.Title role="alert">{i18n._(route.failure.message)}</Alert.Title>
+    <Frame>
+      <FramePanel className="flex flex-col gap-1">
+        <div role="alert" className="flex flex-col gap-1">
+          <p className="font-semibold text-base">
+            <Trans id="route.failed">Unable to load this page</Trans>
+          </p>
+          <p className="text-muted-foreground text-sm">
+            {i18n._(route.failure.message)}
+          </p>
+        </div>
         <FailureBody route={route} leave={consoleLeave} />
-      </Alert.Content>
-    </Alert>
+      </FramePanel>
+    </Frame>
   );
 }
 
@@ -95,21 +101,50 @@ export function PublicRouteError({ error }: ErrorComponentProps) {
   return <FailedPage error={error} leave={publicLeave} />;
 }
 
-/** A failure with no layout to draw in: the root route or a layout itself. */
+/**
+ * A failure with no layout to draw in: the root route or a layout itself. It
+ * takes the window, since there is no page column to sit in.
+ */
 export function AppRouteError({ error }: ErrorComponentProps) {
+  const { i18n } = useLingui();
+  const route = useRouteFailure(error);
   return (
-    <PublicCard>
-      <FailedPage error={error} leave={appLeave} />
-    </PublicCard>
+    <WindowFrame>
+      <PageHeading>
+        <Trans id="route.failed">Unable to load this page</Trans>
+      </PageHeading>
+      <p className="mt-1 text-muted-foreground text-sm">
+        {i18n._(route.failure.message)}
+      </p>
+      <FailureBody route={route} leave={appLeave} />
+    </WindowFrame>
   );
 }
 
-/** The console header already says the page does not exist. */
+/** A console address with no page, in the page column under the header. */
 export function ConsoleRouteNotFound() {
   return (
-    <div>
-      <LeaveButton to={consoleLeave.to}>{consoleLeave.label}</LeaveButton>
-    </div>
+    <Frame>
+      <FramePanel className="flex flex-col gap-3">
+        <p className="font-semibold text-base">
+          <Trans id="route.not-found">Page not found</Trans>
+        </p>
+        <div>
+          <LeaveButton to={consoleLeave.to}>{consoleLeave.label}</LeaveButton>
+        </div>
+      </FramePanel>
+    </Frame>
+  );
+}
+
+/** One framed panel centred in the window, for a failure outside any layout. */
+function WindowFrame({ children }: { children: ReactNode }) {
+  return (
+    <main className="grid min-h-svh place-items-center p-6">
+      <Frame className="w-full max-w-md">
+        <FramePanel>{children}</FramePanel>
+      </Frame>
+    </main>
   );
 }
 
@@ -119,9 +154,14 @@ export function PublicRouteNotFound() {
 
 export function AppRouteNotFound() {
   return (
-    <PublicCard>
-      <MissingPage leave={appLeave} />
-    </PublicCard>
+    <WindowFrame>
+      <PageHeading>
+        <Trans id="route.not-found">Page not found</Trans>
+      </PageHeading>
+      <div className="mt-4 empty:hidden">
+        <LeaveButton to={appLeave.to}>{appLeave.label}</LeaveButton>
+      </div>
+    </WindowFrame>
   );
 }
 
@@ -338,7 +378,7 @@ function RouteFacts({ facts }: { facts: RouteFailure["facts"] }) {
     <dl className="mt-2 grid gap-x-4 gap-y-1 text-sm sm:grid-cols-[max-content_minmax(0,1fr)]">
       {shown.map(({ key, label, mono }) => (
         <Fragment key={key}>
-          <dt className="text-muted">{label}</dt>
+          <dt className="text-muted-foreground">{label}</dt>
           <dd
             className={`min-w-0 wrap-anywhere text-foreground max-sm:not-last:mb-1 ${mono ? "font-mono" : ""}`}
           >

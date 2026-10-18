@@ -1,42 +1,52 @@
-import { Dropdown, Label } from "@heroui/react";
 import { useLingui } from "@lingui/react/macro";
 import { useAtom } from "jotai";
-import { Languages } from "lucide-react";
-import { Button } from "@/components/custom/Button";
+import { LanguagesIcon } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  Menu,
+  MenuPopup,
+  MenuRadioGroup,
+  MenuRadioItem,
+  MenuTrigger,
+} from "@/components/ui/menu";
 import { localeAtom, resolveLocale } from "@/i18n";
 
-export function LanguageMenu() {
+/** The two languages, as radio items for any menu that offers the choice. */
+export function LanguageMenuItems() {
   const [locale, setLocale] = useAtom(localeAtom);
+  const { t } = useLingui();
+  return (
+    <MenuRadioGroup
+      aria-label={t({ id: "language.label", message: "Language" })}
+      value={resolveLocale(locale)}
+      onValueChange={(value) => {
+        if (value === "en" || value === "zh") setLocale(value);
+      }}
+    >
+      <MenuRadioItem value="en" lang="en">
+        English
+      </MenuRadioItem>
+      <MenuRadioItem value="zh" lang="zh-CN">
+        中文
+      </MenuRadioItem>
+    </MenuRadioGroup>
+  );
+}
+
+export function LanguageMenu() {
   const { t } = useLingui();
   const label = t({ id: "language.label", message: "Language" });
 
   return (
-    <Dropdown>
-      <Button isIconOnly size="sm" variant="ghost" aria-label={label}>
-        <Languages size={18} aria-hidden="true">
-          <title>{label}</title>
-        </Languages>
-      </Button>
-      <Dropdown.Popover placement="bottom end">
-        <Dropdown.Menu
-          aria-label={label}
-          selectionMode="single"
-          disallowEmptySelection
-          selectedKeys={[resolveLocale(locale)]}
-          onAction={(key) => {
-            if (key === "en" || key === "zh") setLocale(key);
-          }}
-        >
-          <Dropdown.Item id="en" textValue="English">
-            <Label lang="en">English</Label>
-            <Dropdown.ItemIndicator />
-          </Dropdown.Item>
-          <Dropdown.Item id="zh" textValue="中文">
-            <Label lang="zh-CN">中文</Label>
-            <Dropdown.ItemIndicator />
-          </Dropdown.Item>
-        </Dropdown.Menu>
-      </Dropdown.Popover>
-    </Dropdown>
+    <Menu>
+      <MenuTrigger
+        render={<Button aria-label={label} size="icon-sm" variant="ghost" />}
+      >
+        <LanguagesIcon aria-hidden="true" />
+      </MenuTrigger>
+      <MenuPopup align="end">
+        <LanguageMenuItems />
+      </MenuPopup>
+    </Menu>
   );
 }

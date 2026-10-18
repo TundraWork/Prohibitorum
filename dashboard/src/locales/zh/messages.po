@@ -646,6 +646,11 @@ msgid "admin.users.role.admin"
 msgstr "管理员"
 
 #. js-lingui-explicit-id
+#: src/components/custom/ConsoleLayout.tsx
+msgid "console.role.admin"
+msgstr "管理员"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminHome.tsx
 msgid "admin.home.title"
 msgstr "管理"
@@ -1204,6 +1209,11 @@ msgid "admin.saml-apps.acs.binding"
 msgstr "绑定"
 
 #. js-lingui-explicit-id
+#: src/components/custom/ConsoleLayout.tsx
+msgid "console.breadcrumb"
+msgstr "面包屑导航"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.diagnostics.stage.callback"
 msgstr "回调"
@@ -1588,11 +1598,6 @@ msgstr "关闭"
 #: src/components/custom/SudoDialog.tsx
 msgid "sudo.close"
 msgstr "关闭"
-
-#. js-lingui-explicit-id
-#: src/components/custom/ConsoleLayout.tsx
-msgid "console.close-menu"
-msgstr "关闭导航"
 
 #. js-lingui-explicit-id
 #: src/components/custom/NotificationToasts.tsx
@@ -3859,6 +3864,7 @@ msgid "settings.sign-in.gradient.lagoon"
 msgstr "泻湖"
 
 #. js-lingui-explicit-id
+#: src/components/custom/ConsoleLayout.tsx
 #: src/components/custom/LanguageMenu.tsx
 msgid "language.label"
 msgstr "语言"
@@ -4797,11 +4803,6 @@ msgstr "开放 {name}"
 #: src/pages/public/FederationFlow.tsx
 msgid "federation_flow.identify.step.open"
 msgstr "在浏览器打开 <0>vrchat.com</0> 并进入你的个人资料页。"
-
-#. js-lingui-explicit-id
-#: src/components/custom/ConsoleLayout.tsx
-msgid "console.open-menu"
-msgstr "打开导航"
 
 #. js-lingui-explicit-id
 #: src/pages/public/FederationFlow.tsx
@@ -6063,13 +6064,8 @@ msgstr "作用域"
 
 #. js-lingui-explicit-id
 #: src/components/custom/ConsoleLayout.tsx
-msgid "console.scroll-down"
-msgstr "向下滚动导航"
-
-#. js-lingui-explicit-id
-#: src/components/custom/ConsoleLayout.tsx
-msgid "console.scroll-up"
-msgstr "向上滚动导航"
+msgid "console.search"
+msgstr "搜索"
 
 #. js-lingui-explicit-id
 #: src/components/custom/EntityPicker.tsx
@@ -7286,6 +7282,7 @@ msgid "settings.sign-in.theme"
 msgstr "主题"
 
 #. js-lingui-explicit-id
+#: src/components/custom/ConsoleLayout.tsx
 #: src/components/custom/ThemeSelect.tsx
 msgid "theme.label"
 msgstr "主题"
@@ -8114,6 +8111,11 @@ msgstr "用户"
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminUsers.tsx
 msgid "admin.users.role.user"
+msgstr "用户"
+
+#. js-lingui-explicit-id
+#: src/components/custom/ConsoleLayout.tsx
+msgid "console.role.user"
 msgstr "用户"
 
 #. js-lingui-explicit-id

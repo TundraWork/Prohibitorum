@@ -2,13 +2,12 @@ import { useLingui } from "@lingui/react/macro";
 import { useAtomValue } from "jotai";
 import { type ReactNode, useLayoutEffect } from "react";
 import { I18nProvider as AriaI18nProvider } from "react-aria";
-import { PageScrollArea } from "@/components/custom/PageScrollArea";
 import { publicThemeAtom, themeAtom } from "@/components/custom/ThemeSelect";
 
 /**
- * What every screen needs whether or not a route drew: the theme, the locale
- * React Aria formats with, and the page's scrollbar. It sits outside the
- * router, so a root route that fails still draws its error in them.
+ * What every screen needs whether or not a route drew: the theme and the
+ * locale React Aria formats with. It sits outside the router, so a root route
+ * that fails still draws its error in them.
  *
  * The theme is the one the public pages force, if any, or else the visitor's.
  * It is written on `<html>` before the browser paints, so moving between the
@@ -41,7 +40,6 @@ export function AppEnvironment({ children }: { children: ReactNode }) {
   return (
     <AriaI18nProvider locale={i18n.locale === "zh" ? "zh-CN" : "en"}>
       {children}
-      <PageScrollArea />
     </AriaI18nProvider>
   );
 }
