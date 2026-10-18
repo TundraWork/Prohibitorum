@@ -1,8 +1,7 @@
-import { Avatar, Chip, Dropdown, Label } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link2, Unlink } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { describeError, isCancellation } from "@/api/errors";
 import type { components } from "@/api/generated/schema";
 import {
@@ -15,12 +14,19 @@ import {
 } from "@/api/queries";
 import { runWithSudo } from "@/api/sudo";
 import { sudoReason } from "@/api/sudo-reasons";
+import { loadDocument } from "@/app/load-document";
+import { withInlineReport } from "@/app/query-client";
 import { Button } from "@/components/custom/Button";
 import { ConfirmDialog } from "@/components/custom/ConfirmDialog";
+import { EntityAvatar } from "@/components/custom/EntityAvatar";
 import { ItemList, ItemListRow } from "@/components/custom/ItemList";
+import { RelativeTime } from "@/components/custom/RelativeTime";
 import { Section } from "@/components/custom/Section";
 import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
 import { TableEmptyState } from "@/components/custom/TableEmptyState";
+import { getTopLayerContainer } from "@/components/custom/top-layer";
+import { Badge } from "@/components/ui/badge";
+import { Menu, MenuItem, MenuPopup, MenuTrigger } from "@/components/ui/menu";
 
 type Identity = components["schemas"]["AccountIdentityView"];
 type Provider = components["schemas"]["FederationProvider"];
@@ -47,32 +53,51 @@ export function IdentitiesPanel() {
   const [error, setError] = useState<unknown>(null);
   const [linking, setLinking] = useState<string | null>(null);
 
-  const unlink = useMutation(unlinkIdentityMutationOptions(queryClient));
+  // The failure is drawn in this section, so the toast stays silent.
+  const unlink = useMutation(
+    withInlineReport(unlinkIdentityMutationOptions(queryClient), true),
+  );
 
   const available = providers.data ?? [];
   const linkedSlugs = new Set(
     (identities.data ?? []).map((identity) => identity.providerSlug),
   );
 
+  // A press leaves the page and stays pending until it is gone; the browser
+  // can show this page again from the back-forward cache with the state kept.
+  useEffect(() => {
+    const restore = (event: PageTransitionEvent) => {
+      if (event.persisted) setLinking(null);
+    };
+    window.addEventListener("pageshow", restore);
+    return () => window.removeEventListener("pageshow", restore);
+  }, []);
+
   const startLink = (slug: string) => {
     setError(null);
     setLinking(slug);
-    void runWithSudo(async () => {
-      // A full-page assignment: the response is a redirect the browser has to
+    runWithSudo(async () => {
+      // A full-page load: the response is a redirect the browser has to
       // follow, not a body the client can read.
-      window.location.assign(identityLinkUrl(slug));
-    }, sudoReason.linkIdentity)
-      .catch((failure: unknown) => {
-        if (!isCancellation(failure)) setError(failure);
-      })
-      .finally(() => setLinking(null));
+      loadDocument(identityLinkUrl(slug));
+    }, sudoReason.linkIdentity).catch((failure: unknown) => {
+      setLinking(null);
+      if (!isCancellation(failure)) setError(failure);
+    });
   };
 
   return (
     <>
       <Section
+        icon={<Link2 />}
         title={
-          <Trans id="security.section.identities">Connected identities</Trans>
+          <Trans id="security.section.identities">Linked identities</Trans>
+        }
+        description={
+          <Trans id="security.identities.description">
+            Other accounts you can sign in with. Unlinking one leaves your other
+            ways in as they are.
+          </Trans>
         }
         action={
           <LinkIdentityMenu
@@ -95,7 +120,7 @@ export function IdentitiesPanel() {
         <ItemList
           label={t({
             id: "security.identities.table",
-            message: "Connected identities",
+            message: "Linked identities",
           })}
           loading={identities.isPending}
           empty={
@@ -112,16 +137,31 @@ export function IdentitiesPanel() {
           {(identities.data ?? []).map((identity) => (
             <ItemListRow
               key={identity.id}
-              icon={<Link2 size={18} aria-hidden="true" />}
+              icon={
+                <EntityAvatar
+                  size="md"
+                  name={identity.providerDisplayName}
+                  iconUrl={
+                    available.find(
+                      (provider) => provider.slug === identity.providerSlug,
+                    )?.iconUrl
+                  }
+                />
+              }
               title={identity.providerDisplayName}
-              badges={
-                <Chip size="sm" variant="soft">
-                  <span className="uppercase">{identity.protocol}</span>
-                </Chip>
+              badge={
+                <Badge variant="outline">
+                  {identity.protocol.toUpperCase()}
+                </Badge>
+              }
+              meta={
+                <Trans id="security.identities.meta.linked">
+                  Linked <RelativeTime value={identity.linkedAt} />
+                </Trans>
               }
               details={[
                 identity.email || undefined,
-                <span key="subject" className="font-mono">
+                <span key="subject" className="font-mono wrap-anywhere">
                   {identity.subject}
                 </span>,
               ]}
@@ -135,7 +175,7 @@ export function IdentitiesPanel() {
                   variant="destructive-outline"
                   size="icon-sm"
                 >
-                  <Unlink size={16} aria-hidden="true" />
+                  <Unlink aria-hidden="true" />
                 </Button>
               }
             />
@@ -166,9 +206,12 @@ export function IdentitiesPanel() {
         isPending={unlink.isPending}
         onConfirm={() => {
           if (!target) return;
+          setError(null);
           unlink.mutate(target.id, {
             onSuccess: () => setTarget(null),
             onError: (failure) => {
+              // Backing out of the sudo prompt returns to this question.
+              if (isCancellation(failure)) return;
               setError(failure);
               setTarget(null);
             },
@@ -200,59 +243,51 @@ function LinkIdentityMenu({
   isPending: boolean;
   onSelect: (slug: string) => void;
 }) {
-  const { t } = useLingui();
-  const label = t({
-    id: "security.identities.link.title",
-    message: "Link another identity",
-  });
-
   return (
-    <Dropdown>
-      <Button pending={isPending}>
+    <Menu disabled={isPending}>
+      <MenuTrigger
+        render={<Button variant="outline" size="sm" pending={isPending} />}
+      >
         <Trans id="security.identities.link.title">Link another identity</Trans>
-      </Button>
-      <Dropdown.Popover placement="bottom start">
-        <Dropdown.Menu
-          aria-label={label}
-          onAction={(key) => onSelect(String(key))}
-        >
-          {providers.length === 0 ? (
-            <Dropdown.Item
-              id="unavailable"
-              textValue={t({
-                id: "security.identities.link.unavailable",
-                message: "No identities available to link",
-              })}
-              isDisabled
-            >
-              <Label>
-                <Trans id="security.identities.link.unavailable">
-                  No identities available to link
-                </Trans>
-              </Label>
-            </Dropdown.Item>
-          ) : (
-            providers.map((provider) => (
-              <Dropdown.Item
+      </MenuTrigger>
+      <MenuPopup
+        align="end"
+        portalProps={{ container: getTopLayerContainer() }}
+      >
+        {providers.length === 0 ? (
+          <MenuItem disabled>
+            <Trans id="security.identities.link.unavailable">
+              No identities available to link
+            </Trans>
+          </MenuItem>
+        ) : (
+          providers.map((provider) => {
+            const linked = linkedSlugs.has(provider.slug);
+            return (
+              <MenuItem
                 key={provider.slug}
-                id={provider.slug}
-                textValue={provider.displayName}
-                isDisabled={linkedSlugs.has(provider.slug)}
+                disabled={linked}
+                onClick={() => onSelect(provider.slug)}
               >
-                <Avatar className="size-5 shrink-0">
-                  {provider.iconUrl && (
-                    <Avatar.Image src={provider.iconUrl} alt="" />
-                  )}
-                  <Avatar.Fallback>
-                    <Link2 size={12} aria-hidden="true" />
-                  </Avatar.Fallback>
-                </Avatar>
-                <Label>{provider.displayName}</Label>
-              </Dropdown.Item>
-            ))
-          )}
-        </Dropdown.Menu>
-      </Dropdown.Popover>
-    </Dropdown>
+                {/* The initials stand in for a missing icon, not for the name. */}
+                <span aria-hidden="true" className="contents">
+                  <EntityAvatar
+                    size="sm"
+                    name={provider.displayName}
+                    iconUrl={provider.iconUrl}
+                  />
+                </span>
+                {provider.displayName}
+                {linked && (
+                  <span className="ms-auto ps-4 text-muted-foreground text-xs">
+                    <Trans id="security.identities.link.linked">Linked</Trans>
+                  </span>
+                )}
+              </MenuItem>
+            );
+          })
+        )}
+      </MenuPopup>
+    </Menu>
   );
 }

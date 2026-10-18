@@ -1833,16 +1833,6 @@ msgid "console.applications"
 msgstr "已连接应用"
 
 #. js-lingui-explicit-id
-#: src/pages/security/IdentitiesPanel.tsx
-msgid "security.section.identities"
-msgstr "已连接身份"
-
-#. js-lingui-explicit-id
-#: src/pages/security/IdentitiesPanel.tsx
-msgid "security.identities.table"
-msgstr "已连接身份"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.identities.title"
 msgstr "已连接身份"
@@ -3267,6 +3257,11 @@ msgid "admin.federation.response.code.hint"
 msgstr "在令牌端点用授权码换取令牌，PKCE 开启时一并使用。多数提供商只允许这种方式。"
 
 #. js-lingui-explicit-id
+#: src/pages/security/TokensPanel.tsx
+msgid "security.tokens.expired"
+msgstr "已过期"
+
+#. js-lingui-explicit-id
 #: src/components/custom/ListCells.tsx
 msgid "list.diagnostics.certificate.expired"
 msgstr "已过期"
@@ -3896,6 +3891,11 @@ msgid "settings.keys.column.kid"
 msgstr "Key ID"
 
 #. js-lingui-explicit-id
+#: src/pages/security/TokensPanel.tsx
+msgid "security.tokens.description"
+msgstr "供脚本和工具以你的身份操作的密钥。每个密钥只在创建时显示一次。"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/settings/SignInPagePanel.tsx
 msgid "settings.sign-in.unsplash.query"
 msgstr "关键词"
@@ -3945,11 +3945,6 @@ msgstr "最近 1 小时"
 #: src/pages/admin/AdminUsers.tsx
 msgid "admin.users.column.lastSignIn"
 msgstr "最近登录"
-
-#. js-lingui-explicit-id
-#: src/pages/security/TokensPanel.tsx
-msgid "security.tokens.detail.lastUsed"
-msgstr "<0/>使用过"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
@@ -4072,9 +4067,29 @@ msgid "federation_flow.title.link"
 msgstr "绑定 {provider} 资料"
 
 #. js-lingui-explicit-id
+#: src/pages/security/IdentitiesPanel.tsx
+msgid "security.identities.link.linked"
+msgstr "已关联"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts
 msgid "audit.event.link"
 msgstr "已关联"
+
+#. js-lingui-explicit-id
+#: src/pages/security/IdentitiesPanel.tsx
+msgid "security.identities.meta.linked"
+msgstr "<0/>关联"
+
+#. js-lingui-explicit-id
+#: src/pages/security/IdentitiesPanel.tsx
+msgid "security.section.identities"
+msgstr "已关联的身份"
+
+#. js-lingui-explicit-id
+#: src/pages/security/IdentitiesPanel.tsx
+msgid "security.identities.table"
+msgstr "已关联的身份"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-options.ts
@@ -4703,11 +4718,6 @@ msgid "security.passkeys.never_used"
 msgstr "尚未使用"
 
 #. js-lingui-explicit-id
-#: src/pages/security/TokensPanel.tsx
-msgid "security.tokens.never_used"
-msgstr "尚未使用"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.passkeys.never_used"
 msgstr "尚未使用"
@@ -4951,6 +4961,11 @@ msgstr "或使用密码"
 #: src/pages/admin/settings/SignInPageControls.tsx
 msgid "settings.sign-in.order"
 msgstr "显示方式"
+
+#. js-lingui-explicit-id
+#: src/pages/security/IdentitiesPanel.tsx
+msgid "security.identities.description"
+msgstr "你可以用来登录的其他账号。解除关联不会影响你的其他登录方式。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-options.ts

@@ -14,6 +14,10 @@ import { useFormContext } from "@/forms/context";
  * submitted, and the button says so beforehand: the warning colour, and an icon
  * in front of the label, so the state is not carried by colour alone.
  *
+ * `tone="destructive"` is the same warning for a save that grants more than
+ * can be taken back by the reader alone, such as a token that skips the
+ * identity check: the destructive colour with the same icon.
+ *
  * `disabled` and `variant="outline"` are for a form that shares its surface
  * with another way to finish the same step: while that other way is in flight
  * this one cannot start, and when the other way is the one to reach for first,
@@ -29,7 +33,7 @@ export function SubmitButton({
 }: {
   children: ReactNode;
   fullWidth?: boolean;
-  tone?: "default" | "warning";
+  tone?: "default" | "warning" | "destructive";
   disabled?: boolean;
   variant?: "default" | "outline";
   /** `lg` for a page whose form is its main event, as the sign-in steps are. */
@@ -44,14 +48,20 @@ export function SubmitButton({
         className={fullWidth ? "w-full" : undefined}
         pending={submitting}
         disabled={disabled}
-        variant={tone === "warning" ? "default" : variant}
+        variant={
+          tone === "destructive"
+            ? "destructive"
+            : tone === "warning"
+              ? "default"
+              : variant
+        }
         size={size}
       >
         {submitting ? (
           <Trans id="forms.submitting">Submitting…</Trans>
         ) : (
           <>
-            {tone === "warning" && (
+            {tone !== "default" && (
               <TriangleAlert size={16} aria-hidden="true" />
             )}
             {children}

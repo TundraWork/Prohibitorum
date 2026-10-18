@@ -1,7 +1,8 @@
 import { cva } from "class-variance-authority";
-import type { ReactNode } from "react";
+import { type ReactNode, useId } from "react";
 import { Label } from "@/components/ui/label";
 import { Radio } from "@/components/ui/radio-group";
+import { cn } from "@/lib/utils";
 
 // A card in the described-radio style: the selected one takes the primary
 // border and a soft fill, and the radio's dot shows the choice as well.
@@ -15,6 +16,8 @@ const tile = cva(
         // A picture over a name of up to two lines. Every tile in the row
         // takes the tallest one's height, so the pictures line up.
         media: "flex-1 justify-start gap-2 pt-8 pb-2.5",
+        // The radio beside a name and the line saying what the choice means.
+        list: "flex-row items-start gap-3 px-3 py-2.5",
       },
     },
     defaultVariants: { layout: "compact" },
@@ -26,6 +29,7 @@ const name = cva("min-w-0 max-w-full", {
     layout: {
       compact: "truncate",
       media: "line-clamp-2 text-center wrap-break-word",
+      list: "",
     },
   },
   defaultVariants: { layout: "compact" },
@@ -40,33 +44,72 @@ const name = cva("min-w-0 max-w-full", {
  *
  * The sign-in page's background source uses the `compact` tile, an icon over
  * a name; the profile page's avatar gallery uses `media`, a picture over a
- * name that may wrap once. The group lays the tiles out and names them.
+ * name that may wrap once. A `list` tile is one row of a stacked choice: the
+ * dot, the name and a `description` under it, for options whose consequence
+ * the reader has to weigh. The radio is named by the name alone and described
+ * by the line under it. The group lays the tiles out and names them.
  */
 export function ChoiceTile({
   value,
   layout,
   media,
   label,
+  description,
   title,
+  disabled,
 }: {
   value: string;
-  layout?: "compact" | "media";
-  /** The icon or picture above the name. */
-  media: ReactNode;
+  layout?: "compact" | "media" | "list";
+  /** The icon or picture above the name; a `list` tile has none. */
+  media?: ReactNode;
   label: ReactNode;
+  /** The line under a `list` tile's name. */
+  description?: ReactNode;
   /** The whole name, for a `media` label the tile cuts short. */
   title?: string;
+  disabled?: boolean;
 }) {
+  const nameId = useId();
+  const descriptionId = useId();
   const text = (
     <span className={name({ layout })} title={title}>
       {label}
     </span>
   );
   return (
-    <Label className={tile({ layout })}>
-      {layout === "media" ? (
+    <Label className={cn(tile({ layout }))}>
+      {layout === "list" ? (
         <>
-          <Radio value={value} className="absolute start-2 top-2" />
+          <Radio
+            value={value}
+            disabled={disabled}
+            aria-labelledby={nameId}
+            aria-describedby={
+              description === undefined ? undefined : descriptionId
+            }
+            className="mt-0.5"
+          />
+          <span className="flex min-w-0 flex-col gap-0.5">
+            <span id={nameId} className="wrap-break-word">
+              {label}
+            </span>
+            {description !== undefined && (
+              <span
+                id={descriptionId}
+                className="font-normal text-muted-foreground text-xs"
+              >
+                {description}
+              </span>
+            )}
+          </span>
+        </>
+      ) : layout === "media" ? (
+        <>
+          <Radio
+            value={value}
+            disabled={disabled}
+            className="absolute start-2 top-2"
+          />
           {media}
           {text}
         </>
@@ -74,7 +117,7 @@ export function ChoiceTile({
         <>
           {media}
           <span className="flex max-w-full min-w-0 items-center gap-1.5">
-            <Radio value={value} />
+            <Radio value={value} disabled={disabled} />
             {text}
           </span>
         </>

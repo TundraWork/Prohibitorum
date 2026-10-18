@@ -1833,16 +1833,6 @@ msgid "console.applications"
 msgstr "Connected applications"
 
 #. js-lingui-explicit-id
-#: src/pages/security/IdentitiesPanel.tsx
-msgid "security.section.identities"
-msgstr "Connected identities"
-
-#. js-lingui-explicit-id
-#: src/pages/security/IdentitiesPanel.tsx
-msgid "security.identities.table"
-msgstr "Connected identities"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.identities.title"
 msgstr "Connected identities"
@@ -3267,6 +3257,11 @@ msgid "admin.federation.response.code.hint"
 msgstr "Exchanges the code at the token endpoint, with PKCE when it is on. Most providers allow only this."
 
 #. js-lingui-explicit-id
+#: src/pages/security/TokensPanel.tsx
+msgid "security.tokens.expired"
+msgstr "Expired"
+
+#. js-lingui-explicit-id
 #: src/components/custom/ListCells.tsx
 msgid "list.diagnostics.certificate.expired"
 msgstr "Expired"
@@ -3896,6 +3891,11 @@ msgid "settings.keys.column.kid"
 msgstr "Key ID"
 
 #. js-lingui-explicit-id
+#: src/pages/security/TokensPanel.tsx
+msgid "security.tokens.description"
+msgstr "Keys for scripts and tools that act as you. Each is shown once, when you create it."
+
+#. js-lingui-explicit-id
 #: src/pages/admin/settings/SignInPagePanel.tsx
 msgid "settings.sign-in.unsplash.query"
 msgstr "Keyword"
@@ -3945,11 +3945,6 @@ msgstr "Last hour"
 #: src/pages/admin/AdminUsers.tsx
 msgid "admin.users.column.lastSignIn"
 msgstr "Last signed in"
-
-#. js-lingui-explicit-id
-#: src/pages/security/TokensPanel.tsx
-msgid "security.tokens.detail.lastUsed"
-msgstr "Last used <0/>"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
@@ -4072,9 +4067,29 @@ msgid "federation_flow.title.link"
 msgstr "Link your {provider} profile"
 
 #. js-lingui-explicit-id
+#: src/pages/security/IdentitiesPanel.tsx
+msgid "security.identities.link.linked"
+msgstr "Linked"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts
 msgid "audit.event.link"
 msgstr "Linked"
+
+#. js-lingui-explicit-id
+#: src/pages/security/IdentitiesPanel.tsx
+msgid "security.identities.meta.linked"
+msgstr "Linked <0/>"
+
+#. js-lingui-explicit-id
+#: src/pages/security/IdentitiesPanel.tsx
+msgid "security.section.identities"
+msgstr "Linked identities"
+
+#. js-lingui-explicit-id
+#: src/pages/security/IdentitiesPanel.tsx
+msgid "security.identities.table"
+msgstr "Linked identities"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-options.ts
@@ -4703,11 +4718,6 @@ msgid "security.passkeys.never_used"
 msgstr "Not used yet"
 
 #. js-lingui-explicit-id
-#: src/pages/security/TokensPanel.tsx
-msgid "security.tokens.never_used"
-msgstr "Not used yet"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.passkeys.never_used"
 msgstr "Not used yet"
@@ -4951,6 +4961,11 @@ msgstr "or with your password"
 #: src/pages/admin/settings/SignInPageControls.tsx
 msgid "settings.sign-in.order"
 msgstr "Order"
+
+#. js-lingui-explicit-id
+#: src/pages/security/IdentitiesPanel.tsx
+msgid "security.identities.description"
+msgstr "Other accounts you can sign in with. Unlinking one leaves your other ways in as they are."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-options.ts

@@ -1,21 +1,14 @@
-import {
-  Checkbox,
-  CheckboxGroup,
-  Description,
-  FieldError,
-  Label,
-  ListBox,
-  Modal,
-  Radio,
-  RadioGroup,
-  Select,
-} from "@heroui/react";
 import type { MessageDescriptor } from "@lingui/core";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useStore } from "@tanstack/react-form";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Ban, Ticket } from "lucide-react";
+import {
+  type UseMutationResult,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
+import { Ban, KeyRound, Ticket } from "lucide-react";
 import { Fragment, useId, useRef, useState } from "react";
 import { isCancellation } from "@/api/errors";
 import type { components } from "@/api/generated/schema";
@@ -31,11 +24,12 @@ import {
 } from "@/api/queries";
 import { runWithSudo } from "@/api/sudo";
 import { sudoReason } from "@/api/sudo-reasons";
+import { withInlineReport } from "@/app/query-client";
 import { Button } from "@/components/custom/Button";
+import { ChoiceTile } from "@/components/custom/ChoiceTile";
 import { ConfirmDialog } from "@/components/custom/ConfirmDialog";
 import { FormMessages } from "@/components/custom/FormMessages";
 import { ItemList, ItemListRow } from "@/components/custom/ItemList";
-import { RelativeTime } from "@/components/custom/RelativeTime";
 import { SecretRevealDialog } from "@/components/custom/SecretReveal";
 import { Section } from "@/components/custom/Section";
 import { accessTokenCopy } from "@/components/custom/secret-reveal-copy";
@@ -44,6 +38,29 @@ import {
   TokenAccessBadge,
   TokenAccessSummary,
 } from "@/components/custom/TokenAccess";
+import { getTopLayerContainer } from "@/components/custom/top-layer";
+import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import { CheckboxGroup } from "@/components/ui/checkbox-group";
+import {
+  Dialog,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogPanel,
+  DialogPopup,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Field, FieldLabel } from "@/components/ui/field";
+import { Label } from "@/components/ui/label";
+import { RadioGroup } from "@/components/ui/radio-group";
+import {
+  Select,
+  SelectItem,
+  SelectPopup,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { applyServerError } from "@/forms/server-errors";
 import { useAppForm } from "@/forms/use-app-form";
 
@@ -139,8 +156,8 @@ const accessOptions: {
  * The chosen applications come from `GET /me/forward-auth-apps`, so a caller
  * picks from what they can use rather than typing an identifier.
  *
- * A failed write is reported by the console's error toast, which the query
- * client raises for every mutation, so the panel draws no notice of its own.
+ * A failed revoke is reported by the console's error toast, which the query
+ * client raises for every mutation; a failed create is drawn in its dialog.
  */
 export function TokensPanel() {
   const { t, i18n } = useLingui();
@@ -156,19 +173,27 @@ export function TokensPanel() {
   const createButton = useRef<HTMLButtonElement>(null);
   const revoke = useMutation(revokeTokenMutationOptions(queryClient));
 
-  const format = (value?: string) =>
-    value === undefined
-      ? null
-      : new Intl.DateTimeFormat(i18n.locale, {
-          dateStyle: "medium",
-        }).format(new Date(value));
+  const formatDay = (value: Date) =>
+    new Intl.DateTimeFormat(i18n.locale, { dateStyle: "medium" }).format(value);
 
   return (
     <>
       <Section
+        icon={<KeyRound />}
         title={<Trans id="security.section.tokens">Access tokens</Trans>}
+        description={
+          <Trans id="security.tokens.description">
+            Keys for scripts and tools that act as you. Each is shown once, when
+            you create it.
+          </Trans>
+        }
         action={
-          <Button ref={createButton} onClick={() => setCreating(true)}>
+          <Button
+            ref={createButton}
+            variant="outline"
+            size="sm"
+            onClick={() => setCreating(true)}
+          >
             <Trans id="security.tokens.create.open">Create a token</Trans>
           </Button>
         }
@@ -186,38 +211,39 @@ export function TokensPanel() {
           }
         >
           {(tokens.data ?? []).map((token) => {
-            const expires = format(token.expiresAt);
-            const lastUsed = token.lastUsedAt;
+            const expiry =
+              token.expiresAt === undefined ? null : new Date(token.expiresAt);
+            const expired = expiry !== null && expiry.getTime() <= Date.now();
+            const expires = expiry === null ? "" : formatDay(expiry);
             const name = token.name;
             return (
               <ItemListRow
                 key={token.id}
-                icon={<Ticket size={18} aria-hidden="true" />}
+                icon={<Ticket aria-hidden="true" />}
                 title={name}
+                // Beside the name rather than in the badge column: the column is
+                // narrower than this label.
                 badges={<TokenAccessBadge token={token} />}
+                meta={
+                  expiry === null ? (
+                    <Trans id="security.tokens.detail.noExpiry">
+                      Never expires
+                    </Trans>
+                  ) : expired ? (
+                    <Badge variant="destructive">
+                      <Trans id="security.tokens.expired">Expired</Trans>
+                    </Badge>
+                  ) : (
+                    <Trans id="security.tokens.detail.expires">
+                      Expires {expires}
+                    </Trans>
+                  )
+                }
                 details={[
                   <span key="hint" className="font-mono">
                     {token.tokenHint}
                   </span>,
                   <TokenAccessSummary key="access" token={token} />,
-                  expires === null ? (
-                    <Trans key="expires" id="security.tokens.detail.noExpiry">
-                      Never expires
-                    </Trans>
-                  ) : (
-                    <Trans key="expires" id="security.tokens.detail.expires">
-                      Expires {expires}
-                    </Trans>
-                  ),
-                  lastUsed === undefined ? (
-                    <Trans key="used" id="security.tokens.never_used">
-                      Not used yet
-                    </Trans>
-                  ) : (
-                    <Trans key="used" id="security.tokens.detail.lastUsed">
-                      Last used <RelativeTime value={lastUsed} />
-                    </Trans>
-                  ),
                 ]}
                 actions={
                   <Button
@@ -229,7 +255,7 @@ export function TokensPanel() {
                     variant="destructive-outline"
                     size="icon-sm"
                   >
-                    <Ban size={16} aria-hidden="true" />
+                    <Ban aria-hidden="true" />
                   </Button>
                 }
               />
@@ -316,11 +342,20 @@ export function buildTokenRequest(input: {
 
 type ForwardAuthApp = components["schemas"]["MyForwardAuthApp"];
 
+type CreateToken = UseMutationResult<
+  components["schemas"]["PersonalAccessTokenCreated"],
+  Error,
+  CreateTokenInput
+>;
+
 /**
  * Asks for everything a new token needs, in a dialog over the list it will
  * join. The form lives inside the dialog, which unmounts its content when it
  * closes, so every way of closing it — Cancel, Escape, the backdrop, or a
  * token made — starts the next one from a blank form.
+ *
+ * The write is held here, and the dialog stays up while it runs, so a refusal
+ * lands in the form it belongs to.
  */
 function CreateTokenDialog({
   apps,
@@ -336,28 +371,29 @@ function CreateTokenDialog({
   onOpenChange: (open: boolean) => void;
   onCreated: (token: string) => void;
 }) {
+  const queryClient = useQueryClient();
+  // The form draws each failure, so the toast stays silent.
+  const create = useMutation(
+    withInlineReport(createTokenMutationOptions(queryClient), true),
+  );
   return (
-    <Modal isOpen={isOpen} onOpenChange={onOpenChange}>
-      <Modal.Backdrop>
-        <Modal.Container placement="center" size="lg">
-          <Modal.Dialog>
-            <Modal.Header>
-              <Modal.Heading>
-                <Trans id="security.tokens.create.title">
-                  New access token
-                </Trans>
-              </Modal.Heading>
-            </Modal.Header>
-            <CreateTokenForm
-              apps={apps}
-              isAdmin={isAdmin}
-              onCancel={() => onOpenChange(false)}
-              onCreated={onCreated}
-            />
-          </Modal.Dialog>
-        </Modal.Container>
-      </Modal.Backdrop>
-    </Modal>
+    <Dialog
+      open={isOpen}
+      onOpenChange={(next) => !next && !create.isPending && onOpenChange(false)}
+    >
+      <DialogPopup
+        className="sm:max-w-xl"
+        portalProps={{ container: getTopLayerContainer() }}
+      >
+        <CreateTokenForm
+          apps={apps}
+          isAdmin={isAdmin}
+          create={create}
+          onCancel={() => onOpenChange(false)}
+          onCreated={onCreated}
+        />
+      </DialogPopup>
+    </Dialog>
   );
 }
 
@@ -373,17 +409,18 @@ function CreateTokenDialog({
 function CreateTokenForm({
   apps,
   isAdmin,
+  create,
   onCancel,
   onCreated,
 }: {
   apps: ForwardAuthApp[] | undefined;
   isAdmin: boolean;
+  create: CreateToken;
   onCancel: () => void;
   onCreated: (token: string) => void;
 }) {
   const { t, i18n } = useLingui();
-  const queryClient = useQueryClient();
-  const create = useMutation(createTokenMutationOptions(queryClient));
+  const levelId = useId();
   // The request the sudo confirmation is about. It outlives the dialog's
   // closing so the dialog does not change while it fades out.
   const [request, setRequest] = useState<CreateTokenInput | null>(null);
@@ -472,9 +509,9 @@ function CreateTokenForm({
   const access = useStore(form.store, (state) => state.values.access);
   const busy = submitting || sending;
 
-  // The applications a `selected_apps` token is limited to, drawn under that
-  // level's own option. It sits inside the radio group, whose arrow keys move
-  // between the levels, so they are kept from reaching it here.
+  // The applications a `selected_apps` token is limited to, drawn in a well
+  // under that level's own option. It sits inside the radio group, whose arrow
+  // keys move between the levels, so they are kept from reaching it here.
   const appChecklist = (
     <form.AppField
       name="appClientIds"
@@ -488,38 +525,37 @@ function CreateTokenForm({
         return (
           // biome-ignore lint/a11y/noStaticElementInteractions: only stops the radio group's arrow keys from reaching the checkboxes.
           <div
-            className="ms-7"
+            className="ms-7 rounded-lg border bg-muted/48 p-3"
             onKeyDown={(event) => {
               if (event.key.startsWith("Arrow")) event.stopPropagation();
             }}
           >
             <CheckboxGroup
-              variant="secondary"
-              name={field.name}
+              aria-label={t({
+                id: "security.tokens.apps",
+                message: "Applications",
+              })}
               value={field.state.value}
-              isDisabled={busy}
-              isInvalid={invalid}
-              onChange={(next) => field.handleChange(next)}
+              disabled={busy}
+              onValueChange={(next) => field.handleChange(next)}
+              className="gap-2"
             >
-              {/* Named for assistive technology; on screen the option above
-                  already says what the list is. */}
-              <Label className="sr-only">
-                <Trans id="security.tokens.apps">Applications</Trans>
-              </Label>
-              {available.map((app) => (
-                <Checkbox key={app.clientId} value={app.clientId}>
-                  <Checkbox.Content>
-                    <Checkbox.Control>
-                      <Checkbox.Indicator />
-                    </Checkbox.Control>
+              {/* About eight rows show before the list scrolls in place. */}
+              <div className="flex max-h-56 w-full flex-col gap-2 overflow-y-auto">
+                {available.map((app) => (
+                  <Label key={app.clientId} className="w-fit max-w-full">
+                    <Checkbox
+                      value={app.clientId}
+                      aria-invalid={invalid || undefined}
+                    />
                     <span className="wrap-anywhere">{app.displayName}</span>
-                  </Checkbox.Content>
-                </Checkbox>
-              ))}
+                  </Label>
+                ))}
+              </div>
               {invalid && (
-                <FieldError>
+                <div className="text-destructive-foreground text-xs">
                   <FormMessages errors={errors} />
-                </FieldError>
+                </div>
               )}
             </CheckboxGroup>
           </div>
@@ -530,6 +566,17 @@ function CreateTokenForm({
 
   return (
     <form.AppForm>
+      <DialogHeader>
+        <DialogTitle>
+          <Trans id="security.tokens.create.title">New access token</Trans>
+        </DialogTitle>
+        <DialogDescription>
+          <Trans id="security.tokens.create.note">
+            The token itself is shown once, right after you create it. Copy it
+            then; the list will only ever show the last few characters.
+          </Trans>
+        </DialogDescription>
+      </DialogHeader>
       <form.Form
         label={t({
           id: "security.tokens.create.form",
@@ -537,89 +584,81 @@ function CreateTokenForm({
         })}
         className="flex min-h-0 flex-1 flex-col"
       >
-        <Modal.Body>
-          <div className="flex flex-col gap-4">
-            <Description>
-              <Trans id="security.tokens.create.note">
-                The token itself is shown once, right after you create it. Copy
-                it then; the list will only ever show the last few characters.
-              </Trans>
-            </Description>
+        <DialogPanel className="flex flex-col gap-4">
+          <form.FormError />
+          <form.AppField
+            name="name"
+            validators={{
+              onChange: ({ value }) =>
+                value.trim() === "" ? nameRequired : undefined,
+            }}
+          >
+            {(field) => (
+              <field.FormField
+                label={<Trans id="security.tokens.name">Name</Trans>}
+                description={
+                  <Trans id="security.tokens.name.hint">
+                    What will use this token, so you know what to revoke later.
+                  </Trans>
+                }
+                autoComplete="off"
+                autoFocus
+              />
+            )}
+          </form.AppField>
 
-            <form.FormError />
-            <form.AppField
-              name="name"
-              validators={{
-                onChange: ({ value }) =>
-                  value.trim() === "" ? nameRequired : undefined,
-              }}
-            >
-              {(field) => (
-                <field.FormField
-                  label={<Trans id="security.tokens.name">Name</Trans>}
-                  description={
-                    <Trans id="security.tokens.name.hint">
-                      What will use this token, so you know what to revoke
-                      later.
-                    </Trans>
-                  }
-                  autoComplete="off"
-                  variant="secondary"
-                />
-              )}
-            </form.AppField>
-
-            <form.AppField name="expiresInDays">
-              {(field) => (
+          <form.AppField name="expiresInDays">
+            {(field) => (
+              <Field disabled={busy} name={field.name}>
+                <FieldLabel>
+                  <Trans id="security.tokens.expiry">Expires after</Trans>
+                </FieldLabel>
                 <Select
-                  variant="secondary"
-                  name={field.name}
                   value={field.state.value}
-                  isDisabled={busy}
-                  onChange={(key) => {
-                    if (typeof key === "string") field.handleChange(key);
+                  disabled={busy}
+                  onValueChange={(next) => {
+                    if (typeof next === "string") field.handleChange(next);
                   }}
                 >
-                  <Label>
-                    <Trans id="security.tokens.expiry">Expires after</Trans>
-                  </Label>
-                  <Select.Trigger>
-                    <Select.Value />
-                    <Select.Indicator />
-                  </Select.Trigger>
-                  <Select.Popover>
-                    <ListBox>
-                      {expiryOptions.map((option) => (
-                        <ListBox.Item
-                          key={option.value}
-                          id={option.value}
-                          textValue={option.label}
-                        >
-                          <Label>{option.label}</Label>
-                          <ListBox.ItemIndicator />
-                        </ListBox.Item>
-                      ))}
-                    </ListBox>
-                  </Select.Popover>
+                  <SelectTrigger>
+                    <SelectValue>
+                      {(value: string) =>
+                        expiryOptions.find((option) => option.value === value)
+                          ?.label
+                      }
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectPopup
+                    alignItemWithTrigger={false}
+                    portalProps={{ container: getTopLayerContainer() }}
+                  >
+                    {expiryOptions.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectPopup>
                 </Select>
-              )}
-            </form.AppField>
+              </Field>
+            )}
+          </form.AppField>
 
-            <form.AppField name="access">
-              {(field) => (
+          <form.AppField name="access">
+            {(field) => (
+              <div className="flex flex-col gap-2">
+                <span id={levelId} className="font-medium text-sm">
+                  <Trans id="security.tokens.scope">What it may access</Trans>
+                </span>
                 <RadioGroup
-                  variant="secondary"
+                  aria-labelledby={levelId}
                   name={field.name}
                   value={field.state.value}
-                  isDisabled={busy}
-                  onChange={(next) => {
+                  disabled={busy}
+                  onValueChange={(next) => {
                     field.handleChange(next as TokenAccess);
                     clearAppsError();
                   }}
                 >
-                  <Label>
-                    <Trans id="security.tokens.scope">What it may access</Trans>
-                  </Label>
                   {accessOptions.map((option) => {
                     const unavailable =
                       option.value === "selected_apps" && noneAvailable;
@@ -630,11 +669,12 @@ function CreateTokenForm({
                         : option.description;
                     return (
                       <Fragment key={option.value}>
-                        <AccessRadio
+                        <ChoiceTile
+                          layout="list"
                           value={option.value}
                           label={i18n._(option.label)}
                           description={i18n._(description)}
-                          isDisabled={unavailable}
+                          disabled={unavailable}
                         />
                         {option.value === "selected_apps" &&
                           access === "selected_apps" &&
@@ -644,19 +684,21 @@ function CreateTokenForm({
                     );
                   })}
                 </RadioGroup>
-              )}
-            </form.AppField>
-          </div>
-        </Modal.Body>
+              </div>
+            )}
+          </form.AppField>
+        </DialogPanel>
 
-        <Modal.Footer className="mt-5">
-          <Button disabled={busy} onClick={onCancel} variant="outline">
+        <DialogFooter>
+          <Button variant="ghost" disabled={busy} onClick={onCancel}>
             <Trans id="security.cancel">Cancel</Trans>
           </Button>
-          <form.SubmitButton tone={access === "sudo" ? "warning" : "default"}>
+          <form.SubmitButton
+            tone={access === "sudo" ? "destructive" : "default"}
+          >
             <Trans id="security.tokens.create.action">Create token</Trans>
           </form.SubmitButton>
-        </Modal.Footer>
+        </DialogFooter>
       </form.Form>
 
       <ConfirmDialog
@@ -690,38 +732,5 @@ function CreateTokenForm({
         }}
       />
     </form.AppForm>
-  );
-}
-
-/**
- * One access level. The description sits inside the label, stacked under the
- * name as in HeroUI's delivery demo, so pressing it selects the level the way
- * pressing the name does. The radio is named by the level alone; the line
- * under it stays its description rather than joining its name.
- */
-function AccessRadio({
-  value,
-  label,
-  description,
-  isDisabled,
-}: {
-  value: TokenAccess;
-  label: string;
-  description: string;
-  isDisabled: boolean;
-}) {
-  const nameId = useId();
-  return (
-    <Radio value={value} aria-labelledby={nameId} isDisabled={isDisabled}>
-      <Radio.Content className="items-start">
-        <Radio.Control className="mt-0.5">
-          <Radio.Indicator />
-        </Radio.Control>
-        <div className="flex min-w-0 flex-col">
-          <span id={nameId}>{label}</span>
-          <Description>{description}</Description>
-        </div>
-      </Radio.Content>
-    </Radio>
   );
 }

@@ -1,6 +1,6 @@
-import { Chip } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import type { components } from "@/api/generated/schema";
+import { Badge } from "@/components/ui/badge";
 
 type Token = components["schemas"]["PersonalAccessTokenView"];
 
@@ -25,7 +25,7 @@ export function TokenAccessSummary({
       const names = (token.apps ?? []).map((app) => app.displayName);
       if (names.length === 0) {
         return (
-          <span className="text-muted">
+          <span className="text-muted-foreground">
             <Trans id="token.access.none">No applications</Trans>
           </span>
         );
@@ -55,8 +55,8 @@ export function TokenAccessSummary({
 export function TokenAccessBadge({ token }: { token: Pick<Token, "access"> }) {
   if (token.access !== "sudo") return null;
   return (
-    <Chip color="warning" size="sm" variant="soft">
+    <Badge variant="warning">
       <Trans id="token.access.sudo.badge">Skips confirming it is you</Trans>
-    </Chip>
+    </Badge>
   );
 }

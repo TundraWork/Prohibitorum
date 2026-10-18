@@ -1,3 +1,4 @@
+import type { MessageDescriptor } from "@lingui/core";
 import { I18nProvider } from "@lingui/react";
 import { type QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
@@ -23,6 +24,8 @@ type App = components["schemas"]["MyForwardAuthApp"];
 type Token = components["schemas"]["PersonalAccessTokenView"];
 
 const fetchBoundary = vi.fn<(request: Request) => Promise<Response>>();
+const notifySuccess = vi.fn<(message: MessageDescriptor) => void>();
+const notifyError = vi.fn<(error: unknown) => void>();
 let queryClient: QueryClient;
 
 const plaintext = `prohibitorum_pat_${"A".repeat(43)}`;
@@ -30,8 +33,10 @@ const plaintext = `prohibitorum_pat_${"A".repeat(43)}`;
 beforeEach(() => {
   i18n.activate("en");
   fetchBoundary.mockReset();
+  notifySuccess.mockReset();
+  notifyError.mockReset();
   vi.stubGlobal("fetch", fetchBoundary);
-  queryClient = createQueryClient(() => undefined);
+  queryClient = createQueryClient(notifyError, notifySuccess);
   configureSudo({
     queryClient,
     set: () => {},
@@ -50,10 +55,13 @@ function mount({
   apps = [{ clientId: "wiki", displayName: "Wiki" }],
   role = "user",
   tokens = [],
+  createFailure,
 }: {
   apps?: App[];
   role?: Session["role"];
   tokens?: Token[];
+  /** Answers the create request instead of making a token. */
+  createFailure?: Response;
 } = {}) {
   const session: Session = {
     id: 1,
@@ -70,6 +78,7 @@ function mount({
       return Response.json({ methods: ["password_totp"], fresh: true });
     }
     if (path.endsWith("/me/tokens") && request.method === "POST") {
+      if (createFailure) return createFailure;
       return Response.json({
         token: plaintext,
         pat: {
@@ -217,7 +226,7 @@ describe("creating an access token", () => {
     const radio = within(dialog).getByRole("radio", {
       name: "Applications you choose",
     });
-    await waitFor(() => expect(radio).toBeDisabled());
+    await waitFor(() => expect(radio).toHaveAttribute("aria-disabled", "true"));
     expect(
       within(dialog).getByText("You have no applications to choose from."),
     ).toBeInTheDocument();
@@ -271,26 +280,260 @@ describe("creating an access token", () => {
   });
 });
 
+describe("the access levels", () => {
+  it("offers four radios, each carrying its description", async () => {
+    const user = userEvent.setup();
+    mount();
+    const dialog = await openDialog(user);
+
+    const radios = within(dialog).getAllByRole("radio");
+    expect(radios).toHaveLength(4);
+    expect(radios[0]).toHaveAccessibleName("Applications you choose");
+    expect(radios[0]).toHaveAccessibleDescription(
+      "Works only on the applications you pick.",
+    );
+    expect(radios[3]).toHaveAccessibleName(
+      "Full access, without confirming it is you",
+    );
+    expect(radios[3]).toHaveAccessibleDescription(
+      "Everything, including changing how you sign in, without being asked to confirm it is you.",
+    );
+  });
+
+  it("shows the application checklist only under the level that uses it", async () => {
+    const user = userEvent.setup();
+    mount({
+      apps: [
+        { clientId: "wiki", displayName: "Wiki" },
+        { clientId: "grafana", displayName: "Grafana" },
+      ],
+    });
+    const dialog = await openDialog(user);
+    expect(
+      within(dialog).queryByRole("group", { name: "Applications" }),
+    ).not.toBeInTheDocument();
+
+    await user.click(
+      within(dialog).getByRole("radio", { name: "Applications you choose" }),
+    );
+    const group = await within(dialog).findByRole("group", {
+      name: "Applications",
+    });
+    expect(within(group).getAllByRole("checkbox")).toHaveLength(2);
+
+    await user.click(
+      within(dialog).getByRole("radio", { name: "Full access" }),
+    );
+    expect(
+      within(dialog).queryByRole("group", { name: "Applications" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("sends only the applications that were ticked", async () => {
+    const user = userEvent.setup();
+    mount({
+      apps: [
+        { clientId: "wiki", displayName: "Wiki" },
+        { clientId: "grafana", displayName: "Grafana" },
+      ],
+    });
+    const dialog = await openDialog(user);
+    await user.click(
+      within(dialog).getByRole("radio", { name: "Applications you choose" }),
+    );
+    const group = await within(dialog).findByRole("group", {
+      name: "Applications",
+    });
+    await user.click(within(group).getByRole("checkbox", { name: "Grafana" }));
+    await user.type(within(dialog).getByLabelText("Name"), "Dash");
+    await user.click(
+      within(dialog).getByRole("button", { name: "Create token" }),
+    );
+
+    await screen.findByRole("dialog", { name: "Copy your new access token" });
+    expect(await creates()[0]?.json()).toEqual({
+      name: "Dash",
+      access: "selected_apps",
+      appClientIds: ["grafana"],
+    });
+  });
+
+  it("turns the submit destructive for the level that skips the identity check", async () => {
+    const user = userEvent.setup();
+    mount();
+    const dialog = await openDialog(user);
+    const submit = within(dialog).getByRole("button", { name: "Create token" });
+    expect(submit).toHaveAttribute("data-variant", "default");
+
+    await user.click(
+      within(dialog).getByRole("radio", {
+        name: "Full access, without confirming it is you",
+      }),
+    );
+    expect(submit).toHaveAttribute("data-variant", "destructive");
+
+    await user.click(
+      within(dialog).getByRole("radio", { name: "Full access" }),
+    );
+    expect(submit).toHaveAttribute("data-variant", "default");
+  });
+});
+
+describe("the lifetime and a refused create", () => {
+  it("sends the chosen lifetime in days", async () => {
+    const user = userEvent.setup();
+    mount();
+    const dialog = await openDialog(user);
+    await user.type(within(dialog).getByLabelText("Name"), "CI");
+    await user.click(
+      within(dialog).getByRole("combobox", { name: "Expires after" }),
+    );
+    await user.click(await screen.findByRole("option", { name: "90 days" }));
+    await user.click(
+      within(dialog).getByRole("button", { name: "Create token" }),
+    );
+
+    await screen.findByRole("dialog", { name: "Copy your new access token" });
+    expect(await creates()[0]?.json()).toEqual({
+      name: "CI",
+      access: "all_apps",
+      expiresInDays: 90,
+    });
+  });
+
+  it("reports a refusal once, in the form, and keeps the dialog open", async () => {
+    const user = userEvent.setup();
+    mount({
+      createFailure: Response.json(
+        { code: "rate_limited", requestId: "r1" },
+        { status: 429 },
+      ),
+    });
+    const dialog = await openDialog(user);
+    await user.type(within(dialog).getByLabelText("Name"), "CI");
+    await user.click(
+      within(dialog).getByRole("button", { name: "Create token" }),
+    );
+
+    expect(
+      await within(dialog).findByText("Too many requests. Wait a moment."),
+    ).toBeVisible();
+    expect(screen.getAllByRole("alert")).toHaveLength(1);
+    expect(notifyError).not.toHaveBeenCalled();
+    expect(within(dialog).getByLabelText("Name")).toHaveValue("CI");
+  });
+});
+
+const base: Token = {
+  id: 7,
+  name: "CI deploy",
+  tokenHint: "prohibitorum_pat_…a1b2",
+  access: "sudo",
+  apps: [],
+  createdAt: new Date().toISOString(),
+};
+const daysFromNow = (days: number) =>
+  new Date(Date.now() + days * 86_400_000).toISOString();
+
+async function rows() {
+  const list = await screen.findByRole("list", { name: "Access tokens" });
+  return within(list).getAllByRole("listitem");
+}
+
 describe("the token list", () => {
-  it("names the token on its revoke button and shows a sudo token once", async () => {
+  it("names the token on its revoke button and marks a sudo token", async () => {
+    mount({ tokens: [base] });
+
+    const [row] = (await rows()) as [HTMLElement];
+    expect(
+      within(row).getByRole("button", { name: "Revoke CI deploy" }),
+    ).toBeInTheDocument();
+    // The hint is the server's own display string, drawn as it comes.
+    expect(row).toHaveTextContent("prohibitorum_pat_…a1b2");
+    expect(row).toHaveTextContent("Skips confirming it is you");
+    expect(row).toHaveTextContent("Full access");
+  });
+
+  it("says when a token expires, or that it never does", async () => {
     mount({
       tokens: [
         {
-          id: 7,
-          name: "CI deploy",
-          tokenHint: "prohibitorum_pat_…a1b2",
-          access: "sudo",
-          apps: [],
-          createdAt: new Date().toISOString(),
+          ...base,
+          id: 1,
+          name: "Dated",
+          access: "full",
+          expiresAt: daysFromNow(40),
         },
+        { ...base, id: 2, name: "Open", access: "all_apps" },
       ],
     });
+
+    const [dated, open] = (await rows()) as [HTMLElement, HTMLElement];
+    expect(dated.querySelector("[data-slot='item-meta']")).toHaveTextContent(
+      /^Expires /,
+    );
+    expect(open.querySelector("[data-slot='item-meta']")).toHaveTextContent(
+      "Never expires",
+    );
+    expect(within(dated).queryByText("Skips confirming it is you")).toBeNull();
+  });
+
+  it("marks a token whose expiry has passed", async () => {
+    mount({
+      tokens: [{ ...base, access: "full", expiresAt: daysFromNow(-2) }],
+    });
+
+    const [row] = (await rows()) as [HTMLElement];
+    expect(within(row).getByText("Expired")).toHaveAttribute(
+      "data-slot",
+      "badge",
+    );
+  });
+
+  it("shows an empty state when there are no tokens", async () => {
+    mount();
+
+    expect(await screen.findByText("No access tokens yet")).toBeVisible();
     expect(
-      await screen.findByRole("button", { name: "Revoke CI deploy" }),
-    ).toBeInTheDocument();
-    // The hint is the server's own display string, drawn as it comes.
-    expect(screen.getByText("prohibitorum_pat_…a1b2")).toBeInTheDocument();
-    expect(screen.getByText("Skips confirming it is you")).toBeInTheDocument();
-    expect(screen.getByText("Full access")).toBeInTheDocument();
+      screen.queryByRole("list", { name: "Access tokens" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("keeps the heading and its description around the list", async () => {
+    mount({ tokens: [base] });
+
+    await rows();
+    expect(
+      screen.getByRole("heading", { name: "Access tokens" }),
+    ).toBeVisible();
+    expect(
+      screen.getByText(
+        "Keys for scripts and tools that act as you. Each is shown once, when you create it.",
+      ),
+    ).toBeVisible();
+  });
+
+  it("asks before revoking, then sends the revoke", async () => {
+    const user = userEvent.setup();
+    mount({ tokens: [base] });
+
+    const [row] = (await rows()) as [HTMLElement];
+    await user.click(
+      within(row).getByRole("button", { name: "Revoke CI deploy" }),
+    );
+    const dialog = await screen.findByRole("alertdialog", {
+      name: "Revoke this token?",
+    });
+    const revokes = () =>
+      fetchBoundary.mock.calls.filter(
+        ([r]) =>
+          r.method === "POST" &&
+          new URL(r.url).pathname.endsWith("/me/tokens/revoke"),
+      );
+    expect(revokes()).toHaveLength(0);
+
+    await user.click(within(dialog).getByRole("button", { name: "Revoke" }));
+    await waitFor(() => expect(revokes()).toHaveLength(1));
+    expect(await revokes()[0]?.[0].json()).toEqual({ id: 7 });
   });
 });
