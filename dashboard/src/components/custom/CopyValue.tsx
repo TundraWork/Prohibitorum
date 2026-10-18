@@ -1,7 +1,8 @@
 import { useLingui } from "@lingui/react/macro";
 import { CheckIcon, CircleAlertIcon, CopyIcon } from "lucide-react";
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { type ReactNode, useRef } from "react";
 import { Button } from "@/components/custom/Button";
+import { useCopyValue } from "@/components/custom/use-copy-value";
 import { Alert, AlertTitle } from "@/components/ui/alert";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import {
@@ -9,9 +10,6 @@ import {
   InputGroupAddon,
   InputGroupInput,
 } from "@/components/ui/input-group";
-
-/** How long the check and the "Copied" name stay after a copy. */
-const COPIED_MS = 2000;
 
 /**
  * A read-only field whose value the reader will paste elsewhere — a Client ID,
@@ -33,24 +31,12 @@ export function CopyValue({
   description?: ReactNode;
 }) {
   const { t } = useLingui();
-  const [state, setState] = useState<"idle" | "copied" | "failed">("idle");
-  const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const { state, copy: copyValue, confirm } = useCopyValue();
   const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => () => clearTimeout(timer.current), []);
-
-  const confirm = () => {
-    clearTimeout(timer.current);
-    setState("copied");
-    timer.current = setTimeout(() => setState("idle"), COPIED_MS);
-  };
 
   const copy = () => {
     inputRef.current?.select();
-    navigator.clipboard.writeText(value).then(confirm, () => {
-      clearTimeout(timer.current);
-      setState("failed");
-    });
+    copyValue(value);
   };
 
   const copied = state === "copied";

@@ -1,7 +1,9 @@
 import { useLingui } from "@lingui/react/macro";
-import { CheckIcon, CopyIcon } from "lucide-react";
-import { Fragment, type ReactNode, useEffect, useRef, useState } from "react";
+import { CheckIcon, CircleAlertIcon, CopyIcon } from "lucide-react";
+import { Fragment, type ReactNode } from "react";
 import { Button } from "@/components/custom/Button";
+import { useCopyValue } from "@/components/custom/use-copy-value";
+import { Alert, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 
 export type ObjectStatus =
@@ -26,8 +28,6 @@ interface ObjectHeaderProps {
   actions?: ReactNode;
 }
 
-const COPIED_MS = 2000;
-
 function Separator(): React.ReactElement {
   return (
     <span aria-hidden="true" className="text-border">
@@ -49,9 +49,8 @@ export function ObjectHeader({
   actions,
 }: ObjectHeaderProps): React.ReactElement {
   const { t } = useLingui();
-  const [copied, setCopied] = useState(false);
-  const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
-  useEffect(() => () => clearTimeout(timer.current), []);
+  const { state, copy: copyValue } = useCopyValue();
+  const copied = state === "copied";
 
   const statusText: Record<ObjectStatus, string> = {
     enabled: t({ id: "object.status.enabled", message: "Enabled" }),
@@ -73,18 +72,6 @@ export function ObjectHeader({
       "sign-in-on": "outline",
       "sign-in-off": "outline",
     };
-
-  const copy = () => {
-    if (identifier === undefined) return;
-    navigator.clipboard.writeText(identifier.value).then(
-      () => {
-        clearTimeout(timer.current);
-        setCopied(true);
-        timer.current = setTimeout(() => setCopied(false), COPIED_MS);
-      },
-      () => {},
-    );
-  };
 
   const meta: ReactNode[] = [];
   if (statuses.length > 0) {
@@ -121,7 +108,7 @@ export function ObjectHeader({
           size="sm"
           isIconOnly
           aria-label={identifier.label}
-          onPress={copy}
+          onPress={() => copyValue(identifier.value)}
         >
           {copied ? (
             <CheckIcon aria-hidden="true" className="text-success" />
@@ -132,6 +119,18 @@ export function ObjectHeader({
         <span role="status" className="sr-only">
           {copied ? t({ id: "copy-value.copied", message: "Copied" }) : ""}
         </span>
+        {state === "failed" && (
+          <Alert variant="warning">
+            <CircleAlertIcon aria-hidden="true" />
+            <AlertTitle>
+              {t({
+                id: "copy-value.failed",
+                message:
+                  "Couldn't copy. Select the value above and copy it yourself.",
+              })}
+            </AlertTitle>
+          </Alert>
+        )}
       </span>,
     );
   }

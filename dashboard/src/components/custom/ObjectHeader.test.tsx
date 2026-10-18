@@ -1,7 +1,7 @@
 import { I18nProvider } from "@lingui/react";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ObjectHeader } from "@/components/custom/ObjectHeader";
 import { i18n } from "@/i18n";
 
@@ -35,13 +35,7 @@ describe("ObjectHeader", () => {
     expect(screen.getByRole("button", { name: "Test" })).toBeTruthy();
   });
 
-  it("names the identifier copy button by its label and copies the value", async () => {
-    const writeText = async () => {};
-    const user = userEvent.setup();
-    Object.defineProperty(navigator, "clipboard", {
-      value: { writeText },
-      configurable: true,
-    });
+  const renderCopyable = () =>
     render(
       <I18nProvider i18n={i18n}>
         <ObjectHeader
@@ -52,8 +46,38 @@ describe("ObjectHeader", () => {
       </I18nProvider>,
     );
 
+  it("copies the identifier value and confirms with Copied", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    const user = userEvent.setup();
+    // After setup(), which installs its own clipboard stub.
+    Object.defineProperty(navigator, "clipboard", {
+      value: { writeText },
+      configurable: true,
+    });
+    renderCopyable();
+
     expect(screen.getByText("github")).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "Copy the slug" }));
-    expect(await screen.findByRole("status")).toBeTruthy();
+    expect(writeText).toHaveBeenCalledWith("github");
+    expect((await screen.findByRole("status")).textContent).toBe("Copied");
+  });
+
+  it("shows the failure message when the clipboard refuses", async () => {
+    const writeText = vi.fn().mockRejectedValue(new Error("denied"));
+    const user = userEvent.setup();
+    // After setup(), which installs its own clipboard stub.
+    Object.defineProperty(navigator, "clipboard", {
+      value: { writeText },
+      configurable: true,
+    });
+    renderCopyable();
+
+    await user.click(screen.getByRole("button", { name: "Copy the slug" }));
+    expect(
+      await screen.findByText(
+        "Couldn't copy. Select the value above and copy it yourself.",
+      ),
+    ).toBeTruthy();
+    expect(screen.getByRole("status").textContent).toBe("");
   });
 });
