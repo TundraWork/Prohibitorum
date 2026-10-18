@@ -172,7 +172,7 @@ it("rounds every control inside the toolbar's capsules and draws them translucen
   expect(capsules).toHaveLength(2);
   for (const capsule of capsules) {
     expect(capsule).toHaveClass("[--field-radius:100%]", "[--radius:100%]");
-    expect(capsule.style.getPropertyValue("--surface-alpha")).toBe("70%");
+    expect(capsule.style.getPropertyValue("--card-alpha")).toBe("70%");
     expect(capsule).toHaveClass("backdrop-blur-xl");
   }
 });
@@ -185,8 +185,8 @@ it("draws an opaque toolbar on the surface colour", async () => {
   for (const capsule of banner.querySelectorAll<HTMLElement>(
     "[data-toolbar-capsule]",
   )) {
-    expect(capsule).toHaveClass("bg-surface");
-    expect(capsule.style.getPropertyValue("--surface-alpha")).toBe("");
+    expect(capsule).toHaveClass("bg-background");
+    expect(capsule.style.getPropertyValue("--card-alpha")).toBe("");
     expect(capsule).not.toHaveClass("backdrop-blur-xl");
   }
 });
@@ -194,7 +194,7 @@ it("draws an opaque toolbar on the surface colour", async () => {
 it("makes the card translucent only when the settings say so", async () => {
   await mount();
   const opaque = screen.getByRole("main").querySelector<HTMLElement>(".card");
-  expect(opaque?.style.getPropertyValue("--surface-alpha")).toBe("");
+  expect(opaque?.style.getPropertyValue("--card-alpha")).toBe("");
 
   queryClient.clear();
   withAppearance((appearance) => {
@@ -203,7 +203,7 @@ it("makes the card translucent only when the settings say so", async () => {
   document.body.innerHTML = "";
   await mount();
   const card = screen.getByRole("main").querySelector<HTMLElement>(".card");
-  expect(card?.style.getPropertyValue("--surface-alpha")).toBe("60%");
+  expect(card?.style.getPropertyValue("--card-alpha")).toBe("60%");
   expect(card).not.toHaveClass("backdrop-blur-xl");
 });
 

@@ -7,6 +7,7 @@ export interface SurfaceStyle {
 }
 
 const LIGHT_BACKGROUND = "var(--color-white)";
+// The `.dark` `--background` in src/styles/coss.css.
 const DARK_BACKGROUND =
   "color-mix(in_srgb,var(--color-neutral-950)_96%,var(--color-white))";
 
@@ -36,23 +37,15 @@ function halfAlpha(color: string, percent: number): string {
 }
 
 /**
- * On a translucent card, the controls drawn on it read these coss tokens at half
- * the card's opacity, so the picture shows through fields and buttons. Edges and
- * hover fills keep their usual share of ink (black in light, white in dark). They
- * are redefined from constants, not from their own values. Popups portal to the
- * body and keep the opaque root tokens.
+ * On a translucent card, controls read the opaque fill tokens (`--background`,
+ * and light `--popover`, which outline buttons fill from) at half the card's
+ * opacity. coss's alpha tokens (`--border`, `--input`, `--muted`, `--accent`) are
+ * left alone. Popups portal to the body and keep the opaque root tokens.
  */
 const translucentControls = [
   `[--background:${halfAlpha(LIGHT_BACKGROUND, 100)}]`,
-  `[--input:${halfAlpha("var(--color-black)", 10)}]`,
-  `[--border:${halfAlpha("var(--color-black)", 8)}]`,
-  `[--muted:${halfAlpha("var(--color-black)", 4)}]`,
-  `[--accent:${halfAlpha("var(--color-black)", 4)}]`,
+  `not-dark:[--popover:${halfAlpha(LIGHT_BACKGROUND, 100)}]`,
   `dark:[--background:${halfAlpha(DARK_BACKGROUND, 100)}]`,
-  `dark:[--input:${halfAlpha("var(--color-white)", 8)}]`,
-  `dark:[--border:${halfAlpha("var(--color-white)", 6)}]`,
-  `dark:[--muted:${halfAlpha("var(--color-white)", 4)}]`,
-  `dark:[--accent:${halfAlpha("var(--color-white)", 4)}]`,
 ].join(" ");
 
 /**

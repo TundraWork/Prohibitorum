@@ -63,15 +63,17 @@ it("gives a translucent capsule the card's fill rule with its own settings", () 
   expect(capsule.className).toContain("var(--color-white)_var(--card-alpha)");
 });
 
-it("redefines the coss tokens controls read inside a translucent card, and an opaque card nothing", () => {
+it("redefines only the opaque fill tokens inside a translucent card, and an opaque card nothing", () => {
   const glass = cardSurfaceStyle({
     translucent: true,
     opacity: 60,
     blur: false,
   });
-  for (const token of ["background", "input", "border", "muted", "accent"]) {
-    expect(glass.className).toContain(`[--${token}:`);
-    expect(glass.className).toContain(`dark:[--${token}:`);
+  expect(glass.className).toContain("[--background:");
+  expect(glass.className).toContain("dark:[--background:");
+  expect(glass.className).toContain("not-dark:[--popover:");
+  for (const token of ["border", "input", "muted", "accent"]) {
+    expect(glass.className).not.toContain(`[--${token}:`);
   }
   expect(glass.style).toEqual({ "--card-alpha": "60%" });
   expectNoHeroUiTokens(glass);
