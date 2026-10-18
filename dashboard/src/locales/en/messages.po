@@ -98,6 +98,16 @@ msgid "settings.sign-in.images.skipped.full"
 msgstr "{count, plural, one {# file wasn't uploaded because the 10-image limit was reached.} other {# files weren't uploaded because the 10-image limit was reached.}}"
 
 #. js-lingui-explicit-id
+#: src/pages/Console.tsx
+msgid "console.devices.count"
+msgstr "{count, plural, one {# signed-in device} other {# signed-in devices}}"
+
+#. js-lingui-explicit-id
+#: src/pages/Console.tsx
+msgid "console.recovery.remaining"
+msgstr "{count} left"
+
+#. js-lingui-explicit-id
 #: src/components/custom/ProviderGrid.tsx
 msgid "federation.more_providers_count"
 msgstr "{count} more providers"
@@ -121,6 +131,11 @@ msgstr "{label} uses your {instance} account. You'll go back to it after signing
 #: src/pages/admin/AdminGroupForm.tsx
 msgid "admin.group.rule.matched"
 msgstr "{matchedCount, plural, one {# account matches this rule} other {# accounts match this rule}}"
+
+#. js-lingui-explicit-id
+#: src/pages/Console.tsx
+msgid "console.page.description"
+msgstr "{name} account"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/SamlDangerSection.tsx
@@ -156,6 +171,11 @@ msgstr "{name} stops being able to sign anyone in, and its icon, secret and acce
 #: src/components/custom/AppAccessPanel.tsx
 msgid "app.managers.confirm.body"
 msgstr "{name} will no longer be able to change this application. Their account is not affected."
+
+#. js-lingui-explicit-id
+#: src/pages/Console.tsx
+msgid "console.passkeys.count"
+msgstr "{passkeyCount, plural, one {# passkey} other {# passkeys}}"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderDangerSection.tsx
@@ -709,6 +729,11 @@ msgstr "All of these"
 #: src/pages/admin/AdminLogs.tsx
 msgid "admin.logs.range.all"
 msgstr "All time"
+
+#. js-lingui-explicit-id
+#: src/pages/Console.tsx
+msgid "console.recovery.used_up"
+msgstr "All used"
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
@@ -2225,11 +2250,6 @@ msgid "error.federation.invite_required"
 msgstr "Creating an account through {provider} requires an invitation."
 
 #. js-lingui-explicit-id
-#: src/pages/Console.tsx
-msgid "console.current-account"
-msgstr "Current account"
-
-#. js-lingui-explicit-id
 #: src/components/custom/SudoDialog.tsx
 msgid "sudo.password"
 msgstr "Current password"
@@ -2456,6 +2476,11 @@ msgid "devices.form"
 msgstr "Device pairing"
 
 #. js-lingui-explicit-id
+#: src/pages/Console.tsx
+msgid "console.devices.title"
+msgstr "Devices"
+
+#. js-lingui-explicit-id
 #: src/pages/Devices.tsx
 msgid "devices.page.title"
 msgstr "Devices"
@@ -2629,11 +2654,6 @@ msgstr "Discovered"
 #: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.diagnostics.stage.discovery"
 msgstr "Discovery"
-
-#. js-lingui-explicit-id
-#: src/pages/Console.tsx
-msgid "console.display-name"
-msgstr "Display name"
 
 #. js-lingui-explicit-id
 #: src/pages/public/Enroll.tsx
@@ -4583,6 +4603,11 @@ msgid "admin.user.passkeys.empty"
 msgstr "No passkeys"
 
 #. js-lingui-explicit-id
+#: src/pages/Console.tsx
+msgid "console.passkeys.none"
+msgstr "No passkeys yet"
+
+#. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
 msgid "security.passkeys.empty.title"
 msgstr "No passkeys yet"
@@ -4708,6 +4733,11 @@ msgid "security.factor.unset"
 msgstr "Not set"
 
 #. js-lingui-explicit-id
+#: src/pages/Console.tsx
+msgid "console.password.off"
+msgstr "Not set up"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderOperatorSection.tsx
 msgid "admin.federation.operator.none"
 msgstr "Not set up"
@@ -4791,6 +4821,11 @@ msgstr "OIDC subject"
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.oidcSubject"
 msgstr "OIDC subject"
+
+#. js-lingui-explicit-id
+#: src/pages/Console.tsx
+msgid "console.password.on"
+msgstr "On"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminUsers.tsx
@@ -5039,6 +5074,11 @@ msgid "error.login_failed"
 msgstr "Passkey sign-in failed. You can use your password instead."
 
 #. js-lingui-explicit-id
+#: src/pages/Console.tsx
+msgid "console.passkeys.title"
+msgstr "Passkeys"
+
+#. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
 msgid "security.section.passkeys"
 msgstr "Passkeys"
@@ -5107,6 +5147,11 @@ msgstr "Password"
 #: src/components/custom/PasswordTotpStepHeader.tsx
 msgid "enroll.password_totp.steps.password"
 msgstr "Password"
+
+#. js-lingui-explicit-id
+#: src/pages/Console.tsx
+msgid "console.password.title"
+msgstr "Password and authenticator"
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
@@ -5414,6 +5459,11 @@ msgstr "Recovery code"
 #: src/pages/admin/audit-vocabulary.ts
 msgid "audit.factor.recovery_code"
 msgstr "Recovery code"
+
+#. js-lingui-explicit-id
+#: src/pages/Console.tsx
+msgid "console.recovery.title"
+msgstr "Recovery codes"
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
@@ -6047,6 +6097,11 @@ msgid "admin.group.rule.views"
 msgstr "Rule editor"
 
 #. js-lingui-explicit-id
+#: src/pages/Console.tsx
+msgid "console.recovery.low"
+msgstr "Running low"
+
+#. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
 msgid "security.recovery.low"
 msgstr "Running low"
@@ -6576,6 +6631,11 @@ msgstr "Sign this account out everywhere?"
 #: src/pages/admin/settings/SigningKeysPanel.tsx
 msgid "settings.keys.activate.title"
 msgstr "Sign with this key?"
+
+#. js-lingui-explicit-id
+#: src/pages/Console.tsx
+msgid "console.signin.title"
+msgstr "Sign-in"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/CallbackPreview.tsx
@@ -8397,12 +8457,6 @@ msgid "admin.federation.diagnostics.userinfo.empty"
 msgstr "UserInfo was not requested."
 
 #. js-lingui-explicit-id
-#: src/pages/Console.tsx
-#: src/pages/profile/AccountPanel.tsx
-msgid "console.username"
-msgstr "Username"
-
-#. js-lingui-explicit-id
 #: src/pages/Login.tsx
 msgid "login.username"
 msgstr "Username"
@@ -8410,6 +8464,11 @@ msgstr "Username"
 #. js-lingui-explicit-id
 #: src/pages/public/Enroll.tsx
 msgid "enroll.username"
+msgstr "Username"
+
+#. js-lingui-explicit-id
+#: src/pages/profile/AccountPanel.tsx
+msgid "console.username"
 msgstr "Username"
 
 #. js-lingui-explicit-id
@@ -8653,6 +8712,11 @@ msgid "admin.federation.new.steam-key"
 msgstr "Web API key"
 
 #. js-lingui-explicit-id
+#: src/pages/Console.tsx
+msgid "console.page.title"
+msgstr "Welcome, {displayName}"
+
+#. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.scope"
 msgstr "What it may access"
@@ -8697,6 +8761,11 @@ msgstr "Where the console links when the application is opened from here. Leave 
 #: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
 msgid "admin.saml-apps.field.acs.hint"
 msgstr "Where the instance sends the assertion. Exactly one endpoint is the default one."
+
+#. js-lingui-explicit-id
+#: src/pages/Console.tsx
+msgid "console.devices.row"
+msgstr "Where you are signed in"
 
 #. js-lingui-explicit-id
 #: src/pages/Devices.tsx
@@ -8878,11 +8947,6 @@ msgstr "Your password, your authenticator and all recovery codes stop working im
 #: src/lib/scopes.ts
 msgid "consent.scope.profile"
 msgstr "Your profile"
-
-#. js-lingui-explicit-id
-#: src/pages/Console.tsx
-msgid "console.availability"
-msgstr "Your profile, security settings, connected applications and devices are on the pages listed in the sidebar. Administrative pages are still to come."
 
 #. js-lingui-explicit-id
 #: src/pages/public/FederationFlow.tsx

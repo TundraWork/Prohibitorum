@@ -98,6 +98,16 @@ msgid "settings.sign-in.images.skipped.full"
 msgstr "{count, plural, other {已达到 10 张上限，有 # 个文件没有上传。}}"
 
 #. js-lingui-explicit-id
+#: src/pages/Console.tsx
+msgid "console.devices.count"
+msgstr "{count, plural, other {# 台已登录设备}}"
+
+#. js-lingui-explicit-id
+#: src/pages/Console.tsx
+msgid "console.recovery.remaining"
+msgstr "剩余 {count} 个"
+
+#. js-lingui-explicit-id
 #: src/components/custom/ProviderGrid.tsx
 msgid "federation.more_providers_count"
 msgstr "更多提供商（另有 {count} 个）"
@@ -121,6 +131,11 @@ msgstr "{label} 使用你的 {instance} 账号。登录后你会回到该应用�
 #: src/pages/admin/AdminGroupForm.tsx
 msgid "admin.group.rule.matched"
 msgstr "{matchedCount, plural, other {有 # 个账号匹配该规则}}"
+
+#. js-lingui-explicit-id
+#: src/pages/Console.tsx
+msgid "console.page.description"
+msgstr "{name} 账号"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/SamlDangerSection.tsx
@@ -156,6 +171,11 @@ msgstr "删除后 {name} 无法再让任何人登录，其图标、密钥和访�
 #: src/components/custom/AppAccessPanel.tsx
 msgid "app.managers.confirm.body"
 msgstr "{name} 将不能再修改这个应用。其账号不受影响。"
+
+#. js-lingui-explicit-id
+#: src/pages/Console.tsx
+msgid "console.passkeys.count"
+msgstr "{passkeyCount, plural, other {# 个通行密钥}}"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderDangerSection.tsx
@@ -709,6 +729,11 @@ msgstr "以下全部"
 #: src/pages/admin/AdminLogs.tsx
 msgid "admin.logs.range.all"
 msgstr "全部"
+
+#. js-lingui-explicit-id
+#: src/pages/Console.tsx
+msgid "console.recovery.used_up"
+msgstr "已用完"
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
@@ -2225,11 +2250,6 @@ msgid "error.federation.invite_required"
 msgstr "通过 {provider} 创建账号需要邀请。"
 
 #. js-lingui-explicit-id
-#: src/pages/Console.tsx
-msgid "console.current-account"
-msgstr "当前账号"
-
-#. js-lingui-explicit-id
 #: src/components/custom/SudoDialog.tsx
 msgid "sudo.password"
 msgstr "当前密码"
@@ -2456,6 +2476,11 @@ msgid "devices.form"
 msgstr "设备配对"
 
 #. js-lingui-explicit-id
+#: src/pages/Console.tsx
+msgid "console.devices.title"
+msgstr "设备"
+
+#. js-lingui-explicit-id
 #: src/pages/Devices.tsx
 msgid "devices.page.title"
 msgstr "设备"
@@ -2629,11 +2654,6 @@ msgstr "发现"
 #: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.diagnostics.stage.discovery"
 msgstr "发现"
-
-#. js-lingui-explicit-id
-#: src/pages/Console.tsx
-msgid "console.display-name"
-msgstr "显示名称"
 
 #. js-lingui-explicit-id
 #: src/pages/public/Enroll.tsx
@@ -4583,6 +4603,11 @@ msgid "admin.user.passkeys.empty"
 msgstr "暂无通行密钥"
 
 #. js-lingui-explicit-id
+#: src/pages/Console.tsx
+msgid "console.passkeys.none"
+msgstr "尚无通行密钥"
+
+#. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
 msgid "security.passkeys.empty.title"
 msgstr "还没有通行密钥"
@@ -4708,6 +4733,11 @@ msgid "security.factor.unset"
 msgstr "未设置"
 
 #. js-lingui-explicit-id
+#: src/pages/Console.tsx
+msgid "console.password.off"
+msgstr "未设置"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderOperatorSection.tsx
 msgid "admin.federation.operator.none"
 msgstr "未设置"
@@ -4791,6 +4821,11 @@ msgstr "OIDC 主体"
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.oidcSubject"
 msgstr "OIDC 主体"
+
+#. js-lingui-explicit-id
+#: src/pages/Console.tsx
+msgid "console.password.on"
+msgstr "已开启"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminUsers.tsx
@@ -5039,6 +5074,11 @@ msgid "error.login_failed"
 msgstr "通行密钥登录失败，可以改用密码。"
 
 #. js-lingui-explicit-id
+#: src/pages/Console.tsx
+msgid "console.passkeys.title"
+msgstr "通行密钥"
+
+#. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
 msgid "security.section.passkeys"
 msgstr "通行密钥"
@@ -5107,6 +5147,11 @@ msgstr "密码"
 #: src/components/custom/PasswordTotpStepHeader.tsx
 msgid "enroll.password_totp.steps.password"
 msgstr "密码"
+
+#. js-lingui-explicit-id
+#: src/pages/Console.tsx
+msgid "console.password.title"
+msgstr "密码与身份验证器"
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
@@ -5413,6 +5458,11 @@ msgstr "恢复码"
 #. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts
 msgid "audit.factor.recovery_code"
+msgstr "恢复码"
+
+#. js-lingui-explicit-id
+#: src/pages/Console.tsx
+msgid "console.recovery.title"
 msgstr "恢复码"
 
 #. js-lingui-explicit-id
@@ -6047,6 +6097,11 @@ msgid "admin.group.rule.views"
 msgstr "规则编辑器"
 
 #. js-lingui-explicit-id
+#: src/pages/Console.tsx
+msgid "console.recovery.low"
+msgstr "即将用完"
+
+#. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
 msgid "security.recovery.low"
 msgstr "即将用完"
@@ -6576,6 +6631,11 @@ msgstr "要将该账号在所有设备上登出吗？"
 #: src/pages/admin/settings/SigningKeysPanel.tsx
 msgid "settings.keys.activate.title"
 msgstr "用这个密钥签名？"
+
+#. js-lingui-explicit-id
+#: src/pages/Console.tsx
+msgid "console.signin.title"
+msgstr "登录"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/CallbackPreview.tsx
@@ -8397,12 +8457,6 @@ msgid "admin.federation.diagnostics.userinfo.empty"
 msgstr "未请求 UserInfo。"
 
 #. js-lingui-explicit-id
-#: src/pages/Console.tsx
-#: src/pages/profile/AccountPanel.tsx
-msgid "console.username"
-msgstr "用户名"
-
-#. js-lingui-explicit-id
 #: src/pages/Login.tsx
 msgid "login.username"
 msgstr "用户名"
@@ -8410,6 +8464,11 @@ msgstr "用户名"
 #. js-lingui-explicit-id
 #: src/pages/public/Enroll.tsx
 msgid "enroll.username"
+msgstr "用户名"
+
+#. js-lingui-explicit-id
+#: src/pages/profile/AccountPanel.tsx
+msgid "console.username"
 msgstr "用户名"
 
 #. js-lingui-explicit-id
@@ -8653,6 +8712,11 @@ msgid "admin.federation.new.steam-key"
 msgstr "Web API 密钥"
 
 #. js-lingui-explicit-id
+#: src/pages/Console.tsx
+msgid "console.page.title"
+msgstr "欢迎，{displayName}"
+
+#. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.scope"
 msgstr "可访问范围"
@@ -8697,6 +8761,11 @@ msgstr "从这里打开应用时，控制台跳转到的地址。留空表示不
 #: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
 msgid "admin.saml-apps.field.acs.hint"
 msgstr "这个实例发送断言的目标地址。其中恰好一个端点是默认端点。"
+
+#. js-lingui-explicit-id
+#: src/pages/Console.tsx
+msgid "console.devices.row"
+msgstr "你已登录的位置"
 
 #. js-lingui-explicit-id
 #: src/pages/Devices.tsx
@@ -8878,11 +8947,6 @@ msgstr "你的密码、身份验证器与全部恢复码会立即失效。"
 #: src/lib/scopes.ts
 msgid "consent.scope.profile"
 msgstr "个人资料"
-
-#. js-lingui-explicit-id
-#: src/pages/Console.tsx
-msgid "console.availability"
-msgstr "你的个人资料、安全设置、已连接应用与设备都在侧栏列出的页面中。管理页面尚未开放。"
 
 #. js-lingui-explicit-id
 #: src/pages/public/FederationFlow.tsx
