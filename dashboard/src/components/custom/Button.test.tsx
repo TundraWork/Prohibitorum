@@ -50,7 +50,8 @@ describe("Button", () => {
     render(<Button isPending>Save</Button>);
     const button = screen.getByRole("button", { name: "Save" });
     expect(button).toHaveAttribute("aria-busy", "true");
-    expect(button).toBeDisabled();
+    expect(button).toHaveAttribute("aria-disabled", "true");
+    expect(button).toBeEnabled();
     expect(spinner()).not.toBeNull();
     expect(button).toHaveTextContent("Save");
   });
@@ -63,7 +64,10 @@ describe("Button", () => {
     );
     expect(spinner()).not.toBeNull();
     expect(screen.queryByTestId("icon")).toBeNull();
-    expect(screen.getByRole("button", { name: "Sign out" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Sign out" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
   });
 
   it("disables and does not fire onPress when isDisabled", async () => {
@@ -87,6 +91,27 @@ describe("Button", () => {
       </Button>,
     );
     await userEvent.click(screen.getByRole("button"));
+    expect(onPress).not.toHaveBeenCalled();
+  });
+
+  it("keeps keyboard focus when it becomes pending", () => {
+    const { rerender } = render(<Button>Save</Button>);
+    const button = screen.getByRole("button", { name: "Save" });
+    button.focus();
+    rerender(<Button isPending>Save</Button>);
+    expect(button).toHaveFocus();
+  });
+
+  it("does not fire onPress on Enter while pending", async () => {
+    const onPress = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <Button isPending onPress={onPress}>
+        Go
+      </Button>,
+    );
+    screen.getByRole("button").focus();
+    await user.keyboard("{Enter}");
     expect(onPress).not.toHaveBeenCalled();
   });
 
@@ -119,6 +144,19 @@ describe("Button", () => {
     expect(link).toHaveAttribute("href", "/x");
     expect(link).toHaveAttribute("data-variant", "secondary");
     expect(link).toHaveAttribute("data-slot", "button");
+  });
+
+  it("marks a rendered element aria-disabled and ignores clicks while pending", async () => {
+    const onClick = vi.fn();
+    render(
+      <Button render={<a href="/x" />} isPending onClick={onClick}>
+        Open
+      </Button>,
+    );
+    const link = screen.getByRole("link", { name: "Open" });
+    expect(link).toHaveAttribute("aria-disabled", "true");
+    await userEvent.click(link);
+    expect(onClick).not.toHaveBeenCalled();
   });
 
   it("forwards a ref to the DOM button", () => {

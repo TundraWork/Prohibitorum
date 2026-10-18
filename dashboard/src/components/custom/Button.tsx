@@ -97,6 +97,10 @@ export function Button({
     </>
   );
   const handleClick = (event: React.MouseEvent) => {
+    if (isPending) {
+      event.preventDefault();
+      return;
+    }
     const e = event as React.MouseEvent<HTMLButtonElement>;
     onClick?.(e);
     onPress?.(e);
@@ -123,7 +127,9 @@ export function Button({
         aria-busy={isPending || undefined}
         onClick={handleClick}
         loading={false}
-        disabled={isDisabled || isPending}
+        disabled={isDisabled}
+        // Pending stays focusable (aria-disabled), so focus is not lost.
+        aria-disabled={isPending || undefined}
         className={cn(fullWidth && "w-full", className)}
         {...marks}
       >
@@ -146,7 +152,8 @@ export function Button({
       }}
       slot={slot}
       onClick={handleClick}
-      isDisabled={isDisabled || isPending}
+      isDisabled={isDisabled}
+      isPending={isPending}
       className={cn(buttonVariants(common), fullWidth && "w-full", className)}
       data-slot="button"
       {...marks}
