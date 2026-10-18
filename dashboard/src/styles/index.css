@@ -23,8 +23,14 @@
 }
 
 :root {
+  color-scheme: light;
   --font-sans: "Cal Sans", "Noto Sans SC", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "Paper Mono", ui-monospace, Menlo, monospace;
+}
+
+/* Native scrollbars, form controls and the canvas follow the theme class. */
+.dark {
+  color-scheme: dark;
 }
 
 /*
