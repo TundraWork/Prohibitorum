@@ -16,7 +16,7 @@ export function PageHeading({ children }: { children: ReactNode }) {
     <h1
       ref={focus}
       tabIndex={-1}
-      className="min-w-0 font-semibold text-2xl tracking-tight wrap-anywhere outline-none"
+      className="min-w-0 font-semibold text-2xl text-balance tracking-tight wrap-anywhere outline-none"
     >
       {children}
     </h1>

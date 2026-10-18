@@ -44,9 +44,15 @@ function samlApi(attributes: string[]) {
 }
 
 function rows() {
-  return within(screen.getByRole("list", { name: "Nextcloud will receive:" }))
+  return within(screen.getByRole("list", { name: "Nextcloud will receive" }))
     .getAllByRole("listitem")
     .map((item) => item.textContent);
+}
+
+function inStageFooter(name: string) {
+  const footer = document.querySelector('[data-slot="stage-footer"]');
+  if (!(footer instanceof HTMLElement)) throw new Error("no stage footer");
+  return within(footer).getByRole("button", { name });
 }
 
 it("names the service and the attributes it will receive", async () => {
@@ -70,7 +76,8 @@ it("continues with a full load of the endpoint that posts the assertion", async 
   const api = samlApi(["Display name"]);
   const user = userEvent.setup();
   renderApp("/saml-consent?ticket=s-1", queryClient);
-  await user.click(await screen.findByRole("button", { name: "Continue" }));
+  await screen.findByRole("heading", { name: "Continue to Nextcloud?" });
+  await user.click(inStageFooter("Continue"));
   await waitFor(() =>
     expect(loadDocument).toHaveBeenCalledWith("/saml/sso/resume?ticket=s-1"),
   );
@@ -87,7 +94,8 @@ it("declines with its own word", async () => {
     Response.json({ redirect: "/" });
   const user = userEvent.setup();
   renderApp("/saml-consent?ticket=s-1", queryClient);
-  await user.click(await screen.findByRole("button", { name: "Not now" }));
+  await screen.findByRole("heading", { name: "Continue to Nextcloud?" });
+  await user.click(inStageFooter("Not now"));
   await waitFor(() => expect(loadDocument).toHaveBeenCalledWith("/"));
   expect(api.sent("POST", "/api/prohibitorum/saml-consent")[0]?.body).toEqual({
     ticket: "s-1",

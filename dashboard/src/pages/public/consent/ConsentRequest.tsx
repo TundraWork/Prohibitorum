@@ -1,21 +1,20 @@
-import { Avatar, Link } from "@heroui/react";
 import { Trans } from "@lingui/react/macro";
-import type { LucideIcon } from "lucide-react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import type { ConsentAccount } from "@/api/raw-paths";
+import { AppStrip } from "@/components/custom/AppStrip";
 import { Button } from "@/components/custom/Button";
-import { EntityAvatar } from "@/components/custom/EntityAvatar";
 import { PublicStep } from "@/components/custom/PublicStep";
+import { type ScopeRow, ScopeRows } from "@/components/custom/ScopeRows";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useSwitchAccount } from "@/pages/public/consent/useSwitchAccount";
 
-export interface ConsentFact {
-  key: string;
-  icon: LucideIcon;
-  name: ReactNode;
-  description?: ReactNode;
-}
-
 export type ConsentChoice = "approve" | "decline";
+
+const listLabelId = "consent-rows";
+
+/** A link inside the consent footnote: underlined, since it sits in running text. */
+export const consentLinkClass =
+  "rounded-sm text-foreground underline underline-offset-2 outline-none hover:text-primary focus-visible:ring-2 focus-visible:ring-ring";
 
 /**
  * The consent card the OIDC and SAML pages share: who is asking, who is
@@ -30,9 +29,9 @@ export function ConsentRequest({
   app,
   title,
   account,
-  factsTitle,
-  facts,
-  factsNote,
+  rowsLabel,
+  rows,
+  after,
   footnote,
   decline,
   approve,
@@ -42,10 +41,11 @@ export function ConsentRequest({
   app: { displayName: string; logoUri?: string };
   title: ReactNode;
   account: ConsentAccount;
-  factsTitle: ReactNode;
-  facts: readonly ConsentFact[];
-  /** A line under the list, such as what was allowed before. */
-  factsNote?: ReactNode;
+  /** Introduces the rows; the list is named after it. */
+  rowsLabel: ReactNode;
+  rows: readonly ScopeRow[];
+  /** What follows the rows, such as the scopes allowed before. */
+  after?: ReactNode;
   footnote: ReactNode;
   decline: ReactNode;
   approve: ReactNode;
@@ -77,26 +77,23 @@ export function ConsentRequest({
   const displayName = account.displayName;
   return (
     <PublicStep
-      // The icons only picture who is named beside them, so a screen reader
-      // is not read their fallback letters.
+      wide
       strip={
-        <div aria-hidden="true" className="flex">
-          <EntityAvatar
-            className="size-12"
-            iconUrl={app.logoUri}
-            fallback={app.displayName.slice(0, 1)}
-          />
-        </div>
+        <AppStrip
+          lead={<Trans id="consent.strip.lead">Asking for access</Trans>}
+          name={app.displayName}
+          iconUrl={app.logoUri}
+        />
       }
       title={title}
-      actions={
-        <PublicStep.Actions layout="decision">
+      footer={
+        <div className="grid w-full grid-cols-2 gap-2">
           <Button
             pending={pending === "decline"}
             disabled={busy && pending !== "decline"}
             onClick={() => void decide("decline")}
             variant="outline"
-            className="w-full"
+            size="lg"
           >
             {decline}
           </Button>
@@ -104,56 +101,45 @@ export function ConsentRequest({
             pending={pending === "approve"}
             disabled={busy && pending !== "approve"}
             onClick={() => void decide("approve")}
-            className="w-full"
+            size="lg"
           >
             {approve}
           </Button>
-        </PublicStep.Actions>
+        </div>
       }
     >
-      <div className="flex min-w-0 items-center gap-2 text-sm text-muted">
-        <Avatar size="sm" className="shrink-0" aria-hidden="true">
-          {account.avatarUrl && <Avatar.Image src={account.avatarUrl} alt="" />}
-          <Avatar.Fallback>{displayName.slice(0, 1)}</Avatar.Fallback>
+      <div className="flex min-w-0 items-center gap-2.5 rounded-xl bg-muted px-3 py-2 text-sm">
+        <Avatar className="size-6 shrink-0" aria-hidden="true">
+          {account.avatarUrl && <AvatarImage src={account.avatarUrl} alt="" />}
+          <AvatarFallback>{displayName.slice(0, 1)}</AvatarFallback>
         </Avatar>
         <p className="min-w-0 wrap-anywhere">
-          <Trans id="consent.account">Signed in as {displayName}</Trans>
-          <span aria-hidden="true"> · </span>
-          <Link
-            className="text-sm"
-            isDisabled={busy}
-            onPress={() => switchAccount.mutate()}
-          >
-            <Trans id="consent.switch_account">Use another account</Trans>
-          </Link>
+          <Trans id="consent.account">
+            Signed in as <b className="font-medium">{displayName}</b>
+          </Trans>
         </p>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="ms-auto"
+          pending={switchAccount.isPending}
+          disabled={busy && !switchAccount.isPending}
+          onClick={() => switchAccount.mutate()}
+        >
+          <Trans id="consent.switch_account">Switch account</Trans>
+        </Button>
       </div>
-      <div className="flex flex-col gap-3">
-        <p className="text-sm font-medium" id="consent-facts">
-          {factsTitle}
+      <div className="flex flex-col gap-2">
+        <p
+          className="flex items-center gap-2 font-medium text-sm"
+          id={listLabelId}
+        >
+          {rowsLabel}
         </p>
-        <ul aria-labelledby="consent-facts" className="flex flex-col gap-3">
-          {facts.map((fact) => (
-            <li key={fact.key} className="flex gap-3">
-              <fact.icon
-                size={16}
-                aria-hidden="true"
-                className="mt-0.5 shrink-0 text-muted"
-              />
-              <div className="flex min-w-0 flex-col">
-                <span className="text-sm font-medium wrap-anywhere">
-                  {fact.name}
-                </span>
-                {fact.description && (
-                  <span className="text-sm text-muted">{fact.description}</span>
-                )}
-              </div>
-            </li>
-          ))}
-        </ul>
-        {factsNote && <p className="text-sm text-muted">{factsNote}</p>}
+        <ScopeRows rows={rows} labelledBy={listLabelId} />
+        {after}
       </div>
-      <div className="flex flex-col gap-1 text-sm text-muted">{footnote}</div>
+      <p className="text-muted-foreground text-xs">{footnote}</p>
     </PublicStep>
   );
 }

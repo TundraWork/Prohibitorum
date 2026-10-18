@@ -1,17 +1,24 @@
-import { Link, linkVariants } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useMutation, useSuspenseQuery } from "@tanstack/react-query";
 import { Link as RouterLink, useRouter } from "@tanstack/react-router";
+import { ChevronRightIcon } from "lucide-react";
 import { useState } from "react";
 import { ApiError } from "@/api/errors";
 import { consentDecisionMutationOptions } from "@/api/mutations";
 import { consentRequestQueryOptions } from "@/api/queries";
 import { followRedirect } from "@/app/redirect";
 import { useInstanceBranding } from "@/components/custom/instance-branding";
+import { type ScopeRow, ScopeRows } from "@/components/custom/ScopeRows";
+import { Badge } from "@/components/ui/badge";
+import {
+  Collapsible,
+  CollapsiblePanel,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { ConsentExpired } from "@/pages/public/consent/ConsentExpired";
 import {
-  type ConsentFact,
   ConsentRequest,
+  consentLinkClass,
 } from "@/pages/public/consent/ConsentRequest";
 import { describeScope } from "@/pages/public/consent/scopes";
 import { Route } from "@/routes/_public.consent";
@@ -19,7 +26,7 @@ import { Route } from "@/routes/_public.consent";
 /**
  * Whether to let an OIDC application in. The first time it lists everything
  * the application asked for; when the account has allowed some of it before,
- * it lists only what is new and names the rest in one line.
+ * it lists only what is new and folds the rest away under one heading.
  */
 export function ConsentPage() {
   const { ticket = "", return_to: returnTo = "" } = Route.useSearch();
@@ -43,26 +50,24 @@ export function ConsentPage() {
     ? request.scopes.filter((scope) => !granted.includes(scope))
     : request.scopes;
   const providers = request.providers ?? {};
-  const scopeName = (scope: string) => {
-    const { name, values } = describeScope(scope, providers);
-    return name ? i18n._({ ...name, values }) : scope;
-  };
-  const facts: ConsentFact[] = asked.map((scope) => {
-    const { icon, name, description, values } = describeScope(scope, providers);
+  const rowOf = (scope: string): ScopeRow => {
+    const {
+      icon: Icon,
+      name,
+      description,
+      values,
+    } = describeScope(scope, providers);
     return {
       key: scope,
-      icon,
-      name: name ? (
+      icon: <Icon />,
+      title: name ? (
         i18n._({ ...name, values })
       ) : (
-        <span className="font-mono">{scope}</span>
+        <span className="font-mono text-[13px] wrap-anywhere">{scope}</span>
       ),
-      description: i18n._({ ...description, values: { ...values, instance } }),
+      detail: i18n._({ ...description, values: { ...values, instance } }),
     };
-  });
-  const allowed = new Intl.ListFormat(i18n.locale === "zh" ? "zh-CN" : "en", {
-    type: "conjunction",
-  }).format(granted.map(scopeName));
+  };
   const { policyUri, tosUri } = request.client;
 
   return (
@@ -76,55 +81,82 @@ export function ConsentPage() {
         )
       }
       account={request.account}
-      factsTitle={<Trans id="consent.facts">{app} will be able to:</Trans>}
-      facts={facts}
-      factsNote={
+      rowsLabel={
+        incremental ? (
+          <>
+            <Trans id="consent.new_for">New for {app}</Trans>
+            <Badge variant="info">{asked.length}</Badge>
+          </>
+        ) : (
+          <Trans id="consent.facts">{app} will be able to</Trans>
+        )
+      }
+      rows={asked.map(rowOf)}
+      after={
         incremental && (
-          <Trans id="consent.already_granted">Already allowed: {allowed}</Trans>
+          <Collapsible className="mt-1">
+            <CollapsibleTrigger
+              id="consent-allowed"
+              className="flex w-full items-center gap-2 rounded-md py-1.5 font-medium text-muted-foreground text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring data-panel-open:[&_svg]:rotate-90"
+            >
+              <ChevronRightIcon
+                aria-hidden="true"
+                className="size-4 transition-transform"
+              />
+              <Trans id="consent.already_allowed">Already allowed</Trans>
+              <Badge variant="outline">{granted.length}</Badge>
+            </CollapsibleTrigger>
+            <CollapsiblePanel>
+              <div className="pt-2">
+                <ScopeRows
+                  rows={granted.map(rowOf)}
+                  labelledBy="consent-allowed"
+                />
+              </div>
+            </CollapsiblePanel>
+          </Collapsible>
         )
       }
       footnote={
         <>
-          <p>
-            <Trans id="consent.footnote">
-              Once you allow it, {app} can sign you in directly. You can revoke
-              this at any time in{" "}
-              <RouterLink to="/apps" className={linkVariants().base()}>
-                Connected applications
-              </RouterLink>
-              .
-            </Trans>
-          </p>
-          {(policyUri || tosUri) && (
-            <p>
-              {policyUri && (
-                <Link
-                  className="text-sm"
-                  href={policyUri}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  <Trans id="consent.policy">{app}'s privacy policy</Trans>
-                </Link>
-              )}
-              {policyUri && tosUri && <span aria-hidden="true"> · </span>}
-              {tosUri && (
-                <Link
-                  className="text-sm"
-                  href={tosUri}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  {policyUri ? (
-                    <Trans id="consent.terms">Terms of service</Trans>
-                  ) : (
-                    <Trans id="consent.terms.app">
-                      {app}'s terms of service
-                    </Trans>
-                  )}
-                </Link>
-              )}
-            </p>
+          <Trans id="consent.footnote">
+            Once you allow it, {app} can sign you in directly. You can revoke
+            this at any time in{" "}
+            <RouterLink to="/apps" className={consentLinkClass}>
+              Connected applications
+            </RouterLink>
+            .
+          </Trans>
+          {policyUri && (
+            <>
+              {" "}
+              <a
+                className={consentLinkClass}
+                href={policyUri}
+                target="_blank"
+                rel="noreferrer"
+              >
+                <Trans id="consent.policy">{app}'s privacy policy</Trans>
+              </a>
+            </>
+          )}
+          {policyUri && tosUri && <span aria-hidden="true"> · </span>}
+          {tosUri && (
+            <>
+              {!policyUri && " "}
+              <a
+                className={consentLinkClass}
+                href={tosUri}
+                target="_blank"
+                rel="noreferrer"
+              >
+                {policyUri ? (
+                  <Trans id="consent.terms">Terms of service</Trans>
+                ) : (
+                  <Trans id="consent.terms.app">{app}'s terms of service</Trans>
+                )}
+              </a>
+            </>
           )}
         </>
       }

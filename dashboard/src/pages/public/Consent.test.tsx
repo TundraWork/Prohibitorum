@@ -53,11 +53,20 @@ function consentApi(body: ConsentRequest = request()) {
   });
 }
 
-function factNames() {
-  const list = screen.getByRole("list", { name: "Wiki will be able to:" });
+function rowTitles(list: HTMLElement) {
   return within(list)
     .getAllByRole("listitem")
-    .map((item) => item.querySelector("span")?.textContent);
+    .map((item) => item.querySelector(".font-medium")?.textContent);
+}
+
+function factNames() {
+  return rowTitles(screen.getByRole("list", { name: "Wiki will be able to" }));
+}
+
+function inStageFooter(name: string) {
+  const footer = document.querySelector('[data-slot="stage-footer"]');
+  if (!(footer instanceof HTMLElement)) throw new Error("no stage footer");
+  return within(footer).getByRole("button", { name });
 }
 
 describe("OIDC consent", () => {
@@ -83,8 +92,13 @@ describe("OIDC consent", () => {
     expect(
       screen.getByText("Know which Test instance account is yours"),
     ).toBeVisible();
-    expect(screen.getByText(/Signed in as Alice/)).toBeVisible();
+    expect(screen.getByText(/Signed in as/)).toHaveTextContent(
+      "Signed in as Alice",
+    );
     expect(screen.queryByText(/Already allowed/)).not.toBeInTheDocument();
+    expect(
+      document.querySelector('[data-slot="stage-strip"]'),
+    ).toHaveTextContent("Asking for accessWiki");
   });
 
   it("names the provider of an identity scope, and shows an unknown one by its slug", async () => {
@@ -114,7 +128,8 @@ describe("OIDC consent", () => {
     ).toBeVisible();
   });
 
-  it("names an identity scope in the line of scopes allowed before", async () => {
+  it("names an identity scope among the scopes allowed before", async () => {
+    const user = userEvent.setup();
     consentApi(
       request({
         scopes: ["openid", "identity:vrchat", "groups"],
@@ -126,14 +141,14 @@ describe("OIDC consent", () => {
     await screen.findByRole("heading", {
       name: "Wiki is asking for more access",
     });
+    await user.click(screen.getByRole("button", { name: /Already allowed/ }));
     expect(
-      screen.getByText(
-        "Already allowed: Confirm who you are and Your VRChat identity",
-      ),
-    ).toBeVisible();
+      rowTitles(screen.getByRole("list", { name: /Already allowed/ })),
+    ).toEqual(["Confirm who you are", "Your VRChat identity"]);
   });
 
-  it("lists only the new scopes when some were allowed before", async () => {
+  it("lists only the new scopes, with the allowed ones folded away until asked for", async () => {
+    const user = userEvent.setup();
     consentApi(
       request({
         scopes: ["openid", "profile", "email", "groups", "wiki:write"],
@@ -146,11 +161,24 @@ describe("OIDC consent", () => {
         name: "Wiki is asking for more access",
       }),
     ).toBeVisible();
-    expect(factNames()).toEqual(["Your groups", "wiki:write"]);
+    const label = screen.getByText("New for Wiki");
+    expect(label).toHaveTextContent("New for Wiki2");
     expect(
-      screen.getByText(
-        "Already allowed: Confirm who you are, Your profile, and Your email address",
-      ),
+      rowTitles(screen.getByRole("list", { name: /New for Wiki/ })),
+    ).toEqual(["Your groups", "wiki:write"]);
+    const trigger = screen.getByRole("button", { name: /Already allowed/ });
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+    expect(trigger).toHaveTextContent("3");
+    await user.click(trigger);
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
+    const allowed = screen.getByRole("list", { name: /Already allowed/ });
+    expect(rowTitles(allowed)).toEqual([
+      "Confirm who you are",
+      "Your profile",
+      "Your email address",
+    ]);
+    expect(
+      within(allowed).getByText("Your display name, username and avatar"),
     ).toBeVisible();
   });
 
@@ -187,7 +215,8 @@ describe("OIDC consent", () => {
       });
     const user = userEvent.setup();
     renderApp(address, queryClient);
-    await user.click(await screen.findByRole("button", { name: "Allow" }));
+    await screen.findByRole("heading", { name: /^Allow Wiki/ });
+    await user.click(inStageFooter("Allow"));
     await waitFor(() =>
       expect(api.sent("POST", "/api/prohibitorum/consent")).toHaveLength(1),
     );
@@ -332,7 +361,7 @@ describe("OIDC consent", () => {
     const user = userEvent.setup();
     const router = renderApp(address, queryClient);
     await user.click(
-      await screen.findByRole("link", { name: "Use another account" }),
+      await screen.findByRole("button", { name: "Switch account" }),
     );
     expect(
       await screen.findByRole("heading", { name: /^Sign in with / }),

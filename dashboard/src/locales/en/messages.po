@@ -40,7 +40,7 @@ msgstr "{app} needs to verify your identity"
 #. js-lingui-explicit-id
 #: src/pages/public/Consent.tsx
 msgid "consent.facts"
-msgstr "{app} will be able to:"
+msgstr "{app} will be able to"
 
 #. js-lingui-explicit-id
 #: src/pages/public/Consent.tsx
@@ -190,7 +190,7 @@ msgstr "{removedCount, plural, one {Remove # scope?} other {Remove # scopes?}}"
 #. js-lingui-explicit-id
 #: src/pages/public/SamlConsent.tsx
 msgid "saml_consent.facts"
-msgstr "{sp} will receive:"
+msgstr "{sp} will receive"
 
 #. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
@@ -744,8 +744,8 @@ msgstr "Allowed email domains"
 
 #. js-lingui-explicit-id
 #: src/pages/public/Consent.tsx
-msgid "consent.already_granted"
-msgstr "Already allowed: {allowed}"
+msgid "consent.already_allowed"
+msgstr "Already allowed"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-validation.ts
@@ -1012,6 +1012,11 @@ msgstr "Ask the account to approve the scopes before signing them in."
 #: src/components/custom/LoginShell.tsx
 msgid "login.enroll_instruction"
 msgstr "Ask the operator to run <0>prohibitorum enroll-admin</0> on the server before signing in."
+
+#. js-lingui-explicit-id
+#: src/pages/public/consent/ConsentRequest.tsx
+msgid "consent.strip.lead"
+msgstr "Asking for access"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
@@ -4365,6 +4370,11 @@ msgid "login.reset.qr"
 msgstr "New authenticator setup QR code"
 
 #. js-lingui-explicit-id
+#: src/pages/public/Consent.tsx
+msgid "consent.new_for"
+msgstr "New for {app}"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/AdminForwardAuthAppNew.tsx
 msgid "admin.forward-auth-apps.new.form"
 msgstr "New forward-auth application"
@@ -6523,7 +6533,7 @@ msgstr "Signed in <0/>"
 #. js-lingui-explicit-id
 #: src/pages/public/consent/ConsentRequest.tsx
 msgid "consent.account"
-msgstr "Signed in as {displayName}"
+msgstr "Signed in as <0>{displayName}</0>"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts
@@ -6717,6 +6727,11 @@ msgstr "Submitting…"
 #: src/pages/admin/settings/SignInPageControls.tsx
 msgid "settings.sign-in.color.suggested"
 msgstr "Suggested colors"
+
+#. js-lingui-explicit-id
+#: src/pages/public/consent/ConsentRequest.tsx
+msgid "consent.switch_account"
+msgstr "Switch account"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/SignInPagePanel.tsx
@@ -8075,11 +8090,6 @@ msgstr "Use an http or https address."
 #: src/pages/admin/identity-providers/provider-validation.ts
 msgid "admin.federation.url.https"
 msgstr "Use an https address."
-
-#. js-lingui-explicit-id
-#: src/pages/public/consent/ConsentRequest.tsx
-msgid "consent.switch_account"
-msgstr "Use another account"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx

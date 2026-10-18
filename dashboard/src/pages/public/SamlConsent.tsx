@@ -1,4 +1,3 @@
-import { linkVariants } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useMutation, useSuspenseQuery } from "@tanstack/react-query";
 import { Link as RouterLink } from "@tanstack/react-router";
@@ -6,9 +5,10 @@ import { Tag, UserRound } from "lucide-react";
 import { samlConsentDecisionMutationOptions } from "@/api/mutations";
 import { samlConsentRequestQueryOptions } from "@/api/queries";
 import { loadDocument } from "@/app/load-document";
+import type { ScopeRow } from "@/components/custom/ScopeRows";
 import {
-  type ConsentFact,
   ConsentRequest,
+  consentLinkClass,
 } from "@/pages/public/consent/ConsentRequest";
 import { Route } from "@/routes/_public.saml-consent";
 
@@ -26,18 +26,18 @@ export function SamlConsentPage() {
   const decision = useMutation(samlConsentDecisionMutationOptions());
 
   const sp = request.sp.displayName;
-  const facts: ConsentFact[] =
+  const rows: ScopeRow[] =
     request.attributes.length > 0
       ? request.attributes.map((label) => ({
           key: label,
-          icon: Tag,
-          name: label,
+          icon: <Tag />,
+          title: label,
         }))
       : [
           {
             key: "basic",
-            icon: UserRound,
-            name: t({
+            icon: <UserRound />,
+            title: t({
               id: "saml_consent.basic",
               message: "Your basic account information",
             }),
@@ -49,18 +49,16 @@ export function SamlConsentPage() {
       app={request.sp}
       title={<Trans id="saml_consent.title">Continue to {sp}?</Trans>}
       account={request.account}
-      factsTitle={<Trans id="saml_consent.facts">{sp} will receive:</Trans>}
-      facts={facts}
+      rowsLabel={<Trans id="saml_consent.facts">{sp} will receive</Trans>}
+      rows={rows}
       footnote={
-        <p>
-          <Trans id="saml_consent.footnote">
-            You only need to confirm this once. You can revoke it at any time in{" "}
-            <RouterLink to="/apps" className={linkVariants().base()}>
-              Connected applications
-            </RouterLink>
-            .
-          </Trans>
-        </p>
+        <Trans id="saml_consent.footnote">
+          You only need to confirm this once. You can revoke it at any time in{" "}
+          <RouterLink to="/apps" className={consentLinkClass}>
+            Connected applications
+          </RouterLink>
+          .
+        </Trans>
       }
       decline={<Trans id="saml_consent.decline">Not now</Trans>}
       approve={<Trans id="saml_consent.continue">Continue</Trans>}

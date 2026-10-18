@@ -40,7 +40,7 @@ msgstr "{app} 需要验证你的身份"
 #. js-lingui-explicit-id
 #: src/pages/public/Consent.tsx
 msgid "consent.facts"
-msgstr "{app} 将能够："
+msgstr "{app} 将能够"
 
 #. js-lingui-explicit-id
 #: src/pages/public/Consent.tsx
@@ -190,7 +190,7 @@ msgstr "{removedCount, plural, other {移除 # 个作用域？}}"
 #. js-lingui-explicit-id
 #: src/pages/public/SamlConsent.tsx
 msgid "saml_consent.facts"
-msgstr "{sp} 将收到："
+msgstr "{sp} 将收到"
 
 #. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
@@ -744,8 +744,8 @@ msgstr "允许的邮箱域名"
 
 #. js-lingui-explicit-id
 #: src/pages/public/Consent.tsx
-msgid "consent.already_granted"
-msgstr "已允许：{allowed}"
+msgid "consent.already_allowed"
+msgstr "已允许"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-validation.ts
@@ -1012,6 +1012,11 @@ msgstr "登录前先让账号确认这些作用域。"
 #: src/components/custom/LoginShell.tsx
 msgid "login.enroll_instruction"
 msgstr "请联系运维人员，在服务器运行 <0>prohibitorum enroll-admin</0> 后再登录。"
+
+#. js-lingui-explicit-id
+#: src/pages/public/consent/ConsentRequest.tsx
+msgid "consent.strip.lead"
+msgstr "请求访问"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
@@ -4365,6 +4370,11 @@ msgid "login.reset.qr"
 msgstr "新身份验证器设置二维码"
 
 #. js-lingui-explicit-id
+#: src/pages/public/Consent.tsx
+msgid "consent.new_for"
+msgstr "{app} 的新权限"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/AdminForwardAuthAppNew.tsx
 msgid "admin.forward-auth-apps.new.form"
 msgstr "新建前向认证应用"
@@ -6523,7 +6533,7 @@ msgstr "登录于 <0/>"
 #. js-lingui-explicit-id
 #: src/pages/public/consent/ConsentRequest.tsx
 msgid "consent.account"
-msgstr "以 {displayName} 的身份登录"
+msgstr "以 <0>{displayName}</0> 的身份登录"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts
@@ -6717,6 +6727,11 @@ msgstr "正在提交…"
 #: src/pages/admin/settings/SignInPageControls.tsx
 msgid "settings.sign-in.color.suggested"
 msgstr "推荐颜色"
+
+#. js-lingui-explicit-id
+#: src/pages/public/consent/ConsentRequest.tsx
+msgid "consent.switch_account"
+msgstr "切换账号"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/SignInPagePanel.tsx
@@ -8075,11 +8090,6 @@ msgstr "请使用 http 或 https 地址。"
 #: src/pages/admin/identity-providers/provider-validation.ts
 msgid "admin.federation.url.https"
 msgstr "请使用 https 地址。"
-
-#. js-lingui-explicit-id
-#: src/pages/public/consent/ConsentRequest.tsx
-msgid "consent.switch_account"
-msgstr "换一个账号"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
