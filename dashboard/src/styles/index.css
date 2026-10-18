@@ -73,10 +73,9 @@
 body {
   padding-top: var(--app-gutter-top);
   padding-bottom: var(--app-gutter-bottom);
-  /* The surface content sits on, which a pinned table header must repaint to
-     match the band around it. The console's inset panel and dialog popups
-     name their own. */
-  --surface: var(--sidebar);
+  /* What content sits on, repainted by a pinned table header; the console's
+     inset panel overrides it. */
+  --content-surface: var(--sidebar);
 }
 
 :focus:not(:focus-visible) {
@@ -98,7 +97,7 @@ body {
 /* The frame band is translucent: a pinned header paints the surface beneath
    it, then the same band, so it is opaque and matches the other headers. */
 .data-table [data-slot="table-head"][data-pinned] {
-  background-color: var(--surface);
+  background-color: var(--content-surface);
   background-image: linear-gradient(
     color-mix(in oklab, var(--muted) 72%, transparent),
     color-mix(in oklab, var(--muted) 72%, transparent)

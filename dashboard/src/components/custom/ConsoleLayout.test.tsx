@@ -384,7 +384,9 @@ describe("console shell on a narrow screen", () => {
       await screen.findByRole("button", { name: "Toggle sidebar" }),
     );
 
-    const sheet = await screen.findByRole("dialog");
+    const sheet = await screen.findByRole("dialog", {
+      name: "Console navigation",
+    });
     expect(
       within(sheet).getByRole("navigation", { name: "Console navigation" }),
     ).toBeVisible();
