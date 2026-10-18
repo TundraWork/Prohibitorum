@@ -147,13 +147,19 @@ export function Section({
             </div>
             {action}
           </FrameHeader>
-          {/* A child that is the panel is laid out in a plain div; the one
-              remount when it registers happens before paint. */}
-          {ownPanel ? (
-            <FramePanel className="flex flex-col gap-3">{children}</FramePanel>
-          ) : (
-            <div className="flex flex-col">{children}</div>
-          )}
+          {/* One element type in both states, so a child that claims the panel
+              is restyled rather than remounted. */}
+          <FramePanel
+            {...(ownPanel
+              ? { className: "flex flex-col gap-3" }
+              : {
+                  "data-slot": "section-body",
+                  className:
+                    "flex flex-col rounded-none border-0 bg-transparent p-0 shadow-none before:hidden",
+                })}
+          >
+            {children}
+          </FramePanel>
           {footer !== undefined && (
             <FrameFooter className="text-muted-foreground text-sm">
               {footer}
@@ -274,27 +280,37 @@ function SectionError({
   onRetry: () => void;
 }) {
   const { t } = useLingui();
+  const alert = (
+    <SurfaceAlert status="danger" role="alert">
+      <SurfaceAlert.Indicator />
+      <SurfaceAlert.Content>
+        <SurfaceAlert.Title>
+          <Trans id="section.failed">This section could not be loaded</Trans>
+        </SurfaceAlert.Title>
+        <SurfaceAlert.Description>
+          {t(describeError(error))}
+        </SurfaceAlert.Description>
+        <Button
+          className="mt-2 w-fit"
+          size="sm"
+          variant="danger"
+          onPress={onRetry}
+        >
+          <Trans id="section.retry">Try again</Trans>
+        </Button>
+      </SurfaceAlert.Content>
+    </SurfaceAlert>
+  );
+  if (title === undefined) {
+    return (
+      <Frame>
+        <FramePanel>{alert}</FramePanel>
+      </Frame>
+    );
+  }
   return (
     <Section title={title} {...sectionProps}>
-      <SurfaceAlert status="danger" role="alert">
-        <SurfaceAlert.Indicator />
-        <SurfaceAlert.Content>
-          <SurfaceAlert.Title>
-            <Trans id="section.failed">This section could not be loaded</Trans>
-          </SurfaceAlert.Title>
-          <SurfaceAlert.Description>
-            {t(describeError(error))}
-          </SurfaceAlert.Description>
-          <Button
-            className="mt-2 w-fit"
-            size="sm"
-            variant="danger"
-            onPress={onRetry}
-          >
-            <Trans id="section.retry">Try again</Trans>
-          </Button>
-        </SurfaceAlert.Content>
-      </SurfaceAlert>
+      {alert}
     </Section>
   );
 }

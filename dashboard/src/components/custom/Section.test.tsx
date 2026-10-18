@@ -7,7 +7,7 @@ import {
 } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ConsoleCard } from "@/components/custom/ConsoleCard";
 import { ItemList } from "@/components/custom/ItemList";
@@ -103,6 +103,16 @@ describe("AsyncSection", () => {
     mount(async () => "Loaded");
 
     expect(await screen.findByText("Loaded")).toBeInTheDocument();
+    expect(screen.queryByRole("heading")).not.toBeInTheDocument();
+  });
+
+  it("draws no empty heading where an untitled boundary fails", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    mount(() => Promise.reject(new Error("offline")));
+
+    expect(
+      await screen.findByText("This section could not be loaded"),
+    ).toBeInTheDocument();
     expect(screen.queryByRole("heading")).not.toBeInTheDocument();
   });
 
@@ -208,6 +218,27 @@ describe("Section", () => {
     );
 
     expect(container.querySelector("section")).not.toHaveAttribute("id");
+  });
+
+  it("does not remount a child when an untitled card claims the panel", () => {
+    const mounted = vi.fn();
+    function Probe() {
+      useEffect(() => {
+        mounted();
+      }, []);
+      return <p>Probe</p>;
+    }
+    render(
+      <Section title="Keep">
+        <ConsoleCard>
+          <Probe />
+        </ConsoleCard>
+        <ItemList label="Rows" empty={<Probe />} />
+      </Section>,
+    );
+
+    // One mount per probe: the panel claim restyles the body in place.
+    expect(mounted).toHaveBeenCalledTimes(2);
   });
 
   it("lets an untitled card or list be the panel, without a panel inside a panel", () => {
