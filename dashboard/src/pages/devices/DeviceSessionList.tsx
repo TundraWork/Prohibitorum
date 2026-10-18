@@ -118,7 +118,12 @@ export function DeviceSessionList({
           <ItemListRow
             key={session.id}
             icon={<DeviceIcon userAgent={session.userAgent} />}
-            title={<DeviceName userAgent={session.userAgent} />}
+            title={
+              <DeviceName
+                userAgent={session.userAgent}
+                className="block truncate"
+              />
+            }
             badge={
               session.isCurrent && (
                 <Badge variant="info">

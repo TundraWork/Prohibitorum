@@ -108,11 +108,6 @@ msgid "admin.federation.diagnostics.stage.duration"
 msgstr "{duration} 毫秒"
 
 #. js-lingui-explicit-id
-#: src/pages/devices/PairDeviceDialog.tsx
-msgid "devices.field.ip_same"
-msgstr "{ip} · 与本设备相同"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/UriListField.tsx
 msgid "admin.oidc-apps.uri.row"
 msgstr "{label} {row}"
@@ -6055,6 +6050,11 @@ msgstr "规则编辑器"
 #: src/pages/security/PasswordTotpPanel.tsx
 msgid "security.recovery.low"
 msgstr "即将用完"
+
+#. js-lingui-explicit-id
+#: src/pages/devices/PairDeviceDialog.tsx
+msgid "devices.field.same_device"
+msgstr "与本设备相同"
 
 #. js-lingui-explicit-id
 #: src/pages/ConnectedApps.tsx

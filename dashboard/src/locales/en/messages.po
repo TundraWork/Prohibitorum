@@ -108,11 +108,6 @@ msgid "admin.federation.diagnostics.stage.duration"
 msgstr "{duration} ms"
 
 #. js-lingui-explicit-id
-#: src/pages/devices/PairDeviceDialog.tsx
-msgid "devices.field.ip_same"
-msgstr "{ip} · Same as this device"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/UriListField.tsx
 msgid "admin.oidc-apps.uri.row"
 msgstr "{label} {row}"
@@ -6055,6 +6050,11 @@ msgstr "Rule editor"
 #: src/pages/security/PasswordTotpPanel.tsx
 msgid "security.recovery.low"
 msgstr "Running low"
+
+#. js-lingui-explicit-id
+#: src/pages/devices/PairDeviceDialog.tsx
+msgid "devices.field.same_device"
+msgstr "Same as this device"
 
 #. js-lingui-explicit-id
 #: src/pages/ConnectedApps.tsx

@@ -327,9 +327,8 @@ describe("signing in a new device", () => {
       name: "Let this device sign in?",
     });
     expect(within(dialog).getByText("Chrome · Windows")).toBeInTheDocument();
-    expect(
-      within(dialog).getByText("192.0.2.1 · Same as this device"),
-    ).toBeInTheDocument();
+    expect(within(dialog).getByText("192.0.2.1")).toBeInTheDocument();
+    expect(within(dialog).getByText("Same as this device")).toBeInTheDocument();
     expect(
       within(dialog).getByText(
         "Once approved, this device is signed in to your account.",
@@ -461,7 +460,7 @@ describe("signing in a new device", () => {
     expect(line.closest("[aria-live]")).toHaveAttribute("aria-live", "polite");
   });
 
-  it("says how much of the address matches when the device is on another network", async () => {
+  it("shows the address without a same-device note on another network", async () => {
     serve(() => Response.json(pairing({ initiatorIp: "198.51.100.7" })));
     const user = userEvent.setup();
     mount();

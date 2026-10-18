@@ -2,6 +2,7 @@ import { Trans } from "@lingui/react/macro";
 import Bowser from "bowser";
 import { Monitor, MonitorSmartphone, Smartphone, Tablet } from "lucide-react";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
 
 export type DeviceKind = "desktop" | "mobile" | "tablet" | "unknown";
 
@@ -42,7 +43,14 @@ export function describeDevice(userAgent: string | undefined): {
  * The device a session or a pairing request came from, by name, with the
  * whole User-Agent in a tooltip for the reader who needs to check it.
  */
-export function DeviceName({ userAgent }: { userAgent: string | undefined }) {
+export function DeviceName({
+  userAgent,
+  className,
+}: {
+  userAgent: string | undefined;
+  /** Layout for the name, such as `block truncate` to keep it to one line. */
+  className?: string;
+}) {
   if (!userAgent) return <Trans id="device.unknown">Unknown device</Trans>;
   const { name } = describeDevice(userAgent);
   const shown =
@@ -59,7 +67,10 @@ export function DeviceName({ userAgent }: { userAgent: string | undefined }) {
           <span
             // biome-ignore lint/a11y/noNoninteractiveTabindex: the tooltip is the only way to read the full User-Agent
             tabIndex={0}
-            className="rounded-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className={cn(
+              "rounded-xs outline-none focus-visible:ring-2 focus-visible:ring-ring",
+              className,
+            )}
           />
         }
       >

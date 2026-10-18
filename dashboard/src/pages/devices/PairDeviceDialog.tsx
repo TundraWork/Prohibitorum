@@ -201,8 +201,7 @@ function CodeStep({
                 pattern={pairingCodePattern}
                 inputMode="text"
                 size="lg"
-                // Eight large slots are wider than a phone dialog, so they
-                // tighten up there instead of running off its edge.
+                // Eight large slots would overflow a phone dialog.
                 className="max-sm:gap-1 max-sm:**:data-[slot=otp-field-input]:size-9 max-sm:**:data-[slot=otp-field-input]:leading-9"
                 label={
                   <Trans id="devices.code.label">
@@ -331,11 +330,16 @@ function ReviewStep({
             {ip === "" ? (
               "—"
             ) : sameNetwork ? (
-              <Trans id="devices.field.ip_same">
-                {ip} · Same as this device
-              </Trans>
+              <>
+                <span className="font-mono">{ip}</span>
+                <span className="block text-muted-foreground text-sm">
+                  <Trans id="devices.field.same_device">
+                    Same as this device
+                  </Trans>
+                </span>
+              </>
             ) : (
-              ip
+              <span className="font-mono">{ip}</span>
             )}
           </Detail>
           <Detail label={<Trans id="devices.field.created">Requested</Trans>}>
