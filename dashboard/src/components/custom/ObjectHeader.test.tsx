@@ -1,0 +1,59 @@
+import { I18nProvider } from "@lingui/react";
+import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { beforeEach, describe, expect, it } from "vitest";
+import { ObjectHeader } from "@/components/custom/ObjectHeader";
+import { i18n } from "@/i18n";
+
+beforeEach(() => i18n.activate("en"));
+
+describe("ObjectHeader", () => {
+  it("renders the title as the only h1, with statuses in order", () => {
+    render(
+      <I18nProvider i18n={i18n}>
+        <ObjectHeader
+          icon={<span>icon</span>}
+          title="GitHub"
+          statuses={["enabled", "sign-in-on"]}
+          facts={["OIDC", "18 linked accounts"]}
+          actions={<button type="button">Test</button>}
+        />
+      </I18nProvider>,
+    );
+
+    const headings = screen.getAllByRole("heading", { level: 1 });
+    expect(headings).toHaveLength(1);
+    expect(headings[0]?.textContent).toBe("GitHub");
+
+    const statuses = screen.getByRole("list", { name: "Status" });
+    expect(
+      within(statuses)
+        .getAllByRole("listitem")
+        .map((item) => item.textContent),
+    ).toEqual(["Enabled", "Sign-in on"]);
+    expect(screen.getByText("18 linked accounts")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Test" })).toBeTruthy();
+  });
+
+  it("names the identifier copy button by its label and copies the value", async () => {
+    const writeText = async () => {};
+    const user = userEvent.setup();
+    Object.defineProperty(navigator, "clipboard", {
+      value: { writeText },
+      configurable: true,
+    });
+    render(
+      <I18nProvider i18n={i18n}>
+        <ObjectHeader
+          icon={null}
+          title="GitHub"
+          identifier={{ value: "github", label: "Copy the slug" }}
+        />
+      </I18nProvider>,
+    );
+
+    expect(screen.getByText("github")).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Copy the slug" }));
+    expect(await screen.findByRole("status")).toBeTruthy();
+  });
+});

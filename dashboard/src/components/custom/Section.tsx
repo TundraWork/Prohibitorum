@@ -9,10 +9,12 @@ import {
   useCallback,
   useContext,
   useLayoutEffect,
+  useRef,
   useState,
 } from "react";
 import { describeError } from "@/api/errors";
 import { Button } from "@/components/custom/Button";
+import { useRegisterSection } from "@/components/custom/SectionRegistry";
 import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
 import {
   Frame,
@@ -91,7 +93,7 @@ export function Section({
   footer?: ReactNode;
   /** `danger` tints the frame for destructive actions. */
   tone?: "default" | "danger";
-  /** Marks unsaved edits to the section; the section draws nothing for it. */
+  /** Marks unsaved edits; shown by the outline rail and the unsaved bar. */
   dirty?: boolean;
   children: ReactNode;
 }) {
@@ -101,11 +103,24 @@ export function Section({
     return () => setPanels((count) => count - 1);
   }, []);
   const ownPanel = panels === 0;
+  const sectionId = id ?? slugOf(title);
+  const heading = useRef<HTMLHeadingElement>(null);
+  // The rail names the section by its rendered heading, whatever `title` is.
+  const [headingText, setHeadingText] = useState("");
+  useLayoutEffect(() => {
+    setHeadingText(heading.current?.textContent?.trim() ?? "");
+  });
+  useRegisterSection({
+    id: sectionId ?? "",
+    title: sectionId === undefined ? "" : headingText,
+    dirty,
+    tone: tone === "danger" ? "danger" : undefined,
+  });
 
   return (
     <SectionFrameContext.Provider value={register}>
       <section
-        id={id ?? slugOf(title)}
+        id={sectionId}
         data-dirty={dirty ? "true" : undefined}
         // Clear of the sticky console header when a link scrolls here.
         className="scroll-mt-[calc(var(--app-sticky-offset)+5rem)]"
@@ -121,7 +136,10 @@ export function Section({
                   tone === "danger" ? "text-destructive-foreground" : undefined
                 }
               >
-                <h2>{title}</h2>
+                {/* Focusable so "Jump to it" can land on the heading. */}
+                <h2 ref={heading} tabIndex={-1} className="outline-none">
+                  {title}
+                </h2>
               </FrameTitle>
               {description !== undefined && (
                 <FrameDescription>{description}</FrameDescription>

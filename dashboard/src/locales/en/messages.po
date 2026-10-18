@@ -518,9 +518,7 @@ msgid "admin.user.sessions.table"
 msgstr "Active sessions"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
-#: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
-#: src/pages/admin/identity-providers/ProviderConnectionSection.tsx
+#: src/components/custom/ValueSet.tsx
 msgid "form.tags.add"
 msgstr "Add"
 
@@ -586,6 +584,11 @@ msgid "admin.group.rule.add"
 msgstr "Add condition"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
+msgid "form.tags.add-domain"
+msgstr "Add domain"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
 msgid "admin.saml-apps.acs.add"
 msgstr "Add endpoint"
@@ -606,9 +609,10 @@ msgid "admin.federation.new.submit"
 msgstr "Add provider"
 
 #. js-lingui-explicit-id
-#: src/components/custom/TagListField.tsx
-msgid "form.tags.draft"
-msgstr "Add to {label}"
+#: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
+#: src/pages/admin/identity-providers/ProviderConnectionSection.tsx
+msgid "form.tags.add-scope"
+msgstr "Add scope"
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
@@ -1913,6 +1917,7 @@ msgstr "Copied"
 
 #. js-lingui-explicit-id
 #: src/components/custom/CopyValue.tsx
+#: src/components/custom/ObjectHeader.tsx
 msgid "copy-value.copied"
 msgstr "Copied"
 
@@ -2543,6 +2548,11 @@ msgid "entity.state.disabled"
 msgstr "Disabled"
 
 #. js-lingui-explicit-id
+#: src/components/custom/ObjectHeader.tsx
+msgid "object.status.disabled"
+msgstr "Disabled"
+
+#. js-lingui-explicit-id
 #: src/components/custom/AppAccessPanel.tsx
 msgid "app.managers.candidate.disabled"
 msgstr "Disabled account"
@@ -2792,6 +2802,11 @@ msgstr "Enable this provider"
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminUsers.tsx
 msgid "admin.users.state.enabled"
+msgstr "Enabled"
+
+#. js-lingui-explicit-id
+#: src/components/custom/ObjectHeader.tsx
+msgid "object.status.enabled"
 msgstr "Enabled"
 
 #. js-lingui-explicit-id
@@ -3778,6 +3793,11 @@ msgid "admin.group.rule.view.json"
 msgstr "JSON"
 
 #. js-lingui-explicit-id
+#: src/components/custom/UnsavedBar.tsx
+msgid "unsaved-bar.jump"
+msgstr "Jump to it"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.effective.jwks"
 msgstr "JWKS"
@@ -4638,6 +4658,11 @@ msgid "admin.group.exposed"
 msgstr "Offer to applications"
 
 #. js-lingui-explicit-id
+#: src/components/custom/ValueSet.tsx
+msgid "value-set.offered"
+msgstr "Offered by this provider"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.protocol.oidc"
 msgstr "OIDC"
@@ -4676,6 +4701,11 @@ msgstr "On"
 #: src/pages/public/Pair.tsx
 msgid "pair.description"
 msgstr "On a device that's already signed in to {instance}, open Devices and enter the code below."
+
+#. js-lingui-explicit-id
+#: src/components/custom/OutlineRail.tsx
+msgid "outline.label"
+msgstr "On this page"
 
 #. js-lingui-explicit-id
 #: src/pages/devices/PairDeviceDialog.tsx
@@ -4736,6 +4766,11 @@ msgstr "Only one endpoint can be the default one."
 #: src/pages/admin/settings/SignInPageControls.tsx
 msgid "settings.sign-in.surface.opacity"
 msgstr "Opacity"
+
+#. js-lingui-explicit-id
+#: src/components/custom/ObjectHeader.tsx
+msgid "object.status.open"
+msgstr "Open"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AdminSamlApplications.tsx
@@ -5357,11 +5392,6 @@ msgid "app.managers.confirm.action"
 msgstr "Remove"
 
 #. js-lingui-explicit-id
-#: src/components/custom/TagListField.tsx
-msgid "form.tags.remove"
-msgstr "Remove"
-
-#. js-lingui-explicit-id
 #: src/components/custom/AppAccessPanel.tsx
 msgid "app.groups.remove"
 msgstr "Remove {group}"
@@ -5370,6 +5400,11 @@ msgstr "Remove {group}"
 #: src/components/custom/AppAccessPanel.tsx
 msgid "app.managers.remove"
 msgstr "Remove {name}"
+
+#. js-lingui-explicit-id
+#: src/components/custom/ValueSet.tsx
+msgid "value-set.remove"
+msgstr "Remove {value}"
 
 #. js-lingui-explicit-id
 #: src/pages/ConnectedApps.tsx
@@ -5695,6 +5730,11 @@ msgstr "Restrict access"
 #: src/components/custom/AppAccessPanel.tsx
 msgid "app.access.restrict.title"
 msgstr "Restrict this application?"
+
+#. js-lingui-explicit-id
+#: src/components/custom/ObjectHeader.tsx
+msgid "object.status.restricted"
+msgstr "Restricted"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts
@@ -6403,6 +6443,16 @@ msgid "settings.sign-in.card"
 msgstr "Sign-in card"
 
 #. js-lingui-explicit-id
+#: src/components/custom/ObjectHeader.tsx
+msgid "object.status.sign-in-off"
+msgstr "Sign-in off"
+
+#. js-lingui-explicit-id
+#: src/components/custom/ObjectHeader.tsx
+msgid "object.status.sign-in-on"
+msgstr "Sign-in on"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminSettings.tsx
 #: src/pages/admin/settings/SignInPagePanel.tsx
 msgid "settings.sign-in.title"
@@ -6587,6 +6637,11 @@ msgstr "State"
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/SigningKeysPanel.tsx
 msgid "settings.keys.column.status"
+msgstr "Status"
+
+#. js-lingui-explicit-id
+#: src/components/custom/ObjectHeader.tsx
+msgid "object.status.label"
 msgstr "Status"
 
 #. js-lingui-explicit-id
@@ -7831,6 +7886,16 @@ msgstr "Unnamed passkey"
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.passkeys.unnamed"
 msgstr "Unnamed passkey"
+
+#. js-lingui-explicit-id
+#: src/components/custom/OutlineRail.tsx
+msgid "outline.unsaved"
+msgstr "Unsaved changes"
+
+#. js-lingui-explicit-id
+#: src/components/custom/UnsavedBar.tsx
+msgid "unsaved-bar.message"
+msgstr "Unsaved changes in {title}"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts

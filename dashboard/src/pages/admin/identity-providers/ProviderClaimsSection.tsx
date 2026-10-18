@@ -159,7 +159,10 @@ export function ProviderClaimsSection({ provider }: { provider: Provider }) {
                     </Trans>
                   }
                   placeholder="example.com"
-                  addLabel={<Trans id="form.tags.add">Add</Trans>}
+                  addLabel={t({
+                    id: "form.tags.add-domain",
+                    message: "Add domain",
+                  })}
                   check={domainProblem}
                 />
               )}

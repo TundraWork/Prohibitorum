@@ -410,7 +410,10 @@ export function AdminIdentityProviderNew() {
                       </Trans>
                     }
                     placeholder="offline_access"
-                    addLabel={<Trans id="form.tags.add">Add</Trans>}
+                    addLabel={t({
+                      id: "form.tags.add-scope",
+                      message: "Add scope",
+                    })}
                     check={scopeProblem}
                   />
                 )}

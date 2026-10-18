@@ -34,7 +34,7 @@ function Harness({
             {() => (
               <TagListField
                 label="Scopes"
-                addLabel="Add"
+                addLabel="Add scope"
                 check={scopeProblem}
                 lockedTags={["openid"]}
               />
@@ -47,7 +47,10 @@ function Harness({
   );
 }
 
-const input = () => screen.getByRole("textbox", { name: "Add to Scopes" });
+const input = () => screen.getByRole("textbox", { name: "Add scope" });
+const open = () =>
+  userEvent.click(screen.getByRole("button", { name: "Add scope" }));
+const chip = (name: string) => screen.queryByText(name, { selector: "span" });
 
 describe("TagListField", () => {
   beforeEach(() => i18n.activate("en"));
@@ -56,9 +59,10 @@ describe("TagListField", () => {
     const onSave = vi.fn();
     render(<Harness onSave={onSave} />);
 
+    await open();
     await userEvent.type(input(), "email{Enter}");
 
-    expect(screen.getByRole("row", { name: "email" })).toBeTruthy();
+    expect(chip("email")).toBeTruthy();
     expect((input() as HTMLInputElement).value).toBe("");
     // Enter added the value; it did not submit the form.
     expect(onSave).not.toHaveBeenCalled();
@@ -67,18 +71,20 @@ describe("TagListField", () => {
   it("adds a value with the button", async () => {
     render(<Harness onSave={vi.fn()} />);
 
+    await open();
     await userEvent.type(input(), "offline_access");
     await userEvent.click(screen.getByRole("button", { name: "Add" }));
 
-    expect(screen.getByRole("row", { name: "offline_access" })).toBeTruthy();
+    expect(chip("offline_access")).toBeTruthy();
   });
 
   it("keeps a refused value in the input with the reason under it", async () => {
     render(<Harness onSave={vi.fn()} />);
 
+    await open();
     await userEvent.type(input(), "read write{Enter}");
 
-    expect(screen.queryByRole("row", { name: "read write" })).toBeNull();
+    expect(chip("read write")).toBeNull();
     expect((input() as HTMLInputElement).value).toBe("read write");
     expect(input().getAttribute("aria-invalid")).toBe("true");
     expect(
@@ -98,23 +104,25 @@ describe("TagListField", () => {
       screen.getByRole("button", { name: "Remove profile" }),
     );
 
-    expect(screen.queryByRole("row", { name: "profile" })).toBeNull();
-    expect(screen.getByRole("row", { name: "openid" })).toBeTruthy();
+    expect(chip("profile")).toBeNull();
+    expect(chip("openid")).toBeTruthy();
   });
 
   it("does not remove the last tag on Backspace in the empty input", async () => {
     render(<Harness onSave={vi.fn()} />);
 
+    await open();
     await userEvent.click(input());
     await userEvent.keyboard("{Backspace}");
 
-    expect(screen.getByRole("row", { name: "profile" })).toBeTruthy();
+    expect(chip("profile")).toBeTruthy();
   });
 
   it("refuses to submit while text is left in the input", async () => {
     const onSave = vi.fn();
     render(<Harness onSave={onSave} />);
 
+    await open();
     await userEvent.type(input(), "email");
     await userEvent.click(screen.getByRole("button", { name: "Save" }));
 
@@ -122,6 +130,8 @@ describe("TagListField", () => {
     expect(
       await screen.findByText("Press Enter to add it, or clear the box."),
     ).toBeTruthy();
+    // The text is still held for the reader when the popover reopens.
+    await open();
     expect((input() as HTMLInputElement).value).toBe("email");
 
     await userEvent.clear(input());

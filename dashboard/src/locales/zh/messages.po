@@ -518,9 +518,7 @@ msgid "admin.user.sessions.table"
 msgstr "在线会话"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
-#: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
-#: src/pages/admin/identity-providers/ProviderConnectionSection.tsx
+#: src/components/custom/ValueSet.tsx
 msgid "form.tags.add"
 msgstr "添加"
 
@@ -586,6 +584,11 @@ msgid "admin.group.rule.add"
 msgstr "添加条件"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
+msgid "form.tags.add-domain"
+msgstr "添加域名"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
 msgid "admin.saml-apps.acs.add"
 msgstr "添加端点"
@@ -606,9 +609,10 @@ msgid "admin.federation.new.submit"
 msgstr "添加提供商"
 
 #. js-lingui-explicit-id
-#: src/components/custom/TagListField.tsx
-msgid "form.tags.draft"
-msgstr "添加到{label}"
+#: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
+#: src/pages/admin/identity-providers/ProviderConnectionSection.tsx
+msgid "form.tags.add-scope"
+msgstr "添加范围"
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
@@ -1913,6 +1917,7 @@ msgstr "已复制"
 
 #. js-lingui-explicit-id
 #: src/components/custom/CopyValue.tsx
+#: src/components/custom/ObjectHeader.tsx
 msgid "copy-value.copied"
 msgstr "已复制"
 
@@ -2543,6 +2548,11 @@ msgid "entity.state.disabled"
 msgstr "已停用"
 
 #. js-lingui-explicit-id
+#: src/components/custom/ObjectHeader.tsx
+msgid "object.status.disabled"
+msgstr "已停用"
+
+#. js-lingui-explicit-id
 #: src/components/custom/AppAccessPanel.tsx
 msgid "app.managers.candidate.disabled"
 msgstr "账号已停用"
@@ -2792,6 +2802,11 @@ msgstr "启用该提供商"
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminUsers.tsx
 msgid "admin.users.state.enabled"
+msgstr "已启用"
+
+#. js-lingui-explicit-id
+#: src/components/custom/ObjectHeader.tsx
+msgid "object.status.enabled"
 msgstr "已启用"
 
 #. js-lingui-explicit-id
@@ -3778,6 +3793,11 @@ msgid "admin.group.rule.view.json"
 msgstr "JSON"
 
 #. js-lingui-explicit-id
+#: src/components/custom/UnsavedBar.tsx
+msgid "unsaved-bar.jump"
+msgstr "跳转过去"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.effective.jwks"
 msgstr "JWKS 端点"
@@ -4638,6 +4658,11 @@ msgid "admin.group.exposed"
 msgstr "提供给应用"
 
 #. js-lingui-explicit-id
+#: src/components/custom/ValueSet.tsx
+msgid "value-set.offered"
+msgstr "此提供方支持的值"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.protocol.oidc"
 msgstr "OIDC"
@@ -4676,6 +4701,11 @@ msgstr "已启用"
 #: src/pages/public/Pair.tsx
 msgid "pair.description"
 msgstr "在已登录 {instance} 的设备上打开「设备」，输入下面的配对码。"
+
+#. js-lingui-explicit-id
+#: src/components/custom/OutlineRail.tsx
+msgid "outline.label"
+msgstr "本页内容"
 
 #. js-lingui-explicit-id
 #: src/pages/devices/PairDeviceDialog.tsx
@@ -4736,6 +4766,11 @@ msgstr "只能有一个端点作为默认端点。"
 #: src/pages/admin/settings/SignInPageControls.tsx
 msgid "settings.sign-in.surface.opacity"
 msgstr "不透明度"
+
+#. js-lingui-explicit-id
+#: src/components/custom/ObjectHeader.tsx
+msgid "object.status.open"
+msgstr "开放"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AdminSamlApplications.tsx
@@ -5357,11 +5392,6 @@ msgid "app.managers.confirm.action"
 msgstr "移除"
 
 #. js-lingui-explicit-id
-#: src/components/custom/TagListField.tsx
-msgid "form.tags.remove"
-msgstr "移除"
-
-#. js-lingui-explicit-id
 #: src/components/custom/AppAccessPanel.tsx
 msgid "app.groups.remove"
 msgstr "移除 {group}"
@@ -5370,6 +5400,11 @@ msgstr "移除 {group}"
 #: src/components/custom/AppAccessPanel.tsx
 msgid "app.managers.remove"
 msgstr "移除 {name}"
+
+#. js-lingui-explicit-id
+#: src/components/custom/ValueSet.tsx
+msgid "value-set.remove"
+msgstr "移除 {value}"
 
 #. js-lingui-explicit-id
 #: src/pages/ConnectedApps.tsx
@@ -5695,6 +5730,11 @@ msgstr "限制访问"
 #: src/components/custom/AppAccessPanel.tsx
 msgid "app.access.restrict.title"
 msgstr "限制这个应用的访问？"
+
+#. js-lingui-explicit-id
+#: src/components/custom/ObjectHeader.tsx
+msgid "object.status.restricted"
+msgstr "受限"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts
@@ -6403,6 +6443,16 @@ msgid "settings.sign-in.card"
 msgstr "登录卡片"
 
 #. js-lingui-explicit-id
+#: src/components/custom/ObjectHeader.tsx
+msgid "object.status.sign-in-off"
+msgstr "登录已关闭"
+
+#. js-lingui-explicit-id
+#: src/components/custom/ObjectHeader.tsx
+msgid "object.status.sign-in-on"
+msgstr "登录已开启"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminSettings.tsx
 #: src/pages/admin/settings/SignInPagePanel.tsx
 msgid "settings.sign-in.title"
@@ -6587,6 +6637,11 @@ msgstr "状态"
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/SigningKeysPanel.tsx
 msgid "settings.keys.column.status"
+msgstr "状态"
+
+#. js-lingui-explicit-id
+#: src/components/custom/ObjectHeader.tsx
+msgid "object.status.label"
 msgstr "状态"
 
 #. js-lingui-explicit-id
@@ -7831,6 +7886,16 @@ msgstr "未命名通行密钥"
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.passkeys.unnamed"
 msgstr "未命名通行密钥"
+
+#. js-lingui-explicit-id
+#: src/components/custom/OutlineRail.tsx
+msgid "outline.unsaved"
+msgstr "有未保存的更改"
+
+#. js-lingui-explicit-id
+#: src/components/custom/UnsavedBar.tsx
+msgid "unsaved-bar.message"
+msgstr "“{title}”有未保存的更改"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
