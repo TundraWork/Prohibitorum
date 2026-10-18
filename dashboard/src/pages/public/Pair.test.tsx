@@ -149,6 +149,22 @@ describe("signing in with another device", () => {
     expect(api.sent("POST", beginPath)).toHaveLength(1);
   });
 
+  it("keeps the stay-signed-in choice in the stage footer, and drops it once expired", async () => {
+    let status: PairingStatus = { status: "pending" };
+    pairApi({ status: () => status });
+    renderApp("/pair", queryClient);
+    await waiting();
+    const remember = await screen.findByRole("checkbox", {
+      name: "Stay signed in on this device",
+    });
+    expect(remember.closest('[data-slot="stage-footer"]')).not.toBeNull();
+
+    status = { status: "expired" };
+    await poll();
+    await screen.findByRole("button", { name: "Get a new code" });
+    expect(screen.queryByRole("checkbox")).toBeNull();
+  });
+
   it("asks again every 2.5 seconds while the pairing waits, and not after", () => {
     const interval = pairingStatusQueryOptions("p").refetchInterval as (
       query: unknown,

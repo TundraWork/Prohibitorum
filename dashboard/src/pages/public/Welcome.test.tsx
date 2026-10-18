@@ -70,12 +70,20 @@ describe("the account a first federated sign-in prepared", () => {
     expect(screen.getByText("alice@example.com")).toBeVisible();
   });
 
-  it("shows the initial when the account has no picture", async () => {
+  it("shows the initials when the account has no picture", async () => {
     welcomeApi(account());
     renderApp("/welcome", queryClient);
     await screen.findByRole("heading", { name: "Is this your account?" });
-    expect(screen.getByText("A")).toBeInTheDocument();
+    expect(screen.getByText("AL")).toBeInTheDocument();
     expect(document.querySelector("img")).toBeNull();
+  });
+
+  it("leaves the email out when the account has none", async () => {
+    welcomeApi(account({ email: undefined }));
+    renderApp("/welcome", queryClient);
+    await screen.findByRole("heading", { name: "Is this your account?" });
+    expect(screen.getByText("@alice")).toBeVisible();
+    expect(screen.queryByText(/@example\.com/)).toBeNull();
   });
 
   it("offers a local sign-in when the server asks for it", async () => {

@@ -117,6 +117,7 @@ export function SetupSigninPage() {
             <Button
               pending={leaving === "continue"}
               onClick={() => void leave("continue")}
+              size="lg"
               className="w-full"
             >
               <Trans id="setup_signin.continue">Continue</Trans>
@@ -144,6 +145,7 @@ export function SetupSigninPage() {
                 disabled={busy}
                 onClick={() => setMode("password-totp")}
                 variant="outline"
+                size="lg"
                 className="w-full"
               >
                 <Trans id="enroll.use_password_totp">
@@ -155,13 +157,14 @@ export function SetupSigninPage() {
                 disabled={busy && leaving !== "skip"}
                 onClick={() => void leave("skip")}
                 variant="ghost"
+                size="lg"
                 className="w-full"
               >
                 <Trans id="setup_signin.skip">Skip for now</Trans>
               </Button>
             </>
           )}
-          <p className="text-center text-sm text-muted">
+          <p className="text-center text-muted-foreground text-sm">
             <Trans id="setup_signin.later">
               You can also add one later from Security.
             </Trans>

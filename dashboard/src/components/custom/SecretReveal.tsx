@@ -115,10 +115,16 @@ export function SecretReveal({
           }}
           disabled={pending}
           variant="outline"
+          size="lg"
         >
           {t(copy.copy)}
         </Button>
-        <Button onClick={download} disabled={pending} variant="outline">
+        <Button
+          onClick={download}
+          disabled={pending}
+          variant="outline"
+          size="lg"
+        >
           {t(copy.download)}
         </Button>
       </div>

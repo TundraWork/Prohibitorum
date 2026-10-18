@@ -1101,7 +1101,7 @@ msgstr "身份验证器"
 #. js-lingui-explicit-id
 #: src/pages/public/enroll/PasswordTotpSetup.tsx
 msgid "enroll.password_totp.steps.authenticator"
-msgstr "验证器"
+msgstr "身份验证器"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts

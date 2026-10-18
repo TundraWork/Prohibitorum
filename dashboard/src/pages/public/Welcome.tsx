@@ -1,4 +1,3 @@
-import { Avatar, Surface } from "@heroui/react";
 import { Trans } from "@lingui/react/macro";
 import {
   useMutation,
@@ -18,6 +17,7 @@ import {
 import type { FederationConfirm } from "@/api/raw-paths";
 import { followRedirect } from "@/app/redirect";
 import { Button } from "@/components/custom/Button";
+import { EntityAvatar } from "@/components/custom/EntityAvatar";
 import { useInstanceBranding } from "@/components/custom/instance-branding";
 import { PublicStep } from "@/components/custom/PublicStep";
 
@@ -80,6 +80,7 @@ export function WelcomePage() {
             pending={answer === "confirm"}
             disabled={answer === "decline"}
             onClick={() => void answerWith("confirm")}
+            size="lg"
             className="w-full"
           >
             <Trans id="welcome.continue">Continue</Trans>
@@ -89,6 +90,7 @@ export function WelcomePage() {
             disabled={answer === "confirm"}
             onClick={() => void answerWith("decline")}
             variant="ghost"
+            size="lg"
             className="w-full"
           >
             <Trans id="welcome.decline">This isn't me</Trans>
@@ -108,26 +110,25 @@ export function WelcomePage() {
  */
 function AccountPreview({ account }: { account: FederationConfirm }) {
   return (
-    <Surface
-      variant="secondary"
-      className="flex min-w-0 items-center gap-3 rounded-lg p-3"
-    >
-      <Avatar size="lg" aria-hidden="true">
-        {account.avatarUrl && <Avatar.Image src={account.avatarUrl} alt="" />}
-        <Avatar.Fallback>{account.displayName.slice(0, 1)}</Avatar.Fallback>
-      </Avatar>
+    <div className="flex min-w-0 items-center gap-4 rounded-xl bg-muted/60 p-4 ring-1 ring-border/60">
+      <EntityAvatar
+        shape="round"
+        size="xl"
+        iconUrl={account.avatarUrl}
+        name={account.displayName}
+        fallbackClassName="bg-background"
+      />
       <div className="flex min-w-0 flex-col">
         <span className="font-medium wrap-anywhere">{account.displayName}</span>
-        <span className="flex flex-wrap gap-x-1 text-sm text-muted">
-          <span className="wrap-anywhere">@{account.username}</span>
-          {account.email && (
-            <>
-              <span aria-hidden="true">·</span>
-              <span className="wrap-anywhere">{account.email}</span>
-            </>
-          )}
+        <span className="font-mono text-muted-foreground text-sm wrap-anywhere">
+          @{account.username}
         </span>
+        {account.email && (
+          <span className="text-muted-foreground text-sm wrap-anywhere">
+            {account.email}
+          </span>
+        )}
       </div>
-    </Surface>
+    </div>
   );
 }

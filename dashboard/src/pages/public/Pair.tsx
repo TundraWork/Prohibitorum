@@ -1,8 +1,8 @@
-import { linkVariants, Skeleton, Spinner } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { browserSupportsWebAuthn } from "@simplewebauthn/browser";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link as RouterLink, useRouter } from "@tanstack/react-router";
+import { ArrowLeft } from "lucide-react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { ApiError, isCancellation } from "@/api/errors";
 import {
@@ -19,6 +19,9 @@ import { PublicStep } from "@/components/custom/PublicStep";
 import { QrCode } from "@/components/custom/QrCode";
 import { RememberCheckbox } from "@/components/custom/RememberCheckbox";
 import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Spinner } from "@/components/ui/spinner";
+import { cn } from "@/lib/utils";
 import { PasskeyButton } from "@/pages/public/enroll/PasskeyButton";
 import { Route } from "@/routes/_public.pair";
 
@@ -198,22 +201,24 @@ function PairingStep({
   let actions: ReactNode;
   if (pairing === undefined ? !starting : expired) {
     actions = (
-      <PublicStep.Actions>
-        <Button pending={starting} onClick={onRestart} className="w-full">
-          <Trans id="pair.restart">Get a new code</Trans>
-        </Button>
-      </PublicStep.Actions>
+      <Button
+        pending={starting}
+        onClick={onRestart}
+        size="lg"
+        className="w-full"
+      >
+        <Trans id="pair.restart">Get a new code</Trans>
+      </Button>
     );
   } else if (approved && complete.isError) {
     actions = (
-      <PublicStep.Actions>
-        <Button
-          onClick={() => pairing && void finish(pairing.pairingId)}
-          className="w-full"
-        >
-          <Trans id="pair.retry">Try again</Trans>
-        </Button>
-      </PublicStep.Actions>
+      <Button
+        onClick={() => pairing && void finish(pairing.pairingId)}
+        size="lg"
+        className="w-full"
+      >
+        <Trans id="pair.retry">Try again</Trans>
+      </Button>
     );
   }
 
@@ -226,40 +231,57 @@ function PairingStep({
           enter the code below.
         </Trans>
       }
+      footer={
+        !expired && (
+          <RememberCheckbox
+            isSelected={remember}
+            onChange={setRemember}
+            isDisabled={claimed}
+          />
+        )
+      }
       actions={
-        <>
+        <PublicStep.Actions>
           {actions}
           {(!approved || complete.isError) && (
-            <p className="text-center text-sm">
-              <RouterLink
-                to="/login"
-                search={returnTo === undefined ? {} : { return_to: returnTo }}
-                className={linkVariants().base()}
-              >
-                <Trans id="pair.back">Back to sign in</Trans>
-              </RouterLink>
-            </p>
+            <Button
+              render={
+                <RouterLink
+                  to="/login"
+                  search={returnTo === undefined ? {} : { return_to: returnTo }}
+                />
+              }
+              variant="ghost"
+              size="lg"
+              className="w-full"
+            >
+              <ArrowLeft aria-hidden="true" />
+              <Trans id="pair.back">Back to sign in</Trans>
+            </Button>
           )}
-        </>
+        </PublicStep.Actions>
       }
     >
       <p className="sr-only" role="status">
         {announcement}
       </p>
       <div
-        className={`flex flex-col items-center gap-2 ${expired ? "opacity-50" : ""}`}
+        className={cn(
+          "flex flex-col items-center gap-4 rounded-xl bg-muted/60 p-4 ring-1 ring-border/60",
+          expired && "opacity-50",
+        )}
       >
         {pairing === undefined ? (
           starting && (
             <>
-              <Skeleton className="h-10 w-52 rounded-lg" />
+              <Skeleton className="h-9 w-48 rounded-lg" />
               {/* The QR code's own size, `qrSize`. */}
               <Skeleton className="size-[200px] max-w-full rounded-lg" />
             </>
           )
         ) : (
           <>
-            <p className="font-mono text-3xl font-semibold tracking-widest tabular-nums">
+            <p className="font-mono text-3xl font-semibold tracking-widest whitespace-nowrap tabular-nums">
               <span className="sr-only">{[...pairing.code].join(" ")}</span>
               <span aria-hidden="true">{pairing.displayCode}</span>
             </p>
@@ -271,22 +293,15 @@ function PairingStep({
               })}
               size={qrSize}
             />
-            {!expired && (
-              <p className="text-center text-sm text-muted">
-                <Trans id="pair.qr_hint">
-                  Or scan it with that device to open it there.
-                </Trans>
-              </p>
-            )}
           </>
         )}
       </div>
-      {!expired && (
-        <RememberCheckbox
-          isSelected={remember}
-          onChange={setRemember}
-          isDisabled={claimed}
-        />
+      {pairing !== undefined && !expired && (
+        <p className="text-center text-muted-foreground text-sm">
+          <Trans id="pair.qr_hint">
+            Or scan it with that device to open it there.
+          </Trans>
+        </p>
       )}
       {expired ? (
         <SurfaceAlert status="warning">
@@ -300,9 +315,9 @@ function PairingStep({
       ) : (
         pairing !== undefined &&
         secondsLeft !== undefined && (
-          <p className="flex items-center justify-center gap-2 text-center text-sm text-muted">
+          <p className="flex items-center justify-center gap-2 text-center text-muted-foreground text-sm">
             {!(approved && complete.isError) && (
-              <Spinner size="sm" color="current" aria-hidden="true" />
+              <Spinner className="size-4" aria-hidden="true" />
             )}
             {approved ? (
               <Trans id="pair.approved">Approved. Signing in…</Trans>
@@ -368,6 +383,7 @@ function SignedIn({ redirect }: { redirect: string }) {
             <Button
               pending={leaving === "skip"}
               onClick={() => void leave("skip")}
+              size="lg"
               className="w-full"
             >
               <Trans id="pair.signed_in.continue">Continue</Trans>
@@ -396,6 +412,7 @@ function SignedIn({ redirect }: { redirect: string }) {
                 disabled={busy && leaving !== "skip"}
                 onClick={() => void leave("skip")}
                 variant="ghost"
+                size="lg"
                 className="w-full"
               >
                 <Trans id="pair.signed_in.skip">Not now</Trans>
