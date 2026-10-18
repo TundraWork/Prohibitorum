@@ -25,6 +25,7 @@ import {
   FrameTitle,
 } from "@/components/ui/frame";
 import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 
 const slug = (text: string): string | undefined =>
   text
@@ -76,6 +77,7 @@ export function useSectionPanel(enabled = true): boolean {
 export function Section({
   id,
   title,
+  icon,
   description,
   action,
   footer,
@@ -86,6 +88,8 @@ export function Section({
   /** Anchor for a link to the block; defaults to a slug of a text `title`. */
   id?: string;
   title: ReactNode;
+  /** Drawn before the title text, muted. */
+  icon?: ReactNode;
   description?: ReactNode;
   /** The block's primary action, on the trailing edge of the header. */
   action?: ReactNode;
@@ -132,10 +136,20 @@ export function Section({
           <FrameHeader className="min-h-9 flex-row items-center justify-between gap-4">
             <div className="flex min-w-0 flex-col gap-1">
               <FrameTitle
-                className={
-                  tone === "danger" ? "text-destructive-foreground" : undefined
-                }
+                className={cn(
+                  "flex items-center gap-2",
+                  tone === "danger" && "text-destructive-foreground",
+                )}
               >
+                {icon !== undefined && (
+                  <span
+                    data-slot="section-icon"
+                    aria-hidden="true"
+                    className="text-muted-foreground *:size-4"
+                  >
+                    {icon}
+                  </span>
+                )}
                 {/* Focusable so "Jump to it" can land on the heading. */}
                 <h2 ref={heading} tabIndex={-1} className="outline-none">
                   {title}

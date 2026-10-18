@@ -1,5 +1,5 @@
 import { ChevronRight } from "lucide-react";
-import { Children, type ReactNode } from "react";
+import { Children, type CSSProperties, type ReactNode } from "react";
 import { ListSkeleton } from "@/components/custom/ListSkeleton";
 import { useSectionPanel } from "@/components/custom/Section";
 import {
@@ -90,6 +90,10 @@ export function ItemList({
  * muted line with a middle dot, so each value names itself rather than leaning
  * on a header. `actions` stay at the trailing edge at every width.
  *
+ * `badge` and `meta` are the row's own columns from `sm`, the badge for a state
+ * worth seeing at a glance and the meta for a short fact such as when it was
+ * last used. Below `sm` they drop under the name, where the details are.
+ *
  * A row with `onOpen` and no actions is a way into the record: the whole row
  * is pressable and ends with a chevron, so there is no separate "edit" button
  * saying the same thing.
@@ -105,6 +109,8 @@ export function ItemListRow({
   icon,
   title,
   badges,
+  badge,
+  meta,
   details,
   actions,
   link,
@@ -114,6 +120,8 @@ export function ItemListRow({
   icon?: ReactNode;
   title: ReactNode;
   badges?: ReactNode;
+  badge?: ReactNode;
+  meta?: ReactNode;
   details?: readonly ReactNode[];
   actions?: ReactNode;
   /**
@@ -176,6 +184,22 @@ export function ItemListRow({
             leave, which otherwise lifts the text off the actions' centre. */}
         <div className="mt-2 flex flex-col gap-2 empty:hidden">{children}</div>
       </div>
+      {badge !== undefined && (
+        <div
+          data-slot="item-badge"
+          className="flex items-center max-sm:order-last sm:justify-self-start"
+        >
+          {badge}
+        </div>
+      )}
+      {meta !== undefined && (
+        <span
+          data-slot="item-meta"
+          className="text-muted-foreground text-sm max-sm:order-last max-sm:text-xs sm:whitespace-nowrap"
+        >
+          {meta}
+        </span>
+      )}
       {actions !== undefined && (
         <div className="ms-auto flex shrink-0 items-center gap-1">
           {actions}
@@ -190,13 +214,34 @@ export function ItemListRow({
       )}
     </>
   );
-  const rowClass = "flex flex-wrap items-center gap-3 px-4 py-3";
+  // From `sm` the columns follow what the row has, so a row without a badge
+  // or meta keeps its text wide instead of leaving empty tracks.
+  const columns = [
+    icon !== undefined && "auto",
+    "minmax(0,1fr)",
+    badge !== undefined && "auto",
+    meta !== undefined && "auto",
+    actions !== undefined && "auto",
+    link !== undefined && "auto",
+  ]
+    .filter(Boolean)
+    .join(" ");
+  const rowStyle = { "--item-columns": columns } as CSSProperties;
+  const content = (
+    <div
+      className="flex flex-wrap items-center gap-3 sm:grid sm:grid-cols-(--item-columns)"
+      style={rowStyle}
+    >
+      {body}
+    </div>
+  );
+  const rowClass = "block px-4 py-3";
   return link !== undefined ? (
     link({
       className: `${rowClass} outline-none transition-colors hover:bg-accent/50 focus-visible:bg-accent/50`,
-      children: body,
+      children: content,
     })
   ) : (
-    <div className={rowClass}>{body}</div>
+    <div className={rowClass}>{content}</div>
   );
 }

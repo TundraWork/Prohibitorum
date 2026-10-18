@@ -1,4 +1,4 @@
-import { Label, Modal, Radio, RadioGroup } from "@heroui/react";
+import { Label, Radio, RadioGroup } from "@heroui/react";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useMutation } from "@tanstack/react-query";
@@ -8,7 +8,7 @@ import { isCancellation } from "@/api/errors";
 import { createOidcAppMutationOptions } from "@/api/mutations";
 import type { CreateOidcAppResponse } from "@/api/raw-admin-paths";
 import { ConsoleCard } from "@/components/custom/ConsoleCard";
-import { SecretReveal } from "@/components/custom/SecretReveal";
+import { SecretRevealDialog } from "@/components/custom/SecretReveal";
 import { applyServerError } from "@/forms/server-errors";
 import { useAppForm } from "@/forms/use-app-form";
 import { OidcScopesField } from "@/pages/admin/oidc-applications/OidcScopesField";
@@ -312,29 +312,17 @@ export function AdminOidcApplicationNew() {
         // Open and non-dismissable while the secret is held here, so it cannot
         // outlive the value: the reveal's own continue control is the only way
         // out, and it navigates.
-        <Modal isOpen onOpenChange={() => {}}>
-          <Modal.Backdrop isDismissable={false} isKeyboardDismissDisabled>
-            <Modal.Container placement="center" size="lg" scroll="inside">
-              <Modal.Dialog>
-                <Modal.Header>
-                  <Modal.Heading>{t(clientSecretCopy.title)}</Modal.Heading>
-                </Modal.Header>
-                <SecretReveal
-                  text={created.secret}
-                  filename={`${created.clientId}-client-secret.txt`}
-                  copy={clientSecretCopy}
-                  onContinue={async () => {
-                    await navigate({
-                      to: "/admin/oidc-applications/$clientId",
-                      params: { clientId: created.clientId },
-                    });
-                  }}
-                  inDialog
-                />
-              </Modal.Dialog>
-            </Modal.Container>
-          </Modal.Backdrop>
-        </Modal>
+        <SecretRevealDialog
+          text={created.secret}
+          filename={`${created.clientId}-client-secret.txt`}
+          copy={clientSecretCopy}
+          onContinue={async () => {
+            await navigate({
+              to: "/admin/oidc-applications/$clientId",
+              params: { clientId: created.clientId },
+            });
+          }}
+        />
       )}
     </>
   );

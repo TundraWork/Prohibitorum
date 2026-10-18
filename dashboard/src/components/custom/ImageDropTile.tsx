@@ -1,18 +1,23 @@
 import type { LucideIcon } from "lucide-react";
-import type { ReactNode } from "react";
-import { DropZone, FileTrigger } from "react-aria-components";
-import { Button } from "@/components/custom/Button";
+import { type DragEvent, type ReactNode, useState } from "react";
+import { buttonVariants } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
+import { cn } from "@/lib/utils";
+
+const carriesFiles = (event: DragEvent) =>
+  Array.from(event.dataTransfer?.types ?? []).includes("Files");
 
 /**
  * A dashed tile that takes image files, either dropped on it or chosen through
  * the button that fills it. It sits at the end of a grid of images, the same
- * size as the tiles before it, and turns to the accent while a file is dragged
- * over it.
+ * size as the tiles before it, and turns to the primary tint while a file is
+ * dragged over it.
  *
- * The tile only hands the files over. Checking them, the request and the
- * outcome are the caller's, which also decides the tile's size through
- * `className`. The sign-in page's images and the profile page's avatar gallery
- * both end with one.
+ * The button is a label over a visually hidden file input, so the browser's own
+ * picker, keyboard focus and form semantics all apply. The tile only hands the
+ * files over. Checking them, the request and the outcome are the caller's, which
+ * also decides the tile's size through `className`. The sign-in page's images
+ * and the profile page's avatar gallery both end with one.
  */
 export function ImageDropTile({
   label,
@@ -40,41 +45,72 @@ export function ImageDropTile({
   className?: string;
 }) {
   const busy = isDisabled || isPending;
+  const [over, setOver] = useState(false);
+
+  function take(files: ArrayLike<File> | null | undefined) {
+    const list = Array.from(files ?? []);
+    const taken = allowsMultiple ? list : list.slice(0, 1);
+    if (taken.length > 0) onFiles(taken);
+  }
+
   return (
-    <DropZone
+    // biome-ignore lint/a11y/useSemanticElements: a drop target is a group, not a fieldset
+    <div
+      role="group"
       aria-label={ariaLabel}
-      isDisabled={busy}
-      onDrop={async (event) => {
-        const items = event.items.filter((item) => item.kind === "file");
-        const files = await Promise.all(
-          (allowsMultiple ? items : items.slice(0, 1)).map((item) =>
-            item.getFile(),
-          ),
-        );
-        if (files.length > 0) onFiles(files);
+      data-drop-target={over ? "true" : undefined}
+      onDragEnter={(event) => {
+        if (busy || !carriesFiles(event)) return;
+        event.preventDefault();
+        setOver(true);
       }}
-      className={`group flex rounded-[0.375rem] border border-dashed border-border text-sm text-muted outline-none transition-colors duration-150 data-[drop-target]:border-accent data-[drop-target]:bg-accent-soft data-[focus-visible]:ring-2 data-[focus-visible]:ring-focus ${className ?? ""}`}
+      onDragOver={(event) => {
+        if (busy || !carriesFiles(event)) return;
+        event.preventDefault();
+      }}
+      onDragLeave={(event) => {
+        if (event.currentTarget.contains(event.relatedTarget as Node | null)) {
+          return;
+        }
+        setOver(false);
+      }}
+      onDrop={(event) => {
+        event.preventDefault();
+        setOver(false);
+        if (busy) return;
+        take(event.dataTransfer?.files);
+      }}
+      className={cn(
+        "flex rounded-lg border border-dashed text-muted-foreground text-sm transition-colors duration-150 data-[drop-target]:border-primary data-[drop-target]:bg-primary/8",
+        className,
+      )}
     >
-      <FileTrigger
-        allowsMultiple={allowsMultiple}
-        acceptedFileTypes={acceptedFileTypes}
-        onSelect={(list) => {
-          if (list && list.length > 0) onFiles(Array.from(list));
-        }}
+      <label
+        className={cn(
+          buttonVariants({ variant: "ghost", size: "sm" }),
+          "h-full w-full cursor-pointer flex-col gap-1.5 text-muted-foreground has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring",
+          busy && "pointer-events-none opacity-64",
+        )}
       >
-        <Button
-          disabled={isDisabled}
-          pending={isPending}
-          variant="ghost"
-          size="sm"
-          className="h-full w-full flex-col gap-1.5 text-muted"
-        >
-          {!isPending && (
-            <Icon size={20} strokeWidth={1.75} aria-hidden="true" />
-          )}
-          <span>{label}</span>
-        </Button>
-      </FileTrigger>
-    </DropZone>
+        <input
+          type="file"
+          className="sr-only"
+          accept={acceptedFileTypes.join(",")}
+          multiple={allowsMultiple}
+          disabled={busy}
+          onChange={(event) => {
+            take(event.currentTarget.files);
+            // Choosing the same file again must still fire a change.
+            event.currentTarget.value = "";
+          }}
+        />
+        {isPending ? (
+          <Spinner aria-hidden="true" />
+        ) : (
+          <Icon size={20} strokeWidth={1.75} aria-hidden="true" />
+        )}
+        <span>{label}</span>
+      </label>
+    </div>
   );
 }

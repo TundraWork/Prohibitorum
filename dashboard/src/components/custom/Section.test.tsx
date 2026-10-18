@@ -170,6 +170,32 @@ describe("Section", () => {
     );
   });
 
+  it("draws a leading icon in the header, before the title", () => {
+    const { container } = render(
+      <Section title="Passkeys" icon={<svg aria-label="fingerprint" />}>
+        <p>Body</p>
+      </Section>,
+    );
+
+    const header = container.querySelector("[data-slot='frame-panel-header']");
+    const icon = header?.querySelector("[data-slot='section-icon']");
+    expect(icon).toContainElement(screen.getByLabelText("fingerprint"));
+    const heading = screen.getByRole("heading", { level: 2, name: "Passkeys" });
+    expect(icon?.compareDocumentPosition(heading)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+  });
+
+  it("draws no icon slot without an icon", () => {
+    const { container } = render(
+      <Section title="Passkeys">
+        <p>Body</p>
+      </Section>,
+    );
+
+    expect(container.querySelector("[data-slot='section-icon']")).toBeNull();
+  });
+
   it("defaults the anchor to a slug of a text title", () => {
     const { container } = render(
       <Section title="Sign-in page">

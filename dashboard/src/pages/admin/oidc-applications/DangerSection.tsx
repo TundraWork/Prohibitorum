@@ -1,4 +1,3 @@
-import { Modal } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
@@ -15,7 +14,7 @@ import { Button } from "@/components/custom/Button";
 import { ConfirmDialog } from "@/components/custom/ConfirmDialog";
 import { DangerZoneFrame } from "@/components/custom/DangerZone";
 import { ItemList, ItemListRow } from "@/components/custom/ItemList";
-import { SecretReveal } from "@/components/custom/SecretReveal";
+import { SecretRevealDialog } from "@/components/custom/SecretReveal";
 import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
 import { clientSecretCopy } from "@/pages/admin/oidc-applications/secret-copy";
 
@@ -293,24 +292,12 @@ export function DangerSection({ app }: { app: OidcApp }) {
         // Open and non-dismissable while the secret is held here, so it cannot
         // outlive the value: the reveal's own continue control is the only way
         // out, and it stays on the page the secret belongs to.
-        <Modal isOpen onOpenChange={() => {}}>
-          <Modal.Backdrop isDismissable={false} isKeyboardDismissDisabled>
-            <Modal.Container placement="center" size="lg" scroll="inside">
-              <Modal.Dialog>
-                <Modal.Header>
-                  <Modal.Heading>{t(clientSecretCopy.title)}</Modal.Heading>
-                </Modal.Header>
-                <SecretReveal
-                  text={secret}
-                  filename={`${app.clientId}-client-secret.txt`}
-                  copy={clientSecretCopy}
-                  onContinue={async () => setSecret(null)}
-                  inDialog
-                />
-              </Modal.Dialog>
-            </Modal.Container>
-          </Modal.Backdrop>
-        </Modal>
+        <SecretRevealDialog
+          text={secret}
+          filename={`${app.clientId}-client-secret.txt`}
+          copy={clientSecretCopy}
+          onContinue={async () => setSecret(null)}
+        />
       )}
     </DangerZoneFrame>
   );

@@ -175,7 +175,6 @@ export function PasswordTotpSetup({
           <RecoveryCodes
             codes={codes}
             onContinue={onDone}
-            onSurface
             firstIssue
             titled={false}
           />

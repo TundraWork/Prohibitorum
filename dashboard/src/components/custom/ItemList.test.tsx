@@ -99,4 +99,44 @@ describe("ItemList", () => {
     // Nothing in the row is faded by opacity, the action included.
     expect(document.querySelector("[class*='opacity-']")).toBeNull();
   });
+
+  it("places the badge and the meta in their own columns, apart from the details", () => {
+    render(
+      <ItemList label="Passkeys" empty={null}>
+        <ItemListRow
+          key="a"
+          title="Laptop"
+          details={["Added today"]}
+          badge={<span>Synced</span>}
+          meta={<span>Used now</span>}
+          actions={<button type="button">More</button>}
+        />
+      </ItemList>,
+    );
+
+    const badge = screen
+      .getByText("Synced")
+      .closest("[data-slot='item-badge']");
+    const meta = screen
+      .getByText("Used now")
+      .closest("[data-slot='item-meta']");
+    expect(badge).not.toBeNull();
+    expect(meta).not.toBeNull();
+    const details = screen
+      .getByText("Added today")
+      .closest("[data-slot='item-details']");
+    expect(details).not.toContainElement(badge as HTMLElement);
+    expect(details).not.toContainElement(meta as HTMLElement);
+  });
+
+  it("draws no badge or meta column for a row without them", () => {
+    const { container } = render(
+      <ItemList label="Passkeys" empty={null}>
+        <ItemListRow key="a" title="Laptop" />
+      </ItemList>,
+    );
+
+    expect(container.querySelector("[data-slot='item-badge']")).toBeNull();
+    expect(container.querySelector("[data-slot='item-meta']")).toBeNull();
+  });
 });

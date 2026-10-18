@@ -35,10 +35,6 @@ import { ItemList, ItemListRow } from "@/components/custom/ItemList";
 import { RecoveryCodes } from "@/components/custom/RecoveryCodes";
 import { Section } from "@/components/custom/Section";
 import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
-import {
-  firstRecoveryCodesCopy,
-  recoveryCodesCopy,
-} from "@/components/custom/secret-reveal-copy";
 import { TotpSetup } from "@/components/custom/TotpSetup";
 import {
   checkPassword,
@@ -265,51 +261,36 @@ function SetupDialog({
   onResult: (result: SetupResult) => void;
   onDone: () => Promise<void>;
 }) {
-  const { t } = useLingui();
   const queryClient = useQueryClient();
   const submit = useMutation(passwordTotpMutationOptions(queryClient));
-  const locked = result !== null;
+  if (result !== null && isOpen) {
+    return (
+      <RecoveryCodes
+        dialog
+        codes={result.codes}
+        firstIssue={result.firstIssue}
+        onContinue={onDone}
+      />
+    );
+  }
 
   return (
     <Modal
       isOpen={isOpen}
       onOpenChange={(open) => {
-        if (!open && !locked && !submit.isPending) onClose();
+        if (!open && !submit.isPending) onClose();
       }}
     >
-      <Modal.Backdrop
-        isDismissable={!locked}
-        isKeyboardDismissDisabled={locked}
-      >
+      <Modal.Backdrop>
         <Modal.Container placement="center" size="md" scroll="inside">
           <Modal.Dialog>
-            {result === null ? (
-              <SetupForm
-                key={attempt}
-                submit={submit}
-                replacing={replacing}
-                onCancel={onClose}
-                onCodes={(codes) => onResult({ codes, firstIssue })}
-              />
-            ) : (
-              <>
-                <Modal.Header>
-                  <Modal.Heading>
-                    {t(
-                      result.firstIssue
-                        ? firstRecoveryCodesCopy.title
-                        : recoveryCodesCopy.title,
-                    )}
-                  </Modal.Heading>
-                </Modal.Header>
-                <RecoveryCodes
-                  codes={result.codes}
-                  firstIssue={result.firstIssue}
-                  onContinue={onDone}
-                  inDialog
-                />
-              </>
-            )}
+            <SetupForm
+              key={attempt}
+              submit={submit}
+              replacing={replacing}
+              onCancel={onClose}
+              onCodes={(codes) => onResult({ codes, firstIssue })}
+            />
           </Modal.Dialog>
         </Modal.Container>
       </Modal.Backdrop>
@@ -559,25 +540,7 @@ function RecoveryCodesDialog({
   codes: string[];
   onContinue: () => Promise<void>;
 }) {
-  const { t } = useLingui();
-  return (
-    // The dialog is open exactly while the codes are held here, so it cannot
-    // outlive them and only `onContinue` can close it.
-    <Modal isOpen onOpenChange={() => {}}>
-      <Modal.Backdrop isDismissable={false} isKeyboardDismissDisabled>
-        <Modal.Container placement="center" size="lg" scroll="inside">
-          <Modal.Dialog>
-            <Modal.Header>
-              <Modal.Heading>{t(recoveryCodesCopy.title)}</Modal.Heading>
-            </Modal.Header>
-            {/* The reveal draws the body and the footer, so its controls stay
-                under the codes however long the list is. */}
-            <RecoveryCodes codes={codes} onContinue={onContinue} inDialog />
-          </Modal.Dialog>
-        </Modal.Container>
-      </Modal.Backdrop>
-    </Modal>
-  );
+  return <RecoveryCodes dialog codes={codes} onContinue={onContinue} />;
 }
 
 /**

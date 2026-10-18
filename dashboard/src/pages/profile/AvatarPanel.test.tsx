@@ -130,7 +130,7 @@ describe("the avatar gallery", () => {
     expect(
       within(group).getByRole("radio", { name: "Uploaded picture" }),
     ).toBeChecked();
-    expect(screen.getByRole("button", { name: "Replace" })).toBeVisible();
+    expect(screen.getByLabelText("Replace")).toBeVisible();
   });
 
   it("saves the picture pressed and reads the gallery again", async () => {
@@ -160,7 +160,7 @@ describe("the avatar gallery", () => {
     };
     const user = userEvent.setup();
     mount();
-    expect(await screen.findByRole("button", { name: "Upload" })).toBeVisible();
+    expect(await screen.findByLabelText("Upload")).toBeVisible();
     await user.upload(fileInput(), png());
     await waitFor(() =>
       expect(notifySuccess).toHaveBeenCalledWith(
@@ -189,7 +189,7 @@ describe("the avatar gallery", () => {
     };
     const user = userEvent.setup();
     mount();
-    await screen.findByRole("button", { name: "Upload" });
+    await screen.findByLabelText("Upload");
     await user.upload(fileInput(), png());
     await waitFor(() =>
       expect(notifySuccess).toHaveBeenCalledWith(
@@ -206,7 +206,7 @@ describe("the avatar gallery", () => {
   it("warns about a file it cannot take and sends nothing", async () => {
     const user = userEvent.setup({ applyAccept: false });
     mount();
-    await screen.findByRole("button", { name: "Replace" });
+    await screen.findByLabelText("Replace");
     await user.upload(
       fileInput(),
       new File(["svg"], "me.svg", { type: "image/svg+xml" }),
@@ -241,7 +241,7 @@ describe("the avatar gallery", () => {
       sources: [picture("upstream:provider-1", "Example IdP 1")],
     };
     mount();
-    await screen.findByRole("button", { name: "Upload" });
+    await screen.findByLabelText("Upload");
     expect(
       screen.queryByRole("button", { name: "Remove uploaded picture" }),
     ).not.toBeInTheDocument();

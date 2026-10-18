@@ -225,17 +225,15 @@ describe("console header", () => {
   it("names an address with no page as not found", async () => {
     await mount("/admin/nope", admin);
 
-    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
-      "Page not found",
-    );
+    const crumbs = screen.getByRole("navigation", { name: "Breadcrumb" });
+    expect(within(crumbs).getByText("Page not found")).toBeVisible();
   });
 
   it("keeps the title of a page that has no section of its own", async () => {
     await mount("/admin", admin);
 
-    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
-      "Console home",
-    );
+    const crumbs = screen.getByRole("navigation", { name: "Breadcrumb" });
+    expect(within(crumbs).getByText("Console home")).toBeVisible();
   });
 });
 
@@ -322,9 +320,8 @@ describe("console header breadcrumb", () => {
       "aria-current",
       "page",
     );
-    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
-      "Users",
-    );
+    // The page's own header carries the h1; the trail's last item is plain text.
+    expect(screen.queryByRole("heading", { level: 1 })).not.toBeInTheDocument();
   });
 
   it("ends on the record a page names, under a link back to its section", async () => {

@@ -542,8 +542,8 @@ function CloseSheetOnNavigate() {
 /**
  * The header's trail: the section you are in and, when the page names a
  * record, the record. The last item is the current page; on a page about no
- * record it is the section and carries the page's `h1`, otherwise the page's
- * own header does.
+ * record it is the section, otherwise the record. It is a trail, not a
+ * heading: each page's own header carries the `h1`.
  */
 function ConsoleBreadcrumb({
   section,
@@ -561,9 +561,7 @@ function ConsoleBreadcrumb({
       <BreadcrumbList className="flex-nowrap">
         {record === undefined ? (
           <BreadcrumbItem className="min-w-0">
-            <h1 className="contents">
-              <BreadcrumbPage className="truncate">{title}</BreadcrumbPage>
-            </h1>
+            <BreadcrumbPage className="truncate">{title}</BreadcrumbPage>
           </BreadcrumbItem>
         ) : (
           <>

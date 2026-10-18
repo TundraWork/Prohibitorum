@@ -3513,6 +3513,11 @@ msgid "admin.saml-apps.new.mode"
 msgstr "How the application is registered"
 
 #. js-lingui-explicit-id
+#: src/pages/Security.tsx
+msgid "security.page.description"
+msgstr "How you sign in, and what can act on your behalf."
+
+#. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AcsRowFields.tsx
 msgid "admin.saml-apps.acs.location.placeholder"
 msgstr "https://sp.example.com/saml/acs"
@@ -6185,6 +6190,11 @@ msgstr "Secret"
 #: src/api/success-messages.ts
 msgid "success.identity-provider.secret-set"
 msgstr "Secret saved"
+
+#. js-lingui-explicit-id
+#: src/pages/Security.tsx
+msgid "security.page.title"
+msgstr "Security"
 
 #. js-lingui-explicit-id
 #: src/components/custom/ConsoleLayout.tsx

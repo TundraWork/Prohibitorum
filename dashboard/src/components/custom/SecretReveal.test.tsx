@@ -1,16 +1,23 @@
 import { I18nProvider } from "@lingui/react";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { useState } from "react";
-import { Dialog, Heading, Modal, ModalOverlay } from "react-aria-components";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { SecretReveal } from "@/components/custom/SecretReveal";
+import {
+  SecretReveal,
+  SecretRevealDialog,
+} from "@/components/custom/SecretReveal";
 import { recoveryCodesCopy } from "@/components/custom/secret-reveal-copy";
 import { i18n } from "@/i18n";
 
+const blocker = vi.hoisted(() => ({
+  current: undefined as { shouldBlockFn: () => boolean } | undefined,
+}));
+
 vi.mock("@tanstack/react-router", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@tanstack/react-router")>()),
-  useBlocker: () => undefined,
+  useBlocker: (options: { shouldBlockFn: () => boolean }) => {
+    blocker.current = options;
+  },
 }));
 
 const secret = "aaaa-bbbb\ncccc-dddd";
@@ -100,45 +107,50 @@ describe("SecretReveal", () => {
   });
 });
 
-function InModal() {
-  const [open, setOpen] = useState(true);
-  return (
+function mountDialog(onContinue = vi.fn(async () => undefined)) {
+  const user = userEvent.setup();
+  render(
     <I18nProvider i18n={i18n}>
-      <ModalOverlay
-        isOpen={open}
-        onOpenChange={setOpen}
-        isDismissable={false}
-        isKeyboardDismissDisabled
-      >
-        <Modal>
-          <Dialog aria-label="Save codes">
-            <Heading slot="title">Save codes</Heading>
-            <SecretReveal
-              text={secret}
-              filename="codes.txt"
-              copy={recoveryCodesCopy}
-              onContinue={async () => setOpen(false)}
-              inDialog
-            />
-          </Dialog>
-        </Modal>
-      </ModalOverlay>
-    </I18nProvider>
+      <SecretRevealDialog
+        text={secret}
+        filename="codes.txt"
+        copy={recoveryCodesCopy}
+        onContinue={onContinue}
+      />
+    </I18nProvider>,
   );
+  return { user, onContinue };
 }
 
-describe("SecretReveal in a caller's dialog", () => {
-  it("stays open on Escape and on a press outside, and closes through continue", async () => {
-    const user = userEvent.setup();
-    render(<InModal />);
-    const dialog = screen.getByRole("dialog", { name: "Save codes" });
+describe("SecretRevealDialog", () => {
+  it("is a titled dialog holding the secret", async () => {
+    mountDialog();
+
+    const dialog = await screen.findByRole("dialog", {
+      name: "Save your new recovery codes",
+    });
     expect(
       within(dialog).getByRole("textbox", { name: "New recovery codes" }),
-    ).toBeVisible();
+    ).toHaveValue(secret);
+  });
+
+  it("stays open on Escape, a press outside and the close button until saved", async () => {
+    const { user } = mountDialog();
+    const dialog = await screen.findByRole("dialog");
 
     await user.keyboard("{Escape}");
     await user.click(document.body);
-    expect(screen.getByRole("dialog", { name: "Save codes" })).toBeVisible();
+    await user.click(within(dialog).getByRole("button", { name: "Close" }));
+
+    expect(screen.getByRole("dialog")).toBeVisible();
+    expect(
+      within(dialog).getByRole("button", { name: "Continue" }),
+    ).toBeDisabled();
+  });
+
+  it("holds the way out until the secret is confirmed saved, then continues", async () => {
+    const { user, onContinue } = mountDialog();
+    const dialog = await screen.findByRole("dialog");
 
     await user.click(
       within(dialog).getByRole("checkbox", {
@@ -146,8 +158,39 @@ describe("SecretReveal in a caller's dialog", () => {
       }),
     );
     await user.click(within(dialog).getByRole("button", { name: "Continue" }));
-    await waitFor(() =>
-      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+
+    expect(onContinue).toHaveBeenCalledTimes(1);
+  });
+
+  it("treats the close button as continue once saved", async () => {
+    const { user, onContinue } = mountDialog();
+    const dialog = await screen.findByRole("dialog");
+
+    await user.click(
+      within(dialog).getByRole("checkbox", {
+        name: "I have saved my recovery codes",
+      }),
     );
+    await user.click(within(dialog).getByRole("button", { name: "Close" }));
+
+    await waitFor(() => expect(onContinue).toHaveBeenCalledTimes(1));
+  });
+});
+
+describe("SecretReveal leaving guard", () => {
+  it("asks to confirm before navigating away from an unsaved secret", async () => {
+    const { user } = mount();
+    const shouldBlock = () => blocker.current?.shouldBlockFn();
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+
+    expect(shouldBlock()).toBe(true);
+    expect(confirm).toHaveBeenCalledTimes(1);
+
+    await user.click(
+      screen.getByRole("checkbox", { name: "I have saved my recovery codes" }),
+    );
+    confirm.mockClear();
+    expect(shouldBlock()).toBe(false);
+    expect(confirm).not.toHaveBeenCalled();
   });
 });

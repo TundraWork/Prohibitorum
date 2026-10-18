@@ -36,7 +36,7 @@ import { ConfirmDialog } from "@/components/custom/ConfirmDialog";
 import { FormMessages } from "@/components/custom/FormMessages";
 import { ItemList, ItemListRow } from "@/components/custom/ItemList";
 import { RelativeTime } from "@/components/custom/RelativeTime";
-import { SecretReveal } from "@/components/custom/SecretReveal";
+import { SecretRevealDialog } from "@/components/custom/SecretReveal";
 import { Section } from "@/components/custom/Section";
 import { accessTokenCopy } from "@/components/custom/secret-reveal-copy";
 import { TableEmptyState } from "@/components/custom/TableEmptyState";
@@ -252,27 +252,15 @@ export function TokensPanel() {
       {plaintext !== null && (
         // Open exactly while the plaintext is held here, so it cannot outlive
         // it and only the reveal's own continue control can close it.
-        <Modal isOpen onOpenChange={() => {}}>
-          <Modal.Backdrop isDismissable={false} isKeyboardDismissDisabled>
-            <Modal.Container placement="center" size="lg" scroll="inside">
-              <Modal.Dialog>
-                <Modal.Header>
-                  <Modal.Heading>{t(accessTokenCopy.title)}</Modal.Heading>
-                </Modal.Header>
-                <SecretReveal
-                  text={plaintext}
-                  filename="prohibitorum-access-token.txt"
-                  copy={accessTokenCopy}
-                  onContinue={async () => {
-                    setPlaintext(null);
-                    requestAnimationFrame(() => createButton.current?.focus());
-                  }}
-                  inDialog
-                />
-              </Modal.Dialog>
-            </Modal.Container>
-          </Modal.Backdrop>
-        </Modal>
+        <SecretRevealDialog
+          text={plaintext}
+          filename="prohibitorum-access-token.txt"
+          copy={accessTokenCopy}
+          onContinue={async () => {
+            setPlaintext(null);
+            requestAnimationFrame(() => createButton.current?.focus());
+          }}
+        />
       )}
 
       <ConfirmDialog

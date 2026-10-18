@@ -1,55 +1,39 @@
-import { Modal } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useBlocker } from "@tanstack/react-router";
-import { useRef, useState } from "react";
+import { type ReactNode, useRef, useState } from "react";
 import { Button } from "@/components/custom/Button";
 import { ReadOnlyText } from "@/components/custom/ReadOnlyText";
 import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
 import type { SecretRevealCopy } from "@/components/custom/secret-reveal-copy";
+import { getTopLayerContainer } from "@/components/custom/top-layer";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Dialog,
+  DialogFooter,
+  DialogHeader,
+  DialogPanel,
+  DialogPopup,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 
-/**
- * One-time disclosure of a secret the server will never return again: recovery
- * codes and personal access token plaintext. The caller supplies the wording
- * and the filename; the leaving guard, copy and download behaviour is shared so
- * both secrets warn about the same irreversible loss.
- *
- * `onSurface` is kept so a caller can say where it draws the reveal; coss's
- * alert and fields read the same on a page, a card and a dialog, so it no
- * longer changes the look.
- *
- * `inDialog` is for a caller's dialog, drawn by that caller: the title goes in
- * its header, and the continue control becomes the dialog's footer so it stays
- * put under a long code list. While callers still use HeroUI modals the two
- * sections are that modal's `Body` and `Footer`.
- *
- * `titled={false}` is for a caller that draws the title as its own heading,
- * such as a step on the public card whose title is the page's `h1`.
- */
-export function SecretReveal({
-  text,
-  filename,
-  copy,
-  onContinue,
-  inDialog = false,
-  titled = true,
-}: {
+interface RevealProps {
   text: string;
   filename: string;
   copy: SecretRevealCopy;
   onContinue: () => Promise<void>;
-  /** Accepted for compatibility; see above. */
-  onSurface?: boolean;
-  inDialog?: boolean;
-  titled?: boolean;
-}) {
+}
+
+/**
+ * The state both forms share: whether the secret is confirmed saved, the
+ * continue request, and the guard against leaving the page before it is.
+ */
+function useReveal({
+  copy,
+  onContinue,
+}: Pick<RevealProps, "copy" | "onContinue">) {
   const { t } = useLingui();
   const [saved, setSaved] = useState(false);
-  const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">(
-    "idle",
-  );
-  const [downloadFailed, setDownloadFailed] = useState(false);
   const [pending, setPending] = useState(false);
   const continuing = useRef(false);
   useBlocker({
@@ -57,6 +41,34 @@ export function SecretReveal({
       !saved && !continuing.current && !window.confirm(t(copy.leave)),
     enableBeforeUnload: () => !saved && !continuing.current,
   });
+
+  function proceed() {
+    if (!saved || continuing.current) return;
+    continuing.current = true;
+    setPending(true);
+    void onContinue().catch(() => {
+      continuing.current = false;
+      setPending(false);
+    });
+  }
+
+  return { saved, setSaved, pending, proceed };
+}
+
+type Reveal = ReturnType<typeof useReveal>;
+
+function RevealBody({
+  text,
+  filename,
+  copy,
+  reveal,
+  title,
+}: Omit<RevealProps, "onContinue"> & { reveal: Reveal; title?: ReactNode }) {
+  const { t } = useLingui();
+  const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">(
+    "idle",
+  );
+  const [downloadFailed, setDownloadFailed] = useState(false);
 
   async function copyText() {
     setCopyState("idle");
@@ -91,11 +103,9 @@ export function SecretReveal({
     }
   }
 
-  const body = (
+  return (
     <>
-      {!inDialog && titled && (
-        <h2 className="text-xl font-semibold">{t(copy.title)}</h2>
-      )}
+      {title}
       <SurfaceAlert status="warning">
         <SurfaceAlert.Indicator />
         <SurfaceAlert.Content>
@@ -113,7 +123,7 @@ export function SecretReveal({
           onClick={() => {
             void copyText();
           }}
-          disabled={pending}
+          disabled={reveal.pending}
           variant="outline"
           size="lg"
         >
@@ -121,7 +131,7 @@ export function SecretReveal({
         </Button>
         <Button
           onClick={download}
-          disabled={pending}
+          disabled={reveal.pending}
           variant="outline"
           size="lg"
         >
@@ -149,45 +159,112 @@ export function SecretReveal({
       )}
       <Label className="w-fit">
         <Checkbox
-          checked={saved}
-          onCheckedChange={setSaved}
-          disabled={pending}
+          checked={reveal.saved}
+          onCheckedChange={reveal.setSaved}
+          disabled={reveal.pending}
         />
         {t(copy.saved)}
       </Label>
     </>
   );
-  const action = (
+}
+
+function ContinueButton({
+  copy,
+  reveal,
+}: {
+  copy: SecretRevealCopy;
+  reveal: Reveal;
+}) {
+  const { t } = useLingui();
+  return (
     <Button
-      disabled={!saved}
-      pending={pending}
-      onClick={() => {
-        if (!saved || continuing.current) return;
-        continuing.current = true;
-        setPending(true);
-        void onContinue().catch(() => {
-          continuing.current = false;
-          setPending(false);
-        });
-      }}
+      disabled={!reveal.saved}
+      pending={reveal.pending}
+      onClick={reveal.proceed}
     >
       {t(copy.continueLabel)}
     </Button>
   );
+}
 
-  if (inDialog) {
-    return (
-      <>
-        <Modal.Body className="flex flex-col gap-4">{body}</Modal.Body>
-        <Modal.Footer>{action}</Modal.Footer>
-      </>
-    );
-  }
-
+/**
+ * One-time disclosure of a secret the server will never return again: recovery
+ * codes and personal access token plaintext. The caller supplies the wording
+ * and the filename; the leaving guard, copy and download behaviour is shared so
+ * both secrets warn about the same irreversible loss.
+ *
+ * `titled={false}` is for a caller that draws the title as its own heading,
+ * such as a step on the public card whose title is the page's `h1`.
+ */
+export function SecretReveal({
+  text,
+  filename,
+  copy,
+  onContinue,
+  titled = true,
+}: RevealProps & { titled?: boolean }) {
+  const { t } = useLingui();
+  const reveal = useReveal({ copy, onContinue });
   return (
     <div className="flex flex-col gap-4">
-      {body}
-      {action}
+      <RevealBody
+        text={text}
+        filename={filename}
+        copy={copy}
+        reveal={reveal}
+        title={
+          titled ? (
+            <h2 className="text-xl font-semibold">{t(copy.title)}</h2>
+          ) : undefined
+        }
+      />
+      <ContinueButton copy={copy} reveal={reveal} />
     </div>
+  );
+}
+
+/**
+ * The same reveal in a dialog that is open exactly while the caller holds the
+ * secret, so it cannot outlive it. Escape, a press outside and the close button
+ * all do nothing until the secret is confirmed saved, because the server will
+ * never show it again; after that, closing is the same as continuing.
+ */
+export function SecretRevealDialog({
+  text,
+  filename,
+  copy,
+  onContinue,
+}: RevealProps) {
+  const { t } = useLingui();
+  const reveal = useReveal({ copy, onContinue });
+  return (
+    <Dialog
+      open
+      disablePointerDismissal
+      onOpenChange={(open) => {
+        if (!open) reveal.proceed();
+      }}
+    >
+      <DialogPopup
+        className="sm:max-w-lg"
+        portalProps={{ container: getTopLayerContainer() }}
+      >
+        <DialogHeader>
+          <DialogTitle>{t(copy.title)}</DialogTitle>
+        </DialogHeader>
+        <DialogPanel className="flex flex-col gap-4">
+          <RevealBody
+            text={text}
+            filename={filename}
+            copy={copy}
+            reveal={reveal}
+          />
+        </DialogPanel>
+        <DialogFooter>
+          <ContinueButton copy={copy} reveal={reveal} />
+        </DialogFooter>
+      </DialogPopup>
+    </Dialog>
   );
 }

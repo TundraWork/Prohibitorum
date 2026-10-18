@@ -1,4 +1,4 @@
-import { Alert, Chip, Label, ListBox, Modal, Select } from "@heroui/react";
+import { Alert, Chip, Label, ListBox, Select } from "@heroui/react";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import {
@@ -43,7 +43,7 @@ import { CopyValue } from "@/components/custom/CopyValue";
 import { DangerZone, DangerZoneFrame } from "@/components/custom/DangerZone";
 import { ItemList, ItemListRow } from "@/components/custom/ItemList";
 import { RelativeTime } from "@/components/custom/RelativeTime";
-import { SecretReveal } from "@/components/custom/SecretReveal";
+import { SecretRevealDialog } from "@/components/custom/SecretReveal";
 import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
 import { invitationLinkCopy } from "@/components/custom/secret-reveal-copy";
 import { TableEmptyState } from "@/components/custom/TableEmptyState";
@@ -797,7 +797,7 @@ function DangerPanel({ account }: { account: Account }) {
  * `SecretReveal` in a dialog over the page rather than printed on the card.
  */
 function EnrollmentBlock({ accountId }: { accountId: number }) {
-  const { t, i18n } = useLingui();
+  const { i18n } = useLingui();
   const reissue = useMutation(reissueEnrollmentMutationOptions());
   const [link, setLink] = useState<{ url: string; expiresAt: string } | null>(
     null,
@@ -851,24 +851,12 @@ function EnrollmentBlock({ accountId }: { accountId: number }) {
       {link !== null && (
         // Open exactly while the link is held here, so it cannot outlive it and
         // only the reveal's own continue control can close it.
-        <Modal isOpen onOpenChange={() => {}}>
-          <Modal.Backdrop isDismissable={false} isKeyboardDismissDisabled>
-            <Modal.Container placement="center" size="lg" scroll="inside">
-              <Modal.Dialog>
-                <Modal.Header>
-                  <Modal.Heading>{t(invitationLinkCopy.title)}</Modal.Heading>
-                </Modal.Header>
-                <SecretReveal
-                  text={link.url}
-                  filename="prohibitorum-registration-link.txt"
-                  copy={invitationLinkCopy}
-                  onContinue={async () => setLink(null)}
-                  inDialog
-                />
-              </Modal.Dialog>
-            </Modal.Container>
-          </Modal.Backdrop>
-        </Modal>
+        <SecretRevealDialog
+          text={link.url}
+          filename="prohibitorum-registration-link.txt"
+          copy={invitationLinkCopy}
+          onContinue={async () => setLink(null)}
+        />
       )}
     </ItemListRow>
   );
