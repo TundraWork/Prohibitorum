@@ -173,6 +173,33 @@ function rejectedCode() {
   );
 }
 
+it("reports a rejected password once, inline, without a toast", async () => {
+  const notifyError = vi.fn();
+  queryClient = createQueryClient(notifyError);
+  queryClient.setQueryData(publicConfigQueryOptions().queryKey, config);
+  queryClient.setQueryData(authStatusQueryOptions().queryKey, {
+    bootstrapped: true,
+  });
+  queryClient.setQueryData(
+    publicFederationProvidersQueryOptions().queryKey,
+    [],
+  );
+  vi.stubGlobal(
+    "fetch",
+    vi.fn<typeof globalThis.fetch>().mockResolvedValueOnce(rejectedCode()),
+  );
+  const user = userEvent.setup();
+  mount();
+  await user.type(
+    await screen.findByRole("textbox", { name: "Username" }),
+    "alice",
+  );
+  await user.type(screen.getByLabelText("Password"), "password");
+  await user.click(screen.getByRole("button", { name: "Continue" }));
+  expect(await screen.findByRole("alert")).toBeVisible();
+  expect(notifyError).not.toHaveBeenCalled();
+});
+
 it("replaces the shared login error when alternating password and passkey failures", async () => {
   vi.stubGlobal("isSecureContext", true);
   vi.stubGlobal("PublicKeyCredential", class {});

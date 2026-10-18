@@ -390,6 +390,51 @@ describe("enrollment", () => {
     });
   });
 
+  it("reports a taken username on its field alone, without a toast", async () => {
+    const notifyError = vi.fn();
+    queryClient = createQueryClient(notifyError);
+    withPasskeys();
+    const api = enrollApi();
+    api.routes[`POST ${previewPath}/register/begin`] = () =>
+      apiError("username_taken", 409);
+    const user = userEvent.setup();
+    renderApp(address, queryClient);
+    await user.type(
+      await screen.findByRole("textbox", { name: "Username" }),
+      "alice",
+    );
+    await user.type(
+      screen.getByRole("textbox", { name: "Display name" }),
+      "Alice",
+    );
+    await user.click(passkeyButton());
+    expect(
+      await screen.findByText("That username is already taken."),
+    ).toBeVisible();
+    expect(notifyError).not.toHaveBeenCalled();
+  });
+
+  it("still toasts an enrollment failure that belongs on no field", async () => {
+    const notifyError = vi.fn();
+    queryClient = createQueryClient(notifyError);
+    withPasskeys();
+    const api = enrollApi();
+    api.routes[`POST ${previewPath}/register/begin`] = () =>
+      apiError("internal_error", 500);
+    const user = userEvent.setup();
+    renderApp(address, queryClient);
+    await user.type(
+      await screen.findByRole("textbox", { name: "Username" }),
+      "alice",
+    );
+    await user.type(
+      screen.getByRole("textbox", { name: "Display name" }),
+      "Alice",
+    );
+    await user.click(passkeyButton());
+    await waitFor(() => expect(notifyError).toHaveBeenCalledTimes(1));
+  });
+
   it("sends the chosen names with the password and authenticator", async () => {
     const api = enrollApi();
     api.routes[`POST ${previewPath}/password-totp/verify`] = () =>

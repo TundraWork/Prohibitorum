@@ -14,7 +14,10 @@ import { followRedirect } from "@/app/redirect";
 import { Button } from "@/components/custom/Button";
 import { PublicStep } from "@/components/custom/PublicStep";
 import { PasskeyButton } from "@/pages/public/enroll/PasskeyButton";
-import { PasswordTotpSetup } from "@/pages/public/enroll/PasswordTotpSetup";
+import {
+  failedField,
+  PasswordTotpSetup,
+} from "@/pages/public/enroll/PasswordTotpSetup";
 import { Route } from "@/routes/_public.setup-signin";
 
 function timedOut(error: unknown): boolean {
@@ -38,8 +41,20 @@ export function SetupSigninPage() {
   const { data: identities } = useSuspenseQuery(identitiesQueryOptions());
   const { i18n } = useLingui();
   const router = useRouter();
-  const passkey = useMutation(setupPasskeyMutationOptions());
-  const passwordTotp = useMutation(setupPasswordTotpMutationOptions());
+  const passkeyOptions = setupPasskeyMutationOptions();
+  const passkey = useMutation({
+    ...passkeyOptions,
+    meta: { ...passkeyOptions.meta, reportsInline: timedOut },
+  });
+  const passwordTotpOptions = setupPasswordTotpMutationOptions();
+  const passwordTotp = useMutation({
+    ...passwordTotpOptions,
+    meta: {
+      ...passwordTotpOptions.meta,
+      reportsInline: (error) =>
+        timedOut(error) || failedField(error) !== undefined,
+    },
+  });
   const [mode, setMode] = useState<"choose" | "password-totp">("choose");
   const [expired, setExpired] = useState(false);
   // Which control is taking the page on, so that one alone shows it.

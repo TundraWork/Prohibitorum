@@ -176,7 +176,14 @@ function IdentifyStep({
 }) {
   const { t } = useLingui();
   const queryClient = useQueryClient();
-  const prepare = useMutation(federationFlowPrepareMutationOptions(id));
+  const prepareOptions = federationFlowPrepareMutationOptions(id);
+  const prepare = useMutation({
+    ...prepareOptions,
+    meta: {
+      ...prepareOptions.meta,
+      reportsInline: (error) => failedWith(error, "vrchat_identity_invalid"),
+    },
+  });
   const form = useAppForm({
     defaultValues: { identity: "" },
     onSubmit: async ({ value }) => {

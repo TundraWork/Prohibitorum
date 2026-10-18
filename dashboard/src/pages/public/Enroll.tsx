@@ -27,7 +27,10 @@ import { PublicStep } from "@/components/custom/PublicStep";
 import { applyServerError, type ServerFieldMap } from "@/forms/server-errors";
 import { useAppForm } from "@/forms/use-app-form";
 import { PasskeyButton } from "@/pages/public/enroll/PasskeyButton";
-import { PasswordTotpSetup } from "@/pages/public/enroll/PasswordTotpSetup";
+import {
+  failedField,
+  PasswordTotpSetup,
+} from "@/pages/public/enroll/PasswordTotpSetup";
 import { Route } from "@/routes/_public.enroll.$token";
 
 type AccountField = "username" | "displayName";
@@ -90,8 +93,24 @@ export function EnrollPage() {
   const { name: instance } = useInstanceBranding();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const passkey = useMutation(enrollPasskeyMutationOptions(token));
-  const passwordTotp = useMutation(enrollPasswordTotpMutationOptions(token));
+  const passkeyOptions = enrollPasskeyMutationOptions(token);
+  const passkey = useMutation({
+    ...passkeyOptions,
+    meta: {
+      ...passkeyOptions.meta,
+      reportsInline: (error) => accountFieldFor(error) !== undefined,
+    },
+  });
+  const passwordTotpOptions = enrollPasswordTotpMutationOptions(token);
+  const passwordTotp = useMutation({
+    ...passwordTotpOptions,
+    meta: {
+      ...passwordTotpOptions.meta,
+      reportsInline: (error) =>
+        accountFieldFor(error) !== undefined ||
+        failedField(error) !== undefined,
+    },
+  });
   const [mode, setMode] = useState<"choose" | "password-totp">("choose");
   // Kept across leaving and coming back to the password setup, so the
   // authenticator the reader already added still matches.

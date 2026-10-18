@@ -306,6 +306,7 @@ export function passwordMutationOptions() {
   return mutationOptions({
     retry: false,
     gcTime: 0,
+    meta: { reportsInline: true },
     mutationFn: async (body: PasswordRequest) => {
       const result = await requireJsonData(
         client.POST("/api/prohibitorum/auth/password/begin", { body }),
@@ -327,6 +328,7 @@ export function totpMutationOptions(returnTo?: string) {
   return mutationOptions({
     retry: false,
     gcTime: 0,
+    meta: { reportsInline: true },
     mutationFn: async (body: TotpRequest) => {
       const result = await requireJsonData(
         client.POST("/api/prohibitorum/auth/totp/verify", {
@@ -345,6 +347,7 @@ export function recoveryMutationOptions(returnTo?: string) {
   return mutationOptions({
     retry: false,
     gcTime: 0,
+    meta: { reportsInline: true },
     mutationFn: async (body: RecoveryRequest): Promise<RecoveryResult> => {
       const result = await requireJsonData(
         client.POST("/api/prohibitorum/auth/recovery-code/verify", {
@@ -375,6 +378,7 @@ export function passkeyMutationOptions(returnTo?: string, remember?: boolean) {
   return mutationOptions({
     retry: false,
     gcTime: 0,
+    meta: { reportsInline: true },
     mutationFn: () => authenticateWithPasskey(returnTo, remember),
   });
 }
@@ -387,6 +391,7 @@ export function passkeyAutofillMutationOptions(
   return mutationOptions({
     retry: false,
     gcTime: 0,
+    meta: { reportsInline: true },
     mutationFn: (assertion: PasskeyAssertion) =>
       completePasskeyLogin({
         assertion,

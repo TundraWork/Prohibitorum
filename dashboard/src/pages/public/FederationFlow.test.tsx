@@ -118,6 +118,8 @@ describe("VRChat profile verification", () => {
   });
 
   it("marks an identity the server cannot read on its field", async () => {
+    const notifyError = vi.fn();
+    queryClient = createQueryClient(notifyError);
     const api = flowApi();
     api.routes[`POST ${flowPath}/prepare`] = () =>
       apiError("vrchat_identity_invalid", 400);
@@ -134,6 +136,7 @@ describe("VRChat profile verification", () => {
         "Enter a VRChat profile address or a user ID beginning with usr_.",
       ),
     ).toBeVisible();
+    expect(notifyError).not.toHaveBeenCalled();
   });
 
   it("asks for a username only when the flow needs one", async () => {

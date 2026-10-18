@@ -34,7 +34,15 @@ export function ConsentPage() {
   const { i18n } = useLingui();
   const { name: instance } = useInstanceBranding();
   const router = useRouter();
-  const decision = useMutation(consentDecisionMutationOptions());
+  const decisionOptions = consentDecisionMutationOptions();
+  const decision = useMutation({
+    ...decisionOptions,
+    meta: {
+      ...decisionOptions.meta,
+      reportsInline: (error) =>
+        error instanceof ApiError && error.code === "invalid_consent_ticket",
+    },
+  });
   const [expired, setExpired] = useState(false);
 
   // The ticket is consumed by the answer itself, so a failed answer cannot be

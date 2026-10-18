@@ -27,7 +27,7 @@ export interface PasswordTotpSubmission {
 type Step = "password" | "authenticator";
 
 /** The field a failed submit belongs on, when it belongs on one. */
-function failedField(error: unknown): "password" | "code" | undefined {
+export function failedField(error: unknown): "password" | "code" | undefined {
   if (!(error instanceof ApiError)) return undefined;
   if (error.code === "bad_credentials") return "code";
   if (error.code === "validation_failed") {

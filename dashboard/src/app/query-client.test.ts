@@ -132,3 +132,42 @@ it("takes the reader to maintenance instead of reporting it, and remembers that 
   ).toBe(true);
   expect(notifyError.mock.calls).toEqual([[other, undefined]]);
 });
+
+it("leaves a write's failure to the page when the page shows it inline", async () => {
+  const notifyError = vi.fn();
+  const onMaintenance = vi.fn();
+  const queryClient = createQueryClient(notifyError, undefined, onMaintenance);
+  queryClient.setQueryData(publicConfigQueryOptions().queryKey, {
+    maintenanceMode: false,
+  } as PublicConfig);
+  const shown = new ApiError({ kind: "http", status: 400, code: "shown" });
+  const unshown = new ApiError({ kind: "http", status: 400, code: "unshown" });
+  const maintenance = new ApiError({
+    kind: "http",
+    status: 503,
+    code: "maintenance_mode",
+  });
+  const fail = (
+    error: unknown,
+    reportsInline: boolean | ((e: unknown) => boolean),
+  ) =>
+    expect(
+      new MutationObserver(queryClient, {
+        mutationFn: async () => {
+          throw error;
+        },
+        meta: { reportsInline },
+      }).mutate(),
+    ).rejects.toBe(error);
+
+  await fail(shown, true);
+  await fail(shown, (error) => error === shown);
+  expect(notifyError).not.toHaveBeenCalled();
+
+  await fail(unshown, (error) => error === shown);
+  expect(notifyError.mock.calls).toEqual([[unshown, undefined]]);
+
+  await fail(maintenance, true);
+  expect(onMaintenance).toHaveBeenCalledTimes(1);
+  expect(notifyError).toHaveBeenCalledTimes(1);
+});
