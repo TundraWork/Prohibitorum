@@ -91,6 +91,20 @@ describe("EntityPicker", () => {
     expect(shown()).toHaveTextContent("Mock User 12");
   });
 
+  it("opens its list inside the dialog that hosts it", async () => {
+    const user = userEvent.setup();
+    render(
+      <div role="dialog" aria-label="Host">
+        <Harness options={accounts} />
+      </div>,
+    );
+
+    await open(user);
+
+    const dialog = screen.getByRole("dialog", { name: "Host" });
+    expect(within(dialog).getByRole("listbox")).toBeInTheDocument();
+  });
+
   it("clears a single selection to an empty list", async () => {
     const user = userEvent.setup();
     const onValueChange = vi.fn();
