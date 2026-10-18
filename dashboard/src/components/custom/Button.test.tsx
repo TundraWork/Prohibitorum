@@ -221,4 +221,26 @@ describe("Button", () => {
       expect(screen.queryByRole("menuitem")).toBeNull();
     });
   });
+
+  it("excludeFromTabOrder renders tabindex -1", () => {
+    render(<Button excludeFromTabOrder>Go</Button>);
+    expect(screen.getByRole("button", { name: "Go" })).toHaveAttribute(
+      "tabindex",
+      "-1",
+    );
+  });
+
+  it("preventFocusOnPress keeps focus where it was", async () => {
+    const user = userEvent.setup();
+    render(
+      <>
+        <input aria-label="field" />
+        <Button preventFocusOnPress>Go</Button>
+      </>,
+    );
+    const field = screen.getByLabelText("field");
+    field.focus();
+    await user.click(screen.getByRole("button", { name: "Go" }));
+    expect(document.activeElement).toBe(field);
+  });
 });

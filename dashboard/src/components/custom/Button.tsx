@@ -23,8 +23,12 @@ type CossVariant = NonNullable<
 export interface ButtonProps
   extends Omit<
     React.ComponentProps<"button">,
-    "onClick" | "disabled" | "slot"
+    "onClick" | "disabled" | "slot" | "tabIndex" | "title" | "role"
   > {
+  /** Keeps the button out of the tab order (renders tabindex="-1"). */
+  excludeFromTabOrder?: boolean;
+  /** Pressing the button does not move focus to it. */
+  preventFocusOnPress?: boolean;
   variant?: ButtonVariant;
   size?: ButtonSize;
   isIconOnly?: boolean;
@@ -75,6 +79,8 @@ export function Button({
   onClick,
   render,
   slot,
+  excludeFromTabOrder,
+  preventFocusOnPress,
   ref,
   className,
   children,
@@ -131,6 +137,8 @@ export function Button({
   return (
     <AriaButton
       {...(props as React.ComponentProps<typeof AriaButton>)}
+      excludeFromTabOrder={excludeFromTabOrder}
+      preventFocusOnPress={preventFocusOnPress}
       ref={(node) => {
         inner.current = node;
         if (typeof ref === "function") ref(node);

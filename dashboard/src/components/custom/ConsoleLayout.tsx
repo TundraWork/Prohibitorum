@@ -421,8 +421,8 @@ function RailScrollEdge({
   return (
     <Button
       variant="ghost"
-      tabIndex={-1}
-      onMouseDown={(event) => event.preventDefault()}
+      excludeFromTabOrder
+      preventFocusOnPress
       className={railScrollEdge({ edge })}
       aria-label={label}
       onPress={onPress}
