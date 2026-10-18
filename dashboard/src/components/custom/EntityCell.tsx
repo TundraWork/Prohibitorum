@@ -1,9 +1,9 @@
-import { Tooltip } from "@heroui/react";
 import { useLingui } from "@lingui/react/macro";
 import { Link, type LinkProps } from "@tanstack/react-router";
 import { Lock } from "lucide-react";
 import type { ReactNode } from "react";
 import { EntityAvatar } from "@/components/custom/EntityAvatar";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "@/components/ui/tooltip";
 
 /**
  * The leading cell of every management table: the entity's icon, its name, and
@@ -53,10 +53,18 @@ export function EntityCell({
   fallback?: ReactNode;
 }) {
   const { t } = useLingui();
+  const restrictedLabel = t({
+    id: "entity.restricted",
+    message: "Available only to the selected user groups",
+  });
 
   return (
     <div className={`flex items-center gap-3 ${dimmed ? "opacity-60" : ""}`}>
-      <EntityAvatar iconUrl={iconUrl} fallback={fallback} />
+      <EntityAvatar
+        iconUrl={iconUrl}
+        name={typeof name === "string" ? name : undefined}
+        fallback={fallback}
+      />
       <div className="flex min-w-0 flex-col">
         <span className="flex items-center gap-1.5">
           {link === undefined ? (
@@ -72,30 +80,25 @@ export function EntityCell({
             </span>
           )}
           {restricted && (
-            <Tooltip delay={0}>
-              <Tooltip.Trigger>
-                <span className="inline-flex text-muted">
-                  <Lock
-                    size={14}
-                    aria-hidden="true"
-                    aria-label={t({
-                      id: "entity.restricted",
-                      message: "Available only to the selected user groups",
-                    })}
+            <Tooltip>
+              <TooltipTrigger
+                delay={0}
+                render={
+                  <span
+                    role="img"
+                    aria-label={restrictedLabel}
+                    className="inline-flex text-muted-foreground"
                   />
-                </span>
-              </Tooltip.Trigger>
-              <Tooltip.Content>
-                {t({
-                  id: "entity.restricted",
-                  message: "Available only to the selected user groups",
-                })}
-              </Tooltip.Content>
+                }
+              >
+                <Lock size={14} aria-hidden="true" />
+              </TooltipTrigger>
+              <TooltipPopup>{restrictedLabel}</TooltipPopup>
             </Tooltip>
           )}
         </span>
         {identifier !== undefined && (
-          <span className="truncate font-mono text-xs text-muted">
+          <span className="truncate font-mono text-xs text-muted-foreground">
             {identifier}
           </span>
         )}

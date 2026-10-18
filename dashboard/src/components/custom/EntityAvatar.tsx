@@ -1,6 +1,21 @@
-import { Avatar } from "@heroui/react";
 import { AppWindow } from "lucide-react";
 import type { ReactNode } from "react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { cn } from "@/lib/utils";
+
+const sizeClass = {
+  sm: "size-6 text-[10px]",
+  md: "size-8 text-xs",
+  lg: "size-12 text-base",
+  xl: "size-14 text-lg",
+} as const;
+
+/** Letters for the placeholder: the first two words' initials, or one letter. */
+export function initialsOf(name: string): string {
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  const letters = words.slice(0, 2).map((word) => Array.from(word)[0] ?? "");
+  return letters.join("").toLocaleUpperCase();
+}
 
 /**
  * The icon of one entity — an application, an identity provider, an account —
@@ -8,29 +23,45 @@ import type { ReactNode } from "react";
  *
  * Every list on the console draws this the same way: the entity's own icon when
  * it has one, and otherwise a neutral placeholder at the same size, so a column
- * of rows scans as a column and no row looks unfinished. The rounding and the
- * size are fixed here rather than at each call site, because a list row and an
- * icon card showing the same entity must not disagree.
+ * of rows scans as a column and no row looks unfinished. Applications and
+ * providers are rounded tiles and people are round; the rounding and the steps
+ * of size are fixed here rather than at each call site, because a list row and
+ * an icon card showing the same entity must not disagree.
  */
 export function EntityAvatar({
   iconUrl,
-  /** Shown when there is no icon; the entity's first letter by default. */
+  name,
   fallback,
-  className = "size-9",
+  size = "md",
+  shape = "tile",
+  className,
 }: {
   iconUrl?: string | undefined;
+  /** Source of the placeholder letters when there is no icon. */
+  name?: string | undefined;
+  /** Shown when there is no icon; wins over the letters from `name`. */
   fallback?: ReactNode;
-  /** Sets the size; the rounding is this component's own. */
+  /** 24, 32, 48 or 56 pixels. */
+  size?: keyof typeof sizeClass;
+  shape?: "tile" | "round";
+  /** Overrides the size where a call site needs a step the scale lacks. */
   className?: string;
 }) {
+  const initials = name === undefined ? "" : initialsOf(name);
+  const rounding = shape === "round" ? "rounded-full" : "rounded-lg";
   return (
-    <Avatar className={`${className} rounded-[0.375rem]`}>
+    <Avatar className={cn(sizeClass[size], rounding, className)}>
       {iconUrl !== undefined && iconUrl !== "" && (
-        <Avatar.Image src={iconUrl} alt="" />
+        <AvatarImage src={iconUrl} alt="" />
       )}
-      <Avatar.Fallback className="rounded-[0.375rem]">
-        {fallback ?? <AppWindow size={18} aria-hidden="true" />}
-      </Avatar.Fallback>
+      <AvatarFallback className={rounding}>
+        {fallback ??
+          (initials === "" ? (
+            <AppWindow className="size-4" aria-hidden="true" />
+          ) : (
+            initials
+          ))}
+      </AvatarFallback>
     </Avatar>
   );
 }

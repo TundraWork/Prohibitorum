@@ -77,7 +77,7 @@ function mount() {
 
 /** The body row that carries a key id, found by the id's full text. */
 function rowOf(kid: string): HTMLElement {
-  const row = screen.getByText(kid).closest('[role="row"]');
+  const row = screen.getByText(kid).closest("tr");
   if (!(row instanceof HTMLElement)) throw new Error(`no row for ${kid}`);
   return row;
 }

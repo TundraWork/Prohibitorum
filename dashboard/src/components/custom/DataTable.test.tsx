@@ -72,23 +72,13 @@ function mount(props: Partial<Parameters<typeof DataTable<Row>>[0]> = {}) {
   );
 }
 
-/**
- * The rendered order of the first cell of each body row.
- *
- * React Aria's grid names its parts differently from a plain HTML table: the
- * leading cell of a row is the row header and every other cell is a gridcell,
- * and the header row is a row as well — hence the rowgroup scoping and the
- * drop of the header row, whose first cell is empty.
- */
+/** The rendered order of the first cell of each body row. */
 function order(): string[] {
-  return screen
-    .getAllByRole("rowgroup")
-    .flatMap((group) => within(group).queryAllByRole("row"))
-    .map((row) => {
-      const header = within(row).queryByRole("rowheader");
-      const first = header ?? within(row).queryAllByRole("gridcell")[0];
-      return first?.textContent ?? "";
-    })
+  const body = screen.getAllByRole("rowgroup")[1];
+  if (!body) throw new Error("no table body");
+  return within(body)
+    .getAllByRole("row")
+    .map((row) => within(row).getAllByRole("cell")[0]?.textContent ?? "")
     .filter((text) => text !== "");
 }
 
@@ -108,6 +98,45 @@ describe("DataTable", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("draws a header row of column headers and marks only the sorted one with aria-sort", async () => {
+    mount();
+    const head = screen.getAllByRole("rowgroup")[0];
+    if (!head) throw new Error("no table head");
+    const headerRow = within(head).getByRole("row");
+    const headers = within(headerRow).getAllByRole("columnheader");
+    expect(headers.map((header) => header.textContent)).toEqual([
+      "Name",
+      "Size",
+      "Note",
+      "Actions",
+    ]);
+    // Offered but not applied yet, and absent where there is nothing to order.
+    expect(headers[0]).toHaveAttribute("aria-sort", "none");
+    expect(headers[2]).not.toHaveAttribute("aria-sort");
+
+    await userEvent.click(screen.getByRole("button", { name: "Name" }));
+    expect(headers[0]).toHaveAttribute("aria-sort", "ascending");
+    await userEvent.click(screen.getByRole("button", { name: "Name" }));
+    expect(headers[0]).toHaveAttribute("aria-sort", "descending");
+    expect(headers[1]).toHaveAttribute("aria-sort", "none");
+  });
+
+  it("marks the pinned column's header and cells as pinned to the end", () => {
+    mount();
+    const header = screen.getByRole("columnheader", { name: "Actions" });
+    expect(header).toHaveAttribute("data-pinned", "end");
+    const body = screen.getAllByRole("rowgroup")[1];
+    if (!body) throw new Error("no table body");
+    const cells = within(body).getAllByRole("cell");
+    const pinned = cells.filter(
+      (cell) => cell.getAttribute("data-pinned") === "end",
+    );
+    expect(pinned).toHaveLength(rows.length);
+    expect(
+      screen.getByRole("columnheader", { name: "Name" }),
+    ).not.toHaveAttribute("data-pinned");
+  });
+
   it("hands the order back to a controlled caller instead of sorting itself", async () => {
     const seen: SortingState[] = [];
     mount({ sorting: [], onSortChange: (next) => seen.push(next) });
@@ -125,10 +154,10 @@ describe("DataTable", () => {
     const loading = mount({ rows: [], loading: true });
     expect(screen.queryByText("Nothing here")).not.toBeInTheDocument();
     // The stand-in is decorative on purpose, so it has no accessible name to
-    // query: the console's gray surface marks it as chrome rather than data.
+    // query: one placeholder per cell, three rows deep, holds the table's shape.
     expect(
-      loading.container.querySelector(".bg-surface-secondary"),
-    ).not.toBeNull();
+      loading.container.querySelectorAll("[data-slot=skeleton]"),
+    ).toHaveLength(3 * columns().length);
     loading.unmount();
 
     mount();
@@ -159,22 +188,18 @@ describe("DataTable", () => {
       screen.queryByRole("button", { name: "Show details alpha" }),
     ).not.toBeInTheDocument();
 
-    // Start from focus inside the grid, as a reader would. With nothing
-    // focused, jsdom retargets the body's blur to the window, which React
-    // Aria's focus guard on the toggle cannot inspect; a browser fires no
-    // such event.
-    await userEvent.tab();
-    await userEvent.click(
-      screen.getByRole("button", { name: "Show details gamma" }),
-    );
+    const toggle = screen.getByRole("button", { name: "Show details gamma" });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    await userEvent.click(toggle);
 
     const detail = await screen.findByText("Detail of gamma");
     const cell = detail.closest("td");
     expect(cell).not.toBeNull();
     expect(cell?.getAttribute("colspan")).toBe(String(columns().length));
-    expect(
-      screen.getByRole("button", { name: "Hide details gamma" }),
-    ).toBeInTheDocument();
+    const open = screen.getByRole("button", { name: "Hide details gamma" });
+    expect(open).toHaveAttribute("aria-expanded", "true");
+    // The toggle points at the row it opened.
+    expect(cell?.closest("tr")?.id).toBe(open.getAttribute("aria-controls"));
     expect(screen.queryByText("Detail of beta")).not.toBeInTheDocument();
 
     await userEvent.click(

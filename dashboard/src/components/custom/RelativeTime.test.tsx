@@ -58,9 +58,22 @@ describe("RelativeTime", () => {
     expect(time.tagName).toBe("TIME");
     expect(time).toHaveAttribute("dateTime", "2026-09-09T12:00:00.000Z");
 
-    // Keyboard focus opens the tooltip too; jsdom has no pointer to hover with.
+    await user.hover(time);
+    expect(await screen.findByText(/Sep 9, 2026/)).toBeInTheDocument();
+  });
+
+  it("opens the exact time on keyboard focus too", async () => {
+    vi.useFakeTimers({ now, toFake: ["Date"] });
+    i18n.activate("en");
+    const user = userEvent.setup();
+    render(
+      <I18nProvider i18n={i18n}>
+        <RelativeTime value={new Date(ago(86400)).toISOString()} />
+      </I18nProvider>,
+    );
+
     await user.tab();
-    expect(time).toHaveFocus();
-    expect(await screen.findByRole("tooltip")).toHaveTextContent("Sep 9, 2026");
+    expect(screen.getByText("yesterday")).toHaveFocus();
+    expect(await screen.findByText(/Sep 9, 2026/)).toBeInTheDocument();
   });
 });

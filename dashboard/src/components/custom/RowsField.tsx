@@ -1,4 +1,3 @@
-import { Description, Label, Tooltip } from "@heroui/react";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useStore } from "@tanstack/react-form";
@@ -6,9 +5,12 @@ import { Plus, Trash2 } from "lucide-react";
 import { type ReactNode, useId, useRef } from "react";
 import { Button } from "@/components/custom/Button";
 import { FormMessages } from "@/components/custom/FormMessages";
+import { useHostOverlayContainer } from "@/components/custom/host-overlay-container";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "@/components/ui/tooltip";
 import { useFieldContext, useFormContext } from "@/forms/context";
 import { type LineProblem, lineProblemMessage } from "@/forms/lines";
 import { withoutServerErrors } from "@/forms/server-errors";
+import { cn } from "@/lib/utils";
 
 const removeRowMessage = msg({
   id: "form.rows.remove",
@@ -110,6 +112,9 @@ export function RowsField<T>({
   const { i18n } = useLingui();
   const submitting = useStore(form.store, (state) => state.isSubmitting);
   const id = useId();
+  // A list drawn inside a dialog keeps its tooltip inside it, where it stays live.
+  const root = useRef<HTMLDivElement>(null);
+  const tooltipContainer = useHostOverlayContainer(root);
 
   // One stable key per row. The form owns the row values; these are ours. A key
   // derived from the row's own text would change on every keystroke and remount
@@ -180,9 +185,13 @@ export function RowsField<T>({
     // A disabled button emits no hover or focus for a tooltip to answer, so
     // the tooltip listens on the trigger wrapper instead.
     return (
-      <Tooltip delay={0}>
-        <Tooltip.Trigger>{button}</Tooltip.Trigger>
-        <Tooltip.Content>{minRowsReason}</Tooltip.Content>
+      <Tooltip>
+        <TooltipTrigger delay={0} render={<span className="inline-flex" />}>
+          {button}
+        </TooltipTrigger>
+        <TooltipPopup portalProps={{ container: tooltipContainer }}>
+          {minRowsReason}
+        </TooltipPopup>
       </Tooltip>
     );
   };
@@ -190,15 +199,19 @@ export function RowsField<T>({
   const hasHeader = field.state.value.length > 0 && header !== undefined;
 
   return (
-    <div className="flex flex-col gap-3">
+    <div ref={root} className="flex flex-col gap-3">
       <div className="flex flex-col gap-1.5">
-        <Label id={id} className={isLabelHidden ? "sr-only" : undefined}>
+        <span
+          id={id}
+          className={cn(
+            "font-medium text-base/4.5 sm:text-sm/4",
+            isLabelHidden && "sr-only",
+          )}
+        >
           {label}
-        </Label>
+        </span>
         {description !== undefined && (
-          <Description className="text-xs text-muted">
-            {description}
-          </Description>
+          <p className="text-muted-foreground text-xs">{description}</p>
         )}
       </div>
 
@@ -273,7 +286,7 @@ export function RowsField<T>({
       </div>
 
       {fieldErrors.length > 0 && (
-        <span className="text-sm text-danger">
+        <span className="text-destructive-foreground text-sm">
           <FormMessages errors={fieldErrors} />
         </span>
       )}

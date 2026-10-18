@@ -1,48 +1,47 @@
-import { Table } from "@heroui/react";
 import type { ReactNode } from "react";
+import { TableCell, TableHead } from "@/components/ui/table";
 
 /**
  * The pinned action cell shared by the console's tables.
  *
- * A table wider than its column scrolls sideways inside `Table.ScrollContainer`
- * (see `DataTable`); this cell sticks to the container's trailing edge, so the
- * row actions stay reachable however far the columns are scrolled. Its header
- * twin is `TableActionColumn`, and `DataTable` renders both for a column marked
- * `pinned`.
+ * A table wider than its column scrolls sideways (see `DataTable`); this cell
+ * sticks to the container's trailing edge, so the row actions stay reachable
+ * however far the columns are scrolled. Its header twin is `TableActionColumn`,
+ * and `DataTable` renders both for a column marked `pinned`.
  *
- * The cell keeps an opaque background (`table-action-cell` in `styles/index.css`).
- * HeroUI tints a hovered row's cells with the translucent `bg-surface/40`;
- * applied here it would both read as no change and let the columns sliding
- * underneath show through, so the same result is painted as a solid mix of the
- * surface and the body's own backdrop. A soft shadow on the leading edge marks
- * where the pinned column begins while there are columns still to scroll
- * under it (`table-pinned` in `styles/index.css`).
+ * The card table paints every cell opaque and follows the row's hover itself,
+ * so the columns sliding underneath never show through. A soft shadow on the
+ * leading edge marks where the pinned column begins while there are columns
+ * still to scroll under it (`table-pinned` in `styles/index.css`).
  *
  * `justify-end` keeps a lone button or a small group against the pinned edge;
  * icon buttons are laid out with a one-step gap.
  */
 export function TableActionCell({ children }: { children: ReactNode }) {
   return (
-    <Table.Cell className="table-action-cell table-pinned sticky end-0 z-[1]">
+    <TableCell
+      data-pinned="end"
+      className="table-pinned sticky end-0 z-[1] bg-clip-border"
+    >
       <div className="flex items-center justify-end gap-1">{children}</div>
-    </Table.Cell>
+    </TableCell>
   );
 }
 
-/** The header cell that pairs with `TableActionCell`. */
-export function TableActionColumn({
-  id,
-  children,
-}: {
-  id: string;
-  children: ReactNode;
-}) {
+/**
+ * The header cell that pairs with `TableActionCell`.
+ *
+ * The frame's band is translucent, so the pinned header repaints it as a solid
+ * mix over the page; otherwise the headers scrolling under it would show.
+ */
+export function TableActionColumn({ children }: { children: ReactNode }) {
   return (
-    <Table.Column
-      id={id}
-      className="table-pinned sticky end-0 z-[1] bg-surface-secondary text-end"
+    <TableHead
+      scope="col"
+      data-pinned="end"
+      className="table-pinned sticky end-0 z-[1] bg-(--table-band) text-end"
     >
       {children}
-    </Table.Column>
+    </TableHead>
   );
 }

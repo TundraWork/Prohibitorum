@@ -1,5 +1,5 @@
-import { EmptyState } from "@heroui/react";
 import type { ReactNode } from "react";
+import { Empty, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 
 /**
  * Empty state for the console's own tables: the mark for the kind of thing that
@@ -18,11 +18,13 @@ export function TableEmptyState({
   title: ReactNode;
 }) {
   return (
-    <EmptyState className="flex flex-col items-center gap-3 py-8 text-center max-sm:items-start max-sm:text-start">
-      <span className="grid size-9 shrink-0 place-items-center rounded-[0.375rem] bg-accent-soft text-accent-soft-foreground">
+    <Empty className="gap-0 py-8 md:py-8">
+      <EmptyMedia variant="icon" className="mb-4">
         {icon}
-      </span>
-      <span className="text-sm font-medium text-foreground">{title}</span>
-    </EmptyState>
+      </EmptyMedia>
+      <EmptyTitle className="font-medium font-sans text-foreground text-sm">
+        {title}
+      </EmptyTitle>
+    </Empty>
   );
 }

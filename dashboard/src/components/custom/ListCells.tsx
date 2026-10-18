@@ -1,7 +1,8 @@
-import { Chip, Tooltip } from "@heroui/react";
 import { Plural, Trans, useLingui } from "@lingui/react/macro";
 import { readPrincipalSource } from "@/api/federation";
 import { principalSourceLabel } from "@/components/custom/principal-sources";
+import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "@/components/ui/tooltip";
 
 /**
  * The cells the four federation lists share.
@@ -32,18 +33,15 @@ import { principalSourceLabel } from "@/components/custom/principal-sources";
  * they opened this page. It is the only state worth a column, and the only one
  * that raises its voice.
  *
- * The dot follows HeroUI's own status-chip pattern, which marks a status apart
- * from a label; the words carry the meaning and the colour is the second signal,
+ * The dot marks a status apart from a label; the words carry the meaning and the colour is the second signal,
  * as `PRODUCT.md` requires.
  */
 export function NotReadyChip() {
   return (
-    <Chip color="warning" size="sm" variant="soft">
+    <Badge variant="warning">
       <span className="size-1.5 rounded-full bg-current" aria-hidden="true" />
-      <Chip.Label>
-        <Trans id="list.state.not_ready">Not ready</Trans>
-      </Chip.Label>
-    </Chip>
+      <Trans id="list.state.not_ready">Not ready</Trans>
+    </Badge>
   );
 }
 
@@ -67,13 +65,15 @@ export function CodeValue({
   muted?: boolean;
 }) {
   return (
-    <Tooltip delay={0}>
-      <Tooltip.Trigger<"span"> render={(props) => <span {...props} />}>
-        <span className={`font-mono text-xs ${muted ? "text-muted" : ""}`}>
+    <Tooltip>
+      <TooltipTrigger delay={0} render={<span />}>
+        <span
+          className={`font-mono text-xs ${muted ? "text-muted-foreground" : ""}`}
+        >
           {value}
         </span>
-      </Tooltip.Trigger>
-      <Tooltip.Content className="break-all font-mono">{value}</Tooltip.Content>
+      </TooltipTrigger>
+      <TooltipPopup className="break-all font-mono">{value}</TooltipPopup>
     </Tooltip>
   );
 }
@@ -94,7 +94,7 @@ export function CodeValue({
 export function RedirectCell({ uris }: { uris: readonly string[] }) {
   if (uris.length === 0) {
     return (
-      <span className="text-muted">
+      <span className="text-muted-foreground">
         <Trans id="list.diagnostics.redirect.none">None</Trans>
       </span>
     );
@@ -102,19 +102,19 @@ export function RedirectCell({ uris }: { uris: readonly string[] }) {
 
   const hosts = uris.map(hostOf);
   return (
-    <Tooltip delay={0}>
-      <Tooltip.Trigger<"span"> render={(props) => <span {...props} />}>
+    <Tooltip>
+      <TooltipTrigger delay={0} render={<span />}>
         <span className="flex items-baseline gap-1.5">
           <span className="font-mono text-xs">{hosts[0]}</span>
           {hosts.length > 1 && (
-            <span className="text-xs text-muted tabular-nums">
+            <span className="text-xs text-muted-foreground tabular-nums">
               +{hosts.length - 1}
             </span>
           )}
         </span>
-      </Tooltip.Trigger>
-      <Tooltip.Content className="break-all font-mono">
-        <span className="block text-muted">
+      </TooltipTrigger>
+      <TooltipPopup className="break-all font-mono">
+        <span className="block text-muted-foreground">
           <Plural value={hosts.length} one="# address" other="# addresses" />
         </span>
         {hosts.map((host, index) => (
@@ -124,7 +124,7 @@ export function RedirectCell({ uris }: { uris: readonly string[] }) {
             {host}
           </span>
         ))}
-      </Tooltip.Content>
+      </TooltipPopup>
     </Tooltip>
   );
 }
@@ -147,7 +147,8 @@ function hostOf(uri: string): string {
  * as `0`, which would be a claim the data does not support.
  */
 export function LinkedAccountsCell({ count }: { count: number | undefined }) {
-  if (count === undefined) return <span className="text-muted">—</span>;
+  if (count === undefined)
+    return <span className="text-muted-foreground">—</span>;
   return <span className="tabular-nums">{count}</span>;
 }
 
@@ -163,9 +164,14 @@ export function LinkedAccountsCell({ count }: { count: number | undefined }) {
 export function PrincipalSourceCell({ value }: { value: string }) {
   const { t } = useLingui();
   const source = readPrincipalSource(value);
-  if (source === undefined) return <span className="text-muted">—</span>;
+  if (source === undefined)
+    return <span className="text-muted-foreground">—</span>;
 
-  return <span className="text-muted">{t(principalSourceLabel(source))}</span>;
+  return (
+    <span className="text-muted-foreground">
+      {t(principalSourceLabel(source))}
+    </span>
+  );
 }
 
 /**
@@ -185,10 +191,11 @@ export function PrincipalSourceCell({ value }: { value: string }) {
 export function CertificateExpiryCell({ notAfter }: { notAfter?: string }) {
   const { i18n } = useLingui();
 
-  if (notAfter === undefined) return <span className="text-muted">—</span>;
+  if (notAfter === undefined)
+    return <span className="text-muted-foreground">—</span>;
   const date = new Date(notAfter);
   if (Number.isNaN(date.getTime())) {
-    return <span className="text-muted">—</span>;
+    return <span className="text-muted-foreground">—</span>;
   }
 
   const day = new Intl.DateTimeFormat(i18n.locale, {
@@ -197,13 +204,13 @@ export function CertificateExpiryCell({ notAfter }: { notAfter?: string }) {
   const expired = date.getTime() < Date.now();
 
   return (
-    <Tooltip delay={0}>
-      <Tooltip.Trigger<"time">
-        render={(props) => <time {...props} dateTime={notAfter} />}
-      >
-        <span className={expired ? "text-danger" : undefined}>{day}</span>
-      </Tooltip.Trigger>
-      <Tooltip.Content>
+    <Tooltip>
+      <TooltipTrigger delay={0} render={<time dateTime={notAfter} />}>
+        <span className={expired ? "text-destructive-foreground" : undefined}>
+          {day}
+        </span>
+      </TooltipTrigger>
+      <TooltipPopup>
         {expired ? (
           <Trans id="list.diagnostics.certificate.expired">Expired</Trans>
         ) : (
@@ -211,7 +218,7 @@ export function CertificateExpiryCell({ notAfter }: { notAfter?: string }) {
             Valid until this date
           </Trans>
         )}
-      </Tooltip.Content>
+      </TooltipPopup>
     </Tooltip>
   );
 }

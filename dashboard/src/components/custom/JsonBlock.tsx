@@ -1,10 +1,11 @@
-import { Tooltip } from "@heroui/react";
 import { useLingui } from "@lingui/react/macro";
 import { Check, ClipboardCopy } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/custom/Button";
+import { useHostOverlayContainer } from "@/components/custom/host-overlay-container";
 import { ScrollArea } from "@/components/custom/ScrollArea";
 import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "@/components/ui/tooltip";
 
 /** How long the check and "Copied" stay on screen after a copy. */
 const COPIED_MS = 2000;
@@ -88,6 +89,9 @@ export function JsonBlock({ json }: { json: string }) {
   const [state, setState] = useState<"idle" | "copied" | "failed">("idle");
   const [hovered, setHovered] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  // The block sits in a dialog, whose overlay keeps the rest of the page inert.
+  const root = useRef<HTMLDivElement>(null);
+  const tooltipContainer = useHostOverlayContainer(root);
 
   useEffect(() => () => clearTimeout(timer.current), []);
 
@@ -108,31 +112,31 @@ export function JsonBlock({ json }: { json: string }) {
     : t({ id: "json-block.copy", message: "Copy" });
 
   return (
-    <div className="flex flex-col gap-3">
+    <div ref={root} className="flex flex-col gap-3">
       <div className="relative">
-        <ScrollArea className="rounded-[0.375rem] bg-surface-secondary p-3 pr-11 font-mono text-xs">
+        <ScrollArea className="rounded-lg bg-muted p-3 pr-11 font-mono text-xs">
           <pre>{text}</pre>
         </ScrollArea>
         <div className="absolute top-1.5 right-1.5">
-          <Tooltip
-            delay={0}
-            isOpen={hovered || copied}
-            onOpenChange={setHovered}
-          >
-            <Button
-              isIconOnly
-              size="sm"
-              variant="ghost"
-              aria-label={label}
-              onPress={copy}
-            >
-              {copied ? (
-                <Check size={14} aria-hidden="true" />
-              ) : (
-                <ClipboardCopy size={14} aria-hidden="true" />
-              )}
-            </Button>
-            <Tooltip.Content>{label}</Tooltip.Content>
+          <Tooltip open={hovered || copied} onOpenChange={setHovered}>
+            <TooltipTrigger delay={0} render={<span className="inline-flex" />}>
+              <Button
+                isIconOnly
+                size="sm"
+                variant="ghost"
+                aria-label={label}
+                onPress={copy}
+              >
+                {copied ? (
+                  <Check size={14} aria-hidden="true" />
+                ) : (
+                  <ClipboardCopy size={14} aria-hidden="true" />
+                )}
+              </Button>
+            </TooltipTrigger>
+            <TooltipPopup portalProps={{ container: tooltipContainer }}>
+              {label}
+            </TooltipPopup>
           </Tooltip>
         </div>
       </div>

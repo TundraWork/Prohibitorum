@@ -143,31 +143,6 @@ body {
 }
 
 /*
- * A pinned action cell (`TableActionCell`) is opaque so the columns scrolling
- * underneath it never show through. HeroUI tints a hovered row's cells with the
- * translucent `bg-surface/40`; on the pinned cell that would both read as no
- * change and let the scrolled content bleed, so paint the same result over the
- * row's own backdrop as a solid mix. Layered with the library's so it wins the
- * cascade at equal specificity.
- *
- * The resting background lives here too, not as a `bg-surface` utility on the
- * cell: utilities are a later layer than components, so a utility would beat
- * the hover rule and the pinned cell would never follow the row.
- */
-@layer components {
-  .table__cell.table-action-cell {
-    background-color: var(--card);
-  }
-
-  @media (hover: hover) {
-    .table__row:hover .table__cell.table-action-cell,
-    .table__row[data-hovered="true"] .table__cell.table-action-cell {
-      background-color: color-mix(in oklab, var(--card) 40%, var(--muted));
-    }
-  }
-}
-
-/*
  * The pinned column's shadow marks where columns scroll under it, so it shows
  * only while there are columns still to scroll: the table is wider than its
  * container and not yet scrolled to the end. The scroll position drives it
@@ -176,14 +151,17 @@ body {
  * the last step of the timeline, scrolled to the end, has none either. A
  * browser without scroll timelines shows no shadow at all.
  *
- * The timeline has to be on the element that actually scrolls, which for a
- * `ScrollArea` table is the viewport OverlayScrollbars generates inside it,
- * not `data-table-scroll` itself. `:not([data-overlayscrollbars])` keeps this
- * off a nested scroll area's own host, whose viewport belongs to it.
+ * The timeline has to be on the element that actually scrolls, which is the
+ * table's own overflow container rather than the frame around it.
  */
+/* The frame's translucent band as a solid colour, for a pinned header that
+   must hide the headers scrolling under it. */
+.data-table {
+  --table-band: color-mix(in srgb, var(--muted) 72%, var(--background));
+}
+
 @supports (animation-timeline: scroll()) {
-  .data-table-scroll
-    [data-overlayscrollbars-viewport]:not([data-overlayscrollbars]) {
+  .data-table [data-slot="table-container"] {
     scroll-timeline: --table-x inline;
   }
 

@@ -1,6 +1,6 @@
-import { Tooltip } from "@heroui/react";
 import { useLingui } from "@lingui/react/macro";
 import { useEffect, useState } from "react";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "@/components/ui/tooltip";
 
 const MINUTE = 60;
 const HOUR = 60 * MINUTE;
@@ -82,13 +82,18 @@ export function RelativeTime({ value }: { value: string }) {
   }).format(then);
 
   return (
-    <Tooltip delay={hoverDelay}>
-      <Tooltip.Trigger<"time">
-        render={(props) => <time {...props} dateTime={value} />}
+    <Tooltip>
+      <TooltipTrigger
+        delay={hoverDelay}
+        render={
+          // Focusable so the exact time is not hover-only.
+          // biome-ignore lint/a11y/noNoninteractiveTabindex: the tooltip is the only way to read the exact time
+          <time dateTime={value} tabIndex={0} />
+        }
       >
         {relative}
-      </Tooltip.Trigger>
-      <Tooltip.Content placement="bottom">{exact}</Tooltip.Content>
+      </TooltipTrigger>
+      <TooltipPopup side="bottom">{exact}</TooltipPopup>
     </Tooltip>
   );
 }
