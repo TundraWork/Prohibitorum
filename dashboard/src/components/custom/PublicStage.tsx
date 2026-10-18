@@ -66,12 +66,15 @@ export function PublicStage({
   position = "center",
   frame,
   card,
+  after,
   children,
 }: {
   width?: StageWidth;
   position?: LoginCardPosition;
   frame: "frosted" | "plain";
   card?: SurfaceStyle;
+  /** Shown in the centred column under the frame. */
+  after?: ReactNode;
   children: ReactNode;
 }) {
   const [strip, setStrip] = useState<HTMLElement | null>(null);
@@ -91,31 +94,34 @@ export function PublicStage({
       data-position={position}
       className={cn(placement, publicCardPlacement({ position }))}
     >
-      <section
-        data-slot="stage-frame"
-        className={frameStyle({ frame, width: shown })}
-      >
-        <div
-          ref={setStrip}
-          data-slot="stage-strip"
-          className="flex items-center gap-3 px-3 pt-1.5 pb-3 empty:hidden"
-        />
-        <div
-          data-slot="stage-card"
-          style={card?.style}
-          className={cn(
-            "relative flex min-w-0 flex-col rounded-[22px] border bg-clip-padding p-7 shadow-xs/5 before:pointer-events-none before:absolute before:inset-0 before:rounded-[21px] before:shadow-[0_1px_--theme(--color-black/4%)] max-sm:p-5",
-            card?.className ?? "bg-background",
-          )}
+      <div className="flex w-full flex-col items-center gap-3">
+        <section
+          data-slot="stage-frame"
+          className={frameStyle({ frame, width: shown })}
         >
-          <StageSlotsContext value={slots}>{children}</StageSlotsContext>
-        </div>
-        <div
-          ref={setFooter}
-          data-slot="stage-footer"
-          className="flex items-center gap-3 px-3 pt-2.5 pb-1.5 text-sm empty:hidden"
-        />
-      </section>
+          <div
+            ref={setStrip}
+            data-slot="stage-strip"
+            className="flex items-center gap-3 px-3 pt-1.5 pb-3 empty:hidden"
+          />
+          <div
+            data-slot="stage-card"
+            style={card?.style}
+            className={cn(
+              "relative flex min-w-0 flex-col rounded-[22px] border not-dark:bg-clip-padding p-7 text-card-foreground shadow-xs/5 before:pointer-events-none before:absolute before:inset-0 before:rounded-[21px] before:shadow-[0_1px_--theme(--color-black/4%)] dark:before:shadow-[0_-1px_--theme(--color-white/6%)] max-sm:p-5",
+              card?.className ?? "bg-background",
+            )}
+          >
+            <StageSlotsContext value={slots}>{children}</StageSlotsContext>
+          </div>
+          <div
+            ref={setFooter}
+            data-slot="stage-footer"
+            className="flex items-center gap-3 px-3 pt-2.5 pb-1.5 text-sm empty:hidden"
+          />
+        </section>
+        {after}
+      </div>
     </main>
   );
 }

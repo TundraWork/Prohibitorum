@@ -129,6 +129,29 @@ function bingWallpaper() {
   );
 }
 
+function unsplashWallpaper() {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            source: "unsplash",
+            pictures: [
+              {
+                imageUrl: "https://images.unsplash.com/p1",
+                photographer: "Ada",
+                photographerUrl: "https://unsplash.com/@ada",
+                photoUrl: "https://unsplash.com/photos/p1",
+              },
+            ],
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+    ),
+  );
+}
+
 /** The credit's container from `lg`, fixed to a bottom corner of the window. */
 async function wideCredit() {
   return vi.waitFor(() => {
@@ -334,13 +357,52 @@ it("frames the stage plain over the page's own background and frosted over a pic
   expect(screen.getByRole("main")).toHaveAttribute("data-frame", "frosted");
 });
 
-it("shows the wallpaper credit only for Bing and Unsplash", async () => {
+it("shows no wallpaper credit for a source without a picture", async () => {
   withAppearance((appearance) => {
     appearance.background.source = "color";
   });
   await mount();
-  expect(document.querySelector(".fixed.bottom-5")).toBeNull();
-  expect(document.querySelector("main ~ .lg\\:hidden")).toBeNull();
+  expect(screen.queryByText("A quiet ridge")).toBeNull();
+  expect(screen.queryByText(/Photo by/)).toBeNull();
+  expect(screen.queryByRole("link", { name: "Unsplash" })).toBeNull();
+});
+
+it("credits the Unsplash photographer and photo", async () => {
+  unsplashWallpaper();
+  withAppearance((appearance) => {
+    appearance.background.source = "unsplash";
+  });
+  await mount();
+  const photographer = (await screen.findAllByRole("link", { name: "Ada" }))[0];
+  expect(photographer).toHaveAttribute("href", "https://unsplash.com/@ada");
+  expect(screen.getAllByRole("link", { name: "Unsplash" })[0]).toHaveAttribute(
+    "href",
+    "https://unsplash.com/photos/p1",
+  );
+  expect(screen.getAllByText(/Photo by/).length).toBeGreaterThan(0);
+});
+
+it("shows Bing's title when the caption is on", async () => {
+  bingWallpaper();
+  withAppearance((appearance) => {
+    appearance.background.source = "bing";
+    appearance.background.bing.showCaption = true;
+  });
+  await mount();
+  expect((await screen.findAllByText("A quiet ridge")).length).toBeGreaterThan(
+    0,
+  );
+});
+
+it("keeps the narrow-screen credit inside the stage's column", async () => {
+  bingWallpaper();
+  withAppearance((appearance) => {
+    appearance.background.source = "bing";
+  });
+  await mount();
+  const stage = screen.getByRole("main");
+  expect(stage).toHaveAttribute("data-slot", "stage");
+  expect(await within(stage).findByText("A quiet ridge")).toBeInTheDocument();
 });
 
 it("forces the settings' theme on the page without changing the visitor's choice", async () => {

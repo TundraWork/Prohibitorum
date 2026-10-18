@@ -69,14 +69,12 @@ export function PublicLayout() {
         frame={background.source === "none" ? "plain" : "frosted"}
         card={cardSurfaceStyle(appearance.card)}
         position={appearance.cardPosition}
+        after={hasCredit && <div className="lg:hidden">{credit}</div>}
       >
         <RouteLayoutContext value="public">
           <Outlet />
         </RouteLayoutContext>
       </PublicStage>
-      {hasCredit && (
-        <div className="flex justify-center pb-4 lg:hidden">{credit}</div>
-      )}
       {hasCredit && (
         <div
           className={publicCreditPlacement({
