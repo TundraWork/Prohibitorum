@@ -18,7 +18,7 @@ import { PrincipalSourceField } from "@/components/custom/PrincipalSourceField";
 import { SubmitButton } from "@/components/custom/SubmitButton";
 import { fieldContext, formContext } from "@/forms/context";
 
-export const { useAppForm } = createFormHook({
+export const { useAppForm, withForm } = createFormHook({
   fieldContext,
   formContext,
   fieldComponents: {

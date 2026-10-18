@@ -2,6 +2,10 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import type { UseMutationResult } from "@tanstack/react-query";
 import { isCancellation } from "@/api/errors";
 import { Button } from "@/components/custom/Button";
+import {
+  NewPasswordFields,
+  newPasswordFormValues,
+} from "@/components/custom/NewPasswordFields";
 import { getTopLayerContainer } from "@/components/custom/top-layer";
 import {
   Dialog,
@@ -11,7 +15,6 @@ import {
   DialogPopup,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { checkPassword, passwordMismatch } from "@/forms/password-totp-rules";
 import { applyServerError } from "@/forms/server-errors";
 import { useAppForm } from "@/forms/use-app-form";
 
@@ -56,7 +59,7 @@ function ChangePasswordForm({
 }) {
   const { t } = useLingui();
   const form = useAppForm({
-    defaultValues: { password: "", confirm: "" },
+    defaultValues: newPasswordFormValues,
     onSubmit: async ({ value }) => {
       try {
         await change.mutateAsync(value.password);
@@ -88,40 +91,15 @@ function ChangePasswordForm({
       >
         <DialogPanel className="flex flex-col gap-4">
           <form.FormError />
-          <form.AppField
-            name="password"
-            validators={{ onChange: ({ value }) => checkPassword(value) }}
-          >
-            {(field) => (
-              <field.FormField
-                label={<Trans id="security.password.new">New password</Trans>}
-                type="password"
-                autoComplete="new-password"
-              />
-            )}
-          </form.AppField>
-          <form.AppField
-            name="confirm"
-            validators={{
-              onChangeListenTo: ["password"],
-              onChange: ({ value, fieldApi }) =>
-                value === fieldApi.form.getFieldValue("password")
-                  ? undefined
-                  : passwordMismatch,
-            }}
-          >
-            {(field) => (
-              <field.FormField
-                label={
-                  <Trans id="security.password.confirm">
-                    Repeat new password
-                  </Trans>
-                }
-                type="password"
-                autoComplete="new-password"
-              />
-            )}
-          </form.AppField>
+          <NewPasswordFields
+            form={form}
+            passwordLabel={
+              <Trans id="security.password.new">New password</Trans>
+            }
+            confirmLabel={
+              <Trans id="security.password.confirm">Repeat new password</Trans>
+            }
+          />
         </DialogPanel>
         <DialogFooter>
           <Button variant="ghost" disabled={change.isPending} onClick={onClose}>

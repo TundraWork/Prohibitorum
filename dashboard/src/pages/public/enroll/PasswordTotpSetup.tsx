@@ -1,20 +1,24 @@
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useStore } from "@tanstack/react-form";
 import { useSuspenseQuery } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { buildTotpUri, generateTotpSecret, isValidTotpCode } from "@/api/auth";
 import { ApiError, isCancellation } from "@/api/errors";
 import { publicConfigQueryOptions } from "@/api/queries";
+import {
+  NewPasswordFields,
+  newPasswordFormValues,
+} from "@/components/custom/NewPasswordFields";
 import { PasswordTotpStepHeader } from "@/components/custom/PasswordTotpStepHeader";
 import { PublicStep } from "@/components/custom/PublicStep";
 import { RecoveryCodes } from "@/components/custom/RecoveryCodes";
 import { firstRecoveryCodesCopy } from "@/components/custom/secret-reveal-copy";
 import { TotpSetup } from "@/components/custom/TotpSetup";
 import {
-  checkPassword,
-  passwordMismatch,
-  totpCodeInvalid,
-} from "@/forms/password-totp-rules";
+  useFocusOnStep,
+  useSetupSteps,
+} from "@/components/custom/use-setup-steps";
+import { totpCodeInvalid } from "@/forms/password-totp-rules";
 import { applyServerError } from "@/forms/server-errors";
 import { useAppForm } from "@/forms/use-app-form";
 
@@ -23,8 +27,6 @@ export interface PasswordTotpSubmission {
   secretBase32: string;
   code: string;
 }
-
-type Step = "password" | "authenticator";
 
 /** The field a failed submit belongs on, when it belongs on one. */
 export function failedField(error: unknown): "password" | "code" | undefined {
@@ -82,23 +84,12 @@ export function PasswordTotpSetup({
     () => buildTotpUri(secret, accountName, config.totp),
     [secret, accountName, config.totp],
   );
-  const [step, setStep] = useState<Step>("password");
   const [codes, setCodes] = useState<string[]>();
-  // The validators and the submit handler read the step through a ref, so a
-  // handler created before the step changed still sees the new one.
-  const stepRef = useRef<Step>(step);
-  const moved = useRef(false);
-  const passwordPane = useRef<HTMLDivElement>(null);
-  const authenticatorPane = useRef<HTMLDivElement>(null);
-
-  const go = (next: Step) => {
-    stepRef.current = next;
-    moved.current = true;
-    setStep(next);
-  };
+  const steps = useSetupSteps();
+  const { step, stepRef, go, passwordPane, authenticatorPane } = steps;
 
   const form = useAppForm({
-    defaultValues: { password: "", confirm: "", code: "" },
+    defaultValues: newPasswordFormValues,
     onSubmit: async ({ value, formApi }) => {
       if (stepRef.current === "password") {
         go("authenticator");
@@ -130,21 +121,7 @@ export function PasswordTotpSetup({
 
   const submitting = useStore(form.store, (state) => state.isSubmitting);
 
-  // A step change takes the control that caused it away, so focus moves to
-  // the field the new step starts with. It waits for a submit to settle,
-  // because the fields are disabled until then and a disabled field does not
-  // take focus.
-  useEffect(() => {
-    if (!moved.current || submitting) return;
-    moved.current = false;
-    const target =
-      step === "password"
-        ? passwordPane.current?.querySelector("input")
-        : authenticatorPane.current?.querySelector<HTMLInputElement>(
-            'input[autocomplete="one-time-code"]',
-          );
-    target?.focus();
-  }, [step, submitting]);
+  useFocusOnStep(steps, submitting);
 
   const progress = (current: number) => (
     <PasswordTotpStepHeader current={current} />
@@ -217,44 +194,19 @@ export function PasswordTotpSetup({
             hidden={step !== "password"}
             className="flex flex-col gap-4"
           >
-            <form.AppField
-              name="password"
-              validators={{ onBlur: ({ value }) => checkPassword(value) }}
-            >
-              {(field) => (
-                <field.FormField
-                  label={
-                    <Trans id="enroll.password_totp.password">Password</Trans>
-                  }
-                  type="password"
-                  autoComplete="new-password"
-                  size="lg"
-                />
-              )}
-            </form.AppField>
-            <form.AppField
-              name="confirm"
-              validators={{
-                onBlurListenTo: ["password"],
-                onBlur: ({ value, fieldApi }) =>
-                  value === fieldApi.form.getFieldValue("password")
-                    ? undefined
-                    : passwordMismatch,
-              }}
-            >
-              {(field) => (
-                <field.FormField
-                  label={
-                    <Trans id="enroll.password_totp.confirm">
-                      Confirm password
-                    </Trans>
-                  }
-                  type="password"
-                  autoComplete="new-password"
-                  size="lg"
-                />
-              )}
-            </form.AppField>
+            <NewPasswordFields
+              form={form}
+              validateOn="blur"
+              size="lg"
+              passwordLabel={
+                <Trans id="enroll.password_totp.password">Password</Trans>
+              }
+              confirmLabel={
+                <Trans id="enroll.password_totp.confirm">
+                  Confirm password
+                </Trans>
+              }
+            />
           </div>
           <div
             ref={authenticatorPane}

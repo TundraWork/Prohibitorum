@@ -28,6 +28,7 @@ vi.mock("qrcode", () => ({
 
 const fetchBoundary = vi.fn<(request: Request) => Promise<Response>>();
 const notifySuccess = vi.fn<(message: MessageDescriptor) => void>();
+const notifyError = vi.fn<(error: unknown) => void>();
 let queryClient: QueryClient;
 
 function json(body: unknown) {
@@ -38,8 +39,9 @@ beforeEach(() => {
   i18n.activate("en");
   fetchBoundary.mockReset();
   notifySuccess.mockReset();
+  notifyError.mockReset();
   vi.stubGlobal("fetch", fetchBoundary);
-  queryClient = createQueryClient(() => undefined, notifySuccess);
+  queryClient = createQueryClient(notifyError, notifySuccess);
   queryClient.setQueryData<components["schemas"]["SessionView"]>(
     sessionQueryOptions().queryKey,
     {
@@ -50,18 +52,20 @@ beforeEach(() => {
       role: "user",
     },
   );
-  queryClient.setQueryData(["public", "config"], {
-    instanceName: "Prohibitorum",
-    hasCustomIcon: false,
-    iconUrl: "",
-    iconEtag: "",
-    maintenanceMode: false,
-    maintenanceMessage: "",
-    loginAppearance: defaultLoginAppearance,
-    loginImages: [],
-    totp: { issuer: "Prohibitorum", algorithm: "SHA1", digits: 6, period: 30 },
-  });
+  queryClient.setQueryData(["public", "config"], publicConfig);
 });
+
+const publicConfig = {
+  instanceName: "Prohibitorum",
+  hasCustomIcon: false,
+  iconUrl: "",
+  iconEtag: "",
+  maintenanceMode: false,
+  maintenanceMessage: "",
+  loginAppearance: defaultLoginAppearance,
+  loginImages: [],
+  totp: { issuer: "Prohibitorum", algorithm: "SHA1", digits: 6, period: 30 },
+};
 
 afterEach(() => {
   resetSudo();
@@ -83,6 +87,7 @@ function mount(
     const canned = extra?.(path);
     if (canned) return canned;
     if (path.endsWith("/me/factors")) return json(factors);
+    if (path.endsWith("/config")) return json(publicConfig);
     if (path.endsWith("/me/sudo/methods")) {
       return json({ methods: ["password_totp"], fresh: true });
     }
@@ -359,6 +364,32 @@ describe("password and authenticator rows", () => {
     await waitFor(() =>
       expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument(),
     );
+    // One report: in the section, not also a toast.
+    expect(notifyError).not.toHaveBeenCalled();
+  });
+
+  it("reports a failed regeneration in the section only", async () => {
+    mount(bothSet, (path) =>
+      path.endsWith("/me/recovery-codes/regenerate")
+        ? Response.json(
+            { code: "internal_error", requestId: "panel-test" },
+            { status: 500 },
+          )
+        : undefined,
+    );
+    freshSudo();
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole("button", { name: "Regenerate" }));
+    const confirm = await screen.findByRole("alertdialog", {
+      name: "Replace your recovery codes?",
+    });
+    await user.click(
+      within(confirm).getByRole("button", { name: "Replace codes" }),
+    );
+
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    expect(notifyError).not.toHaveBeenCalled();
   });
 });
 
@@ -571,21 +602,22 @@ describe("setting up both", () => {
         .getAllByRole("listitem")
         .find((item) => item.getAttribute("aria-current") === "step"),
     ).toHaveTextContent("Recovery codes");
-    expect(within(reveal).queryByRole("button", { name: "Close" })).toBeNull();
 
     // Escape does not close it; only saving and continuing does.
     await user.keyboard("{Escape}");
     expect(
       screen.getByRole("dialog", { name: "Save your recovery codes" }),
     ).toBeInTheDocument();
-    const leave = within(reveal).getByRole("button", { name: "Continue" });
-    expect(leave).toBeDisabled();
+    expect(
+      within(reveal).getByRole("button", { name: "Continue" }),
+    ).toBeDisabled();
     await user.click(
       within(reveal).getByRole("checkbox", {
         name: "I have saved my recovery codes",
       }),
     );
-    await user.click(leave);
+    // Once saved, Escape leaves the way Continue does.
+    await user.keyboard("{Escape}");
 
     await waitFor(() =>
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
@@ -627,19 +659,112 @@ describe("setting up both", () => {
       "a-long-enough-password",
     );
     await user.click(within(dialog).getByRole("button", { name: "Next" }));
-    await user.type(
-      await findFirstOtpSlot("Code from your authenticator", within(dialog)),
-      "123456",
+    // Typing waits for the step's own focus move, which would otherwise land
+    // between two digits.
+    const slot = await findFirstOtpSlot(
+      "Code from your authenticator",
+      within(dialog),
     );
+    await waitFor(() => expect(slot).toHaveFocus());
+    await user.type(slot, "123456");
     await user.click(within(dialog).getByRole("button", { name: "Turn on" }));
 
     expect(
-      await within(dialog).findByRole("heading", { name: "Set a password" }),
+      await within(dialog).findByRole(
+        "heading",
+        { name: "Set a password" },
+        { timeout: 5000 },
+      ),
     ).toBeInTheDocument();
     expect(within(dialog).getByLabelText("New password")).toHaveAttribute(
       "aria-invalid",
       "true",
     );
+  });
+});
+
+describe("refusals are reported once, where they were made", () => {
+  const refuse = (suffix: string) => (path: string) =>
+    path.endsWith(suffix)
+      ? Response.json(
+          { code: "internal_error", requestId: "panel-test" },
+          { status: 500 },
+        )
+      : undefined;
+
+  it("keeps a refused setup in the dialog without a toast", async () => {
+    mount(neither, refuse("/me/password-totp/verify"));
+    freshSudo();
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "Set up" }));
+    const dialog = await screen.findByRole("dialog", {
+      name: "Set a password",
+    });
+    await user.type(
+      within(dialog).getByLabelText("New password"),
+      "a-long-enough-password",
+    );
+    await user.type(
+      within(dialog).getByLabelText("Repeat new password"),
+      "a-long-enough-password",
+    );
+    await user.click(within(dialog).getByRole("button", { name: "Next" }));
+    // Typing waits for the step's own focus move, which would otherwise land
+    // between two digits.
+    const slot = await findFirstOtpSlot(
+      "Code from your authenticator",
+      within(dialog),
+    );
+    await waitFor(() => expect(slot).toHaveFocus());
+    await user.type(slot, "123456");
+    await user.click(within(dialog).getByRole("button", { name: "Turn on" }));
+
+    expect(await within(dialog).findByRole("alert")).toBeInTheDocument();
+    expect(notifyError).not.toHaveBeenCalled();
+  });
+
+  it("keeps a refused password change in the dialog without a toast", async () => {
+    mount(bothSet, refuse("/me/password/set"));
+    freshSudo();
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "Change" }));
+    const dialog = await screen.findByRole("dialog", {
+      name: "Change password",
+    });
+    await user.type(
+      within(dialog).getByLabelText("New password"),
+      "a-long-enough-password",
+    );
+    await user.type(
+      within(dialog).getByLabelText("Repeat new password"),
+      "a-long-enough-password",
+    );
+    await user.click(
+      within(dialog).getByRole("button", { name: "Change password" }),
+    );
+
+    expect(await within(dialog).findByRole("alert")).toBeInTheDocument();
+    expect(notifyError).not.toHaveBeenCalled();
+  });
+
+  it("keeps a refused authenticator replacement in the dialog without a toast", async () => {
+    mount(bothSet, refuse("/me/totp/verify"));
+    freshSudo();
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "Replace" }));
+    const dialog = await screen.findByRole("dialog", {
+      name: "Replace authenticator",
+    });
+    await user.type(
+      firstOtpSlot("Code from the new authenticator", within(dialog)),
+      "123456",
+    );
+    await user.click(
+      within(dialog).getByRole("button", { name: "Replace authenticator" }),
+    );
+
+    expect(await within(dialog).findByRole("alert")).toBeInTheDocument();
+    expect(notifyError).not.toHaveBeenCalled();
   });
 });
 
@@ -722,6 +847,12 @@ describe("changing one factor", () => {
         "Your current authenticator and every existing recovery code stop working as soon as this succeeds.",
       ),
     ).toBeInTheDocument();
+    // The code is what the reader does next, not the setup key.
+    await waitFor(() =>
+      expect(
+        firstOtpSlot("Code from the new authenticator", within(dialog)),
+      ).toHaveFocus(),
+    );
   });
 
   it("replaces the authenticator with a code from the new one and reveals the new codes", async () => {

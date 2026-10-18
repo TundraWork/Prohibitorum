@@ -1,6 +1,12 @@
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useBlocker } from "@tanstack/react-router";
-import { type ReactNode, useRef, useState } from "react";
+import {
+  type ReactNode,
+  type RefObject,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { Button } from "@/components/custom/Button";
 import { ReadOnlyText } from "@/components/custom/ReadOnlyText";
 import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
@@ -236,9 +242,22 @@ export function SecretRevealStep({
   copy,
   onContinue,
   progress,
-}: RevealProps & { progress?: ReactNode }) {
+  proceedRef,
+}: RevealProps & {
+  progress?: ReactNode;
+  /**
+   * Receives the same "leave" the Continue button performs, which does nothing
+   * until the secret is confirmed saved, so the caller's Escape and close
+   * button can follow it as `SecretRevealDialog`'s do.
+   */
+  proceedRef?: RefObject<(() => void) | null>;
+}) {
   const { t } = useLingui();
   const reveal = useReveal({ copy, onContinue });
+  const { proceed } = reveal;
+  useEffect(() => {
+    if (proceedRef) proceedRef.current = proceed;
+  });
   return (
     <>
       <DialogHeader>

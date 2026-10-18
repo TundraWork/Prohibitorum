@@ -1,17 +1,25 @@
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useStore } from "@tanstack/react-form";
 import { type UseMutationResult, useQuery } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
+import { useRef } from "react";
 import { isValidTotpCode } from "@/api/auth";
 import { isCancellation } from "@/api/errors";
 import { publicConfigQueryOptions } from "@/api/queries";
 import type { RecoveryCodesResult } from "@/api/raw-paths";
 import { Button } from "@/components/custom/Button";
+import {
+  NewPasswordFields,
+  newPasswordFormValues,
+} from "@/components/custom/NewPasswordFields";
 import { PasswordTotpStepHeader } from "@/components/custom/PasswordTotpStepHeader";
 import { RecoveryCodes } from "@/components/custom/RecoveryCodes";
 import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
 import { TotpSetup } from "@/components/custom/TotpSetup";
 import { getTopLayerContainer } from "@/components/custom/top-layer";
+import {
+  useFocusOnStep,
+  useSetupSteps,
+} from "@/components/custom/use-setup-steps";
 import {
   Dialog,
   DialogFooter,
@@ -20,11 +28,7 @@ import {
   DialogPopup,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  checkPassword,
-  passwordMismatch,
-  totpCodeInvalid,
-} from "@/forms/password-totp-rules";
+import { totpCodeInvalid } from "@/forms/password-totp-rules";
 import { applyServerError } from "@/forms/server-errors";
 import { useAppForm } from "@/forms/use-app-form";
 import { useTotpSetup } from "@/pages/security/use-totp-setup";
@@ -73,21 +77,27 @@ export function SetupDialog({
   onDone: () => Promise<void>;
 }) {
   const revealing = result !== null;
+  // Escape and the close button leave the codes the way Continue does: only
+  // once they are confirmed saved.
+  const proceed = useRef<(() => void) | null>(null);
   return (
     <Dialog
       open={isOpen}
+      disablePointerDismissal={revealing}
       onOpenChange={(open) => {
-        if (!open && !submit.isPending && !revealing) onClose();
+        if (open) return;
+        if (revealing) proceed.current?.();
+        else if (!submit.isPending) onClose();
       }}
     >
       <DialogPopup
         className="sm:max-w-xl"
-        showCloseButton={!revealing}
         portalProps={{ container: getTopLayerContainer() }}
       >
         {result !== null ? (
           <RecoveryCodes
             progress={<Steps current={2} />}
+            proceedRef={proceed}
             codes={result.codes}
             firstIssue={result.firstIssue}
             onContinue={onDone}
@@ -109,13 +119,11 @@ export function SetupDialog({
 /** Clear of the dialog's close button, which sits in the header's corner. */
 function Steps({ current }: { current: number }) {
   return (
-    <div className="pe-8">
+    <div className="pe-8 pb-2">
       <PasswordTotpStepHeader current={current} />
     </div>
   );
 }
-
-type SetupStep = "password" | "authenticator";
 
 function SetupForm({
   submit,
@@ -131,22 +139,11 @@ function SetupForm({
   const { t } = useLingui();
   const config = useQuery(publicConfigQueryOptions());
   const setup = useTotpSetup();
-  const [step, setStep] = useState<SetupStep>("password");
-  // The validators and the submit handler read the step through a ref, so a
-  // handler that was created before the step changed still sees the new one.
-  const stepRef = useRef<SetupStep>(step);
-  const moved = useRef(false);
-  const passwordPane = useRef<HTMLDivElement>(null);
-  const authenticatorPane = useRef<HTMLDivElement>(null);
-
-  const go = (next: SetupStep) => {
-    stepRef.current = next;
-    moved.current = true;
-    setStep(next);
-  };
+  const steps = useSetupSteps();
+  const { step, stepRef, go, passwordPane, authenticatorPane } = steps;
 
   const form = useAppForm({
-    defaultValues: { password: "", confirm: "", code: "" },
+    defaultValues: newPasswordFormValues,
     // "Next" is this submit on the first step, so Enter in a password field
     // moves on too; the code is checked only on the second.
     onSubmit: async ({ value }) => {
@@ -177,21 +174,7 @@ function SetupForm({
 
   const submitting = useStore(form.store, (state) => state.isSubmitting);
 
-  // A step change takes the control that caused it away, so focus moves to
-  // the field the new step starts with. It waits for a submit to settle,
-  // because the fields are disabled until then and a disabled field does not
-  // take focus.
-  useEffect(() => {
-    if (!moved.current || submitting) return;
-    moved.current = false;
-    const target =
-      step === "password"
-        ? passwordPane.current?.querySelector("input")
-        : authenticatorPane.current?.querySelector<HTMLInputElement>(
-            'input[autocomplete="one-time-code"]',
-          );
-    target?.focus();
-  }, [step, submitting]);
+  useFocusOnStep(steps, submitting);
 
   return (
     <form.AppForm>
@@ -236,40 +219,17 @@ function SetupForm({
                 </SurfaceAlert.Content>
               </SurfaceAlert>
             )}
-            <form.AppField
-              name="password"
-              validators={{ onChange: ({ value }) => checkPassword(value) }}
-            >
-              {(field) => (
-                <field.FormField
-                  label={<Trans id="security.password.new">New password</Trans>}
-                  type="password"
-                  autoComplete="new-password"
-                />
-              )}
-            </form.AppField>
-            <form.AppField
-              name="confirm"
-              validators={{
-                onChangeListenTo: ["password"],
-                onChange: ({ value, fieldApi }) =>
-                  value === fieldApi.form.getFieldValue("password")
-                    ? undefined
-                    : passwordMismatch,
-              }}
-            >
-              {(field) => (
-                <field.FormField
-                  label={
-                    <Trans id="security.password.confirm">
-                      Repeat new password
-                    </Trans>
-                  }
-                  type="password"
-                  autoComplete="new-password"
-                />
-              )}
-            </form.AppField>
+            <NewPasswordFields
+              form={form}
+              passwordLabel={
+                <Trans id="security.password.new">New password</Trans>
+              }
+              confirmLabel={
+                <Trans id="security.password.confirm">
+                  Repeat new password
+                </Trans>
+              }
+            />
           </div>
           <div
             ref={authenticatorPane}
@@ -314,7 +274,7 @@ function SetupForm({
             </>
           ) : (
             <>
-              <span className="me-auto self-center text-muted-foreground text-xs max-sm:hidden">
+              <span className="max-sm:order-last sm:me-auto sm:self-center text-muted-foreground text-xs">
                 <Trans id="security.setup.key_note">
                   The key was made in this browser and is sent only when you
                   confirm.

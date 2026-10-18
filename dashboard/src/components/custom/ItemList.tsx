@@ -196,7 +196,14 @@ export function ItemListRow({
       )}
       {/* The text keeps a floor, so a row whose actions carry a label moves
           them under the text on a narrow screen instead of squeezing it. */}
-      <div className="flex min-w-40 flex-1 flex-col gap-0.5">
+      <div
+        className={cn(
+          "flex min-w-40 flex-1 flex-col gap-0.5",
+          // The badge and meta drop to their own line below `sm`, so the text
+          // gives up some of its floor to keep the actions beside it.
+          (hasBadge || hasMeta) && "max-sm:min-w-28",
+        )}
+      >
         <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
           <span
             data-dimmed={dimmed ? "true" : undefined}

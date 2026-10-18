@@ -1,5 +1,6 @@
 import { Trans, useLingui } from "@lingui/react/macro";
 import { type UseMutationResult, useQuery } from "@tanstack/react-query";
+import { useRef } from "react";
 import { isValidTotpCode } from "@/api/auth";
 import { isCancellation } from "@/api/errors";
 import { publicConfigQueryOptions } from "@/api/queries";
@@ -43,13 +44,21 @@ export function ReplaceAuthenticatorDialog({
   onClose: () => void;
   onCodes: (codes: string[]) => void;
 }) {
+  const popup = useRef<HTMLDivElement>(null);
   return (
     <Dialog
       open={open}
       onOpenChange={(next) => !next && !replace.isPending && onClose()}
     >
       <DialogPopup
+        ref={popup}
         className="sm:max-w-xl"
+        // The code is what the reader does next; the setup key is only read.
+        initialFocus={() =>
+          popup.current?.querySelector<HTMLElement>(
+            'input[autocomplete="one-time-code"]',
+          ) ?? true
+        }
         portalProps={{ container: getTopLayerContainer() }}
       >
         <ReplaceForm replace={replace} onClose={onClose} onCodes={onCodes} />

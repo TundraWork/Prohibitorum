@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { ReactNode, RefObject } from "react";
 import {
   SecretReveal,
   SecretRevealDialog,
@@ -23,6 +23,7 @@ export function RecoveryCodes({
   titled,
   firstIssue = false,
   progress,
+  proceedRef,
 }: {
   codes: string[];
   onContinue: () => Promise<void>;
@@ -31,6 +32,8 @@ export function RecoveryCodes({
   titled?: boolean;
   firstIssue?: boolean;
   progress?: ReactNode;
+  /** For a `progress` step: see `SecretRevealStep`. */
+  proceedRef?: RefObject<(() => void) | null>;
 }) {
   const props = {
     text: codes.join("\n"),
@@ -39,7 +42,13 @@ export function RecoveryCodes({
     onContinue,
   };
   if (progress !== undefined) {
-    return <SecretRevealStep {...props} progress={progress} />;
+    return (
+      <SecretRevealStep
+        {...props}
+        progress={progress}
+        proceedRef={proceedRef}
+      />
+    );
   }
   return dialog ? (
     <SecretRevealDialog {...props} />

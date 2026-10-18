@@ -114,11 +114,17 @@ function PasswordTotpFactors() {
   const [focusChange, setFocusChange] = useState(false);
   const changeButton = useRef<HTMLButtonElement>(null);
 
-  // Field-level refusals are drawn on the field inside the dialog that asked,
-  // so those writes keep the default report for anything a field cannot show.
-  const setup = useMutation(passwordTotpMutationOptions(queryClient));
-  const change = useMutation(setPasswordMutationOptions(queryClient));
-  const replace = useMutation(replaceTotpMutationOptions(queryClient));
+  // A refusal of these three is drawn inside the dialog that asked, on the
+  // field it belongs to or at the top of the form, so the toast stays silent.
+  const setup = useMutation(
+    withInlineReport(passwordTotpMutationOptions(queryClient), true),
+  );
+  const change = useMutation(
+    withInlineReport(setPasswordMutationOptions(queryClient), true),
+  );
+  const replace = useMutation(
+    withInlineReport(replaceTotpMutationOptions(queryClient), true),
+  );
   // These two are confirmed in a dialog that closes when they settle, so a
   // refusal is drawn in this section instead.
   const regenerate = useMutation(
@@ -288,9 +294,10 @@ function PasswordTotpFactors() {
         result={setupResult}
         submit={setup}
         onClose={() => setSetupOpen(false)}
-        onResult={(codes) =>
-          setSetupResult({ codes, firstIssue: setupBefore.firstIssue })
-        }
+        onResult={(codes) => {
+          setError(null);
+          setSetupResult({ codes, firstIssue: setupBefore.firstIssue });
+        }}
         onDone={async () => {
           setSetupOpen(false);
           setFocusChange(true);
@@ -299,13 +306,19 @@ function PasswordTotpFactors() {
       <ChangePasswordDialog
         open={changing}
         change={change}
-        onClose={() => setChanging(false)}
+        onClose={() => {
+          setError(null);
+          setChanging(false);
+        }}
       />
       <ReplaceAuthenticatorDialog
         open={replacing}
         replace={replace}
         onClose={() => setReplacing(false)}
-        onCodes={setDialogCodes}
+        onCodes={(codes) => {
+          setError(null);
+          setDialogCodes(codes);
+        }}
       />
       {dialogCodes !== null && (
         <RecoveryCodes
@@ -339,6 +352,7 @@ function PasswordTotpFactors() {
           setError(null);
           regenerate.mutate(undefined, {
             onSuccess: (result) => {
+              setError(null);
               setRegenerating(false);
               setDialogCodes(result.recovery_codes);
             },
@@ -370,7 +384,10 @@ function PasswordTotpFactors() {
         onConfirm={() => {
           setError(null);
           revoke.mutate(undefined, {
-            onSuccess: () => setRevoking(false),
+            onSuccess: () => {
+              setError(null);
+              setRevoking(false);
+            },
             onError: settle(() => setRevoking(false)),
           });
         }}
