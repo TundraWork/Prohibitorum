@@ -693,7 +693,7 @@ msgstr "宽限期结束后，它会从 JWKS 和 SAML 元数据中移除。"
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminInvitationForm.tsx
 msgid "admin.invitations.new.require_local.hint"
-msgstr "通过提供商验证后，受邀人还需设置通行密钥或密码和验证器，账号才会创建。"
+msgstr "通过提供商验证后，受邀人还需设置通行密钥或密码和身份验证器，账号才会创建。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/SigningKeysPanel.tsx
@@ -1106,12 +1106,12 @@ msgstr "身份验证器"
 #. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts
 msgid "audit.factor.totp"
-msgstr "验证器"
+msgstr "身份验证器"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderOperatorSection.tsx
 msgid "admin.federation.operator.method.totp"
-msgstr "验证器应用"
+msgstr "身份验证器应用"
 
 #. js-lingui-explicit-id
 #: src/pages/Login.tsx
@@ -1126,7 +1126,7 @@ msgstr "验证码"
 #. js-lingui-explicit-id
 #: src/components/custom/SudoDialog.tsx
 msgid "sudo.code"
-msgstr "验证器验证码"
+msgstr "身份验证器验证码"
 
 #. js-lingui-explicit-id
 #: src/components/custom/LoginShell.tsx
@@ -3106,7 +3106,7 @@ msgstr "请输入身份验证器显示的验证码，只能包含 0–9。"
 #. js-lingui-explicit-id
 #: src/components/custom/SudoDialog.tsx
 msgid "sudo.code.invalid"
-msgstr "请输入验证器显示的验证码，只能包含 0–9。"
+msgstr "请输入身份验证器显示的验证码，只能包含 0–9。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/EndpointsField.tsx
@@ -4757,7 +4757,7 @@ msgstr "已启用"
 #. js-lingui-explicit-id
 #: src/pages/public/Pair.tsx
 msgid "pair.description"
-msgstr "在已登录 {instance} 的设备上打开「设备」，输入下面的配对码。"
+msgstr "在已登录 {instance} 的设备上打开「<0>设备</0>」，输入下面的配对码。"
 
 #. js-lingui-explicit-id
 #: src/components/custom/OutlineRail.tsx
@@ -5016,7 +5016,7 @@ msgid "error.passkey_unsupported"
 msgstr "当前浏览器不支持通行密钥。请使用密码登录。"
 
 #. js-lingui-explicit-id
-#: src/pages/public/enroll/PasskeyButton.tsx
+#: src/components/custom/PasskeyButton.tsx
 msgid "enroll.passkey.unsupported"
 msgstr "此浏览器或连接不支持通行密钥。"
 
@@ -6299,7 +6299,7 @@ msgstr "为 {displayName} 设置新的登录方式"
 #. js-lingui-explicit-id
 #: src/pages/public/enroll/PasswordTotpSetup.tsx
 msgid "enroll.password_totp.form"
-msgstr "设置密码和验证器"
+msgstr "设置密码和身份验证器"
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
@@ -6309,7 +6309,7 @@ msgstr "设置身份验证器"
 #. js-lingui-explicit-id
 #: src/pages/public/enroll/PasswordTotpSetup.tsx
 msgid "enroll.password_totp.authenticator.title"
-msgstr "绑定验证器"
+msgstr "绑定身份验证器"
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
@@ -6613,11 +6613,6 @@ msgstr "维护期间暂停登录和使用应用。"
 #: src/components/custom/LoginShell.tsx
 msgid "login.factor.account"
 msgstr "正在登录 {username}"
-
-#. js-lingui-explicit-id
-#: src/pages/public/ErrorLanding.tsx
-msgid "error_page.strip.lead"
-msgstr "正在登录"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts
@@ -7423,12 +7418,17 @@ msgstr "该账号无法登录。启用后，它会用原有的登录方式恢复
 #. js-lingui-explicit-id
 #: src/components/custom/SudoDialog.tsx
 msgid "sudo.no-methods"
-msgstr "此账号无法在此验证身份。请先设置通行密钥，或设置密码与验证器。"
+msgstr "此账号无法在此验证身份。请先设置通行密钥，或设置密码与身份验证器。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.account_disabled"
 msgstr "此账户已停用。"
+
+#. js-lingui-explicit-id
+#: src/components/custom/RouteFeedback.tsx
+msgid "route.not-found.description"
+msgstr "这个地址没有对应的页面，可能已被移走，或输入有误。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/oidc-validation.ts
@@ -8691,13 +8691,14 @@ msgstr "你第一次通过 {idp} 登录，{instance} 为你准备了这个账号
 
 #. js-lingui-explicit-id
 #: src/components/custom/LoginShell.tsx
+#: src/pages/public/ErrorLanding.tsx
 msgid "login.signing_in_to"
 msgstr "你正在登录"
 
 #. js-lingui-explicit-id
 #: src/pages/public/Enroll.tsx
 msgid "enroll.description.invite"
-msgstr "你受邀加入 {instance}。链接 {expires} 前有效。"
+msgstr "你受邀加入 {instance}。链接{expires}前有效。"
 
 #. js-lingui-explicit-id
 #: src/pages/public/consent/scopes.ts

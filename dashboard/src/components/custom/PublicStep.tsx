@@ -61,7 +61,7 @@ function PublicStepRoot({
               onClick={back.onClick}
               variant="ghost"
               size="icon-sm"
-              className="shrink-0"
+              className="-ms-2 shrink-0"
             >
               <ArrowLeft aria-hidden="true" />
             </Button>
@@ -106,7 +106,7 @@ const actionsLayout = cva("empty:hidden", {
       // One way forward, then the lesser ones under it, all full width. A
       // label too long for a narrow card wraps inside its button.
       single:
-        "flex flex-col gap-2 [&_button]:h-auto [&_button]:min-h-10 [&_button]:whitespace-normal [&_button]:py-2 md:[&_button]:min-h-9",
+        "flex flex-col gap-2 [&_button:not([data-size=xl])]:h-auto [&_button:not([data-size=xl])]:min-h-10 [&_button:not([data-size=xl])]:whitespace-normal [&_button:not([data-size=xl])]:text-balance [&_button:not([data-size=xl])]:py-[calc(--spacing(1.5)-1px)] sm:[&_button:not([data-size=xl])]:min-h-9",
       // Two equal choices side by side, the one that goes ahead on the right
       // as in a dialog's footer. The card is never too narrow for two.
       decision: "grid grid-cols-2 gap-2",

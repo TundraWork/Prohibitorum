@@ -8,7 +8,7 @@ import {
 } from "@tanstack/react-query";
 import type { HistoryState } from "@tanstack/react-router";
 import { useLocation, useNavigate, useRouter } from "@tanstack/react-router";
-import { ArrowRight, Fingerprint, QrCode } from "lucide-react";
+import { ArrowRight, QrCode } from "lucide-react";
 import {
   useCallback,
   useEffect,
@@ -52,6 +52,7 @@ import type { LoginFailure } from "@/components/custom/LoginShell";
 import { LoginShell, useLoginContext } from "@/components/custom/LoginShell";
 import { OrSeparator } from "@/components/custom/OrSeparator";
 import { OtpField } from "@/components/custom/OtpField";
+import { PasskeyButton } from "@/components/custom/PasskeyButton";
 import { ProviderGrid } from "@/components/custom/ProviderGrid";
 import { RecoveryCodes } from "@/components/custom/RecoveryCodes";
 import { RememberCheckbox } from "@/components/custom/RememberCheckbox";
@@ -631,46 +632,36 @@ export function PasswordPage() {
       }
     >
       <div className="flex flex-col gap-5 pt-2">
-        <div className="flex flex-col gap-2">
-          <Button
-            pending={passkey.isPending}
-            disabled={!supported || (flow.control.busy && !passkey.isPending)}
-            onClick={() => {
-              if (!flow.control.acquire()) return;
-              autofill.pause();
-              void (async () => {
-                try {
-                  const result = await passkey.mutateAsync();
-                  if (flow.control.isActive())
-                    await flow.finish(result.redirect);
-                } catch (error) {
-                  if (flow.control.isActive() && !isCancellation(error))
-                    flow.setFailure({ message: describeError(error) });
-                } finally {
-                  passkey.reset();
-                  flow.control.release();
-                  autofill.resume();
-                }
-              })();
-            }}
-            variant={supported ? "default" : "outline"}
-            size="xl"
-            className="h-12 w-full justify-start gap-3 ps-2 sm:h-12"
-          >
-            <span className="flex size-8 items-center justify-center rounded-md bg-primary-foreground/12 ring-1 ring-primary-foreground/16">
-              <Fingerprint className="size-5" aria-hidden="true" />
-            </span>
-            <Trans id="login.passkey">Sign in with a passkey</Trans>
-          </Button>
-          {!supported && (
-            <p className="text-muted-foreground text-sm">
-              <Trans id="login.passkey.unsupported">
-                Passkeys are unavailable in this browser or connection. Use your
-                password instead.
-              </Trans>
-            </p>
-          )}
-        </div>
+        <PasskeyButton
+          supported={supported}
+          isPending={passkey.isPending}
+          isDisabled={flow.control.busy && !passkey.isPending}
+          onPress={() => {
+            if (!flow.control.acquire()) return;
+            autofill.pause();
+            void (async () => {
+              try {
+                const result = await passkey.mutateAsync();
+                if (flow.control.isActive()) await flow.finish(result.redirect);
+              } catch (error) {
+                if (flow.control.isActive() && !isCancellation(error))
+                  flow.setFailure({ message: describeError(error) });
+              } finally {
+                passkey.reset();
+                flow.control.release();
+                autofill.resume();
+              }
+            })();
+          }}
+          unsupportedNote={
+            <Trans id="login.passkey.unsupported">
+              Passkeys are unavailable in this browser or connection. Use your
+              password instead.
+            </Trans>
+          }
+        >
+          <Trans id="login.passkey">Sign in with a passkey</Trans>
+        </PasskeyButton>
         <OrSeparator
           label={<Trans id="login.or_password">or with your password</Trans>}
         />
@@ -766,9 +757,9 @@ function OtherSignIns({
               })
             }
             variant="ghost"
-            className="-ms-2.5 h-auto justify-start self-start whitespace-normal py-1.5 text-start text-muted-foreground"
+            className="-ms-2.5 h-auto items-start justify-start self-start whitespace-normal py-1.5 text-balance text-start text-muted-foreground"
           >
-            <QrCode aria-hidden="true" />
+            <QrCode aria-hidden="true" className="mt-0.5" />
             <Trans id="login.other_device">
               Sign in with your phone or another device
             </Trans>

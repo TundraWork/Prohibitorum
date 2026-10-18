@@ -200,7 +200,7 @@ it("draws the toolbar's capsules translucent and frosted by default", async () =
   }
 });
 
-it("draws an opaque toolbar on the surface colour", async () => {
+it("draws an opaque toolbar on the card colour", async () => {
   withAppearance((appearance) => {
     appearance.capsules.translucent = false;
   });
@@ -208,7 +208,7 @@ it("draws an opaque toolbar on the surface colour", async () => {
   for (const capsule of banner.querySelectorAll<HTMLElement>(
     "[data-toolbar-capsule]",
   )) {
-    expect(capsule).toHaveClass("bg-background");
+    expect(capsule).toHaveClass("bg-card");
     expect(capsule.style.getPropertyValue("--card-alpha")).toBe("");
     expect(capsule).not.toHaveClass("backdrop-blur-xl");
   }

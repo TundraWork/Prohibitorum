@@ -2,12 +2,13 @@ import { Trans } from "@lingui/react/macro";
 import { Fingerprint } from "lucide-react";
 import { type ReactNode, useId } from "react";
 import { Button } from "@/components/custom/Button";
+import { cn } from "@/lib/utils";
 
 /**
- * The first way to set up a sign-in on the enrollment page and on the page
- * that adds one after a first federated sign-in. A browser or connection
- * without passkeys disables it and says why in a line beneath it, where a
- * reader on a touch screen can see it too.
+ * The passkey action on every public page that offers one — sign-in, the
+ * enrollment page, pairing and the page that adds a sign-in after a first
+ * federated one. A browser or connection without passkeys disables it and says
+ * why in a line beneath it, where a reader on a touch screen can see it too.
  */
 export function PasskeyButton({
   supported,
@@ -15,6 +16,7 @@ export function PasskeyButton({
   isDisabled,
   type = "button",
   onPress,
+  unsupportedNote,
   children,
 }: {
   supported: boolean;
@@ -23,6 +25,8 @@ export function PasskeyButton({
   /** `submit` when the button sends the form its fields are in. */
   type?: "button" | "submit";
   onPress?: () => void;
+  /** Replaces the default line shown when passkeys are unavailable. */
+  unsupportedNote?: ReactNode;
   children: ReactNode;
 }) {
   const noteId = useId();
@@ -33,19 +37,30 @@ export function PasskeyButton({
         pending={supported && isPending}
         disabled={!supported || isDisabled}
         onClick={onPress}
-        size="lg"
-        className="w-full"
+        variant={supported ? "default" : "outline"}
+        size="xl"
+        className="h-12 w-full justify-start gap-3 ps-2 sm:h-12"
         aria-describedby={supported ? undefined : noteId}
       >
-        {/* The spinner takes the icon's place while it runs. */}
-        {!(supported && isPending) && <Fingerprint aria-hidden="true" />}
+        <span
+          className={cn(
+            "flex size-8 items-center justify-center rounded-md ring-1",
+            supported
+              ? "bg-primary-foreground/12 ring-primary-foreground/16"
+              : "bg-muted text-muted-foreground ring-border",
+          )}
+        >
+          <Fingerprint className="size-5" aria-hidden="true" />
+        </span>
         {children}
       </Button>
       {!supported && (
         <p id={noteId} className="text-muted-foreground text-sm">
-          <Trans id="enroll.passkey.unsupported">
-            Passkeys aren't available in this browser or connection.
-          </Trans>
+          {unsupportedNote ?? (
+            <Trans id="enroll.passkey.unsupported">
+              Passkeys aren't available in this browser or connection.
+            </Trans>
+          )}
         </p>
       )}
     </div>

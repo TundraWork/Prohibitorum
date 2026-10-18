@@ -133,9 +133,29 @@ describe("CopyValue", () => {
       name: "Setup key",
     });
     expect(field).toBeInstanceOf(HTMLTextAreaElement);
-    expect(field).toHaveValue(key);
+    expect(field).toHaveValue("DZZC IDZB GB7S H6NK UX7P 2ZPF UTVQ RXLA");
     expect(field).toHaveAttribute("readonly");
     await actor.click(screen.getByRole("button", { name: "Copy" }));
     expect(writeText).toHaveBeenCalledWith(key);
+  });
+
+  it("offers break points in a wrapped address and still copies it whole", async () => {
+    const url = "https://id.example/verify/vrchat/mock-proof";
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    const actor = user();
+    render(
+      <I18nProvider i18n={i18n}>
+        <CopyValue value={url} label="Link" wrap />
+      </I18nProvider>,
+    );
+    vi.spyOn(navigator.clipboard, "writeText").mockImplementation(writeText);
+    const field = screen.getByRole<HTMLTextAreaElement>("textbox", {
+      name: "Link",
+    });
+    expect(field.value).toContain(
+      "/\u200bverify/\u200bvrchat/\u200bmock-proof",
+    );
+    await actor.click(screen.getByRole("button", { name: "Copy" }));
+    expect(writeText).toHaveBeenCalledWith(url);
   });
 });

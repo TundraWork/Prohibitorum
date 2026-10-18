@@ -10,7 +10,7 @@ export const stepDotClass =
 /**
  * Where the reader is in a short run of steps: a numbered dot and a name for
  * each, a check once a step is done, and the current one ringed. The steps
- * share the width equally, so a name too long for its column wraps inside it.
+ * spread across the width and the last ends at the edge; a long name wraps.
  *
  * `current` is the zero-based index of the step on screen.
  */
@@ -26,7 +26,7 @@ export function StepHeader({
 }) {
   const { t } = useLingui();
   return (
-    <ol aria-label={label} className="grid auto-cols-fr grid-flow-col gap-2">
+    <ol aria-label={label} className="flex gap-2">
       {steps.map((step, index) => {
         const done = index < current;
         const active = index === current;
@@ -36,7 +36,10 @@ export function StepHeader({
             // biome-ignore lint/suspicious/noArrayIndexKey: positions are the identity
             key={index}
             aria-current={active ? "step" : undefined}
-            className="flex min-w-0 flex-col gap-1.5 text-xs"
+            className={cn(
+              "flex min-w-0 flex-col gap-1.5 text-xs",
+              index < steps.length - 1 ? "flex-1" : "max-w-[45%] flex-none",
+            )}
           >
             <span className="flex items-center gap-2">
               <span

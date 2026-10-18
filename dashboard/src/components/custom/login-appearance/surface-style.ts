@@ -7,13 +7,13 @@ export interface SurfaceStyle {
 }
 
 /**
- * An opaque surface takes the theme's background. A translucent one is that
+ * An opaque surface takes the theme's card colour. A translucent one is that
  * colour at the chosen opacity, set through one custom property inline and
  * drawn by the `surface-glass` rule in src/styles/index.css. Frosted glass
  * blurs and lifts what shows through.
  */
 export function surfaceStyle(surface: LoginSurface): SurfaceStyle {
-  if (!surface.translucent) return { className: "bg-background" };
+  if (!surface.translucent) return { className: "bg-card" };
   const fill = ["surface-glass"];
   if (surface.blur) fill.push("backdrop-blur-xl backdrop-saturate-150");
   return {

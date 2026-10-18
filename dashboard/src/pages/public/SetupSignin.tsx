@@ -13,8 +13,8 @@ import { identitiesQueryOptions, sessionQueryOptions } from "@/api/queries";
 import { withInlineReport } from "@/app/query-client";
 import { followRedirect } from "@/app/redirect";
 import { Button } from "@/components/custom/Button";
+import { PasskeyButton } from "@/components/custom/PasskeyButton";
 import { PublicStep } from "@/components/custom/PublicStep";
-import { PasskeyButton } from "@/pages/public/enroll/PasskeyButton";
 import {
   failedField,
   PasswordTotpSetup,

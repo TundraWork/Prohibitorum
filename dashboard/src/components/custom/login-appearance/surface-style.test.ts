@@ -15,9 +15,9 @@ function rule(selector: string): string {
   return css.slice(start, css.indexOf("\n  }", start));
 }
 
-it("draws an opaque card with the background colour and nothing else", () => {
+it("draws an opaque card with the card colour and nothing else", () => {
   expect(surfaceStyle({ translucent: false, opacity: 40, blur: true })).toEqual(
-    { className: "bg-background" },
+    { className: "bg-card" },
   );
 });
 
@@ -50,10 +50,10 @@ it("adds the blur only to a translucent surface with frosted glass on", () => {
   ).not.toContain("backdrop-blur-xl");
 });
 
-it("fills an opaque capsule with the background colour", () => {
+it("fills an opaque capsule with the card colour", () => {
   expect(
     capsuleSurfaceStyle({ translucent: false, opacity: 70, blur: true }),
-  ).toEqual({ className: "bg-background" });
+  ).toEqual({ className: "bg-card" });
 });
 
 it("gives a translucent capsule the card's fill rule with its own settings", () => {
@@ -84,5 +84,5 @@ it("redefines only the opaque fill tokens inside a translucent card, and an opaq
   );
   expect(
     cardSurfaceStyle({ translucent: false, opacity: 60, blur: false }),
-  ).toEqual({ className: "bg-background" });
+  ).toEqual({ className: "bg-card" });
 });

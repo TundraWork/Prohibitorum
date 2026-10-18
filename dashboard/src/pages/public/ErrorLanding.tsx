@@ -53,7 +53,7 @@ export function ErrorLandingPage() {
       strip={
         search.reason === "app_access_denied" && app ? (
           <AppStrip
-            lead={<Trans id="error_page.strip.lead">Signing in to</Trans>}
+            lead={<Trans id="login.signing_in_to">You're signing in to</Trans>}
             name={app}
           />
         ) : undefined

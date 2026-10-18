@@ -13,6 +13,20 @@ import {
 } from "@/components/ui/input-group";
 
 /**
+ * What a wrapped field shows: a bare key in groups of four, as authenticator
+ * apps do, and an address with a break point after each `/`, `?` and `&`. The
+ * copy button and a select-all copy still give the original.
+ */
+function breakable(value: string): string {
+  if (/^[A-Za-z0-9]{12,}$/.test(value)) {
+    return value.replace(/(.{4})(?=.)/g, "$1 ");
+  }
+  return value.includes("/")
+    ? value.replace(/([/?&])(?=.)/g, "$1\u200b")
+    : value;
+}
+
+/**
  * A read-only field whose value the reader will paste elsewhere — a Client ID,
  * an Entity ID, a callback address. The button at the trailing edge copies the
  * whole value and turns into a check named "Copied" for a moment.
@@ -20,7 +34,8 @@ import {
  * Focusing the field only selects the value, so tabbing through a form never
  * overwrites the clipboard, and a copy by hand confirms the same way. The
  * value is monospace and never truncated: a long one scrolls inside the field
- * (or wraps, with `wrap`) and is still copied whole. A refused clipboard shows a warning.
+ * (or wraps, with `wrap`) and is still copied whole. A refused clipboard shows
+ * a warning.
  */
 export function CopyValue({
   value,
@@ -31,11 +46,7 @@ export function CopyValue({
   value: string;
   label: ReactNode;
   description?: ReactNode;
-  /**
-   * Breaks a long value across lines instead of scrolling it, for one the
-   * reader may have to read out and type by hand, such as an authenticator's
-   * setup key.
-   */
+  /** Breaks a long value across lines instead of scrolling it. */
   wrap?: boolean;
 }) {
   const { t } = useLingui();
@@ -65,10 +76,20 @@ export function CopyValue({
             ref={inputRef}
             readOnly
             rows={2}
-            value={value}
-            className="break-all font-mono"
+            value={breakable(value)}
+            className="wrap-break-word font-mono"
             onFocus={(event) => event.target.select()}
-            onCopy={confirm}
+            onCopy={(event) => {
+              const field = event.currentTarget;
+              if (
+                field.selectionStart === 0 &&
+                field.selectionEnd === field.value.length
+              ) {
+                event.clipboardData.setData("text/plain", value);
+                event.preventDefault();
+              }
+              confirm();
+            }}
           />
         ) : (
           <InputGroupInput

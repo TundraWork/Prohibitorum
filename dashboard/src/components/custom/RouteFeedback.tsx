@@ -177,7 +177,15 @@ function FailedPage({ error, leave }: { error: unknown; leave: Leave }) {
 
 function MissingPage({ leave }: { leave: Leave }) {
   return (
-    <PublicStep title={<Trans id="route.not-found">Page not found</Trans>}>
+    <PublicStep
+      title={<Trans id="route.not-found">Page not found</Trans>}
+      description={
+        <Trans id="route.not-found.description">
+          This address doesn't lead to a page. It may have moved or been
+          mistyped.
+        </Trans>
+      }
+    >
       <PublicStep.Actions>
         <LeaveButton to={leave.to} size="lg">
           {leave.label}

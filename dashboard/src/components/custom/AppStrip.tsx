@@ -6,7 +6,9 @@ import { EntityAvatar } from "@/components/custom/EntityAvatar";
  * strip: its tile, a lead line saying what is happening, its name and host.
  *
  * The name is a label the server chose, so the tile falls back to the name's
- * initials; a truncated name keeps its full text in `title`.
+ * initials; a truncated name keeps its full text in `title`. On a frosted frame
+ * the lead and host take the full text colour, as muted text fails contrast
+ * over a picture.
  */
 export function AppStrip({
   lead,
@@ -28,12 +30,14 @@ export function AppStrip({
         fallbackClassName="bg-background"
       />
       <div className="min-w-0 leading-tight">
-        <div className="text-muted-foreground text-xs">{lead}</div>
+        <div className="text-muted-foreground text-xs in-data-[frame=frosted]:text-foreground">
+          {lead}
+        </div>
         <div className="truncate font-semibold text-base" title={name}>
           {name}
         </div>
         {host !== undefined && host !== "" && (
-          <div className="truncate font-mono text-muted-foreground text-xs">
+          <div className="truncate font-mono text-muted-foreground text-xs in-data-[frame=frosted]:text-foreground">
             {host}
           </div>
         )}

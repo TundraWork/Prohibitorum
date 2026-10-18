@@ -34,7 +34,7 @@ export function useStageSlots(): StageSlots {
 }
 
 const placement =
-  "flex min-h-[calc(var(--app-viewport-height)-4rem)] w-full items-center justify-center px-2 py-4 sm:px-5";
+  "flex min-h-[calc(var(--app-viewport-height)-4rem)] w-full items-start justify-center px-2 sm:items-center py-4 sm:px-5";
 
 const frameStyle = cva(
   "relative flex w-full flex-col rounded-[28px] p-1.5 max-sm:max-w-none",
@@ -43,7 +43,7 @@ const frameStyle = cva(
       frame: {
         frosted:
           "bg-background/60 shadow-2xl shadow-black/30 ring-1 ring-white/40 backdrop-blur-2xl",
-        plain: "bg-muted/72 shadow-xs/5 ring-1 ring-border",
+        plain: "bg-muted/72 shadow-xs/5 ring-1 ring-border dark:bg-black/30",
       },
       width: {
         default: "sm:w-[440px]",
@@ -56,8 +56,9 @@ const frameStyle = cva(
 /**
  * The stage every public page sits on: a frame whose arcs are concentric with
  * the card inside it, a strip above the card and a footer under it for what a
- * step wants beside its body. It is centred in the window under the toolbar
- * and grows with its content, so a tall page scrolls with the window. Frosted
+ * step wants beside its body. It sits under the toolbar on a narrow window,
+ * is centred in the window from `sm` and grows with its content, so a tall
+ * page scrolls with the window. Frosted
  * over a picture, gradient or colour; plain when the page's own background
  * shows through.
  */
@@ -92,7 +93,11 @@ export function PublicStage({
       data-width={shown}
       data-frame={frame}
       data-position={position}
-      className={cn(placement, publicCardPlacement({ position }))}
+      className={cn(
+        placement,
+        "text-pretty",
+        publicCardPlacement({ position }),
+      )}
     >
       <div
         data-slot="stage-column"
@@ -112,7 +117,7 @@ export function PublicStage({
             style={card?.style}
             className={cn(
               "relative flex min-w-0 flex-col rounded-[22px] border not-dark:bg-clip-padding p-7 text-card-foreground shadow-xs/5 before:pointer-events-none before:absolute before:inset-0 before:rounded-[21px] before:shadow-[0_1px_--theme(--color-black/4%)] dark:before:shadow-[0_-1px_--theme(--color-white/6%)] max-sm:p-5",
-              card?.className ?? "bg-background",
+              card?.className ?? "bg-card",
             )}
           >
             <StageSlotsContext value={slots}>{children}</StageSlotsContext>

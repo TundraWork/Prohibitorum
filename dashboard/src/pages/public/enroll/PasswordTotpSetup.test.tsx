@@ -92,7 +92,7 @@ function codeInput() {
 function setupKey() {
   return (
     screen.getByRole("textbox", { name: "Setup key" }) as HTMLInputElement
-  ).value;
+  ).value.replaceAll(" ", "");
 }
 
 async function toAuthenticator(user: UserEvent) {

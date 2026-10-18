@@ -22,17 +22,10 @@ const FOLDED_CELLS = 6;
  * with how many there are: one wide button, a two-column grid, or a grid of
  * five with the rest behind a searchable "More providers" popover.
  *
- * A press leaves the page for the server's address for that provider, which
- * sends the browser on to the provider itself. The pressed control stays
- * pending and every other one disabled until the page has gone; a reader who
- * comes back with the browser's back button gets the page from the
- * back-forward cache as it was left, so the controls return when the page is
- * shown again from there. With no providers nothing is drawn, and the caller
- * leaves out its separator too.
- *
- * A page with other ways out passes `disabled` while one of those is running,
- * and hears through `onLeavingChange` when a provider takes the page away and
- * when it comes back, to hold its own controls.
+ * A press leaves the page for the provider's address and stays pending, with
+ * every other control disabled, until the page is gone or comes back from the
+ * back-forward cache. A page with other ways out passes `disabled` and hears
+ * `onLeavingChange` to hold its own controls.
  */
 export function ProviderGrid({
   providers,
@@ -83,6 +76,7 @@ export function ProviderGrid({
           size="sm"
           iconUrl={provider.iconUrl}
           name={provider.displayName}
+          fallbackClassName="bg-foreground/10"
         />
       </span>
     );
@@ -157,7 +151,7 @@ export function ProviderGrid({
               <EntityAvatar
                 size="sm"
                 fallback={`+${rest.length}`}
-                className="bg-muted text-muted-foreground"
+                fallbackClassName="bg-foreground/10 text-muted-foreground"
               />
             </span>
             <span className="truncate">
@@ -165,7 +159,7 @@ export function ProviderGrid({
             </span>
           </PopoverTrigger>
           <PopoverPopup
-            className="w-72 **:data-[slot=popover-viewport]:py-1.5 **:data-[slot=popover-viewport]:[--viewport-inline-padding:--spacing(1.5)]"
+            className="w-72 dark:border-white/15 dark:shadow-2xl dark:shadow-black/60 **:data-[slot=popover-viewport]:py-1.5 **:data-[slot=popover-viewport]:[--viewport-inline-padding:--spacing(1.5)]"
             side="top"
             align="end"
           >

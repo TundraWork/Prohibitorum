@@ -355,15 +355,15 @@ function ProofStep({
           }
         >
           {profileUrl && (
-            <div className="flex min-w-0 items-center gap-2.5 rounded-xl bg-muted px-3 py-2 text-sm">
+            <div className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1 rounded-xl bg-muted px-3 py-2 text-sm">
               <span className="shrink-0 text-muted-foreground">
                 <Trans id="federation_flow.proof.profile">Profile</Trans>
               </span>
-              <span className="min-w-0 font-mono wrap-anywhere">
+              <span className="min-w-0 font-mono wrap-anywhere max-sm:basis-full">
                 {profileId(profileUrl)}
               </span>
               <a
-                className={`${inlineLinkClass} ms-auto shrink-0`}
+                className={`${inlineLinkClass} shrink-0 max-sm:basis-full sm:ms-auto`}
                 href={profileUrl}
                 target="_blank"
                 rel="noreferrer"

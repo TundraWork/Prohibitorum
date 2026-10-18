@@ -22,15 +22,15 @@ import { ConsentRequest } from "@/pages/public/consent/ConsentRequest";
 import { describeScope } from "@/pages/public/consent/scopes";
 import { Route } from "@/routes/_public.consent";
 
+function ticketConsumed(error: unknown): boolean {
+  return error instanceof ApiError && error.code === "invalid_consent_ticket";
+}
+
 /**
  * Whether to let an OIDC application in. The first time it lists everything
  * the application asked for; when the account has allowed some of it before,
  * it lists only what is new and folds the rest away under one heading.
  */
-function ticketConsumed(error: unknown): boolean {
-  return error instanceof ApiError && error.code === "invalid_consent_ticket";
-}
-
 export function ConsentPage() {
   const { ticket = "", return_to: returnTo = "" } = Route.useSearch();
   const { data: request } = useSuspenseQuery(
@@ -138,36 +138,36 @@ export function ConsentPage() {
             </RouterLink>
             .
           </Trans>
-          {policyUri && (
-            <>
-              {" "}
-              <a
-                className={inlineLinkClass}
-                href={policyUri}
-                target="_blank"
-                rel="noreferrer"
-              >
-                <Trans id="consent.policy">{app}'s privacy policy</Trans>
-              </a>
-            </>
-          )}
-          {policyUri && tosUri && <span aria-hidden="true"> · </span>}
-          {tosUri && (
-            <>
-              {!policyUri && " "}
-              <a
-                className={inlineLinkClass}
-                href={tosUri}
-                target="_blank"
-                rel="noreferrer"
-              >
-                {policyUri ? (
-                  <Trans id="consent.terms">Terms of service</Trans>
-                ) : (
-                  <Trans id="consent.terms.app">{app}'s terms of service</Trans>
-                )}
-              </a>
-            </>
+          {(policyUri || tosUri) && (
+            <span className="mt-1 block">
+              {policyUri && (
+                <a
+                  className={inlineLinkClass}
+                  href={policyUri}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <Trans id="consent.policy">{app}'s privacy policy</Trans>
+                </a>
+              )}
+              {policyUri && tosUri && <span aria-hidden="true"> · </span>}
+              {tosUri && (
+                <a
+                  className={inlineLinkClass}
+                  href={tosUri}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  {policyUri ? (
+                    <Trans id="consent.terms">Terms of service</Trans>
+                  ) : (
+                    <Trans id="consent.terms.app">
+                      {app}'s terms of service
+                    </Trans>
+                  )}
+                </a>
+              )}
+            </span>
           )}
         </>
       }

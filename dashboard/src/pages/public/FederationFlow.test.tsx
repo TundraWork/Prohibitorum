@@ -97,9 +97,10 @@ describe("VRChat profile verification", () => {
       " usr_3f2a9c ",
     );
     await user.click(screen.getByRole("button", { name: "Continue" }));
-    expect(
-      await screen.findByRole("textbox", { name: "Verification link" }),
-    ).toHaveValue(proof.proofUrl);
+    const link = await screen.findByRole<HTMLTextAreaElement>("textbox", {
+      name: "Verification link",
+    });
+    expect(link.value.replaceAll("\u200b", "")).toBe(proof.proofUrl);
     expect(api.sent("POST", `${flowPath}/prepare`)[0]?.body).toEqual({
       identity: "usr_3f2a9c",
     });

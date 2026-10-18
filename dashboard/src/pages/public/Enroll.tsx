@@ -23,11 +23,11 @@ import { EntityAvatar } from "@/components/custom/EntityAvatar";
 import { ReadOnlyField } from "@/components/custom/FormFields";
 import { useInstanceBranding } from "@/components/custom/instance-branding";
 import { OrSeparator } from "@/components/custom/OrSeparator";
+import { PasskeyButton } from "@/components/custom/PasskeyButton";
 import { ProviderGrid } from "@/components/custom/ProviderGrid";
 import { PublicStep } from "@/components/custom/PublicStep";
 import { applyServerError, type ServerFieldMap } from "@/forms/server-errors";
 import { useAppForm } from "@/forms/use-app-form";
-import { PasskeyButton } from "@/pages/public/enroll/PasskeyButton";
 import {
   failedField,
   PasswordTotpSetup,
@@ -226,9 +226,13 @@ export function EnrollPage() {
     setMode("password-totp");
   }
 
-  const expires = new Intl.DateTimeFormat(i18n.locale, {
-    dateStyle: "medium",
-  }).format(new Date(preview.expiresAt));
+  const expires = (
+    <span className="whitespace-nowrap">
+      {new Intl.DateTimeFormat(i18n.locale, { dateStyle: "medium" }).format(
+        new Date(preview.expiresAt),
+      )}
+    </span>
+  );
   const accountName = reset
     ? (preview.target?.username ?? "")
     : form.state.values.username;
@@ -458,7 +462,7 @@ function EnrollDescription({
 }: {
   preview: EnrollmentPreview;
   instance: string;
-  expires: string;
+  expires: ReactNode;
 }): ReactNode {
   switch (preview.intent) {
     case "bootstrap":

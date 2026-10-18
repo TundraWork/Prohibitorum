@@ -44,20 +44,20 @@ describe("the error landing page", () => {
   it("draws the application strip only when the link names an app", async () => {
     await open("/error?reason=app_access_denied&app=Wiki");
     const strip = document.querySelector('[data-slot="stage-strip"]');
-    expect(strip).toHaveTextContent("Signing in to");
+    expect(strip).toHaveTextContent("You're signing in to");
     expect(strip).toHaveTextContent("Wiki");
   });
 
   it("draws no strip for an ordinary failure even when the link names an app", async () => {
     await open("/error?error=server_error&app=Wiki");
     const strip = document.querySelector('[data-slot="stage-strip"]');
-    expect(strip).not.toHaveTextContent("Signing in to");
+    expect(strip).not.toHaveTextContent("You're signing in to");
     expect(strip).not.toHaveTextContent("Wiki");
   });
 
   it("draws no strip for a failure that names no app", async () => {
     await open("/error?error=server_error");
-    expect(screen.queryByText("Signing in to")).not.toBeInTheDocument();
+    expect(screen.queryByText("You're signing in to")).not.toBeInTheDocument();
   });
 
   it("describes a code only a redirect carries, with the instance's name", async () => {

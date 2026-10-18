@@ -15,6 +15,7 @@ import type { PairingStart } from "@/api/raw-paths";
 import { followRedirect } from "@/app/redirect";
 import { Button } from "@/components/custom/Button";
 import { useInstanceBranding } from "@/components/custom/instance-branding";
+import { PasskeyButton } from "@/components/custom/PasskeyButton";
 import { PublicStep } from "@/components/custom/PublicStep";
 import { QrCode } from "@/components/custom/QrCode";
 import { RememberCheckbox } from "@/components/custom/RememberCheckbox";
@@ -22,7 +23,6 @@ import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
-import { PasskeyButton } from "@/pages/public/enroll/PasskeyButton";
 import { Route } from "@/routes/_public.pair";
 
 /** The drawn size of the approval link's QR code, quiet zone included. */
@@ -229,8 +229,9 @@ function PairingStep({
       title={<Trans id="pair.title">Sign in with another device</Trans>}
       description={
         <Trans id="pair.description">
-          On a device that's already signed in to {instance}, open Devices and
-          enter the code below.
+          On a device that's already signed in to {instance}, open{" "}
+          <span className="[word-break:keep-all]">Devices</span> and enter the
+          code below.
         </Trans>
       }
       footer={
@@ -325,14 +326,23 @@ function PairingStep({
       ) : (
         pairing !== undefined &&
         secondsLeft !== undefined && (
-          <p className="flex items-center justify-center gap-2 text-center text-muted-foreground text-sm">
+          <p className="text-balance text-center text-muted-foreground text-sm">
             {!(approved && complete.isError) && (
-              <Spinner className="size-4" aria-hidden="true" />
+              <Spinner
+                className="me-2 inline-block size-4 align-text-bottom"
+                aria-hidden="true"
+              />
             )}
             {approved ? (
               <Trans id="pair.approved">Approved. Signing in…</Trans>
             ) : (
-              <WaitingLine left={formatSeconds(secondsLeft)} />
+              <WaitingLine
+                left={
+                  <span className="whitespace-nowrap">
+                    {formatSeconds(secondsLeft)}
+                  </span>
+                }
+              />
             )}
           </p>
         )
@@ -341,7 +351,7 @@ function PairingStep({
   );
 }
 
-function WaitingLine({ left }: { left: string }) {
+function WaitingLine({ left }: { left: ReactNode }) {
   return (
     <Trans id="pair.waiting">
       Waiting for approval… The code expires in {left}.

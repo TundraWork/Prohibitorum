@@ -4757,7 +4757,7 @@ msgstr "On"
 #. js-lingui-explicit-id
 #: src/pages/public/Pair.tsx
 msgid "pair.description"
-msgstr "On a device that's already signed in to {instance}, open Devices and enter the code below."
+msgstr "On a device that's already signed in to {instance}, open <0>Devices</0> and enter the code below."
 
 #. js-lingui-explicit-id
 #: src/components/custom/OutlineRail.tsx
@@ -5016,7 +5016,7 @@ msgid "error.passkey_unsupported"
 msgstr "Passkeys are unavailable in this browser. Use your password instead."
 
 #. js-lingui-explicit-id
-#: src/pages/public/enroll/PasskeyButton.tsx
+#: src/components/custom/PasskeyButton.tsx
 msgid "enroll.passkey.unsupported"
 msgstr "Passkeys aren't available in this browser or connection."
 
@@ -6615,11 +6615,6 @@ msgid "login.factor.account"
 msgstr "Signing in as {username}"
 
 #. js-lingui-explicit-id
-#: src/pages/public/ErrorLanding.tsx
-msgid "error_page.strip.lead"
-msgstr "Signing in to"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts
 msgid "audit.factor.signing_key"
 msgstr "Signing key"
@@ -7429,6 +7424,11 @@ msgstr "This account has no way to confirm your identity from here. Set up a pas
 #: src/api/errors.ts
 msgid "error.account_disabled"
 msgstr "This account is disabled."
+
+#. js-lingui-explicit-id
+#: src/components/custom/RouteFeedback.tsx
+msgid "route.not-found.description"
+msgstr "This address doesn't lead to a page. It may have moved or been mistyped."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/oidc-validation.ts
@@ -8691,6 +8691,7 @@ msgstr "You're signing in through {idp} for the first time, and {instance} has p
 
 #. js-lingui-explicit-id
 #: src/components/custom/LoginShell.tsx
+#: src/pages/public/ErrorLanding.tsx
 msgid "login.signing_in_to"
 msgstr "You're signing in to"
 

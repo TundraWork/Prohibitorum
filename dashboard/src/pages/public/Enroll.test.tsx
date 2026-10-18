@@ -116,7 +116,10 @@ describe("enrollment", () => {
     ).toHaveFocus();
     expect(
       screen.getByText(
-        "You've been invited to Test instance. This link works until Oct 3, 2026.",
+        (_, element) =>
+          element?.tagName === "P" &&
+          element.textContent ===
+            "You've been invited to Test instance. This link works until Oct 3, 2026.",
       ),
     ).toBeVisible();
     expect(screen.getByRole("textbox", { name: "Username" })).toHaveValue("");

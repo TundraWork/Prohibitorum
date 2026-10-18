@@ -1710,7 +1710,13 @@ function readReply(
           : null;
       return json({
         application:
-          label === null ? null : { label, host: "wiki.example.test" },
+          label === null
+            ? null
+            : {
+                label,
+                host: "wiki.example.test",
+                iconUrl: appLogoUrl("#3b6e4f", "W"),
+              },
       });
     }
     case "/api/prohibitorum/me":

@@ -125,7 +125,10 @@ describe("signing in with another device", () => {
     ).toHaveFocus();
     expect(
       screen.getByText(
-        "On a device that's already signed in to Test instance, open Devices and enter the code below.",
+        (_, element) =>
+          element?.tagName === "P" &&
+          element.textContent ===
+            "On a device that's already signed in to Test instance, open Devices and enter the code below.",
       ),
     ).toBeVisible();
     expect(await screen.findByText("K7QM-4XTB")).toHaveAttribute(
