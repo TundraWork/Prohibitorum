@@ -43,6 +43,7 @@ beforeEach(() => {
 afterEach(() => {
   vi.restoreAllMocks();
   delete document.documentElement.dataset.theme;
+  document.documentElement.classList.remove("dark");
 });
 
 function mount() {
@@ -58,6 +59,7 @@ function mount() {
 }
 
 const htmlTheme = () => document.documentElement.dataset.theme;
+const hasDarkClass = () => document.documentElement.classList.contains("dark");
 
 it("writes the visitor's theme on the document", () => {
   store.set(themeAtom, "dark");
@@ -67,15 +69,31 @@ it("writes the visitor's theme on the document", () => {
   expect(htmlTheme()).toBe("light");
 });
 
+it("adds the dark class for the dark theme", () => {
+  store.set(themeAtom, "dark");
+  mount();
+  expect(hasDarkClass()).toBe(true);
+  expect(htmlTheme()).toBe("dark");
+});
+
+it("removes the dark class for the light theme", () => {
+  store.set(themeAtom, "dark");
+  mount();
+  act(() => store.set(themeAtom, "light"));
+  expect(hasDarkClass()).toBe(false);
+});
+
 it("follows the system preference while the visitor picks the system theme", () => {
   systemDark = true;
   mount();
   expect(htmlTheme()).toBe("dark");
+  expect(hasDarkClass()).toBe(true);
   systemDark = false;
   act(() => {
     for (const listener of changeListeners) listener();
   });
   expect(htmlTheme()).toBe("light");
+  expect(hasDarkClass()).toBe(false);
 });
 
 it("uses a forced public theme over the visitor's choice and the system preference", () => {

@@ -1,4 +1,6 @@
-What you remember about HeroUI or Tanstack packages are outdated. Please re-read the docs when you want to implement new feature. Be sure to read the examples related. Follow the practice the docs recommended.
+What you remember about Tanstack packages is outdated. Please re-read the docs when you want to implement new feature. Be sure to read the examples related. Follow the practice the docs recommended.
+
+New and migrated UI uses the coss components in `src/components/ui` (vendored, updated only by re-copying) composed per `docs/superpowers/specs/2026-10-18-coss-dashboard-redesign-design.md`. Files not yet migrated may still import HeroUI until the removal phase.
 
 Tanstack router: <https://tanstack.com/router/latest/llms.txt>
 
@@ -18,7 +20,7 @@ them is wrong — fix the outlier instead of keeping both.
 
 - Shared shapes live in `src/components/custom`, not in the pages that happen to need them first. A measure, a heading level, a field variant or a row that more than one screen draws belongs in the component all of them use.
 - A rule that only lives on one screen will drift. If a page caps a field at a measure, the cap belongs in the component or the shared class, not in the page that needed it that day.
-- Read the HeroUI docs and the demo closest to the need before composing. Where HeroUI already prescribes the anatomy — dialog sections, alert on a surface, the pending button — use it, and keep the library's defaults except where this file says otherwise.
+- Compose from the coss components in `src/components/ui` and keep their defaults except where this file says otherwise; do not edit the vendored files.
 - Every visual change is checked in a browser at a wide and a narrow width, in both themes and both locales, before it is called done. Several past fixes were only visible at one of those.
 
 ## Data loading (TanStack Query + Router)

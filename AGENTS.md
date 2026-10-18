@@ -41,15 +41,10 @@
 
 ## Dashboard and generated assets
 
-- Follow the current HeroUI official documentation and preserve its default
-  component styles. `DESIGN.md` records the approved HeroUI implementation for
-  design tooling; keep it aligned with the theme and component defaults below.
-- Keep the approved HeroUI Theme Builder configuration:
-  `chroma=0.1&hue=204&lightness=0.52&formRadius=small&radius=extra-small&base=0.003`.
-  Its exported theme variables belong in `dashboard/src/styles/theme.css`,
-  imported after `@heroui/styles`; preserve other component defaults.
-- Prefer compositions of HeroUI components whenever they cover the UI need;
-  use `Alert` for notices such as the frontend-rebuild banner.
+- New and migrated UI uses the coss components in `dashboard/src/components/ui`
+  (vendored, updated only by re-copying) composed per
+  `docs/superpowers/specs/2026-10-18-coss-dashboard-redesign-design.md`. Files
+  not yet migrated may still import HeroUI until the removal phase.
 - For an Alert with a single message, use `Alert.Title` alone inside
   `Alert.Content`. Add `Alert.Description` only for supplementary text.
 - A Card or a Dialog is a surface. Fields and notices drawn directly on one take

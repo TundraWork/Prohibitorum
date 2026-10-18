@@ -1,6 +1,4 @@
-@import "tailwindcss";
-@import "@heroui/styles";
-@import "./theme.css";
+@import "./coss.css";
 /*
  * OverlayScrollbars draws its own scrollbars, so its stylesheet has to come
  * after the theme: it is unlayered, which puts it above Tailwind's layers, and
@@ -8,20 +6,36 @@
  */
 @import "overlayscrollbars/overlayscrollbars.css";
 
-@theme {
-  --font-inter: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+@font-face {
+  font-family: "Cal Sans";
+  src: url("./fonts/CalSansVF.woff2") format("woff2");
+  font-weight: 300 800;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Paper Mono";
+  src: url("./fonts/PaperMono-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  --font-sans: "Cal Sans", "Noto Sans SC", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Paper Mono", ui-monospace, Menlo, monospace;
 }
 
 /*
  * The OverlayScrollbars theme the app uses (`ScrollArea` passes the name to the
  * `scrollbars.theme` option). The library's own `os-theme-light`/`os-theme-dark`
- * are hard-coded greys; this one reads the same `--scrollbar` token HeroUI's
- * `scrollbar` utility uses, so a surface that keeps its native scrollbar and one
- * that uses `ScrollArea` look identical, and both follow the light/dark theme
- * without any script. The class name must match the option string.
+ * are hard-coded greys; this one derives the handle from the coss
+ * `--muted-foreground` token, so it follows the light/dark theme without any
+ * script. The class name must match the option string.
  *
  * `--os-track-bg` is left unset, so only the handle paints and the track stays
- * clear, which is what the HeroUI scrollbar does.
+ * clear.
  */
 .os-theme-app {
   --os-size: 10px;
@@ -29,16 +43,16 @@
   --os-padding-axis: 2px;
   --os-track-border-radius: 10px;
   --os-handle-border-radius: 10px;
-  --os-handle-bg: var(--scrollbar);
+  --os-handle-bg: color-mix(in oklab, var(--muted-foreground) 40%, transparent);
   --os-handle-bg-hover: color-mix(
     in oklab,
-    var(--scrollbar) 85%,
-    var(--foreground)
+    var(--muted-foreground) 55%,
+    transparent
   );
   --os-handle-bg-active: color-mix(
     in oklab,
-    var(--scrollbar) 70%,
-    var(--foreground)
+    var(--muted-foreground) 70%,
+    transparent
   );
   --os-handle-min-size: 33px;
 }
@@ -142,17 +156,13 @@ body {
  */
 @layer components {
   .table__cell.table-action-cell {
-    background-color: var(--surface);
+    background-color: var(--card);
   }
 
   @media (hover: hover) {
     .table__row:hover .table__cell.table-action-cell,
     .table__row[data-hovered="true"] .table__cell.table-action-cell {
-      background-color: color-mix(
-        in oklab,
-        var(--surface) 40%,
-        var(--surface-secondary)
-      );
+      background-color: color-mix(in oklab, var(--card) 40%, var(--muted));
     }
   }
 }

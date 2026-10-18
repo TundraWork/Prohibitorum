@@ -21,16 +21,19 @@ export function AppEnvironment({ children }: { children: ReactNode }) {
   const forced = useAtomValue(publicThemeAtom);
   const theme = forced ?? chosen;
   useLayoutEffect(() => {
+    // coss styles dark mode off the `dark` class; `data-theme` stays for the
+    // rest of the app and for popups rendered under `body`.
+    const write = (resolved: "light" | "dark") => {
+      const root = document.documentElement;
+      root.dataset.theme = resolved;
+      root.classList.toggle("dark", resolved === "dark");
+    };
     if (theme !== "system") {
-      document.documentElement.dataset.theme = theme;
+      write(theme);
       return;
     }
     const preference = window.matchMedia("(prefers-color-scheme: dark)");
-    const apply = () => {
-      document.documentElement.dataset.theme = preference.matches
-        ? "dark"
-        : "light";
-    };
+    const apply = () => write(preference.matches ? "dark" : "light");
     apply();
     preference.addEventListener("change", apply);
     return () => preference.removeEventListener("change", apply);
