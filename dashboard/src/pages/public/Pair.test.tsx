@@ -188,7 +188,7 @@ describe("signing in with another device", () => {
     await poll();
     expect(
       await screen.findByText("This pairing code has expired.", {
-        selector: ".alert__title, .alert__title *",
+        selector: '[data-slot="alert-title"], [data-slot="alert-title"] *',
       }),
     ).toBeVisible();
     expect(screen.getByRole("status")).toHaveTextContent(

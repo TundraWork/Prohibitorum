@@ -1,5 +1,5 @@
 import { I18nProvider } from "@lingui/react";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -37,31 +37,40 @@ function Harness({
 }
 
 describe("ConfirmDialog", () => {
-  it("draws the status icon beside the heading and matches the confirm button to it", () => {
+  it("marks the popup with its tone and matches the confirm button to it", () => {
     const { unmount } = render(
       <Harness status="danger" onConfirm={() => undefined} />,
     );
     let dialog = screen.getByRole("alertdialog", { name: "Retire this key?" });
-    expect(
-      dialog.querySelector(
-        '[data-slot="alert-dialog-icon"].alert-dialog__icon--danger',
-      ),
-    ).not.toBeNull();
+    expect(dialog).toHaveAttribute("data-tone", "danger");
     expect(
       within(dialog).getByRole("button", { name: "Retire" }),
     ).toHaveAttribute("data-variant", "danger");
     unmount();
 
-    render(<Harness status="warning" onConfirm={() => undefined} />);
+    const warning = render(
+      <Harness status="warning" onConfirm={() => undefined} />,
+    );
     dialog = screen.getByRole("alertdialog", { name: "Retire this key?" });
-    expect(
-      dialog.querySelector(
-        '[data-slot="alert-dialog-icon"].alert-dialog__icon--warning',
-      ),
-    ).not.toBeNull();
+    expect(dialog).toHaveAttribute("data-tone", "warning");
     expect(
       within(dialog).getByRole("button", { name: "Retire" }),
     ).toHaveAttribute("data-variant", "primary");
+    warning.unmount();
+
+    render(<Harness status="accent" onConfirm={() => undefined} />);
+    dialog = screen.getByRole("alertdialog", { name: "Retire this key?" });
+    expect(dialog).toHaveAttribute("data-tone", "default");
+  });
+
+  it("cancels on Escape without confirming", async () => {
+    const onConfirm = vi.fn();
+    render(<Harness status="danger" onConfirm={onConfirm} />);
+    await userEvent.setup().keyboard("{Escape}");
+    await waitFor(() =>
+      expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument(),
+    );
+    expect(onConfirm).not.toHaveBeenCalled();
   });
 
   it("confirms through the caller and leaves closing to it; cancel closes without confirming", async () => {
@@ -75,7 +84,9 @@ describe("ConfirmDialog", () => {
 
     await user.click(screen.getByRole("button", { name: "Cancel" }));
     expect(onConfirm).toHaveBeenCalledTimes(1);
-    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument(),
+    );
   });
 
   it("holds both buttons while the action is in flight", async () => {

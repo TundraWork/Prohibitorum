@@ -1,43 +1,68 @@
-import { Alert } from "@heroui/react";
-import { cva } from "class-variance-authority";
-import type { ComponentProps } from "react";
+import {
+  CircleAlertIcon,
+  CircleCheckIcon,
+  InfoIcon,
+  TriangleAlertIcon,
+} from "lucide-react";
+import {
+  type ComponentProps,
+  createContext,
+  type ReactNode,
+  useContext,
+} from "react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+
+type Status = "default" | "accent" | "success" | "warning" | "danger";
+
+const variants = {
+  default: "default",
+  accent: "info",
+  success: "success",
+  warning: "warning",
+  danger: "error",
+} as const;
+
+const icons = {
+  default: InfoIcon,
+  accent: InfoIcon,
+  success: CircleCheckIcon,
+  warning: TriangleAlertIcon,
+  danger: CircleAlertIcon,
+};
+
+const StatusContext = createContext<Status>("default");
 
 /**
- * Alert for the surface plane. Inside a Card the library's surface shadow
- * reads as a raised block, so this variant drops it and fills the alert with
- * the status's soft tint instead. Slots, statuses and sub-components stay
- * HeroUI's.
+ * The console's notice, on coss's `Alert`, keeping the status vocabulary and
+ * the Indicator / Content / Title / Description parts screens already compose.
+ * `Content` adds no element of its own, so the title and description stay
+ * direct children of the alert and take its grid.
  */
-const surfaceAlert = cva("shadow-none", {
-  variants: {
-    status: {
-      default: "bg-surface-secondary",
-      accent: "bg-accent-soft",
-      success: "bg-success-soft",
-      warning: "bg-warning-soft",
-      danger: "bg-danger-soft",
-    },
-  },
-  defaultVariants: { status: "default" },
-});
-
 function SurfaceAlertRoot({
   status = "default",
-  className,
+  role,
   ...props
-}: ComponentProps<typeof Alert>) {
+}: Omit<ComponentProps<typeof Alert>, "variant"> & { status?: Status }) {
   return (
-    <Alert
-      status={status}
-      className={surfaceAlert({ status, className })}
-      {...props}
-    />
+    <StatusContext.Provider value={status}>
+      {/* Announces only when the screen asks it to, as a static notice should. */}
+      <Alert variant={variants[status]} role={role} {...props} />
+    </StatusContext.Provider>
   );
 }
 
+function Indicator() {
+  const Icon = icons[useContext(StatusContext)];
+  return <Icon aria-hidden="true" />;
+}
+
+function Content({ children }: { children?: ReactNode }) {
+  return <>{children}</>;
+}
+
 export const SurfaceAlert = Object.assign(SurfaceAlertRoot, {
-  Indicator: Alert.Indicator,
-  Content: Alert.Content,
-  Title: Alert.Title,
-  Description: Alert.Description,
+  Indicator,
+  Content,
+  Title: AlertTitle,
+  Description: AlertDescription,
 });
