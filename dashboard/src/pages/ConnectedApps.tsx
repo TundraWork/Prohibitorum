@@ -98,14 +98,13 @@ export function ConnectedApps() {
             ]}
             actions={
               <Button
-                isIconOnly
-                size="sm"
-                variant="danger-soft"
                 aria-label={t({ id: "apps.remove", message: "Remove access" })}
-                onPress={() => {
+                onClick={() => {
                   setTarget(app);
                   setConfirming(true);
                 }}
+                variant="destructive-outline"
+                size="icon-sm"
               >
                 <Trash2 size={16} aria-hidden="true" />
               </Button>

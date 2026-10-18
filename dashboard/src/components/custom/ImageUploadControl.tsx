@@ -132,23 +132,23 @@ export function ImageUploadControl({
       />
       <div className="flex flex-wrap gap-2">
         <Button
-          variant="secondary"
-          isDisabled={busy}
-          isPending={isUploading}
-          onPress={() => input.current?.click()}
+          disabled={busy}
+          pending={isUploading}
+          onClick={() => input.current?.click()}
+          variant="outline"
         >
           {!isUploading && <Upload size={16} aria-hidden="true" />}
           {hasImage ? replaceLabel : uploadLabel}
         </Button>
         {hasImage && (
           <Button
-            variant="danger-soft"
-            isDisabled={busy}
-            isPending={isRemoving}
-            onPress={() => {
+            disabled={busy}
+            pending={isRemoving}
+            onClick={() => {
               setRejected(null);
               onRemove();
             }}
+            variant="destructive-outline"
           >
             {removeLabel}
           </Button>

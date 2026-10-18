@@ -104,11 +104,10 @@ export function ObjectHeader({
           {identifier.value}
         </span>
         <Button
-          variant="ghost"
-          size="sm"
-          isIconOnly
           aria-label={identifier.label}
-          onPress={() => copyValue(identifier.value)}
+          onClick={() => copyValue(identifier.value)}
+          variant="ghost"
+          size="icon-sm"
         >
           {copied ? (
             <CheckIcon aria-hidden="true" className="text-success" />

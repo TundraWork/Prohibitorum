@@ -145,9 +145,9 @@ export function ValueSet({
                 }}
               />
               <Button
+                disabled={draft.trim() === ""}
+                onClick={() => add(draft, true)}
                 size="sm"
-                isDisabled={draft.trim() === ""}
-                onPress={() => add(draft, true)}
               >
                 <Trans id="form.tags.add">Add</Trans>
               </Button>

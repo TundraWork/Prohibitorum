@@ -184,7 +184,7 @@ function CodeStep({
           </div>
         </Modal.Body>
         <Modal.Footer className="mt-5">
-          <Button variant="secondary" onPress={onCancel}>
+          <Button onClick={onCancel} variant="outline">
             <Trans id="devices.cancel">Cancel</Trans>
           </Button>
           <form.SubmitButton>
@@ -262,9 +262,9 @@ function ReviewStep({
 
   const approveButton = (
     <Button
-      isDisabled={busy || expired}
-      isPending={approve.isPending}
-      onPress={() =>
+      disabled={busy || expired}
+      pending={approve.isPending}
+      onClick={() =>
         approve.mutate(code, { onSuccess: () => onApproved(pairing) })
       }
     >
@@ -343,14 +343,14 @@ function ReviewStep({
       <Modal.Footer>
         {pairing.alreadyBound ? (
           <>
-            <Button variant="secondary" isDisabled={busy} onPress={onClose}>
+            <Button disabled={busy} onClick={onClose} variant="outline">
               <Trans id="devices.close">Close</Trans>
             </Button>
             <Button
-              variant="danger-soft"
-              isDisabled={busy}
-              isPending={revoke.isPending}
-              onPress={() => revoke.mutate(code, { onSuccess: onClose })}
+              disabled={busy}
+              pending={revoke.isPending}
+              onClick={() => revoke.mutate(code, { onSuccess: onClose })}
+              variant="destructive-outline"
             >
               <Trans id="devices.revoke">Revoke approval</Trans>
             </Button>
@@ -358,10 +358,10 @@ function ReviewStep({
         ) : (
           <>
             <Button
-              variant="secondary"
-              isDisabled={busy}
-              isPending={decline.isPending}
-              onPress={() => decline.mutate(code, { onSuccess: onClose })}
+              disabled={busy}
+              pending={decline.isPending}
+              onClick={() => decline.mutate(code, { onSuccess: onClose })}
+              variant="outline"
             >
               <Trans id="devices.decline">Decline</Trans>
             </Button>

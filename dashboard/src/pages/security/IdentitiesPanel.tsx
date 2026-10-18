@@ -127,14 +127,13 @@ export function IdentitiesPanel() {
               ]}
               actions={
                 <Button
-                  isIconOnly
-                  size="sm"
-                  variant="danger-soft"
                   aria-label={t({
                     id: "security.identities.unlink",
                     message: "Unlink",
                   })}
-                  onPress={() => setTarget(identity)}
+                  onClick={() => setTarget(identity)}
+                  variant="destructive-outline"
+                  size="icon-sm"
                 >
                   <Unlink size={16} aria-hidden="true" />
                 </Button>
@@ -209,7 +208,7 @@ function LinkIdentityMenu({
 
   return (
     <Dropdown>
-      <Button isPending={isPending} isDisabled={isPending}>
+      <Button pending={isPending} disabled={isPending}>
         <Trans id="security.identities.link.title">Link another identity</Trans>
       </Button>
       <Dropdown.Popover placement="bottom start">

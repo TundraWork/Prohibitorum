@@ -309,8 +309,8 @@ export function AdminInvitationForm() {
 
           <div className="flex flex-wrap gap-2">
             <Button
-              variant="secondary"
-              onPress={() => void navigate({ to: "/admin/invitations" })}
+              onClick={() => void navigate({ to: "/admin/invitations" })}
+              variant="outline"
             >
               <Trans id="admin.cancel">Cancel</Trans>
             </Button>

@@ -83,33 +83,33 @@ export function ErrorLandingPage() {
           <div className="mt-3 flex flex-wrap gap-2">
             {retryTo !== undefined ? (
               <Button
+                onClick={() => void followRedirect(router, retryTo)}
+                variant="outline"
                 size="sm"
-                variant="secondary"
-                onPress={() => void followRedirect(router, retryTo)}
               >
                 <Trans id="route.retry">Try again</Trans>
               </Button>
             ) : back ? (
               <Button
+                onClick={() => followRedirect(router, back)}
+                variant="outline"
                 size="sm"
-                variant="secondary"
-                onPress={() => followRedirect(router, back)}
               >
                 <Trans id="error_page.back">Go back</Trans>
               </Button>
             ) : session ? (
               <Button
+                onClick={() => navigate({ to: "/" })}
+                variant="outline"
                 size="sm"
-                variant="secondary"
-                onPress={() => navigate({ to: "/" })}
               >
                 <Trans id="error_page.account">Go to my account</Trans>
               </Button>
             ) : (
               <Button
+                onClick={() => navigate({ to: "/login" })}
+                variant="outline"
                 size="sm"
-                variant="secondary"
-                onPress={() => navigate({ to: "/login" })}
               >
                 <Trans id="error_page.sign_in">Sign in</Trans>
               </Button>

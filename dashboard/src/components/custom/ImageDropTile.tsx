@@ -63,10 +63,10 @@ export function ImageDropTile({
         }}
       >
         <Button
+          disabled={isDisabled}
+          pending={isPending}
           variant="ghost"
           size="sm"
-          isDisabled={isDisabled}
-          isPending={isPending}
           className="h-full w-full flex-col gap-1.5 text-muted"
         >
           {!isPending && (

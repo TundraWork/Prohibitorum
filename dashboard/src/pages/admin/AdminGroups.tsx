@@ -32,7 +32,7 @@ export function AdminGroups() {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-4">
-        <Button onPress={() => void navigate({ to: "/admin/groups/new" })}>
+        <Button onClick={() => void navigate({ to: "/admin/groups/new" })}>
           <Trans id="admin.groups.new">New group</Trans>
         </Button>
       </div>
@@ -117,7 +117,7 @@ function groupColumns(open: (id: number) => void): TableColumn<AppGroupView>[] {
       id: "actions",
       header: <Trans id="admin.column.actions">Actions</Trans>,
       cell: (group) => (
-        <Button size="sm" variant="secondary" onPress={() => open(group.id)}>
+        <Button onClick={() => open(group.id)} variant="outline" size="sm">
           <Trans id="admin.groups.edit">Edit</Trans>
         </Button>
       ),

@@ -263,9 +263,9 @@ function FailureBody({
         <RecoveryButton route={route} leave={leave} />
         {exchange && (
           <Button
+            onClick={() => setDetails(exchange)}
+            variant="ghost"
             size="sm"
-            variant="tertiary"
-            onPress={() => setDetails(exchange)}
           >
             <Trans id="notification.details">Details</Trans>
           </Button>
@@ -290,10 +290,10 @@ function RecoveryButton({
     case "retry":
       return (
         <Button
+          pending={route.retrying}
+          onClick={() => void route.retry()}
+          variant="destructive"
           size="sm"
-          variant="danger"
-          isPending={route.retrying}
-          onPress={() => void route.retry()}
         >
           <Trans id="route.retry">Try again</Trans>
         </Button>
@@ -301,30 +301,26 @@ function RecoveryButton({
     case "reload":
       return (
         <Button
+          onClick={() => window.location.reload()}
+          variant="destructive"
           size="sm"
-          variant="danger"
-          onPress={() => window.location.reload()}
         >
           <Trans id="route.reload">Reload</Trans>
         </Button>
       );
     case "sign-in":
       return (
-        <Button
-          size="sm"
-          variant="secondary"
-          onPress={() => void route.signIn()}
-        >
+        <Button onClick={() => void route.signIn()} variant="outline" size="sm">
           <Trans id="route.sign_in">Sign in</Trans>
         </Button>
       );
     case "sign-out":
       return (
         <Button
+          pending={route.signOut.isPending}
+          onClick={() => route.signOut.mutate()}
+          variant="outline"
           size="sm"
-          variant="secondary"
-          isPending={route.signOut.isPending}
-          onPress={() => route.signOut.mutate()}
         >
           <Trans id="console.logout">Sign out</Trans>
         </Button>
@@ -402,7 +398,7 @@ function LeaveButton({
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   if (pathname === to) return null;
   return (
-    <Button size="sm" variant="secondary" onPress={() => void navigate({ to })}>
+    <Button onClick={() => void navigate({ to })} variant="outline" size="sm">
       {children}
     </Button>
   );

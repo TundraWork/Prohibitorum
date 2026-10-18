@@ -341,10 +341,6 @@ export function DataTable<T extends RowData>({
                             ) : (
                               <Button
                                 id={toggleId}
-                                variant="ghost"
-                                size="sm"
-                                isIconOnly
-                                className="-ms-2"
                                 aria-expanded={open}
                                 aria-controls={open ? detailId : undefined}
                                 aria-labelledby={`${toggleId} ${contentId}`}
@@ -359,7 +355,10 @@ export function DataTable<T extends RowData>({
                                         message: "Show details",
                                       })
                                 }
-                                onPress={() => toggle(row.id)}
+                                onClick={() => toggle(row.id)}
+                                variant="ghost"
+                                size="icon-sm"
+                                className="-ms-2"
                               >
                                 <ChevronRight
                                   size={16}

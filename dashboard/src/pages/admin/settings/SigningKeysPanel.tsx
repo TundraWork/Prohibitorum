@@ -78,8 +78,8 @@ export function SigningKeysPanel() {
         title={<Trans id="settings.keys.section">Signing keys</Trans>}
         action={
           <Button
-            isPending={generate.isPending}
-            onPress={() => generate.mutate()}
+            pending={generate.isPending}
+            onClick={() => generate.mutate()}
           >
             <Trans id="settings.keys.generate">Generate key</Trans>
           </Button>
@@ -215,31 +215,28 @@ function keyColumns(
       cell: (key) => (
         <>
           <Button
-            isIconOnly
-            size="sm"
-            variant="tertiary"
             aria-label={i18n._(actionLabels.view)}
-            onPress={() => actions.view(key)}
+            onClick={() => actions.view(key)}
+            variant="ghost"
+            size="icon-sm"
           >
             <Braces size={16} aria-hidden="true" />
           </Button>
           {key.status === "pending" && (
             <>
               <Button
-                isIconOnly
-                size="sm"
-                variant="tertiary"
                 aria-label={i18n._(actionLabels.activate)}
-                onPress={() => actions.activate(key)}
+                onClick={() => actions.activate(key)}
+                variant="ghost"
+                size="icon-sm"
               >
                 <Play size={16} aria-hidden="true" />
               </Button>
               <Button
-                isIconOnly
-                size="sm"
-                variant="danger-soft"
                 aria-label={i18n._(actionLabels.retire)}
-                onPress={() => actions.retire(key)}
+                onClick={() => actions.retire(key)}
+                variant="destructive-outline"
+                size="icon-sm"
               >
                 <Trash2 size={16} aria-hidden="true" />
               </Button>
@@ -274,20 +271,19 @@ function KeyId({ kid }: { kid: string }) {
         <Tooltip.Content className="font-mono">{kid}</Tooltip.Content>
       </Tooltip>
       <Button
-        isIconOnly
-        size="sm"
-        variant="ghost"
         aria-label={
           copied
             ? t({ id: "settings.keys.kid.copied", message: "Copied" })
             : t({ id: "settings.keys.kid.copy", message: "Copy key ID" })
         }
-        onPress={() => {
+        onClick={() => {
           void navigator.clipboard.writeText(kid).then(
             () => setCopied(true),
             () => setCopied(false),
           );
         }}
+        variant="ghost"
+        size="icon-sm"
       >
         {copied ? (
           <Check size={14} aria-hidden="true" />
@@ -385,13 +381,13 @@ function PublicKeyDialog({
             </Modal.Body>
             <Modal.Footer>
               <Button
-                variant="tertiary"
-                onPress={() => {
+                onClick={() => {
                   void navigator.clipboard.writeText(jwk).then(
                     () => setCopy("copied"),
                     () => setCopy("failed"),
                   );
                 }}
+                variant="ghost"
               >
                 {copy === "copied" ? (
                   <>
@@ -406,7 +402,7 @@ function PublicKeyDialog({
                 )}
               </Button>
               <Button
-                onPress={() => {
+                onClick={() => {
                   setCopy("idle");
                   onClose();
                 }}

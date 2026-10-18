@@ -735,9 +735,9 @@ export function AdminGroupForm({ group }: { group?: AppGroupView }) {
 
           <div className="flex flex-wrap gap-2">
             <Button
-              isDisabled={pending}
-              variant="secondary"
-              onPress={() => void navigate({ to: "/admin/groups" })}
+              disabled={pending}
+              onClick={() => void navigate({ to: "/admin/groups" })}
+              variant="outline"
             >
               <Trans id="admin.group.cancel">Cancel</Trans>
             </Button>
@@ -889,19 +889,19 @@ function RuleEditor({
             ))}
             <div className="flex flex-wrap gap-2">
               <Button
-                isDisabled={pending}
+                disabled={pending}
+                onClick={() => onChange(appendChild(root, root.id, newLeaf()))}
+                variant="outline"
                 size="sm"
-                variant="secondary"
-                onPress={() => onChange(appendChild(root, root.id, newLeaf()))}
               >
                 <Plus size={16} aria-hidden="true" />
                 <Trans id="admin.group.rule.add">Add condition</Trans>
               </Button>
               <Button
-                isDisabled={pending}
+                disabled={pending}
+                onClick={() => onChange(appendChild(root, root.id, newGroup()))}
+                variant="outline"
                 size="sm"
-                variant="secondary"
-                onPress={() => onChange(appendChild(root, root.id, newGroup()))}
               >
                 <Plus size={16} aria-hidden="true" />
                 <Trans id="admin.group.rule.addGroup">Add group</Trans>
@@ -1033,15 +1033,14 @@ function ConditionNode({
             </Select.Popover>
           </Select>
           <Button
-            isIconOnly
             aria-label={t({
               id: "admin.group.rule.remove",
               message: "Remove this condition",
             })}
-            isDisabled={pending}
-            size="sm"
-            variant="danger-soft"
-            onPress={remove}
+            disabled={pending}
+            onClick={remove}
+            variant="destructive-outline"
+            size="icon-sm"
           >
             <Trash2 size={16} aria-hidden="true" />
           </Button>
@@ -1064,10 +1063,10 @@ function ConditionNode({
 
         <div className="flex flex-wrap gap-2">
           <Button
-            isDisabled={pending}
+            disabled={pending}
+            onClick={() => onChange(appendChild(root, node.id, newLeaf()))}
+            variant="outline"
             size="sm"
-            variant="secondary"
-            onPress={() => onChange(appendChild(root, node.id, newLeaf()))}
           >
             <Plus size={16} aria-hidden="true" />
             <Trans id="admin.group.rule.add">Add condition</Trans>
@@ -1076,10 +1075,10 @@ function ConditionNode({
               past the limit is not drawn on the last one. */}
           {depth < maxDepth && (
             <Button
-              isDisabled={pending}
+              disabled={pending}
+              onClick={() => onChange(appendChild(root, node.id, newGroup()))}
+              variant="outline"
               size="sm"
-              variant="secondary"
-              onPress={() => onChange(appendChild(root, node.id, newGroup()))}
             >
               <Plus size={16} aria-hidden="true" />
               <Trans id="admin.group.rule.addGroup">Add group</Trans>
@@ -1207,15 +1206,14 @@ function ConditionNode({
       </Tooltip>
 
       <Button
-        isIconOnly
         aria-label={t({
           id: "admin.group.rule.remove",
           message: "Remove this condition",
         })}
-        isDisabled={pending}
-        size="sm"
-        variant="danger-soft"
-        onPress={remove}
+        disabled={pending}
+        onClick={remove}
+        variant="destructive-outline"
+        size="icon-sm"
       >
         <Trash2 size={16} aria-hidden="true" />
       </Button>

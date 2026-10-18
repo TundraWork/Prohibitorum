@@ -168,7 +168,7 @@ export function TokensPanel() {
       <Section
         title={<Trans id="security.section.tokens">Access tokens</Trans>}
         action={
-          <Button ref={createButton} onPress={() => setCreating(true)}>
+          <Button ref={createButton} onClick={() => setCreating(true)}>
             <Trans id="security.tokens.create.open">Create a token</Trans>
           </Button>
         }
@@ -221,14 +221,13 @@ export function TokensPanel() {
                 ]}
                 actions={
                   <Button
-                    isIconOnly
-                    size="sm"
-                    variant="danger-soft"
                     aria-label={t({
                       id: "security.tokens.revoke",
                       message: `Revoke ${name}`,
                     })}
-                    onPress={() => setTarget(token)}
+                    onClick={() => setTarget(token)}
+                    variant="destructive-outline"
+                    size="icon-sm"
                   >
                     <Ban size={16} aria-hidden="true" />
                   </Button>
@@ -663,7 +662,7 @@ function CreateTokenForm({
         </Modal.Body>
 
         <Modal.Footer className="mt-5">
-          <Button variant="secondary" isDisabled={busy} onPress={onCancel}>
+          <Button disabled={busy} onClick={onCancel} variant="outline">
             <Trans id="security.cancel">Cancel</Trans>
           </Button>
           <form.SubmitButton tone={access === "sudo" ? "warning" : "default"}>

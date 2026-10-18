@@ -71,14 +71,14 @@ export function ForwardAuthProxySection({ app }: { app: ForwardAuthApp }) {
       }
       action={
         <Button
-          size="sm"
-          variant="secondary"
-          onPress={() => {
+          onClick={() => {
             void navigator.clipboard.writeText(snippet).then(
               () => setCopied(true),
               () => setCopied(false),
             );
           }}
+          variant="outline"
+          size="sm"
         >
           {copied ? (
             <>

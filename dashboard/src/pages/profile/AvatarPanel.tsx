@@ -179,13 +179,13 @@ function AvatarGallery() {
           </Description>
           {hasUpload && (
             <Button
-              variant="danger-soft"
-              size="sm"
-              isDisabled={busy}
-              onPress={() => {
+              disabled={busy}
+              onClick={() => {
                 setRejected(null);
                 setConfirmingRemove(true);
               }}
+              variant="destructive-outline"
+              size="sm"
             >
               <Trans id="profile.avatar.remove">Remove uploaded picture</Trans>
             </Button>

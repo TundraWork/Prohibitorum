@@ -56,15 +56,14 @@ export function CopyValue({
         />
         <InputGroupAddon align="inline-end">
           <Button
-            variant="ghost"
-            size="sm"
-            isIconOnly
             aria-label={
               copied
                 ? copiedLabel
                 : t({ id: "copy-value.copy", message: "Copy" })
             }
-            onPress={copy}
+            onClick={copy}
+            variant="ghost"
+            size="icon-sm"
           >
             {copied ? (
               <CheckIcon aria-hidden="true" className="text-success" />

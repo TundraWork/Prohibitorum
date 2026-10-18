@@ -103,7 +103,7 @@ export function RequestDetailsDialog({
           )}
         </DialogPanel>
         <DialogFooter>
-          <Button onPress={onClose}>
+          <Button onClick={onClose}>
             <Trans id="request_details.close">Close</Trans>
           </Button>
         </DialogFooter>

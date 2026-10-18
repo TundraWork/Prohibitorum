@@ -158,7 +158,7 @@ export function PasswordTotpPanel() {
       title={title}
       action={
         !bothSet && (
-          <Button onPress={openSetup}>
+          <Button onClick={openSetup}>
             <Trans id="security.setup.open">
               Set up password and authenticator
             </Trans>
@@ -514,7 +514,7 @@ function SetupForm({
         <Modal.Footer className="mt-5">
           {step === "password" ? (
             <>
-              <Button variant="secondary" onPress={onCancel}>
+              <Button onClick={onCancel} variant="outline">
                 <Trans id="security.cancel">Cancel</Trans>
               </Button>
               <form.SubmitButton>
@@ -524,9 +524,9 @@ function SetupForm({
           ) : (
             <>
               <Button
-                variant="secondary"
-                isDisabled={submit.isPending}
-                onPress={() => go("password")}
+                disabled={submit.isPending}
+                onClick={() => go("password")}
+                variant="outline"
               >
                 <Trans id="security.setup.back">Back</Trans>
               </Button>
@@ -624,9 +624,9 @@ function PasswordRow({
         canChange && (
           <Button
             ref={buttonRef}
+            onClick={() => setOpen(true)}
+            variant="outline"
             size="sm"
-            variant="secondary"
-            onPress={() => setOpen(true)}
           >
             <Trans id="security.password.change.open">Change</Trans>
           </Button>
@@ -701,9 +701,9 @@ function PasswordRow({
                   </Modal.Body>
                   <Modal.Footer className="mt-5">
                     <Button
-                      variant="secondary"
-                      isDisabled={change.isPending}
-                      onPress={() => setOpen(false)}
+                      disabled={change.isPending}
+                      onClick={() => setOpen(false)}
+                      variant="outline"
                     >
                       <Trans id="security.cancel">Cancel</Trans>
                     </Button>
@@ -746,7 +746,7 @@ function AuthenticatorRow({
       details={[<FactorState key="state" isSet={isSet} />]}
       actions={
         canReplace && (
-          <Button size="sm" variant="secondary" onPress={() => setOpen(true)}>
+          <Button onClick={() => setOpen(true)} variant="outline" size="sm">
             <Trans id="security.totp.replace.open">Replace</Trans>
           </Button>
         )
@@ -858,9 +858,9 @@ function ReplaceTotpForm({
         </Modal.Body>
         <Modal.Footer className="mt-5">
           <Button
-            variant="secondary"
-            isDisabled={replace.isPending}
-            onPress={onCancel}
+            disabled={replace.isPending}
+            onClick={onCancel}
+            variant="outline"
           >
             <Trans id="security.cancel">Cancel</Trans>
           </Button>
@@ -923,10 +923,10 @@ function RecoveryCodesRow({
       actions={
         canRegenerate && (
           <Button
+            pending={regenerate.isPending}
+            onClick={() => setConfirming(true)}
+            variant="outline"
             size="sm"
-            variant="secondary"
-            isPending={regenerate.isPending}
-            onPress={() => setConfirming(true)}
           >
             <Trans id="security.recovery.regenerate">Regenerate</Trans>
           </Button>
@@ -977,11 +977,11 @@ function RevokeRow({ passkeyCount }: { passkeyCount: number }) {
 
   const button = (
     <Button
+      disabled={lastWay}
+      pending={revoke.isPending}
+      onClick={() => setConfirming(true)}
+      variant="destructive-outline"
       size="sm"
-      variant="danger-soft"
-      isDisabled={lastWay}
-      isPending={revoke.isPending}
-      onPress={() => setConfirming(true)}
     >
       <Trans id="security.revoke.action">Turn off</Trans>
     </Button>

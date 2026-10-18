@@ -291,10 +291,10 @@ function SectionError({
           {t(describeError(error))}
         </SurfaceAlert.Description>
         <Button
-          className="mt-2 w-fit"
+          onClick={onRetry}
+          variant="destructive"
           size="sm"
-          variant="danger"
-          onPress={onRetry}
+          className="mt-2 w-fit"
         >
           <Trans id="section.retry">Try again</Trans>
         </Button>

@@ -196,10 +196,10 @@ function EffectiveConfigRow({ slug }: { slug: string }) {
       ]}
       actions={
         <Button
+          pending={refresh.isPending && !open}
+          onClick={() => void read()}
+          variant="outline"
           size="sm"
-          variant="secondary"
-          isPending={refresh.isPending && !open}
-          onPress={() => void read()}
         >
           <Trans id="admin.federation.diagnostics.read">
             Read configuration
@@ -213,13 +213,13 @@ function EffectiveConfigRow({ slug }: { slug: string }) {
         title={title}
         footer={
           <>
-            <Button variant="secondary" onPress={() => setOpen(false)}>
+            <Button onClick={() => setOpen(false)} variant="outline">
               <Trans id="admin.federation.diagnostics.close">Close</Trans>
             </Button>
             <Button
-              variant="secondary"
-              isPending={refresh.isPending}
-              onPress={() => void read()}
+              pending={refresh.isPending}
+              onClick={() => void read()}
+              variant="outline"
             >
               <RefreshCw size={16} aria-hidden="true" />
               <Trans id="admin.federation.diagnostics.reread">Read again</Trans>
@@ -457,10 +457,10 @@ function ConnectionTestRow({
       ]}
       actions={
         <Button
+          pending={start.isPending && runId === undefined}
+          onClick={begin}
+          variant="outline"
           size="sm"
-          variant="secondary"
-          isPending={start.isPending && runId === undefined}
-          onPress={begin}
         >
           <ExternalLink size={16} aria-hidden="true" />
           <Trans id="admin.federation.diagnostics.start">Start a test</Trans>
@@ -473,14 +473,10 @@ function ConnectionTestRow({
         title={title}
         footer={
           <>
-            <Button variant="secondary" onPress={close}>
+            <Button onClick={close} variant="outline">
               <Trans id="admin.federation.diagnostics.close">Close</Trans>
             </Button>
-            <Button
-              variant="secondary"
-              isPending={start.isPending}
-              onPress={begin}
-            >
+            <Button pending={start.isPending} onClick={begin} variant="outline">
               <ExternalLink size={16} aria-hidden="true" />
               <Trans id="admin.federation.diagnostics.restart">
                 Test again
@@ -505,11 +501,11 @@ function ConnectionTestRow({
                 </Trans>
               </SurfaceAlert.Title>
               <Button
-                className="mt-2 w-fit"
-                size="sm"
+                pending={result.isFetching}
+                onClick={() => void result.refetch()}
                 variant="outline"
-                isPending={result.isFetching}
-                onPress={() => void result.refetch()}
+                size="sm"
+                className="mt-2 w-fit"
               >
                 <RefreshCw size={16} aria-hidden="true" />
                 <Trans id="admin.federation.diagnostics.check-again">

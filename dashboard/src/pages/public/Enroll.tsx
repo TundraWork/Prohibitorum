@@ -252,13 +252,13 @@ export function EnrollPage() {
                       {allowsPasswordTotp && (
                         <Button
                           type={supported ? "button" : "submit"}
-                          variant="secondary"
-                          fullWidth
-                          onPress={
+                          onClick={
                             supported
                               ? () => void choosePasswordTotp()
                               : undefined
                           }
+                          variant="outline"
+                          className="w-full"
                         >
                           <Trans id="enroll.use_password_totp">
                             Use a password and an authenticator instead
@@ -266,15 +266,15 @@ export function EnrollPage() {
                         </Button>
                       )}
                       <Button
-                        variant="secondary"
-                        fullWidth
-                        isDisabled={busy}
-                        onPress={() => {
+                        disabled={busy}
+                        onClick={() => {
                           window.location.href = enrollmentAddress(
                             token,
                             verified.providerSlug,
                           );
                         }}
+                        variant="outline"
+                        className="w-full"
                       >
                         <Trans id="enroll.change_profile">
                           Use a different profile
@@ -304,14 +304,14 @@ export function EnrollPage() {
                       {allowsPasswordTotp && (
                         <Button
                           type={supported ? "button" : "submit"}
-                          variant="secondary"
-                          fullWidth
-                          isDisabled={busy}
-                          onPress={
+                          disabled={busy}
+                          onClick={
                             supported
                               ? () => void choosePasswordTotp()
                               : undefined
                           }
+                          variant="outline"
+                          className="w-full"
                         >
                           <Trans id="enroll.use_password_totp">
                             Use a password and an authenticator instead

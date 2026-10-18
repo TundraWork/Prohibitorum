@@ -49,7 +49,7 @@ export function UnsavedBar(): React.ReactElement | null {
     >
       <span aria-hidden="true" className="size-1.5 rounded-full bg-warning" />
       <Trans id="unsaved-bar.message">Unsaved changes in {title}</Trans>
-      <Button variant="ghost" size="sm" onPress={jump}>
+      <Button onClick={jump} variant="ghost" size="sm">
         <Trans id="unsaved-bar.jump">Jump to it</Trans>
       </Button>
     </div>

@@ -825,14 +825,14 @@ function EnrollmentBlock({ accountId }: { accountId: number }) {
       ]}
       actions={
         <Button
-          size="sm"
-          variant="secondary"
-          isPending={reissue.isPending}
-          onPress={() => {
+          pending={reissue.isPending}
+          onClick={() => {
             reissue.mutate(accountId, {
               onSuccess: (result) => setLink(result),
             });
           }}
+          variant="outline"
+          size="sm"
         >
           <Trans id="admin.user.enrollment.action">
             Issue a registration link

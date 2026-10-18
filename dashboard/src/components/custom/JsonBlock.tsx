@@ -121,11 +121,10 @@ export function JsonBlock({ json }: { json: string }) {
           <Tooltip open={hovered || copied} onOpenChange={setHovered}>
             <TooltipTrigger delay={0} render={<span className="inline-flex" />}>
               <Button
-                isIconOnly
-                size="sm"
-                variant="ghost"
                 aria-label={label}
-                onPress={copy}
+                onClick={copy}
+                variant="ghost"
+                size="icon-sm"
               >
                 {copied ? (
                   <Check size={14} aria-hidden="true" />

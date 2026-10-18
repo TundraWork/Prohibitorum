@@ -113,7 +113,7 @@ export function AdminIdentityProviders() {
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-4">
         <Button
-          onPress={() => void navigate({ to: "/admin/identity-providers/new" })}
+          onClick={() => void navigate({ to: "/admin/identity-providers/new" })}
         >
           <Trans id="admin.federation.create">Add a provider</Trans>
         </Button>

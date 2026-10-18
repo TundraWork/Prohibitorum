@@ -220,7 +220,7 @@ export function LoginPreview({
                 <p className="text-xl font-semibold">
                   <Trans id="settings.sign-in.preview.sign_in">Sign in</Trans>
                 </p>
-                <Button fullWidth>
+                <Button className="w-full">
                   <Trans id="settings.sign-in.preview.passkey">
                     Sign in with a passkey
                   </Trans>
@@ -241,7 +241,7 @@ export function LoginPreview({
                   </Label>
                   <Input variant="secondary" type="password" />
                 </TextField>
-                <Button fullWidth variant="secondary">
+                <Button variant="outline" className="w-full">
                   <Trans id="settings.sign-in.preview.continue">
                     Continue with password
                   </Trans>

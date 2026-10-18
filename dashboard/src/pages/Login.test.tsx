@@ -904,12 +904,9 @@ describe("the first step", () => {
     const passkey = await screen.findByRole("button", {
       name: "Sign in with a passkey",
     });
-    expect(passkey).toHaveAttribute("data-variant", "primary");
+    expect(passkey).toHaveClass("bg-primary");
     expect(passkey).toBeEnabled();
-    expect(button("Continue with password")).toHaveAttribute(
-      "data-variant",
-      "secondary",
-    );
+    expect(button("Continue with password")).toHaveClass("border-input");
     expect(
       screen.queryByText(/Passkeys are unavailable/),
     ).not.toBeInTheDocument();
@@ -920,12 +917,9 @@ describe("the first step", () => {
     const passkey = await screen.findByRole("button", {
       name: "Sign in with a passkey",
     });
-    expect(passkey).toHaveAttribute("data-variant", "secondary");
+    expect(passkey).toHaveClass("border-input");
     expect(passkey).toBeDisabled();
-    expect(button("Continue with password")).toHaveAttribute(
-      "data-variant",
-      "primary",
-    );
+    expect(button("Continue with password")).toHaveClass("bg-primary");
     expect(screen.getByText(/Passkeys are unavailable/)).toBeVisible();
   });
 

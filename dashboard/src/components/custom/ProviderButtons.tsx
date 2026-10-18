@@ -53,18 +53,18 @@ export function ProviderButtons({
         return (
           <Button
             key={provider.slug}
-            variant="secondary"
-            fullWidth
-            isPending={leaving === provider.slug}
-            isDisabled={
+            pending={leaving === provider.slug}
+            disabled={
               isDisabled || (leaving !== undefined && leaving !== provider.slug)
             }
-            onPress={() => {
+            onClick={() => {
               if (leaving !== undefined || isDisabled) return;
               setLeaving(provider.slug);
               onLeavingChange?.(true);
               loadDocument(href(provider));
             }}
+            variant="outline"
+            className="w-full"
           >
             {/* The spinner takes the icon's place while the page leaves. */}
             {leaving !== provider.slug && (

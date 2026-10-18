@@ -77,19 +77,19 @@ export function WelcomePage() {
       actions={
         <PublicStep.Actions>
           <Button
-            fullWidth
-            isPending={answer === "confirm"}
-            isDisabled={answer === "decline"}
-            onPress={() => void answerWith("confirm")}
+            pending={answer === "confirm"}
+            disabled={answer === "decline"}
+            onClick={() => void answerWith("confirm")}
+            className="w-full"
           >
             <Trans id="welcome.continue">Continue</Trans>
           </Button>
           <Button
-            variant="tertiary"
-            fullWidth
-            isPending={answer === "decline"}
-            isDisabled={answer === "confirm"}
-            onPress={() => void answerWith("decline")}
+            pending={answer === "decline"}
+            disabled={answer === "confirm"}
+            onClick={() => void answerWith("decline")}
+            variant="ghost"
+            className="w-full"
           >
             <Trans id="welcome.decline">This isn't me</Trans>
           </Button>

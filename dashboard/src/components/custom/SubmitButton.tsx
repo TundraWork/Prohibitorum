@@ -14,23 +14,23 @@ import { useFormContext } from "@/forms/context";
  * submitted, and the button says so beforehand: the warning colour, and an icon
  * in front of the label, so the state is not carried by colour alone.
  *
- * `isDisabled` and `variant="secondary"` are for a form that shares its surface
+ * `disabled` and `variant="outline"` are for a form that shares its surface
  * with another way to finish the same step: while that other way is in flight
  * this one cannot start, and when the other way is the one to reach for first,
- * this one steps back to the secondary style.
+ * this one steps back to the outline style.
  */
 export function SubmitButton({
   children,
   fullWidth = false,
   tone = "default",
-  isDisabled = false,
-  variant = "primary",
+  disabled = false,
+  variant = "default",
 }: {
   children: ReactNode;
   fullWidth?: boolean;
   tone?: "default" | "warning";
-  isDisabled?: boolean;
-  variant?: "primary" | "secondary";
+  disabled?: boolean;
+  variant?: "default" | "outline";
 }) {
   const form = useFormContext();
   const submitting = useStore(form.store, (state) => state.isSubmitting);
@@ -38,16 +38,10 @@ export function SubmitButton({
     <div className="flex flex-wrap gap-2">
       <Button
         type="submit"
-        fullWidth={fullWidth}
-        isPending={submitting}
-        isDisabled={isDisabled}
-        variant={
-          tone === "warning"
-            ? "warning"
-            : variant === "secondary"
-              ? "secondary"
-              : undefined
-        }
+        className={fullWidth ? "w-full" : undefined}
+        pending={submitting}
+        disabled={disabled}
+        variant={tone === "warning" ? "default" : variant}
       >
         {submitting ? (
           <Trans id="forms.submitting">Submitting…</Trans>

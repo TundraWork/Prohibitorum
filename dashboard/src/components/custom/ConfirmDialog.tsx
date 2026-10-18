@@ -74,16 +74,16 @@ export function ConfirmDialog({
         </AlertDialogHeader>
         <AlertDialogFooter>
           <Button
-            variant="tertiary"
-            isDisabled={isPending}
-            onPress={() => onOpenChange(false)}
+            disabled={isPending}
+            onClick={() => onOpenChange(false)}
+            variant="ghost"
           >
             {cancelLabel ?? <Trans id="confirm.cancel">Cancel</Trans>}
           </Button>
           <Button
-            variant={status === "danger" ? "danger" : "primary"}
-            isPending={isPending}
-            onPress={onConfirm}
+            pending={isPending}
+            onClick={onConfirm}
+            variant={status === "danger" ? "destructive" : "default"}
           >
             {confirmLabel}
           </Button>

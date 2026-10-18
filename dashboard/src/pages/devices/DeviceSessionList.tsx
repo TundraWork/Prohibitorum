@@ -55,15 +55,14 @@ export function DeviceSessionList({
   const endSession = (session: Session) => {
     const button = (
       <Button
-        isIconOnly
-        size="sm"
-        variant="danger-soft"
         aria-label={t({
           id: "devices.sessions.end",
           message: "End session",
         })}
-        isDisabled={session.isCurrent}
-        onPress={() => setTarget(session)}
+        disabled={session.isCurrent}
+        onClick={() => setTarget(session)}
+        variant="destructive-outline"
+        size="icon-sm"
       >
         <LogOut size={16} aria-hidden="true" />
       </Button>

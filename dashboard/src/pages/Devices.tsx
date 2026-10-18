@@ -50,7 +50,7 @@ export function Devices({ code }: { code?: string }) {
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-4">
         <Button
-          onPress={() => {
+          onClick={() => {
             setAttempt((count) => count + 1);
             setPairing(true);
           }}

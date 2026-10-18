@@ -151,7 +151,7 @@ export function AdminLogs() {
         )}
 
         <Popover>
-          <Button variant="secondary">
+          <Button variant="outline">
             <SlidersHorizontal size={16} aria-hidden="true" />
             <Trans id="admin.logs.filter">Filter</Trans>
             {count > 0 && (
@@ -168,11 +168,11 @@ export function AdminLogs() {
         </Popover>
 
         <Button
-          isIconOnly
-          variant="tertiary"
-          isPending={list.loading}
+          pending={list.loading}
           aria-label={t({ id: "admin.logs.refresh", message: "Refresh" })}
-          onPress={refresh}
+          onClick={refresh}
+          variant="ghost"
+          size="icon"
         >
           <RotateCw size={16} aria-hidden="true" />
         </Button>
@@ -589,12 +589,12 @@ function AuditFilters({
 
       <div className="flex justify-end">
         <Button
-          size="sm"
-          variant="tertiary"
-          isDisabled={activeFilterCount(search) === 0}
-          onPress={() =>
+          disabled={activeFilterCount(search) === 0}
+          onClick={() =>
             onChange({ factor: "", event: "", account: undefined })
           }
+          variant="ghost"
+          size="sm"
         >
           <Trans id="admin.logs.filter.clear">Clear filters</Trans>
         </Button>

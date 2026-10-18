@@ -238,14 +238,14 @@ function SudoStep({
 
   const passkeyButton = (
     <Button
-      variant={passkeyLeads ? undefined : "secondary"}
-      fullWidth
       autoFocus={passkeyLeads}
-      isPending={passkeyBusy}
-      isDisabled={!passkeySupported || busy}
-      onPress={() => {
+      pending={passkeyBusy}
+      disabled={!passkeySupported || busy}
+      onClick={() => {
         void passkey();
       }}
+      variant={passkeyLeads ? undefined : "outline"}
+      className="w-full"
     >
       <Fingerprint size={16} aria-hidden="true" />
       <Trans id="sudo.use-passkey">Verify with a passkey</Trans>
@@ -349,8 +349,8 @@ function SudoStep({
           </form.AppField>
           <form.SubmitButton
             fullWidth
-            isDisabled={passkeyBusy}
-            variant={passkeyLeads ? "secondary" : "primary"}
+            disabled={passkeyBusy}
+            variant={passkeyLeads ? "outline" : "default"}
           >
             <Trans id="sudo.submit">Verify and continue</Trans>
           </form.SubmitButton>

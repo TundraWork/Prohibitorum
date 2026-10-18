@@ -43,9 +43,9 @@ describe("ConfirmDialog", () => {
     );
     let dialog = screen.getByRole("alertdialog", { name: "Retire this key?" });
     expect(dialog).toHaveAttribute("data-tone", "danger");
-    expect(
-      within(dialog).getByRole("button", { name: "Retire" }),
-    ).toHaveAttribute("data-variant", "danger");
+    expect(within(dialog).getByRole("button", { name: "Retire" })).toHaveClass(
+      "bg-destructive",
+    );
     unmount();
 
     const warning = render(
@@ -53,9 +53,9 @@ describe("ConfirmDialog", () => {
     );
     dialog = screen.getByRole("alertdialog", { name: "Retire this key?" });
     expect(dialog).toHaveAttribute("data-tone", "warning");
-    expect(
-      within(dialog).getByRole("button", { name: "Retire" }),
-    ).toHaveAttribute("data-variant", "primary");
+    expect(within(dialog).getByRole("button", { name: "Retire" })).toHaveClass(
+      "bg-primary",
+    );
     warning.unmount();
 
     render(<Harness status="accent" onConfirm={() => undefined} />);

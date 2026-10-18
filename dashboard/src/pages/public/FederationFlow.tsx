@@ -84,12 +84,12 @@ export function FederationFlowPage() {
         actions={
           <PublicStep.Actions>
             <Button
-              fullWidth
-              isPending={leaving}
-              onPress={() => {
+              pending={leaving}
+              onClick={() => {
                 setLeaving(true);
                 followRedirect(router, verified).catch(() => setLeaving(false));
               }}
+              className="w-full"
             >
               <Trans id="federation_flow.continue">Continue</Trans>
             </Button>

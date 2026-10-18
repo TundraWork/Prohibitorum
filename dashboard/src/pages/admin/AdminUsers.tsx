@@ -73,7 +73,7 @@ export function AdminUsers() {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-end gap-2">
-        <Button onPress={() => void navigate({ to: "/admin/invitations/new" })}>
+        <Button onClick={() => void navigate({ to: "/admin/invitations/new" })}>
           <Trans id="admin.users.invite">Invite a user</Trans>
         </Button>
         <SearchField
@@ -93,7 +93,7 @@ export function AdminUsers() {
           </SearchField.Group>
         </SearchField>
         <Popover>
-          <Button variant="secondary">
+          <Button variant="outline">
             <SlidersHorizontal size={16} aria-hidden="true" />
             <Trans id="admin.users.filter.advanced">Identity filter</Trans>
             {filters.provider !== "" && (
@@ -204,7 +204,7 @@ function userColumns(open: (id: number) => void): TableColumn<Account>[] {
       id: "actions",
       header: <Trans id="admin.column.actions">Actions</Trans>,
       cell: (account) => (
-        <Button size="sm" variant="secondary" onPress={() => open(account.id)}>
+        <Button onClick={() => open(account.id)} variant="outline" size="sm">
           <Trans id="admin.users.edit">Edit</Trans>
         </Button>
       ),
@@ -388,12 +388,12 @@ function AdvancedIdentityFilter({
 
       <div className="flex justify-end">
         <Button
-          size="sm"
-          variant="tertiary"
-          isDisabled={filters.provider === ""}
-          onPress={() =>
+          disabled={filters.provider === ""}
+          onClick={() =>
             onChange({ provider: "", field: "", value: "", match: "" })
           }
+          variant="ghost"
+          size="sm"
         >
           <Trans id="admin.users.filter.clear">Clear the filter</Trans>
         </Button>

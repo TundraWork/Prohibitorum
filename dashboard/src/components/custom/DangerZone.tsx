@@ -50,18 +50,18 @@ export function DangerZone({
   disabledReason?: ReactNode;
   isPending?: boolean;
   /** `sm` inside a list row, beside the row's other small controls. */
-  size?: "sm" | "md";
+  size?: "sm" | "default";
   onConfirm: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const trigger = (
     <Button
-      size={size}
-      variant="danger-soft"
       aria-label={accessibleLabel}
-      isDisabled={disabled || isPending}
-      isPending={isPending}
-      onPress={() => setOpen(true)}
+      disabled={disabled || isPending}
+      pending={isPending}
+      onClick={() => setOpen(true)}
+      variant="destructive-outline"
+      size={size}
     >
       {label}
     </Button>

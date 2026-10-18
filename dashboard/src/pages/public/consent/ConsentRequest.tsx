@@ -92,19 +92,19 @@ export function ConsentRequest({
       actions={
         <PublicStep.Actions layout="decision">
           <Button
-            variant="secondary"
-            fullWidth
-            isPending={pending === "decline"}
-            isDisabled={busy && pending !== "decline"}
-            onPress={() => void decide("decline")}
+            pending={pending === "decline"}
+            disabled={busy && pending !== "decline"}
+            onClick={() => void decide("decline")}
+            variant="outline"
+            className="w-full"
           >
             {decline}
           </Button>
           <Button
-            fullWidth
-            isPending={pending === "approve"}
-            isDisabled={busy && pending !== "approve"}
-            onPress={() => void decide("approve")}
+            pending={pending === "approve"}
+            disabled={busy && pending !== "approve"}
+            onClick={() => void decide("approve")}
+            className="w-full"
           >
             {approve}
           </Button>

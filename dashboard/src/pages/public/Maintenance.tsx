@@ -61,9 +61,8 @@ export function MaintenancePage() {
       actions={
         <PublicStep.Actions>
           <Button
-            fullWidth
-            isPending={retrying}
-            onPress={async () => {
+            pending={retrying}
+            onClick={async () => {
               setRetrying(true);
               try {
                 await refetch();
@@ -71,23 +70,24 @@ export function MaintenancePage() {
                 setRetrying(false);
               }
             }}
+            className="w-full"
           >
             <Trans id="maintenance.retry">Try again</Trans>
           </Button>
           {session ? (
             <Button
-              variant="tertiary"
-              fullWidth
-              isPending={signOut.isPending}
-              onPress={() => signOut.mutate()}
+              pending={signOut.isPending}
+              onClick={() => signOut.mutate()}
+              variant="ghost"
+              className="w-full"
             >
               <Trans id="console.logout">Sign out</Trans>
             </Button>
           ) : (
             <Button
-              variant="tertiary"
-              fullWidth
-              onPress={() => navigate({ to: "/login", search: { admin: "1" } })}
+              onClick={() => navigate({ to: "/login", search: { admin: "1" } })}
+              variant="ghost"
+              className="w-full"
             >
               <Trans id="maintenance.admin_sign_in">
                 Administrator sign-in

@@ -110,19 +110,18 @@ export function AdminSamlApplications() {
       header: "",
       cell: (app) => (
         <Button
-          isIconOnly
-          size="sm"
-          variant="ghost"
           aria-label={i18n._({
             ...openAppMessage,
             values: { name: app.displayName || app.entityId },
           })}
-          onPress={() =>
+          onClick={() =>
             void navigate({
               to: "/admin/saml-applications/$id",
               params: { id: String(app.id) },
             })
           }
+          variant="ghost"
+          size="icon-sm"
         >
           <Pencil size={16} aria-hidden="true" />
         </Button>
@@ -136,7 +135,7 @@ export function AdminSamlApplications() {
       {isAdmin && (
         <div className="flex flex-wrap items-center gap-4">
           <Button
-            onPress={() =>
+            onClick={() =>
               void navigate({ to: "/admin/saml-applications/new" })
             }
           >

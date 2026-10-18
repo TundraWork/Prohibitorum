@@ -70,15 +70,14 @@ export function PasskeysPanel() {
   const actions = (credential: Credential) => {
     const removeButton = (
       <Button
-        isIconOnly
-        size="sm"
-        variant="danger-soft"
         aria-label={t({
           id: "security.passkeys.delete",
           message: "Remove",
         })}
-        isDisabled={lastOne}
-        onPress={() => setDeleting(credential)}
+        disabled={lastOne}
+        onClick={() => setDeleting(credential)}
+        variant="destructive-outline"
+        size="icon-sm"
       >
         <Trash2 size={16} aria-hidden="true" />
       </Button>
@@ -86,19 +85,18 @@ export function PasskeysPanel() {
     return (
       <>
         <Button
-          isIconOnly
-          size="sm"
-          variant="tertiary"
           aria-label={t({
             id: "security.passkeys.rename",
             message: "Rename",
           })}
-          onPress={() =>
+          onClick={() =>
             setRenaming({
               credential,
               nickname: credential.nickname ?? "",
             })
           }
+          variant="ghost"
+          size="icon-sm"
         >
           <Pencil size={16} aria-hidden="true" />
         </Button>
@@ -125,7 +123,7 @@ export function PasskeysPanel() {
       <Section
         title={<Trans id="security.section.passkeys">Passkeys</Trans>}
         action={
-          <Button isPending={add.isPending} onPress={startAdd}>
+          <Button pending={add.isPending} onClick={startAdd}>
             <Trans id="security.passkeys.add">Add a passkey</Trans>
           </Button>
         }
@@ -277,15 +275,15 @@ export function PasskeysPanel() {
               </AlertDialog.Body>
               <AlertDialog.Footer>
                 <Button
-                  variant="secondary"
-                  onPress={() => setRenaming(null)}
-                  isDisabled={rename.isPending}
+                  onClick={() => setRenaming(null)}
+                  disabled={rename.isPending}
+                  variant="outline"
                 >
                   <Trans id="security.cancel">Cancel</Trans>
                 </Button>
                 <Button
-                  isPending={rename.isPending}
-                  onPress={() => {
+                  pending={rename.isPending}
+                  onClick={() => {
                     if (!renaming) return;
                     rename.mutate(
                       {

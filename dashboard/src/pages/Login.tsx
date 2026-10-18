@@ -272,7 +272,7 @@ function PasswordForm({
 }: {
   control: FlowControl;
   username: string;
-  submitVariant: "primary" | "secondary";
+  submitVariant: "default" | "outline";
   /** "Keep me signed in", sent with /password/begin for step 2 to honor. */
   remember: boolean;
   onSuccess: (username: string, token: string) => void | Promise<void>;
@@ -565,10 +565,10 @@ function FactorForm({
           {mode === "totp" && onSwitch && (
             <Button
               type="button"
+              disabled={control.busy}
+              onClick={onSwitch}
               variant="ghost"
-              fullWidth
-              isDisabled={control.busy}
-              onPress={onSwitch}
+              className="w-full"
             >
               <Trans id="login.use_recovery">Use a recovery code</Trans>
             </Button>
@@ -606,11 +606,9 @@ export function PasswordPage() {
   return (
     <LoginShell step="password" busy={flow.control.busy} failure={flow.failure}>
       <Button
-        variant={supported ? "primary" : "secondary"}
-        fullWidth
-        isPending={passkey.isPending}
-        isDisabled={!supported || (flow.control.busy && !passkey.isPending)}
-        onPress={() => {
+        pending={passkey.isPending}
+        disabled={!supported || (flow.control.busy && !passkey.isPending)}
+        onClick={() => {
           if (!flow.control.acquire()) return;
           autofill.pause();
           void (async () => {
@@ -627,6 +625,8 @@ export function PasswordPage() {
             }
           })();
         }}
+        variant={supported ? "default" : "outline"}
+        className="w-full"
       >
         <Fingerprint size={16} aria-hidden="true" />
         <Trans id="login.passkey">Sign in with a passkey</Trans>
@@ -643,7 +643,7 @@ export function PasswordPage() {
       <PasswordForm
         control={flow.control}
         username={username ?? ""}
-        submitVariant={supported ? "secondary" : "primary"}
+        submitVariant={supported ? "outline" : "default"}
         remember={remember}
         onSuccess={async (username, token) => {
           flow.setFailure(undefined);
@@ -715,15 +715,15 @@ function OtherSignIns({
       <div className="flex flex-col gap-2">
         {pairing && (
           <Button
-            variant="secondary"
-            fullWidth
-            isDisabled={busy}
-            onPress={() =>
+            disabled={busy}
+            onClick={() =>
               void navigate({
                 to: "/pair",
                 search: returnTo === undefined ? {} : { return_to: returnTo },
               })
             }
+            variant="outline"
+            className="w-full"
           >
             <MonitorSmartphone size={16} aria-hidden="true" />
             <Trans id="login.other_device">Sign in with another device</Trans>

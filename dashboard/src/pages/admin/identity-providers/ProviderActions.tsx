@@ -28,14 +28,13 @@ export function ProviderActions({
   const { i18n } = useLingui();
   return (
     <Button
-      isIconOnly
-      size="sm"
-      variant="ghost"
       aria-label={i18n._({
         ...openProviderMessage,
         values: { name: displayName || slug },
       })}
-      onPress={onEdit}
+      onClick={onEdit}
+      variant="ghost"
+      size="icon-sm"
     >
       <Pencil size={16} aria-hidden="true" />
     </Button>

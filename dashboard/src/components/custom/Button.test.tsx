@@ -1,53 +1,44 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import {
-  Dialog,
-  DialogTrigger,
-  Menu,
-  MenuItem,
-  MenuTrigger,
-  Popover,
-} from "react-aria-components";
 import { describe, expect, it, vi } from "vitest";
 import { Button } from "@/components/custom/Button";
 
 const spinner = () => document.querySelector('[data-slot="spinner"]');
 
-const variants = [
-  "primary",
-  "secondary",
-  "tertiary",
-  "ghost",
-  "outline",
-  "danger",
-  "danger-soft",
-  "warning",
-] as const;
-
 describe("Button", () => {
-  it.each(variants)("maps the %s variant", (variant) => {
-    render(<Button variant={variant}>Go</Button>);
-    expect(screen.getByRole("button", { name: "Go" })).toHaveAttribute(
-      "data-variant",
-      variant,
-    );
-  });
-
-  it("defaults to the primary variant and md size", () => {
-    render(<Button>Go</Button>);
-    const button = screen.getByRole("button", { name: "Go" });
-    expect(button).toHaveAttribute("data-variant", "primary");
-    expect(button).toHaveAttribute("data-size", "md");
-  });
-
   it("draws no spinner while idle", () => {
     render(<Button>Save</Button>);
     expect(spinner()).toBeNull();
     expect(screen.getByRole("button")).not.toHaveAttribute("aria-busy");
   });
 
+  it("fires onClick on click, Enter and Space", async () => {
+    const onClick = vi.fn();
+    const user = userEvent.setup();
+    render(<Button onClick={onClick}>Go</Button>);
+    const button = screen.getByRole("button", { name: "Go" });
+    await user.click(button);
+    button.focus();
+    await user.keyboard("{Enter}");
+    await user.keyboard(" ");
+    expect(onClick).toHaveBeenCalledTimes(3);
+  });
+
+  it("is natively disabled and ignores clicks when disabled", async () => {
+    const onClick = vi.fn();
+    render(
+      <Button disabled onClick={onClick}>
+        Go
+      </Button>,
+    );
+    const button = screen.getByRole("button", { name: "Go" });
+    expect(button).toBeDisabled();
+    await userEvent.click(button);
+    expect(onClick).not.toHaveBeenCalled();
+  });
+
   it("keeps the label beside the spinner while pending", () => {
-    render(<Button isPending>Save</Button>);
+    render(<Button pending>Save</Button>);
     const button = screen.getByRole("button", { name: "Save" });
     expect(button).toHaveAttribute("aria-busy", "true");
     expect(button).toHaveAttribute("aria-disabled", "true");
@@ -56,9 +47,9 @@ describe("Button", () => {
     expect(button).toHaveTextContent("Save");
   });
 
-  it("replaces the icon of an icon-only button while pending", () => {
+  it("replaces the icon of an icon button with the spinner while pending", () => {
     render(
-      <Button isPending isIconOnly aria-label="Sign out">
+      <Button pending size="icon-sm" aria-label="Sign out">
         <svg data-testid="icon" />
       </Button>,
     );
@@ -70,86 +61,78 @@ describe("Button", () => {
     );
   });
 
-  it("disables and does not fire onPress when isDisabled", async () => {
-    const onPress = vi.fn();
+  it("shows the icon of an idle icon button", () => {
     render(
-      <Button isDisabled onPress={onPress}>
-        Go
+      <Button size="icon-sm" aria-label="Sign out">
+        <svg data-testid="icon" />
       </Button>,
     );
-    const button = screen.getByRole("button", { name: "Go" });
-    expect(button).toBeDisabled();
-    await userEvent.click(button);
-    expect(onPress).not.toHaveBeenCalled();
+    expect(spinner()).toBeNull();
+    expect(screen.getByTestId("icon")).toBeTruthy();
   });
 
-  it("does not fire onPress while pending", async () => {
-    const onPress = vi.fn();
+  it("ignores clicks while pending", async () => {
+    const onClick = vi.fn();
     render(
-      <Button isPending onPress={onPress}>
+      <Button pending onClick={onClick}>
         Go
       </Button>,
     );
     await userEvent.click(screen.getByRole("button"));
-    expect(onPress).not.toHaveBeenCalled();
+    expect(onClick).not.toHaveBeenCalled();
+  });
+
+  it("ignores Enter and Space while pending", async () => {
+    const onClick = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <Button pending onClick={onClick}>
+        Go
+      </Button>,
+    );
+    screen.getByRole("button").focus();
+    await user.keyboard("{Enter}");
+    await user.keyboard(" ");
+    expect(onClick).not.toHaveBeenCalled();
+  });
+
+  it("does not submit its form while pending", async () => {
+    const onSubmit = vi.fn((event: React.FormEvent) => event.preventDefault());
+    render(
+      <form onSubmit={onSubmit}>
+        <Button pending type="submit">
+          Go
+        </Button>
+      </form>,
+    );
+    await userEvent.click(screen.getByRole("button"));
+    expect(onSubmit).not.toHaveBeenCalled();
   });
 
   it("keeps keyboard focus when it becomes pending", () => {
     const { rerender } = render(<Button>Save</Button>);
     const button = screen.getByRole("button", { name: "Save" });
     button.focus();
-    rerender(<Button isPending>Save</Button>);
+    rerender(<Button pending>Save</Button>);
     expect(button).toHaveFocus();
   });
 
-  it("does not fire onPress on Enter while pending", async () => {
-    const onPress = vi.fn();
-    const user = userEvent.setup();
+  it("renders the given element with the button's classes", () => {
     render(
-      <Button isPending onPress={onPress}>
-        Go
-      </Button>,
-    );
-    screen.getByRole("button").focus();
-    await user.keyboard("{Enter}");
-    expect(onPress).not.toHaveBeenCalled();
-  });
-
-  it("fires onPress on click, Enter and Space", async () => {
-    const onPress = vi.fn();
-    const user = userEvent.setup();
-    render(<Button onPress={onPress}>Go</Button>);
-    const button = screen.getByRole("button", { name: "Go" });
-    await user.click(button);
-    button.focus();
-    await user.keyboard("{Enter}");
-    await user.keyboard(" ");
-    expect(onPress).toHaveBeenCalledTimes(3);
-  });
-
-  it("still fires a plain onClick", async () => {
-    const onClick = vi.fn();
-    render(<Button onClick={onClick}>Go</Button>);
-    await userEvent.click(screen.getByRole("button"));
-    expect(onClick).toHaveBeenCalledTimes(1);
-  });
-
-  it("renders the given element with the button's look", () => {
-    render(
-      <Button render={<a href="/x" />} variant="secondary">
+      <Button render={<a href="/x" />} variant="outline">
         Open
       </Button>,
     );
     const link = screen.getByRole("link", { name: "Open" });
     expect(link).toHaveAttribute("href", "/x");
-    expect(link).toHaveAttribute("data-variant", "secondary");
     expect(link).toHaveAttribute("data-slot", "button");
+    expect(link.className).toContain("border-input");
   });
 
   it("marks a rendered element aria-disabled and ignores clicks while pending", async () => {
     const onClick = vi.fn();
     render(
-      <Button render={<a href="/x" />} isPending onClick={onClick}>
+      <Button render={<a href="/x" />} pending onClick={onClick}>
         Open
       </Button>,
     );
@@ -165,9 +148,9 @@ describe("Button", () => {
     expect(ref.current).toBe(screen.getByRole("button"));
   });
 
-  it("fullWidth stretches the button and submit type is preserved", () => {
+  it("merges className and keeps the submit type", () => {
     render(
-      <Button fullWidth type="submit">
+      <Button className="w-full" type="submit">
         Go
       </Button>,
     );
@@ -176,109 +159,11 @@ describe("Button", () => {
     expect(button).toHaveAttribute("type", "submit");
   });
 
-  it("fires onPress and onClick once each for click, Enter and Space", async () => {
-    const onPress = vi.fn();
-    const onClick = vi.fn();
-    const user = userEvent.setup();
-    render(
-      <Button onPress={onPress} onClick={onClick}>
-        Go
-      </Button>,
-    );
-    const button = screen.getByRole("button", { name: "Go" });
-    await user.click(button);
-    expect(onPress).toHaveBeenCalledTimes(1);
-    expect(onClick).toHaveBeenCalledTimes(1);
-    button.focus();
-    await user.keyboard("{Enter}");
-    expect(onPress).toHaveBeenCalledTimes(2);
-    expect(onClick).toHaveBeenCalledTimes(2);
-    await user.keyboard(" ");
-    expect(onPress).toHaveBeenCalledTimes(3);
-    expect(onClick).toHaveBeenCalledTimes(3);
-  });
-
-  describe("inside react-aria triggers", () => {
-    const menu = (button: React.ReactElement) => (
-      <MenuTrigger>
-        {button}
-        <Popover>
-          <Menu>
-            <MenuItem id="a">Alpha</MenuItem>
-          </Menu>
-        </Popover>
-      </MenuTrigger>
-    );
-
-    it("opens a menu on click and marks the trigger expanded", async () => {
-      render(menu(<Button>Menu</Button>));
-      const trigger = screen.getByRole("button", { name: "Menu" });
-      expect(trigger).toHaveAttribute("aria-expanded", "false");
-      await userEvent.click(trigger);
-      expect(
-        await screen.findByRole("menuitem", { name: "Alpha" }),
-      ).toBeTruthy();
-      expect(trigger).toHaveAttribute("aria-expanded", "true");
-    });
-
-    it("opens a menu with ArrowDown on the focused trigger", async () => {
-      const user = userEvent.setup();
-      render(menu(<Button>Menu</Button>));
-      const trigger = screen.getByRole("button", { name: "Menu" });
-      trigger.focus();
-      await user.keyboard("{ArrowDown}");
-      expect(
-        await screen.findByRole("menuitem", { name: "Alpha" }),
-      ).toBeTruthy();
-      expect(trigger).toHaveAttribute("aria-expanded", "true");
-    });
-
-    it("opens a popover and marks the trigger expanded", async () => {
-      render(
-        <DialogTrigger>
-          <Button>Info</Button>
-          <Popover>
-            <Dialog aria-label="Details">Body</Dialog>
-          </Popover>
-        </DialogTrigger>,
-      );
-      const trigger = screen.getByRole("button", { name: "Info" });
-      await userEvent.click(trigger);
-      expect(
-        await screen.findByRole("dialog", { name: "Details" }),
-      ).toBeTruthy();
-      expect(trigger).toHaveAttribute("aria-expanded", "true");
-    });
-
-    it.each([
-      ["disabled", { isDisabled: true }],
-      ["pending", { isPending: true }],
-    ])("does not open a menu when %s", async (_name, props) => {
-      render(menu(<Button {...props}>Menu</Button>));
-      await userEvent.click(screen.getByRole("button", { name: "Menu" }));
-      expect(screen.queryByRole("menuitem")).toBeNull();
-    });
-  });
-
-  it("excludeFromTabOrder renders tabindex -1", () => {
-    render(<Button excludeFromTabOrder>Go</Button>);
+  it("tabIndex -1 keeps the button out of the tab order", () => {
+    render(<Button tabIndex={-1}>Go</Button>);
     expect(screen.getByRole("button", { name: "Go" })).toHaveAttribute(
       "tabindex",
       "-1",
     );
-  });
-
-  it("preventFocusOnPress keeps focus where it was", async () => {
-    const user = userEvent.setup();
-    render(
-      <>
-        <input aria-label="field" />
-        <Button preventFocusOnPress>Go</Button>
-      </>,
-    );
-    const field = screen.getByLabelText("field");
-    field.focus();
-    await user.click(screen.getByRole("button", { name: "Go" }));
-    expect(document.activeElement).toBe(field);
   });
 });

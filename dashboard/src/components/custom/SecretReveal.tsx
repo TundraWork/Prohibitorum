@@ -110,15 +110,15 @@ export function SecretReveal({
       />
       <div className="flex flex-wrap gap-2">
         <Button
-          variant="secondary"
-          onPress={() => {
+          onClick={() => {
             void copyText();
           }}
-          isDisabled={pending}
+          disabled={pending}
+          variant="outline"
         >
           {t(copy.copy)}
         </Button>
-        <Button variant="secondary" onPress={download} isDisabled={pending}>
+        <Button onClick={download} disabled={pending} variant="outline">
           {t(copy.download)}
         </Button>
       </div>
@@ -153,9 +153,9 @@ export function SecretReveal({
   );
   const action = (
     <Button
-      isDisabled={!saved}
-      isPending={pending}
-      onPress={() => {
+      disabled={!saved}
+      pending={pending}
+      onClick={() => {
         if (!saved || continuing.current) return;
         continuing.current = true;
         setPending(true);

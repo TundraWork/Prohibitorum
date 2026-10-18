@@ -67,11 +67,11 @@ export function SamlMetadataSection({ app }: { app: SamlApp }) {
       title={<Trans id="admin.saml-apps.metadata">Metadata</Trans>}
       action={
         <Button
-          variant="secondary"
-          onPress={() => {
+          onClick={() => {
             form.reset();
             setImporting(true);
           }}
+          variant="outline"
         >
           <Trans id="admin.saml-apps.metadata.reingest">
             Re-import metadata
@@ -220,9 +220,9 @@ export function SamlMetadataSection({ app }: { app: SamlApp }) {
                     </form.AppField>
                     <div className="flex flex-wrap justify-end gap-2">
                       <Button
-                        variant="tertiary"
-                        isDisabled={reingest.isPending}
-                        onPress={() => setImporting(false)}
+                        disabled={reingest.isPending}
+                        onClick={() => setImporting(false)}
+                        variant="ghost"
                       >
                         <Trans id="admin.cancel">Cancel</Trans>
                       </Button>

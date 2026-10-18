@@ -57,7 +57,7 @@ export function AdminInvitations() {
       <div className="flex flex-col gap-4">
         <div className="flex flex-wrap items-center gap-4">
           <Button
-            onPress={() => void navigate({ to: "/admin/invitations/new" })}
+            onClick={() => void navigate({ to: "/admin/invitations/new" })}
           >
             <Trans id="admin.invitations.invite">Invite a user</Trans>
           </Button>
@@ -242,14 +242,13 @@ function invitationColumns(
         <>
           <CopyLink url={invitation.url} onCopied={onCopied} />
           <Button
-            isIconOnly
-            size="sm"
-            variant="danger-soft"
             aria-label={t({
               id: "admin.invitations.revoke.action",
               message: "Revoke",
             })}
-            onPress={() => revoke(invitation)}
+            onClick={() => revoke(invitation)}
+            variant="destructive-outline"
+            size="icon-sm"
           >
             <Ban size={16} aria-hidden="true" />
           </Button>
@@ -278,9 +277,6 @@ function CopyLink({
 
   return (
     <Button
-      isIconOnly
-      size="sm"
-      variant="tertiary"
       aria-label={
         copied
           ? t({ id: "admin.invitations.copy.done", message: "Copied." })
@@ -289,7 +285,7 @@ function CopyLink({
               message: "Copy the registration link",
             })
       }
-      onPress={() => {
+      onClick={() => {
         void (async () => {
           try {
             await navigator.clipboard.writeText(url);
@@ -301,6 +297,8 @@ function CopyLink({
           }
         })();
       }}
+      variant="ghost"
+      size="icon-sm"
     >
       {copied ? (
         <Check size={16} aria-hidden="true" />

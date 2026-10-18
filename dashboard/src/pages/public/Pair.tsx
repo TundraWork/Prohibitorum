@@ -199,7 +199,7 @@ function PairingStep({
   if (pairing === undefined ? !starting : expired) {
     actions = (
       <PublicStep.Actions>
-        <Button fullWidth isPending={starting} onPress={onRestart}>
+        <Button pending={starting} onClick={onRestart} className="w-full">
           <Trans id="pair.restart">Get a new code</Trans>
         </Button>
       </PublicStep.Actions>
@@ -208,8 +208,8 @@ function PairingStep({
     actions = (
       <PublicStep.Actions>
         <Button
-          fullWidth
-          onPress={() => pairing && void finish(pairing.pairingId)}
+          onClick={() => pairing && void finish(pairing.pairingId)}
+          className="w-full"
         >
           <Trans id="pair.retry">Try again</Trans>
         </Button>
@@ -366,9 +366,9 @@ function SignedIn({ redirect }: { redirect: string }) {
         <PublicStep.Actions>
           {lapsed ? (
             <Button
-              fullWidth
-              isPending={leaving === "skip"}
-              onPress={() => void leave("skip")}
+              pending={leaving === "skip"}
+              onClick={() => void leave("skip")}
+              className="w-full"
             >
               <Trans id="pair.signed_in.continue">Continue</Trans>
             </Button>
@@ -392,11 +392,11 @@ function SignedIn({ redirect }: { redirect: string }) {
                 <Trans id="pair.signed_in.passkey">Add a passkey</Trans>
               </PasskeyButton>
               <Button
-                variant="tertiary"
-                fullWidth
-                isPending={leaving === "skip"}
-                isDisabled={busy && leaving !== "skip"}
-                onPress={() => void leave("skip")}
+                pending={leaving === "skip"}
+                disabled={busy && leaving !== "skip"}
+                onClick={() => void leave("skip")}
+                variant="ghost"
+                className="w-full"
               >
                 <Trans id="pair.signed_in.skip">Not now</Trans>
               </Button>

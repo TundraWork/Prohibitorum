@@ -83,10 +83,8 @@ export function SamlDangerSection({ app }: { app: SamlApp }) {
             ]}
             actions={
               <Button
-                size="sm"
-                variant={app.disabled ? "secondary" : "danger-soft"}
-                isPending={setDisabled.isPending}
-                onPress={() => {
+                pending={setDisabled.isPending}
+                onClick={() => {
                   // Enabling is the reversible direction and needs no dialog;
                   // disabling locks people out until someone notices, so it
                   // asks first.
@@ -99,6 +97,8 @@ export function SamlDangerSection({ app }: { app: SamlApp }) {
                   }
                   setConfirming("disable");
                 }}
+                variant={app.disabled ? "outline" : "destructive-outline"}
+                size="sm"
               >
                 {app.disabled ? (
                   <Trans id="admin.saml-apps.danger.enable.action">
@@ -138,9 +138,9 @@ export function SamlDangerSection({ app }: { app: SamlApp }) {
             ]}
             actions={
               <Button
+                onClick={() => setConfirming("delete")}
+                variant="destructive-outline"
                 size="sm"
-                variant="danger-soft"
-                onPress={() => setConfirming("delete")}
               >
                 <Trans id="admin.saml-apps.danger.delete.action">Delete</Trans>
               </Button>

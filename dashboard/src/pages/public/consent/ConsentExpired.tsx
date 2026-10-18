@@ -40,9 +40,9 @@ export function ConsentExpired({ retryTo }: { retryTo: string }) {
           {restart !== undefined && (
             <div className="mt-3 flex flex-wrap gap-2">
               <Button
+                onClick={() => void followRedirect(router, restart)}
+                variant="outline"
                 size="sm"
-                variant="secondary"
-                onPress={() => void followRedirect(router, restart)}
               >
                 <Trans id="route.retry">Try again</Trans>
               </Button>

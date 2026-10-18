@@ -102,10 +102,10 @@ export function ForwardAuthDangerSection({ app }: { app: ForwardAuthApp }) {
           ]}
           actions={
             <Button
+              pending={setDisabled.isPending}
+              onClick={() => setConfirming(app.disabled ? "enable" : "disable")}
+              variant="outline"
               size="sm"
-              variant="secondary"
-              isPending={setDisabled.isPending}
-              onPress={() => setConfirming(app.disabled ? "enable" : "disable")}
             >
               {app.disabled ? (
                 <Trans id="admin.forward-auth-apps.enable.action">Enable</Trans>
@@ -133,10 +133,10 @@ export function ForwardAuthDangerSection({ app }: { app: ForwardAuthApp }) {
           ]}
           actions={
             <Button
+              pending={remove.isPending}
+              onClick={() => setConfirming("delete")}
+              variant="destructive-outline"
               size="sm"
-              variant="danger-soft"
-              isPending={remove.isPending}
-              onPress={() => setConfirming("delete")}
             >
               <Trans id="admin.forward-auth-apps.delete.action">Delete</Trans>
             </Button>

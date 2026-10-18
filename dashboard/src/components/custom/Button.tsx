@@ -1,164 +1,51 @@
-import * as React from "react";
-import { Button as AriaButton } from "react-aria-components";
-import { buttonVariants, Button as CossButton } from "@/components/ui/button";
+import type * as React from "react";
+import { Button as CossButton } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
-import { cn } from "@/lib/utils";
 
-type ButtonVariant =
-  | "primary"
-  | "secondary"
-  | "tertiary"
-  | "ghost"
-  | "outline"
-  | "danger"
-  | "danger-soft"
-  | "warning";
+type CossProps = React.ComponentProps<typeof CossButton>;
 
-type ButtonSize = "sm" | "md" | "lg";
+export type ButtonVariant = NonNullable<CossProps["variant"]>;
+export type ButtonSize = NonNullable<CossProps["size"]>;
 
-type CossVariant = NonNullable<
-  React.ComponentProps<typeof CossButton>["variant"]
->;
-
-export interface ButtonProps
-  extends Omit<
-    React.ComponentProps<"button">,
-    "onClick" | "disabled" | "slot" | "tabIndex" | "title" | "role"
-  > {
-  /** Keeps the button out of the tab order (renders tabindex="-1"). */
-  excludeFromTabOrder?: boolean;
-  /** Pressing the button does not move focus to it. */
-  preventFocusOnPress?: boolean;
+export interface ButtonProps extends React.ComponentProps<"button"> {
   variant?: ButtonVariant;
   size?: ButtonSize;
-  isIconOnly?: boolean;
-  isPending?: boolean;
-  isDisabled?: boolean;
-  fullWidth?: boolean;
-  onPress?: (event: React.MouseEvent<HTMLButtonElement>) => void;
-  onClick?: (event: React.MouseEvent<HTMLButtonElement>) => void;
+  pending?: boolean;
   render?: React.ReactElement;
-  /** Names the react-aria slot a parent (e.g. a table) assigns this button to. */
-  slot?: string | null;
 }
 
-// `warning` keeps the primary look: the consequence of a save is stated by the
-// section footer, not by the button's colour.
-const cossVariant: Record<ButtonVariant, CossVariant> = {
-  primary: "default",
-  secondary: "outline",
-  outline: "outline",
-  tertiary: "secondary",
-  ghost: "ghost",
-  danger: "destructive",
-  "danger-soft": "destructive-outline",
-  warning: "default",
-};
-
-const cossSize = {
-  sm: { text: "sm", icon: "icon-sm" },
-  md: { text: "default", icon: "icon" },
-  lg: { text: "lg", icon: "icon-lg" },
-} as const;
-
 /**
- * coss's button with the console's prop vocabulary (`onPress`, `isPending`,
- * `isDisabled`, ...) so screens keep one spelling.
+ * coss's button with a `pending` state that keeps the button focusable.
  *
- * A pending button with text keeps that text beside the spinner; an icon-only
- * one has room for a single glyph, so the spinner takes the icon's place.
+ * A pending button is `aria-disabled`, not natively disabled, so keyboard
+ * focus survives the wait; its presses are ignored. A text button keeps its
+ * label beside the spinner, while an icon button has room for one glyph and
+ * shows the spinner in its place.
  */
 export function Button({
-  variant = "primary",
-  size = "md",
-  isIconOnly = false,
-  isPending = false,
-  isDisabled = false,
-  fullWidth = false,
-  onPress,
+  pending = false,
+  size,
   onClick,
-  render,
-  slot,
-  excludeFromTabOrder,
-  preventFocusOnPress,
-  ref,
-  className,
   children,
   ...props
 }: ButtonProps): React.ReactElement {
-  const common = {
-    variant: cossVariant[variant],
-    size: cossSize[size][isIconOnly ? "icon" : "text"],
-  } as const;
-  const content = (
-    <>
-      {isPending && <Spinner aria-hidden="true" data-slot="spinner" />}
-      {isPending && isIconOnly ? null : children}
-    </>
-  );
-  const handleClick = (event: React.MouseEvent) => {
-    if (isPending) {
-      event.preventDefault();
-      return;
-    }
-    const e = event as React.MouseEvent<HTMLButtonElement>;
-    onClick?.(e);
-    onPress?.(e);
-  };
-  const inner = React.useRef<HTMLButtonElement>(null);
-  // react-aria's button drops aria-busy from its props, so set it directly.
-  React.useLayoutEffect(() => {
-    if (isPending) inner.current?.setAttribute("aria-busy", "true");
-    else inner.current?.removeAttribute("aria-busy");
-  }, [isPending]);
-  const marks = {
-    "data-variant": variant,
-    "data-size": size,
-  };
-
-  // Links are never trigger children, so they keep the coss element.
-  if (render) {
-    return (
-      <CossButton
-        {...props}
-        {...common}
-        render={render}
-        ref={ref}
-        aria-busy={isPending || undefined}
-        onClick={handleClick}
-        loading={false}
-        disabled={isDisabled}
-        // Pending stays focusable (aria-disabled), so focus is not lost.
-        aria-disabled={isPending || undefined}
-        className={cn(fullWidth && "w-full", className)}
-        {...marks}
-      >
-        {content}
-      </CossButton>
-    );
-  }
-
-  // react-aria triggers attach to their child through react-aria contexts, so
-  // the button is a react-aria button until those triggers are gone.
+  const iconOnly = size?.startsWith("icon") ?? false;
   return (
-    <AriaButton
-      {...(props as React.ComponentProps<typeof AriaButton>)}
-      excludeFromTabOrder={excludeFromTabOrder}
-      preventFocusOnPress={preventFocusOnPress}
-      ref={(node) => {
-        inner.current = node;
-        if (typeof ref === "function") ref(node);
-        else if (ref) ref.current = node;
+    <CossButton
+      {...props}
+      size={size}
+      aria-busy={pending || undefined}
+      aria-disabled={pending || props["aria-disabled"]}
+      onClick={(event) => {
+        if (pending) {
+          event.preventDefault();
+          return;
+        }
+        onClick?.(event);
       }}
-      slot={slot}
-      onClick={handleClick}
-      isDisabled={isDisabled}
-      isPending={isPending}
-      className={cn(buttonVariants(common), fullWidth && "w-full", className)}
-      data-slot="button"
-      {...marks}
     >
-      {content}
-    </AriaButton>
+      {pending && <Spinner aria-hidden="true" data-slot="spinner" />}
+      {pending && iconOnly ? null : children}
+    </CossButton>
   );
 }

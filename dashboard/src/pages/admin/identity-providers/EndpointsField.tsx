@@ -99,15 +99,15 @@ export function EndpointsField() {
   }, [allOverridden]);
   const overrideButton = (
     <Button
-      size="sm"
-      variant="outline"
-      isDisabled={submitting || allOverridden}
+      disabled={submitting || allOverridden}
       onFocus={() => {
         const name = added.current;
         if (name === null) return;
         added.current = null;
         inputs.current[name]?.focus();
       }}
+      variant="outline"
+      size="sm"
     >
       <Plus size={16} aria-hidden="true" />
       <Trans id="admin.federation.endpoints.override">
@@ -222,15 +222,12 @@ export function EndpointsField() {
           remove={
             discovery ? (
               <Button
-                isIconOnly
-                size="sm"
-                variant="ghost"
-                isDisabled={submitting}
+                disabled={submitting}
                 aria-label={i18n._({
                   ...removeOverrideMessage,
                   values: { endpoint: i18n._(endpointLabel(name)) },
                 })}
-                onPress={() => {
+                onClick={() => {
                   added.current = null;
                   change(
                     {
@@ -242,6 +239,8 @@ export function EndpointsField() {
                     name,
                   );
                 }}
+                variant="ghost"
+                size="icon-sm"
               >
                 <Trash2 size={16} aria-hidden="true" />
               </Button>

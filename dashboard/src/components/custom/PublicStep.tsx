@@ -38,13 +38,12 @@ function PublicStepRoot({
           {back && (
             <Button
               type="button"
-              variant="ghost"
-              size="sm"
-              isIconOnly
-              className="shrink-0"
               aria-label={back.label}
-              isDisabled={back.isDisabled}
-              onPress={back.onPress}
+              disabled={back.isDisabled}
+              onClick={back.onPress}
+              variant="ghost"
+              size="icon-sm"
+              className="shrink-0"
             >
               <ArrowLeft aria-hidden="true" />
             </Button>

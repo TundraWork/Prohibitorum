@@ -95,22 +95,22 @@ export function ProviderOperatorSection({ provider }: { provider: Provider }) {
           <div className="flex flex-wrap items-center gap-3">
             {configured && (
               <Button
-                size="sm"
+                pending={validate.isPending}
+                onClick={() => validate.mutate(provider.slug)}
                 variant="outline"
-                isPending={validate.isPending}
-                onPress={() => validate.mutate(provider.slug)}
+                size="sm"
               >
                 <ShieldCheck size={16} aria-hidden="true" />
                 <Trans id="admin.federation.operator.check">Check</Trans>
               </Button>
             )}
             <Button
-              size="sm"
-              isPending={false}
-              onPress={() => {
+              pending={false}
+              onClick={() => {
                 setChallenge(null);
                 setSigningIn(true);
               }}
+              size="sm"
             >
               <RotateCw size={16} aria-hidden="true" />
               {configured ? (
@@ -351,7 +351,7 @@ function OperatorSignInForm({
                 <Trans id="admin.federation.operator.verify">Verify</Trans>
               )}
             </form.SubmitButton>
-            <Button variant="tertiary" onPress={onClose}>
+            <Button onClick={onClose} variant="ghost">
               <Trans id="confirm.cancel">Cancel</Trans>
             </Button>
           </div>

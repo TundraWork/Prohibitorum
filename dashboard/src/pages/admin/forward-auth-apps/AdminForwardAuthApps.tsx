@@ -101,19 +101,18 @@ export function AdminForwardAuthApps() {
       header: "",
       cell: (app) => (
         <Button
-          isIconOnly
-          size="sm"
-          variant="ghost"
           aria-label={i18n._({
             ...openAppMessage,
             values: { name: app.displayName || app.clientId },
           })}
-          onPress={() =>
+          onClick={() =>
             void navigate({
               to: "/admin/forward-auth-apps/$clientId",
               params: { clientId: app.clientId },
             })
           }
+          variant="ghost"
+          size="icon-sm"
         >
           <Pencil size={16} aria-hidden="true" />
         </Button>
@@ -127,7 +126,7 @@ export function AdminForwardAuthApps() {
       {isAdmin && (
         <div className="flex flex-wrap items-center gap-4">
           <Button
-            onPress={() =>
+            onClick={() =>
               void navigate({ to: "/admin/forward-auth-apps/new" })
             }
           >

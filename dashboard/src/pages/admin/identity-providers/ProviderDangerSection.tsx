@@ -69,17 +69,17 @@ export function ProviderDangerSection({ provider }: { provider: Provider }) {
 
   const toggle = (
     <Button
-      size="sm"
-      variant="secondary"
-      isDisabled={cannotEnable}
-      isPending={setDisabled.isPending}
-      onPress={() => {
+      disabled={cannotEnable}
+      pending={setDisabled.isPending}
+      onClick={() => {
         if (provider.disabled) {
           setDisabled.mutate({ slug: provider.slug, disabled: false });
         } else {
           setConfirmingDisable(true);
         }
       }}
+      variant="outline"
+      size="sm"
     >
       {provider.disabled ? (
         <Trans id="admin.federation.danger.enable.action">Enable</Trans>
@@ -165,9 +165,9 @@ export function ProviderDangerSection({ provider }: { provider: Provider }) {
             ]}
             actions={
               <Button
+                onClick={() => setSettingSecret(true)}
+                variant="outline"
                 size="sm"
-                variant="secondary"
-                onPress={() => setSettingSecret(true)}
               >
                 {hasSecret ? (
                   <Trans id="admin.federation.danger.secret.replace-action">
@@ -195,10 +195,10 @@ export function ProviderDangerSection({ provider }: { provider: Provider }) {
           ]}
           actions={
             <Button
+              pending={remove.isPending}
+              onClick={() => setConfirmingDelete(true)}
+              variant="destructive-outline"
               size="sm"
-              variant="danger-soft"
-              isPending={remove.isPending}
-              onPress={() => setConfirmingDelete(true)}
             >
               <Trans id="admin.federation.danger.delete.action">Delete</Trans>
             </Button>
@@ -445,9 +445,9 @@ function SetSecretDialog({
                 </Modal.Body>
                 <Modal.Footer className="mt-5">
                   <Button
-                    variant="secondary"
-                    isDisabled={isPending}
-                    onPress={() => onOpenChange(false)}
+                    disabled={isPending}
+                    onClick={() => onOpenChange(false)}
+                    variant="outline"
                   >
                     <Trans id="confirm.cancel">Cancel</Trans>
                   </Button>

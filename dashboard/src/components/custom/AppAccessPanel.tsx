@@ -152,7 +152,7 @@ export function AppManagers({
       <Section
         title={<Trans id="app.managers.label">Managers</Trans>}
         action={
-          <Button size="sm" variant="secondary" onPress={() => setAdding(true)}>
+          <Button onClick={() => setAdding(true)} variant="outline" size="sm">
             <UserPlus size={16} aria-hidden="true" />
             <Trans id="app.managers.assign">Assign a manager</Trans>
           </Button>
@@ -419,9 +419,7 @@ function AccessSectionBody({
               // offering to change it would imply otherwise.
               restricted ? (
                 <Button
-                  size="sm"
-                  variant="secondary"
-                  onPress={() => {
+                  onClick={() => {
                     form.reset();
                     form.setFieldValue(
                       "groupIds",
@@ -429,6 +427,8 @@ function AccessSectionBody({
                     );
                     setEditing(true);
                   }}
+                  variant="outline"
+                  size="sm"
                 >
                   <Pencil size={16} aria-hidden="true" />
                   <Trans id="app.groups.select">Select user groups</Trans>
@@ -466,15 +466,12 @@ function AccessSectionBody({
               // edit it either.
               restricted ? (
                 <Button
-                  isIconOnly
-                  size="sm"
-                  variant="ghost"
                   aria-label={i18n._({
                     ...removeGroupMessage,
                     values: { group: group.displayName },
                   })}
-                  isPending={replace.isPending}
-                  onPress={() => {
+                  pending={replace.isPending}
+                  onClick={() => {
                     replace.mutate({
                       appId,
                       groupIds: selected
@@ -482,6 +479,8 @@ function AccessSectionBody({
                         .map((candidate) => candidate.id),
                     });
                   }}
+                  variant="ghost"
+                  size="icon-sm"
                 >
                   <Trash2 size={16} aria-hidden="true" />
                 </Button>
@@ -545,9 +544,9 @@ function AccessSectionBody({
                   </Modal.Body>
                   <Modal.Footer className="mt-5">
                     <Button
-                      variant="secondary"
-                      isDisabled={replace.isPending}
-                      onPress={() => setEditing(false)}
+                      disabled={replace.isPending}
+                      onClick={() => setEditing(false)}
+                      variant="outline"
                     >
                       <Trans id="admin.cancel">Cancel</Trans>
                     </Button>
@@ -628,14 +627,13 @@ function ApplicationManagersKind({
             ]}
             actions={
               <Button
-                isIconOnly
-                size="sm"
-                variant="ghost"
                 aria-label={i18n._({
                   ...removeManagerMessage,
                   values: { name: manager.displayName },
                 })}
-                onPress={() => setRemoving(manager.id)}
+                onClick={() => setRemoving(manager.id)}
+                variant="ghost"
+                size="icon-sm"
               >
                 <Trash2 size={16} aria-hidden="true" />
               </Button>
@@ -804,9 +802,9 @@ function AssignManagerDialog({
                 </Modal.Body>
                 <Modal.Footer className="mt-5">
                   <Button
-                    variant="secondary"
-                    isDisabled={assign.isPending}
-                    onPress={close}
+                    disabled={assign.isPending}
+                    onClick={close}
+                    variant="outline"
                   >
                     <Trans id="admin.cancel">Cancel</Trans>
                   </Button>

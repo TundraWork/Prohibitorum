@@ -222,15 +222,14 @@ function ImageTile({
         className={`size-full object-cover transition-opacity ${remove.isPending ? "opacity-50" : ""}`}
       />
       <Button
-        isIconOnly
-        size="sm"
-        variant="tertiary"
-        isPending={remove.isPending}
+        pending={remove.isPending}
         aria-label={t({
           id: "settings.sign-in.images.remove",
           message: `Remove image ${position}`,
         })}
-        onPress={() => remove.mutate(image.id)}
+        onClick={() => remove.mutate(image.id)}
+        variant="ghost"
+        size="icon-sm"
         className="absolute top-1.5 right-1.5 size-7 min-w-7 rounded-full bg-surface/85 shadow-surface backdrop-blur-sm"
       >
         <X size={14} aria-hidden="true" />

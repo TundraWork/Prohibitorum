@@ -29,10 +29,10 @@ export function PasskeyButton({
   const button = (
     <Button
       type={type}
-      fullWidth
-      isPending={supported && isPending}
-      isDisabled={!supported || isDisabled}
-      onPress={onPress}
+      pending={supported && isPending}
+      disabled={!supported || isDisabled}
+      onClick={onPress}
+      className="w-full"
     >
       {/* The spinner takes the icon's place while it runs. */}
       {!(supported && isPending) && <Fingerprint aria-hidden="true" />}

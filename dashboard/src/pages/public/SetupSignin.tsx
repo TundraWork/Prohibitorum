@@ -115,9 +115,9 @@ export function SetupSigninPage() {
         <PublicStep.Actions>
           {expired ? (
             <Button
-              fullWidth
-              isPending={leaving === "continue"}
-              onPress={() => void leave("continue")}
+              pending={leaving === "continue"}
+              onClick={() => void leave("continue")}
+              className="w-full"
             >
               <Trans id="setup_signin.continue">Continue</Trans>
             </Button>
@@ -141,21 +141,21 @@ export function SetupSigninPage() {
                 <Trans id="setup_signin.passkey">Add a passkey</Trans>
               </PasskeyButton>
               <Button
-                variant="secondary"
-                fullWidth
-                isDisabled={busy}
-                onPress={() => setMode("password-totp")}
+                disabled={busy}
+                onClick={() => setMode("password-totp")}
+                variant="outline"
+                className="w-full"
               >
                 <Trans id="enroll.use_password_totp">
                   Use a password and an authenticator instead
                 </Trans>
               </Button>
               <Button
-                variant="tertiary"
-                fullWidth
-                isPending={leaving === "skip"}
-                isDisabled={busy && leaving !== "skip"}
-                onPress={() => void leave("skip")}
+                pending={leaving === "skip"}
+                disabled={busy && leaving !== "skip"}
+                onClick={() => void leave("skip")}
+                variant="ghost"
+                className="w-full"
               >
                 <Trans id="setup_signin.skip">Skip for now</Trans>
               </Button>

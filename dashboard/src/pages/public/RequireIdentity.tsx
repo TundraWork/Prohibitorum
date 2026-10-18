@@ -78,11 +78,11 @@ export function RequireIdentityPage() {
   );
   const returnButton = (label: ReactNode) => (
     <Button
-      variant="secondary"
-      fullWidth
-      isPending={leaving}
-      isDisabled={switchAccount.isPending}
-      onPress={returnToApp}
+      pending={leaving}
+      disabled={switchAccount.isPending}
+      onClick={returnToApp}
+      variant="outline"
+      className="w-full"
     >
       {label}
     </Button>
@@ -106,10 +106,10 @@ export function RequireIdentityPage() {
         actions={
           <PublicStep.Actions>
             <Button
-              fullWidth
-              isPending={switchAccount.isPending}
-              isDisabled={leaving}
-              onPress={() => switchAccount.mutate()}
+              pending={switchAccount.isPending}
+              disabled={leaving}
+              onClick={() => switchAccount.mutate()}
+              className="w-full"
             >
               <Trans id="require-identity.mismatch.switch">
                 Sign out and use another account
@@ -187,18 +187,18 @@ export function RequireIdentityPage() {
                   {provider.displayName}
                 </span>
                 <Button
-                  size="sm"
-                  variant="secondary"
-                  className="shrink-0"
-                  isPending={linking === provider.slug}
-                  isDisabled={
+                  pending={linking === provider.slug}
+                  disabled={
                     leaving || (linking !== null && linking !== provider.slug)
                   }
                   aria-label={t({
                     id: "require-identity.verify.label",
                     message: `Verify with ${name}`,
                   })}
-                  onPress={() => startLink(provider.slug)}
+                  onClick={() => startLink(provider.slug)}
+                  variant="outline"
+                  size="sm"
+                  className="shrink-0"
                 >
                   <Trans id="require-identity.verify">Verify</Trans>
                 </Button>

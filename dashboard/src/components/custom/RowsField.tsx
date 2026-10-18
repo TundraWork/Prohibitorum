@@ -163,8 +163,7 @@ export function RowsField<T>({
     const reasoned = atMinimum && minRowsReason !== undefined;
     const button = (
       <Button
-        isIconOnly
-        size="sm"
+        size="icon-sm"
         variant="ghost"
         // On a row drawn on one line the button matches the inputs' own
         // height; on a tall row it would otherwise sink to the bottom of
@@ -172,13 +171,13 @@ export function RowsField<T>({
         className={
           removePlacement === "beside" && align === "top" ? "mt-6" : undefined
         }
-        isDisabled={submitting || isDisabled || atMinimum}
+        disabled={submitting || isDisabled || atMinimum}
         aria-describedby={reasoned ? reasonId : undefined}
         aria-label={i18n._({
           ...removeRowMessage,
           values: { row: index + 1 },
         })}
-        onPress={() => {
+        onClick={() => {
           changeRows(field.state.value.filter((_, at) => at !== index));
         }}
       >
@@ -282,8 +281,8 @@ export function RowsField<T>({
         <Button
           variant="outline"
           size="sm"
-          isDisabled={submitting || isDisabled}
-          onPress={() => {
+          disabled={submitting || isDisabled}
+          onClick={() => {
             changeRows([...field.state.value, emptyRow()]);
           }}
         >

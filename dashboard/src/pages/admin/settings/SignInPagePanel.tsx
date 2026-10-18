@@ -471,11 +471,11 @@ function SavedKeyRow({
   const remove = useMutation(removeUnsplashKeyMutationOptions(queryClient));
   const removeButton = (
     <Button
+      disabled={inUse || isDisabled}
+      pending={remove.isPending}
+      onClick={() => remove.mutate()}
+      variant="destructive-outline"
       size="sm"
-      variant="danger-soft"
-      isDisabled={inUse || isDisabled}
-      isPending={remove.isPending}
-      onPress={() => remove.mutate()}
     >
       <Trans id="settings.sign-in.unsplash.key.remove">Remove</Trans>
     </Button>
@@ -494,10 +494,10 @@ function SavedKeyRow({
         </span>
         <div className="flex gap-2">
           <Button
+            disabled={isDisabled}
+            onClick={onReplace}
+            variant="outline"
             size="sm"
-            variant="secondary"
-            isDisabled={isDisabled}
-            onPress={onReplace}
           >
             <Trans id="settings.sign-in.unsplash.key.replace">Replace</Trans>
           </Button>
