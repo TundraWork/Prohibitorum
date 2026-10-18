@@ -31,7 +31,7 @@ export function QrCode({
     setFailed(false);
     const element = canvas.current;
     if (value === "" || !element) return;
-    void QRCode.toCanvas(element, value, { width: size, margin: 4 }).catch(
+    void QRCode.toCanvas(element, value, { width: size, margin: 1 }).catch(
       () => {
         if (active) setFailed(true);
       },
@@ -43,12 +43,21 @@ export function QrCode({
 
   return (
     <>
-      <canvas
-        ref={canvas}
-        className={failed ? "hidden" : "max-w-full self-center"}
-        role="img"
-        aria-label={label}
-      />
+      {/* A white tile with its own quiet zone, so the code scans in either theme. */}
+      <div
+        className={
+          failed
+            ? "hidden"
+            : "max-w-full self-center rounded-xl bg-white p-2.5 shadow-xs/5 ring-1 ring-border"
+        }
+      >
+        <canvas
+          ref={canvas}
+          className="block max-w-full rounded-sm"
+          role="img"
+          aria-label={label}
+        />
+      </div>
       {failed && failure}
     </>
   );

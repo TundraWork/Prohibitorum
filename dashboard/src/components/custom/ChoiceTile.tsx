@@ -57,6 +57,7 @@ export function ChoiceTile({
   description,
   title,
   disabled,
+  attached,
 }: {
   value: string;
   layout?: "compact" | "media" | "list";
@@ -68,6 +69,11 @@ export function ChoiceTile({
   /** The whole name, for a `media` label the tile cuts short. */
   title?: string;
   disabled?: boolean;
+  /**
+   * Controls that belong to a chosen `list` tile, drawn as its continuation
+   * under the name, so they read as part of the choice.
+   */
+  attached?: ReactNode;
 }) {
   const nameId = useId();
   const descriptionId = useId();
@@ -76,8 +82,13 @@ export function ChoiceTile({
       {label}
     </span>
   );
-  return (
-    <Label className={cn(tile({ layout }))}>
+  const card = (
+    <Label
+      className={cn(
+        tile({ layout }),
+        attached !== undefined && "rounded-b-none",
+      )}
+    >
       {layout === "list" ? (
         <>
           <Radio
@@ -123,5 +134,17 @@ export function ChoiceTile({
         </>
       )}
     </Label>
+  );
+  if (attached === undefined) return card;
+  return (
+    <div className="flex flex-col">
+      {card}
+      <div
+        data-slot="choice-attached"
+        className="rounded-b-lg border border-t-0 border-primary/48 bg-accent/50 px-3 pt-1 pb-3 ps-10"
+      >
+        {attached}
+      </div>
+    </div>
   );
 }

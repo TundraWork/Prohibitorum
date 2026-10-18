@@ -133,7 +133,7 @@ export function Section({
           data-tone={tone === "danger" ? "danger" : undefined}
           className={tone === "danger" ? "bg-destructive/6" : undefined}
         >
-          <FrameHeader className="min-h-9 flex-row items-center justify-between gap-4">
+          <FrameHeader className="min-h-9 gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
             <div className="flex min-w-0 flex-col gap-1">
               <FrameTitle
                 className={cn(
@@ -156,7 +156,9 @@ export function Section({
                 </h2>
               </FrameTitle>
               {description !== undefined && (
-                <FrameDescription>{description}</FrameDescription>
+                <FrameDescription className="text-pretty">
+                  {description}
+                </FrameDescription>
               )}
             </div>
             {action}

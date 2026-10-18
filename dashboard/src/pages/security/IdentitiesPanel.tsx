@@ -57,6 +57,7 @@ export function IdentitiesPanel() {
   return (
     <AsyncSection
       resetKey="identities"
+      id="security-section-identities"
       icon={<Link2 />}
       title={<IdentitiesTitle />}
       description={<IdentitiesDescription />}
@@ -121,6 +122,7 @@ function IdentityList() {
   return (
     <>
       <Section
+        id="security-section-identities"
         icon={<Link2 />}
         title={<IdentitiesTitle />}
         description={<IdentitiesDescription />}
@@ -284,6 +286,8 @@ function LinkIdentityMenu({
               <MenuItem
                 key={provider.slug}
                 disabled={linked}
+                // Said in words ("Linked"), so it stays at full strength.
+                className="data-disabled:opacity-100 data-disabled:text-muted-foreground"
                 onClick={() => onSelect(provider.slug)}
               >
                 {/* The initials stand in for a missing icon, not for the name. */}

@@ -1,7 +1,7 @@
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useStore } from "@tanstack/react-form";
 import { type UseMutationResult, useQuery } from "@tanstack/react-query";
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { isValidTotpCode } from "@/api/auth";
 import { isCancellation } from "@/api/errors";
 import { publicConfigQueryOptions } from "@/api/queries";
@@ -80,6 +80,8 @@ export function SetupDialog({
   // Escape and the close button leave the codes the way Continue does: only
   // once they are confirmed saved.
   const proceed = useRef<(() => void) | null>(null);
+  // The codes cannot be dismissed unsaved, so no close control until then.
+  const [saved, setSaved] = useState(false);
   return (
     <Dialog
       open={isOpen}
@@ -92,12 +94,14 @@ export function SetupDialog({
     >
       <DialogPopup
         className="sm:max-w-xl"
+        showCloseButton={!revealing || saved}
         portalProps={{ container: getTopLayerContainer() }}
       >
         {result !== null ? (
           <RecoveryCodes
             progress={<Steps current={2} />}
             proceedRef={proceed}
+            onSavedChange={setSaved}
             codes={result.codes}
             firstIssue={result.firstIssue}
             onContinue={onDone}

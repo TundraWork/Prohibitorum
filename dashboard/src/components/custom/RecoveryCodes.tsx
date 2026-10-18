@@ -24,6 +24,7 @@ export function RecoveryCodes({
   firstIssue = false,
   progress,
   proceedRef,
+  onSavedChange,
 }: {
   codes: string[];
   onContinue: () => Promise<void>;
@@ -34,6 +35,7 @@ export function RecoveryCodes({
   progress?: ReactNode;
   /** For a `progress` step: see `SecretRevealStep`. */
   proceedRef?: RefObject<(() => void) | null>;
+  onSavedChange?: (saved: boolean) => void;
 }) {
   const props = {
     text: codes.join("\n"),
@@ -47,6 +49,7 @@ export function RecoveryCodes({
         {...props}
         progress={progress}
         proceedRef={proceedRef}
+        onSavedChange={onSavedChange}
       />
     );
   }

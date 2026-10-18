@@ -10,7 +10,7 @@ import {
   useSuspenseQuery,
 } from "@tanstack/react-query";
 import { Ban, KeyRound, Ticket } from "lucide-react";
-import { Fragment, useId, useRef, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { isCancellation } from "@/api/errors";
 import type { components } from "@/api/generated/schema";
 import {
@@ -169,6 +169,7 @@ export function TokensPanel() {
   return (
     <AsyncSection
       resetKey="tokens"
+      id="security-section-tokens"
       icon={<KeyRound />}
       title={<TokensTitle />}
       description={<TokensDescription />}
@@ -212,6 +213,7 @@ function TokenList() {
   return (
     <>
       <Section
+        id="security-section-tokens"
         icon={<KeyRound />}
         title={<TokensTitle />}
         description={<TokensDescription />}
@@ -571,7 +573,6 @@ function CreateTokenForm({
         return (
           // biome-ignore lint/a11y/noStaticElementInteractions: only stops the radio group's arrow keys from reaching the checkboxes.
           <div
-            className="ms-7 rounded-xl bg-muted/60 p-3 ring-1 ring-border/60"
             onKeyDown={(event) => {
               if (event.key.startsWith("Arrow")) event.stopPropagation();
             }}
@@ -590,7 +591,10 @@ function CreateTokenForm({
               {/* About eight rows show before the list scrolls in place. */}
               <div className="flex max-h-56 w-full flex-col gap-2 overflow-y-auto">
                 {available.map((app) => (
-                  <Label key={app.clientId} className="w-fit max-w-full">
+                  <Label
+                    key={app.clientId}
+                    className="w-fit max-w-full text-xs sm:text-xs"
+                  >
                     <Checkbox
                       value={app.clientId}
                       aria-invalid={invalid || undefined}
@@ -719,19 +723,21 @@ function CreateTokenForm({
                         ? option.adminDescription
                         : option.description;
                     return (
-                      <Fragment key={option.value}>
-                        <ChoiceTile
-                          layout="list"
-                          value={option.value}
-                          label={i18n._(option.label)}
-                          description={i18n._(description)}
-                          disabled={unavailable}
-                        />
-                        {option.value === "selected_apps" &&
+                      <ChoiceTile
+                        key={option.value}
+                        layout="list"
+                        value={option.value}
+                        label={i18n._(option.label)}
+                        description={i18n._(description)}
+                        disabled={unavailable}
+                        attached={
+                          option.value === "selected_apps" &&
                           access === "selected_apps" &&
-                          !unavailable &&
-                          appChecklist}
-                      </Fragment>
+                          !unavailable
+                            ? appChecklist
+                            : undefined
+                        }
+                      />
                     );
                   })}
                 </RadioGroup>

@@ -134,14 +134,16 @@ describe("SecretRevealDialog", () => {
     ).toHaveValue(secret);
   });
 
-  it("stays open on Escape, a press outside and the close button until saved", async () => {
+  it("stays open on Escape and a press outside until saved, with no close button to press", async () => {
     const { user } = mountDialog();
     const dialog = await screen.findByRole("dialog");
 
     await user.keyboard("{Escape}");
     await user.click(document.body);
-    await user.click(within(dialog).getByRole("button", { name: "Close" }));
 
+    expect(
+      within(dialog).queryByRole("button", { name: "Close" }),
+    ).not.toBeInTheDocument();
     expect(screen.getByRole("dialog")).toBeVisible();
     expect(
       within(dialog).getByRole("button", { name: "Continue" }),

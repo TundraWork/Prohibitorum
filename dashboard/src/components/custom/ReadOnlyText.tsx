@@ -33,7 +33,7 @@ export function ReadOnlyText({
         spellCheck={false}
         // coss sizes the box to its content (field-sizing), so `rows` does nothing;
         // the cap is a max height, and the type applies to the textarea itself.
-        className="*:overflow-y-auto *:resize-none *:font-mono *:text-xs *:break-all"
+        className="*:min-h-0 *:overflow-y-auto *:resize-none *:font-mono *:text-xs *:break-all *:text-balance max-sm:*:min-h-0"
       />
       {description !== undefined && (
         <FieldDescription>{description}</FieldDescription>

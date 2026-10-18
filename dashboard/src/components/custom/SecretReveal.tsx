@@ -243,8 +243,11 @@ export function SecretRevealStep({
   onContinue,
   progress,
   proceedRef,
+  onSavedChange,
 }: RevealProps & {
   progress?: ReactNode;
+  /** Told whether the secret is confirmed saved, for a caller that shows its own close control. */
+  onSavedChange?: (saved: boolean) => void;
   /**
    * Receives the same "leave" the Continue button performs, which does nothing
    * until the secret is confirmed saved, so the caller's Escape and close
@@ -258,6 +261,11 @@ export function SecretRevealStep({
   useEffect(() => {
     if (proceedRef) proceedRef.current = proceed;
   });
+  const { saved } = reveal;
+  useEffect(() => {
+    onSavedChange?.(saved);
+    return () => onSavedChange?.(false);
+  }, [saved, onSavedChange]);
   return (
     <>
       <DialogHeader>
@@ -281,9 +289,10 @@ export function SecretRevealStep({
 
 /**
  * The same reveal in a dialog that is open exactly while the caller holds the
- * secret, so it cannot outlive it. Escape and the close button
- * all do nothing until the secret is confirmed saved, because the server will
- * never show it again; after that, closing is the same as continuing. Pointer
+ * secret, so it cannot outlive it. Escape does
+ * nothing until the secret is confirmed saved, because the server will never
+ * show it again, and the close button is not shown until then; after that,
+ * closing is the same as continuing. Pointer
  * dismissal (a press outside) is disabled throughout.
  */
 export function SecretRevealDialog({
@@ -304,6 +313,8 @@ export function SecretRevealDialog({
     >
       <DialogPopup
         className="sm:max-w-lg"
+        // The close button would do nothing until the secret is saved.
+        showCloseButton={reveal.saved}
         portalProps={{ container: getTopLayerContainer() }}
       >
         <DialogHeader>

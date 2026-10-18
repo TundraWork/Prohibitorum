@@ -63,12 +63,14 @@ export function ConfirmDialog({
         data-tone={status === "accent" ? "default" : status}
         portalProps={{ container: getTopLayerContainer() }}
       >
-        <AlertDialogHeader>
-          <div className="flex items-center gap-3">
+        {/* The icon rides the first line of the title, and the body lines up
+            under the title text rather than under the icon. */}
+        <AlertDialogHeader className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 text-left">
+          <span aria-hidden="true" className="self-start">
             {icons[status]}
-            <AlertDialogTitle>{title}</AlertDialogTitle>
-          </div>
-          <AlertDialogDescription render={<div />}>
+          </span>
+          <AlertDialogTitle>{title}</AlertDialogTitle>
+          <AlertDialogDescription render={<div />} className="col-start-2">
             {body}
           </AlertDialogDescription>
         </AlertDialogHeader>
