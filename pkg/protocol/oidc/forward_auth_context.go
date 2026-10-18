@@ -161,21 +161,17 @@ func (p *Provider) writeApplication(w http.ResponseWriter, ctx context.Context, 
 	_ = json.NewEncoder(w).Encode(forwardAuthLoginContext{Application: app})
 }
 
-// ordinaryOIDCLabel answers for a return_to that is an /oauth/authorize URL
-// without a forward-auth binding, using the client row the caller already
-// loaded: the login bounce only happens after the authorize handler has
-// validated the client and its redirect_uri, so the same checks here select
-// the client's registered name; anything that fails them is answered as no
-// context rather than an error.
+// ordinaryOIDCLabel answers for an /oauth/authorize return_to without a
+// forward-auth binding, with the registered name of the client the caller
+// loaded. A client or redirect_uri that fails the authorize checks is answered
+// as no context rather than an error.
 func (p *Provider) ordinaryOIDCLabel(w http.ResponseWriter, ctx context.Context, client db.OidcClient, params url.Values) {
 	if client.Disabled || !slices.Contains(client.RedirectUris, params.Get("redirect_uri")) {
 		_ = json.NewEncoder(w).Encode(forwardAuthLoginContext{})
 		return
 	}
-	// The request's own redirect_uri is exactly matched against the
-	// registered list before this, so its host is a registered host the
-	// caller already knows — the host (and the label fallback) never reveal
-	// an address the caller did not send.
+	// The redirect_uri was matched exactly against the registered list, so its
+	// host is one the caller sent and reveals nothing new.
 	var host string
 	if requested, perr := url.Parse(params.Get("redirect_uri")); perr == nil {
 		host = requested.Host

@@ -51,15 +51,15 @@
 - A notice is `SurfaceAlert` (a coss `Alert` with `AlertTitle`, and
   `AlertDescription` only for supplementary text). A dialog is
   `@/components/ui/dialog` (`DialogHeader`, `DialogPanel`, `DialogFooter`).
-  `variant="secondary"` and `onSurface` are still accepted by the shared
-  components but do nothing; new code omits them.
+  `onSurface` survives only on a few components not yet migrated; new code
+  omits it.
 - Buttons in the app come from `Button` in
-  `dashboard/src/components/custom/Button.tsx`, which draws the spinner itself
-  while `isPending` is set: a button with text keeps that text beside the
-  spinner, and an icon-only button shows the spinner in place of its icon. A
-  pending button stays focusable and is `aria-disabled`. Mark work in flight with
-  `isPending` and do not put a `Spinner` inside a button. Forms keep using
-  `form.SubmitButton`, which builds on the same wrapper.
+  `dashboard/src/components/custom/Button.tsx`: coss's button (its `variant`,
+  `size` and `render`) plus a `pending` prop. A pending button draws the
+  spinner itself, keeps its text beside it (an icon-only button shows the
+  spinner in place of its icon), stays focusable and is `aria-disabled`. Mark
+  work in flight with `pending` and do not put a `Spinner` inside a button.
+  Forms keep using `form.SubmitButton`, which builds on the same wrapper.
 - Write custom layout and styling as Tailwind classes directly in JSX.
   Reuse styles through React components in `dashboard/src/components/custom`,
   using `class-variance-authority` for shared variants.
