@@ -1,3 +1,4 @@
+import { useLingui } from "@lingui/react/macro";
 import type { ReactNode } from "react";
 import type { FieldVariant } from "@/components/custom/FormField";
 import { FormMessages } from "@/components/custom/FormMessages";
@@ -44,16 +45,33 @@ export function OtpField({
   /** Soft-keyboard hint; keep it in step with `pattern`. */
   inputMode?: "numeric" | "text";
 }) {
+  const { t } = useLingui();
+  const length = Math.max(1, Math.trunc(digits));
   const { field, errors, invalid, disabled, onBlur, onChange } =
     useFieldBinding<string>(isDisabled);
-  const count = Math.max(1, Math.trunc(digits));
+  const count = length;
   const splitAt = Math.ceil(count / 2);
   const accepted = new RegExp(pattern);
   const positions = Array.from({ length: count }, (_, position) => position);
   const slots = (from: number, to: number) =>
-    positions
-      .slice(from, to)
-      .map((position) => <OTPFieldInput key={position} />);
+    positions.slice(from, to).map((index) => {
+      const position = index + 1;
+      return (
+        <OTPFieldInput
+          key={index}
+          // The first slot is named by the field label; the rest need a name
+          // of their own so each one announces its position.
+          aria-label={
+            index === 0
+              ? undefined
+              : t({
+                  id: "otp-field.character",
+                  message: `Character ${position} of ${length}`,
+                })
+          }
+        />
+      );
+    });
 
   return (
     <Field disabled={disabled} invalid={invalid} name={field.name}>

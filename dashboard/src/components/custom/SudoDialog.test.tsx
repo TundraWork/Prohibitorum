@@ -12,7 +12,7 @@ import { createQueryClient } from "@/app/query-client";
 import { defaultLoginAppearance } from "@/components/custom/login-appearance/appearance";
 import { SudoDialog } from "@/components/custom/SudoDialog";
 import { i18n } from "@/i18n";
-import { firstOtpSlot } from "@/test/otp";
+import { firstOtpSlot, otpSlots } from "@/test/otp";
 
 const startAuthentication = vi.fn();
 const browserSupportsWebAuthn = vi.fn(() => true);
@@ -464,9 +464,7 @@ describe("sudo dialog", () => {
     mount(["password_totp"], { digits: 8 });
     const { dialog } = await intercept(async () => "done");
 
-    expect(
-      within(dialog).getAllByRole("textbox", { name: "Authenticator code" }),
-    ).toHaveLength(8);
+    expect(otpSlots("Authenticator code", within(dialog))).toHaveLength(8);
   });
 
   it("checks each field when it loses focus", async () => {

@@ -134,7 +134,7 @@ describe("the invitation form's local sign-in requirement", () => {
     // Switching back to an ordinary provider unlocks it again.
     await pickProvider(user, "CORP");
     expect(switchEl).not.toBeChecked();
-    expect(switchEl).toBeEnabled();
+    expect(switchEl).not.toHaveAttribute("aria-disabled", "true");
   });
 
   it("offers only providers that can back an invitation", async () => {

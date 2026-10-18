@@ -1331,6 +1331,11 @@ msgid "audit.event.update"
 msgstr "修改"
 
 #. js-lingui-explicit-id
+#: src/components/custom/OtpField.tsx
+msgid "otp-field.character"
+msgstr "第 {position} 位，共 {length} 位"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderOperatorSection.tsx
 msgid "admin.federation.operator.check"
 msgstr "检查"

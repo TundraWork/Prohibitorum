@@ -1331,6 +1331,11 @@ msgid "audit.event.update"
 msgstr "Changed"
 
 #. js-lingui-explicit-id
+#: src/components/custom/OtpField.tsx
+msgid "otp-field.character"
+msgstr "Character {position} of {length}"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderOperatorSection.tsx
 msgid "admin.federation.operator.check"
 msgstr "Check"
