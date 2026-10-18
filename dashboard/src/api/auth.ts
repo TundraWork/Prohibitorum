@@ -106,8 +106,6 @@ export interface PasskeyAssertion {
 // a passkey picked just before renewal still has time for the biometric prompt
 // and the round trip.
 const autofillRenewMargin = 60_000;
-// Consecutive browser refusals after which autofill stays off for this visit.
-const autofillRefusalLimit = 3;
 
 function abortError(): DOMException {
   return new DOMException("The request was aborted.", "AbortError");
@@ -190,15 +188,15 @@ export async function isPasskeyAutofillAvailable(): Promise<boolean> {
  *
  * The browser request stays pending while the page is open, so it is renewed
  * with a fresh server ceremony before that one expires. A refusal after a
- * passkey was picked (such as a dismissed biometric prompt) offers autofill
- * again, up to `autofillRefusalLimit` times in a row. Aborting `signal`, or
- * another ceremony taking over (the passkey button), rejects with an
- * `AbortError`; a failed begin or any other browser error is rethrown.
+ * passkey was picked (such as a dismissed biometric prompt) stops the wait:
+ * the reader saw the prompt and turned it down, so autofill is not offered
+ * again until the step is re-entered. Aborting `signal`, or another ceremony
+ * taking over (the passkey button), rejects with an `AbortError`; a failed
+ * begin or any other browser error is rethrown.
  */
 export async function waitForPasskeyAutofill(
   signal: AbortSignal,
 ): Promise<PasskeyAssertion> {
-  let refusals = 0;
   for (;;) {
     const optionsJSON = await requireJsonData(
       client.POST("/api/prohibitorum/auth/login/begin", {
@@ -224,11 +222,7 @@ export async function waitForPasskeyAutofill(
     );
     if (outcome === "renew") continue;
     if (outcome === "refused") {
-      refusals += 1;
-      if (refusals >= autofillRefusalLimit) {
-        throw new ApiError({ kind: "local", code: "passkey_incomplete" });
-      }
-      continue;
+      throw new ApiError({ kind: "local", code: "passkey_incomplete" });
     }
     return { rpId, response: outcome };
   }
