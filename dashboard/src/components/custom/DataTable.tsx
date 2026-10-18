@@ -246,6 +246,8 @@ export function DataTable<T extends RowData>({
                   <FlatButton
                     variant="ghost"
                     size="xs"
+                    // Sortable headers keep the muted tone of plain ones; the
+                    // ghost button's own hover, focus ring and disabled stay.
                     className={cn(
                       "text-muted-foreground hover:text-foreground",
                       column?.align === "end" ? "-me-2" : "-ms-2",
@@ -426,7 +428,7 @@ export function DataTable<T extends RowData>({
     );
   }
   return (
-    <Frame className={cn(frameClass, "bg-(--table-band)")}>
+    <Frame className={frameClass}>
       {toolbar !== undefined && <FrameHeader>{toolbar}</FrameHeader>}
       {grid}
       {more}
@@ -437,8 +439,9 @@ export function DataTable<T extends RowData>({
 /**
  * Asks for the next cursor page when it scrolls into view.
  *
- * The observer is set up again after every page, so a page that leaves the
- * sentinel still on screen asks for the one after it.
+ * The observer is set up again only when the row count changes, so a page that
+ * leaves the sentinel still on screen asks for the next one, while a failed
+ * page (count unchanged) waits until the sentinel leaves and re-enters view.
  */
 function LoadMoreSentinel({
   loading,
@@ -452,19 +455,19 @@ function LoadMoreSentinel({
   const ref = useRef<HTMLDivElement>(null);
   const ask = useRef(onLoadMore);
   ask.current = onLoadMore;
+  const busy = useRef(loading);
+  busy.current = loading;
   // `rowCount` is not read: a new page re-arms the observer.
   // biome-ignore lint/correctness/useExhaustiveDependencies: see above
   useEffect(() => {
     const element = ref.current;
-    if (!element || loading || typeof IntersectionObserver === "undefined") {
-      return;
-    }
+    if (!element || typeof IntersectionObserver === "undefined") return;
     const observer = new IntersectionObserver(([entry]) => {
-      if (entry?.isIntersecting) ask.current();
+      if (entry?.isIntersecting && !busy.current) ask.current();
     });
     observer.observe(element);
     return () => observer.disconnect();
-  }, [loading, rowCount]);
+  }, [rowCount]);
   return (
     <div ref={ref} className="flex min-h-8 justify-center py-2">
       {loading && <Spinner />}

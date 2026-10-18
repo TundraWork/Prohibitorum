@@ -2,7 +2,7 @@ import { I18nProvider } from "@lingui/react";
 import type { SortingState } from "@tanstack/react-table";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DataTable, type TableColumn } from "@/components/custom/DataTable";
 import { i18n } from "@/i18n";
 
@@ -213,5 +213,86 @@ describe("DataTable", () => {
     expect(
       screen.queryByRole("button", { name: /^Show details/ }),
     ).not.toBeInTheDocument();
+  });
+});
+
+describe("DataTable load-more sentinel", () => {
+  // Like the browser, an observer reports the sentinel's state as soon as it
+  // starts observing.
+  let observers: number;
+  let visible: boolean;
+  const original = globalThis.IntersectionObserver;
+  beforeEach(() => {
+    observers = 0;
+    visible = true;
+    class Stub {
+      private readonly callback: IntersectionObserverCallback;
+      constructor(callback: IntersectionObserverCallback) {
+        this.callback = callback;
+        observers += 1;
+      }
+      observe() {
+        if (visible) {
+          this.callback(
+            [{ isIntersecting: true } as IntersectionObserverEntry],
+            this as unknown as IntersectionObserver,
+          );
+        }
+      }
+      disconnect() {}
+      unobserve() {}
+      takeRecords() {
+        return [];
+      }
+    }
+    globalThis.IntersectionObserver =
+      Stub as unknown as typeof IntersectionObserver;
+  });
+  afterEach(() => {
+    globalThis.IntersectionObserver = original;
+  });
+
+  function view(
+    onLoadMore: () => void,
+    props: { rows: Row[]; loadingMore: boolean },
+  ) {
+    return (
+      <I18nProvider i18n={i18n}>
+        <DataTable<Row>
+          label="Rows"
+          columns={columns()}
+          rows={props.rows}
+          rowId={(row) => row.id}
+          empty={<span>Nothing here</span>}
+          hasMore
+          loadingMore={props.loadingMore}
+          onLoadMore={onLoadMore}
+        />
+      </I18nProvider>
+    );
+  }
+
+  it("asks for the next page once when the sentinel is in view", () => {
+    const onLoadMore = vi.fn();
+    render(view(onLoadMore, { rows, loadingMore: false }));
+    expect(onLoadMore).toHaveBeenCalledTimes(1);
+  });
+
+  it("asks again after a page adds rows and the sentinel is still in view", () => {
+    const onLoadMore = vi.fn();
+    const { rerender } = render(view(onLoadMore, { rows, loadingMore: false }));
+    rerender(view(onLoadMore, { rows, loadingMore: true }));
+    const more = [...rows, { id: 4, name: "delta", size: 40 }];
+    rerender(view(onLoadMore, { rows: more, loadingMore: false }));
+    expect(onLoadMore).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not ask again after a page failed and the row count is unchanged", () => {
+    const onLoadMore = vi.fn();
+    const { rerender } = render(view(onLoadMore, { rows, loadingMore: false }));
+    rerender(view(onLoadMore, { rows, loadingMore: true }));
+    rerender(view(onLoadMore, { rows, loadingMore: false }));
+    expect(onLoadMore).toHaveBeenCalledTimes(1);
+    expect(observers).toBe(1);
   });
 });

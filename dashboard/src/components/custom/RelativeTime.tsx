@@ -1,5 +1,6 @@
 import { useLingui } from "@lingui/react/macro";
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
+import { SrDescription } from "@/components/custom/SrDescription";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "@/components/ui/tooltip";
 
 const MINUTE = 60;
@@ -58,6 +59,7 @@ const hoverDelay = 600;
  */
 export function RelativeTime({ value }: { value: string }) {
   const { i18n } = useLingui();
+  const describedBy = useId();
   const then = new Date(value).getTime();
   const [now, setNow] = useState(() => Date.now());
 
@@ -82,18 +84,22 @@ export function RelativeTime({ value }: { value: string }) {
   }).format(then);
 
   return (
-    <Tooltip>
-      <TooltipTrigger
-        delay={hoverDelay}
-        render={
-          // Focusable so the exact time is not hover-only.
-          // biome-ignore lint/a11y/noNoninteractiveTabindex: the tooltip is the only way to read the exact time
-          <time dateTime={value} tabIndex={0} />
-        }
-      >
-        {relative}
-      </TooltipTrigger>
-      <TooltipPopup side="bottom">{exact}</TooltipPopup>
-    </Tooltip>
+    <>
+      <Tooltip>
+        <TooltipTrigger
+          delay={hoverDelay}
+          aria-describedby={describedBy}
+          render={
+            // Focusable so the exact time is not hover-only.
+            // biome-ignore lint/a11y/noNoninteractiveTabindex: the tooltip is the only way to read the exact time
+            <time dateTime={value} tabIndex={0} />
+          }
+        >
+          {relative}
+        </TooltipTrigger>
+        <TooltipPopup side="bottom">{exact}</TooltipPopup>
+      </Tooltip>
+      <SrDescription id={describedBy}>{exact}</SrDescription>
+    </>
   );
 }

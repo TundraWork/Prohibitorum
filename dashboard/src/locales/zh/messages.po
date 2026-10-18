@@ -2098,6 +2098,7 @@ msgstr "无法连接该提供商。"
 
 #. js-lingui-explicit-id
 #: src/components/custom/CopyValue.tsx
+#: src/components/custom/ObjectHeader.tsx
 msgid "copy-value.failed"
 msgstr "无法复制。请选中上面的值，手动复制。"
 

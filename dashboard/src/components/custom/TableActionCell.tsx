@@ -31,15 +31,15 @@ export function TableActionCell({ children }: { children: ReactNode }) {
 /**
  * The header cell that pairs with `TableActionCell`.
  *
- * The frame's band is translucent, so the pinned header repaints it as a solid
- * mix over the page; otherwise the headers scrolling under it would show.
+ * The frame's band is translucent, so `data-pinned` headers repaint it over the
+ * page colour (`styles/index.css`); otherwise headers scrolling under it show.
  */
 export function TableActionColumn({ children }: { children: ReactNode }) {
   return (
     <TableHead
       scope="col"
       data-pinned="end"
-      className="table-pinned sticky end-0 z-[1] bg-(--table-band) text-end"
+      className="table-pinned sticky end-0 z-[1] text-end"
     >
       {children}
     </TableHead>

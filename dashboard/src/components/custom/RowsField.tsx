@@ -6,6 +6,7 @@ import { type ReactNode, useId, useRef } from "react";
 import { Button } from "@/components/custom/Button";
 import { FormMessages } from "@/components/custom/FormMessages";
 import { useHostOverlayContainer } from "@/components/custom/host-overlay-container";
+import { SrDescription } from "@/components/custom/SrDescription";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "@/components/ui/tooltip";
 import { useFieldContext, useFormContext } from "@/forms/context";
 import { type LineProblem, lineProblemMessage } from "@/forms/lines";
@@ -158,6 +159,8 @@ export function RowsField<T>({
   const atMinimum = field.state.value.length <= minRows;
 
   const removeButton = (index: number) => {
+    const reasonId = `${id}-min-rows-${index}`;
+    const reasoned = atMinimum && minRowsReason !== undefined;
     const button = (
       <Button
         isIconOnly
@@ -170,6 +173,7 @@ export function RowsField<T>({
           removePlacement === "beside" && align === "top" ? "mt-6" : undefined
         }
         isDisabled={submitting || isDisabled || atMinimum}
+        aria-describedby={reasoned ? reasonId : undefined}
         aria-label={i18n._({
           ...removeRowMessage,
           values: { row: index + 1 },
@@ -181,18 +185,21 @@ export function RowsField<T>({
         <Trash2 size={16} aria-hidden="true" />
       </Button>
     );
-    if (!atMinimum || minRowsReason === undefined) return button;
+    if (!reasoned) return button;
     // A disabled button emits no hover or focus for a tooltip to answer, so
     // the tooltip listens on the trigger wrapper instead.
     return (
-      <Tooltip>
-        <TooltipTrigger delay={0} render={<span className="inline-flex" />}>
-          {button}
-        </TooltipTrigger>
-        <TooltipPopup portalProps={{ container: tooltipContainer }}>
-          {minRowsReason}
-        </TooltipPopup>
-      </Tooltip>
+      <>
+        <Tooltip>
+          <TooltipTrigger delay={0} render={<span className="inline-flex" />}>
+            {button}
+          </TooltipTrigger>
+          <TooltipPopup portalProps={{ container: tooltipContainer }}>
+            {minRowsReason}
+          </TooltipPopup>
+        </Tooltip>
+        <SrDescription id={reasonId}>{minRowsReason}</SrDescription>
+      </>
     );
   };
 

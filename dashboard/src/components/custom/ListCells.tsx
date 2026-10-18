@@ -1,6 +1,8 @@
 import { Plural, Trans, useLingui } from "@lingui/react/macro";
+import { useId } from "react";
 import { readPrincipalSource } from "@/api/federation";
 import { principalSourceLabel } from "@/components/custom/principal-sources";
+import { SrDescription } from "@/components/custom/SrDescription";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -100,32 +102,47 @@ export function RedirectCell({ uris }: { uris: readonly string[] }) {
     );
   }
 
-  const hosts = uris.map(hostOf);
+  return <RedirectHosts hosts={uris.map(hostOf)} />;
+}
+
+function RedirectHosts({ hosts }: { hosts: readonly string[] }) {
+  const describedBy = useId();
   return (
-    <Tooltip>
-      <TooltipTrigger delay={0} render={<span />}>
-        <span className="flex items-baseline gap-1.5">
-          <span className="font-mono text-xs">{hosts[0]}</span>
-          {hosts.length > 1 && (
-            <span className="text-xs text-muted-foreground tabular-nums">
-              +{hosts.length - 1}
-            </span>
-          )}
-        </span>
-      </TooltipTrigger>
-      <TooltipPopup className="break-all font-mono">
-        <span className="block text-muted-foreground">
-          <Plural value={hosts.length} one="# address" other="# addresses" />
-        </span>
-        {hosts.map((host, index) => (
-          // The host list is positional and never reordered.
-          // biome-ignore lint/suspicious/noArrayIndexKey: see above
-          <span key={index} className="block">
-            {host}
+    <>
+      <Tooltip>
+        <TooltipTrigger
+          delay={0}
+          aria-describedby={describedBy}
+          render={<span />}
+        >
+          <span className="flex items-baseline gap-1.5">
+            <span className="font-mono text-xs">{hosts[0]}</span>
+            {hosts.length > 1 && (
+              <span className="text-xs text-muted-foreground tabular-nums">
+                +{hosts.length - 1}
+              </span>
+            )}
           </span>
-        ))}
-      </TooltipPopup>
-    </Tooltip>
+        </TooltipTrigger>
+        <TooltipPopup className="break-all font-mono">
+          <span className="block text-muted-foreground">
+            <Plural value={hosts.length} one="# address" other="# addresses" />
+          </span>
+          {hosts.map((host, index) => (
+            // The host list is positional and never reordered.
+            // biome-ignore lint/suspicious/noArrayIndexKey: see above
+            <span key={index} className="block">
+              {host}
+            </span>
+          ))}
+        </TooltipPopup>
+      </Tooltip>
+      <SrDescription id={describedBy}>
+        <Plural value={hosts.length} one="# address" other="# addresses" />
+        {": "}
+        {hosts.join(", ")}
+      </SrDescription>
+    </>
   );
 }
 
@@ -190,6 +207,7 @@ export function PrincipalSourceCell({ value }: { value: string }) {
  */
 export function CertificateExpiryCell({ notAfter }: { notAfter?: string }) {
   const { i18n } = useLingui();
+  const describedBy = useId();
 
   if (notAfter === undefined)
     return <span className="text-muted-foreground">—</span>;
@@ -203,22 +221,27 @@ export function CertificateExpiryCell({ notAfter }: { notAfter?: string }) {
   }).format(date);
   const expired = date.getTime() < Date.now();
 
+  const meaning = expired ? (
+    <Trans id="list.diagnostics.certificate.expired">Expired</Trans>
+  ) : (
+    <Trans id="list.diagnostics.certificate.valid">Valid until this date</Trans>
+  );
+
   return (
-    <Tooltip>
-      <TooltipTrigger delay={0} render={<time dateTime={notAfter} />}>
-        <span className={expired ? "text-destructive-foreground" : undefined}>
-          {day}
-        </span>
-      </TooltipTrigger>
-      <TooltipPopup>
-        {expired ? (
-          <Trans id="list.diagnostics.certificate.expired">Expired</Trans>
-        ) : (
-          <Trans id="list.diagnostics.certificate.valid">
-            Valid until this date
-          </Trans>
-        )}
-      </TooltipPopup>
-    </Tooltip>
+    <>
+      <Tooltip>
+        <TooltipTrigger
+          delay={0}
+          aria-describedby={describedBy}
+          render={<time dateTime={notAfter} />}
+        >
+          <span className={expired ? "text-destructive-foreground" : undefined}>
+            {day}
+          </span>
+        </TooltipTrigger>
+        <TooltipPopup>{meaning}</TooltipPopup>
+      </Tooltip>
+      <SrDescription id={describedBy}>{meaning}</SrDescription>
+    </>
   );
 }

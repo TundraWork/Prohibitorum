@@ -154,10 +154,14 @@ body {
  * The timeline has to be on the element that actually scrolls, which is the
  * table's own overflow container rather than the frame around it.
  */
-/* The frame's translucent band as a solid colour, for a pinned header that
-   must hide the headers scrolling under it. */
-.data-table {
-  --table-band: color-mix(in srgb, var(--muted) 72%, var(--background));
+/* The frame band is translucent: a pinned header paints the page surface, then
+   the same band, so it is opaque and matches the other headers. */
+.data-table [data-slot="table-head"][data-pinned] {
+  background-color: var(--sidebar);
+  background-image: linear-gradient(
+    color-mix(in oklab, var(--muted) 72%, transparent),
+    color-mix(in oklab, var(--muted) 72%, transparent)
+  );
 }
 
 @supports (animation-timeline: scroll()) {

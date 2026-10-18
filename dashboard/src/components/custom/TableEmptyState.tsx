@@ -1,5 +1,10 @@
 import type { ReactNode } from "react";
-import { Empty, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
+import {
+  Empty,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
 
 /**
  * Empty state for the console's own tables: the mark for the kind of thing that
@@ -18,13 +23,17 @@ export function TableEmptyState({
   title: ReactNode;
 }) {
   return (
+    // Compact: inside a table the published empty state's page-sized padding
+    // and heading scale would dwarf the rows around it.
     <Empty className="gap-0 py-8 md:py-8">
-      <EmptyMedia variant="icon" className="mb-4">
-        {icon}
-      </EmptyMedia>
-      <EmptyTitle className="font-medium font-sans text-foreground text-sm">
-        {title}
-      </EmptyTitle>
+      <EmptyHeader>
+        <EmptyMedia variant="icon" className="mb-4">
+          {icon}
+        </EmptyMedia>
+        <EmptyTitle className="font-medium font-sans text-sm">
+          {title}
+        </EmptyTitle>
+      </EmptyHeader>
     </Empty>
   );
 }

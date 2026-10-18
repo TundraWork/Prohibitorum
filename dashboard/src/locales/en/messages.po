@@ -2098,6 +2098,7 @@ msgstr "Could not reach the provider."
 
 #. js-lingui-explicit-id
 #: src/components/custom/CopyValue.tsx
+#: src/components/custom/ObjectHeader.tsx
 msgid "copy-value.failed"
 msgstr "Couldn't copy. Select the value above and copy it yourself."
 

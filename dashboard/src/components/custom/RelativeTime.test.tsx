@@ -1,5 +1,5 @@
 import { I18nProvider } from "@lingui/react";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { RelativeTime, relativeParts } from "@/components/custom/RelativeTime";
@@ -58,8 +58,14 @@ describe("RelativeTime", () => {
     expect(time.tagName).toBe("TIME");
     expect(time).toHaveAttribute("dateTime", "2026-09-09T12:00:00.000Z");
 
+    // Hidden until the pointer rests: only the described text exists.
+    expect(screen.getAllByText(/Sep 9, 2026/)).toHaveLength(1);
+    expect(time).toHaveAccessibleDescription(/Sep 9, 2026/);
+
     await user.hover(time);
-    expect(await screen.findByText(/Sep 9, 2026/)).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getAllByText(/Sep 9, 2026/)).toHaveLength(2),
+    );
   });
 
   it("opens the exact time on keyboard focus too", async () => {
@@ -72,8 +78,12 @@ describe("RelativeTime", () => {
       </I18nProvider>,
     );
 
+    expect(screen.getAllByText(/Sep 9, 2026/)).toHaveLength(1);
+
     await user.tab();
     expect(screen.getByText("yesterday")).toHaveFocus();
-    expect(await screen.findByText(/Sep 9, 2026/)).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getAllByText(/Sep 9, 2026/)).toHaveLength(2),
+    );
   });
 });
