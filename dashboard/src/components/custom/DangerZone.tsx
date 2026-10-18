@@ -1,8 +1,8 @@
-import { Description, Tooltip, useOverlayState } from "@heroui/react";
-import type { ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 import { Button } from "@/components/custom/Button";
 import { ConfirmDialog } from "@/components/custom/ConfirmDialog";
 import { Section } from "@/components/custom/Section";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "@/components/ui/tooltip";
 
 /**
  * One irreversible action on the console, with its confirmation and its
@@ -53,7 +53,7 @@ export function DangerZone({
   size?: "sm" | "md";
   onConfirm: () => void;
 }) {
-  const dialog = useOverlayState();
+  const [open, setOpen] = useState(false);
   const trigger = (
     <Button
       size={size}
@@ -61,7 +61,7 @@ export function DangerZone({
       aria-label={accessibleLabel}
       isDisabled={disabled || isPending}
       isPending={isPending}
-      onPress={() => dialog.setOpen(true)}
+      onPress={() => setOpen(true)}
     >
       {label}
     </Button>
@@ -72,20 +72,26 @@ export function DangerZone({
       {/* A disabled button emits no hover or focus for a tooltip to answer, so
           the tooltip listens on the trigger wrapper instead. */}
       {disabled && disabledReason !== undefined ? (
-        <Tooltip delay={0}>
-          <Tooltip.Trigger>{trigger}</Tooltip.Trigger>
-          <Tooltip.Content>{disabledReason}</Tooltip.Content>
+        <Tooltip>
+          <TooltipTrigger
+            // A disabled button cannot take focus, so the wrapper carries it.
+            // biome-ignore lint/a11y/noNoninteractiveTabindex: see above
+            render={<span className="inline-flex w-fit" tabIndex={0} />}
+          >
+            {trigger}
+          </TooltipTrigger>
+          <TooltipPopup>{disabledReason}</TooltipPopup>
         </Tooltip>
       ) : (
         trigger
       )}
       {description !== undefined && (
-        <Description className="text-xs text-muted">{description}</Description>
+        <p className="text-muted-foreground text-xs">{description}</p>
       )}
 
       <ConfirmDialog
-        isOpen={dialog.isOpen}
-        onOpenChange={dialog.setOpen}
+        isOpen={open}
+        onOpenChange={setOpen}
         status="danger"
         title={title}
         body={body}
@@ -93,7 +99,7 @@ export function DangerZone({
         isPending={isPending}
         onConfirm={() => {
           onConfirm();
-          dialog.setOpen(false);
+          setOpen(false);
         }}
       />
     </div>

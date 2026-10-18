@@ -1,4 +1,4 @@
-import { Card, Chip, Modal, Tooltip } from "@heroui/react";
+import { Chip, Modal, Tooltip } from "@heroui/react";
 import { Plural, Trans, useLingui } from "@lingui/react/macro";
 import { useStore } from "@tanstack/react-form";
 import {
@@ -32,7 +32,6 @@ import type { RecoveryCodesResult } from "@/api/raw-paths";
 import { Button } from "@/components/custom/Button";
 import { ConfirmDialog } from "@/components/custom/ConfirmDialog";
 import { ItemList, ItemListRow } from "@/components/custom/ItemList";
-import { ListSkeleton } from "@/components/custom/ListSkeleton";
 import { RecoveryCodes } from "@/components/custom/RecoveryCodes";
 import { Section } from "@/components/custom/Section";
 import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
@@ -107,13 +106,18 @@ export function PasswordTotpPanel() {
 
   if (factors.isPending) {
     // The block's own shape while its read is in flight: the heading is
-    // already on screen, and the card below it is the one the rows will
+    // already on screen, and the panel below it is the one the rows will
     // arrive in, so the page does not jump when they do.
     return (
       <Section title={title}>
-        <Card className="gap-0 p-0">
-          <ListSkeleton />
-        </Card>
+        <ItemList
+          label={t({
+            id: "security.section.password",
+            message: "Password and authenticator",
+          })}
+          loading
+          empty={null}
+        />
       </Section>
     );
   }

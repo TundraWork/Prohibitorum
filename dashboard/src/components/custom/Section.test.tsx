@@ -1,4 +1,5 @@
 import { I18nProvider } from "@lingui/react";
+import { Trans } from "@lingui/react/macro";
 import {
   QueryClient,
   QueryClientProvider,
@@ -6,6 +7,7 @@ import {
 } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ConsoleCard } from "@/components/custom/ConsoleCard";
 import { ItemList } from "@/components/custom/ItemList";
@@ -24,6 +26,7 @@ function Slow({ read }: { read: () => Promise<string> }) {
 function mount(
   read: () => Promise<string>,
   title?: string,
+  sectionProps: { id?: string; footer?: string; dirty?: boolean } = {},
 ): ReturnType<typeof render> {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -31,7 +34,7 @@ function mount(
   return render(
     <I18nProvider i18n={i18n}>
       <QueryClientProvider client={queryClient}>
-        <AsyncSection resetKey="probe" title={title}>
+        <AsyncSection resetKey="probe" title={title} {...sectionProps}>
           <Slow read={read} />
         </AsyncSection>
       </QueryClientProvider>
@@ -62,6 +65,38 @@ describe("AsyncSection", () => {
 
     resolve("Loaded");
     expect(await screen.findByText("Loaded")).toBeInTheDocument();
+  });
+
+  it("passes id, footer and dirty to the section drawn while loading", () => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const { container } = mount(
+      () => new Promise<string>(() => undefined),
+      "Sessions",
+      {
+        id: "sessions-block",
+        footer: "Footer note",
+        dirty: true,
+      },
+    );
+    const section = container.querySelector("section");
+    expect(section).toHaveAttribute("id", "sessions-block");
+    expect(section).toHaveAttribute("data-dirty", "true");
+    expect(screen.getByText("Footer note")).toBeInTheDocument();
+  });
+
+  it("passes them through the error state too", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const { container } = mount(
+      () => Promise.reject(new Error("offline")),
+      "Sessions",
+      { id: "sessions-block", footer: "Footer note", dirty: true },
+    );
+    await screen.findByText("This section could not be loaded");
+    const section = container.querySelector("section");
+    expect(section).toHaveAttribute("id", "sessions-block");
+    expect(section).toHaveAttribute("data-dirty", "true");
+    expect(screen.getByText("Footer note")).toBeInTheDocument();
+    vi.restoreAllMocks();
   });
 
   it("draws no heading where the boundary is not a section", async () => {
@@ -150,7 +185,32 @@ describe("Section", () => {
     expect(panels[0]).toContainElement(screen.getByText("Plain content"));
   });
 
-  it("lets an untitled card or a list be the section's panel instead of nesting one", () => {
+  it("defaults the anchor to a slug of a translated title's message id", () => {
+    const { container } = render(
+      <I18nProvider i18n={i18n}>
+        <Section title={<Trans id="security.section.passkeys">Passkeys</Trans>}>
+          <p>Body</p>
+        </Section>
+      </I18nProvider>,
+    );
+
+    expect(container.querySelector("section")).toHaveAttribute(
+      "id",
+      "security-section-passkeys",
+    );
+  });
+
+  it("has no anchor when the title gives nothing to slug", () => {
+    const { container } = render(
+      <Section title={<span>Plain</span>}>
+        <p>Body</p>
+      </Section>,
+    );
+
+    expect(container.querySelector("section")).not.toHaveAttribute("id");
+  });
+
+  it("lets an untitled card or list be the panel, without a panel inside a panel", () => {
     const { container } = render(
       <Section title="Mixed">
         <ConsoleCard>
@@ -168,6 +228,58 @@ describe("Section", () => {
         panel.parentElement?.closest("[data-slot='frame-panel']"),
       ).toBeNull();
     }
+  });
+
+  it("keeps a titled list or card as its own frame under the section's panel", () => {
+    const { container } = render(
+      <Section title="Mixed">
+        <ItemList label="Rows" title="Rows title" empty={<p>No rows</p>} />
+        <ConsoleCard title="Card title">
+          <p>Card content</p>
+        </ConsoleCard>
+      </Section>,
+    );
+
+    const panels = container.querySelectorAll("[data-slot='frame-panel']");
+    const outer = panels[0] as Element;
+    expect(outer.querySelectorAll("[data-slot='frame']")).toHaveLength(2);
+    expect(outer.querySelectorAll("[data-slot='frame-panel']")).toHaveLength(2);
+    expect(
+      screen
+        .getByRole("heading", { level: 2, name: "Rows title" })
+        .closest("[data-slot='frame-panel-header']"),
+    ).not.toBeNull();
+  });
+
+  it("hands the panel back to the section when a registered child goes away", async () => {
+    function Toggle() {
+      const [shown, setShown] = useState(true);
+      return (
+        <Section title="Toggle">
+          {shown && <ConsoleCard>Card</ConsoleCard>}
+          <button type="button" onClick={() => setShown(false)}>
+            Remove
+          </button>
+        </Section>
+      );
+    }
+    const { container } = render(<Toggle />);
+    expect(
+      container.querySelectorAll("[data-slot='frame-panel']"),
+    ).toHaveLength(1);
+    expect(
+      container.querySelector("[data-slot='frame-panel']"),
+    ).not.toContainElement(screen.getByRole("button", { name: "Remove" }));
+
+    await userEvent
+      .setup()
+      .click(screen.getByRole("button", { name: "Remove" }));
+
+    const panels = container.querySelectorAll("[data-slot='frame-panel']");
+    expect(panels).toHaveLength(1);
+    expect(panels[0]).toContainElement(
+      screen.getByRole("button", { name: "Remove" }),
+    );
   });
 
   it("draws a titled card standing alone as its own frame", () => {

@@ -3,6 +3,7 @@ import { QueryErrorResetBoundary } from "@tanstack/react-query";
 import { CatchBoundary } from "@tanstack/react-router";
 import {
   createContext,
+  isValidElement,
   type ReactNode,
   Suspense,
   useCallback,
@@ -22,15 +23,22 @@ import {
   FrameTitle,
 } from "@/components/ui/frame";
 import { Skeleton } from "@/components/ui/skeleton";
-import { cn } from "@/lib/utils";
 
-const slugOf = (title: ReactNode): string | undefined =>
-  typeof title === "string"
-    ? title
-        .toLowerCase()
-        .replace(/[^\p{L}\p{N}]+/gu, "-")
-        .replace(/^-+|-+$/g, "") || undefined
-    : undefined;
+const slug = (text: string): string | undefined =>
+  text
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, "-")
+    .replace(/^-+|-+$/g, "") || undefined;
+
+/** A text title, or the message id of a `<Trans id>` title (stable across locales). */
+const slugOf = (title: ReactNode): string | undefined => {
+  if (typeof title === "string") return slug(title);
+  if (isValidElement<{ id?: unknown }>(title)) {
+    const id = title.props.id;
+    return typeof id === "string" ? slug(id) : undefined;
+  }
+  return undefined;
+};
 
 /**
  * Lets a panel inside a `Section` say it is the section's panel. Absent
@@ -39,15 +47,19 @@ const slugOf = (title: ReactNode): string | undefined =>
 const SectionFrameContext = createContext<(() => () => void) | null>(null);
 
 /**
- * Whether the caller sits in a `Section`, registering it as a panel there.
+ * Whether the caller sits in a `Section` and is its panel.
  *
  * A `ConsoleCard` or `ItemList` that reads `true` renders a bare `FramePanel`
- * and the section supplies the frame around it.
+ * and the section supplies the frame. Pass `enabled: false` for one that draws
+ * its own frame, so it does not take the section's panel.
  */
-export function useSectionPanel(): boolean {
+export function useSectionPanel(enabled = true): boolean {
   const register = useContext(SectionFrameContext);
-  useLayoutEffect(() => register?.(), [register]);
-  return register !== null;
+  useLayoutEffect(
+    () => (enabled ? register?.() : undefined),
+    [register, enabled],
+  );
+  return register !== null && enabled;
 }
 
 /**
@@ -117,19 +129,13 @@ export function Section({
             </div>
             {action}
           </FrameHeader>
-          {/* One element whether or not a child brought its own panel, so the
-              content keeps its state when the children register; its look
-              flips between a panel and a plain stack. */}
-          <FramePanel
-            data-slot={ownPanel ? "frame-panel" : "section-body"}
-            className={cn(
-              !ownPanel &&
-                "flex flex-col gap-1 border-0 bg-transparent p-0 shadow-none before:hidden",
-              ownPanel && "flex flex-col gap-3",
-            )}
-          >
-            {children}
-          </FramePanel>
+          {/* A child that is the panel is laid out in a plain div; the one
+              remount when it registers happens before paint. */}
+          {ownPanel ? (
+            <FramePanel className="flex flex-col gap-3">{children}</FramePanel>
+          ) : (
+            <div className="flex flex-col">{children}</div>
+          )}
           {footer !== undefined && (
             <FrameFooter className="text-muted-foreground text-sm">
               {footer}
@@ -165,6 +171,9 @@ export function Section({
 export function AsyncSection({
   resetKey,
   title,
+  id,
+  footer,
+  dirty,
   children,
 }: {
   /** Identifies the boundary's content, so a change to it resets the error. */
@@ -175,8 +184,13 @@ export function AsyncSection({
    * names the block.
    */
   title?: ReactNode;
+  /** Passed to the `Section` drawn in every state. */
+  id?: string;
+  footer?: ReactNode;
+  dirty?: boolean;
   children: ReactNode;
 }) {
+  const sectionProps = { id, footer, dirty };
   const pending =
     title === undefined ? (
       <Frame>
@@ -185,7 +199,7 @@ export function AsyncSection({
         </FramePanel>
       </Frame>
     ) : (
-      <Section title={title}>
+      <Section title={title} {...sectionProps}>
         <SectionPending />
       </Section>
     );
@@ -198,6 +212,7 @@ export function AsyncSection({
           errorComponent={({ error, reset }) => (
             <SectionError
               title={title}
+              sectionProps={sectionProps}
               error={error}
               onRetry={() => {
                 resetQueries();
@@ -231,16 +246,18 @@ function SectionPending() {
 
 function SectionError({
   title,
+  sectionProps,
   error,
   onRetry,
 }: {
   title: ReactNode;
+  sectionProps: { id?: string; footer?: ReactNode; dirty?: boolean };
   error: unknown;
   onRetry: () => void;
 }) {
   const { t } = useLingui();
   return (
-    <Section title={title}>
+    <Section title={title} {...sectionProps}>
       <SurfaceAlert status="danger" role="alert">
         <SurfaceAlert.Indicator />
         <SurfaceAlert.Content>

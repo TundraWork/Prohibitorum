@@ -40,7 +40,7 @@ import { Button } from "@/components/custom/Button";
 import { ConsoleCard } from "@/components/custom/ConsoleCard";
 import { ConsoleTabs } from "@/components/custom/ConsoleTabs";
 import { CopyValue } from "@/components/custom/CopyValue";
-import { DangerZone } from "@/components/custom/DangerZone";
+import { DangerZone, DangerZoneFrame } from "@/components/custom/DangerZone";
 import { ItemList, ItemListRow } from "@/components/custom/ItemList";
 import { RelativeTime } from "@/components/custom/RelativeTime";
 import { SecretReveal } from "@/components/custom/SecretReveal";
@@ -774,15 +774,18 @@ function TokensBlock({ accountId }: { accountId: number }) {
 function DangerPanel({ account }: { account: Account }) {
   const { t } = useLingui();
   return (
-    <ItemList
+    <DangerZoneFrame
       title={<Trans id="admin.user.danger.title">Danger zone</Trans>}
-      label={t({ id: "admin.user.danger.title", message: "Danger zone" })}
-      empty={null}
     >
-      <EnrollmentBlock key="enrollment" accountId={account.id} />
-      <DisabledBlock key="disabled" account={account} />
-      <DeleteBlock key="delete" account={account} />
-    </ItemList>
+      <ItemList
+        label={t({ id: "admin.user.danger.title", message: "Danger zone" })}
+        empty={null}
+      >
+        <EnrollmentBlock key="enrollment" accountId={account.id} />
+        <DisabledBlock key="disabled" account={account} />
+        <DeleteBlock key="delete" account={account} />
+      </ItemList>
+    </DangerZoneFrame>
   );
 }
 

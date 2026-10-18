@@ -11,12 +11,8 @@ import { cn } from "@/lib/utils";
 /**
  * The console's standard card, capped at the console's content measure.
  *
- * Under a `Section` it is the section's panel and takes no title: the section
- * names the block. A titled card stands alone, as a frame with its own header,
- * for a dialog's content or a page block that has no section.
- *
- * The measure is a choice: the default suits a form read line by line, and
- * `wide` gives content laid out in columns the whole panel.
+ * Untitled under a `Section` it is the section's panel; titled it draws its own
+ * frame and header. `wide` lets columns use the whole panel.
  */
 export function ConsoleCard({
   title,
@@ -32,7 +28,7 @@ export function ConsoleCard({
   contentClassName?: string;
   children: ReactNode;
 }) {
-  const inSection = useSectionPanel();
+  const inSection = useSectionPanel(title === undefined);
   const panel = (
     <FramePanel>
       <div className={cn(wide ? "max-w-none" : "max-w-lg", contentClassName)}>
