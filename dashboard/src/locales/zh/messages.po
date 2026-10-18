@@ -2461,6 +2461,11 @@ msgid "devices.form"
 msgstr "设备配对"
 
 #. js-lingui-explicit-id
+#: src/pages/Devices.tsx
+msgid "devices.page.title"
+msgstr "设备"
+
+#. js-lingui-explicit-id
 #: src/components/custom/ConsoleLayout.tsx
 msgid "console.devices"
 msgstr "设备"
@@ -8627,6 +8632,11 @@ msgid "pair.waiting"
 msgstr "等待批准… 配对码 {left} 后过期"
 
 #. js-lingui-explicit-id
+#: src/pages/devices/DeviceSessionList.tsx
+msgid "devices.sessions.waiting"
+msgstr "正在等待新设备完成登录…"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.diagnostics.run.waiting"
 msgstr "等待提供商回调"
@@ -8687,6 +8697,11 @@ msgstr "从这里打开应用时，控制台跳转到的地址。留空表示不
 #: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
 msgid "admin.saml-apps.field.acs.hint"
 msgstr "这个实例发送断言的目标地址。其中恰好一个端点是默认端点。"
+
+#. js-lingui-explicit-id
+#: src/pages/Devices.tsx
+msgid "devices.page.description"
+msgstr "查看你当前在哪些设备上登录，并可让显示配对码的设备登录。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx

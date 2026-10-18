@@ -1,17 +1,29 @@
-import { Chip, Tooltip } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useMutation,
+  useQueryClient,
+  useSuspenseQuery,
+} from "@tanstack/react-query";
 import { LogOut, MonitorSmartphone } from "lucide-react";
-import { useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
+import { describeError, isCancellation } from "@/api/errors";
 import type { components } from "@/api/generated/schema";
 import { revokeSessionMutationOptions } from "@/api/mutations";
 import { sessionsQueryOptions } from "@/api/queries";
+import { withInlineReport } from "@/app/query-client";
 import { Button } from "@/components/custom/Button";
 import { ConfirmDialog } from "@/components/custom/ConfirmDialog";
-import { DeviceIcon, DeviceName } from "@/components/custom/DeviceName";
+import {
+  DeviceIcon,
+  DeviceName,
+  describeDevice,
+} from "@/components/custom/DeviceName";
 import { ItemList, ItemListRow } from "@/components/custom/ItemList";
 import { RelativeTime } from "@/components/custom/RelativeTime";
+import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
 import { TableEmptyState } from "@/components/custom/TableEmptyState";
+import { Badge } from "@/components/ui/badge";
+import { Spinner } from "@/components/ui/spinner";
 
 type Session = components["schemas"]["SessionListItem"];
 
@@ -26,13 +38,13 @@ const watchInterval = 3000;
 
 /**
  * The devices signed in to this account, one session each. The server marks
- * the row belonging to the current request and refuses to end it, so that
- * row's action is disabled and its tooltip explains that signing out is the
- * way to end it.
+ * the row belonging to the current request and refuses to end it, so that row
+ * says to use sign out instead of offering an action that would fail.
  *
  * An approved device signs in on its own, a moment later. While `watchUntil`
- * holds, the list asks again every few seconds until a session more than the
- * approval saw has arrived, or the pairing has expired and none will.
+ * holds, the list says it is waiting and asks again every few seconds, until
+ * a session more than the approval saw has arrived or the pairing has expired
+ * and none will.
  */
 export function DeviceSessionList({
   watchUntil,
@@ -41,7 +53,7 @@ export function DeviceSessionList({
 }) {
   const { t } = useLingui();
   const queryClient = useQueryClient();
-  const sessions = useQuery({
+  const { data } = useSuspenseQuery({
     ...sessionsQueryOptions(),
     refetchInterval: (query) => {
       if (watchUntil === null) return false;
@@ -50,48 +62,43 @@ export function DeviceSessionList({
     },
   });
   const [target, setTarget] = useState<Session | null>(null);
-  const revoke = useMutation(revokeSessionMutationOptions(queryClient));
+  const [error, setError] = useState<unknown>(null);
 
-  const endSession = (session: Session) => {
-    const button = (
-      <Button
-        aria-label={t({
-          id: "devices.sessions.end",
-          message: "End session",
-        })}
-        disabled={session.isCurrent}
-        onClick={() => setTarget(session)}
-        variant="destructive-outline"
-        size="icon-sm"
-      >
-        <LogOut size={16} aria-hidden="true" />
-      </Button>
-    );
-    // The current session is disabled rather than hidden, and the tooltip
-    // carries the reason. A disabled button emits no hover or focus, so the
-    // tooltip listens on the trigger wrapper instead.
-    return session.isCurrent ? (
-      <Tooltip delay={0}>
-        <Tooltip.Trigger>{button}</Tooltip.Trigger>
-        <Tooltip.Content>
-          <Trans id="devices.sessions.use_sign_out">
-            Use sign out to end this one
-          </Trans>
-        </Tooltip.Content>
-      </Tooltip>
-    ) : (
-      button
-    );
-  };
+  // The failure is drawn on this page, so the toast stays silent.
+  const revoke = useMutation(
+    withInlineReport(revokeSessionMutationOptions(queryClient), true),
+  );
+
+  const waiting = useWaiting(watchUntil, data.length);
 
   return (
-    <>
+    <div className="flex flex-col gap-4">
+      {error !== null && (
+        <SurfaceAlert status="danger" role="alert">
+          <SurfaceAlert.Indicator />
+          <SurfaceAlert.Content>
+            <SurfaceAlert.Title>{t(describeError(error))}</SurfaceAlert.Title>
+          </SurfaceAlert.Content>
+        </SurfaceAlert>
+      )}
+
+      {/* The region stays mounted so the line is announced when it appears. */}
+      <div aria-live="polite" className="empty:hidden">
+        {waiting && (
+          <p className="flex items-center gap-2 text-muted-foreground text-sm">
+            <Spinner className="size-4" aria-hidden="true" />
+            <Trans id="devices.sessions.waiting">
+              Waiting for the new device to finish signing in…
+            </Trans>
+          </p>
+        )}
+      </div>
+
       <ItemList
         label={t({
           id: "devices.sessions.list",
           message: "Signed-in devices",
         })}
-        loading={sessions.isPending}
         empty={
           <TableEmptyState
             icon={
@@ -107,25 +114,40 @@ export function DeviceSessionList({
           />
         }
       >
-        {(sessions.data ?? []).map((session) => (
+        {data.map((session) => (
           <ItemListRow
             key={session.id}
             icon={<DeviceIcon userAgent={session.userAgent} />}
             title={<DeviceName userAgent={session.userAgent} />}
-            badges={
+            badge={
               session.isCurrent && (
-                <Chip color="accent" size="sm" variant="soft">
+                <Badge variant="info">
                   <Trans id="devices.sessions.current">This device</Trans>
-                </Chip>
+                </Badge>
               )
             }
-            details={[
-              session.lastSeenIp || undefined,
-              <Trans key="issued" id="devices.sessions.issued">
-                Signed in <RelativeTime value={session.issuedAt} />
-              </Trans>,
-            ]}
-            actions={endSession(session)}
+            details={sessionDetails(session)}
+            actions={
+              session.isCurrent ? (
+                <span className="max-w-28 text-end text-muted-foreground text-xs leading-snug sm:max-w-none">
+                  <Trans id="devices.sessions.use_sign_out">
+                    Use sign out to end this one
+                  </Trans>
+                </span>
+              ) : (
+                <Button
+                  aria-label={t({
+                    id: "devices.sessions.end",
+                    message: "End session",
+                  })}
+                  onClick={() => setTarget(session)}
+                  variant="destructive-outline"
+                  size="icon-sm"
+                >
+                  <LogOut aria-hidden="true" />
+                </Button>
+              )
+            }
           />
         ))}
       </ItemList>
@@ -151,10 +173,65 @@ export function DeviceSessionList({
         isPending={revoke.isPending}
         onConfirm={() => {
           if (!target) return;
-          // A failure is the global toast's to report; the dialog just closes.
-          revoke.mutate(target.id, { onSettled: () => setTarget(null) });
+          setError(null);
+          revoke.mutate(target.id, {
+            onSuccess: () => setTarget(null),
+            onError: (failure) => {
+              if (!isCancellation(failure)) setError(failure);
+              setTarget(null);
+            },
+          });
         }}
       />
-    </>
+    </div>
   );
+}
+
+/**
+ * Where it signed in from and when. A User-Agent the title could not name is
+ * shown whole here, since the title only has room for its start.
+ */
+function sessionDetails(session: Session): ReactNode[] {
+  const details: ReactNode[] = [];
+  if (session.lastSeenIp) {
+    details.push(
+      <span key="ip" className="font-mono">
+        {session.lastSeenIp}
+      </span>,
+    );
+  }
+  details.push(
+    <Trans key="issued" id="devices.sessions.issued">
+      Signed in <RelativeTime value={session.issuedAt} />
+    </Trans>,
+  );
+  if (session.userAgent && describeDevice(session.userAgent).name === null) {
+    details.push(
+      <span key="ua" className="font-mono">
+        {session.userAgent}
+      </span>,
+    );
+  }
+  return details;
+}
+
+/**
+ * Whether a watched approval is still waiting: its device has not appeared
+ * and its pairing has not run out. The timer flips it at the expiry, since
+ * nothing else re-renders the list once polling stops.
+ */
+function useWaiting(watch: SessionWatch | null, sessionCount: number): boolean {
+  const [lapsed, setLapsed] = useState(false);
+  useEffect(() => {
+    if (watch === null) return;
+    const remaining = watch.until - Date.now();
+    if (remaining <= 0) {
+      setLapsed(true);
+      return;
+    }
+    setLapsed(false);
+    const timer = window.setTimeout(() => setLapsed(true), remaining);
+    return () => window.clearTimeout(timer);
+  }, [watch]);
+  return watch !== null && !lapsed && sessionCount <= watch.count;
 }

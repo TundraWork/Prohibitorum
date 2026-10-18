@@ -62,7 +62,7 @@ describe("DeviceName", () => {
     const name = screen.getByText("Firefox · Linux");
     await user.tab();
     expect(name).toHaveFocus();
-    expect(await screen.findByRole("tooltip")).toHaveTextContent(firefoxLinux);
+    expect(await screen.findByText(firefoxLinux)).toBeInTheDocument();
   });
 
   it("shows an unreadable string as it is", () => {
@@ -78,7 +78,7 @@ describe("DeviceName", () => {
     const shown = screen.getByText(`${long.slice(0, 79)}…`);
     expect(shown.textContent).toHaveLength(80);
     await user.tab();
-    expect(await screen.findByRole("tooltip")).toHaveTextContent(long);
+    expect(await screen.findByText(long)).toBeInTheDocument();
   });
 
   it("says the device is unknown when there is no User-Agent at all", () => {

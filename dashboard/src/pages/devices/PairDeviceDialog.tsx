@@ -1,7 +1,11 @@
-import { Modal, Tooltip } from "@heroui/react";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  type UseMutationResult,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import {
   approveDeviceMutationOptions,
@@ -16,6 +20,15 @@ import { Detail } from "@/components/custom/Detail";
 import { DeviceName } from "@/components/custom/DeviceName";
 import { RelativeTime } from "@/components/custom/RelativeTime";
 import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
+import { getTopLayerContainer } from "@/components/custom/top-layer";
+import {
+  Dialog,
+  DialogFooter,
+  DialogHeader,
+  DialogPanel,
+  DialogPopup,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { applyServerError } from "@/forms/server-errors";
 import { useAppForm } from "@/forms/use-app-form";
 import {
@@ -54,39 +67,57 @@ export function PairDeviceDialog({
   onClose: () => void;
   onApproved: (pairing: DevicePairing) => void;
 }) {
-  const [busy, setBusy] = useState(false);
+  const queryClient = useQueryClient();
+  // The writes live here, with the dialog's owner, so a failure is still
+  // reported once the step that started it is gone. The global toast reports
+  // them; the dialog draws no error of its own.
+  const approve = useMutation(approveDeviceMutationOptions(queryClient));
+  const decline = useMutation(cancelDeviceMutationOptions(queryClient));
+  const revoke = useMutation(
+    cancelDeviceMutationOptions(
+      queryClient,
+      successMessage.cancelDevicePairing,
+    ),
+  );
+  const busy = approve.isPending || decline.isPending || revoke.isPending;
   return (
-    <Modal
-      isOpen={isOpen}
+    <Dialog
+      open={isOpen}
       onOpenChange={(open) => {
         if (!open && !busy) onClose();
       }}
     >
-      <Modal.Backdrop>
-        <Modal.Container placement="center" size="md" scroll="inside">
-          <Modal.Dialog>
-            <PairingFlow
-              key={attempt}
-              initialCode={initialCode}
-              onBusy={setBusy}
-              onClose={onClose}
-              onApproved={onApproved}
-            />
-          </Modal.Dialog>
-        </Modal.Container>
-      </Modal.Backdrop>
-    </Modal>
+      <DialogPopup
+        className="sm:max-w-md"
+        portalProps={{ container: getTopLayerContainer() }}
+      >
+        <PairingFlow
+          key={attempt}
+          initialCode={initialCode}
+          writes={{ approve, decline, revoke, busy }}
+          onClose={onClose}
+          onApproved={onApproved}
+        />
+      </DialogPopup>
+    </Dialog>
   );
 }
 
+type Writes = {
+  approve: UseMutationResult<unknown, Error, string>;
+  decline: UseMutationResult<unknown, Error, string>;
+  revoke: UseMutationResult<unknown, Error, string>;
+  busy: boolean;
+};
+
 function PairingFlow({
   initialCode,
-  onBusy,
+  writes,
   onClose,
   onApproved,
 }: {
   initialCode?: string;
-  onBusy: (busy: boolean) => void;
+  writes: Writes;
   onClose: () => void;
   onApproved: (pairing: DevicePairing) => void;
 }) {
@@ -100,7 +131,7 @@ function PairingFlow({
   ) : (
     <ReviewStep
       request={request}
-      onBusy={onBusy}
+      writes={writes}
       onClose={onClose}
       onApproved={onApproved}
     />
@@ -146,51 +177,50 @@ function CodeStep({
 
   return (
     <form.AppForm>
-      <Modal.Header>
-        <Modal.Heading>
+      <DialogHeader>
+        <DialogTitle>
           <Trans id="devices.pair.title">Sign in a new device</Trans>
-        </Modal.Heading>
-      </Modal.Header>
+        </DialogTitle>
+      </DialogHeader>
       <form.Form
         label={t({ id: "devices.form", message: "Device pairing" })}
         className="flex min-h-0 flex-1 flex-col"
       >
-        <Modal.Body>
-          <div className="flex flex-col gap-4">
-            <form.FormError />
-            <form.AppField
-              name="code"
-              validators={{
-                onSubmit: ({ value }) =>
-                  value.length === pairingCodeLength
-                    ? undefined
-                    : codeIncomplete,
-              }}
-            >
-              {(field) => (
-                <field.OtpField
-                  digits={pairingCodeLength}
-                  pattern={pairingCodePattern}
-                  inputMode="text"
-                  variant="secondary"
-                  label={
-                    <Trans id="devices.code.label">
-                      Pairing code shown on the new device
-                    </Trans>
-                  }
-                />
-              )}
-            </form.AppField>
-          </div>
-        </Modal.Body>
-        <Modal.Footer className="mt-5">
-          <Button onClick={onCancel} variant="outline">
+        <DialogPanel className="flex flex-col gap-4">
+          <form.FormError />
+          <form.AppField
+            name="code"
+            validators={{
+              onSubmit: ({ value }) =>
+                value.length === pairingCodeLength ? undefined : codeIncomplete,
+            }}
+          >
+            {(field) => (
+              <field.OtpField
+                digits={pairingCodeLength}
+                pattern={pairingCodePattern}
+                inputMode="text"
+                size="lg"
+                // Eight large slots are wider than a phone dialog, so they
+                // tighten up there instead of running off its edge.
+                className="max-sm:gap-1 max-sm:**:data-[slot=otp-field-input]:size-9 max-sm:**:data-[slot=otp-field-input]:leading-9"
+                label={
+                  <Trans id="devices.code.label">
+                    Pairing code shown on the new device
+                  </Trans>
+                }
+              />
+            )}
+          </form.AppField>
+        </DialogPanel>
+        <DialogFooter>
+          <Button variant="ghost" onClick={onCancel}>
             <Trans id="devices.cancel">Cancel</Trans>
           </Button>
-          <form.SubmitButton>
+          <form.SubmitButton fullWidth>
             <Trans id="devices.continue">Continue</Trans>
           </form.SubmitButton>
-        </Modal.Footer>
+        </DialogFooter>
       </form.Form>
     </form.AppForm>
   );
@@ -203,28 +233,20 @@ function CodeStep({
  *
  * A pairing runs out: at `expiresAt` the approval is disabled and a notice
  * says to start again. A pairing this account already approved offers to take
- * that approval back instead. A failed write is the global toast's to report.
+ * that approval back instead.
  */
 function ReviewStep({
   request,
-  onBusy,
+  writes,
   onClose,
   onApproved,
 }: {
   request: PairingRequest;
-  onBusy: (busy: boolean) => void;
+  writes: Writes;
   onClose: () => void;
   onApproved: (pairing: DevicePairing) => void;
 }) {
-  const queryClient = useQueryClient();
-  const approve = useMutation(approveDeviceMutationOptions(queryClient));
-  const decline = useMutation(cancelDeviceMutationOptions(queryClient));
-  const revoke = useMutation(
-    cancelDeviceMutationOptions(
-      queryClient,
-      successMessage.cancelDevicePairing,
-    ),
-  );
+  const { approve, decline, revoke, busy } = writes;
   const sessions = useQuery(sessionsQueryOptions());
   const { code, pairing } = request;
   const expiresAt = Date.parse(pairing.expiresAt);
@@ -242,9 +264,6 @@ function ReviewStep({
     return () => window.clearTimeout(timer);
   }, [expiresAt]);
 
-  const busy = approve.isPending || decline.isPending || revoke.isPending;
-  useEffect(() => onBusy(busy), [busy, onBusy]);
-
   // The code step's field is gone, and left to itself focus would land on the
   // first control here — the device name, whose tooltip then covers the
   // heading. The dialog takes it instead, as it does when it opens, so the
@@ -260,22 +279,10 @@ function ReviewStep({
     pairing.initiatorIp === thisDevice?.lastSeenIp;
   const ip = pairing.initiatorIp;
 
-  const approveButton = (
-    <Button
-      disabled={busy || expired}
-      pending={approve.isPending}
-      onClick={() =>
-        approve.mutate(code, { onSuccess: () => onApproved(pairing) })
-      }
-    >
-      <Trans id="devices.approve">Approve</Trans>
-    </Button>
-  );
-
   return (
     <>
-      <Modal.Header>
-        <Modal.Heading>
+      <DialogHeader>
+        <DialogTitle>
           {pairing.alreadyBound ? (
             <Trans id="devices.review.approved_title">
               Device already approved
@@ -283,9 +290,9 @@ function ReviewStep({
           ) : (
             <Trans id="devices.review.title">Let this device sign in?</Trans>
           )}
-        </Modal.Heading>
-      </Modal.Header>
-      <Modal.Body className="flex flex-col gap-4">
+        </DialogTitle>
+      </DialogHeader>
+      <DialogPanel className="flex flex-col gap-4">
         {pairing.alreadyBound ? (
           <SurfaceAlert status="accent">
             <SurfaceAlert.Indicator />
@@ -304,13 +311,19 @@ function ReviewStep({
               <SurfaceAlert.Indicator />
               <SurfaceAlert.Content>
                 <SurfaceAlert.Title>
-                  <ExpiredReason />
+                  <Trans id="devices.review.expired">
+                    This pairing code has expired. Start again on the new
+                    device.
+                  </Trans>
                 </SurfaceAlert.Title>
               </SurfaceAlert.Content>
             </SurfaceAlert>
           )
         )}
-        <dl ref={facts} className="flex min-w-0 flex-col gap-3">
+        <dl
+          ref={facts}
+          className="grid min-w-0 gap-x-6 gap-y-3 rounded-xl bg-muted/60 p-4 ring-1 ring-border/60 sm:grid-cols-[max-content_minmax(0,1fr)] sm:gap-x-10"
+        >
           <Detail label={<Trans id="devices.field.device">Device</Trans>}>
             <DeviceName userAgent={pairing.initiatorUa} />
           </Detail>
@@ -332,15 +345,15 @@ function ReviewStep({
             <RelativeTime value={pairing.expiresAt} />
           </Detail>
         </dl>
-        {!pairing.alreadyBound && (
-          <p>
+        {!pairing.alreadyBound && !expired && (
+          <p className="text-sm">
             <Trans id="devices.review.consequence">
               Once approved, this device is signed in to your account.
             </Trans>
           </p>
         )}
-      </Modal.Body>
-      <Modal.Footer>
+      </DialogPanel>
+      <DialogFooter>
         {pairing.alreadyBound ? (
           <>
             <Button disabled={busy} onClick={onClose} variant="outline">
@@ -365,29 +378,18 @@ function ReviewStep({
             >
               <Trans id="devices.decline">Decline</Trans>
             </Button>
-            {/* A disabled button emits no hover or focus, so the tooltip
-                listens on the trigger wrapper instead. */}
-            {expired ? (
-              <Tooltip delay={0}>
-                <Tooltip.Trigger>{approveButton}</Tooltip.Trigger>
-                <Tooltip.Content>
-                  <ExpiredReason />
-                </Tooltip.Content>
-              </Tooltip>
-            ) : (
-              approveButton
-            )}
+            <Button
+              disabled={busy || expired}
+              pending={approve.isPending}
+              onClick={() =>
+                approve.mutate(code, { onSuccess: () => onApproved(pairing) })
+              }
+            >
+              <Trans id="devices.approve">Approve</Trans>
+            </Button>
           </>
         )}
-      </Modal.Footer>
+      </DialogFooter>
     </>
-  );
-}
-
-function ExpiredReason() {
-  return (
-    <Trans id="devices.review.expired">
-      This pairing code has expired. Start again on the new device.
-    </Trans>
   );
 }

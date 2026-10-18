@@ -2461,6 +2461,11 @@ msgid "devices.form"
 msgstr "Device pairing"
 
 #. js-lingui-explicit-id
+#: src/pages/Devices.tsx
+msgid "devices.page.title"
+msgstr "Devices"
+
+#. js-lingui-explicit-id
 #: src/components/custom/ConsoleLayout.tsx
 msgid "console.devices"
 msgstr "Devices"
@@ -8627,6 +8632,11 @@ msgid "pair.waiting"
 msgstr "Waiting for approval… The code expires in {left}."
 
 #. js-lingui-explicit-id
+#: src/pages/devices/DeviceSessionList.tsx
+msgid "devices.sessions.waiting"
+msgstr "Waiting for the new device to finish signing in…"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.diagnostics.run.waiting"
 msgstr "Waiting for the provider"
@@ -8687,6 +8697,11 @@ msgstr "Where the console links when the application is opened from here. Leave 
 #: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
 msgid "admin.saml-apps.field.acs.hint"
 msgstr "Where the instance sends the assertion. Exactly one endpoint is the default one."
+
+#. js-lingui-explicit-id
+#: src/pages/Devices.tsx
+msgid "devices.page.description"
+msgstr "Where you are signed in right now, and a way to sign in a device that shows a pairing code."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx

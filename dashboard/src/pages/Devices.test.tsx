@@ -129,7 +129,7 @@ async function enterCode(user: User, code: string) {
 }
 
 describe("signed-in devices", () => {
-  it("names each device and keeps this one from being ended here", async () => {
+  it("names each device and explains why this one has no end action", async () => {
     serve(() => Response.json(pairing()));
     mount();
 
@@ -144,11 +144,102 @@ describe("signed-in devices", () => {
       within(other as HTMLElement).queryByText("This device"),
     ).not.toBeInTheDocument();
 
-    const ends = within(list)
-      .getAllByRole("button", { name: "End session" })
-      .filter((button) => button.tagName === "BUTTON");
-    expect(ends[0]).toBeDisabled();
-    expect(ends[1]).toBeEnabled();
+    // The current row says how to end it instead of offering a dead button.
+    expect(
+      within(current as HTMLElement).getByText("Use sign out to end this one"),
+    ).toBeInTheDocument();
+    expect(
+      within(current as HTMLElement).queryByRole("button", {
+        name: "End session",
+      }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(other as HTMLElement).getByRole("button", { name: "End session" }),
+    ).toBeEnabled();
+    expect(
+      within(other as HTMLElement).queryByText("Use sign out to end this one"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows the address and when each session signed in", async () => {
+    serve(() => Response.json(pairing()));
+    mount();
+
+    const list = await screen.findByRole("list", { name: "Signed-in devices" });
+    const [, other] = within(list).getAllByRole("listitem");
+    expect(
+      within(other as HTMLElement).getByText("192.0.2.2"),
+    ).toBeInTheDocument();
+    expect(
+      within(other as HTMLElement).getByText(/Signed in/),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps the whole User-Agent in the details when it cannot be read", async () => {
+    const curl = `curl/${"x".repeat(120)}`;
+    sessions = [session(1, firefoxLinux), session(2, curl)];
+    serve(() => Response.json(pairing()));
+    mount();
+
+    const list = await screen.findByRole("list", { name: "Signed-in devices" });
+    const [, other] = within(list).getAllByRole("listitem");
+    const details = (other as HTMLElement).querySelector(
+      '[data-slot="item-details"]',
+    );
+    expect(details).toHaveTextContent(curl);
+  });
+
+  it("ends another session after confirming", async () => {
+    serve(
+      () => Response.json(pairing()),
+      () => new Response(null, { status: 204 }),
+    );
+    const user = userEvent.setup();
+    mount();
+
+    const list = await screen.findByRole("list", { name: "Signed-in devices" });
+    const [, other] = within(list).getAllByRole("listitem");
+    await user.click(
+      within(other as HTMLElement).getByRole("button", { name: "End session" }),
+    );
+    const confirm = await screen.findByRole("alertdialog", {
+      name: "End this session?",
+    });
+    await user.click(
+      within(confirm).getByRole("button", { name: "End session" }),
+    );
+    await waitFor(() =>
+      expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument(),
+    );
+    expect(requests("/me/sessions/revoke")).toHaveLength(1);
+  });
+
+  it("reports a failed end once, in the page, and not as a toast", async () => {
+    serve(
+      () => Response.json(pairing()),
+      (path) =>
+        path.includes("/revoke")
+          ? Response.json(
+              { code: "session_not_found", requestId: "devices-test" },
+              { status: 404 },
+            )
+          : undefined,
+    );
+    const user = userEvent.setup();
+    mount();
+
+    const list = await screen.findByRole("list", { name: "Signed-in devices" });
+    const [, other] = within(list).getAllByRole("listitem");
+    await user.click(
+      within(other as HTMLElement).getByRole("button", { name: "End session" }),
+    );
+    const confirm = await screen.findByRole("alertdialog");
+    await user.click(
+      within(confirm).getByRole("button", { name: "End session" }),
+    );
+
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    expect(notifyError).not.toHaveBeenCalled();
   });
 });
 
@@ -267,19 +358,18 @@ describe("signing in a new device", () => {
       name: "Let this device sign in?",
     });
     const approve = () =>
-      within(dialog)
-        .getAllByRole("button", { name: "Approve" })
-        .find((button) => button.tagName === "BUTTON");
+      within(dialog).getByRole("button", { name: "Approve" });
     expect(approve()).toBeEnabled();
 
     await vi.advanceTimersByTimeAsync(5_000);
 
     await waitFor(() => expect(approve()).toBeDisabled());
+    // The reason is on the page, not only in a tooltip on the disabled button.
     expect(
       within(dialog).getByText(
         "This pairing code has expired. Start again on the new device.",
       ),
-    ).toBeInTheDocument();
+    ).toBeVisible();
   });
 
   it("approves, closes with a toast, and watches the list until the device arrives", async () => {
@@ -305,7 +395,12 @@ describe("signing in a new device", () => {
       expect.objectContaining({ id: "success.device.approved" }),
     );
 
-    // Not there yet: the list asks again.
+    // Not there yet: the list says it is waiting, and asks again.
+    expect(
+      await screen.findByText(
+        "Waiting for the new device to finish signing in…",
+      ),
+    ).toBeInTheDocument();
     const before = requests("/me/sessions").length;
     await vi.advanceTimersByTimeAsync(3_000);
     await waitFor(() =>
@@ -316,9 +411,67 @@ describe("signing in a new device", () => {
     sessions = [...sessions, session(3, chromeWindows)];
     await vi.advanceTimersByTimeAsync(3_000);
     expect(await screen.findByText("Chrome · Windows")).toBeInTheDocument();
+    expect(
+      screen.queryByText("Waiting for the new device to finish signing in…"),
+    ).not.toBeInTheDocument();
     const settled = requests("/me/sessions").length;
     await vi.advanceTimersByTimeAsync(9_000);
     expect(requests("/me/sessions")).toHaveLength(settled);
+  });
+
+  it("stops saying it is waiting when the pairing runs out unanswered", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    serve(() =>
+      Response.json(
+        pairing({ expiresAt: new Date(Date.now() + 10_000).toISOString() }),
+      ),
+    );
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    mount();
+
+    await screen.findByText("Safari · iOS");
+    await enterCode(user, "ABCD2345");
+    const dialog = await screen.findByRole("dialog", {
+      name: "Let this device sign in?",
+    });
+    await user.click(within(dialog).getByRole("button", { name: "Approve" }));
+    const waiting = "Waiting for the new device to finish signing in…";
+    expect(await screen.findByText(waiting)).toBeInTheDocument();
+
+    await vi.advanceTimersByTimeAsync(11_000);
+    await waitFor(() =>
+      expect(screen.queryByText(waiting)).not.toBeInTheDocument(),
+    );
+  });
+
+  it("keeps the waiting line in a live region so it is announced", async () => {
+    serve(() => Response.json(pairing()));
+    const user = userEvent.setup();
+    mount();
+
+    await screen.findByText("Safari · iOS");
+    await enterCode(user, "ABCD2345");
+    const dialog = await screen.findByRole("dialog", {
+      name: "Let this device sign in?",
+    });
+    await user.click(within(dialog).getByRole("button", { name: "Approve" }));
+    const line = await screen.findByText(
+      "Waiting for the new device to finish signing in…",
+    );
+    expect(line.closest("[aria-live]")).toHaveAttribute("aria-live", "polite");
+  });
+
+  it("says how much of the address matches when the device is on another network", async () => {
+    serve(() => Response.json(pairing({ initiatorIp: "198.51.100.7" })));
+    const user = userEvent.setup();
+    mount();
+
+    await enterCode(user, "ABCD2345");
+    const dialog = await screen.findByRole("dialog", {
+      name: "Let this device sign in?",
+    });
+    expect(within(dialog).getByText("198.51.100.7")).toBeInTheDocument();
+    expect(within(dialog).queryByText(/Same as this device/)).toBeNull();
   });
 
   it("declines from the same dialog", async () => {
@@ -392,7 +545,7 @@ describe("signing in a new device", () => {
     });
     await user.click(within(dialog).getByRole("button", { name: "Approve" }));
 
-    await waitFor(() => expect(notifyError).toHaveBeenCalled());
+    await waitFor(() => expect(notifyError).toHaveBeenCalledTimes(1));
     expect(within(dialog).queryByRole("alert")).not.toBeInTheDocument();
     expect(
       within(dialog).getByRole("button", { name: "Approve" }),

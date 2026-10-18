@@ -1,7 +1,7 @@
-import { Tooltip } from "@heroui/react";
 import { Trans } from "@lingui/react/macro";
 import Bowser from "bowser";
 import { Monitor, MonitorSmartphone, Smartphone, Tablet } from "lucide-react";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "@/components/ui/tooltip";
 
 export type DeviceKind = "desktop" | "mobile" | "tablet" | "unknown";
 
@@ -51,11 +51,21 @@ export function DeviceName({ userAgent }: { userAgent: string | undefined }) {
       ? `${userAgent.slice(0, rawLimit - 1)}…`
       : userAgent);
   return (
-    <Tooltip delay={0}>
-      <Tooltip.Trigger<"span"> render={(props) => <span {...props} />}>
+    <Tooltip>
+      <TooltipTrigger
+        delay={0}
+        render={
+          // Focusable so the full User-Agent is not hover-only.
+          <span
+            // biome-ignore lint/a11y/noNoninteractiveTabindex: the tooltip is the only way to read the full User-Agent
+            tabIndex={0}
+            className="rounded-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          />
+        }
+      >
         {shown}
-      </Tooltip.Trigger>
-      <Tooltip.Content className="break-all">{userAgent}</Tooltip.Content>
+      </TooltipTrigger>
+      <TooltipPopup className="max-w-xs break-all">{userAgent}</TooltipPopup>
     </Tooltip>
   );
 }
@@ -71,5 +81,5 @@ export function DeviceIcon({ userAgent }: { userAgent: string | undefined }) {
         : kind === "tablet"
           ? Tablet
           : MonitorSmartphone;
-  return <Icon size={18} aria-hidden="true" />;
+  return <Icon aria-hidden="true" />;
 }
