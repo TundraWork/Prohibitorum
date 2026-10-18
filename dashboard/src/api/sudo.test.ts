@@ -34,8 +34,11 @@ function sudoServer(fresh: boolean) {
   });
 }
 
-function harness(fresh: boolean) {
-  const queryClient = createQueryClient(() => undefined);
+function harness(
+  fresh: boolean,
+  notify: (error: unknown) => void = () => undefined,
+) {
+  const queryClient = createQueryClient(notify);
   let request: SudoRequest | null = null;
   let reported = fresh;
   configureSudo({
@@ -178,5 +181,24 @@ describe("sudo runner", () => {
     expect(
       ui.queryClient.getQueryData(sudoMethodsQueryOptions().queryKey),
     ).toMatchObject({ methods: ["webauthn"] });
+  });
+
+  it("reports a failed methods read once, and not at all when the caller is quiet", async () => {
+    fetchBoundary.mockImplementation(
+      async () => new Response(null, { status: 500 }),
+    );
+    const notify = vi.fn();
+    harness(true, notify);
+    await expect(runWithSudo(async () => "ok")).rejects.toBeInstanceOf(
+      ApiError,
+    );
+    expect(notify).toHaveBeenCalledTimes(1);
+
+    notify.mockReset();
+    harness(true, notify);
+    await expect(
+      runWithSudo(async () => "ok", undefined, { quiet: true }),
+    ).rejects.toBeInstanceOf(ApiError);
+    expect(notify).not.toHaveBeenCalled();
   });
 });

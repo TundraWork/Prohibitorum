@@ -116,10 +116,14 @@ export function resetSudo(): void {
  * lapsed, the dialog opens and the operation is replayed exactly once after
  * verification. Backing out rejects with `SudoCancelled`. There is no retry
  * loop: the replay is not wrapped, so a second refusal reaches the caller.
+ *
+ * `quiet` keeps a failed read of the sudo methods from raising the error
+ * toast, for a caller that shows the rejection itself.
  */
 export async function runWithSudo<T>(
   perform: () => Promise<T>,
   reason?: MessageDescriptor,
+  { quiet = false }: { quiet?: boolean } = {},
 ): Promise<T> {
   if (!runner) throw new Error("The sudo dialog is not mounted.");
   const active = runner;
@@ -127,7 +131,10 @@ export async function runWithSudo<T>(
     active.queryClient.getQueryData(sudoMethodsQueryOptions().queryKey) ===
     undefined
   ) {
-    await active.queryClient.fetchQuery(sudoMethodsQueryOptions());
+    const options = sudoMethodsQueryOptions();
+    await active.queryClient.fetchQuery(
+      quiet ? { ...options, meta: { quiet: true } } : options,
+    );
   }
   const cached = active.queryClient.getQueryData<SudoMethods>(
     sudoMethodsQueryOptions().queryKey,

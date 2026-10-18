@@ -181,4 +181,24 @@ describe("require identity", () => {
       api.sent("GET", "/api/prohibitorum/require-identity/t-1"),
     ).toHaveLength(0);
   });
+
+  it("reports a failed sudo read once, inline and not as a toast", async () => {
+    const notify = vi.fn();
+    queryClient = createQueryClient(notify);
+    fakeApi({
+      ...publicApi(testSession),
+      "GET /api/prohibitorum/require-identity/t-1": () =>
+        Response.json(request()),
+      "GET /api/prohibitorum/me/sudo/methods": () =>
+        apiError("internal_error", 500),
+    });
+    const user = userEvent.setup();
+    renderApp(address, queryClient);
+    await user.click(
+      await screen.findByRole("button", { name: "Verify with VRChat" }),
+    );
+    expect(await screen.findByRole("alert")).toBeVisible();
+    expect(notify).not.toHaveBeenCalled();
+    expect(loadDocument).not.toHaveBeenCalled();
+  });
 });

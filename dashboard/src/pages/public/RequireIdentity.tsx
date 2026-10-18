@@ -57,11 +57,15 @@ export function RequireIdentityPage() {
   const startLink = (slug: string) => {
     setError(null);
     setLinking(slug);
-    void runWithSudo(async () => {
-      // A full-page assignment: the response is a redirect the browser has to
-      // follow, not a body the client can read.
-      loadDocument(identityLinkUrl(slug, `/require-identity/${ticket}`));
-    }, sudoReason.linkIdentity)
+    void runWithSudo(
+      async () => {
+        // A full-page assignment: the response is a redirect the browser has to
+        // follow, not a body the client can read.
+        loadDocument(identityLinkUrl(slug, `/require-identity/${ticket}`));
+      },
+      sudoReason.linkIdentity,
+      { quiet: true },
+    )
       .catch((failure: unknown) => {
         if (!isCancellation(failure)) setError(failure);
       })
