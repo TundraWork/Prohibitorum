@@ -484,8 +484,9 @@ consumes state, and never renews a gateway state's five-minute lifetime.
   name is empty.
 - Ordinary OIDC: the /oauth/authorize URL's client must be registered and
   enabled with the exact redirect_uri among its registered list. The label is
-  the client's display name, or the host of its first registered redirect URI
-  when the name is empty.
+  the client's display name, or the host of the request's own redirect_uri
+  when the name is empty — a registered host the caller already sent, so the
+  fallback discloses no other registered address.
 - SAML: the return_to may be /saml/sso (the AuthnRequest is re-parsed,
   signature included, without consuming its single-use ID) or /saml/sso/init
   (sp must name a registered, enabled SP opted into IdP-initiated SSO). The

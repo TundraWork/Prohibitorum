@@ -21,9 +21,11 @@ type contextQueries struct {
 	*fakeFAQueries
 	client db.OidcClient
 	err    error
+	loads  int
 }
 
 func (q *contextQueries) GetOIDCClientAny(_ context.Context, id string) (db.OidcClient, error) {
+	q.loads++
 	if q.err != nil {
 		return db.OidcClient{}, q.err
 	}
@@ -56,14 +58,15 @@ func decodeContext(t *testing.T, rec *httptest.ResponseRecorder) forwardAuthLogi
 
 func TestForwardAuthContext_OrdinaryOIDC(t *testing.T) {
 	cases := []struct {
-		name   string
-		client db.OidcClient
-		label  string
+		name        string
+		client      db.OidcClient
+		redirectURI string
+		label       string
 	}{
-		{"named client", db.OidcClient{ClientID: "svc", DisplayName: "Wiki", RedirectUris: []string{"https://rp.example.test/callback"}}, "Wiki"},
-		{"empty name falls back to first redirect host", db.OidcClient{ClientID: "svc", RedirectUris: []string{"https://rp.example.test/callback", "https://other.example.test/cb"}}, "rp.example.test"},
-		{"host includes port", db.OidcClient{ClientID: "svc", RedirectUris: []string{"https://rp.example.test:8443/callback"}}, "rp.example.test:8443"},
-		{"name kept as registered, not trimmed", db.OidcClient{ClientID: "svc", DisplayName: "  spaced  ", RedirectUris: []string{"https://rp.example.test/callback"}}, "  spaced  "},
+		{"named client", db.OidcClient{ClientID: "svc", DisplayName: "Wiki", RedirectUris: []string{"https://rp.example.test/callback"}}, "https://rp.example.test/callback", "Wiki"},
+		{"empty name falls back to the request's redirect host", db.OidcClient{ClientID: "svc", RedirectUris: []string{"https://internal.example.test/callback", "https://public.example.test/cb"}}, "https://public.example.test/cb", "public.example.test"},
+		{"host includes port", db.OidcClient{ClientID: "svc", RedirectUris: []string{"https://rp.example.test:8443/callback"}}, "https://rp.example.test:8443/callback", "rp.example.test:8443"},
+		{"name kept as registered, not trimmed", db.OidcClient{ClientID: "svc", DisplayName: "  spaced  ", RedirectUris: []string{"https://rp.example.test/callback"}}, "https://rp.example.test/callback", "  spaced  "},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -71,7 +74,7 @@ func TestForwardAuthContext_OrdinaryOIDC(t *testing.T) {
 			q.client = tc.client
 			// Without state/PKCE, and with them: a non-forward-auth client
 			// takes the ordinary branch either way.
-			requests := []string{ordinaryAuthorizeURL(tc.client.RedirectUris[0]), ordinaryAuthorizeURL(tc.client.RedirectUris[0], func(v url.Values) {
+			requests := []string{ordinaryAuthorizeURL(tc.redirectURI), ordinaryAuthorizeURL(tc.redirectURI, func(v url.Values) {
 				v.Set("state", "st")
 				v.Set("code_challenge", "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM")
 				v.Set("code_challenge_method", "S256")
@@ -168,6 +171,35 @@ func TestForwardAuthContext_SAMLStorageFailure(t *testing.T) {
 	rec := readContext(p, testIssuer+"/saml/sso?SAMLRequest=abc")
 	if rec.Code != 503 || !strings.Contains(rec.Body.String(), "database_unavailable") {
 		t.Fatalf("response %d %s", rec.Code, rec.Body.String())
+	}
+}
+
+// The number of client loads must not depend on what the request names:
+// an extra load on any branch would let a caller time the difference and
+// learn which client_ids exist.
+func TestForwardAuthContext_SingleClientLoad(t *testing.T) {
+	cases := []struct {
+		name string
+		set  func(q *contextQueries, v url.Values)
+	}{
+		{"unknown client", func(_ *contextQueries, v url.Values) { v.Set("client_id", "nobody") }},
+		{"ordinary request", func(_ *contextQueries, v url.Values) { v.Del("state"); v.Del("code_challenge"); v.Del("code_challenge_method") }},
+		{"not forward-auth bound", func(q *contextQueries, _ url.Values) { q.client.ForwardAuthEnabled = false }},
+		{"disabled client", func(q *contextQueries, _ url.Values) { q.client.Disabled = true }},
+		{"valid forward-auth", func(_ *contextQueries, _ url.Values) {}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			p, q, _, u := contextFixture(t)
+			v := u.Query()
+			tc.set(q, v)
+			u.RawQuery = v.Encode()
+			q.loads = 0
+			readContext(p, u.String())
+			if q.loads != 1 {
+				t.Fatalf("%s: %d client loads, want exactly 1", tc.name, q.loads)
+			}
+		})
 	}
 }
 

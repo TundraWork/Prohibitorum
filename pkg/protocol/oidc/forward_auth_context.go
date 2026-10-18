@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/jackc/pgx/v5"
+	"prohibitorum/pkg/db"
 	"prohibitorum/pkg/kv"
 	"prohibitorum/pkg/weberr"
 )
@@ -86,18 +87,15 @@ func (p *Provider) HandleForwardAuthLoginContext(w http.ResponseWriter, r *http.
 		}
 	}
 	// Forward-auth needs state + PKCE; an ordinary OIDC request may omit
-	// both. It still earns a label — named after the client's registered
-	// application, with the first redirect URI's host as the empty-name
-	// fallback the user's answer picked (the forward-auth host plays that
-	// role on the FA branch).
+	// both. Either way the label comes from one client load below — the
+	// count of database reads must not differ between an unknown and a
+	// merely-not-forward-auth client_id, or the extra round trip would
+	// reveal which client_ids exist.
 	if params.Get("response_type") != "code" {
 		none()
 		return
 	}
-	if params.Get("state") == "" || params.Get("code_challenge") == "" || params.Get("code_challenge_method") != "S256" {
-		p.ordinaryOIDCLabel(w, r, params)
-		return
-	}
+	ordinary := params.Get("state") == "" || params.Get("code_challenge") == "" || params.Get("code_challenge_method") != "S256"
 	client, err := p.queries.GetOIDCClientAny(r.Context(), params.Get("client_id"))
 	if errors.Is(err, pgx.ErrNoRows) {
 		none()
@@ -107,12 +105,17 @@ func (p *Provider) HandleForwardAuthLoginContext(w http.ResponseWriter, r *http.
 		fail("database_unavailable")
 		return
 	}
+	if ordinary {
+		p.ordinaryOIDCLabel(w, client, params)
+		return
+	}
 	if client.Disabled || !client.ForwardAuthEnabled || !client.ForwardAuthHost.Valid || client.ForwardAuthHost.String == "" ||
 		params.Get("redirect_uri") != ForwardAuthCallbackURI(client.ForwardAuthHost.String) ||
 		!slices.Contains(client.RedirectUris, params.Get("redirect_uri")) {
 		// A client that passes the authorize handler's gates but is not
-		// forward-auth-bound is an ordinary OIDC request.
-		p.ordinaryOIDCLabel(w, r, params)
+		// forward-auth-bound is an ordinary OIDC request; the already-loaded
+		// row answers it, keeping this path at one load too.
+		p.ordinaryOIDCLabel(w, client, params)
 		return
 	}
 	raw, err := p.kv.Get(r.Context(), faStateKey(params.Get("state")))
@@ -144,33 +147,28 @@ func (p *Provider) HandleForwardAuthLoginContext(w http.ResponseWriter, r *http.
 }
 
 // ordinaryOIDCLabel answers for a return_to that is an /oauth/authorize URL
-// without a forward-auth binding: the login bounce only happens after the
-// authorize handler has validated the client and its redirect_uri, so the
-// same checks here select the client's registered name; anything that fails
-// them is answered as no context rather than an error.
-func (p *Provider) ordinaryOIDCLabel(w http.ResponseWriter, r *http.Request, params url.Values) {
-	none := func() { _ = json.NewEncoder(w).Encode(forwardAuthLoginContext{}) }
-	client, err := p.queries.GetOIDCClientAny(r.Context(), params.Get("client_id"))
-	if errors.Is(err, pgx.ErrNoRows) {
-		none()
-		return
-	}
-	if err != nil {
-		weberr.WriteJSON(w, "database_unavailable", nil, weberr.RequestIDFromContext(r.Context()))
-		return
-	}
+// without a forward-auth binding, using the client row the caller already
+// loaded: the login bounce only happens after the authorize handler has
+// validated the client and its redirect_uri, so the same checks here select
+// the client's registered name; anything that fails them is answered as no
+// context rather than an error.
+func (p *Provider) ordinaryOIDCLabel(w http.ResponseWriter, client db.OidcClient, params url.Values) {
 	if client.Disabled || !slices.Contains(client.RedirectUris, params.Get("redirect_uri")) {
-		none()
+		_ = json.NewEncoder(w).Encode(forwardAuthLoginContext{})
 		return
 	}
 	label := client.DisplayName
 	if label == "" {
-		if first, perr := url.Parse(client.RedirectUris[0]); perr == nil && first.Host != "" {
-			label = first.Host
+		// The request's own redirect_uri is exactly matched against the
+		// registered list before this, so its host is a registered host the
+		// caller already knows — the fallback never reveals an address the
+		// caller did not send.
+		if requested, perr := url.Parse(params.Get("redirect_uri")); perr == nil && requested.Host != "" {
+			label = requested.Host
 		}
 	}
 	if label == "" {
-		none()
+		_ = json.NewEncoder(w).Encode(forwardAuthLoginContext{})
 		return
 	}
 	_ = json.NewEncoder(w).Encode(forwardAuthLoginContext{Application: &forwardAuthApplication{Label: label}})

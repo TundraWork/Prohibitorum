@@ -97,11 +97,46 @@ func TestLoginContextLabel_IdPInitiated(t *testing.T) {
 	if _, ok, err = h.idp.LoginContextLabel(context.Background(), u); err != nil || ok {
 		t.Fatalf("opted out: ok=%v err=%v", ok, err)
 	}
+
+	// A disabled SP is as unregistered on this path as on /saml/sso itself.
+	h.q.sp.AllowIdpInitiated = true
+	h.q.sp.Disabled = true
+	if _, ok, err = h.idp.LoginContextLabel(context.Background(), u); err != nil || ok {
+		t.Fatalf("disabled SP: ok=%v err=%v", ok, err)
+	}
 	if _, ok, err = h.idp.LoginContextLabel(context.Background(), mustParse(t, testIdPOrigin+"/saml/sso/init?sp=https://unknown.example.test")); err != nil || ok {
 		t.Fatalf("unknown SP: ok=%v err=%v", ok, err)
 	}
 	if _, ok, err = h.idp.LoginContextLabel(context.Background(), mustParse(t, testIdPOrigin+"/saml/sso/init")); err != nil || ok {
 		t.Fatalf("missing sp param: ok=%v err=%v", ok, err)
+	}
+}
+
+// Reading the label must leave the single-use AuthnRequest ID spendable: the
+// login bounce returns to /saml/sso with the SAME SAMLRequest, and the issue
+// path there consumes the ID exactly once.
+func TestLoginContextLabel_DoesNotConsumeAuthnRequestID(t *testing.T) {
+	sp := ssoSP()
+	sp.DisplayName = "Smoke SP"
+	h := newSSOHarness(t, sp)
+	u := spInitiatedContextURL(t, h)
+	label, ok, err := h.idp.LoginContextLabel(context.Background(), u)
+	if err != nil || !ok || label != "Smoke SP" {
+		t.Fatalf("label=%q ok=%v err=%v", label, ok, err)
+	}
+	// The harness mints the request with the ID "_ctx-label" (see
+	// spInitiatedContextURL). consumeAuthnRequestID succeeds only on the
+	// first spend of the ID, so a nil error here proves the label read left
+	// it unconsumed, and a second consume must be refused.
+	if cerr := h.idp.consumeAuthnRequestID(context.Background(), testSPEntityID, "_ctx-label"); cerr != nil {
+		t.Fatalf("the login-context read consumed the AuthnRequest ID: %v", cerr)
+	}
+	if cerr := h.idp.consumeAuthnRequestID(context.Background(), testSPEntityID, "_ctx-label"); cerr == nil || !errors.Is(cerr, ErrReplayedRequest) {
+		t.Fatalf("second consume: err=%v, want ErrReplayedRequest", cerr)
+	}
+	// A second label read must still answer; the spent ID does not change it.
+	if _, ok, err = h.idp.LoginContextLabel(context.Background(), u); err != nil || !ok {
+		t.Fatalf("second read: ok=%v err=%v", ok, err)
 	}
 }
 
