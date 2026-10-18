@@ -320,6 +320,11 @@ msgid "audit.event.access_denied"
 msgstr "Access denied"
 
 #. js-lingui-explicit-id
+#: src/pages/public/ErrorLanding.tsx
+msgid "error_page.denied.retry_hint"
+msgstr "Access hasn't been granted yet. Once an administrator grants it, you can try again."
+
+#. js-lingui-explicit-id
 #: src/pages/admin/settings/SignInPagePanel.tsx
 msgid "settings.sign-in.unsplash.key"
 msgstr "Access key"

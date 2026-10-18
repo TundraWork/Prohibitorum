@@ -817,8 +817,9 @@ func TestAuthorize_AppAccessDenied_Interactive(t *testing.T) {
 	ra := &recordingAudit{}
 	p := newProvider(q, ra)
 
+	req := authedReq(baseParams())
 	rec := httptest.NewRecorder()
-	p.HandleAuthorize(rec, authedReq(baseParams()))
+	p.HandleAuthorize(rec, req)
 
 	if rec.Code != http.StatusFound {
 		t.Fatalf("want 302, got %d", rec.Code)
@@ -832,6 +833,11 @@ func TestAuthorize_AppAccessDenied_Interactive(t *testing.T) {
 	u, _ := url.Parse(loc)
 	if got := u.Query().Get("app"); got != "Acme Console" {
 		t.Fatalf("error page app= should be the client display name, got %q", got)
+	}
+	// The denial carries the authorize address: a user who waits for an
+	// administrator to grant access can re-run it from the error page.
+	if rt := u.Query().Get("return_to"); rt != req.URL.RequestURI() {
+		t.Fatalf("denial return_to = %q, want the authorize address %q", rt, req.URL.RequestURI())
 	}
 	// Must NOT have minted a code or redirected to the RP.
 	if strings.HasPrefix(loc, "https://rp.example.com/callback") {

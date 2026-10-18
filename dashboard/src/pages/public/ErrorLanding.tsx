@@ -32,19 +32,19 @@ export function ErrorLandingPage() {
   });
   const app = search.app;
   const ref = search.ref;
-  // A transient authorize failure carries the authorize URI as return_to, and
-  // re-running the request is the one remedy, so that address — and only that
-  // one — turns the way out into a retry. Every other code keeps the go-back
-  // link a server-validated return_to offers.
-  const retryTo =
-    search.error === "server_error" &&
-    search.return_to?.startsWith("/oauth/authorize") === true
-      ? sitePathOf(search.return_to)
-      : undefined;
+  // Two failures carry the address the flow started from, because running it
+  // again is the one remedy: a transient authorize failure, and a denial an
+  // administrator can lift while the user waits. Only an address the denial
+  // could restart — an authorize request or a require-identity entry, in
+  // either shape — turns the way out into a retry; every other code keeps the
+  // go-back link a server-validated return_to offers.
+  const retryTo = retryAddress(search.error, search.reason, search.return_to);
   const back =
     retryTo === undefined && isSitePath(search.return_to)
       ? search.return_to
       : undefined;
+  const deniedRetry =
+    retryTo !== undefined && search.reason === "app_access_denied";
 
   return (
     <PublicStep
@@ -62,6 +62,14 @@ export function ErrorLandingPage() {
         <SurfaceAlert.Indicator />
         <SurfaceAlert.Content>
           <SurfaceAlert.Title>{i18n._(message)}</SurfaceAlert.Title>
+          {deniedRetry && (
+            <SurfaceAlert.Description>
+              <Trans id="error_page.denied.retry_hint">
+                Access hasn't been granted yet. Once an administrator grants it,
+                you can try again.
+              </Trans>
+            </SurfaceAlert.Description>
+          )}
           {ref && (
             <SurfaceAlert.Description>
               <Trans id="error_page.reference">
@@ -111,4 +119,31 @@ export function ErrorLandingPage() {
       </SurfaceAlert>
     </PublicStep>
   );
+}
+
+/**
+ * The address a denial or a transient authorize failure left to run again,
+ * when the link carries one this site can offer. A denial names the flow it
+ * stopped — an authorize request or a require-identity entry, either shape —
+ * while a transient failure only re-runs an authorize request. Anything else
+ * is not a re-run this page offers.
+ */
+function retryAddress(
+  error: string | undefined,
+  reason: string | undefined,
+  returnTo: string | undefined,
+): string | undefined {
+  if (returnTo === undefined) return undefined;
+  if (reason === "app_access_denied") {
+    const path = sitePathOf(returnTo);
+    if (path === undefined) return undefined;
+    return path.startsWith("/oauth/authorize") ||
+      path.startsWith("/api/prohibitorum/require-identity")
+      ? path
+      : undefined;
+  }
+  if (error === "server_error" && returnTo.startsWith("/oauth/authorize")) {
+    return sitePathOf(returnTo);
+  }
+  return undefined;
 }

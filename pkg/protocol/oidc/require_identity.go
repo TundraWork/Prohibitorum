@@ -161,7 +161,7 @@ func (p *Provider) HandleRequireIdentity(w http.ResponseWriter, r *http.Request)
 				"client_id": client.ClientID,
 			},
 		})
-		p.appAccessDenied(w, r, redirectURI, client.DisplayName, "", false)
+		p.appAccessDenied(w, r, redirectURI, client.DisplayName, "", entry, false)
 		return
 	}
 

@@ -173,7 +173,7 @@ The same app policy is enforced at OIDC authorization, authorization-code exchan
 
 When an allowed OIDC client grants `groups`, ID token and userinfo emit the sorted, deduplicated exposed slugs for that client only. A manual allow includes its exposed manual slug and every matching exposed rule slug; rule-based access includes every matching exposed rule slug. SAML emits the same app-local set only through an attribute-map `groups` source. Forward-auth emits it as `Remote-Groups`. A manual deny emits no credential or assertion, so it has no claims.
 
-OIDC interactive denial redirects to the IdP error page, while `prompt=none` returns protocol-native `access_denied`. SAML interactive denial uses the IdP error page and passive denial returns `Responder` / `RequestDenied`. Forward-auth returns its normal denial response and does not issue a downstream session.
+OIDC interactive denial redirects to the IdP error page carrying the flow's entry address as `return_to`, so the page can offer to run it again once an administrator grants access; `prompt=none` returns protocol-native `access_denied`. SAML interactive denial uses the IdP error page and passive denial returns `Responder` / `RequestDenied`. Forward-auth returns its normal denial response and does not issue a downstream session.
 
 ### CLI mapping
 
@@ -450,7 +450,7 @@ returns JSON. In order:
 | `id_token_hint` unverifiable or for another client | 302 `/error?error=require_identity_invalid_id_token` |
 | No session | 302 `/login?return_to=<this request>` |
 | `id_token_hint` names another account | 302 `/require-identity/{ticket}`, a ticket marked as a mismatch |
-| No access to the application | 302 `/error?reason=app_access_denied&app=<name>`, audited `access_denied` |
+| No access to the application | 302 `/error?reason=app_access_denied&app=<name>&return_to=<this request>`, audited `access_denied` |
 | A confirmed link at any listed provider | 302 to `redirect_uri` as registered, with no parameters |
 | Otherwise | 302 `/require-identity/{ticket}` |
 

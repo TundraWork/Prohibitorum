@@ -320,6 +320,11 @@ msgid "audit.event.access_denied"
 msgstr "访问被拒绝"
 
 #. js-lingui-explicit-id
+#: src/pages/public/ErrorLanding.tsx
+msgid "error_page.denied.retry_hint"
+msgstr "访问权限还没有开通。管理员开通之后，你可以再试一次。"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/settings/SignInPagePanel.tsx
 msgid "settings.sign-in.unsplash.key"
 msgstr "Access Key"

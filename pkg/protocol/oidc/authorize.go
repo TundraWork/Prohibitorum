@@ -164,7 +164,7 @@ func (p *Provider) HandleAuthorize(w http.ResponseWriter, r *http.Request) {
 				"client_id": clientID,
 			},
 		})
-		p.appAccessDenied(w, r, redirectURI, client.DisplayName, state, prompt == "none")
+		p.appAccessDenied(w, r, redirectURI, client.DisplayName, state, r.URL.RequestURI(), prompt == "none")
 		return
 	}
 

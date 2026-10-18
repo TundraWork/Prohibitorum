@@ -250,8 +250,18 @@ func TestRequireIdentityAccessDeniedUsesTheDeniedPage(t *testing.T) {
 	h := newRequireIdentityHarness(t)
 	h.q.satisfied = true
 	h.access.byClient = map[string]appaccess.Decision{"rp-1": {Source: appaccess.SourceManualDeny}}
-	loc := location(t, h.serve(requireIdentityParams(), true))
-	if loc != testIssuer+"/error?reason=app_access_denied&app="+url.QueryEscape("Team wiki") {
+	req := requireIdentityParams()
+	loc := location(t, h.serve(req, true))
+	// The denial carries the entry address: a user who waits for an
+	// administrator to grant access can re-run it from the error page.
+	u, err := url.Parse(loc)
+	if err != nil {
+		t.Fatalf("Location %q does not parse: %v", loc, err)
+	}
+	if got := u.Query().Get("return_to"); got != testIssuer+"/api/prohibitorum/require-identity?"+req.Encode() {
+		t.Fatalf("denial return_to = %q, want the entry address", got)
+	}
+	if loc != testIssuer+"/error?reason=app_access_denied&app="+url.QueryEscape("Team wiki")+"&return_to="+url.QueryEscape(testIssuer+"/api/prohibitorum/require-identity?"+req.Encode()) {
 		t.Fatalf("Location = %q", loc)
 	}
 	if len(h.audit.records) != 1 || h.audit.records[0].Event != "access_denied" {

@@ -155,6 +155,74 @@ describe("the error landing page", () => {
     expect(screen.getByRole("button", { name: "Go back" })).toBeVisible();
   });
 
+  it("offers a denied user a retry once access may have been granted", async () => {
+    const user = userEvent.setup();
+    await open(
+      `/error?reason=app_access_denied&app=Wiki&return_to=${encodeURIComponent("/oauth/authorize?client_id=wiki")}`,
+    );
+    expect(
+      screen.getByText(
+        "Access hasn't been granted yet. Once an administrator grants it, you can try again.",
+      ),
+    ).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Try again" }));
+    await vi.waitFor(() =>
+      expect(loadDocument).toHaveBeenCalledWith(
+        "/oauth/authorize?client_id=wiki",
+      ),
+    );
+  });
+
+  it("re-runs the require-identity entry a denial carried", async () => {
+    const user = userEvent.setup();
+    await open(
+      `/error?reason=app_access_denied&app=Wiki&return_to=${encodeURIComponent("/api/prohibitorum/require-identity?client_id=wiki")}`,
+    );
+    await user.click(screen.getByRole("button", { name: "Try again" }));
+    await vi.waitFor(() =>
+      expect(loadDocument).toHaveBeenCalledWith(
+        "/api/prohibitorum/require-identity?client_id=wiki",
+      ),
+    );
+  });
+
+  it.each([
+    "//evil.example",
+    "/\\evil.example",
+    "https://evil.example",
+    "/oauth/authorize%2509//evil.example",
+  ])("does not turn a denial with %s into a retry", async (target) => {
+    await open(
+      `/error?reason=app_access_denied&app=Wiki&return_to=${encodeURIComponent(target)}`,
+    );
+    expect(
+      screen.queryByRole("button", { name: "Try again" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Go back" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("does not offer a denied user a retry for another page on this site", async () => {
+    await open(
+      `/error?reason=app_access_denied&app=Wiki&return_to=${encodeURIComponent("/security")}`,
+    );
+    expect(
+      screen.queryByRole("button", { name: "Try again" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Go back" })).toBeVisible();
+  });
+
+  it("does not turn a server error into a require-identity retry", async () => {
+    await open(
+      `/error?error=server_error&return_to=${encodeURIComponent("/api/prohibitorum/require-identity?client_id=wiki")}`,
+    );
+    expect(
+      screen.queryByRole("button", { name: "Try again" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Go back" })).toBeVisible();
+  });
+
   it.each(["//evil.example", "/\\evil.example", "https://evil.example"])(
     "does not treat %s as a page on this site",
     async (target) => {
