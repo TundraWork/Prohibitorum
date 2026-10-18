@@ -1099,13 +1099,13 @@ msgid "security.factor.authenticator"
 msgstr "Authenticator"
 
 #. js-lingui-explicit-id
-#: src/pages/public/enroll/PasswordTotpSetup.tsx
-msgid "enroll.password_totp.steps.authenticator"
+#: src/pages/admin/audit-vocabulary.ts
+msgid "audit.factor.totp"
 msgstr "Authenticator"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/audit-vocabulary.ts
-msgid "audit.factor.totp"
+#: src/components/custom/PasswordTotpStepHeader.tsx
+msgid "enroll.password_totp.steps.authenticator"
 msgstr "Authenticator"
 
 #. js-lingui-explicit-id
@@ -1179,7 +1179,7 @@ msgid "admin.saml-apps.source.avatar-url"
 msgstr "Avatar URL"
 
 #. js-lingui-explicit-id
-#: src/pages/security/PasswordTotpPanel.tsx
+#: src/pages/security/SetupDialog.tsx
 msgid "security.setup.back"
 msgstr "Back"
 
@@ -1249,8 +1249,10 @@ msgid "admin.federation.callback.title"
 msgstr "Callback addresses"
 
 #. js-lingui-explicit-id
+#: src/pages/security/ChangePasswordDialog.tsx
 #: src/pages/security/PasskeysPanel.tsx
-#: src/pages/security/PasswordTotpPanel.tsx
+#: src/pages/security/ReplaceAuthenticatorDialog.tsx
+#: src/pages/security/SetupDialog.tsx
 #: src/pages/security/TokensPanel.tsx
 msgid "security.cancel"
 msgstr "Cancel"
@@ -1335,17 +1337,17 @@ msgid "settings.sign-in.interval"
 msgstr "Change every"
 
 #. js-lingui-explicit-id
-#: src/pages/security/PasswordTotpPanel.tsx
+#: src/pages/security/ChangePasswordDialog.tsx
 msgid "security.password.change.title"
 msgstr "Change password"
 
 #. js-lingui-explicit-id
-#: src/pages/security/PasswordTotpPanel.tsx
+#: src/pages/security/ChangePasswordDialog.tsx
 msgid "security.password.change.form"
 msgstr "Change password"
 
 #. js-lingui-explicit-id
-#: src/pages/security/PasswordTotpPanel.tsx
+#: src/pages/security/ChangePasswordDialog.tsx
 msgid "security.password.change.action"
 msgstr "Change password"
 
@@ -1640,7 +1642,12 @@ msgid "admin.federation.operator.code"
 msgstr "Code"
 
 #. js-lingui-explicit-id
-#: src/pages/security/PasswordTotpPanel.tsx
+#: src/pages/security/ReplaceAuthenticatorDialog.tsx
+msgid "security.totp.code"
+msgstr "Code from the new authenticator"
+
+#. js-lingui-explicit-id
+#: src/pages/security/SetupDialog.tsx
 msgid "security.setup.code"
 msgstr "Code from your authenticator"
 
@@ -2231,11 +2238,6 @@ msgstr "Creating an account through {provider} requires an invitation."
 #: src/pages/Console.tsx
 msgid "console.current-account"
 msgstr "Current account"
-
-#. js-lingui-explicit-id
-#: src/pages/security/PasswordTotpPanel.tsx
-msgid "security.totp.code"
-msgstr "Current code"
 
 #. js-lingui-explicit-id
 #: src/components/custom/SudoDialog.tsx
@@ -3337,6 +3339,16 @@ msgid "federation.find_provider"
 msgstr "Find a provider"
 
 #. js-lingui-explicit-id
+#: src/pages/security/PasswordTotpPanel.tsx
+msgid "security.password.description.both"
+msgstr "For a device without your passkeys."
+
+#. js-lingui-explicit-id
+#: src/pages/security/PasswordTotpPanel.tsx
+msgid "security.password.description.none"
+msgstr "For a device without your passkeys. Not set up yet."
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/EndpointsField.tsx
 msgid "admin.federation.connection.mode.manual.hint"
 msgstr "For a provider that does not publish discovery."
@@ -4420,7 +4432,8 @@ msgid "admin.oidc-apps.new.form"
 msgstr "New OIDC application"
 
 #. js-lingui-explicit-id
-#: src/pages/security/PasswordTotpPanel.tsx
+#: src/pages/security/ChangePasswordDialog.tsx
+#: src/pages/security/SetupDialog.tsx
 msgid "security.password.new"
 msgstr "New password"
 
@@ -4445,7 +4458,7 @@ msgid "admin.group.create.title"
 msgstr "New user group"
 
 #. js-lingui-explicit-id
-#: src/pages/security/PasswordTotpPanel.tsx
+#: src/pages/security/SetupDialog.tsx
 msgid "security.setup.next"
 msgstr "Next"
 
@@ -4775,7 +4788,7 @@ msgid "devices.review.consequence"
 msgstr "Once approved, this device is signed in to your account."
 
 #. js-lingui-explicit-id
-#: src/pages/security/PasswordTotpPanel.tsx
+#: src/pages/security/SetupDialog.tsx
 msgid "security.setup.replacing"
 msgstr "Once this is done, your current password, authenticator and recovery codes are all replaced."
 
@@ -4823,6 +4836,11 @@ msgstr "Only linked accounts can sign in. New accounts need an invitation."
 #: src/pages/admin/saml-applications/saml-validation.ts
 msgid "admin.saml-apps.acs.default.duplicate"
 msgstr "Only one endpoint can be the default one."
+
+#. js-lingui-explicit-id
+#: src/pages/security/PasswordTotpPanel.tsx
+msgid "security.password.description.partial"
+msgstr "Only part of this is set up. Set it up again to use it."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/SignInPageControls.tsx
@@ -5037,11 +5055,6 @@ msgstr "Password"
 
 #. js-lingui-explicit-id
 #: src/pages/public/enroll/PasswordTotpSetup.tsx
-msgid "enroll.password_totp.steps.password"
-msgstr "Password"
-
-#. js-lingui-explicit-id
-#: src/pages/public/enroll/PasswordTotpSetup.tsx
 msgid "enroll.password_totp.password"
 msgstr "Password"
 
@@ -5058,6 +5071,11 @@ msgstr "Password"
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderOperatorSection.tsx
 msgid "admin.federation.operator.password"
+msgstr "Password"
+
+#. js-lingui-explicit-id
+#: src/components/custom/PasswordTotpStepHeader.tsx
+msgid "enroll.password_totp.steps.password"
 msgstr "Password"
 
 #. js-lingui-explicit-id
@@ -5373,7 +5391,7 @@ msgid "security.recovery.title"
 msgstr "Recovery codes"
 
 #. js-lingui-explicit-id
-#: src/pages/public/enroll/PasswordTotpSetup.tsx
+#: src/components/custom/PasswordTotpStepHeader.tsx
 msgid "enroll.password_totp.steps.codes"
 msgstr "Recovery codes"
 
@@ -5639,7 +5657,8 @@ msgid "security.passkeys.rename.title"
 msgstr "Rename this passkey"
 
 #. js-lingui-explicit-id
-#: src/pages/security/PasswordTotpPanel.tsx
+#: src/pages/security/ChangePasswordDialog.tsx
+#: src/pages/security/SetupDialog.tsx
 msgid "security.password.confirm"
 msgstr "Repeat new password"
 
@@ -5664,17 +5683,17 @@ msgid "admin.federation.danger.secret.replace-action"
 msgstr "Replace"
 
 #. js-lingui-explicit-id
-#: src/pages/security/PasswordTotpPanel.tsx
+#: src/pages/security/ReplaceAuthenticatorDialog.tsx
 msgid "security.totp.replace.title"
 msgstr "Replace authenticator"
 
 #. js-lingui-explicit-id
-#: src/pages/security/PasswordTotpPanel.tsx
+#: src/pages/security/ReplaceAuthenticatorDialog.tsx
 msgid "security.totp.replace.form"
 msgstr "Replace authenticator"
 
 #. js-lingui-explicit-id
-#: src/pages/security/PasswordTotpPanel.tsx
+#: src/pages/security/ReplaceAuthenticatorDialog.tsx
 msgid "security.totp.replace.action"
 msgstr "Replace authenticator"
 
@@ -6292,7 +6311,7 @@ msgid "admin.federation.danger.secret.action"
 msgstr "Set"
 
 #. js-lingui-explicit-id
-#: src/pages/security/PasswordTotpPanel.tsx
+#: src/pages/security/SetupDialog.tsx
 msgid "security.setup.step.password"
 msgstr "Set a password"
 
@@ -6312,6 +6331,11 @@ msgid "admin.federation.danger.not-ready.steam"
 msgstr "Set the Web API key before enabling it."
 
 #. js-lingui-explicit-id
+#: src/pages/security/PasswordTotpPanel.tsx
+msgid "security.setup.open"
+msgstr "Set up"
+
+#. js-lingui-explicit-id
 #: src/pages/public/Enroll.tsx
 msgid "enroll.title.reset"
 msgstr "Set up a new sign-in for {displayName}"
@@ -6322,7 +6346,7 @@ msgid "enroll.password_totp.form"
 msgstr "Set up a password and an authenticator"
 
 #. js-lingui-explicit-id
-#: src/pages/security/PasswordTotpPanel.tsx
+#: src/pages/security/SetupDialog.tsx
 msgid "security.setup.step.authenticator"
 msgstr "Set up an authenticator"
 
@@ -6332,12 +6356,7 @@ msgid "enroll.password_totp.authenticator.title"
 msgstr "Set up an authenticator"
 
 #. js-lingui-explicit-id
-#: src/pages/security/PasswordTotpPanel.tsx
-msgid "security.setup.open"
-msgstr "Set up password and authenticator"
-
-#. js-lingui-explicit-id
-#: src/pages/security/PasswordTotpPanel.tsx
+#: src/pages/security/SetupDialog.tsx
 msgid "security.setup.dialog"
 msgstr "Set up password and authenticator"
 
@@ -6575,7 +6594,7 @@ msgid "admin.oidc-apps.sign-in"
 msgstr "Sign-in rules"
 
 #. js-lingui-explicit-id
-#: src/pages/public/enroll/PasswordTotpSetup.tsx
+#: src/components/custom/PasswordTotpStepHeader.tsx
 msgid "enroll.password_totp.steps"
 msgstr "Sign-in setup steps"
 
@@ -7154,6 +7173,11 @@ msgid "admin.saml-apps.general.entity-id.hint"
 msgstr "The identifier the service provider publishes. The instance sends it with every response."
 
 #. js-lingui-explicit-id
+#: src/pages/security/SetupDialog.tsx
+msgid "security.setup.key_note"
+msgstr "The key was made in this browser and is sent only when you confirm."
+
+#. js-lingui-explicit-id
 #: src/pages/admin/settings/SigningKeysPanel.tsx
 msgid "settings.keys.error"
 msgstr "The keys could not be loaded."
@@ -7612,7 +7636,7 @@ msgstr "This is your only way to sign in, so it cannot be removed. Add another m
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
-msgid "security.revoke.last_tooltip"
+msgid "security.revoke.last_reason"
 msgstr "This is your only way to sign in. Add a passkey first."
 
 #. js-lingui-explicit-id
@@ -7899,12 +7923,12 @@ msgstr "Try again"
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
-msgid "security.revoke.action"
+msgid "security.revoke.confirm.action"
 msgstr "Turn off"
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
-msgid "security.revoke.confirm.action"
+msgid "security.revoke.action"
 msgstr "Turn off"
 
 #. js-lingui-explicit-id
@@ -7928,7 +7952,7 @@ msgid "admin.federation.general.sign_in.confirm_title"
 msgstr "Turn off sign-in?"
 
 #. js-lingui-explicit-id
-#: src/pages/security/PasswordTotpPanel.tsx
+#: src/pages/security/SetupDialog.tsx
 msgid "security.setup.turn_on"
 msgstr "Turn on"
 
@@ -8761,7 +8785,7 @@ msgid "saml_consent.basic"
 msgstr "Your basic account information"
 
 #. js-lingui-explicit-id
-#: src/pages/security/PasswordTotpPanel.tsx
+#: src/pages/security/ReplaceAuthenticatorDialog.tsx
 msgid "security.totp.replace.note"
 msgstr "Your current authenticator and every existing recovery code stop working as soon as this succeeds."
 

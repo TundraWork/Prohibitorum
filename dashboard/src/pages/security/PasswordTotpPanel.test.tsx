@@ -179,7 +179,7 @@ describe("password and authenticator rows", () => {
     ).toBeEnabled();
     expect(
       screen.queryByRole("button", {
-        name: "Set up password and authenticator",
+        name: "Set up",
       }),
     ).not.toBeInTheDocument();
 
@@ -199,7 +199,7 @@ describe("password and authenticator rows", () => {
 
     expect(
       await screen.findByRole("button", {
-        name: "Set up password and authenticator",
+        name: "Set up",
       }),
     ).toBeInTheDocument();
     const list = screen.getByRole("list", {
@@ -232,9 +232,7 @@ describe("password and authenticator rows", () => {
       screen.getByText("Turn off password and authenticator"),
     ).toBeInTheDocument();
 
-    await user.click(
-      screen.getByRole("button", { name: "Set up password and authenticator" }),
-    );
+    await user.click(screen.getByRole("button", { name: "Set up" }));
     const dialog = await screen.findByRole("dialog", {
       name: "Set a password",
     });
@@ -261,18 +259,105 @@ describe("password and authenticator rows", () => {
     expect(screen.queryByText("Running low")).not.toBeInTheDocument();
   });
 
-  it("disables turning off the last way in and says why on the button", async () => {
+  it("disables turning off the last way in and says why in the row", async () => {
     mount({ ...bothSet, passkeyCount: 0 });
+
+    await screen.findByText("Password");
+    const turnOff = within(row("Turn off password and authenticator"));
+    expect(turnOff.getByRole("button", { name: "Turn off" })).toBeDisabled();
+    // The reason is text in the row, not a hover tooltip: touch and keyboard
+    // readers get it too.
+    expect(
+      turnOff.getByText(
+        "This is your only way to sign in. Add a passkey first.",
+      ),
+    ).toBeVisible();
+  });
+
+  it("does not give the reason while a passkey remains", async () => {
+    mount(bothSet);
+
+    await screen.findByText("Password");
+    expect(
+      screen.queryByText(
+        "This is your only way to sign in. Add a passkey first.",
+      ),
+    ).not.toBeInTheDocument();
+  });
+
+  it("describes the section by what is set up", async () => {
+    mount(neither);
+    expect(
+      await screen.findByText(
+        "For a device without your passkeys. Not set up yet.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("describes a half-set section as needing to be set up again", async () => {
+    mount({ ...neither, passwordSet: true });
+    expect(
+      await screen.findByText(
+        "Only part of this is set up. Set it up again to use it.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps the plain description once both are set", async () => {
+    mount(bothSet);
+    await screen.findByText("Recovery codes");
+    expect(
+      screen.getByText("For a device without your passkeys."),
+    ).toBeInTheDocument();
+  });
+
+  it("offers Try again when the factors cannot be read", async () => {
+    let failing = true;
+    mount(bothSet, (path) =>
+      failing && path.endsWith("/me/factors")
+        ? Response.json(
+            { code: "internal_error", requestId: "panel-test" },
+            { status: 500 },
+          )
+        : undefined,
+    );
     const user = userEvent.setup();
 
-    // The tooltip's trigger wraps the disabled button, and takes its name.
-    const [trigger, turnOff] = await screen.findAllByRole("button", {
-      name: "Turn off",
+    expect(
+      await screen.findByText("This section could not be loaded"),
+    ).toBeInTheDocument();
+    failing = false;
+    await user.click(screen.getByRole("button", { name: "Try again" }));
+
+    expect(await screen.findByText("Recovery codes")).toBeInTheDocument();
+  });
+
+  it("reports a failed turn-off in the section when it is refused", async () => {
+    mount(bothSet, (path) =>
+      path.endsWith("/me/auth/revoke-password-totp")
+        ? Response.json(
+            { code: "internal_error", requestId: "panel-test" },
+            { status: 500 },
+          )
+        : undefined,
+    );
+    freshSudo();
+    const user = userEvent.setup();
+
+    await screen.findByText("Recovery codes");
+    await user.click(
+      within(row("Turn off password and authenticator")).getByRole("button", {
+        name: "Turn off",
+      }),
+    );
+    const confirm = await screen.findByRole("alertdialog", {
+      name: "Turn off password and authenticator?",
     });
-    expect(turnOff).toBeDisabled();
-    await user.hover(trigger as HTMLElement);
-    expect(await screen.findByRole("tooltip")).toHaveTextContent(
-      "This is your only way to sign in. Add a passkey first.",
+    await user.click(within(confirm).getByRole("button", { name: "Turn off" }));
+
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument(),
     );
   });
 });
@@ -281,7 +366,7 @@ describe("setting up both", () => {
   async function openSetup(user: UserEvent) {
     await user.click(
       await screen.findByRole("button", {
-        name: "Set up password and authenticator",
+        name: "Set up",
       }),
     );
     return screen.findByRole("dialog", { name: "Set a password" });
@@ -329,6 +414,65 @@ describe("setting up both", () => {
       ),
     ).not.toBeInTheDocument();
     expect(requests("/me/password-totp/verify")).toHaveLength(0);
+  });
+
+  it("shows which step the dialog is on", async () => {
+    mount(neither);
+    const user = userEvent.setup();
+    const dialog = await openSetup(user);
+
+    const steps = within(dialog).getByRole("list", {
+      name: "Sign-in setup steps",
+    });
+    const current = () =>
+      within(steps)
+        .getAllByRole("listitem")
+        .find((item) => item.getAttribute("aria-current") === "step");
+    expect(within(steps).getAllByRole("listitem")).toHaveLength(3);
+    expect(current()).toHaveTextContent("Password");
+
+    await user.type(
+      within(dialog).getByLabelText("New password"),
+      "a-long-enough-password",
+    );
+    await user.type(
+      within(dialog).getByLabelText("Repeat new password"),
+      "a-long-enough-password",
+    );
+    await user.click(within(dialog).getByRole("button", { name: "Next" }));
+    await within(dialog).findByRole("heading", {
+      name: "Set up an authenticator",
+    });
+    expect(current()).toHaveTextContent("Authenticator");
+  });
+
+  it("wraps the setup key in groups and says where it was made", async () => {
+    mount(neither);
+    const user = userEvent.setup();
+    const dialog = await openSetup(user);
+
+    await user.type(
+      within(dialog).getByLabelText("New password"),
+      "a-long-enough-password",
+    );
+    await user.type(
+      within(dialog).getByLabelText("Repeat new password"),
+      "a-long-enough-password",
+    );
+    await user.click(within(dialog).getByRole("button", { name: "Next" }));
+    const key = await within(dialog).findByRole("textbox", {
+      name: "Setup key",
+    });
+    // A wrapping value is a multi-line field showing the key in groups of four.
+    expect(key.tagName).toBe("TEXTAREA");
+    expect((key as HTMLTextAreaElement).value).toMatch(
+      /^([A-Z2-7]{4} ){7}[A-Z2-7]{4}$/,
+    );
+    expect(
+      within(dialog).getByText(
+        "The key was made in this browser and is sent only when you confirm.",
+      ),
+    ).toBeInTheDocument();
   });
 
   it("sends the password, secret and code together through the identity check, then shows the first codes in the dialog", async () => {
@@ -420,6 +564,15 @@ describe("setting up both", () => {
     ).toHaveValue(codes.join("\n"));
     expect(within(reveal).queryByText(/old recovery codes/)).toBeNull();
 
+    // The reveal is the dialog's last step, not a second dialog.
+    expect(screen.getAllByRole("dialog")).toHaveLength(1);
+    expect(
+      within(reveal)
+        .getAllByRole("listitem")
+        .find((item) => item.getAttribute("aria-current") === "step"),
+    ).toHaveTextContent("Recovery codes");
+    expect(within(reveal).queryByRole("button", { name: "Close" })).toBeNull();
+
     // Escape does not close it; only saving and continuing does.
     await user.keyboard("{Escape}");
     expect(
@@ -443,7 +596,7 @@ describe("setting up both", () => {
     await waitFor(() => expect(change).toHaveFocus());
     expect(
       screen.queryByRole("button", {
-        name: "Set up password and authenticator",
+        name: "Set up",
       }),
     ).not.toBeInTheDocument();
   });
@@ -569,6 +722,41 @@ describe("changing one factor", () => {
         "Your current authenticator and every existing recovery code stop working as soon as this succeeds.",
       ),
     ).toBeInTheDocument();
+  });
+
+  it("replaces the authenticator with a code from the new one and reveals the new codes", async () => {
+    const codes = ["ABCD-EFGH-IJKL-MN23"];
+    mount(bothSet, (path) =>
+      path.endsWith("/me/totp/verify")
+        ? json({ recovery_codes: codes })
+        : undefined,
+    );
+    freshSudo();
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole("button", { name: "Replace" }));
+    const dialog = await screen.findByRole("dialog", {
+      name: "Replace authenticator",
+    });
+    await user.type(
+      firstOtpSlot("Code from the new authenticator", within(dialog)),
+      "123456",
+    );
+    await user.click(
+      within(dialog).getByRole("button", { name: "Replace authenticator" }),
+    );
+
+    const reveal = await screen.findByRole("dialog", {
+      name: "Save your new recovery codes",
+    });
+    const verify = requests("/me/totp/verify");
+    expect(verify).toHaveLength(1);
+    const body = JSON.parse(await (verify[0] as Request).clone().text());
+    expect(body).toMatchObject({ code: "123456" });
+    expect(body.secret_base32).toMatch(/^[A-Z2-7]{32}$/);
+    expect(
+      within(reveal).getByRole("textbox", { name: "New recovery codes" }),
+    ).toHaveValue(codes.join("\n"));
   });
 
   it("closes the dialog and announces the change once the password is set", async () => {

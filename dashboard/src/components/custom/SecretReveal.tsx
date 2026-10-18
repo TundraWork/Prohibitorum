@@ -225,6 +225,42 @@ export function SecretReveal({
 }
 
 /**
+ * The reveal as the last step of a dialog the caller owns: a header carrying
+ * the caller's `progress` above the title, the secret in the panel, and
+ * Continue in the footer. The caller keeps the dialog open and unclosable
+ * while it shows this, since the server will never show the secret again.
+ */
+export function SecretRevealStep({
+  text,
+  filename,
+  copy,
+  onContinue,
+  progress,
+}: RevealProps & { progress?: ReactNode }) {
+  const { t } = useLingui();
+  const reveal = useReveal({ copy, onContinue });
+  return (
+    <>
+      <DialogHeader>
+        {progress}
+        <DialogTitle>{t(copy.title)}</DialogTitle>
+      </DialogHeader>
+      <DialogPanel className="flex flex-col gap-4">
+        <RevealBody
+          text={text}
+          filename={filename}
+          copy={copy}
+          reveal={reveal}
+        />
+      </DialogPanel>
+      <DialogFooter>
+        <ContinueButton copy={copy} reveal={reveal} />
+      </DialogFooter>
+    </>
+  );
+}
+
+/**
  * The same reveal in a dialog that is open exactly while the caller holds the
  * secret, so it cannot outlive it. Escape and the close button
  * all do nothing until the secret is confirmed saved, because the server will

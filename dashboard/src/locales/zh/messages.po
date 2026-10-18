@@ -1099,13 +1099,13 @@ msgid "security.factor.authenticator"
 msgstr "身份验证器"
 
 #. js-lingui-explicit-id
-#: src/pages/public/enroll/PasswordTotpSetup.tsx
-msgid "enroll.password_totp.steps.authenticator"
+#: src/pages/admin/audit-vocabulary.ts
+msgid "audit.factor.totp"
 msgstr "身份验证器"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/audit-vocabulary.ts
-msgid "audit.factor.totp"
+#: src/components/custom/PasswordTotpStepHeader.tsx
+msgid "enroll.password_totp.steps.authenticator"
 msgstr "身份验证器"
 
 #. js-lingui-explicit-id
@@ -1179,7 +1179,7 @@ msgid "admin.saml-apps.source.avatar-url"
 msgstr "头像 URL"
 
 #. js-lingui-explicit-id
-#: src/pages/security/PasswordTotpPanel.tsx
+#: src/pages/security/SetupDialog.tsx
 msgid "security.setup.back"
 msgstr "上一步"
 
@@ -1249,8 +1249,10 @@ msgid "admin.federation.callback.title"
 msgstr "回调地址"
 
 #. js-lingui-explicit-id
+#: src/pages/security/ChangePasswordDialog.tsx
 #: src/pages/security/PasskeysPanel.tsx
-#: src/pages/security/PasswordTotpPanel.tsx
+#: src/pages/security/ReplaceAuthenticatorDialog.tsx
+#: src/pages/security/SetupDialog.tsx
 #: src/pages/security/TokensPanel.tsx
 msgid "security.cancel"
 msgstr "取消"
@@ -1335,17 +1337,17 @@ msgid "settings.sign-in.interval"
 msgstr "切换间隔"
 
 #. js-lingui-explicit-id
-#: src/pages/security/PasswordTotpPanel.tsx
+#: src/pages/security/ChangePasswordDialog.tsx
 msgid "security.password.change.title"
 msgstr "修改密码"
 
 #. js-lingui-explicit-id
-#: src/pages/security/PasswordTotpPanel.tsx
+#: src/pages/security/ChangePasswordDialog.tsx
 msgid "security.password.change.form"
 msgstr "修改密码"
 
 #. js-lingui-explicit-id
-#: src/pages/security/PasswordTotpPanel.tsx
+#: src/pages/security/ChangePasswordDialog.tsx
 msgid "security.password.change.action"
 msgstr "修改密码"
 
@@ -1640,7 +1642,12 @@ msgid "admin.federation.operator.code"
 msgstr "验证码"
 
 #. js-lingui-explicit-id
-#: src/pages/security/PasswordTotpPanel.tsx
+#: src/pages/security/ReplaceAuthenticatorDialog.tsx
+msgid "security.totp.code"
+msgstr "来自新身份验证器的验证码"
+
+#. js-lingui-explicit-id
+#: src/pages/security/SetupDialog.tsx
 msgid "security.setup.code"
 msgstr "身份验证器中的验证码"
 
@@ -2231,11 +2238,6 @@ msgstr "通过 {provider} 创建账号需要邀请。"
 #: src/pages/Console.tsx
 msgid "console.current-account"
 msgstr "当前账号"
-
-#. js-lingui-explicit-id
-#: src/pages/security/PasswordTotpPanel.tsx
-msgid "security.totp.code"
-msgstr "当前验证码"
 
 #. js-lingui-explicit-id
 #: src/components/custom/SudoDialog.tsx
@@ -3337,6 +3339,16 @@ msgid "federation.find_provider"
 msgstr "查找提供商"
 
 #. js-lingui-explicit-id
+#: src/pages/security/PasswordTotpPanel.tsx
+msgid "security.password.description.both"
+msgstr "适用于没有通行密钥的设备。"
+
+#. js-lingui-explicit-id
+#: src/pages/security/PasswordTotpPanel.tsx
+msgid "security.password.description.none"
+msgstr "适用于没有通行密钥的设备。尚未设置。"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/EndpointsField.tsx
 msgid "admin.federation.connection.mode.manual.hint"
 msgstr "提供商不支持发现时使用。"
@@ -4420,7 +4432,8 @@ msgid "admin.oidc-apps.new.form"
 msgstr "新建 OIDC 应用"
 
 #. js-lingui-explicit-id
-#: src/pages/security/PasswordTotpPanel.tsx
+#: src/pages/security/ChangePasswordDialog.tsx
+#: src/pages/security/SetupDialog.tsx
 msgid "security.password.new"
 msgstr "新密码"
 
@@ -4445,7 +4458,7 @@ msgid "admin.group.create.title"
 msgstr "新建用户组"
 
 #. js-lingui-explicit-id
-#: src/pages/security/PasswordTotpPanel.tsx
+#: src/pages/security/SetupDialog.tsx
 msgid "security.setup.next"
 msgstr "下一步"
 
@@ -4775,7 +4788,7 @@ msgid "devices.review.consequence"
 msgstr "批准后，这台设备会以你的账号登录。"
 
 #. js-lingui-explicit-id
-#: src/pages/security/PasswordTotpPanel.tsx
+#: src/pages/security/SetupDialog.tsx
 msgid "security.setup.replacing"
 msgstr "完成后，现有的密码、身份验证器和恢复码都会被替换。"
 
@@ -4823,6 +4836,11 @@ msgstr "只有已绑定的账号能登录；新账号要凭邀请链接注册。
 #: src/pages/admin/saml-applications/saml-validation.ts
 msgid "admin.saml-apps.acs.default.duplicate"
 msgstr "只能有一个端点作为默认端点。"
+
+#. js-lingui-explicit-id
+#: src/pages/security/PasswordTotpPanel.tsx
+msgid "security.password.description.partial"
+msgstr "只设置了其中一部分。请重新设置后再使用。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/SignInPageControls.tsx
@@ -5037,11 +5055,6 @@ msgstr "密码"
 
 #. js-lingui-explicit-id
 #: src/pages/public/enroll/PasswordTotpSetup.tsx
-msgid "enroll.password_totp.steps.password"
-msgstr "密码"
-
-#. js-lingui-explicit-id
-#: src/pages/public/enroll/PasswordTotpSetup.tsx
 msgid "enroll.password_totp.password"
 msgstr "密码"
 
@@ -5058,6 +5071,11 @@ msgstr "密码"
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderOperatorSection.tsx
 msgid "admin.federation.operator.password"
+msgstr "密码"
+
+#. js-lingui-explicit-id
+#: src/components/custom/PasswordTotpStepHeader.tsx
+msgid "enroll.password_totp.steps.password"
 msgstr "密码"
 
 #. js-lingui-explicit-id
@@ -5373,7 +5391,7 @@ msgid "security.recovery.title"
 msgstr "恢复码"
 
 #. js-lingui-explicit-id
-#: src/pages/public/enroll/PasswordTotpSetup.tsx
+#: src/components/custom/PasswordTotpStepHeader.tsx
 msgid "enroll.password_totp.steps.codes"
 msgstr "恢复码"
 
@@ -5639,7 +5657,8 @@ msgid "security.passkeys.rename.title"
 msgstr "重命名这把通行密钥"
 
 #. js-lingui-explicit-id
-#: src/pages/security/PasswordTotpPanel.tsx
+#: src/pages/security/ChangePasswordDialog.tsx
+#: src/pages/security/SetupDialog.tsx
 msgid "security.password.confirm"
 msgstr "再次输入新密码"
 
@@ -5664,17 +5683,17 @@ msgid "admin.federation.danger.secret.replace-action"
 msgstr "更换"
 
 #. js-lingui-explicit-id
-#: src/pages/security/PasswordTotpPanel.tsx
+#: src/pages/security/ReplaceAuthenticatorDialog.tsx
 msgid "security.totp.replace.title"
 msgstr "更换身份验证器"
 
 #. js-lingui-explicit-id
-#: src/pages/security/PasswordTotpPanel.tsx
+#: src/pages/security/ReplaceAuthenticatorDialog.tsx
 msgid "security.totp.replace.form"
 msgstr "更换身份验证器"
 
 #. js-lingui-explicit-id
-#: src/pages/security/PasswordTotpPanel.tsx
+#: src/pages/security/ReplaceAuthenticatorDialog.tsx
 msgid "security.totp.replace.action"
 msgstr "更换身份验证器"
 
@@ -6292,7 +6311,7 @@ msgid "admin.federation.danger.secret.action"
 msgstr "设置"
 
 #. js-lingui-explicit-id
-#: src/pages/security/PasswordTotpPanel.tsx
+#: src/pages/security/SetupDialog.tsx
 msgid "security.setup.step.password"
 msgstr "设置密码"
 
@@ -6312,6 +6331,11 @@ msgid "admin.federation.danger.not-ready.steam"
 msgstr "先设置 Web API 密钥才能启用。"
 
 #. js-lingui-explicit-id
+#: src/pages/security/PasswordTotpPanel.tsx
+msgid "security.setup.open"
+msgstr "设置"
+
+#. js-lingui-explicit-id
 #: src/pages/public/Enroll.tsx
 msgid "enroll.title.reset"
 msgstr "为 {displayName} 设置新的登录方式"
@@ -6322,7 +6346,7 @@ msgid "enroll.password_totp.form"
 msgstr "设置密码和身份验证器"
 
 #. js-lingui-explicit-id
-#: src/pages/security/PasswordTotpPanel.tsx
+#: src/pages/security/SetupDialog.tsx
 msgid "security.setup.step.authenticator"
 msgstr "设置身份验证器"
 
@@ -6332,12 +6356,7 @@ msgid "enroll.password_totp.authenticator.title"
 msgstr "绑定身份验证器"
 
 #. js-lingui-explicit-id
-#: src/pages/security/PasswordTotpPanel.tsx
-msgid "security.setup.open"
-msgstr "设置密码与身份验证器"
-
-#. js-lingui-explicit-id
-#: src/pages/security/PasswordTotpPanel.tsx
+#: src/pages/security/SetupDialog.tsx
 msgid "security.setup.dialog"
 msgstr "设置密码与身份验证器"
 
@@ -6575,7 +6594,7 @@ msgid "admin.oidc-apps.sign-in"
 msgstr "登录规则"
 
 #. js-lingui-explicit-id
-#: src/pages/public/enroll/PasswordTotpSetup.tsx
+#: src/components/custom/PasswordTotpStepHeader.tsx
 msgid "enroll.password_totp.steps"
 msgstr "登录方式设置步骤"
 
@@ -7154,6 +7173,11 @@ msgid "admin.saml-apps.general.entity-id.hint"
 msgstr "服务提供商发布的标识符。这个实例在每次响应中都会带上它。"
 
 #. js-lingui-explicit-id
+#: src/pages/security/SetupDialog.tsx
+msgid "security.setup.key_note"
+msgstr "密钥在此浏览器中生成，仅在你确认时才会发送。"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/settings/SigningKeysPanel.tsx
 msgid "settings.keys.error"
 msgstr "无法加载密钥。"
@@ -7612,7 +7636,7 @@ msgstr "这是你唯一的登录方式，不能移除。请先添加其它方式
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
-msgid "security.revoke.last_tooltip"
+msgid "security.revoke.last_reason"
 msgstr "这是你唯一的登录方式。请先添加通行密钥。"
 
 #. js-lingui-explicit-id
@@ -7899,12 +7923,12 @@ msgstr "重试"
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
-msgid "security.revoke.action"
+msgid "security.revoke.confirm.action"
 msgstr "关闭"
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
-msgid "security.revoke.confirm.action"
+msgid "security.revoke.action"
 msgstr "关闭"
 
 #. js-lingui-explicit-id
@@ -7928,7 +7952,7 @@ msgid "admin.federation.general.sign_in.confirm_title"
 msgstr "关闭登录？"
 
 #. js-lingui-explicit-id
-#: src/pages/security/PasswordTotpPanel.tsx
+#: src/pages/security/SetupDialog.tsx
 msgid "security.setup.turn_on"
 msgstr "启用"
 
@@ -8761,7 +8785,7 @@ msgid "saml_consent.basic"
 msgstr "你的基本账号信息"
 
 #. js-lingui-explicit-id
-#: src/pages/security/PasswordTotpPanel.tsx
+#: src/pages/security/ReplaceAuthenticatorDialog.tsx
 msgid "security.totp.replace.note"
 msgstr "更换成功后，当前身份验证器与全部已有恢复码会立即失效。"
 
