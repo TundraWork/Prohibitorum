@@ -20,7 +20,7 @@ import type {
   AppGroupView,
   ManagedApplicationKind,
 } from "@/api/raw-admin-paths";
-import { withInlineReport } from "@/app/query-client";
+import { quietQuery, withInlineReport } from "@/app/query-client";
 import { Button } from "@/components/custom/Button";
 import { ConfirmDialog } from "@/components/custom/ConfirmDialog";
 import {
@@ -96,8 +96,10 @@ export function AppAccessSection({
   const { t, i18n } = useLingui();
   const queryClient = useQueryClient();
   const switchLabel = useId();
-  const access = useQuery(appAccessQueryOptions(kind, appId));
-  const groups = useQuery({ ...groupsQueryOptions(), enabled: true });
+  const access = useQuery(quietQuery(appAccessQueryOptions(kind, appId)));
+  const groups = useQuery(
+    quietQuery({ ...groupsQueryOptions(), enabled: true }),
+  );
   const setRestricted = useMutation(
     withInlineReport(
       setAppAccessRestrictedMutationOptions(queryClient, kind),
@@ -111,6 +113,8 @@ export function AppAccessSection({
   const dialogFailure = useInlineFailure();
   const [confirming, setConfirming] = useState(false);
   const [picking, setPicking] = useState(false);
+  // A new key per opening starts the picker from the current selection.
+  const [pickings, setPickings] = useState(0);
   const [removingLast, setRemovingLast] = useState<AppGroupView | null>(null);
 
   const title = <Trans id="app.access.title">Access</Trans>;
@@ -224,6 +228,7 @@ export function AppAccessSection({
                 size="sm"
                 onClick={() => {
                   dialogFailure.clear();
+                  setPickings((count) => count + 1);
                   setPicking(true);
                 }}
               >
@@ -293,6 +298,7 @@ export function AppAccessSection({
 
       <GroupPickerDialog
         open={picking}
+        session={pickings}
         selectedIds={selected.map((group) => String(group.id))}
         options={groupOptions}
         loading={groups.isPending}
@@ -450,12 +456,12 @@ function OrderStrip({ groups }: { groups: AppGroupView[] }) {
           id: "app.access.order.label",
           message: "Order of checks",
         })}
-        className="grid overflow-hidden rounded-xl bg-muted/60 ring-1 ring-border/60 sm:grid-cols-4"
+        className="grid grid-cols-2 overflow-hidden rounded-xl bg-muted/60 ring-1 ring-border/60 sm:grid-cols-4"
       >
         {steps.map((step, index) => (
           <li
             key={step.key}
-            className="border-t px-3 py-2.5 first:border-t-0 sm:border-s sm:border-t-0 sm:first:border-s-0"
+            className="border-t px-3 py-2.5 nth-[-n+2]:border-t-0 even:border-s sm:border-t-0 sm:border-s sm:first:border-s-0"
           >
             <div className="flex items-center gap-2 font-medium text-sm">
               <span
@@ -485,6 +491,7 @@ function OrderStrip({ groups }: { groups: AppGroupView[] }) {
  */
 function GroupPickerDialog({
   open,
+  session,
   selectedIds,
   options,
   loading,
@@ -494,6 +501,8 @@ function GroupPickerDialog({
   onSave,
 }: {
   open: boolean;
+  /** Changes with each opening, which resets the draft. */
+  session: number;
   selectedIds: string[];
   options: EntityOption[];
   loading: boolean;
@@ -503,22 +512,24 @@ function GroupPickerDialog({
   onSave: (ids: string[]) => void;
 }) {
   return (
-    <Dialog open={open} onOpenChange={(next) => !next && onCancel()}>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => !next && !pending && onCancel()}
+    >
       <DialogPopup
         className="sm:max-w-md"
         portalProps={{ container: getTopLayerContainer() }}
       >
-        {open && (
-          <GroupPickerForm
-            initial={selectedIds}
-            options={options}
-            loading={loading}
-            pending={pending}
-            error={error}
-            onCancel={onCancel}
-            onSave={onSave}
-          />
-        )}
+        <GroupPickerForm
+          key={session}
+          initial={selectedIds}
+          options={options}
+          loading={loading}
+          pending={pending}
+          error={error}
+          onCancel={onCancel}
+          onSave={onSave}
+        />
       </DialogPopup>
     </Dialog>
   );

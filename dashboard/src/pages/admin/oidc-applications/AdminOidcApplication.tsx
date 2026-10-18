@@ -1,7 +1,10 @@
 import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { oidcAppQueryOptions, sessionQueryOptions } from "@/api/queries";
 import { AppAccessSection } from "@/components/custom/AppAccessSection";
-import { AppManagersSection } from "@/components/custom/AppManagersSection";
+import {
+  AppManagerNote,
+  AppManagersSection,
+} from "@/components/custom/AppManagersSection";
 import {
   AppearanceSection,
   OidcIconSection,
@@ -44,6 +47,8 @@ export function AdminOidcApplication() {
 
   return (
     <div className="flex flex-col gap-8">
+      <AppManagerNote isAdmin={session.data?.role === "admin"} />
+
       <ClientConfigSection app={app} />
 
       <SignInRulesSection app={app} />

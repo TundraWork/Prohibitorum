@@ -1083,7 +1083,7 @@ msgstr "指派应用管理员"
 #. js-lingui-explicit-id
 #: src/components/custom/AppManagersSection.tsx
 msgid "app.managers.assigned"
-msgstr "已指派 <0/>"
+msgstr "<0/>指派"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AttributeMapField.tsx

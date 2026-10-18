@@ -71,7 +71,7 @@ function mount({
   selected: AppGroupView[];
   directory?: AppGroupView[];
   isAdmin?: boolean;
-  extra?: (request: Request) => Response | undefined;
+  extra?: (request: Request) => Response | Promise<Response> | undefined;
 }) {
   fetchBoundary.mockImplementation(async (request) => {
     const canned = extra?.(request);
@@ -259,5 +259,120 @@ describe("adding a group", () => {
 
     await waitFor(() => expect(writes("/groups")).toHaveLength(1));
     expect(await writes("/groups")[0]?.json()).toEqual({ groupIds: [1, 3] });
+  });
+});
+
+const rateLimited = () =>
+  Response.json({ code: "rate_limited", requestId: "r1" }, { status: 429 });
+const refuseWrites = (suffix: string) => (request: Request) =>
+  request.method !== "GET" && new URL(request.url).pathname.endsWith(suffix)
+    ? rateLimited()
+    : undefined;
+
+describe("failures", () => {
+  it("reports an unreadable policy once, in the section, with no toast", async () => {
+    mount({
+      selected: [],
+      extra: (request) =>
+        request.method === "GET" &&
+        new URL(request.url).pathname.endsWith("/access")
+          ? Response.json({ code: "internal_error" }, { status: 500 })
+          : undefined,
+    });
+
+    expect(
+      await screen.findByText("Could not load the access policy."),
+    ).toBeVisible();
+    expect(screen.getAllByRole("alert")).toHaveLength(1);
+    expect(notifyError).not.toHaveBeenCalled();
+  });
+
+  it("reports a refused restriction change once, inline", async () => {
+    const user = userEvent.setup();
+    mount({
+      restricted: false,
+      selected: [],
+      extra: refuseWrites("/access/set-restricted"),
+    });
+
+    await user.click(await screen.findByRole("switch", { name: "Restricted" }));
+    const dialog = await screen.findByRole("alertdialog");
+    await user.click(within(dialog).getByRole("button", { name: "Restrict" }));
+
+    expect(
+      await screen.findByText("Too many requests. Wait a moment."),
+    ).toBeVisible();
+    expect(screen.getAllByRole("alert")).toHaveLength(1);
+    expect(notifyError).not.toHaveBeenCalled();
+    expect(notifySuccess).not.toHaveBeenCalled();
+  });
+
+  it("reports a refused last-group removal once, inline", async () => {
+    const user = userEvent.setup();
+    mount({ selected: [engineering], extra: refuseWrites("/groups") });
+
+    await user.click(
+      await screen.findByRole("button", { name: "Remove Engineering" }),
+    );
+    const dialog = await screen.findByRole("alertdialog");
+    await user.click(within(dialog).getByRole("button", { name: "Remove" }));
+
+    expect(
+      await screen.findByText("Too many requests. Wait a moment."),
+    ).toBeVisible();
+    expect(screen.getAllByRole("alert")).toHaveLength(1);
+    expect(notifyError).not.toHaveBeenCalled();
+    expect(notifySuccess).not.toHaveBeenCalled();
+  });
+
+  it("keeps the picker open with the error when saving is refused", async () => {
+    const user = userEvent.setup();
+    mount({ selected: [engineering], extra: refuseWrites("/groups") });
+
+    await user.click(
+      await screen.findByRole("button", { name: "Add a group" }),
+    );
+    const dialog = await screen.findByRole("dialog", {
+      name: "Select user groups",
+    });
+    await user.click(within(dialog).getByRole("button", { name: "Save" }));
+
+    expect(
+      await within(dialog).findByText("Too many requests. Wait a moment."),
+    ).toBeVisible();
+    expect(screen.getAllByRole("alert")).toHaveLength(1);
+    expect(dialog).toBeVisible();
+    expect(notifyError).not.toHaveBeenCalled();
+    expect(notifySuccess).not.toHaveBeenCalled();
+  });
+
+  it("cannot be dismissed while the save is in flight", async () => {
+    const user = userEvent.setup();
+    let release: (response: Response) => void = () => {};
+    mount({
+      selected: [engineering],
+      extra: (request) =>
+        request.method === "PUT"
+          ? new Promise<Response>((resolve) => {
+              release = resolve;
+            })
+          : undefined,
+    });
+
+    await user.click(
+      await screen.findByRole("button", { name: "Add a group" }),
+    );
+    const dialog = await screen.findByRole("dialog", {
+      name: "Select user groups",
+    });
+    await user.click(within(dialog).getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(writes("/groups")).toHaveLength(1));
+    await user.keyboard("{Escape}");
+
+    expect(dialog).toBeVisible();
+    release(rateLimited());
+    expect(
+      await within(dialog).findByText("Too many requests. Wait a moment."),
+    ).toBeVisible();
   });
 });

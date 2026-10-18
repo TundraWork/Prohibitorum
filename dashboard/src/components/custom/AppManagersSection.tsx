@@ -1,7 +1,7 @@
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Trash2, UserPlus, UsersRound } from "lucide-react";
+import { Trash2, UserCheck, UserPlus, UsersRound } from "lucide-react";
 import { useState } from "react";
 import {
   assignAppManagerMutationOptions,
@@ -12,7 +12,7 @@ import {
   appManagersQueryOptions,
 } from "@/api/queries";
 import type { ManagedApplicationKind } from "@/api/raw-admin-paths";
-import { withInlineReport } from "@/app/query-client";
+import { quietQuery, withInlineReport } from "@/app/query-client";
 import { Button } from "@/components/custom/Button";
 import { ConfirmDialog } from "@/components/custom/ConfirmDialog";
 import { EntityAvatar } from "@/components/custom/EntityAvatar";
@@ -44,17 +44,32 @@ const removeManagerMessage = msg({
 });
 
 /**
- * The accounts allowed to manage an application, for an administrator; a
- * delegated manager sees a quiet note instead.
+ * A quiet line for a delegated manager saying why they can edit this page.
+ * Drawn under the page header; it renders nothing for an administrator.
+ */
+export function AppManagerNote({ isAdmin }: { isAdmin: boolean }) {
+  if (isAdmin) return null;
+  return (
+    <p className="flex items-center gap-2 text-muted-foreground text-sm">
+      <UserCheck aria-hidden="true" className="size-4 shrink-0" />
+      <Trans id="app.managers.self">You manage this application.</Trans>
+    </p>
+  );
+}
+
+/**
+ * The accounts allowed to manage an application. Administrators only: a
+ * delegated manager gets `AppManagerNote` instead.
  *
  * The list endpoint answers an administrator alone, so a manager's page never
  * asks for it, and an empty section would claim the application has no
  * managers when the truth is that they cannot be seen. A failed read is not an
  * empty list for the same reason.
  *
- * Both writes are held here, not in the dialog that starts one: a dismissed
- * dialog would lose the failure. Assigning shows a refusal inside its dialog,
- * which stays open; removing shows it in the section.
+ * Both writes are held here, not in the dialog that starts one: only a mounted
+ * mutation runs its callbacks. The assign dialog cannot be dismissed while its
+ * write is in flight, so a refusal is read inside it; removing shows its
+ * failure in the section.
  */
 export function AppManagersSection({
   kind,
@@ -67,10 +82,9 @@ export function AppManagersSection({
 }) {
   const { t, i18n } = useLingui();
   const queryClient = useQueryClient();
-  const managers = useQuery({
-    ...appManagersQueryOptions(kind, appId),
-    enabled: isAdmin,
-  });
+  const managers = useQuery(
+    quietQuery({ ...appManagersQueryOptions(kind, appId), enabled: isAdmin }),
+  );
   const assign = useMutation(
     withInlineReport(assignAppManagerMutationOptions(queryClient, kind), true),
   );
@@ -80,15 +94,11 @@ export function AppManagersSection({
   const assignFailure = useInlineFailure();
   const removeFailure = useInlineFailure();
   const [assigning, setAssigning] = useState(false);
+  // A new key per opening starts the dialog from an empty choice.
+  const [assignings, setAssignings] = useState(0);
   const [removing, setRemoving] = useState<number | null>(null);
 
-  if (!isAdmin) {
-    return (
-      <p className="text-muted-foreground text-sm">
-        <Trans id="app.managers.self">You manage this application.</Trans>
-      </p>
-    );
-  }
+  if (!isAdmin) return null;
 
   const target = (managers.data ?? []).find(
     (manager) => manager.id === removing,
@@ -111,6 +121,7 @@ export function AppManagersSection({
           <Button
             onClick={() => {
               assignFailure.clear();
+              setAssignings((count) => count + 1);
               setAssigning(true);
             }}
             variant="outline"
@@ -195,6 +206,7 @@ export function AppManagersSection({
 
       <AssignManagerDialog
         open={assigning}
+        session={assignings}
         assignedIds={
           new Set((managers.data ?? []).map((manager) => manager.id))
         }
@@ -248,6 +260,7 @@ export function AppManagersSection({
 /** One account chosen from the directory, which is searched rather than listed. */
 function AssignManagerDialog({
   open,
+  session,
   assignedIds,
   pending,
   error,
@@ -255,6 +268,8 @@ function AssignManagerDialog({
   onAssign,
 }: {
   open: boolean;
+  /** Changes with each opening, which resets the choice. */
+  session: number;
   assignedIds: ReadonlySet<number>;
   pending: boolean;
   error: unknown;
@@ -262,20 +277,22 @@ function AssignManagerDialog({
   onAssign: (accountId: number) => void;
 }) {
   return (
-    <Dialog open={open} onOpenChange={(next) => !next && onCancel()}>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => !next && !pending && onCancel()}
+    >
       <DialogPopup
         className="sm:max-w-md"
         portalProps={{ container: getTopLayerContainer() }}
       >
-        {open && (
-          <AssignManagerForm
-            assignedIds={assignedIds}
-            pending={pending}
-            error={error}
-            onCancel={onCancel}
-            onAssign={onAssign}
-          />
-        )}
+        <AssignManagerForm
+          key={session}
+          assignedIds={assignedIds}
+          pending={pending}
+          error={error}
+          onCancel={onCancel}
+          onAssign={onAssign}
+        />
       </DialogPopup>
     </Dialog>
   );

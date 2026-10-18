@@ -5,7 +5,10 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createQueryClient } from "@/app/query-client";
-import { AppManagersSection } from "@/components/custom/AppManagersSection";
+import {
+  AppManagerNote,
+  AppManagersSection,
+} from "@/components/custom/AppManagersSection";
 import { i18n } from "@/i18n";
 
 const ana = {
@@ -162,6 +165,23 @@ describe("assigning a manager", () => {
     expect(option).toHaveAttribute("aria-disabled", "true");
   });
 
+  it("lists an account that already manages with the reason", async () => {
+    const user = userEvent.setup();
+    mount({ managers: [ana, ben] });
+
+    await user.click(
+      await screen.findByRole("button", { name: "Assign a manager" }),
+    );
+    const dialog = await screen.findByRole("dialog", {
+      name: "Assign a manager",
+    });
+    await user.click(within(dialog).getByRole("combobox"));
+
+    const option = await screen.findByRole("option", { name: /Ben Ito/ });
+    expect(option).toHaveTextContent("Already manages this application");
+    expect(option).toHaveAttribute("aria-disabled", "true");
+  });
+
   it("assigns the chosen account and says so", async () => {
     const user = userEvent.setup();
     mount();
@@ -228,15 +248,77 @@ describe("assigning a manager", () => {
 });
 
 describe("a delegated manager", () => {
-  it("sees a quiet note and no managers section", async () => {
+  it("sees no managers section and the page never asks for the list", async () => {
     mount({ isAdmin: false });
 
-    expect(
-      await screen.findByText("You manage this application."),
-    ).toBeVisible();
-    expect(
-      screen.queryByRole("heading", { name: "Managers" }),
-    ).not.toBeInTheDocument();
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("heading", { name: "Managers" }),
+      ).not.toBeInTheDocument(),
+    );
     expect(fetchBoundary).not.toHaveBeenCalled();
+  });
+
+  it("is told so by the note, which an administrator never sees", () => {
+    const { rerender } = render(
+      <I18nProvider i18n={i18n}>
+        <AppManagerNote isAdmin={false} />
+      </I18nProvider>,
+    );
+    expect(screen.getByText("You manage this application.")).toBeVisible();
+
+    rerender(
+      <I18nProvider i18n={i18n}>
+        <AppManagerNote isAdmin />
+      </I18nProvider>,
+    );
+    expect(
+      screen.queryByText("You manage this application."),
+    ).not.toBeInTheDocument();
+  });
+});
+
+describe("failures", () => {
+  it("reports an unreadable list once, in the section, with no toast", async () => {
+    mount({
+      extra: (request) =>
+        request.method === "GET" &&
+        new URL(request.url).pathname.endsWith("/managers")
+          ? Response.json({ code: "internal_error" }, { status: 500 })
+          : undefined,
+    });
+
+    expect(
+      await screen.findByText("Could not load the managers."),
+    ).toBeVisible();
+    expect(screen.getAllByRole("alert")).toHaveLength(1);
+    expect(notifyError).not.toHaveBeenCalled();
+  });
+
+  it("reports a refused removal once, inline, with no success toast", async () => {
+    const user = userEvent.setup();
+    mount({
+      extra: (request) =>
+        request.method === "POST" &&
+        new URL(request.url).pathname.endsWith("/managers/remove")
+          ? Response.json(
+              { code: "rate_limited", requestId: "r2" },
+              { status: 429 },
+            )
+          : undefined,
+    });
+
+    await user.click(
+      await screen.findByRole("button", { name: "Remove Ana Lima" }),
+    );
+    const dialog = await screen.findByRole("alertdialog");
+    await user.click(within(dialog).getByRole("button", { name: "Remove" }));
+
+    expect(
+      await screen.findByText("Too many requests. Wait a moment."),
+    ).toBeVisible();
+    expect(screen.getAllByRole("alert")).toHaveLength(1);
+    expect(notifyError).not.toHaveBeenCalled();
+    expect(notifySuccess).not.toHaveBeenCalled();
   });
 });

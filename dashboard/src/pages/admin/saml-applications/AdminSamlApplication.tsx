@@ -1,7 +1,10 @@
 import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { samlAppQueryOptions, sessionQueryOptions } from "@/api/queries";
 import { AppAccessSection } from "@/components/custom/AppAccessSection";
-import { AppManagersSection } from "@/components/custom/AppManagersSection";
+import {
+  AppManagerNote,
+  AppManagersSection,
+} from "@/components/custom/AppManagersSection";
 import { SamlDangerSection } from "@/pages/admin/saml-applications/SamlDangerSection";
 import {
   SamlGeneralSection,
@@ -43,6 +46,8 @@ export function AdminSamlApplication() {
 
   return (
     <div className="flex flex-col gap-8">
+      <AppManagerNote isAdmin={session.data?.role === "admin"} />
+
       <SamlGeneralSection app={app} />
 
       <SamlIconSection app={app} />
