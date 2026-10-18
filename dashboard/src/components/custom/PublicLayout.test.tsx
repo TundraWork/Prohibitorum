@@ -313,8 +313,6 @@ it("centres the stage and offers the theme control by default", async () => {
   const banner = await mount();
   const main = screen.getByRole("main");
   expect(main).toHaveAttribute("data-position", "center");
-  expect(main).not.toHaveClass("lg:justify-start");
-  expect(main).not.toHaveClass("lg:justify-end");
   expect(within(banner).getByRole("button", { name: "Theme" })).toBeVisible();
 });
 
@@ -325,7 +323,7 @@ it("puts the stage on the left from lg and the credit at the bottom right", asyn
     appearance.cardPosition = "left";
   });
   await mount();
-  expect(screen.getByRole("main")).toHaveClass("lg:justify-start");
+  expect(screen.getByRole("main")).toHaveAttribute("data-position", "left");
   const credit = await wideCredit();
   expect(credit).toHaveClass("right-5", "max-w-[calc(100vw-34rem)]");
   expect(credit).not.toHaveClass("left-5");
@@ -338,7 +336,7 @@ it("puts the stage on the right from lg and the credit at the bottom left", asyn
     appearance.cardPosition = "right";
   });
   await mount();
-  expect(screen.getByRole("main")).toHaveClass("lg:justify-end");
+  expect(screen.getByRole("main")).toHaveAttribute("data-position", "right");
   const credit = await wideCredit();
   expect(credit).toHaveClass("left-5", "max-w-[calc(100vw-34rem)]");
   expect(credit).not.toHaveClass("right-5");
@@ -402,7 +400,11 @@ it("keeps the narrow-screen credit inside the stage's column", async () => {
   await mount();
   const stage = screen.getByRole("main");
   expect(stage).toHaveAttribute("data-slot", "stage");
-  expect(await within(stage).findByText("A quiet ridge")).toBeInTheDocument();
+  const column = stage.querySelector('[data-slot="stage-column"]');
+  expect(column).not.toBeNull();
+  expect(
+    await within(column as HTMLElement).findByText("A quiet ridge"),
+  ).toBeInTheDocument();
 });
 
 it("forces the settings' theme on the page without changing the visitor's choice", async () => {

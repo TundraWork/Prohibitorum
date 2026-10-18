@@ -94,7 +94,10 @@ export function PublicStage({
       data-position={position}
       className={cn(placement, publicCardPlacement({ position }))}
     >
-      <div className="flex w-full flex-col items-center gap-3">
+      <div
+        data-slot="stage-column"
+        className="flex w-full flex-col items-center gap-3 sm:w-auto"
+      >
         <section
           data-slot="stage-frame"
           className={frameStyle({ frame, width: shown })}
