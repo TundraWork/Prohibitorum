@@ -73,7 +73,7 @@ export function ImageDropTile({
         event.preventDefault();
       }}
       onDragLeave={(event) => {
-        if (busy || !carriesFiles(event)) return;
+        if (!carriesFiles(event)) return;
         depth.current = Math.max(0, depth.current - 1);
         if (depth.current === 0) setOver(false);
       }}

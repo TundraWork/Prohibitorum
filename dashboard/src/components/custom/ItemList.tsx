@@ -19,6 +19,9 @@ import { cn } from "@/lib/utils";
 
 type ListColumns = { badge?: boolean; meta?: boolean };
 
+/** Whether a badge or meta prop is set: `null` counts as absent. */
+const given = (value: unknown) => value !== undefined && value !== null;
+
 const ListColumnsContext = createContext<ListColumns>({});
 
 /**
@@ -67,8 +70,7 @@ export function ItemList({
     rows.some(
       (row) =>
         isValidElement<ListColumns & Record<string, unknown>>(row) &&
-        row.props[key] !== undefined &&
-        row.props[key] !== null,
+        given(row.props[key]),
     );
   const reserved: ListColumns = {
     badge: columns?.badge ?? has("badge"),
@@ -176,8 +178,8 @@ export function ItemListRow({
   children?: ReactNode;
 }) {
   const reserved = useContext(ListColumnsContext);
-  const hasBadge = badge !== undefined;
-  const hasMeta = meta !== undefined;
+  const hasBadge = given(badge);
+  const hasMeta = given(meta);
   const wantBadge = hasBadge || reserved.badge === true;
   const wantMeta = hasMeta || reserved.meta === true;
   const shown = (details ?? []).filter(
@@ -203,8 +205,8 @@ export function ItemListRow({
           {badges}
         </div>
         {shown.length > 0 && (
-          // On a narrow screen the details stack one to a line: a wrapped
-          // line would start with a stray separator.
+          // Each separator trails the detail before it, so a wrapped line never
+          // starts with one; on a narrow screen the details stack and drop them.
           <p
             data-slot="item-details"
             className="flex flex-wrap gap-x-1.5 text-muted-foreground text-xs max-sm:flex-col"
@@ -213,12 +215,12 @@ export function ItemListRow({
               // Details are positional and never reordered.
               // biome-ignore lint/suspicious/noArrayIndexKey: see above
               <span key={index} className="wrap-anywhere">
-                {index > 0 && (
-                  <span aria-hidden="true" className="me-1.5 max-sm:hidden">
+                {detail}
+                {index < shown.length - 1 && (
+                  <span aria-hidden="true" className="ms-1.5 max-sm:hidden">
                     ·
                   </span>
                 )}
-                {detail}
               </span>
             ))}
           </p>
@@ -230,6 +232,7 @@ export function ItemListRow({
       </div>
       {(hasBadge || hasMeta) && (
         <div
+          data-slot="item-extras"
           className={cn(
             "max-sm:order-last max-sm:flex max-sm:basis-full max-sm:flex-wrap max-sm:items-center max-sm:gap-x-3 max-sm:gap-y-1 sm:contents",
             icon !== undefined && "max-sm:ps-12",
@@ -275,8 +278,8 @@ export function ItemListRow({
       )}
     </>
   );
-  // From `sm` the columns follow what the row has, so a row without a badge
-  // or meta keeps its text wide instead of leaving empty tracks.
+  // From `sm` the grid has a track for each part the row has, plus the badge
+  // and meta tracks the whole list reserves, so rows line up.
   const columns = [
     icon !== undefined && "auto",
     "minmax(0,1fr)",

@@ -202,4 +202,15 @@ describe("ItemList", () => {
     expect(wrapper.className).toContain("sm:contents");
     expect(wrapper).toContainElement(screen.getByText("Used now"));
   });
+
+  it("treats a null badge or meta as absent", () => {
+    render(
+      <ItemList label="Passkeys" empty={null}>
+        <ItemListRow key="a" title="Laptop" badge={null} meta={null} />
+      </ItemList>,
+    );
+
+    expect(screen.getByRole("list")).not.toHaveAttribute("data-columns");
+    expect(document.querySelector("[data-slot='item-badge']")).toBeNull();
+  });
 });
