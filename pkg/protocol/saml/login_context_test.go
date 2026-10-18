@@ -27,7 +27,7 @@ func spInitiatedContextURL(t *testing.T, h *ssoHarness) *url.URL {
 	return mustParse(t, req.URL.String())
 }
 
-func TestLoginContextLabel_SPInitiated(t *testing.T) {
+func TestLoginContext_SPInitiated(t *testing.T) {
 	cases := []struct {
 		name  string
 		sp    func() db.SamlSp
@@ -39,18 +39,21 @@ func TestLoginContextLabel_SPInitiated(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			h := newSSOHarness(t, tc.sp())
-			label, ok, err := h.idp.LoginContextLabel(context.Background(), spInitiatedContextURL(t, h))
+			app, ok, err := h.idp.LoginContext(context.Background(), spInitiatedContextURL(t, h))
 			if err != nil || !ok {
-				t.Fatalf("label=%q ok=%v err=%v", label, ok, err)
+				t.Fatalf("app=%+v ok=%v err=%v", app, ok, err)
 			}
-			if label != tc.label {
-				t.Fatalf("label=%q want %q", label, tc.label)
+			if app.Label != tc.label {
+				t.Fatalf("label=%q want %q", app.Label, tc.label)
+			}
+			if app.Host != "sp.example.test" || app.SPID != 7 {
+				t.Fatalf("host=%q spID=%d, want sp.example.test and 7", app.Host, app.SPID)
 			}
 		})
 	}
 }
 
-func TestLoginContextLabel_SPInitiatedRejections(t *testing.T) {
+func TestLoginContext_SPInitiatedRejections(t *testing.T) {
 	cases := []struct {
 		name   string
 		mutate func(*ssoHarness, *url.Values)
@@ -68,61 +71,72 @@ func TestLoginContextLabel_SPInitiatedRejections(t *testing.T) {
 			query := u.Query()
 			tc.mutate(h, &query)
 			u.RawQuery = query.Encode()
-			label, ok, err := h.idp.LoginContextLabel(context.Background(), u)
-			if err != nil || ok || label != "" {
-				t.Fatalf("label=%q ok=%v err=%v, want no context", label, ok, err)
+			app, ok, err := h.idp.LoginContext(context.Background(), u)
+			if err != nil || ok || app != (LoginApplication{}) {
+				t.Fatalf("app=%+v ok=%v err=%v, want no context", app, ok, err)
 			}
 		})
 	}
 }
 
-func TestLoginContextLabel_IdPInitiated(t *testing.T) {
+func TestLoginContext_IdPInitiated(t *testing.T) {
 	sp := ssoSP()
 	sp.DisplayName = "Smoke SP"
 	sp.AllowIdpInitiated = true
 	h := newSSOHarness(t, sp)
 	u := mustParse(t, testIdPOrigin+"/saml/sso/init?sp="+url.QueryEscape(testSPEntityID))
-	label, ok, err := h.idp.LoginContextLabel(context.Background(), u)
-	if err != nil || !ok || label != "Smoke SP" {
-		t.Fatalf("label=%q ok=%v err=%v", label, ok, err)
+	app, ok, err := h.idp.LoginContext(context.Background(), u)
+	if err != nil || !ok || app.Label != "Smoke SP" {
+		t.Fatalf("app=%+v ok=%v err=%v", app, ok, err)
+	}
+	// IdP-initiated posts to the SP's registered default ACS.
+	if app.Host != "sp.example.test" || app.SPID != 7 {
+		t.Fatalf("host=%q spID=%d", app.Host, app.SPID)
 	}
 
 	h.q.sp.DisplayName = ""
-	label, ok, err = h.idp.LoginContextLabel(context.Background(), u)
-	if err != nil || !ok || label != testSPEntityID {
-		t.Fatalf("fallback label=%q ok=%v err=%v", label, ok, err)
+	app, ok, err = h.idp.LoginContext(context.Background(), u)
+	if err != nil || !ok || app.Label != testSPEntityID {
+		t.Fatalf("fallback app=%+v ok=%v err=%v", app, ok, err)
+	}
+
+	// No registered ACS: the application is still named, without a host.
+	h.q.acs = nil
+	app, ok, err = h.idp.LoginContext(context.Background(), u)
+	if err != nil || !ok || app.Host != "" {
+		t.Fatalf("no ACS: app=%+v ok=%v err=%v", app, ok, err)
 	}
 
 	h.q.sp.AllowIdpInitiated = false
-	if _, ok, err = h.idp.LoginContextLabel(context.Background(), u); err != nil || ok {
+	if _, ok, err = h.idp.LoginContext(context.Background(), u); err != nil || ok {
 		t.Fatalf("opted out: ok=%v err=%v", ok, err)
 	}
 
 	// A disabled SP is as unregistered on this path as on /saml/sso itself.
 	h.q.sp.AllowIdpInitiated = true
 	h.q.sp.Disabled = true
-	if _, ok, err = h.idp.LoginContextLabel(context.Background(), u); err != nil || ok {
+	if _, ok, err = h.idp.LoginContext(context.Background(), u); err != nil || ok {
 		t.Fatalf("disabled SP: ok=%v err=%v", ok, err)
 	}
-	if _, ok, err = h.idp.LoginContextLabel(context.Background(), mustParse(t, testIdPOrigin+"/saml/sso/init?sp=https://unknown.example.test")); err != nil || ok {
+	if _, ok, err = h.idp.LoginContext(context.Background(), mustParse(t, testIdPOrigin+"/saml/sso/init?sp=https://unknown.example.test")); err != nil || ok {
 		t.Fatalf("unknown SP: ok=%v err=%v", ok, err)
 	}
-	if _, ok, err = h.idp.LoginContextLabel(context.Background(), mustParse(t, testIdPOrigin+"/saml/sso/init")); err != nil || ok {
+	if _, ok, err = h.idp.LoginContext(context.Background(), mustParse(t, testIdPOrigin+"/saml/sso/init")); err != nil || ok {
 		t.Fatalf("missing sp param: ok=%v err=%v", ok, err)
 	}
 }
 
-// Reading the label must leave the single-use AuthnRequest ID spendable: the
+// Reading the context must leave the single-use AuthnRequest ID spendable: the
 // login bounce returns to /saml/sso with the SAME SAMLRequest, and the issue
 // path there consumes the ID exactly once.
-func TestLoginContextLabel_DoesNotConsumeAuthnRequestID(t *testing.T) {
+func TestLoginContext_DoesNotConsumeAuthnRequestID(t *testing.T) {
 	sp := ssoSP()
 	sp.DisplayName = "Smoke SP"
 	h := newSSOHarness(t, sp)
 	u := spInitiatedContextURL(t, h)
-	label, ok, err := h.idp.LoginContextLabel(context.Background(), u)
-	if err != nil || !ok || label != "Smoke SP" {
-		t.Fatalf("label=%q ok=%v err=%v", label, ok, err)
+	app, ok, err := h.idp.LoginContext(context.Background(), u)
+	if err != nil || !ok || app.Label != "Smoke SP" {
+		t.Fatalf("app=%+v ok=%v err=%v", app, ok, err)
 	}
 	// The harness mints the request with the ID "_ctx-label" (see
 	// spInitiatedContextURL). consumeAuthnRequestID succeeds only on the
@@ -135,18 +149,18 @@ func TestLoginContextLabel_DoesNotConsumeAuthnRequestID(t *testing.T) {
 		t.Fatalf("second consume: err=%v, want ErrReplayedRequest", cerr)
 	}
 	// A second label read must still answer; the spent ID does not change it.
-	if _, ok, err = h.idp.LoginContextLabel(context.Background(), u); err != nil || !ok {
+	if _, ok, err = h.idp.LoginContext(context.Background(), u); err != nil || !ok {
 		t.Fatalf("second read: ok=%v err=%v", ok, err)
 	}
 }
 
-func TestLoginContextLabel_StorageFailure(t *testing.T) {
+func TestLoginContext_StorageFailure(t *testing.T) {
 	sp := ssoSP()
 	sp.DisplayName = "Smoke SP"
 	sp.AllowIdpInitiated = true
 	h := newSSOHarness(t, sp)
 	h.q.spErr = errors.New("database down")
-	_, _, err := h.idp.LoginContextLabel(context.Background(), mustParse(t, testIdPOrigin+"/saml/sso/init?sp="+url.QueryEscape(testSPEntityID)))
+	_, _, err := h.idp.LoginContext(context.Background(), mustParse(t, testIdPOrigin+"/saml/sso/init?sp="+url.QueryEscape(testSPEntityID)))
 	if err == nil {
 		t.Fatal("want storage error")
 	}

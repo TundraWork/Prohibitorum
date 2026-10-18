@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/url"
 	"runtime/debug"
 	"strconv"
 	"time"
@@ -421,7 +422,16 @@ func NewServer(ctx context.Context) (*Server, error) {
 	})
 	// The login-context endpoint answers every protocol's sign-in bounce, so
 	// it needs the SAML IdP's read-only resolver alongside its own OIDC views.
-	s.oidcOP.SetSAMLContextResolver(s.samlIdP.LoginContextLabel)
+	s.oidcOP.SetSAMLContextResolver(func(ctx context.Context, u *url.URL) (oidcop.SAMLApplication, bool, error) {
+		app, ok, err := s.samlIdP.LoginContext(ctx, u)
+		return oidcop.SAMLApplication{Label: app.Label, Host: app.Host, SPID: app.SPID}, ok, err
+	})
+	s.oidcOP.SetIconURLResolver(func(ctx context.Context, kind, id string) string {
+		if u := s.enrichIconURL(ctx, kind, id); u != nil {
+			return *u
+		}
+		return ""
+	})
 	s.registerOperations()
 	s.router.NotFound(s.webUIHandler.ServeHTTP)
 	logx.WithContext(ctx).Info("registered operations")

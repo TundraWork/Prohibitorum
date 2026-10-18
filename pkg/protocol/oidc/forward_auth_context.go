@@ -1,11 +1,13 @@
 package oidc
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
 	"net/url"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
@@ -15,7 +17,9 @@ import (
 )
 
 type forwardAuthApplication struct {
-	Label string `json:"label"`
+	Label   string `json:"label"`
+	Host    string `json:"host,omitempty"`
+	IconURL string `json:"iconUrl,omitempty"`
 }
 type forwardAuthLoginContext struct {
 	Application *forwardAuthApplication `json:"application"`
@@ -53,7 +57,7 @@ func (p *Provider) HandleForwardAuthLoginContext(w http.ResponseWriter, r *http.
 			none()
 			return
 		}
-		label, ok, serr := p.samlContext(r.Context(), u)
+		app, ok, serr := p.samlContext(r.Context(), u)
 		if serr != nil {
 			fail("database_unavailable")
 			return
@@ -62,7 +66,7 @@ func (p *Provider) HandleForwardAuthLoginContext(w http.ResponseWriter, r *http.
 			none()
 			return
 		}
-		_ = json.NewEncoder(w).Encode(forwardAuthLoginContext{Application: &forwardAuthApplication{Label: label}})
+		p.writeApplication(w, r.Context(), app.Label, app.Host, "saml_sp", strconv.FormatInt(app.SPID, 10))
 		return
 	}
 	if u.EscapedPath() != "/oauth/authorize" {
@@ -106,7 +110,7 @@ func (p *Provider) HandleForwardAuthLoginContext(w http.ResponseWriter, r *http.
 		return
 	}
 	if ordinary {
-		p.ordinaryOIDCLabel(w, client, params)
+		p.ordinaryOIDCLabel(w, r.Context(), client, params)
 		return
 	}
 	if client.Disabled || !client.ForwardAuthEnabled || !client.ForwardAuthHost.Valid || client.ForwardAuthHost.String == "" ||
@@ -115,7 +119,7 @@ func (p *Provider) HandleForwardAuthLoginContext(w http.ResponseWriter, r *http.
 		// A client that passes the authorize handler's gates but is not
 		// forward-auth-bound is an ordinary OIDC request; the already-loaded
 		// row answers it, keeping this path at one load too.
-		p.ordinaryOIDCLabel(w, client, params)
+		p.ordinaryOIDCLabel(w, r.Context(), client, params)
 		return
 	}
 	raw, err := p.kv.Get(r.Context(), faStateKey(params.Get("state")))
@@ -143,7 +147,18 @@ func (p *Provider) HandleForwardAuthLoginContext(w http.ResponseWriter, r *http.
 	if label == "" {
 		label = client.ForwardAuthHost.String
 	}
-	_ = json.NewEncoder(w).Encode(forwardAuthLoginContext{Application: &forwardAuthApplication{Label: label}})
+	p.writeApplication(w, r.Context(), label, client.ForwardAuthHost.String, "oidc_client", client.ClientID)
+}
+
+// writeApplication answers with the application's label, host and icon. The
+// icon is read only here, on an answer that already names the application, so
+// it reveals nothing and null answers keep their read count.
+func (p *Provider) writeApplication(w http.ResponseWriter, ctx context.Context, label, host, iconKind, iconID string) {
+	app := &forwardAuthApplication{Label: label, Host: host}
+	if p.iconURL != nil {
+		app.IconURL = p.iconURL(ctx, iconKind, iconID)
+	}
+	_ = json.NewEncoder(w).Encode(forwardAuthLoginContext{Application: app})
 }
 
 // ordinaryOIDCLabel answers for a return_to that is an /oauth/authorize URL
@@ -152,24 +167,26 @@ func (p *Provider) HandleForwardAuthLoginContext(w http.ResponseWriter, r *http.
 // validated the client and its redirect_uri, so the same checks here select
 // the client's registered name; anything that fails them is answered as no
 // context rather than an error.
-func (p *Provider) ordinaryOIDCLabel(w http.ResponseWriter, client db.OidcClient, params url.Values) {
+func (p *Provider) ordinaryOIDCLabel(w http.ResponseWriter, ctx context.Context, client db.OidcClient, params url.Values) {
 	if client.Disabled || !slices.Contains(client.RedirectUris, params.Get("redirect_uri")) {
 		_ = json.NewEncoder(w).Encode(forwardAuthLoginContext{})
 		return
 	}
+	// The request's own redirect_uri is exactly matched against the
+	// registered list before this, so its host is a registered host the
+	// caller already knows — the host (and the label fallback) never reveal
+	// an address the caller did not send.
+	var host string
+	if requested, perr := url.Parse(params.Get("redirect_uri")); perr == nil {
+		host = requested.Host
+	}
 	label := client.DisplayName
 	if label == "" {
-		// The request's own redirect_uri is exactly matched against the
-		// registered list before this, so its host is a registered host the
-		// caller already knows — the fallback never reveals an address the
-		// caller did not send.
-		if requested, perr := url.Parse(params.Get("redirect_uri")); perr == nil && requested.Host != "" {
-			label = requested.Host
-		}
+		label = host
 	}
 	if label == "" {
 		_ = json.NewEncoder(w).Encode(forwardAuthLoginContext{})
 		return
 	}
-	_ = json.NewEncoder(w).Encode(forwardAuthLoginContext{Application: &forwardAuthApplication{Label: label}})
+	p.writeApplication(w, ctx, label, host, "oidc_client", client.ClientID)
 }

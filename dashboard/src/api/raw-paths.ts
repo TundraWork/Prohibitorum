@@ -290,7 +290,7 @@ export interface ConsentDecision {
 
 /** `GET /forward-auth/login-context`: the application a sign-in link targets. */
 export interface LoginContext {
-  application: { label: string } | null;
+  application: { label: string; host?: string; iconUrl?: string } | null;
 }
 
 type SessionView = components["schemas"]["SessionView"];

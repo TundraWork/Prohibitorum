@@ -472,9 +472,14 @@ when it completes (both the OIDC/Steam callback and the VRChat verify). Any othe
 
 GET /api/prohibitorum/forward-auth/login-context?return_to=<encoded URL>
 is public, read-only and no-store. It names the application the sign-in page
-is headed to, for every protocol's login bounce: {"application":{"label":"App"}}
+is headed to, for every protocol's login bounce:
+{"application":{"label":"App","host":"app.example.test","iconUrl":"/icon/oidc_client/svc?v=abcd1234"}}
 when the same-origin return_to matches a registered, enabled application,
-{"application":null} when it does not. It never authorizes a request, never
+{"application":null} when it does not. host and iconUrl are omitted when not
+derivable: host is the host of the request's redirect_uri (ordinary OIDC), the
+registered forward-auth host, or the host of the SP's ACS URL the assertion
+would be posted to (SAML); iconUrl is the application's uploaded icon, built
+like every other icon URL, and is absent when it has none. It never authorizes a request, never
 consumes state, and never renews a gateway state's five-minute lifetime.
 
 - Forward auth: the /oauth/authorize URL must match a registered, enabled

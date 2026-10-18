@@ -51,7 +51,9 @@ type Provider struct {
 	access   appaccess.OIDCAuthorizer
 	// samlContext resolves a SAML return_to's application label for the
 	// login-context endpoint. nil (tests, bare wiring) answers no context.
-	samlContext func(context.Context, *url.URL) (string, bool, error)
+	samlContext func(context.Context, *url.URL) (SAMLApplication, bool, error)
+	// iconURL resolves an application's uploaded icon URL; nil omits icons.
+	iconURL func(ctx context.Context, kind, id string) string
 }
 
 // SetMaintenanceChecker injects a callback reporting whether maintenance mode is
@@ -61,11 +63,28 @@ type Provider struct {
 // unaffected (the default for tests).
 func (p *Provider) SetMaintenanceChecker(fn func(context.Context) bool) { p.maintenance = fn }
 
-// SetSAMLContextResolver injects the SAML IdP's read-only label resolver, so
+// SAMLApplication is what the SAML IdP reports about the application a
+// sign-in bounce targets: its label, the host its assertion posts to (empty
+// when none is derivable), and the SP row id its uploaded icon is keyed by.
+type SAMLApplication struct {
+	Label string
+	Host  string
+	SPID  int64
+}
+
+// SetIconURLResolver injects the lookup of an application's uploaded icon URL
+// by owner kind and id ("" when it has none). The URL format lives with the
+// server's other icon URLs, which this package cannot import. nil leaves the
+// login context without icons.
+func (p *Provider) SetIconURLResolver(fn func(ctx context.Context, kind, id string) string) {
+	p.iconURL = fn
+}
+
+// SetSAMLContextResolver injects the SAML IdP's read-only application resolver, so
 // the login-context endpoint answers every protocol's sign-in bounce from one
 // URL. The SAML package cannot be imported here (it would be an import
 // cycle), so the server hands the bound method across.
-func (p *Provider) SetSAMLContextResolver(fn func(context.Context, *url.URL) (string, bool, error)) {
+func (p *Provider) SetSAMLContextResolver(fn func(context.Context, *url.URL) (SAMLApplication, bool, error)) {
 	p.samlContext = fn
 }
 

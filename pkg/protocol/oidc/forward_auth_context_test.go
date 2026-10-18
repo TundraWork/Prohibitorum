@@ -62,11 +62,12 @@ func TestForwardAuthContext_OrdinaryOIDC(t *testing.T) {
 		client      db.OidcClient
 		redirectURI string
 		label       string
+		host        string
 	}{
-		{"named client", db.OidcClient{ClientID: "svc", DisplayName: "Wiki", RedirectUris: []string{"https://rp.example.test/callback"}}, "https://rp.example.test/callback", "Wiki"},
-		{"empty name falls back to the request's redirect host", db.OidcClient{ClientID: "svc", RedirectUris: []string{"https://internal.example.test/callback", "https://public.example.test/cb"}}, "https://public.example.test/cb", "public.example.test"},
-		{"host includes port", db.OidcClient{ClientID: "svc", RedirectUris: []string{"https://rp.example.test:8443/callback"}}, "https://rp.example.test:8443/callback", "rp.example.test:8443"},
-		{"name kept as registered, not trimmed", db.OidcClient{ClientID: "svc", DisplayName: "  spaced  ", RedirectUris: []string{"https://rp.example.test/callback"}}, "https://rp.example.test/callback", "  spaced  "},
+		{"named client", db.OidcClient{ClientID: "svc", DisplayName: "Wiki", RedirectUris: []string{"https://rp.example.test/callback"}}, "https://rp.example.test/callback", "Wiki", "rp.example.test"},
+		{"empty name falls back to the request's redirect host", db.OidcClient{ClientID: "svc", RedirectUris: []string{"https://internal.example.test/callback", "https://public.example.test/cb"}}, "https://public.example.test/cb", "public.example.test", "public.example.test"},
+		{"host includes port", db.OidcClient{ClientID: "svc", RedirectUris: []string{"https://rp.example.test:8443/callback"}}, "https://rp.example.test:8443/callback", "rp.example.test:8443", "rp.example.test:8443"},
+		{"name kept as registered, not trimmed", db.OidcClient{ClientID: "svc", DisplayName: "  spaced  ", RedirectUris: []string{"https://rp.example.test/callback"}}, "https://rp.example.test/callback", "  spaced  ", "rp.example.test"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -88,9 +89,82 @@ func TestForwardAuthContext_OrdinaryOIDC(t *testing.T) {
 				if body.Application == nil || body.Application.Label != tc.label {
 					t.Fatalf("context %+v, want label %q", body, tc.label)
 				}
+				if body.Application.Host != tc.host {
+					t.Fatalf("host %q, want %q", body.Application.Host, tc.host)
+				}
 			}
 		})
 	}
+}
+
+// stubIconURLs wires an icon resolver that knows one icon per (kind, id) and
+// records every lookup.
+func stubIconURLs(p *Provider, icons map[string]string) *[]string {
+	var asked []string
+	p.SetIconURLResolver(func(_ context.Context, kind, id string) string {
+		asked = append(asked, kind+"/"+id)
+		return icons[kind+"/"+id]
+	})
+	return &asked
+}
+
+func TestForwardAuthContext_IconURL(t *testing.T) {
+	icons := map[string]string{"oidc_client/svc": "/icon/oidc_client/svc?v=abcd1234"}
+	t.Run("ordinary OIDC with icon", func(t *testing.T) {
+		p, q, _, _ := contextFixture(t)
+		q.client = db.OidcClient{ClientID: "svc", DisplayName: "Wiki", RedirectUris: []string{"https://rp.example.test/callback"}}
+		stubIconURLs(p, icons)
+		body := decodeContext(t, readContext(p, ordinaryAuthorizeURL("https://rp.example.test/callback")))
+		if body.Application == nil || body.Application.IconURL != icons["oidc_client/svc"] {
+			t.Fatalf("context %+v", body)
+		}
+	})
+	t.Run("without an icon the field is omitted", func(t *testing.T) {
+		p, q, _, _ := contextFixture(t)
+		q.client = db.OidcClient{ClientID: "svc", DisplayName: "Wiki", RedirectUris: []string{"https://rp.example.test/callback"}}
+		stubIconURLs(p, nil)
+		rec := readContext(p, ordinaryAuthorizeURL("https://rp.example.test/callback"))
+		if strings.Contains(rec.Body.String(), "iconUrl") {
+			t.Fatalf("body %s", rec.Body.String())
+		}
+	})
+	t.Run("forward-auth carries host and icon", func(t *testing.T) {
+		p, q, _, u := contextFixture(t)
+		stubIconURLs(p, icons)
+		body := decodeContext(t, readContext(p, u.String()))
+		if body.Application == nil || body.Application.Host != q.client.ForwardAuthHost.String || body.Application.IconURL != icons["oidc_client/svc"] {
+			t.Fatalf("context %+v", body)
+		}
+	})
+	t.Run("no icon resolver wired", func(t *testing.T) {
+		p, _, _, u := contextFixture(t)
+		body := decodeContext(t, readContext(p, u.String()))
+		if body.Application == nil || body.Application.IconURL != "" {
+			t.Fatalf("context %+v", body)
+		}
+	})
+	// The icon is only looked up when the application's label is answered:
+	// a null answer must cost the same reads whether or not the client exists.
+	t.Run("no icon lookup on a null answer", func(t *testing.T) {
+		for _, name := range []string{"unknown client", "disabled", "unregistered redirect"} {
+			p, q, _, _ := contextFixture(t)
+			q.client = db.OidcClient{ClientID: "svc", DisplayName: "Wiki", RedirectUris: []string{"https://rp.example.test/callback"}}
+			redirect := "https://rp.example.test/callback"
+			switch name {
+			case "unknown client":
+				q.client.ClientID = "other"
+			case "disabled":
+				q.client.Disabled = true
+			default:
+				redirect = "https://evil.example.test/cb"
+			}
+			asked := stubIconURLs(p, icons)
+			rec := readContext(p, ordinaryAuthorizeURL(redirect))
+			if strings.TrimSpace(rec.Body.String()) != `{"application":null}` || len(*asked) != 0 {
+				t.Fatalf("%s: body %s, icon lookups %v", name, rec.Body.String(), *asked)
+			}
+		}
+	})
 }
 
 func TestForwardAuthContext_OrdinaryOIDCNoMisleadingLabel(t *testing.T) {
@@ -136,17 +210,19 @@ func TestForwardAuthContext_SAMLDelegates(t *testing.T) {
 		t.Run(path, func(t *testing.T) {
 			p, _, _, _ := contextFixture(t)
 			var seen string
-			p.samlContext = func(_ context.Context, u *url.URL) (string, bool, error) {
+			p.samlContext = func(_ context.Context, u *url.URL) (SAMLApplication, bool, error) {
 				seen = u.EscapedPath()
-				return "Smoke SP", true, nil
+				return SAMLApplication{Label: "Smoke SP", Host: "sp.example.test", SPID: 7}, true, nil
 			}
+			asked := stubIconURLs(p, map[string]string{"saml_sp/7": "/icon/saml_sp/7?v=abcd1234"})
 			rec := readContext(p, testIssuer+path)
 			if rec.Code != 200 {
 				t.Fatalf("response %d %s", rec.Code, rec.Body.String())
 			}
 			body := decodeContext(t, rec)
-			if body.Application == nil || body.Application.Label != "Smoke SP" {
-				t.Fatalf("context %+v", body)
+			if body.Application == nil || body.Application.Label != "Smoke SP" || body.Application.Host != "sp.example.test" ||
+				body.Application.IconURL != "/icon/saml_sp/7?v=abcd1234" || len(*asked) != 1 {
+				t.Fatalf("context %+v, icon lookups %v", body, *asked)
 			}
 			if seen == "" {
 				t.Fatal("resolver was not consulted")
@@ -165,8 +241,8 @@ func TestForwardAuthContext_SAMLDelegates(t *testing.T) {
 
 func TestForwardAuthContext_SAMLStorageFailure(t *testing.T) {
 	p, _, _, _ := contextFixture(t)
-	p.samlContext = func(context.Context, *url.URL) (string, bool, error) {
-		return "", false, errors.New("database down")
+	p.samlContext = func(context.Context, *url.URL) (SAMLApplication, bool, error) {
+		return SAMLApplication{}, false, errors.New("database down")
 	}
 	rec := readContext(p, testIssuer+"/saml/sso?SAMLRequest=abc")
 	if rec.Code != 503 || !strings.Contains(rec.Body.String(), "database_unavailable") {
