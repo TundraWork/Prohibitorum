@@ -42,12 +42,18 @@ export function CopyValue({
   label,
   description,
   wrap = false,
+  labelHidden = false,
+  describedBy,
 }: {
   value: string;
   label: ReactNode;
   description?: ReactNode;
   /** Breaks a long value across lines instead of scrolling it. */
   wrap?: boolean;
+  /** Names the field for assistive technology only, for a caller that shows the name itself. */
+  labelHidden?: boolean;
+  /** The id of text elsewhere that describes the value, announced with it. */
+  describedBy?: string;
 }) {
   const { t } = useLingui();
   const { state, copy: copyValue, confirm } = useCopyValue();
@@ -63,7 +69,9 @@ export function CopyValue({
 
   return (
     <Field>
-      <FieldLabel>{label}</FieldLabel>
+      <FieldLabel className={labelHidden ? "sr-only" : undefined}>
+        {label}
+      </FieldLabel>
       <InputGroup
         className={
           wrap
@@ -77,6 +85,7 @@ export function CopyValue({
             readOnly
             rows={2}
             value={breakable(value)}
+            aria-describedby={describedBy}
             className="wrap-break-word font-mono"
             onFocus={(event) => event.target.select()}
             onCopy={(event) => {
@@ -96,6 +105,7 @@ export function CopyValue({
             ref={inputRef}
             readOnly
             value={value}
+            aria-describedby={describedBy}
             className="font-mono"
             onFocus={(event) => event.target.select()}
             onCopy={confirm}

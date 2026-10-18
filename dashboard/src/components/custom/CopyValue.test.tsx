@@ -158,4 +158,20 @@ describe("CopyValue", () => {
     await actor.click(screen.getByRole("button", { name: "Copy" }));
     expect(writeText).toHaveBeenCalledWith(url);
   });
+
+  it("keeps its name and a described-by text for assistive technology when the label is hidden", () => {
+    render(
+      <I18nProvider i18n={i18n}>
+        <p id="hint">Quote this to support.</p>
+        <CopyValue
+          value={value}
+          label="Client ID"
+          labelHidden
+          describedBy="hint"
+        />
+      </I18nProvider>,
+    );
+    expect(field()).toHaveAccessibleDescription("Quote this to support.");
+    expect(screen.getByText("Client ID")).toHaveClass("sr-only");
+  });
 });

@@ -92,6 +92,7 @@ export function ImageDropTile({
       <label
         className={cn(
           buttonVariants({ variant: "ghost", size: "sm" }),
+          // `sm:h-auto` is what overrides the size variant's `sm:h-7` through twMerge.
           "h-auto flex-1 sm:h-auto cursor-pointer flex-col justify-center gap-1.5 text-muted-foreground has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring has-[:focus-visible]:ring-offset-1 has-[:focus-visible]:ring-offset-background",
           busy && "pointer-events-none opacity-64",
         )}

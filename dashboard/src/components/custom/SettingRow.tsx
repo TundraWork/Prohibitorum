@@ -7,10 +7,13 @@ import type { ReactNode } from "react";
 export function SettingRow({
   title,
   description,
+  descriptionId,
   children,
 }: {
   title: ReactNode;
   description?: ReactNode;
+  /** Lets the control name its explanation with `aria-describedby`. */
+  descriptionId?: string;
   children: ReactNode;
 }): React.ReactElement {
   return (
@@ -18,7 +21,9 @@ export function SettingRow({
       <div>
         <div className="font-medium text-sm">{title}</div>
         {description !== undefined && (
-          <div className="text-muted-foreground text-sm">{description}</div>
+          <div id={descriptionId} className="text-muted-foreground text-sm">
+            {description}
+          </div>
         )}
       </div>
       {children}

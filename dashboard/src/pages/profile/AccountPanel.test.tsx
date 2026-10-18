@@ -158,11 +158,10 @@ describe("the account section", () => {
     expect(username).toHaveAttribute("readonly");
     expect(subject).toHaveValue(session.oidcSubject);
     expect(subject).toHaveAttribute("readonly");
-    expect(
-      screen.getByText(
-        "Applications identify you by this value. It never changes.",
-      ),
-    ).toBeVisible();
+    expect(subject).toHaveAccessibleDescription(
+      "Applications identify you by this value. It never changes.",
+    );
+    expect(username).toHaveAccessibleDescription("What you type to sign in.");
   });
 
   it("copies each identifier whole", async () => {
@@ -179,5 +178,33 @@ describe("the account section", () => {
     expect(writeText).toHaveBeenLastCalledWith("aiko");
     await user.click(copySubject as HTMLElement);
     expect(writeText).toHaveBeenLastCalledWith(session.oidcSubject);
+  });
+
+  it("shows a failed save in the form and reports it once", async () => {
+    const notifyError = vi.fn();
+    queryClient.clear();
+    queryClient = createQueryClient(notifyError, notifySuccess);
+    const answer = fetchBoundary.getMockImplementation();
+    fetchBoundary.mockImplementation(async (request) =>
+      request.method === "PUT"
+        ? Response.json(
+            { code: "invalid_nickname", message: "bad" },
+            { status: 400 },
+          )
+        : (answer?.(request) ?? new Response(null, { status: 404 })),
+    );
+    const user = userEvent.setup();
+    mount();
+    const field = await nameField();
+    await user.type(field, "!");
+    await user.click(save() as HTMLElement);
+
+    await waitFor(() =>
+      expect(
+        document.querySelector("[data-form-error-summary]"),
+      ).not.toBeNull(),
+    );
+    expect(notifyError).not.toHaveBeenCalled();
+    expect(save()).toBeVisible();
   });
 });

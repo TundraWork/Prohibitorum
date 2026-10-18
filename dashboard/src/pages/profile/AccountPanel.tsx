@@ -9,6 +9,7 @@ import {
 import { IdCard } from "lucide-react";
 import { updateProfileMutationOptions } from "@/api/mutations";
 import { sessionQueryOptions } from "@/api/queries";
+import { withInlineReport } from "@/app/query-client";
 import { Button } from "@/components/custom/Button";
 import { CopyValue } from "@/components/custom/CopyValue";
 import { Section } from "@/components/custom/Section";
@@ -75,7 +76,10 @@ function AccountForm({
 }) {
   const { t } = useLingui();
   const queryClient = useQueryClient();
-  const update = useMutation(updateProfileMutationOptions(queryClient));
+  const update = useMutation(
+    // Every failure lands in the form, so the toast stays silent.
+    withInlineReport(updateProfileMutationOptions(queryClient), true),
+  );
 
   const form = useAppForm({
     defaultValues: { displayName },
@@ -92,6 +96,7 @@ function AccountForm({
     },
   });
   const dirty = useStore(form.store, (state) => !state.isDefaultValue);
+  const submitting = useStore(form.store, (state) => state.isSubmitting);
 
   return (
     <form.AppForm>
@@ -116,7 +121,7 @@ function AccountForm({
                 <Button
                   variant="ghost"
                   onClick={() => form.reset()}
-                  disabled={form.state.isSubmitting}
+                  disabled={submitting}
                 >
                   <Trans id="profile.display-name.discard">Discard</Trans>
                 </Button>
@@ -152,6 +157,7 @@ function AccountForm({
           <Separator />
           <div className="flex flex-col divide-y">
             <SettingRow
+              descriptionId="profile-username-hint"
               title={<Trans id="console.username">Username</Trans>}
               description={
                 <Trans id="profile.username.hint">
@@ -161,16 +167,15 @@ function AccountForm({
             >
               <div className="w-full sm:w-80">
                 <CopyValue
-                  label={
-                    <span className="sr-only">
-                      <Trans id="console.username">Username</Trans>
-                    </span>
-                  }
+                  label={<Trans id="console.username">Username</Trans>}
                   value={username}
+                  labelHidden
+                  describedBy="profile-username-hint"
                 />
               </div>
             </SettingRow>
             <SettingRow
+              descriptionId="profile-subject-hint"
               title={<Trans id="profile.oidc-subject">OIDC subject</Trans>}
               description={
                 <Trans id="profile.oidc-subject.hint">
@@ -180,12 +185,10 @@ function AccountForm({
             >
               <div className="w-full sm:w-80">
                 <CopyValue
-                  label={
-                    <span className="sr-only">
-                      <Trans id="profile.oidc-subject">OIDC subject</Trans>
-                    </span>
-                  }
+                  label={<Trans id="profile.oidc-subject">OIDC subject</Trans>}
                   value={subject}
+                  labelHidden
+                  describedBy="profile-subject-hint"
                 />
               </div>
             </SettingRow>
