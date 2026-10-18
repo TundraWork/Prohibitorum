@@ -5,11 +5,9 @@ import { Tag, UserRound } from "lucide-react";
 import { samlConsentDecisionMutationOptions } from "@/api/mutations";
 import { samlConsentRequestQueryOptions } from "@/api/queries";
 import { loadDocument } from "@/app/load-document";
+import { inlineLinkClass } from "@/components/custom/inline-link";
 import type { ScopeRow } from "@/components/custom/ScopeRows";
-import {
-  ConsentRequest,
-  consentLinkClass,
-} from "@/pages/public/consent/ConsentRequest";
+import { ConsentRequest } from "@/pages/public/consent/ConsentRequest";
 import { Route } from "@/routes/_public.saml-consent";
 
 /**
@@ -54,7 +52,7 @@ export function SamlConsentPage() {
       footnote={
         <Trans id="saml_consent.footnote">
           You only need to confirm this once. You can revoke it at any time in{" "}
-          <RouterLink to="/apps" className={consentLinkClass}>
+          <RouterLink to="/apps" className={inlineLinkClass}>
             Connected applications
           </RouterLink>
           .

@@ -5741,6 +5741,11 @@ msgid "devices.field.created"
 msgstr "Requested"
 
 #. js-lingui-explicit-id
+#: src/pages/public/RequireIdentity.tsx
+msgid "require-identity.strip.lead"
+msgstr "Requested by"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/ForwardAuthDangerSection.tsx
 msgid "admin.forward-auth-apps.enable.note"
 msgstr "Requests through its router are accepted again, under the access policy it already has."

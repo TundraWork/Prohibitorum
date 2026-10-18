@@ -1,4 +1,3 @@
-import { Link } from "@heroui/react";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import {
@@ -18,6 +17,7 @@ import type { FederationFlow } from "@/api/raw-paths";
 import { followRedirect } from "@/app/redirect";
 import { Button } from "@/components/custom/Button";
 import { CopyValue } from "@/components/custom/CopyValue";
+import { inlineLinkClass } from "@/components/custom/inline-link";
 import { useInstanceBranding } from "@/components/custom/instance-branding";
 import { PublicStep } from "@/components/custom/PublicStep";
 import { applyServerError } from "@/forms/server-errors";
@@ -89,6 +89,7 @@ export function FederationFlowPage() {
                 setLeaving(true);
                 followRedirect(router, verified).catch(() => setLeaving(false));
               }}
+              size="lg"
               className="w-full"
             >
               <Trans id="federation_flow.continue">Continue</Trans>
@@ -116,7 +117,7 @@ export function FederationFlowPage() {
   );
 }
 
-type StepText = { title: ReactNode; description?: ReactNode };
+type StepText = { title: ReactNode };
 
 function FlowTitle({
   intent,
@@ -147,12 +148,22 @@ function FlowTitle({
   }
 }
 
-/** Numbered instructions, with the numbers a step quieter than the text. */
+/** Numbered instructions: a dot per step, in the style of the later steps of `StepHeader`. */
 function Steps({ children }: { children: ReactNode }) {
+  return <ol className="flex flex-col gap-3 text-sm">{children}</ol>;
+}
+
+function Step({ number, children }: { number: number; children: ReactNode }) {
   return (
-    <ol className="flex list-decimal flex-col gap-1 ps-5 text-sm marker:text-muted">
-      {children}
-    </ol>
+    <li className="flex items-start gap-3">
+      <span
+        aria-hidden="true"
+        className="flex size-5 shrink-0 items-center justify-center rounded-full bg-muted font-medium text-muted-foreground text-xs tabular-nums"
+      >
+        {number}
+      </span>
+      <div className="min-w-0 flex-1">{children}</div>
+    </li>
   );
 }
 
@@ -199,64 +210,65 @@ function IdentifyStep({
         <PublicStep
           titleKey="identify"
           title={step.title}
-          description={step.description}
           actions={
             <PublicStep.Actions>
-              <form.SubmitButton fullWidth>
+              <form.SubmitButton fullWidth size="lg">
                 <Trans id="federation_flow.identify.continue">Continue</Trans>
               </form.SubmitButton>
             </PublicStep.Actions>
           }
         >
           <Steps>
-            <li>
+            <Step number={1}>
               <Trans id="federation_flow.identify.step.open">
                 Open{" "}
-                <Link
-                  className="text-sm"
+                <a
+                  className={inlineLinkClass}
                   href="https://vrchat.com/home"
                   target="_blank"
                   rel="noreferrer"
                 >
                   vrchat.com
-                </Link>{" "}
+                </a>{" "}
                 in your browser and go to your profile page.
               </Trans>
-            </li>
-            <li>
+            </Step>
+            <Step number={2}>
               <Trans id="federation_flow.identify.step.copy">
                 Copy the address from the address bar.
               </Trans>
-            </li>
+            </Step>
+            <Step number={3}>
+              <form.AppField
+                name="identity"
+                validators={{
+                  onBlur: ({ value }) =>
+                    value.trim().length > 0 ? undefined : identityRequired,
+                }}
+              >
+                {(field) => (
+                  <field.FormField
+                    label={
+                      <Trans id="federation_flow.identity">
+                        VRChat profile address or user ID
+                      </Trans>
+                    }
+                    description={
+                      <Trans id="federation_flow.identity.description">
+                        Don't enter your VRChat password here.
+                      </Trans>
+                    }
+                    placeholder="https://vrchat.com/home/user/usr_…"
+                    autoComplete="off"
+                    autoCapitalize="none"
+                    spellCheck={false}
+                    isMonospace
+                    size="lg"
+                  />
+                )}
+              </form.AppField>
+            </Step>
           </Steps>
-          <form.AppField
-            name="identity"
-            validators={{
-              onBlur: ({ value }) =>
-                value.trim().length > 0 ? undefined : identityRequired,
-            }}
-          >
-            {(field) => (
-              <field.FormField
-                label={
-                  <Trans id="federation_flow.identity">
-                    VRChat profile address or user ID
-                  </Trans>
-                }
-                description={
-                  <Trans id="federation_flow.identity.description">
-                    Don't enter your VRChat password here.
-                  </Trans>
-                }
-                placeholder="https://vrchat.com/home/user/usr_…"
-                autoComplete="off"
-                autoCapitalize="none"
-                spellCheck={false}
-                isMonospace
-                variant="secondary"
-              />
-            )}
-          </form.AppField>
         </PublicStep>
       </form.Form>
     </form.AppForm>
@@ -331,25 +343,24 @@ function ProofStep({
         <PublicStep
           titleKey="proof"
           title={step.title}
-          description={step.description}
           actions={
             <PublicStep.Actions>
-              <form.SubmitButton fullWidth>
+              <form.SubmitButton fullWidth size="lg">
                 <Trans id="federation_flow.proof.verify">Verify</Trans>
               </form.SubmitButton>
             </PublicStep.Actions>
           }
         >
           {profileUrl && (
-            <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 text-sm">
-              <span className="text-muted">
+            <div className="flex min-w-0 items-center gap-2.5 rounded-xl bg-muted px-3 py-2 text-sm">
+              <span className="shrink-0 text-muted-foreground">
                 <Trans id="federation_flow.proof.profile">Profile</Trans>
               </span>
               <span className="min-w-0 font-mono wrap-anywhere">
                 {profileId(profileUrl)}
               </span>
-              <Link
-                className="text-sm"
+              <a
+                className={`${inlineLinkClass} ms-auto shrink-0`}
                 href={profileUrl}
                 target="_blank"
                 rel="noreferrer"
@@ -357,7 +368,7 @@ function ProofStep({
                 <Trans id="federation_flow.proof.open_profile">
                   Open profile
                 </Trans>
-              </Link>
+              </a>
             </div>
           )}
           <CopyValue
@@ -367,23 +378,23 @@ function ProofStep({
             }
           />
           <Steps>
-            <li>
+            <Step number={1}>
               <Trans id="federation_flow.proof.step.copy">
                 Copy the verification link.
               </Trans>
-            </li>
-            <li>
+            </Step>
+            <Step number={2}>
               <Trans id="federation_flow.proof.step.bio">
                 In VRChat, add it to the links in your bio and save.
               </Trans>
-            </li>
-            <li>
+            </Step>
+            <Step number={3}>
               <Trans id="federation_flow.proof.step.verify">
                 Come back here and press Verify.
               </Trans>
-            </li>
+            </Step>
           </Steps>
-          <p className="text-sm text-muted">
+          <p className="text-muted-foreground text-xs">
             <Trans id="federation_flow.proof.expires">
               The verification link works until {until}.
             </Trans>
@@ -412,7 +423,7 @@ function ProofStep({
                     autoComplete="username"
                     autoCapitalize="none"
                     spellCheck={false}
-                    variant="secondary"
+                    size="lg"
                   />
                 )}
               </form.AppField>

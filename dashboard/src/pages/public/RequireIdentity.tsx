@@ -9,6 +9,7 @@ import { runWithSudo } from "@/api/sudo";
 import { sudoReason } from "@/api/sudo-reasons";
 import { loadDocument } from "@/app/load-document";
 import { followRedirect } from "@/app/redirect";
+import { AppStrip } from "@/components/custom/AppStrip";
 import { Button } from "@/components/custom/Button";
 import { EntityAvatar } from "@/components/custom/EntityAvatar";
 import { PublicStep } from "@/components/custom/PublicStep";
@@ -67,14 +68,12 @@ export function RequireIdentityPage() {
       .finally(() => setLinking(null));
   };
 
-  const media = (
-    <div aria-hidden="true" className="flex">
-      <EntityAvatar
-        className="size-12"
-        iconUrl={request.client.iconUrl}
-        fallback={app.slice(0, 1)}
-      />
-    </div>
+  const strip = (
+    <AppStrip
+      lead={<Trans id="require-identity.strip.lead">Requested by</Trans>}
+      name={app}
+      iconUrl={request.client.iconUrl}
+    />
   );
   const returnButton = (label: ReactNode) => (
     <Button
@@ -82,6 +81,7 @@ export function RequireIdentityPage() {
       disabled={switchAccount.isPending}
       onClick={returnToApp}
       variant="outline"
+      size="lg"
       className="w-full"
     >
       {label}
@@ -91,7 +91,7 @@ export function RequireIdentityPage() {
   if (request.mismatch) {
     return (
       <PublicStep
-        strip={media}
+        strip={strip}
         title={
           <Trans id="require-identity.mismatch.title">
             You're signed in as a different account
@@ -109,6 +109,7 @@ export function RequireIdentityPage() {
               pending={switchAccount.isPending}
               disabled={leaving}
               onClick={() => switchAccount.mutate()}
+              size="lg"
               className="w-full"
             >
               <Trans id="require-identity.mismatch.switch">
@@ -127,7 +128,7 @@ export function RequireIdentityPage() {
   if (request.satisfied) {
     return (
       <PublicStep
-        strip={media}
+        strip={strip}
         title={<Trans id="require-identity.done">Returning to {app}</Trans>}
       />
     );
@@ -136,7 +137,7 @@ export function RequireIdentityPage() {
   return (
     <>
       <PublicStep
-        strip={media}
+        strip={strip}
         title={
           <Trans id="require-identity.title">
             {app} needs to verify your identity
@@ -172,19 +173,24 @@ export function RequireIdentityPage() {
             id: "require-identity.providers",
             message: "Providers",
           })}
-          className="flex flex-col gap-2"
+          className="divide-y overflow-hidden rounded-xl border bg-background shadow-xs/5"
         >
           {request.providers.map((provider) => {
             const name = provider.displayName;
             return (
-              <li key={provider.slug} className="flex items-center gap-3">
-                <EntityAvatar
-                  className="size-9 shrink-0"
-                  iconUrl={provider.iconUrl}
-                  fallback={provider.displayName.slice(0, 1)}
-                />
-                <span className="min-w-0 flex-1 text-sm font-medium wrap-anywhere">
-                  {provider.displayName}
+              <li
+                key={provider.slug}
+                className="flex items-center gap-3 px-3.5 py-3"
+              >
+                <span aria-hidden="true" className="flex shrink-0">
+                  <EntityAvatar
+                    size="md"
+                    iconUrl={provider.iconUrl}
+                    name={name}
+                  />
+                </span>
+                <span className="min-w-0 flex-1 font-medium text-sm wrap-anywhere">
+                  {name}
                 </span>
                 <Button
                   pending={linking === provider.slug}

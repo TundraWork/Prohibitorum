@@ -72,6 +72,9 @@ describe("require identity", () => {
       }),
     ).toBeVisible();
     expect(screen.getByText("Verify with any one of these.")).toBeVisible();
+    expect(
+      document.querySelector('[data-slot="stage-strip"]'),
+    ).toHaveTextContent("Requested byWiki");
     await user.click(
       screen.getByRole("button", { name: "Verify with VRChat" }),
     );

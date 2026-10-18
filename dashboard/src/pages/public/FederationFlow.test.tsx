@@ -1,5 +1,5 @@
 import type { QueryClient } from "@tanstack/react-query";
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { FederationFlow } from "@/api/raw-paths";
@@ -83,6 +83,13 @@ describe("VRChat profile verification", () => {
       "target",
       "_blank",
     );
+    // VRChat is the provider, not the app, so the stage draws no app strip.
+    expect(
+      document.querySelector('[data-slot="stage-strip"]'),
+    ).toBeEmptyDOMElement();
+    expect(
+      within(screen.getByRole("list")).getAllByRole("listitem"),
+    ).toHaveLength(3);
     await user.type(
       screen.getByRole("textbox", {
         name: "VRChat profile address or user ID",
@@ -105,6 +112,9 @@ describe("VRChat profile verification", () => {
       screen.getByRole("heading", { name: "Verify your VRChat profile" }),
     ).toHaveFocus();
     expect(usernameField()).not.toBeInTheDocument();
+    expect(
+      within(screen.getByRole("list")).getAllByRole("listitem"),
+    ).toHaveLength(3);
   });
 
   it("marks an identity the server cannot read on its field", async () => {

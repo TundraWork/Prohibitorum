@@ -5741,6 +5741,11 @@ msgid "devices.field.created"
 msgstr "发起时间"
 
 #. js-lingui-explicit-id
+#: src/pages/public/RequireIdentity.tsx
+msgid "require-identity.strip.lead"
+msgstr "发起方"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/ForwardAuthDangerSection.tsx
 msgid "admin.forward-auth-apps.enable.note"
 msgstr "经它路由的请求会被重新接受，仍按现有的访问策略处理。"
@@ -8094,7 +8099,7 @@ msgstr "请填写小写主机名，不带协议和端口，例如 app.example.co
 #: src/pages/public/Enroll.tsx
 #: src/pages/public/SetupSignin.tsx
 msgid "enroll.use_password_totp"
-msgstr "改用密码和验证器"
+msgstr "改用密码和身份验证器"
 
 #. js-lingui-explicit-id
 #: src/forms/password-totp-rules.ts

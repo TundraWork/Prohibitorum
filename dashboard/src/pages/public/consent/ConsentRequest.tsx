@@ -12,10 +12,6 @@ export type ConsentChoice = "approve" | "decline";
 
 const listLabelId = "consent-rows";
 
-/** A link inside the consent footnote: underlined, since it sits in running text. */
-export const consentLinkClass =
-  "rounded-sm text-foreground underline underline-offset-2 outline-none hover:text-primary focus-visible:ring-2 focus-visible:ring-ring";
-
 /**
  * The consent card the OIDC and SAML pages share: who is asking, who is
  * answering, what the application will get, and the two answers.

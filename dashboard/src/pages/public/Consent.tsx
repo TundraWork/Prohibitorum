@@ -7,6 +7,7 @@ import { ApiError } from "@/api/errors";
 import { consentDecisionMutationOptions } from "@/api/mutations";
 import { consentRequestQueryOptions } from "@/api/queries";
 import { followRedirect } from "@/app/redirect";
+import { inlineLinkClass } from "@/components/custom/inline-link";
 import { useInstanceBranding } from "@/components/custom/instance-branding";
 import { type ScopeRow, ScopeRows } from "@/components/custom/ScopeRows";
 import { Badge } from "@/components/ui/badge";
@@ -16,10 +17,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { ConsentExpired } from "@/pages/public/consent/ConsentExpired";
-import {
-  ConsentRequest,
-  consentLinkClass,
-} from "@/pages/public/consent/ConsentRequest";
+import { ConsentRequest } from "@/pages/public/consent/ConsentRequest";
 import { describeScope } from "@/pages/public/consent/scopes";
 import { Route } from "@/routes/_public.consent";
 
@@ -128,7 +126,7 @@ export function ConsentPage() {
           <Trans id="consent.footnote">
             Once you allow it, {app} can sign you in directly. You can revoke
             this at any time in{" "}
-            <RouterLink to="/apps" className={consentLinkClass}>
+            <RouterLink to="/apps" className={inlineLinkClass}>
               Connected applications
             </RouterLink>
             .
@@ -137,7 +135,7 @@ export function ConsentPage() {
             <>
               {" "}
               <a
-                className={consentLinkClass}
+                className={inlineLinkClass}
                 href={policyUri}
                 target="_blank"
                 rel="noreferrer"
@@ -151,7 +149,7 @@ export function ConsentPage() {
             <>
               {!policyUri && " "}
               <a
-                className={consentLinkClass}
+                className={inlineLinkClass}
                 href={tosUri}
                 target="_blank"
                 rel="noreferrer"
