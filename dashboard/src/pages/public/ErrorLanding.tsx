@@ -51,7 +51,7 @@ export function ErrorLandingPage() {
   return (
     <PublicStep
       strip={
-        app ? (
+        search.reason === "app_access_denied" && app ? (
           <AppStrip
             lead={<Trans id="error_page.strip.lead">Signing in to</Trans>}
             name={app}

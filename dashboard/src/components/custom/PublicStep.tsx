@@ -122,7 +122,11 @@ function PublicStepActions({
   layout?: "single" | "decision";
   children: ReactNode;
 }) {
-  return <div className={actionsLayout({ layout })}>{children}</div>;
+  return (
+    <div data-slot="step-actions" className={actionsLayout({ layout })}>
+      {children}
+    </div>
+  );
 }
 
 export const PublicStep = Object.assign(PublicStepRoot, {

@@ -241,7 +241,7 @@ describe("describeRouteFailure", () => {
     expect(failure.facts.requestId).toBe(requestId);
   });
 
-  it("lists the request, its status, code and request ID", () => {
+  it("keeps the request ID and the exchange", () => {
     const exchange = {
       method: "GET",
       path: "/api/prohibitorum/admin/accounts/42",
@@ -256,12 +256,7 @@ describe("describeRouteFailure", () => {
         exchange,
       }),
     );
-    expect(failure.facts).toEqual({
-      request: "GET /api/prohibitorum/admin/accounts/42",
-      status: 503,
-      code: "server_error",
-      requestId: "req-abc123",
-    });
+    expect(failure.facts).toEqual({ requestId: "req-abc123" });
     expect(failure.exchange).toBe(exchange);
   });
 

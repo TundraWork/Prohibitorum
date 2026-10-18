@@ -43,8 +43,16 @@ describe("the error landing page", () => {
 
   it("draws the application strip only when the link names an app", async () => {
     await open("/error?reason=app_access_denied&app=Wiki");
-    expect(screen.getByText("Signing in to")).toBeVisible();
-    expect(screen.getAllByText("Wiki").length).toBeGreaterThan(0);
+    const strip = document.querySelector('[data-slot="stage-strip"]');
+    expect(strip).toHaveTextContent("Signing in to");
+    expect(strip).toHaveTextContent("Wiki");
+  });
+
+  it("draws no strip for an ordinary failure even when the link names an app", async () => {
+    await open("/error?error=server_error&app=Wiki");
+    const strip = document.querySelector('[data-slot="stage-strip"]');
+    expect(strip).not.toHaveTextContent("Signing in to");
+    expect(strip).not.toHaveTextContent("Wiki");
   });
 
   it("draws no strip for a failure that names no app", async () => {

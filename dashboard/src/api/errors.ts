@@ -788,11 +788,8 @@ export interface RouteFailure {
   /** What happened; the same line the toast shows. */
   message: MessageDescriptor;
   recovery: RouteRecovery;
-  /** Shown under the message as they are; a missing fact is not drawn. */
+  /** The reference shown under the message; a missing one is not drawn. */
   facts: {
-    request?: string;
-    status?: number;
-    code?: string;
     requestId?: string;
     exception?: string;
   };
@@ -825,14 +822,7 @@ export function describeRouteFailure(error: unknown): RouteFailure {
   return {
     message,
     recovery: routeRecovery(error),
-    facts: {
-      request: error.exchange
-        ? `${error.exchange.method} ${error.exchange.path}`
-        : undefined,
-      status: error.status,
-      code: error.code,
-      requestId,
-    },
+    facts: { requestId },
     exchange: error.exchange,
   };
 }

@@ -252,6 +252,9 @@ function FailureBody({
   const { failure, details, setDetails } = route;
   const exchange = failure.exchange;
   const size = onStage ? "lg" : "sm";
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const hasButtons =
+    failure.recovery !== "none" || !!exchange || pathname !== leave.to;
   const buttons = (
     <>
       <RecoveryButton route={route} leave={leave} size={size} />
@@ -270,7 +273,7 @@ function FailureBody({
     <>
       <FailureReference facts={failure.facts} />
       {onStage ? (
-        <PublicStep.Actions>{buttons}</PublicStep.Actions>
+        hasButtons && <PublicStep.Actions>{buttons}</PublicStep.Actions>
       ) : (
         <div className="mt-3 flex flex-wrap gap-2 empty:hidden">{buttons}</div>
       )}

@@ -325,6 +325,7 @@ describe("public pages", () => {
 
     await screen.findByRole("heading", { name: "Unable to load this page" });
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    expect(document.querySelector('[data-slot="step-actions"]')).toBeNull();
   });
 });
 
