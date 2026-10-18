@@ -43,7 +43,7 @@ describe("ItemList", () => {
     ).not.toBeNull();
   });
 
-  it("hides a reserved but empty badge slot on a narrow screen so it adds no gap", () => {
+  it("draws a badge cell only for the rows that have a badge", () => {
     render(
       <ItemList label="Factors" empty={null}>
         <ItemListRow key="a" title="Codes" badge={<span>Low</span>} meta="2" />
@@ -55,8 +55,7 @@ describe("ItemList", () => {
     const slot = (item: HTMLElement | undefined) =>
       item?.querySelector("[data-slot='item-badge']");
     expect(slot(withBadge)).toHaveTextContent("Low");
-    expect(slot(without)).toBeEmptyDOMElement();
-    expect(slot(without)).toHaveClass("max-sm:empty:hidden");
+    expect(slot(without)).toBeNull();
   });
 
   it("shows the empty state instead of a list when there are no rows", () => {
@@ -156,67 +155,47 @@ describe("ItemList", () => {
     expect(container.querySelector("[data-slot='item-meta']")).toBeNull();
   });
 
-  it("reserves a column for every row when any row has one", () => {
-    render(
-      <ItemList label="Passkeys" empty={null}>
-        <ItemListRow key="a" title="Laptop" badge="Synced" meta="Used now" />
-        <ItemListRow key="b" title="Phone" />
-      </ItemList>,
-    );
-
-    expect(screen.getByRole("list")).toHaveAttribute(
-      "data-columns",
-      "badge meta",
-    );
-    for (const row of screen.getAllByRole("listitem")) {
-      expect(row.querySelector("[data-slot='item-badge']")).not.toBeNull();
-      expect(row.querySelector("[data-slot='item-meta']")).not.toBeNull();
-    }
-    const second = screen.getAllByRole("listitem")[1] as HTMLElement;
-    expect(
-      second.querySelector("[data-slot='item-badge']"),
-    ).toBeEmptyDOMElement();
-  });
-
-  it("sets no columns on a list without badges or meta", () => {
-    render(
-      <ItemList label="Passkeys" empty={null}>
-        <ItemListRow key="a" title="Laptop" />
-      </ItemList>,
-    );
-
-    expect(screen.getByRole("list")).not.toHaveAttribute("data-columns");
-  });
-
-  it("takes explicit columns for rows it cannot see", () => {
-    render(
-      <ItemList label="Passkeys" empty={null} columns={{ badge: true }}>
-        <ItemListRow key="a" title="Laptop" />
-      </ItemList>,
-    );
-
-    expect(screen.getByRole("list")).toHaveAttribute("data-columns", "badge");
-  });
-
-  it("groups badge and meta in one wrapper that joins the text column when narrow", () => {
+  it("keeps the badge and meta out of the details and beside the text block", () => {
     render(
       <ItemList label="Passkeys" empty={null}>
         <ItemListRow
           key="a"
           icon={<i />}
           title="Laptop"
+          details={["Added today"]}
           badge="Synced"
           meta="Used now"
         />
       </ItemList>,
     );
 
-    const wrapper = screen
+    const extras = screen
       .getByText("Synced")
-      .closest("[data-slot='item-badge']")?.parentElement as HTMLElement;
-    expect(wrapper.className).toContain("max-sm:ps-12");
-    expect(wrapper.className).toContain("sm:contents");
-    expect(wrapper).toContainElement(screen.getByText("Used now"));
+      .closest("[data-slot='item-extras']") as HTMLElement;
+    expect(extras).toContainElement(screen.getByText("Used now"));
+    const text = screen
+      .getByText("Laptop")
+      .closest("[data-slot='item-text']") as HTMLElement;
+    expect(text).not.toContainElement(extras);
+    expect(text).toContainElement(screen.getByText("Added today"));
+  });
+
+  it("draws a row's actions in their own cell", () => {
+    render(
+      <ItemList label="Passkeys" empty={null}>
+        <ItemListRow
+          key="a"
+          title="Laptop"
+          actions={<button type="button">More</button>}
+        />
+      </ItemList>,
+    );
+
+    expect(
+      screen
+        .getByRole("button", { name: "More" })
+        .closest("[data-slot='item-actions']"),
+    ).not.toBeNull();
   });
 
   it("treats a null badge or meta as absent", () => {
@@ -226,7 +205,6 @@ describe("ItemList", () => {
       </ItemList>,
     );
 
-    expect(screen.getByRole("list")).not.toHaveAttribute("data-columns");
     expect(document.querySelector("[data-slot='item-badge']")).toBeNull();
   });
 
@@ -237,7 +215,6 @@ describe("ItemList", () => {
       </ItemList>,
     );
 
-    expect(screen.getByRole("list")).not.toHaveAttribute("data-columns");
     expect(document.querySelector("[data-slot='item-badge']")).toBeNull();
     expect(document.querySelector("[data-slot='item-meta']")).toBeNull();
   });
