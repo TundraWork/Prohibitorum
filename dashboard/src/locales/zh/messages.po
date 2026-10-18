@@ -1591,11 +1591,6 @@ msgid "console.close-menu"
 msgstr "关闭导航"
 
 #. js-lingui-explicit-id
-#: src/components/custom/AppNotifications.tsx
-msgid "notification.close"
-msgstr "关闭通知"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderOperatorSection.tsx
 msgid "admin.federation.operator.method.otp"
 msgstr "验证码"
@@ -4628,11 +4623,6 @@ msgid "settings.maintenance.notice"
 msgstr "公告"
 
 #. js-lingui-explicit-id
-#: src/components/custom/AppNotifications.tsx
-msgid "notification.region"
-msgstr "通知"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
 msgid "admin.group.exposed"
 msgstr "提供给应用"
@@ -5608,7 +5598,7 @@ msgid "admin.federation.diagnostics.stage.request"
 msgstr "请求 ID <0>{requestId}</0>"
 
 #. js-lingui-explicit-id
-#. placeholder {0}: toast.content.error.requestId
+#. placeholder {0}: error.requestId
 #: src/components/custom/AppNotifications.tsx
 msgid "notification.request_id"
 msgstr "请求编号：{0}"

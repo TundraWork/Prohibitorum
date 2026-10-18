@@ -10,7 +10,7 @@ export function Detail({
 }) {
   return (
     <div className="min-w-0">
-      <dt className="text-sm text-muted">{label}</dt>
+      <dt className="text-sm text-muted-foreground">{label}</dt>
       <dd className="wrap-anywhere">{children}</dd>
     </div>
   );

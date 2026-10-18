@@ -158,6 +158,12 @@ function publicError(code: string, location?: string) {
   );
 }
 
+/** The error toasts on screen. */
+const errorToasts = () =>
+  document.querySelectorAll(
+    "[data-slot='toast-viewport'] > [data-type='error']",
+  );
+
 describe("mutation form feedback", () => {
   it("freezes a submission, reports the field and toast, then keeps editable values for retry", async () => {
     let resolvePending!: (response: Response) => void;
@@ -193,9 +199,7 @@ describe("mutation form feedback", () => {
     expect(nickname).toHaveValue("Test nickname");
     expect(nickname).toHaveAttribute("aria-invalid", "true");
     expect(nickname).toHaveAccessibleDescription();
-    expect(
-      screen.getAllByRole("button", { name: "Close notification" }),
-    ).toHaveLength(1);
+    expect(errorToasts()).toHaveLength(1);
     expect(
       screen.queryByText("Untrusted response text"),
     ).not.toBeInTheDocument();
@@ -229,9 +233,7 @@ describe("mutation form feedback", () => {
     const summary = await within(form).findByRole("alert");
     await waitFor(() => expect(summary).toHaveFocus());
     expect(nickname).not.toHaveAttribute("aria-invalid", "true");
-    expect(
-      screen.getAllByRole("button", { name: "Close notification" }),
-    ).toHaveLength(1);
+    expect(errorToasts()).toHaveLength(1);
     await user.clear(id);
     await user.click(within(form).getByRole("button"));
     await waitFor(() => expect(id).toHaveFocus());
@@ -254,9 +256,7 @@ describe("mutation form feedback", () => {
       await screen.findByText("Logout completed with no response body."),
     ).toBeVisible();
     expect(fetch).toHaveBeenCalledTimes(1);
-    expect(
-      screen.queryByRole("button", { name: "Close notification" }),
-    ).not.toBeInTheDocument();
+    expect(errorToasts()).toHaveLength(0);
   });
 });
 

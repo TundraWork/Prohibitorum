@@ -47,7 +47,9 @@ it("keeps independent errors visible and translates queued descriptions when loc
   expect(screen.getByText("Sign in for this request")).toBeVisible();
   expect(screen.getByText("Verify this action")).toBeVisible();
   expect(
-    screen.getAllByRole("button", { name: "Close notification" }),
+    document.querySelectorAll(
+      "[data-slot='toast-viewport'] > [data-type='error']",
+    ),
   ).toHaveLength(2);
 
   act(() => i18n.activate("zh"));
@@ -83,7 +85,7 @@ it("shows a success as a success toast and follows a change of language", () => 
   act(() => notifySuccess({ id: "success.passkey.added" }));
   const title = screen.getByText("Passkey added");
   expect(title).toBeVisible();
-  expect(title.closest("[data-slot='toast']")).toHaveClass("toast--success");
+  expect(title.closest("[data-type]")).toHaveAttribute("data-type", "success");
 
   act(() => i18n.activate("zh"));
   expect(screen.getByText("通行密钥已添加")).toBeVisible();
@@ -117,13 +119,11 @@ function renderNotifications() {
   );
 }
 
-// The queue outlives the provider. A test that pressed a toast leaves the
-// queue paused as if the pointer were still on it, and a closing toast holds
-// its visible slot until its exit ends, so both are settled here.
+// The queue outlives the provider, and a closing toast holds its visible slot
+// until its exit ends, so both are settled here.
 afterEach(async () => {
   vi.useFakeTimers();
   act(() => {
-    notificationQueue.resumeAll();
     notificationQueue.clear();
   });
   await act(() => vi.runAllTimersAsync());
@@ -178,8 +178,11 @@ it("opens the request details from an error toast and closes them again", async 
   ).not.toBeInTheDocument();
 
   await user.click(within(dialog).getByRole("button", { name: "Close" }));
+  // A toast is a dialog too, so the details are named.
   await waitFor(() =>
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+    expect(
+      screen.queryByRole("dialog", { name: "Request details" }),
+    ).not.toBeInTheDocument(),
   );
 });
 

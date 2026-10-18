@@ -1,4 +1,3 @@
-import { Toast, ToastQueue } from "@heroui/react";
 import type { MessageDescriptor } from "@lingui/core";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { type ReactNode, useEffect, useState } from "react";
@@ -11,6 +10,8 @@ import {
 } from "@/api/errors";
 import type { RequestExchange } from "@/api/exchange";
 import { RequestDetailsDialog } from "@/components/custom/RequestDetailsDialog";
+import { getTopLayerContainer } from "@/components/custom/top-layer";
+import { ToastProvider, toastManager } from "@/components/ui/toast";
 
 type Notification =
   | { title: ReactNode; error?: never; exchange?: never; success?: never }
@@ -27,14 +28,65 @@ type Notification =
       exchange?: never;
     };
 
-export const notificationQueue = new ToastQueue<Notification>();
-
 /**
  * How long a success stays up. An error closes after the library's default.
  * Either one holds while the pointer or focus is on it, which is the time to
  * open an error's details.
  */
 const successTimeout = 5000;
+
+const shown = new Set<string>();
+/** Opens the request details; set while the notifications are mounted. */
+let openDetails: ((exchange: RequestExchange) => void) | undefined;
+
+/** A descriptor drawn at render, so a toast on screen follows the language. */
+function Message({ descriptor }: { descriptor: MessageDescriptor }) {
+  const { i18n } = useLingui();
+  return <>{i18n._(descriptor)}</>;
+}
+
+function describe(content: Notification, timeout?: number) {
+  if (content.error) {
+    const { error, exchange } = content;
+    return {
+      type: "error",
+      title: <Message descriptor={error} />,
+      description: error.requestId ? (
+        <Trans id="notification.request_id">
+          Request ID: {error.requestId}
+        </Trans>
+      ) : undefined,
+      actionProps: exchange
+        ? {
+            children: <Trans id="notification.details">Details</Trans>,
+            onClick: () => openDetails?.(exchange),
+          }
+        : undefined,
+      timeout,
+    };
+  }
+  if (content.success) {
+    return {
+      type: "success",
+      title: <Message descriptor={content.success} />,
+      timeout,
+    };
+  }
+  return { title: content.title, timeout };
+}
+
+/** The toast queue the rest of the console adds to, over coss's toast manager. */
+export const notificationQueue = {
+  add(content: Notification, options?: { timeout?: number }) {
+    const id = toastManager.add(describe(content, options?.timeout));
+    shown.add(id);
+    return id;
+  },
+  clear() {
+    for (const id of shown) toastManager.close(id);
+    shown.clear();
+  },
+};
 
 export function notifyError(error: unknown, scope?: ErrorScope) {
   if (!isCancellation(error)) {
@@ -54,61 +106,21 @@ export function notifySuccess(message: MessageDescriptor) {
 }
 
 export function AppNotifications() {
-  const { i18n, t } = useLingui();
   const [details, setDetails] = useState<RequestExchange | null>(null);
-  useEffect(() => () => notificationQueue.clear(), []);
+  useEffect(() => {
+    openDetails = setDetails;
+    return () => {
+      openDetails = undefined;
+      notificationQueue.clear();
+    };
+  }, []);
 
   return (
     <>
-      <Toast.Provider
-        queue={notificationQueue}
-        placement="bottom end"
-        aria-label={t({ id: "notification.region", message: "Notifications" })}
-      >
-        {({ toast }) => (
-          <Toast
-            toast={toast}
-            variant={
-              toast.content.error
-                ? "danger"
-                : toast.content.success
-                  ? "success"
-                  : "default"
-            }
-          >
-            {toast.content.success && <Toast.Indicator variant="success" />}
-            <Toast.Content>
-              <Toast.Title>
-                {toast.content.error
-                  ? i18n._(toast.content.error)
-                  : toast.content.success
-                    ? i18n._(toast.content.success)
-                    : toast.content.title}
-              </Toast.Title>
-              {toast.content.error?.requestId && (
-                <Toast.Description>
-                  <Trans id="notification.request_id">
-                    Request ID: {toast.content.error.requestId}
-                  </Trans>
-                </Toast.Description>
-              )}
-            </Toast.Content>
-            {toast.content.exchange && (
-              <Toast.ActionButton
-                onPress={() => setDetails(toast.content.exchange ?? null)}
-              >
-                <Trans id="notification.details">Details</Trans>
-              </Toast.ActionButton>
-            )}
-            <Toast.CloseButton
-              aria-label={t({
-                id: "notification.close",
-                message: "Close notification",
-              })}
-            />
-          </Toast>
-        )}
-      </Toast.Provider>
+      <ToastProvider
+        position="bottom-right"
+        portalProps={{ container: getTopLayerContainer() }}
+      />
       <RequestDetailsDialog
         exchange={details}
         onClose={() => setDetails(null)}

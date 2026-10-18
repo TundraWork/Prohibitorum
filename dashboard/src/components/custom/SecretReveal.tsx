@@ -1,18 +1,13 @@
-import {
-  Alert,
-  Checkbox,
-  Description,
-  Label,
-  Modal,
-  TextArea,
-  TextField,
-} from "@heroui/react";
+import { Modal } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useBlocker } from "@tanstack/react-router";
 import { useRef, useState } from "react";
 import { Button } from "@/components/custom/Button";
+import { ReadOnlyText } from "@/components/custom/ReadOnlyText";
 import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
 import type { SecretRevealCopy } from "@/components/custom/secret-reveal-copy";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 
 /**
  * One-time disclosure of a secret the server will never return again: recovery
@@ -20,15 +15,14 @@ import type { SecretRevealCopy } from "@/components/custom/secret-reveal-copy";
  * and the filename; the leaving guard, copy and download behaviour is shared so
  * both secrets warn about the same irreversible loss.
  *
- * `onSurface` follows where the caller draws it. On a surface — a Card or a
- * Dialog — the alert and the code field drop their own background and shadow,
- * because the surface already carries that plane: the sign-in reset inside a
- * card passes it, while the enrollment reveal on the page background does not.
+ * `onSurface` is kept so a caller can say where it draws the reveal; coss's
+ * alert and fields read the same on a page, a card and a dialog, so it no
+ * longer changes the look.
  *
- * `inDialog` is for the Dialog plane, which is a surface as well. It brings the
- * surface treatment with it and hands the dialog its two other sections: the
- * title goes in `Modal.Header`, which the caller draws, and the continue
- * control becomes `Modal.Footer` so it stays put under a long code list.
+ * `inDialog` is for a caller's dialog, drawn by that caller: the title goes in
+ * its header, and the continue control becomes the dialog's footer so it stays
+ * put under a long code list. While callers still use HeroUI modals the two
+ * sections are that modal's `Body` and `Footer`.
  *
  * `titled={false}` is for a caller that draws the title as its own heading,
  * such as a step on the public card whose title is the page's `h1`.
@@ -38,7 +32,6 @@ export function SecretReveal({
   filename,
   copy,
   onContinue,
-  onSurface = false,
   inDialog = false,
   titled = true,
 }: {
@@ -46,12 +39,11 @@ export function SecretReveal({
   filename: string;
   copy: SecretRevealCopy;
   onContinue: () => Promise<void>;
+  /** Accepted for compatibility; see above. */
   onSurface?: boolean;
   inDialog?: boolean;
   titled?: boolean;
 }) {
-  const surface = onSurface || inDialog;
-  const Notice = surface ? SurfaceAlert : Alert;
   const { t } = useLingui();
   const [saved, setSaved] = useState(false);
   const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">(
@@ -60,10 +52,6 @@ export function SecretReveal({
   const [downloadFailed, setDownloadFailed] = useState(false);
   const [pending, setPending] = useState(false);
   const continuing = useRef(false);
-  // One row per line where the browser cannot size the field to its text; a
-  // token or a link on one long line wraps inside a dialog, and sizing to the
-  // content keeps the wrapped part in view rather than behind a scroll.
-  const rows = text.split("\n").length;
   useBlocker({
     shouldBlockFn: () =>
       !saved && !continuing.current && !window.confirm(t(copy.leave)),
@@ -108,23 +96,18 @@ export function SecretReveal({
       {!inDialog && titled && (
         <h2 className="text-xl font-semibold">{t(copy.title)}</h2>
       )}
-      <Notice status="warning">
-        <Notice.Indicator />
-        <Notice.Content>
-          <Notice.Title>{t(copy.once)}</Notice.Title>
-        </Notice.Content>
-      </Notice>
-      <TextField isReadOnly value={text}>
-        <Label>{t(copy.label)}</Label>
-        <TextArea
-          rows={rows}
-          variant={surface ? "secondary" : "primary"}
-          autoComplete="off"
-          spellCheck={false}
-          className="font-mono break-all field-sizing-content"
-        />
-        {copy.usage !== undefined && <Description>{t(copy.usage)}</Description>}
-      </TextField>
+      <SurfaceAlert status="warning">
+        <SurfaceAlert.Indicator />
+        <SurfaceAlert.Content>
+          <SurfaceAlert.Title>{t(copy.once)}</SurfaceAlert.Title>
+        </SurfaceAlert.Content>
+      </SurfaceAlert>
+      <ReadOnlyText
+        label={t(copy.label)}
+        description={copy.usage !== undefined ? t(copy.usage) : undefined}
+        value={text}
+        maxRows={Number.POSITIVE_INFINITY}
+      />
       <div className="flex flex-wrap gap-2">
         <Button
           variant="secondary"
@@ -145,27 +128,27 @@ export function SecretReveal({
         </p>
       )}
       {copyState === "failed" && (
-        <Notice status="warning" role="alert">
-          <Notice.Content>
-            <Notice.Title>{t(copy.copyFailed)}</Notice.Title>
-          </Notice.Content>
-        </Notice>
+        <SurfaceAlert status="warning" role="alert">
+          <SurfaceAlert.Content>
+            <SurfaceAlert.Title>{t(copy.copyFailed)}</SurfaceAlert.Title>
+          </SurfaceAlert.Content>
+        </SurfaceAlert>
       )}
       {downloadFailed && (
-        <Notice status="warning" role="alert">
-          <Notice.Content>
-            <Notice.Title>{t(copy.downloadFailed)}</Notice.Title>
-          </Notice.Content>
-        </Notice>
+        <SurfaceAlert status="warning" role="alert">
+          <SurfaceAlert.Content>
+            <SurfaceAlert.Title>{t(copy.downloadFailed)}</SurfaceAlert.Title>
+          </SurfaceAlert.Content>
+        </SurfaceAlert>
       )}
-      <Checkbox isSelected={saved} onChange={setSaved} isDisabled={pending}>
-        <Checkbox.Content>
-          <Checkbox.Control>
-            <Checkbox.Indicator />
-          </Checkbox.Control>
-          {t(copy.saved)}
-        </Checkbox.Content>
-      </Checkbox>
+      <Label className="w-fit">
+        <Checkbox
+          checked={saved}
+          onCheckedChange={setSaved}
+          disabled={pending}
+        />
+        {t(copy.saved)}
+      </Label>
     </>
   );
   const action = (

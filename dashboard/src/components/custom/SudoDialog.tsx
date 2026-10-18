@@ -1,4 +1,3 @@
-import { Modal, Skeleton, Tooltip } from "@heroui/react";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { browserSupportsWebAuthn } from "@simplewebauthn/browser";
@@ -30,6 +29,17 @@ import {
 import { Button } from "@/components/custom/Button";
 import { OrSeparator } from "@/components/custom/OrSeparator";
 import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
+import { getTopLayerContainer } from "@/components/custom/top-layer";
+import {
+  Dialog,
+  DialogDescription,
+  DialogHeader,
+  DialogPanel,
+  DialogPopup,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "@/components/ui/tooltip";
 import { applyServerError, clearServerErrors } from "@/forms/server-errors";
 import { useAppForm } from "@/forms/use-app-form";
 
@@ -63,6 +73,7 @@ const codeInvalid = msg({
  * from a component that is mounted whenever any console page can call it.
  */
 export function SudoDialog() {
+  const { t } = useLingui();
   const queryClient = useQueryClient();
   const store = useJotaiStore();
   const setDialog = useSetAtom(sudoDialogAtom);
@@ -106,28 +117,31 @@ export function SudoDialog() {
     // Open while a request is parked. Closing it any way the dialog allows —
     // the close button, or Escape — settles the request as cancelled, so the
     // operation that asked never waits on a prompt that is gone.
-    <Modal
-      isOpen={request !== null}
+    <Dialog
+      open={request !== null}
+      disablePointerDismissal
       onOpenChange={(isOpen) => {
         if (!isOpen && !locked) dismiss();
       }}
     >
-      <Modal.Backdrop isDismissable={false} isKeyboardDismissDisabled={locked}>
-        <Modal.Container placement="center" size="md">
-          <Modal.Dialog>
-            {request && (
-              <SudoStep
-                request={request}
-                locked={locked}
-                onLockChange={setLocked}
-                onVerified={verified}
-                onFailed={failed}
-              />
-            )}
-          </Modal.Dialog>
-        </Modal.Container>
-      </Modal.Backdrop>
-    </Modal>
+      <DialogPopup
+        className="sm:max-w-md"
+        portalProps={{ container: getTopLayerContainer() }}
+        closeProps={{
+          disabled: locked,
+          "aria-label": t({ id: "sudo.close", message: "Close" }),
+        }}
+      >
+        {request && (
+          <SudoStep
+            request={request}
+            onLockChange={setLocked}
+            onVerified={verified}
+            onFailed={failed}
+          />
+        )}
+      </DialogPopup>
+    </Dialog>
   );
 }
 
@@ -138,13 +152,11 @@ export function SudoDialog() {
  */
 function SudoStep({
   request,
-  locked,
   onLockChange,
   onVerified,
   onFailed,
 }: {
   request: SudoRequest;
-  locked: boolean;
   onLockChange: (locked: boolean) => void;
   onVerified: (result: unknown) => void;
   onFailed: (error: unknown) => void;
@@ -283,15 +295,15 @@ function SudoStep({
         ) : (
           // A disabled button emits no hover or focus for a tooltip to answer,
           // so the tooltip listens on the trigger wrapper instead.
-          <Tooltip delay={0}>
-            <Tooltip.Trigger className="w-full">
+          <Tooltip>
+            <TooltipTrigger delay={0} render={<span className="w-full" />}>
               {passkeyButton}
-            </Tooltip.Trigger>
-            <Tooltip.Content>
+            </TooltipTrigger>
+            <TooltipPopup>
               <Trans id="sudo.passkey.unsupported">
                 This browser or connection cannot use passkeys.
               </Trans>
-            </Tooltip.Content>
+            </TooltipPopup>
           </Tooltip>
         ))}
 
@@ -349,18 +361,16 @@ function SudoStep({
 
   return (
     <>
-      <Modal.CloseTrigger
-        aria-label={t({ id: "sudo.close", message: "Close" })}
-        isDisabled={locked}
-      />
-      <Modal.Header>
-        <Modal.Icon className="bg-default text-foreground">
-          <ShieldCheck size={20} strokeWidth={1.75} aria-hidden="true" />
-        </Modal.Icon>
-        <Modal.Heading>
-          <Trans id="sudo.title">Confirm it is you</Trans>
-        </Modal.Heading>
-        <p className="mt-1.5 text-sm leading-5 text-muted">
+      <DialogHeader>
+        <div className="flex items-center gap-3">
+          <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-muted text-foreground">
+            <ShieldCheck size={20} strokeWidth={1.75} aria-hidden="true" />
+          </span>
+          <DialogTitle>
+            <Trans id="sudo.title">Confirm it is you</Trans>
+          </DialogTitle>
+        </div>
+        <DialogDescription>
           {request.reason ? (
             t(request.reason)
           ) : (
@@ -368,52 +378,41 @@ function SudoStep({
               For your security, verify your identity again to continue.
             </Trans>
           )}
-        </p>
-      </Modal.Header>
-      {/* The header carries the reason as well as the title, so the methods
-          sit a section's break below it rather than HeroUI's 8px, which also
-          does not reach a body wrapped in a form. */}
+        </DialogDescription>
+      </DialogHeader>
       {hasPassword ? (
         // The form spans the whole body, passkey included, so Enter submits
         // the password path and a failed submit can focus its summary.
         <form.AppForm>
           <form.Form
-            className="mt-5 flex min-h-0 flex-1 flex-col"
+            className="flex min-h-0 flex-1 flex-col"
             label={t({
               id: "sudo.form.label",
               message: "Identity verification",
             })}
           >
-            <Modal.Body>{content}</Modal.Body>
+            <DialogPanel>{content}</DialogPanel>
           </form.Form>
         </form.AppForm>
       ) : (
-        <Modal.Body className="mt-5">{content}</Modal.Body>
+        <DialogPanel>{content}</DialogPanel>
       )}
     </>
   );
 }
 
 /**
- * Stands between the two methods to say either one will do. HeroUI has no
- * labelled separator, so the rules are two separators around the word; they
- * are decoration, and a reader hears only "or".
- */
-/**
  * The step's shape while the method list is re-read: the passkey button, the
  * rule between the methods, the two fields and the submit button.
  */
 function MethodsSkeleton() {
   return (
-    <div
-      aria-hidden="true"
-      className="skeleton--shimmer relative flex flex-col gap-4 overflow-hidden"
-    >
-      <Skeleton animationType="none" className="h-10 w-full" />
-      <Skeleton animationType="none" className="h-px w-full" />
-      <Skeleton animationType="none" className="h-16 w-full" />
-      <Skeleton animationType="none" className="h-16 w-full" />
-      <Skeleton animationType="none" className="h-10 w-full" />
+    <div aria-hidden="true" className="flex flex-col gap-4">
+      <Skeleton className="h-10 w-full" />
+      <Skeleton className="h-px w-full" />
+      <Skeleton className="h-16 w-full" />
+      <Skeleton className="h-16 w-full" />
+      <Skeleton className="h-10 w-full" />
     </div>
   );
 }
