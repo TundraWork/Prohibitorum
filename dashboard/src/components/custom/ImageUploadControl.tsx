@@ -137,12 +137,8 @@ export function ImageUploadControl({
           isPending={isUploading}
           onPress={() => input.current?.click()}
         >
-          {({ isPending }) => (
-            <>
-              {!isPending && <Upload size={16} aria-hidden="true" />}
-              {hasImage ? replaceLabel : uploadLabel}
-            </>
-          )}
+          {!isUploading && <Upload size={16} aria-hidden="true" />}
+          {hasImage ? replaceLabel : uploadLabel}
         </Button>
         {hasImage && (
           <Button

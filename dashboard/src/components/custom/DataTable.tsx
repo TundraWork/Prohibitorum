@@ -20,12 +20,13 @@ import {
 } from "@tanstack/react-table";
 import { ChevronRight } from "lucide-react";
 import { type ReactNode, useMemo, useState } from "react";
-import { Button } from "@/components/custom/Button";
+import { Button as RowToggle } from "react-aria-components";
 import { ScrollArea } from "@/components/custom/ScrollArea";
 import {
   TableActionCell,
   TableActionColumn,
 } from "@/components/custom/TableActionCell";
+import { buttonVariants } from "@/components/ui/button";
 
 /**
  * One feature set for the whole console: every table here sorts the same way,
@@ -315,12 +316,9 @@ export function DataTable<T extends RowData>({
                           {({ hasChildItems, isExpanded, isTreeColumn }) => (
                             <span className="flex items-center gap-1">
                               {hasChildItems && isTreeColumn && (
-                                <Button
-                                  isIconOnly
-                                  size="sm"
+                                <RowToggle
                                   slot="chevron"
-                                  variant="ghost"
-                                  className="-ms-2"
+                                  className={`${buttonVariants({ variant: "ghost", size: "icon-sm" })} -ms-2`}
                                   aria-label={
                                     isExpanded
                                       ? t({
@@ -342,7 +340,7 @@ export function DataTable<T extends RowData>({
                                         : "rtl:rotate-180"
                                     }`}
                                   />
-                                </Button>
+                                </RowToggle>
                               )}
                               {content}
                             </span>

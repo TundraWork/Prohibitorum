@@ -1,98 +1,94 @@
-import { buttonVariants, Button as HeroUIButton, Spinner } from "@heroui/react";
-import type { ComponentProps } from "react";
-import { tv } from "tailwind-variants";
+import type * as React from "react";
+import { Button as CossButton } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
+import { cn } from "@/lib/utils";
 
-type HeroUIButtonProps = ComponentProps<typeof HeroUIButton>;
+type ButtonVariant =
+  | "primary"
+  | "secondary"
+  | "tertiary"
+  | "ghost"
+  | "outline"
+  | "danger"
+  | "danger-soft"
+  | "warning";
 
-type ButtonProps = Omit<HeroUIButtonProps, "variant"> & {
-  variant?: HeroUIButtonProps["variant"] | "warning";
+type ButtonSize = "sm" | "md" | "lg";
+
+type CossVariant = NonNullable<
+  React.ComponentProps<typeof CossButton>["variant"]
+>;
+
+export interface ButtonProps
+  extends Omit<React.ComponentProps<"button">, "onClick" | "disabled"> {
+  variant?: ButtonVariant;
+  size?: ButtonSize;
+  isIconOnly?: boolean;
+  isPending?: boolean;
+  isDisabled?: boolean;
+  fullWidth?: boolean;
+  onPress?: (event: React.MouseEvent<HTMLButtonElement>) => void;
+  onClick?: (event: React.MouseEvent<HTMLButtonElement>) => void;
+  render?: React.ReactElement;
+}
+
+// `warning` keeps the primary look: the consequence of a save is stated by the
+// section footer, not by the button's colour.
+const cossVariant: Record<ButtonVariant, CossVariant> = {
+  primary: "default",
+  secondary: "outline",
+  outline: "outline",
+  tertiary: "secondary",
+  ghost: "ghost",
+  danger: "destructive",
+  "danger-soft": "destructive-outline",
+  warning: "default",
 };
 
-/**
- * HeroUI's variants plus `warning`, added the way HeroUI's "Adding custom
- * variants" example does: `tv` extending `buttonVariants`.
- *
- * The library has no warning button, and the console needs one for a save that
- * carries a consequence (see `SubmitButton`'s `tone`). It sets the same four
- * tokens `.button--danger` sets, from the theme's warning colours, so hover and
- * press are derived the way the library derives them for every other variant.
- */
-const appButtonVariants = tv({
-  extend: buttonVariants,
-  variants: {
-    variant: {
-      warning:
-        "[--button-bg:var(--warning)] [--button-bg-hover:var(--warning-hover)] [--button-bg-pressed:var(--warning-hover)] [--button-fg:var(--warning-foreground)]",
-    },
-  },
-});
+const cossSize = {
+  sm: { text: "sm", icon: "icon-sm" },
+  md: { text: "default", icon: "icon" },
+  lg: { text: "lg", icon: "icon-lg" },
+} as const;
 
 /**
- * HeroUI's button with a pending state that always shows progress: while
- * `isPending` is true the button draws the spinner itself, so screens do not
- * draw one of their own.
+ * coss's button with the console's prop vocabulary (`onPress`, `isPending`,
+ * `isDisabled`, ...) so screens keep one spelling.
  *
- * A button with text keeps that text beside the spinner. An icon-only button
- * has room for one glyph, so the spinner takes the icon's place. The spinner is
- * decorative: HeroUI's own spinner carries an English `Loading` label, which
- * would otherwise join the button's accessible name. Callers that want
- * different wording while pending still receive HeroUI's render props
- * unchanged.
+ * A pending button with text keeps that text beside the spinner; an icon-only
+ * one has room for a single glyph, so the spinner takes the icon's place.
  */
 export function Button({
-  children,
-  isIconOnly,
-  variant,
+  variant = "primary",
+  size = "md",
+  isIconOnly = false,
+  isPending = false,
+  isDisabled = false,
+  fullWidth = false,
+  onPress,
+  onClick,
   className,
-  size,
-  fullWidth,
+  children,
   ...props
-}: ButtonProps) {
-  // The warning variant is ours, so HeroUI draws its default and the extended
-  // classes override the colour tokens on top of it.
-  const warningClass =
-    variant === "warning"
-      ? (extra?: string) =>
-          appButtonVariants({
-            variant: "warning",
-            size,
-            fullWidth,
-            isIconOnly,
-            className: extra,
-          })
-      : undefined;
-
+}: ButtonProps): React.ReactElement {
   return (
-    <HeroUIButton
-      isIconOnly={isIconOnly}
-      size={size}
-      fullWidth={fullWidth}
-      variant={variant === "warning" ? undefined : variant}
-      className={
-        warningClass === undefined
-          ? className
-          : typeof className === "function"
-            ? (values) => warningClass(className(values))
-            : warningClass(className)
-      }
+    <CossButton
       {...props}
-    >
-      {(values) => {
-        const content =
-          values.isPending && isIconOnly
-            ? null
-            : typeof children === "function"
-              ? children(values)
-              : children;
-        return (
-          <>
-            {values.isPending && (
-              <Spinner size="sm" color="current" aria-hidden="true" />
-            )}
-            {content}
-          </>
-        );
+      variant={cossVariant[variant]}
+      size={cossSize[size][isIconOnly ? "icon" : "text"]}
+      loading={false}
+      disabled={isDisabled || isPending}
+      aria-busy={isPending || undefined}
+      data-variant={variant}
+      data-size={size}
+      className={cn(fullWidth && "w-full", className)}
+      onClick={(event: React.MouseEvent<HTMLButtonElement>) => {
+        onClick?.(event);
+        onPress?.(event);
       }}
-    </HeroUIButton>
+    >
+      {isPending && <Spinner aria-hidden="true" data-slot="spinner" />}
+      {isPending && isIconOnly ? null : children}
+    </CossButton>
   );
 }

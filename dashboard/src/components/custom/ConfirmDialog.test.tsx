@@ -48,8 +48,8 @@ describe("ConfirmDialog", () => {
       ),
     ).not.toBeNull();
     expect(
-      within(dialog).getByRole("button", { name: "Retire" }).className,
-    ).toContain("button--danger");
+      within(dialog).getByRole("button", { name: "Retire" }),
+    ).toHaveAttribute("data-variant", "danger");
     unmount();
 
     render(<Harness status="warning" onConfirm={() => undefined} />);
@@ -60,8 +60,8 @@ describe("ConfirmDialog", () => {
       ),
     ).not.toBeNull();
     expect(
-      within(dialog).getByRole("button", { name: "Retire" }).className,
-    ).toContain("button--primary");
+      within(dialog).getByRole("button", { name: "Retire" }),
+    ).toHaveAttribute("data-variant", "primary");
   });
 
   it("confirms through the caller and leaves closing to it; cancel closes without confirming", async () => {
@@ -84,7 +84,7 @@ describe("ConfirmDialog", () => {
     const cancel = screen.getByRole("button", { name: "Cancel" });
     expect(cancel).toBeDisabled();
     const confirm = screen.getByRole("button", { name: /Retire/ });
-    expect(confirm).toHaveAttribute("data-pending", "true");
+    expect(confirm).toHaveAttribute("aria-busy", "true");
     await userEvent.click(confirm);
     expect(onConfirm).not.toHaveBeenCalled();
   });

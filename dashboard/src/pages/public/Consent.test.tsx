@@ -196,7 +196,7 @@ describe("OIDC consent", () => {
     expect(sent?.body).toEqual({ ticket: "t-1", decision: "approve" });
     expect(screen.getByRole("button", { name: "Deny" })).toBeDisabled();
     expect(screen.getByRole("button", { name: /Allow/ })).toHaveAttribute(
-      "data-pending",
+      "aria-busy",
       "true",
     );
     settle(Response.json({ redirect: authorize }));

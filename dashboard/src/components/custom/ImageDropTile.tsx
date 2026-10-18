@@ -69,14 +69,10 @@ export function ImageDropTile({
           isPending={isPending}
           className="h-full w-full flex-col gap-1.5 text-muted"
         >
-          {({ isPending: pending }) => (
-            <>
-              {!pending && (
-                <Icon size={20} strokeWidth={1.75} aria-hidden="true" />
-              )}
-              <span>{label}</span>
-            </>
+          {!isPending && (
+            <Icon size={20} strokeWidth={1.75} aria-hidden="true" />
           )}
+          <span>{label}</span>
         </Button>
       </FileTrigger>
     </DropZone>

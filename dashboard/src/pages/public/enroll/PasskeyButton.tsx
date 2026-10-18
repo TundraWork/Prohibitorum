@@ -34,13 +34,9 @@ export function PasskeyButton({
       isDisabled={!supported || isDisabled}
       onPress={onPress}
     >
-      {({ isPending }) => (
-        <>
-          {/* The spinner takes the icon's place while it runs. */}
-          {!isPending && <Fingerprint aria-hidden="true" />}
-          {children}
-        </>
-      )}
+      {/* The spinner takes the icon's place while it runs. */}
+      {!(supported && isPending) && <Fingerprint aria-hidden="true" />}
+      {children}
     </Button>
   );
   if (supported) return button;

@@ -49,18 +49,16 @@ export function SubmitButton({
               : undefined
         }
       >
-        {({ isPending }) =>
-          isPending ? (
-            <Trans id="forms.submitting">Submitting…</Trans>
-          ) : (
-            <>
-              {tone === "warning" && (
-                <TriangleAlert size={16} aria-hidden="true" />
-              )}
-              {children}
-            </>
-          )
-        }
+        {submitting ? (
+          <Trans id="forms.submitting">Submitting…</Trans>
+        ) : (
+          <>
+            {tone === "warning" && (
+              <TriangleAlert size={16} aria-hidden="true" />
+            )}
+            {children}
+          </>
+        )}
       </Button>
     </div>
   );

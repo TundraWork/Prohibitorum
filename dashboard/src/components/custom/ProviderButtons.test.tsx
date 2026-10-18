@@ -55,7 +55,7 @@ describe("ProviderButtons", () => {
     const vrchat = screen.getByRole("button", { name: "Continue with VRChat" });
     await user.click(gitlab);
     expect(loadDocument).toHaveBeenCalledExactlyOnceWith("/leave/gitlab");
-    expect(gitlab).toHaveAttribute("data-pending", "true");
+    expect(gitlab).toHaveAttribute("aria-busy", "true");
     expect(vrchat).toBeDisabled();
     await user.click(vrchat);
     expect(loadDocument).toHaveBeenCalledOnce();
@@ -83,6 +83,6 @@ describe("ProviderButtons", () => {
     expect(gitlab).toBeEnabled();
     expect(
       screen.getByRole("button", { name: "Continue with VRChat" }),
-    ).not.toHaveAttribute("data-pending", "true");
+    ).not.toHaveAttribute("aria-busy", "true");
   });
 });

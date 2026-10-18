@@ -66,23 +66,17 @@ export function ProviderButtons({
               loadDocument(href(provider));
             }}
           >
-            {({ isPending }) => (
-              <>
-                {/* The spinner takes the icon's place while the page leaves. */}
-                {!isPending && (
-                  <span aria-hidden="true" className="flex">
-                    <EntityAvatar
-                      className="size-5 text-xs [&_[data-slot=avatar-fallback]]:bg-surface"
-                      iconUrl={provider.iconUrl}
-                      fallback={name.slice(0, 1)}
-                    />
-                  </span>
-                )}
-                <Trans id="federation.continue_with">
-                  Continue with {name}
-                </Trans>
-              </>
+            {/* The spinner takes the icon's place while the page leaves. */}
+            {leaving !== provider.slug && (
+              <span aria-hidden="true" className="flex">
+                <EntityAvatar
+                  className="size-5 text-xs [&_[data-slot=avatar-fallback]]:bg-surface"
+                  iconUrl={provider.iconUrl}
+                  fallback={name.slice(0, 1)}
+                />
+              </span>
             )}
+            <Trans id="federation.continue_with">Continue with {name}</Trans>
           </Button>
         );
       })}
