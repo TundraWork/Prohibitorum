@@ -936,6 +936,11 @@ msgid "admin.oidc-apps.appearance"
 msgstr "外观"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ForwardAuthAppearanceSection.tsx
+msgid "admin.forward-auth-apps.appearance"
+msgstr "外观"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
 msgid "admin.federation.new.slug.hint"
 msgstr "会出现在回调地址中，之后无法更改。"
@@ -1453,6 +1458,11 @@ msgstr "修改 Subject 来源？"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/ForwardAuthHeadersSection.tsx
+msgid "admin.forward-auth-apps.headers.action-label"
+msgstr "更换用户标识并保存"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ForwardAuthHeadersSection.tsx
 msgid "admin.forward-auth-apps.headers.confirm.title"
 msgstr "更换用户标识？"
 
@@ -1470,6 +1480,11 @@ msgstr "修改 NameID 格式会让每个服务提供商都把它当成新账号�
 #: src/pages/admin/oidc-applications/IdentityProjectionSection.tsx
 msgid "admin.oidc-apps.subject.consequence"
 msgstr "修改 Subject 来源会让所有人退出所有客户端。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ForwardAuthHeadersSection.tsx
+msgid "admin.forward-auth-apps.headers.consequence"
+msgstr "更换用户标识会让服务把它已有的人都当成新账号。"
 
 #. js-lingui-explicit-id
 #: src/components/custom/OtpField.tsx
@@ -1638,7 +1653,6 @@ msgstr "Client ID"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/AdminForwardAuthAppNew.tsx
-#: src/pages/admin/forward-auth-apps/ForwardAuthGeneralSection.tsx
 msgid "admin.forward-auth-apps.field.client-id"
 msgstr "客户端 ID"
 
@@ -2129,6 +2143,7 @@ msgid "federation_flow.identify.step.copy"
 msgstr "复制地址栏里的地址。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/AdminForwardAuthApp.tsx
 #: src/pages/admin/oidc-applications/AdminOidcApplication.tsx
 msgid "admin.oidc-apps.copy-client-id"
 msgstr "复制客户端 ID"
@@ -2672,6 +2687,11 @@ msgid "admin.oidc-apps.danger.title"
 msgstr "停用或删除"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ForwardAuthDangerSection.tsx
+msgid "admin.forward-auth-apps.danger.title"
+msgstr "停用或删除"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/SamlDangerSection.tsx
 msgid "admin.saml-apps.danger.disable"
 msgstr "停用应用"
@@ -3146,7 +3166,7 @@ msgid "admin.forward-auth-apps.new.name.required"
 msgstr "请填写名称。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/forward-auth-apps/ForwardAuthGeneralSection.tsx
+#: src/pages/admin/forward-auth-apps/ForwardAuthServiceSection.tsx
 msgid "admin.forward-auth-apps.field.name.required"
 msgstr "请填写名称。"
 
@@ -3578,14 +3598,14 @@ msgid "security.tokens.access.sudo"
 msgstr "完全访问，无需验证你的身份"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/forward-auth-apps/ForwardAuthGeneralSection.tsx
-msgid "admin.forward-auth-apps.general"
-msgstr "常规"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/settings/SigningKeysPanel.tsx
 msgid "settings.keys.generate"
 msgstr "生成密钥"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ForwardAuthProxySection.tsx
+msgid "admin.forward-auth-apps.traefik.block"
+msgstr "生成的 Traefik 配置"
 
 #. js-lingui-explicit-id
 #: src/pages/public/Pair.tsx
@@ -3658,6 +3678,11 @@ msgid "settings.sign-in.gradient"
 msgstr "渐变"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ForwardAuthHeadersSection.tsx
+msgid "admin.forward-auth-apps.headers.column.header"
+msgstr "请求头"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/settings/NetworkPanel.tsx
 msgid "settings.network.header"
 msgstr "请求头名称"
@@ -3679,7 +3704,7 @@ msgstr "收起详情"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/AdminForwardAuthAppNew.tsx
-#: src/pages/admin/forward-auth-apps/ForwardAuthGeneralSection.tsx
+#: src/pages/admin/forward-auth-apps/ForwardAuthServiceSection.tsx
 msgid "admin.forward-auth-apps.field.host"
 msgstr "主机名"
 
@@ -3754,7 +3779,7 @@ msgid "admin.federation.icon.title"
 msgstr "图标"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/forward-auth-apps/ForwardAuthGeneralSection.tsx
+#: src/pages/admin/forward-auth-apps/ForwardAuthAppearanceSection.tsx
 msgid "admin.forward-auth-apps.icon"
 msgstr "图标"
 
@@ -4525,7 +4550,7 @@ msgstr "名称"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/AdminForwardAuthAppNew.tsx
-#: src/pages/admin/forward-auth-apps/ForwardAuthGeneralSection.tsx
+#: src/pages/admin/forward-auth-apps/ForwardAuthServiceSection.tsx
 msgid "admin.forward-auth-apps.field.name"
 msgstr "名称"
 
@@ -6448,8 +6473,7 @@ msgid "admin.federation.general.save"
 msgstr "保存"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/forward-auth-apps/ForwardAuthGeneralSection.tsx
-#: src/pages/admin/forward-auth-apps/ForwardAuthHeadersSection.tsx
+#: src/pages/admin/forward-auth-apps/ForwardAuthServiceSection.tsx
 msgid "admin.forward-auth-apps.save"
 msgstr "保存"
 
@@ -6610,6 +6634,11 @@ msgstr "在请求正文里发送客户端密钥。"
 #: src/components/custom/principal-sources.ts
 msgid "principal-source.verified-email.hint"
 msgstr "仅在邮箱已验证且未被其他账号使用时发送，否则请求会被拒绝。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ForwardAuthServiceSection.tsx
+msgid "admin.forward-auth-apps.service"
+msgstr "服务"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
@@ -7490,7 +7519,7 @@ msgstr "你在这个应用里所属的组"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/AdminForwardAuthAppNew.tsx
-#: src/pages/admin/forward-auth-apps/ForwardAuthGeneralSection.tsx
+#: src/pages/admin/forward-auth-apps/ForwardAuthServiceSection.tsx
 msgid "admin.forward-auth-apps.field.host.hint"
 msgstr "应用对外提供的主机名，按 Traefik 的匹配方式填写，不带协议和端口。"
 
@@ -7506,7 +7535,6 @@ msgstr "客户端为该账号保存的标识。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/AdminForwardAuthAppNew.tsx
-#: src/pages/admin/forward-auth-apps/ForwardAuthGeneralSection.tsx
 msgid "admin.forward-auth-apps.field.client-id.hint"
 msgstr "发往这个应用的每个请求都带有这个标识。之后无法更改。"
 
@@ -7564,6 +7592,11 @@ msgstr "新账号注册后加入的手工用户组。"
 #: src/pages/admin/identity-providers/ProviderConnectionSection.tsx
 msgid "admin.federation.connection.secret.hint"
 msgstr "所选的认证方式会把这个密钥发送给提供方；密钥加密存储，不会再次显示。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ForwardAuthServiceSection.tsx
+msgid "admin.forward-auth-apps.service.description"
+msgstr "用户看到的名称，以及网关保护的主机名。上方显示的客户端 ID 会随每个发往这个应用的请求一起发送，之后无法更改。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
@@ -8815,6 +8848,11 @@ msgid "admin.users.filter.valuePlaceholder"
 msgstr "值"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ForwardAuthHeadersSection.tsx
+msgid "admin.forward-auth-apps.headers.column.value"
+msgstr "值"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminUsers.tsx
 msgid "admin.users.filter.value"
 msgstr "要匹配的值"
@@ -9022,6 +9060,11 @@ msgstr "服务提供商会得知的登录者信息。"
 #: src/pages/admin/saml-applications/SamlMetadataSection.tsx
 msgid "admin.saml-apps.metadata.description"
 msgstr "服务提供商发布的内容：断言发送到哪里，以及哪些证书为它的请求签名。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ForwardAuthHeadersSection.tsx
+msgid "admin.forward-auth-apps.headers.description"
+msgstr "网关放行的每个请求都会带给服务的内容。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx

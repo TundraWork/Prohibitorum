@@ -1,68 +1,111 @@
+import { useLingui } from "@lingui/react/macro";
 import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { forwardAuthAppQueryOptions, sessionQueryOptions } from "@/api/queries";
 import { AppAccessSection } from "@/components/custom/AppAccessSection";
+import { AppDetailLayout } from "@/components/custom/AppDetailLayout";
 import {
   AppManagerNote,
   AppManagersSection,
 } from "@/components/custom/AppManagersSection";
+import { EntityAvatar } from "@/components/custom/EntityAvatar";
+import { ObjectHeader } from "@/components/custom/ObjectHeader";
+import { ForwardAuthAppearanceSection } from "@/pages/admin/forward-auth-apps/ForwardAuthAppearanceSection";
 import { ForwardAuthDangerSection } from "@/pages/admin/forward-auth-apps/ForwardAuthDangerSection";
-import {
-  ForwardAuthGeneralSection,
-  ForwardAuthIconSection,
-} from "@/pages/admin/forward-auth-apps/ForwardAuthGeneralSection";
 import { ForwardAuthHeadersSection } from "@/pages/admin/forward-auth-apps/ForwardAuthHeadersSection";
 import { ForwardAuthProxySection } from "@/pages/admin/forward-auth-apps/ForwardAuthProxySection";
+import { ForwardAuthServiceSection } from "@/pages/admin/forward-auth-apps/ForwardAuthServiceSection";
 import { Route } from "@/routes/_protected.admin.forward-auth-apps_.$clientId";
 
 /**
- * One forward-auth application, as a column of sections rather than tabs.
+ * One forward-auth application's page: who it is at the top, then a column of
+ * sections with an outline beside them.
  *
- * The whole page is on screen at once, so every section mounts with it: a block
- * that is slow or broken says so in its own place instead of taking the page
- * down, and nothing is hidden behind a control the reader has to work through.
- * That is also why the general form and the icon card are separate sections
- * rather than one — each is a short block a reader takes in alongside the
- * others, and a section's heading sits beside the button it names.
+ * The order follows a request through the gateway. What the application is and
+ * which host it protects come first; then what the service receives — the
+ * headers, with `Remote-User` the one choice among them — then the Traefik
+ * configuration that puts the gateway in front of it, and who may pass and who
+ * manages it. How the application is shown comes next, and last the changes
+ * that stop it.
  *
- * The order follows a request through the gateway. What the application is
- * and how it looks come first; then what the service receives — the headers,
- * with `Remote-User` the one choice among them — then the Traefik configuration that puts the gateway in
- * front of it, and last who may pass and who manages it.
- *
- * Each panel draws its own `Section`, so a heading and the state it names stay
- * in one file. This file owns only the order and the gaps between them.
- *
- * The session is read with `useQuery` rather than suspending: the page's shape
- * does not depend on the answer, only on which controls the reader is offered,
- * and a blank section while a role resolves would be worse than a moment
- * without the administrators' one.
+ * Every section is mounted on arrival, so its reads start at once, and each
+ * saves the record it edits through `forwardAuthAppUpdateBody` or its own
+ * endpoint. They do not share unsaved state: leaving the page abandons whatever
+ * was typed in a form that was never submitted. The record is passed down
+ * rather than read again: the route loader already has it.
  */
 export function AdminForwardAuthApp() {
+  const { t } = useLingui();
   const { clientId } = Route.useParams();
   const { data: app } = useSuspenseQuery(forwardAuthAppQueryOptions(clientId));
+  // Read with `useQuery` rather than suspending: the page's shape does not
+  // depend on the answer, only on which controls the reader is offered, and a
+  // blank section while a role resolves would be worse than a moment without
+  // the administrators' one.
   const session = useQuery(sessionQueryOptions());
+  const isAdmin = session.data?.role === "admin";
+
+  const name = app.displayName || app.clientId;
 
   return (
-    <div className="flex flex-col gap-8">
-      <AppManagerNote isAdmin={session.data?.role === "admin"} />
-
-      <ForwardAuthGeneralSection app={app} />
-      <ForwardAuthIconSection app={app} />
+    <AppDetailLayout
+      header={
+        <div className="flex flex-col gap-3">
+          <ObjectHeader
+            icon={
+              <EntityAvatar
+                size="xl"
+                iconUrl={app.iconUrl}
+                name={name}
+                className="rounded-2xl"
+                fallbackClassName="rounded-2xl"
+              />
+            }
+            title={name}
+            statuses={[
+              app.disabled ? "disabled" : "enabled",
+              app.accessRestricted ? "restricted" : "open",
+            ]}
+            identifier={{
+              value: app.clientId,
+              label: t({
+                id: "admin.oidc-apps.copy-client-id",
+                message: "Copy the client ID",
+              }),
+            }}
+            // A record with no host has nothing to show: a blank fact would
+            // read as a value.
+            facts={
+              app.forwardAuthHost === ""
+                ? []
+                : [
+                    <span
+                      key="host"
+                      className="break-all font-mono text-[13px] text-foreground"
+                    >
+                      {app.forwardAuthHost}
+                    </span>,
+                  ]
+            }
+          />
+          <AppManagerNote isAdmin={isAdmin} />
+        </div>
+      }
+    >
+      <ForwardAuthServiceSection app={app} />
       <ForwardAuthHeadersSection app={app} />
       <ForwardAuthProxySection app={app} />
       <AppAccessSection
         kind="forward_auth"
         appId={app.clientId}
-        isAdmin={session.data?.role === "admin"}
+        isAdmin={isAdmin}
       />
-
       <AppManagersSection
         kind="forward_auth"
         appId={app.clientId}
-        isAdmin={session.data?.role === "admin"}
+        isAdmin={isAdmin}
       />
-
+      <ForwardAuthAppearanceSection app={app} />
       <ForwardAuthDangerSection app={app} />
-    </div>
+    </AppDetailLayout>
   );
 }

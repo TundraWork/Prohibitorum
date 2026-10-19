@@ -22,7 +22,6 @@ export function CopyableValue({
   /** Classes for the value's text, such as its size or truncation. */
   className?: string;
 }): React.ReactElement {
-  const { t } = useLingui();
   const { state, copy } = useCopyValue();
   const copied = state === "copied";
   return (
@@ -42,8 +41,31 @@ export function CopyableValue({
           <CopyIcon aria-hidden="true" />
         )}
       </Button>
+      <CopyStatus state={state} />
+    </span>
+  );
+}
+
+/**
+ * What a copy button says for itself: a hidden "Copied" status while the
+ * clipboard took the value, and a warning when it refused.
+ *
+ * The warning points at "the value above", so it belongs directly under what
+ * was to be copied. Every copy control on the console draws it from here, so
+ * the wording cannot differ between them.
+ */
+export function CopyStatus({
+  state,
+}: {
+  state: "idle" | "copied" | "failed";
+}): React.ReactElement {
+  const { t } = useLingui();
+  return (
+    <>
       <span role="status" className="sr-only">
-        {copied ? t({ id: "copy-value.copied", message: "Copied" }) : ""}
+        {state === "copied"
+          ? t({ id: "copy-value.copied", message: "Copied" })
+          : ""}
       </span>
       {state === "failed" && (
         <Alert variant="warning">
@@ -57,6 +79,6 @@ export function CopyableValue({
           </AlertTitle>
         </Alert>
       )}
-    </span>
+    </>
   );
 }

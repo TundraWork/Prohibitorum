@@ -1,46 +1,61 @@
-import { Alert } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { Power, Trash2 } from "lucide-react";
+import { Power, Trash2, TriangleAlertIcon } from "lucide-react";
 import { useState } from "react";
-import { describeError } from "@/api/errors";
 import type { components } from "@/api/generated/schema";
 import {
   deleteForwardAuthAppMutationOptions,
   setAppDisabledMutationOptions,
 } from "@/api/mutations";
 import { appAccessQueryOptions } from "@/api/queries";
+import { quietQuery, withInlineReport } from "@/app/query-client";
 import { Button } from "@/components/custom/Button";
 import { ConfirmDialog } from "@/components/custom/ConfirmDialog";
 import { DangerZoneFrame } from "@/components/custom/DangerZone";
+import {
+  InlineFailure,
+  useInlineFailure,
+} from "@/components/custom/InlineFailure";
 import { ItemList, ItemListRow } from "@/components/custom/ItemList";
 
 type ForwardAuthApp = components["schemas"]["ForwardAuthAppView"];
 
 /**
- * The two actions that change whether the application works at all.
+ * The two actions that change whether the application works at all, one row
+ * each and both visible at once: stop accepting requests for now, or remove the
+ * application for good.
  *
- * One state union rather than one dialog per row: only one of these can be
- * being decided at a time, and a shared `confirming` means opening the second
- * cannot leave the first mounted behind it.
+ * They sit together because a reader who arrives here is deciding between them,
+ * and needs to see that disabling is available — and reversible — before
+ * reaching for deletion. It is the same section, in the same words, as on the
+ * other kinds of application.
  *
- * Disabling does not revoke what a person already holds — a browser session on
- * the protected host keeps its cookie until it expires, and it is the next
- * verification against a disabled application that refuses it. So the dialog
- * says requests stop being accepted rather than promising everyone is signed
- * out. Deletion names the audience instead of the record, because the record is
- * a row the reader has already seen; what they cannot see from here is who is
- * on the other side of it.
+ * Every action is confirmed, including the reversible one. Disabling does not
+ * revoke what a person already holds — a browser session on the protected host
+ * keeps its cookie until it expires, and it is the next verification against a
+ * disabled application that refuses it — so the dialog says requests stop being
+ * accepted rather than promising everyone is signed out. Deletion names the
+ * audience instead of the record, because the record is a row the reader has
+ * already seen; what they cannot see from here is who is on the other side of
+ * it. A dialog stays open while its write is in flight, and a refusal is shown
+ * once, under the rows. Deleting asks for a fresh identity check; disabling does
+ * not.
  */
 export function ForwardAuthDangerSection({ app }: { app: ForwardAuthApp }) {
   const { t } = useLingui();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const setDisabled = useMutation(
-    setAppDisabledMutationOptions(queryClient, "forward_auth"),
+    withInlineReport(
+      setAppDisabledMutationOptions(queryClient, "forward_auth"),
+      true,
+    ),
   );
-  const remove = useMutation(deleteForwardAuthAppMutationOptions(queryClient));
+  const remove = useMutation(
+    withInlineReport(deleteForwardAuthAppMutationOptions(queryClient), true),
+  );
+  const failure = useInlineFailure();
 
   const [confirming, setConfirming] = useState<
     "disable" | "enable" | "delete" | null
@@ -48,23 +63,26 @@ export function ForwardAuthDangerSection({ app }: { app: ForwardAuthApp }) {
 
   // The access read already knows which user groups the application is limited
   // to, and the delete dialog is where that list means something. A read that
-  // has not landed yet only costs the dialog its count.
-  const access = useQuery(appAccessQueryOptions("forward_auth", app.clientId));
-  const groups = (access.data?.groups ?? []).map((group) => group.displayName);
-  // Named, so the confirmation carries them as `{name}` and `{count}`, the
-  // placeholders both catalogs use.
+  // has not landed, or has failed, only costs the dialog its count, so it
+  // reports nothing of its own.
+  const access = useQuery(
+    quietQuery(appAccessQueryOptions("forward_auth", app.clientId)),
+  );
+  const count = access.data?.groups.length ?? 0;
+  // Named, so the confirmation carries it as `{name}`, the placeholder both
+  // catalogs use.
   const name = app.displayName || app.clientId;
-  const count = groups.length;
-
-  const failure = remove.error ?? setDisabled.error;
-
-  const confirmingDelete = confirming === "delete";
-  const confirmingDisable = confirming === "disable";
-  const confirmingEnable = confirming === "enable";
+  const busy = setDisabled.isPending || remove.isPending;
 
   return (
     <DangerZoneFrame
-      title={<Trans id="admin.forward-auth-apps.danger">Danger zone</Trans>}
+      id="danger"
+      icon={<TriangleAlertIcon />}
+      title={
+        <Trans id="admin.forward-auth-apps.danger.title">
+          Disable or delete
+        </Trans>
+      }
     >
       <ItemList
         label={t({
@@ -103,7 +121,10 @@ export function ForwardAuthDangerSection({ app }: { app: ForwardAuthApp }) {
           actions={
             <Button
               pending={setDisabled.isPending}
-              onClick={() => setConfirming(app.disabled ? "enable" : "disable")}
+              onClick={() => {
+                failure.clear();
+                setConfirming(app.disabled ? "enable" : "disable");
+              }}
               variant="outline"
               size="sm"
             >
@@ -134,7 +155,10 @@ export function ForwardAuthDangerSection({ app }: { app: ForwardAuthApp }) {
           actions={
             <Button
               pending={remove.isPending}
-              onClick={() => setConfirming("delete")}
+              onClick={() => {
+                failure.clear();
+                setConfirming("delete");
+              }}
               variant="destructive-outline"
               size="sm"
             >
@@ -144,21 +168,14 @@ export function ForwardAuthDangerSection({ app }: { app: ForwardAuthApp }) {
         />
       </ItemList>
 
-      {failure !== null && (
-        <Alert status="danger" role="alert" className="mt-4">
-          <Alert.Indicator />
-          <Alert.Content>
-            <Alert.Title>{t(describeError(failure))}</Alert.Title>
-          </Alert.Content>
-        </Alert>
-      )}
+      <InlineFailure error={failure.error} />
 
       <ConfirmDialog
-        isOpen={confirmingDisable || confirmingEnable}
-        onOpenChange={(open) => !open && setConfirming(null)}
+        isOpen={confirming === "disable" || confirming === "enable"}
+        onOpenChange={(open) => !open && !busy && setConfirming(null)}
         status="warning"
         title={
-          confirmingEnable ? (
+          confirming === "enable" ? (
             <Trans id="admin.forward-auth-apps.enable.confirm.title">
               Enable this application?
             </Trans>
@@ -170,7 +187,7 @@ export function ForwardAuthDangerSection({ app }: { app: ForwardAuthApp }) {
         }
         body={
           <p>
-            {confirmingEnable ? (
+            {confirming === "enable" ? (
               <Trans id="admin.forward-auth-apps.enable.confirm.body">
                 The gateway starts accepting requests through this application
                 again, under the access policy it already has.
@@ -185,7 +202,7 @@ export function ForwardAuthDangerSection({ app }: { app: ForwardAuthApp }) {
           </p>
         }
         confirmLabel={
-          confirmingEnable ? (
+          confirming === "enable" ? (
             <Trans id="admin.forward-auth-apps.enable.action">Enable</Trans>
           ) : (
             <Trans id="admin.forward-auth-apps.disable.action">Disable</Trans>
@@ -193,17 +210,20 @@ export function ForwardAuthDangerSection({ app }: { app: ForwardAuthApp }) {
         }
         isPending={setDisabled.isPending}
         onConfirm={() => {
-          const disabled = confirmingDisable;
+          const disabled = confirming === "disable";
           setDisabled.mutate(
             { appId: app.clientId, disabled },
-            { onSettled: () => setConfirming(null) },
+            {
+              onError: failure.report,
+              onSettled: () => setConfirming(null),
+            },
           );
         }}
       />
 
       <ConfirmDialog
-        isOpen={confirmingDelete}
-        onOpenChange={(open) => !open && setConfirming(null)}
+        isOpen={confirming === "delete"}
+        onOpenChange={(open) => !open && !busy && setConfirming(null)}
         status="danger"
         title={
           <Trans id="admin.forward-auth-apps.delete.confirm.title">
@@ -212,7 +232,7 @@ export function ForwardAuthDangerSection({ app }: { app: ForwardAuthApp }) {
         }
         body={
           <p>
-            {groups.length === 0 ? (
+            {count === 0 ? (
               <Trans id="admin.forward-auth-apps.delete.confirm.open">
                 {name} is removed along with its icon and its access policy.
                 Requests through its router are turned away immediately. This
@@ -236,7 +256,12 @@ export function ForwardAuthDangerSection({ app }: { app: ForwardAuthApp }) {
         onConfirm={() => {
           remove.mutate(app.clientId, {
             onSuccess: async () => {
+              setConfirming(null);
               await navigate({ to: "/admin/forward-auth-apps" });
+            },
+            onError: (error) => {
+              setConfirming(null);
+              failure.report(error);
             },
           });
         }}

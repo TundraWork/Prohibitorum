@@ -936,6 +936,11 @@ msgid "admin.oidc-apps.appearance"
 msgstr "Appearance"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ForwardAuthAppearanceSection.tsx
+msgid "admin.forward-auth-apps.appearance"
+msgstr "Appearance"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
 msgid "admin.federation.new.slug.hint"
 msgstr "Appears in the callback addresses and cannot be changed later."
@@ -1453,6 +1458,11 @@ msgstr "Change the subject source?"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/ForwardAuthHeadersSection.tsx
+msgid "admin.forward-auth-apps.headers.action-label"
+msgstr "Change the user identifier and save"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ForwardAuthHeadersSection.tsx
 msgid "admin.forward-auth-apps.headers.confirm.title"
 msgstr "Change the user identifier?"
 
@@ -1470,6 +1480,11 @@ msgstr "Changing the NameID format makes every service provider see a new accoun
 #: src/pages/admin/oidc-applications/IdentityProjectionSection.tsx
 msgid "admin.oidc-apps.subject.consequence"
 msgstr "Changing the subject source signs everyone out of every client."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ForwardAuthHeadersSection.tsx
+msgid "admin.forward-auth-apps.headers.consequence"
+msgstr "Changing the user identifier makes the service treat everyone it already knows as a new account."
 
 #. js-lingui-explicit-id
 #: src/components/custom/OtpField.tsx
@@ -1638,7 +1653,6 @@ msgstr "Client ID"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/AdminForwardAuthAppNew.tsx
-#: src/pages/admin/forward-auth-apps/ForwardAuthGeneralSection.tsx
 msgid "admin.forward-auth-apps.field.client-id"
 msgstr "Client ID"
 
@@ -2129,6 +2143,7 @@ msgid "federation_flow.identify.step.copy"
 msgstr "Copy the address from the address bar."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/AdminForwardAuthApp.tsx
 #: src/pages/admin/oidc-applications/AdminOidcApplication.tsx
 msgid "admin.oidc-apps.copy-client-id"
 msgstr "Copy the client ID"
@@ -2672,6 +2687,11 @@ msgid "admin.oidc-apps.danger.title"
 msgstr "Disable or delete"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ForwardAuthDangerSection.tsx
+msgid "admin.forward-auth-apps.danger.title"
+msgstr "Disable or delete"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/SamlDangerSection.tsx
 msgid "admin.saml-apps.danger.disable"
 msgstr "Disable the application"
@@ -3146,7 +3166,7 @@ msgid "admin.forward-auth-apps.new.name.required"
 msgstr "Enter a name."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/forward-auth-apps/ForwardAuthGeneralSection.tsx
+#: src/pages/admin/forward-auth-apps/ForwardAuthServiceSection.tsx
 msgid "admin.forward-auth-apps.field.name.required"
 msgstr "Enter a name."
 
@@ -3578,14 +3598,14 @@ msgid "security.tokens.access.sudo"
 msgstr "Full access, without confirming it is you"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/forward-auth-apps/ForwardAuthGeneralSection.tsx
-msgid "admin.forward-auth-apps.general"
-msgstr "General"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/settings/SigningKeysPanel.tsx
 msgid "settings.keys.generate"
 msgstr "Generate key"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ForwardAuthProxySection.tsx
+msgid "admin.forward-auth-apps.traefik.block"
+msgstr "Generated Traefik configuration"
 
 #. js-lingui-explicit-id
 #: src/pages/public/Pair.tsx
@@ -3658,6 +3678,11 @@ msgid "settings.sign-in.gradient"
 msgstr "Gradient"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ForwardAuthHeadersSection.tsx
+msgid "admin.forward-auth-apps.headers.column.header"
+msgstr "Header"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/settings/NetworkPanel.tsx
 msgid "settings.network.header"
 msgstr "Header name"
@@ -3679,7 +3704,7 @@ msgstr "Hide details"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/AdminForwardAuthAppNew.tsx
-#: src/pages/admin/forward-auth-apps/ForwardAuthGeneralSection.tsx
+#: src/pages/admin/forward-auth-apps/ForwardAuthServiceSection.tsx
 msgid "admin.forward-auth-apps.field.host"
 msgstr "Hostname"
 
@@ -3754,7 +3779,7 @@ msgid "admin.federation.icon.title"
 msgstr "Icon"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/forward-auth-apps/ForwardAuthGeneralSection.tsx
+#: src/pages/admin/forward-auth-apps/ForwardAuthAppearanceSection.tsx
 msgid "admin.forward-auth-apps.icon"
 msgstr "Icon"
 
@@ -4525,7 +4550,7 @@ msgstr "Name"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/AdminForwardAuthAppNew.tsx
-#: src/pages/admin/forward-auth-apps/ForwardAuthGeneralSection.tsx
+#: src/pages/admin/forward-auth-apps/ForwardAuthServiceSection.tsx
 msgid "admin.forward-auth-apps.field.name"
 msgstr "Name"
 
@@ -6448,8 +6473,7 @@ msgid "admin.federation.general.save"
 msgstr "Save"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/forward-auth-apps/ForwardAuthGeneralSection.tsx
-#: src/pages/admin/forward-auth-apps/ForwardAuthHeadersSection.tsx
+#: src/pages/admin/forward-auth-apps/ForwardAuthServiceSection.tsx
 msgid "admin.forward-auth-apps.save"
 msgstr "Save"
 
@@ -6610,6 +6634,11 @@ msgstr "Sends the client secret in the request body."
 #: src/components/custom/principal-sources.ts
 msgid "principal-source.verified-email.hint"
 msgstr "Sent only while the address is verified and no other account uses it; otherwise the request is refused."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ForwardAuthServiceSection.tsx
+msgid "admin.forward-auth-apps.service"
+msgstr "Service"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
@@ -7490,7 +7519,7 @@ msgstr "The groups you belong to for this app"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/AdminForwardAuthAppNew.tsx
-#: src/pages/admin/forward-auth-apps/ForwardAuthGeneralSection.tsx
+#: src/pages/admin/forward-auth-apps/ForwardAuthServiceSection.tsx
 msgid "admin.forward-auth-apps.field.host.hint"
 msgstr "The host the application is served on, as Traefik matches it — no scheme and no port."
 
@@ -7506,7 +7535,6 @@ msgstr "The identifier a client stores for this account."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/AdminForwardAuthAppNew.tsx
-#: src/pages/admin/forward-auth-apps/ForwardAuthGeneralSection.tsx
 msgid "admin.forward-auth-apps.field.client-id.hint"
 msgstr "The identifier every request to this application carries. It cannot change later."
 
@@ -7564,6 +7592,11 @@ msgstr "The manual groups the new account joins when it registers."
 #: src/pages/admin/identity-providers/ProviderConnectionSection.tsx
 msgid "admin.federation.connection.secret.hint"
 msgstr "The method chosen sends this to the provider; it is stored encrypted and never shown again."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ForwardAuthServiceSection.tsx
+msgid "admin.forward-auth-apps.service.description"
+msgstr "The name people see and the host the gateway protects. The Client ID, shown above, is what every request to this application carries and cannot change."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
@@ -8815,6 +8848,11 @@ msgid "admin.users.filter.valuePlaceholder"
 msgstr "Value"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ForwardAuthHeadersSection.tsx
+msgid "admin.forward-auth-apps.headers.column.value"
+msgstr "Value"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminUsers.tsx
 msgid "admin.users.filter.value"
 msgstr "Value to match"
@@ -9022,6 +9060,11 @@ msgstr "What the service provider is told about someone who signs in."
 #: src/pages/admin/saml-applications/SamlMetadataSection.tsx
 msgid "admin.saml-apps.metadata.description"
 msgstr "What the service provider published: where assertions are posted and which certificates sign its requests."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ForwardAuthHeadersSection.tsx
+msgid "admin.forward-auth-apps.headers.description"
+msgstr "What the service receives with every request the gateway lets through."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx

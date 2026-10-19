@@ -1,16 +1,26 @@
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useStore } from "@tanstack/react-form";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { ListIcon } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { isCancellation } from "@/api/errors";
 import { readPrincipalSource } from "@/api/federation";
 import type { components } from "@/api/generated/schema";
 import { updateForwardAuthProjectionMutationOptions } from "@/api/mutations";
 import type { PrincipalSource } from "@/api/raw-admin-paths";
+import { withInlineReport } from "@/app/query-client";
 import { ConfirmDialog } from "@/components/custom/ConfirmDialog";
-import { ConsoleCard } from "@/components/custom/ConsoleCard";
+import { ConsequenceFooter } from "@/components/custom/ConsequenceFooter";
 import { principalSourceLabel } from "@/components/custom/principal-sources";
 import { Section } from "@/components/custom/Section";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { applyServerError } from "@/forms/server-errors";
 import { useAppForm } from "@/forms/use-app-form";
 
@@ -21,22 +31,26 @@ type ForwardAuthApp = components["schemas"]["ForwardAuthAppView"];
  * through, laid out as the headers themselves.
  *
  * The page is about that request, so this section is where the account's
- * identity meets it: four headers, one line each, and only `Remote-User` is a
+ * identity meets it: four headers, one row each, and only `Remote-User` is a
  * choice. The others are stated rather than configured — the name, the primary
  * email, the application's exposed groups.
  *
  * `Remote-User` is the identifier the service keys its users on, so a change is
- * confirmed when it is saved: the select moves freely, the save button turns to
- * its warning tone while the choice differs from the saved one, and submitting
- * opens the dialog; cancelling leaves the choice in the form, unsent. The write
- * is the projection's own endpoint, not the whole-record `PUT`, and needs no
- * step-up.
+ * confirmed when it is saved. The select moves freely, and the footer states
+ * the consequence while the choice differs from the saved one, so it is
+ * announced before the press; submitting then opens the dialog, and the write
+ * happens from there. Cancelling leaves the choice in the form, unsent. The
+ * write is the projection's own endpoint, not the whole-record `PUT`, and needs
+ * no step-up.
  */
 export function ForwardAuthHeadersSection({ app }: { app: ForwardAuthApp }) {
   const { t, i18n } = useLingui();
   const queryClient = useQueryClient();
   const update = useMutation(
-    updateForwardAuthProjectionMutationOptions(queryClient),
+    withInlineReport(
+      updateForwardAuthProjectionMutationOptions(queryClient),
+      true,
+    ),
   );
   // The source the dialog is confirming. It outlives the dialog's closing so
   // the text does not change while the dialog fades out.
@@ -50,7 +64,7 @@ export function ForwardAuthHeadersSection({ app }: { app: ForwardAuthApp }) {
 
   const form = useAppForm({
     defaultValues: { remoteUserSource: saved },
-    onSubmit: async ({ value }) => {
+    onSubmit: ({ value }) => {
       if (value.remoteUserSource === saved) return;
       setPending(value.remoteUserSource);
       setConfirming(true);
@@ -59,9 +73,14 @@ export function ForwardAuthHeadersSection({ app }: { app: ForwardAuthApp }) {
 
   async function save(remoteUserSource: PrincipalSource) {
     try {
-      await update.mutateAsync({
+      const view = await update.mutateAsync({
         clientId: app.clientId,
         body: { remoteUserSource },
+      });
+      // The stored record is the new baseline, so the section reads as saved.
+      form.reset({
+        remoteUserSource:
+          readPrincipalSource(view.remoteUserSource) ?? "username",
       });
     } catch (error) {
       if (isCancellation(error)) return;
@@ -69,10 +88,8 @@ export function ForwardAuthHeadersSection({ app }: { app: ForwardAuthApp }) {
     }
   }
 
-  const changed = useStore(
-    form.store,
-    (state) => state.values.remoteUserSource !== saved,
-  );
+  const dirty = useStore(form.store, (state) => !state.isDefaultValue);
+  const submitting = useStore(form.store, (state) => state.isSubmitting);
 
   const title = t({
     id: "admin.forward-auth-apps.headers",
@@ -84,47 +101,91 @@ export function ForwardAuthHeadersSection({ app }: { app: ForwardAuthApp }) {
   const savedLabel = i18n._(principalSourceLabel(saved));
 
   return (
-    <Section title={title}>
-      <ConsoleCard wide>
-        <form.AppForm>
-          <form.Form label={title}>
-            <form.FormError />
+    <>
+      <form.AppForm>
+        <form.Form label={title}>
+          <Section
+            id="headers"
+            icon={<ListIcon />}
+            title={title}
+            description={
+              <Trans id="admin.forward-auth-apps.headers.description">
+                What the service receives with every request the gateway lets
+                through.
+              </Trans>
+            }
+            dirty={dirty}
+            footer={
+              dirty ? (
+                <ConsequenceFooter
+                  consequence={
+                    <Trans id="admin.forward-auth-apps.headers.consequence">
+                      Changing the user identifier makes the service treat
+                      everyone it already knows as a new account.
+                    </Trans>
+                  }
+                  actionLabel={
+                    <Trans id="admin.forward-auth-apps.headers.action-label">
+                      Change the user identifier and save
+                    </Trans>
+                  }
+                  onDiscard={() => form.reset()}
+                  pending={submitting || update.isPending}
+                />
+              ) : undefined
+            }
+          >
+            <div className="flex flex-col gap-6">
+              <form.FormError />
 
-            <HeaderTable>
-              <HeaderRow name="Remote-User">
-                <form.AppField name="remoteUserSource">
-                  {(field) => (
-                    <field.PrincipalSourceField
-                      label="Remote-User"
-                      isLabelHidden
-                      className="w-full max-w-sm"
-                    />
-                  )}
-                </form.AppField>
-              </HeaderRow>
-              <HeaderRow name="Remote-Name">
-                <Trans id="admin.forward-auth-apps.headers.name">
-                  Display name
-                </Trans>
-              </HeaderRow>
-              <HeaderRow name="Remote-Email">
-                <Trans id="admin.forward-auth-apps.headers.email">
-                  Primary email
-                </Trans>
-              </HeaderRow>
-              <HeaderRow name="Remote-Groups">
-                <Trans id="admin.forward-auth-apps.headers.groups">
-                  User groups this application exposes
-                </Trans>
-              </HeaderRow>
-            </HeaderTable>
-
-            <form.SubmitButton tone={changed ? "warning" : "default"}>
-              <Trans id="admin.forward-auth-apps.save">Save</Trans>
-            </form.SubmitButton>
-          </form.Form>
-        </form.AppForm>
-      </ConsoleCard>
+              <Table aria-label={title}>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-40">
+                      <Trans id="admin.forward-auth-apps.headers.column.header">
+                        Header
+                      </Trans>
+                    </TableHead>
+                    <TableHead>
+                      <Trans id="admin.forward-auth-apps.headers.column.value">
+                        Value
+                      </Trans>
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  <HeaderRow name="Remote-User">
+                    <form.AppField name="remoteUserSource">
+                      {(field) => (
+                        <field.PrincipalSourceField
+                          label="Remote-User"
+                          isLabelHidden
+                          className="w-full max-w-sm"
+                        />
+                      )}
+                    </form.AppField>
+                  </HeaderRow>
+                  <HeaderRow name="Remote-Name">
+                    <Trans id="admin.forward-auth-apps.headers.name">
+                      Display name
+                    </Trans>
+                  </HeaderRow>
+                  <HeaderRow name="Remote-Email">
+                    <Trans id="admin.forward-auth-apps.headers.email">
+                      Primary email
+                    </Trans>
+                  </HeaderRow>
+                  <HeaderRow name="Remote-Groups">
+                    <Trans id="admin.forward-auth-apps.headers.groups">
+                      User groups this application exposes
+                    </Trans>
+                  </HeaderRow>
+                </TableBody>
+              </Table>
+            </div>
+          </Section>
+        </form.Form>
+      </form.AppForm>
 
       <ConfirmDialog
         isOpen={confirming}
@@ -160,22 +221,7 @@ export function ForwardAuthHeadersSection({ app }: { app: ForwardAuthApp }) {
           void save(pending).finally(() => setConfirming(false));
         }}
       />
-    </Section>
-  );
-}
-
-/**
- * The headers as a two-column list: the header's name, then what it carries.
- *
- * It switches on its own width rather than the viewport's, since the card is
- * what has or lacks the room: wide, the names form one column and the values
- * line up beside them; narrow, each name sits over its value.
- */
-function HeaderTable({ children }: { children: ReactNode }) {
-  return (
-    <div className="@container/headers">
-      <dl className="flex flex-col divide-y divide-separator">{children}</dl>
-    </div>
+    </>
   );
 }
 
@@ -185,13 +231,13 @@ function HeaderTable({ children }: { children: ReactNode }) {
  */
 function HeaderRow({ name, children }: { name: string; children: ReactNode }) {
   return (
-    <div className="flex flex-col gap-1.5 py-3 first:pt-0 last:pb-0 @lg/headers:grid @lg/headers:grid-cols-[9rem_minmax(0,1fr)] @lg/headers:items-center @lg/headers:gap-x-6">
-      <dt className="font-mono text-sm font-medium text-foreground">{name}</dt>
-      {/* A control's height on the wide table, so a row of text is as tall
-          as the row holding the select and the rules fall evenly. */}
-      <dd className="text-sm text-muted @lg/headers:min-h-10 @lg/headers:content-center md:@lg/headers:min-h-9">
+    <TableRow>
+      <TableCell className="font-medium font-mono text-[13px]">
+        {name}
+      </TableCell>
+      <TableCell className="whitespace-normal text-muted-foreground leading-normal">
         {children}
-      </dd>
-    </div>
+      </TableCell>
+    </TableRow>
   );
 }

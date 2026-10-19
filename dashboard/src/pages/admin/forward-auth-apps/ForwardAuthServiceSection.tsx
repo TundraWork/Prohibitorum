@@ -1,13 +1,14 @@
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
+import { useStore } from "@tanstack/react-form";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { ServerIcon } from "lucide-react";
 import { isCancellation } from "@/api/errors";
 import type { components } from "@/api/generated/schema";
 import { updateForwardAuthAppMutationOptions } from "@/api/mutations";
 import { forwardAuthAppUpdateBody } from "@/api/update-bodies";
-import { ConsoleCard } from "@/components/custom/ConsoleCard";
-import { CopyValue } from "@/components/custom/CopyValue";
-import { EntityIconCard } from "@/components/custom/EntityIconCard";
+import { withInlineReport } from "@/app/query-client";
+import { ConsequenceFooter } from "@/components/custom/ConsequenceFooter";
 import { Section } from "@/components/custom/Section";
 import { applyServerError } from "@/forms/server-errors";
 import { useAppForm } from "@/forms/use-app-form";
@@ -20,35 +21,37 @@ const nameRequired = msg({
   message: "Enter a name.",
 });
 
+/** The form's values for a stored record, also the baseline after a save. */
+function serviceValues(app: ForwardAuthApp) {
+  return { displayName: app.displayName, host: app.forwardAuthHost };
+}
+
 /**
- * What the application is and which host it protects.
+ * What the application is called and which host it protects.
  *
- * The Client ID is shown but never editable: the server takes it only on
- * create, and the operator's Traefik router is already configured against it.
- * `CopyValue` is how it comes back out, which is the one thing a reader opens
- * this card to do.
+ * The Client ID is not a field: the server takes it only on create, and the
+ * operator's Traefik router is already configured against it, so the header
+ * shows it with a copy button and nothing here offers to change it.
  *
- * The hostname is editable and is the value the snippet in the proxy section is
- * generated from, so a reader who changes it here sees the configuration below
- * change with it. The server does not check its shape at all, which is why the
- * console does.
+ * The hostname is the value the configuration in the proxy section is generated
+ * from, so a reader who saves a new one sees that configuration change with it.
+ * The server does not check its shape at all, which is why the console does.
  *
- * The whole form submits through `forwardAuthAppUpdateBody`. `PUT` replaces the
- * record rather than patching it, so every field this card does not draw is
+ * The form submits through `forwardAuthAppUpdateBody`. `PUT` replaces the
+ * record rather than patching it, so every field this section does not draw is
  * carried from the saved view — the body module is where that merge lives, and
- * a card that built it itself is how a field ends up cleared by a save from
+ * a section that built it itself is how a field ends up cleared by a save from
  * somewhere else.
  */
-export function ForwardAuthGeneralSection({ app }: { app: ForwardAuthApp }) {
+export function ForwardAuthServiceSection({ app }: { app: ForwardAuthApp }) {
   const { t } = useLingui();
   const queryClient = useQueryClient();
-  const update = useMutation(updateForwardAuthAppMutationOptions(queryClient));
+  const update = useMutation(
+    withInlineReport(updateForwardAuthAppMutationOptions(queryClient), true),
+  );
 
   const form = useAppForm({
-    defaultValues: {
-      displayName: app.displayName,
-      host: app.forwardAuthHost,
-    },
+    defaultValues: serviceValues(app),
     onSubmit: async ({ value }) => {
       const host = value.host.trim();
       const hostIssue = hostProblem(host);
@@ -61,13 +64,15 @@ export function ForwardAuthGeneralSection({ app }: { app: ForwardAuthApp }) {
       }
 
       try {
-        await update.mutateAsync({
+        const saved = await update.mutateAsync({
           clientId: app.clientId,
           body: forwardAuthAppUpdateBody(app, {
             displayName: value.displayName.trim(),
             host,
           }),
         });
+        // The stored record is the new baseline, so the section reads as saved.
+        form.reset(serviceValues(saved));
       } catch (error) {
         if (isCancellation(error)) return;
         applyServerError(form, error, {
@@ -80,34 +85,43 @@ export function ForwardAuthGeneralSection({ app }: { app: ForwardAuthApp }) {
     },
   });
 
-  return (
-    <Section
-      title={<Trans id="admin.forward-auth-apps.general">General</Trans>}
-    >
-      <ConsoleCard>
-        <form.AppForm>
-          <form.Form
-            label={t({
-              id: "admin.forward-auth-apps.general",
-              message: "General",
-            })}
-          >
-            <form.FormError />
+  const dirty = useStore(form.store, (state) => !state.isDefaultValue);
+  const submitting = useStore(form.store, (state) => state.isSubmitting);
 
-            <CopyValue
-              value={app.clientId}
-              label={
-                <Trans id="admin.forward-auth-apps.field.client-id">
-                  Client ID
-                </Trans>
-              }
-              description={
-                <Trans id="admin.forward-auth-apps.field.client-id.hint">
-                  The identifier every request to this application carries. It
-                  cannot change later.
-                </Trans>
-              }
-            />
+  const title = t({
+    id: "admin.forward-auth-apps.service",
+    message: "Service",
+  });
+
+  return (
+    <form.AppForm>
+      <form.Form label={title}>
+        <Section
+          id="service"
+          icon={<ServerIcon />}
+          title={title}
+          description={
+            <Trans id="admin.forward-auth-apps.service.description">
+              The name people see and the host the gateway protects. The Client
+              ID, shown above, is what every request to this application carries
+              and cannot change.
+            </Trans>
+          }
+          dirty={dirty}
+          footer={
+            dirty ? (
+              <ConsequenceFooter
+                actionLabel={
+                  <Trans id="admin.forward-auth-apps.save">Save</Trans>
+                }
+                onDiscard={() => form.reset()}
+                pending={submitting || update.isPending}
+              />
+            ) : undefined
+          }
+        >
+          <div className="flex flex-col gap-6">
+            <form.FormError />
 
             <form.AppField
               name="displayName"
@@ -121,7 +135,6 @@ export function ForwardAuthGeneralSection({ app }: { app: ForwardAuthApp }) {
                   label={
                     <Trans id="admin.forward-auth-apps.field.name">Name</Trans>
                   }
-                  variant="secondary"
                 />
               )}
             </form.AppField>
@@ -147,38 +160,14 @@ export function ForwardAuthGeneralSection({ app }: { app: ForwardAuthApp }) {
                   }
                   autoComplete="off"
                   spellCheck={false}
+                  isMonospace
                   placeholder="app.example.com"
-                  variant="secondary"
                 />
               )}
             </form.AppField>
-
-            <form.SubmitButton>
-              <Trans id="admin.forward-auth-apps.save">Save</Trans>
-            </form.SubmitButton>
-          </form.Form>
-        </form.AppForm>
-      </ConsoleCard>
-    </Section>
-  );
-}
-
-/**
- * The application's icon, in its own section beside the general one.
- *
- * Separate rather than folded into the general card, because it is drawn for
- * every entity on the console from one component and the identity providers
- * already stack it this way: the general card is what the application *is*, the
- * icon is how it looks in every list it appears in.
- */
-export function ForwardAuthIconSection({ app }: { app: ForwardAuthApp }) {
-  return (
-    <Section title={<Trans id="admin.forward-auth-apps.icon">Icon</Trans>}>
-      <EntityIconCard
-        target={{ kind: "forward_auth", appId: app.clientId }}
-        iconUrl={app.iconUrl}
-        name={app.displayName || app.clientId}
-      />
-    </Section>
+          </div>
+        </Section>
+      </form.Form>
+    </form.AppForm>
   );
 }
