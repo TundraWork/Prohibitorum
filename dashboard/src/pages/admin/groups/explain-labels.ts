@@ -48,11 +48,6 @@ const factSentences: Readonly<Record<string, MessageDescriptor>> = {
   }),
 };
 
-const providerSentence = msg({
-  id: "admin.group.explain.provider",
-  message: "Is connected to {provider}",
-});
-
 const protocolSentence = msg({
   id: "admin.group.explain.protocol",
   message: "Is connected through {protocol}",
@@ -60,10 +55,13 @@ const protocolSentence = msg({
 
 /**
  * What an explanation label says: a finished sentence, or a provider the
- * catalogue does not know, whose slug the caller draws as an identifier
- * inside its own sentence.
+ * caller draws inside its own sentence: by its name, kept whole across a line
+ * break, or, when the catalogue does not know it, by its slug as an identifier.
  */
-export type ExplainSentence = { text: string } | { unknownProvider: string };
+export type ExplainSentence =
+  | { text: string }
+  | { provider: string }
+  | { unknownProvider: string };
 
 /**
  * The sentence for one explanation label, or `undefined` for a key the console
@@ -87,7 +85,7 @@ export function explainSentence(
   if (key === "connection.provider") {
     const provider = providerName(value);
     if (provider === undefined) return { unknownProvider: value };
-    return { text: t({ ...providerSentence, values: { provider } }) };
+    return { provider };
   }
   if (
     key === "connection.protocol" &&

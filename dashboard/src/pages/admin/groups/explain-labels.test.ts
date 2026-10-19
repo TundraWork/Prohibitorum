@@ -15,7 +15,7 @@ describe("the sentence for an explanation label", () => {
   it("names a provider, or hands back its slug when the catalogue lacks it", () => {
     expect(
       sentence("connection.provider=uni", { uni: "University SSO" }),
-    ).toEqual({ text: "Is connected to University SSO" });
+    ).toEqual({ provider: "University SSO" });
     expect(sentence("connection.provider=gone")).toEqual({
       unknownProvider: "gone",
     });

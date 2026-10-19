@@ -123,6 +123,22 @@ describe("the account check", () => {
     expect(explains()).toHaveLength(0);
   });
 
+  it("reads the account directory only once the picker is opened", async () => {
+    const user = userEvent.setup();
+    mount();
+    await screen.findByRole("heading", { level: 2, name: "Check an account" });
+
+    const directoryReads = () =>
+      fetchBoundary.mock.calls.filter(([request]) =>
+        new URL(request.url).pathname.endsWith("/accounts"),
+      );
+    expect(directoryReads()).toHaveLength(0);
+
+    await user.click(await screen.findByRole("combobox"));
+    await screen.findByRole("option", { name: /Ana Lima/ });
+    expect(directoryReads()).toHaveLength(1);
+  });
+
   it("says an account is not in the group and why, condition by condition", async () => {
     const user = userEvent.setup();
     mount();
@@ -139,8 +155,11 @@ describe("the account check", () => {
     expect(
       within(tree).getByText("At least one condition below applies"),
     ).toBeVisible();
-    // A provider is named, not left as its slug.
-    expect(within(tree).getByText("Is connected to GitHub")).toBeVisible();
+    // A provider is named, not left as its slug, and its name is one unit.
+    const name = within(tree).getByText("GitHub");
+    expect(name).toBeVisible();
+    expect(name).toHaveAttribute("data-slot", "explain-provider");
+    expect(name.parentElement).toHaveTextContent("Is connected to GitHub");
     expect(
       within(tree).getByText("Is connected through OpenID Connect"),
     ).toBeVisible();
@@ -161,15 +180,15 @@ describe("the account check", () => {
       within(rootChildren as HTMLElement).getByText("Signs in with a passkey"),
     ).toBeVisible();
     expect(
-      within(rootChildren as HTMLElement).getByText("Is connected to GitHub"),
+      within(rootChildren as HTMLElement).getByText("GitHub"),
     ).toBeVisible();
     expect(
-      within(anyChildren as HTMLElement).getByText("Is connected to GitHub"),
+      within(anyChildren as HTMLElement).getByText("GitHub"),
     ).toBeVisible();
     expect(
       within(anyChildren as HTMLElement).queryByText("Signs in with a passkey"),
     ).toBeNull();
-    const github = screen.getByText("Is connected to GitHub").closest("li");
+    const github = screen.getByText("GitHub").closest("li");
     const passkey = screen.getByText("Signs in with a passkey").closest("li");
     expect(github).toHaveTextContent("Does not apply:");
     expect(passkey).toHaveTextContent("Applies:");

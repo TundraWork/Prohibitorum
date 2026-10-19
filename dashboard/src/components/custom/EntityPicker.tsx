@@ -83,6 +83,7 @@ export function EntityPicker({
   value,
   onValueChange,
   onSearch,
+  onOpenChange,
   options,
   loading,
   multiple = false,
@@ -100,6 +101,8 @@ export function EntityPicker({
   value: readonly string[];
   onValueChange: (value: string[]) => void;
   onSearch?: (query: string) => void;
+  /** Told when the list opens or closes, for a caller that reads on demand. */
+  onOpenChange?: (open: boolean) => void;
   options: readonly EntityOption[];
   loading: boolean;
   multiple?: boolean;
@@ -147,6 +150,7 @@ export function EntityPicker({
         // The server did the narrowing when the caller searches; otherwise
         // the default match against each label applies.
         filter={onSearch === undefined ? undefined : null}
+        onOpenChange={(open) => onOpenChange?.(open)}
         onInputValueChange={(query, details) => {
           // Base UI clears the input on item press and close; the list must
           // follow, or it stays narrowed by a query no longer shown.

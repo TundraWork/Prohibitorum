@@ -38,8 +38,14 @@ const heading = {
 export function GroupExplainFrame({ groupId }: { groupId: number }) {
   const { t } = useLingui();
   const [search, setSearch] = useState("");
+  // The directory is read when the reader opens the picker or types, not when
+  // the page opens.
+  const [searching, setSearching] = useState(false);
   const [chosen, setChosen] = useState<EntityOption | null>(null);
-  const candidates = useQuery(accountSearchQueryOptions(search));
+  const candidates = useQuery({
+    ...accountSearchQueryOptions(search),
+    enabled: searching,
+  });
   // Disabled accounts stay listed with the reason: the server explains nothing
   // for them, and an administrator looking for one learns why.
   const options: EntityOption[] = (candidates.data?.items ?? []).map(
@@ -74,7 +80,11 @@ export function GroupExplainFrame({ groupId }: { groupId: number }) {
         searchLabel={t({ id: "admin.picker.search", message: "Search" })}
         options={listed}
         loading={candidates.isFetching}
-        onSearch={setSearch}
+        onSearch={(query) => {
+          setSearching(true);
+          setSearch(query);
+        }}
+        onOpenChange={(open) => open && setSearching(true)}
         value={chosen === null ? [] : [chosen.id]}
         onValueChange={([id]) =>
           setChosen(listed.find((option) => option.id === id) ?? null)
@@ -159,6 +169,21 @@ function Explanation({
 /** A sentence, with a provider the console cannot name drawn as an identifier. */
 function SentenceText({ sentence }: { sentence: ExplainSentence }) {
   if ("text" in sentence) return sentence.text;
+  if ("provider" in sentence) {
+    // One unit: a name moves to the next line whole rather than splitting.
+    const { provider } = sentence;
+    return (
+      <Trans id="admin.group.explain.provider">
+        Is connected to{" "}
+        <span
+          data-slot="explain-provider"
+          className="inline-block max-w-full wrap-anywhere"
+        >
+          {provider}
+        </span>
+      </Trans>
+    );
+  }
   const provider = sentence.unknownProvider;
   return (
     <Trans id="admin.group.explain.provider-unknown">

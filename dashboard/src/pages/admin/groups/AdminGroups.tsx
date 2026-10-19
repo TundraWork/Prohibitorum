@@ -77,7 +77,9 @@ export function AdminGroups() {
     },
     {
       id: "kind",
-      width: APP_DATA_COLUMN,
+      // One word, so it holds less than a data column: the room goes to the
+      // group's name, and the count after it stays in view.
+      width: "w-28 max-w-28",
       header: <Trans id="admin.groups.column.kind">Kind</Trans>,
       cell: (group) =>
         group.kind === "rule" ? (
