@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { AdminSettings } from "@/pages/admin/AdminSettings";
+import { AdminSettings } from "@/pages/admin/settings/AdminSettings";
 
 // No loader: `/config` is already loaded by the root route, and every other
 // read belongs to one section and is made by that section's panel.

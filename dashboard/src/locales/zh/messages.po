@@ -1995,7 +1995,7 @@ msgid "admin.forward-auth-apps.field.client-id"
 msgstr "客户端 ID"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminSettings.tsx
+#: src/pages/admin/settings/AdminSettings.tsx
 #: src/pages/admin/settings/NetworkPanel.tsx
 msgid "settings.network.title"
 msgstr "客户端 IP"
@@ -4146,6 +4146,11 @@ msgid "security.tokens.access.sudo"
 msgstr "完全访问，无需验证你的身份"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/GeneralPanel.tsx
+msgid "settings.general.title"
+msgstr "常规"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/settings/SigningKeysPanel.tsx
 msgid "settings.keys.generate"
 msgstr "生成密钥"
@@ -4305,6 +4310,11 @@ msgstr "会话能持续多久，以及服务提供商必须发送什么。"
 #: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
 msgid "admin.saml-apps.new.mode"
 msgstr "应用的注册方式"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/AdminSettings.tsx
+msgid "settings.page.description"
+msgstr "设置本实例的名称、登录方式和运行状态。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderCredentialsSection.tsx
@@ -4529,16 +4539,6 @@ msgid "admin.saml-apps.acs.index"
 msgstr "索引"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/GeneralPanel.tsx
-msgid "settings.general.name.title"
-msgstr "实例名称"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/settings/GeneralPanel.tsx
-msgid "settings.general.name.form"
-msgstr "实例名称"
-
-#. js-lingui-explicit-id
 #: src/api/success-messages.ts
 msgid "success.instance-name.saved"
 msgstr "实例名称已保存"
@@ -4738,6 +4738,11 @@ msgstr "你不在时也能继续访问，直到你撤销"
 #: src/api/errors.ts
 msgid "error.last_passkey"
 msgstr "账号至少需要保留一把通行密钥。请先添加另一把再移除。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/MaintenancePanel.tsx
+msgid "settings.maintenance.description"
+msgstr "进行维护期间，除管理员外的所有人都无法登录。"
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
@@ -5062,14 +5067,8 @@ msgid "admin.federation.new.slug.hint"
 msgstr "小写字母、数字和单个连字符，最多 64 个字符。会出现在回调地址中，之后无法更改。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminSettings.tsx
 #: src/pages/admin/settings/MaintenancePanel.tsx
 msgid "settings.maintenance.title"
-msgstr "维护模式"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/settings/MaintenancePanel.tsx
-msgid "settings.maintenance.form"
 msgstr "维护模式"
 
 #. js-lingui-explicit-id
@@ -5078,9 +5077,24 @@ msgid "settings.maintenance.switch"
 msgstr "维护模式"
 
 #. js-lingui-explicit-id
+#: src/components/custom/MaintenanceBanner.tsx
+msgid "console.maintenance.label"
+msgstr "维护模式"
+
+#. js-lingui-explicit-id
 #: src/api/success-messages.ts
 msgid "success.maintenance.on"
 msgstr "维护模式已开启"
+
+#. js-lingui-explicit-id
+#: src/components/custom/MaintenanceBanner.tsx
+msgid "console.maintenance.banner"
+msgstr "维护模式已开启，只有管理员可以登录。"
+
+#. js-lingui-explicit-id
+#: src/components/custom/MaintenanceBanner.tsx
+msgid "console.maintenance.link"
+msgstr "维护设置"
 
 #. js-lingui-explicit-id
 #: src/api/success-messages.ts
@@ -7696,13 +7710,14 @@ msgid "security.setup.dialog"
 msgstr "设置密码与身份验证器"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/logs/audit-vocabulary.ts
-msgid "audit.factor.settings"
+#: src/components/custom/ConsoleLayout.tsx
+#: src/pages/admin/settings/AdminSettings.tsx
+msgid "console.admin.settings"
 msgstr "设置"
 
 #. js-lingui-explicit-id
-#: src/components/custom/ConsoleLayout.tsx
-msgid "console.admin.settings"
+#: src/pages/admin/logs/audit-vocabulary.ts
+msgid "audit.factor.settings"
 msgstr "设置"
 
 #. js-lingui-explicit-id
@@ -7931,7 +7946,7 @@ msgid "object.status.sign-in-on"
 msgstr "登录已开启"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminSettings.tsx
+#: src/pages/admin/settings/AdminSettings.tsx
 #: src/pages/admin/settings/SignInPagePanel.tsx
 msgid "settings.sign-in.title"
 msgstr "登录页"
@@ -8072,7 +8087,7 @@ msgid "success.signing-key.retired"
 msgstr "签名密钥开始退役"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminSettings.tsx
+#: src/pages/admin/settings/AdminSettings.tsx
 #: src/pages/admin/settings/SigningKeysPanel.tsx
 msgid "settings.keys.section"
 msgstr "签名密钥"
@@ -8685,6 +8700,11 @@ msgstr "所选的认证方式会把这个密钥发送给提供方；密钥加密
 #: src/pages/admin/invitations/AdminInvitationForm.tsx
 msgid "admin.invitations.new.account.description"
 msgstr "创建账号时使用的用户名和所属用户组。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/GeneralPanel.tsx
+msgid "settings.general.description"
+msgstr "控制台、登录页和浏览器标签页中显示的实例名称与图标。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
@@ -9519,6 +9539,11 @@ msgstr "启用"
 #: src/pages/admin/settings/MaintenancePanel.tsx
 msgid "settings.maintenance.confirm.action"
 msgstr "开启"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/MaintenancePanel.tsx
+msgid "settings.maintenance.action-label"
+msgstr "开启维护模式并保存"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/MaintenancePanel.tsx

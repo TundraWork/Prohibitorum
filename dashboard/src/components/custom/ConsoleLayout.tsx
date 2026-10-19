@@ -51,6 +51,7 @@ import {
 } from "@/components/custom/console-crumb";
 import { useInstanceBranding } from "@/components/custom/instance-branding";
 import { LanguageMenuItems } from "@/components/custom/LanguageMenu";
+import { MaintenanceBanner } from "@/components/custom/MaintenanceBanner";
 import { RouteLayoutContext } from "@/components/custom/RouteFeedback";
 import { SectionRegistryProvider } from "@/components/custom/SectionRegistry";
 import { SudoDialog } from "@/components/custom/SudoDialog";
@@ -674,6 +675,7 @@ function ConsoleShell({
             </InputGroup>
           )}
         </header>
+        <MaintenanceBanner />
         {/* One measured column, so a wide window reads as a page rather than a
             stretched one; it is also the container the tables measure their
             full-bleed width against. */}

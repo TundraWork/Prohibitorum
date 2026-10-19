@@ -115,6 +115,7 @@ function renderShell(
       page("/admin/users"),
       page("/admin/users/$id"),
       page("/admin/saml-applications"),
+      page("/admin/settings"),
     ]),
     history,
   });
@@ -402,5 +403,50 @@ describe("console shell on a narrow screen", () => {
     expect(
       await screen.findByRole("dialog", { name: "控制台导航" }),
     ).toBeVisible();
+  });
+});
+
+describe("the maintenance banner", () => {
+  const banner = () =>
+    screen.queryByRole("status", {
+      name: "Maintenance mode",
+    });
+
+  it("is not drawn while maintenance mode is off", async () => {
+    await mount("/admin/users", admin);
+
+    expect(banner()).toBeNull();
+  });
+
+  it("is drawn above the page on any console page while it is on, linking to the setting", async () => {
+    queryClient.setQueryData(publicConfigQueryOptions().queryKey, {
+      ...config,
+      maintenanceMode: true,
+    });
+    await mount("/admin/users", admin);
+
+    const notice = await screen.findByRole("status", {
+      name: "Maintenance mode",
+    });
+    expect(notice).toHaveTextContent(
+      "Maintenance mode is on — only administrators can sign in.",
+    );
+    expect(
+      within(notice).getByRole("link", { name: "Maintenance settings" }),
+    ).toHaveAttribute("href", "/admin/settings#maintenance");
+    expect(screen.getByText("page")).toBeVisible();
+  });
+
+  it("follows the saved setting when it is turned off", async () => {
+    queryClient.setQueryData(publicConfigQueryOptions().queryKey, {
+      ...config,
+      maintenanceMode: true,
+    });
+    await mount("/", admin);
+    await screen.findByRole("status", { name: "Maintenance mode" });
+
+    queryClient.setQueryData(publicConfigQueryOptions().queryKey, config);
+
+    await waitFor(() => expect(banner()).toBeNull());
   });
 });

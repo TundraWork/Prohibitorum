@@ -1995,7 +1995,7 @@ msgid "admin.forward-auth-apps.field.client-id"
 msgstr "Client ID"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminSettings.tsx
+#: src/pages/admin/settings/AdminSettings.tsx
 #: src/pages/admin/settings/NetworkPanel.tsx
 msgid "settings.network.title"
 msgstr "Client IP"
@@ -4146,6 +4146,11 @@ msgid "security.tokens.access.sudo"
 msgstr "Full access, without confirming it is you"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/GeneralPanel.tsx
+msgid "settings.general.title"
+msgstr "General"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/settings/SigningKeysPanel.tsx
 msgid "settings.keys.generate"
 msgstr "Generate key"
@@ -4305,6 +4310,11 @@ msgstr "How long a session lasts, and what the service provider has to send."
 #: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
 msgid "admin.saml-apps.new.mode"
 msgstr "How the application is registered"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/AdminSettings.tsx
+msgid "settings.page.description"
+msgstr "How this instance is named, signed in to and kept running."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderCredentialsSection.tsx
@@ -4529,16 +4539,6 @@ msgid "admin.saml-apps.acs.index"
 msgstr "Index"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/GeneralPanel.tsx
-msgid "settings.general.name.title"
-msgstr "Instance name"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/settings/GeneralPanel.tsx
-msgid "settings.general.name.form"
-msgstr "Instance name"
-
-#. js-lingui-explicit-id
 #: src/api/success-messages.ts
 msgid "success.instance-name.saved"
 msgstr "Instance name saved"
@@ -4738,6 +4738,11 @@ msgstr "Keep access while you're away, until you revoke it"
 #: src/api/errors.ts
 msgid "error.last_passkey"
 msgstr "Keep at least one passkey on the account. Add another one before removing this one."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/MaintenancePanel.tsx
+msgid "settings.maintenance.description"
+msgstr "Keep everyone but administrators out while you work on the instance."
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
@@ -5062,14 +5067,8 @@ msgid "admin.federation.new.slug.hint"
 msgstr "Lowercase letters, digits and single hyphens, up to 64 characters. Appears in the callback addresses and cannot be changed later."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminSettings.tsx
 #: src/pages/admin/settings/MaintenancePanel.tsx
 msgid "settings.maintenance.title"
-msgstr "Maintenance mode"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/settings/MaintenancePanel.tsx
-msgid "settings.maintenance.form"
 msgstr "Maintenance mode"
 
 #. js-lingui-explicit-id
@@ -5078,9 +5077,24 @@ msgid "settings.maintenance.switch"
 msgstr "Maintenance mode"
 
 #. js-lingui-explicit-id
+#: src/components/custom/MaintenanceBanner.tsx
+msgid "console.maintenance.label"
+msgstr "Maintenance mode"
+
+#. js-lingui-explicit-id
 #: src/api/success-messages.ts
 msgid "success.maintenance.on"
 msgstr "Maintenance mode is on"
+
+#. js-lingui-explicit-id
+#: src/components/custom/MaintenanceBanner.tsx
+msgid "console.maintenance.banner"
+msgstr "Maintenance mode is on — only administrators can sign in."
+
+#. js-lingui-explicit-id
+#: src/components/custom/MaintenanceBanner.tsx
+msgid "console.maintenance.link"
+msgstr "Maintenance settings"
 
 #. js-lingui-explicit-id
 #: src/api/success-messages.ts
@@ -7696,13 +7710,14 @@ msgid "security.setup.dialog"
 msgstr "Set up password and authenticator"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/logs/audit-vocabulary.ts
-msgid "audit.factor.settings"
+#: src/components/custom/ConsoleLayout.tsx
+#: src/pages/admin/settings/AdminSettings.tsx
+msgid "console.admin.settings"
 msgstr "Settings"
 
 #. js-lingui-explicit-id
-#: src/components/custom/ConsoleLayout.tsx
-msgid "console.admin.settings"
+#: src/pages/admin/logs/audit-vocabulary.ts
+msgid "audit.factor.settings"
 msgstr "Settings"
 
 #. js-lingui-explicit-id
@@ -7931,7 +7946,7 @@ msgid "object.status.sign-in-on"
 msgstr "Sign-in on"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminSettings.tsx
+#: src/pages/admin/settings/AdminSettings.tsx
 #: src/pages/admin/settings/SignInPagePanel.tsx
 msgid "settings.sign-in.title"
 msgstr "Sign-in page"
@@ -8072,7 +8087,7 @@ msgid "success.signing-key.retired"
 msgstr "Signing key is being retired"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminSettings.tsx
+#: src/pages/admin/settings/AdminSettings.tsx
 #: src/pages/admin/settings/SigningKeysPanel.tsx
 msgid "settings.keys.section"
 msgstr "Signing keys"
@@ -8685,6 +8700,11 @@ msgstr "The method chosen sends this to the provider; it is stored encrypted and
 #: src/pages/admin/invitations/AdminInvitationForm.tsx
 msgid "admin.invitations.new.account.description"
 msgstr "The name and groups the account is created with."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/GeneralPanel.tsx
+msgid "settings.general.description"
+msgstr "The name and icon people see in the console, on the sign-in page and in the browser tab."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
@@ -9519,6 +9539,11 @@ msgstr "Turn on"
 #: src/pages/admin/settings/MaintenancePanel.tsx
 msgid "settings.maintenance.confirm.action"
 msgstr "Turn on"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/MaintenancePanel.tsx
+msgid "settings.maintenance.action-label"
+msgstr "Turn on maintenance and save"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/MaintenancePanel.tsx
