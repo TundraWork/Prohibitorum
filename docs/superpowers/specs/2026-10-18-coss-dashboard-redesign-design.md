@@ -99,7 +99,7 @@ Security (`#security`): Passkeys section first, password and authenticator secon
 ### Admin pages
 
 - Applications (OIDC `#oidc`, SAML, forward-auth): `ObjectHeader` + main column + `OutlineRail`; sections Sign-in, Access, Managers, Identity, Appearance, Credentials, Disable or delete; access shows the evaluation order and each selected group's kind.
-- Identity providers (`#idp`): General (name, allow sign-in, provisioning as described radio cards), Icon, Connection (issuer, client ID, client authentication with described options, stored-secret status, sign-in response, scopes `ValueSet`, endpoints discover / by hand with override rows, JWKS-none stated explicitly, avatar token switch, callback addresses), Accounts and claims (domains `ValueSet`, verified-email switch, claim mapping table), Diagnostics, Disable or delete. Steam and VRChat swap sections exactly as today.
+- Identity providers (`#idp`): the application object-page frame (provider name as the title, slug, protocol, readiness). Sections: Sign-in (allow sign-in, provisioning as described cards), Connection (issuer, client ID, client authentication with described options, client-secret row, sign-in response, scopes `ValueSet`, endpoints discover / by hand with override rows, JWKS-none stated explicitly, avatar token switch, callback addresses), Accounts and claims (domains `ValueSet`, verified-email switch, claim mapping table with the latest test's sources), Diagnostics, Appearance (name, icon), Disable or delete. Secrets (OIDC client secret, Steam Web API key) are set from their own rows, not the danger zone. Steam and VRChat show their own sections (Web API key; Operator session) in place of the OIDC ones.
 - User groups (`#group`): rule builder with the existing grammar (fact `Select`, `is` / `is not` segmented control, value `Select`, nested any/all well, add condition / group), error marked on the row, Save blocked while the editor knows the rule is invalid; side column with match count, account explanation and "Used by".
 - Users, invitations, logs, settings (`#appearance` for the sign-in page editor with live preview) use list frames on coss `Table` and the shared patterns.
 
@@ -108,7 +108,7 @@ Security (`#security`): Passkeys section first, password and authenticator secon
 Small, separately scoped tasks the design depends on; until each lands the UI degrades gracefully as noted.
 
 1. **Target-app host on the sign-in page.** PHB-136 returns a text label only. Add the app's host (and icon URL when one is set) to the sign-in context. Until then `AppStrip` shows the label and a letter tile.
-2. **Latest connection-test result.** Diagnostics shows "Passed 2 min ago" and the claim table's "Last test returned" column. Add a read of the provider's most recent test run. Until then the status line and column are omitted.
+2. **Latest connection-test result.** Diagnostics shows "Passed 2 min ago" and the claim table's "Last test returned" column. Add a read of the provider's most recent finished test run: a value-free summary (status, time, per-field source/claim/presence, staleness) kept 30 days, because the tested identity is the running administrator's own upstream account and every administrator can read the summary. Until then the status line and column are omitted.
 3. **Readability check** on the sign-in page editor is client-side (sample the image under the card) and needs no backend; it ships as its own frontend task after the editor.
 
 ## Found defects (separate tasks)
