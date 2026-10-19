@@ -1,5 +1,5 @@
 import { Trans } from "@lingui/react/macro";
-import { CheckIcon, TriangleAlertIcon } from "lucide-react";
+import { CheckIcon, EyeOffIcon, TriangleAlertIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { LoginAppearance } from "@/api/raw-paths";
 import { Badge } from "@/components/ui/badge";
@@ -72,17 +72,25 @@ export function ReadabilityLine({ result }: { result: ReadabilityResult }) {
   return (
     <div role="status" className="flex flex-wrap items-center gap-x-2 gap-y-1">
       {result.kind === "unmeasurable" ? (
-        <span>
-          {result.cause === "background" ? (
-            <Trans id="settings.sign-in.readability.unmeasurable">
-              Readability can't be measured for this background.
+        <>
+          <Badge variant="outline">
+            <EyeOffIcon aria-hidden="true" />
+            <Trans id="settings.sign-in.readability.not_measured">
+              Not measured
             </Trans>
-          ) : (
-            <Trans id="settings.sign-in.readability.unmeasurable_now">
-              Readability can't be measured right now.
-            </Trans>
-          )}
-        </span>
+          </Badge>
+          <span>
+            {result.cause === "background" ? (
+              <Trans id="settings.sign-in.readability.unmeasurable">
+                Readability can't be measured for this background.
+              </Trans>
+            ) : (
+              <Trans id="settings.sign-in.readability.unmeasurable_now">
+                Readability can't be measured right now.
+              </Trans>
+            )}
+          </span>
+        </>
       ) : (
         <Verdict ratio={formatRatio(result.ratio)} readable={result.readable} />
       )}

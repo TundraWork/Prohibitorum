@@ -72,6 +72,7 @@ describe("the readability line", () => {
     );
     expect(line).not.toHaveTextContent("Readable");
     expect(line).not.toHaveTextContent("contrast");
+    expect(line).toHaveTextContent("Not measured");
   });
 
   it("does not blame the background when the page could not be measured", () => {
