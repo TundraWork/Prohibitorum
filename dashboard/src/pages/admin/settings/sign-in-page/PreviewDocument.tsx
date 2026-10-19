@@ -9,9 +9,6 @@ import { createPortal } from "react-dom";
 
 export type PreviewTheme = "light" | "dark";
 
-/** What the real page's `<body>` carries, so the background shows through as it does there. */
-const bodyClass = "min-h-screen bg-sidebar text-foreground antialiased";
-
 /**
  * Gives a frame's document the app's styles and the page's own body, once.
  * The sheets are copied from the console's document; a document the browser
@@ -32,7 +29,8 @@ function adopt(frame: HTMLIFrameElement): HTMLElement | null {
         copy.href = sheet.href;
       page.head.appendChild(copy);
     }
-    page.body.className = bodyClass;
+    // The real page's body, so the background shows through as it does there.
+    page.body.className = document.body.className;
   }
   return page.body;
 }

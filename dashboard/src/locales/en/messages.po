@@ -1968,6 +1968,11 @@ msgid "admin.oidc-apps.alias.name"
 msgstr "Claim name"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/sign-in-page/ColorControl.tsx
+msgid "settings.sign-in.color.clay"
+msgstr "Clay"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/groups/GroupDecisionsSection.tsx
 msgid "admin.group.decisions.clear"
 msgstr "Clear"
@@ -2733,6 +2738,11 @@ msgstr "Couldn't get a photo from Unsplash."
 #: src/pages/admin/settings/sign-in-page/SignInPreview.tsx
 msgid "settings.sign-in.preview.bing_failed"
 msgstr "Couldn't get the picture from Bing."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/sign-in-page/ColorControl.tsx
+msgid "settings.sign-in.color.cream"
+msgstr "Cream"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/groups/AdminGroupNew.tsx
@@ -4587,6 +4597,11 @@ msgid "admin.saml-apps.acs.index"
 msgstr "Index"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/sign-in-page/ColorControl.tsx
+msgid "settings.sign-in.color.indigo"
+msgstr "Indigo"
+
+#. js-lingui-explicit-id
 #: src/api/success-messages.ts
 msgid "success.instance-name.saved"
 msgstr "Instance name saved"
@@ -5380,6 +5395,11 @@ msgstr "NameID format"
 #: src/pages/admin/saml-applications/NameIdFormatField.tsx
 msgid "admin.saml-apps.field.name-id"
 msgstr "NameID format"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/sign-in-page/ColorControl.tsx
+msgid "settings.sign-in.color.near_black"
+msgstr "Near black"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-readiness.tsx
@@ -6189,6 +6209,11 @@ msgstr "Pairing code shown on the new device"
 #: src/api/success-messages.ts
 msgid "success.device.declined"
 msgstr "Pairing declined"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/sign-in-page/ColorControl.tsx
+msgid "settings.sign-in.color.pale_blue"
+msgstr "Pale blue-grey"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-options.ts
@@ -7396,6 +7421,11 @@ msgid "security.recovery.low"
 msgstr "Running low"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/sign-in-page/ColorControl.tsx
+msgid "settings.sign-in.color.sage"
+msgstr "Sage"
+
+#. js-lingui-explicit-id
 #: src/pages/devices/PairDeviceDialog.tsx
 msgid "devices.field.same_device"
 msgstr "Same as this device"
@@ -8252,6 +8282,11 @@ msgid "token.access.sudo.badge"
 msgstr "Skips confirming it is you"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/sign-in-page/ColorControl.tsx
+msgid "settings.sign-in.color.slate"
+msgstr "Slate"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/groups/GroupMatchesFrame.tsx
 msgid "admin.group.matches.sample"
 msgstr "Some of the matching accounts"
@@ -8411,6 +8446,11 @@ msgstr "System"
 #: src/components/custom/ThemeSelect.tsx
 msgid "theme.system"
 msgstr "System theme"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/sign-in-page/ColorControl.tsx
+msgid "settings.sign-in.color.teal"
+msgstr "Teal"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/AliasTableField.tsx

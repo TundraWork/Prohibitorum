@@ -105,6 +105,22 @@ describe("ConsequenceFooter", () => {
     expect(container.firstElementChild).toHaveAttribute("data-tone", "warning");
   });
 
+  it("draws no warning icon for a neutral note", () => {
+    const { container } = render(
+      <I18nProvider i18n={i18n}>
+        <ConsequenceFooter
+          consequence="2 unsaved changes"
+          actionLabel="Save"
+          onDiscard={vi.fn()}
+          tone="neutral"
+        />
+      </I18nProvider>,
+    );
+    expect(container.firstElementChild).toHaveAttribute("data-tone", "neutral");
+    expect(container.querySelector("svg")).toBeNull();
+    expect(screen.getByText("2 unsaved changes")).toBeVisible();
+  });
+
   it("still offers the buttons with no consequence to state", () => {
     mount({ consequence: undefined });
     expect(screen.getByRole("button", { name: "Discard" })).toBeInTheDocument();

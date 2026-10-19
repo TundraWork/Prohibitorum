@@ -14,21 +14,15 @@ function Backdrop({
   appearance,
   images,
   wallpaper,
-  contained,
 }: {
   appearance: LoginAppearance;
   images: string[];
   wallpaper?: Wallpaper;
-  contained?: boolean;
 }) {
   const shown = useLoginBackground(appearance, images, wallpaper);
   return (
     <>
-      <LoginBackdrop
-        appearance={appearance}
-        background={shown}
-        contained={contained}
-      />
+      <LoginBackdrop appearance={appearance} background={shown} />
       <WallpaperCredit
         appearance={appearance}
         picture={shown.wallpaperPicture}
@@ -127,10 +121,9 @@ describe("each source", () => {
     expect(layer?.style.backgroundColor).toBe("rgb(36, 50, 74)");
   });
 
-  it("draws the chosen gradient, and fills its container when contained", () => {
+  it("draws the chosen gradient", () => {
     const { container } = renderBackdrop(
       <Backdrop
-        contained
         appearance={appearance((a) => {
           a.background.source = "gradient";
           a.background.gradient = "aurora";
@@ -139,8 +132,7 @@ describe("each source", () => {
       />,
     );
     const layer = container.querySelector<HTMLElement>("[data-login-backdrop]");
-    expect(layer).toHaveClass("absolute", "inset-0");
-    expect(layer).not.toHaveClass("fixed");
+    expect(layer).toHaveClass("fixed", "inset-0");
     // jsdom cannot parse oklch(), so the preset is read off the layer.
     expect(layer).toHaveAttribute("data-gradient", "aurora");
     expect(gradientBackground.aurora).toContain("oklch(24% 0.04 250)");

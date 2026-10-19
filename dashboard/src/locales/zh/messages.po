@@ -1968,6 +1968,11 @@ msgid "admin.oidc-apps.alias.name"
 msgstr "声明名称"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/sign-in-page/ColorControl.tsx
+msgid "settings.sign-in.color.clay"
+msgstr "陶土色"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/groups/GroupDecisionsSection.tsx
 msgid "admin.group.decisions.clear"
 msgstr "清除"
@@ -2733,6 +2738,11 @@ msgstr "无法从 Unsplash 获取照片。"
 #: src/pages/admin/settings/sign-in-page/SignInPreview.tsx
 msgid "settings.sign-in.preview.bing_failed"
 msgstr "无法从 Bing 获取图片。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/sign-in-page/ColorControl.tsx
+msgid "settings.sign-in.color.cream"
+msgstr "奶油色"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/groups/AdminGroupNew.tsx
@@ -4587,6 +4597,11 @@ msgid "admin.saml-apps.acs.index"
 msgstr "索引"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/sign-in-page/ColorControl.tsx
+msgid "settings.sign-in.color.indigo"
+msgstr "靛蓝色"
+
+#. js-lingui-explicit-id
 #: src/api/success-messages.ts
 msgid "success.instance-name.saved"
 msgstr "实例名称已保存"
@@ -5380,6 +5395,11 @@ msgstr "NameID 格式"
 #: src/pages/admin/saml-applications/NameIdFormatField.tsx
 msgid "admin.saml-apps.field.name-id"
 msgstr "NameID 格式"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/sign-in-page/ColorControl.tsx
+msgid "settings.sign-in.color.near_black"
+msgstr "近黑色"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-readiness.tsx
@@ -6189,6 +6209,11 @@ msgstr "新设备上显示的配对码"
 #: src/api/success-messages.ts
 msgid "success.device.declined"
 msgstr "配对已拒绝"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/sign-in-page/ColorControl.tsx
+msgid "settings.sign-in.color.pale_blue"
+msgstr "淡蓝灰色"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-options.ts
@@ -7396,6 +7421,11 @@ msgid "security.recovery.low"
 msgstr "即将用完"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/sign-in-page/ColorControl.tsx
+msgid "settings.sign-in.color.sage"
+msgstr "鼠尾草绿"
+
+#. js-lingui-explicit-id
 #: src/pages/devices/PairDeviceDialog.tsx
 msgid "devices.field.same_device"
 msgstr "与本设备相同"
@@ -8252,6 +8282,11 @@ msgid "token.access.sudo.badge"
 msgstr "无需验证你的身份"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/sign-in-page/ColorControl.tsx
+msgid "settings.sign-in.color.slate"
+msgstr "石板灰"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/groups/GroupMatchesFrame.tsx
 msgid "admin.group.matches.sample"
 msgstr "部分匹配的账号"
@@ -8411,6 +8446,11 @@ msgstr "系统"
 #: src/components/custom/ThemeSelect.tsx
 msgid "theme.system"
 msgstr "跟随系统"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/sign-in-page/ColorControl.tsx
+msgid "settings.sign-in.color.teal"
+msgstr "青绿色"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/AliasTableField.tsx

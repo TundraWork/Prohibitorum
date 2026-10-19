@@ -378,6 +378,21 @@ describe("the Unsplash source", () => {
     expect(api.sent("PUT", appearancePath)).toHaveLength(0);
   });
 
+  it("reports a failed key removal once", async () => {
+    const user = userEvent.setup();
+    await open({
+      hasUnsplashKey: true,
+      routes: {
+        [`DELETE ${appearancePath}/unsplash-key`]: () =>
+          apiError("internal_error", 500),
+      },
+    });
+    await chooseSource(user, "Unsplash");
+    await user.click(screen.getByRole("button", { name: "Remove" }));
+    await waitFor(() => expect(notifyError).toHaveBeenCalledTimes(1));
+    expect(screen.getByRole("button", { name: "Remove" })).toBeEnabled();
+  });
+
   it("asks for a new key when the saved one is replaced", async () => {
     const user = userEvent.setup();
     await open({ appearance: unsplash, hasUnsplashKey: true });
@@ -747,6 +762,53 @@ describe("saving and discarding", () => {
     await waitFor(() => expect(notifyError).toHaveBeenCalledTimes(1));
     expect(saveButton()).toBeEnabled();
     expect(screen.getByText("1 unsaved change")).toBeVisible();
+  });
+});
+
+describe("the unsaved bar", () => {
+  /** Reports every watched element as scrolled out of view, as the preview is below `lg`. */
+  function previewOutOfView() {
+    vi.stubGlobal(
+      "IntersectionObserver",
+      class {
+        constructor(
+          private callback: (
+            entries: { target: Element; isIntersecting: boolean }[],
+          ) => void,
+        ) {}
+        observe(target: Element) {
+          this.callback([{ target, isIntersecting: false }]);
+        }
+        disconnect() {}
+      },
+    );
+  }
+
+  it("follows the reader once the preview, and Save with it, is out of view", async () => {
+    const user = userEvent.setup();
+    previewOutOfView();
+    await open();
+    expect(screen.queryByText("Unsaved changes in Preview")).toBeNull();
+
+    await user.click(
+      within(frame("Toolbar")).getByRole("switch", { name: "Frosted glass" }),
+    );
+    expect(await screen.findByText("Unsaved changes in Preview")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Jump to it" })).toBeVisible();
+  });
+
+  it("goes once the changes are discarded", async () => {
+    const user = userEvent.setup();
+    previewOutOfView();
+    await open();
+    await user.click(
+      within(frame("Toolbar")).getByRole("switch", { name: "Frosted glass" }),
+    );
+    await screen.findByText("Unsaved changes in Preview");
+    await user.click(screen.getByRole("button", { name: "Discard" }));
+    await waitFor(() =>
+      expect(screen.queryByText("Unsaved changes in Preview")).toBeNull(),
+    );
   });
 });
 

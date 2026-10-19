@@ -47,19 +47,30 @@ describe("the colour control", () => {
     const suggestions = screen.getByRole("radiogroup", {
       name: "Suggested colors",
     });
-    const swatches = screen.getAllByRole("radio");
     expect(suggestions).toBeVisible();
-    expect(swatches.map((swatch) => swatch.getAttribute("aria-label"))).toEqual(
-      suggestedColors,
-    );
-    expect(screen.getByRole("radio", { name: "#1f6f8b" })).toBeChecked();
+    expect(screen.getAllByRole("radio")).toHaveLength(suggestedColors.length);
+    expect(screen.getByRole("radio", { name: "Teal" })).toBeChecked();
   });
+
+  it.each(["en", "zh"] as const)(
+    "gives each suggestion its own name for screen readers in %s",
+    (locale) => {
+      i18n.activate(locale);
+      render(<Harness />);
+      const names = screen
+        .getAllByRole("radio")
+        .map((swatch) => swatch.getAttribute("aria-label"));
+      expect(names).toHaveLength(8);
+      expect(names.every((name) => name && !name.startsWith("#"))).toBe(true);
+      expect(new Set(names).size).toBe(8);
+    },
+  );
 
   it("takes a suggested colour", async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
     render(<Harness onChange={onChange} />);
-    await user.click(screen.getByRole("radio", { name: "#8a5a44" }));
+    await user.click(screen.getByRole("radio", { name: "Clay" }));
     expect(onChange).toHaveBeenLastCalledWith("#8a5a44");
     expect(screen.getByRole("textbox", { name: "Color" })).toHaveValue(
       "#8a5a44",
@@ -78,6 +89,22 @@ describe("the colour control", () => {
     await user.clear(hex);
     await user.type(hex, "#a1");
     expect(onChange).toHaveBeenLastCalledWith("#a1");
+  });
+
+  it("accepts a colour typed without its #", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    render(<Harness onChange={onChange} />);
+    const hex = screen.getByRole("textbox", { name: "Color" });
+    await user.clear(hex);
+    await user.type(hex, "A1B2C3");
+    expect(onChange).toHaveBeenLastCalledWith("#a1b2c3");
+    expect(hex).toHaveValue("#a1b2c3");
+  });
+
+  it("shows the hue in degrees beside its name", () => {
+    render(<Harness initial="#00ff00" />);
+    expect(screen.getByText("120°")).toBeVisible();
   });
 
   it("shows the form's error under the colour and marks it invalid", () => {
@@ -127,7 +154,7 @@ describe("the colour control", () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
     render(<Harness disabled onChange={onChange} />);
-    await user.click(screen.getByRole("radio", { name: "#8a5a44" }));
+    await user.click(screen.getByRole("radio", { name: "Clay" }));
     expect(onChange).not.toHaveBeenCalled();
     expect(screen.getByRole("textbox", { name: "Color" })).toBeDisabled();
     expect(screen.getByLabelText("Pick a color")).toBeDisabled();

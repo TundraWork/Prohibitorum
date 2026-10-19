@@ -27,9 +27,10 @@ export function ConsequenceFooter({
   disabled?: boolean;
   /**
    * `danger` for a footer whose text is the reason the save is refused rather
-   * than what it will do.
+   * than what it will do; `neutral` for a plain save whose text only says there
+   * is something to save, so it draws no warning icon.
    */
-  tone?: "warning" | "danger";
+  tone?: "warning" | "danger" | "neutral";
 }): React.ReactElement {
   const consequenceId = useId();
   return (
@@ -39,14 +40,16 @@ export function ConsequenceFooter({
     >
       {consequence != null && (
         <>
-          <TriangleAlertIcon
-            aria-hidden="true"
-            className={
-              tone === "danger"
-                ? "size-4 shrink-0 text-destructive"
-                : "size-4 shrink-0 text-warning"
-            }
-          />
+          {tone !== "neutral" && (
+            <TriangleAlertIcon
+              aria-hidden="true"
+              className={
+                tone === "danger"
+                  ? "size-4 shrink-0 text-destructive"
+                  : "size-4 shrink-0 text-warning"
+              }
+            />
+          )}
           <p
             id={consequenceId}
             className="min-w-0 flex-1 basis-56 text-pretty text-foreground text-sm"

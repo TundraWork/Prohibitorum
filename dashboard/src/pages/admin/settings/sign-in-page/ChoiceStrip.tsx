@@ -36,7 +36,7 @@ export function ChoiceStrip<T extends string>({
         options={options.map((option) => ({
           ...option,
           itemClassName:
-            "h-auto min-h-7.5 min-w-0 shrink basis-0 whitespace-normal py-1 text-center leading-tight sm:min-h-6.5",
+            "h-auto min-h-7.5 min-w-0 shrink whitespace-normal px-1.5 py-1 text-center leading-tight sm:min-h-6.5",
         }))}
         onValueChange={onChange}
       />

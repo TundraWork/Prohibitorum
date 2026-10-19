@@ -5,9 +5,8 @@ import type { LoginBackground } from "@/components/custom/login-appearance/use-l
 import { useReducedMotion } from "@/components/custom/login-appearance/use-reduced-motion";
 
 /**
- * The sign-in page's background, drawn by the saved source. `contained` fills
- * the nearest positioned ancestor (the settings preview); otherwise it covers
- * the window behind everything.
+ * The sign-in page's background, drawn by the saved source, covering the
+ * window behind everything.
  *
  * Uploaded images, Bing and Unsplash draw the pictures `useLoginBackground`
  * chose; until a wallpaper arrives, or when it could not be read, nothing is
@@ -17,16 +16,12 @@ import { useReducedMotion } from "@/components/custom/login-appearance/use-reduc
 export function LoginBackdrop({
   appearance,
   background: shown,
-  contained = false,
 }: {
   appearance: LoginAppearance;
   background: LoginBackground;
-  contained?: boolean;
 }) {
   const background = appearance.background;
-  const position = contained
-    ? "pointer-events-none absolute inset-0"
-    : "pointer-events-none fixed inset-0 -z-10";
+  const position = "pointer-events-none fixed inset-0 -z-10";
 
   switch (background.source) {
     case "color":
