@@ -39,9 +39,6 @@ window.scrollTo = vi.fn();
 // animations, so an empty list is the honest answer.
 HTMLElement.prototype.getAnimations = () => [];
 
-// input-otp probes password-manager overlays with a hit test jsdom does not implement.
-document.elementFromPoint = () => null;
-
 // Find queries (findBy*) wait out the suite's own load tolerance: the config
 // already raises testTimeout for runs on a loaded machine, and a find whose
 // default is one second fails inside a test the suite still considers

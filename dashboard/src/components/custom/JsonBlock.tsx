@@ -110,7 +110,10 @@ export function JsonBlock({ json }: { json: string }) {
   return (
     <div className="flex flex-col gap-3">
       <div className="relative">
-        <ScrollArea className="rounded-lg bg-muted font-mono text-xs">
+        <ScrollArea
+          clampContentMinWidth={false}
+          className="rounded-lg bg-muted font-mono text-xs"
+        >
           <pre className="p-3 pr-11">{text}</pre>
         </ScrollArea>
         <div className="absolute top-1.5 right-1.5">
