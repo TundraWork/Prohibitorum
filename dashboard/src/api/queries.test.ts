@@ -14,6 +14,7 @@ import {
 import {
   authStatusQueryOptions,
   clearSessionQueries,
+  groupMatchesListOptions,
   latestConnectionTestQueryOptions,
   publicConfigQueryOptions,
   sessionQueryOptions,
@@ -314,5 +315,16 @@ describe("latest connection test", () => {
       queryClient.query(latestConnectionTestQueryOptions("other")),
     ).rejects.toMatchObject({ status: 500 });
     expect(notices).not.toHaveBeenCalled();
+  });
+});
+
+describe("group matches", () => {
+  it("keeps a rule's matches fresh and does not re-ask on window focus", () => {
+    const options = groupMatchesListOptions(3, {
+      version: 1,
+      condition: { fact: "login_method", method: "passkey" },
+    });
+    expect(options.staleTime).toBeGreaterThanOrEqual(30_000);
+    expect(options.refetchOnWindowFocus).toBe(false);
   });
 });

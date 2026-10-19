@@ -881,6 +881,9 @@ export function groupDecisionsListOptions(groupId: number) {
 /** The server's largest page; fewer pages are needed to find sparse matches. */
 export const groupMatchesPageSize = 100;
 
+/** How long a read of the saved rule's matches counts as current. */
+export const groupMatchesStaleTime = 60_000;
+
 /**
  * The accounts a group's saved rule matches, written for `useCursorList`.
  *
@@ -889,7 +892,9 @@ export const groupMatchesPageSize = 100;
  * each page carries the true `matchedCount`, and it pages the accounts with a
  * cursor. Each item says whether the rule matched it, so a page can hold
  * accounts that did not. The key holds the rule, so a saved change is a new
- * question.
+ * question; that is also why the answer stays fresh for a minute and is not
+ * re-asked when the window regains focus, since each page costs the server one
+ * evaluation of the whole directory.
  */
 export function groupMatchesListOptions(groupId: number, rule: AppAccessRule) {
   return {
@@ -897,6 +902,8 @@ export function groupMatchesListOptions(groupId: number, rule: AppAccessRule) {
     // so the old rule's pages are never fetched again.
     queryKey: ["admin", "group-matches", groupId, rule] as const,
     meta: { quiet: true },
+    staleTime: groupMatchesStaleTime,
+    refetchOnWindowFocus: false,
     queryFn: ({ cursor, signal }: { cursor?: string; signal: AbortSignal }) =>
       requireJsonData(
         client.POST("/api/prohibitorum/groups/rule-preview", {
