@@ -584,6 +584,10 @@ describe("mocked management directory", () => {
     };
 
     const fixture = lists("fixture");
+    // Account 2 is the second row: two identities, one passkey, two sessions.
+    expect(fixture.identities).toHaveLength(2);
+    expect(fixture.credentials.items).toHaveLength(1);
+    expect(fixture.sessions.items).toHaveLength(2);
     expect(Array.isArray(fixture.credentials.items)).toBe(true);
     expect(Array.isArray(fixture.sessions.items)).toBe(true);
 

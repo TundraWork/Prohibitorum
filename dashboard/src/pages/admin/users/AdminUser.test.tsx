@@ -243,6 +243,14 @@ describe("the registration link", () => {
 });
 
 describe("the access lists", () => {
+  it("are on screen with the page, so a link to a later section does not move", async () => {
+    await openAccount(accountFixture());
+    expect(screen.getByText("No passkeys")).toBeVisible();
+    expect(screen.getByText("No active sessions")).toBeVisible();
+    expect(screen.getByText("No access tokens")).toBeVisible();
+    expect(screen.getByText("No connected identities")).toBeVisible();
+  });
+
   it("are four sections between the profile and the registration link", async () => {
     await openAccount(accountFixture());
     const headings = screen

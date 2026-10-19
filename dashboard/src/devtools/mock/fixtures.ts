@@ -220,6 +220,12 @@ function pathTail(request: MockRequest): number {
   return Number.isFinite(value) ? value : 0;
 }
 
+/** The numeric id in `/accounts/{id}/<noun>`: the segment before the last. */
+function accountIdInPath(request: MockRequest): number {
+  const value = Number(new URL(request.url).pathname.split("/").at(-2));
+  return Number.isFinite(value) ? value : 0;
+}
+
 /** A placeholder image as a `data:` URL, so a mocked image needs no fetch. */
 function svgUrl(svg: string): string {
   return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
@@ -1952,13 +1958,13 @@ function readReply(
       );
     }
     case "/api/prohibitorum/accounts/{id}/identities": {
-      const id = pathTail(request);
+      const id = accountIdInPath(request);
       return guarded(config, () =>
         json(accountIdentities(id - 1, config.admin.accountAccess)),
       );
     }
     case "/api/prohibitorum/accounts/{id}/credentials": {
-      const id = pathTail(request);
+      const id = accountIdInPath(request);
       return guarded(config, () =>
         json({
           items: accountCredentials(id - 1, config.admin.accountAccess),
@@ -1967,7 +1973,7 @@ function readReply(
       );
     }
     case "/api/prohibitorum/accounts/{id}/sessions": {
-      const id = pathTail(request);
+      const id = accountIdInPath(request);
       return guarded(config, () =>
         json({
           items: accountSessions(id - 1, config.admin.accountAccess),
@@ -1977,13 +1983,10 @@ function readReply(
     }
     case "/api/prohibitorum/accounts/{id}/tokens": {
       // The id is the segment before `tokens`, and the list is a page.
-      const id = Number(new URL(request.url).pathname.split("/").at(-2));
+      const id = accountIdInPath(request);
       return guarded(config, () =>
         json({
-          items: accountTokens(
-            Number.isFinite(id) ? id - 1 : 0,
-            config.admin.accountAccess,
-          ),
+          items: accountTokens(id - 1, config.admin.accountAccess),
           nextCursor: "",
         }),
       );
