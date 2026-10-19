@@ -71,7 +71,7 @@ msgstr "{appName} 将收到这个账号的{nextLabel}，而不是{savedLabel}。
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
 msgid "admin.federation.claims.subject.confirm.body"
-msgstr "有 {count, plural, other {# 个账号}}是按 {current} 绑定到 {name} 的。改用 {next} 后这些绑定不再匹配，这些人下次登录时会被当作新身份。"
+msgstr "有 {count, plural, other {# 个账号}}是按 <0>{current}</0> 绑定到 {name} 的。改用 <1>{next}</1> 后这些绑定不再匹配，这些人下次登录时会被当作新身份。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderDangerSection.tsx
@@ -1474,6 +1474,11 @@ msgstr "修改 NameID 格式？"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
+msgid "admin.federation.claims.subject.action"
+msgstr "更改 Subject 声明并保存"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
 msgid "admin.federation.claims.subject.confirm.title"
 msgstr "更改 Subject 声明？"
 
@@ -1871,6 +1876,11 @@ msgstr "机密客户端"
 #: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.diagnostics.source.configuration"
 msgstr "配置"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ClaimMappingTable.tsx
+msgid "admin.federation.claims.column.returned.stale"
+msgstr "此后配置已更改"
 
 #. js-lingui-explicit-id
 #: src/components/custom/SudoDialog.tsx
@@ -3476,6 +3486,11 @@ msgid "admin.user.sessions.revoke_all.body"
 msgstr "该账号已登录的每台设备都会立即登出，需要重新登录。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
+msgid "admin.federation.claims.domains.empty"
+msgstr "接受所有域名。"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/EndpointsField.tsx
 msgid "admin.federation.endpoints.all-overridden"
 msgstr "四个端点都已覆盖。"
@@ -3640,6 +3655,11 @@ msgstr "前向认证应用"
 #: src/pages/admin/saml-applications/AttributeMapField.tsx
 msgid "admin.saml-apps.mapping.friendly-name"
 msgstr "友好名称"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ClaimMappingTable.tsx
+msgid "admin.federation.claims.column.returned.when"
+msgstr "来自<0/>的测试"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/SignInPagePanel.tsx
@@ -4235,6 +4255,16 @@ msgid "admin.users.column.lastSignIn"
 msgstr "最近登录"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ClaimMappingTable.tsx
+msgid "admin.federation.claims.column.returned"
+msgstr "上次测试返回的内容"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ClaimMappingTable.tsx
+msgid "admin.federation.claims.column.returned.field"
+msgstr "上次测试返回："
+
+#. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.detail.lastUsed"
 msgstr "<0/>使用过"
@@ -4258,11 +4288,6 @@ msgstr "启动地址"
 #: src/pages/admin/settings/SignInPagePanel.tsx
 msgid "settings.sign-in.unsplash.query.hint"
 msgstr "留空则不限主题。"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
-msgid "admin.federation.claims.domains.hint"
-msgstr "留空则接受所有域名。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/EndpointsField.tsx
@@ -4544,6 +4569,11 @@ msgstr "元数据 XML"
 #: src/pages/admin/saml-applications/SamlMetadataSection.tsx
 msgid "admin.saml-apps.metadata.dialog.field"
 msgstr "元数据 XML"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ClaimMappingTable.tsx
+msgid "admin.federation.claims.returned.missing"
+msgstr "缺失"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/SignInPageControls.tsx
@@ -5026,6 +5056,11 @@ msgid "object.status.not-ready"
 msgstr "未就绪"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ClaimMappingTable.tsx
+msgid "admin.federation.claims.returned.unknown"
+msgstr "未报告"
+
+#. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
 msgid "security.factor.unset"
 msgstr "未设置"
@@ -5204,6 +5239,11 @@ msgstr "只能有一个端点作为默认端点。"
 #: src/pages/security/PasswordTotpPanel.tsx
 msgid "security.password.description.partial"
 msgstr "只设置了其中一部分。请重新设置后再使用。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
+msgid "admin.federation.claims.domains.hint"
+msgstr "只有已验证邮箱属于这些域名的人才能登录。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/SignInPageControls.tsx
@@ -7702,6 +7742,11 @@ msgid "settings.keys.error"
 msgstr "无法加载密钥。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ClaimMappingTable.tsx
+msgid "admin.federation.claims.test.failed"
+msgstr "上次测试在<0/>失败。请在「诊断」中重新运行。"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.enrollment.expires"
 msgstr "链接于 {expiry} 过期。"
@@ -9305,6 +9350,11 @@ msgstr "这个提供商能否用于登录，以及遇到它没见过的人时怎
 #: src/pages/admin/AdminGroupForm.tsx
 msgid "admin.group.manual.note"
 msgstr "本组包含哪些账号，在创建完成后于该用户组自己的页面上决定。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
+msgid "admin.federation.claims.description"
+msgstr "谁可以通过这个提供商登录，以及它的哪些字段填入账号。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx

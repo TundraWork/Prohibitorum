@@ -34,6 +34,7 @@ export function TagListField({
   addLabel,
   check,
   lockedTags = [],
+  emptyText,
   isLabelHidden = false,
 }: {
   /** The list's name. */
@@ -48,6 +49,8 @@ export function TagListField({
     tags: readonly string[],
   ) => MessageDescriptor | undefined;
   lockedTags?: readonly string[];
+  /** What an empty list means, for a list where empty is a setting. */
+  emptyText?: string;
   isLabelHidden?: boolean;
 }) {
   const { i18n } = useLingui();
@@ -83,6 +86,7 @@ export function TagListField({
         lockedValues={lockedTags}
         isDisabled={disabled}
         addLabel={addLabel}
+        emptyText={emptyText}
         placeholder={placeholder ?? ""}
         draft={draft}
         onDraftChange={(next) => onChange({ tags, draft: next })}
