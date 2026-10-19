@@ -160,6 +160,27 @@ depends = ["build:web"]
 description = "CI: end-to-end smoke — start the compose Postgres, (re)create a throwaway prohibitorum_smoke DB, then run the server + cmd/smoke against it (expects exit 0). The CI `smoke` job; also runnable locally WITHOUT touching prohibitorum_dev."
 run = """
 set -eu
+# One smoke at a time, machine-wide. Two runs anywhere (main repo or a
+# worktree) share :8080, :18099-:18100, :18443 and the throwaway
+# prohibitorum_smoke database, so the second one must not even start building.
+# A real exclusive lock (not the old once-at-start port probe, which raced
+# away during the tens of seconds the build takes) held for the whole run:
+# wait up to PROHIBITORUM_SMOKE_LOCK_WAIT seconds (default 30), then fail fast
+# with a message naming the holder. The lock directory must be outside any
+# single worktree; per-user if XDG_RUNTIME_DIR exists, else /tmp.
+LOCK_ROOT="${XDG_RUNTIME_DIR:-/tmp}/prohibitorum-smoke"
+LOCK_FILE="$LOCK_ROOT/ci-smoke.lock"
+command -v flock >/dev/null 2>&1 || {
+  echo "ci:smoke requires flock (util-linux) to serialize runs; not found in PATH." >&2
+  exit 1
+}
+mkdir -p "$LOCK_ROOT"
+exec 9>"$LOCK_FILE"
+if ! flock -w "${PROHIBITORUM_SMOKE_LOCK_WAIT:-30}" 9; then
+  holder="$(fuser "$LOCK_FILE" 2>/dev/null | tr -s ' ' ',' | tr -d ' ')"
+  echo "ci:smoke: another smoke run holds the lock ($LOCK_FILE${holder:+, pid ${holder#,}}); it owns :8080, :18099-:18100, :18443 and the prohibitorum_smoke database. Wait for it to finish, or raise PROHIBITORUM_SMOKE_LOCK_WAIT." >&2
+  exit 1
+fi
 # The smoke server listens on :8080 behind the TLS proxy. Anything already
 # answering there (usually `mise run dev:server`) takes its traffic and fails
 # the smoke for a reason that says nothing about the change.
@@ -187,10 +208,18 @@ SERVER_PID=
 STEAM_MOCK_PID=
 VRCHAT_MOCK_PID=
 cleanup() {
+  local rc=$?
+  trap - EXIT HUP INT TERM
+  # TERM/INT arrive while `go run`/`sleep` is the foreground job; it dies
+  # with the signal and `set -eu` aborts into this trap, so an interrupted
+  # run cannot keep polling. Kill the children first so they cannot rebind
+  # the ports before the lock is released.
   [ -z "$SERVER_PID" ] || kill "$SERVER_PID" 2>/dev/null || true
   [ -z "$STEAM_MOCK_PID" ] || kill "$STEAM_MOCK_PID" 2>/dev/null || true
   [ -z "$VRCHAT_MOCK_PID" ] || kill "$VRCHAT_MOCK_PID" 2>/dev/null || true
+  wait "$SERVER_PID" "$STEAM_MOCK_PID" "$VRCHAT_MOCK_PID" 2>/dev/null || true
   rm -rf "$TMP_DIR"
+  exit "$rc"
 }
 trap cleanup EXIT HUP INT TERM
 
