@@ -113,7 +113,7 @@ function UsedByList({ groupId }: { groupId: number }) {
               />
             }
             title={application.displayName}
-            badge={
+            badges={
               <Badge variant="outline">{kindLabel(application.kind)}</Badge>
             }
             link={applicationLink(application)}

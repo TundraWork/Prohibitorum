@@ -638,6 +638,30 @@ describe("mocked management directory", () => {
     });
   });
 
+  it("lists as many applications for a group as its own count says", () => {
+    const current = config((draft) => {
+      draft.admin.groups = 4;
+    });
+    const applications = (id: number) =>
+      (
+        bodyOf(
+          read(
+            "/api/prohibitorum/groups/{groupId}/applications",
+            current,
+            `http://localhost/api/prohibitorum/groups/${id}/applications`,
+          ),
+        ) as { items: { kind: string }[] }
+      ).items;
+
+    expect(applications(1)).toHaveLength(0);
+    expect(applications(3)).toHaveLength(2);
+    expect(applications(4).map((application) => application.kind)).toEqual([
+      "oidc",
+      "saml",
+      "forward_auth",
+    ]);
+  });
+
   it("matches nobody for a rule draft that carries no condition", () => {
     const current = writes();
     const draft = call(

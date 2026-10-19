@@ -2142,18 +2142,28 @@ function readReply(
       );
     case "/api/prohibitorum/groups/{groupId}/preview":
       return guarded(config, () => json(groupPreview(config)));
-    case "/api/prohibitorum/groups/{groupId}/applications":
-      return guarded(config, () =>
-        json({
-          items: range(clampCount(config.admin.groups)).map((index) => ({
-            appId: `mock-client-${index + 1}`,
-            kind: index % 2 === 0 ? "oidc" : "saml",
-            displayName: `Sample application ${index + 1}`,
-            iconUrl: mockAvatarUrl,
-          })),
-          nextCursor: "",
-        }),
+    case "/api/prohibitorum/groups/{groupId}/applications": {
+      // As many applications as the group's own count says, so the list and the
+      // count never disagree about whether the group can be deleted.
+      const id = Number(
+        new URL(request.url).pathname.match(/\/groups\/(\d+)\//)?.[1],
       );
+      const found = groupsFrom(config).find((group) => group.id === id);
+      const kinds = ["oidc", "saml", "forward_auth"];
+      return guarded(config, () =>
+        found
+          ? json({
+              items: range(found.applicationCount ?? 0).map((index) => ({
+                appId: `mock-client-${index + 1}`,
+                kind: kinds[index % kinds.length],
+                displayName: `Sample application ${index + 1}`,
+                iconUrl: mockAvatarUrl,
+              })),
+              nextCursor: "",
+            })
+          : { kind: "error", status: 404, code: "not_found" },
+      );
+    }
     case "/api/prohibitorum/audit-events": {
       const all = filteredAuditEvents(request, config);
       const cursor = new URL(request.url).searchParams.get("cursor");
