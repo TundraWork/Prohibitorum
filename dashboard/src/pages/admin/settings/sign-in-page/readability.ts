@@ -279,8 +279,14 @@ export function settleOver(grid: SampledGrid, below: Rgb): Grid {
 export interface Environment {
   /** Any CSS colour as sRGB; `undefined` when it cannot be read. */
   resolveColor: (css: string) => Rgba | undefined;
-  /** `undefined` when the picture cannot be loaded for reading. */
-  loadPicture: (url: string) => Promise<Picture | undefined>;
+  /**
+   * `undefined` when the picture cannot be loaded for reading. `shown` is the
+   * element the page draws it with, which may be read in place.
+   */
+  loadPicture: (
+    url: string,
+    shown?: HTMLImageElement,
+  ) => Promise<Picture | undefined>;
 }
 
 let probe: CanvasRenderingContext2D | null | undefined;
@@ -340,7 +346,19 @@ const failedPictures = new Map<string, true>();
  * refuses to release its pixels. A picture that sends no CORS headers fails
  * here, and so cannot be measured.
  */
-function loadCanvasPicture(url: string): Promise<Picture | undefined> {
+function loadCanvasPicture(
+  url: string,
+  shown?: HTMLImageElement,
+): Promise<Picture | undefined> {
+  // The preview's own picture, when it was fetched with CORS and has arrived,
+  // is already readable: no second download.
+  if (
+    shown?.crossOrigin === "anonymous" &&
+    shown.complete &&
+    shown.naturalWidth > 0
+  ) {
+    return Promise.resolve(pictureFrom(shown));
+  }
   if (failedPictures.has(url)) return Promise.resolve(undefined);
   const known = pictures.get(url);
   if (known) return known;
@@ -348,47 +366,7 @@ function loadCanvasPicture(url: string): Promise<Picture | undefined> {
     const image = new Image();
     image.crossOrigin = "anonymous";
     image.onerror = () => resolve(undefined);
-    image.onload = () =>
-      resolve({
-        width: image.naturalWidth,
-        height: image.naturalHeight,
-        sample: (source, cols, rows) => {
-          const canvas = document.createElement("canvas");
-          canvas.width = cols;
-          canvas.height = rows;
-          const context = canvas.getContext("2d", {
-            willReadFrequently: true,
-          });
-          if (!context) return undefined;
-          context.imageSmoothingQuality = "high";
-          context.drawImage(
-            image,
-            source.x,
-            source.y,
-            source.width,
-            source.height,
-            0,
-            0,
-            cols,
-            rows,
-          );
-          try {
-            const { data } = context.getImageData(0, 0, cols, rows);
-            const cells: SampledCell[] = [];
-            for (let i = 0; i < data.length; i += 4) {
-              cells.push({
-                r: data[i] ?? 0,
-                g: data[i + 1] ?? 0,
-                b: data[i + 2] ?? 0,
-                a: (data[i + 3] ?? 255) / 255,
-              });
-            }
-            return { cols, rows, cells };
-          } catch {
-            return undefined;
-          }
-        },
-      });
+    image.onload = () => resolve(pictureFrom(image));
     image.src = url;
   });
   remember(pictures, url, loading, maxPictures);
@@ -398,6 +376,48 @@ function loadCanvasPicture(url: string): Promise<Picture | undefined> {
     remember(failedPictures, url, true, maxFailures);
   });
   return loading;
+}
+
+/** A loaded image that can hand back downsampled parts of itself. */
+function pictureFrom(image: HTMLImageElement): Picture {
+  return {
+    width: image.naturalWidth,
+    height: image.naturalHeight,
+    sample: (source, cols, rows) => {
+      const canvas = document.createElement("canvas");
+      canvas.width = cols;
+      canvas.height = rows;
+      const context = canvas.getContext("2d", { willReadFrequently: true });
+      if (!context) return undefined;
+      context.imageSmoothingQuality = "high";
+      context.drawImage(
+        image,
+        source.x,
+        source.y,
+        source.width,
+        source.height,
+        0,
+        0,
+        cols,
+        rows,
+      );
+      try {
+        const { data } = context.getImageData(0, 0, cols, rows);
+        const cells: SampledCell[] = [];
+        for (let i = 0; i < data.length; i += 4) {
+          cells.push({
+            r: data[i] ?? 0,
+            g: data[i + 1] ?? 0,
+            b: data[i + 2] ?? 0,
+            a: (data[i + 3] ?? 255) / 255,
+          });
+        }
+        return { cols, rows, cells };
+      } catch {
+        return undefined;
+      }
+    },
+  };
 }
 
 export const canvasEnvironment: Environment = {
@@ -517,7 +537,7 @@ export async function measureReadability(
           ? worstOn(pageBackground())
           : unmeasurable;
       }
-      const picture = await loadPicture(image.currentSrc || image.src);
+      const picture = await loadPicture(image.currentSrc || image.src, image);
       if (!picture || picture.width === 0 || picture.height === 0) {
         return unmeasurable;
       }

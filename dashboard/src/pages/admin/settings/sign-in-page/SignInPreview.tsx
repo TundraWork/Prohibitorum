@@ -153,7 +153,11 @@ export function SignInPreview({
             message: "Sign-in page preview",
           })}
         >
-          <PublicScene appearance={appearance} background={shown}>
+          <PublicScene
+            appearance={appearance}
+            background={shown}
+            readablePictures
+          >
             <LoginPreviewContext value={true}>
               <Suspense fallback={null}>
                 <PasswordPage />

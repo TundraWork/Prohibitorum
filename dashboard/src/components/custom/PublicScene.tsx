@@ -22,11 +22,14 @@ import { PublicStage } from "@/components/custom/PublicStage";
 export function PublicScene({
   appearance,
   background: shown,
+  readablePictures = false,
   children,
 }: {
   appearance: LoginAppearance;
   /** The pictures to show, as `useLoginBackground` chose them. */
   background: LoginBackground;
+  /** Fetch the pictures so their pixels can be read; see `LoginBackdrop`. */
+  readablePictures?: boolean;
   children: ReactNode;
 }) {
   const hasCredit = shown.wallpaperPicture !== undefined;
@@ -36,7 +39,11 @@ export function PublicScene({
 
   return (
     <>
-      <LoginBackdrop appearance={appearance} background={shown} />
+      <LoginBackdrop
+        appearance={appearance}
+        background={shown}
+        readable={readablePictures}
+      />
       <AppToolbar
         surface={appearance.capsules}
         showThemeSelect={appearance.theme === "switchable"}

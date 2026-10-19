@@ -6,7 +6,7 @@ import {
   createRouter,
   RouterProvider,
 } from "@tanstack/react-router";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import { createContext, useContext, useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -195,6 +195,28 @@ describe("the sign-in page preview", () => {
     expect(
       page.querySelector('[data-login-backdrop="pictures"] img'),
     ).toHaveAttribute("src", "/branding/login-images/1");
+  });
+
+  it("fetches its picture so it can be read, and draws it the ordinary way if refused", async () => {
+    await show(
+      view({
+        appearance: withAppearance((a) => {
+          a.background.source = "images";
+        }),
+        images: ["https://pictures.example/one.jpg"],
+      }),
+    );
+    const page = await pageDocument();
+    const image = () =>
+      page.querySelector<HTMLImageElement>(
+        '[data-login-backdrop="pictures"] img',
+      ) as HTMLImageElement;
+    expect(image()).toHaveAttribute("crossorigin", "anonymous");
+
+    act(() => {
+      image().dispatchEvent(new Event("error"));
+    });
+    await waitFor(() => expect(image()).not.toHaveAttribute("crossorigin"));
   });
 
   it.each([

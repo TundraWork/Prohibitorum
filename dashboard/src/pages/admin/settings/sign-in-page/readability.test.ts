@@ -403,8 +403,10 @@ describe("measuring the sign-in card", () => {
       }),
       { ...noEnvironment, loadPicture },
     );
+    // The page's own element comes too, so a copy fetched with CORS is read in place.
     expect(loadPicture).toHaveBeenCalledWith(
       "https://pictures.example/one.jpg",
+      image,
     );
     // The picture is 1280x800 in a 1280x800 window: the box is the card's own.
     expect(sample.mock.calls[0]?.[0]).toEqual({
