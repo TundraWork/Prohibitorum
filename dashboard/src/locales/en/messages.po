@@ -1696,11 +1696,6 @@ msgstr "Checking"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/groups/GroupExplainFrame.tsx
-msgid "admin.group.explain.loading"
-msgstr "Checking"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/groups/GroupExplainFrame.tsx
 msgid "admin.group.explain.checking"
 msgstr "Checking this account"
 
@@ -2540,11 +2535,6 @@ msgstr "Couldn't get a photo from Unsplash."
 #: src/pages/admin/settings/LoginPreview.tsx
 msgid "settings.sign-in.preview.bing_failed"
 msgstr "Couldn't get the picture from Bing."
-
-#. js-lingui-explicit-id
-#: src/pages/admin/groups/GroupMatchesFrame.tsx
-msgid "admin.group.matches.capped"
-msgstr "Counted among the first {limit} accounts."
 
 #. js-lingui-explicit-id
 #: src/pages/public/Enroll.tsx
@@ -4767,6 +4757,11 @@ msgstr "Links to existing accounts only. Never creates one, not even from an inv
 #: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.protocol.vrchat.hint"
 msgstr "Links VRChat identities to existing accounts. Needs a VRChat operator account."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupMatchesFrame.tsx
+msgid "admin.group.matches.load-more"
+msgstr "Load more"
 
 #. js-lingui-explicit-id
 #: src/components/custom/EntityPicker.tsx
@@ -7415,8 +7410,8 @@ msgstr "Show the picture's title and copyright"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/groups/GroupMatchesFrame.tsx
-msgid "admin.group.matches.dialog.capped"
-msgstr "Showing matches among the first {limit} accounts."
+msgid "admin.group.matches.dialog.partial"
+msgstr "Showing {shown} of {total} matching accounts so far."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/MaintenancePanel.tsx

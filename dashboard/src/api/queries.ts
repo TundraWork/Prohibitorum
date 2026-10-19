@@ -8,6 +8,7 @@ import { readEnrollmentPreview } from "@/api/enrollment";
 import { ApiError } from "@/api/errors";
 import { readFederationFlow } from "@/api/federation";
 import type {
+  AppAccessRule,
   ManagedApplicationKind,
   WallpaperPreviewQuery,
 } from "@/api/raw-admin-paths";
@@ -871,27 +872,31 @@ export function groupDecisionsQueryOptions(groupId: number, cursor?: string) {
 }
 
 /**
- * How many accounts one preview read evaluates. The page is fixed, so a full
- * one means the accounts past it were never checked.
+ * The accounts a group's saved rule matches, written for `useCursorList`.
+ *
+ * It asks the rule-preview endpoint about the stored rule rather than reading
+ * the group's own preview: that endpoint evaluates every active account, so
+ * each page carries the true `matchedCount`, and it pages the accounts with a
+ * cursor. Each item says whether the rule matched it, so a page can hold
+ * accounts that did not. The key holds the rule, so a saved change is a new
+ * question, and sits under the groups prefix a save invalidates.
  */
-export const groupPreviewLimit = 50;
-
-/**
- * Fixed to one page: the handler always answers with an empty `nextCursor`, so
- * the interface offers no "load more" for it. The page holds every account it
- * evaluated, matched or not, not only the matches.
- */
-export function groupPreviewQueryOptions(groupId: number) {
-  return queryOptions({
-    queryKey: ["admin", "groups", groupId, "preview"] as const,
-    queryFn: ({ signal }) =>
+export function groupMatchesListOptions(groupId: number, rule: AppAccessRule) {
+  return {
+    queryKey: ["admin", "groups", groupId, "matches", rule] as const,
+    meta: { quiet: true },
+    queryFn: ({ cursor, signal }: { cursor?: string; signal: AbortSignal }) =>
       requireJsonData(
-        client.GET("/api/prohibitorum/groups/{groupId}/preview", {
-          params: { path: { groupId }, query: { limit: groupPreviewLimit } },
+        client.POST("/api/prohibitorum/groups/rule-preview", {
+          body: {
+            version: rule.version,
+            condition: rule.condition,
+            ...(cursor === undefined ? {} : { cursor }),
+          },
           signal,
         }),
       ),
-  });
+  };
 }
 
 export function groupExplainQueryOptions(groupId: number, accountId: number) {

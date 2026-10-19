@@ -7,6 +7,7 @@ import {
   mockListMax,
   mockPairingExpiryMax,
   mockPairingExpiryMin,
+  mockRuleAccountsMax,
   resetMockConfig,
   subscribeMockConfig,
 } from "@/devtools/mock/model";
@@ -105,6 +106,13 @@ describe("mock URL control", () => {
     const config = getMockConfig();
     expect(config.admin.identityProviders).toBe(mockAdminListMax);
     expect(config.lists.sessions).toBe(mockListMax);
+  });
+
+  it("allows a rule's directory beyond the management ceiling, and clamps it", () => {
+    applyMockQuery("?mock.admin.ruleAccounts=300");
+    expect(getMockConfig().admin.ruleAccounts).toBe(300);
+    applyMockQuery("?mock.admin.ruleAccounts=99999");
+    expect(getMockConfig().admin.ruleAccounts).toBe(mockRuleAccountsMax);
   });
 
   it("sets the pairing a lookup finds, clamping its expiry", () => {

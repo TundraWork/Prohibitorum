@@ -1,13 +1,13 @@
 import { Plural, Trans, useLingui } from "@lingui/react/macro";
-import { useSuspenseQuery } from "@tanstack/react-query";
 import { UsersIcon } from "lucide-react";
 import { useState } from "react";
-import { groupPreviewLimit, groupPreviewQueryOptions } from "@/api/queries";
-import type { GroupPreviewView } from "@/api/raw-admin-paths";
-import { quietQuery } from "@/app/query-client";
+import { useCursorList } from "@/api/cursor-list";
+import { groupMatchesListOptions } from "@/api/queries";
+import type { AppAccessRule, GroupPreviewView } from "@/api/raw-admin-paths";
 import { Button } from "@/components/custom/Button";
 import { EntityAvatar } from "@/components/custom/EntityAvatar";
-import { AsyncSection, Section } from "@/components/custom/Section";
+import { InlineFailure } from "@/components/custom/InlineFailure";
+import { Section } from "@/components/custom/Section";
 import { getTopLayerContainer } from "@/components/custom/top-layer";
 import {
   Dialog,
@@ -17,6 +17,7 @@ import {
   DialogPopup,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const shownAvatars = 5;
 
@@ -34,36 +35,56 @@ const nameOf = ({ account }: GroupPreviewView) =>
   account.displayName || account.username;
 
 /**
- * Who the saved rule matches today: the count, a few faces and the full list
- * behind "See all". The server answers with one fixed page of accounts, each
- * flagged matched or not, so the count is of that page and the frame says so
- * when the page was full.
+ * Who the saved rule matches today: the true count, a few faces and the list
+ * behind "See all".
+ *
+ * The rule is evaluated against every active account by the server, which
+ * reports the total on each page and pages the accounts it checked, matched or
+ * not. The faces and the list therefore show the matches among the pages
+ * loaded so far.
  */
-export function GroupMatchesFrame({ groupId }: { groupId: number }) {
-  return (
-    <AsyncSection resetKey={`group-${groupId}-matches`} {...heading}>
-      <Matches groupId={groupId} />
-    </AsyncSection>
-  );
-}
-
-function Matches({ groupId }: { groupId: number }) {
-  const { data } = useSuspenseQuery(
-    quietQuery(groupPreviewQueryOptions(groupId)),
+export function GroupMatchesFrame({
+  groupId,
+  rule,
+}: {
+  groupId: number;
+  rule: AppAccessRule;
+}) {
+  const list = useCursorList<GroupPreviewView, { matchedCount: number }>(
+    groupMatchesListOptions(groupId, rule),
   );
   const [open, setOpen] = useState(false);
-  const checked = data.items ?? [];
-  const matches = checked.filter((item) => item.matched);
-  const count = matches.length;
-  const capped = checked.length >= groupPreviewLimit;
-  const limit = groupPreviewLimit;
+  const total = list.pages[0]?.matchedCount;
+  const matches = list.items.filter((item) => item.matched);
+  const count = total ?? 0;
   const rest = count - shownAvatars;
+
+  if (list.error !== null && total === undefined) {
+    return (
+      <Section {...heading}>
+        <InlineFailure error={list.error} />
+      </Section>
+    );
+  }
+  if (total === undefined) {
+    return (
+      <Section {...heading}>
+        <div aria-hidden="true" className="flex flex-col gap-3">
+          <Skeleton className="h-9 w-24" />
+          <Skeleton className="h-7 w-40" />
+        </div>
+      </Section>
+    );
+  }
 
   return (
     <Section {...heading}>
       <div className="flex flex-wrap items-baseline gap-x-2">
-        <span className="font-semibold text-4xl tabular-nums tracking-tight">
-          {count}
+        <span
+          data-slot="match-total"
+          className="font-semibold text-4xl tabular-nums tracking-tight"
+        >
+          {total}
         </span>
         <span className="text-muted-foreground text-sm">
           <Plural
@@ -74,14 +95,7 @@ function Matches({ groupId }: { groupId: number }) {
           />
         </span>
       </div>
-      {capped && (
-        <p className="text-muted-foreground text-xs">
-          <Trans id="admin.group.matches.capped">
-            Counted among the first {limit} accounts.
-          </Trans>
-        </p>
-      )}
-      {count === 0 ? (
+      {total === 0 ? (
         <p className="text-muted-foreground text-sm">
           <Trans id="admin.group.matches.none">
             No account matches the saved rule.
@@ -109,7 +123,11 @@ function Matches({ groupId }: { groupId: number }) {
         open={open}
         onOpenChange={setOpen}
         matches={matches}
-        limit={capped ? limit : null}
+        total={total}
+        hasMore={list.hasMore}
+        loadingMore={list.loadingMore}
+        loadMore={list.loadMore}
+        error={list.error}
       />
     </Section>
   );
@@ -139,14 +157,22 @@ function MatchesDialog({
   open,
   onOpenChange,
   matches,
-  limit,
+  total,
+  hasMore,
+  loadingMore,
+  loadMore,
+  error,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   matches: GroupPreviewView[];
-  /** The page size when the page was full, else `null`. */
-  limit: number | null;
+  total: number;
+  hasMore: boolean;
+  loadingMore: boolean;
+  loadMore: () => void;
+  error: unknown;
 }) {
+  const shown = matches.length;
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogPopup
@@ -159,15 +185,15 @@ function MatchesDialog({
               Accounts that match
             </Trans>
           </DialogTitle>
-          {limit !== null && (
+          {hasMore && (
             <DialogDescription>
-              <Trans id="admin.group.matches.dialog.capped">
-                Showing matches among the first {limit} accounts.
+              <Trans id="admin.group.matches.dialog.partial">
+                Showing {shown} of {total} matching accounts so far.
               </Trans>
             </DialogDescription>
           )}
         </DialogHeader>
-        <DialogPanel>
+        <DialogPanel className="flex flex-col gap-3">
           <ul className="flex flex-col divide-y">
             {matches.map((match) => (
               <li
@@ -188,6 +214,12 @@ function MatchesDialog({
               </li>
             ))}
           </ul>
+          <InlineFailure error={error} />
+          {hasMore && (
+            <Button variant="outline" pending={loadingMore} onClick={loadMore}>
+              <Trans id="admin.group.matches.load-more">Load more</Trans>
+            </Button>
+          )}
         </DialogPanel>
       </DialogPopup>
     </Dialog>

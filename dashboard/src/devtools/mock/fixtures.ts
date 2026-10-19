@@ -26,6 +26,7 @@ import {
   clampCount,
   clampEnrollmentProviders,
   clampPairingExpiry,
+  clampRuleAccounts,
   type MockConfig,
   mockAdminListMax,
   mockListMax,
@@ -119,6 +120,11 @@ function field(source: unknown, key: string): unknown {
 function stringField(source: unknown, key: string): string | undefined {
   const value = field(source, key);
   return typeof value === "string" ? value : undefined;
+}
+
+function numberField(source: unknown, key: string): number | undefined {
+  const value = field(source, key);
+  return typeof value === "number" ? value : undefined;
 }
 
 function booleanField(source: unknown, key: string): boolean | undefined {
@@ -1138,33 +1144,37 @@ function groupDecisions(): ManualDecisionView[] {
   );
 }
 
-/** The server's default page size; a preview never evaluates more accounts. */
+/** The server's default page size for a preview. */
 const previewPageSize = 50;
 
+/**
+ * One page of a preview. Every active account is evaluated, so `matchedCount`
+ * is the whole total and the cursor (an offset here) walks all of them, each
+ * flagged matched or not, as the server's does.
+ */
 function groupPreview(
   config: MockConfig,
-  limit: number = previewPageSize,
+  { limit, cursor }: { limit?: number; cursor?: string } = {},
 ): RulePreviewPageView {
-  const items = Array.from(
-    {
-      length: Math.min(
-        clampAdminCount(config.admin.accounts),
-        limit > 0 ? limit : previewPageSize,
-      ),
-    },
-    (_, index) => ({
+  const size = limit !== undefined && limit > 0 ? limit : previewPageSize;
+  const total = clampRuleAccounts(config.admin.ruleAccounts);
+  const start = Math.min(total, Number(cursor) || 0);
+  const end = Math.min(total, start + size);
+  const items = Array.from({ length: end - start }, (_, offset) => {
+    const index = start + offset;
+    return {
       account: {
         id: index + 1,
         username: `mock-user-${index + 1}`,
         displayName: `Mock User ${index + 1}`,
       },
       matched: index % 2 === 0,
-    }),
-  );
+    };
+  });
   return {
     items,
-    matchedCount: items.filter((item) => item.matched).length,
-    nextCursor: "",
+    matchedCount: Math.ceil(total / 2),
+    nextCursor: end < total ? String(end) : "",
   };
 }
 
@@ -2154,10 +2164,9 @@ function readReply(
     case "/api/prohibitorum/groups/{groupId}/preview":
       return guarded(config, () =>
         json(
-          groupPreview(
-            config,
-            Number(new URL(request.url).searchParams.get("limit")),
-          ),
+          groupPreview(config, {
+            limit: Number(new URL(request.url).searchParams.get("limit")),
+          }),
         ),
       );
     case "/api/prohibitorum/groups/{groupId}/applications": {
@@ -3354,7 +3363,14 @@ function writeReply(
       // nobody, which is what the editor should show for an empty draft.
       const condition = field(body, "condition");
       const matches = hasLeaf(condition)
-        ? groupPreview(config)
+        ? groupPreview(config, {
+            ...(numberField(body, "limit") === undefined
+              ? {}
+              : { limit: numberField(body, "limit") as number }),
+            ...(stringField(body, "cursor") === undefined
+              ? {}
+              : { cursor: stringField(body, "cursor") as string }),
+          })
         : emptyPreview();
       return json(matches);
     }

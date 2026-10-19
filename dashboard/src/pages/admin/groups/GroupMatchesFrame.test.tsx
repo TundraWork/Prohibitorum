@@ -4,7 +4,7 @@ import { type QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { GroupPreviewView } from "@/api/raw-admin-paths";
+import type { AppAccessRule, GroupPreviewView } from "@/api/raw-admin-paths";
 import { createQueryClient } from "@/app/query-client";
 import { i18n } from "@/i18n";
 import { GroupMatchesFrame } from "@/pages/admin/groups/GroupMatchesFrame";
@@ -30,6 +30,11 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+const rule: AppAccessRule = {
+  version: 1,
+  condition: { fact: "login_method", method: "passkey" },
+};
+
 const account = (id: number, matched: boolean): GroupPreviewView => ({
   account: {
     id,
@@ -49,47 +54,78 @@ function accounts(matching: number, others = 0): GroupPreviewView[] {
   ];
 }
 
-async function mount(response: () => Response | Promise<Response>) {
-  fetchBoundary.mockImplementation(async () => response());
-  render(
-    <I18nProvider i18n={i18n}>
-      <QueryClientProvider client={queryClient}>
-        <GroupMatchesFrame groupId={7} />
-      </QueryClientProvider>
-    </I18nProvider>,
-  );
-  await screen.findByRole("heading", { level: 2, name: "Matches right now" });
+/**
+ * The rule-preview endpoint over a directory: every account, paged by an
+ * offset cursor, with the whole `matchedCount` on each page.
+ */
+function directory(
+  items: GroupPreviewView[],
+  { pageSize = 50, total }: { pageSize?: number; total?: number } = {},
+) {
+  return async (request: Request) => {
+    const { cursor } = (await request.clone().json()) as { cursor?: string };
+    const start = Number(cursor ?? 0);
+    const end = Math.min(items.length, start + pageSize);
+    return Response.json({
+      items: items.slice(start, end),
+      matchedCount: total ?? items.filter((item) => item.matched).length,
+      nextCursor: end < items.length ? String(end) : "",
+    });
+  };
 }
 
-const page = (items: GroupPreviewView[]) => () =>
-  Response.json({ items, nextCursor: "" });
+function view(currentRule: AppAccessRule = rule) {
+  return (
+    <I18nProvider i18n={i18n}>
+      <QueryClientProvider client={queryClient}>
+        <GroupMatchesFrame groupId={7} rule={currentRule} />
+      </QueryClientProvider>
+    </I18nProvider>
+  );
+}
+
+async function mount(
+  response: (request: Request) => Response | Promise<Response>,
+) {
+  fetchBoundary.mockImplementation(async (request) => response(request));
+  const result = render(view());
+  await screen.findByRole("heading", { level: 2, name: "Matches right now" });
+  return result;
+}
+
+const previews = () =>
+  fetchBoundary.mock.calls
+    .map(([request]) => request)
+    .filter((request) => request.url.endsWith("/groups/rule-preview"));
 
 describe("the matches frame", () => {
-  it("asks for a page of a known size", async () => {
-    await mount(page(accounts(2)));
+  it("asks about the saved rule, from the first page", async () => {
+    await mount(directory(accounts(2)));
     await screen.findByText("accounts match");
 
-    const request = fetchBoundary.mock.calls[0]?.[0] as Request;
-    expect(new URL(request.url).searchParams.get("limit")).toBe("50");
+    expect(previews()).toHaveLength(1);
+    expect(await previews()[0]?.clone().json()).toEqual({
+      version: 1,
+      condition: { fact: "login_method", method: "passkey" },
+    });
   });
 
-  it("counts the matches among the accounts it checked, and states no total", async () => {
-    await mount(page(accounts(3, 4)));
+  it("headlines the server's total, not what the first page holds", async () => {
+    await mount(directory(accounts(3, 4), { total: 137 }));
 
-    expect(await screen.findByText("3")).toBeVisible();
+    expect(await screen.findByText("137")).toBeVisible();
     expect(screen.getByText("accounts match")).toBeVisible();
-    expect(screen.queryByText(/of 7/)).toBeNull();
     expect(screen.queryByText(/first/i)).toBeNull();
   });
 
   it("says one account in the singular", async () => {
-    await mount(page(accounts(1, 2)));
+    await mount(directory(accounts(1, 2)));
 
     expect(await screen.findByText("account matches")).toBeVisible();
   });
 
   it("says so when nothing matches, and offers no list", async () => {
-    await mount(page(accounts(0, 3)));
+    await mount(directory(accounts(0, 3)));
 
     expect(
       await screen.findByText("No account matches the saved rule."),
@@ -98,8 +134,8 @@ describe("the matches frame", () => {
     expect(screen.queryByRole("button", { name: "See all" })).toBeNull();
   });
 
-  it("shows up to five matching accounts and how many more there are", async () => {
-    await mount(page(accounts(8, 2)));
+  it("shows up to five matching accounts and how many more the total holds", async () => {
+    await mount(directory(accounts(8, 2)));
 
     const list = await screen.findByRole("list", {
       name: "Some of the matching accounts",
@@ -112,15 +148,15 @@ describe("the matches frame", () => {
   });
 
   it("shows no overflow count when five or fewer match", async () => {
-    await mount(page(accounts(5)));
+    await mount(directory(accounts(5)));
 
     await screen.findByRole("list", { name: "Some of the matching accounts" });
     expect(screen.queryByText(/^\+/)).toBeNull();
   });
 
-  it("lists every matching account, and only those, under See all", async () => {
+  it("lists only the matching accounts under See all", async () => {
     const user = userEvent.setup();
-    await mount(page(accounts(7, 3)));
+    await mount(directory(accounts(7, 3)));
 
     await user.click(await screen.findByRole("button", { name: "See all" }));
 
@@ -129,35 +165,79 @@ describe("the matches frame", () => {
     });
     const rows = within(dialog).getAllByRole("listitem");
     expect(rows).toHaveLength(7);
-    // A name when it has one; the username is always the mono line.
     expect(within(rows[1] as HTMLElement).getByText("Person 2")).toBeVisible();
     expect(within(rows[1] as HTMLElement).getByText("@user2")).toBeVisible();
-    expect(within(rows[0] as HTMLElement).getByText("@user1")).toBeVisible();
     expect(within(dialog).queryByText("@user8")).toBeNull();
-    expect(within(dialog).queryByText(/Showing/)).toBeNull();
+    expect(
+      within(dialog).queryByRole("button", { name: "Load more" }),
+    ).toBeNull();
   });
 
-  it("states the cap when the page was full, in the frame and the dialog", async () => {
+  it("loads the next page of accounts on request and says how far it has got", async () => {
     const user = userEvent.setup();
-    await mount(page(accounts(10, 40)));
+    // Six matches among twelve accounts, three accounts a page.
+    const items = Array.from({ length: 12 }, (_, i) =>
+      account(i + 1, i % 2 === 0),
+    );
+    await mount(directory(items, { pageSize: 3 }));
 
-    expect(
-      await screen.findByText("Counted among the first 50 accounts."),
-    ).toBeVisible();
-    await user.click(screen.getByRole("button", { name: "See all" }));
+    await user.click(await screen.findByRole("button", { name: "See all" }));
     const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getAllByRole("listitem")).toHaveLength(2);
     expect(
-      within(dialog).getByText("Showing matches among the first 50 accounts."),
+      within(dialog).getByText("Showing 2 of 6 matching accounts so far."),
     ).toBeVisible();
+
+    await user.click(within(dialog).getByRole("button", { name: "Load more" }));
+    await waitFor(() =>
+      expect(within(dialog).getAllByRole("listitem")).toHaveLength(3),
+    );
+    const cursors = await Promise.all(
+      previews().map(
+        async (r) => ((await r.clone().json()) as { cursor?: string }).cursor,
+      ),
+    );
+    expect(cursors).toEqual([undefined, "3"]);
+
+    for (let page = 0; page < 3; page++) {
+      const more = within(dialog).queryByRole("button", { name: "Load more" });
+      if (more === null) break;
+      await user.click(more);
+      await waitFor(() => expect(previews().length).toBeGreaterThan(page + 2));
+    }
+    await waitFor(() =>
+      expect(within(dialog).getAllByRole("listitem")).toHaveLength(6),
+    );
+    expect(
+      within(dialog).queryByRole("button", { name: "Load more" }),
+    ).toBeNull();
+    expect(within(dialog).queryByText(/so far/)).toBeNull();
   });
 
-  it("tells a failed read in place, with a retry, and no toast", async () => {
+  it("counts again for a different saved rule", async () => {
+    let total = 2;
+    const { rerender } = await mount((request) =>
+      directory(accounts(2), { total })(request),
+    );
+    expect(await screen.findByText("2")).toBeVisible();
+
+    total = 9;
+    rerender(
+      view({
+        version: 1,
+        condition: { fact: "login_method", method: "federation" },
+      }),
+    );
+
+    expect(await screen.findByText("9")).toBeVisible();
+    expect(previews()).toHaveLength(2);
+  });
+
+  it("tells a failed read in place, and no toast", async () => {
     await mount(() => apiError("internal_error", 500));
 
-    expect(
-      await screen.findByText("This section could not be loaded"),
-    ).toBeVisible();
-    expect(screen.getByRole("button", { name: "Try again" })).toBeVisible();
+    expect(await screen.findByRole("alert")).toBeVisible();
+    expect(screen.queryByRole("button", { name: "See all" })).toBeNull();
     await waitFor(() => expect(notifyError).not.toHaveBeenCalled());
   });
 });

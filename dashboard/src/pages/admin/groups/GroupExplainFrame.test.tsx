@@ -151,15 +151,26 @@ describe("the account check", () => {
     mount();
 
     await choose(user, /Ana Lima/);
-    await screen.findByRole("list", { name: "Conditions" });
+    const tree = await screen.findByRole("list", { name: "Conditions" });
 
+    // The root's conditions hold the "any" group, whose own list holds GitHub.
+    const [rootChildren, anyChildren] = within(tree).getAllByRole(
+      "list",
+    ) as HTMLElement[];
+    expect(
+      within(rootChildren as HTMLElement).getByText("Signs in with a passkey"),
+    ).toBeVisible();
+    expect(
+      within(rootChildren as HTMLElement).getByText("Is connected to GitHub"),
+    ).toBeVisible();
+    expect(
+      within(anyChildren as HTMLElement).getByText("Is connected to GitHub"),
+    ).toBeVisible();
+    expect(
+      within(anyChildren as HTMLElement).queryByText("Signs in with a passkey"),
+    ).toBeNull();
     const github = screen.getByText("Is connected to GitHub").closest("li");
     const passkey = screen.getByText("Signs in with a passkey").closest("li");
-    expect(github).not.toBeNull();
-    // Two lists deep under the root, one deeper than the passkey row.
-    expect((github as HTMLElement).closest("ul")).not.toBe(
-      (passkey as HTMLElement).closest("ul"),
-    );
     expect(github).toHaveTextContent("Does not apply:");
     expect(passkey).toHaveTextContent("Applies:");
   });
@@ -191,7 +202,23 @@ describe("the account check", () => {
     await choose(user, /Ana Lima/);
 
     const raw = await screen.findByText("geo.region=nl");
-    expect(raw).toHaveClass("font-mono");
+    expect(raw).toHaveAttribute("data-raw-label");
+  });
+
+  it("draws a provider the catalogue lacks by its slug, as an identifier", async () => {
+    const user = userEvent.setup();
+    mount(() =>
+      Response.json({
+        account: accounts[0],
+        explanation: leaf("$", "connection.provider=retired", false),
+      }),
+    );
+
+    await choose(user, /Ana Lima/);
+
+    const slug = await screen.findByText("retired");
+    expect(slug).toHaveAttribute("data-literal");
+    expect(slug.parentElement).toHaveTextContent("Is connected to retired");
   });
 
   it("reads the next account when another is chosen", async () => {

@@ -662,24 +662,27 @@ describe("mocked management directory", () => {
     ]);
   });
 
-  it("evaluates no more accounts for a saved group's preview than the limit asks", () => {
-    const current = config((draft) => {
-      draft.admin.accounts = 50;
-    });
-    const path = "/api/prohibitorum/groups/{groupId}/preview";
-    const count = (limit: string) =>
-      (
-        bodyOf(
-          read(
-            path,
-            current,
-            `http://localhost/api/prohibitorum/groups/8/preview${limit}`,
-          ),
-        ) as { items: unknown[] }
-      ).items.length;
+  it("pages a rule's accounts by cursor with the whole total on every page", () => {
+    const current = writes();
+    current.admin.ruleAccounts = 120;
+    const draft = { fact: "login_method", method: "passkey" };
+    const page = (cursor?: string) =>
+      bodyOf(
+        call("POST", "/api/prohibitorum/groups/rule-preview", current, {
+          version: 1,
+          condition: draft,
+          ...(cursor === undefined ? {} : { cursor }),
+        }),
+      ) as { items: unknown[]; matchedCount: number; nextCursor: string };
 
-    expect(count("")).toBe(50);
-    expect(count("?limit=12")).toBe(12);
+    const first = page();
+    expect(first.items).toHaveLength(50);
+    expect(first.matchedCount).toBe(60);
+    expect(first.nextCursor).not.toBe("");
+    const last = page(page(first.nextCursor).nextCursor);
+    expect(last.items).toHaveLength(20);
+    expect(last.matchedCount).toBe(60);
+    expect(last.nextCursor).toBe("");
   });
 
   it("explains an account with the labels the server writes", () => {

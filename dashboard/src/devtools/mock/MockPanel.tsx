@@ -16,6 +16,7 @@ import {
   mockLoginImagesMax,
   mockPairingExpiryMax,
   mockPairingExpiryMin,
+  mockRuleAccountsMax,
   resetMockConfig,
   subscribeMockConfig,
   updateMockConfig,
@@ -527,6 +528,16 @@ export function MockPanel() {
             onChange={(next) =>
               updateMockConfig((draft) => {
                 draft.admin.accounts = next;
+              })
+            }
+          />
+          <Count
+            label="Rule accounts"
+            max={mockRuleAccountsMax}
+            value={config.admin.ruleAccounts}
+            onChange={(next) =>
+              updateMockConfig((draft) => {
+                draft.admin.ruleAccounts = next;
               })
             }
           />

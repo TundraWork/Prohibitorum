@@ -67,6 +67,12 @@ export interface MockConfig {
    */
   admin: {
     accounts: number;
+    /**
+     * Active accounts a rule is evaluated against. Apart from `accounts`
+     * because a rule's total is not bounded by the directory page and a
+     * walkthrough needs one larger than a page of matches.
+     */
+    ruleAccounts: number;
     groups: number;
     invitations: number;
     /** Audit log entries, paged like the directory and capped the same. */
@@ -270,6 +276,14 @@ export const mockListMax = 10;
  */
 export const mockAdminListMax = 50;
 
+/** Upper bound for the accounts a rule is evaluated against. */
+export const mockRuleAccountsMax = 500;
+
+export function clampRuleAccounts(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  return Math.max(0, Math.min(mockRuleAccountsMax, Math.floor(value)));
+}
+
 /** How many rows one mocked cursor page carries. */
 export const mockPageSize = 5;
 
@@ -311,6 +325,7 @@ export const defaultMockConfig: MockConfig = {
   },
   admin: {
     accounts: 12,
+    ruleAccounts: 12,
     groups: 3,
     invitations: 4,
     auditEvents: 24,

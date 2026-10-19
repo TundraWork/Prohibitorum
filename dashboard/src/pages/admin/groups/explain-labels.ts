@@ -58,34 +58,45 @@ const protocolSentence = msg({
   message: "Is connected through {protocol}",
 });
 
+/** A sentence, and the part of it that is an identifier the caller draws in monospace. */
+export interface ExplainSentence {
+  text: string;
+  literal?: string;
+}
+
 /**
  * The sentence for one explanation label, or `undefined` for a key the console
  * has no words for, which the caller draws as it arrived. `providerName` turns
- * a provider's slug into its name, and falls back to the slug itself.
+ * a provider's slug into its name; for a slug it does not know, the sentence
+ * carries the slug as its `literal`.
  */
 export function explainSentence(
   label: string,
   t: Translate,
-  providerName: (slug: string) => string,
-): string | undefined {
+  providerName: (slug: string) => string | undefined,
+): ExplainSentence | undefined {
   const combinator = combinatorSentences[label];
-  if (combinator !== undefined) return t(combinator);
+  if (combinator !== undefined) return { text: t(combinator) };
   const fact = factSentences[label];
-  if (fact !== undefined) return t(fact);
+  if (fact !== undefined) return { text: t(fact) };
   const separator = label.indexOf("=");
   if (separator < 0) return undefined;
   const key = label.slice(0, separator);
   const value = label.slice(separator + 1);
   if (key === "connection.provider") {
-    const provider = providerName(value);
-    return t({ ...providerSentence, values: { provider } });
+    const name = providerName(value);
+    const provider = name ?? value;
+    return {
+      text: t({ ...providerSentence, values: { provider } }),
+      ...(name === undefined ? { literal: value } : {}),
+    };
   }
   if (
     key === "connection.protocol" &&
     (value === "oidc" || value === "steam" || value === "vrchat")
   ) {
     const protocol = t(providerProtocolLabel(value));
-    return t({ ...protocolSentence, values: { protocol } });
+    return { text: t({ ...protocolSentence, values: { protocol } }) };
   }
   return undefined;
 }

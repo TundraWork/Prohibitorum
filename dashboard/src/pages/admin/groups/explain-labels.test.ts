@@ -8,15 +8,18 @@ const sentence = (label: string, names: Record<string, string> = {}) =>
   explainSentence(
     label,
     (descriptor) => i18n._(descriptor),
-    (slug) => names[slug] ?? slug,
+    (slug) => names[slug],
   );
 
 describe("the sentence for an explanation label", () => {
-  it("names a provider, or its slug when the catalogue lacks it", () => {
-    expect(sentence("connection.provider=uni", { uni: "University SSO" })).toBe(
-      "Is connected to University SSO",
-    );
-    expect(sentence("connection.provider=gone")).toBe("Is connected to gone");
+  it("names a provider, or marks its slug as a literal when the catalogue lacks it", () => {
+    expect(
+      sentence("connection.provider=uni", { uni: "University SSO" }),
+    ).toEqual({ text: "Is connected to University SSO" });
+    expect(sentence("connection.provider=gone")).toEqual({
+      text: "Is connected to gone",
+      literal: "gone",
+    });
   });
 
   it("has no words for a protocol or a key it does not know", () => {

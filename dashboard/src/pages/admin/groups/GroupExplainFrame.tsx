@@ -16,7 +16,10 @@ import {
 import { InlineFailure } from "@/components/custom/InlineFailure";
 import { Section } from "@/components/custom/Section";
 import { Spinner } from "@/components/ui/spinner";
-import { explainSentence } from "@/pages/admin/groups/explain-labels";
+import {
+  type ExplainSentence,
+  explainSentence,
+} from "@/pages/admin/groups/explain-labels";
 
 const heading = {
   id: "check-account",
@@ -106,7 +109,7 @@ function Explanation({
       provider.displayName,
     ]),
   );
-  const providerName = (slug: string) => names.get(slug) ?? slug;
+  const providerName = (slug: string) => names.get(slug);
 
   if (explanation.isError) return <InlineFailure error={explanation.error} />;
   // The tree waits for the provider names too, so a name never replaces a slug
@@ -114,13 +117,7 @@ function Explanation({
   if (explanation.data === undefined || providers.isPending) {
     return (
       <p className="flex items-center gap-2 text-muted-foreground text-sm">
-        <Spinner
-          aria-label={t({
-            id: "admin.group.explain.loading",
-            message: "Checking",
-          })}
-          className="size-4"
-        />
+        <Spinner aria-hidden="true" className="size-4" />
         <Trans id="admin.group.explain.checking">Checking this account</Trans>
       </p>
     );
@@ -146,16 +143,38 @@ function Explanation({
           <Trans id="admin.group.explain.out">Not in this group</Trans>
         </p>
       )}
-      <ul
-        aria-label={t({
-          id: "admin.group.explain.conditions",
-          message: "Conditions",
-        })}
-        className="flex flex-col gap-1.5 text-sm"
-      >
-        <ExplainNode node={root} providerName={providerName} />
-      </ul>
+      {/* Bounded, so the side column stays within the window; the box is
+          focusable so a keyboard can scroll it. */}
+      <div className="rounded-lg border bg-muted/40">
+        <ul
+          aria-label={t({
+            id: "admin.group.explain.conditions",
+            message: "Conditions",
+          })}
+          // biome-ignore lint/a11y/noNoninteractiveTabindex: a scrolling region must take focus to be scrolled by keyboard
+          tabIndex={0}
+          className="flex max-h-36 flex-col gap-1.5 overflow-y-auto p-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <ExplainNode node={root} providerName={providerName} />
+        </ul>
+      </div>
     </div>
+  );
+}
+
+/** A sentence with its identifier, if it has one, in monospace. */
+function SentenceText({ sentence }: { sentence: ExplainSentence }) {
+  const { text, literal } = sentence;
+  const at = literal === undefined ? -1 : text.indexOf(literal);
+  if (literal === undefined || at < 0) return text;
+  return (
+    <>
+      {text.slice(0, at)}
+      <span data-literal="" className="break-all font-mono text-xs">
+        {literal}
+      </span>
+      {text.slice(at + literal.length)}
+    </>
   );
 }
 
@@ -165,7 +184,7 @@ function ExplainNode({
   providerName,
 }: {
   node: ExplanationView;
-  providerName: (slug: string) => string;
+  providerName: (slug: string) => string | undefined;
 }) {
   const { t } = useLingui();
   const sentence = explainSentence(node.label, t, providerName);
@@ -192,9 +211,14 @@ function ExplainNode({
           )}
         </span>
         {sentence !== undefined ? (
-          <span className="min-w-0 text-pretty">{sentence}</span>
+          <span className="min-w-0 text-pretty">
+            <SentenceText sentence={sentence} />
+          </span>
         ) : (
-          <span className="min-w-0 break-all font-mono text-xs">
+          <span
+            data-raw-label=""
+            className="min-w-0 break-all font-mono text-xs"
+          >
             {node.label}
           </span>
         )}

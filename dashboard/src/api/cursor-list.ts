@@ -38,12 +38,12 @@ export const cursorPagesMarker = { pages: "cursor" } as const;
  * The caller's key is the resource's prefix, so invalidating that prefix still
  * reaches the list; `cursorPagesMarker` is appended to it here.
  */
-export function cursorListOptions<T>(options: {
+export function cursorListOptions<T, Extra extends object = object>(options: {
   queryKey: readonly unknown[];
   queryFn: (args: {
     cursor?: string;
     signal: AbortSignal;
-  }) => Promise<CursorPage<T>>;
+  }) => Promise<CursorPage<T> & Extra>;
   /** Carried to the cache, e.g. `quietQuery`'s marker for a page that shows the failure itself. */
   meta?: Record<string, unknown>;
 }) {
@@ -62,16 +62,21 @@ export function cursorListOptions<T>(options: {
         ...(pageParam === undefined ? {} : { cursor: pageParam }),
         signal,
       }),
-    getNextPageParam: (last: CursorPage<T>) => last.nextCursor || undefined,
+    getNextPageParam: (last: CursorPage<T> & Extra) =>
+      last.nextCursor || undefined,
   };
 }
 
-export function useCursorList<T>(options: {
+/**
+ * `Extra` names a field a page carries beside its rows, which `pages` then
+ * exposes.
+ */
+export function useCursorList<T, Extra extends object = object>(options: {
   queryKey: readonly unknown[];
   queryFn: (args: {
     cursor?: string;
     signal: AbortSignal;
-  }) => Promise<CursorPage<T>>;
+  }) => Promise<CursorPage<T> & Extra>;
   meta?: Record<string, unknown>;
   /**
    * `false` while the question is not finished — a date range with no end —
@@ -80,19 +85,21 @@ export function useCursorList<T>(options: {
   enabled?: boolean;
 }) {
   const query = useInfiniteQuery<
-    CursorPage<T>,
+    CursorPage<T> & Extra,
     Error,
-    InfiniteData<CursorPage<T>>,
+    InfiniteData<CursorPage<T> & Extra>,
     readonly unknown[],
     string | undefined
   >({
-    ...cursorListOptions(options),
+    ...cursorListOptions<T, Extra>(options),
     enabled: options.enabled ?? true,
   });
 
   const pages = query.data?.pages ?? [];
   return {
     items: pages.flatMap((page) => page.items ?? []),
+    /** The pages as the server sent them, for a field a page carries beside its rows. */
+    pages,
     /**
      * The first page is still on its way; there is nothing to draw yet. A list
      * that is not asking has nothing on its way.

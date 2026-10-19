@@ -43,8 +43,6 @@ function open(group: AppGroupView, used: GroupApplicationView[] = []) {
     [`GET ${base}/groups/${group.id}/applications`]: () =>
       Response.json({ items: used, nextCursor: "" }),
     [`GET ${base}/groups/providers`]: () => Response.json([]),
-    [`GET ${base}/groups/${group.id}/preview`]: () =>
-      Response.json({ items: [], nextCursor: "" }),
     [`POST ${base}/groups/rule-preview`]: () =>
       Response.json({ matchedCount: 0, items: [], nextCursor: "" }),
     [`GET ${base}/me/sudo/methods`]: () =>
@@ -240,58 +238,89 @@ describe("deleting the group", () => {
 });
 
 describe("saving the rule", () => {
-  it("counts the matches again from the rule it saved", async () => {
-    const user = userEvent.setup();
+  /** A rule group with the side column's reads, and a rule save that changes the count. */
+  function openRuleGroup() {
     let stored = ruleGroupFixture();
     let matched = 2;
+    const empty = () => Response.json({ items: [], nextCursor: "" });
     const api = fakeApi({
       ...publicApi({ ...testSession, role: "admin" }),
-      [`GET ${base}/oidc-applications`]: () =>
-        Response.json({ items: [], nextCursor: "" }),
-      [`GET ${base}/saml-applications`]: () =>
-        Response.json({ items: [], nextCursor: "" }),
-      [`GET ${base}/forward-auth-apps`]: () =>
-        Response.json({ items: [], nextCursor: "" }),
+      [`GET ${base}/oidc-applications`]: empty,
+      [`GET ${base}/saml-applications`]: empty,
+      [`GET ${base}/forward-auth-apps`]: empty,
       [`GET ${base}/groups/8`]: () => Response.json(stored),
-      [`GET ${base}/groups/8/applications`]: () =>
-        Response.json({ items: [], nextCursor: "" }),
+      [`GET ${base}/groups/8/applications`]: empty,
       [`GET ${base}/groups/providers`]: () => Response.json([]),
-      [`GET ${base}/groups/8/preview`]: () =>
+      [`GET ${base}/accounts`]: () =>
         Response.json({
-          items: Array.from({ length: matched }, (_, index) => ({
-            account: {
-              id: index + 1,
-              username: `user${index + 1}`,
-              displayName: "",
+          items: [
+            {
+              id: 4,
+              username: "ana",
+              displayName: "Ana Lima",
+              disabled: false,
             },
-            matched: true,
-          })),
-          nextCursor: "",
+          ],
+        }),
+      [`GET ${base}/groups/8/explain/4`]: () =>
+        Response.json({
+          account: { id: 4, username: "ana", displayName: "Ana Lima" },
+          explanation: {
+            path: "$",
+            label: "login_method=passkey",
+            result: matched > 2,
+          },
         }),
       [`POST ${base}/groups/rule-preview`]: () =>
-        Response.json({ matchedCount: 3, items: [], nextCursor: "" }),
+        Response.json({ matchedCount: matched, items: [], nextCursor: "" }),
       [`PUT ${base}/groups/8`]: async (request) => {
         stored = { ...stored, ...(await request.json()) };
         matched = 3;
         return Response.json(stored);
       },
     });
-    renderApp("/admin/groups/8", queryClient);
-    const side = await screen.findByRole("complementary", {
-      name: "Group context",
-    });
-    expect(await within(side).findByText("2")).toBeVisible();
+    return api;
+  }
 
+  async function saveAnEditedRule(user: ReturnType<typeof userEvent.setup>) {
     await user.click(
       screen.getAllByRole("button", {
         name: "Add condition",
       })[0] as HTMLElement,
     );
     await user.click(await screen.findByRole("button", { name: "Save rule" }));
+  }
+
+  it("counts the matches again for the rule it saved", async () => {
+    const user = userEvent.setup();
+    openRuleGroup();
+    renderApp("/admin/groups/8", queryClient);
+    const side = await screen.findByRole("complementary", {
+      name: "Group context",
+    });
+    expect(await within(side).findByText("2")).toBeVisible();
+
+    await saveAnEditedRule(user);
 
     expect(await within(side).findByText("3")).toBeVisible();
-    expect(api.sent("GET", `${base}/groups/8/preview`).length).toBeGreaterThan(
-      1,
-    );
+  });
+
+  it("reads the checked account's explanation again for the rule it saved", async () => {
+    const user = userEvent.setup();
+    const api = openRuleGroup();
+    renderApp("/admin/groups/8", queryClient);
+    const side = await screen.findByRole("complementary", {
+      name: "Group context",
+    });
+    await user.click(await within(side).findByRole("combobox"));
+    await user.click(await screen.findByRole("option", { name: /Ana Lima/ }));
+    expect(await within(side).findByText("Not in this group")).toBeVisible();
+
+    await saveAnEditedRule(user);
+
+    expect(await within(side).findByText("In this group")).toBeVisible();
+    expect(
+      api.sent("GET", `${base}/groups/8/explain/4`).length,
+    ).toBeGreaterThan(1);
   });
 });

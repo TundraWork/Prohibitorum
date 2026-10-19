@@ -94,12 +94,16 @@ function GroupColumns({ group }: { group: AppGroupView }) {
       </div>
       <aside
         aria-label={t({ id: "admin.group.side", message: "Group context" })}
-        className="flex min-w-0 flex-col gap-6 lg:sticky lg:top-[calc(var(--app-sticky-offset)+5rem)] lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:self-start"
+        className="flex min-w-0 flex-col gap-6 lg:sticky lg:top-[calc(var(--app-sticky-offset)+5rem)] lg:max-h-[calc(var(--app-viewport-height)-var(--app-sticky-offset)-6rem)] lg:overflow-y-auto lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:self-start"
       >
-        {isRule && (
+        {isRule && group.rule !== undefined && (
           <>
-            <GroupMatchesFrame groupId={group.id} />
-            <GroupExplainFrame key={group.id} groupId={group.id} />
+            <GroupMatchesFrame
+              key={`matches-${group.id}`}
+              groupId={group.id}
+              rule={group.rule}
+            />
+            <GroupExplainFrame key={`explain-${group.id}`} groupId={group.id} />
           </>
         )}
         <GroupUsedBySection groupId={group.id} />

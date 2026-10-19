@@ -1696,11 +1696,6 @@ msgstr "正在检查"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/groups/GroupExplainFrame.tsx
-msgid "admin.group.explain.loading"
-msgstr "正在检查"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/groups/GroupExplainFrame.tsx
 msgid "admin.group.explain.checking"
 msgstr "正在检查此账号"
 
@@ -2540,11 +2535,6 @@ msgstr "无法从 Unsplash 获取照片。"
 #: src/pages/admin/settings/LoginPreview.tsx
 msgid "settings.sign-in.preview.bing_failed"
 msgstr "无法从 Bing 获取图片。"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/groups/GroupMatchesFrame.tsx
-msgid "admin.group.matches.capped"
-msgstr "统计范围为前 {limit} 个账号。"
 
 #. js-lingui-explicit-id
 #: src/pages/public/Enroll.tsx
@@ -4767,6 +4757,11 @@ msgstr "只能绑定到已有账号，不会创建新账号，邀请链接也不
 #: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.protocol.vrchat.hint"
 msgstr "把 VRChat 身份绑定到已有账号，需要一个 VRChat 运营账号。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupMatchesFrame.tsx
+msgid "admin.group.matches.load-more"
+msgstr "加载更多"
 
 #. js-lingui-explicit-id
 #: src/components/custom/EntityPicker.tsx
@@ -7415,8 +7410,8 @@ msgstr "显示图片标题和版权信息"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/groups/GroupMatchesFrame.tsx
-msgid "admin.group.matches.dialog.capped"
-msgstr "仅显示前 {limit} 个账号中的匹配项。"
+msgid "admin.group.matches.dialog.partial"
+msgstr "目前已显示 {total} 个匹配账号中的 {shown} 个。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/MaintenancePanel.tsx
