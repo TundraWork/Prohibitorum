@@ -4,7 +4,7 @@ import { useStore } from "@tanstack/react-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { LogInIcon, ShieldIcon, UserRoundIcon } from "lucide-react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { isCancellation } from "@/api/errors";
 import { createInvitationMutationOptions } from "@/api/mutations";
 import {
@@ -22,7 +22,7 @@ import type { EntityOption } from "@/components/custom/EntityPicker";
 import { PageBody } from "@/components/custom/PageBody";
 import { PageHeader } from "@/components/custom/PageHeader";
 import { SecretRevealDialog } from "@/components/custom/SecretReveal";
-import { Section } from "@/components/custom/Section";
+import { Section, SectionFailure } from "@/components/custom/Section";
 import { invitationLinkCopyWithExpiry } from "@/components/custom/secret-reveal-copy";
 import { RadioGroup } from "@/components/ui/radio-group";
 import { applyServerError } from "@/forms/server-errors";
@@ -40,20 +40,13 @@ const groupIdInvalid = msg({
 /**
  * Creates one invitation.
  *
- * An invitation is the only way an account comes into being, so this form
- * decides everything about the account up front: its role, the manual groups it
- * joins, and optionally the upstream provider and username it is bound to.
- *
- * Two server behaviours shape the body. An empty string is not the same request
- * as an omitted field — the server validates `username` and rejects a slug it
- * does not know — so fields left blank are dropped rather than sent empty. And
- * a provider that is disabled or not ready cannot sign anyone in: an invitation
- * bound to one would be un-redeemable, so the picker offers only providers that
- * can actually authenticate.
+ * An empty string is not the same request as an omitted field (the server
+ * validates `username` and rejects a slug it does not know), so blank fields
+ * are dropped. A provider that is disabled, not ready or link-only cannot
+ * redeem an invitation, so the picker does not offer it.
  *
  * The link comes back once, so it is revealed in a dialog that holds the page
- * until it is saved; the failure of a create is drawn on the form or the field
- * it belongs to, and never also as a toast.
+ * until it is saved.
  */
 export function AdminInvitationForm() {
   const { t, i18n } = useLingui();
@@ -144,7 +137,10 @@ export function AdminInvitationForm() {
   );
   const enforced = providersById.get(chosenSlug.trim())?.allowSignIn === false;
   const wasEnforced = useRef(false);
-  if (enforced !== wasEnforced.current) {
+  // An effect, not render: setting a field while the form renders updates a
+  // component that is mid-render.
+  useEffect(() => {
+    if (enforced === wasEnforced.current) return;
     wasEnforced.current = enforced;
     if (enforced) {
       form.setFieldValue("requireLocalCredential", true, {
@@ -153,7 +149,7 @@ export function AdminInvitationForm() {
     } else {
       form.resetField("requireLocalCredential");
     }
-  }
+  }, [enforced, form]);
 
   return (
     <>
@@ -264,6 +260,17 @@ export function AdminInvitationForm() {
                   )}
                 </form.AppField>
 
+                {groups.isError && (
+                  <SectionFailure
+                    title={
+                      <Trans id="admin.invitations.new.groups-failed">
+                        The user groups could not be loaded
+                      </Trans>
+                    }
+                    error={groups.error}
+                    onRetry={() => void groups.refetch()}
+                  />
+                )}
                 <form.AppField name="groupIds">
                   {(field) => (
                     <field.GroupPicker
@@ -299,14 +306,25 @@ export function AdminInvitationForm() {
               }
             >
               <div className="flex flex-col gap-6">
+                {providers.isError && (
+                  <SectionFailure
+                    title={
+                      <Trans id="admin.invitations.new.providers-failed">
+                        The providers could not be loaded
+                      </Trans>
+                    }
+                    error={providers.error}
+                    onRetry={() => void providers.refetch()}
+                  />
+                )}
                 <form.AppField name="expectedUpstreamIdpSlug">
                   {(field) => (
                     <field.IdentityProviderPicker
                       description={
                         <Trans id="admin.invitations.new.provider.hint">
-                          Optional. Only providers that are enabled and ready
-                          are offered; the invited person must sign in through
-                          the one chosen here.
+                          Optional. Providers that are disabled, not ready or
+                          link-only are not offered; the invited person must
+                          sign in through the one chosen here.
                         </Trans>
                       }
                       loading={providers.isPending}

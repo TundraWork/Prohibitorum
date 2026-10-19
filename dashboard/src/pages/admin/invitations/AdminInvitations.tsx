@@ -10,7 +10,7 @@ import {
   Plus,
   UserRound,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useCursorList } from "@/api/cursor-list";
 import type { components } from "@/api/generated/schema";
 import { revokeInvitationMutationOptions } from "@/api/mutations";
@@ -55,15 +55,10 @@ const revokeUnnamed = msg({
 });
 
 /**
- * The invitations still waiting to be used.
- *
- * The server lists only unused, unexpired invitations, so there is no status to
- * show: a row leaves the list when it is redeemed, expires or is revoked. The
- * registration link in each row is a bearer value, so it is copied rather than
- * printed.
- *
- * `groupIds` is what the invitation was created with and `groups` only the
- * subset still resolving, so a row where the two disagree is flagged.
+ * The invitations still waiting to be used. The server lists only unused,
+ * unexpired ones, so a row has no status: it leaves the list when redeemed,
+ * expired or revoked. The registration link is a bearer value, so a row copies
+ * it rather than printing it.
  */
 export function AdminInvitations() {
   const { t, i18n } = useLingui();
@@ -98,7 +93,7 @@ export function AdminInvitations() {
           fallback={<UserRound className="size-4" aria-hidden="true" />}
           name={
             invitation.username ? (
-              invitation.username
+              <span className="font-mono">@{invitation.username}</span>
             ) : (
               <span className="text-muted-foreground">
                 <Trans id="admin.invitations.username.later">
@@ -135,18 +130,20 @@ export function AdminInvitations() {
       header: <Trans id="admin.invitations.column.groups">User groups</Trans>,
       cell: (invitation) => {
         const groups = invitation.groups ?? [];
-        if (groups.length === 0) {
-          return <span className="text-muted-foreground">—</span>;
-        }
-        const names = groups.map((group) => group.displayName).join(", ");
         // A shorter resolved list than the saved ids means a group was deleted
         // after the invitation was created; the invitation still carries it.
         const missing = groups.length < (invitation.groupIds ?? []).length;
+        if (groups.length === 0 && !missing) {
+          return <span className="text-muted-foreground">—</span>;
+        }
+        const names = groups.map((group) => group.displayName).join(", ");
         return (
           <span className="flex min-w-0 flex-col">
-            <span className="min-w-0 truncate" title={names}>
-              {names}
-            </span>
+            {groups.length > 0 && (
+              <span className="min-w-0 truncate" title={names}>
+                {names}
+              </span>
+            )}
             {missing && (
               <span className="truncate text-muted-foreground text-xs">
                 <Trans id="admin.invitations.groups.missing">
@@ -184,8 +181,7 @@ export function AdminInvitations() {
                   ? i18n._({ ...copyNamed, values: { name } })
                   : i18n._(copyUnnamed)
               }
-              onFailed={() => setCopyFailed(true)}
-              onCopied={() => setCopyFailed(false)}
+              onCopied={(ok) => setCopyFailed(!ok)}
             />
             <Button
               aria-label={
@@ -230,6 +226,14 @@ export function AdminInvitations() {
 
       <div className="flex flex-col gap-4">
         {listFailed && <InlineFailure error={list.error} />}
+        {providers.isError && (
+          <p className="text-muted-foreground text-sm">
+            <Trans id="admin.invitations.providers-failed">
+              Provider names could not be loaded, so providers are shown by
+              their identifier.
+            </Trans>
+          </p>
+        )}
         <InlineFailure error={failure.error} />
         {copyFailed && (
           <SurfaceAlert status="danger" role="alert">
@@ -313,26 +317,21 @@ export function AdminInvitations() {
 
 /**
  * The registration link as an affordance rather than a value: it is a bearer
- * token, so the row offers to copy it and confirms with a check. A refused
- * clipboard is reported above the table, where there is room to say so.
+ * token, so the row offers to copy it and confirms with a check. The outcome is
+ * reported from the press itself, so a refusal on one row cannot outlive a
+ * later success on another.
  */
 function CopyLink({
   url,
   label,
-  onFailed,
   onCopied,
 }: {
   url: string;
   label: string;
-  onFailed: () => void;
-  onCopied: () => void;
+  onCopied: (ok: boolean) => void;
 }) {
   const { t } = useLingui();
-  const { state, copy } = useCopyValue();
-  useEffect(() => {
-    if (state === "failed") onFailed();
-    if (state === "copied") onCopied();
-  }, [state, onFailed, onCopied]);
+  const { state, confirm } = useCopyValue();
 
   return (
     <Button
@@ -341,7 +340,15 @@ function CopyLink({
           ? t({ id: "admin.invitations.copy.done", message: "Copied." })
           : label
       }
-      onClick={() => copy(url)}
+      onClick={() => {
+        navigator.clipboard.writeText(url).then(
+          () => {
+            confirm();
+            onCopied(true);
+          },
+          () => onCopied(false),
+        );
+      }}
       variant="ghost"
       size="icon-sm"
     >

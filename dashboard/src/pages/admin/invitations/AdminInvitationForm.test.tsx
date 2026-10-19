@@ -311,3 +311,24 @@ describe("the new link", () => {
     );
   });
 });
+
+describe("a failed read", () => {
+  it.each([
+    ["groups", `GET ${base}/groups`, "The user groups could not be loaded"],
+    [
+      "providers",
+      `GET ${base}/identity-providers`,
+      "The providers could not be loaded",
+    ],
+  ])(
+    "tells a failed %s read once, in the page",
+    async (_name, route, title) => {
+      serve([corp()], { [route]: () => apiError("internal", 500) });
+      await mount();
+
+      expect(await screen.findByText(title)).toBeVisible();
+      expect(screen.getAllByRole("alert")).toHaveLength(1);
+      expect(notifyError).not.toHaveBeenCalled();
+    },
+  );
+});

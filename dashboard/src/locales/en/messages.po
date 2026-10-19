@@ -6011,7 +6011,7 @@ msgstr "Optional. Leave it empty to store no address."
 #. js-lingui-explicit-id
 #: src/pages/admin/invitations/AdminInvitationForm.tsx
 msgid "admin.invitations.new.provider.hint"
-msgstr "Optional. Only providers that are enabled and ready are offered; the invited person must sign in through the one chosen here."
+msgstr "Optional. Providers that are disabled, not ready or link-only are not offered; the invited person must sign in through the one chosen here."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/groups/AdminGroupNew.tsx
@@ -6417,6 +6417,11 @@ msgstr "Provider identities"
 #: src/pages/admin/identity-providers/StageRow.tsx
 msgid "admin.federation.diagnostics.stage.provider-message-line"
 msgstr "Provider message: <0>{description}</0>"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/invitations/AdminInvitations.tsx
+msgid "admin.invitations.providers-failed"
+msgstr "Provider names could not be loaded, so providers are shown by their identifier."
 
 #. js-lingui-explicit-id
 #: src/api/success-messages.ts
@@ -8752,6 +8757,11 @@ msgid "admin.users.filter.providers-failed"
 msgstr "The providers could not be loaded"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/invitations/AdminInvitationForm.tsx
+msgid "admin.invitations.new.providers-failed"
+msgstr "The providers could not be loaded"
+
+#. js-lingui-explicit-id
 #: src/components/custom/TotpSetup.tsx
 msgid "login.reset.qr_failed"
 msgstr "The QR code could not be displayed. Enter the setup key manually."
@@ -8875,6 +8885,11 @@ msgstr "The Unsplash keyword can't be used. Choose Unsplash to correct it."
 #: src/components/custom/AppAccessSection.tsx
 msgid "app.access.open.kept"
 msgstr "The user groups below are kept and apply again when you restrict this application."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/invitations/AdminInvitationForm.tsx
+msgid "admin.invitations.new.groups-failed"
+msgstr "The user groups could not be loaded"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/OidcScopesField.tsx

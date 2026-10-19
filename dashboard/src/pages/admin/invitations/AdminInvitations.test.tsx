@@ -67,6 +67,8 @@ async function mount(api: FakeApi) {
   return { api, router };
 }
 
+let api: FakeApi;
+
 describe("the page", () => {
   it("says the list holds only waiting invitations and offers Invite a user", async () => {
     await mount(serve(page([plain])));
@@ -107,7 +109,7 @@ describe("a row", () => {
     await mount(serve(page([plain, bound])));
     const table = await screen.findByRole("table", { name: "Invitations" });
 
-    const row = within(table).getByText("dana").closest("tr");
+    const row = within(table).getByText("@dana").closest("tr");
     if (row === null) throw new Error("no row");
     expect(within(row).getByText("Admin")).toBeVisible();
     expect(within(row).getByText("Corporate SSO")).toBeVisible();
@@ -156,7 +158,7 @@ describe("paging", () => {
     );
     renderApp("/admin/invitations", queryClient);
 
-    expect(await screen.findByText("dana")).toBeVisible();
+    expect(await screen.findByText("@dana")).toBeVisible();
     expect(api.sent("GET", listPath)[1]?.url.searchParams.get("cursor")).toBe(
       "c2",
     );
@@ -194,6 +196,60 @@ describe("copying the link", () => {
     );
 
     expect(await screen.findByText(/Could not copy the link/)).toBeVisible();
+  });
+});
+
+describe("a copy failure", () => {
+  it("is cleared by a later successful copy on another row", async () => {
+    const user = userEvent.setup();
+    await mount(serve(page([plain, bound])));
+    const writeText = vi.spyOn(navigator.clipboard, "writeText");
+    const [first] = await screen.findAllByRole("button", {
+      name: /^Copy the registration link/,
+    });
+
+    writeText.mockRejectedValueOnce(new Error("blocked"));
+    await user.click(first as HTMLElement);
+    expect(await screen.findByText(/Could not copy the link/)).toBeVisible();
+
+    writeText.mockResolvedValueOnce();
+    // The banner re-renders the table, so the second row's button is read again.
+    const [, second] = screen.getAllByRole("button", {
+      name: /^Copy the registration link/,
+    });
+    await user.click(second as HTMLElement);
+    await waitFor(() =>
+      expect(screen.queryByText(/Could not copy the link/)).toBeNull(),
+    );
+  });
+});
+
+describe("a row's groups", () => {
+  it("says the groups are gone when every one was deleted", async () => {
+    await mount(
+      serve(
+        page([invitationFixture({ token: "gone", groupIds: [9], groups: [] })]),
+      ),
+    );
+
+    expect(
+      await screen.findByText("(some groups no longer exist)"),
+    ).toBeVisible();
+  });
+});
+
+describe("the provider names", () => {
+  it("falls back to the identifier and says why when they cannot be read", async () => {
+    api = serve(page([bound]));
+    api.routes[`GET ${base}/identity-providers`] = () =>
+      apiError("internal", 500);
+    renderApp("/admin/invitations", queryClient);
+
+    expect(
+      await screen.findByText(/Provider names could not be loaded/),
+    ).toBeVisible();
+    expect(await screen.findByText("corp")).toBeVisible();
+    expect(notifyError).not.toHaveBeenCalled();
   });
 });
 

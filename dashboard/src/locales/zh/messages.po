@@ -6011,7 +6011,7 @@ msgstr "可选。留空则不保存邮箱地址。"
 #. js-lingui-explicit-id
 #: src/pages/admin/invitations/AdminInvitationForm.tsx
 msgid "admin.invitations.new.provider.hint"
-msgstr "可选。只列出已启用且就绪的提供商；受邀人必须通过此处选择的提供商登录。"
+msgstr "可选。已禁用、未就绪或仅限绑定的提供商不会列出；受邀人必须通过此处选择的提供商登录。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/groups/AdminGroupNew.tsx
@@ -6417,6 +6417,11 @@ msgstr "提供商身份"
 #: src/pages/admin/identity-providers/StageRow.tsx
 msgid "admin.federation.diagnostics.stage.provider-message-line"
 msgstr "提供商返回的信息：<0>{description}</0>"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/invitations/AdminInvitations.tsx
+msgid "admin.invitations.providers-failed"
+msgstr "无法加载提供商名称，因此按标识符显示提供商。"
 
 #. js-lingui-explicit-id
 #: src/api/success-messages.ts
@@ -8752,6 +8757,11 @@ msgid "admin.users.filter.providers-failed"
 msgstr "无法加载提供商"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/invitations/AdminInvitationForm.tsx
+msgid "admin.invitations.new.providers-failed"
+msgstr "无法加载提供商"
+
+#. js-lingui-explicit-id
 #: src/components/custom/TotpSetup.tsx
 msgid "login.reset.qr_failed"
 msgstr "无法显示二维码。请手动输入设置密钥。"
@@ -8875,6 +8885,11 @@ msgstr "Unsplash 关键词无法使用。请选择 Unsplash 进行修改。"
 #: src/components/custom/AppAccessSection.tsx
 msgid "app.access.open.kept"
 msgstr "下面的用户组已保留，重新限制后生效。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/invitations/AdminInvitationForm.tsx
+msgid "admin.invitations.new.groups-failed"
+msgstr "无法加载用户组"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/OidcScopesField.tsx
