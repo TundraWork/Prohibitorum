@@ -84,16 +84,26 @@ export function ProviderOperatorSection({ provider }: { provider: Provider }) {
   return (
     <>
       <SettingRow
-        title={<SessionBadge status={provider.secretStatus} />}
+        title={
+          <Trans id="admin.federation.operator.label">Operator account</Trans>
+        }
         description={
-          provider.secretValidatedAt === null ? undefined : (
-            <Trans id="admin.federation.operator.validated">
-              Checked <RelativeTime value={provider.secretValidatedAt} />
+          <>
+            <Trans id="admin.federation.operator.note">
+              The session this instance holds for that account.
             </Trans>
-          )
+            {provider.secretValidatedAt !== null && (
+              <span className="block">
+                <Trans id="admin.federation.operator.validated">
+                  Checked <RelativeTime value={provider.secretValidatedAt} />
+                </Trans>
+              </span>
+            )}
+          </>
         }
       >
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-3">
+          <SessionBadge status={provider.secretStatus} />
           {configured && (
             <Button
               pending={validate.isPending}
@@ -104,7 +114,13 @@ export function ProviderOperatorSection({ provider }: { provider: Provider }) {
               <Trans id="admin.federation.operator.check">Check</Trans>
             </Button>
           )}
-          <Button onClick={openSignIn}>
+          {/* Checking is the routine action while the session works, so
+              signing in again only takes the primary weight once it has
+              expired or was never set up. */}
+          <Button
+            onClick={openSignIn}
+            variant={provider.secretStatus === "valid" ? "outline" : "default"}
+          >
             <RotateCwIcon aria-hidden="true" />
             {configured ? (
               <Trans id="admin.federation.operator.replace">

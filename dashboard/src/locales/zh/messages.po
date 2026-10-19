@@ -1567,7 +1567,7 @@ msgstr "先检查运营账号才能启用。"
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderOperatorSection.tsx
 msgid "admin.federation.operator.validated"
-msgstr "检查于 <0/>"
+msgstr "检查于<0/>"
 
 #. js-lingui-explicit-id
 #: src/components/custom/AppAccessSection.tsx
@@ -5434,9 +5434,14 @@ msgid "admin.federation.protocol.oidc"
 msgstr "OpenID Connect"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderOperatorSection.tsx
+msgid "admin.federation.operator.label"
+msgstr "运营账号"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/AdminIdentityProvider.tsx
 msgid "admin.federation.operator.title"
-msgstr "运营账号"
+msgstr "运营账号会话"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-readiness.tsx
@@ -8112,6 +8117,11 @@ msgid "login.maintenance.admin_only"
 msgstr "服务正在维护，只有管理员可以登录。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderOperatorSection.tsx
+msgid "admin.federation.operator.note"
+msgstr "这个实例为该账号保存的会话。"
+
+#. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.login_images_full"
 msgstr "登录页已有 10 张图片。移除一张后才能继续添加。"
@@ -9355,6 +9365,11 @@ msgstr "访客可切换"
 #: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.protocol.vrchat"
 msgstr "VRChat"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProvider.tsx
+msgid "admin.federation.operator.description"
+msgstr "VRChat 没有客户端凭据，所以这个实例用一个专属账号登录来读取个人资料。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts

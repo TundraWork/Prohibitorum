@@ -5434,6 +5434,11 @@ msgid "admin.federation.protocol.oidc"
 msgstr "OpenID Connect"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderOperatorSection.tsx
+msgid "admin.federation.operator.label"
+msgstr "Operator account"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/AdminIdentityProvider.tsx
 msgid "admin.federation.operator.title"
 msgstr "Operator session"
@@ -8112,6 +8117,11 @@ msgid "login.maintenance.admin_only"
 msgstr "The service is undergoing maintenance. Only administrators can sign in."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderOperatorSection.tsx
+msgid "admin.federation.operator.note"
+msgstr "The session this instance holds for that account."
+
+#. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.login_images_full"
 msgstr "The sign-in page already has 10 images. Remove one to add another."
@@ -9355,6 +9365,11 @@ msgstr "Visitor's choice"
 #: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.protocol.vrchat"
 msgstr "VRChat"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProvider.tsx
+msgid "admin.federation.operator.description"
+msgstr "VRChat has no client credentials, so this instance signs in as an account of its own to read profiles."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts

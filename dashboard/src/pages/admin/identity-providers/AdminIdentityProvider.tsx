@@ -136,6 +136,12 @@ export function AdminIdentityProvider({
           title={
             <Trans id="admin.federation.operator.title">Operator session</Trans>
           }
+          description={
+            <Trans id="admin.federation.operator.description">
+              VRChat has no client credentials, so this instance signs in as an
+              account of its own to read profiles.
+            </Trans>
+          }
         >
           <ProviderOperatorSection provider={provider} />
         </Section>

@@ -88,7 +88,34 @@ describe("the session's state", () => {
     expect(screen.getByText(/^Checked/)).toHaveTextContent("Checked yesterday");
     expect(screen.getByRole("button", { name: "Check" })).toBeVisible();
     expect(screen.getByRole("button", { name: "Sign in again" })).toBeVisible();
+    // The row names what it is, and the badge sits with the actions.
+    expect(screen.getByText("Operator account")).toBeVisible();
+    const actions = screen.getByText("Session valid").parentElement;
+    expect(actions).toContainElement(
+      screen.getByRole("button", { name: "Check" }),
+    );
   });
+
+  it("makes Check the routine action while the session works", () => {
+    mount(provider({ secretStatus: "valid" }));
+    expect(
+      screen.getByRole("button", { name: "Sign in again" }),
+    ).toHaveAttribute("data-variant", "outline");
+  });
+
+  it.each([
+    ["unconfigured", "Sign in"],
+    ["invalid", "Sign in again"],
+  ])(
+    "makes signing in the primary action when the session is %s",
+    (secretStatus, name) => {
+      mount(provider({ secretStatus }));
+      expect(screen.getByRole("button", { name })).toHaveAttribute(
+        "data-variant",
+        "default",
+      );
+    },
+  );
 
   it("says an expired session expired", () => {
     mount(provider({ secretStatus: "invalid" }));
