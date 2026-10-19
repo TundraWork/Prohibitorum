@@ -14,7 +14,5 @@ minimumReleaseAgeExclude:
   - '@babel/parser@8.0.6'
   - '@babel/traverse@8.0.6'
   - '@babel/types@8.0.6'
-  - '@heroui/react@3.2.6'
-  - '@heroui/styles@3.2.6'
 allowBuilds:
   esbuild: true

@@ -35,24 +35,12 @@ HTMLElement.prototype.scrollIntoView = vi.fn();
 // Router scroll restoration calls scrollTo, which jsdom only logs as not implemented.
 window.scrollTo = vi.fn();
 
-// react-aria inspects CSS transitions on shared-element updates; jsdom has no
+// Base UI waits out exit animations through getAnimations; jsdom has no
 // animations, so an empty list is the honest answer.
 HTMLElement.prototype.getAnimations = () => [];
 
 // input-otp probes password-manager overlays with a hit test jsdom does not implement.
 document.elementFromPoint = () => null;
-
-// Browsers define focus() on the Document; jsdom does not. react-aria's toast
-// region restores focus to whatever a focusout carried as relatedTarget, and
-// a dialog closing over a paused toast can make that the document itself.
-const documentFocus = (document as Document & { focus?: () => void }).focus;
-if (typeof documentFocus !== "function") {
-  Object.defineProperty(document, "focus", {
-    configurable: true,
-    writable: true,
-    value: () => {},
-  });
-}
 
 // Find queries (findBy*) wait out the suite's own load tolerance: the config
 // already raises testTimeout for runs on a loaded machine, and a find whose

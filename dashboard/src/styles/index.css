@@ -1,10 +1,4 @@
 @import "./coss.css";
-/*
- * OverlayScrollbars draws its own scrollbars, so its stylesheet has to come
- * after the theme: it is unlayered, which puts it above Tailwind's layers, and
- * a later unlayered rule is what lets `os-theme-app` below restate the colours.
- */
-@import "overlayscrollbars/overlayscrollbars.css";
 
 @font-face {
   font-family: "Cal Sans";
@@ -69,36 +63,6 @@
   html:not(.dark) .surface-glass-controls {
     --popover: var(--background);
   }
-}
-
-/*
- * The OverlayScrollbars theme the app uses (`ScrollArea` passes the name to the
- * `scrollbars.theme` option). The library's own `os-theme-light`/`os-theme-dark`
- * are hard-coded greys; this one derives the handle from the coss
- * `--muted-foreground` token, so it follows the light/dark theme without any
- * script. The class name must match the option string.
- *
- * `--os-track-bg` is left unset, so only the handle paints and the track stays
- * clear.
- */
-.os-theme-app {
-  --os-size: 10px;
-  --os-padding-perpendicular: 0px;
-  --os-padding-axis: 2px;
-  --os-track-border-radius: 10px;
-  --os-handle-border-radius: 10px;
-  --os-handle-bg: color-mix(in oklab, var(--muted-foreground) 40%, transparent);
-  --os-handle-bg-hover: color-mix(
-    in oklab,
-    var(--muted-foreground) 55%,
-    transparent
-  );
-  --os-handle-bg-active: color-mix(
-    in oklab,
-    var(--muted-foreground) 70%,
-    transparent
-  );
-  --os-handle-min-size: 33px;
 }
 
 /*
