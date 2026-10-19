@@ -24,8 +24,7 @@ import { ItemList, ItemListRow } from "@/components/custom/ItemList";
  * button is disabled while the applications read says any do, and the row
  * states in words how many and what to do. Until that read answers, the button
  * waits; if it fails the button is left to the server, which gives the same
- * refusal as `group_in_use`. Deleting asks for a fresh identity check. The
- * dialog stays open while the write is in flight, and a refusal is shown once,
+ * refusal as `group_in_use`. The dialog stays open while the write is in flight, and a refusal is shown once,
  * under the row.
  */
 export function GroupDangerSection({ group }: { group: AppGroupView }) {

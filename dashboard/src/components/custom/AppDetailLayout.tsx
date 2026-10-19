@@ -1,10 +1,11 @@
 import type { ReactNode } from "react";
 import { OutlineRail } from "@/components/custom/OutlineRail";
+import { SectionRegistryProvider } from "@/components/custom/SectionRegistry";
 import {
-  SectionRegistryProvider,
-  useRegisteredSections,
-} from "@/components/custom/SectionRegistry";
-import { UnsavedBar } from "@/components/custom/UnsavedBar";
+  UnsavedBar,
+  unsavedReserveClass,
+  useUnsavedReserve,
+} from "@/components/custom/UnsavedBar";
 
 /**
  * The frame of an application's page: the object header, the sections in one
@@ -52,12 +53,12 @@ function Columns({
   facts?: ReactNode;
   children: ReactNode;
 }): React.ReactElement {
-  const dirty = useRegisteredSections().some((section) => section.dirty);
+  const reserve = useUnsavedReserve();
   return (
     <div
       data-slot="detail-columns"
-      data-reserving={dirty ? "true" : undefined}
-      className="mt-8 grid items-start gap-10 data-reserving:pb-24 lg:grid-cols-[minmax(0,1fr)_200px]"
+      {...reserve}
+      className={`mt-8 grid items-start gap-10 ${unsavedReserveClass} lg:grid-cols-[minmax(0,1fr)_200px]`}
     >
       <div className="flex min-w-0 flex-col gap-6">{children}</div>
       <OutlineRail facts={facts} className="hidden lg:grid" />

@@ -5,7 +5,6 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AppGroupView, GroupApplicationView } from "@/api/raw-admin-paths";
-import { configureSudo, resetSudo } from "@/api/sudo";
 import { createQueryClient } from "@/app/query-client";
 import { i18n } from "@/i18n";
 import { GroupDangerSection } from "@/pages/admin/groups/GroupDangerSection";
@@ -32,16 +31,9 @@ beforeEach(() => {
     notifyError,
     vi.fn<(message: MessageDescriptor) => void>(),
   );
-  configureSudo({
-    queryClient,
-    set: () => {},
-    setFresh: () => {},
-    getFresh: () => true,
-  });
 });
 
 afterEach(() => {
-  resetSudo();
   queryClient.clear();
   vi.unstubAllGlobals();
 });
@@ -78,9 +70,6 @@ function mount(
         return apiError("internal_error", 500);
       }
       return Response.json({ items: used, nextCursor: "" });
-    }
-    if (path.endsWith("/me/sudo/methods")) {
-      return Response.json({ methods: ["password_totp"], fresh: true });
     }
     return new Response(null, { status: 204 });
   });

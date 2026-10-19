@@ -11,8 +11,8 @@ export type ObjectStatus =
   | "sign-in-on"
   | "sign-in-off"
   | "not-ready"
-  | "offered"
-  | "not-offered";
+  | "sent"
+  | "not-sent";
 
 interface ObjectHeaderProps {
   /** The entity's icon tile. */
@@ -62,13 +62,10 @@ export function ObjectHeader({
       message: "Sign-in off",
     }),
     "not-ready": t({ id: "object.status.not-ready", message: "Not ready" }),
-    offered: t({
-      id: "object.status.offered",
-      message: "Offered to applications",
-    }),
-    "not-offered": t({
-      id: "object.status.not-offered",
-      message: "Not offered",
+    sent: t({ id: "object.status.sent", message: "Sent to applications" }),
+    "not-sent": t({
+      id: "object.status.not-sent",
+      message: "Not sent to applications",
     }),
   };
   const statusVariant: Record<ObjectStatus, "success" | "outline" | "warning"> =
@@ -80,8 +77,8 @@ export function ObjectHeader({
       "sign-in-on": "outline",
       "sign-in-off": "outline",
       "not-ready": "warning",
-      offered: "outline",
-      "not-offered": "outline",
+      sent: "success",
+      "not-sent": "outline",
     };
 
   const meta: ReactNode[] = [];
@@ -95,7 +92,9 @@ export function ObjectHeader({
         {statuses.map((status) => (
           <li key={status}>
             <Badge variant={statusVariant[status]}>
-              {(status === "enabled" || status === "not-ready") && (
+              {(status === "enabled" ||
+                status === "not-ready" ||
+                status === "sent") && (
                 <span
                   aria-hidden="true"
                   className="size-1.5 rounded-full bg-current"

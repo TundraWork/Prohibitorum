@@ -2,9 +2,14 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { HandIcon, ListFilterIcon } from "lucide-react";
 import { groupQueryOptions } from "@/api/queries";
+import type { AppGroupView } from "@/api/raw-admin-paths";
 import { ObjectHeader } from "@/components/custom/ObjectHeader";
 import { SectionRegistryProvider } from "@/components/custom/SectionRegistry";
-import { UnsavedBar } from "@/components/custom/UnsavedBar";
+import {
+  UnsavedBar,
+  unsavedReserveClass,
+  useUnsavedReserve,
+} from "@/components/custom/UnsavedBar";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { GroupDangerSection } from "@/pages/admin/groups/GroupDangerSection";
@@ -43,7 +48,7 @@ export function AdminGroup({ groupId }: { groupId: number }) {
           </span>
         }
         title={group.displayName}
-        statuses={[group.exposedToDownstream ? "offered" : "not-offered"]}
+        statuses={[group.exposedToDownstream ? "sent" : "not-sent"]}
         identifier={{
           value: group.slug,
           label: t({
@@ -64,22 +69,35 @@ export function AdminGroup({ groupId }: { groupId: number }) {
         ]}
       />
 
-      <div className="mt-8 grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_300px]">
-        <div className="flex min-w-0 flex-col gap-6 lg:col-start-1 lg:row-start-1">
-          <GroupDetailsSection group={group} />
-          {isRule && <LegacyRuleSection group={group} />}
-        </div>
-        <aside
-          aria-label={t({ id: "admin.group.side", message: "Group context" })}
-          className="flex min-w-0 flex-col gap-6 lg:col-start-2 lg:row-span-2 lg:row-start-1"
-        >
-          <GroupUsedBySection groupId={group.id} />
-        </aside>
-        <div className="min-w-0 lg:col-start-1 lg:row-start-2">
-          <GroupDangerSection group={group} />
-        </div>
-      </div>
+      <GroupColumns group={group} />
       <UnsavedBar />
     </SectionRegistryProvider>
+  );
+}
+
+/** The page's columns. A separate component so it can read the section registry. */
+function GroupColumns({ group }: { group: AppGroupView }) {
+  const { t } = useLingui();
+  const isRule = group.kind === "rule";
+  const reserve = useUnsavedReserve();
+  return (
+    <div
+      {...reserve}
+      className={`mt-8 grid items-start gap-10 ${unsavedReserveClass} lg:grid-cols-[minmax(0,1fr)_300px]`}
+    >
+      <div className="flex min-w-0 flex-col gap-6 lg:col-start-1 lg:row-start-1">
+        <GroupDetailsSection group={group} />
+        {isRule && <LegacyRuleSection group={group} />}
+      </div>
+      <aside
+        aria-label={t({ id: "admin.group.side", message: "Group context" })}
+        className="flex min-w-0 flex-col gap-6 lg:sticky lg:top-[calc(var(--app-sticky-offset)+5rem)] lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:self-start"
+      >
+        <GroupUsedBySection groupId={group.id} />
+      </aside>
+      <div className="min-w-0 lg:col-start-1 lg:row-start-2">
+        <GroupDangerSection group={group} />
+      </div>
+    </div>
   );
 }

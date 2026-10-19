@@ -1,18 +1,26 @@
 import type { QueryClient } from "@tanstack/react-query";
-import { screen, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AppGroupView, GroupApplicationView } from "@/api/raw-admin-paths";
 import { createQueryClient } from "@/app/query-client";
 import { i18n } from "@/i18n";
-import { fakeApi, publicApi, renderApp, testSession } from "@/test/app";
+import {
+  apiError,
+  fakeApi,
+  publicApi,
+  renderApp,
+  testSession,
+} from "@/test/app";
 import { groupFixture, ruleGroupFixture } from "@/test/group";
 
 let queryClient: QueryClient;
+const notifyError = vi.fn<(error: unknown) => void>();
 
 beforeEach(() => {
   i18n.activate("en");
-  queryClient = createQueryClient(() => undefined);
+  notifyError.mockReset();
+  queryClient = createQueryClient(notifyError);
 });
 
 afterEach(() => {
@@ -62,7 +70,7 @@ describe("the group header", () => {
       screen.getByRole("button", { name: "Copy the identifier" }),
     ).toBeVisible();
     const statuses = screen.getByRole("list", { name: "Status" });
-    expect(statuses).toHaveTextContent("Offered to applications");
+    expect(statuses).toHaveTextContent("Sent to applications");
   });
 
   it("names a rule group by its kind", async () => {
@@ -70,7 +78,7 @@ describe("the group header", () => {
 
     expect(within(header()).getByText("Rule group")).toBeVisible();
     expect(screen.getByRole("list", { name: "Status" })).toHaveTextContent(
-      "Not offered",
+      "Not sent to applications",
     );
   });
 });
@@ -147,5 +155,52 @@ describe("saving the details", () => {
     ).toBeVisible();
     expect(api.sent("PUT", `${base}/groups/7`)).toHaveLength(1);
     expect(screen.queryByRole("button", { name: "Save" })).toBeNull();
+  });
+});
+
+describe("deleting the group", () => {
+  it("leaves for the list without an error toast for the record it just removed", async () => {
+    const user = userEvent.setup();
+    let deleted = false;
+    const api = fakeApi({
+      ...publicApi({ ...testSession, role: "admin" }),
+      [`GET ${base}/oidc-applications`]: () =>
+        Response.json({ items: [], nextCursor: "" }),
+      [`GET ${base}/saml-applications`]: () =>
+        Response.json({ items: [], nextCursor: "" }),
+      [`GET ${base}/forward-auth-apps`]: () =>
+        Response.json({ items: [], nextCursor: "" }),
+      // Once deleted, every read of the group is a 404, as on the server.
+      [`GET ${base}/groups/7`]: () =>
+        deleted
+          ? apiError("group_not_found", 404)
+          : Response.json(groupFixture()),
+      [`GET ${base}/groups/7/applications`]: () =>
+        deleted
+          ? apiError("group_not_found", 404)
+          : Response.json({ items: [], nextCursor: "" }),
+      [`GET ${base}/groups`]: () =>
+        Response.json(deleted ? [] : [groupFixture()]),
+      [`POST ${base}/groups/7/delete`]: () => {
+        deleted = true;
+        return new Response(null, { status: 204 });
+      },
+    });
+    const router = renderApp("/admin/groups/7", queryClient);
+    await screen.findByRole("heading", { level: 1, name: "Staff" });
+
+    const remove = screen.getByRole("button", { name: "Delete" });
+    await waitFor(() => expect(remove).toBeEnabled());
+    await user.click(remove);
+    const dialog = await screen.findByRole("alertdialog");
+    await user.click(
+      within(dialog).getByRole("button", { name: "Delete group" }),
+    );
+
+    await waitFor(() =>
+      expect(router.state.location.pathname).toBe("/admin/groups"),
+    );
+    expect(api.sent("POST", `${base}/groups/7/delete`)).toHaveLength(1);
+    expect(notifyError).not.toHaveBeenCalled();
   });
 });

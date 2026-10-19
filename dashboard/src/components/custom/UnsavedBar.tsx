@@ -3,6 +3,18 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/custom/Button";
 import { useRegisteredSections } from "@/components/custom/SectionRegistry";
 
+/** Bottom padding that keeps the last row clear of the floating bar. */
+export const unsavedReserveClass = "data-reserving:pb-24";
+
+/**
+ * The attribute that turns `unsavedReserveClass` on while any section on the
+ * page has unsaved edits. Spread it on the element that holds the sections.
+ */
+export function useUnsavedReserve(): { "data-reserving"?: "true" } {
+  const dirty = useRegisteredSections().some((section) => section.dirty);
+  return dirty ? { "data-reserving": "true" } : {};
+}
+
 /**
  * A floating reminder that a section has unsaved edits the reader has scrolled
  * away from. It shows for the first dirty section that is off screen and

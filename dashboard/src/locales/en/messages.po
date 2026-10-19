@@ -5252,11 +5252,6 @@ msgid "require-identity.not-now"
 msgstr "Not now, return to {app}"
 
 #. js-lingui-explicit-id
-#: src/components/custom/ObjectHeader.tsx
-msgid "object.status.not-offered"
-msgstr "Not offered"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ConnectionTestDialog.tsx
 msgid "admin.federation.diagnostics.identity.missing"
 msgstr "Not provided"
@@ -5275,6 +5270,11 @@ msgstr "Not ready"
 #: src/pages/admin/identity-providers/ClaimMappingTable.tsx
 msgid "admin.federation.claims.returned.unknown"
 msgstr "not reported"
+
+#. js-lingui-explicit-id
+#: src/components/custom/ObjectHeader.tsx
+msgid "object.status.not-sent"
+msgstr "Not sent to applications"
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
@@ -5340,11 +5340,6 @@ msgstr "Notifications"
 #: src/components/custom/ValueSet.tsx
 msgid "value-set.offered"
 msgstr "Offered by this provider"
-
-#. js-lingui-explicit-id
-#: src/components/custom/ObjectHeader.tsx
-msgid "object.status.offered"
-msgstr "Offered to applications"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts
@@ -7064,6 +7059,11 @@ msgstr "Sends this group's identifier to the applications that selected it, in t
 #: src/components/custom/principal-sources.ts
 msgid "principal-source.verified-email.hint"
 msgstr "Sent only while the address is verified and no other account uses it; otherwise the request is refused."
+
+#. js-lingui-explicit-id
+#: src/components/custom/ObjectHeader.tsx
+msgid "object.status.sent"
+msgstr "Sent to applications"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/AdminForwardAuthAppNew.tsx

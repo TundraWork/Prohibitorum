@@ -5252,11 +5252,6 @@ msgid "require-identity.not-now"
 msgstr "暂不验证，返回 {app}"
 
 #. js-lingui-explicit-id
-#: src/components/custom/ObjectHeader.tsx
-msgid "object.status.not-offered"
-msgstr "未提供"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ConnectionTestDialog.tsx
 msgid "admin.federation.diagnostics.identity.missing"
 msgstr "未提供"
@@ -5275,6 +5270,11 @@ msgstr "未就绪"
 #: src/pages/admin/identity-providers/ClaimMappingTable.tsx
 msgid "admin.federation.claims.returned.unknown"
 msgstr "未报告"
+
+#. js-lingui-explicit-id
+#: src/components/custom/ObjectHeader.tsx
+msgid "object.status.not-sent"
+msgstr "未发送给应用"
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
@@ -5340,11 +5340,6 @@ msgstr "通知"
 #: src/components/custom/ValueSet.tsx
 msgid "value-set.offered"
 msgstr "此提供方支持的值"
-
-#. js-lingui-explicit-id
-#: src/components/custom/ObjectHeader.tsx
-msgid "object.status.offered"
-msgstr "已提供给应用"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts
@@ -7064,6 +7059,11 @@ msgstr "把本组的标识发送给选用了它的应用，包括 groups 声明�
 #: src/components/custom/principal-sources.ts
 msgid "principal-source.verified-email.hint"
 msgstr "仅在邮箱已验证且未被其他账号使用时发送，否则请求会被拒绝。"
+
+#. js-lingui-explicit-id
+#: src/components/custom/ObjectHeader.tsx
+msgid "object.status.sent"
+msgstr "已发送给应用"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/AdminForwardAuthAppNew.tsx

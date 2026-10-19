@@ -1006,8 +1006,7 @@ export function deleteAccountMutationOptions(queryClient: QueryClient) {
         sudoReason.deleteAccount,
       );
     },
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: ["admin", "accounts"] }),
+    onSuccess: () => invalidateAfterDelete(queryClient, ["admin", "accounts"]),
   });
 }
 
@@ -1101,6 +1100,21 @@ export function revokeAccountSessionsMutationOptions(queryClient: QueryClient) {
   });
 }
 
+/**
+ * Marks a family of reads stale after a delete without refetching any of them.
+ *
+ * The page that deleted the record is still mounted until its navigation runs,
+ * and a refetch of the record's own key would answer 404 and raise an error
+ * toast for something the reader just did on purpose. The list the page
+ * navigates to is not mounted yet, so it refetches when it opens.
+ */
+function invalidateAfterDelete(
+  queryClient: QueryClient,
+  queryKey: readonly unknown[],
+) {
+  return queryClient.invalidateQueries({ queryKey, refetchType: "none" });
+}
+
 /* ------------------------------------------------------------ groups -- */
 
 function invalidateGroup(queryClient: QueryClient, groupId: number) {
@@ -1144,7 +1158,7 @@ export function updateGroupMutationOptions(queryClient: QueryClient) {
 
 /**
  * The backend refuses to delete a group an application still selects, so the
- * caller disables the control while `applicationCount` is non-zero and lets
+ * caller disables the control while an application uses the group and lets
  * `group_in_use` cover the race.
  */
 export function deleteGroupMutationOptions(queryClient: QueryClient) {
@@ -1156,8 +1170,7 @@ export function deleteGroupMutationOptions(queryClient: QueryClient) {
         params: { path: { groupId } },
       });
     },
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: ["admin", "groups"] }),
+    onSuccess: () => invalidateAfterDelete(queryClient, ["admin", "groups"]),
   });
 }
 
@@ -1593,7 +1606,8 @@ export function deleteIdentityProviderMutationOptions(
         sudoReason.deleteIdentityProvider,
       );
     },
-    onSuccess: () => invalidateIdentityProviders(queryClient),
+    onSuccess: () =>
+      invalidateAfterDelete(queryClient, ["admin", "identity-providers"]),
   });
 }
 
@@ -1971,7 +1985,7 @@ export function deleteOidcAppMutationOptions(queryClient: QueryClient) {
       );
     },
     onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: applicationQueryPrefix.oidc }),
+      invalidateAfterDelete(queryClient, applicationQueryPrefix.oidc),
   });
 }
 
@@ -2050,9 +2064,7 @@ export function deleteForwardAuthAppMutationOptions(queryClient: QueryClient) {
       );
     },
     onSuccess: () =>
-      queryClient.invalidateQueries({
-        queryKey: applicationQueryPrefix.forward_auth,
-      }),
+      invalidateAfterDelete(queryClient, applicationQueryPrefix.forward_auth),
   });
 }
 
@@ -2141,7 +2153,7 @@ export function deleteSamlAppMutationOptions(queryClient: QueryClient) {
       );
     },
     onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: applicationQueryPrefix.saml }),
+      invalidateAfterDelete(queryClient, applicationQueryPrefix.saml),
   });
 }
 
