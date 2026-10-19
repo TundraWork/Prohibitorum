@@ -28,6 +28,12 @@ msgid "{0, plural, one {# address} other {# addresses}}"
 msgstr "{0, plural, one {# address} other {# addresses}}"
 
 #. js-lingui-explicit-id
+#. placeholder {0}: removing.length
+#: src/pages/admin/oidc-applications/ClientConfigSection.tsx
+msgid "admin.oidc-apps.scopes.remove.action-label"
+msgstr "{0, plural, one {Remove scope and save} other {Remove scopes and save}}"
+
+#. js-lingui-explicit-id
 #: src/pages/public/Consent.tsx
 msgid "consent.title.more"
 msgstr "{app} is asking for more access"
@@ -291,9 +297,14 @@ msgstr "A permission defined by the app"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
-#: src/pages/admin/oidc-applications/SignInRulesSection.tsx
+#: src/pages/admin/oidc-applications/ClientConfigSection.tsx
 msgid "admin.oidc-apps.field.pkce.public"
 msgstr "A public client always proves the request it started."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/CredentialsSection.tsx
+msgid "admin.oidc-apps.credentials.public"
+msgstr "A public client has no secret. It proves each sign-in request with PKCE instead."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-validation.ts
@@ -717,11 +728,6 @@ msgid "settings.keys.column.algorithm"
 msgstr "Algorithm"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/AliasTableField.tsx
-msgid "admin.oidc-apps.aliases.row"
-msgstr "Alias {row}"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
 msgid "admin.group.rule.group.all"
 msgstr "All of these"
@@ -1041,7 +1047,7 @@ msgstr "Approved. Signing in…"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
-#: src/pages/admin/oidc-applications/SignInRulesSection.tsx
+#: src/pages/admin/oidc-applications/ClientConfigSection.tsx
 msgid "admin.oidc-apps.field.consent.hint"
 msgstr "Ask the account to approve the scopes before signing them in."
 
@@ -1380,6 +1386,11 @@ msgid "security.password.change.action"
 msgstr "Change password"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/IdentityProjectionSection.tsx
+msgid "admin.oidc-apps.subject.action-label"
+msgstr "Change subject and save"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
 msgid "admin.federation.claims.subject.confirm.title"
 msgstr "Change the subject claim?"
@@ -1398,6 +1409,11 @@ msgstr "Change the user identifier?"
 #: src/pages/admin/audit-vocabulary.ts
 msgid "audit.event.update"
 msgstr "Changed"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/IdentityProjectionSection.tsx
+msgid "admin.oidc-apps.subject.consequence"
+msgstr "Changing the subject source signs everyone out of every client."
 
 #. js-lingui-explicit-id
 #: src/components/custom/OtpField.tsx
@@ -1550,13 +1566,7 @@ msgid "admin.federation.effective.auth-method"
 msgstr "Client authentication"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/ClientConfigSection.tsx
-msgid "admin.oidc-apps.client"
-msgstr "Client configuration"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
-#: src/pages/admin/oidc-applications/ClientConfigSection.tsx
 msgid "admin.oidc-apps.field.client-id"
 msgstr "Client ID"
 
@@ -1591,6 +1601,11 @@ msgstr "Client IP"
 #: src/api/success-messages.ts
 msgid "success.client-ip.saved"
 msgstr "Client IP settings saved"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/CredentialsSection.tsx
+msgid "admin.oidc-apps.credentials.secret"
+msgstr "Client secret"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/secret-copy.ts
@@ -1628,6 +1643,11 @@ msgstr "Clients can sign accounts in again straight away. Accounts that signed i
 #: src/pages/admin/oidc-applications/DangerSection.tsx
 msgid "admin.oidc-apps.enable.note"
 msgstr "Clients can sign accounts in again. Nothing else about the application changes."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/ClientConfigSection.tsx
+msgid "admin.oidc-apps.scopes.remove.consequence"
+msgstr "Clients still asking for <0/> will be refused until they stop."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/ClientConfigSection.tsx
@@ -1730,6 +1750,7 @@ msgid "admin.group.rule.reason.max_depth_exceeded"
 msgstr "Conditions are nested too deeply. Use at most 8 levels."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/AdminOidcApplication.tsx
 #: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
 #: src/pages/admin/oidc-applications/AdminOidcApplications.tsx
 msgid "admin.oidc-apps.kind.confidential"
@@ -1986,14 +2007,15 @@ msgid "settings.keys.jwk.copied"
 msgstr "Copied"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/forward-auth-apps/ForwardAuthProxySection.tsx
-msgid "admin.forward-auth-apps.traefik.copied"
+#: src/components/custom/CopyValue.tsx
+#: src/components/custom/ObjectHeader.tsx
+#: src/pages/admin/oidc-applications/AdminOidcApplication.tsx
+msgid "copy-value.copied"
 msgstr "Copied"
 
 #. js-lingui-explicit-id
-#: src/components/custom/CopyValue.tsx
-#: src/components/custom/ObjectHeader.tsx
-msgid "copy-value.copied"
+#: src/pages/admin/forward-auth-apps/ForwardAuthProxySection.tsx
+msgid "admin.forward-auth-apps.traefik.copied"
 msgstr "Copied"
 
 #. js-lingui-explicit-id
@@ -2057,9 +2079,19 @@ msgid "federation_flow.identify.step.copy"
 msgstr "Copy the address from the address bar."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/AdminOidcApplication.tsx
+msgid "admin.oidc-apps.copy-client-id"
+msgstr "Copy the client ID"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/secret-copy.ts
 msgid "admin.oidc-apps.secret.title"
 msgstr "Copy the client secret"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/AdminOidcApplication.tsx
+msgid "admin.oidc-apps.copy-issuer"
+msgstr "Copy the issuer"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminInvitations.tsx
@@ -2263,6 +2295,11 @@ msgid "error.federation.invite_required"
 msgstr "Creating an account through {provider} requires an invitation."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/CredentialsSection.tsx
+msgid "admin.oidc-apps.credentials"
+msgstr "Credentials"
+
+#. js-lingui-explicit-id
 #: src/components/custom/SudoDialog.tsx
 msgid "sudo.password"
 msgstr "Current password"
@@ -2289,7 +2326,7 @@ msgstr "Danger zone"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/DangerSection.tsx
-msgid "admin.oidc-apps.danger"
+msgid "admin.oidc-apps.danger.label"
 msgstr "Danger zone"
 
 #. js-lingui-explicit-id
@@ -2568,6 +2605,11 @@ msgstr "Disable"
 #: src/pages/admin/forward-auth-apps/ForwardAuthDangerSection.tsx
 msgid "admin.forward-auth-apps.disable.action"
 msgstr "Disable"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/DangerSection.tsx
+msgid "admin.oidc-apps.danger.title"
+msgstr "Disable or delete"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/SamlDangerSection.tsx
@@ -3685,6 +3727,11 @@ msgid "admin.federation.new.slug"
 msgstr "Identifier"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/IdentityProjectionSection.tsx
+msgid "admin.oidc-apps.identity.title"
+msgstr "Identity"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts
 msgid "audit.event.sudo_failed"
 msgstr "Identity check failed"
@@ -3702,11 +3749,6 @@ msgstr "Identity filter"
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/SamlIdentitySection.tsx
 msgid "admin.saml-apps.identity"
-msgstr "Identity projection"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/IdentityProjectionSection.tsx
-msgid "admin.oidc-apps.identity"
 msgstr "Identity projection"
 
 #. js-lingui-explicit-id
@@ -3865,6 +3907,11 @@ msgid "admin.user.enrollment.action"
 msgstr "Issue a registration link"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/AdminOidcApplication.tsx
+msgid "admin.oidc-apps.issuer"
+msgstr "Issuer"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.effective.issuer"
 msgstr "Issuer"
@@ -3885,7 +3932,7 @@ msgid "admin.user.enrollment.note"
 msgstr "Issues a new link this account can use to set up how they sign in. The link is shown once, and any earlier link stops working."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/DangerSection.tsx
+#: src/pages/admin/oidc-applications/CredentialsSection.tsx
 msgid "admin.oidc-apps.rotate.note"
 msgstr "Issues a new secret and discards the old one. Clients still using the old secret stop signing accounts in until they are updated."
 
@@ -4963,6 +5010,7 @@ msgid "admin.saml-apps.open"
 msgstr "Open {name}"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/AdminOidcApplication.tsx
 #: src/pages/admin/oidc-applications/AdminOidcApplications.tsx
 msgid "admin.oidc-apps.open"
 msgstr "Open {name}"
@@ -5412,6 +5460,7 @@ msgid "admin.federation.general.mode"
 msgstr "Provisioning"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/AdminOidcApplication.tsx
 #: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
 #: src/pages/admin/oidc-applications/AdminOidcApplications.tsx
 msgid "admin.oidc-apps.kind.public"
@@ -5914,13 +5963,13 @@ msgstr "Require a verified email address"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
-#: src/pages/admin/oidc-applications/SignInRulesSection.tsx
+#: src/pages/admin/oidc-applications/ClientConfigSection.tsx
 msgid "admin.oidc-apps.field.consent"
 msgstr "Require consent"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
-#: src/pages/admin/oidc-applications/SignInRulesSection.tsx
+#: src/pages/admin/oidc-applications/ClientConfigSection.tsx
 msgid "admin.oidc-apps.field.pkce"
 msgstr "Require PKCE"
 
@@ -6105,22 +6154,17 @@ msgid "admin.users.column.role"
 msgstr "Role"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/DangerSection.tsx
+#: src/pages/admin/oidc-applications/CredentialsSection.tsx
 msgid "admin.oidc-apps.rotate.action"
 msgstr "Rotate secret"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/DangerSection.tsx
+#: src/pages/admin/oidc-applications/CredentialsSection.tsx
 msgid "admin.oidc-apps.rotate.confirm"
 msgstr "Rotate secret"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/DangerSection.tsx
-msgid "admin.oidc-apps.rotate"
-msgstr "Rotate the client secret"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/DangerSection.tsx
+#: src/pages/admin/oidc-applications/CredentialsSection.tsx
 msgid "admin.oidc-apps.rotate.title"
 msgstr "Rotate the client secret?"
 
@@ -6223,7 +6267,6 @@ msgstr "Save"
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/AppearanceSection.tsx
 #: src/pages/admin/oidc-applications/ClientConfigSection.tsx
-#: src/pages/admin/oidc-applications/SignInRulesSection.tsx
 msgid "admin.oidc-apps.save"
 msgstr "Save"
 
@@ -6694,6 +6737,11 @@ msgid "console.signin.title"
 msgstr "Sign-in"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/ClientConfigSection.tsx
+msgid "admin.oidc-apps.sign-in.title"
+msgstr "Sign-in"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/CallbackPreview.tsx
 msgid "admin.federation.callback.login"
 msgstr "Sign-in"
@@ -6738,11 +6786,6 @@ msgstr "Sign-in response"
 #: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.effective.response"
 msgstr "Sign-in response"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/SignInRulesSection.tsx
-msgid "admin.oidc-apps.sign-in"
-msgstr "Sign-in rules"
 
 #. js-lingui-explicit-id
 #: src/components/custom/PasswordTotpStepHeader.tsx
@@ -7242,7 +7285,7 @@ msgid "error.bad_credentials"
 msgstr "The credentials could not be verified."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/DangerSection.tsx
+#: src/pages/admin/oidc-applications/CredentialsSection.tsx
 msgid "admin.oidc-apps.rotate.body"
 msgstr "The current secret stops working the moment this is confirmed. Any client still configured with it stops signing accounts in until you give it the new one, so have somewhere to put the new secret before you go ahead."
 
@@ -7309,8 +7352,8 @@ msgstr "The ID token already defines this claim."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/IdentityProjectionSection.tsx
-msgid "admin.oidc-apps.subject.hint"
-msgstr "The identifier a client stores for this account. Changing it signs everyone out of every client."
+msgid "admin.oidc-apps.subject.explain"
+msgstr "The identifier a client stores for this account."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/AdminForwardAuthAppNew.tsx
@@ -7417,6 +7460,11 @@ msgstr "The picture is not available right now."
 #: src/pages/admin/identity-providers/ProviderDangerSection.tsx
 msgid "admin.federation.danger.delete.confirm.empty"
 msgstr "The provider and its icon are removed."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/OidcScopesField.tsx
+msgid "admin.oidc-apps.scopes.providers-failed"
+msgstr "The provider identities could not be loaded, so they are left as saved."
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -8793,6 +8841,11 @@ msgid "profile.avatar.description"
 msgstr "What others see next to your name."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/IdentityProjectionSection.tsx
+msgid "admin.oidc-apps.identity.description"
+msgstr "What the client is told about someone who signs in."
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
 msgid "admin.group.display-name.hint"
 msgstr "What this group is called in the console."
@@ -8829,6 +8882,11 @@ msgid "admin.saml-apps.field.acs.hint"
 msgstr "Where the instance sends the assertion. Exactly one endpoint is the default one."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/ClientConfigSection.tsx
+msgid "admin.oidc-apps.sign-in.description"
+msgstr "Where this application may send people back to, and what it may ask for."
+
+#. js-lingui-explicit-id
 #: src/pages/Console.tsx
 msgid "console.devices.row"
 msgstr "Where you are signed in"
@@ -8847,6 +8905,11 @@ msgstr "Which accounts this group holds is decided on the group's own page, once
 #: src/pages/admin/AdminGroupForm.tsx
 msgid "admin.group.rule.label"
 msgstr "Who the rule matches"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/OidcScopesField.tsx
+msgid "admin.oidc-apps.scope.removed"
+msgstr "Will be removed"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-validation.ts

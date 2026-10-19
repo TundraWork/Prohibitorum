@@ -26,16 +26,27 @@ import { ImageUploadControl } from "@/components/custom/ImageUploadControl";
 /** What the icon endpoint decodes; matches `imageutil.ValidateRaw`. */
 const iconTypes = ["image/png", "image/jpeg", "image/webp", "image/gif"];
 
-export function EntityIconCard({
-  target,
-  iconUrl,
-  name,
-}: {
+type IconProps = {
   target: EntityIconTarget;
   iconUrl?: string | undefined;
   /** Used for the placeholder letter when there is no icon. */
   name: string;
-}) {
+};
+
+export function EntityIconCard(props: IconProps) {
+  return (
+    <ConsoleCard>
+      <EntityIconControl {...props} />
+    </ConsoleCard>
+  );
+}
+
+/**
+ * The preview and the upload and removal controls with no card of their own,
+ * for a section whose panel already holds other fields. Both writes happen as
+ * soon as the file is chosen, apart from the section's own save.
+ */
+export function EntityIconControl({ target, iconUrl, name }: IconProps) {
   const queryClient = useQueryClient();
   const upload = useMutation(
     uploadEntityIconMutationOptions(queryClient, target),
@@ -50,31 +61,29 @@ export function EntityIconCard({
     upload.submittedAt >= remove.submittedAt ? upload.error : remove.error;
 
   return (
-    <ConsoleCard>
-      <div className="flex items-center gap-6">
-        <EntityAvatar
-          iconUrl={iconUrl}
-          className="size-16 shrink-0"
-          fallback={<span className="text-lg">{name.slice(0, 1)}</span>}
-        />
-        <ImageUploadControl
-          types={iconTypes}
-          hasImage={iconUrl !== undefined}
-          uploadLabel={<Trans id="entity.icon.upload">Upload an icon</Trans>}
-          replaceLabel={<Trans id="entity.icon.replace">Replace icon</Trans>}
-          removeLabel={<Trans id="entity.icon.remove">Remove icon</Trans>}
-          hint={
-            <Trans id="entity.icon.hint">
-              PNG, JPEG, WebP or GIF, up to 5 MiB.
-            </Trans>
-          }
-          isUploading={upload.isPending}
-          isRemoving={remove.isPending}
-          failure={failure}
-          onUpload={(file) => upload.mutate(file)}
-          onRemove={() => remove.mutate()}
-        />
-      </div>
-    </ConsoleCard>
+    <div className="flex items-center gap-6">
+      <EntityAvatar
+        iconUrl={iconUrl}
+        className="size-16 shrink-0"
+        fallback={<span className="text-lg">{name.slice(0, 1)}</span>}
+      />
+      <ImageUploadControl
+        types={iconTypes}
+        hasImage={iconUrl !== undefined}
+        uploadLabel={<Trans id="entity.icon.upload">Upload an icon</Trans>}
+        replaceLabel={<Trans id="entity.icon.replace">Replace icon</Trans>}
+        removeLabel={<Trans id="entity.icon.remove">Remove icon</Trans>}
+        hint={
+          <Trans id="entity.icon.hint">
+            PNG, JPEG, WebP or GIF, up to 5 MiB.
+          </Trans>
+        }
+        isUploading={upload.isPending}
+        isRemoving={remove.isPending}
+        failure={failure}
+        onUpload={(file) => upload.mutate(file)}
+        onRemove={() => remove.mutate()}
+      />
+    </div>
   );
 }

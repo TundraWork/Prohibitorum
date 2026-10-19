@@ -7,8 +7,9 @@ import { readPrincipalSource } from "@/api/federation";
 import type { components } from "@/api/generated/schema";
 import { updateOidcProjectionMutationOptions } from "@/api/mutations";
 import type { UpdateOidcProjectionRequest } from "@/api/raw-admin-paths";
+import { withInlineReport } from "@/app/query-client";
 import { ConfirmDialog } from "@/components/custom/ConfirmDialog";
-import { ConsoleCard } from "@/components/custom/ConsoleCard";
+import { ConsequenceFooter } from "@/components/custom/ConsequenceFooter";
 import { Section } from "@/components/custom/Section";
 import { applyServerError } from "@/forms/server-errors";
 import { useAppForm } from "@/forms/use-app-form";
@@ -23,6 +24,16 @@ import {
 
 type OidcApp = components["schemas"]["OIDCApplicationView"];
 
+/** The form's values for a stored record, also the baseline after a save. */
+function identityValues(app: OidcApp) {
+  return {
+    subjectSource: readPrincipalSource(app.subjectSource) ?? "sub",
+    aliases: Object.entries(app.claimAliases ?? {}).map(
+      ([name, source]): AliasRow => ({ name, source }),
+    ),
+  };
+}
+
 /**
  * What the instance tells a client about the account it just signed in, beyond
  * the standard claims.
@@ -36,19 +47,22 @@ type OidcApp = components["schemas"]["OIDCApplicationView"];
  *
  * The subject source is confirmed when the form is saved, not when it is
  * picked. The select is free to move — a reader comparing the options is not
- * committing to one — and the save button turns to its warning tone while the
- * choice differs from the saved one, so the consequence is announced before the
- * press. Submitting then opens the dialog with the checked request held beside
- * the form; the write happens from the dialog, and cancelling leaves the
- * reader's choice in the form, unsent.
+ * committing to one — and the footer states the consequence while the choice
+ * differs from the saved one, so it is announced before the press. Submitting
+ * then opens the dialog with the checked request held beside the form; the write
+ * happens from the dialog, and cancelling leaves the reader's choice in the
+ * form, unsent.
  *
  * The write is not sudo-gated — it changes no credential — so it submits
- * straight from the form or the dialog.
+ * straight from the form or the dialog. A failed save is shown on the section
+ * alone.
  */
 export function IdentityProjectionSection({ app }: { app: OidcApp }) {
   const { t } = useLingui();
   const queryClient = useQueryClient();
-  const update = useMutation(updateOidcProjectionMutationOptions(queryClient));
+  const update = useMutation(
+    withInlineReport(updateOidcProjectionMutationOptions(queryClient), true),
+  );
   // The request the dialog is confirming, checked and ready to send.
   const [pendingBody, setPendingBody] =
     useState<UpdateOidcProjectionRequest | null>(null);
@@ -56,12 +70,7 @@ export function IdentityProjectionSection({ app }: { app: OidcApp }) {
   const savedSource = readPrincipalSource(app.subjectSource) ?? "sub";
 
   const form = useAppForm({
-    defaultValues: {
-      subjectSource: savedSource,
-      aliases: Object.entries(app.claimAliases ?? {}).map(
-        ([name, source]): AliasRow => ({ name, source }),
-      ),
-    },
+    defaultValues: identityValues(app),
     onSubmit: async ({ value }) => {
       const problem = aliasListProblem(value.aliases);
       if (problem !== undefined) {
@@ -88,58 +97,91 @@ export function IdentityProjectionSection({ app }: { app: OidcApp }) {
 
   async function save(body: UpdateOidcProjectionRequest) {
     try {
-      await update.mutateAsync({ clientId: app.clientId, body });
+      const saved = await update.mutateAsync({ clientId: app.clientId, body });
+      // The stored record is the new baseline, so the section reads as saved.
+      form.reset(identityValues(saved));
     } catch (error) {
       if (isCancellation(error)) return;
       applyServerError(form, error, { codes: {}, locations: {} });
     }
   }
 
+  const dirty = useStore(form.store, (state) => !state.isDefaultValue);
+  const submitting = useStore(form.store, (state) => state.isSubmitting);
   const sourceChanged = useStore(
     form.store,
     (state) => state.values.subjectSource !== savedSource,
   );
 
+  const title = t({
+    id: "admin.oidc-apps.identity.title",
+    message: "Identity",
+  });
+
   return (
-    <Section
-      title={<Trans id="admin.oidc-apps.identity">Identity projection</Trans>}
-    >
-      <ConsoleCard>
-        <form.AppForm>
-          <form.Form
-            label={t({
-              id: "admin.oidc-apps.identity",
-              message: "Identity projection",
-            })}
-          >
-            <form.FormError />
-
-            <form.AppField name="subjectSource">
-              {(field) => (
-                <field.PrincipalSourceField
-                  label={
-                    <Trans id="admin.oidc-apps.subject">Subject source</Trans>
+    <>
+      <form.AppForm>
+        <form.Form label={title}>
+          <Section
+            id="identity"
+            title={title}
+            description={
+              <Trans id="admin.oidc-apps.identity.description">
+                What the client is told about someone who signs in.
+              </Trans>
+            }
+            dirty={dirty}
+            footer={
+              dirty ? (
+                <ConsequenceFooter
+                  consequence={
+                    sourceChanged ? (
+                      <Trans id="admin.oidc-apps.subject.consequence">
+                        Changing the subject source signs everyone out of every
+                        client.
+                      </Trans>
+                    ) : undefined
                   }
-                  description={
-                    <Trans id="admin.oidc-apps.subject.hint">
-                      The identifier a client stores for this account. Changing
-                      it signs everyone out of every client.
-                    </Trans>
+                  actionLabel={
+                    sourceChanged ? (
+                      <Trans id="admin.oidc-apps.subject.action-label">
+                        Change subject and save
+                      </Trans>
+                    ) : (
+                      <Trans id="admin.oidc-apps.identity.save">Save</Trans>
+                    )
                   }
+                  onDiscard={() => form.reset()}
+                  pending={submitting || update.isPending}
                 />
-              )}
-            </form.AppField>
+              ) : undefined
+            }
+          >
+            <div className="flex flex-col gap-6">
+              <form.FormError />
 
-            <form.AppField name="aliases">
-              {() => <AliasTableField />}
-            </form.AppField>
+              <form.AppField name="subjectSource">
+                {(field) => (
+                  <field.PrincipalSourceField
+                    label={
+                      <Trans id="admin.oidc-apps.subject">Subject source</Trans>
+                    }
+                    description={
+                      <Trans id="admin.oidc-apps.subject.explain">
+                        The identifier a client stores for this account.
+                      </Trans>
+                    }
+                  />
+                )}
+              </form.AppField>
 
-            <form.SubmitButton tone={sourceChanged ? "warning" : "default"}>
-              <Trans id="admin.oidc-apps.identity.save">Save</Trans>
-            </form.SubmitButton>
-          </form.Form>
-        </form.AppForm>
-      </ConsoleCard>
+              <form.AppField name="aliases">
+                {() => <AliasTableField />}
+              </form.AppField>
+            </div>
+          </Section>
+        </form.Form>
+      </form.AppForm>
 
       <ConfirmDialog
         isOpen={pendingBody !== null}
@@ -175,6 +217,6 @@ export function IdentityProjectionSection({ app }: { app: OidcApp }) {
           void save(pendingBody).finally(() => setPendingBody(null));
         }}
       />
-    </Section>
+    </>
   );
 }

@@ -35,6 +35,22 @@ describe("ObjectHeader", () => {
     expect(screen.getByRole("button", { name: "Test" })).toBeTruthy();
   });
 
+  it("draws no separator characters that a wrapped line could end on", () => {
+    const { container } = render(
+      <I18nProvider i18n={i18n}>
+        <ObjectHeader
+          icon={null}
+          title="GitHub"
+          statuses={["enabled"]}
+          identifier={{ value: "github", label: "Copy the slug" }}
+          facts={["OIDC"]}
+        />
+      </I18nProvider>,
+    );
+
+    expect(container.textContent).not.toContain("|");
+  });
+
   const renderCopyable = () =>
     render(
       <I18nProvider i18n={i18n}>

@@ -113,14 +113,17 @@ export function DangerZone({
  * Rows are an `ItemList` of `ItemListRow`s, so the frame's panel is the list's.
  */
 export function DangerZoneFrame({
+  id,
   title,
   children,
 }: {
+  /** Anchor for the page outline's link to the block. */
+  id?: string;
   title: ReactNode;
   children: ReactNode;
 }) {
   return (
-    <Section title={title} tone="danger">
+    <Section id={id} title={title} tone="danger">
       {children}
     </Section>
   );

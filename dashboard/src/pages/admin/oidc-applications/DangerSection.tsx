@@ -1,69 +1,72 @@
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { KeyRound, Power, Trash2 } from "lucide-react";
+import { Power, Trash2 } from "lucide-react";
 import { useState } from "react";
-import { describeError } from "@/api/errors";
 import type { components } from "@/api/generated/schema";
 import {
   deleteOidcAppMutationOptions,
-  rotateOidcSecretMutationOptions,
   setAppDisabledMutationOptions,
 } from "@/api/mutations";
+import { withInlineReport } from "@/app/query-client";
 import { Button } from "@/components/custom/Button";
 import { ConfirmDialog } from "@/components/custom/ConfirmDialog";
 import { DangerZoneFrame } from "@/components/custom/DangerZone";
+import {
+  InlineFailure,
+  useInlineFailure,
+} from "@/components/custom/InlineFailure";
 import { ItemList, ItemListRow } from "@/components/custom/ItemList";
-import { SecretRevealDialog } from "@/components/custom/SecretReveal";
-import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
-import { clientSecretCopy } from "@/pages/admin/oidc-applications/secret-copy";
 
 type OidcApp = components["schemas"]["OIDCApplicationView"];
 
 /**
- * The three changes that break clients, one row each, all visible at once.
+ * The two changes that stop clients, one row each, both visible at once: stop
+ * accepting sign-ins for now, or remove the application for good.
  *
  * They sit together because a reader who arrives here is deciding between them:
  * someone whose client is misbehaving wants to stop it accepting sign-ins, and
  * needs to see that disabling is available — and reversible — before reaching
- * for rotating the secret or deleting the record. Collapsing them behind a
- * control would hide the cheap option behind the expensive one.
+ * for deletion. Rotating the secret is a credential change and lives with the
+ * credentials.
  *
  * Every action is confirmed, including the reversible one. Disabling is undone
  * with a press, but it silently ends sign-in for every client of this
  * application at once, and the dialog's job is to name that rather than ask
- * whether the reader is sure.
+ * whether the reader is sure. A dialog stays open while its write is in flight,
+ * and a refusal is shown once, under the rows.
  */
 export function DangerSection({ app }: { app: OidcApp }) {
   const { t } = useLingui();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const setDisabled = useMutation(
-    setAppDisabledMutationOptions(queryClient, "oidc"),
+    withInlineReport(setAppDisabledMutationOptions(queryClient, "oidc"), true),
   );
-  const rotate = useMutation(rotateOidcSecretMutationOptions(queryClient));
-  const remove = useMutation(deleteOidcAppMutationOptions(queryClient));
+  const remove = useMutation(
+    withInlineReport(deleteOidcAppMutationOptions(queryClient), true),
+  );
+  const failure = useInlineFailure();
 
   const [confirming, setConfirming] = useState<
-    "disable" | "enable" | "rotate" | "delete" | null
+    "disable" | "enable" | "delete" | null
   >(null);
-  const [secret, setSecret] = useState<string | null>(null);
 
-  // The list loads first as `undefined`; the danger rows must not offer a
-  // rotation the server would take for a public client.
-  const isPublic = app.clientAuthMethod === "none";
   // Named, so the confirmation's message carries it as `{name}` rather than a
   // positional placeholder the catalogs do not have.
   const name = app.displayName || app.clientId;
-
-  const failure = rotate.error ?? remove.error ?? setDisabled.error;
+  const busy = setDisabled.isPending || remove.isPending;
 
   return (
     <DangerZoneFrame
-      title={<Trans id="admin.oidc-apps.danger">Danger zone</Trans>}
+      id="danger"
+      title={<Trans id="admin.oidc-apps.danger.title">Disable or delete</Trans>}
     >
       <ItemList
-        label={t({ id: "admin.oidc-apps.danger", message: "Danger zone" })}
+        label={t({
+          id: "admin.oidc-apps.danger.label",
+          message: "Danger zone",
+        })}
         empty={null}
       >
         <ItemListRow
@@ -94,7 +97,10 @@ export function DangerSection({ app }: { app: OidcApp }) {
           actions={
             <Button
               pending={setDisabled.isPending}
-              onClick={() => setConfirming(app.disabled ? "enable" : "disable")}
+              onClick={() => {
+                failure.clear();
+                setConfirming(app.disabled ? "enable" : "disable");
+              }}
               variant="outline"
               size="sm"
             >
@@ -106,38 +112,6 @@ export function DangerSection({ app }: { app: OidcApp }) {
             </Button>
           }
         />
-
-        {/* Rotating a public client's secret would create a credential the
-            client never sends, so the row is left out rather than shown
-            disabled: there is nothing here to explain to a reader who has no
-            secret. */}
-        {!isPublic && (
-          <ItemListRow
-            icon={<KeyRound size={18} aria-hidden="true" />}
-            title={
-              <Trans id="admin.oidc-apps.rotate">
-                Rotate the client secret
-              </Trans>
-            }
-            details={[
-              <Trans key="note" id="admin.oidc-apps.rotate.note">
-                Issues a new secret and discards the old one. Clients still
-                using the old secret stop signing accounts in until they are
-                updated.
-              </Trans>,
-            ]}
-            actions={
-              <Button
-                pending={rotate.isPending}
-                onClick={() => setConfirming("rotate")}
-                variant="outline"
-                size="sm"
-              >
-                <Trans id="admin.oidc-apps.rotate.action">Rotate secret</Trans>
-              </Button>
-            }
-          />
-        )}
 
         <ItemListRow
           icon={<Trash2 size={18} aria-hidden="true" />}
@@ -153,7 +127,10 @@ export function DangerSection({ app }: { app: OidcApp }) {
           actions={
             <Button
               pending={remove.isPending}
-              onClick={() => setConfirming("delete")}
+              onClick={() => {
+                failure.clear();
+                setConfirming("delete");
+              }}
               variant="destructive-outline"
               size="sm"
             >
@@ -163,18 +140,11 @@ export function DangerSection({ app }: { app: OidcApp }) {
         />
       </ItemList>
 
-      {failure !== null && failure !== undefined && (
-        <SurfaceAlert status="danger" role="alert">
-          <SurfaceAlert.Indicator />
-          <SurfaceAlert.Content>
-            <SurfaceAlert.Title>{t(describeError(failure))}</SurfaceAlert.Title>
-          </SurfaceAlert.Content>
-        </SurfaceAlert>
-      )}
+      <InlineFailure error={failure.error} />
 
       <ConfirmDialog
         isOpen={confirming === "disable" || confirming === "enable"}
-        onOpenChange={(open) => !open && setConfirming(null)}
+        onOpenChange={(open) => !open && !busy && setConfirming(null)}
         status="warning"
         title={
           confirming === "enable" ? (
@@ -216,51 +186,17 @@ export function DangerSection({ app }: { app: OidcApp }) {
           const disabled = confirming === "disable";
           setDisabled.mutate(
             { appId: app.clientId, disabled },
-            { onSettled: () => setConfirming(null) },
+            {
+              onError: failure.report,
+              onSettled: () => setConfirming(null),
+            },
           );
         }}
       />
 
       <ConfirmDialog
-        isOpen={confirming === "rotate"}
-        onOpenChange={(open) => !open && setConfirming(null)}
-        status="warning"
-        title={
-          <Trans id="admin.oidc-apps.rotate.title">
-            Rotate the client secret?
-          </Trans>
-        }
-        body={
-          <p>
-            <Trans id="admin.oidc-apps.rotate.body">
-              The current secret stops working the moment this is confirmed. Any
-              client still configured with it stops signing accounts in until
-              you give it the new one, so have somewhere to put the new secret
-              before you go ahead.
-            </Trans>
-          </p>
-        }
-        confirmLabel={
-          <Trans id="admin.oidc-apps.rotate.confirm">Rotate secret</Trans>
-        }
-        isPending={rotate.isPending}
-        onConfirm={() => {
-          // The new secret is revealed by the dialog below, so the confirmation
-          // does not close until it has arrived — a failure leaves the reader
-          // where the explanation is.
-          rotate.mutate(app.clientId, {
-            onSuccess: (result) => {
-              setConfirming(null);
-              setSecret(result.secret);
-            },
-            onError: () => setConfirming(null),
-          });
-        }}
-      />
-
-      <ConfirmDialog
         isOpen={confirming === "delete"}
-        onOpenChange={(open) => !open && setConfirming(null)}
+        onOpenChange={(open) => !open && !busy && setConfirming(null)}
         status="danger"
         title={
           <Trans id="admin.oidc-apps.delete.title">
@@ -283,22 +219,13 @@ export function DangerSection({ app }: { app: OidcApp }) {
               setConfirming(null);
               await navigate({ to: "/admin/oidc-applications" });
             },
-            onError: () => setConfirming(null),
+            onError: (error) => {
+              setConfirming(null);
+              failure.report(error);
+            },
           });
         }}
       />
-
-      {secret !== null && (
-        // Open and non-dismissable while the secret is held here, so it cannot
-        // outlive the value: the reveal's own continue control is the only way
-        // out, and it stays on the page the secret belongs to.
-        <SecretRevealDialog
-          text={secret}
-          filename={`${app.clientId}-client-secret.txt`}
-          copy={clientSecretCopy}
-          onContinue={async () => setSecret(null)}
-        />
-      )}
     </DangerZoneFrame>
   );
 }

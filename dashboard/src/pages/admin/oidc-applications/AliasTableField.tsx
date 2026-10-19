@@ -1,22 +1,23 @@
-import {
-  Fieldset,
-  Input,
-  Label,
-  ListBox,
-  Select,
-  Separator,
-  TextField,
-} from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useStore } from "@tanstack/react-form";
-import type { ReactNode } from "react";
+import { type ReactNode, useRef } from "react";
 import { aliasSourceClaims } from "@/api/federation";
 import { FormMessages } from "@/components/custom/FormMessages";
+import { useHostOverlayContainer } from "@/components/custom/host-overlay-container";
 import {
   type RowProblem,
   RowsField,
   rowProblem,
 } from "@/components/custom/RowsField";
+import { Field, FieldLabel } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectItem,
+  SelectPopup,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useFieldContext, useFormContext } from "@/forms/context";
 import { withoutServerErrors } from "@/forms/server-errors";
 import type {
@@ -30,7 +31,7 @@ import type {
  * claim name — so they take equal room. The heading and every row share the
  * tracks, so the columns line up.
  */
-const aliasTracks = "grid-cols-[minmax(0,1fr)_minmax(0,1fr)_2rem]";
+const aliasTracks = "@md/aliases:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_2rem]";
 
 /** The row problem `RowsField` draws, from the alias table's own check. */
 export function aliasRowProblem(problem: AliasListProblem) {
@@ -48,10 +49,10 @@ export function aliasRowProblem(problem: AliasListProblem) {
  *
  * Laid out the way the forward-auth token scopes and the SAML attribute map
  * are. Where the editor has the room it is a two-column table under one set of
- * headings; below 28rem of its own width each alias is a fieldset with its own
- * labels, because two unlabelled boxes say nothing about which is which. The
- * layout not in use is `display: none`, so it is out of the tab order and the
- * accessibility tree, and both read and write the same row.
+ * headings; below 28rem of its own width each alias stacks its two inputs, each
+ * with its label, because two unlabelled boxes say nothing about which is
+ * which. It is one set of controls reshaped by container width, so there is a
+ * single input of each kind per row for a reader and a test to find.
  *
  * The source list is the server's own: an alias can only read a claim the
  * instance actually resolves, and offering one it would never produce would be
@@ -93,7 +94,7 @@ function AliasHeader() {
   return (
     <div
       aria-hidden="true"
-      className={`hidden gap-x-2 text-xs font-medium text-muted @md/aliases:grid ${aliasTracks}`}
+      className={`hidden gap-x-2 text-muted-foreground text-xs font-medium @md/aliases:grid ${aliasTracks}`}
     >
       <span className="truncate">
         <NameLabel />
@@ -114,11 +115,12 @@ function SourceLabel() {
 }
 
 /**
- * One alias, in both layouts.
+ * One alias.
  *
  * `RowsField` owns the array and hands each row to this component, so the row
  * addresses the field by position, writes back a copy with its own keys
- * replaced, and marks only the input `problem` names.
+ * replaced, and marks only the input `problem` names. On the narrow layout the
+ * remove button sits beside the name and the source takes the line under it.
  */
 function AliasRowFields({
   index,
@@ -134,9 +136,12 @@ function AliasRowFields({
   /** The row's remove button, bound to it by `RowsField`. */
   remove: ReactNode;
 }) {
+  const { t } = useLingui();
   const field = useFieldContext<AliasRow[]>();
   const form = useFormContext();
   const submitting = useStore(form.store, (state) => state.isSubmitting);
+  const anchor = useRef<HTMLDivElement>(null);
+  const container = useHostOverlayContainer(anchor);
 
   const row = field.state.value[index];
   if (row === undefined) return null;
@@ -155,162 +160,71 @@ function AliasRowFields({
     );
   };
 
-  const controls = (labelled: boolean) => (
-    <>
-      <AliasNameInput
-        labelled={labelled}
-        value={row.name}
-        isDisabled={submitting}
-        isInvalid={problem?.field === "name"}
-        onChange={(name) => update({ name })}
-      />
-      <AliasSourceSelect
-        labelled={labelled}
-        value={row.source}
-        isDisabled={submitting}
-        onChange={(source) => update({ source })}
-      />
-    </>
-  );
-
-  const message = error !== undefined && error !== null && (
-    <span className="text-sm text-danger">
-      <FormMessages errors={[error]} />
-    </span>
-  );
+  const hasError = error !== undefined && error !== null;
 
   return (
-    <>
-      <div className="hidden flex-col gap-1.5 @md/aliases:flex">
-        <div className={`grid items-center gap-x-2 ${aliasTracks}`}>
-          {controls(false)}
-          <div className="flex justify-end">{remove}</div>
-        </div>
-        {message}
-      </div>
-
-      <div className="flex flex-col gap-3 @md/aliases:hidden">
-        {index > 0 && <Separator />}
-        {/* The remove button sits on the legend's line, placed over it from a
-            wrapper: the legend has to be the fieldset's first child and is
-            drawn in its border, so the two cannot share a flex line. */}
-        <div className="relative">
-          <Fieldset className="gap-3">
-            <Fieldset.Legend className="mb-3 pe-10">
-              <AliasLegend row={index + 1} />
-            </Fieldset.Legend>
-            <Fieldset.Group>{controls(true)}</Fieldset.Group>
-            {message}
-          </Fieldset>
-          <div className="absolute end-0 top-0 flex h-6 items-center">
-            {remove}
-          </div>
-        </div>
-      </div>
-    </>
-  );
-}
-
-/** The narrow layout's name for an alias, numbered as its remove button is. */
-function AliasLegend({ row }: { row: number }) {
-  return <Trans id="admin.oidc-apps.aliases.row">Alias {row}</Trans>;
-}
-
-/**
- * The name the client will read. On the wide layout the column heading names
- * it and the label is for assistive technology only; on the narrow one it is
- * shown. Monospace, as the source beside it is: both are claim names the
- * client matches exactly.
- */
-function AliasNameInput({
-  labelled,
-  value,
-  isDisabled,
-  isInvalid,
-  onChange,
-}: {
-  labelled: boolean;
-  value: string;
-  isDisabled: boolean;
-  isInvalid: boolean;
-  onChange: (value: string) => void;
-}) {
-  const { t } = useLingui();
-  return (
-    <TextField
-      className="min-w-0"
-      value={value}
-      isDisabled={isDisabled}
-      isInvalid={isInvalid}
-      onChange={onChange}
+    <div
+      ref={anchor}
+      className={`grid grid-cols-[minmax(0,1fr)_auto] items-end gap-x-2 gap-y-3 ${aliasTracks}`}
     >
-      <Label className={labelled ? undefined : "sr-only"}>
-        <NameLabel />
-      </Label>
-      <Input
-        className="font-mono"
-        autoComplete="off"
-        spellCheck={false}
-        placeholder={t({
-          id: "admin.oidc-apps.alias.name.placeholder",
-          message: "team",
-        })}
-        variant="secondary"
-      />
-    </TextField>
-  );
-}
-
-/**
- * The claim the alias copies.
- *
- * The trigger shows the claim name as text alone. Its default would copy the
- * whole selected option in, hidden check mark included, which made the trigger
- * a pixel taller than the input beside it; drawing only the name, in the
- * value's own line box, keeps both at the library's own control height.
- */
-function AliasSourceSelect({
-  labelled,
-  value,
-  isDisabled,
-  onChange,
-}: {
-  labelled: boolean;
-  value: string;
-  isDisabled: boolean;
-  onChange: (value: string) => void;
-}) {
-  return (
-    <Select
-      className="min-w-0"
-      variant="secondary"
-      isDisabled={isDisabled}
-      value={value}
-      onChange={(key) => {
-        if (typeof key === "string") onChange(key);
-      }}
-    >
-      <Label className={labelled ? undefined : "sr-only"}>
-        <SourceLabel />
-      </Label>
-      <Select.Trigger>
-        {/* The face is set on the value itself: a monospace span inside it
-            would sit on a second baseline and make the line a pixel taller. */}
-        <Select.Value className="font-mono">
-          {({ isPlaceholder }) => (isPlaceholder ? null : value)}
-        </Select.Value>
-        <Select.Indicator />
-      </Select.Trigger>
-      <Select.Popover>
-        <ListBox>
-          {aliasSourceClaims.map((claim) => (
-            <ListBox.Item key={claim} id={claim} textValue={claim}>
-              <span className="font-mono">{claim}</span>
-              <ListBox.ItemIndicator />
-            </ListBox.Item>
-          ))}
-        </ListBox>
-      </Select.Popover>
-    </Select>
+      <Field
+        className="col-start-1 row-start-1 min-w-0"
+        disabled={submitting}
+        invalid={problem?.field === "name"}
+      >
+        <FieldLabel className="@md/aliases:sr-only">
+          <NameLabel />
+        </FieldLabel>
+        {/* Monospace, as the source beside it is: both are claim names the
+            client matches exactly. */}
+        <Input
+          className="font-mono"
+          value={row.name}
+          aria-invalid={problem?.field === "name" || undefined}
+          autoComplete="off"
+          spellCheck={false}
+          placeholder={t({
+            id: "admin.oidc-apps.alias.name.placeholder",
+            message: "team",
+          })}
+          onChange={(event) => update({ name: event.target.value })}
+        />
+      </Field>
+      <Field
+        className="col-span-2 row-start-2 min-w-0 @md/aliases:col-span-1 @md/aliases:col-start-2 @md/aliases:row-start-1"
+        disabled={submitting}
+      >
+        <FieldLabel className="@md/aliases:sr-only">
+          <SourceLabel />
+        </FieldLabel>
+        <Select
+          value={row.source}
+          onValueChange={(source) => {
+            if (typeof source === "string") update({ source });
+          }}
+        >
+          <SelectTrigger>
+            <SelectValue>
+              {() => <span className="font-mono">{row.source}</span>}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectPopup alignItemWithTrigger={false} portalProps={{ container }}>
+            {aliasSourceClaims.map((claim) => (
+              <SelectItem key={claim} value={claim}>
+                <span className="font-mono">{claim}</span>
+              </SelectItem>
+            ))}
+          </SelectPopup>
+        </Select>
+      </Field>
+      <div className="col-start-2 row-start-1 flex h-9 items-center justify-end @md/aliases:col-start-3 sm:h-8">
+        {remove}
+      </div>
+      {hasError && (
+        <p className="col-span-full text-destructive-foreground text-xs">
+          <FormMessages errors={[error]} />
+        </p>
+      )}
+    </div>
   );
 }

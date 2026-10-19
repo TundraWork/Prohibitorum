@@ -28,6 +28,12 @@ msgid "{0, plural, one {# address} other {# addresses}}"
 msgstr "{0, plural, other {# 个地址}}"
 
 #. js-lingui-explicit-id
+#. placeholder {0}: removing.length
+#: src/pages/admin/oidc-applications/ClientConfigSection.tsx
+msgid "admin.oidc-apps.scopes.remove.action-label"
+msgstr "{0, plural, other {移除作用域并保存}}"
+
+#. js-lingui-explicit-id
 #: src/pages/public/Consent.tsx
 msgid "consent.title.more"
 msgstr "{app} 请求更多权限"
@@ -291,9 +297,14 @@ msgstr "由应用定义的权限"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
-#: src/pages/admin/oidc-applications/SignInRulesSection.tsx
+#: src/pages/admin/oidc-applications/ClientConfigSection.tsx
 msgid "admin.oidc-apps.field.pkce.public"
 msgstr "公开客户端每次都会证明请求由自己发起。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/CredentialsSection.tsx
+msgid "admin.oidc-apps.credentials.public"
+msgstr "公开客户端没有密钥，改用 PKCE 来证明每次登录请求。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-validation.ts
@@ -717,11 +728,6 @@ msgid "settings.keys.column.algorithm"
 msgstr "算法"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/AliasTableField.tsx
-msgid "admin.oidc-apps.aliases.row"
-msgstr "别名 {row}"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
 msgid "admin.group.rule.group.all"
 msgstr "以下全部"
@@ -1041,7 +1047,7 @@ msgstr "已批准，正在登录…"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
-#: src/pages/admin/oidc-applications/SignInRulesSection.tsx
+#: src/pages/admin/oidc-applications/ClientConfigSection.tsx
 msgid "admin.oidc-apps.field.consent.hint"
 msgstr "登录前先让账号确认这些作用域。"
 
@@ -1380,6 +1386,11 @@ msgid "security.password.change.action"
 msgstr "修改密码"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/IdentityProjectionSection.tsx
+msgid "admin.oidc-apps.subject.action-label"
+msgstr "更改主体并保存"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
 msgid "admin.federation.claims.subject.confirm.title"
 msgstr "更改 Subject 声明？"
@@ -1398,6 +1409,11 @@ msgstr "更换用户标识？"
 #: src/pages/admin/audit-vocabulary.ts
 msgid "audit.event.update"
 msgstr "修改"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/IdentityProjectionSection.tsx
+msgid "admin.oidc-apps.subject.consequence"
+msgstr "更改主体来源会让所有人退出所有客户端。"
 
 #. js-lingui-explicit-id
 #: src/components/custom/OtpField.tsx
@@ -1550,13 +1566,7 @@ msgid "admin.federation.effective.auth-method"
 msgstr "客户端认证方式"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/ClientConfigSection.tsx
-msgid "admin.oidc-apps.client"
-msgstr "客户端配置"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
-#: src/pages/admin/oidc-applications/ClientConfigSection.tsx
 msgid "admin.oidc-apps.field.client-id"
 msgstr "Client ID"
 
@@ -1591,6 +1601,11 @@ msgstr "客户端 IP"
 #: src/api/success-messages.ts
 msgid "success.client-ip.saved"
 msgstr "客户端 IP 设置已保存"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/CredentialsSection.tsx
+msgid "admin.oidc-apps.credentials.secret"
+msgstr "客户密钥"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/secret-copy.ts
@@ -1628,6 +1643,11 @@ msgstr "客户端可以立即重新登录。停用期间登录过的账号不受
 #: src/pages/admin/oidc-applications/DangerSection.tsx
 msgid "admin.oidc-apps.enable.note"
 msgstr "客户端可以重新登录，应用其他设置不变。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/ClientConfigSection.tsx
+msgid "admin.oidc-apps.scopes.remove.consequence"
+msgstr "仍在请求 <0/> 的客户端会被拒绝，直到它们不再请求。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/ClientConfigSection.tsx
@@ -1730,6 +1750,7 @@ msgid "admin.group.rule.reason.max_depth_exceeded"
 msgstr "条件嵌套过深，最多 8 层。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/AdminOidcApplication.tsx
 #: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
 #: src/pages/admin/oidc-applications/AdminOidcApplications.tsx
 msgid "admin.oidc-apps.kind.confidential"
@@ -1986,14 +2007,15 @@ msgid "settings.keys.jwk.copied"
 msgstr "已复制"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/forward-auth-apps/ForwardAuthProxySection.tsx
-msgid "admin.forward-auth-apps.traefik.copied"
+#: src/components/custom/CopyValue.tsx
+#: src/components/custom/ObjectHeader.tsx
+#: src/pages/admin/oidc-applications/AdminOidcApplication.tsx
+msgid "copy-value.copied"
 msgstr "已复制"
 
 #. js-lingui-explicit-id
-#: src/components/custom/CopyValue.tsx
-#: src/components/custom/ObjectHeader.tsx
-msgid "copy-value.copied"
+#: src/pages/admin/forward-auth-apps/ForwardAuthProxySection.tsx
+msgid "admin.forward-auth-apps.traefik.copied"
 msgstr "已复制"
 
 #. js-lingui-explicit-id
@@ -2057,9 +2079,19 @@ msgid "federation_flow.identify.step.copy"
 msgstr "复制地址栏里的地址。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/AdminOidcApplication.tsx
+msgid "admin.oidc-apps.copy-client-id"
+msgstr "复制客户端 ID"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/secret-copy.ts
 msgid "admin.oidc-apps.secret.title"
 msgstr "复制客户密钥"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/AdminOidcApplication.tsx
+msgid "admin.oidc-apps.copy-issuer"
+msgstr "复制签发者"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminInvitations.tsx
@@ -2263,6 +2295,11 @@ msgid "error.federation.invite_required"
 msgstr "通过 {provider} 创建账号需要邀请。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/CredentialsSection.tsx
+msgid "admin.oidc-apps.credentials"
+msgstr "凭据"
+
+#. js-lingui-explicit-id
 #: src/components/custom/SudoDialog.tsx
 msgid "sudo.password"
 msgstr "当前密码"
@@ -2289,7 +2326,7 @@ msgstr "危险操作"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/DangerSection.tsx
-msgid "admin.oidc-apps.danger"
+msgid "admin.oidc-apps.danger.label"
 msgstr "危险操作"
 
 #. js-lingui-explicit-id
@@ -2568,6 +2605,11 @@ msgstr "停用"
 #: src/pages/admin/forward-auth-apps/ForwardAuthDangerSection.tsx
 msgid "admin.forward-auth-apps.disable.action"
 msgstr "停用"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/DangerSection.tsx
+msgid "admin.oidc-apps.danger.title"
+msgstr "停用或删除"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/SamlDangerSection.tsx
@@ -3685,6 +3727,11 @@ msgid "admin.federation.new.slug"
 msgstr "标识符"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/IdentityProjectionSection.tsx
+msgid "admin.oidc-apps.identity.title"
+msgstr "身份"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts
 msgid "audit.event.sudo_failed"
 msgstr "身份确认失败"
@@ -3702,11 +3749,6 @@ msgstr "身份筛选"
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/SamlIdentitySection.tsx
 msgid "admin.saml-apps.identity"
-msgstr "身份投影"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/IdentityProjectionSection.tsx
-msgid "admin.oidc-apps.identity"
 msgstr "身份投影"
 
 #. js-lingui-explicit-id
@@ -3865,6 +3907,11 @@ msgid "admin.user.enrollment.action"
 msgstr "签发注册链接"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/AdminOidcApplication.tsx
+msgid "admin.oidc-apps.issuer"
+msgstr "签发者"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.effective.issuer"
 msgstr "Issuer"
@@ -3885,7 +3932,7 @@ msgid "admin.user.enrollment.note"
 msgstr "签发一条新链接，该账号可用它设置自己的登录方式。链接只显示一次，此前的链接会立即失效。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/DangerSection.tsx
+#: src/pages/admin/oidc-applications/CredentialsSection.tsx
 msgid "admin.oidc-apps.rotate.note"
 msgstr "签发新密钥并废弃旧密钥。仍在使用旧密钥的客户端无法登录，直到你为它们更新为止。"
 
@@ -4963,6 +5010,7 @@ msgid "admin.saml-apps.open"
 msgstr "打开 {name}"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/AdminOidcApplication.tsx
 #: src/pages/admin/oidc-applications/AdminOidcApplications.tsx
 msgid "admin.oidc-apps.open"
 msgstr "打开 {name}"
@@ -5412,6 +5460,7 @@ msgid "admin.federation.general.mode"
 msgstr "账号创建"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/AdminOidcApplication.tsx
 #: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
 #: src/pages/admin/oidc-applications/AdminOidcApplications.tsx
 msgid "admin.oidc-apps.kind.public"
@@ -5914,13 +5963,13 @@ msgstr "要求邮箱已验证"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
-#: src/pages/admin/oidc-applications/SignInRulesSection.tsx
+#: src/pages/admin/oidc-applications/ClientConfigSection.tsx
 msgid "admin.oidc-apps.field.consent"
 msgstr "要求用户同意"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
-#: src/pages/admin/oidc-applications/SignInRulesSection.tsx
+#: src/pages/admin/oidc-applications/ClientConfigSection.tsx
 msgid "admin.oidc-apps.field.pkce"
 msgstr "要求 PKCE"
 
@@ -6105,22 +6154,17 @@ msgid "admin.users.column.role"
 msgstr "角色"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/DangerSection.tsx
+#: src/pages/admin/oidc-applications/CredentialsSection.tsx
 msgid "admin.oidc-apps.rotate.action"
 msgstr "轮换密钥"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/DangerSection.tsx
+#: src/pages/admin/oidc-applications/CredentialsSection.tsx
 msgid "admin.oidc-apps.rotate.confirm"
 msgstr "轮换密钥"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/DangerSection.tsx
-msgid "admin.oidc-apps.rotate"
-msgstr "轮换客户密钥"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/DangerSection.tsx
+#: src/pages/admin/oidc-applications/CredentialsSection.tsx
 msgid "admin.oidc-apps.rotate.title"
 msgstr "轮换客户密钥？"
 
@@ -6223,7 +6267,6 @@ msgstr "保存"
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/AppearanceSection.tsx
 #: src/pages/admin/oidc-applications/ClientConfigSection.tsx
-#: src/pages/admin/oidc-applications/SignInRulesSection.tsx
 msgid "admin.oidc-apps.save"
 msgstr "保存"
 
@@ -6694,6 +6737,11 @@ msgid "console.signin.title"
 msgstr "登录"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/ClientConfigSection.tsx
+msgid "admin.oidc-apps.sign-in.title"
+msgstr "登录"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/CallbackPreview.tsx
 msgid "admin.federation.callback.login"
 msgstr "登录"
@@ -6738,11 +6786,6 @@ msgstr "登录响应"
 #: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.effective.response"
 msgstr "登录响应"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/SignInRulesSection.tsx
-msgid "admin.oidc-apps.sign-in"
-msgstr "登录规则"
 
 #. js-lingui-explicit-id
 #: src/components/custom/PasswordTotpStepHeader.tsx
@@ -7242,7 +7285,7 @@ msgid "error.bad_credentials"
 msgstr "无法验证凭据。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/DangerSection.tsx
+#: src/pages/admin/oidc-applications/CredentialsSection.tsx
 msgid "admin.oidc-apps.rotate.body"
 msgstr "确认后当前密钥立即失效。仍配置着它的客户端无法再登录，直到你为它们换上新的密钥——请先想好新密钥存放在哪里，再继续。"
 
@@ -7309,8 +7352,8 @@ msgstr "ID token 已经定义了这个声明。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/IdentityProjectionSection.tsx
-msgid "admin.oidc-apps.subject.hint"
-msgstr "客户端为该账号保存的标识。修改它会让所有人退出所有客户端。"
+msgid "admin.oidc-apps.subject.explain"
+msgstr "客户端为该账号保存的标识。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/AdminForwardAuthAppNew.tsx
@@ -7417,6 +7460,11 @@ msgstr "图片暂时无法获取。"
 #: src/pages/admin/identity-providers/ProviderDangerSection.tsx
 msgid "admin.federation.danger.delete.confirm.empty"
 msgstr "该提供商及其图标会被删除。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/OidcScopesField.tsx
+msgid "admin.oidc-apps.scopes.providers-failed"
+msgstr "无法加载提供方身份，已保持原样。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -8793,6 +8841,11 @@ msgid "profile.avatar.description"
 msgstr "别人在你的名字旁看到的图片。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/IdentityProjectionSection.tsx
+msgid "admin.oidc-apps.identity.description"
+msgstr "客户端会得知的登录者信息。"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
 msgid "admin.group.display-name.hint"
 msgstr "本用户组在控制台中显示的名称。"
@@ -8829,6 +8882,11 @@ msgid "admin.saml-apps.field.acs.hint"
 msgstr "这个实例发送断言的目标地址。其中恰好一个端点是默认端点。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/ClientConfigSection.tsx
+msgid "admin.oidc-apps.sign-in.description"
+msgstr "此应用可以把人送回的地址，以及它可以请求的内容。"
+
+#. js-lingui-explicit-id
 #: src/pages/Console.tsx
 msgid "console.devices.row"
 msgstr "你已登录的位置"
@@ -8847,6 +8905,11 @@ msgstr "本组包含哪些账号，在创建完成后于该用户组自己的页
 #: src/pages/admin/AdminGroupForm.tsx
 msgid "admin.group.rule.label"
 msgstr "规则匹配的账号"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/OidcScopesField.tsx
+msgid "admin.oidc-apps.scope.removed"
+msgstr "将被移除"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-validation.ts

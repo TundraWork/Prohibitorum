@@ -1,6 +1,6 @@
 import { useLingui } from "@lingui/react/macro";
 import { CheckIcon, CircleAlertIcon, CopyIcon } from "lucide-react";
-import { Fragment, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { Button } from "@/components/custom/Button";
 import { useCopyValue } from "@/components/custom/use-copy-value";
 import { Alert, AlertTitle } from "@/components/ui/alert";
@@ -28,17 +28,14 @@ interface ObjectHeaderProps {
   actions?: ReactNode;
 }
 
-function Separator(): React.ReactElement {
-  return (
-    <span aria-hidden="true" className="text-border">
-      |
-    </span>
-  );
-}
-
 /**
  * The top of an object page: icon, title, status badges, an identifier that
  * copies, a line of facts and the page's actions.
+ *
+ * The hairlines between the facts are each item's own leading edge, pushed
+ * out of sight by the clipping row when the item starts a line. A separator
+ * drawn between items would be left dangling at the end of a line the facts
+ * wrapped on.
  */
 export function ObjectHeader({
   icon,
@@ -140,18 +137,24 @@ export function ObjectHeader({
   });
 
   return (
-    <div className="flex items-center gap-4">
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
       {icon}
-      <div className="min-w-0">
+      <div className="min-w-0 flex-1 basis-56">
         <h1 className="font-semibold text-2xl tracking-tight">{title}</h1>
         {meta.length > 0 && (
-          <div className="mt-1 flex flex-wrap items-center gap-2 text-muted-foreground text-sm">
-            {meta.map((item, index) => (
-              <Fragment key={(item as React.ReactElement).key}>
-                {index > 0 && <Separator />}
-                {item}
-              </Fragment>
-            ))}
+          // Padded and pulled back by the same amount, so the clip does not
+          // cut the copy button's focus ring where it starts a line.
+          <div className="-mx-1 overflow-hidden p-1">
+            <div className="-ms-3 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-muted-foreground text-sm">
+              {meta.map((item) => (
+                <div
+                  key={(item as React.ReactElement).key}
+                  className="relative flex items-center ps-3 before:absolute before:start-0 before:top-1/2 before:h-4 before:w-px before:-translate-y-1/2 before:bg-border"
+                >
+                  {item}
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </div>

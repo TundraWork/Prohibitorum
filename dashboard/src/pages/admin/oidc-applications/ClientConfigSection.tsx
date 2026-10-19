@@ -7,9 +7,9 @@ import type { components } from "@/api/generated/schema";
 import { updateOidcAppMutationOptions } from "@/api/mutations";
 import type { UpdateOidcAppRequest } from "@/api/raw-admin-paths";
 import { oidcAppUpdateBody } from "@/api/update-bodies";
+import { withInlineReport } from "@/app/query-client";
 import { ConfirmDialog } from "@/components/custom/ConfirmDialog";
-import { ConsoleCard } from "@/components/custom/ConsoleCard";
-import { CopyValue } from "@/components/custom/CopyValue";
+import { ConsequenceFooter } from "@/components/custom/ConsequenceFooter";
 import { Section } from "@/components/custom/Section";
 import { UriList, uriRowProblem } from "@/components/custom/UriList";
 import { applyServerError } from "@/forms/server-errors";
@@ -23,13 +23,30 @@ import {
 
 type OidcApp = components["schemas"]["OIDCApplicationView"];
 
+/** The form's values for a stored record, also the baseline after a save. */
+function signInValues(app: OidcApp) {
+  return {
+    // Never empty: a client signs in through at least one of these, so the
+    // list starts with a row to fill and its last row cannot be removed.
+    redirectUris:
+      (app.redirectUris ?? []).length > 0 ? (app.redirectUris ?? []) : [""],
+    postLogoutRedirectUris: app.postLogoutRedirectUris ?? [],
+    allowedScopes: scopeFormValue(app.allowedScopes ?? []),
+    // A public client must keep PKCE on, and the switch is locked.
+    requirePkce: app.clientAuthMethod === "none" ? true : app.requirePkce,
+    requireConsent: app.requireConsent,
+  };
+}
+
 /**
- * The values a client's own configuration has to match: its Client ID, the
- * addresses it may return to, and the scopes it may ask for.
+ * What a client needs to sign people in: the addresses it may return to, the
+ * scopes it may ask for, and what the instance asks of it and of the account
+ * before it hands over a code — PKCE, and the account's consent.
  *
- * First on the page because they are what a reader comes to copy or check
- * against the client. The Client ID is read-only — the server takes it only on
- * create — so `CopyValue` is how it comes back out.
+ * First on the page because the addresses and scopes are what a reader comes to
+ * copy or check against the client. The section sits inside its form so the
+ * footer's primary button is the form's submit; the footer appears only while
+ * something differs from what is saved.
  *
  * The form submits through `oidcAppUpdateBody`. `PUT` replaces the record, so
  * the fields drawn by the other sections go out as they are stored, and an
@@ -37,15 +54,17 @@ type OidcApp = components["schemas"]["OIDCApplicationView"];
  *
  * Removing a saved scope is confirmed when the form is saved: a client that
  * still requests it is refused at `/authorize` from then on, while refresh
- * tokens already issued keep it until they expire or are revoked. The save
- * button turns to its warning tone as soon as a saved scope is missing, and the
- * dialog names the scopes. Adding a scope or editing an address saves straight
- * away.
+ * tokens already issued keep it until they expire or are revoked. The footer
+ * says so as soon as a saved scope is cleared, and the dialog names the scopes.
+ * Adding a scope or editing an address saves straight away. A failed save is
+ * shown on the section alone.
  */
 export function ClientConfigSection({ app }: { app: OidcApp }) {
   const { t, i18n } = useLingui();
   const queryClient = useQueryClient();
-  const update = useMutation(updateOidcAppMutationOptions(queryClient));
+  const update = useMutation(
+    withInlineReport(updateOidcAppMutationOptions(queryClient), true),
+  );
   // The request the dialog is confirming, checked and ready to send, with the
   // scopes it removes. It outlives the dialog's closing so the text does not
   // change while the dialog fades out.
@@ -56,16 +75,10 @@ export function ClientConfigSection({ app }: { app: OidcApp }) {
   const [confirming, setConfirming] = useState(false);
 
   const savedScopes = app.allowedScopes ?? [];
-  const savedRedirects = app.redirectUris ?? [];
+  const isPublic = app.clientAuthMethod === "none";
 
   const form = useAppForm({
-    defaultValues: {
-      // Never empty: a client signs in through at least one of these, so the
-      // list starts with a row to fill and its last row cannot be removed.
-      redirectUris: savedRedirects.length > 0 ? savedRedirects : [""],
-      postLogoutRedirectUris: app.postLogoutRedirectUris ?? [],
-      allowedScopes: scopeFormValue(savedScopes),
-    },
+    defaultValues: signInValues(app),
     onSubmit: async ({ value }) => {
       for (const name of ["redirectUris", "postLogoutRedirectUris"] as const) {
         const problem = uriListProblem(value[name]);
@@ -85,6 +98,8 @@ export function ClientConfigSection({ app }: { app: OidcApp }) {
         redirectUris: value.redirectUris,
         postLogoutRedirectUris: value.postLogoutRedirectUris,
         allowedScopes: value.allowedScopes,
+        requirePkce: isPublic ? true : value.requirePkce,
+        requireConsent: value.requireConsent,
       });
       const removed = removedScopes(savedScopes, value.allowedScopes);
       if (removed.length > 0) {
@@ -98,7 +113,9 @@ export function ClientConfigSection({ app }: { app: OidcApp }) {
 
   async function save(body: UpdateOidcAppRequest) {
     try {
-      await update.mutateAsync({ clientId: app.clientId, body });
+      const saved = await update.mutateAsync({ clientId: app.clientId, body });
+      // The stored record is the new baseline, so the section reads as saved.
+      form.reset(signInValues(saved));
     } catch (error) {
       if (isCancellation(error)) return;
       applyServerError(form, error, {
@@ -108,84 +125,153 @@ export function ClientConfigSection({ app }: { app: OidcApp }) {
     }
   }
 
-  const removesScopes = useStore(
-    form.store,
-    (state) =>
-      removedScopes(savedScopes, state.values.allowedScopes).length > 0,
+  const dirty = useStore(form.store, (state) => !state.isDefaultValue);
+  const submitting = useStore(form.store, (state) => state.isSubmitting);
+  const removing = useStore(form.store, (state) =>
+    removedScopes(savedScopes, state.values.allowedScopes),
   );
 
-  const title = t({
-    id: "admin.oidc-apps.client",
-    message: "Client configuration",
-  });
+  const title = t({ id: "admin.oidc-apps.sign-in.title", message: "Sign-in" });
   const removedNames = pending?.removed ?? [];
   const removedCount = pending?.removed.length ?? 0;
+  const pkceLabel = <Trans id="admin.oidc-apps.field.pkce">Require PKCE</Trans>;
 
   return (
-    <Section title={title}>
-      <ConsoleCard>
-        <form.AppForm>
-          <form.Form label={title}>
-            <form.FormError />
-
-            <CopyValue
-              value={app.clientId}
-              label={
-                <Trans id="admin.oidc-apps.field.client-id">Client ID</Trans>
-              }
-            />
-
-            <form.AppField name="redirectUris">
-              {() => (
-                <UriList
-                  label={t({
-                    id: "admin.oidc-apps.field.redirects",
-                    message: "Redirect URIs",
-                  })}
-                  addLabel={
-                    <Trans id="admin.oidc-apps.uri.add">Add address</Trans>
+    <>
+      <form.AppForm>
+        <form.Form label={title}>
+          <Section
+            id="sign-in"
+            title={title}
+            description={
+              <Trans id="admin.oidc-apps.sign-in.description">
+                Where this application may send people back to, and what it may
+                ask for.
+              </Trans>
+            }
+            dirty={dirty}
+            footer={
+              dirty ? (
+                <ConsequenceFooter
+                  consequence={
+                    removing.length > 0 ? (
+                      <Trans id="admin.oidc-apps.scopes.remove.consequence">
+                        Clients still asking for{" "}
+                        <ScopeNames names={removing} locale={i18n.locale} />{" "}
+                        will be refused until they stop.
+                      </Trans>
+                    ) : undefined
                   }
-                  placeholder="https://app.example.com/callback"
-                  minRows={1}
-                  minRowsReason={
-                    <Trans id="admin.oidc-apps.field.redirect.required">
-                      A client needs at least one redirect URI.
-                    </Trans>
+                  actionLabel={
+                    removing.length > 0 ? (
+                      <Plural
+                        id="admin.oidc-apps.scopes.remove.action-label"
+                        value={removing.length}
+                        one="Remove scope and save"
+                        other="Remove scopes and save"
+                      />
+                    ) : (
+                      <Trans id="admin.oidc-apps.save">Save</Trans>
+                    )
                   }
+                  onDiscard={() => form.reset()}
+                  pending={submitting || update.isPending}
                 />
-              )}
-            </form.AppField>
+              ) : undefined
+            }
+          >
+            <div className="flex flex-col gap-6">
+              <form.FormError />
 
-            <form.AppField name="postLogoutRedirectUris">
-              {() => (
-                <UriList
-                  label={t({
-                    id: "admin.oidc-apps.field.post-logout",
-                    message: "Post-logout redirect URIs",
-                  })}
-                  description={
-                    <Trans id="admin.oidc-apps.field.post-logout.description">
-                      Where the client may return after signing out.
-                    </Trans>
+              <form.AppField name="redirectUris">
+                {() => (
+                  <UriList
+                    label={t({
+                      id: "admin.oidc-apps.field.redirects",
+                      message: "Redirect URIs",
+                    })}
+                    addLabel={
+                      <Trans id="admin.oidc-apps.uri.add">Add address</Trans>
+                    }
+                    placeholder="https://app.example.com/callback"
+                    minRows={1}
+                    minRowsReason={
+                      <Trans id="admin.oidc-apps.field.redirect.required">
+                        A client needs at least one redirect URI.
+                      </Trans>
+                    }
+                  />
+                )}
+              </form.AppField>
+
+              <form.AppField name="postLogoutRedirectUris">
+                {() => (
+                  <UriList
+                    label={t({
+                      id: "admin.oidc-apps.field.post-logout",
+                      message: "Post-logout redirect URIs",
+                    })}
+                    description={
+                      <Trans id="admin.oidc-apps.field.post-logout.description">
+                        Where the client may return after signing out.
+                      </Trans>
+                    }
+                    addLabel={
+                      <Trans id="admin.oidc-apps.uri.add">Add address</Trans>
+                    }
+                    placeholder="https://app.example.com/signed-out"
+                  />
+                )}
+              </form.AppField>
+
+              <form.AppField name="allowedScopes">
+                {() => <OidcScopesField saved={savedScopes} />}
+              </form.AppField>
+
+              <div className="flex flex-col gap-5 border-t pt-6">
+                <form.AppField name="requirePkce">
+                  {(field) =>
+                    isPublic ? (
+                      // Locked rather than hidden, with the reason beside the
+                      // switch: a disabled control gives none on its own.
+                      <field.SwitchField
+                        label={pkceLabel}
+                        description={
+                          <Trans id="admin.oidc-apps.field.pkce.public">
+                            A public client always proves the request it
+                            started.
+                          </Trans>
+                        }
+                        isDisabled
+                      />
+                    ) : (
+                      <field.SwitchField label={pkceLabel} />
+                    )
                   }
-                  addLabel={
-                    <Trans id="admin.oidc-apps.uri.add">Add address</Trans>
-                  }
-                  placeholder="https://app.example.com/signed-out"
-                />
-              )}
-            </form.AppField>
+                </form.AppField>
 
-            <form.AppField name="allowedScopes">
-              {() => <OidcScopesField />}
-            </form.AppField>
-
-            <form.SubmitButton tone={removesScopes ? "warning" : "default"}>
-              <Trans id="admin.oidc-apps.save">Save</Trans>
-            </form.SubmitButton>
-          </form.Form>
-        </form.AppForm>
-      </ConsoleCard>
+                <form.AppField name="requireConsent">
+                  {(field) => (
+                    <field.SwitchField
+                      label={
+                        <Trans id="admin.oidc-apps.field.consent">
+                          Require consent
+                        </Trans>
+                      }
+                      description={
+                        <Trans id="admin.oidc-apps.field.consent.hint">
+                          Ask the account to approve the scopes before signing
+                          them in.
+                        </Trans>
+                      }
+                    />
+                  )}
+                </form.AppField>
+              </div>
+            </div>
+          </Section>
+        </form.Form>
+      </form.AppForm>
 
       <ConfirmDialog
         isOpen={confirming}
@@ -227,7 +313,7 @@ export function ClientConfigSection({ app }: { app: OidcApp }) {
           void save(pending.body).finally(() => setConfirming(false));
         }}
       />
-    </Section>
+    </>
   );
 }
 
