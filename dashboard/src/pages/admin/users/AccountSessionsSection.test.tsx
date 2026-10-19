@@ -111,6 +111,7 @@ describe("the sessions section", () => {
     const dialog = await screen.findByRole("alertdialog", {
       name: "End this session?",
     });
+    expect(within(dialog).getByText("Safari · iOS")).toBeVisible();
     expect(harness.sent("POST", "/sessions/revoke")).toHaveLength(0);
     await user.click(
       within(dialog).getByRole("button", { name: "End session" }),

@@ -317,3 +317,15 @@ export function ItemListRow({
     <div className={rowClass}>{body}</div>
   );
 }
+
+/**
+ * An empty list as one quiet line inside the panel, for a section that should
+ * not spend a screenful on "nothing here".
+ */
+export function ItemListEmpty({ children }: { children: ReactNode }) {
+  return (
+    <p className="text-pretty px-4 py-6 text-center text-muted-foreground text-sm">
+      {children}
+    </p>
+  );
+}

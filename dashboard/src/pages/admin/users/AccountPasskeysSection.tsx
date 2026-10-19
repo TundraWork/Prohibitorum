@@ -9,9 +9,8 @@ import { quietQuery, withInlineReport } from "@/app/query-client";
 import { Button } from "@/components/custom/Button";
 import { ConfirmDialog } from "@/components/custom/ConfirmDialog";
 import { useInlineFailure } from "@/components/custom/InlineFailure";
-import { ItemListRow } from "@/components/custom/ItemList";
+import { ItemListEmpty, ItemListRow } from "@/components/custom/ItemList";
 import { RelativeTime } from "@/components/custom/RelativeTime";
-import { TableEmptyState } from "@/components/custom/TableEmptyState";
 import { AccessSection } from "@/pages/admin/users/AccessSection";
 import { CredentialIcon } from "@/pages/security/PasskeysPanel";
 
@@ -51,12 +50,9 @@ export function AccountPasskeysSection({ accountId }: { accountId: number }) {
         query={credentials}
         writeError={failure.error}
         empty={
-          <TableEmptyState
-            icon={
-              <Fingerprint size={18} strokeWidth={1.75} aria-hidden="true" />
-            }
-            title={<Trans id="admin.user.passkeys.empty">No passkeys</Trans>}
-          />
+          <ItemListEmpty>
+            <Trans id="admin.user.passkeys.empty">No passkeys</Trans>
+          </ItemListEmpty>
         }
       >
         {(credentials.data?.items ?? []).map((credential) => {
@@ -123,12 +119,23 @@ export function AccountPasskeysSection({ accountId }: { accountId: number }) {
           </Trans>
         }
         body={
-          <p>
-            <Trans id="admin.user.passkeys.revoke.body">
-              This passkey stops working immediately. If it is the only way this
-              account signs in, they will need a new registration link.
-            </Trans>
-          </p>
+          <>
+            {target !== null && (
+              <p className="break-words font-medium text-foreground">
+                {target.nickname || (
+                  <Trans id="admin.user.passkeys.unnamed">
+                    Unnamed passkey
+                  </Trans>
+                )}
+              </p>
+            )}
+            <p>
+              <Trans id="admin.user.passkeys.revoke.body">
+                This passkey stops working immediately. If it is the only way
+                this account signs in, they will need a new registration link.
+              </Trans>
+            </p>
+          </>
         }
         confirmLabel={
           <Trans id="admin.user.passkeys.revoke.action">Remove passkey</Trans>

@@ -6,8 +6,7 @@ import type { components } from "@/api/generated/schema";
 import { accountIdentitiesQueryOptions } from "@/api/queries";
 import { quietQuery } from "@/app/query-client";
 import { EntityAvatar } from "@/components/custom/EntityAvatar";
-import { ItemListRow } from "@/components/custom/ItemList";
-import { TableEmptyState } from "@/components/custom/TableEmptyState";
+import { ItemListEmpty, ItemListRow } from "@/components/custom/ItemList";
 import { Badge } from "@/components/ui/badge";
 import { providerProtocolLabel } from "@/pages/admin/identity-providers/provider-options";
 import { AccessSection } from "@/pages/admin/users/AccessSection";
@@ -75,14 +74,11 @@ export function AccountIdentitiesSection({ accountId }: { accountId: number }) {
       query={identities}
       writeError={null}
       empty={
-        <TableEmptyState
-          icon={<Link2 size={18} strokeWidth={1.75} aria-hidden="true" />}
-          title={
-            <Trans id="admin.user.identities.empty">
-              No connected identities
-            </Trans>
-          }
-        />
+        <ItemListEmpty>
+          <Trans id="admin.user.identities.empty">
+            No connected identities
+          </Trans>
+        </ItemListEmpty>
       }
     >
       {(identities.data ?? []).map((identity) => (

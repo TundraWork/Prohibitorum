@@ -18,9 +18,8 @@ import {
   useDeviceLabel,
 } from "@/components/custom/DeviceName";
 import { useInlineFailure } from "@/components/custom/InlineFailure";
-import { ItemListRow } from "@/components/custom/ItemList";
+import { ItemListEmpty, ItemListRow } from "@/components/custom/ItemList";
 import { RelativeTime } from "@/components/custom/RelativeTime";
-import { TableEmptyState } from "@/components/custom/TableEmptyState";
 import { AccessSection } from "@/pages/admin/users/AccessSection";
 
 type Session = components["schemas"]["SessionListItem"];
@@ -72,18 +71,9 @@ export function AccountSessionsSection({ accountId }: { accountId: number }) {
         query={sessions}
         writeError={failure.error}
         empty={
-          <TableEmptyState
-            icon={
-              <MonitorSmartphone
-                size={18}
-                strokeWidth={1.75}
-                aria-hidden="true"
-              />
-            }
-            title={
-              <Trans id="admin.user.sessions.empty">No active sessions</Trans>
-            }
-          />
+          <ItemListEmpty>
+            <Trans id="admin.user.sessions.empty">No active sessions</Trans>
+          </ItemListEmpty>
         }
         footer={
           rows.length > 1 ? (
@@ -149,12 +139,19 @@ export function AccountSessionsSection({ accountId }: { accountId: number }) {
           <Trans id="admin.user.sessions.revoke.title">End this session?</Trans>
         }
         body={
-          <p>
-            <Trans id="admin.user.sessions.revoke.body">
-              That device is signed out immediately and will need to sign in
-              again. Anything it is doing right now stops.
-            </Trans>
-          </p>
+          <>
+            {target !== null && (
+              <p className="break-words font-medium text-foreground">
+                {deviceLabel(target.userAgent)}
+              </p>
+            )}
+            <p>
+              <Trans id="admin.user.sessions.revoke.body">
+                That device is signed out immediately and will need to sign in
+                again. Anything it is doing right now stops.
+              </Trans>
+            </p>
+          </>
         }
         confirmLabel={
           <Trans id="admin.user.sessions.revoke.action">End session</Trans>

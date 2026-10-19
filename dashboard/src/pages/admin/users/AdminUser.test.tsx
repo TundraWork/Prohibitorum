@@ -95,7 +95,7 @@ describe("the header", () => {
       within(statuses)
         .getAllByRole("listitem")
         .map((item) => item.textContent),
-    ).toEqual(["Admin", "Disabled"]);
+    ).toEqual(["Disabled", "Admin"]);
   });
 
   it("gives a role it does not know as a fact instead of a status", async () => {
@@ -187,7 +187,7 @@ describe("the registration link", () => {
     });
     await user.keyboard("{Escape}");
     expect(screen.getByRole("dialog")).toBeVisible();
-    expect(screen.getByText(/^The link expires on/)).toBeVisible();
+    expect(within(dialog).getByText(/^The link expires on/)).toBeVisible();
 
     await user.click(
       within(dialog).getByRole("checkbox", {
@@ -196,7 +196,8 @@ describe("the registration link", () => {
     );
     await user.click(within(dialog).getByRole("button", { name: "Done" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-    expect(screen.getByText(/^The link expires on/)).toBeVisible();
+    // The expiry belongs to the reveal, not to a caption left on the page.
+    expect(screen.queryByText(/^The link expires on/)).toBeNull();
   });
 
   it("asks for the identity check first when the window is closed", async () => {

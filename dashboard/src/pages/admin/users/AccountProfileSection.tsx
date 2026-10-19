@@ -3,7 +3,7 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import { useStore } from "@tanstack/react-form";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { CheckIcon, CircleAlertIcon, UserIcon } from "lucide-react";
-import { isCancellation } from "@/api/errors";
+import { ApiError, isCancellation } from "@/api/errors";
 import type { components } from "@/api/generated/schema";
 import { updateAccountMutationOptions } from "@/api/mutations";
 import { accountUpdateBody } from "@/api/update-bodies";
@@ -11,7 +11,7 @@ import { withInlineReport } from "@/app/query-client";
 import { ConsequenceFooter } from "@/components/custom/ConsequenceFooter";
 import { CopyValue } from "@/components/custom/CopyValue";
 import { Section } from "@/components/custom/Section";
-import { applyServerError } from "@/forms/server-errors";
+import { applyServerError, ServerFormError } from "@/forms/server-errors";
 import { useAppForm } from "@/forms/use-app-form";
 import { AccountRoleField } from "@/pages/admin/users/AccountRoleField";
 
@@ -24,6 +24,10 @@ const attributesInvalid = msg({
 const attributesNotObject = msg({
   id: "admin.user.attributes.not_object",
   message: "Attributes must be a JSON object, such as {}.",
+});
+const adminNeedsEnabling = msg({
+  id: "admin.user.role.admin-held",
+  message: "Enable the account before making it an admin.",
 });
 const displayNameRequired = msg({
   id: "admin.user.displayName.required",
@@ -122,6 +126,19 @@ export function AccountProfileSection({ account }: { account: Account }) {
         form.reset(profileValues(saved));
       } catch (error) {
         if (isCancellation(error)) return;
+        if (
+          error instanceof ApiError &&
+          error.code === "admin_cannot_be_disabled"
+        ) {
+          // The write carries the stored `disabled`, so the refusal is about
+          // the role: say what to do about it where the reader chose it.
+          form.setErrorMap({
+            onSubmit: {
+              fields: { role: new ServerFormError(error, adminNeedsEnabling) },
+            },
+          });
+          return;
+        }
         applyServerError(form, error, {
           locations: {
             displayName: "displayName",
@@ -236,7 +253,12 @@ export function AccountProfileSection({ account }: { account: Account }) {
             </form.AppField>
 
             <form.AppField name="role">
-              {() => <AccountRoleField savedRole={account.role} />}
+              {() => (
+                <AccountRoleField
+                  savedRole={account.role}
+                  accountDisabled={account.disabled}
+                />
+              )}
             </form.AppField>
 
             <form.AppField

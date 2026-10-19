@@ -1,6 +1,6 @@
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Ban, KeyRound, Ticket } from "lucide-react";
+import { Ban, Ticket } from "lucide-react";
 import { useState } from "react";
 import type { components } from "@/api/generated/schema";
 import { revokeAccountTokenMutationOptions } from "@/api/mutations";
@@ -9,8 +9,7 @@ import { quietQuery, withInlineReport } from "@/app/query-client";
 import { Button } from "@/components/custom/Button";
 import { ConfirmDialog } from "@/components/custom/ConfirmDialog";
 import { useInlineFailure } from "@/components/custom/InlineFailure";
-import { ItemListRow } from "@/components/custom/ItemList";
-import { TableEmptyState } from "@/components/custom/TableEmptyState";
+import { ItemListEmpty, ItemListRow } from "@/components/custom/ItemList";
 import {
   TokenAccessBadge,
   TokenAccessSummary,
@@ -40,7 +39,7 @@ export function AccountTokensSection({ accountId }: { accountId: number }) {
     <>
       <AccessSection
         id="tokens"
-        icon={<KeyRound />}
+        icon={<Ticket />}
         title={<Trans id="admin.user.tokens.title">Access tokens</Trans>}
         description={
           <Trans id="admin.user.tokens.description">
@@ -52,10 +51,9 @@ export function AccountTokensSection({ accountId }: { accountId: number }) {
         query={tokens}
         writeError={failure.error}
         empty={
-          <TableEmptyState
-            icon={<Ticket size={18} strokeWidth={1.75} aria-hidden="true" />}
-            title={<Trans id="admin.user.tokens.empty">No access tokens</Trans>}
-          />
+          <ItemListEmpty>
+            <Trans id="admin.user.tokens.empty">No access tokens</Trans>
+          </ItemListEmpty>
         }
       >
         {(tokens.data?.items ?? []).map((token) => {
@@ -103,12 +101,19 @@ export function AccountTokensSection({ accountId }: { accountId: number }) {
           <Trans id="admin.user.tokens.revoke.title">Revoke this token?</Trans>
         }
         body={
-          <p>
-            <Trans id="admin.user.tokens.revoke.body">
-              Anything using this token stops working immediately. This cannot
-              be undone.
-            </Trans>
-          </p>
+          <>
+            {target !== null && (
+              <p className="break-words font-medium text-foreground">
+                {target.name}
+              </p>
+            )}
+            <p>
+              <Trans id="admin.user.tokens.revoke.body">
+                Anything using this token stops working immediately. This cannot
+                be undone.
+              </Trans>
+            </p>
+          </>
         }
         confirmLabel={
           <Trans id="admin.user.tokens.revoke.action">Revoke token</Trans>

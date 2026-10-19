@@ -13,13 +13,22 @@ import { Field, FieldDescription, FieldError } from "@/components/ui/field";
  * so any other value came from somewhere else and the server refuses it. The
  * note says it has to be changed before saving.
  */
-export function AccountRoleField({ savedRole }: { savedRole: string }) {
+export function AccountRoleField({
+  savedRole,
+  accountDisabled = false,
+}: {
+  savedRole: string;
+  /** A disabled account cannot be an admin, so that choice is held. */
+  accountDisabled?: boolean;
+}) {
   const { t } = useLingui();
   const { field, errors, invalid, disabled, onChange } =
     useFieldBinding<string>(false);
   const labelId = useId();
+  const holdId = useId();
   const known = savedRole === "user" || savedRole === "admin";
   const role = savedRole;
+  const holdAdmin = accountDisabled && savedRole !== "admin";
 
   return (
     <Field name={field.name} invalid={invalid} disabled={disabled}>
@@ -41,12 +50,21 @@ export function AccountRoleField({ savedRole }: { savedRole: string }) {
           {
             value: "admin",
             label: t({ id: "admin.user.role.admin", message: "Admin" }),
+            disabled: holdAdmin,
+            describedBy: holdAdmin ? holdId : undefined,
           },
           ...(known ? [] : [{ value: savedRole, label: savedRole }]),
         ]}
       />
+      {holdAdmin && (
+        <FieldDescription id={holdId} className="text-pretty">
+          <Trans id="admin.user.role.admin-held">
+            Enable the account before making it an admin.
+          </Trans>
+        </FieldDescription>
+      )}
       {!known && (
-        <FieldDescription className="text-pretty">
+        <FieldDescription className="text-pretty text-warning-foreground">
           <Trans id="admin.user.role.unknown">
             This account has the role {role}, which the console does not offer
             and the server refuses. Change it to User or Admin before saving.

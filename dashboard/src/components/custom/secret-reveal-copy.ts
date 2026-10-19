@@ -134,6 +134,24 @@ export function invitationLinkCopyWithExpiry(expiry: string): SecretRevealCopy {
   };
 }
 
+/**
+ * The reveal for a registration link issued to an account that already exists:
+ * the holder sets up how that account signs in, rather than being invited, and
+ * the dialog says when the link stops working.
+ */
+export function registrationLinkCopyWithExpiry(
+  expiry: string,
+): SecretRevealCopy {
+  return {
+    ...invitationLinkCopyWithExpiry(expiry),
+    once: msg({
+      id: "admin.user.enrollment.reveal.once",
+      message:
+        "This link is shown only once and whoever holds it can set up how this account signs in. Send it to the person yourself, and only over a channel you trust.",
+    }),
+  };
+}
+
 export const accessTokenCopy: SecretRevealCopy = {
   title: msg({
     id: "security.tokens.reveal.title",

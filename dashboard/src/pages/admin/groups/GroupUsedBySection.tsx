@@ -7,7 +7,11 @@ import { groupApplicationsQueryOptions } from "@/api/queries";
 import type { GroupApplicationView } from "@/api/raw-admin-paths";
 import { quietQuery } from "@/app/query-client";
 import { EntityAvatar } from "@/components/custom/EntityAvatar";
-import { ItemList, ItemListRow } from "@/components/custom/ItemList";
+import {
+  ItemList,
+  ItemListEmpty,
+  ItemListRow,
+} from "@/components/custom/ItemList";
 import { AsyncSection, Section } from "@/components/custom/Section";
 import { Badge } from "@/components/ui/badge";
 
@@ -95,11 +99,11 @@ function UsedByList({ groupId }: { groupId: number }) {
       <ItemList
         label={t({ id: "admin.group.used-by.label", message: "Applications" })}
         empty={
-          <p className="text-pretty px-4 py-6 text-center text-muted-foreground text-sm">
+          <ItemListEmpty>
             <Trans id="admin.group.used-by.empty">
               No application uses this group.
             </Trans>
-          </p>
+          </ItemListEmpty>
         }
       >
         {applications.map((application) => (

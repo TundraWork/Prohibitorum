@@ -100,6 +100,8 @@ describe("the access tokens section", () => {
     const dialog = await screen.findByRole("alertdialog", {
       name: "Revoke this token?",
     });
+    // The confirmation names the token it is about to revoke.
+    expect(within(dialog).getByText("CI deploy")).toBeVisible();
     expect(harness.sent("POST", "/tokens/revoke")).toHaveLength(0);
     await user.click(
       within(dialog).getByRole("button", { name: "Revoke token" }),

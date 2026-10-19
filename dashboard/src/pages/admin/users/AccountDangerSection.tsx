@@ -26,15 +26,24 @@ type Account = components["schemas"]["AccountView"];
  *
  * They sit together because a reader who arrives here is deciding between them
  * and should see that disabling is available, and reversible, before reaching
- * for deletion. Both are confirmed. Disabling ends no session already open, so
- * its dialog says so. An admin cannot be disabled, so that button is held with
- * the reason beside it; the server enforces the same rule and its refusal, for
+ * for deletion. Both are confirmed. Disabling signs the account out of every
+ * session it has open, so its row and dialog say so. An admin cannot be
+ * disabled, and nobody can delete their own account, so those buttons are held
+ * with the reason beside them; the server enforces the same rule and its refusal, for
  * a case the page could not foresee, is shown once under the rows. Deleting asks
  * for a fresh identity check after the confirmation, then leaves for the list.
  */
-export function AccountDangerSection({ account }: { account: Account }) {
+export function AccountDangerSection({
+  account,
+  isSelf = false,
+}: {
+  account: Account;
+  /** Whether this is the account the reader is signed in as. */
+  isSelf?: boolean;
+}) {
   const { t } = useLingui();
   const reasonId = useId();
+  const selfReasonId = useId();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const setDisabled = useMutation(
@@ -78,7 +87,8 @@ export function AccountDangerSection({ account }: { account: Account }) {
               </Trans>
             ) : (
               <Trans key="note" id="admin.user.state.enabled.note.short">
-                Disabling stops this account signing in and ends nothing else.
+                Disabling stops this account signing in and signs it out of
+                every session it has open.
               </Trans>
             ),
           ]}
@@ -133,6 +143,8 @@ export function AccountDangerSection({ account }: { account: Account }) {
           stackActions
           actions={
             <Button
+              disabled={isSelf}
+              aria-describedby={isSelf ? selfReasonId : undefined}
               pending={remove.isPending}
               onClick={() => {
                 failure.clear();
@@ -144,7 +156,22 @@ export function AccountDangerSection({ account }: { account: Account }) {
               <Trans id="admin.user.delete.button">Delete</Trans>
             </Button>
           }
-        />
+        >
+          {isSelf && (
+            <p
+              id={selfReasonId}
+              className="flex items-center gap-1.5 text-pretty text-warning-foreground text-xs"
+            >
+              <TriangleAlertIcon
+                aria-hidden="true"
+                className="size-3.5 shrink-0"
+              />
+              <Trans id="admin.user.delete.self">
+                You can't delete your own account.
+              </Trans>
+            </p>
+          )}
+        </ItemListRow>
       </ItemList>
 
       <InlineFailure error={failure.error} />
@@ -172,8 +199,8 @@ export function AccountDangerSection({ account }: { account: Account }) {
               </Trans>
             ) : (
               <Trans id="admin.user.state.disable.body">
-                They will not be able to sign in. Sessions they already have
-                stay active until you end them.
+                They will be signed out of every session they have open and will
+                not be able to sign in until you enable the account again.
               </Trans>
             )}
           </p>

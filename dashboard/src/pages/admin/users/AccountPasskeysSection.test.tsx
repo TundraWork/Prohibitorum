@@ -95,6 +95,7 @@ describe("the passkeys section", () => {
     const dialog = await screen.findByRole("alertdialog", {
       name: "Remove this passkey?",
     });
+    expect(within(dialog).getByText("Work laptop")).toBeVisible();
     expect(harness.sent("POST", "/credentials/delete")).toHaveLength(0);
     await user.click(
       within(dialog).getByRole("button", { name: "Remove passkey" }),

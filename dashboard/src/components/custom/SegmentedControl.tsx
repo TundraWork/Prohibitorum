@@ -30,7 +30,14 @@ export function SegmentedControl<T extends string>({
   labelledBy?: string;
   value: T;
   onValueChange: (value: T) => void;
-  options: readonly { value: T; label: ReactNode; itemClassName?: string }[];
+  options: readonly {
+    value: T;
+    label: ReactNode;
+    itemClassName?: string;
+    /** Holds this one segment; give `describedBy` the id of the reason. */
+    disabled?: boolean;
+    describedBy?: string;
+  }[];
   disabled?: boolean;
   size?: "sm" | "default";
 }) {
@@ -47,6 +54,8 @@ export function SegmentedControl<T extends string>({
         <RadioPrimitive.Root
           key={option.value}
           value={option.value}
+          disabled={option.disabled}
+          aria-describedby={option.describedBy}
           className={cn(
             segmentedControlItemVariants({ size, state: "checked" }),
             "grow",

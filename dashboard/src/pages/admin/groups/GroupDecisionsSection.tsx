@@ -18,7 +18,11 @@ import {
   InlineFailure,
   useInlineFailure,
 } from "@/components/custom/InlineFailure";
-import { ItemList, ItemListRow } from "@/components/custom/ItemList";
+import {
+  ItemList,
+  ItemListEmpty,
+  ItemListRow,
+} from "@/components/custom/ItemList";
 import { RelativeTime } from "@/components/custom/RelativeTime";
 import { RowMenu } from "@/components/custom/RowMenu";
 import { Section } from "@/components/custom/Section";
@@ -160,12 +164,12 @@ export function GroupDecisionsSection({ groupId }: { groupId: number }) {
             })}
             loading={list.loading}
             empty={
-              <p className="text-pretty px-4 py-6 text-center text-muted-foreground text-sm">
+              <ItemListEmpty>
                 <Trans id="admin.group.decisions.empty">
                   No decisions yet. Nobody is allowed or denied through this
                   group.
                 </Trans>
-              </p>
+              </ItemListEmpty>
             }
             footer={
               list.hasMore ? (

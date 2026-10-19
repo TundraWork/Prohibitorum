@@ -342,6 +342,60 @@ describe("the profile section", () => {
       expect(screen.queryByRole("button", { name: /save/i })).toBeNull();
     });
 
+    it("holds Admin for a disabled account, with the reason in words", () => {
+      mount(accountFixture({ disabled: true }));
+
+      const admin = screen.getByRole("radio", { name: "Admin" });
+      expect(admin).toHaveAttribute("aria-disabled", "true");
+      expect(screen.getByRole("radio", { name: "User" })).not.toHaveAttribute(
+        "aria-disabled",
+        "true",
+      );
+      expect(admin).toHaveAccessibleDescription(
+        "Enable the account before making it an admin.",
+      );
+      expect(
+        screen.getByText("Enable the account before making it an admin."),
+      ).toBeVisible();
+    });
+
+    it("keeps an admin who is disabled as an admin, with nothing held", () => {
+      mount(accountFixture({ role: "admin", disabled: true }));
+      expect(screen.getByRole("radio", { name: "Admin" })).not.toHaveAttribute(
+        "aria-disabled",
+        "true",
+      );
+      expect(
+        screen.queryByText("Enable the account before making it an admin."),
+      ).toBeNull();
+    });
+
+    it("puts the server's refusal to make a disabled account an admin on the role", async () => {
+      const user = userEvent.setup();
+      mount(accountFixture(), (request) =>
+        request.method === "PUT"
+          ? Response.json(
+              { code: "admin_cannot_be_disabled", requestId: "r1" },
+              { status: 400 },
+            )
+          : undefined,
+      );
+
+      await user.click(screen.getByRole("radio", { name: "Admin" }));
+      await user.click(
+        screen.getByRole("button", { name: "Make admin and save" }),
+      );
+
+      const group = screen.getByRole("radiogroup", { name: "Role" });
+      const field = group.closest("[data-slot=field]") as HTMLElement;
+      expect(
+        await within(field).findByText(
+          "Enable the account before making it an admin.",
+        ),
+      ).toBeVisible();
+      expect(notifyError).not.toHaveBeenCalled();
+    });
+
     it("sends the new role", async () => {
       const user = userEvent.setup();
       mount(accountFixture());

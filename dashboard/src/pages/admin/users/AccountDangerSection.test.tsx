@@ -99,7 +99,7 @@ describe("disabling", () => {
       name: "Disable this account?",
     });
     expect(dialog).toHaveTextContent(
-      "They will not be able to sign in. Sessions they already have stay active until you end them.",
+      "They will be signed out of every session they have open and will not be able to sign in until you enable the account again.",
     );
     expect(posts("/set-disabled")).toHaveLength(0);
     await user.click(within(dialog).getByRole("button", { name: "Disable" }));
@@ -164,6 +164,15 @@ describe("disabling", () => {
     );
   });
 
+  it("says that disabling signs the account out of its sessions", () => {
+    mount(accountFixture());
+    expect(
+      screen.getByText(
+        "Disabling stops this account signing in and signs it out of every session it has open.",
+      ),
+    ).toBeVisible();
+  });
+
   it("does not block the delete row for an admin", () => {
     mount(accountFixture({ role: "admin" }));
     expect(screen.getByRole("button", { name: "Delete" })).toBeEnabled();
@@ -190,6 +199,29 @@ describe("disabling", () => {
 });
 
 describe("deleting", () => {
+  it("is held on the reader's own account, with the reason in words", () => {
+    const base = accountFixture();
+    fetchBoundary.mockImplementation(
+      async () => new Response(null, { status: 204 }),
+    );
+    render(
+      <I18nProvider i18n={i18n}>
+        <QueryClientProvider client={queryClient}>
+          <AccountDangerSection account={base} isSelf />
+        </QueryClientProvider>
+      </I18nProvider>,
+    );
+
+    const remove = screen.getByRole("button", { name: "Delete" });
+    expect(remove).toBeDisabled();
+    expect(
+      screen.getByText("You can't delete your own account."),
+    ).toBeVisible();
+    expect(remove).toHaveAccessibleDescription(
+      "You can't delete your own account.",
+    );
+  });
+
   async function openDeleteDialog(user: ReturnType<typeof userEvent.setup>) {
     await user.click(screen.getByRole("button", { name: "Delete" }));
     return screen.findByRole("alertdialog", { name: "Delete this account?" });

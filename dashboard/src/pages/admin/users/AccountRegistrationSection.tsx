@@ -1,6 +1,6 @@
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useMutation } from "@tanstack/react-query";
-import { LinkIcon } from "lucide-react";
+import { UserRoundPlusIcon } from "lucide-react";
 import { useState } from "react";
 import { reissueEnrollmentMutationOptions } from "@/api/mutations";
 import { withInlineReport } from "@/app/query-client";
@@ -12,7 +12,7 @@ import {
 import { SecretRevealDialog } from "@/components/custom/SecretReveal";
 import { Section } from "@/components/custom/Section";
 import { SettingRow } from "@/components/custom/SettingRow";
-import { invitationLinkCopy } from "@/components/custom/secret-reveal-copy";
+import { registrationLinkCopyWithExpiry } from "@/components/custom/secret-reveal-copy";
 
 /**
  * Issues a fresh registration link for the account.
@@ -20,9 +20,8 @@ import { invitationLinkCopy } from "@/components/custom/secret-reveal-copy";
  * The link is a credential: anyone holding it can set this account's sign-in
  * method, and the server does not show it again, so it is revealed in a dialog
  * that cannot be dismissed while the section holds it. Issuing asks for a fresh
- * identity check and stops any earlier link. Once the reveal is dismissed the
- * section keeps the expiry, which is the one fact about the link that can
- * still be read.
+ * identity check and stops any earlier link. The expiry is told in the reveal,
+ * while the link is still on screen.
  */
 export function AccountRegistrationSection({
   accountId,
@@ -48,8 +47,13 @@ export function AccountRegistrationSection({
   return (
     <Section
       id="registration"
-      icon={<LinkIcon />}
+      icon={<UserRoundPlusIcon />}
       title={<Trans id="admin.user.enrollment.title">Registration link</Trans>}
+      description={
+        <Trans id="admin.user.enrollment.description">
+          A link for setting up how this account signs in.
+        </Trans>
+      }
     >
       <SettingRow
         title={
@@ -82,20 +86,13 @@ export function AccountRegistrationSection({
         </Button>
       </SettingRow>
       <InlineFailure error={failure.error} />
-      {expiresAt !== null && (
-        <p className="text-muted-foreground text-xs">
-          <Trans id="admin.user.enrollment.expires">
-            The link expires on {expiry}.
-          </Trans>
-        </p>
-      )}
       {url !== null && (
         // Open exactly while the link is held here, so it cannot outlive it and
         // only the reveal's own continue control can close it.
         <SecretRevealDialog
           text={url}
           filename="prohibitorum-registration-link.txt"
-          copy={invitationLinkCopy}
+          copy={registrationLinkCopyWithExpiry(expiry)}
           onContinue={async () => setUrl(null)}
         />
       )}

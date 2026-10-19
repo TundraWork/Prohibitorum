@@ -31,6 +31,8 @@ interface ObjectHeaderProps {
   facts?: ReactNode[];
   /** Aligned to the end. */
   actions?: ReactNode;
+  /** The object is switched off: its icon and title recede, as a list row's do. */
+  dimmed?: boolean;
 }
 
 /**
@@ -53,6 +55,7 @@ export function ObjectHeader({
   identifier,
   facts = [],
   actions,
+  dimmed = false,
 }: ObjectHeaderProps): React.ReactElement {
   const { t } = useLingui();
 
@@ -141,9 +144,13 @@ export function ObjectHeader({
       data-slot="object-header"
       className="flex flex-wrap items-center gap-x-4 gap-y-3"
     >
-      {icon}
+      {dimmed ? <span className="inline-flex opacity-70">{icon}</span> : icon}
       <div className="min-w-0 flex-1 basis-56">
-        <h1 className="font-semibold text-2xl tracking-tight">{title}</h1>
+        <h1
+          className={`font-semibold text-2xl tracking-tight${dimmed ? " opacity-70" : ""}`}
+        >
+          {title}
+        </h1>
         {meta.length > 0 && (
           // Padded and pulled back by the same amount, so the clip does not
           // cut the copy button's focus ring where it starts a line.

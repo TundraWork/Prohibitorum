@@ -1,6 +1,6 @@
 import { Trans, useLingui } from "@lingui/react/macro";
-import { useSuspenseQuery } from "@tanstack/react-query";
-import { accountQueryOptions } from "@/api/queries";
+import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
+import { accountQueryOptions, sessionQueryOptions } from "@/api/queries";
 import { AppDetailLayout } from "@/components/custom/AppDetailLayout";
 import { EntityAvatar } from "@/components/custom/EntityAvatar";
 import {
@@ -33,6 +33,8 @@ export function AdminUser() {
   const accountId = Number(id);
   const { data: account } = useSuspenseQuery(accountQueryOptions(accountId));
 
+  const session = useQuery(sessionQueryOptions());
+
   const name = account.displayName || account.username;
   const joined = new Intl.DateTimeFormat(i18n.locale, {
     dateStyle: "medium",
@@ -40,9 +42,11 @@ export function AdminUser() {
   const role = account.role;
   const known = role === "admin" || role === "user";
   const statuses: ObjectStatus[] = [];
+  // State before role, as the list's badges read.
+  if (account.disabled) statuses.push("disabled");
   if (role === "admin") statuses.push("admin");
   if (role === "user") statuses.push("user");
-  statuses.push(account.disabled ? "disabled" : "enabled");
+  if (!account.disabled) statuses.push("enabled");
 
   return (
     <AppDetailLayout
@@ -57,6 +61,7 @@ export function AdminUser() {
             />
           }
           title={name}
+          dimmed={account.disabled}
           statuses={statuses}
           identifier={{
             value: `@${account.username}`,
@@ -100,7 +105,10 @@ export function AdminUser() {
         <AccountTokensSection accountId={account.id} />
       </div>
       <AccountRegistrationSection accountId={account.id} />
-      <AccountDangerSection account={account} />
+      <AccountDangerSection
+        account={account}
+        isSelf={session.data?.id === account.id}
+      />
     </AppDetailLayout>
   );
 }

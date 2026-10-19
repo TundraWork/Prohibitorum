@@ -10,8 +10,9 @@ export type ServerFieldMap<TField extends string> = {
 export class ServerFormError {
   readonly message: MessageDescriptor;
 
-  constructor(error: unknown) {
-    this.message = describeError(error);
+  /** `message` words a refusal the way the form wants it said, in place of the server code's. */
+  constructor(error: unknown, message?: MessageDescriptor) {
+    this.message = message ?? describeError(error);
   }
 }
 
