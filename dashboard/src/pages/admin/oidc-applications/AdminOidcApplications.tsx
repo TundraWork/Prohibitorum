@@ -167,6 +167,26 @@ export function AdminOidcApplications() {
                   No OIDC applications yet
                 </Trans>
               }
+              description={
+                isAdmin ? (
+                  <Trans id="admin.oidc-apps.empty.description">
+                    Register a client to let people sign in to an application
+                    with OpenID Connect.
+                  </Trans>
+                ) : (
+                  <Trans id="admin.apps.empty.managed">
+                    Applications you are assigned to manage appear here.
+                  </Trans>
+                )
+              }
+              action={
+                isAdmin ? (
+                  <Button render={<Link to="/admin/oidc-applications/new" />}>
+                    <Plus aria-hidden="true" />
+                    <Trans id="admin.oidc-apps.create">New application</Trans>
+                  </Button>
+                ) : undefined
+              }
             />
           }
         />

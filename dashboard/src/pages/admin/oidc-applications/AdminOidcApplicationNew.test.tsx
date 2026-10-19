@@ -83,7 +83,7 @@ describe("the form's shape", () => {
       screen
         .getAllByRole("heading", { level: 2 })
         .map((heading) => heading.textContent),
-    ).toEqual(["Identity", "Client type", "Sign-in", "Access"]);
+    ).toEqual(["Application", "Client type", "Sign-in", "Access"]);
   });
 
   it("offers the two client types as described choices, confidential first and chosen", async () => {

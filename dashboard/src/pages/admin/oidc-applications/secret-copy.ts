@@ -11,9 +11,10 @@ import type { SecretRevealCopy } from "@/components/custom/secret-reveal-copy";
  * it is lost rather than urging the reader to "keep it safe", and the continue
  * control says what it does — it leaves for the application's page.
  *
- * Rotation reuses the same wording: the new secret replaces the old in exactly
- * the same way, and the dialog's own wording for that is the confirmation
- * before it, not a second disclaimer here.
+ * Rotation reuses the same wording, except the continue control: the reader is
+ * already on the application's page, so it only says the secret is saved. The
+ * dialog's own wording for the rotation is the confirmation before it, not a
+ * second disclaimer here.
  */
 export const clientSecretCopy: SecretRevealCopy = {
   title: msg({
@@ -54,5 +55,14 @@ export const clientSecretCopy: SecretRevealCopy = {
   leave: msg({
     id: "admin.oidc-apps.secret.leave",
     message: "Leave without saving? This secret cannot be shown again.",
+  }),
+};
+
+/** The reveal after a rotation on the application's own page. */
+export const rotatedSecretCopy: SecretRevealCopy = {
+  ...clientSecretCopy,
+  continueLabel: msg({
+    id: "admin.oidc-apps.secret.rotated.continue",
+    message: "Done",
   }),
 };

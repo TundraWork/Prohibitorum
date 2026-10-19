@@ -132,6 +132,7 @@ export function AppearanceSection({ app }: { app: OidcApp }) {
                   }
                   autoComplete="off"
                   spellCheck={false}
+                  isMonospace
                 />
               )}
             </form.AppField>

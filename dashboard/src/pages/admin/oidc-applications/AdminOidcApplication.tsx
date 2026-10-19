@@ -52,6 +52,11 @@ export function AdminOidcApplication() {
   const session = useQuery(sessionQueryOptions());
   const isAdmin = session.data?.role === "admin";
 
+  // The issuer is a quiet read: until the discovery document answers, and if it
+  // cannot, the fact is left out rather than shown as a guess.
+  const discovery = useQuery(quietQuery(oidcDiscoveryQueryOptions()));
+  const issuer = discovery.data?.issuer;
+
   const name = app.displayName || app.clientId;
   // `none` is the one client authentication method that means "no secret at
   // all", which is what makes a client public.
@@ -115,7 +120,7 @@ export function AdminOidcApplication() {
           <AppManagerNote isAdmin={isAdmin} />
         </div>
       }
-      facts={<IssuerFact />}
+      facts={issuer === undefined ? undefined : <IssuerFact issuer={issuer} />}
     >
       <ClientConfigSection app={app} />
       <AppAccessSection kind="oidc" appId={app.clientId} isAdmin={isAdmin} />
@@ -131,15 +136,12 @@ export function AdminOidcApplication() {
 /**
  * The issuer clients are told to trust, with a copy button.
  *
- * It is read from the discovery document, because the server's issuer is
- * configured and may differ from the origin this console is served from. The
- * origin stands in only while the document loads or if it cannot be read; the
- * read is quiet because the fallback is already on screen.
+ * It is the one the discovery document names, because the server's issuer is
+ * configured and may differ from the origin this console is served from; the
+ * origin is never shown in its place.
  */
-function IssuerFact() {
+function IssuerFact({ issuer }: { issuer: string }) {
   const { t } = useLingui();
-  const discovery = useQuery(quietQuery(oidcDiscoveryQueryOptions()));
-  const issuer = discovery.data?.issuer ?? window.location.origin;
   return (
     <div className="flex min-w-0 flex-col gap-1">
       <span className="text-muted-foreground">

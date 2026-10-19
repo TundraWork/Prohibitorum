@@ -100,7 +100,7 @@ describe("the application header", () => {
         keys: [{ use: "signing", notAfter: "2020-01-01T12:00:00Z" }],
       }),
     );
-    expect(screen.getByText("Certificate expired")).toBeVisible();
+    expect(screen.getByText("Certificate expired Jan 1, 2020")).toBeVisible();
   });
 
   it("says when there is no signing certificate", async () => {

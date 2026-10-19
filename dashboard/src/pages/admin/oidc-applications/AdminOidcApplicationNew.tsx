@@ -4,9 +4,9 @@ import { useStore } from "@tanstack/react-form";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import {
-  IdCardIcon,
+  AppWindowIcon,
+  KeyRoundIcon,
   LogInIcon,
-  ServerIcon,
   ShieldCheckIcon,
 } from "lucide-react";
 import { useState } from "react";
@@ -179,10 +179,10 @@ export function AdminOidcApplicationNew() {
             <form.FormError />
 
             <Section
-              id="identity"
-              icon={<IdCardIcon />}
+              id="application"
+              icon={<AppWindowIcon />}
               title={
-                <Trans id="admin.oidc-apps.new.identity.title">Identity</Trans>
+                <Trans id="admin.apps.new.application.title">Application</Trans>
               }
               description={
                 <Trans id="admin.oidc-apps.new.identity.description">
@@ -244,7 +244,7 @@ export function AdminOidcApplicationNew() {
 
             <Section
               id="type"
-              icon={<ServerIcon />}
+              icon={<KeyRoundIcon />}
               title={<Trans id="admin.oidc-apps.field.kind">Client type</Trans>}
               description={
                 <Trans id="admin.oidc-apps.new.type.description">

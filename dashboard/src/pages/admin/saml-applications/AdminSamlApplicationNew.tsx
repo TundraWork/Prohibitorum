@@ -3,10 +3,10 @@ import { useStore } from "@tanstack/react-form";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import {
+  AppWindowIcon,
+  ClipboardListIcon,
   FileKeyIcon,
-  IdCardIcon,
   LogInIcon,
-  ServerIcon,
   ShieldCheckIcon,
 } from "lucide-react";
 import { useState } from "react";
@@ -220,10 +220,10 @@ export function AdminSamlApplicationNew() {
           <form.FormError />
 
           <Section
-            id="identity"
-            icon={<IdCardIcon />}
+            id="application"
+            icon={<AppWindowIcon />}
             title={
-              <Trans id="admin.saml-apps.new.identity.title">Identity</Trans>
+              <Trans id="admin.apps.new.application.title">Application</Trans>
             }
             description={
               <Trans id="admin.saml-apps.new.identity.description">
@@ -248,7 +248,7 @@ export function AdminSamlApplicationNew() {
 
           <Section
             id="registration"
-            icon={<ServerIcon />}
+            icon={<ClipboardListIcon />}
             title={
               <Trans id="admin.saml-apps.new.registration.title">
                 Registration
@@ -435,9 +435,10 @@ export function AdminSamlApplicationNew() {
                       </Trans>
                     }
                     description={
-                      <Trans id="admin.saml-apps.field.signed-request.hint">
+                      <Trans id="admin.saml-apps.general.signed-request.hint">
                         Refuse a sign-in request the service provider has not
-                        signed. Turn this off only if it cannot sign one.
+                        signed. Good practice for every provider that can sign
+                        one.
                       </Trans>
                     }
                   />

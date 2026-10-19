@@ -50,7 +50,7 @@ export function CertificateText({
         <span className="text-destructive-foreground">
           {named ? (
             <Trans id="admin.saml-apps.certificate.expired">
-              Certificate expired
+              Certificate expired {date}
             </Trans>
           ) : (
             <Trans id="admin.saml-apps.keys.expired">Expired {date}</Trans>

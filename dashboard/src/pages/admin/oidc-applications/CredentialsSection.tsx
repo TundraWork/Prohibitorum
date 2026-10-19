@@ -14,7 +14,7 @@ import {
 import { SecretRevealDialog } from "@/components/custom/SecretReveal";
 import { Section } from "@/components/custom/Section";
 import { SettingRow } from "@/components/custom/SettingRow";
-import { clientSecretCopy } from "@/pages/admin/oidc-applications/secret-copy";
+import { rotatedSecretCopy } from "@/pages/admin/oidc-applications/secret-copy";
 
 type OidcApp = components["schemas"]["OIDCApplicationView"];
 
@@ -136,7 +136,7 @@ export function CredentialsSection({ app }: { app: OidcApp }) {
         <SecretRevealDialog
           text={secret}
           filename={`${app.clientId}-client-secret.txt`}
-          copy={clientSecretCopy}
+          copy={rotatedSecretCopy}
           onContinue={async () => setSecret(null)}
         />
       )}

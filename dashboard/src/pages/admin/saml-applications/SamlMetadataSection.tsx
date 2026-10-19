@@ -96,39 +96,43 @@ export function SamlMetadataSection({ app }: { app: SamlApp }) {
         })}
         empty={null}
       >
-        {endpoints.map((endpoint) => (
-          <ItemListRow
-            key={`acs:${endpoint.binding}:${endpoint.index}`}
-            icon={<GlobeIcon aria-hidden="true" size={18} />}
-            // The index is the endpoint's own identity in the service
-            // provider's metadata, so it names the row. Being the default is a
-            // fact about it rather than a different endpoint, so it rides beside
-            // the name instead of replacing it.
-            title={
-              <Trans
-                id="admin.saml-apps.acs.endpoint"
-                comment="The endpoint's index in the service provider's own list"
-              >
-                Endpoint {endpoint.index}
-              </Trans>
-            }
-            badges={
-              endpoint.isDefault ? (
-                <Badge variant="outline">
-                  <Trans id="admin.saml-apps.acs.default-endpoint">
-                    Default
-                  </Trans>
-                </Badge>
-              ) : undefined
-            }
-            details={[
-              bindingName(endpoint.binding),
-              <span key="location" className="break-all font-mono">
-                {endpoint.location}
-              </span>,
-            ]}
-          />
-        ))}
+        {endpoints.map((endpoint, position) => {
+          const number = position + 1;
+          return (
+            <ItemListRow
+              key={`acs:${endpoint.binding}:${endpoint.index}`}
+              icon={<GlobeIcon aria-hidden="true" size={18} />}
+              // The endpoint's place in the list names the row, counted from one:
+              // the service provider's own index may be zero and says nothing to
+              // a reader. Being the default is a fact about it rather than a
+              // different endpoint, so it rides beside the name instead of
+              // replacing it.
+              title={
+                <Trans
+                  id="admin.saml-apps.acs.endpoint"
+                  comment="The endpoint's place in the list, counted from one"
+                >
+                  Endpoint {number}
+                </Trans>
+              }
+              badges={
+                endpoint.isDefault ? (
+                  <Badge variant="outline">
+                    <Trans id="admin.saml-apps.acs.default-endpoint">
+                      Default
+                    </Trans>
+                  </Badge>
+                ) : undefined
+              }
+              details={[
+                bindingName(endpoint.binding),
+                <span key="location" className="break-all font-mono">
+                  {endpoint.location}
+                </span>,
+              ]}
+            />
+          );
+        })}
         {endpoints.length === 0 && (
           <ItemListRow
             key="acs:none"

@@ -179,6 +179,26 @@ export function AdminSamlApplications() {
                   No SAML applications yet
                 </Trans>
               }
+              description={
+                isAdmin ? (
+                  <Trans id="admin.saml-apps.empty.description">
+                    Register a service provider to let people sign in to it with
+                    SAML.
+                  </Trans>
+                ) : (
+                  <Trans id="admin.apps.empty.managed">
+                    Applications you are assigned to manage appear here.
+                  </Trans>
+                )
+              }
+              action={
+                isAdmin ? (
+                  <Button render={<Link to="/admin/saml-applications/new" />}>
+                    <Plus aria-hidden="true" />
+                    <Trans id="admin.saml-apps.create">New application</Trans>
+                  </Button>
+                ) : undefined
+              }
             />
           }
         />

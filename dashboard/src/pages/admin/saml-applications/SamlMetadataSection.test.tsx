@@ -88,7 +88,7 @@ describe("what the metadata says", () => {
         name: "Endpoints and certificates",
       }),
     ).toBeVisible();
-    expect(screen.getByText("Endpoint 0")).toBeVisible();
+    expect(screen.getByText("Endpoint 1")).toBeVisible();
     expect(
       screen.getByText("https://wiki.example.test/saml/acs"),
     ).toBeVisible();

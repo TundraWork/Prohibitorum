@@ -243,6 +243,22 @@ describe("the attribute map", () => {
     expect(await screen.findAllByRole("option")).toHaveLength(3);
   });
 
+  it("narrows the suggestions once something else is typed", async () => {
+    const user = userEvent.setup();
+    mount(samlAppFixture());
+
+    const format = await screen.findByRole("combobox", {
+      name: "Name format",
+    });
+    await user.click(format);
+    await user.clear(format);
+    await user.type(format, "uri");
+
+    const options = await screen.findAllByRole("option");
+    expect(options).toHaveLength(1);
+    expect(options[0]).toHaveTextContent("attrname-format:uri");
+  });
+
   it("sends a standard format as the whole URN, not the short name", async () => {
     const user = userEvent.setup();
     mount(samlAppFixture());

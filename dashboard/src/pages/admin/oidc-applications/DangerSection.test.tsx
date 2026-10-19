@@ -121,13 +121,40 @@ describe("disabling and deleting", () => {
       name: "Delete this application?",
     });
     expect(posts("/delete")).toHaveLength(0);
-    await user.click(within(dialog).getByRole("button", { name: "Delete" }));
+    await user.click(
+      within(dialog).getByRole("button", { name: "Delete application" }),
+    );
 
     await waitFor(() => expect(posts("/delete")).toHaveLength(1));
     expect(await posts("/delete")[0]?.json()).toEqual({ clientId: "grafana" });
     await waitFor(() =>
       expect(navigate).toHaveBeenCalledWith({ to: "/admin/oidc-applications" }),
     );
+  });
+
+  it("asks for the identity check before deleting when the window is closed", async () => {
+    const user = userEvent.setup();
+    const set = vi.fn();
+    configureSudo({
+      queryClient,
+      set,
+      setFresh: () => {},
+      getFresh: () => false,
+    });
+    mount(oidcAppFixture(), (request) =>
+      new URL(request.url).pathname.endsWith("/me/sudo/methods")
+        ? Response.json({ methods: ["password_totp"], fresh: false })
+        : undefined,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Delete" }));
+    const dialog = await screen.findByRole("alertdialog");
+    await user.click(
+      within(dialog).getByRole("button", { name: "Delete application" }),
+    );
+
+    await waitFor(() => expect(set).toHaveBeenCalled());
+    expect(posts("/delete")).toHaveLength(0);
   });
 
   it("keeps the confirmation open while the write is in flight", async () => {
@@ -143,7 +170,9 @@ describe("disabling and deleting", () => {
 
     await user.click(screen.getByRole("button", { name: "Delete" }));
     const dialog = await screen.findByRole("alertdialog");
-    await user.click(within(dialog).getByRole("button", { name: "Delete" }));
+    await user.click(
+      within(dialog).getByRole("button", { name: "Delete application" }),
+    );
     await waitFor(() => expect(posts("/delete")).toHaveLength(1));
     await user.keyboard("{Escape}");
 
@@ -161,7 +190,9 @@ describe("disabling and deleting", () => {
 
     await user.click(screen.getByRole("button", { name: "Delete" }));
     const dialog = await screen.findByRole("alertdialog");
-    await user.click(within(dialog).getByRole("button", { name: "Delete" }));
+    await user.click(
+      within(dialog).getByRole("button", { name: "Delete application" }),
+    );
 
     await waitFor(() =>
       expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument(),

@@ -134,7 +134,7 @@ export function SamlSignInSection({ app }: { app: SamlApp }) {
                       session lasts.
                     </Trans>
                   }
-                  className="max-w-sm"
+                  className="max-w-lg"
                 />
               )}
             </form.AppField>

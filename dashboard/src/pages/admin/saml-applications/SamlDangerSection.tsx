@@ -64,7 +64,7 @@ export function SamlDangerSection({ app }: { app: SamlApp }) {
     >
       <ItemList
         label={t({
-          id: "admin.saml-apps.danger.label",
+          id: "admin.saml-apps.danger",
           message: "Danger zone",
         })}
         empty={null}
@@ -219,7 +219,9 @@ export function SamlDangerSection({ app }: { app: SamlApp }) {
           </p>
         }
         confirmLabel={
-          <Trans id="admin.saml-apps.danger.delete.confirm">Delete</Trans>
+          <Trans id="admin.saml-apps.danger.delete.confirm">
+            Delete application
+          </Trans>
         }
         isPending={remove.isPending}
         onConfirm={() => {

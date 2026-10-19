@@ -65,7 +65,7 @@ export function DangerSection({ app }: { app: OidcApp }) {
     >
       <ItemList
         label={t({
-          id: "admin.oidc-apps.danger.label",
+          id: "admin.oidc-apps.danger",
           message: "Danger zone",
         })}
         empty={null}
@@ -214,7 +214,11 @@ export function DangerSection({ app }: { app: OidcApp }) {
             </Trans>
           </p>
         }
-        confirmLabel={<Trans id="admin.oidc-apps.delete.action">Delete</Trans>}
+        confirmLabel={
+          <Trans id="admin.oidc-apps.delete.confirm.action">
+            Delete application
+          </Trans>
+        }
         isPending={remove.isPending}
         onConfirm={() => {
           remove.mutate(app.clientId, {

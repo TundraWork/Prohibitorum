@@ -112,4 +112,29 @@ describe("the credentials section", () => {
     expect(await screen.findAllByRole("alert")).toHaveLength(1);
     expect(notifyError).not.toHaveBeenCalled();
   });
+
+  it("asks for the identity check before rotating when the window is closed", async () => {
+    const user = userEvent.setup();
+    const set = vi.fn();
+    configureSudo({
+      queryClient,
+      set,
+      setFresh: () => {},
+      getFresh: () => false,
+    });
+    mount(oidcAppFixture(), (request) =>
+      new URL(request.url).pathname.endsWith("/me/sudo/methods")
+        ? Response.json({ methods: ["password_totp"], fresh: false })
+        : undefined,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Rotate secret" }));
+    const dialog = await screen.findByRole("alertdialog");
+    await user.click(
+      within(dialog).getByRole("button", { name: "Rotate secret" }),
+    );
+
+    await waitFor(() => expect(set).toHaveBeenCalled());
+    expect(rotations()).toHaveLength(0);
+  });
 });

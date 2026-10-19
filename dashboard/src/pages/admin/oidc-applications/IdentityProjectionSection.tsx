@@ -165,6 +165,7 @@ export function IdentityProjectionSection({ app }: { app: OidcApp }) {
               <form.AppField name="subjectSource">
                 {(field) => (
                   <field.PrincipalSourceField
+                    className="w-full max-w-lg"
                     label={
                       <Trans id="admin.oidc-apps.subject">Subject source</Trans>
                     }

@@ -90,6 +90,11 @@ describe("the page", () => {
   it("says there are no applications when the list is empty", async () => {
     await mountList([]);
     expect(await screen.findByText("No OIDC applications yet")).toBeVisible();
+    expect(screen.getByText(/Register a client to let people/)).toBeVisible();
+    // The header's action and the empty state's own: two ways to the same page.
+    expect(
+      screen.getAllByRole("link", { name: "New application" }),
+    ).toHaveLength(2);
   });
 });
 

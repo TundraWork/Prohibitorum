@@ -102,7 +102,7 @@ describe("the form's shape", () => {
         .getAllByRole("heading", { level: 2 })
         .map((heading) => heading.textContent),
     ).toEqual([
-      "Identity",
+      "Application",
       "Registration",
       "Service provider",
       "Sign-in",

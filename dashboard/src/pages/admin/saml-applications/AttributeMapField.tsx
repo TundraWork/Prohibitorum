@@ -217,7 +217,9 @@ function MappingRowFields({
   const submitting = useStore(form.store, (state) => state.isSubmitting);
   const anchor = useRef<HTMLDivElement>(null);
   const container = useHostOverlayContainer(anchor);
-  const [formatFocused, setFormatFocused] = useState(false);
+  // The format as it was when the box took focus, or null while it is not
+  // focused: the filter tells "still the value it opened with" from typing.
+  const [focusedWith, setFocusedWith] = useState<string | null>(null);
   const rowNumber = index + 1;
   const rowId = useId();
 
@@ -238,6 +240,7 @@ function MappingRowFields({
     );
   };
 
+  const formatFocused = focusedWith !== null;
   const isStandardFormat = (attributeNameFormats as readonly string[]).includes(
     row.nameFormat,
   );
@@ -258,14 +261,15 @@ function MappingRowFields({
     <div
       ref={anchor}
       className={`grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2 gap-y-3 ${mappingTracks} ${
-        // Stacked rows need a rule between them: one row's last control would
+        // A rule sits between rows at every width, so a caption under one row never
+        // reads as the next row's, and when stacked one row's last control would
         // otherwise run into the next row's first label.
-        index > 0 ? "@max-2xl/mapping:border-t @max-2xl/mapping:pt-4" : ""
+        index > 0 ? "border-t pt-4 @2xl/mapping:pt-3" : ""
       }`}
     >
       {/* Stacked, each mapping is named by its position; the remove button
           shares the line. */}
-      <p className="col-start-1 row-start-1 self-center font-medium text-sm @2xl/mapping:hidden">
+      <p className="col-start-1 row-start-1 self-center font-semibold text-sm @2xl/mapping:hidden">
         <Trans id="admin.saml-apps.mapping.row">Attribute {rowNumber}</Trans>
       </p>
       <Field
@@ -363,12 +367,12 @@ function MappingRowFields({
           // it holds the whole value, which is what is stored and sent.
           value={formatShown}
           items={[...attributeNameFormats]}
-          // Every suggestion shows while the text is the stored value or a
-          // standard one, and the list narrows only once the reader types
-          // something else.
+          // Every suggestion shows while the text is still the value the box
+          // opened with or a standard one, and the list narrows as soon as
+          // the reader types something else.
           filter={(item, query) =>
             query === "" ||
-            query === row.nameFormat ||
+            query === focusedWith ||
             (attributeNameFormats as readonly string[]).includes(query) ||
             item.toLowerCase().includes(query.toLowerCase())
           }
@@ -378,7 +382,7 @@ function MappingRowFields({
           }}
         >
           <AutocompleteInput
-            className="font-mono text-xs"
+            className="font-mono"
             showTrigger
             aria-label={t({
               id: "admin.saml-apps.mapping.name-format",
@@ -387,8 +391,8 @@ function MappingRowFields({
             autoComplete="off"
             spellCheck={false}
             aria-describedby={showFullFormat ? fullFormatId : undefined}
-            onFocus={() => setFormatFocused(true)}
-            onBlur={() => setFormatFocused(false)}
+            onFocus={() => setFocusedWith(row.nameFormat)}
+            onBlur={() => setFocusedWith(null)}
           />
           <AutocompletePopup portalProps={{ container }}>
             <AutocompleteList>
@@ -415,7 +419,7 @@ function MappingRowFields({
         <p
           id={fullFormatId}
           data-slot="name-format-full"
-          className="col-span-2 wrap-anywhere font-mono text-muted-foreground text-xs @2xl/mapping:col-span-4 @2xl/mapping:col-start-3 @2xl/mapping:row-start-2"
+          className="-mt-1.5 col-span-2 wrap-anywhere font-mono text-muted-foreground text-xs @2xl/mapping:col-span-4 @2xl/mapping:col-start-3 @2xl/mapping:row-start-2"
         >
           {row.nameFormat}
         </p>

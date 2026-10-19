@@ -7,11 +7,13 @@ import { i18n } from "@/i18n";
 import { fakeApi, publicApi, renderApp, testSession } from "@/test/app";
 import { type OidcApp, oidcAppFixture } from "@/test/oidc-app";
 
+const notifyError = vi.fn<(error: unknown) => void>();
 let queryClient: QueryClient;
 
 beforeEach(() => {
   i18n.activate("en");
-  queryClient = createQueryClient(() => undefined);
+  notifyError.mockReset();
+  queryClient = createQueryClient(notifyError);
 });
 
 afterEach(() => {
@@ -50,7 +52,7 @@ function open(
     [`GET ${base}/groups`]: () => Response.json([]),
     [`GET ${base}/oidc-applications/${app.clientId}/managers`]: () =>
       Response.json([]),
-    [`GET /.well-known/openid-configuration`]: () =>
+    "GET /.well-known/openid-configuration": () =>
       Response.json({ issuer: "https://id.configured.example.test" }),
     [`GET ${base}/me/sudo/methods`]: () =>
       Response.json({ methods: ["password_totp"], fresh: true }),
@@ -141,14 +143,8 @@ describe("the application header", () => {
     );
   });
 
-  it("falls back to the page origin when the discovery document cannot be read", async () => {
-    const user = userEvent.setup();
-    const writeText = vi.fn().mockResolvedValue(undefined);
-    Object.defineProperty(navigator, "clipboard", {
-      value: { writeText },
-      configurable: true,
-    });
-    await mountPage(oidcAppFixture(), "admin", {
+  it("leaves the issuer out when the discovery document cannot be read", async () => {
+    const api = await mountPage(oidcAppFixture(), "admin", {
       "GET /.well-known/openid-configuration": () =>
         new Response(null, { status: 500 }),
     });
@@ -156,11 +152,16 @@ describe("the application header", () => {
     const rail = (
       await screen.findByRole("navigation", { name: "On this page" })
     ).closest("aside") as HTMLElement;
-    await user.click(
-      within(rail).getByRole("button", { name: "Copy the issuer" }),
+    await waitFor(() =>
+      expect(api.sent("GET", "/.well-known/openid-configuration")).toHaveLength(
+        1,
+      ),
     );
-
-    expect(writeText).toHaveBeenCalledWith(window.location.origin);
+    expect(within(rail).queryByText("Issuer")).toBeNull();
+    expect(
+      within(rail).queryByRole("button", { name: "Copy the issuer" }),
+    ).toBeNull();
+    expect(notifyError).not.toHaveBeenCalled();
   });
 });
 
@@ -233,5 +234,10 @@ describe("rotating the secret", () => {
     );
 
     expect(await screen.findByText("rotated-secret-value")).toBeVisible();
+    // The reader is already on the application, so nothing is "gone to".
+    expect(
+      screen.queryByRole("button", { name: "Go to the application" }),
+    ).toBeNull();
+    expect(screen.getByRole("button", { name: "Done" })).toBeVisible();
   });
 });
