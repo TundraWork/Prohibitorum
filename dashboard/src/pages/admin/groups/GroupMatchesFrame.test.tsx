@@ -155,6 +155,15 @@ describe("the matches frame", () => {
     expect(screen.queryByText(/^\+/)).toBeNull();
   });
 
+  it("opens See all on the dialog itself, so the first matches are in view", async () => {
+    const user = userEvent.setup();
+    await mount(directory(accounts(7, 3)));
+
+    await user.click(await screen.findByRole("button", { name: "See all" }));
+    const dialog = await screen.findByRole("dialog");
+    await waitFor(() => expect(dialog).toHaveFocus());
+  });
+
   it("lists only the matching accounts under See all", async () => {
     const user = userEvent.setup();
     await mount(directory(accounts(7, 3)));

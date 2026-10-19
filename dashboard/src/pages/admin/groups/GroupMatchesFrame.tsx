@@ -254,10 +254,15 @@ function MatchesDialog({
     loadMore,
     error,
   });
+  const popup = useRef<HTMLDivElement>(null);
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogPopup
+        ref={popup}
         className="sm:max-w-md"
+        // The list is read from its first account; focusing "Load more" would
+        // scroll the panel to its end.
+        initialFocus={() => popup.current ?? true}
         portalProps={{ container: getTopLayerContainer() }}
       >
         <DialogHeader>
