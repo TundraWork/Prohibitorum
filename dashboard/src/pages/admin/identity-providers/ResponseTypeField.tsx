@@ -1,5 +1,5 @@
 import { Trans } from "@lingui/react/macro";
-import { OptionSelectField } from "@/components/custom/OptionSelectField";
+import { ProviderChoiceField } from "@/pages/admin/identity-providers/ProviderChoiceField";
 import {
   type ResponseType,
   responseTypes,
@@ -14,7 +14,7 @@ import {
  */
 export function ResponseTypeField() {
   return (
-    <OptionSelectField<ResponseType>
+    <ProviderChoiceField<ResponseType>
       label={
         <Trans id="admin.federation.response.label">Sign-in response</Trans>
       }

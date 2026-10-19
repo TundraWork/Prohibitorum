@@ -38,9 +38,12 @@ const scopeCharacters = msg({
   message: "A scope cannot contain spaces, quotes or backslashes.",
 });
 
-// The JWKS endpoint's sentinel value: entering it skips the ID token and
-// identifies people through the UserInfo endpoint instead.
-const jwksNone = "none";
+/**
+ * The JWKS endpoint's wire value for "none": the ID token is skipped and people
+ * are identified through the UserInfo endpoint instead. The form offers it as
+ * its own choice rather than a word to type.
+ */
+export const jwksNone = "none";
 
 const domainInvalid = msg({
   id: "admin.federation.claims.domains.invalid",
@@ -279,7 +282,7 @@ const endpointRequired: Record<
   }),
   jwks: msg({
     id: "admin.federation.connection.jwks.required",
-    message: "Enter the JWKS endpoint, or none to skip the ID token.",
+    message: "Enter the JWKS endpoint, or choose None to skip the ID token.",
   }),
 };
 
@@ -316,8 +319,8 @@ export function endpointProblems(
       }
       continue;
     }
-    // The JWKS sentinel is not an address; a near-miss still fails the URL
-    // check below, as it does on the server.
+    // "None" is not an address; a near-miss still fails the URL check below,
+    // as it does on the server.
     if (name === "jwks" && text === jwksNone) continue;
     const problem = endpointUrlProblem(text, allowPrivateNetwork);
     if (problem !== undefined)

@@ -117,7 +117,6 @@ export function AdminIdentityProvider({
 
       {provider.protocol === "oidc" && (
         <>
-          <ProviderCredentialsSection provider={provider} />
           <ProviderConnectionSection provider={provider} />
           <ProviderClaimsSection provider={provider} />
           <ProviderDiagnosticsSection

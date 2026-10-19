@@ -1,6 +1,7 @@
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useStore } from "@tanstack/react-form";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { PlugIcon } from "lucide-react";
 import { isCancellation } from "@/api/errors";
 import {
   defaultOidcProviderConfig,
@@ -13,13 +14,17 @@ import {
   updateIdentityProviderMutationOptions,
 } from "@/api/mutations";
 import { identityProviderUpdateBody } from "@/api/update-bodies";
-import { ConsoleCard } from "@/components/custom/ConsoleCard";
+import { withInlineReport } from "@/app/query-client";
+import { ConsequenceFooter } from "@/components/custom/ConsequenceFooter";
+import { AddressField } from "@/components/custom/FormFields";
 import { Section } from "@/components/custom/Section";
 import { TagListField } from "@/components/custom/TagListField";
 import { applyServerError } from "@/forms/server-errors";
 import { useAppForm } from "@/forms/use-app-form";
+import { CallbackPreview } from "@/pages/admin/identity-providers/CallbackPreview";
 import { ClientAuthMethodField } from "@/pages/admin/identity-providers/ClientAuthMethodField";
 import { EndpointsField } from "@/pages/admin/identity-providers/EndpointsField";
+import { ProviderSecretRow } from "@/pages/admin/identity-providers/ProviderCredentialsSection";
 import {
   type ClientAuthMethod,
   clientAuthNeedsSecret,
@@ -42,13 +47,35 @@ import { ResponseTypeField } from "@/pages/admin/identity-providers/ResponseType
 
 type Provider = components["schemas"]["IdentityProviderView"];
 
+/** The stored connection, which the other sections of the page leave alone. */
+function savedConfig(provider: Provider) {
+  return readOidcProviderConfig(provider.config) ?? defaultOidcProviderConfig();
+}
+
+/** The form's values for a stored record, also the baseline after a save. */
+function connectionValues(provider: Provider) {
+  const saved = savedConfig(provider);
+  return {
+    issuerUrl: saved.issuerUrl,
+    clientId: saved.clientId,
+    tokenAuthMethod: saved.tokenAuthMethod as ClientAuthMethod,
+    responseType: (saved.responseType ?? "code") as ResponseType,
+    authenticateAvatarFetch: saved.authenticateAvatarFetch,
+    clientSecret: "",
+    scopes: tagListValue(saved.scopes),
+    endpoints: endpointsValue(saved),
+  };
+}
+
 /**
  * Where the provider signs people in, and how this instance talks to it.
  *
  * Read top to bottom in the order the provider's own console lists them: the
- * issuer and client ID to match, how the token request authenticates, what the
- * provider sends back, the scopes it asks for, and where the endpoints come from. Discovery is the usual
- * case, so the endpoints stay out of the way until the reader overrides one.
+ * issuer and client ID to match, how the token request authenticates and the
+ * secret it sends, what the provider sends back, the scopes it asks for, and
+ * where the endpoints come from. Discovery is the usual case, so the endpoints
+ * stay out of the way until the reader overrides one. The addresses to register
+ * with the provider close the section, since they are copied out of it.
  *
  * Every check runs before the save because the server answers each of them with
  * a bare `bad_request`: the reader would be told the form is wrong without being
@@ -57,12 +84,15 @@ type Provider = components["schemas"]["IdentityProviderView"];
  * switch are not on this page; they are read from the saved configuration and
  * sent back as they are.
  *
- * The client secret is write-only, so it is asked for only when the chosen
- * method sends one the provider does not hold: switching away from a public
- * client draws the field, and saving sends it before the rest of the form. The
- * server takes a secret on its own endpoint only and refuses a configuration
- * that authenticates with a secret it does not have, so the pair cannot land
- * in one request, or in the other order.
+ * The client secret is write-only. A stored one is a row that replaces it from a
+ * dialog; one the provider does not hold is asked for in the form, because the
+ * chosen method sends it: switching away from a public client draws the field,
+ * and saving sends it before the rest of the form. The server takes a secret on
+ * its own endpoint only and refuses a configuration that authenticates with a
+ * secret it does not have, so the pair cannot land in one request, or in the
+ * other order.
+ *
+ * A failed write is reported once, on the section, and never as a toast too.
  */
 export function ProviderConnectionSection({
   provider,
@@ -72,26 +102,16 @@ export function ProviderConnectionSection({
   const { t } = useLingui();
   const queryClient = useQueryClient();
   const update = useMutation(
-    updateIdentityProviderMutationOptions(queryClient),
+    withInlineReport(updateIdentityProviderMutationOptions(queryClient), true),
   );
   const setSecret = useMutation(
-    setIdentityProviderSecretQuietlyMutationOptions(),
+    withInlineReport(setIdentityProviderSecretQuietlyMutationOptions(), true),
   );
 
-  const saved =
-    readOidcProviderConfig(provider.config) ?? defaultOidcProviderConfig();
+  const saved = savedConfig(provider);
 
   const form = useAppForm({
-    defaultValues: {
-      issuerUrl: saved.issuerUrl,
-      clientId: saved.clientId,
-      tokenAuthMethod: saved.tokenAuthMethod as ClientAuthMethod,
-      responseType: (saved.responseType ?? "code") as ResponseType,
-      authenticateAvatarFetch: saved.authenticateAvatarFetch,
-      clientSecret: "",
-      scopes: tagListValue(saved.scopes),
-      endpoints: endpointsValue(saved),
-    },
+    defaultValues: connectionValues(provider),
     onSubmit: async ({ value }) => {
       // The secret goes first, while the stored configuration still names the
       // old method: the rotation endpoint checks the secret against it, and a
@@ -117,7 +137,7 @@ export function ProviderConnectionSection({
         }
       }
       try {
-        await update.mutateAsync({
+        const result = await update.mutateAsync({
           slug: provider.slug,
           body: identityProviderUpdateBody(provider, {
             config: {
@@ -132,11 +152,13 @@ export function ProviderConnectionSection({
             },
           }),
         });
+        // The stored record is the new baseline, so the section reads as saved.
+        form.reset(connectionValues(result));
       } catch (error) {
         if (isCancellation(error)) return;
         // A secret that landed before the failed save stays on the server.
         // The page must re-read the provider, or it keeps asking for what is
-        // now stored — the field here, the stored-secret row above.
+        // now stored.
         if (secretStored) {
           await invalidateIdentityProviders(queryClient);
         }
@@ -148,11 +170,21 @@ export function ProviderConnectionSection({
     },
   });
 
+  const dirty = useStore(form.store, (state) => !state.isDefaultValue);
+  const submitting = useStore(form.store, (state) => state.isSubmitting);
   const manual = useStore(
     form.store,
     (state) => state.values.endpoints.mode === "manual",
   );
   const method = useStore(form.store, (state) => state.values.tokenAuthMethod);
+
+  const needsSecret = clientAuthNeedsSecret(method);
+  // A stored secret is replaced from a row, but only where the stored
+  // configuration sends one; choosing a method that sends none leaves it be.
+  const replaceable =
+    provider.secretConfigured &&
+    clientAuthNeedsSecret(saved.tokenAuthMethod) &&
+    needsSecret;
 
   const title = t({
     id: "admin.federation.connection.title",
@@ -160,10 +192,32 @@ export function ProviderConnectionSection({
   });
 
   return (
-    <Section title={title}>
-      <ConsoleCard>
-        <form.AppForm>
-          <form.Form label={title}>
+    <form.AppForm>
+      <form.Form label={title}>
+        <Section
+          id="connection"
+          icon={<PlugIcon />}
+          title={title}
+          description={
+            <Trans id="admin.federation.connection.description">
+              Where this provider signs people in, and how this instance talks
+              to it.
+            </Trans>
+          }
+          dirty={dirty}
+          footer={
+            dirty ? (
+              <ConsequenceFooter
+                actionLabel={
+                  <Trans id="admin.federation.connection.save">Save</Trans>
+                }
+                onDiscard={() => form.reset()}
+                pending={submitting || update.isPending}
+              />
+            ) : undefined
+          }
+        >
+          <div className="flex flex-col gap-6">
             <form.FormError />
 
             <form.AppField
@@ -173,19 +227,14 @@ export function ProviderConnectionSection({
                   issuerProblem(value, saved.allowPrivateNetwork),
               }}
             >
-              {(field) => (
-                <field.FormField
+              {() => (
+                <AddressField
                   label={
                     <Trans id="admin.federation.connection.issuer">
                       Issuer URL
                     </Trans>
                   }
-                  inputMode="url"
-                  isMonospace
-                  autoComplete="off"
-                  spellCheck={false}
                   placeholder="https://idp.example.com"
-                  variant="secondary"
                 />
               )}
             </form.AppField>
@@ -204,7 +253,6 @@ export function ProviderConnectionSection({
                   isMonospace
                   autoComplete="off"
                   spellCheck={false}
-                  variant="secondary"
                 />
               )}
             </form.AppField>
@@ -223,7 +271,7 @@ export function ProviderConnectionSection({
               {() => <ClientAuthMethodField isDiscoveryUnavailable={manual} />}
             </form.AppField>
 
-            {clientAuthNeedsSecret(method) && !provider.secretConfigured && (
+            {needsSecret && !provider.secretConfigured && (
               <form.AppField
                 name="clientSecret"
                 validators={{
@@ -246,11 +294,12 @@ export function ProviderConnectionSection({
                     }
                     type="password"
                     autoComplete="new-password"
-                    variant="secondary"
                   />
                 )}
               </form.AppField>
             )}
+
+            {replaceable && <ProviderSecretRow provider={provider} />}
 
             <form.AppField
               name="responseType"
@@ -306,29 +355,33 @@ export function ProviderConnectionSection({
               {() => <EndpointsField />}
             </form.AppField>
 
-            <form.AppField name="authenticateAvatarFetch">
-              {(field) => (
-                <field.SwitchField
-                  label={
-                    <Trans id="admin.federation.connection.avatar-auth">
-                      Send the access token when fetching the avatar
-                    </Trans>
-                  }
-                  description={
-                    <Trans id="admin.federation.connection.avatar-auth.hint">
-                      The provider's access token is sent to whatever avatar URL
-                      it returns. Turn this on only if you trust the provider.
-                    </Trans>
-                  }
-                />
-              )}
-            </form.AppField>
-            <form.SubmitButton>
-              <Trans id="admin.federation.connection.save">Save</Trans>
-            </form.SubmitButton>
-          </form.Form>
-        </form.AppForm>
-      </ConsoleCard>
-    </Section>
+            <div className="border-t pt-6">
+              <form.AppField name="authenticateAvatarFetch">
+                {(field) => (
+                  <field.SwitchField
+                    label={
+                      <Trans id="admin.federation.connection.avatar-auth">
+                        Send the access token when fetching the avatar
+                      </Trans>
+                    }
+                    description={
+                      <Trans id="admin.federation.connection.avatar-auth.hint">
+                        The provider's access token is sent to whatever avatar
+                        URL it returns. Turn this on only if you trust the
+                        provider.
+                      </Trans>
+                    }
+                  />
+                )}
+              </form.AppField>
+            </div>
+
+            <div className="border-t pt-6">
+              <CallbackPreview slug={provider.slug} />
+            </div>
+          </div>
+        </Section>
+      </form.Form>
+    </form.AppForm>
   );
 }

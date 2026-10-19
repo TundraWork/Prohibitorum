@@ -1,5 +1,6 @@
 import { useLingui } from "@lingui/react/macro";
 import type { ComponentProps, ReactNode } from "react";
+import { AddressInput } from "@/components/custom/AddressInput";
 import type { FieldVariant } from "@/components/custom/FormField";
 import { FormMessages } from "@/components/custom/FormMessages";
 import { useFieldBinding } from "@/components/custom/use-field-binding";
@@ -68,6 +69,46 @@ export function TextAreaField({
         value={field.state.value}
         onChange={(event) => onChange(event.target.value)}
         onBlur={onBlur}
+        aria-invalid={invalid || undefined}
+      />
+      {description !== undefined && (
+        <FieldDescription>{description}</FieldDescription>
+      )}
+      {invalid && (
+        <FieldError match>
+          <FormMessages errors={errors} />
+        </FieldError>
+      )}
+    </Field>
+  );
+}
+
+/**
+ * A field for an address the reader checks against another system's copy, drawn
+ * as an `AddressInput` so a long one wraps instead of hiding its end.
+ */
+export function AddressField({
+  label,
+  description,
+  placeholder,
+  isDisabled = false,
+}: {
+  label: ReactNode;
+  description?: ReactNode;
+  placeholder?: string;
+  isDisabled?: boolean;
+}) {
+  const { field, errors, invalid, disabled, onBlur, onChange } =
+    useFieldBinding<string>(isDisabled);
+
+  return (
+    <Field disabled={disabled} invalid={invalid} name={field.name}>
+      <FieldLabel>{label}</FieldLabel>
+      <AddressInput
+        value={field.state.value}
+        onValueChange={onChange}
+        onBlur={onBlur}
+        placeholder={placeholder}
         aria-invalid={invalid || undefined}
       />
       {description !== undefined && (

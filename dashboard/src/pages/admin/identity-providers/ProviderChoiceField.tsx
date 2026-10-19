@@ -1,0 +1,95 @@
+import { useLingui } from "@lingui/react/macro";
+import { type ReactNode, useId } from "react";
+import { ChoiceTile } from "@/components/custom/ChoiceTile";
+import { FormMessages } from "@/components/custom/FormMessages";
+import { useFieldBinding } from "@/components/custom/use-field-binding";
+import { RadioGroup } from "@/components/ui/radio-group";
+import type { ProviderOption } from "@/pages/admin/identity-providers/provider-options";
+
+/**
+ * A closed set of choices as a form field, each a card with what picking it
+ * does under its name.
+ *
+ * A choice that cannot be picked in the form's current state is listed in
+ * `unavailable` with the reason, which is drawn under the group rather than in
+ * the dimmed card so it keeps its own contrast; the group names it as its
+ * description. A literal protocol value such as `client_secret_basic` is drawn
+ * in monospace, the way the provider's own console spells it.
+ */
+export function ProviderChoiceField<T extends string>({
+  label,
+  options,
+  description,
+  unavailable,
+}: {
+  label: ReactNode;
+  options: readonly (ProviderOption<T> & { literal?: boolean })[];
+  /** What the group as a whole is about, under the choices. */
+  description?: ReactNode;
+  unavailable?: { values: readonly T[]; reason: ReactNode };
+}) {
+  const { i18n } = useLingui();
+  const { field, errors, invalid, disabled, onChange } =
+    useFieldBinding<T>(false);
+  const labelId = useId();
+  const descriptionId = useId();
+  const reasonId = useId();
+  // A refusal of the saved choice says the same thing as the reason, so the
+  // reason steps aside for it rather than appearing twice.
+  const showReason = unavailable !== undefined && !invalid;
+
+  return (
+    <div className="flex flex-col gap-2">
+      <span id={labelId} className="font-medium text-sm">
+        {label}
+      </span>
+      <RadioGroup
+        aria-labelledby={labelId}
+        aria-describedby={
+          [description !== undefined && descriptionId, showReason && reasonId]
+            .filter(Boolean)
+            .join(" ") || undefined
+        }
+        aria-invalid={invalid || undefined}
+        name={field.name}
+        value={field.state.value}
+        disabled={disabled}
+        onValueChange={(next) => onChange(next as T)}
+      >
+        {options.map((option) => (
+          <ChoiceTile
+            key={option.value}
+            layout="list"
+            value={option.value}
+            disabled={unavailable?.values.includes(option.value)}
+            label={
+              option.literal === true ? (
+                <span className="font-mono text-[13px]">
+                  {i18n._(option.label)}
+                </span>
+              ) : (
+                i18n._(option.label)
+              )
+            }
+            description={i18n._(option.description)}
+          />
+        ))}
+      </RadioGroup>
+      {description !== undefined && (
+        <p id={descriptionId} className="text-muted-foreground text-xs">
+          {description}
+        </p>
+      )}
+      {showReason && (
+        <p id={reasonId} className="text-muted-foreground text-xs">
+          {unavailable.reason}
+        </p>
+      )}
+      {invalid && (
+        <p className="text-destructive-foreground text-xs">
+          <FormMessages errors={errors} />
+        </p>
+      )}
+    </div>
+  );
+}

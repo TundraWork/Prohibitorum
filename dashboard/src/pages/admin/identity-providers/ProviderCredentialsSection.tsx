@@ -4,7 +4,6 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { KeyRoundIcon } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { isCancellation } from "@/api/errors";
-import { readOidcProviderConfig } from "@/api/federation";
 import type { components } from "@/api/generated/schema";
 import { setIdentityProviderSecretMutationOptions } from "@/api/mutations";
 import { withInlineReport } from "@/app/query-client";
@@ -21,7 +20,6 @@ import {
   DialogPopup,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Frame, FramePanel } from "@/components/ui/frame";
 import { applyServerError } from "@/forms/server-errors";
 import { useAppForm } from "@/forms/use-app-form";
 
@@ -32,37 +30,18 @@ const secretRequired = msg({
   message: "Enter the secret.",
 });
 
-/** Whether a provider holds a secret this page can set: OIDC clients that send one, and Steam. */
-function takesSecret(provider: Provider): boolean {
-  if (provider.protocol === "steam") return true;
-  return (
-    provider.protocol === "oidc" &&
-    readOidcProviderConfig(provider.config)?.tokenAuthMethod !== "none"
-  );
-}
-
 /**
- * The credential a provider is set up with: a Steam provider's Web API key as a
- * section of its own, or an OIDC confidential client's secret as a bare panel
- * that sits with the connection it belongs to. A provider with nothing to set —
- * a public client, which sends no secret, or VRChat, whose credential is the
- * operator session — draws nothing.
+ * A Steam provider's Web API key, as a section of its own. An OIDC client's
+ * secret is set inside its connection section, beside the method that sends it,
+ * and VRChat's credential is the operator session, so every other provider
+ * draws nothing here.
  */
 export function ProviderCredentialsSection({
   provider,
 }: {
   provider: Provider;
 }) {
-  if (!takesSecret(provider)) return null;
-  if (provider.protocol !== "steam") {
-    return (
-      <Frame>
-        <FramePanel>
-          <ProviderSecretRow provider={provider} />
-        </FramePanel>
-      </Frame>
-    );
-  }
+  if (provider.protocol !== "steam") return null;
   return (
     <Section
       id="web-api-key"

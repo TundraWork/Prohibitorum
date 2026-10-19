@@ -7,11 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createQueryClient } from "@/app/query-client";
 import { i18n } from "@/i18n";
 import { ProviderCredentialsSection } from "@/pages/admin/identity-providers/ProviderCredentialsSection";
-import {
-  type Provider,
-  providerFixture,
-  publicOidcConfig,
-} from "@/test/identity-provider";
+import { type Provider, providerFixture } from "@/test/identity-provider";
 
 const fetchBoundary = vi.fn<(request: Request) => Promise<Response>>();
 const notifyError = vi.fn<(error: unknown) => void>();
@@ -189,27 +185,9 @@ describe("the Steam Web API key", () => {
   });
 });
 
-describe("an OIDC provider's client secret", () => {
-  it("is offered for a confidential client, in a panel of its own", async () => {
-    const user = userEvent.setup();
-    mount(providerFixture({ secretConfigured: true }));
-
-    expect(screen.getByText("Client secret")).toBeVisible();
-    expect(screen.queryByRole("heading")).toBeNull();
-    expect(screen.getByText("Stored")).toBeVisible();
-    await user.click(screen.getByRole("button", { name: "Replace" }));
-    expect(
-      await screen.findByRole("dialog", { name: "Replace the client secret" }),
-    ).toBeVisible();
-  });
-
-  it("is left out for a public client, which sends none", () => {
-    const { container } = mount(
-      providerFixture({
-        config: publicOidcConfig,
-        secretConfigured: false,
-      }),
-    );
+describe("an OIDC provider", () => {
+  it("has no section here: its client secret is set in the connection", () => {
+    const { container } = mount(providerFixture({ secretConfigured: true }));
     expect(container).toBeEmptyDOMElement();
   });
 });

@@ -1528,6 +1528,11 @@ msgid "admin.federation.diagnostics.check-again"
 msgstr "Check again"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/EndpointsField.tsx
+msgid "admin.federation.connection.jwks.address"
+msgstr "Check the ID token with a JWKS address"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderOperatorSection.tsx
 msgid "admin.federation.operator.validated"
 msgstr "Checked <0/>"
@@ -2190,6 +2195,11 @@ msgid "admin.oidc-apps.secret.title"
 msgstr "Copy the client secret"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/CallbackPreview.tsx
+msgid "admin.federation.callback.test.copy"
+msgstr "Copy the connection test address"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AdminSamlApplication.tsx
 msgid "admin.saml-apps.copy-entity-id"
 msgstr "Copy the Entity ID"
@@ -2200,6 +2210,11 @@ msgid "admin.oidc-apps.copy-issuer"
 msgstr "Copy the issuer"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/CallbackPreview.tsx
+msgid "admin.federation.callback.link.copy"
+msgstr "Copy the link-an-account address"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminInvitations.tsx
 msgid "admin.invitations.copy"
 msgstr "Copy the registration link"
@@ -2208,6 +2223,11 @@ msgstr "Copy the registration link"
 #: src/components/custom/secret-reveal-copy.ts
 msgid "admin.invitations.reveal.title"
 msgstr "Copy the registration link"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/CallbackPreview.tsx
+msgid "admin.federation.callback.login.copy"
+msgstr "Copy the sign-in address"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/AdminIdentityProvider.tsx
@@ -3280,11 +3300,6 @@ msgid "admin.saml-apps.new.mode.manual"
 msgstr "Enter it by hand"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/EndpointsField.tsx
-msgid "admin.federation.connection.jwks.hint"
-msgstr "Enter none to skip the ID token and identify people through the UserInfo endpoint."
-
-#. js-lingui-explicit-id
 #. placeholder {0}: config.totp.digits
 #: src/pages/Login.tsx
 msgid "login.totp.digits"
@@ -3358,7 +3373,7 @@ msgstr "Enter the issuer URL."
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-validation.ts
 msgid "admin.federation.connection.jwks.required"
-msgstr "Enter the JWKS endpoint."
+msgstr "Enter the JWKS endpoint, or choose None to skip the ID token."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/client-ip-form.ts
@@ -4961,6 +4976,11 @@ msgid "list.diagnostics.redirect.none"
 msgstr "None"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/EndpointsField.tsx
+msgid "admin.federation.connection.jwks.none"
+msgstr "None — skip the ID token"
+
+#. js-lingui-explicit-id
 #: src/components/custom/AppAccessSection.tsx
 msgid "app.access.order.none"
 msgstr "None selected"
@@ -5487,6 +5507,11 @@ msgid "admin.federation.diagnostics.stage-status.pending"
 msgstr "Pending"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/EndpointsField.tsx
+msgid "admin.federation.connection.jwks.none.hint"
+msgstr "People are identified through the UserInfo endpoint instead."
+
+#. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/SamlDangerSection.tsx
 msgid "admin.saml-apps.danger.enable.body"
 msgstr "People can sign in to the service provider again straight away. Nothing else about the application changes."
@@ -5834,7 +5859,7 @@ msgstr "Register an application that signs people in through this instance. The 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/CallbackPreview.tsx
 msgid "admin.federation.callback.hint"
-msgstr "Register these addresses with the provider."
+msgstr "Register these with the provider."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
@@ -7783,6 +7808,11 @@ msgid "admin.federation.connection.avatar-auth.hint"
 msgstr "The provider's access token is sent to whatever avatar URL it returns. Turn this on only if you trust the provider."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/EndpointsField.tsx
+msgid "admin.federation.connection.jwks.address.hint"
+msgstr "The provider's signing keys are read from this address."
+
+#. js-lingui-explicit-id
 #: src/components/custom/TotpSetup.tsx
 msgid "login.reset.qr_failed"
 msgstr "The QR code could not be displayed. Enter the setup key manually."
@@ -9247,6 +9277,11 @@ msgid "admin.oidc-apps.sign-in.description"
 msgstr "Where this application may send people back to, and what it may ask for."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderConnectionSection.tsx
+msgid "admin.federation.connection.description"
+msgstr "Where this provider signs people in, and how this instance talks to it."
+
+#. js-lingui-explicit-id
 #: src/pages/Console.tsx
 msgid "console.devices.row"
 msgstr "Where you are signed in"
@@ -9282,6 +9317,7 @@ msgid "admin.oidc-apps.scope.removed"
 msgstr "Will be removed"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ClientAuthMethodField.tsx
 #: src/pages/admin/identity-providers/provider-validation.ts
 msgid "admin.federation.auth.manual-needs-method"
 msgstr "With endpoints entered by hand, choose a specific method."

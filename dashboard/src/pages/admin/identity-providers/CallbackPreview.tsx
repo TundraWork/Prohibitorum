@@ -1,12 +1,12 @@
-import { Description, Fieldset } from "@heroui/react";
-import { Trans } from "@lingui/react/macro";
-import { CopyValue } from "@/components/custom/CopyValue";
+import { Trans, useLingui } from "@lingui/react/macro";
+import type { ReactNode } from "react";
+import { CopyableValue } from "@/components/custom/CopyableValue";
+import { Fieldset, FieldsetLegend } from "@/components/ui/fieldset";
 
 /**
  * The redirect addresses an OIDC provider will be asked to accept for an
- * identifier, previewed before anything is saved: the provider's own
- * registration page usually sits beside this one and asks for them, and a
- * wrong one is only found when a sign-in fails.
+ * identifier: the provider's own registration page usually sits beside this one
+ * and asks for them, and a wrong one is only found when a sign-in fails.
  *
  * Only OIDC has addresses to register. Steam is sent its return address on
  * every request, and VRChat proves ownership through a link on the profile, so
@@ -21,36 +21,72 @@ import { CopyValue } from "@/components/custom/CopyValue";
  * The caller passes an identifier the server accepts, already trimmed.
  */
 export function CallbackPreview({ slug }: { slug: string }) {
+  const { t } = useLingui();
   const origin = window.location.origin;
 
   return (
-    <Fieldset>
-      <Fieldset.Legend className="text-sm font-medium text-foreground">
+    <Fieldset className="flex flex-col gap-2">
+      <FieldsetLegend className="font-medium text-sm">
         <Trans id="admin.federation.callback.title">Callback addresses</Trans>
-      </Fieldset.Legend>
-      <Description>
+      </FieldsetLegend>
+      <p className="text-muted-foreground text-xs">
         <Trans id="admin.federation.callback.hint">
-          Register these addresses with the provider.
+          Register these with the provider.
         </Trans>
-      </Description>
-      <Fieldset.Group>
-        <CopyValue
+      </p>
+      <div className="flex flex-col gap-3 rounded-xl border border-dashed p-3">
+        <Address
           label={<Trans id="admin.federation.callback.login">Sign-in</Trans>}
+          copyLabel={t({
+            id: "admin.federation.callback.login.copy",
+            message: "Copy the sign-in address",
+          })}
           value={`${origin}/api/prohibitorum/auth/federation/${slug}/callback`}
         />
-        <CopyValue
+        <Address
           label={
             <Trans id="admin.federation.callback.link">Link an account</Trans>
           }
+          copyLabel={t({
+            id: "admin.federation.callback.link.copy",
+            message: "Copy the link-an-account address",
+          })}
           value={`${origin}/api/prohibitorum/me/identities/link/${slug}/callback`}
         />
-        <CopyValue
+        <Address
           label={
             <Trans id="admin.federation.callback.test">Connection test</Trans>
           }
+          copyLabel={t({
+            id: "admin.federation.callback.test.copy",
+            message: "Copy the connection test address",
+          })}
           value={`${origin}/api/prohibitorum/auth/federation/${slug}/test/callback`}
         />
-      </Fieldset.Group>
+      </div>
     </Fieldset>
+  );
+}
+
+/** One address: its purpose over the value, which wraps after its slashes. */
+function Address({
+  label,
+  copyLabel,
+  value,
+}: {
+  label: ReactNode;
+  copyLabel: string;
+  value: string;
+}) {
+  return (
+    <div className="flex min-w-0 flex-col gap-0.5">
+      <span className="text-muted-foreground text-sm">{label}</span>
+      <CopyableValue
+        value={value}
+        label={copyLabel}
+        wrap
+        className="text-[13px] [overflow-wrap:anywhere]"
+      />
+    </div>
   );
 }

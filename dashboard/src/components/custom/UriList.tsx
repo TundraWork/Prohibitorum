@@ -2,9 +2,9 @@ import { msg } from "@lingui/core/macro";
 import { useLingui } from "@lingui/react/macro";
 import { useStore } from "@tanstack/react-form";
 import { type ReactNode, useId } from "react";
+import { AddressInput } from "@/components/custom/AddressInput";
 import { FormMessages } from "@/components/custom/FormMessages";
 import { RowsField, rowProblem } from "@/components/custom/RowsField";
-import { Textarea } from "@/components/ui/textarea";
 import { useFieldContext, useFormContext } from "@/forms/context";
 import type { ListProblem } from "@/forms/lines";
 import { withoutServerErrors } from "@/forms/server-errors";
@@ -122,17 +122,9 @@ function UriRow({
   return (
     <div className="flex flex-col gap-1.5">
       <div className="flex items-start gap-2">
-        {/* Monospace: the address has to match the client's own copy
-            exactly, and a stray space or a look-alike letter has to show.
-            It is a one-line box that grows when the address is longer than
-            the box, so on a narrow screen the end of the address (the part
-            that tells two apart) is never hidden. Enter submits the form as
-            it does in a single-line input, and a line break cannot be typed
-            or pasted into the value. */}
-        <Textarea
-          className="**:data-[slot=textarea]:min-h-0! **:data-[slot=textarea]:resize-none **:data-[slot=textarea]:font-mono **:data-[slot=textarea]:text-[13px] **:data-[slot=textarea]:leading-5 **:data-[slot=textarea]:[overflow-wrap:anywhere] max-sm:**:data-[slot=textarea]:py-[7px]"
-          rows={1}
+        <AddressInput
           value={value}
+          onValueChange={update}
           disabled={submitting}
           aria-label={i18n._({
             ...rowLabelMessage,
@@ -140,19 +132,7 @@ function UriRow({
           })}
           aria-invalid={isInvalid || undefined}
           aria-describedby={hasError ? errorId : undefined}
-          inputMode="url"
-          autoComplete="off"
-          spellCheck={false}
           placeholder={placeholder}
-          onKeyDown={(event) => {
-            // Enter confirms an IME candidate while composing; it is not a submit.
-            if (event.key !== "Enter" || event.nativeEvent.isComposing) return;
-            event.preventDefault();
-            event.currentTarget.form?.requestSubmit();
-          }}
-          onChange={(event) =>
-            update(event.target.value.replace(/[\r\n]/g, ""))
-          }
         />
         {remove}
       </div>

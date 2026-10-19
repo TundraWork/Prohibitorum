@@ -1,7 +1,7 @@
 import { I18nProvider } from "@lingui/react";
 import type { QueryClient } from "@tanstack/react-query";
 import { QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { I18nProvider as AriaI18nProvider } from "react-aria";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -129,11 +129,7 @@ describe("the new provider form's sign-in switch", () => {
     await user.type(screen.getByLabelText("Client ID"), "client-1");
     // A public client needs no secret, so the body this test inspects is the
     // switch's, not the credential's.
-    await user.click(
-      screen.getByRole("combobox", { name: /Client authentication/ }),
-    );
-    const authMethods = await screen.findByRole("listbox");
-    await user.click(within(authMethods).getByText("Public client"));
+    await user.click(screen.getByRole("radio", { name: "Public client" }));
 
     await user.click(screen.getByRole("switch", { name: "Allow sign-in" }));
     await user.click(screen.getByRole("button", { name: "Add provider" }));

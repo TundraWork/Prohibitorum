@@ -87,25 +87,31 @@ describe("the new-provider callback preview", () => {
       name: "Callback addresses",
     });
     expect(
-      within(preview).getByText("Register these addresses with the provider."),
+      within(preview).getByText("Register these with the provider."),
     ).toBeVisible();
 
-    const login = within(preview).getByRole("textbox", { name: "Sign-in" });
-    expect(login).toHaveValue(
-      `${origin}/api/prohibitorum/auth/federation/corp/callback`,
-    );
-    const link = within(preview).getByRole("textbox", {
-      name: "Link an account",
-    });
-    expect(link).toHaveValue(
-      `${origin}/api/prohibitorum/me/identities/link/corp/callback`,
-    );
-    const test = within(preview).getByRole("textbox", {
-      name: "Connection test",
-    });
-    expect(test).toHaveValue(
-      `${origin}/api/prohibitorum/auth/federation/corp/test/callback`,
-    );
+    const values: [string, string][] = [
+      [
+        "Copy the sign-in address",
+        `${origin}/api/prohibitorum/auth/federation/corp/callback`,
+      ],
+      [
+        "Copy the link-an-account address",
+        `${origin}/api/prohibitorum/me/identities/link/corp/callback`,
+      ],
+      [
+        "Copy the connection test address",
+        `${origin}/api/prohibitorum/auth/federation/corp/test/callback`,
+      ],
+    ];
+    for (const [button, address] of values) {
+      expect(
+        within(preview).getByRole("button", { name: button }),
+      ).toBeVisible();
+      expect(
+        within(preview).getByText(address, { normalizer: (text) => text }),
+      ).toBeVisible();
+    }
   });
 
   // Steam is sent its return address on every request and VRChat has none,

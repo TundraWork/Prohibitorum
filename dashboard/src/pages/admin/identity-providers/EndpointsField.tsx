@@ -1,21 +1,21 @@
-import {
-  Description,
-  Dropdown,
-  FieldError,
-  Input,
-  Label,
-  Radio,
-  RadioGroup,
-  TextField,
-  Tooltip,
-} from "@heroui/react";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useStore } from "@tanstack/react-form";
-import { Plus, Trash2 } from "lucide-react";
-import { type ReactNode, useEffect, useRef } from "react";
+import { PlusIcon, Trash2Icon } from "lucide-react";
+import { type ReactNode, useId, useRef } from "react";
+import { AddressInput } from "@/components/custom/AddressInput";
 import { Button } from "@/components/custom/Button";
+import { ChoiceTile } from "@/components/custom/ChoiceTile";
 import { FormMessages } from "@/components/custom/FormMessages";
+import { getTopLayerContainer } from "@/components/custom/top-layer";
+import {
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldLabel,
+} from "@/components/ui/field";
+import { Menu, MenuItem, MenuPopup, MenuTrigger } from "@/components/ui/menu";
+import { RadioGroup } from "@/components/ui/radio-group";
 import { useFieldContext, useFormContext } from "@/forms/context";
 import { withoutServerErrors } from "@/forms/server-errors";
 import {
@@ -27,6 +27,7 @@ import {
   type EndpointProblem,
   type EndpointsValue,
   isEndpointProblem,
+  jwksNone,
   shownEndpoints,
 } from "@/pages/admin/identity-providers/provider-validation";
 
@@ -41,10 +42,15 @@ const removeOverrideMessage = msg({
  * Most providers publish a discovery document, and then the four endpoints are
  * not the reader's business: under discovery none is drawn until the reader
  * adds an override from the menu, and each override is a row that can be taken
- * away again. A provider without discovery gets the four fields at once, three
- * of them required. Switching between the two keeps whatever was typed, so a
+ * away again. A provider without discovery gets the four rows at once, three of
+ * them required. Switching between the two keeps whatever was typed, so a
  * reader who tries one mode and comes back has not lost anything; only what the
  * current mode shows is sent (`endpointsBody`).
+ *
+ * The JWKS endpoint is a choice rather than a field: an address to check the ID
+ * token with, or none, which skips the ID token and identifies people through
+ * UserInfo. "None" is its own option, so it is never a word typed into an
+ * address box.
  *
  * A problem with one endpoint arrives as an `EndpointProblem` among the field's
  * errors and is drawn under that endpoint's input, which is the only one marked;
@@ -55,13 +61,13 @@ export function EndpointsField() {
   const field = useFieldContext<EndpointsValue>();
   const form = useFormContext();
   const submitting = useStore(form.store, (state) => state.isSubmitting);
-  // The row the menu just added. The menu hands focus back to its button when
-  // it closes, after the row is drawn, so the row's input takes focus from
-  // the button rather than on mount, where the menu would take it back.
+  const labelId = useId();
+  // The row the menu just added, so focus lands in its input once the menu has
+  // handed focus back and closed.
   const added = useRef<EndpointName | null>(null);
-  const inputs = useRef<Partial<Record<EndpointName, HTMLInputElement | null>>>(
-    {},
-  );
+  const inputs = useRef<
+    Partial<Record<EndpointName, HTMLTextAreaElement | null>>
+  >({});
 
   const value = field.state.value;
   const errors: unknown[] = field.state.meta.errors.flat(Infinity);
@@ -69,10 +75,13 @@ export function EndpointsField() {
   const fieldErrors = errors.filter((error) => !isEndpointProblem(error));
   const discovery = value.mode === "discovery";
   const shown = shownEndpoints(value);
+  const remaining = endpointNames.filter(
+    (entry) => !shown.includes(entry.name),
+  );
 
   function change(next: EndpointsValue, clearing: EndpointName | "all") {
     if (form.state.isSubmitting) return;
-    const remaining = [withoutServerErrors(field.state.meta.errorMap.onSubmit)]
+    const kept = [withoutServerErrors(field.state.meta.errorMap.onSubmit)]
       .flat(Infinity)
       .filter(
         (error) =>
@@ -80,209 +89,186 @@ export function EndpointsField() {
           clearing !== "all" &&
           !(isEndpointProblem(error) && error.endpoint === clearing),
       );
-    field.setErrorMap({
-      onSubmit: remaining.length > 0 ? remaining : undefined,
-    });
+    field.setErrorMap({ onSubmit: kept.length > 0 ? kept : undefined });
     field.handleChange(next);
   }
 
-  const allOverridden = shown.length === endpointNames.length;
-  // The last override takes the menu's own button away with it, so focus has
-  // no button to return to; the new row takes it once the menu has gone.
-  useEffect(() => {
-    if (!allOverridden) return;
-    const name = added.current;
-    if (name === null) return;
+  function edit(name: EndpointName, text: string) {
+    change({ ...value, values: { ...value.values, [name]: text } }, name);
+  }
+
+  function removeOverride(name: EndpointName) {
     added.current = null;
-    const frame = requestAnimationFrame(() => inputs.current[name]?.focus());
-    return () => cancelAnimationFrame(frame);
-  }, [allOverridden]);
-  const overrideButton = (
-    <Button
-      disabled={submitting || allOverridden}
-      onFocus={() => {
-        const name = added.current;
-        if (name === null) return;
-        added.current = null;
-        inputs.current[name]?.focus();
-      }}
-      variant="outline"
-      size="sm"
-    >
-      <Plus size={16} aria-hidden="true" />
-      <Trans id="admin.federation.endpoints.override">
-        Override an endpoint
-      </Trans>
-    </Button>
-  );
-  // A disabled button emits no hover or focus, so the reason sits on a
-  // trigger around it, as every other disabled action on the console does.
-  // Once every endpoint is overridden the menu has nothing left to offer, so
-  // the button is drawn on its own, disabled, with the reason beside it.
-  const overrideDisabled = (
-    <Tooltip delay={0}>
-      <Tooltip.Trigger>{overrideButton}</Tooltip.Trigger>
-      <Tooltip.Content>
-        <Trans id="admin.federation.endpoints.all-overridden">
-          Every endpoint is already overridden.
-        </Trans>
-      </Tooltip.Content>
-    </Tooltip>
-  );
+    change(
+      {
+        ...value,
+        overridden: value.overridden.filter((candidate) => candidate !== name),
+      },
+      name,
+    );
+  }
+
+  const rowProps = (name: EndpointName) => ({
+    name,
+    fieldName: `${field.name}.${name}`,
+    value: value.values[name],
+    disabled: submitting,
+    problem: problems.find((problem) => problem.endpoint === name),
+    inputRef: (element: HTMLTextAreaElement | null) => {
+      inputs.current[name] = element;
+    },
+    onChange: (text: string) => edit(name, text),
+    remove: discovery ? (
+      <Button
+        disabled={submitting}
+        aria-label={i18n._({
+          ...removeOverrideMessage,
+          values: { endpoint: i18n._(endpointLabel(name)) },
+        })}
+        onClick={() => removeOverride(name)}
+        variant="ghost"
+        size="icon-sm"
+      >
+        <Trash2Icon aria-hidden="true" />
+      </Button>
+    ) : null,
+  });
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-3">
+      <span id={labelId} className="font-medium text-sm">
+        <Trans id="admin.federation.connection.mode">Endpoints</Trans>
+      </span>
       <RadioGroup
-        variant="secondary"
+        aria-labelledby={labelId}
+        aria-invalid={fieldErrors.length > 0 || undefined}
         name={`${field.name}.mode`}
         value={value.mode}
-        isDisabled={submitting}
-        isInvalid={fieldErrors.length > 0}
-        onChange={(mode) => {
+        disabled={submitting}
+        onValueChange={(mode) => {
           added.current = null;
           change({ ...value, mode: mode as EndpointsValue["mode"] }, "all");
         }}
       >
-        <Label>
-          <Trans id="admin.federation.connection.mode">Endpoints</Trans>
-        </Label>
-        <Radio value="discovery">
-          <Radio.Content>
-            <Radio.Control>
-              <Radio.Indicator />
-            </Radio.Control>
+        <ChoiceTile
+          layout="list"
+          value="discovery"
+          label={
             <Trans id="admin.federation.connection.mode.discovery">
               Discover automatically
             </Trans>
-          </Radio.Content>
-          <Description>
+          }
+          description={
             <Trans id="admin.federation.connection.mode.discovery.hint">
               Reads the endpoints from the issuer's discovery document.
             </Trans>
-          </Description>
-        </Radio>
-        <Radio value="manual">
-          <Radio.Content>
-            <Radio.Control>
-              <Radio.Indicator />
-            </Radio.Control>
+          }
+        />
+        <ChoiceTile
+          layout="list"
+          value="manual"
+          label={
             <Trans id="admin.federation.connection.mode.manual">
               Enter the endpoints
             </Trans>
-          </Radio.Content>
-          <Description>
+          }
+          description={
             <Trans id="admin.federation.connection.mode.manual.hint">
               For a provider that does not publish discovery.
             </Trans>
-          </Description>
-        </Radio>
-        {fieldErrors.length > 0 && (
-          <FieldError>
-            <FormMessages errors={fieldErrors} />
-          </FieldError>
-        )}
+          }
+        />
       </RadioGroup>
+      {fieldErrors.length > 0 && (
+        <p className="text-destructive-foreground text-xs">
+          <FormMessages errors={fieldErrors} />
+        </p>
+      )}
 
       {discovery && shown.length > 0 && (
-        <p className="text-sm text-muted">
+        <p className="text-muted-foreground text-xs">
           <Trans id="admin.federation.endpoints.override.note">
             The addresses entered here replace what discovery finds.
           </Trans>
         </p>
       )}
 
-      {shown.map((name) => (
-        <EndpointInput
-          key={name}
-          name={name}
-          value={value.values[name]}
-          inputRef={(element) => {
-            inputs.current[name] = element;
-          }}
-          isDisabled={submitting}
-          problem={problems.find((problem) => problem.endpoint === name)}
-          description={
+      {shown.length > 0 && (
+        <div
+          data-slot="endpoint-rows"
+          className="flex flex-col gap-4 rounded-xl bg-muted/60 p-3 ring-1 ring-border/60"
+        >
+          {shown.map((name) =>
             name === "jwks" ? (
-              <Trans id="admin.federation.connection.jwks.hint">
-                Enter none to skip the ID token and identify people through the
-                UserInfo endpoint.
-              </Trans>
-            ) : !discovery && name === "userinfo" ? (
-              <Trans id="admin.federation.connection.userinfo.hint">
-                Leave it empty to skip the UserInfo request.
-              </Trans>
-            ) : undefined
-          }
-          onChange={(text) =>
-            change(
-              { ...value, values: { ...value.values, [name]: text } },
-              name,
-            )
-          }
-          remove={
-            discovery ? (
-              <Button
-                disabled={submitting}
-                aria-label={i18n._({
-                  ...removeOverrideMessage,
-                  values: { endpoint: i18n._(endpointLabel(name)) },
-                })}
-                onClick={() => {
-                  added.current = null;
-                  change(
-                    {
-                      ...value,
-                      overridden: value.overridden.filter(
-                        (candidate) => candidate !== name,
-                      ),
-                    },
-                    name,
-                  );
-                }}
-                variant="ghost"
-                size="icon-sm"
-              >
-                <Trash2 size={16} aria-hidden="true" />
-              </Button>
-            ) : null
-          }
-        />
-      ))}
+              <JwksEndpoint key={name} {...rowProps(name)} />
+            ) : (
+              <EndpointRow
+                key={name}
+                {...rowProps(name)}
+                description={
+                  !discovery && name === "userinfo" ? (
+                    <Trans id="admin.federation.connection.userinfo.hint">
+                      Leave it empty to skip the UserInfo request.
+                    </Trans>
+                  ) : undefined
+                }
+              />
+            ),
+          )}
+        </div>
+      )}
 
       {discovery && (
-        <div>
-          {allOverridden ? (
-            overrideDisabled
-          ) : (
-            <Dropdown>
-              {overrideButton}
-              <Dropdown.Popover placement="bottom start">
-                <Dropdown.Menu
-                  disabledKeys={value.overridden}
-                  onAction={(key) => {
-                    const name = endpointNames.find(
-                      (entry) => entry.name === key,
-                    )?.name;
-                    if (name === undefined) return;
-                    added.current = name;
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          <Menu>
+            <MenuTrigger
+              render={
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={submitting || remaining.length === 0}
+                />
+              }
+            >
+              <PlusIcon aria-hidden="true" />
+              <Trans id="admin.federation.endpoints.override">
+                Override an endpoint
+              </Trans>
+            </MenuTrigger>
+            <MenuPopup
+              align="start"
+              portalProps={{ container: getTopLayerContainer() }}
+              finalFocus={() => {
+                const name = added.current;
+                added.current = null;
+                return (name !== null && inputs.current[name]) || true;
+              }}
+            >
+              {remaining.map((entry) => (
+                <MenuItem
+                  key={entry.name}
+                  onClick={() => {
+                    added.current = entry.name;
                     change(
-                      { ...value, overridden: [...value.overridden, name] },
-                      name,
+                      {
+                        ...value,
+                        overridden: [...value.overridden, entry.name],
+                      },
+                      entry.name,
                     );
                   }}
                 >
-                  {endpointNames.map((entry) => (
-                    <Dropdown.Item
-                      id={entry.name}
-                      key={entry.name}
-                      textValue={i18n._(entry.label)}
-                    >
-                      <Label>{i18n._(entry.label)}</Label>
-                    </Dropdown.Item>
-                  ))}
-                </Dropdown.Menu>
-              </Dropdown.Popover>
-            </Dropdown>
+                  {i18n._(entry.label)}
+                </MenuItem>
+              ))}
+            </MenuPopup>
+          </Menu>
+          {remaining.length === 0 && (
+            <span className="text-muted-foreground text-xs">
+              <Trans id="admin.federation.endpoints.all-overridden">
+                Every endpoint is already overridden.
+              </Trans>
+            </span>
           )}
         </div>
       )}
@@ -290,64 +276,152 @@ export function EndpointsField() {
   );
 }
 
+interface EndpointRowProps {
+  name: EndpointName;
+  fieldName: string;
+  value: string;
+  disabled: boolean;
+  problem: EndpointProblem | undefined;
+  inputRef: (element: HTMLTextAreaElement | null) => void;
+  onChange: (value: string) => void;
+  /** The button that drops an override; null when the row is not one. */
+  remove: ReactNode;
+}
+
 /**
- * One endpoint: its name over a monospace address input, and under discovery
- * the button that drops the override on the input's own centre line, so the
- * row's message below never pushes the button out of place.
+ * One endpoint: its name over a monospace address input, with the button that
+ * drops an override beside the name so the row's message below never pushes it
+ * out of place.
  */
-function EndpointInput({
+function EndpointRow({
   name,
+  fieldName,
   value,
-  inputRef,
-  isDisabled,
+  disabled,
   problem,
-  description,
+  inputRef,
   onChange,
   remove,
-}: {
-  name: EndpointName;
-  value: string;
-  inputRef: (element: HTMLInputElement | null) => void;
-  isDisabled: boolean;
-  problem: EndpointProblem | undefined;
-  description: ReactNode;
-  onChange: (value: string) => void;
-  remove: ReactNode;
-}) {
+  description,
+}: EndpointRowProps & { description?: ReactNode }) {
   const { i18n } = useLingui();
-  const invalid = problem !== undefined;
   return (
-    <TextField
-      className="flex flex-col gap-1.5"
-      value={value}
-      isDisabled={isDisabled}
-      isInvalid={invalid}
-      validationBehavior="aria"
-      onChange={onChange}
-    >
-      <Label>{i18n._(endpointLabel(name))}</Label>
-      <div
-        className={
-          remove === null
-            ? undefined
-            : "grid grid-cols-[minmax(0,1fr)_2rem] items-center gap-x-2"
+    <Field name={fieldName} disabled={disabled} invalid={problem !== undefined}>
+      <div className="flex w-full items-center justify-between gap-2">
+        <FieldLabel>{i18n._(endpointLabel(name))}</FieldLabel>
+        {remove}
+      </div>
+      {/* Monospace: the address has to match the provider's own copy, and a
+          stray character has to show. */}
+      <AddressInput
+        ref={inputRef}
+        value={value}
+        onValueChange={onChange}
+        placeholder="https://"
+        aria-invalid={problem !== undefined || undefined}
+      />
+      {description !== undefined && (
+        <FieldDescription>{description}</FieldDescription>
+      )}
+      {problem !== undefined && (
+        <FieldError match>{i18n._(problem.message)}</FieldError>
+      )}
+    </Field>
+  );
+}
+
+/**
+ * The JWKS endpoint as two explicit choices: an address, or none. The address
+ * the reader last typed is kept while "none" is chosen, so changing their mind
+ * back does not lose it.
+ */
+function JwksEndpoint({
+  name,
+  fieldName,
+  value,
+  disabled,
+  problem,
+  inputRef,
+  onChange,
+  remove,
+}: EndpointRowProps) {
+  const { i18n } = useLingui();
+  const labelId = useId();
+  const errorId = useId();
+  const address = useRef("");
+  const none = value === jwksNone;
+  if (!none) address.current = value;
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex w-full items-center justify-between gap-2">
+        <span id={labelId} className="font-medium text-sm">
+          {i18n._(endpointLabel(name))}
+        </span>
+        {remove}
+      </div>
+      <RadioGroup
+        aria-labelledby={labelId}
+        name={fieldName}
+        value={none ? "none" : "address"}
+        disabled={disabled}
+        onValueChange={(next) =>
+          onChange(next === "none" ? jwksNone : address.current)
         }
       >
-        {/* Monospace: the address has to match the provider's own copy, and a
-            stray character has to show. */}
-        <Input
-          className="w-full font-mono"
-          inputMode="url"
-          autoComplete="off"
-          spellCheck={false}
-          ref={inputRef}
-          placeholder="https://"
-          variant="secondary"
+        <ChoiceTile
+          layout="list"
+          value="address"
+          label={
+            <Trans id="admin.federation.connection.jwks.address">
+              Check the ID token with a JWKS address
+            </Trans>
+          }
+          description={
+            <Trans id="admin.federation.connection.jwks.address.hint">
+              The provider's signing keys are read from this address.
+            </Trans>
+          }
+          attached={
+            none ? undefined : (
+              <div className="flex flex-col gap-1.5">
+                <AddressInput
+                  ref={inputRef}
+                  value={value}
+                  disabled={disabled}
+                  onValueChange={onChange}
+                  placeholder="https://"
+                  aria-label={i18n._(endpointLabel(name))}
+                  aria-invalid={problem !== undefined || undefined}
+                  aria-describedby={problem === undefined ? undefined : errorId}
+                />
+                {problem !== undefined && (
+                  <p
+                    id={errorId}
+                    className="text-destructive-foreground text-xs"
+                  >
+                    {i18n._(problem.message)}
+                  </p>
+                )}
+              </div>
+            )
+          }
         />
-        {remove !== null && <div className="flex justify-end">{remove}</div>}
-      </div>
-      {description !== undefined && <Description>{description}</Description>}
-      {invalid && <FieldError>{i18n._(problem.message)}</FieldError>}
-    </TextField>
+        <ChoiceTile
+          layout="list"
+          value="none"
+          label={
+            <Trans id="admin.federation.connection.jwks.none">
+              None — skip the ID token
+            </Trans>
+          }
+          description={
+            <Trans id="admin.federation.connection.jwks.none.hint">
+              People are identified through the UserInfo endpoint instead.
+            </Trans>
+          }
+        />
+      </RadioGroup>
+    </div>
   );
 }
