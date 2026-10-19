@@ -1,5 +1,5 @@
 import { useLingui } from "@lingui/react/macro";
-import { type ReactNode, useEffect, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import {
   type RegisteredSection,
   useRegisteredSections,
@@ -9,27 +9,79 @@ import { cn } from "@/lib/utils";
 /** Where a section counts as "at the top": clear of the sticky console header. */
 const TOP_OFFSET = 160;
 
-function useCurrentSection(sections: RegisteredSection[]): string | undefined {
+/** How close to the end of the page counts as having reached it. */
+const BOTTOM_SLACK = 4;
+
+/** Input that means the reader, not a link jump, is moving the page. */
+const READER_SCROLL_EVENTS = ["wheel", "touchmove", "keydown"] as const;
+
+function atPageBottom(): boolean {
+  const page = document.scrollingElement ?? document.documentElement;
+  return (
+    page.scrollHeight > page.clientHeight + BOTTOM_SLACK &&
+    page.scrollTop + page.clientHeight >= page.scrollHeight - BOTTOM_SLACK
+  );
+}
+
+/**
+ * The section the reader is in: the last one whose top has passed the header.
+ * A page that cannot scroll far enough to bring its last sections up to the
+ * header counts the last section whose top is on screen once it is at the
+ * bottom, and a rail entry the reader just chose counts at once and until
+ * they scroll on their own.
+ */
+function useCurrentSection(sections: RegisteredSection[]): {
+  current: string | undefined;
+  choose: (id: string) => void;
+} {
   const [current, setCurrent] = useState<string>();
+  const chosen = useRef<string | undefined>(undefined);
   useEffect(() => {
     const update = () => {
+      if (chosen.current !== undefined) {
+        setCurrent(chosen.current);
+        return;
+      }
+      const tops = sections.map(({ id }) => ({
+        id,
+        top: document.getElementById(id)?.getBoundingClientRect().top,
+      }));
       let found: string | undefined;
-      for (const { id } of sections) {
-        const top = document.getElementById(id)?.getBoundingClientRect().top;
+      for (const { id, top } of tops) {
         if (top !== undefined && top <= TOP_OFFSET) found = id;
       }
+      if (atPageBottom()) {
+        for (const { id, top } of tops) {
+          if (top !== undefined && top < window.innerHeight) found = id;
+        }
+      }
       setCurrent(found ?? sections[0]?.id);
+    };
+    const release = () => {
+      if (chosen.current === undefined) return;
+      chosen.current = undefined;
+      update();
     };
     update();
     // Capture: the page may scroll inside its own container, not the window.
     document.addEventListener("scroll", update, true);
     window.addEventListener("resize", update);
+    for (const name of READER_SCROLL_EVENTS) {
+      window.addEventListener(name, release, { passive: true });
+    }
     return () => {
       document.removeEventListener("scroll", update, true);
       window.removeEventListener("resize", update);
+      for (const name of READER_SCROLL_EVENTS) {
+        window.removeEventListener(name, release);
+      }
     };
   }, [sections]);
-  return current;
+  const choose = (id: string) => {
+    chosen.current = id;
+    setCurrent(id);
+  };
+  return { current, choose };
 }
 
 /**
@@ -56,7 +108,7 @@ export function OutlineRail({
     ...sections.filter((section) => section.tone !== "danger"),
     ...sections.filter((section) => section.tone === "danger"),
   ];
-  const current = useCurrentSection(ordered);
+  const { current, choose } = useCurrentSection(ordered);
 
   return (
     <aside
@@ -79,6 +131,7 @@ export function OutlineRail({
           <a
             key={section.id}
             href={`#${section.id}`}
+            onClick={() => choose(section.id)}
             aria-current={current === section.id ? "location" : undefined}
             className={cn(
               "relative flex items-center rounded-md px-2 py-1.5 outline-none focus-visible:ring-2 focus-visible:ring-ring",

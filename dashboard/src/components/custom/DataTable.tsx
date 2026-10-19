@@ -202,6 +202,7 @@ export function DataTable<T extends RowData>({
       column?.width !== undefined && cn("truncate", column.width),
     ) || undefined;
 
+  const isEmpty = rows.length === 0 && !loading;
   const headers = table.getHeaderGroups()[0]?.headers ?? [];
   const byId = new Map(columns.map((column) => [column.id, column]));
   const treeColumn = expandedRow ? headers[0]?.id : undefined;
@@ -217,9 +218,13 @@ export function DataTable<T extends RowData>({
       variant="card"
       aria-label={label}
       aria-busy={loading || undefined}
-      className="w-max min-w-full"
+      // An empty table fits the frame so the well keeps its border and radius
+      // instead of running past the edge.
+      className={isEmpty ? "w-full" : "w-max min-w-full"}
     >
-      <TableHeader>
+      {/* Below sm the labels of an empty table would only crowd the message and
+          be clipped, so they stay for assistive technology alone. */}
+      <TableHeader className={isEmpty ? "max-sm:sr-only" : undefined}>
         <TableRow>
           {headers.map((header) => {
             const column = byId.get(header.id);
@@ -250,7 +255,10 @@ export function DataTable<T extends RowData>({
                 key={header.id}
                 scope="col"
                 aria-sort={sortable ? direction : undefined}
-                className={cellClass(column)}
+                className={cn(
+                  cellClass(column),
+                  isEmpty && "whitespace-normal",
+                )}
               >
                 {sortable ? (
                   <FlatButton
