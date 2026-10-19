@@ -157,18 +157,18 @@ describe("a row", () => {
     expect(time.tagName).toBe("TIME");
     expect(time).toHaveAttribute("datetime", "2026-09-25T10:15:30Z");
     expect(
-      within(row as HTMLElement).getByRole("link", { name: "bob" }),
+      within(row as HTMLElement).getByRole("link", { name: "@bob" }),
     ).toHaveAttribute("href", "/admin/users/2");
     expect(within(row as HTMLElement).getByText("Passkey")).toBeVisible();
     expect(within(row as HTMLElement).getByText("Used")).toBeVisible();
     expect(within(row as HTMLElement).getByText("198.51.100.7")).toBeVisible();
   });
 
-  it("calls an event with no account System rather than leaving a dash", async () => {
+  it("labels an event with no account as No account rather than leaving a dash", async () => {
     await mount([systemEvent]);
     const [row] = await bodyRows();
 
-    expect(within(row as HTMLElement).getByText("System")).toBeVisible();
+    expect(within(row as HTMLElement).getByText("No account")).toBeVisible();
     expect(within(row as HTMLElement).queryByRole("link")).toBeNull();
   });
 

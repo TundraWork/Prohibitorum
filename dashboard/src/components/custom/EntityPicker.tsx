@@ -95,7 +95,7 @@ export function EntityPicker({
 }: {
   label: ReactNode;
   description?: ReactNode;
-  /** Shown while nothing is selected, and as the search box's hint. */
+  /** Shown on the trigger while nothing is selected. */
   placeholder: string;
   searchLabel: string;
   value: readonly string[];
@@ -207,7 +207,7 @@ export function EntityPicker({
             <ComboboxInput
               aria-labelledby={searchId}
               autoFocus
-              placeholder={placeholder}
+              placeholder={searchLabel}
               showTrigger={false}
               startAddon={<SearchIcon />}
             />

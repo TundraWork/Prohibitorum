@@ -5483,6 +5483,11 @@ msgid "security.tokens.empty"
 msgstr "No access tokens yet"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/logs/AdminLogs.tsx
+msgid "admin.logs.no-account"
+msgstr "No account"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/groups/GroupMatchesFrame.tsx
 msgid "admin.group.matches.none"
 msgstr "No account matches the saved rule."
@@ -8245,11 +8250,6 @@ msgstr "Switch the background to another source and save before removing the key
 #: src/pages/security/PasskeysPanel.tsx
 msgid "security.passkeys.synced"
 msgstr "Synced"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/logs/AdminLogs.tsx
-msgid "admin.logs.system"
-msgstr "System"
 
 #. js-lingui-explicit-id
 #: src/components/custom/ConsoleLayout.tsx

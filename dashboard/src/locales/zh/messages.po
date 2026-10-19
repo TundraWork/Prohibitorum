@@ -5483,6 +5483,11 @@ msgid "security.tokens.empty"
 msgstr "还没有访问令牌"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/logs/AdminLogs.tsx
+msgid "admin.logs.no-account"
+msgstr "无账号"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/groups/GroupMatchesFrame.tsx
 msgid "admin.group.matches.none"
 msgstr "没有账号匹配已保存的规则。"
@@ -8245,11 +8250,6 @@ msgstr "先把背景换成其他来源并保存，再移除 Key。"
 #: src/pages/security/PasskeysPanel.tsx
 msgid "security.passkeys.synced"
 msgstr "已同步"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/logs/AdminLogs.tsx
-msgid "admin.logs.system"
-msgstr "系统"
 
 #. js-lingui-explicit-id
 #: src/components/custom/ConsoleLayout.tsx

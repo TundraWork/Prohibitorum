@@ -305,15 +305,17 @@ function auditColumns(i18n: Locale): TableColumn<AuditEventView>[] {
       cell: (event) =>
         event.accountId === undefined ? (
           <span className="text-muted-foreground">
-            <Trans id="admin.logs.system">System</Trans>
+            <Trans id="admin.logs.no-account">No account</Trans>
           </span>
         ) : (
           <Link
-            className="font-medium hover:underline"
+            className="font-mono text-xs hover:underline"
             params={{ id: String(event.accountId) }}
             to="/admin/users/$id"
           >
-            {event.accountUsername || `#${event.accountId}`}
+            {event.accountUsername
+              ? `@${event.accountUsername}`
+              : `#${event.accountId}`}
           </Link>
         ),
     },
