@@ -236,11 +236,6 @@ msgid "admin.user.role.consequence.user"
 msgstr "{name} loses access to the administration pages."
 
 #. js-lingui-explicit-id
-#: src/components/custom/AppManagersSection.tsx
-msgid "app.managers.confirm.body"
-msgstr "{name} will no longer be able to change this application. Their account is not affected."
-
-#. js-lingui-explicit-id
 #: src/pages/Console.tsx
 msgid "console.passkeys.count"
 msgstr "{passkeyCount, plural, one {# passkey} other {# passkeys}}"
@@ -1963,14 +1958,14 @@ msgid "admin.picker.clear"
 msgstr "Clear selection"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/groups/GroupDecisionsSection.tsx
-msgid "admin.group.decisions.clear.title"
-msgstr "Clear the deny for {clearingName}?"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/users/AccountIdentityFilter.tsx
 msgid "admin.users.filter.clear"
 msgstr "Clear the filter"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupDecisionsSection.tsx
+msgid "admin.group.decisions.clear.title"
+msgstr "Clear this deny?"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ClientAuthMethodField.tsx
@@ -9282,6 +9277,11 @@ msgstr "They will be able to sign in again straight away."
 #: src/pages/admin/users/AccountDangerSection.tsx
 msgid "admin.user.state.disable.body"
 msgstr "They will be signed out of every session they have open and will not be able to sign in until you enable the account again."
+
+#. js-lingui-explicit-id
+#: src/components/custom/AppManagersSection.tsx
+msgid "app.managers.confirm.body"
+msgstr "They will no longer be able to change this application. Their account is not affected."
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts

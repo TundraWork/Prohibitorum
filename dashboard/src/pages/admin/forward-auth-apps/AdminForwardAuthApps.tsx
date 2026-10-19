@@ -152,7 +152,7 @@ export function AdminForwardAuthApps() {
         }
       />
 
-      {failed && list.items.length === 0 && (
+      {failed && !list.laterFailed && (
         <SectionFailure
           error={list.error}
           onRetry={list.refetch}
@@ -176,7 +176,7 @@ export function AdminForwardAuthApps() {
           rows={list.items}
           rowId={(app) => app.clientId}
           loading={list.loading}
-          hasMore={list.hasMore}
+          hasMore={list.hasMore && !list.laterFailed}
           loadingMore={list.loadingMore}
           onLoadMore={list.loadMore}
           empty={
@@ -203,7 +203,7 @@ export function AdminForwardAuthApps() {
           }
         />
       )}
-      {failed && list.items.length > 0 && (
+      {list.laterFailed && (
         <LaterPageFailure
           error={list.error}
           onRetry={list.loadMore}

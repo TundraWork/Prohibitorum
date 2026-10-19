@@ -1,6 +1,6 @@
 import { Trans } from "@lingui/react/macro";
 import { CircleAlertIcon, InfoIcon, TriangleAlertIcon } from "lucide-react";
-import type { ReactNode } from "react";
+import { type ReactNode, useRef } from "react";
 import { Button } from "@/components/custom/Button";
 import {
   AlertDialog,
@@ -60,6 +60,11 @@ export function ConfirmDialog({
   isPending?: boolean;
   onConfirm: () => void;
 }) {
+  // Callers clear what the step acts on as it closes; the last subject stays
+  // while the popup animates out, so it does not shrink as it fades.
+  const kept = useRef<ReactNode>(null);
+  if (subject != null && subject !== false) kept.current = subject;
+  const named = isOpen ? subject : kept.current;
   return (
     <AlertDialog open={isOpen} onOpenChange={onOpenChange}>
       <AlertDialogPopup data-tone={status === "accent" ? "default" : status}>
@@ -76,12 +81,12 @@ export function ConfirmDialog({
             render={<div />}
             className="col-start-2 flex flex-col gap-2 text-pretty"
           >
-            {subject != null && subject !== false && (
+            {named != null && named !== false && (
               <p
                 data-slot="confirm-subject"
                 className="break-words font-medium text-foreground text-sm"
               >
-                {subject}
+                {named}
               </p>
             )}
             {body}

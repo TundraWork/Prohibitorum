@@ -3,6 +3,10 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/custom/Button";
 import { useRegisteredSections } from "@/components/custom/SectionRegistry";
 
+/** The bar's distance from the bottom edge (`bottom-6`), and the gap kept above it. */
+const barOffset = 24;
+const barGap = 8;
+
 /** Bottom padding that keeps the last row clear of the floating bar. */
 export const unsavedReserveClass = "data-reserving:pb-24";
 
@@ -62,17 +66,31 @@ export function UnsavedBar({
     dirty.length === 0
       ? undefined
       : watched.find((id) => visible[id] === false);
-  const shown = awayId !== undefined;
   // The bar sits where a bottom toast would, so the toasts rise above it while
-  // it is up.
+  // it is up. Its height varies (a long title wraps on a narrow screen), so the
+  // room is measured, not assumed.
+  const [bar, setBar] = useState<HTMLDivElement | null>(null);
   useEffect(() => {
-    if (!shown) return;
+    if (bar === null) return;
     const root = document.documentElement;
-    root.style.setProperty("--unsaved-bar-space", "3.5rem");
+    const reserve = () => {
+      // The bar's own offset from the bottom edge, its height, and a gap.
+      root.style.setProperty(
+        "--unsaved-bar-space",
+        `${barOffset + bar.offsetHeight + barGap}px`,
+      );
+    };
+    reserve();
+    if (typeof ResizeObserver === "undefined") {
+      return () => root.style.removeProperty("--unsaved-bar-space");
+    }
+    const observer = new ResizeObserver(reserve);
+    observer.observe(bar);
     return () => {
+      observer.disconnect();
       root.style.removeProperty("--unsaved-bar-space");
     };
-  }, [shown]);
+  }, [bar]);
   if (awayId === undefined) return null;
 
   const title = dirty.find((section) => section.id === awayId)?.title;
@@ -84,6 +102,7 @@ export function UnsavedBar({
 
   return (
     <div
+      ref={setBar}
       role="status"
       className="fixed bottom-6 left-1/2 z-20 flex w-max max-w-[calc(100vw-2rem)] -translate-x-1/2 items-center gap-2 rounded-xl bg-popover p-1.5 ps-3.5 text-popover-foreground text-sm shadow-lg/10 ring-1 ring-border"
     >

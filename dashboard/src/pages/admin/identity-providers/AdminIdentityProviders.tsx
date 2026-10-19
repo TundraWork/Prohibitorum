@@ -154,7 +154,7 @@ export function AdminIdentityProviders() {
         }
       />
 
-      {failed && list.items.length === 0 && (
+      {failed && !list.laterFailed && (
         <SectionFailure
           error={list.error}
           onRetry={list.refetch}
@@ -178,7 +178,7 @@ export function AdminIdentityProviders() {
           rows={list.items}
           rowId={(provider) => provider.slug}
           loading={list.loading}
-          hasMore={list.hasMore}
+          hasMore={list.hasMore && !list.laterFailed}
           loadingMore={list.loadingMore}
           onLoadMore={list.loadMore}
           empty={
@@ -197,7 +197,7 @@ export function AdminIdentityProviders() {
           }
         />
       )}
-      {failed && list.items.length > 0 && (
+      {list.laterFailed && (
         <LaterPageFailure
           error={list.error}
           onRetry={list.loadMore}

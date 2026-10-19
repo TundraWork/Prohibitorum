@@ -63,6 +63,39 @@ describe("ConfirmDialog", () => {
     ).toBeVisible();
   });
 
+  it("keeps the last subject while the dialog closes, and drops it when reopened without one", () => {
+    const view = (isOpen: boolean, subject: string | false) => (
+      <I18nProvider i18n={i18n}>
+        <ConfirmDialog
+          isOpen={isOpen}
+          onOpenChange={() => undefined}
+          status="danger"
+          title="Retire this key?"
+          subject={subject}
+          body={<p>It stops verifying.</p>}
+          confirmLabel="Retire"
+          onConfirm={() => undefined}
+        />
+      </I18nProvider>
+    );
+    const { rerender } = render(view(true, "key-1"));
+    // The caller clears its target as the dialog starts to close.
+    rerender(view(false, false));
+    const closing = screen.queryByRole("alertdialog", { hidden: true });
+    expect(closing).not.toBeNull();
+    if (closing !== null) {
+      expect(
+        closing.querySelector('[data-slot="confirm-subject"]'),
+      ).toHaveTextContent("key-1");
+    }
+    rerender(view(true, false));
+    expect(
+      screen
+        .getByRole("alertdialog", { name: "Retire this key?" })
+        .querySelector('[data-slot="confirm-subject"]'),
+    ).toBeNull();
+  });
+
   it("announces the subject as part of the description, and draws none for false", () => {
     const { rerender } = render(
       <I18nProvider i18n={i18n}>

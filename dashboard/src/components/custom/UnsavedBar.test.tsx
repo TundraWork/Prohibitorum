@@ -82,6 +82,40 @@ describe("UnsavedBar", () => {
     expect(screen.queryByText(/Unsaved changes in/)).toBeNull();
   });
 
+  it("reserves the bar's measured height for the toasts, and lets go when it hides", () => {
+    let resize: () => void = () => undefined;
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        constructor(cb: () => void) {
+          resize = cb;
+        }
+        observe() {}
+        disconnect() {}
+      },
+    );
+    let height = 40;
+    vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockImplementation(
+      () => height,
+    );
+    const space = () =>
+      document.documentElement.style.getPropertyValue("--unsaved-bar-space");
+    render(<Page dirty />);
+    const section = document.getElementById("accounts-and-claims") as Element;
+    report(section, false);
+    // Its own offset from the bottom edge, its height, and a gap.
+    expect(space()).toBe("72px");
+
+    // A long title wraps on a narrow screen and the bar grows.
+    height = 60;
+    act(() => resize());
+    expect(space()).toBe("92px");
+
+    report(section, true);
+    expect(space()).toBe("");
+    vi.restoreAllMocks();
+  });
+
   it("keeps clear of the sticky header with a margin the browser accepts", () => {
     render(<Page dirty />);
     // A real observer throws on anything but pixels or percent.

@@ -307,10 +307,9 @@ export function GroupDecisionsSection({ groupId }: { groupId: number }) {
         onOpenChange={(open) => !open && !clear.isPending && setClearing(null)}
         status="warning"
         title={
-          <Trans id="admin.group.decisions.clear.title">
-            Clear the deny for {clearingName}?
-          </Trans>
+          <Trans id="admin.group.decisions.clear.title">Clear this deny?</Trans>
         }
+        subject={clearingName !== "" && clearingName}
         body={
           <p>
             <Trans id="admin.group.decisions.clear.body">

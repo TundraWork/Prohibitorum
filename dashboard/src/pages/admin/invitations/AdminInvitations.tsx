@@ -236,7 +236,7 @@ export function AdminInvitations() {
       />
 
       <div className="flex flex-col gap-4">
-        {listFailed && list.items.length === 0 && (
+        {listFailed && !list.laterFailed && (
           <SectionFailure
             error={list.error}
             onRetry={list.refetch}
@@ -278,7 +278,7 @@ export function AdminInvitations() {
             rows={list.items}
             rowId={(invitation) => invitation.token}
             loading={list.loading}
-            hasMore={list.hasMore}
+            hasMore={list.hasMore && !list.laterFailed}
             loadingMore={list.loadingMore}
             onLoadMore={list.loadMore}
             empty={
@@ -301,7 +301,7 @@ export function AdminInvitations() {
             }
           />
         )}
-        {listFailed && list.items.length > 0 && (
+        {list.laterFailed && (
           <LaterPageFailure
             error={list.error}
             onRetry={list.loadMore}

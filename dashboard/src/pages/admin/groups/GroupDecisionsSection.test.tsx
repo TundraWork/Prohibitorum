@@ -574,7 +574,10 @@ describe("clearing a decision", () => {
     await user.click(await screen.findByRole("menuitem", { name: "Clear" }));
 
     const dialog = await screen.findByRole("alertdialog");
-    expect(dialog).toHaveTextContent("Clear the deny for Cy Dunn?");
+    expect(dialog).toHaveAccessibleName("Clear this deny?");
+    expect(
+      dialog.querySelector('[data-slot="confirm-subject"]'),
+    ).toHaveTextContent("Cy Dunn");
     expect(dialog).toHaveTextContent(
       "They may get in through another group or rule.",
     );

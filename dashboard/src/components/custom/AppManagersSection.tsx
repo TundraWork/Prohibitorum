@@ -102,7 +102,7 @@ export function AppManagersSection({
   const target = (managers.data ?? []).find(
     (manager) => manager.id === removing,
   );
-  // Named, so the confirmation carries it as `{name}` in both catalogs.
+  // Named under the confirmation title.
   const name = target?.displayName ?? "";
 
   return (
@@ -232,10 +232,11 @@ export function AppManagersSection({
         title={
           <Trans id="app.managers.confirm.title">Remove this manager?</Trans>
         }
+        subject={name !== "" && name}
         body={
           <p>
             <Trans id="app.managers.confirm.body">
-              {name} will no longer be able to change this application. Their
+              They will no longer be able to change this application. Their
               account is not affected.
             </Trans>
           </p>

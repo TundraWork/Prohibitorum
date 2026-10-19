@@ -528,6 +528,8 @@ describe("a failed later page", () => {
     expect(
       within(table).getByRole("link", { name: "Alice Admin" }),
     ).toBeVisible();
+    // The alert holds the one way to ask again.
+    expect(screen.queryByRole("button", { name: "Load more" })).toBeNull();
 
     laterFails = false;
     await user.click(within(alert).getByRole("button", { name: "Try again" }));
@@ -540,6 +542,41 @@ describe("a failed later page", () => {
       .sent("GET", listPath)
       .map((call) => call.url.searchParams.get("cursor"));
     expect(cursors).toEqual([null, "next", "next"]);
+  });
+});
+
+describe("a failed refetch of pages already loaded", () => {
+  it("keeps the rows under the whole-list failure, and Try again refetches and clears it", async () => {
+    const user = userEvent.setup();
+    let failing = false;
+    const api = serve(() =>
+      failing
+        ? apiError("internal_error", 500)
+        : Response.json({ items: [alice], nextCursor: "" }),
+    );
+    renderApp("/admin/users", queryClient);
+
+    const table = await screen.findByRole("table", { name: "Users" });
+    await within(table).findByRole("link", { name: "Alice Admin" });
+    failing = true;
+    await queryClient.invalidateQueries({ queryKey: ["admin", "accounts"] });
+
+    const alert = await screen.findByRole("alert");
+    expect(
+      within(alert).getByText("The accounts could not be loaded."),
+    ).toBeVisible();
+    expect(screen.queryByText(/The rest of the accounts/)).toBeNull();
+    expect(
+      within(table).getByRole("link", { name: "Alice Admin" }),
+    ).toBeVisible();
+
+    failing = false;
+    const before = api.sent("GET", listPath).length;
+    await user.click(within(alert).getByRole("button", { name: "Try again" }));
+
+    await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
+    expect(api.sent("GET", listPath).length).toBeGreaterThan(before);
+    expect(notifyError).not.toHaveBeenCalled();
   });
 });
 

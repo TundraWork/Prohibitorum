@@ -108,6 +108,8 @@ export function useCursorList<T, Extra extends object = object>(options: {
     /** A later page is on its way; the rows in hand stay on screen. */
     loadingMore: query.isFetchingNextPage,
     hasMore: query.hasNextPage,
+    /** Only the page that was being asked for failed; the rows in hand are still good. */
+    laterFailed: query.isFetchNextPageError,
     loadMore: () => {
       if (query.hasNextPage && !query.isFetchingNextPage) {
         void query.fetchNextPage();

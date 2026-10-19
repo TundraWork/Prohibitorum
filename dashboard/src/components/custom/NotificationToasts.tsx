@@ -54,8 +54,8 @@ function ToastList(): React.ReactElement {
           "fixed z-60 mx-auto flex w-[calc(100%-var(--toast-inset)*2)] max-w-90 [--toast-inset:--spacing(4)] sm:[--toast-inset:--spacing(8)]",
           // Vertical positioning
           "data-[position*=top]:top-(--toast-inset)",
-          // The unsaved bar, while it shows, sets how much room it takes.
-          "data-[position*=bottom]:bottom-[calc(var(--toast-inset)+var(--unsaved-bar-space,0px))]",
+          // The unsaved bar, while it shows, sets how far up it reaches.
+          "data-[position*=bottom]:bottom-[max(var(--toast-inset),var(--unsaved-bar-space,0px))]",
           // Horizontal positioning
           "data-[position*=left]:left-(--toast-inset)",
           // Clear of the sidebar, but only where one is drawn open.

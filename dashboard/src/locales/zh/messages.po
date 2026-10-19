@@ -236,11 +236,6 @@ msgid "admin.user.role.consequence.user"
 msgstr "{name} 将失去管理页面的访问权限。"
 
 #. js-lingui-explicit-id
-#: src/components/custom/AppManagersSection.tsx
-msgid "app.managers.confirm.body"
-msgstr "{name} 将不能再修改这个应用。其账号不受影响。"
-
-#. js-lingui-explicit-id
 #: src/pages/Console.tsx
 msgid "console.passkeys.count"
 msgstr "{passkeyCount, plural, other {# 个通行密钥}}"
@@ -1963,14 +1958,14 @@ msgid "admin.picker.clear"
 msgstr "清除所选项"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/groups/GroupDecisionsSection.tsx
-msgid "admin.group.decisions.clear.title"
-msgstr "清除对 {clearingName} 的拒绝？"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/users/AccountIdentityFilter.tsx
 msgid "admin.users.filter.clear"
 msgstr "清除此筛选"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupDecisionsSection.tsx
+msgid "admin.group.decisions.clear.title"
+msgstr "清除这条拒绝？"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ClientAuthMethodField.tsx
@@ -9282,6 +9277,11 @@ msgstr "他们可以立即重新登录。"
 #: src/pages/admin/users/AccountDangerSection.tsx
 msgid "admin.user.state.disable.body"
 msgstr "他们会退出已登录的所有会话，并且在你重新启用账号之前无法登录。"
+
+#. js-lingui-explicit-id
+#: src/components/custom/AppManagersSection.tsx
+msgid "app.managers.confirm.body"
+msgstr "对方将不能再修改这个应用。其账号不受影响。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts

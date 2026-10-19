@@ -228,6 +228,7 @@ describe("removing access", () => {
       kind: "saml",
     });
     await waitFor(async () => expect(await rows()).toHaveLength(1));
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
     expect(screen.queryByText("GitHub Enterprise")).not.toBeInTheDocument();
   });
 
@@ -240,6 +241,7 @@ describe("removing access", () => {
       within(row).getByRole("button", { name: "Remove access" }),
     );
     await user.click(await screen.findByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
 
     expect(fetchBoundary.mock.calls.some(([r]) => r.method === "POST")).toBe(
       false,
@@ -270,12 +272,12 @@ describe("removing access", () => {
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent("Too many requests. Wait a moment.");
     expect(screen.getAllByRole("alert")).toHaveLength(1);
-    expect(screen.getByText("Outline wiki")).toBeInTheDocument();
     expect(notifyError).not.toHaveBeenCalled();
     expect(notifySuccess).not.toHaveBeenCalled();
     await waitFor(() =>
       expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument(),
     );
+    expect(screen.getByText("Outline wiki")).toBeInTheDocument();
   });
 });
 

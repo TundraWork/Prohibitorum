@@ -190,7 +190,7 @@ export function AdminLogs() {
           </Button>
         </div>
 
-        {failed && rows.length === 0 && (
+        {failed && !list.laterFailed && (
           <SectionFailure
             error={list.error}
             onRetry={list.refetch}
@@ -211,7 +211,7 @@ export function AdminLogs() {
             rows={rows}
             rowId={(event) => event.id}
             loading={ready && list.loading}
-            hasMore={ready && list.hasMore}
+            hasMore={ready && list.hasMore && !list.laterFailed}
             loadingMore={list.loadingMore}
             onLoadMore={list.loadMore}
             expandedRow={(event) => eventDetail(i18n, event)}
@@ -267,7 +267,7 @@ export function AdminLogs() {
             }
           />
         )}
-        {failed && rows.length > 0 && (
+        {list.laterFailed && (
           <LaterPageFailure
             error={list.error}
             onRetry={list.loadMore}
