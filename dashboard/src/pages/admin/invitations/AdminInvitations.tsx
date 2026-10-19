@@ -1,0 +1,355 @@
+import { msg } from "@lingui/core/macro";
+import { Trans, useLingui } from "@lingui/react/macro";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
+import {
+  Ban,
+  Check,
+  ClipboardCopy,
+  MailPlus,
+  Plus,
+  UserRound,
+} from "lucide-react";
+import { useEffect, useState } from "react";
+import { useCursorList } from "@/api/cursor-list";
+import type { components } from "@/api/generated/schema";
+import { revokeInvitationMutationOptions } from "@/api/mutations";
+import {
+  identityProvidersQueryOptions,
+  invitationsListOptions,
+} from "@/api/queries";
+import { quietQuery, withInlineReport } from "@/app/query-client";
+import { Button } from "@/components/custom/Button";
+import { ConfirmDialog } from "@/components/custom/ConfirmDialog";
+import { DataTable, type TableColumn } from "@/components/custom/DataTable";
+import { EntityCell } from "@/components/custom/EntityCell";
+import {
+  InlineFailure,
+  useInlineFailure,
+} from "@/components/custom/InlineFailure";
+import { APP_DATA_COLUMN } from "@/components/custom/ListCells";
+import { PageHeader } from "@/components/custom/PageHeader";
+import { RelativeTime } from "@/components/custom/RelativeTime";
+import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
+import { TableEmptyState } from "@/components/custom/TableEmptyState";
+import { useCopyValue } from "@/components/custom/use-copy-value";
+import { Badge } from "@/components/ui/badge";
+
+type Invitation = components["schemas"]["InvitationView"];
+
+const copyNamed = msg({
+  id: "admin.invitations.copy.named",
+  message: "Copy the registration link for {name}",
+});
+const copyUnnamed = msg({
+  id: "admin.invitations.copy.unnamed",
+  message: "Copy the registration link without a username",
+});
+const revokeNamed = msg({
+  id: "admin.invitations.revoke.named",
+  message: "Revoke the invitation for {name}",
+});
+const revokeUnnamed = msg({
+  id: "admin.invitations.revoke.unnamed",
+  message: "Revoke the invitation without a username",
+});
+
+/**
+ * The invitations still waiting to be used.
+ *
+ * The server lists only unused, unexpired invitations, so there is no status to
+ * show: a row leaves the list when it is redeemed, expires or is revoked. The
+ * registration link in each row is a bearer value, so it is copied rather than
+ * printed.
+ *
+ * `groupIds` is what the invitation was created with and `groups` only the
+ * subset still resolving, so a row where the two disagree is flagged.
+ */
+export function AdminInvitations() {
+  const { t, i18n } = useLingui();
+  const queryClient = useQueryClient();
+  const providers = useQuery(quietQuery(identityProvidersQueryOptions()));
+  const [target, setTarget] = useState<Invitation | null>(null);
+  const [copyFailed, setCopyFailed] = useState(false);
+  const revoke = useMutation(
+    withInlineReport(revokeInvitationMutationOptions(queryClient), true),
+  );
+  const failure = useInlineFailure();
+  const list = useCursorList<Invitation>(quietQuery(invitationsListOptions()));
+
+  const providerName = (slug?: string) =>
+    slug === undefined || slug === ""
+      ? null
+      : ((providers.data?.items ?? []).find((item) => item.slug === slug)
+          ?.displayName ?? slug);
+
+  const day = (value: string) =>
+    new Intl.DateTimeFormat(i18n.locale, { dateStyle: "medium" }).format(
+      new Date(value),
+    );
+
+  const columns: TableColumn<Invitation>[] = [
+    {
+      id: "invitee",
+      header: <Trans id="admin.invitations.column.invitee">Invitee</Trans>,
+      cell: (invitation) => (
+        <EntityCell
+          shape="round"
+          fallback={<UserRound className="size-4" aria-hidden="true" />}
+          name={
+            invitation.username ? (
+              invitation.username
+            ) : (
+              <span className="text-muted-foreground">
+                <Trans id="admin.invitations.username.later">
+                  Chosen at registration
+                </Trans>
+              </span>
+            )
+          }
+          marks={
+            invitation.role === "admin" ? (
+              <Badge variant="info" size="sm">
+                <Trans id="object.status.admin">Admin</Trans>
+              </Badge>
+            ) : null
+          }
+        />
+      ),
+    },
+    {
+      id: "provider",
+      width: APP_DATA_COLUMN,
+      header: (
+        <Trans id="admin.invitations.column.provider">Upstream provider</Trans>
+      ),
+      // Absent, not empty, when the invitation does not insist on one.
+      cell: (invitation) =>
+        providerName(invitation.expectedUpstreamIdpSlug) ?? (
+          <span className="text-muted-foreground">—</span>
+        ),
+    },
+    {
+      id: "groups",
+      width: APP_DATA_COLUMN,
+      header: <Trans id="admin.invitations.column.groups">User groups</Trans>,
+      cell: (invitation) => {
+        const groups = invitation.groups ?? [];
+        if (groups.length === 0) {
+          return <span className="text-muted-foreground">—</span>;
+        }
+        const names = groups.map((group) => group.displayName).join(", ");
+        // A shorter resolved list than the saved ids means a group was deleted
+        // after the invitation was created; the invitation still carries it.
+        const missing = groups.length < (invitation.groupIds ?? []).length;
+        return (
+          <span className="flex min-w-0 flex-col">
+            <span className="min-w-0 truncate" title={names}>
+              {names}
+            </span>
+            {missing && (
+              <span className="truncate text-muted-foreground text-xs">
+                <Trans id="admin.invitations.groups.missing">
+                  (some groups no longer exist)
+                </Trans>
+              </span>
+            )}
+          </span>
+        );
+      },
+    },
+    {
+      id: "createdAt",
+      header: <Trans id="admin.invitations.column.created">Created</Trans>,
+      cell: (invitation) => <RelativeTime value={invitation.createdAt} />,
+    },
+    {
+      id: "expiresAt",
+      header: <Trans id="admin.invitations.column.expires">Expires</Trans>,
+      cell: (invitation) => day(invitation.expiresAt),
+    },
+    {
+      align: "end",
+      id: "actions",
+      header: "",
+      pinned: true,
+      cell: (invitation) => {
+        const name = invitation.username;
+        return (
+          <>
+            <CopyLink
+              url={invitation.url}
+              label={
+                name
+                  ? i18n._({ ...copyNamed, values: { name } })
+                  : i18n._(copyUnnamed)
+              }
+              onFailed={() => setCopyFailed(true)}
+              onCopied={() => setCopyFailed(false)}
+            />
+            <Button
+              aria-label={
+                name
+                  ? i18n._({ ...revokeNamed, values: { name } })
+                  : i18n._(revokeUnnamed)
+              }
+              onClick={() => {
+                failure.clear();
+                setTarget(invitation);
+              }}
+              variant="destructive-outline"
+              size="icon-sm"
+            >
+              <Ban aria-hidden="true" />
+            </Button>
+          </>
+        );
+      },
+    },
+  ];
+
+  const listFailed = list.error !== null && list.error !== undefined;
+
+  return (
+    <div className="flex flex-col gap-6">
+      <PageHeader
+        title={<Trans id="admin.invitations.page.title">Invitations</Trans>}
+        description={
+          <Trans id="admin.invitations.page.description">
+            Invitations waiting to be used. Used or expired ones leave this
+            list.
+          </Trans>
+        }
+        actions={
+          <Button render={<Link to="/admin/invitations/new" />}>
+            <Plus aria-hidden="true" />
+            <Trans id="admin.invitations.invite">Invite a user</Trans>
+          </Button>
+        }
+      />
+
+      <div className="flex flex-col gap-4">
+        {listFailed && <InlineFailure error={list.error} />}
+        <InlineFailure error={failure.error} />
+        {copyFailed && (
+          <SurfaceAlert status="danger" role="alert">
+            <SurfaceAlert.Indicator />
+            <SurfaceAlert.Content>
+              <SurfaceAlert.Title>
+                <Trans id="admin.invitations.copy.failed">
+                  Could not copy the link. Your browser blocked the clipboard.
+                </Trans>
+              </SurfaceAlert.Title>
+            </SurfaceAlert.Content>
+          </SurfaceAlert>
+        )}
+
+        {/* A failed first read has no rows to show, and an empty table under
+            the failure would say there are none. */}
+        {(!listFailed || list.items.length > 0) && (
+          <DataTable
+            label={t({ id: "admin.invitations.table", message: "Invitations" })}
+            columns={columns}
+            rows={list.items}
+            rowId={(invitation) => invitation.token}
+            loading={list.loading}
+            hasMore={list.hasMore}
+            loadingMore={list.loadingMore}
+            onLoadMore={list.loadMore}
+            empty={
+              <TableEmptyState
+                icon={
+                  <MailPlus size={18} strokeWidth={1.75} aria-hidden="true" />
+                }
+                title={
+                  <Trans id="admin.invitations.empty.waiting">
+                    No invitations waiting
+                  </Trans>
+                }
+                description={
+                  <Trans id="admin.invitations.empty.description">
+                    Invite someone and their link appears here until they use
+                    it.
+                  </Trans>
+                }
+              />
+            }
+          />
+        )}
+      </div>
+
+      <ConfirmDialog
+        isOpen={target !== null}
+        onOpenChange={(open) => !open && !revoke.isPending && setTarget(null)}
+        status="danger"
+        title={
+          <Trans id="admin.invitations.revoke.title">
+            Revoke this invitation?
+          </Trans>
+        }
+        body={
+          <p>
+            <Trans id="admin.invitations.revoke.body">
+              The registration link stops working immediately, and the
+              invitation no longer appears in this list. This cannot be undone.
+            </Trans>
+          </p>
+        }
+        confirmLabel={
+          <Trans id="admin.invitations.revoke.action">Revoke</Trans>
+        }
+        isPending={revoke.isPending}
+        onConfirm={() => {
+          if (target === null) return;
+          revoke.mutate(target.token, {
+            onError: failure.report,
+            onSettled: () => setTarget(null),
+          });
+        }}
+      />
+    </div>
+  );
+}
+
+/**
+ * The registration link as an affordance rather than a value: it is a bearer
+ * token, so the row offers to copy it and confirms with a check. A refused
+ * clipboard is reported above the table, where there is room to say so.
+ */
+function CopyLink({
+  url,
+  label,
+  onFailed,
+  onCopied,
+}: {
+  url: string;
+  label: string;
+  onFailed: () => void;
+  onCopied: () => void;
+}) {
+  const { t } = useLingui();
+  const { state, copy } = useCopyValue();
+  useEffect(() => {
+    if (state === "failed") onFailed();
+    if (state === "copied") onCopied();
+  }, [state, onFailed, onCopied]);
+
+  return (
+    <Button
+      aria-label={
+        state === "copied"
+          ? t({ id: "admin.invitations.copy.done", message: "Copied." })
+          : label
+      }
+      onClick={() => copy(url)}
+      variant="ghost"
+      size="icon-sm"
+    >
+      {state === "copied" ? (
+        <Check className="text-success" aria-hidden="true" />
+      ) : (
+        <ClipboardCopy aria-hidden="true" />
+      )}
+    </Button>
+  );
+}

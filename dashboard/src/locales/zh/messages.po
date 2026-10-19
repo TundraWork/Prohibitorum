@@ -18,7 +18,7 @@ msgid "consent.count_separator"
 msgstr "，"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminInvitations.tsx
+#: src/pages/admin/invitations/AdminInvitations.tsx
 msgid "admin.invitations.groups.missing"
 msgstr "（部分用户组已不存在）"
 
@@ -574,6 +574,11 @@ msgid "audit.factor.account"
 msgstr "账号"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/invitations/AdminInvitationForm.tsx
+msgid "admin.invitations.new.account.title"
+msgstr "账号"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/groups/AddDecisionDialog.tsx
 msgid "admin.group.decisions.dialog.account"
 msgstr "账号"
@@ -624,13 +629,8 @@ msgid "success.account.saved"
 msgstr "账号已保存"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminInvitationForm.tsx
+#: src/pages/admin/invitations/AdminInvitationForm.tsx
 msgid "admin.invitations.new.username"
-msgstr "账号用户名"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/AdminInvitations.tsx
-msgid "admin.invitations.column.username"
 msgstr "账号用户名"
 
 #. js-lingui-explicit-id
@@ -684,7 +684,6 @@ msgid "admin.home.summary"
 msgstr "账号、用户组、邀请、身份提供商、下游应用、日志与设置在侧栏对应的区域中管理。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminInvitations.tsx
 #: src/pages/admin/settings/SigningKeysPanel.tsx
 msgid "admin.column.actions"
 msgstr "操作"
@@ -857,20 +856,20 @@ msgid "admin.saml-apps.acs.location"
 msgstr "地址"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminInvitationForm.tsx
-#: src/pages/admin/AdminInvitations.tsx
-msgid "admin.invitations.role.admin"
-msgstr "管理员"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/users/AccountRoleField.tsx
 msgid "admin.user.role.admin"
 msgstr "管理员"
 
 #. js-lingui-explicit-id
 #: src/components/custom/ObjectHeader.tsx
+#: src/pages/admin/invitations/AdminInvitations.tsx
 #: src/pages/admin/users/AdminUsers.tsx
 msgid "object.status.admin"
+msgstr "管理员"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/invitations/AdminInvitationForm.tsx
+msgid "admin.invitations.role.admin"
 msgstr "管理员"
 
 #. js-lingui-explicit-id
@@ -899,7 +898,7 @@ msgid "settings.keys.retire.body"
 msgstr "宽限期结束后，它会从 JWKS 和 SAML 元数据中移除。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminInvitationForm.tsx
+#: src/pages/admin/invitations/AdminInvitationForm.tsx
 msgid "admin.invitations.new.require_local.hint"
 msgstr "通过提供商验证后，受邀人还需设置通行密钥或密码和身份验证器，账号才会创建。"
 
@@ -1041,6 +1040,11 @@ msgstr "隐式 ID token 响应需要 JWKS 端点来校验令牌。请填写 JWKS
 #: src/pages/admin/identity-providers/provider-validation.ts
 msgid "admin.federation.response.needs-openid"
 msgstr "隐式 ID token 响应需要 openid 作用域。请加上 openid，或改用授权码。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/invitations/AdminInvitationForm.tsx
+msgid "admin.invitations.new.role.user.description"
+msgstr "登录各应用的普通账号。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/oidc-validation.ts
@@ -1528,6 +1532,11 @@ msgid "admin.federation.callback.title"
 msgstr "回调地址"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/invitations/AdminInvitationForm.tsx
+msgid "admin.invitations.new.role.admin.description"
+msgstr "可在此控制台管理账号、应用、身份提供商和设置。"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/groups/AddDecisionDialog.tsx
 msgid "admin.group.decisions.dialog.allow-hint"
 msgstr "可以使用选用了该用户组的应用。"
@@ -1555,7 +1564,6 @@ msgstr "取消"
 #: src/components/custom/AppAccessSection.tsx
 #: src/components/custom/AppManagersSection.tsx
 #: src/components/custom/CancelLink.tsx
-#: src/pages/admin/AdminInvitationForm.tsx
 #: src/pages/admin/groups/AddDecisionDialog.tsx
 #: src/pages/admin/identity-providers/ProviderCredentialsSection.tsx
 #: src/pages/admin/identity-providers/ProviderOperatorSection.tsx
@@ -1865,7 +1873,7 @@ msgid "app.groups.add"
 msgstr "选择用户组"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminInvitationForm.tsx
+#: src/pages/admin/invitations/AdminInvitationForm.tsx
 msgid "admin.invitations.new.groups.invalid"
 msgstr "请重新选择用户组——其中有一个不是有效的用户组。"
 
@@ -1883,6 +1891,11 @@ msgstr "请选择 HTTP POST 或 HTTP Redirect 绑定。"
 #: src/pages/admin/saml-applications/saml-projection.ts
 msgid "admin.saml-apps.mapping.source.unknown"
 msgstr "请选择这个属性从哪里读取。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/invitations/AdminInvitations.tsx
+msgid "admin.invitations.username.later"
+msgstr "注册时再定"
 
 #. js-lingui-explicit-id
 #: src/components/custom/AppAccessSection.tsx
@@ -2436,7 +2449,7 @@ msgid "json-block.copied"
 msgstr "已复制"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminInvitations.tsx
+#: src/pages/admin/invitations/AdminInvitations.tsx
 msgid "admin.invitations.copy.done"
 msgstr "已复制。"
 
@@ -2527,14 +2540,19 @@ msgid "admin.federation.callback.link.copy"
 msgstr "复制绑定账号地址"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminInvitations.tsx
-msgid "admin.invitations.copy"
-msgstr "复制注册链接"
-
-#. js-lingui-explicit-id
 #: src/components/custom/secret-reveal-copy.ts
 msgid "admin.invitations.reveal.title"
 msgstr "复制注册链接"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/invitations/AdminInvitations.tsx
+msgid "admin.invitations.copy.named"
+msgstr "复制发给 {name} 的注册链接"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/invitations/AdminInvitations.tsx
+msgid "admin.invitations.copy.unnamed"
+msgstr "复制未指定用户名的注册链接"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/CallbackPreview.tsx
@@ -2592,7 +2610,7 @@ msgid "admin.invitations.reveal.copy_failed"
 msgstr "无法复制链接。请在上方选中后手动复制，或下载它。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminInvitations.tsx
+#: src/pages/admin/invitations/AdminInvitations.tsx
 msgid "admin.invitations.copy.failed"
 msgstr "无法复制链接，浏览器阻止了剪贴板。"
 
@@ -2712,7 +2730,7 @@ msgid "admin.group.create"
 msgstr "创建用户组"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminInvitationForm.tsx
+#: src/pages/admin/invitations/AdminInvitationForm.tsx
 msgid "admin.invitations.new.submit"
 msgstr "创建邀请"
 
@@ -2745,6 +2763,11 @@ msgstr "创建你的账号"
 #: src/pages/admin/audit-vocabulary.ts
 msgid "audit.event.register"
 msgstr "创建"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/invitations/AdminInvitations.tsx
+msgid "admin.invitations.column.created"
+msgstr "创建时间"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-options.ts
@@ -2831,6 +2854,11 @@ msgstr "日期"
 #: src/pages/admin/settings/SignInPageControls.tsx
 msgid "settings.sign-in.gradient.dawn"
 msgstr "晨曦"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/invitations/AdminInvitationForm.tsx
+msgid "admin.invitations.new.description"
+msgstr "决定新账号一开始的状态。创建后会得到一条链接，由你发给对方。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/groups/AddDecisionDialog.tsx
@@ -3935,7 +3963,7 @@ msgid "devices.field.expires"
 msgstr "过期时间"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminInvitations.tsx
+#: src/pages/admin/invitations/AdminInvitations.tsx
 msgid "admin.invitations.column.expires"
 msgstr "过期时间"
 
@@ -4519,7 +4547,12 @@ msgid "success.invitation.revoked"
 msgstr "邀请已吊销"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminInvitations.tsx
+#: src/pages/admin/invitations/AdminInvitations.tsx
+msgid "admin.invitations.page.title"
+msgstr "邀请"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/invitations/AdminInvitations.tsx
 msgid "admin.invitations.table"
 msgstr "邀请"
 
@@ -4529,9 +4562,9 @@ msgid "console.admin.invitations"
 msgstr "邀请"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminInvitations.tsx
-msgid "admin.invitations.invite"
-msgstr "邀请用户"
+#: src/pages/admin/invitations/AdminInvitations.tsx
+msgid "admin.invitations.page.description"
+msgstr "等待使用的邀请。已使用或已过期的邀请会从此列表消失。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/users/AdminUsers.tsx
@@ -4539,9 +4572,24 @@ msgid "admin.users.invite"
 msgstr "邀请用户"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/invitations/AdminInvitations.tsx
+msgid "admin.invitations.invite"
+msgstr "邀请用户"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/users/AdminUsers.tsx
 msgid "admin.users.empty.description"
 msgstr "邀请他人后，对方接受邀请即可在此看到其账号。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/invitations/AdminInvitations.tsx
+msgid "admin.invitations.empty.description"
+msgstr "邀请他人后，其链接会在被使用前显示在这里。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/invitations/AdminInvitations.tsx
+msgid "admin.invitations.column.invitee"
+msgstr "受邀人"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminLogs.tsx
@@ -5354,12 +5402,12 @@ msgid "admin.groups.new"
 msgstr "新建用户组"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminInvitationForm.tsx
+#: src/pages/admin/invitations/AdminInvitationForm.tsx
 msgid "admin.invitations.new.title"
 msgstr "新建邀请"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminInvitationForm.tsx
+#: src/pages/admin/invitations/AdminInvitationForm.tsx
 msgid "admin.invitations.new.form"
 msgstr "新建邀请"
 
@@ -5500,9 +5548,9 @@ msgid "security.identities.link.unavailable"
 msgstr "暂无可绑定的身份"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminInvitations.tsx
-msgid "admin.invitations.empty"
-msgstr "暂无邀请"
+#: src/pages/admin/invitations/AdminInvitations.tsx
+msgid "admin.invitations.empty.waiting"
+msgstr "暂无待使用的邀请"
 
 #. js-lingui-explicit-id
 #: src/components/custom/AppManagersSection.tsx
@@ -5951,7 +5999,7 @@ msgid "admin.federation.not-ready.brief.vrchat-expired"
 msgstr "运营账号会话已过期"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminInvitationForm.tsx
+#: src/pages/admin/invitations/AdminInvitationForm.tsx
 msgid "admin.invitations.new.username.hint"
 msgstr "可选。留空则让被邀请人在注册时自己选择。"
 
@@ -5961,9 +6009,9 @@ msgid "admin.user.email.hint"
 msgstr "可选。留空则不保存邮箱地址。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminInvitationForm.tsx
+#: src/pages/admin/invitations/AdminInvitationForm.tsx
 msgid "admin.invitations.new.provider.hint"
-msgstr "可选。只列出能创建账号的提供商；受邀人必须通过此处选择的提供商登录。"
+msgstr "可选。只列出已启用且就绪的提供商；受邀人必须通过此处选择的提供商登录。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/groups/AdminGroupNew.tsx
@@ -6938,7 +6986,7 @@ msgid "admin.forward-auth-apps.enable.note"
 msgstr "经它路由的请求会被重新接受，仍按现有的访问策略处理。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminInvitationForm.tsx
+#: src/pages/admin/invitations/AdminInvitationForm.tsx
 msgid "admin.invitations.new.require_local.label"
 msgstr "要求设置本地登录方式"
 
@@ -7064,7 +7112,7 @@ msgid "security.tokens.revoke.action"
 msgstr "撤销"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminInvitations.tsx
+#: src/pages/admin/invitations/AdminInvitations.tsx
 msgid "admin.invitations.revoke.action"
 msgstr "吊销"
 
@@ -7084,7 +7132,17 @@ msgid "devices.revoke"
 msgstr "撤销批准"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminInvitations.tsx
+#: src/pages/admin/invitations/AdminInvitations.tsx
+msgid "admin.invitations.revoke.named"
+msgstr "吊销发给 {name} 的邀请"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/invitations/AdminInvitations.tsx
+msgid "admin.invitations.revoke.unnamed"
+msgstr "吊销未指定用户名的邀请"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/invitations/AdminInvitations.tsx
 msgid "admin.invitations.revoke.title"
 msgstr "要吊销该邀请吗？"
 
@@ -7119,18 +7177,13 @@ msgid "setup_signin.description"
 msgstr "现在你只能通过 {providers} 登录。再添加一种方式，{providers} 不可用时也能进入账号。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminInvitationForm.tsx
-msgid "admin.invitations.new.role"
-msgstr "角色"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/AdminInvitations.tsx
-msgid "admin.invitations.column.role"
-msgstr "角色"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/users/AccountRoleField.tsx
 msgid "admin.user.role"
+msgstr "角色"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/invitations/AdminInvitationForm.tsx
+msgid "admin.invitations.new.role"
 msgstr "角色"
 
 #. js-lingui-explicit-id
@@ -7398,12 +7451,12 @@ msgid "app.managers.dialog.placeholder"
 msgstr "搜索账号"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminInvitationForm.tsx
+#: src/pages/admin/invitations/AdminInvitationForm.tsx
 msgid "admin.invitations.new.provider.placeholder"
 msgstr "搜索提供商"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminInvitationForm.tsx
+#: src/pages/admin/invitations/AdminInvitationForm.tsx
 msgid "admin.invitations.new.groups.placeholder"
 msgstr "搜索用户组"
 
@@ -7812,6 +7865,11 @@ msgstr "登录"
 #: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
 #: src/pages/admin/oidc-applications/ClientConfigSection.tsx
 msgid "admin.oidc-apps.sign-in.title"
+msgstr "登录"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/invitations/AdminInvitationForm.tsx
+msgid "admin.invitations.new.sign-in.title"
 msgstr "登录"
 
 #. js-lingui-explicit-id
@@ -8566,14 +8624,10 @@ msgid "admin.group.matches.stale"
 msgstr "最近一次检查失败，此数据可能已过期。"
 
 #. js-lingui-explicit-id
+#: src/components/custom/secret-reveal-copy.ts
 #: src/pages/admin/users/AccountRegistrationSection.tsx
 msgid "admin.user.enrollment.expires"
 msgstr "链接于 {expiry} 过期。"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/AdminInvitations.tsx
-msgid "admin.invitations.error"
-msgstr "无法加载列表。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminLogs.tsx
@@ -8581,7 +8635,7 @@ msgid "admin.logs.error"
 msgstr "无法加载日志。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminInvitationForm.tsx
+#: src/pages/admin/invitations/AdminInvitationForm.tsx
 msgid "admin.invitations.new.groups.hint"
 msgstr "新账号注册后加入的手工用户组。"
 
@@ -8590,6 +8644,11 @@ msgstr "新账号注册后加入的手工用户组。"
 #: src/pages/admin/identity-providers/ProviderConnectionSection.tsx
 msgid "admin.federation.connection.secret.hint"
 msgstr "所选的认证方式会把这个密钥发送给提供方；密钥加密存储，不会再次显示。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/invitations/AdminInvitationForm.tsx
+msgid "admin.invitations.new.account.description"
+msgstr "创建账号时使用的用户名和所属用户组。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
@@ -8698,7 +8757,7 @@ msgid "login.reset.qr_failed"
 msgstr "无法显示二维码。请手动输入设置密钥。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminInvitations.tsx
+#: src/pages/admin/invitations/AdminInvitations.tsx
 msgid "admin.invitations.revoke.body"
 msgstr "注册链接会立即失效，该邀请也不再出现在此列表中。此操作无法撤销。"
 
@@ -9164,7 +9223,7 @@ msgid "error.federation.upstream_idp_link_only"
 msgstr "这个提供商只能在账号中绑定，不能用来接受邀请。请选择其他提供商，或把它的账号创建方式改为「仅限邀请」。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminInvitationForm.tsx
+#: src/pages/admin/invitations/AdminInvitationForm.tsx
 msgid "admin.invitations.new.require_local.enforced"
 msgstr "这个提供商不能用于登录，因此始终要求设置本地登录方式。"
 
@@ -9552,13 +9611,13 @@ msgid "admin.group.explain.avatar.user_uploaded"
 msgstr "上传了自己的头像"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminInvitations.tsx
-msgid "admin.invitations.column.provider"
+#: src/pages/admin/audit-vocabulary.ts
+msgid "audit.factor.upstream_idp"
 msgstr "上游提供商"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/audit-vocabulary.ts
-msgid "audit.factor.upstream_idp"
+#: src/pages/admin/invitations/AdminInvitations.tsx
+msgid "admin.invitations.column.provider"
 msgstr "上游提供商"
 
 #. js-lingui-explicit-id
@@ -9723,12 +9782,6 @@ msgid "admin.group.used-by.title"
 msgstr "使用方"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminInvitationForm.tsx
-#: src/pages/admin/AdminInvitations.tsx
-msgid "admin.invitations.role.user"
-msgstr "用户"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/users/AccountRoleField.tsx
 msgid "admin.user.role.user"
 msgstr "用户"
@@ -9736,6 +9789,11 @@ msgstr "用户"
 #. js-lingui-explicit-id
 #: src/pages/admin/users/AdminUsers.tsx
 msgid "admin.users.column.account"
+msgstr "用户"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/invitations/AdminInvitationForm.tsx
+msgid "admin.invitations.role.user"
 msgstr "用户"
 
 #. js-lingui-explicit-id
@@ -9769,13 +9827,13 @@ msgid "success.group.saved"
 msgstr "用户组已保存"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminInvitations.tsx
-msgid "admin.invitations.column.groups"
+#: src/pages/admin/saml-applications/saml-projection.ts
+msgid "admin.saml-apps.source.groups"
 msgstr "用户组"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/saml-applications/saml-projection.ts
-msgid "admin.saml-apps.source.groups"
+#: src/pages/admin/invitations/AdminInvitations.tsx
+msgid "admin.invitations.column.groups"
 msgstr "用户组"
 
 #. js-lingui-explicit-id
@@ -10160,6 +10218,11 @@ msgid "admin.saml-apps.new.provider.manual.description"
 msgstr "没有文档时，实例无法自行得知的内容。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/invitations/AdminInvitationForm.tsx
+msgid "admin.invitations.new.role.description"
+msgstr "新账号创建后可以做什么。"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
 msgid "admin.federation.new.protocol.description"
 msgstr "提供商使用的协议决定了它需要什么。提供商创建后无法更改协议。"
@@ -10257,6 +10320,11 @@ msgstr "应用能否保管密钥，决定了它如何证明自己的身份。"
 #: src/pages/admin/identity-providers/ProviderGeneralSection.tsx
 msgid "admin.federation.signin.description"
 msgstr "这个提供商能否用于登录，以及遇到它没见过的人时怎么处理。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/invitations/AdminInvitationForm.tsx
+msgid "admin.invitations.new.sign-in.description"
+msgstr "受邀人必须使用哪个提供商，以及是否还要设置本地登录方式。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderClaimsSection.tsx

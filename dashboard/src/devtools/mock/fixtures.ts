@@ -1099,14 +1099,19 @@ function invitationAt(index: number, config: MockConfig): Invitation {
   return {
     token: `mock-invitation-${index + 1}`,
     url: `http://localhost:8080/enroll/mock-invitation-${index + 1}`,
-    role: index % 4 === 0 ? "admin" : "member",
+    role: index % 4 === 0 ? "admin" : "user",
     createdAt: iso(-day * (index + 2)),
     expiresAt: iso(day * (7 - index)),
     username: index % 2 === 0 ? `mock-invitee-${index + 1}` : "",
     // Every other invitation insists on an upstream, which is what the list's
     // provider column reads as absent rather than empty.
     ...(index % 2 === 0 ? { expectedUpstreamIdpSlug: "provider-1" } : {}),
-    groupIds: groups.map((group) => group.id),
+    // Every third invitation names a group that no longer exists, which the
+    // list flags beside the groups that still resolve.
+    groupIds: [
+      ...groups.map((group) => group.id),
+      ...(index % 3 === 2 ? [9999] : []),
+    ],
     groups,
     attributes: {},
     // One invitation in three carries a verified snapshot, so the provider
@@ -2740,6 +2745,9 @@ function writeReply(
 
     case "/api/prohibitorum/invitations": {
       if (method !== "POST") return undefined;
+      if (config.admin.invitationCreateFails) {
+        return { kind: "error", status: 500, code: "internal_error" };
+      }
       const id = clampAdminCount(config.admin.invitations) + 1;
       const slug = stringField(body, "expectedUpstreamIdpSlug");
       if (slug !== undefined && slug !== "") {

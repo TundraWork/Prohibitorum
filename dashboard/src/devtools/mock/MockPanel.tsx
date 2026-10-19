@@ -561,6 +561,15 @@ export function MockPanel() {
               })
             }
           />
+          <Toggle
+            label="Creating an invitation fails"
+            checked={config.admin.invitationCreateFails}
+            onChange={(next) =>
+              updateMockConfig((draft) => {
+                draft.admin.invitationCreateFails = next;
+              })
+            }
+          />
           <Count
             label="Rule accounts"
             max={mockRuleAccountsMax}

@@ -18,7 +18,7 @@ msgid "consent.count_separator"
 msgstr ","
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminInvitations.tsx
+#: src/pages/admin/invitations/AdminInvitations.tsx
 msgid "admin.invitations.groups.missing"
 msgstr "(some groups no longer exist)"
 
@@ -574,6 +574,11 @@ msgid "audit.factor.account"
 msgstr "Account"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/invitations/AdminInvitationForm.tsx
+msgid "admin.invitations.new.account.title"
+msgstr "Account"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/groups/AddDecisionDialog.tsx
 msgid "admin.group.decisions.dialog.account"
 msgstr "Account"
@@ -624,13 +629,8 @@ msgid "success.account.saved"
 msgstr "Account saved"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminInvitationForm.tsx
+#: src/pages/admin/invitations/AdminInvitationForm.tsx
 msgid "admin.invitations.new.username"
-msgstr "Account username"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/AdminInvitations.tsx
-msgid "admin.invitations.column.username"
 msgstr "Account username"
 
 #. js-lingui-explicit-id
@@ -684,7 +684,6 @@ msgid "admin.home.summary"
 msgstr "Accounts, user groups, invitations, identity providers, downstream applications, logs and settings are managed from the sections in the sidebar."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminInvitations.tsx
 #: src/pages/admin/settings/SigningKeysPanel.tsx
 msgid "admin.column.actions"
 msgstr "Actions"
@@ -857,20 +856,20 @@ msgid "admin.saml-apps.acs.location"
 msgstr "Address"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminInvitationForm.tsx
-#: src/pages/admin/AdminInvitations.tsx
-msgid "admin.invitations.role.admin"
-msgstr "Admin"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/users/AccountRoleField.tsx
 msgid "admin.user.role.admin"
 msgstr "Admin"
 
 #. js-lingui-explicit-id
 #: src/components/custom/ObjectHeader.tsx
+#: src/pages/admin/invitations/AdminInvitations.tsx
 #: src/pages/admin/users/AdminUsers.tsx
 msgid "object.status.admin"
+msgstr "Admin"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/invitations/AdminInvitationForm.tsx
+msgid "admin.invitations.role.admin"
 msgstr "Admin"
 
 #. js-lingui-explicit-id
@@ -899,7 +898,7 @@ msgid "settings.keys.retire.body"
 msgstr "After the grace period it is removed from the JWKS and the SAML metadata."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminInvitationForm.tsx
+#: src/pages/admin/invitations/AdminInvitationForm.tsx
 msgid "admin.invitations.new.require_local.hint"
 msgstr "After verifying with a provider, the invitee also sets up a passkey or a password and an authenticator before the account is created."
 
@@ -1041,6 +1040,11 @@ msgstr "An implicit ID token response needs a JWKS endpoint to check the token. 
 #: src/pages/admin/identity-providers/provider-validation.ts
 msgid "admin.federation.response.needs-openid"
 msgstr "An implicit ID token response needs the openid scope. Add openid, or choose the authorization code."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/invitations/AdminInvitationForm.tsx
+msgid "admin.invitations.new.role.user.description"
+msgstr "An ordinary account that signs in to applications."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/oidc-validation.ts
@@ -1528,6 +1532,11 @@ msgid "admin.federation.callback.title"
 msgstr "Callback addresses"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/invitations/AdminInvitationForm.tsx
+msgid "admin.invitations.new.role.admin.description"
+msgstr "Can manage accounts, applications, identity providers and settings in this console."
+
+#. js-lingui-explicit-id
 #: src/pages/admin/groups/AddDecisionDialog.tsx
 msgid "admin.group.decisions.dialog.allow-hint"
 msgstr "Can use the applications that select this group."
@@ -1555,7 +1564,6 @@ msgstr "Cancel"
 #: src/components/custom/AppAccessSection.tsx
 #: src/components/custom/AppManagersSection.tsx
 #: src/components/custom/CancelLink.tsx
-#: src/pages/admin/AdminInvitationForm.tsx
 #: src/pages/admin/groups/AddDecisionDialog.tsx
 #: src/pages/admin/identity-providers/ProviderCredentialsSection.tsx
 #: src/pages/admin/identity-providers/ProviderOperatorSection.tsx
@@ -1865,7 +1873,7 @@ msgid "app.groups.add"
 msgstr "Choose groups"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminInvitationForm.tsx
+#: src/pages/admin/invitations/AdminInvitationForm.tsx
 msgid "admin.invitations.new.groups.invalid"
 msgstr "Choose the groups again — one of them is not a valid group."
 
@@ -1883,6 +1891,11 @@ msgstr "Choose the HTTP POST or the HTTP Redirect binding."
 #: src/pages/admin/saml-applications/saml-projection.ts
 msgid "admin.saml-apps.mapping.source.unknown"
 msgstr "Choose where this attribute reads from."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/invitations/AdminInvitations.tsx
+msgid "admin.invitations.username.later"
+msgstr "Chosen at registration"
 
 #. js-lingui-explicit-id
 #: src/components/custom/AppAccessSection.tsx
@@ -2436,7 +2449,7 @@ msgid "json-block.copied"
 msgstr "Copied"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminInvitations.tsx
+#: src/pages/admin/invitations/AdminInvitations.tsx
 msgid "admin.invitations.copy.done"
 msgstr "Copied."
 
@@ -2527,14 +2540,19 @@ msgid "admin.federation.callback.link.copy"
 msgstr "Copy the link-an-account address"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminInvitations.tsx
-msgid "admin.invitations.copy"
-msgstr "Copy the registration link"
-
-#. js-lingui-explicit-id
 #: src/components/custom/secret-reveal-copy.ts
 msgid "admin.invitations.reveal.title"
 msgstr "Copy the registration link"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/invitations/AdminInvitations.tsx
+msgid "admin.invitations.copy.named"
+msgstr "Copy the registration link for {name}"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/invitations/AdminInvitations.tsx
+msgid "admin.invitations.copy.unnamed"
+msgstr "Copy the registration link without a username"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/CallbackPreview.tsx
@@ -2592,7 +2610,7 @@ msgid "admin.invitations.reveal.copy_failed"
 msgstr "Could not copy the link. Select it above and copy it manually, or download it."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminInvitations.tsx
+#: src/pages/admin/invitations/AdminInvitations.tsx
 msgid "admin.invitations.copy.failed"
 msgstr "Could not copy the link. Your browser blocked the clipboard."
 
@@ -2712,7 +2730,7 @@ msgid "admin.group.create"
 msgstr "Create group"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminInvitationForm.tsx
+#: src/pages/admin/invitations/AdminInvitationForm.tsx
 msgid "admin.invitations.new.submit"
 msgstr "Create invitation"
 
@@ -2744,6 +2762,11 @@ msgstr "Create your account"
 #. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts
 msgid "audit.event.register"
+msgstr "Created"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/invitations/AdminInvitations.tsx
+msgid "admin.invitations.column.created"
 msgstr "Created"
 
 #. js-lingui-explicit-id
@@ -2831,6 +2854,11 @@ msgstr "Dates"
 #: src/pages/admin/settings/SignInPageControls.tsx
 msgid "settings.sign-in.gradient.dawn"
 msgstr "Dawn"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/invitations/AdminInvitationForm.tsx
+msgid "admin.invitations.new.description"
+msgstr "Decide what the new account starts with. You get a link to send to the person once you create it."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/groups/AddDecisionDialog.tsx
@@ -3935,7 +3963,7 @@ msgid "devices.field.expires"
 msgstr "Expires"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminInvitations.tsx
+#: src/pages/admin/invitations/AdminInvitations.tsx
 msgid "admin.invitations.column.expires"
 msgstr "Expires"
 
@@ -4519,7 +4547,12 @@ msgid "success.invitation.revoked"
 msgstr "Invitation revoked"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminInvitations.tsx
+#: src/pages/admin/invitations/AdminInvitations.tsx
+msgid "admin.invitations.page.title"
+msgstr "Invitations"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/invitations/AdminInvitations.tsx
 msgid "admin.invitations.table"
 msgstr "Invitations"
 
@@ -4529,9 +4562,9 @@ msgid "console.admin.invitations"
 msgstr "Invitations"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminInvitations.tsx
-msgid "admin.invitations.invite"
-msgstr "Invite a user"
+#: src/pages/admin/invitations/AdminInvitations.tsx
+msgid "admin.invitations.page.description"
+msgstr "Invitations waiting to be used. Used or expired ones leave this list."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/users/AdminUsers.tsx
@@ -4539,9 +4572,24 @@ msgid "admin.users.invite"
 msgstr "Invite a user"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/invitations/AdminInvitations.tsx
+msgid "admin.invitations.invite"
+msgstr "Invite a user"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/users/AdminUsers.tsx
 msgid "admin.users.empty.description"
 msgstr "Invite someone and their account appears here once they accept."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/invitations/AdminInvitations.tsx
+msgid "admin.invitations.empty.description"
+msgstr "Invite someone and their link appears here until they use it."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/invitations/AdminInvitations.tsx
+msgid "admin.invitations.column.invitee"
+msgstr "Invitee"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminLogs.tsx
@@ -5354,12 +5402,12 @@ msgid "admin.groups.new"
 msgstr "New group"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminInvitationForm.tsx
+#: src/pages/admin/invitations/AdminInvitationForm.tsx
 msgid "admin.invitations.new.title"
 msgstr "New invitation"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminInvitationForm.tsx
+#: src/pages/admin/invitations/AdminInvitationForm.tsx
 msgid "admin.invitations.new.form"
 msgstr "New invitation"
 
@@ -5500,9 +5548,9 @@ msgid "security.identities.link.unavailable"
 msgstr "No identities available to link"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminInvitations.tsx
-msgid "admin.invitations.empty"
-msgstr "No invitations yet"
+#: src/pages/admin/invitations/AdminInvitations.tsx
+msgid "admin.invitations.empty.waiting"
+msgstr "No invitations waiting"
 
 #. js-lingui-explicit-id
 #: src/components/custom/AppManagersSection.tsx
@@ -5951,7 +5999,7 @@ msgid "admin.federation.not-ready.brief.vrchat-expired"
 msgstr "Operator session expired"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminInvitationForm.tsx
+#: src/pages/admin/invitations/AdminInvitationForm.tsx
 msgid "admin.invitations.new.username.hint"
 msgstr "Optional. Leave it empty to let the invited person choose their own when they register."
 
@@ -5961,7 +6009,7 @@ msgid "admin.user.email.hint"
 msgstr "Optional. Leave it empty to store no address."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminInvitationForm.tsx
+#: src/pages/admin/invitations/AdminInvitationForm.tsx
 msgid "admin.invitations.new.provider.hint"
 msgstr "Optional. Only providers that are enabled and ready are offered; the invited person must sign in through the one chosen here."
 
@@ -6938,7 +6986,7 @@ msgid "admin.forward-auth-apps.enable.note"
 msgstr "Requests through its router are accepted again, under the access policy it already has."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminInvitationForm.tsx
+#: src/pages/admin/invitations/AdminInvitationForm.tsx
 msgid "admin.invitations.new.require_local.label"
 msgstr "Require a local sign-in method"
 
@@ -7064,7 +7112,7 @@ msgid "security.tokens.revoke.action"
 msgstr "Revoke"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminInvitations.tsx
+#: src/pages/admin/invitations/AdminInvitations.tsx
 msgid "admin.invitations.revoke.action"
 msgstr "Revoke"
 
@@ -7084,7 +7132,17 @@ msgid "devices.revoke"
 msgstr "Revoke approval"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminInvitations.tsx
+#: src/pages/admin/invitations/AdminInvitations.tsx
+msgid "admin.invitations.revoke.named"
+msgstr "Revoke the invitation for {name}"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/invitations/AdminInvitations.tsx
+msgid "admin.invitations.revoke.unnamed"
+msgstr "Revoke the invitation without a username"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/invitations/AdminInvitations.tsx
 msgid "admin.invitations.revoke.title"
 msgstr "Revoke this invitation?"
 
@@ -7119,18 +7177,13 @@ msgid "setup_signin.description"
 msgstr "Right now you can only sign in through {providers}. Add another way to sign in, so losing access to {providers} doesn't lock you out."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminInvitationForm.tsx
-msgid "admin.invitations.new.role"
-msgstr "Role"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/AdminInvitations.tsx
-msgid "admin.invitations.column.role"
-msgstr "Role"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/users/AccountRoleField.tsx
 msgid "admin.user.role"
+msgstr "Role"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/invitations/AdminInvitationForm.tsx
+msgid "admin.invitations.new.role"
 msgstr "Role"
 
 #. js-lingui-explicit-id
@@ -7398,12 +7451,12 @@ msgid "app.managers.dialog.placeholder"
 msgstr "Search accounts"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminInvitationForm.tsx
+#: src/pages/admin/invitations/AdminInvitationForm.tsx
 msgid "admin.invitations.new.provider.placeholder"
 msgstr "Search providers"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminInvitationForm.tsx
+#: src/pages/admin/invitations/AdminInvitationForm.tsx
 msgid "admin.invitations.new.groups.placeholder"
 msgstr "Search user groups"
 
@@ -7812,6 +7865,11 @@ msgstr "Sign-in"
 #: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
 #: src/pages/admin/oidc-applications/ClientConfigSection.tsx
 msgid "admin.oidc-apps.sign-in.title"
+msgstr "Sign-in"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/invitations/AdminInvitationForm.tsx
+msgid "admin.invitations.new.sign-in.title"
 msgstr "Sign-in"
 
 #. js-lingui-explicit-id
@@ -8566,14 +8624,10 @@ msgid "admin.group.matches.stale"
 msgstr "The latest check failed, so this may be out of date."
 
 #. js-lingui-explicit-id
+#: src/components/custom/secret-reveal-copy.ts
 #: src/pages/admin/users/AccountRegistrationSection.tsx
 msgid "admin.user.enrollment.expires"
 msgstr "The link expires on {expiry}."
-
-#. js-lingui-explicit-id
-#: src/pages/admin/AdminInvitations.tsx
-msgid "admin.invitations.error"
-msgstr "The list could not be loaded."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminLogs.tsx
@@ -8581,7 +8635,7 @@ msgid "admin.logs.error"
 msgstr "The log could not be loaded."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminInvitationForm.tsx
+#: src/pages/admin/invitations/AdminInvitationForm.tsx
 msgid "admin.invitations.new.groups.hint"
 msgstr "The manual groups the new account joins when it registers."
 
@@ -8590,6 +8644,11 @@ msgstr "The manual groups the new account joins when it registers."
 #: src/pages/admin/identity-providers/ProviderConnectionSection.tsx
 msgid "admin.federation.connection.secret.hint"
 msgstr "The method chosen sends this to the provider; it is stored encrypted and never shown again."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/invitations/AdminInvitationForm.tsx
+msgid "admin.invitations.new.account.description"
+msgstr "The name and groups the account is created with."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
@@ -8698,7 +8757,7 @@ msgid "login.reset.qr_failed"
 msgstr "The QR code could not be displayed. Enter the setup key manually."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminInvitations.tsx
+#: src/pages/admin/invitations/AdminInvitations.tsx
 msgid "admin.invitations.revoke.body"
 msgstr "The registration link stops working immediately, and the invitation no longer appears in this list. This cannot be undone."
 
@@ -9164,7 +9223,7 @@ msgid "error.federation.upstream_idp_link_only"
 msgstr "This provider can only be linked from an account, so it can't accept an invitation. Choose another provider, or set its provisioning to invitation-only."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminInvitationForm.tsx
+#: src/pages/admin/invitations/AdminInvitationForm.tsx
 msgid "admin.invitations.new.require_local.enforced"
 msgstr "This provider can't be used to sign in, so a local sign-in method is always required."
 
@@ -9552,13 +9611,13 @@ msgid "admin.group.explain.avatar.user_uploaded"
 msgstr "Uploaded their own profile picture"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminInvitations.tsx
-msgid "admin.invitations.column.provider"
+#: src/pages/admin/audit-vocabulary.ts
+msgid "audit.factor.upstream_idp"
 msgstr "Upstream provider"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/audit-vocabulary.ts
-msgid "audit.factor.upstream_idp"
+#: src/pages/admin/invitations/AdminInvitations.tsx
+msgid "admin.invitations.column.provider"
 msgstr "Upstream provider"
 
 #. js-lingui-explicit-id
@@ -9723,12 +9782,6 @@ msgid "admin.group.used-by.title"
 msgstr "Used by"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminInvitationForm.tsx
-#: src/pages/admin/AdminInvitations.tsx
-msgid "admin.invitations.role.user"
-msgstr "User"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/users/AccountRoleField.tsx
 msgid "admin.user.role.user"
 msgstr "User"
@@ -9736,6 +9789,11 @@ msgstr "User"
 #. js-lingui-explicit-id
 #: src/pages/admin/users/AdminUsers.tsx
 msgid "admin.users.column.account"
+msgstr "User"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/invitations/AdminInvitationForm.tsx
+msgid "admin.invitations.role.user"
 msgstr "User"
 
 #. js-lingui-explicit-id
@@ -9769,13 +9827,13 @@ msgid "success.group.saved"
 msgstr "User group saved"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminInvitations.tsx
-msgid "admin.invitations.column.groups"
+#: src/pages/admin/saml-applications/saml-projection.ts
+msgid "admin.saml-apps.source.groups"
 msgstr "User groups"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/saml-applications/saml-projection.ts
-msgid "admin.saml-apps.source.groups"
+#: src/pages/admin/invitations/AdminInvitations.tsx
+msgid "admin.invitations.column.groups"
 msgstr "User groups"
 
 #. js-lingui-explicit-id
@@ -10160,6 +10218,11 @@ msgid "admin.saml-apps.new.provider.manual.description"
 msgstr "What the instance cannot work out without a document."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/invitations/AdminInvitationForm.tsx
+msgid "admin.invitations.new.role.description"
+msgstr "What the new account may do once it exists."
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
 msgid "admin.federation.new.protocol.description"
 msgstr "What the provider speaks decides what it needs. It cannot be changed once the provider exists."
@@ -10257,6 +10320,11 @@ msgstr "Whether the application can keep a secret decides how it proves who it i
 #: src/pages/admin/identity-providers/ProviderGeneralSection.tsx
 msgid "admin.federation.signin.description"
 msgstr "Whether this provider can be used to sign in, and what it does with someone it has not seen."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/invitations/AdminInvitationForm.tsx
+msgid "admin.invitations.new.sign-in.description"
+msgstr "Which provider the invited person must use, and whether they also set up a local way to sign in."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderClaimsSection.tsx

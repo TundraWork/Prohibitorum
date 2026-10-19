@@ -535,6 +535,24 @@ describe("mocked management directory", () => {
     ).toMatchObject({ kind: "json" });
   });
 
+  it("refuses creating an invitation when the panel says it fails, and only then", () => {
+    const path = "/api/prohibitorum/invitations";
+    expect(
+      call(
+        "POST",
+        path,
+        config((draft) => {
+          draft.writes = true;
+          draft.admin.invitationCreateFails = true;
+        }),
+        { role: "user" },
+      ),
+    ).toMatchObject({ kind: "error", status: 500 });
+    expect(call("POST", path, writes(), { role: "user" })).toMatchObject({
+      kind: "json",
+    });
+  });
+
   it("pages invitations and names their upstream provider", () => {
     const invitations = bodyOf(
       read(

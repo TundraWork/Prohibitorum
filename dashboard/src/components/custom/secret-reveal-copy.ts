@@ -120,6 +120,20 @@ export const invitationLinkCopy: SecretRevealCopy = {
   }),
 };
 
+/**
+ * The invitation link's reveal that also says when the link stops working.
+ * `expiry` is the date already written in the reader's language.
+ */
+export function invitationLinkCopyWithExpiry(expiry: string): SecretRevealCopy {
+  return {
+    ...invitationLinkCopy,
+    usage: msg({
+      id: "admin.user.enrollment.expires",
+      message: `The link expires on ${expiry}.`,
+    }),
+  };
+}
+
 export const accessTokenCopy: SecretRevealCopy = {
   title: msg({
     id: "security.tokens.reveal.title",

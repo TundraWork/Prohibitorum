@@ -98,6 +98,8 @@ export interface MockConfig {
     /** Whether every page after the first is refused, so a walk can fail. */
     groupDecisionsLaterPagesFail: boolean;
     invitations: number;
+    /** Whether creating an invitation is refused with a server error, so the form's failure can be walked through. */
+    invitationCreateFails: boolean;
     /** Audit log entries, paged like the directory and capped the same. */
     auditEvents: number;
     /** Signing keys, newest first; a short list, capped like `lists`. */
@@ -387,6 +389,7 @@ export const defaultMockConfig: MockConfig = {
     groupDecisionsPageSize: 50,
     groupDecisionsLaterPagesFail: false,
     invitations: 4,
+    invitationCreateFails: false,
     auditEvents: 24,
     signingKeys: 4,
     signingKeyStates: "",
