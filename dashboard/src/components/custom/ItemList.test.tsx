@@ -218,4 +218,52 @@ describe("ItemList", () => {
     expect(document.querySelector("[data-slot='item-badge']")).toBeNull();
     expect(document.querySelector("[data-slot='item-meta']")).toBeNull();
   });
+
+  it("places the badge and meta line after the details on a narrow screen", () => {
+    render(
+      <ItemList label="Managers" empty={null}>
+        <ItemListRow
+          key="a"
+          title="Mock User"
+          details={["@mock-user"]}
+          meta="Last week"
+        />
+        <ItemListRow key="b" title="Other" meta="Today" />
+      </ItemList>,
+    );
+
+    const [withDetails, without] = Array.from(
+      document.querySelectorAll<HTMLElement>("[data-slot='item-extras']"),
+    );
+    // Name is row 1 and the details row 2, so the extras take row 3; with no
+    // details the extras follow the name directly.
+    expect(withDetails?.style.getPropertyValue("--item-extras")).toBe("3");
+    expect(without?.style.getPropertyValue("--item-extras")).toBe("2");
+  });
+
+  it("puts a stacked row's action under its text only when asked", () => {
+    render(
+      <ItemList label="Danger" empty={null}>
+        <ItemListRow
+          key="a"
+          title="Delete"
+          details={["Removes it for good."]}
+          stackActions
+          actions={<button type="button">Delete</button>}
+        />
+        <ItemListRow
+          key="b"
+          title="Laptop"
+          actions={<button type="button">More</button>}
+        />
+      </ItemList>,
+    );
+
+    const [stacked, beside] = Array.from(
+      document.querySelectorAll<HTMLElement>("[data-slot='item-actions']"),
+    );
+    expect(stacked).toHaveAttribute("data-stacked", "true");
+    expect(beside).not.toHaveAttribute("data-stacked");
+    expect(stacked?.style.getPropertyValue("--item-actions-row")).toBe("3");
+  });
 });

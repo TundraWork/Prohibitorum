@@ -823,6 +823,7 @@ function EnrollmentBlock({ accountId }: { accountId: number }) {
           link is shown once, and any earlier link stops working.
         </Trans>,
       ]}
+      stackActions
       actions={
         <Button
           pending={reissue.isPending}
@@ -884,6 +885,7 @@ function DisabledBlock({ account }: { account: Account }) {
           </Trans>
         ),
       ]}
+      stackActions
       actions={
         <DangerZone
           size="sm"
@@ -954,6 +956,7 @@ function DeleteBlock({ account }: { account: Account }) {
           tokens and connected identities. This cannot be undone.
         </Trans>,
       ]}
+      stackActions
       actions={
         <DangerZone
           size="sm"

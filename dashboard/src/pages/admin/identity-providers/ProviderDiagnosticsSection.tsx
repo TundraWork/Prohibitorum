@@ -194,6 +194,7 @@ function EffectiveConfigRow({ slug }: { slug: string }) {
           </Trans>
         ),
       ]}
+      stackActions
       actions={
         <Button
           pending={refresh.isPending && !open}
@@ -455,6 +456,7 @@ function ConnectionTestRow({
           Sign in once at the provider and check each stage in turn.
         </Trans>,
       ]}
+      stackActions
       actions={
         <Button
           pending={start.isPending && runId === undefined}

@@ -260,6 +260,7 @@ function PasswordTotpFactors() {
                 other="# codes left"
               />
             }
+            stackActions
             actions={
               bothSet ? (
                 <Button
@@ -424,6 +425,7 @@ function FactorRow({
           </Badge>
         )
       }
+      stackActions
       actions={action}
     />
   );
@@ -466,6 +468,7 @@ function TurnOffRow({
             ]
           : undefined
       }
+      stackActions
       actions={
         <Button
           variant="destructive-outline"

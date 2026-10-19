@@ -95,6 +95,7 @@ export function SamlDangerSection({ app }: { app: SamlApp }) {
               </Trans>
             ),
           ]}
+          stackActions
           actions={
             <Button
               pending={setDisabled.isPending}
@@ -129,6 +130,7 @@ export function SamlDangerSection({ app }: { app: SamlApp }) {
               and its access policy. This cannot be undone.
             </Trans>,
           ]}
+          stackActions
           actions={
             <Button
               pending={remove.isPending}

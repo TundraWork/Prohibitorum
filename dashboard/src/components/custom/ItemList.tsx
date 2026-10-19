@@ -121,7 +121,14 @@ export function ItemList({
  * `badge` and `meta` are the row's own columns from `sm`, the badge for a state
  * worth seeing at a glance and the meta for a short fact such as when it was
  * last used. They take the list's shared tracks, so they line up down the
- * list. Below `sm` they sit on one line directly under the name.
+ * list. Below `sm` the name is followed by its details and then by that line,
+ * so a handle or slug stays with the name it identifies.
+ *
+ * A row that is a description with one labelled action — a setting, a danger
+ * row — sets `stackActions`: below `sm` the action drops under the text,
+ * left-aligned at its natural width, rather than squeezing the description
+ * into the space beside it. A row of icon buttons or a menu keeps them beside
+ * the name.
  *
  * A row with `onOpen` and no actions is a way into the record: the whole row
  * is pressable and ends with a chevron, so there is no separate "edit" button
@@ -144,6 +151,7 @@ export function ItemListRow({
   actions,
   link,
   dimmed = false,
+  stackActions = false,
   children,
 }: {
   icon?: ReactNode;
@@ -159,6 +167,8 @@ export function ItemListRow({
    */
   link?: (props: { className: string; children: ReactNode }) => ReactNode;
   dimmed?: boolean;
+  /** Below `sm`, put `actions` under the text instead of beside it. */
+  stackActions?: boolean;
   /**
    * Drawn under the details: a row's own error, or a note after an action.
    * The row's dialogs can sit here as well, since they render elsewhere.
@@ -172,11 +182,15 @@ export function ItemListRow({
   );
   const hasExtras = hasBadge || hasMeta;
   const hasUnder = shown.length > 0 || given(children);
-  // Below `sm` the name, the badge and meta line and the details are stacked
-  // rows of the text column; the icon and actions span however many exist.
+  const stacked = stackActions && actions !== undefined;
+  // Below `sm` the name, the details and the badge and meta line are stacked
+  // rows of the text column, in that order; the icon and actions span however
+  // many exist, and stacked actions are a row of their own after them.
+  const textRows = 1 + (hasUnder ? 1 : 0) + (hasExtras ? 1 : 0);
   const rowStyle = {
-    "--item-span": 1 + (hasExtras ? 1 : 0) + (hasUnder ? 1 : 0),
-    "--item-under": hasExtras ? 3 : 2,
+    "--item-span": textRows + (stacked ? 1 : 0),
+    "--item-extras": hasUnder ? 3 : 2,
+    "--item-actions-row": textRows + 1,
   } as CSSProperties;
   const body = (
     <>
@@ -206,7 +220,7 @@ export function ItemListRow({
         {hasUnder && (
           <div
             style={rowStyle}
-            className="col-start-3 row-start-(--item-under) flex min-w-0 flex-col gap-0.5 max-sm:mt-0.5"
+            className="col-start-3 row-start-2 flex min-w-0 flex-col gap-0.5 max-sm:mt-0.5"
           >
             {shown.length > 0 && (
               // Each separator trails the detail before it, so a wrapped line
@@ -242,7 +256,8 @@ export function ItemListRow({
       {hasExtras && (
         <div
           data-slot="item-extras"
-          className="col-start-3 row-start-2 mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 sm:contents max-sm:[&_[data-slot=badge]]:h-4.5 max-sm:[&_[data-slot=badge]]:text-xs"
+          style={rowStyle}
+          className="col-start-3 row-start-(--item-extras) mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 sm:contents max-sm:[&_[data-slot=badge]]:h-4.5 max-sm:[&_[data-slot=badge]]:text-xs"
         >
           {hasBadge && (
             <div
@@ -265,8 +280,13 @@ export function ItemListRow({
       {actions !== undefined && (
         <div
           data-slot="item-actions"
+          data-stacked={stacked ? "true" : undefined}
           style={rowStyle}
-          className="col-start-6 row-start-1 ms-3 flex items-center gap-1 justify-self-end max-sm:row-span-(--item-span)"
+          className={
+            stacked
+              ? "col-start-6 row-start-1 ms-3 flex items-center gap-1 justify-self-end max-sm:col-start-3 max-sm:row-start-(--item-actions-row) max-sm:ms-0 max-sm:mt-3 max-sm:justify-self-start"
+              : "col-start-6 row-start-1 ms-3 flex items-center gap-1 justify-self-end max-sm:row-span-(--item-span)"
+          }
         >
           {actions}
         </div>

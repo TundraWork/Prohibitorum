@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 
 /**
  * One setting: its name and explanation on the left, its control at the end.
- * Below the `sm` breakpoint the control drops under the text instead.
+ * Below the `sm` breakpoint the control drops under the text, left-aligned at its natural width, as an `ItemListRow` with `stackActions` does.
  */
 export function SettingRow({
   title,
@@ -26,7 +26,7 @@ export function SettingRow({
           </div>
         )}
       </div>
-      {children}
+      <div className="flex items-center sm:justify-end">{children}</div>
     </div>
   );
 }

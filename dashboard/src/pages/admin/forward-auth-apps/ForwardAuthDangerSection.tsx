@@ -118,6 +118,7 @@ export function ForwardAuthDangerSection({ app }: { app: ForwardAuthApp }) {
               </Trans>
             ),
           ]}
+          stackActions
           actions={
             <Button
               pending={setDisabled.isPending}
@@ -152,6 +153,7 @@ export function ForwardAuthDangerSection({ app }: { app: ForwardAuthApp }) {
               are not affected.
             </Trans>,
           ]}
+          stackActions
           actions={
             <Button
               pending={remove.isPending}

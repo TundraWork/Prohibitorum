@@ -95,6 +95,7 @@ export function DangerSection({ app }: { app: OidcApp }) {
               </Trans>
             ),
           ]}
+          stackActions
           actions={
             <Button
               pending={setDisabled.isPending}
@@ -125,6 +126,7 @@ export function DangerSection({ app }: { app: OidcApp }) {
               policy. This cannot be undone.
             </Trans>,
           ]}
+          stackActions
           actions={
             <Button
               pending={remove.isPending}

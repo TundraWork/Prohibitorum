@@ -124,6 +124,7 @@ export function ProviderDangerSection({ provider }: { provider: Provider }) {
               </Trans>
             ),
           ]}
+          stackActions
           actions={
             cannotEnable ? (
               <Tooltip delay={0}>
@@ -163,6 +164,7 @@ export function ProviderDangerSection({ provider }: { provider: Provider }) {
                 </Trans>
               ),
             ]}
+            stackActions
             actions={
               <Button
                 onClick={() => setSettingSecret(true)}
@@ -193,6 +195,7 @@ export function ProviderDangerSection({ provider }: { provider: Provider }) {
               The accounts linked through it stay; only the link is removed.
             </Trans>,
           ]}
+          stackActions
           actions={
             <Button
               pending={remove.isPending}
