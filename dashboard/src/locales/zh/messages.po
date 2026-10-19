@@ -1360,6 +1360,7 @@ msgstr "取消"
 #: src/pages/admin/AdminInvitationForm.tsx
 #: src/pages/admin/forward-auth-apps/AdminForwardAuthAppNew.tsx
 #: src/pages/admin/identity-providers/ProviderCredentialsSection.tsx
+#: src/pages/admin/identity-providers/ProviderOperatorSection.tsx
 #: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
 #: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
 #: src/pages/admin/saml-applications/SamlMetadataSection.tsx
@@ -1368,7 +1369,6 @@ msgstr "取消"
 
 #. js-lingui-explicit-id
 #: src/components/custom/ConfirmDialog.tsx
-#: src/pages/admin/identity-providers/ProviderOperatorSection.tsx
 msgid "confirm.cancel"
 msgstr "取消"
 
@@ -1813,12 +1813,12 @@ msgstr "关闭通知"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderOperatorSection.tsx
-msgid "admin.federation.operator.method.otp"
+msgid "admin.federation.operator.code"
 msgstr "验证码"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderOperatorSection.tsx
-msgid "admin.federation.operator.code"
+msgid "admin.federation.operator.method.otp"
 msgstr "验证码"
 
 #. js-lingui-explicit-id
