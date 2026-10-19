@@ -267,7 +267,7 @@ export function AdminLogs() {
             }
           />
         )}
-        {list.laterFailed && (
+        {ready && list.laterFailed && (
           <LaterPageFailure
             error={list.error}
             onRetry={list.loadMore}

@@ -598,6 +598,35 @@ describe("paging", () => {
     globalThis.IntersectionObserver = original;
   });
 
+  it("keeps a later-page failure from all time out of an unfinished custom range", async () => {
+    const user = userEvent.setup();
+    const api = serve((request) =>
+      new URL(request.url).searchParams.get("cursor") === "c2"
+        ? apiError("internal_error", 500)
+        : Response.json({ items: [passkeyUse], nextCursor: "c2" }),
+    );
+    renderApp("/admin/logs?range=all", queryClient);
+    await user.click(await screen.findByRole("button", { name: "Load more" }));
+    expect(
+      await screen.findByText("The rest of the audit log could not be loaded."),
+    ).toBeVisible();
+    const sent = api.sent("GET", listPath).length;
+
+    await user.click(screen.getByRole("combobox", { name: "Time range" }));
+    await user.click(
+      await screen.findByRole("option", { name: "Custom range" }),
+    );
+
+    expect(
+      await screen.findByText("Choose a start and an end date"),
+    ).toBeVisible();
+    expect(
+      screen.queryByText("The rest of the audit log could not be loaded."),
+    ).toBeNull();
+    expect(screen.queryByRole("button", { name: "Try again" })).toBeNull();
+    expect(api.sent("GET", listPath)).toHaveLength(sent);
+  });
+
   it("asks for the next page with the cursor the server issued", async () => {
     class InView {
       constructor(private readonly callback: IntersectionObserverCallback) {}
