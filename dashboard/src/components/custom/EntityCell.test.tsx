@@ -64,4 +64,17 @@ describe("EntityCell", () => {
     await screen.findByText("Wiki");
     expect(screen.queryByRole("link")).toBeNull();
   });
+
+  it("draws the marks it is given after the name, beside the disabled badge", async () => {
+    renderCell(
+      <EntityCell
+        name="Wiki"
+        dimmed
+        marks={<span data-testid="mark">Sign-in off</span>}
+      />,
+    );
+    const mark = await screen.findByTestId("mark");
+    expect(mark).toHaveTextContent("Sign-in off");
+    expect(screen.getByText("Disabled")).toBeVisible();
+  });
 });

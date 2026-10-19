@@ -1,21 +1,25 @@
-import { Alert } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { useNavigate } from "@tanstack/react-router";
-import { LogIn } from "lucide-react";
+import { Link, useNavigate } from "@tanstack/react-router";
+import { LogIn, Plus } from "lucide-react";
 import { useCursorList } from "@/api/cursor-list";
-import { describeError } from "@/api/errors";
 import { readProviderMode, readProviderProtocol } from "@/api/federation";
 import type { components } from "@/api/generated/schema";
 import { identityProvidersListOptions } from "@/api/queries";
+import { quietQuery } from "@/app/query-client";
 import { Button } from "@/components/custom/Button";
 import { DataTable, type TableColumn } from "@/components/custom/DataTable";
 import { EntityCell } from "@/components/custom/EntityCell";
+import { InlineFailure } from "@/components/custom/InlineFailure";
 import {
+  APP_DATA_COLUMN,
   LinkedAccountsCell,
   NotReadyChip,
 } from "@/components/custom/ListCells";
+import { PageHeader } from "@/components/custom/PageHeader";
 import { TableEmptyState } from "@/components/custom/TableEmptyState";
+import { Badge } from "@/components/ui/badge";
 import { ProviderActions } from "@/pages/admin/identity-providers/ProviderActions";
+import { notReadyReason } from "@/pages/admin/identity-providers/ProviderDangerSection";
 import {
   providerModeLabel,
   providerProtocolLabel,
@@ -26,26 +30,29 @@ type Provider = components["schemas"]["IdentityProviderView"];
 /**
  * The upstream identity providers this instance signs people in with.
  *
- * A reader scans this list for three things: which protocol a provider speaks,
- * how it treats an unknown person arriving from it, and whether it is working at
- * all. The first two are one column — they are both short descriptions of the
- * same configuration, and splitting them costs a column out of the measure for
- * two words each. The third is the readiness chip at the trailing edge.
+ * A reader scans this list for three things: which protocol a provider speaks
+ * and how it treats someone it has not seen, whether anyone uses it, and whether
+ * it is working at all. The first two facts about the configuration share one
+ * column — each is a word or two, and a column of two words costs the width of a
+ * column of ten.
  *
- * Readiness is the only state this list announces. A provider that is not ready
- * cannot be enabled, which is the one thing an administrator arriving here
- * usually wants to fix, so it is the fact worth raising; the row's action menu
- * says why. A provider that is merely switched off recedes instead — it is a
- * settled decision, and labelling it would bury the one that needs work.
+ * Readiness is the one state the list raises its voice about. A provider that is
+ * not ready cannot be enabled, which is what an administrator arriving here
+ * usually wants to fix, so the row says so and says what is missing, in text
+ * rather than a tooltip. A provider that is merely switched off recedes and is
+ * badged instead: it is a settled decision. One that cannot sign anyone in
+ * carries a "Sign-in off" badge, because that changes what the provider is for.
  *
- * The account count answers the question an operator asks before touching a
- * provider — whether anyone actually signs in through it — which is what decides
- * whether a change is safe. The server counts it in one batched query per page.
+ * The account count answers the question asked before touching a provider:
+ * whether anyone actually signs in through it. The server counts it in one
+ * batched query per page.
  */
 export function AdminIdentityProviders() {
   const { t } = useLingui();
   const navigate = useNavigate();
-  const list = useCursorList<Provider>(identityProvidersListOptions());
+  const list = useCursorList<Provider>(
+    quietQuery(identityProvidersListOptions()),
+  );
 
   const columns: TableColumn<Provider>[] = [
     {
@@ -61,16 +68,20 @@ export function AdminIdentityProviders() {
             params: { slug: provider.slug },
           }}
           dimmed={provider.disabled}
+          marks={
+            provider.allowSignIn ? undefined : (
+              <Badge variant="outline" size="sm">
+                <Trans id="object.status.sign-in-off">Sign-in off</Trans>
+              </Badge>
+            )
+          }
         />
       ),
     },
     {
       id: "protocol",
+      width: APP_DATA_COLUMN,
       header: <Trans id="admin.federation.column.protocol">Protocol</Trans>,
-      // Protocol and provisioning mode are two halves of one description: what
-      // the provider speaks, and what it does with someone it has not seen. A
-      // value the console cannot read is reported as such rather than printed
-      // raw — the server narrows both loosely.
       cell: (provider) => <ProtocolMode provider={provider} />,
     },
     {
@@ -84,10 +95,11 @@ export function AdminIdentityProviders() {
       ),
     },
     {
-      align: "end",
-      id: "ready",
-      header: "",
-      cell: (provider) => (provider.ready ? null : <NotReadyChip />),
+      id: "readiness",
+      width: APP_DATA_COLUMN,
+      header: <Trans id="admin.federation.column.readiness">Readiness</Trans>,
+      cell: (provider) =>
+        provider.ready ? null : <NotReady provider={provider} />,
     },
     {
       id: "actions",
@@ -109,45 +121,80 @@ export function AdminIdentityProviders() {
     },
   ];
 
+  const failed = list.error !== null && list.error !== undefined;
+
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center gap-4">
-        <Button
-          onClick={() => void navigate({ to: "/admin/identity-providers/new" })}
-        >
-          <Trans id="admin.federation.create">Add a provider</Trans>
-        </Button>
-      </div>
-
-      {list.error !== null && list.error !== undefined && (
-        <Alert status="danger" role="alert">
-          <Alert.Indicator />
-          <Alert.Content>
-            <Alert.Title>{t(describeError(list.error))}</Alert.Title>
-          </Alert.Content>
-        </Alert>
-      )}
-
-      <DataTable
-        label={t({
-          id: "admin.federation.table",
-          message: "Identity providers",
-        })}
-        columns={columns}
-        rows={list.items}
-        rowId={(provider) => provider.slug}
-        loading={list.loading}
-        hasMore={list.hasMore}
-        loadingMore={list.loadingMore}
-        onLoadMore={list.loadMore}
-        empty={
-          <TableEmptyState
-            icon={<LogIn size={18} strokeWidth={1.75} aria-hidden="true" />}
-            title={<Trans id="admin.federation.empty">No providers yet</Trans>}
-          />
+    <div className="flex flex-col gap-6">
+      <PageHeader
+        title={
+          <Trans id="admin.federation.page.title">Identity providers</Trans>
+        }
+        description={
+          <Trans id="admin.federation.page.description">
+            The outside accounts people can sign in with, link to their account
+            or accept an invitation through.
+          </Trans>
+        }
+        actions={
+          <Button render={<Link to="/admin/identity-providers/new" />}>
+            <Plus aria-hidden="true" />
+            <Trans id="admin.federation.create">Add a provider</Trans>
+          </Button>
         }
       />
+
+      {failed && <InlineFailure error={list.error} />}
+
+      {/* A failed first read has no rows to show, and an empty table under the
+          failure would say there are none. */}
+      {(!failed || list.items.length > 0) && (
+        <DataTable
+          label={t({
+            id: "admin.federation.table",
+            message: "Identity providers",
+          })}
+          columns={columns}
+          rows={list.items}
+          rowId={(provider) => provider.slug}
+          loading={list.loading}
+          hasMore={list.hasMore}
+          loadingMore={list.loadingMore}
+          onLoadMore={list.loadMore}
+          empty={
+            <TableEmptyState
+              icon={<LogIn size={18} strokeWidth={1.75} aria-hidden="true" />}
+              title={
+                <Trans id="admin.federation.empty">No providers yet</Trans>
+              }
+              description={
+                <Trans id="admin.federation.empty.description">
+                  Add a provider so people can sign in with an account they
+                  already have elsewhere.
+                </Trans>
+              }
+            />
+          }
+        />
+      )}
     </div>
+  );
+}
+
+/**
+ * A provider that cannot work yet, and what stands in its way.
+ *
+ * The reason is the detail page's own sentence, so the two cannot disagree. It
+ * wraps inside the column: the table never wraps a cell, but a clipped reason
+ * would lose the part that says what to do.
+ */
+function NotReady({ provider }: { provider: Provider }) {
+  return (
+    <span className="flex flex-col items-start gap-1">
+      <NotReadyChip />
+      <span className="whitespace-normal text-muted-foreground text-xs leading-snug">
+        {notReadyReason(provider.protocol, !provider.disabled)}
+      </span>
+    </span>
   );
 }
 
@@ -172,13 +219,13 @@ function ProtocolMode({ provider }: { provider: Provider }) {
     <span className="flex min-w-0 flex-col">
       <span>
         {protocol === undefined ? (
-          <span className="text-muted">—</span>
+          <span className="text-muted-foreground">—</span>
         ) : (
           i18n._(providerProtocolLabel(protocol))
         )}
       </span>
       {mode !== undefined && (
-        <span className="text-xs text-muted">
+        <span className="text-muted-foreground text-xs">
           {i18n._(providerModeLabel(mode))}
         </span>
       )}

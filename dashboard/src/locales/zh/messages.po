@@ -621,6 +621,11 @@ msgid "admin.federation.create"
 msgstr "添加提供商"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProviders.tsx
+msgid "admin.federation.empty.description"
+msgstr "添加一个提供商，让用户可以使用他们在别处已有的账号登录。"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/AdminForwardAuthApps.tsx
 msgid "admin.forward-auth-apps.empty.description"
 msgstr "添加位于反向代理之后的服务，让用户可以登录它。"
@@ -645,6 +650,11 @@ msgstr "添加别名"
 #: src/pages/admin/saml-applications/AttributeMapField.tsx
 msgid "admin.saml-apps.mapping.add"
 msgstr "添加一个属性"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
+msgid "admin.federation.new.title"
+msgstr "添加身份提供商"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
@@ -955,11 +965,6 @@ msgstr "外观"
 #: src/pages/admin/forward-auth-apps/ForwardAuthAppearanceSection.tsx
 msgid "admin.forward-auth-apps.appearance"
 msgstr "外观"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
-msgid "admin.federation.new.slug.hint"
-msgstr "会出现在回调地址中，之后无法更改。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/AdminForwardAuthAppNew.tsx
@@ -1326,6 +1331,7 @@ msgid "admin.federation.diagnostics.stage.callback"
 msgstr "回调"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
 #: src/pages/admin/identity-providers/CallbackPreview.tsx
 msgid "admin.federation.callback.title"
 msgstr "回调地址"
@@ -1359,6 +1365,7 @@ msgstr "取消"
 #: src/components/custom/AppManagersSection.tsx
 #: src/pages/admin/AdminInvitationForm.tsx
 #: src/pages/admin/forward-auth-apps/AdminForwardAuthAppNew.tsx
+#: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
 #: src/pages/admin/identity-providers/ProviderCredentialsSection.tsx
 #: src/pages/admin/identity-providers/ProviderOperatorSection.tsx
 #: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
@@ -1694,10 +1701,6 @@ msgstr "Client ID"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
-msgid "admin.federation.new.client-id"
-msgstr "Client ID"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderConnectionSection.tsx
 msgid "admin.federation.connection.client-id"
 msgstr "Client ID"
@@ -2010,6 +2013,11 @@ msgid "consent.scope.openid"
 msgstr "确认你的身份"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
+msgid "admin.federation.new.description"
+msgstr "接入一个外部账号服务。创建后，其余设置在它自己的页面上调整。"
+
+#. js-lingui-explicit-id
 #: src/pages/ConnectedApps.tsx
 msgid "apps.page.title"
 msgstr "已连接应用"
@@ -2035,6 +2043,7 @@ msgid "admin.user.identities.table"
 msgstr "已连接身份"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
 #: src/pages/admin/identity-providers/ProviderConnectionSection.tsx
 msgid "admin.federation.connection.title"
 msgstr "连接"
@@ -3984,6 +3993,11 @@ msgstr "身份投影已保存"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/AdminIdentityProviders.tsx
+msgid "admin.federation.page.title"
+msgstr "身份提供商"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProviders.tsx
 msgid "admin.federation.table"
 msgstr "身份提供商"
 
@@ -4144,10 +4158,6 @@ msgstr "Issuer"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
-msgid "admin.federation.new.issuer"
-msgstr "Issuer URL"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderConnectionSection.tsx
 msgid "admin.federation.connection.issuer"
 msgstr "Issuer URL"
@@ -4467,6 +4477,11 @@ msgstr "日志"
 #: src/pages/admin/AdminGroupForm.tsx
 msgid "admin.group.slug.hint"
 msgstr "小写字母、数字和连字符。应用通过它来引用本用户组。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
+msgid "admin.federation.new.slug.hint"
+msgstr "小写字母、数字和单个连字符，最多 64 个字符。会出现在回调地址中，之后无法更改。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminSettings.tsx
@@ -5707,6 +5722,11 @@ msgid "admin.users.filter.providerLabel"
 msgstr "提供商"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
+msgid "admin.federation.new.provider"
+msgstr "提供商"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/AdminIdentityProviders.tsx
 msgid "admin.federation.column.provider"
 msgstr "提供商"
@@ -5828,6 +5848,11 @@ msgstr "读取配置"
 #: src/pages/admin/settings/NetworkPanel.tsx
 msgid "settings.network.strategy"
 msgstr "客户端地址来自"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProviders.tsx
+msgid "admin.federation.column.readiness"
+msgstr "就绪状态"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
@@ -7134,6 +7159,7 @@ msgstr "登录卡片"
 
 #. js-lingui-explicit-id
 #: src/components/custom/ObjectHeader.tsx
+#: src/pages/admin/identity-providers/AdminIdentityProviders.tsx
 msgid "object.status.sign-in-off"
 msgstr "登录已关闭"
 
@@ -7812,6 +7838,7 @@ msgid "admin.invitations.new.groups.hint"
 msgstr "新账号注册后加入的手工用户组。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
 #: src/pages/admin/identity-providers/ProviderConnectionSection.tsx
 msgid "admin.federation.connection.secret.hint"
 msgstr "所选的认证方式会把这个密钥发送给提供方；密钥加密存储，不会再次显示。"
@@ -7820,6 +7847,11 @@ msgstr "所选的认证方式会把这个密钥发送给提供方；密钥加密
 #: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
 msgid "admin.saml-apps.new.identity.description"
 msgstr "人们看到的应用名称。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProviders.tsx
+msgid "admin.federation.page.description"
+msgstr "用户可以用这些外部账号登录、绑定到自己的账号，或用来接受邀请。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/SignInPagePanel.tsx
@@ -9246,12 +9278,13 @@ msgstr "等待 VRChat…"
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
 #: src/pages/admin/identity-providers/ProviderCredentialsSection.tsx
-msgid "admin.federation.new.steam-key"
+msgid "admin.federation.credentials.steam.title"
 msgstr "Web API 密钥"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
 #: src/pages/admin/identity-providers/ProviderCredentialsSection.tsx
-msgid "admin.federation.credentials.steam.title"
+msgid "admin.federation.new.steam-key"
 msgstr "Web API 密钥"
 
 #. js-lingui-explicit-id
@@ -9285,6 +9318,11 @@ msgid "admin.oidc-apps.new.identity.description"
 msgstr "人们看到的名称，以及客户端配置所用的标识。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
+msgid "admin.federation.new.provider.description"
+msgstr "用户看到的名称、它的标识符，以及它如何处理系统里还没有的人。"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/IdentityProjectionSection.tsx
 msgid "admin.oidc-apps.identity.description"
 msgstr "客户端会得知的登录者信息。"
@@ -9293,6 +9331,11 @@ msgstr "客户端会得知的登录者信息。"
 #: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
 msgid "admin.saml-apps.new.provider.manual.description"
 msgstr "没有文档时，实例无法自行得知的内容。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
+msgid "admin.federation.new.protocol.description"
+msgstr "提供商使用的协议决定了它需要什么。提供商创建后无法更改协议。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
@@ -9351,12 +9394,18 @@ msgid "admin.saml-apps.field.acs.hint"
 msgstr "这个实例发送断言的目标地址。其中恰好一个端点是默认端点。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
+msgid "admin.federation.new.callback.description"
+msgstr "提供商会把用户送回本实例的这些地址。"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
 #: src/pages/admin/oidc-applications/ClientConfigSection.tsx
 msgid "admin.oidc-apps.sign-in.description"
 msgstr "此应用可以把人送回的地址，以及它可以请求的内容。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
 #: src/pages/admin/identity-providers/ProviderConnectionSection.tsx
 msgid "admin.federation.connection.description"
 msgstr "提供商在哪里让人登录，以及本实例如何与它通信。"

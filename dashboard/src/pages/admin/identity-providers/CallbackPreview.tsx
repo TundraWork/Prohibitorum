@@ -18,15 +18,23 @@ import { Fieldset, FieldsetLegend } from "@/components/ui/fieldset";
  * origin, so an operator browsing a secondary origin should check the
  * server's configuration before registering what is shown here.
  *
- * The caller passes an identifier the server accepts, already trimmed.
+ * The caller passes an identifier the server accepts, already trimmed. A caller
+ * that sits under a heading of its own passes `titled={false}`: the group keeps
+ * its name for a screen reader and the heading is not said twice.
  */
-export function CallbackPreview({ slug }: { slug: string }) {
+export function CallbackPreview({
+  slug,
+  titled = true,
+}: {
+  slug: string;
+  titled?: boolean;
+}) {
   const { t } = useLingui();
   const origin = window.location.origin;
 
   return (
     <Fieldset className="flex flex-col gap-2">
-      <FieldsetLegend className="font-medium text-sm">
+      <FieldsetLegend className={titled ? "font-medium text-sm" : "sr-only"}>
         <Trans id="admin.federation.callback.title">Callback addresses</Trans>
       </FieldsetLegend>
       <p className="text-muted-foreground text-xs">

@@ -30,7 +30,9 @@ import { Tooltip, TooltipPopup, TooltipTrigger } from "@/components/ui/tooltip";
  * table's pinned column; its whole value is the tooltip and the record's page.
  *
  * `restricted` stays a padlock beside the name, because it says what a row *is*
- * rather than something that happened to it.
+ * rather than something that happened to it. `marks` is for a fact about the
+ * row that wants words, such as a provider that cannot sign anyone in, drawn as
+ * small badges after the disabled one.
  */
 export function EntityCell({
   iconUrl,
@@ -39,6 +41,7 @@ export function EntityCell({
   link,
   dimmed = false,
   restricted = false,
+  marks,
   /** Overrides the avatar's placeholder; the app icon is the default. */
   fallback,
 }: {
@@ -52,6 +55,8 @@ export function EntityCell({
   dimmed?: boolean;
   /** The row is limited to selected user groups. */
   restricted?: boolean;
+  /** Badges after the name, one per fact the row has to say in words. */
+  marks?: ReactNode;
   fallback?: ReactNode;
 }) {
   const { t } = useLingui();
@@ -70,7 +75,7 @@ export function EntityCell({
         />
       </span>
       <div className="flex max-w-52 min-w-0 flex-col sm:max-w-md">
-        <span className="flex min-w-0 items-center gap-1.5">
+        <span className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1">
           <span
             className={`min-w-0 truncate${dimmed ? " opacity-70" : ""}`}
             title={typeof name === "string" ? name : undefined}
@@ -88,6 +93,7 @@ export function EntityCell({
               {t({ id: "entity.state.disabled", message: "Disabled" })}
             </Badge>
           )}
+          {marks}
           {restricted && (
             <Tooltip>
               <TooltipTrigger

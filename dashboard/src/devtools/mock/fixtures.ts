@@ -2858,6 +2858,16 @@ function writeReply(
     case "/api/prohibitorum/identity-providers": {
       const slug = stringField(body, "slug") ?? `provider-${Date.now()}`;
       const protocol = stringField(body, "protocol") ?? "oidc";
+      // An existing provider's identifier is taken, as the server answers.
+      if (
+        identityProviders(config).some((provider) => provider.slug === slug)
+      ) {
+        return {
+          kind: "error",
+          status: 409,
+          code: "upstream_idp_already_exists",
+        };
+      }
       const created: IdentityProvider = {
         slug,
         displayName: stringField(body, "displayName") ?? slug,
