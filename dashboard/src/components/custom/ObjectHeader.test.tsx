@@ -54,6 +54,26 @@ describe("ObjectHeader", () => {
     ).toEqual(["Disabled", "Sign-in off", "Not ready"]);
   });
 
+  it("says whether a group is offered to applications", () => {
+    render(
+      <I18nProvider i18n={i18n}>
+        <ObjectHeader
+          icon={null}
+          title="Staff"
+          statuses={["offered"]}
+          facts={["x"]}
+        />
+        <ObjectHeader icon={null} title="Hidden" statuses={["not-offered"]} />
+      </I18nProvider>,
+    );
+
+    const lists = screen.getAllByRole("list", { name: "Status" });
+    expect(lists.map((list) => list.textContent)).toEqual([
+      "Offered to applications",
+      "Not offered",
+    ]);
+  });
+
   it("draws no separator characters that a wrapped line could end on", () => {
     const { container } = render(
       <I18nProvider i18n={i18n}>

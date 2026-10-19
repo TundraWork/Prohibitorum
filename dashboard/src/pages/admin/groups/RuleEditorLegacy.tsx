@@ -1,10 +1,7 @@
 import {
-  Chip,
   Description,
   Label,
   ListBox,
-  Radio,
-  RadioGroup,
   Select,
   Tabs,
   TextArea,
@@ -15,11 +12,9 @@ import {
 import { msg } from "@lingui/core/macro";
 import { Plural, Trans, useLingui } from "@lingui/react/macro";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useNavigate, useRouter } from "@tanstack/react-router";
-import { Plus, Trash2 } from "lucide-react";
+import { ListFilterIcon, Plus, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import {
-  createGroupMutationOptions,
   rulePreviewMutationOptions,
   updateGroupMutationOptions,
 } from "@/api/mutations";
@@ -28,17 +23,16 @@ import type {
   AppAccessCondition,
   AppAccessRule,
   AppGroupView,
-  CreateGroupRequest,
   ProviderDescriptorView,
-  UpdateGroupRequest,
 } from "@/api/raw-admin-paths";
-import { withRouterSkipLoading } from "@/app/router";
+import { withInlineReport } from "@/app/query-client";
 import { Button } from "@/components/custom/Button";
-import { ConsoleCard } from "@/components/custom/ConsoleCard";
-import { applyServerError } from "@/forms/server-errors";
-import { useAppForm } from "@/forms/use-app-form";
-
-type GroupKind = "manual" | "rule";
+import {
+  InlineFailure,
+  useInlineFailure,
+} from "@/components/custom/InlineFailure";
+import { Section } from "@/components/custom/Section";
+import { groupUpdateBody } from "@/pages/admin/groups/group-validation";
 
 type Fact =
   | "connection.provider"
@@ -56,7 +50,7 @@ type Fact =
  * are close enough to convert either way without loss, and this one gives every
  * node an id, so React keys survive an edit that reorders siblings.
  */
-interface RuleNode {
+export interface RuleNode {
   id: string;
   negated: boolean;
   /** Empty on a row, which holds a single fact. Non-empty on a group. */
@@ -133,7 +127,7 @@ function newGroup(): RuleNode {
   return node;
 }
 
-function rootTree(): RuleNode {
+export function rootTree(): RuleNode {
   const node = newGroup();
   node.id = rootId;
   return node;
@@ -178,7 +172,7 @@ function wireForNode(node: RuleNode): AppAccessCondition {
   return node.negated ? { op: "not", child: leaf } : leaf;
 }
 
-function ruleForTree(root: RuleNode): AppAccessRule {
+export function ruleForTree(root: RuleNode): AppAccessRule {
   return { version: draftVersion, condition: wireForNode(root) };
 }
 
@@ -189,7 +183,7 @@ function ruleForTree(root: RuleNode): AppAccessRule {
  * because the editor's outermost row list is the document's root condition and
  * cannot itself be a lone `not`.
  */
-function treeForRule(rule: AppAccessRule | undefined): RuleNode {
+export function treeForRule(rule: AppAccessRule | undefined): RuleNode {
   if (rule === undefined) return rootTree();
   const condition = nodeFor(rule.condition);
   if (isGroup(condition)) {
@@ -405,356 +399,6 @@ function appendChild(node: RuleNode, id: string, child: RuleNode): RuleNode {
   };
 }
 
-/* -------------------------------------------------------------- screen -- */
-
-/**
- * One screen for creating a user group and for changing one.
- *
- * The kind is the exception to a single form shape: it is a decision made once
- * — a manual group collects its decisions one account at a time on the group's
- * own page, a rule group is described by a document — and the server rejects
- * `kind` on update, so an existing group shows it as a fact, not a control.
- */
-/**
- * Creates a group, or edits `group` when one is given.
- *
- * The group's own values are copied into the form once, on mount. A later
- * refetch is a refresh of a record the reader may already be editing, so it is
- * not allowed to overwrite what they have typed.
- */
-export function AdminGroupForm({ group }: { group?: AppGroupView }) {
-  const { t } = useLingui();
-  const navigate = useNavigate();
-  const router = useRouter();
-  const queryClient = useQueryClient();
-  const editing = group !== undefined;
-  const providers = useQuery(groupProvidersQueryOptions());
-
-  const [kind, setKind] = useState<GroupKind>(
-    group?.kind === "rule" ? "rule" : "manual",
-  );
-  const [tree, setTree] = useState<RuleNode>(() =>
-    group === undefined ? rootTree() : treeForRule(group.rule),
-  );
-  const [ruleError, setRuleError] = useState<{
-    message: string;
-    nodeId: string | null;
-  } | null>(null);
-  const [matchedCount, setMatchedCount] = useState<number | null>(null);
-  const [defaultValues] = useState(() => ({
-    displayName: group?.displayName ?? "",
-    slug: group?.slug ?? "",
-    description: group?.description ?? "",
-    exposedToDownstream: group?.exposedToDownstream ?? true,
-  }));
-
-  const create = useMutation(createGroupMutationOptions(queryClient));
-  const update = useMutation(updateGroupMutationOptions(queryClient));
-  const preview = useMutation(rulePreviewMutationOptions());
-
-  const ruleGroup = kind === "rule";
-  const pending = create.isPending || update.isPending;
-
-  const form = useAppForm({
-    defaultValues,
-    onSubmit: async ({ value }) => {
-      setRuleError(null);
-      const body = {
-        slug: value.slug.trim(),
-        displayName: value.displayName.trim(),
-        description: value.description.trim(),
-        exposedToDownstream: value.exposedToDownstream,
-      };
-      const draft = ruleForTree(tree);
-      try {
-        if (group === undefined) {
-          const request: CreateGroupRequest = { ...body, kind };
-          // A rule on a manual group is rejected outright, so it is left off
-          // the request rather than sent empty.
-          if (ruleGroup) request.rule = draft;
-          const saved = await create.mutateAsync(request);
-          // The pressed submit button already shows the wait while the new
-          // group's page loads, so the form stays up instead of a spinner.
-          await withRouterSkipLoading(router, () =>
-            navigate({
-              to: "/admin/groups/$groupId",
-              params: { groupId: String(saved.id) },
-            }),
-          );
-          return;
-        }
-        const request: UpdateGroupRequest = body;
-        // An omitted rule means "keep the current one", so a manual group
-        // never sends the document it does not have.
-        if (ruleGroup) request.rule = draft;
-        await update.mutateAsync({ groupId: group.id, body: request });
-        await navigate({ to: "/admin/groups" });
-      } catch (error) {
-        // `group_slug_conflict` is about one field, so it lands on that field;
-        // a rule the server refused is about the document as a whole.
-        applyServerError(form, error, {
-          locations: {},
-          codes: { group_slug_conflict: "slug" },
-        });
-      }
-    },
-  });
-
-  const { mutateAsync: previewRule, reset: clearPreview } = preview;
-
-  useEffect(() => {
-    // A group that does not exist yet cannot match anyone, so the draft is only
-    // checked once it has been created.
-    if (!ruleGroup || !editing) return;
-    // Typing in one row usually starts several debounced requests; only the
-    // newest may report, or an older rejection would overwrite a newer answer.
-    let current = true;
-    const timer = setTimeout(async () => {
-      try {
-        const page = await previewRule(ruleForTree(tree));
-        if (!current) return;
-        setMatchedCount(page.matchedCount);
-        setRuleError(null);
-      } catch (error) {
-        if (!current) return;
-        setMatchedCount(null);
-        const failure = error as {
-          code?: string;
-          details?: { path?: string; reason?: string };
-        };
-        if (failure.code !== "invalid_group_rule") {
-          setRuleError({ message: t(ruleRejected), nodeId: null });
-          return;
-        }
-        const reason = failure.details?.reason;
-        setRuleError({
-          message:
-            reason !== undefined && Object.hasOwn(reasonText, reason)
-              ? t(reasonText[reason] as ReturnType<typeof msg>)
-              : (reason ?? t(ruleRejected)),
-          nodeId:
-            failure.details?.path === undefined
-              ? null
-              : nodeIdAtPath(tree, failure.details.path),
-        });
-      }
-    }, 400);
-    return () => {
-      current = false;
-      clearTimeout(timer);
-      clearPreview();
-    };
-  }, [clearPreview, editing, previewRule, ruleGroup, t, tree]);
-
-  return (
-    <ConsoleCard
-      contentClassName="flex flex-col gap-4"
-      title={
-        editing ? (
-          <Trans id="admin.group.edit.title">User group</Trans>
-        ) : (
-          <Trans id="admin.group.create.title">New user group</Trans>
-        )
-      }
-    >
-      <form.AppForm>
-        <form.Form label={t({ id: "admin.group.form", message: "User group" })}>
-          <form.FormError />
-
-          {editing ? (
-            <div className="flex flex-col gap-1">
-              <Label>
-                <Trans id="admin.group.kind.label">How it fills</Trans>
-              </Label>
-              <Chip className="w-fit" color="accent" size="sm" variant="soft">
-                {ruleGroup ? (
-                  <Trans id="admin.group.kind.rule">Rule</Trans>
-                ) : (
-                  <Trans id="admin.group.kind.manual">Manual</Trans>
-                )}
-              </Chip>
-              <Description>
-                <Trans id="admin.group.kind.fixed">
-                  A group's kind is set when it is created and cannot be changed
-                  afterwards.
-                </Trans>
-              </Description>
-            </div>
-          ) : (
-            <RadioGroup
-              name="kind"
-              value={kind}
-              variant="secondary"
-              onChange={(value) => setKind(value as GroupKind)}
-            >
-              <Label>
-                <Trans id="admin.group.kind.label">How it fills</Trans>
-              </Label>
-              <Description>
-                <Trans id="admin.group.kind.note">
-                  A rule group keeps itself up to date as accounts change. A
-                  manual group holds the accounts you allow or deny by hand.
-                </Trans>
-              </Description>
-              <Radio value="manual">
-                <Radio.Content>
-                  <Radio.Control>
-                    <Radio.Indicator />
-                  </Radio.Control>
-                  <Trans id="admin.group.kind.manual">Manual</Trans>
-                </Radio.Content>
-              </Radio>
-              <Radio value="rule">
-                <Radio.Content>
-                  <Radio.Control>
-                    <Radio.Indicator />
-                  </Radio.Control>
-                  <Trans id="admin.group.kind.rule">Rule</Trans>
-                </Radio.Content>
-              </Radio>
-            </RadioGroup>
-          )}
-
-          <form.AppField
-            name="displayName"
-            validators={{
-              onChange: ({ value }) =>
-                value.trim() === ""
-                  ? msg({
-                      id: "admin.group.display-name.required",
-                      message: "Give the group a name.",
-                    })
-                  : undefined,
-            }}
-          >
-            {(field) => (
-              <field.FormField
-                label={<Trans id="admin.group.display-name">Name</Trans>}
-                description={
-                  <Trans id="admin.group.display-name.hint">
-                    What this group is called in the console.
-                  </Trans>
-                }
-                autoComplete="off"
-                variant="secondary"
-              />
-            )}
-          </form.AppField>
-
-          <form.AppField
-            name="slug"
-            validators={{
-              onChange: ({ value }) => {
-                const slug = value.trim();
-                if (slug === "") {
-                  return msg({
-                    id: "admin.group.slug.required",
-                    message: "Give the group an identifier.",
-                  });
-                }
-                // Mirrors `validateAppGroupSlug`: lowercase letters, digits and
-                // single hyphens, at most 64 characters. The server answers a
-                // malformed slug with a bare `bad_request`, which says nothing
-                // useful, so the shape is stated here instead.
-                return /^[a-z0-9](-?[a-z0-9])*$/.test(slug) && slug.length <= 64
-                  ? undefined
-                  : msg({
-                      id: "admin.group.slug.format",
-                      message:
-                        "Use lowercase letters, digits and hyphens, up to 64 characters.",
-                    });
-              },
-            }}
-          >
-            {(field) => (
-              <field.FormField
-                label={<Trans id="admin.group.slug">Identifier</Trans>}
-                description={
-                  <Trans id="admin.group.slug.hint">
-                    Lowercase letters, digits and hyphens. Applications name
-                    this group by it.
-                  </Trans>
-                }
-                autoComplete="off"
-                autoCapitalize="none"
-                spellCheck={false}
-                variant="secondary"
-              />
-            )}
-          </form.AppField>
-
-          <form.AppField name="description">
-            {(field) => (
-              <field.TextAreaField
-                label={<Trans id="admin.group.description">Description</Trans>}
-                description={
-                  <Trans id="admin.group.description.hint">
-                    Optional. What this group is for, for whoever reads it next.
-                  </Trans>
-                }
-                rows={3}
-                variant="secondary"
-              />
-            )}
-          </form.AppField>
-
-          <form.AppField name="exposedToDownstream">
-            {(field) => (
-              <field.SwitchField
-                label={
-                  <Trans id="admin.group.exposed">Offer to applications</Trans>
-                }
-                description={
-                  <Trans id="admin.group.exposed.hint">
-                    Applications can select this group for the access they
-                    grant.
-                  </Trans>
-                }
-              />
-            )}
-          </form.AppField>
-
-          {ruleGroup ? (
-            <RuleEditor
-              draft={ruleForTree(tree)}
-              error={ruleError}
-              matchedCount={matchedCount}
-              onChange={setTree}
-              pending={pending}
-              providers={providers.data ?? []}
-              root={tree}
-            />
-          ) : (
-            <Description>
-              <Trans id="admin.group.manual.note">
-                Which accounts this group holds is decided on the group's own
-                page, once it has been created.
-              </Trans>
-            </Description>
-          )}
-
-          <div className="flex flex-wrap gap-2">
-            <Button
-              disabled={pending}
-              onClick={() => void navigate({ to: "/admin/groups" })}
-              variant="outline"
-            >
-              <Trans id="admin.group.cancel">Cancel</Trans>
-            </Button>
-            <form.SubmitButton>
-              {editing ? (
-                <Trans id="admin.group.save">Save changes</Trans>
-              ) : (
-                <Trans id="admin.group.create">Create group</Trans>
-              )}
-            </form.SubmitButton>
-          </div>
-        </form.Form>
-      </form.AppForm>
-    </ConsoleCard>
-  );
-}
-
 /**
  * The rule document, edited two ways over one draft.
  *
@@ -764,7 +408,7 @@ export function AdminGroupForm({ group }: { group?: AppGroupView }) {
  * the reader can still see. Both panels stay mounted, which is what lets the
  * text survive a trip through the other view.
  */
-function RuleEditor({
+export function RuleEditor({
   root,
   draft,
   providers,
@@ -1218,5 +862,128 @@ function ConditionNode({
         <Trash2 size={16} aria-hidden="true" />
       </Button>
     </div>
+  );
+}
+
+/**
+ * A rule group's rule on its own page, with the editor as it was: a section
+ * that previews the draft against the server and saves the rule by itself.
+ *
+ * The preview runs only for a group that exists, debounced, and only the newest
+ * answer counts. Saving sends the stored name, identifier and description with
+ * the draft, so edits to the details section that were never saved stay out.
+ */
+export function LegacyRuleSection({ group }: { group: AppGroupView }) {
+  const { t } = useLingui();
+  const queryClient = useQueryClient();
+  const providers = useQuery(groupProvidersQueryOptions());
+  const [tree, setTree] = useState<RuleNode>(() => treeForRule(group.rule));
+  const [ruleError, setRuleError] = useState<{
+    message: string;
+    nodeId: string | null;
+  } | null>(null);
+  const [matchedCount, setMatchedCount] = useState<number | null>(null);
+  const preview = useMutation(rulePreviewMutationOptions());
+  const update = useMutation(
+    withInlineReport(updateGroupMutationOptions(queryClient), true),
+  );
+  const failure = useInlineFailure();
+  const { mutateAsync: previewRule, reset: clearPreview } = preview;
+
+  const draft = ruleForTree(tree);
+  const dirty =
+    JSON.stringify(draft) !==
+    JSON.stringify(ruleForTree(treeForRule(group.rule)));
+
+  useEffect(() => {
+    // Typing in one row usually starts several debounced requests; only the
+    // newest may report, or an older rejection would overwrite a newer answer.
+    let current = true;
+    const timer = setTimeout(async () => {
+      try {
+        const page = await previewRule(ruleForTree(tree));
+        if (!current) return;
+        setMatchedCount(page.matchedCount);
+        setRuleError(null);
+      } catch (error) {
+        if (!current) return;
+        setMatchedCount(null);
+        const rejection = error as {
+          code?: string;
+          details?: { path?: string; reason?: string };
+        };
+        if (rejection.code !== "invalid_group_rule") {
+          setRuleError({ message: t(ruleRejected), nodeId: null });
+          return;
+        }
+        const reason = rejection.details?.reason;
+        setRuleError({
+          message:
+            reason !== undefined && Object.hasOwn(reasonText, reason)
+              ? t(reasonText[reason] as ReturnType<typeof msg>)
+              : (reason ?? t(ruleRejected)),
+          nodeId:
+            rejection.details?.path === undefined
+              ? null
+              : nodeIdAtPath(tree, rejection.details.path),
+        });
+      }
+    }, 400);
+    return () => {
+      current = false;
+      clearTimeout(timer);
+      clearPreview();
+    };
+  }, [clearPreview, previewRule, t, tree]);
+
+  return (
+    <Section
+      id="rule"
+      icon={<ListFilterIcon />}
+      title={<Trans id="admin.group.rule.title">Rule</Trans>}
+      dirty={dirty}
+      footer={
+        dirty ? (
+          <div className="flex w-full justify-end gap-2">
+            <Button
+              variant="ghost"
+              disabled={update.isPending}
+              onClick={() => {
+                failure.clear();
+                setTree(treeForRule(group.rule));
+              }}
+            >
+              <Trans id="admin.group.rule.discard">Discard</Trans>
+            </Button>
+            <Button
+              pending={update.isPending}
+              onClick={() => {
+                failure.clear();
+                update.mutate(
+                  {
+                    groupId: group.id,
+                    body: groupUpdateBody(group, { rule: draft }),
+                  },
+                  { onError: failure.report },
+                );
+              }}
+            >
+              <Trans id="admin.group.rule.save">Save rule</Trans>
+            </Button>
+          </div>
+        ) : undefined
+      }
+    >
+      <RuleEditor
+        draft={draft}
+        error={ruleError}
+        matchedCount={matchedCount}
+        onChange={setTree}
+        pending={update.isPending}
+        providers={providers.data ?? []}
+        root={tree}
+      />
+      <InlineFailure error={failure.error} />
+    </Section>
   );
 }

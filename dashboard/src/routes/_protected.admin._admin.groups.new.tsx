@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { AdminGroupForm } from "@/pages/admin/AdminGroupForm";
+import { AdminGroupNew } from "@/pages/admin/groups/AdminGroupNew";
 
 export const Route = createFileRoute("/_protected/admin/_admin/groups/new")({
-  component: () => <AdminGroupForm />,
+  component: () => <AdminGroupNew />,
 });

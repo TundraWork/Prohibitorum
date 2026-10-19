@@ -135,7 +135,7 @@ msgid "login.description.application"
 msgstr "{label} 使用你的 {instance} 账号。登录后你会回到该应用。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminGroupForm.tsx
+#: src/pages/admin/groups/RuleEditorLegacy.tsx
 msgid "admin.group.rule.matched"
 msgstr "{matchedCount, plural, other {有 # 个账号匹配该规则}}"
 
@@ -163,6 +163,11 @@ msgstr "{name} 会被删除，同时删除它的图标和访问策略，包括�
 #: src/pages/admin/forward-auth-apps/ForwardAuthDangerSection.tsx
 msgid "admin.forward-auth-apps.delete.confirm.open"
 msgstr "{name} 会被删除，同时删除它的图标和访问策略。经它路由的请求会立即被拒绝。此操作无法撤销。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupDangerSection.tsx
+msgid "admin.group.danger.delete.body"
+msgstr "{name} 会被永久删除，连同它对谁能进入所作的判定。此操作无法撤销。"
 
 #. js-lingui-explicit-id
 #: src/pages/public/Maintenance.tsx
@@ -225,6 +230,11 @@ msgid "saml_consent.facts"
 msgstr "{sp} 将收到"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupDangerSection.tsx
+msgid "admin.group.danger.in-use"
+msgstr "{used, plural, other {有 # 个应用在使用该用户组。请先从它们的访问设置中移除。}}"
+
+#. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.expiry.365"
 msgstr "1 年"
@@ -265,22 +275,22 @@ msgid "admin.user.disabled.hint"
 msgstr "被停用的账号无法登录。管理员需要先被改为普通用户，才能被停用。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminGroupForm.tsx
+#: src/pages/admin/groups/RuleEditorLegacy.tsx
 msgid "admin.group.rule.problem.too_many_children"
 msgstr "一个条件组最多容纳 32 个条件。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminGroupForm.tsx
+#: src/pages/admin/groups/RuleEditorLegacy.tsx
 msgid "admin.group.rule.reason.max_children_exceeded"
 msgstr "一个条件组最多容纳 32 个条件。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminGroupForm.tsx
+#: src/pages/admin/groups/RuleEditorLegacy.tsx
 msgid "admin.group.rule.reason.empty_children"
 msgstr "条件组至少要有一个条件。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminGroupForm.tsx
+#: src/pages/admin/groups/GroupDetailsSection.tsx
 msgid "admin.group.kind.fixed"
 msgstr "用户组的类型在创建时确定，之后无法更改。"
 
@@ -300,7 +310,7 @@ msgid "security.passkeys.rename.hint"
 msgstr "便于你识别的名字，例如它所在的设备。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminGroupForm.tsx
+#: src/pages/admin/groups/RuleEditorLegacy.tsx
 msgid "admin.group.rule.reason.not_requires_fact"
 msgstr "取反的一条必须放一个条件，不能放另一个条件组。"
 
@@ -335,12 +345,12 @@ msgid "admin.oidc-apps.scope.offline-access"
 msgstr "刷新令牌，让客户端保持登录。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminGroupForm.tsx
+#: src/pages/admin/groups/RuleEditorLegacy.tsx
 msgid "admin.group.rule.json.nodocument"
 msgstr "规则文档需要 version 和 condition。表单视图中的规则仍然保留。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminGroupForm.tsx
+#: src/pages/admin/groups/AdminGroupNew.tsx
 msgid "admin.group.kind.note"
 msgstr "规则组会随账号变化自动保持最新。手工组保存你手工允许或拒绝的账号。"
 
@@ -672,7 +682,7 @@ msgid "admin.saml-apps.acs.required"
 msgstr "请至少添加一个 ACS 端点。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminGroupForm.tsx
+#: src/pages/admin/groups/RuleEditorLegacy.tsx
 msgid "admin.group.rule.add"
 msgstr "添加条件"
 
@@ -687,7 +697,7 @@ msgid "admin.saml-apps.acs.add"
 msgstr "添加端点"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminGroupForm.tsx
+#: src/pages/admin/groups/RuleEditorLegacy.tsx
 msgid "admin.group.rule.addGroup"
 msgstr "添加条件组"
 
@@ -774,7 +784,7 @@ msgid "settings.keys.column.algorithm"
 msgstr "算法"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminGroupForm.tsx
+#: src/pages/admin/groups/RuleEditorLegacy.tsx
 msgid "admin.group.rule.group.all"
 msgstr "以下全部"
 
@@ -857,7 +867,7 @@ msgid "settings.sign-in.unsplash.key.invalid"
 msgstr "Access Key 只包含字母、数字、连字符和下划线，最多 128 个字符。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminGroupForm.tsx
+#: src/pages/admin/groups/RuleEditorLegacy.tsx
 msgid "admin.group.rule.hint"
 msgstr "账号在规则匹配期间属于本组。每次请求访问时都会检查规则，所以用户组始终保持最新。"
 
@@ -907,6 +917,11 @@ msgid "settings.network.strategy.header"
 msgstr "指定请求头"
 
 #. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.group_slug_conflict"
+msgstr "已有另一个用户组使用了这个标识。"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminLogs.tsx
 msgid "admin.logs.filter.account.any"
 msgstr "任意账号"
@@ -922,7 +937,7 @@ msgid "admin.logs.filter.event.any"
 msgstr "任意事件"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminGroupForm.tsx
+#: src/pages/admin/groups/RuleEditorLegacy.tsx
 msgid "admin.group.rule.group.any"
 msgstr "以下任一"
 
@@ -1039,6 +1054,11 @@ msgid "admin.groups.column.applications"
 msgstr "应用"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupUsedBySection.tsx
+msgid "admin.group.used-by.label"
+msgstr "应用"
+
+#. js-lingui-explicit-id
 #: src/components/custom/ConsoleLayout.tsx
 msgid "console.group.applications"
 msgstr "应用"
@@ -1054,11 +1074,6 @@ msgid "security.tokens.access.full.hint"
 msgstr "可用于应用和你的账号。要求验证你的身份的操作会被拒绝。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminGroupForm.tsx
-msgid "admin.group.exposed.hint"
-msgstr "应用可以把本组用于它们授予的访问权限。"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.oidcSubject.hint"
 msgstr "应用用这个值识别该账号。它永不改变。"
@@ -1067,6 +1082,11 @@ msgstr "应用用这个值识别该账号。它永不改变。"
 #: src/pages/profile/AccountPanel.tsx
 msgid "profile.oidc-subject.hint"
 msgstr "应用通过这个值识别你，它不会改变。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupDetailsSection.tsx
+msgid "admin.group.exposed.consequence"
+msgstr "选用了 {name} 的应用将在下次登录时不再收到 {slug}。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/AdminOidcApplications.tsx
@@ -1361,11 +1381,6 @@ msgid "devices.cancel"
 msgstr "取消"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminGroupForm.tsx
-msgid "admin.group.cancel"
-msgstr "取消"
-
-#. js-lingui-explicit-id
 #: src/components/custom/AppAccessSection.tsx
 #: src/components/custom/AppManagersSection.tsx
 #: src/pages/admin/AdminInvitationForm.tsx
@@ -1377,6 +1392,11 @@ msgstr "取消"
 #: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
 #: src/pages/admin/saml-applications/SamlMetadataSection.tsx
 msgid "admin.cancel"
+msgstr "取消"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/AdminGroupNew.tsx
+msgid "admin.group.cancel"
 msgstr "取消"
 
 #. js-lingui-explicit-id
@@ -1590,17 +1610,17 @@ msgid "admin.users.filter.match"
 msgstr "选择匹配方式"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminGroupForm.tsx
+#: src/pages/admin/groups/RuleEditorLegacy.tsx
 msgid "admin.group.rule.provider.placeholder"
 msgstr "选择提供商"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminGroupForm.tsx
+#: src/pages/admin/groups/RuleEditorLegacy.tsx
 msgid "admin.group.rule.problem.provider_required"
 msgstr "请为每个提供商条件选择提供商。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminGroupForm.tsx
+#: src/pages/admin/groups/RuleEditorLegacy.tsx
 msgid "admin.group.rule.reason.missing_provider"
 msgstr "请为这个条件选择提供商。"
 
@@ -1870,22 +1890,22 @@ msgid "step-header.done"
 msgstr "已完成"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminGroupForm.tsx
+#: src/pages/admin/groups/RuleEditorLegacy.tsx
 msgid "admin.group.rule.fact"
 msgstr "条件"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminGroupForm.tsx
+#: src/pages/admin/groups/RuleEditorLegacy.tsx
 msgid "admin.group.rule.view.form"
 msgstr "条件"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminGroupForm.tsx
+#: src/pages/admin/groups/RuleEditorLegacy.tsx
 msgid "admin.group.rule.problem.too_deep"
 msgstr "条件嵌套过深，最多 8 层。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminGroupForm.tsx
+#: src/pages/admin/groups/RuleEditorLegacy.tsx
 msgid "admin.group.rule.reason.max_depth_exceeded"
 msgstr "条件嵌套过深，最多 8 层。"
 
@@ -2247,6 +2267,11 @@ msgid "admin.saml-apps.copy-entity-id"
 msgstr "复制 Entity ID"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/AdminGroup.tsx
+msgid "admin.group.copy-slug"
+msgstr "复制标识"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/AdminOidcApplication.tsx
 msgid "admin.oidc-apps.copy-issuer"
 msgstr "复制签发者"
@@ -2427,7 +2452,7 @@ msgid "admin.forward-auth-apps.new.submit"
 msgstr "创建应用"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminGroupForm.tsx
+#: src/pages/admin/groups/AdminGroupNew.tsx
 msgid "admin.group.create"
 msgstr "创建用户组"
 
@@ -2523,6 +2548,11 @@ msgid "admin.federation.danger.label"
 msgstr "危险操作"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupDangerSection.tsx
+msgid "admin.group.danger.label"
+msgstr "危险操作"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/ForwardAuthDangerSection.tsx
 msgid "admin.forward-auth-apps.danger"
 msgstr "危险操作"
@@ -2593,9 +2623,24 @@ msgid "admin.federation.danger.delete.confirm.action"
 msgstr "删除"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupDangerSection.tsx
+msgid "admin.group.danger.title"
+msgstr "删除"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupDangerSection.tsx
+msgid "admin.group.danger.delete.action"
+msgstr "删除"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/ForwardAuthDangerSection.tsx
 msgid "admin.forward-auth-apps.delete.action"
 msgstr "删除"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupDangerSection.tsx
+msgid "admin.group.danger.delete.title"
+msgstr "要删除 {name} 吗？"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
@@ -2616,6 +2661,11 @@ msgstr "删除应用"
 #: src/pages/admin/forward-auth-apps/ForwardAuthDangerSection.tsx
 msgid "admin.forward-auth-apps.delete.confirm.action"
 msgstr "删除应用"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupDangerSection.tsx
+msgid "admin.group.danger.delete.confirm"
+msgstr "删除用户组"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/SamlDangerSection.tsx
@@ -2663,6 +2713,11 @@ msgid "admin.forward-auth-apps.delete.confirm.title"
 msgstr "删除这个应用？"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupDangerSection.tsx
+msgid "admin.group.danger.delete"
+msgstr "删除这个用户组"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderDangerSection.tsx
 msgid "admin.federation.danger.delete"
 msgstr "删除该提供商"
@@ -2678,18 +2733,24 @@ msgid "consent.deny"
 msgstr "拒绝"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminGroupForm.tsx
-msgid "admin.group.description"
-msgstr "描述"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/AdminGroups.tsx
 msgid "admin.groups.column.description"
 msgstr "描述"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/AdminGroupNew.tsx
+#: src/pages/admin/groups/GroupDetailsSection.tsx
+msgid "admin.group.description"
+msgstr "描述"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminLogs.tsx
 msgid "admin.logs.detail.detail"
+msgstr "详情"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupDetailsSection.tsx
+msgid "admin.group.details.title"
 msgstr "详情"
 
 #. js-lingui-explicit-id
@@ -2900,6 +2961,11 @@ msgid "profile.display-name.discard"
 msgstr "放弃修改"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/RuleEditorLegacy.tsx
+msgid "admin.group.rule.discard"
+msgstr "放弃修改"
+
+#. js-lingui-explicit-id
 #: src/components/custom/ConsequenceFooter.tsx
 msgid "consequence-footer.discard"
 msgstr "放弃修改"
@@ -3031,7 +3097,7 @@ msgid "admin.users.edit"
 msgstr "编辑"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminGroupForm.tsx
+#: src/pages/admin/groups/RuleEditorLegacy.tsx
 msgid "admin.group.rule.json.hint"
 msgstr "失去焦点时生效：移出输入框后，表单视图会采用文档中的内容。"
 
@@ -3686,6 +3752,11 @@ msgid "sudo.intro"
 msgstr "出于安全考虑，请重新验证身份后继续。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupUsedBySection.tsx
+msgid "admin.group.used-by.kind.forward-auth"
+msgstr "前向认证"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/AdminForwardAuthApps.tsx
 msgid "admin.forward-auth-apps.page.title"
 msgstr "前向认证应用"
@@ -3756,12 +3827,12 @@ msgid "admin.user.displayName.required"
 msgstr "请为该账号填写显示名。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminGroupForm.tsx
+#: src/pages/admin/groups/group-validation.ts
 msgid "admin.group.display-name.required"
 msgstr "请为该用户组填写名称。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminGroupForm.tsx
+#: src/pages/admin/groups/group-validation.ts
 msgid "admin.group.slug.required"
 msgstr "请为该用户组填写标识。"
 
@@ -3816,6 +3887,11 @@ msgid "settings.sign-in.gradient"
 msgstr "渐变"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/AdminGroup.tsx
+msgid "admin.group.side"
+msgstr "用户组相关信息"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/ForwardAuthHeadersSection.tsx
 msgid "admin.forward-auth-apps.headers.column.header"
 msgstr "请求头"
@@ -3852,7 +3928,8 @@ msgid "admin.forward-auth-apps.column.host"
 msgstr "主机名"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminGroupForm.tsx
+#: src/pages/admin/groups/AdminGroupNew.tsx
+#: src/pages/admin/groups/GroupDetailsSection.tsx
 msgid "admin.group.kind.label"
 msgstr "成员来源"
 
@@ -3973,14 +4050,15 @@ msgid "admin.federation.response.description"
 msgstr "只有当提供商那边的客户端允许 response_type=id_token 时，「仅 ID token」才能使用；「ID token + access token」则需要允许 response_type=id_token token。Keycloak 里这项叫 Implicit Flow Enabled；Microsoft identity platform 里是隐式授权（implicit grant）下的 ID tokens 和 Access tokens。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminGroupForm.tsx
-msgid "admin.group.slug"
-msgstr "标识"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
 msgid "admin.federation.new.slug"
 msgstr "标识符"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/AdminGroupNew.tsx
+#: src/pages/admin/groups/GroupDetailsSection.tsx
+msgid "admin.group.slug"
+msgstr "标识"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/SamlIdentitySection.tsx
@@ -4209,7 +4287,7 @@ msgid "admin.saml-apps.general.entity-id.hint"
 msgstr "上方显示的 Entity ID，是这个实例在每次响应中带上的标识符。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminGroupForm.tsx
+#: src/pages/admin/groups/RuleEditorLegacy.tsx
 msgid "admin.group.rule.view.json"
 msgstr "JSON"
 
@@ -4530,7 +4608,8 @@ msgid "console.admin.logs"
 msgstr "日志"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminGroupForm.tsx
+#: src/pages/admin/groups/AdminGroupNew.tsx
+#: src/pages/admin/groups/GroupDetailsSection.tsx
 msgid "admin.group.slug.hint"
 msgstr "小写字母、数字和连字符。应用通过它来引用本用户组。"
 
@@ -4601,11 +4680,6 @@ msgid "app.managers.description"
 msgstr "应用管理员可以修改本页的所有内容，但不能修改谁来管理这个应用。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminGroupForm.tsx
-msgid "admin.group.kind.manual"
-msgstr "手工"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/AdminGroups.tsx
 msgid "admin.groups.kind.manual"
 msgstr "手工"
@@ -4614,6 +4688,17 @@ msgstr "手工"
 #: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.diagnostics.source.manual"
 msgstr "手动"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/AdminGroupNew.tsx
+#: src/pages/admin/groups/GroupDetailsSection.tsx
+msgid "admin.group.kind.manual"
+msgstr "手工"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/AdminGroup.tsx
+msgid "admin.group.kind.badge.manual"
+msgstr "手工用户组"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ConnectionTestDialog.tsx
@@ -4626,17 +4711,17 @@ msgid "admin.saml-apps.acs.default.required"
 msgstr "请把其中一个端点标记为默认。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminGroupForm.tsx
-msgid "admin.group.rule.group.op"
-msgstr "匹配"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/AdminUsers.tsx
 msgid "admin.users.filter.matchLabel"
 msgstr "匹配方式"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminGroupForm.tsx
+#: src/pages/admin/groups/RuleEditorLegacy.tsx
+msgid "admin.group.rule.group.op"
+msgstr "匹配"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/RuleEditorLegacy.tsx
 msgid "admin.group.rule.not.hint"
 msgstr "匹配不符合该条件的账号。"
 
@@ -4701,11 +4786,6 @@ msgid "security.tokens.name"
 msgstr "名称"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminGroupForm.tsx
-msgid "admin.group.display-name"
-msgstr "名称"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/AdminGroups.tsx
 msgid "admin.groups.column.name"
 msgstr "名称"
@@ -4735,6 +4815,12 @@ msgstr "名称"
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderAppearanceSection.tsx
 msgid "admin.federation.appearance.name"
+msgstr "名称"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/AdminGroupNew.tsx
+#: src/pages/admin/groups/GroupDetailsSection.tsx
+msgid "admin.group.display-name"
 msgstr "名称"
 
 #. js-lingui-explicit-id
@@ -4925,7 +5011,7 @@ msgid "settings.keys.activate.body"
 msgstr "新令牌将用这个密钥签名。当前密钥在退役前仍用于验证它签发过的内容。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminGroupForm.tsx
+#: src/pages/admin/groups/AdminGroupNew.tsx
 msgid "admin.group.create.title"
 msgstr "新建用户组"
 
@@ -4953,6 +5039,11 @@ msgstr "还没有访问令牌"
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.sessions.empty"
 msgstr "暂无在线会话"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupUsedBySection.tsx
+msgid "admin.group.used-by.empty"
+msgstr "没有应用使用该用户组。"
 
 #. js-lingui-explicit-id
 #: src/components/custom/TokenAccess.tsx
@@ -5141,7 +5232,7 @@ msgid "admin.federation.diagnostics.scopes-none"
 msgstr "不发送"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminGroupForm.tsx
+#: src/pages/admin/groups/RuleEditorLegacy.tsx
 msgid "admin.group.rule.not"
 msgstr "取反"
 
@@ -5159,6 +5250,11 @@ msgstr "暂不"
 #: src/pages/public/RequireIdentity.tsx
 msgid "require-identity.not-now"
 msgstr "暂不验证，返回 {app}"
+
+#. js-lingui-explicit-id
+#: src/components/custom/ObjectHeader.tsx
+msgid "object.status.not-offered"
+msgstr "未提供"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ConnectionTestDialog.tsx
@@ -5241,14 +5337,14 @@ msgid "notification.region"
 msgstr "通知"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminGroupForm.tsx
-msgid "admin.group.exposed"
-msgstr "提供给应用"
-
-#. js-lingui-explicit-id
 #: src/components/custom/ValueSet.tsx
 msgid "value-set.offered"
 msgstr "此提供方支持的值"
+
+#. js-lingui-explicit-id
+#: src/components/custom/ObjectHeader.tsx
+msgid "object.status.offered"
+msgstr "已提供给应用"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts
@@ -5424,6 +5520,7 @@ msgid "app.access.open.confirm"
 msgstr "开放给所有人"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupUsedBySection.tsx
 #: src/pages/ConnectedApps.tsx
 msgid "apps.kind.oidc"
 msgstr "OpenID Connect"
@@ -5464,7 +5561,8 @@ msgid "admin.invitations.new.provider.hint"
 msgstr "可选。只列出能创建账号的提供商；受邀人必须通过此处选择的提供商登录。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminGroupForm.tsx
+#: src/pages/admin/groups/AdminGroupNew.tsx
+#: src/pages/admin/groups/GroupDetailsSection.tsx
 msgid "admin.group.description.hint"
 msgstr "可选。说明本用户组的用途，供之后阅读的人参考。"
 
@@ -6238,7 +6336,7 @@ msgid "admin.federation.url.userinfo"
 msgstr "去掉地址里的用户名和密码。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminGroupForm.tsx
+#: src/pages/admin/groups/RuleEditorLegacy.tsx
 msgid "admin.group.rule.remove"
 msgstr "移除此条件"
 
@@ -6281,6 +6379,11 @@ msgstr "删除应用及其图标和访问策略。账号不受影响。"
 #: src/pages/admin/oidc-applications/DangerSection.tsx
 msgid "admin.oidc-apps.delete.note"
 msgstr "删除应用、它的密钥、图标和访问策略。此操作无法撤销。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupDangerSection.tsx
+msgid "admin.group.danger.delete-note"
+msgstr "删除用户组及其对谁能进入所作的判定。此操作无法撤销。"
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
@@ -6646,13 +6749,19 @@ msgid "audit.event.rotate"
 msgstr "已轮换"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminGroupForm.tsx
+#: src/pages/admin/AdminGroups.tsx
+msgid "admin.groups.kind.rule"
+msgstr "规则"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/AdminGroupNew.tsx
+#: src/pages/admin/groups/GroupDetailsSection.tsx
 msgid "admin.group.kind.rule"
 msgstr "规则"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminGroups.tsx
-msgid "admin.groups.kind.rule"
+#: src/pages/admin/groups/RuleEditorLegacy.tsx
+msgid "admin.group.rule.title"
 msgstr "规则"
 
 #. js-lingui-explicit-id
@@ -6661,14 +6770,19 @@ msgid "app.groups.kind.rule"
 msgstr "规则"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminGroupForm.tsx
+#: src/pages/admin/groups/RuleEditorLegacy.tsx
 msgid "admin.group.rule.json.label"
 msgstr "规则文档"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminGroupForm.tsx
+#: src/pages/admin/groups/RuleEditorLegacy.tsx
 msgid "admin.group.rule.views"
 msgstr "规则编辑器"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/AdminGroup.tsx
+msgid "admin.group.kind.badge.rule"
+msgstr "规则用户组"
 
 #. js-lingui-explicit-id
 #: src/pages/Console.tsx
@@ -6682,6 +6796,7 @@ msgid "devices.field.same_device"
 msgstr "与本设备相同"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupUsedBySection.tsx
 #: src/pages/ConnectedApps.tsx
 msgid "apps.kind.saml"
 msgstr "SAML"
@@ -6775,6 +6890,11 @@ msgid "admin.federation.signin.save"
 msgstr "保存"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupDetailsSection.tsx
+msgid "admin.group.details.save"
+msgstr "保存"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/ForwardAuthAppearanceSection.tsx
 #: src/pages/admin/forward-auth-apps/ForwardAuthServiceSection.tsx
 msgid "admin.forward-auth-apps.save"
@@ -6791,11 +6911,6 @@ msgid "settings.sign-in.preview.unsplash_key"
 msgstr "保存 Access Key 后可预览 Unsplash 图片。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminGroupForm.tsx
-msgid "admin.group.save"
-msgstr "保存更改"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.save"
 msgstr "保存更改"
@@ -6804,6 +6919,11 @@ msgstr "保存更改"
 #: src/pages/security/PasskeysPanel.tsx
 msgid "security.passkeys.rename.save"
 msgstr "保存昵称"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/RuleEditorLegacy.tsx
+msgid "admin.group.rule.save"
+msgstr "保存规则"
 
 #. js-lingui-explicit-id
 #: src/components/custom/secret-reveal-copy.ts
@@ -6919,6 +7039,12 @@ msgid "admin.federation.connection.avatar-auth"
 msgstr "获取头像时携带 access token"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/AdminGroupNew.tsx
+#: src/pages/admin/groups/GroupDetailsSection.tsx
+msgid "admin.group.exposed"
+msgstr "发送给应用"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.auth.basic.hint"
 msgstr "在 Authorization 请求头里发送客户端密钥。"
@@ -6927,6 +7053,12 @@ msgstr "在 Authorization 请求头里发送客户端密钥。"
 #: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.auth.post.hint"
 msgstr "在请求正文里发送客户端密钥。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/AdminGroupNew.tsx
+#: src/pages/admin/groups/GroupDetailsSection.tsx
+msgid "admin.group.exposed.hint"
+msgstr "把本组的标识发送给选用了它的应用，包括 groups 声明、SAML 的 groups 属性和 Remote-Groups 请求头。这不会限制哪些应用可以选用本组。"
 
 #. js-lingui-explicit-id
 #: src/components/custom/principal-sources.ts
@@ -7522,6 +7654,21 @@ msgid "admin.federation.protocol.steam"
 msgstr "Steam"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupDetailsSection.tsx
+msgid "admin.group.exposed.confirm.action"
+msgstr "停止发送"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupDetailsSection.tsx
+msgid "admin.group.exposed.confirm.title"
+msgstr "要停止向应用发送 {name} 吗？"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupDetailsSection.tsx
+msgid "admin.group.exposed.action-label"
+msgstr "停止发送并保存"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderCredentialsSection.tsx
 msgid "admin.federation.credentials.stored"
 msgstr "已保存"
@@ -7638,7 +7785,7 @@ msgid "error.vrchat_operator_code_invalid"
 msgstr "该验证码无效。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminGroupForm.tsx
+#: src/pages/admin/groups/RuleEditorLegacy.tsx
 msgid "admin.group.rule.reason.invalid_fact"
 msgstr "不支持该条件类型。"
 
@@ -7658,7 +7805,7 @@ msgid "error.avatar_invalid_image"
 msgstr "该文件不是此实例可用的图片。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminGroupForm.tsx
+#: src/pages/admin/groups/RuleEditorLegacy.tsx
 msgid "admin.group.rule.reason.invalid_op"
 msgstr "不支持该条件组类型。"
 
@@ -7703,17 +7850,17 @@ msgid "error.avatar_source_unavailable"
 msgstr "该头像已不可用，请选择其他来源。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminGroupForm.tsx
+#: src/pages/admin/groups/RuleEditorLegacy.tsx
 msgid "admin.group.rule.reason.invalid_source"
 msgstr "不支持该头像来源。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminGroupForm.tsx
+#: src/pages/admin/groups/RuleEditorLegacy.tsx
 msgid "admin.group.rule.reason.invalid_protocol"
 msgstr "不支持该协议。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminGroupForm.tsx
+#: src/pages/admin/groups/RuleEditorLegacy.tsx
 msgid "admin.group.rule.reason.provider_not_found"
 msgstr "本实例上没有该提供商。"
 
@@ -7733,7 +7880,7 @@ msgid "error.session_not_found"
 msgstr "该会话已结束。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminGroupForm.tsx
+#: src/pages/admin/groups/RuleEditorLegacy.tsx
 msgid "admin.group.rule.reason.invalid_method"
 msgstr "不支持该登录方式。"
 
@@ -7818,27 +7965,27 @@ msgid "admin.oidc-apps.rotate.body"
 msgstr "确认后当前密钥立即失效。仍配置着它的客户端无法再登录，直到你为它们换上新的密钥——请先想好新密钥存放在哪里，再继续。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminGroupForm.tsx
+#: src/pages/admin/groups/RuleEditorLegacy.tsx
 msgid "admin.group.rule.reason.unknown_field"
 msgstr "该文档包含服务器无法识别的字段。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminGroupForm.tsx
+#: src/pages/admin/groups/RuleEditorLegacy.tsx
 msgid "admin.group.rule.reason.trailing_json"
 msgstr "该文档在规则之后还有内容。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminGroupForm.tsx
+#: src/pages/admin/groups/RuleEditorLegacy.tsx
 msgid "admin.group.rule.reason.missing_condition"
 msgstr "该文档缺少 condition。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminGroupForm.tsx
+#: src/pages/admin/groups/RuleEditorLegacy.tsx
 msgid "admin.group.rule.reason.missing_version"
 msgstr "该文档缺少 version。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminGroupForm.tsx
+#: src/pages/admin/groups/RuleEditorLegacy.tsx
 msgid "admin.group.rule.reason.invalid_json"
 msgstr "该文档不是有效的 JSON。"
 
@@ -7861,6 +8008,11 @@ msgstr "网关会拒绝经这个应用的所有请求，包括已登录账号发
 #: src/pages/admin/forward-auth-apps/ForwardAuthDangerSection.tsx
 msgid "admin.forward-auth-apps.enable.confirm.body"
 msgstr "网关会重新接受经这个应用的请求，仍按现有的访问策略处理。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupDetailsSection.tsx
+msgid "admin.group.exposed.confirm.body"
+msgstr "该用户组仍然可以被选用来控制访问，只是应用不再收到它的标识。你可以随时重新开启。"
 
 #. js-lingui-explicit-id
 #: src/lib/scopes.ts
@@ -8092,7 +8244,7 @@ msgid "error.server_error"
 msgstr "服务器未能完成请求。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminGroupForm.tsx
+#: src/pages/admin/groups/RuleEditorLegacy.tsx
 msgid "admin.group.rule.rejected"
 msgstr "服务器未接受该规则。"
 
@@ -8313,7 +8465,7 @@ msgid "profile.avatar.remove.description"
 msgstr "删除后无法恢复。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminGroupForm.tsx
+#: src/pages/admin/groups/RuleEditorLegacy.tsx
 msgid "admin.group.rule.reason.invalid_shape"
 msgstr "该条件混用了不属于一起的字段。"
 
@@ -8388,7 +8540,7 @@ msgid "admin.user.attributes.invalid"
 msgstr "这不是有效的 JSON。请检查花括号、逗号和引号。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminGroupForm.tsx
+#: src/pages/admin/groups/RuleEditorLegacy.tsx
 msgid "admin.group.rule.json.unreadable"
 msgstr "这不是有效的 JSON。表单视图中的规则仍然保留。"
 
@@ -8543,17 +8695,17 @@ msgid "error.not_admin"
 msgstr "需要管理员权限。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminGroupForm.tsx
+#: src/pages/admin/groups/RuleEditorLegacy.tsx
 msgid "admin.group.rule.problem.too_many_nodes"
 msgstr "该规则的条件过多，总共最多 64 个。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminGroupForm.tsx
+#: src/pages/admin/groups/RuleEditorLegacy.tsx
 msgid "admin.group.rule.reason.max_nodes_exceeded"
 msgstr "该规则的条件过多，总共最多 64 个。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminGroupForm.tsx
+#: src/pages/admin/groups/RuleEditorLegacy.tsx
 msgid "admin.group.rule.reason.unsupported_version"
 msgstr "该规则是为另一个版本的服务器编写的。"
 
@@ -8992,7 +9144,7 @@ msgid "admin.forward-auth-apps.new.client-id.invalid"
 msgstr "请使用字母、数字、点、下划线和连字符，以字母或数字开头，最多 128 个字符。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminGroupForm.tsx
+#: src/pages/admin/groups/group-validation.ts
 msgid "admin.group.slug.format"
 msgstr "请使用小写字母、数字和连字符，最多 64 个字符。"
 
@@ -9037,6 +9189,11 @@ msgid "security.passkeys.meta.used"
 msgstr "<0/>使用过"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupUsedBySection.tsx
+msgid "admin.group.used-by.title"
+msgstr "使用方"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminInvitationForm.tsx
 #: src/pages/admin/AdminInvitations.tsx
 msgid "admin.invitations.role.user"
@@ -9058,12 +9215,7 @@ msgid "console.role.user"
 msgstr "用户"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminGroupForm.tsx
-msgid "admin.group.edit.title"
-msgstr "用户组"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/AdminGroupForm.tsx
+#: src/pages/admin/groups/AdminGroupNew.tsx
 msgid "admin.group.form"
 msgstr "用户组"
 
@@ -9235,14 +9387,14 @@ msgid "admin.federation.auth.discovery.hint"
 msgstr "按提供商公布的方式选择；手动填写端点时不可用。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminGroupForm.tsx
-msgid "admin.group.rule.value"
-msgstr "取值"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/AdminUsers.tsx
 msgid "admin.users.filter.valuePlaceholder"
 msgstr "值"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/RuleEditorLegacy.tsx
+msgid "admin.group.rule.value"
+msgstr "取值"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/ForwardAuthHeadersSection.tsx
@@ -9458,6 +9610,11 @@ msgid "admin.oidc-apps.identity.description"
 msgstr "客户端会得知的登录者信息。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupDetailsSection.tsx
+msgid "admin.group.details.description"
+msgstr "用户组的名称、应用引用它所用的标识，以及是否把标识发送给应用。"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
 msgid "admin.saml-apps.new.provider.manual.description"
 msgstr "没有文档时，实例无法自行得知的内容。"
@@ -9488,7 +9645,8 @@ msgid "admin.forward-auth-apps.headers.description"
 msgstr "网关放行的每个请求都会带给服务的内容。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminGroupForm.tsx
+#: src/pages/admin/groups/AdminGroupNew.tsx
+#: src/pages/admin/groups/GroupDetailsSection.tsx
 msgid "admin.group.display-name.hint"
 msgstr "本用户组在控制台中显示的名称。"
 
@@ -9561,7 +9719,7 @@ msgid "admin.federation.signin.description"
 msgstr "这个提供商能否用于登录，以及遇到它没见过的人时怎么处理。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminGroupForm.tsx
+#: src/pages/admin/groups/AdminGroupNew.tsx
 msgid "admin.group.manual.note"
 msgstr "本组包含哪些账号，在创建完成后于该用户组自己的页面上决定。"
 
@@ -9571,7 +9729,7 @@ msgid "admin.federation.claims.description"
 msgstr "谁可以通过这个提供商登录，以及它的哪些字段填入账号。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminGroupForm.tsx
+#: src/pages/admin/groups/RuleEditorLegacy.tsx
 msgid "admin.group.rule.label"
 msgstr "规则匹配的账号"
 

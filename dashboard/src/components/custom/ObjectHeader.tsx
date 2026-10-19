@@ -10,7 +10,9 @@ export type ObjectStatus =
   | "open"
   | "sign-in-on"
   | "sign-in-off"
-  | "not-ready";
+  | "not-ready"
+  | "offered"
+  | "not-offered";
 
 interface ObjectHeaderProps {
   /** The entity's icon tile. */
@@ -60,6 +62,14 @@ export function ObjectHeader({
       message: "Sign-in off",
     }),
     "not-ready": t({ id: "object.status.not-ready", message: "Not ready" }),
+    offered: t({
+      id: "object.status.offered",
+      message: "Offered to applications",
+    }),
+    "not-offered": t({
+      id: "object.status.not-offered",
+      message: "Not offered",
+    }),
   };
   const statusVariant: Record<ObjectStatus, "success" | "outline" | "warning"> =
     {
@@ -70,6 +80,8 @@ export function ObjectHeader({
       "sign-in-on": "outline",
       "sign-in-off": "outline",
       "not-ready": "warning",
+      offered: "outline",
+      "not-offered": "outline",
     };
 
   const meta: ReactNode[] = [];

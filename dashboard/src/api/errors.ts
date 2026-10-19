@@ -382,6 +382,10 @@ const errorMessages: Readonly<Record<string, MessageDescriptor>> = {
     id: "error.group_not_found",
     message: "That user group no longer exists.",
   }),
+  group_slug_conflict: msg({
+    id: "error.group_slug_conflict",
+    message: "Another user group already uses this identifier.",
+  }),
   group_in_use: msg({
     id: "error.group_in_use",
     message:

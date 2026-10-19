@@ -1,7 +1,6 @@
-import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { groupQueryOptions } from "@/api/queries";
-import { AdminGroupForm } from "@/pages/admin/AdminGroupForm";
+import { AdminGroup } from "@/pages/admin/groups/AdminGroup";
 
 export const Route = createFileRoute(
   "/_protected/admin/_admin/groups_/$groupId",
@@ -13,6 +12,5 @@ export const Route = createFileRoute(
 
 function RouteComponent() {
   const { groupId } = Route.useParams();
-  const { data: group } = useSuspenseQuery(groupQueryOptions(Number(groupId)));
-  return <AdminGroupForm group={group} />;
+  return <AdminGroup groupId={Number(groupId)} />;
 }
