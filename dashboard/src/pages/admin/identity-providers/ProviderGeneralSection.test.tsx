@@ -1,205 +1,309 @@
+import type { MessageDescriptor } from "@lingui/core";
 import { I18nProvider } from "@lingui/react";
-import type { QueryClient } from "@tanstack/react-query";
-import { QueryClientProvider, useSuspenseQuery } from "@tanstack/react-query";
+import { type QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { Suspense } from "react";
-import { I18nProvider as AriaI18nProvider } from "react-aria";
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { components } from "@/api/generated/schema";
-import { identityProviderQueryOptions } from "@/api/queries";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createQueryClient } from "@/app/query-client";
 import { i18n } from "@/i18n";
 import { ProviderGeneralSection } from "@/pages/admin/identity-providers/ProviderGeneralSection";
-import { apiError, type FakeApi, fakeApi } from "@/test/app";
+import {
+  type Provider,
+  providerFixture,
+  publicOidcConfig,
+} from "@/test/identity-provider";
 
-type Provider = components["schemas"]["IdentityProviderView"];
-
+const fetchBoundary = vi.fn<(request: Request) => Promise<Response>>();
+const notifyError = vi.fn<(error: unknown) => void>();
 let queryClient: QueryClient;
-let api: FakeApi;
 
 beforeEach(() => {
   i18n.activate("en");
+  fetchBoundary.mockReset();
+  notifyError.mockReset();
+  vi.stubGlobal("fetch", fetchBoundary);
+  queryClient = createQueryClient(
+    notifyError,
+    vi.fn<(message: MessageDescriptor) => void>(),
+  );
 });
 
-function provider(overrides: Partial<Provider> = {}): Provider {
-  return {
-    slug: "corp",
-    displayName: "Corporate SSO",
-    protocol: "oidc",
-    allowSignIn: true,
-    pendingInvitationCount: 0,
-    mode: "invite_only",
-    disabled: false,
-    ready: true,
-    secretConfigured: true,
-    secretStatus: "valid",
-    secretValidatedAt: null,
-    createdAt: "2026-01-01T00:00:00Z",
-    config: {},
-    supportsOperator: false,
-    searchFields: [],
-    linkedAccountCount: 2,
-    ...overrides,
-  };
+afterEach(() => {
+  queryClient.clear();
+  vi.unstubAllGlobals();
+});
+
+function puts() {
+  return fetchBoundary.mock.calls
+    .map(([request]) => request)
+    .filter((request) => request.method === "PUT");
 }
 
-function mount(record: Provider) {
-  queryClient = createQueryClient(vi.fn());
-  queryClient.setQueryData(
-    identityProviderQueryOptions(record.slug).queryKey,
-    record,
-  );
-  render(
+function mount(
+  provider: Provider,
+  extra?: (request: Request) => Response | Promise<Response> | undefined,
+) {
+  fetchBoundary.mockImplementation(async (request) => {
+    const canned = extra?.(request);
+    if (canned) return canned;
+    if (request.method === "PUT") return Response.json(provider);
+    return new Response(null, { status: 204 });
+  });
+  return render(
     <I18nProvider i18n={i18n}>
-      <AriaI18nProvider>
-        <QueryClientProvider client={queryClient}>
-          <Suspense fallback={null}>
-            <ProviderObserver slug={record.slug} />
-          </Suspense>
-          <ProviderGeneralSection provider={record} />
-        </QueryClientProvider>
-      </AriaI18nProvider>
+      <QueryClientProvider client={queryClient}>
+        <ProviderGeneralSection provider={provider} />
+      </QueryClientProvider>
     </I18nProvider>,
   );
 }
 
-function ProviderObserver({ slug }: { slug: string }) {
-  useSuspenseQuery(identityProviderQueryOptions(slug));
-  return null;
-}
+const storedConfig = expect.objectContaining({
+  issuerUrl: "https://idp.example.com",
+  clientId: "client",
+});
+const signInSwitch = () =>
+  screen.getByRole("switch", { name: "Allow sign-in" });
+const mode = (name: string) => screen.getByRole("radio", { name });
+const lockout =
+  "Anyone who signs in only through this provider will be locked out until an administrator sends them a reset link.";
 
-/** The provisioning select, named by its label; its text is the selection. */
-function modeTrigger(): HTMLElement {
-  return screen.getByRole("combobox", {
-    name: /Provisioning/,
-  });
-}
+describe("the sign-in section", () => {
+  it("has its own heading, no name field, and no footer until something changes", () => {
+    mount(providerFixture());
 
-/** Opens the provisioning select and picks an option by name. */
-async function chooseMode(
-  user: ReturnType<typeof userEvent.setup>,
-  name: string,
-) {
-  await user.click(modeTrigger());
-  const listbox = await screen.findByRole("listbox");
-  await user.click(within(listbox).getByText(name));
-}
-
-describe("the provider general form's sign-in switch", () => {
-  it("drops the creates-accounts mode and resets a live selection when sign-in turns off", async () => {
-    const user = userEvent.setup();
-    mount(provider({ mode: "auto_provision" }));
-
-    await chooseMode(user, "Creates accounts");
-    await user.click(screen.getByRole("switch", { name: "Allow sign-in" }));
-
-    // Flipping the switch resets the stored mode immediately: the trigger now
-    // announces invitation-only, and reopening the list offers no way back to
-    // the mode that exists only to back a sign-in button.
-    expect(modeTrigger()).toHaveTextContent("Invitation only");
-    await user.click(modeTrigger());
-    const options = await screen.findByRole("listbox");
     expect(
-      within(options).queryByText("Creates accounts"),
-    ).not.toBeInTheDocument();
-    await user.click(within(options).getByText("Invitation only"));
+      screen.getByRole("heading", { level: 2, name: "Sign-in" }),
+    ).toBeVisible();
+    expect(signInSwitch()).toBeChecked();
+    expect(screen.queryByRole("textbox", { name: "Name" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Save" })).toBeNull();
   });
 
-  it("confirms before turning sign-in off, and a cancelled dialog saves nothing", async () => {
-    const user = userEvent.setup();
-    api = fakeApi({
-      "PUT /api/prohibitorum/identity-providers/corp": () =>
-        Response.json(provider()),
-    });
-    mount(provider({ mode: "invite_only" }));
+  it("offers the three provisioning modes as described cards, the saved one chosen", () => {
+    mount(providerFixture({ mode: "invite_only" }));
 
-    await user.click(screen.getByRole("switch", { name: "Allow sign-in" }));
+    const group = screen.getByRole("radiogroup", { name: "Provisioning" });
+    expect(within(group).getAllByRole("radio")).toHaveLength(3);
+    expect(mode("Invitation only")).toBeChecked();
+    expect(
+      within(group).getByText(
+        "Creates an account the first time someone without one signs in.",
+      ),
+    ).toBeVisible();
+    expect(
+      within(group).getByText(
+        "Only linked accounts can sign in. New accounts need an invitation.",
+      ),
+    ).toBeVisible();
+    expect(
+      within(group).getByText(
+        "Links to existing accounts only. Never creates one, not even from an invitation.",
+      ),
+    ).toBeVisible();
+  });
+
+  it("says VRChat is a weaker proof as its own sentence, and only for VRChat", () => {
+    const { unmount } = mount(providerFixture({ protocol: "vrchat" }));
+    const warning = screen.getByText(
+      /VRChat proves a profile through a link in its bio/,
+    );
+    expect(warning).toBeVisible();
+    expect(
+      screen.getByText(/this provider can't be used to sign in/),
+    ).toBeVisible();
+    // The two sentences are separate blocks, not one glued run of text.
+    expect(warning.textContent).not.toMatch(/linked to it\.When/);
+    expect(warning.textContent).not.toContain("can't be used to sign in");
+    unmount();
+
+    mount(providerFixture({ protocol: "oidc" }));
+    expect(
+      screen.queryByText(/VRChat proves a profile through a link in its bio/),
+    ).toBeNull();
+    expect(
+      screen.getByText(/this provider can't be used to sign in/),
+    ).toBeVisible();
+  });
+
+  it("saves a changed provisioning mode with no confirmation", async () => {
+    const user = userEvent.setup();
+    mount(providerFixture({ mode: "invite_only", config: publicOidcConfig }));
+
+    await user.click(mode("Links existing accounts"));
     await user.click(screen.getByRole("button", { name: "Save" }));
 
+    await waitFor(() => expect(puts()).toHaveLength(1));
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(await puts()[0]?.json()).toEqual({
+      displayName: "Corporate SSO",
+      mode: "link_only",
+      allowSignIn: true,
+      config: storedConfig,
+    });
+  });
+});
+
+describe("with sign-in off", () => {
+  it("disables creating accounts and says why, in text", () => {
+    mount(providerFixture({ allowSignIn: false }));
+
+    expect(mode("Creates accounts")).toHaveAttribute("aria-disabled", "true");
+    expect(
+      screen.getByText("Turn sign-in on to create accounts."),
+    ).toBeVisible();
+    expect(mode("Invitation only")).not.toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
+  });
+
+  it("gives no such reason while sign-in is on", () => {
+    mount(providerFixture());
+    expect(mode("Creates accounts")).not.toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
+    expect(
+      screen.queryByText("Turn sign-in on to create accounts."),
+    ).toBeNull();
+  });
+
+  it("resets a chosen creates-accounts mode to invitation-only when sign-in turns off", async () => {
+    const user = userEvent.setup();
+    mount(providerFixture({ mode: "auto_provision" }));
+    expect(mode("Creates accounts")).toBeChecked();
+
+    await user.click(signInSwitch());
+
+    await waitFor(() => expect(mode("Invitation only")).toBeChecked());
+    expect(mode("Creates accounts")).toHaveAttribute("aria-disabled", "true");
+  });
+});
+
+describe("turning sign-in off", () => {
+  it("states the consequence and names the action in the footer", async () => {
+    const user = userEvent.setup();
+    mount(providerFixture());
+
+    await user.click(signInSwitch());
+
+    expect(screen.getByText(lockout)).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "Turn off sign-in and save" }),
+    ).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Save" })).toBeNull();
+  });
+
+  it("asks before sending, and a cancelled dialog sends nothing", async () => {
+    const user = userEvent.setup();
+    mount(providerFixture());
+
+    await user.click(signInSwitch());
+    await user.click(
+      screen.getByRole("button", { name: "Turn off sign-in and save" }),
+    );
     const dialog = await screen.findByRole("alertdialog", {
       name: "Turn off sign-in?",
     });
+    expect(within(dialog).getByText(lockout)).toBeVisible();
+    expect(puts()).toHaveLength(0);
 
     await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
-    await waitFor(() => {
-      expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
-    });
-    expect(
-      api.sent("PUT", "/api/prohibitorum/identity-providers/corp"),
-    ).toEqual([]);
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
+    expect(puts()).toHaveLength(0);
+    // The reader's choice stays in the form, unsent.
+    expect(signInSwitch()).not.toBeChecked();
   });
 
-  it("saves with allowSignIn false after the dialog is confirmed", async () => {
+  it("saves with sign-in off and invitation-only after the dialog is confirmed", async () => {
     const user = userEvent.setup();
-    api = fakeApi({
-      "PUT /api/prohibitorum/identity-providers/corp": () =>
-        Response.json(provider({ allowSignIn: false })),
-    });
-    mount(provider({ mode: "invite_only" }));
+    mount(
+      providerFixture({ mode: "auto_provision", config: publicOidcConfig }),
+    );
 
-    await user.click(screen.getByRole("switch", { name: "Allow sign-in" }));
-    await user.click(screen.getByRole("button", { name: "Save" }));
-
-    const dialog = await screen.findByRole("alertdialog", {
-      name: "Turn off sign-in?",
-    });
+    await user.click(signInSwitch());
+    await user.click(
+      screen.getByRole("button", { name: "Turn off sign-in and save" }),
+    );
+    const dialog = await screen.findByRole("alertdialog");
     await user.click(
       within(dialog).getByRole("button", { name: "Turn off sign-in" }),
     );
 
-    await waitFor(() => {
-      expect(
-        api.sent("PUT", "/api/prohibitorum/identity-providers/corp"),
-      ).toHaveLength(1);
+    await waitFor(() => expect(puts()).toHaveLength(1));
+    expect(await puts()[0]?.json()).toEqual({
+      displayName: "Corporate SSO",
+      mode: "invite_only",
+      allowSignIn: false,
+      config: storedConfig,
     });
-    const body = api.sent("PUT", "/api/prohibitorum/identity-providers/corp")[0]
-      ?.body as { allowSignIn?: boolean; mode?: string };
-    expect(body.allowSignIn).toBe(false);
-    expect(body.mode).toBe("invite_only");
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
   });
 
-  it("shows the VRChat weak-proof note only for the VRChat protocol", () => {
-    const { unmount } = render(
-      <I18nProvider i18n={i18n}>
-        <AriaI18nProvider>
-          <QueryClientProvider client={queryClient}>
-            <ProviderGeneralSection
-              provider={provider({ protocol: "vrchat" })}
-            />
-          </QueryClientProvider>
-        </AriaI18nProvider>
-      </I18nProvider>,
-    );
-    queryClient = createQueryClient(vi.fn());
-    expect(
-      screen.getByText(/VRChat proves a profile through a link in its bio/),
-    ).toBeInTheDocument();
-    unmount();
-
-    mount(provider({ protocol: "oidc" }));
-    expect(
-      screen.queryByText(/VRChat proves a profile through a link in its bio/),
-    ).not.toBeInTheDocument();
-    // The generic off-hint stays for both protocols.
-    expect(
-      screen.getAllByText(/this provider can't be used to sign in/).length,
-    ).toBeGreaterThan(0);
-  });
-
-  it("keeps a failed save on the form, not on a field", async () => {
-    api = fakeApi({
-      "PUT /api/prohibitorum/identity-providers/corp": () =>
-        apiError("server_error", 500),
-    });
+  it("keeps the dialog open while the write is in flight", async () => {
     const user = userEvent.setup();
-    mount(provider());
+    let release: (response: Response) => void = () => {};
+    mount(providerFixture(), (request) =>
+      request.method === "PUT"
+        ? new Promise<Response>((resolve) => {
+            release = resolve;
+          })
+        : undefined,
+    );
+
+    await user.click(signInSwitch());
+    await user.click(
+      screen.getByRole("button", { name: "Turn off sign-in and save" }),
+    );
+    const dialog = await screen.findByRole("alertdialog");
+    await user.click(
+      within(dialog).getByRole("button", { name: "Turn off sign-in" }),
+    );
+    await waitFor(() => expect(puts()).toHaveLength(1));
+    await user.keyboard("{Escape}");
+
+    expect(screen.getByRole("alertdialog")).toBeVisible();
+    release(Response.json(providerFixture({ allowSignIn: false })));
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
+  });
+
+  it("reports a refused confirmed save once, on the section", async () => {
+    const user = userEvent.setup();
+    mount(providerFixture(), (request) =>
+      request.method === "PUT"
+        ? Response.json({ code: "internal_error" }, { status: 500 })
+        : undefined,
+    );
+
+    await user.click(signInSwitch());
+    await user.click(
+      screen.getByRole("button", { name: "Turn off sign-in and save" }),
+    );
+    const dialog = await screen.findByRole("alertdialog");
+    await user.click(
+      within(dialog).getByRole("button", { name: "Turn off sign-in" }),
+    );
+
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
+    expect(await screen.findAllByRole("alert")).toHaveLength(1);
+    expect(notifyError).not.toHaveBeenCalled();
+  });
+});
+
+describe("a plain save", () => {
+  it("reports a refused save once, on the section", async () => {
+    const user = userEvent.setup();
+    mount(providerFixture({ mode: "invite_only" }), (request) =>
+      request.method === "PUT"
+        ? Response.json({ code: "internal_error" }, { status: 500 })
+        : undefined,
+    );
+
+    await user.click(mode("Links existing accounts"));
     await user.click(screen.getByRole("button", { name: "Save" }));
-    await waitFor(() => {
-      expect(
-        api.sent("PUT", "/api/prohibitorum/identity-providers/corp"),
-      ).toHaveLength(1);
-    });
-    expect(screen.getByLabelText("Name")).toHaveValue("Corporate SSO");
+
+    expect(await screen.findAllByRole("alert")).toHaveLength(1);
+    expect(notifyError).not.toHaveBeenCalled();
   });
 });

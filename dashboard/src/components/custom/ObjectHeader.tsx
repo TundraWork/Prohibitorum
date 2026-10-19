@@ -9,7 +9,8 @@ export type ObjectStatus =
   | "restricted"
   | "open"
   | "sign-in-on"
-  | "sign-in-off";
+  | "sign-in-off"
+  | "not-ready";
 
 interface ObjectHeaderProps {
   /** The entity's icon tile. */
@@ -58,6 +59,7 @@ export function ObjectHeader({
       id: "object.status.sign-in-off",
       message: "Sign-in off",
     }),
+    "not-ready": t({ id: "object.status.not-ready", message: "Not ready" }),
   };
   const statusVariant: Record<ObjectStatus, "success" | "outline" | "warning"> =
     {
@@ -67,6 +69,7 @@ export function ObjectHeader({
       open: "outline",
       "sign-in-on": "outline",
       "sign-in-off": "outline",
+      "not-ready": "warning",
     };
 
   const meta: ReactNode[] = [];

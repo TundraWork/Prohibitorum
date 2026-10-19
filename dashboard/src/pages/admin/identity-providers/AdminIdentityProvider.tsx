@@ -1,35 +1,45 @@
-import { Trans } from "@lingui/react/macro";
+import { Trans, useLingui } from "@lingui/react/macro";
 import { useSuspenseQuery } from "@tanstack/react-query";
+import { TriangleAlertIcon, UserRoundCogIcon } from "lucide-react";
+import { readProviderProtocol } from "@/api/federation";
 import { identityProviderQueryOptions } from "@/api/queries";
+import { AppDetailLayout } from "@/components/custom/AppDetailLayout";
+import { EntityAvatar } from "@/components/custom/EntityAvatar";
+import { ObjectHeader } from "@/components/custom/ObjectHeader";
 import { Section } from "@/components/custom/Section";
+import { ProviderAppearanceSection } from "@/pages/admin/identity-providers/ProviderAppearanceSection";
 import { ProviderClaimsSection } from "@/pages/admin/identity-providers/ProviderClaimsSection";
 import { ProviderConnectionSection } from "@/pages/admin/identity-providers/ProviderConnectionSection";
-import { ProviderDangerSection } from "@/pages/admin/identity-providers/ProviderDangerSection";
-import { ProviderDiagnosticsSection } from "@/pages/admin/identity-providers/ProviderDiagnosticsSection";
+import { ProviderCredentialsSection } from "@/pages/admin/identity-providers/ProviderCredentialsSection";
 import {
-  ProviderGeneralSection,
-  ProviderIconSection,
-} from "@/pages/admin/identity-providers/ProviderGeneralSection";
+  notReadyReason,
+  ProviderDangerSection,
+} from "@/pages/admin/identity-providers/ProviderDangerSection";
+import { ProviderDiagnosticsSection } from "@/pages/admin/identity-providers/ProviderDiagnosticsSection";
+import { ProviderGeneralSection } from "@/pages/admin/identity-providers/ProviderGeneralSection";
 import { ProviderOperatorSection } from "@/pages/admin/identity-providers/ProviderOperatorSection";
+import { providerProtocolLabel } from "@/pages/admin/identity-providers/provider-options";
 
 /**
- * One identity provider, as a column of sections rather than tabs.
+ * One identity provider's page: who it is at the top, then a column of sections
+ * with an outline beside them.
  *
- * The order is the order a provider is connected. Who it is and what it does
- * with someone new comes first, with its icon, because both apply to every
- * protocol. Then, for OIDC, where it signs in and how this instance talks to
- * it, which people it may bring in and how their claims map, and whether that
- * all works. A VRChat provider has its operator session instead. The danger
- * zone is last.
+ * The order is the order a provider is connected. What it does with someone
+ * who signs in comes first, because it applies to every protocol. Then, for
+ * OIDC, where it signs in and how this instance talks to it, which people it
+ * may bring in and how their claims map, and whether that all works; a Steam
+ * provider has its Web API key and a VRChat provider its operator session
+ * instead. How the provider is shown comes next, and last the changes that
+ * stop it.
  *
- * Only the sections the provider's protocol can fill are drawn. A Steam
- * provider has a name, an icon and a danger list; an empty "Connection" heading
- * over them would say a setting exists that does not.
+ * Only the sections the provider's protocol can fill are drawn: an empty
+ * "Connection" heading over a Steam provider would say a setting exists that
+ * does not.
  *
- * This file owns the order and the gaps. Each section draws its own heading and
- * saves the record through `identityProviderUpdateBody` or its own endpoint, so
- * an unsaved edit in one never leaves with a save in another. The one piece of
- * state the page holds is the diagnostic run id, because it arrives on the URL.
+ * This file owns the order. Each section saves the record through
+ * `identityProviderUpdateBody` or its own endpoint, so an unsaved edit in one
+ * never leaves with a save in another. The one piece of state the page holds is
+ * the diagnostic run id, because it arrives on the URL.
  */
 export function AdminIdentityProvider({
   slug,
@@ -41,18 +51,70 @@ export function AdminIdentityProvider({
   runId: string | undefined;
   onRunIdChange: (runId: string | undefined) => void;
 }) {
+  const { t, i18n } = useLingui();
   const { data: provider } = useSuspenseQuery(
     identityProviderQueryOptions(slug),
   );
 
-  return (
-    <div className="flex flex-col gap-8">
-      <ProviderGeneralSection provider={provider} />
+  const name = provider.displayName || provider.slug;
+  const protocol = readProviderProtocol(provider.protocol);
 
-      <ProviderIconSection provider={provider} />
+  return (
+    <AppDetailLayout
+      header={
+        <div className="flex flex-col gap-3">
+          <ObjectHeader
+            icon={
+              <EntityAvatar
+                size="xl"
+                iconUrl={provider.iconUrl}
+                name={name}
+                className="rounded-2xl"
+                fallbackClassName="rounded-2xl"
+              />
+            }
+            title={name}
+            statuses={[
+              provider.disabled ? "disabled" : "enabled",
+              // A provider with sign-in off only verifies: it backs linking and
+              // invitations, never a sign-in button.
+              ...(provider.allowSignIn ? [] : (["sign-in-off"] as const)),
+              ...(provider.ready ? [] : (["not-ready"] as const)),
+            ]}
+            identifier={{
+              value: provider.slug,
+              label: t({
+                id: "admin.federation.copy-slug",
+                message: "Copy the slug",
+              }),
+            }}
+            facts={
+              protocol === undefined
+                ? []
+                : [
+                    <span key="protocol">
+                      {i18n._(providerProtocolLabel(protocol))}
+                    </span>,
+                  ]
+            }
+          />
+          {!provider.ready && (
+            <p className="flex items-center gap-2 text-sm text-warning-foreground">
+              <TriangleAlertIcon
+                aria-hidden="true"
+                className="size-4 shrink-0"
+              />
+              {notReadyReason(provider.protocol)}
+            </p>
+          )}
+        </div>
+      }
+    >
+      <ProviderGeneralSection provider={provider} />
 
       {provider.protocol === "oidc" && (
         <>
+          <ProviderCredentialsSection provider={provider} />
           <ProviderConnectionSection provider={provider} />
           <ProviderClaimsSection provider={provider} />
           <ProviderDiagnosticsSection
@@ -63,8 +125,14 @@ export function AdminIdentityProvider({
         </>
       )}
 
+      {provider.protocol === "steam" && (
+        <ProviderCredentialsSection provider={provider} />
+      )}
+
       {provider.supportsOperator && (
         <Section
+          id="operator"
+          icon={<UserRoundCogIcon />}
           title={
             <Trans id="admin.federation.operator.title">Operator session</Trans>
           }
@@ -73,7 +141,8 @@ export function AdminIdentityProvider({
         </Section>
       )}
 
+      <ProviderAppearanceSection provider={provider} />
       <ProviderDangerSection provider={provider} />
-    </div>
+    </AppDetailLayout>
   );
 }

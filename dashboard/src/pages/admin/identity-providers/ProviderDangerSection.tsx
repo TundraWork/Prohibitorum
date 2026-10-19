@@ -1,97 +1,71 @@
-import { Modal, Tooltip } from "@heroui/react";
-import { msg } from "@lingui/core/macro";
 import { Plural, Trans, useLingui } from "@lingui/react/macro";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { KeyRound, Power, Trash2 } from "lucide-react";
+import { Power, Trash2, TriangleAlertIcon } from "lucide-react";
 import { type ReactNode, useState } from "react";
-import { readOidcProviderConfig } from "@/api/federation";
 import type { components } from "@/api/generated/schema";
 import {
   deleteIdentityProviderMutationOptions,
   setIdentityProviderDisabledMutationOptions,
-  setIdentityProviderSecretMutationOptions,
 } from "@/api/mutations";
+import { withInlineReport } from "@/app/query-client";
 import { Button } from "@/components/custom/Button";
 import { ConfirmDialog } from "@/components/custom/ConfirmDialog";
 import { DangerZoneFrame } from "@/components/custom/DangerZone";
+import {
+  InlineFailure,
+  useInlineFailure,
+} from "@/components/custom/InlineFailure";
 import { ItemList, ItemListRow } from "@/components/custom/ItemList";
-import { useAppForm } from "@/forms/use-app-form";
 
 type Provider = components["schemas"]["IdentityProviderView"];
 
 /**
- * Enable or disable, set the secret, delete — one row per action, as the
- * console's other danger sections are.
+ * The two changes that stop a provider, one row each, both visible at once:
+ * stop offering it for now, or remove it for good.
  *
- * Enabling is offered as a disabled button with the reason in a tooltip when
- * the provider cannot be enabled: the server refuses it with
- * `provider_not_ready`, and a button that simply failed on press would leave
- * the reader guessing what is missing. What is missing depends on the protocol,
- * so the tooltip says it for this one.
- *
- * A public OIDC client sends no secret, so its row is left out rather than
- * shown disabled: there is nothing to set. A write that fails is reported by
- * the console's error toast, as every failed request is, and the rows stay as
- * they were.
+ * Disabling confirms, because it takes the provider off the sign-in page and
+ * away from every account that could step up with it. Enabling runs straight
+ * through, but a provider that is not ready cannot be enabled: the server
+ * refuses it with `provider_not_ready`, so the button is disabled and the row
+ * says in words what this protocol still needs. Deleting asks for a fresh
+ * identity check. A dialog stays open while its write is in flight, and a
+ * refusal is shown once, under the rows. Setting a secret is not destructive
+ * and lives with the credentials.
  */
 export function ProviderDangerSection({ provider }: { provider: Provider }) {
   const { t } = useLingui();
-  const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [confirmingDisable, setConfirmingDisable] = useState(false);
-  const [confirmingDelete, setConfirmingDelete] = useState(false);
-  const [settingSecret, setSettingSecret] = useState(false);
-
+  const navigate = useNavigate();
   const setDisabled = useMutation(
-    setIdentityProviderDisabledMutationOptions(queryClient),
+    withInlineReport(
+      setIdentityProviderDisabledMutationOptions(queryClient),
+      true,
+    ),
   );
   const remove = useMutation(
-    deleteIdentityProviderMutationOptions(queryClient),
+    withInlineReport(deleteIdentityProviderMutationOptions(queryClient), true),
   );
-  const setSecret = useMutation(
-    setIdentityProviderSecretMutationOptions(queryClient),
+  const failure = useInlineFailure();
+  const [confirming, setConfirming] = useState<"disable" | "delete" | null>(
+    null,
   );
 
-  const hasSecret = provider.secretConfigured;
-  const isPublicClient =
-    provider.protocol === "oidc" &&
-    readOidcProviderConfig(provider.config)?.tokenAuthMethod === "none";
-  const takesSecret =
-    (provider.protocol === "oidc" && !isPublicClient) ||
-    provider.protocol === "steam";
+  const busy = setDisabled.isPending || remove.isPending;
   const cannotEnable = provider.disabled && !provider.ready;
-  // Named, so the confirmation carries it as `{count}` in both catalogs.
+  // Named, so the confirmation carries each as `{count}` in both catalogs.
   const count = provider.linkedAccountCount ?? 0;
-  const identityScope = `identity:${provider.slug}`;
   // Pending invitations whose verified snapshot dies with the provider.
   const pending = provider.pendingInvitationCount ?? 0;
-
-  const toggle = (
-    <Button
-      disabled={cannotEnable}
-      pending={setDisabled.isPending}
-      onClick={() => {
-        if (provider.disabled) {
-          setDisabled.mutate({ slug: provider.slug, disabled: false });
-        } else {
-          setConfirmingDisable(true);
-        }
-      }}
-      variant="outline"
-      size="sm"
-    >
-      {provider.disabled ? (
-        <Trans id="admin.federation.danger.enable.action">Enable</Trans>
-      ) : (
-        <Trans id="admin.federation.danger.disable.action">Disable</Trans>
-      )}
-    </Button>
-  );
+  const identityScope = `identity:${provider.slug}`;
 
   return (
     <DangerZoneFrame
-      title={<Trans id="admin.federation.danger.title">Danger zone</Trans>}
+      id="danger"
+      icon={<TriangleAlertIcon />}
+      title={
+        <Trans id="admin.federation.danger.title">Disable or delete</Trans>
+      }
     >
       <ItemList
         label={t({
@@ -126,62 +100,37 @@ export function ProviderDangerSection({ provider }: { provider: Provider }) {
           ]}
           stackActions
           actions={
-            cannotEnable ? (
-              <Tooltip delay={0}>
-                <Tooltip.Trigger>{toggle}</Tooltip.Trigger>
-                <Tooltip.Content>
-                  {notReadyReason(provider.protocol)}
-                </Tooltip.Content>
-              </Tooltip>
-            ) : (
-              toggle
-            )
+            <Button
+              disabled={cannotEnable}
+              pending={setDisabled.isPending}
+              onClick={() => {
+                failure.clear();
+                if (provider.disabled) {
+                  setDisabled.mutate(
+                    { slug: provider.slug, disabled: false },
+                    { onError: failure.report },
+                  );
+                } else {
+                  setConfirming("disable");
+                }
+              }}
+              variant="outline"
+              size="sm"
+            >
+              {provider.disabled ? (
+                <Trans id="admin.federation.danger.enable.action">Enable</Trans>
+              ) : (
+                <Trans id="admin.federation.danger.disable.action">
+                  Disable
+                </Trans>
+              )}
+            </Button>
           }
-        />
-
-        {takesSecret && (
-          <ItemListRow
-            icon={<KeyRound size={18} aria-hidden="true" />}
-            title={
-              hasSecret ? (
-                <Trans id="admin.federation.danger.replace-secret">
-                  Replace the secret
-                </Trans>
-              ) : (
-                <Trans id="admin.federation.danger.set-secret">
-                  Set the secret
-                </Trans>
-              )
-            }
-            details={[
-              provider.protocol === "oidc" ? (
-                <Trans key="oidc" id="admin.federation.danger.secret.oidc">
-                  The client secret this instance signs in with.
-                </Trans>
-              ) : (
-                <Trans key="steam" id="admin.federation.danger.secret.steam">
-                  The Steam Web API key.
-                </Trans>
-              ),
-            ]}
-            stackActions
-            actions={
-              <Button
-                onClick={() => setSettingSecret(true)}
-                variant="outline"
-                size="sm"
-              >
-                {hasSecret ? (
-                  <Trans id="admin.federation.danger.secret.replace-action">
-                    Replace
-                  </Trans>
-                ) : (
-                  <Trans id="admin.federation.danger.secret.action">Set</Trans>
-                )}
-              </Button>
-            }
-          />
-        )}
+        >
+          {cannotEnable && (
+            <p className="text-sm">{notReadyReason(provider.protocol)}</p>
+          )}
+        </ItemListRow>
 
         <ItemListRow
           icon={<Trash2 size={18} aria-hidden="true" />}
@@ -199,7 +148,10 @@ export function ProviderDangerSection({ provider }: { provider: Provider }) {
           actions={
             <Button
               pending={remove.isPending}
-              onClick={() => setConfirmingDelete(true)}
+              onClick={() => {
+                failure.clear();
+                setConfirming("delete");
+              }}
               variant="destructive-outline"
               size="sm"
             >
@@ -209,9 +161,11 @@ export function ProviderDangerSection({ provider }: { provider: Provider }) {
         />
       </ItemList>
 
+      <InlineFailure error={failure.error} />
+
       <ConfirmDialog
-        isOpen={confirmingDisable}
-        onOpenChange={setConfirmingDisable}
+        isOpen={confirming === "disable"}
+        onOpenChange={(open) => !open && !busy && setConfirming(null)}
         status="warning"
         title={
           <Trans id="admin.federation.danger.disable.confirm.title">
@@ -235,14 +189,17 @@ export function ProviderDangerSection({ provider }: { provider: Provider }) {
         onConfirm={() => {
           setDisabled.mutate(
             { slug: provider.slug, disabled: true },
-            { onSettled: () => setConfirmingDisable(false) },
+            {
+              onError: failure.report,
+              onSettled: () => setConfirming(null),
+            },
           );
         }}
       />
 
       <ConfirmDialog
-        isOpen={confirmingDelete}
-        onOpenChange={setConfirmingDelete}
+        isOpen={confirming === "delete"}
+        onOpenChange={(open) => !open && !busy && setConfirming(null)}
         status="danger"
         title={
           <Trans id="admin.federation.danger.delete.confirm.title">
@@ -250,7 +207,7 @@ export function ProviderDangerSection({ provider }: { provider: Provider }) {
           </Trans>
         }
         body={
-          <>
+          <div className="flex flex-col gap-2">
             {count > 0 && (
               <p>
                 <Trans id="admin.federation.danger.delete.confirm.linked">
@@ -291,7 +248,7 @@ export function ProviderDangerSection({ provider }: { provider: Provider }) {
                 added later with the same identifier starts fresh.
               </Trans>
             </p>
-          </>
+          </div>
         }
         confirmLabel={
           <Trans id="admin.federation.danger.delete.confirm.action">
@@ -302,51 +259,22 @@ export function ProviderDangerSection({ provider }: { provider: Provider }) {
         onConfirm={() => {
           remove.mutate(provider.slug, {
             onSuccess: async () => {
+              setConfirming(null);
               await navigate({ to: "/admin/identity-providers" });
             },
-            onSettled: () => setConfirmingDelete(false),
+            onError: (error) => {
+              setConfirming(null);
+              failure.report(error);
+            },
           });
         }}
-      />
-
-      <SetSecretDialog
-        isOpen={settingSecret}
-        onOpenChange={(open) => {
-          if (!open) setSecret.reset();
-          setSettingSecret(open);
-        }}
-        title={
-          hasSecret ? (
-            <Trans id="admin.federation.danger.replace-secret">
-              Replace the secret
-            </Trans>
-          ) : (
-            <Trans id="admin.federation.danger.set-secret">
-              Set the secret
-            </Trans>
-          )
-        }
-        label={
-          provider.protocol === "oidc" ? (
-            <Trans id="admin.federation.new.secret">Client secret</Trans>
-          ) : (
-            <Trans id="admin.federation.new.steam-key">Web API key</Trans>
-          )
-        }
-        isPending={setSecret.isPending}
-        onSave={(secret) =>
-          setSecret.mutateAsync({ slug: provider.slug, secret }).then(
-            () => setSettingSecret(false),
-            () => undefined,
-          )
-        }
       />
     </DangerZoneFrame>
   );
 }
 
 /** What a provider of this protocol still needs before it can be enabled. */
-function notReadyReason(protocol: string): ReactNode {
+export function notReadyReason(protocol: string): ReactNode {
   switch (protocol) {
     case "steam":
       return (
@@ -367,102 +295,4 @@ function notReadyReason(protocol: string): ReactNode {
         </Trans>
       );
   }
-}
-
-const secretRequired = msg({
-  id: "admin.federation.danger.secret.required",
-  message: "Enter the secret.",
-});
-
-/**
- * One secret in a dialog. It is write-only: the server never returns a stored
- * secret, so the field starts empty and replacing means typing the new value
- * rather than editing the old one. The form spans the body and the footer, so
- * the actions sit where HeroUI keeps a dialog's actions.
- */
-function SetSecretDialog({
-  isOpen,
-  onOpenChange,
-  title,
-  label,
-  isPending,
-  onSave,
-}: {
-  isOpen: boolean;
-  onOpenChange: (open: boolean) => void;
-  title: ReactNode;
-  label: ReactNode;
-  isPending: boolean;
-  onSave: (secret: string) => Promise<void>;
-}) {
-  const { t } = useLingui();
-  const form = useAppForm({
-    defaultValues: { secret: "" },
-    onSubmit: async ({ value }) => {
-      await onSave(value.secret);
-      form.reset();
-    },
-  });
-
-  return (
-    <Modal isOpen={isOpen} onOpenChange={onOpenChange}>
-      <Modal.Backdrop>
-        <Modal.Container placement="center" size="md">
-          <Modal.Dialog>
-            <Modal.Header>
-              <Modal.Heading>{title}</Modal.Heading>
-            </Modal.Header>
-            <form.AppForm>
-              <form.Form
-                label={t({
-                  id: "admin.federation.danger.secret.form",
-                  message: "Secret",
-                })}
-                className="flex min-h-0 flex-1 flex-col"
-              >
-                <Modal.Body>
-                  <div className="flex flex-col gap-4">
-                    <form.FormError />
-                    <form.AppField
-                      name="secret"
-                      validators={{
-                        onSubmit: ({ value }) =>
-                          value.trim() === "" ? secretRequired : undefined,
-                      }}
-                    >
-                      {(field) => (
-                        <field.FormField
-                          label={label}
-                          description={
-                            <Trans id="admin.federation.danger.secret.hint">
-                              Stored encrypted and never shown again.
-                            </Trans>
-                          }
-                          type="password"
-                          autoComplete="new-password"
-                          variant="secondary"
-                        />
-                      )}
-                    </form.AppField>
-                  </div>
-                </Modal.Body>
-                <Modal.Footer className="mt-5">
-                  <Button
-                    disabled={isPending}
-                    onClick={() => onOpenChange(false)}
-                    variant="outline"
-                  >
-                    <Trans id="confirm.cancel">Cancel</Trans>
-                  </Button>
-                  <form.SubmitButton>
-                    <Trans id="admin.federation.danger.secret.save">Save</Trans>
-                  </form.SubmitButton>
-                </Modal.Footer>
-              </form.Form>
-            </form.AppForm>
-          </Modal.Dialog>
-        </Modal.Container>
-      </Modal.Backdrop>
-    </Modal>
-  );
 }

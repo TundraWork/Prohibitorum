@@ -35,6 +35,25 @@ describe("ObjectHeader", () => {
     expect(screen.getByRole("button", { name: "Test" })).toBeTruthy();
   });
 
+  it("names a provider that is not ready in the warning style", () => {
+    render(
+      <I18nProvider i18n={i18n}>
+        <ObjectHeader
+          icon={null}
+          title="Steam"
+          statuses={["disabled", "sign-in-off", "not-ready"]}
+        />
+      </I18nProvider>,
+    );
+
+    const statuses = screen.getByRole("list", { name: "Status" });
+    expect(
+      within(statuses)
+        .getAllByRole("listitem")
+        .map((item) => item.textContent),
+    ).toEqual(["Disabled", "Sign-in off", "Not ready"]);
+  });
+
   it("draws no separator characters that a wrapped line could end on", () => {
     const { container } = render(
       <I18nProvider i18n={i18n}>

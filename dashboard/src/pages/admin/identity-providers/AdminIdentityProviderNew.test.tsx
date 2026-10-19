@@ -55,10 +55,9 @@ function mount() {
   );
 }
 
-function modeTrigger(): HTMLElement {
-  return screen.getByRole("combobox", {
-    name: /Provisioning/,
-  });
+/** One provisioning card; the chosen one is the checked radio. */
+function modeRadio(name: string): HTMLElement {
+  return screen.getByRole("radio", { name });
 }
 
 async function chooseProtocol(
@@ -75,17 +74,17 @@ describe("the new provider form's sign-in switch", () => {
 
     const switchEl = screen.getByRole("switch", { name: "Allow sign-in" });
     expect(switchEl).toBeChecked();
-    expect(modeTrigger()).toHaveTextContent("Creates accounts");
+    expect(modeRadio("Creates accounts")).toBeChecked();
 
     await chooseProtocol(user, "VRChat");
     expect(
       screen.getByRole("switch", { name: "Allow sign-in" }),
     ).not.toBeChecked();
-    expect(modeTrigger()).toHaveTextContent("Invitation only");
+    expect(modeRadio("Invitation only")).toBeChecked();
 
     await chooseProtocol(user, "Steam");
     expect(screen.getByRole("switch", { name: "Allow sign-in" })).toBeChecked();
-    expect(modeTrigger()).toHaveTextContent("Creates accounts");
+    expect(modeRadio("Creates accounts")).toBeChecked();
   });
 
   it("shows the weak-proof note while VRChat is chosen, whoever flips the switch", async () => {
@@ -109,12 +108,11 @@ describe("the new provider form's sign-in switch", () => {
     mount();
 
     await user.click(screen.getByRole("switch", { name: "Allow sign-in" }));
-    expect(modeTrigger()).toHaveTextContent("Invitation only");
-    await user.click(modeTrigger());
-    const options = await screen.findByRole("listbox");
-    expect(
-      within(options).queryByText("Creates accounts"),
-    ).not.toBeInTheDocument();
+    await waitFor(() => expect(modeRadio("Invitation only")).toBeChecked());
+    expect(modeRadio("Creates accounts")).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
   });
 
   it("sends allowSignIn and the reset mode in the create body", async () => {

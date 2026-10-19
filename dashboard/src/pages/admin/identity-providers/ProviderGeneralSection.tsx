@@ -1,15 +1,17 @@
-import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
+import { useStore } from "@tanstack/react-form";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useRef, useState } from "react";
+import { LogInIcon } from "lucide-react";
+import { useState } from "react";
 import { isCancellation } from "@/api/errors";
 import { readProviderMode } from "@/api/federation";
 import type { components } from "@/api/generated/schema";
 import { updateIdentityProviderMutationOptions } from "@/api/mutations";
+import type { ProviderWriteBody } from "@/api/raw-admin-paths";
 import { identityProviderUpdateBody } from "@/api/update-bodies";
+import { withInlineReport } from "@/app/query-client";
 import { ConfirmDialog } from "@/components/custom/ConfirmDialog";
-import { ConsoleCard } from "@/components/custom/ConsoleCard";
-import { EntityIconCard } from "@/components/custom/EntityIconCard";
+import { ConsequenceFooter } from "@/components/custom/ConsequenceFooter";
 import { Section } from "@/components/custom/Section";
 import { applyServerError } from "@/forms/server-errors";
 import { useAppForm } from "@/forms/use-app-form";
@@ -17,191 +19,214 @@ import { ProvisioningModeField } from "@/pages/admin/identity-providers/Provisio
 
 type Provider = components["schemas"]["IdentityProviderView"];
 
-const nameRequired = msg({
-  id: "admin.federation.general.name.required",
-  message: "Give the provider a name.",
-});
+/** The form's values for a stored record, also the baseline after a save. */
+function signInValues(provider: Provider) {
+  return {
+    mode: readProviderMode(provider.mode) ?? "invite_only",
+    allowSignIn: provider.allowSignIn,
+  };
+}
+
+/** What turning sign-in off does, said once for the footer and the dialog. */
+function LockoutConsequence() {
+  return (
+    <Trans id="admin.federation.signin.consequence">
+      Anyone who signs in only through this provider will be locked out until an
+      administrator sends them a reset link.
+    </Trans>
+  );
+}
 
 /**
- * What the provider is called and what it does with someone it has not seen.
+ * Whether people can sign in with the provider, and what it does with someone
+ * it has not seen. Both apply to every protocol.
  *
- * The two belong together because they are what the list shows about a
- * provider, and both apply to every protocol. The save sends the whole record
- * through `identityProviderUpdateBody`, so the connection and claims the other
- * sections edit go out as they are stored.
+ * Turning sign-in off is confirmed when the form is saved, not when the switch
+ * moves: the footer states the consequence and names the action while the
+ * switch differs from the saved one, and submitting then opens the dialog with
+ * the checked request held beside the form. The write happens from the dialog,
+ * and cancelling leaves the reader's choice in the form, unsent.
+ *
+ * The save goes through `identityProviderUpdateBody`, so the name, the
+ * connection and the claims the other sections edit go out as they are stored.
  */
 export function ProviderGeneralSection({ provider }: { provider: Provider }) {
   const { t } = useLingui();
   const queryClient = useQueryClient();
   const update = useMutation(
-    updateIdentityProviderMutationOptions(queryClient),
+    withInlineReport(updateIdentityProviderMutationOptions(queryClient), true),
   );
-  // The sign-off confirmation gates the submit: the dialog settles it, and a
-  // cancelled dialog leaves the form as it was.
-  const [confirmingOff, setConfirmingOff] = useState(false);
-  const pendingConfirm = useRef<Promise<boolean> | null>(null);
-  const settleConfirm = useRef<((confirmed: boolean) => void) | null>(null);
+  // The request the dialog is confirming, checked and ready to send.
+  const [pendingBody, setPendingBody] = useState<ProviderWriteBody | null>(
+    null,
+  );
+
   const form = useAppForm({
-    defaultValues: {
-      displayName: provider.displayName,
-      mode: readProviderMode(provider.mode) ?? "invite_only",
-      allowSignIn: provider.allowSignIn,
-    },
+    defaultValues: signInValues(provider),
     onSubmit: async ({ value }) => {
+      const body = identityProviderUpdateBody(provider, {
+        // Creating accounts backs a sign-in button, so with sign-in off the
+        // mode falls back rather than going out as one the server rejects.
+        mode:
+          !value.allowSignIn && value.mode === "auto_provision"
+            ? "invite_only"
+            : value.mode,
+        allowSignIn: value.allowSignIn,
+      });
       if (provider.allowSignIn && !value.allowSignIn) {
-        pendingConfirm.current = new Promise<boolean>((resolve) => {
-          settleConfirm.current = resolve;
-        });
-        setConfirmingOff(true);
-        if (!(await pendingConfirm.current)) return;
+        setPendingBody(body);
+        return;
       }
-      try {
-        await update.mutateAsync({
-          slug: provider.slug,
-          body: identityProviderUpdateBody(provider, {
-            displayName: value.displayName.trim(),
-            mode: value.allowSignIn
-              ? value.mode
-              : value.mode === "auto_provision"
-                ? "invite_only"
-                : value.mode,
-            allowSignIn: value.allowSignIn,
-          }),
-        });
-      } catch (error) {
-        if (isCancellation(error)) return;
-        applyServerError(form, error, {
-          codes: { bad_request: "displayName" },
-          locations: {},
-        });
-      }
+      await save(body);
     },
   });
+
+  async function save(body: ProviderWriteBody) {
+    try {
+      const saved = await update.mutateAsync({ slug: provider.slug, body });
+      // The stored record is the new baseline, so the section reads as saved.
+      form.reset(signInValues(saved));
+    } catch (error) {
+      if (isCancellation(error)) return;
+      applyServerError(form, error, { codes: {}, locations: {} });
+    }
+  }
+
+  const dirty = useStore(form.store, (state) => !state.isDefaultValue);
+  const submitting = useStore(form.store, (state) => state.isSubmitting);
+  const turningOff = useStore(
+    form.store,
+    (state) => provider.allowSignIn && !state.values.allowSignIn,
+  );
 
   const title = t({
-    id: "admin.federation.general.title",
-    message: "Provider",
+    id: "admin.federation.signin.title",
+    message: "Sign-in",
   });
 
   return (
-    <Section title={title}>
-      <ConsoleCard>
-        <form.AppForm>
-          <form.Form label={title}>
-            <form.FormError />
-
-            <form.AppField
-              name="displayName"
-              validators={{
-                onSubmit: ({ value }) =>
-                  value.trim() === "" ? nameRequired : undefined,
-              }}
-            >
-              {(field) => (
-                <field.FormField
-                  label={<Trans id="admin.federation.general.name">Name</Trans>}
-                  variant="secondary"
-                />
-              )}
-            </form.AppField>
-
-            <form.AppField name="allowSignIn">
-              {(field) => (
-                <field.SwitchField
-                  label={
-                    <Trans id="admin.federation.general.sign_in">
-                      Allow sign-in
-                    </Trans>
-                  }
-                  description={
-                    <>
-                      {provider.protocol === "vrchat" && (
-                        <Trans id="admin.federation.general.sign_in.vrchat_hint">
-                          VRChat proves a profile through a link in its bio,
-                          which is weaker than an OIDC sign-in. Once this is on,
-                          anyone who can edit the profile can sign in to the
-                          account linked to it.
-                        </Trans>
-                      )}
-                      <Trans id="admin.federation.general.sign_in.hint">
-                        When this is off, this provider can't be used to sign
-                        in. People can only link it from their account, or use
-                        it to accept an invitation.
+    <>
+      <form.AppForm>
+        <form.Form label={title}>
+          <Section
+            id="sign-in"
+            icon={<LogInIcon />}
+            title={title}
+            description={
+              <Trans id="admin.federation.signin.description">
+                Whether this provider can be used to sign in, and what it does
+                with someone it has not seen.
+              </Trans>
+            }
+            dirty={dirty}
+            footer={
+              dirty ? (
+                <ConsequenceFooter
+                  consequence={turningOff ? <LockoutConsequence /> : undefined}
+                  actionLabel={
+                    turningOff ? (
+                      <Trans id="admin.federation.signin.action-label">
+                        Turn off sign-in and save
                       </Trans>
-                    </>
+                    ) : (
+                      <Trans id="admin.federation.signin.save">Save</Trans>
+                    )
                   }
+                  onDiscard={() => form.reset()}
+                  pending={submitting || update.isPending}
                 />
-              )}
-            </form.AppField>
+              ) : undefined
+            }
+          >
+            <div className="flex flex-col gap-6">
+              <form.FormError />
 
-            <form.AppField name="mode">
-              {() => (
-                <form.Subscribe
-                  selector={(state) =>
-                    [state.values.allowSignIn, state.values.mode] as const
-                  }
-                >
-                  {([allowSignIn, mode]) => (
-                    <ProvisioningModeField
-                      allowSignIn={allowSignIn}
-                      autoProvisionSelected={mode === "auto_provision"}
-                      onAutoProvisionInvalid={() => {
-                        form.setFieldValue("mode", "invite_only");
-                      }}
-                    />
-                  )}
-                </form.Subscribe>
-              )}
-            </form.AppField>
+              <form.AppField name="allowSignIn">
+                {(field) => (
+                  <field.SwitchField
+                    label={
+                      <Trans id="admin.federation.general.sign_in">
+                        Allow sign-in
+                      </Trans>
+                    }
+                    description={
+                      <>
+                        {provider.protocol === "vrchat" && (
+                          <span className="mb-1 block">
+                            <Trans id="admin.federation.general.sign_in.vrchat_hint">
+                              VRChat proves a profile through a link in its bio,
+                              which is weaker than an OIDC sign-in. Once this is
+                              on, anyone who can edit the profile can sign in to
+                              the account linked to it.
+                            </Trans>
+                          </span>
+                        )}
+                        <span className="block">
+                          <Trans id="admin.federation.general.sign_in.hint">
+                            When this is off, this provider can't be used to
+                            sign in. People can only link it from their account,
+                            or use it to accept an invitation.
+                          </Trans>
+                        </span>
+                      </>
+                    }
+                  />
+                )}
+              </form.AppField>
 
-            <form.SubmitButton>
-              <Trans id="admin.federation.general.save">Save</Trans>
-            </form.SubmitButton>
-            <ConfirmDialog
-              isOpen={confirmingOff}
-              onOpenChange={(open) => {
-                if (!open) settleConfirm.current?.(false);
-                setConfirmingOff(open);
-              }}
-              status="warning"
-              title={
-                <Trans id="admin.federation.general.sign_in.confirm_title">
-                  Turn off sign-in?
-                </Trans>
-              }
-              body={
-                <Trans id="admin.federation.general.sign_in.confirm_body">
-                  Anyone who signs in only through this provider will be locked
-                  out until an administrator sends them a reset link.
-                </Trans>
-              }
-              confirmLabel={
-                <Trans id="admin.federation.general.sign_in.confirm">
-                  Turn off sign-in
-                </Trans>
-              }
-              isPending={update.isPending}
-              onConfirm={() => {
-                settleConfirm.current?.(true);
-                setConfirmingOff(false);
-              }}
-            />
-          </form.Form>
-        </form.AppForm>
-      </ConsoleCard>
-    </Section>
-  );
-}
+              <form.AppField name="mode">
+                {() => (
+                  <form.Subscribe
+                    selector={(state) =>
+                      [state.values.allowSignIn, state.values.mode] as const
+                    }
+                  >
+                    {([allowSignIn, mode]) => (
+                      <ProvisioningModeField
+                        allowSignIn={allowSignIn}
+                        autoProvisionSelected={mode === "auto_provision"}
+                        onAutoProvisionInvalid={() => {
+                          form.setFieldValue("mode", "invite_only");
+                        }}
+                      />
+                    )}
+                  </form.Subscribe>
+                )}
+              </form.AppField>
+            </div>
+          </Section>
+        </form.Form>
+      </form.AppForm>
 
-/** How the provider is shown on the sign-in page and in every list. */
-export function ProviderIconSection({ provider }: { provider: Provider }) {
-  return (
-    <Section title={<Trans id="admin.federation.icon.title">Icon</Trans>}>
-      <EntityIconCard
-        target={{ kind: "identity-provider", slug: provider.slug }}
-        iconUrl={provider.iconUrl}
-        name={provider.displayName}
+      <ConfirmDialog
+        isOpen={pendingBody !== null}
+        onOpenChange={(open) => {
+          if (!open && !update.isPending) setPendingBody(null);
+        }}
+        status="warning"
+        title={
+          <Trans id="admin.federation.general.sign_in.confirm_title">
+            Turn off sign-in?
+          </Trans>
+        }
+        body={
+          <p>
+            <LockoutConsequence />
+          </p>
+        }
+        confirmLabel={
+          <Trans id="admin.federation.general.sign_in.confirm">
+            Turn off sign-in
+          </Trans>
+        }
+        isPending={update.isPending}
+        onConfirm={() => {
+          if (pendingBody === null) return;
+          // Closed once the write settles either way: a refusal is reported on
+          // the form, where the reader can act on it.
+          void save(pendingBody).finally(() => setPendingBody(null));
+        }}
       />
-    </Section>
+    </>
   );
 }

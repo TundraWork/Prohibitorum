@@ -1,55 +1,78 @@
+import type { MessageDescriptor } from "@lingui/core";
 import { I18nProvider } from "@lingui/react";
-import type { QueryClient } from "@tanstack/react-query";
-import { QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, within } from "@testing-library/react";
+import { type QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { I18nProvider as AriaI18nProvider } from "react-aria";
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { components } from "@/api/generated/schema";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { configureSudo, resetSudo } from "@/api/sudo";
 import { createQueryClient } from "@/app/query-client";
 import { i18n } from "@/i18n";
 import { ProviderDangerSection } from "@/pages/admin/identity-providers/ProviderDangerSection";
-import { fakeApi } from "@/test/app";
+import { type Provider, providerFixture } from "@/test/identity-provider";
 
-type Provider = components["schemas"]["IdentityProviderView"];
+const navigate = vi.fn<(options: { to: string }) => Promise<void>>();
+vi.mock("@tanstack/react-router", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@tanstack/react-router")>()),
+  useNavigate: () => navigate,
+}));
 
+const fetchBoundary = vi.fn<(request: Request) => Promise<Response>>();
+const notifyError = vi.fn<(error: unknown) => void>();
 let queryClient: QueryClient;
 
 beforeEach(() => {
   i18n.activate("en");
+  fetchBoundary.mockReset();
+  notifyError.mockReset();
+  navigate.mockReset();
+  vi.stubGlobal("fetch", fetchBoundary);
+  queryClient = createQueryClient(
+    notifyError,
+    vi.fn<(message: MessageDescriptor) => void>(),
+  );
+  configureSudo({
+    queryClient,
+    set: () => {},
+    setFresh: () => {},
+    getFresh: () => true,
+  });
 });
 
-function provider(overrides: Partial<Provider> = {}): Provider {
-  return {
-    slug: "corp",
-    displayName: "Corporate SSO",
-    protocol: "oidc",
-    allowSignIn: true,
-    pendingInvitationCount: 0,
-    mode: "invite_only",
-    disabled: false,
-    ready: true,
-    secretConfigured: true,
-    secretStatus: "valid",
-    secretValidatedAt: null,
-    createdAt: "2026-01-01T00:00:00Z",
-    config: {},
-    supportsOperator: false,
-    searchFields: [],
-    linkedAccountCount: 0,
-    ...overrides,
-  };
+afterEach(() => {
+  resetSudo();
+  queryClient.clear();
+  vi.unstubAllGlobals();
+});
+
+function posts(suffix: string) {
+  return fetchBoundary.mock.calls
+    .map(([request]) => request)
+    .filter(
+      (request) =>
+        request.method === "POST" &&
+        new URL(request.url).pathname.endsWith(suffix),
+    );
 }
 
-function mount(record: Provider) {
-  queryClient = createQueryClient(vi.fn());
+function mount(
+  provider: Provider,
+  extra?: (request: Request) => Response | Promise<Response> | undefined,
+) {
+  fetchBoundary.mockImplementation(async (request) => {
+    const canned = extra?.(request);
+    if (canned) return canned;
+    const path = new URL(request.url).pathname;
+    if (path.endsWith("/me/sudo/methods")) {
+      return Response.json({ methods: ["password_totp"], fresh: true });
+    }
+    if (path.endsWith("/set-disabled")) return Response.json(provider);
+    return new Response(null, { status: 204 });
+  });
   render(
     <I18nProvider i18n={i18n}>
-      <AriaI18nProvider>
-        <QueryClientProvider client={queryClient}>
-          <ProviderDangerSection provider={record} />
-        </QueryClientProvider>
-      </AriaI18nProvider>
+      <QueryClientProvider client={queryClient}>
+        <ProviderDangerSection provider={provider} />
+      </QueryClientProvider>
     </I18nProvider>,
   );
 }
@@ -59,64 +82,258 @@ async function openDeleteDialog(user: ReturnType<typeof userEvent.setup>) {
   return screen.findByRole("alertdialog", { name: "Delete this provider?" });
 }
 
-describe("the provider delete confirmation", () => {
-  it("counts the pending invitations that die with the provider", async () => {
+describe("the danger section", () => {
+  it("is named like the other pages' and holds no secret row", () => {
+    mount(providerFixture());
+
+    expect(
+      screen.getByRole("heading", { level: 2, name: "Disable or delete" }),
+    ).toBeVisible();
+    expect(screen.getByText("Disable this provider")).toBeVisible();
+    expect(screen.getByText("Delete this provider")).toBeVisible();
+    expect(screen.queryByText(/the secret/i)).toBeNull();
+  });
+});
+
+describe("disabling", () => {
+  it("disables only after the confirmation", async () => {
     const user = userEvent.setup();
-    fakeApi({
-      "DELETE /api/prohibitorum/identity-providers/corp": () =>
-        new Response(null, { status: 204 }),
+    mount(providerFixture());
+
+    await user.click(screen.getByRole("button", { name: "Disable" }));
+    const dialog = await screen.findByRole("alertdialog", {
+      name: "Disable this provider?",
     });
+    expect(posts("/set-disabled")).toHaveLength(0);
+    await user.click(within(dialog).getByRole("button", { name: "Disable" }));
+
+    await waitFor(() => expect(posts("/set-disabled")).toHaveLength(1));
+    expect(await posts("/set-disabled")[0]?.json()).toEqual({
+      slug: "corp",
+      disabled: true,
+    });
+  });
+
+  it("keeps the confirmation open while the write is in flight", async () => {
+    const user = userEvent.setup();
+    let release: (response: Response) => void = () => {};
+    mount(providerFixture(), (request) =>
+      new URL(request.url).pathname.endsWith("/set-disabled")
+        ? new Promise<Response>((resolve) => {
+            release = resolve;
+          })
+        : undefined,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Disable" }));
+    const dialog = await screen.findByRole("alertdialog");
+    await user.click(within(dialog).getByRole("button", { name: "Disable" }));
+    await waitFor(() => expect(posts("/set-disabled")).toHaveLength(1));
+    await user.keyboard("{Escape}");
+
+    expect(screen.getByRole("alertdialog")).toBeVisible();
+    release(Response.json(providerFixture({ disabled: true })));
+  });
+
+  it("reports a refused disable once, on the section", async () => {
+    const user = userEvent.setup();
+    mount(providerFixture(), (request) =>
+      new URL(request.url).pathname.endsWith("/set-disabled")
+        ? Response.json({ code: "internal_error" }, { status: 500 })
+        : undefined,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Disable" }));
+    const dialog = await screen.findByRole("alertdialog");
+    await user.click(within(dialog).getByRole("button", { name: "Disable" }));
+
+    await waitFor(() =>
+      expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument(),
+    );
+    expect(await screen.findAllByRole("alert")).toHaveLength(1);
+    expect(notifyError).not.toHaveBeenCalled();
+  });
+});
+
+describe("enabling", () => {
+  it("runs straight through, with no confirmation", async () => {
+    const user = userEvent.setup();
+    mount(providerFixture({ disabled: true }));
+
+    expect(screen.getByText("Enable this provider")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Enable" }));
+
+    await waitFor(() => expect(posts("/set-disabled")).toHaveLength(1));
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(await posts("/set-disabled")[0]?.json()).toEqual({
+      slug: "corp",
+      disabled: false,
+    });
+  });
+
+  it.each([
+    [
+      "oidc",
+      "Needs a valid connection and a client secret before it can be enabled.",
+    ],
+    ["steam", "Set the Web API key before enabling it."],
+    ["vrchat", "Sign in the operator account before enabling it."],
+  ])(
+    "is disabled for an unready %s provider, with the reason as text",
+    async (protocol, reason) => {
+      const user = userEvent.setup();
+      mount(providerFixture({ protocol, disabled: true, ready: false }));
+
+      const enable = screen.getByRole("button", { name: "Enable" });
+      expect(enable).toBeDisabled();
+      expect(screen.getByText(reason)).toBeVisible();
+      await user.click(enable);
+      expect(posts("/set-disabled")).toHaveLength(0);
+    },
+  );
+
+  it("gives no reason while the provider is ready", () => {
+    mount(providerFixture({ disabled: true }));
+    expect(screen.getByRole("button", { name: "Enable" })).toBeEnabled();
+    expect(screen.queryByText(/before it can be enabled/)).toBeNull();
+  });
+
+  it("reports a refused enable once, on the section", async () => {
+    const user = userEvent.setup();
+    mount(providerFixture({ disabled: true }), (request) =>
+      new URL(request.url).pathname.endsWith("/set-disabled")
+        ? Response.json({ code: "provider_not_ready" }, { status: 503 })
+        : undefined,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Enable" }));
+
+    expect(await screen.findAllByRole("alert")).toHaveLength(1);
+    expect(notifyError).not.toHaveBeenCalled();
+  });
+});
+
+describe("the delete confirmation", () => {
+  it("counts the accounts and the invitations that go with the provider", async () => {
+    const user = userEvent.setup();
     mount(
-      provider({
-        pendingInvitationCount: 3,
-        linkedAccountCount: 2,
-      }),
+      providerFixture({ pendingInvitationCount: 3, linkedAccountCount: 2 }),
     );
 
     const dialog = await openDeleteDialog(user);
     expect(
       within(dialog).getByText(/2 accounts lose the way they sign in/),
-    ).toBeInTheDocument();
+    ).toBeVisible();
     expect(
       within(dialog).getByText(
         /3 unfinished invitations whose identities were verified/,
       ),
-    ).toBeInTheDocument();
-    expect(
-      within(dialog).getByText(/through it is deleted with the provider/),
-    ).toBeInTheDocument();
+    ).toBeVisible();
+    expect(within(dialog).getByText("identity:corp")).toBeVisible();
   });
 
-  it("uses the singular for exactly one pending invitation", async () => {
+  it("uses the singular for exactly one of each", async () => {
     const user = userEvent.setup();
-    fakeApi({
-      "DELETE /api/prohibitorum/identity-providers/corp": () =>
-        new Response(null, { status: 204 }),
-    });
-    mount(provider({ pendingInvitationCount: 1 }));
+    mount(
+      providerFixture({ pendingInvitationCount: 1, linkedAccountCount: 1 }),
+    );
 
     const dialog = await openDeleteDialog(user);
+    expect(
+      within(dialog).getByText(/1 account loses the way they sign in/),
+    ).toBeVisible();
     expect(
       within(dialog).getByText(
         /1 unfinished invitation whose identity was verified/,
       ),
-    ).toBeInTheDocument();
+    ).toBeVisible();
   });
 
   it("says only what is removed when nothing rides on the provider", async () => {
     const user = userEvent.setup();
-    fakeApi({
-      "DELETE /api/prohibitorum/identity-providers/corp": () =>
-        new Response(null, { status: 204 }),
-    });
-    mount(provider());
+    mount(providerFixture());
 
     const dialog = await openDeleteDialog(user);
     expect(
       within(dialog).getByText(/The provider and its icon are removed/),
-    ).toBeInTheDocument();
-    expect(
-      within(dialog).queryByText(/unfinished invitation/),
-    ).not.toBeInTheDocument();
+    ).toBeVisible();
+    expect(within(dialog).queryByText(/unfinished invitation/)).toBeNull();
+  });
+
+  it("deletes only after the confirmation, then leaves for the list", async () => {
+    const user = userEvent.setup();
+    mount(providerFixture());
+
+    const dialog = await openDeleteDialog(user);
+    expect(posts("/delete")).toHaveLength(0);
+    await user.click(within(dialog).getByRole("button", { name: "Delete" }));
+
+    await waitFor(() => expect(posts("/delete")).toHaveLength(1));
+    expect(await posts("/delete")[0]?.json()).toEqual({ slug: "corp" });
+    await waitFor(() =>
+      expect(navigate).toHaveBeenCalledWith({
+        to: "/admin/identity-providers",
+      }),
+    );
+  });
+
+  it("asks for the identity check first when the window is closed", async () => {
+    const user = userEvent.setup();
+    const set = vi.fn();
+    configureSudo({
+      queryClient,
+      set,
+      setFresh: () => {},
+      getFresh: () => false,
+    });
+    mount(providerFixture(), (request) =>
+      new URL(request.url).pathname.endsWith("/me/sudo/methods")
+        ? Response.json({ methods: ["password_totp"], fresh: false })
+        : undefined,
+    );
+
+    const dialog = await openDeleteDialog(user);
+    await user.click(within(dialog).getByRole("button", { name: "Delete" }));
+
+    await waitFor(() => expect(set).toHaveBeenCalled());
+    expect(posts("/delete")).toHaveLength(0);
+  });
+
+  it("keeps the confirmation open while the write is in flight", async () => {
+    const user = userEvent.setup();
+    let release: (response: Response) => void = () => {};
+    mount(providerFixture(), (request) =>
+      new URL(request.url).pathname.endsWith("/delete")
+        ? new Promise<Response>((resolve) => {
+            release = resolve;
+          })
+        : undefined,
+    );
+
+    const dialog = await openDeleteDialog(user);
+    await user.click(within(dialog).getByRole("button", { name: "Delete" }));
+    await waitFor(() => expect(posts("/delete")).toHaveLength(1));
+    await user.keyboard("{Escape}");
+
+    expect(screen.getByRole("alertdialog")).toBeVisible();
+    release(new Response(null, { status: 204 }));
+  });
+
+  it("reports a refused delete once, on the section", async () => {
+    const user = userEvent.setup();
+    mount(providerFixture(), (request) =>
+      new URL(request.url).pathname.endsWith("/delete")
+        ? Response.json({ code: "internal_error" }, { status: 500 })
+        : undefined,
+    );
+
+    const dialog = await openDeleteDialog(user);
+    await user.click(within(dialog).getByRole("button", { name: "Delete" }));
+
+    await waitFor(() =>
+      expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument(),
+    );
+    expect(await screen.findAllByRole("alert")).toHaveLength(1);
+    expect(notifyError).not.toHaveBeenCalled();
   });
 });

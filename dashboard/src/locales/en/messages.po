@@ -913,7 +913,7 @@ msgstr "Any provider"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderGeneralSection.tsx
-msgid "admin.federation.general.sign_in.confirm_body"
+msgid "admin.federation.signin.consequence"
 msgstr "Anyone who signs in only through this provider will be locked out until an administrator sends them a reset link."
 
 #. js-lingui-explicit-id
@@ -939,6 +939,11 @@ msgstr "Appearance"
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/AppearanceSection.tsx
 msgid "admin.oidc-apps.appearance"
+msgstr "Appearance"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderAppearanceSection.tsx
+msgid "admin.federation.appearance.title"
 msgstr "Appearance"
 
 #. js-lingui-explicit-id
@@ -1356,8 +1361,12 @@ msgid "admin.cancel"
 msgstr "Cancel"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderCredentialsSection.tsx
+msgid "admin.federation.credentials.cancel"
+msgstr "Cancel"
+
+#. js-lingui-explicit-id
 #: src/components/custom/ConfirmDialog.tsx
-#: src/pages/admin/identity-providers/ProviderDangerSection.tsx
 #: src/pages/admin/identity-providers/ProviderOperatorSection.tsx
 msgid "confirm.cancel"
 msgstr "Cancel"
@@ -1716,8 +1725,13 @@ msgstr "Client secret"
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
 #: src/pages/admin/identity-providers/ProviderConnectionSection.tsx
-#: src/pages/admin/identity-providers/ProviderDangerSection.tsx
+#: src/pages/admin/identity-providers/ProviderCredentialsSection.tsx
 msgid "admin.federation.new.secret"
+msgstr "Client secret"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderCredentialsSection.tsx
+msgid "admin.federation.credentials.oidc.label"
 msgstr "Client secret"
 
 #. js-lingui-explicit-id
@@ -2200,6 +2214,11 @@ msgid "admin.invitations.reveal.title"
 msgstr "Copy the registration link"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProvider.tsx
+msgid "admin.federation.copy-slug"
+msgstr "Copy the slug"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/ForwardAuthProxySection.tsx
 msgid "admin.forward-auth-apps.traefik.copy-label"
 msgstr "Copy the Traefik configuration"
@@ -2427,11 +2446,6 @@ msgstr "Danger zone"
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/DangerSection.tsx
 msgid "admin.oidc-apps.danger"
-msgstr "Danger zone"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderDangerSection.tsx
-msgid "admin.federation.danger.title"
 msgstr "Danger zone"
 
 #. js-lingui-explicit-id
@@ -2714,6 +2728,11 @@ msgstr "Disable or delete"
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/DangerSection.tsx
 msgid "admin.oidc-apps.danger.title"
+msgstr "Disable or delete"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderDangerSection.tsx
+msgid "admin.federation.danger.title"
 msgstr "Disable or delete"
 
 #. js-lingui-explicit-id
@@ -3351,8 +3370,8 @@ msgid "settings.network.header.required"
 msgstr "Enter the name of the header that carries the client address."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderDangerSection.tsx
-msgid "admin.federation.danger.secret.required"
+#: src/pages/admin/identity-providers/ProviderCredentialsSection.tsx
+msgid "admin.federation.secret.required"
 msgstr "Enter the secret."
 
 #. js-lingui-explicit-id
@@ -3667,8 +3686,8 @@ msgid "admin.group.slug.required"
 msgstr "Give the group an identifier."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderGeneralSection.tsx
-msgid "admin.federation.general.name.required"
+#: src/pages/admin/identity-providers/ProviderAppearanceSection.tsx
+msgid "admin.federation.appearance.name.required"
 msgstr "Give the provider a name."
 
 #. js-lingui-explicit-id
@@ -3768,6 +3787,11 @@ msgid "admin.saml-apps.new.mode"
 msgstr "How the application is registered"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderCredentialsSection.tsx
+msgid "admin.federation.credentials.steam.note"
+msgstr "How this instance reads the Steam profile of someone who signs in."
+
+#. js-lingui-explicit-id
 #: src/pages/Security.tsx
 msgid "security.page.description"
 msgstr "How you sign in to {name}."
@@ -3813,8 +3837,8 @@ msgid "admin.oidc-apps.icon"
 msgstr "Icon"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderGeneralSection.tsx
-msgid "admin.federation.icon.title"
+#: src/pages/admin/identity-providers/ProviderAppearanceSection.tsx
+msgid "admin.federation.appearance.icon"
 msgstr "Icon"
 
 #. js-lingui-explicit-id
@@ -4573,8 +4597,8 @@ msgid "admin.federation.new.name"
 msgstr "Name"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderGeneralSection.tsx
-msgid "admin.federation.general.name"
+#: src/pages/admin/identity-providers/ProviderAppearanceSection.tsx
+msgid "admin.federation.appearance.name"
 msgstr "Name"
 
 #. js-lingui-explicit-id
@@ -4981,8 +5005,18 @@ msgid "list.state.not_ready"
 msgstr "Not ready"
 
 #. js-lingui-explicit-id
+#: src/components/custom/ObjectHeader.tsx
+msgid "object.status.not-ready"
+msgstr "Not ready"
+
+#. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
 msgid "security.factor.unset"
+msgstr "Not set"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderCredentialsSection.tsx
+msgid "admin.federation.credentials.not-set"
 msgstr "Not set"
 
 #. js-lingui-explicit-id
@@ -5044,11 +5078,6 @@ msgstr "Offer to applications"
 #: src/components/custom/ValueSet.tsx
 msgid "value-set.offered"
 msgstr "Offered by this provider"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/provider-options.ts
-msgid "admin.federation.protocol.oidc"
-msgstr "OIDC"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts
@@ -5221,6 +5250,11 @@ msgstr "Open to everyone"
 #. js-lingui-explicit-id
 #: src/pages/ConnectedApps.tsx
 msgid "apps.kind.oidc"
+msgstr "OpenID Connect"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-options.ts
+msgid "admin.federation.protocol.oidc"
 msgstr "OpenID Connect"
 
 #. js-lingui-explicit-id
@@ -5585,11 +5619,6 @@ msgstr "Provider"
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/AdminIdentityProviders.tsx
 msgid "admin.federation.column.provider"
-msgstr "Provider"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderGeneralSection.tsx
-msgid "admin.federation.general.title"
 msgstr "Provider"
 
 #. js-lingui-explicit-id
@@ -6068,8 +6097,8 @@ msgid "settings.sign-in.unsplash.key.replace"
 msgstr "Replace"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderDangerSection.tsx
-msgid "admin.federation.danger.secret.replace-action"
+#: src/pages/admin/identity-providers/ProviderCredentialsSection.tsx
+msgid "admin.federation.credentials.replace"
 msgstr "Replace"
 
 #. js-lingui-explicit-id
@@ -6108,14 +6137,19 @@ msgid "entity.icon.replace"
 msgstr "Replace icon"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderCredentialsSection.tsx
+msgid "admin.federation.credentials.oidc.replace-title"
+msgstr "Replace the client secret"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/SamlMetadataSection.tsx
 msgid "admin.saml-apps.metadata.confirm.title"
 msgstr "Replace the endpoints and certificates?"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderDangerSection.tsx
-msgid "admin.federation.danger.replace-secret"
-msgstr "Replace the secret"
+#: src/pages/admin/identity-providers/ProviderCredentialsSection.tsx
+msgid "admin.federation.credentials.steam.replace-title"
+msgstr "Replace the Web API key"
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
@@ -6499,6 +6533,11 @@ msgid "admin.oidc-apps.identity.save"
 msgstr "Save"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderAppearanceSection.tsx
+msgid "admin.federation.appearance.save"
+msgstr "Save"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
 msgid "admin.federation.claims.save"
 msgstr "Save"
@@ -6509,13 +6548,13 @@ msgid "admin.federation.connection.save"
 msgstr "Save"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderDangerSection.tsx
-msgid "admin.federation.danger.secret.save"
+#: src/pages/admin/identity-providers/ProviderCredentialsSection.tsx
+msgid "admin.federation.credentials.save"
 msgstr "Save"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderGeneralSection.tsx
-msgid "admin.federation.general.save"
+msgid "admin.federation.signin.save"
 msgstr "Save"
 
 #. js-lingui-explicit-id
@@ -6623,8 +6662,8 @@ msgid "admin.users.search"
 msgstr "Search users"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderDangerSection.tsx
-msgid "admin.federation.danger.secret.form"
+#: src/pages/admin/identity-providers/ProviderCredentialsSection.tsx
+msgid "admin.federation.credentials.form"
 msgstr "Secret"
 
 #. js-lingui-explicit-id
@@ -6729,8 +6768,8 @@ msgid "security.factor.set"
 msgstr "Set"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderDangerSection.tsx
-msgid "admin.federation.danger.secret.action"
+#: src/pages/admin/identity-providers/ProviderCredentialsSection.tsx
+msgid "admin.federation.credentials.set"
 msgstr "Set"
 
 #. js-lingui-explicit-id
@@ -6744,9 +6783,14 @@ msgid "enroll.password_totp.password.title"
 msgstr "Set a password"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderDangerSection.tsx
-msgid "admin.federation.danger.set-secret"
-msgstr "Set the secret"
+#: src/pages/admin/identity-providers/ProviderCredentialsSection.tsx
+msgid "admin.federation.credentials.oidc.set-title"
+msgstr "Set the client secret"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderCredentialsSection.tsx
+msgid "admin.federation.credentials.steam.set-title"
+msgstr "Set the Web API key"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderDangerSection.tsx
@@ -6988,6 +7032,11 @@ msgid "admin.federation.callback.login"
 msgstr "Sign-in"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderGeneralSection.tsx
+msgid "admin.federation.signin.title"
+msgstr "Sign-in"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/settings/SignInPagePanel.tsx
 msgid "settings.sign-in.card"
 msgstr "Sign-in card"
@@ -7220,8 +7269,13 @@ msgid "admin.federation.protocol.steam"
 msgstr "Steam"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderDangerSection.tsx
-msgid "admin.federation.danger.secret.hint"
+#: src/pages/admin/identity-providers/ProviderCredentialsSection.tsx
+msgid "admin.federation.credentials.stored"
+msgstr "Stored"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderCredentialsSection.tsx
+msgid "admin.federation.credentials.hint"
 msgstr "Stored encrypted and never shown again."
 
 #. js-lingui-explicit-id
@@ -7496,11 +7550,6 @@ msgid "admin.oidc-apps.field.client-id.hint"
 msgstr "The client is configured with this value; it cannot change."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderDangerSection.tsx
-msgid "admin.federation.danger.secret.oidc"
-msgstr "The client secret this instance signs in with."
-
-#. js-lingui-explicit-id
 #: src/pages/admin/settings/NetworkPanel.tsx
 msgid "settings.network.strategy.direct"
 msgstr "The connection"
@@ -7748,6 +7797,11 @@ msgid "login.reset.uncertain"
 msgstr "The reset may already have completed. Try your new authenticator or a passkey. Enter your password again before another code attempt; your old codes may no longer work."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderCredentialsSection.tsx
+msgid "admin.federation.credentials.oidc.note"
+msgstr "The secret this instance signs in to the provider with."
+
+#. js-lingui-explicit-id
 #: src/components/custom/AppAccessSection.tsx
 msgid "app.groups.dialog.hint"
 msgstr "The selection replaces the current one. Only accounts in the groups you choose can use this application."
@@ -7801,11 +7855,6 @@ msgstr "The sign-in page still uses Unsplash. Switch the background to another s
 #: src/pages/admin/AdminLogs.tsx
 msgid "admin.logs.range.reversed"
 msgstr "The start date is after the end date"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderDangerSection.tsx
-msgid "admin.federation.danger.secret.steam"
-msgstr "The Steam Web API key."
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -8397,6 +8446,11 @@ msgstr "Turn off sign-in"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderGeneralSection.tsx
+msgid "admin.federation.signin.action-label"
+msgstr "Turn off sign-in and save"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderGeneralSection.tsx
 msgid "admin.federation.general.sign_in.confirm_title"
 msgstr "Turn off sign-in?"
 
@@ -8414,6 +8468,11 @@ msgstr "Turn on"
 #: src/pages/admin/settings/MaintenancePanel.tsx
 msgid "settings.maintenance.confirm.title"
 msgstr "Turn on maintenance mode?"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProvisioningModeField.tsx
+msgid "admin.federation.mode.auto.needs-sign-in"
+msgstr "Turn sign-in on to create accounts."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts
@@ -9065,8 +9124,18 @@ msgstr "Waiting for VRChat…"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
-#: src/pages/admin/identity-providers/ProviderDangerSection.tsx
+#: src/pages/admin/identity-providers/ProviderCredentialsSection.tsx
 msgid "admin.federation.new.steam-key"
+msgstr "Web API key"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderCredentialsSection.tsx
+msgid "admin.federation.credentials.steam.title"
+msgstr "Web API key"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderCredentialsSection.tsx
+msgid "admin.federation.credentials.steam.label"
 msgstr "Web API key"
 
 #. js-lingui-explicit-id
@@ -9180,6 +9249,11 @@ msgstr "Where you are signed in right now, and a way to sign in a device that sh
 #: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
 msgid "admin.oidc-apps.new.type.description"
 msgstr "Whether the application can keep a secret decides how it proves who it is."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderGeneralSection.tsx
+msgid "admin.federation.signin.description"
+msgstr "Whether this provider can be used to sign in, and what it does with someone it has not seen."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
