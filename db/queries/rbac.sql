@@ -1,26 +1,33 @@
 -- name: CreateOIDCAppGroup :one
+-- The row is read from the INSERT's RETURNING set, not from user_group: a
+-- data-modifying CTE's writes are invisible to the main query's snapshot, so
+-- joining the base table here yields no rows for the just-created group.
 WITH created AS (
   INSERT INTO user_group (kind, slug, display_name, description, exposed_to_downstream, rule)
   VALUES (sqlc.arg(kind), sqlc.arg(slug), sqlc.arg(display_name), sqlc.narg(description),
           sqlc.arg(exposed_to_downstream), sqlc.narg(rule))
-  RETURNING *
+  RETURNING id, kind, slug, display_name, description, exposed_to_downstream, rule, created_at, updated_at
 ), linked AS (
   INSERT INTO oidc_client_group (client_id, group_id)
   SELECT sqlc.arg(oidc_client_id)::text, id FROM created
 )
-SELECT g.* FROM user_group g JOIN created c ON c.id = g.id;
+SELECT id, kind, slug, display_name, description, exposed_to_downstream, rule, created_at, updated_at
+FROM created;
 
 -- name: CreateSAMLAppGroup :one
+-- Same RETURNING-set read as CreateOIDCAppGroup: the base table cannot see
+-- the CTE's insert within the same statement.
 WITH created AS (
   INSERT INTO user_group (kind, slug, display_name, description, exposed_to_downstream, rule)
   VALUES (sqlc.arg(kind), sqlc.arg(slug), sqlc.arg(display_name), sqlc.narg(description),
           sqlc.arg(exposed_to_downstream), sqlc.narg(rule))
-  RETURNING *
+  RETURNING id, kind, slug, display_name, description, exposed_to_downstream, rule, created_at, updated_at
 ), linked AS (
   INSERT INTO saml_sp_group (saml_sp_id, group_id)
   SELECT sqlc.arg(saml_sp_id)::bigint, id FROM created
 )
-SELECT g.* FROM user_group g JOIN created c ON c.id = g.id;
+SELECT id, kind, slug, display_name, description, exposed_to_downstream, rule, created_at, updated_at
+FROM created;
 
 -- name: CreateGlobalGroup :one
 INSERT INTO user_group (kind, slug, display_name, description, exposed_to_downstream, rule)

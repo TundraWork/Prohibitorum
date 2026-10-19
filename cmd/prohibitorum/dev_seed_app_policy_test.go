@@ -26,7 +26,7 @@ import (
 	protocoloidc "prohibitorum/pkg/protocol/oidc"
 )
 
-func appPolicyDemoTestPool(t *testing.T) (*pgxpool.Pool, func()) {
+func appPolicyDemoTestPool(t *testing.T) *pgxpool.Pool {
 	t.Helper()
 	baseURL := os.Getenv("PROHIBITORUM_TEST_DATABASE_URL")
 	if baseURL == "" {
@@ -50,46 +50,42 @@ func appPolicyDemoTestPool(t *testing.T) (*pgxpool.Pool, func()) {
 		basePool.Close()
 		t.Fatal(err)
 	}
+	// Register cleanup immediately: a fatal fixture failure below must not
+	// leak the schema, because 032 installs pg_trgm into the first schema on
+	// the search_path and a leftover install breaks later tests' migrations.
 	cleanupSchema := func() {
 		_, _ = basePool.Exec(context.Background(), "DROP SCHEMA "+quotedSchema+" CASCADE")
 		basePool.Close()
 	}
+	t.Cleanup(cleanupSchema)
 	if _, err := basePool.Exec(ctx, `CREATE TABLE `+quotedSchema+`.goose_db_version (
 		id serial PRIMARY KEY,
 		version_id bigint NOT NULL,
 		is_applied boolean NOT NULL,
 		tstamp timestamp NULL DEFAULT now()
 	)`); err != nil {
-		cleanupSchema()
 		t.Fatalf("create schema migration metadata: %v", err)
 	}
 	if _, err := basePool.Exec(ctx, `INSERT INTO `+quotedSchema+`.goose_db_version (version_id, is_applied) VALUES (0, true)`); err != nil {
-		cleanupSchema()
 		t.Fatalf("initialize schema migration metadata: %v", err)
 	}
 
 	schemaURL, err := url.Parse(baseURL)
 	if err != nil {
-		cleanupSchema()
 		t.Fatal(err)
 	}
 	query := schemaURL.Query()
 	query.Set("search_path", schema+",public")
 	schemaURL.RawQuery = query.Encode()
 	if _, err := migrations.UpWithResult(schemaURL.String()); err != nil {
-		cleanupSchema()
 		t.Fatalf("apply migrations: %v", err)
 	}
 
 	pool, err := pgxpool.New(ctx, schemaURL.String())
 	if err != nil {
-		cleanupSchema()
 		t.Fatal(err)
 	}
-	cleanup := func() {
-		pool.Close()
-		cleanupSchema()
-	}
+	t.Cleanup(pool.Close)
 	q := db.New(pool)
 
 	providerConfig, err := json.Marshal(federationoidc.Config{
@@ -113,6 +109,7 @@ func appPolicyDemoTestPool(t *testing.T) (*pgxpool.Pool, func()) {
 		Protocol:       federationoidc.Protocol,
 		Mode:           "auto_provision",
 		SecretStatus:   "unconfigured",
+		AllowSignIn:    true,
 		ProviderConfig: providerConfig,
 	}); err != nil {
 		t.Fatalf("insert downstream policy demo provider: %v", err)
@@ -158,17 +155,16 @@ func appPolicyDemoTestPool(t *testing.T) (*pgxpool.Pool, func()) {
 			t.Fatalf("insert %s: %v", account.username, err)
 		}
 	}
-	return pool, cleanup
+	return pool
 }
 
 func TestSeedProvidersSkipsExistingDisabledProvider(t *testing.T) {
 	ctx := context.Background()
-	pool, cleanup := appPolicyDemoTestPool(t)
-	t.Cleanup(cleanup)
+	pool := appPolicyDemoTestPool(t)
 	q := db.New(pool)
 	if _, err := q.InsertUpstreamIDP(ctx, db.InsertUpstreamIDPParams{
 		Slug: "google", DisplayName: "Existing Google", Protocol: federationoidc.Protocol,
-		Mode: "auto_provision", SecretStatus: "unconfigured", Disabled: true,
+		Mode: "auto_provision", SecretStatus: "unconfigured", Disabled: true, AllowSignIn: true,
 		ProviderConfig: []byte(`{"issuer_url":"https://existing.example.test"}`),
 	}); err != nil {
 		t.Fatalf("insert existing disabled provider: %v", err)
@@ -258,8 +254,7 @@ func appPolicyDemoExpectedRules() map[string]appaccess.Rule {
 
 func TestSeedAppPolicyDemoCreatesCompleteShowcase(t *testing.T) {
 	ctx := context.Background()
-	pool, cleanup := appPolicyDemoTestPool(t)
-	t.Cleanup(cleanup)
+	pool := appPolicyDemoTestPool(t)
 	q := db.New(pool)
 	if err := seedAppPolicyDemo(ctx, pool, appPolicyDemoConfig()); err != nil {
 		t.Fatalf("seed app policy demo: %v", err)
@@ -432,8 +427,7 @@ func appPolicyDemoActiveAvatarStateFor(t *testing.T, ctx context.Context, q *db.
 
 func TestSeedAppPolicyDemoPreservesExistingAvatarSources(t *testing.T) {
 	ctx := context.Background()
-	pool, cleanup := appPolicyDemoTestPool(t)
-	t.Cleanup(cleanup)
+	pool := appPolicyDemoTestPool(t)
 	q := db.New(pool)
 	if err := seedAppPolicyDemo(ctx, pool, appPolicyDemoConfig()); err != nil {
 		t.Fatalf("initial seed: %v", err)
@@ -513,8 +507,7 @@ func TestSeedAppPolicyDemoPreservesExistingAvatarSources(t *testing.T) {
 
 func TestSeedAppPolicyDemoIsIdempotentAndPreservesUnrelatedData(t *testing.T) {
 	ctx := context.Background()
-	pool, cleanup := appPolicyDemoTestPool(t)
-	t.Cleanup(cleanup)
+	pool := appPolicyDemoTestPool(t)
 	q := db.New(pool)
 	accounts := appPolicyDemoAccounts(t, q)
 	custom, err := q.CreateOIDCAppGroup(ctx, db.CreateOIDCAppGroupParams{
@@ -596,8 +589,7 @@ func appPolicyDemoFixtureCounts(t *testing.T, pool *pgxpool.Pool) appPolicyDemoC
 
 func TestSeedAppPolicyDemoWrongKindConflictRollsBack(t *testing.T) {
 	ctx := context.Background()
-	pool, cleanup := appPolicyDemoTestPool(t)
-	t.Cleanup(cleanup)
+	pool := appPolicyDemoTestPool(t)
 	q := db.New(pool)
 	if _, err := q.CreateOIDCAppGroup(ctx, db.CreateOIDCAppGroupParams{
 		Kind:         "manual",
