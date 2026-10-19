@@ -59,10 +59,19 @@ func TestGlobalUserGroupsMigrationPostgres(t *testing.T) {
 	if err := goose.SetDialect("postgres"); err != nil {
 		t.Fatal(err)
 	}
-	if err := goose.UpTo(conn, ".", 39); err != nil {
+	// Two-phase search_path like the 033 migration test: migrations to 031
+	// create only app tables; 032's trigram index resolves gin_trgm_ops only
+	// once the extension's schema is on the path.
+	if _, err := conn.ExecContext(ctx, "SET search_path TO "+quoted); err != nil {
+		t.Fatal(err)
+	}
+	if err := goose.UpTo(conn, ".", 31); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := conn.ExecContext(ctx, "SET search_path TO "+quoted+", public"); err != nil {
+		t.Fatal(err)
+	}
+	if err := goose.UpTo(conn, ".", 39); err != nil {
 		t.Fatal(err)
 	}
 
@@ -224,10 +233,19 @@ func TestGlobalUserGroupsMigrationDownWhenLossless(t *testing.T) {
 	if err := goose.SetDialect("postgres"); err != nil {
 		t.Fatal(err)
 	}
-	if err := goose.UpTo(conn, ".", 39); err != nil {
+	// Two-phase search_path like the 033 migration test: migrations to 031
+	// create only app tables; 032's trigram index resolves gin_trgm_ops only
+	// once the extension's schema is on the path.
+	if _, err := conn.ExecContext(ctx, "SET search_path TO "+quoted); err != nil {
+		t.Fatal(err)
+	}
+	if err := goose.UpTo(conn, ".", 31); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := conn.ExecContext(ctx, "SET search_path TO "+quoted+", public"); err != nil {
+		t.Fatal(err)
+	}
+	if err := goose.UpTo(conn, ".", 39); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := conn.ExecContext(ctx, `INSERT INTO oidc_client (client_id,display_name,redirect_uris) VALUES ('lossless','Lossless',ARRAY['https://lossless.example/cb'])`); err != nil {

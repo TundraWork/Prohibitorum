@@ -12,11 +12,8 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pressly/goose/v3"
-
-	dbgen "prohibitorum/pkg/db"
 )
 
 func TestAppManagerRuleGroupsMigrationPostgres(t *testing.T) {
@@ -198,15 +195,6 @@ func TestAppManagerRuleGroupsMigrationPostgres(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	queryConn, err := pgx.Connect(ctx, schemaURL.String())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer queryConn.Close(ctx) //nolint:errcheck
-	if _, err := queryConn.Exec(ctx, "SET search_path TO "+quotedSchema+", public"); err != nil {
-		t.Fatal(err)
-	}
-	queries := dbgen.New(queryConn)
 	var disabledProviderID int64
 	if err := conn.QueryRowContext(ctx, `
 		INSERT INTO upstream_idp (
@@ -261,34 +249,42 @@ func TestAppManagerRuleGroupsMigrationPostgres(t *testing.T) {
 	if confirmedSlugs != "{disabled-corp}" {
 		t.Fatalf("confirmed provider slugs = %v, want [disabled-corp]", confirmedSlugs)
 	}
-	updatedGroup, err := queries.UpdateAppGroup(ctx, dbgen.UpdateAppGroupParams{
-		Slug:                "passkeys-updated",
-		DisplayName:         "Updated Passkeys",
-		Description:         pgtype.Text{},
-		ExposedToDownstream: true,
-		Rule:                []byte(`{"version":1,"condition":{"fact":"login_method","method":"passkey"}}`),
-		GroupID:             oidcRuleID,
-		OidcClientID:        pgtype.Text{String: "legacy-oidc", Valid: true},
-		SamlSpID:            pgtype.Int8{},
-	})
+	// App-scoped group updates at this schema version key off the app binding
+	// columns dropped in 040; the generated UpdateAppGroup follows the newer
+	// join tables, so assert with SQL valid at 034.
+	updateAppGroup := func(slug, displayName, rule string, groupID int32, oidcClientID, samlSpID any) (string, error) {
+		var updatedSlug string
+		err := conn.QueryRowContext(ctx, `
+			UPDATE user_group
+			SET slug = $1, display_name = $2, description = $3,
+			    exposed_to_downstream = $4, rule = $5::jsonb, updated_at = now()
+			WHERE id = $6
+			  AND num_nonnulls($7::text, $8::bigint) = 1
+			  AND (user_group.oidc_client_id = $7::text
+			    OR user_group.saml_sp_id = $8::bigint)
+			RETURNING slug`,
+			slug, displayName, nil, true, rule, groupID, oidcClientID, samlSpID,
+		).Scan(&updatedSlug)
+		return updatedSlug, err
+	}
+	updatedSlug, err := updateAppGroup(
+		"passkeys-updated", "Updated Passkeys",
+		`{"version":1,"condition":{"fact":"login_method","method":"passkey"}}`,
+		oidcRuleID, "legacy-oidc", nil,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if updatedGroup.Slug != "passkeys-updated" {
-		t.Fatalf("updated group slug = %q, want passkeys-updated", updatedGroup.Slug)
+	if updatedSlug != "passkeys-updated" {
+		t.Fatalf("updated group slug = %q, want passkeys-updated", updatedSlug)
 	}
-	_, err = queries.UpdateAppGroup(ctx, dbgen.UpdateAppGroupParams{
-		Slug:                "cross-app-update",
-		DisplayName:         "Cross App Update",
-		Description:         pgtype.Text{},
-		ExposedToDownstream: true,
-		Rule:                []byte(`{"version":1,"condition":{"fact":"login_method","method":"passkey"}}`),
-		GroupID:             oidcRuleID,
-		OidcClientID:        pgtype.Text{},
-		SamlSpID:            pgtype.Int8{Int64: legacySAMLID, Valid: true},
-	})
-	if !errors.Is(err, pgx.ErrNoRows) {
-		t.Fatalf("cross-app group update error = %v, want pgx.ErrNoRows", err)
+	_, err = updateAppGroup(
+		"cross-app-update", "Cross App Update",
+		`{"version":1,"condition":{"fact":"login_method","method":"passkey"}}`,
+		oidcRuleID, nil, legacySAMLID,
+	)
+	if !errors.Is(err, sql.ErrNoRows) {
+		t.Fatalf("cross-app group update error = %v, want sql.ErrNoRows", err)
 	}
 
 	assertConstraintRejected("second OIDC manual group", "23505", "user_group_oidc_manual_uq", `

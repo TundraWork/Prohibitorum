@@ -170,7 +170,7 @@ func TestForwardAuthResponsesCarryStoredRemoteUserSourcePostgres(t *testing.T) {
 	s := writeFixServer(base)
 
 	// PUT: the response must echo the source the row holds, not the default.
-	putBody := `{"displayName":"FA renamed","host":"app.example.test","scopes":[]}`
+	putBody := `{"displayName":"FA renamed","host":"app.example.test"}`
 	rr := httptest.NewRecorder()
 	req := reqWithSession(http.MethodPut, "/api/prohibitorum/forward-auth-apps/"+clientID, putBody, "", base.server.sess)
 	req = withClientID(req, clientID)
