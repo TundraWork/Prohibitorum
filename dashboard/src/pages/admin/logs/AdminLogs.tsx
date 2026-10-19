@@ -371,11 +371,11 @@ function auditColumns(i18n: Locale): TableColumn<AuditEventView>[] {
 
 /**
  * What an event carries beyond its row: the browser that sent it, the address
- * and the details the writing handler recorded. On a narrow screen the event
- * itself is repeated first, since its column is the one scrolled away and it is
- * the column that says whether the row is a failure; the address then stays in
- * its column. Nothing is drawn for a missing item, and an event with none of
- * them has no detail to open.
+ * and the details the writing handler recorded. Below `sm` the event and the
+ * address are repeated first, since their columns are the ones scrolled away
+ * and the event is what says whether the row is a failure; from `sm` up they
+ * stay in their columns. Nothing is drawn for a missing item, and an event with
+ * none of them has no detail to open.
  */
 function eventDetail(i18n: Locale, event: AuditEventView): ReactNode | null {
   const hasDetail =
@@ -402,10 +402,12 @@ function eventDetail(i18n: Locale, event: AuditEventView): ReactNode | null {
       )}
       {event.ip && (
         <>
-          <dt className="text-muted-foreground max-sm:hidden">
+          <dt className="text-muted-foreground sm:hidden">
             <Trans id="admin.logs.detail.ip">IP</Trans>
           </dt>
-          <dd className="font-mono text-xs max-sm:hidden">{event.ip}</dd>
+          <dd className="font-mono text-xs sm:hidden max-sm:mb-1">
+            {event.ip}
+          </dd>
         </>
       )}
       {hasDetail && (

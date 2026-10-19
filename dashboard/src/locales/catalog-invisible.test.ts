@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
  * in review, and they break searching for a phrase. Line breaks are settled in
  * CSS or by rewording the sentence.
  */
-const invisible = /[⁠​﻿]/;
+const invisible = /\u2060|\u200B|\u200C|\u200D|\uFEFF/;
 
 describe.each(["en", "zh"])("the %s catalogue", (locale) => {
   it("has no word joiner, zero-width space or byte-order mark", () => {
