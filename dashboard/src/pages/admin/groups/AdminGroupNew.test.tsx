@@ -29,6 +29,9 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+/** The rule preview waits this long after an edit before it asks. */
+const previewDebounceMs = 400;
+
 const base = "/api/prohibitorum";
 const createPath = `${base}/groups`;
 
@@ -160,7 +163,9 @@ describe("creating a group", () => {
       screen.getByRole("switch", { name: "Send to applications" }),
     );
     // A new group has no preview: nothing is saved to count matches against.
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    await new Promise((resolve) =>
+      setTimeout(resolve, previewDebounceMs + 100),
+    );
     expect(api.sent("POST", `${createPath}/rule-preview`)).toHaveLength(0);
     await user.click(createButton());
 
@@ -267,6 +272,26 @@ describe("the list afterwards", () => {
 });
 
 describe("leaving", () => {
+  it("holds Cancel while the group is being created", async () => {
+    let finish: (response: Response) => void = () => {};
+    serve(
+      () =>
+        new Promise<Response>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const { user } = await mountForm();
+
+    await fill(user);
+    await user.click(createButton());
+
+    const cancel = await screen.findByRole("button", { name: "Cancel" });
+    expect(cancel).toBeDisabled();
+    expect(screen.queryByRole("link", { name: "Cancel" })).toBeNull();
+    finish(Response.json(groupFixture(), { status: 201 }));
+    await screen.findByRole("heading", { level: 1, name: "Staff" });
+  });
+
   it("returns to the list from Cancel without sending anything", async () => {
     const api = serve();
     const { user, router } = await mountForm();

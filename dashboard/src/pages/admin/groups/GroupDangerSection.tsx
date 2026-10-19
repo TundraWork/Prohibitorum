@@ -2,7 +2,7 @@ import { Plural, Trans, useLingui } from "@lingui/react/macro";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { Trash2, TriangleAlertIcon } from "lucide-react";
-import { useState } from "react";
+import { useId, useState } from "react";
 import { deleteGroupMutationOptions } from "@/api/mutations";
 import { groupApplicationsQueryOptions } from "@/api/queries";
 import type { AppGroupView } from "@/api/raw-admin-paths";
@@ -24,11 +24,12 @@ import { ItemList, ItemListRow } from "@/components/custom/ItemList";
  * button is disabled while the applications read says any do, and the row
  * states in words how many and what to do. Until that read answers, the button
  * waits; if it fails the button is left to the server, which gives the same
- * refusal as `group_in_use`. The dialog stays open while the write is in flight, and a refusal is shown once,
- * under the row.
+ * refusal as `group_in_use`. The dialog stays open while the write is in
+ * flight, and a refusal is shown once, under the row.
  */
 export function GroupDangerSection({ group }: { group: AppGroupView }) {
   const { t } = useLingui();
+  const reasonId = useId();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   // The reason only decorates the button, so a failed read is not a failure
@@ -72,6 +73,7 @@ export function GroupDangerSection({ group }: { group: AppGroupView }) {
           actions={
             <Button
               disabled={waiting || used > 0}
+              aria-describedby={used > 0 ? reasonId : undefined}
               pending={remove.isPending}
               onClick={() => {
                 failure.clear();
@@ -85,7 +87,10 @@ export function GroupDangerSection({ group }: { group: AppGroupView }) {
           }
         >
           {used > 0 && (
-            <p className="flex items-center gap-1.5 text-pretty text-warning-foreground text-xs">
+            <p
+              id={reasonId}
+              className="flex items-center gap-1.5 text-pretty text-warning-foreground text-xs"
+            >
               <TriangleAlertIcon
                 aria-hidden="true"
                 className="size-3.5 shrink-0"

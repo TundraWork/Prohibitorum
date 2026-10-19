@@ -286,7 +286,7 @@ export function AdminGroupNew() {
               </div>
             </Section>
           ) : (
-            <p className="text-muted-foreground text-sm">
+            <p className="text-pretty text-muted-foreground text-sm">
               <Trans id="admin.group.create.manual.note">
                 You choose who this group allows or denies on its page after you
                 create it.
@@ -301,7 +301,13 @@ export function AdminGroupNew() {
             >
               <Trans id="admin.group.create">Create group</Trans>
             </form.SubmitButton>
-            <Button variant="ghost" render={<Link to="/admin/groups" />}>
+            <Button
+              variant="ghost"
+              disabled={submitting}
+              // A link cannot be disabled, so while the create is in flight
+              // this is a plain disabled button instead.
+              render={submitting ? undefined : <Link to="/admin/groups" />}
+            >
               <Trans id="admin.cancel">Cancel</Trans>
             </Button>
             {blocked && (

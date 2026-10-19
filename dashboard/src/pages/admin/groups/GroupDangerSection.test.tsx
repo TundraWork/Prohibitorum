@@ -106,6 +106,7 @@ describe("while applications use the group", () => {
     expect(await screen.findByText(reason)).toBeVisible();
     expect(deleteButton()).toBeDisabled();
     expect(deleteButton()).not.toContainElement(screen.getByText(reason));
+    expect(deleteButton()).toHaveAccessibleDescription(reason);
   });
 
   it("uses the singular for exactly one application", async () => {
