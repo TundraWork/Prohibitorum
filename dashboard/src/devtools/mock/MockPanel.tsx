@@ -649,6 +649,15 @@ export function MockPanel() {
               })
             }
           />
+          <Toggle
+            label="Operator check is refused"
+            checked={config.admin.operatorCheckFails}
+            onChange={(next) =>
+              updateMockConfig((draft) => {
+                draft.admin.operatorCheckFails = next;
+              })
+            }
+          />
           <Choose
             label="Latest connection test"
             value={config.admin.latestConnectionTest}

@@ -3258,6 +3258,9 @@ function writeReply(
     }
 
     case "/api/prohibitorum/identity-providers/{slug}/operator-session/validate":
+      if (config.admin.operatorCheckFails) {
+        return { kind: "error", status: 429, code: "rate_limited" };
+      }
       return json({ status: "valid" });
 
     case "/api/prohibitorum/groups/rule-preview": {

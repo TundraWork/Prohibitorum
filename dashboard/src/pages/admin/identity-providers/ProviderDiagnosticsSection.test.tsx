@@ -433,4 +433,117 @@ describe("the result dialog", () => {
       expect(api.sent("GET", resultPath).length).toBe(before + 1),
     );
   });
+
+  it("reports a failed result read once and stops polling it", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    mount(
+      { [`GET ${resultPath}`]: () => apiError("internal_error", 500) },
+      runId,
+    );
+    await screen.findByRole("dialog");
+    await waitFor(() => expect(notifyError).toHaveBeenCalledTimes(1));
+    const reads = api.sent("GET", resultPath).length;
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10_000);
+    });
+    expect(notifyError).toHaveBeenCalledTimes(1);
+    expect(api.sent("GET", resultPath)).toHaveLength(reads);
+  });
+
+  it("stops polling when the thirty seconds are over, with a still icon", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    mount(resultRoutes("running"), runId);
+    const dialog = await screen.findByRole("dialog");
+    await within(dialog).findByText("Checking");
+    expect(dialog.querySelector(".animate-spin")).not.toBeNull();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(31_000);
+    });
+    await within(dialog).findByText(/taking longer than expected/);
+    expect(dialog.querySelector(".animate-spin")).toBeNull();
+    const reads = api.sent("GET", resultPath).length;
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10_000);
+    });
+    expect(api.sent("GET", resultPath)).toHaveLength(reads);
+  });
+
+  it("opens a new thirty-second window for a new run", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const next = "Zz9mAbCdEfGhIjKlMnOpQrStUvWxYz0123456789-_x";
+    api = fakeApi({
+      [`GET ${base}/tests/latest`]: () => Response.json({ latest: null }),
+      [`GET ${resultPath}`]: () => Response.json(outcome("running")),
+      [`GET ${base}/tests/${next}`]: () => Response.json(outcome("running")),
+    });
+    queryClient = createQueryClient(notifyError);
+    const view = (current: string) => (
+      <I18nProvider i18n={i18n}>
+        <QueryClientProvider client={queryClient}>
+          <ProviderDiagnosticsSection
+            slug={slug}
+            runId={current}
+            onRunIdChange={() => undefined}
+          />
+        </QueryClientProvider>
+      </I18nProvider>
+    );
+    const { rerender } = render(view(runId));
+    const dialog = await screen.findByRole("dialog");
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(31_000);
+    });
+    await within(dialog).findByText(/taking longer than expected/);
+
+    rerender(view(next));
+    await waitFor(() =>
+      expect(api.sent("GET", `${base}/tests/${next}`).length).toBeGreaterThan(
+        0,
+      ),
+    );
+    expect(screen.queryByText(/taking longer than expected/)).toBeNull();
+    const reads = api.sent("GET", `${base}/tests/${next}`).length;
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3_000);
+    });
+    expect(api.sent("GET", `${base}/tests/${next}`).length).toBeGreaterThan(
+      reads,
+    );
+  });
+
+  it("refreshes the latest-test badge once a finished run is acknowledged", async () => {
+    let completed = false;
+    mount(
+      {
+        [`GET ${base}/tests/latest`]: () =>
+          Response.json(completed ? latest() : { latest: null }),
+        [`GET ${resultPath}`]: () =>
+          Response.json({ ...outcome("succeeded"), status: "ready" }),
+        [`POST ${completePath}`]: () => {
+          completed = true;
+          return Response.json(outcome("succeeded"));
+        },
+      },
+      runId,
+    );
+    expect(
+      await screen.findByText(
+        (_, element) =>
+          element?.getAttribute("data-slot") === "badge" &&
+          /^Passed/.test(element.textContent ?? ""),
+        {},
+        { timeout: 3000 },
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("names the result tabs and focuses the dialog rather than a button", async () => {
+    mount(resultRoutes("succeeded"), runId);
+    const dialog = await screen.findByRole("dialog");
+    expect(
+      await within(dialog).findByRole("tablist", { name: "Test results" }),
+    ).toBeVisible();
+    expect(dialog).toHaveFocus();
+  });
 });

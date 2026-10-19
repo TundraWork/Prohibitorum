@@ -223,15 +223,18 @@ function LastTestBadges({
         ) : (
           <CircleXIcon aria-hidden="true" />
         )}
-        {passed ? (
-          <Trans id="admin.federation.diagnostics.last.passed">
-            Passed <RelativeTime value={test.finishedAt} />
-          </Trans>
-        ) : (
-          <Trans id="admin.federation.diagnostics.last.failed">
-            Failed <RelativeTime value={test.finishedAt} />
-          </Trans>
-        )}
+        {/* One element, so the badge's gap never splits the sentence. */}
+        <span>
+          {passed ? (
+            <Trans id="admin.federation.diagnostics.last.passed">
+              Passed <RelativeTime value={test.finishedAt} />
+            </Trans>
+          ) : (
+            <Trans id="admin.federation.diagnostics.last.failed">
+              Failed <RelativeTime value={test.finishedAt} />
+            </Trans>
+          )}
+        </span>
       </Badge>
       {test.stale && (
         <Badge variant="warning">

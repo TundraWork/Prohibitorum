@@ -119,6 +119,8 @@ export interface MockConfig {
      * set them all to a valid, an expired or an absent session.
      */
     operatorSession: "fixture" | "valid" | "expired" | "none";
+    /** Whether checking a VRChat operator session is refused by the rate limit. */
+    operatorCheckFails: boolean;
     /**
      * The latest finished connection test every provider reports: `none` has
      * not run one yet, `passed` and `failed` finished that way, `stale`
@@ -322,6 +324,7 @@ export const defaultMockConfig: MockConfig = {
     forwardAuthApps: 6,
     diagnosticOutcome: "succeeded",
     operatorSession: "fixture",
+    operatorCheckFails: false,
     latestConnectionTest: "passed",
     latestConnectionTestAbsent: "picture",
   },

@@ -73,6 +73,7 @@ export function ConnectionTestDialog({
   restarting: boolean;
 }) {
   const queryClient = useQueryClient();
+  const popup = useRef<HTMLDivElement>(null);
   const complete = useMutation(completeDiagnosticMutationOptions(queryClient));
 
   // The window is measured from the clock rather than from how many answers have
@@ -98,6 +99,8 @@ export function ConnectionTestDialog({
     ...diagnosticResultQueryOptions(slug, runId ?? ""),
     enabled: runId !== undefined,
     refetchInterval: (query) => {
+      // A failed read is reported once; polling on would report it every second.
+      if (query.state.status === "error") return false;
       const status = query.state.data?.status;
       if (status === "succeeded" || status === "failed") return false;
       return watching ? pollIntervalSeconds * 1000 : false;
@@ -131,7 +134,10 @@ export function ConnectionTestDialog({
       onOpenChange={(next) => !next && !restarting && close()}
     >
       <DialogPopup
+        ref={popup}
         className="sm:max-w-2xl"
+        // The result is read, not answered: focus the dialog rather than a button.
+        initialFocus={() => popup.current ?? true}
         showCloseButton={false}
         portalProps={{ container: getTopLayerContainer() }}
       >
@@ -173,7 +179,11 @@ export function ConnectionTestDialog({
             </Alert>
           )}
           {result.data !== undefined && (
-            <DiagnosticResult key={runId} result={result.data} />
+            <DiagnosticResult
+              key={runId}
+              result={result.data}
+              stalled={timedOut}
+            />
           )}
         </DialogPanel>
         <DialogFooter>
@@ -194,7 +204,14 @@ export function ConnectionTestDialog({
  * The run's overall state, each stage in turn, then what the provider sent:
  * the fields login would map, and the two documents they were read from.
  */
-function DiagnosticResult({ result }: { result: DiagnosticResultView }) {
+function DiagnosticResult({
+  result,
+  stalled,
+}: {
+  result: DiagnosticResultView;
+  /** The watch window has closed while the run is still going. */
+  stalled: boolean;
+}) {
   const { t } = useLingui();
   const state = runState(result.status);
   const hasDetails =
@@ -204,7 +221,7 @@ function DiagnosticResult({ result }: { result: DiagnosticResultView }) {
 
   return (
     <div className="flex flex-col gap-5">
-      {state !== undefined && <RunStatus state={state} />}
+      {state !== undefined && <RunStatus state={state} stalled={stalled} />}
 
       <ol
         aria-label={t({
@@ -236,12 +253,19 @@ const runStatusStyle: Record<
   failed: { variant: "error", icon: <CircleXIcon aria-hidden="true" /> },
 };
 
-function RunStatus({ state }: { state: RunState }) {
+function RunStatus({ state, stalled }: { state: RunState; stalled: boolean }) {
   const { i18n } = useLingui();
   const style = runStatusStyle[state];
+  // A spinner says it is still being watched; once the window has closed it is not.
+  const icon =
+    state === "checking" && stalled ? (
+      <ClockIcon aria-hidden="true" />
+    ) : (
+      style.icon
+    );
   return (
     <Alert variant={style.variant} role="status">
-      {style.icon}
+      {icon}
       <AlertTitle>{i18n._(runStatusLabel(state))}</AlertTitle>
     </Alert>
   );
@@ -254,12 +278,19 @@ function RunStatus({ state }: { state: RunState }) {
  * opens on the mapped fields, and `?test=` stays the only thing in the URL.
  */
 function DiagnosticDetails({ result }: { result: DiagnosticResultView }) {
+  const { t } = useLingui();
   const userinfoStage = result.stages?.find(
     (stage) => stage.name === "userinfo",
   );
   return (
     <Tabs defaultValue="identity">
-      <TabsList variant="underline">
+      <TabsList
+        variant="underline"
+        aria-label={t({
+          id: "admin.federation.diagnostics.details",
+          message: "Test results",
+        })}
+      >
         <TabsTab value="identity">
           <Trans id="admin.federation.diagnostics.identity">
             Mapped fields

@@ -523,6 +523,18 @@ describe("mocked management directory", () => {
     expect(new Set(sessions("valid"))).toEqual(new Set(["valid"]));
   });
 
+  it("refuses an operator check when the panel says so", () => {
+    const reply = call(
+      "POST",
+      "/api/prohibitorum/identity-providers/{slug}/operator-session/validate",
+      config((draft) => {
+        draft.writes = true;
+        draft.admin.operatorCheckFails = true;
+      }),
+    );
+    expect(reply).toMatchObject({ kind: "error", status: 429 });
+  });
+
   it("lets the not-ready mask make an enabled provider not ready", () => {
     const page = bodyOf(
       read(

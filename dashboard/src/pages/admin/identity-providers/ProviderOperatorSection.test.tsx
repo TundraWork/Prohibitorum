@@ -111,12 +111,13 @@ describe("checking the session", () => {
     expect(notifyError).not.toHaveBeenCalled();
   });
 
-  it("reports a refused check once", async () => {
+  it("tells a refused check once, under the row, and not as a toast", async () => {
     const user = mount(configured, {
       [`POST ${base}/validate`]: () => apiError("rate_limited", 429),
     });
     await user.click(screen.getByRole("button", { name: "Check" }));
-    await waitFor(() => expect(notifyError).toHaveBeenCalledTimes(1));
+    expect(await screen.findAllByRole("alert")).toHaveLength(1);
+    expect(notifyError).not.toHaveBeenCalled();
   });
 });
 
@@ -248,6 +249,50 @@ describe("the sign-in dialog", () => {
     await user.click(screen.getByRole("button", { name: "Sign in" }));
     const dialog = await screen.findByRole("dialog");
     await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  });
+
+  it("keeps a half-finished verification through a backdrop click and Escape", async () => {
+    const user = mount(provider(), {
+      [`POST ${base}/start`]: () => Response.json(challenge),
+    });
+    const dialog = await signInAs(user);
+    await within(dialog).findByRole("radiogroup", {
+      name: "Verification method",
+    });
+
+    const backdrop = document.querySelector('[data-slot="dialog-backdrop"]');
+    if (backdrop === null) throw new Error("no dialog backdrop");
+    await user.click(backdrop);
+    expect(screen.getByRole("dialog")).toBeVisible();
+    await user.click(within(dialog).getByRole("radio", { name: "Email code" }));
+    await user.keyboard("{Escape}");
+    expect(screen.getByRole("dialog")).toBeVisible();
+    expect(within(dialog).queryByRole("button", { name: "Close" })).toBeNull();
+    expect(api.sent("POST", `${base}/start`)).toHaveLength(1);
+  });
+
+  it("starts over from the first step after Cancel at the verification step", async () => {
+    const user = mount(provider(), {
+      [`POST ${base}/start`]: () => Response.json(challenge),
+    });
+    const dialog = await signInAs(user);
+    await within(dialog).findByRole("radiogroup", {
+      name: "Verification method",
+    });
+    await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
+    const reopened = await screen.findByRole("dialog");
+    expect(within(reopened).getByLabelText("Username")).toBeVisible();
+  });
+
+  it("closes on a backdrop click or Escape at the first step", async () => {
+    const user = mount(provider());
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
+    await screen.findByRole("dialog");
+    await user.keyboard("{Escape}");
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
 });

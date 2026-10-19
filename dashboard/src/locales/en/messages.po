@@ -7462,6 +7462,11 @@ msgstr "Test passed"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ConnectionTestDialog.tsx
+msgid "admin.federation.diagnostics.details"
+msgstr "Test results"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ConnectionTestDialog.tsx
 msgid "admin.federation.diagnostics.stages"
 msgstr "Test stages"
 

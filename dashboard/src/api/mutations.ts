@@ -1778,10 +1778,16 @@ export function completeDiagnosticMutationOptions(queryClient: QueryClient) {
           { params: { path: { slug, id } } },
         ),
       ),
+    // The run's own read, and the summary the Diagnostics row shows beside it.
     onSuccess: (_result, { slug, id }) =>
-      queryClient.invalidateQueries({
-        queryKey: ["admin", "identity-providers", slug, "tests", id],
-      }),
+      Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: ["admin", "identity-providers", slug, "tests", id],
+        }),
+        queryClient.invalidateQueries({
+          queryKey: ["admin", "identity-providers", slug, "tests", "latest"],
+        }),
+      ]),
   });
 }
 

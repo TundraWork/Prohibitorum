@@ -1,8 +1,8 @@
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { RotateCwIcon, ShieldCheckIcon } from "lucide-react";
+import { CircleAlertIcon, RotateCwIcon, ShieldCheckIcon } from "lucide-react";
 import { useId, useState } from "react";
-import { isCancellation } from "@/api/errors";
+import { describeError, isCancellation } from "@/api/errors";
 import {
   startOperatorSessionMutationOptions,
   validateOperatorSessionMutationOptions,
@@ -18,6 +18,7 @@ import { Button } from "@/components/custom/Button";
 import { RelativeTime } from "@/components/custom/RelativeTime";
 import { SettingRow } from "@/components/custom/SettingRow";
 import { getTopLayerContainer } from "@/components/custom/top-layer";
+import { Alert, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
@@ -58,8 +59,10 @@ type Provider = {
  */
 export function ProviderOperatorSection({ provider }: { provider: Provider }) {
   const queryClient = useQueryClient();
+  const { t } = useLingui();
+  // A failed check is told under the row, where the reader pressed it.
   const validate = useMutation(
-    validateOperatorSessionMutationOptions(queryClient),
+    withInlineReport(validateOperatorSessionMutationOptions(queryClient), true),
   );
   const start = useMutation(
     withInlineReport(startOperatorSessionMutationOptions(queryClient), true),
@@ -113,16 +116,27 @@ export function ProviderOperatorSection({ provider }: { provider: Provider }) {
           </Button>
         </div>
       </SettingRow>
+      {validate.error !== null && (
+        <Alert variant="error">
+          <CircleAlertIcon aria-hidden="true" />
+          <AlertTitle>{t(describeError(validate.error))}</AlertTitle>
+        </Alert>
+      )}
 
       {/* A dialog rather than fields on the page: it is a two-step exchange
           with another service, and a password form left open on the page
           would invite walking away from it. */}
       <Dialog
         open={open}
-        onOpenChange={(next) => !next && !busy && setOpen(false)}
+        // Once VRChat has sent a code, closing would throw the step away and the
+        // next sign-in would send another; only Cancel ends it.
+        onOpenChange={(next) =>
+          !next && !busy && challenge === null && setOpen(false)
+        }
       >
         <DialogPopup
           className="sm:max-w-md"
+          showCloseButton={!busy && challenge === null}
           portalProps={{ container: getTopLayerContainer() }}
         >
           <OperatorSignInForm
@@ -350,7 +364,7 @@ function OperatorSignInForm({
           >
             <Trans id="admin.cancel">Cancel</Trans>
           </Button>
-          <form.SubmitButton>
+          <form.SubmitButton fullWidth>
             {challenge === null ? (
               <Trans id="admin.federation.operator.submit">Sign in</Trans>
             ) : (

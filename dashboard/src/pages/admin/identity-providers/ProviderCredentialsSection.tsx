@@ -248,7 +248,7 @@ function SecretForm({
           <Button variant="ghost" disabled={pending} onClick={onCancel}>
             <Trans id="admin.cancel">Cancel</Trans>
           </Button>
-          <form.SubmitButton>
+          <form.SubmitButton fullWidth>
             <Trans id="admin.federation.credentials.save">Save</Trans>
           </form.SubmitButton>
         </DialogFooter>
