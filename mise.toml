@@ -164,22 +164,43 @@ set -eu
 # worktree) share :8080, :18099-:18100, :18443 and the throwaway
 # prohibitorum_smoke database, so the second one must not even start building.
 # A real exclusive lock (not the old once-at-start port probe, which raced
-# away during the tens of seconds the build takes) held for the whole run:
-# wait up to PROHIBITORUM_SMOKE_LOCK_WAIT seconds (default 30), then fail fast
-# with a message naming the holder. The lock directory must be outside any
-# single worktree; per-user if XDG_RUNTIME_DIR exists, else /tmp.
+# away during the tens of seconds the build takes) held for the whole run.
+# A run that finds the lock held QUEUES behind it: a smoke takes ~200s and
+# several agents legitimately run them back to back, so the default wait is
+# 1200s; set PROHIBITORUM_SMOKE_LOCK_WAIT lower (e.g. 30) to fail fast
+# instead of queueing. The lock directory must be outside any single
+# worktree; per-user if XDG_RUNTIME_DIR exists, else /tmp. It covers the task
+# body only — the `depends` build:web phase runs before it and needs no
+# cross-worktree lock, because each checkout builds into its own dist.
 LOCK_ROOT="${XDG_RUNTIME_DIR:-/tmp}/prohibitorum-smoke"
 LOCK_FILE="$LOCK_ROOT/ci-smoke.lock"
+LOCK_WAIT="${PROHIBITORUM_SMOKE_LOCK_WAIT:-1200}"
 command -v flock >/dev/null 2>&1 || {
   echo "ci:smoke requires flock (util-linux) to serialize runs; not found in PATH." >&2
   exit 1
 }
 mkdir -p "$LOCK_ROOT"
 exec 9>"$LOCK_FILE"
-if ! flock -w "${PROHIBITORUM_SMOKE_LOCK_WAIT:-30}" 9; then
-  holder="$(fuser "$LOCK_FILE" 2>/dev/null | tr -s ' ' ',' | tr -d ' ')"
-  echo "ci:smoke: another smoke run holds the lock ($LOCK_FILE${holder:+, pid ${holder#,}}); it owns :8080, :18099-:18100, :18443 and the prohibitorum_smoke database. Wait for it to finish, or raise PROHIBITORUM_SMOKE_LOCK_WAIT." >&2
-  exit 1
+# fuser lists every fd-9 holder, including this run's own probe pipeline;
+# walk each candidate's /proc ancestry and skip anything descended from $$.
+first_holder() {
+  for p in $(fuser "$LOCK_FILE" 2>/dev/null | tr -s ' ' '\n' | grep -vx "$$"); do
+    a=$p
+    while [ -n "$a" ] && [ "$a" -gt 1 ] 2>/dev/null; do
+      a=$(awk '{print $4}' "/proc/$a/stat" 2>/dev/null) || { a=; break; }
+      [ "$a" = "$$" ] && { a=holder; break; }
+    done
+    [ "$a" = holder ] && continue
+    printf '%s\n' "$p"
+    return
+  done
+}
+if ! flock -n 9; then
+  echo "ci:smoke: waiting up to ${LOCK_WAIT}s for the smoke run held by pid $(first_holder) to release $LOCK_FILE…" >&2
+  if ! flock -w "$LOCK_WAIT" 9; then
+    echo "ci:smoke: lock still held (pid $(first_holder)) after ${LOCK_WAIT}s; it owns :8080, :18099-:18100, :18443 and the prohibitorum_smoke database. Set PROHIBITORUM_SMOKE_LOCK_WAIT higher, or stop the other run." >&2
+    exit 1
+  fi
 fi
 # The smoke server listens on :8080 behind the TLS proxy. Anything already
 # answering there (usually `mise run dev:server`) takes its traffic and fails
@@ -193,8 +214,12 @@ fi
 # Worktrees must address the repository's canonical compose project rather than
 # creating a second Postgres container that collides on host port 5432.
 export COMPOSE_PROJECT_NAME=prohibitorum
-scripts/db.sh ensure
-scripts/db.sh recreate-db prohibitorum_smoke
+# fd 9 must not cross into db.sh: children inherit it, and when `db.sh ensure`
+# has to start Postgres, rootless podman leaves conmon holding the lock after
+# the task exits — every later smoke then queues behind a conmon pid. The
+# server and mocks can keep fd 9 (they die with the task).
+scripts/db.sh ensure 9>&-
+scripts/db.sh recreate-db prohibitorum_smoke 9>&-
 export PROHIBITORUM_DATABASE_URL="postgres://prohibitorum:prohibitorum@localhost:5432/prohibitorum_smoke?sslmode=disable"
 export PROHIBITORUM_DATA_ENCRYPTION_KEY_V1="$(openssl rand -base64 32)"
 export PROHIBITORUM_PUBLIC_ORIGIN="https://127.0.0.1:18443"
@@ -207,24 +232,40 @@ TMP_DIR="$(mktemp -d)"
 SERVER_PID=
 STEAM_MOCK_PID=
 VRCHAT_MOCK_PID=
+FG_PID=
 cleanup() {
-  local rc=$?
+  # EXIT reads $?; HUP/INT/TERM pass their own code (129/130/143) —
+  # `local rc=$?` is wrong on the signal paths because $? is 0 there.
+  rc=${1:-$?}
   trap - EXIT HUP INT TERM
-  # TERM/INT arrive while `go run`/`sleep` is the foreground job; it dies
-  # with the signal and `set -eu` aborts into this trap, so an interrupted
-  # run cannot keep polling. Kill the children first so they cannot rebind
-  # the ports before the lock is released.
+  # Interrupt the foreground step first so a TERM takes effect immediately
+  # instead of waiting out a `go run`/`go build` that never forwards it.
+  if [ -n "$FG_PID" ]; then
+    pkill -TERM -P "$FG_PID" 2>/dev/null || true
+    kill -TERM "$FG_PID" 2>/dev/null || true
+  fi
   [ -z "$SERVER_PID" ] || kill "$SERVER_PID" 2>/dev/null || true
   [ -z "$STEAM_MOCK_PID" ] || kill "$STEAM_MOCK_PID" 2>/dev/null || true
   [ -z "$VRCHAT_MOCK_PID" ] || kill "$VRCHAT_MOCK_PID" 2>/dev/null || true
-  wait "$SERVER_PID" "$STEAM_MOCK_PID" "$VRCHAT_MOCK_PID" 2>/dev/null || true
+  wait "$SERVER_PID" "$STEAM_MOCK_PID" "$VRCHAT_MOCK_PID" "$FG_PID" 2>/dev/null || true
   rm -rf "$TMP_DIR"
   exit "$rc"
 }
-trap cleanup EXIT HUP INT TERM
+trap cleanup EXIT
+trap 'cleanup 129' HUP
+trap 'cleanup 130' INT
+trap 'cleanup 143' TERM
 
 # Steam remains isolated behind its existing HTTP mock.
-go build -o "$TMP_DIR/steammock" ./cmd/steammock
+# Every blocking step runs as a background job waited on by the shell, so a
+# signal interrupts the `wait` at once and cleanup can stop the step's whole
+# child tree (pkill -TERM -P). The smoke binary is built here alongside the
+# other builds so the e2e step runs the binary directly — `go run` would
+# swallow the TERM.
+go build -o "$TMP_DIR/steammock" ./cmd/steammock &
+FG_PID=$!; wait "$FG_PID"; FG_PID=
+go build -o "$TMP_DIR/smoke" ./cmd/smoke &
+FG_PID=$!; wait "$FG_PID"; FG_PID=
 STEAM_MOCK_PORT=18099
 "$TMP_DIR/steammock" --addr "127.0.0.1:${STEAM_MOCK_PORT}" >"$TMP_DIR/steam.log" 2>&1 & STEAM_MOCK_PID=$!
 export PROHIBITORUM_STEAM_LOGIN_ENDPOINT="http://127.0.0.1:${STEAM_MOCK_PORT}/openid/login"
@@ -242,7 +283,8 @@ printf 'subjectAltName=IP:127.0.0.1\nextendedKeyUsage=serverAuth\n' >"$TMP_DIR/v
 openssl x509 -req -days 1 -sha256 \
   -in "$TMP_DIR/vrchat.csr" -CA "$TMP_DIR/ca.pem" -CAkey "$TMP_DIR/ca-key.pem" -CAcreateserial \
   -extfile "$TMP_DIR/vrchat.ext" -out "$TMP_DIR/vrchat.pem" >/dev/null 2>&1
-go build -o "$TMP_DIR/vrchatmock" ./cmd/vrchatmock
+go build -o "$TMP_DIR/vrchatmock" ./cmd/vrchatmock &
+FG_PID=$!; wait "$FG_PID"; FG_PID=
 "$TMP_DIR/vrchatmock" --addr 127.0.0.1:18100 --proxy-addr 127.0.0.1:18443 --proxy-target http://127.0.0.1:8080 --cert "$TMP_DIR/vrchat.pem" --key "$TMP_DIR/vrchat-key.pem" >"$TMP_DIR/vrchat.log" 2>&1 & VRCHAT_MOCK_PID=$!
 export PROHIBITORUM_VRCHAT_SMOKE_ORIGIN="https://127.0.0.1:18100/api/1"
 export PROHIBITORUM_VRCHAT_SMOKE_CA_FILE="$TMP_DIR/ca.pem"
@@ -259,7 +301,8 @@ export SSL_CERT_FILE="$TMP_DIR/ca.pem"
 
 # Build once so the trap owns the actual server process. The smoke tag is
 # required for the loopback-only VRChat origin/CA seam; default builds ignore it.
-go build -tags 'nodynamic smoke' -o "$TMP_DIR/prohibitorum" ./cmd/prohibitorum
+go build -tags 'nodynamic smoke' -o "$TMP_DIR/prohibitorum" ./cmd/prohibitorum &
+FG_PID=$!; wait "$FG_PID"; FG_PID=
 "$TMP_DIR/prohibitorum" >"$TMP_DIR/server.log" 2>&1 & SERVER_PID=$!
 ready=
 for _ in $(seq 1 60); do
@@ -272,13 +315,15 @@ done
 export PROHIBITORUM_TEST_DATABASE_URL="$PROHIBITORUM_DATABASE_URL"
 scripts/gate.sh smoke-postgres go test ./db/migrations ./pkg/server ./cmd/prohibitorum \
   -run '^(TestAccountFilterSchemaPostgres|TestAccountIdentityFilteringMigrationPostgres|TestAppManagerRuleGroupsMigrationPostgres|TestAppPolicyReplacementLocksApplicationPostgres|TestApplicationAssignmentRolesMigrationPostgres|TestApplicationListsFilterAssignmentsBeforePaginationPostgres|TestAvatarSyncFetchMigrationPostgres|TestDeleteIdentityProviderRemovesLinkedIdentitiesPostgres|TestDeleteIdentityProviderWithoutLinksPostgres|TestEnrollmentProviderGateLockBlocksConcurrentDisablePostgres|TestEnrollmentRecoveryAccountLockBlocksConcurrentDisablePostgres|TestForwardAuthResponsesCarryStoredRemoteUserSourcePostgres|TestGlobalUserGroupsMigrationDownWhenLossless|TestGlobalUserGroupsMigrationPostgres|TestHasConfirmedIdentityForProvidersPostgres|TestInvitationUsernameGroupsMigrationPostgres|TestListAccountsIdentityFiltersPostgres|TestListConfirmedIdentitiesForProvidersPostgres|TestListCredentialEventsAccountUsernamePostgres|TestListPaginationClampsLimitPostgres|TestListPaginationLimitAndCursorPostgres|TestListPaginationRejectsForeignCursorPostgres|TestLoginAppearanceMigrationDownPostgres|TestLoginAppearanceMigrationMovesBackgroundPostgres|TestLoginAppearanceMigrationWithoutBackgroundPostgres|TestLoginLayoutMigrationPostgres|TestLoginLayoutMigrationWithoutAppearancePostgres|TestOIDCClientAuthMethodMigrationPostgres|TestOIDCClientPublicRequiresPkceMigrationPostgres|TestOIDCIdentityProjectionMigrationPostgres|TestOIDCSubjectClaimMigrationPostgres|TestPATAccessLevelsMigrationPostgres|TestProviderAllowSignInMigrationPostgres|TestSeedAppPolicyDemoCreatesCompleteShowcase|TestSeedAppPolicyDemoIsIdempotentAndPreservesUnrelatedData|TestSeedAppPolicyDemoPreservesExistingAvatarSources|TestSeedAppPolicyDemoWrongKindConflictRollsBack|TestSeedProvidersSkipsExistingDisabledProvider|TestUnsplashRotationMigrationPostgres|TestUnsplashRotationMigrationWithoutAppearancePostgres|TestUpdateOIDCApplicationAcceptsValidLaunchUrlPostgres|TestUpdateOIDCApplicationRejectsBadLaunchUrlWithoutWritingPostgres|TestUpstreamOIDCEndpointsMigrationPostgres|TestVRChatLinkOnlyEnrollmentMigrationPostgres)$' \
-  -count=1
-scripts/gate.sh smoke-e2e go run ./cmd/smoke \
+  -count=1 &
+FG_PID=$!; wait "$FG_PID"; FG_PID=
+scripts/gate.sh smoke-e2e "$TMP_DIR/smoke" \
   --base-url https://127.0.0.1:18443 \
   --vrchat-control-origin https://127.0.0.1:18100 \
   --vrchat-ca-file "$TMP_DIR/ca.pem" \
   --server-log "$TMP_DIR/server.log" \
-  --vrchat-log "$TMP_DIR/vrchat.log"
+  --vrchat-log "$TMP_DIR/vrchat.log" &
+FG_PID=$!; wait "$FG_PID"; FG_PID=
 """
 
 [tasks."ci:release-check"]
