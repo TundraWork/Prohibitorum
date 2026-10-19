@@ -1317,13 +1317,9 @@ msgstr "Cancel"
 #: src/components/custom/AppAccessSection.tsx
 #: src/components/custom/AppManagersSection.tsx
 #: src/pages/admin/AdminInvitationForm.tsx
+#: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
 #: src/pages/admin/saml-applications/SamlMetadataSection.tsx
 msgid "admin.cancel"
-msgstr "Cancel"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
-msgid "admin.oidc-apps.new.cancel"
 msgstr "Cancel"
 
 #. js-lingui-explicit-id

@@ -139,13 +139,40 @@ body {
  * table's own overflow container rather than the frame around it.
  */
 /* The frame band is translucent: a pinned header paints the surface beneath
-   it, then the same band, so it is opaque and matches the other headers. */
+   it, then the band itself on a pseudo-element, blended the way the frame's own
+   background is, so the two read as one band and the cell stays opaque. */
 .data-table [data-slot="table-head"][data-pinned] {
   background-color: var(--content-surface);
-  background-image: linear-gradient(
-    color-mix(in oklab, var(--muted) 72%, transparent),
-    color-mix(in oklab, var(--muted) 72%, transparent)
-  );
+  isolation: isolate;
+}
+
+.data-table [data-slot="table-head"][data-pinned]::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+  background-color: color-mix(in oklab, var(--muted) 72%, transparent);
+}
+
+/* A pinned cell's background runs under its border, so a translucent divider
+   would blend with the card instead of the frame the other cells' dividers
+   sit over. The same colour, opaque: the frame's tint (4% black or white, the
+   console's muted) with the border's alpha (8% black, or 6% white) over it. */
+.data-table td[data-pinned] {
+  border-color: color-mix(in srgb, var(--content-surface) 89.35%, black);
+}
+
+.dark .data-table td[data-pinned] {
+  border-color: color-mix(in srgb, var(--content-surface) 91.29%, white);
+}
+
+/* In the dark theme the first row's top divider is drawn over the header
+   row's own bottom divider, so it reads brighter across the table; the pinned
+   cell repeats that, or the line dims where the column begins. */
+.dark .data-table tbody tr:first-child td[data-pinned] {
+  border-top-color: color-mix(in srgb, var(--content-surface) 84.3%, white);
 }
 
 @supports (animation-timeline: scroll()) {

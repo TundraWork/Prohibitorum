@@ -1872,7 +1872,7 @@ export function retireSigningKeyMutationOptions(queryClient: QueryClient) {
  * The create answers with a client secret once, for a confidential client. The
  * page reveals it and only then navigates; nothing here caches it.
  */
-export function createOidcAppMutationOptions() {
+export function createOidcAppMutationOptions(queryClient: QueryClient) {
   return mutationOptions({
     retry: false,
     mutationFn: async (
@@ -1881,6 +1881,9 @@ export function createOidcAppMutationOptions() {
       requireJsonData(
         client.POST("/api/prohibitorum/oidc-applications", { body }),
       ),
+    // The list a reader returns to must show the new application.
+    onSuccess: (created) =>
+      invalidateApplication(queryClient, "oidc", created.clientId),
   });
 }
 

@@ -1,7 +1,7 @@
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useStore } from "@tanstack/react-form";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import {
   IdCardIcon,
@@ -88,8 +88,9 @@ const nameRequired = msg({
 export function AdminOidcApplicationNew() {
   const { t } = useLingui();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const create = useMutation(
-    withInlineReport(createOidcAppMutationOptions(), true),
+    withInlineReport(createOidcAppMutationOptions(queryClient), true),
   );
 
   const [isPublic, setIsPublic] = useState(false);
@@ -371,7 +372,7 @@ export function AdminOidcApplicationNew() {
                 variant="ghost"
                 render={<Link to="/admin/oidc-applications" />}
               >
-                <Trans id="admin.oidc-apps.new.cancel">Cancel</Trans>
+                <Trans id="admin.cancel">Cancel</Trans>
               </Button>
             </div>
           </form.Form>

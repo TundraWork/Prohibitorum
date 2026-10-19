@@ -1,5 +1,5 @@
 import type { QueryClient } from "@tanstack/react-query";
-import { screen, waitFor, within } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createQueryClient } from "@/app/query-client";
@@ -220,7 +220,7 @@ describe("a failed read", () => {
     renderApp("/admin/oidc-applications", queryClient);
 
     await screen.findByRole("alert");
-    await waitFor(() => expect(notifyError).not.toHaveBeenCalled());
+    expect(notifyError).not.toHaveBeenCalled();
     expect(screen.queryByText("No OIDC applications yet")).toBeNull();
   });
 });

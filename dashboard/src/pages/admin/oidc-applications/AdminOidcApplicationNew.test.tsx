@@ -287,7 +287,7 @@ describe("creating", () => {
 
   it("puts a taken Client ID on its field, and says it once", async () => {
     serve(() => apiError("oidc_client_already_exists", 409));
-    const { user } = await mountForm();
+    const { user, router } = await mountForm();
 
     await fill(user);
     await user.click(
@@ -296,6 +296,9 @@ describe("creating", () => {
 
     const field = screen.getByRole("textbox", { name: /^Client ID/ });
     await waitFor(() => expect(field).toHaveAttribute("aria-invalid", "true"));
+    expect(field).toHaveAccessibleDescription(/already/i);
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(router.state.location.pathname).toBe("/admin/oidc-applications/new");
     expect(notifyError).not.toHaveBeenCalled();
   });
 
@@ -310,6 +313,26 @@ describe("creating", () => {
 
     await screen.findByRole("alert");
     expect(notifyError).not.toHaveBeenCalled();
+  });
+});
+
+describe("the list afterwards", () => {
+  it("is invalidated by a creation, so it shows the new application", async () => {
+    serve(() =>
+      Response.json({ clientId: "wiki", displayName: "Wiki" }, { status: 201 }),
+    );
+    const { user } = await mountForm();
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+
+    await fill(user);
+    await user.click(
+      screen.getByRole("button", { name: "Create application" }),
+    );
+    await screen.findByRole("heading", { level: 1, name: "Wiki" });
+
+    expect(invalidate).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: ["admin", "oidc-applications"] }),
+    );
   });
 });
 
