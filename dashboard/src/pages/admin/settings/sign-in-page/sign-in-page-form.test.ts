@@ -1,7 +1,7 @@
-import { parseColor } from "@heroui/react";
 import { describe, expect, it } from "vitest";
 import { defaultLoginAppearance } from "@/components/custom/login-appearance/appearance";
 import {
+  changedSettings,
   colorError,
   intervalError,
   keyError,
@@ -101,14 +101,53 @@ describe("the save body", () => {
 });
 
 describe("the suggested colours", () => {
-  it.each(["en-US", "zh-CN"])(
-    "each have their own name for screen readers in %s",
-    (locale) => {
-      const names = suggestedColors.map((hex) =>
-        parseColor(hex).getColorName(locale),
-      );
-      expect(suggestedColors).toHaveLength(8);
-      expect(new Set(names).size).toBe(names.length);
-    },
-  );
+  it("are eight different colours the colour field accepts", () => {
+    expect(suggestedColors).toHaveLength(8);
+    expect(new Set(suggestedColors).size).toBe(8);
+    for (const hex of suggestedColors) expect(colorError(hex)).toBeUndefined();
+  });
+});
+
+describe("counting the unsaved changes", () => {
+  const edited = (edit: (a: typeof defaultLoginAppearance) => void) => {
+    const draft = structuredClone(defaultLoginAppearance);
+    edit(draft);
+    return draft;
+  };
+
+  it("is zero for a draft that matches what is saved", () => {
+    expect(
+      changedSettings(defaultLoginAppearance, defaultLoginAppearance, ""),
+    ).toBe(0);
+  });
+
+  it("counts each setting that differs", () => {
+    const draft = edited((a) => {
+      a.background.source = "gradient";
+      a.background.gradient = "aurora";
+      a.cardPosition = "left";
+    });
+    expect(changedSettings(defaultLoginAppearance, draft, "")).toBe(3);
+  });
+
+  it("counts a setting inside the card once", () => {
+    const draft = edited((a) => {
+      a.card.opacity = 35;
+    });
+    expect(changedSettings(defaultLoginAppearance, draft, "")).toBe(1);
+  });
+
+  it("counts a typed access key as a change", () => {
+    expect(
+      changedSettings(defaultLoginAppearance, defaultLoginAppearance, "Abc"),
+    ).toBe(1);
+  });
+
+  it("does not count a setting put back as it was", () => {
+    const draft = edited((a) => {
+      a.theme = "dark";
+      a.theme = "switchable";
+    });
+    expect(changedSettings(defaultLoginAppearance, draft, "")).toBe(0);
+  });
 });

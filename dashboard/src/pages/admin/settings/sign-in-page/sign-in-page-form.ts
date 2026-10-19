@@ -153,3 +153,35 @@ export function signInPageBody(values: SignInPageValues): LoginAppearanceWrite {
         unsplashAccessKey: values.unsplashAccessKey,
       };
 }
+
+/**
+ * How many settings the draft changes from what is saved, a typed access key
+ * counting as one. Each leaf value that differs is one change, so choosing a
+ * source and then its picture reads as two.
+ */
+export function changedSettings(
+  saved: LoginAppearance,
+  draft: LoginAppearance,
+  typedKey: string,
+): number {
+  const differing = (a: unknown, b: unknown): number => {
+    if (
+      typeof a === "object" &&
+      a !== null &&
+      typeof b === "object" &&
+      b !== null
+    ) {
+      return Object.keys(a).reduce(
+        (sum, key) =>
+          sum +
+          differing(
+            (a as Record<string, unknown>)[key],
+            (b as Record<string, unknown>)[key],
+          ),
+        0,
+      );
+    }
+    return Object.is(a, b) ? 0 : 1;
+  };
+  return differing(saved, draft) + (typedKey === "" ? 0 : 1);
+}

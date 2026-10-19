@@ -2455,6 +2455,7 @@ msgstr "使用 {name} 继续"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/LoginPreview.tsx
+#: src/pages/admin/settings/sign-in-page/SignInPreview.tsx
 msgid "settings.sign-in.preview.continue"
 msgstr "使用密码继续"
 
@@ -2702,11 +2703,13 @@ msgstr "无法复制。请选中上面的值，手动复制。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/LoginPreview.tsx
+#: src/pages/admin/settings/sign-in-page/SignInPreview.tsx
 msgid "settings.sign-in.preview.unsplash_failed"
 msgstr "无法从 Unsplash 获取照片。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/LoginPreview.tsx
+#: src/pages/admin/settings/sign-in-page/SignInPreview.tsx
 msgid "settings.sign-in.preview.bing_failed"
 msgstr "无法从 Bing 获取图片。"
 
@@ -4509,13 +4512,13 @@ msgid "success.sign-in-image.removed"
 msgstr "图片已移除"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/sign-in-page/LoginImagesControl.tsx
-msgid "settings.sign-in.images"
+#: src/pages/admin/settings/SignInPageControls.tsx
+msgid "settings.sign-in.source.images"
 msgstr "图片"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/SignInPageControls.tsx
-msgid "settings.sign-in.source.images"
+#: src/pages/admin/settings/sign-in-page/LoginImagesControl.tsx
+msgid "settings.sign-in.images"
 msgstr "图片"
 
 #. js-lingui-explicit-id
@@ -6239,6 +6242,7 @@ msgstr "密码"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/LoginPreview.tsx
+#: src/pages/admin/settings/sign-in-page/SignInPreview.tsx
 msgid "settings.sign-in.preview.password"
 msgstr "密码"
 
@@ -7448,6 +7452,7 @@ msgstr "保存"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/LoginPreview.tsx
+#: src/pages/admin/settings/sign-in-page/SignInPreview.tsx
 msgid "settings.sign-in.preview.unsplash_key"
 msgstr "保存 Access Key 后可预览 Unsplash 图片。"
 
@@ -7797,6 +7802,7 @@ msgstr "去登录"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/LoginPreview.tsx
+#: src/pages/admin/settings/sign-in-page/SignInPreview.tsx
 msgid "settings.sign-in.preview.sign_in"
 msgstr "登录"
 
@@ -7882,6 +7888,7 @@ msgstr "使用通行密钥登录"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/LoginPreview.tsx
+#: src/pages/admin/settings/sign-in-page/SignInPreview.tsx
 msgid "settings.sign-in.preview.passkey"
 msgstr "使用通行密钥登录"
 
@@ -8000,6 +8007,11 @@ msgstr "登录页"
 #: src/pages/admin/settings/SignInPagePanel.tsx
 msgid "settings.sign-in.form"
 msgstr "登录页"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/sign-in-page/SignInPreview.tsx
+msgid "settings.sign-in.preview.frame"
+msgstr "登录页预览"
 
 #. js-lingui-explicit-id
 #: src/api/success-messages.ts
@@ -10079,6 +10091,7 @@ msgstr "用户名"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/LoginPreview.tsx
+#: src/pages/admin/settings/sign-in-page/SignInPreview.tsx
 msgid "settings.sign-in.preview.username"
 msgstr "用户名"
 
