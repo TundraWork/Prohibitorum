@@ -438,6 +438,12 @@ function ConditionRow({
     isProvider && condition.value !== "" && known === undefined;
   // Only a list that has loaded can say a provider is not in it.
   const unknownProvider = unnamedProvider && providersState === "loaded";
+  // The same note stands over a saved slug and over an empty picker: either way
+  // the names the reader would choose from are missing.
+  const namesFailed =
+    isProvider &&
+    providersState === "failed" &&
+    (unnamedProvider || condition.value === "");
 
   const factText = catalogue._(factLabels[condition.fact]);
   const valueText = isProvider
@@ -558,10 +564,18 @@ function ConditionRow({
                   ) : unknownProvider ? (
                     <Trans id="admin.group.rule.provider.unknown">
                       Unknown provider (
-                      <span className="font-mono">{selected}</span>)
+                      <span
+                        data-slot="rule-provider-slug"
+                        className="font-mono"
+                      >
+                        {selected}
+                      </span>
+                      )
                     </Trans>
                   ) : unnamedProvider ? (
-                    <span className="font-mono">{selected}</span>
+                    <span data-slot="rule-provider-slug" className="font-mono">
+                      {selected}
+                    </span>
                   ) : (
                     valueText
                   )
@@ -593,7 +607,7 @@ function ConditionRow({
         </Button>
       </div>
       <Messages id={messageId} codes={codes} />
-      {unnamedProvider && providersState === "failed" && (
+      {namesFailed && (
         <p id={noteId} className="text-muted-foreground text-xs">
           <Trans id="admin.group.rule.provider.names-failed">
             The provider names could not be loaded.

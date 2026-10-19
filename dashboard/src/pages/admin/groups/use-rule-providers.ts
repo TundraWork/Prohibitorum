@@ -27,11 +27,9 @@ export function useRuleProviders(): {
   const catalogue = useQuery(quietQuery(groupProvidersQueryOptions()));
   const states = useQuery(quietQuery(identityProvidersQueryOptions()));
   const entries = catalogue.data;
-  const state: RuleProvidersState = catalogue.isError
-    ? "failed"
-    : entries === undefined
-      ? "loading"
-      : "loaded";
+  // A list read earlier is still the list when a refresh fails, so it is trusted.
+  const state: RuleProvidersState =
+    entries !== undefined ? "loaded" : catalogue.isError ? "failed" : "loading";
   const stateItems = states.data?.items;
   return useMemo(() => {
     if (entries === undefined)

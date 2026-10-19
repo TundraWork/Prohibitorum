@@ -30,6 +30,7 @@ export function SubmitButton({
   disabled = false,
   variant = "default",
   size = "default",
+  describedBy,
 }: {
   children: ReactNode;
   fullWidth?: boolean;
@@ -38,6 +39,8 @@ export function SubmitButton({
   variant?: "default" | "outline";
   /** `lg` for a page whose form is its main event, as the sign-in steps are. */
   size?: "default" | "lg";
+  /** The element that says why the button is disabled, or what it will do. */
+  describedBy?: string;
 }) {
   const form = useFormContext();
   const submitting = useStore(form.store, (state) => state.isSubmitting);
@@ -48,6 +51,7 @@ export function SubmitButton({
         className={fullWidth ? "w-full" : undefined}
         pending={submitting}
         disabled={disabled}
+        aria-describedby={describedBy}
         variant={
           tone === "destructive"
             ? "destructive"

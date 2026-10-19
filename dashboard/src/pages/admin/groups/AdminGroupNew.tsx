@@ -2,7 +2,7 @@ import { Description, Label, Radio, RadioGroup } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useRouter } from "@tanstack/react-router";
-import { useState } from "react";
+import { useId, useState } from "react";
 import { createGroupMutationOptions } from "@/api/mutations";
 import type { CreateGroupRequest } from "@/api/raw-admin-paths";
 import { withRouterSkipLoading } from "@/app/router";
@@ -41,6 +41,7 @@ export function AdminGroupNew() {
 
   const [kind, setKind] = useState<GroupKind>("manual");
   const [tree, setTree] = useState(newRule);
+  const reasonId = useId();
 
   const create = useMutation(createGroupMutationOptions(queryClient));
   const ruleGroup = kind === "rule";
@@ -225,11 +226,19 @@ export function AdminGroupNew() {
             >
               <Trans id="admin.group.cancel">Cancel</Trans>
             </Button>
-            <form.SubmitButton disabled={ruleGroup && issues.length > 0}>
+            <form.SubmitButton
+              disabled={ruleGroup && issues.length > 0}
+              describedBy={
+                ruleGroup && issues.length > 0 ? reasonId : undefined
+              }
+            >
               <Trans id="admin.group.create">Create group</Trans>
             </form.SubmitButton>
             {ruleGroup && issues.length > 0 && (
-              <p className="self-center text-destructive-foreground text-sm">
+              <p
+                id={reasonId}
+                className="self-center text-destructive-foreground text-sm"
+              >
                 <RuleIssueSummary issues={issues} />
               </p>
             )}

@@ -398,7 +398,11 @@ describe("the root and nested groups", () => {
     for (const button of screen.getAllByRole("button", { name: "Add group" })) {
       expect(button).toBeEnabled();
     }
-    expect(screen.queryByText("Groups nest at most 8 deep.")).toBeNull();
+    expect(
+      screen.queryByText(
+        "Conditions sit at most 8 levels deep, so no group fits here.",
+      ),
+    ).toBeNull();
   });
 });
 
@@ -484,12 +488,36 @@ describe("a saved provider before the list can name it", () => {
     );
   });
 
+  it("puts the same note over an empty picker when the list could not be loaded", () => {
+    render(
+      <I18nProvider i18n={i18n}>
+        <RuleBuilder
+          value={parseRule(
+            doc({
+              op: "all",
+              children: [{ fact: "connection.provider", provider: "" }],
+            }),
+          )}
+          onChange={() => undefined}
+          issues={[]}
+          providers={[]}
+          providersState="failed"
+        />
+      </I18nProvider>,
+    );
+    expect(
+      screen.getByText("The provider names could not be loaded."),
+    ).toBeVisible();
+  });
+
   it("calls it unknown only once the list has loaded, drawing the slug alone in monospace", () => {
     const value = mountWith("loaded");
     expect(value).toHaveTextContent("Unknown provider (retired-sso)");
     const slug = within(value).getByText("retired-sso");
-    expect(slug).toHaveClass("font-mono");
-    expect(value.querySelector(".font-mono")).toBe(slug);
+    expect(slug).toHaveAttribute("data-slot", "rule-provider-slug");
+    expect(
+      within(value).getAllByText(/./, { selector: "[data-slot]" }),
+    ).toContain(slug);
   });
 });
 
