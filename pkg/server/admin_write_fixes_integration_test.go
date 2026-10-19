@@ -21,9 +21,11 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"slices"
+	"strconv"
 	"testing"
 	"time"
 
@@ -32,6 +34,7 @@ import (
 
 	"prohibitorum/pkg/contract"
 	"prohibitorum/pkg/db"
+	"prohibitorum/pkg/kv"
 	oidc "prohibitorum/pkg/protocol/oidc"
 )
 
@@ -287,6 +290,14 @@ func TestDeleteIdentityProviderRemovesLinkedIdentitiesPostgres(t *testing.T) {
 
 	s := writeFixServer(base)
 
+	// The provider's remembered connection-test outcome lives in the KV store;
+	// deleting the provider must take it too.
+	s.kvStore = kv.NewMemoryStore()
+	latestKey := "oidc:admin-test-latest:" + strconv.FormatInt(providerID, 10)
+	if err := s.kvStore.Set(ctx, latestKey, `{"status":"succeeded"}`); err != nil {
+		t.Fatal(err)
+	}
+
 	// The detail read reports two distinct accounts, not three identity rows.
 	getRR := httptest.NewRecorder()
 	getReq := reqWithSession(http.MethodGet, "/api/prohibitorum/identity-providers/"+slug, "", "", base.server.sess)
@@ -310,6 +321,10 @@ func TestDeleteIdentityProviderRemovesLinkedIdentitiesPostgres(t *testing.T) {
 	s.handleDeleteIdentityProviderHTTP(delRR, delReq)
 	if delRR.Code != http.StatusNoContent {
 		t.Fatalf("delete status = %d, want 204; body %s", delRR.Code, delRR.Body.String())
+	}
+
+	if _, err := s.kvStore.Get(ctx, latestKey); !errors.Is(err, kv.ErrKeyNotFound) {
+		t.Errorf("latest connection test survived the provider delete: err=%v", err)
 	}
 
 	var providerCount, identityCount int

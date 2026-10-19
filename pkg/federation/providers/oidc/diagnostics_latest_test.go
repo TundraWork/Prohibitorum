@@ -136,3 +136,21 @@ func TestLatestDiagnosticWriteFailureLeavesTheRunIntact(t *testing.T) {
 		t.Fatalf("latest=%+v err=%v", latest, err)
 	}
 }
+
+func TestForgetLatestDropsTheRememberedOutcome(t *testing.T) {
+	h := newDiagnosticHarness(t)
+	h.run(t)
+	if latest, _ := h.service.Latest(context.Background(), h.provider); latest == nil {
+		t.Fatal("no outcome remembered after a run")
+	}
+	h.service.ForgetLatest(context.Background(), h.provider.ID)
+	latest, err := h.service.Latest(context.Background(), h.provider)
+	if err != nil || latest != nil {
+		t.Fatalf("latest=%+v err=%v after forgetting", latest, err)
+	}
+}
+
+func TestForgetLatestIsQuietWhenNothingIsRemembered(t *testing.T) {
+	h := newDiagnosticHarness(t)
+	h.service.ForgetLatest(context.Background(), h.provider.ID)
+}

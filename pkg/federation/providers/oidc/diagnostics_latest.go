@@ -63,6 +63,16 @@ func (d *Diagnostics) recordLatest(ctx context.Context, flow diagnosticFlow) {
 	}
 }
 
+// ForgetLatest drops a provider's remembered test outcome. It is for a
+// provider that no longer exists, so the summary does not sit unread until its
+// TTL runs out. Best effort: a failed delete is logged and the caller carries
+// on, because the outcome is only a convenience.
+func (d *Diagnostics) ForgetLatest(ctx context.Context, providerID int64) {
+	if err := d.store.Del(context.WithoutCancel(ctx), latestDiagnosticKey(providerID)); err != nil {
+		slog.WarnContext(ctx, "oidc: forget latest connection test failed", "provider_id", providerID, "error", err)
+	}
+}
+
 // Latest returns the provider's most recent finished test, or nil when none
 // is remembered.
 func (d *Diagnostics) Latest(ctx context.Context, provider federationcore.Provider) (*LatestDiagnostic, error) {

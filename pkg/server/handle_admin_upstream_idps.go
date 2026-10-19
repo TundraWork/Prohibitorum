@@ -670,6 +670,10 @@ func (s *Server) handleDeleteIdentityProviderHTTP(w http.ResponseWriter, r *http
 	// The icon has no foreign key to the provider, so it is not part of the
 	// transaction above and its failure must not fail the delete.
 	_ = s.queries.DeleteEntityIcon(r.Context(), db.DeleteEntityIconParams{OwnerKind: "upstream_idp", OwnerID: body.Slug})
+	// Nor is the remembered connection-test outcome, which lives in the KV store.
+	if s.kvStore != nil {
+		s.oidcDiagnostics().ForgetLatest(r.Context(), row.ID)
+	}
 	audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
 		AccountID: sessionAccountID(r.Context()), Factor: audit.FactorUpstreamIDP,
 		Event: audit.EventRevoke,
