@@ -2482,6 +2482,12 @@ msgid "admin.oidc-apps.credentials"
 msgstr "凭据"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
+#: src/pages/admin/identity-providers/ProviderCredentialsSection.tsx
+msgid "admin.federation.credentials.steam.title"
+msgstr "凭据"
+
+#. js-lingui-explicit-id
 #: src/components/custom/SudoDialog.tsx
 msgid "sudo.password"
 msgstr "当前密码"
@@ -4241,6 +4247,11 @@ msgstr "账号至少需要保留一把通行密钥。请先添加另一把再移
 #: src/pages/security/PasskeysPanel.tsx
 msgid "security.keep"
 msgstr "保留"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderCredentialsSection.tsx
+msgid "admin.federation.credentials.steam.field"
+msgstr "密钥"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/SigningKeysPanel.tsx
@@ -9388,13 +9399,6 @@ msgstr "等待 VRChat…"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
-#: src/pages/admin/identity-providers/ProviderCredentialsSection.tsx
-msgid "admin.federation.credentials.steam.title"
-msgstr "Web API 密钥"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
-#: src/pages/admin/identity-providers/ProviderCredentialsSection.tsx
 msgid "admin.federation.new.steam-key"
 msgstr "Web API 密钥"
 

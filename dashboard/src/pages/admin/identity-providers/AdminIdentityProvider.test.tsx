@@ -175,7 +175,7 @@ describe("the page outline", () => {
     await waitFor(async () =>
       expect(await railLinks()).toEqual([
         "Sign-in",
-        "Web API key",
+        "Credentials",
         "Appearance",
         "Disable or delete",
       ]),
@@ -203,13 +203,13 @@ describe("the secret", () => {
       new Response(null, { status: 204 });
 
     const section = screen
-      .getByRole("heading", { level: 2, name: "Web API key" })
+      .getByRole("heading", { level: 2, name: "Credentials" })
       .closest("section") as HTMLElement;
     await user.click(within(section).getByRole("button", { name: "Set" }));
     const dialog = await screen.findByRole("dialog", {
       name: "Set the Web API key",
     });
-    await user.type(within(dialog).getByLabelText("Web API key"), "KEY");
+    await user.type(within(dialog).getByLabelText("Key"), "KEY");
     await user.click(within(dialog).getByRole("button", { name: "Save" }));
 
     await waitFor(() =>

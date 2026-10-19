@@ -517,11 +517,11 @@ export function AdminIdentityProviderNew() {
 
           {protocol === "steam" && (
             <Section
-              id="web-api-key"
+              id="credentials"
               icon={<KeyRoundIcon />}
               title={
                 <Trans id="admin.federation.credentials.steam.title">
-                  Web API key
+                  Credentials
                 </Trans>
               }
               description={

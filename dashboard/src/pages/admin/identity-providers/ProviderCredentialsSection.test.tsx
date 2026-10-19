@@ -70,8 +70,9 @@ describe("the Steam Web API key", () => {
     mount(steam());
 
     expect(
-      screen.getByRole("heading", { level: 2, name: "Web API key" }),
+      screen.getByRole("heading", { level: 2, name: "Credentials" }),
     ).toBeVisible();
+    expect(screen.getByText("Web API key")).toBeVisible();
     expect(screen.getByText("Not set")).toBeVisible();
     expect(screen.getByRole("button", { name: "Set" })).toBeVisible();
   });
@@ -94,7 +95,7 @@ describe("the Steam Web API key", () => {
     expect(
       within(dialog).getByText("Stored encrypted and never shown again."),
     ).toBeVisible();
-    const field = within(dialog).getByLabelText("Web API key");
+    const field = within(dialog).getByLabelText("Key");
     expect(field).toHaveAttribute("type", "password");
     await user.type(field, "ABC123");
     await user.click(within(dialog).getByRole("button", { name: "Save" }));
@@ -135,14 +136,14 @@ describe("the Steam Web API key", () => {
 
     await user.click(screen.getByRole("button", { name: "Set" }));
     let dialog = await screen.findByRole("dialog");
-    await user.type(within(dialog).getByLabelText("Web API key"), "ABC123");
+    await user.type(within(dialog).getByLabelText("Key"), "ABC123");
     await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     expect(rotations()).toHaveLength(0);
 
     await user.click(screen.getByRole("button", { name: "Set" }));
     dialog = await screen.findByRole("dialog");
-    expect(within(dialog).getByLabelText("Web API key")).toHaveValue("");
+    expect(within(dialog).getByLabelText("Key")).toHaveValue("");
   });
 
   it("ignores dismissal while the key is being saved", async () => {
@@ -158,7 +159,7 @@ describe("the Steam Web API key", () => {
 
     await user.click(screen.getByRole("button", { name: "Set" }));
     const dialog = await screen.findByRole("dialog");
-    await user.type(within(dialog).getByLabelText("Web API key"), "ABC123");
+    await user.type(within(dialog).getByLabelText("Key"), "ABC123");
     await user.click(within(dialog).getByRole("button", { name: "Save" }));
     await waitFor(() => expect(rotations()).toHaveLength(1));
     await user.keyboard("{Escape}");
@@ -176,7 +177,7 @@ describe("the Steam Web API key", () => {
 
     await user.click(screen.getByRole("button", { name: "Set" }));
     const dialog = await screen.findByRole("dialog");
-    await user.type(within(dialog).getByLabelText("Web API key"), "ABC123");
+    await user.type(within(dialog).getByLabelText("Key"), "ABC123");
     await user.click(within(dialog).getByRole("button", { name: "Save" }));
 
     expect(await within(dialog).findAllByRole("alert")).toHaveLength(1);

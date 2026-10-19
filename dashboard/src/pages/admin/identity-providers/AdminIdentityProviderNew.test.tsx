@@ -114,6 +114,9 @@ describe("the form's shape", () => {
 
     await chooseProtocol(user, "Steam");
     expect(screen.getByLabelText("Web API key")).toBeVisible();
+    expect(
+      screen.getByRole("heading", { level: 2, name: "Credentials" }),
+    ).toBeVisible();
     expect(screen.queryByLabelText("Issuer URL")).toBeNull();
 
     await chooseProtocol(user, "VRChat");

@@ -2482,6 +2482,12 @@ msgid "admin.oidc-apps.credentials"
 msgstr "Credentials"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
+#: src/pages/admin/identity-providers/ProviderCredentialsSection.tsx
+msgid "admin.federation.credentials.steam.title"
+msgstr "Credentials"
+
+#. js-lingui-explicit-id
 #: src/components/custom/SudoDialog.tsx
 msgid "sudo.password"
 msgstr "Current password"
@@ -4241,6 +4247,11 @@ msgstr "Keep at least one passkey on the account. Add another one before removin
 #: src/pages/security/PasskeysPanel.tsx
 msgid "security.keep"
 msgstr "Keep it"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderCredentialsSection.tsx
+msgid "admin.federation.credentials.steam.field"
+msgstr "Key"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/SigningKeysPanel.tsx
@@ -9388,13 +9399,6 @@ msgstr "Waiting for VRChat…"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
-#: src/pages/admin/identity-providers/ProviderCredentialsSection.tsx
-msgid "admin.federation.credentials.steam.title"
-msgstr "Web API key"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
-#: src/pages/admin/identity-providers/ProviderCredentialsSection.tsx
 msgid "admin.federation.new.steam-key"
 msgstr "Web API key"
 

@@ -31,7 +31,9 @@ const secretRequired = msg({
 });
 
 /**
- * A Steam provider's Web API key, as a section of its own. An OIDC client's
+ * A Steam provider's credentials, as a section of its own, mirroring the
+ * OIDC application's: the section is "Credentials" and its one row is the Web
+ * API key, so no level repeats the name of the one above it. An OIDC client's
  * secret is set inside its connection section, beside the method that sends it,
  * and VRChat's credential is the operator session, so every other provider
  * draws nothing here.
@@ -44,10 +46,10 @@ export function ProviderCredentialsSection({
   if (provider.protocol !== "steam") return null;
   return (
     <Section
-      id="web-api-key"
+      id="credentials"
       icon={<KeyRoundIcon />}
       title={
-        <Trans id="admin.federation.credentials.steam.title">Web API key</Trans>
+        <Trans id="admin.federation.credentials.steam.title">Credentials</Trans>
       }
       description={
         <Trans id="admin.federation.credentials.steam.description">
@@ -138,7 +140,7 @@ export function ProviderSecretRow({ provider }: { provider: Provider }) {
             title={secretDialogTitle(steam, stored)}
             label={
               steam ? (
-                <Trans id="admin.federation.new.steam-key">Web API key</Trans>
+                <Trans id="admin.federation.credentials.steam.field">Key</Trans>
               ) : (
                 <Trans id="admin.federation.new.secret">Client secret</Trans>
               )
