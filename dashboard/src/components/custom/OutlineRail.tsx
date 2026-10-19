@@ -13,7 +13,12 @@ const TOP_OFFSET = 160;
 const BOTTOM_SLACK = 4;
 
 /** Input that means the reader, not a link jump, is moving the page. */
-const READER_SCROLL_EVENTS = ["wheel", "touchmove", "keydown"] as const;
+const READER_SCROLL_EVENTS = [
+  "wheel",
+  "touchmove",
+  "keydown",
+  "pointerdown",
+] as const;
 
 function atPageBottom(): boolean {
   const page = document.scrollingElement ?? document.documentElement;
@@ -36,7 +41,14 @@ function useCurrentSection(sections: RegisteredSection[]): {
 } {
   const [current, setCurrent] = useState<string>();
   const chosen = useRef<string | undefined>(undefined);
+  const sectionKey = useRef<string>("");
   useEffect(() => {
+    // A different set of sections is a different page: forget the choice.
+    const key = sections.map(({ id }) => id).join("\n");
+    if (key !== sectionKey.current) {
+      sectionKey.current = key;
+      chosen.current = undefined;
+    }
     const update = () => {
       if (chosen.current !== undefined) {
         setCurrent(chosen.current);

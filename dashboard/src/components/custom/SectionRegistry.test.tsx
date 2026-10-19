@@ -9,7 +9,7 @@ import { i18n } from "@/i18n";
 
 beforeEach(() => i18n.activate("en"));
 
-function Page({ dirty = "" }: { dirty?: string }) {
+function Page({ dirty = "", only }: { dirty?: string; only?: string }) {
   return (
     <I18nProvider i18n={i18n}>
       <SectionRegistryProvider>
@@ -17,12 +17,16 @@ function Page({ dirty = "" }: { dirty?: string }) {
         <Section title="General" dirty={dirty === "General"}>
           x
         </Section>
-        <Section title="Disable or delete" tone="danger">
-          x
-        </Section>
-        <Section title="Connection" dirty={dirty === "Connection"}>
-          x
-        </Section>
+        {only === undefined && (
+          <>
+            <Section title="Disable or delete" tone="danger">
+              x
+            </Section>
+            <Section title="Connection" dirty={dirty === "Connection"}>
+              x
+            </Section>
+          </>
+        )}
       </SectionRegistryProvider>
     </I18nProvider>
   );
@@ -135,6 +139,30 @@ describe("OutlineRail", () => {
       act(() => {
         fireEvent.wheel(window);
       });
+      expect(current()).toEqual(["General"]);
+    });
+
+    it("releases a clicked entry on a pointer press, as a scrollbar drag starts", async () => {
+      render(<Page />);
+      layout({ general: 100, connection: 500, "disable-or-delete": 900 });
+      scrollPage(0);
+      await userEvent.click(screen.getByRole("link", { name: "Connection" }));
+      expect(current()).toEqual(["Connection"]);
+      act(() => {
+        fireEvent.pointerDown(window);
+      });
+      expect(current()).toEqual(["General"]);
+    });
+
+    it("forgets a clicked entry when the page's sections change", async () => {
+      const { rerender } = render(<Page />);
+      layout({ general: 100, connection: 500, "disable-or-delete": 900 });
+      scrollPage(0);
+      await userEvent.click(screen.getByRole("link", { name: "Connection" }));
+      expect(current()).toEqual(["Connection"]);
+      rerender(<Page only="General" />);
+      layout({ general: 100 });
+      scrollPage(0);
       expect(current()).toEqual(["General"]);
     });
   });
