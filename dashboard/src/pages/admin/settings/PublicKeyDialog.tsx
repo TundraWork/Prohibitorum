@@ -34,8 +34,6 @@ export function PublicKeyDialog({
 }) {
   const [shown, setShown] = useState<SigningKey | null>(signingKey);
   if (signingKey !== null && signingKey !== shown) setShown(signingKey);
-  const { state, copy } = useCopyValue();
-  const jwk = shown === null ? "" : JSON.stringify(shown.publicJwk, null, 2);
 
   return (
     <Dialog
@@ -57,32 +55,51 @@ export function PublicKeyDialog({
             </Trans>
           </DialogDescription>
         </DialogHeader>
-        <DialogPanel className="flex flex-col gap-3">
-          <ReadOnlyText
-            label={<Trans id="settings.keys.jwk.label">JSON Web Key</Trans>}
-            value={jwk}
-          />
-          <CopyStatus state={state} />
-        </DialogPanel>
-        <DialogFooter>
-          <Button variant="ghost" onClick={() => copy(jwk)}>
-            {state === "copied" ? (
-              <>
-                <CheckIcon aria-hidden="true" className="text-success" />
-                <Trans id="settings.keys.jwk.copied">Copied</Trans>
-              </>
-            ) : (
-              <>
-                <CopyIcon aria-hidden="true" />
-                <Trans id="settings.keys.jwk.copy">Copy</Trans>
-              </>
-            )}
-          </Button>
-          <Button onClick={onClose}>
-            <Trans id="settings.keys.jwk.close">Close</Trans>
-          </Button>
-        </DialogFooter>
+        {shown !== null && (
+          <PublicKeyBody key={shown.kid} signingKey={shown} onClose={onClose} />
+        )}
       </DialogPopup>
     </Dialog>
+  );
+}
+
+/** Remounted per key and dropped on close, so a copy state never outlives its key. */
+function PublicKeyBody({
+  signingKey,
+  onClose,
+}: {
+  signingKey: SigningKey;
+  onClose: () => void;
+}) {
+  const { state, copy } = useCopyValue();
+  const jwk = JSON.stringify(signingKey.publicJwk, null, 2);
+  return (
+    <>
+      <DialogPanel className="flex flex-col gap-3">
+        <ReadOnlyText
+          label={<Trans id="settings.keys.jwk.label">JSON Web Key</Trans>}
+          value={jwk}
+        />
+        <CopyStatus state={state} />
+      </DialogPanel>
+      <DialogFooter>
+        <Button variant="ghost" onClick={() => copy(jwk)}>
+          {state === "copied" ? (
+            <>
+              <CheckIcon aria-hidden="true" className="text-success" />
+              <Trans id="settings.keys.jwk.copied">Copied</Trans>
+            </>
+          ) : (
+            <>
+              <CopyIcon aria-hidden="true" />
+              <Trans id="settings.keys.jwk.copy">Copy</Trans>
+            </>
+          )}
+        </Button>
+        <Button onClick={onClose}>
+          <Trans id="settings.keys.jwk.close">Close</Trans>
+        </Button>
+      </DialogFooter>
+    </>
   );
 }

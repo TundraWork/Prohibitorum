@@ -79,6 +79,7 @@ function mount(
 
 const source = (name: string) => screen.getByRole("radio", { name });
 const proxies = () => screen.getByRole("textbox", { name: "Trusted proxies" });
+const proxies2 = () => screen.getByRole("textbox");
 const header = () => screen.getByRole("textbox", { name: "Header name" });
 
 describe("the client IP section", () => {
@@ -376,6 +377,19 @@ describe("the client IP section", () => {
 
     await user.click(source("X-Forwarded-For"));
     expect(screen.queryByText(blocked)).toBeNull();
+  });
+
+  it("says the hidden list problem in Chinese when the interface is", async () => {
+    const user = userEvent.setup();
+    i18n.activate("zh");
+    mount();
+
+    await user.type(proxies2(), "\nnot-a-range");
+    await user.click(screen.getAllByRole("radio")[0] as HTMLElement);
+
+    expect(
+      screen.getByText(/^可信代理列表中有服务器不接受的条目/),
+    ).toBeVisible();
   });
 
   it("reports a refused save once, on the form and not as a toast", async () => {

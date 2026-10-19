@@ -106,6 +106,8 @@ export interface MockConfig {
     auditFails: boolean;
     /** Signing keys, newest first; a short list, capped like `lists`. */
     signingKeys: number;
+    /** Whether every page of signing keys after the first is refused with a server error. */
+    signingKeysLaterPageFails: boolean;
     /**
      * Identity providers. The fixture cycles protocols and states in order, so a
      * walkthrough always sees an OIDC, a Steam and a VRChat provider, an enabled
@@ -395,6 +397,7 @@ export const defaultMockConfig: MockConfig = {
     auditEvents: 24,
     auditFails: false,
     signingKeys: 4,
+    signingKeysLaterPageFails: false,
     signingKeyStates: "",
     identityProviders: 4,
     providerSignInMask: "",

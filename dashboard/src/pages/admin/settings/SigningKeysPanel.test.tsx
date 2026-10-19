@@ -450,4 +450,59 @@ describe("signing keys", () => {
 
     expect(await screen.findByText("No signing keys")).toBeVisible();
   });
+
+  describe("when later pages exist", () => {
+    function paged(second: () => Response) {
+      fetchBoundary.mockImplementation(async (request) => {
+        const url = new URL(request.url);
+        if (!url.pathname.endsWith("/signing-keys")) {
+          return new Response(null, { status: 204 });
+        }
+        return url.searchParams.has("cursor")
+          ? second()
+          : Response.json({ items: keys.slice(0, 2), nextCursor: "more" });
+      });
+    }
+
+    it("does not count retired keys, and offers more only once they are shown", async () => {
+      const user = userEvent.setup();
+      paged(() => Response.json({ items: keys.slice(2), nextCursor: "" }));
+      mount();
+      await loaded();
+
+      expect(screen.queryByRole("button", { name: "Load more" })).toBeNull();
+      await user.click(
+        screen.getByRole("button", { name: "Show retired keys" }),
+      );
+      await user.click(screen.getByRole("button", { name: "Load more" }));
+
+      expect(await screen.findByText(kids.retiredNew)).toBeVisible();
+      expect(screen.queryByRole("button", { name: "Load more" })).toBeNull();
+      expect(
+        screen.getByRole("button", { name: "Hide retired keys" }),
+      ).toBeVisible();
+    });
+
+    it("says a later page failed while keeping the keys already shown", async () => {
+      const user = userEvent.setup();
+      paged(() =>
+        Response.json(
+          { code: "internal_error", requestId: "page2" },
+          { status: 500 },
+        ),
+      );
+      mount();
+      await loaded();
+
+      await user.click(
+        screen.getByRole("button", { name: "Show retired keys" }),
+      );
+      await user.click(screen.getByRole("button", { name: "Load more" }));
+
+      expect(await screen.findByRole("alert")).toBeVisible();
+      expect(screen.getByText(kids.active)).toBeVisible();
+      expect(screen.getByText(kids.pending)).toBeVisible();
+      expect(notifyError).not.toHaveBeenCalled();
+    });
+  });
 });

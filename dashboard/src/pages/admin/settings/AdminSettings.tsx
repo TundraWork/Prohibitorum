@@ -28,9 +28,10 @@ import { SigningKeysPanel } from "@/pages/admin/settings/SigningKeysPanel";
  * The general and maintenance panels are not behind a boundary. Their read is
  * `/config`, which the root route already loaded before the first paint, so
  * they never suspend. The signing keys are not either: their list is not a
- * suspense read, and the section draws its own loading rows and failure. The sign-in page follows the general panel, since it is
- * also about how the instance looks, behind its own boundary for the
- * administrator-only read of its settings.
+ * suspense read, and the section draws its own loading rows and failure. The
+ * sign-in page follows the general panel, since it is also about how the
+ * instance looks, behind its own boundary for the administrator-only read of
+ * its settings.
  */
 export function AdminSettings() {
   return (

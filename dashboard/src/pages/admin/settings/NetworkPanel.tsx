@@ -1,3 +1,4 @@
+import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useStore } from "@tanstack/react-form";
 import {
@@ -43,6 +44,12 @@ export const clientIpSection = {
     </Trans>
   ),
 };
+
+const hiddenListMessage = msg({
+  id: "settings.network.proxies.hidden_invalid",
+  message:
+    "The trusted proxies list has an entry the server will not accept. Choose X-Forwarded-For to correct it.",
+});
 
 /** What changing the address does, in the footer. */
 function ClientIpConsequence() {
@@ -103,7 +110,7 @@ function ClientIpSection({ saved }: { saved: ClientIpSettings }) {
       // hidden, and the server checks it all the same; the footer says so
       // before the button is pressed, and this is the backstop for a submit
       // that gets past it.
-      onSubmit: ({ value }) => hiddenListProblem(value, t),
+      onSubmit: ({ value }) => hiddenListProblem(value, i18n),
     },
     onSubmit: async ({ value }) => {
       // Past the validators, a list that does not parse can only be the empty
@@ -126,7 +133,7 @@ function ClientIpSection({ saved }: { saved: ClientIpSettings }) {
   const dirty = useStore(form.store, (state) => !state.isDefaultValue);
   const submitting = useStore(form.store, (state) => state.isSubmitting);
   const strategy = values.strategy;
-  const blocked = hiddenListProblem(values, t);
+  const blocked = hiddenListProblem(values, i18n);
   const consequential = changesClientAddress(saved, values);
 
   const title = t({ id: "settings.network.form", message: "Client IP" });
@@ -329,16 +336,12 @@ function ClientIpSection({ saved }: { saved: ClientIpSettings }) {
  */
 function hiddenListProblem(
   value: { strategy: ClientIpStrategy; proxies: string },
-  t: ReturnType<typeof useLingui>["t"],
+  i18n: ReturnType<typeof useLingui>["i18n"],
 ): string | undefined {
   if (value.strategy !== "direct") return undefined;
   const parsed = parseProxies(value.proxies);
   if (parsed.ok || parsed.problem === "required") return undefined;
-  return t({
-    id: "settings.network.proxies.hidden_invalid",
-    message:
-      "The trusted proxies list has an entry the server will not accept. Choose X-Forwarded-For to correct it.",
-  });
+  return i18n._(hiddenListMessage);
 }
 
 /**

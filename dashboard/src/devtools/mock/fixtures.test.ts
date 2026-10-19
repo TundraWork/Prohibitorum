@@ -1145,6 +1145,20 @@ describe("mocked logs, settings and signing keys", () => {
     expect(read(path, config())).toMatchObject({ kind: "json" });
   });
 
+  it("refuses the later pages of signing keys on request", () => {
+    const path = "/api/prohibitorum/signing-keys";
+    const many = (fails: boolean) =>
+      config((draft) => {
+        draft.admin.signingKeys = 12;
+        draft.admin.signingKeysLaterPageFails = fails;
+      });
+    const second = (current: ReturnType<typeof many>) =>
+      read(path, current, `http://localhost${path}?cursor=10`);
+    expect(second(many(true))).toMatchObject({ kind: "error", status: 500 });
+    expect(second(many(false))).toMatchObject({ kind: "json" });
+    expect(read(path, many(true))).toMatchObject({ kind: "json" });
+  });
+
   it("pages the audit log and applies the server's filters", () => {
     const current = config((draft) => {
       draft.admin.auditEvents = 24;

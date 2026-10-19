@@ -1305,7 +1305,7 @@ msgstr "已批准，正在登录…"
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/PublicKeyDialog.tsx
 msgid "settings.keys.jwk.description"
-msgstr "实例发布的这把公钥，用于验证令牌和断言。"
+msgstr "这是实例发布的公钥，用于验证令牌和断言。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/SignInFields.tsx
@@ -7776,6 +7776,11 @@ msgid "table.row.expand"
 msgstr "展开详情"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/SigningKeysPanel.tsx
+msgid "settings.keys.retired.show_some"
+msgstr "显示已退役的密钥"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/settings/SignInPagePanel.tsx
 msgid "settings.sign-in.bing.caption"
 msgstr "显示图片标题和版权信息"
@@ -8269,7 +8274,7 @@ msgstr "Steam"
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/SigningKeysPanel.tsx
 msgid "settings.keys.standing.retiring"
-msgstr "在 {until} 前仍用于验证"
+msgstr "在{until}前仍用于验证"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/SigningKeysPanel.tsx
@@ -8975,6 +8980,11 @@ msgstr "提交的信息无效。"
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.create.note"
 msgstr "令牌明文只在创建后显示一次。请当场复制；列表中只会保留末尾几位提示。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/NetworkPanel.tsx
+msgid "settings.network.proxies.hidden_invalid"
+msgstr "可信代理列表中有服务器不接受的条目。请选择 X-Forwarded-For 后修改。"
 
 #. js-lingui-explicit-id
 #: src/forms/password-totp-rules.ts

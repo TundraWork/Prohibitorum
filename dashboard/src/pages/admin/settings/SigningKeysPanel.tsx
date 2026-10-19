@@ -15,6 +15,7 @@ import { quietQuery } from "@/app/query-client";
 import { Button } from "@/components/custom/Button";
 import { ConfirmDialog } from "@/components/custom/ConfirmDialog";
 import { CopyableValue } from "@/components/custom/CopyableValue";
+import { InlineFailure } from "@/components/custom/InlineFailure";
 import {
   ItemList,
   ItemListEmpty,
@@ -27,11 +28,8 @@ import { PublicKeyDialog } from "@/pages/admin/settings/PublicKeyDialog";
 
 type SigningKey = components["schemas"]["SigningKeyView"];
 
-/**
- * The section's heading, drawn by the panel and by the boundary that waits for
- * the page, so the two cannot word it differently.
- */
-export const signingKeysSection = {
+/** The section's heading. */
+const signingKeysSection = {
   id: "signing-keys",
   icon: <KeyRoundIcon />,
   title: <Trans id="settings.keys.section">Signing keys</Trans>,
@@ -105,6 +103,9 @@ export function SigningKeysPanel() {
           </Button>
         }
       >
+        {failed && list.items.length > 0 && (
+          <InlineFailure error={list.error} />
+        )}
         {failed && list.items.length === 0 ? (
           <SectionFailure
             error={list.error}
@@ -131,7 +132,7 @@ export function SigningKeysPanel() {
             footer={
               (retired.length > 0 || list.hasMore) && (
                 <div className="flex flex-wrap justify-center gap-2">
-                  {retired.length > 0 && (
+                  {(retired.length > 0 || list.hasMore) && (
                     <Button
                       variant="ghost"
                       size="sm"
@@ -141,6 +142,11 @@ export function SigningKeysPanel() {
                       {showRetired ? (
                         <Trans id="settings.keys.retired.hide">
                           Hide retired keys
+                        </Trans>
+                      ) : list.hasMore ? (
+                        // Later pages may hold more, so a count would understate.
+                        <Trans id="settings.keys.retired.show_some">
+                          Show retired keys
                         </Trans>
                       ) : (
                         t({
@@ -153,7 +159,7 @@ export function SigningKeysPanel() {
                       )}
                     </Button>
                   )}
-                  {list.hasMore && (
+                  {list.hasMore && showRetired && (
                     <Button
                       variant="ghost"
                       size="sm"

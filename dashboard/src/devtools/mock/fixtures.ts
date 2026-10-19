@@ -2289,6 +2289,9 @@ function readReply(
     case "/api/prohibitorum/signing-keys": {
       const all = signingKeysFrom(config);
       const cursor = new URL(request.url).searchParams.get("cursor");
+      if (cursor !== null && config.admin.signingKeysLaterPageFails) {
+        return { kind: "error", status: 500, code: "internal_error" };
+      }
       const start = cursor === null ? 0 : Number(cursor);
       const page = all.slice(start, start + mockPageSize);
       const next = start + page.length;
