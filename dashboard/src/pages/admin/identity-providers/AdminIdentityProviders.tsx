@@ -15,7 +15,7 @@ import {
   NotReadyChip,
 } from "@/components/custom/ListCells";
 import { PageHeader } from "@/components/custom/PageHeader";
-import { SectionFailure } from "@/components/custom/Section";
+import { LaterPageFailure, SectionFailure } from "@/components/custom/Section";
 import { TableEmptyState } from "@/components/custom/TableEmptyState";
 import { Badge } from "@/components/ui/badge";
 import { ProviderActions } from "@/pages/admin/identity-providers/ProviderActions";
@@ -154,7 +154,7 @@ export function AdminIdentityProviders() {
         }
       />
 
-      {failed && (
+      {failed && list.items.length === 0 && (
         <SectionFailure
           error={list.error}
           onRetry={list.refetch}
@@ -194,6 +194,17 @@ export function AdminIdentityProviders() {
                 </Trans>
               }
             />
+          }
+        />
+      )}
+      {failed && list.items.length > 0 && (
+        <LaterPageFailure
+          error={list.error}
+          onRetry={list.loadMore}
+          title={
+            <Trans id="admin.federation.more_failed">
+              The rest of the identity providers could not be loaded.
+            </Trans>
           }
         />
       )}

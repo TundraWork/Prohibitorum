@@ -296,6 +296,19 @@ describe("DataTable load-more sentinel", () => {
     expect(onLoadMore).toHaveBeenCalledTimes(1);
   });
 
+  it("marks Load more busy while a page is on its way", () => {
+    visible = false;
+    const { rerender } = render(view(vi.fn(), { rows, loadingMore: false }));
+    expect(
+      screen.getByRole("button", { name: "Load more" }),
+    ).not.toHaveAttribute("aria-busy", "true");
+    rerender(view(vi.fn(), { rows, loadingMore: true }));
+    expect(screen.getByRole("button", { name: "Load more" })).toHaveAttribute(
+      "aria-busy",
+      "true",
+    );
+  });
+
   it("does not ask again after a page failed and the row count is unchanged", () => {
     const onLoadMore = vi.fn();
     const { rerender } = render(view(onLoadMore, { rows, loadingMore: false }));

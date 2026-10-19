@@ -14,7 +14,7 @@ import { DataTable, type TableColumn } from "@/components/custom/DataTable";
 import { FilterPopover } from "@/components/custom/FilterPopover";
 import { JsonBlock } from "@/components/custom/JsonBlock";
 import { PageHeader } from "@/components/custom/PageHeader";
-import { SectionFailure } from "@/components/custom/Section";
+import { LaterPageFailure, SectionFailure } from "@/components/custom/Section";
 import { TableEmptyState } from "@/components/custom/TableEmptyState";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -190,7 +190,7 @@ export function AdminLogs() {
           </Button>
         </div>
 
-        {failed && (
+        {failed && rows.length === 0 && (
           <SectionFailure
             error={list.error}
             onRetry={list.refetch}
@@ -264,6 +264,17 @@ export function AdminLogs() {
                     : {})}
                 />
               )
+            }
+          />
+        )}
+        {failed && rows.length > 0 && (
+          <LaterPageFailure
+            error={list.error}
+            onRetry={list.loadMore}
+            title={
+              <Trans id="admin.logs.more_failed">
+                The rest of the audit log could not be loaded.
+              </Trans>
             }
           />
         )}

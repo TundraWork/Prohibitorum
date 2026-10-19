@@ -75,6 +75,8 @@ export interface MockConfig {
     legacyRoleAccounts: boolean;
     /** Whether the account directory answers with a server error, so its failure can be walked through. */
     accountsFail: boolean;
+    /** Whether the account directory answers its first page and then fails every later one, so the rest of a paged list can be seen failing. */
+    accountsFailLater: boolean;
     /** Whether the identity provider directory answers with a server error. */
     identityProvidersFail: boolean;
     /**
@@ -385,6 +387,7 @@ export const defaultMockConfig: MockConfig = {
     accounts: 12,
     legacyRoleAccounts: false,
     accountsFail: false,
+    accountsFailLater: false,
     identityProvidersFail: false,
     ruleAccounts: 12,
     ruleMatchEvery: 2,

@@ -468,6 +468,17 @@ describe("mocked management directory", () => {
     expect(read(path, config())).toMatchObject({ kind: "json" });
   });
 
+  it("refuses only the later pages of the account directory when the panel says so", () => {
+    const path = "/api/prohibitorum/accounts";
+    const later = config((draft) => {
+      draft.admin.accountsFailLater = true;
+    });
+    expect(read(path, later)).toMatchObject({ kind: "json" });
+    expect(read(path, later, `http://localhost${path}?cursor=5`)).toMatchObject(
+      { kind: "error", status: 500 },
+    );
+  });
+
   it("refuses the identity provider directory when the panel says it fails, and only then", () => {
     const path = "/api/prohibitorum/identity-providers";
     expect(

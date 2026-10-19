@@ -357,3 +357,41 @@ export function SectionFailure({
     </SurfaceAlert>
   );
 }
+
+/**
+ * What a paged list says when a later page failed while the rows already read
+ * stay on screen: the rest could not be loaded, with the way to ask for that
+ * page again. A failed first page has no rows and is a `SectionFailure`.
+ */
+export function LaterPageFailure({
+  error,
+  onRetry,
+  title,
+}: {
+  error: unknown;
+  /** Asks for the page that failed, not for the pages already in hand. */
+  onRetry: () => void;
+  /** Says what could not be loaded, e.g. "The rest of the accounts could not be loaded." */
+  title: ReactNode;
+}) {
+  const { t } = useLingui();
+  return (
+    <SurfaceAlert status="danger" role="alert">
+      <SurfaceAlert.Indicator />
+      <SurfaceAlert.Content>
+        <SurfaceAlert.Title>{title}</SurfaceAlert.Title>
+        <SurfaceAlert.Description>
+          {t(describeError(error))}
+        </SurfaceAlert.Description>
+        <Button
+          onClick={onRetry}
+          variant="destructive"
+          size="sm"
+          className="mt-2 w-fit"
+        >
+          <Trans id="section.retry">Try again</Trans>
+        </Button>
+      </SurfaceAlert.Content>
+    </SurfaceAlert>
+  );
+}

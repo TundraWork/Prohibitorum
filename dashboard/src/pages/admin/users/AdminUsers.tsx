@@ -13,7 +13,7 @@ import { FilterPopover } from "@/components/custom/FilterPopover";
 import { APP_DATA_COLUMN } from "@/components/custom/ListCells";
 import { PageHeader } from "@/components/custom/PageHeader";
 import { RelativeTime } from "@/components/custom/RelativeTime";
-import { SectionFailure } from "@/components/custom/Section";
+import { LaterPageFailure, SectionFailure } from "@/components/custom/Section";
 import { TableEmptyState } from "@/components/custom/TableEmptyState";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -199,7 +199,7 @@ export function AdminUsers() {
           )}
         </div>
 
-        {failed && (
+        {failed && list.items.length === 0 && (
           <SectionFailure
             error={list.error}
             onRetry={list.refetch}
@@ -264,6 +264,17 @@ export function AdminUsers() {
                   }
                 />
               )
+            }
+          />
+        )}
+        {failed && list.items.length > 0 && (
+          <LaterPageFailure
+            error={list.error}
+            onRetry={list.loadMore}
+            title={
+              <Trans id="admin.users.more_failed">
+                The rest of the accounts could not be loaded.
+              </Trans>
             }
           />
         )}

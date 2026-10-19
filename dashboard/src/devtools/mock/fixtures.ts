@@ -1945,7 +1945,8 @@ function readReply(
       const page = all.slice(start, start + mockPageSize);
       const next = start + page.length;
       return guarded(config, () =>
-        config.admin.accountsFail
+        config.admin.accountsFail ||
+        (config.admin.accountsFailLater && cursor !== null)
           ? { kind: "error", status: 500, code: "internal_error" }
           : json({
               items: page,

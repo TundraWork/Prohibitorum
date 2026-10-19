@@ -553,6 +553,15 @@ export function MockPanel() {
             }
           />
           <Toggle
+            label="The account directory fails after its first page"
+            checked={config.admin.accountsFailLater}
+            onChange={(next) =>
+              updateMockConfig((draft) => {
+                draft.admin.accountsFailLater = next;
+              })
+            }
+          />
+          <Toggle
             label="The identity provider directory fails to load"
             checked={config.admin.identityProvidersFail}
             onChange={(next) =>

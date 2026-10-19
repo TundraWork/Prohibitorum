@@ -16,7 +16,7 @@ import {
   PrincipalSourceCell,
 } from "@/components/custom/ListCells";
 import { PageHeader } from "@/components/custom/PageHeader";
-import { SectionFailure } from "@/components/custom/Section";
+import { LaterPageFailure, SectionFailure } from "@/components/custom/Section";
 import { TableEmptyState } from "@/components/custom/TableEmptyState";
 
 type ForwardAuthApp = components["schemas"]["ForwardAuthAppView"];
@@ -152,7 +152,7 @@ export function AdminForwardAuthApps() {
         }
       />
 
-      {failed && (
+      {failed && list.items.length === 0 && (
         <SectionFailure
           error={list.error}
           onRetry={list.refetch}
@@ -200,6 +200,17 @@ export function AdminForwardAuthApps() {
                 )
               }
             />
+          }
+        />
+      )}
+      {failed && list.items.length > 0 && (
+        <LaterPageFailure
+          error={list.error}
+          onRetry={list.loadMore}
+          title={
+            <Trans id="admin.forward-auth-apps.more_failed">
+              The rest of the forward-auth applications could not be loaded.
+            </Trans>
           }
         />
       )}

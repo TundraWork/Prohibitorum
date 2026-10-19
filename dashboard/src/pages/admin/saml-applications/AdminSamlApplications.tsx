@@ -12,7 +12,7 @@ import { DataTable, type TableColumn } from "@/components/custom/DataTable";
 import { EntityCell } from "@/components/custom/EntityCell";
 import { APP_DATA_COLUMN, CodeValue } from "@/components/custom/ListCells";
 import { PageHeader } from "@/components/custom/PageHeader";
-import { SectionFailure } from "@/components/custom/Section";
+import { LaterPageFailure, SectionFailure } from "@/components/custom/Section";
 import { TableEmptyState } from "@/components/custom/TableEmptyState";
 import { CertificateText } from "@/pages/admin/saml-applications/CertificateText";
 import {
@@ -154,7 +154,7 @@ export function AdminSamlApplications() {
         }
       />
 
-      {failed && (
+      {failed && list.items.length === 0 && (
         <SectionFailure
           error={list.error}
           onRetry={list.refetch}
@@ -202,6 +202,17 @@ export function AdminSamlApplications() {
                 )
               }
             />
+          }
+        />
+      )}
+      {failed && list.items.length > 0 && (
+        <LaterPageFailure
+          error={list.error}
+          onRetry={list.loadMore}
+          title={
+            <Trans id="admin.saml-apps.more_failed">
+              The rest of the SAML applications could not be loaded.
+            </Trans>
           }
         />
       )}

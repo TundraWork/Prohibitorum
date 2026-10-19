@@ -29,7 +29,7 @@ import {
 } from "@/components/custom/InlineFailure";
 import { PageHeader } from "@/components/custom/PageHeader";
 import { RelativeTime } from "@/components/custom/RelativeTime";
-import { SectionFailure } from "@/components/custom/Section";
+import { LaterPageFailure, SectionFailure } from "@/components/custom/Section";
 import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
 import { TableEmptyState } from "@/components/custom/TableEmptyState";
 import { useCopyValue } from "@/components/custom/use-copy-value";
@@ -236,7 +236,7 @@ export function AdminInvitations() {
       />
 
       <div className="flex flex-col gap-4">
-        {listFailed && (
+        {listFailed && list.items.length === 0 && (
           <SectionFailure
             error={list.error}
             onRetry={list.refetch}
@@ -298,6 +298,17 @@ export function AdminInvitations() {
                   </Trans>
                 }
               />
+            }
+          />
+        )}
+        {listFailed && list.items.length > 0 && (
+          <LaterPageFailure
+            error={list.error}
+            onRetry={list.loadMore}
+            title={
+              <Trans id="admin.invitations.more_failed">
+                The rest of the invitations could not be loaded.
+              </Trans>
             }
           />
         )}

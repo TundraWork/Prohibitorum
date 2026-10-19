@@ -477,6 +477,72 @@ describe("a failed read", () => {
   });
 });
 
+describe("a failed read that is tried again", () => {
+  it("names the whole list, and Try again brings the rows without a second report", async () => {
+    const user = userEvent.setup();
+    let failing = true;
+    serve(() =>
+      failing
+        ? apiError("internal_error", 500)
+        : Response.json({ items: [alice], nextCursor: "" }),
+    );
+    renderApp("/admin/users", queryClient);
+
+    const alert = await screen.findByRole("alert");
+    expect(
+      within(alert).getByText("The accounts could not be loaded."),
+    ).toBeVisible();
+    failing = false;
+    await user.click(within(alert).getByRole("button", { name: "Try again" }));
+
+    const table = await screen.findByRole("table", { name: "Users" });
+    await within(table).findByRole("link", { name: "Alice Admin" });
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(notifyError).not.toHaveBeenCalled();
+  });
+});
+
+describe("a failed later page", () => {
+  it("keeps the rows, says the rest could not be loaded, and Try again asks for that page", async () => {
+    const user = userEvent.setup();
+    let laterFails = true;
+    const api = serve((request) => {
+      if (new URL(request.url).searchParams.get("cursor") !== "next") {
+        return Response.json({ items: [alice], nextCursor: "next" });
+      }
+      return laterFails
+        ? apiError("internal_error", 500)
+        : Response.json({ items: [bob], nextCursor: "" });
+    });
+    renderApp("/admin/users", queryClient);
+
+    const table = await screen.findByRole("table", { name: "Users" });
+    await within(table).findByRole("link", { name: "Alice Admin" });
+    await user.click(screen.getByRole("button", { name: "Load more" }));
+
+    const alert = await screen.findByRole("alert");
+    expect(
+      within(alert).getByText("The rest of the accounts could not be loaded."),
+    ).toBeVisible();
+    expect(screen.queryByText("The accounts could not be loaded.")).toBeNull();
+    expect(
+      within(table).getByRole("link", { name: "Alice Admin" }),
+    ).toBeVisible();
+
+    laterFails = false;
+    await user.click(within(alert).getByRole("button", { name: "Try again" }));
+
+    await within(table).findByRole("link", { name: "Bob Stone" });
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(notifyError).not.toHaveBeenCalled();
+    // The retry asked for the page that failed, not for the first one again.
+    const cursors = api
+      .sent("GET", listPath)
+      .map((call) => call.url.searchParams.get("cursor"));
+    expect(cursors).toEqual([null, "next", "next"]);
+  });
+});
+
 describe("paging", () => {
   const original = globalThis.IntersectionObserver;
   afterEach(() => {

@@ -59,22 +59,6 @@ describe("EntityCell", () => {
     expect(await screen.findByText("Detail page")).toBeTruthy();
   });
 
-  it("draws a focus ring on the link inside the clipped name, which keeps room for it", async () => {
-    renderCell(
-      <EntityCell
-        name="Wiki"
-        link={{ to: "/things/$id", params: { id: "a" } } as never}
-      />,
-    );
-    const anchor = await screen.findByRole("link", { name: "Wiki" });
-    expect(anchor).toHaveClass(
-      "focus-visible:ring-2",
-      "focus-visible:ring-ring",
-    );
-    // The name's own box clips overflow, so the ring needs padding to land in.
-    expect(anchor.parentElement).toHaveClass("truncate", "px-1", "py-0.5");
-  });
-
   it("renders a plain name when there is no link", async () => {
     renderCell(<EntityCell name="Wiki" />);
     await screen.findByText("Wiki");

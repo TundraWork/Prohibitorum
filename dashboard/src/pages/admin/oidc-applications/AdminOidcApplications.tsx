@@ -12,7 +12,7 @@ import { DataTable, type TableColumn } from "@/components/custom/DataTable";
 import { EntityCell } from "@/components/custom/EntityCell";
 import { APP_DATA_COLUMN, RedirectCell } from "@/components/custom/ListCells";
 import { PageHeader } from "@/components/custom/PageHeader";
-import { SectionFailure } from "@/components/custom/Section";
+import { LaterPageFailure, SectionFailure } from "@/components/custom/Section";
 import { TableEmptyState } from "@/components/custom/TableEmptyState";
 
 type OidcApp = components["schemas"]["OIDCApplicationView"];
@@ -142,7 +142,7 @@ export function AdminOidcApplications() {
         }
       />
 
-      {failed && (
+      {failed && list.items.length === 0 && (
         <SectionFailure
           error={list.error}
           onRetry={list.refetch}
@@ -190,6 +190,17 @@ export function AdminOidcApplications() {
                 )
               }
             />
+          }
+        />
+      )}
+      {failed && list.items.length > 0 && (
+        <LaterPageFailure
+          error={list.error}
+          onRetry={list.loadMore}
+          title={
+            <Trans id="admin.oidc-apps.more_failed">
+              The rest of the OIDC applications could not be loaded.
+            </Trans>
           }
         />
       )}
