@@ -164,6 +164,7 @@ export function AppManagersSection({
             {(managers.data ?? []).map((manager) => (
               <ItemListRow
                 key={manager.id}
+                iconBare
                 icon={
                   <EntityAvatar
                     name={manager.displayName}

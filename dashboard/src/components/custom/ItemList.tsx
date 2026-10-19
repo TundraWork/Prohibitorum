@@ -152,9 +152,15 @@ export function ItemListRow({
   link,
   dimmed = false,
   stackActions = false,
+  iconBare = false,
   children,
 }: {
   icon?: ReactNode;
+  /**
+   * Draw `icon` without the row's grey tile: for a person's round avatar,
+   * which carries its own shape and would otherwise sit as a disc in a square.
+   */
+  iconBare?: boolean;
   title: ReactNode;
   badges?: ReactNode;
   badge?: ReactNode;
@@ -197,7 +203,7 @@ export function ItemListRow({
       {icon !== undefined && (
         <span
           style={rowStyle}
-          className="col-start-2 row-start-1 me-3 grid size-9 place-items-center rounded-md bg-muted text-muted-foreground max-sm:row-span-(--item-span)"
+          className={`col-start-2 row-start-1 me-3 grid size-9 place-items-center text-muted-foreground max-sm:row-span-(--item-span)${iconBare ? "" : " rounded-md bg-muted"}`}
         >
           {icon}
         </span>

@@ -39,6 +39,20 @@ const nameOf = ({ account }: ManualDecisionView) =>
   account.displayName || account.username;
 
 /**
+ * A username with a place to wrap after each dot, dash and underscore, so a
+ * long handle on a narrow screen breaks between its words rather than inside
+ * one. The `@` stays with the first word.
+ */
+const breakable = (username: string) => {
+  let offset = 0;
+  return username.split(/(?<=[._-])/).flatMap((part) => {
+    const at = offset;
+    offset += part.length;
+    return at === 0 ? [part] : [<wbr key={at} />, part];
+  });
+};
+
+/**
  * Who a manual group allows and denies, one row per account with a decision.
  *
  * An account with no row is neutral, so "clear" is how an account goes back to
@@ -146,7 +160,7 @@ export function GroupDecisionsSection({ groupId }: { groupId: number }) {
             })}
             loading={list.loading}
             empty={
-              <p className="px-4 py-6 text-center text-muted-foreground text-sm">
+              <p className="text-pretty px-4 py-6 text-center text-muted-foreground text-sm">
                 <Trans id="admin.group.decisions.empty">
                   No decisions yet. Nobody is allowed or denied through this
                   group.
@@ -178,6 +192,7 @@ export function GroupDecisionsSection({ groupId }: { groupId: number }) {
               return (
                 <ItemListRow
                   key={decision.account.id}
+                  iconBare
                   icon={
                     <EntityAvatar
                       name={name}
@@ -190,7 +205,7 @@ export function GroupDecisionsSection({ groupId }: { groupId: number }) {
                     decision.account.displayName
                       ? [
                           <span key="username" className="font-mono">
-                            @{decision.account.username}
+                            @{breakable(decision.account.username)}
                           </span>,
                         ]
                       : undefined

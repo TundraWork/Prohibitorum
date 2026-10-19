@@ -95,7 +95,7 @@ function UsedByList({ groupId }: { groupId: number }) {
       <ItemList
         label={t({ id: "admin.group.used-by.label", message: "Applications" })}
         empty={
-          <p className="p-4 text-muted-foreground text-sm">
+          <p className="text-pretty px-4 py-6 text-center text-muted-foreground text-sm">
             <Trans id="admin.group.used-by.empty">
               No application uses this group.
             </Trans>
