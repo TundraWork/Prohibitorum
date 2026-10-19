@@ -30,7 +30,7 @@
 - User-facing strings are Lingui messages with explicit ids and both `en` and `zh` entries (`pnpm run i18n:extract`, then fill `src/locales/zh/messages.po`; 你 register; catalogue terms — check existing msgstr first; one verb across a flow; complete sentences, never stitched fragments; no invisible characters). When an existing id's English text changes, update its en msgstr too.
 - Tests find elements by role, name, label and `data-*`; never by class names. Tests for every new behaviour; keep existing behavioural assertions (rewrite queries, do not delete). Prove one report per failure with a spy `notifyError`.
 - Per task checks: `pnpm exec tsc --noEmit`; `pnpm exec biome check <touched files>`; `pnpm exec vitest run <touched and new test files>`; `pnpm run i18n:check` when strings change. No full-suite run inside a task. A visual task ends with screenshots of every changed state — 1440×900 light `en` and 390×844 dark `zh` (dialogs viewport-only) — taken after the last code change, every one opened and viewed, every visible defect fixed, every path listed in the report.
-- Dependencies stay pinned; no new dependency.
+- Dependencies stay pinned (exact versions). A new dependency is fine when it suits the design; say why in the report.
 - Commits: Conventional Commits subject, imperative. No `Co-Authored-By` or other attribution trailer. Nothing written may cite this plan, the spec, task numbers or a mock.
 
 ---
