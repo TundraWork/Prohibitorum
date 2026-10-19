@@ -85,6 +85,28 @@ function iso(offsetMs: number): string {
   return new Date(Date.now() + offsetMs).toISOString();
 }
 
+/**
+ * Indexes for the application directory, which pages by cursor and so reaches
+ * the management directory's ceiling rather than the short lists'.
+ */
+function adminRange(count: number): number[] {
+  return Array.from({ length: clampAdminCount(count) }, (_, index) => index);
+}
+
+/**
+ * What a list of one application kind answers with: every row for an admin,
+ * and for a delegated manager (a member) only the first rows they are assigned
+ * to, as many as the panel says.
+ */
+function assignedTo<T>(
+  config: MockConfig,
+  kind: keyof MockConfig["session"]["managedApps"],
+  rows: T[],
+): T[] {
+  if (config.session.role === "admin") return rows;
+  return rows.slice(0, clampAdminCount(config.session.managedApps[kind]));
+}
+
 function range(count: number): number[] {
   return Array.from({ length: clampCount(count) }, (_, index) => index);
 }
@@ -1283,7 +1305,7 @@ function config0(protocol: string, index: number): unknown {
 function oidcApplications(
   config: MockConfig,
 ): components["schemas"]["OIDCApplicationView"][] {
-  return range(config.admin.oidcApps).map((index) => {
+  return adminRange(config.admin.oidcApps).map((index) => {
     const redirectCount = index % 4 === 3 ? 0 : (index % 3) + 1;
     return {
       clientId: `mock-client-${index + 1}`,
@@ -1373,7 +1395,7 @@ function samlAttributeMap(count: number) {
 function samlApplications(
   config: MockConfig,
 ): components["schemas"]["SAMLApplicationView"][] {
-  return range(config.admin.samlApps).map((index) => {
+  return adminRange(config.admin.samlApps).map((index) => {
     const keyState = index % 3;
     return {
       id: index + 1,
@@ -1424,7 +1446,7 @@ function samlApplications(
 function forwardAuthApplications(
   config: MockConfig,
 ): components["schemas"]["ForwardAuthAppView"][] {
-  return range(config.admin.forwardAuthApps).map((index) => ({
+  return adminRange(config.admin.forwardAuthApps).map((index) => ({
     clientId: `mock-forward-auth-${index + 1}`,
     displayName: `Protected service ${index + 1}`,
     forwardAuthHost: `service${index + 1}.example.test`,
@@ -1966,7 +1988,7 @@ function readReply(
       return json(diagnosticResult(config.admin.diagnosticOutcome));
 
     case "/api/prohibitorum/oidc-applications": {
-      const all = oidcApplications(config);
+      const all = assignedTo(config, "oidc", oidcApplications(config));
       const cursor = new URL(request.url).searchParams.get("cursor");
       const start = cursor === null ? 0 : Number(cursor);
       const page = all.slice(start, start + mockPageSize);
@@ -1990,7 +2012,7 @@ function readReply(
       );
     }
     case "/api/prohibitorum/saml-applications": {
-      const all = samlApplications(config);
+      const all = assignedTo(config, "saml", samlApplications(config));
       const cursor = new URL(request.url).searchParams.get("cursor");
       const start = cursor === null ? 0 : Number(cursor);
       const page = all.slice(start, start + mockPageSize);
@@ -2014,7 +2036,11 @@ function readReply(
       );
     }
     case "/api/prohibitorum/forward-auth-apps": {
-      const all = forwardAuthApplications(config);
+      const all = assignedTo(
+        config,
+        "forwardAuth",
+        forwardAuthApplications(config),
+      );
       const cursor = new URL(request.url).searchParams.get("cursor");
       const start = cursor === null ? 0 : Number(cursor);
       const page = all.slice(start, start + mockPageSize);
@@ -2982,7 +3008,7 @@ function writeReply(
       return { kind: "empty", status: 204 };
 
     case "/api/prohibitorum/saml-applications": {
-      const id = clampCount(config.admin.samlApps) + 1;
+      const id = clampAdminCount(config.admin.samlApps) + 1;
       return {
         kind: "json",
         status: 201,

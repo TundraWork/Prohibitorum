@@ -283,6 +283,54 @@ describe("mocked management directory", () => {
     expect(second.nextCursor).toBe("");
   });
 
+  it("pages the application lists past the short lists' ceiling", () => {
+    for (const [path, key] of [
+      ["/api/prohibitorum/oidc-applications", "oidcApps"],
+      ["/api/prohibitorum/saml-applications", "samlApps"],
+      ["/api/prohibitorum/forward-auth-apps", "forwardAuthApps"],
+    ] as const) {
+      const current = config((draft) => {
+        draft.admin[key] = 40;
+      });
+      let total = 0;
+      let cursor = "";
+      do {
+        const page = bodyOf(
+          read(
+            path,
+            current,
+            `http://localhost${path}${cursor === "" ? "" : `?cursor=${cursor}`}`,
+          ),
+        ) as { items: unknown[]; nextCursor: string };
+        total += page.items.length;
+        cursor = page.nextCursor;
+      } while (cursor !== "");
+      expect(total).toBe(40);
+      expect(total).toBeGreaterThan(mockListMax);
+    }
+  });
+
+  it("answers a delegated manager only the applications they are assigned to", () => {
+    const rows = (path: string, current: MockConfig) =>
+      (bodyOf(read(path, current)) as { items: unknown[] }).items.length;
+    const manager = config((draft) => {
+      draft.session.role = "member";
+      draft.admin.oidcApps = 4;
+      draft.admin.samlApps = 4;
+      draft.admin.forwardAuthApps = 4;
+      draft.session.managedApps = { oidc: 2, saml: 1, forwardAuth: 0 };
+    });
+    expect(rows("/api/prohibitorum/oidc-applications", manager)).toBe(2);
+    expect(rows("/api/prohibitorum/saml-applications", manager)).toBe(1);
+    expect(rows("/api/prohibitorum/forward-auth-apps", manager)).toBe(0);
+
+    const admin = config((draft) => {
+      draft.admin.oidcApps = 4;
+      draft.session.managedApps = { oidc: 2, saml: 1, forwardAuth: 0 };
+    });
+    expect(rows("/api/prohibitorum/oidc-applications", admin)).toBe(4);
+  });
+
   it("searches the account directory by name before it pages", () => {
     const current = config((draft) => {
       draft.admin.accounts = mockPageSize * 2 + 12;
