@@ -214,8 +214,8 @@ export function ProviderClaimsSection({ provider }: { provider: Provider }) {
                     })}
                     description={
                       <Trans id="admin.federation.claims.domains.hint">
-                        Only people whose verified address is on one of these
-                        domains can come in.
+                        Only addresses on one of these domains can come in.
+                        Leave it empty to accept every domain.
                       </Trans>
                     }
                     emptyText={t({

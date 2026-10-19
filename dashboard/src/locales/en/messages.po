@@ -5226,6 +5226,11 @@ msgid "app.access.restrict.body"
 msgstr "Only accounts in the user groups you select can use this application. Until you select one, nobody can."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
+msgid "admin.federation.claims.domains.hint"
+msgstr "Only addresses on one of these domains can come in. Leave it empty to accept every domain."
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.mode.invite.hint"
 msgstr "Only linked accounts can sign in. New accounts need an invitation."
@@ -5239,11 +5244,6 @@ msgstr "Only one endpoint can be the default one."
 #: src/pages/security/PasswordTotpPanel.tsx
 msgid "security.password.description.partial"
 msgstr "Only part of this is set up. Set it up again to use it."
-
-#. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
-msgid "admin.federation.claims.domains.hint"
-msgstr "Only people whose verified address is on one of these domains can come in."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/SignInPageControls.tsx

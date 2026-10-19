@@ -77,6 +77,7 @@ export function ClaimMappingTable({
   children: ReactNode;
 }) {
   const labelId = useId();
+  const captionId = useId();
   const fields = returnedFields(lastTest);
   const layout = fields === null ? layouts.plain : layouts.tested;
 
@@ -87,6 +88,7 @@ export function ClaimMappingTable({
       </div>
       {lastTest?.status === "failed" && (
         <p
+          id={captionId}
           data-slot="claims-last-test-failed"
           className="text-warning-foreground text-xs"
         >
@@ -94,19 +96,27 @@ export function ClaimMappingTable({
             The last test failed <RelativeTime value={lastTest.finishedAt} />.
             Run it again from Diagnostics.
           </Trans>
+          {lastTest.stale && (
+            <>
+              {" "}
+              <Trans id="admin.federation.claims.column.returned.stale">
+                Configuration changed since
+              </Trans>
+              .
+            </>
+          )}
         </p>
       )}
       <div
-        aria-hidden="true"
         className={cn(
           "gap-y-0.5 text-muted-foreground text-xs font-medium",
           layout.head,
         )}
       >
-        <span className={layout.names}>
+        <span aria-hidden="true" className={layout.names}>
           <Trans id="admin.federation.claims.column.field">Account field</Trans>
         </span>
-        <span className={layout.names}>
+        <span aria-hidden="true" className={layout.names}>
           <Trans id="admin.federation.claims.column.claim">
             Provider claim
           </Trans>
@@ -116,24 +126,27 @@ export function ClaimMappingTable({
             <Trans id="admin.federation.claims.column.returned">
               Last test returned
             </Trans>
-            <span className="font-normal">
-              <Trans id="admin.federation.claims.column.returned.when">
-                From the test <RelativeTime value={lastTest.finishedAt} />
-              </Trans>
-            </span>
-            {lastTest.stale && (
-              <span className="font-normal text-warning-foreground">
-                <Trans id="admin.federation.claims.column.returned.stale">
-                  Configuration changed since
+            <span id={captionId} className="flex flex-col font-normal">
+              <span>
+                <Trans id="admin.federation.claims.column.returned.when">
+                  From the test <RelativeTime value={lastTest.finishedAt} />
                 </Trans>
               </span>
-            )}
+              {lastTest.stale && (
+                <span className="text-warning-foreground">
+                  <Trans id="admin.federation.claims.column.returned.stale">
+                    Configuration changed since
+                  </Trans>
+                </span>
+              )}
+            </span>
           </span>
         )}
       </div>
       <ReturnedFieldsContext.Provider value={fields}>
         <dl
           aria-labelledby={labelId}
+          aria-describedby={lastTest == null ? undefined : captionId}
           className="flex flex-col divide-y divide-border"
         >
           {children}
@@ -243,7 +256,7 @@ function ReturnedClaim({
 }) {
   const { i18n } = useLingui();
   const prefix = (
-    <span className="sr-only">
+    <span className="@2xl/claims:sr-only">
       <Trans id="admin.federation.claims.column.returned.field">
         Last test returned:
       </Trans>{" "}

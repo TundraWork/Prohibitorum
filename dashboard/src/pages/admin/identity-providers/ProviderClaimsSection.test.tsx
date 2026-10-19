@@ -180,10 +180,13 @@ describe("the last test column", () => {
     });
     mount(provider());
 
-    expect(
-      await screen.findByText("Configuration changed since"),
-    ).toBeVisible();
-    expect(returned("subject")).toHaveTextContent("ID token · sub");
+    await waitFor(() =>
+      expect(
+        screen.getByLabelText("Claim mapping"),
+      ).toHaveAccessibleDescription(
+        /From the test 2 minutes ago.*Configuration changed since/,
+      ),
+    );
   });
 
   it("says a failed test failed, rather than marking every field missing", async () => {
@@ -197,7 +200,19 @@ describe("the last test column", () => {
       /The last test failed 2 minutes ago.*Run it again from Diagnostics\./,
     );
     expect(screen.queryByText("Missing")).toBeNull();
-    expect(screen.queryByText("Last test returned")).toBeNull();
+    expect(document.querySelector("[data-claim-result]")).toBeNull();
+  });
+
+  it("says a failed test is also out of date when the configuration moved", async () => {
+    api = fakeApi({
+      [`GET ${latestPath}`]: () =>
+        Response.json(latest({ status: "failed", fields: {}, stale: true })),
+    });
+    mount(provider());
+
+    expect(await screen.findByText(/The last test failed/)).toHaveTextContent(
+      /Configuration changed since/,
+    );
   });
 
   it("is left out when no test has finished", async () => {
@@ -208,7 +223,7 @@ describe("the last test column", () => {
 
     await waitFor(() => expect(api.sent("GET", latestPath)).toHaveLength(1));
     expect(claimInput("Username")).toBeVisible();
-    expect(screen.queryByText("Last test returned")).toBeNull();
+    expect(document.querySelector("[data-claim-result]")).toBeNull();
     expect(screen.queryByText(/From the test/)).toBeNull();
   });
 
@@ -221,7 +236,7 @@ describe("the last test column", () => {
     await waitFor(() =>
       expect(api.sent("GET", latestPath).length).toBeGreaterThan(0),
     );
-    expect(screen.queryByText("Last test returned")).toBeNull();
+    expect(document.querySelector("[data-claim-result]")).toBeNull();
     expect(screen.queryAllByRole("alert")).toHaveLength(0);
     expect(notifyError).not.toHaveBeenCalled();
   });

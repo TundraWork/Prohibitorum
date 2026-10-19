@@ -5226,6 +5226,11 @@ msgid "app.access.restrict.body"
 msgstr "只有你选定的用户组中的账号可以使用这个应用。在你选定之前，没有人可以使用。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
+msgid "admin.federation.claims.domains.hint"
+msgstr "只有属于这些域名的邮箱地址才能登录。留空则接受所有域名。"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.mode.invite.hint"
 msgstr "只有已绑定的账号能登录；新账号要凭邀请链接注册。"
@@ -5239,11 +5244,6 @@ msgstr "只能有一个端点作为默认端点。"
 #: src/pages/security/PasswordTotpPanel.tsx
 msgid "security.password.description.partial"
 msgstr "只设置了其中一部分。请重新设置后再使用。"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
-msgid "admin.federation.claims.domains.hint"
-msgstr "只有已验证邮箱属于这些域名的人才能登录。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/SignInPageControls.tsx
