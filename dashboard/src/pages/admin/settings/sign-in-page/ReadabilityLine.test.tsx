@@ -61,13 +61,35 @@ describe("the readability line", () => {
   });
 
   it("says plainly when it cannot measure", () => {
-    render(<ReadabilityLine result={{ kind: "unmeasurable" }} />);
+    render(
+      <ReadabilityLine
+        result={{ kind: "unmeasurable", cause: "background" }}
+      />,
+    );
     const line = screen.getByRole("status");
     expect(line).toHaveTextContent(
       "Readability can't be measured for this background.",
     );
     expect(line).not.toHaveTextContent("Readable");
     expect(line).not.toHaveTextContent("contrast");
+  });
+
+  it("does not blame the background when the page could not be measured", () => {
+    render(
+      <ReadabilityLine result={{ kind: "unmeasurable", cause: "page" }} />,
+    );
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Readability can't be measured right now.",
+    );
+    i18n.activate("zh");
+    plainRender(
+      <I18nProvider i18n={i18n}>
+        <ReadabilityLine result={{ kind: "unmeasurable", cause: "page" }} />
+      </I18nProvider>,
+    );
+    expect(screen.getAllByRole("status")[1]).toHaveTextContent(
+      "暂时无法测量可读性。",
+    );
   });
 
   it("is worded in Chinese too", () => {
@@ -124,6 +146,21 @@ function colored(color: string): LoginAppearance {
 describe("keeping the verdict current", () => {
   beforeEach(() => {
     vi.useFakeTimers();
+  });
+
+  it("says it cannot measure when the measurement itself fails", async () => {
+    const { doc } = preview();
+    const failing: Environment = {
+      ...environment,
+      resolveColor: () => {
+        throw new Error("no canvas");
+      },
+    };
+    const { result } = renderHook(() =>
+      useReadability(doc, colored("rgb(255,255,255)"), failing),
+    );
+    await act(() => vi.advanceTimersByTimeAsync(500));
+    expect(result.current).toEqual({ kind: "unmeasurable", cause: "page" });
   });
 
   it("says nothing without a preview", async () => {

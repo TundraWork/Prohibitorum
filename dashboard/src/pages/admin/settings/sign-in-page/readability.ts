@@ -257,6 +257,24 @@ export interface Environment {
 
 let probe: CanvasRenderingContext2D | null | undefined;
 const colorCache = new Map<string, Rgba | undefined>();
+const maxColors = 200;
+const maxPictures = 8;
+const maxFailures = 50;
+
+/** Sets a cache entry as the newest, dropping the oldest past `max`. */
+export function remember<K, V>(
+  cache: Map<K, V>,
+  key: K,
+  value: V,
+  max: number,
+) {
+  cache.delete(key);
+  cache.set(key, value);
+  if (cache.size > max) {
+    const oldest = cache.keys().next();
+    if (!oldest.done) cache.delete(oldest.value);
+  }
+}
 
 function resolveCanvasColor(css: string): Rgba | undefined {
   if (colorCache.has(css)) return colorCache.get(css);
@@ -270,7 +288,9 @@ function resolveCanvasColor(css: string): Rgba | undefined {
     }
   }
   let color: Rgba | undefined;
-  if (probe) {
+  // Text that is not a colour would otherwise read as the transparent it
+  // started from, and be measured as if it were one.
+  if (probe && CSS.supports("color", css)) {
     probe.clearRect(0, 0, 1, 1);
     probe.fillStyle = "rgba(0, 0, 0, 0)";
     probe.fillStyle = css;
@@ -278,11 +298,13 @@ function resolveCanvasColor(css: string): Rgba | undefined {
     const [r = 0, g = 0, b = 0, a = 0] = probe.getImageData(0, 0, 1, 1).data;
     color = { r, g, b, a: a / 255 };
   }
-  colorCache.set(css, color);
+  remember(colorCache, css, color, maxColors);
   return color;
 }
 
 const pictures = new Map<string, Promise<Picture | undefined>>();
+/** Addresses that would not load for reading, so a host without CORS is asked once. */
+const failedPictures = new Map<string, true>();
 
 /**
  * Loads the picture again for reading, with CORS asked for: the copy the
@@ -291,6 +313,7 @@ const pictures = new Map<string, Promise<Picture | undefined>>();
  * here, and so cannot be measured.
  */
 function loadCanvasPicture(url: string): Promise<Picture | undefined> {
+  if (failedPictures.has(url)) return Promise.resolve(undefined);
   const known = pictures.get(url);
   if (known) return known;
   const loading = new Promise<Picture | undefined>((resolve) => {
@@ -339,10 +362,11 @@ function loadCanvasPicture(url: string): Promise<Picture | undefined> {
       });
     image.src = url;
   });
-  pictures.set(url, loading);
-  // A failure is not remembered: the next look tries again.
+  remember(pictures, url, loading, maxPictures);
   void loading.then((picture) => {
-    if (picture === undefined) pictures.delete(url);
+    if (picture !== undefined) return;
+    pictures.delete(url);
+    remember(failedPictures, url, true, maxFailures);
   });
   return loading;
 }
@@ -354,9 +378,19 @@ export const canvasEnvironment: Environment = {
 
 export type ReadabilityResult =
   | { kind: "measured"; ratio: number; readable: boolean }
-  | { kind: "unmeasurable" };
+  | { kind: "unmeasurable"; cause: UnmeasurableCause };
 
-const unmeasurable: ReadabilityResult = { kind: "unmeasurable" };
+/** Whether it is the background that cannot be read, or the page being measured. */
+export type UnmeasurableCause = "background" | "page";
+
+const unmeasurable: ReadabilityResult = {
+  kind: "unmeasurable",
+  cause: "background",
+};
+const pageUnmeasurable: ReadabilityResult = {
+  kind: "unmeasurable",
+  cause: "page",
+};
 
 function measured(ratio: number): ReadabilityResult {
   return { kind: "measured", ratio, readable: ratio >= readableContrast };
@@ -394,18 +428,20 @@ export async function measureReadability(
 ): Promise<ReadabilityResult> {
   const view = doc.defaultView;
   const card = doc.querySelector<HTMLElement>('[data-slot="stage-card"]');
-  if (!view || !card) return unmeasurable;
+  if (!view || !card) return pageUnmeasurable;
   const { resolveColor, loadPicture } = environment;
 
   const cardStyle = view.getComputedStyle(card);
   const foreground = resolveColor(cardStyle.color);
   const cardFill = resolveColor(cardStyle.backgroundColor);
-  if (!foreground || !cardFill) return unmeasurable;
+  if (!foreground || !cardFill) return pageUnmeasurable;
   if (cardFill.a >= 0.995) return measured(contrastRatio(foreground, cardFill));
 
   const frame = doc.querySelector<HTMLElement>('[data-slot="stage-frame"]');
   const frameStyle = frame ? view.getComputedStyle(frame) : undefined;
   const frameFill = frameStyle && resolveColor(frameStyle.backgroundColor);
+  // A frame whose colour cannot be read may be hiding or tinting the backdrop.
+  if (frameStyle && !frameFill) return pageUnmeasurable;
   const layers: Layers = {
     card: { fill: cardFill, blur: blurOf(cardStyle) },
     ...(frameStyle && frameFill
@@ -476,7 +512,7 @@ function measurePicture(
   };
   const rect = card.getBoundingClientRect();
   if (view.width === 0 || view.height === 0 || rect.width === 0) {
-    return unmeasurable;
+    return pageUnmeasurable;
   }
   // Wide enough that each blur gathers the light it would from beyond the card.
   const reach = Math.ceil(
@@ -490,7 +526,7 @@ function measurePicture(
     width: Math.min(view.width, rect.right + reach) - left,
     height: Math.min(view.height, rect.bottom + reach) - top,
   };
-  if (area.width <= 0 || area.height <= 0) return unmeasurable;
+  if (area.width <= 0 || area.height <= 0) return pageUnmeasurable;
   const cols = Math.min(maxCells, Math.max(1, Math.ceil(area.width / cellPx)));
   const rows = Math.min(maxCells, Math.max(1, Math.ceil(area.height / cellPx)));
   const region = picture.sample(coverSource(view, picture, area), cols, rows);

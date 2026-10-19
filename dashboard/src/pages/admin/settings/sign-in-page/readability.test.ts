@@ -12,6 +12,7 @@ import {
   over,
   type Rgba,
   readableContrast,
+  remember,
   watchPreview,
   worstContrastOnColors,
   worstContrastOnGrid,
@@ -413,7 +414,7 @@ describe("measuring the sign-in card", () => {
       }),
       noEnvironment,
     );
-    expect(result).toEqual({ kind: "unmeasurable" });
+    expect(result).toEqual({ kind: "unmeasurable", cause: "background" });
   });
 
   it("says it cannot measure a picture that has not arrived", async () => {
@@ -428,7 +429,7 @@ describe("measuring the sign-in card", () => {
       }),
       noEnvironment,
     );
-    expect(result).toEqual({ kind: "unmeasurable" });
+    expect(result).toEqual({ kind: "unmeasurable", cause: "background" });
   });
 
   it("says it cannot measure when the card's colours cannot be read", async () => {
@@ -440,7 +441,7 @@ describe("measuring the sign-in card", () => {
       ...noEnvironment,
       resolveColor: () => undefined,
     });
-    expect(result).toEqual({ kind: "unmeasurable" });
+    expect(result).toEqual({ kind: "unmeasurable", cause: "page" });
   });
 
   it("says it cannot measure a page with no card", async () => {
@@ -450,15 +451,44 @@ describe("measuring the sign-in card", () => {
     const doc = holder.contentDocument as Document;
     expect(
       await measureReadability(doc, defaultLoginAppearance, noEnvironment),
-    ).toEqual({
-      kind: "unmeasurable",
+    ).toEqual({ kind: "unmeasurable", cause: "page" });
+  });
+
+  it("says it cannot measure a colour that is not one yet", async () => {
+    const page = previewPage({
+      color: "rgb(0,0,0)",
+      background: "rgba(255,255,255,0.5)",
     });
+    const result = await measureReadability(
+      page.doc,
+      withBackground((b) => {
+        b.source = "color";
+        b.color = "#1a";
+      }),
+      noEnvironment,
+    );
+    expect(result).toEqual({ kind: "unmeasurable", cause: "background" });
+  });
+
+  it("does not drop a frame whose colour cannot be read", async () => {
+    const page = previewPage(
+      { color: "rgb(0,0,0)", background: "rgba(255,255,255,0.5)" },
+      { background: "rgb(1,2,3)" },
+    );
+    const result = await measureReadability(page.doc, defaultLoginAppearance, {
+      ...noEnvironment,
+      resolveColor: (css) =>
+        css.replaceAll(" ", "").startsWith("rgb(1,2,3")
+          ? undefined
+          : parseColor(css.replaceAll(" ", "")),
+    });
+    expect(result).toEqual({ kind: "unmeasurable", cause: "page" });
   });
 
   it("puts the frame between the backdrop and the card", async () => {
     const page = previewPage(
       { color: "rgb(255,255,255)", background: "rgba(255,255,255,0.1)" },
-      { background: "rgba(0,0,0,1)" },
+      { background: "rgb(1,2,3)" },
     );
     const result = await measureReadability(
       page.doc,
@@ -530,5 +560,17 @@ describe("noticing that the preview changed", () => {
     stop();
     await vi.advanceTimersByTimeAsync(300);
     expect(onChange).not.toHaveBeenCalled();
+  });
+});
+
+describe("the caches", () => {
+  it("keep the newest entries and drop the oldest past their size", () => {
+    const cache = new Map<string, number>();
+    for (const [i, key] of ["a", "b", "c"].entries())
+      remember(cache, key, i, 2);
+    expect([...cache.keys()]).toEqual(["b", "c"]);
+    remember(cache, "b", 9, 2);
+    remember(cache, "d", 3, 2);
+    expect([...cache.keys()]).toEqual(["b", "d"]);
   });
 });

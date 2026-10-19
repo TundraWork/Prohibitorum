@@ -635,7 +635,10 @@ describe("the readability of the card", () => {
   });
 
   it("says when the background cannot be measured", async () => {
-    measureReadability.mockResolvedValue({ kind: "unmeasurable" });
+    measureReadability.mockResolvedValue({
+      kind: "unmeasurable",
+      cause: "background",
+    });
     await open();
     expect(
       await within(frame("Card")).findByText(

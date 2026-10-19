@@ -38,9 +38,16 @@ export function useReadability(
     let latestRun = 0;
     const measure = () => {
       const run = ++latestRun;
-      void measureReadability(doc, latest.current, environment).then((next) => {
-        if (live && run === latestRun) setResult(next);
-      });
+      void measureReadability(doc, latest.current, environment)
+        .catch(
+          (): ReadabilityResult => ({
+            kind: "unmeasurable",
+            cause: "page",
+          }),
+        )
+        .then((next) => {
+          if (live && run === latestRun) setResult(next);
+        });
     };
     // The page the settings drew reaches the frame a moment after the edit.
     const settle = window.setTimeout(measure, 200);
@@ -66,9 +73,15 @@ export function ReadabilityLine({ result }: { result: ReadabilityResult }) {
     <div role="status" className="flex flex-wrap items-center gap-x-2 gap-y-1">
       {result.kind === "unmeasurable" ? (
         <span>
-          <Trans id="settings.sign-in.readability.unmeasurable">
-            Readability can't be measured for this background.
-          </Trans>
+          {result.cause === "background" ? (
+            <Trans id="settings.sign-in.readability.unmeasurable">
+              Readability can't be measured for this background.
+            </Trans>
+          ) : (
+            <Trans id="settings.sign-in.readability.unmeasurable_now">
+              Readability can't be measured right now.
+            </Trans>
+          )}
         </span>
       ) : (
         <Verdict ratio={formatRatio(result.ratio)} readable={result.readable} />
