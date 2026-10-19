@@ -61,6 +61,17 @@ beforeEach(() => {
   history = createBrowserHistory();
   i18n.activate("en");
   queryClient = createQueryClient(() => {});
+  // The seeded data is the whole answer these tests want, and
+  // `useSuspenseQuery` clamps its staleTime to only one second, so under CPU
+  // load a step change could otherwise remount the shell after that window
+  // and send the background refetch through whatever fetch mock the test
+  // installed — stealing a `mockResolvedValueOnce` meant for a sign-in step
+  // and stalling the flow mid-test. A large-but-finite staleTime covers a
+  // whole test run without the immediate-stale timer an `Infinity`
+  // `updatedAt` would schedule (Node clamps it to 1ms).
+  queryClient.setDefaultOptions({
+    queries: { staleTime: 3_600_000 },
+  });
   queryClient.setQueryData(publicConfigQueryOptions().queryKey, config);
   queryClient.setQueryData(authStatusQueryOptions().queryKey, {
     bootstrapped: true,
@@ -286,7 +297,7 @@ describe("single-use password verification", () => {
     });
     fireEvent.submit(form);
     fireEvent.submit(form);
-    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(authCalls(fetch)).toHaveLength(2));
     expect(code).toBeDisabled();
     expect(
       screen.getByRole("button", { name: "Use a recovery code" }),
@@ -295,7 +306,7 @@ describe("single-use password verification", () => {
       settle(rejectedCode());
     });
     await screen.findByLabelText("Password");
-    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(authCalls(fetch)).toHaveLength(2);
   });
 });
 
@@ -411,7 +422,7 @@ it("rejects noncanonical recovery codes and discards canceled authenticator rese
   await user.type(code, "abcd-efgh-ijkl-mnop");
   await user.click(screen.getByRole("button", { name: "Sign in" }));
   expect(code).toHaveAttribute("aria-invalid", "true");
-  expect(fetch).toHaveBeenCalledTimes(1);
+  expect(authCalls(fetch)).toHaveLength(1);
   await user.clear(code);
   await user.type(code, "ABCD-EFGH-IJKL-MNOP");
   const reset = screen.getByRole("checkbox", {
@@ -430,7 +441,7 @@ it("rejects noncanonical recovery codes and discards canceled authenticator rese
   ).not.toBeInTheDocument();
   await user.click(screen.getByRole("button", { name: "Sign in" }));
   await screen.findByLabelText("Password");
-  const request = fetch.mock.calls[1]?.[0] as Request;
+  const request = authCalls(fetch)[1]?.[0] as Request;
   expect(await request.json()).toEqual({
     partial_session_token: "recovery-once",
     code: "ABCD-EFGH-IJKL-MNOP",
@@ -683,7 +694,7 @@ describe("the sign-in link", () => {
     await screen.findByLabelText("Password");
     expect(router.state.location.pathname).toBe("/login");
     expect(query(router)).toEqual(kept);
-    const verify = fetch.mock.calls[1]?.[0] as Request;
+    const verify = authCalls(fetch)[1]?.[0] as Request;
     expect(new URL(verify.url).searchParams.get("return_to")).toBe("/apps");
   });
 

@@ -60,6 +60,11 @@ export function refreshTarget(
 
 let installed = false;
 
+/** Whether `installApiMocks` still has its one-time wiring left to do. */
+export function mocksInstallable(): boolean {
+  return !installed;
+}
+
 /**
  * Answers the app's requests from the mock config, and refreshes everything the
  * console already loaded whenever that config changes.

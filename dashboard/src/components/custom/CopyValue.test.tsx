@@ -33,6 +33,10 @@ function field() {
 
 beforeEach(() => {
   i18n.activate("en");
+  // jsdom ships no async clipboard. user-event's stub is what spies below
+  // attach to, and it only appears with the first `setup()` — so a shuffled
+  // run must not rely on another test having gone first.
+  user();
 });
 
 afterEach(() => {

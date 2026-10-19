@@ -3,6 +3,7 @@ import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import type { components } from "@/api/generated/schema";
+import { publicConfigQueryOptions } from "@/api/queries";
 import { createQueryClient } from "@/app/query-client";
 import { i18n } from "@/i18n";
 import {
@@ -10,6 +11,7 @@ import {
   fakeApi,
   publicApi,
   renderApp,
+  testConfig,
   testSession,
 } from "@/test/app";
 
@@ -22,6 +24,14 @@ let queryClient: QueryClient;
 beforeEach(() => {
   i18n.activate("en");
   queryClient = createQueryClient(() => undefined);
+  // The config and session every protected route's loader reads, seeded so
+  // the loader chain does not wait on them: under parallel CPU load the
+  // serial awaits (root config, `_protected` session, `_protected.admin`
+  // session again) could straddle the find queries' one-second budget before
+  // the page under test even mounted. `publicApi` still answers if anything
+  // does ask, and a role the test did not seed is refused by the loaders
+  // themselves.
+  queryClient.setQueryData(publicConfigQueryOptions().queryKey, testConfig);
 });
 
 afterEach(() => {

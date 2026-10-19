@@ -1,5 +1,6 @@
-import "@testing-library/jest-dom/vitest";
+import { configure } from "@testing-library/dom";
 import { cleanup } from "@testing-library/react";
+import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, vi } from "vitest";
 
 beforeEach(() => {
@@ -38,5 +39,23 @@ HTMLElement.prototype.getAnimations = () => [];
 
 // input-otp probes password-manager overlays with a hit test jsdom does not implement.
 document.elementFromPoint = () => null;
+
+// Browsers define focus() on the Document; jsdom does not. react-aria's toast
+// region restores focus to whatever a focusout carried as relatedTarget, and
+// a dialog closing over a paused toast can make that the document itself.
+const documentFocus = (document as Document & { focus?: () => void }).focus;
+if (typeof documentFocus !== "function") {
+  Object.defineProperty(document, "focus", {
+    configurable: true,
+    writable: true,
+    value: () => {},
+  });
+}
+
+// Find queries (findBy*) wait out the suite's own load tolerance: the config
+// already raises testTimeout for runs on a loaded machine, and a find whose
+// default is one second fails inside a test the suite still considers
+// healthy — the route under it had simply not painted yet.
+configure({ asyncUtilTimeout: 5000 });
 
 afterEach(cleanup);
