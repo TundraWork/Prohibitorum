@@ -2053,13 +2053,16 @@ export function deleteForwardAuthAppMutationOptions(queryClient: QueryClient) {
  * SAML creation needs no step-up: it establishes no credential and grants no
  * access, so it goes straight through.
  */
-export function createSamlAppMutationOptions() {
+export function createSamlAppMutationOptions(queryClient: QueryClient) {
   return mutationOptions({
     retry: false,
     mutationFn: async (body: CreateSamlAppRequest) =>
       requireJsonData(
         client.POST("/api/prohibitorum/saml-applications", { body }),
       ),
+    // The list a reader returns to must show the new application.
+    onSuccess: (created) =>
+      invalidateApplication(queryClient, "saml", String(created.id)),
   });
 }
 

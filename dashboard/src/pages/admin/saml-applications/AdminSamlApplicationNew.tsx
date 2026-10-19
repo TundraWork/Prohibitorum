@@ -1,17 +1,30 @@
-import { Label, ListBox, Select, Tabs } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { useMutation } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
+import { useStore } from "@tanstack/react-form";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Link, useNavigate } from "@tanstack/react-router";
+import {
+  FileKeyIcon,
+  IdCardIcon,
+  LogInIcon,
+  ServerIcon,
+  ShieldCheckIcon,
+} from "lucide-react";
 import { useState } from "react";
 import { isCancellation } from "@/api/errors";
 import { createSamlAppMutationOptions } from "@/api/mutations";
 import type { CreateSamlAppRequest } from "@/api/raw-admin-paths";
-import { ConsoleCard } from "@/components/custom/ConsoleCard";
+import { withInlineReport } from "@/app/query-client";
+import { Button } from "@/components/custom/Button";
+import { ChoiceTile } from "@/components/custom/ChoiceTile";
+import { PageBody } from "@/components/custom/PageBody";
+import { PageHeader } from "@/components/custom/PageHeader";
 import { RowsField, rowProblem } from "@/components/custom/RowsField";
+import { Section } from "@/components/custom/Section";
+import { RadioGroup } from "@/components/ui/radio-group";
 import { applyServerError } from "@/forms/server-errors";
 import { useAppForm } from "@/forms/use-app-form";
 import { AcsRowFields } from "@/pages/admin/saml-applications/AcsRowFields";
-import { nameIdFormats } from "@/pages/admin/saml-applications/saml-projection";
+import { NameIdFormatField } from "@/pages/admin/saml-applications/NameIdFormatField";
 import {
   type AcsRow,
   acsListProblem,
@@ -34,11 +47,9 @@ import {
  * an internal tool, or a document on a host with no route to it — and then the
  * three facts the server cannot infer have to be given.
  *
- * Both are one form, not two: the switches below the fields apply either way and
- * only the fields between the strip and them change. The choice is therefore a
- * strip over one form rather than two pages — and it is the one place on the
- * console where tabs are right, because what they select is a set of inputs
- * inside a single submission rather than a second view of a record.
+ * Both are one form, not two: the switches apply either way and only the fields
+ * of the service provider's section change. The choice is therefore a described
+ * choice at the top of the form, like the client type on the OIDC page.
  */
 type Mode = "metadata" | "manual";
 
@@ -46,18 +57,24 @@ type Mode = "metadata" | "manual";
  * Registering a SAML service provider with the instance.
  *
  * Only what the server cannot work out is asked for. The attribute map, the
- * session lifetime and the access policy all have a working default and are set
- * on the detail page, where the record as it stands sits beside the field — a new
- * application has no record yet, so there is nothing to compare it against.
+ * session lifetime and the access policy's groups all have a working default and
+ * are set on the application's page, where the record as it stands sits beside
+ * the field — a new application has no record yet, so there is nothing to
+ * compare it against.
  *
  * Creating an application establishes no credential for anyone and grants no
  * access, which is why the server asks for no fresh verification here and this
- * form makes no step-up call.
+ * form makes no step-up call. A failed create is shown on the form or the field
+ * it belongs to, and the mutation marks itself inline so the failure is not also
+ * a toast.
  */
 export function AdminSamlApplicationNew() {
   const { t } = useLingui();
   const navigate = useNavigate();
-  const create = useMutation(createSamlAppMutationOptions());
+  const queryClient = useQueryClient();
+  const create = useMutation(
+    withInlineReport(createSamlAppMutationOptions(queryClient), true),
+  );
   const [mode, setMode] = useState<Mode>("metadata");
 
   const form = useAppForm({
@@ -146,9 +163,9 @@ export function AdminSamlApplicationNew() {
             errorMap: { ...meta.errorMap, onSubmit: [metadataTooLarge] },
           }));
         } else {
-          // The manual path hides the metadata box, so the budget cannot be
-          // blamed on a field the reader cannot see: the whole request is too
-          // large, and that is a form-level statement.
+          // The manual path has no metadata box, so the budget cannot be blamed
+          // on a field the reader cannot see: the whole request is too large,
+          // and that is a form-level statement.
           form.setErrorMap({
             onSubmit: { form: metadataTooLarge, fields: {} },
           });
@@ -177,278 +194,319 @@ export function AdminSamlApplicationNew() {
       }
     },
   });
+  const submitting = useStore(form.store, (state) => state.isSubmitting);
 
   return (
-    <ConsoleCard>
+    <PageBody>
+      <PageHeader
+        title={
+          <Trans id="admin.saml-apps.new.title">New SAML application</Trans>
+        }
+        description={
+          <Trans id="admin.saml-apps.new.description">
+            Register a service provider that signs people in through this
+            instance. The rest of its settings are on its page once it exists.
+          </Trans>
+        }
+      />
       <form.AppForm>
         <form.Form
           label={t({
             id: "admin.saml-apps.new.form",
             message: "New SAML application",
           })}
+          className="flex flex-col gap-8"
         >
           <form.FormError />
 
-          <Tabs
-            className="w-full"
-            variant="secondary"
-            selectedKey={mode}
-            onSelectionChange={(key) => setMode(key as Mode)}
+          <Section
+            id="identity"
+            icon={<IdCardIcon />}
+            title={
+              <Trans id="admin.saml-apps.new.identity.title">Identity</Trans>
+            }
+            description={
+              <Trans id="admin.saml-apps.new.identity.description">
+                The name people see for the application.
+              </Trans>
+            }
           >
-            <Tabs.ListContainer className="w-fit max-w-full">
-              <Tabs.List
-                aria-label={t({
-                  id: "admin.saml-apps.new.mode",
-                  message: "How the application is registered",
-                })}
-              >
-                <Tabs.Tab className="whitespace-nowrap" id="metadata">
+            <form.AppField
+              name="displayName"
+              validators={{
+                onSubmit: ({ value }) =>
+                  value.trim() === "" ? displayNameRequired : undefined,
+              }}
+            >
+              {(field) => (
+                <field.FormField
+                  label={<Trans id="admin.saml-apps.field.name">Name</Trans>}
+                />
+              )}
+            </form.AppField>
+          </Section>
+
+          <Section
+            id="registration"
+            icon={<ServerIcon />}
+            title={
+              <Trans id="admin.saml-apps.new.registration.title">
+                Registration
+              </Trans>
+            }
+            description={
+              <Trans id="admin.saml-apps.new.registration.description">
+                A service provider usually publishes a metadata document with
+                everything the instance needs.
+              </Trans>
+            }
+          >
+            {/* The reader's choice, not the form's: the way of registering is
+                what the next section reads, so it stays in component state. */}
+            <RadioGroup
+              aria-label={t({
+                id: "admin.saml-apps.new.mode",
+                message: "How the application is registered",
+              })}
+              value={mode}
+              disabled={submitting}
+              onValueChange={(next) => setMode(next as Mode)}
+            >
+              <ChoiceTile
+                layout="list"
+                value="metadata"
+                label={
                   <Trans id="admin.saml-apps.new.mode.metadata">
                     Import metadata
                   </Trans>
-                  <Tabs.Indicator />
-                </Tabs.Tab>
-                <Tabs.Tab className="whitespace-nowrap" id="manual">
+                }
+                description={
+                  <Trans id="admin.saml-apps.new.mode.metadata.description">
+                    Paste the document the service provider publishes. The
+                    Entity ID, the endpoints and the certificates come from it.
+                  </Trans>
+                }
+              />
+              <ChoiceTile
+                layout="list"
+                value="manual"
+                label={
                   <Trans id="admin.saml-apps.new.mode.manual">
                     Enter it by hand
                   </Trans>
-                  <Tabs.Indicator />
-                </Tabs.Tab>
-              </Tabs.List>
-            </Tabs.ListContainer>
-          </Tabs>
-
-          <form.AppField
-            name="displayName"
-            validators={{
-              onSubmit: ({ value }) =>
-                value.trim() === "" ? displayNameRequired : undefined,
-            }}
-          >
-            {(field) => (
-              <field.FormField
-                label={<Trans id="admin.saml-apps.field.name">Name</Trans>}
-                variant="secondary"
-              />
-            )}
-          </form.AppField>
-
-          <form.AppField name="metadataXml">
-            {(field) => (
-              <field.TextAreaField
-                label={
-                  <Trans id="admin.saml-apps.field.metadata">
-                    Metadata XML
-                  </Trans>
                 }
                 description={
-                  <Trans id="admin.saml-apps.field.metadata.hint">
-                    The document the service provider publishes for its metadata
-                    endpoint.
+                  <Trans id="admin.saml-apps.new.mode.manual.description">
+                    For a provider that publishes no document you can reach. You
+                    give the Entity ID and the endpoints yourself.
                   </Trans>
                 }
-                // Both paths keep their own value while the other is shown, and
-                // the hidden one is disabled rather than unmounted, so returning
-                // to it finds what was left there.
-                isDisabled={mode !== "metadata"}
-                className="font-mono text-xs"
-                rows={10}
-                spellCheck={false}
-                variant="secondary"
               />
-            )}
-          </form.AppField>
+            </RadioGroup>
+          </Section>
 
-          <form.AppField
-            name="entityId"
-            validators={{
-              onSubmit: ({ value }) =>
-                mode === "manual" && value.trim() === ""
-                  ? entityIdRequired
-                  : undefined,
-            }}
+          <Section
+            id="service-provider"
+            icon={<FileKeyIcon />}
+            title={
+              <Trans id="admin.saml-apps.new.provider.title">
+                Service provider
+              </Trans>
+            }
+            description={
+              mode === "metadata" ? (
+                <Trans id="admin.saml-apps.new.provider.metadata.description">
+                  The document the service provider publishes.
+                </Trans>
+              ) : (
+                <Trans id="admin.saml-apps.new.provider.manual.description">
+                  What the instance cannot work out without a document.
+                </Trans>
+              )
+            }
           >
-            {(field) => (
-              <field.FormField
-                label={
-                  <Trans id="admin.saml-apps.field.entity-id">Entity ID</Trans>
-                }
-                description={
-                  <Trans id="admin.saml-apps.field.entity-id.hint">
-                    The identifier the service provider publishes. It cannot be
-                    changed later.
-                  </Trans>
-                }
-                isDisabled={mode !== "manual"}
-                autoComplete="off"
-                spellCheck={false}
-                variant="secondary"
-              />
-            )}
-          </form.AppField>
-
-          <form.AppField name="nameIdFormat">
-            {(field) => (
-              <div className="flex flex-col gap-1.5">
-                <Select
-                  className="w-full"
-                  variant="secondary"
-                  isDisabled={mode !== "manual"}
-                  value={field.state.value}
-                  onChange={(key) => {
-                    if (typeof key === "string") field.handleChange(key);
+            {/* Each way keeps its own value while the other is shown: the form
+                holds the values, so returning to a way finds what was left. */}
+            {mode === "metadata" ? (
+              <form.AppField name="metadataXml">
+                {(field) => (
+                  <field.TextAreaField
+                    label={
+                      <Trans id="admin.saml-apps.field.metadata">
+                        Metadata XML
+                      </Trans>
+                    }
+                    description={
+                      <Trans id="admin.saml-apps.field.metadata.hint">
+                        The document the service provider publishes for its
+                        metadata endpoint.
+                      </Trans>
+                    }
+                    isMonospace
+                    rows={10}
+                    spellCheck={false}
+                  />
+                )}
+              </form.AppField>
+            ) : (
+              <div className="flex flex-col gap-6">
+                <form.AppField
+                  name="entityId"
+                  validators={{
+                    onSubmit: ({ value }) =>
+                      value.trim() === "" ? entityIdRequired : undefined,
                   }}
                 >
-                  <Label>
-                    <Trans id="admin.saml-apps.field.name-id">
-                      NameID format
-                    </Trans>
-                  </Label>
-                  <Select.Trigger>
-                    <Select.Value />
-                    <Select.Indicator />
-                  </Select.Trigger>
-                  <Select.Popover>
-                    <ListBox>
-                      <ListBox.Item
-                        id=""
-                        textValue={t({
-                          id: "admin.saml-apps.name-id.default",
-                          message: "Use the instance default",
-                        })}
-                      >
-                        <Trans id="admin.saml-apps.name-id.default">
-                          Use the instance default
+                  {(field) => (
+                    <field.FormField
+                      label={
+                        <Trans id="admin.saml-apps.field.entity-id">
+                          Entity ID
                         </Trans>
-                        <ListBox.ItemIndicator />
-                      </ListBox.Item>
-                      {nameIdFormats.map((format) => (
-                        <ListBox.Item
-                          key={format}
-                          id={format}
-                          textValue={shortNameIdFormat(format)}
-                        >
-                          <span className="font-mono text-sm">
-                            {shortNameIdFormat(format)}
-                          </span>
-                          <ListBox.ItemIndicator />
-                        </ListBox.Item>
-                      ))}
-                    </ListBox>
-                  </Select.Popover>
-                </Select>
-                <p className="text-xs text-muted">
-                  <Trans id="admin.saml-apps.field.name-id.hint">
-                    The format of the identifier the instance sends as the
-                    subject of an assertion.
-                  </Trans>
-                </p>
+                      }
+                      description={
+                        <Trans id="admin.saml-apps.field.entity-id.hint">
+                          The identifier the service provider publishes. It
+                          cannot be changed later.
+                        </Trans>
+                      }
+                      autoComplete="off"
+                      spellCheck={false}
+                      isMonospace
+                    />
+                  )}
+                </form.AppField>
+
+                <form.AppField name="nameIdFormat">
+                  {() => <NameIdFormatField offerDefault />}
+                </form.AppField>
+
+                <form.AppField name="acs">
+                  {(field) => (
+                    <RowsField<AcsRow>
+                      label={
+                        <Trans id="admin.saml-apps.field.acs">
+                          Assertion Consumer Service endpoints
+                        </Trans>
+                      }
+                      description={
+                        <Trans id="admin.saml-apps.field.acs.hint">
+                          Where the instance sends the assertion. Exactly one
+                          endpoint is the default one.
+                        </Trans>
+                      }
+                      emptyRow={() => ({
+                        binding: bindingPost,
+                        location: "",
+                        index: String(field.state.value.length),
+                        isDefault: false,
+                      })}
+                      addLabel={
+                        <Trans id="admin.saml-apps.acs.add">Add endpoint</Trans>
+                      }
+                      renderRow={(_row, index, error) => (
+                        <AcsRowFields index={index} error={error} />
+                      )}
+                    />
+                  )}
+                </form.AppField>
               </div>
             )}
-          </form.AppField>
+          </Section>
 
-          <form.AppField name="acs">
-            {(field) => (
-              <RowsField<AcsRow>
-                label={
-                  <Trans id="admin.saml-apps.field.acs">
-                    Assertion Consumer Service endpoints
-                  </Trans>
-                }
-                description={
-                  <Trans id="admin.saml-apps.field.acs.hint">
-                    Where the instance sends the assertion. Exactly one endpoint
-                    is the default one.
-                  </Trans>
-                }
-                isDisabled={mode !== "manual"}
-                emptyRow={() => ({
-                  binding: bindingPost,
-                  location: "",
-                  index: String(field.state.value.length),
-                  isDefault: false,
-                })}
-                addLabel={
-                  <Trans id="admin.saml-apps.acs.add">Add endpoint</Trans>
-                }
-                renderRow={(_row, index, error) => (
-                  <AcsRowFields index={index} error={error} />
+          <Section
+            id="sign-in"
+            icon={<LogInIcon />}
+            title={<Trans id="admin.saml-apps.sign-in.title">Sign-in</Trans>}
+            description={
+              <Trans id="admin.saml-apps.new.sign-in.description">
+                What the service provider has to send, and where people may
+                start signing in.
+              </Trans>
+            }
+          >
+            <div className="flex flex-col gap-5">
+              <form.AppField name="requireSignedAuthnRequest">
+                {(field) => (
+                  <field.SwitchField
+                    label={
+                      <Trans id="admin.saml-apps.field.signed-request">
+                        Require a signed AuthnRequest
+                      </Trans>
+                    }
+                    description={
+                      <Trans id="admin.saml-apps.field.signed-request.hint">
+                        Refuse a sign-in request the service provider has not
+                        signed. Turn this off only if it cannot sign one.
+                      </Trans>
+                    }
+                  />
                 )}
-              />
-            )}
-          </form.AppField>
+              </form.AppField>
 
-          <form.AppField name="requireSignedAuthnRequest">
-            {(field) => (
-              <field.SwitchField
-                label={
-                  <Trans id="admin.saml-apps.field.signed-request">
-                    Require a signed AuthnRequest
-                  </Trans>
-                }
-                description={
-                  <Trans id="admin.saml-apps.field.signed-request.hint">
-                    Refuse a sign-in request the service provider has not
-                    signed. Turn this off only if it cannot sign one.
-                  </Trans>
-                }
-              />
-            )}
-          </form.AppField>
+              <form.AppField name="allowIdpInitiated">
+                {(field) => (
+                  <field.SwitchField
+                    label={
+                      <Trans id="admin.saml-apps.field.idp-initiated">
+                        Allow IdP-initiated sign-in
+                      </Trans>
+                    }
+                    description={
+                      <Trans id="admin.saml-apps.field.idp-initiated.hint">
+                        Let people start at this instance instead of at the
+                        service provider.
+                      </Trans>
+                    }
+                  />
+                )}
+              </form.AppField>
+            </div>
+          </Section>
 
-          <form.AppField name="allowIdpInitiated">
-            {(field) => (
-              <field.SwitchField
-                label={
-                  <Trans id="admin.saml-apps.field.idp-initiated">
-                    Allow IdP-initiated sign-in
-                  </Trans>
-                }
-                description={
-                  <Trans id="admin.saml-apps.field.idp-initiated.hint">
-                    Let people start at this instance instead of at the service
-                    provider.
-                  </Trans>
-                }
-              />
-            )}
-          </form.AppField>
+          <Section
+            id="access"
+            icon={<ShieldCheckIcon />}
+            title={<Trans id="app.access.title">Access</Trans>}
+            description={
+              <Trans id="admin.saml-apps.new.access.description">
+                Open it to every account, or limit it to user groups. The groups
+                are chosen on the application's page.
+              </Trans>
+            }
+          >
+            <form.AppField name="accessRestricted">
+              {(field) => (
+                <field.SwitchField
+                  label={
+                    <Trans id="admin.saml-apps.field.restricted">
+                      Restrict access
+                    </Trans>
+                  }
+                  description={
+                    <Trans id="admin.saml-apps.field.restricted.hint">
+                      Nobody can use the application until you select a user
+                      group.
+                    </Trans>
+                  }
+                />
+              )}
+            </form.AppField>
+          </Section>
 
-          <form.AppField name="accessRestricted">
-            {(field) => (
-              <field.SwitchField
-                label={
-                  <Trans id="admin.saml-apps.field.restricted">
-                    Restrict access
-                  </Trans>
-                }
-                description={
-                  <Trans id="admin.saml-apps.field.restricted.hint">
-                    Nobody can use the application until you select a user
-                    group.
-                  </Trans>
-                }
-              />
-            )}
-          </form.AppField>
-
-          <form.SubmitButton>
-            <Trans id="admin.saml-apps.new.submit">Create application</Trans>
-          </form.SubmitButton>
+          <div className="flex flex-wrap items-center gap-2">
+            <form.SubmitButton>
+              <Trans id="admin.saml-apps.new.submit">Create application</Trans>
+            </form.SubmitButton>
+            <Button
+              variant="ghost"
+              render={<Link to="/admin/saml-applications" />}
+            >
+              <Trans id="admin.cancel">Cancel</Trans>
+            </Button>
+          </div>
         </form.Form>
       </form.AppForm>
-    </ConsoleCard>
+    </PageBody>
   );
-}
-
-/**
- * The last segment of a NameID format URN: `persistent` rather than
- * `urn:oasis:names:tc:SAML:2.0:nameid-format:persistent`.
- *
- * The whole URN is what gets stored and sent, so only the reading is shortened.
- */
-export function shortNameIdFormat(format: string): string {
-  const separator = format.lastIndexOf(":");
-  const short = separator === -1 ? format : format.slice(separator + 1);
-  return short === "" ? format : short;
 }

@@ -345,6 +345,11 @@ msgid "admin.oidc-apps.new.kind.confidential.description"
 msgstr "能够保管密钥的服务端应用，用客户端密钥登录。创建后密钥只会显示一次。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
+msgid "admin.saml-apps.new.registration.description"
+msgstr "服务提供商通常会发布一份元数据文档，其中有实例需要的全部信息。"
+
+#. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.username_immutable"
 msgstr "账号创建后，用户名不可更改。"
@@ -357,6 +362,7 @@ msgstr "访问"
 #. js-lingui-explicit-id
 #: src/components/custom/AppAccessSection.tsx
 #: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
+#: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
 msgid "app.access.title"
 msgstr "访问权限"
 
@@ -1030,6 +1036,11 @@ msgid "admin.oidc-apps.page.description"
 msgstr "通过 OpenID Connect 在此实例登录的应用。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/AdminSamlApplications.tsx
+msgid "admin.saml-apps.page.description"
+msgstr "通过 SAML 在此实例登录的应用。"
+
+#. js-lingui-explicit-id
 #: src/pages/ConnectedApps.tsx
 msgid "apps.page.description"
 msgstr "你允许其用于登录的应用。移除某个应用后，它下次会重新征求你的许可。"
@@ -1308,6 +1319,7 @@ msgstr "取消"
 #: src/components/custom/AppManagersSection.tsx
 #: src/pages/admin/AdminInvitationForm.tsx
 #: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
+#: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
 #: src/pages/admin/saml-applications/SamlMetadataSection.tsx
 msgid "admin.cancel"
 msgstr "取消"
@@ -3426,11 +3438,7 @@ msgid "security.tokens.expired"
 msgstr "已过期"
 
 #. js-lingui-explicit-id
-#: src/components/custom/ListCells.tsx
-msgid "list.diagnostics.certificate.expired"
-msgstr "已过期"
-
-#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/AdminSamlApplications.tsx
 #: src/pages/admin/saml-applications/SamlMetadataSection.tsx
 msgid "admin.saml-apps.keys.expired"
 msgstr "{date} 已过期"
@@ -3447,6 +3455,7 @@ msgstr "过期时间"
 
 #. A date the administrator plans around, so it is a date and not a relative time
 #. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/AdminSamlApplications.tsx
 #: src/pages/admin/saml-applications/SamlMetadataSection.tsx
 msgid "admin.saml-apps.keys.expires"
 msgstr "{date} 过期"
@@ -3515,6 +3524,11 @@ msgstr "适用于没有通行密钥的设备。尚未设置。"
 #: src/pages/admin/identity-providers/EndpointsField.tsx
 msgid "admin.federation.connection.mode.manual.hint"
 msgstr "提供商不支持发现时使用。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
+msgid "admin.saml-apps.new.mode.manual.description"
+msgstr "适用于没有可访问元数据文档的提供商。Entity ID 和端点需要你自己填写。"
 
 #. js-lingui-explicit-id
 #: src/components/custom/SudoDialog.tsx
@@ -3693,11 +3707,6 @@ msgid "security.page.description"
 msgstr "你如何登录 {name}。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/saml-applications/AcsRowFields.tsx
-msgid "admin.saml-apps.acs.location.placeholder"
-msgstr "https://sp.example.com/saml/acs"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/settings/SignInPageControls.tsx
 msgid "settings.sign-in.color.hue"
 msgstr "色相"
@@ -3797,6 +3806,11 @@ msgstr "标识"
 #: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
 msgid "admin.federation.new.slug"
 msgstr "标识符"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
+msgid "admin.saml-apps.new.identity.title"
+msgstr "身份"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/SamlIdentitySection.tsx
@@ -4524,14 +4538,13 @@ msgid "admin.oidc-apps.scope.profile"
 msgstr "姓名、用户名和头像。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
-#: src/pages/admin/saml-applications/SamlIdentitySection.tsx
-msgid "admin.saml-apps.field.name-id"
+#: src/pages/admin/saml-applications/AdminSamlApplications.tsx
+msgid "admin.saml-apps.column.name-id"
 msgstr "NameID 格式"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/saml-applications/AdminSamlApplications.tsx
-msgid "admin.saml-apps.column.name-id"
+#: src/pages/admin/saml-applications/NameIdFormatField.tsx
+msgid "admin.saml-apps.field.name-id"
 msgstr "NameID 格式"
 
 #. js-lingui-explicit-id
@@ -4647,6 +4660,11 @@ msgstr "新恢复码"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
+msgid "admin.saml-apps.new.title"
+msgstr "新建 SAML 应用"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
 msgid "admin.saml-apps.new.form"
 msgstr "新建 SAML 应用"
 
@@ -4711,6 +4729,7 @@ msgid "admin.logs.empty"
 msgstr "这个范围内没有事件"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/AdminSamlApplications.tsx
 #: src/pages/admin/saml-applications/SamlMetadataSection.tsx
 msgid "admin.saml-apps.keys.no-expiry"
 msgstr "无过期时间"
@@ -4798,6 +4817,7 @@ msgstr "没有已登录的设备"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AdminSamlApplication.tsx
+#: src/pages/admin/saml-applications/AdminSamlApplications.tsx
 msgid "admin.saml-apps.certificate.none"
 msgstr "没有签名证书"
 
@@ -5113,6 +5133,11 @@ msgid "federation_flow.identify.step.open"
 msgstr "在浏览器打开 <0>vrchat.com</0> 并进入你的个人资料页。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
+msgid "admin.saml-apps.new.access.description"
+msgstr "可以向所有账号开放，也可以限制给用户组。用户组在应用页面中选择。"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
 msgid "admin.oidc-apps.new.access.description"
 msgstr "可以对所有账号开放，也可以只开放给部分用户组。用户组在应用创建后到它的页面里选择。"
@@ -5349,6 +5374,11 @@ msgstr "已关闭密码与身份验证器"
 #: src/api/success-messages.ts
 msgid "success.password.changed"
 msgstr "密码已修改"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
+msgid "admin.saml-apps.new.mode.metadata.description"
+msgstr "粘贴服务提供商发布的文档。Entity ID、端点和证书都来自它。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/saml-validation.ts
@@ -5695,6 +5725,11 @@ msgid "settings.sign-in.bing.region"
 msgstr "地区"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
+msgid "admin.saml-apps.new.description"
+msgstr "注册一个通过此实例登录的服务提供商。其余设置在应用创建后到它的页面中修改。"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
 msgid "admin.oidc-apps.new.description"
 msgstr "注册一个通过此实例登录的应用。其余设置在它创建后的页面里。"
@@ -5713,6 +5748,11 @@ msgstr "运行连接测试前，请在提供商处登记这个地址。"
 #: src/pages/admin/audit-vocabulary.ts
 msgid "audit.factor.enrollment"
 msgstr "注册"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
+msgid "admin.saml-apps.new.registration.title"
+msgstr "注册方式"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
@@ -6330,6 +6370,11 @@ msgstr "SAML 应用"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AdminSamlApplications.tsx
+msgid "admin.saml-apps.page.title"
+msgstr "SAML 应用"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/AdminSamlApplications.tsx
 msgid "admin.saml-apps.table"
 msgstr "SAML 应用"
 
@@ -6564,6 +6609,11 @@ msgstr "在请求正文里发送客户端密钥。"
 #: src/components/custom/principal-sources.ts
 msgid "principal-source.verified-email.hint"
 msgstr "仅在邮箱已验证且未被其他账号使用时发送，否则请求会被拒绝。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
+msgid "admin.saml-apps.new.provider.title"
+msgstr "服务提供商"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts
@@ -6843,6 +6893,7 @@ msgid "console.signin.title"
 msgstr "登录"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
 #: src/pages/admin/saml-applications/SamlSignInSection.tsx
 msgid "admin.saml-apps.sign-in.title"
 msgstr "登录"
@@ -7418,8 +7469,8 @@ msgstr "服务提供商为其元数据端点发布的文档。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
-msgid "admin.saml-apps.field.name-id.hint"
-msgstr "这个实例作为断言主体发送的标识符的格式。"
+msgid "admin.saml-apps.new.provider.metadata.description"
+msgstr "服务提供商发布的文档。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/ForwardAuthDangerSection.tsx
@@ -7459,7 +7510,7 @@ msgid "admin.forward-auth-apps.field.client-id.hint"
 msgstr "发往这个应用的每个请求都带有这个标识。之后无法更改。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/saml-applications/SamlIdentitySection.tsx
+#: src/pages/admin/saml-applications/NameIdFormatField.tsx
 msgid "admin.saml-apps.identity.name-id.hint"
 msgstr "断言主体携带的标识符。"
 
@@ -7512,6 +7563,11 @@ msgstr "新账号注册后加入的手工用户组。"
 #: src/pages/admin/identity-providers/ProviderConnectionSection.tsx
 msgid "admin.federation.connection.secret.hint"
 msgstr "所选的认证方式会把这个密钥发送给提供方；密钥加密存储，不会再次显示。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
+msgid "admin.saml-apps.new.identity.description"
+msgstr "人们看到的应用名称。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/SignInPagePanel.tsx
@@ -8520,8 +8576,7 @@ msgid "devices.sessions.use_sign_out"
 msgstr "请使用退出登录结束此会话"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
-#: src/pages/admin/saml-applications/SamlIdentitySection.tsx
+#: src/pages/admin/saml-applications/NameIdFormatField.tsx
 msgid "admin.saml-apps.name-id.default"
 msgstr "使用实例默认值"
 
@@ -8744,11 +8799,6 @@ msgid "admin.federation.auth.discovery.hint"
 msgstr "按提供商公布的方式选择；手动填写端点时不可用。"
 
 #. js-lingui-explicit-id
-#: src/components/custom/ListCells.tsx
-msgid "list.diagnostics.certificate.valid"
-msgstr "在此日期前有效"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
 msgid "admin.group.rule.value"
 msgstr "取值"
@@ -8946,6 +8996,16 @@ msgstr "人们看到的名称，以及客户端配置所用的标识。"
 #: src/pages/admin/oidc-applications/IdentityProjectionSection.tsx
 msgid "admin.oidc-apps.identity.description"
 msgstr "客户端会得知的登录者信息。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
+msgid "admin.saml-apps.new.provider.manual.description"
+msgstr "没有文档时，实例无法自行得知的内容。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
+msgid "admin.saml-apps.new.sign-in.description"
+msgstr "服务提供商必须发送什么，以及人们可以从哪里开始登录。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/SamlIdentitySection.tsx

@@ -345,6 +345,11 @@ msgid "admin.oidc-apps.new.kind.confidential.description"
 msgstr "A server-side application that can keep a secret. It signs in with a client secret, shown once after you create it."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
+msgid "admin.saml-apps.new.registration.description"
+msgstr "A service provider usually publishes a metadata document with everything the instance needs."
+
+#. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.username_immutable"
 msgstr "A username cannot be changed once the account exists."
@@ -357,6 +362,7 @@ msgstr "Access"
 #. js-lingui-explicit-id
 #: src/components/custom/AppAccessSection.tsx
 #: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
+#: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
 msgid "app.access.title"
 msgstr "Access"
 
@@ -1030,6 +1036,11 @@ msgid "admin.oidc-apps.page.description"
 msgstr "Applications that sign people in through this instance with OpenID Connect."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/AdminSamlApplications.tsx
+msgid "admin.saml-apps.page.description"
+msgstr "Applications that sign people in through this instance with SAML."
+
+#. js-lingui-explicit-id
 #: src/pages/ConnectedApps.tsx
 msgid "apps.page.description"
 msgstr "Applications you allowed to sign you in. Removing one makes it ask again next time."
@@ -1308,6 +1319,7 @@ msgstr "Cancel"
 #: src/components/custom/AppManagersSection.tsx
 #: src/pages/admin/AdminInvitationForm.tsx
 #: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
+#: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
 #: src/pages/admin/saml-applications/SamlMetadataSection.tsx
 msgid "admin.cancel"
 msgstr "Cancel"
@@ -3426,11 +3438,7 @@ msgid "security.tokens.expired"
 msgstr "Expired"
 
 #. js-lingui-explicit-id
-#: src/components/custom/ListCells.tsx
-msgid "list.diagnostics.certificate.expired"
-msgstr "Expired"
-
-#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/AdminSamlApplications.tsx
 #: src/pages/admin/saml-applications/SamlMetadataSection.tsx
 msgid "admin.saml-apps.keys.expired"
 msgstr "Expired {date}"
@@ -3447,6 +3455,7 @@ msgstr "Expires"
 
 #. A date the administrator plans around, so it is a date and not a relative time
 #. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/AdminSamlApplications.tsx
 #: src/pages/admin/saml-applications/SamlMetadataSection.tsx
 msgid "admin.saml-apps.keys.expires"
 msgstr "Expires {date}"
@@ -3515,6 +3524,11 @@ msgstr "For a device without your passkeys. Not set up yet."
 #: src/pages/admin/identity-providers/EndpointsField.tsx
 msgid "admin.federation.connection.mode.manual.hint"
 msgstr "For a provider that does not publish discovery."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
+msgid "admin.saml-apps.new.mode.manual.description"
+msgstr "For a provider that publishes no document you can reach. You give the Entity ID and the endpoints yourself."
 
 #. js-lingui-explicit-id
 #: src/components/custom/SudoDialog.tsx
@@ -3693,11 +3707,6 @@ msgid "security.page.description"
 msgstr "How you sign in to {name}."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/saml-applications/AcsRowFields.tsx
-msgid "admin.saml-apps.acs.location.placeholder"
-msgstr "https://sp.example.com/saml/acs"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/settings/SignInPageControls.tsx
 msgid "settings.sign-in.color.hue"
 msgstr "Hue"
@@ -3797,6 +3806,11 @@ msgstr "Identifier"
 #: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
 msgid "admin.federation.new.slug"
 msgstr "Identifier"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
+msgid "admin.saml-apps.new.identity.title"
+msgstr "Identity"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/SamlIdentitySection.tsx
@@ -4524,14 +4538,13 @@ msgid "admin.oidc-apps.scope.profile"
 msgstr "Name, username and picture."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
-#: src/pages/admin/saml-applications/SamlIdentitySection.tsx
-msgid "admin.saml-apps.field.name-id"
+#: src/pages/admin/saml-applications/AdminSamlApplications.tsx
+msgid "admin.saml-apps.column.name-id"
 msgstr "NameID format"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/saml-applications/AdminSamlApplications.tsx
-msgid "admin.saml-apps.column.name-id"
+#: src/pages/admin/saml-applications/NameIdFormatField.tsx
+msgid "admin.saml-apps.field.name-id"
 msgstr "NameID format"
 
 #. js-lingui-explicit-id
@@ -4647,6 +4660,11 @@ msgstr "New recovery codes"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
+msgid "admin.saml-apps.new.title"
+msgstr "New SAML application"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
 msgid "admin.saml-apps.new.form"
 msgstr "New SAML application"
 
@@ -4711,6 +4729,7 @@ msgid "admin.logs.empty"
 msgstr "No events in this range"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/AdminSamlApplications.tsx
 #: src/pages/admin/saml-applications/SamlMetadataSection.tsx
 msgid "admin.saml-apps.keys.no-expiry"
 msgstr "No expiry"
@@ -4798,6 +4817,7 @@ msgstr "No signed-in devices"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AdminSamlApplication.tsx
+#: src/pages/admin/saml-applications/AdminSamlApplications.tsx
 msgid "admin.saml-apps.certificate.none"
 msgstr "No signing certificate"
 
@@ -5113,6 +5133,11 @@ msgid "federation_flow.identify.step.open"
 msgstr "Open <0>vrchat.com</0> in your browser and go to your profile page."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
+msgid "admin.saml-apps.new.access.description"
+msgstr "Open it to every account, or limit it to user groups. The groups are chosen on the application's page."
+
+#. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
 msgid "admin.oidc-apps.new.access.description"
 msgstr "Open it to every account, or limit it to user groups. The groups are chosen on the application's page."
@@ -5349,6 +5374,11 @@ msgstr "Password and authenticator turned off"
 #: src/api/success-messages.ts
 msgid "success.password.changed"
 msgstr "Password changed"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
+msgid "admin.saml-apps.new.mode.metadata.description"
+msgstr "Paste the document the service provider publishes. The Entity ID, the endpoints and the certificates come from it."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/saml-validation.ts
@@ -5695,6 +5725,11 @@ msgid "settings.sign-in.bing.region"
 msgstr "Region"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
+msgid "admin.saml-apps.new.description"
+msgstr "Register a service provider that signs people in through this instance. The rest of its settings are on its page once it exists."
+
+#. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
 msgid "admin.oidc-apps.new.description"
 msgstr "Register an application that signs people in through this instance. The rest of its settings are on its page once it exists."
@@ -5712,6 +5747,11 @@ msgstr "Register this address with the provider before running a connection test
 #. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts
 msgid "audit.factor.enrollment"
+msgstr "Registration"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
+msgid "admin.saml-apps.new.registration.title"
 msgstr "Registration"
 
 #. js-lingui-explicit-id
@@ -6330,6 +6370,11 @@ msgstr "SAML application"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AdminSamlApplications.tsx
+msgid "admin.saml-apps.page.title"
+msgstr "SAML applications"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/AdminSamlApplications.tsx
 msgid "admin.saml-apps.table"
 msgstr "SAML applications"
 
@@ -6564,6 +6609,11 @@ msgstr "Sends the client secret in the request body."
 #: src/components/custom/principal-sources.ts
 msgid "principal-source.verified-email.hint"
 msgstr "Sent only while the address is verified and no other account uses it; otherwise the request is refused."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
+msgid "admin.saml-apps.new.provider.title"
+msgstr "Service provider"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts
@@ -6843,6 +6893,7 @@ msgid "console.signin.title"
 msgstr "Sign-in"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
 #: src/pages/admin/saml-applications/SamlSignInSection.tsx
 msgid "admin.saml-apps.sign-in.title"
 msgstr "Sign-in"
@@ -7418,8 +7469,8 @@ msgstr "The document the service provider publishes for its metadata endpoint."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
-msgid "admin.saml-apps.field.name-id.hint"
-msgstr "The format of the identifier the instance sends as the subject of an assertion."
+msgid "admin.saml-apps.new.provider.metadata.description"
+msgstr "The document the service provider publishes."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/ForwardAuthDangerSection.tsx
@@ -7459,7 +7510,7 @@ msgid "admin.forward-auth-apps.field.client-id.hint"
 msgstr "The identifier every request to this application carries. It cannot change later."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/saml-applications/SamlIdentitySection.tsx
+#: src/pages/admin/saml-applications/NameIdFormatField.tsx
 msgid "admin.saml-apps.identity.name-id.hint"
 msgstr "The identifier the assertion's subject carries."
 
@@ -7512,6 +7563,11 @@ msgstr "The manual groups the new account joins when it registers."
 #: src/pages/admin/identity-providers/ProviderConnectionSection.tsx
 msgid "admin.federation.connection.secret.hint"
 msgstr "The method chosen sends this to the provider; it is stored encrypted and never shown again."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
+msgid "admin.saml-apps.new.identity.description"
+msgstr "The name people see for the application."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/SignInPagePanel.tsx
@@ -8520,8 +8576,7 @@ msgid "devices.sessions.use_sign_out"
 msgstr "Use sign out to end this one"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
-#: src/pages/admin/saml-applications/SamlIdentitySection.tsx
+#: src/pages/admin/saml-applications/NameIdFormatField.tsx
 msgid "admin.saml-apps.name-id.default"
 msgstr "Use the instance default"
 
@@ -8744,11 +8799,6 @@ msgid "admin.federation.auth.discovery.hint"
 msgstr "Uses what the provider publishes. Not available with manual endpoints."
 
 #. js-lingui-explicit-id
-#: src/components/custom/ListCells.tsx
-msgid "list.diagnostics.certificate.valid"
-msgstr "Valid until this date"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
 msgid "admin.group.rule.value"
 msgstr "Value"
@@ -8946,6 +8996,16 @@ msgstr "What people see, and the identifier the client is configured with."
 #: src/pages/admin/oidc-applications/IdentityProjectionSection.tsx
 msgid "admin.oidc-apps.identity.description"
 msgstr "What the client is told about someone who signs in."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
+msgid "admin.saml-apps.new.provider.manual.description"
+msgstr "What the instance cannot work out without a document."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
+msgid "admin.saml-apps.new.sign-in.description"
+msgstr "What the service provider has to send, and where people may start signing in."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/SamlIdentitySection.tsx

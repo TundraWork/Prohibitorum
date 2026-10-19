@@ -1,8 +1,18 @@
-import { Input, Label, ListBox, Select, Switch } from "@heroui/react";
-import { Trans, useLingui } from "@lingui/react/macro";
+import { Trans } from "@lingui/react/macro";
 import { useStore } from "@tanstack/react-form";
-import { type ReactNode, useId } from "react";
+import { type ReactNode, useRef } from "react";
 import { FormMessages } from "@/components/custom/FormMessages";
+import { useHostOverlayContainer } from "@/components/custom/host-overlay-container";
+import { Field, FieldLabel } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectItem,
+  SelectPopup,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { useFieldContext, useFormContext } from "@/forms/context";
 import { withoutServerErrors } from "@/forms/server-errors";
 import {
@@ -10,6 +20,11 @@ import {
   bindingPost,
   bindingRedirect,
 } from "@/pages/admin/saml-applications/saml-validation";
+
+const bindingNames: Record<string, string> = {
+  [bindingPost]: "POST",
+  [bindingRedirect]: "Redirect",
+};
 
 /**
  * The four inputs of one Assertion Consumer Service endpoint, drawn inside
@@ -31,12 +46,11 @@ export function AcsRowFields({
   /** This row's complaint, if the submit or the server raised one. */
   error: ReactNode;
 }) {
-  const { t } = useLingui();
   const field = useFieldContext<AcsRow[]>();
   const form = useFormContext();
   const submitting = useStore(form.store, (state) => state.isSubmitting);
-  const locationId = useId();
-  const indexId = useId();
+  const anchor = useRef<HTMLDivElement>(null);
+  const container = useHostOverlayContainer(anchor);
 
   const row = field.state.value[index];
   if (row === undefined) return null;
@@ -58,94 +72,81 @@ export function AcsRowFields({
   };
 
   return (
-    <div className="flex flex-col gap-1.5">
+    <div ref={anchor} className="flex flex-col gap-1.5">
       <div className="flex flex-wrap items-end gap-3">
-        <Select
-          className="w-32"
-          variant="secondary"
-          isDisabled={submitting}
-          value={row.binding}
-          onChange={(key) => {
-            if (typeof key === "string") update({ binding: key });
-          }}
-        >
-          <Label>
+        <Field className="w-36" disabled={submitting}>
+          <FieldLabel>
             <Trans id="admin.saml-apps.acs.binding">Binding</Trans>
-          </Label>
-          <Select.Trigger>
-            <Select.Value />
-            <Select.Indicator />
-          </Select.Trigger>
-          <Select.Popover>
-            <ListBox>
-              <ListBox.Item id={bindingPost} textValue="POST">
-                POST
-                <ListBox.ItemIndicator />
-              </ListBox.Item>
-              <ListBox.Item id={bindingRedirect} textValue="Redirect">
-                Redirect
-                <ListBox.ItemIndicator />
-              </ListBox.Item>
-            </ListBox>
-          </Select.Popover>
-        </Select>
+          </FieldLabel>
+          <Select
+            value={row.binding}
+            onValueChange={(next) => {
+              if (typeof next === "string") update({ binding: next });
+            }}
+          >
+            <SelectTrigger>
+              <SelectValue>
+                {() => bindingNames[row.binding] ?? row.binding}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectPopup
+              alignItemWithTrigger={false}
+              portalProps={{ container }}
+            >
+              <SelectItem value={bindingPost}>POST</SelectItem>
+              <SelectItem value={bindingRedirect}>Redirect</SelectItem>
+            </SelectPopup>
+          </Select>
+        </Field>
 
         {/* The address is the row's identity: it is what a service provider
             publishes and what the reader compares against their own metadata,
             so it gets the row's remaining width. */}
-        <div className="flex min-w-48 flex-1 flex-col gap-1">
-          <Label htmlFor={locationId}>
+        <Field
+          className="min-w-48 flex-1"
+          disabled={submitting}
+          invalid={invalid}
+        >
+          <FieldLabel>
             <Trans id="admin.saml-apps.acs.location">Address</Trans>
-          </Label>
+          </FieldLabel>
           <Input
-            id={locationId}
+            className="font-mono"
             value={row.location}
-            disabled={submitting}
-            aria-invalid={invalid}
+            aria-invalid={invalid || undefined}
             autoComplete="off"
             spellCheck={false}
-            placeholder={t({
-              id: "admin.saml-apps.acs.location.placeholder",
-              message: "https://sp.example.com/saml/acs",
-            })}
-            variant="secondary"
             onChange={(event) => update({ location: event.target.value })}
           />
-        </div>
+        </Field>
 
-        <div className="flex w-20 flex-col gap-1">
-          <Label htmlFor={indexId}>
+        <Field className="w-20" disabled={submitting}>
+          <FieldLabel>
             <Trans id="admin.saml-apps.acs.index">Index</Trans>
-          </Label>
+          </FieldLabel>
           <Input
-            id={indexId}
             value={row.index}
-            disabled={submitting}
             inputMode="numeric"
-            variant="secondary"
             onChange={(event) => update({ index: event.target.value })}
           />
-        </div>
+        </Field>
 
-        <div className="pb-2.5">
-          <Switch
-            isSelected={row.isDefault}
-            isDisabled={submitting}
-            onChange={(selected) => update({ isDefault: selected })}
-          >
-            <Switch.Content>
-              <Switch.Control>
-                <Switch.Thumb />
-              </Switch.Control>
+        <Field className="h-9 justify-center sm:h-8" disabled={submitting}>
+          <div className="flex items-center gap-2">
+            <Switch
+              checked={row.isDefault}
+              onCheckedChange={(isDefault) => update({ isDefault })}
+            />
+            <FieldLabel>
               <Trans id="admin.saml-apps.acs.default">Default</Trans>
-            </Switch.Content>
-          </Switch>
-        </div>
+            </FieldLabel>
+          </div>
+        </Field>
       </div>
-      {error !== undefined && error !== null && (
-        <span className="text-sm text-danger">
+      {invalid && (
+        <p className="text-destructive-foreground text-xs">
           <FormMessages errors={[error]} />
-        </span>
+        </p>
       )}
     </div>
   );

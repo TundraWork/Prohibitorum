@@ -2,7 +2,7 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import { useStore } from "@tanstack/react-form";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { FingerprintIcon } from "lucide-react";
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { isCancellation } from "@/api/errors";
 import { readAttributeMap } from "@/api/federation";
 import type { components } from "@/api/generated/schema";
@@ -15,24 +15,8 @@ import { samlAppUpdateBody } from "@/api/update-bodies";
 import { withInlineReport } from "@/app/query-client";
 import { ConfirmDialog } from "@/components/custom/ConfirmDialog";
 import { ConsequenceFooter } from "@/components/custom/ConsequenceFooter";
-import { FormMessages } from "@/components/custom/FormMessages";
-import { useHostOverlayContainer } from "@/components/custom/host-overlay-container";
 import { rowProblem } from "@/components/custom/RowsField";
 import { Section } from "@/components/custom/Section";
-import { useFieldBinding } from "@/components/custom/use-field-binding";
-import {
-  Field,
-  FieldDescription,
-  FieldError,
-  FieldLabel,
-} from "@/components/ui/field";
-import {
-  Select,
-  SelectItem,
-  SelectPopup,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { applyServerError } from "@/forms/server-errors";
 import { useAppForm } from "@/forms/use-app-form";
 import {
@@ -41,11 +25,8 @@ import {
   mappingSource,
   readSourceKind,
 } from "@/pages/admin/saml-applications/AttributeMapField";
-import {
-  attributeMapProblems,
-  nameIdFormats,
-  shortNameIdFormat,
-} from "@/pages/admin/saml-applications/saml-projection";
+import { NameIdFormatField } from "@/pages/admin/saml-applications/NameIdFormatField";
+import { attributeMapProblems } from "@/pages/admin/saml-applications/saml-projection";
 
 type SamlApp = components["schemas"]["SAMLApplicationView"];
 
@@ -257,92 +238,6 @@ export function SamlIdentitySection({ app }: { app: SamlApp }) {
         }}
       />
     </>
-  );
-}
-
-/**
- * The NameID format, as a field of `nameIdFormat`.
- *
- * The four formats the specification names are offered by their last segment,
- * with the whole URN under it, because two versions of the specification share
- * a segment. The format is free text on the wire and the server's own default
- * is configurable, so a record may carry a value the four do not cover —
- * including the empty string a record created against the instance default
- * keeps. The stored value is offered as it is rather than silently rewritten to
- * one of them, and choosing anything else replaces it.
- */
-function NameIdFormatField() {
-  const { t } = useLingui();
-  const { field, errors, invalid, disabled, onChange } =
-    useFieldBinding<string>(false);
-  const anchor = useRef<HTMLDivElement>(null);
-  const container = useHostOverlayContainer(anchor);
-
-  const value = field.state.value;
-  const isListed = (nameIdFormats as readonly string[]).includes(value);
-  const formats = isListed ? nameIdFormats : [...nameIdFormats, value];
-  const defaultLabel = t({
-    id: "admin.saml-apps.name-id.default",
-    message: "Use the instance default",
-  });
-  const label = (format: string) =>
-    format === "" ? defaultLabel : shortNameIdFormat(format);
-
-  return (
-    <Field
-      ref={anchor}
-      className="max-w-lg"
-      disabled={disabled}
-      invalid={invalid}
-      name={field.name}
-    >
-      <FieldLabel>
-        <Trans id="admin.saml-apps.field.name-id">NameID format</Trans>
-      </FieldLabel>
-      <Select
-        value={value}
-        disabled={disabled}
-        onValueChange={(next) => {
-          if (typeof next === "string") onChange(next);
-        }}
-      >
-        <SelectTrigger aria-invalid={invalid || undefined}>
-          <SelectValue>
-            {() => (
-              <span className={value === "" ? undefined : "font-mono"}>
-                {label(value)}
-              </span>
-            )}
-          </SelectValue>
-        </SelectTrigger>
-        <SelectPopup alignItemWithTrigger={false} portalProps={{ container }}>
-          {formats.map((format) => (
-            <SelectItem key={format} value={format}>
-              <div className="flex min-w-0 flex-col">
-                <span className={format === "" ? undefined : "font-mono"}>
-                  {label(format)}
-                </span>
-                {format !== "" && (
-                  <span className="font-mono text-muted-foreground text-xs">
-                    {format}
-                  </span>
-                )}
-              </div>
-            </SelectItem>
-          ))}
-        </SelectPopup>
-      </Select>
-      <FieldDescription>
-        <Trans id="admin.saml-apps.identity.name-id.hint">
-          The identifier the assertion's subject carries.
-        </Trans>
-      </FieldDescription>
-      {invalid && (
-        <FieldError match>
-          <FormMessages errors={errors} />
-        </FieldError>
-      )}
-    </Field>
   );
 }
 

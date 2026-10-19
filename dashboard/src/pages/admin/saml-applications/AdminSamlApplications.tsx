@@ -1,21 +1,23 @@
-import { Alert } from "@heroui/react";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useQuery } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
-import { FileKey, Pencil } from "lucide-react";
+import { Link, useNavigate } from "@tanstack/react-router";
+import { FileKey, Pencil, Plus } from "lucide-react";
 import { useCursorList } from "@/api/cursor-list";
-import { describeError } from "@/api/errors";
 import type { components } from "@/api/generated/schema";
 import { samlAppsListOptions, sessionQueryOptions } from "@/api/queries";
+import { quietQuery } from "@/app/query-client";
 import { Button } from "@/components/custom/Button";
 import { DataTable, type TableColumn } from "@/components/custom/DataTable";
 import { EntityCell } from "@/components/custom/EntityCell";
-import {
-  CertificateExpiryCell,
-  CodeValue,
-} from "@/components/custom/ListCells";
+import { InlineFailure } from "@/components/custom/InlineFailure";
+import { CodeValue } from "@/components/custom/ListCells";
+import { PageHeader } from "@/components/custom/PageHeader";
 import { TableEmptyState } from "@/components/custom/TableEmptyState";
+import {
+  type CertificateState,
+  certificateState,
+} from "@/pages/admin/saml-applications/saml-certificate";
 import { shortNameIdFormat } from "@/pages/admin/saml-applications/saml-projection";
 
 type SamlApp = components["schemas"]["SAMLApplicationView"];
@@ -30,35 +32,30 @@ const openAppMessage = msg({
  *
  * A reader scanning this list asks three things of a row: what it is, how it
  * identifies people to the service provider, and whether its signing certificate
- * is still good. The first is the identity cell, the second is the NameID
- * column, and the third is the certificate column at the trailing edge.
+ * is still good. The first is the identity cell, which dims a disabled
+ * application and badges it, and marks a restricted one with a lock; the second
+ * is the NameID column; the third is the certificate column.
  *
  * The certificate column is the one fact here that changes on its own, and the
  * one that will eventually break sign-in for the application without anyone
- * touching it. It was previously only on the application's own page, which is
- * the wrong place for a deadline: nobody opens five detail pages to find out
- * which one is about to expire, and an expired row now says so in the list.
+ * touching it. Nobody opens five detail pages to find out which one is about to
+ * expire, so the list says it in words, and an expired row says so as well as
+ * being coloured.
  *
- * An earlier version of this table carried an "IdP-initiated" column that drew
- * "Allowed" and nothing at all otherwise, which left an empty cell meaning
- * either "not allowed" or "the value did not arrive". The permission is still
- * visible on the application's own page; a column whose empty state is ambiguous
- * does not earn its width.
- *
- * The row's only control opens the application. Every change worth making —
- * the metadata, the attribute map, the access policy, whether it is enabled at
- * all — is a decision that wants the record in front of the reader.
+ * The row's only control opens the application. Every change worth making — the
+ * metadata, the attribute map, the access policy, whether it is enabled at all —
+ * is a decision that wants the record in front of the reader.
  *
  * A delegated manager sees this page too, with exactly the rows the server gave
  * them and no way to add one: creating an application is an administrator's
- * step. `_protected.admin` admits them, so the "New application" button is what
+ * step. `_protected.admin` admits them; the "New application" button is what
  * distinguishes the two audiences here.
  */
 export function AdminSamlApplications() {
   const { t, i18n } = useLingui();
   const navigate = useNavigate();
   const session = useQuery(sessionQueryOptions());
-  const list = useCursorList<SamlApp>(samlAppsListOptions());
+  const list = useCursorList<SamlApp>(quietQuery(samlAppsListOptions()));
 
   const isAdmin = session.data?.role === "admin";
 
@@ -72,7 +69,7 @@ export function AdminSamlApplications() {
         <EntityCell
           iconUrl={app.iconUrl}
           name={app.displayName || app.entityId}
-          identifier={<EntityId value={app.entityId} />}
+          identifier={<CodeValue value={app.entityId} />}
           link={{
             to: "/admin/saml-applications/$id",
             params: { id: String(app.id) },
@@ -89,7 +86,7 @@ export function AdminSamlApplications() {
       // provider's documentation names; the full URN is the same fact with the
       // specification's namespace in front of it.
       cell: (app) => (
-        <span className="font-mono text-xs text-muted">
+        <span className="font-mono text-muted-foreground text-xs">
           {shortNameIdFormat(app.nameIdFormat)}
         </span>
       ),
@@ -99,10 +96,9 @@ export function AdminSamlApplications() {
       header: (
         <Trans id="admin.saml-apps.column.certificate">Certificate</Trans>
       ),
-      // The signing key is the one that matters: it is what the SP validates
-      // assertions against, and what expires. An encryption key has no bearing
-      // on whether sign-in works.
-      cell: (app) => <CertificateExpiryCell notAfter={signingKeyExpiry(app)} />,
+      // The signing key is the one that matters: it is what the service
+      // provider validates assertions against, and what expires.
+      cell: (app) => <CertificateCell state={certificateState(app)} />,
     },
     {
       align: "end",
@@ -130,83 +126,99 @@ export function AdminSamlApplications() {
     },
   ];
 
+  const failed = list.error !== null && list.error !== undefined;
+
   return (
-    <div className="flex flex-col gap-4">
-      {isAdmin && (
-        <div className="flex flex-wrap items-center gap-4">
-          <Button
-            onClick={() =>
-              void navigate({ to: "/admin/saml-applications/new" })
-            }
-          >
-            <Trans id="admin.saml-apps.create">New application</Trans>
-          </Button>
-        </div>
-      )}
-
-      {list.error !== null && list.error !== undefined && (
-        <Alert status="danger" role="alert">
-          <Alert.Indicator />
-          <Alert.Content>
-            <Alert.Title>{t(describeError(list.error))}</Alert.Title>
-          </Alert.Content>
-        </Alert>
-      )}
-
-      <DataTable
-        label={t({ id: "admin.saml-apps.table", message: "SAML applications" })}
-        columns={columns}
-        rows={list.items}
-        rowId={(app) => app.id}
-        loading={list.loading}
-        hasMore={list.hasMore}
-        loadingMore={list.loadingMore}
-        onLoadMore={list.loadMore}
-        empty={
-          <TableEmptyState
-            icon={<FileKey size={18} strokeWidth={1.75} aria-hidden="true" />}
-            title={
-              <Trans id="admin.saml-apps.empty">No SAML applications yet</Trans>
-            }
-          />
+    <div className="flex flex-col gap-6">
+      <PageHeader
+        title={<Trans id="admin.saml-apps.page.title">SAML applications</Trans>}
+        description={
+          <Trans id="admin.saml-apps.page.description">
+            Applications that sign people in through this instance with SAML.
+          </Trans>
+        }
+        actions={
+          isAdmin ? (
+            <Button render={<Link to="/admin/saml-applications/new" />}>
+              <Plus aria-hidden="true" />
+              <Trans id="admin.saml-apps.create">New application</Trans>
+            </Button>
+          ) : undefined
         }
       />
+
+      {failed && <InlineFailure error={list.error} />}
+
+      {/* A failed first read has no rows to show, and an empty table under the
+          failure would say there are none. */}
+      {(!failed || list.items.length > 0) && (
+        <DataTable
+          label={t({
+            id: "admin.saml-apps.table",
+            message: "SAML applications",
+          })}
+          columns={columns}
+          rows={list.items}
+          rowId={(app) => app.id}
+          loading={list.loading}
+          hasMore={list.hasMore}
+          loadingMore={list.loadingMore}
+          onLoadMore={list.loadMore}
+          empty={
+            <TableEmptyState
+              icon={<FileKey size={18} strokeWidth={1.75} aria-hidden="true" />}
+              title={
+                <Trans id="admin.saml-apps.empty">
+                  No SAML applications yet
+                </Trans>
+              }
+            />
+          }
+        />
+      )}
     </div>
   );
 }
 
 /**
- * The Entity ID as the row's identifier line.
- *
- * An Entity ID is a URI and is routinely longer than the column it sits in, so
- * the cell clips it — `EntityCell` truncates its identifier — and this keeps the
- * whole value one hover away. Every row carries the tooltip rather than only the
- * long ones, because whether a value fits depends on the viewport, and a rule
- * that guessed would be wrong at one width or the other.
+ * The signing certificate's state as words a reader can scan down a column:
+ * when it expires, that it has, or that there is none. An expired one takes the
+ * danger colour as well as the word. A date rather than a distance from now,
+ * because "expires 4 Mar 2027" is what an operator puts in a calendar.
  */
-function EntityId({ value }: { value: string }) {
-  return <CodeValue value={value} />;
-}
+function CertificateCell({ state }: { state: CertificateState }) {
+  const { i18n } = useLingui();
+  const day = (notAfter: string) =>
+    new Intl.DateTimeFormat(i18n.locale, { dateStyle: "medium" }).format(
+      new Date(notAfter),
+    );
 
-/**
- * When this application's signing certificate stops being valid.
- *
- * A SAML SP validates assertions against the IdP's signing key, so that is the
- * key whose expiry breaks sign-in; an encryption key expiring would not. The
- * server returns both uses in `keys`, so the filtering happens here rather than
- * on the row.
- *
- * The earliest expiry wins when a key has been rotated and the old one is still
- * published for verification: it is the first date on which something stops
- * working, which is the deadline the reader is looking for.
- */
-function signingKeyExpiry(app: SamlApp): string | undefined {
-  let earliest: string | undefined;
-  for (const key of app.keys ?? []) {
-    if (key.use !== "signing" || key.notAfter === undefined) continue;
-    if (earliest === undefined || key.notAfter < earliest) {
-      earliest = key.notAfter;
+  switch (state.kind) {
+    case "none":
+      return (
+        <span className="text-muted-foreground">
+          <Trans id="admin.saml-apps.certificate.none">
+            No signing certificate
+          </Trans>
+        </span>
+      );
+    case "no-expiry":
+      return (
+        <span className="text-muted-foreground">
+          <Trans id="admin.saml-apps.keys.no-expiry">No expiry</Trans>
+        </span>
+      );
+    case "expired": {
+      const date = day(state.notAfter);
+      return (
+        <span className="text-destructive-foreground">
+          <Trans id="admin.saml-apps.keys.expired">Expired {date}</Trans>
+        </span>
+      );
+    }
+    case "valid": {
+      const date = day(state.notAfter);
+      return <Trans id="admin.saml-apps.keys.expires">Expires {date}</Trans>;
     }
   }
-  return earliest;
 }
