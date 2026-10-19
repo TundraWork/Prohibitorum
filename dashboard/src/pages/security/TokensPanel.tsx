@@ -41,7 +41,6 @@ import {
   TokenExpiry,
   TokenLastUsed,
 } from "@/components/custom/TokenAccess";
-import { getTopLayerContainer } from "@/components/custom/top-layer";
 import { Checkbox } from "@/components/ui/checkbox";
 import { CheckboxGroup } from "@/components/ui/checkbox-group";
 import {
@@ -394,10 +393,7 @@ function CreateTokenDialog({
       open={isOpen}
       onOpenChange={(next) => !next && !create.isPending && onOpenChange(false)}
     >
-      <DialogPopup
-        className="sm:max-w-xl"
-        portalProps={{ container: getTopLayerContainer() }}
-      >
+      <DialogPopup className="sm:max-w-xl">
         <CreateTokenForm
           apps={apps}
           appsFailed={appsFailed}
@@ -652,10 +648,7 @@ function CreateTokenForm({
                       }
                     </SelectValue>
                   </SelectTrigger>
-                  <SelectPopup
-                    alignItemWithTrigger={false}
-                    portalProps={{ container: getTopLayerContainer() }}
-                  >
+                  <SelectPopup alignItemWithTrigger={false}>
                     {expiryOptions.map((option) => (
                       <SelectItem key={option.value} value={option.value}>
                         {option.label}

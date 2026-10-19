@@ -1,12 +1,9 @@
-import { useLingui } from "@lingui/react/macro";
 import { useAtomValue } from "jotai";
 import { type ReactNode, useLayoutEffect } from "react";
-import { I18nProvider as AriaI18nProvider } from "react-aria";
 import { publicThemeAtom, themeAtom } from "@/components/custom/ThemeSelect";
 
 /**
- * What every screen needs whether or not a route drew: the theme and the
- * locale React Aria formats with. It sits outside the router, so a root route
+ * What every screen needs whether or not a route drew: the theme. It sits outside the router, so a root route
  * that fails still draws its error in them.
  *
  * The theme is the one the public pages force, if any, or else the visitor's.
@@ -15,7 +12,6 @@ import { publicThemeAtom, themeAtom } from "@/components/custom/ThemeSelect";
  * rendered under `body` follow it too.
  */
 export function AppEnvironment({ children }: { children: ReactNode }) {
-  const { i18n } = useLingui();
   const chosen = useAtomValue(themeAtom);
   const forced = useAtomValue(publicThemeAtom);
   const theme = forced ?? chosen;
@@ -37,9 +33,5 @@ export function AppEnvironment({ children }: { children: ReactNode }) {
     preference.addEventListener("change", apply);
     return () => preference.removeEventListener("change", apply);
   }, [theme]);
-  return (
-    <AriaI18nProvider locale={i18n.locale === "zh" ? "zh-CN" : "en"}>
-      {children}
-    </AriaI18nProvider>
-  );
+  return children;
 }

@@ -33,7 +33,6 @@ import { ItemList, ItemListRow } from "@/components/custom/ItemList";
 import { RelativeTime } from "@/components/custom/RelativeTime";
 import { AsyncSection, Section } from "@/components/custom/Section";
 import { TableEmptyState } from "@/components/custom/TableEmptyState";
-import { getTopLayerContainer } from "@/components/custom/top-layer";
 import { Badge } from "@/components/ui/badge";
 import { Menu, MenuItem, MenuPopup, MenuTrigger } from "@/components/ui/menu";
 
@@ -269,10 +268,7 @@ function LinkIdentityMenu({
       >
         <Trans id="security.identities.link.title">Link another identity</Trans>
       </MenuTrigger>
-      <MenuPopup
-        align="end"
-        portalProps={{ container: getTopLayerContainer() }}
-      >
+      <MenuPopup align="end">
         {providers.length === 0 ? (
           <MenuItem disabled>
             <Trans id="security.identities.link.unavailable">

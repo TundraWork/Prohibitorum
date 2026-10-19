@@ -9,18 +9,42 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { type ReactNode, useEffect, useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { ConsoleCard } from "@/components/custom/ConsoleCard";
 import { ItemList } from "@/components/custom/ItemList";
 import {
   AsyncSection,
   Section,
   SectionFailure,
+  useSectionPanel,
 } from "@/components/custom/Section";
+import {
+  Frame,
+  FrameHeader,
+  FramePanel,
+  FrameTitle,
+} from "@/components/ui/frame";
 import { i18n } from "@/i18n";
 
 beforeEach(() => {
   i18n.activate("en");
 });
+
+/** A panel that claims the section's frame when untitled, as a list does. */
+function Panel({ title, children }: { title?: string; children: ReactNode }) {
+  const inSection = useSectionPanel(title === undefined);
+  const panel = <FramePanel>{children}</FramePanel>;
+  if (title === undefined && inSection) return panel;
+  if (title === undefined) return <Frame>{panel}</Frame>;
+  return (
+    <Frame>
+      <FrameHeader>
+        <FrameTitle>
+          <h2>{title}</h2>
+        </FrameTitle>
+      </FrameHeader>
+      {panel}
+    </Frame>
+  );
+}
 
 function Slow({ read }: { read: () => Promise<string> }) {
   const { data } = useSuspenseQuery({ queryKey: ["slow"], queryFn: read });
@@ -288,9 +312,9 @@ describe("Section", () => {
     }
     render(
       <Section title="Keep">
-        <ConsoleCard>
+        <Panel>
           <Probe />
-        </ConsoleCard>
+        </Panel>
         <ItemList label="Rows" empty={<Probe />} />
       </Section>,
     );
@@ -302,9 +326,9 @@ describe("Section", () => {
   it("lets an untitled card or list be the panel, without a panel inside a panel", () => {
     const { container } = render(
       <Section title="Mixed">
-        <ConsoleCard>
+        <Panel>
           <p>Card content</p>
-        </ConsoleCard>
+        </Panel>
         <ItemList label="Rows" empty={<p>No rows</p>} />
       </Section>,
     );
@@ -323,9 +347,9 @@ describe("Section", () => {
     const { container } = render(
       <Section title="Mixed">
         <ItemList label="Rows" title="Rows title" empty={<p>No rows</p>} />
-        <ConsoleCard title="Card title">
+        <Panel title="Card title">
           <p>Card content</p>
-        </ConsoleCard>
+        </Panel>
       </Section>,
     );
 
@@ -345,7 +369,7 @@ describe("Section", () => {
       const [shown, setShown] = useState(true);
       return (
         <Section title="Toggle">
-          {shown && <ConsoleCard>Card</ConsoleCard>}
+          {shown && <Panel>Card</Panel>}
           <button type="button" onClick={() => setShown(false)}>
             Remove
           </button>
@@ -369,22 +393,6 @@ describe("Section", () => {
     expect(panels[0]).toContainElement(
       screen.getByRole("button", { name: "Remove" }),
     );
-  });
-
-  it("draws a titled card standing alone as its own frame", () => {
-    const { container } = render(
-      <ConsoleCard title="Profile">
-        <p>Fields</p>
-      </ConsoleCard>,
-    );
-
-    expect(container.querySelectorAll("[data-slot='frame']")).toHaveLength(1);
-    expect(
-      screen.getByRole("heading", { level: 2, name: "Profile" }),
-    ).toBeInTheDocument();
-    expect(
-      container.querySelectorAll("[data-slot='frame-panel']"),
-    ).toHaveLength(1);
   });
 });
 

@@ -8,7 +8,7 @@ import { updateSamlAppMutationOptions } from "@/api/mutations";
 import { samlAppUpdateBody } from "@/api/update-bodies";
 import { withInlineReport } from "@/app/query-client";
 import { ConsequenceFooter } from "@/components/custom/ConsequenceFooter";
-import { EntityIconControl } from "@/components/custom/EntityIconCard";
+import { EntityIconControl } from "@/components/custom/EntityIconControl";
 import { Section } from "@/components/custom/Section";
 import { applyServerError } from "@/forms/server-errors";
 import { useAppForm } from "@/forms/use-app-form";

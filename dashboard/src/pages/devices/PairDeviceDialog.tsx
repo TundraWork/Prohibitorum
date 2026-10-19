@@ -21,7 +21,6 @@ import { Detail } from "@/components/custom/Detail";
 import { DeviceName } from "@/components/custom/DeviceName";
 import { RelativeTime } from "@/components/custom/RelativeTime";
 import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
-import { getTopLayerContainer } from "@/components/custom/top-layer";
 import {
   Dialog,
   DialogFooter,
@@ -88,10 +87,7 @@ export function PairDeviceDialog({
         if (!open && !busy) onClose();
       }}
     >
-      <DialogPopup
-        className="sm:max-w-md"
-        portalProps={{ container: getTopLayerContainer() }}
-      >
+      <DialogPopup className="sm:max-w-md">
         <PairingFlow
           key={attempt}
           initialCode={initialCode}

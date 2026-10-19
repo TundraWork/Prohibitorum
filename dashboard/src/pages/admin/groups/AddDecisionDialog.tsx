@@ -10,7 +10,6 @@ import {
   EntityPicker,
 } from "@/components/custom/EntityPicker";
 import { InlineFailure } from "@/components/custom/InlineFailure";
-import { getTopLayerContainer } from "@/components/custom/top-layer";
 import {
   Dialog,
   DialogFooter,
@@ -71,10 +70,7 @@ export function AddDecisionDialog({
       open={open}
       onOpenChange={(next) => !next && !pending && onCancel()}
     >
-      <DialogPopup
-        className="sm:max-w-md"
-        portalProps={{ container: getTopLayerContainer() }}
-      >
+      <DialogPopup className="sm:max-w-md">
         <AddDecisionForm
           key={session}
           decisions={decisions}

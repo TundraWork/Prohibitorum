@@ -2,9 +2,8 @@ import { useLingui } from "@lingui/react/macro";
 import { Check, ClipboardCopy } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/custom/Button";
-import { useHostOverlayContainer } from "@/components/custom/host-overlay-container";
-import { ScrollArea } from "@/components/custom/ScrollArea";
 import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "@/components/ui/tooltip";
 
 /** How long the check and "Copied" stay on screen after a copy. */
@@ -78,7 +77,7 @@ export function formatJson(text: string): string {
  * A JSON document on a dialog, indented, with a copy button at its corner.
  *
  * The block is drawn the way the public-key dialog draws a JWK: the surface
- * and radius sit on the `ScrollArea` host so a long line scrolls sideways over
+ * and radius sit on the scroll area so a long line scrolls sideways over
  * the same fill, and lines never wrap, which would break the structure. The
  * block does not cap its own height; the dialog scrolls. What is copied is the
  * indented text on screen.
@@ -89,9 +88,6 @@ export function JsonBlock({ json }: { json: string }) {
   const [state, setState] = useState<"idle" | "copied" | "failed">("idle");
   const [hovered, setHovered] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
-  // The block sits in a dialog, whose overlay keeps the rest of the page inert.
-  const root = useRef<HTMLDivElement>(null);
-  const tooltipContainer = useHostOverlayContainer(root);
 
   useEffect(() => () => clearTimeout(timer.current), []);
 
@@ -112,10 +108,10 @@ export function JsonBlock({ json }: { json: string }) {
     : t({ id: "json-block.copy", message: "Copy" });
 
   return (
-    <div ref={root} className="flex flex-col gap-3">
+    <div className="flex flex-col gap-3">
       <div className="relative">
-        <ScrollArea className="rounded-lg bg-muted p-3 pr-11 font-mono text-xs">
-          <pre>{text}</pre>
+        <ScrollArea className="rounded-lg bg-muted font-mono text-xs">
+          <pre className="p-3 pr-11">{text}</pre>
         </ScrollArea>
         <div className="absolute top-1.5 right-1.5">
           <Tooltip open={hovered || copied} onOpenChange={setHovered}>
@@ -133,9 +129,7 @@ export function JsonBlock({ json }: { json: string }) {
                 )}
               </Button>
             </TooltipTrigger>
-            <TooltipPopup portalProps={{ container: tooltipContainer }}>
-              {label}
-            </TooltipPopup>
+            <TooltipPopup>{label}</TooltipPopup>
           </Tooltip>
         </div>
       </div>

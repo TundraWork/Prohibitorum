@@ -29,7 +29,6 @@ import {
 import { Button } from "@/components/custom/Button";
 import { OrSeparator } from "@/components/custom/OrSeparator";
 import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
-import { getTopLayerContainer } from "@/components/custom/top-layer";
 import {
   Dialog,
   DialogDescription,
@@ -126,7 +125,6 @@ export function SudoDialog() {
     >
       <DialogPopup
         className="sm:max-w-md"
-        portalProps={{ container: getTopLayerContainer() }}
         closeProps={{
           disabled: locked,
           "aria-label": t({ id: "sudo.close", message: "Close" }),

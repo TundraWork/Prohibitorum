@@ -1,9 +1,8 @@
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useStore } from "@tanstack/react-form";
-import { type ReactNode, useRef } from "react";
+import type { ReactNode } from "react";
 import { aliasSourceClaims } from "@/api/federation";
 import { FormMessages } from "@/components/custom/FormMessages";
-import { useHostOverlayContainer } from "@/components/custom/host-overlay-container";
 import {
   type RowProblem,
   RowsField,
@@ -140,8 +139,6 @@ function AliasRowFields({
   const field = useFieldContext<AliasRow[]>();
   const form = useFormContext();
   const submitting = useStore(form.store, (state) => state.isSubmitting);
-  const anchor = useRef<HTMLDivElement>(null);
-  const container = useHostOverlayContainer(anchor);
 
   const row = field.state.value[index];
   if (row === undefined) return null;
@@ -164,7 +161,6 @@ function AliasRowFields({
 
   return (
     <div
-      ref={anchor}
       className={`grid grid-cols-[minmax(0,1fr)_auto] items-end gap-x-2 gap-y-3 ${aliasTracks}`}
     >
       <Field
@@ -208,7 +204,7 @@ function AliasRowFields({
               {() => <span className="font-mono">{row.source}</span>}
             </SelectValue>
           </SelectTrigger>
-          <SelectPopup alignItemWithTrigger={false} portalProps={{ container }}>
+          <SelectPopup alignItemWithTrigger={false}>
             {aliasSourceClaims.map((claim) => (
               <SelectItem key={claim} value={claim}>
                 <span className="font-mono">{claim}</span>

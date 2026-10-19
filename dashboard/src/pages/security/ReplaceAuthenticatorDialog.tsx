@@ -8,7 +8,6 @@ import type { RecoveryCodesResult } from "@/api/raw-paths";
 import { Button } from "@/components/custom/Button";
 import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
 import { TotpSetup } from "@/components/custom/TotpSetup";
-import { getTopLayerContainer } from "@/components/custom/top-layer";
 import {
   Dialog,
   DialogFooter,
@@ -59,7 +58,6 @@ export function ReplaceAuthenticatorDialog({
             'input[autocomplete="one-time-code"]',
           ) ?? true
         }
-        portalProps={{ container: getTopLayerContainer() }}
       >
         <ReplaceForm replace={replace} onClose={onClose} onCodes={onCodes} />
       </DialogPopup>

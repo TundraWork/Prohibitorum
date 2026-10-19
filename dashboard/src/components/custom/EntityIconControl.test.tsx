@@ -2,7 +2,7 @@ import { I18nProvider } from "@lingui/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
-import { EntityIconCard } from "@/components/custom/EntityIconCard";
+import { EntityIconControl } from "@/components/custom/EntityIconControl";
 import { i18n } from "@/i18n";
 
 beforeEach(() => {
@@ -13,7 +13,7 @@ function mount(iconUrl?: string) {
   render(
     <I18nProvider i18n={i18n}>
       <QueryClientProvider client={new QueryClient()}>
-        <EntityIconCard
+        <EntityIconControl
           target={{ kind: "oidc", appId: "grafana" }}
           iconUrl={iconUrl}
           name="Grafana"
@@ -23,7 +23,7 @@ function mount(iconUrl?: string) {
   );
 }
 
-describe("EntityIconCard", () => {
+describe("EntityIconControl", () => {
   it("offers an upload and the formats when there is no icon yet", () => {
     mount();
     expect(

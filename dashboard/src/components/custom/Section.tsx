@@ -52,7 +52,7 @@ const SectionFrameContext = createContext<(() => () => void) | null>(null);
 /**
  * Whether the caller sits in a `Section` and is its panel.
  *
- * A `ConsoleCard` or `ItemList` that reads `true` renders a bare `FramePanel`
+ * An `ItemList` or `DataTable` that reads `true` renders a bare `FramePanel`
  * and the section supplies the frame. Pass `enabled: false` for one that draws
  * its own frame, so it does not take the section's panel.
  */
@@ -70,8 +70,8 @@ export function useSectionPanel(enabled = true): boolean {
  * carrying the title, an optional description and the block's primary action,
  * the content on a white panel, and an optional footer band.
  *
- * The title is an `h2`, a level under the console header's `h1`. A
- * `ConsoleCard` or `ItemList` in the content is the panel itself; anything else
+ * The title is an `h2`, a level under the console header's `h1`. An
+ * `ItemList` or `DataTable` in the content is the panel itself; anything else
  * is put on one panel here, so a section never holds a card inside a card.
  */
 export function Section({

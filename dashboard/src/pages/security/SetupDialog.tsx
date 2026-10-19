@@ -15,7 +15,6 @@ import { PasswordTotpStepHeader } from "@/components/custom/PasswordTotpStepHead
 import { RecoveryCodes } from "@/components/custom/RecoveryCodes";
 import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
 import { TotpSetup } from "@/components/custom/TotpSetup";
-import { getTopLayerContainer } from "@/components/custom/top-layer";
 import {
   useFocusOnStep,
   useSetupSteps,
@@ -95,7 +94,6 @@ export function SetupDialog({
       <DialogPopup
         className="sm:max-w-xl"
         showCloseButton={!revealing || saved}
-        portalProps={{ container: getTopLayerContainer() }}
       >
         {result !== null ? (
           <RecoveryCodes

@@ -1,8 +1,7 @@
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useStore } from "@tanstack/react-form";
-import { type ReactNode, useId, useRef, useState } from "react";
+import { type ReactNode, useId, useState } from "react";
 import { FormMessages } from "@/components/custom/FormMessages";
-import { useHostOverlayContainer } from "@/components/custom/host-overlay-container";
 import { type RowProblem, RowsField } from "@/components/custom/RowsField";
 import {
   Autocomplete,
@@ -215,8 +214,6 @@ function MappingRowFields({
   const field = useFieldContext<MappingRow[]>();
   const form = useFormContext();
   const submitting = useStore(form.store, (state) => state.isSubmitting);
-  const anchor = useRef<HTMLDivElement>(null);
-  const container = useHostOverlayContainer(anchor);
   // The format as it was when the box took focus, or null while it is not
   // focused: the filter tells "still the value it opened with" from typing.
   const [focusedWith, setFocusedWith] = useState<string | null>(null);
@@ -259,7 +256,6 @@ function MappingRowFields({
 
   return (
     <div
-      ref={anchor}
       className={`grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2 gap-y-3 ${mappingTracks} ${
         // A rule sits between rows at every width, so a caption under one row never
         // reads as the next row's, and when stacked one row's last control would
@@ -308,10 +304,7 @@ function MappingRowFields({
                 {() => i18n._(attributeSourceLabel(row.sourceKind))}
               </SelectValue>
             </SelectTrigger>
-            <SelectPopup
-              alignItemWithTrigger={false}
-              portalProps={{ container }}
-            >
+            <SelectPopup alignItemWithTrigger={false}>
               {sourceKinds.map((kind) => (
                 <SelectItem key={kind} value={kind}>
                   <div className="flex min-w-0 flex-col">
@@ -394,7 +387,7 @@ function MappingRowFields({
             onFocus={() => setFocusedWith(row.nameFormat)}
             onBlur={() => setFocusedWith(null)}
           />
-          <AutocompletePopup portalProps={{ container }}>
+          <AutocompletePopup>
             <AutocompleteList>
               {(format: string) => (
                 <AutocompleteItem key={format} value={format}>

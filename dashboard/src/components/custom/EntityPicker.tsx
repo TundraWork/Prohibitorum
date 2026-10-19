@@ -1,8 +1,7 @@
 import { Trans, useLingui } from "@lingui/react/macro";
 import { SearchIcon, XIcon } from "lucide-react";
-import { type ReactNode, useId, useRef } from "react";
+import { type ReactNode, useId } from "react";
 import { FormMessages } from "@/components/custom/FormMessages";
-import { useHostOverlayContainer } from "@/components/custom/host-overlay-container";
 import { useFieldBinding } from "@/components/custom/use-field-binding";
 import {
   Combobox,
@@ -40,7 +39,7 @@ import { Spinner } from "@/components/ui/spinner";
  * query did not return renders as the bare id rather than as a blank control.
  *
  * `onValueChange` always receives a list of ids, whichever mode the picker is
- * in. HeroUI hands a single-selection picker one key (or `null` once cleared)
+ * in. Base UI hands a single-selection picker one value (or `null` once cleared)
  * and a multiple one an array, so the difference is settled here, once, rather
  * than at every call site that reads the first entry.
  *
@@ -116,8 +115,6 @@ export function EntityPicker({
 }) {
   const { i18n, t } = useLingui();
   const searchId = useId();
-  const anchor = useRef<HTMLDivElement>(null);
-  const container = useHostOverlayContainer(anchor);
   // A selection the latest result did not return still has to render, or the
   // control would silently look empty while holding a value.
   const known = new Set(options.map((option) => option.id));
@@ -136,12 +133,7 @@ export function EntityPicker({
   const selection = multiple ? selected : (selected[0] ?? null);
 
   return (
-    <Field
-      ref={anchor}
-      className="w-full"
-      disabled={isDisabled}
-      invalid={isInvalid}
-    >
+    <Field className="w-full" disabled={isDisabled} invalid={isInvalid}>
       <FieldLabel>{label}</FieldLabel>
       <Combobox<EntityOption, boolean>
         items={items}
@@ -192,7 +184,6 @@ export function EntityPicker({
           )}
         </div>
         <ComboboxPopup
-          portalProps={{ container }}
           // A picker in a dialog stays below its field and takes the room
           // left there, rather than flipping up over the dialog's title.
           collisionAvoidance={{

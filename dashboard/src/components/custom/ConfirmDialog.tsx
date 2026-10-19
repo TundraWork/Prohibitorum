@@ -2,7 +2,6 @@ import { Trans } from "@lingui/react/macro";
 import { CircleAlertIcon, InfoIcon, TriangleAlertIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { Button } from "@/components/custom/Button";
-import { getTopLayerContainer } from "@/components/custom/top-layer";
 import {
   AlertDialog,
   AlertDialogDescription,
@@ -59,10 +58,7 @@ export function ConfirmDialog({
 }) {
   return (
     <AlertDialog open={isOpen} onOpenChange={onOpenChange}>
-      <AlertDialogPopup
-        data-tone={status === "accent" ? "default" : status}
-        portalProps={{ container: getTopLayerContainer() }}
-      >
+      <AlertDialogPopup data-tone={status === "accent" ? "default" : status}>
         {/* The icon rides the first line of the title, and the body lines up
             under the title text rather than under the icon. */}
         <AlertDialogHeader className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 text-left">

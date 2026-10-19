@@ -28,7 +28,6 @@ import { ItemList, ItemListRow } from "@/components/custom/ItemList";
 import { RelativeTime } from "@/components/custom/RelativeTime";
 import { Section } from "@/components/custom/Section";
 import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
-import { getTopLayerContainer } from "@/components/custom/top-layer";
 import {
   Dialog,
   DialogFooter,
@@ -282,10 +281,7 @@ function AssignManagerDialog({
       open={open}
       onOpenChange={(next) => !next && !pending && onCancel()}
     >
-      <DialogPopup
-        className="sm:max-w-md"
-        portalProps={{ container: getTopLayerContainer() }}
-      >
+      <DialogPopup className="sm:max-w-md">
         <AssignManagerForm
           key={session}
           assignedIds={assignedIds}

@@ -10,7 +10,6 @@ import { withInlineReport } from "@/app/query-client";
 import { Button } from "@/components/custom/Button";
 import { Section } from "@/components/custom/Section";
 import { SettingRow } from "@/components/custom/SettingRow";
-import { getTopLayerContainer } from "@/components/custom/top-layer";
 import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
@@ -132,10 +131,7 @@ export function ProviderSecretRow({ provider }: { provider: Provider }) {
         open={open}
         onOpenChange={(next) => !next && !setSecret.isPending && setOpen(false)}
       >
-        <DialogPopup
-          className="sm:max-w-md"
-          portalProps={{ container: getTopLayerContainer() }}
-        >
+        <DialogPopup className="sm:max-w-md">
           <SecretForm
             title={secretDialogTitle(steam, stored)}
             label={

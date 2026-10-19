@@ -1,4 +1,3 @@
-import { Form as HeroUIForm } from "@heroui/react";
 import { useStore } from "@tanstack/react-form";
 import { type ReactNode, useRef } from "react";
 import { useFormContext } from "@/forms/context";
@@ -23,11 +22,11 @@ export function Form({
   const pending = useRef(false);
 
   return (
-    <HeroUIForm
+    <form
       className={className}
       aria-label={label}
       aria-busy={submitting}
-      validationBehavior="aria"
+      noValidate
       onSubmit={async (event) => {
         event.preventDefault();
         event.stopPropagation();
@@ -61,6 +60,6 @@ export function Form({
       }}
     >
       {children}
-    </HeroUIForm>
+    </form>
   );
 }

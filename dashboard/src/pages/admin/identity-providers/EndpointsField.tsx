@@ -7,7 +7,6 @@ import { AddressInput } from "@/components/custom/AddressInput";
 import { Button } from "@/components/custom/Button";
 import { ChoiceTile } from "@/components/custom/ChoiceTile";
 import { FormMessages } from "@/components/custom/FormMessages";
-import { getTopLayerContainer } from "@/components/custom/top-layer";
 import {
   Field,
   FieldDescription,
@@ -244,7 +243,6 @@ export function EndpointsField() {
             </MenuTrigger>
             <MenuPopup
               align="start"
-              portalProps={{ container: getTopLayerContainer() }}
               finalFocus={() => {
                 const name = added.current;
                 added.current = null;

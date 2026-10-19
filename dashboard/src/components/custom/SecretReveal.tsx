@@ -11,7 +11,6 @@ import { Button } from "@/components/custom/Button";
 import { ReadOnlyText } from "@/components/custom/ReadOnlyText";
 import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
 import type { SecretRevealCopy } from "@/components/custom/secret-reveal-copy";
-import { getTopLayerContainer } from "@/components/custom/top-layer";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
@@ -315,7 +314,6 @@ export function SecretRevealDialog({
         className="sm:max-w-lg"
         // The close button would do nothing until the secret is saved.
         showCloseButton={reveal.saved}
-        portalProps={{ container: getTopLayerContainer() }}
       >
         <DialogHeader>
           <DialogTitle>{t(copy.title)}</DialogTitle>

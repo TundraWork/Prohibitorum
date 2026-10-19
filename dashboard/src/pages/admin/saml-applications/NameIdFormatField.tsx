@@ -1,7 +1,5 @@
 import { Trans, useLingui } from "@lingui/react/macro";
-import { useRef } from "react";
 import { FormMessages } from "@/components/custom/FormMessages";
-import { useHostOverlayContainer } from "@/components/custom/host-overlay-container";
 import { useFieldBinding } from "@/components/custom/use-field-binding";
 import {
   Field,
@@ -43,8 +41,6 @@ export function NameIdFormatField({
   const { t } = useLingui();
   const { field, errors, invalid, disabled, onChange } =
     useFieldBinding<string>(false);
-  const anchor = useRef<HTMLDivElement>(null);
-  const container = useHostOverlayContainer(anchor);
 
   const value = field.state.value;
   const listed: readonly string[] = offerDefault
@@ -60,7 +56,6 @@ export function NameIdFormatField({
 
   return (
     <Field
-      ref={anchor}
       className="max-w-lg"
       disabled={disabled}
       invalid={invalid}
@@ -85,7 +80,7 @@ export function NameIdFormatField({
             )}
           </SelectValue>
         </SelectTrigger>
-        <SelectPopup alignItemWithTrigger={false} portalProps={{ container }}>
+        <SelectPopup alignItemWithTrigger={false}>
           {formats.map((format) => (
             <SelectItem key={format} value={format}>
               <div className="flex min-w-0 flex-col">

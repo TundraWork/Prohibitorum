@@ -5,7 +5,6 @@ import type { components } from "@/api/generated/schema";
 import { Button } from "@/components/custom/Button";
 import { CopyStatus } from "@/components/custom/CopyableValue";
 import { ReadOnlyText } from "@/components/custom/ReadOnlyText";
-import { getTopLayerContainer } from "@/components/custom/top-layer";
 import { useCopyValue } from "@/components/custom/use-copy-value";
 import {
   Dialog,
@@ -41,11 +40,7 @@ export function PublicKeyDialog({
       open={signingKey !== null}
       onOpenChange={(open) => !open && onClose()}
     >
-      <DialogPopup
-        className="sm:max-w-xl"
-        showCloseButton={false}
-        portalProps={{ container: getTopLayerContainer() }}
-      >
+      <DialogPopup className="sm:max-w-xl" showCloseButton={false}>
         <DialogHeader>
           <DialogTitle>
             <Trans id="settings.keys.jwk.title">Public key</Trans>

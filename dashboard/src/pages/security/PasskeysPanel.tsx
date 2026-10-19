@@ -34,7 +34,6 @@ import { RelativeTime } from "@/components/custom/RelativeTime";
 import { RowMenu } from "@/components/custom/RowMenu";
 import { AsyncSection, Section } from "@/components/custom/Section";
 import { TableEmptyState } from "@/components/custom/TableEmptyState";
-import { getTopLayerContainer } from "@/components/custom/top-layer";
 import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
@@ -342,10 +341,7 @@ function RenameDialog({
       open={credential !== null}
       onOpenChange={(open) => !open && onClose()}
     >
-      <DialogPopup
-        className="sm:max-w-md"
-        portalProps={{ container: getTopLayerContainer() }}
-      >
+      <DialogPopup className="sm:max-w-md">
         {credential && (
           <RenameForm
             key={credential.id}

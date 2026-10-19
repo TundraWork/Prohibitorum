@@ -11,7 +11,6 @@ import {
 import type { RequestExchange } from "@/api/exchange";
 import { NotificationToasts } from "@/components/custom/NotificationToasts";
 import { RequestDetailsDialog } from "@/components/custom/RequestDetailsDialog";
-import { getTopLayerContainer } from "@/components/custom/top-layer";
 import { toastManager } from "@/components/ui/toast";
 
 type Notification =
@@ -123,7 +122,7 @@ export function AppNotifications() {
 
   return (
     <>
-      <NotificationToasts container={getTopLayerContainer()} />
+      <NotificationToasts />
       <RequestDetailsDialog
         exchange={details}
         onClose={() => setDetails(null)}

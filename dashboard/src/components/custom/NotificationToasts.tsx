@@ -29,27 +29,19 @@ const swipeDirection = ["right", "down"] as ("right" | "down")[];
  * coss's `ToastProvider`, plus a close button on every toast: coss ships none,
  * and an error must stay up until it is dismissed.
  */
-export function NotificationToasts({
-  container,
-}: {
-  container: HTMLElement;
-}): React.ReactElement {
+export function NotificationToasts(): React.ReactElement {
   return (
     <Toast.Provider toastManager={toastManager}>
-      <ToastList container={container} />
+      <ToastList />
     </Toast.Provider>
   );
 }
 
-function ToastList({
-  container,
-}: {
-  container: HTMLElement;
-}): React.ReactElement {
+function ToastList(): React.ReactElement {
   const { toasts } = Toast.useToastManager();
   const { t } = useLingui();
   return (
-    <Toast.Portal container={container} data-slot="toast-portal">
+    <Toast.Portal data-slot="toast-portal">
       <Toast.Viewport
         aria-label={t({
           id: "notification.region",

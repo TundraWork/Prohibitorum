@@ -1,8 +1,7 @@
 import { Trans, useLingui } from "@lingui/react/macro";
 import { PlusIcon, XIcon } from "lucide-react";
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { Button } from "@/components/custom/Button";
-import { useHostOverlayContainer } from "@/components/custom/host-overlay-container";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverPopup, PopoverTrigger } from "@/components/ui/popover";
 
@@ -50,8 +49,6 @@ export function ValueSet({
   isDisabled = false,
 }: ValueSetProps): React.ReactElement {
   const { i18n } = useLingui();
-  const anchor = useRef<HTMLDivElement>(null);
-  const container = useHostOverlayContainer(anchor);
   const [ownDraft, setOwnDraft] = useState("");
   const [problem, setProblem] = useState<string>();
   const [open, setOpen] = useState(false);
@@ -81,7 +78,7 @@ export function ValueSet({
   );
 
   return (
-    <div ref={anchor} className="flex flex-wrap items-center gap-1.5">
+    <div className="flex flex-wrap items-center gap-1.5">
       {values.length === 0 && emptyText !== undefined && (
         <span className="me-1 text-muted-foreground text-sm">{emptyText}</span>
       )}
@@ -116,12 +113,7 @@ export function ValueSet({
           <PlusIcon aria-hidden="true" className="size-3.5" />
           {addLabel}
         </PopoverTrigger>
-        <PopoverPopup
-          align="end"
-          side="bottom"
-          className="w-80 p-0"
-          portalProps={{ container }}
-        >
+        <PopoverPopup align="end" side="bottom" className="w-80 p-0">
           <div className="flex flex-col">
             <div className="flex gap-1.5 p-2">
               <Input

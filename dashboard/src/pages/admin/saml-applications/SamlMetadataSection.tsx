@@ -10,7 +10,6 @@ import { Button } from "@/components/custom/Button";
 import { ConfirmDialog } from "@/components/custom/ConfirmDialog";
 import { ItemList, ItemListRow } from "@/components/custom/ItemList";
 import { Section } from "@/components/custom/Section";
-import { getTopLayerContainer } from "@/components/custom/top-layer";
 import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
@@ -220,10 +219,7 @@ function ReimportDialog({
       open={open}
       onOpenChange={(next) => !next && !reingest.isPending && onClose()}
     >
-      <DialogPopup
-        className="sm:max-w-2xl"
-        portalProps={{ container: getTopLayerContainer() }}
-      >
+      <DialogPopup className="sm:max-w-2xl">
         <ReimportForm app={app} reingest={reingest} onClose={onClose} />
       </DialogPopup>
     </Dialog>

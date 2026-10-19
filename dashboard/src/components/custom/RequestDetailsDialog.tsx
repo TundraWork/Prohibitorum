@@ -4,7 +4,6 @@ import type { RequestExchange } from "@/api/exchange";
 import { Button } from "@/components/custom/Button";
 import { Detail } from "@/components/custom/Detail";
 import { ReadOnlyText } from "@/components/custom/ReadOnlyText";
-import { getTopLayerContainer } from "@/components/custom/top-layer";
 import {
   Dialog,
   DialogFooter,
@@ -39,11 +38,7 @@ export function RequestDetailsDialog({
       open={exchange !== null}
       onOpenChange={(open) => !open && onClose()}
     >
-      <DialogPopup
-        className="sm:max-w-2xl"
-        showCloseButton={false}
-        portalProps={{ container: getTopLayerContainer() }}
-      >
+      <DialogPopup className="sm:max-w-2xl" showCloseButton={false}>
         <DialogHeader>
           <DialogTitle>
             <Trans id="request_details.title">Request details</Trans>

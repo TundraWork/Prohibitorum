@@ -17,7 +17,6 @@ import { withInlineReport } from "@/app/query-client";
 import { Button } from "@/components/custom/Button";
 import { RelativeTime } from "@/components/custom/RelativeTime";
 import { SettingRow } from "@/components/custom/SettingRow";
-import { getTopLayerContainer } from "@/components/custom/top-layer";
 import { Alert, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -153,7 +152,6 @@ export function ProviderOperatorSection({ provider }: { provider: Provider }) {
         <DialogPopup
           className="sm:max-w-md"
           showCloseButton={!busy && challenge === null}
-          portalProps={{ container: getTopLayerContainer() }}
         >
           <OperatorSignInForm
             challenge={challenge}

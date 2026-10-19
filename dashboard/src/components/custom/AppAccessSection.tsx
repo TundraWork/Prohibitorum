@@ -34,7 +34,6 @@ import {
 import { ItemList, ItemListRow } from "@/components/custom/ItemList";
 import { Section } from "@/components/custom/Section";
 import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
-import { getTopLayerContainer } from "@/components/custom/top-layer";
 import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
@@ -521,10 +520,7 @@ function GroupPickerDialog({
       open={open}
       onOpenChange={(next) => !next && !pending && onCancel()}
     >
-      <DialogPopup
-        className="sm:max-w-md"
-        portalProps={{ container: getTopLayerContainer() }}
-      >
+      <DialogPopup className="sm:max-w-md">
         <GroupPickerForm
           key={session}
           initial={selectedIds}

@@ -81,7 +81,7 @@ function withPasskeys() {
 }
 
 /**
- * The passkey button itself. Where passkeys are unavailable HeroUI's tooltip
+ * The passkey button itself. Where passkeys are unavailable the tooltip
  * trigger wraps it in an element with the button role and the same name.
  */
 function passkeyButton() {

@@ -19,7 +19,6 @@ import type {
 } from "@/api/raw-admin-paths";
 import { Button } from "@/components/custom/Button";
 import { JsonBlock } from "@/components/custom/JsonBlock";
-import { getTopLayerContainer } from "@/components/custom/top-layer";
 import { Alert, AlertAction, AlertTitle } from "@/components/ui/alert";
 import {
   Dialog,
@@ -140,7 +139,6 @@ export function ConnectionTestDialog({
         // The result is read, not answered: focus the dialog rather than a button.
         initialFocus={() => popup.current ?? true}
         showCloseButton={false}
-        portalProps={{ container: getTopLayerContainer() }}
       >
         <DialogHeader>
           <DialogTitle>

@@ -6459,7 +6459,7 @@ msgid "settings.general.icon.hint"
 msgstr "PNG, JPEG, WebP or GIF, up to 5 MiB."
 
 #. js-lingui-explicit-id
-#: src/components/custom/EntityIconCard.tsx
+#: src/components/custom/EntityIconControl.tsx
 msgid "entity.icon.hint"
 msgstr "PNG, JPEG, WebP or GIF, up to 5 MiB."
 
@@ -6934,7 +6934,7 @@ msgid "settings.general.icon.remove"
 msgstr "Remove icon"
 
 #. js-lingui-explicit-id
-#: src/components/custom/EntityIconCard.tsx
+#: src/components/custom/EntityIconControl.tsx
 msgid "entity.icon.remove"
 msgstr "Remove icon"
 
@@ -7120,7 +7120,7 @@ msgid "settings.general.icon.replace"
 msgstr "Replace icon"
 
 #. js-lingui-explicit-id
-#: src/components/custom/EntityIconCard.tsx
+#: src/components/custom/EntityIconControl.tsx
 msgid "entity.icon.replace"
 msgstr "Replace icon"
 
@@ -9896,7 +9896,7 @@ msgid "settings.general.icon.upload"
 msgstr "Upload an icon"
 
 #. js-lingui-explicit-id
-#: src/components/custom/EntityIconCard.tsx
+#: src/components/custom/EntityIconControl.tsx
 msgid "entity.icon.upload"
 msgstr "Upload an icon"
 

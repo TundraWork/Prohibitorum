@@ -7,7 +7,6 @@ import type {
 import { Button } from "@/components/custom/Button";
 import { CopyableValue } from "@/components/custom/CopyableValue";
 import { RelativeTime } from "@/components/custom/RelativeTime";
-import { getTopLayerContainer } from "@/components/custom/top-layer";
 import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
@@ -46,11 +45,7 @@ export function EffectiveConfigDialog({
   const { t } = useLingui();
   return (
     <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
-      <DialogPopup
-        className="sm:max-w-2xl"
-        showCloseButton={false}
-        portalProps={{ container: getTopLayerContainer() }}
-      >
+      <DialogPopup className="sm:max-w-2xl" showCloseButton={false}>
         <DialogHeader>
           <DialogTitle>
             <Trans id="admin.federation.diagnostics.effective">

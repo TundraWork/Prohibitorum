@@ -1,7 +1,6 @@
 import { MoreHorizontalIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { Button } from "@/components/custom/Button";
-import { getTopLayerContainer } from "@/components/custom/top-layer";
 import { Menu, MenuPopup, MenuTrigger } from "@/components/ui/menu";
 
 /**
@@ -23,12 +22,7 @@ export function RowMenu({
       >
         <MoreHorizontalIcon />
       </MenuTrigger>
-      <MenuPopup
-        align="end"
-        portalProps={{ container: getTopLayerContainer() }}
-      >
-        {children}
-      </MenuPopup>
+      <MenuPopup align="end">{children}</MenuPopup>
     </Menu>
   );
 }

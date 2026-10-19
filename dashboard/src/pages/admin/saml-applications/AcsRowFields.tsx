@@ -1,8 +1,7 @@
 import { Trans } from "@lingui/react/macro";
 import { useStore } from "@tanstack/react-form";
-import { type ReactNode, useRef } from "react";
+import type { ReactNode } from "react";
 import { FormMessages } from "@/components/custom/FormMessages";
-import { useHostOverlayContainer } from "@/components/custom/host-overlay-container";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import {
@@ -49,8 +48,6 @@ export function AcsRowFields({
   const field = useFieldContext<AcsRow[]>();
   const form = useFormContext();
   const submitting = useStore(form.store, (state) => state.isSubmitting);
-  const anchor = useRef<HTMLDivElement>(null);
-  const container = useHostOverlayContainer(anchor);
 
   const row = field.state.value[index];
   if (row === undefined) return null;
@@ -72,7 +69,7 @@ export function AcsRowFields({
   };
 
   return (
-    <div ref={anchor} className="flex flex-col gap-1.5">
+    <div className="flex flex-col gap-1.5">
       <div className="flex flex-wrap items-end gap-3">
         <Field className="w-36" disabled={submitting}>
           <FieldLabel>
@@ -89,10 +86,7 @@ export function AcsRowFields({
                 {() => bindingNames[row.binding] ?? row.binding}
               </SelectValue>
             </SelectTrigger>
-            <SelectPopup
-              alignItemWithTrigger={false}
-              portalProps={{ container }}
-            >
+            <SelectPopup alignItemWithTrigger={false}>
               <SelectItem value={bindingPost}>POST</SelectItem>
               <SelectItem value={bindingRedirect}>Redirect</SelectItem>
             </SelectPopup>

@@ -6,7 +6,6 @@ import {
   NewPasswordFields,
   newPasswordFormValues,
 } from "@/components/custom/NewPasswordFields";
-import { getTopLayerContainer } from "@/components/custom/top-layer";
 import {
   Dialog,
   DialogFooter,
@@ -40,10 +39,7 @@ export function ChangePasswordDialog({
       open={open}
       onOpenChange={(next) => !next && !change.isPending && onClose()}
     >
-      <DialogPopup
-        className="sm:max-w-md"
-        portalProps={{ container: getTopLayerContainer() }}
-      >
+      <DialogPopup className="sm:max-w-md">
         <ChangePasswordForm change={change} onClose={onClose} />
       </DialogPopup>
     </Dialog>

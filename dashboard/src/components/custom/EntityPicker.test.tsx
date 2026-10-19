@@ -1,19 +1,13 @@
 import { I18nProvider } from "@lingui/react";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { type ReactNode, useState } from "react";
+import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   type EntityOption,
   EntityPicker,
 } from "@/components/custom/EntityPicker";
 import { i18n } from "@/i18n";
-
-// OverlayScrollbars measures computed styles jsdom cannot resolve; the list's
-// scroll area is layout only, so a plain box stands in for it.
-vi.mock("@/components/custom/ScrollArea", () => ({
-  ScrollArea: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-}));
 
 beforeEach(() => {
   i18n.activate("en");
@@ -112,20 +106,6 @@ describe("EntityPicker", () => {
 
     expect(onValueChange).toHaveBeenLastCalledWith(["12"]);
     expect(shown()).toHaveTextContent("Mock User 12");
-  });
-
-  it("opens its list inside the dialog that hosts it", async () => {
-    const user = userEvent.setup();
-    render(
-      <div role="dialog" data-rac="" aria-label="Host">
-        <Harness options={accounts} />
-      </div>,
-    );
-
-    await open(user);
-
-    const dialog = screen.getByRole("dialog", { name: "Host" });
-    expect(within(dialog).getByRole("listbox")).toBeInTheDocument();
   });
 
   it("clears a single selection to an empty list", async () => {

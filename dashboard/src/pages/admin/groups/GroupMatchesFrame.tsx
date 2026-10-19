@@ -8,7 +8,6 @@ import { Button } from "@/components/custom/Button";
 import { EntityAvatar } from "@/components/custom/EntityAvatar";
 import { InlineFailure } from "@/components/custom/InlineFailure";
 import { Section } from "@/components/custom/Section";
-import { getTopLayerContainer } from "@/components/custom/top-layer";
 import {
   Dialog,
   DialogDescription,
@@ -263,7 +262,6 @@ function MatchesDialog({
         // The list is read from its first account; focusing "Load more" would
         // scroll the panel to its end.
         initialFocus={() => popup.current ?? true}
-        portalProps={{ container: getTopLayerContainer() }}
       >
         <DialogHeader>
           <DialogTitle>
