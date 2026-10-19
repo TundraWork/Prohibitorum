@@ -1,5 +1,6 @@
-import { useLingui } from "@lingui/react/macro";
+import { Trans, useLingui } from "@lingui/react/macro";
 import { useQuery } from "@tanstack/react-query";
+import { CatchBoundary } from "@tanstack/react-router";
 import { Suspense, useEffect, useState, useSyncExternalStore } from "react";
 import { loginWallpaperPreviewQueryOptions } from "@/api/queries";
 import type { WallpaperPreviewQuery } from "@/api/raw-admin-paths";
@@ -153,17 +154,34 @@ export function SignInPreview({
             message: "Sign-in page preview",
           })}
         >
-          <PublicScene
-            appearance={appearance}
-            background={shown}
-            readablePictures
+          {/* The step reads the instance's public data, and a read that fails
+              throws; it must not take the editor down with it. Without the
+              page there is no card to measure, so readability says so. */}
+          <CatchBoundary
+            getResetKey={() => "preview"}
+            errorComponent={() => (
+              <p
+                role="status"
+                className="m-6 text-center text-muted-foreground text-sm"
+              >
+                <Trans id="settings.sign-in.preview.failed">
+                  The sign-in page could not be drawn here.
+                </Trans>
+              </p>
+            )}
           >
-            <LoginPreviewContext value={true}>
-              <Suspense fallback={null}>
-                <PasswordPage />
-              </Suspense>
-            </LoginPreviewContext>
-          </PublicScene>
+            <PublicScene
+              appearance={appearance}
+              background={shown}
+              readablePictures
+            >
+              <LoginPreviewContext value={true}>
+                <Suspense fallback={null}>
+                  <PasswordPage />
+                </Suspense>
+              </LoginPreviewContext>
+            </PublicScene>
+          </CatchBoundary>
         </PreviewDocument>
         {loading && (
           <Skeleton

@@ -419,49 +419,96 @@ describe("measuring the sign-in card", () => {
     expect(result).toMatchObject({ kind: "measured", readable: false });
   });
 
-  it.each([
-    ["a transparent region", "rgb(255, 255, 255)", false],
-    ["a transparent region on a dark page", "rgb(10, 10, 10)", true],
-  ])(
-    "measures %s against the page behind the picture",
-    async (_name, pageColor, readable) => {
-      const page = previewPage({
-        color: "rgb(255,255,255)",
-        background: "rgba(0,0,0,0.2)",
-      });
+  /** A picture of the given pixels, drawn behind the card on a page of `pageColor`. */
+  async function measureSample(
+    cell: (
+      c: number,
+      r: number,
+    ) => { r: number; g: number; b: number; a: number },
+    pageColor: string | undefined,
+  ) {
+    const page = previewPage({
+      color: "rgb(255,255,255)",
+      background: "rgba(0,0,0,0.2)",
+    });
+    if (pageColor === undefined) {
+      page.doc.body.style.backgroundColor = "";
+    } else {
       page.doc.body.style.backgroundColor = pageColor;
-      const image = page.doc.createElement("img");
-      image.dataset.current = "";
-      image.src = "https://pictures.example/clear.png";
-      const holder = page.doc.createElement("div");
-      holder.dataset.loginBackdrop = "pictures";
-      holder.append(image);
-      page.doc.body.append(holder);
-      // A transparent PNG: every pixel black with no opacity.
-      const loadPicture = vi.fn(async () => ({
-        width: 1280,
-        height: 800,
-        sample: (_box: unknown, cols: number, rows: number) => ({
-          cols,
-          rows,
-          cells: Array.from({ length: cols * rows }, () => ({
-            r: 0,
-            g: 0,
-            b: 0,
-            a: 0,
-          })),
-        }),
-      }));
-      const result = await measureReadability(
-        page.doc,
-        withBackground((b) => {
-          b.source = "images";
-        }),
-        { ...noEnvironment, loadPicture },
+    }
+    const image = page.doc.createElement("img");
+    image.dataset.current = "";
+    image.src = "https://pictures.example/clear.png";
+    const holder = page.doc.createElement("div");
+    holder.dataset.loginBackdrop = "pictures";
+    holder.append(image);
+    page.doc.body.append(holder);
+    const loadPicture = vi.fn(async () => ({
+      width: 1280,
+      height: 800,
+      sample: (_box: unknown, cols: number, rows: number) => ({
+        cols,
+        rows,
+        cells: Array.from({ length: cols * rows }, (_, i) =>
+          cell(i % cols, Math.floor(i / cols)),
+        ),
+      }),
+    }));
+    return measureReadability(
+      page.doc,
+      withBackground((b) => {
+        b.source = "images";
+      }),
+      { ...noEnvironment, loadPicture },
+    );
+  }
+
+  it("does not report a ratio for a picture that came back wholly clear", async () => {
+    const clear = () => ({ r: 0, g: 0, b: 0, a: 0 });
+    expect(await measureSample(clear, "rgb(255, 255, 255)")).toEqual({
+      kind: "unmeasurable",
+      cause: "background",
+    });
+    expect(await measureSample(clear, "rgb(10, 10, 10)")).toEqual({
+      kind: "unmeasurable",
+      cause: "background",
+    });
+  });
+
+  it.each([
+    ["a light page", "rgb(255, 255, 255)", false],
+    ["a dark page", "rgb(10, 10, 10)", true],
+  ])(
+    "shows %s through a half-clear picture",
+    async (_name, pageColor, readable) => {
+      // Half of each row is clear, the rest opaque mid grey.
+      const result = await measureSample(
+        (c) =>
+          c % 2 === 0
+            ? { r: 0, g: 0, b: 0, a: 0 }
+            : { r: 128, g: 128, b: 128, a: 1 },
+        pageColor,
       );
-      expect(result).toMatchObject({ kind: "measured", readable });
+      expect(result).toMatchObject({ kind: "measured" });
+      if (result.kind === "measured") expect(result.readable).toBe(readable);
     },
   );
+
+  it("says the page cannot be measured when a see-through picture needs a page colour that cannot be read", async () => {
+    const result = await measureSample(
+      () => ({ r: 0, g: 0, b: 0, a: 0.5 }),
+      undefined,
+    );
+    expect(result).toEqual({ kind: "unmeasurable", cause: "page" });
+  });
+
+  it("needs no page colour for an opaque picture", async () => {
+    const result = await measureSample(
+      () => ({ r: 255, g: 255, b: 255, a: 1 }),
+      undefined,
+    );
+    expect(result).toMatchObject({ kind: "measured" });
+  });
 
   it("says it cannot measure a picture it cannot read", async () => {
     const page = previewPage({

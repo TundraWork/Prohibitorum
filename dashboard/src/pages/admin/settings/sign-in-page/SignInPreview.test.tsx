@@ -1,4 +1,3 @@
-import { Form } from "@heroui/react";
 import { I18nProvider } from "@lingui/react";
 import { type QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
@@ -59,12 +58,7 @@ const Props = createContext<PreviewProps | undefined>(undefined);
 
 function Preview() {
   const props = useContext(Props) as PreviewProps;
-  // The console draws the preview inside the editor's own form.
-  return (
-    <Form className="outer-form-layout" aria-label="Outer form">
-      <SignInPreview {...props} />
-    </Form>
-  );
+  return <SignInPreview {...props} />;
 }
 
 /** The preview inside a router, as the console draws it, so the sign-in page it shows has one too. */
@@ -149,13 +143,23 @@ describe("the sign-in page preview", () => {
     expect(page.activeElement).toBe(page.body);
   });
 
-  it("does not let the form it is drawn in restyle the sign-in form", async () => {
+  it("says so, and leaves the editor standing, when the page cannot be read", async () => {
+    queryClient.removeQueries({
+      queryKey: publicFederationProvidersQueryOptions().queryKey,
+    });
+    fakeApi({
+      "GET /api/prohibitorum/auth/federation": () =>
+        apiError("internal_error", 500),
+    });
+    vi.spyOn(console, "error").mockImplementation(() => {});
     await show(view());
     const page = await pageDocument();
-    const form = page.querySelector("form");
-    expect(form).not.toBeNull();
-    expect(form).not.toHaveClass("outer-form-layout");
-    expect(form).toHaveAttribute("aria-label", "Sign in with a password");
+    await waitFor(() =>
+      expect(page.body).toHaveTextContent(
+        "The sign-in page could not be drawn here.",
+      ),
+    );
+    expect(page.querySelector('[data-slot="stage-card"]')).toBeNull();
   });
 
   it("never waits for a passkey while it is only a picture", async () => {

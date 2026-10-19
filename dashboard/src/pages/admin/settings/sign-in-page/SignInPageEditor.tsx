@@ -37,7 +37,7 @@ import {
   unsavedReserveClass,
   useUnsavedReserve,
 } from "@/components/custom/UnsavedBar";
-import { applyServerError } from "@/forms/server-errors";
+import { applyServerError, clearServerErrors } from "@/forms/server-errors";
 import { useAppForm } from "@/forms/use-app-form";
 import { BackgroundControls } from "@/pages/admin/settings/sign-in-page/BackgroundControls";
 import {
@@ -218,6 +218,13 @@ function Editor({ saved }: { saved: AdminLoginAppearance }) {
     enableBeforeUnload: () => changes > 0,
   });
 
+  // The preview, and Save with it, sits beside the form rather than inside it,
+  // so a page drawn in the preview never shares a form with the editor.
+  const submit = () => {
+    clearServerErrors(form);
+    void form.handleSubmit();
+  };
+
   const discard = () => {
     form.reset({ appearance: saved.appearance, unsplashAccessKey: "" });
     setReplacingKey(false);
@@ -226,10 +233,7 @@ function Editor({ saved }: { saved: AdminLoginAppearance }) {
   return (
     <div {...reserve} className={unsavedReserveClass}>
       <form.AppForm>
-        <form.Form
-          label={t({ id: "settings.sign-in.form", message: "Sign-in page" })}
-          className="grid items-start gap-6 lg:grid-cols-[380px_minmax(0,1fr)]"
-        >
+        <div className="grid items-start gap-6 lg:grid-cols-[380px_minmax(0,1fr)]">
           {/* The preview comes first in the page, so a narrow screen shows the
             effect above the controls; from `lg` it sits beside them and stays
             in view. */}
@@ -259,6 +263,7 @@ function Editor({ saved }: { saved: AdminLoginAppearance }) {
                     })}
                     actionLabel={<Trans id="settings.sign-in.save">Save</Trans>}
                     onDiscard={discard}
+                    onSubmit={submit}
                     pending={submitting || update.isPending}
                   />
                 ) : undefined
@@ -277,7 +282,10 @@ function Editor({ saved }: { saved: AdminLoginAppearance }) {
             </Section>
           </div>
 
-          <div className="flex min-w-0 flex-col gap-6 lg:order-1">
+          <form.Form
+            label={t({ id: "settings.sign-in.form", message: "Sign-in page" })}
+            className="flex min-w-0 flex-col gap-6 lg:order-1"
+          >
             <form.FormError />
             <Section
               id="background"
@@ -361,8 +369,8 @@ function Editor({ saved }: { saved: AdminLoginAppearance }) {
                 />
               </div>
             </Section>
-          </div>
-        </form.Form>
+          </form.Form>
+        </div>
       </form.AppForm>
     </div>
   );

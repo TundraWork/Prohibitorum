@@ -5,7 +5,6 @@ import {
   useRef,
   useState,
 } from "react";
-import { FormContext } from "react-aria-components";
 import { createPortal } from "react-dom";
 
 export type PreviewTheme = "light" | "dark";
@@ -132,14 +131,7 @@ export function PreviewDocument({
           transformOrigin: "top left",
         }}
       />
-      {/* A form inside the preview must not inherit the props of the form this
-          preview is drawn within: a portal keeps React's context, and a
-          nested form would take on its classes and label. */}
-      {body &&
-        createPortal(
-          <FormContext.Provider value={null}>{children}</FormContext.Provider>,
-          body,
-        )}
+      {body && createPortal(children, body)}
     </div>
   );
 }

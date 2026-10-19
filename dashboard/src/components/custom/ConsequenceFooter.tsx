@@ -15,6 +15,7 @@ export function ConsequenceFooter({
   consequence,
   actionLabel,
   onDiscard,
+  onSubmit,
   pending = false,
   disabled = false,
   tone = "warning",
@@ -23,6 +24,11 @@ export function ConsequenceFooter({
   /** Names the action, such as "Remove scope and save". */
   actionLabel: ReactNode;
   onDiscard: () => void;
+  /**
+   * For a footer drawn outside the form it saves: the primary button then
+   * calls this instead of submitting the form it is not inside.
+   */
+  onSubmit?: () => void;
   pending?: boolean;
   disabled?: boolean;
   /**
@@ -68,7 +74,8 @@ export function ConsequenceFooter({
           <Trans id="consequence-footer.discard">Discard</Trans>
         </Button>
         <Button
-          type="submit"
+          type={onSubmit === undefined ? "submit" : "button"}
+          onClick={onSubmit}
           pending={pending}
           disabled={disabled}
           // A button that cannot be pressed says why, where a keyboard finds it.

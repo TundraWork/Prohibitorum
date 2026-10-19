@@ -542,8 +542,14 @@ export async function measureReadability(
         return unmeasurable;
       }
       // A see-through picture shows the page behind it.
-      const behind = pageBackground()?.[0] ?? { r: 255, g: 255, b: 255 };
-      return measurePicture(doc, card, picture, layers, foreground, behind);
+      return measurePicture(
+        doc,
+        card,
+        picture,
+        layers,
+        foreground,
+        pageBackground()?.[0],
+      );
     }
     default:
       return unmeasurable;
@@ -556,7 +562,7 @@ function measurePicture(
   picture: Picture,
   layers: Layers,
   foreground: Rgb,
-  behind: Rgb,
+  behind: Rgb | undefined,
 ): ReadabilityResult {
   const view = {
     width: doc.documentElement.clientWidth,
@@ -583,7 +589,13 @@ function measurePicture(
   const rows = Math.min(maxCells, Math.max(1, Math.ceil(area.height / cellPx)));
   const sampled = picture.sample(coverSource(view, picture, area), cols, rows);
   if (!sampled) return unmeasurable;
-  const region = settleOver(sampled, behind);
+  // A picture that came back wholly clear was not read (an SVG with no size
+  // of its own draws nothing into a sub-rectangle), so there is nothing to say.
+  if (sampled.cells.every((cell) => (cell.a ?? 1) === 0)) return unmeasurable;
+  // Any see-through pixel shows the page, which must then be known.
+  const seeThrough = sampled.cells.some((cell) => (cell.a ?? 1) < 1);
+  if (seeThrough && behind === undefined) return pageUnmeasurable;
+  const region = settleOver(sampled, behind ?? { r: 255, g: 255, b: 255 });
 
   const cell = { width: area.width / cols, height: area.height / rows };
   const first = (edge: number, origin: number, size: number) =>
