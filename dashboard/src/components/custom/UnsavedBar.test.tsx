@@ -43,14 +43,15 @@ function report(target: Element, isIntersecting: boolean) {
   );
 }
 
-function Page({ dirty }: { dirty: boolean }) {
+function Page({ dirty, saveIn }: { dirty: boolean; saveIn?: string }) {
   return (
     <I18nProvider i18n={i18n}>
       <SectionRegistryProvider>
-        <UnsavedBar />
+        <UnsavedBar saveIn={saveIn} />
         <Section title="Accounts and claims" dirty={dirty}>
           x
         </Section>
+        <Section title="Where Save is">y</Section>
       </SectionRegistryProvider>
     </I18nProvider>
   );
@@ -87,5 +88,22 @@ describe("UnsavedBar", () => {
     expect(document.activeElement).toBe(
       screen.getByRole("heading", { name: "Accounts and claims" }),
     );
+  });
+
+  it("follows the section that holds Save when one is named", async () => {
+    render(<Page dirty saveIn="where-save-is" />);
+    const edited = document.getElementById("accounts-and-claims") as Element;
+    const save = document.getElementById("where-save-is") as Element;
+    expect(observed.has(edited)).toBe(false);
+    expect(observed.has(save)).toBe(true);
+
+    // The edited block being out of view is not enough: Save is what matters.
+    report(save, true);
+    expect(screen.queryByText("You have unsaved changes.")).toBeNull();
+
+    report(save, false);
+    expect(screen.getByText("You have unsaved changes.")).toBeTruthy();
+    await userEvent.click(screen.getByRole("button", { name: "Jump to Save" }));
+    expect(save.scrollIntoView).toHaveBeenCalled();
   });
 });

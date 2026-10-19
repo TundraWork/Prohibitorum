@@ -9,12 +9,16 @@ import {
 import { Link, useBlocker } from "@tanstack/react-router";
 import {
   ArrowLeftIcon,
+  EyeIcon,
+  ImageIcon,
   MonitorIcon,
   MoonIcon,
+  PanelTopIcon,
   SmartphoneIcon,
+  SquareUserIcon,
   SunIcon,
 } from "lucide-react";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useRef, useState } from "react";
 import { ApiError, isCancellation } from "@/api/errors";
 import { updateLoginAppearanceMutationOptions } from "@/api/mutations";
 import { loginAppearanceQueryOptions } from "@/api/queries";
@@ -51,6 +55,8 @@ import {
 } from "@/pages/admin/settings/sign-in-page/SurfaceControls";
 import {
   changedSettings,
+  changesBySection,
+  colorError,
   queryError,
   type SignInPageValues,
   signInPageBody,
@@ -102,8 +108,8 @@ export function SignInPageEditor() {
         <Editor saved={saved} />
       </div>
       {/* Below `lg` the preview, and with it Save, scrolls out of sight; the
-          bar says what is unsaved and leads back to it. */}
-      <UnsavedBar />
+          bar says something is unsaved and leads back to Save. */}
+      <UnsavedBar saveIn="preview" />
     </SectionRegistryProvider>
   );
 }
@@ -119,7 +125,14 @@ function Editor({ saved }: { saved: AdminLoginAppearance }) {
     ),
   );
   const [replacingKey, setReplacingKey] = useState(false);
-  const [size, setSize] = useState<PreviewSize>("desktop");
+  // A phone shows the page at its own width; a window that size could not read
+  // a desktop page scaled down into it.
+  const [size, setSize] = useState<PreviewSize>(() =>
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(max-width: 639px)").matches
+      ? "phone"
+      : "desktop",
+  );
   const [previewDocument, setPreviewDocument] = useState<Document | null>(null);
   const hasKey = saved.hasUnsplashKey;
 
@@ -175,8 +188,20 @@ function Editor({ saved }: { saved: AdminLoginAppearance }) {
   );
   const submitting = useStore(form.store, (state) => state.isSubmitting);
   const changes = changedSettings(saved.appearance, appearance, typedKey);
+  const where = changesBySection(saved.appearance, appearance, typedKey);
+  // A colour half typed is not one, so the preview keeps the last that was.
+  const lastColor = useRef(saved.appearance.background.color);
+  if (colorError(appearance.background.color) === undefined)
+    lastColor.current = appearance.background.color;
+  const shown =
+    colorError(appearance.background.color) === undefined
+      ? appearance
+      : {
+          ...appearance,
+          background: { ...appearance.background, color: lastColor.current },
+        };
   const preview = usePreviewTheme(appearance);
-  const readability = useReadability(previewDocument, appearance);
+  const readability = useReadability(previewDocument, shown);
   const reserve = useUnsavedReserve();
 
   useBlocker({
@@ -210,8 +235,13 @@ function Editor({ saved }: { saved: AdminLoginAppearance }) {
           <div className="flex flex-col gap-6 lg:sticky lg:top-[calc(var(--app-sticky-offset)+5rem)] lg:order-2">
             <Section
               id="preview"
-              dirty={changes > 0}
+              icon={<EyeIcon />}
               title={<Trans id="settings.sign-in.preview">Preview</Trans>}
+              description={
+                <Trans id="settings.sign-in.preview.description">
+                  The sign-in page at these settings, as visitors see it.
+                </Trans>
+              }
               action={
                 <PreviewToggles theme={preview} size={size} onSize={setSize} />
               }
@@ -235,7 +265,7 @@ function Editor({ saved }: { saved: AdminLoginAppearance }) {
             >
               <PanelBody>
                 <SignInPreview
-                  appearance={appearance}
+                  appearance={shown}
                   images={loginImages.map((image) => image.url)}
                   hasUnsplashKey={hasKey}
                   theme={preview.theme}
@@ -250,7 +280,15 @@ function Editor({ saved }: { saved: AdminLoginAppearance }) {
             <form.FormError />
             <Section
               id="background"
+              icon={<ImageIcon />}
+              dirty={where.background > 0}
+              action={<ChangeMark changes={where.background} />}
               title={<Trans id="settings.sign-in.background">Background</Trans>}
+              description={
+                <Trans id="settings.sign-in.background.description">
+                  What fills the page behind the card.
+                </Trans>
+              }
             >
               <div className="flex flex-col gap-4">
                 <BackgroundControls
@@ -266,7 +304,16 @@ function Editor({ saved }: { saved: AdminLoginAppearance }) {
             </Section>
             <Section
               id="card"
+              icon={<SquareUserIcon />}
+              dirty={where.card > 0}
+              action={<ChangeMark changes={where.card} />}
               title={<Trans id="settings.sign-in.card">Card</Trans>}
+              description={
+                <Trans id="settings.sign-in.card.description">
+                  Where the sign-in card sits, which theme the page uses and how
+                  the card looks.
+                </Trans>
+              }
               footer={readability && <ReadabilityLine result={readability} />}
             >
               <div className="flex flex-col gap-4">
@@ -292,7 +339,16 @@ function Editor({ saved }: { saved: AdminLoginAppearance }) {
             </Section>
             <Section
               id="toolbar"
+              icon={<PanelTopIcon />}
+              dirty={where.toolbar > 0}
+              action={<ChangeMark changes={where.toolbar} />}
               title={<Trans id="settings.sign-in.toolbar">Toolbar</Trans>}
+              description={
+                <Trans id="settings.sign-in.toolbar.description">
+                  The instance name and the language and theme buttons at the
+                  top of the page.
+                </Trans>
+              }
             >
               <div className="flex flex-col gap-4">
                 <SurfaceFields
@@ -308,6 +364,24 @@ function Editor({ saved }: { saved: AdminLoginAppearance }) {
         </form.Form>
       </form.AppForm>
     </div>
+  );
+}
+
+/** Says how many settings in a section differ from what is saved; nothing when none do. */
+function ChangeMark({ changes }: { changes: number }) {
+  const { t } = useLingui();
+  if (changes === 0) return null;
+  return (
+    <span className="flex items-center gap-1.5 text-muted-foreground text-xs">
+      <span aria-hidden="true" className="size-1.5 rounded-full bg-warning" />
+      {t({
+        id: "settings.sign-in.unsaved",
+        message: plural(changes, {
+          one: "# unsaved change",
+          other: "# unsaved changes",
+        }),
+      })}
+    </span>
   );
 }
 
@@ -343,6 +417,13 @@ function PreviewToggles({
   return (
     <div className="flex flex-wrap items-center gap-2">
       {/* A draft that forces a theme settles it, so there is no choice to offer. */}
+      {theme.forced && (
+        <span className="text-muted-foreground text-xs">
+          <Trans id="settings.sign-in.preview.theme_forced">
+            The theme is set in Card.
+          </Trans>
+        </span>
+      )}
       {!theme.forced && (
         <SegmentedControl
           label={t({

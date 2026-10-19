@@ -4793,6 +4793,11 @@ msgid "unsaved-bar.jump"
 msgstr "跳转过去"
 
 #. js-lingui-explicit-id
+#: src/components/custom/UnsavedBar.tsx
+msgid "unsaved-bar.jump_save"
+msgstr "跳转到保存"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.effective.jwks"
 msgstr "JWKS 端点"
@@ -8839,6 +8844,11 @@ msgid "admin.saml-apps.field.entity-id.hint"
 msgstr "服务提供商发布的标识符。之后无法修改。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/sign-in-page/SignInPageEditor.tsx
+msgid "settings.sign-in.toolbar.description"
+msgstr "页面顶部的实例名称，以及语言和主题按钮。"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
 #: src/pages/admin/identity-providers/ProviderCredentialsSection.tsx
 msgid "admin.federation.credentials.steam.description"
@@ -9077,6 +9087,11 @@ msgid "error.login_images_full"
 msgstr "登录页已有 10 张图片。移除一张后才能继续添加。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/sign-in-page/SignInPageEditor.tsx
+msgid "settings.sign-in.preview.description"
+msgstr "按当前设置显示访客看到的登录页。"
+
+#. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.wallpaper_not_configured"
 msgstr "登录页没有使用 Bing 或 Unsplash 图片。"
@@ -9100,6 +9115,11 @@ msgstr "提交的数据过大。"
 #: src/api/errors.ts
 msgid "error.validation_failed"
 msgstr "提交的信息无效。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/sign-in-page/SignInPageEditor.tsx
+msgid "settings.sign-in.preview.theme_forced"
+msgstr "主题已在“卡片”中设定。"
 
 #. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
@@ -9841,6 +9861,11 @@ msgid "error.unsplash_key_invalid"
 msgstr "Unsplash 不接受这个 Access Key。请检查后重新填写。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/sign-in-page/BackgroundControls.tsx
+msgid "settings.sign-in.images.none_hint"
+msgstr "添加图片之前，访客看到的是页面自带的背景。"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/groups/GroupDecisionsSection.tsx
 msgid "admin.group.decisions.updated"
 msgstr "<0/>更新"
@@ -10457,6 +10482,11 @@ msgid "console.page.title"
 msgstr "欢迎，{displayName}"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/sign-in-page/SignInPageEditor.tsx
+msgid "settings.sign-in.background.description"
+msgstr "铺在卡片后面的页面背景。"
+
+#. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.scope"
 msgstr "可访问范围"
@@ -10578,6 +10608,11 @@ msgstr "提供商会把用户送回本实例的这些地址。"
 #: src/pages/admin/settings/NetworkPanel.tsx
 msgid "settings.network.description"
 msgstr "服务器从哪里读取每个请求的来源地址。审计日志、会话和限流都会记录它。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/sign-in-page/SignInPageEditor.tsx
+msgid "settings.sign-in.card.description"
+msgstr "登录卡片的位置、页面使用的主题，以及卡片的外观。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
@@ -10722,6 +10757,11 @@ msgstr "你没有可选择的应用。"
 #: src/pages/admin/settings/sign-in-page/SignInPageEditor.tsx
 msgid "settings.sign-in.leave"
 msgstr "登录页有未保存的修改。不保存就离开吗？"
+
+#. js-lingui-explicit-id
+#: src/components/custom/UnsavedBar.tsx
+msgid "unsaved-bar.message_save"
+msgstr "你有未保存的更改。"
 
 #. js-lingui-explicit-id
 #: src/components/custom/AppManagersSection.tsx

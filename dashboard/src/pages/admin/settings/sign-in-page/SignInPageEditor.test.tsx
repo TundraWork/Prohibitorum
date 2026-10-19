@@ -713,6 +713,26 @@ describe("the preview", () => {
     );
   });
 
+  it("keeps the last whole color while a new one is half typed", async () => {
+    const user = userEvent.setup();
+    await open({
+      appearance: withAppearance((a) => {
+        a.background.source = "color";
+        a.background.color = "#336699";
+      }),
+    });
+    const page = await previewDocument();
+    const backdrop = () =>
+      page.querySelector<HTMLElement>('[data-login-backdrop="color"]');
+    await waitFor(() => expect(backdrop()).not.toBeNull());
+    const field = screen.getByRole("textbox", { name: "Color" });
+    await user.clear(field);
+    await user.type(field, "#12zz");
+    expect(field).toHaveAttribute("value", "#12zz");
+    expect(backdrop()?.style.backgroundColor).toBe("rgb(51, 102, 153)");
+    expect(screen.getByLabelText("Pick a color")).toHaveValue("#336699");
+  });
+
   it("places the card as the draft does", async () => {
     const user = userEvent.setup();
     await open();
@@ -804,7 +824,29 @@ describe("saving and discarding", () => {
     await open();
     await chooseSource(user, "Unsplash");
     await user.type(screen.getByLabelText("Access key"), "abc");
-    expect(screen.getByText("2 unsaved changes")).toBeVisible();
+    expect(
+      within(frame("Preview")).getByText("2 unsaved changes"),
+    ).toBeVisible();
+    // Both changes are in the Background section, and nowhere else.
+    expect(
+      within(frame("Background")).getByText("2 unsaved changes"),
+    ).toBeVisible();
+    expect(within(frame("Card")).queryByText(/unsaved change/)).toBeNull();
+  });
+
+  it("marks the section a change is in", async () => {
+    const user = userEvent.setup();
+    await open();
+    await user.click(
+      within(frame("Toolbar")).getByRole("switch", { name: "Frosted glass" }),
+    );
+    expect(
+      within(frame("Toolbar")).getByText("1 unsaved change"),
+    ).toBeVisible();
+    expect(
+      within(frame("Background")).queryByText(/unsaved change/),
+    ).toBeNull();
+    expect(within(frame("Card")).queryByText(/unsaved change/)).toBeNull();
   });
 
   it("puts every control back as saved on Discard", async () => {
@@ -862,7 +904,9 @@ describe("saving and discarding", () => {
     await user.click(saveButton());
     await waitFor(() => expect(notifyError).toHaveBeenCalledTimes(1));
     expect(saveButton()).toBeEnabled();
-    expect(screen.getByText("1 unsaved change")).toBeVisible();
+    expect(
+      within(frame("Preview")).getByText("1 unsaved change"),
+    ).toBeVisible();
   });
 });
 
@@ -889,13 +933,13 @@ describe("the unsaved bar", () => {
     const user = userEvent.setup();
     previewOutOfView();
     await open();
-    expect(screen.queryByText("Unsaved changes in Preview")).toBeNull();
+    expect(screen.queryByText("You have unsaved changes.")).toBeNull();
 
     await user.click(
       within(frame("Toolbar")).getByRole("switch", { name: "Frosted glass" }),
     );
-    expect(await screen.findByText("Unsaved changes in Preview")).toBeVisible();
-    expect(screen.getByRole("button", { name: "Jump to it" })).toBeVisible();
+    expect(await screen.findByText("You have unsaved changes.")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Jump to Save" })).toBeVisible();
   });
 
   it("goes once the changes are discarded", async () => {
@@ -905,10 +949,10 @@ describe("the unsaved bar", () => {
     await user.click(
       within(frame("Toolbar")).getByRole("switch", { name: "Frosted glass" }),
     );
-    await screen.findByText("Unsaved changes in Preview");
+    await screen.findByText("You have unsaved changes.");
     await user.click(screen.getByRole("button", { name: "Discard" }));
     await waitFor(() =>
-      expect(screen.queryByText("Unsaved changes in Preview")).toBeNull(),
+      expect(screen.queryByText("You have unsaved changes.")).toBeNull(),
     );
   });
 });

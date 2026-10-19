@@ -4793,6 +4793,11 @@ msgid "unsaved-bar.jump"
 msgstr "Jump to it"
 
 #. js-lingui-explicit-id
+#: src/components/custom/UnsavedBar.tsx
+msgid "unsaved-bar.jump_save"
+msgstr "Jump to Save"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.effective.jwks"
 msgstr "JWKS"
@@ -8839,6 +8844,11 @@ msgid "admin.saml-apps.field.entity-id.hint"
 msgstr "The identifier the service provider publishes. It cannot be changed later."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/sign-in-page/SignInPageEditor.tsx
+msgid "settings.sign-in.toolbar.description"
+msgstr "The instance name and the language and theme buttons at the top of the page."
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
 #: src/pages/admin/identity-providers/ProviderCredentialsSection.tsx
 msgid "admin.federation.credentials.steam.description"
@@ -9077,6 +9087,11 @@ msgid "error.login_images_full"
 msgstr "The sign-in page already has 10 images. Remove one to add another."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/sign-in-page/SignInPageEditor.tsx
+msgid "settings.sign-in.preview.description"
+msgstr "The sign-in page at these settings, as visitors see it."
+
+#. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.wallpaper_not_configured"
 msgstr "The sign-in page does not use a Bing or Unsplash picture."
@@ -9100,6 +9115,11 @@ msgstr "The submitted data is too large."
 #: src/api/errors.ts
 msgid "error.validation_failed"
 msgstr "The submitted information is not valid."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/sign-in-page/SignInPageEditor.tsx
+msgid "settings.sign-in.preview.theme_forced"
+msgstr "The theme is set in Card."
 
 #. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
@@ -9841,6 +9861,11 @@ msgid "error.unsplash_key_invalid"
 msgstr "Unsplash did not accept this access key. Check it and enter it again."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/sign-in-page/BackgroundControls.tsx
+msgid "settings.sign-in.images.none_hint"
+msgstr "Until you add an image, visitors see the page's own background."
+
+#. js-lingui-explicit-id
 #: src/pages/admin/groups/GroupDecisionsSection.tsx
 msgid "admin.group.decisions.updated"
 msgstr "Updated <0/>"
@@ -10457,6 +10482,11 @@ msgid "console.page.title"
 msgstr "Welcome, {displayName}"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/sign-in-page/SignInPageEditor.tsx
+msgid "settings.sign-in.background.description"
+msgstr "What fills the page behind the card."
+
+#. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.scope"
 msgstr "What it may access"
@@ -10578,6 +10608,11 @@ msgstr "Where the provider sends people back to this instance."
 #: src/pages/admin/settings/NetworkPanel.tsx
 msgid "settings.network.description"
 msgstr "Where the server reads each request's address from. Audit logs, sessions and rate limits record it."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/sign-in-page/SignInPageEditor.tsx
+msgid "settings.sign-in.card.description"
+msgstr "Where the sign-in card sits, which theme the page uses and how the card looks."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
@@ -10722,6 +10757,11 @@ msgstr "You have no applications to choose from."
 #: src/pages/admin/settings/sign-in-page/SignInPageEditor.tsx
 msgid "settings.sign-in.leave"
 msgstr "You have unsaved changes to the sign-in page. Leave without saving them?"
+
+#. js-lingui-explicit-id
+#: src/components/custom/UnsavedBar.tsx
+msgid "unsaved-bar.message_save"
+msgstr "You have unsaved changes."
 
 #. js-lingui-explicit-id
 #: src/components/custom/AppManagersSection.tsx

@@ -164,24 +164,47 @@ export function changedSettings(
   draft: LoginAppearance,
   typedKey: string,
 ): number {
-  const differing = (a: unknown, b: unknown): number => {
-    if (
-      typeof a === "object" &&
-      a !== null &&
-      typeof b === "object" &&
-      b !== null
-    ) {
-      return Object.keys(a).reduce(
-        (sum, key) =>
-          sum +
-          differing(
-            (a as Record<string, unknown>)[key],
-            (b as Record<string, unknown>)[key],
-          ),
-        0,
-      );
-    }
-    return Object.is(a, b) ? 0 : 1;
+  return changedValues(saved, draft) + (typedKey === "" ? 0 : 1);
+}
+
+/** How many leaf values differ between two settings objects. */
+export function changedValues(a: unknown, b: unknown): number {
+  if (
+    typeof a === "object" &&
+    a !== null &&
+    typeof b === "object" &&
+    b !== null
+  ) {
+    return Object.keys(a).reduce(
+      (sum, key) =>
+        sum +
+        changedValues(
+          (a as Record<string, unknown>)[key],
+          (b as Record<string, unknown>)[key],
+        ),
+      0,
+    );
+  }
+  return Object.is(a, b) ? 0 : 1;
+}
+
+/**
+ * Where the changes are: the background (and a typed access key), the card's
+ * place, theme and surface, and the toolbar's surface.
+ */
+export function changesBySection(
+  saved: LoginAppearance,
+  draft: LoginAppearance,
+  typedKey: string,
+) {
+  return {
+    background:
+      changedValues(saved.background, draft.background) +
+      (typedKey === "" ? 0 : 1),
+    card:
+      changedValues(saved.cardPosition, draft.cardPosition) +
+      changedValues(saved.theme, draft.theme) +
+      changedValues(saved.card, draft.card),
+    toolbar: changedValues(saved.capsules, draft.capsules),
   };
-  return differing(saved, draft) + (typedKey === "" ? 0 : 1);
 }

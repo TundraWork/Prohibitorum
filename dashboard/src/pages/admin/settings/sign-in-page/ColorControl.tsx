@@ -1,4 +1,5 @@
 import { Trans, useLingui } from "@lingui/react/macro";
+import { useRef } from "react";
 import { FormMessages } from "@/components/custom/FormMessages";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -56,8 +57,11 @@ export function ColorControl({
 }) {
   const { t } = useLingui();
   const valid = hexColor.test(value);
+  // A colour half typed leaves the picker on the last one that was whole.
+  const lastValid = useRef("#1f6f8b");
+  if (valid) lastValid.current = value;
   const swatchNames = useSwatchNames();
-  const hue = hexToHsb(value).h;
+  const hue = hexToHsb(valid ? value : lastValid.current).h;
   return (
     <div className="flex flex-col gap-4">
       <Field disabled={disabled} invalid={errors.length > 0} className="gap-2">
@@ -71,7 +75,7 @@ export function ColorControl({
               id: "settings.sign-in.color.picker",
               message: "Pick a color",
             })}
-            value={valid ? value : "#1f6f8b"}
+            value={valid ? value : lastValid.current}
             disabled={disabled}
             onChange={(event) => onChange(event.target.value.toLowerCase())}
             className="size-9 shrink-0 cursor-pointer rounded-lg border border-input bg-transparent p-0.5 disabled:cursor-not-allowed disabled:opacity-64 sm:size-8"
