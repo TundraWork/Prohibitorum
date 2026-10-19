@@ -35,6 +35,38 @@ type IdentityProviderView = components["schemas"]["IdentityProviderView"];
 type OIDCApplicationView = components["schemas"]["OIDCApplicationView"];
 type ForwardAuthAppView = components["schemas"]["ForwardAuthAppView"];
 type SAMLApplicationView = components["schemas"]["SAMLApplicationView"];
+type AccountView = components["schemas"]["AccountView"];
+type UpdateAccountBody = components["schemas"]["UpdateAccountInBody"];
+
+/** The fields the account form edits; `disabled` is carried from the record. */
+export interface AccountPatch {
+  displayName: string;
+  role: string;
+  attributes: Record<string, unknown>;
+  /**
+   * The address to store, `""` to clear it. Leave it out when the address is
+   * unchanged: the server treats any supplied address as a new, unverified one,
+   * so sending the stored value back would erase its verification.
+   */
+  email?: string;
+}
+
+/**
+ * `PUT /accounts/{id}`. The server replaces the record, so the disabled flag
+ * the form does not edit is carried from the record rather than reset.
+ */
+export function accountUpdateBody(
+  account: AccountView,
+  patch: AccountPatch,
+): UpdateAccountBody {
+  return {
+    displayName: patch.displayName,
+    role: patch.role,
+    attributes: patch.attributes,
+    disabled: account.disabled,
+    ...(patch.email === undefined ? {} : { email: patch.email }),
+  };
+}
 
 /** The fields a provider form edits; anything absent is taken from the record. */
 export interface IdentityProviderPatch {

@@ -974,11 +974,12 @@ function completePairing(request: MockRequest, config: MockConfig): MockReply {
 function accountAt(index: number, config: MockConfig): Account {
   const id = index + 1;
   const disabled = index % 4 === 3;
+  const plainRole = config.admin.legacyRoleAccounts ? "member" : "user";
   return {
     id,
     username: `mock-user-${id}`,
     displayName: `Mock User ${id}`,
-    role: index % 5 === 0 ? "admin" : "member",
+    role: index % 5 === 0 ? "admin" : plainRole,
     // The account the panel is signed in as, so a mocked profile write and the
     // signed-in session stay one account rather than two. It is written after
     // the role above on purpose: the panel's own role wins for this row.
@@ -986,7 +987,7 @@ function accountAt(index: number, config: MockConfig): Account {
       ? {
           username: config.session.username,
           displayName: config.session.displayName,
-          role: config.session.role,
+          role: config.session.role === "admin" ? "admin" : plainRole,
         }
       : {}),
     disabled,

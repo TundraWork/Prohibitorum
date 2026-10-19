@@ -68,6 +68,12 @@ export interface MockConfig {
   admin: {
     accounts: number;
     /**
+     * Whether the directory's non-admin accounts carry `member`, a role the
+     * server does not issue, so the account page's handling of a stored role
+     * outside user and admin can be walked through.
+     */
+    legacyRoleAccounts: boolean;
+    /**
      * Active accounts a rule is evaluated against. Apart from `accounts`
      * because a rule's total is not bounded by the directory page and a
      * walkthrough needs one larger than a page of matches.
@@ -359,6 +365,7 @@ export const defaultMockConfig: MockConfig = {
   },
   admin: {
     accounts: 12,
+    legacyRoleAccounts: false,
     ruleAccounts: 12,
     ruleMatchEvery: 2,
     groups: 3,

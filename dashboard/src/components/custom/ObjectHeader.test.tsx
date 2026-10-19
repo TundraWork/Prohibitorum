@@ -54,6 +54,21 @@ describe("ObjectHeader", () => {
     ).toEqual(["Disabled", "Sign-in off", "Not ready"]);
   });
 
+  it("names an account's role beside its state", () => {
+    render(
+      <I18nProvider i18n={i18n}>
+        <ObjectHeader icon={null} title="Bob" statuses={["admin", "enabled"]} />
+      </I18nProvider>,
+    );
+
+    const statuses = screen.getByRole("list", { name: "Status" });
+    expect(
+      within(statuses)
+        .getAllByRole("listitem")
+        .map((item) => item.textContent),
+    ).toEqual(["Admin", "Enabled"]);
+  });
+
   it("says whether a group is sent to applications", () => {
     render(
       <I18nProvider i18n={i18n}>

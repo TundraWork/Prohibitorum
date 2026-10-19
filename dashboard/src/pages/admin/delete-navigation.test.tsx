@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createQueryClient } from "@/app/query-client";
 import { i18n } from "@/i18n";
+import { accountFixture } from "@/test/account";
 import {
   apiError,
   fakeApi,
@@ -167,6 +168,27 @@ describe("deleting a record from its own page", () => {
       record: provider,
       deletePath: "/identity-providers/delete",
       confirm: "Delete",
+    });
+  });
+
+  it("leaves an account without an error toast", async () => {
+    const account = accountFixture();
+    await deleteFromPage({
+      path: `/admin/users/${account.id}`,
+      listPath: "/admin/users",
+      name: account.displayName,
+      detailPath: `/accounts/${account.id}`,
+      record: account,
+      deletePath: "/accounts/delete",
+      confirm: "Delete account",
+      extra: {
+        [`GET ${base}/accounts`]: empty,
+        [`GET ${base}/accounts/${account.id}/identities`]: () =>
+          Response.json([]),
+        [`GET ${base}/accounts/${account.id}/credentials`]: empty,
+        [`GET ${base}/accounts/${account.id}/sessions`]: empty,
+        [`GET ${base}/accounts/${account.id}/tokens`]: empty,
+      },
     });
   });
 });

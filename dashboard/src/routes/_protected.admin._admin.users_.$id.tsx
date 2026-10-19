@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { accountQueryOptions } from "@/api/queries";
-import { AdminUser } from "@/pages/admin/AdminUser";
+import { AdminUser } from "@/pages/admin/users/AdminUser";
 import { accountTabs, tabSearch } from "@/pages/console/tabs";
 
 export const Route = createFileRoute("/_protected/admin/_admin/users_/$id")({

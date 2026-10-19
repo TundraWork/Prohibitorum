@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { components } from "@/api/generated/schema";
 import type { OidcProviderConfig, ProviderMode } from "@/api/raw-admin-paths";
 import {
+  accountUpdateBody,
   forwardAuthAppUpdateBody,
   identityProviderUpdateBody,
   oidcAppUpdateBody,
@@ -285,5 +286,55 @@ describe("identity provider update body", () => {
     expect(identityProviderUpdateBody(provider, { mode }).mode).toBe(
       "auto_provision",
     );
+  });
+});
+
+describe("accountUpdateBody", () => {
+  const account: components["schemas"]["AccountView"] = {
+    id: 2,
+    username: "bob",
+    displayName: "Bob",
+    email: "bob@example.test",
+    emailVerified: true,
+    oidcSubject: "00000000-0000-4000-8000-000000000002",
+    role: "user",
+    disabled: true,
+    attributes: { team: "ops" },
+    matchingIdentities: [],
+    createdAt: "2026-09-01T00:00:00Z",
+    updatedAt: "2026-09-01T00:00:00Z",
+  };
+
+  it("carries the disabled flag the form does not edit", () => {
+    const body = accountUpdateBody(account, {
+      displayName: "Robert",
+      role: "user",
+      attributes: {},
+    });
+    expect(body).toEqual({
+      displayName: "Robert",
+      role: "user",
+      attributes: {},
+      disabled: true,
+    });
+  });
+
+  it("leaves the address out when it is unchanged, so its verification survives", () => {
+    const body = accountUpdateBody(account, {
+      displayName: "Bob",
+      role: "user",
+      attributes: { team: "ops" },
+    });
+    expect("email" in body).toBe(false);
+  });
+
+  it("sends an empty address to clear it", () => {
+    const body = accountUpdateBody(account, {
+      displayName: "Bob",
+      role: "user",
+      attributes: {},
+      email: "",
+    });
+    expect(body.email).toBe("");
   });
 });

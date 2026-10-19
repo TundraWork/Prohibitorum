@@ -12,7 +12,9 @@ export type ObjectStatus =
   | "sign-in-off"
   | "not-ready"
   | "sent"
-  | "not-sent";
+  | "not-sent"
+  | "admin"
+  | "user";
 
 interface ObjectHeaderProps {
   /** The entity's icon tile. */
@@ -67,19 +69,25 @@ export function ObjectHeader({
       id: "object.status.not-sent",
       message: "Not sent to applications",
     }),
+    admin: t({ id: "object.status.admin", message: "Admin" }),
+    user: t({ id: "object.status.user", message: "User" }),
   };
-  const statusVariant: Record<ObjectStatus, "success" | "outline" | "warning"> =
-    {
-      enabled: "success",
-      disabled: "outline",
-      restricted: "warning",
-      open: "outline",
-      "sign-in-on": "outline",
-      "sign-in-off": "outline",
-      "not-ready": "warning",
-      sent: "success",
-      "not-sent": "outline",
-    };
+  const statusVariant: Record<
+    ObjectStatus,
+    "success" | "outline" | "warning" | "info"
+  > = {
+    enabled: "success",
+    disabled: "outline",
+    restricted: "warning",
+    open: "outline",
+    "sign-in-on": "outline",
+    "sign-in-off": "outline",
+    "not-ready": "warning",
+    sent: "success",
+    "not-sent": "outline",
+    admin: "info",
+    user: "outline",
+  };
 
   const meta: ReactNode[] = [];
   if (statuses.length > 0) {

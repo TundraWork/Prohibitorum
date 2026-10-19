@@ -435,7 +435,24 @@ describe("mocked management directory", () => {
     const page = bodyOf(read("/api/prohibitorum/accounts", current)) as {
       items: Array<{ username: string; role: string }>;
     };
-    expect(page.items[0]).toMatchObject({ username: "ada", role: "member" });
+    expect(page.items[0]).toMatchObject({ username: "ada", role: "user" });
+  });
+
+  it("lists plain accounts as user, or as the legacy member role on request", () => {
+    const roles = (legacy: boolean) =>
+      (
+        bodyOf(
+          read(
+            "/api/prohibitorum/accounts/{id}",
+            config((draft) => {
+              draft.admin.legacyRoleAccounts = legacy;
+            }),
+            "http://localhost/api/prohibitorum/accounts/2",
+          ),
+        ) as { role: string }
+      ).role;
+    expect(roles(false)).toBe("user");
+    expect(roles(true)).toBe("member");
   });
 
   it("answers an unknown account with not_found rather than a fabricated one", () => {

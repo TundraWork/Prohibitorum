@@ -534,6 +534,15 @@ export function MockPanel() {
               })
             }
           />
+          <Toggle
+            label="Accounts carry the legacy member role"
+            checked={config.admin.legacyRoleAccounts}
+            onChange={(next) =>
+              updateMockConfig((draft) => {
+                draft.admin.legacyRoleAccounts = next;
+              })
+            }
+          />
           <Count
             label="Rule accounts"
             max={mockRuleAccountsMax}
