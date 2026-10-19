@@ -86,6 +86,14 @@ export interface MockConfig {
      * stored-config overlay. Rows past its length take `.`.
      */
     providerSignInMask: string;
+    /**
+     * Which fixture providers are not ready, one letter per row: `.` keeps the
+     * fixture's own readiness, `x` makes the row not ready, `o` makes it
+     * ready. It reaches an enabled provider that cannot sign anyone in, which
+     * the fixture cycle never produces. A string, like the sign-in mask, so it
+     * survives the stored-config overlay.
+     */
+    providerNotReadyMask: string;
     /** OIDC applications, paged; covers confidential and public, restricted and open. */
     oidcApps: number;
     /** SAML applications, paged. */
@@ -295,6 +303,7 @@ export const defaultMockConfig: MockConfig = {
     signingKeyStates: "",
     identityProviders: 4,
     providerSignInMask: "",
+    providerNotReadyMask: "",
     oidcApps: 12,
     samlApps: 6,
     samlAttributes: 3,

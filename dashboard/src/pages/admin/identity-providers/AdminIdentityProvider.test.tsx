@@ -76,7 +76,9 @@ describe("the provider header", () => {
     expect(
       screen.queryByRole("heading", { level: 1, name: "Federation" }),
     ).toBeNull();
-    const header = heading.parentElement as HTMLElement;
+    const header = heading.closest(
+      '[data-slot="object-header"]',
+    ) as HTMLElement;
     expect(within(header).getByText("corp")).toBeVisible();
     expect(within(header).getByText("OpenID Connect")).toBeVisible();
     expect(screen.getByRole("button", { name: "Copy the slug" })).toBeVisible();
@@ -99,8 +101,9 @@ describe("the provider header", () => {
     ["VRChat", vrchat(), "VRChat"],
   ])("names a %s provider's protocol", async (_name, provider, label) => {
     await mountPage(provider);
-    const header = screen.getByRole("heading", { level: 1 })
-      .parentElement as HTMLElement;
+    const header = screen
+      .getByRole("heading", { level: 1 })
+      .closest('[data-slot="object-header"]') as HTMLElement;
     expect(within(header).getByText(label)).toBeVisible();
   });
 
@@ -125,13 +128,20 @@ describe("the provider header", () => {
         .map((item) => item.textContent),
     ).toEqual(["Disabled", "Sign-in off", "Not ready"]);
     // Visible text under the header, not a tooltip.
-    const header = screen.getByRole("heading", { level: 1 }).parentElement
-      ?.parentElement?.parentElement as HTMLElement;
+    const note = document.querySelector('[data-slot="provider-not-ready"]');
+    expect(note).toHaveTextContent(
+      "Sign in the operator account before enabling it.",
+    );
+    expect(note).toBeVisible();
+  });
+
+  it("words the reason for what is failing when the provider is enabled", async () => {
+    await mountPage(vrchat({ ready: false }));
     expect(
-      within(header).getByText(
-        "Sign in the operator account before enabling it.",
-      ),
-    ).toBeVisible();
+      document.querySelector('[data-slot="provider-not-ready"]'),
+    ).toHaveTextContent(
+      "Sign-in through this provider fails until the operator account is signed in again.",
+    );
   });
 
   it("gives no reason for a ready provider", async () => {

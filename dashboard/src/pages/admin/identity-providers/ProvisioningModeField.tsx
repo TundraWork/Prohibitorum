@@ -36,6 +36,8 @@ export function ProvisioningModeField({
   const { field, errors, invalid, disabled, onChange } =
     useFieldBinding<ProviderMode>(false);
   const labelId = useId();
+  const reasonId = useId();
+  const autoUnavailable = !allowSignIn;
 
   useEffect(() => {
     if (!allowSignIn && autoProvisionSelected) onAutoProvisionInvalid?.();
@@ -48,6 +50,7 @@ export function ProvisioningModeField({
       </span>
       <RadioGroup
         aria-labelledby={labelId}
+        aria-describedby={autoUnavailable ? reasonId : undefined}
         name={field.name}
         value={field.state.value}
         disabled={disabled}
@@ -62,22 +65,19 @@ export function ProvisioningModeField({
               value={option.value}
               disabled={unavailable}
               label={i18n._(option.label)}
-              description={
-                <>
-                  {i18n._(option.description)}
-                  {unavailable && (
-                    <span className="mt-0.5 block">
-                      <Trans id="admin.federation.mode.auto.needs-sign-in">
-                        Turn sign-in on to create accounts.
-                      </Trans>
-                    </span>
-                  )}
-                </>
-              }
+              description={i18n._(option.description)}
             />
           );
         })}
       </RadioGroup>
+      {/* Outside the dimmed card, so the reason keeps its own contrast. */}
+      {autoUnavailable && (
+        <p id={reasonId} className="text-muted-foreground text-xs">
+          <Trans id="admin.federation.mode.auto.needs-sign-in">
+            Turn sign-in on to create accounts.
+          </Trans>
+        </p>
+      )}
       {invalid && (
         <FieldError match>
           <FormMessages errors={errors} />

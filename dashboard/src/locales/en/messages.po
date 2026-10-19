@@ -1354,15 +1354,11 @@ msgstr "Cancel"
 #: src/components/custom/AppManagersSection.tsx
 #: src/pages/admin/AdminInvitationForm.tsx
 #: src/pages/admin/forward-auth-apps/AdminForwardAuthAppNew.tsx
+#: src/pages/admin/identity-providers/ProviderCredentialsSection.tsx
 #: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
 #: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
 #: src/pages/admin/saml-applications/SamlMetadataSection.tsx
 msgid "admin.cancel"
-msgstr "Cancel"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderCredentialsSection.tsx
-msgid "admin.federation.credentials.cancel"
 msgstr "Cancel"
 
 #. js-lingui-explicit-id
@@ -3723,7 +3719,7 @@ msgstr "Go to the application"
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.protocol.oidc.hint"
-msgstr "Google, Microsoft Entra ID, Keycloak and other providers that support OpenID Connect."
+msgstr "Google, Microsoft Entra ID, Keycloak and other providers."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/SignInPageControls.tsx
@@ -7086,6 +7082,21 @@ msgstr "Sign-in setup steps"
 #: src/pages/Console.tsx
 msgid "console.signin.list"
 msgstr "Sign-in summary"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderDangerSection.tsx
+msgid "admin.federation.not-ready.oidc.enabled"
+msgstr "Sign-in through this provider fails until it has a valid connection and a client secret."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderDangerSection.tsx
+msgid "admin.federation.not-ready.vrchat.enabled"
+msgstr "Sign-in through this provider fails until the operator account is signed in again."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderDangerSection.tsx
+msgid "admin.federation.not-ready.steam.enabled"
+msgstr "Sign-in through this provider fails until the Web API key is set."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts

@@ -81,7 +81,7 @@ export const providerProtocolOptions: readonly ProviderOption<ProviderProtocol>[
       description: msg({
         id: "admin.federation.protocol.oidc.hint",
         message:
-          "Google, Microsoft Entra ID, Keycloak and other providers that support OpenID Connect.",
+          "Google, Microsoft Entra ID, Keycloak and other providers.",
       }),
     },
     {

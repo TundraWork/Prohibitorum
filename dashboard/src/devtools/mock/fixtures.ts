@@ -1195,7 +1195,13 @@ function identityProviders(config: MockConfig): IdentityProvider[] {
     // secret, which the server counts as ready, so it takes the place the
     // every-fourth "not ready" row otherwise would.
     const publicClient = protocol === "oidc" && index % 4 === 3;
-    const ready = publicClient || index % 4 !== 3;
+    const readyLetter = config.admin.providerNotReadyMask[index];
+    const ready =
+      readyLetter === "x"
+        ? false
+        : readyLetter === "o"
+          ? true
+          : publicClient || index % 4 !== 3;
     // For VRChat the "secret" is the operator session, so an even row has a
     // checked session and an odd one has none, and both states can be seen. A
     // public client holds none by design.

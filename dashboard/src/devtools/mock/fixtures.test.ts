@@ -502,6 +502,22 @@ describe("mocked management directory", () => {
     ]);
   });
 
+  it("lets the not-ready mask make an enabled provider not ready", () => {
+    const page = bodyOf(
+      read(
+        "/api/prohibitorum/identity-providers",
+        config((draft) => {
+          draft.admin.providerNotReadyMask = "..xo";
+        }),
+      ),
+    ) as { items: Array<{ slug: string; ready: boolean; disabled: boolean }> };
+    const [, , third] = page.items;
+    expect(third).toMatchObject({ slug: "provider-3", ready: false });
+    expect(third?.disabled).toBe(false);
+    expect(page.items[0]?.ready).toBe(true);
+    expect(page.items[3]?.ready).toBe(true);
+  });
+
   it("matches nobody for a rule draft that carries no condition", () => {
     const current = writes();
     const draft = call(

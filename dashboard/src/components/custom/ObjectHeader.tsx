@@ -114,7 +114,10 @@ export function ObjectHeader({
   });
 
   return (
-    <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
+    <div
+      data-slot="object-header"
+      className="flex flex-wrap items-center gap-x-4 gap-y-3"
+    >
       {icon}
       <div className="min-w-0 flex-1 basis-56">
         <h1 className="font-semibold text-2xl tracking-tight">{title}</h1>

@@ -136,7 +136,7 @@ export function ProviderConnectionSection({
         if (isCancellation(error)) return;
         // A secret that landed before the failed save stays on the server.
         // The page must re-read the provider, or it keeps asking for what is
-        // now stored — the field here, the "Set the secret" row below.
+        // now stored — the field here, the stored-secret row above.
         if (secretStored) {
           await invalidateIdentityProviders(queryClient);
         }

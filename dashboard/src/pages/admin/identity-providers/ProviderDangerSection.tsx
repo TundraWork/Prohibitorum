@@ -128,7 +128,13 @@ export function ProviderDangerSection({ provider }: { provider: Provider }) {
           }
         >
           {cannotEnable && (
-            <p className="text-sm">{notReadyReason(provider.protocol)}</p>
+            <p className="flex items-center gap-1.5 text-warning-foreground text-xs">
+              <TriangleAlertIcon
+                aria-hidden="true"
+                className="size-3.5 shrink-0"
+              />
+              {notReadyReason(provider.protocol, false)}
+            </p>
           )}
         </ItemListRow>
 
@@ -273,23 +279,41 @@ export function ProviderDangerSection({ provider }: { provider: Provider }) {
   );
 }
 
-/** What a provider of this protocol still needs before it can be enabled. */
-export function notReadyReason(protocol: string): ReactNode {
+/**
+ * What a provider of this protocol still needs. Said for the moment it is
+ * asked: before enabling a disabled provider, or what is failing for an
+ * enabled one.
+ */
+export function notReadyReason(protocol: string, enabled: boolean): ReactNode {
   switch (protocol) {
     case "steam":
-      return (
+      return enabled ? (
+        <Trans id="admin.federation.not-ready.steam.enabled">
+          Sign-in through this provider fails until the Web API key is set.
+        </Trans>
+      ) : (
         <Trans id="admin.federation.danger.not-ready.steam">
           Set the Web API key before enabling it.
         </Trans>
       );
     case "vrchat":
-      return (
+      return enabled ? (
+        <Trans id="admin.federation.not-ready.vrchat.enabled">
+          Sign-in through this provider fails until the operator account is
+          signed in again.
+        </Trans>
+      ) : (
         <Trans id="admin.federation.danger.not-ready.vrchat">
           Sign in the operator account before enabling it.
         </Trans>
       );
     default:
-      return (
+      return enabled ? (
+        <Trans id="admin.federation.not-ready.oidc.enabled">
+          Sign-in through this provider fails until it has a valid connection
+          and a client secret.
+        </Trans>
+      ) : (
         <Trans id="admin.federation.danger.not-ready.oidc">
           Needs a valid connection and a client secret before it can be enabled.
         </Trans>

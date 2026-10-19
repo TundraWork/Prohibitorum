@@ -99,12 +99,15 @@ export function AdminIdentityProvider({
             }
           />
           {!provider.ready && (
-            <p className="flex items-center gap-2 text-sm text-warning-foreground">
+            <p
+              data-slot="provider-not-ready"
+              className="flex items-center gap-2 text-sm text-warning-foreground"
+            >
               <TriangleAlertIcon
                 aria-hidden="true"
                 className="size-4 shrink-0"
               />
-              {notReadyReason(provider.protocol)}
+              {notReadyReason(provider.protocol, !provider.disabled)}
             </p>
           )}
         </div>

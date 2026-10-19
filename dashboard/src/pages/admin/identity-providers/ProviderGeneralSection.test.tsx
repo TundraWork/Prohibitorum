@@ -149,9 +149,15 @@ describe("with sign-in off", () => {
     mount(providerFixture({ allowSignIn: false }));
 
     expect(mode("Creates accounts")).toHaveAttribute("aria-disabled", "true");
+    const reason = screen.getByText("Turn sign-in on to create accounts.");
+    expect(reason).toBeVisible();
+    // Outside the dimmed card, so it keeps its own contrast, and tied to the
+    // group as its description.
+    expect(reason.closest('[aria-disabled="true"]')).toBeNull();
+    expect(reason.closest("label")).toBeNull();
     expect(
-      screen.getByText("Turn sign-in on to create accounts."),
-    ).toBeVisible();
+      screen.getByRole("radiogroup", { name: "Provisioning" }),
+    ).toHaveAccessibleDescription("Turn sign-in on to create accounts.");
     expect(mode("Invitation only")).not.toHaveAttribute(
       "aria-disabled",
       "true",

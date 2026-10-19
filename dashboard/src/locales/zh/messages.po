@@ -1354,15 +1354,11 @@ msgstr "取消"
 #: src/components/custom/AppManagersSection.tsx
 #: src/pages/admin/AdminInvitationForm.tsx
 #: src/pages/admin/forward-auth-apps/AdminForwardAuthAppNew.tsx
+#: src/pages/admin/identity-providers/ProviderCredentialsSection.tsx
 #: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
 #: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
 #: src/pages/admin/saml-applications/SamlMetadataSection.tsx
 msgid "admin.cancel"
-msgstr "取消"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderCredentialsSection.tsx
-msgid "admin.federation.credentials.cancel"
 msgstr "取消"
 
 #. js-lingui-explicit-id
@@ -3723,7 +3719,7 @@ msgstr "前往应用"
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.protocol.oidc.hint"
-msgstr "Google、Microsoft Entra ID、Keycloak 等支持 OpenID Connect 的提供商。"
+msgstr "Google、Microsoft Entra ID、Keycloak 等提供商。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/SignInPageControls.tsx
@@ -5255,7 +5251,7 @@ msgstr "OpenID Connect"
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.protocol.oidc"
-msgstr "OIDC"
+msgstr "OpenID Connect"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/AdminIdentityProvider.tsx
@@ -7086,6 +7082,21 @@ msgstr "登录方式设置步骤"
 #: src/pages/Console.tsx
 msgid "console.signin.list"
 msgstr "登录概览"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderDangerSection.tsx
+msgid "admin.federation.not-ready.oidc.enabled"
+msgstr "连接配置有效并设置好客户端密钥之前，通过该提供商的登录会失败。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderDangerSection.tsx
+msgid "admin.federation.not-ready.vrchat.enabled"
+msgstr "重新登录运营账号之前，通过该提供商的登录会失败。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderDangerSection.tsx
+msgid "admin.federation.not-ready.steam.enabled"
+msgstr "设置 Web API 密钥之前，通过该提供商的登录会失败。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts
