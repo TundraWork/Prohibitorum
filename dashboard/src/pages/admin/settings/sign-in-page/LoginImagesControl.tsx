@@ -235,7 +235,9 @@ function ImageTile({
         onClick={() => remove.mutate(image.id)}
         variant="outline"
         size="icon-xs"
-        className="absolute top-1.5 right-1.5"
+        // Over a picture of any colour, in either theme, so it needs its own
+        // backing rather than the theme's.
+        className="absolute top-1.5 right-1.5 border-transparent bg-black/65 text-white shadow-none hover:bg-black/80 hover:text-white dark:bg-black/65 dark:hover:bg-black/80 *:data-[slot=button-loading-indicator]:text-white"
       >
         <XIcon aria-hidden="true" />
       </Button>

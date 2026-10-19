@@ -3,6 +3,7 @@ import { useSuspenseQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import {
   CameraIcon,
+  ImagesIcon,
   LogInIcon,
   SquareDashedIcon,
   SunriseIcon,
@@ -103,7 +104,9 @@ function Thumbnail({
       ? SunriseIcon
       : background.source === "unsplash"
         ? CameraIcon
-        : SquareDashedIcon;
+        : background.source === "images"
+          ? ImagesIcon
+          : SquareDashedIcon;
   return (
     <div
       aria-hidden="true"
@@ -122,7 +125,8 @@ function Thumbnail({
       )}
       {(background.source === "none" ||
         background.source === "bing" ||
-        background.source === "unsplash") && (
+        background.source === "unsplash" ||
+        (background.source === "images" && firstImage === undefined)) && (
         <Mark className="absolute top-1.5 left-1.5 size-3.5 text-muted-foreground" />
       )}
       <span

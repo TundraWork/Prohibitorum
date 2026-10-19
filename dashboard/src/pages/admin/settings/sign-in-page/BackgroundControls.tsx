@@ -464,6 +464,14 @@ export const BackgroundControls = withForm({
         {background.source === "images" && (
           <>
             <LoginImagesControl images={images} />
+            {images.length === 0 && (
+              <p className="text-muted-foreground text-sm">
+                <Trans id="settings.sign-in.images.none_hint">
+                  Until you add an image, visitors see the page's own
+                  background.
+                </Trans>
+              </p>
+            )}
             {images.length > 1 && (
               <RotationControls
                 order={background.images.order}
