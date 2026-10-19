@@ -4,7 +4,10 @@ import { PageHeader } from "@/components/custom/PageHeader";
 import { AsyncSection } from "@/components/custom/Section";
 import { GeneralPanel } from "@/pages/admin/settings/GeneralPanel";
 import { MaintenancePanel } from "@/pages/admin/settings/MaintenancePanel";
-import { NetworkPanel } from "@/pages/admin/settings/NetworkPanel";
+import {
+  clientIpSection,
+  NetworkPanel,
+} from "@/pages/admin/settings/NetworkPanel";
 import { SignInPagePanel } from "@/pages/admin/settings/SignInPagePanel";
 import { SigningKeysPanel } from "@/pages/admin/settings/SigningKeysPanel";
 
@@ -24,7 +27,8 @@ import { SigningKeysPanel } from "@/pages/admin/settings/SigningKeysPanel";
  *
  * The general and maintenance panels are not behind a boundary. Their read is
  * `/config`, which the root route already loaded before the first paint, so
- * they never suspend. The sign-in page follows the general panel, since it is
+ * they never suspend. The signing keys are not either: their list is not a
+ * suspense read, and the section draws its own loading rows and failure. The sign-in page follows the general panel, since it is
  * also about how the instance looks, behind its own boundary for the
  * administrator-only read of its settings.
  */
@@ -50,18 +54,10 @@ export function AdminSettings() {
         <SignInPagePanel />
       </AsyncSection>
       <MaintenancePanel />
-      <AsyncSection
-        resetKey="network"
-        title={<Trans id="settings.network.title">Client IP</Trans>}
-      >
+      <AsyncSection resetKey="network" {...clientIpSection}>
         <NetworkPanel />
       </AsyncSection>
-      <AsyncSection
-        resetKey="keys"
-        title={<Trans id="settings.keys.section">Signing keys</Trans>}
-      >
-        <SigningKeysPanel />
-      </AsyncSection>
+      <SigningKeysPanel />
     </AppDetailLayout>
   );
 }

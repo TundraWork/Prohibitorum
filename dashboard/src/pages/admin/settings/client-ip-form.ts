@@ -101,6 +101,28 @@ export function formatProxies(proxies: readonly string[]): string {
   return proxies.join("\n");
 }
 
+/**
+ * Whether saving `draft` changes where the server reads a client's address
+ * from, which every audit entry and rate limit depends on. A header name only
+ * counts under "Another header", and the list only while a header is trusted;
+ * a list that cannot be read is a change, since it cannot be shown equal.
+ */
+export function changesClientAddress(
+  saved: ClientIpSettings,
+  draft: { strategy: ClientIpStrategy; header: string; proxies: string },
+): boolean {
+  if (draft.strategy !== saved.strategy) return true;
+  if (draft.strategy === "direct") return false;
+  if (draft.strategy === "header" && draft.header !== saved.header) return true;
+  const parsed = parseProxies(draft.proxies);
+  if (!parsed.ok) return true;
+  const before = saved.trustedProxies ?? [];
+  return (
+    parsed.proxies.length !== before.length ||
+    parsed.proxies.some((proxy, index) => proxy !== before[index])
+  );
+}
+
 /** Whether `value` is an IPv4 or IPv6 range in CIDR notation, as Go parses it. */
 export function isCidr(value: string): boolean {
   const slash = value.indexOf("/");

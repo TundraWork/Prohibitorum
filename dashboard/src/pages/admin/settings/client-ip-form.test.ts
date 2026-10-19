@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  changesClientAddress,
   headerNameError,
   isCidr,
   maxTrustedProxies,
@@ -103,5 +104,66 @@ describe("trusted proxies box", () => {
       ok: false,
       problem: "too-many",
     });
+  });
+});
+
+describe("whether a save changes where the address is read from", () => {
+  const saved = {
+    strategy: "forwarded" as const,
+    header: "",
+    trustedProxies: ["10.0.0.0/8", "192.168.0.0/16"],
+  };
+  const draft = {
+    strategy: "forwarded" as const,
+    header: "",
+    proxies: "10.0.0.0/8\n192.168.0.0/16",
+  };
+
+  it("does not when nothing differs, or only blank lines do", () => {
+    expect(changesClientAddress(saved, draft)).toBe(false);
+    expect(
+      changesClientAddress(saved, {
+        ...draft,
+        proxies: "10.0.0.0/8\n\n192.168.0.0/16\n",
+      }),
+    ).toBe(false);
+  });
+
+  it("does when the source changes", () => {
+    expect(changesClientAddress(saved, { ...draft, strategy: "direct" })).toBe(
+      true,
+    );
+  });
+
+  it("does when the trusted proxies change, or cannot be read", () => {
+    expect(
+      changesClientAddress(saved, { ...draft, proxies: "10.0.0.0/8" }),
+    ).toBe(true);
+    expect(changesClientAddress(saved, { ...draft, proxies: "nonsense" })).toBe(
+      true,
+    );
+  });
+
+  it("does when the header name changes under Another header, and not otherwise", () => {
+    const header = { ...saved, strategy: "header" as const, header: "A-IP" };
+    const same = { ...draft, strategy: "header" as const, header: "A-IP" };
+    expect(changesClientAddress(header, same)).toBe(false);
+    expect(changesClientAddress(header, { ...same, header: "B-IP" })).toBe(
+      true,
+    );
+    expect(changesClientAddress(saved, { ...draft, header: "B-IP" })).toBe(
+      false,
+    );
+  });
+
+  it("ignores the list while the connection is the source", () => {
+    const direct = { ...saved, strategy: "direct" as const };
+    expect(
+      changesClientAddress(direct, {
+        ...draft,
+        strategy: "direct",
+        proxies: "nonsense",
+      }),
+    ).toBe(false);
   });
 });

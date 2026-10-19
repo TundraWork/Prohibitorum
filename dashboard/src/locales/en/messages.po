@@ -34,6 +34,12 @@ msgid "admin.oidc-apps.scopes.remove.action-label"
 msgstr "{0, plural, one {Remove scope and save} other {Remove scopes and save}}"
 
 #. js-lingui-explicit-id
+#. placeholder {0}: retired.length
+#: src/pages/admin/settings/SigningKeysPanel.tsx
+msgid "settings.keys.retired.show"
+msgstr "{0, plural, one {Show # retired key} other {Show # retired keys}}"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/groups/GroupDecisionsFrame.tsx
 msgid "admin.group.decision-counts.summary"
 msgstr "{allowed} allowed · {denied} denied"
@@ -406,6 +412,11 @@ msgid "admin.group.rule.json.nested-negation"
 msgstr "A negation can only wrap one condition, not another negation. The builder still holds your rule."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/SigningKeysPanel.tsx
+msgid "settings.keys.description"
+msgstr "A new key is published as soon as it is generated and starts signing when you activate it. The key it replaces keeps verifying through a grace period, then is retired."
+
+#. js-lingui-explicit-id
 #: src/pages/admin/groups/rule-labels.ts
 msgid "admin.group.rule.method.passkey"
 msgstr "A passkey"
@@ -690,11 +701,6 @@ msgstr "Accounts, user groups, invitations, identity providers, downstream appli
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/SigningKeysPanel.tsx
-msgid "admin.column.actions"
-msgstr "Actions"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/settings/SigningKeysPanel.tsx
 msgid "settings.keys.activate.action"
 msgstr "Activate"
 
@@ -702,11 +708,6 @@ msgstr "Activate"
 #: src/api/errors.ts
 msgid "error.active_key_no_replacement"
 msgstr "Activate another key first, then retire this one."
-
-#. js-lingui-explicit-id
-#: src/pages/admin/settings/SigningKeysPanel.tsx
-msgid "settings.keys.column.activated"
-msgstr "Activated"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/users/AccountSessionsSection.tsx
@@ -907,11 +908,6 @@ msgstr "After the grace period it is removed from the JWKS and the SAML metadata
 #: src/pages/admin/invitations/AdminInvitationForm.tsx
 msgid "admin.invitations.new.require_local.hint"
 msgstr "After verifying with a provider, the invitee also sets up a passkey or a password and an authenticator before the account is created."
-
-#. js-lingui-explicit-id
-#: src/pages/admin/settings/SigningKeysPanel.tsx
-msgid "settings.keys.column.algorithm"
-msgstr "Algorithm"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/groups/RuleBuilder.tsx
@@ -1307,6 +1303,11 @@ msgid "pair.approved"
 msgstr "Approved. Signing in…"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/PublicKeyDialog.tsx
+msgid "settings.keys.jwk.description"
+msgstr "As the instance publishes it for verifying tokens and assertions."
+
+#. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/SignInFields.tsx
 msgid "admin.oidc-apps.field.consent.hint"
 msgstr "Ask the account to approve the scopes before signing them in."
@@ -1385,6 +1386,11 @@ msgstr "Attributes must be a JSON object, such as {}."
 #: src/pages/admin/logs/AdminLogs.tsx
 msgid "admin.logs.table"
 msgstr "Audit events"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/NetworkPanel.tsx
+msgid "settings.network.confirm.body"
+msgstr "Audit logs and rate limits use the new address for every request from now on. A wrong setting can lock everyone into one shared limit."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/SignInPageControls.tsx
@@ -1638,6 +1644,11 @@ msgid "security.password.change.open"
 msgstr "Change"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/NetworkPanel.tsx
+msgid "settings.network.confirm.action"
+msgstr "Change address"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/SamlIdentitySection.tsx
 msgid "admin.saml-apps.name-id.confirm.save"
 msgstr "Change and save"
@@ -1686,6 +1697,16 @@ msgstr "Change password"
 #: src/pages/admin/oidc-applications/IdentityProjectionSection.tsx
 msgid "admin.oidc-apps.subject.action-label"
 msgstr "Change subject and save"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/NetworkPanel.tsx
+msgid "settings.network.action-label"
+msgstr "Change the client address and save"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/NetworkPanel.tsx
+msgid "settings.network.confirm.title"
+msgstr "Change the client address?"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/SamlIdentitySection.tsx
@@ -1995,7 +2016,6 @@ msgid "admin.forward-auth-apps.field.client-id"
 msgstr "Client ID"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/AdminSettings.tsx
 #: src/pages/admin/settings/NetworkPanel.tsx
 msgid "settings.network.title"
 msgstr "Client IP"
@@ -2073,7 +2093,7 @@ msgid "devices.close"
 msgstr "Close"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/SigningKeysPanel.tsx
+#: src/pages/admin/settings/PublicKeyDialog.tsx
 msgid "settings.keys.jwk.close"
 msgstr "Close"
 
@@ -2444,12 +2464,7 @@ msgid "settings.sign-in.preview.continue"
 msgstr "Continue with password"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/SigningKeysPanel.tsx
-msgid "settings.keys.kid.copied"
-msgstr "Copied"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/settings/SigningKeysPanel.tsx
+#: src/pages/admin/settings/PublicKeyDialog.tsx
 msgid "settings.keys.jwk.copied"
 msgstr "Copied"
 
@@ -2475,7 +2490,7 @@ msgid "secret.copied"
 msgstr "Copied."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/SigningKeysPanel.tsx
+#: src/pages/admin/settings/PublicKeyDialog.tsx
 msgid "settings.keys.jwk.copy"
 msgstr "Copy"
 
@@ -2639,11 +2654,6 @@ msgstr "Could not copy the secret. Select it above and copy it manually, or down
 #: src/components/custom/secret-reveal-copy.ts
 msgid "security.tokens.reveal.copy_failed"
 msgstr "Could not copy the token. Select the token above and copy it manually, or download it."
-
-#. js-lingui-explicit-id
-#: src/pages/admin/settings/SigningKeysPanel.tsx
-msgid "settings.keys.jwk.copy.failed"
-msgstr "Could not copy. Your browser blocked the clipboard."
 
 #. js-lingui-explicit-id
 #: src/components/custom/JsonBlock.tsx
@@ -4286,6 +4296,11 @@ msgid "table.row.collapse"
 msgstr "Hide details"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/SigningKeysPanel.tsx
+msgid "settings.keys.retired.hide"
+msgstr "Hide retired keys"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/AdminForwardAuthAppNew.tsx
 #: src/pages/admin/forward-auth-apps/ForwardAuthServiceSection.tsx
 msgid "admin.forward-auth-apps.field.host"
@@ -4710,6 +4725,11 @@ msgid "admin.group.rule.view.json"
 msgstr "JSON"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/PublicKeyDialog.tsx
+msgid "settings.keys.jwk.label"
+msgstr "JSON Web Key"
+
+#. js-lingui-explicit-id
 #: src/components/custom/UnsavedBar.tsx
 msgid "unsaved-bar.jump"
 msgstr "Jump to it"
@@ -4753,11 +4773,6 @@ msgstr "Keep it"
 #: src/pages/admin/identity-providers/ProviderCredentialsSection.tsx
 msgid "admin.federation.credentials.steam.field"
 msgstr "Key"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/settings/SigningKeysPanel.tsx
-msgid "settings.keys.column.kid"
-msgstr "Key ID"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/users/AccountTokensSection.tsx
@@ -5024,6 +5039,11 @@ msgstr "Links to existing accounts only. Never creates one, not even from an inv
 #: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.protocol.vrchat.hint"
 msgstr "Links VRChat identities to existing accounts. Needs a VRChat operator account."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/SigningKeysPanel.tsx
+msgid "settings.keys.more"
+msgstr "Load more"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/groups/GroupDecisionsSection.tsx
@@ -5557,6 +5577,11 @@ msgstr "No certificates are published for this application."
 #: src/pages/admin/users/AccountIdentitiesSection.tsx
 msgid "admin.user.identities.empty"
 msgstr "No connected identities"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/SigningKeysPanel.tsx
+msgid "settings.keys.none_current"
+msgstr "No current keys"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/groups/GroupDecisionsSection.tsx
@@ -6502,7 +6527,7 @@ msgid "admin.federation.auth.none"
 msgstr "Public client"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/SigningKeysPanel.tsx
+#: src/pages/admin/settings/PublicKeyDialog.tsx
 msgid "settings.keys.jwk.title"
 msgstr "Public key"
 
@@ -6515,6 +6540,11 @@ msgstr "Publish a granted claim under a second name, for a client that expects o
 #: src/pages/admin/saml-applications/AttributeMapField.tsx
 msgid "admin.saml-apps.mapping.hint"
 msgstr "Publish the account's own facts under the names the service provider expects."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/SigningKeysPanel.tsx
+msgid "settings.keys.standing.pending"
+msgstr "Published, not yet signing"
 
 #. js-lingui-explicit-id
 #: src/pages/public/Pair.tsx
@@ -7032,6 +7062,11 @@ msgid "require-identity.strip.lead"
 msgstr "Requested by"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/NetworkPanel.tsx
+msgid "settings.network.confirm.short"
+msgstr "Requests are read the new way as soon as you confirm."
+
+#. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/ForwardAuthDangerSection.tsx
 msgid "admin.forward-auth-apps.enable.note"
 msgstr "Requests through its router are accepted again, under the access policy it already has."
@@ -7134,13 +7169,18 @@ msgstr "Retire this key?"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/SigningKeysPanel.tsx
+msgid "settings.keys.standing.retired_open"
+msgstr "Retired"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/SigningKeysPanel.tsx
 msgid "settings.keys.status.retired"
 msgstr "Retired"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/SigningKeysPanel.tsx
-msgid "settings.keys.column.retires"
-msgstr "Retires"
+msgid "settings.keys.standing.retired"
+msgstr "Retired <0/>"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/SigningKeysPanel.tsx
@@ -8053,6 +8093,11 @@ msgstr "Signed-in devices"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/SigningKeysPanel.tsx
+msgid "settings.keys.standing.signing"
+msgstr "Signing"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/SigningKeysPanel.tsx
 msgid "settings.keys.status.active"
 msgstr "Signing"
 
@@ -8092,7 +8137,6 @@ msgid "success.signing-key.retired"
 msgstr "Signing key is being retired"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/AdminSettings.tsx
 #: src/pages/admin/settings/SigningKeysPanel.tsx
 msgid "settings.keys.section"
 msgstr "Signing keys"
@@ -8101,6 +8145,11 @@ msgstr "Signing keys"
 #: src/pages/admin/settings/SigningKeysPanel.tsx
 msgid "settings.keys.table"
 msgstr "Signing keys"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/SigningKeysPanel.tsx
+msgid "settings.keys.standing.active"
+msgstr "Signing since <0/>"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/groups/explain-labels.ts
@@ -8193,11 +8242,6 @@ msgid "admin.users.filter.match.prefix"
 msgstr "Starts with"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/SigningKeysPanel.tsx
-msgid "settings.keys.column.status"
-msgstr "Status"
-
-#. js-lingui-explicit-id
 #: src/components/custom/ObjectHeader.tsx
 msgid "object.status.label"
 msgstr "Status"
@@ -8221,6 +8265,16 @@ msgstr "Stay signed in on this device"
 #: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.protocol.steam"
 msgstr "Steam"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/SigningKeysPanel.tsx
+msgid "settings.keys.standing.retiring"
+msgstr "Still verifying until {until}"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/SigningKeysPanel.tsx
+msgid "settings.keys.standing.retiring_open"
+msgstr "Still verifying what it signed"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/groups/GroupDetailsSection.tsx
@@ -8921,11 +8975,6 @@ msgstr "The submitted information is not valid."
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.create.note"
 msgstr "The token itself is shown once, right after you create it. Copy it then; the list will only ever show the last few characters."
-
-#. js-lingui-explicit-id
-#: src/pages/admin/settings/NetworkPanel.tsx
-msgid "settings.network.proxies.hidden_invalid"
-msgstr "The trusted proxies list has an entry the server will not accept. Choose X-Forwarded-For to correct it."
 
 #. js-lingui-explicit-id
 #: src/forms/password-totp-rules.ts
@@ -9833,6 +9882,21 @@ msgid "devices.sessions.use_sign_out"
 msgstr "Use sign out to end this one"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/NetworkPanel.tsx
+msgid "settings.network.strategy.forwarded.description"
+msgstr "Use the address a proxy adds to this header, trusting only the proxies you list."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/NetworkPanel.tsx
+msgid "settings.network.strategy.header.description"
+msgstr "Use the address in a header you name, such as CF-Connecting-IP, trusting only the proxies you list."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/NetworkPanel.tsx
+msgid "settings.network.strategy.direct.description"
+msgstr "Use the address the connection comes from. Right when nothing sits in front of this server."
+
+#. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/NameIdFormatField.tsx
 msgid "admin.saml-apps.name-id.default"
 msgstr "Use the instance default"
@@ -10369,6 +10433,11 @@ msgstr "Where the instance sends the assertion. Exactly one endpoint is the defa
 #: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
 msgid "admin.federation.new.callback.description"
 msgstr "Where the provider sends people back to this instance."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/NetworkPanel.tsx
+msgid "settings.network.description"
+msgstr "Where the server reads each request's address from. Audit logs, sessions and rate limits record it."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx

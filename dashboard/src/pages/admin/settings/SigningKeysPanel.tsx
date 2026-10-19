@@ -1,15 +1,7 @@
-import { Alert, Chip, Modal, Tooltip } from "@heroui/react";
-import { msg } from "@lingui/core/macro";
+import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import {
-  Braces,
-  Check,
-  ClipboardCopy,
-  KeyRound,
-  Play,
-  Trash2,
-} from "lucide-react";
+import { BracesIcon, KeyRoundIcon, PlayIcon } from "lucide-react";
 import { useState } from "react";
 import { useCursorList } from "@/api/cursor-list";
 import type { components } from "@/api/generated/schema";
@@ -19,30 +11,50 @@ import {
   retireSigningKeyMutationOptions,
 } from "@/api/mutations";
 import { signingKeysListOptions } from "@/api/queries";
+import { quietQuery } from "@/app/query-client";
 import { Button } from "@/components/custom/Button";
 import { ConfirmDialog } from "@/components/custom/ConfirmDialog";
-import { DataTable, type TableColumn } from "@/components/custom/DataTable";
+import { CopyableValue } from "@/components/custom/CopyableValue";
+import {
+  ItemList,
+  ItemListEmpty,
+  ItemListRow,
+} from "@/components/custom/ItemList";
 import { RelativeTime } from "@/components/custom/RelativeTime";
-import { ScrollArea } from "@/components/custom/ScrollArea";
-import { Section } from "@/components/custom/Section";
-import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
-import { TableEmptyState } from "@/components/custom/TableEmptyState";
+import { Section, SectionFailure } from "@/components/custom/Section";
+import { Badge } from "@/components/ui/badge";
+import { PublicKeyDialog } from "@/pages/admin/settings/PublicKeyDialog";
 
 type SigningKey = components["schemas"]["SigningKeyView"];
-type Locale = ReturnType<typeof useLingui>["i18n"];
-
-const actionLabels = {
-  view: msg({ id: "settings.keys.view", message: "View public key" }),
-  activate: msg({ id: "settings.keys.activate.action", message: "Activate" }),
-  retire: msg({ id: "settings.keys.retire.action", message: "Retire" }),
-};
-
-type Pending =
-  | { action: "activate"; key: SigningKey }
-  | { action: "retire"; key: SigningKey };
 
 /**
- * The keys the instance signs tokens and SAML assertions with.
+ * The section's heading, drawn by the panel and by the boundary that waits for
+ * the page, so the two cannot word it differently.
+ */
+export const signingKeysSection = {
+  id: "signing-keys",
+  icon: <KeyRoundIcon />,
+  title: <Trans id="settings.keys.section">Signing keys</Trans>,
+  description: (
+    <Trans id="settings.keys.description">
+      A new key is published as soon as it is generated and starts signing when
+      you activate it. The key it replaces keeps verifying through a grace
+      period, then is retired.
+    </Trans>
+  ),
+};
+
+type Pending = { action: "activate" | "retire"; key: SigningKey };
+
+/** Where a key stands in its life; the server calls "retiring" decommissioning. */
+const stages = ["active", "pending", "decommissioning", "retired"] as const;
+const stageOf = (key: SigningKey) =>
+  stages.indexOf(key.status as (typeof stages)[number]);
+
+/**
+ * The keys the instance signs tokens and SAML assertions with, read as a
+ * lifecycle: the key that signs, the ones waiting to, the ones still verifying
+ * what they signed, and the retired ones kept out of sight.
  *
  * A new key starts out pending: published for verification but not signing.
  * Activating one makes it the signer and starts retiring the previous one,
@@ -50,19 +62,24 @@ type Pending =
  * verifies. Only a pending key offers either action: the server answers retire
  * on a key that is already retiring by starting its grace period over, which
  * postpones the retirement rather than hastening it.
- *
- * The list is the whole tab, so it sits on the page background under its one
- * action, like the directory lists.
  */
 export function SigningKeysPanel() {
-  const { t, i18n } = useLingui();
+  const { t } = useLingui();
   const queryClient = useQueryClient();
-  const list = useCursorList<SigningKey>(signingKeysListOptions());
+  const list = useCursorList<SigningKey>(quietQuery(signingKeysListOptions()));
   const generate = useMutation(generateSigningKeyMutationOptions(queryClient));
   const activate = useMutation(activateSigningKeyMutationOptions(queryClient));
   const retire = useMutation(retireSigningKeyMutationOptions(queryClient));
   const [pending, setPending] = useState<Pending | null>(null);
   const [viewing, setViewing] = useState<SigningKey | null>(null);
+  const [showRetired, setShowRetired] = useState(false);
+
+  const current = list.items
+    .filter((key) => key.status !== "retired")
+    .sort((a, b) => stageOf(a) - stageOf(b));
+  const retired = list.items.filter((key) => key.status === "retired");
+  const visible = showRetired ? [...current, ...retired] : current;
+  const failed = list.error !== null && list.error !== undefined;
 
   const confirm = () => {
     if (!pending) return;
@@ -71,11 +88,14 @@ export function SigningKeysPanel() {
     // why in a toast, so there is nothing left for the dialog to offer.
     mutation.mutate(pending.key.kid, { onSettled: () => setPending(null) });
   };
+  const dismiss = (open: boolean, mutation: { isPending: boolean }) => {
+    if (!open && !mutation.isPending) setPending(null);
+  };
 
   return (
     <>
       <Section
-        title={<Trans id="settings.keys.section">Signing keys</Trans>}
+        {...signingKeysSection}
         action={
           <Button
             pending={generate.isPending}
@@ -85,46 +105,84 @@ export function SigningKeysPanel() {
           </Button>
         }
       >
-        {list.error !== null && list.error !== undefined && (
-          <Alert status="danger" role="alert">
-            <Alert.Indicator />
-            <Alert.Content>
-              <Alert.Title>
-                <Trans id="settings.keys.error">
-                  The keys could not be loaded.
-                </Trans>
-              </Alert.Title>
-            </Alert.Content>
-          </Alert>
+        {failed && list.items.length === 0 ? (
+          <SectionFailure
+            error={list.error}
+            onRetry={list.refetch}
+            title={
+              <Trans id="settings.keys.error">
+                The keys could not be loaded.
+              </Trans>
+            }
+          />
+        ) : (
+          <ItemList
+            label={t({ id: "settings.keys.table", message: "Signing keys" })}
+            loading={list.loading}
+            empty={
+              <ItemListEmpty>
+                {retired.length > 0 ? (
+                  <Trans id="settings.keys.none_current">No current keys</Trans>
+                ) : (
+                  <Trans id="settings.keys.empty">No signing keys</Trans>
+                )}
+              </ItemListEmpty>
+            }
+            footer={
+              (retired.length > 0 || list.hasMore) && (
+                <div className="flex flex-wrap justify-center gap-2">
+                  {retired.length > 0 && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      aria-expanded={showRetired}
+                      onClick={() => setShowRetired((shown) => !shown)}
+                    >
+                      {showRetired ? (
+                        <Trans id="settings.keys.retired.hide">
+                          Hide retired keys
+                        </Trans>
+                      ) : (
+                        t({
+                          id: "settings.keys.retired.show",
+                          message: plural(retired.length, {
+                            one: "Show # retired key",
+                            other: "Show # retired keys",
+                          }),
+                        })
+                      )}
+                    </Button>
+                  )}
+                  {list.hasMore && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      pending={list.loadingMore}
+                      onClick={list.loadMore}
+                    >
+                      <Trans id="settings.keys.more">Load more</Trans>
+                    </Button>
+                  )}
+                </div>
+              )
+            }
+          >
+            {visible.map((key) => (
+              <KeyRow
+                key={key.kid}
+                signingKey={key}
+                onView={() => setViewing(key)}
+                onActivate={() => setPending({ action: "activate", key })}
+                onRetire={() => setPending({ action: "retire", key })}
+              />
+            ))}
+          </ItemList>
         )}
-
-        <DataTable
-          label={t({ id: "settings.keys.table", message: "Signing keys" })}
-          columns={keyColumns(i18n, {
-            view: setViewing,
-            activate: (key) => setPending({ action: "activate", key }),
-            retire: (key) => setPending({ action: "retire", key }),
-          })}
-          rows={list.items}
-          rowId={(key) => key.kid}
-          loading={list.loading}
-          hasMore={list.hasMore}
-          loadingMore={list.loadingMore}
-          onLoadMore={list.loadMore}
-          empty={
-            <TableEmptyState
-              icon={
-                <KeyRound size={18} strokeWidth={1.75} aria-hidden="true" />
-              }
-              title={<Trans id="settings.keys.empty">No signing keys</Trans>}
-            />
-          }
-        />
       </Section>
 
       <ConfirmDialog
         isOpen={pending?.action === "activate"}
-        onOpenChange={(open) => !open && setPending(null)}
+        onOpenChange={(open) => dismiss(open, activate)}
         status="warning"
         title={
           <Trans id="settings.keys.activate.title">Sign with this key?</Trans>
@@ -137,13 +195,15 @@ export function SigningKeysPanel() {
             </Trans>
           </p>
         }
-        confirmLabel={t(actionLabels.activate)}
+        confirmLabel={
+          <Trans id="settings.keys.activate.action">Activate</Trans>
+        }
         isPending={activate.isPending}
         onConfirm={confirm}
       />
       <ConfirmDialog
         isOpen={pending?.action === "retire"}
-        onOpenChange={(open) => !open && setPending(null)}
+        onOpenChange={(open) => dismiss(open, retire)}
         status="danger"
         title={<Trans id="settings.keys.retire.title">Retire this key?</Trans>}
         body={
@@ -154,7 +214,7 @@ export function SigningKeysPanel() {
             </Trans>
           </p>
         }
-        confirmLabel={t(actionLabels.retire)}
+        confirmLabel={<Trans id="settings.keys.retire.action">Retire</Trans>}
         isPending={retire.isPending}
         onConfirm={confirm}
       />
@@ -163,256 +223,162 @@ export function SigningKeysPanel() {
   );
 }
 
-function keyColumns(
-  i18n: Locale,
-  actions: {
-    view: (key: SigningKey) => void;
-    activate: (key: SigningKey) => void;
-    retire: (key: SigningKey) => void;
-  },
-): TableColumn<SigningKey>[] {
-  return [
-    {
-      id: "kid",
-      header: <Trans id="settings.keys.column.kid">Key ID</Trans>,
-      cell: (key) => <KeyId kid={key.kid} />,
-    },
-    {
-      id: "algorithm",
-      header: <Trans id="settings.keys.column.algorithm">Algorithm</Trans>,
-      cell: (key) => key.algorithm,
-    },
-    {
-      id: "status",
-      header: <Trans id="settings.keys.column.status">Status</Trans>,
-      cell: (key) => <KeyStatus status={key.status} />,
-    },
-    {
-      align: "end",
-      id: "activatedAt",
-      header: <Trans id="settings.keys.column.activated">Activated</Trans>,
-      cell: (key) =>
-        key.activatedAt === undefined ? (
-          "—"
-        ) : (
-          <RelativeTime value={key.activatedAt} />
-        ),
-    },
-    {
-      align: "end",
-      id: "retireAfter",
-      header: <Trans id="settings.keys.column.retires">Retires</Trans>,
-      cell: (key) =>
-        key.retireAfter === undefined ? (
-          "—"
-        ) : (
-          <RelativeTime value={key.retireAfter} />
-        ),
-    },
-    {
-      id: "actions",
-      header: <Trans id="admin.column.actions">Actions</Trans>,
-      cell: (key) => (
+/** One key: its id, its algorithm, where it stands and what can be done next. */
+function KeyRow({
+  signingKey,
+  onView,
+  onActivate,
+  onRetire,
+}: {
+  signingKey: SigningKey;
+  onView: () => void;
+  onActivate: () => void;
+  onRetire: () => void;
+}) {
+  const { t, i18n } = useLingui();
+  const { kid, status, activatedAt, retireAfter } = signingKey;
+  const until =
+    retireAfter === undefined
+      ? undefined
+      : new Intl.DateTimeFormat(i18n.locale, { dateStyle: "medium" }).format(
+          new Date(retireAfter),
+        );
+
+  return (
+    <ItemListRow
+      icon={<KeyRoundIcon className="size-4" />}
+      title={
+        <CopyableValue
+          value={kid}
+          wrap
+          label={t({ id: "settings.keys.kid.copy", message: "Copy key ID" })}
+        />
+      }
+      badge={<KeyStatus status={status} />}
+      details={[
+        <span key="algorithm" className="font-mono">
+          {signingKey.algorithm}
+        </span>,
+        <KeyStanding
+          key="standing"
+          status={status}
+          activatedAt={activatedAt}
+          retireAfter={retireAfter}
+          until={until}
+        />,
+      ]}
+      stackActions
+      actions={
         <>
           <Button
-            aria-label={i18n._(actionLabels.view)}
-            onClick={() => actions.view(key)}
+            aria-label={t({
+              id: "settings.keys.view",
+              message: "View public key",
+            })}
+            onClick={onView}
             variant="ghost"
             size="icon-sm"
           >
-            <Braces size={16} aria-hidden="true" />
+            <BracesIcon aria-hidden="true" />
           </Button>
-          {key.status === "pending" && (
+          {status === "pending" && (
             <>
-              <Button
-                aria-label={i18n._(actionLabels.activate)}
-                onClick={() => actions.activate(key)}
-                variant="ghost"
-                size="icon-sm"
-              >
-                <Play size={16} aria-hidden="true" />
+              <Button onClick={onActivate} variant="outline" size="sm">
+                <PlayIcon aria-hidden="true" />
+                <Trans id="settings.keys.activate.action">Activate</Trans>
               </Button>
               <Button
-                aria-label={i18n._(actionLabels.retire)}
-                onClick={() => actions.retire(key)}
+                onClick={onRetire}
                 variant="destructive-outline"
-                size="icon-sm"
+                size="sm"
               >
-                <Trash2 size={16} aria-hidden="true" />
+                <Trans id="settings.keys.retire.action">Retire</Trans>
               </Button>
             </>
           )}
         </>
-      ),
-      pinned: true,
-    },
-  ];
+      }
+    />
+  );
 }
 
-/**
- * A key id is a 43-character thumbprint: the row shows its ends, the tooltip
- * the whole of it, and the button beside it copies it — which is also how a
- * keyboard reaches the whole id.
- */
-function KeyId({ kid }: { kid: string }) {
-  const { t } = useLingui();
-  const [copied, setCopied] = useState(false);
-  const short = kid.length > 12 ? `${kid.slice(0, 6)}…${kid.slice(-4)}` : kid;
-  return (
-    <span className="flex items-center gap-1">
-      <Tooltip delay={0}>
-        <Tooltip.Trigger<"span"> render={(props) => <span {...props} />}>
-          {/* A screen reader reads the whole id; the ends are for the eye. */}
-          <span className="font-mono" aria-hidden="true">
-            {short}
-          </span>
-          <span className="sr-only">{kid}</span>
-        </Tooltip.Trigger>
-        <Tooltip.Content className="font-mono">{kid}</Tooltip.Content>
-      </Tooltip>
-      <Button
-        aria-label={
-          copied
-            ? t({ id: "settings.keys.kid.copied", message: "Copied" })
-            : t({ id: "settings.keys.kid.copy", message: "Copy key ID" })
-        }
-        onClick={() => {
-          void navigator.clipboard.writeText(kid).then(
-            () => setCopied(true),
-            () => setCopied(false),
-          );
-        }}
-        variant="ghost"
-        size="icon-sm"
-      >
-        {copied ? (
-          <Check size={14} aria-hidden="true" />
-        ) : (
-          <ClipboardCopy size={14} aria-hidden="true" />
-        )}
-      </Button>
-    </span>
-  );
+/** What the key is doing now, and for a pending one what comes next. */
+function KeyStanding({
+  status,
+  activatedAt,
+  retireAfter,
+  until,
+}: {
+  status: string;
+  activatedAt: string | undefined;
+  retireAfter: string | undefined;
+  until: string | undefined;
+}) {
+  switch (status) {
+    case "active":
+      return activatedAt === undefined ? (
+        <Trans id="settings.keys.standing.signing">Signing</Trans>
+      ) : (
+        <Trans id="settings.keys.standing.active">
+          Signing since <RelativeTime value={activatedAt} />
+        </Trans>
+      );
+    case "pending":
+      return (
+        <Trans id="settings.keys.standing.pending">
+          Published, not yet signing
+        </Trans>
+      );
+    case "decommissioning":
+      return until === undefined ? (
+        <Trans id="settings.keys.standing.retiring_open">
+          Still verifying what it signed
+        </Trans>
+      ) : (
+        <Trans id="settings.keys.standing.retiring">
+          Still verifying until {until}
+        </Trans>
+      );
+    case "retired":
+      return retireAfter === undefined ? (
+        <Trans id="settings.keys.standing.retired_open">Retired</Trans>
+      ) : (
+        <Trans id="settings.keys.standing.retired">
+          Retired <RelativeTime value={retireAfter} />
+        </Trans>
+      );
+    default:
+      return status;
+  }
 }
 
 function KeyStatus({ status }: { status: string }) {
   switch (status) {
     case "active":
       return (
-        <Chip color="success" size="sm" variant="soft">
+        <Badge variant="success">
           <Trans id="settings.keys.status.active">Signing</Trans>
-        </Chip>
+        </Badge>
       );
     case "pending":
       return (
-        <Chip color="accent" size="sm" variant="soft">
+        <Badge variant="info">
           <Trans id="settings.keys.status.pending">Pending</Trans>
-        </Chip>
+        </Badge>
       );
     case "decommissioning":
       return (
-        <Chip color="warning" size="sm" variant="soft">
+        <Badge variant="warning">
           <Trans id="settings.keys.status.decommissioning">Retiring</Trans>
-        </Chip>
+        </Badge>
       );
     case "retired":
       return (
-        <Chip color="default" size="sm" variant="soft">
+        <Badge variant="outline">
           <Trans id="settings.keys.status.retired">Retired</Trans>
-        </Chip>
+        </Badge>
       );
     default:
-      return <span>{status}</span>;
+      return <Badge variant="outline">{status}</Badge>;
   }
-}
-
-/**
- * The public half of a key as the JWKS publishes it. Nothing here is secret,
- * so it is a plain dialog with a copy action rather than a `SecretReveal`.
- */
-function PublicKeyDialog({
-  signingKey,
-  onClose,
-}: {
-  signingKey: SigningKey | null;
-  onClose: () => void;
-}) {
-  const [copy, setCopy] = useState<"idle" | "copied" | "failed">("idle");
-  const jwk =
-    signingKey === null ? "" : JSON.stringify(signingKey.publicJwk, null, 2);
-
-  return (
-    <Modal
-      isOpen={signingKey !== null}
-      onOpenChange={(open) => {
-        if (open) return;
-        setCopy("idle");
-        onClose();
-      }}
-    >
-      <Modal.Backdrop>
-        <Modal.Container placement="center" size="lg" scroll="inside">
-          <Modal.Dialog>
-            <Modal.Header>
-              <Modal.Heading>
-                <Trans id="settings.keys.jwk.title">Public key</Trans>
-              </Modal.Heading>
-            </Modal.Header>
-            <Modal.Body className="flex flex-col gap-3">
-              {/* The background and radius stay on the `ScrollArea` host rather
-                  than on the `<pre>`: the `<pre>` is only as wide as the
-                  viewport, so painting the surface there would leave the
-                  scrolled-in half of a long JWK on the modal's own backdrop. */}
-              <ScrollArea className="rounded-[0.375rem] bg-surface-secondary p-3 font-mono text-xs">
-                <pre>{jwk}</pre>
-              </ScrollArea>
-              {copy === "failed" && (
-                <SurfaceAlert status="danger" role="alert">
-                  <SurfaceAlert.Indicator />
-                  <SurfaceAlert.Content>
-                    <SurfaceAlert.Title>
-                      <Trans id="settings.keys.jwk.copy.failed">
-                        Could not copy. Your browser blocked the clipboard.
-                      </Trans>
-                    </SurfaceAlert.Title>
-                  </SurfaceAlert.Content>
-                </SurfaceAlert>
-              )}
-            </Modal.Body>
-            <Modal.Footer>
-              <Button
-                onClick={() => {
-                  void navigator.clipboard.writeText(jwk).then(
-                    () => setCopy("copied"),
-                    () => setCopy("failed"),
-                  );
-                }}
-                variant="ghost"
-              >
-                {copy === "copied" ? (
-                  <>
-                    <Check size={16} aria-hidden="true" />
-                    <Trans id="settings.keys.jwk.copied">Copied</Trans>
-                  </>
-                ) : (
-                  <>
-                    <ClipboardCopy size={16} aria-hidden="true" />
-                    <Trans id="settings.keys.jwk.copy">Copy</Trans>
-                  </>
-                )}
-              </Button>
-              <Button
-                onClick={() => {
-                  setCopy("idle");
-                  onClose();
-                }}
-              >
-                <Trans id="settings.keys.jwk.close">Close</Trans>
-              </Button>
-            </Modal.Footer>
-          </Modal.Dialog>
-        </Modal.Container>
-      </Modal.Backdrop>
-    </Modal>
-  );
 }

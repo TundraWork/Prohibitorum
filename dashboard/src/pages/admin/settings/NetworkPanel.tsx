@@ -1,4 +1,3 @@
-import { Label, Radio, RadioGroup } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useStore } from "@tanstack/react-form";
 import {
@@ -6,16 +5,23 @@ import {
   useQueryClient,
   useSuspenseQuery,
 } from "@tanstack/react-query";
+import { NetworkIcon } from "lucide-react";
+import { useId, useState } from "react";
 import { isCancellation } from "@/api/errors";
 import { updateClientIpMutationOptions } from "@/api/mutations";
 import { clientIpQueryOptions } from "@/api/queries";
 import type { ClientIpSettings } from "@/api/raw-admin-paths";
-import { ConsoleCard } from "@/components/custom/ConsoleCard";
+import { withInlineReport } from "@/app/query-client";
+import { ChoiceTile } from "@/components/custom/ChoiceTile";
+import { ConfirmDialog } from "@/components/custom/ConfirmDialog";
+import { ConsequenceFooter } from "@/components/custom/ConsequenceFooter";
 import { Section } from "@/components/custom/Section";
+import { RadioGroup } from "@/components/ui/radio-group";
 import { applyServerError } from "@/forms/server-errors";
 import { useAppForm } from "@/forms/use-app-form";
 import {
   type ClientIpStrategy,
+  changesClientAddress,
   clientIpMessages,
   formatProxies,
   headerNameError,
@@ -23,20 +29,68 @@ import {
 } from "@/pages/admin/settings/client-ip-form";
 
 /**
+ * The section's heading, drawn by the panel and by the boundary that waits for
+ * its read, so the two cannot word it differently.
+ */
+export const clientIpSection = {
+  id: "client-ip",
+  icon: <NetworkIcon />,
+  title: <Trans id="settings.network.title">Client IP</Trans>,
+  description: (
+    <Trans id="settings.network.description">
+      Where the server reads each request's address from. Audit logs, sessions
+      and rate limits record it.
+    </Trans>
+  ),
+};
+
+/** What changing the address does, in the footer. */
+function ClientIpConsequence() {
+  return (
+    <Trans id="settings.network.confirm.body">
+      Audit logs and rate limits use the new address for every request from now
+      on. A wrong setting can lock everyone into one shared limit.
+    </Trans>
+  );
+}
+
+/**
  * How the server finds a request's client address, which every audit entry,
  * session and rate limit records. Behind a proxy the connection's own address
  * is the proxy's, so the address has to come from a header — and a header is
  * only believed from the proxies listed here.
+ *
+ * Changing the source or the proxies moves every later address, so that save
+ * states its consequence in the footer and waits for a confirmation.
  */
 export function NetworkPanel() {
   const { data } = useSuspenseQuery(clientIpQueryOptions());
-  return <ClientIpCard key={JSON.stringify(data)} saved={data} />;
+  return <ClientIpSection key={JSON.stringify(data)} saved={data} />;
 }
 
-function ClientIpCard({ saved }: { saved: ClientIpSettings }) {
+function ClientIpSection({ saved }: { saved: ClientIpSettings }) {
   const { t, i18n } = useLingui();
   const queryClient = useQueryClient();
-  const update = useMutation(updateClientIpMutationOptions(queryClient));
+  const update = useMutation(
+    withInlineReport(updateClientIpMutationOptions(queryClient), true),
+  );
+  // The checked body the dialog is confirming, held beside the form.
+  const [confirming, setConfirming] = useState<ClientIpSettings | null>(null);
+  const labelId = useId();
+
+  const save = async (body: ClientIpSettings) => {
+    try {
+      await update.mutateAsync(body);
+      form.reset({
+        strategy: body.strategy,
+        header: body.header,
+        proxies: formatProxies(body.trustedProxies),
+      });
+    } catch (error) {
+      if (isCancellation(error)) return;
+      applyServerError(form, error, { locations: {}, codes: {} });
+    }
+  };
 
   const form = useAppForm({
     defaultValues: {
@@ -46,154 +100,245 @@ function ClientIpCard({ saved }: { saved: ClientIpSettings }) {
     },
     validators: {
       // The list is kept while the connection is the source and the field is
-      // hidden, and the server checks it all the same; say so here, since
-      // there is no field on screen to point at.
-      onSubmit: ({ value }) => {
-        if (value.strategy !== "direct") return undefined;
-        const parsed = parseProxies(value.proxies);
-        return parsed.ok || parsed.problem === "required"
-          ? undefined
-          : t({
-              id: "settings.network.proxies.hidden_invalid",
-              message:
-                "The trusted proxies list has an entry the server will not accept. Choose X-Forwarded-For to correct it.",
-            });
-      },
+      // hidden, and the server checks it all the same; the footer says so
+      // before the button is pressed, and this is the backstop for a submit
+      // that gets past it.
+      onSubmit: ({ value }) => hiddenListProblem(value, t),
     },
     onSubmit: async ({ value }) => {
       // Past the validators, a list that does not parse can only be the empty
       // one the connection strategy does not need.
       const parsed = parseProxies(value.proxies);
-      const trustedProxies = parsed.ok ? parsed.proxies : [];
-      try {
-        await update.mutateAsync({
-          strategy: value.strategy,
-          header: value.header,
-          trustedProxies,
-        });
-      } catch (error) {
-        if (isCancellation(error)) return;
-        applyServerError(form, error, { locations: {}, codes: {} });
+      const body = {
+        strategy: value.strategy,
+        header: value.header,
+        trustedProxies: parsed.ok ? parsed.proxies : [],
+      };
+      if (changesClientAddress(saved, value)) {
+        setConfirming(body);
+        return;
       }
+      await save(body);
     },
   });
-  const strategy = useStore(form.store, (state) => state.values.strategy);
+
+  const values = useStore(form.store, (state) => state.values);
+  const dirty = useStore(form.store, (state) => !state.isDefaultValue);
   const submitting = useStore(form.store, (state) => state.isSubmitting);
+  const strategy = values.strategy;
+  const blocked = hiddenListProblem(values, t);
+  const consequential = changesClientAddress(saved, values);
+
+  const title = t({ id: "settings.network.form", message: "Client IP" });
 
   return (
-    <Section title={<Trans id="settings.network.title">Client IP</Trans>}>
-      <ConsoleCard>
-        <form.AppForm>
-          <form.Form
-            label={t({ id: "settings.network.form", message: "Client IP" })}
-          >
-            <form.FormError />
-            <form.Field name="strategy">
-              {(field) => (
-                <RadioGroup
-                  variant="secondary"
-                  isDisabled={submitting}
-                  value={field.state.value}
-                  onChange={(next) =>
-                    field.handleChange(next as ClientIpStrategy)
+    <>
+      <form.AppForm>
+        <form.Form label={title}>
+          <Section
+            {...clientIpSection}
+            dirty={dirty}
+            footer={
+              dirty ? (
+                <ConsequenceFooter
+                  tone={blocked === undefined ? "warning" : "danger"}
+                  consequence={
+                    blocked ??
+                    (consequential ? <ClientIpConsequence /> : undefined)
                   }
+                  actionLabel={
+                    consequential ? (
+                      <Trans id="settings.network.action-label">
+                        Change the client address and save
+                      </Trans>
+                    ) : (
+                      <Trans id="settings.network.save">Save</Trans>
+                    )
+                  }
+                  onDiscard={() => form.reset()}
+                  disabled={blocked !== undefined}
+                  pending={submitting || update.isPending}
+                />
+              ) : undefined
+            }
+          >
+            <div className="flex flex-col gap-6">
+              <form.FormError />
+              <form.Field name="strategy">
+                {(field) => (
+                  <div className="flex flex-col gap-2">
+                    <span id={labelId} className="font-medium text-sm">
+                      <Trans id="settings.network.strategy">
+                        Read the address from
+                      </Trans>
+                    </span>
+                    <RadioGroup
+                      aria-labelledby={labelId}
+                      value={field.state.value}
+                      disabled={submitting}
+                      onValueChange={(next) =>
+                        field.handleChange(next as ClientIpStrategy)
+                      }
+                    >
+                      <ChoiceTile
+                        layout="list"
+                        value="direct"
+                        label={
+                          <Trans id="settings.network.strategy.direct">
+                            The connection
+                          </Trans>
+                        }
+                        description={
+                          <Trans id="settings.network.strategy.direct.description">
+                            Use the address the connection comes from. Right
+                            when nothing sits in front of this server.
+                          </Trans>
+                        }
+                      />
+                      <ChoiceTile
+                        layout="list"
+                        value="forwarded"
+                        label={
+                          <span className="font-mono text-[13px]">
+                            X-Forwarded-For
+                          </span>
+                        }
+                        description={
+                          <Trans id="settings.network.strategy.forwarded.description">
+                            Use the address a proxy adds to this header,
+                            trusting only the proxies you list.
+                          </Trans>
+                        }
+                      />
+                      <ChoiceTile
+                        layout="list"
+                        value="header"
+                        label={
+                          <Trans id="settings.network.strategy.header">
+                            Another header
+                          </Trans>
+                        }
+                        description={
+                          <Trans id="settings.network.strategy.header.description">
+                            Use the address in a header you name, such as
+                            CF-Connecting-IP, trusting only the proxies you
+                            list.
+                          </Trans>
+                        }
+                        attached={
+                          strategy === "header" ? (
+                            <form.AppField
+                              name="header"
+                              validators={{
+                                onBlur: ({ value }) => headerNameError(value),
+                                onSubmit: ({ value }) => headerNameError(value),
+                              }}
+                            >
+                              {(headerField) => (
+                                <headerField.FormField
+                                  label={
+                                    <Trans id="settings.network.header">
+                                      Header name
+                                    </Trans>
+                                  }
+                                  placeholder="CF-Connecting-IP"
+                                  autoComplete="off"
+                                  spellCheck={false}
+                                  isMonospace
+                                  compactValue
+                                  className="max-w-sm"
+                                />
+                              )}
+                            </form.AppField>
+                          ) : undefined
+                        }
+                      />
+                    </RadioGroup>
+                  </div>
+                )}
+              </form.Field>
+
+              {strategy !== "direct" && (
+                <form.AppField
+                  name="proxies"
+                  validators={{
+                    onBlur: ({ value }) => proxiesError(i18n, value),
+                    onSubmit: ({ value }) => proxiesError(i18n, value),
+                  }}
                 >
-                  <Label>
-                    <Trans id="settings.network.strategy">
-                      Read the address from
-                    </Trans>
-                  </Label>
-                  <Radio value="direct">
-                    <Radio.Content>
-                      <Radio.Control>
-                        <Radio.Indicator />
-                      </Radio.Control>
-                      <Trans id="settings.network.strategy.direct">
-                        The connection
-                      </Trans>
-                    </Radio.Content>
-                  </Radio>
-                  <Radio value="forwarded">
-                    <Radio.Content>
-                      <Radio.Control>
-                        <Radio.Indicator />
-                      </Radio.Control>
-                      X-Forwarded-For
-                    </Radio.Content>
-                  </Radio>
-                  <Radio value="header">
-                    <Radio.Content>
-                      <Radio.Control>
-                        <Radio.Indicator />
-                      </Radio.Control>
-                      <Trans id="settings.network.strategy.header">
-                        Another header
-                      </Trans>
-                    </Radio.Content>
-                  </Radio>
-                </RadioGroup>
+                  {(field) => (
+                    <field.TextAreaField
+                      label={
+                        <Trans id="settings.network.proxies">
+                          Trusted proxies
+                        </Trans>
+                      }
+                      description={
+                        <Trans id="settings.network.proxies.hint">
+                          One address range per line, such as 10.0.0.0/8.
+                        </Trans>
+                      }
+                      rows={5}
+                      spellCheck={false}
+                      isMonospace
+                    />
+                  )}
+                </form.AppField>
               )}
-            </form.Field>
+            </div>
+          </Section>
+        </form.Form>
+      </form.AppForm>
 
-            {strategy === "header" && (
-              <form.AppField
-                name="header"
-                validators={{
-                  onBlur: ({ value }) => headerNameError(value),
-                  onSubmit: ({ value }) => headerNameError(value),
-                }}
-              >
-                {(field) => (
-                  <field.FormField
-                    label={
-                      <Trans id="settings.network.header">Header name</Trans>
-                    }
-                    placeholder="CF-Connecting-IP"
-                    autoComplete="off"
-                    spellCheck={false}
-                    variant="secondary"
-                  />
-                )}
-              </form.AppField>
-            )}
-
-            {strategy !== "direct" && (
-              <form.AppField
-                name="proxies"
-                validators={{
-                  onBlur: ({ value }) => proxiesError(i18n, value),
-                  onSubmit: ({ value }) => proxiesError(i18n, value),
-                }}
-              >
-                {(field) => (
-                  <field.TextAreaField
-                    label={
-                      <Trans id="settings.network.proxies">
-                        Trusted proxies
-                      </Trans>
-                    }
-                    description={
-                      <Trans id="settings.network.proxies.hint">
-                        One address range per line, such as 10.0.0.0/8.
-                      </Trans>
-                    }
-                    rows={5}
-                    spellCheck={false}
-                    variant="secondary"
-                    className="font-mono"
-                  />
-                )}
-              </form.AppField>
-            )}
-
-            <form.SubmitButton>
-              <Trans id="settings.network.save">Save</Trans>
-            </form.SubmitButton>
-          </form.Form>
-        </form.AppForm>
-      </ConsoleCard>
-    </Section>
+      <ConfirmDialog
+        isOpen={confirming !== null}
+        onOpenChange={(open) => {
+          if (!open && !update.isPending) setConfirming(null);
+        }}
+        status="warning"
+        title={
+          <Trans id="settings.network.confirm.title">
+            Change the client address?
+          </Trans>
+        }
+        body={
+          <p>
+            <Trans id="settings.network.confirm.short">
+              Requests are read the new way as soon as you confirm.
+            </Trans>
+          </p>
+        }
+        confirmLabel={
+          <Trans id="settings.network.confirm.action">Change address</Trans>
+        }
+        isPending={update.isPending}
+        onConfirm={() => {
+          if (!confirming) return;
+          // Closed once the write settles either way: a refusal is reported on
+          // the form, where the reader can act on it.
+          void save(confirming).finally(() => setConfirming(null));
+        }}
+      />
+    </>
   );
+}
+
+/**
+ * Why the list cannot be saved while the connection is the source and hides
+ * it, or nothing when it can. An empty list is fine there: it is not needed.
+ */
+function hiddenListProblem(
+  value: { strategy: ClientIpStrategy; proxies: string },
+  t: ReturnType<typeof useLingui>["t"],
+): string | undefined {
+  if (value.strategy !== "direct") return undefined;
+  const parsed = parseProxies(value.proxies);
+  if (parsed.ok || parsed.problem === "required") return undefined;
+  return t({
+    id: "settings.network.proxies.hidden_invalid",
+    message:
+      "The trusted proxies list has an entry the server will not accept. Choose X-Forwarded-For to correct it.",
+  });
 }
 
 /**
