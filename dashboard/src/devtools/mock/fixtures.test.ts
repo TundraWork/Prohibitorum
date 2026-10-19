@@ -472,6 +472,33 @@ describe("mocked management directory", () => {
     expect(bodyOf(read("/api/prohibitorum/groups", current))).toHaveLength(1);
   });
 
+  it("lists no group at all when the directory is set to hold none", () => {
+    const current = config((draft) => {
+      draft.admin.groupsNone = true;
+    });
+    expect(bodyOf(read("/api/prohibitorum/groups", current))).toEqual([]);
+  });
+
+  it("refuses a new group whose identifier an existing group has, as the server does", () => {
+    const body = {
+      kind: "manual",
+      slug: "manual-group-1",
+      displayName: "Again",
+      description: "",
+    };
+    expect(call("POST", "/api/prohibitorum/groups", writes(), body)).toEqual({
+      kind: "error",
+      status: 409,
+      code: "group_slug_conflict",
+    });
+    expect(
+      call("POST", "/api/prohibitorum/groups", writes(), {
+        ...body,
+        slug: "fresh",
+      }),
+    ).toMatchObject({ kind: "json" });
+  });
+
   it("pages invitations and names their upstream provider", () => {
     const invitations = bodyOf(
       read(

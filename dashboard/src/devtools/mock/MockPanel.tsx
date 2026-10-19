@@ -586,6 +586,15 @@ export function MockPanel() {
             }
           />
           <Toggle
+            label="No groups at all"
+            checked={config.admin.groupsNone}
+            onChange={(next) =>
+              updateMockConfig((draft) => {
+                draft.admin.groupsNone = next;
+              })
+            }
+          />
+          <Toggle
             label="Later decision pages fail"
             checked={config.admin.groupDecisionsLaterPagesFail}
             onChange={(next) =>

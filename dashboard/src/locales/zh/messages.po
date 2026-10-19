@@ -355,6 +355,7 @@ msgid "admin.group.rule.reason.missing_children"
 msgstr "条件组至少要有一个条件。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/AdminGroupNew.tsx
 #: src/pages/admin/groups/GroupDetailsSection.tsx
 msgid "admin.group.kind.fixed"
 msgstr "用户组的类型在创建时确定，之后无法更改。"
@@ -368,6 +369,11 @@ msgstr "随账号保存的 JSON 对象。保存时提交的就是这个框里的
 #: src/pages/admin/groups/rule-labels.ts
 msgid "admin.group.rule.method.federation"
 msgstr "已关联的提供商"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/AdminGroupNew.tsx
+msgid "admin.group.create.kind.manual.description"
+msgstr "手工用户组保存你手动允许或拒绝的账号。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ClaimMappingTable.tsx
@@ -426,8 +432,8 @@ msgstr "规则文档需要 version 和 condition。构建器中的规则仍然�
 
 #. js-lingui-explicit-id
 #: src/pages/admin/groups/AdminGroupNew.tsx
-msgid "admin.group.kind.note"
-msgstr "规则组会随账号变化自动保持最新。手工组保存你手工允许或拒绝的账号。"
+msgid "admin.group.create.kind.rule.description"
+msgstr "规则用户组会随账号变化自动保持最新。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-validation.ts
@@ -673,7 +679,6 @@ msgid "admin.home.summary"
 msgstr "账号、用户组、邀请、身份提供商、下游应用、日志与设置在侧栏对应的区域中管理。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminGroups.tsx
 #: src/pages/admin/AdminInvitations.tsx
 #: src/pages/admin/AdminUsers.tsx
 #: src/pages/admin/settings/SigningKeysPanel.tsx
@@ -1180,7 +1185,7 @@ msgid "security.tokens.apps"
 msgstr "应用"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminGroups.tsx
+#: src/pages/admin/groups/AdminGroups.tsx
 msgid "admin.groups.column.applications"
 msgstr "应用"
 
@@ -1542,6 +1547,7 @@ msgstr "取消"
 #: src/pages/admin/AdminInvitationForm.tsx
 #: src/pages/admin/forward-auth-apps/AdminForwardAuthAppNew.tsx
 #: src/pages/admin/groups/AddDecisionDialog.tsx
+#: src/pages/admin/groups/AdminGroupNew.tsx
 #: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
 #: src/pages/admin/identity-providers/ProviderCredentialsSection.tsx
 #: src/pages/admin/identity-providers/ProviderOperatorSection.tsx
@@ -1549,11 +1555,6 @@ msgstr "取消"
 #: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
 #: src/pages/admin/saml-applications/SamlMetadataSection.tsx
 msgid "admin.cancel"
-msgstr "取消"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/groups/AdminGroupNew.tsx
-msgid "admin.group.cancel"
 msgstr "取消"
 
 #. js-lingui-explicit-id
@@ -1767,6 +1768,7 @@ msgid "admin.federation.operator.validated"
 msgstr "检查于<0/>"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/AdminGroupNew.tsx
 #: src/pages/admin/groups/GroupRuleSection.tsx
 msgid "admin.group.rule.description"
 msgstr "每次有人请求访问时都会检查，所以用户组始终保持最新。"
@@ -2649,6 +2651,11 @@ msgid "settings.sign-in.preview.bing_failed"
 msgstr "无法从 Bing 获取图片。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/AdminGroupNew.tsx
+msgid "admin.group.create.description"
+msgstr "创建一个用户组，供应用决定谁可以进入。组内有哪些账号，在创建后的页面里设置。"
+
+#. js-lingui-explicit-id
 #: src/pages/public/Enroll.tsx
 msgid "enroll.passkey"
 msgstr "创建通行密钥"
@@ -2687,6 +2694,11 @@ msgstr "创建用户组"
 #: src/pages/admin/AdminInvitationForm.tsx
 msgid "admin.invitations.new.submit"
 msgstr "创建邀请"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/AdminGroups.tsx
+msgid "admin.groups.empty.description"
+msgstr "创建一个用户组，手动挑选账号，或用规则匹配账号。"
 
 #. js-lingui-explicit-id
 #: src/pages/public/Enroll.tsx
@@ -3001,14 +3013,14 @@ msgid "admin.group.decisions.dialog.deny-name"
 msgstr "拒绝 {name}"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminGroups.tsx
-msgid "admin.groups.column.description"
-msgstr "描述"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/groups/AdminGroupNew.tsx
 #: src/pages/admin/groups/GroupDetailsSection.tsx
 msgid "admin.group.description"
+msgstr "描述"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/AdminGroups.tsx
+msgid "admin.groups.column.description"
 msgstr "描述"
 
 #. js-lingui-explicit-id
@@ -3017,6 +3029,7 @@ msgid "admin.logs.detail.detail"
 msgstr "详情"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/AdminGroupNew.tsx
 #: src/pages/admin/groups/GroupDetailsSection.tsx
 msgid "admin.group.details.title"
 msgstr "详情"
@@ -3359,11 +3372,6 @@ msgstr "暮色"
 #: src/components/custom/principal-sources.ts
 msgid "principal-source.username.hint"
 msgstr "易读，管理员可以修改。"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/AdminGroups.tsx
-msgid "admin.groups.edit"
-msgstr "编辑"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminUsers.tsx
@@ -4171,6 +4179,11 @@ msgid "settings.sign-in.gradient"
 msgstr "渐变"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/AdminGroups.tsx
+msgid "admin.groups.column.group"
+msgstr "用户组"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/groups/RuleBuilder.tsx
 msgid "admin.group.rule.add-group"
 msgstr "条件组"
@@ -4184,6 +4197,11 @@ msgstr "条件组"
 #: src/pages/admin/groups/AdminGroup.tsx
 msgid "admin.group.side"
 msgstr "用户组相关信息"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/AdminGroups.tsx
+msgid "admin.groups.page.description"
+msgstr "用户组决定应用放行哪些账号，也是应用收到的账号分组名称。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/groups/explain-labels.ts
@@ -4676,7 +4694,12 @@ msgid "settings.sign-in.unsplash.query"
 msgstr "关键词"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminGroups.tsx
+#: src/pages/admin/groups/AdminGroupNew.tsx
+msgid "admin.group.create.kind.title"
+msgstr "类型"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/AdminGroups.tsx
 msgid "admin.groups.column.kind"
 msgstr "类型"
 
@@ -5019,17 +5042,13 @@ msgid "app.managers.description"
 msgstr "应用管理员可以修改本页的所有内容，但不能修改谁来管理这个应用。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminGroups.tsx
-msgid "admin.groups.kind.manual"
-msgstr "手工"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.diagnostics.source.manual"
 msgstr "手动"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/groups/AdminGroupNew.tsx
+#: src/pages/admin/groups/AdminGroups.tsx
 #: src/pages/admin/groups/GroupDetailsSection.tsx
 msgid "admin.group.kind.manual"
 msgstr "手工"
@@ -5073,6 +5092,11 @@ msgstr "符合规则"
 #: src/pages/admin/groups/GroupMatchesFrame.tsx
 msgid "admin.group.matches.title"
 msgstr "当前匹配的账号"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/AdminGroupNew.tsx
+msgid "admin.group.create.rule.preview"
+msgstr "保存用户组后，这里会显示匹配的账号。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/SamlMetadataSection.tsx
@@ -5132,11 +5156,6 @@ msgstr "昵称"
 #. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.name"
-msgstr "名称"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/AdminGroups.tsx
-msgid "admin.groups.column.name"
 msgstr "名称"
 
 #. js-lingui-explicit-id
@@ -5309,7 +5328,7 @@ msgid "admin.forward-auth-apps.new.form"
 msgstr "新建前向认证应用"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminGroups.tsx
+#: src/pages/admin/groups/AdminGroups.tsx
 msgid "admin.groups.new"
 msgstr "新建用户组"
 
@@ -5531,7 +5550,7 @@ msgid "app.access.restricted.none"
 msgstr "还没有选择用户组，选择之前没有人能使用这个应用。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminGroups.tsx
+#: src/pages/admin/groups/AdminGroups.tsx
 msgid "admin.groups.empty"
 msgstr "暂无用户组"
 
@@ -5632,6 +5651,7 @@ msgstr "未报告"
 
 #. js-lingui-explicit-id
 #: src/components/custom/ObjectHeader.tsx
+#: src/pages/admin/groups/AdminGroups.tsx
 msgid "object.status.not-sent"
 msgstr "未发送给应用"
 
@@ -5839,6 +5859,11 @@ msgstr "打开 {name}"
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderActions.tsx
 msgid "admin.federation.edit"
+msgstr "打开 {name}"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/AdminGroups.tsx
+msgid "admin.groups.open"
 msgstr "打开 {name}"
 
 #. js-lingui-explicit-id
@@ -7118,12 +7143,8 @@ msgid "audit.event.rotate"
 msgstr "已轮换"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminGroups.tsx
-msgid "admin.groups.kind.rule"
-msgstr "规则"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/groups/AdminGroupNew.tsx
+#: src/pages/admin/groups/AdminGroups.tsx
 #: src/pages/admin/groups/GroupDetailsSection.tsx
 msgid "admin.group.kind.rule"
 msgstr "规则"
@@ -7980,11 +8001,6 @@ msgid "token.access.sudo.badge"
 msgstr "无需验证你的身份"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminGroups.tsx
-msgid "admin.groups.column.slug"
-msgstr "标识"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/groups/GroupMatchesFrame.tsx
 msgid "admin.group.matches.sample"
 msgstr "部分匹配的账号"
@@ -8521,11 +8537,6 @@ msgstr "最近一次检查失败，此数据可能已过期。"
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.enrollment.expires"
 msgstr "链接于 {expiry} 过期。"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/AdminGroups.tsx
-msgid "admin.groups.error"
-msgstr "无法加载列表。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminInvitations.tsx
@@ -9706,11 +9717,6 @@ msgid "success.group.saved"
 msgstr "用户组已保存"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminGroups.tsx
-msgid "admin.groups.table"
-msgstr "用户组"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/AdminInvitations.tsx
 msgid "admin.invitations.column.groups"
 msgstr "用户组"
@@ -9718,6 +9724,16 @@ msgstr "用户组"
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/saml-projection.ts
 msgid "admin.saml-apps.source.groups"
+msgstr "用户组"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/AdminGroups.tsx
+msgid "admin.groups.page.title"
+msgstr "用户组"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/AdminGroups.tsx
+msgid "admin.groups.table"
 msgstr "用户组"
 
 #. js-lingui-explicit-id
@@ -10081,6 +10097,7 @@ msgid "admin.oidc-apps.identity.description"
 msgstr "客户端会得知的登录者信息。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/AdminGroupNew.tsx
 #: src/pages/admin/groups/GroupDetailsSection.tsx
 msgid "admin.group.details.description"
 msgstr "用户组的名称、应用引用它所用的标识，以及是否把标识发送给应用。"
@@ -10190,11 +10207,6 @@ msgid "admin.federation.signin.description"
 msgstr "这个提供商能否用于登录，以及遇到它没见过的人时怎么处理。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/groups/AdminGroupNew.tsx
-msgid "admin.group.manual.note"
-msgstr "本组包含哪些账号，在创建完成后于该用户组自己的页面上决定。"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
 msgid "admin.federation.claims.description"
 msgstr "谁可以通过这个提供商登录，以及它的哪些字段填入账号。"
@@ -10205,6 +10217,7 @@ msgid "admin.group.decisions.title"
 msgstr "此用户组决定哪些账号"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/AdminGroupNew.tsx
 #: src/pages/admin/groups/GroupRuleSection.tsx
 msgid "admin.group.rule.heading"
 msgstr "本组匹配哪些账号"
@@ -10269,6 +10282,11 @@ msgstr "不能用这个提供商登录。请用其他方式登录后，在账号
 #: src/api/errors.ts
 msgid "error.cannot_delete_self"
 msgstr "你无法删除自己的账号。请让另一位管理员操作。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/AdminGroupNew.tsx
+msgid "admin.group.create.manual.note"
+msgstr "创建后，在用户组自己的页面上选择允许或拒绝哪些账号。"
 
 #. js-lingui-explicit-id
 #: src/pages/public/ErrorLanding.tsx

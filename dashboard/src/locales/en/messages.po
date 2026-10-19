@@ -355,6 +355,7 @@ msgid "admin.group.rule.reason.missing_children"
 msgstr "A group needs at least one condition."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/AdminGroupNew.tsx
 #: src/pages/admin/groups/GroupDetailsSection.tsx
 msgid "admin.group.kind.fixed"
 msgstr "A group's kind is set when it is created and cannot be changed."
@@ -368,6 +369,11 @@ msgstr "A JSON object stored with the account. Saving sends whatever is in this 
 #: src/pages/admin/groups/rule-labels.ts
 msgid "admin.group.rule.method.federation"
 msgstr "A linked provider"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/AdminGroupNew.tsx
+msgid "admin.group.create.kind.manual.description"
+msgstr "A manual group holds the accounts you allow or deny by hand."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ClaimMappingTable.tsx
@@ -426,8 +432,8 @@ msgstr "A rule document needs a version and a condition. The builder still holds
 
 #. js-lingui-explicit-id
 #: src/pages/admin/groups/AdminGroupNew.tsx
-msgid "admin.group.kind.note"
-msgstr "A rule group keeps itself up to date as accounts change. A manual group holds the accounts you allow or deny by hand."
+msgid "admin.group.create.kind.rule.description"
+msgstr "A rule group keeps itself up to date as accounts change."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-validation.ts
@@ -673,7 +679,6 @@ msgid "admin.home.summary"
 msgstr "Accounts, user groups, invitations, identity providers, downstream applications, logs and settings are managed from the sections in the sidebar."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminGroups.tsx
 #: src/pages/admin/AdminInvitations.tsx
 #: src/pages/admin/AdminUsers.tsx
 #: src/pages/admin/settings/SigningKeysPanel.tsx
@@ -1180,7 +1185,7 @@ msgid "security.tokens.apps"
 msgstr "Applications"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminGroups.tsx
+#: src/pages/admin/groups/AdminGroups.tsx
 msgid "admin.groups.column.applications"
 msgstr "Applications"
 
@@ -1542,6 +1547,7 @@ msgstr "Cancel"
 #: src/pages/admin/AdminInvitationForm.tsx
 #: src/pages/admin/forward-auth-apps/AdminForwardAuthAppNew.tsx
 #: src/pages/admin/groups/AddDecisionDialog.tsx
+#: src/pages/admin/groups/AdminGroupNew.tsx
 #: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
 #: src/pages/admin/identity-providers/ProviderCredentialsSection.tsx
 #: src/pages/admin/identity-providers/ProviderOperatorSection.tsx
@@ -1549,11 +1555,6 @@ msgstr "Cancel"
 #: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
 #: src/pages/admin/saml-applications/SamlMetadataSection.tsx
 msgid "admin.cancel"
-msgstr "Cancel"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/groups/AdminGroupNew.tsx
-msgid "admin.group.cancel"
 msgstr "Cancel"
 
 #. js-lingui-explicit-id
@@ -1767,6 +1768,7 @@ msgid "admin.federation.operator.validated"
 msgstr "Checked <0/>"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/AdminGroupNew.tsx
 #: src/pages/admin/groups/GroupRuleSection.tsx
 msgid "admin.group.rule.description"
 msgstr "Checked every time someone asks for access, so the group is always current."
@@ -2649,6 +2651,11 @@ msgid "settings.sign-in.preview.bing_failed"
 msgstr "Couldn't get the picture from Bing."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/AdminGroupNew.tsx
+msgid "admin.group.create.description"
+msgstr "Create a group applications can use to decide who gets in. Who it holds is set on its page once it exists."
+
+#. js-lingui-explicit-id
 #: src/pages/public/Enroll.tsx
 msgid "enroll.passkey"
 msgstr "Create a passkey"
@@ -2687,6 +2694,11 @@ msgstr "Create group"
 #: src/pages/admin/AdminInvitationForm.tsx
 msgid "admin.invitations.new.submit"
 msgstr "Create invitation"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/AdminGroups.tsx
+msgid "admin.groups.empty.description"
+msgstr "Create one to choose accounts by hand or to match them with a rule."
 
 #. js-lingui-explicit-id
 #: src/pages/public/Enroll.tsx
@@ -3001,14 +3013,14 @@ msgid "admin.group.decisions.dialog.deny-name"
 msgstr "Deny {name}"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminGroups.tsx
-msgid "admin.groups.column.description"
-msgstr "Description"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/groups/AdminGroupNew.tsx
 #: src/pages/admin/groups/GroupDetailsSection.tsx
 msgid "admin.group.description"
+msgstr "Description"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/AdminGroups.tsx
+msgid "admin.groups.column.description"
 msgstr "Description"
 
 #. js-lingui-explicit-id
@@ -3017,6 +3029,7 @@ msgid "admin.logs.detail.detail"
 msgstr "Details"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/AdminGroupNew.tsx
 #: src/pages/admin/groups/GroupDetailsSection.tsx
 msgid "admin.group.details.title"
 msgstr "Details"
@@ -3359,11 +3372,6 @@ msgstr "Dusk"
 #: src/components/custom/principal-sources.ts
 msgid "principal-source.username.hint"
 msgstr "Easy to read. An administrator can change it."
-
-#. js-lingui-explicit-id
-#: src/pages/admin/AdminGroups.tsx
-msgid "admin.groups.edit"
-msgstr "Edit"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminUsers.tsx
@@ -4171,6 +4179,11 @@ msgid "settings.sign-in.gradient"
 msgstr "Gradient"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/AdminGroups.tsx
+msgid "admin.groups.column.group"
+msgstr "Group"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/groups/RuleBuilder.tsx
 msgid "admin.group.rule.add-group"
 msgstr "Group"
@@ -4184,6 +4197,11 @@ msgstr "Group"
 #: src/pages/admin/groups/AdminGroup.tsx
 msgid "admin.group.side"
 msgstr "Group context"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/AdminGroups.tsx
+msgid "admin.groups.page.description"
+msgstr "Groups decide which accounts an application lets in, and are the names applications receive for them."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/groups/explain-labels.ts
@@ -4676,7 +4694,12 @@ msgid "settings.sign-in.unsplash.query"
 msgstr "Keyword"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminGroups.tsx
+#: src/pages/admin/groups/AdminGroupNew.tsx
+msgid "admin.group.create.kind.title"
+msgstr "Kind"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/AdminGroups.tsx
 msgid "admin.groups.column.kind"
 msgstr "Kind"
 
@@ -5019,17 +5042,13 @@ msgid "app.managers.description"
 msgstr "Managers can change everything on this page except who manages it."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminGroups.tsx
-msgid "admin.groups.kind.manual"
-msgstr "Manual"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.diagnostics.source.manual"
 msgstr "Manual"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/groups/AdminGroupNew.tsx
+#: src/pages/admin/groups/AdminGroups.tsx
 #: src/pages/admin/groups/GroupDetailsSection.tsx
 msgid "admin.group.kind.manual"
 msgstr "Manual"
@@ -5073,6 +5092,11 @@ msgstr "Matches a rule"
 #: src/pages/admin/groups/GroupMatchesFrame.tsx
 msgid "admin.group.matches.title"
 msgstr "Matches right now"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/AdminGroupNew.tsx
+msgid "admin.group.create.rule.preview"
+msgstr "Matching accounts appear once the group is saved."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/SamlMetadataSection.tsx
@@ -5132,11 +5156,6 @@ msgstr "Name"
 #. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.name"
-msgstr "Name"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/AdminGroups.tsx
-msgid "admin.groups.column.name"
 msgstr "Name"
 
 #. js-lingui-explicit-id
@@ -5309,7 +5328,7 @@ msgid "admin.forward-auth-apps.new.form"
 msgstr "New forward-auth application"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminGroups.tsx
+#: src/pages/admin/groups/AdminGroups.tsx
 msgid "admin.groups.new"
 msgstr "New group"
 
@@ -5531,7 +5550,7 @@ msgid "app.access.restricted.none"
 msgstr "No user groups selected yet. Nobody can use this application until you select one."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminGroups.tsx
+#: src/pages/admin/groups/AdminGroups.tsx
 msgid "admin.groups.empty"
 msgstr "No user groups yet"
 
@@ -5632,6 +5651,7 @@ msgstr "not reported"
 
 #. js-lingui-explicit-id
 #: src/components/custom/ObjectHeader.tsx
+#: src/pages/admin/groups/AdminGroups.tsx
 msgid "object.status.not-sent"
 msgstr "Not sent to applications"
 
@@ -5839,6 +5859,11 @@ msgstr "Open {name}"
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderActions.tsx
 msgid "admin.federation.edit"
+msgstr "Open {name}"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/AdminGroups.tsx
+msgid "admin.groups.open"
 msgstr "Open {name}"
 
 #. js-lingui-explicit-id
@@ -7118,12 +7143,8 @@ msgid "audit.event.rotate"
 msgstr "Rotated"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminGroups.tsx
-msgid "admin.groups.kind.rule"
-msgstr "Rule"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/groups/AdminGroupNew.tsx
+#: src/pages/admin/groups/AdminGroups.tsx
 #: src/pages/admin/groups/GroupDetailsSection.tsx
 msgid "admin.group.kind.rule"
 msgstr "Rule"
@@ -7980,11 +8001,6 @@ msgid "token.access.sudo.badge"
 msgstr "Skips confirming it is you"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminGroups.tsx
-msgid "admin.groups.column.slug"
-msgstr "Slug"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/groups/GroupMatchesFrame.tsx
 msgid "admin.group.matches.sample"
 msgstr "Some of the matching accounts"
@@ -8521,11 +8537,6 @@ msgstr "The latest check failed, so this may be out of date."
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.enrollment.expires"
 msgstr "The link expires on {expiry}."
-
-#. js-lingui-explicit-id
-#: src/pages/admin/AdminGroups.tsx
-msgid "admin.groups.error"
-msgstr "The list could not be loaded."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminInvitations.tsx
@@ -9706,11 +9717,6 @@ msgid "success.group.saved"
 msgstr "User group saved"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminGroups.tsx
-msgid "admin.groups.table"
-msgstr "User groups"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/AdminInvitations.tsx
 msgid "admin.invitations.column.groups"
 msgstr "User groups"
@@ -9718,6 +9724,16 @@ msgstr "User groups"
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/saml-projection.ts
 msgid "admin.saml-apps.source.groups"
+msgstr "User groups"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/AdminGroups.tsx
+msgid "admin.groups.page.title"
+msgstr "User groups"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/AdminGroups.tsx
+msgid "admin.groups.table"
 msgstr "User groups"
 
 #. js-lingui-explicit-id
@@ -10081,6 +10097,7 @@ msgid "admin.oidc-apps.identity.description"
 msgstr "What the client is told about someone who signs in."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/AdminGroupNew.tsx
 #: src/pages/admin/groups/GroupDetailsSection.tsx
 msgid "admin.group.details.description"
 msgstr "What the group is called, how applications name it, and whether they are sent that name."
@@ -10190,11 +10207,6 @@ msgid "admin.federation.signin.description"
 msgstr "Whether this provider can be used to sign in, and what it does with someone it has not seen."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/groups/AdminGroupNew.tsx
-msgid "admin.group.manual.note"
-msgstr "Which accounts this group holds is decided on the group's own page, once it has been created."
-
-#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
 msgid "admin.federation.claims.description"
 msgstr "Who may come in through this provider, and which of its fields fill in the account."
@@ -10205,6 +10217,7 @@ msgid "admin.group.decisions.title"
 msgstr "Who this group decides"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/AdminGroupNew.tsx
 #: src/pages/admin/groups/GroupRuleSection.tsx
 msgid "admin.group.rule.heading"
 msgstr "Who this group matches"
@@ -10269,6 +10282,11 @@ msgstr "You can't sign in with this provider. Sign in another way, then link it 
 #: src/api/errors.ts
 msgid "error.cannot_delete_self"
 msgstr "You cannot delete your own account. Ask another administrator."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/AdminGroupNew.tsx
+msgid "admin.group.create.manual.note"
+msgstr "You choose who this group allows or denies on its page after you create it."
 
 #. js-lingui-explicit-id
 #: src/pages/public/ErrorLanding.tsx

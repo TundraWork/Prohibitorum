@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { AdminGroups } from "@/pages/admin/AdminGroups";
+import { AdminGroups } from "@/pages/admin/groups/AdminGroups";
 
 export const Route = createFileRoute("/_protected/admin/_admin/groups/")({
   component: AdminGroups,

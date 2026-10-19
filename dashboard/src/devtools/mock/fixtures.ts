@@ -1080,6 +1080,7 @@ function invitationAt(index: number, config: MockConfig): Invitation {
  * that only ever sees manual groups never reaches the rule editor.
  */
 function groupsFrom(config: MockConfig): AppGroupView[] {
+  if (config.admin.groupsNone) return [];
   const generated = Array.from(
     { length: clampAdminCount(config.admin.groups) },
     (_, index): AppGroupView => {
@@ -2740,6 +2741,10 @@ function writeReply(
 
     case "/api/prohibitorum/groups": {
       if (method !== "POST") return undefined;
+      // An existing group's identifier is taken, as the server answers.
+      if (groupsFrom(config).some((group) => group.slug === slugOf(body))) {
+        return { kind: "error", status: 409, code: "group_slug_conflict" };
+      }
       return json(createdGroup(body, config), (draft) => {
         draft.admin.groups = clampAdminCount(draft.admin.groups + 1);
       });
@@ -3401,6 +3406,10 @@ function writeReply(
     default:
       return undefined;
   }
+}
+
+function slugOf(body: unknown): string | undefined {
+  return stringField(body, "slug");
 }
 
 /** The group a create write should answer with, taken from what it carried. */

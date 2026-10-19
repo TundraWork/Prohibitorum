@@ -33,6 +33,11 @@ describe("mock URL control", () => {
     expect(config.admin.oidcApps).toBe(7);
   });
 
+  it("empties the group directory from the address", () => {
+    applyMockQuery("?mock.admin.groupsNone=true");
+    expect(getMockConfig().admin.groupsNone).toBe(true);
+  });
+
   it("sets up a public flow from the address, refusing a grant the panel does not offer", () => {
     applyMockQuery(
       "?mock.publicFlows.consent.grant=incremental&mock.publicFlows.consent.samlAttributes=0",
