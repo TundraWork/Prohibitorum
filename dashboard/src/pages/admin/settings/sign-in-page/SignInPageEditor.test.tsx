@@ -38,12 +38,31 @@ vi.mock("@/api/mutations", async (importOriginal) => {
   };
 });
 
+// jsdom draws no page to measure; the measurement itself is covered by its own
+// tests, so here it answers what each case asks and records what it was asked.
+const measureReadability = vi.hoisted(() => vi.fn());
+vi.mock(
+  "@/pages/admin/settings/sign-in-page/readability",
+  async (original) => ({
+    ...(await original<
+      typeof import("@/pages/admin/settings/sign-in-page/readability")
+    >()),
+    measureReadability,
+  }),
+);
+
 const base = "/api/prohibitorum";
 const appearancePath = `${base}/admin/settings/login-appearance`;
 
 beforeEach(() => {
   i18n.activate("en");
   uploadedFiles.length = 0;
+  measureReadability.mockReset();
+  measureReadability.mockResolvedValue({
+    kind: "measured",
+    ratio: 9.4,
+    readable: true,
+  });
   notifyError = vi.fn<(error: unknown) => void>();
   // No sudo runner is configured: saving the sign-in page must not ask for
   // one, and `runWithSudo` would throw if it did.
@@ -588,6 +607,59 @@ describe("the card and the toolbar", () => {
         a.capsules.blur = false;
       }),
     );
+  });
+});
+
+describe("the readability of the card", () => {
+  it("says the card is readable, in the card's footer", async () => {
+    await open();
+    const card = frame("Card");
+    expect(await within(card).findByText("Readable")).toBeInTheDocument();
+    expect(within(card).getByText("Text contrast 9.4 : 1")).toBeInTheDocument();
+  });
+
+  it("warns when the card is hard to read", async () => {
+    measureReadability.mockResolvedValue({
+      kind: "measured",
+      ratio: 2.8,
+      readable: false,
+    });
+    await open();
+    const card = frame("Card");
+    expect(await within(card).findByText("Hard to read")).toBeInTheDocument();
+    expect(
+      within(card).getByText(
+        "Text contrast 2.8 : 1 — raise the card's opacity or pick another background",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("says when the background cannot be measured", async () => {
+    measureReadability.mockResolvedValue({ kind: "unmeasurable" });
+    await open();
+    expect(
+      await within(frame("Card")).findByText(
+        "Readability can't be measured for this background.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("measures the preview's page with the draft, and again when the card changes", async () => {
+    const user = userEvent.setup();
+    await open();
+    const page = await previewDocument();
+    await within(frame("Card")).findByText("Readable");
+    const [first, firstAppearance] = measureReadability.mock.calls[0] ?? [];
+    expect(first).toBe(page);
+    expect(firstAppearance.card.translucent).toBe(false);
+
+    await user.click(
+      within(frame("Card")).getByRole("switch", { name: "Translucent" }),
+    );
+    await waitFor(() => {
+      const last = measureReadability.mock.calls.at(-1);
+      expect(last?.[1].card.translucent).toBe(true);
+    });
   });
 });
 

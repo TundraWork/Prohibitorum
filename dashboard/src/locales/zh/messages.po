@@ -4308,6 +4308,11 @@ msgid "admin.groups.page.description"
 msgstr "用户组决定应用放行哪些账号，也是应用收到的账号分组名称。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/sign-in-page/ReadabilityLine.tsx
+msgid "settings.sign-in.readability.hard"
+msgstr "难以阅读"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/groups/explain-labels.ts
 msgid "admin.group.explain.avatar.any"
 msgstr "设有头像"
@@ -6672,6 +6677,16 @@ msgid "settings.network.strategy"
 msgstr "客户端地址来自"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/sign-in-page/ReadabilityLine.tsx
+msgid "settings.sign-in.readability.unmeasurable"
+msgstr "无法测量此背景的可读性。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/sign-in-page/ReadabilityLine.tsx
+msgid "settings.sign-in.readability.readable"
+msgstr "清晰易读"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/AdminIdentityProviders.tsx
 msgid "admin.federation.column.readiness"
 msgstr "就绪状态"
@@ -8491,6 +8506,16 @@ msgstr "测试结果"
 #: src/pages/admin/identity-providers/ConnectionTestDialog.tsx
 msgid "admin.federation.diagnostics.stages"
 msgstr "测试阶段"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/sign-in-page/ReadabilityLine.tsx
+msgid "settings.sign-in.readability.contrast"
+msgstr "文字对比度 {ratio} : 1"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/sign-in-page/ReadabilityLine.tsx
+msgid "settings.sign-in.readability.contrast_hint"
+msgstr "文字对比度 {ratio} : 1，请调高卡片的不透明度或换一个背景"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts

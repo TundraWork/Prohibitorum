@@ -88,12 +88,15 @@ export function SignInPreview({
   hasUnsplashKey,
   theme,
   size,
+  onDocument,
 }: {
   appearance: LoginAppearance;
   images: string[];
   hasUnsplashKey: boolean;
   theme: PreviewTheme;
   size: PreviewSize;
+  /** Told the preview's document once it is ready, for measuring what it draws. */
+  onDocument?: (document: Document | null) => void;
 }) {
   const { t } = useLingui();
   const background = appearance.background;
@@ -147,6 +150,7 @@ export function SignInPreview({
         <PreviewDocument
           {...pageSizes[size]}
           theme={theme}
+          onDocument={onDocument}
           title={t({
             id: "settings.sign-in.preview.frame",
             message: "Sign-in page preview",

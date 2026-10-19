@@ -37,6 +37,10 @@ import { applyServerError } from "@/forms/server-errors";
 import { useAppForm } from "@/forms/use-app-form";
 import { BackgroundControls } from "@/pages/admin/settings/sign-in-page/BackgroundControls";
 import {
+  ReadabilityLine,
+  useReadability,
+} from "@/pages/admin/settings/sign-in-page/ReadabilityLine";
+import {
   type PreviewSize,
   SignInPreview,
   usePreviewTheme,
@@ -116,6 +120,7 @@ function Editor({ saved }: { saved: AdminLoginAppearance }) {
   );
   const [replacingKey, setReplacingKey] = useState(false);
   const [size, setSize] = useState<PreviewSize>("desktop");
+  const [previewDocument, setPreviewDocument] = useState<Document | null>(null);
   const hasKey = saved.hasUnsplashKey;
 
   const form = useAppForm({
@@ -171,6 +176,7 @@ function Editor({ saved }: { saved: AdminLoginAppearance }) {
   const submitting = useStore(form.store, (state) => state.isSubmitting);
   const changes = changedSettings(saved.appearance, appearance, typedKey);
   const preview = usePreviewTheme(appearance);
+  const readability = useReadability(previewDocument, appearance);
   const reserve = useUnsavedReserve();
 
   useBlocker({
@@ -234,6 +240,7 @@ function Editor({ saved }: { saved: AdminLoginAppearance }) {
                   hasUnsplashKey={hasKey}
                   theme={preview.theme}
                   size={size}
+                  onDocument={setPreviewDocument}
                 />
               </PanelBody>
             </Section>
@@ -259,6 +266,7 @@ function Editor({ saved }: { saved: AdminLoginAppearance }) {
             <Section
               id="card"
               title={<Trans id="settings.sign-in.card">Card</Trans>}
+              footer={readability && <ReadabilityLine result={readability} />}
             >
               <div className="flex flex-col gap-4">
                 <PlacementControls

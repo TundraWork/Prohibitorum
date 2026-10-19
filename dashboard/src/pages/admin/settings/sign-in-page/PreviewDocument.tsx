@@ -50,12 +50,15 @@ export function PreviewDocument({
   height,
   theme,
   title,
+  onDocument,
   children,
 }: {
   width: number;
   height: number;
   theme: PreviewTheme;
   title: string;
+  /** Told the frame's document once it is ready, and `null` when it goes. */
+  onDocument?: (document: Document | null) => void;
   children: ReactNode;
 }) {
   const box = useRef<HTMLDivElement>(null);
@@ -85,6 +88,12 @@ export function PreviewDocument({
     observer.observe(element);
     return () => observer.disconnect();
   }, []);
+
+  useLayoutEffect(() => {
+    if (!body || !onDocument) return;
+    onDocument(body.ownerDocument);
+    return () => onDocument(null);
+  }, [body, onDocument]);
 
   useLayoutEffect(() => {
     const root = body?.ownerDocument.documentElement;
