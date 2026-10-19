@@ -1549,15 +1549,11 @@ msgstr "取消"
 #. js-lingui-explicit-id
 #: src/components/custom/AppAccessSection.tsx
 #: src/components/custom/AppManagersSection.tsx
+#: src/components/custom/CancelLink.tsx
 #: src/pages/admin/AdminInvitationForm.tsx
-#: src/pages/admin/forward-auth-apps/AdminForwardAuthAppNew.tsx
 #: src/pages/admin/groups/AddDecisionDialog.tsx
-#: src/pages/admin/groups/AdminGroupNew.tsx
-#: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
 #: src/pages/admin/identity-providers/ProviderCredentialsSection.tsx
 #: src/pages/admin/identity-providers/ProviderOperatorSection.tsx
-#: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
-#: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
 #: src/pages/admin/saml-applications/SamlMetadataSection.tsx
 msgid "admin.cancel"
 msgstr "取消"
@@ -4973,7 +4969,7 @@ msgstr "日志"
 #: src/pages/admin/groups/AdminGroupNew.tsx
 #: src/pages/admin/groups/GroupDetailsSection.tsx
 msgid "admin.group.slug.hint"
-msgstr "小写字母、数字和连字符。应用通过它来引⁠用⁠本⁠用⁠户⁠组。"
+msgstr "小写字母、数字和连字符。应用用它来引用本组。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx

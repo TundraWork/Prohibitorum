@@ -2,7 +2,7 @@ import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useStore } from "@tanstack/react-form";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Link, useNavigate } from "@tanstack/react-router";
+import { useNavigate } from "@tanstack/react-router";
 import {
   KeyRoundIcon,
   Link2Icon,
@@ -22,7 +22,7 @@ import type {
   ProviderWriteBody,
 } from "@/api/raw-admin-paths";
 import { withInlineReport } from "@/app/query-client";
-import { Button } from "@/components/custom/Button";
+import { CancelLink } from "@/components/custom/CancelLink";
 import { ChoiceTile } from "@/components/custom/ChoiceTile";
 import { PageBody } from "@/components/custom/PageBody";
 import { PageHeader } from "@/components/custom/PageHeader";
@@ -561,12 +561,7 @@ export function AdminIdentityProviderNew() {
             <form.SubmitButton>
               <Trans id="admin.federation.new.submit">Add provider</Trans>
             </form.SubmitButton>
-            <Button
-              variant="ghost"
-              render={<Link to="/admin/identity-providers" />}
-            >
-              <Trans id="admin.cancel">Cancel</Trans>
-            </Button>
+            <CancelLink to="/admin/identity-providers" pending={submitting} />
           </div>
         </form.Form>
       </form.AppForm>

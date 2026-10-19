@@ -2,7 +2,7 @@ import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useStore } from "@tanstack/react-form";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Link, useNavigate } from "@tanstack/react-router";
+import { useNavigate } from "@tanstack/react-router";
 import {
   AppWindowIcon,
   KeyRoundIcon,
@@ -14,7 +14,7 @@ import { isCancellation } from "@/api/errors";
 import { createOidcAppMutationOptions } from "@/api/mutations";
 import type { CreateOidcAppResponse } from "@/api/raw-admin-paths";
 import { withInlineReport } from "@/app/query-client";
-import { Button } from "@/components/custom/Button";
+import { CancelLink } from "@/components/custom/CancelLink";
 import { ChoiceTile } from "@/components/custom/ChoiceTile";
 import { PageBody } from "@/components/custom/PageBody";
 import { PageHeader } from "@/components/custom/PageHeader";
@@ -369,12 +369,7 @@ export function AdminOidcApplicationNew() {
                   Create application
                 </Trans>
               </form.SubmitButton>
-              <Button
-                variant="ghost"
-                render={<Link to="/admin/oidc-applications" />}
-              >
-                <Trans id="admin.cancel">Cancel</Trans>
-              </Button>
+              <CancelLink to="/admin/oidc-applications" pending={submitting} />
             </div>
           </form.Form>
         </form.AppForm>

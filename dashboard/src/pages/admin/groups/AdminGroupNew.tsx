@@ -1,14 +1,14 @@
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useStore } from "@tanstack/react-form";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Link, useNavigate } from "@tanstack/react-router";
+import { useNavigate } from "@tanstack/react-router";
 import { InfoIcon, ListFilterIcon, ShapesIcon } from "lucide-react";
 import { useId, useState } from "react";
 import { isCancellation } from "@/api/errors";
 import { createGroupMutationOptions } from "@/api/mutations";
 import type { CreateGroupRequest } from "@/api/raw-admin-paths";
 import { withInlineReport } from "@/app/query-client";
-import { Button } from "@/components/custom/Button";
+import { CancelLink } from "@/components/custom/CancelLink";
 import { ChoiceTile } from "@/components/custom/ChoiceTile";
 import { PageBody } from "@/components/custom/PageBody";
 import { PageHeader } from "@/components/custom/PageHeader";
@@ -301,15 +301,7 @@ export function AdminGroupNew() {
             >
               <Trans id="admin.group.create">Create group</Trans>
             </form.SubmitButton>
-            <Button
-              variant="ghost"
-              disabled={submitting}
-              // A link cannot be disabled, so while the create is in flight
-              // this is a plain disabled button instead.
-              render={submitting ? undefined : <Link to="/admin/groups" />}
-            >
-              <Trans id="admin.cancel">Cancel</Trans>
-            </Button>
+            <CancelLink to="/admin/groups" pending={submitting} />
             {blocked && (
               <p id={reasonId} className="text-destructive-foreground text-sm">
                 <RuleIssueSummary issues={issues} />

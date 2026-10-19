@@ -1549,15 +1549,11 @@ msgstr "Cancel"
 #. js-lingui-explicit-id
 #: src/components/custom/AppAccessSection.tsx
 #: src/components/custom/AppManagersSection.tsx
+#: src/components/custom/CancelLink.tsx
 #: src/pages/admin/AdminInvitationForm.tsx
-#: src/pages/admin/forward-auth-apps/AdminForwardAuthAppNew.tsx
 #: src/pages/admin/groups/AddDecisionDialog.tsx
-#: src/pages/admin/groups/AdminGroupNew.tsx
-#: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
 #: src/pages/admin/identity-providers/ProviderCredentialsSection.tsx
 #: src/pages/admin/identity-providers/ProviderOperatorSection.tsx
-#: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
-#: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
 #: src/pages/admin/saml-applications/SamlMetadataSection.tsx
 msgid "admin.cancel"
 msgstr "Cancel"

@@ -280,14 +280,17 @@ describe("leaving", () => {
           finish = resolve;
         }),
     );
-    const { user } = await mountForm();
+    const { user, router } = await mountForm();
 
     await fill(user);
     await user.click(createButton());
 
-    const cancel = await screen.findByRole("button", { name: "Cancel" });
-    expect(cancel).toBeDisabled();
-    expect(screen.queryByRole("link", { name: "Cancel" })).toBeNull();
+    const cancel = await screen.findByRole("link", { name: "Cancel" });
+    await waitFor(() =>
+      expect(cancel).toHaveAttribute("aria-disabled", "true"),
+    );
+    await user.click(cancel);
+    expect(router.state.location.pathname).toBe("/admin/groups/new");
     finish(Response.json(groupFixture(), { status: 201 }));
     await screen.findByRole("heading", { level: 1, name: "Staff" });
   });

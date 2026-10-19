@@ -1,7 +1,7 @@
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useStore } from "@tanstack/react-form";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Link, useNavigate } from "@tanstack/react-router";
+import { useNavigate } from "@tanstack/react-router";
 import {
   AppWindowIcon,
   ClipboardListIcon,
@@ -14,7 +14,7 @@ import { isCancellation } from "@/api/errors";
 import { createSamlAppMutationOptions } from "@/api/mutations";
 import type { CreateSamlAppRequest } from "@/api/raw-admin-paths";
 import { withInlineReport } from "@/app/query-client";
-import { Button } from "@/components/custom/Button";
+import { CancelLink } from "@/components/custom/CancelLink";
 import { ChoiceTile } from "@/components/custom/ChoiceTile";
 import { PageBody } from "@/components/custom/PageBody";
 import { PageHeader } from "@/components/custom/PageHeader";
@@ -500,12 +500,7 @@ export function AdminSamlApplicationNew() {
             <form.SubmitButton>
               <Trans id="admin.saml-apps.new.submit">Create application</Trans>
             </form.SubmitButton>
-            <Button
-              variant="ghost"
-              render={<Link to="/admin/saml-applications" />}
-            >
-              <Trans id="admin.cancel">Cancel</Trans>
-            </Button>
+            <CancelLink to="/admin/saml-applications" pending={submitting} />
           </div>
         </form.Form>
       </form.AppForm>
