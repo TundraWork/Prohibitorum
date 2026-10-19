@@ -1,10 +1,15 @@
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { useMutation } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Link, useNavigate } from "@tanstack/react-router";
+import { IdCardIcon, ServerIcon, ShieldCheckIcon } from "lucide-react";
 import { isCancellation } from "@/api/errors";
 import { createForwardAuthAppMutationOptions } from "@/api/mutations";
-import { ConsoleCard } from "@/components/custom/ConsoleCard";
+import { withInlineReport } from "@/app/query-client";
+import { Button } from "@/components/custom/Button";
+import { PageBody } from "@/components/custom/PageBody";
+import { PageHeader } from "@/components/custom/PageHeader";
+import { Section } from "@/components/custom/Section";
 import { applyServerError } from "@/forms/server-errors";
 import { useAppForm } from "@/forms/use-app-form";
 import { hostProblem } from "@/pages/admin/forward-auth-apps/forward-auth-validation";
@@ -41,16 +46,22 @@ const nameRequired = msg({
  * Registering one forward-auth application.
  *
  * Only what the server cannot default is asked for. The identity projection,
- * the icon and the access policy all have a working default — the record's
- * own — and are set on the detail page, where the application as it currently
- * stands is beside the field. What cannot be defaulted is what the application
- * *is*: its identifier and the host it protects, since the server takes the
- * Client ID and the host only at creation.
+ * the icon and the access policy's groups all have a working default — the
+ * record's own — and are set on the detail page, where the application as it
+ * currently stands is beside the field. What cannot be defaulted is what the
+ * application *is*: its identifier and the host it protects, since the server
+ * takes the Client ID and the host only at creation.
+ *
+ * A failed create is shown on the form or the field it belongs to, and the
+ * mutation marks itself inline so the failure is not also a toast.
  */
 export function AdminForwardAuthAppNew() {
   const { t } = useLingui();
   const navigate = useNavigate();
-  const create = useMutation(createForwardAuthAppMutationOptions());
+  const queryClient = useQueryClient();
+  const create = useMutation(
+    withInlineReport(createForwardAuthAppMutationOptions(queryClient), true),
+  );
 
   const form = useAppForm({
     defaultValues: {
@@ -94,117 +105,181 @@ export function AdminForwardAuthAppNew() {
   });
 
   return (
-    <ConsoleCard>
+    <PageBody>
+      <PageHeader
+        title={
+          <Trans id="admin.forward-auth-apps.new.title">
+            New forward-auth application
+          </Trans>
+        }
+        description={
+          <Trans id="admin.forward-auth-apps.new.description">
+            Register a service behind your reverse proxy. The rest of its
+            settings are on its page once it exists.
+          </Trans>
+        }
+      />
       <form.AppForm>
         <form.Form
           label={t({
             id: "admin.forward-auth-apps.new.form",
             message: "New forward-auth application",
           })}
+          className="flex flex-col gap-8"
         >
           <form.FormError />
 
-          <form.AppField
-            name="displayName"
-            validators={{
-              onSubmit: ({ value }) =>
-                value.trim() === "" ? nameRequired : undefined,
-            }}
+          <Section
+            id="identity"
+            icon={<IdCardIcon />}
+            title={
+              <Trans id="admin.forward-auth-apps.new.identity.title">
+                Identity
+              </Trans>
+            }
+            description={
+              <Trans id="admin.forward-auth-apps.new.identity.description">
+                What people see, and the identifier every request to the
+                application carries.
+              </Trans>
+            }
           >
-            {(field) => (
-              <field.FormField
-                label={
-                  <Trans id="admin.forward-auth-apps.field.name">Name</Trans>
-                }
-                variant="secondary"
-              />
-            )}
-          </form.AppField>
+            <div className="flex flex-col gap-5">
+              <form.AppField
+                name="displayName"
+                validators={{
+                  onSubmit: ({ value }) =>
+                    value.trim() === "" ? nameRequired : undefined,
+                }}
+              >
+                {(field) => (
+                  <field.FormField
+                    label={
+                      <Trans id="admin.forward-auth-apps.field.name">
+                        Name
+                      </Trans>
+                    }
+                  />
+                )}
+              </form.AppField>
 
-          <form.AppField
-            name="clientId"
-            validators={{
-              onSubmit: ({ value }) => {
-                const clientId = value.trim();
-                if (clientId === "") return clientIdRequired;
-                return clientIdPattern.test(clientId)
-                  ? undefined
-                  : clientIdInvalid;
-              },
-            }}
+              <form.AppField
+                name="clientId"
+                validators={{
+                  onSubmit: ({ value }) => {
+                    const clientId = value.trim();
+                    if (clientId === "") return clientIdRequired;
+                    return clientIdPattern.test(clientId)
+                      ? undefined
+                      : clientIdInvalid;
+                  },
+                }}
+              >
+                {(field) => (
+                  <field.FormField
+                    label={
+                      <Trans id="admin.forward-auth-apps.field.client-id">
+                        Client ID
+                      </Trans>
+                    }
+                    description={
+                      <Trans id="admin.forward-auth-apps.field.client-id.hint">
+                        The identifier every request to this application
+                        carries. It cannot change later.
+                      </Trans>
+                    }
+                    autoComplete="off"
+                    spellCheck={false}
+                    isMonospace
+                  />
+                )}
+              </form.AppField>
+            </div>
+          </Section>
+
+          <Section
+            id="service"
+            icon={<ServerIcon />}
+            title={<Trans id="admin.forward-auth-apps.service">Service</Trans>}
+            description={
+              <Trans id="admin.forward-auth-apps.new.service.description">
+                The host the gateway protects.
+              </Trans>
+            }
           >
-            {(field) => (
-              <field.FormField
-                label={
-                  <Trans id="admin.forward-auth-apps.field.client-id">
-                    Client ID
-                  </Trans>
-                }
-                description={
-                  <Trans id="admin.forward-auth-apps.field.client-id.hint">
-                    The identifier every request to this application carries. It
-                    cannot change later.
-                  </Trans>
-                }
-                autoComplete="off"
-                spellCheck={false}
-                variant="secondary"
-              />
-            )}
-          </form.AppField>
+            <form.AppField
+              name="host"
+              validators={{
+                onSubmit: ({ value }) => hostProblem(value.trim()),
+              }}
+            >
+              {(field) => (
+                <field.FormField
+                  label={
+                    <Trans id="admin.forward-auth-apps.field.host">
+                      Hostname
+                    </Trans>
+                  }
+                  description={
+                    <Trans id="admin.forward-auth-apps.field.host.hint">
+                      The host the application is served on, as Traefik matches
+                      it — no scheme and no port.
+                    </Trans>
+                  }
+                  autoComplete="off"
+                  spellCheck={false}
+                  isMonospace
+                  placeholder="app.example.com"
+                />
+              )}
+            </form.AppField>
+          </Section>
 
-          <form.AppField
-            name="host"
-            validators={{
-              onSubmit: ({ value }) => hostProblem(value.trim()),
-            }}
+          <Section
+            id="access"
+            icon={<ShieldCheckIcon />}
+            title={<Trans id="app.access.title">Access</Trans>}
+            description={
+              <Trans id="admin.oidc-apps.new.access.description">
+                Open it to every account, or limit it to user groups. The groups
+                are chosen on the application's page.
+              </Trans>
+            }
           >
-            {(field) => (
-              <field.FormField
-                label={
-                  <Trans id="admin.forward-auth-apps.field.host">
-                    Hostname
-                  </Trans>
-                }
-                description={
-                  <Trans id="admin.forward-auth-apps.field.host.hint">
-                    The host the application is served on, as Traefik matches it
-                    — no scheme and no port.
-                  </Trans>
-                }
-                autoComplete="off"
-                spellCheck={false}
-                placeholder="app.example.com"
-                variant="secondary"
-              />
-            )}
-          </form.AppField>
+            <form.AppField name="accessRestricted">
+              {(field) => (
+                <field.SwitchField
+                  label={
+                    <Trans id="admin.forward-auth-apps.field.restricted">
+                      Restrict access
+                    </Trans>
+                  }
+                  description={
+                    <Trans id="admin.forward-auth-apps.field.restricted.hint">
+                      Nobody can use the application until you select a user
+                      group.
+                    </Trans>
+                  }
+                />
+              )}
+            </form.AppField>
+          </Section>
 
-          <form.AppField name="accessRestricted">
-            {(field) => (
-              <field.SwitchField
-                label={
-                  <Trans id="admin.forward-auth-apps.field.restricted">
-                    Restrict access
-                  </Trans>
-                }
-                description={
-                  <Trans id="admin.forward-auth-apps.field.restricted.hint">
-                    Nobody can use the application until you select a user
-                    group.
-                  </Trans>
-                }
-              />
-            )}
-          </form.AppField>
-
-          <form.SubmitButton>
-            <Trans id="admin.forward-auth-apps.new.submit">
-              Create application
-            </Trans>
-          </form.SubmitButton>
+          <div className="flex flex-wrap items-center gap-2">
+            <form.SubmitButton>
+              <Trans id="admin.forward-auth-apps.new.submit">
+                Create application
+              </Trans>
+            </form.SubmitButton>
+            <Button
+              variant="ghost"
+              render={<Link to="/admin/forward-auth-apps" />}
+            >
+              <Trans id="admin.cancel">Cancel</Trans>
+            </Button>
+          </div>
         </form.Form>
       </form.AppForm>
-    </ConsoleCard>
+    </PageBody>
   );
 }

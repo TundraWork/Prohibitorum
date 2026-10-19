@@ -1,17 +1,18 @@
-import { Alert } from "@heroui/react";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useQuery } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
-import { Pencil, Route } from "lucide-react";
+import { Link, useNavigate } from "@tanstack/react-router";
+import { Pencil, Plus, Route } from "lucide-react";
 import { useCursorList } from "@/api/cursor-list";
-import { describeError } from "@/api/errors";
 import type { components } from "@/api/generated/schema";
 import { forwardAuthAppsListOptions, sessionQueryOptions } from "@/api/queries";
+import { quietQuery } from "@/app/query-client";
 import { Button } from "@/components/custom/Button";
 import { DataTable, type TableColumn } from "@/components/custom/DataTable";
 import { EntityCell } from "@/components/custom/EntityCell";
+import { InlineFailure } from "@/components/custom/InlineFailure";
 import { CodeValue, PrincipalSourceCell } from "@/components/custom/ListCells";
+import { PageHeader } from "@/components/custom/PageHeader";
 import { TableEmptyState } from "@/components/custom/TableEmptyState";
 
 type ForwardAuthApp = components["schemas"]["ForwardAuthAppView"];
@@ -24,16 +25,14 @@ const openAppMessage = msg({
 /**
  * The forward-auth applications Traefik asks this instance about.
  *
- * A row is read for three things: which service it is, which host it protects,
- * and which identity it passes on. The first is the identity cell, the others
- * columns; the state — whether it is enabled, whether access is restricted — gets
- * no column of its own, riding on that cell's icon and a padlock after the name,
- * so only the rows that need attention carry a mark (`AGENTS.md`, "Tables and
- * lists").
+ * A reader scanning this list asks three things of a row: which service it is,
+ * which host it protects, and which identity it passes on. The first is the
+ * identity cell, which dims a disabled application and badges it, and marks a
+ * restricted one with a lock; the others are columns.
  *
- * The row's only control opens the application. Every change worth making —
- * the host, the identity projection, the access policy, whether
- * it is enabled — wants the record in front of the reader.
+ * The row's only control opens the application. Every change worth making — the
+ * host, the identity projection, the access policy, whether it is enabled — is
+ * a decision that wants the record in front of the reader.
  *
  * A delegated manager sees this page too, with exactly the rows the server gives
  * them and no way to add one: creating an application is an administrator's
@@ -44,7 +43,9 @@ export function AdminForwardAuthApps() {
   const { t, i18n } = useLingui();
   const navigate = useNavigate();
   const session = useQuery(sessionQueryOptions());
-  const list = useCursorList<ForwardAuthApp>(forwardAuthAppsListOptions());
+  const list = useCursorList<ForwardAuthApp>(
+    quietQuery(forwardAuthAppsListOptions()),
+  );
 
   const isAdmin = session.data?.role === "admin";
 
@@ -74,10 +75,9 @@ export function AdminForwardAuthApps() {
       id: "host",
       header: <Trans id="admin.forward-auth-apps.column.host">Hostname</Trans>,
       // Monospace: the value goes into a Traefik rule character by character.
-      // The tooltip carries the whole host, since a long one is clipped.
       cell: (app) =>
         app.forwardAuthHost === "" ? (
-          <span className="text-muted">—</span>
+          <span className="text-muted-foreground">—</span>
         ) : (
           <CodeValue value={app.forwardAuthHost} />
         ),
@@ -90,9 +90,8 @@ export function AdminForwardAuthApps() {
         </Trans>
       ),
       // What the upstream service receives as the authenticated identity. The
-      // console reads the server's string into the exact vocabulary it renders
-      // and reports nothing for a value it cannot read (see `api/federation`),
-      // rather than printing the raw enum at the reader.
+      // console reads the server's string into the vocabulary it renders and
+      // shows a dash for one it cannot read, rather than the raw enum.
       cell: (app) => <PrincipalSourceCell value={app.remoteUserSource} />,
     },
     {
@@ -121,52 +120,61 @@ export function AdminForwardAuthApps() {
     },
   ];
 
+  const failed = list.error !== null && list.error !== undefined;
+
   return (
-    <div className="flex flex-col gap-4">
-      {isAdmin && (
-        <div className="flex flex-wrap items-center gap-4">
-          <Button
-            onClick={() =>
-              void navigate({ to: "/admin/forward-auth-apps/new" })
-            }
-          >
-            <Trans id="admin.forward-auth-apps.create">New application</Trans>
-          </Button>
-        </div>
-      )}
-
-      {list.error !== null && list.error !== undefined && (
-        <Alert status="danger" role="alert">
-          <Alert.Indicator />
-          <Alert.Content>
-            <Alert.Title>{t(describeError(list.error))}</Alert.Title>
-          </Alert.Content>
-        </Alert>
-      )}
-
-      <DataTable
-        label={t({
-          id: "admin.forward-auth-apps.table",
-          message: "Forward-auth applications",
-        })}
-        columns={columns}
-        rows={list.items}
-        rowId={(app) => app.clientId}
-        loading={list.loading}
-        hasMore={list.hasMore}
-        loadingMore={list.loadingMore}
-        onLoadMore={list.loadMore}
-        empty={
-          <TableEmptyState
-            icon={<Route size={18} strokeWidth={1.75} aria-hidden="true" />}
-            title={
-              <Trans id="admin.forward-auth-apps.empty">
-                No forward-auth applications yet
-              </Trans>
-            }
-          />
+    <div className="flex flex-col gap-6">
+      <PageHeader
+        title={
+          <Trans id="admin.forward-auth-apps.page.title">
+            Forward-auth applications
+          </Trans>
+        }
+        description={
+          <Trans id="admin.forward-auth-apps.page.description">
+            Services behind your reverse proxy that this instance signs people
+            in to.
+          </Trans>
+        }
+        actions={
+          isAdmin ? (
+            <Button render={<Link to="/admin/forward-auth-apps/new" />}>
+              <Plus aria-hidden="true" />
+              <Trans id="admin.forward-auth-apps.create">New application</Trans>
+            </Button>
+          ) : undefined
         }
       />
+
+      {failed && <InlineFailure error={list.error} />}
+
+      {/* A failed first read has no rows to show, and an empty table under the
+          failure would say there are none. */}
+      {(!failed || list.items.length > 0) && (
+        <DataTable
+          label={t({
+            id: "admin.forward-auth-apps.table",
+            message: "Forward-auth applications",
+          })}
+          columns={columns}
+          rows={list.items}
+          rowId={(app) => app.clientId}
+          loading={list.loading}
+          hasMore={list.hasMore}
+          loadingMore={list.loadingMore}
+          onLoadMore={list.loadMore}
+          empty={
+            <TableEmptyState
+              icon={<Route size={18} strokeWidth={1.75} aria-hidden="true" />}
+              title={
+                <Trans id="admin.forward-auth-apps.empty">
+                  No forward-auth applications yet
+                </Trans>
+              }
+            />
+          }
+        />
+      )}
     </div>
   );
 }

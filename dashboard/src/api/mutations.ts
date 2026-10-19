@@ -1971,13 +1971,16 @@ export function deleteOidcAppMutationOptions(queryClient: QueryClient) {
 
 /* ------------------------------------------------------------ forward auth -- */
 
-export function createForwardAuthAppMutationOptions() {
+export function createForwardAuthAppMutationOptions(queryClient: QueryClient) {
   return mutationOptions({
     retry: false,
     mutationFn: async (body: CreateForwardAuthAppRequest) =>
       requireJsonData(
         client.POST("/api/prohibitorum/forward-auth-apps", { body }),
       ),
+    // The list a reader returns to must show the new application.
+    onSuccess: (created) =>
+      invalidateApplication(queryClient, "forward_auth", created.clientId),
   });
 }
 

@@ -361,6 +361,7 @@ msgstr "Access"
 
 #. js-lingui-explicit-id
 #: src/components/custom/AppAccessSection.tsx
+#: src/pages/admin/forward-auth-apps/AdminForwardAuthAppNew.tsx
 #: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
 #: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
 msgid "app.access.title"
@@ -1328,6 +1329,7 @@ msgstr "Cancel"
 #: src/components/custom/AppAccessSection.tsx
 #: src/components/custom/AppManagersSection.tsx
 #: src/pages/admin/AdminInvitationForm.tsx
+#: src/pages/admin/forward-auth-apps/AdminForwardAuthAppNew.tsx
 #: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
 #: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
 #: src/pages/admin/saml-applications/SamlMetadataSection.tsx
@@ -3559,6 +3561,11 @@ msgstr "For your security, verify your identity again to continue."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/AdminForwardAuthApps.tsx
+msgid "admin.forward-auth-apps.page.title"
+msgstr "Forward-auth applications"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/AdminForwardAuthApps.tsx
 msgid "admin.forward-auth-apps.table"
 msgstr "Forward-auth applications"
 
@@ -3852,6 +3859,11 @@ msgstr "Identity"
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/IdentityProjectionSection.tsx
 msgid "admin.oidc-apps.identity.title"
+msgstr "Identity"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/AdminForwardAuthAppNew.tsx
+msgid "admin.forward-auth-apps.new.identity.title"
 msgstr "Identity"
 
 #. js-lingui-explicit-id
@@ -4651,6 +4663,11 @@ msgstr "New for {app}"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/AdminForwardAuthAppNew.tsx
+msgid "admin.forward-auth-apps.new.title"
+msgstr "New forward-auth application"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/AdminForwardAuthAppNew.tsx
 msgid "admin.forward-auth-apps.new.form"
 msgstr "New forward-auth application"
 
@@ -5163,6 +5180,7 @@ msgid "federation_flow.identify.step.open"
 msgstr "Open <0>vrchat.com</0> in your browser and go to your profile page."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/AdminForwardAuthAppNew.tsx
 #: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
 #: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
 msgid "admin.oidc-apps.new.access.description"
@@ -5749,6 +5767,11 @@ msgstr "Regenerate"
 #: src/pages/admin/settings/SignInPageControls.tsx
 msgid "settings.sign-in.bing.region"
 msgstr "Region"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/AdminForwardAuthAppNew.tsx
+msgid "admin.forward-auth-apps.new.description"
+msgstr "Register a service behind your reverse proxy. The rest of its settings are on its page once it exists."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
@@ -6636,6 +6659,7 @@ msgid "principal-source.verified-email.hint"
 msgstr "Sent only while the address is verified and no other account uses it; otherwise the request is refused."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/AdminForwardAuthAppNew.tsx
 #: src/pages/admin/forward-auth-apps/ForwardAuthServiceSection.tsx
 msgid "admin.forward-auth-apps.service"
 msgstr "Service"
@@ -6644,6 +6668,11 @@ msgstr "Service"
 #: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
 msgid "admin.saml-apps.new.provider.title"
 msgstr "Service provider"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/AdminForwardAuthApps.tsx
+msgid "admin.forward-auth-apps.page.description"
+msgstr "Services behind your reverse proxy that this instance signs people in to."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts
@@ -7522,6 +7551,11 @@ msgstr "The groups you belong to for this app"
 #: src/pages/admin/forward-auth-apps/ForwardAuthServiceSection.tsx
 msgid "admin.forward-auth-apps.field.host.hint"
 msgstr "The host the application is served on, as Traefik matches it — no scheme and no port."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/AdminForwardAuthAppNew.tsx
+msgid "admin.forward-auth-apps.new.service.description"
+msgstr "The host the gateway protects."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/oidc-validation.ts
@@ -9030,6 +9064,11 @@ msgstr "What it may access"
 #: src/pages/profile/AvatarPanel.tsx
 msgid "profile.avatar.description"
 msgstr "What others see next to your name."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/AdminForwardAuthAppNew.tsx
+msgid "admin.forward-auth-apps.new.identity.description"
+msgstr "What people see, and the identifier every request to the application carries."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
