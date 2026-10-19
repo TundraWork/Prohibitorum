@@ -181,11 +181,17 @@ export function serializeRule(root: RuleGroup): AppAccessRule {
   return { version: documentVersion, condition: wireFor(root) };
 }
 
+export type RuleDocumentProblem =
+  | "unreadable"
+  | "not-a-document"
+  | "unknown-condition"
+  | "nested-negation";
+
 export type RuleDocumentRead =
   | { ok: true; root: RuleGroup }
   | {
       ok: false;
-      problem: "unreadable" | "not-a-document" | "unknown-condition";
+      problem: RuleDocumentProblem;
     };
 
 /**
@@ -205,6 +211,25 @@ function hasUnknownCondition(raw: unknown): boolean {
   return !isFact(raw.fact);
 }
 
+/**
+ * Whether a pasted node negates a negation. The builder keeps one flag per
+ * condition, so reading it would turn `not(not(x))` into `not(x)`, the opposite
+ * rule; the server refuses it, so it is refused here instead of rewritten.
+ */
+function hasDoubleNegation(raw: unknown): boolean {
+  if (!isRecord(raw)) return false;
+  if (raw.op === "not") {
+    return (
+      (isRecord(raw.child) && raw.child.op === "not") ||
+      hasDoubleNegation(raw.child)
+    );
+  }
+  if ((raw.op === "all" || raw.op === "any") && Array.isArray(raw.children)) {
+    return raw.children.some(hasDoubleNegation);
+  }
+  return false;
+}
+
 /** Reads the JSON a reader typed or pasted, saying which way it is unusable. */
 export function readRuleDocument(text: string): RuleDocumentRead {
   let parsed: unknown;
@@ -215,6 +240,9 @@ export function readRuleDocument(text: string): RuleDocumentRead {
   }
   if (!isRecord(parsed) || !isRecord(parsed.condition)) {
     return { ok: false, problem: "not-a-document" };
+  }
+  if (hasDoubleNegation(parsed.condition)) {
+    return { ok: false, problem: "nested-negation" };
   }
   if (hasUnknownCondition(parsed.condition)) {
     return { ok: false, problem: "unknown-condition" };

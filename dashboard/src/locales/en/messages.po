@@ -391,6 +391,11 @@ msgid "admin.group.rule.reason.not_requires_fact"
 msgstr "A negated row must hold one condition, not another group."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/RuleJsonTab.tsx
+msgid "admin.group.rule.json.nested-negation"
+msgstr "A negation can only wrap one condition, not another negation. The builder still holds your rule."
+
+#. js-lingui-explicit-id
 #: src/pages/admin/groups/rule-labels.ts
 msgid "admin.group.rule.method.passkey"
 msgstr "A passkey"
@@ -4010,8 +4015,8 @@ msgstr "Find a provider"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/groups/RuleIssueSummary.tsx
-msgid "admin.group.rule.summary.fix"
-msgstr "Fix the highlighted part of the rule."
+msgid "admin.group.rule.summary.several"
+msgstr "Fix the {count} highlighted problems."
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
@@ -4567,9 +4572,9 @@ msgid "admin.group.explain.protocol"
 msgstr "Is connected through {protocol}"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/groups/explain-labels.ts
+#: src/pages/admin/groups/GroupExplainFrame.tsx
 msgid "admin.group.explain.provider"
-msgstr "Is connected to {provider}"
+msgstr "Is connected to <0>{provider}</0>"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/groups/GroupExplainFrame.tsx

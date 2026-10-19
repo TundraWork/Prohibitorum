@@ -67,8 +67,19 @@ function groupIssues(issues: readonly RuleIssue[]): IssuesByNode {
   return byNode;
 }
 
-/** Codes about the fact itself; every other code is about the value. */
+/** Codes about the fact itself. */
 const factProblems = new Set(["invalid_shape", "invalid_fact"]);
+
+/**
+ * Codes about where a row sits in the rule, not about what it says: the row is
+ * marked as a whole, because neither its fact nor its value is wrong. Every
+ * other code is about the value.
+ */
+const rowProblems = new Set([
+  "max_depth_exceeded",
+  "max_nodes_exceeded",
+  "max_children_exceeded",
+]);
 
 /**
  * The rule as an editor: a sentence of conditions inside any/all groups.
@@ -102,12 +113,18 @@ export function RuleBuilder({
   return (
     <ProvidersStateContext.Provider value={providersState}>
       <div className="grid gap-3">
-        <div className="min-w-0 text-sm leading-8">
+        <div
+          data-invalid={rootCodes.length > 0 || undefined}
+          className={cn(
+            "min-w-0 text-sm leading-8",
+            rootCodes.length > 0 &&
+              "-mx-2 rounded-lg px-2 ring-1 ring-destructive/40",
+          )}
+        >
           <Trans id="admin.group.rule.root">
             Accounts that meet{" "}
             <CombinatorSelect
               value={value.op}
-              invalid={rootCodes.length > 0}
               describedBy={rootCodes.length > 0 ? rootMessageId : undefined}
               disabled={disabled}
               onChange={(op) => onChange(setCombinator(value, value.id, op))}
@@ -129,6 +146,11 @@ export function RuleBuilder({
           byNode={byNode}
           providers={providers}
           disabled={disabled}
+          overflowMessageId={
+            rootCodes.includes("max_children_exceeded")
+              ? rootMessageId
+              : undefined
+          }
         />
       </div>
     </ProvidersStateContext.Provider>
@@ -143,6 +165,7 @@ function Children({
   byNode,
   providers,
   disabled,
+  overflowMessageId,
 }: {
   group: RuleGroup;
   depth: number;
@@ -151,6 +174,8 @@ function Children({
   byNode: IssuesByNode;
   providers: readonly RuleProvider[];
   disabled: boolean;
+  /** Where the group already says it holds too many; the limit is not said twice. */
+  overflowMessageId?: string;
 }) {
   const { t, i18n } = useLingui();
   const reasonId = useId();
@@ -158,6 +183,10 @@ function Children({
   const mayNest = canAddGroup(depth);
   const conditionBlocked = disabled || full;
   const groupBlocked = disabled || full || !mayNest;
+  // A group over its limit says so in its own header, in the error's colour.
+  const limitSaid = full && overflowMessageId !== undefined;
+  const reasonShown = (full || !mayNest) && !limitSaid;
+  const whyBlocked = reasonShown ? reasonId : overflowMessageId;
   return (
     <>
       {group.children.map((child) => (
@@ -181,7 +210,7 @@ function Children({
             id: "admin.group.rule.add",
             message: "Add condition",
           })}
-          aria-describedby={full ? reasonId : undefined}
+          aria-describedby={full ? whyBlocked : undefined}
           onClick={() => onChange(addCondition(root, group.id))}
         >
           <PlusIcon aria-hidden="true" />
@@ -195,13 +224,13 @@ function Children({
             id: "admin.group.rule.addGroup",
             message: "Add group",
           })}
-          aria-describedby={full || !mayNest ? reasonId : undefined}
+          aria-describedby={full || !mayNest ? whyBlocked : undefined}
           onClick={() => onChange(addGroup(root, group.id))}
         >
           <PlusIcon aria-hidden="true" />
           <Trans id="admin.group.rule.add-group">Group</Trans>
         </Button>
-        {(full || !mayNest) && (
+        {reasonShown && (
           <span id={reasonId} className="text-muted-foreground text-xs">
             {full ? (
               i18n._(issueMessage("max_children_exceeded"))
@@ -281,7 +310,11 @@ function Well({
     <fieldset
       aria-describedby={codes.length > 0 ? messageId : undefined}
       className={cn(
-        "m-0 grid min-w-0 gap-2 rounded-xl border-0 bg-muted/60 p-1.5 ps-2 ring-1 sm:p-2.5 sm:ps-4 ring-border/60",
+        // One tone at every level: the inset ring and the indent carry the
+        // nesting. The well reaches into its parent's end padding, so the
+        // conditions of every level end on the same line.
+        "m-0 -me-1.5 grid min-w-0 gap-2 rounded-xl border-0 p-1.5 ps-2 ring-1 ring-border/60 sm:-me-2.5 sm:p-2.5 sm:ps-4",
+        depth <= 2 && "bg-muted/60",
         codes.length > 0 && "ring-destructive/40",
       )}
     >
@@ -294,7 +327,6 @@ function Well({
             Match{" "}
             <CombinatorSelect
               value={group.op}
-              invalid={codes.length > 0}
               describedBy={codes.length > 0 ? messageId : undefined}
               disabled={disabled}
               onChange={(op) => onChange(setCombinator(root, group.id, op))}
@@ -304,7 +336,7 @@ function Well({
         </div>
         <Button
           variant="ghost"
-          size="icon-xs"
+          size="icon-sm"
           className="mt-0.5 shrink-0"
           disabled={disabled}
           aria-label={t({
@@ -325,6 +357,9 @@ function Well({
         byNode={byNode}
         providers={providers}
         disabled={disabled}
+        overflowMessageId={
+          codes.includes("max_children_exceeded") ? messageId : undefined
+        }
       />
     </fieldset>
   );
@@ -344,13 +379,11 @@ function CombinatorSelect({
   value,
   onChange,
   disabled,
-  invalid = false,
   describedBy,
 }: {
   value: RuleCombinator;
   onChange: (next: RuleCombinator) => void;
   disabled: boolean;
-  invalid?: boolean;
   describedBy?: string;
 }) {
   const { t } = useLingui();
@@ -369,7 +402,6 @@ function CombinatorSelect({
       <SelectTrigger
         size="sm"
         className="mx-1 inline-flex w-auto min-w-0 align-middle"
-        aria-invalid={invalid || undefined}
         aria-describedby={describedBy}
         aria-label={t({ id: "admin.group.rule.group.op", message: "Match" })}
       >
@@ -430,8 +462,11 @@ function ConditionRow({
   const providersState = useContext(ProvidersStateContext);
   const messageId = useId();
   const noteId = useId();
-  const invalid = codes.length > 0;
   const aboutFact = codes.some((code) => factProblems.has(code));
+  const aboutRow = codes.some((code) => rowProblems.has(code));
+  const aboutValue = codes.some(
+    (code) => !factProblems.has(code) && !rowProblems.has(code),
+  );
   const known = providers.find((entry) => entry.slug === condition.value);
   const isProvider = condition.fact === "connection.provider";
   const unnamedProvider =
@@ -478,7 +513,19 @@ function ConditionRow({
       });
 
   return (
-    <fieldset className="m-0 grid min-w-0 gap-1 border-0 p-0">
+    <fieldset
+      data-slot="rule-condition"
+      data-invalid={aboutRow || undefined}
+      aria-describedby={aboutRow ? messageId : undefined}
+      className={cn(
+        "m-0 grid min-w-0 gap-1 border-0 p-0",
+        // On a narrow screen a condition is two lines, so a rule between
+        // conditions says which line belongs to which.
+        "max-sm:[[data-slot=rule-condition]+&]:border-t max-sm:[[data-slot=rule-condition]+&]:pt-3",
+        aboutRow &&
+          "-m-1.5 rounded-lg bg-destructive/4 p-1.5 ring-1 ring-destructive/40",
+      )}
+    >
       <legend className="sr-only">{summary}</legend>
       <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 sm:grid-cols-[minmax(9rem,13rem)_auto_minmax(0,1fr)_auto]">
         <Select
@@ -532,14 +579,9 @@ function ConditionRow({
             <SelectTrigger
               size="sm"
               aria-label={t({ id: "admin.group.rule.value", message: "Value" })}
-              aria-invalid={(invalid && !aboutFact) || undefined}
+              aria-invalid={aboutValue || undefined}
               aria-describedby={
-                [
-                  invalid && !aboutFact ? messageId : null,
-                  unnamedProvider && providersState === "failed"
-                    ? noteId
-                    : null,
-                ]
+                [aboutValue ? messageId : null, namesFailed ? noteId : null]
                   .filter((id) => id !== null)
                   .join(" ") || undefined
               }
@@ -547,11 +589,12 @@ function ConditionRow({
             >
               <SelectValue
                 // The slug is what tells one provider from another, so it wraps
-                // rather than being clipped.
+                // rather than being clipped; so does any value on a narrow
+                // screen, where a nested row leaves it little width.
                 className={
                   unnamedProvider
                     ? "whitespace-normal wrap-anywhere py-1"
-                    : undefined
+                    : "max-sm:whitespace-normal max-sm:wrap-anywhere max-sm:py-1"
                 }
               >
                 {(selected: string | null) =>

@@ -19,11 +19,12 @@ import { Tabs, TabsList, TabsPanel, TabsTab } from "@/components/ui/tabs";
 import { groupUpdateBody } from "@/pages/admin/groups/group-validation";
 import { RuleBuilder } from "@/pages/admin/groups/RuleBuilder";
 import { RuleIssueSummary } from "@/pages/admin/groups/RuleIssueSummary";
-import { RuleJsonTab } from "@/pages/admin/groups/RuleJsonTab";
+import { RuleJsonProblem, RuleJsonTab } from "@/pages/admin/groups/RuleJsonTab";
 import {
   checkRule,
   nodeIdAtPath,
   parseRule,
+  type RuleDocumentProblem,
   type RuleGroup,
   type RuleIssue,
   serializeRule,
@@ -77,6 +78,12 @@ export function GroupRuleSection({ group }: { group: AppGroupView }) {
   const [stored, setStored] = useState(group.rule);
   const [tree, setTree] = useState<RuleGroup>(() => parseRule(group.rule));
   const [tab, setTab] = useState("builder");
+  // Text in the JSON box that was refused: it is an edit the tree does not hold.
+  const [jsonProblem, setJsonProblem] = useState<RuleDocumentProblem | null>(
+    null,
+  );
+  // Remounts the JSON box on discard, so it drops the text it was refused for.
+  const [jsonKey, setJsonKey] = useState(0);
   const [serverIssues, setServerIssues] =
     useState<readonly RuleIssue[]>(noIssues);
   // A preview that failed for a reason that says nothing about the rule.
@@ -100,6 +107,7 @@ export function GroupRuleSection({ group }: { group: AppGroupView }) {
   const clientIssues = checkRule(tree, known);
   const issues = merged(clientIssues, serverIssues);
   const blocked = clientIssues.length > 0;
+  const refused = jsonProblem !== null;
 
   useEffect(() => {
     // A problem found for an earlier draft may point at a row that is gone.
@@ -141,6 +149,8 @@ export function GroupRuleSection({ group }: { group: AppGroupView }) {
     refusedFor.current = null;
     setServerIssues(noIssues);
     setTree(parseRule(stored));
+    setJsonProblem(null);
+    setJsonKey((key) => key + 1);
   };
 
   const save = () => {
@@ -168,7 +178,7 @@ export function GroupRuleSection({ group }: { group: AppGroupView }) {
   // One footer in both states, so the status line under the sentence stays
   // mounted and a screen reader hears it change.
   const status =
-    issues.length > 0 ? null : matched !== null ? (
+    issues.length > 0 || refused ? null : matched !== null ? (
       <Plural
         id="admin.group.rule.matched-edited"
         value={matched}
@@ -178,12 +188,14 @@ export function GroupRuleSection({ group }: { group: AppGroupView }) {
     ) : previewError !== null ? (
       t(describeError(previewError))
     ) : null;
-  const footer = !dirty ? undefined : (
+  const footer = !(dirty || refused) ? undefined : (
     <ConsequenceFooter
-      tone={issues.length > 0 ? "danger" : "warning"}
+      tone={issues.length > 0 || refused ? "danger" : "warning"}
       consequence={
         <>
-          {issues.length > 0 ? (
+          {refused ? (
+            <RuleJsonProblem problem={jsonProblem} />
+          ) : issues.length > 0 ? (
             <RuleIssueSummary issues={issues} />
           ) : (
             <Trans id="admin.group.rule.consequence">
@@ -198,7 +210,7 @@ export function GroupRuleSection({ group }: { group: AppGroupView }) {
       actionLabel={<Trans id="admin.group.rule.save">Save rule</Trans>}
       onDiscard={discard}
       pending={update.isPending}
-      disabled={issues.length > 0}
+      disabled={issues.length > 0 || refused}
     />
   );
 
@@ -207,7 +219,7 @@ export function GroupRuleSection({ group }: { group: AppGroupView }) {
       <form
         onSubmit={(event) => {
           event.preventDefault();
-          if (issues.length === 0) save();
+          if (issues.length === 0 && !refused) save();
         }}
       >
         <Section
@@ -237,7 +249,7 @@ export function GroupRuleSection({ group }: { group: AppGroupView }) {
               </TabsTab>
             </TabsList>
           }
-          dirty={dirty}
+          dirty={dirty || refused}
           footer={footer}
         >
           <TabsPanel value="builder" keepMounted>
@@ -252,8 +264,10 @@ export function GroupRuleSection({ group }: { group: AppGroupView }) {
           </TabsPanel>
           <TabsPanel value="json" keepMounted>
             <RuleJsonTab
+              key={jsonKey}
               value={tree}
               onApply={setTree}
+              onProblem={setJsonProblem}
               disabled={update.isPending}
             />
           </TabsPanel>

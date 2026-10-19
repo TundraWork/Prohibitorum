@@ -153,6 +153,46 @@ describe("the JSON tab", () => {
     ).toBeVisible();
   });
 
+  it("refuses a negation of a negation, which the builder would read as the opposite rule", async () => {
+    const { onApply } = mount(
+      parseRule({ version: 1, condition: { op: "all", children: [passkey] } }),
+    );
+
+    await leaveWith(
+      JSON.stringify({
+        version: 1,
+        condition: { op: "not", child: { op: "not", child: passkey } },
+      }),
+    );
+
+    expect(onApply).not.toHaveBeenCalled();
+    expect(
+      screen.getByText(
+        "A negation can only wrap one condition, not another negation. The builder still holds your rule.",
+      ),
+    ).toBeVisible();
+  });
+
+  it("tells its section while the box holds text that was refused", async () => {
+    const onProblem = vi.fn<(problem: string | null) => void>();
+    render(
+      <I18nProvider i18n={i18n}>
+        <RuleJsonTab
+          value={parseRule({
+            version: 1,
+            condition: { op: "all", children: [passkey] },
+          })}
+          onApply={vi.fn()}
+          onProblem={onProblem}
+        />
+      </I18nProvider>,
+    );
+
+    await leaveWith("{");
+
+    expect(onProblem).toHaveBeenLastCalledWith("unreadable");
+  });
+
   it("drops a message about text the tree has since replaced", async () => {
     const first = parseRule({
       version: 1,

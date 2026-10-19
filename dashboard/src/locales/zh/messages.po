@@ -391,6 +391,11 @@ msgid "admin.group.rule.reason.not_requires_fact"
 msgstr "取反的一条必须放一个条件，不能放另一个条件组。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/RuleJsonTab.tsx
+msgid "admin.group.rule.json.nested-negation"
+msgstr "一个否定只能包住一个条件，不能再包住另一个否定。构建器中的规则仍然保留。"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/groups/rule-labels.ts
 msgid "admin.group.rule.method.passkey"
 msgstr "通行密钥"
@@ -4010,8 +4015,8 @@ msgstr "查找提供商"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/groups/RuleIssueSummary.tsx
-msgid "admin.group.rule.summary.fix"
-msgstr "请修改高亮的部分。"
+msgid "admin.group.rule.summary.several"
+msgstr "请修改高亮的 {count} 个问题。"
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
@@ -4567,9 +4572,9 @@ msgid "admin.group.explain.protocol"
 msgstr "已通过 {protocol} 关联"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/groups/explain-labels.ts
+#: src/pages/admin/groups/GroupExplainFrame.tsx
 msgid "admin.group.explain.provider"
-msgstr "已关联 {provider}"
+msgstr "已关联 <0>{provider}</0>"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/groups/GroupExplainFrame.tsx

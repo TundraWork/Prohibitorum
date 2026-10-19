@@ -233,9 +233,10 @@ describe("the rule section", () => {
         "That provider is not available on this instance.",
       ),
     ).toBeVisible();
-    expect(
-      screen.getByText("Fix the highlighted part of the rule."),
-    ).toBeVisible();
+    // One problem is stated in the footer too, so it is the reason Save is held.
+    expect(saveButton()).toHaveAccessibleDescription(
+      /That provider is not available on this instance\./,
+    );
     expect(saveButton()).toBeDisabled();
     expect(screen.queryByRole("alert")).toBeNull();
     expect(notifyError).not.toHaveBeenCalled();
@@ -366,8 +367,10 @@ describe("the live preview", () => {
     await screen.findByText("3 accounts match the edited rule");
     await user.click(saveButton());
     expect(
-      await screen.findByText("Fix the highlighted part of the rule."),
-    ).toBeVisible();
+      await screen.findAllByText(
+        "That provider is not available on this instance.",
+      ),
+    ).toHaveLength(2);
 
     await user.click(
       screen.getAllByRole("button", {
@@ -375,9 +378,6 @@ describe("the live preview", () => {
       })[1] as HTMLElement,
     );
 
-    expect(
-      screen.queryByText("Fix the highlighted part of the rule."),
-    ).toBeNull();
     expect(
       screen.queryByText("That provider is not available on this instance."),
     ).toBeNull();
@@ -399,7 +399,9 @@ describe("the live preview", () => {
     await user.click(addCondition());
     await waitFor(() => expect(previews).toHaveLength(1));
     await user.click(saveButton());
-    await screen.findByText("Fix the highlighted part of the rule.");
+    await screen.findAllByText(
+      "That provider is not available on this instance.",
+    );
 
     previews[0]?.(
       Response.json({ matchedCount: 3, items: [], nextCursor: "" }),
@@ -407,8 +409,8 @@ describe("the live preview", () => {
     await new Promise((resolve) => setTimeout(resolve, 50));
 
     expect(
-      screen.getByText("Fix the highlighted part of the rule."),
-    ).toBeVisible();
+      screen.getAllByText("That provider is not available on this instance."),
+    ).toHaveLength(2);
     expect(saveButton()).toBeDisabled();
   });
 });
@@ -501,5 +503,64 @@ describe("the JSON view", () => {
     await waitFor(() => expect(puts()).toHaveLength(1));
     const body = (await puts()[0]?.json()) as { rule: AppAccessRule };
     expect(body.rule.condition.op).toBe("any");
+  });
+});
+
+describe("a JSON document that was refused", () => {
+  it("counts as an unsaved edit that cannot be saved, with the reason in the footer", async () => {
+    const user = userEvent.setup();
+    mount(ruleGroupFixture());
+    expect(screen.queryByRole("button", { name: "Save rule" })).toBeNull();
+
+    await user.click(screen.getByRole("tab", { name: "JSON" }));
+    const box = screen.getByRole("textbox", { name: "Rule document" });
+    await user.clear(box);
+    await user.click(box);
+    await user.paste("{");
+    await user.tab();
+
+    expect(saveButton()).toBeDisabled();
+    expect(saveButton()).toHaveAccessibleDescription(
+      /This is not valid JSON\. The builder still holds your rule\./,
+    );
+    expect(
+      screen
+        .getByRole("heading", { level: 2, name: /Who this group matches/ })
+        .closest("section"),
+    ).toHaveAttribute("data-dirty", "true");
+    expect(previews()).toHaveLength(0);
+    expect(puts()).toHaveLength(0);
+
+    await user.click(screen.getByRole("button", { name: "Discard" }));
+    expect(screen.queryByRole("button", { name: "Save rule" })).toBeNull();
+    expect(
+      JSON.parse(
+        (
+          screen.getByRole("textbox", {
+            name: "Rule document",
+          }) as HTMLTextAreaElement
+        ).value,
+      ),
+    ).toEqual({ version: 1, condition: { op: "all", children: [passkey] } });
+  });
+});
+
+describe("the footer's reason", () => {
+  it("states the one problem in its own words", async () => {
+    const user = userEvent.setup();
+    mount(ruleGroup({ op: "all", children: [passkey] }), (request) =>
+      request.method === "PUT"
+        ? rejection("$.condition.children[1]", "provider_not_found")
+        : undefined,
+    );
+    await user.click(addCondition());
+    await screen.findByText("3 accounts match the edited rule");
+    await user.click(saveButton());
+
+    await waitFor(() =>
+      expect(saveButton()).toHaveAccessibleDescription(
+        /That provider is not available on this instance\./,
+      ),
+    );
   });
 });

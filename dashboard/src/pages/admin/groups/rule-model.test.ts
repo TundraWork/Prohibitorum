@@ -177,6 +177,21 @@ describe("reading a pasted document", () => {
     );
   });
 
+  it.each([
+    { op: "not", child: { op: "not", child: passkey } },
+    {
+      op: "all",
+      children: [passkey, { op: "not", child: { op: "not", child: passkey } }],
+    },
+  ])(
+    "refuses a negation of a negation rather than reading it as one: %j",
+    (condition) => {
+      expect(
+        readRuleDocument(JSON.stringify({ version: 1, condition })),
+      ).toEqual({ ok: false, problem: "nested-negation" });
+    },
+  );
+
   it("reads a document and wraps a single leaf in a root all", () => {
     const read = readRuleDocument(
       JSON.stringify({ version: 1, condition: passkey }),

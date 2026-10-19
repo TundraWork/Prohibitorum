@@ -3,19 +3,18 @@ import { issueMessage } from "@/pages/admin/groups/rule-labels";
 import type { RuleIssue } from "@/pages/admin/groups/rule-model";
 
 /**
- * The one line that says why a rule cannot be saved. A provider left unchosen is
- * said once for however many rows are marked, because it is the one mistake a
- * reader makes several times; any other problem on a row is pointed at, since
- * the row says what it is; a problem with the rule as a whole is stated.
+ * The one line that says why a rule cannot be saved. One problem is stated in
+ * its own words, so the footer is the reason and not only a pointer. A provider
+ * left unchosen is said once for however many rows are marked, because it is
+ * the one mistake a reader makes several times; any other set of problems is
+ * counted, and each is written on the row or group it marks.
  */
 export function RuleIssueSummary({ issues }: { issues: readonly RuleIssue[] }) {
   const { i18n } = useLingui();
   const first = issues[0];
   if (first === undefined) return null;
-  if (first.code === "missing_provider") {
-    const count = issues.filter(
-      (issue) => issue.code === "missing_provider",
-    ).length;
+  const count = issues.length;
+  if (issues.every((issue) => issue.code === "missing_provider")) {
     return (
       <Plural
         id="admin.group.rule.summary.missing-provider"
@@ -25,13 +24,10 @@ export function RuleIssueSummary({ issues }: { issues: readonly RuleIssue[] }) {
       />
     );
   }
-  // A problem on a row says what it is on that row; the footer only points at it.
-  if (first.nodeId !== null) {
-    return (
-      <Trans id="admin.group.rule.summary.fix">
-        Fix the highlighted part of the rule.
-      </Trans>
-    );
-  }
-  return <>{i18n._(issueMessage(first.code))}</>;
+  if (count === 1) return <>{i18n._(issueMessage(first.code))}</>;
+  return (
+    <Trans id="admin.group.rule.summary.several">
+      Fix the {count} highlighted problems.
+    </Trans>
+  );
 }

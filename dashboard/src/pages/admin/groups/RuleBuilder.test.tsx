@@ -410,17 +410,25 @@ describe("the root group", () => {
   const leaves = (count: number) =>
     Array.from({ length: count }, () => passkey);
 
-  it("marks the root and says why when it holds too many conditions", () => {
+  it("marks the root, not its any/all choice, and says why once when it holds too many conditions", () => {
     mount(doc({ op: "all", children: leaves(33) }));
 
     const root = screen.getAllByRole("combobox", { name: "Match" })[0];
-    expect(root).toBeInvalid();
+    expect(root).toBeValid();
     expect(root).toHaveAccessibleDescription(
       "A group can hold at most 32 conditions.",
     );
     expect(
       screen.getAllByText("A group can hold at most 32 conditions."),
-    ).not.toHaveLength(0);
+    ).toHaveLength(1);
+    expect(root?.closest("[data-invalid]")).not.toBeNull();
+    // The disabled add buttons point at that same message.
+    expect(
+      screen.getByRole("button", { name: "Add condition" }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Add condition" }),
+    ).toHaveAccessibleDescription("A group can hold at most 32 conditions.");
   });
 
   it("stops offering conditions and groups once a group holds 32, and says why", () => {
@@ -546,9 +554,62 @@ describe("problems on their rows", () => {
     mount(doc({ op: "all", children: [passkey, { op: "any", children: [] }] }));
 
     const well = screen.getByRole("group", { name: "Group" });
-    expect(within(well).getByRole("combobox", { name: "Match" })).toBeInvalid();
+    expect(well).toHaveAccessibleDescription(
+      "A group needs at least one condition.",
+    );
+    expect(within(well).getByRole("combobox", { name: "Match" })).toBeValid();
     expect(
       within(well).getByText("A group needs at least one condition."),
     ).toBeVisible();
+  });
+});
+
+describe("limit problems", () => {
+  // Seven nested groups put the condition at level 8, and its negation at 9.
+  const deep = (negated: boolean) => {
+    let node: AppAccessRule["condition"] = negated
+      ? { op: "not", child: passkey }
+      : passkey;
+    for (let level = 0; level < 7; level += 1) {
+      node = { op: "all", children: [node] };
+    }
+    return doc(node);
+  };
+
+  it("marks the row that is too deep, not its fact or value", () => {
+    mount(deep(true));
+
+    const row = screen.getByRole("group", { name: /Signs in with is not/ });
+    expect(row).toHaveAccessibleDescription(
+      "Conditions are nested too deeply. Use at most 8 levels.",
+    );
+    expect(row).toHaveAttribute("data-invalid");
+    expect(
+      within(row).getByRole("combobox", { name: "Condition" }),
+    ).toBeValid();
+    expect(within(row).getByRole("combobox", { name: "Value" })).toBeValid();
+  });
+
+  it("marks a nested group that holds too many conditions on its header", () => {
+    mount(
+      doc({
+        op: "all",
+        children: [
+          { op: "any", children: Array.from({ length: 33 }, () => passkey) },
+        ],
+      }),
+    );
+
+    const well = screen.getByRole("group", { name: "Group" });
+    expect(well).toHaveAccessibleDescription(
+      "A group can hold at most 32 conditions.",
+    );
+    expect(within(well).getByRole("combobox", { name: "Match" })).toBeValid();
+    expect(
+      screen.getAllByText("A group can hold at most 32 conditions."),
+    ).toHaveLength(1);
+    expect(
+      within(well).getByRole("button", { name: "Add condition" }),
+    ).toHaveAccessibleDescription("A group can hold at most 32 conditions.");
   });
 });
