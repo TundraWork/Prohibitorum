@@ -155,19 +155,10 @@ body {
   background-color: color-mix(in oklab, var(--muted) 72%, transparent);
 }
 
-.data-table td[data-pinned]::before {
-  background-color: var(--content-surface);
-}
-
-.data-table td[data-pinned]::after {
-  background-color: color-mix(in oklab, var(--muted) 72%, transparent);
-}
-
 /* The pinned cell's outer corners are transparent, so cells scrolled under it
-   would show past the curve; two masked layers repaint them as the frame band. */
+   would show past the curve; one masked layer per corner repaints each as the
+   frame band. Assumes the normal band: a danger-tone section would not match. */
 .data-table tbody tr:first-child td[data-pinned]::before,
-.data-table tbody tr:first-child td[data-pinned]::after,
-.data-table tbody tr:last-child td[data-pinned]::before,
 .data-table tbody tr:last-child td[data-pinned]::after {
   content: "";
   position: absolute;
@@ -175,10 +166,15 @@ body {
   width: var(--radius-xl);
   height: var(--radius-xl);
   pointer-events: none;
+  background:
+    linear-gradient(
+      color-mix(in oklab, var(--muted) 72%, transparent),
+      color-mix(in oklab, var(--muted) 72%, transparent)
+    ),
+    var(--content-surface);
 }
 
-.data-table tbody tr:first-child td[data-pinned]::before,
-.data-table tbody tr:first-child td[data-pinned]::after {
+.data-table tbody tr:first-child td[data-pinned]::before {
   top: -1px;
   mask-image: radial-gradient(
     circle at 0 100%,
@@ -187,7 +183,6 @@ body {
   );
 }
 
-.data-table tbody tr:last-child td[data-pinned]::before,
 .data-table tbody tr:last-child td[data-pinned]::after {
   bottom: -1px;
   mask-image: radial-gradient(
@@ -197,8 +192,8 @@ body {
   );
 }
 
-/* A pinned cell's background runs under its border; its divider colour is what
-   a translucent divider looks like over the frame (4% tint, 8% or 6% border). */
+/* Scrolled content is hidden under a pinned cell's border by making the divider
+   opaque: the colour a translucent one has over the frame (4% tint, 8%/6% line). */
 .data-table td[data-pinned] {
   border-color: color-mix(in srgb, var(--content-surface) 89.35%, black);
 }

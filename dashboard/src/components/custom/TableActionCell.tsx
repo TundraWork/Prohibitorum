@@ -10,12 +10,13 @@ import { TableCell, TableHead } from "@/components/ui/table";
  * and `DataTable` renders both for a column marked `pinned`.
  *
  * The card table paints every cell opaque and follows the row's hover itself,
- * so the columns sliding underneath never show through, borders included: the
- * cell's background runs under its border. Its translucent dividers would then
- * read lighter than its neighbours', so `styles/index.css` gives pinned cells
- * the colour a divider has over the frame. A soft shadow on the leading edge
- * marks where the pinned column begins while columns remain to scroll under it
- * (`table-pinned`); the header cell has none, so the header band stays whole.
+ * so the columns sliding underneath never show through the cell. Its borders
+ * would, being translucent, so `styles/index.css` makes the dividers opaque in
+ * the colour they have over the frame, and repaints the outer corners of the
+ * first and last rows, which are transparent outside the curve. A soft shadow
+ * on the leading edge marks where the pinned column begins while columns remain
+ * to scroll under it (`table-pinned`); the header cell has none, so the header
+ * band stays whole.
  *
  * `justify-end` keeps a lone button or a small group against the pinned edge;
  * icon buttons are laid out with a one-step gap.
