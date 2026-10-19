@@ -2,6 +2,12 @@ import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { defaultLoginAppearance } from "@/components/custom/login-appearance/appearance";
+// Loaded once up front so the file's import phase, which has no time limit,
+// pays the cold transform of the whole app graph (~8s unloaded, past the 15s
+// test budget under a loaded full run). Each test still mounts fresh copies:
+// `vi.resetModules()` re-evaluates the transformed modules for the dynamic
+// imports below, which is what the locale state needs.
+import "@/App";
 
 let stopLocaleSync: (() => void) | undefined;
 

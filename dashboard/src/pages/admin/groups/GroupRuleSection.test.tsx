@@ -443,7 +443,19 @@ describe("a rule the builder knows is invalid", () => {
     ).getByRole("combobox", { name: "Value" });
     expect(value).toBeInvalid();
     await new Promise((resolve) => setTimeout(resolve, 500));
-    expect(previews()).toHaveLength(0);
+    // Adding the row makes a valid two-passkey draft first, and under load
+    // the 400ms preview debounce can run out before the row becomes
+    // "Connected to"; previewing that draft is right. The invalid draft is
+    // the one that must never go out.
+    const sent = await Promise.all(
+      previews().map((request) => request.clone().json()),
+    );
+    for (const body of sent) {
+      expect(body).toEqual({
+        version: 1,
+        condition: { op: "all", children: [passkey, passkey] },
+      });
+    }
     expect(puts()).toHaveLength(0);
   });
 
