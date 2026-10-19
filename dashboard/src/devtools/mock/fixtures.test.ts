@@ -1313,6 +1313,12 @@ describe("identity provider diagnostics", () => {
     const failed = latest("failed").latest;
     expect(failed?.status).toBe("failed");
     expect(failed?.fields).toEqual({});
+    expect(failed?.stale).toBe(false);
+
+    const failedStale = latest("failed-stale").latest;
+    expect(failedStale?.status).toBe("failed");
+    expect(failedStale?.stale).toBe(true);
+    expect(failedStale?.fields).toEqual({});
 
     const stale = latest("stale").latest;
     expect(stale?.status).toBe("succeeded");

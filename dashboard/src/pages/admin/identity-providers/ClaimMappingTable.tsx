@@ -92,18 +92,17 @@ export function ClaimMappingTable({
           data-slot="claims-last-test-failed"
           className="text-warning-foreground text-xs"
         >
-          <Trans id="admin.federation.claims.test.failed">
-            The last test failed <RelativeTime value={lastTest.finishedAt} />.
-            Run it again from Diagnostics.
-          </Trans>
-          {lastTest.stale && (
-            <>
-              {" "}
-              <Trans id="admin.federation.claims.column.returned.stale">
-                Configuration changed since
-              </Trans>
-              .
-            </>
+          {lastTest.stale ? (
+            <Trans id="admin.federation.claims.test.failed.stale">
+              The last test failed <RelativeTime value={lastTest.finishedAt} />,
+              and the configuration has changed since. Run it again from
+              Diagnostics.
+            </Trans>
+          ) : (
+            <Trans id="admin.federation.claims.test.failed">
+              The last test failed <RelativeTime value={lastTest.finishedAt} />.
+              Run it again from Diagnostics.
+            </Trans>
           )}
         </p>
       )}
@@ -122,7 +121,9 @@ export function ClaimMappingTable({
           </Trans>
         </span>
         {fields !== null && lastTest != null && (
-          <span className="flex flex-col">
+          // Hidden from assistive technology: the list is described by the
+          // caption below, so reading it here too would say it twice.
+          <span aria-hidden="true" className="flex flex-col">
             <Trans id="admin.federation.claims.column.returned">
               Last test returned
             </Trans>

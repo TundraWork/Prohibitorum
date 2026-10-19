@@ -641,6 +641,7 @@ export function MockPanel() {
               { value: "passed", label: "Passed" },
               { value: "failed", label: "Failed" },
               { value: "stale", label: "Stale" },
+              { value: "failed-stale", label: "Failed, stale" },
             ]}
             onChange={(next) =>
               updateMockConfig((draft) => {

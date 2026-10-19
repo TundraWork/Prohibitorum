@@ -7743,6 +7743,11 @@ msgstr "无法加载密钥。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ClaimMappingTable.tsx
+msgid "admin.federation.claims.test.failed.stale"
+msgstr "上次测试在<0/>失败，此后配置也已更改。请在「诊断」中重新运行。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ClaimMappingTable.tsx
 msgid "admin.federation.claims.test.failed"
 msgstr "上次测试在<0/>失败。请在「诊断」中重新运行。"
 

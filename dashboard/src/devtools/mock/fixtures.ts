@@ -3325,9 +3325,14 @@ function latestConnectionTest(config: MockConfig) {
   const outcome = config.admin.latestConnectionTest;
   if (outcome === "none") return { latest: null };
   const finishedAt = iso(-2 * 60_000);
-  if (outcome === "failed") {
+  if (outcome === "failed" || outcome === "failed-stale") {
     return {
-      latest: { status: "failed", finishedAt, stale: false, fields: {} },
+      latest: {
+        status: "failed",
+        finishedAt,
+        stale: outcome === "failed-stale",
+        fields: {},
+      },
     };
   }
   const absent = config.admin.latestConnectionTestAbsent.split(/\s+/);

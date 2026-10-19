@@ -170,7 +170,7 @@ function allowedValues(path: string): readonly string[] | undefined {
   if (path === "admin.diagnosticOutcome")
     return ["succeeded", "fallback", "failed"];
   if (path === "admin.latestConnectionTest")
-    return ["none", "passed", "failed", "stale"];
+    return ["none", "passed", "failed", "stale", "failed-stale"];
   if (path === "publicFlows.consent.grant") return ["first", "incremental"];
   if (path === "publicFlows.enrollment.intent") {
     return ["bootstrap", "invite", "reset"];

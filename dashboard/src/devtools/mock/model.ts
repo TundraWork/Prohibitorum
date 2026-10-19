@@ -115,9 +115,14 @@ export interface MockConfig {
     /**
      * The latest finished connection test every provider reports: `none` has
      * not run one yet, `passed` and `failed` finished that way, `stale`
-     * passed before the configuration changed.
+     * passed before the configuration changed, and `failed-stale` failed before it.
      */
-    latestConnectionTest: "none" | "passed" | "failed" | "stale";
+    latestConnectionTest:
+      | "none"
+      | "passed"
+      | "failed"
+      | "stale"
+      | "failed-stale";
     /**
      * Identity fields the latest test did not find, space-separated by name
      * (`email picture`). A string rather than a list, so it survives the

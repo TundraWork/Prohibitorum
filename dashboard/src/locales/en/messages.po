@@ -7743,6 +7743,11 @@ msgstr "The keys could not be loaded."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ClaimMappingTable.tsx
+msgid "admin.federation.claims.test.failed.stale"
+msgstr "The last test failed <0/>, and the configuration has changed since. Run it again from Diagnostics."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ClaimMappingTable.tsx
 msgid "admin.federation.claims.test.failed"
 msgstr "The last test failed <0/>. Run it again from Diagnostics."
 

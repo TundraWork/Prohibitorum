@@ -211,7 +211,7 @@ describe("the last test column", () => {
     mount(provider());
 
     expect(await screen.findByText(/The last test failed/)).toHaveTextContent(
-      /Configuration changed since/,
+      /The last test failed 2 minutes ago.*and the configuration has changed since\. Run it again from Diagnostics\./,
     );
   });
 
