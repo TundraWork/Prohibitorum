@@ -3,6 +3,7 @@ import {
   clampAvatarUpstreams,
   clampCount,
   clampDecisionCount,
+  clampDecisionsPageSize,
   clampDelay,
   clampEnrollmentProviders,
   clampPairingExpiry,
@@ -162,7 +163,7 @@ function clampFor(path: string, value: number): number {
   if (path === "admin.ruleAccounts") return clampRuleAccounts(value);
   if (path === "admin.groupDecisions") return clampDecisionCount(value);
   if (path === "admin.groupDecisionsPageSize") {
-    return Math.max(1, Math.min(50, Math.floor(value)));
+    return clampDecisionsPageSize(value);
   }
   if (path === "admin.ruleMatchEvery") return clampRuleMatchEvery(value);
   if (path.endsWith(".opacity"))

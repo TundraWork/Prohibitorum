@@ -119,6 +119,7 @@ export function GroupDecisionsSection({ groupId }: { groupId: number }) {
             }}
             variant="outline"
             size="sm"
+            disabled={writing}
           >
             <UserPlusIcon />
             <Trans id="admin.group.decisions.add">Add an account</Trans>
@@ -262,6 +263,8 @@ export function GroupDecisionsSection({ groupId }: { groupId: number }) {
         session={addings}
         decisions={{
           current,
+          loaded: list.pages.length > 0,
+          loading: list.loading,
           hasMore: list.hasMore,
           loadingMore: list.loadingMore,
           error: list.error,

@@ -4,6 +4,7 @@ import {
   clampAdminCount,
   clampAvatarUpstreams,
   clampCount,
+  clampDecisionsPageSize,
   clampDelay,
   clampEnrollmentProviders,
   clampPairingExpiry,
@@ -11,6 +12,7 @@ import {
   mockAdminListMax,
   mockAvatarUpstreamsMax,
   mockDecisionsMax,
+  mockDecisionsPageMax,
   mockDelayMax,
   mockEnrollmentProvidersMax,
   mockListMax,
@@ -574,11 +576,12 @@ export function MockPanel() {
           />
           <Count
             label="Decisions per page"
-            max={50}
+            max={mockDecisionsPageMax}
             value={config.admin.groupDecisionsPageSize}
             onChange={(next) =>
               updateMockConfig((draft) => {
-                draft.admin.groupDecisionsPageSize = Math.max(1, next);
+                draft.admin.groupDecisionsPageSize =
+                  clampDecisionsPageSize(next);
               })
             }
           />

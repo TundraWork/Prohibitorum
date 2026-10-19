@@ -709,6 +709,8 @@ describe("an account whose decision is on a page not yet loaded", () => {
         "The current decision for Cy Dunn could not be read, so saving may replace one that exists.",
       ),
     ).toBeVisible();
+    expect(screen.getAllByRole("alert")).toHaveLength(1);
+    expect(notifyError).not.toHaveBeenCalled();
     await user.click(
       within(dialog).getByRole("button", { name: "Allow Cy Dunn" }),
     );
@@ -717,6 +719,95 @@ describe("an account whose decision is on a page not yet loaded", () => {
       accountId: 9,
       effect: "allow",
     });
+  });
+
+  it("tries a failed later page once per choice before giving up", async () => {
+    const user = userEvent.setup();
+    let laterReads = 0;
+    mount({
+      pages,
+      extra: (request) => {
+        if (
+          request.method === "GET" &&
+          new URL(request.url).searchParams.get("cursor") === "c1"
+        ) {
+          laterReads += 1;
+          return laterReads === 1
+            ? Response.json({ code: "internal_error" }, { status: 500 })
+            : Response.json(pages.c1);
+        }
+        return undefined;
+      },
+    });
+    await rows();
+    await user.click(await screen.findByRole("button", { name: "Load more" }));
+    await waitFor(() => expect(laterReads).toBe(1));
+
+    const dialog = await openAdd(user);
+    await choose(user, dialog, /Cy Dunn/);
+
+    expect(
+      await within(dialog).findByText(
+        "Cy Dunn is denied in this group now. Saving changes it to allow.",
+      ),
+    ).toBeVisible();
+    expect(laterReads).toBe(2);
+  });
+
+  it("holds the submit while the first page is still on its way", async () => {
+    const user = userEvent.setup();
+    let release: () => void = () => {};
+    mount({
+      extra: (request) =>
+        request.method === "GET" && new URL(request.url).pathname === base
+          ? new Promise<Response>((resolve) => {
+              release = () =>
+                resolve(Response.json({ items: [cy], nextCursor: "" }));
+            })
+          : undefined,
+    });
+
+    const dialog = await openAdd(user);
+    await choose(user, dialog, /Cy Dunn/);
+
+    expect(
+      await within(dialog).findByText(
+        "Checking this account's current decision…",
+      ),
+    ).toBeVisible();
+    expect(
+      within(dialog).getByRole("button", { name: "Allow Cy Dunn" }),
+    ).toHaveAttribute("aria-disabled", "true");
+
+    release();
+    expect(
+      await within(dialog).findByText(
+        "Cy Dunn is denied in this group now. Saving changes it to allow.",
+      ),
+    ).toBeVisible();
+  });
+
+  it("says the decision could not be read when the first page failed, and allows the save", async () => {
+    const user = userEvent.setup();
+    mount({
+      extra: (request) =>
+        request.method === "GET" && new URL(request.url).pathname === base
+          ? Response.json({ code: "internal_error" }, { status: 500 })
+          : undefined,
+    });
+    await screen.findByRole("button", { name: "Try again" });
+
+    const dialog = await openAdd(user);
+    await choose(user, dialog, /Cy Dunn/);
+
+    expect(
+      await within(dialog).findByText(
+        "The current decision for Cy Dunn could not be read, so saving may replace one that exists.",
+      ),
+    ).toBeVisible();
+    expect(
+      within(dialog).getByRole("button", { name: "Allow Cy Dunn" }),
+    ).not.toHaveAttribute("aria-disabled");
   });
 
   it("states nothing for an account with no decision once every page is read", async () => {

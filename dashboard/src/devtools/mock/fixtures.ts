@@ -26,6 +26,7 @@ import {
   clampAdminCount,
   clampCount,
   clampDecisionCount,
+  clampDecisionsPageSize,
   clampEnrollmentProviders,
   clampPairingExpiry,
   clampRuleAccounts,
@@ -1130,9 +1131,6 @@ function accountSummary({ id, username, displayName }: Account) {
   return { id, username, displayName };
 }
 
-/** The server's default page for a group's decisions, and its largest. */
-const decisionsPageSize = 50;
-
 /**
  * One page of the per-account allow/deny rows a manual group carries, paged by
  * an offset cursor like the server's opaque one. Not a panel control per
@@ -1144,10 +1142,7 @@ function groupDecisions(
   cursor?: string,
 ): PageManualDecisionView {
   const total = clampDecisionCount(config.admin.groupDecisions);
-  const size = Math.max(
-    1,
-    Math.min(decisionsPageSize, config.admin.groupDecisionsPageSize),
-  );
+  const size = clampDecisionsPageSize(config.admin.groupDecisionsPageSize);
   const start = Math.min(total, Number(cursor) || 0);
   const end = Math.min(total, start + size);
   return {

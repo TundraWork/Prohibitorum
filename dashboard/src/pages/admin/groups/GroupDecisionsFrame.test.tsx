@@ -60,8 +60,9 @@ describe("the decision counts", () => {
       Response.json({ items: [decision(1, "allow")], nextCursor: "c1" }),
     );
 
-    await waitFor(() => expect(fetchBoundary).toHaveBeenCalled());
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    // The page has arrived once the query is no longer fetching.
+    await waitFor(() => expect(queryClient.isFetching()).toBe(0));
+    expect(queryClient.getQueryCache().getAll()).toHaveLength(1);
     expect(screen.queryByRole("heading")).not.toBeInTheDocument();
     expect(screen.queryByText(/allowed/)).not.toBeInTheDocument();
   });

@@ -4,6 +4,7 @@ import {
   getMockConfig,
   mockAdminListMax,
   mockDecisionsMax,
+  mockDecisionsPageMax,
   mockDelayMax,
   mockListMax,
   mockPairingExpiryMax,
@@ -129,7 +130,9 @@ describe("mock URL control", () => {
     applyMockQuery("?mock.admin.groupDecisionsPageSize=0");
     expect(getMockConfig().admin.groupDecisionsPageSize).toBe(1);
     applyMockQuery("?mock.admin.groupDecisionsPageSize=999");
-    expect(getMockConfig().admin.groupDecisionsPageSize).toBe(50);
+    expect(getMockConfig().admin.groupDecisionsPageSize).toBe(
+      mockDecisionsPageMax,
+    );
   });
 
   it("keeps the rule match stride at one or more", () => {

@@ -300,6 +300,14 @@ export function clampDecisionCount(value: number): number {
   return Math.max(0, Math.min(mockDecisionsMax, Math.floor(value)));
 }
 
+/** The server's largest page of a group's decisions. */
+export const mockDecisionsPageMax = 50;
+
+export function clampDecisionsPageSize(value: number): number {
+  if (!Number.isFinite(value)) return mockDecisionsPageMax;
+  return Math.max(1, Math.min(mockDecisionsPageMax, Math.floor(value)));
+}
+
 export function clampRuleMatchEvery(value: number): number {
   if (!Number.isFinite(value)) return 1;
   return Math.max(1, Math.min(mockRuleAccountsMax, Math.floor(value)));

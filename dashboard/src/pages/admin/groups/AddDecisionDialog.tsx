@@ -25,6 +25,10 @@ import type { DecisionEffect } from "@/pages/admin/groups/decision-effect";
 export interface DecisionLookup {
   /** The decisions the loaded pages hold, by account. */
   current: ReadonlyMap<number, DecisionEffect>;
+  /** Whether the first page has arrived. */
+  loaded: boolean;
+  /** Whether the first page is still on its way. */
+  loading: boolean;
   hasMore: boolean;
   loadingMore: boolean;
   /** The list's latest failure; while pages remain it is a failed page. */
@@ -127,15 +131,34 @@ function AddDecisionForm({
   const name = chosen?.name ?? "";
   const existing =
     chosen === null ? undefined : decisions.current.get(chosen.id);
-  // Not in the pages loaded: read on until it turns up or the pages end.
+  // Nothing is known until the first page is in, and an account not in the
+  // pages loaded may be on one still to come: read on until it turns up or the
+  // pages end. A failed earlier page is tried once per choice before the
+  // dialog gives up and says it could not read the decision.
+  const [tried, setTried] = useState<number | null>(null);
+  const {
+    loadMore,
+    loadingMore,
+    loaded,
+    loading,
+    hasMore,
+    error: listError,
+  } = decisions;
   const unknown =
-    chosen !== null && existing === undefined && decisions.hasMore;
-  const walkFailed = unknown && decisions.error !== null;
+    chosen !== null && existing === undefined && (!loaded || hasMore);
+  const firstFailed = !loaded && !loading;
+  const walkFailed =
+    unknown &&
+    listError !== null &&
+    (firstFailed || (tried === chosen?.id && !loadingMore));
   const checking = unknown && !walkFailed;
-  const { loadMore, loadingMore } = decisions;
+  const walking = checking && loaded;
   useEffect(() => {
-    if (checking && !loadingMore) loadMore();
-  }, [checking, loadingMore, loadMore]);
+    if (!walking || loadingMore || chosen === null) return;
+    if (listError !== null && tried === chosen.id) return;
+    setTried(chosen.id);
+    loadMore();
+  }, [walking, loadingMore, listError, tried, chosen, loadMore]);
   const unchanged = existing !== undefined && existing === effect;
   const note = checking
     ? t({
@@ -259,7 +282,7 @@ function AddDecisionForm({
         {note !== null && (
           <p
             id={noteId}
-            role={checking ? "status" : undefined}
+            role={checking ? "status" : walkFailed ? "alert" : undefined}
             className="text-muted-foreground text-sm"
           >
             {note}
