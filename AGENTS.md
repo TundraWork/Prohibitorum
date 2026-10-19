@@ -40,17 +40,15 @@
 ## Dashboard and generated assets
 
 - Shared components in `dashboard/src/components/custom` are built on the coss
-  components in `dashboard/src/components/ui` (vendored, updated only by
-  re-copying). New dialogs, alerts and one-time-code fields use the coss
+  components in `dashboard/src/components/ui` (vendored: updated by
+  re-copying from the coss registry, per `dashboard/src/components/ui/README.md`). New dialogs, alerts and one-time-code fields use the coss
   primitives through those shared components. The console is layered: canvas,
   inset panel, then `Frame`/`FramePanel` for blocks; no gradients or decoration;
-  keep the `data-slot` hooks when restyling. Files not yet migrated may still
-  import HeroUI until the removal phase.
+  keep the `data-slot` hooks when restyling. Components come from
+  `dashboard/src/components/ui` and the shared wrappers; no other UI library.
 - A notice is `SurfaceAlert` (a coss `Alert` with `AlertTitle`, and
   `AlertDescription` only for supplementary text). A dialog is
   `@/components/ui/dialog` (`DialogHeader`, `DialogPanel`, `DialogFooter`).
-  `onSurface` survives only on a few components not yet migrated; new code
-  omits it.
 - Buttons in the app come from `Button` in
   `dashboard/src/components/custom/Button.tsx`: coss's button (its `variant`,
   `size` and `render`) plus a `pending` prop. A pending button draws the
