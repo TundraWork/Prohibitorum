@@ -3,7 +3,10 @@ import { isValidRecoveryCode } from "@/api/auth";
 import { readEnrollmentPreview } from "@/api/enrollment";
 import { readFederationFlow } from "@/api/federation";
 import type { components } from "@/api/generated/schema";
-import type { DiagnosticResultView } from "@/api/raw-admin-paths";
+import type {
+  DiagnosticResultView,
+  LatestConnectionTestResponse,
+} from "@/api/raw-admin-paths";
 import type {
   ConsentRequest,
   DevicePairing,
@@ -1244,6 +1247,60 @@ describe("identity provider diagnostics", () => {
     expect(callback?.errorCode).toBe("invalid_request");
     expect(callback?.errorDescription).toContain("AADSTS");
     expect(failed.stages?.some((s) => s.name === "token_exchange")).toBe(false);
+  });
+
+  it("answers the latest connection test from its knobs, as a read", () => {
+    const latest = (
+      outcome: MockConfig["admin"]["latestConnectionTest"],
+      absent?: string,
+    ) => {
+      const reply = read(
+        "/api/prohibitorum/identity-providers/{slug}/tests/latest",
+        config((draft) => {
+          draft.admin.latestConnectionTest = outcome;
+          if (absent !== undefined) {
+            draft.admin.latestConnectionTestAbsent = absent;
+          }
+        }),
+      );
+      expect(reply?.kind).toBe("json");
+      return (
+        reply?.kind === "json" ? reply.body : {}
+      ) as LatestConnectionTestResponse;
+    };
+
+    expect(latest("none").latest).toBeNull();
+
+    const passed = latest("passed", "email picture").latest;
+    expect(passed?.status).toBe("succeeded");
+    expect(passed?.stale).toBe(false);
+    expect(Object.keys(passed?.fields ?? {}).sort()).toEqual([
+      "displayName",
+      "email",
+      "emailVerified",
+      "issuer",
+      "picture",
+      "subject",
+      "username",
+    ]);
+    expect(passed?.fields.subject).toEqual({
+      source: "id_token",
+      claim: "sub",
+      present: true,
+    });
+    expect(passed?.fields.email?.present).toBe(false);
+    expect(passed?.fields.picture?.present).toBe(false);
+    expect(passed?.fields.username?.present).toBe(true);
+    // No value ever travels with the summary.
+    expect(JSON.stringify(passed)).not.toContain('"value"');
+
+    const failed = latest("failed").latest;
+    expect(failed?.status).toBe("failed");
+    expect(failed?.fields).toEqual({});
+
+    const stale = latest("stale").latest;
+    expect(stale?.status).toBe("succeeded");
+    expect(stale?.stale).toBe(true);
   });
 
   it("starts and completes a test without a request body", () => {

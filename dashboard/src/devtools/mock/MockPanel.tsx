@@ -633,6 +633,21 @@ export function MockPanel() {
               })
             }
           />
+          <Choose
+            label="Latest connection test"
+            value={config.admin.latestConnectionTest}
+            options={[
+              { value: "none", label: "None yet" },
+              { value: "passed", label: "Passed" },
+              { value: "failed", label: "Failed" },
+              { value: "stale", label: "Stale" },
+            ]}
+            onChange={(next) =>
+              updateMockConfig((draft) => {
+                draft.admin.latestConnectionTest = next;
+              })
+            }
+          />
         </Section>
 
         <Section title="Step-up verification">

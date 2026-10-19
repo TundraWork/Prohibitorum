@@ -176,6 +176,18 @@ describe("mock URL control", () => {
     );
   });
 
+  it("sets the latest connection test from the address, refusing an outcome the panel does not offer", () => {
+    applyMockQuery(
+      "?mock.admin.latestConnectionTest=stale&mock.admin.latestConnectionTestAbsent=email+username",
+    );
+    expect(getMockConfig().admin.latestConnectionTest).toBe("stale");
+    expect(getMockConfig().admin.latestConnectionTestAbsent).toBe(
+      "email username",
+    );
+    applyMockQuery("?mock.admin.latestConnectionTest=unknown");
+    expect(getMockConfig().admin.latestConnectionTest).toBe("stale");
+  });
+
   it("reports the paths it applied, so a URL can be checked against what took", () => {
     const applied = applyMockQuery("?mock.admin.oidcApps=4&mock.bogus=1");
     expect(applied).toEqual(["admin.oidcApps"]);

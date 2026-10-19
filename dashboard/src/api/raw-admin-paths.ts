@@ -406,6 +406,34 @@ export interface DiagnosticResultView {
   userinfo?: DiagnosticDocumentView;
 }
 
+/**
+ * One identity field as the latest test saw it: where login reads it and
+ * whether the provider returned it. The value is never kept, so every
+ * administrator can read this.
+ */
+export interface LatestConnectionTestFieldView {
+  source: string;
+  claim?: string;
+  present: boolean;
+}
+
+/**
+ * The provider's latest finished connection test. `fields` is empty when the
+ * test failed before an identity was read; `stale` means the provider's
+ * configuration changed after the test ran.
+ */
+export interface LatestConnectionTestView {
+  status: string;
+  finishedAt: string;
+  stale: boolean;
+  fields: Record<string, LatestConnectionTestFieldView>;
+}
+
+/** `GET /identity-providers/{slug}/tests/latest` — `null` before any test finished. */
+export interface LatestConnectionTestResponse {
+  latest: LatestConnectionTestView | null;
+}
+
 /** `POST /identity-providers/{slug}/tests` — where to send the browser. */
 export interface DiagnosticStartView {
   id: string;
@@ -1120,6 +1148,20 @@ export interface RawAdminPaths {
       requestBody?: never;
       responses: {
         200: { content: { "application/json": DiagnosticStartView } };
+      };
+    };
+  };
+  "/api/prohibitorum/identity-providers/{slug}/tests/latest": {
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: { slug: string };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        200: { content: { "application/json": LatestConnectionTestResponse } };
       };
     };
   };

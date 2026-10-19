@@ -617,6 +617,26 @@ export function diagnosticResultQueryOptions(slug: string, id: string) {
   });
 }
 
+/**
+ * The outcome of the provider's latest finished connection test. The page shows
+ * it beside the Diagnostics row and fills a table column from it, and draws its
+ * own error, so a failure raises no toast.
+ */
+export function latestConnectionTestQueryOptions(slug: string) {
+  return queryOptions({
+    queryKey: ["admin", "identity-providers", slug, "tests", "latest"] as const,
+    // Set here rather than through quietQuery: query-client imports this module.
+    meta: { quiet: true },
+    queryFn: ({ signal }) =>
+      requireJsonData(
+        client.GET("/api/prohibitorum/identity-providers/{slug}/tests/latest", {
+          params: { path: { slug } },
+          signal,
+        }),
+      ),
+  });
+}
+
 /* ------------------------------------------------------- downstream apps -- */
 
 export function oidcAppsListOptions() {

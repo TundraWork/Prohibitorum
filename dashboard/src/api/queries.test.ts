@@ -14,6 +14,7 @@ import {
 import {
   authStatusQueryOptions,
   clearSessionQueries,
+  latestConnectionTestQueryOptions,
   publicConfigQueryOptions,
   sessionQueryOptions,
 } from "@/api/queries";
@@ -293,5 +294,25 @@ describe("profile updates", () => {
         ([request]) => new URL(request.url).pathname,
       ),
     ).toEqual(["/api/prohibitorum/me"]);
+  });
+});
+
+describe("latest connection test", () => {
+  it("reads the provider's remembered outcome and keeps a failure out of the toasts", async () => {
+    const { queryClient, notices } = createClient();
+    fetchBoundary.mockResolvedValueOnce(Response.json({ latest: null }));
+    const options = latestConnectionTestQueryOptions("corp");
+    expect(await queryClient.query(options)).toEqual({ latest: null });
+    expect(new URL(fetchBoundary.mock.calls[0]?.[0].url ?? "").pathname).toBe(
+      "/api/prohibitorum/identity-providers/corp/tests/latest",
+    );
+
+    fetchBoundary.mockResolvedValueOnce(
+      Response.json({ code: "server_error", requestId: "r" }, { status: 500 }),
+    );
+    await expect(
+      queryClient.query(latestConnectionTestQueryOptions("other")),
+    ).rejects.toMatchObject({ status: 500 });
+    expect(notices).not.toHaveBeenCalled();
   });
 });

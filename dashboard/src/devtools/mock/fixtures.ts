@@ -1984,6 +1984,9 @@ function readReply(
       });
     }
 
+    case "/api/prohibitorum/identity-providers/{slug}/tests/latest":
+      return json(latestConnectionTest(config));
+
     case "/api/prohibitorum/identity-providers/{slug}/tests/{id}":
       return json(diagnosticResult(config.admin.diagnosticOutcome));
 
@@ -3305,6 +3308,43 @@ export function buildMockReply(
   }
   if (!config.writes) return undefined;
   return writeReply(request, config) ?? unmocked(request);
+}
+
+/**
+ * The outcome the provider's latest connection test left behind: where each
+ * mapped field is read and whether it came back, never the value. A failed test
+ * stopped before any identity was read, so it carries no fields.
+ */
+function latestConnectionTest(config: MockConfig) {
+  const outcome = config.admin.latestConnectionTest;
+  if (outcome === "none") return { latest: null };
+  const finishedAt = iso(-2 * 60_000);
+  if (outcome === "failed") {
+    return {
+      latest: { status: "failed", finishedAt, stale: false, fields: {} },
+    };
+  }
+  const absent = config.admin.latestConnectionTestAbsent.split(/\s+/);
+  const field = (name: string, source: string, claim: string) => [
+    name,
+    { source, claim, present: !absent.includes(name) },
+  ];
+  return {
+    latest: {
+      status: "succeeded",
+      finishedAt,
+      stale: outcome === "stale",
+      fields: Object.fromEntries([
+        field("issuer", "id_token", "iss"),
+        field("subject", "id_token", "sub"),
+        field("username", "id_token", "preferred_username"),
+        field("displayName", "id_token", "name"),
+        field("email", "id_token", "email"),
+        field("emailVerified", "id_token", "email_verified"),
+        field("picture", "userinfo", "picture"),
+      ]),
+    },
+  };
 }
 
 /**

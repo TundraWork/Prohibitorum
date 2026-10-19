@@ -105,6 +105,18 @@ export interface MockConfig {
      */
     diagnosticOutcome: "succeeded" | "fallback" | "failed";
     /**
+     * The latest finished connection test every provider reports: `none` has
+     * not run one yet, `passed` and `failed` finished that way, `stale`
+     * passed before the configuration changed.
+     */
+    latestConnectionTest: "none" | "passed" | "failed" | "stale";
+    /**
+     * Identity fields the latest test did not find, space-separated by name
+     * (`email picture`). A string rather than a list, so it survives the
+     * stored-config overlay. Inert unless the test passed or went stale.
+     */
+    latestConnectionTestAbsent: string;
+    /**
      * Each signing key's state as one letter, newest first — `P`ending,
      * `A`ctive, `D`ecommissioning, `R`etired, or `X` for decommissioning
      * straight from pending — once a write has moved one.
@@ -288,6 +300,8 @@ export const defaultMockConfig: MockConfig = {
     samlAttributes: 3,
     forwardAuthApps: 6,
     diagnosticOutcome: "succeeded",
+    latestConnectionTest: "passed",
+    latestConnectionTestAbsent: "picture",
   },
   sudo: { fresh: true, webauthn: true, passwordTotp: true },
   pairing: { expiresInSeconds: 300, alreadyBound: false, sameNetwork: false },
