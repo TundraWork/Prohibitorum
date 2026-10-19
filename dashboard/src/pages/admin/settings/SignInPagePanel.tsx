@@ -22,7 +22,7 @@ import { useInstanceBranding } from "@/components/custom/instance-branding";
 import { Section } from "@/components/custom/Section";
 import { applyServerError } from "@/forms/server-errors";
 import { useAppForm } from "@/forms/use-app-form";
-import { LoginImagesControl } from "@/pages/admin/settings/LoginImagesControl";
+import { LoginImagesControl } from "@/pages/admin/settings/sign-in-page/LoginImagesControl";
 import { LoginPreview } from "@/pages/admin/settings/LoginPreview";
 import {
   CardPositionControls,
@@ -43,7 +43,7 @@ import {
   queryError,
   type SignInPageValues,
   signInPageBody,
-} from "@/pages/admin/settings/sign-in-page-form";
+} from "@/pages/admin/settings/sign-in-page/sign-in-page-form";
 
 /** The server errors that belong to the access key field. */
 const keyErrorCodes = ["unsplash_key_invalid", "unsplash_key_required"];

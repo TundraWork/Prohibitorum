@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { planUploads } from "@/pages/admin/settings/LoginImagesControl";
+import { planUploads } from "@/pages/admin/settings/sign-in-page/LoginImagesControl";
 
 function file(name: string, type: string, size = 10): File {
   const f = new File(["x"], name, { type });

@@ -101,17 +101,17 @@ msgid "security.recovery.remaining"
 msgstr "{count, plural, other {剩余 # 个}}"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/LoginImagesControl.tsx
+#: src/pages/admin/settings/sign-in-page/LoginImagesControl.tsx
 msgid "settings.sign-in.images.skipped.too_large"
 msgstr "{count, plural, other {有 # 个文件超过 5 MiB，没有上传。}}"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/LoginImagesControl.tsx
+#: src/pages/admin/settings/sign-in-page/LoginImagesControl.tsx
 msgid "settings.sign-in.images.skipped.wrong_type"
 msgstr "{count, plural, other {有 # 个文件不是 PNG、JPEG 或 WebP，没有上传。}}"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/LoginImagesControl.tsx
+#: src/pages/admin/settings/sign-in-page/LoginImagesControl.tsx
 msgid "settings.sign-in.images.skipped.full"
 msgstr "{count, plural, other {已达到 10 张上限，有 # 个文件没有上传。}}"
 
@@ -321,7 +321,7 @@ msgid "security.tokens.expiry.365"
 msgstr "1 年"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/LoginImagesControl.tsx
+#: src/pages/admin/settings/sign-in-page/LoginImagesControl.tsx
 msgid "settings.sign-in.images.full"
 msgstr "10 / 10 · 移除一张后才能继续添加"
 
@@ -831,7 +831,7 @@ msgid "admin.group.rule.addGroup"
 msgstr "添加条件组"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/LoginImagesControl.tsx
+#: src/pages/admin/settings/sign-in-page/LoginImagesControl.tsx
 msgid "settings.sign-in.images.add"
 msgstr "添加图片"
 
@@ -1004,7 +1004,7 @@ msgid "settings.sign-in.theme.light"
 msgstr "始终日间模式"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/sign-in-page-form.ts
+#: src/pages/admin/settings/sign-in-page/sign-in-page-form.ts
 msgid "settings.sign-in.unsplash.key.invalid"
 msgstr "Access Key 只包含字母、数字、连字符和下划线，最多 128 个字符。"
 
@@ -1885,7 +1885,7 @@ msgid "security.tokens.apps.required"
 msgstr "请至少选择一个应用，或换一种访问级别。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/sign-in-page-form.ts
+#: src/pages/admin/settings/sign-in-page/sign-in-page-form.ts
 msgid "settings.sign-in.interval.range"
 msgstr "请选择 5 到 3600 秒之间的间隔。"
 
@@ -3410,7 +3410,7 @@ msgid "profile.avatar.drop"
 msgstr "拖入图片，或选择文件"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/LoginImagesControl.tsx
+#: src/pages/admin/settings/sign-in-page/LoginImagesControl.tsx
 msgid "settings.sign-in.images.drop"
 msgstr "将图片拖到这里，或选择文件"
 
@@ -3619,7 +3619,7 @@ msgid "login.totp.invalid"
 msgstr "请输入符合配置位数的验证码，仅使用数字 0–9。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/sign-in-page-form.ts
+#: src/pages/admin/settings/sign-in-page/sign-in-page-form.ts
 msgid "settings.sign-in.color.invalid"
 msgstr "请输入以 # 开头、后跟六位十六进制数字的颜色。"
 
@@ -3745,7 +3745,7 @@ msgid "login.totp.digits"
 msgstr "请输入身份验证器中的 {0} 位验证码。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/sign-in-page-form.ts
+#: src/pages/admin/settings/sign-in-page/sign-in-page-form.ts
 msgid "settings.sign-in.unsplash.key.required"
 msgstr "请填写 Unsplash 应用的 Access Key。"
 
@@ -4509,7 +4509,7 @@ msgid "success.sign-in-image.removed"
 msgstr "图片已移除"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/LoginImagesControl.tsx
+#: src/pages/admin/settings/sign-in-page/LoginImagesControl.tsx
 msgid "settings.sign-in.images"
 msgstr "图片"
 
@@ -6350,7 +6350,7 @@ msgid "admin.federation.effective.pkce"
 msgstr "PKCE"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/LoginImagesControl.tsx
+#: src/pages/admin/settings/sign-in-page/LoginImagesControl.tsx
 msgid "settings.sign-in.images.hint"
 msgstr "PNG、JPEG 或 WebP，每张不超过 5 MiB · {count} / 10"
 
@@ -6810,7 +6810,7 @@ msgid "entity.icon.remove"
 msgstr "移除图标"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/LoginImagesControl.tsx
+#: src/pages/admin/settings/sign-in-page/LoginImagesControl.tsx
 msgid "settings.sign-in.images.remove"
 msgstr "移除第 {position} 张图片"
 
@@ -6855,12 +6855,12 @@ msgid "admin.federation.value.spaces"
 msgstr "去掉两端的空格。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/sign-in-page-form.ts
+#: src/pages/admin/settings/sign-in-page/sign-in-page-form.ts
 msgid "settings.sign-in.unsplash.query.spaces"
 msgstr "请去掉开头或结尾的空格。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/sign-in-page-form.ts
+#: src/pages/admin/settings/sign-in-page/sign-in-page-form.ts
 msgid "settings.sign-in.unsplash.query.control"
 msgstr "请去掉其中的制表符或换行。"
 
@@ -9791,7 +9791,7 @@ msgid "settings.general.name.too_long"
 msgstr "最多 64 个字符。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/sign-in-page-form.ts
+#: src/pages/admin/settings/sign-in-page/sign-in-page-form.ts
 msgid "settings.sign-in.unsplash.query.too_long"
 msgstr "请使用不超过 64 个字符。"
 

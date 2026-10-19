@@ -49,7 +49,7 @@ import {
   maxIntervalSeconds,
   minIntervalSeconds,
   suggestedColors,
-} from "@/pages/admin/settings/sign-in-page-form";
+} from "@/pages/admin/settings/sign-in-page/sign-in-page-form";
 
 const sourceIcons: Record<LoginBackgroundSource, LucideIcon> = {
   none: SquareDashed,

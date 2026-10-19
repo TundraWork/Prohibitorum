@@ -101,17 +101,17 @@ msgid "security.recovery.remaining"
 msgstr "{count, plural, one {# code left} other {# codes left}}"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/LoginImagesControl.tsx
+#: src/pages/admin/settings/sign-in-page/LoginImagesControl.tsx
 msgid "settings.sign-in.images.skipped.too_large"
 msgstr "{count, plural, one {# file wasn't uploaded because it is larger than 5 MiB.} other {# files weren't uploaded because they are larger than 5 MiB.}}"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/LoginImagesControl.tsx
+#: src/pages/admin/settings/sign-in-page/LoginImagesControl.tsx
 msgid "settings.sign-in.images.skipped.wrong_type"
 msgstr "{count, plural, one {# file wasn't uploaded because it isn't PNG, JPEG or WebP.} other {# files weren't uploaded because they aren't PNG, JPEG or WebP.}}"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/LoginImagesControl.tsx
+#: src/pages/admin/settings/sign-in-page/LoginImagesControl.tsx
 msgid "settings.sign-in.images.skipped.full"
 msgstr "{count, plural, one {# file wasn't uploaded because the 10-image limit was reached.} other {# files weren't uploaded because the 10-image limit was reached.}}"
 
@@ -321,7 +321,7 @@ msgid "security.tokens.expiry.365"
 msgstr "1 year"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/LoginImagesControl.tsx
+#: src/pages/admin/settings/sign-in-page/LoginImagesControl.tsx
 msgid "settings.sign-in.images.full"
 msgstr "10 of 10 · remove one to add another"
 
@@ -831,7 +831,7 @@ msgid "admin.group.rule.addGroup"
 msgstr "Add group"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/LoginImagesControl.tsx
+#: src/pages/admin/settings/sign-in-page/LoginImagesControl.tsx
 msgid "settings.sign-in.images.add"
 msgstr "Add images"
 
@@ -1004,7 +1004,7 @@ msgid "settings.sign-in.theme.light"
 msgstr "Always light"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/sign-in-page-form.ts
+#: src/pages/admin/settings/sign-in-page/sign-in-page-form.ts
 msgid "settings.sign-in.unsplash.key.invalid"
 msgstr "An access key has only letters, digits, hyphens and underscores, up to 128 of them."
 
@@ -1885,7 +1885,7 @@ msgid "security.tokens.apps.required"
 msgstr "Choose at least one application, or pick another level of access."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/sign-in-page-form.ts
+#: src/pages/admin/settings/sign-in-page/sign-in-page-form.ts
 msgid "settings.sign-in.interval.range"
 msgstr "Choose between 5 and 3600 seconds."
 
@@ -3410,7 +3410,7 @@ msgid "profile.avatar.drop"
 msgstr "Drop a picture here, or choose a file"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/LoginImagesControl.tsx
+#: src/pages/admin/settings/sign-in-page/LoginImagesControl.tsx
 msgid "settings.sign-in.images.drop"
 msgstr "Drop images here, or choose files"
 
@@ -3619,7 +3619,7 @@ msgid "login.totp.invalid"
 msgstr "Enter a code with the configured number of digits, using only 0–9."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/sign-in-page-form.ts
+#: src/pages/admin/settings/sign-in-page/sign-in-page-form.ts
 msgid "settings.sign-in.color.invalid"
 msgstr "Enter a color as # followed by six hexadecimal digits."
 
@@ -3745,7 +3745,7 @@ msgid "login.totp.digits"
 msgstr "Enter the {0}-digit code from your authenticator."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/sign-in-page-form.ts
+#: src/pages/admin/settings/sign-in-page/sign-in-page-form.ts
 msgid "settings.sign-in.unsplash.key.required"
 msgstr "Enter the access key of your Unsplash application."
 
@@ -4509,7 +4509,7 @@ msgid "success.sign-in-image.removed"
 msgstr "Image removed"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/LoginImagesControl.tsx
+#: src/pages/admin/settings/sign-in-page/LoginImagesControl.tsx
 msgid "settings.sign-in.images"
 msgstr "Images"
 
@@ -6350,7 +6350,7 @@ msgid "admin.federation.effective.pkce"
 msgstr "PKCE"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/LoginImagesControl.tsx
+#: src/pages/admin/settings/sign-in-page/LoginImagesControl.tsx
 msgid "settings.sign-in.images.hint"
 msgstr "PNG, JPEG or WebP, up to 5 MiB each · {count} of 10"
 
@@ -6810,7 +6810,7 @@ msgid "entity.icon.remove"
 msgstr "Remove icon"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/LoginImagesControl.tsx
+#: src/pages/admin/settings/sign-in-page/LoginImagesControl.tsx
 msgid "settings.sign-in.images.remove"
 msgstr "Remove image {position}"
 
@@ -6855,12 +6855,12 @@ msgid "admin.federation.value.spaces"
 msgstr "Remove the spaces at either end."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/sign-in-page-form.ts
+#: src/pages/admin/settings/sign-in-page/sign-in-page-form.ts
 msgid "settings.sign-in.unsplash.query.spaces"
 msgstr "Remove the spaces at the start or end."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/sign-in-page-form.ts
+#: src/pages/admin/settings/sign-in-page/sign-in-page-form.ts
 msgid "settings.sign-in.unsplash.query.control"
 msgstr "Remove the tab or line break."
 
@@ -9791,7 +9791,7 @@ msgid "settings.general.name.too_long"
 msgstr "Use 64 characters or fewer."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/sign-in-page-form.ts
+#: src/pages/admin/settings/sign-in-page/sign-in-page-form.ts
 msgid "settings.sign-in.unsplash.query.too_long"
 msgstr "Use 64 characters or fewer."
 

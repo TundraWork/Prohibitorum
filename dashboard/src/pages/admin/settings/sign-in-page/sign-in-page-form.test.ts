@@ -9,7 +9,7 @@ import {
   signInPageBody,
   signInPageMessages,
   suggestedColors,
-} from "@/pages/admin/settings/sign-in-page-form";
+} from "@/pages/admin/settings/sign-in-page/sign-in-page-form";
 
 describe("the sign-in page rules the server shares", () => {
   it.each([

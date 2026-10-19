@@ -19,7 +19,7 @@ import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
 import {
   loginImageTypes,
   maxLoginImages,
-} from "@/pages/admin/settings/sign-in-page-form";
+} from "@/pages/admin/settings/sign-in-page/sign-in-page-form";
 
 type Skip = "too_large" | "wrong_type" | "full";
 
