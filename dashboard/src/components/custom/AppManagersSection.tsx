@@ -372,6 +372,10 @@ function AssignManagerForm({
             id: "app.managers.dialog.placeholder",
             message: "Search accounts",
           })}
+          searchPlaceholder={t({
+            id: "app.managers.dialog.placeholder",
+            message: "Search accounts",
+          })}
           searchLabel={t({ id: "admin.picker.search", message: "Search" })}
           options={options}
           loading={candidates.isFetching}

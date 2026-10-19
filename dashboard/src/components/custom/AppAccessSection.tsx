@@ -593,6 +593,10 @@ function GroupPickerForm({
             id: "app.groups.dialog.placeholder",
             message: "Search user groups",
           })}
+          searchPlaceholder={t({
+            id: "app.groups.dialog.placeholder",
+            message: "Search user groups",
+          })}
           searchLabel={t({ id: "admin.picker.search", message: "Search" })}
           options={options}
           loading={loading}

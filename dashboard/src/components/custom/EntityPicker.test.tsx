@@ -40,7 +40,9 @@ function Harness({
   initial = [],
   onValueChange,
   onSearch,
+  searchPlaceholder,
 }: {
+  searchPlaceholder?: string;
   options: readonly EntityOption[];
   multiple?: boolean;
   initial?: string[];
@@ -54,6 +56,7 @@ function Harness({
         label="Picker"
         placeholder="Search"
         searchLabel="Search"
+        {...(searchPlaceholder === undefined ? {} : { searchPlaceholder })}
         value={value}
         onValueChange={(next) => {
           onValueChange?.(next);
@@ -79,6 +82,26 @@ async function open(user: ReturnType<typeof userEvent.setup>) {
 }
 
 describe("EntityPicker", () => {
+  it("hints in the search box with the given words, or the search label when none are given", async () => {
+    const user = userEvent.setup();
+    const { unmount } = render(
+      <Harness options={accounts} searchPlaceholder="Search accounts" />,
+    );
+    await open(user);
+    expect(screen.getByRole("combobox", { name: "Search" })).toHaveAttribute(
+      "placeholder",
+      "Search accounts",
+    );
+    unmount();
+
+    render(<Harness options={accounts} />);
+    await open(user);
+    expect(screen.getByRole("combobox", { name: "Search" })).toHaveAttribute(
+      "placeholder",
+      "Search",
+    );
+  });
+
   it("hands a single selection over whole, not its first character", async () => {
     const user = userEvent.setup();
     const onValueChange = vi.fn();

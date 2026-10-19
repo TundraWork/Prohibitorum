@@ -77,6 +77,10 @@ export function GroupExplainFrame({ groupId }: { groupId: number }) {
           id: "admin.group.explain.placeholder",
           message: "Search accounts",
         })}
+        searchPlaceholder={t({
+          id: "admin.group.explain.placeholder",
+          message: "Search accounts",
+        })}
         searchLabel={t({ id: "admin.picker.search", message: "Search" })}
         options={listed}
         loading={candidates.isFetching}

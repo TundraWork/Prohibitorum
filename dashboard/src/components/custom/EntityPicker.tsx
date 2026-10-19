@@ -80,6 +80,7 @@ export function EntityPicker({
   description,
   placeholder,
   searchLabel,
+  searchPlaceholder,
   value,
   onValueChange,
   onSearch,
@@ -98,6 +99,8 @@ export function EntityPicker({
   /** Shown on the trigger while nothing is selected. */
   placeholder: string;
   searchLabel: string;
+  /** The search box's hint; the accessible name is used when none is given. */
+  searchPlaceholder?: string;
   value: readonly string[];
   onValueChange: (value: string[]) => void;
   onSearch?: (query: string) => void;
@@ -207,7 +210,7 @@ export function EntityPicker({
             <ComboboxInput
               aria-labelledby={searchId}
               autoFocus
-              placeholder={searchLabel}
+              placeholder={searchPlaceholder ?? searchLabel}
               showTrigger={false}
               startAddon={<SearchIcon />}
             />

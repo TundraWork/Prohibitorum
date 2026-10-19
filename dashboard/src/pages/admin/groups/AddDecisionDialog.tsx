@@ -234,6 +234,10 @@ function AddDecisionForm({
             id: "admin.group.decisions.dialog.placeholder",
             message: "Search accounts",
           })}
+          searchPlaceholder={t({
+            id: "admin.group.decisions.dialog.placeholder",
+            message: "Search accounts",
+          })}
           searchLabel={t({ id: "admin.picker.search", message: "Search" })}
           options={listed}
           loading={candidates.isFetching}
