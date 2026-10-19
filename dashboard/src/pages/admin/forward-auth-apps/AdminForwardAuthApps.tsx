@@ -189,16 +189,6 @@ export function AdminForwardAuthApps() {
                   </Trans>
                 )
               }
-              action={
-                isAdmin ? (
-                  <Button render={<Link to="/admin/forward-auth-apps/new" />}>
-                    <Plus aria-hidden="true" />
-                    <Trans id="admin.forward-auth-apps.create">
-                      New application
-                    </Trans>
-                  </Button>
-                ) : undefined
-              }
             />
           }
         />

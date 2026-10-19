@@ -127,7 +127,7 @@ function SnippetPanel({ lines }: { lines: string[] }) {
           id: "admin.forward-auth-apps.traefik.block",
           message: "Generated Traefik configuration",
         })}
-        className="max-h-96 overflow-auto rounded-xl p-4 font-mono text-xs leading-relaxed outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="sm:max-h-96 overflow-auto rounded-xl p-4 font-mono text-xs leading-relaxed outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         {lines.map((line, at) => {
           const indent = line.length - line.trimStart().length;

@@ -145,7 +145,8 @@ function UriRow({
           spellCheck={false}
           placeholder={placeholder}
           onKeyDown={(event) => {
-            if (event.key !== "Enter") return;
+            // Enter confirms an IME candidate while composing; it is not a submit.
+            if (event.key !== "Enter" || event.nativeEvent.isComposing) return;
             event.preventDefault();
             event.currentTarget.form?.requestSubmit();
           }}

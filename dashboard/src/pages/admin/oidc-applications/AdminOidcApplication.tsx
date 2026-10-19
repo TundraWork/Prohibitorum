@@ -153,7 +153,7 @@ function IssuerFact({ issuer }: { issuer: string }) {
           id: "admin.oidc-apps.copy-issuer",
           message: "Copy the issuer",
         })}
-        className="truncate"
+        wrap
       />
     </div>
   );

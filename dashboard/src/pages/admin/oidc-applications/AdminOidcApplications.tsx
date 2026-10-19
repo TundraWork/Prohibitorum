@@ -179,14 +179,6 @@ export function AdminOidcApplications() {
                   </Trans>
                 )
               }
-              action={
-                isAdmin ? (
-                  <Button render={<Link to="/admin/oidc-applications/new" />}>
-                    <Plus aria-hidden="true" />
-                    <Trans id="admin.oidc-apps.create">New application</Trans>
-                  </Button>
-                ) : undefined
-              }
             />
           }
         />

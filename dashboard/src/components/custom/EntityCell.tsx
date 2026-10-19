@@ -69,9 +69,12 @@ export function EntityCell({
           fallback={fallback}
         />
       </span>
-      <div className="flex max-w-52 min-w-0 flex-col sm:max-w-60">
-        <span className="flex items-center gap-1.5">
-          <span className={dimmed ? "opacity-70" : undefined}>
+      <div className="flex max-w-52 min-w-0 flex-col sm:max-w-md">
+        <span className="flex min-w-0 items-center gap-1.5">
+          <span
+            className={`min-w-0 truncate${dimmed ? " opacity-70" : ""}`}
+            title={typeof name === "string" ? name : undefined}
+          >
             {link === undefined ? (
               name
             ) : (

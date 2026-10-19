@@ -191,14 +191,6 @@ export function AdminSamlApplications() {
                   </Trans>
                 )
               }
-              action={
-                isAdmin ? (
-                  <Button render={<Link to="/admin/saml-applications/new" />}>
-                    <Plus aria-hidden="true" />
-                    <Trans id="admin.saml-apps.create">New application</Trans>
-                  </Button>
-                ) : undefined
-              }
             />
           }
         />

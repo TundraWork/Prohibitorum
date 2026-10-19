@@ -1,5 +1,5 @@
 import { I18nProvider } from "@lingui/react";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
 import { UriList, uriRowProblem } from "@/components/custom/UriList";
@@ -112,5 +112,17 @@ describe("UriList", () => {
     expect(
       screen.getByRole("textbox", { name: "Redirect URIs 1" }),
     ).not.toHaveAttribute("aria-invalid");
+  });
+
+  it("submits the form on Enter, but not while an IME is composing", async () => {
+    render(<Harness initial={["https://b.example/cb "]} />);
+    const box = screen.getByRole("textbox", { name: "Redirect URIs 1" });
+
+    fireEvent.keyDown(box, { key: "Enter", isComposing: true });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(box).not.toHaveAttribute("aria-invalid");
+
+    fireEvent.keyDown(box, { key: "Enter" });
+    await waitFor(() => expect(box).toHaveAttribute("aria-invalid", "true"));
   });
 });
