@@ -4553,7 +4553,7 @@ msgstr "Images"
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/SignInPageSummary.tsx
 msgid "settings.sign-in.summary.images"
-msgstr "Images ({0})"
+msgstr "Images ({count})"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx

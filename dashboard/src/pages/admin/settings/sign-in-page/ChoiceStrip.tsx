@@ -31,7 +31,13 @@ export function ChoiceStrip<T extends string>({
         size="default"
         disabled={disabled}
         className="w-full"
-        options={options}
+        // A long name wraps inside its segment rather than pushing the strip
+        // past its column.
+        options={options.map((option) => ({
+          ...option,
+          itemClassName:
+            "h-auto min-h-7.5 min-w-0 shrink basis-0 whitespace-normal py-1 text-center leading-tight sm:min-h-6.5",
+        }))}
         onValueChange={onChange}
       />
     </div>
