@@ -666,7 +666,7 @@ msgstr "账号按这个值绑定。"
 #. js-lingui-explicit-id
 #: src/pages/admin/users/AccountIdentitiesSection.tsx
 msgid "admin.user.identities.description"
-msgstr "他们可以用来登录的其他提供方账号。管理员无⁠法解绑，只有账号本人可以。"
+msgstr "他们可以用来登录的其他提供商账号。只有账号本人可以解绑，管理员不能。"
 
 #. js-lingui-explicit-id
 #: src/components/custom/AppAccessSection.tsx
@@ -4033,7 +4033,7 @@ msgstr "字段"
 #. js-lingui-explicit-id
 #: src/pages/admin/users/AccountIdentityFilter.tsx
 msgid "admin.users.filter.incomplete"
-msgstr "请填写提供商、字段、匹配方式和值，以应用该筛⁠选。"
+msgstr "四项都填写后，筛选才会生效。"
 
 #. js-lingui-explicit-id
 #: src/components/custom/FilterPopover.tsx
@@ -4677,7 +4677,7 @@ msgstr "Issuer URL"
 #. js-lingui-explicit-id
 #: src/pages/admin/users/AccountRegistrationSection.tsx
 msgid "admin.user.enrollment.note"
-msgstr "签发一条新链接，该账号可用它设置自己的登⁠录方式。链接只显示一次，此前的链接会立即失效。"
+msgstr "签发一条新链接，该账号可用它设置自己的登录方式。链接只显示一次，此前的链接会立即失效。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/CredentialsSection.tsx
@@ -7999,7 +7999,7 @@ msgstr "设置 Web API 密钥之前，通过该提供商的登录会失败。"
 #. js-lingui-explicit-id
 #: src/pages/admin/logs/AdminLogs.tsx
 msgid "admin.logs.page.description"
-msgstr "此实例上记录的登录、变更和其他安全事件，最⁠新的排在最前。"
+msgstr "此实例上的登录、变更等安全事件，最新的在前。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/logs/audit-vocabulary.ts
@@ -8471,7 +8471,7 @@ msgstr "通过它绑定的账号会保留，只解除绑定。"
 #. js-lingui-explicit-id
 #: src/pages/admin/users/AdminUsers.tsx
 msgid "admin.users.page.description"
-msgstr "可以登录此实例的账号。邀请他人即可添⁠加⁠账⁠号。"
+msgstr "可以登录此实例的账号。邀请他人即可添加账号。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/EndpointsField.tsx
@@ -8694,7 +8694,7 @@ msgstr "人们看到的应用名称。"
 #. js-lingui-explicit-id
 #: src/pages/admin/users/AccountProfileSection.tsx
 msgid "admin.user.profile.description"
-msgstr "账号的名称、邮箱和角色，以及应用可以读⁠取⁠的⁠属⁠性。"
+msgstr "账号的名称、邮箱和角色，以及应用可以读取的属性。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/AdminIdentityProviders.tsx
