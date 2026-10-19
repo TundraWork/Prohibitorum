@@ -107,7 +107,7 @@ describe("EntityCell", () => {
       '[data-slot="avatar"]',
     );
     const grafana = screen.getByText("G").closest('[data-slot="avatar"]');
-    expect(alice?.className).toContain("rounded-full");
-    expect(grafana?.className).not.toContain("rounded-full");
+    expect(alice).toHaveAttribute("data-shape", "round");
+    expect(grafana).toHaveAttribute("data-shape", "tile");
   });
 });

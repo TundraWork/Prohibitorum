@@ -49,21 +49,11 @@ const noFilters = {
 } satisfies UserFilters;
 
 /**
- * The account directory.
+ * The account directory, server-paged by cursor with its filters in the URL.
  *
- * The list is server-paged by cursor and its filters live in the URL, so the
- * rows always answer the question in the address bar. Loading more accumulates
- * rows in the query cache and deliberately does not touch the URL: a link into
- * the middle of a result set is a link to an answer with its question missing.
- *
- * `GET /accounts` supports the free-text search and the advanced identity
- * filter, and nothing else, so user creation goes through an invitation: the
- * server creates the account when the invite is redeemed, and there is no form
- * here that pretends otherwise.
- *
- * The toolbar sits above the table rather than inside its frame, so a failed
- * read leaves the search and the filters within reach: they are what a reader
- * changes to get a different answer.
+ * `GET /accounts` offers only the free-text search and the identity filter, so
+ * accounts are created by invitation. The toolbar sits outside the table's
+ * frame so a failed read leaves the filters within reach.
  */
 export function AdminUsers() {
   const { t, i18n } = useLingui();

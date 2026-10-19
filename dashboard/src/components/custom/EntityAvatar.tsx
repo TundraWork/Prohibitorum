@@ -53,7 +53,10 @@ export function EntityAvatar({
   const initials = name === undefined ? "" : initialsOf(name);
   const rounding = shape === "round" ? "rounded-full" : "rounded-lg";
   return (
-    <Avatar className={cn(sizeClass[size], rounding, className)}>
+    <Avatar
+      data-shape={shape}
+      className={cn(sizeClass[size], rounding, className)}
+    >
       {iconUrl !== undefined && iconUrl !== "" && (
         <AvatarImage src={iconUrl} alt="" />
       )}

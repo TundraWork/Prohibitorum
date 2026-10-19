@@ -339,6 +339,52 @@ describe("the identity filter", () => {
   });
 });
 
+describe("a failed provider read", () => {
+  it("is reported once, inside the filter, with a way to ask again", async () => {
+    const user = userEvent.setup();
+    let failing = true;
+    fakeApi({
+      ...publicApi({ ...testSession, role: "admin" }),
+      [`GET ${listPath}`]: page([alice]),
+      [`GET ${base}/identity-providers`]: () =>
+        failing
+          ? apiError("internal_error", 500)
+          : Response.json({ items: [github], nextCursor: "" }),
+    });
+    renderApp("/admin/users", queryClient);
+    await screen.findByRole("heading", { level: 1, name: "Users" });
+
+    await user.click(screen.getByRole("button", { name: /^Filters/ }));
+    const dialog = await screen.findByRole("dialog", { name: "Filters" });
+    const alert = await within(dialog).findByRole("alert");
+    expect(alert).toHaveTextContent("The providers could not be loaded");
+    expect(notifyError).not.toHaveBeenCalled();
+
+    failing = false;
+    await user.click(within(alert).getByRole("button", { name: "Try again" }));
+    await waitFor(() => expect(within(dialog).queryByRole("alert")).toBeNull());
+    expect(notifyError).not.toHaveBeenCalled();
+  });
+
+  it("keeps the provider control closed while the providers load", async () => {
+    const user = userEvent.setup();
+    fakeApi({
+      ...publicApi({ ...testSession, role: "admin" }),
+      [`GET ${listPath}`]: page([alice]),
+      [`GET ${base}/identity-providers`]: () => new Promise<Response>(() => {}),
+    });
+    renderApp("/admin/users", queryClient);
+    await screen.findByRole("heading", { level: 1, name: "Users" });
+
+    await user.click(screen.getByRole("button", { name: /^Filters/ }));
+    const dialog = await screen.findByRole("dialog", { name: "Filters" });
+
+    expect(
+      within(dialog).getByRole("combobox", { name: "Provider" }),
+    ).toBeDisabled();
+  });
+});
+
 describe("clearing the filters", () => {
   it("is offered only while a filter is set, and drops the search and the identity filter together", async () => {
     const user = userEvent.setup();

@@ -2016,10 +2016,12 @@ function readReply(
       const page = all.slice(start, start + mockPageSize);
       const next = start + page.length;
       return guarded(config, () =>
-        json({
-          items: page,
-          nextCursor: next < all.length ? String(next) : "",
-        }),
+        config.admin.identityProvidersFail
+          ? { kind: "error", status: 500, code: "internal_error" }
+          : json({
+              items: page,
+              nextCursor: next < all.length ? String(next) : "",
+            }),
       );
     }
     case "/api/prohibitorum/identity-providers/{slug}": {

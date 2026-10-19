@@ -468,6 +468,19 @@ describe("mocked management directory", () => {
     expect(read(path, config())).toMatchObject({ kind: "json" });
   });
 
+  it("refuses the identity provider directory when the panel says it fails, and only then", () => {
+    const path = "/api/prohibitorum/identity-providers";
+    expect(
+      read(
+        path,
+        config((draft) => {
+          draft.admin.identityProvidersFail = true;
+        }),
+      ),
+    ).toMatchObject({ kind: "error", status: 500 });
+    expect(read(path, config())).toMatchObject({ kind: "json" });
+  });
+
   it("answers an unknown account with not_found rather than a fabricated one", () => {
     const many = config((draft) => {
       draft.admin.accounts = 2;

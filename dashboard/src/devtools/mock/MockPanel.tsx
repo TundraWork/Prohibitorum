@@ -552,6 +552,15 @@ export function MockPanel() {
               })
             }
           />
+          <Toggle
+            label="The identity provider directory fails to load"
+            checked={config.admin.identityProvidersFail}
+            onChange={(next) =>
+              updateMockConfig((draft) => {
+                draft.admin.identityProvidersFail = next;
+              })
+            }
+          />
           <Count
             label="Rule accounts"
             max={mockRuleAccountsMax}

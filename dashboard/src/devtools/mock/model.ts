@@ -75,6 +75,8 @@ export interface MockConfig {
     legacyRoleAccounts: boolean;
     /** Whether the account directory answers with a server error, so its failure can be walked through. */
     accountsFail: boolean;
+    /** Whether the identity provider directory answers with a server error. */
+    identityProvidersFail: boolean;
     /**
      * Active accounts a rule is evaluated against. Apart from `accounts`
      * because a rule's total is not bounded by the directory page and a
@@ -377,6 +379,7 @@ export const defaultMockConfig: MockConfig = {
     accounts: 12,
     legacyRoleAccounts: false,
     accountsFail: false,
+    identityProvidersFail: false,
     ruleAccounts: 12,
     ruleMatchEvery: 2,
     groups: 3,

@@ -1,8 +1,10 @@
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useQuery } from "@tanstack/react-query";
+import { describeError } from "@/api/errors";
 import { identityProvidersQueryOptions } from "@/api/queries";
 import { quietQuery } from "@/app/query-client";
+import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
 import { Button } from "@/components/ui/button";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -37,17 +39,11 @@ const operatorLabels = {
 } satisfies Record<MatchOperator, unknown>;
 
 /**
- * The identity filter: which provider, which of its searchable fields, how to
- * compare, and the value to compare.
+ * The identity filter: provider, field, match and value.
  *
- * The providers and the fields each can be searched on come from
- * `GET /identity-providers`, so a provider added on the server appears here
- * without a matching change in the dashboard. Only the operators the account
- * list's address accepts are offered: one the server publishes that the address
- * would refuse would be chosen and then silently dropped.
- *
- * A partly filled filter is kept in the address so it can be finished, and said
- * to be unfinished rather than sent: the server rejects an incomplete one.
+ * Providers and their searchable fields come from `GET /identity-providers`,
+ * and only the operators the address accepts are offered. A partly filled
+ * filter is kept in the address but not sent, since the server rejects it.
  */
 export function AccountIdentityFilter({
   filters,
@@ -73,13 +69,37 @@ export function AccountIdentityFilter({
 
   return (
     <div className="flex flex-col gap-4">
+      {providers.isError && (
+        <SurfaceAlert status="danger" role="alert">
+          <SurfaceAlert.Indicator />
+          <SurfaceAlert.Content>
+            <SurfaceAlert.Title>
+              <Trans id="admin.users.filter.providers-failed">
+                The providers could not be loaded
+              </Trans>
+            </SurfaceAlert.Title>
+            <SurfaceAlert.Description>
+              {t(describeError(providers.error))}
+            </SurfaceAlert.Description>
+            <Button
+              onClick={() => void providers.refetch()}
+              variant="destructive"
+              size="sm"
+              className="mt-2 w-fit"
+            >
+              <Trans id="section.retry">Try again</Trans>
+            </Button>
+          </SurfaceAlert.Content>
+        </SurfaceAlert>
+      )}
       <div className="flex flex-col gap-3">
-        <Field>
+        <Field disabled={providers.isPending}>
           <FieldLabel>
             <Trans id="admin.users.filter.providerLabel">Provider</Trans>
           </FieldLabel>
           <Select
             value={filters.provider === "" ? anyProvider : filters.provider}
+            disabled={providers.isPending}
             onValueChange={(next) => {
               if (typeof next !== "string") return;
               // The fields belong to the provider, so everything after it resets.

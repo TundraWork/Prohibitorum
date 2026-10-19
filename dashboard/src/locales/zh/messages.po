@@ -8688,6 +8688,11 @@ msgid "admin.federation.connection.jwks.address.hint"
 msgstr "提供商的签名密钥从这个地址读取。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/users/AccountIdentityFilter.tsx
+msgid "admin.users.filter.providers-failed"
+msgstr "无法加载提供商"
+
+#. js-lingui-explicit-id
 #: src/components/custom/TotpSetup.tsx
 msgid "login.reset.qr_failed"
 msgstr "无法显示二维码。请手动输入设置密钥。"
@@ -9346,6 +9351,12 @@ msgid "pair.retry"
 msgstr "重试"
 
 #. js-lingui-explicit-id
+#: src/components/custom/Section.tsx
+#: src/pages/admin/users/AccountIdentityFilter.tsx
+msgid "section.retry"
+msgstr "重试"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/groups/GroupDecisionsSection.tsx
 msgid "admin.group.decisions.retry"
 msgstr "重试"
@@ -9353,11 +9364,6 @@ msgstr "重试"
 #. js-lingui-explicit-id
 #: src/pages/admin/groups/GroupMatchesFrame.tsx
 msgid "admin.group.matches.retry"
-msgstr "重试"
-
-#. js-lingui-explicit-id
-#: src/components/custom/Section.tsx
-msgid "section.retry"
 msgstr "重试"
 
 #. js-lingui-explicit-id

@@ -11,14 +11,11 @@ import {
 } from "@/components/ui/popover";
 
 /**
- * The filters a list keeps out of its toolbar row: one outline button that says
- * how many are set, and a popover holding their controls.
+ * The filters a list keeps out of its toolbar row: a button that says how many
+ * are set, and a popover holding their controls.
  *
- * The search stays in the row because it is typed all the time; what needs
- * several controls to say — a provider, a field, an operator and a value — goes
- * here, so the row stays one line and wraps cleanly on a narrow screen. `count`
- * is the number of filters set inside the popover, not the whole list's, so the
- * chip answers "is something hidden in here?".
+ * `count` is the number set inside the popover, so the chip answers "is
+ * something hidden in here?"; the search stays in the row.
  */
 export function FilterPopover({
   count,
