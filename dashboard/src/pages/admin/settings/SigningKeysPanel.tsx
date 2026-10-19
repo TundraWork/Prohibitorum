@@ -78,6 +78,8 @@ export function SigningKeysPanel() {
   const retired = list.items.filter((key) => key.status === "retired");
   const visible = showRetired ? [...current, ...retired] : current;
   const failed = list.error !== null && list.error !== undefined;
+  // A later page failing leaves the rows already read on screen.
+  const laterFailed = failed && list.items.length > 0;
 
   const confirm = () => {
     if (!pending) return;
@@ -103,9 +105,6 @@ export function SigningKeysPanel() {
           </Button>
         }
       >
-        {failed && list.items.length > 0 && (
-          <InlineFailure error={list.error} />
-        )}
         {failed && list.items.length === 0 ? (
           <SectionFailure
             error={list.error}
@@ -130,45 +129,48 @@ export function SigningKeysPanel() {
               </ItemListEmpty>
             }
             footer={
-              (retired.length > 0 || list.hasMore) && (
-                <div className="flex flex-wrap justify-center gap-2">
-                  {(retired.length > 0 || list.hasMore) && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      aria-expanded={showRetired}
-                      onClick={() => setShowRetired((shown) => !shown)}
-                    >
-                      {showRetired ? (
-                        <Trans id="settings.keys.retired.hide">
-                          Hide retired keys
-                        </Trans>
-                      ) : list.hasMore ? (
-                        // Later pages may hold more, so a count would understate.
-                        <Trans id="settings.keys.retired.show_some">
-                          Show retired keys
-                        </Trans>
-                      ) : (
-                        t({
-                          id: "settings.keys.retired.show",
-                          message: plural(retired.length, {
-                            one: "Show # retired key",
-                            other: "Show # retired keys",
-                          }),
-                        })
-                      )}
-                    </Button>
-                  )}
-                  {list.hasMore && showRetired && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      pending={list.loadingMore}
-                      onClick={list.loadMore}
-                    >
-                      <Trans id="settings.keys.more">Load more</Trans>
-                    </Button>
-                  )}
+              (retired.length > 0 || list.hasMore || laterFailed) && (
+                <div className="flex w-full flex-col items-stretch gap-3">
+                  {laterFailed && <InlineFailure error={list.error} />}
+                  <div className="flex flex-wrap justify-center gap-2">
+                    {(retired.length > 0 || list.hasMore) && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        aria-expanded={showRetired}
+                        onClick={() => setShowRetired((shown) => !shown)}
+                      >
+                        {showRetired ? (
+                          <Trans id="settings.keys.retired.hide">
+                            Hide retired keys
+                          </Trans>
+                        ) : list.hasMore ? (
+                          // Later pages may hold more, so a count would understate.
+                          <Trans id="settings.keys.retired.show_some">
+                            Show retired keys
+                          </Trans>
+                        ) : (
+                          t({
+                            id: "settings.keys.retired.show",
+                            message: plural(retired.length, {
+                              one: "Show # retired key",
+                              other: "Show # retired keys",
+                            }),
+                          })
+                        )}
+                      </Button>
+                    )}
+                    {list.hasMore && showRetired && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        pending={list.loadingMore}
+                        onClick={list.loadMore}
+                      >
+                        <Trans id="settings.keys.more">Load more</Trans>
+                      </Button>
+                    )}
+                  </div>
                 </div>
               )
             }

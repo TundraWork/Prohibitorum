@@ -51,7 +51,8 @@ export function PublicKeyDialog({
           </DialogTitle>
           <DialogDescription>
             <Trans id="settings.keys.jwk.description">
-              As the instance publishes it for verifying tokens and assertions.
+              This is the key as the instance publishes it for verifying tokens
+              and assertions.
             </Trans>
           </DialogDescription>
         </DialogHeader>

@@ -571,6 +571,15 @@ export function MockPanel() {
             }
           />
           <Toggle
+            label="Later pages of signing keys fail to load"
+            checked={config.admin.signingKeysLaterPageFails}
+            onChange={(next) =>
+              updateMockConfig((draft) => {
+                draft.admin.signingKeysLaterPageFails = next;
+              })
+            }
+          />
+          <Toggle
             label="Creating an invitation fails"
             checked={config.admin.invitationCreateFails}
             onChange={(next) =>

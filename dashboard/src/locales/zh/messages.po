@@ -1303,11 +1303,6 @@ msgid "pair.approved"
 msgstr "已批准，正在登录…"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/PublicKeyDialog.tsx
-msgid "settings.keys.jwk.description"
-msgstr "这是实例发布的公钥，用于验证令牌和断言。"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/SignInFields.tsx
 msgid "admin.oidc-apps.field.consent.hint"
 msgstr "登录前先让账号确认这些作用域。"
@@ -9236,6 +9231,11 @@ msgstr "这不是有效的 JSON。构建器中的规则仍然保留。"
 #: src/pages/public/Enroll.tsx
 msgid "enroll.description.bootstrap"
 msgstr "这是 {instance} 的第一个账号。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/PublicKeyDialog.tsx
+msgid "settings.keys.jwk.description"
+msgstr "这是实例发布的公钥，用于验证令牌和断言。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
