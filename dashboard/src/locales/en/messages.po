@@ -544,12 +544,12 @@ msgid "security.tokens.table"
 msgstr "Access tokens"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/users/AccountAccessLegacy.tsx
+#: src/pages/admin/users/AccountTokensSection.tsx
 msgid "admin.user.tokens.title"
 msgstr "Access tokens"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/users/AccountAccessLegacy.tsx
+#: src/pages/admin/users/AccountTokensSection.tsx
 msgid "admin.user.tokens.table"
 msgstr "Access tokens"
 
@@ -659,6 +659,11 @@ msgid "admin.federation.claims.subject.hint"
 msgstr "Accounts are linked by this value."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/users/AccountIdentitiesSection.tsx
+msgid "admin.user.identities.description"
+msgstr "Accounts at other providers they can sign in with. Administrators cannot unlink them; only the account holder can."
+
+#. js-lingui-explicit-id
 #: src/components/custom/AppAccessSection.tsx
 msgid "app.access.order.denied"
 msgstr "Accounts denied by hand in"
@@ -701,12 +706,12 @@ msgid "settings.keys.column.activated"
 msgstr "Activated"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/users/AccountAccessLegacy.tsx
+#: src/pages/admin/users/AccountSessionsSection.tsx
 msgid "admin.user.sessions.title"
 msgstr "Active sessions"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/users/AccountAccessLegacy.tsx
+#: src/pages/admin/users/AccountSessionsSection.tsx
 msgid "admin.user.sessions.table"
 msgstr "Active sessions"
 
@@ -843,7 +848,7 @@ msgid "security.passkeys.detail.added"
 msgstr "Added <0/>"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/users/AccountAccessLegacy.tsx
+#: src/pages/admin/users/AccountPasskeysSection.tsx
 msgid "admin.user.passkeys.detail.added"
 msgstr "Added <0/>"
 
@@ -1108,7 +1113,7 @@ msgid "security.tokens.revoke.body"
 msgstr "Anything using this token stops working immediately. This cannot be undone."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/users/AccountAccessLegacy.tsx
+#: src/pages/admin/users/AccountTokensSection.tsx
 msgid "admin.user.tokens.revoke.body"
 msgstr "Anything using this token stops working immediately. This cannot be undone."
 
@@ -2293,12 +2298,12 @@ msgid "console.applications"
 msgstr "Connected applications"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/users/AccountAccessLegacy.tsx
+#: src/pages/admin/users/AccountIdentitiesSection.tsx
 msgid "admin.user.identities.title"
 msgstr "Connected identities"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/users/AccountAccessLegacy.tsx
+#: src/pages/admin/users/AccountIdentitiesSection.tsx
 msgid "admin.user.identities.table"
 msgstr "Connected identities"
 
@@ -3508,11 +3513,6 @@ msgid "admin.saml-apps.keys.encryption"
 msgstr "Encryption certificate"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/users/AccountAccessLegacy.tsx
-msgid "admin.user.sessions.revoke"
-msgstr "End"
-
-#. js-lingui-explicit-id
 #: src/pages/devices/DeviceSessionList.tsx
 msgid "devices.sessions.end"
 msgstr "End session"
@@ -3523,7 +3523,12 @@ msgid "devices.sessions.revoke.action"
 msgstr "End session"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/users/AccountAccessLegacy.tsx
+#: src/pages/admin/users/AccountSessionsSection.tsx
+msgid "admin.user.sessions.end"
+msgstr "End session"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/users/AccountSessionsSection.tsx
 msgid "admin.user.sessions.revoke.action"
 msgstr "End session"
 
@@ -3533,7 +3538,7 @@ msgid "devices.sessions.revoke.title"
 msgstr "End this session?"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/users/AccountAccessLegacy.tsx
+#: src/pages/admin/users/AccountSessionsSection.tsx
 msgid "admin.user.sessions.revoke.title"
 msgstr "End this session?"
 
@@ -3870,7 +3875,7 @@ msgid "admin.group.explain.all"
 msgstr "Every condition below applies"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/users/AccountAccessLegacy.tsx
+#: src/pages/admin/users/AccountSessionsSection.tsx
 msgid "admin.user.sessions.revoke_all.body"
 msgstr "Every device signed in to this account is signed out immediately and will need to sign in again."
 
@@ -3925,8 +3930,8 @@ msgid "admin.federation.response.code.hint"
 msgstr "Exchanges the code at the token endpoint, with PKCE when it is on. Most providers allow only this."
 
 #. js-lingui-explicit-id
-#: src/pages/security/TokensPanel.tsx
-msgid "security.tokens.expired"
+#: src/components/custom/TokenAccess.tsx
+msgid "token.expiry.expired"
 msgstr "Expired"
 
 #. js-lingui-explicit-id
@@ -3951,13 +3956,8 @@ msgid "admin.saml-apps.keys.expires"
 msgstr "Expires {date}"
 
 #. js-lingui-explicit-id
-#: src/pages/security/TokensPanel.tsx
-msgid "security.tokens.detail.expires"
-msgstr "Expires {expires}"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/users/AccountAccessLegacy.tsx
-msgid "admin.user.tokens.detail.expires"
+#: src/components/custom/TokenAccess.tsx
+msgid "token.expiry.on"
 msgstr "Expires {expires}"
 
 #. js-lingui-explicit-id
@@ -4685,6 +4685,11 @@ msgid "settings.keys.column.kid"
 msgstr "Key ID"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/users/AccountTokensSection.tsx
+msgid "admin.user.tokens.description"
+msgstr "Keys for scripts and tools that act as them. Revoking one stops it working straight away."
+
+#. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.description"
 msgstr "Keys for scripts and tools that act as you. Each is shown once, when you create it."
@@ -4761,18 +4766,13 @@ msgid "admin.federation.claims.column.returned.field"
 msgstr "Last test returned:"
 
 #. js-lingui-explicit-id
-#: src/pages/security/TokensPanel.tsx
-msgid "security.tokens.detail.lastUsed"
-msgstr "Last used <0/>"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/users/AccountAccessLegacy.tsx
+#: src/pages/admin/users/AccountPasskeysSection.tsx
 msgid "admin.user.passkeys.detail.lastUsed"
 msgstr "Last used <0/>"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/users/AccountAccessLegacy.tsx
-msgid "admin.user.tokens.detail.lastUsed"
+#: src/components/custom/TokenAccess.tsx
+msgid "token.last-used.at"
 msgstr "Last used <0/>"
 
 #. js-lingui-explicit-id
@@ -5275,17 +5275,12 @@ msgstr "Never changes."
 
 #. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
-msgid "security.tokens.detail.noExpiry"
-msgstr "Never expires"
-
-#. js-lingui-explicit-id
-#: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.expiry.never"
 msgstr "Never expires"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/users/AccountAccessLegacy.tsx
-msgid "admin.user.tokens.detail.noExpiry"
+#: src/components/custom/TokenAccess.tsx
+msgid "token.expiry.never"
 msgstr "Never expires"
 
 #. js-lingui-explicit-id
@@ -5410,7 +5405,7 @@ msgid "admin.federation.diagnostics.identity.no"
 msgstr "No"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/users/AccountAccessLegacy.tsx
+#: src/pages/admin/users/AccountTokensSection.tsx
 msgid "admin.user.tokens.empty"
 msgstr "No access tokens"
 
@@ -5425,7 +5420,7 @@ msgid "admin.group.matches.none"
 msgstr "No account matches the saved rule."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/users/AccountAccessLegacy.tsx
+#: src/pages/admin/users/AccountSessionsSection.tsx
 msgid "admin.user.sessions.empty"
 msgstr "No active sessions"
 
@@ -5450,7 +5445,7 @@ msgid "admin.saml-apps.keys.empty"
 msgstr "No certificates are published for this application."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/users/AccountAccessLegacy.tsx
+#: src/pages/admin/users/AccountIdentitiesSection.tsx
 msgid "admin.user.identities.empty"
 msgstr "No connected identities"
 
@@ -5510,7 +5505,7 @@ msgid "security.identities.empty"
 msgstr "No other identities linked yet"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/users/AccountAccessLegacy.tsx
+#: src/pages/admin/users/AccountPasskeysSection.tsx
 msgid "admin.user.passkeys.empty"
 msgstr "No passkeys"
 
@@ -5707,18 +5702,13 @@ msgid "security.passkeys.never_used"
 msgstr "Not used yet"
 
 #. js-lingui-explicit-id
-#: src/pages/security/TokensPanel.tsx
-msgid "security.tokens.never_used"
-msgstr "Not used yet"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/users/AccountAccessLegacy.tsx
+#: src/pages/admin/users/AccountPasskeysSection.tsx
 msgid "admin.user.passkeys.never_used"
 msgstr "Not used yet"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/users/AccountAccessLegacy.tsx
-msgid "admin.user.tokens.never_used"
+#: src/components/custom/TokenAccess.tsx
+msgid "token.last-used.never"
 msgstr "Not used yet"
 
 #. js-lingui-explicit-id
@@ -6079,12 +6069,12 @@ msgid "security.passkeys.table"
 msgstr "Passkeys"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/users/AccountAccessLegacy.tsx
+#: src/pages/admin/users/AccountPasskeysSection.tsx
 msgid "admin.user.passkeys.title"
 msgstr "Passkeys"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/users/AccountAccessLegacy.tsx
+#: src/pages/admin/users/AccountPasskeysSection.tsx
 msgid "admin.user.passkeys.table"
 msgstr "Passkeys"
 
@@ -6611,11 +6601,6 @@ msgid "profile.avatar.remove.confirm"
 msgstr "Remove"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/users/AccountAccessLegacy.tsx
-msgid "admin.user.passkeys.revoke"
-msgstr "Remove"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/settings/SignInPagePanel.tsx
 msgid "settings.sign-in.unsplash.key.remove"
 msgstr "Remove"
@@ -6634,6 +6619,11 @@ msgstr "Remove"
 #: src/components/custom/AppAccessSection.tsx
 msgid "app.groups.remove"
 msgstr "Remove {group}"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/users/AccountPasskeysSection.tsx
+msgid "admin.user.passkeys.revoke.named"
+msgstr "Remove {name}"
 
 #. js-lingui-explicit-id
 #: src/components/custom/AppManagersSection.tsx
@@ -6686,7 +6676,7 @@ msgid "settings.sign-in.images.remove"
 msgstr "Remove image {position}"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/users/AccountAccessLegacy.tsx
+#: src/pages/admin/users/AccountPasskeysSection.tsx
 msgid "admin.user.passkeys.revoke.action"
 msgstr "Remove passkey"
 
@@ -6761,7 +6751,7 @@ msgid "security.passkeys.delete.title"
 msgstr "Remove this passkey?"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/users/AccountAccessLegacy.tsx
+#: src/pages/admin/users/AccountPasskeysSection.tsx
 msgid "admin.user.passkeys.revoke.title"
 msgstr "Remove this passkey?"
 
@@ -7064,17 +7054,12 @@ msgid "admin.invitations.revoke.action"
 msgstr "Revoke"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/users/AccountAccessLegacy.tsx
-msgid "admin.user.tokens.revoke"
-msgstr "Revoke"
-
-#. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.revoke"
 msgstr "Revoke {name}"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/users/AccountAccessLegacy.tsx
+#: src/pages/admin/users/AccountTokensSection.tsx
 msgid "admin.user.tokens.revoke.named"
 msgstr "Revoke {name}"
 
@@ -7094,12 +7079,12 @@ msgid "security.tokens.revoke.title"
 msgstr "Revoke this token?"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/users/AccountAccessLegacy.tsx
+#: src/pages/admin/users/AccountTokensSection.tsx
 msgid "admin.user.tokens.revoke.title"
 msgstr "Revoke this token?"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/users/AccountAccessLegacy.tsx
+#: src/pages/admin/users/AccountTokensSection.tsx
 msgid "admin.user.tokens.revoke.action"
 msgstr "Revoke token"
 
@@ -7203,6 +7188,7 @@ msgstr "Same as this device"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/groups/GroupUsedBySection.tsx
+#: src/pages/admin/users/AccountIdentitiesSection.tsx
 #: src/pages/ConnectedApps.tsx
 msgid "apps.kind.saml"
 msgstr "SAML"
@@ -7782,17 +7768,17 @@ msgid "require-identity.mismatch.switch"
 msgstr "Sign out and use another account"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/users/AccountAccessLegacy.tsx
+#: src/pages/admin/users/AccountSessionsSection.tsx
 msgid "admin.user.sessions.revoke_all"
 msgstr "Sign out everywhere"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/users/AccountAccessLegacy.tsx
+#: src/pages/admin/users/AccountSessionsSection.tsx
 msgid "admin.user.sessions.revoke_all.action"
 msgstr "Sign out everywhere"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/users/AccountAccessLegacy.tsx
+#: src/pages/admin/users/AccountSessionsSection.tsx
 msgid "admin.user.sessions.revoke_all.title"
 msgstr "Sign this account out everywhere?"
 
@@ -8072,7 +8058,7 @@ msgid "admin.oidc-apps.alias.name.invalid"
 msgstr "Start with a letter or an underscore, then letters, digits or underscores, up to 64 characters."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/users/AccountAccessLegacy.tsx
+#: src/pages/admin/users/AccountSessionsSection.tsx
 msgid "admin.user.sessions.detail.issued"
 msgstr "Started <0/>"
 
@@ -8253,7 +8239,7 @@ msgid "devices.sessions.revoke.body"
 msgstr "That device is signed out immediately and will need to sign in again. Anything it is doing right now stops."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/users/AccountAccessLegacy.tsx
+#: src/pages/admin/users/AccountSessionsSection.tsx
 msgid "admin.user.sessions.revoke.body"
 msgstr "That device is signed out immediately and will need to sign in again. Anything it is doing right now stops."
 
@@ -8431,6 +8417,11 @@ msgstr "The current decision for {name} could not be read, so saving may replace
 #: src/pages/admin/oidc-applications/CredentialsSection.tsx
 msgid "admin.oidc-apps.rotate.body"
 msgstr "The current secret stops working the moment this is confirmed. Any client still configured with it stops signing accounts in until you give it the new one, so have somewhere to put the new secret before you go ahead."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/users/AccountSessionsSection.tsx
+msgid "admin.user.sessions.description"
+msgstr "The devices currently using this account."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/groups/rule-labels.ts
@@ -8629,6 +8620,11 @@ msgstr "The passkey sign-in attempt could not be verified."
 #: src/api/errors.ts
 msgid "error.ceremony_expired"
 msgstr "The passkey sign-in attempt has expired."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/users/AccountPasskeysSection.tsx
+msgid "admin.user.passkeys.description"
+msgstr "The passkeys they sign in with. Removing one stops it working straight away."
 
 #. js-lingui-explicit-id
 #: src/pages/Profile.tsx
@@ -9138,7 +9134,7 @@ msgid "error.ceremony_missing"
 msgstr "This passkey sign-in could not be found."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/users/AccountAccessLegacy.tsx
+#: src/pages/admin/users/AccountPasskeysSection.tsx
 msgid "admin.user.passkeys.revoke.body"
 msgstr "This passkey stops working immediately. If it is the only way this account signs in, they will need a new registration link."
 
@@ -9204,6 +9200,7 @@ msgstr "This secret is shown only once. Put it into the client's configuration n
 
 #. js-lingui-explicit-id
 #: src/components/custom/Section.tsx
+#: src/pages/admin/users/AccessSection.tsx
 msgid "section.failed"
 msgstr "This section could not be loaded"
 
@@ -9340,6 +9337,12 @@ msgid "pair.retry"
 msgstr "Try again"
 
 #. js-lingui-explicit-id
+#: src/components/custom/Section.tsx
+#: src/pages/admin/users/AccessSection.tsx
+msgid "section.retry"
+msgstr "Try again"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/groups/GroupDecisionsSection.tsx
 msgid "admin.group.decisions.retry"
 msgstr "Try again"
@@ -9347,11 +9350,6 @@ msgstr "Try again"
 #. js-lingui-explicit-id
 #: src/pages/admin/groups/GroupMatchesFrame.tsx
 msgid "admin.group.matches.retry"
-msgstr "Try again"
-
-#. js-lingui-explicit-id
-#: src/components/custom/Section.tsx
-msgid "section.retry"
 msgstr "Try again"
 
 #. js-lingui-explicit-id
@@ -9471,7 +9469,7 @@ msgid "security.passkeys.unnamed"
 msgstr "Unnamed passkey"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/users/AccountAccessLegacy.tsx
+#: src/pages/admin/users/AccountPasskeysSection.tsx
 msgid "admin.user.passkeys.unnamed"
 msgstr "Unnamed passkey"
 

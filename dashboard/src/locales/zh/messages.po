@@ -544,12 +544,12 @@ msgid "security.tokens.table"
 msgstr "个人访问令牌"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/users/AccountAccessLegacy.tsx
+#: src/pages/admin/users/AccountTokensSection.tsx
 msgid "admin.user.tokens.title"
 msgstr "个人访问令牌"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/users/AccountAccessLegacy.tsx
+#: src/pages/admin/users/AccountTokensSection.tsx
 msgid "admin.user.tokens.table"
 msgstr "个人访问令牌"
 
@@ -659,6 +659,11 @@ msgid "admin.federation.claims.subject.hint"
 msgstr "账号按这个值绑定。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/users/AccountIdentitiesSection.tsx
+msgid "admin.user.identities.description"
+msgstr "他们可以用来登录的其他提供方账号。管理员无法解绑，只有账号本人可以。"
+
+#. js-lingui-explicit-id
 #: src/components/custom/AppAccessSection.tsx
 msgid "app.access.order.denied"
 msgstr "在这些组中被手动拒绝"
@@ -701,12 +706,12 @@ msgid "settings.keys.column.activated"
 msgstr "启用于"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/users/AccountAccessLegacy.tsx
+#: src/pages/admin/users/AccountSessionsSection.tsx
 msgid "admin.user.sessions.title"
 msgstr "在线会话"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/users/AccountAccessLegacy.tsx
+#: src/pages/admin/users/AccountSessionsSection.tsx
 msgid "admin.user.sessions.table"
 msgstr "在线会话"
 
@@ -843,7 +848,7 @@ msgid "security.passkeys.detail.added"
 msgstr "<0/>添加"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/users/AccountAccessLegacy.tsx
+#: src/pages/admin/users/AccountPasskeysSection.tsx
 msgid "admin.user.passkeys.detail.added"
 msgstr "<0/>添加"
 
@@ -1108,7 +1113,7 @@ msgid "security.tokens.revoke.body"
 msgstr "所有使用此令牌的服务会立即失效，且无法恢复。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/users/AccountAccessLegacy.tsx
+#: src/pages/admin/users/AccountTokensSection.tsx
 msgid "admin.user.tokens.revoke.body"
 msgstr "使用该令牌的一切会立即停止工作，且无法撤销。"
 
@@ -2293,12 +2298,12 @@ msgid "console.applications"
 msgstr "已连接应用"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/users/AccountAccessLegacy.tsx
+#: src/pages/admin/users/AccountIdentitiesSection.tsx
 msgid "admin.user.identities.title"
 msgstr "已连接身份"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/users/AccountAccessLegacy.tsx
+#: src/pages/admin/users/AccountIdentitiesSection.tsx
 msgid "admin.user.identities.table"
 msgstr "已连接身份"
 
@@ -3508,11 +3513,6 @@ msgid "admin.saml-apps.keys.encryption"
 msgstr "加密证书"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/users/AccountAccessLegacy.tsx
-msgid "admin.user.sessions.revoke"
-msgstr "结束"
-
-#. js-lingui-explicit-id
 #: src/pages/devices/DeviceSessionList.tsx
 msgid "devices.sessions.end"
 msgstr "结束会话"
@@ -3523,7 +3523,12 @@ msgid "devices.sessions.revoke.action"
 msgstr "结束会话"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/users/AccountAccessLegacy.tsx
+#: src/pages/admin/users/AccountSessionsSection.tsx
+msgid "admin.user.sessions.end"
+msgstr "结束会话"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/users/AccountSessionsSection.tsx
 msgid "admin.user.sessions.revoke.action"
 msgstr "结束会话"
 
@@ -3533,7 +3538,7 @@ msgid "devices.sessions.revoke.title"
 msgstr "结束此会话？"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/users/AccountAccessLegacy.tsx
+#: src/pages/admin/users/AccountSessionsSection.tsx
 msgid "admin.user.sessions.revoke.title"
 msgstr "要结束这条会话吗？"
 
@@ -3870,7 +3875,7 @@ msgid "admin.group.explain.all"
 msgstr "以下条件全部满足"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/users/AccountAccessLegacy.tsx
+#: src/pages/admin/users/AccountSessionsSection.tsx
 msgid "admin.user.sessions.revoke_all.body"
 msgstr "该账号已登录的每台设备都会立即登出，需要重新登录。"
 
@@ -3925,8 +3930,8 @@ msgid "admin.federation.response.code.hint"
 msgstr "在令牌端点用授权码换取令牌，PKCE 开启时一并使用。多数提供商只允许这种方式。"
 
 #. js-lingui-explicit-id
-#: src/pages/security/TokensPanel.tsx
-msgid "security.tokens.expired"
+#: src/components/custom/TokenAccess.tsx
+msgid "token.expiry.expired"
 msgstr "已过期"
 
 #. js-lingui-explicit-id
@@ -3951,13 +3956,8 @@ msgid "admin.saml-apps.keys.expires"
 msgstr "{date} 过期"
 
 #. js-lingui-explicit-id
-#: src/pages/security/TokensPanel.tsx
-msgid "security.tokens.detail.expires"
-msgstr "{expires} 过期"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/users/AccountAccessLegacy.tsx
-msgid "admin.user.tokens.detail.expires"
+#: src/components/custom/TokenAccess.tsx
+msgid "token.expiry.on"
 msgstr "{expires} 过期"
 
 #. js-lingui-explicit-id
@@ -4685,6 +4685,11 @@ msgid "settings.keys.column.kid"
 msgstr "Key ID"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/users/AccountTokensSection.tsx
+msgid "admin.user.tokens.description"
+msgstr "供脚本和工具以他们的身份操作的令牌。吊销后立即失效。"
+
+#. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.description"
 msgstr "供脚本和工具以你的身份操作的令牌。每个令牌只在创建时显示一次。"
@@ -4761,18 +4766,13 @@ msgid "admin.federation.claims.column.returned.field"
 msgstr "上次测试返回："
 
 #. js-lingui-explicit-id
-#: src/pages/security/TokensPanel.tsx
-msgid "security.tokens.detail.lastUsed"
-msgstr "<0/>使用过"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/users/AccountAccessLegacy.tsx
+#: src/pages/admin/users/AccountPasskeysSection.tsx
 msgid "admin.user.passkeys.detail.lastUsed"
 msgstr "<0/>使用过"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/users/AccountAccessLegacy.tsx
-msgid "admin.user.tokens.detail.lastUsed"
+#: src/components/custom/TokenAccess.tsx
+msgid "token.last-used.at"
 msgstr "<0/>使用过"
 
 #. js-lingui-explicit-id
@@ -5275,17 +5275,12 @@ msgstr "始终不变。"
 
 #. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
-msgid "security.tokens.detail.noExpiry"
-msgstr "永不过期"
-
-#. js-lingui-explicit-id
-#: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.expiry.never"
 msgstr "永不过期"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/users/AccountAccessLegacy.tsx
-msgid "admin.user.tokens.detail.noExpiry"
+#: src/components/custom/TokenAccess.tsx
+msgid "token.expiry.never"
 msgstr "永不过期"
 
 #. js-lingui-explicit-id
@@ -5410,7 +5405,7 @@ msgid "admin.federation.diagnostics.identity.no"
 msgstr "否"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/users/AccountAccessLegacy.tsx
+#: src/pages/admin/users/AccountTokensSection.tsx
 msgid "admin.user.tokens.empty"
 msgstr "暂无个人访问令牌"
 
@@ -5425,7 +5420,7 @@ msgid "admin.group.matches.none"
 msgstr "没有账号匹配已保存的规则。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/users/AccountAccessLegacy.tsx
+#: src/pages/admin/users/AccountSessionsSection.tsx
 msgid "admin.user.sessions.empty"
 msgstr "暂无在线会话"
 
@@ -5450,7 +5445,7 @@ msgid "admin.saml-apps.keys.empty"
 msgstr "这个应用没有发布证书。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/users/AccountAccessLegacy.tsx
+#: src/pages/admin/users/AccountIdentitiesSection.tsx
 msgid "admin.user.identities.empty"
 msgstr "暂无已连接身份"
 
@@ -5510,7 +5505,7 @@ msgid "security.identities.empty"
 msgstr "还没有绑定其他身份"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/users/AccountAccessLegacy.tsx
+#: src/pages/admin/users/AccountPasskeysSection.tsx
 msgid "admin.user.passkeys.empty"
 msgstr "暂无通行密钥"
 
@@ -5707,18 +5702,13 @@ msgid "security.passkeys.never_used"
 msgstr "尚未使用"
 
 #. js-lingui-explicit-id
-#: src/pages/security/TokensPanel.tsx
-msgid "security.tokens.never_used"
-msgstr "尚未使用"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/users/AccountAccessLegacy.tsx
+#: src/pages/admin/users/AccountPasskeysSection.tsx
 msgid "admin.user.passkeys.never_used"
 msgstr "尚未使用"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/users/AccountAccessLegacy.tsx
-msgid "admin.user.tokens.never_used"
+#: src/components/custom/TokenAccess.tsx
+msgid "token.last-used.never"
 msgstr "尚未使用"
 
 #. js-lingui-explicit-id
@@ -6079,12 +6069,12 @@ msgid "security.passkeys.table"
 msgstr "通行密钥"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/users/AccountAccessLegacy.tsx
+#: src/pages/admin/users/AccountPasskeysSection.tsx
 msgid "admin.user.passkeys.title"
 msgstr "通行密钥"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/users/AccountAccessLegacy.tsx
+#: src/pages/admin/users/AccountPasskeysSection.tsx
 msgid "admin.user.passkeys.table"
 msgstr "通行密钥"
 
@@ -6611,11 +6601,6 @@ msgid "profile.avatar.remove.confirm"
 msgstr "删除"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/users/AccountAccessLegacy.tsx
-msgid "admin.user.passkeys.revoke"
-msgstr "移除"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/settings/SignInPagePanel.tsx
 msgid "settings.sign-in.unsplash.key.remove"
 msgstr "移除"
@@ -6634,6 +6619,11 @@ msgstr "移除"
 #: src/components/custom/AppAccessSection.tsx
 msgid "app.groups.remove"
 msgstr "移除 {group}"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/users/AccountPasskeysSection.tsx
+msgid "admin.user.passkeys.revoke.named"
+msgstr "移除 {name}"
 
 #. js-lingui-explicit-id
 #: src/components/custom/AppManagersSection.tsx
@@ -6686,7 +6676,7 @@ msgid "settings.sign-in.images.remove"
 msgstr "移除第 {position} 张图片"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/users/AccountAccessLegacy.tsx
+#: src/pages/admin/users/AccountPasskeysSection.tsx
 msgid "admin.user.passkeys.revoke.action"
 msgstr "移除通行密钥"
 
@@ -6761,7 +6751,7 @@ msgid "security.passkeys.delete.title"
 msgstr "移除这把通行密钥？"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/users/AccountAccessLegacy.tsx
+#: src/pages/admin/users/AccountPasskeysSection.tsx
 msgid "admin.user.passkeys.revoke.title"
 msgstr "要移除该通行密钥吗？"
 
@@ -7064,17 +7054,12 @@ msgid "admin.invitations.revoke.action"
 msgstr "吊销"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/users/AccountAccessLegacy.tsx
-msgid "admin.user.tokens.revoke"
-msgstr "吊销"
-
-#. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.revoke"
 msgstr "撤销 {name}"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/users/AccountAccessLegacy.tsx
+#: src/pages/admin/users/AccountTokensSection.tsx
 msgid "admin.user.tokens.revoke.named"
 msgstr "吊销 {name}"
 
@@ -7094,12 +7079,12 @@ msgid "security.tokens.revoke.title"
 msgstr "撤销此令牌？"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/users/AccountAccessLegacy.tsx
+#: src/pages/admin/users/AccountTokensSection.tsx
 msgid "admin.user.tokens.revoke.title"
 msgstr "要吊销该令牌吗？"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/users/AccountAccessLegacy.tsx
+#: src/pages/admin/users/AccountTokensSection.tsx
 msgid "admin.user.tokens.revoke.action"
 msgstr "吊销令牌"
 
@@ -7203,6 +7188,7 @@ msgstr "与本设备相同"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/groups/GroupUsedBySection.tsx
+#: src/pages/admin/users/AccountIdentitiesSection.tsx
 #: src/pages/ConnectedApps.tsx
 msgid "apps.kind.saml"
 msgstr "SAML"
@@ -7782,17 +7768,17 @@ msgid "require-identity.mismatch.switch"
 msgstr "退出并换个账号登录"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/users/AccountAccessLegacy.tsx
+#: src/pages/admin/users/AccountSessionsSection.tsx
 msgid "admin.user.sessions.revoke_all"
 msgstr "全部登出"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/users/AccountAccessLegacy.tsx
+#: src/pages/admin/users/AccountSessionsSection.tsx
 msgid "admin.user.sessions.revoke_all.action"
 msgstr "全部登出"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/users/AccountAccessLegacy.tsx
+#: src/pages/admin/users/AccountSessionsSection.tsx
 msgid "admin.user.sessions.revoke_all.title"
 msgstr "要将该账号在所有设备上登出吗？"
 
@@ -8072,7 +8058,7 @@ msgid "admin.oidc-apps.alias.name.invalid"
 msgstr "以字母或下划线开头，之后可包含字母、数字或下划线，最多 64 个字符。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/users/AccountAccessLegacy.tsx
+#: src/pages/admin/users/AccountSessionsSection.tsx
 msgid "admin.user.sessions.detail.issued"
 msgstr "<0/>登录"
 
@@ -8253,7 +8239,7 @@ msgid "devices.sessions.revoke.body"
 msgstr "该设备会立即退出登录，需要重新登录。它正在进行的操作会中止。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/users/AccountAccessLegacy.tsx
+#: src/pages/admin/users/AccountSessionsSection.tsx
 msgid "admin.user.sessions.revoke.body"
 msgstr "该设备会立即登出，需要重新登录。它正在进行的操作都会停止。"
 
@@ -8431,6 +8417,11 @@ msgstr "无法读取 {name} 当前的决定，保存时可能会替换已有的�
 #: src/pages/admin/oidc-applications/CredentialsSection.tsx
 msgid "admin.oidc-apps.rotate.body"
 msgstr "确认后当前密钥立即失效。仍配置着它的客户端无法再登录，直到你为它们换上新的密钥——请先想好新密钥存放在哪里，再继续。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/users/AccountSessionsSection.tsx
+msgid "admin.user.sessions.description"
+msgstr "当前正在使用此账号的设备。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/groups/rule-labels.ts
@@ -8629,6 +8620,11 @@ msgstr "无法验证本次通行密钥登录。"
 #: src/api/errors.ts
 msgid "error.ceremony_expired"
 msgstr "本次通行密钥登录已过期。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/users/AccountPasskeysSection.tsx
+msgid "admin.user.passkeys.description"
+msgstr "他们用来登录的通行密钥。移除后立即失效。"
 
 #. js-lingui-explicit-id
 #: src/pages/Profile.tsx
@@ -9138,7 +9134,7 @@ msgid "error.ceremony_missing"
 msgstr "找不到本次通行密钥登录。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/users/AccountAccessLegacy.tsx
+#: src/pages/admin/users/AccountPasskeysSection.tsx
 msgid "admin.user.passkeys.revoke.body"
 msgstr "该通行密钥会立即失效。如果它是该账号唯一的登录方式，他们需要新的注册链接。"
 
@@ -9204,6 +9200,7 @@ msgstr "此密钥只显示一次。请立即填入客户端配置——之后无
 
 #. js-lingui-explicit-id
 #: src/components/custom/Section.tsx
+#: src/pages/admin/users/AccessSection.tsx
 msgid "section.failed"
 msgstr "无法加载这一部分"
 
@@ -9340,6 +9337,12 @@ msgid "pair.retry"
 msgstr "重试"
 
 #. js-lingui-explicit-id
+#: src/components/custom/Section.tsx
+#: src/pages/admin/users/AccessSection.tsx
+msgid "section.retry"
+msgstr "重试"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/groups/GroupDecisionsSection.tsx
 msgid "admin.group.decisions.retry"
 msgstr "重试"
@@ -9347,11 +9350,6 @@ msgstr "重试"
 #. js-lingui-explicit-id
 #: src/pages/admin/groups/GroupMatchesFrame.tsx
 msgid "admin.group.matches.retry"
-msgstr "重试"
-
-#. js-lingui-explicit-id
-#: src/components/custom/Section.tsx
-msgid "section.retry"
 msgstr "重试"
 
 #. js-lingui-explicit-id
@@ -9471,7 +9469,7 @@ msgid "security.passkeys.unnamed"
 msgstr "未命名通行密钥"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/users/AccountAccessLegacy.tsx
+#: src/pages/admin/users/AccountPasskeysSection.tsx
 msgid "admin.user.passkeys.unnamed"
 msgstr "未命名通行密钥"
 

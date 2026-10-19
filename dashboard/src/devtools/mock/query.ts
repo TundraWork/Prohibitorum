@@ -181,6 +181,7 @@ function allowedValues(path: string): readonly string[] | undefined {
     return ["succeeded", "fallback", "failed", "running"];
   if (path === "admin.operatorSession")
     return ["fixture", "valid", "expired", "none"];
+  if (path === "admin.accountAccess") return ["fixture", "empty", "long"];
   if (path === "admin.latestConnectionTest")
     return ["none", "passed", "failed", "stale", "failed-stale"];
   if (path === "publicFlows.consent.grant") return ["first", "incremental"];

@@ -55,7 +55,11 @@ type Credential = components["schemas"]["CredentialView"];
  * device itself for `internal`, and a key otherwise. The server cannot tell a
  * laptop from a desktop, so the icon only separates the three.
  */
-function CredentialIcon({ transports }: { transports: string[] | null }) {
+export function CredentialIcon({
+  transports,
+}: {
+  transports: string[] | null;
+}) {
   if (transports?.includes("hybrid")) return <Smartphone />;
   if (transports?.includes("internal")) return <Laptop />;
   return <KeyRound />;

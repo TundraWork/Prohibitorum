@@ -712,6 +712,20 @@ export function MockPanel() {
               })
             }
           />
+          <Choose
+            label="Account access lists"
+            value={config.admin.accountAccess}
+            options={[
+              { value: "fixture", label: "By account" },
+              { value: "empty", label: "Empty" },
+              { value: "long", label: "Long values" },
+            ]}
+            onChange={(next) =>
+              updateMockConfig((draft) => {
+                draft.admin.accountAccess = next;
+              })
+            }
+          />
           <Toggle
             label="Operator check is refused"
             checked={config.admin.operatorCheckFails}

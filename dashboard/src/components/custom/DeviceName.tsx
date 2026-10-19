@@ -94,3 +94,18 @@ export function DeviceIcon({ userAgent }: { userAgent: string | undefined }) {
           : MonitorSmartphone;
   return <Icon aria-hidden="true" />;
 }
+
+/**
+ * The whole User-Agent as a monospace detail, for one the row's title could
+ * not name; `null` when the title already names the device. A function rather
+ * than a component, so a list row's details can drop it instead of drawing an
+ * empty entry.
+ */
+export function rawUserAgentDetail(userAgent: string | undefined) {
+  if (!userAgent || describeDevice(userAgent).name !== null) return null;
+  return (
+    <span key="ua" className="font-mono">
+      {userAgent}
+    </span>
+  );
+}

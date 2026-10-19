@@ -15,7 +15,7 @@ import { ConfirmDialog } from "@/components/custom/ConfirmDialog";
 import {
   DeviceIcon,
   DeviceName,
-  describeDevice,
+  rawUserAgentDetail,
 } from "@/components/custom/DeviceName";
 import {
   InlineFailure,
@@ -205,13 +205,7 @@ function sessionDetails(session: Session): ReactNode[] {
       Signed in <RelativeTime value={session.issuedAt} />
     </Trans>,
   );
-  if (session.userAgent && describeDevice(session.userAgent).name === null) {
-    details.push(
-      <span key="ua" className="font-mono">
-        {session.userAgent}
-      </span>,
-    );
-  }
+  details.push(rawUserAgentDetail(session.userAgent));
   return details;
 }
 

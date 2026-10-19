@@ -560,6 +560,47 @@ describe("mocked management directory", () => {
     expect(new Set(sessions("valid"))).toEqual(new Set(["valid"]));
   });
 
+  it("answers an account's access lists as the server does, and empties or lengthens them from the panel", () => {
+    const lists = (access: "fixture" | "empty" | "long", id = 2) => {
+      const current = config((draft) => {
+        draft.admin.accountAccess = access;
+      });
+      const at = (suffix: string) =>
+        bodyOf(
+          read(
+            `/api/prohibitorum/accounts/{id}/${suffix}`,
+            current,
+            `http://localhost/api/prohibitorum/accounts/${id}/${suffix}`,
+          ),
+        );
+      return {
+        identities: at("identities") as { subject: string }[],
+        credentials: at("credentials") as { items: unknown[] },
+        sessions: at("sessions") as {
+          items: { userAgent?: string }[];
+        },
+        tokens: at("tokens") as { items: unknown[] },
+      };
+    };
+
+    const fixture = lists("fixture");
+    expect(Array.isArray(fixture.credentials.items)).toBe(true);
+    expect(Array.isArray(fixture.sessions.items)).toBe(true);
+
+    const empty = lists("empty");
+    expect(empty.identities).toEqual([]);
+    expect(empty.credentials.items).toEqual([]);
+    expect(empty.sessions.items).toEqual([]);
+    expect(empty.tokens.items).toEqual([]);
+
+    const long = lists("long");
+    expect(
+      long.sessions.items.some((s) => (s.userAgent?.length ?? 0) > 150),
+    ).toBe(true);
+    expect(long.identities.some((i) => i.subject.length > 100)).toBe(true);
+    expect(long.tokens.items.length).toBeGreaterThan(1);
+  });
+
   it("refuses an operator check when the panel says so", () => {
     const reply = call(
       "POST",

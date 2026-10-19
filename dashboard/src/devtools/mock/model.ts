@@ -145,6 +145,14 @@ export interface MockConfig {
      * set them all to a valid, an expired or an absent session.
      */
     operatorSession: "fixture" | "valid" | "expired" | "none";
+    /**
+     * What an account's access lists hold: `fixture` cycles by account (one to
+     * two identities, up to two passkeys, one to three sessions, tokens on odd
+     * ids), `empty` leaves all four lists empty, and `long` fills them with
+     * values that do not fit a line (an unnameable User-Agent, a subject with
+     * no break point).
+     */
+    accountAccess: "fixture" | "empty" | "long";
     /** Whether checking a VRChat operator session is refused by the rate limit. */
     operatorCheckFails: boolean;
     /**
@@ -385,6 +393,7 @@ export const defaultMockConfig: MockConfig = {
     forwardAuthApps: 6,
     diagnosticOutcome: "succeeded",
     operatorSession: "fixture",
+    accountAccess: "fixture",
     operatorCheckFails: false,
     latestConnectionTest: "passed",
     latestConnectionTestAbsent: "picture",

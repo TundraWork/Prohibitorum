@@ -8,10 +8,13 @@ import {
   type ObjectStatus,
 } from "@/components/custom/ObjectHeader";
 import { RelativeTime } from "@/components/custom/RelativeTime";
-import { AccountAccessLegacy } from "@/pages/admin/users/AccountAccessLegacy";
 import { AccountDangerSection } from "@/pages/admin/users/AccountDangerSection";
+import { AccountIdentitiesSection } from "@/pages/admin/users/AccountIdentitiesSection";
+import { AccountPasskeysSection } from "@/pages/admin/users/AccountPasskeysSection";
 import { AccountProfileSection } from "@/pages/admin/users/AccountProfileSection";
 import { AccountRegistrationSection } from "@/pages/admin/users/AccountRegistrationSection";
+import { AccountSessionsSection } from "@/pages/admin/users/AccountSessionsSection";
+import { AccountTokensSection } from "@/pages/admin/users/AccountTokensSection";
 import { Route } from "@/routes/_protected.admin._admin.users_.$id";
 
 /**
@@ -19,8 +22,9 @@ import { Route } from "@/routes/_protected.admin._admin.users_.$id";
  * sections with an outline beside them. The sign-in fact is shown only when
  * the record carries it: the single-account read does not.
  *
- * The profile form comes first, then how the account gets in and the link that
- * sets that up, and last the changes that stop it. The record is read once here
+ * The profile form comes first, then how the account gets in (its identities,
+ * passkeys, sessions and tokens) and the link that sets that up, and last the
+ * changes that stop it. The record is read once here
  * and passed down, since the route loader already has it.
  */
 export function AdminUser() {
@@ -85,7 +89,16 @@ export function AdminUser() {
       }
     >
       <AccountProfileSection account={account} />
-      <AccountAccessLegacy accountId={account.id} />
+      {/* The anchor an old `?tab=access` link lands on: the first of the four. */}
+      <div
+        id="access"
+        className="flex scroll-mt-[calc(var(--app-sticky-offset)+5rem)] flex-col gap-6"
+      >
+        <AccountIdentitiesSection accountId={account.id} />
+        <AccountPasskeysSection accountId={account.id} />
+        <AccountSessionsSection accountId={account.id} />
+        <AccountTokensSection accountId={account.id} />
+      </div>
       <AccountRegistrationSection accountId={account.id} />
       <AccountDangerSection account={account} />
     </AppDetailLayout>

@@ -1,5 +1,6 @@
 import { Trans, useLingui } from "@lingui/react/macro";
 import type { components } from "@/api/generated/schema";
+import { RelativeTime } from "@/components/custom/RelativeTime";
 import { Badge } from "@/components/ui/badge";
 
 type Token = components["schemas"]["PersonalAccessTokenView"];
@@ -58,5 +59,40 @@ export function TokenAccessBadge({ token }: { token: Pick<Token, "access"> }) {
     <Badge variant="warning">
       <Trans id="token.access.sudo.badge">Skips confirming it is you</Trans>
     </Badge>
+  );
+}
+
+/**
+ * When a token stops working: the day it expires, "Expired" once it has, or
+ * "Never expires". The day only, since nobody plans around the hour.
+ */
+export function TokenExpiry({ token }: { token: Pick<Token, "expiresAt"> }) {
+  const { i18n } = useLingui();
+  if (token.expiresAt === undefined) {
+    return <Trans id="token.expiry.never">Never expires</Trans>;
+  }
+  const expiry = new Date(token.expiresAt);
+  if (expiry.getTime() <= Date.now()) {
+    return (
+      <Badge variant="destructive">
+        <Trans id="token.expiry.expired">Expired</Trans>
+      </Badge>
+    );
+  }
+  const expires = new Intl.DateTimeFormat(i18n.locale, {
+    dateStyle: "medium",
+  }).format(expiry);
+  return <Trans id="token.expiry.on">Expires {expires}</Trans>;
+}
+
+/** When a token was last presented, or that it never has been. */
+export function TokenLastUsed({ token }: { token: Pick<Token, "lastUsedAt"> }) {
+  if (token.lastUsedAt === undefined) {
+    return <Trans id="token.last-used.never">Not used yet</Trans>;
+  }
+  return (
+    <Trans id="token.last-used.at">
+      Last used <RelativeTime value={token.lastUsedAt} />
+    </Trans>
   );
 }

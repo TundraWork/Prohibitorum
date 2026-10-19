@@ -243,13 +243,19 @@ describe("the registration link", () => {
 });
 
 describe("the access lists", () => {
-  it("are still on the page", async () => {
+  it("are four sections between the profile and the registration link", async () => {
     await openAccount(accountFixture());
-    expect(
-      screen.getByRole("heading", { level: 2, name: "Passkeys" }),
-    ).toBeVisible();
-    expect(
-      screen.getByRole("heading", { level: 2, name: "Active sessions" }),
-    ).toBeVisible();
+    const headings = screen
+      .getAllByRole("heading", { level: 2 })
+      .map((heading) => heading.textContent);
+    expect(headings).toEqual([
+      "Profile",
+      "Connected identities",
+      "Passkeys",
+      "Active sessions",
+      "Access tokens",
+      "Registration link",
+      "Disable or delete",
+    ]);
   });
 });

@@ -221,6 +221,13 @@ describe("mock URL control", () => {
     expect(getMockConfig().admin.latestConnectionTest).toBe("stale");
   });
 
+  it("sets what an account's access lists hold, refusing a value the panel does not offer", () => {
+    applyMockQuery("?mock.admin.accountAccess=long");
+    expect(getMockConfig().admin.accountAccess).toBe("long");
+    applyMockQuery("?mock.admin.accountAccess=bogus");
+    expect(getMockConfig().admin.accountAccess).toBe("long");
+  });
+
   it("reports the paths it applied, so a URL can be checked against what took", () => {
     const applied = applyMockQuery("?mock.admin.oidcApps=4&mock.bogus=1");
     expect(applied).toEqual(["admin.oidcApps"]);

@@ -1010,41 +1010,75 @@ function accounts(config: MockConfig): Account[] {
   );
 }
 
-function accountIdentities(index: number): Identity[] {
+/** A User-Agent no browser parser names, long enough to need cutting. */
+const longUserAgent =
+  "managed-device-agent; build 20260314.1; os ExampleOS 9.2 enterprise-managed; device laptop-0042-engineering-floor-3; policy strict; locale en-GB; session binding hardware-backed";
+
+/** A subject with no break point, as a SAML name identifier can be. */
+const longSubject =
+  "urn:oasis:names:tc:SAML:2.0:nameid-format:persistent:AAdzZWNyZXQxcsmKtVxNTEi4gQd3pMw8Zsj7v9ZqPw3bYtHnUo5eLk0cFg2aRiD6";
+
+function accountIdentities(
+  index: number,
+  access: MockConfig["admin"]["accountAccess"],
+): Identity[] {
+  if (access === "empty") return [];
   const id = index + 1;
   // Every third account is reachable by a single provider rather than two, so a
   // walkthrough sees both a linked pair and a lone identity.
-  const count = index % 3 === 2 ? 1 : 2;
+  const count = access === "long" || index % 3 !== 2 ? 2 : 1;
   return Array.from({ length: count }, (_, position) => ({
     id: index * 2 + position + 1,
     providerSlug: `provider-${position + 1}`,
     providerDisplayName: `Example IdP ${position + 1}`,
     protocol: position % 2 === 0 ? "oidc" : "saml",
-    subject: `mock-subject-${id}-${position + 1}`,
+    subject:
+      access === "long" && position === 1
+        ? longSubject
+        : `mock-subject-${id}-${position + 1}`,
     email: `mock-user-${id}@example.com`,
     linkedAt: iso(-day * (index + 7)),
     data: {},
   }));
 }
 
-function accountCredentials(index: number): Credential[] {
-  return credentialViews(index % 3);
+function accountCredentials(
+  index: number,
+  access: MockConfig["admin"]["accountAccess"],
+): Credential[] {
+  if (access === "empty") return [];
+  return credentialViews(access === "long" ? 2 : index % 3);
 }
 
-function accountSessions(index: number): SessionListItem[] {
-  return sessionList((index % 3) + 1).map((session, position) => ({
-    ...session,
-    id: `mock-account-${index + 1}-session-${position + 1}`,
-  }));
+function accountSessions(
+  index: number,
+  access: MockConfig["admin"]["accountAccess"],
+): SessionListItem[] {
+  if (access === "empty") return [];
+  return sessionList(access === "long" ? 3 : (index % 3) + 1).map(
+    (session, position) => ({
+      ...session,
+      id: `mock-account-${index + 1}-session-${position + 1}`,
+      ...(access === "long" && position === 1
+        ? { userAgent: longUserAgent }
+        : {}),
+    }),
+  );
 }
 
 /** Accounts with an even id have none; the others have one of each level. */
-function accountTokens(index: number): Token[] {
-  return tokenList((index % 2) * 4).map((token, position) => ({
-    ...token,
-    id: index * 10 + position + 1,
-    name: `Mock token ${position + 1}`,
-  }));
+function accountTokens(
+  index: number,
+  access: MockConfig["admin"]["accountAccess"],
+): Token[] {
+  if (access === "empty") return [];
+  return tokenList(access === "long" ? 4 : (index % 2) * 4).map(
+    (token, position) => ({
+      ...token,
+      id: index * 10 + position + 1,
+      name: `Mock token ${position + 1}`,
+    }),
+  );
 }
 
 function invitationAt(index: number, config: MockConfig): Invitation {
@@ -1919,22 +1953,37 @@ function readReply(
     }
     case "/api/prohibitorum/accounts/{id}/identities": {
       const id = pathTail(request);
-      return guarded(config, () => json(accountIdentities(id - 1)));
+      return guarded(config, () =>
+        json(accountIdentities(id - 1, config.admin.accountAccess)),
+      );
     }
     case "/api/prohibitorum/accounts/{id}/credentials": {
       const id = pathTail(request);
-      return guarded(config, () => json(accountCredentials(id - 1)));
+      return guarded(config, () =>
+        json({
+          items: accountCredentials(id - 1, config.admin.accountAccess),
+          nextCursor: "",
+        }),
+      );
     }
     case "/api/prohibitorum/accounts/{id}/sessions": {
       const id = pathTail(request);
-      return guarded(config, () => json(accountSessions(id - 1)));
+      return guarded(config, () =>
+        json({
+          items: accountSessions(id - 1, config.admin.accountAccess),
+          nextCursor: "",
+        }),
+      );
     }
     case "/api/prohibitorum/accounts/{id}/tokens": {
       // The id is the segment before `tokens`, and the list is a page.
       const id = Number(new URL(request.url).pathname.split("/").at(-2));
       return guarded(config, () =>
         json({
-          items: accountTokens(Number.isFinite(id) ? id - 1 : 0),
+          items: accountTokens(
+            Number.isFinite(id) ? id - 1 : 0,
+            config.admin.accountAccess,
+          ),
           nextCursor: "",
         }),
       );

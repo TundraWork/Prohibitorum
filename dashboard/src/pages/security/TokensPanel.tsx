@@ -31,7 +31,6 @@ import { ChoiceTile } from "@/components/custom/ChoiceTile";
 import { ConfirmDialog } from "@/components/custom/ConfirmDialog";
 import { FormMessages } from "@/components/custom/FormMessages";
 import { ItemList, ItemListRow } from "@/components/custom/ItemList";
-import { RelativeTime } from "@/components/custom/RelativeTime";
 import { SecretRevealDialog } from "@/components/custom/SecretReveal";
 import { AsyncSection, Section } from "@/components/custom/Section";
 import { accessTokenCopy } from "@/components/custom/secret-reveal-copy";
@@ -39,9 +38,10 @@ import { TableEmptyState } from "@/components/custom/TableEmptyState";
 import {
   TokenAccessBadge,
   TokenAccessSummary,
+  TokenExpiry,
+  TokenLastUsed,
 } from "@/components/custom/TokenAccess";
 import { getTopLayerContainer } from "@/components/custom/top-layer";
-import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { CheckboxGroup } from "@/components/ui/checkbox-group";
 import {
@@ -193,7 +193,7 @@ function TokensDescription() {
 }
 
 function TokenList() {
-  const { t, i18n } = useLingui();
+  const { t } = useLingui();
   const queryClient = useQueryClient();
   const { data: tokens } = useSuspenseQuery(quietQuery(tokensQueryOptions()));
   // Only fills the create dialog: a failed read is told there, not as a toast.
@@ -206,9 +206,6 @@ function TokenList() {
   // revealed in took over from the create dialog, which is gone by then.
   const createButton = useRef<HTMLButtonElement>(null);
   const revoke = useMutation(revokeTokenMutationOptions(queryClient));
-
-  const formatDay = (value: Date) =>
-    new Intl.DateTimeFormat(i18n.locale, { dateStyle: "medium" }).format(value);
 
   return (
     <>
@@ -240,10 +237,6 @@ function TokenList() {
           }
         >
           {tokens.map((token) => {
-            const expiry =
-              token.expiresAt === undefined ? null : new Date(token.expiresAt);
-            const expired = expiry !== null && expiry.getTime() <= Date.now();
-            const expires = expiry === null ? "" : formatDay(expiry);
             const name = token.name;
             return (
               <ItemListRow
@@ -253,35 +246,13 @@ function TokenList() {
                 // Beside the name rather than in the badge column: the column is
                 // narrower than this label.
                 badges={<TokenAccessBadge token={token} />}
-                meta={
-                  expiry === null ? (
-                    <Trans id="security.tokens.detail.noExpiry">
-                      Never expires
-                    </Trans>
-                  ) : expired ? (
-                    <Badge variant="destructive">
-                      <Trans id="security.tokens.expired">Expired</Trans>
-                    </Badge>
-                  ) : (
-                    <Trans id="security.tokens.detail.expires">
-                      Expires {expires}
-                    </Trans>
-                  )
-                }
+                meta={<TokenExpiry token={token} />}
                 details={[
                   <span key="hint" className="font-mono">
                     {token.tokenHint}
                   </span>,
                   <TokenAccessSummary key="access" token={token} />,
-                  token.lastUsedAt === undefined ? (
-                    <Trans key="used" id="security.tokens.never_used">
-                      Not used yet
-                    </Trans>
-                  ) : (
-                    <Trans key="used" id="security.tokens.detail.lastUsed">
-                      Last used <RelativeTime value={token.lastUsedAt} />
-                    </Trans>
-                  ),
+                  <TokenLastUsed key="used" token={token} />,
                 ]}
                 actions={
                   <Button
