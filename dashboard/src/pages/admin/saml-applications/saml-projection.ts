@@ -141,24 +141,24 @@ export function attributeMapProblems(
     }
 
     const source = mapping.source.trim();
+    // A key is asked for before the source is called unknown: the editor keeps
+    // the two apart, so `attributes.` with nothing after it is a source that was
+    // chosen and a key that is still to come.
+    if (source.startsWith(attributeSourcePrefix)) {
+      if (source.slice(attributeSourcePrefix.length).trim() === "") {
+        problems.push({
+          index,
+          field: "key",
+          message: mappingMessages.keyRequired,
+        });
+      }
+      continue;
+    }
     if (!isKnownAttributeSource(source)) {
       problems.push({
         index,
         field: "source",
         message: mappingMessages.sourceUnknown,
-      });
-      // The key only means anything once a source is chosen, so a row without
-      // one is not also told its key is missing.
-      continue;
-    }
-    if (
-      source.startsWith(attributeSourcePrefix) &&
-      source.slice(attributeSourcePrefix.length).trim() === ""
-    ) {
-      problems.push({
-        index,
-        field: "key",
-        message: mappingMessages.keyRequired,
       });
     }
   }

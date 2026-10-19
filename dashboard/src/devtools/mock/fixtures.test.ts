@@ -339,6 +339,43 @@ describe("mocked management directory", () => {
     }
   });
 
+  it("sends a SAML application as many attributes as the panel says, under names that stay unique", () => {
+    const url = "http://localhost/api/prohibitorum/saml-applications/1";
+    const attributes = (count: number, id = 1) =>
+      (
+        bodyOf(
+          read(
+            "/api/prohibitorum/saml-applications/{id}",
+            config((draft) => {
+              draft.admin.samlAttributes = count;
+            }),
+            url.replace(/1$/, String(id)),
+          ),
+        ) as { attributeMap: Array<{ name: string }> }
+      ).attributeMap;
+
+    const twelve = attributes(12);
+    expect(twelve).toHaveLength(12);
+    expect(new Set(twelve.map((mapping) => mapping.name)).size).toBe(12);
+    // Every third application keeps no map whatever the panel says.
+    expect(attributes(12, 3)).toHaveLength(0);
+    expect(attributes(0)).toHaveLength(0);
+  });
+
+  it("settles a metadata re-import with the application as it was", () => {
+    const reply = buildMockReply(
+      {
+        method: "POST",
+        schemaPath:
+          "/api/prohibitorum/saml-applications/{id}/reingest-metadata",
+        url: "http://localhost/api/prohibitorum/saml-applications/2/reingest-metadata",
+        body: { metadataXml: "<EntityDescriptor/>" },
+      },
+      writes(),
+    );
+    expect((bodyOf(reply) as { id: number }).id).toBe(2);
+  });
+
   it("signs the panel in as the account the directory lists first", () => {
     const current = config((draft) => {
       draft.session.username = "ada";

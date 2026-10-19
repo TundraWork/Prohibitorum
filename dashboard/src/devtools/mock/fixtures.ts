@@ -1325,7 +1325,7 @@ function oidcApplications(
   });
 }
 
-const samlAttributeMap = [
+const samlAttributeShapes = [
   {
     name: "mail",
     name_format: "urn:oasis:names:tc:SAML:2.0:attrname-format:basic",
@@ -1346,6 +1346,17 @@ const samlAttributeMap = [
     multi: false,
   },
 ];
+
+/** `count` attributes, cycling the three shapes under names that stay unique. */
+function samlAttributeMap(count: number) {
+  return Array.from({ length: clampAdminCount(count) }, (_, position) => {
+    const shape = samlAttributeShapes[position % samlAttributeShapes.length];
+    const round = Math.floor(position / samlAttributeShapes.length);
+    return shape === undefined || round === 0
+      ? { ...shape }
+      : { ...shape, name: `${shape.name}${round + 1}` };
+  });
+}
 
 /**
  * SAML applications, cycling ACS shapes, the session-lifetime field, and the
@@ -1372,7 +1383,8 @@ function samlApplications(
         index % 2 === 0
           ? "urn:oasis:names:tc:SAML:2.0:nameid-format:persistent"
           : "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress",
-      attributeMap: index % 3 === 2 ? [] : samlAttributeMap,
+      attributeMap:
+        index % 3 === 2 ? [] : samlAttributeMap(config.admin.samlAttributes),
       requireSignedAuthnRequest: index % 2 === 0,
       allowIdpInitiated: index % 3 === 0,
       disabled: index % 4 === 1,
@@ -3029,6 +3041,20 @@ function writeReply(
         ...found,
         disabled: booleanField(body, "disabled") ?? false,
       });
+    }
+
+    // The document is not read: the application comes back as it was, which is
+    // all a walkthrough needs to see the replacement confirmed and settled.
+    case "/api/prohibitorum/saml-applications/{id}/reingest-metadata": {
+      const segments = new URL(request.url).pathname.split("/");
+      const id = Number(segments[segments.length - 2]);
+      const found = samlApplications(config).find(
+        (application) => application.id === id,
+      );
+      if (found === undefined) {
+        return { kind: "error", status: 404, code: "client_not_found" };
+      }
+      return json(found);
     }
 
     case "/api/prohibitorum/forward-auth-apps": {

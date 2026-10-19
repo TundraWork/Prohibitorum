@@ -35,6 +35,7 @@ export function TextAreaField({
   description,
   rows = 3,
   isDisabled = false,
+  isMonospace = false,
   spellCheck = true,
   className,
 }: {
@@ -42,6 +43,8 @@ export function TextAreaField({
   description?: ReactNode;
   rows?: number;
   isDisabled?: boolean;
+  /** For a pasted document or literal values that have to survive a copy character for character. */
+  isMonospace?: boolean;
   spellCheck?: boolean;
   /** Accepted for compatibility; see `FieldVariant`. */
   variant?: FieldVariant;
@@ -59,6 +62,7 @@ export function TextAreaField({
     >
       <FieldLabel>{label}</FieldLabel>
       <Textarea
+        className={isMonospace ? "font-mono text-xs" : undefined}
         rows={rows}
         spellCheck={spellCheck}
         value={field.state.value}

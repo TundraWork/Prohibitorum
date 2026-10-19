@@ -600,6 +600,16 @@ export function MockPanel() {
             }
           />
           <Count
+            label="SAML attributes"
+            max={mockAdminListMax}
+            value={config.admin.samlAttributes}
+            onChange={(next) =>
+              updateMockConfig((draft) => {
+                draft.admin.samlAttributes = next;
+              })
+            }
+          />
+          <Count
             label="Forward-auth applications"
             max={mockAdminListMax}
             value={config.admin.forwardAuthApps}

@@ -90,6 +90,11 @@ export interface MockConfig {
     oidcApps: number;
     /** SAML applications, paged. */
     samlApps: number;
+    /**
+     * How many attributes each SAML application that has an attribute map
+     * sends; the cycle of fixtures keeps every third one at none.
+     */
+    samlAttributes: number;
     /** Forward-auth applications, paged. */
     forwardAuthApps: number;
     /**
@@ -280,6 +285,7 @@ export const defaultMockConfig: MockConfig = {
     providerSignInMask: "",
     oidcApps: 12,
     samlApps: 6,
+    samlAttributes: 3,
     forwardAuthApps: 6,
     diagnosticOutcome: "succeeded",
   },

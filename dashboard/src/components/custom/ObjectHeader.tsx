@@ -95,7 +95,7 @@ export function ObjectHeader({
         key="identifier"
         value={identifier.value}
         label={identifier.label}
-        className="text-[13px]"
+        className="break-all text-[13px]"
       />,
     );
   }
