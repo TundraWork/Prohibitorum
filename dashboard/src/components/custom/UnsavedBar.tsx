@@ -49,7 +49,7 @@ export function UnsavedBar({
           return next;
         });
       },
-      { rootMargin: "-4rem 0px 0px 0px" },
+      { rootMargin: "-64px 0px 0px 0px" },
     );
     for (const id of ids.split("\n")) {
       const element = document.getElementById(id);

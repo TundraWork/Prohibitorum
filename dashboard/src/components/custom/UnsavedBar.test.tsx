@@ -8,6 +8,7 @@ import { UnsavedBar } from "@/components/custom/UnsavedBar";
 import { i18n } from "@/i18n";
 
 let callback: IntersectionObserverCallback;
+let options: IntersectionObserverInit | undefined;
 const observed = new Set<Element>();
 
 beforeEach(() => {
@@ -16,8 +17,12 @@ beforeEach(() => {
   vi.stubGlobal(
     "IntersectionObserver",
     class {
-      constructor(cb: IntersectionObserverCallback) {
+      constructor(
+        cb: IntersectionObserverCallback,
+        init?: IntersectionObserverInit,
+      ) {
         callback = cb;
+        options = init;
       }
       observe(el: Element) {
         observed.add(el);
@@ -75,6 +80,12 @@ describe("UnsavedBar", () => {
 
     report(section, true);
     expect(screen.queryByText(/Unsaved changes in/)).toBeNull();
+  });
+
+  it("keeps clear of the sticky header with a margin the browser accepts", () => {
+    render(<Page dirty />);
+    // A real observer throws on anything but pixels or percent.
+    expect(options?.rootMargin).toMatch(/^(-?\d+(px|%)\s?)+$/);
   });
 
   it("jumps to the section and focuses its heading", async () => {
