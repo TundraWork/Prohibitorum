@@ -5931,6 +5931,11 @@ msgid "admin.federation.claims.domains.hint"
 msgstr "只有属于这些域名的邮箱地址才能登录。留空则接受所有域名。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/MaintenancePanel.tsx
+msgid "settings.maintenance.confirm.short"
+msgstr "只有管理员可以登录。"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.mode.invite.hint"
 msgstr "只有已绑定的账号能登录；新账号要凭邀请链接注册。"

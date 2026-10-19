@@ -197,7 +197,9 @@ function MaintenanceSection({ saved }: { saved: MaintenanceSettings }) {
         }
         body={
           <p>
-            <MaintenanceConsequence />
+            <Trans id="settings.maintenance.confirm.short">
+              Only administrators will be able to sign in.
+            </Trans>
           </p>
         }
         confirmLabel={

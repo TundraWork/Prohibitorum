@@ -114,6 +114,11 @@ describe("the maintenance section", () => {
       name: "Turn on maintenance mode?",
     });
     expect(puts()).toHaveLength(0);
+    // The dialog asks for the decision; the consequence stays in the footer.
+    expect(
+      within(dialog).getByText("Only administrators will be able to sign in."),
+    ).toBeVisible();
+    expect(within(dialog).queryByText(consequence)).toBeNull();
 
     await user.click(within(dialog).getByRole("button", { name: "Turn on" }));
 
@@ -224,7 +229,7 @@ describe("the maintenance section", () => {
     mount(publicConfigFixture({ maintenanceMode: true }), (request) =>
       request.method === "PUT"
         ? Response.json(
-            { code: "internal_error", message: "boom" },
+            { code: "internal_error", requestId: "maintenance-test" },
             { status: 500 },
           )
         : undefined,

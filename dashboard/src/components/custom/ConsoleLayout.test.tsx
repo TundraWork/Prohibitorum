@@ -28,6 +28,7 @@ import { useConsoleCrumb } from "@/components/custom/console-crumb";
 import { defaultLoginAppearance } from "@/components/custom/login-appearance/appearance";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { i18n } from "@/i18n";
+import { MaintenancePanel } from "@/pages/admin/settings/MaintenancePanel";
 
 const fetchBoundary = vi.fn<(request: Request) => Promise<Response>>();
 const history = createBrowserHistory();
@@ -448,5 +449,35 @@ describe("the maintenance banner", () => {
     queryClient.setQueryData(publicConfigQueryOptions().queryKey, config);
 
     await waitFor(() => expect(banner()).toBeNull());
+  });
+
+  it("appears once a confirmed save on the maintenance form has refreshed the config", async () => {
+    const user = userEvent.setup();
+    let saved = config;
+    fetchBoundary.mockImplementation(async (request) => {
+      if (request.method === "PUT") {
+        saved = { ...saved, ...(await request.json()) };
+        return new Response(null, { status: 204 });
+      }
+      return Response.json(saved);
+    });
+    await mount("/admin/settings", admin, undefined, {
+      page: MaintenancePanel,
+    });
+    await screen.findByRole("switch", { name: "Maintenance mode" });
+    expect(banner()).toBeNull();
+
+    await user.click(screen.getByRole("switch", { name: "Maintenance mode" }));
+    await user.click(
+      screen.getByRole("button", { name: "Turn on maintenance and save" }),
+    );
+    const dialog = await screen.findByRole("alertdialog");
+    await user.click(within(dialog).getByRole("button", { name: "Turn on" }));
+
+    expect(
+      await screen.findByRole("status", { name: "Maintenance mode" }),
+    ).toHaveTextContent(
+      "Maintenance mode is on — only administrators can sign in.",
+    );
   });
 });

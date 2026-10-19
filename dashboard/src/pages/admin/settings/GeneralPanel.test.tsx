@@ -151,7 +151,10 @@ describe("the general section", () => {
     const user = userEvent.setup();
     mount(publicConfigFixture(), (request) =>
       request.method === "PUT"
-        ? Response.json({ code: "bad_request", message: "no" }, { status: 400 })
+        ? Response.json(
+            { code: "bad_request", requestId: "general-test" },
+            { status: 400 },
+          )
         : undefined,
     );
 
@@ -159,7 +162,11 @@ describe("the general section", () => {
     await user.click(screen.getByRole("button", { name: "Save" }));
 
     await waitFor(() => expect(requests("PUT", settingsPath)).toHaveLength(1));
-    await screen.findAllByRole("alert");
+    expect(
+      await screen.findByText("The request could not be accepted."),
+    ).toBeVisible();
+    // The refusal is the name field's own error, not a form-level one.
+    expect(nameField()).toBeInvalid();
     expect(notifyError).not.toHaveBeenCalled();
   });
 
@@ -193,7 +200,7 @@ describe("the general section", () => {
     mount(publicConfigFixture({ hasCustomIcon: true }), (request) =>
       request.method === "DELETE"
         ? Response.json(
-            { code: "internal_error", message: "boom" },
+            { code: "internal_error", requestId: "general-test" },
             { status: 500 },
           )
         : undefined,
@@ -202,6 +209,28 @@ describe("the general section", () => {
     await user.click(screen.getByRole("button", { name: "Remove icon" }));
 
     expect(await screen.findByRole("alert")).toBeVisible();
+    expect(notifyError).not.toHaveBeenCalled();
+  });
+
+  it("reports a refused icon upload once, with its message, and not as a toast", async () => {
+    const user = userEvent.setup();
+    mount(publicConfigFixture(), (request) =>
+      request.method === "PUT" && new URL(request.url).pathname === iconPath
+        ? Response.json(
+            { code: "bad_request", requestId: "general-test" },
+            { status: 400 },
+          )
+        : undefined,
+    );
+
+    await user.upload(
+      fileInput(),
+      new File(["png"], "logo.png", { type: "image/png" }),
+    );
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("The request could not be accepted.");
+    expect(screen.getAllByRole("alert")).toHaveLength(1);
     expect(notifyError).not.toHaveBeenCalled();
   });
 });

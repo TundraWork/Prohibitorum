@@ -5931,6 +5931,11 @@ msgid "admin.federation.claims.domains.hint"
 msgstr "Only addresses on one of these domains can come in. Leave it empty to accept every domain."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/MaintenancePanel.tsx
+msgid "settings.maintenance.confirm.short"
+msgstr "Only administrators will be able to sign in."
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.mode.invite.hint"
 msgstr "Only linked accounts can sign in. New accounts need an invitation."
