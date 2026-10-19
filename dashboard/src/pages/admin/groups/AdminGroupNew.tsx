@@ -106,8 +106,7 @@ export function AdminGroupNew() {
         title={<Trans id="admin.group.create.title">New user group</Trans>}
         description={
           <Trans id="admin.group.create.description">
-            Create a group applications can use to decide who gets in. Who it
-            holds is set on its page once it exists.
+            Create a group applications can use to decide who gets in.
           </Trans>
         }
       />
@@ -130,8 +129,8 @@ export function AdminGroupNew() {
           >
             <RadioGroup
               aria-label={t({
-                id: "admin.group.kind.label",
-                message: "How it fills",
+                id: "admin.group.create.kind.title",
+                message: "Kind",
               })}
               value={kind}
               disabled={submitting}

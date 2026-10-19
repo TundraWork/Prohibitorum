@@ -77,7 +77,7 @@ describe("the form's shape", () => {
     serve();
     await mountForm();
 
-    const kinds = screen.getByRole("radiogroup", { name: "How it fills" });
+    const kinds = screen.getByRole("radiogroup", { name: "Kind" });
     const manual = within(kinds).getByRole("radio", { name: "Manual" });
     expect(manual).toBeChecked();
     expect(manual).toHaveAccessibleDescription(/allow or deny by hand/);
@@ -159,6 +159,9 @@ describe("creating a group", () => {
     await user.click(
       screen.getByRole("switch", { name: "Send to applications" }),
     );
+    // A new group has no preview: nothing is saved to count matches against.
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    expect(api.sent("POST", `${createPath}/rule-preview`)).toHaveLength(0);
     await user.click(createButton());
 
     await waitFor(() =>
@@ -214,6 +217,7 @@ describe("creating a group", () => {
     await user.click(createButton());
 
     await screen.findByRole("alert");
+    expect(screen.getAllByRole("alert")).toHaveLength(1);
     expect(notifyError).not.toHaveBeenCalled();
   });
 });

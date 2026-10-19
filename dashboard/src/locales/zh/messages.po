@@ -2653,7 +2653,7 @@ msgstr "无法从 Bing 获取图片。"
 #. js-lingui-explicit-id
 #: src/pages/admin/groups/AdminGroupNew.tsx
 msgid "admin.group.create.description"
-msgstr "创建一个用户组，供应用决定谁可以进入。组内有哪些账号，在创建后的页面里设置。"
+msgstr "创建一个用户组，供应用决定谁可以进入。"
 
 #. js-lingui-explicit-id
 #: src/pages/public/Enroll.tsx
@@ -4245,7 +4245,6 @@ msgid "admin.forward-auth-apps.column.host"
 msgstr "主机名"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/groups/AdminGroupNew.tsx
 #: src/pages/admin/groups/GroupDetailsSection.tsx
 msgid "admin.group.kind.label"
 msgstr "成员来源"

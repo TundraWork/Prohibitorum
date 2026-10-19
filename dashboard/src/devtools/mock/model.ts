@@ -77,12 +77,6 @@ export interface MockConfig {
     ruleMatchEvery: number;
     groups: number;
     /**
-     * Whether the directory holds no group at all. Apart from `groups` because
-     * a count of 0 still lists one group, so the two edit shapes stay reachable;
-     * this is how the list's empty state is reached.
-     */
-    groupsNone: boolean;
-    /**
      * Allow and deny decisions a manual group holds, paged like the directory;
      * every third one is a deny. Apart from `groups` because a group's
      * decisions are not bounded by the directory page and a walkthrough needs
@@ -368,7 +362,6 @@ export const defaultMockConfig: MockConfig = {
     ruleAccounts: 12,
     ruleMatchEvery: 2,
     groups: 3,
-    groupsNone: false,
     groupDecisions: 4,
     groupDecisionsPageSize: 50,
     groupDecisionsLaterPagesFail: false,

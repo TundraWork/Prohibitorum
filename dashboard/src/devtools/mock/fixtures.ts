@@ -1075,13 +1075,11 @@ function invitationAt(index: number, config: MockConfig): Invitation {
 }
 
 /**
- * The user-group directory. One manual group and one rule group are always
- * present, because the two edit shapes are the point of the page: a walkthrough
- * that only ever sees manual groups never reaches the rule editor.
+ * The user-group directory. Kinds alternate manual, rule, manual, so the
+ * default holds both edit shapes; a count of 0 is an empty directory.
  */
 function groupsFrom(config: MockConfig): AppGroupView[] {
-  if (config.admin.groupsNone) return [];
-  const generated = Array.from(
+  return Array.from(
     { length: clampAdminCount(config.admin.groups) },
     (_, index): AppGroupView => {
       const id = index + 1;
@@ -1098,19 +1096,6 @@ function groupsFrom(config: MockConfig): AppGroupView[] {
       };
     },
   );
-  return generated.length > 0
-    ? generated
-    : [
-        {
-          id: 1,
-          kind: "manual",
-          slug: "manual-group-1",
-          displayName: "Manual group 1",
-          description: "A mock manual group.",
-          exposedToDownstream: true,
-          applicationCount: 1,
-        },
-      ];
 }
 
 /** Two conditions and a `not`, so the rule editor has something to render. */

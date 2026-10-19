@@ -2653,7 +2653,7 @@ msgstr "Couldn't get the picture from Bing."
 #. js-lingui-explicit-id
 #: src/pages/admin/groups/AdminGroupNew.tsx
 msgid "admin.group.create.description"
-msgstr "Create a group applications can use to decide who gets in. Who it holds is set on its page once it exists."
+msgstr "Create a group applications can use to decide who gets in."
 
 #. js-lingui-explicit-id
 #: src/pages/public/Enroll.tsx
@@ -4245,7 +4245,6 @@ msgid "admin.forward-auth-apps.column.host"
 msgstr "Hostname"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/groups/AdminGroupNew.tsx
 #: src/pages/admin/groups/GroupDetailsSection.tsx
 msgid "admin.group.kind.label"
 msgstr "How it fills"

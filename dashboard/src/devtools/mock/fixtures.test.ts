@@ -465,16 +465,9 @@ describe("mocked management directory", () => {
     expect(groups[0]?.rule).toBeUndefined();
   });
 
-  it("still lists a group when the panel is set to none", () => {
+  it("lists no group when the panel is set to none", () => {
     const current = config((draft) => {
       draft.admin.groups = 0;
-    });
-    expect(bodyOf(read("/api/prohibitorum/groups", current))).toHaveLength(1);
-  });
-
-  it("lists no group at all when the directory is set to hold none", () => {
-    const current = config((draft) => {
-      draft.admin.groupsNone = true;
     });
     expect(bodyOf(read("/api/prohibitorum/groups", current))).toEqual([]);
   });
