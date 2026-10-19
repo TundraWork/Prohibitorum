@@ -49,6 +49,11 @@ export function ProviderCredentialsSection({
       title={
         <Trans id="admin.federation.credentials.steam.title">Web API key</Trans>
       }
+      description={
+        <Trans id="admin.federation.credentials.steam.description">
+          Steam needs this key to look up the people who sign in.
+        </Trans>
+      }
     >
       <ProviderSecretRow provider={provider} />
     </Section>

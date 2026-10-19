@@ -75,7 +75,7 @@ export function EntityCell({
         />
       </span>
       <div className="flex max-w-52 min-w-0 flex-col sm:max-w-md">
-        <span className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1">
+        <span className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 sm:flex-nowrap">
           <span
             className={`min-w-0 truncate${dimmed ? " opacity-70" : ""}`}
             title={typeof name === "string" ? name : undefined}

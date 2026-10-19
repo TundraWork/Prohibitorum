@@ -7401,6 +7401,12 @@ msgid "admin.federation.protocol.steam"
 msgstr "Steam"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
+#: src/pages/admin/identity-providers/ProviderCredentialsSection.tsx
+msgid "admin.federation.credentials.steam.description"
+msgstr "Steam needs this key to look up the people who sign in."
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderCredentialsSection.tsx
 msgid "admin.federation.credentials.stored"
 msgstr "Stored"
@@ -8865,14 +8871,14 @@ msgid "admin.group.slug.format"
 msgstr "Use lowercase letters, digits and hyphens, up to 64 characters."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
-msgid "admin.federation.new.slug.invalid"
-msgstr "Use lowercase letters, digits and single hyphens — the identifier appears in the callback address."
-
-#. js-lingui-explicit-id
 #: src/pages/admin/settings/client-ip-form.ts
 msgid "settings.network.header.invalid"
 msgstr "Use only letters, digits, hyphens and underscores."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
+msgid "admin.federation.new.slug.invalid"
+msgstr "Use only the allowed characters."
 
 #. js-lingui-explicit-id
 #: src/pages/devices/DeviceSessionList.tsx

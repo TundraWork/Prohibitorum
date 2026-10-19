@@ -77,4 +77,22 @@ describe("EntityCell", () => {
     expect(mark).toHaveTextContent("Sign-in off");
     expect(screen.getByText("Disabled")).toBeVisible();
   });
+
+  it("keeps a long name whole in its title and the badge in the same row as the name", async () => {
+    const long = "A very long provider name that cannot fit beside its badges";
+    renderCell(
+      <EntityCell
+        name={long}
+        dimmed
+        link={{ to: "/things/$id", params: { id: "x" } } as never}
+      />,
+    );
+    const link = await screen.findByRole("link", { name: long });
+    const nameCell = link.parentElement;
+    expect(nameCell).toHaveAttribute("title", long);
+    // The badge shares the name's row rather than sitting in a row of its own.
+    expect(nameCell?.parentElement).toContainElement(
+      screen.getByText("Disabled"),
+    );
+  });
 });

@@ -61,8 +61,7 @@ function slugAccepted(value: string): boolean {
 
 const slugInvalid = msg({
   id: "admin.federation.new.slug.invalid",
-  message:
-    "Use lowercase letters, digits and single hyphens — the identifier appears in the callback address.",
+  message: "Use only the allowed characters.",
 });
 
 /**
@@ -522,6 +521,11 @@ export function AdminIdentityProviderNew() {
               title={
                 <Trans id="admin.federation.credentials.steam.title">
                   Web API key
+                </Trans>
+              }
+              description={
+                <Trans id="admin.federation.credentials.steam.description">
+                  Steam needs this key to look up the people who sign in.
                 </Trans>
               }
             >

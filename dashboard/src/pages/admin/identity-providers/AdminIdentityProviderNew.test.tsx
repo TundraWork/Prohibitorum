@@ -154,9 +154,7 @@ describe("the form's shape", () => {
     await user.click(screen.getByRole("button", { name: "Add provider" }));
 
     expect(
-      await screen.findByText(
-        /Use lowercase letters, digits and single hyphens/,
-      ),
+      await screen.findByText("Use only the allowed characters."),
     ).toBeVisible();
   });
 });
