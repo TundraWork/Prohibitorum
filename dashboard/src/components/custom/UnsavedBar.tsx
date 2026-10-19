@@ -62,6 +62,17 @@ export function UnsavedBar({
     dirty.length === 0
       ? undefined
       : watched.find((id) => visible[id] === false);
+  const shown = awayId !== undefined;
+  // The bar sits where a bottom toast would, so the toasts rise above it while
+  // it is up.
+  useEffect(() => {
+    if (!shown) return;
+    const root = document.documentElement;
+    root.style.setProperty("--unsaved-bar-space", "3.5rem");
+    return () => {
+      root.style.removeProperty("--unsaved-bar-space");
+    };
+  }, [shown]);
   if (awayId === undefined) return null;
 
   const title = dirty.find((section) => section.id === awayId)?.title;
