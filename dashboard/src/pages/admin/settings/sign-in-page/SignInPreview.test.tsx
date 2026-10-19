@@ -1,3 +1,4 @@
+import { Form } from "@heroui/react";
 import { I18nProvider } from "@lingui/react";
 import { type QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
@@ -58,7 +59,12 @@ const Props = createContext<PreviewProps | undefined>(undefined);
 
 function Preview() {
   const props = useContext(Props) as PreviewProps;
-  return <SignInPreview {...props} />;
+  // The console draws the preview inside the editor's own form.
+  return (
+    <Form className="outer-form-layout" aria-label="Outer form">
+      <SignInPreview {...props} />
+    </Form>
+  );
 }
 
 /** The preview inside a router, as the console draws it, so the sign-in page it shows has one too. */
@@ -141,6 +147,15 @@ describe("the sign-in page preview", () => {
     const page = await pageDocument();
     expect(page.querySelector("h1")).not.toBeNull();
     expect(page.activeElement).toBe(page.body);
+  });
+
+  it("does not let the form it is drawn in restyle the sign-in form", async () => {
+    await show(view());
+    const page = await pageDocument();
+    const form = page.querySelector("form");
+    expect(form).not.toBeNull();
+    expect(form).not.toHaveClass("outer-form-layout");
+    expect(form).toHaveAttribute("aria-label", "Sign in with a password");
   });
 
   it("never waits for a passkey while it is only a picture", async () => {
