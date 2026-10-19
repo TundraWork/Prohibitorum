@@ -70,7 +70,10 @@ export function ConfirmDialog({
             {icons[status]}
           </span>
           <AlertDialogTitle>{title}</AlertDialogTitle>
-          <AlertDialogDescription render={<div />} className="col-start-2">
+          <AlertDialogDescription
+            render={<div />}
+            className="col-start-2 text-pretty"
+          >
             {body}
           </AlertDialogDescription>
         </AlertDialogHeader>

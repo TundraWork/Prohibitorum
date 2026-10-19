@@ -33,7 +33,7 @@ export function ConsequenceFooter({
             aria-hidden="true"
             className="size-4 shrink-0 text-warning"
           />
-          <p className="min-w-0 flex-1 basis-56 text-foreground text-sm">
+          <p className="min-w-0 flex-1 basis-56 text-pretty text-foreground text-sm">
             {consequence}
           </p>
         </>

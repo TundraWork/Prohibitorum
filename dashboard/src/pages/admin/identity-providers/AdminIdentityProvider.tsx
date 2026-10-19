@@ -99,7 +99,7 @@ export function AdminIdentityProvider({
           {!provider.ready && (
             <p
               data-slot="provider-not-ready"
-              className="flex items-center gap-2 text-sm text-warning-foreground"
+              className="flex items-center gap-2 text-pretty text-sm text-warning-foreground"
             >
               <TriangleAlertIcon
                 aria-hidden="true"
