@@ -115,6 +115,15 @@ describe("mock URL control", () => {
     expect(getMockConfig().admin.ruleAccounts).toBe(mockRuleAccountsMax);
   });
 
+  it("allows a manual group's decisions beyond a page, and clamps them", () => {
+    applyMockQuery("?mock.admin.groupDecisions=120");
+    expect(getMockConfig().admin.groupDecisions).toBe(120);
+    applyMockQuery("?mock.admin.groupDecisions=99999");
+    expect(getMockConfig().admin.groupDecisions).toBe(mockRuleAccountsMax);
+    applyMockQuery("?mock.admin.groupDecisions=0");
+    expect(getMockConfig().admin.groupDecisions).toBe(0);
+  });
+
   it("keeps the rule match stride at one or more", () => {
     applyMockQuery("?mock.admin.ruleMatchEvery=0");
     expect(getMockConfig().admin.ruleMatchEvery).toBe(1);

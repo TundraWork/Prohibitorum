@@ -855,10 +855,17 @@ export function groupProvidersQueryOptions() {
   });
 }
 
-export function groupDecisionsQueryOptions(groupId: number, cursor?: string) {
-  return queryOptions({
-    queryKey: ["admin", "groups", groupId, "decisions", cursor ?? ""] as const,
-    queryFn: ({ signal }) =>
+/**
+ * A manual group's allow and deny decisions, written for `useCursorList`.
+ *
+ * The key sits under the group's decisions prefix, which the decision writes
+ * invalidate, and the list shows its own failure, so it is read quietly.
+ */
+export function groupDecisionsListOptions(groupId: number) {
+  return {
+    queryKey: ["admin", "groups", groupId, "decisions"] as const,
+    meta: { quiet: true },
+    queryFn: ({ cursor, signal }: { cursor?: string; signal: AbortSignal }) =>
       requireJsonData(
         client.GET("/api/prohibitorum/groups/{groupId}/decisions", {
           params: {
@@ -868,7 +875,7 @@ export function groupDecisionsQueryOptions(groupId: number, cursor?: string) {
           signal,
         }),
       ),
-  });
+  };
 }
 
 /** The server's largest page; fewer pages are needed to find sparse matches. */

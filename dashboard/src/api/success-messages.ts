@@ -94,6 +94,14 @@ export const successMessage = {
     id: "success.group.deleted",
     message: "User group deleted",
   }),
+  saveGroupDecision: msg({
+    id: "success.group.decision-saved",
+    message: "Decision saved",
+  }),
+  clearGroupDecision: msg({
+    id: "success.group.decision-cleared",
+    message: "Decision cleared",
+  }),
   revokeInvitation: msg({
     id: "success.invitation.revoked",
     message: "Invitation revoked",

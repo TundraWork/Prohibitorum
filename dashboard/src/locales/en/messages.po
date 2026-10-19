@@ -34,6 +34,11 @@ msgid "admin.oidc-apps.scopes.remove.action-label"
 msgstr "{0, plural, one {Remove scope and save} other {Remove scopes and save}}"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupDecisionsFrame.tsx
+msgid "admin.group.decision-counts.summary"
+msgstr "{allowed} allowed · {denied} denied"
+
+#. js-lingui-explicit-id
 #: src/pages/public/Consent.tsx
 msgid "consent.title.more"
 msgstr "{app} is asking for more access"
@@ -188,6 +193,26 @@ msgstr "{name} account"
 #: src/pages/admin/saml-applications/SamlDangerSection.tsx
 msgid "admin.saml-apps.danger.delete.body"
 msgstr "{name} and its certificates are removed, and anyone who signs in through it is turned away. This cannot be undone."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/AddDecisionDialog.tsx
+msgid "admin.group.decisions.dialog.change-allow"
+msgstr "{name} is allowed in this group now. Saving changes it to deny."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/AddDecisionDialog.tsx
+msgid "admin.group.decisions.dialog.same-allow"
+msgstr "{name} is already allowed in this group. Choose Deny to change it."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/AddDecisionDialog.tsx
+msgid "admin.group.decisions.dialog.same-deny"
+msgstr "{name} is already denied in this group. Choose Allow to change it."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/AddDecisionDialog.tsx
+msgid "admin.group.decisions.dialog.change-deny"
+msgstr "{name} is denied in this group now. Saving changes it to allow."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/ForwardAuthDangerSection.tsx
@@ -543,6 +568,11 @@ msgid "audit.factor.account"
 msgstr "Account"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/AddDecisionDialog.tsx
+msgid "admin.group.decisions.dialog.account"
+msgstr "Account"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/groups/GroupExplainFrame.tsx
 msgid "admin.group.explain.account"
 msgstr "Account"
@@ -606,6 +636,11 @@ msgstr "Accounts"
 #: src/components/custom/AppAccessSection.tsx
 msgid "app.access.order.allowed"
 msgstr "Accounts allowed by hand in"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupDecisionsSection.tsx
+msgid "admin.group.decisions.description"
+msgstr "Accounts allowed here can use the applications that select this group; accounts denied here cannot, whatever else matches. Everyone else is neutral."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
@@ -730,6 +765,16 @@ msgstr "Add address"
 #: src/pages/admin/oidc-applications/AliasTableField.tsx
 msgid "admin.oidc-apps.aliases.add"
 msgstr "Add alias"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/AddDecisionDialog.tsx
+msgid "admin.group.decisions.dialog.title"
+msgstr "Add an account"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupDecisionsSection.tsx
+msgid "admin.group.decisions.add"
+msgstr "Add an account"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AttributeMapField.tsx
@@ -875,9 +920,25 @@ msgid "consent.allow"
 msgstr "Allow"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/AddDecisionDialog.tsx
+#: src/pages/admin/groups/decision-effect.tsx
+msgid "admin.group.decisions.effect.allow"
+msgstr "Allow"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/AddDecisionDialog.tsx
+msgid "admin.group.decisions.dialog.allow-none"
+msgstr "Allow"
+
+#. js-lingui-explicit-id
 #: src/pages/public/Consent.tsx
 msgid "consent.title"
 msgstr "Allow {app} to access your account?"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/AddDecisionDialog.tsx
+msgid "admin.group.decisions.dialog.allow-name"
+msgstr "Allow {name}"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
@@ -930,6 +991,11 @@ msgstr "Always dark"
 #: src/pages/admin/settings/SignInPageControls.tsx
 msgid "settings.sign-in.theme.light"
 msgstr "Always light"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupDecisionsFrame.tsx
+msgid "admin.group.decision-counts.partial"
+msgstr "Among the decisions loaded so far."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/sign-in-page-form.ts
@@ -1452,6 +1518,11 @@ msgid "admin.federation.callback.title"
 msgstr "Callback addresses"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/AddDecisionDialog.tsx
+msgid "admin.group.decisions.dialog.allow-hint"
+msgstr "Can use the applications that select this group."
+
+#. js-lingui-explicit-id
 #: src/components/custom/AppAccessSection.tsx
 msgid "app.access.order.rest.result"
 msgstr "Can't sign in"
@@ -1475,6 +1546,7 @@ msgstr "Cancel"
 #: src/components/custom/AppManagersSection.tsx
 #: src/pages/admin/AdminInvitationForm.tsx
 #: src/pages/admin/forward-auth-apps/AdminForwardAuthAppNew.tsx
+#: src/pages/admin/groups/AddDecisionDialog.tsx
 #: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
 #: src/pages/admin/identity-providers/ProviderCredentialsSection.tsx
 #: src/pages/admin/identity-providers/ProviderOperatorSection.tsx
@@ -1493,6 +1565,11 @@ msgstr "Cancel"
 #: src/components/custom/ConfirmDialog.tsx
 msgid "confirm.cancel"
 msgstr "Cancel"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/AddDecisionDialog.tsx
+msgid "admin.group.decisions.dialog.deny-hint"
+msgstr "Cannot use them, whatever else matches."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/SignInPageControls.tsx
@@ -1625,6 +1702,16 @@ msgid "admin.forward-auth-apps.headers.confirm.title"
 msgstr "Change the user identifier?"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupDecisionsSection.tsx
+msgid "admin.group.decisions.to-allow"
+msgstr "Change to allow"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupDecisionsSection.tsx
+msgid "admin.group.decisions.to-deny"
+msgstr "Change to deny"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts
 msgid "audit.event.update"
 msgstr "Changed"
@@ -1740,6 +1827,11 @@ msgid "error.local_username_required"
 msgstr "Choose a username for your new account."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/AddDecisionDialog.tsx
+msgid "admin.group.decisions.dialog.required"
+msgstr "Choose an account first."
+
+#. js-lingui-explicit-id
 #: src/components/custom/AppManagersSection.tsx
 msgid "app.managers.dialog.required"
 msgstr "Choose an account to assign."
@@ -1805,6 +1897,16 @@ msgid "admin.oidc-apps.alias.name"
 msgstr "Claim name"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupDecisionsSection.tsx
+msgid "admin.group.decisions.clear"
+msgstr "Clear"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupDecisionsSection.tsx
+msgid "admin.group.decisions.clear.action"
+msgstr "Clear"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminLogs.tsx
 msgid "admin.logs.filter.clear"
 msgstr "Clear filters"
@@ -1813,6 +1915,11 @@ msgstr "Clear filters"
 #: src/components/custom/EntityPicker.tsx
 msgid "admin.picker.clear"
 msgstr "Clear selection"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupDecisionsSection.tsx
+msgid "admin.group.decisions.clear.title"
+msgstr "Clear the deny for {clearingName}?"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminUsers.tsx
@@ -2698,6 +2805,31 @@ msgid "settings.sign-in.gradient.dawn"
 msgstr "Dawn"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/AddDecisionDialog.tsx
+msgid "admin.group.decisions.dialog.effect"
+msgstr "Decision"
+
+#. js-lingui-explicit-id
+#: src/api/success-messages.ts
+msgid "success.group.decision-cleared"
+msgstr "Decision cleared"
+
+#. js-lingui-explicit-id
+#: src/api/success-messages.ts
+msgid "success.group.decision-saved"
+msgstr "Decision saved"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupDecisionsFrame.tsx
+msgid "admin.group.decision-counts.title"
+msgstr "Decisions"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupDecisionsSection.tsx
+msgid "admin.group.decisions.label"
+msgstr "Decisions"
+
+#. js-lingui-explicit-id
 #: src/pages/devices/PairDeviceDialog.tsx
 msgid "devices.decline"
 msgstr "Decline"
@@ -2851,6 +2983,22 @@ msgstr "Delete this provider?"
 #: src/pages/public/Consent.tsx
 msgid "consent.deny"
 msgstr "Deny"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/AddDecisionDialog.tsx
+#: src/pages/admin/groups/decision-effect.tsx
+msgid "admin.group.decisions.effect.deny"
+msgstr "Deny"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/AddDecisionDialog.tsx
+msgid "admin.group.decisions.dialog.deny-none"
+msgstr "Deny"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/AddDecisionDialog.tsx
+msgid "admin.group.decisions.dialog.deny-name"
+msgstr "Deny {name}"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminGroups.tsx
@@ -3059,6 +3207,11 @@ msgstr "Disabled"
 #: src/components/custom/ObjectHeader.tsx
 msgid "object.status.disabled"
 msgstr "Disabled"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/AddDecisionDialog.tsx
+msgid "admin.group.decisions.candidate.disabled"
+msgstr "Disabled account"
 
 #. js-lingui-explicit-id
 #: src/components/custom/AppManagersSection.tsx
@@ -4769,6 +4922,11 @@ msgid "admin.federation.protocol.vrchat.hint"
 msgstr "Links VRChat identities to existing accounts. Needs a VRChat operator account."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupDecisionsSection.tsx
+msgid "admin.group.decisions.load-more"
+msgstr "Load more"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/groups/GroupMatchesFrame.tsx
 msgid "admin.group.matches.load-more"
 msgstr "Load more"
@@ -4949,6 +5107,11 @@ msgstr "Mist"
 #. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
 msgid "security.passkeys.more"
+msgstr "More actions for {name}"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupDecisionsSection.tsx
+msgid "admin.group.decisions.row-menu"
 msgstr "More actions for {name}"
 
 #. js-lingui-explicit-id
@@ -5255,6 +5418,11 @@ msgstr "No certificates are published for this application."
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.identities.empty"
 msgstr "No connected identities"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupDecisionsSection.tsx
+msgid "admin.group.decisions.empty"
+msgstr "No decisions yet. Nobody is allowed or denied through this group."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminLogs.tsx
@@ -7161,6 +7329,7 @@ msgstr "Scopes"
 #: src/components/custom/AppAccessSection.tsx
 #: src/components/custom/AppManagersSection.tsx
 #: src/components/custom/EntityPicker.tsx
+#: src/pages/admin/groups/AddDecisionDialog.tsx
 #: src/pages/admin/groups/GroupExplainFrame.tsx
 msgid "admin.picker.search"
 msgstr "Search"
@@ -7173,6 +7342,11 @@ msgstr "Search"
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminLogs.tsx
 msgid "admin.logs.filter.account.search"
+msgstr "Search accounts"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/AddDecisionDialog.tsx
+msgid "admin.group.decisions.dialog.placeholder"
 msgstr "Search accounts"
 
 #. js-lingui-explicit-id
@@ -8627,6 +8801,11 @@ msgid "login.codes.once"
 msgstr "These codes are shown only once. Keep them somewhere safe before continuing. Your old recovery codes no longer work."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupDecisionsSection.tsx
+msgid "admin.group.decisions.clear.body"
+msgstr "They may get in through another group or rule."
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.state.enable.body"
 msgstr "They will be able to sign in again straight away."
@@ -9109,6 +9288,11 @@ msgid "pair.retry"
 msgstr "Try again"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupDecisionsSection.tsx
+msgid "admin.group.decisions.retry"
+msgstr "Try again"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/groups/GroupMatchesFrame.tsx
 msgid "admin.group.matches.retry"
 msgstr "Try again"
@@ -9263,6 +9447,11 @@ msgstr "Unsplash could not be reached, so the access key was not checked or save
 #: src/api/errors.ts
 msgid "error.unsplash_key_invalid"
 msgstr "Unsplash did not accept this access key. Check it and enter it again."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupDecisionsSection.tsx
+msgid "admin.group.decisions.updated"
+msgstr "Updated <0/>"
 
 #. js-lingui-explicit-id
 #: src/pages/profile/AvatarPanel.tsx
@@ -10004,6 +10193,11 @@ msgstr "Which accounts this group holds is decided on the group's own page, once
 #: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
 msgid "admin.federation.claims.description"
 msgstr "Who may come in through this provider, and which of its fields fill in the account."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupDecisionsSection.tsx
+msgid "admin.group.decisions.title"
+msgstr "Who this group decides"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/groups/GroupRuleSection.tsx

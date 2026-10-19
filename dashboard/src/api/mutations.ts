@@ -1176,6 +1176,7 @@ export function deleteGroupMutationOptions(queryClient: QueryClient) {
 
 export function upsertDecisionMutationOptions(queryClient: QueryClient) {
   return mutationOptions({
+    meta: { success: successMessage.saveGroupDecision },
     retry: false,
     mutationFn: async ({
       groupId,
@@ -1199,6 +1200,7 @@ export function upsertDecisionMutationOptions(queryClient: QueryClient) {
 
 export function clearDecisionMutationOptions(queryClient: QueryClient) {
   return mutationOptions({
+    meta: { success: successMessage.clearGroupDecision },
     retry: false,
     mutationFn: async ({
       groupId,

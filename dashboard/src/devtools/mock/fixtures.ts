@@ -4,6 +4,7 @@ import type {
   AppAccessWorkspace,
   AppGroupView,
   ManualDecisionView,
+  PageManualDecisionView,
   ProviderDescriptorView,
   RulePreviewPageView,
 } from "@/api/raw-admin-paths";
@@ -1123,26 +1124,40 @@ function sampleRule(id: number): AppAccessRule {
   };
 }
 
-/**
- * The per-account allow/deny rows a manual group carries. Not a panel control:
- * the decisions belong to one group rather than to the instance, and a handful
- * is enough to show the list, its effects and its clear action.
- */
-const mockDecisions = 4;
+/** The server's default page for a group's decisions. */
+const decisionsPageSize = 50;
 
-function groupDecisions(): ManualDecisionView[] {
-  return Array.from(
-    { length: mockDecisions },
-    (_, index): ManualDecisionView => ({
-      account: {
-        id: index + 1,
-        username: `mock-user-${index + 1}`,
-        displayName: `Mock User ${index + 1}`,
+/**
+ * One page of the per-account allow/deny rows a manual group carries, paged by
+ * an offset cursor like the server's opaque one. Not a panel control per
+ * group: the decisions belong to one group rather than to the instance, so
+ * every manual group shows the same rows.
+ */
+function groupDecisions(
+  config: MockConfig,
+  cursor?: string,
+): PageManualDecisionView {
+  const total = clampRuleAccounts(config.admin.groupDecisions);
+  const start = Math.min(total, Number(cursor) || 0);
+  const end = Math.min(total, start + decisionsPageSize);
+  return {
+    items: Array.from(
+      { length: end - start },
+      (_, offset): ManualDecisionView => {
+        const index = start + offset;
+        return {
+          account: {
+            id: index + 1,
+            username: `mock-user-${index + 1}`,
+            displayName: `Mock User ${index + 1}`,
+          },
+          effect: index % 3 === 2 ? "deny" : "allow",
+          updatedAt: iso(-day * (index + 1)),
+        };
       },
-      effect: index % 3 === 2 ? "deny" : "allow",
-      updatedAt: iso(-day * (index + 1)),
-    }),
-  );
+    ),
+    nextCursor: end < total ? String(end) : "",
+  };
 }
 
 /** The server's default page size for a preview. */
@@ -2166,7 +2181,12 @@ function readReply(
     }
     case "/api/prohibitorum/groups/{groupId}/decisions":
       return guarded(config, () =>
-        json({ items: groupDecisions(), nextCursor: "" }),
+        json(
+          groupDecisions(
+            config,
+            new URL(request.url).searchParams.get("cursor") ?? undefined,
+          ),
+        ),
       );
     case "/api/prohibitorum/groups/{groupId}/preview":
       return guarded(config, () =>

@@ -562,6 +562,16 @@ export function MockPanel() {
             }
           />
           <Count
+            label="Manual group decisions"
+            max={mockRuleAccountsMax}
+            value={config.admin.groupDecisions}
+            onChange={(next) =>
+              updateMockConfig((draft) => {
+                draft.admin.groupDecisions = next;
+              })
+            }
+          />
+          <Count
             label="Invitations"
             max={mockAdminListMax}
             value={config.admin.invitations}

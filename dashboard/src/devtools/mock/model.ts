@@ -76,6 +76,13 @@ export interface MockConfig {
     /** Every Nth rule account matches (1 matches all), so matches can be sparse. */
     ruleMatchEvery: number;
     groups: number;
+    /**
+     * Allow and deny decisions a manual group holds, paged like the directory;
+     * every third one is a deny. Apart from `groups` because a group's
+     * decisions are not bounded by the directory page and a walkthrough needs
+     * more than one page of them, or none.
+     */
+    groupDecisions: number;
     invitations: number;
     /** Audit log entries, paged like the directory and capped the same. */
     auditEvents: number;
@@ -335,6 +342,7 @@ export const defaultMockConfig: MockConfig = {
     ruleAccounts: 12,
     ruleMatchEvery: 2,
     groups: 3,
+    groupDecisions: 4,
     invitations: 4,
     auditEvents: 24,
     signingKeys: 4,

@@ -708,6 +708,51 @@ describe("mocked management directory", () => {
     expect(page.items.some((item) => item.matched)).toBe(false);
   });
 
+  it("serves a manual group's decisions in pages of the server's default size", () => {
+    const current = config((draft) => {
+      draft.session.role = "admin";
+      draft.admin.groupDecisions = 120;
+    });
+    const page = (cursor?: string) =>
+      bodyOf(
+        read(
+          "/api/prohibitorum/groups/{groupId}/decisions",
+          current,
+          `http://localhost/api/prohibitorum/groups/1/decisions${
+            cursor === undefined ? "" : `?cursor=${cursor}`
+          }`,
+        ),
+      ) as { items: { effect: string }[]; nextCursor: string };
+
+    const first = page();
+    expect(first.items).toHaveLength(50);
+    expect(first.nextCursor).not.toBe("");
+    const second = page(first.nextCursor);
+    const last = page(second.nextCursor);
+    expect(second.items).toHaveLength(50);
+    expect(last.items).toHaveLength(20);
+    expect(last.nextCursor).toBe("");
+    expect(first.items.filter((item) => item.effect === "deny")).toHaveLength(
+      16,
+    );
+  });
+
+  it("serves no decisions when the panel says none", () => {
+    const current = config((draft) => {
+      draft.session.role = "admin";
+      draft.admin.groupDecisions = 0;
+    });
+    const page = bodyOf(
+      read(
+        "/api/prohibitorum/groups/{groupId}/decisions",
+        current,
+        "http://localhost/api/prohibitorum/groups/1/decisions",
+      ),
+    ) as { items: unknown[]; nextCursor: string };
+
+    expect(page).toEqual({ items: [], nextCursor: "" });
+  });
+
   it("clamps a rule preview's page to the server's largest", () => {
     const current = writes();
     current.admin.ruleAccounts = 300;

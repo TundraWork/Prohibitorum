@@ -2,7 +2,11 @@ import type { QueryClient } from "@tanstack/react-query";
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { AppGroupView, GroupApplicationView } from "@/api/raw-admin-paths";
+import type {
+  AppGroupView,
+  GroupApplicationView,
+  ManualDecisionView,
+} from "@/api/raw-admin-paths";
 import { createQueryClient } from "@/app/query-client";
 import { i18n } from "@/i18n";
 import {
@@ -30,7 +34,11 @@ afterEach(() => {
 
 const base = "/api/prohibitorum";
 
-function open(group: AppGroupView, used: GroupApplicationView[] = []) {
+function open(
+  group: AppGroupView,
+  used: GroupApplicationView[] = [],
+  decisions: ManualDecisionView[] = [],
+) {
   return fakeApi({
     ...publicApi({ ...testSession, role: "admin" }),
     [`GET ${base}/oidc-applications`]: () =>
@@ -42,6 +50,8 @@ function open(group: AppGroupView, used: GroupApplicationView[] = []) {
     [`GET ${base}/groups/${group.id}`]: () => Response.json(group),
     [`GET ${base}/groups/${group.id}/applications`]: () =>
       Response.json({ items: used, nextCursor: "" }),
+    [`GET ${base}/groups/${group.id}/decisions`]: () =>
+      Response.json({ items: decisions, nextCursor: "" }),
     [`GET ${base}/groups/providers`]: () => Response.json([]),
     [`POST ${base}/groups/rule-preview`]: () =>
       Response.json({ matchedCount: 0, items: [], nextCursor: "" }),
@@ -50,8 +60,12 @@ function open(group: AppGroupView, used: GroupApplicationView[] = []) {
   });
 }
 
-async function mountPage(group: AppGroupView, used?: GroupApplicationView[]) {
-  const api = open(group, used);
+async function mountPage(
+  group: AppGroupView,
+  used?: GroupApplicationView[],
+  decisions?: ManualDecisionView[],
+) {
+  const api = open(group, used, decisions);
   renderApp(`/admin/groups/${group.id}`, queryClient);
   await screen.findByRole("heading", { level: 1, name: group.displayName });
   return api;
@@ -142,6 +156,45 @@ describe("the page's sections", () => {
     ).toBeNull();
   });
 
+  it("puts who a manual group decides under its details, with the counts beside it above where it is used", async () => {
+    await mountPage(
+      groupFixture(),
+      [],
+      [
+        {
+          account: { id: 1, username: "ana", displayName: "Ana Lima" },
+          effect: "allow",
+          updatedAt: new Date().toISOString(),
+        },
+        {
+          account: { id: 2, username: "cy", displayName: "Cy Dunn" },
+          effect: "deny",
+          updatedAt: new Date().toISOString(),
+        },
+      ],
+    );
+
+    const main = screen
+      .getAllByRole("heading", { level: 2 })
+      .map((heading) => heading.textContent);
+    expect(main.slice(0, 2)).toEqual(["Details", "Who this group decides"]);
+    const side = screen.getByRole("complementary", { name: "Group context" });
+    expect(await within(side).findByText("1 allowed · 1 denied")).toBeVisible();
+    expect(
+      within(side)
+        .getAllByRole("heading", { level: 2 })
+        .map((heading) => heading.textContent),
+    ).toEqual(["Decisions", "Used by"]);
+  });
+
+  it("leaves the decisions out of a rule group", async () => {
+    await mountPage(ruleGroupFixture());
+
+    expect(
+      screen.queryByRole("heading", { name: "Who this group decides" }),
+    ).toBeNull();
+  });
+
   it("lists the applications that use the group beside it", async () => {
     await mountPage(groupFixture(), [
       { kind: "oidc", appId: "grafana", displayName: "Grafana" },
@@ -168,6 +221,8 @@ describe("saving the details", () => {
         Response.json({ items: [], nextCursor: "" }),
       [`GET ${base}/groups/7`]: () => Response.json(stored),
       [`GET ${base}/groups/7/applications`]: () =>
+        Response.json({ items: [], nextCursor: "" }),
+      [`GET ${base}/groups/7/decisions`]: () =>
         Response.json({ items: [], nextCursor: "" }),
       [`PUT ${base}/groups/7`]: async (request) => {
         stored = { ...stored, ...(await request.json()) };
@@ -208,6 +263,10 @@ describe("deleting the group", () => {
           ? apiError("group_not_found", 404)
           : Response.json(groupFixture()),
       [`GET ${base}/groups/7/applications`]: () =>
+        deleted
+          ? apiError("group_not_found", 404)
+          : Response.json({ items: [], nextCursor: "" }),
+      [`GET ${base}/groups/7/decisions`]: () =>
         deleted
           ? apiError("group_not_found", 404)
           : Response.json({ items: [], nextCursor: "" }),

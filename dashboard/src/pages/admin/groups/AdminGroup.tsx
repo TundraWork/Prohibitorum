@@ -13,6 +13,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { GroupDangerSection } from "@/pages/admin/groups/GroupDangerSection";
+import { GroupDecisionsFrame } from "@/pages/admin/groups/GroupDecisionsFrame";
+import { GroupDecisionsSection } from "@/pages/admin/groups/GroupDecisionsSection";
 import { GroupDetailsSection } from "@/pages/admin/groups/GroupDetailsSection";
 import { GroupExplainFrame } from "@/pages/admin/groups/GroupExplainFrame";
 import { GroupMatchesFrame } from "@/pages/admin/groups/GroupMatchesFrame";
@@ -22,7 +24,8 @@ import { GroupUsedBySection } from "@/pages/admin/groups/GroupUsedBySection";
 /**
  * One user group's page: who it is at the top, a main column of sections and,
  * from `lg`, a side column of context beside it: for a rule group who it
- * matches and why, then where it is used.
+ * matches and why, for a manual group how many decisions it holds, then where
+ * it is used.
  *
  * The danger section is the last of the main column, but its own grid item, so
  * below `lg` the side column's context reads before it instead of after the
@@ -90,7 +93,11 @@ function GroupColumns({ group }: { group: AppGroupView }) {
     >
       <div className="flex min-w-0 flex-col gap-6 lg:col-start-1 lg:row-start-1">
         <GroupDetailsSection group={group} />
-        {isRule && <GroupRuleSection key={group.id} group={group} />}
+        {isRule ? (
+          <GroupRuleSection key={group.id} group={group} />
+        ) : (
+          <GroupDecisionsSection key={group.id} groupId={group.id} />
+        )}
       </div>
       <aside
         aria-label={t({ id: "admin.group.side", message: "Group context" })}
@@ -105,6 +112,12 @@ function GroupColumns({ group }: { group: AppGroupView }) {
             />
             <GroupExplainFrame key={`explain-${group.id}`} groupId={group.id} />
           </>
+        )}
+        {!isRule && (
+          <GroupDecisionsFrame
+            key={`decisions-${group.id}`}
+            groupId={group.id}
+          />
         )}
         <GroupUsedBySection groupId={group.id} />
       </aside>

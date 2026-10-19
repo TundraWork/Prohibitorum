@@ -34,6 +34,11 @@ msgid "admin.oidc-apps.scopes.remove.action-label"
 msgstr "{0, plural, other {移除作用域并保存}}"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupDecisionsFrame.tsx
+msgid "admin.group.decision-counts.summary"
+msgstr "{allowed} 个已允许 · {denied} 个已拒绝"
+
+#. js-lingui-explicit-id
 #: src/pages/public/Consent.tsx
 msgid "consent.title.more"
 msgstr "{app} 请求更多权限"
@@ -188,6 +193,26 @@ msgstr "{name} 账号"
 #: src/pages/admin/saml-applications/SamlDangerSection.tsx
 msgid "admin.saml-apps.danger.delete.body"
 msgstr "{name} 及其证书会被删除，通过它登录的人都会被拒之门外。此操作无法撤销。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/AddDecisionDialog.tsx
+msgid "admin.group.decisions.dialog.change-allow"
+msgstr "{name} 目前在此用户组中被允许。保存后将改为拒绝。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/AddDecisionDialog.tsx
+msgid "admin.group.decisions.dialog.same-allow"
+msgstr "{name} 已在此用户组中被允许。选择“拒绝”可更改。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/AddDecisionDialog.tsx
+msgid "admin.group.decisions.dialog.same-deny"
+msgstr "{name} 已在此用户组中被拒绝。选择“允许”可更改。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/AddDecisionDialog.tsx
+msgid "admin.group.decisions.dialog.change-deny"
+msgstr "{name} 目前在此用户组中被拒绝。保存后将改为允许。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/ForwardAuthDangerSection.tsx
@@ -543,6 +568,11 @@ msgid "audit.factor.account"
 msgstr "账号"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/AddDecisionDialog.tsx
+msgid "admin.group.decisions.dialog.account"
+msgstr "账号"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/groups/GroupExplainFrame.tsx
 msgid "admin.group.explain.account"
 msgstr "账号"
@@ -606,6 +636,11 @@ msgstr "关联账号"
 #: src/components/custom/AppAccessSection.tsx
 msgid "app.access.order.allowed"
 msgstr "在这些组中被手动允许"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupDecisionsSection.tsx
+msgid "admin.group.decisions.description"
+msgstr "在此被允许的账号可以使用选用了该用户组的应用；在此被拒绝的账号则不能使用，无论其他条件是否满足。其余账号不受此组影响。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
@@ -730,6 +765,16 @@ msgstr "添加地址"
 #: src/pages/admin/oidc-applications/AliasTableField.tsx
 msgid "admin.oidc-apps.aliases.add"
 msgstr "添加别名"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/AddDecisionDialog.tsx
+msgid "admin.group.decisions.dialog.title"
+msgstr "添加账号"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupDecisionsSection.tsx
+msgid "admin.group.decisions.add"
+msgstr "添加账号"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AttributeMapField.tsx
@@ -875,9 +920,25 @@ msgid "consent.allow"
 msgstr "允许"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/AddDecisionDialog.tsx
+#: src/pages/admin/groups/decision-effect.tsx
+msgid "admin.group.decisions.effect.allow"
+msgstr "允许"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/AddDecisionDialog.tsx
+msgid "admin.group.decisions.dialog.allow-none"
+msgstr "允许"
+
+#. js-lingui-explicit-id
 #: src/pages/public/Consent.tsx
 msgid "consent.title"
 msgstr "允许 {app} 访问你的账号？"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/AddDecisionDialog.tsx
+msgid "admin.group.decisions.dialog.allow-name"
+msgstr "允许 {name}"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
@@ -930,6 +991,11 @@ msgstr "始终夜间模式"
 #: src/pages/admin/settings/SignInPageControls.tsx
 msgid "settings.sign-in.theme.light"
 msgstr "始终日间模式"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupDecisionsFrame.tsx
+msgid "admin.group.decision-counts.partial"
+msgstr "统计范围仅限目前已加载的决定。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/sign-in-page-form.ts
@@ -1452,6 +1518,11 @@ msgid "admin.federation.callback.title"
 msgstr "回调地址"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/AddDecisionDialog.tsx
+msgid "admin.group.decisions.dialog.allow-hint"
+msgstr "可以使用选用了该用户组的应用。"
+
+#. js-lingui-explicit-id
 #: src/components/custom/AppAccessSection.tsx
 msgid "app.access.order.rest.result"
 msgstr "无法登录"
@@ -1475,6 +1546,7 @@ msgstr "取消"
 #: src/components/custom/AppManagersSection.tsx
 #: src/pages/admin/AdminInvitationForm.tsx
 #: src/pages/admin/forward-auth-apps/AdminForwardAuthAppNew.tsx
+#: src/pages/admin/groups/AddDecisionDialog.tsx
 #: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
 #: src/pages/admin/identity-providers/ProviderCredentialsSection.tsx
 #: src/pages/admin/identity-providers/ProviderOperatorSection.tsx
@@ -1493,6 +1565,11 @@ msgstr "取消"
 #: src/components/custom/ConfirmDialog.tsx
 msgid "confirm.cancel"
 msgstr "取消"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/AddDecisionDialog.tsx
+msgid "admin.group.decisions.dialog.deny-hint"
+msgstr "不能使用这些应用，无论其他条件是否满足。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/SignInPageControls.tsx
@@ -1625,6 +1702,16 @@ msgid "admin.forward-auth-apps.headers.confirm.title"
 msgstr "更换用户标识？"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupDecisionsSection.tsx
+msgid "admin.group.decisions.to-allow"
+msgstr "改为允许"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupDecisionsSection.tsx
+msgid "admin.group.decisions.to-deny"
+msgstr "改为拒绝"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts
 msgid "audit.event.update"
 msgstr "修改"
@@ -1740,6 +1827,11 @@ msgid "error.local_username_required"
 msgstr "请为新账号选择用户名。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/AddDecisionDialog.tsx
+msgid "admin.group.decisions.dialog.required"
+msgstr "先选择一个账号。"
+
+#. js-lingui-explicit-id
 #: src/components/custom/AppManagersSection.tsx
 msgid "app.managers.dialog.required"
 msgstr "选择要指派的账号。"
@@ -1805,6 +1897,16 @@ msgid "admin.oidc-apps.alias.name"
 msgstr "声明名称"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupDecisionsSection.tsx
+msgid "admin.group.decisions.clear"
+msgstr "清除"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupDecisionsSection.tsx
+msgid "admin.group.decisions.clear.action"
+msgstr "清除"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminLogs.tsx
 msgid "admin.logs.filter.clear"
 msgstr "清除筛选"
@@ -1813,6 +1915,11 @@ msgstr "清除筛选"
 #: src/components/custom/EntityPicker.tsx
 msgid "admin.picker.clear"
 msgstr "清除所选项"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupDecisionsSection.tsx
+msgid "admin.group.decisions.clear.title"
+msgstr "清除对 {clearingName} 的拒绝？"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminUsers.tsx
@@ -2698,6 +2805,31 @@ msgid "settings.sign-in.gradient.dawn"
 msgstr "晨曦"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/AddDecisionDialog.tsx
+msgid "admin.group.decisions.dialog.effect"
+msgstr "决定"
+
+#. js-lingui-explicit-id
+#: src/api/success-messages.ts
+msgid "success.group.decision-cleared"
+msgstr "决定已清除"
+
+#. js-lingui-explicit-id
+#: src/api/success-messages.ts
+msgid "success.group.decision-saved"
+msgstr "决定已保存"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupDecisionsFrame.tsx
+msgid "admin.group.decision-counts.title"
+msgstr "决定"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupDecisionsSection.tsx
+msgid "admin.group.decisions.label"
+msgstr "决定"
+
+#. js-lingui-explicit-id
 #: src/pages/devices/PairDeviceDialog.tsx
 msgid "devices.decline"
 msgstr "拒绝"
@@ -2851,6 +2983,22 @@ msgstr "要删除该提供商吗？"
 #: src/pages/public/Consent.tsx
 msgid "consent.deny"
 msgstr "拒绝"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/AddDecisionDialog.tsx
+#: src/pages/admin/groups/decision-effect.tsx
+msgid "admin.group.decisions.effect.deny"
+msgstr "拒绝"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/AddDecisionDialog.tsx
+msgid "admin.group.decisions.dialog.deny-none"
+msgstr "拒绝"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/AddDecisionDialog.tsx
+msgid "admin.group.decisions.dialog.deny-name"
+msgstr "拒绝 {name}"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminGroups.tsx
@@ -3059,6 +3207,11 @@ msgstr "已停用"
 #: src/components/custom/ObjectHeader.tsx
 msgid "object.status.disabled"
 msgstr "已停用"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/AddDecisionDialog.tsx
+msgid "admin.group.decisions.candidate.disabled"
+msgstr "账号已停用"
 
 #. js-lingui-explicit-id
 #: src/components/custom/AppManagersSection.tsx
@@ -4769,6 +4922,11 @@ msgid "admin.federation.protocol.vrchat.hint"
 msgstr "把 VRChat 身份绑定到已有账号，需要一个 VRChat 运营账号。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupDecisionsSection.tsx
+msgid "admin.group.decisions.load-more"
+msgstr "加载更多"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/groups/GroupMatchesFrame.tsx
 msgid "admin.group.matches.load-more"
 msgstr "加载更多"
@@ -4949,6 +5107,11 @@ msgstr "薄雾"
 #. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
 msgid "security.passkeys.more"
+msgstr "{name} 的更多操作"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupDecisionsSection.tsx
+msgid "admin.group.decisions.row-menu"
 msgstr "{name} 的更多操作"
 
 #. js-lingui-explicit-id
@@ -5255,6 +5418,11 @@ msgstr "这个应用没有发布证书。"
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.identities.empty"
 msgstr "暂无已连接身份"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupDecisionsSection.tsx
+msgid "admin.group.decisions.empty"
+msgstr "还没有决定。没有账号通过此用户组被允许或拒绝。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminLogs.tsx
@@ -7161,6 +7329,7 @@ msgstr "作用域"
 #: src/components/custom/AppAccessSection.tsx
 #: src/components/custom/AppManagersSection.tsx
 #: src/components/custom/EntityPicker.tsx
+#: src/pages/admin/groups/AddDecisionDialog.tsx
 #: src/pages/admin/groups/GroupExplainFrame.tsx
 msgid "admin.picker.search"
 msgstr "搜索"
@@ -7173,6 +7342,11 @@ msgstr "搜索"
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminLogs.tsx
 msgid "admin.logs.filter.account.search"
+msgstr "搜索账号"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/AddDecisionDialog.tsx
+msgid "admin.group.decisions.dialog.placeholder"
 msgstr "搜索账号"
 
 #. js-lingui-explicit-id
@@ -8627,6 +8801,11 @@ msgid "login.codes.once"
 msgstr "这些恢复码仅显示一次。请妥善保存后再继续，旧恢复码已失效。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupDecisionsSection.tsx
+msgid "admin.group.decisions.clear.body"
+msgstr "他们仍可能通过其他用户组或规则获得访问权限。"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.state.enable.body"
 msgstr "他们可以立即重新登录。"
@@ -9109,6 +9288,11 @@ msgid "pair.retry"
 msgstr "重试"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupDecisionsSection.tsx
+msgid "admin.group.decisions.retry"
+msgstr "重试"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/groups/GroupMatchesFrame.tsx
 msgid "admin.group.matches.retry"
 msgstr "重试"
@@ -9263,6 +9447,11 @@ msgstr "无法连接 Unsplash，Access Key 没有经过检查，也没有保存�
 #: src/api/errors.ts
 msgid "error.unsplash_key_invalid"
 msgstr "Unsplash 不接受这个 Access Key。请检查后重新填写。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupDecisionsSection.tsx
+msgid "admin.group.decisions.updated"
+msgstr "<0/>更新"
 
 #. js-lingui-explicit-id
 #: src/pages/profile/AvatarPanel.tsx
@@ -10004,6 +10193,11 @@ msgstr "本组包含哪些账号，在创建完成后于该用户组自己的页
 #: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
 msgid "admin.federation.claims.description"
 msgstr "谁可以通过这个提供商登录，以及它的哪些字段填入账号。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupDecisionsSection.tsx
+msgid "admin.group.decisions.title"
+msgstr "此用户组决定哪些账号"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/groups/GroupRuleSection.tsx
