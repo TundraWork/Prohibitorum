@@ -239,12 +239,40 @@ export function worstContrastOnGrid(
   return worst;
 }
 
+/** A sampled pixel; `a` is its opacity from 0 to 1, and absent means opaque. */
+export interface SampledCell extends Rgb {
+  a?: number;
+}
+
+/** A downsampled part of a picture, whose pixels may be see-through. */
+export interface SampledGrid {
+  cols: number;
+  rows: number;
+  cells: SampledCell[];
+}
+
 /** A loaded picture that can hand back a downsampled part of itself. */
 export interface Picture {
   width: number;
   height: number;
   /** `undefined` when the browser will not release the pixels. */
-  sample: (source: Box, cols: number, rows: number) => Grid | undefined;
+  sample: (source: Box, cols: number, rows: number) => SampledGrid | undefined;
+}
+
+/**
+ * The sampled pixels as they look over `below`, the page behind the picture:
+ * a see-through pixel shows that page, not black.
+ */
+export function settleOver(grid: SampledGrid, below: Rgb): Grid {
+  return {
+    cols: grid.cols,
+    rows: grid.rows,
+    cells: grid.cells.map((cell) =>
+      cell.a === undefined || cell.a >= 1
+        ? { r: cell.r, g: cell.g, b: cell.b }
+        : over({ ...cell, a: Math.max(0, cell.a) }, below),
+    ),
+  };
 }
 
 /** What measuring needs from the browser, so tests can stand in for it. */
@@ -346,12 +374,13 @@ function loadCanvasPicture(url: string): Promise<Picture | undefined> {
           );
           try {
             const { data } = context.getImageData(0, 0, cols, rows);
-            const cells: Rgb[] = [];
+            const cells: SampledCell[] = [];
             for (let i = 0; i < data.length; i += 4) {
               cells.push({
                 r: data[i] ?? 0,
                 g: data[i + 1] ?? 0,
                 b: data[i + 2] ?? 0,
+                a: (data[i + 3] ?? 255) / 255,
               });
             }
             return { cols, rows, cells };
@@ -492,7 +521,9 @@ export async function measureReadability(
       if (!picture || picture.width === 0 || picture.height === 0) {
         return unmeasurable;
       }
-      return measurePicture(doc, card, picture, layers, foreground);
+      // A see-through picture shows the page behind it.
+      const behind = pageBackground()?.[0] ?? { r: 255, g: 255, b: 255 };
+      return measurePicture(doc, card, picture, layers, foreground, behind);
     }
     default:
       return unmeasurable;
@@ -505,6 +536,7 @@ function measurePicture(
   picture: Picture,
   layers: Layers,
   foreground: Rgb,
+  behind: Rgb,
 ): ReadabilityResult {
   const view = {
     width: doc.documentElement.clientWidth,
@@ -529,8 +561,9 @@ function measurePicture(
   if (area.width <= 0 || area.height <= 0) return pageUnmeasurable;
   const cols = Math.min(maxCells, Math.max(1, Math.ceil(area.width / cellPx)));
   const rows = Math.min(maxCells, Math.max(1, Math.ceil(area.height / cellPx)));
-  const region = picture.sample(coverSource(view, picture, area), cols, rows);
-  if (!region) return unmeasurable;
+  const sampled = picture.sample(coverSource(view, picture, area), cols, rows);
+  if (!sampled) return unmeasurable;
+  const region = settleOver(sampled, behind);
 
   const cell = { width: area.width / cols, height: area.height / rows };
   const first = (edge: number, origin: number, size: number) =>

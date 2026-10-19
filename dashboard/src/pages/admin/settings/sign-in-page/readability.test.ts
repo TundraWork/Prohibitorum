@@ -14,6 +14,7 @@ import {
   type Rgba,
   readableContrast,
   remember,
+  settleOver,
   watchPreview,
   worstContrastOnColors,
   worstContrastOnGrid,
@@ -48,6 +49,26 @@ describe("laying one colour over another", () => {
     const mixed = over({ ...white, a: 0.5 }, black);
     expect(mixed.r).toBeCloseTo(127.5);
     expect(mixed.g).toBeCloseTo(127.5);
+  });
+});
+
+describe("settling a picture over the page behind it", () => {
+  it("shows the page through a see-through pixel, not black", () => {
+    const settled = settleOver(
+      {
+        cols: 3,
+        rows: 1,
+        cells: [
+          { r: 10, g: 20, b: 30 },
+          { r: 0, g: 0, b: 0, a: 0 },
+          { r: 255, g: 255, b: 255, a: 0.5 },
+        ],
+      },
+      { r: 200, g: 200, b: 200 },
+    );
+    expect(settled.cells[0]).toEqual({ r: 10, g: 20, b: 30 });
+    expect(settled.cells[1]).toEqual({ r: 200, g: 200, b: 200 });
+    expect(settled.cells[2]?.r).toBeCloseTo(227.5);
   });
 });
 
@@ -395,6 +416,50 @@ describe("measuring the sign-in card", () => {
     // White picture, 20% black card: bg 204 grey, white text.
     expect(result).toMatchObject({ kind: "measured", readable: false });
   });
+
+  it.each([
+    ["a transparent region", "rgb(255, 255, 255)", false],
+    ["a transparent region on a dark page", "rgb(10, 10, 10)", true],
+  ])(
+    "measures %s against the page behind the picture",
+    async (_name, pageColor, readable) => {
+      const page = previewPage({
+        color: "rgb(255,255,255)",
+        background: "rgba(0,0,0,0.2)",
+      });
+      page.doc.body.style.backgroundColor = pageColor;
+      const image = page.doc.createElement("img");
+      image.dataset.current = "";
+      image.src = "https://pictures.example/clear.png";
+      const holder = page.doc.createElement("div");
+      holder.dataset.loginBackdrop = "pictures";
+      holder.append(image);
+      page.doc.body.append(holder);
+      // A transparent PNG: every pixel black with no opacity.
+      const loadPicture = vi.fn(async () => ({
+        width: 1280,
+        height: 800,
+        sample: (_box: unknown, cols: number, rows: number) => ({
+          cols,
+          rows,
+          cells: Array.from({ length: cols * rows }, () => ({
+            r: 0,
+            g: 0,
+            b: 0,
+            a: 0,
+          })),
+        }),
+      }));
+      const result = await measureReadability(
+        page.doc,
+        withBackground((b) => {
+          b.source = "images";
+        }),
+        { ...noEnvironment, loadPicture },
+      );
+      expect(result).toMatchObject({ kind: "measured", readable });
+    },
+  );
 
   it("says it cannot measure a picture it cannot read", async () => {
     const page = previewPage({
