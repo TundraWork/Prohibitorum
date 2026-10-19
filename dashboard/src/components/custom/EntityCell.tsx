@@ -16,12 +16,18 @@ import { Tooltip, TooltipPopup, TooltipTrigger } from "@/components/ui/tooltip";
  *
  * ## How a switched-off row reads
  *
- * A row that is disabled recedes — its icon and text drop to a fraction of
- * their opacity — and says so with a "Disabled" badge beside the name, which
- * stays at full strength. The dimming alone is not enough: a reader who cannot
- * tell opacities apart would have nothing, and a badge is also what a screen
- * reader finds. The badge is small and secondary, so a list with a few
+ * A row that is disabled recedes — its icon and name drop a little in
+ * opacity — and says so with a "Disabled" badge beside the name, which stays at
+ * full strength. The dimming alone is not enough: a reader who cannot tell
+ * opacities apart would have nothing, and a badge is also what a screen reader
+ * finds. The identifier under the name is never dimmed: it is what a reader
+ * scans for in a switched-off row, and faded muted text falls under the
+ * contrast floor. The badge is small and secondary, so a list with a few
  * switched-off rows still reads as mostly settled ones.
+ *
+ * The text column is capped in width, so an identifier longer than the cap
+ * ends in an ellipsis inside the visible area rather than running on under the
+ * table's pinned column; its whole value is the tooltip and the record's page.
  *
  * `restricted` stays a padlock beside the name, because it says what a row *is*
  * rather than something that happened to it.
@@ -56,16 +62,16 @@ export function EntityCell({
 
   return (
     <div className="flex items-center gap-3">
-      <span className={dimmed ? "opacity-60" : undefined}>
+      <span className={dimmed ? "opacity-70" : undefined}>
         <EntityAvatar
           iconUrl={iconUrl}
           name={typeof name === "string" ? name : undefined}
           fallback={fallback}
         />
       </span>
-      <div className="flex min-w-0 flex-col">
+      <div className="flex max-w-52 min-w-0 flex-col sm:max-w-60">
         <span className="flex items-center gap-1.5">
-          <span className={dimmed ? "opacity-60" : undefined}>
+          <span className={dimmed ? "opacity-70" : undefined}>
             {link === undefined ? (
               name
             ) : (
@@ -99,7 +105,8 @@ export function EntityCell({
         </span>
         {identifier !== undefined && (
           <span
-            className={`truncate font-mono text-xs text-muted-foreground ${dimmed ? "opacity-60" : ""}`}
+            title={typeof identifier === "string" ? identifier : undefined}
+            className="truncate font-mono text-muted-foreground text-xs"
           >
             {identifier}
           </span>

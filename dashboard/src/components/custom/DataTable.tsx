@@ -65,6 +65,13 @@ export interface TableColumn<T> {
   /** Right-aligned cells suit timestamps and other short status values. */
   align?: "start" | "end";
   /**
+   * Width classes that give the column one fixed track (such as
+   * `w-56 max-w-56`), clipping what will not fit. Lists of the same family set
+   * the same widths, so their columns line up and stay put as rows change; the
+   * column left without one is the flexible one.
+   */
+  width?: string;
+  /**
    * Pin the column to the trailing edge of the scrolling table. Meant for a
    * single trailing action column: its cells stick to the right while the
    * other columns scroll under them, so the row's controls stay reachable on a
@@ -189,8 +196,11 @@ export function DataTable<T extends RowData>({
 
   // Cells never wrap: a wrapped timestamp or user agent makes rows different
   // heights and hides the column rhythm. The table scrolls sideways instead.
-  const cellClass = (align: TableColumn<T>["align"]) =>
-    align === "end" ? "text-end tabular-nums whitespace-nowrap" : undefined;
+  const cellClass = (column: TableColumn<T> | undefined) =>
+    cn(
+      column?.align === "end" && "text-end tabular-nums whitespace-nowrap",
+      column?.width !== undefined && cn("truncate", column.width),
+    ) || undefined;
 
   const headers = table.getHeaderGroups()[0]?.headers ?? [];
   const byId = new Map(columns.map((column) => [column.id, column]));
@@ -240,7 +250,7 @@ export function DataTable<T extends RowData>({
                 key={header.id}
                 scope="col"
                 aria-sort={sortable ? direction : undefined}
-                className={cellClass(column?.align)}
+                className={cellClass(column)}
               >
                 {sortable ? (
                   <FlatButton
@@ -326,10 +336,7 @@ export function DataTable<T extends RowData>({
                     }
                     if (cell.column.id === treeColumn) {
                       return (
-                        <TableCell
-                          key={cell.id}
-                          className={cellClass(column?.align)}
-                        >
+                        <TableCell key={cell.id} className={cellClass(column)}>
                           <span className="flex items-center gap-1">
                             {detail === null ? (
                               // Keeps the text of rows with and without a
@@ -375,10 +382,7 @@ export function DataTable<T extends RowData>({
                       );
                     }
                     return (
-                      <TableCell
-                        key={cell.id}
-                        className={cellClass(column?.align)}
-                      >
+                      <TableCell key={cell.id} className={cellClass(column)}>
                         {content}
                       </TableCell>
                     );

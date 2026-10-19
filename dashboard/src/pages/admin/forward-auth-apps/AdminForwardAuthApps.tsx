@@ -11,7 +11,11 @@ import { Button } from "@/components/custom/Button";
 import { DataTable, type TableColumn } from "@/components/custom/DataTable";
 import { EntityCell } from "@/components/custom/EntityCell";
 import { InlineFailure } from "@/components/custom/InlineFailure";
-import { CodeValue, PrincipalSourceCell } from "@/components/custom/ListCells";
+import {
+  APP_DATA_COLUMN,
+  CodeValue,
+  PrincipalSourceCell,
+} from "@/components/custom/ListCells";
 import { PageHeader } from "@/components/custom/PageHeader";
 import { TableEmptyState } from "@/components/custom/TableEmptyState";
 
@@ -73,6 +77,7 @@ export function AdminForwardAuthApps() {
     },
     {
       id: "host",
+      width: APP_DATA_COLUMN,
       header: <Trans id="admin.forward-auth-apps.column.host">Hostname</Trans>,
       // Monospace: the value goes into a Traefik rule character by character.
       cell: (app) =>
@@ -84,6 +89,7 @@ export function AdminForwardAuthApps() {
     },
     {
       id: "remoteUser",
+      width: APP_DATA_COLUMN,
       header: (
         <Trans id="admin.forward-auth-apps.column.remote-user">
           Remote user

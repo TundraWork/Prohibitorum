@@ -11,7 +11,7 @@ import { Button } from "@/components/custom/Button";
 import { DataTable, type TableColumn } from "@/components/custom/DataTable";
 import { EntityCell } from "@/components/custom/EntityCell";
 import { InlineFailure } from "@/components/custom/InlineFailure";
-import { RedirectCell } from "@/components/custom/ListCells";
+import { APP_DATA_COLUMN, RedirectCell } from "@/components/custom/ListCells";
 import { PageHeader } from "@/components/custom/PageHeader";
 import { TableEmptyState } from "@/components/custom/TableEmptyState";
 
@@ -77,6 +77,7 @@ export function AdminOidcApplications() {
     },
     {
       id: "kind",
+      width: APP_DATA_COLUMN,
       header: <Trans id="admin.oidc-apps.column.kind">Type</Trans>,
       // `none` means the client authenticates with nothing but PKCE, which is
       // the only way the server describes a public client on this view.
@@ -89,6 +90,7 @@ export function AdminOidcApplications() {
     },
     {
       id: "redirectUris",
+      width: APP_DATA_COLUMN,
       header: <Trans id="admin.oidc-apps.column.redirect">Redirects</Trans>,
       cell: (app) => <RedirectCell uris={app.redirectUris ?? []} />,
     },

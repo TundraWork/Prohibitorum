@@ -11,7 +11,7 @@ import { Button } from "@/components/custom/Button";
 import { DataTable, type TableColumn } from "@/components/custom/DataTable";
 import { EntityCell } from "@/components/custom/EntityCell";
 import { InlineFailure } from "@/components/custom/InlineFailure";
-import { CodeValue } from "@/components/custom/ListCells";
+import { APP_DATA_COLUMN, CodeValue } from "@/components/custom/ListCells";
 import { PageHeader } from "@/components/custom/PageHeader";
 import { TableEmptyState } from "@/components/custom/TableEmptyState";
 import { CertificateText } from "@/pages/admin/saml-applications/CertificateText";
@@ -82,6 +82,7 @@ export function AdminSamlApplications() {
     },
     {
       id: "nameIdFormat",
+      width: APP_DATA_COLUMN,
       header: <Trans id="admin.saml-apps.column.name-id">NameID format</Trans>,
       // The short name is what an administrator recognises and what a service
       // provider's documentation names; the full URN is the same fact with the
@@ -97,6 +98,7 @@ export function AdminSamlApplications() {
     },
     {
       id: "certificate",
+      width: APP_DATA_COLUMN,
       header: (
         <Trans id="admin.saml-apps.column.certificate">Certificate</Trans>
       ),

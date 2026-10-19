@@ -22,6 +22,14 @@ import { i18n } from "@/i18n";
  */
 
 /**
+ * The width of each of the two data columns on the application lists (OIDC,
+ * SAML, forward-auth), so the three lists put their columns on the same lines
+ * and the columns stay put as rows load, filter or run out. The application
+ * column in front of them is the flexible one.
+ */
+export const APP_DATA_COLUMN = "w-56 max-w-56";
+
+/**
  * The one state that gets to speak: a provider whose configuration is not
  * finished.
  *
@@ -57,25 +65,15 @@ export function NotReadyChip() {
  * a value fits depends on the viewport, and a rule that guessed would be wrong
  * at one width or the other.
  *
- * `muted` is for a value that is context rather than the thing being compared —
- * a remote-user source, a scope list. A value the reader copies out — a host, an
- * Entity ID — keeps the default foreground.
+ * A monospace value is an identifier and reads in the muted colour at one size
+ * on every list; a word ("Confidential", "Username") is sans in the
+ * foreground colour. The two never swap, so a column of one kind scans as one.
  */
-export function CodeValue({
-  value,
-  muted = false,
-}: {
-  value: string;
-  muted?: boolean;
-}) {
+export function CodeValue({ value }: { value: string }) {
   return (
     <Tooltip>
-      <TooltipTrigger delay={0} render={<span />}>
-        <span
-          className={`font-mono text-xs ${muted ? "text-muted-foreground" : ""}`}
-        >
-          {value}
-        </span>
+      <TooltipTrigger delay={0} render={<span className="block truncate" />}>
+        <span className="font-mono text-muted-foreground text-xs">{value}</span>
       </TooltipTrigger>
       <TooltipPopup className="break-all font-mono">{value}</TooltipPopup>
     </Tooltip>
@@ -197,9 +195,5 @@ export function PrincipalSourceCell({ value }: { value: string }) {
   if (source === undefined)
     return <span className="text-muted-foreground">—</span>;
 
-  return (
-    <span className="text-muted-foreground">
-      {t(principalSourceLabel(source))}
-    </span>
-  );
+  return <span>{t(principalSourceLabel(source))}</span>;
 }

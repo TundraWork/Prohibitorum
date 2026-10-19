@@ -65,7 +65,8 @@ export function EntityIconControl({ target, iconUrl, name }: IconProps) {
       <EntityAvatar
         iconUrl={iconUrl}
         className="size-16 shrink-0"
-        fallback={<span className="text-lg">{name.slice(0, 1)}</span>}
+        name={name}
+        fallbackClassName="text-lg"
       />
       <ImageUploadControl
         types={iconTypes}
