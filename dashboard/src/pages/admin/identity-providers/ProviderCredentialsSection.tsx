@@ -51,7 +51,7 @@ export function ProviderCredentialsSection({
       }
       description={
         <Trans id="admin.federation.credentials.steam.description">
-          Steam needs this key to look up the people who sign in.
+          The key stays encrypted and is never shown again.
         </Trans>
       }
     >

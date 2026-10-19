@@ -78,7 +78,7 @@ describe("EntityCell", () => {
     expect(screen.getByText("Disabled")).toBeVisible();
   });
 
-  it("keeps a long name whole in its title and the badge in the same row as the name", async () => {
+  it("keeps a long name whole in its title", async () => {
     const long = "A very long provider name that cannot fit beside its badges";
     renderCell(
       <EntityCell
