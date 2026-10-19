@@ -528,6 +528,11 @@ msgid "admin.federation.column.linked-accounts"
 msgstr "关联账号"
 
 #. js-lingui-explicit-id
+#: src/components/custom/AppAccessSection.tsx
+msgid "app.access.order.allowed"
+msgstr "在这些组中被手动允许"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
 msgid "admin.federation.claims.title"
 msgstr "账号与声明"
@@ -536,6 +541,11 @@ msgstr "账号与声明"
 #: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
 msgid "admin.federation.claims.subject.hint"
 msgstr "账号按这个值绑定。"
+
+#. js-lingui-explicit-id
+#: src/components/custom/AppAccessSection.tsx
+msgid "app.access.order.denied"
+msgstr "在这些组中被手动拒绝"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminHome.tsx
@@ -581,11 +591,6 @@ msgid "form.tags.add"
 msgstr "添加"
 
 #. js-lingui-explicit-id
-#: src/components/custom/AppAccessSection.tsx
-msgid "app.groups.add"
-msgstr "添加用户组"
-
-#. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
 msgid "security.passkeys.add"
 msgstr "添加通行密钥"
@@ -609,6 +614,11 @@ msgstr "添加一个通行密钥，下次就能在这台设备上直接登录。
 #: src/pages/admin/identity-providers/AdminIdentityProviders.tsx
 msgid "admin.federation.create"
 msgstr "添加提供商"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/AdminForwardAuthApps.tsx
+msgid "admin.forward-auth-apps.empty.description"
+msgstr "添加位于反向代理之后的服务，让用户可以登录它。"
 
 #. js-lingui-explicit-id
 #: src/pages/public/SetupSignin.tsx
@@ -787,11 +797,6 @@ msgid "apps.meta.allowed"
 msgstr "<0/>允许"
 
 #. js-lingui-explicit-id
-#: src/components/custom/AppAccessSection.tsx
-msgid "app.access.order.allowed"
-msgstr "手动允许"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
 msgid "admin.federation.claims.domains"
 msgstr "允许的邮箱域名"
@@ -947,6 +952,13 @@ msgid "admin.federation.new.slug.hint"
 msgstr "会出现在回调地址中，之后无法更改。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/AdminForwardAuthAppNew.tsx
+#: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
+#: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
+msgid "admin.apps.new.application.title"
+msgstr "应用"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AdminSamlApplications.tsx
 msgid "admin.saml-apps.column.application"
 msgstr "应用"
@@ -1050,6 +1062,13 @@ msgstr "通过 SAML 在此实例登录的应用。"
 #: src/pages/ConnectedApps.tsx
 msgid "apps.page.description"
 msgstr "你允许其用于登录的应用。移除某个应用后，它下次会重新征求你的许可。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/AdminForwardAuthApps.tsx
+#: src/pages/admin/oidc-applications/AdminOidcApplications.tsx
+#: src/pages/admin/saml-applications/AdminSamlApplications.tsx
+msgid "admin.apps.empty.managed"
+msgstr "指派给你管理的应用会显示在这里。"
 
 #. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
@@ -1376,7 +1395,7 @@ msgstr "证书"
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/CertificateText.tsx
 msgid "admin.saml-apps.certificate.expired"
-msgstr "证书已过期"
+msgstr "证书已于 {date} 过期"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/CertificateText.tsx
@@ -1579,9 +1598,19 @@ msgid "settings.sign-in.interval.range"
 msgstr "请选择 5 到 3600 秒之间的间隔。"
 
 #. js-lingui-explicit-id
+#: src/components/custom/AppAccessSection.tsx
+msgid "app.groups.add"
+msgstr "选择用户组"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminInvitationForm.tsx
 msgid "admin.invitations.new.groups.invalid"
 msgstr "请重新选择用户组——其中有一个不是有效的用户组。"
+
+#. js-lingui-explicit-id
+#: src/components/custom/AppAccessSection.tsx
+msgid "app.groups.dialog.title"
+msgstr "选择参与判定的用户组"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/saml-validation.ts
@@ -2074,11 +2103,6 @@ msgid "settings.keys.jwk.copied"
 msgstr "已复制"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/forward-auth-apps/ForwardAuthProxySection.tsx
-msgid "admin.forward-auth-apps.traefik.copied"
-msgstr "已复制"
-
-#. js-lingui-explicit-id
 #: src/components/custom/CopyableValue.tsx
 #: src/components/custom/CopyValue.tsx
 msgid "copy-value.copied"
@@ -2174,6 +2198,11 @@ msgstr "复制注册链接"
 #: src/components/custom/secret-reveal-copy.ts
 msgid "admin.invitations.reveal.title"
 msgstr "复制注册链接"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ForwardAuthProxySection.tsx
+msgid "admin.forward-auth-apps.traefik.copy-label"
+msgstr "复制 Traefik 配置"
 
 #. js-lingui-explicit-id
 #: src/pages/public/FederationFlow.tsx
@@ -2392,12 +2421,12 @@ msgstr "危险操作"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/SamlDangerSection.tsx
-msgid "admin.saml-apps.danger.label"
+msgid "admin.saml-apps.danger"
 msgstr "危险操作"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/DangerSection.tsx
-msgid "admin.oidc-apps.danger.label"
+msgid "admin.oidc-apps.danger"
 msgstr "危险操作"
 
 #. js-lingui-explicit-id
@@ -2466,11 +2495,6 @@ msgid "admin.saml-apps.danger.delete.action"
 msgstr "删除"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/saml-applications/SamlDangerSection.tsx
-msgid "admin.saml-apps.danger.delete.confirm"
-msgstr "删除"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/DangerSection.tsx
 msgid "admin.oidc-apps.delete.action"
 msgstr "删除"
@@ -2494,6 +2518,16 @@ msgstr "删除"
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.delete.confirm.action"
 msgstr "删除账号"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/SamlDangerSection.tsx
+msgid "admin.saml-apps.danger.delete.confirm"
+msgstr "删除应用"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/DangerSection.tsx
+msgid "admin.oidc-apps.delete.confirm.action"
+msgstr "删除应用"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/ForwardAuthDangerSection.tsx
@@ -2554,11 +2588,6 @@ msgstr "删除该提供商"
 #: src/pages/admin/identity-providers/ProviderDangerSection.tsx
 msgid "admin.federation.danger.delete.confirm.title"
 msgstr "要删除该提供商吗？"
-
-#. js-lingui-explicit-id
-#: src/components/custom/AppAccessSection.tsx
-msgid "app.access.order.denied"
-msgstr "手动拒绝"
 
 #. js-lingui-explicit-id
 #: src/pages/public/Consent.tsx
@@ -2849,6 +2878,11 @@ msgid "federation_flow.identity.description"
 msgstr "不要在这里输入 VRChat 密码。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/secret-copy.ts
+msgid "admin.oidc-apps.secret.rotated.continue"
+msgstr "完成"
+
+#. js-lingui-explicit-id
 #: src/components/custom/secret-reveal-copy.ts
 msgid "admin.invitations.reveal.continue"
 msgstr "完成"
@@ -3074,12 +3108,11 @@ msgstr "结束此会话？"
 msgid "admin.user.sessions.revoke.title"
 msgstr "要结束这条会话吗？"
 
-#. The endpoint's index in the service provider's own list
+#. The endpoint's place in the list, counted from one
 #. js-lingui-explicit-id
-#. placeholder {0}: endpoint.index
 #: src/pages/admin/saml-applications/SamlMetadataSection.tsx
 msgid "admin.saml-apps.acs.endpoint"
-msgstr "端点 {0}"
+msgstr "端点 {number}"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/EndpointsField.tsx
@@ -3167,7 +3200,7 @@ msgid "admin.forward-auth-apps.new.name.required"
 msgstr "请填写名称。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/forward-auth-apps/ForwardAuthServiceSection.tsx
+#: src/pages/admin/forward-auth-apps/ForwardAuthAppearanceSection.tsx
 msgid "admin.forward-auth-apps.field.name.required"
 msgstr "请填写名称。"
 
@@ -3841,28 +3874,13 @@ msgid "admin.federation.new.slug"
 msgstr "标识符"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
-msgid "admin.saml-apps.new.identity.title"
-msgstr "身份"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/SamlIdentitySection.tsx
 msgid "admin.saml-apps.identity.title"
 msgstr "身份"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
-msgid "admin.oidc-apps.new.identity.title"
-msgstr "身份"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/IdentityProjectionSection.tsx
 msgid "admin.oidc-apps.identity.title"
-msgstr "身份"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/forward-auth-apps/AdminForwardAuthAppNew.tsx
-msgid "admin.forward-auth-apps.new.identity.title"
 msgstr "身份"
 
 #. js-lingui-explicit-id
@@ -4561,7 +4579,7 @@ msgstr "名称"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/AdminForwardAuthAppNew.tsx
-#: src/pages/admin/forward-auth-apps/ForwardAuthServiceSection.tsx
+#: src/pages/admin/forward-auth-apps/ForwardAuthAppearanceSection.tsx
 msgid "admin.forward-auth-apps.field.name"
 msgstr "名称"
 
@@ -5171,7 +5189,7 @@ msgstr "打开 {name}"
 #. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/AdminForwardAuthApps.tsx
 msgid "admin.forward-auth-apps.open"
-msgstr "开放 {name}"
+msgstr "打开 {name}"
 
 #. js-lingui-explicit-id
 #: src/pages/public/FederationFlow.tsx
@@ -5748,14 +5766,10 @@ msgid "admin.logs.refresh"
 msgstr "刷新"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
 #: src/pages/admin/saml-applications/SamlSignInSection.tsx
 msgid "admin.saml-apps.general.signed-request.hint"
 msgstr "拒绝服务提供商未签名的登录请求。凡是能签名的提供商都建议开启。"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
-msgid "admin.saml-apps.field.signed-request.hint"
-msgstr "拒绝服务提供商未签名的登录请求。只有在它无法签名时才关闭。"
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
@@ -5768,6 +5782,11 @@ msgid "settings.sign-in.bing.region"
 msgstr "地区"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/AdminOidcApplications.tsx
+msgid "admin.oidc-apps.empty.description"
+msgstr "注册一个客户端，让用户通过 OpenID Connect 登录应用。"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/AdminForwardAuthAppNew.tsx
 msgid "admin.forward-auth-apps.new.description"
 msgstr "注册一个位于反向代理之后的服务。其余设置在应用创建后到它的页面中修改。"
@@ -5776,6 +5795,11 @@ msgstr "注册一个位于反向代理之后的服务。其余设置在应用创
 #: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
 msgid "admin.saml-apps.new.description"
 msgstr "注册一个通过此实例登录的服务提供商。其余设置在应用创建后到它的页面中修改。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/AdminSamlApplications.tsx
+msgid "admin.saml-apps.empty.description"
+msgstr "注册一个服务提供商，让用户通过 SAML 登录它。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
@@ -6495,6 +6519,7 @@ msgid "admin.federation.general.save"
 msgstr "保存"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ForwardAuthAppearanceSection.tsx
 #: src/pages/admin/forward-auth-apps/ForwardAuthServiceSection.tsx
 msgid "admin.forward-auth-apps.save"
 msgstr "保存"
@@ -6616,11 +6641,6 @@ msgstr "安全"
 #: src/components/custom/ConsoleLayout.tsx
 msgid "console.security"
 msgstr "安全"
-
-#. js-lingui-explicit-id
-#: src/components/custom/AppAccessSection.tsx
-msgid "app.groups.dialog.title"
-msgstr "选择用户组"
 
 #. js-lingui-explicit-id
 #: src/components/custom/AppAccessSection.tsx
@@ -7557,6 +7577,11 @@ msgid "admin.forward-auth-apps.new.service.description"
 msgstr "网关要保护的主机名。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ForwardAuthServiceSection.tsx
+msgid "admin.forward-auth-apps.service.description"
+msgstr "网关保护的主机名。上方显示的客户端 ID 会随每个发往这个应用的请求一起发送，之后无法更改。"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/oidc-validation.ts
 msgid "admin.oidc-apps.alias.name.reserved"
 msgstr "ID token 已经定义了这个声明。"
@@ -7625,11 +7650,6 @@ msgstr "新账号注册后加入的手工用户组。"
 #: src/pages/admin/identity-providers/ProviderConnectionSection.tsx
 msgid "admin.federation.connection.secret.hint"
 msgstr "所选的认证方式会把这个密钥发送给提供方；密钥加密存储，不会再次显示。"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/forward-auth-apps/ForwardAuthServiceSection.tsx
-msgid "admin.forward-auth-apps.service.description"
-msgstr "用户看到的名称，以及网关保护的主机名。上方显示的客户端 ID 会随每个发往这个应用的请求一起发送，之后无法更改。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx

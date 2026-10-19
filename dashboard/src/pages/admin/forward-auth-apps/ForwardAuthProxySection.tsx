@@ -1,11 +1,13 @@
 import { Trans, useLingui } from "@lingui/react/macro";
 import { CheckIcon, CopyIcon, RouteIcon } from "lucide-react";
+import type { CSSProperties } from "react";
 import type { components } from "@/api/generated/schema";
 import { Button } from "@/components/custom/Button";
 import { CopyStatus } from "@/components/custom/CopyableValue";
 import { inlineLinkClass } from "@/components/custom/inline-link";
-import { Section } from "@/components/custom/Section";
+import { Section, useSectionPanel } from "@/components/custom/Section";
 import { useCopyValue } from "@/components/custom/use-copy-value";
+import { FramePanel } from "@/components/ui/frame";
 import { forwardAuthSnippet } from "@/pages/admin/forward-auth-apps/forward-auth-snippet";
 
 type ForwardAuthApp = components["schemas"]["ForwardAuthAppView"];
@@ -35,11 +37,12 @@ const manualUrl =
  * rather than the service form: a host that has not been saved is not the host
  * the router will match.
  *
- * The block is read-only and scrolls in both directions inside its well, since
- * a configuration line is long and the block is a reference, not the page. The
- * copy control is the section's action, named in words, because it acts on the
- * whole block rather than on a spot inside it; it shares its feedback with
- * every other copy button on the console.
+ * The block is read-only, one panel and the code on it. From `sm` up it scrolls
+ * in both directions, since a configuration line is long and the block is a
+ * reference, not the page; below that it wraps. The copy control is the
+ * section's action, named in words, because it acts on the whole block rather
+ * than on a spot inside it; its name does not change when it has copied, and it
+ * shares its feedback with every other copy button on the console.
  *
  * nginx is deliberately not offered: its `auth_request` cannot pass a `302`
  * back to the browser, and the verify endpoint answers an unauthenticated
@@ -53,6 +56,10 @@ export function ForwardAuthProxySection({ app }: { app: ForwardAuthApp }) {
     baseUrl: window.location.origin,
     host: app.forwardAuthHost,
   });
+  // The panel is the code surface. Below `sm` a long line wraps under its own
+  // text (a hanging indent) so none runs off the edge unseen; from `sm` up it
+  // keeps its length and the block scrolls.
+  const lines = snippet.split("\n");
 
   return (
     <Section
@@ -77,37 +84,65 @@ export function ForwardAuthProxySection({ app }: { app: ForwardAuthApp }) {
         </Trans>
       }
       action={
-        <Button variant="outline" onClick={() => copy(snippet)}>
+        <Button
+          variant="outline"
+          aria-label={t({
+            id: "admin.forward-auth-apps.traefik.copy-label",
+            message: "Copy the Traefik configuration",
+          })}
+          onClick={() => copy(snippet)}
+        >
           {state === "copied" ? (
-            <>
-              <CheckIcon aria-hidden="true" className="text-success" />
-              <Trans id="admin.forward-auth-apps.traefik.copied">Copied</Trans>
-            </>
+            <CheckIcon aria-hidden="true" className="text-success" />
           ) : (
-            <>
-              <CopyIcon aria-hidden="true" />
-              <Trans id="admin.forward-auth-apps.traefik.copy">Copy</Trans>
-            </>
+            <CopyIcon aria-hidden="true" />
           )}
+          <Trans id="admin.forward-auth-apps.traefik.copy">Copy</Trans>
         </Button>
       }
     >
-      <section
+      <SnippetPanel lines={lines} />
+      <CopyStatus state={state} />
+    </Section>
+  );
+}
+
+/**
+ * The code on the section's own panel. Taking the panel here, inside the
+ * section, is what stops the section drawing a second one around it.
+ */
+function SnippetPanel({ lines }: { lines: string[] }) {
+  const { t } = useLingui();
+  useSectionPanel();
+  return (
+    <FramePanel className="p-0">
+      {/* Focusable so a keyboard reader can scroll a block that overflows,
+          and named itself so it is announced when it takes focus. */}
+      {/* biome-ignore lint/a11y/useSemanticElements: the name belongs on the focusable block itself, which has to stay a <pre> */}
+      <pre
+        // biome-ignore lint/a11y/noNoninteractiveTabindex: a scroll container must be reachable by keyboard
+        tabIndex={0}
+        role="region"
         aria-label={t({
           id: "admin.forward-auth-apps.traefik.block",
           message: "Generated Traefik configuration",
         })}
+        className="max-h-96 overflow-auto rounded-xl p-4 font-mono text-xs leading-relaxed outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
-        {/* Focusable so a keyboard reader can scroll a block that overflows. */}
-        <pre
-          // biome-ignore lint/a11y/noNoninteractiveTabindex: a scroll container must be reachable by keyboard
-          tabIndex={0}
-          className="max-h-96 overflow-auto rounded-xl bg-muted/60 p-4 font-mono text-xs leading-relaxed ring-1 ring-border/60 outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          {snippet}
-        </pre>
-      </section>
-      <CopyStatus state={state} />
-    </Section>
+        {lines.map((line, at) => {
+          const indent = line.length - line.trimStart().length;
+          return (
+            <span
+              // biome-ignore lint/suspicious/noArrayIndexKey: the lines are a fixed rendering of one string
+              key={at}
+              className="block whitespace-pre-wrap [overflow-wrap:anywhere] ps-(--hang) -indent-(--hang) sm:whitespace-pre sm:[overflow-wrap:normal] sm:ps-0 sm:indent-0"
+              style={{ "--hang": `${indent + 2}ch` } as CSSProperties}
+            >
+              {at < lines.length - 1 ? `${line}\n` : line}
+            </span>
+          );
+        })}
+      </pre>
+    </FramePanel>
   );
 }

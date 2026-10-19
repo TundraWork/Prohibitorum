@@ -286,8 +286,31 @@ describe("disabling and deleting", () => {
     );
 
     await screen.findByText("Delete the application");
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await waitFor(() =>
+      expect(
+        fetchBoundary.mock.calls.some(([request]) =>
+          new URL(request.url).pathname.endsWith("/access"),
+        ),
+      ).toBe(true),
+    );
     expect(notifyError).not.toHaveBeenCalled();
     expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("confirms without a group count when the groups could not be read", async () => {
+    const user = userEvent.setup();
+    mount(forwardAuthAppFixture(), (request) =>
+      new URL(request.url).pathname.endsWith("/access")
+        ? Response.json({ code: "internal_error" }, { status: 500 })
+        : undefined,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Delete" }));
+    const dialog = await screen.findByRole("alertdialog");
+
+    expect(dialog).toHaveTextContent(
+      "removed along with its icon and its access policy. Requests",
+    );
+    expect(dialog).not.toHaveTextContent("including its selection");
   });
 });

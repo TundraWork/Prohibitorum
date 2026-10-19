@@ -2,7 +2,7 @@ import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { IdCardIcon, ServerIcon, ShieldCheckIcon } from "lucide-react";
+import { AppWindowIcon, GlobeIcon, ShieldCheckIcon } from "lucide-react";
 import { isCancellation } from "@/api/errors";
 import { createForwardAuthAppMutationOptions } from "@/api/mutations";
 import { withInlineReport } from "@/app/query-client";
@@ -130,12 +130,10 @@ export function AdminForwardAuthAppNew() {
           <form.FormError />
 
           <Section
-            id="identity"
-            icon={<IdCardIcon />}
+            id="application"
+            icon={<AppWindowIcon />}
             title={
-              <Trans id="admin.forward-auth-apps.new.identity.title">
-                Identity
-              </Trans>
+              <Trans id="admin.apps.new.application.title">Application</Trans>
             }
             description={
               <Trans id="admin.forward-auth-apps.new.identity.description">
@@ -199,7 +197,7 @@ export function AdminForwardAuthAppNew() {
 
           <Section
             id="service"
-            icon={<ServerIcon />}
+            icon={<GlobeIcon />}
             title={<Trans id="admin.forward-auth-apps.service">Service</Trans>}
             description={
               <Trans id="admin.forward-auth-apps.new.service.description">

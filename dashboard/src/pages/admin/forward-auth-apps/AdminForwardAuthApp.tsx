@@ -20,12 +20,11 @@ import { Route } from "@/routes/_protected.admin.forward-auth-apps_.$clientId";
  * One forward-auth application's page: who it is at the top, then a column of
  * sections with an outline beside them.
  *
- * The order follows a request through the gateway. What the application is and
- * which host it protects come first; then what the service receives — the
- * headers, with `Remote-User` the one choice among them — then the Traefik
- * configuration that puts the gateway in front of it, and who may pass and who
- * manages it. How the application is shown comes next, and last the changes
- * that stop it.
+ * The order matches the other kinds of application. The host it protects
+ * comes first, then who may pass and who manages it; then what the service
+ * receives — the headers, with `Remote-User` the one choice among them — and
+ * the Traefik configuration that puts the gateway in front of it. How the
+ * application is shown comes next, and last the changes that stop it.
  *
  * Every section is mounted on arrival, so its reads start at once, and each
  * saves the record it edits through `forwardAuthAppUpdateBody` or its own
@@ -92,8 +91,6 @@ export function AdminForwardAuthApp() {
       }
     >
       <ForwardAuthServiceSection app={app} />
-      <ForwardAuthHeadersSection app={app} />
-      <ForwardAuthProxySection app={app} />
       <AppAccessSection
         kind="forward_auth"
         appId={app.clientId}
@@ -104,6 +101,8 @@ export function AdminForwardAuthApp() {
         appId={app.clientId}
         isAdmin={isAdmin}
       />
+      <ForwardAuthHeadersSection app={app} />
+      <ForwardAuthProxySection app={app} />
       <ForwardAuthAppearanceSection app={app} />
       <ForwardAuthDangerSection app={app} />
     </AppDetailLayout>

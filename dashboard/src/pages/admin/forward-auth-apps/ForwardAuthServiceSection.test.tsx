@@ -58,19 +58,16 @@ function mount(
 }
 
 describe("the service section", () => {
-  it("shows the name and hostname with no footer while nothing is edited", async () => {
+  it("shows the hostname with no footer while nothing is edited", async () => {
     mount(forwardAuthAppFixture());
 
-    expect(await screen.findByRole("textbox", { name: "Name" })).toHaveValue(
-      "Grafana",
-    );
-    expect(screen.getByRole("textbox", { name: /^Hostname/ })).toHaveValue(
-      "grafana.example.test",
-    );
+    expect(
+      await screen.findByRole("textbox", { name: /^Hostname/ }),
+    ).toHaveValue("grafana.example.test");
     expect(screen.queryByRole("button", { name: "Save" })).toBeNull();
   });
 
-  it("saves the name and hostname as the whole record", async () => {
+  it("saves the hostname with the stored name as the whole record", async () => {
     const user = userEvent.setup();
     mount(forwardAuthAppFixture());
 
@@ -90,23 +87,12 @@ describe("the service section", () => {
     const user = userEvent.setup();
     mount(forwardAuthAppFixture());
 
-    const name = await screen.findByRole("textbox", { name: "Name" });
-    await user.type(name, "!");
+    const host = await screen.findByRole("textbox", { name: /^Hostname/ });
+    await user.type(host, "x");
     await user.click(screen.getByRole("button", { name: "Discard" }));
 
-    expect(name).toHaveValue("Grafana");
+    expect(host).toHaveValue("grafana.example.test");
     expect(screen.queryByRole("button", { name: "Save" })).toBeNull();
-    expect(puts()).toHaveLength(0);
-  });
-
-  it("refuses an empty name without sending", async () => {
-    const user = userEvent.setup();
-    mount(forwardAuthAppFixture());
-
-    await user.clear(await screen.findByRole("textbox", { name: "Name" }));
-    await user.click(screen.getByRole("button", { name: "Save" }));
-
-    expect(await screen.findByText("Enter a name.")).toBeVisible();
     expect(puts()).toHaveLength(0);
   });
 
@@ -159,7 +145,10 @@ describe("the service section", () => {
         : undefined,
     );
 
-    await user.type(await screen.findByRole("textbox", { name: "Name" }), "!");
+    await user.type(
+      await screen.findByRole("textbox", { name: /^Hostname/ }),
+      "x",
+    );
     await user.click(screen.getByRole("button", { name: "Save" }));
 
     expect(await screen.findAllByRole("alert")).toHaveLength(1);

@@ -67,11 +67,15 @@ describe("the Traefik configuration", () => {
     stubClipboard();
     mount();
 
-    await user.click(screen.getByRole("button", { name: "Copy" }));
+    await user.click(
+      screen.getByRole("button", { name: "Copy the Traefik configuration" }),
+    );
 
     await waitFor(() => expect(writeText).toHaveBeenCalledWith(expected()));
     expect(await screen.findByRole("status")).toHaveTextContent("Copied");
-    expect(screen.getByRole("button", { name: "Copied" })).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "Copy the Traefik configuration" }),
+    ).toBeVisible();
     expect(screen.queryByText(/Couldn't copy/)).toBeNull();
   });
 
@@ -81,7 +85,9 @@ describe("the Traefik configuration", () => {
     writeText.mockRejectedValue(new Error("denied"));
     mount();
 
-    await user.click(screen.getByRole("button", { name: "Copy" }));
+    await user.click(
+      screen.getByRole("button", { name: "Copy the Traefik configuration" }),
+    );
 
     expect(await screen.findByText(/Couldn't copy/)).toBeVisible();
     expect(screen.getByRole("status")).toBeEmptyDOMElement();

@@ -133,10 +133,10 @@ describe("the page outline", () => {
           .map((link) => link.textContent),
       ).toEqual([
         "Service",
-        "Headers sent to the service",
-        "Traefik configuration",
         "Access",
         "Managers",
+        "Headers sent to the service",
+        "Traefik configuration",
         "Appearance",
         "Disable or delete",
       ]),

@@ -177,6 +177,28 @@ export function AdminForwardAuthApps() {
                   No forward-auth applications yet
                 </Trans>
               }
+              description={
+                isAdmin ? (
+                  <Trans id="admin.forward-auth-apps.empty.description">
+                    Add a service behind your reverse proxy to let people sign
+                    in to it.
+                  </Trans>
+                ) : (
+                  <Trans id="admin.apps.empty.managed">
+                    Applications you are assigned to manage appear here.
+                  </Trans>
+                )
+              }
+              action={
+                isAdmin ? (
+                  <Button render={<Link to="/admin/forward-auth-apps/new" />}>
+                    <Plus aria-hidden="true" />
+                    <Trans id="admin.forward-auth-apps.create">
+                      New application
+                    </Trans>
+                  </Button>
+                ) : undefined
+              }
             />
           }
         />

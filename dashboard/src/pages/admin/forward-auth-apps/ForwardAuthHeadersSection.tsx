@@ -160,7 +160,7 @@ export function ForwardAuthHeadersSection({ app }: { app: ForwardAuthApp }) {
                         <field.PrincipalSourceField
                           label="Remote-User"
                           isLabelHidden
-                          className="w-full max-w-sm"
+                          className="w-full max-w-lg"
                         />
                       )}
                     </form.AppField>

@@ -1,8 +1,7 @@
-import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useStore } from "@tanstack/react-form";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { ServerIcon } from "lucide-react";
+import { GlobeIcon } from "lucide-react";
 import { isCancellation } from "@/api/errors";
 import type { components } from "@/api/generated/schema";
 import { updateForwardAuthAppMutationOptions } from "@/api/mutations";
@@ -16,18 +15,13 @@ import { hostProblem } from "@/pages/admin/forward-auth-apps/forward-auth-valida
 
 type ForwardAuthApp = components["schemas"]["ForwardAuthAppView"];
 
-const nameRequired = msg({
-  id: "admin.forward-auth-apps.field.name.required",
-  message: "Enter a name.",
-});
-
 /** The form's values for a stored record, also the baseline after a save. */
 function serviceValues(app: ForwardAuthApp) {
-  return { displayName: app.displayName, host: app.forwardAuthHost };
+  return { host: app.forwardAuthHost };
 }
 
 /**
- * What the application is called and which host it protects.
+ * Which host the application protects.
  *
  * The Client ID is not a field: the server takes it only on create, and the
  * operator's Traefik router is already configured against it, so the header
@@ -67,7 +61,6 @@ export function ForwardAuthServiceSection({ app }: { app: ForwardAuthApp }) {
         const saved = await update.mutateAsync({
           clientId: app.clientId,
           body: forwardAuthAppUpdateBody(app, {
-            displayName: value.displayName.trim(),
             host,
           }),
         });
@@ -98,13 +91,12 @@ export function ForwardAuthServiceSection({ app }: { app: ForwardAuthApp }) {
       <form.Form label={title}>
         <Section
           id="service"
-          icon={<ServerIcon />}
+          icon={<GlobeIcon />}
           title={title}
           description={
             <Trans id="admin.forward-auth-apps.service.description">
-              The name people see and the host the gateway protects. The Client
-              ID, shown above, is what every request to this application carries
-              and cannot change.
+              The host the gateway protects. The Client ID, shown above, is what
+              every request to this application carries and cannot change.
             </Trans>
           }
           dirty={dirty}
@@ -122,22 +114,6 @@ export function ForwardAuthServiceSection({ app }: { app: ForwardAuthApp }) {
         >
           <div className="flex flex-col gap-6">
             <form.FormError />
-
-            <form.AppField
-              name="displayName"
-              validators={{
-                onSubmit: ({ value }) =>
-                  value.trim() === "" ? nameRequired : undefined,
-              }}
-            >
-              {(field) => (
-                <field.FormField
-                  label={
-                    <Trans id="admin.forward-auth-apps.field.name">Name</Trans>
-                  }
-                />
-              )}
-            </form.AppField>
 
             <form.AppField
               name="host"

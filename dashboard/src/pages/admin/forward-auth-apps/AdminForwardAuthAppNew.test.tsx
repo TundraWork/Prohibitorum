@@ -104,7 +104,7 @@ describe("the form's shape", () => {
       screen
         .getAllByRole("heading", { level: 2 })
         .map((heading) => heading.textContent),
-    ).toEqual(["Identity", "Service", "Access"]);
+    ).toEqual(["Application", "Service", "Access"]);
   });
 
   it("states the restriction's consequence beside its switch", async () => {
