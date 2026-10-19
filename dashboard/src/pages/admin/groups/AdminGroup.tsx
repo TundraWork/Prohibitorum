@@ -1,6 +1,7 @@
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { HandIcon, ListFilterIcon } from "lucide-react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { groupQueryOptions } from "@/api/queries";
 import type { AppGroupView } from "@/api/raw-admin-paths";
 import { ObjectHeader } from "@/components/custom/ObjectHeader";
@@ -81,11 +82,40 @@ export function AdminGroup({ groupId }: { groupId: number }) {
   );
 }
 
+/**
+ * Whether the side column fits in the viewport below the console header. A
+ * column that does can stay in view while the page scrolls; one that does not
+ * would hide its last block behind an inner scroll nobody sees, so it scrolls
+ * with the page instead.
+ */
+function useFitsViewport() {
+  const ref = useRef<HTMLElement>(null);
+  const [fits, setFits] = useState(false);
+  useLayoutEffect(() => {
+    const element = ref.current;
+    if (element === null) return;
+    const measure = () => {
+      const top = Number.parseFloat(getComputedStyle(element).top) || 0;
+      setFits(element.offsetHeight + top + 24 <= window.innerHeight);
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    window.addEventListener("resize", measure);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  }, []);
+  return { ref, fits };
+}
+
 /** The page's columns. A separate component so it can read the section registry. */
 function GroupColumns({ group }: { group: AppGroupView }) {
   const { t } = useLingui();
   const isRule = group.kind === "rule";
   const reserve = useUnsavedReserve();
+  const side = useFitsViewport();
   return (
     <div
       {...reserve}
@@ -100,8 +130,10 @@ function GroupColumns({ group }: { group: AppGroupView }) {
         )}
       </div>
       <aside
+        ref={side.ref}
+        data-pinned={side.fits}
         aria-label={t({ id: "admin.group.side", message: "Group context" })}
-        className="flex min-w-0 flex-col gap-6 lg:sticky lg:top-[calc(var(--app-sticky-offset)+5rem)] lg:max-h-[calc(var(--app-viewport-height)-var(--app-sticky-offset)-6rem)] lg:overflow-y-auto lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:self-start"
+        className="flex min-w-0 flex-col gap-6 lg:top-[calc(var(--app-sticky-offset)+5rem)] lg:data-[pinned=true]:sticky lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:self-start"
       >
         {isRule && group.rule !== undefined && (
           <>

@@ -383,3 +383,32 @@ describe("saving the rule", () => {
     ).toBeGreaterThan(1);
   });
 });
+
+describe("the side column", () => {
+  const tall = (height: number) =>
+    vi
+      .spyOn(HTMLElement.prototype, "offsetHeight", "get")
+      .mockReturnValue(height);
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("stays in view while it fits the viewport", async () => {
+    tall(300);
+    await mountPage(ruleGroupFixture());
+
+    expect(
+      screen.getByRole("complementary", { name: "Group context" }),
+    ).toHaveAttribute("data-pinned", "true");
+  });
+
+  it("scrolls with the page once it is taller than the viewport", async () => {
+    tall(window.innerHeight + 200);
+    await mountPage(ruleGroupFixture());
+
+    expect(
+      screen.getByRole("complementary", { name: "Group context" }),
+    ).toHaveAttribute("data-pinned", "false");
+  });
+});
