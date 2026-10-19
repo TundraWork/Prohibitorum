@@ -246,6 +246,7 @@ export function AdminIdentityProviderNew() {
                   </Trans>
                 }
                 isMonospace
+                compactValue
                 autoComplete="off"
                 autoCapitalize="off"
                 spellCheck={false}
@@ -322,6 +323,7 @@ export function AdminIdentityProviderNew() {
                     }
                     inputMode="url"
                     isMonospace
+                    compactValue
                     autoComplete="off"
                     spellCheck={false}
                     placeholder="https://idp.example.com"
@@ -342,6 +344,7 @@ export function AdminIdentityProviderNew() {
                       </Trans>
                     }
                     isMonospace
+                    compactValue
                     autoComplete="off"
                     spellCheck={false}
                     variant="secondary"

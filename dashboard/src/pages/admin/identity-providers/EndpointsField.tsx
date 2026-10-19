@@ -366,7 +366,12 @@ function JwksEndpoint({
   const lastAddress = useRef(none ? "" : value);
 
   return (
-    <div className="flex flex-col gap-2">
+    <Field
+      name={fieldName}
+      disabled={disabled}
+      invalid={problem !== undefined}
+      className="items-stretch"
+    >
       <div className="flex w-full items-center justify-between gap-2">
         <span id={labelId} className="font-medium text-sm">
           {i18n._(endpointLabel(name))}
@@ -458,6 +463,6 @@ function JwksEndpoint({
           </span>
         </Label>
       </RadioGroup>
-    </div>
+    </Field>
   );
 }

@@ -250,6 +250,7 @@ export function ProviderConnectionSection({
                     </Trans>
                   }
                   isMonospace
+                  compactValue
                   autoComplete="off"
                   spellCheck={false}
                 />

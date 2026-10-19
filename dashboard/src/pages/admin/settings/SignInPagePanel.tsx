@@ -266,6 +266,7 @@ function SignInPageCard({ saved }: { saved: AdminLoginAppearance }) {
                             autoComplete="off"
                             spellCheck={false}
                             isMonospace
+                            compactValue
                             variant="secondary"
                             description={
                               <Trans id="settings.sign-in.unsplash.key.hint">

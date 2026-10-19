@@ -373,6 +373,7 @@ export function AdminSamlApplicationNew() {
                       autoComplete="off"
                       spellCheck={false}
                       isMonospace
+                      compactValue
                     />
                   )}
                 </form.AppField>

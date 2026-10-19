@@ -20,7 +20,7 @@ export function AddressInput({
 }) {
   return (
     <Textarea
-      className="**:data-[slot=textarea]:min-h-0! **:data-[slot=textarea]:resize-none **:data-[slot=textarea]:font-mono **:data-[slot=textarea]:text-[13px] **:data-[slot=textarea]:leading-5 **:data-[slot=textarea]:[overflow-wrap:anywhere] max-sm:**:data-[slot=textarea]:py-[7px]"
+      className="**:data-[slot=textarea]:min-h-0! **:data-[slot=textarea]:resize-none **:data-[slot=textarea]:font-mono **:data-[slot=textarea]:text-base sm:**:data-[slot=textarea]:text-[13px] **:data-[slot=textarea]:leading-5 **:data-[slot=textarea]:[overflow-wrap:anywhere] max-sm:**:data-[slot=textarea]:py-[7px]"
       rows={1}
       inputMode="url"
       autoComplete="off"

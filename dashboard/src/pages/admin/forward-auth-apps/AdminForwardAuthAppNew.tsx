@@ -189,6 +189,7 @@ export function AdminForwardAuthAppNew() {
                     autoComplete="off"
                     spellCheck={false}
                     isMonospace
+                    compactValue
                   />
                 )}
               </form.AppField>
@@ -227,6 +228,7 @@ export function AdminForwardAuthAppNew() {
                   autoComplete="off"
                   spellCheck={false}
                   isMonospace
+                  compactValue
                   placeholder="app.example.com"
                 />
               )}

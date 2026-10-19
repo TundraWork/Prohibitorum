@@ -236,6 +236,7 @@ export function AdminOidcApplicationNew() {
                       autoComplete="off"
                       spellCheck={false}
                       isMonospace
+                      compactValue
                     />
                   )}
                 </form.AppField>

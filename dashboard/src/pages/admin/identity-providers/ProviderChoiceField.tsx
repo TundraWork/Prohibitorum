@@ -27,7 +27,15 @@ export function ProviderChoiceField<T extends string>({
   options: readonly (ProviderOption<T> & { literal?: boolean })[];
   /** What the group as a whole is about, under the choices. */
   description?: ReactNode;
-  unavailable?: { values: readonly T[]; reason: ReactNode };
+  /**
+   * `yieldsToError` hides the reason while the field has an error, for a caller
+   * whose error says the same thing.
+   */
+  unavailable?: {
+    values: readonly T[];
+    reason: ReactNode;
+    yieldsToError?: boolean;
+  };
 }) {
   const { i18n } = useLingui();
   const { field, errors, invalid, disabled, onChange } =
@@ -36,9 +44,8 @@ export function ProviderChoiceField<T extends string>({
   const descriptionId = useId();
   const reasonId = useId();
   const errorId = useId();
-  // A refusal of the saved choice says the same thing as the reason, so the
-  // reason steps aside for it rather than appearing twice.
-  const showReason = unavailable !== undefined && !invalid;
+  const showReason =
+    unavailable !== undefined && !(unavailable.yieldsToError && invalid);
 
   return (
     <Field

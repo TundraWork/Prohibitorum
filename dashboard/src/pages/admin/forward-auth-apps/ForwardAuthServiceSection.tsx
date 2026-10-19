@@ -137,6 +137,7 @@ export function ForwardAuthServiceSection({ app }: { app: ForwardAuthApp }) {
                   autoComplete="off"
                   spellCheck={false}
                   isMonospace
+                  compactValue
                   placeholder="app.example.com"
                 />
               )}

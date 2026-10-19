@@ -27,6 +27,7 @@ export function FormField({
   placeholder,
   isDisabled = false,
   isMonospace = false,
+  compactValue = false,
   autoFocus = false,
   size,
   className,
@@ -46,6 +47,12 @@ export function FormField({
    * match another system's copy character for character.
    */
   isMonospace?: boolean;
+  /**
+   * The console's value size for a monospace field: 16px below `sm`, so iOS
+   * does not zoom on focus, and 13px from `sm` up, matching `AddressInput`.
+   * Public pages leave it off and keep the input's own sizes.
+   */
+  compactValue?: boolean;
   /**
    * Takes focus on mount, for the field a dialog opens on so the step can be
    * finished without reaching for the pointer.
@@ -74,7 +81,10 @@ export function FormField({
       <FieldLabel>{label}</FieldLabel>
       <Input
         size={size}
-        className={cn(isMonospace && "font-mono text-[13px] sm:text-[13px]")}
+        className={cn(
+          isMonospace && "font-mono",
+          compactValue && "text-base sm:text-[13px]",
+        )}
         value={field.state.value}
         onValueChange={onChange}
         onBlur={onBlur}

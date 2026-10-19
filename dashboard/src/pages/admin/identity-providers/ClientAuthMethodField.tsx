@@ -33,6 +33,9 @@ export function ClientAuthMethodField({
         isDiscoveryUnavailable
           ? {
               values: ["discovery"],
+              // The submit check refuses a saved discovery method with this same
+              // sentence, so it is drawn once.
+              yieldsToError: true,
               reason: (
                 <Trans id="admin.federation.auth.manual-needs-method">
                   With endpoints entered by hand, choose a specific method.
