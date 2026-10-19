@@ -1,4 +1,3 @@
-import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useStore } from "@tanstack/react-form";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -13,13 +12,9 @@ import { EntityIconControl } from "@/components/custom/EntityIconCard";
 import { Section } from "@/components/custom/Section";
 import { applyServerError } from "@/forms/server-errors";
 import { useAppForm } from "@/forms/use-app-form";
+import { displayNameRequired } from "@/pages/admin/saml-applications/saml-validation";
 
 type SamlApp = components["schemas"]["SAMLApplicationView"];
-
-const nameRequired = msg({
-  id: "admin.saml-apps.name.required",
-  message: "Enter a name.",
-});
 
 /** The form's values for a stored record, also the baseline after a save. */
 function appearanceValues(app: SamlApp) {
@@ -94,7 +89,7 @@ export function SamlAppearanceSection({ app }: { app: SamlApp }) {
               name="displayName"
               validators={{
                 onSubmit: ({ value }) =>
-                  value.trim() === "" ? nameRequired : undefined,
+                  value.trim() === "" ? displayNameRequired : undefined,
               }}
             >
               {(field) => (

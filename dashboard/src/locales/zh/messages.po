@@ -1116,6 +1116,12 @@ msgid "app.managers.assigned"
 msgstr "<0/>指派"
 
 #. js-lingui-explicit-id
+#. placeholder {0}: index + 1
+#: src/pages/admin/saml-applications/AttributeMapField.tsx
+msgid "admin.saml-apps.mapping.row"
+msgstr "属性 {0}"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AttributeMapField.tsx
 msgid "admin.saml-apps.mapping.key"
 msgstr "属性键"
@@ -1362,17 +1368,17 @@ msgid "admin.saml-apps.column.certificate"
 msgstr "证书"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/saml-applications/AdminSamlApplication.tsx
+#: src/pages/admin/saml-applications/CertificateText.tsx
 msgid "admin.saml-apps.certificate.expired"
 msgstr "证书已过期"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/saml-applications/AdminSamlApplication.tsx
+#: src/pages/admin/saml-applications/CertificateText.tsx
 msgid "admin.saml-apps.certificate.expires"
 msgstr "证书将于 {date} 过期"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/saml-applications/AdminSamlApplication.tsx
+#: src/pages/admin/saml-applications/CertificateText.tsx
 msgid "admin.saml-apps.certificate.no-expiry"
 msgstr "证书没有过期日期"
 
@@ -3117,7 +3123,6 @@ msgstr "请填写主机名。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/saml-validation.ts
-#: src/pages/admin/saml-applications/SamlAppearanceSection.tsx
 msgid "admin.saml-apps.name.required"
 msgstr "请输入名称。"
 
@@ -3334,6 +3339,7 @@ msgstr "请输入用户名。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
+#: src/pages/admin/saml-applications/SamlMetadataSection.tsx
 msgid "admin.saml-apps.field.entity-id"
 msgstr "Entity ID"
 
@@ -3438,8 +3444,7 @@ msgid "security.tokens.expired"
 msgstr "已过期"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/saml-applications/AdminSamlApplications.tsx
-#: src/pages/admin/saml-applications/SamlMetadataSection.tsx
+#: src/pages/admin/saml-applications/CertificateText.tsx
 msgid "admin.saml-apps.keys.expired"
 msgstr "{date} 已过期"
 
@@ -3453,10 +3458,8 @@ msgstr "过期时间"
 msgid "admin.invitations.column.expires"
 msgstr "过期时间"
 
-#. A date the administrator plans around, so it is a date and not a relative time
 #. js-lingui-explicit-id
-#: src/pages/admin/saml-applications/AdminSamlApplications.tsx
-#: src/pages/admin/saml-applications/SamlMetadataSection.tsx
+#: src/pages/admin/saml-applications/CertificateText.tsx
 msgid "admin.saml-apps.keys.expires"
 msgstr "{date} 过期"
 
@@ -4729,8 +4732,7 @@ msgid "admin.logs.empty"
 msgstr "这个范围内没有事件"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/saml-applications/AdminSamlApplications.tsx
-#: src/pages/admin/saml-applications/SamlMetadataSection.tsx
+#: src/pages/admin/saml-applications/CertificateText.tsx
 msgid "admin.saml-apps.keys.no-expiry"
 msgstr "无过期时间"
 
@@ -4816,8 +4818,7 @@ msgid "devices.sessions.empty"
 msgstr "没有已登录的设备"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/saml-applications/AdminSamlApplication.tsx
-#: src/pages/admin/saml-applications/AdminSamlApplications.tsx
+#: src/pages/admin/saml-applications/CertificateText.tsx
 msgid "admin.saml-apps.certificate.none"
 msgstr "没有签名证书"
 
@@ -5133,12 +5134,8 @@ msgid "federation_flow.identify.step.open"
 msgstr "在浏览器打开 <0>vrchat.com</0> 并进入你的个人资料页。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
-msgid "admin.saml-apps.new.access.description"
-msgstr "可以向所有账号开放，也可以限制给用户组。用户组在应用页面中选择。"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
+#: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
 msgid "admin.oidc-apps.new.access.description"
 msgstr "可以对所有账号开放，也可以只开放给部分用户组。用户组在应用创建后到它的页面里选择。"
 
@@ -7518,6 +7515,11 @@ msgstr "断言主体携带的标识符。"
 #: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
 msgid "admin.saml-apps.field.entity-id.hint"
 msgstr "服务提供商发布的标识符。之后无法修改。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/SamlMetadataSection.tsx
+msgid "admin.saml-apps.general.entity-id.hint"
+msgstr "服务提供商发布的标识符。这个实例在每次响应中都会带上它。"
 
 #. js-lingui-explicit-id
 #: src/pages/security/SetupDialog.tsx

@@ -1,4 +1,4 @@
-import { Trans, useLingui } from "@lingui/react/macro";
+import { useLingui } from "@lingui/react/macro";
 import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { samlAppQueryOptions, sessionQueryOptions } from "@/api/queries";
 import { AppAccessSection } from "@/components/custom/AppAccessSection";
@@ -9,15 +9,13 @@ import {
 } from "@/components/custom/AppManagersSection";
 import { EntityAvatar } from "@/components/custom/EntityAvatar";
 import { ObjectHeader } from "@/components/custom/ObjectHeader";
+import { CertificateText } from "@/pages/admin/saml-applications/CertificateText";
 import { SamlAppearanceSection } from "@/pages/admin/saml-applications/SamlAppearanceSection";
 import { SamlDangerSection } from "@/pages/admin/saml-applications/SamlDangerSection";
 import { SamlIdentitySection } from "@/pages/admin/saml-applications/SamlIdentitySection";
 import { SamlMetadataSection } from "@/pages/admin/saml-applications/SamlMetadataSection";
 import { SamlSignInSection } from "@/pages/admin/saml-applications/SamlSignInSection";
-import {
-  type CertificateState,
-  certificateState,
-} from "@/pages/admin/saml-applications/saml-certificate";
+import { certificateState } from "@/pages/admin/saml-applications/saml-certificate";
 import { Route } from "@/routes/_protected.admin.saml-applications_.$id";
 
 /**
@@ -77,7 +75,8 @@ export function AdminSamlApplication() {
               }),
             }}
             facts={[
-              <CertificateFact
+              <CertificateText
+                named
                 key="certificate"
                 state={certificateState(app)}
               />,
@@ -96,46 +95,4 @@ export function AdminSamlApplication() {
       <SamlDangerSection app={app} />
     </AppDetailLayout>
   );
-}
-
-/**
- * The signing certificate's state as one line of the header: the one fact that
- * breaks sign-in on its own, without anyone touching the application, so it is
- * visible before a reader goes looking for it. An expired one takes the danger
- * colour as well as the words.
- */
-function CertificateFact({ state }: { state: CertificateState }) {
-  const { i18n } = useLingui();
-  switch (state.kind) {
-    case "none":
-      return (
-        <Trans id="admin.saml-apps.certificate.none">
-          No signing certificate
-        </Trans>
-      );
-    case "no-expiry":
-      return (
-        <Trans id="admin.saml-apps.certificate.no-expiry">
-          Certificate has no expiry date
-        </Trans>
-      );
-    case "expired":
-      return (
-        <span className="text-destructive-foreground">
-          <Trans id="admin.saml-apps.certificate.expired">
-            Certificate expired
-          </Trans>
-        </span>
-      );
-    case "valid": {
-      const date = new Intl.DateTimeFormat(i18n.locale, {
-        dateStyle: "medium",
-      }).format(new Date(state.notAfter));
-      return (
-        <Trans id="admin.saml-apps.certificate.expires">
-          Certificate expires {date}
-        </Trans>
-      );
-    }
-  }
 }

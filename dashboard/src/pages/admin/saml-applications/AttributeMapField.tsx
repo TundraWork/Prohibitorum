@@ -4,6 +4,13 @@ import { type ReactNode, useRef } from "react";
 import { FormMessages } from "@/components/custom/FormMessages";
 import { useHostOverlayContainer } from "@/components/custom/host-overlay-container";
 import { type RowProblem, RowsField } from "@/components/custom/RowsField";
+import {
+  Autocomplete,
+  AutocompleteInput,
+  AutocompleteItem,
+  AutocompleteList,
+  AutocompletePopup,
+} from "@/components/ui/autocomplete";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import {
@@ -228,15 +235,6 @@ function MappingRowFields({
     );
   };
 
-  // A format outside the standard three is the record's own, and is offered as
-  // it is rather than rewritten to one of them.
-  const isStandardFormat = (attributeNameFormats as readonly string[]).includes(
-    row.nameFormat,
-  );
-  const formats = isStandardFormat
-    ? attributeNameFormats
-    : [...attributeNameFormats, row.nameFormat];
-
   const hasError = error !== undefined && error !== null;
   const nameInvalid = problem?.field === "name";
   // A missing key is a fault in the source as much as a bad fact is.
@@ -252,8 +250,13 @@ function MappingRowFields({
         index > 0 ? "@max-2xl/mapping:border-t @max-2xl/mapping:pt-4" : ""
       }`}
     >
+      {/* Stacked, each mapping is named by its position; the remove button
+          shares the line. */}
+      <p className="col-start-1 row-start-1 self-center font-medium text-sm @2xl/mapping:hidden">
+        <Trans id="admin.saml-apps.mapping.row">Attribute {index + 1}</Trans>
+      </p>
       <Field
-        className="col-start-1 row-start-1 min-w-0"
+        className="col-span-2 row-start-2 min-w-0 @2xl/mapping:col-span-1 @2xl/mapping:col-start-1 @2xl/mapping:row-start-1"
         disabled={submitting}
         invalid={nameInvalid}
       >
@@ -308,7 +311,7 @@ function MappingRowFields({
           </Select>
         </Field>
         {row.sourceKind === "attributes" && (
-          <InputGroup>
+          <InputGroup className="**:[input]:ps-0!">
             <InputGroupAddon>
               <InputGroupText className="font-mono">
                 {attributeSourcePrefix}
@@ -338,37 +341,43 @@ function MappingRowFields({
         <FieldLabel className="@2xl/mapping:sr-only">
           <FormatLabel />
         </FieldLabel>
-        <Select
+        {/* The server passes the format through unchecked and a service
+            provider may ask for any URN, so it is typed freely: the standard
+            three are suggestions, and what is typed or stored is kept whole. */}
+        <Autocomplete
           value={row.nameFormat}
-          onValueChange={(next) => {
-            if (typeof next === "string") update({ nameFormat: next });
-          }}
+          items={[...attributeNameFormats]}
+          filter={null}
+          disabled={submitting}
+          onValueChange={(next) => update({ nameFormat: next })}
         >
-          <SelectTrigger>
-            {/* The whole value wraps rather than truncates: a format outside
-                the standard three is what the service provider asked for, and
-                the part that is cut off is the part that tells them apart. */}
-            <SelectValue className="break-all text-clip">
-              {() =>
-                isStandardFormat
-                  ? shortAttributeNameFormat(row.nameFormat)
-                  : row.nameFormat
-              }
-            </SelectValue>
-          </SelectTrigger>
-          <SelectPopup alignItemWithTrigger={false} portalProps={{ container }}>
-            {formats.map((format) => (
-              <SelectItem key={format} value={format}>
-                <div className="flex min-w-0 flex-col">
-                  <span>{shortAttributeNameFormat(format)}</span>
-                  <span className="font-mono text-muted-foreground text-xs">
-                    {format}
-                  </span>
-                </div>
-              </SelectItem>
-            ))}
-          </SelectPopup>
-        </Select>
+          <AutocompleteInput
+            className="font-mono text-xs"
+            showTrigger
+            aria-label={t({
+              id: "admin.saml-apps.mapping.name-format",
+              message: "Name format",
+            })}
+            autoComplete="off"
+            spellCheck={false}
+          />
+          <AutocompletePopup portalProps={{ container }}>
+            <AutocompleteList>
+              {(format: string) => (
+                <AutocompleteItem key={format} value={format}>
+                  <div className="flex min-w-0 flex-col">
+                    <span className="font-mono">
+                      {shortAttributeNameFormat(format)}
+                    </span>
+                    <span className="break-all font-mono text-muted-foreground text-xs">
+                      {format}
+                    </span>
+                  </div>
+                </AutocompleteItem>
+              )}
+            </AutocompleteList>
+          </AutocompletePopup>
+        </Autocomplete>
       </Field>
 
       <Field
@@ -401,7 +410,7 @@ function MappingRowFields({
         </div>
       </Field>
 
-      <div className="col-start-2 row-start-1 flex h-9 items-center justify-end self-end @2xl/mapping:col-start-6 @2xl/mapping:self-start sm:h-8">
+      <div className="col-start-2 row-start-1 flex h-9 items-center justify-end self-center @2xl/mapping:col-start-6 @2xl/mapping:self-start sm:h-8">
         {remove}
       </div>
 

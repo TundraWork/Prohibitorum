@@ -197,7 +197,42 @@ describe("the attribute map", () => {
     );
     expect(
       await screen.findByRole("combobox", { name: "Name format" }),
-    ).toHaveTextContent("urn:example:names:custom");
+    ).toHaveValue("urn:example:names:custom");
+  });
+
+  it("takes a name format typed in, and sends it whole", async () => {
+    const user = userEvent.setup();
+    mount(samlAppFixture());
+
+    const format = await screen.findByRole("combobox", {
+      name: "Name format",
+    });
+    await user.clear(format);
+    await user.type(format, "urn:example:attrname:custom");
+    // Typing opens the suggestions, which hold the rest of the page inert.
+    await user.keyboard("{Escape}");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(puts()).toHaveLength(1));
+    const sent = await puts()[0]?.json();
+    expect(sent.attributeMap[0].name_format).toBe(
+      "urn:example:attrname:custom",
+    );
+  });
+
+  it("offers the standard formats as suggestions, short name over the URN", async () => {
+    const user = userEvent.setup();
+    mount(samlAppFixture());
+
+    await user.click(
+      await screen.findByRole("combobox", { name: "Name format" }),
+    );
+    await user.keyboard("{ArrowDown}");
+    await user.click(await screen.findByRole("option", { name: /^uri/ }));
+
+    expect(screen.getByRole("combobox", { name: "Name format" })).toHaveValue(
+      "urn:oasis:names:tc:SAML:2.0:attrname-format:uri",
+    );
   });
 
   it("saves a new attribute without a confirmation, in the shape the server stores", async () => {

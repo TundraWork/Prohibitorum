@@ -147,6 +147,29 @@ describe("disabling and deleting", () => {
     );
   });
 
+  it("asks for the identity check before deleting when the window is closed", async () => {
+    const user = userEvent.setup();
+    const set = vi.fn();
+    configureSudo({
+      queryClient,
+      set,
+      setFresh: () => {},
+      getFresh: () => false,
+    });
+    mount(samlAppFixture(), (request) =>
+      new URL(request.url).pathname.endsWith("/me/sudo/methods")
+        ? Response.json({ methods: ["password_totp"], fresh: false })
+        : undefined,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Delete" }));
+    const dialog = await screen.findByRole("alertdialog");
+    await user.click(within(dialog).getByRole("button", { name: "Delete" }));
+
+    await waitFor(() => expect(set).toHaveBeenCalled());
+    expect(posts("/delete")).toHaveLength(0);
+  });
+
   it("keeps the confirmation open while the write is in flight", async () => {
     const user = userEvent.setup();
     let release: (response: Response) => void = () => {};

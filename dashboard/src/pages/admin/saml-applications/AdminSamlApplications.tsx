@@ -14,10 +14,8 @@ import { InlineFailure } from "@/components/custom/InlineFailure";
 import { CodeValue } from "@/components/custom/ListCells";
 import { PageHeader } from "@/components/custom/PageHeader";
 import { TableEmptyState } from "@/components/custom/TableEmptyState";
-import {
-  type CertificateState,
-  certificateState,
-} from "@/pages/admin/saml-applications/saml-certificate";
+import { CertificateText } from "@/pages/admin/saml-applications/CertificateText";
+import { certificateState } from "@/pages/admin/saml-applications/saml-certificate";
 import { shortNameIdFormat } from "@/pages/admin/saml-applications/saml-projection";
 
 type SamlApp = components["schemas"]["SAMLApplicationView"];
@@ -86,7 +84,10 @@ export function AdminSamlApplications() {
       // provider's documentation names; the full URN is the same fact with the
       // specification's namespace in front of it.
       cell: (app) => (
-        <span className="font-mono text-muted-foreground text-xs">
+        <span
+          data-slot="name-id-format"
+          className="font-mono text-muted-foreground text-xs"
+        >
           {shortNameIdFormat(app.nameIdFormat)}
         </span>
       ),
@@ -98,7 +99,7 @@ export function AdminSamlApplications() {
       ),
       // The signing key is the one that matters: it is what the service
       // provider validates assertions against, and what expires.
-      cell: (app) => <CertificateCell state={certificateState(app)} />,
+      cell: (app) => <CertificateText state={certificateState(app)} />,
     },
     {
       align: "end",
@@ -178,47 +179,4 @@ export function AdminSamlApplications() {
       )}
     </div>
   );
-}
-
-/**
- * The signing certificate's state as words a reader can scan down a column:
- * when it expires, that it has, or that there is none. An expired one takes the
- * danger colour as well as the word. A date rather than a distance from now,
- * because "expires 4 Mar 2027" is what an operator puts in a calendar.
- */
-function CertificateCell({ state }: { state: CertificateState }) {
-  const { i18n } = useLingui();
-  const day = (notAfter: string) =>
-    new Intl.DateTimeFormat(i18n.locale, { dateStyle: "medium" }).format(
-      new Date(notAfter),
-    );
-
-  switch (state.kind) {
-    case "none":
-      return (
-        <span className="text-muted-foreground">
-          <Trans id="admin.saml-apps.certificate.none">
-            No signing certificate
-          </Trans>
-        </span>
-      );
-    case "no-expiry":
-      return (
-        <span className="text-muted-foreground">
-          <Trans id="admin.saml-apps.keys.no-expiry">No expiry</Trans>
-        </span>
-      );
-    case "expired": {
-      const date = day(state.notAfter);
-      return (
-        <span className="text-destructive-foreground">
-          <Trans id="admin.saml-apps.keys.expired">Expired {date}</Trans>
-        </span>
-      );
-    }
-    case "valid": {
-      const date = day(state.notAfter);
-      return <Trans id="admin.saml-apps.keys.expires">Expires {date}</Trans>;
-    }
-  }
 }

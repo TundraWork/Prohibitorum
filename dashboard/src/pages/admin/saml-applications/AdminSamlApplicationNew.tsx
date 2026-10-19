@@ -469,7 +469,7 @@ export function AdminSamlApplicationNew() {
             icon={<ShieldCheckIcon />}
             title={<Trans id="app.access.title">Access</Trans>}
             description={
-              <Trans id="admin.saml-apps.new.access.description">
+              <Trans id="admin.oidc-apps.new.access.description">
                 Open it to every account, or limit it to user groups. The groups
                 are chosen on the application's page.
               </Trans>

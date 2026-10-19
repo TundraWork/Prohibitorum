@@ -1116,6 +1116,12 @@ msgid "app.managers.assigned"
 msgstr "Assigned <0/>"
 
 #. js-lingui-explicit-id
+#. placeholder {0}: index + 1
+#: src/pages/admin/saml-applications/AttributeMapField.tsx
+msgid "admin.saml-apps.mapping.row"
+msgstr "Attribute {0}"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AttributeMapField.tsx
 msgid "admin.saml-apps.mapping.key"
 msgstr "Attribute key"
@@ -1362,17 +1368,17 @@ msgid "admin.saml-apps.column.certificate"
 msgstr "Certificate"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/saml-applications/AdminSamlApplication.tsx
+#: src/pages/admin/saml-applications/CertificateText.tsx
 msgid "admin.saml-apps.certificate.expired"
 msgstr "Certificate expired"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/saml-applications/AdminSamlApplication.tsx
+#: src/pages/admin/saml-applications/CertificateText.tsx
 msgid "admin.saml-apps.certificate.expires"
 msgstr "Certificate expires {date}"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/saml-applications/AdminSamlApplication.tsx
+#: src/pages/admin/saml-applications/CertificateText.tsx
 msgid "admin.saml-apps.certificate.no-expiry"
 msgstr "Certificate has no expiry date"
 
@@ -3117,7 +3123,6 @@ msgstr "Enter a hostname."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/saml-validation.ts
-#: src/pages/admin/saml-applications/SamlAppearanceSection.tsx
 msgid "admin.saml-apps.name.required"
 msgstr "Enter a name."
 
@@ -3334,6 +3339,7 @@ msgstr "Enter your username."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
+#: src/pages/admin/saml-applications/SamlMetadataSection.tsx
 msgid "admin.saml-apps.field.entity-id"
 msgstr "Entity ID"
 
@@ -3438,8 +3444,7 @@ msgid "security.tokens.expired"
 msgstr "Expired"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/saml-applications/AdminSamlApplications.tsx
-#: src/pages/admin/saml-applications/SamlMetadataSection.tsx
+#: src/pages/admin/saml-applications/CertificateText.tsx
 msgid "admin.saml-apps.keys.expired"
 msgstr "Expired {date}"
 
@@ -3453,10 +3458,8 @@ msgstr "Expires"
 msgid "admin.invitations.column.expires"
 msgstr "Expires"
 
-#. A date the administrator plans around, so it is a date and not a relative time
 #. js-lingui-explicit-id
-#: src/pages/admin/saml-applications/AdminSamlApplications.tsx
-#: src/pages/admin/saml-applications/SamlMetadataSection.tsx
+#: src/pages/admin/saml-applications/CertificateText.tsx
 msgid "admin.saml-apps.keys.expires"
 msgstr "Expires {date}"
 
@@ -4729,8 +4732,7 @@ msgid "admin.logs.empty"
 msgstr "No events in this range"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/saml-applications/AdminSamlApplications.tsx
-#: src/pages/admin/saml-applications/SamlMetadataSection.tsx
+#: src/pages/admin/saml-applications/CertificateText.tsx
 msgid "admin.saml-apps.keys.no-expiry"
 msgstr "No expiry"
 
@@ -4816,8 +4818,7 @@ msgid "devices.sessions.empty"
 msgstr "No signed-in devices"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/saml-applications/AdminSamlApplication.tsx
-#: src/pages/admin/saml-applications/AdminSamlApplications.tsx
+#: src/pages/admin/saml-applications/CertificateText.tsx
 msgid "admin.saml-apps.certificate.none"
 msgstr "No signing certificate"
 
@@ -5133,12 +5134,8 @@ msgid "federation_flow.identify.step.open"
 msgstr "Open <0>vrchat.com</0> in your browser and go to your profile page."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
-msgid "admin.saml-apps.new.access.description"
-msgstr "Open it to every account, or limit it to user groups. The groups are chosen on the application's page."
-
-#. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
+#: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
 msgid "admin.oidc-apps.new.access.description"
 msgstr "Open it to every account, or limit it to user groups. The groups are chosen on the application's page."
 
@@ -7518,6 +7515,11 @@ msgstr "The identifier the assertion's subject carries."
 #: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
 msgid "admin.saml-apps.field.entity-id.hint"
 msgstr "The identifier the service provider publishes. It cannot be changed later."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/SamlMetadataSection.tsx
+msgid "admin.saml-apps.general.entity-id.hint"
+msgstr "The identifier the service provider publishes. The instance sends it with every response."
 
 #. js-lingui-explicit-id
 #: src/pages/security/SetupDialog.tsx

@@ -1,6 +1,11 @@
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { FileKeyIcon, GlobeIcon, RefreshCwIcon } from "lucide-react";
+import {
+  FileKeyIcon,
+  FingerprintIcon,
+  GlobeIcon,
+  RefreshCwIcon,
+} from "lucide-react";
 import { useState } from "react";
 import { isCancellation } from "@/api/errors";
 import type { components } from "@/api/generated/schema";
@@ -22,6 +27,8 @@ import {
 } from "@/components/ui/dialog";
 import { applyServerError } from "@/forms/server-errors";
 import { useAppForm } from "@/forms/use-app-form";
+import { CertificateText } from "@/pages/admin/saml-applications/CertificateText";
+import { expiryState } from "@/pages/admin/saml-applications/saml-certificate";
 import {
   bindingPost,
   bindingRedirect,
@@ -49,9 +56,9 @@ function useReingestMetadata() {
  * surface as a sign-in that posts an assertion nowhere.
  *
  * Re-importing replaces both lists and keeps the Entity ID and the name. The
- * replacement is confirmed before it is sent, with the document still in the
- * dialog behind: a stale endpoint is not worth keeping, but a wrong document
- * would leave every sign-in with nowhere to post to.
+ * replacement is confirmed before it is sent: a stale endpoint is not worth
+ * keeping, but a wrong document would leave every sign-in with nowhere to post
+ * to.
  */
 export function SamlMetadataSection({ app }: { app: SamlApp }) {
   const { t } = useLingui();
@@ -88,6 +95,20 @@ export function SamlMetadataSection({ app }: { app: SamlApp }) {
         })}
         empty={null}
       >
+        <ItemListRow
+          key="entity-id"
+          icon={<FingerprintIcon aria-hidden="true" size={18} />}
+          title={<Trans id="admin.saml-apps.field.entity-id">Entity ID</Trans>}
+          details={[
+            <span key="value" className="break-all font-mono">
+              {app.entityId}
+            </span>,
+            <Trans key="hint" id="admin.saml-apps.general.entity-id.hint">
+              The identifier the service provider publishes. The instance sends
+              it with every response.
+            </Trans>,
+          ]}
+        />
         {endpoints.map((endpoint) => (
           <ItemListRow
             key={`acs:${endpoint.binding}:${endpoint.index}`}
@@ -115,7 +136,7 @@ export function SamlMetadataSection({ app }: { app: SamlApp }) {
             }
             details={[
               bindingName(endpoint.binding),
-              <span key="location" className="font-mono">
+              <span key="location" className="break-all font-mono">
                 {endpoint.location}
               </span>,
             ]}
@@ -153,7 +174,10 @@ export function SamlMetadataSection({ app }: { app: SamlApp }) {
               )
             }
             details={[
-              <CertificateExpiry key="expiry" notAfter={key.notAfter} />,
+              <CertificateText
+                key="expiry"
+                state={expiryState(key.notAfter)}
+              />,
             ]}
           />
         ))}
@@ -181,38 +205,13 @@ export function SamlMetadataSection({ app }: { app: SamlApp }) {
   );
 }
 
-/** A certificate's expiry as a date, in the danger colour once it has passed. */
-function CertificateExpiry({ notAfter }: { notAfter: string | undefined }) {
-  const { i18n } = useLingui();
-  if (notAfter === undefined) {
-    return <Trans id="admin.saml-apps.keys.no-expiry">No expiry</Trans>;
-  }
-  // A date rather than a relative time: this is something the administrator
-  // plans around — collecting a fresh document before the certificate lapses —
-  // and "in 3 months" is not when anyone schedules that work.
-  const date = new Intl.DateTimeFormat(i18n.locale, {
-    dateStyle: "medium",
-  }).format(new Date(notAfter));
-  return new Date(notAfter).getTime() < Date.now() ? (
-    <span className="text-destructive-foreground">
-      <Trans id="admin.saml-apps.keys.expired">Expired {date}</Trans>
-    </span>
-  ) : (
-    <Trans
-      id="admin.saml-apps.keys.expires"
-      comment="A date the administrator plans around, so it is a date and not a relative time"
-    >
-      Expires {date}
-    </Trans>
-  );
-}
-
 /**
  * The dialog that takes a new metadata document.
  *
- * The write belongs to the section; the dialog stays up while it is in flight,
- * so a refusal lands on the form the document is in. Submitting the form does
- * not send: it asks first, and only the confirmation does.
+ * The mutation is the section's. Submitting the form does not send: it opens a
+ * confirmation over this dialog, and only that confirmation does. Both stay up
+ * while the write is in flight; the confirmation then closes either way, and a
+ * refusal is shown on the document's form beneath it.
  */
 function ReimportDialog({
   open,

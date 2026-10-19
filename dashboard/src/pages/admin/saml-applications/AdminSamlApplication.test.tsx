@@ -69,7 +69,9 @@ describe("the application header", () => {
         .map((item) => item.textContent),
     ).toEqual(["Enabled", "Open"]);
     expect(
-      screen.getByText("https://wiki.example.test/saml/metadata"),
+      within(
+        screen.getByRole("heading", { level: 1 }).parentElement as HTMLElement,
+      ).getByText("https://wiki.example.test/saml/metadata"),
     ).toBeVisible();
     expect(
       screen.getByRole("button", { name: "Copy the Entity ID" }),

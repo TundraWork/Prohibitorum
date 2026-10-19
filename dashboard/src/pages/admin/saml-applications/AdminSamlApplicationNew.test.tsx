@@ -327,3 +327,47 @@ describe("creating", () => {
     expect(api.sent("POST", `${base}/saml-applications`)).toHaveLength(0);
   });
 });
+
+describe("the metadata way's refusals", () => {
+  it("puts a taken Entity ID on the form once, not on a field the reader cannot see", async () => {
+    serve(() => apiError("saml_application_already_exists", 409));
+    const { user } = await mountForm();
+
+    await typeName(user);
+    await pasteDocument(user);
+    await user.click(submit());
+
+    expect(await screen.findAllByRole("alert")).toHaveLength(1);
+    expect(notifyError).not.toHaveBeenCalled();
+  });
+
+  it("puts a document the server cannot read on the metadata box", async () => {
+    serve(() => apiError("bad_request", 400));
+    const { user } = await mountForm();
+
+    await typeName(user);
+    await pasteDocument(user, "<nonsense/>");
+    await user.click(submit());
+
+    const box = screen.getByRole("textbox", { name: "Metadata XML" });
+    await waitFor(() => expect(box).toHaveAttribute("aria-invalid", "true"));
+    expect(notifyError).not.toHaveBeenCalled();
+  });
+});
+
+describe("the list afterwards", () => {
+  it("is invalidated by a creation, so it shows the new application", async () => {
+    serve(created);
+    const { user } = await mountForm();
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+
+    await typeName(user);
+    await pasteDocument(user);
+    await user.click(submit());
+    await screen.findByRole("heading", { level: 1, name: "Wiki" });
+
+    expect(invalidate).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: ["admin", "saml-applications"] }),
+    );
+  });
+});

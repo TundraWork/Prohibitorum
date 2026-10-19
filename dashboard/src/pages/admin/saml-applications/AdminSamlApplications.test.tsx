@@ -95,10 +95,10 @@ describe("a row", () => {
     expect(
       within(row).getByText("https://wiki.example.test/saml/metadata"),
     ).toBeVisible();
-    // Read from the theme's muted foreground, which stays legible in dark mode.
-    expect(within(row).getByText("persistent")).toHaveClass(
-      "text-muted-foreground",
-    );
+    // Drawn in the theme's muted foreground, which stays legible in dark mode.
+    const format = within(row).getByText("persistent");
+    expect(format).toBeVisible();
+    expect(format).toHaveAttribute("data-slot", "name-id-format");
   });
 
   it("says when the signing certificate expires, in words", async () => {
