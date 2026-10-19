@@ -203,7 +203,7 @@ export function ItemListRow({
       {icon !== undefined && (
         <span
           style={rowStyle}
-          className={`col-start-2 row-start-1 me-3 grid size-9 place-items-center text-muted-foreground max-sm:row-span-(--item-span)${iconBare ? "" : " rounded-md bg-muted"}`}
+          className={`col-start-2 row-start-1 me-3 grid size-9 place-items-center text-muted-foreground max-sm:row-span-(--item-span) max-sm:self-start${iconBare ? "" : " rounded-md bg-muted"}`}
         >
           {icon}
         </span>

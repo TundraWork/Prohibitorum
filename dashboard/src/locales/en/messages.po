@@ -913,7 +913,7 @@ msgstr "After a successful reset, your old authenticator and all old recovery co
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/SigningKeysPanel.tsx
 msgid "settings.keys.retire.body"
-msgstr "After the grace period it is removed from the JWKS and the SAML metadata."
+msgstr "After the grace period <0/> is removed from the JWKS and the SAML metadata."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/invitations/AdminInvitationForm.tsx
@@ -5580,7 +5580,7 @@ msgstr "New SAML application"
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/SigningKeysPanel.tsx
 msgid "settings.keys.activate.body"
-msgstr "New tokens are signed with this key. The current key keeps verifying what it signed until it is retired."
+msgstr "New tokens and SAML assertions are signed with <0/>. The current key keeps verifying what it signed until it is retired."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/groups/AdminGroupNew.tsx
@@ -9037,6 +9037,11 @@ msgid "login.reset.uncertain"
 msgstr "The reset may already have completed. Try your new authenticator or a passkey. Enter your password again before another code attempt; your old codes may no longer work."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/SigningKeysPanel.tsx
+msgid "settings.keys.more_failed"
+msgstr "The rest of the keys could not be loaded."
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderCredentialsSection.tsx
 msgid "admin.federation.credentials.oidc.note"
 msgstr "The secret this instance signs in to the provider with."
@@ -9363,6 +9368,11 @@ msgid "error.federation.enrollment_federation_required"
 msgstr "This invitation needs the account to be created through {provider}."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/PublicKeyDialog.tsx
+msgid "settings.keys.jwk.description"
+msgstr "This is <0/> as the instance publishes it for verifying tokens and assertions."
+
+#. js-lingui-explicit-id
 #: src/pages/public/VrchatProof.tsx
 msgid "vrchat_proof.title"
 msgstr "This is a verification link"
@@ -9381,11 +9391,6 @@ msgstr "This is not valid JSON. The builder still holds your rule."
 #: src/pages/public/Enroll.tsx
 msgid "enroll.description.bootstrap"
 msgstr "This is the first account on {instance}."
-
-#. js-lingui-explicit-id
-#: src/pages/admin/settings/PublicKeyDialog.tsx
-msgid "settings.keys.jwk.description"
-msgstr "This is the key as the instance publishes it for verifying tokens and assertions."
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts

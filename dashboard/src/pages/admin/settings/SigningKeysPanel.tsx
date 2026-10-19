@@ -2,7 +2,7 @@ import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { BracesIcon, KeyRoundIcon, PlayIcon } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useCursorList } from "@/api/cursor-list";
 import type { components } from "@/api/generated/schema";
 import {
@@ -24,6 +24,7 @@ import {
 import { RelativeTime } from "@/components/custom/RelativeTime";
 import { Section, SectionFailure } from "@/components/custom/Section";
 import { Badge } from "@/components/ui/badge";
+import { KeyId } from "@/pages/admin/settings/KeyId";
 import { PublicKeyDialog } from "@/pages/admin/settings/PublicKeyDialog";
 
 type SigningKey = components["schemas"]["SigningKeyView"];
@@ -71,6 +72,9 @@ export function SigningKeysPanel() {
   const [pending, setPending] = useState<Pending | null>(null);
   const [viewing, setViewing] = useState<SigningKey | null>(null);
   const [showRetired, setShowRetired] = useState(false);
+  // Kept after the dialog starts closing, so its text does not empty first.
+  const namedKid = useRef("");
+  if (pending) namedKid.current = pending.key.kid;
 
   const current = list.items
     .filter((key) => key.status !== "retired")
@@ -131,7 +135,16 @@ export function SigningKeysPanel() {
             footer={
               (retired.length > 0 || list.hasMore || laterFailed) && (
                 <div className="flex w-full flex-col items-stretch gap-3">
-                  {laterFailed && <InlineFailure error={list.error} />}
+                  {laterFailed && (
+                    <>
+                      <p className="text-pretty text-center text-muted-foreground text-sm">
+                        <Trans id="settings.keys.more_failed">
+                          The rest of the keys could not be loaded.
+                        </Trans>
+                      </p>
+                      <InlineFailure error={list.error} />
+                    </>
+                  )}
                   <div className="flex flex-wrap justify-center gap-2">
                     {(retired.length > 0 || list.hasMore) && (
                       <Button
@@ -198,8 +211,9 @@ export function SigningKeysPanel() {
         body={
           <p>
             <Trans id="settings.keys.activate.body">
-              New tokens are signed with this key. The current key keeps
-              verifying what it signed until it is retired.
+              New tokens and SAML assertions are signed with{" "}
+              <KeyId kid={namedKid.current} />. The current key keeps verifying
+              what it signed until it is retired.
             </Trans>
           </p>
         }
@@ -217,8 +231,8 @@ export function SigningKeysPanel() {
         body={
           <p>
             <Trans id="settings.keys.retire.body">
-              After the grace period it is removed from the JWKS and the SAML
-              metadata.
+              After the grace period <KeyId kid={namedKid.current} /> is removed
+              from the JWKS and the SAML metadata.
             </Trans>
           </p>
         }

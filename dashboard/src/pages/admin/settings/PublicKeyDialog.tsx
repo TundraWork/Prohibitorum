@@ -16,6 +16,7 @@ import {
   DialogPopup,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { KeyId } from "@/pages/admin/settings/KeyId";
 
 type SigningKey = components["schemas"]["SigningKeyView"];
 
@@ -50,10 +51,12 @@ export function PublicKeyDialog({
             <Trans id="settings.keys.jwk.title">Public key</Trans>
           </DialogTitle>
           <DialogDescription>
-            <Trans id="settings.keys.jwk.description">
-              This is the key as the instance publishes it for verifying tokens
-              and assertions.
-            </Trans>
+            {shown !== null && (
+              <Trans id="settings.keys.jwk.description">
+                This is <KeyId kid={shown.kid} /> as the instance publishes it
+                for verifying tokens and assertions.
+              </Trans>
+            )}
           </DialogDescription>
         </DialogHeader>
         {shown !== null && (

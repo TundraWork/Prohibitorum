@@ -244,11 +244,9 @@ describe("signing keys", () => {
     const dialog = await screen.findByRole("alertdialog", {
       name: "Sign with this key?",
     });
-    expect(
-      within(dialog).getByText(
-        "New tokens are signed with this key. The current key keeps verifying what it signed until it is retired.",
-      ),
-    ).toBeVisible();
+    expect(dialog).toHaveTextContent(
+      `New tokens and SAML assertions are signed with ${kids.pending}. The current key keeps verifying what it signed until it is retired.`,
+    );
     expect(requests("/activate")).toHaveLength(0);
 
     await user.click(within(dialog).getByRole("button", { name: "Activate" }));
@@ -281,6 +279,9 @@ describe("signing keys", () => {
     const dialog = await screen.findByRole("alertdialog", {
       name: "Retire this key?",
     });
+    expect(dialog).toHaveTextContent(
+      `After the grace period ${kids.pending} is removed from the JWKS and the SAML metadata.`,
+    );
     expect(requests("/retire")).toHaveLength(0);
     await user.click(within(dialog).getByRole("button", { name: "Retire" }));
 
@@ -382,6 +383,7 @@ describe("signing keys", () => {
       }),
     );
     const dialog = await screen.findByRole("dialog", { name: "Public key" });
+    expect(dialog).toHaveTextContent(`This is ${kids.active} as the instance`);
     const jwk = JSON.stringify(
       { kty: "RSA", kid: kids.active, e: "AQAB" },
       null,
@@ -500,6 +502,9 @@ describe("signing keys", () => {
       await user.click(screen.getByRole("button", { name: "Load more" }));
 
       expect(await screen.findByRole("alert")).toBeVisible();
+      expect(
+        screen.getByText("The rest of the keys could not be loaded."),
+      ).toBeVisible();
       expect(screen.getByText(kids.active)).toBeVisible();
       expect(screen.getByText(kids.pending)).toBeVisible();
       expect(notifyError).not.toHaveBeenCalled();
