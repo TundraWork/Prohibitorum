@@ -116,7 +116,7 @@ Research: §2.2 (list, create page).
 - Modify: `dashboard/src/pages/admin/oidc-applications/AdminOidcApplications.tsx`, `AdminOidcApplicationNew.tsx`, and their tests
 
 **Interfaces:**
-- List: `PageHeader` "OIDC applications" with description and "New application" (admins only); the `DataTable` rows: application cell (icon, name, mono client ID; disabled dimmed with a "Disabled" badge rather than only dimming; restricted with a lock and an accessible label), type, redirects (first URI mono + "+n", "None" flagged as a warning text), row action; cursor "load more" unchanged.
+- List: `PageHeader` "OIDC applications" with description and "New application" (admins only); the `DataTable` rows: application cell (icon, name, mono client ID; disabled dimmed with a "Disabled" badge rather than only dimming; restricted with a lock and an accessible label), type, redirects (first redirect host mono + "+n", "None" flagged as a warning text), row action; cursor "load more" unchanged.
 - Create page: `PageHeader` "New OIDC application" inside `PageBody`; one `Section` per group of fields (Identity: name + client ID; Type: Confidential/Public as `ChoiceTile` list with descriptions; Sign-in: redirect URIs + scopes + PKCE (locked on for public with the visible reason) + consent; Access: restrict switch with its note); footer Create / Cancel. Conflict on Client ID, confidential reveal before navigating, public navigates directly — unchanged.
 - [ ] **Step 1: Update tests first**; add: disabled badge; "None" redirects flagged; PKCE locked reason visible for public.
 - [ ] **Step 2: Run them.**
