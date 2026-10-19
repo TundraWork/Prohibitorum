@@ -7,10 +7,13 @@ import { type ReactNode, useCallback } from "react";
  * the new page. From the heading, the reader hears the page's question first
  * and Tab continues into its controls. It is not a control, so it is kept out
  * of the Tab order and draws no focus ring.
+ *
+ * A heading drawn into another document, as in a preview frame, is only a
+ * picture and leaves focus where the reader has it.
  */
 export function PageHeading({ children }: { children: ReactNode }) {
   const focus = useCallback((node: HTMLHeadingElement | null) => {
-    node?.focus();
+    if (node && node.ownerDocument === document) node.focus();
   }, []);
   return (
     <h1

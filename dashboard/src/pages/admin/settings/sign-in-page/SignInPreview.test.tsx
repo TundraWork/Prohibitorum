@@ -137,6 +137,13 @@ describe("the sign-in page preview", () => {
     expect(page.body).toHaveTextContent("Stay signed in on this device");
   });
 
+  it("leaves focus in the console while it is drawn", async () => {
+    await show(view());
+    const page = await pageDocument();
+    expect(page.querySelector("h1")).not.toBeNull();
+    expect(page.activeElement).toBe(page.body);
+  });
+
   it("never waits for a passkey while it is only a picture", async () => {
     const conditional = vi.fn();
     vi.stubGlobal("PublicKeyCredential", {
