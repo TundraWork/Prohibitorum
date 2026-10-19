@@ -1,6 +1,7 @@
 import { Plural, Trans, useLingui } from "@lingui/react/macro";
 import { useStore } from "@tanstack/react-form";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { LogInIcon } from "lucide-react";
 import { useState } from "react";
 import { isCancellation } from "@/api/errors";
 import type { components } from "@/api/generated/schema";
@@ -142,6 +143,7 @@ export function ClientConfigSection({ app }: { app: OidcApp }) {
         <form.Form label={title}>
           <Section
             id="sign-in"
+            icon={<LogInIcon />}
             title={title}
             description={
               <Trans id="admin.oidc-apps.sign-in.description">

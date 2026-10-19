@@ -2007,15 +2007,14 @@ msgid "settings.keys.jwk.copied"
 msgstr "Copied"
 
 #. js-lingui-explicit-id
-#: src/components/custom/CopyValue.tsx
-#: src/components/custom/ObjectHeader.tsx
-#: src/pages/admin/oidc-applications/AdminOidcApplication.tsx
-msgid "copy-value.copied"
+#: src/pages/admin/forward-auth-apps/ForwardAuthProxySection.tsx
+msgid "admin.forward-auth-apps.traefik.copied"
 msgstr "Copied"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/forward-auth-apps/ForwardAuthProxySection.tsx
-msgid "admin.forward-auth-apps.traefik.copied"
+#: src/components/custom/CopyableValue.tsx
+#: src/components/custom/CopyValue.tsx
+msgid "copy-value.copied"
 msgstr "Copied"
 
 #. js-lingui-explicit-id
@@ -2199,8 +2198,8 @@ msgid "error.upstream_temporarily_unavailable"
 msgstr "Could not reach the provider."
 
 #. js-lingui-explicit-id
+#: src/components/custom/CopyableValue.tsx
 #: src/components/custom/CopyValue.tsx
-#: src/components/custom/ObjectHeader.tsx
 msgid "copy-value.failed"
 msgstr "Couldn't copy. Select the value above and copy it yourself."
 

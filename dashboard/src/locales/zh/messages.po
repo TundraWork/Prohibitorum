@@ -1353,7 +1353,7 @@ msgstr "修改"
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/IdentityProjectionSection.tsx
 msgid "admin.oidc-apps.subject.confirm.save"
-msgstr "更换并保存"
+msgstr "修改并保存"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
@@ -1388,7 +1388,7 @@ msgstr "修改密码"
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/IdentityProjectionSection.tsx
 msgid "admin.oidc-apps.subject.action-label"
-msgstr "更改主体并保存"
+msgstr "修改 Subject 并保存"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
@@ -1413,7 +1413,7 @@ msgstr "修改"
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/IdentityProjectionSection.tsx
 msgid "admin.oidc-apps.subject.consequence"
-msgstr "更改主体来源会让所有人退出所有客户端。"
+msgstr "修改 Subject 来源会让所有人退出所有客户端。"
 
 #. js-lingui-explicit-id
 #: src/components/custom/OtpField.tsx
@@ -2007,15 +2007,14 @@ msgid "settings.keys.jwk.copied"
 msgstr "已复制"
 
 #. js-lingui-explicit-id
-#: src/components/custom/CopyValue.tsx
-#: src/components/custom/ObjectHeader.tsx
-#: src/pages/admin/oidc-applications/AdminOidcApplication.tsx
-msgid "copy-value.copied"
+#: src/pages/admin/forward-auth-apps/ForwardAuthProxySection.tsx
+msgid "admin.forward-auth-apps.traefik.copied"
 msgstr "已复制"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/forward-auth-apps/ForwardAuthProxySection.tsx
-msgid "admin.forward-auth-apps.traefik.copied"
+#: src/components/custom/CopyableValue.tsx
+#: src/components/custom/CopyValue.tsx
+msgid "copy-value.copied"
 msgstr "已复制"
 
 #. js-lingui-explicit-id
@@ -2199,8 +2198,8 @@ msgid "error.upstream_temporarily_unavailable"
 msgstr "无法连接该提供商。"
 
 #. js-lingui-explicit-id
+#: src/components/custom/CopyableValue.tsx
 #: src/components/custom/CopyValue.tsx
-#: src/components/custom/ObjectHeader.tsx
 msgid "copy-value.failed"
 msgstr "无法复制。请选中上面的值，手动复制。"
 
@@ -3909,7 +3908,7 @@ msgstr "签发注册链接"
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/AdminOidcApplication.tsx
 msgid "admin.oidc-apps.issuer"
-msgstr "签发者"
+msgstr "Issuer"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-options.ts
@@ -7464,7 +7463,7 @@ msgstr "该提供商及其图标会被删除。"
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/OidcScopesField.tsx
 msgid "admin.oidc-apps.scopes.providers-failed"
-msgstr "无法加载提供方身份，已保持原样。"
+msgstr "无法加载提供商身份，已保持原样。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts

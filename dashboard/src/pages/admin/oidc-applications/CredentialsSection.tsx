@@ -1,5 +1,6 @@
 import { Trans } from "@lingui/react/macro";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { KeyRoundIcon } from "lucide-react";
 import { useState } from "react";
 import type { components } from "@/api/generated/schema";
 import { rotateOidcSecretMutationOptions } from "@/api/mutations";
@@ -45,6 +46,7 @@ export function CredentialsSection({ app }: { app: OidcApp }) {
   return (
     <Section
       id="credentials"
+      icon={<KeyRoundIcon />}
       title={<Trans id="admin.oidc-apps.credentials">Credentials</Trans>}
     >
       {isPublic ? (

@@ -348,7 +348,26 @@ export interface FederationFlow {
   expiresAt: string;
 }
 
+/** The part of the OIDC discovery document the console reads. */
+export interface OidcDiscovery {
+  issuer: string;
+}
+
 export interface RawPaths {
+  "/.well-known/openid-configuration": {
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        200: { content: { "application/json": OidcDiscovery } };
+      };
+    };
+  };
   "/branding/wallpaper": {
     get: {
       parameters: {

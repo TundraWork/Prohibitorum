@@ -114,16 +114,18 @@ export function DangerZone({
  */
 export function DangerZoneFrame({
   id,
+  icon,
   title,
   children,
 }: {
   /** Anchor for the page outline's link to the block. */
   id?: string;
+  icon?: ReactNode;
   title: ReactNode;
   children: ReactNode;
 }) {
   return (
-    <Section id={id} title={title} tone="danger">
+    <Section id={id} icon={icon} title={title} tone="danger">
       {children}
     </Section>
   );

@@ -169,4 +169,23 @@ describe("disabling and deleting", () => {
     expect(await screen.findAllByRole("alert")).toHaveLength(1);
     expect(notifyError).not.toHaveBeenCalled();
   });
+
+  it("reports a refused disable once, on the section", async () => {
+    const user = userEvent.setup();
+    mount(oidcAppFixture(), (request) =>
+      new URL(request.url).pathname.endsWith("/set-disabled")
+        ? Response.json({ code: "internal_error" }, { status: 500 })
+        : undefined,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Disable" }));
+    const dialog = await screen.findByRole("alertdialog");
+    await user.click(within(dialog).getByRole("button", { name: "Disable" }));
+
+    await waitFor(() =>
+      expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument(),
+    );
+    expect(await screen.findAllByRole("alert")).toHaveLength(1);
+    expect(notifyError).not.toHaveBeenCalled();
+  });
 });

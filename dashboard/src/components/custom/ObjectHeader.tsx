@@ -1,9 +1,6 @@
 import { useLingui } from "@lingui/react/macro";
-import { CheckIcon, CircleAlertIcon, CopyIcon } from "lucide-react";
 import type { ReactNode } from "react";
-import { Button } from "@/components/custom/Button";
-import { useCopyValue } from "@/components/custom/use-copy-value";
-import { Alert, AlertTitle } from "@/components/ui/alert";
+import { CopyableValue } from "@/components/custom/CopyableValue";
 import { Badge } from "@/components/ui/badge";
 
 export type ObjectStatus =
@@ -46,8 +43,6 @@ export function ObjectHeader({
   actions,
 }: ObjectHeaderProps): React.ReactElement {
   const { t } = useLingui();
-  const { state, copy: copyValue } = useCopyValue();
-  const copied = state === "copied";
 
   const statusText: Record<ObjectStatus, string> = {
     enabled: t({ id: "object.status.enabled", message: "Enabled" }),
@@ -96,38 +91,12 @@ export function ObjectHeader({
   }
   if (identifier !== undefined) {
     meta.push(
-      <span key="identifier" className="inline-flex items-center gap-1">
-        <span className="font-mono text-[13px] text-foreground">
-          {identifier.value}
-        </span>
-        <Button
-          aria-label={identifier.label}
-          onClick={() => copyValue(identifier.value)}
-          variant="ghost"
-          size="icon-sm"
-        >
-          {copied ? (
-            <CheckIcon aria-hidden="true" className="text-success" />
-          ) : (
-            <CopyIcon aria-hidden="true" />
-          )}
-        </Button>
-        <span role="status" className="sr-only">
-          {copied ? t({ id: "copy-value.copied", message: "Copied" }) : ""}
-        </span>
-        {state === "failed" && (
-          <Alert variant="warning">
-            <CircleAlertIcon aria-hidden="true" />
-            <AlertTitle>
-              {t({
-                id: "copy-value.failed",
-                message:
-                  "Couldn't copy. Select the value above and copy it yourself.",
-              })}
-            </AlertTitle>
-          </Alert>
-        )}
-      </span>,
+      <CopyableValue
+        key="identifier"
+        value={identifier.value}
+        label={identifier.label}
+        className="text-[13px]"
+      />,
     );
   }
   facts.forEach((fact, index) => {

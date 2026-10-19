@@ -50,6 +50,8 @@ function open(
     [`GET ${base}/groups`]: () => Response.json([]),
     [`GET ${base}/oidc-applications/${app.clientId}/managers`]: () =>
       Response.json([]),
+    [`GET /.well-known/openid-configuration`]: () =>
+      Response.json({ issuer: "https://id.configured.example.test" }),
     [`GET ${base}/me/sudo/methods`]: () =>
       Response.json({ methods: ["password_totp"], fresh: true }),
     ...extra,
@@ -114,14 +116,51 @@ describe("the application header", () => {
     expect(screen.queryByRole("link", { name: /^Open / })).toBeNull();
   });
 
-  it("gives the issuer as a copyable fact", async () => {
+  it("copies the configured issuer from the outline, not the page origin", async () => {
+    const user = userEvent.setup();
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    // After setup(), which installs its own clipboard stub.
+    Object.defineProperty(navigator, "clipboard", {
+      value: { writeText },
+      configurable: true,
+    });
     await mountPage(oidcAppFixture());
-    expect(screen.getAllByText(window.location.origin).length).toBeGreaterThan(
-      0,
-    );
+
+    const rail = (
+      await screen.findByRole("navigation", { name: "On this page" })
+    ).closest("aside") as HTMLElement;
     expect(
-      screen.getAllByRole("button", { name: "Copy the issuer" }).length,
-    ).toBeGreaterThan(0);
+      await within(rail).findByText("https://id.configured.example.test"),
+    ).toBeVisible();
+    await user.click(
+      within(rail).getByRole("button", { name: "Copy the issuer" }),
+    );
+
+    expect(writeText).toHaveBeenCalledWith(
+      "https://id.configured.example.test",
+    );
+  });
+
+  it("falls back to the page origin when the discovery document cannot be read", async () => {
+    const user = userEvent.setup();
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      value: { writeText },
+      configurable: true,
+    });
+    await mountPage(oidcAppFixture(), "admin", {
+      "GET /.well-known/openid-configuration": () =>
+        new Response(null, { status: 500 }),
+    });
+
+    const rail = (
+      await screen.findByRole("navigation", { name: "On this page" })
+    ).closest("aside") as HTMLElement;
+    await user.click(
+      within(rail).getByRole("button", { name: "Copy the issuer" }),
+    );
+
+    expect(writeText).toHaveBeenCalledWith(window.location.origin);
   });
 });
 

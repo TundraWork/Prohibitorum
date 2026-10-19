@@ -1686,6 +1686,10 @@ function readReply(
   switch (request.schemaPath) {
     case "/api/prohibitorum/config":
       return json(publicConfig(config));
+    // Deliberately not this origin, so a page that fell back to the origin
+    // instead of reading the document cannot be mistaken for one that did.
+    case "/.well-known/openid-configuration":
+      return json({ issuer: "https://id.mock.example.test" });
     case "/api/prohibitorum/auth/status":
       return json({ bootstrapped: config.instance.bootstrapped });
     // The sign-in link's target app, answered like the server would: a label

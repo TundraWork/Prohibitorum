@@ -1,6 +1,7 @@
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useStore } from "@tanstack/react-form";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { FingerprintIcon } from "lucide-react";
 import { useState } from "react";
 import { isCancellation } from "@/api/errors";
 import { readPrincipalSource } from "@/api/federation";
@@ -124,6 +125,7 @@ export function IdentityProjectionSection({ app }: { app: OidcApp }) {
         <form.Form label={title}>
           <Section
             id="identity"
+            icon={<FingerprintIcon />}
             title={title}
             description={
               <Trans id="admin.oidc-apps.identity.description">

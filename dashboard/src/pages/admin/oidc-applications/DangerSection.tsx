@@ -1,7 +1,7 @@
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { Power, Trash2 } from "lucide-react";
+import { Power, Trash2, TriangleAlertIcon } from "lucide-react";
 import { useState } from "react";
 import type { components } from "@/api/generated/schema";
 import {
@@ -60,6 +60,7 @@ export function DangerSection({ app }: { app: OidcApp }) {
   return (
     <DangerZoneFrame
       id="danger"
+      icon={<TriangleAlertIcon />}
       title={<Trans id="admin.oidc-apps.danger.title">Disable or delete</Trans>}
     >
       <ItemList

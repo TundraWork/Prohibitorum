@@ -1,7 +1,12 @@
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
-import { CheckIcon, CopyIcon, ExternalLinkIcon } from "lucide-react";
-import { oidcAppQueryOptions, sessionQueryOptions } from "@/api/queries";
+import { ExternalLinkIcon } from "lucide-react";
+import {
+  oidcAppQueryOptions,
+  oidcDiscoveryQueryOptions,
+  sessionQueryOptions,
+} from "@/api/queries";
+import { quietQuery } from "@/app/query-client";
 import { AppAccessSection } from "@/components/custom/AppAccessSection";
 import { AppDetailLayout } from "@/components/custom/AppDetailLayout";
 import {
@@ -9,9 +14,9 @@ import {
   AppManagersSection,
 } from "@/components/custom/AppManagersSection";
 import { Button } from "@/components/custom/Button";
+import { CopyableValue } from "@/components/custom/CopyableValue";
 import { EntityAvatar } from "@/components/custom/EntityAvatar";
 import { ObjectHeader } from "@/components/custom/ObjectHeader";
-import { useCopyValue } from "@/components/custom/use-copy-value";
 import { AppearanceSection } from "@/pages/admin/oidc-applications/AppearanceSection";
 import { ClientConfigSection } from "@/pages/admin/oidc-applications/ClientConfigSection";
 import { CredentialsSection } from "@/pages/admin/oidc-applications/CredentialsSection";
@@ -124,43 +129,30 @@ export function AdminOidcApplication() {
 }
 
 /**
- * The address clients use as the issuer, with a copy button. It is the origin
- * this console is served from, which is where the discovery document lives.
+ * The issuer clients are told to trust, with a copy button.
+ *
+ * It is read from the discovery document, because the server's issuer is
+ * configured and may differ from the origin this console is served from. The
+ * origin stands in only while the document loads or if it cannot be read; the
+ * read is quiet because the fallback is already on screen.
  */
 function IssuerFact() {
   const { t } = useLingui();
-  const { state, copy } = useCopyValue();
-  const issuer = window.location.origin;
+  const discovery = useQuery(quietQuery(oidcDiscoveryQueryOptions()));
+  const issuer = discovery.data?.issuer ?? window.location.origin;
   return (
     <div className="flex min-w-0 flex-col gap-1">
       <span className="text-muted-foreground">
         <Trans id="admin.oidc-apps.issuer">Issuer</Trans>
       </span>
-      <span className="flex min-w-0 items-center gap-1">
-        <span className="min-w-0 truncate font-mono text-foreground">
-          {issuer}
-        </span>
-        <Button
-          aria-label={t({
-            id: "admin.oidc-apps.copy-issuer",
-            message: "Copy the issuer",
-          })}
-          onClick={() => copy(issuer)}
-          variant="ghost"
-          size="icon-xs"
-        >
-          {state === "copied" ? (
-            <CheckIcon aria-hidden="true" className="text-success" />
-          ) : (
-            <CopyIcon aria-hidden="true" />
-          )}
-        </Button>
-        <span role="status" className="sr-only">
-          {state === "copied"
-            ? t({ id: "copy-value.copied", message: "Copied" })
-            : ""}
-        </span>
-      </span>
+      <CopyableValue
+        value={issuer}
+        label={t({
+          id: "admin.oidc-apps.copy-issuer",
+          message: "Copy the issuer",
+        })}
+        className="truncate"
+      />
     </div>
   );
 }

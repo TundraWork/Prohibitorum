@@ -257,6 +257,22 @@ export function federationFlowQueryOptions(flow: string) {
 }
 
 /**
+ * The instance's OIDC discovery document, for the issuer clients are told to
+ * trust. The issuer is configured on the server and need not equal the origin
+ * the console is served from, so it is read rather than assumed. The document
+ * is public, so it carries no session marker.
+ */
+export function oidcDiscoveryQueryOptions() {
+  return queryOptions({
+    queryKey: ["public", "oidc-discovery"],
+    queryFn: ({ signal }) =>
+      requireJsonData(
+        client.GET("/.well-known/openid-configuration", { signal }),
+      ),
+  });
+}
+
+/**
  * The providers the sign-in page offers. The list is public, so unlike
  * `federationProvidersQueryOptions` it does not belong to a session.
  */

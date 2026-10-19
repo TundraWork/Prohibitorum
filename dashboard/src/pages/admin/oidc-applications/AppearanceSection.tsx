@@ -2,6 +2,7 @@ import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useStore } from "@tanstack/react-form";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { PaletteIcon } from "lucide-react";
 import { isCancellation } from "@/api/errors";
 import type { components } from "@/api/generated/schema";
 import { updateOidcAppMutationOptions } from "@/api/mutations";
@@ -77,6 +78,7 @@ export function AppearanceSection({ app }: { app: OidcApp }) {
       <form.Form label={title}>
         <Section
           id="appearance"
+          icon={<PaletteIcon />}
           title={title}
           dirty={dirty}
           footer={
@@ -89,7 +91,7 @@ export function AppearanceSection({ app }: { app: OidcApp }) {
             ) : undefined
           }
         >
-          <div className="flex max-w-lg flex-col gap-6">
+          <div className="flex flex-col gap-6">
             <form.FormError />
 
             <form.AppField
