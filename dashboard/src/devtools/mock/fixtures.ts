@@ -1195,22 +1195,37 @@ function identityProviders(config: MockConfig): IdentityProvider[] {
     // secret, which the server counts as ready, so it takes the place the
     // every-fourth "not ready" row otherwise would.
     const publicClient = protocol === "oidc" && index % 4 === 3;
-    const readyLetter = config.admin.providerNotReadyMask[index];
-    const ready =
-      readyLetter === "x"
-        ? false
-        : readyLetter === "o"
-          ? true
-          : publicClient || index % 4 !== 3;
-    // For VRChat the "secret" is the operator session, so an even row has a
-    // checked session and an odd one has none, and both states can be seen. A
-    // public client holds none by design.
+    // Readiness follows the credential the way the server derives it: a Steam
+    // provider is ready only with a key, a VRChat one only with a valid
+    // operator session, a confidential OIDC one only with a stored secret, and
+    // a public client needs none. The not-ready mask changes that credential
+    // (no key, an expired session, no secret) instead of forcing the flag.
+    const mask = config.admin.providerNotReadyMask[index];
     const operator = config.admin.operatorSession;
-    const configured =
-      !publicClient &&
-      (operator === "fixture"
-        ? index % 2 === 0
-        : operator === "valid" || operator === "expired");
+    let configured: boolean;
+    let expired = false;
+    if (protocol === "vrchat") {
+      configured =
+        operator === "fixture"
+          ? index % 2 === 0
+          : operator === "valid" || operator === "expired";
+      expired = operator === "expired";
+      if (mask === "x") {
+        configured = true;
+        expired = true;
+      } else if (mask === "o") {
+        configured = true;
+        expired = false;
+      }
+    } else if (publicClient) {
+      // A public client holds no secret by design.
+      configured = false;
+    } else {
+      configured = index % 4 !== 3;
+      if (mask === "x") configured = false;
+      else if (mask === "o") configured = true;
+    }
+    const ready = publicClient || (configured && !expired);
     return {
       slug: `provider-${index + 1}`,
       displayName: `Example ${protocol.toUpperCase()} ${index + 1}`,
@@ -1232,7 +1247,7 @@ function identityProviders(config: MockConfig): IdentityProvider[] {
       secretConfigured: configured,
       secretStatus: !configured
         ? "unconfigured"
-        : operator === "expired"
+        : expired
           ? "invalid"
           : "valid",
       secretValidatedAt: configured ? iso(-day) : null,

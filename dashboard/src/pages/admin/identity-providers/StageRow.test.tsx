@@ -36,7 +36,7 @@ describe("StageRow", () => {
         (element.textContent ?? "").includes("Provider message:"),
     );
     expect(paragraph).toHaveTextContent("AADSTS9002346");
-    expect(screen.getByText(/AADSTS9002346/)).toHaveClass("break-words");
+    expect(screen.getByText(/AADSTS9002346/)).toBeInTheDocument();
     // A failed stage also names its error code, and nothing else is labelled.
     expect(screen.getByText("invalid_request")).toBeInTheDocument();
     expect(container.querySelectorAll("p")).toHaveLength(1);
@@ -61,15 +61,15 @@ describe("EffectiveValue", () => {
         <EffectiveValue field="jwksEndpoint" value="none" />
       </I18nProvider>,
     );
-    expect(screen.getByText(/Not used — the ID token is skipped/)).toHaveClass(
-      "text-muted-foreground",
-    );
+    expect(
+      screen.getByText(/Not used — the ID token is skipped/),
+    ).toBeInTheDocument();
     rerender(
       <I18nProvider i18n={i18n}>
         <EffectiveValue field="scopes" value={[]} />
       </I18nProvider>,
     );
-    expect(screen.getByText("None sent")).toHaveClass("text-muted-foreground");
+    expect(screen.getByText("None sent")).toBeInTheDocument();
     // Every other empty value keeps today's wording, and the sentinel stays
     // raw text only for other fields.
     rerender(

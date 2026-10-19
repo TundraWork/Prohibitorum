@@ -3,7 +3,6 @@ import { QueryClientProvider, useSuspenseQuery } from "@tanstack/react-query";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Suspense } from "react";
-import { I18nProvider as AriaI18nProvider } from "react-aria";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { identityProviderQueryOptions } from "@/api/queries";
 import { createQueryClient } from "@/app/query-client";
@@ -78,14 +77,12 @@ function mount(provider: Provider) {
   );
   render(
     <I18nProvider i18n={i18n}>
-      <AriaI18nProvider>
-        <QueryClientProvider client={queryClient}>
-          <Suspense fallback={null}>
-            <ProviderObserver slug={provider.slug} />
-          </Suspense>
-          <ProviderConnectionSection provider={provider} />
-        </QueryClientProvider>
-      </AriaI18nProvider>
+      <QueryClientProvider client={queryClient}>
+        <Suspense fallback={null}>
+          <ProviderObserver slug={provider.slug} />
+        </Suspense>
+        <ProviderConnectionSection provider={provider} />
+      </QueryClientProvider>
     </I18nProvider>,
   );
 }

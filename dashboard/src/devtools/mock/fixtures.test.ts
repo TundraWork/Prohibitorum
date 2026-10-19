@@ -535,20 +535,85 @@ describe("mocked management directory", () => {
     expect(reply).toMatchObject({ kind: "error", status: 429 });
   });
 
-  it("lets the not-ready mask make an enabled provider not ready", () => {
+  it("derives readiness from the credential, as the server does", () => {
+    const page = bodyOf(
+      read(
+        "/api/prohibitorum/identity-providers",
+        config(() => {}),
+      ),
+    ) as {
+      items: Array<{
+        protocol: string;
+        ready: boolean;
+        secretConfigured: boolean;
+        secretStatus: string;
+        config: { tokenAuthMethod?: string };
+      }>;
+    };
+    for (const item of page.items) {
+      const publicClient = item.config.tokenAuthMethod === "none";
+      expect(item.ready).toBe(
+        publicClient ||
+          (item.secretConfigured && item.secretStatus !== "invalid"),
+      );
+    }
+  });
+
+  it("lets the not-ready mask take the credential away from an enabled provider", () => {
     const page = bodyOf(
       read(
         "/api/prohibitorum/identity-providers",
         config((draft) => {
-          draft.admin.providerNotReadyMask = "..xo";
+          draft.admin.providerNotReadyMask = "x.xo";
         }),
       ),
-    ) as { items: Array<{ slug: string; ready: boolean; disabled: boolean }> };
-    const [, , third] = page.items;
-    expect(third).toMatchObject({ slug: "provider-3", ready: false });
+    ) as {
+      items: Array<{
+        slug: string;
+        ready: boolean;
+        disabled: boolean;
+        secretConfigured: boolean;
+        secretStatus: string;
+      }>;
+    };
+    // An OIDC secret that is missing.
+    expect(page.items[0]).toMatchObject({
+      ready: false,
+      secretConfigured: false,
+    });
+    // A VRChat session that has expired.
+    const third = page.items[2];
+    expect(third).toMatchObject({
+      slug: "provider-3",
+      ready: false,
+      secretConfigured: true,
+      secretStatus: "invalid",
+    });
     expect(third?.disabled).toBe(false);
-    expect(page.items[0]?.ready).toBe(true);
+    // A public client needs none, so a letter there changes nothing.
     expect(page.items[3]?.ready).toBe(true);
+  });
+
+  it("lets the not-ready mask remove a Steam key", () => {
+    const page = bodyOf(
+      read(
+        "/api/prohibitorum/identity-providers",
+        config((draft) => {
+          draft.admin.providerNotReadyMask = ".x";
+        }),
+      ),
+    ) as {
+      items: Array<{
+        protocol: string;
+        ready: boolean;
+        secretConfigured: boolean;
+      }>;
+    };
+    expect(page.items[1]).toMatchObject({
+      protocol: "steam",
+      ready: false,
+      secretConfigured: false,
+    });
   });
 
   it("matches nobody for a rule draft that carries no condition", () => {

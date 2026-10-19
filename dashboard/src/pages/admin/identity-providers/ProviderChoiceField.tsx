@@ -60,7 +60,11 @@ export function ProviderChoiceField<T extends string>({
       <RadioGroup
         aria-labelledby={labelId}
         aria-describedby={
-          [description !== undefined && descriptionId, showReason && reasonId]
+          [
+            description !== undefined && descriptionId,
+            showReason && reasonId,
+            invalid && errorId,
+          ]
             .filter(Boolean)
             .join(" ") || undefined
         }

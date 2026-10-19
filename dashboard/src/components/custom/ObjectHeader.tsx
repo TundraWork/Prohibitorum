@@ -83,7 +83,7 @@ export function ObjectHeader({
         {statuses.map((status) => (
           <li key={status}>
             <Badge variant={statusVariant[status]}>
-              {status === "enabled" && (
+              {(status === "enabled" || status === "not-ready") && (
                 <span
                   aria-hidden="true"
                   className="size-1.5 rounded-full bg-current"

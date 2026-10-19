@@ -586,7 +586,7 @@ Migration 038 fills existing OIDC configs with discovery mode, null endpoint ove
 
 ### Administrator OIDC diagnostics
 
-These OIDC-only endpoints require the original administrator session, except for the browser callback. Responses use no-store. POSTs require an empty body; cross-origin writes are refused by the global protection described above.
+These OIDC-only endpoints require an administrator session, except for the browser callback. Starting, completing and reading a test by id also require the session and browser that started it; `/tests/latest` does not, because it holds no values, so any administrator reads it from any browser. Responses use no-store. POSTs require an empty body; cross-origin writes are refused by the global protection described above.
 
 | Method | Path | Behavior |
 |---|---|---|

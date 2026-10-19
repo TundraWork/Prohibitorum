@@ -88,10 +88,10 @@ export interface MockConfig {
     providerSignInMask: string;
     /**
      * Which fixture providers are not ready, one letter per row: `.` keeps the
-     * fixture's own readiness, `x` makes the row not ready, `o` makes it
-     * ready. It reaches an enabled provider that cannot sign anyone in, which
-     * the fixture cycle never produces. A string, like the sign-in mask, so it
-     * survives the stored-config overlay.
+     * fixture's own credential, `x` removes it (no Steam key, an expired
+     * VRChat session, no OIDC secret) so the row is not ready, `o` supplies
+     * it. A public OIDC client needs no credential and stays ready. A string,
+     * like the sign-in mask, so it survives the stored-config overlay.
      */
     providerNotReadyMask: string;
     /** OIDC applications, paged; covers confidential and public, restricted and open. */
