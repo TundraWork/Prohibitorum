@@ -153,7 +153,9 @@ export function ProviderClaimsSection({ provider }: { provider: Provider }) {
   // Named, so the consequence carries them as `{name}` placeholders the
   // catalogs share.
   const count = linked;
-  const name = provider.displayName || provider.slug;
+  // Joined with no-break spaces so a provider name is never split across lines
+  // where a short fragment of it would be left on a line of its own.
+  const name = (provider.displayName || provider.slug).replace(/ /g, "\u00a0");
   const current = saved.subjectClaim;
 
   return (

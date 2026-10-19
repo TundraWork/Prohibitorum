@@ -381,7 +381,7 @@ describe("changing the subject claim", () => {
     await setClaim(user, "Subject", "node_id");
     await user.click(subjectAction());
     const dialog = await screen.findByRole("alertdialog", {
-      name: "Change the subject claim for Corporate SSO?",
+      name: /^Change the subject claim for Corporate\sSSO\?$/,
     });
     expect(api.sent("PUT", putPath)).toHaveLength(0);
     // The footer carries the full consequence; the dialog only asks.
