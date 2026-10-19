@@ -1,6 +1,6 @@
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useStore } from "@tanstack/react-form";
-import { type ReactNode, useRef, useState } from "react";
+import { type ReactNode, useId, useRef, useState } from "react";
 import { FormMessages } from "@/components/custom/FormMessages";
 import { useHostOverlayContainer } from "@/components/custom/host-overlay-container";
 import { type RowProblem, RowsField } from "@/components/custom/RowsField";
@@ -219,6 +219,7 @@ function MappingRowFields({
   const container = useHostOverlayContainer(anchor);
   const [formatFocused, setFormatFocused] = useState(false);
   const rowNumber = index + 1;
+  const rowId = useId();
 
   const row = field.state.value[index];
   if (row === undefined) return null;
@@ -240,10 +241,12 @@ function MappingRowFields({
   const isStandardFormat = (attributeNameFormats as readonly string[]).includes(
     row.nameFormat,
   );
-  const formatShown =
-    !formatFocused && isStandardFormat
-      ? shortAttributeNameFormat(row.nameFormat)
-      : row.nameFormat;
+  const formatShown = formatFocused
+    ? row.nameFormat
+    : shortAttributeNameFormat(row.nameFormat);
+  const showFullFormat =
+    !formatFocused && !isStandardFormat && row.nameFormat !== "";
+  const fullFormatId = `${rowId}-format`;
 
   const hasError = error !== undefined && error !== null;
   const nameInvalid = problem?.field === "name";
@@ -360,6 +363,15 @@ function MappingRowFields({
           // it holds the whole value, which is what is stored and sent.
           value={formatShown}
           items={[...attributeNameFormats]}
+          // Every suggestion shows while the text is the stored value or a
+          // standard one, and the list narrows only once the reader types
+          // something else.
+          filter={(item, query) =>
+            query === "" ||
+            query === row.nameFormat ||
+            (attributeNameFormats as readonly string[]).includes(query) ||
+            item.toLowerCase().includes(query.toLowerCase())
+          }
           disabled={submitting}
           onValueChange={(next) => {
             if (formatFocused) update({ nameFormat: next });
@@ -374,6 +386,7 @@ function MappingRowFields({
             })}
             autoComplete="off"
             spellCheck={false}
+            aria-describedby={showFullFormat ? fullFormatId : undefined}
             onFocus={() => setFormatFocused(true)}
             onBlur={() => setFormatFocused(false)}
           />
@@ -395,6 +408,18 @@ function MappingRowFields({
           </AutocompletePopup>
         </Autocomplete>
       </Field>
+
+      {/* A custom format is the part that tells two rows apart, so at rest it
+          is written out whole under the format's own column. */}
+      {showFullFormat && (
+        <p
+          id={fullFormatId}
+          data-slot="name-format-full"
+          className="col-span-2 wrap-anywhere font-mono text-muted-foreground text-xs @2xl/mapping:col-span-4 @2xl/mapping:col-start-3 @2xl/mapping:row-start-2"
+        >
+          {row.nameFormat}
+        </p>
+      )}
 
       <Field
         className="col-span-2 min-w-0 @2xl/mapping:col-span-1"
@@ -429,17 +454,6 @@ function MappingRowFields({
       <div className="col-start-2 row-start-1 flex h-9 items-center justify-end self-center @2xl/mapping:col-start-6 @2xl/mapping:self-start sm:h-8">
         {remove}
       </div>
-
-      {/* A custom format is the part that tells two rows apart, so at rest it is
-          written out whole on a line of its own. */}
-      {!formatFocused && !isStandardFormat && row.nameFormat !== "" && (
-        <p
-          data-slot="name-format-full"
-          className="col-span-full wrap-anywhere font-mono text-muted-foreground text-xs"
-        >
-          {row.nameFormat}
-        </p>
-      )}
 
       {hasError && (
         <p className="col-span-full text-destructive-foreground text-xs">

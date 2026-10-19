@@ -196,7 +196,7 @@ describe("the attribute map", () => {
     );
   });
 
-  it("writes a custom format out whole on a line of its own at rest", async () => {
+  it("reads a custom format by its last segment at rest, with the whole URN described under it", async () => {
     const user = userEvent.setup();
     mount(
       samlAppFixture({
@@ -214,11 +214,33 @@ describe("the attribute map", () => {
     const format = await screen.findByRole("combobox", {
       name: "Name format",
     });
-    const full = document.querySelector('[data-slot="name-format-full"]');
-    expect(full).toHaveTextContent("urn:example:names:custom");
+    expect(format).toHaveValue("custom");
+    expect(format).toHaveAccessibleDescription("urn:example:names:custom");
     await user.click(format);
     expect(format).toHaveValue("urn:example:names:custom");
     expect(document.querySelector('[data-slot="name-format-full"]')).toBeNull();
+  });
+
+  it("offers every suggestion for a custom value too", async () => {
+    const user = userEvent.setup();
+    mount(
+      samlAppFixture({
+        attributeMap: [
+          {
+            name: "uid",
+            name_format: "urn:example:names:custom",
+            source: "username",
+            multi: false,
+          },
+        ],
+      }),
+    );
+
+    await user.click(
+      await screen.findByRole("combobox", { name: "Name format" }),
+    );
+    await user.keyboard("{ArrowDown}");
+    expect(await screen.findAllByRole("option")).toHaveLength(3);
   });
 
   it("sends a standard format as the whole URN, not the short name", async () => {
@@ -267,8 +289,8 @@ describe("the attribute map", () => {
       name: "Name format",
     });
     await user.click(format);
-    await user.clear(format);
     await user.keyboard("{ArrowDown}");
+    expect(await screen.findAllByRole("option")).toHaveLength(3);
     await user.click(await screen.findByRole("option", { name: /^uri/ }));
 
     expect(screen.getByRole("combobox", { name: "Name format" })).toHaveValue(

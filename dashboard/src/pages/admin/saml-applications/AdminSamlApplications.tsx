@@ -100,8 +100,9 @@ export function AdminSamlApplications() {
       header: (
         <Trans id="admin.saml-apps.column.certificate">Certificate</Trans>
       ),
-      // The signing key is the one that matters: it is what the service
-      // provider validates assertions against, and what expires.
+      // The signing certificates are the service provider's own, which the
+      // instance uses to check its signed requests; once one lapses, those
+      // requests stop verifying.
       cell: (app) => <ListCertificate state={certificateState(app)} />,
     },
     {
