@@ -43,12 +43,12 @@ func TestSecurityHeaders_StyleSrcElem(t *testing.T) {
 	if len(scripts) != 1 || scripts[0] != "'self'" {
 		t.Errorf("scripts must allow only same-origin resources: %s", csp)
 	}
-	pressableStyle := "@layer {\n  [data-react-aria-pressable] {\n    touch-action: pan-x pan-y pinch-zoom;\n  }\n}"
-	hash := sha256.Sum256([]byte(pressableStyle))
+	scrollbarStyle := ".base-ui-disable-scrollbar{scrollbar-width:none}.base-ui-disable-scrollbar::-webkit-scrollbar{display:none}"
+	hash := sha256.Sum256([]byte(scrollbarStyle))
 	allowedHash := "'sha256-" + base64.StdEncoding.EncodeToString(hash[:]) + "'"
 	styles := directives["style-src-elem"]
 	if len(styles) != 2 || styles[0] != "'self'" || styles[1] != allowedHash {
-		t.Errorf("styles must allow same-origin resources and the React Aria pressable rule only: %s", csp)
+		t.Errorf("styles must allow same-origin resources and the Base UI scroll area rule only: %s", csp)
 	}
 	images := strings.Join(directives["img-src"], " ")
 	if images != "'self' data: blob: https://www.bing.com https://images.unsplash.com" {
