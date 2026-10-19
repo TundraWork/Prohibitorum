@@ -3,6 +3,7 @@ import type { LoginAppearance } from "@/api/raw-paths";
 import { defaultLoginAppearance } from "@/components/custom/login-appearance/appearance";
 import {
   blurGrid,
+  canvasEnvironment,
   contrastRatio,
   coverSource,
   type Environment,
@@ -572,5 +573,27 @@ describe("the caches", () => {
     remember(cache, "b", 9, 2);
     remember(cache, "d", 3, 2);
     expect([...cache.keys()]).toEqual(["b", "d"]);
+  });
+});
+
+describe("reading a colour with the browser", () => {
+  it("refuses text that is not a colour and reads one that is", () => {
+    const context = {
+      canvas: { width: 0, height: 0 },
+      fillStyle: "",
+      clearRect: () => undefined,
+      fillRect: () => undefined,
+      getImageData: () => ({ data: [10, 20, 30, 255] }),
+    };
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(
+      context as unknown as CanvasRenderingContext2D,
+    );
+    expect(canvasEnvironment.resolveColor("#1a")).toBeUndefined();
+    expect(canvasEnvironment.resolveColor("#0a141e")).toEqual({
+      r: 10,
+      g: 20,
+      b: 30,
+      a: 1,
+    });
   });
 });
