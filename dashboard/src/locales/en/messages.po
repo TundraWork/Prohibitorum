@@ -3227,12 +3227,8 @@ msgid "object.status.disabled"
 msgstr "Disabled"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/groups/AddDecisionDialog.tsx
-msgid "admin.group.decisions.candidate.disabled"
-msgstr "Disabled account"
-
-#. js-lingui-explicit-id
 #: src/components/custom/AppManagersSection.tsx
+#: src/pages/admin/groups/AddDecisionDialog.tsx
 #: src/pages/admin/groups/GroupExplainFrame.tsx
 msgid "app.managers.candidate.disabled"
 msgstr "Disabled account"

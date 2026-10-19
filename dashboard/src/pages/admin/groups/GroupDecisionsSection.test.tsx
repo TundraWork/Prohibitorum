@@ -334,6 +334,7 @@ describe("adding an account", () => {
     ).toBeVisible();
     const same = within(dialog).getByRole("button", { name: "Allow Ana Lima" });
     expect(same).toHaveAttribute("aria-disabled", "true");
+    expect(same).toHaveAttribute("data-refused");
     expect(same).toHaveAccessibleDescription(
       "Ana Lima is already allowed in this group. Choose Deny to change it.",
     );
@@ -353,6 +354,58 @@ describe("adding an account", () => {
       accountId: 7,
       effect: "deny",
     });
+  });
+
+  it("keeps the name of an account found beyond the first results", async () => {
+    const user = userEvent.setup();
+    mount({
+      extra: (request) => {
+        const url = new URL(request.url);
+        return request.method === "GET" &&
+          url.pathname.endsWith("/accounts") &&
+          url.searchParams.get("q") === "late"
+          ? Response.json({
+              items: [
+                {
+                  id: 41,
+                  username: "late",
+                  displayName: "Late Comer",
+                  disabled: false,
+                },
+              ],
+            })
+          : undefined;
+      },
+    });
+
+    const dialog = await openAdd(user);
+    await user.click(within(dialog).getByRole("combobox"));
+    await user.type(
+      await screen.findByRole("combobox", { name: "Search" }),
+      "late",
+    );
+    await user.click(await screen.findByRole("option", { name: /Late Comer/ }));
+
+    // The search resets after a pick, so the first results no longer list the
+    // account; the field still names it rather than showing its number.
+    const field = within(dialog).getByRole("combobox");
+    await user.click(field);
+    await user.clear(await screen.findByRole("combobox", { name: "Search" }));
+    await waitFor(() =>
+      expect(
+        fetchBoundary.mock.calls.filter(
+          ([request]) =>
+            new URL(request.url).search === "" &&
+            new URL(request.url).pathname.endsWith("/accounts"),
+        ).length,
+      ).toBeGreaterThan(1),
+    );
+    await user.keyboard("{Escape}");
+    expect(field).toHaveTextContent("Late Comer");
+    expect(field).not.toHaveTextContent("41");
+    expect(
+      within(dialog).getByRole("button", { name: "Allow Late Comer" }),
+    ).toBeVisible();
   });
 
   it("shows a refused add in the dialog, once, with no success toast", async () => {
@@ -626,6 +679,10 @@ describe("a write in flight", () => {
     await waitFor(() => expect(ana).toHaveAttribute("aria-busy", "true"));
     expect(cy).toBeDisabled();
     expect(cy).not.toHaveAttribute("aria-busy");
+    // Adding takes over the same write, so it waits as well.
+    expect(
+      screen.getByRole("button", { name: "Add an account" }),
+    ).toBeDisabled();
 
     release(
       Response.json({
@@ -710,6 +767,9 @@ describe("an account whose decision is on a page not yet loaded", () => {
       ),
     ).toBeVisible();
     expect(screen.getAllByRole("alert")).toHaveLength(1);
+    expect(
+      within(dialog).getByText(/could not be read, so saving may replace/),
+    ).toHaveAttribute("role", "alert");
     expect(notifyError).not.toHaveBeenCalled();
     await user.click(
       within(dialog).getByRole("button", { name: "Allow Cy Dunn" }),
@@ -805,6 +865,12 @@ describe("an account whose decision is on a page not yet loaded", () => {
         "The current decision for Cy Dunn could not be read, so saving may replace one that exists.",
       ),
     ).toBeVisible();
+    // The section already reports the unreadable list, so this is a status.
+    expect(
+      within(dialog).getByText(/could not be read, so saving may replace/),
+    ).toHaveAttribute("role", "status");
+    expect(within(dialog).queryByRole("alert")).toBeNull();
+    expect(notifyError).not.toHaveBeenCalled();
     expect(
       within(dialog).getByRole("button", { name: "Allow Cy Dunn" }),
     ).not.toHaveAttribute("aria-disabled");

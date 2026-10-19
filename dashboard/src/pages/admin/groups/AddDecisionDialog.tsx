@@ -1,5 +1,6 @@
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useQuery } from "@tanstack/react-query";
+import { TriangleAlertIcon } from "lucide-react";
 import { useEffect, useId, useState } from "react";
 import { accountSearchQueryOptions } from "@/api/queries";
 import { Button } from "@/components/custom/Button";
@@ -104,9 +105,13 @@ function AddDecisionForm({
   const effectLabelId = useId();
   const noteId = useId();
   const [search, setSearch] = useState("");
-  const [chosen, setChosen] = useState<{ id: number; name: string } | null>(
-    null,
-  );
+  // The chosen option rides along so the field keeps the account's name when
+  // a later search no longer lists it.
+  const [chosen, setChosen] = useState<{
+    id: number;
+    name: string;
+    option: EntityOption;
+  } | null>(null);
   const [effect, setEffect] = useState<DecisionEffect>("allow");
   const [missing, setMissing] = useState(false);
   const candidates = useQuery(accountSearchQueryOptions(search));
@@ -120,13 +125,17 @@ function AddDecisionForm({
       ...(account.disabled
         ? {
             unavailableReason: t({
-              id: "admin.group.decisions.candidate.disabled",
+              id: "app.managers.candidate.disabled",
               message: "Disabled account",
             }),
           }
         : {}),
     }),
   );
+  const listed =
+    chosen === null || options.some((option) => option.id === chosen.option.id)
+      ? options
+      : [chosen.option, ...options];
 
   const name = chosen?.name ?? "";
   const existing =
@@ -226,16 +235,20 @@ function AddDecisionForm({
             message: "Search accounts",
           })}
           searchLabel={t({ id: "admin.picker.search", message: "Search" })}
-          options={options}
+          options={listed}
           loading={candidates.isFetching}
           onSearch={setSearch}
           value={chosen === null ? [] : [String(chosen.id)]}
           onValueChange={([id]) => {
-            const picked = options.find((option) => option.id === id);
+            const picked = listed.find((option) => option.id === id);
             setChosen(
               id === undefined
                 ? null
-                : { id: Number(id), name: picked?.label ?? id },
+                : {
+                    id: Number(id),
+                    name: picked?.label ?? id,
+                    option: picked ?? { id, label: id },
+                  },
             );
             setMissing(false);
           }}
@@ -282,9 +295,29 @@ function AddDecisionForm({
         {note !== null && (
           <p
             id={noteId}
-            role={checking ? "status" : walkFailed ? "alert" : undefined}
-            className="text-muted-foreground text-sm"
+            // A list that never loaded already reports its failure in the
+            // section, so the note there is a status, not a second alert.
+            role={
+              checking
+                ? "status"
+                : walkFailed
+                  ? firstFailed
+                    ? "status"
+                    : "alert"
+                  : undefined
+            }
+            className={
+              walkFailed
+                ? "flex items-start gap-2 text-pretty text-sm text-warning-foreground"
+                : "text-pretty text-muted-foreground text-sm"
+            }
           >
+            {walkFailed && (
+              <TriangleAlertIcon
+                aria-hidden="true"
+                className="mt-0.5 size-4 shrink-0"
+              />
+            )}
             {note}
           </p>
         )}
@@ -295,9 +328,10 @@ function AddDecisionForm({
         </Button>
         <Button
           type="submit"
-          className="w-full sm:w-auto"
+          className="w-full data-refused:opacity-64 sm:w-auto"
           variant={effect === "deny" ? "destructive" : "default"}
           pending={pending}
+          data-refused={unchanged || checking || undefined}
           aria-disabled={unchanged || checking || undefined}
           aria-describedby={unchanged || checking ? noteId : undefined}
         >

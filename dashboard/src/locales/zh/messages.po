@@ -3227,12 +3227,8 @@ msgid "object.status.disabled"
 msgstr "已停用"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/groups/AddDecisionDialog.tsx
-msgid "admin.group.decisions.candidate.disabled"
-msgstr "账号已停用"
-
-#. js-lingui-explicit-id
 #: src/components/custom/AppManagersSection.tsx
+#: src/pages/admin/groups/AddDecisionDialog.tsx
 #: src/pages/admin/groups/GroupExplainFrame.tsx
 msgid "app.managers.candidate.disabled"
 msgstr "账号已停用"
@@ -4977,7 +4973,7 @@ msgstr "日志"
 #: src/pages/admin/groups/AdminGroupNew.tsx
 #: src/pages/admin/groups/GroupDetailsSection.tsx
 msgid "admin.group.slug.hint"
-msgstr "小写字母、数字和连字符。应用通过它来引用本用户组。"
+msgstr "小写字母、数字和连字符。应用通过它来引⁠用⁠本⁠用⁠户⁠组。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
