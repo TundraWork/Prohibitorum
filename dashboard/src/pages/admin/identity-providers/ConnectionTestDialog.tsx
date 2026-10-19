@@ -110,7 +110,8 @@ export function ConnectionTestDialog({
   const unfinished =
     result.data?.status === "running" ||
     result.data?.status === "awaiting_callback";
-  const timedOut = unfinished && !watching;
+  // A failed read ends the watch early: there is nothing left to wait for.
+  const timedOut = unfinished && (!watching || result.isError);
 
   // A run is acknowledged once. The server advances its own state on `complete`,
   // so a second call would step it further than the reader asked for.

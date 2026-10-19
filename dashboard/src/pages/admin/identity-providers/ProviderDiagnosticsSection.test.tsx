@@ -455,13 +455,13 @@ describe("the result dialog", () => {
     mount(resultRoutes("running"), runId);
     const dialog = await screen.findByRole("dialog");
     await within(dialog).findByText("Checking");
-    expect(dialog.querySelector(".animate-spin")).not.toBeNull();
+    expect(within(dialog).queryByLabelText("Loading")).not.toBeNull();
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(31_000);
     });
     await within(dialog).findByText(/taking longer than expected/);
-    expect(dialog.querySelector(".animate-spin")).toBeNull();
+    expect(within(dialog).queryByLabelText("Loading")).toBeNull();
     const reads = api.sent("GET", resultPath).length;
     await act(async () => {
       await vi.advanceTimersByTimeAsync(10_000);
@@ -545,5 +545,31 @@ describe("the result dialog", () => {
       await within(dialog).findByRole("tablist", { name: "Test results" }),
     ).toBeVisible();
     expect(dialog).toHaveFocus();
+  });
+
+  it("offers Check again at once when a read fails mid-poll", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    let reads = 0;
+    mount(
+      {
+        [`GET ${resultPath}`]: () =>
+          ++reads === 1
+            ? Response.json(outcome("running"))
+            : apiError("internal_error", 500),
+      },
+      runId,
+    );
+    const dialog = await screen.findByRole("dialog");
+    await within(dialog).findByText("Checking");
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3_000);
+    });
+    expect(
+      await within(dialog).findByText(/taking longer than expected/),
+    ).toBeVisible();
+    expect(
+      within(dialog).getByRole("button", { name: "Check again" }),
+    ).toBeVisible();
+    expect(notifyError).toHaveBeenCalledTimes(1);
   });
 });
