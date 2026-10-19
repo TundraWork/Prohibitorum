@@ -27,13 +27,30 @@ function signInValues(provider: Provider) {
   };
 }
 
-/** What turning sign-in off does, said once for the footer and the dialog. */
-function LockoutConsequence() {
+/**
+ * What turning sign-in off does, said in the footer where the save is chosen.
+ * The dialog that follows asks for the decision and does not say it again.
+ *
+ * Creating accounts needs a sign-in button, so a provider that was set to
+ * create them falls back to invitations; that second change is told here too.
+ */
+function SignInOffConsequence({ provisioning }: { provisioning: boolean }) {
   return (
-    <Trans id="admin.federation.signin.consequence">
-      Anyone who signs in only through this provider will be locked out until an
-      administrator sends them a reset link.
-    </Trans>
+    <>
+      <Trans id="admin.federation.signin.consequence">
+        Anyone who signs in only through this provider will be locked out until
+        an administrator sends them a reset link.
+      </Trans>
+      {provisioning && (
+        <>
+          {" "}
+          <Trans id="admin.federation.signin.consequence.provisioning">
+            Provisioning also changes from Creates accounts to Invitation only,
+            because creating accounts needs sign-in.
+          </Trans>
+        </>
+      )}
+    </>
   );
 }
 
@@ -52,6 +69,7 @@ function LockoutConsequence() {
  */
 export function ProviderGeneralSection({ provider }: { provider: Provider }) {
   const { t } = useLingui();
+  const name = provider.displayName || provider.slug;
   const queryClient = useQueryClient();
   const update = useMutation(
     withInlineReport(updateIdentityProviderMutationOptions(queryClient), true),
@@ -98,6 +116,13 @@ export function ProviderGeneralSection({ provider }: { provider: Provider }) {
     form.store,
     (state) => provider.allowSignIn && !state.values.allowSignIn,
   );
+  // Turning sign-in off resets "creates accounts" to invitations at once, so
+  // the saved mode and the form's differ by the time the footer is read.
+  const losesProvisioning = useStore(
+    form.store,
+    (state) =>
+      provider.mode === "auto_provision" && state.values.mode === "invite_only",
+  );
 
   const title = t({
     id: "admin.federation.signin.title",
@@ -122,7 +147,11 @@ export function ProviderGeneralSection({ provider }: { provider: Provider }) {
             footer={
               dirty ? (
                 <ConsequenceFooter
-                  consequence={turningOff ? <LockoutConsequence /> : undefined}
+                  consequence={
+                    turningOff ? (
+                      <SignInOffConsequence provisioning={losesProvisioning} />
+                    ) : undefined
+                  }
                   actionLabel={
                     turningOff ? (
                       <Trans id="admin.federation.signin.action-label">
@@ -206,12 +235,15 @@ export function ProviderGeneralSection({ provider }: { provider: Provider }) {
         status="warning"
         title={
           <Trans id="admin.federation.general.sign_in.confirm_title">
-            Turn off sign-in?
+            Turn off sign-in for {name}?
           </Trans>
         }
         body={
           <p>
-            <LockoutConsequence />
+            <Trans id="admin.federation.general.sign_in.confirm_body">
+              People will no longer see it on the sign-in page. You can turn it
+              back on at any time.
+            </Trans>
           </p>
         }
         confirmLabel={

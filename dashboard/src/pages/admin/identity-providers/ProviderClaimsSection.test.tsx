@@ -381,12 +381,16 @@ describe("changing the subject claim", () => {
     await setClaim(user, "Subject", "node_id");
     await user.click(subjectAction());
     const dialog = await screen.findByRole("alertdialog", {
-      name: "Change the subject claim?",
+      name: "Change the subject claim for Corporate SSO?",
     });
     expect(api.sent("PUT", putPath)).toHaveLength(0);
+    // The footer carries the full consequence; the dialog only asks.
     expect(
-      within(dialog).getByText(/18 accounts are linked to Corporate SSO/),
+      within(dialog).getByText(
+        /18 linked accounts stop matching and will be treated as a new identity/,
+      ),
     ).toBeVisible();
+    expect(within(dialog).queryByText(/are linked to/)).toBeNull();
     await user.click(
       within(dialog).getByRole("button", { name: "Change and save" }),
     );
@@ -406,7 +410,7 @@ describe("changing the subject claim", () => {
     await user.click(subjectAction());
     const dialog = await screen.findByRole("alertdialog");
     expect(
-      within(dialog).getByText(/1 account is linked to Corporate SSO/),
+      within(dialog).getByText(/1 linked account stops matching/),
     ).toBeVisible();
     await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
 

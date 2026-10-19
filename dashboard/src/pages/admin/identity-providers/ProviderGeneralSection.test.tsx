@@ -201,6 +201,28 @@ describe("turning sign-in off", () => {
     expect(screen.queryByRole("button", { name: "Save" })).toBeNull();
   });
 
+  it("says in the footer that creating accounts falls back to invitations", async () => {
+    const user = userEvent.setup();
+    mount(providerFixture({ mode: "auto_provision" }));
+
+    await user.click(signInSwitch());
+
+    expect(
+      screen.getByText(
+        `${lockout} Provisioning also changes from Creates accounts to Invitation only, because creating accounts needs sign-in.`,
+      ),
+    ).toBeVisible();
+  });
+
+  it("does not mention provisioning when it was not creating accounts", async () => {
+    const user = userEvent.setup();
+    mount(providerFixture({ mode: "invite_only" }));
+
+    await user.click(signInSwitch());
+
+    expect(screen.queryByText(/Provisioning also changes/)).toBeNull();
+  });
+
   it("asks before sending, and a cancelled dialog sends nothing", async () => {
     const user = userEvent.setup();
     mount(providerFixture());
@@ -210,9 +232,13 @@ describe("turning sign-in off", () => {
       screen.getByRole("button", { name: "Turn off sign-in and save" }),
     );
     const dialog = await screen.findByRole("alertdialog", {
-      name: "Turn off sign-in?",
+      name: "Turn off sign-in for Corporate SSO?",
     });
-    expect(within(dialog).getByText(lockout)).toBeVisible();
+    // The footer said what it costs; the dialog only asks.
+    expect(within(dialog).queryByText(lockout)).toBeNull();
+    expect(
+      within(dialog).getByText(/You can turn it back on at any time/),
+    ).toBeVisible();
     expect(puts()).toHaveLength(0);
 
     await user.click(within(dialog).getByRole("button", { name: "Cancel" }));

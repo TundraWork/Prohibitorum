@@ -332,17 +332,20 @@ export function ProviderClaimsSection({ provider }: { provider: Provider }) {
         status="warning"
         title={
           <Trans id="admin.federation.claims.subject.confirm.title">
-            Change the subject claim?
+            Change the subject claim for {name}?
           </Trans>
         }
         body={
           <p>
-            <SubjectConsequence
-              count={count}
-              name={name}
-              current={current}
-              next={pending?.subject ?? ""}
-            />
+            <Trans id="admin.federation.claims.subject.confirm.short">
+              <Plural
+                value={count}
+                one="# linked account stops"
+                other="# linked accounts stop"
+              />{" "}
+              matching and will be treated as a new identity at the next
+              sign-in.
+            </Trans>
           </p>
         }
         confirmLabel={

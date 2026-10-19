@@ -105,6 +105,11 @@ msgid "settings.sign-in.images.skipped.full"
 msgstr "{count, plural, other {已达到 10 张上限，有 # 个文件没有上传。}}"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
+msgid "admin.federation.claims.subject.confirm.short"
+msgstr "{count, plural, other {# 个已关联账号}}将不再匹配，下次登录时会被当作新身份。"
+
+#. js-lingui-explicit-id
 #: src/pages/Console.tsx
 msgid "console.devices.count"
 msgstr "{count, plural, other {# 台已登录设备}}"
@@ -1492,7 +1497,7 @@ msgstr "更改 Subject 声明并保存"
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
 msgid "admin.federation.claims.subject.confirm.title"
-msgstr "更改 Subject 声明？"
+msgstr "更改{name}的 Subject 声明？"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/IdentityProjectionSection.tsx
@@ -5671,6 +5676,11 @@ msgid "admin.saml-apps.danger.enable.body"
 msgstr "人们可以立即重新登录服务提供商。应用的其他设置都不变。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderGeneralSection.tsx
+msgid "admin.federation.general.sign_in.confirm_body"
+msgstr "登录页将不再显示它。你可以随时重新开启。"
+
+#. js-lingui-explicit-id
 #: src/components/custom/login-appearance/WallpaperCredit.tsx
 msgid "login.wallpaper.unsplash-credit"
 msgstr "照片：<0>{name}</0>，来自 <1>Unsplash</1>"
@@ -5850,6 +5860,11 @@ msgstr "提供商"
 #: src/pages/admin/identity-providers/ProvisioningModeField.tsx
 msgid "admin.federation.general.mode"
 msgstr "账号创建"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderGeneralSection.tsx
+msgid "admin.federation.signin.consequence.provisioning"
+msgstr "账号创建也会从“自动创建账号”改为“仅限邀请”，因为创建账号需要登录。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/AdminOidcApplication.tsx
@@ -8701,7 +8716,7 @@ msgstr "关闭登录并保存"
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderGeneralSection.tsx
 msgid "admin.federation.general.sign_in.confirm_title"
-msgstr "关闭登录？"
+msgstr "关闭{name}的登录？"
 
 #. js-lingui-explicit-id
 #: src/pages/security/SetupDialog.tsx

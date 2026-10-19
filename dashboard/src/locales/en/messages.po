@@ -105,6 +105,11 @@ msgid "settings.sign-in.images.skipped.full"
 msgstr "{count, plural, one {# file wasn't uploaded because the 10-image limit was reached.} other {# files weren't uploaded because the 10-image limit was reached.}}"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
+msgid "admin.federation.claims.subject.confirm.short"
+msgstr "{count, plural, one {# linked account stops} other {# linked accounts stop}} matching and will be treated as a new identity at the next sign-in."
+
+#. js-lingui-explicit-id
 #: src/pages/Console.tsx
 msgid "console.devices.count"
 msgstr "{count, plural, one {# signed-in device} other {# signed-in devices}}"
@@ -1492,7 +1497,7 @@ msgstr "Change the subject claim and save"
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
 msgid "admin.federation.claims.subject.confirm.title"
-msgstr "Change the subject claim?"
+msgstr "Change the subject claim for {name}?"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/IdentityProjectionSection.tsx
@@ -5671,6 +5676,11 @@ msgid "admin.saml-apps.danger.enable.body"
 msgstr "People can sign in to the service provider again straight away. Nothing else about the application changes."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderGeneralSection.tsx
+msgid "admin.federation.general.sign_in.confirm_body"
+msgstr "People will no longer see it on the sign-in page. You can turn it back on at any time."
+
+#. js-lingui-explicit-id
 #: src/components/custom/login-appearance/WallpaperCredit.tsx
 msgid "login.wallpaper.unsplash-credit"
 msgstr "Photo by <0>{name}</0> on <1>Unsplash</1>"
@@ -5850,6 +5860,11 @@ msgstr "Providers"
 #: src/pages/admin/identity-providers/ProvisioningModeField.tsx
 msgid "admin.federation.general.mode"
 msgstr "Provisioning"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderGeneralSection.tsx
+msgid "admin.federation.signin.consequence.provisioning"
+msgstr "Provisioning also changes from Creates accounts to Invitation only, because creating accounts needs sign-in."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/AdminOidcApplication.tsx
@@ -8701,7 +8716,7 @@ msgstr "Turn off sign-in and save"
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderGeneralSection.tsx
 msgid "admin.federation.general.sign_in.confirm_title"
-msgstr "Turn off sign-in?"
+msgstr "Turn off sign-in for {name}?"
 
 #. js-lingui-explicit-id
 #: src/pages/security/SetupDialog.tsx
