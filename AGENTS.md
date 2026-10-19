@@ -10,8 +10,6 @@
 - Deliver implementation work at **Ready to Ship**, with a pushed branch and
   verified commit identified. Integration and deployment follow the project's
   separately authorized workflow.
-- Commit messages end with the implementing agent's own truthful
-  `Co-Authored-By: Name <email>` trailer; do not copy another model's identity.
 - Reuse the board's area labels: `area:audit`, `area:authn`,
   `area:dashboard`, `area:db`, `area:docs`, `area:federation`,
   `area:protocol`, and `area:server`. Check the current board before adding
