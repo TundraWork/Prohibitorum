@@ -502,6 +502,27 @@ describe("mocked management directory", () => {
     ]);
   });
 
+  it("sets every VRChat operator session from the panel", () => {
+    const sessions = (operatorSession: "valid" | "expired" | "none") => {
+      const page = bodyOf(
+        read(
+          "/api/prohibitorum/identity-providers",
+          config((draft) => {
+            draft.admin.operatorSession = operatorSession;
+          }),
+        ),
+      ) as {
+        items: Array<{ protocol: string; secretStatus: string }>;
+      };
+      return page.items
+        .filter((item) => item.protocol === "vrchat")
+        .map((item) => item.secretStatus);
+    };
+    expect(new Set(sessions("expired"))).toEqual(new Set(["invalid"]));
+    expect(new Set(sessions("none"))).toEqual(new Set(["unconfigured"]));
+    expect(new Set(sessions("valid"))).toEqual(new Set(["valid"]));
+  });
+
   it("lets the not-ready mask make an enabled provider not ready", () => {
     const page = bodyOf(
       read(
@@ -1249,6 +1270,10 @@ describe("identity provider diagnostics", () => {
     expect(fallback.stages?.find((s) => s.name === "id_token")?.status).toBe(
       "skipped",
     );
+
+    const running = result("running");
+    expect(running.status).toBe("running");
+    expect(running.identity).toBeUndefined();
 
     const failed = result("failed");
     expect(failed.status).toBe("failed");

@@ -3,10 +3,8 @@ import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 import type { DiagnosticStageView } from "@/api/raw-admin-paths";
 import { i18n } from "@/i18n";
-import {
-  EffectiveValue,
-  StageRow,
-} from "@/pages/admin/identity-providers/ProviderDiagnosticsSection";
+import { EffectiveValue } from "@/pages/admin/identity-providers/EffectiveConfigDialog";
+import { StageRow } from "@/pages/admin/identity-providers/StageRow";
 
 function renderRow(stage: DiagnosticStageView) {
   return render(
@@ -64,14 +62,14 @@ describe("EffectiveValue", () => {
       </I18nProvider>,
     );
     expect(screen.getByText(/Not used — the ID token is skipped/)).toHaveClass(
-      "text-muted",
+      "text-muted-foreground",
     );
     rerender(
       <I18nProvider i18n={i18n}>
         <EffectiveValue field="scopes" value={[]} />
       </I18nProvider>,
     );
-    expect(screen.getByText("None sent")).toHaveClass("text-muted");
+    expect(screen.getByText("None sent")).toHaveClass("text-muted-foreground");
     // Every other empty value keeps today's wording, and the sentinel stays
     // raw text only for other fields.
     rerender(

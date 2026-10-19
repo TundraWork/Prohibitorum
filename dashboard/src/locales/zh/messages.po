@@ -115,7 +115,7 @@ msgid "federation.more_providers_count"
 msgstr "更多提供商（另有 {count} 个）"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+#: src/pages/admin/identity-providers/StageRow.tsx
 msgid "admin.federation.diagnostics.stage.duration"
 msgstr "{duration} 毫秒"
 
@@ -133,6 +133,11 @@ msgstr "{label} 使用你的 {instance} 账号。登录后你会回到该应用�
 #: src/pages/admin/AdminGroupForm.tsx
 msgid "admin.group.rule.matched"
 msgstr "{matchedCount, plural, other {有 # 个账号匹配该规则}}"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ConnectionTestDialog.tsx
+msgid "admin.federation.diagnostics.field-source"
+msgstr "{name} · <0>{claim}</0>"
 
 #. js-lingui-explicit-id
 #: src/pages/Console.tsx
@@ -1528,7 +1533,7 @@ msgid "admin.federation.operator.check"
 msgstr "检查"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+#: src/pages/admin/identity-providers/ConnectionTestDialog.tsx
 msgid "admin.federation.diagnostics.check-again"
 msgstr "再次检查"
 
@@ -1786,7 +1791,8 @@ msgid "settings.keys.jwk.close"
 msgstr "关闭"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+#: src/pages/admin/identity-providers/ConnectionTestDialog.tsx
+#: src/pages/admin/identity-providers/EffectiveConfigDialog.tsx
 msgid "admin.federation.diagnostics.close"
 msgstr "关闭"
 
@@ -1879,6 +1885,7 @@ msgstr "配置"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ClaimMappingTable.tsx
+#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
 msgid "admin.federation.claims.column.returned.stale"
 msgstr "此后配置已更改"
 
@@ -2038,6 +2045,7 @@ msgid "admin.federation.callback.test"
 msgstr "连接测试"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ConnectionTestDialog.tsx
 #: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
 msgid "admin.federation.diagnostics.test"
 msgstr "连接测试"
@@ -2243,6 +2251,11 @@ msgstr "复制登录地址"
 #: src/pages/admin/identity-providers/AdminIdentityProvider.tsx
 msgid "admin.federation.copy-slug"
 msgstr "复制标识符"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/EffectiveConfigDialog.tsx
+msgid "admin.federation.diagnostics.callback.copy"
+msgstr "复制测试回调地址"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/ForwardAuthProxySection.tsx
@@ -2993,6 +3006,7 @@ msgid "admin.group.rule.json.hint"
 msgstr "失去焦点时生效：移出输入框后，表单视图会采用文档中的内容。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/EffectiveConfigDialog.tsx
 #: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
 msgid "admin.federation.diagnostics.effective"
 msgstr "生效配置"
@@ -3587,6 +3601,11 @@ msgid "admin.federation.diagnostics.stage-status.failed"
 msgstr "失败"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+msgid "admin.federation.diagnostics.last.failed"
+msgstr "<0/>失败"
+
+#. js-lingui-explicit-id
 #: src/components/custom/ConsoleLayout.tsx
 msgid "console.admin.federation"
 msgstr "联合登录"
@@ -3828,6 +3847,11 @@ msgid "security.page.description"
 msgstr "你如何登录 {name}。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/StageRow.tsx
+msgid "admin.federation.diagnostics.stage.http"
+msgstr "HTTP {httpStatus}"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/settings/SignInPageControls.tsx
 msgid "settings.sign-in.color.hue"
 msgstr "色相"
@@ -3898,8 +3922,8 @@ msgid "success.entity-icon.updated"
 msgstr "图标已更新"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ConnectionTestDialog.tsx
 #: src/pages/admin/identity-providers/provider-options.ts
-#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
 msgid "admin.federation.diagnostics.stage.id-token"
 msgstr "ID token"
 
@@ -4521,7 +4545,7 @@ msgid "admin.federation.diagnostics.source.manual"
 msgstr "手动"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+#: src/pages/admin/identity-providers/ConnectionTestDialog.tsx
 msgid "admin.federation.diagnostics.identity"
 msgstr "映射结果"
 
@@ -4815,7 +4839,7 @@ msgid "security.setup.next"
 msgstr "下一步"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+#: src/pages/admin/identity-providers/ConnectionTestDialog.tsx
 msgid "admin.federation.diagnostics.identity.no"
 msgstr "否"
 
@@ -4865,7 +4889,7 @@ msgid "admin.saml-apps.keys.no-expiry"
 msgstr "无过期时间"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+#: src/pages/admin/identity-providers/ConnectionTestDialog.tsx
 msgid "admin.federation.diagnostics.identity.empty"
 msgstr "没有可映射的字段。"
 
@@ -5016,7 +5040,7 @@ msgid "app.access.order.none"
 msgstr "未选择"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+#: src/pages/admin/identity-providers/EffectiveConfigDialog.tsx
 msgid "admin.federation.diagnostics.scopes-none"
 msgstr "不发送"
 
@@ -5041,7 +5065,7 @@ msgid "require-identity.not-now"
 msgstr "暂不验证，返回 {app}"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+#: src/pages/admin/identity-providers/ConnectionTestDialog.tsx
 msgid "admin.federation.diagnostics.identity.missing"
 msgstr "未提供"
 
@@ -5081,12 +5105,12 @@ msgid "admin.federation.operator.none"
 msgstr "未设置"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+#: src/pages/admin/identity-providers/EffectiveConfigDialog.tsx
 msgid "admin.federation.diagnostics.unused"
 msgstr "未使用"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+#: src/pages/admin/identity-providers/EffectiveConfigDialog.tsx
 msgid "admin.federation.diagnostics.jwks-none"
 msgstr "未使用——ID 令牌已被跳过"
 
@@ -5410,6 +5434,11 @@ msgid "admin.federation.diagnostics.stage-status.succeeded"
 msgstr "通过"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+msgid "admin.federation.diagnostics.last.passed"
+msgstr "<0/>通过"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts
 msgid "audit.factor.webauthn"
 msgstr "通行密钥"
@@ -5713,9 +5742,9 @@ msgid "admin.oidc-apps.field.scopes.identities"
 msgstr "提供商身份"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
-msgid "admin.federation.diagnostics.stage.provider-message"
-msgstr "提供商返回的信息："
+#: src/pages/admin/identity-providers/StageRow.tsx
+msgid "admin.federation.diagnostics.stage.provider-message-line"
+msgstr "提供商返回的信息：<0>{description}</0>"
 
 #. js-lingui-explicit-id
 #: src/api/success-messages.ts
@@ -5780,12 +5809,13 @@ msgid "admin.saml-apps.metadata.dialog.title"
 msgstr "重新导入元数据"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/EffectiveConfigDialog.tsx
 #: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
 msgid "admin.federation.diagnostics.fetched"
 msgstr "读取于 <0/>"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+#: src/pages/admin/identity-providers/EffectiveConfigDialog.tsx
 msgid "admin.federation.diagnostics.reread"
 msgstr "重新读取"
 
@@ -5902,7 +5932,7 @@ msgid "admin.federation.callback.hint"
 msgstr "请在提供商处登记这些地址。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+#: src/pages/admin/identity-providers/EffectiveConfigDialog.tsx
 msgid "admin.federation.diagnostics.callback.hint"
 msgstr "运行连接测试前，请在提供商处登记这个地址。"
 
@@ -6238,7 +6268,7 @@ msgid "request_details.title"
 msgstr "请求详情"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+#: src/pages/admin/identity-providers/StageRow.tsx
 msgid "admin.federation.diagnostics.stage.request"
 msgstr "请求 ID <0>{requestId}</0>"
 
@@ -7411,12 +7441,12 @@ msgid "consent.terms"
 msgstr "服务条款"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+#: src/pages/admin/identity-providers/ConnectionTestDialog.tsx
 msgid "admin.federation.diagnostics.restart"
 msgstr "重新测试"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+#: src/pages/admin/identity-providers/EffectiveConfigDialog.tsx
 msgid "admin.federation.diagnostics.callback"
 msgstr "测试回调地址"
 
@@ -7431,12 +7461,7 @@ msgid "admin.federation.diagnostics.run.succeeded"
 msgstr "测试通过"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
-msgid "admin.federation.diagnostics.details"
-msgstr "测试结果"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+#: src/pages/admin/identity-providers/ConnectionTestDialog.tsx
 msgid "admin.federation.diagnostics.stages"
 msgstr "测试阶段"
 
@@ -7848,7 +7873,7 @@ msgid "admin.federation.scopes.hint"
 msgstr "提供商必须支持这里的每个作用域。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+#: src/pages/admin/identity-providers/ConnectionTestDialog.tsx
 msgid "admin.federation.diagnostics.id-token.empty"
 msgstr "提供商没有返回 ID token。"
 
@@ -8409,7 +8434,7 @@ msgid "error.federation_state_invalid"
 msgstr "本次测试已失效，请重新开始。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+#: src/pages/admin/identity-providers/ConnectionTestDialog.tsx
 msgid "admin.federation.diagnostics.timeout"
 msgstr "这次测试比预期更久。等提供商处理完成后，请再检查一次。"
 
@@ -8454,7 +8479,7 @@ msgid "admin.federation.diagnostics.stage.token"
 msgstr "令牌交换"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+#: src/pages/admin/identity-providers/ConnectionTestDialog.tsx
 msgid "admin.federation.diagnostics.document.omitted"
 msgstr "内容过大，未保留（{size} KB）。"
 
@@ -8939,8 +8964,8 @@ msgid "admin.logs.detail.userAgent"
 msgstr "User-Agent"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ConnectionTestDialog.tsx
 #: src/pages/admin/identity-providers/provider-options.ts
-#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
 msgid "admin.federation.diagnostics.stage.userinfo"
 msgstr "UserInfo"
 
@@ -8955,12 +8980,12 @@ msgid "admin.federation.connection.userinfo"
 msgstr "UserInfo 端点"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+#: src/pages/admin/identity-providers/ConnectionTestDialog.tsx
 msgid "admin.federation.diagnostics.userinfo.failed"
 msgstr "UserInfo 没有返回可显示的内容。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+#: src/pages/admin/identity-providers/ConnectionTestDialog.tsx
 msgid "admin.federation.diagnostics.userinfo.empty"
 msgstr "未请求 UserInfo。"
 
@@ -9388,7 +9413,7 @@ msgid "security.tokens.access.selected_apps.hint"
 msgstr "只能在你选的应用上使用。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+#: src/pages/admin/identity-providers/ConnectionTestDialog.tsx
 msgid "admin.federation.diagnostics.identity.yes"
 msgstr "是"
 

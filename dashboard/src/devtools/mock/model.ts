@@ -109,9 +109,16 @@ export interface MockConfig {
      * What a diagnostic run reports once it finishes: `succeeded` shows the
      * mapped fields and both documents, `fallback` a provider that returns no
      * ID token (everything from UserInfo), `failed` a code exchange that fails
-     * before there is anything to show.
+     * before there is anything to show, and `running` never finishes, so the
+     * result dialog's wait for a slow provider can be reached.
      */
-    diagnosticOutcome: "succeeded" | "fallback" | "failed";
+    diagnosticOutcome: "succeeded" | "fallback" | "failed" | "running";
+    /**
+     * Every VRChat provider's operator session: `fixture` keeps the cycle of
+     * fixtures (a checked session on even rows, none on odd ones), the rest
+     * set them all to a valid, an expired or an absent session.
+     */
+    operatorSession: "fixture" | "valid" | "expired" | "none";
     /**
      * The latest finished connection test every provider reports: `none` has
      * not run one yet, `passed` and `failed` finished that way, `stale`
@@ -314,6 +321,7 @@ export const defaultMockConfig: MockConfig = {
     samlAttributes: 3,
     forwardAuthApps: 6,
     diagnosticOutcome: "succeeded",
+    operatorSession: "fixture",
     latestConnectionTest: "passed",
     latestConnectionTestAbsent: "picture",
   },

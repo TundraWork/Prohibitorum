@@ -115,7 +115,7 @@ msgid "federation.more_providers_count"
 msgstr "{count} more providers"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+#: src/pages/admin/identity-providers/StageRow.tsx
 msgid "admin.federation.diagnostics.stage.duration"
 msgstr "{duration} ms"
 
@@ -133,6 +133,11 @@ msgstr "{label} uses your {instance} account. You'll go back to it after signing
 #: src/pages/admin/AdminGroupForm.tsx
 msgid "admin.group.rule.matched"
 msgstr "{matchedCount, plural, one {# account matches this rule} other {# accounts match this rule}}"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ConnectionTestDialog.tsx
+msgid "admin.federation.diagnostics.field-source"
+msgstr "{name} · <0>{claim}</0>"
 
 #. js-lingui-explicit-id
 #: src/pages/Console.tsx
@@ -1528,7 +1533,7 @@ msgid "admin.federation.operator.check"
 msgstr "Check"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+#: src/pages/admin/identity-providers/ConnectionTestDialog.tsx
 msgid "admin.federation.diagnostics.check-again"
 msgstr "Check again"
 
@@ -1786,7 +1791,8 @@ msgid "settings.keys.jwk.close"
 msgstr "Close"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+#: src/pages/admin/identity-providers/ConnectionTestDialog.tsx
+#: src/pages/admin/identity-providers/EffectiveConfigDialog.tsx
 msgid "admin.federation.diagnostics.close"
 msgstr "Close"
 
@@ -1879,6 +1885,7 @@ msgstr "Configuration"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ClaimMappingTable.tsx
+#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
 msgid "admin.federation.claims.column.returned.stale"
 msgstr "Configuration changed since"
 
@@ -2038,6 +2045,7 @@ msgid "admin.federation.callback.test"
 msgstr "Connection test"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ConnectionTestDialog.tsx
 #: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
 msgid "admin.federation.diagnostics.test"
 msgstr "Connection test"
@@ -2243,6 +2251,11 @@ msgstr "Copy the sign-in address"
 #: src/pages/admin/identity-providers/AdminIdentityProvider.tsx
 msgid "admin.federation.copy-slug"
 msgstr "Copy the slug"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/EffectiveConfigDialog.tsx
+msgid "admin.federation.diagnostics.callback.copy"
+msgstr "Copy the test callback address"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/ForwardAuthProxySection.tsx
@@ -2993,6 +3006,7 @@ msgid "admin.group.rule.json.hint"
 msgstr "Edited on blur: leave the box and the form view picks up what the document says."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/EffectiveConfigDialog.tsx
 #: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
 msgid "admin.federation.diagnostics.effective"
 msgstr "Effective configuration"
@@ -3587,6 +3601,11 @@ msgid "admin.federation.diagnostics.stage-status.failed"
 msgstr "Failed"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+msgid "admin.federation.diagnostics.last.failed"
+msgstr "Failed <0/>"
+
+#. js-lingui-explicit-id
 #: src/components/custom/ConsoleLayout.tsx
 msgid "console.admin.federation"
 msgstr "Federation"
@@ -3828,6 +3847,11 @@ msgid "security.page.description"
 msgstr "How you sign in to {name}."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/StageRow.tsx
+msgid "admin.federation.diagnostics.stage.http"
+msgstr "HTTP {httpStatus}"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/settings/SignInPageControls.tsx
 msgid "settings.sign-in.color.hue"
 msgstr "Hue"
@@ -3898,8 +3922,8 @@ msgid "success.entity-icon.updated"
 msgstr "Icon updated"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ConnectionTestDialog.tsx
 #: src/pages/admin/identity-providers/provider-options.ts
-#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
 msgid "admin.federation.diagnostics.stage.id-token"
 msgstr "ID token"
 
@@ -4521,7 +4545,7 @@ msgid "admin.federation.diagnostics.source.manual"
 msgstr "Manual"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+#: src/pages/admin/identity-providers/ConnectionTestDialog.tsx
 msgid "admin.federation.diagnostics.identity"
 msgstr "Mapped fields"
 
@@ -4815,7 +4839,7 @@ msgid "security.setup.next"
 msgstr "Next"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+#: src/pages/admin/identity-providers/ConnectionTestDialog.tsx
 msgid "admin.federation.diagnostics.identity.no"
 msgstr "No"
 
@@ -4865,7 +4889,7 @@ msgid "admin.saml-apps.keys.no-expiry"
 msgstr "No expiry"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+#: src/pages/admin/identity-providers/ConnectionTestDialog.tsx
 msgid "admin.federation.diagnostics.identity.empty"
 msgstr "No fields could be mapped."
 
@@ -5016,7 +5040,7 @@ msgid "app.access.order.none"
 msgstr "None selected"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+#: src/pages/admin/identity-providers/EffectiveConfigDialog.tsx
 msgid "admin.federation.diagnostics.scopes-none"
 msgstr "None sent"
 
@@ -5041,7 +5065,7 @@ msgid "require-identity.not-now"
 msgstr "Not now, return to {app}"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+#: src/pages/admin/identity-providers/ConnectionTestDialog.tsx
 msgid "admin.federation.diagnostics.identity.missing"
 msgstr "Not provided"
 
@@ -5081,12 +5105,12 @@ msgid "admin.federation.operator.none"
 msgstr "Not set up"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+#: src/pages/admin/identity-providers/EffectiveConfigDialog.tsx
 msgid "admin.federation.diagnostics.unused"
 msgstr "Not used"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+#: src/pages/admin/identity-providers/EffectiveConfigDialog.tsx
 msgid "admin.federation.diagnostics.jwks-none"
 msgstr "Not used — the ID token is skipped"
 
@@ -5410,6 +5434,11 @@ msgid "admin.federation.diagnostics.stage-status.succeeded"
 msgstr "Passed"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+msgid "admin.federation.diagnostics.last.passed"
+msgstr "Passed <0/>"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/audit-vocabulary.ts
 msgid "audit.factor.webauthn"
 msgstr "Passkey"
@@ -5713,9 +5742,9 @@ msgid "admin.oidc-apps.field.scopes.identities"
 msgstr "Provider identities"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
-msgid "admin.federation.diagnostics.stage.provider-message"
-msgstr "Provider message:"
+#: src/pages/admin/identity-providers/StageRow.tsx
+msgid "admin.federation.diagnostics.stage.provider-message-line"
+msgstr "Provider message: <0>{description}</0>"
 
 #. js-lingui-explicit-id
 #: src/api/success-messages.ts
@@ -5780,12 +5809,13 @@ msgid "admin.saml-apps.metadata.dialog.title"
 msgstr "Re-import metadata"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/EffectiveConfigDialog.tsx
 #: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
 msgid "admin.federation.diagnostics.fetched"
 msgstr "Read <0/>"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+#: src/pages/admin/identity-providers/EffectiveConfigDialog.tsx
 msgid "admin.federation.diagnostics.reread"
 msgstr "Read again"
 
@@ -5902,7 +5932,7 @@ msgid "admin.federation.callback.hint"
 msgstr "Register these with the provider."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+#: src/pages/admin/identity-providers/EffectiveConfigDialog.tsx
 msgid "admin.federation.diagnostics.callback.hint"
 msgstr "Register this address with the provider before running a connection test."
 
@@ -6238,7 +6268,7 @@ msgid "request_details.title"
 msgstr "Request details"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+#: src/pages/admin/identity-providers/StageRow.tsx
 msgid "admin.federation.diagnostics.stage.request"
 msgstr "Request ID <0>{requestId}</0>"
 
@@ -7411,12 +7441,12 @@ msgid "consent.terms"
 msgstr "Terms of service"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+#: src/pages/admin/identity-providers/ConnectionTestDialog.tsx
 msgid "admin.federation.diagnostics.restart"
 msgstr "Test again"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+#: src/pages/admin/identity-providers/EffectiveConfigDialog.tsx
 msgid "admin.federation.diagnostics.callback"
 msgstr "Test callback address"
 
@@ -7431,12 +7461,7 @@ msgid "admin.federation.diagnostics.run.succeeded"
 msgstr "Test passed"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
-msgid "admin.federation.diagnostics.details"
-msgstr "Test results"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+#: src/pages/admin/identity-providers/ConnectionTestDialog.tsx
 msgid "admin.federation.diagnostics.stages"
 msgstr "Test stages"
 
@@ -7848,7 +7873,7 @@ msgid "admin.federation.scopes.hint"
 msgstr "The provider must support every scope listed here."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+#: src/pages/admin/identity-providers/ConnectionTestDialog.tsx
 msgid "admin.federation.diagnostics.id-token.empty"
 msgstr "The provider returned no ID token."
 
@@ -8409,7 +8434,7 @@ msgid "error.federation_state_invalid"
 msgstr "This test is no longer valid. Start a new one."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+#: src/pages/admin/identity-providers/ConnectionTestDialog.tsx
 msgid "admin.federation.diagnostics.timeout"
 msgstr "This test is taking longer than expected. Check it again when the provider has finished."
 
@@ -8454,7 +8479,7 @@ msgid "admin.federation.diagnostics.stage.token"
 msgstr "Token exchange"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+#: src/pages/admin/identity-providers/ConnectionTestDialog.tsx
 msgid "admin.federation.diagnostics.document.omitted"
 msgstr "Too large to keep ({size} KB)."
 
@@ -8939,8 +8964,8 @@ msgid "admin.logs.detail.userAgent"
 msgstr "User-Agent"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/ConnectionTestDialog.tsx
 #: src/pages/admin/identity-providers/provider-options.ts
-#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
 msgid "admin.federation.diagnostics.stage.userinfo"
 msgstr "UserInfo"
 
@@ -8955,12 +8980,12 @@ msgid "admin.federation.connection.userinfo"
 msgstr "UserInfo endpoint"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+#: src/pages/admin/identity-providers/ConnectionTestDialog.tsx
 msgid "admin.federation.diagnostics.userinfo.failed"
 msgstr "UserInfo returned nothing to show."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+#: src/pages/admin/identity-providers/ConnectionTestDialog.tsx
 msgid "admin.federation.diagnostics.userinfo.empty"
 msgstr "UserInfo was not requested."
 
@@ -9388,7 +9413,7 @@ msgid "security.tokens.access.selected_apps.hint"
 msgstr "Works only on the applications you pick."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
+#: src/pages/admin/identity-providers/ConnectionTestDialog.tsx
 msgid "admin.federation.diagnostics.identity.yes"
 msgstr "Yes"
 

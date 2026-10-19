@@ -1205,7 +1205,12 @@ function identityProviders(config: MockConfig): IdentityProvider[] {
     // For VRChat the "secret" is the operator session, so an even row has a
     // checked session and an odd one has none, and both states can be seen. A
     // public client holds none by design.
-    const configured = !publicClient && index % 2 === 0;
+    const operator = config.admin.operatorSession;
+    const configured =
+      !publicClient &&
+      (operator === "fixture"
+        ? index % 2 === 0
+        : operator === "valid" || operator === "expired");
     return {
       slug: `provider-${index + 1}`,
       displayName: `Example ${protocol.toUpperCase()} ${index + 1}`,
@@ -1225,7 +1230,11 @@ function identityProviders(config: MockConfig): IdentityProvider[] {
       disabled,
       ready,
       secretConfigured: configured,
-      secretStatus: configured ? "valid" : "unconfigured",
+      secretStatus: !configured
+        ? "unconfigured"
+        : operator === "expired"
+          ? "invalid"
+          : "valid",
       secretValidatedAt: configured ? iso(-day) : null,
       createdAt: iso(-day * (index + 2)),
       ...(index % 2 === 0 ? { iconUrl: mockAvatarUrl } : {}),
@@ -3379,6 +3388,13 @@ export function diagnosticResult(
     { name: "callback", status: "succeeded", durationMs: 8 },
   ];
   const endpoint = "https://idp1.example.test";
+  if (outcome === "running") {
+    return {
+      status: "running",
+      expiresAt: iso(600_000),
+      stages: [...before.slice(0, 2), { name: "callback", status: "pending" }],
+    };
+  }
   if (outcome === "failed") {
     // The failure mirrors what the server can honestly report: the provider
     // refused the authorization, so the callback stage carries the

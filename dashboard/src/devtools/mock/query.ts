@@ -156,6 +156,7 @@ function clampFor(path: string, value: number): number {
   }
   if (path === "avatar.upstreams") return clampAvatarUpstreams(value);
   if (path === "admin.diagnosticOutcome") return value;
+  if (path === "admin.operatorSession") return value;
   if (path.endsWith(".opacity"))
     return Math.max(0, Math.min(100, Math.round(value)));
   if (path.endsWith(".intervalSeconds")) {
@@ -168,7 +169,9 @@ function clampFor(path: string, value: number): number {
 function allowedValues(path: string): readonly string[] | undefined {
   if (path === "session.role") return ["admin", "member"];
   if (path === "admin.diagnosticOutcome")
-    return ["succeeded", "fallback", "failed"];
+    return ["succeeded", "fallback", "failed", "running"];
+  if (path === "admin.operatorSession")
+    return ["fixture", "valid", "expired", "none"];
   if (path === "admin.latestConnectionTest")
     return ["none", "passed", "failed", "stale", "failed-stale"];
   if (path === "publicFlows.consent.grant") return ["first", "incremental"];

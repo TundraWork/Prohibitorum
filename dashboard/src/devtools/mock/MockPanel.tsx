@@ -626,10 +626,26 @@ export function MockPanel() {
               { value: "succeeded", label: "Succeeds" },
               { value: "fallback", label: "No ID token" },
               { value: "failed", label: "Fails" },
+              { value: "running", label: "Never finishes" },
             ]}
             onChange={(next) =>
               updateMockConfig((draft) => {
                 draft.admin.diagnosticOutcome = next;
+              })
+            }
+          />
+          <Choose
+            label="VRChat operator session"
+            value={config.admin.operatorSession}
+            options={[
+              { value: "fixture", label: "By row" },
+              { value: "valid", label: "Valid" },
+              { value: "expired", label: "Expired" },
+              { value: "none", label: "Not set up" },
+            ]}
+            onChange={(next) =>
+              updateMockConfig((draft) => {
+                draft.admin.operatorSession = next;
               })
             }
           />
