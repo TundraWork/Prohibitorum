@@ -1,11 +1,6 @@
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import {
-  FileKeyIcon,
-  FingerprintIcon,
-  GlobeIcon,
-  RefreshCwIcon,
-} from "lucide-react";
+import { FileKeyIcon, GlobeIcon, RefreshCwIcon } from "lucide-react";
 import { useState } from "react";
 import { isCancellation } from "@/api/errors";
 import type { components } from "@/api/generated/schema";
@@ -74,10 +69,16 @@ export function SamlMetadataSection({ app }: { app: SamlApp }) {
       icon={<FileKeyIcon />}
       title={t({ id: "admin.saml-apps.metadata", message: "Metadata" })}
       description={
-        <Trans id="admin.saml-apps.metadata.description">
-          What the service provider published: where assertions are posted and
-          which certificates sign its requests.
-        </Trans>
+        <>
+          <Trans id="admin.saml-apps.metadata.description">
+            What the service provider published: where assertions are posted and
+            which certificates sign its requests.
+          </Trans>{" "}
+          <Trans id="admin.saml-apps.general.entity-id.hint">
+            Its Entity ID, shown above, is what the instance sends with every
+            response.
+          </Trans>
+        </>
       }
       action={
         <Button variant="outline" onClick={() => setImporting(true)}>
@@ -95,20 +96,6 @@ export function SamlMetadataSection({ app }: { app: SamlApp }) {
         })}
         empty={null}
       >
-        <ItemListRow
-          key="entity-id"
-          icon={<FingerprintIcon aria-hidden="true" size={18} />}
-          title={<Trans id="admin.saml-apps.field.entity-id">Entity ID</Trans>}
-          details={[
-            <span key="value" className="break-all font-mono">
-              {app.entityId}
-            </span>,
-            <Trans key="hint" id="admin.saml-apps.general.entity-id.hint">
-              The identifier the service provider publishes. The instance sends
-              it with every response.
-            </Trans>,
-          ]}
-        />
         {endpoints.map((endpoint) => (
           <ItemListRow
             key={`acs:${endpoint.binding}:${endpoint.index}`}

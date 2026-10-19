@@ -1116,10 +1116,9 @@ msgid "app.managers.assigned"
 msgstr "<0/>指派"
 
 #. js-lingui-explicit-id
-#. placeholder {0}: index + 1
 #: src/pages/admin/saml-applications/AttributeMapField.tsx
 msgid "admin.saml-apps.mapping.row"
-msgstr "属性 {0}"
+msgstr "属性 {rowNumber}"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AttributeMapField.tsx
@@ -3339,7 +3338,6 @@ msgstr "请输入用户名。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
-#: src/pages/admin/saml-applications/SamlMetadataSection.tsx
 msgid "admin.saml-apps.field.entity-id"
 msgstr "Entity ID"
 
@@ -3458,6 +3456,7 @@ msgstr "过期时间"
 msgid "admin.invitations.column.expires"
 msgstr "过期时间"
 
+#. A date the administrator plans around, so it is a date and not a relative time
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/CertificateText.tsx
 msgid "admin.saml-apps.keys.expires"
@@ -4039,6 +4038,11 @@ msgstr "它会从登录页以及所有可以用它提升验证的账号上消失
 #: src/pages/admin/identity-providers/ProviderDangerSection.tsx
 msgid "admin.federation.danger.enable.hint"
 msgstr "当前登录时不会提供它。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/SamlMetadataSection.tsx
+msgid "admin.saml-apps.general.entity-id.hint"
+msgstr "上方显示的 Entity ID，是这个实例在每次响应中带上的标识符。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
@@ -7517,11 +7521,6 @@ msgid "admin.saml-apps.field.entity-id.hint"
 msgstr "服务提供商发布的标识符。之后无法修改。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/saml-applications/SamlMetadataSection.tsx
-msgid "admin.saml-apps.general.entity-id.hint"
-msgstr "服务提供商发布的标识符。这个实例在每次响应中都会带上它。"
-
-#. js-lingui-explicit-id
 #: src/pages/security/SetupDialog.tsx
 msgid "security.setup.key_note"
 msgstr "密钥在此浏览器中生成，仅在你确认时才会发送。"
@@ -8390,6 +8389,11 @@ msgstr "未命名通行密钥"
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.passkeys.unnamed"
 msgstr "未命名通行密钥"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/CertificateText.tsx
+msgid "admin.saml-apps.certificate.unreadable"
+msgstr "日期无法读取"
 
 #. js-lingui-explicit-id
 #: src/components/custom/OutlineRail.tsx

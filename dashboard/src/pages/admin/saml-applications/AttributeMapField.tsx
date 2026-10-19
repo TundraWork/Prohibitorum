@@ -1,6 +1,6 @@
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useStore } from "@tanstack/react-form";
-import { type ReactNode, useRef } from "react";
+import { type ReactNode, useRef, useState } from "react";
 import { FormMessages } from "@/components/custom/FormMessages";
 import { useHostOverlayContainer } from "@/components/custom/host-overlay-container";
 import { type RowProblem, RowsField } from "@/components/custom/RowsField";
@@ -217,6 +217,8 @@ function MappingRowFields({
   const submitting = useStore(form.store, (state) => state.isSubmitting);
   const anchor = useRef<HTMLDivElement>(null);
   const container = useHostOverlayContainer(anchor);
+  const [formatFocused, setFormatFocused] = useState(false);
+  const rowNumber = index + 1;
 
   const row = field.state.value[index];
   if (row === undefined) return null;
@@ -234,6 +236,14 @@ function MappingRowFields({
       ),
     );
   };
+
+  const isStandardFormat = (attributeNameFormats as readonly string[]).includes(
+    row.nameFormat,
+  );
+  const formatShown =
+    !formatFocused && isStandardFormat
+      ? shortAttributeNameFormat(row.nameFormat)
+      : row.nameFormat;
 
   const hasError = error !== undefined && error !== null;
   const nameInvalid = problem?.field === "name";
@@ -253,7 +263,7 @@ function MappingRowFields({
       {/* Stacked, each mapping is named by its position; the remove button
           shares the line. */}
       <p className="col-start-1 row-start-1 self-center font-medium text-sm @2xl/mapping:hidden">
-        <Trans id="admin.saml-apps.mapping.row">Attribute {index + 1}</Trans>
+        <Trans id="admin.saml-apps.mapping.row">Attribute {rowNumber}</Trans>
       </p>
       <Field
         className="col-span-2 row-start-2 min-w-0 @2xl/mapping:col-span-1 @2xl/mapping:col-start-1 @2xl/mapping:row-start-1"
@@ -345,11 +355,15 @@ function MappingRowFields({
             provider may ask for any URN, so it is typed freely: the standard
             three are suggestions, and what is typed or stored is kept whole. */}
         <Autocomplete
-          value={row.nameFormat}
+          // At rest a standard format reads as its short name and a custom
+          // one is written out under the row; while the reader is in the box
+          // it holds the whole value, which is what is stored and sent.
+          value={formatShown}
           items={[...attributeNameFormats]}
-          filter={null}
           disabled={submitting}
-          onValueChange={(next) => update({ nameFormat: next })}
+          onValueChange={(next) => {
+            if (formatFocused) update({ nameFormat: next });
+          }}
         >
           <AutocompleteInput
             className="font-mono text-xs"
@@ -360,6 +374,8 @@ function MappingRowFields({
             })}
             autoComplete="off"
             spellCheck={false}
+            onFocus={() => setFormatFocused(true)}
+            onBlur={() => setFormatFocused(false)}
           />
           <AutocompletePopup portalProps={{ container }}>
             <AutocompleteList>
@@ -369,7 +385,7 @@ function MappingRowFields({
                     <span className="font-mono">
                       {shortAttributeNameFormat(format)}
                     </span>
-                    <span className="break-all font-mono text-muted-foreground text-xs">
+                    <span className="wrap-anywhere font-mono text-muted-foreground text-xs">
                       {format}
                     </span>
                   </div>
@@ -413,6 +429,17 @@ function MappingRowFields({
       <div className="col-start-2 row-start-1 flex h-9 items-center justify-end self-center @2xl/mapping:col-start-6 @2xl/mapping:self-start sm:h-8">
         {remove}
       </div>
+
+      {/* A custom format is the part that tells two rows apart, so at rest it is
+          written out whole on a line of its own. */}
+      {!formatFocused && !isStandardFormat && row.nameFormat !== "" && (
+        <p
+          data-slot="name-format-full"
+          className="col-span-full wrap-anywhere font-mono text-muted-foreground text-xs"
+        >
+          {row.nameFormat}
+        </p>
+      )}
 
       {hasError && (
         <p className="col-span-full text-destructive-foreground text-xs">

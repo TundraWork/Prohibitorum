@@ -182,7 +182,22 @@ describe("the attribute map", () => {
     ).not.toHaveAttribute("placeholder");
   });
 
-  it("shows a name format in full, never cut to its tail", async () => {
+  it("reads a standard format as its short name at rest and the whole URN while editing", async () => {
+    const user = userEvent.setup();
+    mount(samlAppFixture());
+
+    const format = await screen.findByRole("combobox", {
+      name: "Name format",
+    });
+    expect(format).toHaveValue("basic");
+    await user.click(format);
+    expect(format).toHaveValue(
+      "urn:oasis:names:tc:SAML:2.0:attrname-format:basic",
+    );
+  });
+
+  it("writes a custom format out whole on a line of its own at rest", async () => {
+    const user = userEvent.setup();
     mount(
       samlAppFixture({
         attributeMap: [
@@ -195,9 +210,32 @@ describe("the attribute map", () => {
         ],
       }),
     );
-    expect(
-      await screen.findByRole("combobox", { name: "Name format" }),
-    ).toHaveValue("urn:example:names:custom");
+
+    const format = await screen.findByRole("combobox", {
+      name: "Name format",
+    });
+    const full = document.querySelector('[data-slot="name-format-full"]');
+    expect(full).toHaveTextContent("urn:example:names:custom");
+    await user.click(format);
+    expect(format).toHaveValue("urn:example:names:custom");
+    expect(document.querySelector('[data-slot="name-format-full"]')).toBeNull();
+  });
+
+  it("sends a standard format as the whole URN, not the short name", async () => {
+    const user = userEvent.setup();
+    mount(samlAppFixture());
+
+    await user.type(
+      await screen.findByRole("textbox", { name: "Attribute name" }),
+      "2",
+    );
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(puts()).toHaveLength(1));
+    const sent = await puts()[0]?.json();
+    expect(sent.attributeMap[0].name_format).toBe(
+      "urn:oasis:names:tc:SAML:2.0:attrname-format:basic",
+    );
   });
 
   it("takes a name format typed in, and sends it whole", async () => {
@@ -209,7 +247,8 @@ describe("the attribute map", () => {
     });
     await user.clear(format);
     await user.type(format, "urn:example:attrname:custom");
-    // Typing opens the suggestions, which hold the rest of the page inert.
+    // Typing opens the suggestions, which hide the rest of the page from the
+    // accessibility tree until they close.
     await user.keyboard("{Escape}");
     await user.click(screen.getByRole("button", { name: "Save" }));
 
@@ -224,9 +263,11 @@ describe("the attribute map", () => {
     const user = userEvent.setup();
     mount(samlAppFixture());
 
-    await user.click(
-      await screen.findByRole("combobox", { name: "Name format" }),
-    );
+    const format = await screen.findByRole("combobox", {
+      name: "Name format",
+    });
+    await user.click(format);
+    await user.clear(format);
     await user.keyboard("{ArrowDown}");
     await user.click(await screen.findByRole("option", { name: /^uri/ }));
 

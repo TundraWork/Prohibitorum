@@ -337,7 +337,11 @@ describe("the metadata way's refusals", () => {
     await pasteDocument(user);
     await user.click(submit());
 
-    expect(await screen.findAllByRole("alert")).toHaveLength(1);
+    const alerts = await screen.findAllByRole("alert");
+    expect(alerts).toHaveLength(1);
+    expect(alerts[0]).toHaveTextContent(
+      "An application with that Entity ID already exists.",
+    );
     expect(notifyError).not.toHaveBeenCalled();
   });
 

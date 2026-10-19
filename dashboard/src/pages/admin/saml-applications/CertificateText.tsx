@@ -39,7 +39,11 @@ export function CertificateText({
         <Trans id="admin.saml-apps.keys.no-expiry">No expiry</Trans>
       );
     case "unreadable":
-      return <span aria-label="?">—</span>;
+      return (
+        <Trans id="admin.saml-apps.certificate.unreadable">
+          Unreadable date
+        </Trans>
+      );
     case "expired": {
       const date = day(state.notAfter);
       return (
@@ -61,7 +65,12 @@ export function CertificateText({
           Certificate expires {date}
         </Trans>
       ) : (
-        <Trans id="admin.saml-apps.keys.expires">Expires {date}</Trans>
+        <Trans
+          id="admin.saml-apps.keys.expires"
+          comment="A date the administrator plans around, so it is a date and not a relative time"
+        >
+          Expires {date}
+        </Trans>
       );
     }
   }

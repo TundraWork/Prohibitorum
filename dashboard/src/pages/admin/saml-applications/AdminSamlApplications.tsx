@@ -15,7 +15,10 @@ import { CodeValue } from "@/components/custom/ListCells";
 import { PageHeader } from "@/components/custom/PageHeader";
 import { TableEmptyState } from "@/components/custom/TableEmptyState";
 import { CertificateText } from "@/pages/admin/saml-applications/CertificateText";
-import { certificateState } from "@/pages/admin/saml-applications/saml-certificate";
+import {
+  type CertificateState,
+  certificateState,
+} from "@/pages/admin/saml-applications/saml-certificate";
 import { shortNameIdFormat } from "@/pages/admin/saml-applications/saml-projection";
 
 type SamlApp = components["schemas"]["SAMLApplicationView"];
@@ -99,7 +102,7 @@ export function AdminSamlApplications() {
       ),
       // The signing key is the one that matters: it is what the service
       // provider validates assertions against, and what expires.
-      cell: (app) => <CertificateText state={certificateState(app)} />,
+      cell: (app) => <ListCertificate state={certificateState(app)} />,
     },
     {
       align: "end",
@@ -178,5 +181,15 @@ export function AdminSamlApplications() {
         />
       )}
     </div>
+  );
+}
+
+/** The certificate column: absent or unreadable states are quiet, dates are not. */
+function ListCertificate({ state }: { state: CertificateState }) {
+  const hasDate = state.kind === "valid" || state.kind === "expired";
+  return (
+    <span className={hasDate ? undefined : "text-muted-foreground"}>
+      <CertificateText state={state} />
+    </span>
   );
 }

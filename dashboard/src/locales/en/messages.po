@@ -1116,10 +1116,9 @@ msgid "app.managers.assigned"
 msgstr "Assigned <0/>"
 
 #. js-lingui-explicit-id
-#. placeholder {0}: index + 1
 #: src/pages/admin/saml-applications/AttributeMapField.tsx
 msgid "admin.saml-apps.mapping.row"
-msgstr "Attribute {0}"
+msgstr "Attribute {rowNumber}"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AttributeMapField.tsx
@@ -3339,7 +3338,6 @@ msgstr "Enter your username."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
-#: src/pages/admin/saml-applications/SamlMetadataSection.tsx
 msgid "admin.saml-apps.field.entity-id"
 msgstr "Entity ID"
 
@@ -3458,6 +3456,7 @@ msgstr "Expires"
 msgid "admin.invitations.column.expires"
 msgstr "Expires"
 
+#. A date the administrator plans around, so it is a date and not a relative time
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/CertificateText.tsx
 msgid "admin.saml-apps.keys.expires"
@@ -4039,6 +4038,11 @@ msgstr "It disappears from the sign-in page and from every account that could st
 #: src/pages/admin/identity-providers/ProviderDangerSection.tsx
 msgid "admin.federation.danger.enable.hint"
 msgstr "It is not offered at sign-in right now."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/SamlMetadataSection.tsx
+msgid "admin.saml-apps.general.entity-id.hint"
+msgstr "Its Entity ID, shown above, is what the instance sends with every response."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx
@@ -7517,11 +7521,6 @@ msgid "admin.saml-apps.field.entity-id.hint"
 msgstr "The identifier the service provider publishes. It cannot be changed later."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/saml-applications/SamlMetadataSection.tsx
-msgid "admin.saml-apps.general.entity-id.hint"
-msgstr "The identifier the service provider publishes. The instance sends it with every response."
-
-#. js-lingui-explicit-id
 #: src/pages/security/SetupDialog.tsx
 msgid "security.setup.key_note"
 msgstr "The key was made in this browser and is sent only when you confirm."
@@ -8390,6 +8389,11 @@ msgstr "Unnamed passkey"
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.passkeys.unnamed"
 msgstr "Unnamed passkey"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/CertificateText.tsx
+msgid "admin.saml-apps.certificate.unreadable"
+msgstr "Unreadable date"
 
 #. js-lingui-explicit-id
 #: src/components/custom/OutlineRail.tsx
