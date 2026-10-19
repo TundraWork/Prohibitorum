@@ -1,6 +1,5 @@
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useSuspenseQuery } from "@tanstack/react-query";
-import { useEffect } from "react";
 import { accountQueryOptions } from "@/api/queries";
 import { AppDetailLayout } from "@/components/custom/AppDetailLayout";
 import { EntityAvatar } from "@/components/custom/EntityAvatar";
@@ -17,31 +16,18 @@ import { Route } from "@/routes/_protected.admin._admin.users_.$id";
 
 /**
  * One account in the management area: who it is at the top, then a column of
- * sections with an outline beside them.
+ * sections with an outline beside them. The sign-in fact is shown only when
+ * the record carries it: the single-account read does not.
  *
  * The profile form comes first, then how the account gets in and the link that
- * sets that up, and last the changes that stop it. An older `?tab=` link, from
- * when the page was three tabs, scrolls to the section of that name. The record
- * is read once here and passed down, since the route loader already has it.
+ * sets that up, and last the changes that stop it. The record is read once here
+ * and passed down, since the route loader already has it.
  */
 export function AdminUser() {
   const { t, i18n } = useLingui();
   const { id } = Route.useParams();
-  const { tab } = Route.useSearch();
   const accountId = Number(id);
   const { data: account } = useSuspenseQuery(accountQueryOptions(accountId));
-
-  useEffect(() => {
-    // The profile is already under the header, so only the sections below it
-    // have anywhere to scroll to.
-    if (tab === "profile") return;
-    // After the router's own scroll reset, which runs once the page has rendered.
-    const timer = window.setTimeout(
-      () => document.getElementById(tab)?.scrollIntoView(),
-      0,
-    );
-    return () => window.clearTimeout(timer);
-  }, [tab]);
 
   const name = account.displayName || account.username;
   const joined = new Intl.DateTimeFormat(i18n.locale, {
@@ -70,6 +56,7 @@ export function AdminUser() {
           statuses={statuses}
           identifier={{
             value: `@${account.username}`,
+            copyValue: account.username,
             label: t({
               id: "admin.user.copy-username",
               message: "Copy the username",
@@ -86,15 +73,13 @@ export function AdminUser() {
             <Trans key="joined" id="admin.user.joined">
               Joined {joined}
             </Trans>,
-            account.lastSignInAt === undefined ? (
-              <Trans key="seen" id="admin.user.never-signed-in">
-                Never signed in
-              </Trans>
-            ) : (
-              <Trans key="seen" id="admin.user.last-signed-in">
-                Last signed in <RelativeTime value={account.lastSignInAt} />
-              </Trans>
-            ),
+            ...(account.lastSignInAt === undefined
+              ? []
+              : [
+                  <Trans key="seen" id="admin.user.last-signed-in">
+                    Last signed in <RelativeTime value={account.lastSignInAt} />
+                  </Trans>,
+                ]),
           ]}
         />
       }

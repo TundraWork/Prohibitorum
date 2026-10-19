@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { parseSearch } from "@/app/search-params";
-import { accountTabs, settingsTabs, tabSearch } from "@/pages/console/tabs";
+import {
+  accountSearch,
+  accountTabs,
+  settingsTabs,
+  tabSearch,
+} from "@/pages/console/tabs";
 
 /** The tab a page with `tabs` shows at `?searchStr`. */
 function tabAt<const T extends readonly [string, ...string[]]>(
@@ -36,5 +41,20 @@ describe("console tab search", () => {
   it("falls back when the parameter is repeated", () => {
     expect(tabAt(accountTabs, "?tab=access&tab=danger")).toBe(accountTabs[0]);
     expect(tabAt(accountTabs, "?tab=access&tab=access")).toBe(accountTabs[0]);
+  });
+});
+
+describe("accountSearch", () => {
+  const parse = (search: Record<string, unknown>) =>
+    accountSearch.parse(search).tab;
+
+  it("keeps a section name", () => {
+    expect(parse({ tab: "danger" })).toBe("danger");
+  });
+
+  it("leaves a missing or unknown tab out", () => {
+    expect(parse({})).toBeUndefined();
+    expect(parse({ tab: "keys" })).toBeUndefined();
+    expect(parse({ tab: ["access", "danger"] })).toBeUndefined();
   });
 });

@@ -32,11 +32,14 @@ function breakAtSlashes(value: string): ReactNode {
  */
 export function CopyableValue({
   value,
+  copyValue,
   label,
   wrap = false,
   className,
 }: {
   value: string;
+  /** What the button copies, when that is not the text shown. */
+  copyValue?: string;
   /** Names the copy button, such as "Copy the client ID". */
   label: string;
   /** Lets the value wrap, after its slashes; otherwise give it `truncate`. */
@@ -60,7 +63,7 @@ export function CopyableValue({
       </span>
       <Button
         aria-label={label}
-        onClick={() => copy(value)}
+        onClick={() => copy(copyValue ?? value)}
         variant="ghost"
         size="icon-sm"
       >

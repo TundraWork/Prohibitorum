@@ -2,7 +2,10 @@ import type { components } from "@/api/generated/schema";
 
 export type Account = components["schemas"]["AccountView"];
 
-/** An enabled, ordinary account that has signed in, with a verified address. */
+/**
+ * An enabled, ordinary account with a verified address, as the single-account
+ * read returns it: without a last sign-in, which only list rows carry.
+ */
 export function accountFixture(overrides: Partial<Account> = {}): Account {
   return {
     id: 2,
@@ -17,7 +20,6 @@ export function accountFixture(overrides: Partial<Account> = {}): Account {
     matchingIdentities: [],
     createdAt: "2026-01-02T00:00:00Z",
     updatedAt: "2026-02-01T00:00:00Z",
-    lastSignInAt: "2026-02-01T00:00:00Z",
     ...overrides,
   };
 }

@@ -22,8 +22,11 @@ interface ObjectHeaderProps {
   /** Rendered as the page's `h1`. */
   title: ReactNode;
   statuses?: ObjectStatus[];
-  /** A short machine name, shown in mono with a copy button named by `label`. */
-  identifier?: { value: string; label: string };
+  /**
+   * A short machine name, shown in mono with a copy button named by `label`.
+   * `copyValue` is what the button copies when that differs from what is shown.
+   */
+  identifier?: { value: string; label: string; copyValue?: string };
   /** Short facts, separated by hairlines. */
   facts?: ReactNode[];
   /** Aligned to the end. */
@@ -120,6 +123,7 @@ export function ObjectHeader({
       <CopyableValue
         key="identifier"
         value={identifier.value}
+        copyValue={identifier.copyValue}
         label={identifier.label}
         wrap
         className="wrap-anywhere text-[13px]"

@@ -5289,11 +5289,6 @@ msgid "admin.user.tokens.detail.noExpiry"
 msgstr "Never expires"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/users/AdminUser.tsx
-msgid "admin.user.never-signed-in"
-msgstr "Never signed in"
-
-#. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.create.title"
 msgstr "New access token"
@@ -8895,7 +8890,7 @@ msgstr "This account has no way to confirm your identity from here. Set up a pas
 #. js-lingui-explicit-id
 #: src/pages/admin/users/AccountRoleField.tsx
 msgid "admin.user.role.unknown"
-msgstr "This account has the role {role}, which the console does not offer. Saving keeps it unless you choose User or Admin."
+msgstr "This account has the role {role}, which the console does not offer and the server refuses. Change it to User or Admin before saving."
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts

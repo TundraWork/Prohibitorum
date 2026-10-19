@@ -5289,11 +5289,6 @@ msgid "admin.user.tokens.detail.noExpiry"
 msgstr "永不过期"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/users/AdminUser.tsx
-msgid "admin.user.never-signed-in"
-msgstr "从未登录"
-
-#. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.create.title"
 msgstr "新建访问令牌"
@@ -8895,7 +8890,7 @@ msgstr "此账号无法在此验证身份。请先设置通行密钥，或设置
 #. js-lingui-explicit-id
 #: src/pages/admin/users/AccountRoleField.tsx
 msgid "admin.user.role.unknown"
-msgstr "该账号的角色是 {role}，控制台不提供这个角色。除非你选择“用户”或“管理员”，保存时会保留它。"
+msgstr "该账号的角色是 {role}，控制台不提供，服务器也会拒绝。保存前请改为“用户”或“管理员”。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts

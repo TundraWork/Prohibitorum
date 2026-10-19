@@ -71,18 +71,14 @@ function profileValues(account: Account) {
 }
 
 /**
- * The account's own fields: name, address, role and attributes, with the OIDC
- * subject applications know it by. One save covers the four fields.
+ * The account's name, address, role and attributes, with the OIDC subject
+ * applications know it by. One save covers the four fields.
  *
- * `PUT /accounts/{id}` replaces the record, so an omitted `attributes` clears
- * whatever the account had. The box therefore always submits the full map, and
- * invalid JSON is refused here instead of being sent as an empty one. The
- * address is sent only when it changed, because the server marks any address it
- * is given as unverified.
- *
- * A change of role is the one consequential save: the footer states what it
- * gives or takes away and names the action, and the write itself asks for the
- * identity check. Disabling lives in the danger section, not here.
+ * The write replaces the record, so the attributes box always submits the full
+ * map and the address is sent only when it changed (the server marks any
+ * address it is given as unverified). A change of role is the consequential
+ * save: the footer says what it gives or takes away, and the write asks for the
+ * identity check.
  */
 export function AccountProfileSection({ account }: { account: Account }) {
   const { t } = useLingui();

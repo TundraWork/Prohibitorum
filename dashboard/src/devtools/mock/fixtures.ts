@@ -1909,8 +1909,12 @@ function readReply(
     case "/api/prohibitorum/accounts/{id}": {
       const id = Number(new URL(request.url).pathname.split("/").pop());
       const found = accounts(config).find((account) => account.id === id);
+      // Only list rows carry the last sign-in; the single-account read does not.
+      const { lastSignInAt: _omitted, ...detail } = found ?? {};
       return guarded(config, () =>
-        found ? json(found) : { kind: "error", status: 404, code: "not_found" },
+        found
+          ? json(detail)
+          : { kind: "error", status: 404, code: "not_found" },
       );
     }
     case "/api/prohibitorum/accounts/{id}/identities": {

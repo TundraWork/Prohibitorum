@@ -2,6 +2,7 @@ import type { QueryClient } from "@tanstack/react-query";
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { configureSudo } from "@/api/sudo";
 import { createQueryClient } from "@/app/query-client";
 import { i18n } from "@/i18n";
 import { type Account, accountFixture } from "@/test/account";
@@ -66,7 +67,8 @@ describe("the header", () => {
     const writeText = vi.spyOn(navigator.clipboard, "writeText");
     expect(screen.getByText("@bob")).toBeVisible();
     await user.click(screen.getByRole("button", { name: "Copy the username" }));
-    expect(writeText).toHaveBeenCalledWith("@bob");
+    // The username is shown with its @, but is copied bare.
+    expect(writeText).toHaveBeenCalledWith("bob");
   });
 
   it("falls back to the username when there is no display name", async () => {
@@ -107,44 +109,38 @@ describe("the header", () => {
     expect(screen.getByText("Role member")).toBeVisible();
   });
 
-  it("says when the account joined and when it last signed in", async () => {
+  it("says when the account joined, and nothing about sign-ins it does not know", async () => {
     await openAccount(accountFixture());
     expect(screen.getByText(/^Joined .*2026/)).toBeVisible();
-    expect(screen.getByText(/^Last signed in/)).toBeVisible();
-    expect(screen.queryByText("Never signed in")).toBeNull();
+    expect(screen.queryByText(/signed in/)).toBeNull();
   });
 
-  it("says so when it never has", async () => {
-    await openAccount(accountFixture({ lastSignInAt: undefined }));
-    expect(screen.getByText("Never signed in")).toBeVisible();
-    expect(screen.queryByText(/^Last signed in/)).toBeNull();
+  it("says when it last signed in if the record says so", async () => {
+    await openAccount(accountFixture({ lastSignInAt: "2026-02-01T00:00:00Z" }));
+    expect(screen.getByText(/^Last signed in/)).toBeVisible();
   });
 });
 
 describe("an old ?tab= link", () => {
-  const scrolledTo = () =>
-    vi
-      .mocked(HTMLElement.prototype.scrollIntoView)
-      .mock.contexts.map((element) => (element as HTMLElement).id);
+  it.each(["access", "danger", "profile"])(
+    "lands on the %s section as a hash",
+    async (tab) => {
+      const { router } = await openAccount(accountFixture(), `?tab=${tab}`);
+      await waitFor(() => expect(router.state.location.hash).toBe(tab));
+      expect(router.state.location.search).toEqual({});
+      expect(document.getElementById(tab)).not.toBeNull();
+    },
+  );
 
-  it.each([
-    ["access", "access"],
-    ["danger", "danger"],
-  ])("scrolls to the %s section", async (tab, id) => {
-    await openAccount(accountFixture(), `?tab=${tab}`);
-    await waitFor(() => expect(scrolledTo()).toContain(id));
+  it("replaces the entry rather than adding one", async () => {
+    const { router } = await openAccount(accountFixture(), "?tab=danger");
+    await waitFor(() => expect(router.state.location.hash).toBe("danger"));
+    expect(router.history.length).toBe(1);
   });
 
-  it("leaves the page at the top for the profile", async () => {
-    await openAccount(accountFixture(), "?tab=profile");
-    expect(scrolledTo()).toEqual([]);
-  });
-
-  it("is accepted without any tab at all", async () => {
-    await openAccount(accountFixture());
-    expect(scrolledTo()).toEqual([]);
-    expect(document.getElementById("profile")).not.toBeNull();
-    expect(document.getElementById("danger")).not.toBeNull();
+  it("leaves a page without a tab alone", async () => {
+    const { router } = await openAccount(accountFixture());
+    expect(router.state.location.hash).toBe("");
   });
 });
 
@@ -201,6 +197,31 @@ describe("the registration link", () => {
     await user.click(within(dialog).getByRole("button", { name: "Done" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     expect(screen.getByText(/^The link expires on/)).toBeVisible();
+  });
+
+  it("asks for the identity check first when the window is closed", async () => {
+    const user = userEvent.setup();
+    const account = accountFixture();
+    const set = vi.fn();
+    const api = serve(account, {
+      [`GET ${base}/me/sudo/methods`]: () =>
+        Response.json({ methods: ["password_totp"], fresh: false }),
+    });
+    renderApp(`/admin/users/${account.id}`, queryClient);
+    await screen.findByRole("heading", { level: 1 });
+    configureSudo({
+      queryClient,
+      set,
+      setFresh: () => {},
+      getFresh: () => false,
+    });
+
+    await issue(user);
+
+    await waitFor(() => expect(set).toHaveBeenCalled());
+    expect(
+      api.sent("POST", `${base}/accounts/reissue-enrollment`),
+    ).toHaveLength(0);
   });
 
   it("reports a refusal once, with no toast", async () => {

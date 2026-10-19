@@ -32,6 +32,15 @@ export const accountTabs = ["profile", "access", "danger"] as const;
 export type AccountTab = (typeof accountTabs)[number];
 
 /**
+ * The account page is one scrolling page now, so `?tab=` is only an old link to
+ * a section. It is left out when missing or not a section name, which is what
+ * lets the route tell an old link from a plain visit.
+ */
+export const accountSearch = z.object({
+  tab: z.enum(accountTabs).optional().catch(undefined),
+});
+
+/**
  * The instance settings, one tab per kind: what the instance is called and
  * looks like, whether it is open, how it reads client addresses, and the keys
  * it signs with.

@@ -283,18 +283,24 @@ describe("the profile section", () => {
       ).toBeVisible();
     });
 
-    it("keeps an unknown stored role when the rest is saved", async () => {
+    it("tells the reader to change an unknown role before saving", () => {
+      mount(accountFixture({ role: "member" }));
+      expect(
+        screen.getByText(/Change it to User or Admin before saving/),
+      ).toBeVisible();
+    });
+
+    it("sends the role the reader picked in place of an unknown one", async () => {
       const user = userEvent.setup();
       mount(accountFixture({ role: "member" }));
 
-      await user.type(
-        screen.getByRole("textbox", { name: "Display name" }),
-        "!",
+      await user.click(screen.getByRole("radio", { name: "User" }));
+      await user.click(
+        screen.getByRole("button", { name: "Make user and save" }),
       );
-      await user.click(screen.getByRole("button", { name: "Save changes" }));
 
       await waitFor(() => expect(puts()).toHaveLength(1));
-      expect((await putBody<{ role: string }>()).role).toBe("member");
+      expect((await putBody<{ role: string }>()).role).toBe("user");
     });
 
     it("says what making an admin does, and names the action", async () => {

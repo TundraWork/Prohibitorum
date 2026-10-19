@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils";
  */
 export function SegmentedControl<T extends string>({
   label,
+  labelledBy,
   value,
   onValueChange,
   options,
@@ -25,6 +26,8 @@ export function SegmentedControl<T extends string>({
   size = "sm",
 }: {
   label: string;
+  /** The id of a visible label, which then names the group instead of `label`. */
+  labelledBy?: string;
   value: T;
   onValueChange: (value: T) => void;
   options: readonly { value: T; label: ReactNode; itemClassName?: string }[];
@@ -33,7 +36,8 @@ export function SegmentedControl<T extends string>({
 }) {
   return (
     <RadioGroupPrimitive
-      aria-label={label}
+      aria-label={labelledBy === undefined ? label : undefined}
+      aria-labelledby={labelledBy}
       value={value}
       disabled={disabled}
       className={segmentedControlRootClassName}
