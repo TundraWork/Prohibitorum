@@ -1,592 +1,497 @@
 ---
 name: Prohibitorum
-description: A calm, exact, welcoming identity interface built with HeroUI.
+description: A quiet, exact identity console on coss ui, with a sign-in page each instance can dress.
 colors:
-  accent: "oklch(52.00% 0.1 204)"
-  accent-foreground: "oklch(99.11% 0 0)"
-  background: "oklch(97.02% 0.003 204)"
-  foreground: "oklch(21.03% 0.003 204)"
-  surface: "oklch(100.00% 0.0015 204)"
-  muted: "oklch(55.17% 0.006 204)"
-  border: "oklch(90.00% 0.003 204)"
-  default: "oklch(94.00% 0.003 204)"
-  dark-background: "oklch(12.00% 0.003 204)"
-  dark-foreground: "oklch(99.11% 0.003 204)"
-  dark-surface: "oklch(21.03% 0.006 204)"
-  dark-muted: "oklch(70.50% 0.006 204)"
-  dark-border: "oklch(28.00% 0.003 204)"
+  primary: "oklch(26.9% 0 0)"
+  primary-foreground: "oklch(98.5% 0 0)"
+  background: "#ffffff"
+  foreground: "oklch(26.9% 0 0)"
+  sidebar: "oklch(98.5% 0 0)"
+  sidebar-foreground: "#727272"
+  card: "#ffffff"
+  popover: "#ffffff"
+  muted: "rgb(0 0 0 / 4%)"
+  muted-foreground: "#676767"
+  accent: "rgb(0 0 0 / 4%)"
+  border: "rgb(0 0 0 / 8%)"
+  input: "rgb(0 0 0 / 10%)"
+  ring: "oklch(70.8% 0 0)"
+  destructive: "oklch(63.7% 0.237 25.331)"
+  destructive-foreground: "oklch(50.5% 0.213 27.518)"
+  warning: "oklch(76.9% 0.188 70.08)"
+  warning-foreground: "oklch(55.5% 0.163 48.998)"
+  success: "oklch(69.6% 0.17 162.48)"
+  success-foreground: "oklch(50.8% 0.118 165.612)"
+  info: "oklch(62.3% 0.214 259.815)"
+  info-foreground: "oklch(48.8% 0.243 264.376)"
+  dark-background: "#141414"
+  dark-foreground: "oklch(97% 0 0)"
+  dark-sidebar: "#111111"
+  dark-card: "#181818"
+  dark-popover: "#1d1d1d"
+  dark-muted: "rgb(255 255 255 / 4%)"
+  dark-muted-foreground: "#818181"
+  dark-border: "rgb(255 255 255 / 6%)"
+  dark-input: "rgb(255 255 255 / 8%)"
+  dark-destructive-foreground: "oklch(70.4% 0.191 22.216)"
+  dark-warning-foreground: "oklch(82.8% 0.189 84.429)"
+  dark-success-foreground: "oklch(76.5% 0.177 163.223)"
+  dark-info-foreground: "oklch(70.7% 0.165 254.624)"
 typography:
-  title:
-    fontFamily: '"Inter Variable", ui-sans-serif, system-ui, sans-serif'
+  headline:
+    fontFamily: '"Cal Sans", "Noto Sans SC", ui-sans-serif, system-ui, sans-serif'
     fontSize: "24px"
     fontWeight: 600
     lineHeight: "32px"
+    letterSpacing: "-0.025em"
+  dialog-title:
+    fontFamily: '"Cal Sans", "Noto Sans SC", ui-sans-serif, system-ui, sans-serif'
+    fontSize: "20px"
+    fontWeight: 700
+    lineHeight: 1
+  title:
+    fontFamily: '"Cal Sans", "Noto Sans SC", ui-sans-serif, system-ui, sans-serif'
+    fontSize: "14px"
+    fontWeight: 600
+    lineHeight: "20px"
   body:
-    fontFamily: '"Inter Variable", ui-sans-serif, system-ui, sans-serif'
-    fontSize: "16px"
+    fontFamily: '"Cal Sans", "Noto Sans SC", ui-sans-serif, system-ui, sans-serif'
+    fontSize: "14px"
     fontWeight: 400
-    lineHeight: "24px"
+    lineHeight: "20px"
   label:
-    fontFamily: '"Inter Variable", ui-sans-serif, system-ui, sans-serif'
+    fontFamily: '"Cal Sans", "Noto Sans SC", ui-sans-serif, system-ui, sans-serif'
     fontSize: "14px"
     fontWeight: 500
     lineHeight: "20px"
+  caption:
+    fontFamily: '"Cal Sans", "Noto Sans SC", ui-sans-serif, system-ui, sans-serif'
+    fontSize: "12px"
+    fontWeight: 400
+    lineHeight: "16px"
+  value:
+    fontFamily: '"Paper Mono", ui-monospace, Menlo, monospace'
+    fontSize: "13px"
+    fontWeight: 400
+  value-list:
+    fontFamily: '"Paper Mono", ui-monospace, Menlo, monospace'
+    fontSize: "12px"
+    fontWeight: 400
 rounded:
-  base: "0.125rem"
-  field: "0.25rem"
-  control: "0.375rem"
+  sm: "6px"
+  md: "8px"
+  lg: "10px"
+  xl: "14px"
+  2xl: "16px"
+  stage-card: "22px"
+  stage-frame: "28px"
+  full: "9999px"
 spacing:
+  frame-inset: "4px"
   "2": "8px"
   "3": "12px"
   "4": "16px"
+  panel: "20px"
   "6": "24px"
+  stage-card: "28px"
+  "8": "32px"
+  "10": "40px"
 components:
   button-primary:
-    backgroundColor: "{colors.accent}"
-    textColor: "{colors.accent-foreground}"
-    rounded: "{rounded.control}"
-    padding: "0px 16px"
+    backgroundColor: "{colors.primary}"
+    textColor: "{colors.primary-foreground}"
+    rounded: "{rounded.lg}"
+    height: "32px"
+    padding: "0 11px"
+  button-outline:
+    backgroundColor: "{colors.popover}"
+    textColor: "{colors.foreground}"
+    rounded: "{rounded.lg}"
+    height: "32px"
+    padding: "0 11px"
+  button-destructive:
+    backgroundColor: "{colors.destructive}"
+    textColor: "#ffffff"
+    rounded: "{rounded.lg}"
+    height: "32px"
   input:
-    backgroundColor: "{colors.surface}"
+    backgroundColor: "{colors.background}"
     textColor: "{colors.foreground}"
-    rounded: "{rounded.field}"
-    padding: "8px 12px"
-  card:
-    backgroundColor: "{colors.surface}"
+    rounded: "{rounded.lg}"
+    height: "32px"
+  frame:
+    backgroundColor: "{colors.muted}"
+    rounded: "{rounded.2xl}"
+    padding: "{spacing.frame-inset}"
+  frame-panel:
+    backgroundColor: "{colors.background}"
     textColor: "{colors.foreground}"
-    rounded: "{rounded.control}"
+    rounded: "{rounded.xl}"
+    padding: "{spacing.panel}"
+  well:
+    backgroundColor: "{colors.muted}"
+    rounded: "{rounded.xl}"
     padding: "16px"
+  badge-success:
+    textColor: "{colors.success-foreground}"
+    rounded: "{rounded.sm}"
+    height: "18px"
+  dialog:
+    backgroundColor: "{colors.popover}"
+    textColor: "{colors.foreground}"
+    rounded: "{rounded.2xl}"
+    width: "512px"
+  stage-card:
+    backgroundColor: "{colors.card}"
+    textColor: "{colors.foreground}"
+    rounded: "{rounded.stage-card}"
+    padding: "{spacing.stage-card}"
+    width: "440px"
 ---
 
 # Design System: Prohibitorum
 
 ## Overview
 
-**Creative North Star: "The Quiet Reception Desk"**
+**Creative North Star: "The Quiet Console"**
 
-The interface is calm, exact, and welcoming. Restrained, familiar controls help
-members complete an identity task and help admins find the controls they need.
+The dashboard is the coss ui registry, vendored at a fixed commit and used as
+shipped: a neutral, near-monochrome console where the hierarchy comes from
+layered tone rather than from colour or decoration. The page sits on a light
+grey canvas, the work sits on an inset white panel, and every titled block is a
+coss Frame: a muted band carrying the title, with the content on a white panel
+inside it. Status colour appears only where a state needs to be read.
 
-This record describes the current HeroUI implementation. The approved Theme
-Builder configuration remains `chroma=0.1&hue=204&lightness=0.52&formRadius=small&radius=extra-small&base=0.003`.
+The public pages (sign-in, consent, enrolment, pairing, errors) are the one
+place the system dresses up. They draw a stage that floats over a background an
+administrator chooses: the page's own canvas, a colour, a gradient preset, a
+Bing or Unsplash picture, or uploaded images. The card and the toolbar capsules
+can be translucent and frosted. The console checks the text contrast of that
+choice before it is saved.
+
+Interaction follows PRODUCT.md's split: the console is exact and restrained,
+the copy is plain and reassuring, and colour is never the only signal for a
+state.
 
 **Key Characteristics:**
-- Muted teal with cool near-neutral surfaces.
-- Inter typography and compact, gently rounded controls.
-- Subtle HeroUI shadows and tonal surface layers.
-- Shared components across English, Chinese, light, and dark interfaces.
+- Monochrome neutrals (neutral-800 primary on white); status hues reserved for status.
+- Cal Sans for every word of UI; Paper Mono for values a person copies or compares.
+- Depth through tone: canvas, then inset panel, then Frame band, then FramePanel.
+- Concentric radii: each inner surface's corner is the outer one minus its inset.
+- One block per Frame; never a card inside a card.
+- Light and dark themes from one set of semantic tokens.
 
 ## Colors
 
-### Primary
+A grey-scale console with four status hues, all taken from Tailwind's palette
+through coss's semantic tokens in `dashboard/src/styles/coss.css`.
 
-Muted teal identifies primary actions and focus. HeroUI derives hover and soft
-accent states from the theme tokens.
+### Primary
+- **Ink** (primary, neutral-800): the primary button, the instance's fallback
+  avatar tile, and the foreground text colour. In dark mode it inverts to
+  neutral-100 with neutral-800 text on it. There is no brand hue in the console.
 
 ### Neutral
+- **Paper** (background, white): the inset panel, FramePanels and inputs.
+- **Canvas** (sidebar, neutral-50): the page behind the inset panel and the
+  sidebar itself, so the navigation and the canvas are one surface.
+- **Veil** (muted / accent / secondary, black at 4%): the Frame band, wells,
+  hover fills and the dialog footer. Being translucent, it tints whatever it
+  sits on, which is how a band reads the same over the canvas and the panel.
+- **Hairline** (border, black at 8%; input, black at 10%): every border. Dark
+  mode uses white at 6% and 8%.
+- **Graphite** (muted-foreground): descriptions, captions and identifiers.
+- **Sidebar text** (sidebar-foreground, ink mixed 64% into the canvas):
+  unselected navigation labels.
 
-Cool near-neutral backgrounds, white light-mode surfaces, and dark foregrounds
-separate content without decorative color. Dark mode uses the corresponding
-semantic tokens rather than inverting light-mode colors.
+### Status
+- **Destructive** (red-500 fill, red-700 text; red-400 text in dark): danger
+  sections, destructive buttons, failure alerts.
+- **Warning** (amber-500 icon and dot, amber-700 text): consequences of a save,
+  unsaved-edit dots, "Not ready" and "Restricted".
+- **Success** (emerald-500, emerald-700 text): "Enabled", "Readable", copied checks.
+- **Info** (blue-500, blue-700 text): the Admin role badge, accent confirmations.
 
-The console shell reads as three tonal layers, and they are tokens rather than
-borders: the rail and header are `surface-secondary` (the chrome), `main` keeps
-the page's `background`, and every card is the library's white `surface`. The
-header alone closes with a `separator` rule, because it is sticky and content
-scrolls under it. The rail's selected entry is the accent's soft tint
-(`bg-accent-soft`, icon in `text-accent-soft-foreground`, the pair HeroUI draws
-on that tint) — the only place the product's colour appears in the shell, and a
-step *above* the rail where `default` would read as a hole punched in it. Hover
-is half of that tint, so it previews the selection. Rail labels are
-`text-foreground/85` rather than `muted`: on the secondary surface that token
-measures about 4.2:1 in light mode, under the body-text floor. Unselected icons
-are `text-foreground/60` and group headings `text-foreground/70`, so both clear
-their floors (3:1 and 4.5:1) in either theme.
+Status badges are a soft tint of the hue (8%, 16% in dark) with the
+`-foreground` text, never a solid fill.
 
-Status colors retain HeroUI's danger, warning, and success roles. Their exact
-light/dark values remain in `dashboard/src/styles/theme.css`.
+### Named Rules
+**The Status-Only Colour Rule.** Hue means state. Chrome, navigation and
+layout stay neutral; a coloured surface always says something is enabled,
+failing, pending or dangerous, and it says it in words or an icon too.
 
-**The Semantic Color Rule.** Use the active theme's semantic tokens for UI states.
+**The Dot-Plus-Word Rule.** A state that can be scanned in a column ("Enabled",
+"Not ready", "Sent to applications", unsaved) carries a 6px dot in the current
+colour beside its word. Disabled has no chip in lists: the row recedes to 70%
+opacity and the identifier under it never dims.
 
 ## Typography
 
-Inter Variable is loaded locally, with system sans-serif fallbacks for glyphs
-outside its coverage. Body text uses the body role; a public page's title is
-`text-xl` semibold. Supporting copy is smaller and muted.
+**UI Font:** Cal Sans (variable, 300 to 800), with Noto Sans SC for Chinese,
+then the system sans.
+**Value Font:** Paper Mono Regular, with ui-monospace fallbacks.
 
-Buttons use the label role. Inputs use body-sized text on narrow screens and
-smaller text from the small breakpoint, as provided by HeroUI.
+**Character:** Cal Sans gives the console a geometric, slightly warm voice at
+small sizes; Paper Mono marks the strings that are data rather than prose.
+Both are self-hosted woff2 files in `dashboard/src/styles/fonts`.
+
+### Hierarchy
+- **Headline** (600, 24px, tight tracking): the page's only `h1`, from
+  PageHeader, ObjectHeader and the public PageHeading.
+- **Dialog title** (700, 20px): coss DialogTitle and AlertDialogTitle.
+- **Title** (600, 14px): a Section's `h2` in the Frame band. Section titles are
+  deliberately the same size as body text; the band, not the size, separates them.
+- **Body** (400, 14px from `sm`, 16px below it): descriptions, cells, field text.
+  Inputs and buttons are 16px on phones so iOS does not zoom.
+- **Label** (500, 14px): buttons, field labels, navigation entries.
+- **Caption** (400, 12px): rail facts, list identifiers, change counts.
+- **Value** (Paper Mono, 13px): identifiers in headers, scopes, URLs, header
+  names, JSON, colours typed by hand.
+- **Value in a list** (Paper Mono, 12px, muted): the identifier under an
+  EntityCell name and CodeValue cells.
+
+### Named Rules
+**The Copy-or-Compare Rule.** Paper Mono is for a value a person copies,
+pastes or compares between rows: client IDs, entity IDs, slugs, scopes, URLs,
+recovery codes, pairing codes. Words, even short ones like "Confidential", stay
+in Cal Sans in the foreground colour. The two never swap within a column.
+
+**The No-Kicker Rule.** A page or section starts at its title. There are no
+uppercase eyebrows above headings; uppercase appears only inside `Kbd`
+shortcut hints.
 
 ## Layout
 
-Every public page — sign-in, consent, a stopped flow, maintenance — sits on one
-30rem card under the public toolbar, with 16px horizontal padding around it.
-The card's padding is 24px, and 32px from 640px.
+**Console shell.** coss Sidebar in its `inset` variant: a 16rem sidebar on the
+canvas and, from `md` (768px), the content on a white inset panel with an 8px
+margin, 14px corners and a faint shadow. The panel's header is sticky, 56px
+tall, translucent white with backdrop blur and a bottom hairline; it carries
+the sidebar trigger, a breadcrumb (section, then record) and, from `sm`, a
+240px search field with a `⌘K` hint. Content is one measured column, at most
+1152px (`max-w-6xl`), centred, with 24px side padding (40px from `lg`) and
+32px vertical padding. It is a size container, which tables measure against.
 
-The public toolbar is 64px high and has no fill, so the sign-in page's
-background runs from the top of the window to the bottom behind it. What it
-carries sits on two 40px capsules, one at each end: `rounded-full` with the
-surface shadow, and `--field-radius` and `--radius` set to 100% so the
-instance avatar, the language button and the theme switch inside are fully
-round too. The left capsule holds the instance's `InstanceIdentity` and gives
-way on a narrow screen, truncating the name; the right one holds the language
-menu and the theme switch. When the sign-in page settings fix the theme to
-light or dark, the public pages use that theme — popovers and toasts included —
-and the right capsule holds only the language menu; the console keeps the
-visitor's own choice. The toolbar scrolls with the page rather than staying
-fixed, so the card never passes underneath it.
+**Page columns.**
+- Member pages (Security, Sessions, Devices, Tokens) use PageBody: one column
+  at most 768px (`max-w-3xl`), left-aligned on the breadcrumb's edge, 32px
+  between blocks.
+- Lists: PageHeader, then a 16px-gap stack of toolbar row and DataTable.
+- Object pages: AppDetailLayout, a grid of `minmax(0,1fr)` and a 200px outline
+  rail from `lg`, 40px apart, sections 24px apart.
+- The sign-in page editor: 380px controls and a sticky preview column from
+  `lg`; below `lg` the preview comes first.
 
-The capsules' and the card's surfaces are the administrator's choice, set
-separately on the sign-in page settings. A translucent surface keeps HeroUI's
-classes and lowers only the fill, through `--surface-alpha` in a
-`color-mix()` with `--surface`; frosted glass adds `backdrop-blur-xl` and
-`backdrop-saturate-150`. On a translucent card the fields, secondary buttons
-and separators drawn on it are tints of the foreground at half the card's
-opacity, so the picture reads through them as well; the settings preview does the same, and so do the buttons on a translucent capsule. An opaque card is the library's card unchanged, an
-opaque capsule `bg-surface`. By default the capsules are translucent at 70%
-and frosted, and the card is opaque.
+**At 1920px** the content column stops at 1152px and centres inside the inset
+panel; the canvas takes the remainder. **At 1440px** the column nearly fills
+the inset panel and object pages show the rail. **At 390px** the sidebar
+becomes an 18rem sheet named in the reader's language, the search field is
+hidden, the outline rail is dropped and its facts move under the header,
+header actions drop under the title, dialogs become bottom sheets with square
+corners, and the public stage fills the width with a 20px card padding.
 
-The background is the page's own `background`, a colour, one of six grained
-gradient presets, Bing's picture of the day, Unsplash photos, or the uploaded
-images. Unsplash photos and uploaded images are shown at random or as a
-one-second crossfade carousel. A picture fades in over 700ms once it has
-loaded; with reduced motion it appears, and a carousel swaps, without a fade.
-A Bing or Unsplash picture is credited on a small capsule drawn like the
-toolbar's, and an Unsplash credit changes with its photo. From 1024px it is fixed at the window's bottom corner away
-from the card, 1.5rem from the edges, and stops 1.5rem short of the card: at
-the bottom-left no wider than `calc(50vw - 17rem)` while the card is centred
-and `calc(100vw - 32.5rem)` while it is on the right; at the bottom-right, no
-wider than `calc(100vw - 32.5rem)`, while the card is on the left. Below
-1024px it sits under the card, centred. The Unsplash credit is one run of inline text, so no gap
-lands between its words in Chinese.
+**Breakpoints:** `sm` 640px, `md` 768px (sidebar), `lg` 1024px (rail,
+two-column editor, card position), plus coss's `3xl` 1600px and `4xl` 2000px.
 
-The card is centred in the window below the toolbar: from 640px the space under
-the card matches the toolbar's height, which puts the card at the window's
-centre. A card taller than the window scrolls with the page. From 1024px the
-sign-in page settings can put it on the left or the right instead; its outer
-edge then lines up with the toolbar capsule's, 1.5rem from the window. Below
-1024px it is always centred, and a page that fails before any layout draws
-keeps it centred too.
-
-The console uses a separate responsive navigation composition. Preserve its
-existing layout and permission behavior when refining shared components.
+**Rhythm:** a 4px base. 4px Frame inset, 8px between controls, 12px header
+meta, 16px inside wells, 20px panel padding, 24px between sections, 32px
+between page regions.
 
 ## Elevation & Depth
 
-Depth comes from subtle HeroUI shadows plus tonal surface layers. Default cards
-and fields use the library's surface and field shadows; links and buttons are
-flat at rest. Preserve library-owned elevation and reduced-motion behavior.
+The console is layered by tone, with shadow only at the hairline scale.
+Resting surfaces carry coss's `shadow-xs/5` (an extra-small shadow at 5%
+opacity) plus a 1px inner highlight: black at 4% on the bottom edge in light
+mode, white at 6% on the top edge in dark mode. That highlight is what makes a
+FramePanel, an input or an outline button read as a raised sheet.
+
+### Shadow Vocabulary
+- **Resting sheet** (`shadow-xs/5` plus the 1px edge highlight): FramePanel,
+  inputs, outline buttons, badges, toolbar capsules.
+- **Floating** (`shadow-lg/5`): popovers, menus, selects, dialogs, sheets.
+- **Unsaved bar** (`shadow-lg/10` plus a border ring): the floating reminder at
+  the bottom of an object page.
+- **Pinned column** (`-8px 0 8px -8px rgb(0 0 0 / 0.15)`): only while a wide
+  table can still scroll under its pinned column, driven by a scroll timeline.
+- **Frosted stage** (`shadow-2xl` at black 30%, white 40% ring,
+  `backdrop-blur-2xl`): the public stage over a picture, gradient or colour.
+
+### Named Rules
+**The Four-Layer Rule.** Canvas, inset panel, Frame band, FramePanel. A new
+surface finds its place in that stack; it does not add a fifth.
+
+**The No Card-in-Card Rule.** A Section owns exactly one panel. An ItemList or
+DataTable inside a Section becomes that panel; anything else is placed on the
+Section's own panel. Inside a panel, grouping is done with a well, never with
+another bordered card. coss `Card` is vendored but not used by any page.
 
 ## Shapes
 
-The theme's base radius and field radius are distinct. HeroUI derives component
-radii from the base: observed buttons and cards use the control radius, while
-inputs use the field radius. Preserve these derivations rather than applying
-the base radius directly to every component.
+The base radius is 10px (`--radius: 0.625rem`), with steps at 6, 8, 10, 14 and
+16px. Corners are concentric: a Frame (16px) insets its panel by 4px, so the
+panel is 12 to 14px; a pseudo-element highlight is the radius minus 1px; the
+public stage frame (28px) holds its card (22px) at a 6px inset. Controls are
+10px, small buttons and icon buttons 8px, badges 6px, checkboxes 4px, radios,
+switches and person avatars round. Application and provider icons are rounded
+tiles; people are circles.
+
+A **well** is the one in-panel grouping shape: 14px corners, the 60% veil and a
+60% hairline ring (`rounded-xl bg-muted/60 ring-1 ring-border/60`). It holds a
+pairing code, a callback preview, an endpoint group, the access summary, or a
+rule group. Nested rule groups keep the ring and indent; the fill stops after
+two levels.
+
+Borders are hairlines throughout. Header facts are divided by 1px vertical
+rules that belong to each item, so a wrapped line never ends on a dangling
+separator.
 
 ## Components
 
 ### Buttons
-
-Restrained and familiar. Primary actions use the accent pair; outline and ghost
-actions keep neutral foregrounds. Standard buttons are 40px high below 768px
-and 36px above it. Preserve HeroUI hover, pressed, pending, disabled, and focus states.
+- **Shape:** gently rounded (10px), 32px tall from `sm`, 36px on phones; touch
+  pointers get a 44px hit area.
+- **Primary:** ink fill, white text, a 16% white inner top highlight.
+- **Outline:** popover fill, input-colour border, resting-sheet shadow; hover
+  adds the accent veil at 50%.
+- **Ghost:** no fill; used for Discard, Clear filters, row menus and back arrows.
+- **Destructive:** red fill and white text; **destructive-outline** keeps the
+  outline shape with red text and a red-tinted hover.
+- **Focus:** a 2px ring in the ring colour with a 1px offset. Disabled is 64%
+  opacity. A pending button keeps its width and shows a spinner.
 
 ### Inputs / Fields
+- **Style:** white fill, input-colour border, 10px corners, resting-sheet shadow.
+- **Focus:** the border takes the ring colour with a soft 24% ring.
+- **Error:** the destructive border and ring, with the message under the field.
+- **Compact values** switch to Paper Mono at 13px from `sm`.
+- In dark mode, unselected checkboxes and radios get a 38% white border so the
+  boundary reaches 3:1.
 
-Inputs use semantic field colors, the field radius, and a subtle shadow.
-Labels, descriptions, and validation messages remain associated with their
-fields. HeroUI owns focus, invalid, hover, and disabled styling.
+### Section
+The titled block of every console page, drawn as a coss Frame. The band holds
+an optional muted 16px icon, the `h2` title, an optional description and the
+block's one primary action on the trailing edge. The panel holds the content.
+An optional footer band holds the block's save. `tone="danger"` tints the
+whole Frame with destructive at 6% and turns the title red. A Section with
+unsaved edits registers itself, which feeds the outline rail and the unsaved
+bar. AsyncSection draws the title in every state; while loading it shows three
+skeleton bars, and on failure a danger alert with "Try again".
 
-Fields that sit on a surface, such as those in the sign-in card, use the
-secondary variant: the shadow is dropped and the fill follows the surface so
-the field reads as part of the card. One-time-code fields follow the same
-variant through `InputOTP`.
+### Consequence footer
+A Section footer for a save that does more than store a value: a warning
+triangle, a sentence saying what the save will do, then Discard (ghost) and a
+primary button named for the action ("Remove scope and save"). `danger` tone
+explains a refused save, and the disabled button is described by it. `neutral`
+tone has no icon and only says how many changes are waiting.
 
-A list of addresses — an OIDC client's redirect and post-logout URIs — is one
-input per address, each with its remove button on the input's centre line and
-an "Add address" button under the last row. A row's message is drawn under that
-row, so the button never moves out of line, and only the input at fault is
-marked. A list the client cannot do without keeps its last row, and that row's
-disabled remove button says why in a tooltip. A closed set of choices that each
-need a word of explanation, such as the OIDC scopes, is a `secondary`
-`CheckboxGroup` laid out like HeroUI's add-ons demo: the value in monospace,
-since it is the literal string a client sends, with one line under it saying
-what it grants, both inside the label and the label across the row, so a press
-anywhere on the row toggles the box. The checkbox is named by the value alone;
-the line under it stays its description. A choice the product requires is
-`isReadOnly` and ticked, not disabled, which would fade it into looking
-unavailable.
+### ObjectHeader, AppDetailLayout and the rail
+ObjectHeader is the top of an object page: the entity's icon tile, the `h1`,
+then one meta line of status badges, a copyable Paper Mono identifier (13px,
+breaks after slashes) and short facts, separated by hairlines, with the
+page's actions on the trailing edge from `sm`. A switched-off object dims its
+icon and title to 70%. AppDetailLayout places the header, the sections and,
+from `lg`, the 200px OutlineRail: "On this page" links, one per Section,
+the current one highlighted, unsaved ones dotted in amber, the danger section
+last, and the page's facts under a rule in 12px. The UnsavedBar floats 24px
+above the bottom, centred, and leads back to the first unsaved section that
+is off screen.
 
-An open list of short literal values — an identity provider's scopes and its
-allowed email domains — is `TagListField`: HeroUI's `TagGroup` with each value
-as a monospace tag and its own remove button, then a `secondary` `InputGroup`
-whose suffix is an "Add" button. Enter or the button adds the typed value after
-the field's own check; a value it refuses stays in the input, marked, with the
-reason under it. Values are kept exactly as typed, a value the list cannot do
-without (`openid`) is drawn without a remove button, and text left in the input
-stops the save with "Press Enter to add it, or clear the box." rather than being
-added or dropped for the reader.
+### Lists: DataTable and EntityCell
+Lists are coss Tables driven by TanStack's column model. Sorting, filtering
+and paging belong to the server; more rows load from a sentinel as it scrolls
+into view. Inside a Section the table is the Section's panel; on its own it
+draws its own Frame. The leading column is always an EntityCell: icon, name
+linking to the record, and the identifier under it in 12px muted Paper Mono,
+capped in width with an ellipsis and a tooltip. Disabled rows dim and carry a
+small "Disabled" badge; restricted rows show a padlock. The application lists
+share 224px data columns so their columns line up. A table wider than its
+container pins its leading column, which casts a shadow only while there is
+more to scroll. Empty tables say what is missing in one line under an icon
+tile and repeat no action from the header.
 
-A closed set of choices whose cost has to be read before picking is a
-`secondary` `Select` whose options are two lines tall — the name, then a
-`Description` saying what picking it does — held to the trigger's width, with
-the trigger showing the name alone. `OptionSelectField` draws it for all
-three places that take this shape: an OIDC client's subject source and
-forward-auth's `Remote-User` (through `PrincipalSourceField`), and an identity
-provider's provisioning mode and client authentication method. A name that is a
-literal protocol value, such as `client_secret_basic`, is monospace. An option
-the form's current state rules out is disabled in the list, and the save says
-why rather than changing the value for the reader.
+### Filter toolbar
+A wrapping row above the table: a search InputGroup with a search icon
+(at least 224px, at most 384px), then FilterPopover, an outline button whose
+count says how many filters are set inside it, opening a 320px popover with
+a 16px title and the controls stacked 16px apart. A ghost "Clear filters"
+appears only while something is set. A failed read shows an inline failure
+above the table.
 
-An optional override of a default is hidden until the reader adds it. An
-identity provider's endpoints under discovery draw no inputs at first; an
-outline "Override an endpoint" `Dropdown` adds one row per endpoint, each row an
-input with its visible label and its remove button on the input's centre line,
-and the menu disables what is already overridden. Only when the reader chooses
-to enter every endpoint by hand are all four fields drawn.
+### Dialogs, the sudo step and reveal-once
+Dialogs are coss popups: 16px corners, popover fill, at most 512px wide, a
+24px header, an optional panel, and a footer band on the 72% veil with the
+actions right-aligned (stacked, primary first, on phones). ConfirmDialog
+places a status icon beside the heading: red circle for removal, amber
+triangle for a reversible change of state, blue info for a second look. Cancel
+always sits before the one confirming action.
 
-### Cards / Containers
+The **sudo dialog** is mounted once on the console. When the server asks for a
+fresh verification it parks the request, offers a passkey button and a
+password-and-authenticator form separated by an "or" rule, then replays the
+request once. It cannot be closed while verifying or replaying.
 
-Default cards use the surface color, control radius, and surface shadow.
-Content has 16px padding and 12px gaps; card titles use compact medium-weight text.
+**Reveal-once** (recovery codes, personal access tokens) shows a secret the
+server never returns again: the value, copy and download controls, and a
+"saved it" confirmation that unlocks Continue. Until it is checked, Escape does
+nothing, the close button is hidden, and a press outside never dismisses it.
 
-`ConsoleCard` caps its content at the reading measure (`max-w-lg`) and takes
-`wide`, which lifts the cap to the card's own width. The default is for a form
-read top to bottom: one value per line. `wide` is for the two kinds of block
-that shape does not fit — content laid out in columns the eye compares down the
-page, like the SAML attribute map, and rows that have to line up with each
-other. Widening one such card keeps the page to a single content width, since
-the lists beside it already run the full column (`max-w-4xl` in `main`).
-A row editor laid out in columns, like the attribute map, switches on its own
-container's width rather than the viewport's: below the breakpoint each row
-becomes a `Fieldset` with a numbered legend and a visible label on every
-control, since a stack of boxes under no column names says nothing about which
-is which. Both layouts are rendered and only one is displayed.
-A forward-auth application's token scopes are the same shape at two columns,
-name and description: a `wide` card on the detail page, and the create page's
-reading measure, which is why that editor switches at 28rem of its own width.
-An OIDC application's claim aliases are the same editor again, at two equal
-columns — both halves are claim names — with the name input and the source
-select in monospace at the library's own control height. The select's trigger
-draws the claim name as plain text rather than a copy of the option, whose
-hidden check mark would make it a pixel taller than the input beside it.
+### Public sign-in stage and login appearance
+The toolbar has no fill: two 36px capsules with 14px corners carry the
+instance identity, the language menu and, unless the settings force a theme,
+the theme menu. The stage is a 28px-corner frame with a 6px inset around a
+22px-corner card, 440px wide (480px for wide steps), centred from `sm`, and
+placed left, centre or right from `lg`. The frame has a strip above the card
+(who is asking) and a footer under it (a choice or the decision). Over a
+background it is frosted; over the plain canvas it uses the Frame band. The
+card is opaque `card` by default, or translucent at a chosen opacity with
+optional blur and saturation; translucent controls inside it become
+half-opacity fills of the same base. Every public page builds its title row
+with PublicStep: an optional ghost back arrow, the 24px heading (which takes
+focus on arrival), a 14px muted description, then content and actions. A
+picture's credit sits in the bottom corner away from the card from `lg`, and
+under the stage below it.
 
-The sign-in page settings are one `wide` card that lays itself out by its own
-width: from 50rem a form column and a 24rem preview column 40px apart, the
-preview sticky below the console header; below that one column with the
-preview first, not sticky. The preview is the sign-in page itself, laid out at
-1280×800 and scaled to its 16:10 frame, inert and hidden from screen readers,
-with its own light and dark switch that starts from the console's theme. The
-background sources are a 3×2 grid of radio tiles (64px, icon over label; the
-selected tile is `bg-accent-soft` with a 1px inset accent ring and medium
-weight, so selection is not colour alone; keyboard focus adds the 2px focus ring
-outside it, so a focused tile that is also selected still shows focus), the gradient presets a 3×2 grid of
-16:10 swatches, and the uploaded images a three-column grid of 16:9 thumbnails
-with a dashed add tile that is also the drop target. The source tiles are
-`ChoiceTile` (`layout="compact"`) and the add tile `ImageDropTile`, both in
-`dashboard/src/components/custom`, which the profile page's avatar gallery
-shares. Between the background
-and the surfaces, with a separator above and below, a row holds the card's
-position (left, centre, right, in that order) and the theme (visitor's choice,
-always light, always dark) as secondary radio groups. That row and the card's
-and the toolbar's surface settings each sit side by side from 26rem; opacity
-and frosted glass appear only while translucent is on. The preview places the
-card and the credit as the draft does; a draft that fixes the theme shows it
-there and hides both the preview's light and dark switch and the theme icon
-drawn in its toolbar, and leaving the theme to visitors brings back the
-preview theme the administrator had picked.
+### Sign-in page editor and preview
+Settings, Sign-in page: Background (source tiles plus its controls), Card
+position, Theme, and Card and capsule surfaces as Sections, each marking its
+count of changed settings with an amber dot. Beside them, sticky from `lg`, a
+Preview Section renders the real public scene and the instance's first
+sign-in step inside an inert frame laid out at 1280 by 800 (desktop) or 390 by
+844 (phone), scaled to a 16:10 box. The preview's theme and size toggles sit
+in its band; its footer holds the one Save for all sections as a neutral
+consequence footer.
 
-The profile page is two sections, the avatar and then the account. The avatar is
-a `wide` card holding a gallery: a grid of tiles at least 6rem wide
-(`repeat(auto-fill, minmax(6rem, 1fr))`, three to a row at 375px), each a
-`ChoiceTile` with `layout="media"` — the picture at 56px in the sidebar's
-field-radius shape over its name, up to two lines and cut short with the whole
-name as its title. The tiles are the stored pictures, the upload first and then
-each provider's, then "No picture" with the sidebar's fallback icon. The
-selected tile is the avatar in use, so there is no separate preview; it carries
-the tile's selected treatment and a small accent `Badge` with a check at the
-picture's bottom-right corner, which becomes a `Spinner` while a choice is
-being saved. The gallery ends with an `ImageDropTile` the same size as the
-tiles, "Upload" or "Replace" over an upload icon; it takes one file, chosen or
-dropped. Under the grid, the formats hint sits on the leading edge and, while
-there is an upload, a small `danger-soft` "Remove uploaded picture" button on
-the trailing edge, which wraps under the hint on a narrow card and asks through
-a `danger` `ConfirmDialog` first. A file of the wrong type or size is a warning
-`SurfaceAlert` under that row and is never sent; a failed request is the error
-toast. The account card is the reading measure: the display name field, then
-the username and the OIDC subject as `CopyValue` fields (the subject with a
-one-line hint that applications identify the account by it), and Save.
-
-A card holding several blocks names each one with an `ItemList` title. Three
-unlabelled cards stacked under one section heading read as one undifferentiated
-pile: the heading names the section, not the block, so each block carries its
-own name inside its card. The access policy panel — a restriction row plus the
-group and manager lists — follows this on all three application kinds.
-
-### Record lists and detail pages
-
-A management table leads with an identity cell: `EntityAvatar` with the
-entity's icon, its name, and the monospace identifier under it. HeroUI's
-`Avatar` keeps its own shape at `size="sm"`; the console rounds it to the
-control radius so a list row and an icon card show the same entity the same
-way.
-
-A row that is switched off recedes rather than being labelled: the whole
-identity cell drops to a fraction of its opacity, icon and text together. It
-carries no chip — a status label on every settled row costs the measure and
-buries the row that is genuinely wrong — and the recession is decoration on top
-of a fact, never the only record of it, so the same word reaches a screen
-reader. The state that does get a mark is the one an operator has to act on: a
-provider that is not ready cannot be enabled, so it carries `NotReadyChip`,
-HeroUI's status-chip anatomy with a dot and a word.
-
-The four federation lists take their shared cells from `ListCells`:
-`NotReadyChip`, `CodeValue`, `RedirectCell`, `LinkedAccountsCell`,
-`PrincipalSourceCell` and `CertificateExpiryCell`. Each leads with one
-diagnostic column answering "is this row set up the way I expect" — a redirect
-count, a signing-certificate expiry, a linked-account count — because that fact
-differs per kind and a generic column would be empty for someone. A value the
-table will clip keeps the whole of itself in a tooltip.
-
-A detail page stacks `Section`s, one per block, with the heading on the page
-background and a single `ConsoleCard` under it. The access policy shared by the
-three application kinds is `AppAccessPanel`, and a read-only value that is meant
-to be copied elsewhere — a Client ID, an Entity ID, a callback address — is
-`CopyValue`: a read-only field with a visible `Label` over a `secondary`
-`InputGroup`, so it lines up with the fields beside it. A click anywhere on the
-field selects the value and copies it; the copy icon at the trailing edge is
-decoration, not a button, and turns into a check with a brief "Copied" tooltip
-below it. A copy the clipboard refuses shows a `SurfaceAlert` under the field.
-
-An identity provider's diagnostics are an `ItemList` drawn exactly like the
-danger zone under them: one row per diagnostic — the effective configuration,
-the connection test — with its icon, its name, one line saying what it does
-(the configuration's becomes "Read …" once it has been read), and its action at
-the trailing edge. What a diagnostic finds opens in a dialog rather than
-growing under the row, so the section keeps one shape before and after: the
-configuration as a three-column list (what the value is, the value in
-monospace, a soft `Chip` naming where it came from) that stacks name and source
-over the value on a narrow screen, followed by the test callback address; a
-test as its overall state, then one row per stage with an outcome icon, the
-stage's measured details in muted text, and its status word, coloured only
-when the stage failed. Once a test has anything to show, `Tabs
-variant="secondary"` under the stages hold, in order, the mapped fields, the ID
-token and UserInfo, and every new result opens on the first; the underline
-variant adds no fill of its own on the dialog's surface. The mapped fields use
-the configuration's three-column list, one component for both, with the source
-`Chip` reading "document · `claim`" (claim in monospace) and an absent value in
-the same muted "Not provided" style as "Not used". The two documents are a
-`JsonBlock` (`dashboard/src/components/custom`): the indented JSON in
-monospace on a `ScrollArea` that carries the fill and scrolls long lines
-sideways, never wrapping, with an icon-only ghost copy button and its
-"Copy"/"Copied" tooltip at the top-right corner, and a danger `SurfaceAlert`
-below when the clipboard refuses. A tab with nothing to show says so in one
-muted sentence. Each dialog's footer holds "Close" and the action again.
-A diagnostic or a danger-zone action that fails says so in the console's error
-toast only; the row and the dialog keep their shape.
-
-### Loading
-
-A list of records waits in the shape it will arrive in, not behind a spinner:
-`ListSkeleton` from `dashboard/src/components/custom` draws an icon-sized block
-and two lines per row, and everything that shows a list of records uses it —
-`ItemList`, `DataTable` (one placeholder per column), and the panels that read
-with `useQuery` and so draw their own pending state. The shimmer is HeroUI's
-`skeleton--shimmer`: the class goes on the container and its children take
-`animationType="none"`, so one shimmer passes over the whole set rather than each
-bar pulsing on its own. The skeleton is `aria-hidden`; a placeholder has nothing
-to announce.
-
-A `Spinner` is for a wait that is a process rather than a shape: the route-level
-pending component, an in-flight lookup, and the work a `Button` reports through
-`isPending`.
+### Readability check
+The card section's footer measures the WCAG contrast of the card's text
+against the worst place behind the card in the preview, working through the
+frame's and the card's fill and blur. The verdict is a badge and a sentence:
+green "Readable" with the ratio (floored to a tenth) when it reaches 4.5:1,
+amber "Hard to read" with the advice to raise the opacity or pick another
+background, or an outline "Not measured" when the background cannot be read.
+It never guesses.
 
 ### Navigation
-
-Public pages link with HeroUI links; a link to a console page is a router link
-drawn with `linkVariants()`. Console navigation uses its existing shared
-composition and narrow-screen behavior. Its entries are router links drawn with
-`buttonVariants({ variant: "ghost" })`, so they open in a new tab and keep the
-button's focus ring and press scale; selected entries are medium weight and the
-rest regular. The management entries sit under three headings — directory,
-applications, system — and a heading with nothing visible under it is left out.
-The instance avatar, the entry icons, the headings and the account avatar share
-one edge 20px into the rail. The rail's instance avatar and name are
-`InstanceIdentity`, the same component the public toolbar draws: a 32px
-`Avatar` at the field radius with the name's first letter as its fallback, and
-the name in semibold `text-sm`, truncated. On a narrow screen the same list opens in a drawer
-on the rail's gray, with 44px rows. A rail too long for the window follows
-HeroUI's overflowing tabs: the edge with more behind it carries a full-row strip
-with a chevron that scrolls towards it, fading into the list, and the scrollbar
-shows only while the rail moves. The rail
-names the instance and the header names the section in view, so each string is
-written once: the header carries no eyebrow repeating the instance above its
-heading.
-
-### Notices
-
-Use HeroUI Alert. A single message uses `Alert.Title` inside `Alert.Content`;
-add `Alert.Description` only for supplementary text.
-
-Inside a card or a dialog, use `SurfaceAlert` from `dashboard/src/components/custom`
-instead: the surface shadow is dropped and the alert fills with the status's
-soft tint (`bg-*-soft`; the default status uses `bg-surface-secondary`), so it
-reads as part of the surface rather than a raised block. Page-level notices on
-the background plane keep the library's surface shadow. A shared piece that can
-be drawn on either plane, such as `SecretReveal`, takes `onSurface` from the
-caller that knows which one it is. In a dialog, `SecretReveal` also takes
-`inDialog`: the dialog heading draws the title, and the reveal draws the body and
-puts its continue control in `Modal.Footer`, which is where HeroUI keeps dialog
-actions.
-
-### Error states
-
-A page that fails to load is drawn in the layout it belongs to. In the console
-it is a danger `Alert` in the page column, under the header's own title. On a
-public page, and when there is no layout left to draw in, the failure replaces
-the page: the sign-in page's `h1` ("Unable to load this page"), focused as it
-appears, over a danger `SurfaceAlert` on the card. The whole-window form is the
-same card without the toolbar or the background picture, in the same place:
-the toolbar's height stays empty above it.
-
-The alert's title is the same line the error toast shows. Under it the facts
-stay in view, left-aligned and never collapsed: the request, status, error code
-and request ID, or the exception for a page that broke. From `sm` they are a
-label column beside a value column; below it each label sits over its value.
-The alert ends with one way out — a retry for a failure that can clear, a
-reload for a page that broke, sign-in or sign-out for a session problem, and
-otherwise a button that leaves for the console home, the sign-in page or the
-home page, drawn only when that is not where the page already is — plus
-"Details" for the request dialog when there was a request.
-
-An address with no page is the same shape without the alert: the heading "Page
-not found" and the leave button. In the console the header names it.
-
-A section that fails inside a page (`AsyncSection`) keeps its own
-`SurfaceAlert` and retry, without the facts.
-
-### Public flows
-
-A public page answers one question. `PublicStep` from
-`dashboard/src/components/custom` draws its skeleton on the card: the entity it
-is about (an application's `EntityAvatar` at 48px) above the title, the title
-row with an optional ghost back button, a muted line under it, the body, then
-the buttons. The title is `PageHeading`, which takes focus as the page appears
-so a screen reader starts from the question; it is not a control, so it is out
-of the Tab order and draws no focus ring. The sign-in steps draw their title
-row through it too.
-
-The consent pages list what the application will get as plain facts on the
-card: a `text-sm` medium list title, then one row per item with a 16px muted
-icon, the name at medium weight and a muted line under it, 12px apart, with no
-rules, fills or nested card. An application-defined OIDC scope is named as
-written, in monospace. Above the list is the account answering, as a small
-avatar and "Signed in as …" with a link to use another account; under it the
-muted footnote. The decision is two equal columns at every width, the answer
-that goes ahead (`primary`) on the right and the other (`secondary`) on the
-left, as in a dialog's footer; the pressed one is pending and the other
-disabled until the page leaves.
-
-The sign-in page's first step starts from the passkey: a full-width `primary`
-button with a `Fingerprint` icon. Under an `OrSeparator` comes the password
-form, whose submit button is `secondary` while the passkey leads. A browser that
-cannot use a passkey gets a disabled `secondary` passkey button with a muted
-line under it, and the password's submit button turns `primary`; the order
-stays the same. After a second `OrSeparator` come the ways that start somewhere
-else: a full-width `secondary` "Sign in with another device" with the
-`MonitorSmartphone` icon, which opens `/pair` and is left out during
-maintenance, then the providers. With neither, the second separator is left
-out too. One way runs at a time: while any of them is in flight, and while a
-provider is taking the page away, the others are disabled. The title is "Sign
-in" alone; the toolbar already names the instance.
-
-The sign-in and enrollment pages offer upstream providers under the local
-sign-ins, after an `OrSeparator` (two rules around a `text-xs` muted "or"):
-`ProviderButtons` draws one full-width `secondary` button per provider, with
-its 20px icon or initial and "Continue with {name}". The pressed button is
-pending and the others disabled until the page leaves. An invitation bound to
-a provider shows only that provider's button.
-
-A first password and authenticator on the public card (`PasswordTotpSetup`)
-is three steps, each a `PublicStep`: the password, the authenticator (the
-`TotpSetup` on the surface and an `OtpField`), then the first recovery codes.
-The first two have a back button and share one form; the codes step has none.
-
-`/welcome` shows the account a first federated sign-in prepared as a
-`Surface variant="secondary"` block: a large avatar, the display name at medium
-weight, and a muted line with the username and email. Without a picture from
-the provider the avatar shows the name's first letter.
-The VRChat verification lists its instructions as a numbered `text-sm` list
-with muted numbers, and gives the verification link as a `CopyValue`.
-
-`/pair` signs this device in from another one. Its body is the pairing code,
-centred in monospace at `text-3xl` with wide tracking, read out to a screen
-reader one character at a time; under it the `QrCode` of the approval link
-(the same canvas `TotpSetup` draws), a muted line saying it can be scanned,
-and the status: a small `Spinner` with the countdown, which is not announced
-as it runs. An expired code dims the code and the QR to half opacity, drops
-the scan line, and puts a warning `SurfaceAlert` and a full-width "Get a new
-code" in the status's place. Once signed in the page offers a passkey, with a
-`tertiary` "Not now" under it. The sign-in page's first step leads to it
-with the "Sign in with another device" button.
-
-A flow the server stopped (`/error`) has the shape of a public page that failed
-to load: the title, then a danger `SurfaceAlert` with what happened, a
-monospace reference an administrator can look up, and one `secondary` way out
-inside it. The maintenance page names the instance in its title, shows the
-administrators' message as a default `SurfaceAlert`, and stacks its buttons
-full width: retry first, then a `tertiary` sign-out or administrators' sign-in.
-A button that fails on a public page is reported by the error toast alone.
-
-### Confirmations
-
-A consequential action confirms through `ConfirmDialog` from
-`dashboard/src/components/custom`: HeroUI's `AlertDialog` with
-`AlertDialog.Icon` beside the heading, the consequence in the body, cancel
-(`tertiary`) on the left and the action on the right. The status sets the icon
-and the action button: `danger` for what removes something for good, with a
-`danger` button; `warning` for a change of state that can be undone, and
-`accent` for a step worth a second look, both with a `primary` button.
-
-A consequential change made in a form is confirmed when it is saved, not when
-it is made. The control stays free to move — a reader comparing options is not
-committing to one — and while the form holds such a change its save button is
-`SubmitButton` with `tone="warning"`: the theme's warning colour and a
-`TriangleAlert` before the label, so the state is not carried by colour alone.
-Submitting checks the form, then opens a `warning` `ConfirmDialog` naming the
-consequence; the write happens from the dialog, and cancelling leaves the change
-in the form, unsent. A changed OIDC subject source or forward-auth
-`Remote-User`, a saved token scope removed, and a saved OIDC scope removed are
-saved this way.
-
-### Step-up verification
-
-A write the server guards with a fresh sudo window stops at `SudoDialog`, the
-console's only prompt to confirm who is signed in. `ShieldCheck` stays beside
-the heading as the dialog's `Modal.Icon`, and the header says why the check is
-needed. The methods the account has are side by side in the body, each with
-its own full-width control: a passkey button with a `Fingerprint` icon, then a
-rule with "or" in the middle, then the current password and authenticator code
-with the submit button right under them. An account with one method sees only
-that method and no rule. One method leads, with the only `primary` button and
-the focus the dialog opens on: the passkey when the browser can use one, and
-otherwise the password, whose submit button is `secondary` while the passkey
-leads. A passkey the browser cannot use is a disabled `secondary` button. The dialog has no footer and
-no cancel button: the close button in the corner and Escape close it. While a
-verification or the replayed write is in flight the dialog is locked, the
-close button disabled and Escape ignored, and the other method's controls are
-disabled.
+The sidebar lists the account pages, then the management headings the account
+may see. Headings are 12px muted labels, not heading elements. The selected
+entry takes the accent veil and full ink; others use the sidebar text colour.
+The instance identity sits at the top and the account menu at the bottom
+(account pages, language, theme, sign out).
 
 ## Do's and Don'ts
 
 ### Do:
-- **Do** preserve HeroUI component defaults and the approved theme export.
-- **Do** import `theme.css` after `@heroui/styles`.
-- **Do** write custom layouts as Tailwind classes in JSX and share compositions through `dashboard/src/components/custom`.
-- **Do** preserve visible keyboard focus, reduced-motion support, and bilingual copy.
+- **Do** put every console block in a Section, and let a DataTable or ItemList become its panel.
+- **Do** group things inside a panel with a well (`rounded-xl bg-muted/60 ring-1 ring-border/60`).
+- **Do** use semantic tokens (`bg-muted`, `text-muted-foreground`, `border`) so both themes follow from one class.
+- **Do** set identifiers, scopes, URLs and codes in Paper Mono: 13px in panels and headers, 12px muted in list rows.
+- **Do** pair every status hue with a word or an icon, and a 6px dot where the state is scanned in a column.
+- **Do** name a consequential save for what it does, put its consequence in the Section footer, and confirm irreversible actions in ConfirmDialog.
+- **Do** keep corners concentric: an inner radius is the outer radius minus the inset.
 
 ### Don't:
-- **Don't** copy visual styling from `dashboard-old` or wireframe mockups.
-- **Don't** replace the approved palette or component defaults during refinement.
-- **Don't** introduce neon security motifs, decorative mascots, or dense enterprise configuration sprawl.
+- **Don't** put a card or bordered box inside a FramePanel.
+- **Don't** use gradients, glows or decorative fills in the console chrome. Gradients belong to the public backdrop presets, which are the sign-in page's own material.
+- **Don't** introduce a brand hue in the console; the primary is ink.
+- **Don't** put uppercase eyebrows or kickers above titles.
+- **Don't** use shadows heavier than `shadow-lg/5` on console surfaces; the frosted stage's large shadow is for the public page only.
+- **Don't** use Paper Mono for words, or Cal Sans for values a person copies.
+- **Don't** hand-edit `src/components/ui` or `coss.css`; re-copy from the registry and re-apply the documented patches.
