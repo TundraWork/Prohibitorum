@@ -284,8 +284,11 @@ func TestDeleteIdentityProviderRemovesLinkedIdentitiesPostgres(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-
 	s := writeFixServer(base)
+	// The audit row must count distinct accounts (2), not identity rows (3):
+	// one account holds two subjects at this provider.
+	aw := &captureAuditWriter{}
+	s.Audit = aw
 
 	// The detail read reports two distinct accounts, not three identity rows.
 	getRR := httptest.NewRecorder()
@@ -311,7 +314,22 @@ func TestDeleteIdentityProviderRemovesLinkedIdentitiesPostgres(t *testing.T) {
 	if delRR.Code != http.StatusNoContent {
 		t.Fatalf("delete status = %d, want 204; body %s", delRR.Code, delRR.Body.String())
 	}
-
+	if len(aw.events) != 1 {
+		t.Fatalf("audit events after delete = %d, want 1", len(aw.events))
+	}
+	detail := aw.events[0].Detail
+	if got := detail["unlinked_accounts"]; got != 2 {
+		t.Errorf("audit unlinked_accounts = %v, want 2 distinct accounts", got)
+	}
+	if got := detail["removed_client_scopes"]; got != int64(1) {
+		t.Errorf("audit removed_client_scopes = %v, want 1", got)
+	}
+	if got := detail["removed_consent_scopes"]; got != int64(1) {
+		t.Errorf("audit removed_consent_scopes = %v, want 1", got)
+	}
+	if got := detail["deleted_pending_invitations"]; got != int32(0) {
+		t.Errorf("audit deleted_pending_invitations = %v, want 0", got)
+	}
 	var providerCount, identityCount int
 	if err := base.pool.QueryRow(ctx, `SELECT COUNT(*) FROM upstream_idp WHERE id = $1`, providerID).Scan(&providerCount); err != nil {
 		t.Fatal(err)

@@ -78,18 +78,19 @@ func PlanUpstreamIDPDelete(ctx context.Context, pool *pgxpool.Pool, slug string)
 // leaves nothing half-deleted. Shared by the admin API and the CLI delete verb;
 // returns pgx.ErrNoRows when the slug matches nothing.
 func DeleteUpstreamIDPWithDependents(ctx context.Context, pool *pgxpool.Pool, slug string) (UpstreamIDPDeleteSummary, error) {
-	q := db.New(pool)
-	row, err := q.GetUpstreamIDPBySlugAny(ctx, slug)
-	if err != nil {
-		return UpstreamIDPDeleteSummary{}, err
-	}
-
 	tx, err := pool.Begin(ctx)
 	if err != nil {
 		return UpstreamIDPDeleteSummary{}, fmt.Errorf("begin tx: %w", err)
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
-	qtx := q.WithTx(tx)
+	qtx := db.New(pool).WithTx(tx)
+	// Looked up inside the transaction: a delete racing this one resolves
+	// here, once, rather than falling through to the provider delete as a
+	// lookup failure.
+	row, err := qtx.GetUpstreamIDPBySlugAny(ctx, slug)
+	if err != nil {
+		return UpstreamIDPDeleteSummary{}, err
+	}
 
 	// Pending invitations whose verified snapshot points here die with the
 	// provider (the snapshot FK cascades). Counted before the deletes so the

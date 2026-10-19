@@ -213,6 +213,70 @@ func TestDeleteUpstreamIDPCLIWithLinkedAccountPostgres(t *testing.T) {
 	}
 }
 
+// TestDeleteUpstreamIDPCLIRollsBackOnFailurePostgres fails the provider delete
+// mid-transaction (a BEFORE DELETE trigger on upstream_idp) and asserts the
+// transaction rolled back: the linked account_identity row must survive. This
+// is the test that catches the delete path running its statements outside one
+// transaction — with autocommit, the identities are already gone when the
+// provider delete fails.
+func TestDeleteUpstreamIDPCLIRollsBackOnFailurePostgres(t *testing.T) {
+	pool := cliDeleteTestPool(t)
+	ctx := context.Background()
+	suffix := hex.EncodeToString([]byte(t.Name()))[:8]
+	slug := "cli-rb-" + suffix
+
+	var providerID int64
+	if err := pool.QueryRow(ctx, `
+		INSERT INTO upstream_idp (slug, display_name, mode, protocol,
+			secret_enc, secret_nonce, key_version, secret_status)
+		VALUES ($1, 'Rollback SSO', 'link_only', 'steam', $2, $3, 1, 'configured')
+		RETURNING id`, slug, []byte{0x02}, []byte{0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03}).Scan(&providerID); err != nil {
+		t.Fatal(err)
+	}
+	var accountID int32
+	if err := pool.QueryRow(ctx, `
+		INSERT INTO account (username, display_name, webauthn_user_handle, email)
+		VALUES ($1, 'Rollback Account', $2, $3) RETURNING id`,
+		slug+"_acct", append([]byte(suffix), 0x02), slug+"@cli-rb.test").Scan(&accountID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO account_identity (account_id, upstream_idp_id, upstream_iss, upstream_sub)
+		VALUES ($1, $2, 'https://issuer.example.test', 'sub-1')`, accountID, providerID); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := pool.Exec(ctx, `CREATE FUNCTION phb133_fail_delete() RETURNS trigger AS $$
+		BEGIN
+			RAISE EXCEPTION 'phb133: provider delete refused';
+		END; $$ LANGUAGE plpgsql`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `CREATE TRIGGER phb133_fail_delete BEFORE DELETE ON upstream_idp
+		FOR EACH ROW EXECUTE FUNCTION phb133_fail_delete()`); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := runUpstreamIDPDelete(ctx, pool, slug); err == nil {
+		t.Fatal("delete succeeded although the provider delete raised; want failure")
+	}
+
+	var identityCount int
+	if err := pool.QueryRow(ctx, `SELECT COUNT(*) FROM account_identity WHERE upstream_idp_id = $1`, providerID).Scan(&identityCount); err != nil {
+		t.Fatal(err)
+	}
+	if identityCount != 1 {
+		t.Fatalf("account_identity rows after failed delete = %d, want 1: the identity delete did not roll back with the failed provider delete", identityCount)
+	}
+	var providerCount int
+	if err := pool.QueryRow(ctx, `SELECT COUNT(*) FROM upstream_idp WHERE id = $1`, providerID).Scan(&providerCount); err != nil {
+		t.Fatal(err)
+	}
+	if providerCount != 1 {
+		t.Errorf("provider gone after failed delete, want still present")
+	}
+}
+
 // The summary the CLI prints must name every class of removed data, mirroring
 // the admin dialog's confirmation copy.
 func TestUpstreamIDPDeleteSummaryText(t *testing.T) {

@@ -603,16 +603,12 @@ func (s *Server) handleDeleteIdentityProviderHTTP(w http.ResponseWriter, r *http
 		writeAuthErr(w, authn.ErrBadRequest())
 		return
 	}
-	if _, err := s.queries.GetUpstreamIDPBySlugAny(r.Context(), body.Slug); err != nil {
+	summary, err := DeleteUpstreamIDPWithDependents(r.Context(), s.dbPool, body.Slug)
+	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			writeAuthErr(w, authn.ErrUpstreamIDPNotFound())
 			return
 		}
-		writeAuthErr(w, fmt.Errorf("handleDeleteIdentityProvider: lookup: %w", err))
-		return
-	}
-	summary, err := DeleteUpstreamIDPWithDependents(r.Context(), s.dbPool, body.Slug)
-	if err != nil {
 		writeAuthErr(w, fmt.Errorf("handleDeleteIdentityProvider: %w", err))
 		return
 	}
