@@ -1591,7 +1591,7 @@ msgstr "Cannot use them, whatever else matches."
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/SignInPageControls.tsx
 msgid "settings.sign-in.position"
-msgstr "Card position"
+msgstr "Position"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/SignInPageControls.tsx

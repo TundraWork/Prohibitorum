@@ -24,6 +24,7 @@ export function SegmentedControl<T extends string>({
   options,
   disabled = false,
   size = "sm",
+  className,
 }: {
   label: string;
   /** The id of a visible label, which then names the group instead of `label`. */
@@ -40,6 +41,8 @@ export function SegmentedControl<T extends string>({
   }[];
   disabled?: boolean;
   size?: "sm" | "default";
+  /** Layout classes for the strip, such as `w-full` to fill a column. */
+  className?: string;
 }) {
   return (
     <RadioGroupPrimitive
@@ -47,7 +50,7 @@ export function SegmentedControl<T extends string>({
       aria-labelledby={labelledBy}
       value={value}
       disabled={disabled}
-      className={segmentedControlRootClassName}
+      className={cn(segmentedControlRootClassName, className)}
       onValueChange={(next) => onValueChange(next as T)}
     >
       {options.map((option) => (

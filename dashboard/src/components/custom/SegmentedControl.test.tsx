@@ -58,4 +58,23 @@ describe("SegmentedControl", () => {
     await user.click(screen.getByRole("radio", { name: "is not" }));
     expect(onValueChange).not.toHaveBeenCalled();
   });
+
+  it("takes layout classes for the strip, so it can fill its column", () => {
+    render(
+      <SegmentedControl
+        label="Sense"
+        value="is"
+        options={options}
+        className="w-full"
+        onValueChange={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole("radiogroup", { name: "Sense" })).toHaveClass(
+      "w-full",
+    );
+    expect(screen.getByRole("radiogroup", { name: "Sense" })).not.toHaveClass(
+      "w-fit",
+    );
+  });
 });
