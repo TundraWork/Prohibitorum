@@ -277,6 +277,9 @@ func (d *Diagnostics) Callback(ctx context.Context, id, slug, browser, code, ups
 	if !ok {
 		return ErrDiagnosticUnavailable
 	}
+	if flow.Status == "failed" {
+		d.recordLatest(ctx, flow)
+	}
 	return nil
 }
 func safeOAuthError(value string) string {
@@ -319,6 +322,7 @@ func (d *Diagnostics) Complete(ctx context.Context, id string, provider federati
 		if !ok {
 			return d.Get(ctx, id, provider.Slug, browser, actor)
 		}
+		d.recordLatest(ctx, flow)
 		return flow.DiagnosticResult, nil
 	}
 	implicit := flow.Resolved.implicitFlow()
@@ -386,6 +390,7 @@ func (d *Diagnostics) Complete(ctx context.Context, id string, provider federati
 	if !ok {
 		return DiagnosticResult{}, ErrDiagnosticUnavailable
 	}
+	d.recordLatest(ctx, flow)
 	return flow.DiagnosticResult, nil
 }
 

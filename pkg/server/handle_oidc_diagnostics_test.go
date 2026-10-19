@@ -22,7 +22,7 @@ import (
 )
 
 func TestOIDCDiagnosticRoutesRejectNonAdmins(t *testing.T) {
-	for _, path := range []struct{ method, path string }{{"GET", "/api/prohibitorum/identity-providers/corp/effective-config"}, {"POST", "/api/prohibitorum/identity-providers/corp/tests"}, {"GET", "/api/prohibitorum/identity-providers/corp/tests/id"}, {"POST", "/api/prohibitorum/identity-providers/corp/tests/id/complete"}} {
+	for _, path := range []struct{ method, path string }{{"GET", "/api/prohibitorum/identity-providers/corp/effective-config"}, {"POST", "/api/prohibitorum/identity-providers/corp/tests"}, {"GET", "/api/prohibitorum/identity-providers/corp/tests/latest"}, {"GET", "/api/prohibitorum/identity-providers/corp/tests/id"}, {"POST", "/api/prohibitorum/identity-providers/corp/tests/id/complete"}} {
 		for _, role := range []string{"", "user"} {
 			t.Run(path.path+role, func(t *testing.T) {
 				router := chi.NewRouter()
@@ -273,5 +273,68 @@ func TestOIDCDiagnosticErrorCallbackRejectsRepeatedDescription(t *testing.T) {
 	router.ServeHTTP(rec, httptest.NewRequest("GET", "/api/prohibitorum/auth/federation/corp/test/callback?error=access_denied&error_description=one&error_description=two&state=whatever", nil))
 	if rec.Code != 400 {
 		t.Fatalf("repeated error_description accepted: %d %s", rec.Code, rec.Body.String())
+	}
+}
+
+// TestOIDCDiagnosticLatestReportsTheFinishedRun reads the remembered outcome
+// before and after a finished test, and checks that its route sits beside the
+// per-run read without shadowing it.
+func TestOIDCDiagnosticLatestReportsTheFinishedRun(t *testing.T) {
+	op, err := mockop.New("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	upstream := httptest.NewServer(op.Routes())
+	defer upstream.Close()
+	op.SetBase(upstream.URL)
+	raw := strings.Replace(exactOIDCConfig, "https://issuer.example", upstream.URL, 1)
+	raw = strings.Replace(raw, `"allowPrivateNetwork":false`, `"allowPrivateNetwork":true`, 1)
+	raw = strings.Replace(raw, `"tokenAuthMethod":"discovery"`, `"tokenAuthMethod":"none"`, 1)
+	query := &fakeProviderStateQueries{row: db.UpstreamIdp{ID: 7, Slug: "corp", Protocol: "oidc", ProviderConfig: []byte(raw), SecretStatus: "unconfigured"}}
+	s := &Server{config: &configx.Config{PublicOrigins: []string{"https://rp.example"}}, kvStore: kv.NewMemoryStore(), rateLimiter: authn.NewRateLimiter(), providerStateQueriesOverride: query}
+	router := chi.NewRouter()
+	admin := contract.AuthRequirement{Kind: contract.AuthAdmin}
+	s.registerAdminBodyOpHTTP(router, "POST", "/api/prohibitorum/identity-providers/{slug}/tests", admin, s.handleOIDCTestStartHTTP)
+	registerOpHTTP(router, "GET", "/api/prohibitorum/auth/federation/{slug}/test/callback", contract.AuthRequirement{Kind: contract.AuthPublic}, s.handleOIDCTestCallbackHTTP)
+	registerOpHTTP(router, "GET", "/api/prohibitorum/identity-providers/{slug}/tests/latest", admin, s.handleOIDCTestLatestHTTP)
+	registerOpHTTP(router, "GET", "/api/prohibitorum/identity-providers/{slug}/tests/{id}", admin, s.handleOIDCTestGetHTTP)
+	session := authn.WithSession(context.Background(), &authn.Session{Account: &db.Account{ID: 7, Role: "admin"}, Data: &authn.SessionData{AccountID: 7, SessionID: "admin-session"}})
+	get := func(path string, cookie *http.Cookie) *httptest.ResponseRecorder {
+		req := httptest.NewRequest("GET", path, nil).WithContext(session)
+		if cookie != nil {
+			req.AddCookie(cookie)
+		}
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+		return rec
+	}
+
+	if rec := get("/api/prohibitorum/identity-providers/corp/tests/latest", nil); rec.Code != 200 || strings.TrimSpace(rec.Body.String()) != `{"latest":null}` || rec.Header().Get("Cache-Control") != "no-store" {
+		t.Fatalf("before any run %d: %s", rec.Code, rec.Body.String())
+	}
+
+	start := httptest.NewRecorder()
+	router.ServeHTTP(start, httptest.NewRequest("POST", "/api/prohibitorum/identity-providers/corp/tests", nil).WithContext(session))
+	var started struct{ ID string }
+	if err := json.Unmarshal(start.Body.Bytes(), &started); err != nil {
+		t.Fatal(err)
+	}
+	cookie := start.Result().Cookies()[0]
+	failing := httptest.NewRequest("GET", "/api/prohibitorum/auth/federation/corp/test/callback?error=access_denied&state="+started.ID, nil)
+	failing.AddCookie(cookie)
+	router.ServeHTTP(httptest.NewRecorder(), failing)
+
+	rec := get("/api/prohibitorum/identity-providers/corp/tests/latest", nil)
+	if rec.Code != 200 || !strings.Contains(rec.Body.String(), `"status":"failed"`) || !strings.Contains(rec.Body.String(), `"stale":false`) || !strings.Contains(rec.Body.String(), `"finishedAt":"`) {
+		t.Fatalf("after a run %d: %s", rec.Code, rec.Body.String())
+	}
+	if rec := get("/api/prohibitorum/identity-providers/corp/tests/"+started.ID, cookie); rec.Code != 200 || !strings.Contains(rec.Body.String(), `"stages"`) {
+		t.Fatalf("per-run read shadowed %d: %s", rec.Code, rec.Body.String())
+	}
+
+	// A provider the OIDC tests do not cover answers as unknown.
+	query.row.Protocol = "steam"
+	if rec := get("/api/prohibitorum/identity-providers/corp/tests/latest", nil); rec.Code != 404 {
+		t.Fatalf("unknown provider %d: %s", rec.Code, rec.Body.String())
 	}
 }

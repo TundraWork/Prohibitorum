@@ -205,6 +205,24 @@ func (s *Server) handleOIDCTestGetHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, result)
 }
+func (s *Server) handleOIDCTestLatestHTTP(w http.ResponseWriter, r *http.Request) {
+	diagnosticHeaders(w)
+	if _, err := diagnosticActor(r); err != nil {
+		writeAuthErr(w, err)
+		return
+	}
+	provider, err := s.oidcDiagnosticProvider(r)
+	if err != nil {
+		writeAuthErr(w, err)
+		return
+	}
+	latest, err := s.oidcDiagnostics().Latest(r.Context(), provider)
+	if err != nil {
+		writeDiagnosticError(w, err)
+		return
+	}
+	writeJSON(w, map[string]any{"latest": latest})
+}
 func (s *Server) handleOIDCTestCompleteHTTP(w http.ResponseWriter, r *http.Request) {
 	diagnosticHeaders(w)
 	actor, err := diagnosticActor(r)

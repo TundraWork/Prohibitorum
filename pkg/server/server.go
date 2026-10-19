@@ -813,6 +813,7 @@ func (s *Server) registerOperations() {
 	registerOp(mgmt, contract.OperationGetIdentityProvider, s.handleGetIdentityProvider, admin)
 	registerOpHTTP(s.router, "GET", "/api/prohibitorum/identity-providers/{slug}/effective-config", admin, s.handleOIDCEffectiveConfigHTTP)
 	s.registerAdminBodyOpHTTP(s.router, "POST", "/api/prohibitorum/identity-providers/{slug}/tests", adminBrowserReq, s.handleOIDCTestStartHTTP)
+	registerOpHTTP(s.router, "GET", "/api/prohibitorum/identity-providers/{slug}/tests/latest", adminBrowserReq, s.handleOIDCTestLatestHTTP)
 	registerOpHTTP(s.router, "GET", "/api/prohibitorum/identity-providers/{slug}/tests/{id}", adminBrowserReq, s.handleOIDCTestGetHTTP)
 	s.registerAdminBodyOpHTTP(s.router, "POST", "/api/prohibitorum/identity-providers/{slug}/tests/{id}/complete", adminBrowserReq, s.handleOIDCTestCompleteHTTP)
 	s.registerAdminBodyOpHTTP(s.router, "POST", "/api/prohibitorum/identity-providers", admin, s.handleCreateIdentityProviderHTTP)
