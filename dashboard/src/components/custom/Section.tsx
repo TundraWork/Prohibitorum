@@ -201,9 +201,9 @@ export function Section({
  * resolve and then push everything below it down when they land, which is the
  * jump the heading exists to prevent.
  *
- * `title` is optional because not every boundary is a section. A tab panel
- * under `ConsoleTabs` already has its name on the strip, so it passes none and
- * the boundary draws the bare block instead.
+ * `title` is optional because not every boundary is a section. A boundary whose
+ * name is already on screen elsewhere, such as under a tab strip, passes none
+ * and draws the bare block instead.
  *
  * A retry clears the failed queries' error state before remounting the
  * children, so their suspense reads ask again.
