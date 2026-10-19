@@ -15,6 +15,7 @@ import {
   validateGroupSlug,
 } from "@/pages/admin/groups/group-validation";
 import { RuleBuilder } from "@/pages/admin/groups/RuleBuilder";
+import { RuleIssueSummary } from "@/pages/admin/groups/RuleIssueSummary";
 import {
   checkRule,
   newRule,
@@ -36,7 +37,7 @@ export function AdminGroupNew() {
   const navigate = useNavigate();
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { providers, known } = useRuleProviders();
+  const { providers, known, state: providersState } = useRuleProviders();
 
   const [kind, setKind] = useState<GroupKind>("manual");
   const [tree, setTree] = useState(newRule);
@@ -204,6 +205,7 @@ export function AdminGroupNew() {
               onChange={setTree}
               issues={issues}
               providers={providers}
+              providersState={providersState}
               disabled={create.isPending}
             />
           ) : (
@@ -226,6 +228,11 @@ export function AdminGroupNew() {
             <form.SubmitButton disabled={ruleGroup && issues.length > 0}>
               <Trans id="admin.group.create">Create group</Trans>
             </form.SubmitButton>
+            {ruleGroup && issues.length > 0 && (
+              <p className="self-center text-destructive-foreground text-sm">
+                <RuleIssueSummary issues={issues} />
+              </p>
+            )}
           </div>
         </form.Form>
       </form.AppForm>

@@ -361,8 +361,8 @@ describe("the root and nested groups", () => {
     ).not.toHaveLength(0);
   });
 
-  it("stops offering groups at the depth the server allows, and says why", () => {
-    // Root, five groups, and a sixth group whose condition sits at level 8.
+  it("stops offering groups where a new group's first condition would pass level 8, and says why", () => {
+    // Root (level 1) and six groups below it: the innermost sits at level 7.
     let condition: AppAccessRule["condition"] = {
       op: "all",
       children: [passkey],
@@ -372,16 +372,20 @@ describe("the root and nested groups", () => {
     }
     mount(doc({ op: "all", children: [passkey, condition] }));
 
-    const disabled = screen
-      .getAllByRole("button", { name: "Add group" })
-      .filter((button) => button.hasAttribute("disabled"));
-    expect(disabled.length).toBeGreaterThan(0);
-    expect(screen.getAllByText("Groups nest at most 8 deep.").length).toBe(
-      disabled.length,
-    );
-    expect(disabled[0]).toHaveAccessibleDescription(
-      "Groups nest at most 8 deep.",
-    );
+    // The innermost group's buttons come first in the page.
+    const buttons = screen.getAllByRole("button", { name: "Add group" });
+    expect(buttons).toHaveLength(7);
+    expect(buttons[0]).toBeDisabled();
+    for (const button of buttons.slice(1)) expect(button).toBeEnabled();
+    const reason =
+      "Conditions sit at most 8 levels deep, so no group fits here.";
+    expect(screen.getAllByText(reason)).toHaveLength(1);
+    expect(buttons[0]).toHaveAccessibleDescription(reason);
+    // The group one level up still takes a condition, and its group button has no reason to give.
+    expect(
+      screen.getAllByRole("button", { name: "Add condition" })[0],
+    ).toBeEnabled();
+    expect(buttons[1]).not.toHaveAccessibleDescription();
   });
 
   it("offers groups everywhere above that depth", () => {
@@ -395,6 +399,97 @@ describe("the root and nested groups", () => {
       expect(button).toBeEnabled();
     }
     expect(screen.queryByText("Groups nest at most 8 deep.")).toBeNull();
+  });
+});
+
+describe("the root group", () => {
+  const leaves = (count: number) =>
+    Array.from({ length: count }, () => passkey);
+
+  it("marks the root and says why when it holds too many conditions", () => {
+    mount(doc({ op: "all", children: leaves(33) }));
+
+    const root = screen.getAllByRole("combobox", { name: "Match" })[0];
+    expect(root).toBeInvalid();
+    expect(root).toHaveAccessibleDescription(
+      "A group can hold at most 32 conditions.",
+    );
+    expect(
+      screen.getAllByText("A group can hold at most 32 conditions."),
+    ).not.toHaveLength(0);
+  });
+
+  it("stops offering conditions and groups once a group holds 32, and says why", () => {
+    mount(doc({ op: "all", children: leaves(32) }));
+
+    const add = screen.getByRole("button", { name: "Add condition" });
+    const group = screen.getByRole("button", { name: "Add group" });
+    expect(add).toBeDisabled();
+    expect(group).toBeDisabled();
+    expect(add).toHaveAccessibleDescription(
+      "A group can hold at most 32 conditions.",
+    );
+    expect(group).toHaveAccessibleDescription(
+      "A group can hold at most 32 conditions.",
+    );
+  });
+
+  it("still offers both with one fewer", () => {
+    mount(doc({ op: "all", children: leaves(31) }));
+    expect(screen.getByRole("button", { name: "Add condition" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Add group" })).toBeEnabled();
+  });
+});
+
+describe("a saved provider before the list can name it", () => {
+  const stored = doc({
+    op: "all",
+    children: [{ fact: "connection.provider", provider: "retired-sso" }],
+  });
+
+  function mountWith(state: "loading" | "failed" | "loaded") {
+    render(
+      <I18nProvider i18n={i18n}>
+        <RuleBuilder
+          value={parseRule(stored)}
+          onChange={() => undefined}
+          issues={[]}
+          providers={state === "loaded" ? providers : []}
+          providersState={state}
+        />
+      </I18nProvider>,
+    );
+    return within(rowNamed(/Connected to/)).getByRole("combobox", {
+      name: "Value",
+    });
+  }
+
+  it("shows only the slug while the list is loading, with no claim about it", () => {
+    const value = mountWith("loading");
+    expect(value).toHaveTextContent("retired-sso");
+    expect(value).not.toHaveTextContent("Unknown");
+    expect(value).toBeValid();
+    expect(screen.queryByText(/could not be loaded/)).toBeNull();
+  });
+
+  it("shows the slug and a quiet note when the list could not be loaded", () => {
+    const value = mountWith("failed");
+    expect(value).toHaveTextContent("retired-sso");
+    expect(value).not.toHaveTextContent("Unknown");
+    expect(
+      screen.getByText("The provider names could not be loaded."),
+    ).toBeVisible();
+    expect(value).toHaveAccessibleDescription(
+      "The provider names could not be loaded.",
+    );
+  });
+
+  it("calls it unknown only once the list has loaded, drawing the slug alone in monospace", () => {
+    const value = mountWith("loaded");
+    expect(value).toHaveTextContent("Unknown provider (retired-sso)");
+    const slug = within(value).getByText("retired-sso");
+    expect(slug).toHaveClass("font-mono");
+    expect(value.querySelector(".font-mono")).toBe(slug);
   });
 });
 

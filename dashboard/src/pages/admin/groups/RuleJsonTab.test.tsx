@@ -107,12 +107,12 @@ describe("the JSON tab", () => {
     expect(screen.getAllByRole("alert")).toHaveLength(1);
     expect(
       screen.getByText(
-        "This is not valid JSON. The form view still holds your rule.",
+        "This is not valid JSON. The builder still holds your rule.",
       ),
     ).toBeVisible();
     expect(box()).toBeInvalid();
     expect(box()).toHaveAccessibleDescription(
-      "This is not valid JSON. The form view still holds your rule.",
+      "This is not valid JSON. The builder still holds your rule.",
     );
   });
 
@@ -127,9 +127,55 @@ describe("the JSON tab", () => {
     expect(screen.getAllByRole("alert")).toHaveLength(1);
     expect(
       screen.getByText(
-        "A rule document needs a version and a condition. The form view still holds your rule.",
+        "A rule document needs a version and a condition. The builder still holds your rule.",
       ),
     ).toBeVisible();
+  });
+
+  it("refuses a condition it has no row for, rather than reading it as another", async () => {
+    const { onApply } = mount(
+      parseRule({ version: 1, condition: { op: "all", children: [passkey] } }),
+    );
+
+    await leaveWith(
+      JSON.stringify({
+        version: 1,
+        condition: { op: "all", children: [{ fact: "geo", country: "NZ" }] },
+      }),
+    );
+
+    expect(onApply).not.toHaveBeenCalled();
+    expect(screen.getAllByRole("alert")).toHaveLength(1);
+    expect(
+      screen.getByText(
+        "This rule uses a condition this console does not know. The builder still holds your rule.",
+      ),
+    ).toBeVisible();
+  });
+
+  it("drops a message about text the tree has since replaced", async () => {
+    const first = parseRule({
+      version: 1,
+      condition: { op: "all", children: [passkey] },
+    });
+    const { rerender } = mount(first);
+    await leaveWith("{ nope");
+    expect(screen.getByRole("alert")).toBeVisible();
+
+    rerender(
+      <I18nProvider i18n={i18n}>
+        <RuleJsonTab
+          value={parseRule({
+            version: 1,
+            condition: { op: "any", children: [github] },
+          })}
+          onApply={vi.fn()}
+        />
+      </I18nProvider>,
+    );
+
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(box()).toBeValid();
   });
 
   it("clears the message once a document applies", async () => {

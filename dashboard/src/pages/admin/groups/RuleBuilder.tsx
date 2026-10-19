@@ -1,6 +1,6 @@
 import { Trans, useLingui } from "@lingui/react/macro";
 import { PlusIcon, XIcon } from "lucide-react";
-import { useId } from "react";
+import { createContext, useContext, useId } from "react";
 import { Button } from "@/components/custom/Button";
 import { SegmentedControl } from "@/components/custom/SegmentedControl";
 import {
@@ -29,6 +29,7 @@ import {
   type RuleNode,
   removeNode,
   ruleFacts,
+  ruleLimits,
   setCombinator,
   setFact,
   setNegated,
@@ -43,6 +44,14 @@ export interface RuleProvider {
   disabled?: boolean;
   signInOff?: boolean;
 }
+
+/**
+ * Whether the provider list has arrived. Until it has, a saved provider is only
+ * a slug: calling it unknown would be a claim nothing has checked.
+ */
+export type RuleProvidersState = "loading" | "failed" | "loaded";
+
+const ProvidersStateContext = createContext<RuleProvidersState>("loaded");
 
 /** What the builder needs to draw problems on the rows they belong to. */
 type IssuesByNode = ReadonlyMap<string, readonly string[]>;
@@ -66,54 +75,63 @@ const factProblems = new Set(["invalid_shape", "invalid_fact"]);
  *
  * It is controlled and holds no state of its own, so the group page and the
  * create page both draw it over a tree they own. `issues` are drawn on the row
- * or group each names; the root's own problem is the prompt that an empty rule
- * shows.
+ * or group each names, the root included; the prompt an empty rule shows is the
+ * builder's own.
  */
 export function RuleBuilder({
   value,
   onChange,
   issues = [],
   providers,
+  providersState = "loaded",
   disabled = false,
 }: {
   value: RuleGroup;
   onChange: (next: RuleGroup) => void;
   issues?: readonly RuleIssue[];
   providers: readonly RuleProvider[];
+  providersState?: RuleProvidersState;
   disabled?: boolean;
 }) {
   const { i18n } = useLingui();
   const byNode = groupIssues(issues);
   const empty = value.children.length === 0;
+  const rootCodes = byNode.get(value.id) ?? [];
+  const rootMessageId = useId();
 
   return (
-    <div className="grid gap-3">
-      <div className="min-w-0 text-sm leading-8">
-        <Trans id="admin.group.rule.root">
-          Accounts that meet{" "}
-          <CombinatorSelect
-            value={value.op}
-            disabled={disabled}
-            onChange={(op) => onChange(setCombinator(value, value.id, op))}
-          />{" "}
-          of these
-        </Trans>
+    <ProvidersStateContext.Provider value={providersState}>
+      <div className="grid gap-3">
+        <div className="min-w-0 text-sm leading-8">
+          <Trans id="admin.group.rule.root">
+            Accounts that meet{" "}
+            <CombinatorSelect
+              value={value.op}
+              invalid={rootCodes.length > 0}
+              describedBy={rootCodes.length > 0 ? rootMessageId : undefined}
+              disabled={disabled}
+              onChange={(op) => onChange(setCombinator(value, value.id, op))}
+            />{" "}
+            of these
+          </Trans>
+        </div>
+        <Messages id={rootMessageId} codes={rootCodes} />
+        {empty && (
+          <p className="text-destructive-foreground text-sm">
+            {i18n._(issueMessage("empty_rule"))}
+          </p>
+        )}
+        <Children
+          group={value}
+          depth={1}
+          root={value}
+          onChange={onChange}
+          byNode={byNode}
+          providers={providers}
+          disabled={disabled}
+        />
       </div>
-      {empty && (
-        <p className="text-destructive-foreground text-sm">
-          {i18n._(issueMessage("empty_rule"))}
-        </p>
-      )}
-      <Children
-        group={value}
-        depth={1}
-        root={value}
-        onChange={onChange}
-        byNode={byNode}
-        providers={providers}
-        disabled={disabled}
-      />
-    </div>
+    </ProvidersStateContext.Provider>
   );
 }
 
@@ -134,9 +152,12 @@ function Children({
   providers: readonly RuleProvider[];
   disabled: boolean;
 }) {
-  const { t } = useLingui();
+  const { t, i18n } = useLingui();
   const reasonId = useId();
+  const full = group.children.length >= ruleLimits.maxChildren;
   const mayNest = canAddGroup(depth);
+  const conditionBlocked = disabled || full;
+  const groupBlocked = disabled || full || !mayNest;
   return (
     <>
       {group.children.map((child) => (
@@ -155,11 +176,12 @@ function Children({
         <Button
           variant="ghost"
           size="xs"
-          disabled={disabled}
+          disabled={conditionBlocked}
           aria-label={t({
             id: "admin.group.rule.add",
             message: "Add condition",
           })}
+          aria-describedby={full ? reasonId : undefined}
           onClick={() => onChange(addCondition(root, group.id))}
         >
           <PlusIcon aria-hidden="true" />
@@ -168,22 +190,26 @@ function Children({
         <Button
           variant="ghost"
           size="xs"
-          disabled={disabled || !mayNest}
+          disabled={groupBlocked}
           aria-label={t({
             id: "admin.group.rule.addGroup",
             message: "Add group",
           })}
-          aria-describedby={mayNest ? undefined : reasonId}
+          aria-describedby={full || !mayNest ? reasonId : undefined}
           onClick={() => onChange(addGroup(root, group.id))}
         >
           <PlusIcon aria-hidden="true" />
           <Trans id="admin.group.rule.add-group">Group</Trans>
         </Button>
-        {!mayNest && (
+        {(full || !mayNest) && (
           <span id={reasonId} className="text-muted-foreground text-xs">
-            <Trans id="admin.group.rule.depth-limit">
-              Groups nest at most 8 deep.
-            </Trans>
+            {full ? (
+              i18n._(issueMessage("max_children_exceeded"))
+            ) : (
+              <Trans id="admin.group.rule.depth-limit">
+                Conditions sit at most 8 levels deep, so no group fits here.
+              </Trans>
+            )}
           </span>
         )}
       </div>
@@ -269,6 +295,7 @@ function Well({
             <CombinatorSelect
               value={group.op}
               invalid={codes.length > 0}
+              describedBy={codes.length > 0 ? messageId : undefined}
               disabled={disabled}
               onChange={(op) => onChange(setCombinator(root, group.id, op))}
             />{" "}
@@ -318,11 +345,13 @@ function CombinatorSelect({
   onChange,
   disabled,
   invalid = false,
+  describedBy,
 }: {
   value: RuleCombinator;
   onChange: (next: RuleCombinator) => void;
   disabled: boolean;
   invalid?: boolean;
+  describedBy?: string;
 }) {
   const { t } = useLingui();
   const labels: Record<RuleCombinator, string> = {
@@ -341,6 +370,7 @@ function CombinatorSelect({
         size="sm"
         className="mx-1 inline-flex w-auto min-w-0 align-middle"
         aria-invalid={invalid || undefined}
+        aria-describedby={describedBy}
         aria-label={t({ id: "admin.group.rule.group.op", message: "Match" })}
       >
         <SelectValue>{() => labels[value]}</SelectValue>
@@ -397,13 +427,17 @@ function ConditionRow({
 }) {
   const { t, i18n: catalogue } = useLingui();
   const providerName = useProviderName();
+  const providersState = useContext(ProvidersStateContext);
   const messageId = useId();
+  const noteId = useId();
   const invalid = codes.length > 0;
   const aboutFact = codes.some((code) => factProblems.has(code));
   const known = providers.find((entry) => entry.slug === condition.value);
   const isProvider = condition.fact === "connection.provider";
-  const unknownProvider =
+  const unnamedProvider =
     isProvider && condition.value !== "" && known === undefined;
+  // Only a list that has loaded can say a provider is not in it.
+  const unknownProvider = unnamedProvider && providersState === "loaded";
 
   const factText = catalogue._(factLabels[condition.fact]);
   const valueText = isProvider
@@ -493,15 +527,24 @@ function ConditionRow({
               size="sm"
               aria-label={t({ id: "admin.group.rule.value", message: "Value" })}
               aria-invalid={(invalid && !aboutFact) || undefined}
-              aria-describedby={invalid && !aboutFact ? messageId : undefined}
+              aria-describedby={
+                [
+                  invalid && !aboutFact ? messageId : null,
+                  unnamedProvider && providersState === "failed"
+                    ? noteId
+                    : null,
+                ]
+                  .filter((id) => id !== null)
+                  .join(" ") || undefined
+              }
               className="min-w-0 flex-1"
             >
               <SelectValue
-                // The slug is what tells one unknown provider from another, so
-                // it wraps rather than being clipped.
+                // The slug is what tells one provider from another, so it wraps
+                // rather than being clipped.
                 className={
-                  unknownProvider
-                    ? "whitespace-normal break-all py-1"
+                  unnamedProvider
+                    ? "whitespace-normal wrap-anywhere py-1"
                     : undefined
                 }
               >
@@ -513,11 +556,12 @@ function ConditionRow({
                       </Trans>
                     </span>
                   ) : unknownProvider ? (
-                    <span className="font-mono">
-                      <Trans id="admin.group.rule.provider.unknown">
-                        Unknown provider ({selected})
-                      </Trans>
-                    </span>
+                    <Trans id="admin.group.rule.provider.unknown">
+                      Unknown provider (
+                      <span className="font-mono">{selected}</span>)
+                    </Trans>
+                  ) : unnamedProvider ? (
+                    <span className="font-mono">{selected}</span>
                   ) : (
                     valueText
                   )
@@ -549,6 +593,13 @@ function ConditionRow({
         </Button>
       </div>
       <Messages id={messageId} codes={codes} />
+      {unnamedProvider && providersState === "failed" && (
+        <p id={noteId} className="text-muted-foreground text-xs">
+          <Trans id="admin.group.rule.provider.names-failed">
+            The provider names could not be loaded.
+          </Trans>
+        </p>
+      )}
     </fieldset>
   );
 }

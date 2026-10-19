@@ -324,21 +324,92 @@ describe("the live preview", () => {
     expect(notifyError).not.toHaveBeenCalled();
   });
 
-  it("says once that the server did not accept a rule it could not read, and still allows saving", async () => {
+  it("says once what went wrong when the preview itself failed, and still allows saving", async () => {
     const user = userEvent.setup();
     mount(ruleGroupFixture(), (request) =>
       new URL(request.url).pathname.endsWith("/rule-preview")
-        ? apiError("internal_error", 500)
+        ? apiError("rate_limited", 429)
         : undefined,
     );
 
     await user.click(addCondition());
 
     expect(
-      await screen.findAllByText("The server did not accept this rule."),
+      await screen.findAllByText("Too many requests. Wait a moment."),
     ).toHaveLength(1);
     expect(notifyError).not.toHaveBeenCalled();
     expect(saveButton()).toBeEnabled();
+  });
+
+  it("keeps one status line mounted, so a change in it is announced", async () => {
+    const user = userEvent.setup();
+    mount(ruleGroupFixture());
+
+    await user.click(addCondition());
+    const status = screen.getByRole("status");
+    expect(status).toBeEmptyDOMElement();
+
+    await screen.findByText("3 accounts match the edited rule");
+    expect(screen.getByRole("status")).toBe(status);
+    expect(status).toHaveTextContent("3 accounts match the edited rule");
+  });
+
+  it("drops a refusal once the draft changes, so it cannot point at a row that is gone", async () => {
+    const user = userEvent.setup();
+    mount(ruleGroup({ op: "all", children: [passkey] }), (request) =>
+      request.method === "PUT"
+        ? rejection("$.condition.children[1]", "provider_not_found")
+        : undefined,
+    );
+
+    await user.click(addCondition());
+    await screen.findByText("3 accounts match the edited rule");
+    await user.click(saveButton());
+    expect(
+      await screen.findByText("Fix the highlighted part of the rule."),
+    ).toBeVisible();
+
+    await user.click(
+      screen.getAllByRole("button", {
+        name: /Remove the condition/,
+      })[1] as HTMLElement,
+    );
+
+    expect(
+      screen.queryByText("Fix the highlighted part of the rule."),
+    ).toBeNull();
+    expect(
+      screen.queryByText("That provider is not available on this instance."),
+    ).toBeNull();
+  });
+
+  it("lets a late preview answer leave a refusal of the same draft standing", async () => {
+    const user = userEvent.setup();
+    const previews: ((response: Response) => void)[] = [];
+    mount(ruleGroup({ op: "all", children: [passkey] }), (request) => {
+      if (request.method === "PUT") {
+        return rejection("$.condition.children[1]", "provider_not_found");
+      }
+      if (new URL(request.url).pathname.endsWith("/rule-preview")) {
+        return new Promise<Response>((resolve) => previews.push(resolve));
+      }
+      return undefined;
+    });
+
+    await user.click(addCondition());
+    await waitFor(() => expect(previews).toHaveLength(1));
+    await user.click(saveButton());
+    await screen.findByText("Fix the highlighted part of the rule.");
+
+    previews[0]?.(
+      Response.json({ matchedCount: 3, items: [], nextCursor: "" }),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(
+      screen.getByText("Fix the highlighted part of the rule."),
+    ).toBeVisible();
+    expect(saveButton()).toBeDisabled();
   });
 });
 

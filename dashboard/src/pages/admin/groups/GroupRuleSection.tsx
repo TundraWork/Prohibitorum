@@ -1,8 +1,8 @@
 import { Plural, Trans, useLingui } from "@lingui/react/macro";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ListFilterIcon } from "lucide-react";
-import { useEffect, useState } from "react";
-import { ApiError, isCancellation } from "@/api/errors";
+import { useEffect, useRef, useState } from "react";
+import { ApiError, describeError, isCancellation } from "@/api/errors";
 import {
   rulePreviewMutationOptions,
   updateGroupMutationOptions,
@@ -20,7 +20,6 @@ import { groupUpdateBody } from "@/pages/admin/groups/group-validation";
 import { RuleBuilder } from "@/pages/admin/groups/RuleBuilder";
 import { RuleIssueSummary } from "@/pages/admin/groups/RuleIssueSummary";
 import { RuleJsonTab } from "@/pages/admin/groups/RuleJsonTab";
-import { ruleRejected } from "@/pages/admin/groups/rule-labels";
 import {
   checkRule,
   nodeIdAtPath,
@@ -72,7 +71,7 @@ function merged(
 export function GroupRuleSection({ group }: { group: AppGroupView }) {
   const { t } = useLingui();
   const queryClient = useQueryClient();
-  const { providers, known } = useRuleProviders();
+  const { providers, known, state: providersState } = useRuleProviders();
   // The rule as stored, kept here so the section reads as saved the moment the
   // write answers, before the page's own copy of the group has been refetched.
   const [stored, setStored] = useState(group.rule);
@@ -80,7 +79,11 @@ export function GroupRuleSection({ group }: { group: AppGroupView }) {
   const [tab, setTab] = useState("builder");
   const [serverIssues, setServerIssues] =
     useState<readonly RuleIssue[]>(noIssues);
-  const [previewFailed, setPreviewFailed] = useState(false);
+  // A preview that failed for a reason that says nothing about the rule.
+  const [previewError, setPreviewError] = useState<unknown>(null);
+  // The draft a save was refused for: an answer to an older preview must not
+  // clear what the server has just said about it.
+  const refusedFor = useRef<string | null>(null);
   const [matched, setMatched] = useState<number | null>(null);
   const preview = useMutation(
     withInlineReport(rulePreviewMutationOptions(), true),
@@ -99,9 +102,13 @@ export function GroupRuleSection({ group }: { group: AppGroupView }) {
   const blocked = clientIssues.length > 0;
 
   useEffect(() => {
-    if (!dirty || blocked) {
+    // A problem found for an earlier draft may point at a row that is gone.
+    if (refusedFor.current !== draftKey) {
+      refusedFor.current = null;
       setServerIssues(noIssues);
-      setPreviewFailed(false);
+    }
+    setPreviewError(null);
+    if (!dirty || blocked) {
       setMatched(null);
       return;
     }
@@ -113,14 +120,14 @@ export function GroupRuleSection({ group }: { group: AppGroupView }) {
         const page = await previewRule(JSON.parse(draftKey));
         if (!current) return;
         setMatched(page.matchedCount);
-        setServerIssues(noIssues);
-        setPreviewFailed(false);
+        if (refusedFor.current !== draftKey) setServerIssues(noIssues);
+        setPreviewError(null);
       } catch (error) {
         if (!current || isCancellation(error)) return;
         setMatched(null);
         const issue = issueFromRejection(tree, error);
-        setServerIssues(issue === null ? noIssues : [issue]);
-        setPreviewFailed(issue === null);
+        if (issue !== null) setServerIssues([issue]);
+        setPreviewError(issue === null ? error : null);
       }
     }, 400);
     return () => {
@@ -131,6 +138,7 @@ export function GroupRuleSection({ group }: { group: AppGroupView }) {
 
   const discard = () => {
     failure.clear();
+    refusedFor.current = null;
     setServerIssues(noIssues);
     setTree(parseRule(stored));
   };
@@ -148,48 +156,49 @@ export function GroupRuleSection({ group }: { group: AppGroupView }) {
         onError: (error) => {
           const issue = issueFromRejection(tree, error);
           if (issue === null) failure.report(error);
-          else setServerIssues([issue]);
+          else {
+            refusedFor.current = draftKey;
+            setServerIssues([issue]);
+          }
         },
       },
     );
   };
 
-  const footer = !dirty ? undefined : issues.length > 0 ? (
+  // One footer in both states, so the status line under the sentence stays
+  // mounted and a screen reader hears it change.
+  const status =
+    issues.length > 0 ? null : matched !== null ? (
+      <Plural
+        id="admin.group.rule.matched-edited"
+        value={matched}
+        one="# account matches the edited rule"
+        other="# accounts match the edited rule"
+      />
+    ) : previewError !== null ? (
+      t(describeError(previewError))
+    ) : null;
+  const footer = !dirty ? undefined : (
     <ConsequenceFooter
-      tone="danger"
-      consequence={<RuleIssueSummary issues={issues} />}
-      actionLabel={<Trans id="admin.group.rule.save">Save rule</Trans>}
-      onDiscard={discard}
-      pending={update.isPending}
-      disabled
-    />
-  ) : (
-    <ConsequenceFooter
+      tone={issues.length > 0 ? "danger" : "warning"}
       consequence={
         <>
-          <Trans id="admin.group.rule.consequence">
-            Saving changes who is in this group right away.
-          </Trans>
-          {matched !== null && (
-            <span role="status" className="block text-muted-foreground">
-              <Plural
-                id="admin.group.rule.matched-edited"
-                value={matched}
-                one="# account matches the edited rule"
-                other="# accounts match the edited rule"
-              />
-            </span>
+          {issues.length > 0 ? (
+            <RuleIssueSummary issues={issues} />
+          ) : (
+            <Trans id="admin.group.rule.consequence">
+              Saving changes who is in this group right away.
+            </Trans>
           )}
-          {previewFailed && (
-            <span role="status" className="block text-muted-foreground">
-              {t(ruleRejected)}
-            </span>
-          )}
+          <span role="status" className="block text-muted-foreground">
+            {status}
+          </span>
         </>
       }
       actionLabel={<Trans id="admin.group.rule.save">Save rule</Trans>}
       onDiscard={discard}
       pending={update.isPending}
+      disabled={issues.length > 0}
     />
   );
 
@@ -237,6 +246,7 @@ export function GroupRuleSection({ group }: { group: AppGroupView }) {
               onChange={setTree}
               issues={issues}
               providers={providers}
+              providersState={providersState}
               disabled={update.isPending}
             />
           </TabsPanel>

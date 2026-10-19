@@ -164,6 +164,19 @@ describe("reading a pasted document", () => {
     });
   });
 
+  it.each([
+    { fact: "nonsense" },
+    { method: "x" },
+    { op: "xor", children: [passkey] },
+    { op: "all", children: [passkey, { fact: "geo", country: "NZ" }] },
+    { op: "not", child: { fact: "geo" } },
+    { op: "not" },
+  ])("refuses a condition it has no row for: %j", (condition) => {
+    expect(readRuleDocument(JSON.stringify({ version: 1, condition }))).toEqual(
+      { ok: false, problem: "unknown-condition" },
+    );
+  });
+
   it("reads a document and wraps a single leaf in a root all", () => {
     const read = readRuleDocument(
       JSON.stringify({ version: 1, condition: passkey }),

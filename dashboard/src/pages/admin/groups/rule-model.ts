@@ -183,7 +183,27 @@ export function serializeRule(root: RuleGroup): AppAccessRule {
 
 export type RuleDocumentRead =
   | { ok: true; root: RuleGroup }
-  | { ok: false; problem: "unreadable" | "not-a-document" };
+  | {
+      ok: false;
+      problem: "unreadable" | "not-a-document" | "unknown-condition";
+    };
+
+/**
+ * Whether a pasted node holds something the builder has no row for: a fact or
+ * an operator it does not know. Reading it anyway would quietly swap it for a
+ * different condition, so it is refused instead.
+ */
+function hasUnknownCondition(raw: unknown): boolean {
+  if (!isRecord(raw)) return true;
+  if (raw.op === "all" || raw.op === "any") {
+    return (
+      Array.isArray(raw.children) && raw.children.some(hasUnknownCondition)
+    );
+  }
+  if (raw.op === "not") return hasUnknownCondition(raw.child);
+  if (raw.op !== undefined) return true;
+  return !isFact(raw.fact);
+}
 
 /** Reads the JSON a reader typed or pasted, saying which way it is unusable. */
 export function readRuleDocument(text: string): RuleDocumentRead {
@@ -195,6 +215,9 @@ export function readRuleDocument(text: string): RuleDocumentRead {
   }
   if (!isRecord(parsed) || !isRecord(parsed.condition)) {
     return { ok: false, problem: "not-a-document" };
+  }
+  if (hasUnknownCondition(parsed.condition)) {
+    return { ok: false, problem: "unknown-condition" };
   }
   return {
     ok: true,

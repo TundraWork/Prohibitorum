@@ -387,7 +387,7 @@ msgstr "刷新令牌，让客户端保持登录。"
 #. js-lingui-explicit-id
 #: src/pages/admin/groups/RuleJsonTab.tsx
 msgid "admin.group.rule.json.nodocument"
-msgstr "规则文档需要 version 和 condition。表单视图中的规则仍然保留。"
+msgstr "规则文档需要 version 和 condition。构建器中的规则仍然保留。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/groups/AdminGroupNew.tsx
@@ -1968,6 +1968,11 @@ msgstr "条件判断"
 #: src/pages/admin/groups/rule-labels.ts
 msgid "admin.group.rule.reason.max_depth_exceeded"
 msgstr "条件嵌套过深，最多 8 层。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/RuleBuilder.tsx
+msgid "admin.group.rule.depth-limit"
+msgstr "条件最多嵌套 8 层，这里放不下条件组了。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/AdminOidcApplication.tsx
@@ -3965,11 +3970,6 @@ msgstr "条件组"
 #: src/pages/admin/groups/AdminGroup.tsx
 msgid "admin.group.side"
 msgstr "用户组相关信息"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/groups/RuleBuilder.tsx
-msgid "admin.group.rule.depth-limit"
-msgstr "条件组最多嵌套 8 层。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/ForwardAuthHeadersSection.tsx
@@ -8294,6 +8294,11 @@ msgid "admin.federation.scopes.hint"
 msgstr "提供商必须支持这里的每个作用域。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/RuleBuilder.tsx
+msgid "admin.group.rule.provider.names-failed"
+msgstr "无法加载提供商名称。"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ConnectionTestDialog.tsx
 msgid "admin.federation.diagnostics.id-token.empty"
 msgstr "提供商没有返回 ID token。"
@@ -8647,7 +8652,7 @@ msgstr "这不是有效的 JSON。请检查花括号、逗号和引号。"
 #. js-lingui-explicit-id
 #: src/pages/admin/groups/RuleJsonTab.tsx
 msgid "admin.group.rule.json.unreadable"
-msgstr "这不是有效的 JSON。表单视图中的规则仍然保留。"
+msgstr "这不是有效的 JSON。构建器中的规则仍然保留。"
 
 #. js-lingui-explicit-id
 #: src/pages/public/Enroll.tsx
@@ -8803,6 +8808,11 @@ msgstr "需要管理员权限。"
 #: src/pages/admin/groups/rule-labels.ts
 msgid "admin.group.rule.reason.max_nodes_exceeded"
 msgstr "该规则的条件过多，总共最多 64 个。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/RuleJsonTab.tsx
+msgid "admin.group.rule.json.unknown"
+msgstr "该规则使用了本控制台不认识的条件。构建器中的规则仍然保留。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/groups/rule-labels.ts
@@ -9045,7 +9055,7 @@ msgstr "未知设备"
 #. js-lingui-explicit-id
 #: src/pages/admin/groups/RuleBuilder.tsx
 msgid "admin.group.rule.provider.unknown"
-msgstr "未知提供商（{selected}）"
+msgstr "未知提供商（<0>{selected}</0>）"
 
 #. js-lingui-explicit-id
 #: src/pages/security/IdentitiesPanel.tsx

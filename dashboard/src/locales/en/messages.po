@@ -387,7 +387,7 @@ msgstr "A refresh token, so the client stays signed in."
 #. js-lingui-explicit-id
 #: src/pages/admin/groups/RuleJsonTab.tsx
 msgid "admin.group.rule.json.nodocument"
-msgstr "A rule document needs a version and a condition. The form view still holds your rule."
+msgstr "A rule document needs a version and a condition. The builder still holds your rule."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/groups/AdminGroupNew.tsx
@@ -1968,6 +1968,11 @@ msgstr "Condition sense"
 #: src/pages/admin/groups/rule-labels.ts
 msgid "admin.group.rule.reason.max_depth_exceeded"
 msgstr "Conditions are nested too deeply. Use at most 8 levels."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/RuleBuilder.tsx
+msgid "admin.group.rule.depth-limit"
+msgstr "Conditions sit at most 8 levels deep, so no group fits here."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/AdminOidcApplication.tsx
@@ -3965,11 +3970,6 @@ msgstr "Group"
 #: src/pages/admin/groups/AdminGroup.tsx
 msgid "admin.group.side"
 msgstr "Group context"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/groups/RuleBuilder.tsx
-msgid "admin.group.rule.depth-limit"
-msgstr "Groups nest at most 8 deep."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/ForwardAuthHeadersSection.tsx
@@ -8294,6 +8294,11 @@ msgid "admin.federation.scopes.hint"
 msgstr "The provider must support every scope listed here."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/RuleBuilder.tsx
+msgid "admin.group.rule.provider.names-failed"
+msgstr "The provider names could not be loaded."
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ConnectionTestDialog.tsx
 msgid "admin.federation.diagnostics.id-token.empty"
 msgstr "The provider returned no ID token."
@@ -8647,7 +8652,7 @@ msgstr "This is not valid JSON. Check the braces, commas and quotes."
 #. js-lingui-explicit-id
 #: src/pages/admin/groups/RuleJsonTab.tsx
 msgid "admin.group.rule.json.unreadable"
-msgstr "This is not valid JSON. The form view still holds your rule."
+msgstr "This is not valid JSON. The builder still holds your rule."
 
 #. js-lingui-explicit-id
 #: src/pages/public/Enroll.tsx
@@ -8803,6 +8808,11 @@ msgstr "This requires an administrator."
 #: src/pages/admin/groups/rule-labels.ts
 msgid "admin.group.rule.reason.max_nodes_exceeded"
 msgstr "This rule has too many conditions. Use at most 64 in total."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/RuleJsonTab.tsx
+msgid "admin.group.rule.json.unknown"
+msgstr "This rule uses a condition this console does not know. The builder still holds your rule."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/groups/rule-labels.ts
@@ -9045,7 +9055,7 @@ msgstr "Unknown device"
 #. js-lingui-explicit-id
 #: src/pages/admin/groups/RuleBuilder.tsx
 msgid "admin.group.rule.provider.unknown"
-msgstr "Unknown provider ({selected})"
+msgstr "Unknown provider (<0>{selected}</0>)"
 
 #. js-lingui-explicit-id
 #: src/pages/security/IdentitiesPanel.tsx

@@ -27,13 +27,15 @@ export function RuleJsonTab({
   const serialized = JSON.stringify(serializeRule(value), null, 2);
   const [text, setText] = useState(serialized);
   const [problem, setProblem] = useState<
-    "unreadable" | "not-a-document" | null
+    "unreadable" | "not-a-document" | "unknown-condition" | null
   >(null);
   const errorId = useId();
 
   // The text follows the tree, so the tab always shows what is about to be saved.
+  // A message about text that has been replaced would describe nothing.
   useEffect(() => {
     setText(serialized);
+    setProblem(null);
   }, [serialized]);
 
   const apply = () => {
@@ -78,12 +80,17 @@ export function RuleJsonTab({
         >
           {problem === "unreadable" ? (
             <Trans id="admin.group.rule.json.unreadable">
-              This is not valid JSON. The form view still holds your rule.
+              This is not valid JSON. The builder still holds your rule.
+            </Trans>
+          ) : problem === "unknown-condition" ? (
+            <Trans id="admin.group.rule.json.unknown">
+              This rule uses a condition this console does not know. The builder
+              still holds your rule.
             </Trans>
           ) : (
             <Trans id="admin.group.rule.json.nodocument">
-              A rule document needs a version and a condition. The form view
-              still holds your rule.
+              A rule document needs a version and a condition. The builder still
+              holds your rule.
             </Trans>
           )}
         </p>
