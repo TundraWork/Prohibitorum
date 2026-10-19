@@ -1,10 +1,9 @@
 import { Description, Label, Radio, RadioGroup } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 import { createGroupMutationOptions } from "@/api/mutations";
-import { groupProvidersQueryOptions } from "@/api/queries";
 import type { CreateGroupRequest } from "@/api/raw-admin-paths";
 import { withRouterSkipLoading } from "@/app/router";
 import { Button } from "@/components/custom/Button";
@@ -15,11 +14,13 @@ import {
   validateGroupName,
   validateGroupSlug,
 } from "@/pages/admin/groups/group-validation";
+import { RuleBuilder } from "@/pages/admin/groups/RuleBuilder";
 import {
-  RuleEditor,
-  rootTree,
-  ruleForTree,
-} from "@/pages/admin/groups/RuleEditorLegacy";
+  checkRule,
+  newRule,
+  serializeRule,
+} from "@/pages/admin/groups/rule-model";
+import { useRuleProviders } from "@/pages/admin/groups/use-rule-providers";
 
 type GroupKind = "manual" | "rule";
 
@@ -35,13 +36,14 @@ export function AdminGroupNew() {
   const navigate = useNavigate();
   const router = useRouter();
   const queryClient = useQueryClient();
-  const providers = useQuery(groupProvidersQueryOptions());
+  const { providers, known } = useRuleProviders();
 
   const [kind, setKind] = useState<GroupKind>("manual");
-  const [tree, setTree] = useState(rootTree);
+  const [tree, setTree] = useState(newRule);
 
   const create = useMutation(createGroupMutationOptions(queryClient));
   const ruleGroup = kind === "rule";
+  const issues = checkRule(tree, known);
 
   const form = useAppForm({
     defaultValues: {
@@ -60,7 +62,7 @@ export function AdminGroupNew() {
       };
       // A rule on a manual group is rejected outright, so it is left off the
       // request rather than sent empty.
-      if (ruleGroup) request.rule = ruleForTree(tree);
+      if (ruleGroup) request.rule = serializeRule(tree);
       try {
         const saved = await create.mutateAsync(request);
         // The pressed submit button already shows the wait while the new
@@ -197,14 +199,12 @@ export function AdminGroupNew() {
           </form.AppField>
 
           {ruleGroup ? (
-            <RuleEditor
-              draft={ruleForTree(tree)}
-              error={null}
-              matchedCount={null}
+            <RuleBuilder
+              value={tree}
               onChange={setTree}
-              pending={create.isPending}
-              providers={providers.data ?? []}
-              root={tree}
+              issues={issues}
+              providers={providers}
+              disabled={create.isPending}
             />
           ) : (
             <Description>
@@ -223,7 +223,7 @@ export function AdminGroupNew() {
             >
               <Trans id="admin.group.cancel">Cancel</Trans>
             </Button>
-            <form.SubmitButton>
+            <form.SubmitButton disabled={ruleGroup && issues.length > 0}>
               <Trans id="admin.group.create">Create group</Trans>
             </form.SubmitButton>
           </div>

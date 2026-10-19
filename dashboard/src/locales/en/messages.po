@@ -115,6 +115,11 @@ msgid "console.devices.count"
 msgstr "{count, plural, one {# signed-in device} other {# signed-in devices}}"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/RuleIssueSummary.tsx
+msgid "admin.group.rule.summary.missing-provider"
+msgstr "{count, plural, one {Choose a provider for the highlighted condition.} other {Choose a provider for each highlighted condition.}}"
+
+#. js-lingui-explicit-id
 #: src/components/custom/ProviderGrid.tsx
 msgid "federation.more_providers_count"
 msgstr "{count} more providers"
@@ -123,6 +128,16 @@ msgstr "{count} more providers"
 #: src/pages/admin/identity-providers/StageRow.tsx
 msgid "admin.federation.diagnostics.stage.duration"
 msgstr "{duration} ms"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/RuleBuilder.tsx
+msgid "admin.group.rule.summary"
+msgstr "{factText} is {valueText}"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/RuleBuilder.tsx
+msgid "admin.group.rule.summary-negated"
+msgstr "{factText} is not {valueText}"
 
 #. js-lingui-explicit-id
 #: src/components/custom/UriList.tsx
@@ -135,14 +150,29 @@ msgid "login.description.application"
 msgstr "{label} uses your {instance} account. You'll go back to it after signing in."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/groups/RuleEditorLegacy.tsx
-msgid "admin.group.rule.matched"
-msgstr "{matchedCount, plural, one {# account matches this rule} other {# accounts match this rule}}"
+#: src/pages/admin/groups/GroupRuleSection.tsx
+msgid "admin.group.rule.matched-edited"
+msgstr "{matched, plural, one {# account matches the edited rule} other {# accounts match the edited rule}}"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ConnectionTestDialog.tsx
 msgid "admin.federation.diagnostics.field-source"
 msgstr "{name} · <0>{claim}</0>"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/RuleBuilder.tsx
+msgid "admin.group.rule.provider.disabled"
+msgstr "{name} · disabled"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/RuleBuilder.tsx
+msgid "admin.group.rule.provider.disabled-sign-in-off"
+msgstr "{name} · disabled, sign-in off"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/RuleBuilder.tsx
+msgid "admin.group.rule.provider.sign-in-off"
+msgstr "{name} · sign-in off"
 
 #. js-lingui-explicit-id
 #: src/pages/Console.tsx
@@ -275,18 +305,18 @@ msgid "admin.user.disabled.hint"
 msgstr "A disabled account cannot sign in. An admin has to be made a user before they can be disabled."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/groups/RuleEditorLegacy.tsx
-msgid "admin.group.rule.problem.too_many_children"
-msgstr "A group can hold at most 32 conditions."
-
-#. js-lingui-explicit-id
-#: src/pages/admin/groups/RuleEditorLegacy.tsx
+#: src/pages/admin/groups/rule-labels.ts
 msgid "admin.group.rule.reason.max_children_exceeded"
 msgstr "A group can hold at most 32 conditions."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/groups/RuleEditorLegacy.tsx
+#: src/pages/admin/groups/rule-labels.ts
 msgid "admin.group.rule.reason.empty_children"
+msgstr "A group needs at least one condition."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/rule-labels.ts
+msgid "admin.group.rule.reason.missing_children"
 msgstr "A group needs at least one condition."
 
 #. js-lingui-explicit-id
@@ -300,6 +330,11 @@ msgid "admin.user.attributes.hint"
 msgstr "A JSON object stored with the account. Saving sends whatever is in this box, so anything removed here is removed from the account."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/rule-labels.ts
+msgid "admin.group.rule.method.federation"
+msgstr "A linked provider"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ClaimMappingTable.tsx
 msgid "admin.federation.claims.mapping.path-hint"
 msgstr "A name with dots is read as the exact claim key first; only when no claim is spelled that way is it read as a path into nested claims, like avatar.large or emails.0.email."
@@ -310,9 +345,14 @@ msgid "security.passkeys.rename.hint"
 msgstr "A name you will recognise, such as the device it lives on."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/groups/RuleEditorLegacy.tsx
+#: src/pages/admin/groups/rule-labels.ts
 msgid "admin.group.rule.reason.not_requires_fact"
 msgstr "A negated row must hold one condition, not another group."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/rule-labels.ts
+msgid "admin.group.rule.method.passkey"
+msgstr "A passkey"
 
 #. js-lingui-explicit-id
 #: src/lib/scopes.ts
@@ -345,7 +385,7 @@ msgid "admin.oidc-apps.scope.offline-access"
 msgstr "A refresh token, so the client stays signed in."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/groups/RuleEditorLegacy.tsx
+#: src/pages/admin/groups/RuleJsonTab.tsx
 msgid "admin.group.rule.json.nodocument"
 msgstr "A rule document needs a version and a condition. The form view still holds your rule."
 
@@ -568,6 +608,11 @@ msgid "app.access.order.denied"
 msgstr "Accounts denied by hand in"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/RuleBuilder.tsx
+msgid "admin.group.rule.root"
+msgstr "Accounts that meet <0/> of these"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminHome.tsx
 msgid "admin.home.summary"
 msgstr "Accounts, user groups, invitations, identity providers, downstream applications, logs and settings are managed from the sections in the sidebar."
@@ -609,6 +654,11 @@ msgstr "Active sessions"
 #: src/components/custom/ValueSet.tsx
 msgid "form.tags.add"
 msgstr "Add"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/rule-labels.ts
+msgid "admin.group.rule.empty"
+msgstr "Add a condition to say who this group matches."
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
@@ -682,7 +732,7 @@ msgid "admin.saml-apps.acs.required"
 msgstr "Add at least one Assertion Consumer Service endpoint."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/groups/RuleEditorLegacy.tsx
+#: src/pages/admin/groups/RuleBuilder.tsx
 msgid "admin.group.rule.add"
 msgstr "Add condition"
 
@@ -697,7 +747,7 @@ msgid "admin.saml-apps.acs.add"
 msgstr "Add endpoint"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/groups/RuleEditorLegacy.tsx
+#: src/pages/admin/groups/RuleBuilder.tsx
 msgid "admin.group.rule.addGroup"
 msgstr "Add group"
 
@@ -784,9 +834,9 @@ msgid "settings.keys.column.algorithm"
 msgstr "Algorithm"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/groups/RuleEditorLegacy.tsx
-msgid "admin.group.rule.group.all"
-msgstr "All of these"
+#: src/pages/admin/groups/RuleBuilder.tsx
+msgid "admin.group.rule.combinator.all"
+msgstr "all"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminLogs.tsx
@@ -867,11 +917,6 @@ msgid "settings.sign-in.unsplash.key.invalid"
 msgstr "An access key has only letters, digits, hyphens and underscores, up to 128 of them."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/groups/RuleEditorLegacy.tsx
-msgid "admin.group.rule.hint"
-msgstr "An account joins this group while the rule matches it. Rules are checked whenever access is asked for, so the group stays current."
-
-#. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.username_collision"
 msgstr "An account with this username already exists, so one can't be created automatically. Contact your administrator."
@@ -922,6 +967,11 @@ msgid "error.group_slug_conflict"
 msgstr "Another user group already uses this identifier."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/RuleBuilder.tsx
+msgid "admin.group.rule.combinator.any"
+msgstr "any"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminLogs.tsx
 msgid "admin.logs.filter.account.any"
 msgstr "Any account"
@@ -937,9 +987,9 @@ msgid "admin.logs.filter.event.any"
 msgstr "Any event"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/groups/RuleEditorLegacy.tsx
-msgid "admin.group.rule.group.any"
-msgstr "Any of these"
+#: src/pages/admin/groups/rule-labels.ts
+msgid "admin.group.rule.source.any"
+msgstr "Any picture"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminUsers.tsx
@@ -1119,6 +1169,11 @@ msgstr "Applications you choose"
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.access.full.hint.admin"
 msgstr "Applications, your account and what you manage as an administrator. Anything that asks you to confirm it is you is refused."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/RuleJsonTab.tsx
+msgid "admin.group.rule.json.applies"
+msgstr "Applied when you leave the box. The builder then shows what the document says."
 
 #. js-lingui-explicit-id
 #: src/api/success-messages.ts
@@ -1349,6 +1404,11 @@ msgstr "Binding"
 #: src/components/custom/ConsoleLayout.tsx
 msgid "console.breadcrumb"
 msgstr "Breadcrumb"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupRuleSection.tsx
+msgid "admin.group.rule.view.builder"
+msgstr "Builder"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-options.ts
@@ -1590,6 +1650,11 @@ msgid "admin.federation.operator.validated"
 msgstr "Checked <0/>"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupRuleSection.tsx
+msgid "admin.group.rule.description"
+msgstr "Checked every time someone asks for access, so the group is always current."
+
+#. js-lingui-explicit-id
 #: src/components/custom/AppAccessSection.tsx
 msgid "app.access.order.description"
 msgstr "Checked in this order. The first step that matches someone decides."
@@ -1610,17 +1675,12 @@ msgid "admin.users.filter.match"
 msgstr "Choose a match"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/groups/RuleEditorLegacy.tsx
+#: src/pages/admin/groups/RuleBuilder.tsx
 msgid "admin.group.rule.provider.placeholder"
 msgstr "Choose a provider"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/groups/RuleEditorLegacy.tsx
-msgid "admin.group.rule.problem.provider_required"
-msgstr "Choose a provider for every provider condition."
-
-#. js-lingui-explicit-id
-#: src/pages/admin/groups/RuleEditorLegacy.tsx
+#: src/pages/admin/groups/rule-labels.ts
 msgid "admin.group.rule.reason.missing_provider"
 msgstr "Choose a provider for this condition."
 
@@ -1890,22 +1950,22 @@ msgid "step-header.done"
 msgstr "Completed"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/groups/RuleEditorLegacy.tsx
+#: src/pages/admin/groups/RuleBuilder.tsx
+msgid "admin.group.rule.add-condition"
+msgstr "Condition"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/RuleBuilder.tsx
 msgid "admin.group.rule.fact"
 msgstr "Condition"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/groups/RuleEditorLegacy.tsx
-msgid "admin.group.rule.view.form"
-msgstr "Conditions"
+#: src/pages/admin/groups/RuleBuilder.tsx
+msgid "admin.group.rule.sense"
+msgstr "Condition sense"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/groups/RuleEditorLegacy.tsx
-msgid "admin.group.rule.problem.too_deep"
-msgstr "Conditions are nested too deeply. Use at most 8 levels."
-
-#. js-lingui-explicit-id
-#: src/pages/admin/groups/RuleEditorLegacy.tsx
+#: src/pages/admin/groups/rule-labels.ts
 msgid "admin.group.rule.reason.max_depth_exceeded"
 msgstr "Conditions are nested too deeply. Use at most 8 levels."
 
@@ -2076,6 +2136,16 @@ msgstr "Connected identities"
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.identities.table"
 msgstr "Connected identities"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/rule-labels.ts
+msgid "admin.group.rule.fact.protocol"
+msgstr "Connected through"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/rule-labels.ts
+msgid "admin.group.rule.fact.provider"
+msgstr "Connected to"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
@@ -2961,11 +3031,6 @@ msgid "profile.display-name.discard"
 msgstr "Discard"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/groups/RuleEditorLegacy.tsx
-msgid "admin.group.rule.discard"
-msgstr "Discard"
-
-#. js-lingui-explicit-id
 #: src/components/custom/ConsequenceFooter.tsx
 msgid "consequence-footer.discard"
 msgstr "Discard"
@@ -3095,11 +3160,6 @@ msgstr "Edit"
 #: src/pages/admin/AdminUsers.tsx
 msgid "admin.users.edit"
 msgstr "Edit"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/groups/RuleEditorLegacy.tsx
-msgid "admin.group.rule.json.hint"
-msgstr "Edited on blur: leave the box and the form view picks up what the document says."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/EffectiveConfigDialog.tsx
@@ -3727,6 +3787,11 @@ msgid "federation.find_provider"
 msgstr "Find a provider"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/RuleIssueSummary.tsx
+msgid "admin.group.rule.summary.fix"
+msgstr "Fix the highlighted part of the rule."
+
+#. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
 msgid "security.password.description.both"
 msgstr "For a device without your passkeys."
@@ -3887,9 +3952,24 @@ msgid "settings.sign-in.gradient"
 msgstr "Gradient"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/RuleBuilder.tsx
+msgid "admin.group.rule.add-group"
+msgstr "Group"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/RuleBuilder.tsx
+msgid "admin.group.rule.well"
+msgstr "Group"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/groups/AdminGroup.tsx
 msgid "admin.group.side"
 msgstr "Group context"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/RuleBuilder.tsx
+msgid "admin.group.rule.depth-limit"
+msgstr "Groups nest at most 8 deep."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/ForwardAuthHeadersSection.tsx
@@ -4236,6 +4316,16 @@ msgid "devices.field.ip"
 msgstr "IP address"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/RuleBuilder.tsx
+msgid "admin.group.rule.sense.is"
+msgstr "is"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/RuleBuilder.tsx
+msgid "admin.group.rule.sense.not"
+msgstr "is not"
+
+#. js-lingui-explicit-id
 #: src/pages/public/Welcome.tsx
 msgid "welcome.title"
 msgstr "Is this your account?"
@@ -4287,7 +4377,7 @@ msgid "admin.saml-apps.general.entity-id.hint"
 msgstr "Its Entity ID, shown above, is what the instance sends with every response."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/groups/RuleEditorLegacy.tsx
+#: src/pages/admin/groups/GroupRuleSection.tsx
 msgid "admin.group.rule.view.json"
 msgstr "JSON"
 
@@ -4716,14 +4806,14 @@ msgid "admin.users.filter.matchLabel"
 msgstr "Match"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/groups/RuleEditorLegacy.tsx
+#: src/pages/admin/groups/RuleBuilder.tsx
 msgid "admin.group.rule.group.op"
 msgstr "Match"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/groups/RuleEditorLegacy.tsx
-msgid "admin.group.rule.not.hint"
-msgstr "Match accounts this condition does not describe."
+#: src/pages/admin/groups/RuleBuilder.tsx
+msgid "admin.group.rule.well-sentence"
+msgstr "Match <0/> of these"
 
 #. js-lingui-explicit-id
 #: src/components/custom/AppAccessSection.tsx
@@ -5230,11 +5320,6 @@ msgstr "None selected"
 #: src/pages/admin/identity-providers/EffectiveConfigDialog.tsx
 msgid "admin.federation.diagnostics.scopes-none"
 msgstr "None sent"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/groups/RuleEditorLegacy.tsx
-msgid "admin.group.rule.not"
-msgstr "Not"
 
 #. js-lingui-explicit-id
 #: src/pages/public/Pair.tsx
@@ -5745,6 +5830,11 @@ msgid "security.password.list"
 msgstr "Password and authenticator"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/rule-labels.ts
+msgid "admin.group.rule.method.password_totp"
+msgstr "Password and authenticator"
+
+#. js-lingui-explicit-id
 #: src/api/success-messages.ts
 msgid "success.password-totp.revoked"
 msgstr "Password and authenticator turned off"
@@ -5889,6 +5979,11 @@ msgstr "Profile"
 #: src/components/custom/ConsoleLayout.tsx
 msgid "console.profile"
 msgstr "Profile"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/rule-labels.ts
+msgid "admin.group.rule.fact.avatar"
+msgstr "Profile picture"
 
 #. js-lingui-explicit-id
 #: src/pages/public/FederationFlow.tsx
@@ -6291,6 +6386,11 @@ msgid "admin.federation.endpoints.remove"
 msgstr "Remove the {endpoint} override"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/RuleBuilder.tsx
+msgid "admin.group.rule.remove-condition"
+msgstr "Remove the condition: {summary}"
+
+#. js-lingui-explicit-id
 #: src/components/custom/AppAccessSection.tsx
 msgid "app.groups.last.title"
 msgstr "Remove the last group?"
@@ -6331,9 +6431,9 @@ msgid "admin.federation.url.userinfo"
 msgstr "Remove the user name and password from the address."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/groups/RuleEditorLegacy.tsx
-msgid "admin.group.rule.remove"
-msgstr "Remove this condition"
+#: src/pages/admin/groups/RuleBuilder.tsx
+msgid "admin.group.rule.remove-group"
+msgstr "Remove this group"
 
 #. js-lingui-explicit-id
 #: src/components/custom/AppManagersSection.tsx
@@ -6755,22 +6855,17 @@ msgid "admin.group.kind.rule"
 msgstr "Rule"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/groups/RuleEditorLegacy.tsx
-msgid "admin.group.rule.title"
-msgstr "Rule"
-
-#. js-lingui-explicit-id
 #: src/components/custom/AppAccessSection.tsx
 msgid "app.groups.kind.rule"
 msgstr "Rule"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/groups/RuleEditorLegacy.tsx
+#: src/pages/admin/groups/RuleJsonTab.tsx
 msgid "admin.group.rule.json.label"
 msgstr "Rule document"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/groups/RuleEditorLegacy.tsx
+#: src/pages/admin/groups/GroupRuleSection.tsx
 msgid "admin.group.rule.views"
 msgstr "Rule editor"
 
@@ -6916,7 +7011,7 @@ msgid "security.passkeys.rename.save"
 msgstr "Save name"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/groups/RuleEditorLegacy.tsx
+#: src/pages/admin/groups/GroupRuleSection.tsx
 msgid "admin.group.rule.save"
 msgstr "Save rule"
 
@@ -6929,6 +7024,11 @@ msgstr "Save your new recovery codes"
 #: src/components/custom/secret-reveal-copy.ts
 msgid "security.codes.first.title"
 msgstr "Save your recovery codes"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupRuleSection.tsx
+msgid "admin.group.rule.consequence"
+msgstr "Saving changes who is in this group right away."
 
 #. js-lingui-explicit-id
 #: src/components/custom/TotpSetup.tsx
@@ -7554,6 +7654,11 @@ msgid "settings.keys.table"
 msgstr "Signing keys"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/rule-labels.ts
+msgid "admin.group.rule.fact.login_method"
+msgstr "Signs in with"
+
+#. js-lingui-explicit-id
 #: src/pages/public/SetupSignin.tsx
 msgid "setup_signin.skip"
 msgstr "Skip for now"
@@ -7785,7 +7890,7 @@ msgid "error.vrchat_operator_code_invalid"
 msgstr "That code is not valid."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/groups/RuleEditorLegacy.tsx
+#: src/pages/admin/groups/rule-labels.ts
 msgid "admin.group.rule.reason.invalid_fact"
 msgstr "That condition type is not supported."
 
@@ -7805,7 +7910,7 @@ msgid "error.avatar_invalid_image"
 msgstr "That file is not an image this instance can use."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/groups/RuleEditorLegacy.tsx
+#: src/pages/admin/groups/rule-labels.ts
 msgid "admin.group.rule.reason.invalid_op"
 msgstr "That group type is not supported."
 
@@ -7850,17 +7955,17 @@ msgid "error.avatar_source_unavailable"
 msgstr "That picture is no longer available. Choose another source."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/groups/RuleEditorLegacy.tsx
+#: src/pages/admin/groups/rule-labels.ts
 msgid "admin.group.rule.reason.invalid_source"
 msgstr "That picture source is not supported."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/groups/RuleEditorLegacy.tsx
+#: src/pages/admin/groups/rule-labels.ts
 msgid "admin.group.rule.reason.invalid_protocol"
 msgstr "That protocol is not supported."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/groups/RuleEditorLegacy.tsx
+#: src/pages/admin/groups/rule-labels.ts
 msgid "admin.group.rule.reason.provider_not_found"
 msgstr "That provider is not available on this instance."
 
@@ -7880,7 +7985,7 @@ msgid "error.session_not_found"
 msgstr "That session has already ended."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/groups/RuleEditorLegacy.tsx
+#: src/pages/admin/groups/rule-labels.ts
 msgid "admin.group.rule.reason.invalid_method"
 msgstr "That sign-in method is not supported."
 
@@ -7965,27 +8070,27 @@ msgid "admin.oidc-apps.rotate.body"
 msgstr "The current secret stops working the moment this is confirmed. Any client still configured with it stops signing accounts in until you give it the new one, so have somewhere to put the new secret before you go ahead."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/groups/RuleEditorLegacy.tsx
+#: src/pages/admin/groups/rule-labels.ts
 msgid "admin.group.rule.reason.unknown_field"
 msgstr "The document has a field the server does not recognise."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/groups/RuleEditorLegacy.tsx
+#: src/pages/admin/groups/rule-labels.ts
 msgid "admin.group.rule.reason.trailing_json"
 msgstr "The document has content after the rule."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/groups/RuleEditorLegacy.tsx
+#: src/pages/admin/groups/rule-labels.ts
 msgid "admin.group.rule.reason.missing_condition"
 msgstr "The document is missing its condition."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/groups/RuleEditorLegacy.tsx
+#: src/pages/admin/groups/rule-labels.ts
 msgid "admin.group.rule.reason.missing_version"
 msgstr "The document is missing its version."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/groups/RuleEditorLegacy.tsx
+#: src/pages/admin/groups/rule-labels.ts
 msgid "admin.group.rule.reason.invalid_json"
 msgstr "The document is not valid JSON."
 
@@ -8244,7 +8349,7 @@ msgid "error.server_error"
 msgstr "The server could not complete the request."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/groups/RuleEditorLegacy.tsx
+#: src/pages/admin/groups/rule-labels.ts
 msgid "admin.group.rule.rejected"
 msgstr "The server did not accept this rule."
 
@@ -8465,7 +8570,7 @@ msgid "profile.avatar.remove.description"
 msgstr "This can't be undone."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/groups/RuleEditorLegacy.tsx
+#: src/pages/admin/groups/rule-labels.ts
 msgid "admin.group.rule.reason.invalid_shape"
 msgstr "This condition mixes fields that do not belong together."
 
@@ -8540,7 +8645,7 @@ msgid "admin.user.attributes.invalid"
 msgstr "This is not valid JSON. Check the braces, commas and quotes."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/groups/RuleEditorLegacy.tsx
+#: src/pages/admin/groups/RuleJsonTab.tsx
 msgid "admin.group.rule.json.unreadable"
 msgstr "This is not valid JSON. The form view still holds your rule."
 
@@ -8695,17 +8800,12 @@ msgid "error.not_admin"
 msgstr "This requires an administrator."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/groups/RuleEditorLegacy.tsx
-msgid "admin.group.rule.problem.too_many_nodes"
-msgstr "This rule has too many conditions. Use at most 64 in total."
-
-#. js-lingui-explicit-id
-#: src/pages/admin/groups/RuleEditorLegacy.tsx
+#: src/pages/admin/groups/rule-labels.ts
 msgid "admin.group.rule.reason.max_nodes_exceeded"
 msgstr "This rule has too many conditions. Use at most 64 in total."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/groups/RuleEditorLegacy.tsx
+#: src/pages/admin/groups/rule-labels.ts
 msgid "admin.group.rule.reason.unsupported_version"
 msgstr "This rule was written for another version of the server."
 
@@ -8943,6 +9043,11 @@ msgid "device.unknown"
 msgstr "Unknown device"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/RuleBuilder.tsx
+msgid "admin.group.rule.provider.unknown"
+msgstr "Unknown provider ({selected})"
+
+#. js-lingui-explicit-id
 #: src/pages/security/IdentitiesPanel.tsx
 msgid "security.identities.unlink"
 msgstr "Unlink"
@@ -9011,6 +9116,11 @@ msgstr "Upload an icon"
 #: src/components/custom/EntityIconCard.tsx
 msgid "entity.icon.upload"
 msgstr "Upload an icon"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/rule-labels.ts
+msgid "admin.group.rule.source.user_uploaded"
+msgstr "Uploaded by them"
 
 #. js-lingui-explicit-id
 #: src/pages/profile/AvatarPanel.tsx
@@ -9392,7 +9502,7 @@ msgid "admin.users.filter.valuePlaceholder"
 msgstr "Value"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/groups/RuleEditorLegacy.tsx
+#: src/pages/admin/groups/RuleBuilder.tsx
 msgid "admin.group.rule.value"
 msgstr "Value"
 
@@ -9729,9 +9839,9 @@ msgid "admin.federation.claims.description"
 msgstr "Who may come in through this provider, and which of its fields fill in the account."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/groups/RuleEditorLegacy.tsx
-msgid "admin.group.rule.label"
-msgstr "Who the rule matches"
+#: src/pages/admin/groups/GroupRuleSection.tsx
+msgid "admin.group.rule.heading"
+msgstr "Who this group matches"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/OidcScopesField.tsx

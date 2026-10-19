@@ -64,6 +64,47 @@ describe("ConsequenceFooter", () => {
     ).toBeDisabled();
   });
 
+  it("points a button it disabled at the sentence that says why", () => {
+    mount({ disabled: true });
+    expect(
+      screen.getByRole("button", { name: "Remove scope and save" }),
+    ).toHaveAccessibleDescription(
+      "Clients still asking for email will be refused.",
+    );
+  });
+
+  it("leaves an enabled button without a description", () => {
+    mount();
+    expect(
+      screen.getByRole("button", { name: "Remove scope and save" }),
+    ).not.toHaveAccessibleDescription();
+  });
+
+  it("reads as a warning unless told it states a refusal", () => {
+    const { container, rerender } = render(
+      <I18nProvider i18n={i18n}>
+        <ConsequenceFooter
+          consequence="Choose a provider."
+          actionLabel="Save"
+          onDiscard={vi.fn()}
+          tone="danger"
+        />
+      </I18nProvider>,
+    );
+    expect(container.firstElementChild).toHaveAttribute("data-tone", "danger");
+
+    rerender(
+      <I18nProvider i18n={i18n}>
+        <ConsequenceFooter
+          consequence="Saving changes who is in."
+          actionLabel="Save"
+          onDiscard={vi.fn()}
+        />
+      </I18nProvider>,
+    );
+    expect(container.firstElementChild).toHaveAttribute("data-tone", "warning");
+  });
+
   it("still offers the buttons with no consequence to state", () => {
     mount({ consequence: undefined });
     expect(screen.getByRole("button", { name: "Discard" })).toBeInTheDocument();

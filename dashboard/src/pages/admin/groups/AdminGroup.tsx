@@ -14,8 +14,8 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { GroupDangerSection } from "@/pages/admin/groups/GroupDangerSection";
 import { GroupDetailsSection } from "@/pages/admin/groups/GroupDetailsSection";
+import { GroupRuleSection } from "@/pages/admin/groups/GroupRuleSection";
 import { GroupUsedBySection } from "@/pages/admin/groups/GroupUsedBySection";
-import { LegacyRuleSection } from "@/pages/admin/groups/RuleEditorLegacy";
 
 /**
  * One user group's page: who it is at the top, a main column of sections and,
@@ -87,7 +87,7 @@ function GroupColumns({ group }: { group: AppGroupView }) {
     >
       <div className="flex min-w-0 flex-col gap-6 lg:col-start-1 lg:row-start-1">
         <GroupDetailsSection group={group} />
-        {isRule && <LegacyRuleSection group={group} />}
+        {isRule && <GroupRuleSection key={group.id} group={group} />}
       </div>
       <aside
         aria-label={t({ id: "admin.group.side", message: "Group context" })}

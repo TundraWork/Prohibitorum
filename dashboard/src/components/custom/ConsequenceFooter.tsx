@@ -1,6 +1,6 @@
 import { Trans } from "@lingui/react/macro";
 import { TriangleAlertIcon } from "lucide-react";
-import type { ReactNode } from "react";
+import { type ReactNode, useId } from "react";
 import { Button } from "@/components/custom/Button";
 
 /**
@@ -17,6 +17,7 @@ export function ConsequenceFooter({
   onDiscard,
   pending = false,
   disabled = false,
+  tone = "warning",
 }: {
   consequence?: ReactNode;
   /** Names the action, such as "Remove scope and save". */
@@ -24,16 +25,32 @@ export function ConsequenceFooter({
   onDiscard: () => void;
   pending?: boolean;
   disabled?: boolean;
+  /**
+   * `danger` for a footer whose text is the reason the save is refused rather
+   * than what it will do.
+   */
+  tone?: "warning" | "danger";
 }): React.ReactElement {
+  const consequenceId = useId();
   return (
-    <div className="flex w-full flex-wrap items-center gap-x-3 gap-y-3">
+    <div
+      data-tone={tone}
+      className="flex w-full flex-wrap items-center gap-x-3 gap-y-3"
+    >
       {consequence != null && (
         <>
           <TriangleAlertIcon
             aria-hidden="true"
-            className="size-4 shrink-0 text-warning"
+            className={
+              tone === "danger"
+                ? "size-4 shrink-0 text-destructive"
+                : "size-4 shrink-0 text-warning"
+            }
           />
-          <p className="min-w-0 flex-1 basis-56 text-pretty text-foreground text-sm">
+          <p
+            id={consequenceId}
+            className="min-w-0 flex-1 basis-56 text-pretty text-foreground text-sm"
+          >
             {consequence}
           </p>
         </>
@@ -47,7 +64,15 @@ export function ConsequenceFooter({
         >
           <Trans id="consequence-footer.discard">Discard</Trans>
         </Button>
-        <Button type="submit" pending={pending} disabled={disabled}>
+        <Button
+          type="submit"
+          pending={pending}
+          disabled={disabled}
+          // A button that cannot be pressed says why, where a keyboard finds it.
+          aria-describedby={
+            disabled && consequence != null ? consequenceId : undefined
+          }
+        >
           {actionLabel}
         </Button>
       </div>

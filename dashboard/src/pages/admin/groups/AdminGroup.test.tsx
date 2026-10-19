@@ -97,7 +97,10 @@ describe("the page's sections", () => {
       screen.getByRole("heading", { level: 2, name: "Delete" }),
     ).toBeVisible();
     expect(
-      screen.queryByRole("heading", { level: 2, name: "Rule" }),
+      screen.queryByRole("heading", {
+        level: 2,
+        name: "Who this group matches",
+      }),
     ).toBeNull();
   });
 
@@ -105,9 +108,12 @@ describe("the page's sections", () => {
     await mountPage(ruleGroupFixture());
 
     expect(
-      screen.getByRole("heading", { level: 2, name: "Rule" }),
+      screen.getByRole("heading", {
+        level: 2,
+        name: "Who this group matches",
+      }),
     ).toBeVisible();
-    expect(screen.getByText("Who the rule matches")).toBeVisible();
+    expect(screen.getByRole("tab", { name: "Builder" })).toBeVisible();
   });
 
   it("lists the applications that use the group beside it", async () => {
