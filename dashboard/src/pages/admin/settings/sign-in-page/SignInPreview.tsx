@@ -1,21 +1,17 @@
-import { Trans, useLingui } from "@lingui/react/macro";
+import { useLingui } from "@lingui/react/macro";
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { Suspense, useEffect, useState, useSyncExternalStore } from "react";
 import { loginWallpaperPreviewQueryOptions } from "@/api/queries";
 import type { WallpaperPreviewQuery } from "@/api/raw-admin-paths";
 import type { LoginAppearance } from "@/api/raw-paths";
-import { Button } from "@/components/custom/Button";
 import { useLoginBackground } from "@/components/custom/login-appearance/use-login-background";
-import { OrSeparator } from "@/components/custom/OrSeparator";
-import { PasskeyButton } from "@/components/custom/PasskeyButton";
 import { PublicScene } from "@/components/custom/PublicScene";
-import { Field, FieldLabel } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   PreviewDocument,
   type PreviewTheme,
 } from "@/pages/admin/settings/sign-in-page/PreviewDocument";
+import { LoginPreviewContext, PasswordPage } from "@/pages/Login";
 
 export type PreviewSize = "desktop" | "phone";
 
@@ -74,9 +70,10 @@ function useDebouncedValue<T>(value: T, delayMs: number): T {
 
 /**
  * The sign-in page itself at the draft's settings, in a frame the size of a
- * desktop window or a phone. It draws the same scene the public pages do, so
- * every change shows at once and a position or theme means what it will mean
- * for visitors.
+ * desktop window or a phone. It draws the same scene the public pages do and,
+ * on it, the real first step of signing in with the instance's own providers,
+ * so every change shows at once and a position, size or theme means what it
+ * will mean for visitors. The frame is inert, so nothing in it can be used.
  *
  * A Bing or Unsplash picture is read for the draft's region or keyword a moment
  * after they stop changing; while it loads the preview shimmers, and when it
@@ -157,7 +154,11 @@ export function SignInPreview({
           })}
         >
           <PublicScene appearance={appearance} background={shown}>
-            <SampleSignIn />
+            <LoginPreviewContext value={true}>
+              <Suspense fallback={null}>
+                <PasswordPage />
+              </Suspense>
+            </LoginPreviewContext>
           </PublicScene>
         </PreviewDocument>
         {loading && (
@@ -170,40 +171,6 @@ export function SignInPreview({
       {note !== undefined && (
         <p className="px-5 py-3 text-muted-foreground text-sm">{note}</p>
       )}
-    </div>
-  );
-}
-
-/** A stand-in for the sign-in step, as the first step of the real one reads. */
-function SampleSignIn() {
-  return (
-    <div className="flex flex-col gap-5">
-      <h1 className="font-semibold text-2xl tracking-tight">
-        <Trans id="settings.sign-in.preview.sign_in">Sign in</Trans>
-      </h1>
-      <PasskeyButton supported isPending={false} isDisabled={false}>
-        <Trans id="settings.sign-in.preview.passkey">
-          Sign in with a passkey
-        </Trans>
-      </PasskeyButton>
-      <OrSeparator />
-      <Field>
-        <FieldLabel>
-          <Trans id="settings.sign-in.preview.username">Username</Trans>
-        </FieldLabel>
-        <Input readOnly />
-      </Field>
-      <Field>
-        <FieldLabel>
-          <Trans id="settings.sign-in.preview.password">Password</Trans>
-        </FieldLabel>
-        <Input readOnly type="password" />
-      </Field>
-      <Button variant="outline" className="w-full">
-        <Trans id="settings.sign-in.preview.continue">
-          Continue with password
-        </Trans>
-      </Button>
     </div>
   );
 }

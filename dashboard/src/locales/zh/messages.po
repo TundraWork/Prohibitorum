@@ -1535,6 +1535,16 @@ msgid "admin.saml-apps.acs.binding"
 msgstr "绑定"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/sign-in-page/ReadabilityLine.tsx
+msgid "settings.sign-in.readability.contrast"
+msgstr "正文对比度 {ratio} : 1"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/sign-in-page/ReadabilityLine.tsx
+msgid "settings.sign-in.readability.contrast_hint"
+msgstr "正文对比度 {ratio} : 1，请调高卡片的不透明度或换一个背景"
+
+#. js-lingui-explicit-id
 #: src/components/custom/ConsoleLayout.tsx
 msgid "console.breadcrumb"
 msgstr "面包屑导航"
@@ -2481,11 +2491,6 @@ msgstr "继续登录 {sp}？"
 #: src/components/custom/ProviderGrid.tsx
 msgid "federation.continue_with"
 msgstr "使用 {name} 继续"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/settings/sign-in-page/SignInPreview.tsx
-msgid "settings.sign-in.preview.continue"
-msgstr "使用密码继续"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/PublicKeyDialog.tsx
@@ -6307,11 +6312,6 @@ msgid "enroll.password_totp.password"
 msgstr "密码"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/sign-in-page/SignInPreview.tsx
-msgid "settings.sign-in.preview.password"
-msgstr "密码"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/logs/audit-vocabulary.ts
 msgid "audit.factor.password"
 msgstr "密码"
@@ -7911,11 +7911,6 @@ msgid "error_page.sign_in"
 msgstr "去登录"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/sign-in-page/SignInPreview.tsx
-msgid "settings.sign-in.preview.sign_in"
-msgstr "登录"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderOperatorSection.tsx
 msgid "admin.federation.operator.login"
 msgstr "登录"
@@ -7993,11 +7988,6 @@ msgstr "请在浏览器中登录后再进行此操作，访问令牌不能用于
 #. js-lingui-explicit-id
 #: src/pages/Login.tsx
 msgid "login.passkey"
-msgstr "使用通行密钥登录"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/settings/sign-in-page/SignInPreview.tsx
-msgid "settings.sign-in.preview.passkey"
 msgstr "使用通行密钥登录"
 
 #. js-lingui-explicit-id
@@ -8511,16 +8501,6 @@ msgstr "测试结果"
 #: src/pages/admin/identity-providers/ConnectionTestDialog.tsx
 msgid "admin.federation.diagnostics.stages"
 msgstr "测试阶段"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/settings/sign-in-page/ReadabilityLine.tsx
-msgid "settings.sign-in.readability.contrast"
-msgstr "文字对比度 {ratio} : 1"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/settings/sign-in-page/ReadabilityLine.tsx
-msgid "settings.sign-in.readability.contrast_hint"
-msgstr "文字对比度 {ratio} : 1，请调高卡片的不透明度或换一个背景"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -10215,11 +10195,6 @@ msgstr "用户名"
 #. js-lingui-explicit-id
 #: src/pages/profile/AccountPanel.tsx
 msgid "console.username"
-msgstr "用户名"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/settings/sign-in-page/SignInPreview.tsx
-msgid "settings.sign-in.preview.username"
 msgstr "用户名"
 
 #. js-lingui-explicit-id

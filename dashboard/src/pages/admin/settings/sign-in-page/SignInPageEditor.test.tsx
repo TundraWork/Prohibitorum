@@ -615,7 +615,9 @@ describe("the readability of the card", () => {
     await open();
     const card = frame("Card");
     expect(await within(card).findByText("Readable")).toBeInTheDocument();
-    expect(within(card).getByText("Text contrast 9.4 : 1")).toBeInTheDocument();
+    expect(
+      within(card).getByText("Body text contrast 9.4 : 1"),
+    ).toBeInTheDocument();
   });
 
   it("warns when the card is hard to read", async () => {
@@ -629,7 +631,7 @@ describe("the readability of the card", () => {
     expect(await within(card).findByText("Hard to read")).toBeInTheDocument();
     expect(
       within(card).getByText(
-        "Text contrast 2.8 : 1 — raise the card's opacity or pick another background",
+        "Body text contrast 2.8 : 1 — raise the card's opacity or pick another background",
       ),
     ).toBeInTheDocument();
   });

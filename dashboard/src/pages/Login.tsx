@@ -10,7 +10,9 @@ import type { HistoryState } from "@tanstack/react-router";
 import { useLocation, useNavigate, useRouter } from "@tanstack/react-router";
 import { ArrowRight, QrCode } from "lucide-react";
 import {
+  createContext,
   useCallback,
+  useContext,
   useEffect,
   useEffectEvent,
   useRef,
@@ -81,6 +83,13 @@ const recoveryInvalid = msg({
   message:
     "Enter a recovery code in XXXX-XXXX-XXXX-XXXX format, using uppercase A–Z and digits 2–7.",
 });
+
+/**
+ * True while the sign-in page is drawn as a picture of itself, as in the
+ * sign-in page editor's preview: it looks the same but never waits for a
+ * passkey or reports on the browser.
+ */
+export const LoginPreviewContext = createContext(false);
 
 /** Sign-in progress carried between the step routes through the history entry. */
 type LoginRouteState = {
@@ -182,9 +191,12 @@ function usePasskeyAutofill({
   flow,
   returnTo,
   remember,
+  enabled,
 }: {
   flow: LoginFlow;
   returnTo?: string;
+  /** Off, nothing waits for a passkey. */
+  enabled: boolean;
   /**
    * Read on each render into the completion's options, so a pick uses the
    * choice as of the latest render. It is a ref rather than a value only so
@@ -200,7 +212,7 @@ function usePasskeyAutofill({
     ),
   );
   // Each value starts a new wait; null while the button's ceremony runs.
-  const [run, setRun] = useState<number | null>(0);
+  const [run, setRun] = useState<number | null>(enabled ? 0 : null);
   const waiting = useRef<AbortController>(undefined);
   const restart = useCallback(
     () => setRun((current) => (current === null ? null : current + 1)),
@@ -250,8 +262,8 @@ function usePasskeyAutofill({
     setRun(null);
   }, []);
   const resume = useCallback(
-    () => setRun((current) => (current === null ? 0 : current)),
-    [],
+    () => setRun((current) => (current === null && enabled ? 0 : current)),
+    [enabled],
   );
   return { pause, resume };
 }
@@ -603,19 +615,22 @@ export function PasswordPage() {
     withInlineReport(passkeyMutationOptions(returnTo, remember), true),
   );
   const resetPasskey = passkey.reset;
+  const preview = useContext(LoginPreviewContext);
   useEffect(
     () => () => {
-      cancelPasskeyAuthentication();
+      if (!preview) cancelPasskeyAuthentication();
       resetPasskey();
     },
-    [resetPasskey],
+    [resetPasskey, preview],
   );
   const autofill = usePasskeyAutofill({
     flow,
     returnTo,
     remember: rememberRef,
+    enabled: !preview,
   });
-  const supported = window.isSecureContext && browserSupportsWebAuthn();
+  const supported =
+    preview || (window.isSecureContext && browserSupportsWebAuthn());
   return (
     <LoginShell
       step="password"

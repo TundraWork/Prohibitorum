@@ -1,8 +1,19 @@
 import { I18nProvider } from "@lingui/react";
 import { type QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  createMemoryHistory,
+  createRootRoute,
+  createRouter,
+  RouterProvider,
+} from "@tanstack/react-router";
 import { render, screen, waitFor } from "@testing-library/react";
+import { createContext, useContext, useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { publicConfigQueryOptions } from "@/api/queries";
+import {
+  authStatusQueryOptions,
+  publicConfigQueryOptions,
+  publicFederationProvidersQueryOptions,
+} from "@/api/queries";
 import type { LoginAppearance } from "@/api/raw-paths";
 import { createQueryClient } from "@/app/query-client";
 import { defaultLoginAppearance } from "@/components/custom/login-appearance/appearance";
@@ -18,6 +29,18 @@ beforeEach(() => {
   notifyError = vi.fn<(error: unknown) => void>();
   queryClient = createQueryClient(notifyError);
   queryClient.setQueryData(publicConfigQueryOptions().queryKey, testConfig);
+  queryClient.setQueryData(authStatusQueryOptions().queryKey, {
+    bootstrapped: true,
+  });
+  queryClient.setQueryData(publicFederationProvidersQueryOptions().queryKey, [
+    {
+      slug: "github",
+      displayName: "GitHub",
+      kind: "oidc",
+      allowSignIn: true,
+      iconUrl: null,
+    },
+  ]);
 });
 
 afterEach(() => {
@@ -31,21 +54,57 @@ function withAppearance(edit: (a: LoginAppearance) => void): LoginAppearance {
   return a;
 }
 
-function view(props: Partial<React.ComponentProps<typeof SignInPreview>> = {}) {
+type PreviewProps = React.ComponentProps<typeof SignInPreview>;
+const Props = createContext<PreviewProps | undefined>(undefined);
+
+function Preview() {
+  const props = useContext(Props) as PreviewProps;
+  return <SignInPreview {...props} />;
+}
+
+/** The preview inside a router, as the console draws it, so the sign-in page it shows has one too. */
+function Harness({ props }: { props: PreviewProps }) {
+  const [router] = useState(() =>
+    createRouter({
+      routeTree: createRootRoute({ component: Preview }),
+      history: createMemoryHistory({ initialEntries: ["/"] }),
+    }),
+  );
+  return (
+    <Props value={props}>
+      <RouterProvider router={router} />
+    </Props>
+  );
+}
+
+function view(props: Partial<PreviewProps> = {}) {
   return (
     <I18nProvider i18n={i18n}>
       <QueryClientProvider client={queryClient}>
-        <SignInPreview
-          appearance={defaultLoginAppearance}
-          images={[]}
-          hasUnsplashKey={false}
-          theme="light"
-          size="desktop"
-          {...props}
+        <Harness
+          props={{
+            appearance: defaultLoginAppearance,
+            images: [],
+            hasUnsplashKey: false,
+            theme: "light",
+            size: "desktop",
+            ...props,
+          }}
         />
       </QueryClientProvider>
     </I18nProvider>
   );
+}
+
+/** Renders the preview inside its router and waits for its frame. */
+async function show(ui: React.ReactElement) {
+  const result = render(ui);
+  await waitFor(() =>
+    expect(
+      document.querySelector("iframe[data-sign-in-preview]"),
+    ).not.toBeNull(),
+  );
+  return result;
 }
 
 /** The sign-in page's own document, which the preview draws in a frame. */
@@ -63,17 +122,33 @@ async function pageDocument(): Promise<Document> {
 
 describe("the sign-in page preview", () => {
   it("draws the sign-in page itself, in a frame of its own", async () => {
-    render(view());
+    await show(view());
     const page = await pageDocument();
     expect(page.querySelector('[data-slot="stage-card"]')).not.toBeNull();
     expect(page.querySelector("header")).not.toBeNull();
-    expect(page.body).toHaveTextContent("Sign in");
+    expect(page.body).toHaveTextContent("Sign in with Test instance");
     expect(page.body).toHaveTextContent("Sign in with a passkey");
-    expect(page.body).toHaveTextContent("Test instance");
+    expect(page.body).toHaveTextContent("or with your password");
+    expect(page.body).toHaveTextContent("or continue with");
+    expect(page.body).toHaveTextContent("GitHub");
+    expect(page.body).toHaveTextContent(
+      "Sign in with your phone or another device",
+    );
+    expect(page.body).toHaveTextContent("Stay signed in on this device");
+  });
+
+  it("never waits for a passkey while it is only a picture", async () => {
+    const conditional = vi.fn();
+    vi.stubGlobal("PublicKeyCredential", {
+      isConditionalMediationAvailable: conditional,
+    });
+    await show(view());
+    await pageDocument();
+    expect(conditional).not.toHaveBeenCalled();
   });
 
   it("keeps the frame out of the page's tab order and reading order", async () => {
-    render(view());
+    await show(view());
     await pageDocument();
     const frame = document.querySelector("iframe[data-sign-in-preview]");
     expect(frame).toHaveAttribute("inert");
@@ -81,7 +156,7 @@ describe("the sign-in page preview", () => {
   });
 
   it("draws the draft's background and follows it as it changes", async () => {
-    const { rerender } = render(view());
+    const { rerender } = await show(view());
     const page = await pageDocument();
     expect(page.querySelector("[data-login-backdrop]")).toBeNull();
 
@@ -101,7 +176,7 @@ describe("the sign-in page preview", () => {
   });
 
   it("draws uploaded images behind the page", async () => {
-    render(
+    await show(
       view({
         appearance: withAppearance((a) => {
           a.background.source = "images";
@@ -120,7 +195,7 @@ describe("the sign-in page preview", () => {
     ["center", "center"],
     ["right", "right"],
   ] as const)("places the card at the %s", async (position, expected) => {
-    render(
+    await show(
       view({
         appearance: withAppearance((a) => {
           a.cardPosition = position;
@@ -135,7 +210,7 @@ describe("the sign-in page preview", () => {
   });
 
   it("applies the chosen theme to the page, not to the console", async () => {
-    const { rerender } = render(view({ theme: "dark" }));
+    const { rerender } = await show(view({ theme: "dark" }));
     const page = await pageDocument();
     expect(page.documentElement).toHaveClass("dark");
     expect(document.documentElement).not.toHaveClass("dark");
@@ -145,7 +220,7 @@ describe("the sign-in page preview", () => {
   });
 
   it("lays the page out at desktop or phone width", async () => {
-    const { rerender } = render(view());
+    const { rerender } = await show(view());
     await pageDocument();
     const frame = () =>
       document.querySelector<HTMLIFrameElement>("iframe[data-sign-in-preview]");
@@ -158,7 +233,7 @@ describe("the sign-in page preview", () => {
   });
 
   it("draws the toolbar's theme control only while visitors choose the theme", async () => {
-    const { rerender } = render(view());
+    const { rerender } = await show(view());
     const page = await pageDocument();
     expect(
       page.querySelector('header button[aria-label="Theme"]'),
@@ -178,8 +253,8 @@ describe("the sign-in page preview", () => {
     );
   });
 
-  it("says an Unsplash photo needs a saved access key", () => {
-    render(
+  it("says an Unsplash photo needs a saved access key", async () => {
+    await show(
       view({
         appearance: withAppearance((a) => {
           a.background.source = "unsplash";
@@ -196,7 +271,7 @@ describe("the sign-in page preview", () => {
       "GET /api/prohibitorum/admin/settings/login-appearance/wallpaper": () =>
         apiError("wallpaper_unavailable", 503),
     });
-    render(
+    await show(
       view({
         appearance: withAppearance((a) => {
           a.background.source = "bing";
@@ -224,7 +299,7 @@ describe("the sign-in page preview", () => {
           ],
         }),
     });
-    render(
+    await show(
       view({
         appearance: withAppearance((a) => {
           a.background.source = "bing";

@@ -1535,6 +1535,16 @@ msgid "admin.saml-apps.acs.binding"
 msgstr "Binding"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/sign-in-page/ReadabilityLine.tsx
+msgid "settings.sign-in.readability.contrast"
+msgstr "Body text contrast {ratio} : 1"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/sign-in-page/ReadabilityLine.tsx
+msgid "settings.sign-in.readability.contrast_hint"
+msgstr "Body text contrast {ratio} : 1 — raise the card's opacity or pick another background"
+
+#. js-lingui-explicit-id
 #: src/components/custom/ConsoleLayout.tsx
 msgid "console.breadcrumb"
 msgstr "Breadcrumb"
@@ -2481,11 +2491,6 @@ msgstr "Continue to {sp}?"
 #: src/components/custom/ProviderGrid.tsx
 msgid "federation.continue_with"
 msgstr "Continue with {name}"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/settings/sign-in-page/SignInPreview.tsx
-msgid "settings.sign-in.preview.continue"
-msgstr "Continue with password"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/PublicKeyDialog.tsx
@@ -6307,11 +6312,6 @@ msgid "enroll.password_totp.password"
 msgstr "Password"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/sign-in-page/SignInPreview.tsx
-msgid "settings.sign-in.preview.password"
-msgstr "Password"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/logs/audit-vocabulary.ts
 msgid "audit.factor.password"
 msgstr "Password"
@@ -7911,11 +7911,6 @@ msgid "error_page.sign_in"
 msgstr "Sign in"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/sign-in-page/SignInPreview.tsx
-msgid "settings.sign-in.preview.sign_in"
-msgstr "Sign in"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderOperatorSection.tsx
 msgid "admin.federation.operator.login"
 msgstr "Sign in"
@@ -7993,11 +7988,6 @@ msgstr "Sign in with a browser to do this. An access token cannot."
 #. js-lingui-explicit-id
 #: src/pages/Login.tsx
 msgid "login.passkey"
-msgstr "Sign in with a passkey"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/settings/sign-in-page/SignInPreview.tsx
-msgid "settings.sign-in.preview.passkey"
 msgstr "Sign in with a passkey"
 
 #. js-lingui-explicit-id
@@ -8511,16 +8501,6 @@ msgstr "Test results"
 #: src/pages/admin/identity-providers/ConnectionTestDialog.tsx
 msgid "admin.federation.diagnostics.stages"
 msgstr "Test stages"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/settings/sign-in-page/ReadabilityLine.tsx
-msgid "settings.sign-in.readability.contrast"
-msgstr "Text contrast {ratio} : 1"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/settings/sign-in-page/ReadabilityLine.tsx
-msgid "settings.sign-in.readability.contrast_hint"
-msgstr "Text contrast {ratio} : 1 — raise the card's opacity or pick another background"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -10215,11 +10195,6 @@ msgstr "Username"
 #. js-lingui-explicit-id
 #: src/pages/profile/AccountPanel.tsx
 msgid "console.username"
-msgstr "Username"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/settings/sign-in-page/SignInPreview.tsx
-msgid "settings.sign-in.preview.username"
 msgstr "Username"
 
 #. js-lingui-explicit-id
