@@ -57,6 +57,8 @@ function mount(
 }
 
 const nameField = () => screen.getByRole("textbox", { name: "Name" });
+const kindFact = () =>
+  screen.getByText("How it fills").closest("dl") as HTMLElement;
 const slugField = () => screen.getByRole("textbox", { name: "Identifier" });
 const descriptionField = () =>
   screen.getByRole("textbox", { name: "Description" });
@@ -76,12 +78,8 @@ describe("the details section", () => {
     expect(slugField()).toHaveValue("staff");
     expect(descriptionField()).toHaveValue("Everyone employed here");
     expect(sendSwitch()).toBeChecked();
-    expect(screen.getByRole("textbox", { name: "How it fills" })).toHaveValue(
-      "Manual",
-    );
-    expect(
-      screen.getByRole("textbox", { name: "How it fills" }),
-    ).toHaveAttribute("readonly");
+    expect(screen.queryByRole("textbox", { name: "How it fills" })).toBeNull();
+    expect(kindFact()).toHaveTextContent("Manual");
     expect(
       screen.getByText(
         "A group's kind is set when it is created and cannot be changed.",
@@ -101,9 +99,7 @@ describe("the details section", () => {
 
   it("reads a rule group's kind as Rule", () => {
     mount(ruleGroupFixture());
-    expect(screen.getByRole("textbox", { name: "How it fills" })).toHaveValue(
-      "Rule",
-    );
+    expect(kindFact()).toHaveTextContent("Rule");
   });
 
   it("saves the full body, without a rule, and stays on the page", async () => {

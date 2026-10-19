@@ -9,7 +9,6 @@ import type { AppGroupView, UpdateGroupRequest } from "@/api/raw-admin-paths";
 import { withInlineReport } from "@/app/query-client";
 import { ConfirmDialog } from "@/components/custom/ConfirmDialog";
 import { ConsequenceFooter } from "@/components/custom/ConsequenceFooter";
-import { ReadOnlyField } from "@/components/custom/FormFields";
 import { Section } from "@/components/custom/Section";
 import { applyServerError } from "@/forms/server-errors";
 import { useAppForm } from "@/forms/use-app-form";
@@ -262,22 +261,27 @@ export function GroupDetailsSection({ group }: { group: AppGroupView }) {
   );
 }
 
-/** The kind as a fact: it is set when the group is created and never changes. */
+/**
+ * The kind as a fact: it is set when the group is created and never changes,
+ * so it reads as text, not as a field that takes a caret.
+ */
 function ReadOnlyKind({ kind }: { kind: string }) {
   const { t } = useLingui();
   return (
-    <ReadOnlyField
-      label={<Trans id="admin.group.kind.label">How it fills</Trans>}
-      value={
-        kind === "rule"
+    <dl className="flex flex-col items-start gap-2">
+      <dt className="font-medium text-base/4.5 sm:text-sm/4">
+        <Trans id="admin.group.kind.label">How it fills</Trans>
+      </dt>
+      <dd className="text-base sm:text-sm">
+        {kind === "rule"
           ? t({ id: "admin.group.kind.rule", message: "Rule" })
-          : t({ id: "admin.group.kind.manual", message: "Manual" })
-      }
-      description={
+          : t({ id: "admin.group.kind.manual", message: "Manual" })}
+      </dd>
+      <dd className="text-muted-foreground text-xs">
         <Trans id="admin.group.kind.fixed">
           A group's kind is set when it is created and cannot be changed.
         </Trans>
-      }
-    />
+      </dd>
+    </dl>
   );
 }
