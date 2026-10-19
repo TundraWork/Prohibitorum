@@ -26,30 +26,22 @@ function returnedFields(
   return test?.status === "succeeded" ? test.fields : null;
 }
 
-const ReturnedFieldsContext = createContext<Record<
-  string,
-  LatestConnectionTestFieldView
-> | null>(null);
+/** What the last test read, and whether the settings have moved since. */
+type Returned = {
+  fields: Record<string, LatestConnectionTestFieldView>;
+  stale: boolean;
+};
+
+const ReturnedFieldsContext = createContext<Returned | null>(null);
 
 /**
- * The tracks of the wide table. With the last-test column it takes three, and
- * so needs more room before it leaves the stacked layout; the two-column table
- * keeps the width it always had. Written out in full so the class scanner sees
- * every variant.
+ * The tracks of the wide table: the account field, the claim input and the
+ * last-test column. They are the same whether or not a test is shown, so the
+ * claim inputs keep one width and the table does not change shape when a test
+ * finishes; with no result to show, the third track is simply empty. Written
+ * out in full so the class scanner sees every variant.
  */
-const layouts = {
-  plain: {
-    head: "hidden @lg/claims:grid @lg/claims:grid-cols-[10rem_minmax(0,1fr)] @lg/claims:gap-x-6",
-    row: "@lg/claims:grid @lg/claims:grid-cols-[10rem_minmax(0,1fr)] @lg/claims:items-start @lg/claims:gap-x-6",
-    // Where the first two heading cells appear: with the head itself.
-    names: "",
-  },
-  tested: {
-    head: "grid @2xl/claims:grid-cols-[10rem_minmax(0,1fr)_minmax(0,1fr)] @2xl/claims:gap-x-6",
-    row: "@2xl/claims:grid @2xl/claims:grid-cols-[10rem_minmax(0,1fr)_minmax(0,1fr)] @2xl/claims:items-start @2xl/claims:gap-x-6",
-    names: "hidden @2xl/claims:block",
-  },
-} as const;
+const tracks = "@2xl/claims:grid-cols-[10rem_minmax(0,1fr)_minmax(0,1fr)]";
 
 /**
  * Which provider claim fills each account field: the account's field, the claim
@@ -79,7 +71,8 @@ export function ClaimMappingTable({
   const labelId = useId();
   const captionId = useId();
   const fields = returnedFields(lastTest);
-  const layout = fields === null ? layouts.plain : layouts.tested;
+  const returned =
+    fields === null ? null : { fields, stale: lastTest?.stale === true };
 
   return (
     <div className="@container/claims flex flex-col gap-2">
@@ -90,7 +83,7 @@ export function ClaimMappingTable({
         <p
           id={captionId}
           data-slot="claims-last-test-failed"
-          className="text-warning-foreground text-xs"
+          className="text-destructive-foreground text-xs"
         >
           {lastTest.stale ? (
             <Trans id="admin.federation.claims.test.failed.stale">
@@ -106,21 +99,25 @@ export function ClaimMappingTable({
           )}
         </p>
       )}
+      {/* The headings stay at every width only when there is a last-test
+          caption to show; the names above and beside the inputs are headings
+          for the wide table alone. */}
       <div
         className={cn(
-          "gap-y-0.5 text-muted-foreground text-xs font-medium",
-          layout.head,
+          "gap-y-0.5 text-muted-foreground text-xs font-medium @2xl/claims:grid @2xl/claims:gap-x-6",
+          tracks,
+          returned === null ? "hidden" : "grid",
         )}
       >
-        <span aria-hidden="true" className={layout.names}>
+        <span aria-hidden="true" className="hidden @2xl/claims:block">
           <Trans id="admin.federation.claims.column.field">Account field</Trans>
         </span>
-        <span aria-hidden="true" className={layout.names}>
+        <span aria-hidden="true" className="hidden @2xl/claims:block">
           <Trans id="admin.federation.claims.column.claim">
             Provider claim
           </Trans>
         </span>
-        {fields !== null && lastTest != null && (
+        {returned !== null && lastTest != null && (
           <span className="flex flex-col">
             <Trans id="admin.federation.claims.column.returned">
               Last test returned
@@ -142,7 +139,7 @@ export function ClaimMappingTable({
           </span>
         )}
       </div>
-      <ReturnedFieldsContext.Provider value={fields}>
+      <ReturnedFieldsContext.Provider value={returned}>
         <dl
           aria-labelledby={labelId}
           aria-describedby={lastTest == null ? undefined : captionId}
@@ -193,8 +190,8 @@ export function ClaimMappingRow({
   return (
     <div
       className={cn(
-        "flex flex-col gap-1.5 py-3 first:pt-0 last:pb-0",
-        tested ? layouts.tested.row : layouts.plain.row,
+        "flex flex-col gap-1.5 py-3 first:pt-0 last:pb-0 @2xl/claims:grid @2xl/claims:items-start @2xl/claims:gap-x-6",
+        tracks,
       )}
     >
       {/* A control's height on the wide table, so the name sits on the
@@ -234,9 +231,13 @@ export function ClaimMappingRow({
       {tested && (
         <dd
           data-claim-result={testField}
+          data-stale={returned.stale || undefined}
           className="min-w-0 break-words text-sm @2xl/claims:flex @2xl/claims:min-h-7.5 @2xl/claims:items-center"
         >
-          <ReturnedClaim result={returned[testField]} />
+          <ReturnedClaim
+            result={returned.fields[testField]}
+            stale={returned.stale}
+          />
         </dd>
       )}
     </div>
@@ -250,8 +251,11 @@ export function ClaimMappingRow({
  */
 function ReturnedClaim({
   result,
+  stale,
 }: {
   result: LatestConnectionTestFieldView | undefined;
+  /** The settings moved since, so the result may no longer hold: it recedes. */
+  stale: boolean;
 }) {
   const { i18n } = useLingui();
   const prefix = (
@@ -276,7 +280,12 @@ function ReturnedClaim({
   }
   if (!result.present) {
     return (
-      <span className="font-medium text-warning-foreground">
+      <span
+        className={cn(
+          "font-medium",
+          stale ? "text-muted-foreground" : "text-warning-foreground",
+        )}
+      >
         {prefix}
         <Trans id="admin.federation.claims.returned.missing">Missing</Trans>
       </span>
@@ -284,18 +293,28 @@ function ReturnedClaim({
   }
   const label = documentSourceLabel(result.source);
   const source = label === undefined ? result.source : i18n._(label);
+  // The document and the claim read as one unit: a break between them would
+  // leave a claim name on its own line, away from where it was read. An
+  // absurdly long claim is cut short rather than pushing the page sideways.
   return (
     <span className="text-muted-foreground">
       {prefix}
-      {source}
-      {result.claim !== undefined && result.claim !== "" && (
-        <>
-          {" · "}
-          <span className="font-mono text-foreground text-xs">
-            {result.claim}
-          </span>
-        </>
-      )}
+      <span className="inline-block max-w-full truncate whitespace-nowrap align-bottom">
+        {source}
+        {result.claim !== undefined && result.claim !== "" && (
+          <>
+            {"\u00a0·\u00a0"}
+            <span
+              className={cn(
+                "font-mono text-xs",
+                stale ? "text-muted-foreground" : "text-foreground",
+              )}
+            >
+              {result.claim}
+            </span>
+          </>
+        )}
+      </span>
     </span>
   );
 }

@@ -184,6 +184,23 @@ describe("the last test column", () => {
         /From the test 2 minutes ago.*Configuration changed since/,
       ),
     );
+    // The rows say so too, so the results recede wherever the page is scrolled.
+    expect(document.querySelector("[data-claim-result=email]")).toHaveAttribute(
+      "data-stale",
+      "true",
+    );
+  });
+
+  it("does not mark the results of a current test as out of date", async () => {
+    api = fakeApi({
+      [`GET ${latestPath}`]: () => Response.json(latest({})),
+    });
+    mount(provider());
+
+    await screen.findByText(/From the test/);
+    expect(
+      document.querySelector("[data-claim-result=email]"),
+    ).not.toHaveAttribute("data-stale");
   });
 
   it("says a failed test failed, rather than marking every field missing", async () => {
