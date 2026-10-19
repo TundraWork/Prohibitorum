@@ -1,9 +1,9 @@
 import { useLingui } from "@lingui/react/macro";
-import { CheckIcon, CircleAlertIcon, CopyIcon } from "lucide-react";
+import { CheckIcon, CopyIcon } from "lucide-react";
 import { type ReactNode, useRef } from "react";
 import { Button } from "@/components/custom/Button";
+import { CopyStatus } from "@/components/custom/CopyableValue";
 import { useCopyValue } from "@/components/custom/use-copy-value";
-import { Alert, AlertTitle } from "@/components/ui/alert";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import {
   InputGroup,
@@ -133,21 +133,7 @@ export function CopyValue({
       {description !== undefined && (
         <FieldDescription>{description}</FieldDescription>
       )}
-      <span role="status" className="sr-only">
-        {copied ? copiedLabel : ""}
-      </span>
-      {state === "failed" && (
-        <Alert variant="warning">
-          <CircleAlertIcon aria-hidden="true" />
-          <AlertTitle>
-            {t({
-              id: "copy-value.failed",
-              message:
-                "Couldn't copy. Select the value above and copy it yourself.",
-            })}
-          </AlertTitle>
-        </Alert>
-      )}
+      <CopyStatus state={state} />
     </Field>
   );
 }

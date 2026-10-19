@@ -62,6 +62,23 @@ describe("ObjectHeader", () => {
       </I18nProvider>,
     );
 
+  it("lets an address wrap after its slashes without changing its text", () => {
+    const url = "https://saml.example.test/idp/metadata";
+    const { container } = render(
+      <I18nProvider i18n={i18n}>
+        <ObjectHeader
+          icon={<span>icon</span>}
+          title="Portal"
+          identifier={{ value: url, label: "Copy the entity ID" }}
+        />
+      </I18nProvider>,
+    );
+
+    expect(screen.getByText(url)).toBeInTheDocument();
+    // A break point after the scheme and after each path segment, none inside one.
+    expect(container.querySelectorAll("wbr")).toHaveLength(3);
+  });
+
   it("copies the identifier value and confirms with Copied", async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     const user = userEvent.setup();

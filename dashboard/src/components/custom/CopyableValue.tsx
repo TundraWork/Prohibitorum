@@ -1,9 +1,28 @@
 import { useLingui } from "@lingui/react/macro";
 import { CheckIcon, CircleAlertIcon, CopyIcon } from "lucide-react";
+import { Fragment, type ReactNode } from "react";
 import { Button } from "@/components/custom/Button";
 import { useCopyValue } from "@/components/custom/use-copy-value";
 import { Alert, AlertTitle } from "@/components/ui/alert";
 import { cn } from "@/lib/utils";
+
+/**
+ * The value with a break point after each `/`, so an address wraps between its
+ * path segments rather than inside one. `overflow-wrap: anywhere` on the
+ * caller's text is still the fallback for a segment longer than the line. The
+ * break points are empty elements, so the text, a selection and a copy are
+ * the value itself.
+ */
+function breakAtSlashes(value: string): ReactNode {
+  return value.split(/(?<=\/)(?!\/)/).map((part, index) => (
+    // The segments are positional and never reordered.
+    // biome-ignore lint/suspicious/noArrayIndexKey: see above
+    <Fragment key={index}>
+      {index > 0 && <wbr />}
+      {part}
+    </Fragment>
+  ));
+}
 
 /**
  * A short machine value shown inline in monospace with a button that copies it:
@@ -14,20 +33,30 @@ import { cn } from "@/lib/utils";
 export function CopyableValue({
   value,
   label,
+  wrap = false,
   className,
 }: {
   value: string;
   /** Names the copy button, such as "Copy the client ID". */
   label: string;
+  /** Lets the value wrap, after its slashes; otherwise give it `truncate`. */
+  wrap?: boolean;
   /** Classes for the value's text, such as its size or truncation. */
   className?: string;
 }): React.ReactElement {
   const { state, copy } = useCopyValue();
   const copied = state === "copied";
   return (
-    <span className="inline-flex min-w-0 items-center gap-1">
-      <span className={cn("min-w-0 font-mono text-foreground", className)}>
-        {value}
+    // The button lines up with the value's first line, so a value that wraps
+    // keeps its control where the eye starts reading.
+    <span className="inline-flex min-w-0 items-start gap-1">
+      <span
+        className={cn(
+          "min-w-0 py-1.5 font-mono text-foreground sm:py-1",
+          className,
+        )}
+      >
+        {wrap ? breakAtSlashes(value) : value}
       </span>
       <Button
         aria-label={label}

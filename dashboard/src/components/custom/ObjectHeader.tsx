@@ -33,6 +33,10 @@ interface ObjectHeaderProps {
  * out of sight by the clipping row when the item starts a line. A separator
  * drawn between items would be left dangling at the end of a line the facts
  * wrapped on.
+ *
+ * An identifier that wraps breaks after its slashes. Below `sm` the actions
+ * sit left under the text, as a `PageHeader`'s do, and take the trailing edge
+ * from `sm`.
  */
 export function ObjectHeader({
   icon,
@@ -95,7 +99,8 @@ export function ObjectHeader({
         key="identifier"
         value={identifier.value}
         label={identifier.label}
-        className="break-all text-[13px]"
+        wrap
+        className="wrap-anywhere text-[13px]"
       />,
     );
   }
@@ -128,7 +133,7 @@ export function ObjectHeader({
         )}
       </div>
       {actions !== undefined && (
-        <div className="ms-auto flex gap-2">{actions}</div>
+        <div className="flex gap-2 sm:ms-auto">{actions}</div>
       )}
     </div>
   );
