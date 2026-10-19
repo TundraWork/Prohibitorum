@@ -233,6 +233,7 @@ export function AccountDangerSection({
             Delete this account?
           </Trans>
         }
+        subject={account.displayName || account.username}
         body={
           <p>
             <Trans id="admin.user.delete.confirm.body">

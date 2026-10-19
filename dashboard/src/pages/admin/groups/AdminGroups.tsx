@@ -15,9 +15,9 @@ import { quietQuery } from "@/app/query-client";
 import { Button } from "@/components/custom/Button";
 import { DataTable, type TableColumn } from "@/components/custom/DataTable";
 import { EntityCell } from "@/components/custom/EntityCell";
-import { InlineFailure } from "@/components/custom/InlineFailure";
 import { APP_DATA_COLUMN } from "@/components/custom/ListCells";
 import { PageHeader } from "@/components/custom/PageHeader";
+import { SectionFailure } from "@/components/custom/Section";
 import { TableEmptyState } from "@/components/custom/TableEmptyState";
 import { Badge } from "@/components/ui/badge";
 
@@ -65,7 +65,7 @@ export function AdminGroups() {
           }}
           marks={
             group.exposedToDownstream ? null : (
-              <Badge variant="outline" size="sm">
+              <Badge variant="outline">
                 <Trans id="object.status.not-sent">
                   Not sent to applications
                 </Trans>
@@ -161,7 +161,17 @@ export function AdminGroups() {
         }
       />
 
-      {failed && <InlineFailure error={groups.error} />}
+      {failed && (
+        <SectionFailure
+          error={groups.error}
+          onRetry={() => void groups.refetch()}
+          title={
+            <Trans id="admin.groups.error">
+              The user groups could not be loaded.
+            </Trans>
+          }
+        />
+      )}
 
       {/* A failed first read has no rows to show, and an empty table under the
           failure would say there are none. */}

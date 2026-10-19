@@ -194,7 +194,10 @@ const adminSections: (ConsoleSection & {
     path: "/admin/identity-providers",
     group: "directory",
     icon: LogIn,
-    title: msg({ id: "console.admin.federation", message: "Federation" }),
+    title: msg({
+      id: "console.admin.federation",
+      message: "Identity providers",
+    }),
     visibleTo: "admin",
   },
   {
@@ -572,14 +575,14 @@ function ConsoleBreadcrumb({
           </BreadcrumbItem>
         ) : (
           <>
-            <BreadcrumbItem className="max-sm:hidden">
+            <BreadcrumbItem>
               <BreadcrumbLink
                 render={section.path ? <Link to={section.path} /> : undefined}
               >
                 {title}
               </BreadcrumbLink>
             </BreadcrumbItem>
-            <BreadcrumbSeparator className="max-sm:hidden" />
+            <BreadcrumbSeparator />
             <BreadcrumbItem className="min-w-0">
               <BreadcrumbPage className="truncate">{record}</BreadcrumbPage>
             </BreadcrumbItem>

@@ -102,6 +102,8 @@ export function SigningKeysPanel() {
         {...signingKeysSection}
         action={
           <Button
+            variant="outline"
+            size="sm"
             pending={generate.isPending}
             onClick={() => generate.mutate()}
           >
@@ -228,11 +230,12 @@ export function SigningKeysPanel() {
         onOpenChange={(open) => dismiss(open, retire)}
         status="danger"
         title={<Trans id="settings.keys.retire.title">Retire this key?</Trans>}
+        subject={<KeyId kid={namedKid.current} />}
         body={
           <p>
             <Trans id="settings.keys.retire.body">
-              After the grace period <KeyId kid={namedKid.current} /> is removed
-              from the JWKS and the SAML metadata.
+              After the grace period the key is removed from the JWKS and the
+              SAML metadata.
             </Trans>
           </p>
         }

@@ -7,6 +7,7 @@ import {
   AppManagerNote,
   AppManagersSection,
 } from "@/components/custom/AppManagersSection";
+import { useConsoleCrumb } from "@/components/custom/console-crumb";
 import { EntityAvatar } from "@/components/custom/EntityAvatar";
 import { ObjectHeader } from "@/components/custom/ObjectHeader";
 import { CertificateText } from "@/pages/admin/saml-applications/CertificateText";
@@ -46,6 +47,7 @@ export function AdminSamlApplication() {
   const isAdmin = session.data?.role === "admin";
 
   const name = app.displayName || app.entityId;
+  useConsoleCrumb(name);
   const applicationId = String(app.id);
 
   return (

@@ -137,6 +137,7 @@ function ConnectedAppList() {
         onOpenChange={(open) => !open && setTarget(null)}
         status="danger"
         title={<Trans id="apps.confirm.title">Remove access?</Trans>}
+        subject={target?.name}
         body={
           <p>
             <Trans id="apps.confirm.body">
@@ -145,7 +146,6 @@ function ConnectedAppList() {
             </Trans>
           </p>
         }
-        cancelLabel={<Trans id="apps.confirm.cancel">Keep access</Trans>}
         confirmLabel={<Trans id="apps.confirm.remove">Remove access</Trans>}
         isPending={revoke.isPending}
         onConfirm={() => {

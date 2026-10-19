@@ -4,6 +4,7 @@ import { TriangleAlertIcon, UserRoundCogIcon } from "lucide-react";
 import { readProviderProtocol } from "@/api/federation";
 import { identityProviderQueryOptions } from "@/api/queries";
 import { AppDetailLayout } from "@/components/custom/AppDetailLayout";
+import { useConsoleCrumb } from "@/components/custom/console-crumb";
 import { EntityAvatar } from "@/components/custom/EntityAvatar";
 import { ObjectHeader } from "@/components/custom/ObjectHeader";
 import { Section } from "@/components/custom/Section";
@@ -55,6 +56,7 @@ export function AdminIdentityProvider({
   );
 
   const name = provider.displayName || provider.slug;
+  useConsoleCrumb(name);
   const protocol = readProviderProtocol(provider.protocol);
 
   return (

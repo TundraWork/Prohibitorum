@@ -156,7 +156,7 @@ describe("console navigation", () => {
       within(nav).getByRole("link", { name: "Forward-auth applications" }),
     ).toHaveAttribute("href", "/admin/forward-auth-apps");
     expect(names(within(nav).getByRole("list", { name: "Directory" }))).toEqual(
-      ["Users", "User groups", "Invitations", "Federation"],
+      ["Users", "User groups", "Invitations", "Identity providers"],
     );
     expect(
       names(within(nav).getByRole("list", { name: "Applications" })),

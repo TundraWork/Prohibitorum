@@ -241,11 +241,6 @@ msgid "admin.forward-auth-apps.delete.confirm.open"
 msgstr "{name} is removed along with its icon and its access policy. Requests through its router are turned away immediately. This cannot be undone."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/groups/GroupDangerSection.tsx
-msgid "admin.group.danger.delete.body"
-msgstr "{name} is removed for good, together with what it decides about who gets in. This cannot be undone."
-
-#. js-lingui-explicit-id
 #: src/pages/public/Maintenance.tsx
 msgid "maintenance.title"
 msgstr "{name} is under maintenance"
@@ -259,11 +254,6 @@ msgstr "{name} loses access to the administration pages."
 #: src/pages/admin/saml-applications/SamlDangerSection.tsx
 msgid "admin.saml-apps.danger.disable.body"
 msgstr "{name} stops accepting sign-ins immediately. Its configuration, endpoints and certificates are kept, so it can be enabled again."
-
-#. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/DangerSection.tsx
-msgid "admin.oidc-apps.delete.body"
-msgstr "{name} stops being able to sign anyone in, and its icon, secret and access policy go with it. This cannot be undone."
 
 #. js-lingui-explicit-id
 #: src/components/custom/AppManagersSection.tsx
@@ -757,11 +747,6 @@ msgstr "Add a passkey to sign in on this device directly next time."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/AdminIdentityProviders.tsx
-msgid "admin.federation.create"
-msgstr "Add a provider"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/AdminIdentityProviders.tsx
 msgid "admin.federation.empty.description"
 msgstr "Add a provider so people can sign in with an account they already have elsewhere."
 
@@ -800,11 +785,6 @@ msgstr "Add an account"
 #: src/pages/admin/saml-applications/AttributeMapField.tsx
 msgid "admin.saml-apps.mapping.add"
 msgstr "Add an attribute"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
-msgid "admin.federation.new.title"
-msgstr "Add an identity provider"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
@@ -913,7 +893,7 @@ msgstr "After a successful reset, your old authenticator and all old recovery co
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/SigningKeysPanel.tsx
 msgid "settings.keys.retire.body"
-msgstr "After the grace period <0/> is removed from the JWKS and the SAML metadata."
+msgstr "After the grace period the key is removed from the JWKS and the SAML metadata."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/invitations/AdminInvitationForm.tsx
@@ -1497,11 +1477,6 @@ msgstr "Back to console home"
 #: src/components/custom/LoginShell.tsx
 msgid "login.back"
 msgstr "Back to password"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/settings/sign-in-page/SignInPageEditor.tsx
-msgid "settings.sign-in.back"
-msgstr "Back to Settings"
 
 #. js-lingui-explicit-id
 #: src/pages/public/Pair.tsx
@@ -3013,11 +2988,6 @@ msgid "admin.forward-auth-apps.delete.action"
 msgstr "Delete"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/groups/GroupDangerSection.tsx
-msgid "admin.group.danger.delete.title"
-msgstr "Delete {name}?"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/users/AccountDangerSection.tsx
 msgid "admin.user.delete.confirm.action"
 msgstr "Delete account"
@@ -3086,6 +3056,11 @@ msgstr "Delete this application?"
 #: src/pages/admin/groups/GroupDangerSection.tsx
 msgid "admin.group.danger.delete"
 msgstr "Delete this group"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupDangerSection.tsx
+msgid "admin.group.danger.delete.title"
+msgstr "Delete this group?"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderDangerSection.tsx
@@ -4077,11 +4052,6 @@ msgid "admin.federation.diagnostics.last.failed"
 msgstr "Failed <0/>"
 
 #. js-lingui-explicit-id
-#: src/components/custom/ConsoleLayout.tsx
-msgid "console.admin.federation"
-msgstr "Federation"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/users/AccountIdentityFilter.tsx
 msgid "admin.users.filter.fieldLabel"
 msgstr "Field"
@@ -4531,6 +4501,11 @@ msgid "admin.federation.table"
 msgstr "Identity providers"
 
 #. js-lingui-explicit-id
+#: src/components/custom/ConsoleLayout.tsx
+msgid "console.admin.federation"
+msgstr "Identity providers"
+
+#. js-lingui-explicit-id
 #: src/api/success-messages.ts
 msgid "success.identity.unlinked"
 msgstr "Identity unlinked"
@@ -4808,11 +4783,6 @@ msgid "admin.federation.connection.jwks"
 msgstr "JWKS endpoint"
 
 #. js-lingui-explicit-id
-#: src/pages/ConnectedApps.tsx
-msgid "apps.confirm.cancel"
-msgstr "Keep access"
-
-#. js-lingui-explicit-id
 #: src/lib/scopes.ts
 msgid "consent.scope.offline_access.description"
 msgstr "Keep access while you're away, until you revoke it"
@@ -4826,11 +4796,6 @@ msgstr "Keep at least one passkey on the account. Add another one before removin
 #: src/pages/admin/settings/MaintenancePanel.tsx
 msgid "settings.maintenance.description"
 msgstr "Keep everyone but administrators out while you work on the instance."
-
-#. js-lingui-explicit-id
-#: src/pages/security/PasskeysPanel.tsx
-msgid "security.keep"
-msgstr "Keep it"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/sign-in-page/SavedUnsplashKey.tsx
@@ -5115,8 +5080,9 @@ msgid "settings.keys.more"
 msgstr "Load more"
 
 #. js-lingui-explicit-id
+#: src/components/custom/DataTable.tsx
 #: src/pages/admin/groups/GroupDecisionsSection.tsx
-msgid "admin.group.decisions.load-more"
+msgid "list.load-more"
 msgstr "Load more"
 
 #. js-lingui-explicit-id
@@ -5537,6 +5503,11 @@ msgid "admin.groups.new"
 msgstr "New group"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
+msgid "admin.federation.new.title"
+msgstr "New identity provider"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/invitations/AdminInvitationForm.tsx
 msgid "admin.invitations.new.title"
 msgstr "New invitation"
@@ -5561,6 +5532,11 @@ msgstr "New OIDC application"
 #: src/pages/security/SetupDialog.tsx
 msgid "security.password.new"
 msgstr "New password"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProviders.tsx
+msgid "admin.federation.create"
+msgstr "New provider"
 
 #. js-lingui-explicit-id
 #: src/components/custom/secret-reveal-copy.ts
@@ -8673,6 +8649,11 @@ msgid "admin.logs.filter.account.failed"
 msgstr "The accounts could not be loaded"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/users/AdminUsers.tsx
+msgid "admin.users.error"
+msgstr "The accounts could not be loaded."
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderDangerSection.tsx
 msgid "admin.federation.danger.delete.hint"
 msgstr "The accounts linked through it stay; only the link is removed."
@@ -8711,6 +8692,16 @@ msgstr "The app sent a sign-in request that can't be used."
 #: src/api/errors.ts
 msgid "error.landing.require_identity_invalid_id_token"
 msgstr "The app sent account details that couldn't be checked. Go back to the app and try again."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/DangerSection.tsx
+msgid "admin.oidc-apps.delete.body"
+msgstr "The application stops being able to sign anyone in, and its icon, secret and access policy go with it. This cannot be undone."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/logs/AdminLogs.tsx
+msgid "admin.logs.error"
+msgstr "The audit log could not be loaded."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/SignInPageSummary.tsx
@@ -8788,6 +8779,11 @@ msgid "admin.saml-apps.new.provider.metadata.description"
 msgstr "The document the service provider publishes."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/AdminForwardAuthApps.tsx
+msgid "admin.forward-auth-apps.error"
+msgstr "The forward-auth applications could not be loaded."
+
+#. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/ForwardAuthDangerSection.tsx
 msgid "admin.forward-auth-apps.disable.confirm.body"
 msgstr "The gateway refuses every request through this application, including ones from people who are signed in. Nothing is deleted, and enabling it again restores access."
@@ -8801,6 +8797,11 @@ msgstr "The gateway starts accepting requests through this application again, un
 #: src/pages/admin/groups/GroupDetailsSection.tsx
 msgid "admin.group.exposed.confirm.body"
 msgstr "The group can still be selected for access. Applications just stop receiving its identifier, and you can turn this back on at any time."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupDangerSection.tsx
+msgid "admin.group.danger.delete.body"
+msgstr "The group is removed for good, together with what it decides about who gets in. This cannot be undone."
 
 #. js-lingui-explicit-id
 #: src/lib/scopes.ts
@@ -8849,9 +8850,19 @@ msgid "admin.saml-apps.field.entity-id.hint"
 msgstr "The identifier the service provider publishes. It cannot be changed later."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProviders.tsx
+msgid "admin.federation.error"
+msgstr "The identity providers could not be loaded."
+
+#. js-lingui-explicit-id
 #: src/pages/admin/settings/sign-in-page/SignInPageEditor.tsx
 msgid "settings.sign-in.toolbar.description"
 msgstr "The instance name and the language and theme buttons at the top of the page."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/invitations/AdminInvitations.tsx
+msgid "admin.invitations.error"
+msgstr "The invitations could not be loaded."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
@@ -8919,6 +8930,11 @@ msgstr "The name people see for the application."
 #: src/pages/admin/users/AccountProfileSection.tsx
 msgid "admin.user.profile.description"
 msgstr "The name, address and role of the account, and the attributes applications can read."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/AdminOidcApplications.tsx
+msgid "admin.oidc-apps.error"
+msgstr "The OIDC applications could not be loaded."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/AdminIdentityProviders.tsx
@@ -9047,6 +9063,11 @@ msgid "settings.keys.more_failed"
 msgstr "The rest of the keys could not be loaded."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/AdminSamlApplications.tsx
+msgid "admin.saml-apps.error"
+msgstr "The SAML applications could not be loaded."
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderCredentialsSection.tsx
 msgid "admin.federation.credentials.oidc.note"
 msgstr "The secret this instance signs in to the provider with."
@@ -9165,6 +9186,11 @@ msgstr "The user groups below are kept and apply again when you restrict this ap
 #: src/pages/admin/invitations/AdminInvitationForm.tsx
 msgid "admin.invitations.new.groups-failed"
 msgstr "The user groups could not be loaded"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/AdminGroups.tsx
+msgid "admin.groups.error"
+msgstr "The user groups could not be loaded."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/OidcScopesField.tsx

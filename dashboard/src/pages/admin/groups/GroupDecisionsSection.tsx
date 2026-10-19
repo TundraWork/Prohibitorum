@@ -181,9 +181,7 @@ export function GroupDecisionsSection({ groupId }: { groupId: number }) {
                     pending={list.loadingMore}
                     onClick={list.loadMore}
                   >
-                    <Trans id="admin.group.decisions.load-more">
-                      Load more
-                    </Trans>
+                    <Trans id="list.load-more">Load more</Trans>
                   </Button>
                 </div>
               ) : undefined

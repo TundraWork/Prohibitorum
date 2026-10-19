@@ -74,6 +74,22 @@ async function fill(
   );
 }
 
+describe("the header breadcrumb", () => {
+  it("links back to the list and ends on the page's own title", async () => {
+    serve(() => Response.json({}));
+    await mountForm();
+
+    const crumbs = screen.getByRole("navigation", { name: "Breadcrumb" });
+    expect(
+      within(crumbs).getByRole("link", { name: "OIDC applications" }),
+    ).toHaveAttribute("href", "/admin/oidc-applications");
+    expect(within(crumbs).getByText("New OIDC application")).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+  });
+});
+
 describe("the form's shape", () => {
   it("groups the fields into sections a reader can name", async () => {
     serve(() => Response.json({}));

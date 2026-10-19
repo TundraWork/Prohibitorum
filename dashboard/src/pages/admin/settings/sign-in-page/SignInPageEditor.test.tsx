@@ -161,7 +161,11 @@ async function chooseSource(
   await user.click(within(sources).getByRole("radio", { name }));
 }
 
-const backLink = () => screen.getByRole("link", { name: "Back to Settings" });
+const backLink = () =>
+  within(screen.getByRole("navigation", { name: "Breadcrumb" })).getByRole(
+    "link",
+    { name: "Settings" },
+  );
 
 const saveButton = () => screen.getByRole("button", { name: "Save" });
 
@@ -179,7 +183,7 @@ async function previewDocument(): Promise<Document> {
 }
 
 describe("the page", () => {
-  it("is headed Sign-in page, says what it is for and leads back to Settings", async () => {
+  it("is headed Sign-in page, says what it is for and leads back to Settings from the breadcrumb", async () => {
     await open();
     expect(
       screen.getByText(

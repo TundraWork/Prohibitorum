@@ -24,6 +24,7 @@ import type {
 import { withInlineReport } from "@/app/query-client";
 import { CancelLink } from "@/components/custom/CancelLink";
 import { ChoiceTile } from "@/components/custom/ChoiceTile";
+import { useConsoleCrumb } from "@/components/custom/console-crumb";
 import { PageBody } from "@/components/custom/PageBody";
 import { PageHeader } from "@/components/custom/PageHeader";
 import { Section } from "@/components/custom/Section";
@@ -90,6 +91,9 @@ const slugInvalid = msg({
  */
 export function AdminIdentityProviderNew() {
   const { t, i18n } = useLingui();
+  useConsoleCrumb(
+    t({ id: "admin.federation.new.title", message: "New identity provider" }),
+  );
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const create = useMutation(
@@ -172,9 +176,7 @@ export function AdminIdentityProviderNew() {
     <PageBody>
       <PageHeader
         title={
-          <Trans id="admin.federation.new.title">
-            Add an identity provider
-          </Trans>
+          <Trans id="admin.federation.new.title">New identity provider</Trans>
         }
         description={
           <Trans id="admin.federation.new.description">
@@ -189,7 +191,7 @@ export function AdminIdentityProviderNew() {
             id: "admin.federation.new.form",
             message: "Add an identity provider",
           })}
-          className="flex flex-col gap-8"
+          className="flex flex-col gap-6"
         >
           <form.FormError />
 

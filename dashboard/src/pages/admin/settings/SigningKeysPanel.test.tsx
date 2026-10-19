@@ -279,8 +279,9 @@ describe("signing keys", () => {
     const dialog = await screen.findByRole("alertdialog", {
       name: "Retire this key?",
     });
+    expect(dialog).toHaveTextContent(kids.pending);
     expect(dialog).toHaveTextContent(
-      `After the grace period ${kids.pending} is removed from the JWKS and the SAML metadata.`,
+      "After the grace period the key is removed from the JWKS and the SAML metadata.",
     );
     expect(requests("/retire")).toHaveLength(0);
     await user.click(within(dialog).getByRole("button", { name: "Retire" }));

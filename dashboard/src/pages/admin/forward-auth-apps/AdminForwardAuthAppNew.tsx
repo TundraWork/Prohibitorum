@@ -8,6 +8,7 @@ import { isCancellation } from "@/api/errors";
 import { createForwardAuthAppMutationOptions } from "@/api/mutations";
 import { withInlineReport } from "@/app/query-client";
 import { CancelLink } from "@/components/custom/CancelLink";
+import { useConsoleCrumb } from "@/components/custom/console-crumb";
 import { PageBody } from "@/components/custom/PageBody";
 import { PageHeader } from "@/components/custom/PageHeader";
 import { Section } from "@/components/custom/Section";
@@ -58,6 +59,12 @@ const nameRequired = msg({
  */
 export function AdminForwardAuthAppNew() {
   const { t } = useLingui();
+  useConsoleCrumb(
+    t({
+      id: "admin.forward-auth-apps.new.title",
+      message: "New forward-auth application",
+    }),
+  );
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const create = useMutation(
@@ -128,7 +135,7 @@ export function AdminForwardAuthAppNew() {
             id: "admin.forward-auth-apps.new.form",
             message: "New forward-auth application",
           })}
-          className="flex flex-col gap-8"
+          className="flex flex-col gap-6"
         >
           <form.FormError />
 

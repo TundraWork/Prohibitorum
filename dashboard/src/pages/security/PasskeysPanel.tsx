@@ -132,6 +132,7 @@ function PasskeyList() {
         description={<PasskeysDescription />}
         action={
           <Button
+            variant="outline"
             size="sm"
             pending={add.isPending}
             onClick={() => {
@@ -200,6 +201,11 @@ function PasskeyList() {
             Remove this passkey?
           </Trans>
         }
+        subject={
+          deleting !== null &&
+          (deleting.nickname ||
+            t({ id: "security.passkeys.unnamed", message: "Unnamed passkey" }))
+        }
         body={
           <p>
             <Trans id="security.passkeys.delete.body">
@@ -208,7 +214,6 @@ function PasskeyList() {
             </Trans>
           </p>
         }
-        cancelLabel={<Trans id="security.keep">Keep it</Trans>}
         confirmLabel={
           <Trans id="security.passkeys.delete.confirm">Remove</Trans>
         }

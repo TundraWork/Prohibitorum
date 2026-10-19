@@ -81,19 +81,22 @@ export function EntityCell({
       <div className="flex max-w-52 min-w-0 flex-col sm:max-w-md">
         <span className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 sm:flex-nowrap">
           <span
-            className={`min-w-0 truncate${dimmed ? " opacity-70" : ""}`}
+            className={`-mx-1 -my-0.5 min-w-0 truncate px-1 py-0.5${dimmed ? " opacity-70" : ""}`}
             title={typeof name === "string" ? name : undefined}
           >
             {link === undefined ? (
               name
             ) : (
-              <Link className="hover:underline" {...link}>
+              <Link
+                className="rounded-xs outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+                {...link}
+              >
                 {name}
               </Link>
             )}
           </span>
           {dimmed && (
-            <Badge variant="secondary" size="sm">
+            <Badge variant="secondary">
               {t({ id: "entity.state.disabled", message: "Disabled" })}
             </Badge>
           )}

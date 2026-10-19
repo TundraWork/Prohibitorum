@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 // A card in the described-radio style: the selected one takes the primary
 // border and a soft fill, and the radio's dot shows the choice as well.
 const tile = cva(
-  "group relative flex w-full cursor-pointer flex-col items-center rounded-lg border px-2 text-sm text-foreground/80 outline-none transition-[background-color,border-color,box-shadow,color,scale] duration-150 ease-out hover:bg-accent/50 has-focus-visible:ring-[3px] has-focus-visible:ring-ring/24 has-data-checked:border-primary/48 has-data-checked:bg-accent/50 has-data-checked:font-medium has-data-checked:text-foreground has-data-disabled:cursor-not-allowed has-data-disabled:opacity-64",
+  "group relative flex w-full cursor-pointer flex-col items-center rounded-lg border px-2 text-sm text-foreground/80 outline-none transition-[background-color,border-color,box-shadow,color,scale] duration-150 ease-out hover:bg-accent/50 has-focus-visible:ring-[3px] has-focus-visible:ring-ring/24 has-data-checked:border-primary/48 has-data-checked:bg-accent/50 has-data-checked:font-medium has-data-checked:text-foreground has-data-disabled:cursor-not-allowed has-data-disabled:bg-muted/40 has-data-disabled:text-foreground/60 has-data-disabled:hover:bg-muted/40",
   {
     variants: {
       layout: {

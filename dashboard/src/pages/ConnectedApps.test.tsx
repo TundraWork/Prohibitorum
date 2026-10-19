@@ -239,9 +239,7 @@ describe("removing access", () => {
     await user.click(
       within(row).getByRole("button", { name: "Remove access" }),
     );
-    await user.click(
-      await screen.findByRole("button", { name: "Keep access" }),
-    );
+    await user.click(await screen.findByRole("button", { name: "Cancel" }));
 
     expect(fetchBoundary.mock.calls.some(([r]) => r.method === "POST")).toBe(
       false,

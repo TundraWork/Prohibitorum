@@ -12,9 +12,9 @@ import { quietQuery } from "@/app/query-client";
 import { Button } from "@/components/custom/Button";
 import { DataTable, type TableColumn } from "@/components/custom/DataTable";
 import { FilterPopover } from "@/components/custom/FilterPopover";
-import { InlineFailure } from "@/components/custom/InlineFailure";
 import { JsonBlock } from "@/components/custom/JsonBlock";
 import { PageHeader } from "@/components/custom/PageHeader";
+import { SectionFailure } from "@/components/custom/Section";
 import { TableEmptyState } from "@/components/custom/TableEmptyState";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -190,7 +190,17 @@ export function AdminLogs() {
           </Button>
         </div>
 
-        {failed && <InlineFailure error={list.error} />}
+        {failed && (
+          <SectionFailure
+            error={list.error}
+            onRetry={list.refetch}
+            title={
+              <Trans id="admin.logs.error">
+                The audit log could not be loaded.
+              </Trans>
+            }
+          />
+        )}
 
         {/* A failed first read has no rows to show, and an empty table under
             the failure would say there are none. */}

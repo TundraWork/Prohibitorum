@@ -163,9 +163,12 @@ describe("the delete confirmation", () => {
 
     await user.click(deleteButton());
     const dialog = await screen.findByRole("alertdialog", {
-      name: "Delete Staff?",
+      name: "Delete this group?",
     });
-    expect(within(dialog).getByText(/Staff is removed for good/)).toBeVisible();
+    expect(within(dialog).getByText("Staff")).toBeVisible();
+    expect(
+      within(dialog).getByText(/The group is removed for good/),
+    ).toBeVisible();
     expect(deletes()).toHaveLength(0);
     await user.click(
       within(dialog).getByRole("button", { name: "Delete group" }),

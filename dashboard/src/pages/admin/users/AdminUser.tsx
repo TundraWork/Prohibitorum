@@ -2,6 +2,7 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { accountQueryOptions, sessionQueryOptions } from "@/api/queries";
 import { AppDetailLayout } from "@/components/custom/AppDetailLayout";
+import { useConsoleCrumb } from "@/components/custom/console-crumb";
 import { EntityAvatar } from "@/components/custom/EntityAvatar";
 import {
   ObjectHeader,
@@ -36,6 +37,7 @@ export function AdminUser() {
   const session = useQuery(sessionQueryOptions());
 
   const name = account.displayName || account.username;
+  useConsoleCrumb(name);
   const joined = new Intl.DateTimeFormat(i18n.locale, {
     dateStyle: "medium",
   }).format(new Date(account.createdAt));

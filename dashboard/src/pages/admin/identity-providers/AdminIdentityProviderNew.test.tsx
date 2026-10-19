@@ -53,7 +53,7 @@ async function mountForm() {
   const router = renderApp("/admin/identity-providers/new", queryClient);
   await screen.findByRole("heading", {
     level: 1,
-    name: "Add an identity provider",
+    name: "New identity provider",
   });
   return { user, router };
 }

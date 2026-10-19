@@ -6,9 +6,8 @@ import {
   useQueryClient,
   useSuspenseQuery,
 } from "@tanstack/react-query";
-import { Link, useBlocker } from "@tanstack/react-router";
+import { useBlocker } from "@tanstack/react-router";
 import {
-  ArrowLeftIcon,
   EyeIcon,
   ImageIcon,
   MonitorIcon,
@@ -24,7 +23,6 @@ import { updateLoginAppearanceMutationOptions } from "@/api/mutations";
 import { loginAppearanceQueryOptions } from "@/api/queries";
 import type { AdminLoginAppearance } from "@/api/raw-admin-paths";
 import { withInlineReport } from "@/app/query-client";
-import { Button } from "@/components/custom/Button";
 import { ConsequenceFooter } from "@/components/custom/ConsequenceFooter";
 import { useConsoleCrumb } from "@/components/custom/console-crumb";
 import { useInstanceBranding } from "@/components/custom/instance-branding";
@@ -85,26 +83,15 @@ export function SignInPageEditor() {
   return (
     <SectionRegistryProvider>
       <div className="flex flex-col gap-8">
-        <div className="flex flex-col gap-3">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="-ms-2.5 w-fit"
-            render={<Link to="/admin/settings" />}
-          >
-            <ArrowLeftIcon aria-hidden="true" />
-            <Trans id="settings.sign-in.back">Back to Settings</Trans>
-          </Button>
-          <PageHeader
-            title={<Trans id="settings.sign-in.title">Sign-in page</Trans>}
-            description={
-              <Trans id="settings.sign-in.page.description">
-                What people see before they sign in. The preview shows your
-                changes as you make them.
-              </Trans>
-            }
-          />
-        </div>
+        <PageHeader
+          title={<Trans id="settings.sign-in.title">Sign-in page</Trans>}
+          description={
+            <Trans id="settings.sign-in.page.description">
+              What people see before they sign in. The preview shows your
+              changes as you make them.
+            </Trans>
+          }
+        />
         <Editor saved={saved} />
       </div>
       {/* Below `lg` the preview, and with it Save, scrolls out of sight; the

@@ -9,13 +9,13 @@ import { quietQuery } from "@/app/query-client";
 import { Button } from "@/components/custom/Button";
 import { DataTable, type TableColumn } from "@/components/custom/DataTable";
 import { EntityCell } from "@/components/custom/EntityCell";
-import { InlineFailure } from "@/components/custom/InlineFailure";
 import {
   APP_DATA_COLUMN,
   LinkedAccountsCell,
   NotReadyChip,
 } from "@/components/custom/ListCells";
 import { PageHeader } from "@/components/custom/PageHeader";
+import { SectionFailure } from "@/components/custom/Section";
 import { TableEmptyState } from "@/components/custom/TableEmptyState";
 import { Badge } from "@/components/ui/badge";
 import { ProviderActions } from "@/pages/admin/identity-providers/ProviderActions";
@@ -54,7 +54,7 @@ export function AdminIdentityProviders() {
     quietQuery(identityProvidersListOptions()),
   );
 
-  const columns: TableColumn<Provider>[] = [
+  const allColumns: TableColumn<Provider>[] = [
     {
       id: "provider",
       header: <Trans id="admin.federation.column.provider">Provider</Trans>,
@@ -71,7 +71,7 @@ export function AdminIdentityProviders() {
           marks={
             <>
               {provider.allowSignIn ? null : (
-                <Badge variant="outline" size="sm">
+                <Badge variant="outline">
                   <Trans id="object.status.sign-in-off">Sign-in off</Trans>
                 </Badge>
               )}
@@ -124,6 +124,14 @@ export function AdminIdentityProviders() {
     },
   ];
 
+  // The readiness column exists to say what is missing, so it is drawn only
+  // while some provider on the page is not ready; otherwise it is an empty
+  // header over an empty column.
+  const anyNotReady = list.items.some((provider) => !provider.ready);
+  const columns = allColumns.filter(
+    (column) => column.id !== "readiness" || anyNotReady,
+  );
+
   const failed = list.error !== null && list.error !== undefined;
 
   return (
@@ -141,12 +149,22 @@ export function AdminIdentityProviders() {
         actions={
           <Button render={<Link to="/admin/identity-providers/new" />}>
             <Plus aria-hidden="true" />
-            <Trans id="admin.federation.create">Add a provider</Trans>
+            <Trans id="admin.federation.create">New provider</Trans>
           </Button>
         }
       />
 
-      {failed && <InlineFailure error={list.error} />}
+      {failed && (
+        <SectionFailure
+          error={list.error}
+          onRetry={list.refetch}
+          title={
+            <Trans id="admin.federation.error">
+              The identity providers could not be loaded.
+            </Trans>
+          }
+        />
+      )}
 
       {/* A failed first read has no rows to show, and an empty table under the
           failure would say there are none. */}

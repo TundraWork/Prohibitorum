@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/field";
 import { SelectButton } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
+import { useMediaQuery } from "@/hooks/use-media-query";
 
 /**
  * Search for one entity and select it.
@@ -115,6 +116,7 @@ export function EntityPicker({
 }) {
   const { i18n, t } = useLingui();
   const searchId = useId();
+  const sheet = useMediaQuery("max-sm");
   // A selection the latest result did not return still has to render, or the
   // control would silently look empty while holding a value.
   const known = new Set(options.map((option) => option.id));
@@ -184,13 +186,15 @@ export function EntityPicker({
           )}
         </div>
         <ComboboxPopup
-          // A picker in a dialog stays below its field and takes the room
-          // left there, rather than flipping up over the dialog's title.
-          collisionAvoidance={{
-            side: "none",
-            align: "shift",
-            fallbackAxisSide: "none",
-          }}
+          // On a desktop dialog the list stays below its field and takes the
+          // room left there, rather than flipping up over the dialog's title.
+          // A bottom sheet has its field low on the screen, so there the list
+          // opens on whichever side has room for several rows.
+          collisionAvoidance={
+            sheet
+              ? { side: "flip", align: "shift", fallbackAxisSide: "none" }
+              : { side: "none", align: "shift", fallbackAxisSide: "none" }
+          }
         >
           <div className="relative border-b p-2">
             {/* The field's label would otherwise name this input too, since

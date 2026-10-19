@@ -115,12 +115,13 @@ export function GroupDangerSection({ group }: { group: AppGroupView }) {
         }
         status="danger"
         title={
-          <Trans id="admin.group.danger.delete.title">Delete {name}?</Trans>
+          <Trans id="admin.group.danger.delete.title">Delete this group?</Trans>
         }
+        subject={name}
         body={
           <p>
             <Trans id="admin.group.danger.delete.body">
-              {name} is removed for good, together with what it decides about
+              The group is removed for good, together with what it decides about
               who gets in. This cannot be undone.
             </Trans>
           </p>

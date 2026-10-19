@@ -1,4 +1,4 @@
-import { useLingui } from "@lingui/react/macro";
+import { Trans, useLingui } from "@lingui/react/macro";
 import type { ColumnDef, RowData, SortingState } from "@tanstack/react-table";
 import {
   createSortedRowModel,
@@ -30,7 +30,6 @@ import {
 import { Button as FlatButton } from "@/components/ui/button";
 import { Frame, FrameHeader } from "@/components/ui/frame";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Spinner } from "@/components/ui/spinner";
 import {
   Table,
   TableBody,
@@ -480,8 +479,15 @@ function LoadMoreSentinel({
     return () => observer.disconnect();
   }, [rowCount]);
   return (
-    <div ref={ref} className="flex min-h-8 justify-center py-2">
-      {loading && <Spinner />}
+    <div ref={ref} className="flex justify-center py-3">
+      <Button
+        variant="outline"
+        size="sm"
+        pending={loading}
+        onClick={onLoadMore}
+      >
+        <Trans id="list.load-more">Load more</Trans>
+      </Button>
     </div>
   );
 }

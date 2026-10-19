@@ -15,6 +15,7 @@ import {
 } from "@/components/custom/AppManagersSection";
 import { Button } from "@/components/custom/Button";
 import { CopyableValue } from "@/components/custom/CopyableValue";
+import { useConsoleCrumb } from "@/components/custom/console-crumb";
 import { EntityAvatar } from "@/components/custom/EntityAvatar";
 import { ObjectHeader } from "@/components/custom/ObjectHeader";
 import { AppearanceSection } from "@/pages/admin/oidc-applications/AppearanceSection";
@@ -58,6 +59,7 @@ export function AdminOidcApplication() {
   const issuer = discovery.data?.issuer;
 
   const name = app.displayName || app.clientId;
+  useConsoleCrumb(name);
   // `none` is the one client authentication method that means "no secret at
   // all", which is what makes a client public.
   const isPublic = app.clientAuthMethod === "none";

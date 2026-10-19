@@ -62,15 +62,16 @@ const oidcReason = "Needs a valid connection";
 const oidcDisabledReason = "Needs a valid connection before it can be enabled.";
 
 describe("the page", () => {
-  it("heads the list with what it is for and offers Add a provider", async () => {
+  it("heads the list with what it is for and offers New provider", async () => {
     await mountList([providerFixture()]);
 
     expect(
       document.querySelector('[data-slot="page-description"]'),
     ).not.toBeNull();
-    expect(
-      screen.getByRole("link", { name: "Add a provider" }),
-    ).toHaveAttribute("href", "/admin/identity-providers/new");
+    expect(screen.getByRole("link", { name: "New provider" })).toHaveAttribute(
+      "href",
+      "/admin/identity-providers/new",
+    );
   });
 
   it("says there are no providers, in one line of help, and offers the create action once", async () => {
@@ -80,9 +81,9 @@ describe("the page", () => {
     expect(
       screen.getByText(/Add a provider so people can sign in/),
     ).toBeVisible();
-    expect(
-      screen.getAllByRole("link", { name: "Add a provider" }),
-    ).toHaveLength(1);
+    expect(screen.getAllByRole("link", { name: "New provider" })).toHaveLength(
+      1,
+    );
   });
 });
 
@@ -150,6 +151,9 @@ describe("a row", () => {
       providerFixture({ slug: "ok", displayName: "Fine" }),
     ]);
 
+    expect(
+      within(table).getByRole("columnheader", { name: "Readiness" }),
+    ).toBeVisible();
     const oidc = rowOf(table, "Corporate SSO");
     expect(within(oidc).getByText("Not ready")).toBeVisible();
     expect(within(oidc).getByText(oidcReason)).toBeVisible();
@@ -165,6 +169,13 @@ describe("a row", () => {
     expect(within(fine).queryByText("Not ready")).toBeNull();
     expect(within(fine).queryByText(oidcReason)).toBeNull();
     expect(within(fine).queryByText(oidcDisabledReason)).toBeNull();
+  });
+
+  it("draws the readiness column only while some provider is not ready", async () => {
+    const table = await mountList([providerFixture()]);
+    expect(
+      within(table).queryByRole("columnheader", { name: "Readiness" }),
+    ).toBeNull();
   });
 
   it("opens the provider from the row action", async () => {

@@ -38,9 +38,9 @@ export function ConfirmDialog({
   onOpenChange,
   status,
   title,
+  subject,
   body,
   confirmLabel,
-  cancelLabel,
   isPending = false,
   onConfirm,
 }: {
@@ -48,11 +48,15 @@ export function ConfirmDialog({
   onOpenChange: (isOpen: boolean) => void;
   status: "danger" | "warning" | "accent";
   title: ReactNode;
+  /**
+   * What the step acts on, named under the title where every confirmation
+   * puts it (an application, an account, a key id), so the title can stay a
+   * question about the kind of thing.
+   */
+  subject?: ReactNode;
   /** What happens, named plainly; usually one paragraph. */
   body: ReactNode;
   confirmLabel: ReactNode;
-  /** Defaults to "Cancel"; a dialog may name the choice instead ("Keep it"). */
-  cancelLabel?: ReactNode;
   isPending?: boolean;
   onConfirm: () => void;
 }) {
@@ -66,6 +70,14 @@ export function ConfirmDialog({
             {icons[status]}
           </span>
           <AlertDialogTitle>{title}</AlertDialogTitle>
+          {subject !== undefined && (
+            <p
+              data-slot="confirm-subject"
+              className="col-start-2 break-words font-medium text-foreground text-sm"
+            >
+              {subject}
+            </p>
+          )}
           <AlertDialogDescription
             render={<div />}
             className="col-start-2 text-pretty"
@@ -79,7 +91,7 @@ export function ConfirmDialog({
             onClick={() => onOpenChange(false)}
             variant="ghost"
           >
-            {cancelLabel ?? <Trans id="confirm.cancel">Cancel</Trans>}
+            <Trans id="confirm.cancel">Cancel</Trans>
           </Button>
           <Button
             pending={isPending}

@@ -11,6 +11,8 @@ import { withInlineReport } from "@/app/query-client";
 import { ConsequenceFooter } from "@/components/custom/ConsequenceFooter";
 import { CopyValue } from "@/components/custom/CopyValue";
 import { Section } from "@/components/custom/Section";
+import { SettingRow } from "@/components/custom/SettingRow";
+import { Separator } from "@/components/ui/separator";
 import { applyServerError, ServerFormError } from "@/forms/server-errors";
 import { useAppForm } from "@/forms/use-app-form";
 import { AccountRoleField } from "@/pages/admin/users/AccountRoleField";
@@ -288,16 +290,28 @@ export function AccountProfileSection({ account }: { account: Account }) {
               )}
             </form.AppField>
 
-            <CopyValue
-              value={account.oidcSubject}
-              label={<Trans id="admin.user.oidcSubject">OIDC subject</Trans>}
+            <Separator />
+            <SettingRow
+              descriptionId="admin-user-subject-hint"
+              title={<Trans id="admin.user.oidcSubject">OIDC subject</Trans>}
               description={
                 <Trans id="admin.user.oidcSubject.hint">
                   Applications identify this account by this value. It never
                   changes.
                 </Trans>
               }
-            />
+            >
+              <div className="w-full sm:w-80">
+                <CopyValue
+                  value={account.oidcSubject}
+                  label={
+                    <Trans id="admin.user.oidcSubject">OIDC subject</Trans>
+                  }
+                  labelHidden
+                  describedBy="admin-user-subject-hint"
+                />
+              </div>
+            </SettingRow>
           </div>
         </Section>
       </form.Form>

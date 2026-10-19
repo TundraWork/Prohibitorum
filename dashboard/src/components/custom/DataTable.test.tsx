@@ -287,6 +287,15 @@ describe("DataTable load-more sentinel", () => {
     expect(onLoadMore).toHaveBeenCalledTimes(2);
   });
 
+  it("also offers a Load more button, which asks for the page by hand", async () => {
+    visible = false;
+    const user = userEvent.setup();
+    const onLoadMore = vi.fn();
+    render(view(onLoadMore, { rows, loadingMore: false }));
+    await user.click(screen.getByRole("button", { name: "Load more" }));
+    expect(onLoadMore).toHaveBeenCalledTimes(1);
+  });
+
   it("does not ask again after a page failed and the row count is unchanged", () => {
     const onLoadMore = vi.fn();
     const { rerender } = render(view(onLoadMore, { rows, loadingMore: false }));

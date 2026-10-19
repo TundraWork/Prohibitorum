@@ -71,6 +71,20 @@ async function mountPage(
   return api;
 }
 
+describe("the header breadcrumb", () => {
+  it("links back to the list and ends on the application's name", async () => {
+    await mountPage(oidcAppFixture());
+
+    const crumbs = screen.getByRole("navigation", { name: "Breadcrumb" });
+    expect(
+      within(crumbs).getByRole("link", { name: "OIDC applications" }),
+    ).toHaveAttribute("href", "/admin/oidc-applications");
+    expect(
+      within(crumbs).getByText(oidcAppFixture().displayName),
+    ).toHaveAttribute("aria-current", "page");
+  });
+});
+
 describe("the application header", () => {
   it("names the application with its state, client ID and kind", async () => {
     await mountPage(oidcAppFixture());

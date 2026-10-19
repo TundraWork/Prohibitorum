@@ -37,6 +37,32 @@ function Harness({
 }
 
 describe("ConfirmDialog", () => {
+  it("names what it acts on under the title, and always dismisses with Cancel", () => {
+    render(
+      <I18nProvider i18n={i18n}>
+        <ConfirmDialog
+          isOpen
+          onOpenChange={() => undefined}
+          status="danger"
+          title="Retire this key?"
+          subject="key-1"
+          body={<p>It stops verifying.</p>}
+          confirmLabel="Retire"
+          onConfirm={() => undefined}
+        />
+      </I18nProvider>,
+    );
+    const dialog = screen.getByRole("alertdialog", {
+      name: "Retire this key?",
+    });
+    expect(
+      dialog.querySelector('[data-slot="confirm-subject"]'),
+    ).toHaveTextContent("key-1");
+    expect(
+      within(dialog).getByRole("button", { name: "Cancel" }),
+    ).toBeVisible();
+  });
+
   it("marks the popup with its tone and matches the confirm button to it", () => {
     const { unmount } = render(
       <Harness status="danger" onConfirm={() => undefined} />,

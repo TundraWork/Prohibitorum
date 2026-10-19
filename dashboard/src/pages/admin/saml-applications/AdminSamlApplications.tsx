@@ -10,9 +10,9 @@ import { quietQuery } from "@/app/query-client";
 import { Button } from "@/components/custom/Button";
 import { DataTable, type TableColumn } from "@/components/custom/DataTable";
 import { EntityCell } from "@/components/custom/EntityCell";
-import { InlineFailure } from "@/components/custom/InlineFailure";
 import { APP_DATA_COLUMN, CodeValue } from "@/components/custom/ListCells";
 import { PageHeader } from "@/components/custom/PageHeader";
+import { SectionFailure } from "@/components/custom/Section";
 import { TableEmptyState } from "@/components/custom/TableEmptyState";
 import { CertificateText } from "@/pages/admin/saml-applications/CertificateText";
 import {
@@ -154,7 +154,17 @@ export function AdminSamlApplications() {
         }
       />
 
-      {failed && <InlineFailure error={list.error} />}
+      {failed && (
+        <SectionFailure
+          error={list.error}
+          onRetry={list.refetch}
+          title={
+            <Trans id="admin.saml-apps.error">
+              The SAML applications could not be loaded.
+            </Trans>
+          }
+        />
+      )}
 
       {/* A failed first read has no rows to show, and an empty table under the
           failure would say there are none. */}

@@ -29,6 +29,7 @@ import {
 } from "@/components/custom/InlineFailure";
 import { PageHeader } from "@/components/custom/PageHeader";
 import { RelativeTime } from "@/components/custom/RelativeTime";
+import { SectionFailure } from "@/components/custom/Section";
 import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
 import { TableEmptyState } from "@/components/custom/TableEmptyState";
 import { useCopyValue } from "@/components/custom/use-copy-value";
@@ -108,7 +109,7 @@ export function AdminInvitations() {
           }
           marks={
             invitation.role === "admin" ? (
-              <Badge variant="info" size="sm">
+              <Badge variant="info">
                 <Trans id="object.status.admin">Admin</Trans>
               </Badge>
             ) : null
@@ -235,7 +236,17 @@ export function AdminInvitations() {
       />
 
       <div className="flex flex-col gap-4">
-        {listFailed && <InlineFailure error={list.error} />}
+        {listFailed && (
+          <SectionFailure
+            error={list.error}
+            onRetry={list.refetch}
+            title={
+              <Trans id="admin.invitations.error">
+                The invitations could not be loaded.
+              </Trans>
+            }
+          />
+        )}
         {providers.isError && (
           <p className="text-muted-foreground text-sm">
             <Trans id="admin.invitations.providers-failed">
@@ -301,27 +312,23 @@ export function AdminInvitations() {
             Revoke this invitation?
           </Trans>
         }
+        subject={
+          target !== null &&
+          (target.username ? (
+            <span className="font-mono">@{target.username}</span>
+          ) : (
+            <Trans id="admin.invitations.username.later">
+              Chosen at registration
+            </Trans>
+          ))
+        }
         body={
-          <>
-            {target !== null && (
-              <p className="break-words font-medium text-foreground">
-                {target.username ? (
-                  <span className="font-mono">@{target.username}</span>
-                ) : (
-                  <Trans id="admin.invitations.username.later">
-                    Chosen at registration
-                  </Trans>
-                )}
-              </p>
-            )}
-            <p>
-              <Trans id="admin.invitations.revoke.body">
-                The registration link stops working immediately, and the
-                invitation no longer appears in this list. This cannot be
-                undone.
-              </Trans>
-            </p>
-          </>
+          <p>
+            <Trans id="admin.invitations.revoke.body">
+              The registration link stops working immediately, and the
+              invitation no longer appears in this list. This cannot be undone.
+            </Trans>
+          </p>
         }
         confirmLabel={
           <Trans id="admin.invitations.revoke.action">Revoke</Trans>

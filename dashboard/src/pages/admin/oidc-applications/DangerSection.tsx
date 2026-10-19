@@ -52,8 +52,7 @@ export function DangerSection({ app }: { app: OidcApp }) {
     "disable" | "enable" | "delete" | null
   >(null);
 
-  // Named, so the confirmation's message carries it as `{name}` rather than a
-  // positional placeholder the catalogs do not have.
+  // The confirmations name the application under their title.
   const name = app.displayName || app.clientId;
   const busy = setDisabled.isPending || remove.isPending;
 
@@ -160,6 +159,7 @@ export function DangerSection({ app }: { app: OidcApp }) {
             </Trans>
           )
         }
+        subject={name}
         body={
           confirming === "enable" ? (
             <p>
@@ -206,11 +206,12 @@ export function DangerSection({ app }: { app: OidcApp }) {
             Delete this application?
           </Trans>
         }
+        subject={name}
         body={
           <p>
             <Trans id="admin.oidc-apps.delete.body">
-              {name} stops being able to sign anyone in, and its icon, secret
-              and access policy go with it. This cannot be undone.
+              The application stops being able to sign anyone in, and its icon,
+              secret and access policy go with it. This cannot be undone.
             </Trans>
           </p>
         }

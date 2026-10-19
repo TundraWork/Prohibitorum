@@ -18,6 +18,7 @@ import type {
 import { quietQuery, withInlineReport } from "@/app/query-client";
 import { CancelLink } from "@/components/custom/CancelLink";
 import { ChoiceTile } from "@/components/custom/ChoiceTile";
+import { useConsoleCrumb } from "@/components/custom/console-crumb";
 import type { EntityOption } from "@/components/custom/EntityPicker";
 import { PageBody } from "@/components/custom/PageBody";
 import { PageHeader } from "@/components/custom/PageHeader";
@@ -51,6 +52,9 @@ const groupIdInvalid = msg({
  */
 export function AdminInvitationForm() {
   const { t, i18n } = useLingui();
+  useConsoleCrumb(
+    t({ id: "admin.invitations.new.title", message: "New invitation" }),
+  );
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const groups = useQuery(quietQuery(groupsQueryOptions()));
@@ -175,7 +179,7 @@ export function AdminInvitationForm() {
               id: "admin.invitations.new.form",
               message: "New invitation",
             })}
-            className="flex flex-col gap-8"
+            className="flex flex-col gap-6"
           >
             <form.FormError />
 

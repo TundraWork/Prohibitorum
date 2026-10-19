@@ -416,7 +416,7 @@ describe("removing a passkey", () => {
     await openMenu(user, first as HTMLElement);
     await user.click(screen.getByRole("menuitem", { name: "Remove" }));
     const dialog = await screen.findByRole("alertdialog");
-    await user.click(within(dialog).getByRole("button", { name: "Keep it" }));
+    await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
 
     await waitFor(() =>
       expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument(),

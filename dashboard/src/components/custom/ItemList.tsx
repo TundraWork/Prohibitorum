@@ -311,7 +311,7 @@ export function ItemListRow({
     "col-span-full grid grid-cols-subgrid items-center py-3 max-sm:items-start";
   return link !== undefined ? (
     link({
-      className: `${rowClass} outline-none transition-colors hover:bg-accent/50 focus-visible:bg-accent/50`,
+      className: `${rowClass} outline-none transition-colors hover:bg-accent/50 focus-visible:bg-accent/50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring`,
       children: body,
     })
   ) : (

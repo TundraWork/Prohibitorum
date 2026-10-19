@@ -16,6 +16,7 @@ import type { CreateOidcAppResponse } from "@/api/raw-admin-paths";
 import { withInlineReport } from "@/app/query-client";
 import { CancelLink } from "@/components/custom/CancelLink";
 import { ChoiceTile } from "@/components/custom/ChoiceTile";
+import { useConsoleCrumb } from "@/components/custom/console-crumb";
 import { PageBody } from "@/components/custom/PageBody";
 import { PageHeader } from "@/components/custom/PageHeader";
 import { SecretRevealDialog } from "@/components/custom/SecretReveal";
@@ -87,6 +88,9 @@ const nameRequired = msg({
  */
 export function AdminOidcApplicationNew() {
   const { t } = useLingui();
+  useConsoleCrumb(
+    t({ id: "admin.oidc-apps.new.title", message: "New OIDC application" }),
+  );
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const create = useMutation(
@@ -174,7 +178,7 @@ export function AdminOidcApplicationNew() {
               id: "admin.oidc-apps.new.form",
               message: "New OIDC application",
             })}
-            className="flex flex-col gap-8"
+            className="flex flex-col gap-6"
           >
             <form.FormError />
 

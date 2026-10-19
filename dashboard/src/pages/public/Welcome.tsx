@@ -120,11 +120,11 @@ function AccountPreview({ account }: { account: FederationConfirm }) {
       />
       <div className="flex min-w-0 flex-col">
         <span className="font-medium wrap-anywhere">{account.displayName}</span>
-        <span className="font-mono text-muted-foreground text-sm wrap-anywhere">
+        <span className="font-mono text-foreground/75 text-sm wrap-anywhere">
           @{account.username}
         </span>
         {account.email && (
-          <span className="text-muted-foreground text-sm wrap-anywhere">
+          <span className="text-foreground/75 text-sm wrap-anywhere">
             {account.email}
           </span>
         )}

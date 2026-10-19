@@ -164,6 +164,11 @@ export function DeviceSessionList({
         title={
           <Trans id="devices.sessions.revoke.title">End this session?</Trans>
         }
+        subject={
+          target !== null && (
+            <DeviceName userAgent={target.userAgent} className="block" />
+          )
+        }
         body={
           <p>
             <Trans id="devices.sessions.revoke.body">

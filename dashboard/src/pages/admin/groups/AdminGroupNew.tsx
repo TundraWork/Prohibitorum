@@ -10,6 +10,7 @@ import type { CreateGroupRequest } from "@/api/raw-admin-paths";
 import { withInlineReport } from "@/app/query-client";
 import { CancelLink } from "@/components/custom/CancelLink";
 import { ChoiceTile } from "@/components/custom/ChoiceTile";
+import { useConsoleCrumb } from "@/components/custom/console-crumb";
 import { PageBody } from "@/components/custom/PageBody";
 import { PageHeader } from "@/components/custom/PageHeader";
 import { Section } from "@/components/custom/Section";
@@ -48,6 +49,9 @@ type GroupKind = "manual" | "rule";
  */
 export function AdminGroupNew() {
   const { t } = useLingui();
+  useConsoleCrumb(
+    t({ id: "admin.group.create.title", message: "New user group" }),
+  );
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { providers, known, state: providersState } = useRuleProviders();
@@ -113,7 +117,7 @@ export function AdminGroupNew() {
       <form.AppForm>
         <form.Form
           label={t({ id: "admin.group.form", message: "User group" })}
-          className="flex flex-col gap-8"
+          className="flex flex-col gap-6"
         >
           <form.FormError />
 

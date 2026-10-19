@@ -7,6 +7,7 @@ import {
   AppManagerNote,
   AppManagersSection,
 } from "@/components/custom/AppManagersSection";
+import { useConsoleCrumb } from "@/components/custom/console-crumb";
 import { EntityAvatar } from "@/components/custom/EntityAvatar";
 import { ObjectHeader } from "@/components/custom/ObjectHeader";
 import { ForwardAuthAppearanceSection } from "@/pages/admin/forward-auth-apps/ForwardAuthAppearanceSection";
@@ -44,6 +45,7 @@ export function AdminForwardAuthApp() {
   const isAdmin = session.data?.role === "admin";
 
   const name = app.displayName || app.clientId;
+  useConsoleCrumb(name);
 
   return (
     <AppDetailLayout

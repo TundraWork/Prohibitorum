@@ -6,7 +6,10 @@ import type { ReactNode } from "react";
  */
 export function PageBody({ children }: { children: ReactNode }) {
   return (
-    <div data-slot="page-body" className="flex w-full max-w-3xl flex-col gap-8">
+    <div
+      data-slot="page-body"
+      className="flex w-full max-w-3xl flex-col gap-6 [&>header]:mb-2"
+    >
       {children}
     </div>
   );

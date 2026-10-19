@@ -4,6 +4,7 @@ import { HandIcon, ListFilterIcon } from "lucide-react";
 import { useLayoutEffect, useRef, useState } from "react";
 import { groupQueryOptions } from "@/api/queries";
 import type { AppGroupView } from "@/api/raw-admin-paths";
+import { useConsoleCrumb } from "@/components/custom/console-crumb";
 import { ObjectHeader } from "@/components/custom/ObjectHeader";
 import { SectionRegistryProvider } from "@/components/custom/SectionRegistry";
 import {
@@ -11,8 +12,6 @@ import {
   unsavedReserveClass,
   useUnsavedReserve,
 } from "@/components/custom/UnsavedBar";
-import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
 import { GroupDangerSection } from "@/pages/admin/groups/GroupDangerSection";
 import { GroupDecisionsFrame } from "@/pages/admin/groups/GroupDecisionsFrame";
 import { GroupDecisionsSection } from "@/pages/admin/groups/GroupDecisionsSection";
@@ -36,6 +35,7 @@ import { GroupUsedBySection } from "@/pages/admin/groups/GroupUsedBySection";
 export function AdminGroup({ groupId }: { groupId: number }) {
   const { t } = useLingui();
   const { data: group } = useSuspenseQuery(groupQueryOptions(groupId));
+  useConsoleCrumb(group.displayName);
   const isRule = group.kind === "rule";
 
   return (
@@ -44,12 +44,7 @@ export function AdminGroup({ groupId }: { groupId: number }) {
         icon={
           <span
             aria-hidden="true"
-            className={cn(
-              "flex size-14 shrink-0 items-center justify-center rounded-2xl ring-1 *:size-6",
-              isRule
-                ? "bg-info/10 text-info-foreground ring-info/20"
-                : "bg-muted text-muted-foreground ring-border",
-            )}
+            className="flex size-14 shrink-0 items-center justify-center rounded-2xl bg-muted text-muted-foreground ring-1 ring-border *:size-6"
           >
             {isRule ? <ListFilterIcon /> : <HandIcon />}
           </span>
@@ -65,13 +60,13 @@ export function AdminGroup({ groupId }: { groupId: number }) {
         }}
         facts={[
           isRule ? (
-            <Badge key="kind" variant="info">
-              <Trans id="admin.group.kind.badge.rule">Rule group</Trans>
-            </Badge>
+            <Trans key="kind" id="admin.group.kind.badge.rule">
+              Rule group
+            </Trans>
           ) : (
-            <Badge key="kind" variant="outline">
-              <Trans id="admin.group.kind.badge.manual">Manual group</Trans>
-            </Badge>
+            <Trans key="kind" id="admin.group.kind.badge.manual">
+              Manual group
+            </Trans>
           ),
         ]}
       />
@@ -119,7 +114,7 @@ function GroupColumns({ group }: { group: AppGroupView }) {
   return (
     <div
       {...reserve}
-      className={`mt-8 grid items-start gap-10 ${unsavedReserveClass} lg:grid-cols-[minmax(0,1fr)_300px]`}
+      className={`mt-8 grid items-start gap-x-10 gap-y-6 ${unsavedReserveClass} lg:grid-cols-[minmax(0,1fr)_300px]`}
     >
       <div className="flex min-w-0 flex-col gap-6 lg:col-start-1 lg:row-start-1">
         <GroupDetailsSection group={group} />
