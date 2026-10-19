@@ -2,7 +2,7 @@ import { Plural, Trans, useLingui } from "@lingui/react/macro";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { Power, Trash2, TriangleAlertIcon } from "lucide-react";
-import { type ReactNode, useState } from "react";
+import { useState } from "react";
 import type { components } from "@/api/generated/schema";
 import {
   deleteIdentityProviderMutationOptions,
@@ -17,6 +17,7 @@ import {
   useInlineFailure,
 } from "@/components/custom/InlineFailure";
 import { ItemList, ItemListRow } from "@/components/custom/ItemList";
+import { notReadyReason } from "@/pages/admin/identity-providers/provider-readiness";
 
 type Provider = components["schemas"]["IdentityProviderView"];
 
@@ -133,7 +134,7 @@ export function ProviderDangerSection({ provider }: { provider: Provider }) {
                 aria-hidden="true"
                 className="size-3.5 shrink-0"
               />
-              {notReadyReason(provider.protocol, false)}
+              {notReadyReason(provider)}
             </p>
           )}
         </ItemListRow>
@@ -277,46 +278,4 @@ export function ProviderDangerSection({ provider }: { provider: Provider }) {
       />
     </DangerZoneFrame>
   );
-}
-
-/**
- * What a provider of this protocol still needs. Said for the moment it is
- * asked: before enabling a disabled provider, or what is failing for an
- * enabled one.
- */
-export function notReadyReason(protocol: string, enabled: boolean): ReactNode {
-  switch (protocol) {
-    case "steam":
-      return enabled ? (
-        <Trans id="admin.federation.not-ready.steam.enabled">
-          Sign-in through this provider fails until the Web API key is set.
-        </Trans>
-      ) : (
-        <Trans id="admin.federation.danger.not-ready.steam">
-          Set the Web API key before enabling it.
-        </Trans>
-      );
-    case "vrchat":
-      return enabled ? (
-        <Trans id="admin.federation.not-ready.vrchat.enabled">
-          Sign-in through this provider fails until the operator account is
-          signed in again.
-        </Trans>
-      ) : (
-        <Trans id="admin.federation.danger.not-ready.vrchat">
-          Sign in the operator account before enabling it.
-        </Trans>
-      );
-    default:
-      return enabled ? (
-        <Trans id="admin.federation.not-ready.oidc.enabled">
-          Sign-in through this provider fails until it has a valid connection
-          and a client secret.
-        </Trans>
-      ) : (
-        <Trans id="admin.federation.danger.not-ready.oidc">
-          Needs a valid connection and a client secret before it can be enabled.
-        </Trans>
-      );
-  }
 }

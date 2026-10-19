@@ -1,6 +1,6 @@
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { LogIn, Plus } from "lucide-react";
+import { LogIn, Plus, TriangleAlertIcon } from "lucide-react";
 import { useCursorList } from "@/api/cursor-list";
 import { readProviderMode, readProviderProtocol } from "@/api/federation";
 import type { components } from "@/api/generated/schema";
@@ -19,11 +19,11 @@ import { PageHeader } from "@/components/custom/PageHeader";
 import { TableEmptyState } from "@/components/custom/TableEmptyState";
 import { Badge } from "@/components/ui/badge";
 import { ProviderActions } from "@/pages/admin/identity-providers/ProviderActions";
-import { notReadyReason } from "@/pages/admin/identity-providers/ProviderDangerSection";
 import {
   providerModeLabel,
   providerProtocolLabel,
 } from "@/pages/admin/identity-providers/provider-options";
+import { notReadyReason } from "@/pages/admin/identity-providers/provider-readiness";
 
 type Provider = components["schemas"]["IdentityProviderView"];
 
@@ -38,8 +38,8 @@ type Provider = components["schemas"]["IdentityProviderView"];
  *
  * Readiness is the one state the list raises its voice about. A provider that is
  * not ready cannot be enabled, which is what an administrator arriving here
- * usually wants to fix, so the row says so and says what is missing, in text
- * rather than a tooltip. A provider that is merely switched off recedes and is
+ * usually wants to fix, so the name carries a "Not ready" mark, visible at any
+ * width, and the row says what is missing in text rather than a tooltip. A provider that is merely switched off recedes and is
  * badged instead: it is a settled decision. One that cannot sign anyone in
  * carries a "Sign-in off" badge, because that changes what the provider is for.
  *
@@ -69,11 +69,14 @@ export function AdminIdentityProviders() {
           }}
           dimmed={provider.disabled}
           marks={
-            provider.allowSignIn ? undefined : (
-              <Badge variant="outline" size="sm">
-                <Trans id="object.status.sign-in-off">Sign-in off</Trans>
-              </Badge>
-            )
+            <>
+              {provider.allowSignIn ? null : (
+                <Badge variant="outline" size="sm">
+                  <Trans id="object.status.sign-in-off">Sign-in off</Trans>
+                </Badge>
+              )}
+              {provider.ready ? null : <NotReadyChip />}
+            </>
           }
         />
       ),
@@ -181,19 +184,18 @@ export function AdminIdentityProviders() {
 }
 
 /**
- * A provider that cannot work yet, and what stands in its way.
+ * What stands in the way of a provider that is not ready.
  *
- * The reason is the detail page's own sentence, so the two cannot disagree. It
- * wraps inside the column: the table never wraps a cell, but a clipped reason
- * would lose the part that says what to do.
+ * The state itself is the "Not ready" mark on the name, with the other states
+ * of the row, so it is seen at any width; this column only says what to do. It
+ * carries the short form of the detail page's reason, so a row stays one line
+ * tall and the sentence in full waits on the page.
  */
 function NotReady({ provider }: { provider: Provider }) {
   return (
-    <span className="flex flex-col items-start gap-1">
-      <NotReadyChip />
-      <span className="whitespace-normal text-muted-foreground text-xs leading-snug">
-        {notReadyReason(provider.protocol, !provider.disabled)}
-      </span>
+    <span className="flex items-center gap-1.5 text-warning-foreground text-xs">
+      <TriangleAlertIcon aria-hidden="true" className="size-3.5 shrink-0" />
+      {notReadyReason(provider, true)}
     </span>
   );
 }

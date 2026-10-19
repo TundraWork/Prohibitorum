@@ -1550,6 +1550,16 @@ msgid "admin.federation.connection.jwks.address"
 msgstr "Check the ID token with a JWKS address"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-readiness.tsx
+msgid "admin.federation.not-ready.brief.vrchat-check"
+msgstr "Check the operator account"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-readiness.tsx
+msgid "admin.federation.not-ready.vrchat-check.enable"
+msgstr "Check the operator account before enabling it."
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderOperatorSection.tsx
 msgid "admin.federation.operator.validated"
 msgstr "Checked <0/>"
@@ -4444,6 +4454,36 @@ msgid "security.identities.table"
 msgstr "Linked identities"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-readiness.tsx
+msgid "admin.federation.not-ready.secret.verify"
+msgstr "Linking and verifying through this provider fail until a client secret is set."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-readiness.tsx
+msgid "admin.federation.not-ready.connection.verify"
+msgstr "Linking and verifying through this provider fail until it has a valid connection."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-readiness.tsx
+msgid "admin.federation.not-ready.vrchat-check.verify"
+msgstr "Linking and verifying through this provider fail until the operator account has been checked."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-readiness.tsx
+msgid "admin.federation.not-ready.vrchat-expired.verify"
+msgstr "Linking and verifying through this provider fail until the operator account is signed in again."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-readiness.tsx
+msgid "admin.federation.not-ready.vrchat-unset.verify"
+msgstr "Linking and verifying through this provider fail until the operator account is signed in."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-readiness.tsx
+msgid "admin.federation.not-ready.steam.verify"
+msgstr "Linking and verifying through this provider fail until the Web API key is set."
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.mode.link"
 msgstr "Links existing accounts"
@@ -4713,9 +4753,34 @@ msgid "admin.saml-apps.field.name-id"
 msgstr "NameID format"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderDangerSection.tsx
-msgid "admin.federation.danger.not-ready.oidc"
-msgstr "Needs a valid connection and a client secret before it can be enabled."
+#: src/pages/admin/identity-providers/provider-readiness.tsx
+msgid "admin.federation.not-ready.brief.secret"
+msgstr "Needs a client secret"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-readiness.tsx
+msgid "admin.federation.not-ready.secret.enable"
+msgstr "Needs a client secret before it can be enabled."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-readiness.tsx
+msgid "admin.federation.not-ready.brief.connection"
+msgstr "Needs a valid connection"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-readiness.tsx
+msgid "admin.federation.not-ready.connection.enable"
+msgstr "Needs a valid connection before it can be enabled."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-readiness.tsx
+msgid "admin.federation.not-ready.brief.steam"
+msgstr "Needs a Web API key"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-readiness.tsx
+msgid "admin.federation.not-ready.brief.vrchat-unset"
+msgstr "Needs the operator account"
 
 #. js-lingui-explicit-id
 #: src/components/custom/principal-sources.ts
@@ -5356,6 +5421,11 @@ msgstr "OpenID Connect"
 #: src/pages/admin/identity-providers/AdminIdentityProvider.tsx
 msgid "admin.federation.operator.title"
 msgstr "Operator session"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-readiness.tsx
+msgid "admin.federation.not-ready.brief.vrchat-expired"
+msgstr "Operator session expired"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminInvitationForm.tsx
@@ -6909,8 +6979,8 @@ msgid "admin.federation.credentials.steam.set-title"
 msgstr "Set the Web API key"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderDangerSection.tsx
-msgid "admin.federation.danger.not-ready.steam"
+#: src/pages/admin/identity-providers/provider-readiness.tsx
+msgid "admin.federation.not-ready.steam.enable"
 msgstr "Set the Web API key before enabling it."
 
 #. js-lingui-explicit-id
@@ -7029,8 +7099,13 @@ msgid "admin.federation.diagnostics.test.empty"
 msgstr "Sign in once at the provider and check each stage in turn."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderDangerSection.tsx
-msgid "admin.federation.danger.not-ready.vrchat"
+#: src/pages/admin/identity-providers/provider-readiness.tsx
+msgid "admin.federation.not-ready.vrchat-expired.enable"
+msgstr "Sign in the operator account again before enabling it."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-readiness.tsx
+msgid "admin.federation.not-ready.vrchat-unset.enable"
 msgstr "Sign in the operator account before enabling it."
 
 #. js-lingui-explicit-id
@@ -7205,18 +7280,33 @@ msgid "console.signin.list"
 msgstr "Sign-in summary"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderDangerSection.tsx
-msgid "admin.federation.not-ready.oidc.enabled"
-msgstr "Sign-in through this provider fails until it has a valid connection and a client secret."
+#: src/pages/admin/identity-providers/provider-readiness.tsx
+msgid "admin.federation.not-ready.secret.sign-in"
+msgstr "Sign-in through this provider fails until a client secret is set."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderDangerSection.tsx
-msgid "admin.federation.not-ready.vrchat.enabled"
+#: src/pages/admin/identity-providers/provider-readiness.tsx
+msgid "admin.federation.not-ready.connection.sign-in"
+msgstr "Sign-in through this provider fails until it has a valid connection."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-readiness.tsx
+msgid "admin.federation.not-ready.vrchat-check.sign-in"
+msgstr "Sign-in through this provider fails until the operator account has been checked."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-readiness.tsx
+msgid "admin.federation.not-ready.vrchat-expired.sign-in"
 msgstr "Sign-in through this provider fails until the operator account is signed in again."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderDangerSection.tsx
-msgid "admin.federation.not-ready.steam.enabled"
+#: src/pages/admin/identity-providers/provider-readiness.tsx
+msgid "admin.federation.not-ready.vrchat-unset.sign-in"
+msgstr "Sign-in through this provider fails until the operator account is signed in."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-readiness.tsx
+msgid "admin.federation.not-ready.steam.sign-in"
 msgstr "Sign-in through this provider fails until the Web API key is set."
 
 #. js-lingui-explicit-id

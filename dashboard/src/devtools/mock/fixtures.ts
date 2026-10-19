@@ -1199,7 +1199,8 @@ function identityProviders(config: MockConfig): IdentityProvider[] {
     // provider is ready only with a key, a VRChat one only with a valid
     // operator session, a confidential OIDC one only with a stored secret, and
     // a public client needs none. The not-ready mask changes that credential
-    // (no key, an expired session, no secret) instead of forcing the flag.
+    // (no key, an expired session, no secret) instead of forcing the flag; for
+    // a public client it breaks the connection.
     const mask = config.admin.providerNotReadyMask[index];
     const operator = config.admin.operatorSession;
     let configured: boolean;
@@ -1225,7 +1226,10 @@ function identityProviders(config: MockConfig): IdentityProvider[] {
       if (mask === "x") configured = false;
       else if (mask === "o") configured = true;
     }
-    const ready = publicClient || (configured && !expired);
+    // A public client has no credential to lose, so the mask takes away its
+    // connection instead: the row is not ready because its provider cannot be
+    // reached.
+    const ready = publicClient ? mask !== "x" : configured && !expired;
     return {
       slug: `provider-${index + 1}`,
       displayName: `Example ${protocol.toUpperCase()} ${index + 1}`,

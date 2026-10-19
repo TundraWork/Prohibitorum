@@ -172,17 +172,30 @@ describe("enabling", () => {
   });
 
   it.each([
+    ["oidc", {}, "Needs a valid connection before it can be enabled."],
     [
       "oidc",
-      "Needs a valid connection and a client secret before it can be enabled.",
+      { secretConfigured: false },
+      "Needs a client secret before it can be enabled.",
     ],
-    ["steam", "Set the Web API key before enabling it."],
-    ["vrchat", "Sign in the operator account before enabling it."],
+    ["steam", {}, "Set the Web API key before enabling it."],
+    [
+      "vrchat",
+      { secretStatus: "unconfigured", secretConfigured: false },
+      "Sign in the operator account before enabling it.",
+    ],
   ])(
     "is disabled for an unready %s provider, with the reason as text",
-    async (protocol, reason) => {
+    async (protocol, overrides, reason) => {
       const user = userEvent.setup();
-      mount(providerFixture({ protocol, disabled: true, ready: false }));
+      mount(
+        providerFixture({
+          protocol,
+          disabled: true,
+          ready: false,
+          ...overrides,
+        }),
+      );
 
       const enable = screen.getByRole("button", { name: "Enable" });
       expect(enable).toBeDisabled();

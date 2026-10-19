@@ -11,14 +11,12 @@ import { ProviderAppearanceSection } from "@/pages/admin/identity-providers/Prov
 import { ProviderClaimsSection } from "@/pages/admin/identity-providers/ProviderClaimsSection";
 import { ProviderConnectionSection } from "@/pages/admin/identity-providers/ProviderConnectionSection";
 import { ProviderCredentialsSection } from "@/pages/admin/identity-providers/ProviderCredentialsSection";
-import {
-  notReadyReason,
-  ProviderDangerSection,
-} from "@/pages/admin/identity-providers/ProviderDangerSection";
+import { ProviderDangerSection } from "@/pages/admin/identity-providers/ProviderDangerSection";
 import { ProviderDiagnosticsSection } from "@/pages/admin/identity-providers/ProviderDiagnosticsSection";
 import { ProviderGeneralSection } from "@/pages/admin/identity-providers/ProviderGeneralSection";
 import { ProviderOperatorSection } from "@/pages/admin/identity-providers/ProviderOperatorSection";
 import { providerProtocolLabel } from "@/pages/admin/identity-providers/provider-options";
+import { notReadyReason } from "@/pages/admin/identity-providers/provider-readiness";
 
 /**
  * One identity provider's page: who it is at the top, then a column of sections
@@ -107,7 +105,7 @@ export function AdminIdentityProvider({
                 aria-hidden="true"
                 className="size-4 shrink-0"
               />
-              {notReadyReason(provider.protocol, !provider.disabled)}
+              {notReadyReason(provider)}
             </p>
           )}
         </div>

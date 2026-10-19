@@ -119,7 +119,12 @@ describe("the provider header", () => {
 
   it("says when a provider only verifies and is not ready, with the reason as text", async () => {
     await mountPage(
-      vrchat({ disabled: true, ready: false, secretConfigured: false }),
+      vrchat({
+        disabled: true,
+        ready: false,
+        secretConfigured: false,
+        secretStatus: "unconfigured",
+      }),
     );
     const statuses = screen.getByRole("list", { name: "Status" });
     expect(
@@ -136,11 +141,11 @@ describe("the provider header", () => {
   });
 
   it("words the reason for what is failing when the provider is enabled", async () => {
-    await mountPage(vrchat({ ready: false }));
+    await mountPage(vrchat({ ready: false, secretStatus: "invalid" }));
     expect(
       document.querySelector('[data-slot="provider-not-ready"]'),
     ).toHaveTextContent(
-      "Sign-in through this provider fails until the operator account is signed in again.",
+      "Linking and verifying through this provider fail until the operator account is signed in again.",
     );
   });
 

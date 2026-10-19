@@ -590,8 +590,30 @@ describe("mocked management directory", () => {
       secretStatus: "invalid",
     });
     expect(third?.disabled).toBe(false);
-    // A public client needs none, so a letter there changes nothing.
+    // A public client needs none, so a supplied credential changes nothing.
     expect(page.items[3]?.ready).toBe(true);
+  });
+
+  it("lets the not-ready mask break a public client's connection", () => {
+    const page = bodyOf(
+      read(
+        "/api/prohibitorum/identity-providers",
+        config((draft) => {
+          draft.admin.providerNotReadyMask = "...x";
+        }),
+      ),
+    ) as {
+      items: Array<{
+        ready: boolean;
+        secretConfigured: boolean;
+        config: { tokenAuthMethod?: string };
+      }>;
+    };
+    expect(page.items[3]?.config.tokenAuthMethod).toBe("none");
+    expect(page.items[3]).toMatchObject({
+      ready: false,
+      secretConfigured: false,
+    });
   });
 
   it("lets the not-ready mask remove a Steam key", () => {

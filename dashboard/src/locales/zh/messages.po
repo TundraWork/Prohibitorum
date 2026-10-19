@@ -1550,6 +1550,16 @@ msgid "admin.federation.connection.jwks.address"
 msgstr "用 JWKS 地址校验 ID 令牌"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-readiness.tsx
+msgid "admin.federation.not-ready.brief.vrchat-check"
+msgstr "需要检查运营账号"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-readiness.tsx
+msgid "admin.federation.not-ready.vrchat-check.enable"
+msgstr "先检查运营账号才能启用。"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderOperatorSection.tsx
 msgid "admin.federation.operator.validated"
 msgstr "检查于 <0/>"
@@ -4444,6 +4454,36 @@ msgid "security.identities.table"
 msgstr "已绑定的身份"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-readiness.tsx
+msgid "admin.federation.not-ready.secret.verify"
+msgstr "设置客户端密钥之前，通过该提供商的关联和验证会失败。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-readiness.tsx
+msgid "admin.federation.not-ready.connection.verify"
+msgstr "连接配置有效之前，通过该提供商的关联和验证会失败。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-readiness.tsx
+msgid "admin.federation.not-ready.vrchat-check.verify"
+msgstr "检查运营账号之前，通过该提供商的关联和验证会失败。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-readiness.tsx
+msgid "admin.federation.not-ready.vrchat-expired.verify"
+msgstr "重新登录运营账号之前，通过该提供商的关联和验证会失败。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-readiness.tsx
+msgid "admin.federation.not-ready.vrchat-unset.verify"
+msgstr "登录运营账号之前，通过该提供商的关联和验证会失败。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-readiness.tsx
+msgid "admin.federation.not-ready.steam.verify"
+msgstr "设置 Web API 密钥之前，通过该提供商的关联和验证会失败。"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.mode.link"
 msgstr "绑定已有账号"
@@ -4713,9 +4753,34 @@ msgid "admin.saml-apps.field.name-id"
 msgstr "NameID 格式"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderDangerSection.tsx
-msgid "admin.federation.danger.not-ready.oidc"
-msgstr "连接配置有效、并设置好客户端密钥后才能启用。"
+#: src/pages/admin/identity-providers/provider-readiness.tsx
+msgid "admin.federation.not-ready.brief.secret"
+msgstr "需要客户端密钥"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-readiness.tsx
+msgid "admin.federation.not-ready.secret.enable"
+msgstr "设置好客户端密钥后才能启用。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-readiness.tsx
+msgid "admin.federation.not-ready.brief.connection"
+msgstr "需要有效的连接"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-readiness.tsx
+msgid "admin.federation.not-ready.connection.enable"
+msgstr "连接配置有效后才能启用。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-readiness.tsx
+msgid "admin.federation.not-ready.brief.steam"
+msgstr "需要 Web API 密钥"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-readiness.tsx
+msgid "admin.federation.not-ready.brief.vrchat-unset"
+msgstr "需要登录运营账号"
 
 #. js-lingui-explicit-id
 #: src/components/custom/principal-sources.ts
@@ -5356,6 +5421,11 @@ msgstr "OpenID Connect"
 #: src/pages/admin/identity-providers/AdminIdentityProvider.tsx
 msgid "admin.federation.operator.title"
 msgstr "运营账号"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-readiness.tsx
+msgid "admin.federation.not-ready.brief.vrchat-expired"
+msgstr "运营账号会话已过期"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminInvitationForm.tsx
@@ -6909,8 +6979,8 @@ msgid "admin.federation.credentials.steam.set-title"
 msgstr "设置 Web API 密钥"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderDangerSection.tsx
-msgid "admin.federation.danger.not-ready.steam"
+#: src/pages/admin/identity-providers/provider-readiness.tsx
+msgid "admin.federation.not-ready.steam.enable"
 msgstr "先设置 Web API 密钥才能启用。"
 
 #. js-lingui-explicit-id
@@ -7029,8 +7099,13 @@ msgid "admin.federation.diagnostics.test.empty"
 msgstr "在提供商处完成一次登录，逐项检查每个阶段。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderDangerSection.tsx
-msgid "admin.federation.danger.not-ready.vrchat"
+#: src/pages/admin/identity-providers/provider-readiness.tsx
+msgid "admin.federation.not-ready.vrchat-expired.enable"
+msgstr "先重新登录运营账号才能启用。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-readiness.tsx
+msgid "admin.federation.not-ready.vrchat-unset.enable"
 msgstr "先登录运营账号才能启用。"
 
 #. js-lingui-explicit-id
@@ -7205,18 +7280,33 @@ msgid "console.signin.list"
 msgstr "登录概览"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderDangerSection.tsx
-msgid "admin.federation.not-ready.oidc.enabled"
-msgstr "连接配置有效并设置好客户端密钥之前，通过该提供商的登录会失败。"
+#: src/pages/admin/identity-providers/provider-readiness.tsx
+msgid "admin.federation.not-ready.secret.sign-in"
+msgstr "设置客户端密钥之前，通过该提供商的登录会失败。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderDangerSection.tsx
-msgid "admin.federation.not-ready.vrchat.enabled"
+#: src/pages/admin/identity-providers/provider-readiness.tsx
+msgid "admin.federation.not-ready.connection.sign-in"
+msgstr "连接配置有效之前，通过该提供商的登录会失败。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-readiness.tsx
+msgid "admin.federation.not-ready.vrchat-check.sign-in"
+msgstr "检查运营账号之前，通过该提供商的登录会失败。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-readiness.tsx
+msgid "admin.federation.not-ready.vrchat-expired.sign-in"
 msgstr "重新登录运营账号之前，通过该提供商的登录会失败。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/ProviderDangerSection.tsx
-msgid "admin.federation.not-ready.steam.enabled"
+#: src/pages/admin/identity-providers/provider-readiness.tsx
+msgid "admin.federation.not-ready.vrchat-unset.sign-in"
+msgstr "登录运营账号之前，通过该提供商的登录会失败。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/provider-readiness.tsx
+msgid "admin.federation.not-ready.steam.sign-in"
 msgstr "设置 Web API 密钥之前，通过该提供商的登录会失败。"
 
 #. js-lingui-explicit-id

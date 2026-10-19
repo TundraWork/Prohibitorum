@@ -57,10 +57,9 @@ function rowOf(table: HTMLElement, name: string): HTMLElement {
   return row;
 }
 
-const oidcReason =
-  "Sign-in through this provider fails until it has a valid connection and a client secret.";
-const oidcDisabledReason =
-  "Needs a valid connection and a client secret before it can be enabled.";
+// The list carries the short form; the page says the whole sentence.
+const oidcReason = "Needs a valid connection";
+const oidcDisabledReason = "Needs a valid connection before it can be enabled.";
 
 describe("the page", () => {
   it("heads the list with what it is for and offers Add a provider", async () => {
@@ -157,9 +156,10 @@ describe("a row", () => {
 
     // A disabled provider is told what stands between it and being enabled.
     const steam = rowOf(table, "Steam login");
+    expect(within(steam).getByText("Needs a Web API key")).toBeVisible();
     expect(
-      within(steam).getByText("Set the Web API key before enabling it."),
-    ).toBeVisible();
+      within(steam).queryByText("Set the Web API key before enabling it."),
+    ).toBeNull();
 
     const fine = rowOf(table, "Fine");
     expect(within(fine).queryByText("Not ready")).toBeNull();
