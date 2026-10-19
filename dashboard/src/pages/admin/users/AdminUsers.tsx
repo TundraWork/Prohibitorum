@@ -26,7 +26,7 @@ import { AccountIdentityFilter } from "./AccountIdentityFilter";
 import {
   accountFilterQuery,
   filtersSet,
-  identityFilterSet,
+  identityFilterActive,
   type UserFilters,
 } from "./user-filters";
 
@@ -189,7 +189,7 @@ export function AdminUsers() {
               })}
             />
           </InputGroup>
-          <FilterPopover count={identityFilterSet(filters) ? 1 : 0}>
+          <FilterPopover count={identityFilterActive(filters) ? 1 : 0}>
             <AccountIdentityFilter filters={filters} onChange={setFilters} />
           </FilterPopover>
           {filtersSet(filters) && (

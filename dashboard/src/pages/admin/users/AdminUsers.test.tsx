@@ -224,12 +224,24 @@ describe("the filters in the address", () => {
     ).toHaveAccessibleName("Filters");
   });
 
-  it("counts the identity filter on the Filters button", async () => {
-    await mount([alice], "/admin/users?provider=github");
+  it("counts a whole identity filter on the Filters button", async () => {
+    await mount(
+      [alice],
+      "/admin/users?provider=github&field=email&match=exact&value=x",
+    );
 
     expect(
       screen.getByRole("button", { name: /^Filters/ }),
     ).toHaveAccessibleName("Filters, 1 active");
+  });
+
+  it("does not count a half-built identity filter, nor offer to clear it from the toolbar", async () => {
+    await mount([alice], "/admin/users?provider=github");
+
+    expect(
+      screen.getByRole("button", { name: /^Filters/ }),
+    ).toHaveAccessibleName("Filters");
+    expect(screen.queryByRole("button", { name: "Clear filters" })).toBeNull();
   });
 });
 
@@ -336,6 +348,7 @@ describe("the identity filter", () => {
     expect(
       within(dialog).getByRole("combobox", { name: "Match" }),
     ).toBeDisabled();
+    expect(within(dialog).getByLabelText("Value to match")).toBeDisabled();
   });
 });
 
@@ -359,6 +372,11 @@ describe("a failed provider read", () => {
     const alert = await within(dialog).findByRole("alert");
     expect(alert).toHaveTextContent("The providers could not be loaded");
     expect(notifyError).not.toHaveBeenCalled();
+
+    // Only "Any provider" could be chosen, so the control is held with it.
+    expect(
+      within(dialog).getByRole("combobox", { name: "Provider" }),
+    ).toBeDisabled();
 
     failing = false;
     await user.click(within(alert).getByRole("button", { name: "Try again" }));

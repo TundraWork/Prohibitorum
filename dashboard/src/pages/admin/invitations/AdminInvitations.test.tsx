@@ -275,6 +275,8 @@ describe("revoking", () => {
     );
     const dialog = await screen.findByRole("alertdialog");
     expect(within(dialog).getByText("Revoke this invitation?")).toBeVisible();
+    // It says which invitation, here one whose name is chosen at registration.
+    expect(within(dialog).getByText("Chosen at registration")).toBeVisible();
     expect(api.sent("POST", `${listPath}/revoke`)).toHaveLength(0);
 
     await user.click(within(dialog).getByRole("button", { name: "Revoke" }));

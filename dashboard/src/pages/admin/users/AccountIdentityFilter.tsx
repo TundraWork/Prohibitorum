@@ -62,6 +62,10 @@ export function AccountIdentityFilter({
     fields.find((field) => field.key === filters.field)?.operators ?? []
   ).filter(isMatchOperator);
 
+  // Until the providers are known there is nothing to choose, and after a
+  // failed read there is only "Any provider", below the failure and its retry.
+  const providerHeld = providers.isPending || providers.isError;
+
   const providerName = (slug: string) =>
     providerList.find((provider) => provider.slug === slug)?.displayName ??
     slug;
@@ -80,13 +84,13 @@ export function AccountIdentityFilter({
         />
       )}
       <div className="flex flex-col gap-3">
-        <Field disabled={providers.isPending}>
+        <Field disabled={providerHeld}>
           <FieldLabel>
             <Trans id="admin.users.filter.providerLabel">Provider</Trans>
           </FieldLabel>
           <Select
             value={filters.provider === "" ? anyProvider : filters.provider}
-            disabled={providers.isPending}
+            disabled={providerHeld}
             onValueChange={(next) => {
               if (typeof next !== "string") return;
               // The fields belong to the provider, so everything after it resets.
@@ -199,11 +203,12 @@ export function AccountIdentityFilter({
           </Select>
         </Field>
 
-        <Field>
+        <Field disabled={filters.match === ""}>
           <FieldLabel>
             <Trans id="admin.users.filter.value">Value to match</Trans>
           </FieldLabel>
           <Input
+            disabled={filters.match === ""}
             value={filters.value}
             autoComplete="off"
             onChange={(event) => onChange({ value: event.target.value })}

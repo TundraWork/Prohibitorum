@@ -27,7 +27,6 @@ import {
   InlineFailure,
   useInlineFailure,
 } from "@/components/custom/InlineFailure";
-import { APP_DATA_COLUMN } from "@/components/custom/ListCells";
 import { PageHeader } from "@/components/custom/PageHeader";
 import { RelativeTime } from "@/components/custom/RelativeTime";
 import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
@@ -86,6 +85,9 @@ export function AdminInvitations() {
   const columns: TableColumn<Invitation>[] = [
     {
       id: "invitee",
+      // A fixed track, so a long name truncates inside it instead of pushing
+      // Created and Expires out of the frame.
+      width: "w-80 max-w-80",
       header: <Trans id="admin.invitations.column.invitee">Invitee</Trans>,
       cell: (invitation) => (
         <EntityCell
@@ -93,7 +95,9 @@ export function AdminInvitations() {
           fallback={<UserRound className="size-4" aria-hidden="true" />}
           name={
             invitation.username ? (
-              <span className="font-mono">@{invitation.username}</span>
+              <span className="font-mono" title={`@${invitation.username}`}>
+                @{invitation.username}
+              </span>
             ) : (
               <span className="text-muted-foreground">
                 <Trans id="admin.invitations.username.later">
@@ -114,19 +118,25 @@ export function AdminInvitations() {
     },
     {
       id: "provider",
-      width: APP_DATA_COLUMN,
+      width: "w-48 max-w-48",
       header: (
         <Trans id="admin.invitations.column.provider">Upstream provider</Trans>
       ),
       // Absent, not empty, when the invitation does not insist on one.
-      cell: (invitation) =>
-        providerName(invitation.expectedUpstreamIdpSlug) ?? (
+      cell: (invitation) => {
+        const name = providerName(invitation.expectedUpstreamIdpSlug);
+        return name === null ? (
           <span className="text-muted-foreground">—</span>
-        ),
+        ) : (
+          <span className="block truncate" title={name}>
+            {name}
+          </span>
+        );
+      },
     },
     {
       id: "groups",
-      width: APP_DATA_COLUMN,
+      width: "w-48 max-w-48",
       header: <Trans id="admin.invitations.column.groups">User groups</Trans>,
       cell: (invitation) => {
         const groups = invitation.groups ?? [];
@@ -292,12 +302,26 @@ export function AdminInvitations() {
           </Trans>
         }
         body={
-          <p>
-            <Trans id="admin.invitations.revoke.body">
-              The registration link stops working immediately, and the
-              invitation no longer appears in this list. This cannot be undone.
-            </Trans>
-          </p>
+          <>
+            {target !== null && (
+              <p className="break-words font-medium text-foreground">
+                {target.username ? (
+                  <span className="font-mono">@{target.username}</span>
+                ) : (
+                  <Trans id="admin.invitations.username.later">
+                    Chosen at registration
+                  </Trans>
+                )}
+              </p>
+            )}
+            <p>
+              <Trans id="admin.invitations.revoke.body">
+                The registration link stops working immediately, and the
+                invitation no longer appears in this list. This cannot be
+                undone.
+              </Trans>
+            </p>
+          </>
         }
         confirmLabel={
           <Trans id="admin.invitations.revoke.action">Revoke</Trans>

@@ -4,6 +4,7 @@ import {
   accountFilterQuery,
   advancedFilterIncomplete,
   filtersSet,
+  identityFilterActive,
   identityFilterSet,
   isMatchOperator,
   userSearch,
@@ -148,10 +149,23 @@ describe("identityFilterSet and filtersSet", () => {
     expect(filtersSet(empty)).toBe(false);
   });
 
-  it("count a half-filled identity filter, which is still the reader's filter", () => {
+  it("see a half-filled identity filter as set, but not as narrowing the list", () => {
     expect(identityFilterSet({ ...empty, provider: "github" })).toBe(true);
     expect(identityFilterSet({ ...empty, value: "x" })).toBe(true);
-    expect(filtersSet({ ...empty, provider: "github" })).toBe(true);
+    expect(identityFilterActive({ ...empty, provider: "github" })).toBe(false);
+    expect(filtersSet({ ...empty, provider: "github" })).toBe(false);
+  });
+
+  it("count a whole identity filter as narrowing the list", () => {
+    const whole = {
+      ...empty,
+      provider: "github",
+      field: "email",
+      match: "exact" as const,
+      value: "x",
+    };
+    expect(identityFilterActive(whole)).toBe(true);
+    expect(filtersSet(whole)).toBe(true);
   });
 
   it("count the search alone as a filter, but not as an identity filter", () => {

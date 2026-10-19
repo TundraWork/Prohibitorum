@@ -1,8 +1,8 @@
+import type { DateRange } from "@daypicker/react";
+import { enUS, zhCN } from "@daypicker/react/locale";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { CalendarRange } from "lucide-react";
 import { useState } from "react";
-import type { DateRange } from "react-day-picker";
-import { enUS, zhCN } from "react-day-picker/locale";
 import { Button } from "@/components/custom/Button";
 import { Button as PlainButton } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -74,6 +74,8 @@ export function AuditDateRange({
           <Calendar
             mode="range"
             resetOnSelect
+            // A day that has not happened can only give an empty range.
+            disabled={{ after: new Date() }}
             locale={i18n.locale === "zh" ? zhCN : enUS}
             defaultMonth={draft?.from ?? saved?.from}
             selected={draft}

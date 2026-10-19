@@ -261,8 +261,12 @@ describe("an opened row", () => {
 
     expect(await termValue("Details")).toBeVisible();
     expect(screen.queryByText("User-Agent")).toBeNull();
-    // The address is also a column, so only the detail list's own item is absent.
-    expect(document.querySelectorAll("dt")).toHaveLength(1);
+    // The address is also a column, so only the detail list's own item is
+    // absent; the event is repeated for a narrow screen, where its column is
+    // the one scrolled away.
+    expect(
+      [...document.querySelectorAll("dt")].map((term) => term.textContent),
+    ).toEqual(["Event", "Details"]);
   });
 });
 

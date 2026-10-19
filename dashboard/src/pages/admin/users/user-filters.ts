@@ -49,11 +49,9 @@ export type UserFilters = z.output<typeof userSearch>;
 /**
  * The filters as the server takes them, or the reason it cannot take them yet.
  *
- * `role` and `state` are not query parameters: `GET /accounts` has no such
- * filter, and the card's design notes name them anyway. Rather than send
- * something the server ignores — which would look like a filter that quietly
- * does nothing — they are applied to the rows already in hand and the list is
- * told that is what is happening.
+ * `role` and `state` are accepted in the address but not sent: `GET /accounts`
+ * has no such filter, and nothing on the page sets them, so they narrow nothing.
+ * An identity filter is sent only when all four of its parts are chosen.
  */
 export function accountFilterQuery(filters: UserFilters): AccountFilters {
   const advanced = {
@@ -89,10 +87,16 @@ export function identityFilterSet(filters: UserFilters): boolean {
   );
 }
 
+/** Whether the identity filter is complete, so the list is really filtered by it. */
+export function identityFilterActive(filters: UserFilters): boolean {
+  return identityFilterSet(filters) && !advancedFilterIncomplete(filters);
+}
+
 /**
- * Whether the reader has narrowed the list at all, by search or by identity.
- * `role` and `state` are not counted: nothing on the page sets them.
+ * Whether the list is narrowed at all, by search or by a complete identity
+ * filter. A half-built one is not counted, since the list is not filtered by
+ * it, and neither are `role` and `state`: nothing on the page sets them.
  */
 export function filtersSet(filters: UserFilters): boolean {
-  return filters.q !== "" || identityFilterSet(filters);
+  return filters.q !== "" || identityFilterActive(filters);
 }

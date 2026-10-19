@@ -168,7 +168,7 @@ export function AdminLogs() {
             />
           )}
 
-          <FilterPopover count={count}>
+          <FilterPopover count={count} align="start">
             <AuditFilters search={search} onChange={setSearch} />
           </FilterPopover>
 
@@ -204,7 +204,7 @@ export function AdminLogs() {
             hasMore={ready && list.hasMore}
             loadingMore={list.loadingMore}
             onLoadMore={list.loadMore}
-            expandedRow={eventDetail}
+            expandedRow={(event) => eventDetail(i18n, event)}
             empty={
               query.status === "incomplete" ? (
                 <TableEmptyState
@@ -288,6 +288,26 @@ function Raw({ children }: { children: string }) {
   );
 }
 
+/** An event's account as the list names it: the username, else the number. */
+function accountText(event: AuditEventView): string {
+  return event.accountUsername
+    ? `@${event.accountUsername}`
+    : `#${event.accountId}`;
+}
+
+/** An event's name, a failure drawn as a red badge and an unknown one as sent. */
+function eventLabel(i18n: Locale, event: AuditEventView): ReactNode {
+  if (!isAuditEvent(event.event)) return <Raw>{event.event}</Raw>;
+  const name = auditEventName(i18n, event.event);
+  return failureEvents.has(event.event) ? (
+    <Badge variant="error" data-tone="failure">
+      {name}
+    </Badge>
+  ) : (
+    name
+  );
+}
+
 function auditColumns(i18n: Locale): TableColumn<AuditEventView>[] {
   return [
     {
@@ -301,6 +321,9 @@ function auditColumns(i18n: Locale): TableColumn<AuditEventView>[] {
     },
     {
       id: "account",
+      // A fixed track like the lists elsewhere, so a long username truncates
+      // here instead of pushing the address out of the frame.
+      width: "w-56 max-w-56",
       header: <Trans id="admin.logs.column.account">Account</Trans>,
       cell: (event) =>
         event.accountId === undefined ? (
@@ -309,13 +332,12 @@ function auditColumns(i18n: Locale): TableColumn<AuditEventView>[] {
           </span>
         ) : (
           <Link
-            className="font-mono text-xs hover:underline"
+            className="block truncate font-mono text-xs hover:underline"
+            title={accountText(event)}
             params={{ id: String(event.accountId) }}
             to="/admin/users/$id"
           >
-            {event.accountUsername
-              ? `@${event.accountUsername}`
-              : `#${event.accountId}`}
+            {accountText(event)}
           </Link>
         ),
     },
@@ -332,17 +354,7 @@ function auditColumns(i18n: Locale): TableColumn<AuditEventView>[] {
     {
       id: "event",
       header: <Trans id="admin.logs.column.event">Event</Trans>,
-      cell: (event) => {
-        if (!isAuditEvent(event.event)) return <Raw>{event.event}</Raw>;
-        const name = auditEventName(i18n, event.event);
-        return failureEvents.has(event.event) ? (
-          <Badge variant="error" data-tone="failure">
-            {name}
-          </Badge>
-        ) : (
-          name
-        );
-      },
+      cell: (event) => eventLabel(i18n, event),
     },
     {
       id: "ip",
@@ -359,16 +371,27 @@ function auditColumns(i18n: Locale): TableColumn<AuditEventView>[] {
 
 /**
  * What an event carries beyond its row: the browser that sent it, the address
- * (repeated, since a narrow screen may have scrolled that column away), and the
- * details the writing handler recorded. Nothing is drawn for a missing item,
- * and an event with none of them has no detail to open.
+ * and the details the writing handler recorded. On a narrow screen the event
+ * itself is repeated first, since its column is the one scrolled away and it is
+ * the column that says whether the row is a failure; the address then stays in
+ * its column. Nothing is drawn for a missing item, and an event with none of
+ * them has no detail to open.
  */
-function eventDetail(event: AuditEventView): ReactNode | null {
+function eventDetail(i18n: Locale, event: AuditEventView): ReactNode | null {
   const hasDetail =
     event.detail !== undefined && Object.keys(event.detail).length > 0;
   if (!event.userAgent && !event.ip && !hasDetail) return null;
   return (
-    <dl className="grid grid-cols-[max-content_minmax(0,1fr)] gap-x-6 gap-y-2 py-1 text-sm max-sm:grid-cols-1 max-sm:gap-y-1">
+    <dl className="grid grid-cols-[max-content_minmax(0,1fr)] items-baseline gap-x-6 gap-y-2 py-1 text-sm max-sm:grid-cols-1 max-sm:gap-y-1">
+      <dt className="text-muted-foreground sm:hidden">
+        <Trans id="admin.logs.column.event">Event</Trans>
+      </dt>
+      <dd className="sm:hidden max-sm:mb-1">
+        {isAuditFactor(event.factor)
+          ? auditFactorName(i18n, event.factor)
+          : event.factor}{" "}
+        {eventLabel(i18n, event)}
+      </dd>
       {event.userAgent && (
         <>
           <dt className="text-muted-foreground">
@@ -379,10 +402,10 @@ function eventDetail(event: AuditEventView): ReactNode | null {
       )}
       {event.ip && (
         <>
-          <dt className="text-muted-foreground">
+          <dt className="text-muted-foreground max-sm:hidden">
             <Trans id="admin.logs.detail.ip">IP</Trans>
           </dt>
-          <dd className="font-mono text-xs max-sm:mb-1">{event.ip}</dd>
+          <dd className="font-mono text-xs max-sm:hidden">{event.ip}</dd>
         </>
       )}
       {hasDetail && (

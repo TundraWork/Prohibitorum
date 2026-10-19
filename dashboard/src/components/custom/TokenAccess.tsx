@@ -32,12 +32,7 @@ export function TokenAccessSummary({
         );
       }
       return (
-        <span className="wrap-anywhere">
-          {new Intl.ListFormat(i18n.locale, {
-            style: "short",
-            type: "conjunction",
-          }).format(names)}
-        </span>
+        <span className="wrap-anywhere">{formatNames(i18n.locale, names)}</span>
       );
     }
     case "all_apps":
@@ -46,6 +41,28 @@ export function TokenAccessSummary({
     case "sudo":
       return <Trans id="token.access.full">Full access</Trans>;
   }
+}
+
+/**
+ * The application names as a list in the reader's language. Chinese joins
+ * carry no space of their own, which run into a Latin name ("App 1和App 2"),
+ * so a space is added where a joiner meets one.
+ */
+function formatNames(locale: string, names: string[]): string {
+  const parts = new Intl.ListFormat(locale, {
+    style: "short",
+    type: "conjunction",
+  }).formatToParts(names);
+  if (!locale.startsWith("zh")) return parts.map((part) => part.value).join("");
+  const latin = /[A-Za-z0-9]/;
+  return parts
+    .map((part, index) => {
+      if (part.type !== "literal") return part.value;
+      const before = parts[index - 1]?.value.at(-1) ?? "";
+      const after = parts[index + 1]?.value.at(0) ?? "";
+      return `${latin.test(before) ? " " : ""}${part.value}${latin.test(after) ? " " : ""}`;
+    })
+    .join("");
 }
 
 /**

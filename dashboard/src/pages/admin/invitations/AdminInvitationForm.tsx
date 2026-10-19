@@ -27,6 +27,7 @@ import { invitationLinkCopyWithExpiry } from "@/components/custom/secret-reveal-
 import { RadioGroup } from "@/components/ui/radio-group";
 import { applyServerError } from "@/forms/server-errors";
 import { useAppForm } from "@/forms/use-app-form";
+import { providerProtocolLabel } from "@/pages/admin/identity-providers/provider-options";
 
 /**
  * A group id the form cannot send: the server takes integers, not the strings a
@@ -80,7 +81,12 @@ export function AdminInvitationForm() {
     .map((provider) => ({
       id: provider.slug,
       label: provider.displayName,
-      description: provider.protocol,
+      description:
+        provider.protocol === "oidc" ||
+        provider.protocol === "steam" ||
+        provider.protocol === "vrchat"
+          ? i18n._(providerProtocolLabel(provider.protocol))
+          : provider.protocol,
     }));
   const providersById = new Map(
     (providers.data?.items ?? []).map((provider) => [provider.slug, provider]),

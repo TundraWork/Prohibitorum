@@ -19,9 +19,12 @@ import {
  */
 export function FilterPopover({
   count,
+  align = "end",
   children,
 }: {
   count: number;
+  /** The popover's edge that lines up with the button: pick the one that keeps it in the page column. */
+  align?: "start" | "end";
   children: ReactNode;
 }) {
   const { t } = useLingui();
@@ -50,7 +53,7 @@ export function FilterPopover({
           </Badge>
         )}
       </PopoverTrigger>
-      <PopoverPopup align="end" className="w-80">
+      <PopoverPopup align={align} collisionPadding={24} className="w-80">
         <div className="flex w-full flex-col gap-4">
           <PopoverTitle className="text-base">
             <Trans id="filters.title">Filters</Trans>
