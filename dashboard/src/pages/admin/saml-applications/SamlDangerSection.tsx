@@ -74,11 +74,11 @@ export function SamlDangerSection({ app }: { app: SamlApp }) {
           title={
             app.disabled ? (
               <Trans id="admin.saml-apps.danger.enable">
-                Enable the application
+                Enable this application
               </Trans>
             ) : (
               <Trans id="admin.saml-apps.danger.disable">
-                Disable the application
+                Disable this application
               </Trans>
             )
           }
@@ -121,7 +121,7 @@ export function SamlDangerSection({ app }: { app: SamlApp }) {
           icon={<Trash2 size={18} aria-hidden="true" />}
           title={
             <Trans id="admin.saml-apps.danger.delete">
-              Delete the application
+              Delete this application
             </Trans>
           }
           details={[
@@ -164,6 +164,7 @@ export function SamlDangerSection({ app }: { app: SamlApp }) {
             </Trans>
           )
         }
+        subject={name}
         body={
           confirming === "enable" ? (
             <p>
@@ -175,8 +176,9 @@ export function SamlDangerSection({ app }: { app: SamlApp }) {
           ) : (
             <p>
               <Trans id="admin.saml-apps.danger.disable.body">
-                {name} stops accepting sign-ins immediately. Its configuration,
-                endpoints and certificates are kept, so it can be enabled again.
+                The application stops accepting sign-ins immediately. Its
+                configuration, endpoints and certificates are kept, so it can be
+                enabled again.
               </Trans>
             </p>
           )
@@ -210,11 +212,12 @@ export function SamlDangerSection({ app }: { app: SamlApp }) {
             Delete this application?
           </Trans>
         }
+        subject={name}
         body={
           <p>
             <Trans id="admin.saml-apps.danger.delete.body">
-              {name} and its certificates are removed, and anyone who signs in
-              through it is turned away. This cannot be undone.
+              The application and its certificates are removed, and anyone who
+              signs in through it is turned away. This cannot be undone.
             </Trans>
           </p>
         }

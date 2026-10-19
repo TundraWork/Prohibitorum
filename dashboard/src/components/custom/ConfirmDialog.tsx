@@ -53,7 +53,7 @@ export function ConfirmDialog({
    * puts it (an application, an account, a key id), so the title can stay a
    * question about the kind of thing.
    */
-  subject?: ReactNode;
+  subject?: ReactNode | false;
   /** What happens, named plainly; usually one paragraph. */
   body: ReactNode;
   confirmLabel: ReactNode;
@@ -70,18 +70,20 @@ export function ConfirmDialog({
             {icons[status]}
           </span>
           <AlertDialogTitle>{title}</AlertDialogTitle>
-          {subject !== undefined && (
-            <p
-              data-slot="confirm-subject"
-              className="col-start-2 break-words font-medium text-foreground text-sm"
-            >
-              {subject}
-            </p>
-          )}
+          {/* The subject is part of the description, so a screen reader hears
+              which one the step acts on. */}
           <AlertDialogDescription
             render={<div />}
-            className="col-start-2 text-pretty"
+            className="col-start-2 flex flex-col gap-2 text-pretty"
           >
+            {subject != null && subject !== false && (
+              <p
+                data-slot="confirm-subject"
+                className="break-words font-medium text-foreground text-sm"
+              >
+                {subject}
+              </p>
+            )}
             {body}
           </AlertDialogDescription>
         </AlertDialogHeader>

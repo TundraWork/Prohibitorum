@@ -63,6 +63,45 @@ describe("ConfirmDialog", () => {
     ).toBeVisible();
   });
 
+  it("announces the subject as part of the description, and draws none for false", () => {
+    const { rerender } = render(
+      <I18nProvider i18n={i18n}>
+        <ConfirmDialog
+          isOpen
+          onOpenChange={() => undefined}
+          status="danger"
+          title="Retire this key?"
+          subject="key-1"
+          body={<p>It stops verifying.</p>}
+          confirmLabel="Retire"
+          onConfirm={() => undefined}
+        />
+      </I18nProvider>,
+    );
+    expect(
+      screen.getByRole("alertdialog", { name: "Retire this key?" }),
+    ).toHaveAccessibleDescription("key-1 It stops verifying.");
+    rerender(
+      <I18nProvider i18n={i18n}>
+        <ConfirmDialog
+          isOpen
+          onOpenChange={() => undefined}
+          status="danger"
+          title="Retire this key?"
+          subject={false}
+          body={<p>It stops verifying.</p>}
+          confirmLabel="Retire"
+          onConfirm={() => undefined}
+        />
+      </I18nProvider>,
+    );
+    expect(
+      screen
+        .getByRole("alertdialog", { name: "Retire this key?" })
+        .querySelector('[data-slot="confirm-subject"]'),
+    ).toBeNull();
+  });
+
   it("marks the popup with its tone and matches the confirm button to it", () => {
     const { unmount } = render(
       <Harness status="danger" onConfirm={() => undefined} />,

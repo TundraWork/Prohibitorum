@@ -244,8 +244,8 @@ describe("signing keys", () => {
     const dialog = await screen.findByRole("alertdialog", {
       name: "Sign with this key?",
     });
-    expect(dialog).toHaveTextContent(
-      `New tokens and SAML assertions are signed with ${kids.pending}. The current key keeps verifying what it signed until it is retired.`,
+    expect(dialog).toHaveAccessibleDescription(
+      `${kids.pending} New tokens and SAML assertions are signed with this key. The current key keeps verifying what it signed until it is retired.`,
     );
     expect(requests("/activate")).toHaveLength(0);
 

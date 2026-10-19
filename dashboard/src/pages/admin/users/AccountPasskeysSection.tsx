@@ -118,24 +118,21 @@ export function AccountPasskeysSection({ accountId }: { accountId: number }) {
             Remove this passkey?
           </Trans>
         }
+        subject={
+          target !== null &&
+          (target.nickname ||
+            t({
+              id: "admin.user.passkeys.unnamed",
+              message: "Unnamed passkey",
+            }))
+        }
         body={
-          <>
-            {target !== null && (
-              <p className="break-words font-medium text-foreground">
-                {target.nickname || (
-                  <Trans id="admin.user.passkeys.unnamed">
-                    Unnamed passkey
-                  </Trans>
-                )}
-              </p>
-            )}
-            <p>
-              <Trans id="admin.user.passkeys.revoke.body">
-                This passkey stops working immediately. If it is the only way
-                this account signs in, they will need a new registration link.
-              </Trans>
-            </p>
-          </>
+          <p>
+            <Trans id="admin.user.passkeys.revoke.body">
+              This passkey stops working immediately. If it is the only way this
+              account signs in, they will need a new registration link.
+            </Trans>
+          </p>
         }
         confirmLabel={
           <Trans id="admin.user.passkeys.revoke.action">Remove passkey</Trans>

@@ -201,11 +201,6 @@ msgid "console.page.description"
 msgstr "{name} account"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/saml-applications/SamlDangerSection.tsx
-msgid "admin.saml-apps.danger.delete.body"
-msgstr "{name} and its certificates are removed, and anyone who signs in through it is turned away. This cannot be undone."
-
-#. js-lingui-explicit-id
 #: src/pages/admin/users/AccountProfileSection.tsx
 msgid "admin.user.role.consequence.admin"
 msgstr "{name} gets access to the administration pages."
@@ -231,16 +226,6 @@ msgid "admin.group.decisions.dialog.change-deny"
 msgstr "{name} is denied in this group now. Saving changes it to allow."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/forward-auth-apps/ForwardAuthDangerSection.tsx
-msgid "admin.forward-auth-apps.delete.confirm.groups"
-msgstr "{name} is removed along with its icon and its access policy — including its selection of {count} user groups. Requests through its router are turned away immediately. This cannot be undone."
-
-#. js-lingui-explicit-id
-#: src/pages/admin/forward-auth-apps/ForwardAuthDangerSection.tsx
-msgid "admin.forward-auth-apps.delete.confirm.open"
-msgstr "{name} is removed along with its icon and its access policy. Requests through its router are turned away immediately. This cannot be undone."
-
-#. js-lingui-explicit-id
 #: src/pages/public/Maintenance.tsx
 msgid "maintenance.title"
 msgstr "{name} is under maintenance"
@@ -249,11 +234,6 @@ msgstr "{name} is under maintenance"
 #: src/pages/admin/users/AccountProfileSection.tsx
 msgid "admin.user.role.consequence.user"
 msgstr "{name} loses access to the administration pages."
-
-#. js-lingui-explicit-id
-#: src/pages/admin/saml-applications/SamlDangerSection.tsx
-msgid "admin.saml-apps.danger.disable.body"
-msgstr "{name} stops accepting sign-ins immediately. Its configuration, endpoints and certificates are kept, so it can be enabled again."
 
 #. js-lingui-explicit-id
 #: src/components/custom/AppManagersSection.tsx
@@ -785,11 +765,6 @@ msgstr "Add an account"
 #: src/pages/admin/saml-applications/AttributeMapField.tsx
 msgid "admin.saml-apps.mapping.add"
 msgstr "Add an attribute"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
-msgid "admin.federation.new.form"
-msgstr "Add an identity provider"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/saml-validation.ts
@@ -3013,21 +2988,6 @@ msgid "admin.group.danger.delete.confirm"
 msgstr "Delete group"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/saml-applications/SamlDangerSection.tsx
-msgid "admin.saml-apps.danger.delete"
-msgstr "Delete the application"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/DangerSection.tsx
-msgid "admin.oidc-apps.delete"
-msgstr "Delete the application"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/forward-auth-apps/ForwardAuthDangerSection.tsx
-msgid "admin.forward-auth-apps.delete"
-msgstr "Delete the application"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/users/AccountDangerSection.tsx
 msgid "admin.user.delete.title"
 msgstr "Delete this account"
@@ -3036,6 +2996,21 @@ msgstr "Delete this account"
 #: src/pages/admin/users/AccountDangerSection.tsx
 msgid "admin.user.delete.confirm.title"
 msgstr "Delete this account?"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/SamlDangerSection.tsx
+msgid "admin.saml-apps.danger.delete"
+msgstr "Delete this application"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/DangerSection.tsx
+msgid "admin.oidc-apps.delete"
+msgstr "Delete this application"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ForwardAuthDangerSection.tsx
+msgid "admin.forward-auth-apps.delete"
+msgstr "Delete this application"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/SamlDangerSection.tsx
@@ -3243,21 +3218,6 @@ msgid "admin.forward-auth-apps.danger.title"
 msgstr "Disable or delete"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/saml-applications/SamlDangerSection.tsx
-msgid "admin.saml-apps.danger.disable"
-msgstr "Disable the application"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/DangerSection.tsx
-msgid "admin.oidc-apps.disable"
-msgstr "Disable the application"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/forward-auth-apps/ForwardAuthDangerSection.tsx
-msgid "admin.forward-auth-apps.disable"
-msgstr "Disable the application"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/users/AccountDangerSection.tsx
 msgid "admin.user.state.disable"
 msgstr "Disable this account"
@@ -3266,6 +3226,21 @@ msgstr "Disable this account"
 #: src/pages/admin/users/AccountDangerSection.tsx
 msgid "admin.user.state.disable.title"
 msgstr "Disable this account?"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/SamlDangerSection.tsx
+msgid "admin.saml-apps.danger.disable"
+msgstr "Disable this application"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/DangerSection.tsx
+msgid "admin.oidc-apps.disable"
+msgstr "Disable this application"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ForwardAuthDangerSection.tsx
+msgid "admin.forward-auth-apps.disable"
+msgstr "Disable this application"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/SamlDangerSection.tsx
@@ -3524,21 +3499,6 @@ msgid "admin.user.role.admin-held"
 msgstr "Enable the account before making it an admin."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/saml-applications/SamlDangerSection.tsx
-msgid "admin.saml-apps.danger.enable"
-msgstr "Enable the application"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/DangerSection.tsx
-msgid "admin.oidc-apps.enable"
-msgstr "Enable the application"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/forward-auth-apps/ForwardAuthDangerSection.tsx
-msgid "admin.forward-auth-apps.enable"
-msgstr "Enable the application"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/users/AccountDangerSection.tsx
 msgid "admin.user.state.enable"
 msgstr "Enable this account"
@@ -3547,6 +3507,21 @@ msgstr "Enable this account"
 #: src/pages/admin/users/AccountDangerSection.tsx
 msgid "admin.user.state.enable.title"
 msgstr "Enable this account?"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/SamlDangerSection.tsx
+msgid "admin.saml-apps.danger.enable"
+msgstr "Enable this application"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/DangerSection.tsx
+msgid "admin.oidc-apps.enable"
+msgstr "Enable this application"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ForwardAuthDangerSection.tsx
+msgid "admin.forward-auth-apps.enable"
+msgstr "Enable this application"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/SamlDangerSection.tsx
@@ -5508,6 +5483,11 @@ msgid "admin.federation.new.title"
 msgstr "New identity provider"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
+msgid "admin.federation.new.form"
+msgstr "New identity provider"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/invitations/AdminInvitationForm.tsx
 msgid "admin.invitations.new.title"
 msgstr "New invitation"
@@ -5556,7 +5536,7 @@ msgstr "New SAML application"
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/SigningKeysPanel.tsx
 msgid "settings.keys.activate.body"
-msgstr "New tokens and SAML assertions are signed with <0/>. The current key keeps verifying what it signed until it is retired."
+msgstr "New tokens and SAML assertions are signed with this key. The current key keeps verifying what it signed until it is retired."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/groups/AdminGroupNew.tsx
@@ -8694,6 +8674,26 @@ msgid "error.landing.require_identity_invalid_id_token"
 msgstr "The app sent account details that couldn't be checked. Go back to the app and try again."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/SamlDangerSection.tsx
+msgid "admin.saml-apps.danger.delete.body"
+msgstr "The application and its certificates are removed, and anyone who signs in through it is turned away. This cannot be undone."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ForwardAuthDangerSection.tsx
+msgid "admin.forward-auth-apps.delete.confirm.groups"
+msgstr "The application is removed along with its icon and its access policy — including its selection of {count} user groups. Requests through its router are turned away immediately. This cannot be undone."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ForwardAuthDangerSection.tsx
+msgid "admin.forward-auth-apps.delete.confirm.open"
+msgstr "The application is removed along with its icon and its access policy. Requests through its router are turned away immediately. This cannot be undone."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/SamlDangerSection.tsx
+msgid "admin.saml-apps.danger.disable.body"
+msgstr "The application stops accepting sign-ins immediately. Its configuration, endpoints and certificates are kept, so it can be enabled again."
+
+#. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/DangerSection.tsx
 msgid "admin.oidc-apps.delete.body"
 msgstr "The application stops being able to sign anyone in, and its icon, secret and access policy go with it. This cannot be undone."
@@ -9058,9 +9058,44 @@ msgid "login.reset.uncertain"
 msgstr "The reset may already have completed. Try your new authenticator or a passkey. Enter your password again before another code attempt; your old codes may no longer work."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/users/AdminUsers.tsx
+msgid "admin.users.more_failed"
+msgstr "The rest of the accounts could not be loaded."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/logs/AdminLogs.tsx
+msgid "admin.logs.more_failed"
+msgstr "The rest of the audit log could not be loaded."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/AdminForwardAuthApps.tsx
+msgid "admin.forward-auth-apps.more_failed"
+msgstr "The rest of the forward-auth applications could not be loaded."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProviders.tsx
+msgid "admin.federation.more_failed"
+msgstr "The rest of the identity providers could not be loaded."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/invitations/AdminInvitations.tsx
+msgid "admin.invitations.more_failed"
+msgstr "The rest of the invitations could not be loaded."
+
+#. js-lingui-explicit-id
 #: src/pages/admin/settings/SigningKeysPanel.tsx
 msgid "settings.keys.more_failed"
 msgstr "The rest of the keys could not be loaded."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/AdminOidcApplications.tsx
+msgid "admin.oidc-apps.more_failed"
+msgstr "The rest of the OIDC applications could not be loaded."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/AdminSamlApplications.tsx
+msgid "admin.saml-apps.more_failed"
+msgstr "The rest of the SAML applications could not be loaded."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AdminSamlApplications.tsx

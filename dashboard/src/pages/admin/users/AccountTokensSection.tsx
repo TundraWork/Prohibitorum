@@ -100,20 +100,14 @@ export function AccountTokensSection({ accountId }: { accountId: number }) {
         title={
           <Trans id="admin.user.tokens.revoke.title">Revoke this token?</Trans>
         }
+        subject={target?.name}
         body={
-          <>
-            {target !== null && (
-              <p className="break-words font-medium text-foreground">
-                {target.name}
-              </p>
-            )}
-            <p>
-              <Trans id="admin.user.tokens.revoke.body">
-                Anything using this token stops working immediately. This cannot
-                be undone.
-              </Trans>
-            </p>
-          </>
+          <p>
+            <Trans id="admin.user.tokens.revoke.body">
+              Anything using this token stops working immediately. This cannot
+              be undone.
+            </Trans>
+          </p>
         }
         confirmLabel={
           <Trans id="admin.user.tokens.revoke.action">Revoke token</Trans>

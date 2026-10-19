@@ -191,6 +191,7 @@ export function AccountDangerSection({
             </Trans>
           )
         }
+        subject={account.displayName || account.username}
         body={
           <p>
             {confirming === "enable" ? (

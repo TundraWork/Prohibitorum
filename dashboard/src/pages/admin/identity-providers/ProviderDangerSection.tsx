@@ -58,6 +58,7 @@ export function ProviderDangerSection({ provider }: { provider: Provider }) {
   const count = provider.linkedAccountCount ?? 0;
   // Pending invitations whose verified snapshot dies with the provider.
   const pending = provider.pendingInvitationCount ?? 0;
+  const name = provider.displayName || provider.slug;
   const identityScope = `identity:${provider.slug}`;
 
   return (
@@ -179,6 +180,7 @@ export function ProviderDangerSection({ provider }: { provider: Provider }) {
             Disable this provider?
           </Trans>
         }
+        subject={name}
         body={
           <p>
             <Trans id="admin.federation.danger.disable.confirm.body">
@@ -213,6 +215,7 @@ export function ProviderDangerSection({ provider }: { provider: Provider }) {
             Delete this provider?
           </Trans>
         }
+        subject={name}
         body={
           <div className="flex flex-col gap-2">
             {count > 0 && (

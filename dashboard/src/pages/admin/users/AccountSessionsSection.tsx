@@ -138,20 +138,14 @@ export function AccountSessionsSection({ accountId }: { accountId: number }) {
         title={
           <Trans id="admin.user.sessions.revoke.title">End this session?</Trans>
         }
+        subject={target !== null && deviceLabel(target.userAgent)}
         body={
-          <>
-            {target !== null && (
-              <p className="break-words font-medium text-foreground">
-                {deviceLabel(target.userAgent)}
-              </p>
-            )}
-            <p>
-              <Trans id="admin.user.sessions.revoke.body">
-                That device is signed out immediately and will need to sign in
-                again. Anything it is doing right now stops.
-              </Trans>
-            </p>
-          </>
+          <p>
+            <Trans id="admin.user.sessions.revoke.body">
+              That device is signed out immediately and will need to sign in
+              again. Anything it is doing right now stops.
+            </Trans>
+          </p>
         }
         confirmLabel={
           <Trans id="admin.user.sessions.revoke.action">End session</Trans>

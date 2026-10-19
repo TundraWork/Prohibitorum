@@ -73,10 +73,10 @@ export function DangerSection({ app }: { app: OidcApp }) {
           icon={<Power size={18} aria-hidden="true" />}
           title={
             app.disabled ? (
-              <Trans id="admin.oidc-apps.enable">Enable the application</Trans>
+              <Trans id="admin.oidc-apps.enable">Enable this application</Trans>
             ) : (
               <Trans id="admin.oidc-apps.disable">
-                Disable the application
+                Disable this application
               </Trans>
             )
           }
@@ -117,7 +117,7 @@ export function DangerSection({ app }: { app: OidcApp }) {
         <ItemListRow
           icon={<Trash2 size={18} aria-hidden="true" />}
           title={
-            <Trans id="admin.oidc-apps.delete">Delete the application</Trans>
+            <Trans id="admin.oidc-apps.delete">Delete this application</Trans>
           }
           details={[
             <Trans key="note" id="admin.oidc-apps.delete.note">

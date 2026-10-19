@@ -105,13 +105,13 @@ describe("disabling and deleting", () => {
     expect(
       screen.getByRole("heading", { level: 2, name: "Disable or delete" }),
     ).toBeVisible();
-    expect(screen.getByText("Disable the application")).toBeVisible();
-    expect(screen.getByText("Delete the application")).toBeVisible();
+    expect(screen.getByText("Disable this application")).toBeVisible();
+    expect(screen.getByText("Delete this application")).toBeVisible();
   });
 
   it("offers to enable an application that is disabled", () => {
     mount(forwardAuthAppFixture({ disabled: true }));
-    expect(screen.getByText("Enable the application")).toBeVisible();
+    expect(screen.getByText("Enable this application")).toBeVisible();
   });
 
   it("disables only after the confirmation", async () => {
@@ -285,7 +285,7 @@ describe("disabling and deleting", () => {
         : undefined,
     );
 
-    await screen.findByText("Delete the application");
+    await screen.findByText("Delete this application");
     await waitFor(() =>
       expect(
         fetchBoundary.mock.calls.some(([request]) =>

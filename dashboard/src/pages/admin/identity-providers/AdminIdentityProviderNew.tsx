@@ -189,7 +189,7 @@ export function AdminIdentityProviderNew() {
         <form.Form
           label={t({
             id: "admin.federation.new.form",
-            message: "Add an identity provider",
+            message: "New identity provider",
           })}
           className="flex flex-col gap-6"
         >

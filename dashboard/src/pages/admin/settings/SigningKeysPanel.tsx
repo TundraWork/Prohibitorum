@@ -210,12 +210,12 @@ export function SigningKeysPanel() {
         title={
           <Trans id="settings.keys.activate.title">Sign with this key?</Trans>
         }
+        subject={<KeyId kid={namedKid.current} />}
         body={
           <p>
             <Trans id="settings.keys.activate.body">
-              New tokens and SAML assertions are signed with{" "}
-              <KeyId kid={namedKid.current} />. The current key keeps verifying
-              what it signed until it is retired.
+              New tokens and SAML assertions are signed with this key. The
+              current key keeps verifying what it signed until it is retired.
             </Trans>
           </p>
         }

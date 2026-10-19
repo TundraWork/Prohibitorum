@@ -305,6 +305,7 @@ function TokenList() {
         title={
           <Trans id="security.tokens.revoke.title">Revoke this token?</Trans>
         }
+        subject={target?.name}
         body={
           <p>
             <Trans id="security.tokens.revoke.body">

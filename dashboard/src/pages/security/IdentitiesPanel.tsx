@@ -210,6 +210,7 @@ function IdentityList() {
             Unlink this identity?
           </Trans>
         }
+        subject={target?.providerDisplayName}
         body={
           <p>
             <Trans id="security.identities.unlink.body">

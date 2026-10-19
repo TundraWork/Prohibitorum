@@ -84,14 +84,14 @@ describe("disabling and deleting", () => {
     expect(
       screen.getByRole("heading", { level: 2, name: "Disable or delete" }),
     ).toBeVisible();
-    expect(screen.getByText("Disable the application")).toBeVisible();
-    expect(screen.getByText("Delete the application")).toBeVisible();
+    expect(screen.getByText("Disable this application")).toBeVisible();
+    expect(screen.getByText("Delete this application")).toBeVisible();
     expect(screen.queryByRole("button", { name: /Rotate/ })).toBeNull();
   });
 
   it("offers to enable an application that is disabled", () => {
     mount(oidcAppFixture({ disabled: true }));
-    expect(screen.getByText("Enable the application")).toBeVisible();
+    expect(screen.getByText("Enable this application")).toBeVisible();
   });
 
   it("disables only after the confirmation", async () => {

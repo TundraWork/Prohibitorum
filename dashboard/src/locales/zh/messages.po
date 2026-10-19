@@ -201,11 +201,6 @@ msgid "console.page.description"
 msgstr "{name} 账号"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/saml-applications/SamlDangerSection.tsx
-msgid "admin.saml-apps.danger.delete.body"
-msgstr "{name} 及其证书会被删除，通过它登录的人都会被拒之门外。此操作无法撤销。"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/users/AccountProfileSection.tsx
 msgid "admin.user.role.consequence.admin"
 msgstr "{name} 将获得管理页面的访问权限。"
@@ -231,16 +226,6 @@ msgid "admin.group.decisions.dialog.change-deny"
 msgstr "{name} 目前在此用户组中被拒绝。保存后将改为允许。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/forward-auth-apps/ForwardAuthDangerSection.tsx
-msgid "admin.forward-auth-apps.delete.confirm.groups"
-msgstr "{name} 会被删除，同时删除它的图标和访问策略，包括其中选定的 {count} 个用户组。经它路由的请求会立即被拒绝。此操作无法撤销。"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/forward-auth-apps/ForwardAuthDangerSection.tsx
-msgid "admin.forward-auth-apps.delete.confirm.open"
-msgstr "{name} 会被删除，同时删除它的图标和访问策略。经它路由的请求会立即被拒绝。此操作无法撤销。"
-
-#. js-lingui-explicit-id
 #: src/pages/public/Maintenance.tsx
 msgid "maintenance.title"
 msgstr "{name} 正在维护"
@@ -249,11 +234,6 @@ msgstr "{name} 正在维护"
 #: src/pages/admin/users/AccountProfileSection.tsx
 msgid "admin.user.role.consequence.user"
 msgstr "{name} 将失去管理页面的访问权限。"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/saml-applications/SamlDangerSection.tsx
-msgid "admin.saml-apps.danger.disable.body"
-msgstr "{name} 立即停止接受登录。它的配置、端点和证书都会保留，因此可以重新启用。"
 
 #. js-lingui-explicit-id
 #: src/components/custom/AppManagersSection.tsx
@@ -785,11 +765,6 @@ msgstr "添加账号"
 #: src/pages/admin/saml-applications/AttributeMapField.tsx
 msgid "admin.saml-apps.mapping.add"
 msgstr "添加一个属性"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
-msgid "admin.federation.new.form"
-msgstr "添加身份提供商"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/saml-validation.ts
@@ -3013,21 +2988,6 @@ msgid "admin.group.danger.delete.confirm"
 msgstr "删除用户组"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/saml-applications/SamlDangerSection.tsx
-msgid "admin.saml-apps.danger.delete"
-msgstr "删除应用"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/DangerSection.tsx
-msgid "admin.oidc-apps.delete"
-msgstr "删除应用"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/forward-auth-apps/ForwardAuthDangerSection.tsx
-msgid "admin.forward-auth-apps.delete"
-msgstr "删除应用"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/users/AccountDangerSection.tsx
 msgid "admin.user.delete.title"
 msgstr "删除该账号"
@@ -3036,6 +2996,21 @@ msgstr "删除该账号"
 #: src/pages/admin/users/AccountDangerSection.tsx
 msgid "admin.user.delete.confirm.title"
 msgstr "要删除该账号吗？"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/SamlDangerSection.tsx
+msgid "admin.saml-apps.danger.delete"
+msgstr "删除该应用"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/DangerSection.tsx
+msgid "admin.oidc-apps.delete"
+msgstr "删除该应用"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ForwardAuthDangerSection.tsx
+msgid "admin.forward-auth-apps.delete"
+msgstr "删除该应用"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/SamlDangerSection.tsx
@@ -3243,21 +3218,6 @@ msgid "admin.forward-auth-apps.danger.title"
 msgstr "停用或删除"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/saml-applications/SamlDangerSection.tsx
-msgid "admin.saml-apps.danger.disable"
-msgstr "停用应用"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/DangerSection.tsx
-msgid "admin.oidc-apps.disable"
-msgstr "停用应用"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/forward-auth-apps/ForwardAuthDangerSection.tsx
-msgid "admin.forward-auth-apps.disable"
-msgstr "停用应用"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/users/AccountDangerSection.tsx
 msgid "admin.user.state.disable"
 msgstr "停用该账号"
@@ -3266,6 +3226,21 @@ msgstr "停用该账号"
 #: src/pages/admin/users/AccountDangerSection.tsx
 msgid "admin.user.state.disable.title"
 msgstr "要停用该账号吗？"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/SamlDangerSection.tsx
+msgid "admin.saml-apps.danger.disable"
+msgstr "停用该应用"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/DangerSection.tsx
+msgid "admin.oidc-apps.disable"
+msgstr "停用该应用"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ForwardAuthDangerSection.tsx
+msgid "admin.forward-auth-apps.disable"
+msgstr "停用该应用"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/SamlDangerSection.tsx
@@ -3524,21 +3499,6 @@ msgid "admin.user.role.admin-held"
 msgstr "请先启用该账号，再将其设为管理员。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/saml-applications/SamlDangerSection.tsx
-msgid "admin.saml-apps.danger.enable"
-msgstr "启用应用"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/DangerSection.tsx
-msgid "admin.oidc-apps.enable"
-msgstr "启用应用"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/forward-auth-apps/ForwardAuthDangerSection.tsx
-msgid "admin.forward-auth-apps.enable"
-msgstr "启用应用"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/users/AccountDangerSection.tsx
 msgid "admin.user.state.enable"
 msgstr "启用该账号"
@@ -3547,6 +3507,21 @@ msgstr "启用该账号"
 #: src/pages/admin/users/AccountDangerSection.tsx
 msgid "admin.user.state.enable.title"
 msgstr "要启用该账号吗？"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/SamlDangerSection.tsx
+msgid "admin.saml-apps.danger.enable"
+msgstr "启用该应用"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/DangerSection.tsx
+msgid "admin.oidc-apps.enable"
+msgstr "启用该应用"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ForwardAuthDangerSection.tsx
+msgid "admin.forward-auth-apps.enable"
+msgstr "启用该应用"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/SamlDangerSection.tsx
@@ -5508,6 +5483,11 @@ msgid "admin.federation.new.title"
 msgstr "新建身份提供商"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
+msgid "admin.federation.new.form"
+msgstr "新建身份提供商"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/invitations/AdminInvitationForm.tsx
 msgid "admin.invitations.new.title"
 msgstr "新建邀请"
@@ -5556,7 +5536,7 @@ msgstr "新建 SAML 应用"
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/SigningKeysPanel.tsx
 msgid "settings.keys.activate.body"
-msgstr "新令牌和 SAML 断言将用 <0/> 签名。当前密钥在退役前仍用于验证它签发过的内容。"
+msgstr "新令牌和 SAML 断言将用这把密钥签名。当前密钥在退役前仍用于验证它签发过的内容。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/groups/AdminGroupNew.tsx
@@ -8694,6 +8674,26 @@ msgid "error.landing.require_identity_invalid_id_token"
 msgstr "应用发来的账号信息无法核实。请回到应用重试。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/SamlDangerSection.tsx
+msgid "admin.saml-apps.danger.delete.body"
+msgstr "该应用及其证书会被删除，通过它登录的人都会被拒之门外。此操作无法撤销。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ForwardAuthDangerSection.tsx
+msgid "admin.forward-auth-apps.delete.confirm.groups"
+msgstr "该应用会被删除，同时删除它的图标和访问策略，包括其中选定的 {count} 个用户组。经它路由的请求会立即被拒绝。此操作无法撤销。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/ForwardAuthDangerSection.tsx
+msgid "admin.forward-auth-apps.delete.confirm.open"
+msgstr "该应用会被删除，同时删除它的图标和访问策略。经它路由的请求会立即被拒绝。此操作无法撤销。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/SamlDangerSection.tsx
+msgid "admin.saml-apps.danger.disable.body"
+msgstr "该应用立即停止接受登录。它的配置、端点和证书都会保留，因此可以重新启用。"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/DangerSection.tsx
 msgid "admin.oidc-apps.delete.body"
 msgstr "删除后，该应用无法再让任何人登录，其图标、密钥和访问策略也会一并删除。此操作无法撤销。"
@@ -9058,9 +9058,44 @@ msgid "login.reset.uncertain"
 msgstr "重设可能已经完成。请尝试新身份验证器或通行密钥。再次尝试验证码前，请重新输入密码；旧恢复码可能已失效。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/users/AdminUsers.tsx
+msgid "admin.users.more_failed"
+msgstr "其余的账号没能加载出来。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/logs/AdminLogs.tsx
+msgid "admin.logs.more_failed"
+msgstr "其余的审计日志没能加载出来。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/forward-auth-apps/AdminForwardAuthApps.tsx
+msgid "admin.forward-auth-apps.more_failed"
+msgstr "其余的前向认证应用没能加载出来。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/identity-providers/AdminIdentityProviders.tsx
+msgid "admin.federation.more_failed"
+msgstr "其余的身份提供商没能加载出来。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/invitations/AdminInvitations.tsx
+msgid "admin.invitations.more_failed"
+msgstr "其余的邀请没能加载出来。"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/settings/SigningKeysPanel.tsx
 msgid "settings.keys.more_failed"
 msgstr "其余的密钥没能加载出来。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/AdminOidcApplications.tsx
+msgid "admin.oidc-apps.more_failed"
+msgstr "其余的 OIDC 应用没能加载出来。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/saml-applications/AdminSamlApplications.tsx
+msgid "admin.saml-apps.more_failed"
+msgstr "其余的 SAML 应用没能加载出来。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AdminSamlApplications.tsx

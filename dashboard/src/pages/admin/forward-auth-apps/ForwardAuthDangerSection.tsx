@@ -96,11 +96,11 @@ export function ForwardAuthDangerSection({ app }: { app: ForwardAuthApp }) {
           title={
             app.disabled ? (
               <Trans id="admin.forward-auth-apps.enable">
-                Enable the application
+                Enable this application
               </Trans>
             ) : (
               <Trans id="admin.forward-auth-apps.disable">
-                Disable the application
+                Disable this application
               </Trans>
             )
           }
@@ -144,7 +144,7 @@ export function ForwardAuthDangerSection({ app }: { app: ForwardAuthApp }) {
           icon={<Trash2 size={18} aria-hidden="true" />}
           title={
             <Trans id="admin.forward-auth-apps.delete">
-              Delete the application
+              Delete this application
             </Trans>
           }
           details={[
@@ -187,6 +187,7 @@ export function ForwardAuthDangerSection({ app }: { app: ForwardAuthApp }) {
             </Trans>
           )
         }
+        subject={name}
         body={
           <p>
             {confirming === "enable" ? (
@@ -232,19 +233,21 @@ export function ForwardAuthDangerSection({ app }: { app: ForwardAuthApp }) {
             Delete this application?
           </Trans>
         }
+        subject={name}
         body={
           <p>
             {count === 0 ? (
               <Trans id="admin.forward-auth-apps.delete.confirm.open">
-                {name} is removed along with its icon and its access policy.
-                Requests through its router are turned away immediately. This
-                cannot be undone.
+                The application is removed along with its icon and its access
+                policy. Requests through its router are turned away immediately.
+                This cannot be undone.
               </Trans>
             ) : (
               <Trans id="admin.forward-auth-apps.delete.confirm.groups">
-                {name} is removed along with its icon and its access policy —
-                including its selection of {count} user groups. Requests through
-                its router are turned away immediately. This cannot be undone.
+                The application is removed along with its icon and its access
+                policy — including its selection of {count} user groups.
+                Requests through its router are turned away immediately. This
+                cannot be undone.
               </Trans>
             )}
           </p>
