@@ -80,6 +80,11 @@ msgid "admin.forward-auth-apps.headers.confirm.body"
 msgstr "{appName} will receive the account's {nextLabel} instead of its {savedLabel}. Anything it saved under the old value is not migrated, so people it already knows will be treated as new accounts."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/sign-in-page/SignInPageEditor.tsx
+msgid "settings.sign-in.unsaved"
+msgstr "{changes, plural, one {# unsaved change} other {# unsaved changes}}"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
 msgid "admin.federation.claims.subject.confirm.body"
 msgstr "{count, plural, one {# account is} other {# accounts are}} linked to {name} by their <0>{current}</0> claim. After switching to <1>{next}</1>, those links no longer match, and each person is treated as a new identity the next time they sign in."
@@ -442,7 +447,7 @@ msgid "admin.federation.auth.public-needs-s256"
 msgstr "A public client needs S256 PKCE, and this provider is set to use a different PKCE method."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/SignInPageControls.tsx
+#: src/pages/admin/settings/sign-in-page/BackgroundControls.tsx
 msgid "settings.sign-in.order.random"
 msgstr "A random one each visit"
 
@@ -510,7 +515,8 @@ msgid "error_page.denied.retry_hint"
 msgstr "Access hasn't been granted yet. Once an administrator grants it, you can try again."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/SignInPagePanel.tsx
+#: src/pages/admin/settings/sign-in-page/BackgroundControls.tsx
+#: src/pages/admin/settings/sign-in-page/SavedUnsplashKey.tsx
 msgid "settings.sign-in.unsplash.key"
 msgstr "Access key"
 
@@ -520,7 +526,7 @@ msgid "success.unsplash-key.removed"
 msgstr "Access key removed"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/SignInPagePanel.tsx
+#: src/pages/admin/settings/sign-in-page/SavedUnsplashKey.tsx
 msgid "settings.sign-in.unsplash.key.saved"
 msgstr "Access key saved"
 
@@ -857,6 +863,11 @@ msgid "admin.user.passkeys.detail.added"
 msgstr "Added <0/>"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/sign-in-page/LoginImagesControl.tsx
+msgid "settings.sign-in.images.instant"
+msgstr "Adding or removing an image takes effect right away, without Save."
+
+#. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AcsRowFields.tsx
 msgid "admin.saml-apps.acs.location"
 msgstr "Address"
@@ -994,12 +1005,12 @@ msgid "admin.federation.response.id-token-token.hint"
 msgstr "Also reads the access token sent back with the ID token, and uses it for UserInfo when the ID token has no picture."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/SignInPageControls.tsx
+#: src/pages/admin/settings/sign-in-page/SurfaceControls.tsx
 msgid "settings.sign-in.theme.dark"
 msgstr "Always dark"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/SignInPageControls.tsx
+#: src/pages/admin/settings/sign-in-page/SurfaceControls.tsx
 msgid "settings.sign-in.theme.light"
 msgstr "Always light"
 
@@ -1388,7 +1399,7 @@ msgid "settings.network.confirm.body"
 msgstr "Audit logs and rate limits use the new address for every request from now on. A wrong setting can lock everyone into one shared limit."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/SignInPageControls.tsx
+#: src/pages/admin/settings/sign-in-page/BackgroundControls.tsx
 msgid "settings.sign-in.gradient.aurora"
 msgstr "Aurora"
 
@@ -1488,6 +1499,11 @@ msgid "login.back"
 msgstr "Back to password"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/sign-in-page/SignInPageEditor.tsx
+msgid "settings.sign-in.back"
+msgstr "Back to Settings"
+
+#. js-lingui-explicit-id
 #: src/pages/public/Pair.tsx
 msgid "pair.back"
 msgstr "Back to sign in"
@@ -1498,12 +1514,13 @@ msgid "route.back_to_sign_in"
 msgstr "Back to sign-in"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/SignInPagePanel.tsx
+#: src/pages/admin/settings/sign-in-page/SignInPageEditor.tsx
+#: src/pages/admin/settings/SignInPageSummary.tsx
 msgid "settings.sign-in.background"
 msgstr "Background"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/SignInPageControls.tsx
+#: src/pages/admin/settings/sign-in-page/BackgroundControls.tsx
 msgid "settings.sign-in.source"
 msgstr "Background source"
 
@@ -1589,12 +1606,17 @@ msgid "admin.group.decisions.dialog.deny-hint"
 msgstr "Cannot use them, whatever else matches."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/SignInPageControls.tsx
-msgid "settings.sign-in.position"
-msgstr "Position"
+#: src/pages/admin/settings/sign-in-page/SignInPageEditor.tsx
+msgid "settings.sign-in.card"
+msgstr "Card"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/SignInPageControls.tsx
+#: src/pages/admin/settings/SignInPageSummary.tsx
+msgid "settings.sign-in.summary.position"
+msgstr "Card position"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/sign-in-page/BackgroundControls.tsx
 msgid "settings.sign-in.order.carousel"
 msgstr "Carousel"
 
@@ -1609,7 +1631,8 @@ msgid "admin.logs.filter.factor"
 msgstr "Category"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/SignInPageControls.tsx
+#: src/pages/admin/settings/sign-in-page/SurfaceControls.tsx
+#: src/pages/admin/settings/SignInPageSummary.tsx
 msgid "settings.sign-in.position.center"
 msgstr "Center"
 
@@ -1664,7 +1687,7 @@ msgid "admin.forward-auth-apps.headers.confirm.action"
 msgstr "Change and save"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/SignInPageControls.tsx
+#: src/pages/admin/settings/sign-in-page/IntervalField.tsx
 msgid "settings.sign-in.interval"
 msgstr "Change every"
 
@@ -2134,12 +2157,13 @@ msgid "security.setup.code"
 msgstr "Code from your authenticator"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/SignInPageControls.tsx
+#: src/pages/admin/settings/sign-in-page/BackgroundControls.tsx
+#: src/pages/admin/settings/SignInPageSummary.tsx
 msgid "settings.sign-in.source.color"
 msgstr "Color"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/SignInPageControls.tsx
+#: src/pages/admin/settings/sign-in-page/ColorControl.tsx
 msgid "settings.sign-in.color"
 msgstr "Color"
 
@@ -2454,7 +2478,6 @@ msgid "federation.continue_with"
 msgstr "Continue with {name}"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/LoginPreview.tsx
 #: src/pages/admin/settings/sign-in-page/SignInPreview.tsx
 msgid "settings.sign-in.preview.continue"
 msgstr "Continue with password"
@@ -2702,13 +2725,11 @@ msgid "copy-value.failed"
 msgstr "Couldn't copy. Select the value above and copy it yourself."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/LoginPreview.tsx
 #: src/pages/admin/settings/sign-in-page/SignInPreview.tsx
 msgid "settings.sign-in.preview.unsplash_failed"
 msgstr "Couldn't get a photo from Unsplash."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/LoginPreview.tsx
 #: src/pages/admin/settings/sign-in-page/SignInPreview.tsx
 msgid "settings.sign-in.preview.bing_failed"
 msgstr "Couldn't get the picture from Bing."
@@ -2860,7 +2881,7 @@ msgid "admin.forward-auth-apps.danger"
 msgstr "Danger zone"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/LoginPreview.tsx
+#: src/pages/admin/settings/sign-in-page/SignInPageEditor.tsx
 msgid "settings.sign-in.preview.dark"
 msgstr "Dark"
 
@@ -2875,7 +2896,7 @@ msgid "admin.logs.range.dates"
 msgstr "Dates"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/SignInPageControls.tsx
+#: src/pages/admin/settings/sign-in-page/BackgroundControls.tsx
 msgid "settings.sign-in.gradient.dawn"
 msgstr "Dawn"
 
@@ -2916,11 +2937,13 @@ msgstr "Decline"
 
 #. js-lingui-explicit-id
 #: src/components/custom/FormFields.tsx
+#: src/pages/admin/settings/sign-in-page/IntervalField.tsx
 msgid "number-field.decrease"
 msgstr "Decrease"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/SignInPageControls.tsx
+#: src/pages/admin/settings/sign-in-page/BackgroundControls.tsx
+#: src/pages/admin/settings/SignInPageSummary.tsx
 msgid "settings.sign-in.source.none"
 msgstr "Default"
 
@@ -3090,6 +3113,11 @@ msgstr "Description"
 #: src/pages/admin/groups/AdminGroups.tsx
 msgid "admin.groups.column.description"
 msgstr "Description"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/sign-in-page/SignInPageEditor.tsx
+msgid "settings.sign-in.preview.desktop"
+msgstr "Desktop"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/logs/AdminLogs.tsx
@@ -3418,7 +3446,7 @@ msgid "settings.sign-in.images.drop"
 msgstr "Drop images here, or choose files"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/SignInPageControls.tsx
+#: src/pages/admin/settings/sign-in-page/BackgroundControls.tsx
 msgid "settings.sign-in.gradient.dusk"
 msgstr "Dusk"
 
@@ -3426,6 +3454,11 @@ msgstr "Dusk"
 #: src/components/custom/principal-sources.ts
 msgid "principal-source.username.hint"
 msgstr "Easy to read. An administrator can change it."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/SignInPageSummary.tsx
+msgid "settings.sign-in.edit"
+msgstr "Edit the sign-in page"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/EffectiveConfigDialog.tsx
@@ -3460,7 +3493,7 @@ msgid "admin.federation.diagnostics.identity.email-verified"
 msgstr "Email verified"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/SignInPageControls.tsx
+#: src/pages/admin/settings/sign-in-page/BackgroundControls.tsx
 msgid "settings.sign-in.gradient.ember"
 msgstr "Ember"
 
@@ -4129,12 +4162,12 @@ msgid "admin.federation.claims.column.returned.when"
 msgstr "From the test <0/>"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/SignInPagePanel.tsx
+#: src/pages/admin/settings/sign-in-page/BackgroundControls.tsx
 msgid "settings.sign-in.unsplash.key.hint"
 msgstr "From your application on <0>unsplash.com/developers</0>."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/SignInPageControls.tsx
+#: src/pages/admin/settings/sign-in-page/SurfaceControls.tsx
 msgid "settings.sign-in.surface.blur"
 msgstr "Frosted glass"
 
@@ -4229,12 +4262,13 @@ msgid "admin.federation.protocol.oidc.hint"
 msgstr "Google, Microsoft Entra ID, Keycloak and other providers."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/SignInPageControls.tsx
+#: src/pages/admin/settings/sign-in-page/BackgroundControls.tsx
+#: src/pages/admin/settings/SignInPageSummary.tsx
 msgid "settings.sign-in.source.gradient"
 msgstr "Gradient"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/SignInPageControls.tsx
+#: src/pages/admin/settings/sign-in-page/BackgroundControls.tsx
 msgid "settings.sign-in.gradient"
 msgstr "Gradient"
 
@@ -4282,11 +4316,6 @@ msgstr "Header name"
 #: src/pages/admin/forward-auth-apps/ForwardAuthHeadersSection.tsx
 msgid "admin.forward-auth-apps.headers"
 msgstr "Headers sent to the service"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/settings/SignInPageControls.tsx
-msgid "settings.sign-in.color.hex"
-msgstr "Hex value"
 
 #. js-lingui-explicit-id
 #: src/components/custom/DataTable.tsx
@@ -4345,7 +4374,7 @@ msgid "admin.federation.diagnostics.stage.http"
 msgstr "HTTP {httpStatus}"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/SignInPageControls.tsx
+#: src/pages/admin/settings/sign-in-page/ColorControl.tsx
 msgid "settings.sign-in.color.hue"
 msgstr "Hue"
 
@@ -4512,7 +4541,7 @@ msgid "success.sign-in-image.removed"
 msgstr "Image removed"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/SignInPageControls.tsx
+#: src/pages/admin/settings/sign-in-page/BackgroundControls.tsx
 msgid "settings.sign-in.source.images"
 msgstr "Images"
 
@@ -4520,6 +4549,11 @@ msgstr "Images"
 #: src/pages/admin/settings/sign-in-page/LoginImagesControl.tsx
 msgid "settings.sign-in.images"
 msgstr "Images"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/SignInPageSummary.tsx
+msgid "settings.sign-in.summary.images"
+msgstr "Images ({0})"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
@@ -4543,6 +4577,7 @@ msgstr "In VRChat, add it to the links in your bio and save."
 
 #. js-lingui-explicit-id
 #: src/components/custom/FormFields.tsx
+#: src/pages/admin/settings/sign-in-page/IntervalField.tsx
 msgid "number-field.increase"
 msgstr "Increase"
 
@@ -4783,7 +4818,7 @@ msgid "security.tokens.description"
 msgstr "Keys for scripts and tools that act as you. Each is shown once, when you create it."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/SignInPagePanel.tsx
+#: src/pages/admin/settings/sign-in-page/BackgroundControls.tsx
 msgid "settings.sign-in.unsplash.query"
 msgstr "Keyword"
 
@@ -4803,7 +4838,7 @@ msgid "consent.scope.openid.description"
 msgstr "Know which {instance} account is yours"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/SignInPageControls.tsx
+#: src/pages/admin/settings/sign-in-page/BackgroundControls.tsx
 msgid "settings.sign-in.gradient.lagoon"
 msgstr "Lagoon"
 
@@ -4869,7 +4904,7 @@ msgid "admin.oidc-apps.field.launch"
 msgstr "Launch URL"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/SignInPagePanel.tsx
+#: src/pages/admin/settings/sign-in-page/BackgroundControls.tsx
 msgid "settings.sign-in.unsplash.query.hint"
 msgstr "Leave it empty for any photo."
 
@@ -4904,7 +4939,8 @@ msgid "security.tokens.reveal.leave"
 msgstr "Leave without saving? This token cannot be shown again."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/SignInPageControls.tsx
+#: src/pages/admin/settings/sign-in-page/SurfaceControls.tsx
+#: src/pages/admin/settings/SignInPageSummary.tsx
 msgid "settings.sign-in.position.left"
 msgstr "Left"
 
@@ -4924,7 +4960,7 @@ msgid "devices.review.title"
 msgstr "Let this device sign in?"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/LoginPreview.tsx
+#: src/pages/admin/settings/sign-in-page/SignInPageEditor.tsx
 msgid "settings.sign-in.preview.light"
 msgstr "Light"
 
@@ -5247,7 +5283,7 @@ msgid "admin.federation.claims.returned.missing"
 msgstr "Missing"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/SignInPageControls.tsx
+#: src/pages/admin/settings/sign-in-page/BackgroundControls.tsx
 msgid "settings.sign-in.gradient.mist"
 msgstr "Mist"
 
@@ -5974,7 +6010,7 @@ msgid "security.password.description.partial"
 msgstr "Only part of this is set up. Set it up again to use it."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/SignInPageControls.tsx
+#: src/pages/admin/settings/sign-in-page/SurfaceControls.tsx
 msgid "settings.sign-in.surface.opacity"
 msgstr "Opacity"
 
@@ -6114,7 +6150,7 @@ msgid "login.or_password"
 msgstr "or with your password"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/SignInPageControls.tsx
+#: src/pages/admin/settings/sign-in-page/BackgroundControls.tsx
 msgid "settings.sign-in.order"
 msgstr "Order"
 
@@ -6241,7 +6277,6 @@ msgid "enroll.password_totp.password"
 msgstr "Password"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/LoginPreview.tsx
 #: src/pages/admin/settings/sign-in-page/SignInPreview.tsx
 msgid "settings.sign-in.preview.password"
 msgstr "Password"
@@ -6323,9 +6358,19 @@ msgid "admin.federation.general.sign_in.confirm_body"
 msgstr "People will no longer see it on the sign-in page. You can turn it back on at any time."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/sign-in-page/SignInPageEditor.tsx
+msgid "settings.sign-in.preview.phone"
+msgstr "Phone"
+
+#. js-lingui-explicit-id
 #: src/components/custom/login-appearance/WallpaperCredit.tsx
 msgid "login.wallpaper.unsplash-credit"
 msgstr "Photo by <0>{name}</0> on <1>Unsplash</1>"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/sign-in-page/ColorControl.tsx
+msgid "settings.sign-in.color.picker"
+msgstr "Pick a color"
 
 #. js-lingui-explicit-id
 #: src/pages/profile/AvatarPanel.tsx
@@ -6374,6 +6419,11 @@ msgid "profile.avatar.hint"
 msgstr "PNG, JPEG, WebP, GIF or AVIF, up to 5 MiB."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/sign-in-page/SurfaceControls.tsx
+msgid "settings.sign-in.position"
+msgstr "Position"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/logs/audit-vocabulary.ts
 msgid "audit.event.clone_warning"
 msgstr "Possible clone"
@@ -6389,9 +6439,19 @@ msgid "admin.federation.tags.draft-pending"
 msgstr "Press Enter to add it, or clear the box."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/LoginPreview.tsx
+#: src/pages/admin/settings/sign-in-page/SignInPageEditor.tsx
 msgid "settings.sign-in.preview"
 msgstr "Preview"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/sign-in-page/SignInPageEditor.tsx
+msgid "settings.sign-in.preview.size"
+msgstr "Preview size"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/sign-in-page/SignInPageEditor.tsx
+msgid "settings.sign-in.preview.theme"
+msgstr "Preview theme"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/ForwardAuthHeadersSection.tsx
@@ -6659,7 +6719,7 @@ msgid "security.recovery.regenerate"
 msgstr "Regenerate"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/SignInPageControls.tsx
+#: src/pages/admin/settings/sign-in-page/BackgroundControls.tsx
 msgid "settings.sign-in.bing.region"
 msgstr "Region"
 
@@ -6744,7 +6804,7 @@ msgid "profile.avatar.remove.confirm"
 msgstr "Remove"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/SignInPagePanel.tsx
+#: src/pages/admin/settings/sign-in-page/SavedUnsplashKey.tsx
 msgid "settings.sign-in.unsplash.key.remove"
 msgstr "Remove"
 
@@ -6955,7 +7015,7 @@ msgid "profile.avatar.replace"
 msgstr "Replace"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/SignInPagePanel.tsx
+#: src/pages/admin/settings/sign-in-page/SavedUnsplashKey.tsx
 msgid "settings.sign-in.unsplash.key.replace"
 msgstr "Replace"
 
@@ -7257,7 +7317,8 @@ msgid "audit.event.revoke"
 msgstr "Revoked"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/SignInPageControls.tsx
+#: src/pages/admin/settings/sign-in-page/SurfaceControls.tsx
+#: src/pages/admin/settings/SignInPageSummary.tsx
 msgid "settings.sign-in.position.right"
 msgstr "Right"
 
@@ -7387,7 +7448,7 @@ msgid "settings.network.save"
 msgstr "Save"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/SignInPagePanel.tsx
+#: src/pages/admin/settings/sign-in-page/SignInPageEditor.tsx
 msgid "settings.sign-in.save"
 msgstr "Save"
 
@@ -7451,7 +7512,6 @@ msgid "app.groups.dialog.save"
 msgstr "Save"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/LoginPreview.tsx
 #: src/pages/admin/settings/sign-in-page/SignInPreview.tsx
 msgid "settings.sign-in.preview.unsplash_key"
 msgstr "Save an access key to preview Unsplash photos."
@@ -7781,7 +7841,7 @@ msgid "settings.keys.retired.show_some"
 msgstr "Show retired keys"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/SignInPagePanel.tsx
+#: src/pages/admin/settings/sign-in-page/BackgroundControls.tsx
 msgid "settings.sign-in.bing.caption"
 msgstr "Show the picture's title and copyright"
 
@@ -7801,7 +7861,6 @@ msgid "error_page.sign_in"
 msgstr "Sign in"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/LoginPreview.tsx
 #: src/pages/admin/settings/sign-in-page/SignInPreview.tsx
 msgid "settings.sign-in.preview.sign_in"
 msgstr "Sign in"
@@ -7887,7 +7946,6 @@ msgid "login.passkey"
 msgstr "Sign in with a passkey"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/LoginPreview.tsx
 #: src/pages/admin/settings/sign-in-page/SignInPreview.tsx
 msgid "settings.sign-in.preview.passkey"
 msgstr "Sign in with a passkey"
@@ -7982,11 +8040,6 @@ msgid "admin.federation.signin.title"
 msgstr "Sign-in"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/SignInPagePanel.tsx
-msgid "settings.sign-in.card"
-msgstr "Sign-in card"
-
-#. js-lingui-explicit-id
 #: src/components/custom/ObjectHeader.tsx
 #: src/pages/admin/identity-providers/AdminIdentityProviders.tsx
 msgid "object.status.sign-in-off"
@@ -7998,13 +8051,13 @@ msgid "object.status.sign-in-on"
 msgstr "Sign-in on"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/AdminSettings.tsx
-#: src/pages/admin/settings/SignInPagePanel.tsx
+#: src/pages/admin/settings/sign-in-page/SignInPageEditor.tsx
+#: src/pages/admin/settings/SignInPageSummary.tsx
 msgid "settings.sign-in.title"
 msgstr "Sign-in page"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/SignInPagePanel.tsx
+#: src/pages/admin/settings/sign-in-page/SignInPageEditor.tsx
 msgid "settings.sign-in.form"
 msgstr "Sign-in page"
 
@@ -8330,7 +8383,7 @@ msgid "forms.submitting"
 msgstr "Submitting…"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/SignInPageControls.tsx
+#: src/pages/admin/settings/sign-in-page/ColorControl.tsx
 msgid "settings.sign-in.color.suggested"
 msgstr "Suggested colors"
 
@@ -8340,7 +8393,7 @@ msgid "consent.switch_account"
 msgstr "Switch account"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/SignInPagePanel.tsx
+#: src/pages/admin/settings/sign-in-page/SavedUnsplashKey.tsx
 msgid "settings.sign-in.unsplash.key.in_use"
 msgstr "Switch the background to another source and save before removing the key."
 
@@ -8590,6 +8643,11 @@ msgid "error.landing.require_identity_invalid_id_token"
 msgstr "The app sent account details that couldn't be checked. Go back to the app and try again."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/SignInPageSummary.tsx
+msgid "settings.sign-in.summary.description"
+msgstr "The background, card and toolbar people see before they sign in."
+
+#. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
 msgid "admin.oidc-apps.field.client-id.hint"
 msgstr "The client is configured with this value; it cannot change."
@@ -8793,7 +8851,7 @@ msgid "admin.federation.page.description"
 msgstr "The outside accounts people can sign in with, link to their account or accept an invitation through."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/SignInPagePanel.tsx
+#: src/pages/admin/settings/sign-in-page/BackgroundControls.tsx
 msgid "settings.sign-in.none.hint"
 msgstr "The page's own background, which follows light and dark mode."
 
@@ -8999,7 +9057,7 @@ msgid "security.password.mismatch"
 msgstr "The two passwords do not match."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/SignInPagePanel.tsx
+#: src/pages/admin/settings/sign-in-page/SignInPageEditor.tsx
 msgid "settings.sign-in.unsplash.query.hidden_invalid"
 msgstr "The Unsplash keyword can't be used. Choose Unsplash to correct it."
 
@@ -9034,7 +9092,7 @@ msgid "security.passkeys.description"
 msgstr "The way in. Your device keeps the key, so there's nothing to type or leak."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/SignInPageControls.tsx
+#: src/pages/admin/settings/sign-in-page/SurfaceControls.tsx
 msgid "settings.sign-in.theme"
 msgstr "Theme"
 
@@ -9520,7 +9578,7 @@ msgid "error.factor_locked"
 msgstr "Too many verification attempts. Wait a moment."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/SignInPagePanel.tsx
+#: src/pages/admin/settings/sign-in-page/SignInPageEditor.tsx
 msgid "settings.sign-in.toolbar"
 msgstr "Toolbar"
 
@@ -9530,7 +9588,7 @@ msgid "admin.forward-auth-apps.traefik"
 msgstr "Traefik configuration"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/SignInPageControls.tsx
+#: src/pages/admin/settings/sign-in-page/SurfaceControls.tsx
 msgid "settings.sign-in.surface.translucent"
 msgstr "Translucent"
 
@@ -10090,7 +10148,6 @@ msgid "console.username"
 msgstr "Username"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/LoginPreview.tsx
 #: src/pages/admin/settings/sign-in-page/SignInPreview.tsx
 msgid "settings.sign-in.preview.username"
 msgstr "Username"
@@ -10274,7 +10331,7 @@ msgid "settings.keys.view"
 msgstr "View public key"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/SignInPageControls.tsx
+#: src/pages/admin/settings/sign-in-page/SurfaceControls.tsx
 msgid "settings.sign-in.theme.switchable"
 msgstr "Visitor's choice"
 
@@ -10353,6 +10410,11 @@ msgstr "What it may access"
 #: src/pages/profile/AvatarPanel.tsx
 msgid "profile.avatar.description"
 msgstr "What others see next to your name."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/sign-in-page/SignInPageEditor.tsx
+msgid "settings.sign-in.page.description"
+msgstr "What people see before they sign in. The preview shows your changes as you make them."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/AdminForwardAuthAppNew.tsx
@@ -10600,6 +10662,11 @@ msgstr "You have already approved this pairing. The new device is finishing sign
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.no_forward_auth"
 msgstr "You have no applications to choose from."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/sign-in-page/SignInPageEditor.tsx
+msgid "settings.sign-in.leave"
+msgstr "You have unsaved changes to the sign-in page. Leave without saving them?"
 
 #. js-lingui-explicit-id
 #: src/components/custom/AppManagersSection.tsx

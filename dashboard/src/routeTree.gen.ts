@@ -53,6 +53,7 @@ import { Route as ProtectedAdminAdminIdentityProvidersIndexRouteImport } from '.
 import { Route as ProtectedAdminAdminIdentityProvidersSlugRouteImport } from './routes/_protected.admin._admin.identity-providers.$slug'
 import { Route as ProtectedAdminAdminIdentityProvidersNewRouteImport } from './routes/_protected.admin._admin.identity-providers.new'
 import { Route as ProtectedAdminAdminInvitationsNewRouteImport } from './routes/_protected.admin._admin.invitations_.new'
+import { Route as ProtectedAdminAdminSettingsSignInPageRouteImport } from './routes/_protected.admin._admin.settings_.sign-in-page'
 import { Route as ProtectedAdminAdminUsersIdRouteImport } from './routes/_protected.admin._admin.users_.$id'
 
 const ProtectedRoute = ProtectedRouteImport.update({
@@ -294,6 +295,12 @@ const ProtectedAdminAdminInvitationsNewRoute =
     path: '/invitations/new',
     getParentRoute: () => ProtectedAdminAdminRoute,
   } as any)
+const ProtectedAdminAdminSettingsSignInPageRoute =
+  ProtectedAdminAdminSettingsSignInPageRouteImport.update({
+    id: '/settings_/sign-in-page',
+    path: '/settings/sign-in-page',
+    getParentRoute: () => ProtectedAdminAdminRoute,
+  } as any)
 const ProtectedAdminAdminUsersIdRoute =
   ProtectedAdminAdminUsersIdRouteImport.update({
     id: '/users_/$id',
@@ -341,6 +348,7 @@ export interface FileRoutesByFullPath {
   '/admin/identity-providers/$slug': typeof ProtectedAdminAdminIdentityProvidersSlugRoute
   '/admin/identity-providers/new': typeof ProtectedAdminAdminIdentityProvidersNewRoute
   '/admin/invitations/new': typeof ProtectedAdminAdminInvitationsNewRoute
+  '/admin/settings/sign-in-page': typeof ProtectedAdminAdminSettingsSignInPageRoute
   '/admin/users/$id': typeof ProtectedAdminAdminUsersIdRoute
   '/admin/groups/': typeof ProtectedAdminAdminGroupsIndexRoute
   '/admin/identity-providers/': typeof ProtectedAdminAdminIdentityProvidersIndexRoute
@@ -384,6 +392,7 @@ export interface FileRoutesByTo {
   '/admin/identity-providers/$slug': typeof ProtectedAdminAdminIdentityProvidersSlugRoute
   '/admin/identity-providers/new': typeof ProtectedAdminAdminIdentityProvidersNewRoute
   '/admin/invitations/new': typeof ProtectedAdminAdminInvitationsNewRoute
+  '/admin/settings/sign-in-page': typeof ProtectedAdminAdminSettingsSignInPageRoute
   '/admin/users/$id': typeof ProtectedAdminAdminUsersIdRoute
   '/admin/groups': typeof ProtectedAdminAdminGroupsIndexRoute
   '/admin/identity-providers': typeof ProtectedAdminAdminIdentityProvidersIndexRoute
@@ -432,6 +441,7 @@ export interface FileRoutesById {
   '/_protected/admin/_admin/identity-providers/$slug': typeof ProtectedAdminAdminIdentityProvidersSlugRoute
   '/_protected/admin/_admin/identity-providers/new': typeof ProtectedAdminAdminIdentityProvidersNewRoute
   '/_protected/admin/_admin/invitations_/new': typeof ProtectedAdminAdminInvitationsNewRoute
+  '/_protected/admin/_admin/settings_/sign-in-page': typeof ProtectedAdminAdminSettingsSignInPageRoute
   '/_protected/admin/_admin/users_/$id': typeof ProtectedAdminAdminUsersIdRoute
   '/_protected/admin/_admin/groups/': typeof ProtectedAdminAdminGroupsIndexRoute
   '/_protected/admin/_admin/identity-providers/': typeof ProtectedAdminAdminIdentityProvidersIndexRoute
@@ -478,6 +488,7 @@ export interface FileRouteTypes {
     | '/admin/identity-providers/$slug'
     | '/admin/identity-providers/new'
     | '/admin/invitations/new'
+    | '/admin/settings/sign-in-page'
     | '/admin/users/$id'
     | '/admin/groups/'
     | '/admin/identity-providers/'
@@ -521,6 +532,7 @@ export interface FileRouteTypes {
     | '/admin/identity-providers/$slug'
     | '/admin/identity-providers/new'
     | '/admin/invitations/new'
+    | '/admin/settings/sign-in-page'
     | '/admin/users/$id'
     | '/admin/groups'
     | '/admin/identity-providers'
@@ -568,6 +580,7 @@ export interface FileRouteTypes {
     | '/_protected/admin/_admin/identity-providers/$slug'
     | '/_protected/admin/_admin/identity-providers/new'
     | '/_protected/admin/_admin/invitations_/new'
+    | '/_protected/admin/_admin/settings_/sign-in-page'
     | '/_protected/admin/_admin/users_/$id'
     | '/_protected/admin/_admin/groups/'
     | '/_protected/admin/_admin/identity-providers/'
@@ -888,6 +901,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProtectedAdminAdminInvitationsNewRouteImport
       parentRoute: typeof ProtectedAdminAdminRoute
     }
+    '/_protected/admin/_admin/settings_/sign-in-page': {
+      id: '/_protected/admin/_admin/settings_/sign-in-page'
+      path: '/settings/sign-in-page'
+      fullPath: '/admin/settings/sign-in-page'
+      preLoaderRoute: typeof ProtectedAdminAdminSettingsSignInPageRouteImport
+      parentRoute: typeof ProtectedAdminAdminRoute
+    }
     '/_protected/admin/_admin/users_/$id': {
       id: '/_protected/admin/_admin/users_/$id'
       path: '/users/$id'
@@ -909,6 +929,7 @@ interface ProtectedAdminAdminRouteChildren {
   ProtectedAdminAdminIdentityProvidersSlugRoute: typeof ProtectedAdminAdminIdentityProvidersSlugRoute
   ProtectedAdminAdminIdentityProvidersNewRoute: typeof ProtectedAdminAdminIdentityProvidersNewRoute
   ProtectedAdminAdminInvitationsNewRoute: typeof ProtectedAdminAdminInvitationsNewRoute
+  ProtectedAdminAdminSettingsSignInPageRoute: typeof ProtectedAdminAdminSettingsSignInPageRoute
   ProtectedAdminAdminUsersIdRoute: typeof ProtectedAdminAdminUsersIdRoute
   ProtectedAdminAdminGroupsIndexRoute: typeof ProtectedAdminAdminGroupsIndexRoute
   ProtectedAdminAdminIdentityProvidersIndexRoute: typeof ProtectedAdminAdminIdentityProvidersIndexRoute
@@ -928,6 +949,8 @@ const ProtectedAdminAdminRouteChildren: ProtectedAdminAdminRouteChildren = {
     ProtectedAdminAdminIdentityProvidersNewRoute,
   ProtectedAdminAdminInvitationsNewRoute:
     ProtectedAdminAdminInvitationsNewRoute,
+  ProtectedAdminAdminSettingsSignInPageRoute:
+    ProtectedAdminAdminSettingsSignInPageRoute,
   ProtectedAdminAdminUsersIdRoute: ProtectedAdminAdminUsersIdRoute,
   ProtectedAdminAdminGroupsIndexRoute: ProtectedAdminAdminGroupsIndexRoute,
   ProtectedAdminAdminIdentityProvidersIndexRoute:

@@ -1,12 +1,9 @@
-import { I18nProvider } from "@lingui/react";
-import { type QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, within } from "@testing-library/react";
+import type { QueryClient } from "@tanstack/react-query";
+import { screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { publicConfigQueryOptions } from "@/api/queries";
 import { createQueryClient } from "@/app/query-client";
 import { i18n } from "@/i18n";
-import { AdminSettings } from "@/pages/admin/settings/AdminSettings";
-import { publicConfigFixture } from "@/test/public-config";
+import { fakeApi, publicApi, renderApp, testSession } from "@/test/app";
 
 let queryClient: QueryClient;
 
@@ -14,15 +11,13 @@ beforeEach(() => {
   i18n.activate("en");
   // The reads behind the other sections never answer here: this checks the
   // frame, and each section keeps its heading while it waits.
-  vi.stubGlobal(
-    "fetch",
-    vi.fn(() => new Promise<Response>(() => {})),
-  );
+  fakeApi({
+    ...publicApi({ ...testSession, role: "admin" }),
+    "GET /api/prohibitorum/admin/settings/client-ip": () =>
+      new Promise<Response>(() => {}),
+    "GET /api/prohibitorum/signing-keys": () => new Promise<Response>(() => {}),
+  });
   queryClient = createQueryClient(() => undefined);
-  queryClient.setQueryData(
-    publicConfigQueryOptions().queryKey,
-    publicConfigFixture(),
-  );
 });
 
 afterEach(() => {
@@ -31,13 +26,7 @@ afterEach(() => {
 });
 
 function mount() {
-  render(
-    <I18nProvider i18n={i18n}>
-      <QueryClientProvider client={queryClient}>
-        <AdminSettings />
-      </QueryClientProvider>
-    </I18nProvider>,
-  );
+  renderApp("/admin/settings", queryClient);
 }
 
 const sections = [
@@ -49,11 +38,11 @@ const sections = [
 ];
 
 describe("the settings page", () => {
-  it("is headed Settings, with a line saying what it is for", () => {
+  it("is headed Settings, with a line saying what it is for", async () => {
     mount();
 
     expect(
-      screen.getByRole("heading", { level: 1, name: "Settings" }),
+      await screen.findByRole("heading", { level: 1, name: "Settings" }),
     ).toBeVisible();
     expect(
       screen.getByText(
@@ -62,8 +51,9 @@ describe("the settings page", () => {
     ).toBeVisible();
   });
 
-  it("draws the five sections in order", () => {
+  it("draws the five sections in order", async () => {
     mount();
+    await screen.findByRole("heading", { level: 1, name: "Settings" });
 
     expect(
       screen
@@ -72,8 +62,9 @@ describe("the settings page", () => {
     ).toEqual(sections);
   });
 
-  it("lists the same sections in the outline, each linking to its own", () => {
+  it("lists the same sections in the outline, each linking to its own", async () => {
     mount();
+    await screen.findByRole("heading", { level: 1, name: "Settings" });
 
     const rail = screen.getByRole("navigation", { name: "On this page" });
     const links = within(rail).getAllByRole("link");

@@ -8,7 +8,7 @@ import {
   clientIpSection,
   NetworkPanel,
 } from "@/pages/admin/settings/NetworkPanel";
-import { SignInPagePanel } from "@/pages/admin/settings/SignInPagePanel";
+import { SignInPageSummary } from "@/pages/admin/settings/SignInPageSummary";
 import { SigningKeysPanel } from "@/pages/admin/settings/SigningKeysPanel";
 
 /**
@@ -25,13 +25,13 @@ import { SigningKeysPanel } from "@/pages/admin/settings/SigningKeysPanel";
  * a fallback without it would leave the page headingless on the first frame
  * and push everything down once the reads landed.
  *
- * The general and maintenance panels are not behind a boundary. Their read is
- * `/config`, which the root route already loaded before the first paint, so
- * they never suspend. The signing keys are not either: their list is not a
- * suspense read, and the section draws its own loading rows and failure. The
- * sign-in page follows the general panel, since it is also about how the
- * instance looks, behind its own boundary for the administrator-only read of
- * its settings.
+ * The general and maintenance panels and the sign-in page summary are not
+ * behind a boundary. Their read is `/config`, which the root route already
+ * loaded before the first paint, so they never suspend. The signing keys are
+ * not either: their list is not a suspense read, and the section draws its own
+ * loading rows and failure. The sign-in page follows the general panel, since
+ * it is also about how the instance looks; it only summarises the page, which
+ * has its own route for editing.
  */
 export function AdminSettings() {
   return (
@@ -48,12 +48,7 @@ export function AdminSettings() {
       }
     >
       <GeneralPanel />
-      <AsyncSection
-        resetKey="sign-in-page"
-        title={<Trans id="settings.sign-in.title">Sign-in page</Trans>}
-      >
-        <SignInPagePanel />
-      </AsyncSection>
+      <SignInPageSummary />
       <MaintenancePanel />
       <AsyncSection resetKey="network" {...clientIpSection}>
         <NetworkPanel />
