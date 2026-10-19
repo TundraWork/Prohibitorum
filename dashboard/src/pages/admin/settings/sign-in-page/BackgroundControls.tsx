@@ -220,6 +220,7 @@ export const BackgroundControls = withForm({
     inUse: boolean;
     replacingKey: boolean;
     onReplaceKey: () => void;
+    onKeepKey: () => void;
   },
   render: function Render({
     form,
@@ -228,6 +229,7 @@ export const BackgroundControls = withForm({
     inUse,
     replacingKey,
     onReplaceKey,
+    onKeepKey,
   }) {
     const { t } = useLingui();
     const submitting = useStore(form.store, (state) => state.isSubmitting);
@@ -345,7 +347,19 @@ export const BackgroundControls = withForm({
 
         {background.source === "unsplash" && (
           <>
-            {showKeyField ? (
+            {hasKey && (
+              <SavedUnsplashKey
+                inUse={inUse}
+                disabled={submitting}
+                replacing={replacingKey}
+                onReplace={onReplaceKey}
+                onKeep={() => {
+                  form.setFieldValue("unsplashAccessKey", "");
+                  onKeepKey();
+                }}
+              />
+            )}
+            {showKeyField && (
               <form.AppField
                 name="unsplashAccessKey"
                 validators={{
@@ -361,9 +375,15 @@ export const BackgroundControls = withForm({
                 {(field) => (
                   <field.FormField
                     label={
-                      <Trans id="settings.sign-in.unsplash.key">
-                        Access key
-                      </Trans>
+                      replacingKey ? (
+                        <Trans id="settings.sign-in.unsplash.key.new">
+                          New access key
+                        </Trans>
+                      ) : (
+                        <Trans id="settings.sign-in.unsplash.key">
+                          Access key
+                        </Trans>
+                      )
                     }
                     type="password"
                     autoComplete="off"
@@ -374,7 +394,7 @@ export const BackgroundControls = withForm({
                       <Trans id="settings.sign-in.unsplash.key.hint">
                         From your application on{" "}
                         <a
-                          href="https://unsplash.com/oauth/applications"
+                          href="https://unsplash.com/developers"
                           target="_blank"
                           rel="noreferrer"
                           className={inlineLinkClass}
@@ -387,12 +407,6 @@ export const BackgroundControls = withForm({
                   />
                 )}
               </form.AppField>
-            ) : (
-              <SavedUnsplashKey
-                inUse={inUse}
-                disabled={submitting}
-                onReplace={onReplaceKey}
-              />
             )}
             <form.AppField
               name="appearance.background.unsplash.query"

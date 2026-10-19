@@ -417,7 +417,31 @@ describe("the Unsplash source", () => {
     await open({ appearance: unsplash, hasUnsplashKey: true });
     expect(screen.queryByLabelText("Access key")).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Replace" }));
-    expect(screen.getByLabelText("Access key")).toHaveValue("");
+    expect(screen.getByLabelText("New access key")).toHaveValue("");
+    // The saved key stays in view while a new one is entered.
+    expect(screen.getByText("Access key saved")).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Remove" })).toBeNull();
+  });
+
+  it("goes back to the saved key without saving anything", async () => {
+    const user = userEvent.setup();
+    const api = await open({ appearance: unsplash, hasUnsplashKey: true });
+    await user.click(screen.getByRole("button", { name: "Replace" }));
+    await user.type(screen.getByLabelText("New access key"), "typed");
+    expect(
+      screen.queryByRole("button", { name: "Replace" }),
+    ).not.toBeInTheDocument();
+    await user.click(
+      screen.getByRole("button", { name: "Keep the saved key" }),
+    );
+    expect(screen.queryByLabelText("New access key")).toBeNull();
+    expect(screen.getByRole("button", { name: "Replace" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Remove" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Save" })).toBeNull();
+    expect(api.sent("PUT", appearancePath)).toHaveLength(0);
+    // The typed key is gone: replacing again starts empty.
+    await user.click(screen.getByRole("button", { name: "Replace" }));
+    expect(screen.getByLabelText("New access key")).toHaveValue("");
   });
 
   it("offers a random photo or a carousel, and saves the interval with it", async () => {
@@ -806,7 +830,7 @@ describe("saving and discarding", () => {
       hasUnsplashKey: true,
     });
     await user.click(screen.getByRole("button", { name: "Replace" }));
-    await user.type(screen.getByLabelText("Access key"), "abc");
+    await user.type(screen.getByLabelText("New access key"), "abc");
     await user.click(screen.getByRole("button", { name: "Discard" }));
     expect(screen.getByText("Access key saved")).toBeVisible();
   });

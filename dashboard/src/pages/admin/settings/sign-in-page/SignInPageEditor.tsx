@@ -260,6 +260,7 @@ function Editor({ saved }: { saved: AdminLoginAppearance }) {
                   inUse={saved.appearance.background.source === "unsplash"}
                   replacingKey={replacingKey}
                   onReplaceKey={() => setReplacingKey(true)}
+                  onKeepKey={() => setReplacingKey(false)}
                 />
               </div>
             </Section>

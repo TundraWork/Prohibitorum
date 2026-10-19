@@ -15,12 +15,18 @@ import { Button } from "@/components/custom/Button";
 export function SavedUnsplashKey({
   inUse,
   disabled,
+  replacing,
   onReplace,
+  onKeep,
 }: {
   /** The saved background is Unsplash, so the key is in use. */
   inUse: boolean;
   disabled: boolean;
+  /** A new key is being entered, so the saved one can be kept instead. */
+  replacing: boolean;
   onReplace: () => void;
+  /** Gives up the new key and leaves the saved one as it was. */
+  onKeep: () => void;
 }) {
   const queryClient = useQueryClient();
   const remove = useMutation(removeUnsplashKeyMutationOptions(queryClient));
@@ -41,27 +47,44 @@ export function SavedUnsplashKey({
           </Trans>
         </span>
         <div className="flex gap-2">
-          <Button
-            disabled={disabled}
-            onClick={onReplace}
-            variant="outline"
-            size="sm"
-          >
-            <Trans id="settings.sign-in.unsplash.key.replace">Replace</Trans>
-          </Button>
-          <Button
-            disabled={inUse || disabled}
-            pending={remove.isPending}
-            aria-describedby={inUse ? reasonId : undefined}
-            onClick={() => remove.mutate()}
-            variant="destructive-outline"
-            size="sm"
-          >
-            <Trans id="settings.sign-in.unsplash.key.remove">Remove</Trans>
-          </Button>
+          {replacing ? (
+            <Button
+              disabled={disabled}
+              onClick={onKeep}
+              variant="outline"
+              size="sm"
+            >
+              <Trans id="settings.sign-in.unsplash.key.keep">
+                Keep the saved key
+              </Trans>
+            </Button>
+          ) : (
+            <>
+              <Button
+                disabled={disabled}
+                onClick={onReplace}
+                variant="outline"
+                size="sm"
+              >
+                <Trans id="settings.sign-in.unsplash.key.replace">
+                  Replace
+                </Trans>
+              </Button>
+              <Button
+                disabled={inUse || disabled}
+                pending={remove.isPending}
+                aria-describedby={inUse ? reasonId : undefined}
+                onClick={() => remove.mutate()}
+                variant="destructive-outline"
+                size="sm"
+              >
+                <Trans id="settings.sign-in.unsplash.key.remove">Remove</Trans>
+              </Button>
+            </>
+          )}
         </div>
       </div>
-      {inUse && (
+      {inUse && !replacing && (
         <p id={reasonId} className="text-muted-foreground text-xs">
           <Trans id="settings.sign-in.unsplash.key.in_use">
             Switch the background to another source and save before removing the
