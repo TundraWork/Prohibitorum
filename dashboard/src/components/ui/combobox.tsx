@@ -163,9 +163,11 @@ export function ComboboxPopup({
   alignOffset,
   align = "start",
   anchor: anchorProp,
+  collisionAvoidance,
   portalProps,
   ...props
 }: ComboboxPrimitive.Popup.Props & {
+  collisionAvoidance?: ComboboxPrimitive.Positioner.Props["collisionAvoidance"];
   align?: ComboboxPrimitive.Positioner.Props["align"];
   sideOffset?: ComboboxPrimitive.Positioner.Props["sideOffset"];
   alignOffset?: ComboboxPrimitive.Positioner.Props["alignOffset"];
@@ -182,7 +184,8 @@ export function ComboboxPopup({
         align={align}
         alignOffset={alignOffset}
         anchor={anchor}
-        className="z-50 select-none"
+        className="z-60 select-none"
+        collisionAvoidance={collisionAvoidance}
         data-slot="combobox-positioner"
         side={side}
         sideOffset={sideOffset}

@@ -179,7 +179,16 @@ export function EntityPicker({
             </ComboboxClear>
           )}
         </div>
-        <ComboboxPopup portalProps={{ container }}>
+        <ComboboxPopup
+          portalProps={{ container }}
+          // A picker in a dialog stays below its field and takes the room
+          // left there, rather than flipping up over the dialog's title.
+          collisionAvoidance={{
+            side: "none",
+            align: "shift",
+            fallbackAxisSide: "none",
+          }}
+        >
           <div className="relative border-b p-2">
             {/* The field's label would otherwise name this input too, since
                 it is the combobox's control; the search box has its own. */}
