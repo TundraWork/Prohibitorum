@@ -334,7 +334,7 @@ function AssignManagerForm({
       return {
         id: String(account.id),
         label: account.displayName || account.username,
-        ...(account.displayName ? { description: account.username } : {}),
+        ...(account.displayName ? { identifier: `@${account.username}` } : {}),
         ...(unavailableReason === undefined ? {} : { unavailableReason }),
       };
     },

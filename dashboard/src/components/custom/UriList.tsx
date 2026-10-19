@@ -4,7 +4,7 @@ import { useStore } from "@tanstack/react-form";
 import { type ReactNode, useId } from "react";
 import { FormMessages } from "@/components/custom/FormMessages";
 import { RowsField, rowProblem } from "@/components/custom/RowsField";
-import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { useFieldContext, useFormContext } from "@/forms/context";
 import type { ListProblem } from "@/forms/lines";
 import { withoutServerErrors } from "@/forms/server-errors";
@@ -121,11 +121,17 @@ function UriRow({
 
   return (
     <div className="flex flex-col gap-1.5">
-      <div className="flex items-center gap-2">
+      <div className="flex items-start gap-2">
         {/* Monospace: the address has to match the client's own copy
-            exactly, and a stray space or a look-alike letter has to show. */}
-        <Input
-          className="font-mono *:text-[13px]"
+            exactly, and a stray space or a look-alike letter has to show.
+            It is a one-line box that grows when the address is longer than
+            the box, so on a narrow screen the end of the address (the part
+            that tells two apart) is never hidden. Enter submits the form as
+            it does in a single-line input, and a line break cannot be typed
+            or pasted into the value. */}
+        <Textarea
+          className="**:data-[slot=textarea]:min-h-0! **:data-[slot=textarea]:resize-none **:data-[slot=textarea]:font-mono **:data-[slot=textarea]:text-[13px] **:data-[slot=textarea]:leading-5 **:data-[slot=textarea]:[overflow-wrap:anywhere] max-sm:**:data-[slot=textarea]:py-[7px]"
+          rows={1}
           value={value}
           disabled={submitting}
           aria-label={i18n._({
@@ -138,7 +144,14 @@ function UriRow({
           autoComplete="off"
           spellCheck={false}
           placeholder={placeholder}
-          onChange={(event) => update(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key !== "Enter") return;
+            event.preventDefault();
+            event.currentTarget.form?.requestSubmit();
+          }}
+          onChange={(event) =>
+            update(event.target.value.replace(/[\r\n]/g, ""))
+          }
         />
         {remove}
       </div>

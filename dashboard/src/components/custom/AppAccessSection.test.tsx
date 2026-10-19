@@ -117,8 +117,8 @@ describe("the order strip", () => {
   it("lists the selected groups under the step that uses them", async () => {
     mount({ selected: [engineering, passkeyPeople] });
 
-    const denied = await step("Denied by hand");
-    const allowed = await step("Allowed by hand");
+    const denied = await step("Accounts denied by hand in");
+    const allowed = await step("Accounts allowed by hand in");
     const rule = await step("Matches a rule");
     const rest = await step("Everyone else");
     expect(denied).toHaveTextContent("Engineering");
@@ -247,10 +247,10 @@ describe("adding a group", () => {
     mount({ selected: [engineering] });
 
     await user.click(
-      await screen.findByRole("button", { name: "Add a group" }),
+      await screen.findByRole("button", { name: "Choose groups" }),
     );
     const dialog = await screen.findByRole("dialog", {
-      name: "Select user groups",
+      name: "Choose the groups that take part",
     });
     await user.click(within(dialog).getByRole("combobox"));
     await user.click(await screen.findByRole("option", { name: /Designers/ }));
@@ -330,10 +330,10 @@ describe("failures", () => {
     mount({ selected: [engineering], extra: refuseWrites("/groups") });
 
     await user.click(
-      await screen.findByRole("button", { name: "Add a group" }),
+      await screen.findByRole("button", { name: "Choose groups" }),
     );
     const dialog = await screen.findByRole("dialog", {
-      name: "Select user groups",
+      name: "Choose the groups that take part",
     });
     await user.click(within(dialog).getByRole("button", { name: "Save" }));
 
@@ -360,10 +360,10 @@ describe("failures", () => {
     });
 
     await user.click(
-      await screen.findByRole("button", { name: "Add a group" }),
+      await screen.findByRole("button", { name: "Choose groups" }),
     );
     const dialog = await screen.findByRole("dialog", {
-      name: "Select user groups",
+      name: "Choose the groups that take part",
     });
     await user.click(within(dialog).getByRole("button", { name: "Save" }));
     await waitFor(() => expect(writes("/groups")).toHaveLength(1));

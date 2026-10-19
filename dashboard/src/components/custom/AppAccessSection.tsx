@@ -148,11 +148,12 @@ export function AppAccessSection({
   ].map((group) => ({
     id: String(group.id),
     label: group.displayName,
-    description: `${group.slug} · ${i18n._(
+    identifier: group.slug,
+    description: i18n._(
       isRule(group)
         ? msg({ id: "app.groups.kind.rule", message: "Rule" })
         : msg({ id: "app.groups.kind.manual", message: "Chosen by hand" }),
-    )}`,
+    ),
   }));
 
   function writeGroups(groupIds: number[], onSettled?: () => void) {
@@ -233,7 +234,7 @@ export function AppAccessSection({
                 }}
               >
                 <Plus />
-                <Trans id="app.groups.add">Add a group</Trans>
+                <Trans id="app.groups.add">Choose groups</Trans>
               </Button>
             ) : undefined
           }
@@ -427,12 +428,16 @@ function OrderStrip({ groups }: { groups: AppGroupView[] }) {
   const steps: { key: string; title: ReactNode; detail: ReactNode }[] = [
     {
       key: "denied",
-      title: <Trans id="app.access.order.denied">Denied by hand</Trans>,
+      title: (
+        <Trans id="app.access.order.denied">Accounts denied by hand in</Trans>
+      ),
       detail: names(manual),
     },
     {
       key: "allowed",
-      title: <Trans id="app.access.order.allowed">Allowed by hand</Trans>,
+      title: (
+        <Trans id="app.access.order.allowed">Accounts allowed by hand in</Trans>
+      ),
       detail: names(manual),
     },
     {
@@ -559,7 +564,7 @@ function GroupPickerForm({
       className="flex min-h-0 flex-1 flex-col"
       aria-label={t({
         id: "app.groups.dialog.title",
-        message: "Select user groups",
+        message: "Choose the groups that take part",
       })}
       onSubmit={(event) => {
         event.preventDefault();
@@ -568,7 +573,9 @@ function GroupPickerForm({
     >
       <DialogHeader>
         <DialogTitle>
-          <Trans id="app.groups.dialog.title">Select user groups</Trans>
+          <Trans id="app.groups.dialog.title">
+            Choose the groups that take part
+          </Trans>
         </DialogTitle>
       </DialogHeader>
       <DialogPanel className="flex flex-col gap-4">

@@ -225,4 +225,25 @@ describe("EntityPicker", () => {
     await user.click(disabled);
     expect(onValueChange).not.toHaveBeenCalled();
   });
+
+  it("draws an identifier in monospace ahead of the note", async () => {
+    const user = userEvent.setup();
+    render(
+      <Harness
+        options={[
+          {
+            id: "7",
+            label: "Mock User 7",
+            identifier: "@mock-user-7",
+            description: "Rule",
+          },
+        ]}
+      />,
+    );
+
+    const listbox = await open(user);
+    const option = within(listbox).getByRole("option", { name: /User 7/ });
+    expect(within(option).getByText("@mock-user-7")).toHaveClass("font-mono");
+    expect(option).toHaveTextContent("@mock-user-7 · Rule");
+  });
 });

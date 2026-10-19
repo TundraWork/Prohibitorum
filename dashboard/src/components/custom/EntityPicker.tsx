@@ -58,6 +58,11 @@ import { Spinner } from "@/components/ui/spinner";
 export interface EntityOption {
   id: string;
   label: string;
+  /**
+   * The machine-readable name that tells two similar labels apart — a
+   * username or a slug. It is drawn in monospace, as the rows draw it.
+   */
+  identifier?: string;
   description?: string;
   /**
    * Why this candidate cannot be chosen. The option is still listed, so a
@@ -223,6 +228,7 @@ export function EntityPicker({
               const note = [item.description, item.unavailableReason]
                 .filter(Boolean)
                 .join(" · ");
+              const hasNote = Boolean(item.identifier) || note !== "";
               return (
                 <ComboboxItem
                   key={item.id}
@@ -231,8 +237,12 @@ export function EntityPicker({
                 >
                   <span className="flex min-w-0 flex-col">
                     <span className="truncate">{item.label}</span>
-                    {note && (
+                    {hasNote && (
                       <span className="truncate text-muted-foreground text-xs">
+                        {item.identifier && (
+                          <span className="font-mono">{item.identifier}</span>
+                        )}
+                        {item.identifier && note !== "" && " · "}
                         {note}
                       </span>
                     )}
