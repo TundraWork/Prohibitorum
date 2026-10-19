@@ -265,6 +265,11 @@ msgid "saml_consent.facts"
 msgstr "{sp} 将收到"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupMatchesFrame.tsx
+msgid "admin.group.matches.dialog.partial"
+msgstr "{total, plural, other {目前已显示 # 个匹配账号中的 {shown} 个。}}"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/groups/GroupDangerSection.tsx
 msgid "admin.group.danger.in-use"
 msgstr "{used, plural, other {有 # 个应用在使用该用户组。请先从它们的访问设置中移除。}}"
@@ -4397,6 +4402,11 @@ msgid "admin.group.explain.provider"
 msgstr "已关联 {provider}"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupExplainFrame.tsx
+msgid "admin.group.explain.provider-unknown"
+msgstr "已关联 <0>{provider}</0>"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/groups/RuleBuilder.tsx
 msgid "admin.group.rule.sense.not"
 msgstr "不是"
@@ -7409,11 +7419,6 @@ msgid "settings.sign-in.bing.caption"
 msgstr "显示图片标题和版权信息"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/groups/GroupMatchesFrame.tsx
-msgid "admin.group.matches.dialog.partial"
-msgstr "目前已显示 {total} 个匹配账号中的 {shown} 个。"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/settings/MaintenancePanel.tsx
 msgid "settings.maintenance.notice.hint"
 msgstr "维护模式开启期间显示在登录页上。"
@@ -8329,6 +8334,11 @@ msgid "admin.federation.claims.test.failed"
 msgstr "上次测试在<0/>失败。请在「诊断」中重新运行。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupMatchesFrame.tsx
+msgid "admin.group.matches.stale"
+msgstr "最近一次检查失败，此数据可能已过期。"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.enrollment.expires"
 msgstr "链接于 {expiry} 过期。"
@@ -9096,6 +9106,11 @@ msgstr "重试"
 #. js-lingui-explicit-id
 #: src/pages/public/Pair.tsx
 msgid "pair.retry"
+msgstr "重试"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupMatchesFrame.tsx
+msgid "admin.group.matches.retry"
 msgstr "重试"
 
 #. js-lingui-explicit-id

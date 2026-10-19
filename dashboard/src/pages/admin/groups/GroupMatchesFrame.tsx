@@ -1,6 +1,6 @@
 import { Plural, Trans, useLingui } from "@lingui/react/macro";
 import { UsersIcon } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useCursorList } from "@/api/cursor-list";
 import { groupMatchesListOptions } from "@/api/queries";
 import type { AppAccessRule, GroupPreviewView } from "@/api/raw-admin-paths";
@@ -20,6 +20,8 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 
 const shownAvatars = 5;
+/** Pages the frame reads on its own to find faces before it settles for none. */
+const faceSearchPages = 3;
 
 const heading = {
   id: "matches",
@@ -57,12 +59,37 @@ export function GroupMatchesFrame({
   const total = list.pages[0]?.matchedCount;
   const matches = list.items.filter((item) => item.matched);
   const count = total ?? 0;
-  const rest = count - shownAvatars;
+  const faces = matches.slice(0, shownAvatars);
+  const rest = count - faces.length;
+  const { hasMore, loadMore, loadingMore, error } = list;
 
-  if (list.error !== null && total === undefined) {
+  // The server pages every account, matched or not, so a rule that matches few
+  // can leave the first page without a face: read on, within a bound.
+  const wanted = Math.min(shownAvatars, count);
+  useEffect(() => {
+    if (total === undefined || !hasMore || loadingMore || error !== null)
+      return;
+    if (matches.length >= wanted || list.pages.length >= faceSearchPages)
+      return;
+    loadMore();
+  }, [
+    total,
+    hasMore,
+    loadingMore,
+    error,
+    matches.length,
+    wanted,
+    list.pages.length,
+    loadMore,
+  ]);
+
+  if (error !== null && total === undefined) {
     return (
       <Section {...heading}>
-        <InlineFailure error={list.error} />
+        <InlineFailure error={error} />
+        <Button variant="outline" size="sm" onClick={list.refetch}>
+          <Trans id="admin.group.matches.retry">Try again</Trans>
+        </Button>
       </Section>
     );
   }
@@ -95,7 +122,14 @@ export function GroupMatchesFrame({
           />
         </span>
       </div>
-      {total === 0 ? (
+      {error !== null && (
+        <p className="text-muted-foreground text-xs">
+          <Trans id="admin.group.matches.stale">
+            The latest check failed, so this may be out of date.
+          </Trans>
+        </p>
+      )}
+      {count === 0 ? (
         <p className="text-muted-foreground text-sm">
           <Trans id="admin.group.matches.none">
             No account matches the saved rule.
@@ -103,8 +137,8 @@ export function GroupMatchesFrame({
         </p>
       ) : (
         <div className="flex items-center gap-2">
-          <MatchAvatars matches={matches.slice(0, shownAvatars)} />
-          {rest > 0 && (
+          {faces.length > 0 && <MatchAvatars matches={faces} />}
+          {faces.length > 0 && rest > 0 && (
             <span className="text-muted-foreground text-xs tabular-nums">
               +{rest}
             </span>
@@ -124,10 +158,10 @@ export function GroupMatchesFrame({
         onOpenChange={setOpen}
         matches={matches}
         total={total}
-        hasMore={list.hasMore}
-        loadingMore={list.loadingMore}
-        loadMore={list.loadMore}
-        error={list.error}
+        hasMore={hasMore}
+        loadingMore={loadingMore}
+        loadMore={loadMore}
+        error={error}
       />
     </Section>
   );
@@ -153,6 +187,44 @@ function MatchAvatars({ matches }: { matches: GroupPreviewView[] }) {
   );
 }
 
+/**
+ * "Load more" for a list of matches inside pages of every account: one press
+ * reads on until a match arrives or the pages end, so it never adds nothing.
+ * A failed page stops the search rather than repeating it.
+ */
+function useSeekMatch({
+  shown,
+  hasMore,
+  loadingMore,
+  loadMore,
+  error,
+}: {
+  shown: number;
+  hasMore: boolean;
+  loadingMore: boolean;
+  loadMore: () => void;
+  error: unknown;
+}) {
+  const [target, setTarget] = useState<number | null>(null);
+  const asked = useRef(false);
+  useEffect(() => {
+    if (target === null || loadingMore) return;
+    if (shown >= target || !hasMore || (asked.current && error !== null)) {
+      setTarget(null);
+      return;
+    }
+    asked.current = true;
+    loadMore();
+  }, [target, shown, hasMore, loadingMore, error, loadMore]);
+  return {
+    seeking: target !== null,
+    start: () => {
+      asked.current = false;
+      setTarget(shown + 1);
+    },
+  };
+}
+
 function MatchesDialog({
   open,
   onOpenChange,
@@ -173,6 +245,15 @@ function MatchesDialog({
   error: unknown;
 }) {
   const shown = matches.length;
+  // Every match found: the pages left hold only accounts that do not match.
+  const more = hasMore && shown < total;
+  const seek = useSeekMatch({
+    shown,
+    hasMore: more,
+    loadingMore,
+    loadMore,
+    error,
+  });
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogPopup
@@ -185,16 +266,19 @@ function MatchesDialog({
               Accounts that match
             </Trans>
           </DialogTitle>
-          {hasMore && (
+          {more && (
             <DialogDescription>
-              <Trans id="admin.group.matches.dialog.partial">
-                Showing {shown} of {total} matching accounts so far.
-              </Trans>
+              <Plural
+                id="admin.group.matches.dialog.partial"
+                value={total}
+                one={`Showing ${shown} of # matching account so far.`}
+                other={`Showing ${shown} of # matching accounts so far.`}
+              />
             </DialogDescription>
           )}
         </DialogHeader>
         <DialogPanel className="flex flex-col gap-3">
-          <ul className="flex flex-col divide-y">
+          <ul className="flex flex-col divide-y empty:hidden">
             {matches.map((match) => (
               <li
                 key={match.account.id}
@@ -215,8 +299,12 @@ function MatchesDialog({
             ))}
           </ul>
           <InlineFailure error={error} />
-          {hasMore && (
-            <Button variant="outline" pending={loadingMore} onClick={loadMore}>
+          {more && (
+            <Button
+              variant="outline"
+              pending={seek.seeking || loadingMore}
+              onClick={seek.start}
+            >
               <Trans id="admin.group.matches.load-more">Load more</Trans>
             </Button>
           )}

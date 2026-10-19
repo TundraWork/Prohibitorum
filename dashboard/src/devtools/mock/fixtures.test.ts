@@ -685,6 +685,46 @@ describe("mocked management directory", () => {
     expect(last.nextCursor).toBe("");
   });
 
+  it("makes a rule's matches sparse when only every Nth account matches", () => {
+    const current = writes();
+    current.admin.ruleAccounts = 500;
+    current.admin.ruleMatchEvery = 350;
+    const reply = call(
+      "POST",
+      "/api/prohibitorum/groups/rule-preview",
+      current,
+      {
+        version: 1,
+        condition: { fact: "login_method", method: "passkey" },
+        limit: 100,
+      },
+    );
+    const page = bodyOf(reply) as {
+      items: { matched: boolean }[];
+      matchedCount: number;
+    };
+
+    expect(page.matchedCount).toBe(1);
+    expect(page.items.some((item) => item.matched)).toBe(false);
+  });
+
+  it("clamps a rule preview's page to the server's largest", () => {
+    const current = writes();
+    current.admin.ruleAccounts = 300;
+    const reply = call(
+      "POST",
+      "/api/prohibitorum/groups/rule-preview",
+      current,
+      {
+        version: 1,
+        condition: { fact: "login_method", method: "passkey" },
+        limit: 500,
+      },
+    );
+
+    expect((bodyOf(reply) as { items: unknown[] }).items).toHaveLength(100);
+  });
+
   it("explains an account with the labels the server writes", () => {
     const reply = call(
       "GET",

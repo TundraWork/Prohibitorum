@@ -27,6 +27,7 @@ import {
   clampEnrollmentProviders,
   clampPairingExpiry,
   clampRuleAccounts,
+  clampRuleMatchEvery,
   type MockConfig,
   mockAdminListMax,
   mockListMax,
@@ -1146,6 +1147,8 @@ function groupDecisions(): ManualDecisionView[] {
 
 /** The server's default page size for a preview. */
 const previewPageSize = 50;
+/** The server clamps a larger limit to this. */
+const previewPageSizeMax = 100;
 
 /**
  * One page of a preview. Every active account is evaluated, so `matchedCount`
@@ -1156,8 +1159,12 @@ function groupPreview(
   config: MockConfig,
   { limit, cursor }: { limit?: number; cursor?: string } = {},
 ): RulePreviewPageView {
-  const size = limit !== undefined && limit > 0 ? limit : previewPageSize;
+  const size =
+    limit !== undefined && limit > 0
+      ? Math.min(limit, previewPageSizeMax)
+      : previewPageSize;
   const total = clampRuleAccounts(config.admin.ruleAccounts);
+  const every = clampRuleMatchEvery(config.admin.ruleMatchEvery);
   const start = Math.min(total, Number(cursor) || 0);
   const end = Math.min(total, start + size);
   const items = Array.from({ length: end - start }, (_, offset) => {
@@ -1168,12 +1175,12 @@ function groupPreview(
         username: `mock-user-${index + 1}`,
         displayName: `Mock User ${index + 1}`,
       },
-      matched: index % 2 === 0,
+      matched: (index + 1) % every === 0,
     };
   });
   return {
     items,
-    matchedCount: Math.ceil(total / 2),
+    matchedCount: Math.floor(total / every),
     nextCursor: end < total ? String(end) : "",
   };
 }

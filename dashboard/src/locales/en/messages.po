@@ -265,6 +265,11 @@ msgid "saml_consent.facts"
 msgstr "{sp} will receive"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupMatchesFrame.tsx
+msgid "admin.group.matches.dialog.partial"
+msgstr "{total, plural, one {Showing {shown} of # matching account so far.} other {Showing {shown} of # matching accounts so far.}}"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/groups/GroupDangerSection.tsx
 msgid "admin.group.danger.in-use"
 msgstr "{used, plural, one {# application uses this group. Remove it from its access first.} other {# applications use this group. Remove it from their access first.}}"
@@ -4397,6 +4402,11 @@ msgid "admin.group.explain.provider"
 msgstr "Is connected to {provider}"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupExplainFrame.tsx
+msgid "admin.group.explain.provider-unknown"
+msgstr "Is connected to <0>{provider}</0>"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/groups/RuleBuilder.tsx
 msgid "admin.group.rule.sense.not"
 msgstr "is not"
@@ -7409,11 +7419,6 @@ msgid "settings.sign-in.bing.caption"
 msgstr "Show the picture's title and copyright"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/groups/GroupMatchesFrame.tsx
-msgid "admin.group.matches.dialog.partial"
-msgstr "Showing {shown} of {total} matching accounts so far."
-
-#. js-lingui-explicit-id
 #: src/pages/admin/settings/MaintenancePanel.tsx
 msgid "settings.maintenance.notice.hint"
 msgstr "Shown on the sign-in page while maintenance mode is on."
@@ -8329,6 +8334,11 @@ msgid "admin.federation.claims.test.failed"
 msgstr "The last test failed <0/>. Run it again from Diagnostics."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupMatchesFrame.tsx
+msgid "admin.group.matches.stale"
+msgstr "The latest check failed, so this may be out of date."
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.enrollment.expires"
 msgstr "The link expires on {expiry}."
@@ -9096,6 +9106,11 @@ msgstr "Try again"
 #. js-lingui-explicit-id
 #: src/pages/public/Pair.tsx
 msgid "pair.retry"
+msgstr "Try again"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupMatchesFrame.tsx
+msgid "admin.group.matches.retry"
 msgstr "Try again"
 
 #. js-lingui-explicit-id

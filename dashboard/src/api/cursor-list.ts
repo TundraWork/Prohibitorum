@@ -113,6 +113,10 @@ export function useCursorList<T, Extra extends object = object>(options: {
         void query.fetchNextPage();
       }
     },
+    /** Asks again for the pages in hand, e.g. after the first page failed. */
+    refetch: () => {
+      void query.refetch();
+    },
     error: query.error,
   };
 }

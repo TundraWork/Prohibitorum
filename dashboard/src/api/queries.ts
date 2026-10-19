@@ -871,6 +871,9 @@ export function groupDecisionsQueryOptions(groupId: number, cursor?: string) {
   });
 }
 
+/** The server's largest page; fewer pages are needed to find sparse matches. */
+export const groupMatchesPageSize = 100;
+
 /**
  * The accounts a group's saved rule matches, written for `useCursorList`.
  *
@@ -879,11 +882,13 @@ export function groupDecisionsQueryOptions(groupId: number, cursor?: string) {
  * each page carries the true `matchedCount`, and it pages the accounts with a
  * cursor. Each item says whether the rule matched it, so a page can hold
  * accounts that did not. The key holds the rule, so a saved change is a new
- * question, and sits under the groups prefix a save invalidates.
+ * question.
  */
 export function groupMatchesListOptions(groupId: number, rule: AppAccessRule) {
   return {
-    queryKey: ["admin", "groups", groupId, "matches", rule] as const,
+    // Outside the groups prefix a save invalidates: the saved rule is a new key,
+    // so the old rule's pages are never fetched again.
+    queryKey: ["admin", "group-matches", groupId, rule] as const,
     meta: { quiet: true },
     queryFn: ({ cursor, signal }: { cursor?: string; signal: AbortSignal }) =>
       requireJsonData(
@@ -891,6 +896,7 @@ export function groupMatchesListOptions(groupId: number, rule: AppAccessRule) {
           body: {
             version: rule.version,
             condition: rule.condition,
+            limit: groupMatchesPageSize,
             ...(cursor === undefined ? {} : { cursor }),
           },
           signal,

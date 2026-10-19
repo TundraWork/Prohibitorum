@@ -107,6 +107,7 @@ describe("the matches frame", () => {
     expect(await previews()[0]?.clone().json()).toEqual({
       version: 1,
       condition: { fact: "login_method", method: "passkey" },
+      limit: 100,
     });
   });
 
@@ -175,7 +176,8 @@ describe("the matches frame", () => {
 
   it("loads the next page of accounts on request and says how far it has got", async () => {
     const user = userEvent.setup();
-    // Six matches among twelve accounts, three accounts a page.
+    // Six matches among twelve accounts, three accounts a page. The frame reads
+    // three pages for faces, so the dialog opens on five of the six.
     const items = Array.from({ length: 12 }, (_, i) =>
       account(i + 1, i % 2 === 0),
     );
@@ -183,28 +185,13 @@ describe("the matches frame", () => {
 
     await user.click(await screen.findByRole("button", { name: "See all" }));
     const dialog = await screen.findByRole("dialog");
-    expect(within(dialog).getAllByRole("listitem")).toHaveLength(2);
+    expect(within(dialog).getAllByRole("listitem")).toHaveLength(5);
     expect(
-      within(dialog).getByText("Showing 2 of 6 matching accounts so far."),
+      within(dialog).getByText("Showing 5 of 6 matching accounts so far."),
     ).toBeVisible();
 
     await user.click(within(dialog).getByRole("button", { name: "Load more" }));
-    await waitFor(() =>
-      expect(within(dialog).getAllByRole("listitem")).toHaveLength(3),
-    );
-    const cursors = await Promise.all(
-      previews().map(
-        async (r) => ((await r.clone().json()) as { cursor?: string }).cursor,
-      ),
-    );
-    expect(cursors).toEqual([undefined, "3"]);
 
-    for (let page = 0; page < 3; page++) {
-      const more = within(dialog).queryByRole("button", { name: "Load more" });
-      if (more === null) break;
-      await user.click(more);
-      await waitFor(() => expect(previews().length).toBeGreaterThan(page + 2));
-    }
     await waitFor(() =>
       expect(within(dialog).getAllByRole("listitem")).toHaveLength(6),
     );
@@ -212,6 +199,90 @@ describe("the matches frame", () => {
       within(dialog).queryByRole("button", { name: "Load more" }),
     ).toBeNull();
     expect(within(dialog).queryByText(/so far/)).toBeNull();
+  });
+
+  describe("when the matches are sparse", () => {
+    // Ten accounts that do not match, then three that do, three accounts a page.
+    const sparse = () => [
+      ...accounts(0, 10),
+      ...accounts(3).map((m) => ({
+        ...m,
+        account: { ...m.account, id: m.account.id + 100 },
+      })),
+    ];
+
+    it("shows the total and See all, and no faces, when its pages hold no match", async () => {
+      await mount(directory(sparse(), { pageSize: 3 }));
+
+      expect(await screen.findByText("3")).toBeVisible();
+      await waitFor(() => expect(previews()).toHaveLength(3));
+      expect(
+        screen.queryByRole("list", { name: "Some of the matching accounts" }),
+      ).toBeNull();
+      expect(screen.queryByText(/^\+/)).toBeNull();
+      expect(screen.getByRole("button", { name: "See all" })).toBeVisible();
+    });
+
+    it("keeps reading on one press of Load more until a match arrives", async () => {
+      const user = userEvent.setup();
+      await mount(directory(sparse(), { pageSize: 3 }));
+      await waitFor(() => expect(previews()).toHaveLength(3));
+
+      await user.click(await screen.findByRole("button", { name: "See all" }));
+      const dialog = await screen.findByRole("dialog");
+      expect(within(dialog).queryAllByRole("listitem")).toHaveLength(0);
+      expect(
+        within(dialog).getByText("Showing 0 of 3 matching accounts so far."),
+      ).toBeVisible();
+
+      await user.click(
+        within(dialog).getByRole("button", { name: "Load more" }),
+      );
+
+      // The fourth page holds one account that does not match and two that do.
+      await waitFor(() =>
+        expect(within(dialog).getAllByRole("listitem")).toHaveLength(2),
+      );
+      expect(previews()).toHaveLength(4);
+    });
+
+    it("offers no more to load once every match is in, though accounts remain unchecked", async () => {
+      const user = userEvent.setup();
+      // One match, then twenty accounts that do not match.
+      await mount(
+        directory(
+          [
+            account(1, true),
+            ...accounts(0, 20).map((m) => ({
+              ...m,
+              account: { ...m.account, id: m.account.id + 100 },
+            })),
+          ],
+          { pageSize: 3 },
+        ),
+      );
+
+      await user.click(await screen.findByRole("button", { name: "See all" }));
+      const dialog = await screen.findByRole("dialog");
+
+      expect(within(dialog).getAllByRole("listitem")).toHaveLength(1);
+      expect(
+        within(dialog).queryByRole("button", { name: "Load more" }),
+      ).toBeNull();
+      expect(within(dialog).queryByText(/so far/)).toBeNull();
+    });
+
+    it("counts the faces drawn, not the total less five", async () => {
+      // Two faces on the pages read, out of seven matches.
+      const items = [...accounts(0, 6), account(101, true), account(102, true)];
+      await mount(directory(items, { pageSize: 3, total: 7 }));
+
+      const list = await screen.findByRole("list", {
+        name: "Some of the matching accounts",
+      });
+      expect(within(list).getAllByRole("listitem")).toHaveLength(2);
+      expect(screen.getByText("+5")).toBeVisible();
+    });
   });
 
   it("counts again for a different saved rule", async () => {
@@ -237,7 +308,46 @@ describe("the matches frame", () => {
     await mount(() => apiError("internal_error", 500));
 
     expect(await screen.findByRole("alert")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Try again" })).toBeVisible();
     expect(screen.queryByRole("button", { name: "See all" })).toBeNull();
     await waitFor(() => expect(notifyError).not.toHaveBeenCalled());
+  });
+
+  it("asks again when Try again is pressed", async () => {
+    const user = userEvent.setup();
+    let failing = true;
+    await mount((request) =>
+      failing
+        ? apiError("internal_error", 500)
+        : directory(accounts(4))(request),
+    );
+    await user.click(await screen.findByRole("button", { name: "Try again" }));
+    failing = false;
+    // The first press may have raced the failure; press again if it is still there.
+    await waitFor(async () => {
+      const retry = screen.queryByRole("button", { name: "Try again" });
+      if (retry !== null) await user.click(retry);
+      expect(screen.getByText("4")).toBeVisible();
+    });
+  });
+
+  it("notes that a count may be out of date when a refresh fails", async () => {
+    let failing = false;
+    await mount((request) =>
+      failing
+        ? apiError("internal_error", 500)
+        : directory(accounts(4))(request),
+    );
+    expect(await screen.findByText("4")).toBeVisible();
+
+    failing = true;
+    await queryClient.refetchQueries({ queryKey: ["admin", "group-matches"] });
+
+    expect(
+      await screen.findByText(
+        "The latest check failed, so this may be out of date.",
+      ),
+    ).toBeVisible();
+    expect(screen.getByText("4")).toBeVisible();
   });
 });

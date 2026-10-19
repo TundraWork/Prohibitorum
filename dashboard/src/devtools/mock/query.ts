@@ -6,6 +6,7 @@ import {
   clampEnrollmentProviders,
   clampPairingExpiry,
   clampRuleAccounts,
+  clampRuleMatchEvery,
   defaultMockConfig,
   getMockConfig,
   mockAvatarUpstreamsMax,
@@ -158,6 +159,7 @@ function clampFor(path: string, value: number): number {
   if (path === "avatar.upstreams") return clampAvatarUpstreams(value);
   if (path === "admin.diagnosticOutcome") return value;
   if (path === "admin.ruleAccounts") return clampRuleAccounts(value);
+  if (path === "admin.ruleMatchEvery") return clampRuleMatchEvery(value);
   if (path.endsWith(".opacity"))
     return Math.max(0, Math.min(100, Math.round(value)));
   if (path.endsWith(".intervalSeconds")) {

@@ -58,17 +58,18 @@ const protocolSentence = msg({
   message: "Is connected through {protocol}",
 });
 
-/** A sentence, and the part of it that is an identifier the caller draws in monospace. */
-export interface ExplainSentence {
-  text: string;
-  literal?: string;
-}
+/**
+ * What an explanation label says: a finished sentence, or a provider the
+ * catalogue does not know, whose slug the caller draws as an identifier
+ * inside its own sentence.
+ */
+export type ExplainSentence = { text: string } | { unknownProvider: string };
 
 /**
  * The sentence for one explanation label, or `undefined` for a key the console
  * has no words for, which the caller draws as it arrived. `providerName` turns
- * a provider's slug into its name; for a slug it does not know, the sentence
- * carries the slug as its `literal`.
+ * a provider's slug into its name; a slug it does not know comes back as
+ * `unknownProvider`.
  */
 export function explainSentence(
   label: string,
@@ -84,12 +85,9 @@ export function explainSentence(
   const key = label.slice(0, separator);
   const value = label.slice(separator + 1);
   if (key === "connection.provider") {
-    const name = providerName(value);
-    const provider = name ?? value;
-    return {
-      text: t({ ...providerSentence, values: { provider } }),
-      ...(name === undefined ? { literal: value } : {}),
-    };
+    const provider = providerName(value);
+    if (provider === undefined) return { unknownProvider: value };
+    return { text: t({ ...providerSentence, values: { provider } }) };
   }
   if (
     key === "connection.protocol" &&

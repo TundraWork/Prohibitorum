@@ -115,6 +115,11 @@ describe("mock URL control", () => {
     expect(getMockConfig().admin.ruleAccounts).toBe(mockRuleAccountsMax);
   });
 
+  it("keeps the rule match stride at one or more", () => {
+    applyMockQuery("?mock.admin.ruleMatchEvery=0");
+    expect(getMockConfig().admin.ruleMatchEvery).toBe(1);
+  });
+
   it("sets the pairing a lookup finds, clamping its expiry", () => {
     applyMockQuery(
       "?mock.pairing.expiresInSeconds=10&mock.pairing.alreadyBound=true&mock.pairing.sameNetwork=1",

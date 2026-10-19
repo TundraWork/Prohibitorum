@@ -542,6 +542,16 @@ export function MockPanel() {
             }
           />
           <Count
+            label="Every Nth rule account matches"
+            max={mockRuleAccountsMax}
+            value={config.admin.ruleMatchEvery}
+            onChange={(next) =>
+              updateMockConfig((draft) => {
+                draft.admin.ruleMatchEvery = next;
+              })
+            }
+          />
+          <Count
             label="User groups"
             max={mockAdminListMax}
             value={config.admin.groups}

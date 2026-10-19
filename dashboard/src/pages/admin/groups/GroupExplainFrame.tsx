@@ -143,38 +143,30 @@ function Explanation({
           <Trans id="admin.group.explain.out">Not in this group</Trans>
         </p>
       )}
-      {/* Bounded, so the side column stays within the window; the box is
-          focusable so a keyboard can scroll it. */}
-      <div className="rounded-lg border bg-muted/40">
-        <ul
-          aria-label={t({
-            id: "admin.group.explain.conditions",
-            message: "Conditions",
-          })}
-          // biome-ignore lint/a11y/noNoninteractiveTabindex: a scrolling region must take focus to be scrolled by keyboard
-          tabIndex={0}
-          className="flex max-h-36 flex-col gap-1.5 overflow-y-auto p-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          <ExplainNode node={root} providerName={providerName} />
-        </ul>
-      </div>
+      <ul
+        aria-label={t({
+          id: "admin.group.explain.conditions",
+          message: "Conditions",
+        })}
+        className="flex flex-col gap-1.5 text-sm"
+      >
+        <ExplainNode node={root} providerName={providerName} />
+      </ul>
     </div>
   );
 }
 
-/** A sentence with its identifier, if it has one, in monospace. */
+/** A sentence, with a provider the console cannot name drawn as an identifier. */
 function SentenceText({ sentence }: { sentence: ExplainSentence }) {
-  const { text, literal } = sentence;
-  const at = literal === undefined ? -1 : text.indexOf(literal);
-  if (literal === undefined || at < 0) return text;
+  if ("text" in sentence) return sentence.text;
+  const provider = sentence.unknownProvider;
   return (
-    <>
-      {text.slice(0, at)}
+    <Trans id="admin.group.explain.provider-unknown">
+      Is connected to{" "}
       <span data-literal="" className="break-all font-mono text-xs">
-        {literal}
+        {provider}
       </span>
-      {text.slice(at + literal.length)}
-    </>
+    </Trans>
   );
 }
 
