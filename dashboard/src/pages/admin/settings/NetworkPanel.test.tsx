@@ -32,7 +32,7 @@ afterEach(() => {
 
 const clientIpPath = "/api/prohibitorum/admin/settings/client-ip";
 const consequence =
-  "Audit logs and rate limits use the new address for every request from now on. A wrong setting can lock everyone into one shared limit.";
+  "Audit logs, sessions and rate limits use the new address for every request from now on. A wrong setting can lock everyone into one shared limit.";
 const forwarded: ClientIpSettings = {
   strategy: "forwarded",
   header: "",

@@ -1396,7 +1396,7 @@ msgstr "Audit events"
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/NetworkPanel.tsx
 msgid "settings.network.confirm.body"
-msgstr "Audit logs and rate limits use the new address for every request from now on. A wrong setting can lock everyone into one shared limit."
+msgstr "Audit logs, sessions and rate limits use the new address for every request from now on. A wrong setting can lock everyone into one shared limit."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/sign-in-page/BackgroundControls.tsx
@@ -10059,7 +10059,7 @@ msgstr "Use the address a proxy adds to this header, trusting only the proxies y
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/NetworkPanel.tsx
 msgid "settings.network.strategy.header.description"
-msgstr "Use the address in a header you name, such as CF-Connecting-IP, trusting only the proxies you list."
+msgstr "Use the address in a header you name, such as <0>CF-Connecting-IP</0>, trusting only the proxies you list."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/NetworkPanel.tsx

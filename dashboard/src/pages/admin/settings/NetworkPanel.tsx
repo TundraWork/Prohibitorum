@@ -55,8 +55,8 @@ const hiddenListMessage = msg({
 function ClientIpConsequence() {
   return (
     <Trans id="settings.network.confirm.body">
-      Audit logs and rate limits use the new address for every request from now
-      on. A wrong setting can lock everyone into one shared limit.
+      Audit logs, sessions and rate limits use the new address for every request
+      from now on. A wrong setting can lock everyone into one shared limit.
     </Trans>
   );
 }
@@ -227,9 +227,11 @@ function ClientIpSection({ saved }: { saved: ClientIpSettings }) {
                         }
                         description={
                           <Trans id="settings.network.strategy.header.description">
-                            Use the address in a header you name, such as
-                            CF-Connecting-IP, trusting only the proxies you
-                            list.
+                            Use the address in a header you name, such as{" "}
+                            <code className="whitespace-nowrap font-mono text-[0.9em]">
+                              CF-Connecting-IP
+                            </code>
+                            , trusting only the proxies you list.
                           </Trans>
                         }
                         attached={

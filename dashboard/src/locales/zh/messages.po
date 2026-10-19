@@ -1396,7 +1396,7 @@ msgstr "审计事件"
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/NetworkPanel.tsx
 msgid "settings.network.confirm.body"
-msgstr "此后每个请求的审计日志和限流都会使用新的地址。设置有误可能让所有人共用同一个限流额度。"
+msgstr "此后每个请求的审计日志、会话和限流都会使用新的地址。设置有误可能让所有人共用同一个限流额度。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/sign-in-page/BackgroundControls.tsx
@@ -10059,7 +10059,7 @@ msgstr "使用代理添加到该请求头中的地址，只信任你列出的代
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/NetworkPanel.tsx
 msgid "settings.network.strategy.header.description"
-msgstr "使用你指定的请求头中的地址，例如 CF-Connecting-IP，只信任你列出的代理。"
+msgstr "使用你指定的请求头中的地址，例如 <0>CF-Connecting-IP</0>，只信任你列出的代理。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/NetworkPanel.tsx
