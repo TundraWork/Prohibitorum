@@ -3523,7 +3523,6 @@ msgid "admin.user.sessions.revoke.action"
 msgstr "结束会话"
 
 #. js-lingui-explicit-id
-#. placeholder {0}: deviceLabel(session.userAgent)
 #: src/pages/devices/DeviceSessionList.tsx
 msgid "devices.sessions.end.named"
 msgstr "结束 {device} 上的会话"

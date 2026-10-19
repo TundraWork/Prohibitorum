@@ -3523,10 +3523,9 @@ msgid "admin.user.sessions.revoke.action"
 msgstr "End session"
 
 #. js-lingui-explicit-id
-#. placeholder {0}: deviceLabel(session.userAgent)
 #: src/pages/devices/DeviceSessionList.tsx
 msgid "devices.sessions.end.named"
-msgstr "End the session on {0}"
+msgstr "End the session on {device}"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/users/AccountSessionsSection.tsx

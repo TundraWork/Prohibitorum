@@ -111,47 +111,50 @@ export function DeviceSessionList({
           />
         }
       >
-        {data.map((session) => (
-          <ItemListRow
-            key={session.id}
-            icon={<DeviceIcon userAgent={session.userAgent} />}
-            title={
-              <DeviceName
-                userAgent={session.userAgent}
-                className="block truncate"
-              />
-            }
-            badge={
-              session.isCurrent && (
-                <Badge variant="info">
-                  <Trans id="devices.sessions.current">This device</Trans>
-                </Badge>
-              )
-            }
-            details={sessionDetails(session)}
-            actions={
-              session.isCurrent ? (
-                <span className="max-w-28 text-end text-muted-foreground text-xs leading-snug sm:max-w-none">
-                  <Trans id="devices.sessions.use_sign_out">
-                    Use sign out to end this one
-                  </Trans>
-                </span>
-              ) : (
-                <Button
-                  aria-label={t({
-                    id: "devices.sessions.end.named",
-                    message: `End the session on ${deviceLabel(session.userAgent)}`,
-                  })}
-                  onClick={() => setTarget(session)}
-                  variant="destructive-outline"
-                  size="icon-sm"
-                >
-                  <LogOut aria-hidden="true" />
-                </Button>
-              )
-            }
-          />
-        ))}
+        {data.map((session) => {
+          const device = deviceLabel(session.userAgent);
+          return (
+            <ItemListRow
+              key={session.id}
+              icon={<DeviceIcon userAgent={session.userAgent} />}
+              title={
+                <DeviceName
+                  userAgent={session.userAgent}
+                  className="block truncate"
+                />
+              }
+              badge={
+                session.isCurrent && (
+                  <Badge variant="info">
+                    <Trans id="devices.sessions.current">This device</Trans>
+                  </Badge>
+                )
+              }
+              details={sessionDetails(session)}
+              actions={
+                session.isCurrent ? (
+                  <span className="max-w-28 text-end text-muted-foreground text-xs leading-snug sm:max-w-none">
+                    <Trans id="devices.sessions.use_sign_out">
+                      Use sign out to end this one
+                    </Trans>
+                  </span>
+                ) : (
+                  <Button
+                    aria-label={t({
+                      id: "devices.sessions.end.named",
+                      message: `End the session on ${device}`,
+                    })}
+                    onClick={() => setTarget(session)}
+                    variant="destructive-outline"
+                    size="icon-sm"
+                  >
+                    <LogOut aria-hidden="true" />
+                  </Button>
+                )
+              }
+            />
+          );
+        })}
       </ItemList>
 
       <ConfirmDialog

@@ -78,7 +78,7 @@ describe("the connected identities section", () => {
     const row = (
       await screen.findByRole("list", { name: "Connected identities" })
     ).querySelector("li") as HTMLElement;
-    const value = row.querySelector(".font-mono") as HTMLElement;
+    const value = row.querySelector("[data-slot=subject]") as HTMLElement;
     expect(value.textContent).toBe(subject);
     // One break point after each separator.
     expect(value.querySelectorAll("wbr")).toHaveLength(

@@ -39,6 +39,16 @@ export function describeDevice(userAgent: string | undefined): {
   return { name: system ? `${browser} · ${system}` : browser, kind };
 }
 
+/** What a row calls a device: its name when readable, else the cut User-Agent. */
+export function deviceText(userAgent: string): string {
+  return (
+    describeDevice(userAgent).name ??
+    (userAgent.length > rawLimit
+      ? `${userAgent.slice(0, rawLimit - 1)}…`
+      : userAgent)
+  );
+}
+
 /**
  * The device a session or a pairing request came from, by name, with the
  * whole User-Agent in a tooltip for the reader who needs to check it.
@@ -52,12 +62,7 @@ export function DeviceName({
   className?: string;
 }) {
   if (!userAgent) return <Trans id="device.unknown">Unknown device</Trans>;
-  const { name } = describeDevice(userAgent);
-  const shown =
-    name ??
-    (userAgent.length > rawLimit
-      ? `${userAgent.slice(0, rawLimit - 1)}…`
-      : userAgent);
+  const shown = deviceText(userAgent);
   return (
     <Tooltip>
       <TooltipTrigger
@@ -119,12 +124,6 @@ export function useDeviceLabel() {
   return (userAgent: string | undefined): string => {
     if (!userAgent)
       return t({ id: "device.unknown", message: "Unknown device" });
-    const { name } = describeDevice(userAgent);
-    return (
-      name ??
-      (userAgent.length > rawLimit
-        ? `${userAgent.slice(0, rawLimit - 1)}…`
-        : userAgent)
-    );
+    return deviceText(userAgent);
   };
 }

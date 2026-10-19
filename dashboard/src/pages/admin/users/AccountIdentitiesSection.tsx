@@ -92,7 +92,7 @@ export function AccountIdentitiesSection({ accountId }: { accountId: number }) {
           title={identity.providerDisplayName}
           badges={<ProtocolBadge protocol={identity.protocol} />}
           details={[
-            <span key="subject" className="font-mono">
+            <span key="subject" data-slot="subject" className="font-mono">
               {breakAtSeparators(identity.subject)}
             </span>,
           ]}
