@@ -371,6 +371,11 @@ msgid "admin.user.attributes.hint"
 msgstr "A JSON object stored with the account. Saving sends whatever is in this box, so anything removed here is removed from the account."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/users/AccountRegistrationSection.tsx
+msgid "admin.user.enrollment.description"
+msgstr "A link for setting up how this account signs in."
+
+#. js-lingui-explicit-id
 #: src/pages/admin/groups/rule-labels.ts
 msgid "admin.group.rule.method.federation"
 msgstr "A linked provider"
@@ -878,6 +883,7 @@ msgid "console.role.admin"
 msgstr "Admin"
 
 #. js-lingui-explicit-id
+#: src/components/custom/ConsoleLayout.tsx
 #: src/pages/admin/AdminHome.tsx
 msgid "admin.home.title"
 msgstr "Administration"
@@ -3280,7 +3286,7 @@ msgstr "Disabled account"
 #. js-lingui-explicit-id
 #: src/pages/admin/users/AccountDangerSection.tsx
 msgid "admin.user.state.enabled.note.short"
-msgstr "Disabling stops this account signing in and ends nothing else."
+msgstr "Disabling stops this account signing in and signs it out of every session it has open."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/SamlDangerSection.tsx
@@ -3479,6 +3485,12 @@ msgstr "Enable"
 #: src/pages/admin/forward-auth-apps/ForwardAuthDangerSection.tsx
 msgid "admin.forward-auth-apps.enable.action"
 msgstr "Enable"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/users/AccountProfileSection.tsx
+#: src/pages/admin/users/AccountRoleField.tsx
+msgid "admin.user.role.admin-held"
+msgstr "Enable the account before making it an admin."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/SamlDangerSection.tsx
@@ -8655,7 +8667,6 @@ msgstr "The latest check failed, so this may be out of date."
 
 #. js-lingui-explicit-id
 #: src/components/custom/secret-reveal-copy.ts
-#: src/pages/admin/users/AccountRegistrationSection.tsx
 msgid "admin.user.enrollment.expires"
 msgstr "The link expires on {expiry}."
 
@@ -8965,7 +8976,7 @@ msgstr "They will be able to sign in again straight away."
 #. js-lingui-explicit-id
 #: src/pages/admin/users/AccountDangerSection.tsx
 msgid "admin.user.state.disable.body"
-msgstr "They will not be able to sign in. Sessions they already have stay active until you end them."
+msgstr "They will be signed out of every session they have open and will not be able to sign in until you enable the account again."
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -9191,6 +9202,11 @@ msgstr "This link can't be used to set up that sign-in method."
 #: src/components/custom/secret-reveal-copy.ts
 msgid "admin.invitations.reveal.once"
 msgstr "This link is shown only once and it signs the holder in as the invited account. Send it to the person yourself, and only over a channel you trust."
+
+#. js-lingui-explicit-id
+#: src/components/custom/secret-reveal-copy.ts
+msgid "admin.user.enrollment.reveal.once"
+msgstr "This link is shown only once and whoever holds it can set up how this account signs in. Send it to the person yourself, and only over a channel you trust."
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -10422,6 +10438,11 @@ msgstr "You can remove the verification link from your VRChat bio now."
 #: src/pages/public/Enroll.tsx
 msgid "enroll.description.reset"
 msgstr "You can sign in with it as soon as it's set up."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/users/AccountDangerSection.tsx
+msgid "admin.user.delete.self"
+msgstr "You can't delete your own account."
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
