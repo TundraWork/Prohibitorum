@@ -1,6 +1,7 @@
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { publicConfigQueryOptions } from "@/api/queries";
 import type { LoginAppearance, PublicConfig } from "@/api/raw-paths";
+import { usePreviewQuiet } from "@/components/custom/login-preview";
 
 /**
  * What the instance calls itself and how it looks, as every surface draws it:
@@ -52,6 +53,8 @@ export function instanceBranding(config: PublicConfig): InstanceBranding {
  * paint, so this never suspends on a normal navigation.
  */
 export function useInstanceBranding(): InstanceBranding {
-  const { data } = useSuspenseQuery(publicConfigQueryOptions());
+  const { data } = useSuspenseQuery(
+    usePreviewQuiet(publicConfigQueryOptions()),
+  );
   return instanceBranding(data);
 }

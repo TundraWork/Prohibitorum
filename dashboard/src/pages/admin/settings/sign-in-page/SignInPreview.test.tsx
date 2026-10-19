@@ -154,12 +154,18 @@ describe("the sign-in page preview", () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     await show(view());
     const page = await pageDocument();
-    await waitFor(() =>
-      expect(page.body).toHaveTextContent(
-        "The sign-in page could not be drawn here.",
-      ),
+    // Said once, outside the inert frame where a reader can reach it.
+    const note = await screen.findByText(
+      "The sign-in page could not be drawn here.",
     );
+    expect(page.body).not.toContainElement(note);
+    expect(page.body).not.toHaveTextContent("could not be drawn");
+    expect(
+      screen.getAllByText("The sign-in page could not be drawn here."),
+    ).toHaveLength(1);
     expect(page.querySelector('[data-slot="stage-card"]')).toBeNull();
+    // The failed read is not also toasted.
+    expect(notifyError).not.toHaveBeenCalled();
   });
 
   it("never waits for a passkey while it is only a picture", async () => {

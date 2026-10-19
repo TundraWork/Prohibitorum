@@ -1,4 +1,4 @@
-import { Trans, useLingui } from "@lingui/react/macro";
+import { useLingui } from "@lingui/react/macro";
 import { useQuery } from "@tanstack/react-query";
 import { CatchBoundary } from "@tanstack/react-router";
 import { Suspense, useEffect, useState, useSyncExternalStore } from "react";
@@ -6,13 +6,14 @@ import { loginWallpaperPreviewQueryOptions } from "@/api/queries";
 import type { WallpaperPreviewQuery } from "@/api/raw-admin-paths";
 import type { LoginAppearance } from "@/api/raw-paths";
 import { useLoginBackground } from "@/components/custom/login-appearance/use-login-background";
+import { LoginPreviewContext } from "@/components/custom/login-preview";
 import { PublicScene } from "@/components/custom/PublicScene";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   PreviewDocument,
   type PreviewTheme,
 } from "@/pages/admin/settings/sign-in-page/PreviewDocument";
-import { LoginPreviewContext, PasswordPage } from "@/pages/Login";
+import { PasswordPage } from "@/pages/Login";
 
 export type PreviewSize = "desktop" | "phone";
 
@@ -97,6 +98,7 @@ export function SignInPreview({
   onDocument?: (document: Document | null) => void;
 }) {
   const { t } = useLingui();
+  const [drawFailed, setDrawFailed] = useState(false);
   const background = appearance.background;
   const params = useDebouncedValue<WallpaperPreviewQuery | undefined>(
     background.source === "bing"
@@ -125,22 +127,27 @@ export function SignInPreview({
     !wallpaper.isError &&
     shown.wallpaperPicture === undefined;
 
-  const note = needsKey
+  const note = drawFailed
     ? t({
-        id: "settings.sign-in.preview.unsplash_key",
-        message: "Save an access key to preview Unsplash photos.",
+        id: "settings.sign-in.preview.failed",
+        message: "The sign-in page could not be drawn here.",
       })
-    : wallpaper.isError && current
-      ? background.source === "bing"
-        ? t({
-            id: "settings.sign-in.preview.bing_failed",
-            message: "Couldn't get the picture from Bing.",
-          })
-        : t({
-            id: "settings.sign-in.preview.unsplash_failed",
-            message: "Couldn't get a photo from Unsplash.",
-          })
-      : undefined;
+    : needsKey
+      ? t({
+          id: "settings.sign-in.preview.unsplash_key",
+          message: "Save an access key to preview Unsplash photos.",
+        })
+      : wallpaper.isError && current
+        ? background.source === "bing"
+          ? t({
+              id: "settings.sign-in.preview.bing_failed",
+              message: "Couldn't get the picture from Bing.",
+            })
+          : t({
+              id: "settings.sign-in.preview.unsplash_failed",
+              message: "Couldn't get a photo from Unsplash.",
+            })
+        : undefined;
 
   return (
     <div className="flex flex-col">
@@ -155,32 +162,25 @@ export function SignInPreview({
           })}
         >
           {/* The step reads the instance's public data, and a read that fails
-              throws; it must not take the editor down with it. Without the
-              page there is no card to measure, so readability says so. */}
+              throws; it must not take the editor down with it. The failure is
+              said in the note under the frame, which a reader can reach, and
+              without the page there is no card to measure. */}
           <CatchBoundary
             getResetKey={() => "preview"}
-            errorComponent={() => (
-              <p
-                role="status"
-                className="m-6 text-center text-muted-foreground text-sm"
-              >
-                <Trans id="settings.sign-in.preview.failed">
-                  The sign-in page could not be drawn here.
-                </Trans>
-              </p>
-            )}
+            onCatch={() => setDrawFailed(true)}
+            errorComponent={() => null}
           >
-            <PublicScene
-              appearance={appearance}
-              background={shown}
-              readablePictures
-            >
-              <LoginPreviewContext value={true}>
+            <LoginPreviewContext value={true}>
+              <PublicScene
+                appearance={appearance}
+                background={shown}
+                readablePictures
+              >
                 <Suspense fallback={null}>
                   <PasswordPage />
                 </Suspense>
-              </LoginPreviewContext>
-            </PublicScene>
+              </PublicScene>
+            </LoginPreviewContext>
           </CatchBoundary>
         </PreviewDocument>
         {loading && (
@@ -191,7 +191,9 @@ export function SignInPreview({
         )}
       </div>
       {note !== undefined && (
-        <p className="px-5 py-3 text-muted-foreground text-sm">{note}</p>
+        <p role="status" className="px-5 py-3 text-muted-foreground text-sm">
+          {note}
+        </p>
       )}
     </div>
   );

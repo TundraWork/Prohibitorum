@@ -13,6 +13,7 @@ import {
 import { AppStrip } from "@/components/custom/AppStrip";
 import { FormMessages } from "@/components/custom/FormMessages";
 import { useInstanceBranding } from "@/components/custom/instance-branding";
+import { usePreviewQuiet } from "@/components/custom/login-preview";
 import { PublicStep } from "@/components/custom/PublicStep";
 import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
 
@@ -33,8 +34,12 @@ export type LoginFailure = {
  * the pages never wait on it.
  */
 export function useLoginContext() {
-  const { data: config } = useSuspenseQuery(publicConfigQueryOptions());
-  const { data: status } = useSuspenseQuery(authStatusQueryOptions());
+  const { data: config } = useSuspenseQuery(
+    usePreviewQuiet(publicConfigQueryOptions()),
+  );
+  const { data: status } = useSuspenseQuery(
+    usePreviewQuiet(authStatusQueryOptions()),
+  );
   // The three sign-in steps share this, so it reads whichever one is showing.
   const rawReturnTo = useSearch({
     strict: false,

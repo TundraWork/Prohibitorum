@@ -10,7 +10,6 @@ import type { HistoryState } from "@tanstack/react-router";
 import { useLocation, useNavigate, useRouter } from "@tanstack/react-router";
 import { ArrowRight, QrCode } from "lucide-react";
 import {
-  createContext,
   useCallback,
   useContext,
   useEffect,
@@ -52,6 +51,10 @@ import { withRouterSkipLoading } from "@/app/router";
 import { Button } from "@/components/custom/Button";
 import type { LoginFailure } from "@/components/custom/LoginShell";
 import { LoginShell, useLoginContext } from "@/components/custom/LoginShell";
+import {
+  LoginPreviewContext,
+  usePreviewQuiet,
+} from "@/components/custom/login-preview";
 import { OrSeparator } from "@/components/custom/OrSeparator";
 import { OtpField } from "@/components/custom/OtpField";
 import { PasskeyButton } from "@/components/custom/PasskeyButton";
@@ -83,13 +86,6 @@ const recoveryInvalid = msg({
   message:
     "Enter a recovery code in XXXX-XXXX-XXXX-XXXX format, using uppercase A–Z and digits 2–7.",
 });
-
-/**
- * True while the sign-in page is drawn as a picture of itself, as in the
- * sign-in page editor's preview: it looks the same but never waits for a
- * passkey or reports on the browser.
- */
-export const LoginPreviewContext = createContext(false);
 
 /** Sign-in progress carried between the step routes through the history entry. */
 type LoginRouteState = {
@@ -736,7 +732,7 @@ function OtherSignIns({
   const { config } = useLoginContext();
   const navigate = useNavigate();
   const { data: providers } = useSuspenseQuery(
-    publicFederationProvidersQueryOptions(),
+    usePreviewQuiet(publicFederationProvidersQueryOptions()),
   );
   const pairing = !config.maintenanceMode;
   // A provider with sign-in off never backs a button here; the shared list
