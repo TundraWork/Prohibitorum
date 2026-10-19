@@ -34,7 +34,7 @@ export function CallbackPreview({ slug }: { slug: string }) {
           Register these with the provider.
         </Trans>
       </p>
-      <div className="flex flex-col gap-3 rounded-xl border border-dashed p-3">
+      <div className="flex flex-col gap-3 rounded-xl bg-muted/60 p-3 ring-1 ring-border/60">
         <Address
           label={<Trans id="admin.federation.callback.login">Sign-in</Trans>}
           copyLabel={t({

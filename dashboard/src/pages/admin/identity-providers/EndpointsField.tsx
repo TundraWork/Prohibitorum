@@ -14,8 +14,9 @@ import {
   FieldError,
   FieldLabel,
 } from "@/components/ui/field";
+import { Label } from "@/components/ui/label";
 import { Menu, MenuItem, MenuPopup, MenuTrigger } from "@/components/ui/menu";
-import { RadioGroup } from "@/components/ui/radio-group";
+import { Radio, RadioGroup } from "@/components/ui/radio-group";
 import { useFieldContext, useFormContext } from "@/forms/context";
 import { withoutServerErrors } from "@/forms/server-errors";
 import {
@@ -62,6 +63,7 @@ export function EndpointsField() {
   const form = useFormContext();
   const submitting = useStore(form.store, (state) => state.isSubmitting);
   const labelId = useId();
+  const modeErrorId = useId();
   // The row the menu just added, so focus lands in its input once the menu has
   // handed focus back and closed.
   const added = useRef<EndpointName | null>(null);
@@ -135,13 +137,18 @@ export function EndpointsField() {
   });
 
   return (
-    <div className="flex flex-col gap-3">
+    <Field
+      name={field.name}
+      invalid={fieldErrors.length > 0}
+      className="items-stretch gap-3"
+    >
       <span id={labelId} className="font-medium text-sm">
         <Trans id="admin.federation.connection.mode">Endpoints</Trans>
       </span>
       <RadioGroup
         aria-labelledby={labelId}
         aria-invalid={fieldErrors.length > 0 || undefined}
+        aria-describedby={fieldErrors.length > 0 ? modeErrorId : undefined}
         name={`${field.name}.mode`}
         value={value.mode}
         disabled={submitting}
@@ -180,9 +187,9 @@ export function EndpointsField() {
         />
       </RadioGroup>
       {fieldErrors.length > 0 && (
-        <p className="text-destructive-foreground text-xs">
+        <FieldError match id={modeErrorId}>
           <FormMessages errors={fieldErrors} />
-        </p>
+        </FieldError>
       )}
 
       {discovery && shown.length > 0 && (
@@ -272,7 +279,7 @@ export function EndpointsField() {
           )}
         </div>
       )}
-    </div>
+    </Field>
   );
 }
 
@@ -348,9 +355,15 @@ function JwksEndpoint({
   const { i18n } = useLingui();
   const labelId = useId();
   const errorId = useId();
-  const address = useRef("");
+  const [addressId, addressHintId, noneId, noneHintId] = [
+    useId(),
+    useId(),
+    useId(),
+    useId(),
+  ];
   const none = value === jwksNone;
-  if (!none) address.current = value;
+  // The address typed before "none" was chosen; read when the choice goes back.
+  const lastAddress = useRef(none ? "" : value);
 
   return (
     <div className="flex flex-col gap-2">
@@ -365,62 +378,85 @@ function JwksEndpoint({
         name={fieldName}
         value={none ? "none" : "address"}
         disabled={disabled}
-        onValueChange={(next) =>
-          onChange(next === "none" ? jwksNone : address.current)
-        }
+        onValueChange={(next) => {
+          if (next === "none") {
+            if (!none) lastAddress.current = value;
+            onChange(jwksNone);
+          } else {
+            onChange(lastAddress.current);
+          }
+        }}
       >
-        <ChoiceTile
-          layout="list"
-          value="address"
-          label={
-            <Trans id="admin.federation.connection.jwks.address">
-              Check the ID token with a JWKS address
-            </Trans>
-          }
-          description={
-            <Trans id="admin.federation.connection.jwks.address.hint">
-              The provider's signing keys are read from this address.
-            </Trans>
-          }
-          attached={
-            none ? undefined : (
-              <div className="flex flex-col gap-1.5">
-                <AddressInput
-                  ref={inputRef}
-                  value={value}
-                  disabled={disabled}
-                  onValueChange={onChange}
-                  placeholder="https://"
-                  aria-label={i18n._(endpointLabel(name))}
-                  aria-invalid={problem !== undefined || undefined}
-                  aria-describedby={problem === undefined ? undefined : errorId}
-                />
-                {problem !== undefined && (
-                  <p
-                    id={errorId}
-                    className="text-destructive-foreground text-xs"
-                  >
-                    {i18n._(problem.message)}
-                  </p>
-                )}
-              </div>
-            )
-          }
-        />
-        <ChoiceTile
-          layout="list"
-          value="none"
-          label={
-            <Trans id="admin.federation.connection.jwks.none">
-              None — skip the ID token
-            </Trans>
-          }
-          description={
-            <Trans id="admin.federation.connection.jwks.none.hint">
-              People are identified through the UserInfo endpoint instead.
-            </Trans>
-          }
-        />
+        <div className="flex flex-col gap-2">
+          <Label className="items-start gap-2 font-normal text-sm">
+            <Radio
+              value="address"
+              aria-labelledby={addressId}
+              aria-describedby={addressHintId}
+              className="mt-0.5"
+            />
+            <span className="flex flex-col gap-0.5">
+              <span id={addressId} className="font-medium">
+                <Trans id="admin.federation.connection.jwks.address">
+                  Check the ID token with a JWKS address
+                </Trans>
+              </span>
+              <span
+                id={addressHintId}
+                className="text-muted-foreground text-xs"
+              >
+                <Trans id="admin.federation.connection.jwks.address.hint">
+                  The provider's signing keys are read from this address.
+                </Trans>
+              </span>
+            </span>
+          </Label>
+          {!none && (
+            <div className="ps-6">
+              <AddressInput
+                ref={inputRef}
+                value={value}
+                disabled={disabled}
+                onValueChange={(text) => {
+                  lastAddress.current = text;
+                  onChange(text);
+                }}
+                placeholder="https://"
+                aria-label={i18n._(endpointLabel(name))}
+                aria-invalid={problem !== undefined || undefined}
+                aria-describedby={problem === undefined ? undefined : errorId}
+              />
+              {problem !== undefined && (
+                <p
+                  id={errorId}
+                  className="mt-1.5 text-destructive-foreground text-xs"
+                >
+                  {i18n._(problem.message)}
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+        <Label className="items-start gap-2 font-normal text-sm">
+          <Radio
+            value="none"
+            aria-labelledby={noneId}
+            aria-describedby={noneHintId}
+            className="mt-0.5"
+          />
+          <span className="flex flex-col gap-0.5">
+            <span id={noneId} className="font-medium">
+              <Trans id="admin.federation.connection.jwks.none">
+                None — skip the ID token
+              </Trans>
+            </span>
+            <span id={noneHintId} className="text-muted-foreground text-xs">
+              <Trans id="admin.federation.connection.jwks.none.hint">
+                People are identified through the UserInfo endpoint instead.
+              </Trans>
+            </span>
+          </span>
+        </Label>
       </RadioGroup>
     </div>
   );

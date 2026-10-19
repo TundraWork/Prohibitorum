@@ -16,7 +16,6 @@ import {
 import { identityProviderUpdateBody } from "@/api/update-bodies";
 import { withInlineReport } from "@/app/query-client";
 import { ConsequenceFooter } from "@/components/custom/ConsequenceFooter";
-import { AddressField } from "@/components/custom/FormFields";
 import { Section } from "@/components/custom/Section";
 import { TagListField } from "@/components/custom/TagListField";
 import { applyServerError } from "@/forms/server-errors";
@@ -227,8 +226,8 @@ export function ProviderConnectionSection({
                   issuerProblem(value, saved.allowPrivateNetwork),
               }}
             >
-              {() => (
-                <AddressField
+              {(field) => (
+                <field.AddressField
                   label={
                     <Trans id="admin.federation.connection.issuer">
                       Issuer URL

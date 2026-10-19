@@ -3,6 +3,7 @@ import { type ReactNode, useId } from "react";
 import { ChoiceTile } from "@/components/custom/ChoiceTile";
 import { FormMessages } from "@/components/custom/FormMessages";
 import { useFieldBinding } from "@/components/custom/use-field-binding";
+import { Field, FieldError } from "@/components/ui/field";
 import { RadioGroup } from "@/components/ui/radio-group";
 import type { ProviderOption } from "@/pages/admin/identity-providers/provider-options";
 
@@ -34,12 +35,18 @@ export function ProviderChoiceField<T extends string>({
   const labelId = useId();
   const descriptionId = useId();
   const reasonId = useId();
+  const errorId = useId();
   // A refusal of the saved choice says the same thing as the reason, so the
   // reason steps aside for it rather than appearing twice.
   const showReason = unavailable !== undefined && !invalid;
 
   return (
-    <div className="flex flex-col gap-2">
+    <Field
+      name={field.name}
+      invalid={invalid}
+      disabled={disabled}
+      className="items-stretch"
+    >
       <span id={labelId} className="font-medium text-sm">
         {label}
       </span>
@@ -86,10 +93,10 @@ export function ProviderChoiceField<T extends string>({
         </p>
       )}
       {invalid && (
-        <p className="text-destructive-foreground text-xs">
+        <FieldError match id={errorId}>
           <FormMessages errors={errors} />
-        </p>
+        </FieldError>
       )}
-    </div>
+    </Field>
   );
 }

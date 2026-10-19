@@ -8,6 +8,7 @@ import { Form } from "@/components/custom/Form";
 import { FormError } from "@/components/custom/FormError";
 import { FormField } from "@/components/custom/FormField";
 import {
+  AddressField,
   NumberField,
   ReadOnlyField,
   SwitchField,
@@ -25,6 +26,7 @@ export const { useAppForm, withForm } = createFormHook({
     FormField,
     OtpField,
     TextAreaField,
+    AddressField,
     SwitchField,
     NumberField,
     ReadOnlyField,

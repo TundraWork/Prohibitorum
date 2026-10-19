@@ -74,7 +74,7 @@ export function FormField({
       <FieldLabel>{label}</FieldLabel>
       <Input
         size={size}
-        className={cn(isMonospace && "font-mono")}
+        className={cn(isMonospace && "font-mono text-[13px] sm:text-[13px]")}
         value={field.state.value}
         onValueChange={onChange}
         onBlur={onBlur}
