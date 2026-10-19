@@ -8,7 +8,7 @@ import {
 import {
   auditEventKeys,
   auditFactorKeys,
-} from "@/pages/admin/audit-vocabulary";
+} from "@/pages/admin/logs/audit-vocabulary";
 
 /**
  * The audit log's filters, which live in the URL and nowhere else, validated

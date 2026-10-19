@@ -1,4 +1,4 @@
-import type { MessageDescriptor } from "@lingui/core";
+import type { I18n, MessageDescriptor } from "@lingui/core";
 import { msg } from "@lingui/core/macro";
 
 /**
@@ -150,4 +150,14 @@ export function isAuditFactor(value: string): value is AuditFactor {
 
 export function isAuditEvent(value: string): value is AuditEvent {
   return Object.hasOwn(auditEvents, value);
+}
+
+/** A category's name, or the value itself when the vocabulary does not know it. */
+export function auditFactorName(i18n: I18n, factor: string): string {
+  return isAuditFactor(factor) ? i18n._(auditFactors[factor]) : factor;
+}
+
+/** An event's name, or the value itself when the vocabulary does not know it. */
+export function auditEventName(i18n: I18n, event: string): string {
+  return isAuditEvent(event) ? i18n._(auditEvents[event]) : event;
 }

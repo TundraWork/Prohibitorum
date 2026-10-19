@@ -102,6 +102,8 @@ export interface MockConfig {
     invitationCreateFails: boolean;
     /** Audit log entries, paged like the directory and capped the same. */
     auditEvents: number;
+    /** Whether reading the audit log is refused with a server error, so its failure can be walked through. */
+    auditFails: boolean;
     /** Signing keys, newest first; a short list, capped like `lists`. */
     signingKeys: number;
     /**
@@ -391,6 +393,7 @@ export const defaultMockConfig: MockConfig = {
     invitations: 4,
     invitationCreateFails: false,
     auditEvents: 24,
+    auditFails: false,
     signingKeys: 4,
     signingKeyStates: "",
     identityProviders: 4,

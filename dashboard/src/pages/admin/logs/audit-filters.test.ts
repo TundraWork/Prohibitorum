@@ -5,7 +5,7 @@ import {
   auditQuery,
   auditSearch,
   parseDay,
-} from "@/pages/admin/audit-filters";
+} from "@/pages/admin/logs/audit-filters";
 
 /** The filters a page reads from these search values. */
 function read(search: Record<string, SearchValue>) {

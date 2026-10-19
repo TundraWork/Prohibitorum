@@ -474,17 +474,17 @@ msgid "app.access.title"
 msgstr "Access"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/audit-vocabulary.ts
+#: src/pages/admin/logs/audit-vocabulary.ts
 msgid "audit.event.access_granted"
 msgstr "Access allowed"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/audit-vocabulary.ts
+#: src/pages/admin/logs/audit-vocabulary.ts
 msgid "audit.event.access_revoked"
 msgstr "Access cleared"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/audit-vocabulary.ts
+#: src/pages/admin/logs/audit-vocabulary.ts
 msgid "audit.event.access_denied"
 msgstr "Access denied"
 
@@ -524,7 +524,7 @@ msgid "success.app.access-restricted"
 msgstr "Access restricted to the selected user groups"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/audit-vocabulary.ts
+#: src/pages/admin/logs/audit-vocabulary.ts
 msgid "audit.factor.personal_access_token"
 msgstr "Access token"
 
@@ -559,17 +559,17 @@ msgid "profile.account.title"
 msgstr "Account"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminLogs.tsx
+#: src/pages/admin/logs/AdminLogs.tsx
 msgid "admin.logs.column.account"
 msgstr "Account"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminLogs.tsx
+#: src/pages/admin/logs/AuditFilters.tsx
 msgid "admin.logs.filter.account"
 msgstr "Account"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/audit-vocabulary.ts
+#: src/pages/admin/logs/audit-vocabulary.ts
 msgid "audit.factor.account"
 msgstr "Account"
 
@@ -913,7 +913,7 @@ msgid "admin.group.rule.combinator.all"
 msgstr "all"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminLogs.tsx
+#: src/pages/admin/logs/AdminLogs.tsx
 msgid "admin.logs.range.all"
 msgstr "All time"
 
@@ -1072,17 +1072,17 @@ msgid "admin.group.rule.combinator.any"
 msgstr "any"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminLogs.tsx
+#: src/pages/admin/logs/AuditFilters.tsx
 msgid "admin.logs.filter.account.any"
 msgstr "Any account"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminLogs.tsx
+#: src/pages/admin/logs/AuditFilters.tsx
 msgid "admin.logs.filter.factor.any"
 msgstr "Any category"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminLogs.tsx
+#: src/pages/admin/logs/AuditFilters.tsx
 msgid "admin.logs.filter.event.any"
 msgstr "Any event"
 
@@ -1159,7 +1159,7 @@ msgid "admin.forward-auth-apps.column.application"
 msgstr "Application"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/audit-vocabulary.ts
+#: src/pages/admin/logs/audit-vocabulary.ts
 msgid "audit.factor.app_policy"
 msgstr "Application access"
 
@@ -1184,7 +1184,7 @@ msgid "success.app.enabled"
 msgstr "Application enabled"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/audit-vocabulary.ts
+#: src/pages/admin/logs/audit-vocabulary.ts
 msgid "audit.factor.app_manager"
 msgstr "Application manager"
 
@@ -1376,7 +1376,7 @@ msgid "admin.user.attributes.not_object"
 msgstr "Attributes must be a JSON object, such as {}."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminLogs.tsx
+#: src/pages/admin/logs/AdminLogs.tsx
 msgid "admin.logs.table"
 msgstr "Audit events"
 
@@ -1391,7 +1391,7 @@ msgid "security.factor.authenticator"
 msgstr "Authenticator"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/audit-vocabulary.ts
+#: src/pages/admin/logs/audit-vocabulary.ts
 msgid "audit.factor.totp"
 msgstr "Authenticator"
 
@@ -1592,12 +1592,12 @@ msgid "settings.sign-in.order.carousel"
 msgstr "Carousel"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminLogs.tsx
+#: src/pages/admin/logs/AdminLogs.tsx
 msgid "admin.logs.column.factor"
 msgstr "Category"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminLogs.tsx
+#: src/pages/admin/logs/AuditFilters.tsx
 msgid "admin.logs.filter.factor"
 msgstr "Category"
 
@@ -1722,7 +1722,7 @@ msgid "admin.group.decisions.to-deny"
 msgstr "Change to deny"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/audit-vocabulary.ts
+#: src/pages/admin/logs/audit-vocabulary.ts
 msgid "audit.event.update"
 msgstr "Changed"
 
@@ -1828,7 +1828,7 @@ msgid "admin.group.rule.reason.missing_provider"
 msgstr "Choose a provider for this condition."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminLogs.tsx
+#: src/pages/admin/logs/AdminLogs.tsx
 msgid "admin.logs.range.incomplete"
 msgstr "Choose a start and an end date"
 
@@ -1866,6 +1866,11 @@ msgstr "Choose at least one application, or pick another level of access."
 #: src/pages/admin/settings/sign-in-page-form.ts
 msgid "settings.sign-in.interval.range"
 msgstr "Choose between 5 and 3600 seconds."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/logs/AuditDateRange.tsx
+msgid "admin.logs.range.choose"
+msgstr "Choose dates"
 
 #. js-lingui-explicit-id
 #: src/components/custom/AppAccessSection.tsx
@@ -1928,13 +1933,18 @@ msgid "admin.group.decisions.clear.action"
 msgstr "Clear"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminLogs.tsx
-msgid "admin.logs.filter.clear"
-msgstr "Clear filters"
+#: src/pages/admin/logs/AuditDateRange.tsx
+msgid "admin.logs.range.clear"
+msgstr "Clear dates"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/users/AdminUsers.tsx
 msgid "admin.users.filters.clear"
+msgstr "Clear filters"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/logs/AdminLogs.tsx
+msgid "admin.logs.filter.clear"
 msgstr "Clear filters"
 
 #. js-lingui-explicit-id
@@ -2760,7 +2770,7 @@ msgid "enroll.title.create"
 msgstr "Create your account"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/audit-vocabulary.ts
+#: src/pages/admin/logs/audit-vocabulary.ts
 msgid "audit.event.register"
 msgstr "Created"
 
@@ -2801,7 +2811,7 @@ msgid "sudo.password"
 msgstr "Current password"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminLogs.tsx
+#: src/pages/admin/logs/AdminLogs.tsx
 msgid "admin.logs.range.custom"
 msgstr "Custom range"
 
@@ -2846,7 +2856,7 @@ msgid "theme.dark"
 msgstr "Dark theme"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminLogs.tsx
+#: src/pages/admin/logs/AuditDateRange.tsx
 msgid "admin.logs.range.dates"
 msgstr "Dates"
 
@@ -3068,7 +3078,7 @@ msgid "admin.groups.column.description"
 msgstr "Description"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminLogs.tsx
+#: src/pages/admin/logs/AdminLogs.tsx
 msgid "admin.logs.detail.detail"
 msgstr "Details"
 
@@ -3116,12 +3126,12 @@ msgid "console.devices.list"
 msgstr "Devices summary"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/audit-vocabulary.ts
+#: src/pages/admin/logs/audit-vocabulary.ts
 msgid "audit.event.diagnostic_lookup"
 msgstr "Diagnostic lookup"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/audit-vocabulary.ts
+#: src/pages/admin/logs/audit-vocabulary.ts
 msgid "audit.factor.diagnostic"
 msgstr "Diagnostics"
 
@@ -3838,12 +3848,12 @@ msgid "admin.saml-apps.field.entity-id"
 msgstr "Entity ID"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminLogs.tsx
+#: src/pages/admin/logs/AdminLogs.tsx
 msgid "admin.logs.column.event"
 msgstr "Event"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminLogs.tsx
+#: src/pages/admin/logs/AuditFilters.tsx
 msgid "admin.logs.filter.event"
 msgstr "Event"
 
@@ -3984,7 +3994,7 @@ msgid "security.tokens.expiry"
 msgstr "Expires after"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/audit-vocabulary.ts
+#: src/pages/admin/logs/audit-vocabulary.ts
 msgid "audit.event.fail"
 msgstr "Failed"
 
@@ -4012,11 +4022,6 @@ msgstr "Field"
 #: src/pages/admin/users/AccountIdentityFilter.tsx
 msgid "admin.users.filter.incomplete"
 msgstr "Fill in the provider, field, match and value to apply this filter."
-
-#. js-lingui-explicit-id
-#: src/pages/admin/AdminLogs.tsx
-msgid "admin.logs.filter"
-msgstr "Filter"
 
 #. js-lingui-explicit-id
 #: src/components/custom/FilterPopover.tsx
@@ -4417,12 +4422,12 @@ msgid "admin.oidc-apps.identity.title"
 msgstr "Identity"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/audit-vocabulary.ts
+#: src/pages/admin/logs/audit-vocabulary.ts
 msgid "audit.event.sudo_failed"
 msgstr "Identity check failed"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/audit-vocabulary.ts
+#: src/pages/admin/logs/audit-vocabulary.ts
 msgid "audit.event.sudo_granted"
 msgstr "Identity confirmed"
 
@@ -4452,7 +4457,7 @@ msgid "sudo.form.label"
 msgstr "Identity verification"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/audit-vocabulary.ts
+#: src/pages/admin/logs/audit-vocabulary.ts
 msgid "audit.event.identity_verified"
 msgstr "Identity verified"
 
@@ -4532,7 +4537,7 @@ msgid "error.invalid_return_to"
 msgstr "Invalid return address."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/audit-vocabulary.ts
+#: src/pages/admin/logs/audit-vocabulary.ts
 msgid "audit.factor.invitation"
 msgstr "Invitation"
 
@@ -4592,12 +4597,12 @@ msgid "admin.invitations.column.invitee"
 msgstr "Invitee"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminLogs.tsx
+#: src/pages/admin/logs/AdminLogs.tsx
 msgid "admin.logs.column.ip"
 msgstr "IP"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminLogs.tsx
+#: src/pages/admin/logs/AdminLogs.tsx
 msgid "admin.logs.detail.ip"
 msgstr "IP"
 
@@ -4779,22 +4784,22 @@ msgid "language.label"
 msgstr "Language"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminLogs.tsx
+#: src/pages/admin/logs/AdminLogs.tsx
 msgid "admin.logs.range.24h"
 msgstr "Last 24 hours"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminLogs.tsx
+#: src/pages/admin/logs/AdminLogs.tsx
 msgid "admin.logs.range.30d"
 msgstr "Last 30 days"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminLogs.tsx
+#: src/pages/admin/logs/AdminLogs.tsx
 msgid "admin.logs.range.7d"
 msgstr "Last 7 days"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminLogs.tsx
+#: src/pages/admin/logs/AdminLogs.tsx
 msgid "admin.logs.range.1h"
 msgstr "Last hour"
 
@@ -4919,12 +4924,12 @@ msgid "security.identities.link.title"
 msgstr "Link another identity"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/audit-vocabulary.ts
+#: src/pages/admin/logs/audit-vocabulary.ts
 msgid "audit.event.enrollment_issued"
 msgstr "Link issued"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/audit-vocabulary.ts
+#: src/pages/admin/logs/audit-vocabulary.ts
 msgid "audit.event.enrollment_consumed"
 msgstr "Link used"
 
@@ -4939,7 +4944,7 @@ msgid "security.identities.link.linked"
 msgstr "Linked"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/audit-vocabulary.ts
+#: src/pages/admin/logs/audit-vocabulary.ts
 msgid "audit.event.link"
 msgstr "Linked"
 
@@ -5019,9 +5024,14 @@ msgid "admin.picker.loading"
 msgstr "Loading"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/audit-vocabulary.ts
+#: src/pages/admin/logs/audit-vocabulary.ts
 msgid "audit.event.factor_locked"
 msgstr "Locked"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/logs/AdminLogs.tsx
+msgid "admin.logs.page.title"
+msgstr "Logs"
 
 #. js-lingui-explicit-id
 #: src/components/custom/ConsoleLayout.tsx
@@ -5081,7 +5091,7 @@ msgid "app.managers.dialog.label"
 msgstr "Manager"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/audit-vocabulary.ts
+#: src/pages/admin/logs/audit-vocabulary.ts
 msgid "audit.event.app_manager_assigned"
 msgstr "Manager assigned"
 
@@ -5091,7 +5101,7 @@ msgid "success.app.manager-assigned"
 msgstr "Manager assigned"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/audit-vocabulary.ts
+#: src/pages/admin/logs/audit-vocabulary.ts
 msgid "audit.event.app_manager_removed"
 msgstr "Manager removed"
 
@@ -5523,7 +5533,7 @@ msgid "admin.group.decisions.empty"
 msgstr "No decisions yet. Nobody is allowed or denied through this group."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminLogs.tsx
+#: src/pages/admin/logs/AdminLogs.tsx
 msgid "admin.logs.empty"
 msgstr "No events in this range"
 
@@ -5795,7 +5805,7 @@ msgid "value-set.offered"
 msgstr "Offered by this provider"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/audit-vocabulary.ts
+#: src/pages/admin/logs/audit-vocabulary.ts
 msgid "audit.factor.oidc_client"
 msgstr "OIDC application"
 
@@ -6096,7 +6106,7 @@ msgid "admin.federation.diagnostics.last.passed"
 msgstr "Passed <0/>"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/audit-vocabulary.ts
+#: src/pages/admin/logs/audit-vocabulary.ts
 msgid "audit.factor.webauthn"
 msgstr "Passkey"
 
@@ -6172,13 +6182,13 @@ msgid "enroll.password_totp.password"
 msgstr "Password"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/audit-vocabulary.ts
-msgid "audit.factor.password"
+#: src/pages/admin/settings/LoginPreview.tsx
+msgid "settings.sign-in.preview.password"
 msgstr "Password"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/LoginPreview.tsx
-msgid "settings.sign-in.preview.password"
+#: src/pages/admin/logs/audit-vocabulary.ts
+msgid "audit.factor.password"
 msgstr "Password"
 
 #. js-lingui-explicit-id
@@ -6304,7 +6314,7 @@ msgid "profile.avatar.hint"
 msgstr "PNG, JPEG, WebP, GIF or AVIF, up to 5 MiB."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/audit-vocabulary.ts
+#: src/pages/admin/logs/audit-vocabulary.ts
 msgid "audit.event.clone_warning"
 msgstr "Possible clone"
 
@@ -6537,7 +6547,7 @@ msgid "login.recovery.code"
 msgstr "Recovery code"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/audit-vocabulary.ts
+#: src/pages/admin/logs/audit-vocabulary.ts
 msgid "audit.factor.recovery_code"
 msgstr "Recovery code"
 
@@ -6568,7 +6578,7 @@ msgid "error_page.reference"
 msgstr "Reference <0>{ref}</0>"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminLogs.tsx
+#: src/pages/admin/logs/AdminLogs.tsx
 msgid "admin.logs.refresh"
 msgstr "Refresh"
 
@@ -6624,13 +6634,13 @@ msgid "admin.federation.diagnostics.callback.hint"
 msgstr "Register this address with the provider before running a connection test."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/audit-vocabulary.ts
-msgid "audit.factor.enrollment"
+#: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
+msgid "admin.saml-apps.new.registration.title"
 msgstr "Registration"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
-msgid "admin.saml-apps.new.registration.title"
+#: src/pages/admin/logs/audit-vocabulary.ts
+msgid "audit.factor.enrollment"
 msgstr "Registration"
 
 #. js-lingui-explicit-id
@@ -7072,7 +7082,7 @@ msgid "object.status.restricted"
 msgstr "Restricted"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/audit-vocabulary.ts
+#: src/pages/admin/logs/audit-vocabulary.ts
 msgid "audit.event.access_restricted_set"
 msgstr "Restriction changed"
 
@@ -7167,7 +7177,7 @@ msgid "admin.user.tokens.revoke.action"
 msgstr "Revoke token"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/audit-vocabulary.ts
+#: src/pages/admin/logs/audit-vocabulary.ts
 msgid "audit.event.revoke"
 msgstr "Revoked"
 
@@ -7212,7 +7222,7 @@ msgid "admin.oidc-apps.rotate.title"
 msgstr "Rotate the client secret?"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/audit-vocabulary.ts
+#: src/pages/admin/logs/audit-vocabulary.ts
 msgid "audit.event.rotate"
 msgstr "Rotated"
 
@@ -7262,7 +7272,7 @@ msgid "apps.kind.saml"
 msgstr "SAML"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/audit-vocabulary.ts
+#: src/pages/admin/logs/audit-vocabulary.ts
 msgid "audit.factor.saml_sp"
 msgstr "SAML application"
 
@@ -7436,7 +7446,7 @@ msgid "console.search"
 msgstr "Search"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminLogs.tsx
+#: src/pages/admin/logs/AuditFilters.tsx
 msgid "admin.logs.filter.account.search"
 msgstr "Search accounts"
 
@@ -7569,7 +7579,7 @@ msgid "admin.forward-auth-apps.page.description"
 msgstr "Services behind your reverse proxy that this instance signs people in to."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/audit-vocabulary.ts
+#: src/pages/admin/logs/audit-vocabulary.ts
 msgid "audit.factor.session"
 msgstr "Session"
 
@@ -7669,7 +7679,7 @@ msgid "security.setup.dialog"
 msgstr "Set up password and authenticator"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/audit-vocabulary.ts
+#: src/pages/admin/logs/audit-vocabulary.ts
 msgid "audit.factor.settings"
 msgstr "Settings"
 
@@ -7970,7 +7980,12 @@ msgid "admin.federation.not-ready.steam.sign-in"
 msgstr "Sign-in through this provider fails until the Web API key is set."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/audit-vocabulary.ts
+#: src/pages/admin/logs/AdminLogs.tsx
+msgid "admin.logs.page.description"
+msgstr "Sign-ins, changes and other security events recorded on this instance, newest first."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/logs/audit-vocabulary.ts
 msgid "audit.event.session_start"
 msgstr "Signed in"
 
@@ -7985,7 +8000,7 @@ msgid "consent.account"
 msgstr "Signed in as <0>{displayName}</0>"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/audit-vocabulary.ts
+#: src/pages/admin/logs/audit-vocabulary.ts
 msgid "audit.event.session_end"
 msgstr "Signed out"
 
@@ -8020,7 +8035,7 @@ msgid "login.factor.account"
 msgstr "Signing in as {username}"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/audit-vocabulary.ts
+#: src/pages/admin/logs/audit-vocabulary.ts
 msgid "audit.factor.signing_key"
 msgstr "Signing key"
 
@@ -8232,6 +8247,11 @@ msgid "security.passkeys.synced"
 msgstr "Synced"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/logs/AdminLogs.tsx
+msgid "admin.logs.system"
+msgstr "System"
+
+#. js-lingui-explicit-id
 #: src/components/custom/ConsoleLayout.tsx
 msgid "console.group.system"
 msgstr "System"
@@ -8425,6 +8445,11 @@ msgstr "That verification method is not available. Choose another one."
 #: src/pages/admin/users/AccountDangerSection.tsx
 msgid "admin.user.delete.confirm.body"
 msgstr "The account, its passkeys, its sessions, its access tokens and its connected identities are removed immediately. This cannot be undone."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/logs/AuditFilters.tsx
+msgid "admin.logs.filter.account.failed"
+msgstr "The accounts could not be loaded"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderDangerSection.tsx
@@ -8635,11 +8660,6 @@ msgid "admin.user.enrollment.expires"
 msgstr "The link expires on {expiry}."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminLogs.tsx
-msgid "admin.logs.error"
-msgstr "The log could not be loaded."
-
-#. js-lingui-explicit-id
 #: src/pages/admin/invitations/AdminInvitationForm.tsx
 msgid "admin.invitations.new.groups.hint"
 msgstr "The manual groups the new account joins when it registers."
@@ -8847,7 +8867,7 @@ msgid "error.unsplash_key_in_use"
 msgstr "The sign-in page still uses Unsplash. Switch the background to another source and save before removing the key."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminLogs.tsx
+#: src/pages/admin/logs/AdminLogs.tsx
 msgid "admin.logs.range.reversed"
 msgstr "The start date is after the end date"
 
@@ -9343,12 +9363,12 @@ msgid "error.vrchat_operator_credentials_invalid"
 msgstr "Those VRChat credentials were not accepted."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminLogs.tsx
+#: src/pages/admin/logs/AdminLogs.tsx
 msgid "admin.logs.column.at"
 msgstr "Time"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminLogs.tsx
+#: src/pages/admin/logs/AdminLogs.tsx
 msgid "admin.logs.range"
 msgstr "Time range"
 
@@ -9495,7 +9515,7 @@ msgid "admin.federation.mode.auto.needs-sign-in"
 msgstr "Turn sign-in on to create accounts."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/audit-vocabulary.ts
+#: src/pages/admin/logs/audit-vocabulary.ts
 msgid "audit.event.factor_disabled"
 msgstr "Turned off"
 
@@ -9546,7 +9566,7 @@ msgid "security.identities.unlink.title"
 msgstr "Unlink this identity?"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/audit-vocabulary.ts
+#: src/pages/admin/logs/audit-vocabulary.ts
 msgid "audit.event.unlink"
 msgstr "Unlinked"
 
@@ -9626,7 +9646,7 @@ msgid "admin.group.explain.avatar.user_uploaded"
 msgstr "Uploaded their own profile picture"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/audit-vocabulary.ts
+#: src/pages/admin/logs/audit-vocabulary.ts
 msgid "audit.factor.upstream_idp"
 msgstr "Upstream provider"
 
@@ -9641,7 +9661,7 @@ msgid "admin.picker.provider"
 msgstr "Upstream provider"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/audit-vocabulary.ts
+#: src/pages/admin/logs/audit-vocabulary.ts
 msgid "audit.factor.federation_oidc"
 msgstr "Upstream sign-in"
 
@@ -9782,7 +9802,7 @@ msgid "admin.federation.auth.discovery"
 msgstr "Use what discovery reports"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/audit-vocabulary.ts
+#: src/pages/admin/logs/audit-vocabulary.ts
 msgid "audit.event.use"
 msgstr "Used"
 
@@ -9892,7 +9912,7 @@ msgid "admin.oidc-apps.scope.groups"
 msgstr "User groups this application exposes."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminLogs.tsx
+#: src/pages/admin/logs/AdminLogs.tsx
 msgid "admin.logs.detail.userAgent"
 msgstr "User-Agent"
 
@@ -10136,7 +10156,7 @@ msgid "admin.federation.operator.description"
 msgstr "VRChat has no client credentials, so this instance signs in as an account of its own to read profiles."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/audit-vocabulary.ts
+#: src/pages/admin/logs/audit-vocabulary.ts
 msgid "audit.event.vrchat_operator_session_invalidated"
 msgstr "VRChat operator signed out"
 

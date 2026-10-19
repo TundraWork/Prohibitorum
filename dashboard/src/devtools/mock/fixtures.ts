@@ -2271,6 +2271,9 @@ function readReply(
       );
     }
     case "/api/prohibitorum/audit-events": {
+      if (config.admin.auditFails) {
+        return { kind: "error", status: 500, code: "internal_error" };
+      }
       const all = filteredAuditEvents(request, config);
       const cursor = new URL(request.url).searchParams.get("cursor");
       const start = cursor === null ? 0 : Number(cursor);

@@ -1132,6 +1132,19 @@ describe("mocked logs, settings and signing keys", () => {
   };
   type Key = { kid: string; status: string };
 
+  it("refuses reading the audit log when the panel says it fails, and only then", () => {
+    const path = "/api/prohibitorum/audit-events";
+    expect(
+      read(
+        path,
+        config((draft) => {
+          draft.admin.auditFails = true;
+        }),
+      ),
+    ).toMatchObject({ kind: "error", status: 500 });
+    expect(read(path, config())).toMatchObject({ kind: "json" });
+  });
+
   it("pages the audit log and applies the server's filters", () => {
     const current = config((draft) => {
       draft.admin.auditEvents = 24;
