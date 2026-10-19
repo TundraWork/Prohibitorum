@@ -325,9 +325,12 @@ function SectionError({
 export function SectionFailure({
   error,
   onRetry,
+  title,
 }: {
   error: unknown;
   onRetry: () => void;
+  /** Says what could not be loaded, where "this section" is not the right name. */
+  title?: ReactNode;
 }) {
   const { t } = useLingui();
   return (
@@ -335,7 +338,9 @@ export function SectionFailure({
       <SurfaceAlert.Indicator />
       <SurfaceAlert.Content>
         <SurfaceAlert.Title>
-          <Trans id="section.failed">This section could not be loaded</Trans>
+          {title ?? (
+            <Trans id="section.failed">This section could not be loaded</Trans>
+          )}
         </SurfaceAlert.Title>
         <SurfaceAlert.Description>
           {t(describeError(error))}

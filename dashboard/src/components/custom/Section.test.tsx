@@ -11,7 +11,11 @@ import { type ReactNode, useEffect, useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ConsoleCard } from "@/components/custom/ConsoleCard";
 import { ItemList } from "@/components/custom/ItemList";
-import { AsyncSection, Section } from "@/components/custom/Section";
+import {
+  AsyncSection,
+  Section,
+  SectionFailure,
+} from "@/components/custom/Section";
 import { i18n } from "@/i18n";
 
 beforeEach(() => {
@@ -381,5 +385,33 @@ describe("Section", () => {
     expect(
       container.querySelectorAll("[data-slot='frame-panel']"),
     ).toHaveLength(1);
+  });
+});
+
+describe("SectionFailure", () => {
+  it("names the section by default and names what failed when given a title", async () => {
+    const user = userEvent.setup();
+    const retry = vi.fn();
+    const { rerender } = render(
+      <I18nProvider i18n={i18n}>
+        <SectionFailure error={new Error("x")} onRetry={retry} />
+      </I18nProvider>,
+    );
+    expect(screen.getByText("This section could not be loaded")).toBeVisible();
+
+    rerender(
+      <I18nProvider i18n={i18n}>
+        <SectionFailure
+          title="The providers could not be loaded"
+          error={new Error("x")}
+          onRetry={retry}
+        />
+      </I18nProvider>,
+    );
+    expect(screen.getByText("The providers could not be loaded")).toBeVisible();
+    expect(screen.queryByText("This section could not be loaded")).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "Try again" }));
+    expect(retry).toHaveBeenCalledOnce();
   });
 });

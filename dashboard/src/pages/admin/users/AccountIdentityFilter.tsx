@@ -1,10 +1,9 @@
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useQuery } from "@tanstack/react-query";
-import { describeError } from "@/api/errors";
 import { identityProvidersQueryOptions } from "@/api/queries";
 import { quietQuery } from "@/app/query-client";
-import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
+import { SectionFailure } from "@/components/custom/Section";
 import { Button } from "@/components/ui/button";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -70,27 +69,15 @@ export function AccountIdentityFilter({
   return (
     <div className="flex flex-col gap-4">
       {providers.isError && (
-        <SurfaceAlert status="danger" role="alert">
-          <SurfaceAlert.Indicator />
-          <SurfaceAlert.Content>
-            <SurfaceAlert.Title>
-              <Trans id="admin.users.filter.providers-failed">
-                The providers could not be loaded
-              </Trans>
-            </SurfaceAlert.Title>
-            <SurfaceAlert.Description>
-              {t(describeError(providers.error))}
-            </SurfaceAlert.Description>
-            <Button
-              onClick={() => void providers.refetch()}
-              variant="destructive"
-              size="sm"
-              className="mt-2 w-fit"
-            >
-              <Trans id="section.retry">Try again</Trans>
-            </Button>
-          </SurfaceAlert.Content>
-        </SurfaceAlert>
+        <SectionFailure
+          title={
+            <Trans id="admin.users.filter.providers-failed">
+              The providers could not be loaded
+            </Trans>
+          }
+          error={providers.error}
+          onRetry={() => void providers.refetch()}
+        />
       )}
       <div className="flex flex-col gap-3">
         <Field disabled={providers.isPending}>

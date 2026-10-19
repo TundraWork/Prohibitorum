@@ -9351,12 +9351,6 @@ msgid "pair.retry"
 msgstr "Try again"
 
 #. js-lingui-explicit-id
-#: src/components/custom/Section.tsx
-#: src/pages/admin/users/AccountIdentityFilter.tsx
-msgid "section.retry"
-msgstr "Try again"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/groups/GroupDecisionsSection.tsx
 msgid "admin.group.decisions.retry"
 msgstr "Try again"
@@ -9364,6 +9358,11 @@ msgstr "Try again"
 #. js-lingui-explicit-id
 #: src/pages/admin/groups/GroupMatchesFrame.tsx
 msgid "admin.group.matches.retry"
+msgstr "Try again"
+
+#. js-lingui-explicit-id
+#: src/components/custom/Section.tsx
+msgid "section.retry"
 msgstr "Try again"
 
 #. js-lingui-explicit-id
