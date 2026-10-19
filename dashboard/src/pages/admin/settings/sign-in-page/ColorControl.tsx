@@ -1,0 +1,116 @@
+import { Trans, useLingui } from "@lingui/react/macro";
+import { FormMessages } from "@/components/custom/FormMessages";
+import { Field, FieldError, FieldLabel } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import {
+  RadioGroupPrimitive,
+  RadioPrimitive,
+} from "@/components/ui/radio-group";
+import { Slider } from "@/components/ui/slider";
+import { hexToHsb, withHue } from "@/pages/admin/settings/sign-in-page/color";
+import { suggestedColors } from "@/pages/admin/settings/sign-in-page/sign-in-page-form";
+
+const hexColor = /^#[0-9a-f]{6}$/;
+
+/** The hue slider's track, so the colours it moves through are the ones it shows. */
+const hueTrack =
+  "[&_[data-slot=slider-track]]:h-2 [&_[data-slot=slider-track]]:rounded-full [&_[data-slot=slider-track]]:bg-[linear-gradient(to_right,#f00,#ff0,#0f0,#0ff,#00f,#f0f,#f00)] [&_[data-slot=slider-track]]:before:hidden [&_[data-slot=slider-indicator]]:hidden";
+
+/**
+ * A background colour: the hex value, the browser's own picker beside it, a
+ * hue slider and a row of suggestions. The value is whatever was typed, in
+ * lowercase, so the form can say what is wrong with it rather than the control
+ * quietly keeping the last good colour; `errors` are the form field's.
+ */
+export function ColorControl({
+  value,
+  errors,
+  disabled,
+  onChange,
+}: {
+  value: string;
+  errors: readonly unknown[];
+  disabled: boolean;
+  onChange: (hex: string) => void;
+}) {
+  const { t } = useLingui();
+  const valid = hexColor.test(value);
+  return (
+    <div className="flex flex-col gap-4">
+      <Field disabled={disabled} invalid={errors.length > 0} className="gap-2">
+        <FieldLabel>
+          <Trans id="settings.sign-in.color">Color</Trans>
+        </FieldLabel>
+        <div className="flex w-full items-center gap-2">
+          <input
+            type="color"
+            aria-label={t({
+              id: "settings.sign-in.color.picker",
+              message: "Pick a color",
+            })}
+            value={valid ? value : "#1f6f8b"}
+            disabled={disabled}
+            onChange={(event) => onChange(event.target.value.toLowerCase())}
+            className="size-9 shrink-0 cursor-pointer rounded-lg border border-input bg-transparent p-0.5 disabled:cursor-not-allowed disabled:opacity-64 sm:size-8"
+          />
+          <Input
+            value={value}
+            onValueChange={(next) => onChange(next.toLowerCase())}
+            autoComplete="off"
+            spellCheck={false}
+            aria-invalid={errors.length > 0 || undefined}
+            className="font-mono text-base sm:text-[13px]"
+          />
+        </div>
+        {errors.length > 0 && (
+          <FieldError match>
+            <FormMessages errors={errors} />
+          </FieldError>
+        )}
+      </Field>
+
+      <div className="flex flex-col gap-2">
+        <span className="font-medium text-sm">
+          <Trans id="settings.sign-in.color.hue">Hue</Trans>
+        </span>
+        <Slider
+          value={hexToHsb(value).h}
+          min={0}
+          max={360}
+          step={1}
+          disabled={disabled}
+          className={hueTrack}
+          getAriaLabel={() =>
+            t({ id: "settings.sign-in.color.hue", message: "Hue" })
+          }
+          onValueChange={(next) =>
+            onChange(
+              withHue(value, Array.isArray(next) ? (next[0] ?? 0) : next),
+            )
+          }
+        />
+      </div>
+
+      <RadioGroupPrimitive
+        aria-label={t({
+          id: "settings.sign-in.color.suggested",
+          message: "Suggested colors",
+        })}
+        value={value}
+        disabled={disabled}
+        onValueChange={(next) => onChange(String(next))}
+        className="flex flex-wrap gap-2"
+      >
+        {suggestedColors.map((swatch) => (
+          <RadioPrimitive.Root
+            key={swatch}
+            value={swatch}
+            aria-label={swatch}
+            style={{ backgroundColor: swatch }}
+            className="size-7 cursor-pointer rounded-md ring-1 ring-black/10 ring-inset outline-none transition-shadow focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background data-checked:ring-2 data-checked:ring-primary data-checked:ring-offset-2 data-checked:ring-offset-background data-disabled:cursor-not-allowed data-disabled:opacity-64 dark:ring-white/20"
+          />
+        ))}
+      </RadioGroupPrimitive>
+    </div>
+  );
+}

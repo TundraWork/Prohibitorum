@@ -1,8 +1,7 @@
-import { Description, Skeleton } from "@heroui/react";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { ImagePlus, X } from "lucide-react";
+import { ImagePlus, XIcon } from "lucide-react";
 import { useState } from "react";
 import { ApiError } from "@/api/errors";
 import {
@@ -16,6 +15,7 @@ import {
   rejectImage,
 } from "@/components/custom/ImageUploadControl";
 import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   loginImageTypes,
   maxLoginImages,
@@ -133,12 +133,12 @@ export function LoginImagesControl({
         {Array.from({ length: queued }, (_, index) => (
           // biome-ignore lint/suspicious/noArrayIndexKey: placeholders have no identity.
           <li key={`queued-${index}`} className="aspect-video">
-            <Skeleton className="size-full rounded-[0.375rem]" />
+            <Skeleton className="size-full rounded-lg" />
           </li>
         ))}
         {!full && <li className={empty ? "col-span-full" : ""}>{addTile}</li>}
       </ul>
-      <Description>
+      <p className="text-muted-foreground text-xs">
         {count >= maxLoginImages ? (
           <Trans id="settings.sign-in.images.full">
             10 of 10 · remove one to add another
@@ -148,7 +148,12 @@ export function LoginImagesControl({
             PNG, JPEG or WebP, up to 5 MiB each · {count} of 10
           </Trans>
         )}
-      </Description>
+      </p>
+      <p className="text-muted-foreground text-xs">
+        <Trans id="settings.sign-in.images.instant">
+          Adding or removing an image takes effect right away, without Save.
+        </Trans>
+      </p>
       {skipped !== null && <SkippedNotice skipped={skipped} />}
     </div>
   );
@@ -215,7 +220,7 @@ function ImageTile({
   const queryClient = useQueryClient();
   const remove = useMutation(removeLoginImageMutationOptions(queryClient));
   return (
-    <li className="relative aspect-video overflow-hidden rounded-[0.375rem] bg-default">
+    <li className="relative aspect-video overflow-hidden rounded-lg bg-muted ring-1 ring-border ring-inset">
       <img
         src={image.url}
         alt=""
@@ -228,11 +233,11 @@ function ImageTile({
           message: `Remove image ${position}`,
         })}
         onClick={() => remove.mutate(image.id)}
-        variant="ghost"
-        size="icon-sm"
-        className="absolute top-1.5 right-1.5 size-7 min-w-7 rounded-full bg-surface/85 shadow-surface backdrop-blur-sm"
+        variant="outline"
+        size="icon-xs"
+        className="absolute top-1.5 right-1.5"
       >
-        <X size={14} aria-hidden="true" />
+        <XIcon aria-hidden="true" />
       </Button>
     </li>
   );
