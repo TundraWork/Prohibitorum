@@ -36,9 +36,8 @@ beforeEach(() => {
     {
       slug: "github",
       displayName: "GitHub",
-      kind: "oidc",
+      protocol: "oidc",
       allowSignIn: true,
-      iconUrl: null,
     },
   ]);
 });
