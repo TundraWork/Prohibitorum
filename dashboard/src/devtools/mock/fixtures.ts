@@ -1138,9 +1138,20 @@ function groupDecisions(): ManualDecisionView[] {
   );
 }
 
-function groupPreview(config: MockConfig): RulePreviewPageView {
+/** The server's default page size; a preview never evaluates more accounts. */
+const previewPageSize = 50;
+
+function groupPreview(
+  config: MockConfig,
+  limit: number = previewPageSize,
+): RulePreviewPageView {
   const items = Array.from(
-    { length: clampAdminCount(config.admin.accounts) },
+    {
+      length: Math.min(
+        clampAdminCount(config.admin.accounts),
+        limit > 0 ? limit : previewPageSize,
+      ),
+    },
     (_, index) => ({
       account: {
         id: index + 1,
@@ -2141,7 +2152,14 @@ function readReply(
         json({ items: groupDecisions(), nextCursor: "" }),
       );
     case "/api/prohibitorum/groups/{groupId}/preview":
-      return guarded(config, () => json(groupPreview(config)));
+      return guarded(config, () =>
+        json(
+          groupPreview(
+            config,
+            Number(new URL(request.url).searchParams.get("limit")),
+          ),
+        ),
+      );
     case "/api/prohibitorum/groups/{groupId}/applications": {
       // As many applications as the group's own count says, so the list and the
       // count never disagree about whether the group can be deleted.
@@ -2253,14 +2271,42 @@ function readReply(
           },
           explanation: {
             path: "$",
-            label: "All of",
+            label: "all",
             result: accountId % 2 === 0,
             children: [
-              { path: "$.0", label: "Signed in with a passkey", result: true },
               {
-                path: "$.1",
-                label: "Provider is Example IdP 1",
-                result: false,
+                path: "$.children[0]",
+                label: "login_method=passkey",
+                result: true,
+              },
+              {
+                path: "$.children[1]",
+                label: "any",
+                result: accountId % 2 === 0,
+                children: [
+                  {
+                    path: "$.children[1].children[0]",
+                    label: "connection.provider=provider-1",
+                    result: accountId % 2 === 0,
+                  },
+                  {
+                    path: "$.children[1].children[1]",
+                    label: "connection.protocol=steam",
+                    result: false,
+                  },
+                ],
+              },
+              {
+                path: "$.children[2]",
+                label: "not",
+                result: true,
+                children: [
+                  {
+                    path: "$.children[2].child",
+                    label: "avatar=user_uploaded",
+                    result: false,
+                  },
+                ],
               },
             ],
           },

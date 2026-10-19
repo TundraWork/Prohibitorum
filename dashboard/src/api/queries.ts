@@ -871,8 +871,15 @@ export function groupDecisionsQueryOptions(groupId: number, cursor?: string) {
 }
 
 /**
+ * How many accounts one preview read evaluates. The page is fixed, so a full
+ * one means the accounts past it were never checked.
+ */
+export const groupPreviewLimit = 50;
+
+/**
  * Fixed to one page: the handler always answers with an empty `nextCursor`, so
- * the interface offers no "load more" for it.
+ * the interface offers no "load more" for it. The page holds every account it
+ * evaluated, matched or not, not only the matches.
  */
 export function groupPreviewQueryOptions(groupId: number) {
   return queryOptions({
@@ -880,7 +887,7 @@ export function groupPreviewQueryOptions(groupId: number) {
     queryFn: ({ signal }) =>
       requireJsonData(
         client.GET("/api/prohibitorum/groups/{groupId}/preview", {
-          params: { path: { groupId } },
+          params: { path: { groupId }, query: { limit: groupPreviewLimit } },
           signal,
         }),
       ),

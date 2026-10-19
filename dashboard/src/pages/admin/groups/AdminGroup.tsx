@@ -14,12 +14,15 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { GroupDangerSection } from "@/pages/admin/groups/GroupDangerSection";
 import { GroupDetailsSection } from "@/pages/admin/groups/GroupDetailsSection";
+import { GroupExplainFrame } from "@/pages/admin/groups/GroupExplainFrame";
+import { GroupMatchesFrame } from "@/pages/admin/groups/GroupMatchesFrame";
 import { GroupRuleSection } from "@/pages/admin/groups/GroupRuleSection";
 import { GroupUsedBySection } from "@/pages/admin/groups/GroupUsedBySection";
 
 /**
  * One user group's page: who it is at the top, a main column of sections and,
- * from `lg`, a side column of context beside it.
+ * from `lg`, a side column of context beside it: for a rule group who it
+ * matches and why, then where it is used.
  *
  * The danger section is the last of the main column, but its own grid item, so
  * below `lg` the side column's context reads before it instead of after the
@@ -93,6 +96,12 @@ function GroupColumns({ group }: { group: AppGroupView }) {
         aria-label={t({ id: "admin.group.side", message: "Group context" })}
         className="flex min-w-0 flex-col gap-6 lg:sticky lg:top-[calc(var(--app-sticky-offset)+5rem)] lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:self-start"
       >
+        {isRule && (
+          <>
+            <GroupMatchesFrame groupId={group.id} />
+            <GroupExplainFrame key={group.id} groupId={group.id} />
+          </>
+        )}
         <GroupUsedBySection groupId={group.id} />
       </aside>
       <div className="min-w-0 lg:col-start-1 lg:row-start-2">

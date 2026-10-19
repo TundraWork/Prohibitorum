@@ -43,6 +43,8 @@ function open(group: AppGroupView, used: GroupApplicationView[] = []) {
     [`GET ${base}/groups/${group.id}/applications`]: () =>
       Response.json({ items: used, nextCursor: "" }),
     [`GET ${base}/groups/providers`]: () => Response.json([]),
+    [`GET ${base}/groups/${group.id}/preview`]: () =>
+      Response.json({ items: [], nextCursor: "" }),
     [`POST ${base}/groups/rule-preview`]: () =>
       Response.json({ matchedCount: 0, items: [], nextCursor: "" }),
     [`GET ${base}/me/sudo/methods`]: () =>
@@ -114,6 +116,32 @@ describe("the page's sections", () => {
       }),
     ).toBeVisible();
     expect(screen.getByRole("tab", { name: "Builder" })).toBeVisible();
+  });
+
+  it("puts who a rule group matches, and the account check, above where it is used", async () => {
+    await mountPage(ruleGroupFixture());
+
+    const side = screen.getByRole("complementary", { name: "Group context" });
+    const titles = within(side)
+      .getAllByRole("heading", { level: 2 })
+      .map((heading) => heading.textContent);
+    expect(titles).toEqual([
+      "Matches right now",
+      "Check an account",
+      "Used by",
+    ]);
+  });
+
+  it("leaves both out of a manual group's side column", async () => {
+    await mountPage(groupFixture());
+
+    const side = screen.getByRole("complementary", { name: "Group context" });
+    expect(
+      within(side).queryByRole("heading", { name: "Matches right now" }),
+    ).toBeNull();
+    expect(
+      within(side).queryByRole("heading", { name: "Check an account" }),
+    ).toBeNull();
   });
 
   it("lists the applications that use the group beside it", async () => {
@@ -208,5 +236,62 @@ describe("deleting the group", () => {
     );
     expect(api.sent("POST", `${base}/groups/7/delete`)).toHaveLength(1);
     expect(notifyError).not.toHaveBeenCalled();
+  });
+});
+
+describe("saving the rule", () => {
+  it("counts the matches again from the rule it saved", async () => {
+    const user = userEvent.setup();
+    let stored = ruleGroupFixture();
+    let matched = 2;
+    const api = fakeApi({
+      ...publicApi({ ...testSession, role: "admin" }),
+      [`GET ${base}/oidc-applications`]: () =>
+        Response.json({ items: [], nextCursor: "" }),
+      [`GET ${base}/saml-applications`]: () =>
+        Response.json({ items: [], nextCursor: "" }),
+      [`GET ${base}/forward-auth-apps`]: () =>
+        Response.json({ items: [], nextCursor: "" }),
+      [`GET ${base}/groups/8`]: () => Response.json(stored),
+      [`GET ${base}/groups/8/applications`]: () =>
+        Response.json({ items: [], nextCursor: "" }),
+      [`GET ${base}/groups/providers`]: () => Response.json([]),
+      [`GET ${base}/groups/8/preview`]: () =>
+        Response.json({
+          items: Array.from({ length: matched }, (_, index) => ({
+            account: {
+              id: index + 1,
+              username: `user${index + 1}`,
+              displayName: "",
+            },
+            matched: true,
+          })),
+          nextCursor: "",
+        }),
+      [`POST ${base}/groups/rule-preview`]: () =>
+        Response.json({ matchedCount: 3, items: [], nextCursor: "" }),
+      [`PUT ${base}/groups/8`]: async (request) => {
+        stored = { ...stored, ...(await request.json()) };
+        matched = 3;
+        return Response.json(stored);
+      },
+    });
+    renderApp("/admin/groups/8", queryClient);
+    const side = await screen.findByRole("complementary", {
+      name: "Group context",
+    });
+    expect(await within(side).findByText("2")).toBeVisible();
+
+    await user.click(
+      screen.getAllByRole("button", {
+        name: "Add condition",
+      })[0] as HTMLElement,
+    );
+    await user.click(await screen.findByRole("button", { name: "Save rule" }));
+
+    expect(await within(side).findByText("3")).toBeVisible();
+    expect(api.sent("GET", `${base}/groups/8/preview`).length).toBeGreaterThan(
+      1,
+    );
   });
 });

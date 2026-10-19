@@ -115,6 +115,11 @@ msgid "console.devices.count"
 msgstr "{count, plural, one {# signed-in device} other {# signed-in devices}}"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupMatchesFrame.tsx
+msgid "admin.group.matches.unit"
+msgstr "{count, plural, one {account matches} other {accounts match}}"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/groups/RuleIssueSummary.tsx
 msgid "admin.group.rule.summary.missing-provider"
 msgstr "{count, plural, one {Choose a provider for the highlighted condition.} other {Choose a provider for each highlighted condition.}}"
@@ -533,6 +538,11 @@ msgid "audit.factor.account"
 msgstr "Account"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupExplainFrame.tsx
+msgid "admin.group.explain.account"
+msgstr "Account"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/saml-projection.ts
 msgid "admin.saml-apps.source.attributes"
 msgstr "Account attribute"
@@ -606,6 +616,11 @@ msgstr "Accounts are linked by this value."
 #: src/components/custom/AppAccessSection.tsx
 msgid "app.access.order.denied"
 msgstr "Accounts denied by hand in"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupMatchesFrame.tsx
+msgid "admin.group.matches.dialog.title"
+msgstr "Accounts that match"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/groups/RuleBuilder.tsx
@@ -1176,6 +1191,11 @@ msgid "admin.group.rule.json.applies"
 msgstr "Applied when you leave the box. The builder then shows what the document says."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupExplainFrame.tsx
+msgid "admin.group.explain.applies"
+msgstr "Applies:"
+
+#. js-lingui-explicit-id
 #: src/api/success-messages.ts
 msgid "success.device.approval-revoked"
 msgstr "Approval revoked"
@@ -1234,6 +1254,11 @@ msgstr "Assign a manager"
 #: src/components/custom/AppManagersSection.tsx
 msgid "app.managers.assigned"
 msgstr "Assigned <0/>"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/explain-labels.ts
+msgid "admin.group.explain.any"
+msgstr "At least one condition below applies"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AttributeMapField.tsx
@@ -1630,6 +1655,11 @@ msgid "admin.federation.diagnostics.check-again"
 msgstr "Check again"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupExplainFrame.tsx
+msgid "admin.group.explain.title"
+msgstr "Check an account"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/EndpointsField.tsx
 msgid "admin.federation.connection.jwks.address"
 msgstr "Check the ID token with a JWKS address"
@@ -1663,6 +1693,16 @@ msgstr "Checked in this order. The first step that matches someone decides."
 #: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.diagnostics.run.checking"
 msgstr "Checking"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupExplainFrame.tsx
+msgid "admin.group.explain.loading"
+msgstr "Checking"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupExplainFrame.tsx
+msgid "admin.group.explain.checking"
+msgstr "Checking this account"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminUsers.tsx
@@ -1963,6 +2003,11 @@ msgstr "Condition"
 #: src/pages/admin/groups/RuleBuilder.tsx
 msgid "admin.group.rule.sense"
 msgstr "Condition sense"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupExplainFrame.tsx
+msgid "admin.group.explain.conditions"
+msgstr "Conditions"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/groups/rule-labels.ts
@@ -2497,6 +2542,11 @@ msgid "settings.sign-in.preview.bing_failed"
 msgstr "Couldn't get the picture from Bing."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupMatchesFrame.tsx
+msgid "admin.group.matches.capped"
+msgstr "Counted among the first {limit} accounts."
+
+#. js-lingui-explicit-id
 #: src/pages/public/Enroll.tsx
 msgid "enroll.passkey"
 msgstr "Create a passkey"
@@ -3017,6 +3067,7 @@ msgstr "Disabled"
 
 #. js-lingui-explicit-id
 #: src/components/custom/AppManagersSection.tsx
+#: src/pages/admin/groups/GroupExplainFrame.tsx
 msgid "app.managers.candidate.disabled"
 msgstr "Disabled account"
 
@@ -3095,6 +3146,11 @@ msgstr "Display name"
 #: src/api/success-messages.ts
 msgid "success.display-name.saved"
 msgstr "Display name saved"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupExplainFrame.tsx
+msgid "admin.group.explain.not-applies"
+msgstr "Does not apply:"
 
 #. js-lingui-explicit-id
 #: src/pages/public/FederationFlow.tsx
@@ -3656,6 +3712,11 @@ msgid "admin.oidc-apps.subject.confirm.body"
 msgstr "Every client that has signed this account in before stores the subject it was given. Changing the source makes each of them see a new account, so existing sessions at those clients no longer recognise it."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/explain-labels.ts
+msgid "admin.group.explain.all"
+msgstr "Every condition below applies"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.sessions.revoke_all.body"
 msgstr "Every device signed in to this account is signed out immediately and will need to sign in again."
@@ -3847,6 +3908,11 @@ msgid "admin.saml-apps.mapping.friendly-name"
 msgstr "Friendly name"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupMatchesFrame.tsx
+msgid "admin.group.matches.description"
+msgstr "From the saved rule"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ClaimMappingTable.tsx
 msgid "admin.federation.claims.column.returned.when"
 msgstr "From the test <0/>"
@@ -3970,6 +4036,11 @@ msgstr "Group"
 #: src/pages/admin/groups/AdminGroup.tsx
 msgid "admin.group.side"
 msgstr "Group context"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/explain-labels.ts
+msgid "admin.group.explain.avatar.any"
+msgstr "Has a profile picture"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/ForwardAuthHeadersSection.tsx
@@ -4231,6 +4302,11 @@ msgid "admin.saml-apps.field.lifetime.hint"
 msgstr "In minutes. Leave it empty to set no limit on how long a session lasts."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupExplainFrame.tsx
+msgid "admin.group.explain.in"
+msgstr "In this group"
+
+#. js-lingui-explicit-id
 #: src/pages/public/FederationFlow.tsx
 msgid "federation_flow.proof.step.bio"
 msgstr "In VRChat, add it to the links in your bio and save."
@@ -4319,6 +4395,16 @@ msgstr "IP address"
 #: src/pages/admin/groups/RuleBuilder.tsx
 msgid "admin.group.rule.sense.is"
 msgstr "is"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/explain-labels.ts
+msgid "admin.group.explain.protocol"
+msgstr "Is connected through {protocol}"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/explain-labels.ts
+msgid "admin.group.explain.provider"
+msgstr "Is connected to {provider}"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/groups/RuleBuilder.tsx
@@ -4821,6 +4907,11 @@ msgid "app.access.order.rule"
 msgstr "Matches a rule"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupMatchesFrame.tsx
+msgid "admin.group.matches.title"
+msgstr "Matches right now"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/SamlMetadataSection.tsx
 msgid "admin.saml-apps.metadata"
 msgstr "Metadata"
@@ -5126,6 +5217,11 @@ msgid "security.tokens.empty"
 msgstr "No access tokens yet"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupMatchesFrame.tsx
+msgid "admin.group.matches.none"
+msgstr "No account matches the saved rule."
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.sessions.empty"
 msgstr "No active sessions"
@@ -5320,6 +5416,11 @@ msgstr "None selected"
 #: src/pages/admin/identity-providers/EffectiveConfigDialog.tsx
 msgid "admin.federation.diagnostics.scopes-none"
 msgstr "None sent"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupExplainFrame.tsx
+msgid "admin.group.explain.out"
+msgstr "Not in this group"
 
 #. js-lingui-explicit-id
 #: src/pages/public/Pair.tsx
@@ -7055,6 +7156,7 @@ msgstr "Scopes"
 #: src/components/custom/AppAccessSection.tsx
 #: src/components/custom/AppManagersSection.tsx
 #: src/components/custom/EntityPicker.tsx
+#: src/pages/admin/groups/GroupExplainFrame.tsx
 msgid "admin.picker.search"
 msgstr "Search"
 
@@ -7066,6 +7168,11 @@ msgstr "Search"
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminLogs.tsx
 msgid "admin.logs.filter.account.search"
+msgstr "Search accounts"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupExplainFrame.tsx
+msgid "admin.group.explain.placeholder"
 msgstr "Search accounts"
 
 #. js-lingui-explicit-id
@@ -7112,6 +7219,11 @@ msgstr "Security"
 #: src/components/custom/ConsoleLayout.tsx
 msgid "console.security"
 msgstr "Security"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupMatchesFrame.tsx
+msgid "admin.group.matches.see-all"
+msgstr "See all"
 
 #. js-lingui-explicit-id
 #: src/components/custom/AppAccessSection.tsx
@@ -7300,6 +7412,11 @@ msgstr "Show details"
 #: src/pages/admin/settings/SignInPagePanel.tsx
 msgid "settings.sign-in.bing.caption"
 msgstr "Show the picture's title and copyright"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupMatchesFrame.tsx
+msgid "admin.group.matches.dialog.capped"
+msgstr "Showing matches among the first {limit} accounts."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/MaintenancePanel.tsx
@@ -7654,9 +7771,24 @@ msgid "settings.keys.table"
 msgstr "Signing keys"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/explain-labels.ts
+msgid "admin.group.explain.method.federation"
+msgstr "Signs in through a linked provider"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/groups/rule-labels.ts
 msgid "admin.group.rule.fact.login_method"
 msgstr "Signs in with"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/explain-labels.ts
+msgid "admin.group.explain.method.passkey"
+msgstr "Signs in with a passkey"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/explain-labels.ts
+msgid "admin.group.explain.method.password_totp"
+msgstr "Signs in with a password and authenticator"
 
 #. js-lingui-explicit-id
 #: src/pages/public/SetupSignin.tsx
@@ -7677,6 +7809,11 @@ msgstr "Skips confirming it is you"
 #: src/pages/admin/AdminGroups.tsx
 msgid "admin.groups.column.slug"
 msgstr "Slug"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupMatchesFrame.tsx
+msgid "admin.group.matches.sample"
+msgstr "Some of the matching accounts"
 
 #. js-lingui-explicit-id
 #: src/pages/public/VrchatProof.tsx
@@ -8053,6 +8190,11 @@ msgstr "The app sent account details that couldn't be checked. Go back to the ap
 #: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
 msgid "admin.oidc-apps.field.client-id.hint"
 msgstr "The client is configured with this value; it cannot change."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/explain-labels.ts
+msgid "admin.group.explain.not"
+msgstr "The condition below does not apply"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/NetworkPanel.tsx
@@ -9143,6 +9285,11 @@ msgid "success.avatar.upload-removed"
 msgstr "Uploaded picture removed"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/explain-labels.ts
+msgid "admin.group.explain.avatar.user_uploaded"
+msgstr "Uploaded their own profile picture"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminInvitations.tsx
 msgid "admin.invitations.column.provider"
 msgstr "Upstream provider"
@@ -9852,6 +9999,11 @@ msgstr "Who may come in through this provider, and which of its fields fill in t
 #: src/pages/admin/groups/GroupRuleSection.tsx
 msgid "admin.group.rule.heading"
 msgstr "Who this group matches"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupExplainFrame.tsx
+msgid "admin.group.explain.description"
+msgstr "Why someone is in or out"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/OidcScopesField.tsx

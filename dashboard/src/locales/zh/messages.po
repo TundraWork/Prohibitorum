@@ -115,6 +115,11 @@ msgid "console.devices.count"
 msgstr "{count, plural, other {# 台已登录设备}}"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupMatchesFrame.tsx
+msgid "admin.group.matches.unit"
+msgstr "{count, plural, other {个账号匹配}}"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/groups/RuleIssueSummary.tsx
 msgid "admin.group.rule.summary.missing-provider"
 msgstr "{count, plural, other {请为高亮的条件选择提供商。}}"
@@ -533,6 +538,11 @@ msgid "audit.factor.account"
 msgstr "账号"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupExplainFrame.tsx
+msgid "admin.group.explain.account"
+msgstr "账号"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/saml-projection.ts
 msgid "admin.saml-apps.source.attributes"
 msgstr "账号属性"
@@ -606,6 +616,11 @@ msgstr "账号按这个值绑定。"
 #: src/components/custom/AppAccessSection.tsx
 msgid "app.access.order.denied"
 msgstr "在这些组中被手动拒绝"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupMatchesFrame.tsx
+msgid "admin.group.matches.dialog.title"
+msgstr "匹配的账号"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/groups/RuleBuilder.tsx
@@ -1176,6 +1191,11 @@ msgid "admin.group.rule.json.applies"
 msgstr "离开输入框后生效，构建器随即显示文档中的内容。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupExplainFrame.tsx
+msgid "admin.group.explain.applies"
+msgstr "满足："
+
+#. js-lingui-explicit-id
 #: src/api/success-messages.ts
 msgid "success.device.approval-revoked"
 msgstr "已撤销批准"
@@ -1234,6 +1254,11 @@ msgstr "指派应用管理员"
 #: src/components/custom/AppManagersSection.tsx
 msgid "app.managers.assigned"
 msgstr "<0/>指派"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/explain-labels.ts
+msgid "admin.group.explain.any"
+msgstr "至少满足以下一个条件"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AttributeMapField.tsx
@@ -1630,6 +1655,11 @@ msgid "admin.federation.diagnostics.check-again"
 msgstr "再次检查"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupExplainFrame.tsx
+msgid "admin.group.explain.title"
+msgstr "检查某个账号"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/EndpointsField.tsx
 msgid "admin.federation.connection.jwks.address"
 msgstr "用 JWKS 地址校验 ID 令牌"
@@ -1663,6 +1693,16 @@ msgstr "按此顺序检查，第一个匹配的步骤决定结果。"
 #: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.diagnostics.run.checking"
 msgstr "正在检查"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupExplainFrame.tsx
+msgid "admin.group.explain.loading"
+msgstr "正在检查"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupExplainFrame.tsx
+msgid "admin.group.explain.checking"
+msgstr "正在检查此账号"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminUsers.tsx
@@ -1963,6 +2003,11 @@ msgstr "条件"
 #: src/pages/admin/groups/RuleBuilder.tsx
 msgid "admin.group.rule.sense"
 msgstr "条件判断"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupExplainFrame.tsx
+msgid "admin.group.explain.conditions"
+msgstr "条件"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/groups/rule-labels.ts
@@ -2497,6 +2542,11 @@ msgid "settings.sign-in.preview.bing_failed"
 msgstr "无法从 Bing 获取图片。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupMatchesFrame.tsx
+msgid "admin.group.matches.capped"
+msgstr "统计范围为前 {limit} 个账号。"
+
+#. js-lingui-explicit-id
 #: src/pages/public/Enroll.tsx
 msgid "enroll.passkey"
 msgstr "创建通行密钥"
@@ -3017,6 +3067,7 @@ msgstr "已停用"
 
 #. js-lingui-explicit-id
 #: src/components/custom/AppManagersSection.tsx
+#: src/pages/admin/groups/GroupExplainFrame.tsx
 msgid "app.managers.candidate.disabled"
 msgstr "账号已停用"
 
@@ -3095,6 +3146,11 @@ msgstr "显示名称"
 #: src/api/success-messages.ts
 msgid "success.display-name.saved"
 msgstr "显示名称已保存"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupExplainFrame.tsx
+msgid "admin.group.explain.not-applies"
+msgstr "不满足："
 
 #. js-lingui-explicit-id
 #: src/pages/public/FederationFlow.tsx
@@ -3656,6 +3712,11 @@ msgid "admin.oidc-apps.subject.confirm.body"
 msgstr "每个曾为该账号登录过的客户端都存有它拿到的 subject。修改来源后，这些客户端会看到一个全新的账号，它们已有的会话也不再认得它。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/explain-labels.ts
+msgid "admin.group.explain.all"
+msgstr "以下条件全部满足"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.sessions.revoke_all.body"
 msgstr "该账号已登录的每台设备都会立即登出，需要重新登录。"
@@ -3847,6 +3908,11 @@ msgid "admin.saml-apps.mapping.friendly-name"
 msgstr "友好名称"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupMatchesFrame.tsx
+msgid "admin.group.matches.description"
+msgstr "来自已保存的规则"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ClaimMappingTable.tsx
 msgid "admin.federation.claims.column.returned.when"
 msgstr "来自<0/>的测试"
@@ -3970,6 +4036,11 @@ msgstr "条件组"
 #: src/pages/admin/groups/AdminGroup.tsx
 msgid "admin.group.side"
 msgstr "用户组相关信息"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/explain-labels.ts
+msgid "admin.group.explain.avatar.any"
+msgstr "设有头像"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/ForwardAuthHeadersSection.tsx
@@ -4231,6 +4302,11 @@ msgid "admin.saml-apps.field.lifetime.hint"
 msgstr "以分钟为单位。留空则不限制会话时长。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupExplainFrame.tsx
+msgid "admin.group.explain.in"
+msgstr "在此用户组中"
+
+#. js-lingui-explicit-id
 #: src/pages/public/FederationFlow.tsx
 msgid "federation_flow.proof.step.bio"
 msgstr "在 VRChat 把它加到个人简介的链接里并保存。"
@@ -4319,6 +4395,16 @@ msgstr "IP 地址"
 #: src/pages/admin/groups/RuleBuilder.tsx
 msgid "admin.group.rule.sense.is"
 msgstr "是"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/explain-labels.ts
+msgid "admin.group.explain.protocol"
+msgstr "已通过 {protocol} 关联"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/explain-labels.ts
+msgid "admin.group.explain.provider"
+msgstr "已关联 {provider}"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/groups/RuleBuilder.tsx
@@ -4821,6 +4907,11 @@ msgid "app.access.order.rule"
 msgstr "符合规则"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupMatchesFrame.tsx
+msgid "admin.group.matches.title"
+msgstr "当前匹配的账号"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/SamlMetadataSection.tsx
 msgid "admin.saml-apps.metadata"
 msgstr "元数据"
@@ -5126,6 +5217,11 @@ msgid "security.tokens.empty"
 msgstr "还没有访问令牌"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupMatchesFrame.tsx
+msgid "admin.group.matches.none"
+msgstr "没有账号匹配已保存的规则。"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminUser.tsx
 msgid "admin.user.sessions.empty"
 msgstr "暂无在线会话"
@@ -5320,6 +5416,11 @@ msgstr "未选择"
 #: src/pages/admin/identity-providers/EffectiveConfigDialog.tsx
 msgid "admin.federation.diagnostics.scopes-none"
 msgstr "不发送"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupExplainFrame.tsx
+msgid "admin.group.explain.out"
+msgstr "不在此用户组中"
 
 #. js-lingui-explicit-id
 #: src/pages/public/Pair.tsx
@@ -7055,6 +7156,7 @@ msgstr "作用域"
 #: src/components/custom/AppAccessSection.tsx
 #: src/components/custom/AppManagersSection.tsx
 #: src/components/custom/EntityPicker.tsx
+#: src/pages/admin/groups/GroupExplainFrame.tsx
 msgid "admin.picker.search"
 msgstr "搜索"
 
@@ -7066,6 +7168,11 @@ msgstr "搜索"
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminLogs.tsx
 msgid "admin.logs.filter.account.search"
+msgstr "搜索账号"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupExplainFrame.tsx
+msgid "admin.group.explain.placeholder"
 msgstr "搜索账号"
 
 #. js-lingui-explicit-id
@@ -7112,6 +7219,11 @@ msgstr "安全"
 #: src/components/custom/ConsoleLayout.tsx
 msgid "console.security"
 msgstr "安全"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupMatchesFrame.tsx
+msgid "admin.group.matches.see-all"
+msgstr "查看全部"
 
 #. js-lingui-explicit-id
 #: src/components/custom/AppAccessSection.tsx
@@ -7300,6 +7412,11 @@ msgstr "展开详情"
 #: src/pages/admin/settings/SignInPagePanel.tsx
 msgid "settings.sign-in.bing.caption"
 msgstr "显示图片标题和版权信息"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupMatchesFrame.tsx
+msgid "admin.group.matches.dialog.capped"
+msgstr "仅显示前 {limit} 个账号中的匹配项。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/MaintenancePanel.tsx
@@ -7654,9 +7771,24 @@ msgid "settings.keys.table"
 msgstr "签名密钥"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/explain-labels.ts
+msgid "admin.group.explain.method.federation"
+msgstr "通过已关联的提供商登录"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/groups/rule-labels.ts
 msgid "admin.group.rule.fact.login_method"
 msgstr "登录方式"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/explain-labels.ts
+msgid "admin.group.explain.method.passkey"
+msgstr "使用通行密钥登录"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/explain-labels.ts
+msgid "admin.group.explain.method.password_totp"
+msgstr "使用密码和身份验证器登录"
 
 #. js-lingui-explicit-id
 #: src/pages/public/SetupSignin.tsx
@@ -7677,6 +7809,11 @@ msgstr "无需验证你的身份"
 #: src/pages/admin/AdminGroups.tsx
 msgid "admin.groups.column.slug"
 msgstr "标识"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupMatchesFrame.tsx
+msgid "admin.group.matches.sample"
+msgstr "部分匹配的账号"
 
 #. js-lingui-explicit-id
 #: src/pages/public/VrchatProof.tsx
@@ -8053,6 +8190,11 @@ msgstr "应用发来的账号信息无法核实。请回到应用重试。"
 #: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
 msgid "admin.oidc-apps.field.client-id.hint"
 msgstr "客户端就是按这个值配置的，无法修改。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/explain-labels.ts
+msgid "admin.group.explain.not"
+msgstr "以下条件不满足"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/NetworkPanel.tsx
@@ -9143,6 +9285,11 @@ msgid "success.avatar.upload-removed"
 msgstr "已移除上传的图片"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/groups/explain-labels.ts
+msgid "admin.group.explain.avatar.user_uploaded"
+msgstr "上传了自己的头像"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/AdminInvitations.tsx
 msgid "admin.invitations.column.provider"
 msgstr "上游提供商"
@@ -9852,6 +9999,11 @@ msgstr "谁可以通过这个提供商登录，以及它的哪些字段填入账
 #: src/pages/admin/groups/GroupRuleSection.tsx
 msgid "admin.group.rule.heading"
 msgstr "本组匹配哪些账号"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/GroupExplainFrame.tsx
+msgid "admin.group.explain.description"
+msgstr "查看某人为何在或不在该用户组中"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/OidcScopesField.tsx
