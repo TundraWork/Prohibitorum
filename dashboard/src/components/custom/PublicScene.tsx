@@ -47,7 +47,13 @@ export function PublicScene({
         frame={appearance.background.source === "none" ? "plain" : "frosted"}
         card={cardSurfaceStyle(appearance.card)}
         position={appearance.cardPosition}
-        after={hasCredit && <div className="lg:hidden">{credit}</div>}
+        after={
+          hasCredit && (
+            <div className="flex w-full min-w-0 justify-center lg:hidden">
+              {credit}
+            </div>
+          )
+        }
       >
         {children}
       </PublicStage>
